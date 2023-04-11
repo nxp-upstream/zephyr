@@ -15,8 +15,6 @@
 	#size-cells = <1>;
 
 	chosen {
-		zephyr,console = &uart2;
-		zephyr,shell-uart = &uart2;
 		zephyr,sram = &sram0;
 	};
 
