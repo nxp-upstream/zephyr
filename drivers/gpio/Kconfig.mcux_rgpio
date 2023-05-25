@@ -1,0 +1,12 @@
+# MCUX RGPIO configuration options
+
+# Copyright (c) 2023, NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config GPIO_MCUX_RGPIO
+	bool "MCUX RGPIO driver"
+	default y
+	depends on HAS_MCUX_RGPIO
+	depends on DT_HAS_NXP_IMX_GPIO_ENABLED
+	help
+	  Enable the MCUX RGPIO driver.

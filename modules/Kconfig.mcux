@@ -116,6 +116,11 @@ config HAS_MCUX_IGPIO
 	help
 	  Set if the iMX GPIO (IGPIO) module is present in the SoC.
 
+config HAS_MCUX_RGPIO
+	bool
+	help
+	  Set if the iMX Rapid GPIO (RGPIO) module is present in the SoC.
+
 config HAS_MCUX_IOMUXC
 	bool
 	help
