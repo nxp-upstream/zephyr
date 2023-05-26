@@ -6,7 +6,6 @@
 
 #define DT_DRV_COMPAT nxp_imx_ccm_rev2
 #include <errno.h>
-#include <soc.h>
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/dt-bindings/clock/imx_ccm_rev2.h>
 #include <fsl_clock.h>
@@ -51,6 +50,7 @@ static int mcux_ccm_get_subsys_rate(const struct device *dev,
 
 #ifdef CONFIG_UART_MCUX_LPUART
 	case IMX_CCM_LPUART1_CLK:
+	case IMX_CCM_LPUART2_CLK:
 		clock_root = kCLOCK_Root_Lpuart1 + instance;
 		break;
 #endif
@@ -106,8 +106,11 @@ static int mcux_ccm_get_subsys_rate(const struct device *dev,
 	default:
 		return -EINVAL;
 	}
-
+#ifdef CONFIG_SOC_MIMX93_A55
+	*rate = CLOCK_GetIpFreq(clock_root);
+#else
 	*rate = CLOCK_GetRootClockFreq(clock_root);
+#endif
 	return 0;
 }
 
