@@ -65,6 +65,46 @@ static const struct arm_mmu_region mmu_regions[] = {
 			      DT_REG_SIZE(DT_NODELABEL(gpio4)),
 			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
 
+    MMU_REGION_FLAT_ENTRY("I2C1",
+			      DT_REG_ADDR(DT_NODELABEL(lpi2c1)),
+			      DT_REG_SIZE(DT_NODELABEL(lpi2c1)),
+			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+
+	MMU_REGION_FLAT_ENTRY("I2C2",
+			      DT_REG_ADDR(DT_NODELABEL(lpi2c2)),
+			      DT_REG_SIZE(DT_NODELABEL(lpi2c2)),
+			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+
+	MMU_REGION_FLAT_ENTRY("I2C3",
+			      DT_REG_ADDR(DT_NODELABEL(lpi2c3)),
+			      DT_REG_SIZE(DT_NODELABEL(lpi2c3)),
+			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+
+	MMU_REGION_FLAT_ENTRY("I2C4",
+			      DT_REG_ADDR(DT_NODELABEL(lpi2c4)),
+			      DT_REG_SIZE(DT_NODELABEL(lpi2c4)),
+			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+
+	MMU_REGION_FLAT_ENTRY("SPI1",
+			      DT_REG_ADDR(DT_NODELABEL(lpspi1)),
+			      DT_REG_SIZE(DT_NODELABEL(lpspi1)),
+			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+
+	MMU_REGION_FLAT_ENTRY("SPI2",
+			      DT_REG_ADDR(DT_NODELABEL(lpspi2)),
+			      DT_REG_SIZE(DT_NODELABEL(lpspi2)),
+			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+
+	MMU_REGION_FLAT_ENTRY("SPI3",
+			      DT_REG_ADDR(DT_NODELABEL(lpspi3)),
+			      DT_REG_SIZE(DT_NODELABEL(lpspi3)),
+			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+
+	MMU_REGION_FLAT_ENTRY("SPI4",
+			      DT_REG_ADDR(DT_NODELABEL(lpspi4)),
+			      DT_REG_SIZE(DT_NODELABEL(lpspi4)),
+			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+
 #if CONFIG_SOF
 	MMU_REGION_FLAT_ENTRY("MU2_A",
 			      DT_REG_ADDR(DT_NODELABEL(mu2_a)),

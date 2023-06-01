@@ -14,6 +14,9 @@ config SOC_MIMX93_A55
 	select HAS_MCUX_CCM_REV2 if CLOCK_CONTROL
 	select HAS_MCUX_IOMUXC if PINCTRL
 	select HAS_MCUX_RGPIO
+	select HAS_MCUX_LPI2C
+	select HAS_MCUX_LPSPI
+	select HAS_MCUX_LPUART
 
 endchoice
 
