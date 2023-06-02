@@ -109,4 +109,13 @@
 	clock-frequency = <I2C_BITRATE_FAST>;
 	pinctrl-0 = <&i2c2_default>;
 	pinctrl-names = "default";
+
+	gpio_exp0: adp5585@34 {
+        compatible = "adi,adp5585-gpio";
+        reg = <0x34>;
+        gpio-controller;
+        #gpio-cells = <2>;
+        ngpios = <10>;
+        gpio-reserved-ranges = <5 3>;
+    };
 };
