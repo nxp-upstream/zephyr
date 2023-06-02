@@ -1,0 +1,19 @@
+# PCAL6408a GPIO configuration options
+
+# Copyright (c) 2023, NXP
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig GPIO_ADP5585_GPIO
+	bool "ADP5585_GPIO I2C GPIO chip"
+	default y
+	depends on DT_HAS_ADI_ADP5585_GPIO_ENABLED
+	select I2C
+	help
+	  Enable driver for ADP5585 I2C chip as GPIO expander.
+
+config GPIO_ADP5585_GPIO_INIT_PRIORITY
+	int "Init priority"
+	default 70
+	depends on GPIO_ADP5585_GPIO
+	help
+	  Device driver initialization priority.
