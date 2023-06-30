@@ -90,6 +90,20 @@ static int mcux_ccm_get_clock_root(clock_control_subsys_t sub_system,
 		*clock_root =  kCLOCK_Root_Sai1 + instance;
 		break;
 #endif
+#ifdef CONFIG_MCUX_MEDIAMIX_BLK_CTRL
+	case IMX_CCM_MEDIA_AXI_CLK:
+		*clock_root = kCLOCK_Root_MediaAxi;
+		break;
+	case IMX_CCM_MEDIA_APB_CLK:
+		*clock_root = kCLOCK_Root_MediaApb;
+		break;
+	case IMX_CCM_MEDIA_DISP_PIX_CLK:
+		*clock_root = kCLOCK_Root_MediaDispPix;
+		break;
+	case IMX_CCM_CAM_PIX_CLK:
+		*clock_root = kCLOCK_Root_CamPix;
+		break;
+#endif
 	default:
 		return -EINVAL;
 	}
@@ -234,6 +248,27 @@ static int mcux_ccm_configure_subsys(const struct device *dev,
 static int mcux_ccm_init(const struct device *dev)
 {
 #ifdef CONFIG_SOC_MIMX93_A55
+	const fracn_pll_init_t audioPllCfg = {
+		.rdiv = 1,
+		.mfi = 163,
+		.mfn = 84,
+		.mfd = 100,
+		.odiv = 10,
+	};
+
+	const fracn_pll_init_t videoPllCfg = {
+		.rdiv = 1,
+		.mfi = 175,
+		.mfn = 0,
+		.mfd = 100,
+		.odiv = 10,
+	};
+
+	/** PLL_CLKx = (24M / rdiv * (mfi + mfn/mfd) / odiv) */
+
+	CLOCK_PllInit(AUDIOPLL, &audioPllCfg);
+	CLOCK_PllInit(VIDEOPLL, &videoPllCfg);
+
 	g_clockSourceFreq[kCLOCK_Osc24M] 			= 24000000U;
 	g_clockSourceFreq[kCLOCK_SysPll1]			= 4000000000U;
 	g_clockSourceFreq[kCLOCK_SysPll1Pfd0]		= 1000000000U;
@@ -244,6 +279,8 @@ static int mcux_ccm_init(const struct device *dev)
 	g_clockSourceFreq[kCLOCK_SysPll1Pfd2Div2]	= 312500000U;
 	g_clockSourceFreq[kCLOCK_AudioPll1]			= 393216000U;
 	g_clockSourceFreq[kCLOCK_AudioPll1Out]		= 393216000U;
+	g_clockSourceFreq[kCLOCK_VideoPll1]			= 420000000U;
+	g_clockSourceFreq[kCLOCK_VideoPll1Out]		= 420000000U;
 #endif
 	return 0;
 }
