@@ -5,6 +5,11 @@
 
 menu "Miscellaneous Drivers"
 
+module = MEDIAMIX
+module-str = mediamix
+source "subsys/logging/Kconfig.template.log_config"
+
+source "drivers/misc/Kconfig.mcux_mediamix"
 source "drivers/misc/ft8xx/Kconfig"
 source "drivers/misc/grove_lcd_rgb/Kconfig"
 source "drivers/misc/pio_rpi_pico/Kconfig"

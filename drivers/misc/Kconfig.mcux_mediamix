@@ -1,0 +1,20 @@
+# NXP MEDIAMIX Block Control driver configuration options
+
+# Copyright (c) 2023, NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config MCUX_MEDIAMIX_BLK_CTRL
+	bool "NXP MCUX MEDIAMIX Block Control driver"
+	default y
+	depends on HAS_MCUX_MEDIAMIX
+	depends on DT_HAS_NXP_IMX93_MEDIAMIX_ENABLED
+	help
+	  Enable driver for MEDIAMIX Block Control.
+
+if MCUX_MEDIAMIX_BLK_CTRL
+
+config MEDIAMIX_BLK_CTRL_INIT_PRIORITY
+	int "MEDIAMIX initialization priority"
+	default 50
+
+endif # MCUX_MEDIAMIX_BLK_CTRL

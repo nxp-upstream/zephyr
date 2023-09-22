@@ -284,6 +284,11 @@ config HAS_MCUX_CSI
 	help
 	  Set if the CMOS Sensor Interface module is present in the SoC.
 
+config HAS_MCUX_MEDIAMIX
+	bool
+	help
+	  Set if the MEDIAMIX Block Control module is present in the SoC.
+
 config HAS_MCUX_LPTMR
 	bool
 	help
