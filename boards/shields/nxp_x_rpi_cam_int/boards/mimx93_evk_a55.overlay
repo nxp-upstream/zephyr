@@ -24,6 +24,11 @@
 	};
 };
 
+&isi {
+	status = "okay";
+	source = <&parallel_csi>;
+};
+
 &mt9m114 {
 	pinctrl-0 = <&pinmux_parallel_csi>;
 	pinctrl-names = "default";
