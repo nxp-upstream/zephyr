@@ -1,0 +1,20 @@
+/*
+ * Copyright 2023 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/{
+	leds {
+        status = "disabled";
+    };
+};
+
+&gpiohog_exp_sel {
+    output-high;
+};
+
+&mt9m114 {
+	powerdown-gpios = <&gpio2 5 GPIO_ACTIVE_HIGH>;
+	reset-gpios = <&gpio2 4 GPIO_ACTIVE_LOW>;
+};

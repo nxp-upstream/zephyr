@@ -1,0 +1,5 @@
+# Copyright 2023 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config SHIELD_NXP_X_RPI_CAM_INT
+	def_bool $(shields_list_contains,nxp_x_rpi_cam_int)

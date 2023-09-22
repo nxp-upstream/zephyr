@@ -1,0 +1,89 @@
+/*
+ * Copyright 2023 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	reg_rpi_cam_i2c_rdrv: reg_rpi_cam_i2c_rdrv {
+		compatible = "regulator-fixed";
+		regulator-name = "reg_rpi_cam_i2c_rdrv";
+		enable-gpios = <&gpio_exp1 4 GPIO_ACTIVE_HIGH>;
+		startup-delay-us = <0>;
+		off-on-delay-us = <0>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+	reg_rpi_cam_gpio_rdrv4: reg_rpi_cam_gpio_rdrv4 {
+		compatible = "regulator-fixed";
+		regulator-name = "reg_rpi_cam_gpio_rdrv4";
+		enable-gpios = <&gpio_exp1 5 GPIO_ACTIVE_LOW>;
+		startup-delay-us = <0>;
+		off-on-delay-us = <0>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+	reg_rpi_cam_gpio_rdrv16: reg_rpi_cam_gpio_rdrv16 {
+		compatible = "regulator-fixed";
+		regulator-name = "reg_rpi_cam_gpio_rdrv16";
+		enable-gpios = <&gpio_exp1 6 GPIO_ACTIVE_LOW>;
+		startup-delay-us = <0>;
+		off-on-delay-us = <0>;
+		regulator-boot-on;
+		regulator-always-on;
+	};
+	reg_rpi_cam_dovdd: reg_rpi_cam_dovdd {
+		compatible = "regulator-fixed";
+		regulator-name = "reg_rpi_cam_dovdd";
+		enable-gpios = <&gpio_exp1 0 GPIO_ACTIVE_HIGH>;
+		startup-delay-us = <0>;
+		off-on-delay-us = <100>;
+	};
+	reg_rpi_cam_avdd: reg_rpi_cam_avdd {
+		compatible = "regulator-fixed";
+		regulator-name = "reg_rpi_cam_avdd";
+		enable-gpios = <&gpio_exp1 1 GPIO_ACTIVE_HIGH>;
+		startup-delay-us = <0>;
+		off-on-delay-us = <100>;
+	};
+	reg_rpi_cam_dvdd: reg_rpi_cam_dvdd {
+		compatible = "regulator-fixed";
+		regulator-name = "reg_rpi_cam_dvdd";
+		enable-gpios = <&gpio_exp1 2 GPIO_ACTIVE_HIGH>;
+		startup-delay-us = <0>;
+		off-on-delay-us = <500>;
+	};
+	reg_rpi_cam_extclk: reg_rpi_cam_extclk {
+		compatible = "regulator-fixed";
+		regulator-name = "reg_rpi_cam_extclk";
+		enable-gpios = <&gpio_exp1 3 GPIO_ACTIVE_HIGH>;
+		startup-delay-us = <0>;
+		off-on-delay-us = <50000>;
+	};
+};
+
+&nxp_x_rpi_cam_int_i2c {
+	status = "okay";
+	clock-frequency = <I2C_BITRATE_FAST>;
+
+    gpio_exp1: tca9538@70 {
+		compatible = "ti,tca9538";
+		reg = <0x70>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		ngpios = <8>;
+	};
+
+	mt9m114: mt9m114@48 {
+		compatible = "aptina,mt9m114";
+		reg = <0x48>;
+		regulators = <&reg_rpi_cam_i2c_rdrv>,
+					<&reg_rpi_cam_gpio_rdrv4>,
+					<&reg_rpi_cam_gpio_rdrv16>,
+					<&reg_rpi_cam_dovdd>,
+					<&reg_rpi_cam_avdd>,
+					<&reg_rpi_cam_dvdd>,
+					<&reg_rpi_cam_extclk>;
+		status = "okay";
+	};
+};
