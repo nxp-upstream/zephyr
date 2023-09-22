@@ -318,6 +318,7 @@ static int video_mcux_pcsi_init_0(const struct device *dev)
 {
 	struct video_mcux_pcsi_data *data = dev->data;
 	const struct video_mcux_pcsi_config *config = dev->config;
+	int ret;
 
 	data->dev = dev;
 
@@ -326,6 +327,12 @@ static int video_mcux_pcsi_init_0(const struct device *dev)
 		LOG_ERR("sensor device %s not ready", config->sensor_dev->name);
 		LOG_ERR("%s init failed", dev->name);
 		return -ENODEV;
+	}
+
+	ret = video_mcux_pcsi_configure_clock(dev);
+	if (ret) {
+		LOG_ERR("%s configure clock failed", dev->name);
+		return ret;
 	}
 
 	LOG_INF("%s init succeeded, source from %s", dev->name, config->sensor_dev->name);

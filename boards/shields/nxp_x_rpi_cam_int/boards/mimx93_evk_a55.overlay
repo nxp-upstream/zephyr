@@ -14,6 +14,16 @@
     output-high;
 };
 
+&media_blk_ctrl {
+	status = "okay";
+
+	parallel_csi: pcsi {
+		clocks = <&ccm IMX_CCM_CAM_PIX_CLK 0x2 3>;
+		sensor = <&mt9m114>;
+		status = "okay";
+	};
+};
+
 &mt9m114 {
 	pinctrl-0 = <&pinmux_parallel_csi>;
 	pinctrl-names = "default";

@@ -59,6 +59,11 @@ static const struct arm_mmu_region mmu_regions[] = {
 			      DT_REG_SIZE(DT_NODELABEL(iomuxc)),
 			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
 
+	MMU_REGION_FLAT_ENTRY("MEDIAMIX",
+			      DT_REG_ADDR(DT_NODELABEL(media_blk_ctrl)),
+			      DT_REG_SIZE(DT_NODELABEL(media_blk_ctrl)),
+			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+
 	DT_FOREACH_STATUS_OKAY_VARGS(nxp_imx_gpio,
 				  MIMX9_DT_MMU_REGION_FLAT_ENTRY,
 				 (MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS))
