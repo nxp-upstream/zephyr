@@ -57,6 +57,7 @@
 #define IMX_CCM_LPSPI8_CLK		0x507UL
 
 /* USDHC */
+#define IMX_CCM_USDHC_CLK		0x600UL
 #define IMX_CCM_USDHC1_CLK		0x600UL
 #define IMX_CCM_USDHC2_CLK		0x601UL
 
@@ -83,6 +84,7 @@
 #define IMX_CCM_GPT6_CLK		0x1005UL
 
 /* SAI */
+#define IMX_CCM_SAI_CLK        0x2000UL
 #define IMX_CCM_SAI1_CLK        0x2000UL
 #define IMX_CCM_SAI2_CLK        0x2001UL
 #define IMX_CCM_SAI3_CLK        0x2002UL

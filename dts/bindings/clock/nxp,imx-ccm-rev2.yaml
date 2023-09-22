@@ -16,5 +16,5 @@ properties:
 
 clock-cells:
   - name
-  - offset
-  - bits
+  - mux
+  - div
