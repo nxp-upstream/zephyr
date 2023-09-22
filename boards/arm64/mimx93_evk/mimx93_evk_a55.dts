@@ -242,6 +242,11 @@
 	};
 };
 
+&lpi2c8 {
+	pinctrl-0 = <&i2c8_default>;
+	pinctrl-names = "default";
+};
+
 &flexcan2 {
 	pinctrl-0 = <&flexcan2_default>;
 	pinctrl-names = "default";
@@ -249,3 +254,6 @@
 	phys = <&flexcan2_phy>;
 	status = "disabled";
 };
+
+/* Required by the nxp_x_rpi_cam_int shield which enables the parallel CSI camera */
+nxp_x_rpi_cam_int_i2c: &lpi2c8 { };

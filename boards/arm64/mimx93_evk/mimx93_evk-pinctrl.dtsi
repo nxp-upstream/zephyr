@@ -71,6 +71,17 @@
 		};
 	};
 
+	i2c8_default: i2c8_default {
+		group0 {
+			pinmux = <&iomuxc1_gpio_io12_lpi2c_sda_lpi2c8_sda>,
+			         <&iomuxc1_gpio_io13_lpi2c_scl_lpi2c8_scl>;
+			drive-strength = "x5";
+			drive-open-drain;
+			slew-rate = "fast";
+			input-enable;
+		};
+	};
+
 	spi3_default: spi3_default {
 		group0 {
 			pinmux = <&iomuxc1_gpio_io07_lpspi_pcs_lpspi3_pcs1>,
@@ -98,6 +109,28 @@
 			         <&iomuxc1_gpio_io27_can_rx_can2_rx>;
 			slew-rate = "slightly_fast";
 			drive-strength = "x5";
+		};
+	};
+
+	pinmux_parallel_csi: pinmux_parallel_csi {
+		group0 {
+			pinmux = <&iomuxc1_gpio_io01_mediamix_cam_data_mediamix_cam_data00>,
+				 <&iomuxc1_gpio_io07_mediamix_cam_data_mediamix_cam_data01>,
+				 <&iomuxc1_gpio_io08_mediamix_cam_data_mediamix_cam_data02>,
+				 <&iomuxc1_gpio_io09_mediamix_cam_data_mediamix_cam_data03>,
+				 <&iomuxc1_gpio_io10_mediamix_cam_data_mediamix_cam_data04>,
+				 <&iomuxc1_gpio_io11_mediamix_cam_data_mediamix_cam_data05>,
+				 <&iomuxc1_gpio_io14_mediamix_cam_data_mediamix_cam_data06>,
+				 <&iomuxc1_gpio_io15_mediamix_cam_data_mediamix_cam_data07>,
+				 <&iomuxc1_gpio_io17_mediamix_cam_data_mediamix_cam_data08>,
+				 <&iomuxc1_gpio_io18_mediamix_cam_data_mediamix_cam_data09>,
+				 <&iomuxc1_gpio_io00_mediamix_cam_clk_mediamix_cam_clk>,
+				 <&iomuxc1_gpio_io02_mediamix_cam_vsync_mediamix_cam_vsync>,
+				 <&iomuxc1_gpio_io03_mediamix_cam_hsync_mediamix_cam_hsync>;
+			drive-open-drain;
+			bias-pull-up;
+			slew-rate = "fast";
+			drive-strength = "x4";
 		};
 	};
 
