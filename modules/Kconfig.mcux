@@ -289,6 +289,11 @@ config HAS_MCUX_MEDIAMIX
 	help
 	  Set if the MEDIAMIX Block Control module is present in the SoC.
 
+config HAS_MCUX_ISI
+	bool
+	help
+	  Set if the Image Sensing Interface module is present in the SoC.
+
 config HAS_MCUX_LPTMR
 	bool
 	help

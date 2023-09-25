@@ -1,0 +1,20 @@
+#
+# Copyright (c) 2023, NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+description: NXP MCUX Image Sensing Interface
+
+compatible: "nxp,imx-isi"
+
+include: [base.yaml, pinctrl-device.yaml]
+
+properties:
+  interrupts:
+    required: true
+
+  source:
+    required: true
+    type: phandle
+    description: phandle of input device

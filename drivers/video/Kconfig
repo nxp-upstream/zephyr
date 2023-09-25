@@ -39,6 +39,8 @@ source "drivers/video/Kconfig.mcux_csi"
 
 source "drivers/video/Kconfig.mcux_parallel_csi"
 
+source "drivers/video/Kconfig.mcux_isi"
+
 source "drivers/video/Kconfig.sw_generator"
 
 source "drivers/video/Kconfig.mt9m114"
