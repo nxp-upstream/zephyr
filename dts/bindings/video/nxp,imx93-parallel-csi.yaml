@@ -1,0 +1,17 @@
+#
+# Copyright (c) 2023, NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+description: NXP MCUX i.MX93 Parallel CSI
+
+compatible: "nxp,imx93-parallel-csi"
+
+include: [base.yaml]
+
+properties:
+  sensor:
+    required: true
+    type: phandle
+    description: phandle of connected sensor device

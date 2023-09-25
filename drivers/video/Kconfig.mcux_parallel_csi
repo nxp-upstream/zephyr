@@ -1,0 +1,18 @@
+# NXP MCUX Parallel CSI driver configuration options
+
+# Copyright (c) 2023, NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config VIDEO_MCUX_PARALLEL_CSI
+	bool "NXP MCUX i.MX93 Parallel CSI driver"
+	default y
+	depends on HAS_MCUX_MEDIAMIX
+	depends on DT_HAS_NXP_IMX93_PARALLEL_CSI_ENABLED
+
+if VIDEO_MCUX_PARALLEL_CSI
+
+config VIDEO_PARALLEL_CSI_INIT_PRIORITY
+	int "Parallel CSI initialization priority"
+	default 80
+
+endif # VIDEO_MCUX_PARALLEL_CSI
