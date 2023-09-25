@@ -5,4 +5,21 @@ description: MT9M114 CMOS video sensor
 
 compatible: "aptina,mt9m114"
 
-include: i2c-device.yaml
+include: [i2c-device.yaml, pinctrl-device.yaml]
+
+properties:
+  regulators:
+    type: phandles
+    required: true
+
+  powerdown-gpios:
+    type: phandle-array
+    required: true
+    description:
+      power down gpio. Driver will initialize this GPIO to active high
+
+  reset-gpios:
+    type: phandle-array
+    required: true
+    description:
+      reset gpio. Driver will initialize this GPIO to active low

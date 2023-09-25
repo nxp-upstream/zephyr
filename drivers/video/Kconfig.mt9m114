@@ -6,7 +6,16 @@
 config VIDEO_MT9M114
 	bool "MT9M114 Aptina CMOS digital image sensor"
 	select I2C
+	depends on REGULATOR
 	depends on DT_HAS_APTINA_MT9M114_ENABLED
 	default y
 	help
 	  Enable driver for MT9M114 CMOS digital image sensor device.
+
+if VIDEO_MT9M114
+
+config VIDEO_MT9M114_INIT_PRIORITY
+	int "MT9M114 initialization priority"
+	default 70
+
+endif # VIDEO_MT9M114
