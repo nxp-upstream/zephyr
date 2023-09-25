@@ -22,6 +22,7 @@ LOG_MODULE_REGISTER(isi, CONFIG_VIDEO_LOG_LEVEL);
 #include <string.h>
 
 #define ISI_MAX_ACTIVE_BUF 2U
+#define TEST_LVDS_DISPLAY
 
 /* Map for the fourcc pixelformat to ISI format. */
 struct isi_output_format
@@ -286,6 +287,13 @@ static int video_mcux_isi_set_fmt(const struct device *dev,
 	if (config->source_dev && video_set_format(config->source_dev, ep, &camera_fmt)) {
 		return -EIO;
 	}
+
+/* set default isi input size to the display panel size 1280x800 */
+#ifdef TEST_LVDS_DISPLAY
+	camera_fmt.width = 1280;
+	camera_fmt.height = 800;
+	camera_fmt.pitch = 1280 * isi_input_parallel.bpp / 8;
+#endif
 
 	LOG_INF("input pixelformat: %c%c%c%c, wxh: %dx%d",
 			(char)camera_fmt.pixelformat, (char)(camera_fmt.pixelformat >> 8),
