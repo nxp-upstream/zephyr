@@ -42,5 +42,6 @@ source "drivers/display/Kconfig.otm8009a"
 source "drivers/display/Kconfig.hx8394"
 source "drivers/display/Kconfig.mcux_lcdifv3"
 source "drivers/display/Kconfig.mcux_imx93_parallel_disp"
+source "drivers/display/Kconfig.mcux_imx93_ldb"
 
 endif # DISPLAY
