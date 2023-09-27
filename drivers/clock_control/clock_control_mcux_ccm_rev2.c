@@ -100,6 +100,9 @@ static int mcux_ccm_get_clock_root(clock_control_subsys_t sub_system,
 	case IMX_CCM_MEDIA_DISP_PIX_CLK:
 		*clock_root = kCLOCK_Root_MediaDispPix;
 		break;
+	case IMX_CCM_MEDIA_LDB_CLK:
+		*clock_root = kCLOCK_Root_MediaLdb;
+		break;
 	case IMX_CCM_CAM_PIX_CLK:
 		*clock_root = kCLOCK_Root_CamPix;
 		break;
