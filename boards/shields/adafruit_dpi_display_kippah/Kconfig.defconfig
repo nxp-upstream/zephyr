@@ -1,0 +1,6 @@
+# Copyright 2023 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+if SHIELD_ADAFRUIT_DIP_DISPLAY_KIPPAH
+
+endif # SHIELD_ADAFRUIT_DIP_DISPLAY_KIPPAH

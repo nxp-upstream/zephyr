@@ -1,0 +1,36 @@
+/*
+ * Copyright 2023 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	chosen {
+		zephyr,display = &lcdif;
+	};
+};
+
+&lcdif {
+	width = <800>;
+	height = <480>;
+	polarity = <3>;
+	hsync = <48>;
+	hfp = <40>;
+	hbp = <40>;
+	vsync = <3>;
+	vfp = <13>;
+	vbp = <29>;
+	pixel-format = "argb-8888";
+	clocks = <&ccm IMX_CCM_MEDIA_DISP_PIX_CLK 2 14>, //kCLOCK_VideoPll1: 420MHz
+		<&ccm IMX_CCM_MEDIA_AXI_CLK 0x2 2>,
+		<&ccm IMX_CCM_MEDIA_APB_CLK 0x2 3>;
+	status = "okay";
+};
+
+&media_blk_ctrl {
+	status = "okay";
+};
+
+&parallel_disp_fmt {
+	status = "okay";
+};
