@@ -294,6 +294,11 @@ config HAS_MCUX_ISI
 	help
 	  Set if the Image Sensing Interface module is present in the SoC.
 
+config HAS_MCUX_LCDIFV3
+	bool
+	help
+	  Set if the LCD Interface v3  module is present in the SoC.
+
 config HAS_MCUX_LPTMR
 	bool
 	help

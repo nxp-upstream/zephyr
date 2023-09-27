@@ -1,0 +1,94 @@
+# Copyright (c) 2022, NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: NXP i.MX LCDIFV3 (LCD Interface v3) controller
+
+compatible: "nxp,imx-lcdifv3"
+
+include: [base.yaml, display-controller.yaml]
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  hsync:
+    type: int
+    required: true
+    description: HSYNC pulse width in display clock cycles
+
+  hfp:
+    type: int
+    required: true
+    description: Horizontal front porch in display clock cycles
+
+  hbp:
+    type: int
+    required: true
+    description: Horizontal back porch in display clock cycles
+
+  vsync:
+    type: int
+    required: true
+    description: VSYNC pulse width in display clock cycles
+
+  vfp:
+    type: int
+    required: true
+    description: Vertical front porch in display clock cycles
+
+  vbp:
+    type: int
+    required: true
+    description: Vertical back porch in display clock cycles
+
+  polarity:
+    type: int
+    required: true
+    enum:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      - 7
+      - 8
+      - 9
+      - 10
+      - 11
+      - 12
+      - 13
+      - 14
+      - 15
+    description:
+      OR'ed value of elcdif_polarity_flags, used to control the signal polarity.
+      0000 Drive data on falling edge, DE active high, VSYNC active high, HSYNC active high.
+      0001 Drive data on falling edge, DE active high, VSYNC active high, HSYNC active low.
+      0010 Drive data on falling edge, DE active high, VSYNC active low, HSYNC active high.
+      0011 Drive data on falling edge, DE active high, VSYNC active low, HSYNC active low.
+      0100 Drive data on falling edge, DE active low, VSYNC active high, HSYNC active high.
+      0101 Drive data on falling edge, DE active low, VSYNC active high, HSYNC active low.
+      0110 Drive data on falling edge, DE active low, VSYNC active low, HSYNC active high.
+      0111 Drive data on falling edge, DE active low, VSYNC active low, HSYNC active low.
+      1000 Drive data on rising edge, DE active high, VSYNC active high, HSYNC active high.
+      1001 Drive data on rising edge, DE active high, VSYNC active high, HSYNC active low.
+      1010 Drive data on rising edge, DE active high, VSYNC active low, HSYNC active high.
+      1011 Drive data on rising edge, DE active high, VSYNC active low, HSYNC active low.
+      1100 Drive data on rising edge, DE active low, VSYNC active high, HSYNC active high.
+      1101 Drive data on rising edge, DE active low, VSYNC active high, HSYNC active low.
+      1110 Drive data on rising edge, DE active low, VSYNC active low, HSYNC active high.
+      1111 Drive data on rising edge, DE active low, VSYNC active low, HSYNC active low.
+
+  pixel-format:
+    type: string
+    required: true
+    enum:
+      - "rgb-565"
+      - "rgb-888"
+      - "argb-8888"
+    description:
+      Display pixel format.
