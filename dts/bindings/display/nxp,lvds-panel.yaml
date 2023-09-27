@@ -1,0 +1,21 @@
+# Copyright (c) 2022, NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: NXP LVDS Panel
+
+compatible: "nxp,lvds-panel"
+
+include: [base.yaml, pinctrl-device.yaml]
+
+properties:
+  lvds-blt-en-gpios:
+    required: true
+    type: phandle-array
+    description:
+      LVDS_BLT_EN GPIO. Driver will initialize this GPIO to active high
+
+  lvds-blt-pwm-gpios:
+    required: true
+    type: phandle-array
+    description:
+      LVDS_BLT_PWM GPIO. Driver will initialize this GPIO to active high
