@@ -1,0 +1,12 @@
+# NXP MEDIAMIX Parallel Display Format driver configuration options
+
+# Copyright (c) 2023, NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config MCUX_PARALLEL_DISP_FMT
+	bool "NXP MCUX parallel display bus format driver"
+	default y
+	depends on HAS_MCUX_MEDIAMIX
+	depends on DT_HAS_NXP_IMX93_PDI_ENABLED
+	help
+	  Enable driver for imx93 parallel display bus format.
