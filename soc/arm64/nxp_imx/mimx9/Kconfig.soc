@@ -20,6 +20,7 @@ config SOC_MIMX93_A55
 	select HAS_MCUX_FLEXCAN
 	select HAS_MCUX_MEDIAMIX
 	select HAS_MCUX_ISI
+	select HAS_MCUX_LCDIFV3
 
 endchoice
 

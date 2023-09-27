@@ -255,5 +255,43 @@
 	status = "disabled";
 };
 
+&lcdif {
+	width = <1280>;
+	height = <800>;
+	polarity = <8>;
+	hsync = <32>;
+	hfp = <48>;
+	hbp = <80>;
+	vsync = <6>;
+	vfp = <3>;
+	vbp = <14>;
+	pixel-format = "argb-8888";
+	clocks = <&ccm IMX_CCM_MEDIA_DISP_PIX_CLK 2 7>, //kCLOCK_VideoPll1: 420MHz
+		<&ccm IMX_CCM_MEDIA_AXI_CLK 0x2 2>,
+		<&ccm IMX_CCM_MEDIA_APB_CLK 0x2 3>;
+	status = "disabled";
+};
+
+&parallel_disp_fmt {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinmux_parallel_disp>;
+	interface-pix-fmt = "rgb666";
+	enable-gpios = <&gpio_exp0 4 GPIO_ACTIVE_HIGH>;
+	status = "disabled";
+};
+
+&ldb {
+	clocks = <&ccm IMX_CCM_MEDIA_LDB_CLK 2 1>; //kCLOCK_VideoPll1: 420MHz
+	bus-format = "RGB888_1X7X4_SPWG";
+	status = "disabled";
+
+	lvds_panel: lvds_panel {
+		compatible = "nxp,lvds-panel";
+		lvds-blt-en-gpios = <&gpio_exp0 11 GPIO_ACTIVE_HIGH>;
+		lvds-blt-pwm-gpios = <&gpio_exp0 3 GPIO_ACTIVE_HIGH>;
+		status = "disabled";
+	};
+};
+
 /* Required by the nxp_x_rpi_cam_int shield which enables the parallel CSI camera */
 nxp_x_rpi_cam_int_i2c: &lpi2c8 { };

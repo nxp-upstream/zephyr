@@ -134,4 +134,34 @@
 		};
 	};
 
+	pinmux_parallel_disp: pinmux_parallel_disp {
+		group0 {
+			pinmux = <&iomuxc1_gpio_io00_mediamix_disp_clk_mediamix_disp_clk>,
+				<&iomuxc1_gpio_io01_mediamix_disp_de_mediamix_disp_de>,
+				<&iomuxc1_gpio_io02_mediamix_disp_vsync_mediamix_disp_vsync>,
+				<&iomuxc1_gpio_io03_mediamix_disp_hsync_mediamix_disp_hsync>,
+				<&iomuxc1_gpio_io04_mediamix_disp_data_mediamix_disp_data00>,
+				<&iomuxc1_gpio_io05_mediamix_disp_data_mediamix_disp_data01>,
+				<&iomuxc1_gpio_io06_mediamix_disp_data_mediamix_disp_data02>,
+				<&iomuxc1_gpio_io07_mediamix_disp_data_mediamix_disp_data03>,
+				<&iomuxc1_gpio_io08_mediamix_disp_data_mediamix_disp_data04>,
+				<&iomuxc1_gpio_io09_mediamix_disp_data_mediamix_disp_data05>,
+				<&iomuxc1_gpio_io10_mediamix_disp_data_mediamix_disp_data06>,
+				<&iomuxc1_gpio_io11_mediamix_disp_data_mediamix_disp_data07>,
+				<&iomuxc1_gpio_io12_mediamix_disp_data_mediamix_disp_data08>,
+				<&iomuxc1_gpio_io13_mediamix_disp_data_mediamix_disp_data09>,
+				<&iomuxc1_gpio_io14_mediamix_disp_data_mediamix_disp_data10>,
+				<&iomuxc1_gpio_io15_mediamix_disp_data_mediamix_disp_data11>,
+				<&iomuxc1_gpio_io16_mediamix_disp_data_mediamix_disp_data12>,
+				<&iomuxc1_gpio_io17_mediamix_disp_data_mediamix_disp_data13>,
+				<&iomuxc1_gpio_io18_mediamix_disp_data_mediamix_disp_data14>,
+				<&iomuxc1_gpio_io19_mediamix_disp_data_mediamix_disp_data15>,
+				<&iomuxc1_gpio_io20_mediamix_disp_data_mediamix_disp_data16>,
+				<&iomuxc1_gpio_io21_mediamix_disp_data_mediamix_disp_data17>;
+			bias-pull-up;
+			slew-rate = "slightly_fast";
+			drive-strength = "x4";
+		};
+	};
+
 };

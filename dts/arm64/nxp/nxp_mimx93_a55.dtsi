@@ -364,6 +364,16 @@
 				compatible = "nxp,imx93-parallel-csi";
 				status = "disabled";
 			};
+
+			parallel_disp_fmt: pdi {
+				compatible = "nxp,imx93-pdi";
+				status = "disabled";
+			};
+
+			ldb: ldb {
+				compatible = "nxp,imx93-ldb";
+				status = "disabled";
+			};
 		};
 
 		isi: isi@4ae40000 {
@@ -373,6 +383,17 @@
 			interrupt-names = "irq_0";
 			interrupt-parent = <&gic>;
 			clocks = <&ccm IMX_CCM_MEDIA_AXI_CLK 0x2 2>,
+				<&ccm IMX_CCM_MEDIA_APB_CLK 0x2 3>;
+			status = "disabled";
+		};
+
+		lcdif: display-controller@4ae30000 {
+			compatible = "nxp,imx-lcdifv3";
+			reg = <0x4ae30000 0x10000>;
+			interrupts = <GIC_SPI 176 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+			interrupt-parent = <&gic>;
+			clocks = <&ccm IMX_CCM_MEDIA_DISP_PIX_CLK 2 7>,
+				<&ccm IMX_CCM_MEDIA_AXI_CLK 0x2 2>,
 				<&ccm IMX_CCM_MEDIA_APB_CLK 0x2 3>;
 			status = "disabled";
 		};
