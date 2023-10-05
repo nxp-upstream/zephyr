@@ -85,4 +85,14 @@
 			output-enable;
 		};
 	};
+
+	i3c0_default: i3c0_default {
+		group1 {
+			pinmux = <(PA6_I3C_0_SDA0_I | PA6_I3C_0_SDA0_O)>,
+				<(PA7_I3C_0_SCL_I | PA7_I3C_0_SCL_O)>;
+			input-enable;
+			output-enable;
+			drive-open-drain;
+		};
+	};
 };
