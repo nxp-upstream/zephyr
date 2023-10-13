@@ -17,6 +17,7 @@ config SOC_MIMX93_A55
 	select HAS_MCUX_LPI2C
 	select HAS_MCUX_LPSPI
 	select HAS_MCUX_LPUART
+	select HAS_MCUX_FLEXCAN
 
 endchoice
 

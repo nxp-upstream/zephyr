@@ -63,6 +63,14 @@
 			gpios = <&gpio2 24 GPIO_ACTIVE_LOW>;
 		};
 	};
+
+	flexcan2_phy: can-phy-tja1057 {
+		compatible = "nxp,tja1057", "can-transceiver-gpio";
+		max-bitrate = <10000000>;
+		standby-gpios = <&gpio_exp0 8 GPIO_ACTIVE_HIGH>;
+		#phy-cells = <0>;
+		status = "disabled";
+	};
 };
 
 &lpuart1 {
@@ -111,11 +119,25 @@
 	pinctrl-names = "default";
 
 	gpio_exp0: adp5585@34 {
-        compatible = "adi,adp5585-gpio";
-        reg = <0x34>;
-        gpio-controller;
-        #gpio-cells = <2>;
-        ngpios = <10>;
-        gpio-reserved-ranges = <5 3>;
-    };
+		compatible = "adi,adp5585-gpio";
+		reg = <0x34>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		ngpios = <10>;
+		gpio-reserved-ranges = <5 3>;
+
+		gpiohog_exp_sel: exp-sel-hog {
+			gpio-hog;
+			gpios = <4 GPIO_ACTIVE_HIGH>;
+			line-name = "exp_sel";
+		};
+	};
+};
+
+&flexcan2 {
+	pinctrl-0 = <&flexcan2_default>;
+	pinctrl-names = "default";
+	bus-speed = <125000>;
+	phys = <&flexcan2_phy>;
+	status = "disabled";
 };

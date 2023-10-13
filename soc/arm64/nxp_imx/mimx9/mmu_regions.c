@@ -105,6 +105,16 @@ static const struct arm_mmu_region mmu_regions[] = {
 			      DT_REG_SIZE(DT_NODELABEL(lpspi4)),
 			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
 
+	MMU_REGION_FLAT_ENTRY("CAN1",
+			      DT_REG_ADDR(DT_NODELABEL(flexcan1)),
+			      DT_REG_SIZE(DT_NODELABEL(flexcan1)),
+			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+
+	MMU_REGION_FLAT_ENTRY("CAN2",
+			      DT_REG_ADDR(DT_NODELABEL(flexcan2)),
+			      DT_REG_SIZE(DT_NODELABEL(flexcan2)),
+			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+
 #if CONFIG_SOF
 	MMU_REGION_FLAT_ENTRY("MU2_A",
 			      DT_REG_ADDR(DT_NODELABEL(mu2_a)),
