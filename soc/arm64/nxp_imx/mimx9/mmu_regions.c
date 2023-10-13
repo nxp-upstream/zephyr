@@ -8,6 +8,30 @@
 #include <zephyr/devicetree.h>
 #include <zephyr/sys/util.h>
 
+/**
+ * @brief Auto generate mmu region entry for node_id
+ *
+ * Example usage:
+ *
+ * @code{.c}
+ *      DT_FOREACH_STATUS_OKAY_VARGS(nxp_imx_gpio,
+ *				  MIMX9_DT_MMU_REGION_FLAT_ENTRY,
+ *				 (MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS))
+ * @endcode
+ *
+ * @note  Since devicetree_generated.h does not include
+ *        node_id##_P_reg_FOREACH_PROP_ELEM* definitions,
+ *        we can't automate dts node with multiple reg
+ *        entries.
+ *
+ */
+#define MIMX9_DT_MMU_REGION_FLAT_ENTRY(node_id, attrs)  \
+	MMU_REGION_FLAT_ENTRY(DT_NODE_FULL_NAME(node_id), \
+			      DT_REG_ADDR(node_id), \
+			      DT_REG_SIZE(node_id), \
+			      attrs),
+
+
 static const struct arm_mmu_region mmu_regions[] = {
 
 	MMU_REGION_FLAT_ENTRY("GIC",
@@ -30,90 +54,30 @@ static const struct arm_mmu_region mmu_regions[] = {
 			      DT_REG_SIZE(DT_NODELABEL(ana_pll)),
 			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
 
-	MMU_REGION_FLAT_ENTRY("UART1",
-			      DT_REG_ADDR(DT_NODELABEL(lpuart1)),
-			      DT_REG_SIZE(DT_NODELABEL(lpuart1)),
-			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
-
-	MMU_REGION_FLAT_ENTRY("UART2",
-			      DT_REG_ADDR(DT_NODELABEL(lpuart2)),
-			      DT_REG_SIZE(DT_NODELABEL(lpuart2)),
-			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
-
 	MMU_REGION_FLAT_ENTRY("IOMUXC",
 			      DT_REG_ADDR(DT_NODELABEL(iomuxc)),
 			      DT_REG_SIZE(DT_NODELABEL(iomuxc)),
 			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
 
-	MMU_REGION_FLAT_ENTRY("GPIO1",
-			      DT_REG_ADDR(DT_NODELABEL(gpio1)),
-			      DT_REG_SIZE(DT_NODELABEL(gpio1)),
-			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+	DT_FOREACH_STATUS_OKAY_VARGS(nxp_imx_gpio,
+				  MIMX9_DT_MMU_REGION_FLAT_ENTRY,
+				 (MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS))
 
-	MMU_REGION_FLAT_ENTRY("GPIO2",
-			      DT_REG_ADDR(DT_NODELABEL(gpio2)),
-			      DT_REG_SIZE(DT_NODELABEL(gpio2)),
-			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+	DT_FOREACH_STATUS_OKAY_VARGS(nxp_kinetis_lpuart,
+				  MIMX9_DT_MMU_REGION_FLAT_ENTRY,
+				 (MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS))
 
-	MMU_REGION_FLAT_ENTRY("GPIO3",
-			      DT_REG_ADDR(DT_NODELABEL(gpio3)),
-			      DT_REG_SIZE(DT_NODELABEL(gpio3)),
-			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+	DT_FOREACH_STATUS_OKAY_VARGS(nxp_imx_lpi2c,
+				  MIMX9_DT_MMU_REGION_FLAT_ENTRY,
+				 (MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS))
 
-	MMU_REGION_FLAT_ENTRY("GPIO4",
-			      DT_REG_ADDR(DT_NODELABEL(gpio4)),
-			      DT_REG_SIZE(DT_NODELABEL(gpio4)),
-			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+	DT_FOREACH_STATUS_OKAY_VARGS(nxp_imx_lpspi,
+				  MIMX9_DT_MMU_REGION_FLAT_ENTRY,
+				 (MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS))
 
-    MMU_REGION_FLAT_ENTRY("I2C1",
-			      DT_REG_ADDR(DT_NODELABEL(lpi2c1)),
-			      DT_REG_SIZE(DT_NODELABEL(lpi2c1)),
-			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
-
-	MMU_REGION_FLAT_ENTRY("I2C2",
-			      DT_REG_ADDR(DT_NODELABEL(lpi2c2)),
-			      DT_REG_SIZE(DT_NODELABEL(lpi2c2)),
-			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
-
-	MMU_REGION_FLAT_ENTRY("I2C3",
-			      DT_REG_ADDR(DT_NODELABEL(lpi2c3)),
-			      DT_REG_SIZE(DT_NODELABEL(lpi2c3)),
-			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
-
-	MMU_REGION_FLAT_ENTRY("I2C4",
-			      DT_REG_ADDR(DT_NODELABEL(lpi2c4)),
-			      DT_REG_SIZE(DT_NODELABEL(lpi2c4)),
-			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
-
-	MMU_REGION_FLAT_ENTRY("SPI1",
-			      DT_REG_ADDR(DT_NODELABEL(lpspi1)),
-			      DT_REG_SIZE(DT_NODELABEL(lpspi1)),
-			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
-
-	MMU_REGION_FLAT_ENTRY("SPI2",
-			      DT_REG_ADDR(DT_NODELABEL(lpspi2)),
-			      DT_REG_SIZE(DT_NODELABEL(lpspi2)),
-			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
-
-	MMU_REGION_FLAT_ENTRY("SPI3",
-			      DT_REG_ADDR(DT_NODELABEL(lpspi3)),
-			      DT_REG_SIZE(DT_NODELABEL(lpspi3)),
-			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
-
-	MMU_REGION_FLAT_ENTRY("SPI4",
-			      DT_REG_ADDR(DT_NODELABEL(lpspi4)),
-			      DT_REG_SIZE(DT_NODELABEL(lpspi4)),
-			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
-
-	MMU_REGION_FLAT_ENTRY("CAN1",
-			      DT_REG_ADDR(DT_NODELABEL(flexcan1)),
-			      DT_REG_SIZE(DT_NODELABEL(flexcan1)),
-			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
-
-	MMU_REGION_FLAT_ENTRY("CAN2",
-			      DT_REG_ADDR(DT_NODELABEL(flexcan2)),
-			      DT_REG_SIZE(DT_NODELABEL(flexcan2)),
-			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+	DT_FOREACH_STATUS_OKAY_VARGS(nxp_flexcan_fd,
+				  MIMX9_DT_MMU_REGION_FLAT_ENTRY,
+				 (MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS))
 
 #if CONFIG_SOF
 	MMU_REGION_FLAT_ENTRY("MU2_A",
