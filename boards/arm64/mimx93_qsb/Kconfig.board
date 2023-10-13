@@ -1,0 +1,7 @@
+# Copyright 2022 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_MIMX93_QSB_A55
+	bool "NXP i.MX93 QSB A55"
+	depends on SOC_SERIES_MIMX9_A55
+	select SOC_PART_NUMBER_MIMX9322CVUXK

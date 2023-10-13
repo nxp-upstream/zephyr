@@ -1,0 +1,228 @@
+/*
+ * Copyright 2022 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <nxp/nxp_mimx93_a55.dtsi>
+#include "mimx93_qsb-pinctrl.dtsi"
+
+/ {
+    model = "NXP i.MX93 A55";
+    compatible = "fsl,mimx93";
+
+    chosen {
+        zephyr,console = &lpuart2;
+        zephyr,shell-uart = &lpuart2;
+        zephyr,sram = &sram0;
+    };
+
+    cpus {
+        cpu@0 {
+            status = "disabled";
+        };
+    };
+
+    sram0: memory@c0000000 {
+        reg = <0xc0000000 DT_SIZE_M(1)>;
+    };
+
+    aliases {
+        led0 = &led_r;
+        //sw0 = &btn_1;
+    };
+
+    leds {
+        compatible = "gpio-leds";
+        led_r: led_r {
+            label = "LED_R";
+            gpios = <&gpio2 13 GPIO_ACTIVE_HIGH>;
+        };
+        led_g: led_g {
+            label = "LED_G";
+            gpios = <&gpio2 4 GPIO_ACTIVE_HIGH>;
+        };
+        led_b: led_b {
+            label = "LED_B";
+            gpios = <&gpio2 12 GPIO_ACTIVE_HIGH>;
+        };
+    };
+
+    //keys {
+    //	compatible = "gpio-keys";
+    //
+    //	btn_1: btn_1{
+    //		label = "BTN1";
+    //		gpios = <&gpio2 23 GPIO_ACTIVE_LOW>;
+    //	};
+    //
+    //	btn_2: btn_2{
+    //		label = "BTN2";
+    //		gpios = <&gpio2 24 GPIO_ACTIVE_LOW>;
+    //	};
+    //};
+
+    //flexcan1_phy: can-phy-tja1057 {
+    //	compatible = "nxp,tja1057", "can-transceiver-gpio";
+    //	max-bitrate = <10000000>;
+    //	standby-gpios = <&gpio_exp0 23 GPIO_ACTIVE_HIGH>; //FIXME pcal6524 pin 24
+    //	#phy-cells = <0>;
+    //	status = "disabled";
+    //};
+};
+
+&lpuart1 {
+    status = "okay";
+    current-speed = <115200>;
+    /* clocks = <&ccm IMX_CCM_UART4_CLK 0x6c 24>; */
+    pinctrl-0 = <&uart1_default>;
+    pinctrl-names = "default";
+};
+
+&lpuart2 {
+    status = "okay";
+    current-speed = <115200>;
+    /* clocks = <&ccm IMX_CCM_UART4_CLK 0x6c 24>; */
+    pinctrl-0 = <&uart2_default>;
+    pinctrl-names = "default";
+};
+
+&gpio1 {
+    status = "okay";
+    pinmux = <&iomuxc1_i2c1_scl_gpio_io_gpio1_io00>,
+        <&iomuxc1_i2c1_sda_gpio_io_gpio1_io01>,
+        <&iomuxc1_i2c2_scl_gpio_io_gpio1_io02>,
+        <&iomuxc1_i2c2_sda_gpio_io_gpio1_io03>,
+        <&iomuxc1_uart1_rxd_gpio_io_gpio1_io04>,
+        <&iomuxc1_uart1_txd_gpio_io_gpio1_io05>,
+        <&iomuxc1_uart2_rxd_gpio_io_gpio1_io06>,
+        <&iomuxc1_uart2_txd_gpio_io_gpio1_io07>,
+        <&iomuxc1_pdm_clk_gpio_io_gpio1_io08>,
+        <&iomuxc1_pdm_bit_stream0_gpio_io_gpio1_io09>,
+        <&iomuxc1_pdm_bit_stream1_gpio_io_gpio1_io10>,
+        <&iomuxc1_sai1_txfs_gpio_io_gpio1_io11>,
+        <&iomuxc1_sai1_txc_gpio_io_gpio1_io12>,
+        <&iomuxc1_sai1_txd0_gpio_io_gpio1_io13>,
+        <&iomuxc1_sai1_rxd0_gpio_io_gpio1_io14>,
+        <&iomuxc1_wdog_any_gpio_io_gpio1_io15>;
+};
+
+&gpio2 {
+    status = "okay";
+    pinmux = <&iomuxc1_gpio_io00_gpio_io_gpio2_io00>,
+        <&iomuxc1_gpio_io01_gpio_io_gpio2_io01>,
+        <&iomuxc1_gpio_io02_gpio_io_gpio2_io02>,
+        <&iomuxc1_gpio_io03_gpio_io_gpio2_io03>,
+        <&iomuxc1_gpio_io04_gpio_io_gpio2_io04>,
+        <&iomuxc1_gpio_io05_gpio_io_gpio2_io05>,
+        <&iomuxc1_gpio_io06_gpio_io_gpio2_io06>,
+        <&iomuxc1_gpio_io07_gpio_io_gpio2_io07>,
+        <&iomuxc1_gpio_io08_gpio_io_gpio2_io08>,
+        <&iomuxc1_gpio_io09_gpio_io_gpio2_io09>,
+        <&iomuxc1_gpio_io10_gpio_io_gpio2_io10>,
+        <&iomuxc1_gpio_io11_gpio_io_gpio2_io11>,
+        <&iomuxc1_gpio_io12_gpio_io_gpio2_io12>,
+        <&iomuxc1_gpio_io13_gpio_io_gpio2_io13>,
+        <&iomuxc1_gpio_io14_gpio_io_gpio2_io14>,
+        <&iomuxc1_gpio_io15_gpio_io_gpio2_io15>,
+        <&iomuxc1_gpio_io16_gpio_io_gpio2_io16>,
+        <&iomuxc1_gpio_io17_gpio_io_gpio2_io17>,
+        <&iomuxc1_gpio_io18_gpio_io_gpio2_io18>,
+        <&iomuxc1_gpio_io19_gpio_io_gpio2_io19>,
+        <&iomuxc1_gpio_io20_gpio_io_gpio2_io20>,
+        <&iomuxc1_gpio_io21_gpio_io_gpio2_io21>;
+};
+
+&gpio3 {
+    status = "okay";
+    pinmux = <&iomuxc1_sd2_cd_b_gpio_io_gpio3_io00>,
+        <&iomuxc1_sd2_clk_gpio_io_gpio3_io01>,
+        <&iomuxc1_sd2_cmd_gpio_io_gpio3_io02>,
+        <&iomuxc1_sd2_data0_gpio_io_gpio3_io03>,
+        <&iomuxc1_sd2_data1_gpio_io_gpio3_io04>,
+        <&iomuxc1_sd2_data2_gpio_io_gpio3_io05>,
+        <&iomuxc1_sd2_data3_gpio_io_gpio3_io06>,
+        <&iomuxc1_sd2_reset_b_gpio_io_gpio3_io07>,
+        <&iomuxc1_sd1_clk_gpio_io_gpio3_io08>,
+        <&iomuxc1_sd1_cmd_gpio_io_gpio3_io09>,
+        <&iomuxc1_sd1_data0_gpio_io_gpio3_io10>,
+        <&iomuxc1_sd1_data1_gpio_io_gpio3_io11>,
+        <&iomuxc1_sd1_data2_gpio_io_gpio3_io12>,
+        <&iomuxc1_sd1_data3_gpio_io_gpio3_io13>,
+        <&iomuxc1_sd1_data4_gpio_io_gpio3_io14>,
+        <&iomuxc1_sd1_data5_gpio_io_gpio3_io15>,
+        <&iomuxc1_sd1_data6_gpio_io_gpio3_io16>,
+        <&iomuxc1_sd1_data7_gpio_io_gpio3_io17>,
+        <&iomuxc1_sd1_strobe_gpio_io_gpio3_io18>,
+        <&iomuxc1_sd2_vselect_gpio_io_gpio3_io19>,
+        <&iomuxc1_sd3_clk_gpio_io_gpio3_io20>,
+        <&iomuxc1_sd3_cmd_gpio_io_gpio3_io21>,
+        <&iomuxc1_sd3_data0_gpio_io_gpio3_io22>,
+        <&iomuxc1_sd3_data1_gpio_io_gpio3_io23>,
+        <&iomuxc1_sd3_data2_gpio_io_gpio3_io24>,
+        <&iomuxc1_sd3_data3_gpio_io_gpio3_io25>,
+        <&iomuxc1_ccm_clko1_gpio_io_gpio3_io26>,
+        //<&iomuxc1_ccm_clko2_gpio_io_gpio3_io27>, pin io27 not available
+        <&iomuxc1_dap_tdi_gpio_io_gpio3_io28>,
+        <&iomuxc1_dap_tms_swdio_gpio_io_gpio3_io29>,
+        <&iomuxc1_dap_tclk_swclk_gpio_io_gpio3_io30>,
+        <&iomuxc1_dap_tdo_traceswo_gpio_io_gpio3_io31>;
+    gpio-reserved-ranges = <27 1>;
+};
+
+&gpio4 {
+    status = "okay";
+    pinmux = <&iomuxc1_enet1_mdc_gpio_io_gpio4_io00>,
+        <&iomuxc1_enet1_mdio_gpio_io_gpio4_io01>,
+        <&iomuxc1_enet1_td3_gpio_io_gpio4_io02>,
+        <&iomuxc1_enet1_td2_gpio_io_gpio4_io03>,
+        <&iomuxc1_enet1_td1_gpio_io_gpio4_io04>,
+        <&iomuxc1_enet1_td0_gpio_io_gpio4_io05>,
+        <&iomuxc1_enet1_tx_ctl_gpio_io_gpio4_io06>,
+        <&iomuxc1_enet1_txc_gpio_io_gpio4_io07>,
+        <&iomuxc1_enet1_rx_ctl_gpio_io_gpio4_io08>,
+        <&iomuxc1_enet1_rxc_gpio_io_gpio4_io09>,
+        <&iomuxc1_enet1_rd0_gpio_io_gpio4_io10>,
+        <&iomuxc1_enet1_rd1_gpio_io_gpio4_io11>,
+        <&iomuxc1_enet1_rd2_gpio_io_gpio4_io12>,
+        <&iomuxc1_enet1_rd3_gpio_io_gpio4_io13>;
+};
+
+&lpi2c1 {
+    status = "okay";
+    clock-frequency = <I2C_BITRATE_FAST>;
+    pinctrl-0 = <&i2c1_default>;
+    pinctrl-names = "default";
+};
+
+&lpi2c2 {
+    status = "okay";
+    clock-frequency = <I2C_BITRATE_FAST>;
+    pinctrl-0 = <&i2c2_default>;
+    pinctrl-names = "default";
+
+    gpio_exp0: adp5585@34 {
+        compatible = "adi,adp5585-gpio";
+        reg = <0x34>;
+        gpio-controller;
+        #gpio-cells = <2>;
+        ngpios = <10>;
+        gpio-reserved-ranges = <5 3>;
+
+        gpiohog_exp_sel: exp-sel-hog {
+            gpio-hog;
+            gpios = <4 GPIO_ACTIVE_HIGH>;
+            line-name = "exp_sel";
+        };
+    };
+};
+
+//&flexcan1 {
+//	pinctrl-0 = <&flexcan1_default>;
+//	pinctrl-names = "default";
+//	bus-speed = <125000>;
+//	phys = <&flexcan1_phy>;
+//	status = "disabled";
+//};

@@ -1,0 +1,15 @@
+# Copyright 2022 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_MIMX93_QSB_A55
+
+config BOARD
+	default "mimx93_qsb_a55"
+
+config SOC
+	default "mimx9322"
+
+config SOC_PART_NUMBER_MIMX9322CVWXM
+	default y
+
+endif # BOARD_MIMX93_9X9_QSB_A55
