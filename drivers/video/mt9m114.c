@@ -595,7 +595,6 @@ static int mt9m114_power_up(const struct mt9m114_config *cfg)
 
 	for(uint32_t i = 0; i < cfg->power_regulator_count; ++i)
 	{
-		printk("enable %d\n", i);
 		ret = regulator_enable(cfg->power_regulator_list[i]);
 		if(ret != 0)
 		{
