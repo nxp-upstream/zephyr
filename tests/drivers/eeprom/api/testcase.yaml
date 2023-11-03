@@ -14,6 +14,10 @@ tests:
       - qemu_x86
       - nucleo_l152re
       - nucleo_l073rz
+      - s32z2xxdc2/s32z270/rtu0
+      - s32z2xxdc2/s32z270/rtu1
+      - s32z2xxdc2@D/s32z270/rtu0
+      - s32z2xxdc2@D/s32z270/rtu1
     integration_platforms:
       - qemu_x86
   drivers.eeprom.api.w_at2x_emul:
