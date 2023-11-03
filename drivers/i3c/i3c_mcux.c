@@ -398,7 +398,9 @@ static inline void mcux_i3c_status_clear_all(I3C_Type *base)
 {
 	uint32_t mask = I3C_MSTATUS_MCTRLDONE_MASK |
 			I3C_MSTATUS_COMPLETE_MASK |
+#if !defined(FSL_FEATURE_I3C_HAS_NO_MSTATUS_IBIWON) || (!FSL_FEATURE_I3C_HAS_NO_MSTATUS_IBIWON)
 			I3C_MSTATUS_IBIWON_MASK |
+#endif
 			I3C_MSTATUS_ERRWARN_MASK;
 
 	mcux_i3c_status_clear(base, mask);
@@ -497,23 +499,12 @@ static inline void mcux_i3c_errwarn_clear_all_nowait(I3C_Type *base)
 static inline void mcux_i3c_request_daa(I3C_Type *base)
 {
 	reg32_update(&base->MCTRL,
-		     I3C_MCTRL_REQUEST_MASK | I3C_MCTRL_IBIRESP_MASK | I3C_MCTRL_RDTERM_MASK,
-		     I3C_MCTRL_REQUEST_PROCESS_DAA | I3C_MCTRL_IBIRESP_NACK);
-}
-
-/**
- * @brief Tell controller to start auto IBI.
- *
- * @param base Pointer to controller registers.
- */
-static inline void mcux_i3c_request_auto_ibi(I3C_Type *base)
-{
-	reg32_update(&base->MCTRL,
-		     I3C_MCTRL_REQUEST_MASK | I3C_MCTRL_IBIRESP_MASK | I3C_MCTRL_RDTERM_MASK,
-		     I3C_MCTRL_REQUEST_AUTO_IBI | I3C_MCTRL_IBIRESP_ACK_AUTO);
-
-	/* AUTO_IBI should result in IBIWON bit being set in status */
-	mcux_i3c_status_wait_clear(base, I3C_MSTATUS_IBIWON_MASK);
+		     I3C_MCTRL_REQUEST_MASK |
+#if !(defined(FSL_FEATURE_I3C_HAS_NO_MASTER_IBIRESP) && FSL_FEATURE_I3C_HAS_NO_MASTER_IBIRESP)
+		     I3C_MCTRL_IBIRESP_MASK | I3C_MCTRL_IBIRESP_NACK |
+#endif
+		     I3C_MCTRL_RDTERM_MASK,
+		     I3C_MCTRL_REQUEST_PROCESS_DAA);
 }
 
 /**
@@ -605,7 +596,9 @@ static int mcux_i3c_request_emit_start(I3C_Type *base, uint8_t addr, bool is_i2c
 	int ret = 0;
 
 	mctrl = is_i2c ? I3C_MCTRL_TYPE_I2C : I3C_MCTRL_TYPE_I3C;
+#if !(defined(FSL_FEATURE_I3C_HAS_NO_MASTER_IBIRESP) && FSL_FEATURE_I3C_HAS_NO_MASTER_IBIRESP)
 	mctrl |= I3C_MCTRL_IBIRESP_NACK;
+#endif
 
 	if (is_read) {
 		mctrl |= I3C_MCTRL_DIR_READ;
@@ -742,34 +735,22 @@ static inline void mcux_i3c_request_emit_stop(struct mcux_i3c_data *dev_data,
 	k_condvar_broadcast(&dev_data->condvar);
 }
 
+#ifdef CONFIG_I3C_USE_IBI
 /**
- * @brief Tell controller to NACK the incoming IBI.
+ * @brief Tell controller to start auto IBI.
  *
  * @param base Pointer to controller registers.
  */
-static inline void mcux_i3c_ibi_respond_nack(I3C_Type *base)
+static inline void mcux_i3c_request_auto_ibi(I3C_Type *base)
 {
 	reg32_update(&base->MCTRL,
-		     I3C_MCTRL_REQUEST_MASK | I3C_MCTRL_IBIRESP_MASK,
-		     I3C_MCTRL_REQUEST_IBI_ACK_NACK | I3C_MCTRL_IBIRESP_NACK);
+		     I3C_MCTRL_REQUEST_MASK | I3C_MCTRL_IBIRESP_MASK | I3C_MCTRL_RDTERM_MASK,
+		     I3C_MCTRL_REQUEST_AUTO_IBI | I3C_MCTRL_IBIRESP_ACK_AUTO);
 
-	mcux_i3c_status_wait_clear(base, I3C_MSTATUS_MCTRLDONE_MASK);
+	/* AUTO_IBI should result in IBIWON bit being set in status */
+	mcux_i3c_status_wait_clear(base, I3C_MSTATUS_IBIWON_MASK);
 }
-
-/**
- * @brief Tell controller to ACK the incoming IBI.
- *
- * @param base Pointer to controller registers.
- */
-static inline void mcux_i3c_ibi_respond_ack(I3C_Type *base)
-{
-	reg32_update(&base->MCTRL,
-		     I3C_MCTRL_REQUEST_MASK | I3C_MCTRL_IBIRESP_MASK,
-		     I3C_MCTRL_REQUEST_IBI_ACK_NACK | I3C_MCTRL_IBIRESP_ACK);
-
-	mcux_i3c_status_wait_clear(base, I3C_MSTATUS_MCTRLDONE_MASK);
-}
-
+#endif
 /**
  * @brief Get the number of bytes in RX FIFO.
  *
@@ -870,6 +851,7 @@ static int mcux_i3c_recover_bus(const struct device *dev)
 		mcux_i3c_request_emit_stop(dev->data, base, true);
 	};
 
+#ifdef CONFIG_I3C_USE_IBI
 	/* Exhaust all target initiated IBI */
 	while (mcux_i3c_status_is_set(base, I3C_MSTATUS_SLVSTART_MASK)) {
 		/* Tell the controller to perform auto IBI. */
@@ -890,7 +872,7 @@ static int mcux_i3c_recover_bus(const struct device *dev)
 		 */
 		k_busy_wait(100);
 	}
-
+#endif
 	if (reg32_poll_timeout(&base->MSTATUS, I3C_MSTATUS_STATE_MASK,
 			       I3C_MSTATUS_STATE_IDLE, 1000) == -ETIMEDOUT) {
 		ret = -EBUSY;
@@ -1465,6 +1447,35 @@ out_ccc_stop:
 }
 
 #ifdef CONFIG_I3C_USE_IBI
+
+/**
+ * @brief Tell controller to NACK the incoming IBI.
+ *
+ * @param base Pointer to controller registers.
+ */
+static inline void mcux_i3c_ibi_respond_nack(I3C_Type *base)
+{
+	reg32_update(&base->MCTRL,
+		     I3C_MCTRL_REQUEST_MASK | I3C_MCTRL_IBIRESP_MASK,
+		     I3C_MCTRL_REQUEST_IBI_ACK_NACK | I3C_MCTRL_IBIRESP_NACK);
+
+	mcux_i3c_status_wait_clear(base, I3C_MSTATUS_MCTRLDONE_MASK);
+}
+
+/**
+ * @brief Tell controller to ACK the incoming IBI.
+ *
+ * @param base Pointer to controller registers.
+ */
+static inline void mcux_i3c_ibi_respond_ack(I3C_Type *base)
+{
+	reg32_update(&base->MCTRL,
+		     I3C_MCTRL_REQUEST_MASK | I3C_MCTRL_IBIRESP_MASK,
+		     I3C_MCTRL_REQUEST_IBI_ACK_NACK | I3C_MCTRL_IBIRESP_ACK);
+
+	mcux_i3c_status_wait_clear(base, I3C_MSTATUS_MCTRLDONE_MASK);
+}
+
 /**
  * @brief Callback to service target initiated IBIs.
  *
@@ -2018,14 +2029,21 @@ static int mcux_i3c_init(const struct device *dev)
 	}
 
 	/* Disable all interrupts */
-	base->MINTCLR = I3C_MINTCLR_SLVSTART_MASK |
+	base->MINTCLR =
+#if !(defined(FSL_FEATURE_I3C_HAS_NO_MASTER_IBIRESP) && FSL_FEATURE_I3C_HAS_NO_MASTER_IBIRESP)
+			I3C_MINTCLR_SLVSTART_MASK |
+#endif
 			I3C_MINTCLR_MCTRLDONE_MASK |
 			I3C_MINTCLR_COMPLETE_MASK |
 			I3C_MINTCLR_RXPEND_MASK |
 			I3C_MINTCLR_TXNOTFULL_MASK |
+#if !(defined(FSL_FEATURE_I3C_HAS_NO_MSTATUS_IBIWON) && FSL_FEATURE_I3C_HAS_NO_MSTATUS_IBIWON)
 			I3C_MINTCLR_IBIWON_MASK |
-			I3C_MINTCLR_ERRWARN_MASK |
-			I3C_MINTCLR_NOWMASTER_MASK;
+#endif
+#if !(defined(FSL_FEATURE_I3C_HAS_NO_MSTATUS_NOWMASTER) && FSL_FEATURE_I3C_HAS_NO_MSTATUS_NOWMASTER)
+			I3C_MINTCLR_NOWMASTER_MASK |
+#endif
+			I3C_MINTCLR_ERRWARN_MASK;
 
 	/* Just in case the bus is not in idle. */
 	ret = mcux_i3c_recover_bus(dev);
