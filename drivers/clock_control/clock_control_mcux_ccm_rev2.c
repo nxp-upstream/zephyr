@@ -125,6 +125,7 @@ static int mcux_ccm_on(const struct device *dev,
 		return rt;
 
 	CLOCK_PowerOnRootClock(clock_root);
+	return 0;
 #else
 #warning This function is only tested on i.MX93
 	return 0;
@@ -143,6 +144,7 @@ static int mcux_ccm_off(const struct device *dev,
 		return rt;
 
 	CLOCK_PowerOffRootClock(clock_root);
+	return 0;
 #else
 #warning This function is only tested on i.MX93
 	return 0;
@@ -294,7 +296,7 @@ static const struct clock_control_driver_api mcux_ccm_driver_api = {
 	.off = mcux_ccm_off,
 	.get_rate = mcux_ccm_get_subsys_rate,
 	.get_status = mcux_ccm_get_subsys_status,
-	.set_rate = mcux_ccm_set_subsys_rate,
+	.set_rate = (clock_control_set)mcux_ccm_set_subsys_rate,
 	.configure = mcux_ccm_configure_subsys,
 };
 #else
