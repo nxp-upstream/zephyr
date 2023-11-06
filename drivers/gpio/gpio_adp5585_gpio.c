@@ -229,7 +229,7 @@ static int gpio_adp5585_gpio_config(const struct device *dev, gpio_pin_t pin,
 	}
 
 	if (set_output)
-		rc = i2c_burst_write_dt(&cfg->i2c, ADP5585_GPO_DATA_OUT_A, &drv_data->output, 2U);
+		rc = i2c_burst_write_dt(&cfg->i2c, ADP5585_GPO_DATA_OUT_A, (uint8_t*)&drv_data->output, 2U);
 
 	if (rc == 0)
 		rc = i2c_reg_update_byte_dt(&cfg->i2c, ADP5585_GPIO_DIRECTION_A + bank, (1U << bank_pin), reg_value);
@@ -257,7 +257,7 @@ static int gpio_adp5585_gpio_port_read(const struct device *dev,
 	k_sem_take(&drv_data->lock, K_FOREVER);
 
 	/* Read Input Register */
-	rc = i2c_burst_read_dt(&cfg->i2c, ADP5585_GPI_STATUS_A, &input_data, 2U);
+	rc = i2c_burst_read_dt(&cfg->i2c, ADP5585_GPI_STATUS_A, (uint8_t*)&input_data, 2U);
 	LOG_DBG("read %x got %d", input_data, rc);
 	if (rc == 0) {
 		*value = input_data;
@@ -288,7 +288,7 @@ static int gpio_adp5585_gpio_port_write(const struct device *dev,
 	orig_out = drv_data->output;
 	out = ((orig_out & ~mask) | (value & mask)) ^ toggle;
 
-	rc = i2c_burst_write_dt(&cfg->i2c, ADP5585_GPO_DATA_OUT_A, &out, 2U);
+	rc = i2c_burst_write_dt(&cfg->i2c, ADP5585_GPO_DATA_OUT_A, (uint8_t*)&out, 2U);
 
 	if (rc == 0) {
 		drv_data->output = out;
@@ -339,7 +339,7 @@ static int gpio_adp5585_gpio_port_toggle_bits(const struct device *dev,
 static int gpio_adp5585_gpio_init(const struct device *dev)
 {
 	const struct adp5585_gpio_config *cfg = dev->config;
-	struct adp5585_gpio_drv_data *drv_data = dev->data;
+	//struct adp5585_gpio_drv_data *drv_data = dev->data;
 	int rc = 0;
 
 	if (!device_is_ready(cfg->i2c.bus)) {
