@@ -64,13 +64,13 @@
     //	};
     //};
 
-    //flexcan1_phy: can-phy-tja1057 {
-    //	compatible = "nxp,tja1057", "can-transceiver-gpio";
-    //	max-bitrate = <10000000>;
-    //	standby-gpios = <&gpio_exp0 23 GPIO_ACTIVE_HIGH>; //FIXME pcal6524 pin 24
-    //	#phy-cells = <0>;
-    //	status = "disabled";
-    //};
+	flexcan1_phy: can-phy-tja1057 {
+		compatible = "nxp,tja1057", "can-transceiver-gpio";
+		max-bitrate = <10000000>;
+		standby-gpios = <&gpio_exp1 23 GPIO_ACTIVE_HIGH>;
+		#phy-cells = <0>;
+		status = "disabled";
+	};
 };
 
 &lpuart1 {
@@ -203,26 +203,39 @@
     pinctrl-0 = <&i2c2_default>;
     pinctrl-names = "default";
 
-    gpio_exp0: adp5585@34 {
-        compatible = "adi,adp5585-gpio";
-        reg = <0x34>;
-        gpio-controller;
-        #gpio-cells = <2>;
-        ngpios = <10>;
-        gpio-reserved-ranges = <5 3>;
+    gpio_exp1: pcal6524@22 {
+		compatible = "nxp,pca-series";
+        part_no = "pcal6524";
+		reg = <0x22>;
+		gpio-controller;
+		#gpio-cells = <2>;
+        interrupt-gpios = <&gpio3 27 (GPIO_ACTIVE_LOW|GPIO_PULL_UP)>;
+        status = "okay";
+
+        gpiohog_mic_can_sel: mic-can-sel-hog {
+            gpio-hog;
+            gpios = <17 GPIO_ACTIVE_HIGH>;
+            line-name = "mic_can_sel";
+        };
 
         gpiohog_exp_sel: exp-sel-hog {
             gpio-hog;
-            gpios = <4 GPIO_ACTIVE_HIGH>;
+            gpios = <22 GPIO_ACTIVE_HIGH>;
             line-name = "exp_sel";
         };
     };
 };
 
-//&flexcan1 {
-//	pinctrl-0 = <&flexcan1_default>;
-//	pinctrl-names = "default";
-//	bus-speed = <125000>;
-//	phys = <&flexcan1_phy>;
-//	status = "disabled";
-//};
+&flexcan1 {
+	pinctrl-0 = <&flexcan1_default>;
+	pinctrl-names = "default";
+	sample-point = <875>;
+	sample-point-data = <875>;
+	bus-speed = <125000>;
+	bus-speed-data = <1000000>;
+	phys = <&flexcan1_phy>;
+	status = "disabled";
+	can-transceiver {
+		max-bitrate = <8000000>;
+	};
+};
