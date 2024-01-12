@@ -15,6 +15,7 @@
 
 #include <zephyr/logging/log.h>
 #include <zephyr/irq.h>
+#include <zephyr/cache.h>
 
 #define MCUX_LCDIFV3_FB_NUM 1
 
@@ -78,12 +79,15 @@ static int mcux_lcdifv3_write(const struct device *dev, const uint16_t x,
 #endif
 	/* wait for the next frame done */
 	k_sem_reset(&dev_data->sem);
-	k_sem_take(&dev_data->sem, K_FOREVER);
 
-	LCDIFV3_SetStrideBytes(config->base, desc->pitch);
+	sys_cache_data_flush_and_invd_range(buf, desc->buf_size);
+
+	//LCDIFV3_SetStrideBytes(config->base, desc->pitch);
 	LCDIFV3_SetLayerSize(config->base, desc->width, desc->height);
 	LCDIFV3_SetLayerBufferAddr(config->base, buf);
 	LCDIFV3_TriggerLayerShadowLoad(config->base);
+
+	k_sem_take(&dev_data->sem, K_FOREVER);
 
 	return 0;
 }
