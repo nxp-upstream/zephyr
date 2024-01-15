@@ -22,8 +22,6 @@ LOG_MODULE_REGISTER(isi, CONFIG_VIDEO_LOG_LEVEL);
 #include <string.h>
 
 #define ISI_MAX_ACTIVE_BUF 2U
-//#define TEST_LVDS_DISPLAY
-#define TEST_QRCODE
 
 /* Map for the fourcc pixelformat to ISI format. */
 struct isi_output_format
@@ -314,13 +312,13 @@ static int video_mcux_isi_set_fmt(const struct device *dev,
 	}
 
 /* set default isi input size to the display panel size 1280x800 */
-#ifdef TEST_LVDS_DISPLAY
+#ifdef CONFIG_VIDEO_MCUX_ISI_PREVIEW_WORKAROUND
 	camera_fmt.width = 1280;
 	camera_fmt.height = 800;
 	camera_fmt.pitch = 1280 * isi_input_parallel.bpp / 8;
 #endif
 
-#ifdef TEST_QRCODE
+#ifdef CONFIG_VIDEO_MCUX_ISI_BARCODE_WORKAROUND
 	camera_fmt.width = 1280;
 	camera_fmt.height = 722;
 	camera_fmt.pitch = 1280 * isi_input_parallel.bpp / 8;
@@ -359,7 +357,7 @@ static int video_mcux_isi_set_fmt(const struct device *dev,
 					data->isi_config.inputWidth, data->isi_config.inputHeight,
 					data->output_width, data->output_height);
 
-#ifdef TEST_QRCODE
+#ifdef CONFIG_VIDEO_MCUX_ISI_BARCODE_WORKAROUND
 	/* no down scale */
 	ISI_SetScalerConfig(config->base,
 					data->isi_config.inputWidth, data->isi_config.inputHeight,

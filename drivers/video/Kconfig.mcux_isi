@@ -17,4 +17,25 @@ config VIDEO_MCUX_ISI_INIT_PRIORITY
     int "ISI initialization priority"
     default 80
 
+config VIDEO_MCUX_ISI_PREVIEW_WORKAROUND
+    bool "Enable specia handling for camera_displey_preview demo"
+    default n
+    depends on HAS_MCUX_ISI
+    depends on DT_HAS_NXP_IMX_ISI_ENABLED
+    help
+      Enable specia handling for camera_displey_preview demo.
+      It expands video buffer to 1280x800 to fit the frame
+      buffer size of LVDS display on i.MX 93.
+
+config VIDEO_MCUX_ISI_BARCODE_WORKAROUND
+    bool "Enable specia handling for barcode_scanner demo"
+    default n
+    depends on HAS_MCUX_ISI
+    depends on DT_HAS_NXP_IMX_ISI_ENABLED
+    help
+      Enable specia handling for barcode_scanner demo. This
+      includes image crop, horizontal flip and alpha
+      insertion. It also fixes blank frame issue when using
+      parallel csi camera and CSC on i.MX 93.
+
 endif # VIDEO_MCUX_ISI
