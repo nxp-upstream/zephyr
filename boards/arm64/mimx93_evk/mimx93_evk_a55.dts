@@ -250,9 +250,15 @@
 &flexcan2 {
 	pinctrl-0 = <&flexcan2_default>;
 	pinctrl-names = "default";
+	sample-point = <875>;
+	sample-point-data = <875>;
 	bus-speed = <125000>;
+	bus-speed-data = <1000000>;
 	phys = <&flexcan2_phy>;
 	status = "disabled";
+	can-transceiver {
+		max-bitrate = <8000000>;
+	};
 };
 
 &lcdif {
