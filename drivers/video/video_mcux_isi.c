@@ -22,7 +22,8 @@ LOG_MODULE_REGISTER(isi, CONFIG_VIDEO_LOG_LEVEL);
 #include <string.h>
 
 #define ISI_MAX_ACTIVE_BUF 2U
-#define TEST_LVDS_DISPLAY
+//#define TEST_LVDS_DISPLAY
+#define TEST_QRCODE
 
 /* Map for the fourcc pixelformat to ISI format. */
 struct isi_output_format
@@ -126,6 +127,7 @@ struct video_mcux_isi_config {
 struct video_mcux_isi_data {
 	const struct device *dev;
 	isi_config_t isi_config;
+	isi_crop_config_t isi_crop_config;
 	uint32_t output_pixelformat;
 	uint16_t output_width;
 	uint16_t output_height;
@@ -146,17 +148,23 @@ struct video_mcux_isi_data {
 #ifdef DEBUG
 static void dump_isi_regs(ISI_Type *base)
 {
-	LOG_DBG("CHNL_CTRL[0x0]: 0x%08x", base->CHNL_CTRL);
-	LOG_DBG("CHNL_IMG_CTRL[0x4]: 0x%08x", base->CHNL_IMG_CTRL);
-	LOG_DBG("CHNL_OUT_BUF_CTRL[0x8]: 0x%08x", base->CHNL_OUT_BUF_CTRL);
-	LOG_DBG("CHNL_IMG_CFG[0x10]: 0x%08x", base->CHNL_IMG_CFG);
-	LOG_DBG("CHNL_IER[0x10]: 0x%08x", base->CHNL_IER);
-	LOG_DBG("CHNL_SCALE_FACTOR[0x18]: 0x%08x", base->CHNL_SCALE_FACTOR);
-	LOG_DBG("CHNL_SCALE_OFFSET[0x1C]: 0x%08x", base->CHNL_SCALE_OFFSET);
-	LOG_DBG("CHNL_OUT_BUF1_ADDR_Y[0x70]: 0x%08x", base->CHNL_OUT_BUF1_ADDR_Y);
-	LOG_DBG("CHNL_OUT_BUF_PITCH[0x7C]: 0x%08x", base->CHNL_OUT_BUF_PITCH);
-	LOG_DBG("CHNL_OUT_BUF2_ADDR_Y[0x8C]: 0x%08x", base->CHNL_OUT_BUF2_ADDR_Y);
-	LOG_DBG("CHNL_SCL_IMG_CFG[0x98]: 0x%08x", base->CHNL_SCL_IMG_CFG);
+	LOG_WRN("CHNL_CTRL[0x0]: 0x%08x", base->CHNL_CTRL);
+	LOG_WRN("CHNL_IMG_CTRL[0x4]: 0x%08x", base->CHNL_IMG_CTRL);
+	LOG_WRN("CHNL_OUT_BUF_CTRL[0x8]: 0x%08x", base->CHNL_OUT_BUF_CTRL);
+	LOG_WRN("CHNL_IMG_CFG[0x10]: 0x%08x", base->CHNL_IMG_CFG);
+	LOG_WRN("CHNL_IER[0x10]: 0x%08x", base->CHNL_IER);
+	LOG_WRN("CHNL_SCALE_FACTOR[0x18]: 0x%08x", base->CHNL_SCALE_FACTOR);
+	LOG_WRN("CHNL_SCALE_OFFSET[0x1C]: 0x%08x", base->CHNL_SCALE_OFFSET);
+	LOG_WRN("CHNL_OUT_BUF1_ADDR_Y[0x70]: 0x%08x", base->CHNL_OUT_BUF1_ADDR_Y);
+	LOG_WRN("CHNL_OUT_BUF_PITCH[0x7C]: 0x%08x", base->CHNL_OUT_BUF_PITCH);
+	LOG_WRN("CHNL_OUT_BUF2_ADDR_Y[0x8C]: 0x%08x", base->CHNL_OUT_BUF2_ADDR_Y);
+	LOG_WRN("CHNL_SCL_IMG_CFG[0x98]: 0x%08x", base->CHNL_SCL_IMG_CFG);
+	LOG_WRN("CHNL_SCALE_FACTOR[] : 0x%08x", base->CHNL_SCALE_FACTOR);
+	LOG_WRN("CHNL_SCALE_OFFSET[] : 0x%08x", base->CHNL_SCALE_OFFSET);
+	LOG_WRN("CHNL_CROP_ULC[] : 0x%08x", base->CHNL_CROP_ULC);
+	LOG_WRN("CHNL_CROP_LRC[] : 0x%08x", base->CHNL_CROP_LRC);
+	LOG_WRN("CHNL_STS[] : 0x%08x", base->CHNL_STS);
+	LOG_WRN("CHNL_OUT_BUF_PITCH[] : 0x%08x", base->CHNL_OUT_BUF_PITCH);
 }
 #else
 static void dump_isi_regs(ISI_Type *base) {}
@@ -198,6 +206,11 @@ static int get_isi_output_format(uint32_t fourcc)
 	return -1;
 }
 
+static int is_buf_active(uint32_t status, int buf_id)
+{
+       return (buf_id == 1) ? (status & 0x100) : (status & 0x200);
+}
+
 static void __frame_done_handler(const struct device *dev)
 {
 	const struct video_mcux_isi_config *config = dev->config;
@@ -210,10 +223,22 @@ static void __frame_done_handler(const struct device *dev)
 	intStatus = ISI_GetInterruptStatus(config->base);
 	ISI_ClearInterruptStatus(config->base, intStatus);
 
+	//if ((uint32_t)ISI_CHNL_IER_EARLY_VSYNC_ERR_EN_MASK == ((uint32_t)ISI_CHNL_IER_EARLY_VSYNC_ERR_EN_MASK & intStatus))
+	//{
+	//	LOG_ERR("Early VSYNC!!!");
+	//}
+
+	LOG_DBG("frame done: status 0x%8.8x", intStatus);
 	if ((uint32_t)kISI_FrameReceivedInterrupt != ((uint32_t)kISI_FrameReceivedInterrupt & intStatus))
 	{
 		return;
 	}
+
+    if ((is_buf_active(intStatus, 1) && data->buffer_index == 0) ||
+        (is_buf_active(intStatus, 2) && data->buffer_index == 1))
+    {
+            LOG_ERR("buf1/2 mismatch: status 0x%8.8x", intStatus);
+    }
 
 	buffer_addr = data->active_buffer[data->buffer_index];
 
@@ -295,6 +320,12 @@ static int video_mcux_isi_set_fmt(const struct device *dev,
 	camera_fmt.pitch = 1280 * isi_input_parallel.bpp / 8;
 #endif
 
+#ifdef TEST_QRCODE
+	camera_fmt.width = 1280;
+	camera_fmt.height = 722;
+	camera_fmt.pitch = 1280 * isi_input_parallel.bpp / 8;
+#endif
+
 	LOG_INF("input pixelformat: %c%c%c%c, wxh: %dx%d",
 			(char)camera_fmt.pixelformat, (char)(camera_fmt.pixelformat >> 8),
 			(char)(camera_fmt.pixelformat >> 16), (char)(camera_fmt.pixelformat >> 24),
@@ -315,16 +346,41 @@ static int video_mcux_isi_set_fmt(const struct device *dev,
 	data->isi_config.inputHeight = camera_fmt.height;
 	data->isi_config.outputFormat = isi_format;
 	data->isi_config.outputLinePitchBytes = data->output_width * data->output_bpp / 8;
+	data->isi_config.isYCbCr = true;
+	data->isi_config.thresholdV = 7;
+	data->isi_config.thresholdU = 7;
+	data->isi_config.thresholdY = 7;
 
 	ISI_Init(config->base);
 	ISI_SetConfig(config->base, &data->isi_config);
 
-	/* no flip, crop, alpha insersion */
-
-	/* down scale */
+	/* no down scale */
 	ISI_SetScalerConfig(config->base,
 					data->isi_config.inputWidth, data->isi_config.inputHeight,
 					data->output_width, data->output_height);
+
+#ifdef TEST_QRCODE
+	/* no down scale */
+	ISI_SetScalerConfig(config->base,
+					data->isi_config.inputWidth, data->isi_config.inputHeight,
+					data->isi_config.inputWidth, data->isi_config.inputHeight);
+
+
+	/* crop from the central x region */
+	data->isi_crop_config.upperLeftX = (data->isi_config.inputWidth - data->output_width) / 2;
+	data->isi_crop_config.upperLeftY = 0;
+	data->isi_crop_config.lowerRightX = (data->isi_config.inputWidth + data->output_width) / 2 - 1;
+	data->isi_crop_config.lowerRightY = data->output_height - 1;
+    ISI_SetCropConfig(config->base, &data->isi_crop_config);
+    ISI_EnableCrop(config->base, true);
+
+	/* global alpha insersion in argb */
+    ISI_SetGlobalAlpha(config->base, 0xFF);
+    ISI_EnableGlobalAlpha(config->base, true);
+
+	/* hflip */
+    ISI_SetFlipMode(config->base, kISI_FlipHorizontal);
+#endif
 
 	/* color space conversion*/
 	ISI_EnableColorSpaceConversion(config->base, false);
@@ -394,6 +450,7 @@ static int video_mcux_isi_stream_start(const struct device *dev)
 
 	ISI_ClearInterruptStatus(config->base, (uint32_t)kISI_FrameReceivedInterrupt);
 	ISI_EnableInterrupts(config->base, (uint32_t)kISI_FrameReceivedInterrupt);
+	ISI_EnableInterrupts(config->base, (uint32_t)ISI_CHNL_IER_EARLY_VSYNC_ERR_EN_MASK);
 	ISI_Start(config->base);
 	dump_isi_regs(config->base);
 
@@ -477,6 +534,7 @@ static int video_mcux_isi_dequeue(const struct device *dev,
 	if (*vbuf == NULL) {
 		return -EAGAIN;
 	}
+	LOG_DBG("get vbuf 0x%8.8x", (uint32_t)(*vbuf)->buffer);
 
 	return 0;
 }
