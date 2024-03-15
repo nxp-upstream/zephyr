@@ -39,7 +39,9 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include <zephyr/dt-bindings/ethernet/nxp_enet.h>
 #include <zephyr/net/phy.h>
 #include <zephyr/net/mii.h>
+#ifdef CONFIG_PTP_CLOCK
 #include <zephyr/drivers/ptp_clock.h>
+#endif
 #if defined(CONFIG_NET_DSA)
 #include <zephyr/net/dsa.h>
 #endif
