@@ -195,6 +195,19 @@ class Node:
         """
         return f"<Node {self.path} in '{self.dt.filename}'>"
 
+    def _is_child_referenced(self):
+        # Recursively Checks if any children of the node are referenced
+        # This is useful to prevent deletion of nodes whose child nodes
+
+        # are referenced, when that node itself is not referenced.
+        for child in self.nodes.values():
+            if child._is_referenced:
+                return True
+            elif child._is_child_referenced():
+                return True
+        # No referenced child was found
+        return False
+
 # See Property.type
 class Type(enum.IntEnum):
     EMPTY = 0
@@ -1884,7 +1897,9 @@ class DT:
         # iteration' errors
         for node in tuple(self.node_iter()):
             if node._omit_if_no_ref and not node._is_referenced:
-                node._del()
+                # Check if children of the node are referenced
+                if not node._is_child_referenced():
+                    node._del()
 
     def _register_labels(self):
         # Checks for duplicate labels and registers labels in label2node,
