@@ -14,7 +14,7 @@ properties:
   reg:
     required: true
     description: |
-      Tuple containing address of register, offset, and width of the bitfield
+      Tuple containing address of register and width of the bitfield
       to set to enable the clock source
 
   frequency:
@@ -22,6 +22,12 @@ properties:
     required: true
     description: |
       frequency this clock source provides, in Hz
+
+  offset:
+    type: int
+    required: true
+    description: |
+      Offset of bitfield within register to set to enable clock
 
   "#clock-cells":
     const: 1

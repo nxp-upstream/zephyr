@@ -14,8 +14,14 @@ properties:
   reg:
     required: true
     description: |
-      Tuple containing address of register, offset, and width of the bitfield
+      Tuple containing address of register and width of the bitfield
       to set to ungate the clock
+
+  offset:
+    type: int
+    required: true
+    description: |
+      Offset of bitfield within register to set to ungate clock
 
   "#clock-cells":
     const: 1

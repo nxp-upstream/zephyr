@@ -15,7 +15,7 @@ properties:
   reg:
     required: true
     description: |
-      Tuple containing address of register, offset, and width of the bitfield
+      Tuple containing address of register and width of the bitfield
       to set to set the divider value
 
   "#clock-cells":

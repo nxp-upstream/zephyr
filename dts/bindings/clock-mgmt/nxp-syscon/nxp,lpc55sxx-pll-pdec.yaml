@@ -6,7 +6,7 @@ description: |
   which sets the division factor for the parent PLL (PDEC field). The post
   divider only accepts division factors of 2 (for example /2, /4, /6 ..)
 
-compatible: "nxp,lpc55xxx-pll-pdec"
+compatible: "nxp,lpc55sxx-pll-pdec"
 
 include: [clock-node.yaml]
 
@@ -14,7 +14,7 @@ properties:
   reg:
     required: true
     description: |
-      Tuple containing address of register, offset, and width of the bitfield
+      Tuple containing address of register, and width of the bitfield
       to set to configure the post divider
 
   "#clock-cells":

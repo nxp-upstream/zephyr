@@ -14,7 +14,7 @@ properties:
   reg:
     required: true
     description: |
-      Tuple containing address of register, offset, and width of the bitfield
+      Tuple containing address of register and width of the bitfield
       to set to set the multiplexer selection
 
   input-sources:
@@ -23,6 +23,12 @@ properties:
     description: |
       List of all input sources provided to the multiplexer. These sources
       should be references to other clock nodes within the clock tree.
+
+  offset:
+    type: int
+    required: true
+    description: |
+      Offset of bitfield within register to set to configure multiplexer
 
   "#clock-cells":
     const: 1

@@ -1,0 +1,23 @@
+# Copyright 2024 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+#
+# Clock controller drivers
+#
+menuconfig CLOCK_MGMT
+	bool "Clock management drivers"
+	help
+	  Enable support for clock management drivers. These drivers provide
+	  clock configuration to the system via a series of setpoints, which
+	  allow drivers to configure clocks based on their desired power
+	  state
+
+if CLOCK_CONTROL
+
+module = CLOCK_MGMT
+module-str = clock management
+source "subsys/logging/Kconfig.template.log_config"
+
+source "drivers/clock_mgmt/nxp_syscon/Kconfig"
+
+endif # CLOCK_CONTROL
