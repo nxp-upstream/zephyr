@@ -991,6 +991,51 @@ def write_global_macros(edt):
             out_define(
                 f"DT_COMPAT_{str2ident(compat)}_BUS_{str2ident(bus)}", 1)
 
+    out_comment('Macros for clock nodes utilized by enabled devices\n')
+
+    clock_node_used = set()
+
+    for node in edt.nodes:
+        if node.status == "okay":
+            referenced_clocks = []
+            # Find clocks referenced by clock-state-<index> properties
+            clock_state_props = [prop for name, prop in node.props.items()
+                         if re.match("clock-state-[0-9]+", name)]
+            for state in clock_state_props:
+                for clock_node_ph in state.val:
+                    referenced_clocks.append(clock_node_ph.controller)
+            if "clock-outputs" in node.props:
+                # Find clocks referenced by clock property
+                for clock_node in node.props["clock-outputs"].val:
+                    referenced_clocks.append(clock_node)
+            # Find all dependencies of the referenced clocks
+            for clock in referenced_clocks:
+                referenced_clocks.extend(node_dependencies(clock))
+            # Add referenced clocks to list of used clocks
+            clock_node_used.update(referenced_clocks)
+
+    # Define macro for all used clock nodes
+    out_dt_define("CLOCK_USED(fn)",
+                  " ".join(f"fn(DT_{node.z_path_id})" for node in clock_node_used))
+
+    # Define macros to iterate over all clock nodes with a given compatible
+    clock_foreach_macros = {}
+    for compat, nodes in edt.compat2nodes.items():
+        # Find any used clocks with this compatible
+        enabled_clocks = clock_node_used.intersection(nodes)
+        if len(enabled_clocks) > 0:
+            ident = str2ident(compat)
+            # Create macros for this compatible
+            clock_foreach_macros[f"DT_CLOCK_HAS_USED_{ident}"] = 1
+            clock_foreach_macros[f"DT_FOREACH_CLOCK_USED_{ident}(fn)"] = \
+                " ".join(f"fn(DT_{node.z_path_id})"
+                         for node in enabled_clocks)
+            clock_foreach_macros[f"DT_FOREACH_CLOCK_USED_INST_{ident}(fn)"] = \
+                " ".join(f"fn({edt.compat2nodes[compat].index(node)})"
+                         for node in enabled_clocks)
+    for macro, value in clock_foreach_macros.items():
+        out_define(macro, value)
+
 def str2ident(s):
     # Converts 's' to a form suitable for (part of) an identifier
 
@@ -1079,6 +1124,15 @@ def quote_str(s):
 
     return f'"{escape(s)}"'
 
+
+def node_dependencies(node):
+    # Returns list of all nodes that depend on a given node,
+    # populated recursively
+    depends = []
+    for dep in node.depends_on:
+        depends.extend(node_dependencies(dep))
+        depends.append(dep)
+    return depends
 
 def write_pickled_edt(edt, out_file):
     # Writes the edt object in pickle format to out_file.
