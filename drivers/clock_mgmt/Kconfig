@@ -12,7 +12,7 @@ menuconfig CLOCK_MGMT
 	  allow drivers to configure clocks based on their desired power
 	  state
 
-if CLOCK_CONTROL
+if CLOCK_MGMT
 
 module = CLOCK_MGMT
 module-str = clock management
@@ -20,4 +20,4 @@ source "subsys/logging/Kconfig.template.log_config"
 
 source "drivers/clock_mgmt/nxp_syscon/Kconfig"
 
-endif # CLOCK_CONTROL
+endif # CLOCK_MGMT

@@ -6,8 +6,6 @@
 
 #include <zephyr/drivers/clock_mgmt/clock_driver.h>
 
-#include "../clock_mgmt_common.h"
-
 #define DT_DRV_COMPAT nxp_syscon_clock_source
 
 struct syscon_clock_source_config {

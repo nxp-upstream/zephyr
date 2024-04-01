@@ -81,109 +81,6 @@ struct clock_mgmt_callback {
 };
 
 /**
- * @brief Get rate of a clock
- *
- * Gets the rate of a clock, in Hz. A rate of zero indicates the clock is
- * active or powered down.
- * @param clk clock device to read rate from
- * @return -ENOSYS if clock does not implement get_rate API
- * @return -EIO if clock could not be read
- * @return negative errno for other error reading clock rate
- * @return frequency of clock output in HZ
- */
-static inline int clock_get_rate(const struct clk *clk)
-{
-	if (!(clk->api) || !(clk->api->get_rate)) {
-		return -ENOSYS;
-	}
-
-	return clk->api->get_rate(clk);
-}
-
-/**
- * @brief Configure a clock
- *
- * Configure a clock device using hardware specific data
- * @param clk clock device to configure
- * @param data hardware specific clock configuration data
- * @return -ENOSYS if clock does not implement configure API
- * @return -EIO if clock could not be configured
- * @return negative errno for other error configuring clock
- * @return 0 on successful clock configuration
- */
-static inline int clock_configure(const struct clk *clk, void *data)
-{
-	if (!(clk->api) || !(clk->api->configure)) {
-		return -ENOSYS;
-	}
-
-	return clk->api->configure(clk, data);
-}
-
-
-#if defined(CONFIG_CLOCK_MGMT_SET_SET_RATE) || defined(__DOXYGEN__)
-
-/**
- * @brief Get nearest rate a clock can support
- *
- * Returns the actual rate that this clock would produce if `clock_set_rate`
- * was called with the requested frequency.
- * @param clk clock device to query
- * @param req_rate: Requested clock rate, in Hz
- * @return -ENOTSUP if API is not supported
- * @return -ENOSYS if clock does not implement round_rate API
- * @return -EIO if clock could not be queried
- * @return negative errno for other error calculating rate
- * @return rate clock would produce (in Hz) on success
- */
-static inline int clock_round_rate(const struct clk *clk, uint32_t req_rate)
-{
-	if (!(clk->api) || !(clk->api->round_rate)) {
-		return -ENOSYS;
-	}
-
-	return clk->api->round_rate(clk, req_rate);
-}
-
-/**
- * @brief Set a clock rate
- *
- * Sets a clock to the nearest frequency to the requested rate
- * @param clk clock device to set rate for
- * @param rate: rate to configure clock for, in Hz
- * @return -ENOTSUP if API is not supported
- * @return -ENOSYS if clock does not implement set_rate API
- * @return -EIO if clock rate could not be set
- * @return negative errno for other error setting rate
- * @return rate clock is set to produce (in Hz) on success
- */
-static inline int clock_set_rate(const struct clk *clk, uint32_t rate)
-{
-	if (!(clk->api) || !(clk->api->set_rate)) {
-		return -ENOSYS;
-	}
-
-	return clk->api->set_rate(clk, rate);
-}
-
-#else /* if !defined(CONFIG_CLOCK_MGMT_SET_SET_RATE) */
-
-/* Stub functions to indicate set_rate and round_rate are not supported */
-static inline int clock_round_rate(const struct clk *clk, uint32_t req_rate)
-{
-	return -ENOTSUP;
-}
-
-static inline int clock_set_rate(const struct clk *clk, uint32_t rate)
-{
-	return -ENOTSUP;
-}
-
-#endif /* defined(CONFIG_CLOCK_MGMT_SET_SET_RATE) || defined(__DOXYGEN__) */
-
-/** @cond INTERNAL_HIDDEN */
-
-/**
  * @brief Helper to add or remove clock callback
  * @param callbacks A pointer to the original list of callbacks
  * @param callback A pointer of the callback to insert or remove from the list
@@ -287,6 +184,117 @@ static inline void clock_fire_callbacks(const struct clk *clk)
 		cb->handler(cb->user_data);
 	}
 }
+
+/**
+ * @brief Get rate of a clock
+ *
+ * Gets the rate of a clock, in Hz. A rate of zero indicates the clock is
+ * active or powered down.
+ * @param clk clock device to read rate from
+ * @return -ENOSYS if clock does not implement get_rate API
+ * @return -EIO if clock could not be read
+ * @return negative errno for other error reading clock rate
+ * @return frequency of clock output in HZ
+ */
+static inline int clock_get_rate(const struct clk *clk)
+{
+	if (!(clk->api) || !(clk->api->get_rate)) {
+		return -ENOSYS;
+	}
+
+	return clk->api->get_rate(clk);
+}
+
+/**
+ * @brief Configure a clock
+ *
+ * Configure a clock device using hardware specific data
+ * @param clk clock device to configure
+ * @param data hardware specific clock configuration data
+ * @return -ENOSYS if clock does not implement configure API
+ * @return -EIO if clock could not be configured
+ * @return negative errno for other error configuring clock
+ * @return 0 on successful clock configuration
+ */
+static inline int clock_configure(const struct clk *clk, void *data)
+{
+	int ret;
+
+	if (!(clk->api) || !(clk->api->configure)) {
+		return -ENOSYS;
+	}
+
+	ret = clk->api->configure(clk, data);
+	if (ret < 0) {
+		return ret;
+	}
+
+	/* Fire callbacks */
+	clock_fire_callbacks(clk);
+}
+
+
+#if defined(CONFIG_CLOCK_MGMT_SET_SET_RATE) || defined(__DOXYGEN__)
+
+/**
+ * @brief Get nearest rate a clock can support
+ *
+ * Returns the actual rate that this clock would produce if `clock_set_rate`
+ * was called with the requested frequency.
+ * @param clk clock device to query
+ * @param req_rate: Requested clock rate, in Hz
+ * @return -ENOTSUP if API is not supported
+ * @return -ENOSYS if clock does not implement round_rate API
+ * @return -EIO if clock could not be queried
+ * @return negative errno for other error calculating rate
+ * @return rate clock would produce (in Hz) on success
+ */
+static inline int clock_round_rate(const struct clk *clk, uint32_t req_rate)
+{
+	if (!(clk->api) || !(clk->api->round_rate)) {
+		return -ENOSYS;
+	}
+
+	return clk->api->round_rate(clk, req_rate);
+}
+
+/**
+ * @brief Set a clock rate
+ *
+ * Sets a clock to the nearest frequency to the requested rate
+ * @param clk clock device to set rate for
+ * @param rate: rate to configure clock for, in Hz
+ * @return -ENOTSUP if API is not supported
+ * @return -ENOSYS if clock does not implement set_rate API
+ * @return -EIO if clock rate could not be set
+ * @return negative errno for other error setting rate
+ * @return rate clock is set to produce (in Hz) on success
+ */
+static inline int clock_set_rate(const struct clk *clk, uint32_t rate)
+{
+	if (!(clk->api) || !(clk->api->set_rate)) {
+		return -ENOSYS;
+	}
+
+	return clk->api->set_rate(clk, rate);
+}
+
+#else /* if !defined(CONFIG_CLOCK_MGMT_SET_SET_RATE) */
+
+/* Stub functions to indicate set_rate and round_rate are not supported */
+static inline int clock_round_rate(const struct clk *clk, uint32_t req_rate)
+{
+	return -ENOTSUP;
+}
+
+static inline int clock_set_rate(const struct clk *clk, uint32_t rate)
+{
+	return -ENOTSUP;
+}
+
+#endif /* defined(CONFIG_CLOCK_MGMT_SET_SET_RATE) || defined(__DOXYGEN__) */
+
+/** @cond INTERNAL_HIDDEN */
 
 #ifdef __cplusplus
 }

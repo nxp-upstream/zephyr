@@ -22,24 +22,38 @@ static int clock_mgmt_init(void)
 /* Initialize clocks at early boot */
 SYS_INIT(clock_mgmt_init, EARLY, 0);
 
+/* Callback implementation to forward a callback to subscribers to this
+ * clock's rate change notifications
+ */
+void clock_mgmt_forward_cb(void *clk_obj)
+{
+	const struct clk *clk = clk_obj;
+
+	clock_fire_callbacks(clk);
+}
+
 /**
- * @brief Helper to install a callback on the parent's clock
+ * @brief Helper to install a standard callback on the parent's clock
  *
  * Helper function to install a callback on a clock's parent during
  * init. This function requires that the first element in the `config`
  * structure for the given clock be a pointer to its parent clock,
- * and the first element in the `data` structure be an initialized
+ * and the first element in the `data` structure be a
  * `struct clock_mgmt_callback`.
  *
- * The function will install a callback on the parent clock, using the
- * `struct clock_mgmt_callback`.
+ * The function will install a callback on the parent clock which
+ * simply fires any callbacks registered for the current clock, effectively
+ * forwarding the clock callback notification to any subscribers for this clock.
  * @return -EINVAL if parameters are invalid
  * @return 0 on success
  */
-int clock_mgmt_install_parent_cb(const struct clk *clk)
+void clock_mgmt_install_forward_cb(const struct clk *clk)
 {
-	struct clk *parent = clk->config;
-	struct clock_mgmt_callback *cb = &clk->data;
+	const struct clk *parent = clk->config;
+	struct clock_mgmt_callback *cb = (struct clock_mgmt_callback *)&clk->data;
 
-	return clock_register_callback(parent, cb);
+	/* Setup callback object */
+	clock_init_callback(cb, clock_mgmt_forward_cb, (void *)clk);
+
+	clock_register_callback(parent, cb);
 }
