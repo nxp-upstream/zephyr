@@ -107,6 +107,9 @@
 
 &flexcomm0 {
 	status = "okay";
+	clock-outputs = <&frgctrl0_mul>;
+	clock-state-0 = <&fcclksel0 3>;
+	clock-state-names = "default";
 };
 
 &flexcomm4 {
