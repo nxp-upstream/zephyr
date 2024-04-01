@@ -14,6 +14,8 @@
 
 #include <zephyr/sys/slist.h>
 #include <zephyr/device.h>
+#include <zephyr/drivers/clock_mgmt/clock.h>
+#include <errno.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,28 +29,6 @@ extern "C" {
  */
 
 /**
- * @brief Runtime clock structure (in ROM) for each clock node
- */
-struct clk {
-	/** Callbacks to notify when clock is reconfigured */
-	sys_slist_t callbacks;
-	/** Address of private clock instance configuration information */
-	const void *config;
-	/** Address of private clock instance mutable data */
-	void *data;
-	/** Gets clock rate in Hz */
-	int (*get_rate)(const struct clk *clk);
-	/** Configure a clock with device specific data */
-	int (*configure)(const struct clk *clk, void *data);
-#ifdef CONFIG_CLOCK_MGMT_SET_SET_RATE
-	/** Gets nearest rate clock can support, in Hz */
-	int (*round_rate)(const struct clk *clk, uint32_t rate);
-	/** Sets clock rate in Hz */
-	int (*set_rate)(const struct clk *clk, uint32_t rate);
-#endif
-};
-
-/**
  * @brief Clock Driver API
  *
  * Clock driver API function prototypes. A pointer to a structure of this
@@ -59,347 +39,254 @@ struct clock_driver_api {
 	int (*get_rate)(const struct clk *clk);
 	/** Configure a clock with device specific data */
 	int (*configure)(const struct clk *clk, void *data);
+#if defined(CONFIG_CLOCK_MGMT_SET_SET_RATE) || defined(__DOXYGEN__)
 	/** Gets nearest rate clock can support, in Hz */
 	int (*round_rate)(const struct clk *clk, uint32_t rate);
 	/** Sets clock rate in Hz */
 	int (*set_rate)(const struct clk *clk, uint32_t rate);
+#endif
+};
+
+struct clock_mgmt_callback;
+
+/**
+ * @typedef clock_mgmt_callback_handler_t
+ * @brief Define the application clock callback handler function signature
+ *
+ * @param user_data User data field set for callback
+ */
+typedef void (*clock_mgmt_callback_handler_t)(void *user_data);
+
+/**
+ * @brief Clock management callback structure
+ *
+ * Used to register a callback for clock change events in the driver consuming
+ * the clock. As many callbacks as needed can be added as long as each of them
+ * are unique pointers of struct clock_mgmt_callback.
+ * Beware such pointers must not be allocated on the stack.
+ *
+ * Note: to help setting the callback, clock_mgmt_init_callback()
+ */
+struct clock_mgmt_callback {
+	/** This is meant to be used in the driver and the user should not
+	 * mess with it
+	 */
+	sys_snode_t node;
+
+	/** Actual callback function being called when relevant */
+	clock_mgmt_callback_handler_t handler;
+
+	/** User data pointer */
+	void *user_data;
 };
 
 /**
- * @brief Clock Driver initialization structure
+ * @brief Get rate of a clock
+ *
+ * Gets the rate of a clock, in Hz. A rate of zero indicates the clock is
+ * active or powered down.
+ * @param clk clock device to read rate from
+ * @return -ENOSYS if clock does not implement get_rate API
+ * @return -EIO if clock could not be read
+ * @return negative errno for other error reading clock rate
+ * @return frequency of clock output in HZ
  */
-struct clock_init {
-	/** Clock initialization function */
-	void (*init_fn)(const struct clk *clk);
-	/** Parameter to pass to initialization function*/
-	const struct clk *clk;
-};
+static inline int clock_get_rate(const struct clk *clk)
+{
+	if (!(clk->api) || !(clk->api->get_rate)) {
+		return -ENOSYS;
+	}
+
+	return clk->api->get_rate(clk);
+}
 
 /**
- * @brief Expands to the name of a global clock object.
+ * @brief Configure a clock
  *
- * Return the full name of a clock object symbol created by CLOCK_DT_DEFINE(),
- * using the `dev_id` provided by Z_DEVICE_DT_DEV_ID(). This is the name of the
- * global variable storing the clock structure
- *
- * It is meant to be used for declaring extern symbols pointing to clock objects
- * before using the CLOCK_GET macro to get the device object.
- *
- * @param dev_id Device identifier.
- *
- * @return The full name of the clock object defined by clock definition
- * macros.
+ * Configure a clock device using hardware specific data
+ * @param clk clock device to configure
+ * @param data hardware specific clock configuration data
+ * @return -ENOSYS if clock does not implement configure API
+ * @return -EIO if clock could not be configured
+ * @return negative errno for other error configuring clock
+ * @return 0 on successful clock configuration
  */
-#define CLOCK_NAME_GET(dev_id) _CONCAT(__clock_, dev_id)
+static inline int clock_configure(const struct clk *clk, void *data)
+{
+	if (!(clk->api) || !(clk->api->configure)) {
+		return -ENOSYS;
+	}
+
+	return clk->api->configure(clk, data);
+}
+
+
+#if defined(CONFIG_CLOCK_MGMT_SET_SET_RATE) || defined(__DOXYGEN__)
 
 /**
- * @brief The name of the global clock object for @param node_id
+ * @brief Get nearest rate a clock can support
  *
- * Returns the name of the global clock structure as a C identifier. The clock
- * must be allocated using CLOCK_DT_DEFINE() or CLOCK_DT_INST_DEFINE() for
- * this to work.
- *
- * @param node_id Devicetree node identifier
- *
- * @return The name of the clock object as a C identifier
+ * Returns the actual rate that this clock would produce if `clock_set_rate`
+ * was called with the requested frequency.
+ * @param clk clock device to query
+ * @param req_rate: Requested clock rate, in Hz
+ * @return -ENOTSUP if API is not supported
+ * @return -ENOSYS if clock does not implement round_rate API
+ * @return -EIO if clock could not be queried
+ * @return negative errno for other error calculating rate
+ * @return rate clock would produce (in Hz) on success
  */
-#define CLOCK_DT_NAME_GET(node_id) CLOCK_NAME_GET(Z_DEVICE_DT_DEV_ID(node_id))
+static inline int clock_round_rate(const struct clk *clk, uint32_t req_rate)
+{
+	if (!(clk->api) || !(clk->api->round_rate)) {
+		return -ENOSYS;
+	}
+
+	return clk->api->round_rate(clk, req_rate);
+}
 
 /**
- * @brief Get a @ref clk reference from a clock devicetree node identifier.
+ * @brief Set a clock rate
  *
- * Returns a pointer to a clock object created from a devicetree node, if any
- * clock was allocated by a driver. If not such clock was allocated, this will
- * fail at linker time. If you get an error that looks like
- * `undefined reference to __device_dts_ord_<N>`, that is what happened.
- * Check to make sure your clock driver is being compiled,
- * usually by enabling the Kconfig options it requires.
- *
- * @param node_id A devicetree node identifier
- *
- * @return A pointer to the clock object created for that node
+ * Sets a clock to the nearest frequency to the requested rate
+ * @param clk clock device to set rate for
+ * @param rate: rate to configure clock for, in Hz
+ * @return -ENOTSUP if API is not supported
+ * @return -ENOSYS if clock does not implement set_rate API
+ * @return -EIO if clock rate could not be set
+ * @return negative errno for other error setting rate
+ * @return rate clock is set to produce (in Hz) on success
  */
-#define CLOCK_DT_GET(node_id) (&CLOCK_DT_NAME_GET(node_id))
+static inline int clock_set_rate(const struct clk *clk, uint32_t rate)
+{
+	if (!(clk->api) || !(clk->api->set_rate)) {
+		return -ENOSYS;
+	}
+
+	return clk->api->set_rate(clk, rate);
+}
+
+#else /* if !defined(CONFIG_CLOCK_MGMT_SET_SET_RATE) */
+
+/* Stub functions to indicate set_rate and round_rate are not supported */
+static inline int clock_round_rate(const struct clk *clk, uint32_t req_rate)
+{
+	return -ENOTSUP;
+}
+
+static inline int clock_set_rate(const struct clk *clk, uint32_t rate)
+{
+	return -ENOTSUP;
+}
+
+#endif /* defined(CONFIG_CLOCK_MGMT_SET_SET_RATE) || defined(__DOXYGEN__) */
 
 /** @cond INTERNAL_HIDDEN */
 
 /**
- * @brief Initializer for @ref clk.
- *
- * @param callbacks_ clock callback field to initialize
- * @param data_ Mutable data pointer for clock
- * @param config_ Constant configuration pointer for clock
- * @param api Pointer to the clock's API structure.
+ * @brief Helper to add or remove clock callback
+ * @param callbacks A pointer to the original list of callbacks
+ * @param callback A pointer of the callback to insert or remove from the list
+ * @param set A boolean indicating insertion or removal of the callback
  */
-#define Z_CLOCK_INIT(callbacks_, data_, config_, api)                          \
-	{                                                                      \
-		.callbacks = SYS_SLIST_STATIC_INIT(_callbacks),                \
-		.data = data_,                                                 \
-		.config = config_,                                             \
-		.get_rate = (api)->get_rate,                                   \
-		.configure = (api)->configure,                                 \
-		IF_ENABLED(CONFIG_CLOCK_MGMT_SET_SET_RATE, (                   \
-		.round_rate = (api)->round_rate,                               \
-		.set_rate = (api)->set_rate,))                                 \
+static inline int clock_manage_callback(sys_slist_t *callbacks,
+					struct clock_mgmt_callback *callback,
+					bool set)
+{
+	__ASSERT(callback, "No callback!");
+	__ASSERT(callback->handler, "No callback handler!");
+
+	if (!sys_slist_is_empty(callbacks)) {
+		if (!sys_slist_find_and_remove(callbacks, &callback->node)) {
+			if (!set) {
+				return -EINVAL;
+			}
+		}
+	} else if (!set) {
+		return -EINVAL;
 	}
 
-/**
- * @brief Define a @ref clk object
- *
- * Defines and initializes configuration and data fields of a @ref clk
- * object
- * @param node_id The devicetree node identifier.
- * @param clk_id clock identifier (used to name the defined @ref clk).
- * @param data Pointer to the clock's private mutable data, which will be
- * stored in the @ref clk.data field
- * @param config Pointer to the clock's private constant data, which will be
- * stored in the @ref clk.config field
- * @param api Pointer to the clock's API structure.
- */
-#define Z_CLOCK_BASE_DEFINE(node_id, clk_id, data, config, api)                \
-	const struct clk CLOCK_NAME_GET(clk_id) =                              \
-		Z_CLOCK_INIT(&(CLOCK_NAME_GET(clk_id).callbacks), data,        \
-			     config, api);
+	if (set) {
+		sys_slist_prepend(callbacks, &callback->node);
+	}
 
-/**
- * @brief Obtain clock init entry name.
- *
- * @param init_id Init entry unique identifier.
- */
-#define Z_CLOCK_INIT_NAME(init_id) _CONCAT(__clock_init_, CLOCK_NAME_GET(init_id))
-
-/**
- * @brief Define the init entry for a clock.
- *
- * @param node_id Devicetree node id for the clock
- * @param dev_id Device identifier.
- * @param init_fn_ Clock init function.
- */
-#define Z_CLOCK_INIT_ENTRY_DEFINE(node_id, dev_id, init_fn_)                   \
-	STRUCT_SECTION_ITERABLE(clock_init, Z_CLOCK_INIT_NAME(dev_id)) = {     \
-		.init_fn = init_fn_,                                           \
-		.clk = CLOCK_DT_GET(node_id),                                  \
-	};
-
-
-/**
- * @brief Declare a clock for each used clock node in devicetree
- *
- * @note Unused nodes should not result in clocks, so not predeclaring these
- * keeps drivers honest.
- *
- * This is only "maybe" a clock because some nodes have status "okay", but
- * don't have a corresponding @ref clk allocated. There's no way to figure
- * that out until after we've built the zephyr image, though.
- * @param node_id Devicetree node identifier
- */
-#define Z_MAYBE_CLOCK_DECLARE_INTERNAL(node_id)                                \
-	extern const struct clk CLOCK_DT_NAME_GET(node_id);
-
-DT_FOREACH_CLOCK_USED(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
+	return 0;
+}
 
 /** @endcond */
 
 /**
- * @brief Create a clock object from a devicetree node identifier and set it
- * up for boot time initialization.
- *
- * This macro defines a @ref clk that is automatically configured during
- * system initialization. The kernel will call @param init_fn during boot,
- * which allows the clock to setup any device data structures needed at
- * runtime (but should not ungate the clock). The global clock object's
- * name as a C identifier is derived from the node's dependency ordinal.
- * It is an error to call this macro on a node that has already been
- * defined with DEVICE_DT_DEFINE.
- *
- * Note that users should not directly reference clock objects, but instead
- * should use the clock management API. Clock objects are considered
- * internal to the clock subsystem.
- *
- * @param node_id The devicetree node identifier.
- * @param init_fn Pointer to the clock's initialization function, which will
- * be run by the kernel during system initialization. Can be `NULL`. Note
- * that this function runs in the PRE_KERNEL_1 init phase.
- * @param data Pointer to the clock's private mutable data, which will be
- * stored in the @ref clk.data field
- * @param config Pointer to the clock's private constant data, which will be
- * stored in the @ref clk.config field
- * @param api Pointer to the clock's API structure.
+ * @brief Helper to initialize a struct clock_mgmt_callback properly
+ * @param callback A valid callback structure pointer.
+ * @param handler A valid handler function pointer.
  */
+static inline void clock_init_callback(struct clock_mgmt_callback *callback,
+				       clock_mgmt_callback_handler_t handler,
+				       void *user_data)
+{
+	__ASSERT(callback, "Callback pointer should not be NULL");
+	__ASSERT(handler, "Callback handler pointer should not be NULL");
 
-#define CLOCK_DT_DEFINE(node_id, init_fn, data, config, api, ...)              \
-	Z_CLOCK_BASE_DEFINE(node_id, Z_DEVICE_DT_DEV_ID(node_id), data,        \
-			    config, api)                                       \
-	Z_CLOCK_INIT_ENTRY_DEFINE(node_id, Z_DEVICE_DT_DEV_ID(node_id), init_fn)
+	callback->handler = handler;
+	callback->user_data = user_data;
+}
 
 /**
- * @brief Like CLOCK_DT_DEFINE(), but uses an instance of `DT_DRV_COMPAT`
- * compatible instead of a node identifier
- * @param inst Instance number. The `node_id` argument to CLOCK_DT_DEFINE is
- * set to `DT_DRV_INST(inst)`.
- * @param ... Other parameters as expected by CLOCK_DT_DEFINE().
+ * @brief Register a callback for clock rate change
+ *
+ * Registers a callback to fire when a clock's rate changes. The callback
+ * will be called directly after the clock's rate has changed.
+ * @param clk clock device to register callback for
+ * @param cb clock callback structure pointer
+ * @return -EINVAL if parameters are invalid
+ * @return 0 on success
  */
-#define CLOCK_DT_INST_DEFINE(inst, ...)                                        \
-	CLOCK_DT_DEFINE(DT_DRV_INST(inst), __VA_ARGS__)
+static inline int clock_register_callback(const struct clk *clk,
+					  struct clock_mgmt_callback *cb)
+{
+	if (!clk || !cb) {
+		return -EINVAL;
+	}
+
+	/* Add callback to sys_slist_t */
+	return clock_manage_callback(clk->callbacks, cb, true);
+}
+
 
 /**
- * @brief Call @p fn on all clock nodes with compatible @p compat that
- *        are referenced within the devicetree
+ * @brief Unregister a callback for clock rate change
  *
- * This macro expands to:
- *
- *     fn(node_id_1) fn(node_id_2) ... fn(node_id_n)
- *
- * where each `node_id_<i>` is a node identifier for some node with
- * compatible @p compat that is referenced within the devicetree. Whitespace is
- * added between expansions as shown above.
- *
- * A clock is considered "referenced" if an node with status `okay` references
- * the clock node's phandle within its `clock-outputs` or `clock-state-<n>`
- * clock properties. If a clock node is referenced, all the nodes which it
- * references or is a child of will also be considered referenced. This applies
- * recursively.
- *
- * @note Although this macro has many of the same semantics as
- * @ref DT_FOREACH_STATUS_OKAY, it will only call @p fn for clocks
- * that are referenced in the devicetree, which will result in @p fn
- * only being called for clock nodes that can be used within the clock
- * management framework
- *
- * Example devicetree fragment:
- *
- * @code{.dts}
- *     a {
- *             compatible = "vnd,clock";
- *             status = "okay";
- *             foobar = "DEV_A";
- *     };
- *
- *     b {
- *             compatible = "vnd,clock";
- *             status = "okay";
- *             foobar = "DEV_B";
- *     };
- *
- *     c {
- *             compatible = "vnd,clock";
- *             status = "disabled";
- *             foobar = "DEV_C";
- *     };
- * @endcode
- *
- * Example usage:
- *
- * @code{.c}
- *     #define MY_FN(node) DT_PROP(node, foobar),
- *
- *     DT_FOREACH_CLK_REFERENCED(vnd_clock, MY_FN)
- * @endcode
- *
- * This expands to either:
- *
- *     "DEV_A", "DEV_B",
- *
- * or this:
- *
- *     "DEV_B", "DEV_A",
-
- *
- * No guarantees are made about the order that a and b appear in the
- * expansion.
- *
- * Note that @p fn is responsible for adding commas, semicolons, or
- * other separators or terminators.
- *
- * @param compat lowercase-and-underscores clock devicetree compatible
- * @param fn Macro to call for each referenced clock node. Must accept a
- *           node_id as its only parameter.
+ * Removes a callback for clock rate change
+ * @param clk clock device to unregister callback for
+ * @param cb clock callback structure pointer
+ * @return -EINVAL if parameters are invalid
+ * @return 0 on success
  */
-#define DT_FOREACH_CLK_REFERENCED(compat, fn)                                  \
-	IF_ENABLED(UTIL_CAT(DT_CLOCK_HAS_USED_, DT_DRV_COMPAT),                \
-		    DT_CAT(DT_FOREACH_CLOCK_USED, compat)(fn))                 \
+static inline int clock_unregister_callback(const struct clk *clk,
+					    struct clock_mgmt_callback *cb)
+{
+	if (!clk || !cb) {
+		return -EINVAL;
+	}
+
+	/* Remove callback from sys_slist_t */
+	return clock_manage_callback(clk->callbacks, cb, false);
+}
 
 /**
- * @brief Call @p fn on all clock nodes with compatible `DT_DRV_COMPAT` that
- *        are referenced within the devicetree
+ * @brief Generic function to go through and fire callback for a clock object
  *
- * This macro calls `fn(inst)` on each `inst` number that refers to a clock node
- * that is referenced within the devicetree. Whitespace is added between
- * invocations.
- *
- * A clock is considered "referenced" if an node with status `okay` references
- * the clock node's phandle within its `clock-outputs` or `clock-state-<n>`
- * clock properties. If a clock node is referenced, all the nodes which it
- * references or is a child of will also be considered referenced. This applies
- * recursively.
- *
- * @note Although this macro has many of the same semantics as
- * @ref DT_INST_FOREACH_STATUS_OKAY, it will only call @p fn for clocks
- * that are referenced in the devicetree, which will result in @p fn
- * only being called for clock nodes that can be used within the clock
- * management framework
- *
- * Example devicetree fragment:
- *
- * @code{.dts}
- *     a {
- *             compatible = "vnd,clock";
- *             status = "okay";
- *             foobar = "DEV_A";
- *     };
- *
- *     b {
- *             compatible = "vnd,clock";
- *             status = "okay";
- *             foobar = "DEV_B";
- *     };
- *
- *     c {
- *             compatible = "vnd,clock";
- *             status = "disabled";
- *             foobar = "DEV_C";
- *     };
- * @endcode
- *
- * Example usage:
- *
- * @code{.c}
- *     #define DT_DRV_COMPAT vnd_clock
- *     #define MY_FN(inst) DT_INST_PROP(inst, foobar),
- *
- *     DT_INST_FOREACH_CLK_REFERENCED(MY_FN)
- * @endcode
- *
- * This expands to:
- *
- * @code{.c}
- *     MY_FN(0) MY_FN(1)
- * @endcode
- *
- * and from there, to either this:
- *
- *     "DEV_A", "DEV_B",
- *
- * or this:
- *
- *     "DEV_B", "DEV_A",
- *
- * No guarantees are made about the order that a and b appear in the
- * expansion.
- *
- * Note that @p fn is responsible for adding commas, semicolons, or
- * other separators or terminators.
- *
- * Clock drivers should use this macro whenever possible to instantiate
- * a struct clk for each referenced clock in the devicetree of the clock's
- * compatible `DT_DRV_COMPAT`
- *
- * @param fn Macro to call on each enabled node. Must accept an instance
- *           number as its only parameter
+ * @param clk Clock object to fire callbacks for
  */
-#define DT_INST_FOREACH_CLK_REFERENCED(fn)                                     \
-	IF_ENABLED(UTIL_CAT(DT_CLOCK_HAS_USED_, DT_DRV_COMPAT),                \
-		    (UTIL_CAT(DT_FOREACH_CLOCK_USED_INST_, DT_DRV_COMPAT)(fn)))
+static inline void clock_fire_callbacks(const struct clk *clk)
+{
+	struct clock_mgmt_callback *cb, *tmp;
+
+	SYS_SLIST_FOR_EACH_CONTAINER_SAFE(clk->callbacks, cb, tmp, node) {
+		__ASSERT(cb->handler, "No callback handler!");
+		cb->handler(cb->user_data);
+	}
+}
 
 #ifdef __cplusplus
 }

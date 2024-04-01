@@ -6,6 +6,8 @@
 
 #include <zephyr/drivers/clock_mgmt/clock_driver.h>
 
+#include "../clock_mgmt_common.h"
+
 #define DT_DRV_COMPAT nxp_syscon_clock_source
 
 struct syscon_clock_source_config {
@@ -43,11 +45,6 @@ int syscon_clock_source_configure(const struct clk *clk, void *data)
 	return 0;
 }
 
-void syscon_clock_source_init(const struct clk *clk)
-{
-	/* Nothing here yet */
-}
-
 const struct clock_driver_api nxp_syscon_source_api = {
 	.get_rate = syscon_clock_source_get_rate,
 	.configure = syscon_clock_source_configure,
@@ -60,7 +57,7 @@ const struct clock_driver_api nxp_syscon_source_api = {
 		.enable_offset = (uint8_t)DT_INST_PROP(inst, offset),          \
 	};                                                                     \
 	                                                                       \
-	CLOCK_DT_INST_DEFINE(inst, syscon_clock_source_init, NULL,             \
+	CLOCK_DT_INST_DEFINE(inst, NULL, NULL,                                 \
 			     &nxp_syscon_source_##inst,                        \
 			     &nxp_syscon_source_api);
 
