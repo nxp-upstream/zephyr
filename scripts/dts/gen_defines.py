@@ -1015,7 +1015,7 @@ def write_global_macros(edt):
             clock_node_used.update(referenced_clocks)
 
     # Define macro for all used clock nodes
-    out_dt_define("CLOCK_USED(fn)",
+    out_dt_define("FOREACH_CLOCK_USED(fn)",
                   " ".join(f"fn(DT_{node.z_path_id})" for node in clock_node_used))
 
     # Define macros to iterate over all clock nodes with a given compatible

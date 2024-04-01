@@ -68,3 +68,7 @@
 #if defined(CONFIG_GNSS_SATELLITES)
 	ITERABLE_SECTION_ROM(gnss_satellites_callback, 4)
 #endif
+
+#if defined(CONFIG_CLOCK_MGMT)
+	ITERABLE_SECTION_ROM(clock_init, 4)
+#endif
