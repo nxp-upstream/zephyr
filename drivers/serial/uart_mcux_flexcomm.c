@@ -19,6 +19,7 @@
 #include <soc.h>
 #include <fsl_device_registers.h>
 #include <zephyr/drivers/pinctrl.h>
+#include <zephyr/drivers/clock_mgmt.h>
 #ifdef CONFIG_UART_ASYNC_API
 #include <zephyr/drivers/dma.h>
 #include <fsl_inputmux.h>
@@ -1197,6 +1198,7 @@ static const struct mcux_flexcomm_config mcux_flexcomm_##n##_config = {		\
 };
 
 #define UART_MCUX_FLEXCOMM_INIT(n)						\
+	CLOCK_MGMT_DT_INST_DEFINE(n);						\
 										\
 	PINCTRL_DT_INST_DEFINE(n);						\
 										\

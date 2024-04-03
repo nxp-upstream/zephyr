@@ -35,12 +35,15 @@ extern "C" {
  * type should be passed to "CLOCK_DT_DEFINE" when defining the @ref clk
  */
 struct clock_driver_api {
+	/** Notify a clock that a parent has been reconfigured.
+	 * Note that this must remain the first field in the API structure
+	 * to support clock management callbacks
+	 */
+	int (*notify)(const struct clk *clk, const struct clk *parent);
 	/** Gets clock rate in Hz */
 	int (*get_rate)(const struct clk *clk);
 	/** Configure a clock with device specific data */
 	int (*configure)(const struct clk *clk, void *data);
-	/** Notify a clock that a parent has been reconfigured */
-	int (*notify)(const struct clk *clk, const struct clk *parent);
 #if defined(CONFIG_CLOCK_MGMT_SET_SET_RATE) || defined(__DOXYGEN__)
 	/** Gets nearest rate clock can support, in Hz */
 	int (*round_rate)(const struct clk *clk, uint32_t rate);

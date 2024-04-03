@@ -354,6 +354,9 @@ def write_special_props(node):
     write_fixed_partitions(node)
     write_gpio_hogs(node)
 
+    # Macros special to Zephyr's clock support implementation
+    write_clocks(node)
+
 def write_ranges(node):
     # ranges property: edtlib knows the right #address-cells and
     # #size-cells of parent and child, and can therefore pack the
@@ -617,6 +620,25 @@ def write_gpio_hogs(node):
         out_dt_define(f"{macro}_NUM", len(node.gpio_hogs))
         for macro, val in macro2val.items():
             out_dt_define(macro, val)
+
+
+def write_clocks(node):
+    out_comment("Clock control (clock-state-<i>) properties:")
+
+    # Find clock-state-<index> properties
+    clock_state_props = [prop for name, prop in node.props.items()
+                         if re.match("clock-state-[0-9]+", name)]
+    clock_state_props.sort(key=lambda prop: prop.name)
+
+    # Check indices
+    for i, prop in enumerate(clock_state_props):
+        if prop.name != "clock-state-" + str(i):
+            sys.exit(f"missing 'clock-state-{i}' property on {node!r} "
+                     "- indices should be contiguous and start from zero")
+
+    # Write the number of CLOCK_STATE properties
+    out_dt_define(f"{node.z_path_id}_CLOCK_STATE_NUM", len(clock_state_props))
+
 
 def write_vanilla_props(node):
     # Writes macros for any and all properties defined in the
@@ -1001,6 +1023,7 @@ def write_global_macros(edt):
     out_comment('Macros for clock nodes utilized by enabled devices\n')
 
     clock_node_used = set()
+    clock_consumers = set()
 
     for node in edt.nodes:
         if node.status == "okay":
@@ -1011,22 +1034,30 @@ def write_global_macros(edt):
             for state in clock_state_props:
                 for clock_node_ph in state.val:
                     referenced_clocks.append(clock_node_ph.controller)
+                clock_consumers.add(node)
             if "clock-outputs" in node.props:
                 # Find clocks referenced by clock property
                 for clock_node in node.props["clock-outputs"].val:
                     referenced_clocks.append(clock_node)
+                clock_consumers.add(node)
             # Find all dependencies of the referenced clocks
             for clock in referenced_clocks:
                 referenced_clocks.extend(node_dependencies(clock))
             # Add referenced clocks to list of used clocks
             clock_node_used.update(referenced_clocks)
 
-    # Define macro for all used clock nodes
-    out_dt_define("FOREACH_CLOCK_USED(fn)",
-                  " ".join(f"fn(DT_{node.z_path_id})" for node in clock_node_used))
-
+    # Now, we need to define a macro to identify clock nodes as used.
+    # Since we will also define clock data for clock consumers,
+    # we include consumers to this list
     for node in clock_node_used:
         out_dt_define(f"{node.z_path_id}_CLOCK_USED", 1)
+    for node in clock_consumers:
+        out_dt_define(f"{node.z_path_id}_CLOCK_USED", 1)
+
+    # Define macro for all used clock nodes
+    out_dt_define("FOREACH_CLOCK_USED(fn)",
+                  " ".join(f"fn(DT_{node.z_path_id})"
+                        for node in clock_node_used.union(clock_consumers)))
 
     # Define macros to iterate over all clock nodes with a given compatible
     clock_foreach_macros = {}
@@ -1045,6 +1076,7 @@ def write_global_macros(edt):
                          for node in enabled_clocks)
     for macro, value in clock_foreach_macros.items():
         out_define(macro, value)
+
 
 def str2ident(s):
     # Converts 's' to a form suitable for (part of) an identifier
