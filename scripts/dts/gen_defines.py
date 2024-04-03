@@ -753,10 +753,17 @@ def write_dep_info(node):
     out_dt_define(f"{node.z_path_id}_REQUIRES_ORDS",
                   fmt_dep_list(node.depends_on))
 
+    out_comment("Call macro for nodes that this node depends on directly")
+    out_dt_define(f"{node.z_path_id}_FOREACH_REQUIRED_NODE(fn)",
+                  " ".join([f"fn(DT_{node.z_path_id})" for node in node.depends_on]))
+
     out_comment("Ordinals for what depends directly on this node:")
     out_dt_define(f"{node.z_path_id}_SUPPORTS_ORDS",
                   fmt_dep_list(node.required_by))
 
+    out_comment("Call macro for nodes that this node supports directly")
+    out_dt_define(f"{node.z_path_id}_FOREACH_SUPPORTED_NODE(fn)",
+                  " ".join([f"fn(DT_{node.z_path_id})" for node in node.required_by]))
 
 def prop2value(prop):
     # Gets the macro value for property 'prop', if there is
@@ -1017,6 +1024,9 @@ def write_global_macros(edt):
     # Define macro for all used clock nodes
     out_dt_define("FOREACH_CLOCK_USED(fn)",
                   " ".join(f"fn(DT_{node.z_path_id})" for node in clock_node_used))
+
+    for node in clock_node_used:
+        out_dt_define(f"{node.z_path_id}_CLOCK_USED", 1)
 
     # Define macros to iterate over all clock nodes with a given compatible
     clock_foreach_macros = {}

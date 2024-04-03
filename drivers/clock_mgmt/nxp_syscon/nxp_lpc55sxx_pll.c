@@ -28,6 +28,8 @@ struct lpc55sxx_pll0_config_input {
 };
 
 struct lpc55sxx_pll0_config {
+	const struct clk *const *children;
+	uint8_t child_count;
 	const struct clk *parent;
 	struct lpc55sxx_pll0_regs *regs;
 };
@@ -112,9 +114,12 @@ const struct clock_driver_api nxp_syscon_pll0_api = {
 };
 
 #define NXP_LPC55SXX_PLL0_DEFINE(inst)                                         \
-	CLOCK_NOTIFY_REGISTER_INST(inst, DT_INST_PARENT(inst));                \
+	const struct clk *const lpc55sxx_pll0_children_##inst[] =              \
+		CLOCK_INST_GET_DEPS(inst);                                     \
                                                                                \
 	const struct lpc55sxx_pll0_config nxp_lpc55sxx_pll0_config_##inst = {  \
+		.children = lpc55sxx_pll0_children_##inst,                     \
+		.child_count = ARRAY_SIZE(lpc55sxx_pll0_children_##inst),      \
 	 	.parent = CLOCK_DT_GET(DT_INST_PARENT(inst)),                  \
 		.regs = (struct lpc55sxx_pll0_regs*)DT_INST_REG_ADDR(inst),    \
 	};                                                                     \
@@ -145,6 +150,8 @@ struct lpc55sxx_pll1_config_input {
 };
 
 struct lpc55sxx_pll1_config {
+	const struct clk *const *children;
+	uint8_t child_count;
 	const struct clk *parent;
 	struct lpc55sxx_pll1_regs *regs;
 };
@@ -226,9 +233,12 @@ const struct clock_driver_api nxp_syscon_pll1_api = {
 };
 
 #define NXP_LPC55SXX_PLL1_DEFINE(inst)                                         \
-	CLOCK_NOTIFY_REGISTER_INST(inst, DT_INST_PARENT(inst));                \
+	const struct clk *const lpc55sxx_pll1_children_##inst[] =              \
+		CLOCK_INST_GET_DEPS(inst);                                     \
                                                                                \
 	const struct lpc55sxx_pll1_config nxp_lpc55sxx_pll1_config_##inst = {  \
+		.children = lpc55sxx_pll1_children_##inst,                     \
+		.child_count = ARRAY_SIZE(lpc55sxx_pll1_children_##inst),      \
 	 	.parent = CLOCK_DT_GET(DT_INST_PARENT(inst)),                  \
 		.regs = (struct lpc55sxx_pll1_regs*)DT_INST_REG_ADDR(inst),    \
 	};                                                                     \
@@ -245,6 +255,8 @@ DT_INST_FOREACH_CLK_REFERENCED(NXP_LPC55SXX_PLL1_DEFINE)
 #define DT_DRV_COMPAT nxp_lpc55sxx_pll_pdec
 
 struct lpc55sxx_pll_pdec_config {
+	const struct clk *const *children;
+	uint8_t child_count;
 	const struct clk *parent;
 	volatile uint32_t *reg;
 };
@@ -285,9 +297,12 @@ const struct clock_driver_api nxp_syscon_pdec_api = {
 };
 
 #define NXP_LPC55SXX_PDEC_DEFINE(inst)                                         \
-	CLOCK_NOTIFY_REGISTER_INST(inst, DT_INST_PARENT(inst));                \
+	const struct clk *const lpc55sxx_pdec_children_##inst[] =              \
+		CLOCK_INST_GET_DEPS(inst);                                     \
                                                                                \
 	const struct lpc55sxx_pll_pdec_config lpc55sxx_pdec_cfg_##inst = {     \
+		.children = lpc55sxx_pdec_children_##inst,                     \
+		.child_count = ARRAY_SIZE(lpc55sxx_pdec_children_##inst),      \
 	 	.parent = CLOCK_DT_GET(DT_INST_PARENT(inst)),                  \
 		.reg = (volatile uint32_t*)DT_INST_REG_ADDR(inst),             \
 	};                                                                     \

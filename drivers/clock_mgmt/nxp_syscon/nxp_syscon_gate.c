@@ -11,6 +11,8 @@
 #define DT_DRV_COMPAT nxp_syscon_clock_gate
 
 struct syscon_clock_gate_config {
+	const struct clk *const *children;
+	uint8_t child_count;
 	const struct clk *parent;
 	volatile uint32_t *reg;
 	uint8_t enable_offset;
@@ -44,9 +46,12 @@ const struct clock_driver_api nxp_syscon_gate_api = {
 };
 
 #define NXP_SYSCON_CLOCK_DEFINE(inst)                                          \
-	CLOCK_NOTIFY_REGISTER_INST(inst, DT_INST_PARENT(inst));                \
+	const struct clk *const nxp_syscon_gate_children_##inst[] =            \
+		CLOCK_INST_GET_DEPS(inst);                                     \
 	                                                                       \
 	const struct syscon_clock_gate_config nxp_syscon_gate_##inst = {       \
+		.children = nxp_syscon_gate_children_##inst,                   \
+		.child_count = ARRAY_SIZE(nxp_syscon_gate_children_##inst),    \
 	 	.parent = CLOCK_DT_GET(DT_INST_PARENT(inst)),                  \
 		.reg = (volatile uint32_t *)DT_INST_REG_ADDR(inst),            \
 		.enable_offset = (uint8_t)DT_INST_PROP(inst, offset),          \

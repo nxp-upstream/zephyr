@@ -38,10 +38,6 @@ struct clk {
 	void *data;
 	/** API pointer for clock node */
 	const struct clock_driver_api *api;
-	/** list of clock children */
-	const struct clk *children;
-	/** Length of clock children list */
-	const uint32_t child_count;
 };
 
 /**
@@ -98,16 +94,12 @@ struct clk {
  * @param data_ Mutable data pointer for clock
  * @param config_ Constant configuration pointer for clock
  * @param api_ Pointer to the clock's API structure.
- * @param children_ Array of clock children structures
- * @param child_count_ Number of children of this clock
  */
-#define Z_CLOCK_INIT(data_, config_, api_, children_, child_count_)            \
+#define Z_CLOCK_INIT(data_, config_, api_)                                     \
 	{                                                                      \
 		.data = data_,                                                 \
 		.config = config_,                                             \
 		.api = api_,                                                   \
-		.children = (const struct clk *)children_,                     \
-		.child_count = (uint32_t)child_count_,                         \
 	}
 
 /**
@@ -124,12 +116,8 @@ struct clk {
  * @param api Pointer to the clock's API structure.
  */
 #define Z_CLOCK_BASE_DEFINE(node_id, clk_id, data, config, api)                \
-	extern const char _CONCAT(clk_id, _clock_cb_start);                    \
-	extern const char _CONCAT(clk_id, _clock_cb_size);                     \
 	const struct clk CLOCK_NAME_GET(clk_id) =                              \
-		Z_CLOCK_INIT(data, config, api,                                \
-			&_CONCAT(clk_id, _clock_cb_start),                     \
-			&_CONCAT(clk_id, _clock_cb_size));
+		Z_CLOCK_INIT(data, config, api);
 
 /**
  * @brief Declare a clock for each used clock node in devicetree
@@ -146,6 +134,13 @@ struct clk {
 	extern const struct clk CLOCK_DT_NAME_GET(node_id);
 
 DT_FOREACH_CLOCK_USED(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
+
+/**
+ * @brief Helper to get a clock object if the clock is referenced
+ * @param node_id Clock identifier
+ */
+#define Z_GET_CLOCK_IF_ENABLED(node_id)                                        \
+	IF_ENABLED(DT_CLOCK_USED(node_id), (CLOCK_DT_GET(node_id),))
 
 /** @endcond */
 
@@ -183,6 +178,59 @@ DT_FOREACH_CLOCK_USED(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  */
 #define CLOCK_DT_INST_DEFINE(inst, ...)                                        \
 	CLOCK_DT_DEFINE(DT_DRV_INST(inst), __VA_ARGS__)
+
+/**
+ * @brief Is the clock node referenced by @p node_id referenced?
+ *
+ * A clock is considered "referenced" if an node with status `okay` references
+ * the clock node's phandle within its `clock-outputs` or `clock-state-<n>`
+ * clock properties. If a clock node is referenced, all the nodes which it
+ * references or is a child of will also be considered referenced. This applies
+ * recursively.
+ * @param node_id Clock identifier
+ * @return 1 if clock is referenced
+ */
+#define DT_CLOCK_USED(node_id) DT_CAT(node_id, _CLOCK_USED)
+
+/**
+ * @brief Get clock objects for all dependencies of a given clock
+ *
+ * Gets clock objects for all referenced dependencies of a given clock.
+ * This macro will expand to a C array of clock references, which can
+ * be useful for initializing a list of clock dependencies.
+ * Example devicetree:
+ * @code{.dts}
+ *     parent_clk: parent-clk {
+ *             child_clk: child-clk {};
+ *     };
+ *     clk_mux: clk-mux {
+ *             vnd,inputs = <&parent_clk>;
+ *     };
+ * @endcode
+ *
+ * Example usage:
+ *
+ * @code{.c}
+ *     const struct clk *clocks[] = CLOCK_GET_DEPS(DT_NODELABEL(parent_clk))
+ * @endcode
+ *
+ * This is equivalent to the following:
+ *     const struct clk *clocks[] = {CLOCK_DT_GET(DT_NODELABEL(child_clk)),
+ *                                   CLOCK_DT_GET(DT_NODELABEL(clk_mux))}
+ *
+ * @param node_id Clock identifier
+ */
+#define CLOCK_GET_DEPS(node_id)                                                \
+	{DT_FOREACH_SUPPORTED_NODE(node_id, Z_GET_CLOCK_IF_ENABLED)}
+
+
+/**
+ * @brief Get clock objects for all dependencies of a given clock instance
+ *
+ * This is equivalent to `CLOCK_GET_DEPS(DT_DRV_INST(inst))`
+ * @param inst Instance identifier
+ */
+#define CLOCK_INST_GET_DEPS(inst) CLOCK_GET_DEPS(DT_DRV_INST(inst))
 
 /**
  * @brief Call @p fn on all clock nodes with compatible @p compat that
@@ -245,7 +293,7 @@ DT_FOREACH_CLOCK_USED(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  * or this:
  *
  *     "DEV_B", "DEV_A",
-
+ *
  *
  * No guarantees are made about the order that a and b appear in the
  * expansion.

@@ -5,15 +5,18 @@
  */
 
 #include <zephyr/drivers/clock_mgmt/clock_driver.h>
+#include "../clock_mgmt_common.h"
 
 #define DT_DRV_COMPAT nxp_syscon_clock_mux
 
 struct syscon_clock_mux_config {
-	const struct clk *const *parents;
-	volatile uint32_t *reg;
+	const struct clk *const *children;
+	uint8_t child_count;
 	uint8_t mask_width;
 	uint8_t mask_offset;
 	uint8_t src_count;
+	const struct clk *const *parents;
+	volatile uint32_t *reg;
 };
 
 int syscon_clock_mux_get_rate(const struct clk *clk)
@@ -65,7 +68,7 @@ int syscon_clock_mux_notify(const struct clk *clk, const struct clk *parent)
 	 * children
 	 */
 	if (config->parents[sel] == parent) {
-		clock_notify_children(clk);
+		clock_mgmt_forward_cb(clk, parent);
 	}
 
 	return 0;
@@ -77,19 +80,18 @@ const struct clock_driver_api nxp_syscon_mux_api = {
 	.notify = syscon_clock_mux_notify,
 };
 
-#define REG_MUX_CALLBACK(node_id, prop, idx, inst)                             \
-	CLOCK_NOTIFY_REGISTER_INST(inst, DT_PHANDLE_BY_IDX(node_id, prop, idx));
-
 #define GET_MUX_INPUT(node_id, prop, idx)                                      \
 	CLOCK_DT_GET(DT_PHANDLE_BY_IDX(node_id, prop, idx)),
 
 #define NXP_SYSCON_CLOCK_DEFINE(inst)                                          \
+	const struct clk *const nxp_syscon_mux_children_##inst[] =             \
+		CLOCK_INST_GET_DEPS(inst);                                     \
 	const struct clk *const nxp_syscon_mux_parents_##inst[] = {            \
 		DT_INST_FOREACH_PROP_ELEM(inst, input_sources, GET_MUX_INPUT)  \
 	};                                                                     \
-	DT_INST_FOREACH_PROP_ELEM_VARGS(inst, input_sources, REG_MUX_CALLBACK, \
-					inst)                                  \
 	const struct syscon_clock_mux_config nxp_syscon_mux_##inst = {         \
+		.children = nxp_syscon_mux_children_##inst,                    \
+		.child_count = ARRAY_SIZE(nxp_syscon_mux_children_##inst),     \
 	 	.parents = nxp_syscon_mux_parents_##inst,                      \
 		.reg = (volatile uint32_t *)DT_INST_REG_ADDR(inst),            \
 		.mask_width = (uint8_t)DT_INST_REG_SIZE(inst),                 \
