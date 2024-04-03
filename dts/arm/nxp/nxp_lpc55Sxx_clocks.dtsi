@@ -229,7 +229,7 @@
 		reg = <0x40000290 0x3>;
 		offset = <0x0>;
 		input-sources = <&fro_12m &clk_in_en &fro_1m &rtcosc32ksel
-				&no_clock &no_clock &no_clock &no_clock>;
+				&no_clock>;
 		#address-cells = <1>;
 		#size-cells = <1>;
 
@@ -283,7 +283,7 @@
 		reg = <0x40000294 0x3>;
 		offset = <0x0>;
 		input-sources = <&fro_12m &clk_in_en &fro_1m &rtcosc32ksel
-				&no_clock &no_clock &no_clock &no_clock>;
+				&no_clock>;
 		#address-cells = <1>;
 		#size-cells = <1>;
 
@@ -366,8 +366,7 @@
 		/* SYSCON::TRACECLKSEL[SEL] */
 		reg = <0x40000268 0x3>;
 		offset = <0x0>;
-		input-sources = <&traceclkdiv &fro_1m &rtcosc32ksel &no_clock
-				&no_clock &no_clock &no_clock &no_clock>;
+		input-sources = <&traceclkdiv &fro_1m &rtcosc32ksel &no_clock>;
 	};
 
 	systickclksel0: systickclksel0@40000260 {
@@ -376,8 +375,7 @@
 		/* SYSCON::SYSTICKCLKSEL0[SEL] */
 		reg = <0x40000260 0x3>;
 		offset = <0x0>;
-		input-sources = <&systickclkdiv0 &fro_1m &rtcosc32ksel &no_clock
-				&no_clock &no_clock &no_clock &no_clock>;
+		input-sources = <&systickclkdiv0 &fro_1m &rtcosc32ksel &no_clock>;
 	};
 
 	systickclksel1: systickclksel1@40000264 {
@@ -386,8 +384,7 @@
 		/* SYSCON::SYSTICKCLKSEL1[SEL] */
 		reg = <0x40000264 0x3>;
 		offset = <0x0>;
-		input-sources = <&systickclkdiv1 &fro_1m &rtcosc32ksel &no_clock
-				&no_clock &no_clock &no_clock &no_clock>;
+		input-sources = <&systickclkdiv1 &fro_1m &rtcosc32ksel &no_clock>;
 	};
 
 	adcclksel: adcclksel@400002a4 {
@@ -396,8 +393,7 @@
 		/* SYSCON::ADCCLKSEL[SEL] */
 		reg = <0x400002a4 0x3>;
 		offset = <0x0>;
-		input-sources = <&mainclkselb &pll0_bypass &fro_hf &no_clock
-				&no_clock &no_clock &no_clock &no_clock>;
+		input-sources = <&mainclkselb &pll0_bypass &fro_hf &no_clock>;
 		#address-cells = <1>;
 		#size-cells = <1>;
 
@@ -416,7 +412,7 @@
 		reg = <0x400002a8 0x3>;
 		offset = <0x0>;
 		input-sources = <&mainclkselb &pll0_bypass &no_clock &fro_hf
-				&no_clock &pll1_bypass &no_clock &no_clock>;
+				&no_clock &pll1_bypass &no_clock>;
 		#address-cells = <1>;
 		#size-cells = <1>;
 
@@ -434,8 +430,7 @@
 		/* SYSCON::MCLKCLKSEL[SEL] */
 		reg = <0x400002e0 0x3>;
 		offset = <0x0>;
-		input-sources = <&fro_hf &pll0_bypass &no_clock &no_clock &no_clock
-				&no_clock &no_clock &no_clock>;
+		input-sources = <&fro_hf &pll0_bypass &no_clock>;
 		#address-cells = <1>;
 		#size-cells = <1>;
 
@@ -454,7 +449,7 @@
 		reg = <0x400002f0 0x3>;
 		offset = <0x0>;
 		input-sources = <&mainclkselb &pll0_bypass &clk_in_en &fro_hf
-				&no_clock &mclk_in &no_clock &no_clock>;
+				&no_clock &mclk_in &no_clock>;
 		#address-cells = <1>;
 		#size-cells = <1>;
 
@@ -492,7 +487,7 @@
 		reg = <0x400002f8 0x3>;
 		offset = <0x0>;
 		input-sources = <&mainclkselb &pll0_bypass &no_clock &fro_hf
-				&no_clock &pll1_bypass &no_clock &no_clock>;
+				&no_clock &pll1_bypass &no_clock>;
 		#address-cells = <1>;
 		#size-cells = <1>;
 
