@@ -99,7 +99,7 @@ int syscon_lpc55sxx_pll0_configure(const struct clk *clk, void *data)
 		/* Spread spectrum mode/out of range input frequency.
 		 * RM suggests waiting at least 6ms in this case.
 		 */
-		k_msleep(7);
+		k_busy_wait(7000);
 	}
 
 	return 0;
@@ -212,7 +212,7 @@ int syscon_lpc55sxx_pll1_configure(const struct clk *clk, void *data)
 		/* out of range input frequency. RM suggests waiting at least
 		 * 6ms in this case.
 		 */
-		k_msleep(7);
+		k_busy_wait(7000);
 	}
 
 	return 0;
