@@ -10,7 +10,7 @@
 int main(void)
 {
 #ifdef CONFIG_CLOCK_MGMT
-	const struct clk *clk = CLOCK_DT_GET(DT_NODELABEL(fcclksel0));
+	const struct clk *clk = CLOCK_DT_GET(DT_NODELABEL(frgctrl0_mul));
 
 	printf("Clock rate was %d\n", clock_get_rate(clk));
 #endif

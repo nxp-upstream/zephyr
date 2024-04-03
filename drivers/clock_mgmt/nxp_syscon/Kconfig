@@ -32,7 +32,7 @@ config CLOCK_MGMT_NXP_SYSCON_MUX
 config CLOCK_MGMT_NXP_SYSCON_FLEXFRG
 	bool "NXP syscon Flexcomm fractional rate generator driver"
 	default y
-	depends on DT_HAS_NXP_SYSCON_CLOCK_FLEXFRG_ENABLED
+	depends on DT_HAS_NXP_SYSCON_FLEXFRG_ENABLED
 	help
 	  Enable support for NXP SYSCON FLEXFRG driver
 
