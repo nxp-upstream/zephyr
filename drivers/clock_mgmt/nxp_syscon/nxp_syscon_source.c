@@ -55,7 +55,7 @@ const struct clock_driver_api nxp_syscon_source_api = {
 		.enable_offset = (uint8_t)DT_INST_PROP(inst, offset),          \
 	};                                                                     \
 	                                                                       \
-	CLOCK_DT_INST_DEFINE(inst, NULL, NULL,                                 \
+	CLOCK_DT_INST_DEFINE(inst, NULL,                                       \
 			     &nxp_syscon_source_##inst,                        \
 			     &nxp_syscon_source_api);
 

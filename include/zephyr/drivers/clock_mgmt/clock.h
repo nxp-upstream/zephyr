@@ -32,24 +32,16 @@ struct clock_driver_api;
  * @brief Runtime clock structure (in ROM) for each clock node
  */
 struct clk {
-	/** Callbacks to notify when clock is reconfigured */
-	sys_slist_t *callbacks;
 	/** Address of private clock instance configuration information */
 	const void *config;
 	/** Address of private clock instance mutable data */
 	void *data;
 	/** API pointer for clock node */
 	const struct clock_driver_api *api;
-};
-
-/**
- * @brief Clock Driver initialization structure
- */
-struct clock_init {
-	/** Clock initialization function */
-	void (*init_fn)(const struct clk *clk);
-	/** Parameter to pass to initialization function*/
-	const struct clk *clk;
+	/** list of clock children */
+	const struct clk *children;
+	/** Length of clock children list */
+	const uint32_t child_count;
 };
 
 /**
@@ -103,25 +95,20 @@ struct clock_init {
 /**
  * @brief Initializer for @ref clk.
  *
- * @param callbacks_ clock callback field to initialize
  * @param data_ Mutable data pointer for clock
  * @param config_ Constant configuration pointer for clock
  * @param api_ Pointer to the clock's API structure.
+ * @param children_ Array of clock children structures
+ * @param child_count_ Number of children of this clock
  */
-#define Z_CLOCK_INIT(callbacks_, data_, config_, api_)                         \
+#define Z_CLOCK_INIT(data_, config_, api_, children_, child_count_)            \
 	{                                                                      \
-		.callbacks = callbacks_,                                       \
 		.data = data_,                                                 \
 		.config = config_,                                             \
 		.api = api_,                                                   \
+		.children = (const struct clk *)children_,                     \
+		.child_count = (uint32_t)child_count_,                         \
 	}
-
-/**
- * @brief Gets callback list name for clock identifier
- * @param clk_id clock identifier
- */
-#define Z_CLOCK_CALLBACK_NAME(clk_id)                                          \
-	_CONCAT(CLOCK_NAME_GET(clk_id), _callbacks)
 
 /**
  * @brief Define a @ref clk object
@@ -137,32 +124,12 @@ struct clock_init {
  * @param api Pointer to the clock's API structure.
  */
 #define Z_CLOCK_BASE_DEFINE(node_id, clk_id, data, config, api)                \
-	sys_slist_t Z_CLOCK_CALLBACK_NAME(clk_id) =                            \
-		SYS_SLIST_STATIC_INIT(&(Z_CLOCK_CALLBACK_NAME(clk_id)));       \
+	extern const char _CONCAT(clk_id, _clock_cb_start);                    \
+	extern const char _CONCAT(clk_id, _clock_cb_size);                     \
 	const struct clk CLOCK_NAME_GET(clk_id) =                              \
-		Z_CLOCK_INIT(&(Z_CLOCK_CALLBACK_NAME(clk_id)), data,           \
-			     config, api);
-
-/**
- * @brief Obtain clock init entry name.
- *
- * @param init_id Init entry unique identifier.
- */
-#define Z_CLOCK_INIT_NAME(init_id) _CONCAT(__clock_init_, CLOCK_NAME_GET(init_id))
-
-/**
- * @brief Define the init entry for a clock.
- *
- * @param node_id Devicetree node id for the clock
- * @param dev_id Device identifier.
- * @param init_fn_ Clock init function.
- */
-#define Z_CLOCK_INIT_ENTRY_DEFINE(node_id, dev_id, init_fn_)                   \
-	STRUCT_SECTION_ITERABLE(clock_init, Z_CLOCK_INIT_NAME(dev_id)) = {     \
-		.init_fn = init_fn_,                                           \
-		.clk = CLOCK_DT_GET(node_id),                                  \
-	};
-
+		Z_CLOCK_INIT(data, config, api,                                \
+			&_CONCAT(clk_id, _clock_cb_start),                     \
+			&_CONCAT(clk_id, _clock_cb_size));
 
 /**
  * @brief Declare a clock for each used clock node in devicetree
@@ -186,10 +153,7 @@ DT_FOREACH_CLOCK_USED(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  * @brief Create a clock object from a devicetree node identifier and set it
  * up for boot time initialization.
  *
- * This macro defines a @ref clk that is automatically configured during
- * system initialization. The kernel will call @param init_fn during boot,
- * which allows the clock to setup any device data structures needed at
- * runtime (but should not ungate the clock). The global clock object's
+ * This macro defines a @ref clk. The global clock object's
  * name as a C identifier is derived from the node's dependency ordinal.
  * It is an error to call this macro on a node that has already been
  * defined with DEVICE_DT_DEFINE.
@@ -199,9 +163,6 @@ DT_FOREACH_CLOCK_USED(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  * internal to the clock subsystem.
  *
  * @param node_id The devicetree node identifier.
- * @param init_fn Pointer to the clock's initialization function, which will
- * be run by the kernel during system initialization. Can be `NULL`. Note
- * that this function runs in the PRE_KERNEL_1 init phase.
  * @param data Pointer to the clock's private mutable data, which will be
  * stored in the @ref clk.data field
  * @param config Pointer to the clock's private constant data, which will be
@@ -209,10 +170,9 @@ DT_FOREACH_CLOCK_USED(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  * @param api Pointer to the clock's API structure.
  */
 
-#define CLOCK_DT_DEFINE(node_id, init_fn, data, config, api, ...)              \
+#define CLOCK_DT_DEFINE(node_id, data, config, api, ...)                       \
 	Z_CLOCK_BASE_DEFINE(node_id, Z_DEVICE_DT_DEV_ID(node_id), data,        \
-			    config, api)                                       \
-	Z_CLOCK_INIT_ENTRY_DEFINE(node_id, Z_DEVICE_DT_DEV_ID(node_id), init_fn)
+			    config, api)
 
 /**
  * @brief Like CLOCK_DT_DEFINE(), but uses an instance of `DT_DRV_COMPAT`

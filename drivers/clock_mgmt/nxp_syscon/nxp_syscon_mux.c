@@ -15,10 +15,6 @@ struct syscon_clock_mux_config {
 	uint8_t mask_offset:5;
 };
 
-struct syscon_clock_mux_data {
-	struct clock_mgmt_callback cb;
-};
-
 int syscon_clock_mux_get_rate(const struct clk *clk)
 {
 	const struct syscon_clock_mux_config *config = clk->config;
@@ -33,50 +29,44 @@ int syscon_clock_mux_get_rate(const struct clk *clk)
 int syscon_clock_mux_configure(const struct clk *clk, void *mux)
 {
 	const struct syscon_clock_mux_config *config = clk->config;
-	struct syscon_clock_mux_data *data = clk->data;
 
 	uint8_t mux_mask = GENMASK(config->mask_offset,
 				   (config->mask_width +
 				   config->mask_offset - 1));
-	uint8_t current_sel = ((*config->reg) & mux_mask) >> config->mask_offset;
 	uint32_t mux_val = FIELD_PREP(mux_mask, ((uint32_t)mux));
 
 
-	/* Remove current clock callback registration */
-	clock_unregister_callback(config->parents[current_sel], &data->cb);
 	(*config->reg) = ((*config->reg) & ~mux_mask) | mux_val;
-	/* Register for new callback */
-	clock_unregister_callback(config->parents[((uint32_t)mux)], &data->cb);
 	return 0;
 }
 
-void syscon_clock_mux_cb(void *clk_obj)
-{
-	const struct clk *clk = clk_obj;
-
-	/* Forward callback to children */
-	clock_fire_callbacks(clk);
-}
-
-void syscon_clock_mux_init(const struct clk *clk)
+int syscon_clock_mux_notify(const struct clk *clk, const struct clk *parent)
 {
 	const struct syscon_clock_mux_config *config = clk->config;
-	struct syscon_clock_mux_data *data = clk->data;
 	uint8_t mux_mask = GENMASK(config->mask_offset,
 				   (config->mask_width +
 				   config->mask_offset - 1));
 	uint8_t sel = ((*config->reg) & mux_mask) >> config->mask_offset;
 
-	/* Init callback */
-	clock_init_callback(&data->cb, syscon_clock_mux_cb, (void*)clk);
-	/* Register callback to currently selected parent */
-	clock_register_callback(config->parents[sel], &data->cb);
+	/*
+	 * Read div reg, and if index matches parent index we should notify
+	 * children
+	 */
+	if (config->parents[sel] == parent) {
+		clock_notify_children(clk);
+	}
+
+	return 0;
 }
 
 const struct clock_driver_api nxp_syscon_mux_api = {
 	.get_rate = syscon_clock_mux_get_rate,
 	.configure = syscon_clock_mux_configure,
+	.notify = syscon_clock_mux_notify,
 };
+
+#define REG_MUX_CALLBACK(node_id, prop, idx, inst)                             \
+	CLOCK_NOTIFY_REGISTER_INST(inst, DT_PHANDLE_BY_IDX(node_id, prop, idx));
 
 #define GET_MUX_INPUT(node_id, prop, idx)                                      \
 	CLOCK_DT_GET(DT_PHANDLE_BY_IDX(node_id, prop, idx)),
@@ -85,15 +75,15 @@ const struct clock_driver_api nxp_syscon_mux_api = {
 	const struct clk *nxp_syscon_mux_parents_##inst[] = {                  \
 		DT_INST_FOREACH_PROP_ELEM(inst, input_sources, GET_MUX_INPUT)  \
 	};                                                                     \
+	DT_INST_FOREACH_PROP_ELEM_VARGS(inst, input_sources, REG_MUX_CALLBACK, \
+					inst)                                  \
 	const struct syscon_clock_mux_config nxp_syscon_mux_##inst = {         \
 	 	.parents = nxp_syscon_mux_parents_##inst,                      \
 		.reg = (volatile uint32_t *)DT_INST_REG_ADDR(inst),            \
 		.mask_width = (uint8_t)DT_INST_REG_SIZE(inst),                 \
 	};                                                                     \
-	struct syscon_clock_mux_data nxp_syscon_mux_data_##inst;               \
 	                                                                       \
-	CLOCK_DT_INST_DEFINE(inst, syscon_clock_mux_init,                      \
-			     &nxp_syscon_mux_data_##inst,                      \
+	CLOCK_DT_INST_DEFINE(inst, NULL,                                       \
 			     &nxp_syscon_mux_##inst,                           \
 			     &nxp_syscon_mux_api);
 

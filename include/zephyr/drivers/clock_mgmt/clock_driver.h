@@ -39,6 +39,8 @@ struct clock_driver_api {
 	int (*get_rate)(const struct clk *clk);
 	/** Configure a clock with device specific data */
 	int (*configure)(const struct clk *clk, void *data);
+	/** Notify a clock that a parent has been reconfigured */
+	int (*notify)(const struct clk *clk, const struct clk *parent);
 #if defined(CONFIG_CLOCK_MGMT_SET_SET_RATE) || defined(__DOXYGEN__)
 	/** Gets nearest rate clock can support, in Hz */
 	int (*round_rate)(const struct clk *clk, uint32_t rate);
@@ -47,141 +49,39 @@ struct clock_driver_api {
 #endif
 };
 
-struct clock_mgmt_callback;
-
 /**
- * @typedef clock_mgmt_callback_handler_t
- * @brief Define the application clock callback handler function signature
+ * @brief Notify clock of parent reconfiguration
  *
- * @param user_data User data field set for callback
- */
-typedef void (*clock_mgmt_callback_handler_t)(void *user_data);
-
-/**
- * @brief Clock management callback structure
- *
- * Used to register a callback for clock change events in the driver consuming
- * the clock. As many callbacks as needed can be added as long as each of them
- * are unique pointers of struct clock_mgmt_callback.
- * Beware such pointers must not be allocated on the stack.
- *
- * Note: to help setting the callback, clock_mgmt_init_callback()
- */
-struct clock_mgmt_callback {
-	/** This is meant to be used in the driver and the user should not
-	 * mess with it
-	 */
-	sys_snode_t node;
-
-	/** Actual callback function being called when relevant */
-	clock_mgmt_callback_handler_t handler;
-
-	/** User data pointer */
-	void *user_data;
-};
-
-/**
- * @brief Helper to add or remove clock callback
- * @param callbacks A pointer to the original list of callbacks
- * @param callback A pointer of the callback to insert or remove from the list
- * @param set A boolean indicating insertion or removal of the callback
- */
-static inline int clock_manage_callback(sys_slist_t *callbacks,
-					struct clock_mgmt_callback *callback,
-					bool set)
-{
-	__ASSERT(callback, "No callback!");
-	__ASSERT(callback->handler, "No callback handler!");
-
-	if (!sys_slist_is_empty(callbacks)) {
-		if (!sys_slist_find_and_remove(callbacks, &callback->node)) {
-			if (!set) {
-				return -EINVAL;
-			}
-		}
-	} else if (!set) {
-		return -EINVAL;
-	}
-
-	if (set) {
-		sys_slist_prepend(callbacks, &callback->node);
-	}
-
-	return 0;
-}
-
-/** @endcond */
-
-/**
- * @brief Helper to initialize a struct clock_mgmt_callback properly
- * @param callback A valid callback structure pointer.
- * @param handler A valid handler function pointer.
- */
-static inline void clock_init_callback(struct clock_mgmt_callback *callback,
-				       clock_mgmt_callback_handler_t handler,
-				       void *user_data)
-{
-	__ASSERT(callback, "Callback pointer should not be NULL");
-	__ASSERT(handler, "Callback handler pointer should not be NULL");
-
-	callback->handler = handler;
-	callback->user_data = user_data;
-}
-
-/**
- * @brief Register a callback for clock rate change
- *
- * Registers a callback to fire when a clock's rate changes. The callback
- * will be called directly after the clock's rate has changed.
- * @param clk clock device to register callback for
- * @param cb clock callback structure pointer
- * @return -EINVAL if parameters are invalid
+ * Notifies a clock its parent was reconfigured
+ * @param clk Clock object to notify of reconfiguration
+ * @param parent Parent clock device that was reconfigured
+ * @return -ENOSYS if clock does not implement notify_children API
+ * @return negative errno for other error notifying clock
  * @return 0 on success
  */
-static inline int clock_register_callback(const struct clk *clk,
-					  struct clock_mgmt_callback *cb)
+static inline int clock_notify(const struct clk *clk, const struct clk *parent)
 {
-	if (!clk || !cb) {
-		return -EINVAL;
+	if (!(clk->api) || !(clk->api->notify)) {
+		return -ENOSYS;
 	}
 
-	/* Add callback to sys_slist_t */
-	return clock_manage_callback(clk->callbacks, cb, true);
-}
-
-
-/**
- * @brief Unregister a callback for clock rate change
- *
- * Removes a callback for clock rate change
- * @param clk clock device to unregister callback for
- * @param cb clock callback structure pointer
- * @return -EINVAL if parameters are invalid
- * @return 0 on success
- */
-static inline int clock_unregister_callback(const struct clk *clk,
-					    struct clock_mgmt_callback *cb)
-{
-	if (!clk || !cb) {
-		return -EINVAL;
-	}
-
-	/* Remove callback from sys_slist_t */
-	return clock_manage_callback(clk->callbacks, cb, false);
+	return clk->api->notify(clk, parent);
 }
 
 /**
- * @brief Generic function to go through and fire callback for a clock object
+ * @brief Notify children of a given clock about a reconfiguration event
  *
- * @param clk Clock object to fire callbacks for
+ * Calls `notify` API for all children of a given clock
+ * @param clk Clock object to fire notifications for
  */
-static inline void clock_fire_callbacks(const struct clk *clk)
+static inline void clock_notify_children(const struct clk *clk)
 {
-	struct clock_mgmt_callback *cb, *tmp;
+	const struct clk *child = clk->children;
 
-	SYS_SLIST_FOR_EACH_CONTAINER_SAFE(clk->callbacks, cb, tmp, node) {
-		__ASSERT(cb->handler, "No callback handler!");
-		cb->handler(cb->user_data);
+	for (uint8_t i = 0; i < clk->child_count; i++) {
+		/* Fire child's clock callback */
+		clock_notify(child, clk);
+		child++;
 	}
 }
 
@@ -229,8 +129,8 @@ static inline int clock_configure(const struct clk *clk, void *data)
 		return ret;
 	}
 
-	/* Fire callbacks */
-	clock_fire_callbacks(clk);
+	/* Notify children of rate change */
+	clock_notify_children(clk);
 }
 
 
@@ -294,7 +194,62 @@ static inline int clock_set_rate(const struct clk *clk, uint32_t rate)
 
 #endif /* defined(CONFIG_CLOCK_MGMT_SET_SET_RATE) || defined(__DOXYGEN__) */
 
+
 /** @cond INTERNAL_HIDDEN */
+
+/**
+ * @brief Name of clock notification list section
+ *
+ * Defines the name of the clock notification section. This must match the
+ * section name declared by the linker for a given clock
+ * @param node_id: Devicetree node identifier for clock this section must target
+ */
+#define Z_CLOCK_CB_SECT_NAME(node_id)                                          \
+	_CONCAT(Z_DEVICE_DT_DEV_ID(node_id), _clock_cb)
+
+/**
+ * @brief Name of clock notification registration variable
+ *
+ * @param clk_id Devicetree node ID of clock device to register for a
+ * notification
+ * @param parent_id Devicetree node ID of parent clock wishes to receive
+ * notification from
+ */
+#define Z_CLOCK_CB_REG_NAME(clk_id, parent_id)                                 \
+	_CONCAT(_CONCAT(Z_DEVICE_DT_DEV_ID(clk_id), _reg_),                    \
+		__COUNTER__)
+
+/** @endcond */
+
+/**
+ * @brief Register for a clock notification
+ *
+ * Registers a clock for a configuration notification. This macro causes the
+ * clock implemented by @p clk_id to be registered for a callback from the clock
+ * implementing @p parent, such that whenever the @p parent clock
+ * is reconfigured the `notify` API will be called on the @p clk clock.
+ * @param clk_id Devicetree node ID of clock device to register for a
+ * notification
+ * @param parent_id Devicetree node ID of parent clock wishes to receive
+ * notification from
+ */
+#define CLOCK_NOTIFY_REGISTER(clk_id, parent_id)                               \
+	const struct clk Z_GENERIC_SECTION(Z_CLOCK_CB_SECT_NAME(parent_id))    \
+		*Z_CLOCK_CB_REG_NAME(clk_id, parent_id) =                      \
+		CLOCK_DT_GET(parent_id)
+
+
+/**
+ * @brief Register a clock instance for a notification
+ *
+ * Helper to register a clock instance for a notification Equivalent to
+ * `CLOCK_NOTIFY_REGISTER(DT_DRV_INST(inst), parent_id)`.
+ * @param inst Instance ID of clock device to register for a notification
+ * @param parent_id Devicetree node ID of parent clock wishes to receive
+ * notification from
+ */
+#define CLOCK_NOTIFY_REGISTER_INST(inst, parent_id)                            \
+	CLOCK_NOTIFY_REGISTER(DT_DRV_INST(inst), parent_id)
 
 #ifdef __cplusplus
 }

@@ -16,10 +16,6 @@ struct syscon_clock_div_config {
 	uint8_t mask_width;
 };
 
-struct syscon_clock_div_data {
-	struct clock_mgmt_callback cb;
-};
-
 int syscon_clock_div_get_rate(const struct clk *clk)
 {
 	const struct syscon_clock_div_config *config = clk->config;
@@ -48,18 +44,19 @@ int syscon_clock_div_configure(const struct clk *clk, void *div)
 const struct clock_driver_api nxp_syscon_div_api = {
 	.get_rate = syscon_clock_div_get_rate,
 	.configure = syscon_clock_div_configure,
+	.notify = clock_mgmt_forward_cb,
 };
 
 #define NXP_SYSCON_CLOCK_DEFINE(inst)                                          \
+	CLOCK_NOTIFY_REGISTER_INST(inst, DT_INST_PARENT(inst));                \
+                                                                               \
 	const struct syscon_clock_div_config nxp_syscon_div_##inst = {         \
 	 	.parent = CLOCK_DT_GET(DT_INST_PARENT(inst)),                  \
 		.reg = (volatile uint32_t *)DT_INST_REG_ADDR(inst),            \
 		.mask_width = (uint8_t)DT_INST_REG_SIZE(inst),                 \
 	};                                                                     \
-	struct syscon_clock_div_data nxp_syscon_div_data_##inst;               \
 	                                                                       \
-	CLOCK_DT_INST_DEFINE(inst, clock_mgmt_install_forward_cb,              \
-			     &nxp_syscon_div_data_##inst,                      \
+	CLOCK_DT_INST_DEFINE(inst, NULL,                                       \
 			     &nxp_syscon_div_##inst,                           \
 			     &nxp_syscon_div_api);
 

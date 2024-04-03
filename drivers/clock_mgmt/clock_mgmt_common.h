@@ -14,19 +14,14 @@ extern "C" {
 #endif
 
 /**
- * @brief Helper to install a standard callback on the parent's clock
+ * @brief Helper to forward a clock callback to a child node
  *
- * Helper function to install a callback on a clock's parent during
- * init. This function requires that the first element in the `config`
- * structure for the given clock be a pointer to its parent clock,
- * and the first element in the `data` structure be a
- * `struct clock_mgmt_callback`.
- *
- * The function will install a callback on the parent clock which
- * simply fires any callbacks registered for the current clock, effectively
- * forwarding the clock callback notification to any subscribers for this clock.
+ * Helper function to forward a clock callback. This function will fire a
+ * callback for all child clocks, effectively forwarding the clock callback
+ * notification to any subscribers for this clock.
+ * @return 0 on success
  */
-void clock_mgmt_install_forward_cb(const struct clk *clk);
+int clock_mgmt_forward_cb(const struct clk *clk, const struct clk *parent);
 
 #ifdef __cplusplus
 }

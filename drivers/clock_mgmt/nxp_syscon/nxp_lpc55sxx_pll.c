@@ -33,7 +33,6 @@ struct lpc55sxx_pll0_config {
 };
 
 struct lpc55sxx_pll0_data {
-	struct clock_mgmt_callback cb;
 	uint32_t output_freq;
 };
 
@@ -109,17 +108,19 @@ int syscon_lpc55sxx_pll0_configure(const struct clk *clk, void *data)
 const struct clock_driver_api nxp_syscon_pll0_api = {
 	.get_rate = syscon_lpc55sxx_pll0_get_rate,
 	.configure = syscon_lpc55sxx_pll0_configure,
+	.notify = clock_mgmt_forward_cb,
 };
 
 #define NXP_LPC55SXX_PLL0_DEFINE(inst)                                         \
+	CLOCK_NOTIFY_REGISTER_INST(inst, DT_INST_PARENT(inst));                \
+                                                                               \
 	const struct lpc55sxx_pll0_config nxp_lpc55sxx_pll0_config_##inst = {  \
 	 	.parent = CLOCK_DT_GET(DT_INST_PARENT(inst)),                  \
 		.regs = (struct lpc55sxx_pll0_regs*)DT_INST_REG_ADDR(inst),    \
 	};                                                                     \
 	struct lpc55sxx_pll0_data nxp_lpc55sxx_pll0_data_##inst = {0};         \
 	                                                                       \
-	CLOCK_DT_INST_DEFINE(inst, clock_mgmt_install_forward_cb,              \
-			     &nxp_lpc55sxx_pll0_data_##inst,                   \
+	CLOCK_DT_INST_DEFINE(inst, &nxp_lpc55sxx_pll0_data_##inst,             \
 			     &nxp_lpc55sxx_pll0_config_##inst,                 \
 			     &nxp_syscon_pll0_api);
 
@@ -149,7 +150,6 @@ struct lpc55sxx_pll1_config {
 };
 
 struct lpc55sxx_pll1_data {
-	struct clock_mgmt_callback cb;
 	uint32_t output_freq;
 };
 
@@ -222,17 +222,19 @@ int syscon_lpc55sxx_pll1_configure(const struct clk *clk, void *data)
 const struct clock_driver_api nxp_syscon_pll1_api = {
 	.get_rate = syscon_lpc55sxx_pll1_get_rate,
 	.configure = syscon_lpc55sxx_pll1_configure,
+	.notify = clock_mgmt_forward_cb,
 };
 
 #define NXP_LPC55SXX_PLL1_DEFINE(inst)                                         \
+	CLOCK_NOTIFY_REGISTER_INST(inst, DT_INST_PARENT(inst));                \
+                                                                               \
 	const struct lpc55sxx_pll1_config nxp_lpc55sxx_pll1_config_##inst = {  \
 	 	.parent = CLOCK_DT_GET(DT_INST_PARENT(inst)),                  \
 		.regs = (struct lpc55sxx_pll1_regs*)DT_INST_REG_ADDR(inst),    \
 	};                                                                     \
 	struct lpc55sxx_pll1_data nxp_lpc55sxx_pll1_data_##inst = {0};         \
 	                                                                       \
-	CLOCK_DT_INST_DEFINE(inst, clock_mgmt_install_forward_cb,              \
-			     &nxp_lpc55sxx_pll1_data_##inst,                   \
+	CLOCK_DT_INST_DEFINE(inst, &nxp_lpc55sxx_pll1_data_##inst,             \
 			     &nxp_lpc55sxx_pll1_config_##inst,                 \
 			     &nxp_syscon_pll1_api);
 
@@ -245,10 +247,6 @@ DT_INST_FOREACH_CLK_REFERENCED(NXP_LPC55SXX_PLL1_DEFINE)
 struct lpc55sxx_pll_pdec_config {
 	const struct clk *parent;
 	volatile uint32_t *reg;
-};
-
-struct lpc55sxx_pll_pdec_data {
-	struct clock_mgmt_callback cb;
 };
 
 int syscon_lpc55sxx_pll_pdec_get_rate(const struct clk *clk)
@@ -283,18 +281,18 @@ int syscon_lpc55sxx_pll_pdec_configure(const struct clk *clk, void *data)
 const struct clock_driver_api nxp_syscon_pdec_api = {
 	.get_rate = syscon_lpc55sxx_pll_pdec_get_rate,
 	.configure = syscon_lpc55sxx_pll_pdec_configure,
+	.notify = clock_mgmt_forward_cb,
 };
 
 #define NXP_LPC55SXX_PDEC_DEFINE(inst)                                         \
+	CLOCK_NOTIFY_REGISTER_INST(inst, DT_INST_PARENT(inst));                \
+                                                                               \
 	const struct lpc55sxx_pll_pdec_config lpc55sxx_pdec_cfg_##inst = {     \
 	 	.parent = CLOCK_DT_GET(DT_INST_PARENT(inst)),                  \
 		.reg = (volatile uint32_t*)DT_INST_REG_ADDR(inst),             \
 	};                                                                     \
-	struct lpc55sxx_pll_pdec_data lpc55sxxx_pdec_data_##inst;              \
 	                                                                       \
-	CLOCK_DT_INST_DEFINE(inst, clock_mgmt_install_forward_cb,              \
-			     &lpc55sxxx_pdec_data_##inst,                      \
-			     &lpc55sxx_pdec_cfg_##inst,                        \
+	CLOCK_DT_INST_DEFINE(inst, NULL, &lpc55sxx_pdec_cfg_##inst,            \
 			     &nxp_syscon_pdec_api);
 
 DT_INST_FOREACH_CLK_REFERENCED(NXP_LPC55SXX_PDEC_DEFINE)
