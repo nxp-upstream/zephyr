@@ -114,6 +114,7 @@
 
 &flexcomm4 {
 	status = "okay";
+	clock-outputs = <&frgctrl4_mul>;
 };
 
 &sdif {

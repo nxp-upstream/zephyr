@@ -51,11 +51,10 @@ const struct clock_driver_api nxp_syscon_source_api = {
 };
 
 #define NXP_SYSCON_CLOCK_DEFINE(inst)                                          \
-	const struct clk *const nxp_syscon_source_children_##inst[] =          \
-		CLOCK_INST_GET_DEPS(inst);                                     \
+	CLOCK_INST_DEFINE_DEPS(inst);                                          \
 	const struct syscon_clock_source_config nxp_syscon_source_##inst = {   \
-		.children = nxp_syscon_source_children_##inst,                 \
-		.child_count = ARRAY_SIZE(nxp_syscon_source_children_##inst),  \
+		.children = CLOCK_INST_GET_DEPS(inst),                         \
+		.child_count = CLOCK_INST_NUM_DEPS(inst),                      \
 		.rate = DT_INST_PROP(inst, frequency),                         \
 		.reg = (volatile uint32_t *)DT_INST_REG_ADDR(inst),            \
 		.enable_offset = (uint8_t)DT_INST_PROP(inst, offset),          \

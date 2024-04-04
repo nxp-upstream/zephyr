@@ -46,12 +46,11 @@ const struct clock_driver_api nxp_syscon_gate_api = {
 };
 
 #define NXP_SYSCON_CLOCK_DEFINE(inst)                                          \
-	const struct clk *const nxp_syscon_gate_children_##inst[] =            \
-		CLOCK_INST_GET_DEPS(inst);                                     \
+	CLOCK_INST_DEFINE_DEPS(inst);                                          \
 	                                                                       \
 	const struct syscon_clock_gate_config nxp_syscon_gate_##inst = {       \
-		.children = nxp_syscon_gate_children_##inst,                   \
-		.child_count = ARRAY_SIZE(nxp_syscon_gate_children_##inst),    \
+		.children = CLOCK_INST_GET_DEPS(inst),                         \
+		.child_count = CLOCK_INST_NUM_DEPS(inst),                      \
 	 	.parent = CLOCK_DT_GET(DT_INST_PARENT(inst)),                  \
 		.reg = (volatile uint32_t *)DT_INST_REG_ADDR(inst),            \
 		.enable_offset = (uint8_t)DT_INST_PROP(inst, offset),          \

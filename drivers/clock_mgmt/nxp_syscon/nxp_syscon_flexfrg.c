@@ -57,12 +57,11 @@ const struct clock_driver_api nxp_syscon_frg_api = {
 };
 
 #define NXP_SYSCON_CLOCK_DEFINE(inst)                                          \
-	const struct clk *const nxp_syscon_frg_children_##inst[] =             \
-		CLOCK_INST_GET_DEPS(inst);                                     \
+	CLOCK_INST_DEFINE_DEPS(inst);                                          \
                                                                                \
 	const struct syscon_clock_frg_config nxp_syscon_frg_##inst = {         \
-		.children = nxp_syscon_frg_children_##inst,                    \
-		.child_count = ARRAY_SIZE(nxp_syscon_frg_children_##inst),     \
+		.children = CLOCK_INST_GET_DEPS(inst),                         \
+		.child_count = CLOCK_INST_NUM_DEPS(inst),                      \
 		.parent = CLOCK_DT_GET(DT_INST_PARENT(inst)),                  \
 		.reg = (volatile uint32_t *)DT_INST_REG_ADDR(inst),            \
 	};                                                                     \

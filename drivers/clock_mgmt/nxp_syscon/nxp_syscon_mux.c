@@ -84,14 +84,13 @@ const struct clock_driver_api nxp_syscon_mux_api = {
 	CLOCK_DT_GET(DT_PHANDLE_BY_IDX(node_id, prop, idx)),
 
 #define NXP_SYSCON_CLOCK_DEFINE(inst)                                          \
-	const struct clk *const nxp_syscon_mux_children_##inst[] =             \
-		CLOCK_INST_GET_DEPS(inst);                                     \
+	CLOCK_INST_DEFINE_DEPS(inst);                                          \
 	const struct clk *const nxp_syscon_mux_parents_##inst[] = {            \
 		DT_INST_FOREACH_PROP_ELEM(inst, input_sources, GET_MUX_INPUT)  \
 	};                                                                     \
 	const struct syscon_clock_mux_config nxp_syscon_mux_##inst = {         \
-		.children = nxp_syscon_mux_children_##inst,                    \
-		.child_count = ARRAY_SIZE(nxp_syscon_mux_children_##inst),     \
+		.children = CLOCK_INST_GET_DEPS(inst),                         \
+		.child_count = CLOCK_INST_NUM_DEPS(inst),                      \
 	 	.parents = nxp_syscon_mux_parents_##inst,                      \
 		.reg = (volatile uint32_t *)DT_INST_REG_ADDR(inst),            \
 		.mask_width = (uint8_t)DT_INST_REG_SIZE(inst),                 \
