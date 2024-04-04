@@ -212,6 +212,7 @@
 		interrupts = <14 0>;
 		clocks = <&syscon MCUX_FLEXCOMM0_CLK>;
 		status = "disabled";
+		clock-outputs = <&frgctrl0_mul>;
 	};
 
 	flexcomm1: flexcomm@87000 {
@@ -220,6 +221,7 @@
 		interrupts = <15 0>;
 		clocks = <&syscon MCUX_FLEXCOMM1_CLK>;
 		status = "disabled";
+		clock-outputs = <&frgctrl1_mul>;
 	};
 
 	flexcomm2: flexcomm@88000 {
@@ -228,6 +230,7 @@
 		interrupts = <16 0>;
 		clocks = <&syscon MCUX_FLEXCOMM2_CLK>;
 		status = "disabled";
+		clock-outputs = <&frgctrl2_mul>;
 	};
 
 	flexcomm3: flexcomm@89000 {
@@ -236,6 +239,7 @@
 		interrupts = <17 0>;
 		clocks = <&syscon MCUX_FLEXCOMM3_CLK>;
 		status = "disabled";
+		clock-outputs = <&frgctrl3_mul>;
 	};
 
 	flexcomm4: flexcomm@8a000 {
@@ -244,6 +248,7 @@
 		interrupts = <18 0>;
 		clocks = <&syscon MCUX_FLEXCOMM4_CLK>;
 		status = "disabled";
+		clock-outputs = <&frgctrl4_mul>;
 	};
 
 	flexcomm5: flexcomm@96000 {
@@ -252,6 +257,7 @@
 		interrupts = <19 0>;
 		clocks = <&syscon MCUX_FLEXCOMM5_CLK>;
 		status = "disabled";
+		clock-outputs = <&frgctrl5_mul>;
 	};
 
 	flexcomm6: flexcomm@97000 {
@@ -260,6 +266,7 @@
 		interrupts = <20 0>;
 		clocks = <&syscon MCUX_FLEXCOMM6_CLK>;
 		status = "disabled";
+		clock-outputs = <&frgctrl6_mul>;
 	};
 
 	flexcomm7: flexcomm@98000 {
@@ -268,6 +275,7 @@
 		interrupts = <21 0>;
 		clocks = <&syscon MCUX_FLEXCOMM7_CLK>;
 		status = "disabled";
+		clock-outputs = <&frgctrl7_mul>;
 	};
 
 	sdif: sdif@9b000 {

@@ -149,13 +149,14 @@ DT_FOREACH_CLOCK_USED(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  */
 #define Z_GET_CLOCK_DEP_ORD(node_id)                                           \
 	IF_ENABLED(DT_CLOCK_USED(node_id),                                     \
-		((const struct clk *)DT_DEP_ORD(node_id),))
+		(DT_DEP_ORD(node_id),))
 
 /**
  * @brief Clock dependency array name
  * @param node_id Clock identifier
  */
-#define CLOCK_DEPS_NAME(node_id) _CONCAT(Z_CLOCK_DT_CLK_ID(node_id), _deps)
+#define CLOCK_DEPS_NAME(node_id)                                               \
+	_CONCAT(__clockdeps_, Z_CLOCK_DT_CLK_ID(node_id))
 
 /** @endcond */
 
@@ -202,7 +203,7 @@ DT_FOREACH_CLOCK_USED(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  * In the initial build, this array will expand to a list of clock ordinal
  * numbers that describe dependencies of the clock, like so:
  * @code{.c}
- *     const struct clk *const __weak clk_dts_ord_48_deps = {
+ *     const struct clk *const __weak __clockdeps_clk_dts_ord_45[] = {
  *         66,
  *         55,
  *         30,
@@ -214,7 +215,7 @@ DT_FOREACH_CLOCK_USED(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  * the clock structure (or NULL, if no clock structure was defined in the
  * build). The final array will look like so:
  * @code{.c}
- *     const struct clk *const clk_dts_ord_48_deps = {
+ *     const struct clk *const __clockdeps_clk_dts_ord_45[] = {
  *         __clock_clk_dts_ord_66,
  *         __clock_clk_dts_ord_55,
  *         NULL, // __clock_clk_dts_ord_30 was not defined in build
@@ -227,7 +228,7 @@ DT_FOREACH_CLOCK_USED(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  * @param node_id Clock identifier
  */
 #define CLOCK_DEFINE_DEPS(node_id)                                             \
-	const struct clk *const __weak CLOCK_DEPS_NAME(node_id)[] =            \
+	const uint16_t __weak CLOCK_DEPS_NAME(node_id)[] =                     \
 		{DT_FOREACH_SUPPORTED_NODE(node_id, Z_GET_CLOCK_DEP_ORD)};
 
 /**
@@ -246,7 +247,8 @@ DT_FOREACH_CLOCK_USED(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  * an array of pointers to the clock objects dependent on this clock.
  * @param node_id Clock identifier
  */
-#define CLOCK_GET_DEPS(node_id) CLOCK_DEPS_NAME(node_id)
+#define CLOCK_GET_DEPS(node_id)                                                \
+	(const struct clk *const*)CLOCK_DEPS_NAME(node_id)
 
 
 /**
