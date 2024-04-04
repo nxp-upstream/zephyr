@@ -41,21 +41,26 @@ struct clk {
 };
 
 /**
+ * @brief Get clock identifier
+ */
+#define Z_CLOCK_DT_CLK_ID(node_id) _CONCAT(clk_dts_ord_, DT_DEP_ORD(node_id))
+
+/**
  * @brief Expands to the name of a global clock object.
  *
  * Return the full name of a clock object symbol created by CLOCK_DT_DEFINE(),
- * using the `dev_id` provided by Z_DEVICE_DT_DEV_ID(). This is the name of the
+ * using the `clk_id` provided by Z_CLOCK_DT_CLK_ID(). This is the name of the
  * global variable storing the clock structure
  *
  * It is meant to be used for declaring extern symbols pointing to clock objects
  * before using the CLOCK_GET macro to get the device object.
  *
- * @param dev_id Device identifier.
+ * @param clk_id Clock identifier.
  *
  * @return The full name of the clock object defined by clock definition
  * macros.
  */
-#define CLOCK_NAME_GET(dev_id) _CONCAT(__clock_, dev_id)
+#define CLOCK_NAME_GET(clk_id) _CONCAT(__clock_, clk_id)
 
 /**
  * @brief The name of the global clock object for @param node_id
@@ -68,7 +73,7 @@ struct clk {
  *
  * @return The name of the clock object as a C identifier
  */
-#define CLOCK_DT_NAME_GET(node_id) CLOCK_NAME_GET(Z_DEVICE_DT_DEV_ID(node_id))
+#define CLOCK_DT_NAME_GET(node_id) CLOCK_NAME_GET(Z_CLOCK_DT_CLK_ID(node_id))
 
 /**
  * @brief Get a @ref clk reference from a clock devicetree node identifier.
@@ -164,7 +169,7 @@ DT_FOREACH_CLOCK_USED(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  */
 
 #define CLOCK_DT_DEFINE(node_id, data, config, api, ...)                       \
-	Z_CLOCK_BASE_DEFINE(node_id, Z_DEVICE_DT_DEV_ID(node_id), data,        \
+	Z_CLOCK_BASE_DEFINE(node_id, Z_CLOCK_DT_CLK_ID(node_id), data,         \
 			    config, api)
 
 /**
