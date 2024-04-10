@@ -16,7 +16,7 @@ struct syscon_clock_source_config {
 
 int syscon_clock_source_get_rate(const struct clk *clk)
 {
-	const struct syscon_clock_source_config *config = clk->config;
+	const struct syscon_clock_source_config *config = clk->hw_data;
 
 	if (config->reg == NULL) {
 		return config->rate;
@@ -28,7 +28,7 @@ int syscon_clock_source_get_rate(const struct clk *clk)
 
 int syscon_clock_source_configure(const struct clk *clk, void *data)
 {
-	const struct syscon_clock_source_config *config = clk->config;
+	const struct syscon_clock_source_config *config = clk->hw_data;
 	bool ungate = (bool)data;
 
 	if (config->reg == NULL) {
@@ -55,7 +55,7 @@ const struct clock_driver_api nxp_syscon_source_api = {
 		.enable_offset = (uint8_t)DT_INST_PROP(inst, offset),          \
 	};                                                                     \
 	                                                                       \
-	CLOCK_DT_INST_DEFINE(inst, NULL,                                       \
+	CLOCK_DT_INST_DEFINE(inst,                                             \
 			     &nxp_syscon_source_##inst,                        \
 			     &nxp_syscon_source_api);
 

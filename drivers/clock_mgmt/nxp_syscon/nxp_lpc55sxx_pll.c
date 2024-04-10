@@ -27,20 +27,15 @@ struct lpc55sxx_pll0_config_input {
 	struct lpc55sxx_pll0_regs *reg_settings;
 };
 
-struct lpc55sxx_pll0_config {
-	const struct clk *const *children;
-	uint8_t child_count;
+struct lpc55sxx_pll0_data {
 	const struct clk *parent;
 	struct lpc55sxx_pll0_regs *regs;
-};
-
-struct lpc55sxx_pll0_data {
 	uint32_t output_freq;
 };
 
 int syscon_lpc55sxx_pll0_get_rate(const struct clk *clk)
 {
-	struct lpc55sxx_pll0_data *data = clk->data;
+	struct lpc55sxx_pll0_data *data = clk->hw_data;
 
 	/* Return stored frequency */
 	return data->output_freq;
@@ -48,8 +43,7 @@ int syscon_lpc55sxx_pll0_get_rate(const struct clk *clk)
 
 int syscon_lpc55sxx_pll0_configure(const struct clk *clk, void *data)
 {
-	const struct lpc55sxx_pll0_config *config = clk->config;
-	struct lpc55sxx_pll0_data *clk_data = clk->data;
+	struct lpc55sxx_pll0_data *clk_data = clk->hw_data;
 	struct lpc55sxx_pll0_config_input *input = data;
 	int input_clk;
 
@@ -65,15 +59,15 @@ int syscon_lpc55sxx_pll0_configure(const struct clk *clk, void *data)
 		return 0;
 	}
 
-	config->regs->CTRL = input->reg_settings->CTRL;
-	config->regs->STAT = input->reg_settings->STAT;
-	config->regs->NDEC = input->reg_settings->NDEC;
+	clk_data->regs->CTRL = input->reg_settings->CTRL;
+	clk_data->regs->STAT = input->reg_settings->STAT;
+	clk_data->regs->NDEC = input->reg_settings->NDEC;
 	/* Request NDEC change */
-	config->regs->NDEC = input->reg_settings->NDEC | SYSCON_PLL0NDEC_NREQ_MASK;
-	config->regs->SSCG0 = input->reg_settings->SSCG0;
-	config->regs->SSCG1 = input->reg_settings->SSCG1;
+	clk_data->regs->NDEC = input->reg_settings->NDEC | SYSCON_PLL0NDEC_NREQ_MASK;
+	clk_data->regs->SSCG0 = input->reg_settings->SSCG0;
+	clk_data->regs->SSCG1 = input->reg_settings->SSCG1;
 	/* Request MD change */
-	config->regs->SSCG1 = input->reg_settings->SSCG1 |
+	clk_data->regs->SSCG1 = input->reg_settings->SSCG1 |
 		(SYSCON_PLL0SSCG1_MD_REQ_MASK | SYSCON_PLL0SSCG1_MREQ_MASK);
 
 	/* Power PLL on */
@@ -85,16 +79,16 @@ int syscon_lpc55sxx_pll0_configure(const struct clk *clk, void *data)
 	 * - FREF is below 100KHz or above 20MHz.
 	 * - spread spectrum mode is used
 	 */
-	input_clk = clock_get_rate(config->parent);
+	input_clk = clock_get_rate(clk_data->parent);
 	if (input->reg_settings->CTRL & SYSCON_PLL0CTRL_BYPASSPREDIV_MASK) {
 		/* Input passes through prediv */
 		input_clk /= MAX(input->reg_settings->NDEC & SYSCON_PLL0NDEC_NDIV_MASK, 1);
 	}
 
-	if ((config->regs->SSCG0 & SYSCON_PLL0SSCG1_SEL_EXT_MASK) ||
+	if ((clk_data->regs->SSCG0 & SYSCON_PLL0SSCG1_SEL_EXT_MASK) ||
 	    (input_clk > MHZ(20)) || (input_clk < KHZ(100))) {
 		/* Normal mode, use lock bit*/
-		while ((config->regs->STAT & SYSCON_PLL0STAT_LOCK_MASK) == 0) {
+		while ((clk_data->regs->STAT & SYSCON_PLL0STAT_LOCK_MASK) == 0) {
 			/* Spin */
 		}
 	} else {
@@ -114,14 +108,12 @@ const struct clock_driver_api nxp_syscon_pll0_api = {
 };
 
 #define NXP_LPC55SXX_PLL0_DEFINE(inst)                                         \
-	const struct lpc55sxx_pll0_config nxp_lpc55sxx_pll0_config_##inst = {  \
+	struct lpc55sxx_pll0_data nxp_lpc55sxx_pll0_data_##inst = {            \
 	 	.parent = CLOCK_DT_GET(DT_INST_PARENT(inst)),                  \
 		.regs = (struct lpc55sxx_pll0_regs*)DT_INST_REG_ADDR(inst),    \
 	};                                                                     \
-	struct lpc55sxx_pll0_data nxp_lpc55sxx_pll0_data_##inst = {0};         \
 	                                                                       \
 	CLOCK_DT_INST_DEFINE(inst, &nxp_lpc55sxx_pll0_data_##inst,             \
-			     &nxp_lpc55sxx_pll0_config_##inst,                 \
 			     &nxp_syscon_pll0_api);
 
 DT_INST_FOREACH_CLK_REFERENCED(NXP_LPC55SXX_PLL0_DEFINE)
@@ -144,20 +136,15 @@ struct lpc55sxx_pll1_config_input {
 	struct lpc55sxx_pll1_regs *reg_settings;
 };
 
-struct lpc55sxx_pll1_config {
-	const struct clk *const *children;
-	uint8_t child_count;
+struct lpc55sxx_pll1_data {
 	const struct clk *parent;
 	struct lpc55sxx_pll1_regs *regs;
-};
-
-struct lpc55sxx_pll1_data {
 	uint32_t output_freq;
 };
 
 int syscon_lpc55sxx_pll1_get_rate(const struct clk *clk)
 {
-	struct lpc55sxx_pll1_data *data = clk->data;
+	struct lpc55sxx_pll1_data *data = clk->hw_data;
 
 	/* Return stored frequency */
 	return data->output_freq;
@@ -166,8 +153,7 @@ int syscon_lpc55sxx_pll1_get_rate(const struct clk *clk)
 int syscon_lpc55sxx_pll1_configure(const struct clk *clk, void *data)
 
 {
-	const struct lpc55sxx_pll1_config *config = clk->config;
-	struct lpc55sxx_pll1_data *clk_data = clk->data;
+	struct lpc55sxx_pll1_data *clk_data = clk->hw_data;
 	struct lpc55sxx_pll1_config_input *input = data;
 	int input_clk;
 
@@ -182,14 +168,14 @@ int syscon_lpc55sxx_pll1_configure(const struct clk *clk, void *data)
 		return 0;
 	}
 
-	config->regs->CTRL = input->reg_settings->CTRL;
-	config->regs->STAT = input->reg_settings->STAT;
-	config->regs->NDEC = input->reg_settings->NDEC;
+	clk_data->regs->CTRL = input->reg_settings->CTRL;
+	clk_data->regs->STAT = input->reg_settings->STAT;
+	clk_data->regs->NDEC = input->reg_settings->NDEC;
 	/* Request NDEC change */
-	config->regs->NDEC = input->reg_settings->NDEC | SYSCON_PLL1NDEC_NREQ_MASK;
-	config->regs->MDEC = input->reg_settings->MDEC;
+	clk_data->regs->NDEC = input->reg_settings->NDEC | SYSCON_PLL1NDEC_NREQ_MASK;
+	clk_data->regs->MDEC = input->reg_settings->MDEC;
 	/* Request MDEC change */
-	config->regs->MDEC = input->reg_settings->MDEC | SYSCON_PLL1MDEC_MREQ_MASK;
+	clk_data->regs->MDEC = input->reg_settings->MDEC | SYSCON_PLL1MDEC_MREQ_MASK;
 
 	/* Power PLL on */
 	PMC->PDRUNCFGCLR0 = PMC_PDRUNCFG0_PDEN_PLL1_MASK;
@@ -199,7 +185,7 @@ int syscon_lpc55sxx_pll1_configure(const struct clk *clk, void *data)
 	 * - FREF is below 100KHz or above 20MHz.
 	 * - spread spectrum mode is used
 	 */
-	input_clk = clock_get_rate(config->parent);
+	input_clk = clock_get_rate(clk_data->parent);
 	if (input->reg_settings->CTRL & SYSCON_PLL1CTRL_BYPASSPREDIV_MASK) {
 		/* Input passes through prediv */
 		input_clk /= MAX(input->reg_settings->NDEC & SYSCON_PLL1NDEC_NDIV_MASK, 1);
@@ -207,7 +193,7 @@ int syscon_lpc55sxx_pll1_configure(const struct clk *clk, void *data)
 
 	if ((input_clk > MHZ(20)) || (input_clk < KHZ(100))) {
 		/* Normal mode, use lock bit*/
-		while ((config->regs->STAT & SYSCON_PLL1STAT_LOCK_MASK) == 0) {
+		while ((clk_data->regs->STAT & SYSCON_PLL1STAT_LOCK_MASK) == 0) {
 			/* Spin */
 		}
 	} else {
@@ -228,14 +214,12 @@ const struct clock_driver_api nxp_syscon_pll1_api = {
 };
 
 #define NXP_LPC55SXX_PLL1_DEFINE(inst)                                         \
-	const struct lpc55sxx_pll1_config nxp_lpc55sxx_pll1_config_##inst = {  \
+	struct lpc55sxx_pll1_data nxp_lpc55sxx_pll1_data_##inst = {            \
 	 	.parent = CLOCK_DT_GET(DT_INST_PARENT(inst)),                  \
 		.regs = (struct lpc55sxx_pll1_regs*)DT_INST_REG_ADDR(inst),    \
 	};                                                                     \
-	struct lpc55sxx_pll1_data nxp_lpc55sxx_pll1_data_##inst = {0};         \
 	                                                                       \
 	CLOCK_DT_INST_DEFINE(inst, &nxp_lpc55sxx_pll1_data_##inst,             \
-			     &nxp_lpc55sxx_pll1_config_##inst,                 \
 			     &nxp_syscon_pll1_api);
 
 DT_INST_FOREACH_CLK_REFERENCED(NXP_LPC55SXX_PLL1_DEFINE)
@@ -245,15 +229,13 @@ DT_INST_FOREACH_CLK_REFERENCED(NXP_LPC55SXX_PLL1_DEFINE)
 #define DT_DRV_COMPAT nxp_lpc55sxx_pll_pdec
 
 struct lpc55sxx_pll_pdec_config {
-	const struct clk *const *children;
-	uint8_t child_count;
 	const struct clk *parent;
 	volatile uint32_t *reg;
 };
 
 int syscon_lpc55sxx_pll_pdec_get_rate(const struct clk *clk)
 {
-	const struct lpc55sxx_pll_pdec_config *config = clk->config;
+	const struct lpc55sxx_pll_pdec_config *config = clk->hw_data;
 	int parent_rate = clock_get_rate(config->parent);
 	int div = (((*config->reg) & SYSCON_PLL0PDEC_PDIV_MASK)) * 2;
 
@@ -271,7 +253,7 @@ int syscon_lpc55sxx_pll_pdec_get_rate(const struct clk *clk)
 int syscon_lpc55sxx_pll_pdec_configure(const struct clk *clk, void *data)
 
 {
-	const struct lpc55sxx_pll_pdec_config *config = clk->config;
+	const struct lpc55sxx_pll_pdec_config *config = clk->hw_data;
 	uint32_t div_val = FIELD_PREP(SYSCON_PLL0PDEC_PDIV_MASK, ((uint32_t)data));
 
 	*config->reg = ((*config->reg) & ~SYSCON_PLL0PDEC_PDIV_MASK) | div_val;
@@ -292,7 +274,7 @@ const struct clock_driver_api nxp_syscon_pdec_api = {
 		.reg = (volatile uint32_t*)DT_INST_REG_ADDR(inst),             \
 	};                                                                     \
 	                                                                       \
-	CLOCK_DT_INST_DEFINE(inst, NULL, &lpc55sxx_pdec_cfg_##inst,            \
+	CLOCK_DT_INST_DEFINE(inst, &lpc55sxx_pdec_cfg_##inst,                  \
 			     &nxp_syscon_pdec_api);
 
 DT_INST_FOREACH_CLK_REFERENCED(NXP_LPC55SXX_PDEC_DEFINE)

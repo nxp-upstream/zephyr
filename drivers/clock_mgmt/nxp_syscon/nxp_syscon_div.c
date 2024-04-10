@@ -18,7 +18,7 @@ struct syscon_clock_div_config {
 
 int syscon_clock_div_get_rate(const struct clk *clk)
 {
-	const struct syscon_clock_div_config *config = clk->config;
+	const struct syscon_clock_div_config *config = clk->hw_data;
 	int parent_rate = clock_get_rate(config->parent);
 	uint8_t div_mask = GENMASK(0, (config->mask_width - 1));
 
@@ -32,7 +32,7 @@ int syscon_clock_div_get_rate(const struct clk *clk)
 
 int syscon_clock_div_configure(const struct clk *clk, void *div)
 {
-	const struct syscon_clock_div_config *config = clk->config;
+	const struct syscon_clock_div_config *config = clk->hw_data;
 	uint8_t div_mask = GENMASK(0, (config->mask_width - 1));
 	uint32_t div_val = (((uint32_t)div) - 1) & div_mask;
 
@@ -54,7 +54,7 @@ const struct clock_driver_api nxp_syscon_div_api = {
 		.mask_width = (uint8_t)DT_INST_REG_SIZE(inst),                 \
 	};                                                                     \
 	                                                                       \
-	CLOCK_DT_INST_DEFINE(inst, NULL,                                       \
+	CLOCK_DT_INST_DEFINE(inst,                                             \
 			     &nxp_syscon_div_##inst,                           \
 			     &nxp_syscon_div_api);
 

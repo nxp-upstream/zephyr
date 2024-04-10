@@ -18,7 +18,7 @@ struct syscon_clock_gate_config {
 
 int syscon_clock_gate_get_rate(const struct clk *clk)
 {
-	const struct syscon_clock_gate_config *config = clk->config;
+	const struct syscon_clock_gate_config *config = clk->hw_data;
 
 	return ((*config->reg) & BIT(config->enable_offset)) ?
 		clock_get_rate(config->parent) : 0;
@@ -26,7 +26,7 @@ int syscon_clock_gate_get_rate(const struct clk *clk)
 
 int syscon_clock_gate_configure(const struct clk *clk, void *data)
 {
-	const struct syscon_clock_gate_config *config = clk->config;
+	const struct syscon_clock_gate_config *config = clk->hw_data;
 	bool ungate = (bool)data;
 
 	if (ungate) {
@@ -51,7 +51,6 @@ const struct clock_driver_api nxp_syscon_gate_api = {
 	};                                                                     \
 	                                                                       \
 	CLOCK_DT_INST_DEFINE(inst,                                             \
-			     NULL,                                             \
 			     &nxp_syscon_gate_##inst,                          \
 			     &nxp_syscon_gate_api);
 

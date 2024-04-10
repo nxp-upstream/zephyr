@@ -34,10 +34,8 @@ struct clock_driver_api;
 struct clk {
 	/** Children nodes of the clock */
 	const struct clk *const *children;
-	/** Address of private clock instance configuration information */
-	const void *config;
-	/** Address of private clock instance mutable data */
-	void *data;
+	/** Pointer to private clock hardware data. May be in ROM or RAM. */
+	void *hw_data;
 	/** API pointer for clock node */
 	const struct clock_driver_api *api;
 };
@@ -99,15 +97,13 @@ struct clk {
  * @brief Initializer for @ref clk.
  *
  * @param children_ Children of this clock
- * @param data_ Mutable data pointer for clock
- * @param config_ Constant configuration pointer for clock
+ * @param hw_data Pointer to the clock's private data
  * @param api_ Pointer to the clock's API structure.
  */
-#define Z_CLOCK_INIT(children_, data_, config_, api_)                          \
+#define Z_CLOCK_INIT(children_, hw_data_, api_)                                \
 	{                                                                      \
 		.children = children_,                                         \
-		.data = data_,                                                 \
-		.config = config_,                                             \
+		.hw_data = (void *)hw_data_,                                   \
 		.api = api_,                                                   \
 	}
 
@@ -118,17 +114,17 @@ struct clk {
  * object
  * @param node_id The devicetree node identifier.
  * @param clk_id clock identifier (used to name the defined @ref clk).
- * @param data Pointer to the clock's private mutable data, which will be
- * stored in the @ref clk.data field
+ * @param hw_data Pointer to the clock's private data, which will be
+ * stored in the @ref clk.hw_data field. This data may be in ROM or RAM.
  * @param config Pointer to the clock's private constant data, which will be
  * stored in the @ref clk.config field
  * @param api Pointer to the clock's API structure.
  */
-#define Z_CLOCK_BASE_DEFINE(node_id, clk_id, data, config, api)                \
+#define Z_CLOCK_BASE_DEFINE(node_id, clk_id, hw_data, api)                     \
 	Z_CLOCK_DEFINE_DEPS(node_id);                                          \
 	const struct clk CLOCK_NAME_GET(clk_id) =                              \
 		Z_CLOCK_INIT(Z_CLOCK_GET_DEPS(node_id),                        \
-			     data, config, api);
+			     hw_data, api);
 
 /**
  * @brief Declare a clock for each used clock node in devicetree
@@ -229,16 +225,14 @@ DT_FOREACH_CLOCK_USED(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  * internal to the clock subsystem.
  *
  * @param node_id The devicetree node identifier.
- * @param data Pointer to the clock's private mutable data, which will be
- * stored in the @ref clk.data field
- * @param config Pointer to the clock's private constant data, which will be
- * stored in the @ref clk.config field
+ * @param hw_data Pointer to the clock's private data, which will be
+ * stored in the @ref clk.hw_data field. This data may be in ROM or RAM.
  * @param api Pointer to the clock's API structure.
  */
 
-#define CLOCK_DT_DEFINE(node_id, data, config, api, ...)                       \
-	Z_CLOCK_BASE_DEFINE(node_id, Z_CLOCK_DT_CLK_ID(node_id), data,         \
-			    config, api)
+#define CLOCK_DT_DEFINE(node_id, hw_data, api, ...)                            \
+	Z_CLOCK_BASE_DEFINE(node_id, Z_CLOCK_DT_CLK_ID(node_id), hw_data,      \
+			    api)
 
 /**
  * @brief Like CLOCK_DT_DEFINE(), but uses an instance of `DT_DRV_COMPAT`

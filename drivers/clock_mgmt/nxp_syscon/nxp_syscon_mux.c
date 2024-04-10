@@ -19,7 +19,7 @@ struct syscon_clock_mux_config {
 
 int syscon_clock_mux_get_rate(const struct clk *clk)
 {
-	const struct syscon_clock_mux_config *config = clk->config;
+	const struct syscon_clock_mux_config *config = clk->hw_data;
 	uint8_t mux_mask = GENMASK(config->mask_offset,
 				   (config->mask_width +
 				   config->mask_offset - 1));
@@ -34,7 +34,7 @@ int syscon_clock_mux_get_rate(const struct clk *clk)
 
 int syscon_clock_mux_configure(const struct clk *clk, void *mux)
 {
-	const struct syscon_clock_mux_config *config = clk->config;
+	const struct syscon_clock_mux_config *config = clk->hw_data;
 
 	uint8_t mux_mask = GENMASK(config->mask_offset,
 				   (config->mask_width +
@@ -51,7 +51,7 @@ int syscon_clock_mux_configure(const struct clk *clk, void *mux)
 
 int syscon_clock_mux_notify(const struct clk *clk, const struct clk *parent)
 {
-	const struct syscon_clock_mux_config *config = clk->config;
+	const struct syscon_clock_mux_config *config = clk->hw_data;
 	uint8_t mux_mask = GENMASK(config->mask_offset,
 				   (config->mask_width +
 				   config->mask_offset - 1));
@@ -92,7 +92,7 @@ const struct clock_driver_api nxp_syscon_mux_api = {
 		.src_count = ARRAY_SIZE(nxp_syscon_mux_parents_##inst),        \
 	};                                                                     \
 	                                                                       \
-	CLOCK_DT_INST_DEFINE(inst, NULL,                                       \
+	CLOCK_DT_INST_DEFINE(inst,                                             \
 			     &nxp_syscon_mux_##inst,                           \
 			     &nxp_syscon_mux_api);
 
