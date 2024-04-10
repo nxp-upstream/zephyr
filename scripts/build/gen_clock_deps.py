@@ -81,8 +81,7 @@ def main():
                 # build, get a reference to it. If not, defined it as NULL
                 if child_ord in parsed_elf.clock_ordinals:
                     sym_values.append(f"&__clock_clk_dts_ord_{child_ord}")
-                else:
-                    sym_values.append("NULL")
+            sym_values.append("NULL")
             sym_array = ",\n\t".join(sym_values)
             fp.write(f"const struct clk *const {sym_name}[] = \n\t{{{sym_array}}};\n\n")
 

@@ -114,11 +114,7 @@ const struct clock_driver_api nxp_syscon_pll0_api = {
 };
 
 #define NXP_LPC55SXX_PLL0_DEFINE(inst)                                         \
-	CLOCK_INST_DEFINE_DEPS(inst);                                          \
-                                                                               \
 	const struct lpc55sxx_pll0_config nxp_lpc55sxx_pll0_config_##inst = {  \
-		.children = CLOCK_INST_GET_DEPS(inst),                         \
-		.child_count = CLOCK_INST_NUM_DEPS(inst),                      \
 	 	.parent = CLOCK_DT_GET(DT_INST_PARENT(inst)),                  \
 		.regs = (struct lpc55sxx_pll0_regs*)DT_INST_REG_ADDR(inst),    \
 	};                                                                     \
@@ -232,11 +228,7 @@ const struct clock_driver_api nxp_syscon_pll1_api = {
 };
 
 #define NXP_LPC55SXX_PLL1_DEFINE(inst)                                         \
-	CLOCK_INST_DEFINE_DEPS(inst);                                          \
-                                                                               \
 	const struct lpc55sxx_pll1_config nxp_lpc55sxx_pll1_config_##inst = {  \
-		.children = CLOCK_INST_GET_DEPS(inst),                         \
-		.child_count = CLOCK_INST_NUM_DEPS(inst),                      \
 	 	.parent = CLOCK_DT_GET(DT_INST_PARENT(inst)),                  \
 		.regs = (struct lpc55sxx_pll1_regs*)DT_INST_REG_ADDR(inst),    \
 	};                                                                     \
@@ -295,11 +287,7 @@ const struct clock_driver_api nxp_syscon_pdec_api = {
 };
 
 #define NXP_LPC55SXX_PDEC_DEFINE(inst)                                         \
-	CLOCK_INST_DEFINE_DEPS(inst);                                          \
-                                                                               \
 	const struct lpc55sxx_pll_pdec_config lpc55sxx_pdec_cfg_##inst = {     \
-		.children = CLOCK_INST_GET_DEPS(inst),                         \
-		.child_count = CLOCK_INST_NUM_DEPS(inst),                      \
 	 	.parent = CLOCK_DT_GET(DT_INST_PARENT(inst)),                  \
 		.reg = (volatile uint32_t*)DT_INST_REG_ADDR(inst),             \
 	};                                                                     \

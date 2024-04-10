@@ -9,8 +9,6 @@
 #define DT_DRV_COMPAT nxp_syscon_clock_source
 
 struct syscon_clock_source_config {
-	const struct clk *const *children;
-	uint8_t child_count;
 	uint8_t enable_offset;
 	uint32_t rate;
 	volatile uint32_t *reg;
@@ -51,10 +49,7 @@ const struct clock_driver_api nxp_syscon_source_api = {
 };
 
 #define NXP_SYSCON_CLOCK_DEFINE(inst)                                          \
-	CLOCK_INST_DEFINE_DEPS(inst);                                          \
 	const struct syscon_clock_source_config nxp_syscon_source_##inst = {   \
-		.children = CLOCK_INST_GET_DEPS(inst),                         \
-		.child_count = CLOCK_INST_NUM_DEPS(inst),                      \
 		.rate = DT_INST_PROP(inst, frequency),                         \
 		.reg = (volatile uint32_t *)DT_INST_REG_ADDR(inst),            \
 		.enable_offset = (uint8_t)DT_INST_PROP(inst, offset),          \

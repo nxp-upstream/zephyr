@@ -32,6 +32,8 @@ struct clock_driver_api;
  * @brief Runtime clock structure (in ROM) for each clock node
  */
 struct clk {
+	/** Children nodes of the clock */
+	const struct clk *const *children;
 	/** Address of private clock instance configuration information */
 	const void *config;
 	/** Address of private clock instance mutable data */
@@ -96,12 +98,14 @@ struct clk {
 /**
  * @brief Initializer for @ref clk.
  *
+ * @param children_ Children of this clock
  * @param data_ Mutable data pointer for clock
  * @param config_ Constant configuration pointer for clock
  * @param api_ Pointer to the clock's API structure.
  */
-#define Z_CLOCK_INIT(data_, config_, api_)                                     \
+#define Z_CLOCK_INIT(children_, data_, config_, api_)                          \
 	{                                                                      \
+		.children = children_,                                         \
 		.data = data_,                                                 \
 		.config = config_,                                             \
 		.api = api_,                                                   \
@@ -121,8 +125,10 @@ struct clk {
  * @param api Pointer to the clock's API structure.
  */
 #define Z_CLOCK_BASE_DEFINE(node_id, clk_id, data, config, api)                \
+	Z_CLOCK_DEFINE_DEPS(node_id);                                          \
 	const struct clk CLOCK_NAME_GET(clk_id) =                              \
-		Z_CLOCK_INIT(data, config, api);
+		Z_CLOCK_INIT(Z_CLOCK_GET_DEPS(node_id),                        \
+			     data, config, api);
 
 /**
  * @brief Declare a clock for each used clock node in devicetree
@@ -155,8 +161,59 @@ DT_FOREACH_CLOCK_USED(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  * @brief Clock dependency array name
  * @param node_id Clock identifier
  */
-#define CLOCK_DEPS_NAME(node_id)                                               \
+#define Z_CLOCK_DEPS_NAME(node_id)                                             \
 	_CONCAT(__clockdeps_, Z_CLOCK_DT_CLK_ID(node_id))
+
+/**
+ * @brief Define clock dependency array
+ *
+ * This macro defines a clock dependency array. The clock should
+ * call this macro from its init macro, and can then get a reference to
+ * the clock dependency array with `CLOCK_GET_DEPS`
+ *
+ * In the initial build, this array will expand to a list of clock ordinal
+ * numbers that describe dependencies of the clock, like so:
+ * @code{.c}
+ *     const clock_handle_t __weak __clockdeps_clk_dts_ord_45[] = {
+ *         66,
+ *         30,
+ *         55,
+ *     }
+ * @endcode
+ *
+ * In the second pass of the build, gen_clock_deps.py will create a strong
+ * symbol to override the weak one, with each ordinal number resolved to
+ * the clock structure (or omitted, if no clock structure was defined in the
+ * build). The final array will look like so:
+ * @code{.c}
+ *     const clock_handle_t __clockdeps_clk_dts_ord_45[] = {
+ *         __clock_clk_dts_ord_66,
+ *         // Clock structure for ordinal 30 was not linked in build
+ *         __clock_clk_dts_ord_55,
+ *         NULL, // Sentinel for end of list
+ *     }
+ * @endcode
+ * This multi-phase build is necessary so that the linker will optimize out
+ * any clock object that are not referenced elsewhere in the build. This way,
+ * a clock object will be discarded in the first link phase unless another
+ * structure references it (such as a clock referencing its parent object)
+ * @param node_id Clock identifier
+ */
+#define Z_CLOCK_DEFINE_DEPS(node_id)                                           \
+	const uint16_t __weak Z_CLOCK_DEPS_NAME(node_id)[] =                   \
+		{DT_FOREACH_SUPPORTED_NODE(node_id, Z_GET_CLOCK_DEP_ORD)};
+
+/**
+ * @brief Get clock dependency array
+ *
+ * This macro gets the c identifier for the clock dependency array,
+ * declared with `CLOCK_DEFINE_DEPS`, which will contain
+ * an array of pointers to the clock objects dependent on this clock.
+ * @param node_id Clock identifier
+ */
+#define Z_CLOCK_GET_DEPS(node_id)                                              \
+	(const struct clk *const*)Z_CLOCK_DEPS_NAME(node_id)
+
 
 /** @endcond */
 
@@ -192,91 +249,6 @@ DT_FOREACH_CLOCK_USED(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  */
 #define CLOCK_DT_INST_DEFINE(inst, ...)                                        \
 	CLOCK_DT_DEFINE(DT_DRV_INST(inst), __VA_ARGS__)
-
-/**
- * @brief Define clock dependency array
- *
- * This macro defines a clock dependency array. The clock should
- * call this macro from its init macro, and can then get a reference to
- * the clock dependency array with `CLOCK_GET_DEPS`
- *
- * In the initial build, this array will expand to a list of clock ordinal
- * numbers that describe dependencies of the clock, like so:
- * @code{.c}
- *     const struct clk *const __weak __clockdeps_clk_dts_ord_45[] = {
- *         66,
- *         55,
- *         30,
- *     }
- * @endcode
- *
- * In the second pass of the build, gen_clock_deps.py will create a strong
- * symbol to override the weak one, with each ordinal number resolved to
- * the clock structure (or NULL, if no clock structure was defined in the
- * build). The final array will look like so:
- * @code{.c}
- *     const struct clk *const __clockdeps_clk_dts_ord_45[] = {
- *         __clock_clk_dts_ord_66,
- *         __clock_clk_dts_ord_55,
- *         NULL, // __clock_clk_dts_ord_30 was not defined in build
- *     }
- * @endcode
- * This multi-phase build is necessary so that the linker will optimize out
- * any clock object that are not referenced elsewhere in the build. This way,
- * a clock object will be discarded in the first link phase unless another
- * structure references it (such as a clock referencing its parent object)
- * @param node_id Clock identifier
- */
-#define CLOCK_DEFINE_DEPS(node_id)                                             \
-	const uint16_t __weak CLOCK_DEPS_NAME(node_id)[] =                     \
-		{DT_FOREACH_SUPPORTED_NODE(node_id, Z_GET_CLOCK_DEP_ORD)};
-
-/**
- * @brief Define clock dependency array for a clock instance
- *
- * This is equivalent to `CLOCK_DEFINE_DEPS(DT_DRV_INST(inst))`
- * @param inst Instance identifier
- */
-#define CLOCK_INST_DEFINE_DEPS(inst) CLOCK_DEFINE_DEPS(DT_DRV_INST(inst))
-
-/**
- * @brief Get clock dependency array
- *
- * This macro gets the c identifier for the clock dependency array,
- * declared with `CLOCK_DEFINE_DEPS`, which will contain
- * an array of pointers to the clock objects dependent on this clock.
- * @param node_id Clock identifier
- */
-#define CLOCK_GET_DEPS(node_id)                                                \
-	(const struct clk *const*)CLOCK_DEPS_NAME(node_id)
-
-
-/**
- * @brief Get clock dependency array for a clock instance
- *
- * This is equivalent to `CLOCK_GET_DEPS(DT_DRV_INST(inst))`
- * @param inst Instance identifier
- */
-#define CLOCK_INST_GET_DEPS(inst) CLOCK_GET_DEPS(DT_DRV_INST(inst))
-
-/**
- * @brief Get count of clock dependencies
- *
- * This macro gets a count of the number of clock dependencies that exist
- * for a given clock
- * @param node_id Clock identifier
- */
-#define CLOCK_NUM_DEPS(node_id)                                                \
-	ARRAY_SIZE(CLOCK_DEPS_NAME(node_id))
-
-
-/**
- * @brief Get count of clock instance dependencies
- *
- * This is equivalent to `CLOCK_NUM_DEPS(DT_DRV_INST(inst))`
- * @param inst Instance identifier
- */
-#define CLOCK_INST_NUM_DEPS(inst) CLOCK_NUM_DEPS(DT_DRV_INST(inst))
 
 #ifdef __cplusplus
 }

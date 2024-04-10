@@ -11,8 +11,6 @@
 #define DT_DRV_COMPAT nxp_syscon_clock_div
 
 struct syscon_clock_div_config {
-	const struct clk *const *children;
-	uint8_t child_count;
 	uint8_t mask_width;
 	const struct clk *parent;
 	volatile uint32_t *reg;
@@ -50,11 +48,7 @@ const struct clock_driver_api nxp_syscon_div_api = {
 };
 
 #define NXP_SYSCON_CLOCK_DEFINE(inst)                                          \
-	CLOCK_INST_DEFINE_DEPS(inst);                                          \
-                                                                               \
 	const struct syscon_clock_div_config nxp_syscon_div_##inst = {         \
-		.children = CLOCK_INST_GET_DEPS(inst),                         \
-		.child_count = CLOCK_INST_NUM_DEPS(inst),                      \
 	 	.parent = CLOCK_DT_GET(DT_INST_PARENT(inst)),                  \
 		.reg = (volatile uint32_t *)DT_INST_REG_ADDR(inst),            \
 		.mask_width = (uint8_t)DT_INST_REG_SIZE(inst),                 \
