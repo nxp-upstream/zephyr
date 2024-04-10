@@ -96,4 +96,4 @@ const struct clock_driver_api nxp_syscon_mux_api = {
 			     &nxp_syscon_mux_##inst,                           \
 			     &nxp_syscon_mux_api);
 
-DT_INST_FOREACH_CLK_REFERENCED(NXP_SYSCON_CLOCK_DEFINE)
+DT_INST_FOREACH_STATUS_OKAY(NXP_SYSCON_CLOCK_DEFINE)

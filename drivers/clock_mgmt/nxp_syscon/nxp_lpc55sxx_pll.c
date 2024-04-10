@@ -116,7 +116,7 @@ const struct clock_driver_api nxp_syscon_pll0_api = {
 	CLOCK_DT_INST_DEFINE(inst, &nxp_lpc55sxx_pll0_data_##inst,             \
 			     &nxp_syscon_pll0_api);
 
-DT_INST_FOREACH_CLK_REFERENCED(NXP_LPC55SXX_PLL0_DEFINE)
+DT_INST_FOREACH_STATUS_OKAY(NXP_LPC55SXX_PLL0_DEFINE)
 
 
 /* PLL1 driver */
@@ -222,7 +222,7 @@ const struct clock_driver_api nxp_syscon_pll1_api = {
 	CLOCK_DT_INST_DEFINE(inst, &nxp_lpc55sxx_pll1_data_##inst,             \
 			     &nxp_syscon_pll1_api);
 
-DT_INST_FOREACH_CLK_REFERENCED(NXP_LPC55SXX_PLL1_DEFINE)
+DT_INST_FOREACH_STATUS_OKAY(NXP_LPC55SXX_PLL1_DEFINE)
 
 /* PLL PDEC divider driver */
 #undef DT_DRV_COMPAT
@@ -277,4 +277,4 @@ const struct clock_driver_api nxp_syscon_pdec_api = {
 	CLOCK_DT_INST_DEFINE(inst, &lpc55sxx_pdec_cfg_##inst,                  \
 			     &nxp_syscon_pdec_api);
 
-DT_INST_FOREACH_CLK_REFERENCED(NXP_LPC55SXX_PDEC_DEFINE)
+DT_INST_FOREACH_STATUS_OKAY(NXP_LPC55SXX_PDEC_DEFINE)

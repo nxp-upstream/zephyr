@@ -58,4 +58,4 @@ const struct clock_driver_api nxp_syscon_div_api = {
 			     &nxp_syscon_div_##inst,                           \
 			     &nxp_syscon_div_api);
 
-DT_INST_FOREACH_CLK_REFERENCED(NXP_SYSCON_CLOCK_DEFINE)
+DT_INST_FOREACH_STATUS_OKAY(NXP_SYSCON_CLOCK_DEFINE)

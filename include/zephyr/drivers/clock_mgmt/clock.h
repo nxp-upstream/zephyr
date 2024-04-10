@@ -140,7 +140,7 @@ struct clk {
 #define Z_MAYBE_CLOCK_DECLARE_INTERNAL(node_id)                                \
 	extern const struct clk CLOCK_DT_NAME_GET(node_id);
 
-DT_FOREACH_CLOCK_USED(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
+DT_FOREACH_STATUS_OKAY_NODE(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
 
 /**
  * @brief Helper to get a clock dependency ordinal if the clock is referenced
@@ -150,7 +150,7 @@ DT_FOREACH_CLOCK_USED(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  * @param node_id Clock identifier
  */
 #define Z_GET_CLOCK_DEP_ORD(node_id)                                           \
-	IF_ENABLED(DT_CLOCK_USED(node_id),                                     \
+	IF_ENABLED(DT_NODE_HAS_STATUS(node_id, okay),                          \
 		(DT_DEP_ORD(node_id),))
 
 /**
@@ -197,7 +197,7 @@ DT_FOREACH_CLOCK_USED(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  */
 #define Z_CLOCK_DEFINE_DEPS(node_id)                                           \
 	const uint16_t __weak Z_CLOCK_DEPS_NAME(node_id)[] =                   \
-		{DT_FOREACH_SUPPORTED_NODE(node_id, Z_GET_CLOCK_DEP_ORD)};
+		{DT_SUPPORTS_DEP_ORDS(node_id)};
 
 /**
  * @brief Get clock dependency array
