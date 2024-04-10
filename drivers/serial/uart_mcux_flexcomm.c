@@ -1217,7 +1217,7 @@ DT_INST_FOREACH_STATUS_OKAY(UART_MCUX_FLEXCOMM_RX_TIMEOUT_FUNC);
 #define UART_MCUX_FLEXCOMM_INIT_CFG(n)						\
 static const struct mcux_flexcomm_config mcux_flexcomm_##n##_config = {		\
 	.base = (USART_Type *)DT_INST_REG_ADDR(n),				\
-	/* .clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)), */		\
+	.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)),			\
 	.clock_subsys =								\
 	(clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, name),			\
 	.baud_rate = DT_INST_PROP(n, current_speed),				\
