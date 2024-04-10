@@ -6,8 +6,6 @@
 
 #include <zephyr/drivers/clock_mgmt/clock_driver.h>
 
-#include "../clock_mgmt_common.h"
-
 #define DT_DRV_COMPAT nxp_syscon_clock_gate
 
 struct syscon_clock_gate_config {
@@ -24,7 +22,7 @@ int syscon_clock_gate_get_rate(const struct clk *clk)
 		clock_get_rate(config->parent) : 0;
 }
 
-int syscon_clock_gate_configure(const struct clk *clk, void *data)
+int syscon_clock_gate_configure(const struct clk *clk, const void *data)
 {
 	const struct syscon_clock_gate_config *config = clk->hw_data;
 	bool ungate = (bool)data;

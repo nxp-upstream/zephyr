@@ -21,6 +21,12 @@ extern "C" {
 #define Z_CLOCK_MGMT_NXP_SYSCON_CLOCK_MUX_DATA_GET(node_id, prop, idx)         \
 	DT_PHA_BY_IDX(node_id, prop, idx, multiplexer)
 
+/* No data structure needed for frgmult */
+#define Z_CLOCK_MGMT_NXP_SYSCON_FLEXFRG_DATA_DEFINE(node_id, prop, idx)
+/* Get mux configuration value */
+#define Z_CLOCK_MGMT_NXP_SYSCON_FLEXFRG_DATA_GET(node_id, prop, idx)           \
+	DT_PHA_BY_IDX(node_id, prop, idx, numerator)
+
 
 
 /** @endcond */

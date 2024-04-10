@@ -5,7 +5,6 @@
  */
 
 #include <zephyr/drivers/clock_mgmt/clock_driver.h>
-#include "../clock_mgmt_common.h"
 
 #define DT_DRV_COMPAT nxp_syscon_clock_mux
 
@@ -20,9 +19,9 @@ struct syscon_clock_mux_config {
 int syscon_clock_mux_get_rate(const struct clk *clk)
 {
 	const struct syscon_clock_mux_config *config = clk->hw_data;
-	uint8_t mux_mask = GENMASK(config->mask_offset,
-				   (config->mask_width +
-				   config->mask_offset - 1));
+	uint8_t mux_mask = GENMASK((config->mask_width +
+				   config->mask_offset - 1),
+				   config->mask_offset);
 	uint8_t sel = ((*config->reg) & mux_mask) >> config->mask_offset;
 
 	if (sel > config->src_count) {
@@ -32,13 +31,13 @@ int syscon_clock_mux_get_rate(const struct clk *clk)
 	return clock_get_rate(config->parents[sel]);
 }
 
-int syscon_clock_mux_configure(const struct clk *clk, void *mux)
+int syscon_clock_mux_configure(const struct clk *clk, const void *mux)
 {
 	const struct syscon_clock_mux_config *config = clk->hw_data;
 
-	uint8_t mux_mask = GENMASK(config->mask_offset,
-				   (config->mask_width +
-				   config->mask_offset - 1));
+	uint8_t mux_mask = GENMASK((config->mask_width +
+				   config->mask_offset - 1),
+				   config->mask_offset);
 	uint32_t mux_val = FIELD_PREP(mux_mask, ((uint32_t)mux));
 
 	if (((uint32_t)mux) > config->src_count) {

@@ -29,6 +29,17 @@ extern "C" {
  */
 
 /**
+ * @brief Helper to forward a clock callback to all children nodes
+ *
+ * Helper function to forward a clock callback. This function will fire a
+ * callback for all child clocks, effectively forwarding the clock callback
+ * notification to any subscribers for this clock.
+ *
+ * @return 0 on success
+ */
+int clock_mgmt_forward_cb(const struct clk *clk, const struct clk *parent);
+
+/**
  * @brief Clock Driver API
  *
  * Clock driver API function prototypes. A pointer to a structure of this
@@ -43,7 +54,7 @@ struct clock_driver_api {
 	/** Gets clock rate in Hz */
 	int (*get_rate)(const struct clk *clk);
 	/** Configure a clock with device specific data */
-	int (*configure)(const struct clk *clk, void *data);
+	int (*configure)(const struct clk *clk, const void *data);
 #if defined(CONFIG_CLOCK_MGMT_SET_SET_RATE) || defined(__DOXYGEN__)
 	/** Gets nearest rate clock can support, in Hz */
 	int (*round_rate)(const struct clk *clk, uint32_t rate);
@@ -100,10 +111,11 @@ static inline int clock_get_rate(const struct clk *clk)
  * @param data hardware specific clock configuration data
  * @return -ENOSYS if clock does not implement configure API
  * @return -EIO if clock could not be configured
+ * @return -EBUSY if clock cannot be modified at this time
  * @return negative errno for other error configuring clock
  * @return 0 on successful clock configuration
  */
-static inline int clock_configure(const struct clk *clk, void *data)
+static inline int clock_configure(const struct clk *clk, const void *data)
 {
 	int ret;
 
@@ -115,6 +127,9 @@ static inline int clock_configure(const struct clk *clk, void *data)
 	if (ret < 0) {
 		return ret;
 	}
+
+	/* Forward reconfiguration callback to children */
+	return clock_mgmt_forward_cb(clk, NULL);
 }
 
 

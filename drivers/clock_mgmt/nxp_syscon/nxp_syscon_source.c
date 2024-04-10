@@ -26,7 +26,7 @@ int syscon_clock_source_get_rate(const struct clk *clk)
 		config->rate : 0;
 }
 
-int syscon_clock_source_configure(const struct clk *clk, void *data)
+int syscon_clock_source_configure(const struct clk *clk, const void *data)
 {
 	const struct syscon_clock_source_config *config = clk->hw_data;
 	bool ungate = (bool)data;

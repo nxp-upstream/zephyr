@@ -42,16 +42,27 @@ extern "C" {
 /** @} */
 
 /**
- * @name Clock Subsys Names
+ * @name Clock Output Names
  * @{
  */
 
-/** Default clock subsystem */
-#define CLOCK_MGMT_SUBSYS_DEFAULT 0U
-/** This and higher values refer to custom private clock subsystems */
-#define CLOCK_MGMT_SUBSYS_PRIV_START 1U
+/** Default clock output */
+#define CLOCK_MGMT_OUTPUT_DEFAULT 0U
+/** This and higher values refer to custom private clock outputs */
+#define CLOCK_MGMT_OUTPUT_PRIV_START 1U
 
 /** @} */
+
+/**
+ * @typedef clock_mgmt_callback_handler_t
+ * @brief Define the application clock callback handler function signature
+ *
+ * @param output_idx Index of output that was reconfigured in clocks property
+ * @param user_data User data set by consumer
+ *
+ */
+typedef void (*clock_mgmt_callback_handler_t)(uint8_t output_idx,
+					      const void *user_data);
 
 /**
  * @brief Clock management callback data
@@ -60,8 +71,8 @@ extern "C" {
  * or modify these fields.
  */
 struct clock_mgmt_callback {
-	void (*clock_callback)(void *user_data);
-	void *user_data;
+	clock_mgmt_callback_handler_t clock_callback;
+	const void *user_data;
 };
 
 /**
@@ -90,6 +101,10 @@ struct clock_mgmt {
 	const struct clk *const *outputs;
 	/** States to configure */
 	const struct clock_mgmt_state *const *states;
+	/** Clock callback (one per clock management instance )*/
+	struct clock_mgmt_callback *callback;
+	/** Reference to the clock structure for this node */
+	const struct clk *clock;
 	/** Count of clock outputs */
 	const uint8_t output_count;
 	/** Count of clock states */
@@ -213,6 +228,20 @@ struct clock_mgmt {
  */
 #define Z_CLOCK_MGMT_STATES_NAME(node_id)                                      \
 	_CONCAT(Z_CLOCK_DT_CLK_ID(node_id), _clock_states)
+
+/**
+ * @brief Clock management structure name
+ * @param node_id Node identifier
+ */
+#define Z_CLOCK_MGMT_NAME(node_id)                                             \
+	_CONCAT(Z_CLOCK_DT_CLK_ID(node_id), _clock_mgmt)
+
+/**
+ * @brief Clock management callback name
+ * @param node_id Node identifier
+ */
+#define Z_CLOCK_MGMT_CALLBACK_NAME(node_id)                                    \
+	_CONCAT(Z_CLOCK_DT_CLK_ID(node_id), _clock_callback)
 /**
  * @brief Defines a clock management state for a given index
  * @param idx State index to define
@@ -235,9 +264,20 @@ struct clock_mgmt {
 	};                                                                     \
 	const struct clock_mgmt_state                                          \
 		Z_CLOCK_MGMT_STATE_NAME(node_id, idx) = {                      \
-		.clocks = _CONCAT(Z_CLOCK_MGMT_STATE_NAME(node_id, idx), _clocks), \
-		.num_clocks = DT_PROP_LEN(node_id, _CONCAT(clock_state_, idx)), \
+		.clocks = _CONCAT(                                             \
+			Z_CLOCK_MGMT_STATE_NAME(node_id, idx), _clocks),       \
+		.clock_config_data = _CONCAT(                                  \
+			Z_CLOCK_MGMT_STATE_NAME(node_id, idx), _clock_data),   \
+		.num_clocks = DT_PROP_LEN(node_id, _CONCAT(clock_state_, idx)),\
 	};
+
+/**
+ * @brief Gets a reference to a clock management state for a given index
+ * @param idx State index to define
+ * @param node_id node identifier state is defined on
+ */
+#define Z_CLOCK_MGMT_STATE_GET(idx, node_id)                                   \
+		&Z_CLOCK_MGMT_STATE_NAME(node_id, idx)                         \
 
 /**
  * @brief Internal API definition for clock consumers
@@ -257,15 +297,14 @@ struct clock_mgmt_clk_api {
  * This structure is used to receive "notify" callbacks from the parent
  * clock devices, and will pass the notifications onto the clock consumer
  * @param node_id Node identifier to define clock structure for
+ * @param data: Data to use for clock structure hw_data pointer
  * @param clk_id Clock identifier for the node
  */
-#define Z_CLOCK_DEFINE_OUTPUT(node_id, clk_id)                                 \
-	/* Clock management API, with notification callback */                 \
-	const struct clock_mgmt_clk_api _CONCAT(clk_id, _clk_api);             \
-	/* Clock management callback structure, stored in RAM */               \
-	struct clock_mgmt_callback _CONCAT(clk_id, _callback);                 \
-	CLOCK_DT_DEFINE(node_id, &_CONCAT(clk_id, _callback),                  \
-		NULL, ((struct clock_driver_api *)&_CONCAT(clk_id, _clk_api)));
+#define Z_CLOCK_DEFINE_OUTPUT(node_id, data, clk_id)                           \
+	/* API implemented in clock_mgmt_common.c */                           \
+	extern struct clock_mgmt_clk_api clock_consumer_api;                   \
+	CLOCK_DT_DEFINE(node_id, data,                                         \
+		((struct clock_driver_api *)&clock_consumer_api));
 
 
 /** @endcond */
@@ -281,15 +320,31 @@ struct clock_mgmt_clk_api {
  */
 #define CLOCK_MGMT_DEFINE(node_id)					       \
 	/* Define clock outputs */                                             \
-	const struct clk *Z_CLOCK_MGMT_OUTPUTS_NAME(node_id) =                 \
+	const struct clk *const Z_CLOCK_MGMT_OUTPUTS_NAME(node_id)[] =         \
 		{DT_FOREACH_PROP_ELEM_SEP(node_id, clock_outputs,              \
 					Z_CLOCK_MGMT_GET_REF, (,))};           \
 	/* Define clock states */                                              \
 	LISTIFY(DT_NUM_CLOCK_MGMT_STATES(node_id),                             \
 		Z_CLOCK_MGMT_STATE_DEFINE, (;), node_id);                      \
+	/* Init clock state array */                                           \
+	const struct clock_mgmt_state *Z_CLOCK_MGMT_STATES_NAME(node_id)[] = { \
+		LISTIFY(DT_NUM_CLOCK_MGMT_STATES(node_id),                     \
+			Z_CLOCK_MGMT_STATE_GET, (,), node_id)                  \
+	};                                                                     \
+	/* Clock management callback structure, stored in RAM */               \
+	struct clock_mgmt_callback Z_CLOCK_MGMT_CALLBACK_NAME(node_id);        \
+	/* Define clock management structure */                                \
+	const struct clock_mgmt Z_CLOCK_MGMT_NAME(node_id) = {                 \
+		.outputs = Z_CLOCK_MGMT_OUTPUTS_NAME(node_id),                 \
+		.states = Z_CLOCK_MGMT_STATES_NAME(node_id),                   \
+		.callback = &Z_CLOCK_MGMT_CALLBACK_NAME(node_id),              \
+		.clock = CLOCK_DT_GET(node_id),                                \
+		.output_count = DT_PROP_LEN(node_id, clock_outputs),           \
+		.state_count = DT_NUM_CLOCK_MGMT_STATES(node_id),              \
+	};                                                                     \
 	/* Define clock API and structure */                                   \
-	IF_ENABLED(DT_CLOCK_USED(node_id), (Z_CLOCK_DEFINE_OUTPUT(node_id,     \
-		Z_CLOCK_DT_CLK_ID(node_id))))
+	Z_CLOCK_DEFINE_OUTPUT(node_id, &Z_CLOCK_MGMT_NAME(node_id),            \
+			Z_CLOCK_DT_CLK_ID(node_id))
 
 
 
@@ -300,6 +355,115 @@ struct clock_mgmt_clk_api {
  */
 #define CLOCK_MGMT_DT_INST_DEFINE(inst) CLOCK_MGMT_DEFINE(DT_DRV_INST(inst))
 
+
+/**
+ * @brief Initializes clock management information for a given node identifier.
+ *
+ * This macro should be used during device initialization, in combination with
+ * #CLOCK_MGMT_DEFINE. It will get a reference to the clock management
+ * structure defined with #CLOCK_MGMT_DEFINE
+ * For example, a driver could initialize clock
+ * management information like so:
+ * ```
+ * struct vnd_device_cfg {
+ *      ...
+ *      const struct clock_mgmt *clock_mgmt;
+ *      ...
+ * };
+ * ...
+ * #define VND_DEVICE_INIT(node_id)                               \
+ *      CLOCK_MGMT_DEFINE(node_id);                               \
+ *                                                                \
+ *      struct vnd_device_cfg cfg_##node_id = {                   \
+ *          .clock_mgmt = CLOCK_MGMT_DT_DEV_CONFIG_GET(node_id),  \
+ *      }
+ * ```
+ * @param node_id: Node identifier to initialize clock management structure for
+ */
+#define CLOCK_MGMT_DT_DEV_CONFIG_GET(node_id) &Z_CLOCK_MGMT_NAME(node_id)
+
+/**
+ * @brief Initializes clock management information for a given driver instance
+ *
+ * Equivalent to CLOCK_MGMT_DT_DEV_CONFIG_GET(DT_DRV_INST(inst))
+ * @param inst Driver instance number
+ */
+#define CLOCK_MGMT_DT_INST_DEV_CONFIG_GET(inst)                                \
+	CLOCK_MGMT_DT_DEV_CONFIG_GET(DT_DRV_INST(inst))
+
+/**
+ * @brief Get clock rate for given subsystem
+ *
+ * Gets output clock rate for provided clock identifier. Clock identifiers
+ * start with CLOCK_MGMT_SUBSYS_DEFAULT, and drivers can define additional
+ * identifiers. Each identifier refers to the nth clock node in the clocks
+ * devicetree property for the devicetree node representing this driver.
+ * @param clk_cfg Clock management structure
+ * @param clk_idx Output clock index in clocks property
+ * @return -EINVAL if parameters are invalid
+ * @return -ENOENT if output id could not be found
+ * @return -ENOSYS if clock does not implement get_rate API
+ * @return -EIO if clock could not be read
+ * @return frequency of clock output in HZ
+ */
+static inline int clock_mgmt_get_rate(const struct clock_mgmt *clk_cfg,
+				      uint8_t clk_idx)
+{
+	if (!clk_cfg) {
+		return -EINVAL;
+	}
+
+	if (clk_cfg->output_count <= clk_idx) {
+		return -ENOENT;
+	}
+
+	/* Read rate */
+	return clock_get_rate(clk_cfg->outputs[clk_idx]);
+}
+
+/**
+ * @brief Set new clock state
+ *
+ * Sets new clock state. This function will apply a clock state as defined
+ * in devicetree. Clock states can configure clocks systemwide, or only for
+ * the relevant peripheral driver. Clock states are defined as clock-state-"n"
+ * properties of the devicetree node for the given driver.
+ * @param clk_cfg Clock management structure
+ * @param state_idx Clock state index
+ * @return -EINVAL if parameters are invalid
+ * @return -ENOENT if state index could not be found
+ * @return -ENOSYS if clock does not implement configure API
+ * @return -EIO if state could not be set
+ * @return -EBUSY if clocks cannot be modified at this time
+ * @return 0 on success
+ */
+int clock_mgmt_apply_state(const struct clock_mgmt *clk_cfg,
+			   uint8_t state_idx);
+
+/**
+ * @brief Set callback for clock reconfiguration
+ *
+ * Set callback, which will fire when a clock output (or any of its parents)
+ * are reconfigured. The callback will fire with an index equal to
+ * the clock output that fired the callback
+ * @param clk_cfg Clock management structure
+ * @param callback Callback function to install
+ * @param user_data User data to issue with callback (can be NULL)
+ * @return -EINVAL if parameters are invalid
+ * @return 0 on success
+ */
+static inline int clock_mgmt_set_callback(const struct clock_mgmt *clk_cfg,
+					  clock_mgmt_callback_handler_t callback,
+					  const void *user_data)
+{
+	if ((!clk_cfg) || (!callback)) {
+		return -EINVAL;
+	}
+
+	clk_cfg->callback->clock_callback = callback;
+	clk_cfg->callback->user_data = user_data;
+	return 0;
+}
 
 #ifdef __cplusplus
 }

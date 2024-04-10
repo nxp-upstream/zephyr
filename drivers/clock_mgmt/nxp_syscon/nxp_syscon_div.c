@@ -6,8 +6,6 @@
 
 #include <zephyr/drivers/clock_mgmt/clock_driver.h>
 
-#include "../clock_mgmt_common.h"
-
 #define DT_DRV_COMPAT nxp_syscon_clock_div
 
 struct syscon_clock_div_config {
@@ -30,7 +28,7 @@ int syscon_clock_div_get_rate(const struct clk *clk)
 	return parent_rate / ((*config->reg & div_mask) + 1);
 }
 
-int syscon_clock_div_configure(const struct clk *clk, void *div)
+int syscon_clock_div_configure(const struct clk *clk, const void *div)
 {
 	const struct syscon_clock_div_config *config = clk->hw_data;
 	uint8_t div_mask = GENMASK(0, (config->mask_width - 1));

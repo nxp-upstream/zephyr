@@ -170,7 +170,7 @@ DT_FOREACH_STATUS_OKAY_NODE(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  * In the initial build, this array will expand to a list of clock ordinal
  * numbers that describe dependencies of the clock, like so:
  * @code{.c}
- *     const clock_handle_t __weak __clockdeps_clk_dts_ord_45[] = {
+ *     const uint16_t __weak __clockdeps_clk_dts_ord_45[] = {
  *         66,
  *         30,
  *         55,
@@ -182,7 +182,7 @@ DT_FOREACH_STATUS_OKAY_NODE(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  * the clock structure (or omitted, if no clock structure was defined in the
  * build). The final array will look like so:
  * @code{.c}
- *     const clock_handle_t __clockdeps_clk_dts_ord_45[] = {
+ *     const struct clk *const __clockdeps_clk_dts_ord_45[] = {
  *         __clock_clk_dts_ord_66,
  *         // Clock structure for ordinal 30 was not linked in build
  *         __clock_clk_dts_ord_55,

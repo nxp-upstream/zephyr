@@ -8,7 +8,6 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/util.h>
 #include <soc.h>
-#include "../clock_mgmt_common.h"
 
 /* PLL0 driver */
 #define DT_DRV_COMPAT nxp_lpc55sxx_pll0
@@ -41,10 +40,10 @@ int syscon_lpc55sxx_pll0_get_rate(const struct clk *clk)
 	return data->output_freq;
 }
 
-int syscon_lpc55sxx_pll0_configure(const struct clk *clk, void *data)
+int syscon_lpc55sxx_pll0_configure(const struct clk *clk, const void *data)
 {
 	struct lpc55sxx_pll0_data *clk_data = clk->hw_data;
-	struct lpc55sxx_pll0_config_input *input = data;
+	const struct lpc55sxx_pll0_config_input *input = data;
 	int input_clk;
 
 	/* Copy configured frequency and PLL settings */
@@ -150,11 +149,11 @@ int syscon_lpc55sxx_pll1_get_rate(const struct clk *clk)
 	return data->output_freq;
 }
 
-int syscon_lpc55sxx_pll1_configure(const struct clk *clk, void *data)
+int syscon_lpc55sxx_pll1_configure(const struct clk *clk, const void *data)
 
 {
 	struct lpc55sxx_pll1_data *clk_data = clk->hw_data;
-	struct lpc55sxx_pll1_config_input *input = data;
+	const struct lpc55sxx_pll1_config_input *input = data;
 	int input_clk;
 
 	/* Copy configured frequency and PLL settings */
@@ -250,7 +249,7 @@ int syscon_lpc55sxx_pll_pdec_get_rate(const struct clk *clk)
 	return parent_rate / div;
 }
 
-int syscon_lpc55sxx_pll_pdec_configure(const struct clk *clk, void *data)
+int syscon_lpc55sxx_pll_pdec_configure(const struct clk *clk, const void *data)
 
 {
 	const struct lpc55sxx_pll_pdec_config *config = clk->hw_data;
