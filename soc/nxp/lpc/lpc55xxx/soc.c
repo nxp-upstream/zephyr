@@ -23,6 +23,7 @@
 #include <fsl_clock.h>
 #include <fsl_common.h>
 #include <fsl_device_registers.h>
+#include <zephyr/drivers/clock_mgmt.h>
 #ifdef CONFIG_GPIO_MCUX_LPC
 #include <fsl_pint.h>
 #endif
@@ -73,19 +74,11 @@ const pll_setup_t pll1Setup = {
 #endif
 
 /**
- *
- * @brief Initialize the system clock
- *
+ * @brief Setup core clocks
  */
-
-static ALWAYS_INLINE void clock_init(void)
+static void core_clock_init(void)
 {
 	ExternalClockFrequency = 0;
-
-#if defined(CONFIG_SOC_LPC55S36)
-	/* Power Management Controller initialization */
-	POWER_PowerInit();
-#endif
 
 #if defined(CONFIG_SOC_LPC55S06) || defined(CONFIG_SOC_LPC55S16) || \
 	defined(CONFIG_SOC_LPC55S28) || defined(CONFIG_SOC_LPC55S36) || \
@@ -172,6 +165,23 @@ static ALWAYS_INLINE void clock_init(void)
 
 	/* Set up dividers */
 	CLOCK_SetClkDiv(kCLOCK_DivAhbClk, 1U, false);
+}
+
+/**
+ *
+ * @brief Initialize the system clock
+ *
+ */
+
+static ALWAYS_INLINE void clock_init(void)
+{
+
+#if defined(CONFIG_SOC_LPC55S36)
+	/* Power Management Controller initialization */
+	POWER_PowerInit();
+#endif
+
+	core_clock_init();
 
 	/* Enables the clock for the I/O controller.: Enable Clock. */
 	CLOCK_EnableClock(kCLOCK_Iocon);
