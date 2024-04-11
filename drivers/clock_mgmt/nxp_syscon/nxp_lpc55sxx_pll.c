@@ -4,27 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr/drivers/clock_mgmt/clock_driver.h>
+#include <zephyr/drivers/clock_mgmt.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/util.h>
 #include <soc.h>
 
 /* PLL0 driver */
 #define DT_DRV_COMPAT nxp_lpc55sxx_pll0
-
-struct lpc55sxx_pll0_regs {
-	volatile uint32_t CTRL;
-	volatile uint32_t STAT;
-	volatile uint32_t NDEC;
-	volatile uint32_t PDEC;
-	volatile uint32_t SSCG0;
-	volatile uint32_t SSCG1;
-};
-
-struct lpc55sxx_pll0_config_input {
-	uint32_t output_freq;
-	struct lpc55sxx_pll0_regs *reg_settings;
-};
 
 struct lpc55sxx_pll0_data {
 	const struct clk *parent;
@@ -79,13 +65,13 @@ int syscon_lpc55sxx_pll0_configure(const struct clk *clk, const void *data)
 	 * - spread spectrum mode is used
 	 */
 	input_clk = clock_get_rate(clk_data->parent);
-	if (input->reg_settings->CTRL & SYSCON_PLL0CTRL_BYPASSPREDIV_MASK) {
+	if ((input->reg_settings->CTRL & SYSCON_PLL0CTRL_BYPASSPREDIV_MASK) == 0) {
 		/* Input passes through prediv */
 		input_clk /= MAX(input->reg_settings->NDEC & SYSCON_PLL0NDEC_NDIV_MASK, 1);
 	}
 
 	if ((clk_data->regs->SSCG0 & SYSCON_PLL0SSCG1_SEL_EXT_MASK) ||
-	    (input_clk > MHZ(20)) || (input_clk < KHZ(100))) {
+	    ((input_clk < MHZ(20)) && (input_clk > KHZ(100)))) {
 		/* Normal mode, use lock bit*/
 		while ((clk_data->regs->STAT & SYSCON_PLL0STAT_LOCK_MASK) == 0) {
 			/* Spin */
@@ -121,19 +107,6 @@ DT_INST_FOREACH_STATUS_OKAY(NXP_LPC55SXX_PLL0_DEFINE)
 /* PLL1 driver */
 #undef DT_DRV_COMPAT
 #define DT_DRV_COMPAT nxp_lpc55sxx_pll1
-
-struct lpc55sxx_pll1_regs {
-	volatile uint32_t CTRL;
-	volatile uint32_t STAT;
-	volatile uint32_t NDEC;
-	volatile uint32_t MDEC;
-	volatile uint32_t PDEC;
-};
-
-struct lpc55sxx_pll1_config_input {
-	uint32_t output_freq;
-	struct lpc55sxx_pll1_regs *reg_settings;
-};
 
 struct lpc55sxx_pll1_data {
 	const struct clk *parent;
@@ -190,7 +163,7 @@ int syscon_lpc55sxx_pll1_configure(const struct clk *clk, const void *data)
 		input_clk /= MAX(input->reg_settings->NDEC & SYSCON_PLL1NDEC_NDIV_MASK, 1);
 	}
 
-	if ((input_clk > MHZ(20)) || (input_clk < KHZ(100))) {
+	if ((input_clk < MHZ(20)) && (input_clk > KHZ(100))) {
 		/* Normal mode, use lock bit*/
 		while ((clk_data->regs->STAT & SYSCON_PLL1STAT_LOCK_MASK) == 0) {
 			/* Spin */
@@ -253,9 +226,9 @@ int syscon_lpc55sxx_pll_pdec_configure(const struct clk *clk, const void *data)
 
 {
 	const struct lpc55sxx_pll_pdec_config *config = clk->hw_data;
-	uint32_t div_val = FIELD_PREP(SYSCON_PLL0PDEC_PDIV_MASK, ((uint32_t)data));
+	uint32_t div_val = FIELD_PREP(SYSCON_PLL0PDEC_PDIV_MASK, (((uint32_t)data) / 2));
 
-	*config->reg = ((*config->reg) & ~SYSCON_PLL0PDEC_PDIV_MASK) | div_val;
+	*config->reg = div_val | SYSCON_PLL0PDEC_PREQ_MASK;
 
 	return 0;
 }
