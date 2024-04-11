@@ -779,6 +779,25 @@ def write_dep_info(node):
     out_dt_define(f"{node.z_path_id}_SUPPORTS_ORDS",
                   fmt_dep_list(node.required_by))
 
+    # Generate supported clock ordinals. This list looks similar to
+    # the standard "required by" for a given node, but will exclude
+    # dependents that contain a clock-output property, unless the node
+    # in question is referenced there. This way, nodes that have a dependency
+    # via the "clock-state-n" property will  not be in this list
+    clock_ords = []
+    for dep in node.required_by:
+        clock_state_props = [prop for name, prop in dep.props.items()
+                             if re.match("clock-state-[0-9]+", name)]
+        if (len(clock_state_props) > 0) or ("clock-outputs" in dep.props):
+            # Check if clock-outputs property references this node
+            if ("clock-outputs" in dep.props) and (node in dep.props["clock-outputs"].val):
+                clock_ords.append(dep)
+        else:
+            clock_ords.append(dep)
+    out_comment("Ordinals for clock dependencies:")
+    out_dt_define(f"{node.z_path_id}_SUPPORTS_CLK_ORDS",
+                  fmt_dep_list(clock_ords))
+
 
 def prop2value(prop):
     # Gets the macro value for property 'prop', if there is

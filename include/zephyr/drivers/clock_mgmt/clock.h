@@ -197,7 +197,7 @@ DT_FOREACH_STATUS_OKAY_NODE(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  */
 #define Z_CLOCK_DEFINE_DEPS(node_id)                                           \
 	const uint16_t __weak Z_CLOCK_DEPS_NAME(node_id)[] =                   \
-		{DT_SUPPORTS_DEP_ORDS(node_id)};
+		{DT_SUPPORTS_CLK_ORDS(node_id)};
 
 /**
  * @brief Get clock dependency array
