@@ -10,13 +10,10 @@
 	#size-cells = <1>;
 
 	/* Root clock sources */
-	no_clock: no-clock@0 {
+	no_clock: no-clock {
 		/* Dummy node- indicates no clock source was selected */
-		compatible = "nxp,syscon-clock-source";
-		pdown-mask = <0x0>;
-		#clock-cells = <1>;
-		reg = <0x0 0x1>;
-		offset = <0x0>;
+		compatible = "fixed-clock-source";
+		#clock-cells = <0>;
 		frequency = <0>;
 	};
 
@@ -150,22 +147,16 @@
 		frequency = <32768>;
 	};
 
-	mclk_in: mclk-in@0 {
-		compatible = "nxp,syscon-clock-source";
-		pdown-mask = <0x0>;
-		offset = <0x0>;
-		#clock-cells = <1>;
-		reg = <0x0 0x1>;
+	mclk_in: mclk-in {
+		compatible = "fixed-clock-source";
+		#clock-cells = <0>;
 		/* External clock source */
 		frequency = <0>;
 	};
 
-	plu_clkin: plu-clkin@0 {
-		compatible = "nxp,syscon-clock-source";
-		pdown-mask = <0x0>;
-		offset = <0x0>;
-		#clock-cells = <1>;
-		reg = <0x0 0x1>;
+	plu_clkin: plu-clkin {
+		compatible = "fixed-clock-source";
+		#clock-cells = <0>;
 		/* External clock source */
 		frequency = <0>;
 	};

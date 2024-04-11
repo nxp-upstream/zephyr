@@ -18,6 +18,13 @@ module = CLOCK_MGMT
 module-str = clock management
 source "subsys/logging/Kconfig.template.log_config"
 
+config CLOCK_MGMT_FIXED_SOURCE
+	bool "Fixed clock source driver"
+	default y
+	depends on DT_HAS_FIXED_CLOCK_SOURCE_ENABLED
+	help
+	  Fixed clock source driver, for non configurable clock sources
+
 source "drivers/clock_mgmt/nxp_syscon/Kconfig"
 
 endif # CLOCK_MGMT
