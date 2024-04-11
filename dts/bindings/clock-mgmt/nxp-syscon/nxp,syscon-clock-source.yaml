@@ -29,6 +29,12 @@ properties:
     description: |
       Offset of bitfield within register to set to enable clock
 
+  pdown-mask:
+    type: int
+    required: true
+    description: |
+      Mask to set in power control registers to power down the clock source
+
   "#clock-cells":
     const: 1
 

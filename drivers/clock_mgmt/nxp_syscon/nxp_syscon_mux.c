@@ -44,16 +44,18 @@ int syscon_clock_mux_configure(const struct clk *clk, const void *mux)
 		return -EINVAL;
 	}
 
+	clock_notify_children(clk, clock_get_rate(config->parents[(uint32_t)mux]));
 	(*config->reg) = ((*config->reg) & ~mux_mask) | mux_val;
 	return 0;
 }
 
-int syscon_clock_mux_notify(const struct clk *clk, const struct clk *parent)
+int syscon_clock_mux_notify(const struct clk *clk, const struct clk *parent,
+			    uint32_t parent_rate)
 {
 	const struct syscon_clock_mux_config *config = clk->hw_data;
-	uint8_t mux_mask = GENMASK(config->mask_offset,
-				   (config->mask_width +
-				   config->mask_offset - 1));
+	uint8_t mux_mask = GENMASK((config->mask_width +
+				   config->mask_offset - 1),
+				   config->mask_offset);
 	uint8_t sel = ((*config->reg) & mux_mask) >> config->mask_offset;
 
 	if (sel > config->src_count) {
@@ -65,7 +67,7 @@ int syscon_clock_mux_notify(const struct clk *clk, const struct clk *parent)
 	 * children
 	 */
 	if (config->parents[sel] == parent) {
-		clock_mgmt_forward_cb(clk, parent);
+		clock_notify_children(clk, parent_rate);
 	}
 
 	return 0;

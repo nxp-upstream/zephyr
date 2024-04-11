@@ -29,15 +29,17 @@ extern "C" {
  */
 
 /**
- * @brief Helper to forward a clock callback to all children nodes
+ * @brief Helper to issue a clock callback to all children nodes
  *
- * Helper function to forward a clock callback. This function will fire a
- * callback for all child clocks, effectively forwarding the clock callback
- * notification to any subscribers for this clock.
+ * Helper function to issue a callback to all children of a given clock, with
+ * a new clock rate. This function will call clock_notify on all children of
+ * the given clock, with the provided rate as the parent rate
  *
+ * @param clk Clock object to issue callbacks for
+ * @param clk_rate Rate clock will be reconfigured to
  * @return 0 on success
  */
-int clock_mgmt_forward_cb(const struct clk *clk, const struct clk *parent);
+int clock_notify_children(const struct clk *clk, uint32_t clk_rate);
 
 /**
  * @brief Clock Driver API
@@ -46,11 +48,13 @@ int clock_mgmt_forward_cb(const struct clk *clk, const struct clk *parent);
  * type should be passed to "CLOCK_DT_DEFINE" when defining the @ref clk
  */
 struct clock_driver_api {
-	/** Notify a clock that a parent has been reconfigured.
+	/**
+	 * Notify a clock that a parent has been reconfigured.
 	 * Note that this must remain the first field in the API structure
 	 * to support clock management callbacks
 	 */
-	int (*notify)(const struct clk *clk, const struct clk *parent);
+	int (*notify)(const struct clk *clk, const struct clk *parent,
+		      uint32_t parent_rate);
 	/** Gets clock rate in Hz */
 	int (*get_rate)(const struct clk *clk);
 	/** Configure a clock with device specific data */
@@ -69,17 +73,19 @@ struct clock_driver_api {
  * Notifies a clock its parent was reconfigured
  * @param clk Clock object to notify of reconfiguration
  * @param parent Parent clock device that was reconfigured
+ * @param parent_rate Rate of parent clock
  * @return -ENOSYS if clock does not implement notify_children API
  * @return negative errno for other error notifying clock
  * @return 0 on success
  */
-static inline int clock_notify(const struct clk *clk, const struct clk *parent)
+static inline int clock_notify(const struct clk *clk, const struct clk *parent,
+			       uint32_t parent_rate)
 {
 	if (!(clk->api) || !(clk->api->notify)) {
 		return -ENOSYS;
 	}
 
-	return clk->api->notify(clk, parent);
+	return clk->api->notify(clk, parent, parent_rate);
 }
 
 /**
@@ -105,7 +111,7 @@ static inline int clock_get_rate(const struct clk *clk)
 /**
  * @brief Configure a clock
  *
- * Configure a clock device using hardware specific data. This will also
+ * Configure a clock device using hardware specific data. This must also
  * trigger a reconfiguration notification for any consumers of the clock
  * @param clk clock device to configure
  * @param data hardware specific clock configuration data
@@ -117,19 +123,11 @@ static inline int clock_get_rate(const struct clk *clk)
  */
 static inline int clock_configure(const struct clk *clk, const void *data)
 {
-	int ret;
-
 	if (!(clk->api) || !(clk->api->configure)) {
 		return -ENOSYS;
 	}
 
-	ret = clk->api->configure(clk, data);
-	if (ret < 0) {
-		return ret;
-	}
-
-	/* Forward reconfiguration callback to children */
-	return clock_mgmt_forward_cb(clk, NULL);
+	return clk->api->configure(clk, data);
 }
 
 

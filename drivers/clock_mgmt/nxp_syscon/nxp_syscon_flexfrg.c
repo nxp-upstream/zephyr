@@ -16,6 +16,17 @@ struct syscon_clock_frg_config {
 #define SYSCON_FLEXFRGXCTRL_DIV_MASK 0xFF
 #define SYSCON_FLEXFRGXCTRL_MULT_MASK 0xFF00
 
+/* Rate calculation helper */
+static uint32_t syscon_clock_frg_calc_rate(uint64_t parent_rate, uint32_t mult)
+{
+	/*
+	 * Calculate rate. We will use 64 bit integers for this division.
+	 * DIV value must be 256, no need to read it
+	 */
+	return (uint32_t)((parent_rate * ((uint64_t)SYSCON_FLEXFRGXCTRL_MULT_MASK + 1ULL)) /
+		(mult + SYSCON_FLEXFRGXCTRL_MULT_MASK + 1UL));
+}
+
 int syscon_clock_frg_get_rate(const struct clk *clk)
 {
 	const struct syscon_clock_frg_config *config = clk->hw_data;
@@ -26,29 +37,39 @@ int syscon_clock_frg_get_rate(const struct clk *clk)
 		return parent_rate;
 	}
 
-	/* Calculate rate. We will use 64 bit integers for this division*/
 	frg_mult = FIELD_GET(SYSCON_FLEXFRGXCTRL_MULT_MASK, (*config->reg));
-
-	/* DIV value must be 256, no need to read it */
-	return (int)(((uint64_t)parent_rate * ((uint64_t)SYSCON_FLEXFRGXCTRL_MULT_MASK + 1ULL)) /
-		(frg_mult + SYSCON_FLEXFRGXCTRL_MULT_MASK + 1UL));
+	return syscon_clock_frg_calc_rate(parent_rate, frg_mult);
 }
 
 int syscon_clock_frg_configure(const struct clk *clk, const void *mult)
 {
 	const struct syscon_clock_frg_config *config = clk->hw_data;
 	uint32_t mult_val = FIELD_PREP(SYSCON_FLEXFRGXCTRL_MULT_MASK, ((uint32_t)mult));
+	int parent_rate = clock_get_rate(config->parent);
+	uint32_t new_rate = syscon_clock_frg_calc_rate(parent_rate, (uint32_t)mult);
 
-
+	clock_notify_children(clk, new_rate);
 	/* DIV field should always be 0xFF */
 	(*config->reg) = mult_val | SYSCON_FLEXFRGXCTRL_DIV_MASK;
 	return 0;
 }
 
+int syscon_clock_frg_notify(const struct clk *clk, const struct clk *parent,
+			    uint32_t parent_rate)
+{
+	const struct syscon_clock_frg_config *config = clk->hw_data;
+	uint32_t new_rate;
+	uint32_t frg_mult;
+
+	frg_mult = FIELD_GET(SYSCON_FLEXFRGXCTRL_MULT_MASK, (*config->reg));
+	new_rate = syscon_clock_frg_calc_rate(parent_rate, frg_mult);
+	return clock_notify_children(clk, new_rate);
+}
+
 const struct clock_driver_api nxp_syscon_frg_api = {
 	.get_rate = syscon_clock_frg_get_rate,
 	.configure = syscon_clock_frg_configure,
-	.notify = clock_mgmt_forward_cb,
+	.notify = syscon_clock_frg_notify,
 };
 
 #define NXP_SYSCON_CLOCK_DEFINE(inst)                                          \

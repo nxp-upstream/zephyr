@@ -80,21 +80,20 @@ CLOCK_MGMT_DT_INST_DEFINE(0);
 
 static const struct clock_mgmt *soc_clock_mgmt = CLOCK_MGMT_DT_INST_DEV_CONFIG_GET(0);
 
-void core_clock_change_cb(uint8_t output_idx,
-			  const void *data)
+void core_clock_change_cb(uint8_t output_idx, uint32_t new_rate, const void *data)
 {
 	ARG_UNUSED(data);
 	ARG_UNUSED(output_idx);
 
-	SystemCoreClock = clock_mgmt_get_rate(soc_clock_mgmt,
-					 CLOCK_MGMT_OUTPUT_DEFAULT);
-
 #if !defined(CONFIG_TRUSTED_EXECUTION_NONSECURE)
-	/* Set Voltage for one of the fastest clock outputs: System clock output */
-	POWER_SetVoltageForFreq(SystemCoreClock);
-	/*!< Set FLASH wait states for core */
-	CLOCK_SetFLASHAccessCyclesForFreq(SystemCoreClock);
+	if (new_rate > SystemCoreClock) {
+		/* Set voltage for new frequency */
+		POWER_SetVoltageForFreq(new_rate);
+		/* Set flash cycles for new clock*/
+		CLOCK_SetFLASHAccessCyclesForFreq(new_rate);
+	}
 #endif /* !CONFIG_TRUSTED_EXECUTION_NONSECURE */
+	SystemCoreClock = new_rate;
 }
 
 static void core_clock_init(void)

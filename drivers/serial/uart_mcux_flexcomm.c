@@ -1034,19 +1034,16 @@ static void mcux_flexcomm_uart_setup(const struct device *dev, uint32_t clock_ra
 }
 
 #ifdef CONFIG_CLOCK_MGMT
-void uart_mcux_flexcomm_clock_cb(uint8_t output_idx,
+void uart_mcux_flexcomm_clock_cb(uint8_t output_idx, uint32_t new_rate,
 				 const void *data)
 {
 	const struct device *uart_dev = data;
 	const struct mcux_flexcomm_config *config = uart_dev->config;
-	int clock_rate;
 
-	clock_rate = clock_mgmt_get_rate(config->clock_mgmt,
-					 CLOCK_MGMT_OUTPUT_DEFAULT);
 	/* Deinit USART */
 	USART_Deinit(config->base);
 	/* Reconfigure USART */
-	mcux_flexcomm_uart_setup(uart_dev, clock_rate);
+	mcux_flexcomm_uart_setup(uart_dev, new_rate);
 }
 #endif
 

@@ -7,21 +7,22 @@
 #include <zephyr/drivers/clock_mgmt.h>
 
 /**
- * @brief Helper to forward a clock callback to all children nodes
+ * @brief Helper to issue a clock callback to all children nodes
  *
- * Helper function to forward a clock callback. This function will fire a
- * callback for all child clocks, effectively forwarding the clock callback
- * notification to any subscribers for this clock.
+ * Helper function to issue a callback to all children of a given clock, with
+ * a new clock rate. This function will call clock_notify on all children of
+ * the given clock, with the provided rate as the parent rate
  *
+ * @param clk Clock object to issue callbacks for
+ * @param clk_rate Rate clock will be reconfigured to
  * @return 0 on success
  */
-int clock_mgmt_forward_cb(const struct clk *clk, const struct clk *parent)
+int clock_notify_children(const struct clk *clk, uint32_t clk_rate)
 {
 	const struct clk *const *child = clk->children;
-	ARG_UNUSED(parent);
 
 	while (*child) {
-		clock_notify(*child, clk);
+		clock_notify(*child, clk, clk_rate);
 		child++;
 	}
 	return 0;
@@ -32,7 +33,8 @@ int clock_mgmt_forward_cb(const struct clk *clk, const struct clk *parent)
  * This handler is used by the clock management subsystem to notify consumers
  * via callback that a parent was reconfigured
  */
-int clock_mgmt_notify_consumer(const struct clk *clk, const struct clk *parent)
+int clock_mgmt_notify_consumer(const struct clk *clk, const struct clk *parent,
+			       uint32_t parent_rate)
 {
 	const struct clock_mgmt *clock_mgmt = clk->hw_data;
 	struct clock_mgmt_callback *callback = clock_mgmt->callback;
@@ -46,7 +48,8 @@ int clock_mgmt_notify_consumer(const struct clk *clk, const struct clk *parent)
 	for (uint8_t i = 0; i < clock_mgmt->output_count; i++) {
 		if (parent == clock_mgmt->outputs[i]) {
 			/* Issue callback */
-			callback->clock_callback(i, callback->user_data);
+			callback->clock_callback(i, parent_rate,
+						 callback->user_data);
 		}
 	}
 	return 0;

@@ -58,10 +58,12 @@ extern "C" {
  * @brief Define the application clock callback handler function signature
  *
  * @param output_idx Index of output that was reconfigured in clocks property
+ * @param rate New rate clock will use once this callback completes
  * @param user_data User data set by consumer
  *
  */
 typedef void (*clock_mgmt_callback_handler_t)(uint8_t output_idx,
+					      uint32_t parent_rate,
 					      const void *user_data);
 
 /**
@@ -288,7 +290,8 @@ struct clock_mgmt {
  */
 struct clock_mgmt_clk_api {
 	/** Notify clock consumer of rate change */
-	int (*notify)(const struct clk *clk, const struct clk *parent);
+	int (*notify)(const struct clk *clk, const struct clk *parent,
+		      uint32_t parent_rate);
 };
 
 /**

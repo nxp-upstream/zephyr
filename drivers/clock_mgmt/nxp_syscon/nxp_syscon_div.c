@@ -14,6 +14,7 @@ struct syscon_clock_div_config {
 	volatile uint32_t *reg;
 };
 
+
 int syscon_clock_div_get_rate(const struct clk *clk)
 {
 	const struct syscon_clock_div_config *config = clk->hw_data;
@@ -33,16 +34,28 @@ int syscon_clock_div_configure(const struct clk *clk, const void *div)
 	const struct syscon_clock_div_config *config = clk->hw_data;
 	uint8_t div_mask = GENMASK(0, (config->mask_width - 1));
 	uint32_t div_val = (((uint32_t)div) - 1) & div_mask;
+	int parent_rate = clock_get_rate(config->parent);
+	uint32_t new_rate = (parent_rate / ((uint32_t)div));
 
-
+	clock_notify_children(clk, new_rate);
 	(*config->reg) = ((*config->reg) & ~div_mask) | div_val;
 	return 0;
+}
+
+int syscon_clock_div_notify(const struct clk *clk, const struct clk *parent,
+			    uint32_t parent_rate)
+{
+	const struct syscon_clock_div_config *config = clk->hw_data;
+	uint8_t div_mask = GENMASK(0, (config->mask_width - 1));
+	uint32_t new_rate = (parent_rate / ((*config->reg & div_mask) + 1));
+
+	return clock_notify_children(clk, new_rate);
 }
 
 const struct clock_driver_api nxp_syscon_div_api = {
 	.get_rate = syscon_clock_div_get_rate,
 	.configure = syscon_clock_div_configure,
-	.notify = clock_mgmt_forward_cb,
+	.notify = syscon_clock_div_notify,
 };
 
 #define NXP_SYSCON_CLOCK_DEFINE(inst)                                          \

@@ -5,11 +5,13 @@
  */
 
 #include <zephyr/drivers/clock_mgmt/clock_driver.h>
+#include <soc.h>
 
 #define DT_DRV_COMPAT nxp_syscon_clock_source
 
 struct syscon_clock_source_config {
 	uint8_t enable_offset;
+	uint32_t pdown_mask;
 	uint32_t rate;
 	volatile uint32_t *reg;
 };
@@ -36,9 +38,13 @@ int syscon_clock_source_configure(const struct clk *clk, const void *data)
 	}
 
 	if (ungate) {
+		clock_notify_children(clk, config->rate);
 		(*config->reg) |= BIT(config->enable_offset);
+		PMC->PDRUNCFGCLR0 = config->pdown_mask;
 	} else {
+		clock_notify_children(clk, 0);
 		(*config->reg) &= ~BIT(config->enable_offset);
+		PMC->PDRUNCFGSET0 = config->pdown_mask;
 	}
 	return 0;
 }
@@ -53,6 +59,7 @@ const struct clock_driver_api nxp_syscon_source_api = {
 		.rate = DT_INST_PROP(inst, frequency),                         \
 		.reg = (volatile uint32_t *)DT_INST_REG_ADDR(inst),            \
 		.enable_offset = (uint8_t)DT_INST_PROP(inst, offset),          \
+		.pdown_mask = DT_INST_PROP(inst, pdown_mask),                  \
 	};                                                                     \
 	                                                                       \
 	CLOCK_DT_INST_DEFINE(inst,                                             \

@@ -28,17 +28,31 @@ int syscon_clock_gate_configure(const struct clk *clk, const void *data)
 	bool ungate = (bool)data;
 
 	if (ungate) {
+		clock_notify_children(clk, clock_get_rate(config->parent));
 		(*config->reg) |= BIT(config->enable_offset);
 	} else {
+		clock_notify_children(clk, 0);
 		(*config->reg) &= ~BIT(config->enable_offset);
 	}
 	return 0;
 }
 
+int syscon_clock_gate_notify(const struct clk *clk, const struct clk *parent,
+			     uint32_t parent_rate)
+{
+	const struct syscon_clock_gate_config *config = clk->hw_data;
+
+	if ((*config->reg) & BIT(config->enable_offset)) {
+		return clock_notify_children(clk, parent_rate);
+	}
+	/* Clock is gated */
+	return clock_notify_children(clk, 0);
+}
+
 const struct clock_driver_api nxp_syscon_gate_api = {
 	.get_rate = syscon_clock_gate_get_rate,
 	.configure = syscon_clock_gate_configure,
-	.notify = clock_mgmt_forward_cb,
+	.notify = syscon_clock_gate_notify,
 };
 
 #define NXP_SYSCON_CLOCK_DEFINE(inst)                                          \
