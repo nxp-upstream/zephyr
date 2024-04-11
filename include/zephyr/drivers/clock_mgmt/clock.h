@@ -13,6 +13,7 @@
 #define ZEPHYR_INCLUDE_DRIVERS_CLOCK_MGMT_CLOCK_H_
 
 #include <zephyr/devicetree/clock_mgmt.h>
+#include <zephyr/sys/iterable_sections.h>
 #include <zephyr/device.h>
 
 #ifdef __cplusplus
@@ -29,11 +30,29 @@ extern "C" {
 struct clock_driver_api;
 
 /**
+ * @brief Type used to represent a "handle" for a device.
+ *
+ * Every @ref clk has an associated handle. You can get a pointer to a
+ * @ref clk from its handle but the handle uses less space
+ * than a pointer. The clock.h API uses handles to store lists of clocks
+ * in a compact manner
+ *
+ * The extreme negative value has special significance (signalling the end
+ * of a clock list)
+ *
+ * @see clk_from_handle()
+ */
+typedef int16_t clock_handle_t;
+
+/** @brief Flag value used to identify the end of a clock list. */
+#define CLOCK_LIST_END INT16_MIN
+
+/**
  * @brief Runtime clock structure (in ROM) for each clock node
  */
 struct clk {
 	/** Children nodes of the clock */
-	const struct clk *const *children;
+	const clock_handle_t *children;
 	/** Pointer to private clock hardware data. May be in ROM or RAM. */
 	void *hw_data;
 	/** API pointer for clock node */
@@ -108,6 +127,14 @@ struct clk {
 	}
 
 /**
+ * @brief Section name for clock object
+ *
+ * Section name for clock object. Each clock object uses a named section so
+ * the linker can optimize unused clocks out of the build.
+ */
+#define Z_CLOCK_SECTION_NAME(clk_id) _CONCAT(.clk_node, clk_id)
+
+/**
  * @brief Define a @ref clk object
  *
  * Defines and initializes configuration and data fields of a @ref clk
@@ -122,7 +149,8 @@ struct clk {
  */
 #define Z_CLOCK_BASE_DEFINE(node_id, clk_id, hw_data, api)                     \
 	Z_CLOCK_DEFINE_DEPS(node_id);                                          \
-	const struct clk CLOCK_NAME_GET(clk_id) =                              \
+	const struct clk Z_GENERIC_SECTION(Z_CLOCK_SECTION_NAME(clk_id))       \
+		CLOCK_NAME_GET(clk_id) =                                       \
 		Z_CLOCK_INIT(Z_CLOCK_GET_DEPS(node_id),                        \
 			     hw_data, api);
 
@@ -170,7 +198,7 @@ DT_FOREACH_STATUS_OKAY_NODE(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  * In the initial build, this array will expand to a list of clock ordinal
  * numbers that describe dependencies of the clock, like so:
  * @code{.c}
- *     const uint16_t __weak __clockdeps_clk_dts_ord_45[] = {
+ *     const clock_handle_t __weak __clockdeps_clk_dts_ord_45[] = {
  *         66,
  *         30,
  *         55,
@@ -179,14 +207,14 @@ DT_FOREACH_STATUS_OKAY_NODE(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  *
  * In the second pass of the build, gen_clock_deps.py will create a strong
  * symbol to override the weak one, with each ordinal number resolved to
- * the clock structure (or omitted, if no clock structure was defined in the
+ * a clock handle (or omitted, if no clock structure was defined in the
  * build). The final array will look like so:
  * @code{.c}
- *     const struct clk *const __clockdeps_clk_dts_ord_45[] = {
- *         __clock_clk_dts_ord_66,
+ *     const clock_handle_t __clockdeps_clk_dts_ord_45[] = {
+ *         30, // Handle for clock with ordinal 66
  *         // Clock structure for ordinal 30 was not linked in build
- *         __clock_clk_dts_ord_55,
- *         NULL, // Sentinel for end of list
+ *         16, // Handle for clock with ordinal 55
+ *         CLOCK_LIST_END, // Sentinel for end of list
  *     }
  * @endcode
  * This multi-phase build is necessary so that the linker will optimize out
@@ -196,7 +224,7 @@ DT_FOREACH_STATUS_OKAY_NODE(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  * @param node_id Clock identifier
  */
 #define Z_CLOCK_DEFINE_DEPS(node_id)                                           \
-	const uint16_t __weak Z_CLOCK_DEPS_NAME(node_id)[] =                   \
+	const clock_handle_t __weak Z_CLOCK_DEPS_NAME(node_id)[] =             \
 		{DT_SUPPORTS_CLK_ORDS(node_id)};
 
 /**
@@ -207,11 +235,33 @@ DT_FOREACH_STATUS_OKAY_NODE(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  * an array of pointers to the clock objects dependent on this clock.
  * @param node_id Clock identifier
  */
-#define Z_CLOCK_GET_DEPS(node_id)                                              \
-	(const struct clk *const*)Z_CLOCK_DEPS_NAME(node_id)
+#define Z_CLOCK_GET_DEPS(node_id) Z_CLOCK_DEPS_NAME(node_id)
 
 
 /** @endcond */
+
+/**
+ * @brief Get the clock corresponding to a handle
+ *
+ * @param clock_handle the clock handle
+ *
+ * @return the clock that has thaT handle, or a null pointer if @p clock_handle
+ * does not identify a clock.
+ */
+static inline const struct clk *clk_from_handle(clock_handle_t clock_handle)
+{
+	STRUCT_SECTION_START_EXTERN(clk);
+	const struct clk *clk = NULL;
+	size_t numclk;
+
+	STRUCT_SECTION_COUNT(clk, &numclk);
+
+	if ((clock_handle > 0) && ((size_t)clock_handle <= numclk)) {
+		clk = &STRUCT_SECTION_START(clk)[clock_handle - 1];
+	}
+
+	return clk;
+}
 
 /**
  * @brief Create a clock object from a devicetree node identifier and set it

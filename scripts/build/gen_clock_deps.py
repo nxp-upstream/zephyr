@@ -76,14 +76,11 @@ def main():
         for (ord_num, child_ords) in parsed_elf.clock_ordinal_arrays.items():
             sym_name = f"__clockdeps_clk_dts_ord_{ord_num}"
             sym_values = []
-            for child_ord in child_ords.ordinals:
-                # If the child ordinal has a clock structure linked in the
-                # build, get a reference to it. If not, defined it as NULL
-                if child_ord in parsed_elf.clock_ordinals:
-                    sym_values.append(f"&__clock_clk_dts_ord_{child_ord}")
-            sym_values.append("NULL")
+            for child_handles in child_ords.handles:
+                sym_values.append(f"{child_handles}")
+            sym_values.append("CLOCK_LIST_END")
             sym_array = ",\n\t".join(sym_values)
-            fp.write(f"const struct clk *const {sym_name}[] = \n\t{{{sym_array}}};\n\n")
+            fp.write(f"const clock_handle_t {sym_name}[] = \n\t{{{sym_array}}};\n\n")
 
 
 if __name__ == "__main__":

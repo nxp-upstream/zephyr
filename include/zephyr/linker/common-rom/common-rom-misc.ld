@@ -68,3 +68,12 @@
 #if defined(CONFIG_GNSS_SATELLITES)
 	ITERABLE_SECTION_ROM(gnss_satellites_callback, 4)
 #endif
+
+#if defined(CONFIG_CLOCK_MGMT)
+	SECTION_PROLOGUE(clock_nodes,,)
+	{
+		_clk_list_start = .;
+		*(SORT(.clk_node*))
+		_clk_list_end = .;
+	} GROUP_LINK_IN(ROMABLE_REGION)
+#endif

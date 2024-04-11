@@ -19,11 +19,11 @@
  */
 int clock_notify_children(const struct clk *clk, uint32_t clk_rate)
 {
-	const struct clk *const *child = clk->children;
+	const clock_handle_t *handle = clk->children;
 
-	while (*child) {
-		clock_notify(*child, clk, clk_rate);
-		child++;
+	while (*handle != CLOCK_LIST_END) {
+		clock_notify(clk_from_handle(*handle), clk, clk_rate);
+		handle++;
 	}
 	return 0;
 }

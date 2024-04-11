@@ -84,20 +84,24 @@ class ClockOrdinals(_Symbol):
     """
     Represents information about clock children.
     """
-    CLOCK_HANDLE_NULL = 0
-
-    def __init__(self, elf, sym):
+    def __init__(self, elf, sym, clock_ords):
         super().__init__(elf, sym)
         format = "<" if self.elf.little_endian else ">"
         format += "{:d}h".format(len(self.data) // 2)
         self._ordinals = struct.unpack(format, self.data)
-        self._ordinals_split = []
+        self._handles = []
         for ordinal in self._ordinals:
-            self._ordinals_split.append(ordinal)
+            # Find ordinal handle
+            try:
+                offset = clock_ords.index(ordinal)
+                self._handles.append(offset + 1)
+            except ValueError:
+                # Ordinal was not found
+                pass
 
     @property
-    def ordinals(self):
-        return self._ordinals_split
+    def handles(self):
+        return self._handles
 
 class Device(_Symbol):
     """
@@ -313,15 +317,18 @@ class ZephyrElf:
         Parses clock dependency definitions within Zephyr tree, and
         resolves clock ordinal numbers to clock objects
         """
+        # Find offsets of all linked clock objects
+        clock_offsets = {}
+        def _on_clock(sym):
+            ord_num = int(sym.name.replace('__clock_clk_dts_ord_', ''))
+            clock_offsets[sym.entry.st_value] = ord_num
+        self._object_find_named('__clock_clk_dts_ord', _on_clock)
+        # Sort clock objects by address for handle calculation
+        sorted_offsets = dict(sorted(clock_offsets.items()))
         # Find all ordinal arrays
         self.clock_ordinal_arrays = {}
         def _on_ordinal(sym):
             ord_num = int(sym.name.replace('__clockdeps_clk_dts_ord_', ''))
-            self.clock_ordinal_arrays[ord_num] = ClockOrdinals(self, sym)
+            self.clock_ordinal_arrays[ord_num] = ClockOrdinals(self, sym,
+                                                    list(sorted_offsets.values()))
         self._object_find_named('__clockdeps_', _on_ordinal)
-        # Find all linked clock objects
-        self.clock_ordinals = []
-        def _on_clock(sym):
-            ord_num = int(sym.name.replace('__clock_clk_dts_ord_', ''))
-            self.clock_ordinals.append(ord_num)
-        self._object_find_named('__clock_clk_dts_ord', _on_clock)
