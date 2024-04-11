@@ -36,15 +36,18 @@ struct mcux_flexcomm_uart_dma_config {
 
 struct mcux_flexcomm_config {
 	USART_Type *base;
-	const struct device *clock_dev;
-	clock_control_subsys_t clock_subsys;
 	uint32_t baud_rate;
 	uint8_t parity;
 #ifdef CONFIG_UART_MCUX_FLEXCOMM_ISR_SUPPORT
 	void (*irq_config_func)(const struct device *dev);
 #endif
 	const struct pinctrl_dev_config *pincfg;
+#ifdef CONFIG_CLOCK_MGMT
 	const struct clock_mgmt *clock_mgmt;
+#else
+	const struct device *clock_dev;
+	clock_control_subsys_t clock_subsys;
+#endif
 #ifdef CONFIG_UART_ASYNC_API
 	struct mcux_flexcomm_uart_dma_config tx_dma;
 	struct mcux_flexcomm_uart_dma_config rx_dma;
@@ -358,8 +361,13 @@ static int mcux_flexcomm_uart_configure(const struct device *dev, const struct u
 	USART_Deinit(config->base);
 
 	/* Get UART clock frequency */
+#ifdef CONFIG_CLOCK_MGMT
+	clock_freq = clock_mgmt_get_rate(config->clock_mgmt,
+					 CLOCK_MGMT_OUTPUT_DEFAULT);
+#else
 	clock_control_get_rate(config->clock_dev,
 		config->clock_subsys, &clock_freq);
+#endif
 
 	/* Handle 9 bit mode */
 	USART_Enable9bitMode(config->base, nine_bit_mode);
@@ -1025,6 +1033,7 @@ static void mcux_flexcomm_uart_setup(const struct device *dev, uint32_t clock_ra
 	USART_Init(config->base, &usart_config, clock_rate);
 }
 
+#ifdef CONFIG_CLOCK_MGMT
 void uart_mcux_flexcomm_clock_cb(uint8_t output_idx,
 				 const void *data)
 {
@@ -1039,6 +1048,7 @@ void uart_mcux_flexcomm_clock_cb(uint8_t output_idx,
 	/* Reconfigure USART */
 	mcux_flexcomm_uart_setup(uart_dev, clock_rate);
 }
+#endif
 
 
 static int mcux_flexcomm_init(const struct device *dev)
@@ -1214,22 +1224,30 @@ DT_INST_FOREACH_STATUS_OKAY(UART_MCUX_FLEXCOMM_RX_TIMEOUT_FUNC);
 #define UART_MCUX_FLEXCOMM_ASYNC_CFG(n)
 #endif /* CONFIG_UART_ASYNC_API */
 
+#ifdef CONFIG_CLOCK_MGMT
+#define UART_MCUX_FLEXCOMM_CLK_DEFINE(n) CLOCK_MGMT_DT_INST_DEFINE(n)
+#define UART_MCUX_FLEXCOMM_CLK_INIT(n)						\
+	.clock_mgmt = CLOCK_MGMT_DT_INST_DEV_CONFIG_GET(n),
+#else
+#define UART_MCUX_FLEXCOMM_CLK_DEFINE(n)
+#define UART_MCUX_FLEXCOMM_CLK_INIT(n)						\
+	.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)),			\
+	.clock_subsys =	(clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, name),
+#endif
+
 #define UART_MCUX_FLEXCOMM_INIT_CFG(n)						\
 static const struct mcux_flexcomm_config mcux_flexcomm_##n##_config = {		\
 	.base = (USART_Type *)DT_INST_REG_ADDR(n),				\
-	.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)),			\
-	.clock_subsys =								\
-	(clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, name),			\
 	.baud_rate = DT_INST_PROP(n, current_speed),				\
 	.parity = DT_INST_ENUM_IDX_OR(n, parity, UART_CFG_PARITY_NONE),		\
 	.pincfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),				\
-	.clock_mgmt = CLOCK_MGMT_DT_INST_DEV_CONFIG_GET(n),                     \
+	UART_MCUX_FLEXCOMM_CLK_INIT(n)						\
 	UART_MCUX_FLEXCOMM_IRQ_CFG_FUNC_INIT(n)					\
 	UART_MCUX_FLEXCOMM_ASYNC_CFG(n)						\
 };
 
 #define UART_MCUX_FLEXCOMM_INIT(n)						\
-	CLOCK_MGMT_DT_INST_DEFINE(n);						\
+	UART_MCUX_FLEXCOMM_CLK_DEFINE(n);					\
 										\
 	PINCTRL_DT_INST_DEFINE(n);						\
 										\
