@@ -173,6 +173,12 @@ struct adc_channel_cfg {
 };
 
 /**
+ * @defgroup adc_dt_api ADC DT Spec API
+ * @ingroup adc_interface
+ * @{
+ */
+
+/**
  * @brief Get ADC channel configuration from a given devicetree node.
  *
  * This returns a static initializer for a <tt>struct adc_channel_cfg</tt>
@@ -524,6 +530,10 @@ struct adc_dt_spec {
  */
 #define ADC_DT_SPEC_INST_GET(inst) ADC_DT_SPEC_GET(DT_DRV_INST(inst))
 
+/**
+ * @}
+ */
+
 /* Forward declaration of the adc_sequence structure. */
 struct adc_sequence;
 
@@ -670,6 +680,8 @@ struct adc_sequence {
 };
 
 
+/** @cond INTERNAL_HIDDEN */
+
 /**
  * @brief Type definition of ADC API function for configuring a channel.
  * See adc_channel_setup() for argument descriptions.
@@ -707,6 +719,8 @@ __subsystem struct adc_driver_api {
 	uint16_t ref_internal;	/* mV */
 };
 
+/** @endcond */
+
 /**
  * @brief Configure an ADC channel.
  *
@@ -733,6 +747,7 @@ static inline int z_impl_adc_channel_setup(const struct device *dev,
 
 /**
  * @brief Configure an ADC channel from a struct adc_dt_spec.
+ * @ingroup adc_dt_api
  *
  * @param spec ADC specification from Devicetree.
  *
@@ -784,6 +799,7 @@ static inline int z_impl_adc_read(const struct device *dev,
 
 /**
  * @brief Set a read request from a struct adc_dt_spec.
+ * @ingroup adc_dt_api
  *
  * @param spec ADC specification from Devicetree.
  * @param sequence  Structure specifying requested sequence of samplings.
@@ -890,8 +906,14 @@ static inline int adc_raw_to_millivolts(int32_t ref_mv,
 }
 
 /**
+ * @addtogroup adc_dt_api
+ * @{
+ */
+
+/**
  * @brief Convert a raw ADC value to millivolts using information stored
  * in a struct adc_dt_spec.
+ * @{
  *
  * @param[in] spec ADC specification from Devicetree.
  * @param[in,out] valp Pointer to the raw measurement value on input, and the
@@ -975,6 +997,10 @@ static inline bool adc_is_ready_dt(const struct adc_dt_spec *spec)
 {
 	return device_is_ready(spec->dev);
 }
+
+/**
+ * @}
+ */
 
 /**
  * @}
