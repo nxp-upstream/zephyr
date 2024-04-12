@@ -328,7 +328,7 @@ class ZephyrElf:
         # Find all ordinal arrays
         self.clock_ordinal_arrays = {}
         def _on_ordinal(sym):
-            ord_num = int(sym.name.replace('__clockdeps_clk_dts_ord_', ''))
+            ord_num = int(sym.name.replace('__clock_children_clk_dts_ord_', ''))
             self.clock_ordinal_arrays[ord_num] = ClockOrdinals(self, sym,
                                                     list(sorted_offsets.values()))
-        self._object_find_named('__clockdeps_', _on_ordinal)
+        self._object_find_named('__clock_children_', _on_ordinal)

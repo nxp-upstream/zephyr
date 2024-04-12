@@ -74,7 +74,7 @@ def main():
         # for each one define a new array with the clock objects needed
         # for the final application
         for (ord_num, child_ords) in parsed_elf.clock_ordinal_arrays.items():
-            sym_name = f"__clockdeps_clk_dts_ord_{ord_num}"
+            sym_name = f"__clock_children_clk_dts_ord_{ord_num}"
             sym_values = []
             for child_handles in child_ords.handles:
                 sym_values.append(f"{child_handles}")

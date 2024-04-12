@@ -148,10 +148,10 @@ struct clk {
  * @param api Pointer to the clock's API structure.
  */
 #define Z_CLOCK_BASE_DEFINE(node_id, clk_id, hw_data, api)                     \
-	Z_CLOCK_DEFINE_DEPS(node_id);                                          \
+	Z_CLOCK_DEFINE_CHILDREN(node_id);                                      \
 	const struct clk Z_GENERIC_SECTION(Z_CLOCK_SECTION_NAME(clk_id))       \
 		CLOCK_NAME_GET(clk_id) =                                       \
-		Z_CLOCK_INIT(Z_CLOCK_GET_DEPS(node_id),                        \
+		Z_CLOCK_INIT(Z_CLOCK_GET_CHILDREN(node_id),                    \
 			     hw_data, api);
 
 /**
@@ -185,20 +185,19 @@ DT_FOREACH_STATUS_OKAY_NODE(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  * @brief Clock dependency array name
  * @param node_id Clock identifier
  */
-#define Z_CLOCK_DEPS_NAME(node_id)                                             \
-	_CONCAT(__clockdeps_, Z_CLOCK_DT_CLK_ID(node_id))
+#define Z_CLOCK_CHILDREN_NAME(node_id)                                         \
+	_CONCAT(__clock_children_, Z_CLOCK_DT_CLK_ID(node_id))
 
 /**
- * @brief Define clock dependency array
+ * @brief Define clock children array
  *
- * This macro defines a clock dependency array. The clock should
- * call this macro from its init macro, and can then get a reference to
- * the clock dependency array with `CLOCK_GET_DEPS`
+ * This macro defines a clock children array. A reference to
+ * the clock dependency array can be retrieved with `Z_CLOCK_GET_CHILDREN`
  *
  * In the initial build, this array will expand to a list of clock ordinal
- * numbers that describe dependencies of the clock, like so:
+ * numbers that describe children of the clock, like so:
  * @code{.c}
- *     const clock_handle_t __weak __clockdeps_clk_dts_ord_45[] = {
+ *     const clock_handle_t __weak __clock_children_clk_dts_ord_45[] = {
  *         66,
  *         30,
  *         55,
@@ -210,7 +209,7 @@ DT_FOREACH_STATUS_OKAY_NODE(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  * a clock handle (or omitted, if no clock structure was defined in the
  * build). The final array will look like so:
  * @code{.c}
- *     const clock_handle_t __clockdeps_clk_dts_ord_45[] = {
+ *     const clock_handle_t __clock_children_clk_dts_ord_45[] = {
  *         30, // Handle for clock with ordinal 66
  *         // Clock structure for ordinal 30 was not linked in build
  *         16, // Handle for clock with ordinal 55
@@ -223,8 +222,8 @@ DT_FOREACH_STATUS_OKAY_NODE(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  * structure references it (such as a clock referencing its parent object)
  * @param node_id Clock identifier
  */
-#define Z_CLOCK_DEFINE_DEPS(node_id)                                           \
-	const clock_handle_t __weak Z_CLOCK_DEPS_NAME(node_id)[] =             \
+#define Z_CLOCK_DEFINE_CHILDREN(node_id)                                       \
+	const clock_handle_t __weak Z_CLOCK_CHILDREN_NAME(node_id)[] =         \
 		{DT_SUPPORTS_CLK_ORDS(node_id)};
 
 /**
@@ -235,7 +234,7 @@ DT_FOREACH_STATUS_OKAY_NODE(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  * an array of pointers to the clock objects dependent on this clock.
  * @param node_id Clock identifier
  */
-#define Z_CLOCK_GET_DEPS(node_id) Z_CLOCK_DEPS_NAME(node_id)
+#define Z_CLOCK_GET_CHILDREN(node_id) Z_CLOCK_CHILDREN_NAME(node_id)
 
 
 /** @endcond */
