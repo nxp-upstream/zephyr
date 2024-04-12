@@ -321,7 +321,9 @@ static ALWAYS_INLINE void clock_init(void)
 
 #endif /* CONFIG_USB_DC_NXP_LPCIP3511 */
 
+#if (CONFIG_PWM_MCUX_CTIMER) || (CONFIG_COUNTER_MCUX_CTIMER)
 DT_FOREACH_STATUS_OKAY(nxp_lpc_ctimer, CTIMER_CLOCK_SETUP)
+#endif
 
 #if (DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(flexcomm6), nxp_lpc_i2s, okay)) && \
 	CONFIG_I2S_MCUX_FLEXCOMM
