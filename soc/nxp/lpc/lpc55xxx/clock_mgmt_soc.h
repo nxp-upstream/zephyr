@@ -45,48 +45,50 @@ extern "C" {
 #define Z_CLOCK_MGMT_NXP_SYSCON_CLOCK_SOURCE_DATA_GET(node_id, prop, idx)      \
 	DT_PHA_BY_IDX(node_id, prop, idx, gate)
 
-struct lpc55sxx_pll1_regs {
+struct lpc55sxx_pll0_cfg {
 	volatile uint32_t CTRL;
-	volatile uint32_t STAT;
 	volatile uint32_t NDEC;
-	volatile uint32_t MDEC;
-	volatile uint32_t PDEC;
+	volatile uint32_t SSCG0;
+	volatile uint32_t SSCG1;
 };
 
-struct lpc55sxx_pll1_config_input {
+struct lpc55sxx_pll1_cfg {
+	volatile uint32_t CTRL;
+	volatile uint32_t NDEC;
+	volatile uint32_t MDEC;
+};
+
+/* Configuration common to both PLLs */
+struct lpc55sxx_pllx_cfg {
+	volatile uint32_t CTRL;
+	volatile uint32_t NDEC;
+};
+
+union lpc55sxx_pll_cfg {
+	const struct lpc55sxx_pllx_cfg *common;
+	const struct lpc55sxx_pll0_cfg *pll0;
+	const struct lpc55sxx_pll1_cfg *pll1;
+};
+
+struct lpc55sxx_pll_config_input {
 	uint32_t output_freq;
-	const struct lpc55sxx_pll1_regs *reg_settings;
+	const union lpc55sxx_pll_cfg cfg;
 };
 
 #define Z_CLOCK_MGMT_NXP_LPC55SXX_PLL1_DATA_DEFINE(node_id, prop, idx)			\
-	const struct lpc55sxx_pll1_regs _CONCAT(_CONCAT(node_id, idx), pll1_regs) = {	\
+	const struct lpc55sxx_pll1_cfg _CONCAT(_CONCAT(node_id, idx), pll1_regs) = {	\
 		.CTRL = SYSCON_PLL1CTRL_CLKEN_MASK |					\
 			SYSCON_PLL1CTRL_SELI(DT_PHA_BY_IDX(node_id, prop, idx, seli)) | \
 			SYSCON_PLL1CTRL_SELP(DT_PHA_BY_IDX(node_id, prop, idx, selp)),	\
 		.NDEC = SYSCON_PLL1NDEC_NDIV(DT_PHA_BY_IDX(node_id, prop, idx, ndec)),	\
 		.MDEC = SYSCON_PLL1MDEC_MDIV(DT_PHA_BY_IDX(node_id, prop, idx, mdec)),	\
 	};										\
-	const struct lpc55sxx_pll1_config_input _CONCAT(_CONCAT(node_id, idx), pll1_cfg) = { \
+	const struct lpc55sxx_pll_config_input _CONCAT(_CONCAT(node_id, idx), pll1_cfg) = { \
 		.output_freq = DT_PHA_BY_IDX(node_id, prop, idx, frequency),		\
-		.reg_settings = &_CONCAT(_CONCAT(node_id, idx), pll1_regs),		\
+		.cfg.pll1 = &_CONCAT(_CONCAT(node_id, idx), pll1_regs),			\
 	};
 #define Z_CLOCK_MGMT_NXP_LPC55SXX_PLL1_DATA_GET(node_id, prop, idx)        \
 	&_CONCAT(_CONCAT(node_id, idx), pll1_cfg)
-
-
-struct lpc55sxx_pll0_regs {
-	volatile uint32_t CTRL;
-	volatile uint32_t STAT;
-	volatile uint32_t NDEC;
-	volatile uint32_t PDEC;
-	volatile uint32_t SSCG0;
-	volatile uint32_t SSCG1;
-};
-
-struct lpc55sxx_pll0_config_input {
-	uint32_t output_freq;
-	struct lpc55sxx_pll0_regs *reg_settings;
-};
 
 
 
