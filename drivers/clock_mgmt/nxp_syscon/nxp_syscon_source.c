@@ -11,7 +11,7 @@
 
 struct syscon_clock_source_config {
 	uint8_t enable_offset;
-	uint32_t pdown_mask;
+	uint32_t pdown_mask:24;
 	uint32_t rate;
 	volatile uint32_t *reg;
 };
