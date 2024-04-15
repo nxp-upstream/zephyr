@@ -17,9 +17,15 @@
 LOG_MODULE_REGISTER(gt911, CONFIG_INPUT_LOG_LEVEL);
 
 /* GT911 used registers */
-#define DEVICE_ID       BSWAP_16(0x8140U)
-#define REG_STATUS      BSWAP_16(0x814EU)
-#define REG_FIRST_POINT BSWAP_16(0x814FU)
+#define DEVICE_ID        BSWAP_16(0x8140U)
+#define REG_STATUS       BSWAP_16(0x814EU)
+#define REG_FIRST_POINT  BSWAP_16(0x814FU)
+#define REG_SECOND_POINT BSWAP_16(0x8157U)
+#define REG_THIRD_POINT  BSWAP_16(0x815FU)
+#define REG_FOURTH_POINT BSWAP_16(0x8167U)
+#define REG_FIFTH_POINT  BSWAP_16(0x816FU)
+
+#define MAX_NB_POINTS    5
 
 /* REG_TD_STATUS: Touch points. */
 #define TOUCH_POINTS_MSK 0x0FU
@@ -100,13 +106,15 @@ static int gt911_process(const struct device *dev)
 {
 	int r;
 	uint16_t reg_addr;
+	uint16_t reg_points[MAX_NB_POINTS] = {REG_FIRST_POINT, REG_SECOND_POINT, REG_THIRD_POINT,
+					      REG_FOURTH_POINT, REG_FIFTH_POINT};
 	uint8_t status;
 	uint8_t points;
 	struct gt911_point_reg_t pointRegs;
 	uint16_t row, col;
 	bool pressed;
 
-	/* obtain number of touch points (NOTE: multi-touch ignored) */
+	/* obtain number of touch points */
 	reg_addr = REG_STATUS;
 	r = gt911_i2c_write_read(dev, &reg_addr, sizeof(reg_addr), &status, sizeof(status));
 	if (r < 0) {
@@ -114,9 +122,6 @@ static int gt911_process(const struct device *dev)
 	}
 
 	points = status & TOUCH_POINTS_MSK;
-	if (points != 0U && points != 1U && (0 != (status & TOUCH_STATUS_MSK))) {
-		points = 1;
-	}
 
 	if (!(status & TOUCH_STATUS_MSK)) {
 		/* Status bit not set, ignore this event */
@@ -130,25 +135,32 @@ static int gt911_process(const struct device *dev)
 		return r;
 	}
 
-	/* obtain first point X, Y coordinates and event from:
-	 * REG_P1_XH, REG_P1_XL, REG_P1_YH, REG_P1_YL.
+	/*
+	 * obtain point X, Y coordinates and event
 	 */
-	reg_addr = REG_FIRST_POINT;
-	r = gt911_i2c_write_read(dev, &reg_addr, sizeof(reg_addr), &pointRegs, sizeof(pointRegs));
-	if (r < 0) {
-		return r;
-	}
 
-	pressed = (points == 1);
-	row = ((pointRegs.highY) << 8U) | pointRegs.lowY;
-	col = ((pointRegs.highX) << 8U) | pointRegs.lowX;
-
-	LOG_DBG("pressed: %d, row: %d, col: %d", pressed, row, col);
+	pressed = (points >= 1);
 
 	if (pressed) {
-		input_report_abs(dev, INPUT_ABS_X, col, false, K_FOREVER);
-		input_report_abs(dev, INPUT_ABS_Y, row, false, K_FOREVER);
-		input_report_key(dev, INPUT_BTN_TOUCH, 1, true, K_FOREVER);
+		printk("\n === Number of points: %d === \n", points);
+		if (points > 1) {
+			input_report_key(dev, INPUT_ABS_MT_SLOT, 1, true, K_FOREVER);
+		}
+		for (int i = 0; i < points; i++) {
+			reg_addr = reg_points[i];
+			r = gt911_i2c_write_read(dev, &reg_addr, sizeof(reg_addr), &pointRegs,
+						 sizeof(pointRegs));
+			if (r < 0) {
+				return r;
+			}
+			row = ((pointRegs.highY) << 8U) | pointRegs.lowY;
+			col = ((pointRegs.highX) << 8U) | pointRegs.lowX;
+			LOG_DBG("pressed: %d, row: %d, col: %d", pressed, row, col);
+
+			input_report_abs(dev, INPUT_ABS_X, col, false, K_FOREVER);
+			input_report_abs(dev, INPUT_ABS_Y, row, false, K_FOREVER);
+			input_report_key(dev, INPUT_BTN_TOUCH, 1, true, K_FOREVER);
+		}
 	} else {
 		input_report_key(dev, INPUT_BTN_TOUCH, 0, true, K_FOREVER);
 	}
