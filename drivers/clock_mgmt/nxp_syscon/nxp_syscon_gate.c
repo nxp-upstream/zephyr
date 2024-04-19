@@ -49,10 +49,35 @@ int syscon_clock_gate_notify(const struct clk *clk, const struct clk *parent,
 	return clock_notify_children(clk, 0);
 }
 
+int syscon_clock_gate_round_rate(const struct clk *clk, uint32_t rate)
+{
+	const struct syscon_clock_gate_config *config = clk->hw_data;
+
+	return (rate != 0) ? clock_round_rate(config->parent, rate) : 0;
+}
+
+int syscon_clock_gate_set_rate(const struct clk *clk, uint32_t rate)
+{
+	const struct syscon_clock_gate_config *config = clk->hw_data;
+
+	/* If the clock rate is 0, gate the source */
+	if (rate == 0) {
+		syscon_clock_gate_configure(clk, (void *)0);
+	} else {
+		syscon_clock_gate_configure(clk, (void *)1);
+	}
+
+	return (rate != 0) ? clock_set_rate(config->parent, rate) : 0;
+}
+
 const struct clock_driver_api nxp_syscon_gate_api = {
 	.get_rate = syscon_clock_gate_get_rate,
 	.configure = syscon_clock_gate_configure,
 	.notify = syscon_clock_gate_notify,
+#if defined(CONFIG_CLOCK_MGMT_SET_RATE)
+	.round_rate = syscon_clock_gate_round_rate,
+	.set_rate = syscon_clock_gate_set_rate,
+#endif
 };
 
 #define NXP_SYSCON_CLOCK_DEFINE(inst)                                          \

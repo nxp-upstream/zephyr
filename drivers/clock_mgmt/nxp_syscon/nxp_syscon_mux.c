@@ -5,6 +5,7 @@
  */
 
 #include <zephyr/drivers/clock_mgmt/clock_driver.h>
+#include <stdlib.h>
 
 #define DT_DRV_COMPAT nxp_syscon_clock_mux
 
@@ -73,10 +74,73 @@ int syscon_clock_mux_notify(const struct clk *clk, const struct clk *parent,
 	return 0;
 }
 
+int syscon_clock_mux_round_rate(const struct clk *clk, uint32_t rate)
+{
+	const struct syscon_clock_mux_config *config = clk->hw_data;
+	int cand_rate;
+	int best_delta = INT32_MAX;
+	int best_rate = 0;
+	uint8_t idx = 0;
+
+	/*
+	 * Select a parent source based on the one able to
+	 * provide the rate closest to what was requested by the
+	 * caller
+	 */
+	while ((idx < config->src_count) && (best_delta > 0)) {
+		cand_rate = clock_round_rate(config->parents[idx], rate);
+		if (abs(cand_rate - rate) < best_delta) {
+			best_rate = cand_rate;
+			best_delta = abs(cand_rate - rate);
+		}
+	}
+
+	return best_rate;
+}
+
+int syscon_clock_mux_set_rate(const struct clk *clk, uint32_t rate)
+{
+	const struct syscon_clock_mux_config *config = clk->hw_data;
+	int cand_rate;
+	int best_rate;
+	int best_delta = INT32_MAX;
+	uint32_t mux_val;
+	uint8_t idx = 0;
+	uint8_t best_idx = 0;
+	uint8_t mux_mask = GENMASK((config->mask_width +
+				   config->mask_offset - 1),
+				   config->mask_offset);
+
+	/*
+	 * Select a parent source based on the one able to
+	 * provide the rate closest to what was requested by the
+	 * caller
+	 */
+	while ((idx < config->src_count) && (best_delta > 0)) {
+		cand_rate = clock_round_rate(config->parents[idx], rate);
+		if (abs(cand_rate - rate) < best_delta) {
+			best_idx = idx;
+			best_delta = abs(cand_rate - rate);
+		}
+	}
+
+	/* Now set the clock rate for the best parent */
+	best_rate = clock_set_rate(config->parents[best_idx], rate);
+	clock_notify_children(clk, best_rate);
+	mux_val = FIELD_PREP(mux_mask, best_idx);
+	(*config->reg) = ((*config->reg) & ~mux_mask) | mux_val;
+
+	return best_rate;
+}
+
 const struct clock_driver_api nxp_syscon_mux_api = {
 	.get_rate = syscon_clock_mux_get_rate,
 	.configure = syscon_clock_mux_configure,
 	.notify = syscon_clock_mux_notify,
+#if defined(CONFIG_CLOCK_MGMT_SET_RATE)
+	.round_rate = syscon_clock_mux_round_rate,
+	.set_rate = syscon_clock_mux_set_rate,
+#endif
 };
 
 #define GET_MUX_INPUT(node_id, prop, idx)                                      \

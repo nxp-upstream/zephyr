@@ -52,10 +52,37 @@ int syscon_clock_div_notify(const struct clk *clk, const struct clk *parent,
 	return clock_notify_children(clk, new_rate);
 }
 
+int syscon_clock_div_round_rate(const struct clk *clk, uint32_t rate)
+{
+	const struct syscon_clock_div_config *config = clk->hw_data;
+	int parent_rate = clock_round_rate(config->parent, rate);
+	int div_val = MAX((parent_rate / rate), 1) - 1;
+	uint8_t div_mask = GENMASK(0, (config->mask_width - 1));
+
+	return parent_rate / ((div_val & div_mask) + 1);
+}
+
+int syscon_clock_div_set_rate(const struct clk *clk, uint32_t rate)
+{
+	const struct syscon_clock_div_config *config = clk->hw_data;
+	int parent_rate = clock_set_rate(config->parent, rate);
+	int div_val = MAX((parent_rate / rate), 1);
+	uint8_t div_mask = GENMASK(0, (config->mask_width - 1));
+	uint32_t output_rate = parent_rate / ((div_val & div_mask) + 1);
+
+	clock_notify_children(clk, output_rate);
+	(*config->reg) = ((*config->reg) & ~div_mask) | ((div_val - 1) & div_mask);
+	return output_rate;
+}
+
 const struct clock_driver_api nxp_syscon_div_api = {
 	.get_rate = syscon_clock_div_get_rate,
 	.configure = syscon_clock_div_configure,
 	.notify = syscon_clock_div_notify,
+#if defined(CONFIG_CLOCK_MGMT_SET_RATE)
+	.round_rate = syscon_clock_div_round_rate,
+	.set_rate = syscon_clock_div_set_rate,
+#endif
 };
 
 #define NXP_SYSCON_CLOCK_DEFINE(inst)                                          \

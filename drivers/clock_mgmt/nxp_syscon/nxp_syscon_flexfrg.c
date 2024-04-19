@@ -23,8 +23,8 @@ static uint32_t syscon_clock_frg_calc_rate(uint64_t parent_rate, uint32_t mult)
 	 * Calculate rate. We will use 64 bit integers for this division.
 	 * DIV value must be 256, no need to read it
 	 */
-	return (uint32_t)((parent_rate * ((uint64_t)SYSCON_FLEXFRGXCTRL_MULT_MASK + 1ULL)) /
-		(mult + SYSCON_FLEXFRGXCTRL_MULT_MASK + 1UL));
+	return (uint32_t)((parent_rate * ((uint64_t)SYSCON_FLEXFRGXCTRL_DIV_MASK + 1ULL)) /
+		(mult + SYSCON_FLEXFRGXCTRL_DIV_MASK + 1UL));
 }
 
 int syscon_clock_frg_get_rate(const struct clk *clk)
@@ -66,10 +66,74 @@ int syscon_clock_frg_notify(const struct clk *clk, const struct clk *parent,
 	return clock_notify_children(clk, new_rate);
 }
 
+int syscon_clock_frg_round_rate(const struct clk *clk, uint32_t rate)
+{
+	const struct syscon_clock_frg_config *config = clk->hw_data;
+	int parent_rate = clock_round_rate(config->parent, rate);
+	uint32_t mult;
+
+	if (parent_rate <= 0) {
+		return parent_rate;
+	}
+	/*
+	 * FRG rate is calculated as out_clk = in_clk / (1 + (MULT/DIV))
+	 * To calculate a target multiplier value, we use the formula:
+	 * MULT = DIV(in_clk - out_clk)/out_clk
+	 */
+	mult = SYSCON_FLEXFRGXCTRL_DIV_MASK * ((parent_rate - rate) / rate);
+
+	/* Check if multiplier value exceeds mask range- if so, the FRG will
+	 * generate a rate equal to input clock divided by 2
+	 */
+	if (mult > 255) {
+		return parent_rate / 2;
+	}
+	return syscon_clock_frg_calc_rate(parent_rate, mult);
+}
+
+int syscon_clock_frg_set_rate(const struct clk *clk, uint32_t rate)
+{
+	const struct syscon_clock_frg_config *config = clk->hw_data;
+	int parent_rate = clock_set_rate(config->parent, rate);
+	uint32_t mult, mult_val;
+	int output_rate;
+
+	if (parent_rate <= 0) {
+		return parent_rate;
+	}
+	/*
+	 * FRG rate is calculated as out_clk = in_clk / (1 + (MULT/DIV))
+	 * To calculate a target multiplier value, we use the formula:
+	 * MULT = DIV(in_clk - out_clk)/out_clk
+	 */
+	mult = SYSCON_FLEXFRGXCTRL_DIV_MASK * ((parent_rate - rate) / rate);
+	mult_val = FIELD_PREP(SYSCON_FLEXFRGXCTRL_MULT_MASK, mult);
+
+	/* Check if multiplier value exceeds mask range- if so, the FRG will
+	 * generate a rate equal to input clock divided by 2
+	 */
+	if (mult > 255) {
+		output_rate = parent_rate / 2;
+	} else {
+		output_rate = syscon_clock_frg_calc_rate(parent_rate, mult);
+	}
+
+	/* Notify children */
+	clock_notify_children(clk, output_rate);
+	/* Apply new configuration */
+	(*config->reg) = mult_val | SYSCON_FLEXFRGXCTRL_DIV_MASK;
+
+	return output_rate;
+}
+
 const struct clock_driver_api nxp_syscon_frg_api = {
 	.get_rate = syscon_clock_frg_get_rate,
 	.configure = syscon_clock_frg_configure,
 	.notify = syscon_clock_frg_notify,
+#if defined(CONFIG_CLOCK_MGMT_SET_RATE)
+	.round_rate = syscon_clock_frg_round_rate,
+	.set_rate = syscon_clock_frg_set_rate,
+#endif
 };
 
 #define NXP_SYSCON_CLOCK_DEFINE(inst)                                          \
