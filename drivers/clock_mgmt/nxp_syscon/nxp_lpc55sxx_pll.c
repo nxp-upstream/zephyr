@@ -136,7 +136,6 @@ int syscon_lpc55sxx_pll_configure(const struct clk *clk, const void *data)
 	return 0;
 }
 
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 int syscon_lpc55sxx_pll_notify(const struct clk *clk, const struct clk *parent,
 				uint32_t parent_rate)
 {
@@ -149,14 +148,11 @@ int syscon_lpc55sxx_pll_notify(const struct clk *clk, const struct clk *parent,
 	 */
 	return clock_notify_children(clk, clk_data->output_freq);
 }
-#endif
 
 const struct clock_driver_api nxp_syscon_pll_api = {
 	.get_rate = syscon_lpc55sxx_pll_get_rate,
 	.configure = syscon_lpc55sxx_pll_configure,
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 	.notify = syscon_lpc55sxx_pll_notify,
-#endif
 };
 
 /* PLL0 driver */
@@ -232,7 +228,6 @@ int syscon_lpc55sxx_pll_pdec_configure(const struct clk *clk, const void *data)
 	return 0;
 }
 
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 int syscon_lpc55sxx_pll_pdec_notify(const struct clk *clk, const struct clk *parent,
 				    uint32_t parent_rate)
 {
@@ -245,14 +240,11 @@ int syscon_lpc55sxx_pll_pdec_notify(const struct clk *clk, const struct clk *par
 
 	return clock_notify_children(clk, parent_rate / div);
 }
-#endif
 
 const struct clock_driver_api nxp_syscon_pdec_api = {
 	.get_rate = syscon_lpc55sxx_pll_pdec_get_rate,
 	.configure = syscon_lpc55sxx_pll_pdec_configure,
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 	.notify = syscon_lpc55sxx_pll_pdec_notify,
-#endif
 };
 
 #define NXP_LPC55SXX_PDEC_DEFINE(inst)                                         \

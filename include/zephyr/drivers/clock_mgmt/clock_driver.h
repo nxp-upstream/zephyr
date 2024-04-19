@@ -53,15 +53,13 @@ struct clock_driver_api {
 	 * Note that this must remain the first field in the API structure
 	 * to support clock management callbacks
 	 */
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 	int (*notify)(const struct clk *clk, const struct clk *parent,
 		      uint32_t parent_rate);
-#endif
 	/** Gets clock rate in Hz */
 	int (*get_rate)(const struct clk *clk);
 	/** Configure a clock with device specific data */
 	int (*configure)(const struct clk *clk, const void *data);
-#if defined(CONFIG_CLOCK_MGMT_SET_RATE) || defined(__DOXYGEN__)
+#if defined(CONFIG_CLOCK_MGMT_SET_SET_RATE) || defined(__DOXYGEN__)
 	/** Gets nearest rate clock can support, in Hz */
 	int (*round_rate)(const struct clk *clk, uint32_t rate);
 	/** Sets clock rate in Hz */
@@ -83,15 +81,11 @@ struct clock_driver_api {
 static inline int clock_notify(const struct clk *clk, const struct clk *parent,
 			       uint32_t parent_rate)
 {
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 	if (!(clk->api) || !(clk->api->notify)) {
 		return -ENOSYS;
 	}
 
 	return clk->api->notify(clk, parent, parent_rate);
-#else
-	return -ENOTSUP;
-#endif
 }
 
 /**
@@ -137,7 +131,7 @@ static inline int clock_configure(const struct clk *clk, const void *data)
 }
 
 
-#if defined(CONFIG_CLOCK_MGMT_SET_RATE) || defined(__DOXYGEN__)
+#if defined(CONFIG_CLOCK_MGMT_SET_SET_RATE) || defined(__DOXYGEN__)
 
 /**
  * @brief Get nearest rate a clock can support
@@ -182,7 +176,7 @@ static inline int clock_set_rate(const struct clk *clk, uint32_t rate)
 	return clk->api->set_rate(clk, rate);
 }
 
-#else /* if !defined(CONFIG_CLOCK_MGMT_SET_RATE) */
+#else /* if !defined(CONFIG_CLOCK_MGMT_SET_SET_RATE) */
 
 /* Stub functions to indicate set_rate and round_rate are not supported */
 static inline int clock_round_rate(const struct clk *clk, uint32_t req_rate)
@@ -195,7 +189,7 @@ static inline int clock_set_rate(const struct clk *clk, uint32_t rate)
 	return -ENOTSUP;
 }
 
-#endif /* defined(CONFIG_CLOCK_MGMT_SET_RATE) || defined(__DOXYGEN__) */
+#endif /* defined(CONFIG_CLOCK_MGMT_SET_SET_RATE) || defined(__DOXYGEN__) */
 
 
 #ifdef __cplusplus

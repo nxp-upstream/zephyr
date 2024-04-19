@@ -54,7 +54,6 @@ int syscon_clock_frg_configure(const struct clk *clk, const void *mult)
 	return 0;
 }
 
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 int syscon_clock_frg_notify(const struct clk *clk, const struct clk *parent,
 			    uint32_t parent_rate)
 {
@@ -66,14 +65,11 @@ int syscon_clock_frg_notify(const struct clk *clk, const struct clk *parent,
 	new_rate = syscon_clock_frg_calc_rate(parent_rate, frg_mult);
 	return clock_notify_children(clk, new_rate);
 }
-#endif
 
 const struct clock_driver_api nxp_syscon_frg_api = {
 	.get_rate = syscon_clock_frg_get_rate,
 	.configure = syscon_clock_frg_configure,
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 	.notify = syscon_clock_frg_notify,
-#endif
 };
 
 #define NXP_SYSCON_CLOCK_DEFINE(inst)                                          \

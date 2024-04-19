@@ -1033,7 +1033,7 @@ static void mcux_flexcomm_uart_setup(const struct device *dev, uint32_t clock_ra
 	USART_Init(config->base, &usart_config, clock_rate);
 }
 
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
+#ifdef CONFIG_CLOCK_MGMT
 void uart_mcux_flexcomm_clock_cb(uint8_t output_idx, uint32_t new_rate,
 				 const void *data)
 {
@@ -1068,10 +1068,8 @@ static int mcux_flexcomm_init(const struct device *dev)
 	clock_freq = clock_mgmt_get_rate(config->clock_mgmt,
 					 CLOCK_MGMT_OUTPUT_DEFAULT);
 	mcux_flexcomm_uart_setup(dev, clock_freq);
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 	clock_mgmt_set_callback(config->clock_mgmt, uart_mcux_flexcomm_clock_cb,
 				dev);
-#endif
 #else
 	if (!device_is_ready(config->clock_dev)) {
 		return -ENODEV;

@@ -18,14 +18,6 @@ module = CLOCK_MGMT
 module-str = clock management
 source "subsys/logging/Kconfig.template.log_config"
 
-config CLOCK_MGMT_NOTIFY
-	bool "Support clock rate change notifications"
-	default y
-	help
-	  Support clock rate change notifications. When enabled, clock
-	  consumers can register for a callback when the frequency of their
-	  output clock changes.
-
 config CLOCK_MGMT_FIXED_SOURCE
 	bool "Fixed clock source driver"
 	default y

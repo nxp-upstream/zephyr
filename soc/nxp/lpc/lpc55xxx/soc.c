@@ -98,12 +98,8 @@ void core_clock_change_cb(uint8_t output_idx, uint32_t new_rate, const void *dat
 
 static void core_clock_init(void)
 {
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 	clock_mgmt_set_callback(soc_clock_mgmt, core_clock_change_cb,
 				NULL);
-#else
-	core_clock_change_cb(0, SDK_DEVICE_MAXIMUM_CPU_CLOCK_FREQUENCY, NULL);
-#endif
 	clock_mgmt_apply_state(soc_clock_mgmt, CLOCK_MGMT_STATE_DEFAULT);
 }
 #else /* !CONFIG_CLOCK_MGMT */

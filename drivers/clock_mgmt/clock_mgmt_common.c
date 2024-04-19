@@ -19,18 +19,14 @@
  */
 int clock_notify_children(const struct clk *clk, uint32_t clk_rate)
 {
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 	const clock_handle_t *handle = clk->children;
 
 	while (*handle != CLOCK_LIST_END) {
 		clock_notify(clk_from_handle(*handle), clk, clk_rate);
 		handle++;
 	}
-#endif
 	return 0;
 }
-
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 
 /*
  * Common handler used to notify clock consumers of clock events.
@@ -63,8 +59,6 @@ int clock_mgmt_notify_consumer(const struct clk *clk, const struct clk *parent,
 const struct clock_mgmt_clk_api clock_consumer_api = {
 	.notify = clock_mgmt_notify_consumer,
 };
-
-#endif
 
 /**
  * @brief Set new clock state

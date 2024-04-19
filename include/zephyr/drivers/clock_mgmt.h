@@ -103,10 +103,8 @@ struct clock_mgmt {
 	const struct clk *const *outputs;
 	/** States to configure */
 	const struct clock_mgmt_state *const *states;
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 	/** Clock callback (one per clock management instance )*/
 	struct clock_mgmt_callback *callback;
-#endif
 	/** Reference to the clock structure for this node */
 	const struct clk *clock;
 	/** Count of clock outputs */
@@ -309,9 +307,7 @@ struct clock_mgmt_clk_api {
 	/* API implemented in clock_mgmt_common.c */                           \
 	extern struct clock_mgmt_clk_api clock_consumer_api;                   \
 	CLOCK_DT_DEFINE(node_id, data,                                         \
-		COND_CODE_1(CONFIG_CLOCK_MGMT_NOTIFY,                          \
-			    ((struct clock_driver_api *)&clock_consumer_api),  \
-			    NULL));
+		((struct clock_driver_api *)&clock_consumer_api));
 
 
 /** @endcond */
@@ -344,8 +340,7 @@ struct clock_mgmt_clk_api {
 	const struct clock_mgmt Z_CLOCK_MGMT_NAME(node_id) = {                 \
 		.outputs = Z_CLOCK_MGMT_OUTPUTS_NAME(node_id),                 \
 		.states = Z_CLOCK_MGMT_STATES_NAME(node_id),                   \
-		IF_ENABLED(CONFIG_CLOCK_MGMT_NOTIFY,                           \
-		(.callback = &Z_CLOCK_MGMT_CALLBACK_NAME(node_id),))           \
+		.callback = &Z_CLOCK_MGMT_CALLBACK_NAME(node_id),              \
 		.clock = CLOCK_DT_GET(node_id),                                \
 		.output_count = DT_PROP_LEN(node_id, clock_outputs),           \
 		.state_count = DT_NUM_CLOCK_MGMT_STATES(node_id),              \
@@ -464,7 +459,6 @@ static inline int clock_mgmt_set_callback(const struct clock_mgmt *clk_cfg,
 					  clock_mgmt_callback_handler_t callback,
 					  const void *user_data)
 {
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 	if ((!clk_cfg) || (!callback)) {
 		return -EINVAL;
 	}
@@ -472,9 +466,6 @@ static inline int clock_mgmt_set_callback(const struct clock_mgmt *clk_cfg,
 	clk_cfg->callback->clock_callback = callback;
 	clk_cfg->callback->user_data = user_data;
 	return 0;
-#else
-	return -ENOTSUP;
-#endif
 }
 
 #ifdef __cplusplus
