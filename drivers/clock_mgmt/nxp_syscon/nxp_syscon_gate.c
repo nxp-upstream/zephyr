@@ -25,13 +25,20 @@ int syscon_clock_gate_get_rate(const struct clk *clk)
 int syscon_clock_gate_configure(const struct clk *clk, const void *data)
 {
 	const struct syscon_clock_gate_config *config = clk->hw_data;
+	int ret;
 	bool ungate = (bool)data;
 
 	if (ungate) {
-		clock_notify_children(clk, clock_get_rate(config->parent));
+		ret = clock_notify_children(clk, clock_get_rate(config->parent));
+		if (ret < 0) {
+			return ret;
+		}
 		(*config->reg) |= BIT(config->enable_offset);
 	} else {
-		clock_notify_children(clk, 0);
+		ret = clock_notify_children(clk, 0);
+		if (ret < 0) {
+			return ret;
+		}
 		(*config->reg) &= ~BIT(config->enable_offset);
 	}
 	return 0;

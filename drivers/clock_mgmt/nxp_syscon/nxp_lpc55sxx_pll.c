@@ -92,10 +92,14 @@ int syscon_lpc55sxx_pll_configure(const struct clk *clk, const void *data)
 	struct lpc55sxx_pll_data *clk_data = clk->hw_data;
 	const struct lpc55sxx_pll_config_input *input = data;
 	uint32_t ctrl, ndec;
+	int ret;
 
 	/* Copy configured frequency and PLL settings */
 	clk_data->output_freq = input->output_freq;
-	clock_notify_children(clk, input->output_freq);
+	ret = clock_notify_children(clk, input->output_freq);
+	if (ret < 0) {
+		return ret;
+	}
 
 	/* Power off PLL during setup changes */
 	if (clk_data->idx == 0) {
@@ -147,13 +151,24 @@ int syscon_lpc55sxx_pll_notify(const struct clk *clk, const struct clk *parent,
 				uint32_t parent_rate)
 {
 	struct lpc55sxx_pll_data *clk_data = clk->hw_data;
+	int ret;
 	/*
 	 * Reuse current output rate. This
 	 * may not be correct if the parent clock has been reconfigured,
 	 * but we are able to avoid runtime rate calculations via this
 	 * method
 	 */
-	return clock_notify_children(clk, clk_data->output_freq);
+	ret = clock_notify_children(clk, clk_data->output_freq);
+	if (ret == CLK_NO_CHILDREN) {
+		/* We can power down the PLL */
+		if (clk_data->idx == 0) {
+			PMC->PDRUNCFGSET0 = PMC_PDRUNCFG0_PDEN_PLL0_SSCG_MASK;
+			PMC->PDRUNCFGSET0 = PMC_PDRUNCFG0_PDEN_PLL0_MASK;
+		} else {
+			PMC->PDRUNCFGSET0 = PMC_PDRUNCFG0_PDEN_PLL1_MASK;
+		}
+	}
+	return 0;
 }
 
 /* Helper function to calculate SELP and SELI values */
@@ -214,7 +229,7 @@ int syscon_lpc55sxx_pll0_round_rate(const struct clk *clk, uint32_t rate)
 int syscon_lpc55sxx_pll0_set_rate(const struct clk *clk, uint32_t rate)
 {
 	struct lpc55sxx_pll_data *clk_data = clk->hw_data;
-	int input_clk, output_clk;
+	int input_clk, output_clk, ret;
 	uint32_t mdiv_int, mdiv_frac, prediv_val, seli, selp, ctrl;
 	float mdiv, prediv_clk;
 
@@ -251,7 +266,10 @@ int syscon_lpc55sxx_pll0_set_rate(const struct clk *clk, uint32_t rate)
 	/* Calculate actual output rate */
 	output_clk = prediv_clk * mdiv_int +
 		(prediv_clk * (((float)mdiv_frac) / ((float)(1 << 25))));
-	clock_notify_children(clk, output_clk);
+	ret = clock_notify_children(clk, output_clk);
+	if (ret < 0) {
+		return ret;
+	}
 	/* Power off PLL before setup changes */
 	PMC->PDRUNCFGSET0 = PMC_PDRUNCFG0_PDEN_PLL0_SSCG_MASK;
 	PMC->PDRUNCFGSET0 = PMC_PDRUNCFG0_PDEN_PLL0_MASK;
@@ -356,7 +374,7 @@ int syscon_lpc55sxx_pll1_round_rate(const struct clk *clk, uint32_t rate)
 int syscon_lpc55sxx_pll1_set_rate(const struct clk *clk, uint32_t rate)
 {
 	struct lpc55sxx_pll_data *clk_data = clk->hw_data;
-	int input_clk, output_rate;
+	int input_clk, output_rate, ret;
 	uint32_t best_div, best_mult, best_diff, best_out, test_div, test_mult;
 	uint32_t seli, selp, ctrl;
 	float postdiv_clk;
@@ -405,7 +423,10 @@ int syscon_lpc55sxx_pll1_set_rate(const struct clk *clk, uint32_t rate)
 	}
 
 	syscon_lpc55sxx_pll_calc_selx(best_mult, &selp, &seli);
-	clock_notify_children(clk, output_rate);
+	ret = clock_notify_children(clk, output_rate);
+	if (ret < 0) {
+		return ret;
+	}
 	/* Power off PLL during setup changes */
 	PMC->PDRUNCFGSET0 = PMC_PDRUNCFG0_PDEN_PLL1_MASK;
 	/* Program PLL settings */
@@ -485,8 +506,12 @@ int syscon_lpc55sxx_pll_pdec_configure(const struct clk *clk, const void *data)
 	const struct lpc55sxx_pll_pdec_config *config = clk->hw_data;
 	int parent_rate = clock_get_rate(config->parent);
 	uint32_t div_val = FIELD_PREP(SYSCON_PLL0PDEC_PDIV_MASK, (((uint32_t)data) / 2));
+	int ret;
 
-	clock_notify_children(clk, parent_rate / ((uint32_t)data));
+	ret = clock_notify_children(clk, parent_rate / ((uint32_t)data));
+	if (ret < 0) {
+		return ret;
+	}
 	*config->reg = div_val | SYSCON_PLL0PDEC_PREQ_MASK;
 
 	return 0;
@@ -499,7 +524,8 @@ int syscon_lpc55sxx_pll_pdec_notify(const struct clk *clk, const struct clk *par
 	int div = (((*config->reg) & SYSCON_PLL0PDEC_PDIV_MASK)) * 2;
 
 	if (div == 0) {
-		return -EIO;
+		/* PDEC isn't configured yet, don't notify children */
+		return -ENOTCONN;
 	}
 
 	return clock_notify_children(clk, parent_rate / div);
@@ -553,7 +579,7 @@ int syscon_lpc55sxx_pll_pdec_round_rate(const struct clk *clk, uint32_t rate)
 int syscon_lpc55sxx_pll_pdec_set_rate(const struct clk *clk, uint32_t rate)
 {
 	const struct lpc55sxx_pll_pdec_config *config = clk->hw_data;
-	int input_clk, output_clk, parent_req;
+	int input_clk, output_clk, parent_req, ret;
 	uint32_t best_div, best_diff, best_out, best_parent, test_div;
 
 	/* First attempt to request the same frequency from the parent.
@@ -600,7 +626,10 @@ int syscon_lpc55sxx_pll_pdec_set_rate(const struct clk *clk, uint32_t rate)
 		return input_clk;
 	}
 
-	clock_notify_children(clk, best_out);
+	ret = clock_notify_children(clk, best_out);
+	if (ret < 0) {
+		return ret;
+	}
 	*config->reg = (best_div / 2) | SYSCON_PLL0PDEC_PREQ_MASK;
 
 	return best_out;

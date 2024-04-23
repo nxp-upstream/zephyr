@@ -31,6 +31,7 @@ int syscon_clock_source_get_rate(const struct clk *clk)
 int syscon_clock_source_configure(const struct clk *clk, const void *data)
 {
 	const struct syscon_clock_source_config *config = clk->hw_data;
+	int ret;
 	bool ungate = (bool)data;
 
 	if (config->reg == NULL) {
@@ -38,14 +39,36 @@ int syscon_clock_source_configure(const struct clk *clk, const void *data)
 	}
 
 	if (ungate) {
-		clock_notify_children(clk, config->rate);
+		ret = clock_notify_children(clk, config->rate);
+		if (ret < 0) {
+			return ret;
+		}
 		(*config->reg) |= BIT(config->enable_offset);
 		PMC->PDRUNCFGCLR0 = config->pdown_mask;
 	} else {
-		clock_notify_children(clk, 0);
+		ret = clock_notify_children(clk, 0);
+		if (ret < 0) {
+			return ret;
+		}
 		(*config->reg) &= ~BIT(config->enable_offset);
 		PMC->PDRUNCFGSET0 = config->pdown_mask;
 	}
+	return 0;
+}
+
+int syscon_clock_source_notify(const struct clk *clk, const struct clk *parent,
+			       uint32_t parent_rate)
+{
+	const struct syscon_clock_source_config *config = clk->hw_data;
+	int ret;
+
+	ret = clock_notify_children(clk, clock_get_rate(clk));
+	if (ret == CLK_NO_CHILDREN) {
+		/* Gate this clock source */
+		(*config->reg) &= ~BIT(config->enable_offset);
+		PMC->PDRUNCFGSET0 = config->pdown_mask;
+	}
+
 	return 0;
 }
 
@@ -73,6 +96,7 @@ int syscon_clock_source_set_rate(const struct clk *clk, uint32_t rate)
 const struct clock_driver_api nxp_syscon_source_api = {
 	.get_rate = syscon_clock_source_get_rate,
 	.configure = syscon_clock_source_configure,
+	.notify = syscon_clock_source_notify,
 #if defined(CONFIG_CLOCK_MGMT_SET_RATE)
 	.round_rate = syscon_clock_source_round_rate,
 	.set_rate = syscon_clock_source_set_rate,

@@ -35,6 +35,7 @@ int syscon_clock_mux_get_rate(const struct clk *clk)
 int syscon_clock_mux_configure(const struct clk *clk, const void *mux)
 {
 	const struct syscon_clock_mux_config *config = clk->hw_data;
+	int ret;
 
 	uint8_t mux_mask = GENMASK((config->mask_width +
 				   config->mask_offset - 1),
@@ -45,7 +46,11 @@ int syscon_clock_mux_configure(const struct clk *clk, const void *mux)
 		return -EINVAL;
 	}
 
-	clock_notify_children(clk, clock_get_rate(config->parents[(uint32_t)mux]));
+	ret = clock_notify_children(clk, clock_get_rate(config->parents[(uint32_t)mux]));
+	if (ret < 0) {
+		return ret;
+	}
+
 	(*config->reg) = ((*config->reg) & ~mux_mask) | mux_val;
 	return 0;
 }
@@ -60,7 +65,8 @@ int syscon_clock_mux_notify(const struct clk *clk, const struct clk *parent,
 	uint8_t sel = ((*config->reg) & mux_mask) >> config->mask_offset;
 
 	if (sel > config->src_count) {
-		return -EINVAL;
+		/* Selector has not been initialized */
+		return -ENOTCONN;
 	}
 
 	/*
@@ -68,10 +74,11 @@ int syscon_clock_mux_notify(const struct clk *clk, const struct clk *parent,
 	 * children
 	 */
 	if (config->parents[sel] == parent) {
-		clock_notify_children(clk, parent_rate);
+		return clock_notify_children(clk, parent_rate);
 	}
 
-	return 0;
+	/* Parent is not in use */
+	return -ENOTCONN;
 }
 
 int syscon_clock_mux_round_rate(const struct clk *clk, uint32_t rate)
@@ -102,7 +109,7 @@ int syscon_clock_mux_round_rate(const struct clk *clk, uint32_t rate)
 int syscon_clock_mux_set_rate(const struct clk *clk, uint32_t rate)
 {
 	const struct syscon_clock_mux_config *config = clk->hw_data;
-	int cand_rate, best_rate;
+	int cand_rate, best_rate, ret;
 	int best_delta = INT32_MAX;
 	uint32_t mux_val;
 	uint8_t idx = 0;
@@ -127,9 +134,15 @@ int syscon_clock_mux_set_rate(const struct clk *clk, uint32_t rate)
 
 	/* Now set the clock rate for the best parent */
 	best_rate = clock_set_rate(config->parents[best_idx], rate, clk);
+	if (best_rate < 0) {
+		return best_rate;
+	}
+	ret = clock_notify_children(clk, best_rate);
+	if (ret < 0) {
+		return ret;
+	}
 	/* Unlock the previous parent, so it can be reconfigured */
 	clock_unlock(config->parents[(*config->reg) & mux_mask], clk);
-	clock_notify_children(clk, best_rate);
 	mux_val = FIELD_PREP(mux_mask, best_idx);
 	(*config->reg) = ((*config->reg) & ~mux_mask) | mux_val;
 

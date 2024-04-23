@@ -101,6 +101,7 @@ static void core_clock_init(void)
 	clock_mgmt_set_callback(soc_clock_mgmt, core_clock_change_cb,
 				NULL);
 	clock_mgmt_apply_state(soc_clock_mgmt, CLOCK_MGMT_STATE_DEFAULT);
+	clock_mgmt_disable_unused();
 }
 #else /* !CONFIG_CLOCK_MGMT */
 static void core_clock_init(void)

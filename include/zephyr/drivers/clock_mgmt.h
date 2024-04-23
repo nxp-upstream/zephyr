@@ -468,6 +468,24 @@ static inline int clock_mgmt_set_callback(const struct clock_mgmt *clk_cfg,
 	return 0;
 }
 
+/**
+ * @brief Disable unused clocks within the system
+ *
+ * Disable unused clocks within the system. This API will notify all clocks
+ * of a configuration event, and clocks that are no longer in use
+ * will gate themselves automatically
+ */
+static inline void clock_mgmt_disable_unused(void)
+{
+	STRUCT_SECTION_FOREACH(clk, clk) {
+		/* Call clock_notify on each clock. Clocks can use this
+		 * notification event to determine if they are able
+		 * to gate themselves
+		 */
+		clock_notify(clk, NULL, 0);
+	}
+}
+
 #ifdef __cplusplus
 }
 #endif

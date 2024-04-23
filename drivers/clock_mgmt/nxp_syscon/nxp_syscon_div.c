@@ -35,9 +35,13 @@ int syscon_clock_div_configure(const struct clk *clk, const void *div)
 	uint8_t div_mask = GENMASK(0, (config->mask_width - 1));
 	uint32_t div_val = (((uint32_t)div) - 1) & div_mask;
 	int parent_rate = clock_get_rate(config->parent);
+	int ret;
 	uint32_t new_rate = (parent_rate / ((uint32_t)div));
 
-	clock_notify_children(clk, new_rate);
+	ret = clock_notify_children(clk, new_rate);
+	if (ret < 0) {
+		return ret;
+	}
 	(*config->reg) = ((*config->reg) & ~div_mask) | div_val;
 	return 0;
 }
@@ -69,8 +73,12 @@ int syscon_clock_div_set_rate(const struct clk *clk, uint32_t rate)
 	int div_val = MAX((parent_rate / rate), 1);
 	uint8_t div_mask = GENMASK(0, (config->mask_width - 1));
 	uint32_t output_rate = parent_rate / ((div_val & div_mask) + 1);
+	int ret;
 
-	clock_notify_children(clk, output_rate);
+	ret = clock_notify_children(clk, output_rate);
+	if (ret < 0) {
+		return ret;
+	}
 	(*config->reg) = ((*config->reg) & ~div_mask) | ((div_val - 1) & div_mask);
 	return output_rate;
 }

@@ -20,12 +20,23 @@
 int clock_notify_children(const struct clk *clk, uint32_t clk_rate)
 {
 	const clock_handle_t *handle = clk->children;
+	int ret;
+	bool children_disconnected = true;
 
 	while (*handle != CLOCK_LIST_END) {
-		clock_notify(clk_from_handle(*handle), clk, clk_rate);
+		ret = clock_notify(clk_from_handle(*handle), clk, clk_rate);
+		if (ret == 0) {
+			/* At least one child is using this clock */
+			children_disconnected = false;
+		} else if ((ret < 0) && (ret != -ENOTCONN)) {
+			/* ENOTCONN simply means MUX is disconnected.
+			 * other return codes should be propagated.
+			 */
+			return ret;
+		}
 		handle++;
 	}
-	return 0;
+	return children_disconnected ? CLK_NO_CHILDREN : 0;
 }
 
 /*

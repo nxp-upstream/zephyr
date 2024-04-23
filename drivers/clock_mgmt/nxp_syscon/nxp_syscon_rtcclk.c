@@ -43,10 +43,13 @@ int syscon_clock_rtcclk_configure(const struct clk *clk, const void *div)
 				   config->mask_offset);
 	uint32_t div_val = ((uint32_t)div) - config->add_factor;
 	uint32_t div_raw = FIELD_PREP(div_mask, div_val);
-
 	uint32_t new_rate = parent_rate / ((uint32_t)div);
+	int ret;
 
-	clock_notify_children(clk, new_rate);
+	ret = clock_notify_children(clk, new_rate);
+	if (ret < 0) {
+		return ret;
+	}
 	(*config->reg) = ((*config->reg) & ~div_mask) | div_raw;
 	return 0;
 }
@@ -97,7 +100,7 @@ int syscon_clock_rtcclk_round_rate(const struct clk *clk, uint32_t rate)
 int syscon_clock_rtcclk_set_rate(const struct clk *clk, uint32_t rate)
 {
 	const struct syscon_rtcclk_config *config = clk->hw_data;
-	int parent_rate;
+	int parent_rate, ret;
 	uint32_t div_raw, div_factor, new_rate;
 	uint8_t div_mask = GENMASK((config->mask_width +
 				   config->mask_offset - 1),
@@ -121,7 +124,10 @@ int syscon_clock_rtcclk_set_rate(const struct clk *clk, uint32_t rate)
 	div_raw = (parent_rate - (rate * config->add_factor)) / rate;
 	div_factor = (div_raw & div_mask) + config->add_factor;
 	new_rate = parent_rate / div_factor;
-	clock_notify_children(clk, new_rate);
+	ret = clock_notify_children(clk, new_rate);
+	if (ret < 0) {
+		return ret;
+	}
 	(*config->reg) = ((*config->reg) & ~div_mask) | div_raw;
 
 	return new_rate;

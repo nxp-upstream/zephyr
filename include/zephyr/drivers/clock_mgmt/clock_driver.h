@@ -29,6 +29,12 @@ extern "C" {
  */
 
 /**
+ * @brief Return code to indicate clock has no children actively using its
+ * output
+ */
+#define CLK_NO_CHILDREN (1)
+
+/**
  * @brief Helper to issue a clock callback to all children nodes
  *
  * Helper function to issue a callback to all children of a given clock, with
@@ -38,6 +44,9 @@ extern "C" {
  * @param clk Clock object to issue callbacks for
  * @param clk_rate Rate clock will be reconfigured to
  * @return 0 on success
+ * @return CLK_NO_CHILDREN to indicate clock has no children actively using it,
+ *         and may safely shut down.
+ * @return -errno from @ref clock_notify on any other failure
  */
 int clock_notify_children(const struct clk *clk, uint32_t clk_rate);
 
@@ -68,13 +77,24 @@ struct clock_driver_api {
 };
 
 /**
- * @brief Notify clock of parent reconfiguration
+ * @brief Notify clock of reconfiguration
  *
- * Notifies a clock its parent was reconfigured
+ * Notifies a clock that a reconfiguration event has occurred. This API is
+ * usually called by a clock's parent, but may also be called by the clock
+ * management subsystem directly to notify the clock node that the system
+ * clock tree state has changed.
+ *
+ * Clocks should forward this notification to their children clocks with
+ * @ref clock_notify_children, and if the return code of that call is
+ * ``CLK_NO_CHILDREN`` the clock may safely power itself down.
  * @param clk Clock object to notify of reconfiguration
  * @param parent Parent clock device that was reconfigured
  * @param parent_rate Rate of parent clock
  * @return -ENOSYS if clock does not implement notify_children API
+ * @return -ENOTSUP if clock child cannot support new rate
+ * @return -ENOTCONN to indicate that clock is not using this parent. This
+ *         can be useful to multiplexers to indicate to parents that they
+ *         may safely shutdown
  * @return negative errno for other error notifying clock
  * @return 0 on success
  */

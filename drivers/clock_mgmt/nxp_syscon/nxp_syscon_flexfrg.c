@@ -47,8 +47,12 @@ int syscon_clock_frg_configure(const struct clk *clk, const void *mult)
 	uint32_t mult_val = FIELD_PREP(SYSCON_FLEXFRGXCTRL_MULT_MASK, ((uint32_t)mult));
 	int parent_rate = clock_get_rate(config->parent);
 	uint32_t new_rate = syscon_clock_frg_calc_rate(parent_rate, (uint32_t)mult);
+	int ret;
 
-	clock_notify_children(clk, new_rate);
+	ret = clock_notify_children(clk, new_rate);
+	if (ret < 0) {
+		return ret;
+	}
 	/* DIV field should always be 0xFF */
 	(*config->reg) = mult_val | SYSCON_FLEXFRGXCTRL_DIV_MASK;
 	return 0;
@@ -96,7 +100,7 @@ int syscon_clock_frg_set_rate(const struct clk *clk, uint32_t rate)
 	const struct syscon_clock_frg_config *config = clk->hw_data;
 	int parent_rate = clock_set_rate(config->parent, rate, clk);
 	uint32_t mult, mult_val;
-	int output_rate;
+	int output_rate, ret;
 
 	if (parent_rate <= 0) {
 		return parent_rate;
@@ -119,7 +123,10 @@ int syscon_clock_frg_set_rate(const struct clk *clk, uint32_t rate)
 	}
 
 	/* Notify children */
-	clock_notify_children(clk, output_rate);
+	ret = clock_notify_children(clk, output_rate);
+	if (ret < 0) {
+		return ret;
+	}
 	/* Apply new configuration */
 	(*config->reg) = mult_val | SYSCON_FLEXFRGXCTRL_DIV_MASK;
 
