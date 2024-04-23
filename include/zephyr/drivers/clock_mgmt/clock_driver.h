@@ -288,7 +288,8 @@ static inline int clock_round_rate(const struct clk *clk, uint32_t req_rate)
 	return -ENOTSUP;
 }
 
-static inline int clock_set_rate(const struct clk *clk, uint32_t rate)
+static inline int clock_set_rate(const struct clk *clk, uint32_t rate,
+				 const struct clk *owner)
 {
 	return -ENOTSUP;
 }
