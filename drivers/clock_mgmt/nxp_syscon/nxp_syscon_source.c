@@ -96,7 +96,9 @@ int syscon_clock_source_set_rate(const struct clk *clk, uint32_t rate)
 const struct clock_driver_api nxp_syscon_source_api = {
 	.get_rate = syscon_clock_source_get_rate,
 	.configure = syscon_clock_source_configure,
+#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 	.notify = syscon_clock_source_notify,
+#endif
 #if defined(CONFIG_CLOCK_MGMT_SET_RATE)
 	.round_rate = syscon_clock_source_round_rate,
 	.set_rate = syscon_clock_source_set_rate,

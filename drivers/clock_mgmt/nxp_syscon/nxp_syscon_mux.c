@@ -55,6 +55,7 @@ int syscon_clock_mux_configure(const struct clk *clk, const void *mux)
 	return 0;
 }
 
+#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 int syscon_clock_mux_notify(const struct clk *clk, const struct clk *parent,
 			    uint32_t parent_rate)
 {
@@ -148,11 +149,14 @@ int syscon_clock_mux_set_rate(const struct clk *clk, uint32_t rate)
 
 	return best_rate;
 }
+#endif
 
 const struct clock_driver_api nxp_syscon_mux_api = {
 	.get_rate = syscon_clock_mux_get_rate,
 	.configure = syscon_clock_mux_configure,
+#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 	.notify = syscon_clock_mux_notify,
+#endif
 #if defined(CONFIG_CLOCK_MGMT_SET_RATE)
 	.round_rate = syscon_clock_mux_round_rate,
 	.set_rate = syscon_clock_mux_set_rate,

@@ -58,6 +58,7 @@ int syscon_clock_frg_configure(const struct clk *clk, const void *mult)
 	return 0;
 }
 
+#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 int syscon_clock_frg_notify(const struct clk *clk, const struct clk *parent,
 			    uint32_t parent_rate)
 {
@@ -69,6 +70,7 @@ int syscon_clock_frg_notify(const struct clk *clk, const struct clk *parent,
 	new_rate = syscon_clock_frg_calc_rate(parent_rate, frg_mult);
 	return clock_notify_children(clk, new_rate);
 }
+#endif
 
 int syscon_clock_frg_round_rate(const struct clk *clk, uint32_t rate)
 {
@@ -136,7 +138,9 @@ int syscon_clock_frg_set_rate(const struct clk *clk, uint32_t rate)
 const struct clock_driver_api nxp_syscon_frg_api = {
 	.get_rate = syscon_clock_frg_get_rate,
 	.configure = syscon_clock_frg_configure,
+#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 	.notify = syscon_clock_frg_notify,
+#endif
 #if defined(CONFIG_CLOCK_MGMT_SET_RATE)
 	.round_rate = syscon_clock_frg_round_rate,
 	.set_rate = syscon_clock_frg_set_rate,

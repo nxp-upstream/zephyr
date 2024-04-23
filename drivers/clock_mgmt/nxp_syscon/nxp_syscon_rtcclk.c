@@ -54,6 +54,7 @@ int syscon_clock_rtcclk_configure(const struct clk *clk, const void *div)
 	return 0;
 }
 
+#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 int syscon_clock_rtcclk_notify(const struct clk *clk, const struct clk *parent,
 			       uint32_t parent_rate)
 {
@@ -66,6 +67,7 @@ int syscon_clock_rtcclk_notify(const struct clk *clk, const struct clk *parent,
 
 	return clock_notify_children(clk, (parent_rate / div_factor));
 }
+#endif
 
 int syscon_clock_rtcclk_round_rate(const struct clk *clk, uint32_t rate)
 {
@@ -136,7 +138,9 @@ int syscon_clock_rtcclk_set_rate(const struct clk *clk, uint32_t rate)
 const struct clock_driver_api nxp_syscon_rtcclk_api = {
 	.get_rate = syscon_clock_rtcclk_get_rate,
 	.configure = syscon_clock_rtcclk_configure,
+#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 	.notify = syscon_clock_rtcclk_notify,
+#endif
 #if defined(CONFIG_CLOCK_MGMT_SET_RATE)
 	.round_rate = syscon_clock_rtcclk_round_rate,
 	.set_rate = syscon_clock_rtcclk_set_rate,

@@ -292,7 +292,9 @@ int syscon_lpc55sxx_pll0_set_rate(const struct clk *clk, uint32_t rate)
 const struct clock_driver_api nxp_syscon_pll0_api = {
 	.get_rate = syscon_lpc55sxx_pll_get_rate,
 	.configure = syscon_lpc55sxx_pll_configure,
+#if defined(CONFIG_CLOCK_MGMT_NOTIFY)
 	.notify = syscon_lpc55sxx_pll_notify,
+#endif
 #if defined(CONFIG_CLOCK_MGMT_SET_RATE)
 	.round_rate = syscon_lpc55sxx_pll0_round_rate,
 	.set_rate = syscon_lpc55sxx_pll0_set_rate,
@@ -449,7 +451,9 @@ int syscon_lpc55sxx_pll1_set_rate(const struct clk *clk, uint32_t rate)
 const struct clock_driver_api nxp_syscon_pll1_api = {
 	.get_rate = syscon_lpc55sxx_pll_get_rate,
 	.configure = syscon_lpc55sxx_pll_configure,
+#if defined(CONFIG_CLOCK_MGMT_NOTIFY)
 	.notify = syscon_lpc55sxx_pll_notify,
+#endif
 #if defined(CONFIG_CLOCK_MGMT_SET_RATE)
 	.round_rate = syscon_lpc55sxx_pll1_round_rate,
 	.set_rate = syscon_lpc55sxx_pll1_set_rate,
@@ -517,6 +521,7 @@ int syscon_lpc55sxx_pll_pdec_configure(const struct clk *clk, const void *data)
 	return 0;
 }
 
+#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 int syscon_lpc55sxx_pll_pdec_notify(const struct clk *clk, const struct clk *parent,
 				    uint32_t parent_rate)
 {
@@ -530,6 +535,7 @@ int syscon_lpc55sxx_pll_pdec_notify(const struct clk *clk, const struct clk *par
 
 	return clock_notify_children(clk, parent_rate / div);
 }
+#endif
 
 int syscon_lpc55sxx_pll_pdec_round_rate(const struct clk *clk, uint32_t rate)
 {
@@ -640,7 +646,9 @@ int syscon_lpc55sxx_pll_pdec_set_rate(const struct clk *clk, uint32_t rate)
 const struct clock_driver_api nxp_syscon_pdec_api = {
 	.get_rate = syscon_lpc55sxx_pll_pdec_get_rate,
 	.configure = syscon_lpc55sxx_pll_pdec_configure,
+#if defined(CONFIG_CLOCK_MGMT_NOTIFY)
 	.notify = syscon_lpc55sxx_pll_pdec_notify,
+#endif
 #if defined(CONFIG_CLOCK_MGMT_SET_RATE)
 	.round_rate = syscon_lpc55sxx_pll_pdec_round_rate,
 	.set_rate = syscon_lpc55sxx_pll_pdec_set_rate,

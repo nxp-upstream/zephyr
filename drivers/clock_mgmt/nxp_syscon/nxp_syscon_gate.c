@@ -44,6 +44,7 @@ int syscon_clock_gate_configure(const struct clk *clk, const void *data)
 	return 0;
 }
 
+#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 int syscon_clock_gate_notify(const struct clk *clk, const struct clk *parent,
 			     uint32_t parent_rate)
 {
@@ -55,6 +56,7 @@ int syscon_clock_gate_notify(const struct clk *clk, const struct clk *parent,
 	/* Clock is gated */
 	return clock_notify_children(clk, 0);
 }
+#endif
 
 int syscon_clock_gate_round_rate(const struct clk *clk, uint32_t rate)
 {
@@ -80,7 +82,9 @@ int syscon_clock_gate_set_rate(const struct clk *clk, uint32_t rate)
 const struct clock_driver_api nxp_syscon_gate_api = {
 	.get_rate = syscon_clock_gate_get_rate,
 	.configure = syscon_clock_gate_configure,
+#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 	.notify = syscon_clock_gate_notify,
+#endif
 #if defined(CONFIG_CLOCK_MGMT_SET_RATE)
 	.round_rate = syscon_clock_gate_round_rate,
 	.set_rate = syscon_clock_gate_set_rate,

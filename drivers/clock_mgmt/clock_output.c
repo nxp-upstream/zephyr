@@ -30,7 +30,9 @@ int clock_output_notify(const struct clk *clk, const struct clk *parent,
 
 const struct clock_driver_api clock_output_api = {
 	.get_rate = clock_output_get_rate,
+#if defined(CONFIG_CLOCK_MGMT_NOTIFY)
 	.notify = clock_output_notify,
+#endif
 #if defined(CONFIG_CLOCK_MGMT_SET_RATE)
 	.configure = clock_output_configure,
 #endif

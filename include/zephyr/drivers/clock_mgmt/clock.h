@@ -53,8 +53,10 @@ typedef int16_t clock_handle_t;
  * @brief Runtime clock structure (in ROM) for each clock node
  */
 struct clk {
+#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 	/** Children nodes of the clock */
 	const clock_handle_t *children;
+#endif
 	/** Pointer to private clock hardware data. May be in ROM or RAM. */
 	void *hw_data;
 	/** API pointer for clock node */
@@ -130,7 +132,7 @@ struct clk {
  */
 #define Z_CLOCK_INIT(children_, hw_data_, api_, owner_)                        \
 	{                                                                      \
-		.children = children_,                                         \
+		IF_ENABLED(CONFIG_CLOCK_MGMT_NOTIFY, (.children = children_,))      \
 		.hw_data = (void *)hw_data_,                                   \
 		.api = api_,                                                   \
 		IF_ENABLED(CONFIG_CLOCK_MGMT_SET_RATE,                         \

@@ -62,8 +62,10 @@ struct clock_driver_api {
 	 * Note that this must remain the first field in the API structure
 	 * to support clock management callbacks
 	 */
+#if defined(CONFIG_CLOCK_MGMT_NOTIFY) || defined(__DOXYGEN__)
 	int (*notify)(const struct clk *clk, const struct clk *parent,
 		      uint32_t parent_rate);
+#endif
 	/** Gets clock rate in Hz */
 	int (*get_rate)(const struct clk *clk);
 	/** Configure a clock with device specific data */
@@ -101,11 +103,15 @@ struct clock_driver_api {
 static inline int clock_notify(const struct clk *clk, const struct clk *parent,
 			       uint32_t parent_rate)
 {
+#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 	if (!(clk->api) || !(clk->api->notify)) {
 		return -ENOSYS;
 	}
 
 	return clk->api->notify(clk, parent, parent_rate);
+#else
+	return -ENOTSUP;
+#endif
 }
 
 /**
