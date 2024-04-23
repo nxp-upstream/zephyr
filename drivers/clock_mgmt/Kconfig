@@ -34,6 +34,14 @@ config CLOCK_MGMT_FIXED_SOURCE
 	help
 	  Fixed clock source driver, for non configurable clock sources
 
+config CLOCK_MGMT_OUTPUT
+	bool "Output clock driver"
+	default y
+	depends on DT_HAS_CLOCK_OUTPUT_ENABLED
+	help
+	  Output clock driver. Allows users to request clock rates directly
+	  when support is enabled by the clock management subsystem
+
 source "drivers/clock_mgmt/nxp_syscon/Kconfig"
 
 endif # CLOCK_MGMT

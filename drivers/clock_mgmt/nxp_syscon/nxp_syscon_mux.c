@@ -93,6 +93,7 @@ int syscon_clock_mux_round_rate(const struct clk *clk, uint32_t rate)
 			best_rate = cand_rate;
 			best_delta = abs(cand_rate - rate);
 		}
+		idx++;
 	}
 
 	return best_rate;
@@ -122,6 +123,7 @@ int syscon_clock_mux_set_rate(const struct clk *clk, uint32_t rate)
 			best_idx = idx;
 			best_delta = abs(cand_rate - rate);
 		}
+		idx++;
 	}
 
 	/* Now set the clock rate for the best parent */

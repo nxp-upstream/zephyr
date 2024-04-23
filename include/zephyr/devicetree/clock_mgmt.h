@@ -54,6 +54,16 @@ extern "C" {
 #define DT_SUPPORTS_CLK_ORDS(node_id) DT_CAT(node_id, _SUPPORTS_CLK_ORDS)
 
 
+/** @cond INTERNAL_HIDDEN */
+
+/* No data structure needed for clock output */
+#define Z_CLOCK_MGMT_CLOCK_OUTPUT_DATA_DEFINE(node_id, prop, idx)
+/* Get clock output frequency value */
+#define Z_CLOCK_MGMT_CLOCK_OUTPUT_DATA_GET(node_id, prop, idx)         \
+	DT_PHA_BY_IDX(node_id, prop, idx, frequency)
+
+/** @endcond */
+
 /**
  * @}
  */

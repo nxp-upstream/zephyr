@@ -571,6 +571,11 @@
 			#clock-cells = <1>;
 			/* SYSCON::FLEXFRG0CTRL[MULT] */
 			reg = <0x40000320 0x8>;
+
+			fxcom0: fxcom0 {
+				compatible = "clock-output";
+				#clock-cells = <1>;
+			};
 		};
 	};
 

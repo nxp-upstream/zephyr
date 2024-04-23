@@ -178,6 +178,13 @@ int syscon_lpc55sxx_pll0_round_rate(const struct clk *clk, uint32_t rate)
 	uint32_t mdiv_int, mdiv_frac;
 	float mdiv, prediv_clk;
 
+	/* PLL only supports outputs between 275-550 MHZ */
+	if (rate < MHZ(275)) {
+		return MHZ(275);
+	} else if (rate > MHZ(550)) {
+		return MHZ(550);
+	}
+
 	/* PLL0 supports fractional rate setting via the spread
 	 * spectrum generator, so we can use this to achieve the
 	 * requested rate.
@@ -210,6 +217,13 @@ int syscon_lpc55sxx_pll0_set_rate(const struct clk *clk, uint32_t rate)
 	int input_clk, output_clk;
 	uint32_t mdiv_int, mdiv_frac, prediv_val, seli, selp, ctrl;
 	float mdiv, prediv_clk;
+
+	/* PLL only supports outputs between 275-550 MHZ */
+	if (rate < MHZ(275)) {
+		return -ENOTSUP;
+	} else if (rate > MHZ(550)) {
+		return -ENOTSUP;
+	}
 
 	/* PLL0 supports fractional rate setting via the spread
 	 * spectrum generator, so we can use this to achieve the
@@ -247,8 +261,8 @@ int syscon_lpc55sxx_pll0_set_rate(const struct clk *clk, uint32_t rate)
 		SYSCON_PLL0CTRL_SELI(seli) | SYSCON_PLL0CTRL_SELP(selp);
 	clk_data->regs.common->CTRL = ctrl;
 	clk_data->regs.common->NDEC = prediv_val | SYSCON_PLL0NDEC_NREQ_MASK;
-	clk_data->regs.pll0->SSCG0 = SYSCON_PLL0SSCG0_MD_LBS(mdiv_frac);
-	clk_data->regs.pll0->SSCG1 = SYSCON_PLL0SSCG1_MD_MBS(1);
+	clk_data->regs.pll0->SSCG0 = SYSCON_PLL0SSCG0_MD_LBS((mdiv_int << 25) | mdiv_frac);
+	clk_data->regs.pll0->SSCG1 = SYSCON_PLL0SSCG1_MD_MBS(mdiv_int >> 7);
 	clk_data->output_freq = output_clk;
 	/* Power on PLL */
 	PMC->PDRUNCFGCLR0 = PMC_PDRUNCFG0_PDEN_PLL0_SSCG_MASK;
@@ -291,6 +305,13 @@ int syscon_lpc55sxx_pll1_round_rate(const struct clk *clk, uint32_t rate)
 	int input_clk, output_rate;
 	uint32_t best_div, best_mult, best_diff, best_out, test_div, test_mult;
 	float postdiv_clk;
+
+	/* PLL only supports outputs between 275-550 MHZ */
+	if (rate < MHZ(275)) {
+		return MHZ(275);
+	} else if (rate > MHZ(550)) {
+		return MHZ(550);
+	}
 
 	/* Request the same frequency from the parent. We likely won't get
 	 * the requested frequency, but this handles the case where the
@@ -339,6 +360,13 @@ int syscon_lpc55sxx_pll1_set_rate(const struct clk *clk, uint32_t rate)
 	uint32_t best_div, best_mult, best_diff, best_out, test_div, test_mult;
 	uint32_t seli, selp, ctrl;
 	float postdiv_clk;
+
+	/* PLL only supports outputs between 275-550 MHZ */
+	if (rate < MHZ(275)) {
+		return -ENOTSUP;
+	} else if (rate > MHZ(550)) {
+		return -ENOTSUP;
+	}
 
 	/* Request the same frequency from the parent. We likely won't get
 	 * the requested frequency, but this handles the case where the
