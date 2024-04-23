@@ -33,8 +33,6 @@
 			/* SYSCON::CLOCK_CTRL[PLU_DEGLITCH_CLK_ENA] */
 			reg = <0x40000a18 0x1>;
 			offset = <0x9>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			plu_glitch_12mhz_clock: plu-glitch-12mhz-clock {
 				compatible = "clock-output";
@@ -70,8 +68,6 @@
 			/* ANACTRL::XO32M_CTRL[ENABLE_PLL_USB_OUT] */
 			reg = <0x40013020 0x1>;
 			offset = <0x17>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			usb1_phy_clock: usb1-phy-clock {
 				compatible = "clock-output";
@@ -95,8 +91,6 @@
 			#clock-cells = <1>;
 			/* SYSCON::WDTCLKDIV[DIV] */
 			reg = <0x4000038c 0x6>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			wdt_clock: wdt-clock {
 				compatible = "clock-output";
@@ -110,8 +104,6 @@
 			/* SYSCON::CLOCK_CTRL[FRO1MHZ_UTICK_ENA] */
 			reg = <0x40000a18 0x1>;
 			offset = <0x2>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			utick_clock: utick-clock {
 				compatible = "clock-output";
@@ -125,8 +117,6 @@
 			/* SYSCON::CLOCK_CTRL[PLU_DEGLITCH_CLK_ENA] */
 			reg = <0x40000a18 0x1>;
 			offset = <0x9>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			plu_glitch_1mhz_clock: plu-glitch-1mhz-clock {
 				compatible = "clock-output";
@@ -186,8 +176,6 @@
 		#clock-cells = <0>;
 		/* External clock source */
 		frequency = <0>;
-		#address-cells = <1>;
-		#size-cells = <1>;
 
 		pluclkin_clock: pluclkin-clock {
 			compatible = "clock-output";
@@ -221,8 +209,6 @@
 			/* PMC::OSTIMER[CLOCKENABLE] */
 			reg = <0x4002009c 0x1>;
 			offset = <0x1>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			ostimer32khz_clock: ostimer32khz-clock {
 				compatible = "clock-output";
@@ -251,8 +237,6 @@
 				/* RTC::CTRL[RTC_EN] */
 				reg = <0x4002c000 0x1>;
 				offset = <0x7>;
-				#address-cells = <1>;
-				#size-cells = <1>;
 
 				rtc1hz_clock: rtc1hz-clock {
 					compatible = "clock-output";
@@ -277,8 +261,6 @@
 				/* RTC::CTRL[RTC1KHZ_EN] */
 				reg = <0x4002c000 0x1>;
 				offset = <0x6>;
-				#address-cells = <1>;
-				#size-cells = <1>;
 
 				rtc1khz_clock: rtc1khz-clock {
 					compatible = "clock-output";
@@ -423,8 +405,6 @@
 			#clock-cells = <1>;
 			/* SYSCON::AHBCLKDIV[DIV] */
 			reg = <0x40000380 0x8>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			system_clock: system-clock {
 				compatible = "clock-output";
@@ -440,8 +420,6 @@
 		reg = <0x40000268 0x3>;
 		offset = <0x0>;
 		input-sources = <&traceclkdiv &fro_1m &rtcosc32ksel &no_clock>;
-		#address-cells = <1>;
-		#size-cells = <1>;
 
 		trace_clock: trace-clock {
 			compatible = "clock-output";
@@ -456,8 +434,6 @@
 		reg = <0x40000260 0x3>;
 		offset = <0x0>;
 		input-sources = <&systickclkdiv0 &fro_1m &rtcosc32ksel &no_clock>;
-		#address-cells = <1>;
-		#size-cells = <1>;
 
 		systick0_clock: systick0-clock {
 			compatible = "clock-output";
@@ -472,8 +448,6 @@
 		reg = <0x40000264 0x3>;
 		offset = <0x0>;
 		input-sources = <&systickclkdiv1 &fro_1m &rtcosc32ksel &no_clock>;
-		#address-cells = <1>;
-		#size-cells = <1>;
 
 		systick1_clock: systick1-clock {
 			compatible = "clock-output";
@@ -496,8 +470,6 @@
 			#clock-cells = <1>;
 			/* SYSCON::ADCCLKDIV[DIV] */
 			reg = <0x40000394 0x3>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			asyncadc_clock: asyncadc-clock {
 				compatible = "clock-output";
@@ -522,8 +494,6 @@
 			#clock-cells = <1>;
 			/* SYSCON::USB0CLKDIV[DIV] */
 			reg = <0x40000398 0x8>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			usb0_clock: usb0-clock {
 				compatible = "clock-output";
@@ -547,8 +517,6 @@
 			#clock-cells = <1>;
 			/* SYSCON::MCLKDIV[DIV] */
 			reg = <0x400003ac 0x8>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			mclk_clock: mclk-clock {
 				compatible = "clock-output";
@@ -573,8 +541,6 @@
 			#clock-cells = <1>;
 			/* SYSCON::SCTCLKDIV[DIV] */
 			reg = <0x400003b4 0x8>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			sct_clock: sct-clock {
 				compatible = "clock-output";
@@ -599,8 +565,6 @@
 			#clock-cells = <1>;
 			/* SYSCON::CLKOUTDIV[DIV] */
 			reg = <0x40000384 0x8>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			clkout_clock: clkout-clock {
 				compatible = "clock-output";
@@ -625,8 +589,6 @@
 			#clock-cells = <1>;
 			/* SYSCON::SDIOCLKDIV[DIV] */
 			reg = <0x400003bc 0x8>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			sdio_clock: sdio-clock {
 				compatible = "clock-output";
@@ -643,8 +605,6 @@
 		offset = <0x0>;
 		input-sources = <&mainclkselb &pll0_bypass &no_clock &fro_hf
 				&fro_1m &mclk_in &rtcosc32ksel &no_clock>;
-		#address-cells = <1>;
-		#size-cells = <1>;
 
 		ctimer0_clock: ctimer0-clock {
 			compatible = "clock-output";
@@ -660,8 +620,6 @@
 		offset = <0x0>;
 		input-sources = <&mainclkselb &pll0_bypass &no_clock &fro_hf
 				&fro_1m &mclk_in &rtcosc32ksel &no_clock>;
-		#address-cells = <1>;
-		#size-cells = <1>;
 
 		ctimer1_clock: ctimer1-clock {
 			compatible = "clock-output";
@@ -677,8 +635,6 @@
 		offset = <0x0>;
 		input-sources = <&mainclkselb &pll0_bypass &no_clock &fro_hf
 				&fro_1m &mclk_in &rtcosc32ksel &no_clock>;
-		#address-cells = <1>;
-		#size-cells = <1>;
 
 		ctimer2_clock: ctimer2-clock {
 			compatible = "clock-output";
@@ -694,8 +650,6 @@
 		offset = <0x0>;
 		input-sources = <&mainclkselb &pll0_bypass &no_clock &fro_hf
 				&fro_1m &mclk_in &rtcosc32ksel &no_clock>;
-		#address-cells = <1>;
-		#size-cells = <1>;
 
 		ctimer3_clock: ctimer3-clock {
 			compatible = "clock-output";
@@ -711,8 +665,6 @@
 		offset = <0x0>;
 		input-sources = <&mainclkselb &pll0_bypass &no_clock &fro_hf
 				&fro_1m &mclk_in &rtcosc32ksel &no_clock>;
-		#address-cells = <1>;
-		#size-cells = <1>;
 
 		ctimer4_clock: ctimer4-clock {
 			compatible = "clock-output";
@@ -736,8 +688,6 @@
 			#clock-cells = <1>;
 			/* SYSCON::FLEXFRG0CTRL[MULT] */
 			reg = <0x40000320 0x8>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			fxcom0_clock: fxcom0-clock {
 				compatible = "clock-output";
@@ -762,8 +712,6 @@
 			#clock-cells = <1>;
 			/* SYSCON::FLEXFRG1CTRL[MULT] */
 			reg = <0x40000324 0x8>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			fxcom1_clock: fxcom1-clock {
 				compatible = "clock-output";
@@ -788,8 +736,6 @@
 			#clock-cells = <1>;
 			/* SYSCON::FLEXFRG2CTRL[MULT] */
 			reg = <0x40000328 0x8>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			fxcom2_clock: fxcom2-clock {
 				compatible = "clock-output";
@@ -814,8 +760,6 @@
 			#clock-cells = <1>;
 			/* SYSCON::FLEXFRG3CTRL[MULT] */
 			reg = <0x4000032c 0x8>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			fxcom3_clock: fxcom3-clock {
 				compatible = "clock-output";
@@ -840,8 +784,6 @@
 			#clock-cells = <1>;
 			/* SYSCON::FLEXFRG4CTRL[MULT] */
 			reg = <0x40000330 0x8>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			fxcom4_clock: fxcom4-clock {
 				compatible = "clock-output";
@@ -866,8 +808,6 @@
 			#clock-cells = <1>;
 			/* SYSCON::FLEXFRG5CTRL[MULT] */
 			reg = <0x40000334 0x8>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			fxcom5_clock: fxcom5-clock {
 				compatible = "clock-output";
@@ -892,8 +832,6 @@
 			#clock-cells = <1>;
 			/* SYSCON::FLEXFRG6CTRL[MULT] */
 			reg = <0x40000338 0x8>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			fxcom6_clock: fxcom6-clock {
 				compatible = "clock-output";
@@ -918,8 +856,6 @@
 			#clock-cells = <1>;
 			/* SYSCON::FLEXFRG7CTRL[MULT] */
 			reg = <0x4000033c 0x8>;
-			#address-cells = <1>;
-			#size-cells = <1>;
 
 			fxcom7_clock: fxcom7-clock {
 				compatible = "clock-output";
@@ -936,8 +872,6 @@
 		offset = <0x0>;
 		input-sources = <&mainclkselb &pll0div &fro_12m &frohfdiv &fro_1m
 				&no_clock &rtcosc32ksel &no_clock>;
-		#address-cells = <1>;
-		#size-cells = <1>;
 
 		hslspi_clock: hslspi-clock {
 			compatible = "clock-output";
