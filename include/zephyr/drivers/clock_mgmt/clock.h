@@ -46,6 +46,8 @@ typedef int16_t clock_handle_t;
 
 /** @brief Flag value used to identify the end of a clock list. */
 #define CLOCK_LIST_END INT16_MIN
+/** @brief Flag value used to identify a NULL clock handle */
+#define CLOCK_HANDLE_NULL 0
 
 /**
  * @brief Runtime clock structure (in ROM) for each clock node
@@ -57,6 +59,12 @@ struct clk {
 	void *hw_data;
 	/** API pointer for clock node */
 	const struct clock_driver_api *api;
+#if defined(CONFIG_CLOCK_MGMT_SET_RATE) || defined(__DOXYGEN__)
+	/** Handle of child clock that currently has a lock on this clock's
+	 * configuration.
+	 */
+	clock_handle_t *owner;
+#endif
 };
 
 /**
@@ -118,12 +126,15 @@ struct clk {
  * @param children_ Children of this clock
  * @param hw_data Pointer to the clock's private data
  * @param api_ Pointer to the clock's API structure.
+ * @param owner_ Pointer to clock lock holder data
  */
-#define Z_CLOCK_INIT(children_, hw_data_, api_)                                \
+#define Z_CLOCK_INIT(children_, hw_data_, api_, owner_)                        \
 	{                                                                      \
 		.children = children_,                                         \
 		.hw_data = (void *)hw_data_,                                   \
 		.api = api_,                                                   \
+		IF_ENABLED(CONFIG_CLOCK_MGMT_SET_RATE,                         \
+		(.owner = owner_,))                                            \
 	}
 
 /**
@@ -149,10 +160,11 @@ struct clk {
  */
 #define Z_CLOCK_BASE_DEFINE(node_id, clk_id, hw_data, api)                     \
 	Z_CLOCK_DEFINE_CHILDREN(node_id);                                      \
+	clock_handle_t _CONCAT(owner_data_, clk_id);                           \
 	const struct clk Z_GENERIC_SECTION(Z_CLOCK_SECTION_NAME(clk_id))       \
 		CLOCK_NAME_GET(clk_id) =                                       \
 		Z_CLOCK_INIT(Z_CLOCK_GET_CHILDREN(node_id),                    \
-			     hw_data, api);
+			     hw_data, api, &_CONCAT(owner_data_, clk_id));
 
 /**
  * @brief Declare a clock for each used clock node in devicetree
@@ -244,7 +256,7 @@ DT_FOREACH_STATUS_OKAY_NODE(Z_MAYBE_CLOCK_DECLARE_INTERNAL)
  *
  * @param clock_handle the clock handle
  *
- * @return the clock that has thaT handle, or a null pointer if @p clock_handle
+ * @return the clock that has that handle, or a null pointer if @p clock_handle
  * does not identify a clock.
  */
 static inline const struct clk *clk_from_handle(clock_handle_t clock_handle)
@@ -260,6 +272,27 @@ static inline const struct clk *clk_from_handle(clock_handle_t clock_handle)
 	}
 
 	return clk;
+}
+
+/**
+ * @brief Get the handle for a given clock
+ *
+ * @param clk the clock for which a handle is desired.
+ *
+ * @return the handle for that clock, or a CLOCK_HANDLE_NULL pointer if the
+ * device does not have an associated handles
+ */
+static inline clock_handle_t clk_handle_get(const struct clk *clk)
+{
+	clock_handle_t ret = CLOCK_HANDLE_NULL;
+
+	STRUCT_SECTION_START_EXTERN(clk);
+
+	if (clk != NULL) {
+		ret = 1 + (clock_handle_t)(clk - STRUCT_SECTION_START(clk));
+	}
+
+	return ret;
 }
 
 /**

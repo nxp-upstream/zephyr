@@ -112,12 +112,13 @@
 };
 
 &cpu0 {
-	clock-state-0 = <&ahbclkdiv 1 &fro_12m 1 &mainclkselb 0 &mainclksela 0
+	clock-state-0 = <&system_clock 150000000>;
+	clock-state-1 = <&ahbclkdiv 1 &fro_12m 1 &mainclkselb 0 &mainclksela 0
 			&xtal32m 1 &clk_in_en 1 &pll1clksel 1
 			&pll1_pdec 2 &pll1 288000000 8 144 0 53 31
 			&pll1_directo 0 &pll1_bypass 0
 			&mainclkselb 2>;
-	clock-state-names = "default";
+	clock-state-names = "default", "sleep";
 };
 
 &flexcomm4 {

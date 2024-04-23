@@ -234,7 +234,7 @@ int syscon_lpc55sxx_pll0_set_rate(const struct clk *clk, uint32_t rate)
 	 * Input clock for PLL must be between 3 and 5 MHz per RM.
 	 * Request input clock of 16 MHz, we can divide this to 4 MHz.
 	 */
-	input_clk = clock_set_rate(clk_data->parent, MHZ(16));
+	input_clk = clock_set_rate(clk_data->parent, MHZ(16), clk);
 	if (input_clk <= 0) {
 		return input_clk;
 	}
@@ -373,7 +373,7 @@ int syscon_lpc55sxx_pll1_set_rate(const struct clk *clk, uint32_t rate)
 	 * requested frequency is low (and the best output is the 32KHZ
 	 * oscillator)
 	 */
-	input_clk = clock_set_rate(clk_data->parent, rate);
+	input_clk = clock_set_rate(clk_data->parent, rate, clk);
 	if (input_clk <= 0) {
 		return input_clk;
 	}
@@ -595,7 +595,7 @@ int syscon_lpc55sxx_pll_pdec_set_rate(const struct clk *clk, uint32_t rate)
 	} while (test_div <= 62); /* Max divider possible */
 
 	/* Set rate for parent */
-	input_clk = clock_set_rate(config->parent, best_parent);
+	input_clk = clock_set_rate(config->parent, best_parent, clk);
 	if (input_clk <= 0) {
 		return input_clk;
 	}

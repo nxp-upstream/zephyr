@@ -65,7 +65,7 @@ int syscon_clock_div_round_rate(const struct clk *clk, uint32_t rate)
 int syscon_clock_div_set_rate(const struct clk *clk, uint32_t rate)
 {
 	const struct syscon_clock_div_config *config = clk->hw_data;
-	int parent_rate = clock_set_rate(config->parent, rate);
+	int parent_rate = clock_set_rate(config->parent, rate, clk);
 	int div_val = MAX((parent_rate / rate), 1);
 	uint8_t div_mask = GENMASK(0, (config->mask_width - 1));
 	uint32_t output_rate = parent_rate / ((div_val & div_mask) + 1);

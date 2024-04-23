@@ -134,6 +134,58 @@ static inline int clock_configure(const struct clk *clk, const void *data)
 #if defined(CONFIG_CLOCK_MGMT_SET_RATE) || defined(__DOXYGEN__)
 
 /**
+ * @brief Take lock on clock configuration
+ *
+ * Takes a lock on a clock, preventing it from being reconfigured until
+ * @ref clock_unlock is called on the same clock by the current lock owner.
+ * @param clk clock device to lock configuration of
+ * @param owner clock device that will own the lock on this clock.
+ * @return 0 on successful lock of the clock
+ * @return -EPERM clock could not be locked
+ * @return -ENOTSUP if API is not supported
+ */
+static inline int clock_lock(const struct clk *clk, const struct clk *owner)
+{
+	if (*clk->owner == clk_handle_get(owner)) {
+		/* Clock is already locked by this owner */
+		return 0;
+	}
+
+	if (*clk->owner != CLOCK_HANDLE_NULL) {
+		return -EPERM;
+	}
+
+	*clk->owner = clk_handle_get(owner);
+	return 0;
+}
+
+/**
+ * @brief Release lock on clock configuration
+ *
+ * Releases a lock on a clock, allowing other clock children to reconfigure
+ * it. This may only be called by the current owner of the clock.
+ * @param clk clock device to unlock configuration of
+ * @param owner current owner of the clock
+ * @return 0 on successful unlock of the clock
+ * @return -EPERM clock could not be unlocked
+ * @return -EALREADY clock was already unlocked
+ * @return -ENOTSUP if API is not supported
+ */
+static inline int clock_unlock(const struct clk *clk, const struct clk *owner)
+{
+	if (*clk->owner == CLOCK_HANDLE_NULL) {
+		return -EALREADY;
+	}
+
+	if (*clk->owner != clk_handle_get(owner)) {
+		return -EPERM;
+	}
+
+	*clk->owner = CLOCK_HANDLE_NULL;
+	return 0;
+}
+
+/**
  * @brief Get nearest rate a clock can support
  *
  * Returns the actual rate that this clock would produce if `clock_set_rate`
@@ -152,25 +204,44 @@ static inline int clock_round_rate(const struct clk *clk, uint32_t req_rate)
 		return -ENOSYS;
 	}
 
+	if (*clk->owner != CLOCK_HANDLE_NULL) {
+		/* Clock cannot be reconfigured, just read current rate */
+		return clock_get_rate(clk);
+	}
+
 	return clk->api->round_rate(clk, req_rate);
 }
 
 /**
  * @brief Set a clock rate
  *
- * Sets a clock to the nearest frequency to the requested rate
+ * Sets a clock to the nearest frequency to the requested rate, and locks
+ * clock configuration to the clock owner provided by @param owner. The
+ * clock may be unlocked by calling @ref clock_unlock with the same owner.
  * @param clk clock device to set rate for
  * @param rate: rate to configure clock for, in Hz
+ * @param owner: clock device that will take ownership of this clock's
+ *               configuration
  * @return -ENOTSUP if API is not supported
  * @return -ENOSYS if clock does not implement set_rate API
+ * @return -EPERM if clock cannot be reconfigured
  * @return -EIO if clock rate could not be set
  * @return negative errno for other error setting rate
  * @return rate clock is set to produce (in Hz) on success
  */
-static inline int clock_set_rate(const struct clk *clk, uint32_t rate)
+static inline int clock_set_rate(const struct clk *clk, uint32_t rate,
+				 const struct clk *owner)
 {
+	int ret;
+
 	if (!(clk->api) || !(clk->api->set_rate)) {
 		return -ENOSYS;
+	}
+
+	ret = clock_lock(clk, owner);
+	if (ret < 0) {
+		/* Clock is already locked, just read current rate */
+		return clock_get_rate(clk);
 	}
 
 	return clk->api->set_rate(clk, rate);
@@ -178,7 +249,20 @@ static inline int clock_set_rate(const struct clk *clk, uint32_t rate)
 
 #else /* if !defined(CONFIG_CLOCK_MGMT_SET_RATE) */
 
-/* Stub functions to indicate set_rate and round_rate are not supported */
+/* Stub functions to indicate set_rate, round_rate, lock, and unlock
+ * aren't supported
+ */
+
+static inline int clock_lock(const struct clk *clk, const struct clk *owner)
+{
+	return -ENOTSUP;
+}
+
+static inline int clock_unlock(const struct clk *clk, const struct clk *owner)
+{
+	return -ENOTSUP;
+}
+
 static inline int clock_round_rate(const struct clk *clk, uint32_t req_rate)
 {
 	return -ENOTSUP;

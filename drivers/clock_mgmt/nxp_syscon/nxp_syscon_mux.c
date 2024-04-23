@@ -102,8 +102,7 @@ int syscon_clock_mux_round_rate(const struct clk *clk, uint32_t rate)
 int syscon_clock_mux_set_rate(const struct clk *clk, uint32_t rate)
 {
 	const struct syscon_clock_mux_config *config = clk->hw_data;
-	int cand_rate;
-	int best_rate;
+	int cand_rate, best_rate;
 	int best_delta = INT32_MAX;
 	uint32_t mux_val;
 	uint8_t idx = 0;
@@ -127,7 +126,9 @@ int syscon_clock_mux_set_rate(const struct clk *clk, uint32_t rate)
 	}
 
 	/* Now set the clock rate for the best parent */
-	best_rate = clock_set_rate(config->parents[best_idx], rate);
+	best_rate = clock_set_rate(config->parents[best_idx], rate, clk);
+	/* Unlock the previous parent, so it can be reconfigured */
+	clock_unlock(config->parents[(*config->reg) & mux_mask], clk);
 	clock_notify_children(clk, best_rate);
 	mux_val = FIELD_PREP(mux_mask, best_idx);
 	(*config->reg) = ((*config->reg) & ~mux_mask) | mux_val;

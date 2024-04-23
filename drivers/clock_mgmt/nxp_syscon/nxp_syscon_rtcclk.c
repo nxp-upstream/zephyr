@@ -108,7 +108,7 @@ int syscon_clock_rtcclk_set_rate(const struct clk *clk, uint32_t rate)
 	 * this RTC divider can handle
 	 */
 	parent_rate = clock_set_rate(config->parent,
-				     rate * config->add_factor);
+				     rate * config->add_factor, clk);
 
 	if (parent_rate <= 0) {
 		return parent_rate;

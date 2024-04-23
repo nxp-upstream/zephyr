@@ -19,7 +19,7 @@ int clock_output_configure(const struct clk *clk, const void *rate)
 {
 	const struct clk *parent = (const struct clk *)clk->hw_data;
 
-	return clock_set_rate(parent, (uint32_t)rate);
+	return clock_set_rate(parent, (uint32_t)rate, clk);
 }
 
 int clock_output_notify(const struct clk *clk, const struct clk *parent,

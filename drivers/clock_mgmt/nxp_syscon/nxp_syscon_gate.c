@@ -67,7 +67,7 @@ int syscon_clock_gate_set_rate(const struct clk *clk, uint32_t rate)
 		syscon_clock_gate_configure(clk, (void *)1);
 	}
 
-	return (rate != 0) ? clock_set_rate(config->parent, rate) : 0;
+	return (rate != 0) ? clock_set_rate(config->parent, rate, clk) : 0;
 }
 
 const struct clock_driver_api nxp_syscon_gate_api = {

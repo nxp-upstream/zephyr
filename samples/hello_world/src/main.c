@@ -11,8 +11,10 @@ int main(void)
 {
 #ifdef CONFIG_CLOCK_MGMT
 	const struct clk *clk = CLOCK_DT_GET(DT_NODELABEL(frgctrl0_mul));
+	const struct clk *core = CLOCK_DT_GET(DT_NODELABEL(ahbclkdiv));
 
-	printf("Clock rate was %d\n", clock_get_rate(clk));
+	printf("FRG0 Clock rate was %d\n", clock_get_rate(clk));
+	printf("Core Clock rate was %d\n", clock_get_rate(core));
 #endif
 	printf("Hello World! %s\n", CONFIG_BOARD_TARGET);
 
