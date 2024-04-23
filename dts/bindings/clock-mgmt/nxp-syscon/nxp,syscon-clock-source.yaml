@@ -31,7 +31,7 @@ properties:
 
   pdown-mask:
     type: int
-    required: true
+    default: 0
     description: |
       Mask to set in power control registers to power down the clock source
 

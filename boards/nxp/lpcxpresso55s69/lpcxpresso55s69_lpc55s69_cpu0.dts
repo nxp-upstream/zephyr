@@ -107,7 +107,7 @@
 
 &flexcomm0 {
 	status = "okay";
-	clock-state-0 = <&fxcom0 95000000>;
+	clock-state-0 = <&fcclksel0 3>;
 	clock-state-names = "default";
 };
 

@@ -20,8 +20,6 @@
 	fro_12m: fro-12m@40013010 {
 		compatible = "nxp,syscon-clock-source";
 		offset = <0xe>;
-		/* PMC::PDRUNCFG[FRO192M] */
-		pdown-mask = <0x20>;
 		#clock-cells = <1>;
 		/* ANACTRL::FRO192M_CTRL[ENA_12MHZCLK] */
 		reg = <0x40013010 0x1>;
@@ -41,9 +39,9 @@
 	xtal32m: xtal32m@40000a18 {
 		compatible = "nxp,syscon-clock-source";
 		offset = <0x5>;
-		/* PMC::PDRUNCFG[PDEN_LDOXO32M | PDEN_XTAL32M] */
-		pdown-mask = <0x100100>;
 		#clock-cells = <1>;
+		/* PMC::PDRUNCFG0[PDEN_LDOXO32M | PDEN_XTAL32M] */
+		pdown-mask = <0x100100>;
 		/* SYSCON::CLOCK_CTRL[CLKIN_ENA] */
 		reg = <0x40000a18 0x1>;
 		/* External clock source (default 16 MHz) */
@@ -72,8 +70,6 @@
 		compatible = "nxp,syscon-clock-source";
 		offset = <0x6>;
 		#clock-cells = <1>;
-		/* PMC::PDRUNCFG[FRO1M] */
-		pdown-mask = <0x10>;
 		/* SYSCON::CLOCK_CTRL[FRO1MHZ_CLK_ENA] */
 		reg = <0x40000a18 0x1>;
 		frequency = <1000000>;
@@ -107,8 +103,6 @@
 	fro_hf: fro-hf@40013010 {
 		compatible = "nxp,syscon-clock-source";
 		offset = <0x1e>;
-		/* PMC::PDRUNCFG[FRO192M] */
-		pdown-mask = <0x20>;
 		#clock-cells = <1>;
 		/* ANACTRL::FRO192M_CTRL[ENA_96MHZCLK] */
 		reg = <0x40013010 0x1>;
@@ -126,8 +120,6 @@
 
 	fro_32k: fro-32k@400200b8 {
 		compatible = "nxp,syscon-clock-source";
-		/* PMC::PDRUNCFG[FRO192M] */
-		pdown-mask = <0x40>;
 		offset = <0x6>;
 		#clock-cells = <1>;
 		/* PMC::PDRUNCFG0[PDEN_FRO32K] */
@@ -137,10 +129,10 @@
 
 	xtal32k: xtal32k@400200b8 {
 		compatible = "nxp,syscon-clock-source";
-		/* PMC::PDRUNCFG[PDEN_XTAL32K] */
-		pdown-mask = <0x80>;
 		offset = <0x7>;
 		#clock-cells = <1>;
+		/* PMC::PDRUNCFG0[PDEN_XTAL32K] */
+		pdown-mask = <0x80>;
 		/* PMC::PDRUNCFG0[PDEN_XTAL32K] */
 		reg = <0x400200b8 0x1>;
 		/* External clock source (default 32768 Hz) */
@@ -571,11 +563,6 @@
 			#clock-cells = <1>;
 			/* SYSCON::FLEXFRG0CTRL[MULT] */
 			reg = <0x40000320 0x8>;
-
-			fxcom0: fxcom0 {
-				compatible = "clock-output";
-				#clock-cells = <1>;
-			};
 		};
 	};
 
