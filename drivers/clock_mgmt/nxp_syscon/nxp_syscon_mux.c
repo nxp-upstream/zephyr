@@ -71,7 +71,7 @@ int syscon_clock_mux_notify(const struct clk *clk, const struct clk *parent,
 	}
 
 	/*
-	 * Read div reg, and if index matches parent index we should notify
+	 * Read mux reg, and if index matches parent index we should notify
 	 * children
 	 */
 	if (config->parents[sel] == parent) {

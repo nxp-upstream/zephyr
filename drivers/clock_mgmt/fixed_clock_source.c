@@ -14,8 +14,27 @@ int clock_source_get_rate(const struct clk *clk)
 	return (int)clk->hw_data;
 }
 
+
+#if defined(CONFIG_CLOCK_MGMT_SET_RATE)
+
+int clock_source_round_rate(const struct clk *clk, uint32_t rate)
+{
+	return (int)clk->hw_data;
+}
+
+int clock_source_set_rate(const struct clk *clk, uint32_t rate)
+{
+	return (int)clk->hw_data;
+}
+
+#endif
+
 const struct clock_driver_api clock_source_api = {
 	.get_rate = clock_source_get_rate,
+#if defined(CONFIG_CLOCK_MGMT_SET_RATE)
+	.round_rate = clock_source_round_rate,
+	.set_rate = clock_source_set_rate,
+#endif
 };
 
 #define CLOCK_SOURCE_DEFINE(inst)                                              \
