@@ -24,7 +24,7 @@ extern "C" {
 
 #include <zephyr/drivers/clock_mgmt/clock_driver.h>
 #include <errno.h>
-#include <clock_mgmt_soc.h>
+#include <clock_mgmt_drivers.h>
 
 /**
  * @name Clock Management States
