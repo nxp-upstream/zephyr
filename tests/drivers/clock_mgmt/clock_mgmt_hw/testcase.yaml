@@ -1,0 +1,7 @@
+tests:
+  drivers.clock_mgmt.hw:
+    tags:
+      - drivers
+      - clock_mgmt
+    integration_platforms:
+      - lpcxpresso55s69/lpc55s69/cpu0
