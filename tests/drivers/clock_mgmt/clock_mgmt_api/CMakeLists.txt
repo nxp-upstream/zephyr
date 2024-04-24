@@ -6,4 +6,5 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(clock_mgmt_api)
 
 FILE(GLOB app_sources src/*.c)
-target_sources(app PRIVATE ${app_sources})
+FILE(GLOB clock_sources src/clock_drivers/*.c)
+target_sources(app PRIVATE ${app_sources} ${clock_sources})
