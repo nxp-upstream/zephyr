@@ -34,13 +34,14 @@ struct consumer_cb_data {
 static struct consumer_cb_data consumer1_cb_data;
 static struct consumer_cb_data consumer2_cb_data;
 
-static void consumer_cb(uint8_t output_idx, uint32_t new_rate,
+static int consumer_cb(uint8_t output_idx, uint32_t new_rate,
 			const void *data)
 {
 	struct consumer_cb_data *cb_data = (struct consumer_cb_data *)data;
 
 	cb_data->rate = new_rate;
 	cb_data->signalled = true;
+	return 0;
 }
 
 ZTEST(clock_mgmt_api, test_basic_state)

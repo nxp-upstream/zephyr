@@ -49,7 +49,7 @@ struct lpc55sxx_pll_data {
 };
 
 /* Helper function to wait for PLL lock */
-void syscon_lpc55sxx_pll_waitlock(const struct clk *clk, uint32_t ctrl,
+static void syscon_lpc55sxx_pll_waitlock(const struct clk *clk, uint32_t ctrl,
 				  uint32_t ndec)
 {
 	struct lpc55sxx_pll_data *clk_data = clk->hw_data;
@@ -81,7 +81,7 @@ void syscon_lpc55sxx_pll_waitlock(const struct clk *clk, uint32_t ctrl,
 	}
 }
 
-int syscon_lpc55sxx_pll_get_rate(const struct clk *clk)
+static int syscon_lpc55sxx_pll_get_rate(const struct clk *clk)
 {
 	struct lpc55sxx_pll_data *data = clk->hw_data;
 
@@ -89,7 +89,7 @@ int syscon_lpc55sxx_pll_get_rate(const struct clk *clk)
 	return data->output_freq;
 }
 
-int syscon_lpc55sxx_pll_configure(const struct clk *clk, const void *data)
+static int syscon_lpc55sxx_pll_configure(const struct clk *clk, const void *data)
 {
 	struct lpc55sxx_pll_data *clk_data = clk->hw_data;
 	const struct lpc55sxx_pll_config_input *input = data;
@@ -165,7 +165,9 @@ int syscon_lpc55sxx_pll_configure(const struct clk *clk, const void *data)
 	return 0;
 }
 
-int syscon_lpc55sxx_pll_notify(const struct clk *clk, const struct clk *parent,
+#if defined(CONFIG_CLOCK_MGMT_NOTIFY)
+
+static int syscon_lpc55sxx_pll_notify(const struct clk *clk, const struct clk *parent,
 				uint32_t parent_rate)
 {
 	struct lpc55sxx_pll_data *clk_data = clk->hw_data;
@@ -189,8 +191,12 @@ int syscon_lpc55sxx_pll_notify(const struct clk *clk, const struct clk *parent,
 	return 0;
 }
 
+#endif
+
+#if defined(CONFIG_CLOCK_MGMT_SET_RATE)
+
 /* Helper function to calculate SELP and SELI values */
-void syscon_lpc55sxx_pll_calc_selx(uint32_t mdiv, uint32_t *selp,
+static void syscon_lpc55sxx_pll_calc_selx(uint32_t mdiv, uint32_t *selp,
 				   uint32_t *seli)
 {
 	*selp = MIN(((mdiv / 4) + 1), 31);
@@ -204,7 +210,7 @@ void syscon_lpc55sxx_pll_calc_selx(uint32_t mdiv, uint32_t *selp,
 	*seli = MIN(*seli, 63);
 }
 
-int syscon_lpc55sxx_pll0_round_rate(const struct clk *clk, uint32_t rate)
+static int syscon_lpc55sxx_pll0_round_rate(const struct clk *clk, uint32_t rate)
 {
 	struct lpc55sxx_pll_data *clk_data = clk->hw_data;
 	int ret;
@@ -253,7 +259,7 @@ int syscon_lpc55sxx_pll0_round_rate(const struct clk *clk, uint32_t rate)
 		(prediv_clk * (((float)mdiv_frac) / ((float)(1 << 25))));
 }
 
-int syscon_lpc55sxx_pll0_set_rate(const struct clk *clk, uint32_t rate)
+static int syscon_lpc55sxx_pll0_set_rate(const struct clk *clk, uint32_t rate)
 {
 	struct lpc55sxx_pll_data *clk_data = clk->hw_data;
 	int input_clk, output_clk, ret;
@@ -336,6 +342,8 @@ int syscon_lpc55sxx_pll0_set_rate(const struct clk *clk, uint32_t rate)
 	return output_clk;
 }
 
+#endif
+
 const struct clock_driver_api nxp_syscon_pll0_api = {
 	.get_rate = syscon_lpc55sxx_pll_get_rate,
 	.configure = syscon_lpc55sxx_pll_configure,
@@ -364,9 +372,10 @@ const struct clock_driver_api nxp_syscon_pll0_api = {
 
 DT_INST_FOREACH_STATUS_OKAY(NXP_LPC55SXX_PLL0_DEFINE)
 
+#if defined(CONFIG_CLOCK_MGMT_SET_RATE)
 /* PLL1 specific implementations */
 
-int syscon_lpc55sxx_pll1_round_rate(const struct clk *clk, uint32_t rate)
+static int syscon_lpc55sxx_pll1_round_rate(const struct clk *clk, uint32_t rate)
 {
 	struct lpc55sxx_pll_data *clk_data = clk->hw_data;
 	int ret, output_rate;
@@ -429,7 +438,7 @@ int syscon_lpc55sxx_pll1_round_rate(const struct clk *clk, uint32_t rate)
 	return output_rate;
 }
 
-int syscon_lpc55sxx_pll1_set_rate(const struct clk *clk, uint32_t rate)
+static int syscon_lpc55sxx_pll1_set_rate(const struct clk *clk, uint32_t rate)
 {
 	struct lpc55sxx_pll_data *clk_data = clk->hw_data;
 	int output_rate, ret;
@@ -525,6 +534,8 @@ int syscon_lpc55sxx_pll1_set_rate(const struct clk *clk, uint32_t rate)
 	return output_rate;
 }
 
+#endif
+
 const struct clock_driver_api nxp_syscon_pll1_api = {
 	.get_rate = syscon_lpc55sxx_pll_get_rate,
 	.configure = syscon_lpc55sxx_pll_configure,
@@ -564,7 +575,7 @@ struct lpc55sxx_pll_pdec_config {
 	volatile uint32_t *reg;
 };
 
-int syscon_lpc55sxx_pll_pdec_get_rate(const struct clk *clk)
+static int syscon_lpc55sxx_pll_pdec_get_rate(const struct clk *clk)
 {
 	const struct lpc55sxx_pll_pdec_config *config = clk->hw_data;
 	int parent_rate = clock_get_rate(config->parent);
@@ -581,7 +592,7 @@ int syscon_lpc55sxx_pll_pdec_get_rate(const struct clk *clk)
 	return parent_rate / div;
 }
 
-int syscon_lpc55sxx_pll_pdec_configure(const struct clk *clk, const void *data)
+static int syscon_lpc55sxx_pll_pdec_configure(const struct clk *clk, const void *data)
 
 {
 	const struct lpc55sxx_pll_pdec_config *config = clk->hw_data;
@@ -598,8 +609,8 @@ int syscon_lpc55sxx_pll_pdec_configure(const struct clk *clk, const void *data)
 	return 0;
 }
 
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
-int syscon_lpc55sxx_pll_pdec_notify(const struct clk *clk, const struct clk *parent,
+#if defined(CONFIG_CLOCK_MGMT_NOTIFY)
+static int syscon_lpc55sxx_pll_pdec_notify(const struct clk *clk, const struct clk *parent,
 				    uint32_t parent_rate)
 {
 	const struct lpc55sxx_pll_pdec_config *config = clk->hw_data;
@@ -614,7 +625,8 @@ int syscon_lpc55sxx_pll_pdec_notify(const struct clk *clk, const struct clk *par
 }
 #endif
 
-int syscon_lpc55sxx_pll_pdec_round_rate(const struct clk *clk, uint32_t rate)
+#if defined(CONFIG_CLOCK_MGMT_SET_RATE)
+static int syscon_lpc55sxx_pll_pdec_round_rate(const struct clk *clk, uint32_t rate)
 {
 	const struct lpc55sxx_pll_pdec_config *config = clk->hw_data;
 	int input_clk, last_clk, output_clk, parent_req;
@@ -662,7 +674,7 @@ int syscon_lpc55sxx_pll_pdec_round_rate(const struct clk *clk, uint32_t rate)
 	return best_out;
 }
 
-int syscon_lpc55sxx_pll_pdec_set_rate(const struct clk *clk, uint32_t rate)
+static int syscon_lpc55sxx_pll_pdec_set_rate(const struct clk *clk, uint32_t rate)
 {
 	const struct lpc55sxx_pll_pdec_config *config = clk->hw_data;
 	int input_clk, output_clk, parent_req, ret;
@@ -720,7 +732,7 @@ int syscon_lpc55sxx_pll_pdec_set_rate(const struct clk *clk, uint32_t rate)
 
 	return best_out;
 }
-
+#endif
 
 
 const struct clock_driver_api nxp_syscon_pdec_api = {

@@ -65,7 +65,7 @@ static int emul_clock_div_notify(const struct clk *clk, const struct clk *parent
 static int emul_clock_div_round_rate(const struct clk *clk, uint32_t rate)
 {
 	struct emul_clock_div *data = clk->hw_data;
-	int parent_rate = clock_round_rate(data->parent, rate);
+	int parent_rate = clock_round_rate(data->parent, rate, clk);
 	int div_val = CLAMP((parent_rate / rate), 1, (data->div_max + 1));
 
 	return parent_rate / div_val;

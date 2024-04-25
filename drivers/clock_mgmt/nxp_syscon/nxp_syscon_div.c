@@ -15,7 +15,7 @@ struct syscon_clock_div_config {
 };
 
 
-int syscon_clock_div_get_rate(const struct clk *clk)
+static int syscon_clock_div_get_rate(const struct clk *clk)
 {
 	const struct syscon_clock_div_config *config = clk->hw_data;
 	int parent_rate = clock_get_rate(config->parent);
@@ -29,7 +29,7 @@ int syscon_clock_div_get_rate(const struct clk *clk)
 	return parent_rate / ((*config->reg & div_mask) + 1);
 }
 
-int syscon_clock_div_configure(const struct clk *clk, const void *div)
+static int syscon_clock_div_configure(const struct clk *clk, const void *div)
 {
 	const struct syscon_clock_div_config *config = clk->hw_data;
 	uint8_t div_mask = GENMASK((config->mask_width - 1), 0);
@@ -46,8 +46,8 @@ int syscon_clock_div_configure(const struct clk *clk, const void *div)
 	return 0;
 }
 
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
-int syscon_clock_div_notify(const struct clk *clk, const struct clk *parent,
+#if defined(CONFIG_CLOCK_MGMT_NOTIFY)
+static int syscon_clock_div_notify(const struct clk *clk, const struct clk *parent,
 			    uint32_t parent_rate)
 {
 	const struct syscon_clock_div_config *config = clk->hw_data;
@@ -58,7 +58,8 @@ int syscon_clock_div_notify(const struct clk *clk, const struct clk *parent,
 }
 #endif
 
-int syscon_clock_div_round_rate(const struct clk *clk, uint32_t rate)
+#if defined(CONFIG_CLOCK_MGMT_SET_RATE)
+static int syscon_clock_div_round_rate(const struct clk *clk, uint32_t rate)
 {
 	const struct syscon_clock_div_config *config = clk->hw_data;
 	int parent_rate = clock_round_rate(config->parent, rate, clk);
@@ -68,7 +69,7 @@ int syscon_clock_div_round_rate(const struct clk *clk, uint32_t rate)
 	return parent_rate / ((div_val & div_mask) + 1);
 }
 
-int syscon_clock_div_set_rate(const struct clk *clk, uint32_t rate)
+static int syscon_clock_div_set_rate(const struct clk *clk, uint32_t rate)
 {
 	const struct syscon_clock_div_config *config = clk->hw_data;
 	int parent_rate = clock_set_rate(config->parent, rate, clk);
@@ -84,11 +85,12 @@ int syscon_clock_div_set_rate(const struct clk *clk, uint32_t rate)
 	(*config->reg) = ((*config->reg) & ~div_mask) | ((div_val - 1) & div_mask);
 	return output_rate;
 }
+#endif
 
 const struct clock_driver_api nxp_syscon_div_api = {
 	.get_rate = syscon_clock_div_get_rate,
 	.configure = syscon_clock_div_configure,
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
+#if defined(CONFIG_CLOCK_MGMT_NOTIFY)
 	.notify = syscon_clock_div_notify,
 #endif
 #if defined(CONFIG_CLOCK_MGMT_SET_RATE)

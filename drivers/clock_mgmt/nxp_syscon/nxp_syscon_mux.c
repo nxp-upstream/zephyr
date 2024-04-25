@@ -20,7 +20,7 @@ struct syscon_clock_mux_config {
 	const struct clk *parents[];
 };
 
-int syscon_clock_mux_get_rate(const struct clk *clk)
+static int syscon_clock_mux_get_rate(const struct clk *clk)
 {
 	const struct syscon_clock_mux_config *config = clk->hw_data;
 	uint8_t mux_mask = GENMASK((config->mask_width +
@@ -35,7 +35,7 @@ int syscon_clock_mux_get_rate(const struct clk *clk)
 	return clock_get_rate(config->parents[sel]);
 }
 
-int syscon_clock_mux_configure(const struct clk *clk, const void *mux)
+static int syscon_clock_mux_configure(const struct clk *clk, const void *mux)
 {
 	const struct syscon_clock_mux_config *config = clk->hw_data;
 	int ret;
@@ -58,8 +58,8 @@ int syscon_clock_mux_configure(const struct clk *clk, const void *mux)
 	return 0;
 }
 
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
-int syscon_clock_mux_notify(const struct clk *clk, const struct clk *parent,
+#if defined(CONFIG_CLOCK_MGMT_NOTIFY)
+static int syscon_clock_mux_notify(const struct clk *clk, const struct clk *parent,
 			    uint32_t parent_rate)
 {
 	const struct syscon_clock_mux_config *config = clk->hw_data;
@@ -97,7 +97,8 @@ int syscon_clock_mux_notify(const struct clk *clk, const struct clk *parent,
 	return -ENOTCONN;
 }
 
-int syscon_clock_mux_round_rate(const struct clk *clk, uint32_t rate)
+#if defined(CONFIG_CLOCK_MGMT_SET_RATE)
+static int syscon_clock_mux_round_rate(const struct clk *clk, uint32_t rate)
 {
 	const struct syscon_clock_mux_config *config = clk->hw_data;
 	int cand_rate;
@@ -121,8 +122,9 @@ int syscon_clock_mux_round_rate(const struct clk *clk, uint32_t rate)
 
 	return best_rate;
 }
+#endif
 
-int syscon_clock_mux_set_rate(const struct clk *clk, uint32_t rate)
+static int syscon_clock_mux_set_rate(const struct clk *clk, uint32_t rate)
 {
 	const struct syscon_clock_mux_config *config = clk->hw_data;
 	int cand_rate, best_rate, ret;
@@ -169,7 +171,7 @@ int syscon_clock_mux_set_rate(const struct clk *clk, uint32_t rate)
 const struct clock_driver_api nxp_syscon_mux_api = {
 	.get_rate = syscon_clock_mux_get_rate,
 	.configure = syscon_clock_mux_configure,
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
+#if defined(CONFIG_CLOCK_MGMT_NOTIFY)
 	.notify = syscon_clock_mux_notify,
 #endif
 #if defined(CONFIG_CLOCK_MGMT_SET_RATE)

@@ -76,7 +76,7 @@ static int emul_clock_mux_round_rate(const struct clk *clk, uint32_t rate)
 	 * caller
 	 */
 	while ((idx < data->src_count) && (best_delta > 0)) {
-		cand_rate = clock_round_rate(data->parents[idx], rate);
+		cand_rate = clock_round_rate(data->parents[idx], rate, clk);
 		if (abs(cand_rate - rate) < best_delta) {
 			best_rate = cand_rate;
 			best_delta = abs(cand_rate - rate);
@@ -101,7 +101,7 @@ static int emul_clock_mux_set_rate(const struct clk *clk, uint32_t rate)
 	 * caller
 	 */
 	while ((idx < data->src_count) && (best_delta > 0)) {
-		cand_rate = clock_round_rate(data->parents[idx], rate);
+		cand_rate = clock_round_rate(data->parents[idx], rate, clk);
 		if (abs(cand_rate - rate) < best_delta) {
 			best_idx = idx;
 			best_delta = abs(cand_rate - rate);

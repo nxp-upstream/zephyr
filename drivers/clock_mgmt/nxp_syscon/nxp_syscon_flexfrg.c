@@ -27,7 +27,7 @@ static uint32_t syscon_clock_frg_calc_rate(uint64_t parent_rate, uint32_t mult)
 		(mult + SYSCON_FLEXFRGXCTRL_DIV_MASK + 1UL));
 }
 
-int syscon_clock_frg_get_rate(const struct clk *clk)
+static int syscon_clock_frg_get_rate(const struct clk *clk)
 {
 	const struct syscon_clock_frg_config *config = clk->hw_data;
 	int parent_rate = clock_get_rate(config->parent);
@@ -41,7 +41,7 @@ int syscon_clock_frg_get_rate(const struct clk *clk)
 	return syscon_clock_frg_calc_rate(parent_rate, frg_mult);
 }
 
-int syscon_clock_frg_configure(const struct clk *clk, const void *mult)
+static int syscon_clock_frg_configure(const struct clk *clk, const void *mult)
 {
 	const struct syscon_clock_frg_config *config = clk->hw_data;
 	uint32_t mult_val = FIELD_PREP(SYSCON_FLEXFRGXCTRL_MULT_MASK, ((uint32_t)mult));
@@ -58,8 +58,8 @@ int syscon_clock_frg_configure(const struct clk *clk, const void *mult)
 	return 0;
 }
 
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
-int syscon_clock_frg_notify(const struct clk *clk, const struct clk *parent,
+#if defined(CONFIG_CLOCK_MGMT_NOTIFY)
+static int syscon_clock_frg_notify(const struct clk *clk, const struct clk *parent,
 			    uint32_t parent_rate)
 {
 	const struct syscon_clock_frg_config *config = clk->hw_data;
@@ -72,7 +72,8 @@ int syscon_clock_frg_notify(const struct clk *clk, const struct clk *parent,
 }
 #endif
 
-int syscon_clock_frg_round_rate(const struct clk *clk, uint32_t rate)
+#if defined(CONFIG_CLOCK_MGMT_SET_RATE)
+static int syscon_clock_frg_round_rate(const struct clk *clk, uint32_t rate)
 {
 	const struct syscon_clock_frg_config *config = clk->hw_data;
 	int parent_rate = clock_round_rate(config->parent, rate, clk);
@@ -97,7 +98,7 @@ int syscon_clock_frg_round_rate(const struct clk *clk, uint32_t rate)
 	return syscon_clock_frg_calc_rate(parent_rate, mult);
 }
 
-int syscon_clock_frg_set_rate(const struct clk *clk, uint32_t rate)
+static int syscon_clock_frg_set_rate(const struct clk *clk, uint32_t rate)
 {
 	const struct syscon_clock_frg_config *config = clk->hw_data;
 	int parent_rate = clock_set_rate(config->parent, rate, clk);
@@ -134,6 +135,7 @@ int syscon_clock_frg_set_rate(const struct clk *clk, uint32_t rate)
 
 	return output_rate;
 }
+#endif
 
 const struct clock_driver_api nxp_syscon_frg_api = {
 	.get_rate = syscon_clock_frg_get_rate,
