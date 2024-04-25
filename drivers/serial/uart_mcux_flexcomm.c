@@ -1034,7 +1034,7 @@ static void mcux_flexcomm_uart_setup(const struct device *dev, uint32_t clock_ra
 }
 
 #ifdef CONFIG_CLOCK_MGMT_NOTIFY
-void uart_mcux_flexcomm_clock_cb(uint8_t output_idx, uint32_t new_rate,
+int uart_mcux_flexcomm_clock_cb(uint8_t output_idx, uint32_t new_rate,
 				 const void *data)
 {
 	const struct device *uart_dev = data;
@@ -1044,6 +1044,7 @@ void uart_mcux_flexcomm_clock_cb(uint8_t output_idx, uint32_t new_rate,
 	USART_Deinit(config->base);
 	/* Reconfigure USART */
 	mcux_flexcomm_uart_setup(uart_dev, new_rate);
+	return 0;
 }
 #endif
 

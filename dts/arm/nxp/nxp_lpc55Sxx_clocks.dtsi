@@ -148,6 +148,8 @@
 		offset = <0x6>;
 		#clock-cells = <1>;
 		/* PMC::PDRUNCFG0[PDEN_FRO32K] */
+		pdown-mask = <0x40>;
+		/* PMC::PDRUNCFG0[PDEN_FRO32K] */
 		reg = <0x400200b8 0x1>;
 		frequency = <32768>;
 	};
@@ -190,6 +192,7 @@
 		/* SYSCON::MAINCLKSELA[SEL] */
 		reg = <0x40000280 0x3>;
 		offset = <0x0>;
+		safe-mux;
 		input-sources = <&fro_12m &clk_in_en &fro_1m &fro_hf>;
 	};
 
@@ -375,6 +378,7 @@
 		/* SYSCON::MAINCLKSELB[SEL] */
 		reg = <0x40000284 0x3>;
 		offset = <0x0>;
+		safe-mux;
 		input-sources = <&mainclksela &pll0_bypass &pll1_bypass &rtcosc32ksel>;
 		#address-cells = <1>;
 		#size-cells = <1>;

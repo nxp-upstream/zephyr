@@ -65,7 +65,7 @@ int clock_mgmt_notify_consumer(const struct clk *clk, const struct clk *parent,
 	for (uint8_t i = 0; i < clock_mgmt->output_count; i++) {
 		if (parent == clock_mgmt->outputs[i]) {
 			/* Issue callback */
-			callback->clock_callback(i, parent_rate,
+			return callback->clock_callback(i, parent_rate,
 						 callback->user_data);
 		}
 	}

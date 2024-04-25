@@ -47,7 +47,7 @@ int syscon_clock_source_configure(const struct clk *clk, const void *data)
 		PMC->PDRUNCFGCLR0 = config->pdown_mask;
 	} else {
 		ret = clock_notify_children(clk, 0);
-		if (ret < 0) {
+		if (ret  < 0) {
 			return ret;
 		}
 		(*config->reg) &= ~BIT(config->enable_offset);
@@ -64,9 +64,13 @@ int syscon_clock_source_notify(const struct clk *clk, const struct clk *parent,
 
 	ret = clock_notify_children(clk, clock_get_rate(clk));
 	if (ret == CLK_NO_CHILDREN) {
-		/* Gate this clock source */
-		(*config->reg) &= ~BIT(config->enable_offset);
-		PMC->PDRUNCFGSET0 = config->pdown_mask;
+		/* Notify children we are going to gate clock source */
+		ret = clock_notify_children(clk, 0);
+		if (ret == CLK_NO_CHILDREN) {
+			/* Gate this clock source */
+			(*config->reg) &= ~BIT(config->enable_offset);
+			PMC->PDRUNCFGSET0 = config->pdown_mask;
+		}
 	}
 
 	return 0;

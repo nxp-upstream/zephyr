@@ -9,6 +9,8 @@
 #include <zephyr/sys/util.h>
 #include <soc.h>
 
+#include "nxp_syscon_internal.h"
+
 /* Registers common to both PLLs */
 struct lpc55sxx_pllx_regs {
 	volatile uint32_t CTRL;
@@ -96,8 +98,18 @@ int syscon_lpc55sxx_pll_configure(const struct clk *clk, const void *data)
 
 	/* Copy configured frequency and PLL settings */
 	clk_data->output_freq = input->output_freq;
-	ret = clock_notify_children(clk, input->output_freq);
-	if (ret < 0) {
+	/* Notify children clock is about to gate */
+	ret = clock_notify_children(clk, 0);
+	if (ret == NXP_SYSCON_MUX_ERR_SAFEGATE) {
+		if (clk_data->output_freq == 0) {
+			/* Safe mux is using this source, so we cannot
+			 * gate the PLL safely. Note that if the
+			 * output frequency is nonzero, we can safely gate
+			 * and then reenable the PLL.
+			 */
+			return -ENOTSUP;
+		}
+	} else if (ret < 0) {
 		return ret;
 	}
 
@@ -112,6 +124,12 @@ int syscon_lpc55sxx_pll_configure(const struct clk *clk, const void *data)
 	if (clk_data->output_freq == 0) {
 		/* Keep PLL powered off, return here */
 		return 0;
+	}
+
+	/* Notify children of new clock frequency we will set */
+	ret = clock_notify_children(clk, input->output_freq);
+	if (ret < 0) {
+		return ret;
 	}
 
 	ctrl = input->cfg.common->CTRL;
@@ -189,9 +207,18 @@ void syscon_lpc55sxx_pll_calc_selx(uint32_t mdiv, uint32_t *selp,
 int syscon_lpc55sxx_pll0_round_rate(const struct clk *clk, uint32_t rate)
 {
 	struct lpc55sxx_pll_data *clk_data = clk->hw_data;
-	int input_clk;
+	int ret;
 	uint32_t mdiv_int, mdiv_frac;
 	float mdiv, prediv_clk;
+
+	/* Check if we will be able to gate the PLL for reconfiguration,
+	 * by notifying children will are going to change rate
+	 */
+	ret = clock_notify_children(clk, 0);
+	if ((ret < 0) && (ret != NXP_SYSCON_MUX_ERR_SAFEGATE)) {
+		/* Return current frequency */
+		return clk_data->output_freq;
+	}
 
 	/* PLL only supports outputs between 275-550 MHZ */
 	if (rate < MHZ(275)) {
@@ -209,12 +236,12 @@ int syscon_lpc55sxx_pll0_round_rate(const struct clk *clk, uint32_t rate)
 	 * Input clock for PLL must be between 3 and 5 MHz per RM.
 	 * Request input clock of 16 MHz, we can divide this to 4 MHz.
 	 */
-	input_clk = clock_round_rate(clk_data->parent, MHZ(16));
-	if (input_clk <= 0) {
-		return input_clk;
+	ret = clock_round_rate(clk_data->parent, MHZ(16), clk);
+	if (ret <= 0) {
+		return ret;
 	}
 	/* Calculate actual clock after prediv */
-	prediv_clk = ((float)input_clk) / ((float)(input_clk / MHZ(4)));
+	prediv_clk = ((float)ret) / ((float)(ret / MHZ(4)));
 	/* Desired multiplier value */
 	mdiv = ((float)rate) / prediv_clk;
 	/* MD integer portion */
@@ -238,6 +265,11 @@ int syscon_lpc55sxx_pll0_set_rate(const struct clk *clk, uint32_t rate)
 		return -ENOTSUP;
 	} else if (rate > MHZ(550)) {
 		return -ENOTSUP;
+	}
+
+	if (rate == clk_data->output_freq) {
+		/* Return current frequency */
+		return clk_data->output_freq;
 	}
 
 	/* PLL0 supports fractional rate setting via the spread
@@ -266,13 +298,28 @@ int syscon_lpc55sxx_pll0_set_rate(const struct clk *clk, uint32_t rate)
 	/* Calculate actual output rate */
 	output_clk = prediv_clk * mdiv_int +
 		(prediv_clk * (((float)mdiv_frac) / ((float)(1 << 25))));
-	ret = clock_notify_children(clk, output_clk);
-	if (ret < 0) {
+	/* Notify children clock is about to gate */
+	ret = clock_notify_children(clk, 0);
+	if (ret == NXP_SYSCON_MUX_ERR_SAFEGATE) {
+		if (output_clk == 0) {
+			/* Safe mux is using this source, so we cannot
+			 * gate the PLL safely. Note that if the
+			 * output frequency is nonzero, we can safely gate
+			 * and then reenable the PLL.
+			 */
+			return -ENOTSUP;
+		}
+	} else if (ret < 0) {
 		return ret;
 	}
 	/* Power off PLL before setup changes */
 	PMC->PDRUNCFGSET0 = PMC_PDRUNCFG0_PDEN_PLL0_SSCG_MASK;
 	PMC->PDRUNCFGSET0 = PMC_PDRUNCFG0_PDEN_PLL0_MASK;
+	/* Notify children of new frequency */
+	ret = clock_notify_children(clk, output_clk);
+	if (ret < 0) {
+		return ret;
+	}
 	/* Set prediv and MD values */
 	syscon_lpc55sxx_pll_calc_selx(mdiv_int, &selp, &seli);
 	ctrl = SYSCON_PLL0CTRL_LIMUPOFF_MASK | SYSCON_PLL0CTRL_CLKEN_MASK |
@@ -322,9 +369,18 @@ DT_INST_FOREACH_STATUS_OKAY(NXP_LPC55SXX_PLL0_DEFINE)
 int syscon_lpc55sxx_pll1_round_rate(const struct clk *clk, uint32_t rate)
 {
 	struct lpc55sxx_pll_data *clk_data = clk->hw_data;
-	int input_clk, output_rate;
+	int ret, output_rate;
 	uint32_t best_div, best_mult, best_diff, best_out, test_div, test_mult;
 	float postdiv_clk;
+
+	/* Check if we will be able to gate the PLL for reconfiguration,
+	 * by notifying children will are going to change rate
+	 */
+	ret = clock_notify_children(clk, 0);
+	if ((ret < 0) && (ret != NXP_SYSCON_MUX_ERR_SAFEGATE)) {
+		/* Return current frequency */
+		return clk_data->output_freq;
+	}
 
 	/* PLL only supports outputs between 275-550 MHZ */
 	if (rate < MHZ(275)) {
@@ -338,9 +394,9 @@ int syscon_lpc55sxx_pll1_round_rate(const struct clk *clk, uint32_t rate)
 	 * requested frequency is low (and the best output is the 32KHZ
 	 * oscillator)
 	 */
-	input_clk = clock_round_rate(clk_data->parent, rate);
-	if (input_clk <= 0) {
-		return input_clk;
+	ret = clock_round_rate(clk_data->parent, rate, clk);
+	if (ret <= 0) {
+		return ret;
 	}
 	/* In order to get the best output, we will test with each PLL
 	 * prediv value. If we can achieve the requested frequency within
@@ -351,7 +407,7 @@ int syscon_lpc55sxx_pll1_round_rate(const struct clk *clk, uint32_t rate)
 	best_diff = UINT32_MAX;
 	for (test_div = 1; test_div < SYSCON_PLL0NDEC_NDIV_MASK; test_div++) {
 		/* Find the best multiplier value for this div */
-		postdiv_clk = ((float)input_clk)/((float)test_div);
+		postdiv_clk = ((float)ret)/((float)test_div);
 		test_mult = ((float)rate)/postdiv_clk;
 		output_rate = postdiv_clk * test_mult;
 
@@ -376,7 +432,7 @@ int syscon_lpc55sxx_pll1_round_rate(const struct clk *clk, uint32_t rate)
 int syscon_lpc55sxx_pll1_set_rate(const struct clk *clk, uint32_t rate)
 {
 	struct lpc55sxx_pll_data *clk_data = clk->hw_data;
-	int input_clk, output_rate, ret;
+	int output_rate, ret;
 	uint32_t best_div, best_mult, best_diff, best_out, test_div, test_mult;
 	uint32_t seli, selp, ctrl;
 	float postdiv_clk;
@@ -388,14 +444,19 @@ int syscon_lpc55sxx_pll1_set_rate(const struct clk *clk, uint32_t rate)
 		return -ENOTSUP;
 	}
 
+	if (rate == clk_data->output_freq) {
+		/* Return current frequency */
+		return clk_data->output_freq;
+	}
+
 	/* Request the same frequency from the parent. We likely won't get
 	 * the requested frequency, but this handles the case where the
 	 * requested frequency is low (and the best output is the 32KHZ
 	 * oscillator)
 	 */
-	input_clk = clock_set_rate(clk_data->parent, rate, clk);
-	if (input_clk <= 0) {
-		return input_clk;
+	ret = clock_set_rate(clk_data->parent, rate, clk);
+	if (ret <= 0) {
+		return ret;
 	}
 	/* In order to get the best output, we will test with each PLL
 	 * prediv value. If we can achieve the requested frequency within
@@ -406,7 +467,7 @@ int syscon_lpc55sxx_pll1_set_rate(const struct clk *clk, uint32_t rate)
 	best_diff = UINT32_MAX;
 	for (test_div = 1; test_div < SYSCON_PLL0NDEC_NDIV_MASK; test_div++) {
 		/* Find the best multiplier value for this div */
-		postdiv_clk = ((float)input_clk)/((float)test_div);
+		postdiv_clk = ((float)ret)/((float)test_div);
 		test_mult = ((float)rate)/postdiv_clk;
 		output_rate = postdiv_clk * test_mult;
 
@@ -425,12 +486,27 @@ int syscon_lpc55sxx_pll1_set_rate(const struct clk *clk, uint32_t rate)
 	}
 
 	syscon_lpc55sxx_pll_calc_selx(best_mult, &selp, &seli);
-	ret = clock_notify_children(clk, output_rate);
-	if (ret < 0) {
+	/* Notify children clock is about to gate */
+	ret = clock_notify_children(clk, 0);
+	if (ret == NXP_SYSCON_MUX_ERR_SAFEGATE) {
+		if (output_rate == 0) {
+			/* Safe mux is using this source, so we cannot
+			 * gate the PLL safely. Note that if the
+			 * output frequency is nonzero, we can safely gate
+			 * and then reenable the PLL.
+			 */
+			return -ENOTSUP;
+		}
+	} else if (ret < 0) {
 		return ret;
 	}
 	/* Power off PLL during setup changes */
 	PMC->PDRUNCFGSET0 = PMC_PDRUNCFG0_PDEN_PLL1_MASK;
+	/* Notify children of new rate */
+	ret = clock_notify_children(clk, output_rate);
+	if (ret < 0) {
+		return ret;
+	}
 	/* Program PLL settings */
 	ctrl = SYSCON_PLL0CTRL_CLKEN_MASK | SYSCON_PLL0CTRL_SELI(seli) |
 		SYSCON_PLL0CTRL_SELP(selp);
@@ -441,6 +517,7 @@ int syscon_lpc55sxx_pll1_set_rate(const struct clk *clk, uint32_t rate)
 	clk_data->regs.pll1->MDEC = best_mult;
 	/* Request MDEC change */
 	clk_data->regs.pll1->MDEC = best_mult | SYSCON_PLL1MDEC_MREQ_MASK;
+	clk_data->output_freq = output_rate;
 	/* Power PLL on */
 	PMC->PDRUNCFGCLR0 = PMC_PDRUNCFG0_PDEN_PLL1_MASK;
 	syscon_lpc55sxx_pll_waitlock(clk, ctrl, best_div);
@@ -540,23 +617,25 @@ int syscon_lpc55sxx_pll_pdec_notify(const struct clk *clk, const struct clk *par
 int syscon_lpc55sxx_pll_pdec_round_rate(const struct clk *clk, uint32_t rate)
 {
 	const struct lpc55sxx_pll_pdec_config *config = clk->hw_data;
-	int input_clk, output_clk, parent_req;
+	int input_clk, last_clk, output_clk, parent_req;
 	uint32_t best_div, best_diff, best_out, test_div;
 
-	/* First attempt to request the same frequency from the parent.
+	/* First attempt to request double the requested freq from the parent
 	 * If the parent's frequency plus our divider setting can't satisfy
 	 * the request, increase the requested frequency and try again with
 	 * a higher divider target
 	 */
-	parent_req = rate;
+	parent_req = rate * 2;
 	best_diff = UINT32_MAX;
 	best_div = 0;
 	best_out = 0;
+	last_clk = 0;
 	do {
 		/* Request input clock */
-		input_clk = clock_round_rate(config->parent, parent_req);
-		if (input_clk <= 0) {
-			return input_clk;
+		input_clk = clock_round_rate(config->parent, parent_req, clk);
+		if (input_clk == last_clk) {
+			/* Parent clock rate is locked */
+			return input_clk / 2;
 		}
 		/* Check rate we can produce with the input clock */
 		test_div = (MAX(input_clk / rate, 2) & ~BIT(0));
@@ -577,6 +656,7 @@ int syscon_lpc55sxx_pll_pdec_round_rate(const struct clk *clk, uint32_t rate)
 		 * as we can only divide by factors of 2.
 		 */
 		parent_req *= 2;
+		last_clk = input_clk;
 	} while (test_div <= 62); /* Max divider possible */
 
 	return best_out;
@@ -599,7 +679,7 @@ int syscon_lpc55sxx_pll_pdec_set_rate(const struct clk *clk, uint32_t rate)
 	best_out = 0;
 	do {
 		/* Request input clock */
-		input_clk = clock_round_rate(config->parent, parent_req);
+		input_clk = clock_round_rate(config->parent, parent_req, clk);
 		if (input_clk <= 0) {
 			return input_clk;
 		}

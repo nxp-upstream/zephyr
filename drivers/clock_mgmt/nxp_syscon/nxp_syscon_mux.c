@@ -7,12 +7,15 @@
 #include <zephyr/drivers/clock_mgmt/clock_driver.h>
 #include <stdlib.h>
 
+#include "nxp_syscon_internal.h"
+
 #define DT_DRV_COMPAT nxp_syscon_clock_mux
 
 struct syscon_clock_mux_config {
 	uint8_t mask_width;
 	uint8_t mask_offset;
 	uint8_t src_count;
+	uint8_t safe_mux;
 	volatile uint32_t *reg;
 	const struct clk *parents[];
 };
@@ -60,6 +63,7 @@ int syscon_clock_mux_notify(const struct clk *clk, const struct clk *parent,
 			    uint32_t parent_rate)
 {
 	const struct syscon_clock_mux_config *config = clk->hw_data;
+	int ret;
 	uint8_t mux_mask = GENMASK((config->mask_width +
 				   config->mask_offset - 1),
 				   config->mask_offset);
@@ -75,7 +79,18 @@ int syscon_clock_mux_notify(const struct clk *clk, const struct clk *parent,
 	 * children
 	 */
 	if (config->parents[sel] == parent) {
-		return clock_notify_children(clk, parent_rate);
+		ret = clock_notify_children(clk, parent_rate);
+		if (ret < 0) {
+			return ret;
+		}
+		if ((parent_rate == 0) && config->safe_mux) {
+			/* These muxes are "fail-safe",
+			 * which means they refuse to switch clock outputs
+			 * if the one they are using is gated.
+			 */
+			ret = NXP_SYSCON_MUX_ERR_SAFEGATE;
+		}
+		return ret;
 	}
 
 	/* Parent is not in use */
@@ -96,7 +111,7 @@ int syscon_clock_mux_round_rate(const struct clk *clk, uint32_t rate)
 	 * caller
 	 */
 	while ((idx < config->src_count) && (best_delta > 0)) {
-		cand_rate = clock_round_rate(config->parents[idx], rate);
+		cand_rate = clock_round_rate(config->parents[idx], rate, clk);
 		if (abs(cand_rate - rate) < best_delta) {
 			best_rate = cand_rate;
 			best_delta = abs(cand_rate - rate);
@@ -125,7 +140,7 @@ int syscon_clock_mux_set_rate(const struct clk *clk, uint32_t rate)
 	 * caller
 	 */
 	while ((idx < config->src_count) && (best_delta > 0)) {
-		cand_rate = clock_round_rate(config->parents[idx], rate);
+		cand_rate = clock_round_rate(config->parents[idx], rate, clk);
 		if (abs(cand_rate - rate) < best_delta) {
 			best_idx = idx;
 			best_delta = abs(cand_rate - rate);
@@ -170,7 +185,9 @@ const struct clock_driver_api nxp_syscon_mux_api = {
 	const struct syscon_clock_mux_config nxp_syscon_mux_##inst = {         \
 		.reg = (volatile uint32_t *)DT_INST_REG_ADDR(inst),            \
 		.mask_width = (uint8_t)DT_INST_REG_SIZE(inst),                 \
+		.mask_offset = (uint8_t)DT_INST_PROP(inst, offset),            \
 		.src_count = DT_INST_PROP_LEN(inst, input_sources),            \
+		.safe_mux = DT_INST_PROP(inst, safe_mux),                      \
 		.parents = {                                                   \
 			DT_INST_FOREACH_PROP_ELEM(inst, input_sources,         \
 						GET_MUX_INPUT)                 \

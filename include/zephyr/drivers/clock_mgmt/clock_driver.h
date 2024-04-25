@@ -218,19 +218,23 @@ static inline int clock_unlock(const struct clk *clk, const struct clk *owner)
  * was called with the requested frequency.
  * @param clk clock device to query
  * @param req_rate: Requested clock rate, in Hz
+ * @param consumer: Clock consumer requesting this rate. Used to determine
+ *        if consumer is allowed to reconfigure clock.
  * @return -ENOTSUP if API is not supported
  * @return -ENOSYS if clock does not implement round_rate API
  * @return -EIO if clock could not be queried
  * @return negative errno for other error calculating rate
  * @return rate clock would produce (in Hz) on success
  */
-static inline int clock_round_rate(const struct clk *clk, uint32_t req_rate)
+static inline int clock_round_rate(const struct clk *clk, uint32_t req_rate,
+				   const struct clk *consumer)
 {
 	if (!(clk->api) || !(clk->api->round_rate)) {
 		return -ENOSYS;
 	}
 
-	if (*clk->owner != CLOCK_HANDLE_NULL) {
+	if ((*clk->owner != CLOCK_HANDLE_NULL) &&
+	    (*clk->owner != clk_handle_get(consumer))) {
 		/* Clock cannot be reconfigured, just read current rate */
 		return clock_get_rate(clk);
 	}

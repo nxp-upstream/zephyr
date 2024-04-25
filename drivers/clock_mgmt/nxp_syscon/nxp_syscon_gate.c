@@ -62,7 +62,7 @@ int syscon_clock_gate_round_rate(const struct clk *clk, uint32_t rate)
 {
 	const struct syscon_clock_gate_config *config = clk->hw_data;
 
-	return (rate != 0) ? clock_round_rate(config->parent, rate) : 0;
+	return (rate != 0) ? clock_round_rate(config->parent, rate, clk) : 0;
 }
 
 int syscon_clock_gate_set_rate(const struct clk *clk, uint32_t rate)

@@ -30,6 +30,13 @@ properties:
     description: |
       Offset of bitfield within register to set to configure multiplexer
 
+  safe-mux:
+    type: boolean
+    description: |
+      Indicates that the mux uses a synchronized input. Safe muxes will not
+      switch clock sources unless both their current source and new source
+      are ungated
+
   "#clock-cells":
     const: 1
 

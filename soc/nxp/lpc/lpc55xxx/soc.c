@@ -80,10 +80,14 @@ CLOCK_MGMT_DT_INST_DEFINE(0);
 
 static const struct clock_mgmt *soc_clock_mgmt = CLOCK_MGMT_DT_INST_DEV_CONFIG_GET(0);
 
-void core_clock_change_cb(uint8_t output_idx, uint32_t new_rate, const void *data)
+int core_clock_change_cb(uint8_t output_idx, uint32_t new_rate, const void *data)
 {
 	ARG_UNUSED(data);
 	ARG_UNUSED(output_idx);
+
+	if (new_rate == 0) {
+		return -ENOTSUP;
+	}
 
 #if !defined(CONFIG_TRUSTED_EXECUTION_NONSECURE)
 	if (new_rate > SystemCoreClock) {
@@ -94,10 +98,16 @@ void core_clock_change_cb(uint8_t output_idx, uint32_t new_rate, const void *dat
 	}
 #endif /* !CONFIG_TRUSTED_EXECUTION_NONSECURE */
 	SystemCoreClock = new_rate;
+	return 0;
 }
 
 static void core_clock_init(void)
 {
+	/* Setup FRO clocking. Clock framework does not handle this,
+	 * as FRO should not be powered down at runtime, and ANALOG_CTRL
+	 * module needs to be enabled.
+	 */
+	CLOCK_SetupFROClocking(MHZ(12));
 #ifdef CONFIG_CLOCK_MGMT_NOTIFY
 	clock_mgmt_set_callback(soc_clock_mgmt, core_clock_change_cb,
 				NULL);

@@ -19,7 +19,7 @@ int syscon_clock_div_get_rate(const struct clk *clk)
 {
 	const struct syscon_clock_div_config *config = clk->hw_data;
 	int parent_rate = clock_get_rate(config->parent);
-	uint8_t div_mask = GENMASK(0, (config->mask_width - 1));
+	uint8_t div_mask = GENMASK((config->mask_width - 1), 0);
 
 	if (parent_rate <= 0) {
 		return parent_rate;
@@ -32,7 +32,7 @@ int syscon_clock_div_get_rate(const struct clk *clk)
 int syscon_clock_div_configure(const struct clk *clk, const void *div)
 {
 	const struct syscon_clock_div_config *config = clk->hw_data;
-	uint8_t div_mask = GENMASK(0, (config->mask_width - 1));
+	uint8_t div_mask = GENMASK((config->mask_width - 1), 0);
 	uint32_t div_val = (((uint32_t)div) - 1) & div_mask;
 	int parent_rate = clock_get_rate(config->parent);
 	int ret;
@@ -51,7 +51,7 @@ int syscon_clock_div_notify(const struct clk *clk, const struct clk *parent,
 			    uint32_t parent_rate)
 {
 	const struct syscon_clock_div_config *config = clk->hw_data;
-	uint8_t div_mask = GENMASK(0, (config->mask_width - 1));
+	uint8_t div_mask = GENMASK((config->mask_width - 1), 0);
 	uint32_t new_rate = (parent_rate / ((*config->reg & div_mask) + 1));
 
 	return clock_notify_children(clk, new_rate);
@@ -61,9 +61,9 @@ int syscon_clock_div_notify(const struct clk *clk, const struct clk *parent,
 int syscon_clock_div_round_rate(const struct clk *clk, uint32_t rate)
 {
 	const struct syscon_clock_div_config *config = clk->hw_data;
-	int parent_rate = clock_round_rate(config->parent, rate);
+	int parent_rate = clock_round_rate(config->parent, rate, clk);
 	int div_val = MAX((parent_rate / rate), 1) - 1;
-	uint8_t div_mask = GENMASK(0, (config->mask_width - 1));
+	uint8_t div_mask = GENMASK((config->mask_width - 1), 0);
 
 	return parent_rate / ((div_val & div_mask) + 1);
 }
@@ -73,7 +73,7 @@ int syscon_clock_div_set_rate(const struct clk *clk, uint32_t rate)
 	const struct syscon_clock_div_config *config = clk->hw_data;
 	int parent_rate = clock_set_rate(config->parent, rate, clk);
 	int div_val = MAX((parent_rate / rate), 1);
-	uint8_t div_mask = GENMASK(0, (config->mask_width - 1));
+	uint8_t div_mask = GENMASK((config->mask_width - 1), 0);
 	uint32_t output_rate = parent_rate / ((div_val & div_mask) + 1);
 	int ret;
 

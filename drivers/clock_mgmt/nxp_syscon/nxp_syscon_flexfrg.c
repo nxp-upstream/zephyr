@@ -75,7 +75,7 @@ int syscon_clock_frg_notify(const struct clk *clk, const struct clk *parent,
 int syscon_clock_frg_round_rate(const struct clk *clk, uint32_t rate)
 {
 	const struct syscon_clock_frg_config *config = clk->hw_data;
-	int parent_rate = clock_round_rate(config->parent, rate);
+	int parent_rate = clock_round_rate(config->parent, rate, clk);
 	uint32_t mult;
 
 	if (parent_rate <= 0) {

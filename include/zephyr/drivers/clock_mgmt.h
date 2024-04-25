@@ -60,11 +60,13 @@ extern "C" {
  * @param output_idx Index of output that was reconfigured in clocks property
  * @param rate New rate clock will use once this callback completes
  * @param user_data User data set by consumer
- *
+ * @return 0 if consumer can accept the new parent rate
+ * @return -ENOTSUP if consumer cannot accept the new parent rate
+ * @return -EBUSY if the consumer does not permit clock changes at this time
  */
-typedef void (*clock_mgmt_callback_handler_t)(uint8_t output_idx,
-					      uint32_t parent_rate,
-					      const void *user_data);
+typedef int (*clock_mgmt_callback_handler_t)(uint8_t output_idx,
+					     uint32_t parent_rate,
+					     const void *user_data);
 
 /**
  * @brief Clock management callback data
