@@ -5,7 +5,7 @@
  */
 
 /*
- * Application overlay to define clock tree with emulated clock nodes.
+ * Define clock tree with emulated clock nodes.
  * These node labels are chosen so that they won't conflict with SOC clock
  * tree nodelabels. The clock driver implementations used by this tree are
  * stored within the test itself

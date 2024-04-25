@@ -1,44 +1,32 @@
-Clock Management API Test
+Clock Management Hardware Test
 #########################
 
 This test is designed to verify the functionality of hardware clock trees
-implementing the clock management API. It defines two dummy devices, which
-will both be clock consumers.
+implementing the clock management API. It defines one dummy devices, which
+will be a clock consumer.
 
-Depending on which features are enabled, the following tests will run:
+The test will apply five clock states for the dummy device, and verify the
+frequency matches an expected value for each state. The states are as
+follows:
 
-When ``CONFIG_CLOCK_MGMT=y``, apply 3 clock states. Devices should
-define these states to exercise as many clock node drivers as possible. One
-example might be clocking from a PLL in the default state, a high speed internal
-oscillator in the sleep state, and a low speed external oscillator in the
-test state. The test will apply the 3 states as follows:
+* clock-state-0: CLOCK_MGMT_STATE_DEFAULT, frequency set by "default-freq"
+  property of consumer node
 
-* Verify that each consumer can apply the clock state CLOCK_MGMT_STATE_DEFAULT,
-  and that the queried rates match the property "default-clock-rate" for each
-  device.
+* clock-state-1: CLOCK_MGMT_STATE_SLEEP, frequency set by "sleep-freq"
+  property of consumer node
 
-* Verify that each consumer can apply the clock state CLOCK_MGMT_STATE_SLEEP,
-  and that the queried rates match the property "sleep-clock-rate" for each
-  device.
+* clock-state-2: CLOCK_MGMT_STATE_TEST1, frequency set by "test1-freq"
+  property of consumer node
 
-* Verify that each consumer can apply the clock state CLOCK_MGMT_STATE_TEST,
-  and that the queried rates match the property "test-clock-rate" for each
-  device.
+* clock-state-3: CLOCK_MGMT_STATE_TEST2, frequency set by "test2-freq"
+  property of consumer node
 
-When ``CONFIG_CLOCK_MGMT_NOTIFY=y``:
+* clock-state-4: CLOCK_MGMT_STATE_TEST3, frequency set by "test3-freq"
+  property of consumer node
 
-* Apply the clock state CLOCK_MGMT_STATE_NOTIFY for each consumer. The
-  device specific dt overlay for this test should define this state for each
-  dummy device such that applying the state will trigger a notification for
-  each device (that is, a root clock shared by both device's clock outputs
-  should be reconfigured)
-
-When ``CONFIG_CLOCK_MGMT_SET_RATE=y``:
-
-* Apply the clock state CLOCK_MGMT_STATE_SETRATE for each consumer. Then,
-  verify that the frequency for each consumer matches the property
-  "setrate-clock-rate".
-
-* Apply the clock state CLOCK_MGMT_STATE_SETRATE1 for each consumer. Then,
-  verify that the frequency for each consumer matches the property
-  "setrate1-clock-rate".
+Devices should define these states to exercise as many clock node drivers as
+possible. One example might be clocking from a PLL in the default state, a
+high speed internal oscillator in the sleep state, and a low speed external
+oscillator in the test state. Clock output nodes should also be used for some
+of these states, to verify that the hardware implements clock_set_rate and
+clock_get_rate as expected.
