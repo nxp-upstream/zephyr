@@ -20,10 +20,6 @@ static int syscon_clock_source_get_rate(const struct clk *clk)
 {
 	const struct syscon_clock_source_config *config = clk->hw_data;
 
-	if (config->reg == NULL) {
-		return config->rate;
-	}
-
 	return ((*config->reg) & BIT(config->enable_offset)) ?
 		config->rate : 0;
 }
@@ -33,10 +29,6 @@ static int syscon_clock_source_configure(const struct clk *clk, const void *data
 	const struct syscon_clock_source_config *config = clk->hw_data;
 	int ret;
 	bool ungate = (bool)data;
-
-	if (config->reg == NULL) {
-		return 0;
-	}
 
 	if (ungate) {
 		ret = clock_notify_children(clk, config->rate);

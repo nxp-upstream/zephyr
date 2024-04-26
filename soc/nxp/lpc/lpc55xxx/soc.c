@@ -80,7 +80,7 @@ CLOCK_MGMT_DT_INST_DEFINE(0);
 
 static const struct clock_mgmt *soc_clock_mgmt = CLOCK_MGMT_DT_INST_DEV_CONFIG_GET(0);
 
-int core_clock_change_cb(uint8_t output_idx, uint32_t new_rate, const void *data)
+static int core_clock_change_cb(uint8_t output_idx, uint32_t new_rate, const void *data)
 {
 	ARG_UNUSED(data);
 	ARG_UNUSED(output_idx);
@@ -103,11 +103,11 @@ int core_clock_change_cb(uint8_t output_idx, uint32_t new_rate, const void *data
 
 static void core_clock_init(void)
 {
-	/* Setup FRO clocking. Clock framework does not handle this,
-	 * as FRO should not be powered down at runtime, and ANALOG_CTRL
-	 * module needs to be enabled.
-	 */
-	CLOCK_SetupFROClocking(MHZ(12));
+	/* Enable Analog Control module */
+	SYSCON->PRESETCTRLCLR[2] = (1UL << SYSCON_PRESETCTRL2_ANALOG_CTRL_RST_SHIFT);
+	SYSCON->AHBCLKCTRLSET[2] = SYSCON_AHBCLKCTRL2_ANALOG_CTRL_MASK;
+	/* Power up the FRO192M */
+	POWER_DisablePD(kPDRUNCFG_PD_FRO192M);
 #ifdef CONFIG_CLOCK_MGMT_NOTIFY
 	clock_mgmt_set_callback(soc_clock_mgmt, core_clock_change_cb,
 				NULL);

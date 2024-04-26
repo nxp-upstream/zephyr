@@ -48,7 +48,14 @@ extern "C" {
  *         and may safely shut down.
  * @return -errno from @ref clock_notify on any other failure
  */
+#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 int clock_notify_children(const struct clk *clk, uint32_t clk_rate);
+#else
+static inline int clock_notify_children(const struct clk *clk, uint32_t clk_rate)
+{
+	return 0;
+}
+#endif
 
 /**
  * @brief Clock Driver API

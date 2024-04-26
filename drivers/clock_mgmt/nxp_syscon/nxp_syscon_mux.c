@@ -96,6 +96,7 @@ static int syscon_clock_mux_notify(const struct clk *clk, const struct clk *pare
 	/* Parent is not in use */
 	return -ENOTCONN;
 }
+#endif
 
 #if defined(CONFIG_CLOCK_MGMT_SET_RATE)
 static int syscon_clock_mux_round_rate(const struct clk *clk, uint32_t rate)
@@ -122,7 +123,6 @@ static int syscon_clock_mux_round_rate(const struct clk *clk, uint32_t rate)
 
 	return best_rate;
 }
-#endif
 
 static int syscon_clock_mux_set_rate(const struct clk *clk, uint32_t rate)
 {

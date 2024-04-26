@@ -60,11 +60,9 @@ static void syscon_lpc55sxx_pll_waitlock(const struct clk *clk, uint32_t ctrl,
 	 * - FREF is below 100KHz or above 20MHz.
 	 * - spread spectrum mode is used
 	 */
-	input_clk = clock_get_rate(clk_data->parent);
-	if ((ctrl & SYSCON_PLL0CTRL_BYPASSPREDIV_MASK) == 0) {
-		/* Input passes through prediv */
-		input_clk /= MAX((ndec & SYSCON_PLL0NDEC_NDIV_MASK), 1);
-	}
+
+	/* We don't allow setting BYPASSPREDIV bit, input always uses prediv */
+	input_clk = clock_get_rate(clk_data->parent) / ndec;
 
 	if (((clk_data->idx == 0) &&
 	    (clk_data->regs.pll0->SSCG0 & SYSCON_PLL0SSCG1_SEL_EXT_MASK)) ||

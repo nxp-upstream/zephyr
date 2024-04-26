@@ -6,6 +6,7 @@
 
 #include <zephyr/drivers/clock_mgmt.h>
 
+#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 /**
  * @brief Helper to issue a clock callback to all children nodes
  *
@@ -19,7 +20,6 @@
  */
 int clock_notify_children(const struct clk *clk, uint32_t clk_rate)
 {
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
 	const clock_handle_t *handle = clk->children;
 	int ret;
 	bool children_disconnected = true;
@@ -38,10 +38,8 @@ int clock_notify_children(const struct clk *clk, uint32_t clk_rate)
 		handle++;
 	}
 	return children_disconnected ? CLK_NO_CHILDREN : 0;
-#else
-	return 0;
-#endif
 }
+#endif
 
 #ifdef CONFIG_CLOCK_MGMT_NOTIFY
 
