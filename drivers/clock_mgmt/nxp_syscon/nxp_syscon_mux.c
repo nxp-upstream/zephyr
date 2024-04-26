@@ -159,10 +159,12 @@ static int syscon_clock_mux_set_rate(const struct clk *clk, uint32_t rate)
 	if (ret < 0) {
 		return ret;
 	}
-	/* Unlock the previous parent, so it can be reconfigured */
-	clock_unlock(config->parents[(*config->reg) & mux_mask], clk);
 	mux_val = FIELD_PREP(mux_mask, best_idx);
-	(*config->reg) = ((*config->reg) & ~mux_mask) | mux_val;
+	if ((*config->reg & mux_mask) != mux_val) {
+		/* Unlock the previous parent, so it can be reconfigured */
+		clock_unlock(config->parents[(*config->reg) & mux_mask], clk);
+		(*config->reg) = ((*config->reg) & ~mux_mask) | mux_val;
+	}
 
 	return best_rate;
 }

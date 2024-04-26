@@ -642,6 +642,12 @@ static int syscon_lpc55sxx_pll_pdec_round_rate(const struct clk *clk, uint32_t r
 	best_div = 0;
 	best_out = 0;
 	last_clk = 0;
+	/* PLL cannot output rate under 275 MHz, so raise requested rate
+	 * by factor of 2 until we hit that minimum
+	 */
+	while (parent_req < MHZ(275)) {
+		parent_req *= 2;
+	}
 	do {
 		/* Request input clock */
 		input_clk = clock_round_rate(config->parent, parent_req, clk);
@@ -669,7 +675,7 @@ static int syscon_lpc55sxx_pll_pdec_round_rate(const struct clk *clk, uint32_t r
 		 */
 		parent_req *= 2;
 		last_clk = input_clk;
-	} while (test_div <= 62); /* Max divider possible */
+	} while ((test_div <= 62) && (last_clk < MHZ(550))); /* Max divider possible */
 
 	return best_out;
 }
@@ -677,23 +683,31 @@ static int syscon_lpc55sxx_pll_pdec_round_rate(const struct clk *clk, uint32_t r
 static int syscon_lpc55sxx_pll_pdec_set_rate(const struct clk *clk, uint32_t rate)
 {
 	const struct lpc55sxx_pll_pdec_config *config = clk->hw_data;
-	int input_clk, output_clk, parent_req, ret;
+	int input_clk, last_clk, output_clk, parent_req, ret;
 	uint32_t best_div, best_diff, best_out, best_parent, test_div;
 
-	/* First attempt to request the same frequency from the parent.
+	/* First attempt to request double the requested freq from the parent
 	 * If the parent's frequency plus our divider setting can't satisfy
 	 * the request, increase the requested frequency and try again with
 	 * a higher divider target
 	 */
-	parent_req = rate;
+	parent_req = rate * 2;
 	best_diff = UINT32_MAX;
 	best_div = 0;
 	best_out = 0;
+	last_clk = 0;
+	/* PLL cannot output rate under 275 MHz, so raise requested rate
+	 * by factor of 2 until we hit that minimum
+	 */
+	while (parent_req < MHZ(275)) {
+		parent_req *= 2;
+	}
 	do {
 		/* Request input clock */
 		input_clk = clock_round_rate(config->parent, parent_req, clk);
-		if (input_clk <= 0) {
-			return input_clk;
+		if (input_clk == last_clk) {
+			/* Parent clock rate is locked */
+			return input_clk / 2;
 		}
 		/* Check rate we can produce with the input clock */
 		test_div = (MAX(input_clk / rate, 2) & ~BIT(0));
@@ -703,20 +717,21 @@ static int syscon_lpc55sxx_pll_pdec_set_rate(const struct clk *clk, uint32_t rat
 			/* 1% or better match found, break */
 			best_div = test_div;
 			best_out = output_clk;
-			best_parent = parent_req;
+			best_parent = input_clk;
 			break;
 		} else if (abs(output_clk - rate) < best_diff) {
 			best_diff = abs(output_clk - rate);
 			best_div = test_div;
 			best_out = output_clk;
-			best_parent = parent_req;
+			best_parent = input_clk;
 		}
 
 		/* Raise parent request by factor of 2,
 		 * as we can only divide by factors of 2.
 		 */
 		parent_req *= 2;
-	} while (test_div <= 62); /* Max divider possible */
+		last_clk = input_clk;
+	} while ((test_div <= 62) && (last_clk < MHZ(550))); /* Max divider possible */
 
 	/* Set rate for parent */
 	input_clk = clock_set_rate(config->parent, best_parent, clk);
