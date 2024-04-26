@@ -18,14 +18,14 @@ The following tests will run:
 
 * Verify that applying the state CLOCK_MGMT_STATE_SLEEP propagates an
   error to the user. Board devicetree overlays should configure the
-  clock-state-2 property such that it will apply invalid clock settings.
+  clock-state-1 property such that it will apply invalid clock settings.
 
-* Apply CLOCK_MGMT_STATE_SHARED for the first consumer. The clock-state-3
+* Apply CLOCK_MGMT_STATE_SHARED for the first consumer. The clock-state-2
   property for this consumer should be set such that the first consumer
   will be notified about a clock rate change, but the second consumer will
   not be. Verify this is the case.
 
-* Apply CLOCK_MGMT_STATE_SHARED for the second consumer. The clock-state-4
+* Apply CLOCK_MGMT_STATE_SHARED for the second consumer. The clock-state-2
   property for this consumer should be set such that both consumers will
   be notified about a clock rate change. Verify this is the case. Additionally,
   check that the consumers are now running at the frequency given by
