@@ -19,8 +19,13 @@ static int clock_output_get_rate(const struct clk *clk)
 static int clock_output_configure(const struct clk *clk, const void *rate)
 {
 	const struct clk *parent = (const struct clk *)clk->hw_data;
+	int ret;
 
-	return clock_set_rate(parent, (uint32_t)rate, clk);
+	ret =  clock_set_rate(parent, (uint32_t)rate, clk);
+	if (ret < 0) {
+		return ret;
+	}
+	return 0;
 }
 #endif
 

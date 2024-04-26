@@ -68,7 +68,7 @@ extern "C" {
  * @return -EBUSY if the consumer does not permit clock changes at this time
  */
 typedef int (*clock_mgmt_callback_handler_t)(uint8_t output_idx,
-					     uint32_t parent_rate,
+					     uint32_t rate,
 					     const void *user_data);
 
 /**
@@ -463,6 +463,7 @@ int clock_mgmt_apply_state(const struct clock_mgmt *clk_cfg,
  * @param callback Callback function to install
  * @param user_data User data to issue with callback (can be NULL)
  * @return -EINVAL if parameters are invalid
+ * @return -ENOTSUP if callbacks are not supported
  * @return 0 on success
  */
 static inline int clock_mgmt_set_callback(const struct clock_mgmt *clk_cfg,

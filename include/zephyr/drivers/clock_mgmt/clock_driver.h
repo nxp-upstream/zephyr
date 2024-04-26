@@ -90,8 +90,8 @@ struct clock_driver_api {
  *
  * Notifies a clock that a reconfiguration event has occurred. This API is
  * usually called by a clock's parent, but may also be called by the clock
- * management subsystem directly to notify the clock node that the system
- * clock tree state has changed.
+ * management subsystem directly to notify the clock node that it should
+ * attempt to power itself down if is not used.
  *
  * Clocks should forward this notification to their children clocks with
  * @ref clock_notify_children, and if the return code of that call is
@@ -224,8 +224,8 @@ static inline int clock_unlock(const struct clk *clk, const struct clk *owner)
  * Returns the actual rate that this clock would produce if `clock_set_rate`
  * was called with the requested frequency.
  * @param clk clock device to query
- * @param req_rate: Requested clock rate, in Hz
- * @param consumer: Clock consumer requesting this rate. Used to determine
+ * @param req_rate Requested clock rate, in Hz
+ * @param consumer Clock consumer requesting this rate. Used to determine
  *        if consumer is allowed to reconfigure clock.
  * @return -ENOTSUP if API is not supported
  * @return -ENOSYS if clock does not implement round_rate API
@@ -253,11 +253,11 @@ static inline int clock_round_rate(const struct clk *clk, uint32_t req_rate,
  * @brief Set a clock rate
  *
  * Sets a clock to the nearest frequency to the requested rate, and locks
- * clock configuration to the clock owner provided by @param owner. The
+ * clock configuration to the clock owner provided by @p owner . The
  * clock may be unlocked by calling @ref clock_unlock with the same owner.
  * @param clk clock device to set rate for
- * @param rate: rate to configure clock for, in Hz
- * @param owner: clock device that will take ownership of this clock's
+ * @param rate rate to configure clock for, in Hz
+ * @param owner clock device that will take ownership of this clock's
  *               configuration
  * @return -ENOTSUP if API is not supported
  * @return -ENOSYS if clock does not implement set_rate API

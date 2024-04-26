@@ -38,7 +38,7 @@ struct clock_driver_api;
  * in a compact manner
  *
  * The extreme negative value has special significance (signalling the end
- * of a clock list)
+ * of a clock list). Zero signals a NULL clock handle.
  *
  * @see clk_from_handle()
  */
@@ -53,7 +53,7 @@ typedef int16_t clock_handle_t;
  * @brief Runtime clock structure (in ROM) for each clock node
  */
 struct clk {
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
+#if defined(CONFIG_CLOCK_MGMT_NOTIFY) || defined(__DOXYGEN__)
 	/** Children nodes of the clock */
 	const clock_handle_t *children;
 #endif
@@ -68,6 +68,8 @@ struct clk {
 	clock_handle_t *owner;
 #endif
 };
+
+/** @cond INTERNAL_HIDDEN */
 
 /**
  * @brief Get clock identifier
@@ -92,7 +94,7 @@ struct clk {
 #define CLOCK_NAME_GET(clk_id) _CONCAT(__clock_, clk_id)
 
 /**
- * @brief The name of the global clock object for @param node_id
+ * @brief The name of the global clock object for @p node_id
  *
  * Returns the name of the global clock structure as a C identifier. The clock
  * must be allocated using CLOCK_DT_DEFINE() or CLOCK_DT_INST_DEFINE() for
@@ -103,6 +105,8 @@ struct clk {
  * @return The name of the clock object as a C identifier
  */
 #define CLOCK_DT_NAME_GET(node_id) CLOCK_NAME_GET(Z_CLOCK_DT_CLK_ID(node_id))
+
+/** @endcond */
 
 /**
  * @brief Get a @ref clk reference from a clock devicetree node identifier.
