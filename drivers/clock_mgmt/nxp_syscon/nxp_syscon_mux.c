@@ -70,6 +70,8 @@ static int syscon_clock_mux_notify(const struct clk *clk, const struct clk *pare
 	uint8_t sel = ((*config->reg) & mux_mask) >> config->mask_offset;
 
 	if (sel > config->src_count) {
+		/* Notify children mux rate is 0 */
+		clock_notify_children(clk, 0);
 		/* Selector has not been initialized */
 		return -ENOTCONN;
 	}

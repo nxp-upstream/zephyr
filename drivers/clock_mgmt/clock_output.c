@@ -8,25 +8,29 @@
 
 #define DT_DRV_COMPAT clock_output
 
-int clock_output_get_rate(const struct clk *clk)
+static int clock_output_get_rate(const struct clk *clk)
 {
 	const struct clk *parent = (const struct clk *)clk->hw_data;
 
 	return clock_get_rate(parent);
 }
 
-int clock_output_configure(const struct clk *clk, const void *rate)
+#if defined(CONFIG_CLOCK_MGMT_SET_RATE)
+static int clock_output_configure(const struct clk *clk, const void *rate)
 {
 	const struct clk *parent = (const struct clk *)clk->hw_data;
 
 	return clock_set_rate(parent, (uint32_t)rate, clk);
 }
+#endif
 
-int clock_output_notify(const struct clk *clk, const struct clk *parent,
-			     uint32_t parent_rate)
+#if defined(CONFIG_CLOCK_MGMT_NOTIFY)
+static int clock_output_notify(const struct clk *clk, const struct clk *parent,
+			       uint32_t parent_rate)
 {
 	return clock_notify_children(clk, parent_rate);
 }
+#endif
 
 const struct clock_driver_api clock_output_api = {
 	.get_rate = clock_output_get_rate,

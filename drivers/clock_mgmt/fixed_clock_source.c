@@ -9,20 +9,27 @@
 
 #define DT_DRV_COMPAT fixed_clock_source
 
-int clock_source_get_rate(const struct clk *clk)
+static int clock_source_get_rate(const struct clk *clk)
 {
 	return (int)clk->hw_data;
 }
 
+#if defined(CONFIG_CLOCK_MGMT_NOTIFY)
+static int clock_source_notify(const struct clk *clk, const struct clk *parent,
+			       uint32_t parent_rate)
+{
+	return clock_notify_children(clk, (int)clk->hw_data);
+}
+#endif
 
 #if defined(CONFIG_CLOCK_MGMT_SET_RATE)
 
-int clock_source_round_rate(const struct clk *clk, uint32_t rate)
+static int clock_source_round_rate(const struct clk *clk, uint32_t rate)
 {
 	return (int)clk->hw_data;
 }
 
-int clock_source_set_rate(const struct clk *clk, uint32_t rate)
+static int clock_source_set_rate(const struct clk *clk, uint32_t rate)
 {
 	return (int)clk->hw_data;
 }
@@ -31,6 +38,9 @@ int clock_source_set_rate(const struct clk *clk, uint32_t rate)
 
 const struct clock_driver_api clock_source_api = {
 	.get_rate = clock_source_get_rate,
+#if defined(CONFIG_CLOCK_MGMT_NOTIFY)
+	.notify = clock_source_notify,
+#endif
 #if defined(CONFIG_CLOCK_MGMT_SET_RATE)
 	.round_rate = clock_source_round_rate,
 	.set_rate = clock_source_set_rate,
@@ -38,8 +48,8 @@ const struct clock_driver_api clock_source_api = {
 };
 
 #define CLOCK_SOURCE_DEFINE(inst)                                              \
-	CLOCK_DT_INST_DEFINE(inst,                                             \
-			     ((uint32_t *)DT_INST_PROP(inst, frequency)),      \
-			     &clock_source_api);
+	ROOT_CLOCK_DT_INST_DEFINE(inst,                                        \
+				  ((uint32_t *)DT_INST_PROP(inst, frequency)), \
+				  &clock_source_api);
 
 DT_INST_FOREACH_STATUS_OKAY(CLOCK_SOURCE_DEFINE)

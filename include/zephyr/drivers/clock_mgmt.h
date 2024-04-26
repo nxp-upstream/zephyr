@@ -492,8 +492,8 @@ static inline int clock_mgmt_set_callback(const struct clock_mgmt *clk_cfg,
 static inline void clock_mgmt_disable_unused(void)
 {
 #ifdef CONFIG_CLOCK_MGMT_NOTIFY
-	STRUCT_SECTION_FOREACH(clk, clk) {
-		/* Call clock_notify on each clock. Clocks can use this
+	STRUCT_SECTION_FOREACH_ALTERNATE(clk_root, clk, clk) {
+		/* Call clock_notify on each root clock. Clocks can use this
 		 * notification event to determine if they are able
 		 * to gate themselves
 		 */

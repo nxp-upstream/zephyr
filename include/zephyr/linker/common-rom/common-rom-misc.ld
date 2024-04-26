@@ -73,6 +73,9 @@
 	SECTION_PROLOGUE(clock_nodes,,)
 	{
 		_clk_list_start = .;
+		_clk_root_list_start = .;
+		*(SORT(.clk_node_root*))
+		_clk_root_list_end = .;
 		*(SORT(.clk_node*))
 		_clk_list_end = .;
 	} GROUP_LINK_IN(ROMABLE_REGION)

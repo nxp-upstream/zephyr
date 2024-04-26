@@ -132,7 +132,7 @@ struct clk {
  */
 #define Z_CLOCK_INIT(children_, hw_data_, api_, owner_)                        \
 	{                                                                      \
-		IF_ENABLED(CONFIG_CLOCK_MGMT_NOTIFY, (.children = children_,))      \
+		IF_ENABLED(CONFIG_CLOCK_MGMT_NOTIFY, (.children = children_,)) \
 		.hw_data = (void *)hw_data_,                                   \
 		.api = api_,                                                   \
 		IF_ENABLED(CONFIG_CLOCK_MGMT_SET_RATE,                         \
@@ -144,8 +144,22 @@ struct clk {
  *
  * Section name for clock object. Each clock object uses a named section so
  * the linker can optimize unused clocks out of the build.
+ * @param node_id The devicetree node identifier.
  */
-#define Z_CLOCK_SECTION_NAME(clk_id) _CONCAT(.clk_node, clk_id)
+#define Z_CLOCK_SECTION_NAME(node_id)                                          \
+	_CONCAT(.clk_node_, Z_CLOCK_DT_CLK_ID(node_id))
+
+/**
+ * @brief Section name for root clock object
+ *
+ * Section name for root clock object. Each clock object uses a named section so
+ * the linker can optimize unused clocks out of the build. Root clocks use
+ * special section names so that the framework will only notify these clocks
+ * when disabling unused clock sources.
+ * @param node_id The devicetree node identifier.
+ */
+#define Z_ROOT_CLOCK_SECTION_NAME(node_id)                                     \
+	_CONCAT(.clk_node_root, Z_CLOCK_DT_CLK_ID(node_id))
 
 /**
  * @brief Define a @ref clk object
@@ -159,11 +173,12 @@ struct clk {
  * @param config Pointer to the clock's private constant data, which will be
  * stored in the @ref clk.config field
  * @param api Pointer to the clock's API structure.
+ * @param secname Section name to place clock object into
  */
-#define Z_CLOCK_BASE_DEFINE(node_id, clk_id, hw_data, api)                     \
+#define Z_CLOCK_BASE_DEFINE(node_id, clk_id, hw_data, api, secname)            \
 	Z_CLOCK_DEFINE_CHILDREN(node_id);                                      \
 	clock_handle_t _CONCAT(owner_data_, clk_id);                           \
-	const struct clk Z_GENERIC_SECTION(Z_CLOCK_SECTION_NAME(clk_id))       \
+	const struct clk Z_GENERIC_SECTION(secname)                            \
 		CLOCK_NAME_GET(clk_id) =                                       \
 		Z_CLOCK_INIT(Z_CLOCK_GET_CHILDREN(node_id),                    \
 			     hw_data, api, &_CONCAT(owner_data_, clk_id));
@@ -298,8 +313,7 @@ static inline clock_handle_t clk_handle_get(const struct clk *clk)
 }
 
 /**
- * @brief Create a clock object from a devicetree node identifier and set it
- * up for boot time initialization.
+ * @brief Create a clock object from a devicetree node identifier
  *
  * This macro defines a @ref clk. The global clock object's
  * name as a C identifier is derived from the node's dependency ordinal.
@@ -316,7 +330,7 @@ static inline clock_handle_t clk_handle_get(const struct clk *clk)
 
 #define CLOCK_DT_DEFINE(node_id, hw_data, api, ...)                            \
 	Z_CLOCK_BASE_DEFINE(node_id, Z_CLOCK_DT_CLK_ID(node_id), hw_data,      \
-			    api)
+			    api, Z_CLOCK_SECTION_NAME(node_id))
 
 /**
  * @brief Like CLOCK_DT_DEFINE(), but uses an instance of `DT_DRV_COMPAT`
@@ -327,6 +341,40 @@ static inline clock_handle_t clk_handle_get(const struct clk *clk)
  */
 #define CLOCK_DT_INST_DEFINE(inst, ...)                                        \
 	CLOCK_DT_DEFINE(DT_DRV_INST(inst), __VA_ARGS__)
+
+/**
+ * @brief Create a root clock object from a devicetree node identifier
+ *
+ * This macro defines a root @ref clk. The global clock object's
+ * name as a C identifier is derived from the node's dependency ordinal.
+ * Root clocks will have their "notify" API implementation called by
+ * the clock framework when the application requests unused clocks be
+ * disabled. The "notify" implementation should forward clock notifications
+ * to children so they can also evaluate if they need to gate.
+ *
+ * Note that users should not directly reference clock objects, but instead
+ * should use the clock management API. Clock objects are considered
+ * internal to the clock subsystem.
+ *
+ * @param node_id The devicetree node identifier.
+ * @param hw_data Pointer to the clock's private data, which will be
+ * stored in the @ref clk.hw_data field. This data may be in ROM or RAM.
+ * @param api Pointer to the clock's API structure.
+ */
+
+#define ROOT_CLOCK_DT_DEFINE(node_id, hw_data, api, ...)                       \
+	Z_CLOCK_BASE_DEFINE(node_id, Z_CLOCK_DT_CLK_ID(node_id), hw_data,      \
+			    api, Z_ROOT_CLOCK_SECTION_NAME(node_id))
+
+/**
+ * @brief Like ROOT_CLOCK_DT_DEFINE(), but uses an instance of `DT_DRV_COMPAT`
+ * compatible instead of a node identifier
+ * @param inst Instance number. The `node_id` argument to ROOT_CLOCK_DT_DEFINE
+ * is set to `DT_DRV_INST(inst)`.
+ * @param ... Other parameters as expected by CLOCK_DT_DEFINE().
+ */
+#define ROOT_CLOCK_DT_INST_DEFINE(inst, ...)                                        \
+	ROOT_CLOCK_DT_DEFINE(DT_DRV_INST(inst), __VA_ARGS__)
 
 #ifdef __cplusplus
 }

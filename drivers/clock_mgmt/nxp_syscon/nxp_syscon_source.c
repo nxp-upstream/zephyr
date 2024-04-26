@@ -97,7 +97,7 @@ static int syscon_clock_source_set_rate(const struct clk *clk, uint32_t rate)
 const struct clock_driver_api nxp_syscon_source_api = {
 	.get_rate = syscon_clock_source_get_rate,
 	.configure = syscon_clock_source_configure,
-#ifdef CONFIG_CLOCK_MGMT_NOTIFY
+#if defined(CONFIG_CLOCK_MGMT_NOTIFY)
 	.notify = syscon_clock_source_notify,
 #endif
 #if defined(CONFIG_CLOCK_MGMT_SET_RATE)
@@ -114,8 +114,8 @@ const struct clock_driver_api nxp_syscon_source_api = {
 		.pdown_mask = DT_INST_PROP(inst, pdown_mask),                  \
 	};                                                                     \
 	                                                                       \
-	CLOCK_DT_INST_DEFINE(inst,                                             \
-			     &nxp_syscon_source_##inst,                        \
-			     &nxp_syscon_source_api);
+	ROOT_CLOCK_DT_INST_DEFINE(inst,                                        \
+				  &nxp_syscon_source_##inst,                   \
+				  &nxp_syscon_source_api);
 
 DT_INST_FOREACH_STATUS_OKAY(NXP_SYSCON_CLOCK_DEFINE)
