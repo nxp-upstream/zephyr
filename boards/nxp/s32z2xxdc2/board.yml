@@ -10,3 +10,8 @@ board:
       - name: D
   socs:
     - name: s32z270
+      variants:
+      - name: smp
+        cpucluster: rtu0
+      - name: smp
+        cpucluster: rtu1

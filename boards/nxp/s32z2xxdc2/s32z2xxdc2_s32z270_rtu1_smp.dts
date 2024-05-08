@@ -6,3 +6,11 @@
 
 /dts-v1/;
 #include "s32z2xxdc2_s32z270_rtu1.dtsi"
+
+/ {
+	cpus {
+		/* RTU cores configured in lockstep mode */
+		/delete-node/ cpu@2;
+		/delete-node/ cpu@3;
+	};
+};
