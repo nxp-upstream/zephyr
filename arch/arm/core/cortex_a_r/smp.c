@@ -11,6 +11,7 @@
 #include "zephyr/cache.h"
 #include "zephyr/kernel/thread_stack.h"
 #include "zephyr/toolchain/gcc.h"
+#include <zephyr/linker/linker-defs.h>
 
 #define INV_MPID	UINT32_MAX
 
@@ -88,6 +89,15 @@ extern void z_arm_configure_static_mpu_regions(void);
 #elif defined(CONFIG_ARM_AARCH32_MMU)
 extern int z_arm_mmu_init(void);
 #endif
+
+#define VECTOR_ADDRESS ((uintptr_t)_vector_start)
+
+static inline void relocate_vector_table(void)
+{
+	write_sctlr(read_sctlr() & ~HIVECS);
+	write_vbar(VECTOR_ADDRESS & VBAR_MASK);
+	barrier_isync_fence_full();
+}
 
 /* Called from Zephyr initialization */
 void arch_cpu_start(int cpu_num, k_thread_stack_t *stack, int sz, arch_cpustart_t fn, void *arg)
@@ -169,6 +179,8 @@ void arch_secondary_cpu_init(void)
 
 	/* Initialize tpidrro_el0 with our struct _cpu instance address */
 	write_tpidruro((uintptr_t)&_kernel.cpus[cpu_num]);
+
+	relocate_vector_table();
 
 #ifdef CONFIG_ARM_MPU
 
