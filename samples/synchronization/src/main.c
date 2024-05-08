@@ -81,6 +81,7 @@ void thread_a_entry_point(void *dummy1, void *dummy2, void *dummy3)
 	/* invoke routine to ping-pong hello messages with thread_b */
 	hello_loop(__func__, &thread_a_sem, &thread_b_sem);
 }
+
 K_THREAD_STACK_DEFINE(thread_a_stack_area, STACKSIZE);
 static struct k_thread thread_a_data;
 
@@ -96,7 +97,7 @@ void thread_b_entry_point(void *dummy1, void *dummy2, void *dummy3)
 }
 K_THREAD_DEFINE(thread_b, STACKSIZE,
 				thread_b_entry_point, NULL, NULL, NULL,
-				PRIORITY, 0, 0);
+				PRIORITY, 0, -1);
 extern const k_tid_t thread_b;
 
 int main(void)
@@ -115,5 +116,6 @@ int main(void)
 #endif
 
 	k_thread_start(&thread_a_data);
+	k_thread_start(thread_b);
 	return 0;
 }
