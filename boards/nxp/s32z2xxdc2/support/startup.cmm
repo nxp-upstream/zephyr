@@ -1,5 +1,5 @@
 ;*******************************************************************************
-;   Copyright 2022 NXP                                                         *
+;   Copyright 2022,2024 NXP                                                    *
 ;   SPDX-License-Identifier: Apache-2.0                                        *
 ;                                                                              *
 ;   Lauterbach Trace32 start-up script for S32Z27x / Cortex-R52                *
@@ -21,12 +21,15 @@
 ;                  - Core1 and Core3 (redundancy) operate as a lockstep pair   *
 ;                 default: yes                                                 *
 ;   - thumb       set to "yes" to select the T32 instruction set at reset      *
-;                 default: no                                                 *
+;                 default: no                                                  *
+;   - smp         set to "yes" for SMP mode, currently the script supports SMP *
+;                 per RTU only, with RTU cores configured in lock-step mode    *
+;                 default: no                                                  *
 ;                                                                              *
 ;*******************************************************************************
 
 ENTRY %LINE &args
-LOCAL &rtuStartAddr &cfgCoreAddr &coreId &rtuId &thumbBit &spltLckBit
+LOCAL &rtuStartAddr &cfgCoreAddr &coreId &rtuId &thumbBit &spltLckBit &smp
 
 &command=STRing.SCANAndExtract("&args","command=","debug")
 &elfFile=STRing.SCANAndExtract("&args","elfFile=","")
@@ -34,6 +37,7 @@ LOCAL &rtuStartAddr &cfgCoreAddr &coreId &rtuId &thumbBit &spltLckBit
 &core=STRing.SCANAndExtract("&args","core=","0")
 &lockstep=STRing.SCANAndExtract("&args","lockstep=","yes")
 &thumb=STRing.SCANAndExtract("&args","thumb=","no")
+&smp=STRing.SCANAndExtract("&args","smp=","no")
 
 IF ("&elfFile"=="")
 (
@@ -100,7 +104,7 @@ ON.ERROR.DEFault
 SYStem.Down
 SYStem.CPU S32Z270-M33-SMU
 SYStem.CONFIG.DEBUGPORTTYPE JTAG
-SYStem.Option.DUALPORT ON
+SYStem.Option.DUALPORT OFF
 SYStem.MemAccess DAP
 SYStem.JtagClock 40MHz
 Trace.DISable
@@ -134,12 +138,16 @@ Data.Set EAXI:&rtuStartAddr %Long 0xFFFEF7FF
 
 ; Wake up core
 GOSUB EnableR52_&(rtu)_&(core)
+IF ("&smp"=="yes")
+(
+  GOSUB EnableR52_&(rtu)_1
+)
 
 ; Reconfigure debugger
 SYStem.CPU S32Z270-R52-RTU&(rtu)
 CORE.ASSIGN &coreId
 SYStem.CONFIG.CORE &coreId &rtuId
-SYStem.Option.DUALPORT ON
+SYStem.Option.DUALPORT OFF
 SYStem.Option.ResBreak OFF
 SYStem.Option.EnReset  OFF
 Trace.DISable
@@ -163,10 +171,36 @@ SYStem.CONFIG.AXIAP1.Base DP:0x1C21000
 
 Register.Set PC __start
 
+IF ("&smp"=="yes")
+(
+  TargetSystem.NewInstance R52_SECONDARY /ARCHitecture ARM
+  InterCom R52_SECONDARY SYStem.CPU S32Z270-R52-RTU&(rtu)
+  InterCom R52_SECONDARY CORE.ASSIGN &(coreId)+1
+  InterCom R52_SECONDARY SYStem.CONFIG CORE &(coreId)+1 &rtuId
+  InterCom R52_SECONDARY SYStem.CONFIG Slave ON
+  InterCom R52_SECONDARY Trace.DISable
+  InterCom R52_SECONDARY ETM.OFF
+  InterCom R52_SECONDARY STM.OFF
+  InterCom R52_SECONDARY SYStem.Option.DUALPORT OFF
+  InterCom R52_SECONDARY SYStem.Attach
+  InterCom R52_SECONDARY WAIT 200ms
+  InterCom R52_SECONDARY Break
+
+  ; Load application to SRAM, no code, running from flash is not yet supported
+  InterCom R52_SECONDARY Data.LOAD.Elf &elfFile /Register /NoCODE
+  InterCom R52_SECONDARY SYStem.MemAccess.AXI
+  InterCom R52_SECONDARY List.auto
+)
+
 IF ("&command"=="flash")
 (
   ; Execute the application and quit
   Go
+  IF ("&smp"=="yes")
+  (
+    InterCom R52_SECONDARY Go
+    InterCom R52_SECONDARY QUIT
+  )
   QUIT
 )
 ELSE

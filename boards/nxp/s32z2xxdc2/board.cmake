@@ -20,5 +20,9 @@ else()
   board_runner_args(nxp_s32dbg "--core-name" "R52_${CONFIG_NXP_S32_RTU_INDEX}_0")
 endif()
 
+if(CONFIG_SMP)
+  board_runner_args(trace32 "smp=yes")
+endif()
+
 include(${ZEPHYR_BASE}/boards/common/nxp_s32dbg.board.cmake)
 include(${ZEPHYR_BASE}/boards/common/trace32.board.cmake)
