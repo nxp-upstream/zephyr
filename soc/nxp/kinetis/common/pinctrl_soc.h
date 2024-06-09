@@ -43,6 +43,11 @@ typedef uint32_t pinctrl_soc_pin_t;
 #define PORT_PCR_SRE_MASK 0x0
 #endif
 
+#if !defined(CONFIG_SOC_SERIES_KINETIS_KW45)
+#define PORT_PCR_PV(x) 0x0
+#define PORT_PCR_PV_MASK 0x0
+#endif
+
 #define Z_PINCTRL_KINETIS_PINCFG(node_id)					\
 	(PORT_PCR_DSE(DT_ENUM_IDX(node_id, drive_strength)) |			\
 	PORT_PCR_PS(DT_PROP(node_id, bias_pull_up)) |				\

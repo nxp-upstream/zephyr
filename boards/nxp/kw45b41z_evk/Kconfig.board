@@ -1,0 +1,7 @@
+# Copyright 2023 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_KW45B41Z_EVK
+	bool "NXP KW45 EVK"
+	depends on SOC_SERIES_KINETIS_KW45
+	select SOC_PART_NUMBER_KW45B41Z83AFTA

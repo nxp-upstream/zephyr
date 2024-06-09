@@ -1,0 +1,36 @@
+# KW45 series configuration options
+
+# Copyright 2023 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+if SOC_SERIES_KINETIS_KW45
+
+config WDOG_INIT
+	default n
+
+config SOC_SERIES
+	default "kw45"
+
+config NUM_IRQS
+	default 76
+
+config PM
+	select COUNTER
+	select HAS_MCUX_SPC
+	select HAS_MCUX_CMC
+	select HAS_MCUX_WUU
+	select HAS_MCUX_CRC
+
+config FLASH
+	default y if BT
+
+config BT_BUF_EVT_DISCARDABLE_SIZE
+	default 84 if BT
+
+choice LIBC_IMPLEMENTATION
+	default NEWLIB_LIBC if PM
+endchoice
+
+source "soc/arm/nxp_kinetis/kw45/Kconfig.defconfig.kw45*"
+
+endif # SOC_SERIES_KINETIS_KW45
