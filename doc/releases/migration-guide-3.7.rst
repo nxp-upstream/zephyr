@@ -83,6 +83,14 @@ Boards
 
 * `lairdconnect` boards are now `ezurio` boards. Laird Connectivity has rebranded to `Ezurio <https://www.ezurio.com/laird-connectivity>`_.
 
+* The :ref:`mimxrt1060_evk`, :ref:`mimxrt1050_evk`, and :ref:`mimxrt1064_evk`
+  boards no longer define a parallel display module, as multiple display
+  modules are compatible with the boards. Instead, use the :ref:`rk043fn02h_ct`
+  and :ref:`rk043fn66hs_ctg` shields. To use the same display module that
+  was previously defined with these boards, pass ``-DSHIELD=rk043fn02h_ct``
+  on the command line, or set the ``SHIELD`` variable in your application's
+  CMake.
+
 Modules
 *******
 
