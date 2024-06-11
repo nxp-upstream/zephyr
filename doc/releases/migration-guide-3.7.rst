@@ -423,6 +423,13 @@ LED Strip
 
 * Made ``update_channels`` function optional and removed unimplemented functions.
 
+Memory Controllers
+==================
+
+* The NXP FlexSPI memc driver no longer uses the default memory controller
+  initialization priority. Instead, set the priority via
+  :kconfig:option:`CONFIG_MEMC_MCUX_FLEXSPI_INIT_PRIORITY`.
+
 Sensors
 =======
 
