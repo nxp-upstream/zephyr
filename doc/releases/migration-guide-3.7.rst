@@ -91,6 +91,11 @@ Boards
   on the command line, or set the ``SHIELD`` variable in your application's
   CMake.
 
+* Boards using the MIMXRT1170 or MIMXRT1160 SOCs should now include the
+  ``nxp_rt1170.dtsi`` or ``nxp_rt1160.dtsi`` file respectively, as these
+  files contain SOC specific PLL configuration. See :github:`73682` for
+  more information.
+
 Modules
 *******
 
