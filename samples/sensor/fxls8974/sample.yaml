@@ -1,0 +1,13 @@
+common:
+  harness: sensor
+  tags: sensors
+  depends_on:
+    - i2c
+    - gpio
+sample:
+  name: FXOS8974 Accelerometer
+tests:
+ sample.sensor.fxls8974.accel:
+    platform_allow:
+      - mimxrt685_evk/mimxrt685s/cm33
+      - mimxrt595_evk/mimxrt595s/cm33
