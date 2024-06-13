@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 NXP
+ * Copyright 2024 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -18,7 +18,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/linker/sections.h>
 
-#include <aarch32/cortex_m/exc.h>
+#include <zephyr/arch/arm/cortex_m/exception.h>
 #include <soc.h>
 
 extern uint32_t SystemCoreClock;
@@ -184,12 +184,6 @@ static int nxp_kw45_init(void)
 
 	/* Smart power switch initialization */
 	vbat_init();
-
-	/*
-	 * install default handler that simply resets the CPU
-	 * if configured in the kernel, NOP otherwise
-	 */
-	NMI_INIT();
 
 	/* restore interrupt state */
 	irq_unlock(oldLevel);

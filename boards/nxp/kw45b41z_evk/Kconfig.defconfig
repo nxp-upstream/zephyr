@@ -1,12 +1,9 @@
 # KW45B41Z-EVK board
 
-# Copyright 2023 NXP
+# Copyright 2024 NXP
 # SPDX-License-Identifier: Apache-2.0
 
 if BOARD_KW45B41Z_EVK
-
-config BOARD
-	default "kw45b41z_evk"
 
 choice BT_HCI_BUS_TYPE
 	default BT_NXP

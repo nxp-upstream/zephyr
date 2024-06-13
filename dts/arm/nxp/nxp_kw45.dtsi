@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 NXP
+ * Copyright 2024 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -16,8 +16,8 @@
 			ranges = <0x0 0x30000000 DT_SIZE_K(112)>;
 		};
 
-		smu2: sram@489C0000 {
-			ranges = <0x0 0x489C0000 DT_SIZE_K(40)>;
+		smu2: sram@489c0000 {
+			ranges = <0x0 0x489c0000 DT_SIZE_K(40)>;
 		};
 
 		peripheral: peripheral@50000000 {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 NXP
+ * Copyright 2024 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -22,4 +22,4 @@ PROD_DATA_BASE_ADDR                 = m_fsl_prodInfo_start;
  * in placing the rpmsg section in RAM instead of shared mem.
  */
 
-#include <zephyr/arch/arm/aarch32/cortex_m/scripts/linker.ld>
+#include <zephyr/arch/arm/cortex_m/scripts/linker.ld>

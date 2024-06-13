@@ -1,9 +1,12 @@
 # KW45 series configuration options
 
-# Copyright 2023 NXP
+# Copyright 2024 NXP
 # SPDX-License-Identifier: Apache-2.0
 
 if SOC_SERIES_KINETIS_KW45
+
+config SYS_CLOCK_HW_CYCLES_PER_SEC
+	default 96000000 if CORTEX_M_SYSTICK
 
 config WDOG_INIT
 	default n
@@ -30,7 +33,5 @@ config BT_BUF_EVT_DISCARDABLE_SIZE
 choice LIBC_IMPLEMENTATION
 	default NEWLIB_LIBC if PM
 endchoice
-
-source "soc/arm/nxp_kinetis/kw45/Kconfig.defconfig.kw45*"
 
 endif # SOC_SERIES_KINETIS_KW45

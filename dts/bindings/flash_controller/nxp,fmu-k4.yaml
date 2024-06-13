@@ -1,0 +1,5 @@
+description: NXP Kinetis K4 Flash Controller
+
+compatible: "nxp,fmu-k4"
+
+include: flash-controller.yaml
