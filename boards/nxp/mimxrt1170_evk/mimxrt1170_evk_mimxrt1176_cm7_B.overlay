@@ -14,7 +14,7 @@
 
 	aliases {
 		/delete-property/ magn0;
-		accel0 = &fxls8974;
+		/delete-property/ accel0;
 	};
 };
 
@@ -64,20 +64,6 @@
 &lpi2c5 {
 	/* FXOS accelerometer is not present in this board */
 	/delete-node/ fxos8700@1f;
-
-	fxls8974: fxls8974@18 {
-		compatible = "nxp,fxls8974";
-		reg = <0x18>;
-		status = "okay";
-
-		/* Two zero ohm resistors (R1029 and R1030) isolate sensor
-		 * interrupt gpios from the soc and are unpopulated by default.
-		 * Note that if you populate them, they conflict with m.2 and
-		 * ethernet PHY reset signals.
-		 */
-		int1-gpios = <&gpio11 14 GPIO_ACTIVE_LOW>;
-		int2-gpios = <&gpio11 15 GPIO_ACTIVE_LOW>;
-	};
 };
 
 &enet_mdio {

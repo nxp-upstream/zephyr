@@ -9,7 +9,7 @@
 #include <nxp/nxp_imx/rt/mimxrt1176dvmaa-pinctrl.dtsi>
 
 &pinctrl {
-	/* conflicts with fxos8700 and fxls8974 sensor */
+	/* conflicts with fxos8700 sensor */
 	pinmux_csi: pinmux_csi {
 		group0 {
 			pinmux = <&iomuxc_gpio_disp_b2_14_gpio11_io15>;
@@ -184,17 +184,6 @@
 		};
 	};
 
-
-	/* interrupt gpios for fxls8974 */
-	pinmux_fxls8974_int: pinmux_fxls8974_int {
-		group0 {
-			pinmux = <&iomuxc_gpio_disp_b2_14_gpio11_io15>,
-				<&iomuxc_gpio_disp_b2_13_gpio11_io14>;
-			drive-strength = "high";
-			slew-rate = "fast";
-		};
-	};
-
 	/* conflicts with lpspi1 */
 	pinmux_lcdif: pinmux_lcdif {
 		group0 {
@@ -232,7 +221,7 @@
 		};
 	};
 
-	/* Connected to FXOS8700 or FXLS8974 on the B revision */
+	/* Connected to FXOS8700 */
 	pinmux_lpi2c5: pinmux_lpi2c5 {
 		group0 {
 			pinmux = <&iomuxc_lpsr_gpio_lpsr_05_lpi2c5_scl>,
