@@ -150,26 +150,71 @@ static int fxls8974_set_odr(const struct device *dev,
 	const struct fxls8974_config *config = dev->config;
 	uint8_t dr;
 	enum fxls8974_power power;
+    /* val int32 */
+    switch (val->val1){
+        case 3200:
+            dr = FXLS8974_CTRLREG3_ODR_RATE_3200;
+                break;
+        case 800:
+            dr = FXLS8974_CTRLREG3_ODR_RATE_800;
+                break;
+        case 400:
+            dr = FXLS8974_CTRLREG3_ODR_RATE_400;
+                break;
+        case 200:
+            dr = FXLS8974_CTRLREG3_ODR_RATE_200;
+                break;
+        case 100:
+            dr = FXLS8974_CTRLREG3_ODR_RATE_100;
+                break;
+        case 50:
+            dr = FXLS8974_CTRLREG3_ODR_RATE_50;
+                break;
+        case 25:
+            dr = FXLS8974_CTRLREG3_ODR_RATE_25;
+                break;
+        case 12:
+            //TODO: Odstranit ty IFY?
+            if (val->val2 == 500000){
+                dr = FXLS8974_CTRLREG3_ODR_RATE_3200;
+                break;
+            } else {
+                return -EINVAL;
+            }
 
-	if (val->val1 == 800 && val->val2 == 0) {
-		dr = FXLS8974_CTRLREG1_DR_RATE_800;
-	} else if (val->val1 == 400 && val->val2 == 0) {
-		dr = FXLS8974_CTRLREG1_DR_RATE_400;
-	} else if (val->val1 == 200 && val->val2 == 0) {
-		dr = FXLS8974_CTRLREG1_DR_RATE_200;
-	} else if (val->val1 == 100 && val->val2 == 0) {
-		dr = FXLS8974_CTRLREG1_DR_RATE_100;
-	} else if (val->val1 == 50 && val->val2 == 0) {
-		dr = FXLS8974_CTRLREG1_DR_RATE_50;
-	} else if (val->val1 == 12 && val->val2 == 500000) {
-		dr = FXLS8974_CTRLREG1_DR_RATE_12_5;
-	} else if (val->val1 == 6 && val->val2 == 250000) {
-		dr = FXLS8974_CTRLREG1_DR_RATE_6_25;
-	} else if (val->val1 == 1 && val->val2 == 562500) {
-		dr = FXLS8974_CTRLREG1_DR_RATE_1_56;
-	} else {
-		return -EINVAL;
-	}
+        case 6:
+            if (val->val2 == 250000){
+                dr = FXLS8974_CTRLREG3_ODR_RATE_3200;
+                break;
+            } else {
+                return -EINVAL;
+            }
+
+        case 3:
+            if (val->val2 == 125000){
+                dr = FXLS8974_CTRLREG3_ODR_RATE_3200;
+                break;
+            } else {
+                return -EINVAL;
+            }
+        case 1:
+            if (val->val2 == 563000){
+                dr = FXLS8974_CTRLREG3_ODR_RATE_3200;
+                break;
+            } else {
+                return -EINVAL;
+            }
+        case 0:
+            if (val->val2 == 781000){
+                dr = FXLS8974_CTRLREG3_ODR_RATE_3200;
+                break;
+            } else {
+                return -EINVAL;
+            }
+
+        default:
+                return -EINVAL;
+    }
 
 	LOG_DBG("Set ODR to 0x%x", dr);
 
@@ -189,9 +234,9 @@ static int fxls8974_set_odr(const struct device *dev,
 	}
 
 	/* Change the attribute and restore power mode. */
-	return config->ops->reg_field_update(dev, FXLS8974_REG_CTRLREG1,
-				      FXLS8974_CTRLREG1_DR_MASK | FXLS8974_CTRLREG1_ACTIVE_MASK,
-				      dr | power);
+	return config->ops->reg_field_update(dev, FXLS8974_REG_CTRLREG3,
+				      FXLS8974_CTRLREG3_ODR_MASK,
+				      dr);
 }
 
 static int fxls8974_set_mt_ths(const struct device *dev,
@@ -453,8 +498,8 @@ static int fxls8974_init(const struct device *dev)
 		 * master. Therefore, do not check the return code of
 		 * the I2C transaction.
 		 */
-		config->ops->byte_write(dev, FXLS8974_REG_CTRLREG2,
-				      FXLS8974_CTRLREG2_RST_MASK);
+		config->ops->byte_write(dev, FXLS8974_REG_CTRLREG1,
+				      FXLS8974_CTRLREG1_RST_MASK);
 	}
 
 	/* The sensor requires us to wait 1 ms after a reset before
@@ -474,7 +519,7 @@ static int fxls8974_init(const struct device *dev)
 	}
 
 	if (data->whoami == WHOAMI_ID_FXLS8974){
-		LOG_DBG("Device ID 0x%x", data->whoami);
+		LOG_DBG("Device ID 0x%x, FXLS8974", data->whoami);
 	} else {
 		LOG_ERR("Unknown Device ID 0x%x", data->whoami);
 		return -EIO;
@@ -485,28 +530,10 @@ static int fxls8974_init(const struct device *dev)
 		return -EIO;
 	}
 
-	if (config->ops->reg_field_update(dev, FXLS8974_REG_CTRLREG2,
-				   FXLS8974_CTRLREG2_MODS_MASK,
-				   config->power_mode)) {
-		LOG_ERR("Could not set power scheme");
-		return -EIO;
-	}
-
-
-	/* Set hybrid autoincrement so we can read accel and mag channels in
-	 * one I2C/SPI transaction.
-	 */
-	if (config->ops->reg_field_update(dev, FXLS8974_REG_M_CTRLREG2,
-				   FXLS8974_M_CTRLREG2_AUTOINC_MASK,
-				   FXLS8974_M_CTRLREG2_AUTOINC_MASK)) {
-		LOG_ERR("Could not set hybrid autoincrement");
-		return -EIO;
-	}
-
 	/* Set the full-scale range */
-	if (config->ops->reg_field_update(dev, FXLS8974_REG_XYZ_DATA_CFG,
-				   FXLS8974_XYZ_DATA_CFG_FS_MASK,
-				   RANGE2FS(config->range))) {
+	if (config->ops->reg_field_update(dev, FXLS8974_REG_CTRLREG1,
+				   FXLS8974_CTRLREG1_FSR_MASK,
+				   FXLS8974_CTRLREG1_FSR_16G)) {
 		LOG_ERR("Could not set range");
 		return -EIO;
 	}
@@ -514,7 +541,7 @@ static int fxls8974_init(const struct device *dev)
 	k_sem_init(&data->sem, 0, K_SEM_MAX_LIMIT);
 
 #if CONFIG_FXLS8974_TRIGGER
-	if (fxls8974_trigger_init(dev)) {
+	if (fxls8974_trigger_init(dev)) , FXLS8974{
 		LOG_ERR("Could not initialize interrupts");
 		return -EIO;
 	}
@@ -584,7 +611,6 @@ static const struct sensor_driver_api fxls8974_driver_api = {
 #define FXLS8974_CONFIG_I2C(n)						\
 		.bus_cfg = { .i2c = I2C_DT_SPEC_INST_GET(n) },		\
 		.ops = &fxls8974_i2c_ops,				\
-		.power_mode = DT_INST_PROP(n, power_mode),		\
 		.range = DT_INST_PROP(n, range),			\
 		.inst_on_bus = FXLS8974_BUS_I2C,
 
@@ -592,7 +618,6 @@ static const struct sensor_driver_api fxls8974_driver_api = {
 		.bus_cfg = { .spi = SPI_DT_SPEC_INST_GET(n,		\
 			SPI_OP_MODE_MASTER | SPI_WORD_SET(8), 0) },	\
 		.ops = &fxls8974_spi_ops,				\
-		.power_mode =  DT_INST_PROP(n, power_mode),		\
 		.range = DT_INST_PROP(n, range),			\
 		.inst_on_bus = FXLS8974_BUS_SPI,			\
 
