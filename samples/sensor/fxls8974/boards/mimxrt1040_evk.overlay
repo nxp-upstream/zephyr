@@ -1,0 +1,27 @@
+/*
+ * Copyright (c) 2024 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&pinctrl {
+	pinmux_lpi2c3_accelerometer: pinmux_lpi2c3_accelerometer {
+		group0{
+			pinmux = <&iomuxc_gpio_ad_b1_06_lpi2c3_sda>,
+				<&iomuxc_gpio_ad_b1_07_lpi2c3_scl>;
+			drive-strength = "r0-6";
+			slew-rate = "slow";
+			nxp,speed = "100-mhz";
+			input-enable;
+		};
+	};
+};
+
+&lpi2c3 {
+	pinctrl-0 = <&pinmux_lpi2c3_accelerometer>;
+	status = "okay";
+};
+
+&lpspi1{
+	status = "disabled";
+};

@@ -7,3 +7,6 @@ project(fxls8974)
 
 FILE(GLOB app_sources src/*.c)
 target_sources(app PRIVATE ${app_sources})
+#add_library(set-app-flags INTERFACE)
+#target_compile_options(set-app-flags INTERFACE -O0)
+#target_link_libraries(app PRIVATE set-app-flags)
