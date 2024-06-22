@@ -196,6 +196,9 @@ Remove resistors:
 - R508
 - R505
 
+This rework will affect peripherals (such as RTC) that use the XTAL32K clock because the
+ethernet phy shares pins with the XTAL32K clock source.
+
 Then, build for the board target `rd_rw612_bga//ethernet`.
 
 Resources

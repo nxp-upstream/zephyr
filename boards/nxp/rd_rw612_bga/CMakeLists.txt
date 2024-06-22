@@ -18,3 +18,9 @@ if(CONFIG_NXP_RW6XX_BOOT_HEADER)
   zephyr_library_sources(${RW612_BOARD_DIR}/flash_config/flash_config.c)
   zephyr_library_include_directories(${RW612_BOARD_DIR}/flash_config)
 endif()
+
+if (CONFIG_DT_HAS_NXP_ENET_MAC_ENABLED AND CONFIG_XTAL32K)
+	message(FATAL_ERROR "Ethernet and external 32K clock source are "
+		"mutually exclusive on RD_RW612_BGA due to shared PCB nets "
+		"between the ethernet PHY and the external oscillator")
+endif()
