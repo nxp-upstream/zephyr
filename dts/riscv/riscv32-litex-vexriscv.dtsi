@@ -25,7 +25,7 @@
 			compatible = "litex,vexriscv-standard", "riscv";
 			device_type = "cpu";
 			reg = <0>;
-			riscv,isa = "rv32ima_zicsr_zifencei";
+			riscv,isa = "rv32im_zicsr_zifencei";
 			status = "okay";
 		};
 	};
@@ -318,7 +318,6 @@
 			clock-output-names = "CLK_0", "CLK_1";
 			litex,lock-timeout = <10>;
 			litex,drdy-timeout = <10>;
-			litex,sys-clock-frequency = <100000000>;
 			litex,divclk-divide-min = <1>;
 			litex,divclk-divide-max = <107>;
 			litex,clkfbout-mult-min = <2>;

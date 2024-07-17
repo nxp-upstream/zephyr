@@ -67,7 +67,7 @@
 
 &lpi2c5 {
 	status = "okay";
-	pinctrl-0 = <&pinmux_lpi2c1>;
+	pinctrl-0 = <&pinmux_lpi2c5>;
 	pinctrl-names = "default";
 
 	fxos8700: fxos8700@1f {
@@ -150,9 +150,9 @@
 		compatible = "microchip,ksz8081";
 		reg = <0>;
 		status = "okay";
-		mc,reset-gpio = <&gpio12 12 GPIO_ACTIVE_HIGH>;
-		mc,interrupt-gpio = <&gpio9 11 GPIO_ACTIVE_HIGH>;
-		mc,interface-type = "rmii";
+		reset-gpios = <&gpio12 12 GPIO_ACTIVE_HIGH>;
+		int-gpios = <&gpio9 11 GPIO_ACTIVE_HIGH>;
+		microchip,interface-type = "rmii";
 	};
 };
 
@@ -178,7 +178,7 @@
 };
 
 &lpi2c1 {
-	pinctrl-0 =<&pinmux_lpi2c5>;
+	pinctrl-0 =<&pinmux_lpi2c1>;
 	pinctrl-names = "default";
 };
 

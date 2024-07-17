@@ -15,10 +15,17 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 /**
- * @brief Linkable loadable extension symbol
- * @defgroup llext_symbols LLEXT symbols
- * @ingroup llext
+ * @file
+ * @brief Linkable loadable extension symbol definitions
+ *
+ * This file provides a set of macros and structures for defining and exporting
+ * symbols from the base image to extensions and vice versa, so that proper
+ * linking can be done between the two entities.
+ *
+ * @defgroup llext_symbols Exported symbol definitions
+ * @ingroup llext_apis
  * @{
  */
 
@@ -89,18 +96,20 @@ struct llext_symtable {
  *
  * @param x Symbol to export to extensions
  */
-#ifdef CONFIG_LLEXT_EXPORT_BUILTINS_BY_SLID
+#if defined(CONFIG_LLEXT_EXPORT_BUILTINS_BY_SLID)
 #define EXPORT_SYMBOL(x)							\
 	static const char Z_GENERIC_SECTION("llext_exports_strtab") __used	\
 		x ## _sym_name[] = STRINGIFY(x);				\
 	static const STRUCT_SECTION_ITERABLE(llext_const_symbol, x ## _sym) = {	\
-		.name = x ## _sym_name, .addr = (const void *)&x,			\
+		.name = x ## _sym_name, .addr = (const void *)&x,		\
 	}
-#else
+#elif defined(CONFIG_LLEXT)
 #define EXPORT_SYMBOL(x)							\
 	static const STRUCT_SECTION_ITERABLE(llext_const_symbol, x ## _sym) = {	\
 		.name = STRINGIFY(x), .addr = (const void *)&x,			\
 	}
+#else
+#define EXPORT_SYMBOL(x)
 #endif
 
 /**
@@ -112,12 +121,16 @@ struct llext_symtable {
  *
  * @param x Extension symbol to export to the base image
  */
+#if defined(CONFIG_LLEXT) && defined(LL_EXTENSION_BUILD)
 #define LL_EXTENSION_SYMBOL(x)							\
 	static const struct llext_const_symbol					\
 			Z_GENERIC_SECTION(".exported_sym") __used		\
 			x ## _sym = {						\
 		.name = STRINGIFY(x), .addr = (const void *)&x,			\
 	}
+#else
+#define LL_EXTENSION_SYMBOL(x)
+#endif
 
 /**
  * @}

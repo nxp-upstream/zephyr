@@ -502,7 +502,7 @@ static void z_thread_halt(struct k_thread *thread, k_spinlock_key_t key,
 }
 
 
-void z_impl_k_thread_suspend(struct k_thread *thread)
+void z_impl_k_thread_suspend(k_tid_t thread)
 {
 	SYS_PORT_TRACING_OBJ_FUNC_ENTER(k_thread, suspend, thread);
 
@@ -524,7 +524,7 @@ void z_impl_k_thread_suspend(struct k_thread *thread)
 }
 
 #ifdef CONFIG_USERSPACE
-static inline void z_vrfy_k_thread_suspend(struct k_thread *thread)
+static inline void z_vrfy_k_thread_suspend(k_tid_t thread)
 {
 	K_OOPS(K_SYSCALL_OBJ(thread, K_OBJ_THREAD));
 	z_impl_k_thread_suspend(thread);
@@ -532,7 +532,7 @@ static inline void z_vrfy_k_thread_suspend(struct k_thread *thread)
 #include <zephyr/syscalls/k_thread_suspend_mrsh.c>
 #endif /* CONFIG_USERSPACE */
 
-void z_impl_k_thread_resume(struct k_thread *thread)
+void z_impl_k_thread_resume(k_tid_t thread)
 {
 	SYS_PORT_TRACING_OBJ_FUNC_ENTER(k_thread, resume, thread);
 
@@ -553,7 +553,7 @@ void z_impl_k_thread_resume(struct k_thread *thread)
 }
 
 #ifdef CONFIG_USERSPACE
-static inline void z_vrfy_k_thread_resume(struct k_thread *thread)
+static inline void z_vrfy_k_thread_resume(k_tid_t thread)
 {
 	K_OOPS(K_SYSCALL_OBJ(thread, K_OBJ_THREAD));
 	z_impl_k_thread_resume(thread);
@@ -685,7 +685,7 @@ int z_pend_curr(struct k_spinlock *lock, k_spinlock_key_t key,
 	/* We do a "lock swap" prior to calling z_swap(), such that
 	 * the caller's lock gets released as desired.  But we ensure
 	 * that we hold the scheduler lock and leave local interrupts
-	 * masked until we reach the context swich.  z_swap() itself
+	 * masked until we reach the context switch.  z_swap() itself
 	 * has similar code; the duplication is because it's a legacy
 	 * API that doesn't expect to be called with scheduler lock
 	 * held.
@@ -931,12 +931,15 @@ void *z_get_next_switch_handle(void *interrupted)
 		z_sched_usage_switch(new_thread);
 
 		if (old_thread != new_thread) {
+			uint8_t  cpu_id;
+
 			update_metairq_preempt(new_thread);
 			z_sched_switch_spin(new_thread);
 			arch_cohere_stacks(old_thread, interrupted, new_thread);
 
 			_current_cpu->swap_ok = 0;
-			new_thread->base.cpu = arch_curr_cpu()->id;
+			cpu_id = arch_curr_cpu()->id;
+			new_thread->base.cpu = cpu_id;
 			set_current(new_thread);
 
 #ifdef CONFIG_TIMESLICING
@@ -959,6 +962,12 @@ void *z_get_next_switch_handle(void *interrupted)
 			 * will not return into it.
 			 */
 			if (z_is_thread_queued(old_thread)) {
+#ifdef CONFIG_SCHED_IPI_CASCADE
+				if ((new_thread->base.cpu_mask != -1) &&
+				    (old_thread->base.cpu_mask != BIT(cpu_id))) {
+					flag_ipi(ipi_mask_create(old_thread));
+				}
+#endif
 				runq_add(old_thread);
 			}
 		}
@@ -1058,6 +1067,9 @@ static inline void z_vrfy_k_thread_priority_set(k_tid_t thread, int prio)
 #ifdef CONFIG_SCHED_DEADLINE
 void z_impl_k_thread_deadline_set(k_tid_t tid, int deadline)
 {
+
+	deadline = CLAMP(deadline, 0, INT_MAX);
+
 	struct k_thread *thread = tid;
 	int32_t newdl = k_cycle_get_32() + deadline;
 
@@ -1203,7 +1215,7 @@ static inline int32_t z_vrfy_k_sleep(k_timeout_t timeout)
 #include <zephyr/syscalls/k_sleep_mrsh.c>
 #endif /* CONFIG_USERSPACE */
 
-int32_t z_impl_k_usleep(int us)
+int32_t z_impl_k_usleep(int32_t us)
 {
 	int32_t ticks;
 
@@ -1220,7 +1232,7 @@ int32_t z_impl_k_usleep(int us)
 }
 
 #ifdef CONFIG_USERSPACE
-static inline int32_t z_vrfy_k_usleep(int us)
+static inline int32_t z_vrfy_k_usleep(int32_t us)
 {
 	return z_impl_k_usleep(us);
 }
@@ -1430,7 +1442,7 @@ void z_thread_abort(struct k_thread *thread)
 }
 
 #if !defined(CONFIG_ARCH_HAS_THREAD_ABORT)
-void z_impl_k_thread_abort(struct k_thread *thread)
+void z_impl_k_thread_abort(k_tid_t thread)
 {
 	SYS_PORT_TRACING_OBJ_FUNC_ENTER(k_thread, abort, thread);
 

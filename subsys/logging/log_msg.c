@@ -57,8 +57,10 @@ static bool frontend_runtime_filtering(const void *source, uint32_t level)
 		return true;
 	}
 
-	/* If only frontend is used and log got here it means that it was accepted. */
-	if (IS_ENABLED(CONFIG_LOG_FRONTEND_ONLY)) {
+	/* If only frontend is used and log got here it means that it was accepted
+	 * unless userspace is enabled then runtime filtering is done here.
+	 */
+	if (!IS_ENABLED(CONFIG_USERSPACE) && IS_ENABLED(CONFIG_LOG_FRONTEND_ONLY)) {
 		return true;
 	}
 
@@ -356,6 +358,12 @@ void z_log_msg_runtime_vcreate(uint8_t domain_id, const void *source,
 		va_end(ap2);
 	} else {
 		plen = 0;
+	}
+
+	if (plen > Z_LOG_MSG_MAX_PACKAGE) {
+		LOG_WRN("Message dropped because it exceeds size limitation (%u)",
+			(uint32_t)Z_LOG_MSG_MAX_PACKAGE);
+		return;
 	}
 
 	size_t msg_wlen = Z_LOG_MSG_ALIGNED_WLEN(plen, dlen);

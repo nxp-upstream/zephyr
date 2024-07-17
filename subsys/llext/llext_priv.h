@@ -10,13 +10,18 @@
 #include <zephyr/kernel.h>
 #include <zephyr/llext/llext.h>
 
+struct llext_elf_sect_map {
+	enum llext_mem mem_idx;
+	size_t offset;
+};
+
 /*
  * Memory management (llext_mem.c)
  */
 
 int llext_copy_strings(struct llext_loader *ldr, struct llext *ext);
-int llext_copy_sections(struct llext_loader *ldr, struct llext *ext);
-void llext_free_sections(struct llext *ext);
+int llext_copy_regions(struct llext_loader *ldr, struct llext *ext);
+void llext_free_regions(struct llext *ext);
 
 static inline void *llext_alloc(size_t bytes)
 {
@@ -46,12 +51,22 @@ static inline void llext_free(void *ptr)
 int do_llext_load(struct llext_loader *ldr, struct llext *ext,
 		  struct llext_load_param *ldr_parm);
 
-elf_shdr_t *llext_section_by_name(struct llext_loader *ldr, const char *search_name);
-
 static inline const char *llext_string(struct llext_loader *ldr, struct llext *ext,
 				       enum llext_mem mem_idx, unsigned int idx)
 {
 	return (char *)ext->mem[mem_idx] + idx;
+}
+
+static inline const void *llext_loaded_sect_ptr(struct llext_loader *ldr, struct llext *ext,
+						unsigned int sh_ndx)
+{
+	enum llext_mem mem_idx = ldr->sect_map[sh_ndx].mem_idx;
+
+	if (mem_idx == LLEXT_MEM_COUNT) {
+		return NULL;
+	}
+
+	return (const uint8_t *)ext->mem[mem_idx] + ldr->sect_map[sh_ndx].offset;
 }
 
 /*

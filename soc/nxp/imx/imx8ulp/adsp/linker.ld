@@ -365,6 +365,10 @@ SECTIONS
   } >sdram0 :sdram0_phdr
 
 #include <zephyr/linker/common-rom.ld>
+/* Located in generated directory. This file is populated by calling
+ * zephyr_linker_sources(ROM_SECTIONS ...). Useful for grouping iterable RO structs.
+ */
+#include <snippets-rom-sections.ld>
 
   .fw_ready : ALIGN(4)
   {
@@ -518,4 +522,6 @@ SECTIONS
     KEEP (*(.fw_metadata))
     . = ALIGN(_EXT_MAN_ALIGN_);
   } >fw_metadata_seg :metadata_entries_phdr
+
+  /DISCARD/ : { *(.note.GNU-stack) }
 }

@@ -126,7 +126,11 @@ static void nrf5_get_eui64(uint8_t *mac)
 	mac[index++] = (IEEE802154_NRF5_VENDOR_OUI >> 8) & 0xff;
 	mac[index++] = IEEE802154_NRF5_VENDOR_OUI & 0xff;
 
-#if defined(CONFIG_TRUSTED_EXECUTION_NONSECURE) && defined(NRF_FICR_S)
+#if defined(NRF54H_SERIES)
+	/* Can't access SICR with device id on a radio core. Use BLE.ADDR. */
+	deviceid[0] = NRF_FICR->BLE.ADDR[0];
+	deviceid[1] = NRF_FICR->BLE.ADDR[1];
+#elif defined(CONFIG_TRUSTED_EXECUTION_NONSECURE) && defined(NRF_FICR_S)
 	soc_secure_read_deviceid(deviceid);
 #else
 	deviceid[0] = nrf_ficr_deviceid_get(NRF_FICR, 0);
@@ -735,7 +739,7 @@ static int nrf5_continuous_carrier(const struct device *dev)
 }
 #endif
 
-#if !IS_ENABLED(CONFIG_IEEE802154_NRF5_EXT_IRQ_MGMT)
+#if !defined(CONFIG_IEEE802154_NRF5_EXT_IRQ_MGMT)
 static void nrf5_radio_irq(const void *arg)
 {
 	ARG_UNUSED(arg);
@@ -748,7 +752,7 @@ static void nrf5_irq_config(const struct device *dev)
 {
 	ARG_UNUSED(dev);
 
-#if !IS_ENABLED(CONFIG_IEEE802154_NRF5_EXT_IRQ_MGMT)
+#if !defined(CONFIG_IEEE802154_NRF5_EXT_IRQ_MGMT)
 	IRQ_CONNECT(DT_IRQN(DT_NODELABEL(radio)), NRF_802154_IRQ_PRIORITY, nrf5_radio_irq, NULL, 0);
 	irq_enable(DT_IRQN(DT_NODELABEL(radio)));
 #endif

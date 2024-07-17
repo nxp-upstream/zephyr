@@ -12,6 +12,7 @@ set -ue
 source ${ZEPHYR_BASE}/tests/bsim/compile.source
 
 ${ZEPHYR_BASE}/tests/bsim/bluetooth/host/adv/compile.sh
+app=tests/bsim/bluetooth/host/central compile
 ${ZEPHYR_BASE}/tests/bsim/bluetooth/host/att/compile.sh
 ${ZEPHYR_BASE}/tests/bsim/bluetooth/host/gatt/compile.sh
 ${ZEPHYR_BASE}/tests/bsim/bluetooth/host/l2cap/compile.sh
@@ -26,6 +27,8 @@ app=tests/bsim/bluetooth/host/misc/disconnect/tester compile
 app=tests/bsim/bluetooth/host/misc/conn_stress/central compile
 app=tests/bsim/bluetooth/host/misc/conn_stress/peripheral compile
 app=tests/bsim/bluetooth/host/misc/hfc compile
+app=tests/bsim/bluetooth/host/misc/hfc_multilink/dut compile
+app=tests/bsim/bluetooth/host/misc/hfc_multilink/tester compile
 app=tests/bsim/bluetooth/host/misc/unregister_conn_cb compile
 app=tests/bsim/bluetooth/host/misc/sample_test compile
 

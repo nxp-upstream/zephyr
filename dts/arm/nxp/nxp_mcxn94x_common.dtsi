@@ -803,10 +803,12 @@
 		regulator-name = "mcxn94x-vref";
 		reg = <0x111000 0x14>;
 		status = "disabled";
+		#nxp,reference-cells = <1>;
 		nxp,buffer-startup-delay-us = <400>;
 		nxp,bandgap-startup-time-us = <20>;
 		regulator-min-microvolt = <1000000>;
 		regulator-max-microvolt = <2100000>;
+
 	};
 
 	lpadc0: lpadc@10d000 {
@@ -823,7 +825,7 @@
 		offset-value-b = <0>;
 		#io-channel-cells = <1>;
 		clocks = <&syscon MCUX_LPADC1_CLK>;
-		nxp,reference-supply = <&vref>;
+		nxp,references = <&vref 1800>;
 	};
 
 	lpadc1: lpadc@10e000 {
@@ -893,6 +895,28 @@
 		clocks = <&syscon MCUX_FLEXCAN1_CLK>;
 		clk-source = <0>;
 		status = "disabled";
+	};
+
+	lptmr0: lptmr@4a000 {
+		compatible = "nxp,lptmr";
+		reg = <0x4a000 0x1000>;
+		interrupts = <143 0>;
+		clock-frequency = <16000>;
+		prescaler = <1>;
+		clk-source = <1>;
+		resolution = <32>;
+	};
+
+	flexio0: flexio@105000 {
+		compatible = "nxp,flexio";
+		reg = <0x105000 0x1000>;
+		status = "disabled";
+		interrupts = <105 0>;
+		clocks = <&syscon MCUX_FLEXIO0_CLK>;
+		flexio0_lcd: flexio0-lcd {
+			compatible = "nxp,mipi-dbi-flexio-lcdif";
+			status = "disabled";
+		};
 	};
 };
 

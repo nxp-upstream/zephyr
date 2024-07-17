@@ -687,7 +687,7 @@ struct sensor_read_config {
 	RTIO_IODEV_DEFINE(name, &__sensor_iodev_api, &_CONCAT(__sensor_read_config_, name))
 
 /* Used to submit an RTIO sqe to the sensor's iodev */
-typedef int (*sensor_submit_t)(const struct device *sensor, struct rtio_iodev_sqe *sqe);
+typedef void (*sensor_submit_t)(const struct device *sensor, struct rtio_iodev_sqe *sqe);
 
 /* The default decoder API */
 extern const struct sensor_decoder_api __sensor_default_decoder;
@@ -1056,9 +1056,9 @@ static inline int sensor_read(struct rtio_iodev *iodev, struct rtio *ctx, uint8_
 		}
 		rtio_sqe_prep_read(sqe, iodev, RTIO_PRIO_NORM, buf, buf_len, buf);
 	}
-	rtio_submit(ctx, 1);
+	rtio_submit(ctx, 0);
 
-	struct rtio_cqe *cqe = rtio_cqe_consume(ctx);
+	struct rtio_cqe *cqe = rtio_cqe_consume_block(ctx);
 	int res = cqe->result;
 
 	__ASSERT(cqe->userdata != buf,

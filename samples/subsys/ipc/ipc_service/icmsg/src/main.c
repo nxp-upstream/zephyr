@@ -8,9 +8,9 @@
 #include <zephyr/device.h>
 
 #include <zephyr/ipc/ipc_service.h>
-#if CONFIG_NET_CORE_BOARD
+#if defined(CONFIG_SOC_NRF5340_CPUAPP)
 #include <nrf53_cpunet_mgmt.h>
-#endif /* CONFIG_NET_CORE_BOARD */
+#endif
 #include <string.h>
 
 #include "common.h"
@@ -112,6 +112,11 @@ int main(void)
 
 	LOG_INF("IPC-service HOST demo started");
 
+#if defined(CONFIG_SOC_NRF5340_CPUAPP)
+	LOG_INF("Run network core");
+	nrf53_cpunet_enable(true);
+#endif
+
 	ipc0_instance = DEVICE_DT_GET(DT_NODELABEL(ipc0));
 
 	ret = ipc_service_open_instance(ipc0_instance);
@@ -134,12 +139,12 @@ int main(void)
 		return ret;
 	}
 
-	LOG_INF("Wait 500ms. Let net core finish its sends");
+	LOG_INF("Wait 500ms. Let remote core finish its sends");
 	k_msleep(500);
 
 	LOG_INF("Received %zu [Bytes] in total", received);
 
-#if CONFIG_NET_CORE_BOARD
+#if defined(CONFIG_SOC_NRF5340_CPUAPP)
 	LOG_INF("Stop network core");
 	nrf53_cpunet_enable(false);
 
@@ -178,7 +183,7 @@ int main(void)
 		LOG_ERR("send_for_time() failure");
 		return ret;
 	}
-#endif /* CONFIG_NET_CORE_BOARD */
+#endif /* CONFIG_SOC_NRF5340_CPUAPP */
 
 	LOG_INF("IPC-service HOST demo ended");
 

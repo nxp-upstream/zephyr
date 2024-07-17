@@ -84,7 +84,7 @@ The FRDM-MCXN947 board configuration supports the following hardware features:
 +-----------+------------+-------------------------------------+
 | USDHC     | on-chip    | sdhc                                |
 +-----------+------------+-------------------------------------+
-| VREF      | on-chip    | REGULATOR                           |
+| VREF      | on-chip    | regulator                           |
 +-----------+------------+-------------------------------------+
 | ADC       | on-chip    | adc                                 |
 +-----------+------------+-------------------------------------+
@@ -93,6 +93,13 @@ The FRDM-MCXN947 board configuration supports the following hardware features:
 | LPCMP     | on-chip    | sensor(comparator)                  |
 +-----------+------------+-------------------------------------+
 | FLEXCAN   | on-chip    | CAN                                 |
++-----------+------------+-------------------------------------+
+| LPTMR     | on-chip    | counter                             |
++-----------+------------+-------------------------------------+
+| FLEXIO    | on-chip    | flexio                              |
++-----------+------------+-------------------------------------+
+| DISPLAY   | on-chip    | flexio; MIPI-DBI. Tested with       |
+|           |            | :ref:`lcd_par_s035`                 |
 +-----------+------------+-------------------------------------+
 
 Targets available

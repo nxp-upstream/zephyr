@@ -567,10 +567,11 @@ static int __wifi_args_to_params(const struct shell *sh, size_t argc, char *argv
 			params->mfp = atoi(optarg);
 			break;
 		case 'm':
-			sscanf(optarg, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
-				&params->bssid[0], &params->bssid[1],
-				&params->bssid[2], &params->bssid[3],
-				&params->bssid[4], &params->bssid[5]);
+			if (net_bytes_from_str(params->bssid, sizeof(params->bssid),
+					       optarg) < 0) {
+				PR_WARNING("Invalid MAC address\n");
+				return -EINVAL;
+			}
 			break;
 		case 't':
 			if (iface_mode == WIFI_MODE_INFRA) {
@@ -607,7 +608,7 @@ static int __wifi_args_to_params(const struct shell *sh, size_t argc, char *argv
 static int cmd_wifi_connect(const struct shell *sh, size_t argc,
 			    char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_connect_req_params cnx_params = { 0 };
 	int ret;
 
@@ -634,7 +635,7 @@ static int cmd_wifi_connect(const struct shell *sh, size_t argc,
 static int cmd_wifi_disconnect(const struct shell *sh, size_t argc,
 			       char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	int status;
 
 	context.disconnecting = true;
@@ -1263,7 +1264,7 @@ static int cmd_wifi_twt_teardown_all(const struct shell *sh, size_t argc,
 static int cmd_wifi_ap_enable(const struct shell *sh, size_t argc,
 			      char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sap();
 	static struct wifi_connect_req_params cnx_params;
 	int ret;
 
@@ -1290,7 +1291,7 @@ static int cmd_wifi_ap_enable(const struct shell *sh, size_t argc,
 static int cmd_wifi_ap_disable(const struct shell *sh, size_t argc,
 			       char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sap();
 	int ret;
 
 	ret = net_mgmt(NET_REQUEST_WIFI_AP_DISABLE, iface, NULL, 0);
