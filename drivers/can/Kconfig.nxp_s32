@@ -17,6 +17,13 @@ config CAN_NXP_S32_RX_FIFO
 	  If this is enabled, NXP S32 CANXL uses RX FIFO.
 	  Otherwise NXP S32 CANXL uses RX Message Descriptor.
 
+config CAN_NXP_S32_RX_FIFO_KEEP_FIRST_QUEUE
+	bool "NXP S32 CANXL RX FIFO keeps in first queue"
+	depends on CAN_NXP_S32_RX_FIFO
+	default n
+	help
+	  If this is enabled, NXP S32 CANXL RX FIFO keeps in first queue.
+
 config CAN_NXP_S32_MAX_RX
 	int "Maximum number of RX descriptors"
 	default 16
