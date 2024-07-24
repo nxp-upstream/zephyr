@@ -293,7 +293,8 @@ static int video_mcux_csi_enqueue(const struct device *dev, enum video_endpoint_
 	}
 
 	to_read = data->csi_config.linePitch_Bytes * data->csi_config.height;
-	vbuf->bytesused = to_read;
+	vbuf->bytesframe = vbuf->bytesused = to_read;
+	vbuf->flags = VIDEO_BUF_EOF;
 
 	ret = CSI_TransferSubmitEmptyBuffer(config->base, &data->csi_handle,
 					    (uint32_t)vbuf->buffer);
@@ -394,6 +395,8 @@ static int video_mcux_csi_get_caps(const struct device *dev, enum video_endpoint
 
 	/* NXP MCUX CSI request at least 2 buffer before starting */
 	caps->min_vbuf_count = 2;
+	caps->vbuf_per_frame = 1;
+	caps->feature_flags = 0;
 
 	/* no source dev */
 	return err;

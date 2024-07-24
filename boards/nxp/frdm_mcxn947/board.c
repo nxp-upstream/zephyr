@@ -140,6 +140,11 @@ static int frdm_mcxn947_init(void)
 	CLOCK_AttachClk(kFRO12M_to_FLEXCOMM4);
 #endif
 
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(flexcomm7), okay)
+	CLOCK_SetClkDiv(kCLOCK_DivFlexcom7Clk, 1u);
+	CLOCK_AttachClk(kFRO12M_to_FLEXCOMM7);
+#endif
+
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(os_timer), okay)
 	CLOCK_AttachClk(kCLK_1M_to_OSTIMER);
 #endif
@@ -230,6 +235,19 @@ static int frdm_mcxn947_init(void)
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(usdhc0), okay)
 	CLOCK_SetClkDiv(kCLOCK_DivUSdhcClk, 1u);
 	CLOCK_AttachClk(kFRO_HF_to_USDHC);
+#endif
+
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(smartdma), okay)
+	CLOCK_EnableClock(kCLOCK_Smartdma);
+	RESET_PeripheralReset(kSMART_DMA_RST_SHIFT_RSTn);
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(video_sdma), okay)
+	/* Drive CLKOUT from PLL0, divided by 27 to yield ~5.5MHz clock
+	 * The camera will use this clock signal to generate
+	 * PCLK, HSYNC, and VSYNC
+	 */
+	SYSCON->CLKOUTSEL = 0x1;
+	SYSCON->CLKOUTDIV = 26;
+#endif
 #endif
 
 #if CONFIG_FLASH_MCUX_FLEXSPI_NOR
