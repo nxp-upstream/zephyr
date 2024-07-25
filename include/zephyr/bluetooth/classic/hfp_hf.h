@@ -224,6 +224,30 @@ int bt_hfp_hf_send_cmd(struct bt_conn *conn, enum bt_hfp_hf_at_cmd cmd);
 int bt_hfp_hf_cli(struct bt_conn *conn, bool enable);
 #endif /* CONFIG_BT_HFP_HF_CLI */
 
+#if defined(CONFIG_BT_HFP_HF_VOLUME)
+/** @brief Handsfree HF set Gain of Microphone (VGM)
+ *
+ *  set Gain of Microphone (VGM).
+ *
+ *  @param conn Connection object.
+ *  @param gain Gain of microphone.
+ *
+ *  @return 0 in case of success or negative value in case of error.
+ */
+int bt_hfp_hf_vgm(struct bt_conn *conn, uint8_t gain);
+
+/** @brief Handsfree HF set Gain of Speaker (VGS)
+ *
+ *  set Gain of Speaker (VGM).
+ *
+ *  @param conn Connection object.
+ *  @param gain Gain of speaker.
+ *
+ *  @return 0 in case of success or negative value in case of error.
+ */
+int bt_hfp_hf_vgs(struct bt_conn *conn, uint8_t gain);
+#endif /* CONFIG_BT_HFP_HF_VOLUME */
+
 #ifdef __cplusplus
 }
 #endif
