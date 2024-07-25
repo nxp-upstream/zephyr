@@ -155,6 +155,18 @@ struct bt_hfp_hf_cb {
 	 */
 	void (*cmd_complete_cb)(struct bt_conn *conn,
 			      struct bt_hfp_hf_cmd_complete *cmd);
+#if defined(CONFIG_BT_HFP_HF_CLI)
+	/** HF calling line identification notification callback to application
+	 *
+	 *  If this callback is provided it will be called whenever there
+	 *  is a unsolicited result code +CLIP.
+	 *
+	 *  @param conn Connection object.
+	 *  @param number Notified phone number.
+	 *  @param type Specify the format of the phone number.
+	 */
+	void (*clip)(struct bt_conn *conn, char *number, uint8_t type);
+#endif /* CONFIG_BT_HFP_HF_CLI */
 };
 
 /** @brief Register HFP HF profile
