@@ -191,6 +191,19 @@ int bt_hfp_hf_register(struct bt_hfp_hf_cb *cb);
  */
 int bt_hfp_hf_send_cmd(struct bt_conn *conn, enum bt_hfp_hf_at_cmd cmd);
 
+#if defined(CONFIG_BT_HFP_HF_CLI)
+/** @brief Handsfree HF enable/disable Calling Line Identification (CLI) Notification
+ *
+ *  Enable/disable Calling Line Identification (CLI) Notification.
+ *
+ *  @param conn Connection object.
+ *  @param enable Enable/disable CLI.
+ *
+ *  @return 0 in case of success or negative value in case of error.
+ */
+int bt_hfp_hf_cli(struct bt_conn *conn, bool enable);
+#endif /* CONFIG_BT_HFP_HF_CLI */
+
 #ifdef __cplusplus
 }
 #endif
