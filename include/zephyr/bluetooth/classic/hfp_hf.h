@@ -238,7 +238,11 @@ int bt_hfp_hf_cli(struct bt_conn *conn, bool enable);
 #if defined(CONFIG_BT_HFP_HF_VOLUME)
 /** @brief Handsfree HF set Gain of Microphone (VGM)
  *
- *  set Gain of Microphone (VGM).
+ *  Set Gain of Microphone (VGM).
+ *  For "Volume Level Synchronization", the HF application could call
+ *  the function to set VGM gain value in HF connection callback
+ *  function. Then after the HF connection callback returned, VGM gain
+ *  will be sent to HFP AG.
  *
  *  @param conn Connection object.
  *  @param gain Gain of microphone.
@@ -249,7 +253,11 @@ int bt_hfp_hf_vgm(struct bt_conn *conn, uint8_t gain);
 
 /** @brief Handsfree HF set Gain of Speaker (VGS)
  *
- *  set Gain of Speaker (VGM).
+ *  Set Gain of Speaker (VGS).
+ *  For "Volume Level Synchronization", the HF application could call
+ *  the function to set VGS gain value in HF connection callback
+ *  function. Then after the HF connection callback returned, VGS gain
+ *  will be sent to HFP AG.
  *
  *  @param conn Connection object.
  *  @param gain Gain of speaker.
