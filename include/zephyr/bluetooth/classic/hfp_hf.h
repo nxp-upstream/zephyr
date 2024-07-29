@@ -45,6 +45,11 @@ struct bt_hfp_hf_cmd_complete {
 	uint8_t cme;
 };
 
+/* HFP CODEC IDs */
+#define BT_HFP_HF_CODEC_CVSD    0x01
+#define BT_HFP_HF_CODEC_MSBC    0x02
+#define BT_HFP_HF_CODEC_LC3_SWB 0x03
+
 /** @brief HFP profile application callback */
 struct bt_hfp_hf_cb {
 	/** HF connected callback to application
@@ -215,6 +220,17 @@ struct bt_hfp_hf_cb {
 	 */
 	void (*operator)(struct bt_conn *conn, uint8_t mode, uint8_t format,
 		    char *operator);
+
+	/** Codec negotiate callback
+	 *
+	 *  If this callback is provided it will be called whenever the
+	 *  unsolicited codec negotiation response received.
+	 *  Refers to BT_HFP_HF_CODEC_XXX for codec id value.
+	 *
+	 *  @param ag HFP AG object.
+	 *  @param id Negotiated Codec ID.
+	 */
+	void (*codec_negotiate)(struct bt_conn *conn, uint8_t id);
 };
 
 /** @brief Register HFP HF profile
@@ -304,6 +320,44 @@ int bt_hfp_hf_get_operator(struct bt_conn *conn);
  *  @return 0 in case of success or negative value in case of error.
  */
 int bt_hfp_hf_accept(struct bt_conn *conn);
+
+/** @brief Handsfree HF setup audio connection
+ *
+ *  Setup audio conenction by sending AT+BCC.
+ *
+ *  @param conn Connection object.
+ *
+ *  @return 0 in case of success or negative value in case of error.
+ */
+int bt_hfp_hf_audio_connect(struct bt_conn *conn);
+
+/** @brief Handsfree HF set selected codec id
+ *
+ *  Set selected codec id by sending AT+BCS. The function is used to
+ *  response the codec negotiation request notified by callback
+ *  `codec_negotiate`. The parameter `codec_id` should be same as
+ *  `id` of callback `codec_negotiate` if the id could be supported.
+ *  Or, call `bt_hfp_hf_set_codecs` to notify the AG Codec IDs supported
+ *  by HFP HF.
+ *
+ *  @param conn Connection object.
+ *  @param codec_id Selected codec id.
+ *
+ *  @return 0 in case of success or negative value in case of error.
+ */
+int bt_hfp_hf_select_codec(struct bt_conn *conn, uint8_t codec_id);
+
+/** @brief Handsfree HF set supported codec ids
+ *
+ *  Set supported codec ids by sending AT+BAC. This function is used
+ *  to notify AG the supported Codec IDs of HF.
+ *
+ *  @param conn Connection object.
+ *  @param codec_ids Supported codec IDs.
+ *
+ *  @return 0 in case of success or negative value in case of error.
+ */
+int bt_hfp_hf_set_codecs(struct bt_conn *conn, uint8_t codec_ids);
 
 #ifdef __cplusplus
 }
