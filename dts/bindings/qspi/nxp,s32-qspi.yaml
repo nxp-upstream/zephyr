@@ -1,4 +1,4 @@
-# Copyright 2023 NXP
+# Copyright 2023-2024 NXP
 # SPDX-License-Identifier: Apache-2.0
 
 description: |
@@ -15,6 +15,9 @@ bus: qspi
 
 properties:
   reg:
+    required: true
+
+  reg-names:
     required: true
 
   "#address-cells":
@@ -52,6 +55,7 @@ properties:
 
   cs-setup-time:
     type: int
+    enum: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     default: 3
     description: |
       Chip select setup time, in serial clock cycles. A bigger value will pull
@@ -60,6 +64,7 @@ properties:
 
   cs-hold-time:
     type: int
+    enum: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     default: 3
     description: |
       Chip select hold time, in serial clock cycles. A bigger value will release
@@ -69,6 +74,7 @@ properties:
   column-space:
     type: int
     default: 0
+    enum: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     description: |
       Column Address Space bit width. For example, if the column address is
       [2:0] of QSPI_SFAR/AHB address, then the column address space bit width
@@ -88,25 +94,42 @@ properties:
       In case of Octal DDR mode, specifies whether a word unit composed of two
       bytes from posedge and negedge of a single DQS cycle needs to be swapped.
 
-  ahb-buffers-masters:
+  ahb-buffers:
     type: array
     description: |
-      Masters ID's for the AHB receive buffers. The master ID of every incoming
-      request is checked and the data is returned or fetched into the
-      corresponding associated buffer. The maximum number of buffers is SoC
-      specific.
-
-  ahb-buffers-sizes:
-    type: array
-    description: |
-      Sizes (in bytes) of the AHB receive buffers. The maximum buffer size and
-      maximum number of buffers is SoC specific.
+      AHB receive buffer configuration as in an array of tuples in the form
+      <master-id buffer-size>. The maximum buffer size is given by property
+      ahb-buffer-size, and the maximum number of buffers is SoC specific.
+      The master ID of every incoming request is checked and the data is
+      returned or fetched into the corresponding associated buffer.
 
   ahb-buffers-all-masters:
     type: boolean
     description: |
       Any access from a master not associated with any other buffer is routed to
       the last buffer.
+
+  # ahb-buffer-size:
+  #   type: int
+  #   description: |
+  #     Maximum size in bytes of AHB receive buffers.
+
+  # tx-fifo-size:
+  #   type: int
+  #   description: |
+  #     QSPI transmit FIFO size in bytes.
+
+  # rx-fifo-size:
+  #   type: int
+  #   description: |
+  #     QSPI receive FIFO size in bytes.
+
+  chip-options:
+    type: int
+    description: |
+      Value to write to QSPI SOC configuration register (SOCCFG), if available.
+      For details, see chip-specific QSPI information in the device reference
+      manual.
 
   a-rx-clock-source:
     type: string

@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 NXP
+ * Copyright 2023-2024 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -330,8 +330,7 @@
 	data-rate = "SDR";
 	a-rx-clock-source = "LOOPBACK";
 	a-dll-mode = "BYPASSED";
-	ahb-buffers-masters = <0 1 2 3>;
-	ahb-buffers-sizes = <0 0 0 256>;
+	ahb-buffers = <0 0>, <1 0>, <2 0>, <3 256>;
 	ahb-buffers-all-masters;
 	status = "okay";
 

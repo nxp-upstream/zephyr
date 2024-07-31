@@ -1,13 +1,11 @@
 /*
- * Copyright 2023 NXP
+ * Copyright 2023-2024 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #include <zephyr/device.h>
 #include <sys/types.h>
-
-#include <Qspi_Ip.h>
 
 /**
  * @brief Build a QSPI Look-up Table (LUT) sequence entry.
