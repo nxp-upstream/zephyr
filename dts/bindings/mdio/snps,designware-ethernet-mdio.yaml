@@ -1,0 +1,12 @@
+# Copyright 2024 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: Synopsys DesignWare Ethernet MDIO
+
+compatible: "snps,designware-ethernet-mdio"
+
+include: [base.yaml, mdio-controller.yaml, pinctrl-device.yaml]
+
+properties:
+  clocks:
+    required: true

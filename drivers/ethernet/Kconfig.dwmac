@@ -7,7 +7,7 @@ menuconfig ETH_DWMAC
 	bool "Synopsys DesignWare MAC driver"
 	default y
 	depends on NET_BUF_FIXED_DATA_SIZE
-	depends on (SOC_SERIES_STM32H7X && !ETH_STM32_HAL) || MMU
+	depends on (SOC_SERIES_STM32H7X && !ETH_STM32_HAL) || MMU || SOC_FAMILY_NXP_S32
 	depends on DT_HAS_SNPS_DESIGNWARE_ETHERNET_ENABLED
 	help
 	  This is a driver for the Synopsys DesignWare MAC, also referred to
@@ -38,6 +38,12 @@ config ETH_DWMAC_MMU
 	depends on MMU
 	default y
 
+config ETH_DWMAC_NXP_S32
+	bool
+	depends on SOC_FAMILY_NXP_S32
+	select NOCACHE_MEMORY if ARCH_HAS_NOCACHE_MEMORY_SUPPORT
+	default y
+
 config DWMAC_NB_TX_DESCS
 	int "Number of entries in the transmit descriptor ring"
 	default 16
@@ -64,5 +70,31 @@ config DWMAC_NB_RX_DESCS
 	  immediate intervention from the CPU but requires more transient
 	  memory. A smaller number increases the risk of an overflow and
 	  dropped packets.
+
+config DWMAC_FILTER_MULTICAST
+	bool "Multicast hash filter support"
+	imply CRC
+	default y # TODO: remove this line
+	help
+	  Enable support for multicast hash filtering in the MAC.
+	  Once enabled the ethernet MAC performs imperfect filtering
+	  based on a computed hash of the destination MAC address of
+	  the multicast address. Only multicast with the computed
+	  hash set in the multicast table will be received and all
+	  other multicast is dropped by the MAC. If disabled then all
+	  multicast is received by the MAC.
+
+config DWMAC_FILTER_BLOCK_BROADCAST
+	bool "Block all incoming broadcast packets"
+	help
+	  Block all incoming broadcast packets.
+
+config DWMAC_FILTER_RECEIVE_ALL
+	bool "Receive all packets"
+	help
+	  The MAC receiver module forward all received packets to the
+	  application, irrespective of whether they pass the address filter or
+	  not. If disabled, the receiver module forward only those packets to
+	  the application that pass the source or destination address filter.
 
 endif # ETH_DWMAC
