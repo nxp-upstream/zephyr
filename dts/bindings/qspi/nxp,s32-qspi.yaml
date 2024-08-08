@@ -109,16 +109,19 @@ properties:
       Any access from a master not associated with any other buffer is routed to
       the last buffer.
 
+  # TODO
   # ahb-buffer-size:
   #   type: int
   #   description: |
   #     Maximum size in bytes of AHB receive buffers.
 
+  # TODO
   # tx-fifo-size:
   #   type: int
   #   description: |
   #     QSPI transmit FIFO size in bytes.
 
+  # TODO
   # rx-fifo-size:
   #   type: int
   #   description: |
@@ -131,7 +134,24 @@ properties:
       For details, see chip-specific QSPI information in the device reference
       manual.
 
-  a-rx-clock-source:
+  # ----------------------------------------------------------------------------
+  # TODO: move to an array of phandle, one item per port (0=A, 1=B, ...)
+  #   ports = <&qspi0_port_a>;
+  #
+  #   qspi0_port_a: qspi-port@0 {
+  #     compatible = "nxp,s32-qspi-port";
+  #     reg = <0>;    --> PORT A, B, ...
+  #     ... port props ...
+  #
+  #     mx25l6433f: mx25l6433f@0 {
+  #       compatible = "nxp,s32-qspi-nor";
+  #       reg = <0>;  --> CS on port
+  #       size = <DT_SIZE_M(64)>;
+  #       ... mem props ...
+  #     };
+  #   };
+
+  rx-clock-source:
     type: string
     enum:
       - LOOPBACK
@@ -145,21 +165,21 @@ properties:
       - INTERNAL DQS: use internally generated strobe signal.
       - EXTERNAL DQS: use external strobe signal.
 
-  a-io2-idle-high:
+  io2-idle-high:
     type: boolean
     description: |
       Set if the logic level of IO2 signal output of this controller must be
       driven high in the inactive state.
       This property applies to side A of the controller.
 
-  a-io3-idle-high:
+  io3-idle-high:
     type: boolean
     description: |
       Set if the logic level of IO3 signal output of this controller must be
       driven high in the inactive state.
       This property applies to side A of the controller.
 
-  a-dll-mode:
+  dll-mode:
     type: string
     enum:
       - BYPASSED
@@ -170,13 +190,13 @@ properties:
       DLL mode. The supported modes depends on the SoC.
       This property applies to side A of the controller.
 
-  a-dll-freq-enable:
+  dll-freq-enable:
     type: boolean
     description: |
       Selects delay-chain for high frequency of operation.
       This property applies to side A of the controller.
 
-  a-dll-ref-counter:
+  dll-ref-counter:
     type: int
     enum: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     default: 1
@@ -186,7 +206,7 @@ properties:
       Minimum recommended value is 1 (reset value).
       This property applies to side A of the controller.
 
-  a-dll-resolution:
+  dll-resolution:
     type: int
     enum: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     default: 2
@@ -196,7 +216,7 @@ properties:
       The minimum value is 2 (reset value).
       This property applies to side A of the controller.
 
-  a-dll-coarse-delay:
+  dll-coarse-delay:
     type: int
     enum: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     default: 0
@@ -206,7 +226,7 @@ properties:
       Default to 0 (reset value).
       This property applies to side A of the controller.
 
-  a-dll-fine-delay:
+  dll-fine-delay:
     type: int
     enum: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     default: 0
@@ -216,7 +236,7 @@ properties:
       Default to 0 (reset value).
       This property applies to side A of the controller.
 
-  a-dll-tap-select:
+  dll-tap-select:
     type: int
     enum: [0, 1, 2, 3, 4, 5, 6, 7]
     default: 0
@@ -224,6 +244,8 @@ properties:
       Selects the Nth tap provided by the slave delay-chain.
       Default to 0 (reset value).
       This property applies to side A of the controller.
+
+  # ----------------------------------------------------------------------------
 
 child-binding:
   description: NXP S32 QuadSPI port

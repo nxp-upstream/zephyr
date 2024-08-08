@@ -328,11 +328,13 @@
 	pinctrl-0 = <&qspi0_default>;
 	pinctrl-names = "default";
 	data-rate = "SDR";
-	a-rx-clock-source = "LOOPBACK";
-	a-dll-mode = "BYPASSED";
 	ahb-buffers = <0 0>, <1 0>, <2 0>, <3 256>;
 	ahb-buffers-all-masters;
 	status = "okay";
+
+	// TODO: to move to its own child node per port
+	rx-clock-source = "LOOPBACK";
+	dll-mode = "BYPASSED";
 
 	mx25l6433f: mx25l6433f@0 {
 		compatible = "nxp,s32-qspi-nor";

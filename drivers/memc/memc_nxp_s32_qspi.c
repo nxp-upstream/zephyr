@@ -282,13 +282,10 @@ LOG_MODULE_REGISTER(nxp_s32_qspi_memc, CONFIG_MEMC_LOG_LEVEL);
 // -------------------------------------------------------------------------------------------------
 
 // k1, ze
-// #define CONFIG_NXP_QSPI_HAS_EXTRA_IDLE 0
-
-// k1, ze
-// #define CONFIG_NXP_QSPI_HAS_CAS 0
+// #define CONFIG_NXP_QSPI_HAS_CAS
 
 // ze
-// #define CONFIG_NXP_QSPI_HAS_BYTE_SWAP 0
+// #define CONFIG_NXP_QSPI_HAS_BYTE_SWAP
 
 // k1, k3
 #define CONFIG_NXP_QSPI_HAS_RBCT_RXBRD 1
@@ -327,13 +324,23 @@ LOG_MODULE_REGISTER(nxp_s32_qspi_memc, CONFIG_MEMC_LOG_LEVEL);
 // #define CONFIG_NXP_QSPI_HAS_INTERNAL_DQS
 
 // k3, others?
-#define CONFIG_NXP_QSPI_HAS_LOOPBACK
+#define CONFIG_NXP_QSPI_HAS_LOOPBACK 1
 
 // others?
 // #define CONFIG_NXP_QSPI_HAS_LOOPBACK_DQS
 
 // k3, others?
-#define CONFIG_NXP_QSPI_HAS_EXTERNAL_DQS
+#define CONFIG_NXP_QSPI_HAS_EXTERNAL_DQS 1
+
+// k1, ze
+// TODO: FEATURE_QSPI_CONFIGURABLE_ISD=1 for k3 and also in RM, is this supported?
+// #define CONFIG_NXP_QSPI_HAS_CONFIGURABLE_ISD 1
+
+// k3, ze, k1?
+#define CONFIG_NXP_QSPI_HAS_DLL 1
+
+// k3, ze, k1?
+#define CONFIG_NXP_QSPI_HAS_DLL_LOOPCONTROL 1
 
 // -------------------------------------------------------------------------------------------------
 
@@ -361,42 +368,44 @@ enum nxp_qspi_dll_mode {
 };
 
 struct nxp_qspi_dll {
-	enum nxp_qspi_dll_mode dllMode;
-	bool freqEnable;
-	uint8_t referenceCounter;
+	enum nxp_qspi_dll_mode dll_mode;
+	bool freq_enable;
+	uint8_t reference_counter;
 	uint8_t resolution;
-	uint8_t coarseDelay;
-	uint8_t fineDelay;
-	uint8_t tapSelect;
-};
-
-// number of ahb rx buffers available
-#define CONFIG_NXP_QSPI_RX_BUFFERS 4
-
-struct nxp_qspi_buffer {
-	uint8_t master;
-	uint16_t size;
-};
-
-struct nxp_qspi_rx_buffers {
-	struct nxp_qspi_buffer buffers[CONFIG_NXP_QSPI_RX_BUFFERS];
-	bool all_masters;
+	uint8_t coarse_delay;
+	uint8_t fine_delay;
+	uint8_t tap_select;
 };
 
 #define NXP_QSPI_MAX_TPAD 2
 
 struct nxp_qspi_port {
 	uint32_t memory_size[NXP_QSPI_MAX_TPAD];
-	uint8_t io2_idle;
-	uint8_t io3_idle;
-	enum nxp_qspi_read_mode readMode;
-	struct nxp_qspi_dll dllSettings;
+	bool io2_idle; // TODO: turn into a single bit
+	bool io3_idle; // TODO: turn into a single bit
+	enum nxp_qspi_read_mode read_mode;
+	struct nxp_qspi_dll dll;
 };
 
 struct nxp_qspi_address {
 	uint8_t column_space;
 	bool word_addressable;
 	bool byte_swap;
+};
+
+// TODO: perhaps use this to validate the number of buffers from dt is < soc max
+// number of ahb rx buffers available
+// #define CONFIG_NXP_QSPI_RX_BUFFERS 4
+
+struct nxp_qspi_buffer {
+	uint16_t master;
+	uint16_t size;
+} __packed;
+
+struct nxp_qspi_rx_buffers {
+	struct nxp_qspi_buffer *buffers;
+	uint8_t buffers_cnt;
+	bool all_masters;
 };
 
 struct nxp_qspi_sampling {
@@ -447,7 +456,7 @@ static void nxp_qspi_config_ports(const struct memc_nxp_s32_qspi_config *config)
 			REG_WRITE(QSPI_SFAD((i * 2) + j), QSPI_SFAD_TPAD(reg_val));
 		}
 
-#if defined(CONFIG_NXP_QSPI_HAS_EXTRA_IDLE)
+#if defined(CONFIG_NXP_QSPI_HAS_CONFIGURABLE_ISD)
 		/* Configure idle line values */
 		reg_val = REG_READ(QSPI_MCR);
 		if (i == 0) {
@@ -460,7 +469,7 @@ static void nxp_qspi_config_ports(const struct memc_nxp_s32_qspi_config *config)
 				QSPI_MCR_ISD2FB(port->io2_idle) | QSPI_MCR_ISD3FB(port->io3_idle);
 		}
 		REG_WRITE(QSPI_MCR, reg_val);
-#endif /* CONFIG_NXP_QSPI_HAS_EXTRA_IDLE */
+#endif /* CONFIG_NXP_QSPI_HAS_CONFIGURABLE_ISD */
 	}
 }
 
@@ -512,17 +521,19 @@ static void nxp_qspi_config_buffers(const struct memc_nxp_s32_qspi_config *confi
 #endif /* CONFIG_NXP_QSPI_HAS_RBCT_RXBRD */
 
 	reg_val = 0;
-	for (i = 0; i < CONFIG_NXP_QSPI_RX_BUFFERS; i++) {
+	for (i = 0; i < rx_buffers->buffers_cnt; i++) {
+		// TODO: validate buffer[].size < buffer max size
+
 		/* Set AHB transfer sizes to match the buffer sizes */
 		REG_WRITE(QSPI_BUFCR(i), (QSPI_BUFCR_ADATSZ(rx_buffers->buffers[i].size >> 3U) |
 					  QSPI_BUFCR_MSTRID(rx_buffers->buffers[i].master)));
 		/* Set AHB buffer index */
-		if (i < (CONFIG_NXP_QSPI_RX_BUFFERS - 1)) {
+		if (i < (rx_buffers->buffers_cnt - 1)) {
 			reg_val += rx_buffers->buffers[i].size;
 			REG_WRITE(QSPI_BUFIND(i), QSPI_BUFIND_TPINDX(reg_val));
 		}
 	}
-	REG_WRITE(QSPI_BUFCR(CONFIG_NXP_QSPI_RX_BUFFERS - 1),
+	REG_WRITE(QSPI_BUFCR(rx_buffers->buffers_cnt - 1),
 		  QSPI_BUFCR_ALLMST(rx_buffers->all_masters ? 1U : 0U));
 }
 
@@ -595,13 +606,12 @@ static void nxp_qspi_config_read_options(const struct memc_nxp_s32_qspi_config *
 
 	// TODO: extend to multiple ports
 	/* select DQS source (internal/loopback/external) */
-	nxp_qspi_config_dqs_source(config, controller->ports[0].readMode);
+	nxp_qspi_config_dqs_source(config, controller->ports[0].read_mode);
 
 	// TODO: extend to multiple ports
 	/* Select DLL tap in SMPR register */
 	reg_val = REG_READ(QSPI_SMPR) & ~QSPI_SMPR_DLLFSMPFA_MASK;
-	REG_WRITE(QSPI_SMPR,
-		  reg_val | QSPI_SMPR_DLLFSMPFA(controller->ports[0].dllSettings.tapSelect));
+	REG_WRITE(QSPI_SMPR, reg_val | QSPI_SMPR_DLLFSMPFA(controller->ports[0].dll.tap_select));
 }
 
 static void nxp_qspi_config_chip_options(const struct memc_nxp_s32_qspi_config *config)
@@ -781,9 +791,9 @@ static void nxp_qspi_sw_reset(const struct memc_nxp_s32_qspi_config *config)
 // #if defined(CONFIG_NXP_QSPI_HAS_DLLCRA_SLAVE_AUTO_UPDT)
 // 	Qspi_Ip_DLLSlaveAutoUpdateA(config, false);
 // #endif /* CONFIG_NXP_QSPI_HAS_DLLCRA_SLAVE_AUTO_UPDT */
-// 	Qspi_Ip_DLLSetCoarseDelayA(config, controller->dllSettingsA.coarseDelay);
-// 	Qspi_Ip_DLLSetFineOffsetA(config, controller->dllSettingsA.fineDelay);
-// 	Qspi_Ip_DLLFreqEnA(config, controller->dllSettingsA.freqEnable);
+// 	Qspi_Ip_DLLSetCoarseDelayA(config, controller->dllSettingsA.coarse_delay);
+// 	Qspi_Ip_DLLSetFineOffsetA(config, controller->dllSettingsA.fine_delay);
+// 	Qspi_Ip_DLLFreqEnA(config, controller->dllSettingsA.freq_enable);
 
 // 	/* Trigger slave chain update */
 // 	Qspi_Ip_DLLSlaveUpdateA(config, true);
@@ -807,20 +817,20 @@ static void nxp_qspi_sw_reset(const struct memc_nxp_s32_qspi_config *config)
 
 // #if defined(CONFIG_NXP_QSPI_HAS_DLLCRA_SLAVE_AUTO_UPDT)
 // 	Qspi_Ip_DLLSlaveAutoUpdateA(config,
-// 				    (QSPI_DLL_AUTO_UPDATE == controller->dllSettingsA.dllMode));
+// 				    (QSPI_DLL_AUTO_UPDATE == controller->dllSettingsA.dll_mode));
 // #endif /* CONFIG_NXP_QSPI_HAS_DLLCRA_SLAVE_AUTO_UPDT */
 
-// 	Qspi_Ip_DLLSetReferenceCounterA(config, controller->dllSettingsA.referenceCounter);
+// 	Qspi_Ip_DLLSetReferenceCounterA(config, controller->dllSettingsA.reference_counter);
 
 // #if defined(CONFIG_NXP_QSPI_HAS_DLLCRA_DLLRES)
 // 	Qspi_Ip_DLLSetResolutionA(config, controller->dllSettingsA.resolution);
 // #endif /* CONFIG_NXP_QSPI_HAS_DLLCRA_DLLRES */
 
-// 	Qspi_Ip_DLLSetCoarseOffsetA(config, controller->dllSettingsA.coarseDelay);
-// 	Qspi_Ip_DLLSetFineOffsetA(config, controller->dllSettingsA.fineDelay);
-// 	Qspi_Ip_DLLFreqEnA(config, controller->dllSettingsA.freqEnable);
+// 	Qspi_Ip_DLLSetCoarseOffsetA(config, controller->dllSettingsA.coarse_delay);
+// 	Qspi_Ip_DLLSetFineOffsetA(config, controller->dllSettingsA.fine_delay);
+// 	Qspi_Ip_DLLFreqEnA(config, controller->dllSettingsA.freq_enable);
 
-// 	if (QSPI_DLL_AUTO_UPDATE == controller->dllSettingsA.dllMode) {
+// 	if (QSPI_DLL_AUTO_UPDATE == controller->dllSettingsA.dll_mode) {
 // 		/* For auto update mode, trigger slave chain update */
 // 		Qspi_Ip_DLLSlaveUpdateA(config, true);
 // 	}
@@ -830,7 +840,7 @@ static void nxp_qspi_sw_reset(const struct memc_nxp_s32_qspi_config *config)
 // 	Qspi_Ip_DLLEnableA(config, true);
 // #endif /* CONFIG_NXP_QSPI_HAS_DLLCRA_DLLEN */
 
-// 	if (QSPI_DLL_MANUAL_UPDATE == controller->dllSettingsA.dllMode) {
+// 	if (QSPI_DLL_MANUAL_UPDATE == controller->dllSettingsA.dll_mode) {
 // 		/* For manual update mode, wait for DLL lock before triggering slave chain update */
 // 		err = Qspi_Ip_WaitDLLASlaveLock(config, false);
 // 		Qspi_Ip_DLLSlaveUpdateA(config, true);
@@ -859,7 +869,7 @@ static void nxp_qspi_sw_reset(const struct memc_nxp_s32_qspi_config *config)
 // 	/* Enable DQS slave delay chain before any settings take place */
 // 	Qspi_Ip_DLLSlaveEnA(config, true);
 
-// 	if (QSPI_DLL_BYPASSED == controller->dllSettingsA.dllMode) {
+// 	if (QSPI_DLL_BYPASSED == controller->dllSettingsA.dll_mode) {
 // 		err = Qspi_Ip_ConfigureDLLAByPass(config, controller);
 // 	} else {
 // 		/* QSPI_DLL_MANUAL_UPDATE or QSPI_DLL_AUTO_UPDATE */
@@ -921,53 +931,72 @@ static int memc_nxp_s32_qspi_init(const struct device *dev)
 	return err;
 }
 
-#define QSPI_DLL_CFG(n, side, side_upper)                                                          \
-	IF_ENABLED(                                                                                \
-		FEATURE_QSPI_HAS_DLL,                                                              \
-		(.dllSettings##side_upper = {                                                      \
-			 .dllMode = _CONCAT(QSPI_DLL_,                                             \
-					    DT_INST_STRING_UPPER_TOKEN(n, side##_dll_mode)),       \
-			 .freqEnable = DT_INST_PROP(n, side##_dll_freq_enable),                    \
-			 .coarseDelay = DT_INST_PROP(n, side##_dll_coarse_delay),                  \
-			 .fineDelay = DT_INST_PROP(n, side##_dll_fine_delay),                      \
-			 .tapSelect = DT_INST_PROP(n, side##_dll_tap_select),                      \
-			 IF_ENABLED(FEATURE_QSPI_DLL_LOOPCONTROL,                                  \
-				    (.referenceCounter = DT_INST_PROP(n, side##_dll_ref_counter),  \
-				     .resolution = DT_INST_PROP(n, side##_dll_resolution), ))}, ))
+// #define QSPI_DLL_CFG(n, side, side_upper)
+// 	IF_ENABLED(
+// 		FEATURE_QSPI_HAS_DLL,
+// 		(.dll##side_upper = {
+// 			 .freq_enable = DT_INST_PROP(n, side##_dll_freq_enable),
+// 			 .coarse_delay = DT_INST_PROP(n, side##_dll_coarse_delay),
+// 			 .fine_delay = DT_INST_PROP(n, side##_dll_fine_delay),
+// 			 .tap_select = DT_INST_PROP(n, side##_dll_tap_select),
+// 			 IF_ENABLED(FEATURE_QSPI_DLL_LOOPCONTROL,
+// 				    (.reference_counter = DT_INST_PROP(n, side##_dll_ref_counter),
+// 				     .resolution = DT_INST_PROP(n, side##_dll_resolution), ))}, ))
 
-#define QSPI_READ_MODE(n, side, side_upper)                                                        \
-	_CONCAT(QSPI_READ_MODE_, DT_INST_STRING_UPPER_TOKEN(n, side##_rx_clock_source))
+// #define QSPI_PORT_SIZE_FN(node_id, side_upper, port)
+// 	COND_CODE_1(IS_EQ(DT_REG_ADDR(node_id), QSPI_PCSF##side_upper##port),
+// 		    (COND_CODE_1(DT_NODE_HAS_STATUS(node_id, okay),
+// 				 (.memSize##side_upper##port = DT_PROP(node_id, size) / 8, ),
+// 				 (.memSize##side_upper##port = 0, ))),
+// 		    (EMPTY))
 
-#define QSPI_IDLE_SIGNAL_DRIVE(n, side, side_upper)                                                \
-	IF_ENABLED(FEATURE_QSPI_CONFIGURABLE_ISD,                                                  \
-		   (.io2_idle##side_upper = (uint8_t)DT_INST_PROP(n, side##_io2_idle_high),        \
-		    .io3_idle##side_upper = (uint8_t)DT_INST_PROP(n, side##_io3_idle_high), ))
+// #define QSPI_PORT_SIZE(n, side_upper)
+// 	DT_INST_FOREACH_CHILD_VARGS(n, QSPI_PORT_SIZE_FN, side_upper, 1)
+// 	DT_INST_FOREACH_CHILD_VARGS(n, QSPI_PORT_SIZE_FN, side_upper, 2)
 
-#define QSPI_PORT_SIZE_FN(node_id, side_upper, port)                                               \
-	COND_CODE_1(IS_EQ(DT_REG_ADDR(node_id), QSPI_PCSF##side_upper##port),                      \
-		    (COND_CODE_1(DT_NODE_HAS_STATUS(node_id, okay),                                \
-				 (.memSize##side_upper##port = DT_PROP(node_id, size) / 8, ),      \
-				 (.memSize##side_upper##port = 0, ))),                             \
-		    (EMPTY))
+// // port configuration
+// #define QSPI_SIDE_CFG(n, side, side_upper)
+// 	QSPI_DLL_CFG(n, side, side_upper)
 
-#define QSPI_PORT_SIZE(n, side_upper)                                                              \
-	DT_INST_FOREACH_CHILD_VARGS(n, QSPI_PORT_SIZE_FN, side_upper, 1)                           \
-	DT_INST_FOREACH_CHILD_VARGS(n, QSPI_PORT_SIZE_FN, side_upper, 2)
+/* clang-format off */
+#define MEMC_NXP_S32_QSPI_PORT_CONFIG(port, n)                                                     \
+	{                                                                                          \
+		.memory_size = {0}, /* TODO: get from each child (CS) on the port */               \
+		.read_mode = _CONCAT(QSPI_READ_MODE_,                                              \
+				     DT_INST_STRING_UPPER_TOKEN(n, rx_clock_source)),              \
+		IF_ENABLED(CONFIG_NXP_QSPI_HAS_CONFIGURABLE_ISD, (                                 \
+			.io2_idle = DT_INST_PROP(n, io2_idle_high),                                \
+			.io3_idle = DT_INST_PROP(n, io3_idle_high),))                              \
+		IF_ENABLED(CONFIG_NXP_QSPI_HAS_DLL, (                                              \
+			.dll = {                                                                   \
+				.dll_mode = _CONCAT(QSPI_DLL_,                                     \
+						    DT_INST_STRING_UPPER_TOKEN(n, dll_mode)),      \
+				.freq_enable = DT_INST_PROP(n, dll_freq_enable),                   \
+				.coarse_delay = DT_INST_PROP(n, dll_coarse_delay),                 \
+				.fine_delay = DT_INST_PROP(n, dll_fine_delay),                     \
+				.tap_select = DT_INST_PROP(n, dll_tap_select),                     \
+				IF_ENABLED(CONFIG_NXP_QSPI_HAS_DLL_LOOPCONTROL, (                  \
+					.reference_counter = DT_INST_PROP(n, dll_ref_counter),     \
+					.resolution = DT_INST_PROP(n, dll_resolution),))           \
+			},))                                                                       \
+	}
 
-#define QSPI_SIDE_CFG(n, side, side_upper)                                                         \
-	QSPI_IDLE_SIGNAL_DRIVE(n, side, side_upper)                                                \
-	QSPI_DLL_CFG(n, side, side_upper)                                                          \
-	QSPI_PORT_SIZE(n, side_upper).readMode##side_upper = QSPI_READ_MODE(n, side, side_upper),
+	// TODO: assertion per port
+	// BUILD_ASSERT(_CONCAT(CONFIG_NXP_QSPI_HAS_,
+	// 		     DT_INST_STRING_UPPER_TOKEN(n, rx_clock_source)) == 1,
+	// 	     "rx-clock-source source mode selected is not supported");
+
+/* clang-format on */
 
 #define MEMC_NXP_S32_QSPI_CONTROLLER_CONFIG(n)                                                     \
-	BUILD_ASSERT(_CONCAT(FEATURE_QSPI_, DT_INST_STRING_UPPER_TOKEN(n, a_rx_clock_source)) ==   \
-			     1,                                                                    \
-		     "a-rx-clock-source source mode selected is not supported");                   \
+                                                                                                   \
+	static uint16_t memc_nxp_s32_qspi_rx_buffer_cfg_##n[] =                                    \
+		DT_INST_PROP_OR(n, ahb_buffers, {0});                                              \
                                                                                                    \
 	static const struct nxp_qspi_controller memc_nxp_s32_qspi_controller_cfg_##n = {           \
+		.ahb_base = (mem_addr_t)DT_INST_REG_ADDR_BY_NAME(n, qspi_ahb),                     \
 		.chip_options = DT_INST_PROP(n, chip_options),                                     \
 		.ddr = (bool)DT_INST_ENUM_IDX(n, data_rate),                                       \
-		.ahb_base = (mem_addr_t)DT_INST_REG_ADDR_BY_NAME(n, qspi_ahb),                     \
 		.timing =                                                                          \
 			{                                                                          \
 				.aligned_2x_refclk = DT_INST_PROP(n, hold_time_2x),                \
@@ -986,20 +1015,23 @@ static int memc_nxp_s32_qspi_init(const struct device *dev)
 			},                                                                         \
 		.rx_buffers =                                                                      \
 			{                                                                          \
-				.buffers = DT_INST_PROP_OR(n, ahb_buffers, {0}),                   \
+				.buffers = (struct nxp_qspi_buffer *)                              \
+					memc_nxp_s32_qspi_rx_buffer_cfg_##n,                       \
+				.buffers_cnt = sizeof(memc_nxp_s32_qspi_rx_buffer_cfg_##n) /       \
+					       sizeof(struct nxp_qspi_buffer),                     \
 				.all_masters = (bool)DT_INST_PROP(n, ahb_buffers_all_masters),     \
 			},                                                                         \
 		.address =                                                                         \
 			{                                                                          \
-				.column_space = DT_INST_PROP_OR(n, column_space),                  \
+				.column_space = DT_INST_PROP(n, column_space),                     \
 				.word_addressable = DT_INST_PROP(n, word_addressable),             \
 				.byte_swap = DT_INST_PROP(n, byte_swapping),                       \
 			},                                                                         \
 		.ports =                                                                           \
-			[                                                                          \
-				{},                                                                \
-			],                                                                         \
-		QSPI_SIDE_CFG(n, a, A),                                                            \
+			{                                                                          \
+				LISTIFY(CONFIG_NXP_QSPI_MAX_PORTS, MEMC_NXP_S32_QSPI_PORT_CONFIG,  \
+					(, ), n),                                                  \
+			},                                                                         \
 	}
 
 #define MEMC_NXP_S32_QSPI_INIT_DEVICE(n)                                                           \
