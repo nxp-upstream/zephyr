@@ -143,6 +143,12 @@
 	pinctrl-names = "default", "sleep";
 };
 
+&lpuart3 {
+	pinctrl-0 = <&pinmux_lpuart3>;
+	pinctrl-1 = <&pinmux_lpuart3_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
 &lpuart12 {
 	status = "okay";
 	current-speed = <115200>;
@@ -256,3 +262,10 @@
 
 p3t1755dp_ard_i3c_interface: &i3c2 {};
 p3t1755dp_ard_i2c_interface: &lpi2c2 {};
+
+&lpspi3 {
+	dmas = <&edma4 1 13>, <&edma4 2 12>;
+	dma-names = "rx", "tx";
+	pinctrl-0 = <&pinmux_lpspi3>;
+	pinctrl-names = "default";
+};

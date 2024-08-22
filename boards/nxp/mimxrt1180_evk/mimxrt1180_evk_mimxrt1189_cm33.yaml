@@ -26,4 +26,6 @@ supported:
   - uart
   - i3c
   - watchdog
+  - dma
+  - spi
 vendor: nxp

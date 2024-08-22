@@ -122,6 +122,10 @@ configuration supports the following hardware features:
 +-----------+------------+-------------------------------------+
 | RTWDOG    | on-chip    | rtwdog                              |
 +-----------+------------+-------------------------------------+
+| DMA       | on-chip    | dma                                 |
++-----------+------------+-------------------------------------+
+| SPI       | on-chip    | spi                                 |
++-----------+------------+-------------------------------------+
 
 The default configuration can be found in the defconfig file:
 :zephyr_file:`boards/nxp/mimxrt1180_evk/mimxrt1180_evk_mimxrt1189_cm33_defconfig`
@@ -149,6 +153,14 @@ The MIMXRT1180 SoC has six pairs of pinmux/gpio controllers.
 +---------------+-----------------+---------------------------+
 | GPIO_AON_20   | LPUART12_RX     | UART Console M7 core      |
 +---------------+-----------------+---------------------------+
+| GPIO_SD_B1_00 | SPI1_CS0        | spi                       |
++---------------+---------------------------------------------+
+| GPIO_SD_B1_01 | SPI1_CLK        | spi                       |
++---------------+---------------------------------------------+
+| GPIO_SD_B1_02 | SPI1_SDO        | spi                       |
++---------------+---------------------------------------------+
+| GPIO_SD_B1_03 | SPI1_SDI        | spi                       |
++---------------+---------------------------------------------+
 
 UART for M7 core is connected to USB-to-UART J60 connector.
 Or user can use open JP7 Jumper to enable second UART on MCU LINK J53 connector.
