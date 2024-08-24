@@ -2,6 +2,7 @@
  * Driver for Synopsys DesignWare MAC
  *
  * Copyright (c) 2021 BayLibre SAS
+ * Copyright 2024 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -17,9 +18,10 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include <zephyr/cache.h>
 #include <zephyr/net/ethernet.h>
 #include <zephyr/sys/barrier.h>
+#include <zephyr/sys/crc.h>
+#include <zephyr/drivers/ethernet/eth_dwmac_priv.h>
 #include <ethernet/eth_stats.h>
 
-#include "eth_dwmac_priv.h"
 #include "eth.h"
 
 
@@ -36,7 +38,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #endif
 
 /* size of pre-allocated packet fragments */
-#define RX_FRAG_SIZE CONFIG_NET_BUF_DATA_SIZE
+#define FRAG_SIZE CONFIG_NET_BUF_DATA_SIZE
 
 /*
  * Grace period to wait for TX descriptor/fragment availability.
@@ -109,6 +111,22 @@ static enum ethernet_hw_caps dwmac_caps(const struct device *dev)
 		caps |= ETHERNET_LINK_10BASE_T | ETHERNET_LINK_100BASE_T;
 	}
 
+	if (p->feature0 & MAC_HW_FEATURE0_RXCOESEL) {
+		caps |= ETHERNET_HW_RX_CHKSUM_OFFLOAD;
+	}
+
+	if (p->feature0 & MAC_HW_FEATURE0_TXCOESEL) {
+		caps |= ETHERNET_HW_TX_CHKSUM_OFFLOAD;
+	}
+
+#if defined(CONFIG_NET_VLAN)
+	caps |= ETHERNET_HW_VLAN;
+#endif
+
+#if defined(CONFIG_DWMAC_FILTER_MULTICAST)
+	caps |= ETHERNET_HW_FILTERING;
+#endif
+
 	caps |= ETHERNET_PROMISC_MODE;
 
 	return caps;
@@ -140,6 +158,11 @@ static int dwmac_send(const struct device *dev, struct net_pkt *pkt)
 	/* initial flag values */
 	des2_flags = 0;
 	des3_flags = TDES3_FD | TDES3_OWN;
+	if (p->feature0 & MAC_HW_FEATURE0_TXCOESEL) {
+		// TODO: add macros/enums for the value
+		/* IP Header checksum and payload checksum calculation and insertion are enabled */
+		des3_flags |= FIELD_PREP(TDES3_CIC, 0x3);
+	}
 
 	/* map packet fragments */
 	d_idx = p->tx_desc_head;
@@ -360,14 +383,14 @@ static void dwmac_rx_refill_thread(void *arg1, void *unused1, void *unused2)
 
 		/* get a new fragment if the previous one was consumed */
 		if (!frag) {
-			frag = net_pkt_get_reserve_rx_data(RX_FRAG_SIZE, K_FOREVER);
+			frag = net_pkt_get_reserve_rx_data(FRAG_SIZE, K_FOREVER);
 			if (!frag) {
 				LOG_ERR("net_pkt_get_reserve_rx_data() returned NULL");
 				k_sem_give(&p->free_rx_descs);
 				break;
 			}
 			LOG_DBG("new frag[%d] at %p", d_idx, frag->data);
-			__ASSERT(frag->size == RX_FRAG_SIZE, "");
+			__ASSERT(frag->size == FRAG_SIZE, "");
 			sys_cache_data_invd_range(frag->data, frag->size);
 			p->rx_frags[d_idx] = frag;
 		} else {
@@ -466,6 +489,59 @@ static void dwmac_set_mac_addr(struct dwmac_priv *p, uint8_t *addr, int n)
 	REG_WRITE(MAC_ADDRESS_LOW(n), reg_val);
 }
 
+#if defined(CONFIG_DWMAC_FILTER_MULTICAST)
+static uint32_t bit_reverse(uint32_t val)
+{
+	uint32_t res = 0;
+	int i;
+
+	for (i = 0; i < 32; i++) {
+		if (val & BIT(i)) {
+			res |= BIT(31 - i);
+		}
+	}
+
+	return res;
+}
+
+/* Maximum MAC address hash table size (256 bits = 8 bytes) */
+#define MAC_HASH_TABLE_MAX_SIZE 8U
+#define MAC_HASH_TABLE_BIT(crc) ((crc) & GENMASK(4, 0))
+#define MAC_HASH_TABLE_IDX(crc) ((crc) >> 5U)
+
+static int dwmac_config_mac_filter(struct dwmac_priv *p,
+				   const struct ethernet_filter *filter)
+{
+	uint32_t hash_table_size;
+	uint32_t reg_val;
+	uint32_t crc;
+
+	hash_table_size = FIELD_GET(MAC_HW_FEATURE1_HASHTBLSZ, p->feature1);
+	__ASSERT(hash_table_size > 0,
+		 "MAC hash table not supported on this device");
+
+	/* The 6/7/8 MSB of the CRC in 64/128/256 bit hash, respectively,
+	 * are used to index the content of the hash table, and the 5 LSB
+	 * determine the bit within the register.
+	 */
+	crc = bit_reverse(crc32_ieee(filter->mac_address.addr,
+			  sizeof(struct net_eth_addr)));
+	crc >>= (27U - hash_table_size);
+	__ASSERT(MAC_HASH_TABLE_IDX(crc) < MAC_HASH_TABLE_MAX_SIZE,
+		 "Invalid MAC hash table register index");
+
+	reg_val = REG_READ(MAC_HASH_TABLE(MAC_HASH_TABLE_IDX(crc)));
+	if (filter->set) {
+		reg_val |= BIT(MAC_HASH_TABLE_BIT(crc));
+	} else {
+		reg_val &= ~BIT(MAC_HASH_TABLE_BIT(crc));
+	}
+	REG_WRITE(MAC_HASH_TABLE(MAC_HASH_TABLE_IDX(crc)), reg_val);
+
+	return 0;
+}
+#endif /* CONFIG_DWMAC_FILTER_MULTICAST */
+
 static int dwmac_set_config(const struct device *dev,
 			    enum ethernet_config_type type,
 			    const struct ethernet_config *config)
@@ -483,6 +559,12 @@ static int dwmac_set_config(const struct device *dev,
 		net_if_set_link_addr(p->iface, p->mac_addr,
 				     sizeof(p->mac_addr), NET_LINK_ETHERNET);
 		break;
+
+#if defined(CONFIG_DWMAC_FILTER_MULTICAST)
+	case ETHERNET_CONFIG_TYPE_FILTER:
+		dwmac_config_mac_filter(p, &config->filter);
+		break;
+#endif /* CONFIG_DWMAC_FILTER_MULTICAST */
 
 #if defined(CONFIG_NET_PROMISCUOUS_MODE)
 	case ETHERNET_CONFIG_TYPE_PROMISC_MODE:
@@ -507,6 +589,135 @@ static int dwmac_set_config(const struct device *dev,
 	}
 
 	return ret;
+}
+
+static inline void dwmac_mac_filter_init(struct dwmac_priv *p)
+{
+	uint32_t reg_val;
+
+	// 			enabled		disabled
+	// mcast hash		!RA !PR HMC	!HMC
+	// mcast fw all		PM		!RA !PR !PM !HMC
+	// bcast fw all		!DBF		!RA !PR DBF
+	// ucast hash		!RA !PR HUC	!HUC
+	// hash or perf		!RA !PR HPF	!HPF
+
+	reg_val = REG_READ(MAC_PKT_FILTER);
+
+	if (IS_ENABLED(CONFIG_DWMAC_FILTER_MULTICAST)) {
+		/* Enable multicast hash filter */
+		reg_val |= FIELD_PREP(MAC_PKT_FILTER_HMC, 1) |
+			FIELD_PREP(MAC_PKT_FILTER_PM, 0);
+	} else {
+		/* Pass all multicast */
+		reg_val |= FIELD_PREP(MAC_PKT_FILTER_HMC, 0) |
+			FIELD_PREP(MAC_PKT_FILTER_PM, 1);
+	}
+
+	if (IS_ENABLED(CONFIG_DWMAC_FILTER_BLOCK_BROADCAST)) {
+		reg_val |= FIELD_PREP(MAC_PKT_FILTER_DBF, 1);
+	} else {
+		/* Forward all broadcast packets */
+		reg_val |= FIELD_PREP(MAC_PKT_FILTER_DBF, 0);
+	}
+
+	if (IS_ENABLED(CONFIG_DWMAC_FILTER_RECEIVE_ALL)) {
+		/* Receive all packets regardless of other filters */
+		reg_val |= FIELD_PREP(MAC_PKT_FILTER_RA, 1);
+	} else {
+		reg_val |= FIELD_PREP(MAC_PKT_FILTER_RA, 0);
+	}
+
+	REG_WRITE(MAC_PKT_FILTER, reg_val);
+}
+
+static void dwmac_mac_init(struct dwmac_priv *p)
+{
+	uint32_t reg_val;
+
+	reg_val = REG_READ(MAC_CONF);
+	if (p->feature0 & MAC_HW_FEATURE0_RXCOESEL) {
+		/* Enable IPv4 header and IPv4/6 TCP/UDP/ICMP checksum check */
+		reg_val |= MAC_CONF_IPC;
+	}
+	REG_WRITE(MAC_CONF, reg_val);
+
+	/*
+	 * In multiple receive queues configuration, all the queues are disabled by default.
+	 * Enable only queue 0 for generic traffic.
+	*/
+	REG_WRITE(MAC_RXQ_CTRL0, FIELD_PREP(MAC_RXQ_CTRL0_RXQ0EN, 0x2));
+
+	dwmac_mac_filter_init(p);
+}
+
+static void dwmac_dma_init(struct dwmac_priv *p)
+{
+	/* contiguous descriptor table */
+	REG_WRITE(DMA_CHn_CTRL(0), FIELD_PREP(DMA_CHn_CTRL_DSL, 0));
+
+	REG_WRITE(DMA_CHn_TX_CTRL(0),
+		FIELD_PREP(DMA_CHn_TX_CTRL_PBL, 32) |               /* Transmit Programmable Burst Length, 1, 2, 4, 8, 16, or 32 */
+		DMA_CHn_TX_CTRL_OSF);                               /* Operate on Second Packet */
+
+	REG_WRITE(DMA_CHn_RX_CTRL(0),
+		  FIELD_PREP(DMA_CHn_RX_CTRL_PBL, 32) |             /* Receive Programmable Burst Length, 1, 2, 4, 8, 16, or 32 */
+		  FIELD_PREP(DMA_CHn_RX_CTRL_RBSZ, FRAG_SIZE));     /* Receive Buffer size */
+
+	REG_WRITE(DMA_CHn_TXDESC_LIST_HADDR(0), TXDESC_PHYS_H(0));
+	REG_WRITE(DMA_CHn_TXDESC_LIST_ADDR(0), TXDESC_PHYS_L(0));
+	REG_WRITE(DMA_CHn_RXDESC_LIST_HADDR(0), RXDESC_PHYS_H(0));
+	REG_WRITE(DMA_CHn_RXDESC_LIST_ADDR(0), RXDESC_PHYS_L(0));
+	REG_WRITE(DMA_CHn_TXDESC_RING_LENGTH(0), NB_TX_DESCS - 1);
+	REG_WRITE(DMA_CHn_RXDESC_RING_LENGTH(0), NB_RX_DESCS - 1);
+}
+
+// /* DWMAC transmitter scheduling algorithm */
+// enum dwmac_sched_algo {
+// 	/** Weighted Round Robin (WRR) algorithm */
+// 	DWMAC_TX_SCHED_ALGO_WRR  = 0U,
+// 	/** Weighted Fair Queueing (WFQ) algorithm, available when DCB feature selected */
+// 	DWMAC_TX_SCHED_ALGO_WFQ  = 1U,
+// 	/** Deficit Weighted Round Robin (DWRR) algorithm, available when DCB feature selected */
+// 	DWMAC_TX_SCHED_ALGO_DWRR = 2U,
+// 	/** Strict priority algorithm */
+// 	DWMAC_TX_SCHED_ALGO_SP   = 3U
+// };
+
+static void dwmac_mtl_init(struct dwmac_priv *p)
+{
+#define DWMAC_MTL_TX_QUEUE_BLOCK_SIZE 256U
+#define DWMAC_MTL_RX_QUEUE_BLOCK_SIZE 256U
+
+	uint32_t blocks;
+
+	// TODO: this only make sense to configure when supporting multiple tx and rx queues
+	// REG_WRITE(MTL_OPERATION_MODE,
+	// 	/* TX scheduling algorithm */
+	// 	FIELD_PREP(MTL_OPERATION_MODE_SCHALG, DWMAC_TX_SCHED_ALGO_SP) |
+	// 	/* RX arbitration algorithm */
+	// 	FIELD_PREP(MTL_OPERATION_MODE_RAA, 0U));
+
+	/* TX queue */
+	blocks = (NB_TX_DESCS * FRAG_SIZE) / DWMAC_MTL_TX_QUEUE_BLOCK_SIZE;
+	if (blocks > 0U) {
+		blocks = blocks - 1U;
+	}
+	REG_WRITE(MTL_TXQn_OPERATION_MODE(0),
+		FIELD_PREP(MTL_TXQn_OPERATION_MODE_TQS, blocks) |
+		/* queue enabled */
+		FIELD_PREP(MTL_TXQn_OPERATION_MODE_TXQEN, 2U) |
+		/* TODO: should allow selecting transmit store and forward (TSF) or transmit threshold mode (TTC) */
+		MTL_TXQn_OPERATION_MODE_TSF);
+
+	/* RX queue */
+	blocks = (NB_RX_DESCS * FRAG_SIZE) / DWMAC_MTL_RX_QUEUE_BLOCK_SIZE;
+	if (blocks > 0U) {
+		blocks = blocks - 1U;
+	}
+	REG_WRITE(MTL_RXQn_OPERATION_MODE(0),
+		FIELD_PREP(MTL_RXQn_OPERATION_MODE_RQS, blocks));
+		/* TODO: allow selecting receive store and forward (RSF) or receive threshold mode (RTC) */
 }
 
 static void dwmac_iface_init(struct net_if *iface)
@@ -568,7 +779,7 @@ int dwmac_probe(const struct device *dev)
 	uint32_t reg_val;
 	k_timepoint_t timeout;
 
-	ret = dwmac_bus_init(p);
+	ret = dwmac_bus_init(dev);
 	if (ret != 0) {
 		return ret;
 	}
@@ -596,22 +807,14 @@ int dwmac_probe(const struct device *dev)
 	LOG_DBG("hw_feature: 0x%08x 0x%08x 0x%08x 0x%08x",
 		p->feature0, p->feature1, p->feature2, p->feature3);
 
-	dwmac_platform_init(p);
+	dwmac_platform_init(dev);
 
 	memset(p->tx_descs, 0, NB_TX_DESCS * sizeof(struct dwmac_dma_desc));
 	memset(p->rx_descs, 0, NB_RX_DESCS * sizeof(struct dwmac_dma_desc));
 
-	/* set up DMA */
-	REG_WRITE(DMA_CHn_TX_CTRL(0), 0);
-	REG_WRITE(DMA_CHn_RX_CTRL(0),
-		  FIELD_PREP(DMA_CHn_RX_CTRL_PBL, 32) |
-		  FIELD_PREP(DMA_CHn_RX_CTRL_RBSZ, RX_FRAG_SIZE));
-	REG_WRITE(DMA_CHn_TXDESC_LIST_HADDR(0), TXDESC_PHYS_H(0));
-	REG_WRITE(DMA_CHn_TXDESC_LIST_ADDR(0), TXDESC_PHYS_L(0));
-	REG_WRITE(DMA_CHn_RXDESC_LIST_HADDR(0), RXDESC_PHYS_H(0));
-	REG_WRITE(DMA_CHn_RXDESC_LIST_ADDR(0), RXDESC_PHYS_L(0));
-	REG_WRITE(DMA_CHn_TXDESC_RING_LENGTH(0), NB_TX_DESCS - 1);
-	REG_WRITE(DMA_CHn_RXDESC_RING_LENGTH(0), NB_RX_DESCS - 1);
+	dwmac_dma_init(p);
+	dwmac_mtl_init(p);
+	dwmac_mac_init(p);
 
 	return 0;
 }

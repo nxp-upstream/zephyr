@@ -1,0 +1,24 @@
+# Synopsys DesignWare MDIO configuration options
+
+# Copyright 2024 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig MDIO_DWMAC
+	bool "Synopsys DesignWare MDIO driver"
+	default y
+	depends on DT_HAS_SNPS_DESIGNWARE_ETHERNET_MDIO_ENABLED
+	select CLOCK_CONTROL
+	help
+	  This is a MDIO driver for the Synopsys DesignWare MAC, also referred
+	  to as "DesignWare Cores Ethernet Quality-of-Service". Hardware
+	  versions 4.x and 5.x are supported.
+
+if MDIO_DWMAC
+
+config MDIO_DWMAC_TIMEOUT
+	int "Timeout for read/write operations in milliseconds"
+	default 100
+	help
+	  Timeout (in milliseconds) for read/write operations over MDIO.
+
+endif # MDIO_DWMAC
