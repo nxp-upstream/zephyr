@@ -110,14 +110,25 @@
 			status = "okay";
 		};
 
-		sram0: memory@31780000 {
+		dram0: memory@31780000 {
 			compatible = "mmio-sram";
 			reg = <0x31780000 DT_SIZE_M(1)>;
 		};
 
-		sram1: memory@35780000 {
+		dram1: memory@35780000 {
 			compatible = "mmio-sram";
 			reg = <0x35780000 DT_SIZE_M(1)>;
+		};
+
+		/* Accessing code RAM over AXIM bus, allows code RAM to be used for data */
+		cram0_axim: memory@32100000 {
+			compatible = "mmio-sram";
+			reg = <0x32100000 DT_SIZE_M(7)>;
+		};
+
+		cram1_axim: memory@36100000 {
+			compatible = "mmio-sram";
+			reg = <0x36100000 DT_SIZE_M(7)>;
 		};
 
 		uart0: uart@40170000 {
