@@ -28,6 +28,11 @@ void soc_reset_hook(void)
 	 */
 	__set_SCTLR(__get_SCTLR() & ~SCTLR_TE_Msk);
 
+#ifdef CONFIG_CPU_CORTEX_R52_CACHE_SEGREGATION
+	write_imp_csctlr(IMP_CSCTLR(CONFIG_CPU_CORTEX_R52_ICACHE_FLASH_WAY,
+				    CONFIG_CPU_CORTEX_R52_DCACHE_FLASH_WAY));
+#endif
+
 	sys_cache_instr_enable();
 	sys_cache_data_enable();
 }

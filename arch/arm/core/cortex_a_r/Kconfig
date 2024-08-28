@@ -199,5 +199,41 @@ config ICACHE_LINE_SIZE
 
 endif # CPU_AARCH32_CORTEX_R
 
+if CPU_CORTEX_R52 && CACHE_MANAGEMENT && XIP
+
+config CPU_CORTEX_R52_CACHE_SEGREGATION
+	bool "Controls segregation of L1 I/D-Cache ways between Flash and AXIM"
+	default y
+	help
+	  Controls segregation of L1 instruction, data cache ways between Flash and AXIM.
+	  Updates to the cache segregation controls are only permitted before the caches
+	  have ever been enabled, following a system reset, otherwise the update is ignored.
+
+config CPU_CORTEX_R52_ICACHE_FLASH_WAY
+	int "L1 I-Cache Flash way"
+	range 0 4
+	default 0
+	depends on CPU_CORTEX_R52_CACHE_SEGREGATION
+	help
+	  Allocate L1 I-Cache ways for Flash interface. If the application code uses
+	  Flash memory regions only, set all cache ways to Flash. If the application
+	  code extends to memory regions accessed over AXIM interface, split the ways
+	  between Flash and AXIM optimally for performance. Default is reset value, all
+	  I-Cache ways are allocated for AXIM interface.
+
+config CPU_CORTEX_R52_DCACHE_FLASH_WAY
+	int "L1 D-Cache Flash way"
+	range 0 4
+	default 0
+	depends on CPU_CORTEX_R52_CACHE_SEGREGATION
+	help
+	  Allocate L1 D-Cache ways for Flash interface. The constant data in the application
+	  can be allocated to the Flash memory region, but the read/write variables can only
+	  be accessed from the AXIM interface. Then, depending on the proportion of constants
+	  to variables, split the D-Cache ways between Flash and AXIM interfaces. Default is
+	  reset value, all D-Cache ways are allocated for AXIM interface.
+
+endif # CPU_CORTEX_R52 && CACHE_MANAGEMENT && XIP
+
 config TEST_EXTRA_STACK_SIZE
 	default 1024 if SMP

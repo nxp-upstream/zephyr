@@ -55,9 +55,11 @@ SECTION_SUBSEC_FUNC(TEXT, _reset_section, __start)
     cmp r0, #MODE_HYP
     bne EL1_Reset_Handler
 
-    /* Init HSCTLR see Armv8-R AArch32 architecture profile */
-    ldr r0, =(HSCTLR_RES1 | SCTLR_I_BIT | SCTLR_C_BIT)
-    mcr p15, 4, r0, c1, c0, 0
+    /*
+     * See Armv8-R AArch32 architecture profile, HSCTLR can be initialized here
+     * when required. Do not enable EL2 cacheability because the OS initializes
+     * cache segregation at EL1, before EL1 cacheability enabled.
+     */
 
     /* Init HACTLR: Enable EL1 access to all IMP DEF registers */
     ldr r0, =HACTLR_INIT
