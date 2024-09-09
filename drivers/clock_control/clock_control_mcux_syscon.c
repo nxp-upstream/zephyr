@@ -288,9 +288,19 @@ static int mcux_lpc_syscon_clock_control_get_subsys_rate(const struct device *de
 
 #if defined(CONFIG_I3C_MCUX)
 	case MCUX_I3C_CLK:
+#if (FSL_FEATURE_SOC_I3C_COUNT == 1)
 		*rate = CLOCK_GetI3cClkFreq();
+#else
+		*rate = CLOCK_GetI3cClkFreq(0);
+#endif
+		break;
+#if (FSL_FEATURE_SOC_I3C_COUNT == 2)
+	case MCUX_I3C2_CLK:
+		*rate = CLOCK_GetI3cClkFreq(1);
 		break;
 #endif
+
+#endif /* CONFIG_MEMC_MCUX_FLEXSPI */
 
 #if defined(CONFIG_MIPI_DSI_MCUX_2L)
 	case MCUX_MIPI_DSI_DPHY_CLK:
