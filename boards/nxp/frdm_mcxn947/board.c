@@ -146,6 +146,9 @@ static int frdm_mcxn947_init(void)
 	CLOCK_SetClkDiv(kCLOCK_DivPLL1Clk0, 1U);
 #endif
 
+	/* Enable 1MHz clock. */
+	SYSCON->CLOCK_CTRL |= SYSCON_CLOCK_CTRL_FRO1MHZ_CLK_ENA_MASK;
+
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(flexcomm1), okay)
 	CLOCK_SetClkDiv(kCLOCK_DivFlexcom1Clk, 1u);
 	CLOCK_AttachClk(kFRO12M_to_FLEXCOMM1);
@@ -345,6 +348,17 @@ static int frdm_mcxn947_init(void)
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(flexio0), okay)
 	CLOCK_SetClkDiv(kCLOCK_DivFlexioClk, 1u);
 	CLOCK_AttachClk(kPLL0_to_FLEXIO);
+#endif
+
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(i3c1), okay)
+	CLOCK_SetClkDiv(kCLOCK_DivI3c1FClk, DT_PROP(DT_NODELABEL(i3c1), clk_divider));
+	CLOCK_SetClkDiv(kCLOCK_DivI3c1FClkS, DT_PROP(DT_NODELABEL(i3c1), clk_divider_slow));
+	CLOCK_SetClkDiv(kCLOCK_DivI3c1FClkStc, DT_PROP(DT_NODELABEL(i3c1), clk_divider_tc));
+
+	/* Attach PLL0 clock to I3C, 150MHz / 6 = 25MHz. */
+	CLOCK_AttachClk(kPLL0_to_I3C1FCLK);
+	CLOCK_AttachClk(kCLK_1M_to_I3C1FCLKS);
+	CLOCK_AttachClk(kI3C1FCLK_to_I3C1FCLKSTC);
 #endif
 
 	/* Set SystemCoreClock variable. */
