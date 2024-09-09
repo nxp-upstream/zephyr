@@ -22,4 +22,5 @@ supported:
   - adc
   - dma
   - spi
+  - can
 vendor: nxp
