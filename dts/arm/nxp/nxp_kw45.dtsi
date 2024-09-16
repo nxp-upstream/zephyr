@@ -1,0 +1,37 @@
+/*
+ * Copyright 2024 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <mem.h>
+
+/ {
+	soc {
+		ctcm: sram@14000000 {
+			ranges = <0x0 0x14000000 DT_SIZE_K(16)>;
+		};
+
+		stcm: sram@30000000 {
+			ranges = <0x0 0x30000000 DT_SIZE_K(112)>;
+		};
+
+		smu2: sram@489c0000 {
+			ranges = <0x0 0x489c0000 DT_SIZE_K(40)>;
+		};
+
+		peripheral: peripheral@50000000 {
+			ranges = <0x0 0x50000000 DT_SIZE_K(512)>;
+
+			fmu: flash-module@20000 {
+				ranges = <0x0 0x10000000 DT_SIZE_M(1)>;
+			};
+		};
+
+		fast_peripheral: peripheral@58000000 {
+			ranges = <0x0 0x58000000 DT_SIZE_M(8)>;
+		};
+	};
+};
+
+#include "nxp_kw45_common.dtsi"
