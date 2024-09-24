@@ -757,7 +757,8 @@ send:
 	ethernet_update_tx_stats(iface, pkt);
 
 	ret = net_pkt_get_len(pkt);
-	ethernet_remove_l2_header(pkt);
+	/* zero-copy needs (TBD) */
+//	ethernet_remove_l2_header(pkt);
 
 	net_pkt_unref(pkt);
 error:
