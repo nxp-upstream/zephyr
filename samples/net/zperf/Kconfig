@@ -27,7 +27,7 @@ config ETH_NXP_ENET_ZC
         help
           Zero-Copy enablement has some dependencies - set the
 	  NET_BUF_DATA_SIZE to > NET_ETH_MAX_FRAME_SIZE, and set
-	  the NET_BUF_ALIGNMENT to 16 (at least 4). Meanwhile,
+	  the NET_BUF_ALIGNMENT to 64 (at least 32). Meanwhile,
 	  better to set the NET_PKT_RX/TX_COUNT and the
 	  NET_BUF_RX/TX_COUNT to a bigger value (e.g. 160).
 

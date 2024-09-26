@@ -195,6 +195,10 @@ struct net_pkt {
 	uint8_t l2_processed : 1; /* Set to 1 if this packet has already been
 				   * processed by the L2
 				   */
+#ifdef CONFIG_ETH_ZEROCOPY
+	uint8_t l2_hdr_removal : 1;	/* need to remove L2 header frags */
+#endif
+
 	uint8_t chksum_done : 1; /* Checksum has already been computed for
 				  * the packet.
 				  */
@@ -473,6 +477,19 @@ static inline void net_pkt_set_l2_processed(struct net_pkt *pkt,
 {
 	pkt->l2_processed = is_l2_processed;
 }
+
+#ifdef CONFIG_ETH_ZEROCOPY
+static inline bool net_pkt_is_l2_hdr_removal(struct net_pkt *pkt)
+{
+	return !!(pkt->l2_hdr_removal);
+}
+
+static inline void net_pkt_set_l2_hdr_removal(struct net_pkt *pkt,
+                                            bool is_l2_hdr_removal)
+{
+	pkt->l2_hdr_removal = is_l2_hdr_removal;
+}
+#endif
 
 static inline bool net_pkt_is_chksum_done(struct net_pkt *pkt)
 {

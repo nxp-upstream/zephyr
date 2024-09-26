@@ -13,6 +13,10 @@
 
 #define DT_DRV_COMPAT nxp_enet_mac
 
+#ifdef CONFIG_ETH_NXP_ENET_ZC
+#define CONFIG_ETH_ZEROCOPY
+#endif
+
 /* Set up logging module for this driver */
 #define LOG_MODULE_NAME eth_nxp_enet_mac
 #define LOG_LEVEL CONFIG_ETHERNET_LOG_LEVEL
@@ -120,9 +124,8 @@ struct nxp_enet_zc_ctrlnode {
 	struct net_pkt *pkt;
 	uint8_t data;
 };
-#endif
-
-static K_THREAD_STACK_DEFINE(enet_rx_stack, 2*CONFIG_ETH_NXP_ENET_RX_THREAD_STACK_SIZE);
+#else
+static K_THREAD_STACK_DEFINE(enet_rx_stack, CONFIG_ETH_NXP_ENET_RX_THREAD_STACK_SIZE);
 static struct k_work_q rx_work_queue;
 
 static int rx_queue_init(void)
@@ -139,6 +142,7 @@ static int rx_queue_init(void)
 }
 
 SYS_INIT(rx_queue_init, POST_KERNEL, 0);
+#endif
 
 static inline struct net_if *get_iface(struct nxp_enet_mac_data *data)
 {
@@ -544,7 +548,8 @@ static int eth_nxp_enet_rx(const struct device *dev)
 
 	/* now received a valid frame */
 	/* zero copy implementation doesn't support Scatter/Gather mode yet */
-	__ASSERT_NO_MSG(frame.rxBuffArray[1].buffer == NULL);
+	__ASSERT(frame.rxBuffArray[1].buffer == NULL,	\
+			"Zero-copy doesn't support S/G Rx yet, please set the CONFIG_NET_BUF_DATA_SIZE to 2048.");
 
 	/* BD buffer was init-ed of 'pkt->buffer->data' with 'pkt' saved ahead */
 	zc_node = CONTAINER_OF(frame.rxBuffArray[0].buffer, struct nxp_enet_zc_ctrlnode, data);
@@ -619,10 +624,6 @@ static void eth_nxp_enet_rx_thread(struct k_work *work)
 
 	do {
 		ret = eth_nxp_enet_rx(dev);
-#ifdef CONFIG_ETH_NXP_ENET_ZC
-		ENET_TransmitIRQHandler(ENET_IRQ_HANDLER_ARGS(data->base, &data->enet_handle));
-		ENET_EnableInterrupts(data->base, kENET_TxFrameInterrupt);
-#endif
 	} while (ret == 1);
 
 	ENET_EnableInterrupts(data->base, kENET_RxFrameInterrupt);
@@ -757,13 +758,18 @@ static void eth_callback(ENET_Type *base, enet_handle_t *handle,
 	struct net_pkt *pkt;
 
         switch (event) {
-        case kENET_RxEvent:
-//		k_sem_give(&data->rx_thread_sem);
-                break;
         case kENET_TxEvent:
                 ts_register_tx_event(dev, frameinfo);
 		if (frameinfo) {
 			pkt = (struct net_pkt *)frameinfo->context;
+			if (net_pkt_is_l2_hdr_removal(pkt)) {
+				struct net_buf *buf = pkt->buffer;
+				pkt->buffer = buf->frags;
+				buf->frags = NULL;
+				net_pkt_frag_unref(buf);
+				net_pkt_set_l2_hdr_removal(pkt, false);
+			}
+
 			net_pkt_unref(pkt);
 		}
                 break;
@@ -788,16 +794,16 @@ static void eth_nxp_enet_isr(const struct device *dev)
 	if (eir & (kENET_RxFrameInterrupt)) {
 		ENET_ReceiveIRQHandler(ENET_IRQ_HANDLER_ARGS(data->base, &data->enet_handle));
 		ENET_DisableInterrupts(data->base, kENET_RxFrameInterrupt);
+#ifdef CONFIG_ETH_NXP_ENET_ZC
+		/* rx_work_queue thread will have impact with system workq thread at high traffic rate */
+		k_work_submit(&data->rx_work);
+#else
 		k_work_submit_to_queue(&rx_work_queue, &data->rx_work);
+#endif
 	}
 
 	if (eir & kENET_TxFrameInterrupt) {
-#if !defined(CONFIG_ETH_NXP_ENET_ZC)
 		ENET_TransmitIRQHandler(ENET_IRQ_HANDLER_ARGS(data->base, &data->enet_handle));
-#else
-		ENET_DisableInterrupts(data->base, kENET_TxFrameInterrupt);
-		k_work_submit_to_queue(&rx_work_queue, &data->rx_work);
-#endif
 	}
 
 	if (eir & ENET_EIR_MII_MASK) {
@@ -1164,11 +1170,6 @@ static const struct ethernet_api api_funcs = {
 	.txBufferAlign = NULL,
 #define NXP_ENET_RXTX_FRM_BUF(n)
 #define NXP_ENET_RXTX_FRM_BUF_CFG(n)
-#endif
-
-#if defined(CONFIG_ETH_NXP_ENET_ZC)
-#define NXP_ENET_RXTX_FRM_BUF(n)
-#else
 #endif
 
 #define NXP_ENET_NODE_HAS_MAC_ADDR_CHECK(n)						\
