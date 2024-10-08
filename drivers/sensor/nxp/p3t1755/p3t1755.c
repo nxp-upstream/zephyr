@@ -14,29 +14,29 @@
 
 LOG_MODULE_REGISTER(P3T1755, CONFIG_SENSOR_LOG_LEVEL);
 
-static int p3t1755_read_reg(const struct device *dev, uint8_t reg, uint8_t *value, size_t data_size)
+static int p3t1755_read_reg(const struct device *dev, uint8_t reg, uint8_t *value, uint8_t len)
 {
 #if DT_ANY_INST_ON_BUS_STATUS_OKAY(i3c)
 	struct p3t1755_data *data = dev->data;
 
-	return i3c_burst_read(data->i3c_dev, reg, value, data_size);
+	return i3c_burst_read(data->i3c_dev, reg, value, len);
 #else
 	const struct p3t1755_config *config = dev->config;
 
-	return i2c_burst_read_dt(config->bus_cfg.i2c, reg, value, data_size);
+	return i2c_burst_read_dt(config->bus_cfg.i2c, reg, value, len);
 #endif
 }
 
-static int p3t1755_write_reg(const struct device *dev, uint8_t reg, uint8_t *byte)
+static int p3t1755_write_reg(const struct device *dev, uint8_t reg, uint8_t *byte, uint8_t len)
 {
 #if DT_ANY_INST_ON_BUS_STATUS_OKAY(i3c)
 	struct p3t1755_data *data = dev->data;
 
-	return i3c_burst_write(data->i3c_dev, reg, byte, 1);
+	return i3c_burst_write(data->i3c_dev, reg, byte, len);
 #else
 	const struct p3t1755_config *config = dev->config;
 
-	return i2c_reg_write_byte_dt(&config->bus_cfg.i2c, reg, byte);
+	return i2c_burst_write_dt(&config->bus_cfg.i2c, reg, byte, len);
 #endif
 }
 
@@ -53,7 +53,7 @@ static int p3t1755_sample_fetch(const struct device *dev, enum sensor_channel ch
 
 	if (config->oneshot_mode) {
 		data->config_reg |= P3T1755_CONFIG_REG_OS;
-		p3t1755_write_reg(dev, P3T1755_CONFIG_REG, &data->config_reg);
+		p3t1755_write_reg(dev, P3T1755_CONFIG_REG, &data->config_reg, 1);
 		/* Maximum one-shot conversion time per specification is 12ms */
 		k_sleep(K_MSEC(12));
 	}
@@ -70,7 +70,7 @@ static int p3t1755_sample_fetch(const struct device *dev, enum sensor_channel ch
 }
 
 /* Decode a register temperature value to a signed temperature */
-static inline int p3t1755_convert_signed(uint16_t reg)
+static inline int p3t1755_convert_to_signed(uint16_t reg)
 {
 	int rv = reg & P3T1755_TEMPERATURE_ABS_MASK;
 
@@ -93,11 +93,43 @@ static int p3t1755_channel_get(const struct device *dev, enum sensor_channel cha
 		return -ENOTSUP;
 	}
 
-	raw_val = p3t1755_convert_signed(data->sample);
+	raw_val = p3t1755_convert_to_signed(data->sample);
 
 	raw_val = raw_val * P3T1755_TEMPERATURE_SCALE;
 	val->val1 = raw_val / 1000000;
 	val->val2 = raw_val % 1000000;
+
+	return 0;
+}
+
+/* Encode a signed temperature to register format */
+static inline int p3t1755_convert_from_signed(uint16_t reg)
+{
+
+}
+
+static int p3t1755_attr_set(const struct device *dev, enum sensor_channel chan,
+			    enum sensor_attribute attr, const struct sensor_value *val)
+{
+	uint8_t reg = 0;
+	uint8_t raw_temp[2];
+
+	if (chan != SENSOR_CHAN_AMBIENT_TEMP) {
+		return -ENOTSUP;
+	}
+
+	switch (attr) {
+	case SENSOR_ATTR_UPPER_THRESH:
+		reg = P3T1755_TEMPERATURE_HIGH;
+		__fallthrough;
+	case SENSOR_ATTR_LOWER_THRESH:
+		if (!reg) {
+			reg = P3T1755_TEMPERATURE_LOW;
+		}
+		p3t1755_write_reg(dev, reg, raw_temp, 2)
+	default:
+		return -ENOTSUP;
+	}
 
 	return 0;
 }
@@ -129,7 +161,7 @@ static int p3t1755_init(const struct device *dev)
 		 * one-shot temperature measurement.
 		 */
 		data->config_reg |= P3T1755_CONFIG_REG_SD;
-		p3t1755_write_reg(dev, P3T1755_CONFIG_REG, &data->config_reg);
+		p3t1755_write_reg(dev, P3T1755_CONFIG_REG, &data->config_reg, 1);
 	}
 
 	LOG_DBG("Init complete");
@@ -140,6 +172,8 @@ static int p3t1755_init(const struct device *dev)
 static const struct sensor_driver_api p3t1755_driver_api = {
 	.sample_fetch = p3t1755_sample_fetch,
 	.channel_get = p3t1755_channel_get,
+	.attr_set = p3t1755_attr_set,
+	.trigger_set = p3t1755_trigger_set,
 };
 
 /*
