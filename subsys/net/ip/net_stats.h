@@ -80,6 +80,11 @@ static inline void net_stats_update_ipv6_recv(struct net_if *iface)
 	UPDATE_STAT(iface, stats.ipv6.recv++);
 }
 
+static inline void net_stats_update_ipv6_fwd(struct net_if *iface)
+{
+	UPDATE_STAT(iface, stats.ipv6.forwarded++);
+}
+
 static inline void net_stats_update_ipv6_drop(struct net_if *iface)
 {
 	UPDATE_STAT(iface, stats.ipv6.drop++);

@@ -266,15 +266,15 @@ static int eth_nxp_enet_tx(const struct device *dev, struct net_pkt *pkt)
         status_t ret;
 	struct net_buf *ptr = pkt->frags;
 	int index = 0;
-	enet_buffer_struct_t buf[8];
+	enet_buffer_struct_t buf[4];
 
 	while (ptr) {
 		buf[index].buffer = (void *)ptr->data;
 		buf[index++].length = ptr->len;
 		ptr = ptr->frags;
-		if (index >= 8) {
+		if (index >= 4) {
 			LOG_ERR("Scatter/Gather Tx Frame with too many fragments.");
-			break;
+			return -ENOBUFS;
 		}
 	}
 	frame.txBuffArray = &buf[0];
@@ -295,8 +295,7 @@ static int eth_nxp_enet_tx(const struct device *dev, struct net_pkt *pkt)
 		if (frame_is_timestamped) {
 			eth_wait_for_ptp_ts(dev, pkt);
 		} else {
-			LOG_DBG("ENET_StartTxFrame error: %d", ret);
-			ENET_ReclaimTxDescriptor(data->base, &data->enet_handle, RING_ID);
+			LOG_ERR("ENET_StartTxFrame error: %d", ret);
 		}
 	}
         /* Leave critical section for TX frame buffer access */
@@ -518,7 +517,7 @@ static int eth_nxp_enet_rx(const struct device *dev)
 #endif
         struct nxp_enet_mac_data *data = dev->data;
 	enet_rx_frame_struct_t frame = {0};
-	enet_buffer_struct_t buf[8] = {0};
+	enet_buffer_struct_t buf[2] = {0};
         struct net_if *iface;
         struct net_pkt *pkt;
 	struct net_buf *fbuf;
@@ -535,7 +534,7 @@ static int eth_nxp_enet_rx(const struct device *dev)
                 	return 0;
 		} else if (status == kStatus_ENET_RxFrameDrop) {
 			LOG_DBG("ENET_GetRxFrame return: %d (No buffer -- drop)", (int)status);
-			return 0;
+			return -ENOBUFS;	/* continue the remaining rxbd even no buf */
 	        } else if (status == kStatus_ENET_RxFrameError) {
         	        LOG_DBG("ENET_GetRxFrame return: %d, control: 0x%x", (int)status, *(uint32_t *)&frame.rxFrameError);
 			eth_stats_update_errors_rx(get_iface(data));
@@ -603,12 +602,6 @@ static int eth_nxp_enet_rx(const struct device *dev)
 }
 #endif	/* CONFIG_ETH_NXP_ENET_ZC */
 
-#if FSL_FEATURE_ENET_QUEUE > 1
-#define ENET_IRQ_HANDLER_ARGS(base, handle) base, handle, 0
-#else
-#define ENET_IRQ_HANDLER_ARGS(base, handle) base, handle
-#endif /* FSL_FEATURE_ENET_QUEUE > 1 */
-
 static void eth_nxp_enet_rx_thread(struct k_work *work)
 {
 	struct nxp_enet_mac_data *data =
@@ -624,6 +617,9 @@ static void eth_nxp_enet_rx_thread(struct k_work *work)
 
 	do {
 		ret = eth_nxp_enet_rx(dev);
+		/* if no buffer, drop the current packet and continue the next */
+		if (ret == -ENOBUFS)
+			continue;
 	} while (ret == 1);
 
 	ENET_EnableInterrupts(data->base, kENET_RxFrameInterrupt);
@@ -782,6 +778,12 @@ static void eth_callback(ENET_Type *base, enet_handle_t *handle,
         }
 }
 #endif	/* CONFIG_ETH_NXP_ENET_ZC */
+
+#if FSL_FEATURE_ENET_QUEUE > 1
+#define ENET_IRQ_HANDLER_ARGS(base, handle) base, handle, 0
+#else
+#define ENET_IRQ_HANDLER_ARGS(base, handle) base, handle
+#endif /* FSL_FEATURE_ENET_QUEUE > 1 */
 
 static void eth_nxp_enet_isr(const struct device *dev)
 {
@@ -1091,7 +1093,11 @@ static const struct ethernet_api api_funcs = {
 #define _nxp_enet_dma_desc_section __nocache
 #define _nxp_enet_dma_buffer_section __nocache
 #define _nxp_enet_driver_buffer_section
+#if !defined(CONFIG_ETH_NXP_ENET_ZC)
 #define driver_cache_maintain	false
+#else
+#define driver_cache_maintain	true
+#endif
 #else
 #define _nxp_enet_dma_desc_section
 #define _nxp_enet_dma_buffer_section

@@ -594,6 +594,7 @@ enum net_verdict net_ipv6_input(struct net_pkt *pkt, bool is_loopback)
 	if (!net_ipv6_is_addr_mcast((struct in6_addr *)hdr->dst)) {
 		if (!net_if_ipv6_addr_lookup_by_iface(pkt_iface, (struct in6_addr *)hdr->dst)) {
 			if (ipv6_route_packet(pkt, hdr) == NET_OK) {
+				net_stats_update_ipv6_fwd(pkt_iface);
 				return NET_OK;
 			}
 
