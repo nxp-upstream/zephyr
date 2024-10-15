@@ -10,6 +10,7 @@
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/adc.h>
 #include <zephyr/logging/log.h>
+#include <fsl_pmc.h>
 
 LOG_MODULE_REGISTER(temp_kinetis, CONFIG_SENSOR_LOG_LEVEL);
 
@@ -158,6 +159,24 @@ static int temp_kinetis_init(const struct device *dev)
 			.differential = 0,
 		},
 	};
+
+#if (defined(FSL_FEATURE_PMC_HAS_BGBE) && FSL_FEATURE_PMC_HAS_BGBE)
+	/* PMC (Power Management Controller) controls internal bandgap
+	 * buffer on some SoCs. When it is not enabled on such SoCs, ADC
+	 * reading is incorrect if sampling the internal bandgap.
+	 */
+	pmc_bandgap_buffer_config_t band_gap_config = {
+		.enable = true,
+#if (defined(FSL_FEATURE_PMC_HAS_BGEN) && FSL_FEATURE_PMC_HAS_BGEN)
+		.enableInLowPowerMode = false,
+#endif
+#if (defined(FSL_FEATURE_PMC_HAS_BGBDS) && FSL_FEATURE_PMC_HAS_BGBDS)
+		.drive = kPMC_BandgapBufferDriveLow,
+#endif
+	};
+
+	PMC_ConfigureBandgapBuffer(PMC, &band_gap_config);
+#endif
 
 	memset(&data->buffer, 0, sizeof(data->buffer));
 
