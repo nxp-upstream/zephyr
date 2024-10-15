@@ -24,6 +24,20 @@ LOG_MODULE_REGISTER(temp_kinetis, CONFIG_SENSOR_LOG_LEVEL);
 /* Two ADC samples required for each reading, sensor value and bandgap value */
 #define TEMP_KINETIS_ADC_SAMPLES 2
 
+/* Bandgap buffer has to be enabled explicitly on some SoCs
+ * using PMC (Power Management Controller). Get PMC base address
+ * and availability of the buffer control from Devicetree.
+ */
+#define PMC_BASE_ADDRESS						\
+	COND_CODE_1(DT_INST_NODE_HAS_PROP(0, pmc),	\
+		(DT_REG_ADDR(DT_INST_PHANDLE(0, pmc))),	\
+		(0))
+
+#define PMC_HAS_BGBE                                          		\
+	COND_CODE_1(DT_INST_NODE_HAS_PROP(0, pmc),						\
+		(DT_PROP(DT_INST_PHANDLE(0, pmc), bandgap_buffer_enable)),	\
+		(0))
+
 struct temp_kinetis_config {
 	const struct device *adc;
 	uint8_t sensor_adc_ch;
@@ -158,6 +172,12 @@ static int temp_kinetis_init(const struct device *dev)
 			.differential = 0,
 		},
 	};
+#if (PMC_BASE_ADDRESS && PMC_HAS_BGBE)
+	PMC_Type *pmc_base = (PMC_Type *) PMC_BASE_ADDRESS;
+
+	/* Enable bandgap buffer*/
+	pmc_base->REGSC |= (1UL << PMC_REGSC_BGBE_SHIFT);
+#endif
 
 	memset(&data->buffer, 0, sizeof(data->buffer));
 
