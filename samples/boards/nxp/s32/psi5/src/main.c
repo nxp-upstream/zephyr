@@ -11,7 +11,7 @@ LOG_MODULE_REGISTER(nxp_s32_psi5_sample, LOG_LEVEL_DBG);
 
 #include <zephyr/drivers/psi5/psi5.h>
 
-#define PSI5_NODE DT_INST(0, nxp_s32_psi5)
+#define PSI5_NODE DT_INST(0, nxp_s32_psi5_s_controller)
 
 void tx_cb(const struct device *dev, uint8_t channel_id, enum psi5_state state, void *user_data)
 {

@@ -1,0 +1,71 @@
+# Copyright 2024 NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Properties for Peripheral Sensor Interface (PSI5_S) channel
+
+compatible: "nxp,s32-psi5_s-channel"
+
+include: base.yaml
+
+properties:
+  async-mode:
+    type: boolean
+    description: |
+      This setting enables the channel operation asynchronous mode for Rx only.
+      Otherwise enables the channel operation synchronous mode for both Rx and Tx.
+
+  # Channel TX configuration
+  init-cmd:
+    required: true
+    type: int
+    description: |
+      Initial reset reload value for the integrated "CMD" format
+
+  init-acmd:
+    required: true
+    type: int
+    description: |
+      Initial reset reload value for the integrated "ACMD" format
+
+  target-period:
+    required: true
+    type: int
+    description: |
+      Subsequent reload values for the integrated period generator
+
+  counter-delay:
+    required: true
+    type: int
+    description: |
+      Time in us for which the manchester decoder is disabled after the falling
+      edge of a sync pulse
+
+  tx-mode:
+    required: true
+    type: string
+    enum:
+      - SHORT FRAME 31
+      - SHORT FRAME 5
+      - LONG FRAME 31
+      - LONG FRAME 5
+      - X LONG FRAME 31
+      - X LONG FRAME 5
+      - XX LONG FRAME
+      - NON STANDARD FRAME
+    description: |
+      Transmitter mode:
+        - SHORT FRAME 31: Short Frame(V1.3) with 31 "1s" as the start condition
+        - SHORT FRAME 5: Short Frame(V1.3) with 5 "0s" as the start condition
+        - LONG FRAME 31: Long Frame(V1.3) with 31 "1s" as the start condition
+        - LONG FRAME 5: Long Frame(V1.3) with 5 "0s" as the start condition
+        - X LONG FRAME 31: X-Long Frame(V1.3) with 31 "1s" as the start condition
+        - X LONG FRAME 5: X-Long Frame(V1.3) with 5 "0s" as the start condition
+        - XX LONG FRAME: XX-Long (V2.0)
+        - NON STANDARD FRAME: Non Standard Length
+
+  slots-pay-load-size:
+    type: array
+    required: true
+    description: |
+      Payload region length
