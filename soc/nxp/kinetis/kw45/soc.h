@@ -29,6 +29,10 @@
 
 #endif /* !_ASMLANGUAGE */
 
+
+#define ble_hci_handler RF_IMU0_IRQHandler
+#define ble_wakeup_done_handler WUU0_IRQHandler
+
 #ifdef __cplusplus
 extern "C" {
 #endif

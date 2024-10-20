@@ -13,6 +13,10 @@
 #include <zephyr/dt-bindings/memory-attr/memory-attr.h>
 
 / {
+	chosen {
+		zephyr,bt-hci = &hci;
+	};
+
 	aliases {
 		watchdog0 = &wdog0;
 	};
@@ -259,6 +263,13 @@
 		clk-source = <2>;
 		prescaler = <1>;
 		resolution = <32>;
+	};
+
+	hci: hci_ble {
+		compatible = "nxp,hci-ble";
+		/* first index is the hci interrupt, the second is the wake up done interrupt */
+		interrupts = <90 2>, <82 2>;
+		interrupt-names = "hci_int", "wakeup_int";
 	};
 };
 

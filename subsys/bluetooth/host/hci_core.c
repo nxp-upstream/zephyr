@@ -4257,7 +4257,7 @@ int bt_enable(bt_ready_cb_t cb)
 	bt_monitor_new_index(BT_MONITOR_TYPE_PRIMARY, BT_HCI_BUS, BT_ADDR_ANY, BT_HCI_NAME);
 #else /* !DT_HAS_CHONSEN(zephyr_bt_hci) */
 	if (!bt_dev.drv) {
-		LOG_ERR("No HCI driver registered");
+		LOG_ERR("No HCI driver registered #1");
 		return -ENODEV;
 	}
 #endif
@@ -4328,7 +4328,7 @@ int bt_disable(void)
 
 #if !DT_HAS_CHOSEN(zephyr_bt_hci)
 	if (!bt_dev.drv) {
-		LOG_ERR("No HCI driver registered");
+		LOG_ERR("No HCI driver registered #2");
 		return -ENODEV;
 	}
 
