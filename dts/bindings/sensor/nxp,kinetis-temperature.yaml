@@ -21,6 +21,13 @@ properties:
     required: true
     description: Bandgap voltage in microvolts
 
+  pmc:
+    type: phandle
+    description: |
+        PMC (Power Management Controller) handle. PMC enables
+        bandgap buffer on SoCs which have the buffer disabled
+        by default.
+
   vtemp25:
     type: int
     required: true
