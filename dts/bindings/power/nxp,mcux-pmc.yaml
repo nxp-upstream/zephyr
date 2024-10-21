@@ -1,0 +1,19 @@
+# Copyright 2024 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: NXP MCUX PMC (Power Management Controller)
+
+compatible: "nxp,mcux-pmc"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
+
+  bandgap-buffer-enable:
+    type: boolean
+    description: |
+        Bandgap buffer can be enabled by BGBE bit in
+        REGSC register. It is optional feature available
+        on some SoCs only.
