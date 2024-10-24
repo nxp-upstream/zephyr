@@ -26,7 +26,7 @@
 #include "i2s_mcux_sai.h"
 
 #define LOG_DOMAIN dev_i2s_mcux
-#define LOG_LEVEL  CONFIG_I2S_LOG_LEVEL
+#define LOG_LEVEL CONFIG_I2S_LOG_LEVEL
 #include <zephyr/logging/log.h>
 #include <zephyr/irq.h>
 
@@ -299,7 +299,6 @@ static void i2s_dma_tx_callback(const struct device *dma_dev, void *arg, uint32_
 			strm->state = I2S_STATE_ERROR;
 			goto disabled_exit_no_drop;
 		}
-		dma_start(dev_data->dev_dma, strm->dma_channel);
 
 		if (blocks_queued || (strm->free_tx_dma_blocks < MAX_TX_DMA_BLOCKS)) {
 			goto enabled_exit;
@@ -389,7 +388,6 @@ static void i2s_dma_rx_callback(const struct device *dma_dev, void *arg, uint32_
 						ret);
 				}
 
-				dma_start(dev_data->dev_dma, strm->dma_channel);
 			}
 		} else {
 			i2s_rx_stream_disable(dev, true, false);
@@ -1169,81 +1167,108 @@ static const struct i2s_driver_api i2s_mcux_driver_api = {
 	.trigger = i2s_mcux_trigger,
 };
 
-#define I2S_MCUX_INIT(i2s_id)                                                                      \
-	static void i2s_irq_connect_##i2s_id(const struct device *dev);                            \
-                                                                                                   \
-	PINCTRL_DT_INST_DEFINE(i2s_id);                                                            \
-                                                                                                   \
-	static const struct i2s_mcux_config i2s_##i2s_id##_config = {                              \
-		.base = (I2S_Type *)DT_INST_REG_ADDR(i2s_id),                                      \
-		.clk_src = DT_INST_PROP(i2s_id, clock_mux),                                        \
-		.clk_pre_div = DT_INST_PROP(i2s_id, pre_div),                                      \
-		.clk_src_div = DT_INST_PROP(i2s_id, podf),                                         \
-		.pll_src = DT_PHA_BY_NAME(DT_DRV_INST(i2s_id), pll_clocks, src, value),            \
-		.pll_lp = DT_PHA_BY_NAME(DT_DRV_INST(i2s_id), pll_clocks, lp, value),              \
-		.pll_pd = DT_PHA_BY_NAME(DT_DRV_INST(i2s_id), pll_clocks, pd, value),              \
-		.pll_num = DT_PHA_BY_NAME(DT_DRV_INST(i2s_id), pll_clocks, num, value),            \
-		.pll_den = DT_PHA_BY_NAME(DT_DRV_INST(i2s_id), pll_clocks, den, value),            \
-		.mclk_pin_mask = DT_PHA_BY_IDX(DT_DRV_INST(i2s_id), pinmuxes, 0, function),        \
-		.mclk_pin_offset = DT_PHA_BY_IDX(DT_DRV_INST(i2s_id), pinmuxes, 0, pin),           \
-		.clk_sub_sys =                                                                     \
-			(clock_control_subsys_t)DT_INST_CLOCKS_CELL_BY_IDX(i2s_id, 0, name),       \
-		.ccm_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(i2s_id)),                             \
-		.irq_connect = i2s_irq_connect_##i2s_id,                                           \
-		.pinctrl = PINCTRL_DT_INST_DEV_CONFIG_GET(i2s_id),                                 \
-		.tx_sync_mode = DT_INST_PROP(i2s_id, nxp_tx_sync_mode),                            \
-		.rx_sync_mode = DT_INST_PROP(i2s_id, nxp_rx_sync_mode),                            \
-		.tx_channel = DT_INST_PROP(i2s_id, nxp_tx_channel),                                \
-	};                                                                                         \
-                                                                                                   \
-	static struct i2s_dev_data i2s_##i2s_id##_data = {                                         \
-		.dev_dma = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(i2s_id, rx)),                   \
-		.tx =                                                                              \
-			{                                                                          \
-				.dma_channel = DT_INST_PROP(i2s_id, nxp_tx_dma_channel),           \
-				.dma_cfg =                                                         \
-					{                                                          \
-						.source_burst_length = CONFIG_I2S_EDMA_BURST_SIZE, \
-						.dest_burst_length = CONFIG_I2S_EDMA_BURST_SIZE,   \
-						.dma_callback = i2s_dma_tx_callback,               \
-						.complete_callback_en = 1,                         \
-						.error_callback_dis = 1,                           \
-						.block_count = 1,                                  \
-						.head_block = &i2s_##i2s_id##_data.tx.dma_block,   \
-						.channel_direction = MEMORY_TO_PERIPHERAL,         \
-						.dma_slot = DT_INST_DMAS_CELL_BY_NAME(i2s_id, tx,  \
-										      source),     \
-					},                                                         \
-			},                                                                         \
-		.rx =                                                                              \
-			{                                                                          \
-				.dma_channel = DT_INST_PROP(i2s_id, nxp_rx_dma_channel),           \
-				.dma_cfg =                                                         \
-					{                                                          \
-						.source_burst_length = CONFIG_I2S_EDMA_BURST_SIZE, \
-						.dest_burst_length = CONFIG_I2S_EDMA_BURST_SIZE,   \
-						.dma_callback = i2s_dma_rx_callback,               \
-						.complete_callback_en = 1,                         \
-						.error_callback_dis = 1,                           \
-						.block_count = 1,                                  \
-						.head_block = &i2s_##i2s_id##_data.rx.dma_block,   \
-						.channel_direction = PERIPHERAL_TO_MEMORY,         \
-						.dma_slot = DT_INST_DMAS_CELL_BY_NAME(i2s_id, rx,  \
-										      source),     \
-					},                                                         \
-			},                                                                         \
-	};                                                                                         \
-                                                                                                   \
-	DEVICE_DT_INST_DEFINE(i2s_id, &i2s_mcux_initialize, NULL, &i2s_##i2s_id##_data,            \
-			      &i2s_##i2s_id##_config, POST_KERNEL, CONFIG_I2S_INIT_PRIORITY,       \
-			      &i2s_mcux_driver_api);                                               \
-                                                                                                   \
-	static void i2s_irq_connect_##i2s_id(const struct device *dev)                             \
-	{                                                                                          \
-		IRQ_CONNECT(DT_INST_IRQ_BY_IDX(i2s_id, 0, irq),                                    \
-			    DT_INST_IRQ_BY_IDX(i2s_id, 0, priority), i2s_mcux_isr,                 \
-			    DEVICE_DT_INST_GET(i2s_id), 0);                                        \
-		irq_enable(DT_INST_IRQN(i2s_id));                                                  \
+#define I2S_MCUX_INIT(i2s_id)						\
+	static void i2s_irq_connect_##i2s_id(const struct device *dev); \
+									\
+	PINCTRL_DT_INST_DEFINE(i2s_id);					\
+									\
+	static const struct i2s_mcux_config i2s_##i2s_id##_config = {	\
+		.base = (I2S_Type *)DT_INST_REG_ADDR(i2s_id),		\
+		.clk_src = DT_INST_PROP(i2s_id, clock_mux),		\
+		.clk_pre_div = DT_INST_PROP(i2s_id, pre_div),		\
+		.clk_src_div = DT_INST_PROP(i2s_id, podf),		\
+		.pll_src =						\
+			DT_PHA_BY_NAME(DT_DRV_INST(i2s_id),		\
+				pll_clocks, src, value),		\
+		.pll_lp =						\
+			DT_PHA_BY_NAME(DT_DRV_INST(i2s_id),		\
+				pll_clocks, lp, value),			\
+		.pll_pd =						\
+			DT_PHA_BY_NAME(DT_DRV_INST(i2s_id),		\
+				pll_clocks, pd, value),			\
+		.pll_num =						\
+			DT_PHA_BY_NAME(DT_DRV_INST(i2s_id),		\
+				pll_clocks, num, value),		\
+		.pll_den =						\
+			DT_PHA_BY_NAME(DT_DRV_INST(i2s_id),		\
+				pll_clocks, den, value),		\
+		.mclk_pin_mask =					\
+			DT_PHA_BY_IDX(DT_DRV_INST(i2s_id),		\
+				pinmuxes, 0, function),			\
+		.mclk_pin_offset =					\
+			DT_PHA_BY_IDX(DT_DRV_INST(i2s_id),		\
+				pinmuxes, 0, pin),			\
+		.clk_sub_sys =	(clock_control_subsys_t)		\
+			DT_INST_CLOCKS_CELL_BY_IDX(i2s_id, 0, name),	\
+		.ccm_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(i2s_id)),	\
+		.irq_connect = i2s_irq_connect_##i2s_id,		\
+		.pinctrl = PINCTRL_DT_INST_DEV_CONFIG_GET(i2s_id),	\
+		.tx_sync_mode =						\
+			   DT_INST_PROP(i2s_id, nxp_tx_sync_mode),	\
+		.rx_sync_mode =						\
+			   DT_INST_PROP(i2s_id, nxp_rx_sync_mode),	\
+		.tx_channel = DT_INST_PROP(i2s_id, nxp_tx_channel),	\
+	};								\
+									\
+	static struct i2s_dev_data i2s_##i2s_id##_data = {		\
+		.dev_dma = DEVICE_DT_GET(				\
+				DT_INST_DMAS_CTLR_BY_NAME(i2s_id, rx)), \
+		.tx = {							\
+			.dma_channel =					\
+			  DT_INST_PROP(i2s_id, nxp_tx_dma_channel),	\
+			.dma_cfg = {					\
+			  .source_burst_length =			\
+				CONFIG_I2S_EDMA_BURST_SIZE,		\
+			  .dest_burst_length =				\
+				CONFIG_I2S_EDMA_BURST_SIZE,		\
+			  .dma_callback = i2s_dma_tx_callback,		\
+			  .complete_callback_en = 1,			\
+			  .error_callback_dis = 1,			\
+			  .block_count = 1,				\
+			  .head_block =					\
+				&i2s_##i2s_id##_data.tx.dma_block,	\
+			  .channel_direction = MEMORY_TO_PERIPHERAL,	\
+			  .dma_slot =					\
+			    DT_INST_DMAS_CELL_BY_NAME(i2s_id,		\
+						      tx, source),	\
+              .cyclic = 1,          \
+			},						\
+		},							\
+		.rx = {							\
+			.dma_channel =					\
+			  DT_INST_PROP(i2s_id, nxp_rx_dma_channel),	\
+			.dma_cfg = {					\
+			  .source_burst_length =			\
+				CONFIG_I2S_EDMA_BURST_SIZE,		\
+			  .dest_burst_length =				\
+				CONFIG_I2S_EDMA_BURST_SIZE,		\
+			  .dma_callback = i2s_dma_rx_callback,		\
+			  .complete_callback_en = 1,			\
+			  .error_callback_dis = 1,			\
+			  .block_count = 1,				\
+			  .head_block =					\
+				&i2s_##i2s_id##_data.rx.dma_block,	\
+			  .channel_direction = PERIPHERAL_TO_MEMORY,	\
+			  .dma_slot =					\
+			    DT_INST_DMAS_CELL_BY_NAME(i2s_id,		\
+						      rx, source),	\
+              .cyclic = 1,          \
+			},						\
+		},							\
+	};								\
+									\
+	DEVICE_DT_INST_DEFINE(i2s_id, &i2s_mcux_initialize, NULL,	\
+		    &i2s_##i2s_id##_data, &i2s_##i2s_id##_config,	\
+		    POST_KERNEL,					\
+		    CONFIG_I2S_INIT_PRIORITY, &i2s_mcux_driver_api);	\
+									\
+	static void i2s_irq_connect_##i2s_id(const struct device *dev)	\
+	{								\
+		IRQ_CONNECT(DT_INST_IRQ_BY_IDX(i2s_id, 0, irq),		\
+			DT_INST_IRQ_BY_IDX(i2s_id, 0, priority),	\
+			i2s_mcux_isr,					\
+			DEVICE_DT_INST_GET(i2s_id), 0);			\
+		irq_enable(DT_INST_IRQN(i2s_id));			\
 	}
 
 DT_INST_FOREACH_STATUS_OKAY(I2S_MCUX_INIT)
