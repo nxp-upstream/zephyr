@@ -50,7 +50,7 @@ struct mcux_elcdif_data {
 	size_t pixel_bytes;
 	size_t fb_bytes;
 	elcdif_rgb_mode_config_t rgb_mode;
-	struct k_sem sem;
+	struct k_sem vblank_sem;
 	/* Tracks index of next active driver framebuffer */
 	uint8_t next_idx;
 #ifdef CONFIG_MCUX_ELCDIF_PXP
@@ -214,12 +214,19 @@ static int mcux_elcdif_write(const struct device *dev, const uint16_t x, const u
 	/* Update index of active framebuffer */
 	dev_data->next_idx = (dev_data->next_idx + 1) % CONFIG_MCUX_ELCDIF_FB_NUM;
 #endif
-
-	if (IS_ENABLED(CONFIG_MCUX_ELCDIF_LP)) {
-		ELCDIF_EnableInterrupts(config->base, kELCDIF_CurFrameDoneInterruptEnable);
-	}
-	/* Wait for frame send to complete */
-	k_sem_take(&dev_data->sem, K_FOREVER);
+	/*
+	 * In order to be sure we have rendered the framebuffer, we need to
+	 * wait a full vertical blank interval. Enable the ELCDIF
+	 * frame done interrupt (which fires at each vertical blank),
+	 * and wait for the vblank_sem to be posted to twice
+	 */
+	ELCDIF_EnableInterrupts(config->base, kELCDIF_CurFrameDoneInterruptEnable);
+	/* Wait for first vblank */
+	k_sem_take(&dev_data->vblank_sem, K_FOREVER);
+	/* Wait for second vblank */
+	k_sem_take(&dev_data->vblank_sem, K_FOREVER);
+	/* Disable vblank interrupt */
+	ELCDIF_DisableInterrupts(config->base, kELCDIF_CurFrameDoneInterruptEnable);
 	return ret;
 }
 
@@ -309,14 +316,8 @@ static void mcux_elcdif_isr(const struct device *dev)
 
 	status = ELCDIF_GetInterruptStatus(config->base);
 	ELCDIF_ClearInterruptStatus(config->base, status);
-	if (config->base->CUR_BUF == ((uint32_t)dev_data->active_fb)) {
-		if (IS_ENABLED(CONFIG_MCUX_ELCDIF_LP)) {
-			/* Disable frame completion interrupt if Low power mode is activated*/
-			ELCDIF_DisableInterrupts(config->base, kELCDIF_CurFrameDoneInterruptEnable);
-		}
-		/* Post to sem to notify that frame display is complete.*/
-		k_sem_give(&dev_data->sem);
-	}
+	/* Post to sem to notify that vertical blank occurred */
+	k_sem_give(&dev_data->vblank_sem);
 }
 
 static int mcux_elcdif_init(const struct device *dev)
@@ -335,7 +336,7 @@ static int mcux_elcdif_init(const struct device *dev)
 		return err;
 	}
 
-	k_sem_init(&dev_data->sem, 0, 1);
+	k_sem_init(&dev_data->vblank_sem, 0, 1);
 #ifdef CONFIG_MCUX_ELCDIF_PXP
 	k_sem_init(&dev_data->pxp_done, 0, 1);
 	if (!device_is_ready(config->pxp)) {
@@ -352,9 +353,6 @@ static int mcux_elcdif_init(const struct device *dev)
 	dev_data->active_fb = dev_data->fb[0];
 
 	ELCDIF_RgbModeInit(config->base, &dev_data->rgb_mode);
-	if (!IS_ENABLED(CONFIG_MCUX_ELCDIF_LP)) {
-		ELCDIF_EnableInterrupts(config->base, kELCDIF_CurFrameDoneInterruptEnable);
-	}
 	ELCDIF_RgbModeStart(config->base);
 
 	return 0;
