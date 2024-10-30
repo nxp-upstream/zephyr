@@ -76,7 +76,6 @@ struct stream {
 	bool last_block;
 	struct k_msgq in_queue;
 	struct k_msgq out_queue;
-	struct k_work_delayable defer_work;
 };
 
 struct i2s_mcux_config {
@@ -102,7 +101,6 @@ struct i2s_mcux_config {
 
 /* Device run time data */
 struct i2s_dev_data {
-	const struct device *dev_i2s;
 	const struct device *dev_dma;
 	struct stream tx;
 	void *tx_in_msgs[CONFIG_I2S_TX_BLOCK_COUNT];
@@ -303,16 +301,13 @@ static void i2s_dma_tx_callback(const struct device *dma_dev, void *arg, uint32_
 		}
 
 		if (blocks_queued || (strm->free_tx_dma_blocks < MAX_TX_DMA_BLOCKS)) {
-			dma_start(dev_data->dev_dma, strm->dma_channel);
 			goto enabled_exit;
 		} else {
 			/* all DMA blocks are free but no blocks were queued */
-			if (strm->state == I2S_STATE_STOPPING || blocks_queued == 0) {
-				/* Received a STOP/DRAIN trigger */
-				k_work_reschedule(&strm->defer_work,
-				  K_MSEC(1));
-				LOG_DBG("TX stream has drained");
-				return;
+			if (strm->state == I2S_STATE_STOPPING) {
+				/* TX queue has drained */
+				strm->state = I2S_STATE_READY;
+				LOG_DBG("TX stream has stopped");
 			} else {
 				strm->state = I2S_STATE_ERROR;
 				LOG_ERR("TX Failed to reload DMA");
@@ -393,7 +388,6 @@ static void i2s_dma_rx_callback(const struct device *dma_dev, void *arg, uint32_
 						ret);
 				}
 
-				dma_start(dev_data->dev_dma, strm->dma_channel);
 			}
 		} else {
 			i2s_rx_stream_disable(dev, true, false);
@@ -997,17 +991,9 @@ static int i2s_mcux_read(const struct device *dev, void **mem_block, size_t *siz
 
 	status = k_msgq_get(&strm->out_queue, &buffer, SYS_TIMEOUT_MS(strm->cfg.timeout));
 	if (status != 0) {
-		if (strm->out_queue.used_msgs == 0 && strm->state == I2S_STATE_STOPPING) {
-			*mem_block = NULL;
-			*size = 0;
-			LOG_DBG("return NULL");
-			LOG_DBG("the inqueue is %d", strm->in_queue.used_msgs);
-			return 0;
-		}
 		if (strm->state == I2S_STATE_ERROR) {
 			ret = -EIO;
 		} else {
-			LOG_ERR("used_msgs %d", strm->out_queue.used_msgs);
 			LOG_DBG("need retry");
 			ret = -EAGAIN;
 		}
@@ -1121,30 +1107,6 @@ static void audio_clock_settings(const struct device *dev)
 #endif
 }
 
-static void i2s_mcux_sai_tx_work(struct k_work *item)
-{
-	struct k_work_delayable *dwork = k_work_delayable_from_work(item);
-	struct stream *strm =
-		CONTAINER_OF(dwork, struct stream, defer_work);
-	struct i2s_dev_data *data = CONTAINER_OF(strm, struct i2s_dev_data, tx);
-	const struct device *dev = data->dev_i2s;
-
-	strm->state = I2S_STATE_READY;
-	i2s_tx_stream_disable(dev, false);
-}
-
-static void i2s_mcux_sai_rx_work(struct k_work *item)
-{
-	struct k_work_delayable *dwork = k_work_delayable_from_work(item);
-	struct stream *strm =
-		CONTAINER_OF(dwork, struct stream, defer_work);
-	struct i2s_dev_data *data = CONTAINER_OF(strm, struct i2s_dev_data, rx);
-	const struct device *dev = data->dev_i2s;
-
-	strm->state = I2S_STATE_READY;
-	i2s_rx_stream_disable(dev, false, false);
-}
-
 static int i2s_mcux_initialize(const struct device *dev)
 {
 	const struct i2s_mcux_config *dev_cfg = dev->config;
@@ -1158,7 +1120,6 @@ static int i2s_mcux_initialize(const struct device *dev)
 		return -ENODEV;
 	}
 
-	dev_data->dev_i2s = dev;
 	/* Initialize the buffer queues */
 	k_msgq_init(&dev_data->tx.in_queue, (char *)dev_data->tx_in_msgs, sizeof(void *),
 		    CONFIG_I2S_TX_BLOCK_COUNT);
@@ -1185,10 +1146,6 @@ static int i2s_mcux_initialize(const struct device *dev)
 
 	dev_data->tx.state = I2S_STATE_NOT_READY;
 	dev_data->rx.state = I2S_STATE_NOT_READY;
-	k_work_init_delayable(&dev_data->tx.defer_work,
-			      i2s_mcux_sai_tx_work);
-	k_work_init_delayable(&dev_data->rx.defer_work,
-			      i2s_mcux_sai_rx_work);
 
 #if (defined(FSL_FEATURE_SAI_HAS_MCR) && (FSL_FEATURE_SAI_HAS_MCR)) ||                             \
 	(defined(FSL_FEATURE_SAI_HAS_MCLKDIV_REGISTER) && (FSL_FEATURE_SAI_HAS_MCLKDIV_REGISTER))
