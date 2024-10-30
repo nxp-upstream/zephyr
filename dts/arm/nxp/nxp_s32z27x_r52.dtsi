@@ -1328,7 +1328,7 @@
 		};
 
 		psi5_s_0: psi5_s@401f0000 {
-			compatible = "nxp,s32-psi5_s-controller";
+			compatible = "nxp,s32-psi5_s";
 			reg = <0x401f0000 0x1000>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -1393,7 +1393,7 @@
 		};
 
 		psi5_s_1: psi5_s@421f0000 {
-			compatible = "nxp,s32-psi5_s-controller";
+			compatible = "nxp,s32-psi5_s";
 			reg = <0x421f0000 0x1000>;
 			#address-cells = <1>;
 			#size-cells = <0>;

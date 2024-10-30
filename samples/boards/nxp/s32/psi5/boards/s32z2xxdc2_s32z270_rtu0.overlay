@@ -66,12 +66,11 @@
 	pinctrl-0 = <&psi5_s_0_default>;
 	pinctrl-names = "default";
 
-	uart-baud-rate-cus = <3000000>;
+	uart-baud-rate = <115200>;
 	uart-preset-timeout = <5>;
 	uart-tx-idle-delay-time = <0>;
 	uart-reduced-over-sampling = <4>;
 	uart-sampling-point = <3>;
-	uart-baud-rate = <115200>;
 
 	status = "okay";
 };
@@ -81,7 +80,7 @@
 	init-acmd = <500>;
 	target-period = <500>;
 	counter-delay = <500>;
-	tx-mode = "SHORT FRAME 31";
+	tx-mode = "short-frame-31";
 	slots-pay-load-size = <16 16>;
 	status = "okay";
 };
@@ -91,7 +90,7 @@
 	init-acmd = <500>;
 	target-period = <500>;
 	counter-delay = <500>;
-	tx-mode = "SHORT FRAME 31";
+	tx-mode = "short-frame-31";
 	slots-pay-load-size = <16 16>;
 	status = "okay";
 };

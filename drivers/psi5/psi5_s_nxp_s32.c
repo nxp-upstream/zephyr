@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#define DT_DRV_COMPAT nxp_s32_psi5_s_controller
+#define DT_DRV_COMPAT nxp_s32_psi5_s
 
 #include <zephyr/logging/log.h>
 
-LOG_MODULE_REGISTER(nxp_s32_psi, CONFIG_PSI5_LOG_LEVEL);
+LOG_MODULE_REGISTER(nxp_s32_psi5_s, CONFIG_PSI5_LOG_LEVEL);
 
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
@@ -23,6 +23,7 @@ LOG_MODULE_REGISTER(nxp_s32_psi, CONFIG_PSI5_LOG_LEVEL);
 
 struct psi5_s_nxp_s32_config {
 	uint8_t ctrl_inst;
+	uint8_t channel_mask;
 	const struct device *clock_dev;
 	clock_control_subsys_t clock_subsys;
 	const struct pinctrl_dev_config *pin_cfg;
@@ -44,66 +45,89 @@ struct psi5_s_nxp_s32_channel_data {
 	struct psi5_s_nxp_s32_tx_callback tx_callback;
 	struct psi5_s_nxp_s32_rx_callback rx_callback;
 	struct k_sem tx_sem;
+	struct k_mutex lock;
 };
 
 struct psi5_s_nxp_s32_data {
 	struct psi5_s_nxp_s32_channel_data channel_data[PSI5_S_CHANNEL_COUNT];
 };
 
-static int psi5_s_nxp_s32_start(const struct device *dev, uint8_t channel_id)
+static int psi5_s_nxp_s32_start(const struct device *dev, uint8_t channel)
 {
 	const struct psi5_s_nxp_s32_config *config = dev->config;
 	struct psi5_s_nxp_s32_data *data = dev->data;
-	struct psi5_s_nxp_s32_channel_data *channel_data = &data->channel_data[channel_id];
+	struct psi5_s_nxp_s32_channel_data *channel_data = &data->channel_data[channel];
 	int err;
+
+	if (!(config->channel_mask & BIT(channel))) {
+		return -EINVAL;
+	}
 
 	if (channel_data->started) {
 		return -EALREADY;
 	}
 
-	err = Psi5_S_Ip_SetChannelSync(config->ctrl_inst, channel_id, true);
+	k_mutex_lock(&channel_data->lock, K_FOREVER);
+
+	err = Psi5_S_Ip_SetChannelSync(config->ctrl_inst, channel, true);
 
 	if (err) {
-		LOG_ERR("Failed to start PSI5_S %d channel %d", config->ctrl_inst, channel_id);
+		LOG_ERR("Failed to start PSI5_S %d channel %d", config->ctrl_inst, channel);
+		k_mutex_unlock(&channel_data->lock);
 		return -EIO;
 	}
 
 	channel_data->started = true;
 
+	k_mutex_unlock(&channel_data->lock);
+
 	return 0;
 }
 
-static int psi5_s_nxp_s32_stop(const struct device *dev, uint8_t channel_id)
+static int psi5_s_nxp_s32_stop(const struct device *dev, uint8_t channel)
 {
 	const struct psi5_s_nxp_s32_config *config = dev->config;
 	struct psi5_s_nxp_s32_data *data = dev->data;
-	struct psi5_s_nxp_s32_channel_data *channel_data = &data->channel_data[channel_id];
+	struct psi5_s_nxp_s32_channel_data *channel_data = &data->channel_data[channel];
 	int err;
+
+	if (!(config->channel_mask & BIT(channel))) {
+		return -EINVAL;
+	}
 
 	if (!channel_data->started) {
 		return -EALREADY;
 	}
 
-	err = Psi5_S_Ip_SetChannelSync(config->ctrl_inst, channel_id, false);
+	k_mutex_lock(&channel_data->lock, K_FOREVER);
+
+	err = Psi5_S_Ip_SetChannelSync(config->ctrl_inst, channel, false);
 
 	if (err) {
-		LOG_ERR("Failed to stop PSI5_S %d channel %d", config->ctrl_inst, channel_id);
+		LOG_ERR("Failed to stop PSI5_S %d channel %d", config->ctrl_inst, channel);
+		k_mutex_unlock(&channel_data->lock);
 		return -EIO;
 	}
 
 	channel_data->started = false;
 
+	k_mutex_unlock(&channel_data->lock);
+
 	return 0;
 }
 
-static int psi5_s_nxp_s32_send(const struct device *dev, uint8_t channel_id, uint64_t psi5_data,
+static int psi5_s_nxp_s32_send(const struct device *dev, uint8_t channel, uint64_t psi5_data,
 			       k_timeout_t timeout, psi5_tx_callback_t callback, void *user_data)
 {
 	const struct psi5_s_nxp_s32_config *config = dev->config;
 	struct psi5_s_nxp_s32_data *data = dev->data;
-	struct psi5_s_nxp_s32_channel_data *channel_data = &data->channel_data[channel_id];
+	struct psi5_s_nxp_s32_channel_data *channel_data = &data->channel_data[channel];
 	int err;
 	uint64_t start_time;
+
+	if (!(config->channel_mask & BIT(channel))) {
+		return -EINVAL;
+	}
 
 	if (!channel_data->started) {
 		return -ENETDOWN;
@@ -118,42 +142,70 @@ static int psi5_s_nxp_s32_send(const struct device *dev, uint8_t channel_id, uin
 		channel_data->tx_callback.user_data = user_data;
 	}
 
-	err = Psi5_S_Ip_Transmit(config->ctrl_inst, channel_id, psi5_data);
+	k_mutex_lock(&channel_data->lock, K_FOREVER);
+
+	err = Psi5_S_Ip_Transmit(config->ctrl_inst, channel, psi5_data);
 	if (err) {
 		LOG_ERR("Failed to transmit PSI5_S %d channel %d (err %d)", config->ctrl_inst,
-			channel_id, err);
+			channel, err);
 		k_sem_give(&channel_data->tx_sem);
+		goto unlock;
 		return -EIO;
 	}
 
 	if (callback != NULL) {
+		goto unlock;
 		return 0;
 	}
 
 	start_time = k_uptime_ticks();
 
-	while (!Psi5_S_Ip_GetTransmissionStatus(config->ctrl_inst, channel_id)) {
+	while (!Psi5_S_Ip_GetTransmissionStatus(config->ctrl_inst, channel)) {
 		if (k_uptime_ticks() - start_time >= timeout.ticks) {
 			LOG_ERR("Timeout for waiting transmision PSI5_S %d channel %d",
-				config->ctrl_inst, channel_id);
+				config->ctrl_inst, channel);
 			k_sem_give(&channel_data->tx_sem);
+			goto unlock;
 			return -EAGAIN;
 		}
 	}
 
 	k_sem_give(&channel_data->tx_sem);
 
+unlock:
+	k_mutex_unlock(&channel_data->lock);
+
 	return 0;
 }
 
-static void psi5_s_nxp_s32_add_rx_callback(const struct device *dev, uint8_t channel_id,
-					   psi5_rx_callback_t callback, void *user_data)
+static int psi5_s_nxp_s32_add_rx_callback(const struct device *dev, uint8_t channel,
+					  psi5_rx_callback_t callback, void *user_data)
 {
+	const struct psi5_s_nxp_s32_config *config = dev->config;
 	struct psi5_s_nxp_s32_data *data = dev->data;
-	struct psi5_s_nxp_s32_channel_data *channel_data = &data->channel_data[channel_id];
+	struct psi5_s_nxp_s32_channel_data *channel_data = &data->channel_data[channel];
+
+	if (!(config->channel_mask & BIT(channel))) {
+		return -EINVAL;
+	}
+
+	if ((channel_data->rx_callback.callback == callback) &&
+	    (channel_data->rx_callback.user_data == user_data)) {
+		return 0;
+	}
+
+	if (channel_data->rx_callback.callback) {
+		return -EBUSY;
+	}
+
+	k_mutex_lock(&channel_data->lock, K_FOREVER);
 
 	channel_data->rx_callback.callback = callback;
 	channel_data->rx_callback.user_data = user_data;
+
+	k_mutex_unlock(&channel_data->lock);
+
+	return 0;
 }
 
 static const struct psi5_driver_api psi5_s_nxp_s32_driver_api = {
@@ -169,105 +221,24 @@ static const struct psi5_driver_api psi5_s_nxp_s32_driver_api = {
 #define PSI5_S_NXP_S32_HW_INSTANCE(n)                                                              \
 	LISTIFY(PSI5_S_INSTANCE_COUNT, PSI5_S_NXP_S32_HW_INSTANCE_CHECK, (|), n)
 
-#define PSI5_S_NXP_S32_CHANNEL_ISR(node_id)                                                        \
-	static void _CONCAT(psi5_s_nxp_s32_channel_isr, node_id)(const struct device *dev)         \
-	{                                                                                          \
-		const struct psi5_s_nxp_s32_config *config = dev->config;                          \
-                                                                                                   \
-		Psi5_S_Ip_IRQ_Handler_Tx(config->ctrl_inst, DT_REG_ADDR(node_id));                 \
-		Psi5_S_Ip_IRQ_Handler_Rx(config->ctrl_inst, DT_REG_ADDR(node_id));                 \
-	}
-
-#define PSI5_S_NXP_S32_CHANNEL_IRQ_CONFIG(node_id, n)                                              \
-	do {                                                                                       \
-		IRQ_CONNECT(DT_IRQ_BY_IDX(node_id, 0, irq), DT_IRQ_BY_IDX(node_id, 0, priority),   \
-			    _CONCAT(psi5_s_nxp_s32_channel_isr, node_id), DEVICE_DT_INST_GET(n),   \
-			    DT_IRQ_BY_IDX(node_id, 0, flags));                                     \
-		irq_enable(DT_IRQN(node_id));                                                      \
-	} while (false);
-
-#define PSI5_S_NXP_S32_IRQ_CONFIG(n)                                                               \
-	DT_INST_FOREACH_CHILD_STATUS_OKAY(n, PSI5_S_NXP_S32_CHANNEL_ISR)                           \
-	static void psi5_s_irq_config_##n(void)                                                    \
-	{                                                                                          \
-		DT_INST_FOREACH_CHILD_STATUS_OKAY_VARGS(n, PSI5_S_NXP_S32_CHANNEL_IRQ_CONFIG, n)   \
-	}
-
-#define PSI5_S_NXP_S32_CHANNEL_TX_SEM_INIT(node_id)                                                \
-	k_sem_init(&data->channel_data[DT_REG_ADDR(node_id)].tx_sem, 1, 1);
-
-#define PSI5_S_NXP_S32_INIT(n)                                                                     \
-	PINCTRL_DT_INST_DEFINE(n);                                                                 \
-	PSI5_S_NXP_S32_IRQ_CONFIG(n)                                                               \
-	static struct psi5_s_nxp_s32_config psi5_s_nxp_s32_config_##n = {                          \
-		.ctrl_inst = PSI5_S_NXP_S32_HW_INSTANCE(n),                                        \
-		.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)),                                \
-		.clock_subsys = (clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, name),              \
-		.pin_cfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),                                      \
-		.irq_config_func = psi5_s_irq_config_##n,                                          \
-	};                                                                                         \
-	static struct psi5_s_nxp_s32_data psi5_s_nxp_s32_data_##n;                                 \
-	static int psi5_s_nxp_s32_init_##n(const struct device *dev)                               \
-	{                                                                                          \
-		const struct psi5_s_nxp_s32_config *config = dev->config;                          \
-		struct psi5_s_nxp_s32_data *data = dev->data;                                      \
-		int err = 0;                                                                       \
-		uint32_t rate;                                                                     \
-                                                                                                   \
-		DT_INST_FOREACH_CHILD_STATUS_OKAY(n, PSI5_S_NXP_S32_CHANNEL_TX_SEM_INIT)           \
-                                                                                                   \
-		if (!device_is_ready(config->clock_dev)) {                                         \
-			LOG_ERR("Clock control device not ready");                                 \
-			return -ENODEV;                                                            \
-		}                                                                                  \
-                                                                                                   \
-		err = clock_control_on(config->clock_dev, config->clock_subsys);                   \
-		if (err) {                                                                         \
-			LOG_ERR("Failed to enable clock");                                         \
-			return err;                                                                \
-		}                                                                                  \
-                                                                                                   \
-		clock_control_get_rate(config->clock_dev, config->clock_subsys, &rate);            \
-		memcpy((uint32_t *)&psi5_s_nxp_s32_uart_config_##n.Uart_baud_clock, &rate,         \
-		       sizeof(uint32_t));                                                          \
-                                                                                                   \
-		err = pinctrl_apply_state(config->pin_cfg, PINCTRL_STATE_DEFAULT);                 \
-		if (err < 0) {                                                                     \
-			LOG_ERR("PSI5_S pinctrl setup failed (%d)", err);                          \
-			return err;                                                                \
-		}                                                                                  \
-                                                                                                   \
-		config->irq_config_func();                                                         \
-                                                                                                   \
-		return 0;                                                                          \
-	}                                                                                          \
-	DEVICE_DT_INST_DEFINE(n, psi5_s_nxp_s32_init_##n, NULL, &psi5_s_nxp_s32_data_##n,          \
-			      &psi5_s_nxp_s32_config_##n, POST_KERNEL, CONFIG_PSI5_INIT_PRIORITY,  \
-			      &psi5_s_nxp_s32_driver_api);
-
-/*
- * The following definitions is defined for the initial configuration that used for Psi5_S_Ip_Init()
- */
-
 #define PSI5_S_NXP_S32_CHANNEL_CALLBACK(node_id)                                                   \
 	void _CONCAT(psi5_s_nxp_s32_channel_tx_callBack, node_id)(Psi5_S_EventType event)          \
 	{                                                                                          \
 		const struct device *dev = DEVICE_DT_GET(DT_PARENT(node_id));                      \
-		uint8_t channel_id = DT_REG_ADDR(node_id);                                         \
+		uint8_t channel = DT_REG_ADDR(node_id);                                            \
 		struct psi5_s_nxp_s32_data *data = dev->data;                                      \
-		struct psi5_s_nxp_s32_channel_data *channel_data =                                 \
-			&data->channel_data[channel_id];                                           \
+		struct psi5_s_nxp_s32_channel_data *channel_data = &data->channel_data[channel];   \
 		struct psi5_s_nxp_s32_tx_callback *tx_callback = &channel_data->tx_callback;       \
 		if (event.Psi5S_ReadyToTransmit) {                                                 \
 			if (tx_callback->callback) {                                               \
-				tx_callback->callback(dev, channel_id, PSI5_STATE_TX_READY,        \
+				tx_callback->callback(dev, channel, PSI5_STATE_TX_READY,           \
 						      tx_callback->user_data);                     \
 			}                                                                          \
 			k_sem_give(&channel_data->tx_sem);                                         \
 		}                                                                                  \
 		if (event.Psi5S_TxDataOverwrite) {                                                 \
 			if (tx_callback->callback) {                                               \
-				tx_callback->callback(dev, channel_id, PSI5_STATE_TX_OVERWRITE,    \
+				tx_callback->callback(dev, channel, PSI5_STATE_TX_OVERWRITE,       \
 						      tx_callback->user_data);                     \
 			}                                                                          \
 			k_sem_give(&channel_data->tx_sem);                                         \
@@ -277,16 +248,16 @@ static const struct psi5_driver_api psi5_s_nxp_s32_driver_api = {
 		Psi5_S_Ip_InstanceIdType Psi5SInstanceId, Psi5_S_Ip_Psi5SFrameType Psi5SFramePtr)  \
 	{                                                                                          \
 		const struct device *dev = DEVICE_DT_GET(DT_PARENT(node_id));                      \
-		uint8_t channel_id = DT_REG_ADDR(node_id);                                         \
+		uint8_t channel = DT_REG_ADDR(node_id);                                            \
 		struct psi5_s_nxp_s32_data *data = dev->data;                                      \
-		struct psi5_s_nxp_s32_channel_data *channel_data =                                 \
-			&data->channel_data[channel_id];                                           \
+		struct psi5_s_nxp_s32_channel_data *channel_data = &data->channel_data[channel];   \
 		struct psi5_s_nxp_s32_rx_callback *rx_callback = &channel_data->rx_callback;       \
+                                                                                                   \
 		rx_callback->frame.msg.data = Psi5SFramePtr.PS_DATA;                               \
 		rx_callback->frame.msg.timestamp = Psi5SFramePtr.TIME_STAMP;                       \
 		rx_callback->frame.msg.crc = Psi5SFramePtr.CRC;                                    \
 		if (rx_callback->callback) {                                                       \
-			rx_callback->callback(dev, channel_id, &rx_callback->frame,                \
+			rx_callback->callback(dev, channel, &rx_callback->frame,                   \
 					      PSI5_STATE_MSG_RECEIVED, rx_callback->user_data);    \
 		}                                                                                  \
 	}
@@ -313,12 +284,11 @@ static const struct psi5_driver_api psi5_s_nxp_s32_driver_api = {
 
 #define PSI5_S_NXP_S32_CHANNEL_TX_CONFIG(node_id)                                                  \
 	const Psi5_S_Ip_ChannelTxConfigType _CONCAT(psi5_s_nxp_s32_channel_tx_config, node_id) = { \
-		.syncGlobal = 0,                                                                   \
 		.clockSel = IPG_CLK_PS_DDTRIG,                                                     \
-		.initCMD = DT_PROP_OR(node_id, init_cmd, 0),                                       \
-		.initACMD = DT_PROP_OR(node_id, init_acmd, 0),                                     \
-		.targetPeriod = DT_PROP_OR(node_id, target_period, 0),                             \
-		.counterDelay = DT_PROP_OR(node_id, counter_delay, 0),                             \
+		.initCMD = DT_PROP(node_id, init_cmd),                                             \
+		.initACMD = DT_PROP(node_id, init_acmd),                                           \
+		.targetPeriod = DT_PROP(node_id, target_period),                                   \
+		.counterDelay = DT_PROP(node_id, counter_delay),                                   \
 		.txMode = DT_ENUM_IDX(node_id, tx_mode),                                           \
 	};
 
@@ -368,26 +338,13 @@ DT_INST_FOREACH_STATUS_OKAY(PSI5_S_NXP_S32_ARRAY_CHANNEL_CONFIG)
 
 #define PSI5_S_NXP_S32_UART_CONFIG(n)                                                              \
 	Psi5_S_Ip_UartConfigType psi5_s_nxp_s32_uart_config_##n = {                                \
-		.Uart_transmit_MSB = 0,                                                            \
-		.Uart_received_MSB = 0,                                                            \
-		.Uart_baud_rate_cus_enable = 0,                                                    \
 		.Uart_baud_rate = DT_INST_PROP(n, uart_baud_rate),                                 \
-		.Uart_baud_rate_cus = 0,                                                           \
-		.Uart_tx_parity_enable = 0,                                                        \
-		.Uart_rx_parity_enable = 0,                                                        \
-		.Uart_tx_data_level_inversion = 0,                                                 \
-		.Uart_baud_rate_cus = 0,                                                           \
-		.Uart_tx_parity_enable = 0,                                                        \
-		.Uart_rx_parity_enable = 0,                                                        \
-		.Uart_tx_data_level_inversion = 0,                                                 \
-		.Uart_rx_data_level_inversion = 0,                                                 \
-		.Uart_preset_timeout = 0,                                                          \
-		.Uart_tx_idle_delay_time_enable = 0,                                               \
-		.Uart_tx_idle_delay_time = 0,                                                      \
-		.Uart_reduced_over_sampling_enable = 0,                                            \
-		.Uart_over_sampling_rate = 0,                                                      \
-		.Uart_sampling_point = 0,                                                          \
-		.Uart_loop_back_enable = 0,                                                        \
+		.Uart_preset_timeout = DT_INST_PROP(n, uart_preset_timeout),                       \
+		.Uart_tx_idle_delay_time_enable = true,                                            \
+		.Uart_tx_idle_delay_time = DT_INST_PROP(n, uart_tx_idle_delay_time),               \
+		.Uart_reduced_over_sampling_enable = true,                                         \
+		.Uart_over_sampling_rate = DT_INST_PROP(n, uart_reduced_over_sampling),            \
+		.Uart_sampling_point = DT_INST_PROP(n, uart_sampling_point),                       \
 	};
 
 DT_INST_FOREACH_STATUS_OKAY(PSI5_S_NXP_S32_UART_CONFIG)
@@ -405,20 +362,99 @@ DT_INST_FOREACH_STATUS_OKAY(PSI5_S_NXP_S32_UART_CONFIG)
 static const Psi5_S_Ip_InstanceType psi5_s_nxp_s32_array_inst_config[DT_NUM_INST_STATUS_OKAY(
 	DT_DRV_COMPAT)] = {DT_INST_FOREACH_STATUS_OKAY(PSI5_S_NXP_S32_INST_CONFIG)};
 
-/* The structure configuration for all PSI5_S controllers */
+/* The structure configuration for all controller instnaces that used for Psi5_S_Ip_Init() */
 static const Psi5_S_Ip_ConfigType psi5_s_nxp_s32_controller_config = {
 	.instancesConfig = &psi5_s_nxp_s32_array_inst_config[0],
 	.numOfInstances = DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT),
 };
 
-/* Initialize all PSI5_S controllers */
-static int psi5_s_nxp_s32_ctrl_init(void)
-{
-	Psi5_S_Ip_Init(&psi5_s_nxp_s32_controller_config);
+#define PSI5_S_NXP_S32_CHANNEL_ISR(node_id)                                                        \
+	static void _CONCAT(psi5_s_nxp_s32_channel_isr, node_id)(const struct device *dev)         \
+	{                                                                                          \
+		const struct psi5_s_nxp_s32_config *config = dev->config;                          \
+                                                                                                   \
+		Psi5_S_Ip_IRQ_Handler_Tx(config->ctrl_inst, DT_REG_ADDR(node_id));                 \
+		Psi5_S_Ip_IRQ_Handler_Rx(config->ctrl_inst, DT_REG_ADDR(node_id));                 \
+	}
 
-	return 0;
-}
+#define PSI5_S_NXP_S32_CHANNEL_IRQ_CONFIG(node_id, n)                                              \
+	do {                                                                                       \
+		IRQ_CONNECT(DT_IRQ_BY_IDX(node_id, 0, irq), DT_IRQ_BY_IDX(node_id, 0, priority),   \
+			    _CONCAT(psi5_s_nxp_s32_channel_isr, node_id), DEVICE_DT_INST_GET(n),   \
+			    DT_IRQ_BY_IDX(node_id, 0, flags));                                     \
+		irq_enable(DT_IRQN(node_id));                                                      \
+	} while (false);
+
+#define PSI5_S_NXP_S32_IRQ_CONFIG(n)                                                               \
+	DT_INST_FOREACH_CHILD_STATUS_OKAY(n, PSI5_S_NXP_S32_CHANNEL_ISR)                           \
+	static void psi5_s_irq_config_##n(void)                                                    \
+	{                                                                                          \
+		DT_INST_FOREACH_CHILD_STATUS_OKAY_VARGS(n, PSI5_S_NXP_S32_CHANNEL_IRQ_CONFIG, n)   \
+	}
+
+#define PSI5_S_NXP_S32_CHANNEL_BIT_MASK(node_id) BIT(DT_REG_ADDR(node_id))
+
+#define PSI5_S_NXP_S32_INIT(n)                                                                     \
+	PINCTRL_DT_INST_DEFINE(n);                                                                 \
+	PSI5_S_NXP_S32_IRQ_CONFIG(n)                                                               \
+	static struct psi5_s_nxp_s32_config psi5_s_nxp_s32_config_##n = {                          \
+		.ctrl_inst = PSI5_S_NXP_S32_HW_INSTANCE(n),                                        \
+		.channel_mask = DT_INST_FOREACH_CHILD_STATUS_OKAY_SEP(                             \
+			n, PSI5_S_NXP_S32_CHANNEL_BIT_MASK, (|)),                                  \
+		.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)),                                \
+		.clock_subsys = (clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, name),              \
+		.pin_cfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),                                      \
+		.irq_config_func = psi5_s_irq_config_##n,                                          \
+	};                                                                                         \
+	static struct psi5_s_nxp_s32_data psi5_s_nxp_s32_data_##n;                                 \
+	static int psi5_s_nxp_s32_init_##n(const struct device *dev)                               \
+	{                                                                                          \
+		const struct psi5_s_nxp_s32_config *config = dev->config;                          \
+		struct psi5_s_nxp_s32_data *data = dev->data;                                      \
+		int err = 0;                                                                       \
+		uint32_t rate;                                                                     \
+                                                                                                   \
+		if (!device_is_ready(config->clock_dev)) {                                         \
+			LOG_ERR("Clock control device not ready");                                 \
+			return -ENODEV;                                                            \
+		}                                                                                  \
+                                                                                                   \
+		err = clock_control_on(config->clock_dev, config->clock_subsys);                   \
+		if (err) {                                                                         \
+			LOG_ERR("Failed to enable clock");                                         \
+			return err;                                                                \
+		}                                                                                  \
+                                                                                                   \
+		err = clock_control_get_rate(config->clock_dev, config->clock_subsys, &rate);      \
+		if (err) {                                                                         \
+			LOG_ERR("Failed to get clock");                                            \
+			return err;                                                                \
+		}                                                                                  \
+		memcpy((uint32_t *)&psi5_s_nxp_s32_uart_config_##n.Uart_baud_clock, &rate,         \
+		       sizeof(uint32_t));                                                          \
+                                                                                                   \
+		err = pinctrl_apply_state(config->pin_cfg, PINCTRL_STATE_DEFAULT);                 \
+		if (err < 0) {                                                                     \
+			LOG_ERR("PSI5_S pinctrl setup failed (%d)", err);                          \
+			return err;                                                                \
+		}                                                                                  \
+                                                                                                   \
+		for (int i = 0; i < PSI5_S_CHANNEL_COUNT; i++) {                                   \
+			k_sem_init(&data->channel_data[i].tx_sem, 1, 1);                           \
+			k_mutex_init(&data->channel_data[i].lock);                                 \
+		}                                                                                  \
+                                                                                                   \
+		/* Common configuration setup for all controller instances */                      \
+		if (n == UTIL_DEC(DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT))) {                       \
+			Psi5_S_Ip_Init(&psi5_s_nxp_s32_controller_config);                         \
+		}                                                                                  \
+                                                                                                   \
+		config->irq_config_func();                                                         \
+                                                                                                   \
+		return 0;                                                                          \
+	}                                                                                          \
+	DEVICE_DT_INST_DEFINE(n, psi5_s_nxp_s32_init_##n, NULL, &psi5_s_nxp_s32_data_##n,          \
+			      &psi5_s_nxp_s32_config_##n, POST_KERNEL, CONFIG_PSI5_INIT_PRIORITY,  \
+			      &psi5_s_nxp_s32_driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(PSI5_S_NXP_S32_INIT)
-
-SYS_INIT(psi5_s_nxp_s32_ctrl_init, POST_KERNEL, CONFIG_PSI5_INIT_PRIORITY);
