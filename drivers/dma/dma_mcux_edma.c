@@ -266,6 +266,7 @@ static int dma_mcux_edma_configure(const struct device *dev, uint32_t channel,
 	edma_transfer_type_t transfer_type;
 	unsigned int key;
 	int ret = 0;
+	edma_tcd_t *tcd;
 
 	if (slot >= DEV_CFG(dev)->dma_requests) {
 		LOG_ERR("source number is out of scope %d", slot);
@@ -403,7 +404,9 @@ static int dma_mcux_edma_configure(const struct device *dev, uint32_t channel,
             //load valid transfers
             while (block_config != NULL && data->transfer_settings.write_idx < CONFIG_DMA_TCD_QUEUE_SIZE) 
             {
+		tcd = &(DEV_CFG(dev)->tcdpool[channel][data->transfer_settings.write_idx]);
 
+	#ifdef CONFIG_DMA_MCUX_EDMA
                 DEV_CFG(dev)->tcdpool[channel][data->transfer_settings.write_idx].SADDR = block_config->source_address;
                 DEV_CFG(dev)->tcdpool[channel][data->transfer_settings.write_idx].DADDR = block_config->dest_address;
                 DEV_CFG(dev)->tcdpool[channel][data->transfer_settings.write_idx].BITER = 
@@ -418,6 +421,22 @@ static int dma_mcux_edma_configure(const struct device *dev, uint32_t channel,
                 {
                     DEV_CFG(dev)->tcdpool[channel][data->transfer_settings.write_idx].CSR &= ~DMA_CSR_DREQ(1U);
                 }
+	#elif (CONFIG_DMA_MCUX_EDMA_V4)
+		tcd->TCD_REGS.edma4_tcd.SADDR = block_config->source_address;
+		tcd->TCD_REGS.edma4_tcd.DADDR = block_config->dest_address;
+		tcd->TCD_REGS.edma4_tcd.BITER =
+			block_config->block_size/config->source_data_size;
+		tcd->TCD_REGS.edma4_tcd.CITER =
+			block_config->block_size/config->source_data_size;
+		/*Enable auto stop for last transfer.*/
+		if (block_config->next_block == NULL)
+		{
+			tcd->TCD_REGS.edma4_tcd.CSR |= DMA_CSR_DREQ(1U);
+		}else
+		{
+			tcd->TCD_REGS.edma4_tcd.CSR &= ~DMA_CSR_DREQ(1U);
+		}
+	#endif /* CONFIG_DMA_MCUX_EDMA */
 
                 data->transfer_settings.write_idx = (data->transfer_settings.write_idx + 1)%CONFIG_DMA_TCD_QUEUE_SIZE;
                 data->transfer_settings.empty_tcds--;
@@ -591,6 +610,7 @@ static int dma_mcux_edma_reload(const struct device *dev, uint32_t channel,
 				uint32_t src, uint32_t dst, size_t size)
 {
 	struct call_back *data = DEV_CHANNEL_DATA(dev, channel);
+	edma_tcd_t *tcd;
 
 	/* Lock the channel configuration */
 	const unsigned int key = irq_lock();
@@ -615,12 +635,22 @@ static int dma_mcux_edma_reload(const struct device *dev, uint32_t channel,
         size = size/data->transfer_settings.dest_data_size;
 
         //append the transfer normally
+	tcd = &(DEV_CFG(dev)->tcdpool[channel][data->transfer_settings.write_idx]);
+#ifdef CONFIG_DMA_MCUX_EDMA
         DEV_CFG(dev)->tcdpool[channel][data->transfer_settings.write_idx].SADDR = src;
         DEV_CFG(dev)->tcdpool[channel][data->transfer_settings.write_idx].DADDR = dst;
         DEV_CFG(dev)->tcdpool[channel][data->transfer_settings.write_idx].BITER = size;
         DEV_CFG(dev)->tcdpool[channel][data->transfer_settings.write_idx].CITER = size;
         //enable automatically stop
         DEV_CFG(dev)->tcdpool[channel][data->transfer_settings.write_idx].CSR |= DMA_CSR_DREQ(1U);
+#elif (CONFIG_DMA_MCUX_EDMA_V4)
+	tcd->TCD_REGS.edma4_tcd.SADDR = src;
+	tcd->TCD_REGS.edma4_tcd.DADDR = dst;
+	tcd->TCD_REGS.edma4_tcd.BITER = size;
+	tcd->TCD_REGS.edma4_tcd.CITER = size;
+	//enable automatically stop
+	tcd->TCD_REGS.edma4_tcd.CSR |= DMA_CSR_DREQ(1U);
+#endif /* CONFIG_DMA_MCUX_EDMA */
 
         //manaually stop DMA whatever it is running or already stopped(Automatically)        
         //Make sure the code between EDMA_DisableChannelRequest and EDMA_EnableChannelRequest is minimum.
@@ -636,8 +666,14 @@ static int dma_mcux_edma_reload(const struct device *dev, uint32_t channel,
 
         //use DLAST_SGA as the ID
         uint32_t hw_id = EDMA_GetNextTCDAddress(DEV_EDMA_HANDLE(dev,channel));  
+#ifdef CONFIG_DMA_MCUX_EDMA
         if (data->transfer_settings.empty_tcds >= CONFIG_DMA_TCD_QUEUE_SIZE
             || hw_id == DEV_CFG(dev)->tcdpool[channel][data->transfer_settings.write_idx].DLAST_SGA)
+#elif (CONFIG_DMA_MCUX_EDMA_V4)
+	if (data->transfer_settings.empty_tcds >= CONFIG_DMA_TCD_QUEUE_SIZE
+		|| hw_id == tcd->TCD_REGS.edma4_tcd.DLAST_SGA)
+#endif /* CONFIG_DMA_MCUX_EDMA */
+
         {
             /*All transfers have been done*/
             //DMA is stopped automatically, invalid TCD has been loaded into the HW, update HW
@@ -646,8 +682,15 @@ static int dma_mcux_edma_reload(const struct device *dev, uint32_t channel,
 
         }else{
             //Disable automatically stop of previous one
-            DEV_CFG(dev)->tcdpool[channel][(data->transfer_settings.write_idx - 1)%CONFIG_DMA_TCD_QUEUE_SIZE].CSR 
-                                                                    &= ~DMA_CSR_DREQ(1U);
+		tcd = &(DEV_CFG(dev)->tcdpool[channel]
+			[(data->transfer_settings.write_idx - 1)
+			% CONFIG_DMA_TCD_QUEUE_SIZE]);
+	#ifdef CONFIG_DMA_MCUX_EDMA
+		tcd->CSR &= ~DMA_CSR_DREQ(1U);
+	#elif (CONFIG_DMA_MCUX_EDMA_V4)
+		tcd->TCD_REGS.edma4_tcd.CSR &= ~DMA_CSR_DREQ(1U);
+	#endif /* CONFIG_DMA_MCUX_EDMA */
+
             if (data->transfer_settings.empty_tcds == CONFIG_DMA_TCD_QUEUE_SIZE - 1
                || hw_id == (uint32_t)&DEV_CFG(dev)->tcdpool[channel][data->transfer_settings.write_idx])
             {
