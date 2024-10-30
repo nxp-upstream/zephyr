@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <nxp/kinetis/KW45B41Z83AFTA-pinctrl.h>
+#include <nxp/kinetis/MKW45B41Z83AFTA-pinctrl.h>
 
 &pinctrl {
 	pinmux_lpuart0: pinmux_lpuart0 {
