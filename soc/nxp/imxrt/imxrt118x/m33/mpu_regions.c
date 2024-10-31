@@ -7,13 +7,13 @@
 #include <zephyr/devicetree.h>
 #include <zephyr/arch/arm/cortex_m/arm_mpu_mem_cfg.h>
 
-#define REGION_HYPERRAM_BASE_ADDRESS   0x04000000
-#define REGION_HYPERRAM_SIZE           0x04000000
-#define REGION_DTCM_BASE_ADDRESS       0x20000000
+#define REGION_HYPERRAM_BASE_ADDRESS   0x14000000
+#define REGION_HYPERRAM_SIZE           0x00800000
+#define REGION_DTCM_BASE_ADDRESS       0x30000000
 #define REGION_DTCM_SIZE               0x00020000
-#define REGION_FLEXSPI_BASE_ADDRESS    0x28000000
-#define REGION_FLEXSPI_SIZE            0x08000000
-#define REGION_PERIPHERAL_BASE_ADDRESS 0x40000000
+#define REGION_FLEXSPI_BASE_ADDRESS    0x38000000
+#define REGION_FLEXSPI_SIZE            0x01000000
+#define REGION_PERIPHERAL_BASE_ADDRESS 0x50000000
 #define REGION_PERIPHERAL_SIZE         0x40000000
 
 static const struct arm_mpu_region mpu_regions[] = {
