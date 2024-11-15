@@ -15,7 +15,7 @@ config SOC_SERIES
 	default "kw45"
 
 config NUM_IRQS
-	default 76
+	default 74
 
 if BT
 

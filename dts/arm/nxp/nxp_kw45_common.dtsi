@@ -10,7 +10,7 @@
 #include <zephyr/dt-bindings/gpio/gpio.h>
 #include <zephyr/dt-bindings/pwm/pwm.h>
 #include <zephyr/dt-bindings/i2c/i2c.h>
-#include <zephyr/dt-bindings/memory-attr/memory-attr.h>
+#include <zephyr/dt-bindings/memory-attr/memory-attr-arm.h>
 
 / {
 	chosen {
@@ -34,7 +34,6 @@
 			mpu: mpu@e000ed90 {
 				compatible = "arm,armv8m-mpu";
 				reg = <0xe000ed90 0x40>;
-				arm,num-mpu-regions = <8>;
 			};
 		};
 	};
@@ -61,7 +60,8 @@
 
 	stcm0: system_memory@0 {
 		compatible = "mmio-sram";
-		reg = <0x0 DT_SIZE_K(64)>;
+		/* With only the first 64KB having ECC */
+		reg = <0x0 DT_SIZE_K(104)>;
 	};
 
 	stcm1: system_memory@1a000 {
@@ -91,12 +91,11 @@
 	#address-cells = <1>;
 	#size-cells = <1>;
 
-	rpmsgmem: rpmsgmem@8800 {
+	rpmsgmem: memory@8800 {
 		compatible = "zephyr,memory-region","mmio-sram";
 		reg = <0x8800 DT_SIZE_K(6)>;
 		zephyr,memory-region = "rpmsg_sh_mem";
-		// zephyr,memory-region-mpu = "RAM";
-		zephyr,memory-attr = <DT_MEM_CACHEABLE>;
+		zephyr,memory-attr = <( DT_MEM_ARM(ATTR_MPU_RAM) )>;
 	};
 };
 
