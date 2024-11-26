@@ -179,6 +179,11 @@ Pin Control
       };
 
 
+PWM
+===
+
+* Renamed the ``compatible`` from ``nxp,kinetis-ftm-pwm`` to :dtcompatible:`nxp,ftm-pwm`.
+
 Sensors
 =======
 
