@@ -396,6 +396,8 @@ static int video_mcux_csi_init(const struct device *dev)
 	struct video_mcux_csi_data *data = dev->data;
 	int err;
 
+	data->dev = dev;
+
 	k_fifo_init(&data->fifo_in);
 	k_fifo_init(&data->fifo_out);
 
@@ -500,13 +502,9 @@ static struct video_mcux_csi_data video_mcux_csi_data_0;
 
 static int video_mcux_csi_init_0(const struct device *dev)
 {
-	struct video_mcux_csi_data *data = dev->data;
-
 	IRQ_CONNECT(DT_INST_IRQN(0), DT_INST_IRQ(0, priority), video_mcux_csi_isr, NULL, 0);
 
 	irq_enable(DT_INST_IRQN(0));
-
-	data->dev = dev;
 
 	return video_mcux_csi_init(dev);
 }
