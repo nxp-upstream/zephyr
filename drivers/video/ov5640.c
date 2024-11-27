@@ -743,12 +743,12 @@ static int ov5640_set_ctrl_brightness(const struct device *dev, int value)
 {
 	const struct ov5640_config *cfg = dev->config;
 
-	if (!IN_RANGE(value, -UINT8_MAX, UINT8_MAX)) {
+	if (!IN_RANGE(value, -15, 15)) {
 		return -EINVAL;
 	}
 
 	struct ov5640_reg brightness_params[] = {{SDE_CTRL8_REG, value >= 0 ? 0x01 : 0x09},
-						 {SDE_CTRL7_REG, abs(value) & 0xff}};
+						 {SDE_CTRL7_REG, (abs(value) << 4) & 0xf0}};
 	int ret = ov5640_modify_reg(&cfg->i2c, SDE_CTRL0_REG, BIT(2), BIT(2));
 
 	if (ret) {
