@@ -20,6 +20,9 @@ ssize_t z_impl_hwinfo_get_device_id(uint8_t *buffer, size_t length)
 #ifdef CONFIG_SOC_SERIES_IMXRT11XX
 	dev_id.id[0] = sys_cpu_to_be32(OCOTP->FUSEN[17].FUSE);
 	dev_id.id[1] = sys_cpu_to_be32(OCOTP->FUSEN[16].FUSE);
+#elif CONFIG_SOC_SERIES_IMXRT118X
+	dev_id.id[0] = sys_cpu_to_be32(OCOTP_FSB->OTP_SHADOW_PARTA[15]);
+	dev_id.id[1] = sys_cpu_to_be32(OCOTP_FSB->OTP_SHADOW_PARTA[14]);
 #else
 	dev_id.id[0] = sys_cpu_to_be32(OCOTP->CFG2);
 	dev_id.id[1] = sys_cpu_to_be32(OCOTP->CFG1);
