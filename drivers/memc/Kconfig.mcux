@@ -79,3 +79,20 @@ config MEMC_NXP_FLEXRAM_ERROR_INTERRUPT
 	  Allow flexram to generate error interrupts
 
 endif # DT_HAS_NXP_FLEXRAM_ENABLED
+
+if DT_HAS_NXP_IMX_LPSPI_NOR_ENABLED
+
+config MEMC_MCUX_LPSPI
+	bool
+	select PINCTRL
+
+config MEMC_MCUX_LPSPI_INIT_PRIORITY
+	int "MCUX LPSPI MEMC driver initialization priority"
+	default 45
+	help
+	  Initialization priority for LPSPI MEMC driver.
+	  MEMC LPSPI driver must initialize before the FLASH driver,
+	  so initialization priorities can be set such that
+	  MEMC_MCUX_LPSPI_INIT_PRIORITY < FLASH_INIT_PRIORITY
+
+endif # DT_HAS_NXP_IMX_LPSPI_NOR_ENABLED
