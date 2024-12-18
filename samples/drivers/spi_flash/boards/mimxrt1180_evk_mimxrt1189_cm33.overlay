@@ -1,0 +1,41 @@
+/*
+ * Copyright 2024 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* To test this sample, DNP R2152, R2153, R2155, R1342, R1343 */
+
+&pinctrl {
+    pinmux_lpspi1: pinmux_lpspi1 {
+        group0 {
+            pinmux = <&iomuxc_aon_gpio_aon_05_gpio1_io05>;
+            drive-strength = "high";
+            bias-pull-up;
+            slew-rate = "fast";
+        };
+        group1 {
+            pinmux = <&iomuxc_aon_gpio_aon_04_lpspi1_sck>, 
+                     <&iomuxc_aon_gpio_aon_06_lpspi1_sout>,
+                     <&iomuxc_aon_gpio_aon_07_lpspi1_sin>;
+            drive-strength = "high";
+            slew-rate = "fast";
+        };
+    };
+};
+
+&lpspi1 {
+    compatible = "nxp,imx-lpspi-nor";
+    status = "okay";
+    cs-gpios = <&gpio1 5 GPIO_ACTIVE_LOW>;
+    pinctrl-0 = < &pinmux_lpspi1 >;
+    pinctrl-names = "default";
+    mx25l4006e@0 {
+        compatible = "nxp,imx-lpspi-flash";
+        size = < DT_SIZE_M(4) >;
+        reg = <0>;
+        spi-max-frequency = < 60000000 >;
+        jedec-id = [ C2 20 13 ];
+        status = "okay";
+    };			
+};
