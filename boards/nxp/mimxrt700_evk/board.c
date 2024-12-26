@@ -318,6 +318,15 @@ void board_early_init_hook(void)
 	CLOCK_EnableClock(kCLOCK_Gpio10);
 	RESET_ClearPeripheralReset(kGPIO10_RST_SHIFT_RSTn);
 #endif
+
+#ifdef CONFIG_MCUX_ACMP
+
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(acmp0), okay)
+	CLOCK_EnableClock(kCLOCK_Acmp0);
+	RESET_ClearPeripheralReset(kACMP0_RST_SHIFT_RSTn);
+#endif
+
+#endif /* CONFIG_MCUX_ACMP */
 }
 
 static void GlikeyWriteEnable(GLIKEY_Type *base, uint8_t idx)

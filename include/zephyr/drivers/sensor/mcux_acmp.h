@@ -49,6 +49,12 @@ extern "C" {
 #define MCUX_ACMP_HAS_HYSTCTR 0
 #endif
 
+#if defined(FSL_FEATURE_ACMP_HAS_NO_3V_DOMAIN) && (FSL_FEATURE_ACMP_HAS_NO_3V_DOMAIN == 1U)
+#define MCUX_ACMP_HAS_NO_3V_DOMAIN 1
+#else
+#define MCUX_ACMP_HAS_NO_3V_DOMAIN 0
+#endif
+
 enum sensor_channel_mcux_acmp {
 	/** Analog Comparator Output. */
 	SENSOR_CHAN_MCUX_ACMP_OUTPUT = SENSOR_CHAN_PRIV_START,

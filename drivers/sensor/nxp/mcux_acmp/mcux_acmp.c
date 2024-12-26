@@ -243,6 +243,7 @@ static int mcux_acmp_attr_set(const struct device *dev,
 			return -EINVAL;
 		}
 		break;
+#if !MCUX_ACMP_HAS_NO_3V_DOMAIN
 	case SENSOR_ATTR_MCUX_ACMP_DISCRETE_CLOCK:
 		if (val1 <= kACMP_DiscreteClockFast && val1 >= kACMP_DiscreteClockSlow) {
 			LOG_DBG("discreteClk = %d", val1);
@@ -289,6 +290,7 @@ static int mcux_acmp_attr_set(const struct device *dev,
 			return -EINVAL;
 		}
 		break;
+#endif /* !MCUX_ACMP_HAS_NO_3V_DOMAIN */
 #endif /* MCUX_ACMP_HAS_DISCRETE_MODE */
 	default:
 		return -ENOTSUP;
@@ -350,6 +352,7 @@ static int mcux_acmp_attr_get(const struct device *dev,
 	case SENSOR_ATTR_MCUX_ACMP_NEGATIVE_DISCRETE_MODE:
 		val->val1 = data->discrete_config.enableNegativeChannelDiscreteMode;
 		break;
+#if !MCUX_ACMP_HAS_NO_3V_DOMAIN
 	case SENSOR_ATTR_MCUX_ACMP_DISCRETE_CLOCK:
 		val->val1 = data->discrete_config.clockSource;
 		break;
@@ -365,6 +368,7 @@ static int mcux_acmp_attr_get(const struct device *dev,
 	case SENSOR_ATTR_MCUX_ACMP_DISCRETE_PHASE2_TIME:
 		val->val1 = data->discrete_config.phase2Time;
 		break;
+#endif /* !MCUX_ACMP_HAS_NO_3V_DOMAIN */
 #endif /* MCUX_ACMP_HAS_DISCRETE_MODE */
 	default:
 		return -ENOTSUP;
@@ -498,7 +502,9 @@ static int mcux_acmp_init(const struct device *dev)
 	ACMP_SetDiscreteModeConfig(config->base, &data->discrete_config);
 #endif
 
+#if !(defined(FSL_FEATURE_ACMP_HAS_NO_WINDOW_MODE) && (FSL_FEATURE_ACMP_HAS_NO_WINDOW_MODE == 1U))
 	ACMP_EnableWindowMode(config->base, config->window);
+#endif
 	ACMP_SetFilterConfig(config->base, &config->filter);
 	ACMP_SetChannelConfig(config->base, &data->channels);
 
@@ -534,7 +540,6 @@ static DEVICE_API(sensor, mcux_acmp_driver_api) = {
 static const struct mcux_acmp_config mcux_acmp_config_##n = {		\
 	.base = (CMP_Type *)DT_INST_REG_ADDR(n),			\
 	.filter = {							\
-		.enableSample = MCUX_ACMP_DT_INST_ENABLE_SAMPLE(n),	\
 		.filterCount = MCUX_ACMP_DT_INST_FILTER_COUNT(n),	\
 		.filterPeriod = MCUX_ACMP_DT_INST_FILTER_PERIOD(n),	\
 	},								\
