@@ -51,6 +51,12 @@ extern "C" {
 /** Shift in the tint of every colors, clockwise in a RGB color wheel */
 #define VIDEO_CID_HUE (VIDEO_CID_BASE + 3)
 
+#define VIDEO_CID_ENABLE_HUE (VIDEO_CID_BASE + 4)
+
+#define VIDEO_CID_ENABLE_CONSTRAST (VIDEO_CID_BASE + 5)
+
+#define VIDEO_CID_ENABLE_SATURATION (VIDEO_CID_BASE + 6)
+
 /** Amount of time an image sensor is exposed to light, affecting the brightness */
 #define VIDEO_CID_EXPOSURE (VIDEO_CID_BASE + 17)
 

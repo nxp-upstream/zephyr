@@ -143,6 +143,9 @@ struct ov5640_data {
 	uint16_t cur_frmrate;
 	const struct ov5640_mode_config *cur_mode;
 	bool auto_gain;
+	bool constrast_en;
+	bool hue_en;
+	bool saturation_en;
 };
 
 static const struct ov5640_reg init_params[] = {
@@ -685,6 +688,21 @@ static int ov5640_set_ctrl_test_pattern(const struct device *dev, int value)
 	return ov5640_write_reg(&cfg->i2c, PRE_ISP_TEST_SET1, test_pattern_val[value]);
 }
 
+static int ov5640_set_ctrl_hue_enable(const struct device *dev, int value)
+{
+	const struct ov5640_config *cfg = dev->config;
+	struct ov5640_data *data = dev->data;
+	int ret;
+
+	data->hue_en = value;
+	ret = ov5640_modify_reg(&cfg->i2c, SDE_CTRL0_REG, BIT(0), data->hue_en ? BIT(0) : 0);
+	if (ret) {
+		return ret;
+	}
+
+	return ov5640_modify_reg(&cfg->i2c, SDE_CTRL8_REG, BIT(6), data->hue_en ? BIT(6) : 0);
+}
+
 static int ov5640_set_ctrl_hue(const struct device *dev, int value)
 {
 	const struct ov5640_config *cfg = dev->config;
@@ -727,33 +745,64 @@ static int ov5640_set_ctrl_hue(const struct device *dev, int value)
 	return ov5640_write_multi_regs(&cfg->i2c, hue_params, ARRAY_SIZE(hue_params));
 }
 
+static int ov5640_set_ctrl_saturation_enable(const struct device *dev, bool enable)
+{
+	const struct ov5640_config *cfg = dev->config;
+	struct ov5640_data *data = dev->data;
+	int ret;
+
+	data->saturation_en = enable;
+
+	ret = ov5640_modify_reg(&cfg->i2c, SDE_CTRL0_REG, BIT(1), data->saturation_en ? BIT(1) : 0);
+	if (ret) {
+		return ret;
+	}
+
+	return ov5640_modify_reg(&cfg->i2c, SDE_CTRL8_REG, BIT(6),
+				 data->saturation_en ? BIT(6) : 0);
+}
+
 static int ov5640_set_ctrl_saturation(const struct device *dev, int value)
 {
 	const struct ov5640_config *cfg = dev->config;
+	struct ov5640_data *data = dev->data;
 
 	if (!IN_RANGE(value, 0, UINT8_MAX)) {
 		return -EINVAL;
 	}
 
 	struct ov5640_reg saturation_params[] = {{SDE_CTRL3_REG, value}, {SDE_CTRL4_REG, value}};
-	int ret = ov5640_modify_reg(&cfg->i2c, SDE_CTRL8_REG, BIT(6) | BIT(0), BIT(6) | BIT(0));
 
-	if (ret) {
-		return ret;
+	if (!data->saturation_en) {
+		return -ENOTSUP;
 	}
 
 	return ov5640_write_multi_regs(&cfg->i2c, saturation_params, ARRAY_SIZE(saturation_params));
 }
 
+static int ov5640_set_ctrl_constrast_enable(const struct device *dev, bool enable)
+{
+	const struct ov5640_config *cfg = dev->config;
+	struct ov5640_data *data = dev->data;
+
+	data->constrast_en = enable;
+
+	return ov5640_modify_reg(&cfg->i2c, SDE_CTRL0_REG, BIT(2), data->constrast_en ? BIT(2) : 0);
+}
+
 static int ov5640_set_ctrl_brightness(const struct device *dev, int value)
 {
 	const struct ov5640_config *cfg = dev->config;
+	struct ov5640_data *data = dev->data;
+	int ret;
 
 	if (!IN_RANGE(value, -15, 15)) {
 		return -EINVAL;
 	}
 
-	int ret = ov5640_modify_reg(&cfg->i2c, SDE_CTRL0_REG, BIT(2), BIT(2));
+	if (!data->constrast_en) {
+		return -ENOTSUP;
+	}
 
 	ret = ov5640_modify_reg(&cfg->i2c, SDE_CTRL8_REG, BIT(3), value >= 0 ? 0 : BIT(3));
 	if (ret) {
@@ -767,12 +816,15 @@ static int ov5640_set_ctrl_contrast(const struct device *dev, int value)
 {
 	const struct ov5640_config *cfg = dev->config;
 	const struct ov5640_data *data = dev->data;
+	int ret;
 
 	if (!IN_RANGE(value, -UINT8_MAX, UINT8_MAX)) {
 		return -EINVAL;
 	}
 
-	int ret = ov5640_modify_reg(&cfg->i2c, SDE_CTRL0_REG, BIT(2), BIT(2));
+	if (!data->constrast_en) {
+		return -ENOTSUP;
+	}
 
 	ret = ov5640_modify_reg(&cfg->i2c, SDE_CTRL6_REG, BIT(2), value >= 0 ? 0 : BIT(2));
 	if (ret) {
@@ -863,10 +915,16 @@ static int ov5640_set_ctrl(const struct device *dev, unsigned int cid, void *val
 	switch (cid) {
 	case VIDEO_CID_TEST_PATTERN:
 		return ov5640_set_ctrl_test_pattern(dev, (int)value);
+	case VIDEO_CID_ENABLE_HUE:
+		return ov5640_set_ctrl_hue_enable(dev, (int)value);
 	case VIDEO_CID_HUE:
 		return ov5640_set_ctrl_hue(dev, (int)value);
+	case VIDEO_CID_ENABLE_SATURATION:
+		return ov5640_set_ctrl_saturation_enable(dev, (int)value);
 	case VIDEO_CID_SATURATION:
 		return ov5640_set_ctrl_saturation(dev, (int)(value));
+	case VIDEO_CID_ENABLE_CONSTRAST:
+		return ov5640_set_ctrl_constrast_enable(dev, (int)value);
 	case VIDEO_CID_BRIGHTNESS:
 		return ov5640_set_ctrl_brightness(dev, (int)(value));
 	case VIDEO_CID_CONTRAST:
