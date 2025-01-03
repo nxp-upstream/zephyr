@@ -23,6 +23,8 @@ manifest:
       url-base: https://github.com/zephyrproject-rtos
     - name: babblesim
       url-base: https://github.com/BabbleSim
+    - name: nxp-upstream
+      url-base: https://github.com/nxp-upstream
 
   group-filter: [-babblesim, -optional]
 
@@ -203,7 +205,8 @@ manifest:
       groups:
         - hal
     - name: hal_nxp
-      revision: 0ac830233092247c26f5dd01a07b0a484532ea4c
+      remote: nxp-upstream
+      revision: f6b6542efab807147a0c1dba4a1fe3bdef83c75f
       path: modules/hal/nxp
       groups:
         - hal
