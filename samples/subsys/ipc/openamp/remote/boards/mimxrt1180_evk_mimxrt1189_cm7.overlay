@@ -9,6 +9,9 @@
 
 / {
 	chosen {
+		zephyr,sram = &dtcm;
+		zephyr,flash = &itcm;
+		nxp,m7-partition = &slot1_partition;
 		/*
 		 * shared memory reserved for the inter-processor communication
 		 */

@@ -5,6 +5,12 @@
  */
 
 / {
+	chosen {
+		zephyr,sram = &dtcm;
+		zephyr,flash = &itcm;
+		nxp,m7-partition = &slot1_partition;
+	};
+
 	mbox-consumer {
 		compatible = "vnd,mbox-consumer";
 		mboxes = <&mbox1_b 0>, <&mbox1_b 1>;

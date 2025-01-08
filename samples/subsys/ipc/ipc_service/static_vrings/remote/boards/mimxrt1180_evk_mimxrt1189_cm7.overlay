@@ -8,6 +8,12 @@
 #include <zephyr/dt-bindings/memory-attr/memory-attr-arm.h>
 
 / {
+	chosen {
+		zephyr,sram = &dtcm;
+		zephyr,flash = &itcm;
+		nxp,m7-partition = &slot1_partition;
+	};
+
 	/* Define memory regions for IPC */
 	ocram2_ipc0: memory@20500000 {
 		compatible = "zephyr,memory-region", "mmio-sram";
