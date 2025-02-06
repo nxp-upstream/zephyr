@@ -524,6 +524,10 @@ static ALWAYS_INLINE void clock_init(void)
 	/* Keep core clock ungated during WFI */
 	CCM->LPCG[1].LPM0 = 0x33333333;
 	CCM->LPCG[1].LPM1 = 0x33333333;
+
+	/* Let the core clock still running in WAIT mode */
+	BLK_CTRL_S_AONMIX->M7_CFG |= BLK_CTRL_S_AONMIX_M7_CFG_CORECLK_FORCE_ON_MASK;
+
 	/* Keep the system clock running so SYSTICK can wake up
 	 * the system from wfi.
 	 */
@@ -665,7 +669,7 @@ void soc_early_init_hook(void)
 #if (defined(CM33_SET_TRDC) && (CM33_SET_TRDC > 0U))
 	/* Get trdc and enable all access modes for MBC and MRC of TRDCA and TRDCW */
 	trdc_enable_all_access();
-#endif /* !(defined(CM33_SET_TRDC) && (CM33_SET_TRDC > 0U)) */
+#endif /* (defined(CM33_SET_TRDC) && (CM33_SET_TRDC > 0U)) */
 
 #if defined(CONFIG_WDT_MCUX_RTWDOG)
 	/* Unmask the watchdog reset channel */
@@ -679,9 +683,9 @@ void soc_early_init_hook(void)
 	uint32_t mask = SRC_GetResetStatusFlags(SRC_GENERAL_REG);
 
 	SRC_ClearGlobalSystemResetStatus(SRC_GENERAL_REG, mask);
-#endif /* !(defined(CM33_SET_TRDC) && (CM33_SET_TRDC > 0U)) */
+#endif /* defined(CONFIG_WDT_MCUX_RTWDOG) */
 
-#if defined(CONFIG_SECOND_CORE_MCUX) && defined(CONFIG_CPU_CORTEX_M33)
+#if (defined(CONFIG_SECOND_CORE_MCUX) && defined(CONFIG_CPU_CORTEX_M33))
 	/**
 	 * Copy CM7 core from flash to memory. Note that depending on where the
 	 * user decided to store CM7 code, this is likely going to read from the
@@ -692,7 +696,7 @@ void soc_early_init_hook(void)
 	 * ensure the data is written directly to RAM (since the M4 core will use it)
 	 */
 	LISTIFY(SEGMENT_NUM, MEMCPY_SEGMENT, (;));
-#endif
+#endif /* (defined(CONFIG_SECOND_CORE_MCUX) && defined(CONFIG_CPU_CORTEX_M33)) */
 
 	/* Enable data cache */
 #if defined(CONFIG_IMXRT118X_CM33_XCACHE_PS)
