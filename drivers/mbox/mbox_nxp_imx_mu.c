@@ -21,6 +21,25 @@ LOG_MODULE_REGISTER(nxp_mbox_imx_mu);
 #define MU_MAX_CHANNELS 4
 #define MU_MBOX_SIZE    sizeof(uint32_t)
 
+/*
+ * Arrays to translate the channel number to Generic Interrupt Mask for mu driver.
+ * The kMU_GenInt[0..3]Flag comes from MU driver header mu.h.
+ * There are more MU drivers implementations. For the `mu` driver
+ * the kMU_GenInt0Flag goes from 3 to 0 relative bit for the
+ * `mu1` driver kMU_GenInt0Flag goes from 0 to 3.
+ * Same for kMU_GenInt0InterruptTrigger and kMU_Rx0FullFlag.
+ * Therefore use this mapping table to select correct mask based on channel index.
+ */
+const static uint32_t g_gen_int_pend_mask[MU_MAX_CHANNELS] = {kMU_GenInt0Flag, kMU_GenInt1Flag,
+							      kMU_GenInt2Flag, kMU_GenInt3Flag};
+
+const static uint32_t g_gen_int_trig_mask[MU_MAX_CHANNELS] = {
+	kMU_GenInt0InterruptTrigger, kMU_GenInt1InterruptTrigger, kMU_GenInt2InterruptTrigger,
+	kMU_GenInt3InterruptTrigger};
+
+const static uint32_t g_rx_flag_mask[MU_MAX_CHANNELS] = {kMU_Rx0FullFlag, kMU_Rx1FullFlag,
+							 kMU_Rx2FullFlag, kMU_Rx3FullFlag};
+
 struct nxp_imx_mu_data {
 	mbox_callback_t cb[MU_MAX_CHANNELS];
 	void *user_data[MU_MAX_CHANNELS];
@@ -30,76 +49,6 @@ struct nxp_imx_mu_data {
 struct nxp_imx_mu_config {
 	MU_Type *base;
 };
-
-/*
- * Functions to translate the channel number to Generic Interrupt Mask for mu driver.
- * The kMU_GenInt[0..3]InterruptTrigger comes from MU driver header mu.h.
- * There are more MU drivers implementations in one `mu` driver the
- * kMU_GenInt0InterruptTrigger goes from 3 to 0 relative bit for the
- * `mu1` driver kMU_GenInt0InterruptTrigger goes from 0 to 3.
- * Same for kMU_Rx0FullFlag.
- * Therefore use this mapping table to select correct mask based on channel index.
- *
- */
-static uint32_t get_gen_int_mask(const uint32_t channel)
-{
-	uint32_t mask = 0;
-
-	switch (channel) {
-	case 0:
-		mask = kMU_GenInt0InterruptTrigger;
-		break;
-
-	case 1:
-		mask = kMU_GenInt1InterruptTrigger;
-		break;
-
-	case 2:
-		mask = kMU_GenInt2InterruptTrigger;
-		break;
-
-	case 3:
-		mask = kMU_GenInt3InterruptTrigger;
-		break;
-
-	default:
-		/* Invalid channel provided */
-		assert(0);
-		break;
-	}
-
-	return mask;
-}
-
-static uint32_t get_rx_int_mask(const uint32_t channel)
-{
-	uint32_t mask = 0;
-
-	switch (channel) {
-	case 0:
-		mask = kMU_Rx0FullFlag;
-		break;
-
-	case 1:
-		mask = kMU_Rx1FullFlag;
-		break;
-
-	case 2:
-		mask = kMU_Rx1FullFlag;
-		break;
-
-	case 3:
-		mask = kMU_Rx1FullFlag;
-		break;
-
-	default:
-		/* Invalid channel provided */
-		assert(0);
-		break;
-	}
-
-	return mask;
-}
 
 static int nxp_imx_mu_send(const struct device *dev, uint32_t channel, const struct mbox_msg *msg)
 {
@@ -112,7 +61,7 @@ static int nxp_imx_mu_send(const struct device *dev, uint32_t channel, const str
 
 	/* Signalling mode. */
 	if (msg == NULL) {
-		return MU_TriggerInterrupts(cfg->base, get_gen_int_mask(channel));
+		return MU_TriggerInterrupts(cfg->base, g_gen_int_trig_mask[channel]);
 	}
 
 	/* Data transfer mode. */
@@ -232,8 +181,8 @@ static void handle_irq(const struct device *dev)
 	const uint32_t flags = MU_GetStatusFlags(config->base);
 
 	for (int i_channel = 0; i_channel < MU_MAX_CHANNELS; i_channel++) {
-		uint32_t rx_int_mask = get_rx_int_mask(i_channel);
-		uint32_t gen_int_mask = get_gen_int_mask(i_channel);
+		const uint32_t rx_int_mask = g_rx_flag_mask[i_channel];
+		const uint32_t gen_int_mask = g_gen_int_pend_mask[i_channel];
 
 		if ((flags & rx_int_mask) == rx_int_mask) {
 			data->received_data = MU_ReceiveMsgNonBlocking(config->base, i_channel);
