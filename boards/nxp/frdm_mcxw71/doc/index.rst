@@ -128,8 +128,26 @@ Connect a USB cable from your PC to J10, and use the serial terminal of your cho
 - Parity: None
 - Stop bits: 1
 
-Flashing
-========
+Application Building
+====================
+
+Openthread applications
+-----------------------
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/net/sockets/echo_server
+   :board: frdm_mcxw71
+   :goals: build
+   :west-args: -- -DEXTRA_CONF_FILE=overlay-ot.conf
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/net/sockets/echo_client
+   :board: frdm_mcxw71
+   :goals: build
+   :west-args: -- -DEXTRA_CONF_FILE=overlay-ot.conf
+
+Application Flashing
+====================
 
 Here is an example for the :zephyr:code-sample:`hello_world` application.
 
@@ -164,14 +182,14 @@ should see the following message in the terminal:
    *** Booting Zephyr OS build v3.7.0-xxx-xxxx ***
    Hello World! frdm_mcxw71/mcxw716c
 
-Bluetooth
-=========
+NBU Flashing
+============
 
 BLE functionality requires to fetch binary blobs, so make sure to follow
 the ``Fetch Binary Blobs`` section first.
 
 Two images must be written to the board: one for the host (CM33) and one for the NBU (CM3).
-- To flash the application (CM33) refer to the ``Flashing`` section above.
+- To flash the application (CM33) refer to the ``Application Flashing`` section above.
 - To flash the NBU, follow the instructions below:
 
    * Install ``blhost`` from NXP's website. This is the tool that will allow you to flash the NBU.
@@ -182,6 +200,7 @@ Two images must be written to the board: one for the host (CM33) and one for the
       - Reconnect any external power supply, if needed.
    * Use the following command to flash NBU file:
 
+For bluetooth only NBU:
 .. code-block:: console
 
    # On Windows
@@ -193,6 +212,19 @@ Two images must be written to the board: one for the host (CM33) and one for the
 Please consider changing ``COMxx`` on Windows or ``ttyxx`` on Linux to the serial port used by your board.
 
 The NBU file can be found in : ``<zephyr workspace>/modules/hal/nxp/zephyr/blobs/mcxw71/mcxw71_nbu_ble.sb3``
+
+For dynamic (bluetooth + ieee802154) NBU:
+.. code-block:: console
+
+   # On Windows
+   blhost.exe -p COMxx -- receive-sb-file mcxw71_nbu_ble_15_4_dyn.sb3
+
+   # On Linux
+   ./blhost -p /dev/ttyxx -- receive-sb-file mcxw71_nbu_ble_15_4_dyn.sb3
+
+Please consider changing ``COMxx`` on Windows or ``ttyxx`` on Linux to the serial port used by your board.
+
+The NBU file can be found in : ``<zephyr workspace>/modules/hal/nxp/zephyr/blobs/mcxw71/mcxw71_nbu_ble_15_4_dyn.sb3``
 
 For more details:
 
