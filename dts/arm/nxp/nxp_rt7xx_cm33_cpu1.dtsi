@@ -408,6 +408,33 @@
 		};
 	};
 
+    /* MU1: MUB, CPU1 to CPU0 */
+    mbox1_b: mbox@203000 {
+		compatible = "nxp,mbox-imx-mu";
+		reg = <0x203000 0x1000>;
+		interrupts = <26 0>;
+		rx-channels = <4>;
+		#mbox-cells = <1>;
+	};
+
+    /* MU2: MUB, CPU1 to HiFi4 */
+	mbox2_b: mbox@205000 {
+		compatible = "nxp,mbox-imx-mu";
+		reg = <0x205000 0x1000>;
+		interrupts = <27 0>;
+		rx-channels = <4>;
+		#mbox-cells = <1>;
+	};
+
+    /* MU3: MUA, CPU1 to HiFi1 */
+    mbox3_a: mbox@319000 {
+		compatible = "nxp,mbox-imx-mu";
+		reg = <0x319000 0x1000>;
+		interrupts = <28 0>;
+		rx-channels = <4>;
+		#mbox-cells = <1>;
+	};
+
 	/* LPFlexcomm15 only support LPI2C function. */
 	lpi2c15: i2c@213000 {
 		compatible = "nxp,lpi2c";

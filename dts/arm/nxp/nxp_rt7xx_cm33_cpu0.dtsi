@@ -938,6 +938,33 @@
 		};
 	};
 
+    /* MU0: MUA, CPU0 to HiFi1 */
+    mbox0_a: mbox@200000 {
+		compatible = "nxp,mbox-imx-mu";
+		reg = <0x200000 0x1000>;
+		interrupts = <29 0>;
+		rx-channels = <4>;
+		#mbox-cells = <1>;
+	};
+
+    /* MU1: MUA, CPU0 to CPU1 */
+	mbox1_a: mbox@202000 {
+		compatible = "nxp,mbox-imx-mu";
+		reg = <0x202000 0x1000>;
+		interrupts = <30 0>;
+		rx-channels = <4>;
+		#mbox-cells = <1>;
+	};
+
+    /* MU4: MUA, CPU0 to HiFi4 */
+    mbox4_a: mbox@189000 {
+		compatible = "nxp,mbox-imx-mu";
+		reg = <0x189000 0x1000>;
+		interrupts = <31 0>;
+		rx-channels = <4>;
+		#mbox-cells = <1>;
+	};
+
 	/* LPFlexcomm14/16 only support LPSPI function  */
 	lpspi14: spi@484000 {
 		compatible = "nxp,lpspi";

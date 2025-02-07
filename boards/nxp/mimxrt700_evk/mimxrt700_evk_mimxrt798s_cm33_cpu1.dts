@@ -24,6 +24,7 @@
 		zephyr,sram = &sram0;
 		zephyr,console = &flexcomm19_lpuart19;
 		zephyr,shell-uart = &flexcomm19_lpuart19;
+        nxp,cpu1-partition = &slot1_partition;
 	};
 
 	leds {
