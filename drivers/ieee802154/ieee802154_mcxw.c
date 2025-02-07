@@ -63,7 +63,7 @@ static uint16_t rf_compute_csl_phase(uint32_t aTimeUs);
 #define stop_csl_receiver()
 #endif /* CONFIG_IEEE802154_CSL_ENDPOINT */
 
-static volatile uint32_t sunRxMode = RX_ON_IDLE_START;
+static volatile uint32_t sun_rx_mode = RX_ON_IDLE_START;
 
 /* Private functions */
 static void rf_abort(void);
@@ -84,14 +84,14 @@ static struct mcxw_context mcxw_ctx;
 /**
  * Stub function used for controlling low power mode
  */
-WEAK void App_AllowDeviceToSleep(void)
+WEAK void app_allow_device_to_slepp(void)
 {
 }
 
 /**
  * Stub function used for controlling low power mode
  */
-WEAK void App_DisallowDeviceToSleep(void)
+WEAK void app_disallow_device_to_slepp(void)
 {
 }
 
@@ -179,7 +179,7 @@ void mcxw_radio_receive(void)
 	macToPlmeMessage_t msg;
 	phyStatus_t phy_status;
 
-	App_DisallowDeviceToSleep();
+	app_disallow_device_to_slepp();
 
 	__ASSERT(mcxw_ctx.state != RADIO_STATE_DISABLED, "Radio RX invalid state");
 
@@ -188,7 +188,7 @@ void mcxw_radio_receive(void)
 	rf_abort();
 	rf_set_channel(mcxw_ctx.channel);
 
-	if (sunRxMode) {
+	if (sun_rx_mode) {
 		start_csl_receiver();
 
 		/* restart Rx on idle only if it was enabled */
@@ -245,7 +245,7 @@ void mcxw_radio_sleep(void)
 
 	stop_csl_receiver();
 
-	App_AllowDeviceToSleep();
+	app_allow_device_to_slepp();
 
 	mcxw_ctx.state = RADIO_STATE_SLEEP;
 }
@@ -359,7 +359,7 @@ static int mcxw_tx(const struct device *dev, enum ieee802154_tx_mode mode, struc
 	uint8_t payload_len = frag->len;
 	uint8_t *payload = frag->data;
 
-	App_DisallowDeviceToSleep();
+	app_disallow_device_to_slepp();
 
 	__ASSERT(mcxw_radio->state != RADIO_STATE_DISABLED, "%s: radio disabled", __func__);
 
@@ -395,7 +395,7 @@ static int mcxw_tx(const struct device *dev, enum ieee802154_tx_mode mode, struc
 			(3 + mcxw_radio->tx_frame.length) * RADIO_SYMBOLS_PER_OCTET +
 			IEEE802154_TURNAROUND_LEN_SYM;
 
-		if (IsVersion2015(frag->data, frag->len)) {
+		if (is_frame_version_2015(frag->data, frag->len)) {
 			/* Because enhanced ack can be of variable length we need to set the timeout
 			 * value to account for the FCF and addressing fields only, and stop the
 			 * timeout timer after they are received and validated as a valid ACK
@@ -433,7 +433,7 @@ static int mcxw_tx(const struct device *dev, enum ieee802154_tx_mode mode, struc
 	msg->msgData.dataReq.flags = 0;
 
 #if OPENTHREAD_CONFIG_THREAD_VERSION >= OT_THREAD_VERSION_1_2
-	if (IsKeyIdMode1(mcxw_radio->tx_frame.psdu, mcxw_radio->tx_frame.length)) {
+	if (is_keyid_mode_1(mcxw_radio->tx_frame.psdu, mcxw_radio->tx_frame.length)) {
 		if (!net_pkt_ieee802154_frame_secured(pkt)) {
 			msg->msgData.dataReq.flags |= gPhyEncFrame;
 
@@ -448,7 +448,7 @@ static int mcxw_tx(const struct device *dev, enum ieee802154_tx_mode mode, struc
 				 * in that case.
 				 */
 				if (mcxw_radio->csl_period) {
-					uint32_t hdrTimeUs;
+					uint32_t hdr_time_us;
 
 					start_csl_receiver();
 
@@ -458,14 +458,14 @@ static int mcxw_tx(const struct device *dev, enum ieee802154_tx_mode mode, struc
 					msg->msgData.dataReq.startTime =
 						PhyTime_ReadClock() + TX_ENCRYPT_DELAY_SYM;
 
-					hdrTimeUs = mcxw_get_time(NULL) +
+					hdr_time_us = mcxw_get_time(NULL) +
 						    (TX_ENCRYPT_DELAY_SYM +
 						     IEEE802154_PHY_SHR_LEN_SYM) *
 							    IEEE802154_SYMBOL_TIME_US;
-					SetCslIe(mcxw_radio->tx_frame.psdu,
+					set_csl_ie(mcxw_radio->tx_frame.psdu,
 						 mcxw_radio->tx_frame.length,
 						 mcxw_radio->csl_period,
-						 rf_compute_csl_phase(hdrTimeUs));
+						 rf_compute_csl_phase(hdr_time_us));
 				}
 #endif /* CONFIG_IEEE802154_CSL_ENDPOINT */
 			}
@@ -603,7 +603,7 @@ static int mcxw_energy_scan(const struct device *dev, uint16_t duration,
 	phyStatus_t phy_status;
 	macToPlmeMessage_t msg;
 
-	App_DisallowDeviceToSleep();
+	app_disallow_device_to_slepp();
 
 	struct mcxw_context *mcxw_radio = dev->data;
 
@@ -792,27 +792,27 @@ static void stop_csl_receiver(void)
 }
 
 /*
- * Compute the CSL Phase for the aTimeUs - i.e. the time from the aTimeUs to
- * mcxw_ctx.csl_sample_time. The assumption is that mcxw_ctx.csl_sample_time > aTimeUs. Since the
+ * Compute the CSL Phase for the time_us - i.e. the time from the time_us to
+ * mcxw_ctx.csl_sample_time. The assumption is that mcxw_ctx.csl_sample_time > time_us. Since the
  * time is kept with a limited timer in reality it means that sometimes mcxw_ctx.csl_sample_time <
- * aTimeUs, when the timer overflows. Therefore the formula should be:
+ * time_us, when the timer overflows. Therefore the formula should be:
  *
- * if (aTimeUs <= mcxw_ctx.csl_sample_time)
- *         cslPhaseUs = mcxw_ctx.csl_sample_time - aTimeUs;
+ * if (time_us <= mcxw_ctx.csl_sample_time)
+ *         csl_phase_us = mcxw_ctx.csl_sample_time - time_us;
  * else
- *         cslPhaseUs = MAX_TIMER_VALUE - aTimeUs + mcxw_ctx.csl_sample_time;
+ *         csl_phase_us = MAX_TIMER_VALUE - time_us + mcxw_ctx.csl_sample_time;
  *
  * For simplicity the formula below has been used.
  */
-static uint16_t rf_compute_csl_phase(uint32_t aTimeUs)
+static uint16_t rf_compute_csl_phase(uint32_t time_us)
 {
 	/* convert CSL Period in microseconds - it was given in 10 symbols */
-	uint32_t cslPeriodUs = mcxw_ctx.csl_period * 10 * IEEE802154_SYMBOL_TIME_US;
-	uint32_t cslPhaseUs =
-		(cslPeriodUs - (aTimeUs % cslPeriodUs) + (mcxw_ctx.csl_sample_time % cslPeriodUs)) %
-		cslPeriodUs;
+	uint32_t csl_period_us = mcxw_ctx.csl_period * 10 * IEEE802154_SYMBOL_TIME_US;
+	uint32_t csl_phase_us =
+		(csl_period_us - (time_us % csl_period_us) +
+		(mcxw_ctx.csl_sample_time % csl_period_us)) % csl_period_us;
 
-	return (uint16_t)(cslPhaseUs / (10 * IEEE802154_SYMBOL_TIME_US) + 1);
+	return (uint16_t)(csl_phase_us / (10 * IEEE802154_SYMBOL_TIME_US) + 1);
 }
 #endif /* CONFIG_IEEE802154_CSL_ENDPOINT */
 
@@ -821,7 +821,7 @@ static void rf_abort(void)
 {
 	macToPlmeMessage_t msg;
 
-	sunRxMode = RX_ON_IDLE_START;
+	sun_rx_mode = RX_ON_IDLE_START;
 	msg.msgType = gPlmeSetReq_c;
 	msg.msgData.setReq.PibAttribute = gPhyPibRxOnWhenIdle;
 	msg.msgData.setReq.PibAttributeValue = (uint64_t)0;
@@ -885,41 +885,41 @@ static int mcxw_set_channel(const struct device *dev, uint16_t channel)
 
 static net_time_t mcxw_get_time(const struct device *dev)
 {
-	static uint64_t u64SwTimestampUs;
-	static uint64_t u64HwTimestampUs;
+	static uint64_t sw_timestamp;
+	static uint64_t hw_timestamp;
 
 	ARG_UNUSED(dev);
 
 	/* Get new 32bit HW timestamp */
-	uint32_t u32Ticks;
-	uint64_t u64HwTimestampUs_new;
+	uint32_t ticks;
+	uint64_t hw_timestamp_new;
 	uint64_t wrapped_val = 0;
 	uint64_t increment;
 	unsigned int key;
 
 	key = irq_lock();
 
-	if (counter_get_value(mcxw_ctx.counter, &u32Ticks)) {
+	if (counter_get_value(mcxw_ctx.counter, &ticks)) {
 		return -1;
 	}
 
-	u64HwTimestampUs_new = counter_ticks_to_us(mcxw_ctx.counter, u32Ticks);
+	hw_timestamp_new = counter_ticks_to_us(mcxw_ctx.counter, ticks);
 
 	/* Check if the timestamp has wrapped around */
-	if (u64HwTimestampUs > u64HwTimestampUs_new) {
+	if (hw_timestamp > hw_timestamp_new) {
 		wrapped_val =
 			COUNT_TO_USEC(((uint64_t)1 << 32), counter_get_frequency(mcxw_ctx.counter));
 	}
 
-	increment = (u64HwTimestampUs_new + wrapped_val) - u64HwTimestampUs;
-	u64SwTimestampUs += increment;
+	increment = (hw_timestamp_new + wrapped_val) - hw_timestamp;
+	sw_timestamp += increment;
 
 	/* Store new HW timestamp for next iteration */
-	u64HwTimestampUs = u64HwTimestampUs_new;
+	hw_timestamp = hw_timestamp_new;
 
 	irq_unlock(key);
 
-	return (net_time_t)u64SwTimestampUs;
+	return (net_time_t)sw_timestamp;
 }
 
 static void rf_set_tx_power(int8_t tx_power)
@@ -961,22 +961,22 @@ static uint32_t rf_adjust_tstamp_from_app(uint32_t time)
 /* Phy Data Service Access Point handler
  * Called by Phy to notify when Tx has been done or Rx data is available
  */
-phyStatus_t PD_MAC_SapHandler(void *pMsg, instanceId_t instance)
+phyStatus_t pd_mac_sap_handler(void *msg, instanceId_t instance)
 {
-	pdDataToMacMessage_t *pDataMsg = (pdDataToMacMessage_t *)pMsg;
+	pdDataToMacMessage_t *data_msg = (pdDataToMacMessage_t *)msg;
 
-	__ASSERT_NO_MSG(pMsg != NULL);
+	__ASSERT_NO_MSG(msg != NULL);
 
 	/* PWR_DisallowDeviceToSleep(); */
 
-	switch (pDataMsg->msgType) {
+	switch (data_msg->msgType) {
 	case gPdDataCnf_c:
 		/* TX is done */
 #if OPENTHREAD_CONFIG_THREAD_VERSION >= OT_THREAD_VERSION_1_2
-		if (IsKeyIdMode1(mcxw_ctx.tx_frame.psdu, mcxw_ctx.tx_frame.length) &&
+		if (is_keyid_mode_1(mcxw_ctx.tx_frame.psdu, mcxw_ctx.tx_frame.length) &&
 		    !mcxw_ctx.tx_frame.sec_processed && !mcxw_ctx.tx_frame.hdr_updated) {
-			SetFrameCounter(mcxw_ctx.tx_frame.psdu, mcxw_ctx.tx_frame.length,
-					pDataMsg->fc);
+			set_frame_counter(mcxw_ctx.tx_frame.psdu, mcxw_ctx.tx_frame.length,
+					data_msg->fc);
 			mcxw_ctx.tx_frame.hdr_updated = true;
 		}
 #endif
@@ -986,14 +986,14 @@ phyStatus_t PD_MAC_SapHandler(void *pMsg, instanceId_t instance)
 		mcxw_ctx.state = RADIO_STATE_RECEIVE;
 
 		mcxw_ctx.rx_ack_frame.channel = mcxw_ctx.channel;
-		mcxw_ctx.rx_ack_frame.length = pDataMsg->msgData.dataCnf.ackLength;
-		mcxw_ctx.rx_ack_frame.timestamp = pDataMsg->msgData.dataCnf.timeStamp;
-		memcpy(mcxw_ctx.rx_ack_frame.psdu, pDataMsg->msgData.dataCnf.ackData,
+		mcxw_ctx.rx_ack_frame.length = data_msg->msgData.dataCnf.ackLength;
+		mcxw_ctx.rx_ack_frame.timestamp = data_msg->msgData.dataCnf.timeStamp;
+		memcpy(mcxw_ctx.rx_ack_frame.psdu, data_msg->msgData.dataCnf.ackData,
 		       mcxw_ctx.rx_ack_frame.length);
 
 		k_sem_give(&mcxw_ctx.tx_wait);
 
-		k_free(pMsg);
+		k_free(msg);
 		break;
 
 	case gPdDataInd_c:
@@ -1001,15 +1001,15 @@ phyStatus_t PD_MAC_SapHandler(void *pMsg, instanceId_t instance)
 		struct mcxw_rx_frame rx_frame;
 
 		/* retrieve frame information and data */
-		rx_frame.lqi = pDataMsg->msgData.dataInd.ppduLinkQuality;
-		rx_frame.rssi = pDataMsg->msgData.dataInd.ppduRssi;
-		rx_frame.timestamp = rf_adjust_tstamp_from_phy(pDataMsg->msgData.dataInd.timeStamp);
-		rx_frame.ack_fpb = pDataMsg->msgData.dataInd.rxAckFp;
-		rx_frame.length = pDataMsg->msgData.dataInd.psduLength;
-		rx_frame.psdu = pDataMsg->msgData.dataInd.pPsdu;
-		rx_frame.ack_seb = pDataMsg->msgData.dataInd.ackedWithSecEnhAck;
+		rx_frame.lqi = data_msg->msgData.dataInd.ppduLinkQuality;
+		rx_frame.rssi = data_msg->msgData.dataInd.ppduRssi;
+		rx_frame.timestamp = rf_adjust_tstamp_from_phy(data_msg->msgData.dataInd.timeStamp);
+		rx_frame.ack_fpb = data_msg->msgData.dataInd.rxAckFp;
+		rx_frame.length = data_msg->msgData.dataInd.psduLength;
+		rx_frame.psdu = data_msg->msgData.dataInd.pPsdu;
+		rx_frame.ack_seb = data_msg->msgData.dataInd.ackedWithSecEnhAck;
 
-		rx_frame.phy_buffer = (void *)pMsg;
+		rx_frame.phy_buffer = (void *)msg;
 
 		/* stop rx on idle if message queue is almost full */
 		if (k_msgq_num_free_get(&mcxw_ctx.rx_msgq) == 1) {
@@ -1035,17 +1035,17 @@ phyStatus_t PD_MAC_SapHandler(void *pMsg, instanceId_t instance)
 /* Phy Layer Management Entities Service Access Point handler
  * Called by Phy to notify PLME event
  */
-phyStatus_t PLME_MAC_SapHandler(void *pMsg, instanceId_t instance)
+phyStatus_t plme_mac_sap_handler(void *msg, instanceId_t instance)
 {
-	plmeToMacMessage_t *pPlmeMsg = (plmeToMacMessage_t *)pMsg;
+	plmeToMacMessage_t *plme_msg = (plmeToMacMessage_t *)msg;
 
-	__ASSERT_NO_MSG(pMsg != NULL);
+	__ASSERT_NO_MSG(msg != NULL);
 
 	/* PWR_DisallowDeviceToSleep(); */
 
-	switch (pPlmeMsg->msgType) {
+	switch (plme_msg->msgType) {
 	case gPlmeCcaCnf_c:
-		if (pPlmeMsg->msgData.ccaCnf.status == gPhyChannelBusy_c) {
+		if (plme_msg->msgData.ccaCnf.status == gPhyChannelBusy_c) {
 			/* Channel is busy */
 			mcxw_ctx.tx_status = EBUSY;
 		} else {
@@ -1060,7 +1060,7 @@ phyStatus_t PLME_MAC_SapHandler(void *pMsg, instanceId_t instance)
 		if (mcxw_ctx.energy_scan_done != NULL) {
 			energy_scan_done_cb_t callback = mcxw_ctx.energy_scan_done;
 
-			mcxw_ctx.max_ed = pPlmeMsg->msgData.edCnf.maxEnergyLeveldB;
+			mcxw_ctx.max_ed = plme_msg->msgData.edCnf.maxEnergyLeveldB;
 
 			mcxw_ctx.energy_scan_done = NULL;
 			callback(net_if_get_device(mcxw_ctx.iface), mcxw_ctx.max_ed);
@@ -1070,10 +1070,10 @@ phyStatus_t PLME_MAC_SapHandler(void *pMsg, instanceId_t instance)
 		if (RADIO_STATE_TRANSMIT == mcxw_ctx.state) {
 			/* Ack timeout */
 #if OPENTHREAD_CONFIG_THREAD_VERSION >= OT_THREAD_VERSION_1_2
-			if (IsKeyIdMode1(mcxw_ctx.tx_frame.psdu, mcxw_ctx.tx_frame.length) &&
+			if (is_keyid_mode_1(mcxw_ctx.tx_frame.psdu, mcxw_ctx.tx_frame.length) &&
 			    !mcxw_ctx.tx_frame.sec_processed && !mcxw_ctx.tx_frame.hdr_updated) {
-				SetFrameCounter(mcxw_ctx.tx_frame.psdu, mcxw_ctx.tx_frame.length,
-						pPlmeMsg->fc);
+				set_frame_counter(mcxw_ctx.tx_frame.psdu, mcxw_ctx.tx_frame.length,
+						plme_msg->fc);
 				mcxw_ctx.tx_frame.hdr_updated = true;
 			}
 #endif
@@ -1094,10 +1094,10 @@ phyStatus_t PLME_MAC_SapHandler(void *pMsg, instanceId_t instance)
 	case gPlmeAbortInd_c:
 		/* TX Packet was loaded into TX Packet RAM but the TX/TR seq did not ended ok */
 #if OPENTHREAD_CONFIG_THREAD_VERSION >= OT_THREAD_VERSION_1_2
-		if (IsKeyIdMode1(mcxw_ctx.tx_frame.psdu, mcxw_ctx.tx_frame.length) &&
+		if (is_keyid_mode_1(mcxw_ctx.tx_frame.psdu, mcxw_ctx.tx_frame.length) &&
 		    !mcxw_ctx.tx_frame.sec_processed && !mcxw_ctx.tx_frame.hdr_updated) {
-			SetFrameCounter(mcxw_ctx.tx_frame.psdu, mcxw_ctx.tx_frame.length,
-					pPlmeMsg->fc);
+			set_frame_counter(mcxw_ctx.tx_frame.psdu, mcxw_ctx.tx_frame.length,
+					plme_msg->fc);
 			mcxw_ctx.tx_frame.hdr_updated = true;
 		}
 #endif
@@ -1112,7 +1112,7 @@ phyStatus_t PLME_MAC_SapHandler(void *pMsg, instanceId_t instance)
 		break;
 	}
 	/* The message has been allocated by the Phy, we have to free it */
-	k_free(pMsg);
+	k_free(msg);
 
 	stop_csl_receiver();
 
@@ -1223,6 +1223,7 @@ static int mcxw_attr_get(const struct device *dev, enum ieee802154_attr attr,
 static enum ieee802154_hw_caps mcxw_get_capabilities(const struct device *dev)
 {
 	enum ieee802154_hw_caps caps;
+
 	caps = IEEE802154_HW_FCS | IEEE802154_HW_PROMISC | IEEE802154_HW_FILTER |
 	       IEEE802154_HW_TX_RX_ACK | IEEE802154_HW_RX_TX_ACK | IEEE802154_HW_ENERGY_SCAN |
 	       IEEE802154_HW_TXTIME | IEEE802154_HW_RXTIME | IEEE802154_HW_SLEEP_TO_TX |
@@ -1249,8 +1250,8 @@ static int mcxw_init(const struct device *dev)
 	/* Register Phy Data Service Access Point and Phy Layer Management Entities Service Access
 	 * Point handlers
 	 */
-	Phy_RegisterSapHandlers((PD_MAC_SapHandler_t)PD_MAC_SapHandler,
-				(PLME_MAC_SapHandler_t)PLME_MAC_SapHandler, ot_phy_ctx);
+	Phy_RegisterSapHandlers((PD_MAC_SapHandler_t)pd_mac_sap_handler,
+				(PLME_MAC_SapHandler_t)plme_mac_sap_handler, ot_phy_ctx);
 
 	msg.msgType = gPlmeEnableEncryption_c;
 	(void)MAC_PLME_SapHandler(&msg, ot_phy_ctx);
@@ -1296,6 +1297,7 @@ static void mcxw_iface_init(struct net_if *iface)
 {
 	const struct device *dev = net_if_get_device(iface);
 	struct mcxw_context *mcxw_radio = dev->data;
+
 	mcxw_get_eui64(mcxw_radio->mac);
 
 	net_if_set_link_addr(iface, mcxw_radio->mac, sizeof(mcxw_radio->mac), NET_LINK_IEEE802154);
@@ -1303,17 +1305,17 @@ static void mcxw_iface_init(struct net_if *iface)
 	ieee802154_init(iface);
 }
 
-static void rf_rx_on_idle(uint32_t newValue)
+static void rf_rx_on_idle(uint32_t new_val)
 {
 	macToPlmeMessage_t msg;
 	phyStatus_t phy_status;
 
-	newValue %= 2;
-	if (sunRxMode != newValue) {
-		sunRxMode = newValue;
+	new_val %= 2;
+	if (sun_rx_mode != new_val) {
+		sun_rx_mode = new_val;
 		msg.msgType = gPlmeSetReq_c;
 		msg.msgData.setReq.PibAttribute = gPhyPibRxOnWhenIdle;
-		msg.msgData.setReq.PibAttributeValue = (uint64_t)sunRxMode;
+		msg.msgData.setReq.PibAttributeValue = (uint64_t)sun_rx_mode;
 
 		phy_status = MAC_PLME_SapHandler(&msg, ot_phy_ctx);
 

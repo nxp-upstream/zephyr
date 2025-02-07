@@ -41,15 +41,13 @@
 
 #define RADIO_SYMBOLS_PER_OCTET			(2)
 
-typedef enum mcxw_radio_state
-{
-    RADIO_STATE_DISABLED = 0,
-    RADIO_STATE_SLEEP    = 1,
-    RADIO_STATE_RECEIVE  = 2,
-    RADIO_STATE_TRANSMIT = 3,
-    RADIO_STATE_INVALID  = 255,
+typedef enum mcxw_radio_state {
+	RADIO_STATE_DISABLED = 0,
+	RADIO_STATE_SLEEP    = 1,
+	RADIO_STATE_RECEIVE  = 2,
+	RADIO_STATE_TRANSMIT = 3,
+	RADIO_STATE_INVALID  = 255,
 } mcxw_radio_state;
-
 
 typedef struct mcxw_rx_frame {
 	uint8_t *psdu;

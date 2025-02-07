@@ -7,10 +7,10 @@
  *
  */
 
-bool IsVersion2015(uint8_t *pdu, uint16_t lenght);
+bool is_frame_version_2015(uint8_t *pdu, uint16_t length);
 
-bool IsKeyIdMode1(uint8_t *pdu, uint16_t lenght);
+bool is_keyid_mode_1(uint8_t *pdu, uint16_t length);
 
-void SetFrameCounter(uint8_t *pdu, uint16_t lenght, uint32_t fc);
+void set_frame_counter(uint8_t *pdu, uint16_t length, uint32_t fc);
 
-void SetCslIe(uint8_t *pdu, uint16_t lenght, uint16_t period, uint16_t phase);
+void set_csl_ie(uint8_t *pdu, uint16_t length, uint16_t period, uint16_t phase);

@@ -16,8 +16,8 @@
 
 #include "ieee802154_mcxw_utils.h"
 
-// TODO IEEE 802.15.4 MAC Multipurpose frame format
-// TODO add function checks
+/* TODO IEEE 802.15.4 MAC Multipurpose frame format */
+/* TODO add function checks */
 
 enum offset_fcf_fields {
 	OffsetFrameType = 0x00,
@@ -77,16 +77,16 @@ enum mask_scf_fields {
 	MaskASNinNonce = (0x01 << OffsetASNinNonce),
 };
 
-static uint16_t GetFrameControlField(uint8_t *pdu, uint16_t lenght)
+static uint16_t get_frame_control_field(uint8_t *pdu, uint16_t length)
 {
-	if ((pdu == NULL) || (lenght < 3)) {
+	if ((pdu == NULL) || (length < 3)) {
 		return 0x00;
 	}
 
 	return (uint16_t)(pdu[0] | (pdu[1] << 8));
 }
 
-static bool IsSecurityEnabled(uint16_t fcf)
+static bool is_security_enabled(uint16_t fcf)
 {
 	if (fcf) {
 		return (bool)(fcf & MaskSecurityEnabled);
@@ -95,7 +95,7 @@ static bool IsSecurityEnabled(uint16_t fcf)
 	return false;
 }
 
-static bool IsIEPresent(uint16_t fcf)
+static bool is_ie_present(uint16_t fcf)
 {
 	if (fcf) {
 		return (bool)(fcf & MaskIEPresent);
@@ -104,7 +104,7 @@ static bool IsIEPresent(uint16_t fcf)
 	return false;
 }
 
-static uint8_t GetFrameVersion(uint16_t fcf)
+static uint8_t get_frame_version(uint16_t fcf)
 {
 	if (fcf) {
 		return (uint8_t)((fcf & MaskFrameVersion) >> OffsetFrameVersion);
@@ -113,27 +113,27 @@ static uint8_t GetFrameVersion(uint16_t fcf)
 	return 0xFF;
 }
 
-static bool IsVersion2015FCF(uint16_t fcf)
+static bool is_frame_version_2015_fcf(uint16_t fcf)
 {
 	if (fcf) {
-		return GetFrameVersion(fcf) == VersionIeee2015;
+		return get_frame_version(fcf) == VersionIeee2015;
 	}
 
 	return false;
 }
 
-bool IsVersion2015(uint8_t *pdu, uint16_t lenght)
+bool is_frame_version_2015(uint8_t *pdu, uint16_t length)
 {
-	uint16_t fcf = GetFrameControlField(pdu, lenght);
+	uint16_t fcf = get_frame_control_field(pdu, length);
 
 	if (fcf) {
-		return GetFrameVersion(fcf) == VersionIeee2015;
+		return get_frame_version(fcf) == VersionIeee2015;
 	}
 
 	return false;
 }
 
-static bool IsSequenceNumberSuppression(uint16_t fcf)
+static bool is_sequence_number_suppression(uint16_t fcf)
 {
 	if (fcf) {
 		return (bool)(fcf & MaskSeqNumberSuppression);
@@ -142,15 +142,15 @@ static bool IsSequenceNumberSuppression(uint16_t fcf)
 	return false;
 }
 
-static bool IsDstPanIdPresent(uint16_t fcf)
+static bool is_dst_panid_present(uint16_t fcf)
 {
+	bool present;
+
 	if (!fcf) {
 		return false;
 	}
 
-	bool present;
-
-	if (IsVersion2015FCF(fcf)) {
+	if (is_frame_version_2015_fcf(fcf)) {
 		switch (fcf & (MaskDstAddrMode | MaskSrcAddrMode | MaskPanIdCompression)) {
 		case (ModeDstAddrNone | ModeSrcAddrNone):
 		case (ModeDstAddrShort | ModeSrcAddrNone | MaskPanIdCompression):
@@ -172,15 +172,15 @@ static bool IsDstPanIdPresent(uint16_t fcf)
 	return present;
 }
 
-static bool IsSrcPanIdPresent(uint16_t fcf)
+static bool is_src_panid_present(uint16_t fcf)
 {
+	bool present;
+
 	if (!fcf) {
 		return false;
 	}
 
-	bool present;
-
-	if (IsVersion2015FCF(fcf)) {
+	if (is_frame_version_2015_fcf(fcf)) {
 		switch (fcf & (MaskDstAddrMode | MaskSrcAddrMode | MaskPanIdCompression)) {
 		case (ModeDstAddrNone | ModeSrcAddrShort):
 		case (ModeDstAddrNone | ModeSrcAddrExt):
@@ -200,23 +200,23 @@ static bool IsSrcPanIdPresent(uint16_t fcf)
 	return present;
 }
 
-static uint8_t CalculateAddrFieldSize(uint16_t fcf)
+static uint8_t calculate_addr_field_size(uint16_t fcf)
 {
+	uint8_t size = 2;
+
 	if (!fcf) {
 		return 0;
 	}
 
-	uint8_t size = 2;
-
-	if (!IsSequenceNumberSuppression(fcf)) {
+	if (!is_sequence_number_suppression(fcf)) {
 		size += 1;
 	}
 
-	if (IsDstPanIdPresent(fcf)) {
+	if (is_dst_panid_present(fcf)) {
 		size += 2;
 	}
 
-	// destination addressing mode
+	/* destination addressing mode */
 	switch (fcf & MaskDstAddrMode) {
 	case ModeDstAddrShort:
 		size += 2;
@@ -228,11 +228,11 @@ static uint8_t CalculateAddrFieldSize(uint16_t fcf)
 		break;
 	}
 
-	if (IsSrcPanIdPresent(fcf)) {
+	if (is_src_panid_present(fcf)) {
 		size += 2;
 	}
 
-	// source addressing mode
+	/* source addressing mode */
 	switch (fcf & MaskSrcAddrMode) {
 	case ModeSrcAddrShort:
 		size += 2;
@@ -247,21 +247,23 @@ static uint8_t CalculateAddrFieldSize(uint16_t fcf)
 	return size;
 }
 
-static uint8_t GetKeyIdentifierMode(uint8_t *pdu, uint16_t lenght)
+static uint8_t get_keyid_mode(uint8_t *pdu, uint16_t length)
 {
-	uint16_t fcf = GetFrameControlField(pdu, lenght);
+	uint16_t fcf = get_frame_control_field(pdu, length);
 	uint8_t ash_start;
-	if (IsSecurityEnabled(fcf)) {
-		ash_start = CalculateAddrFieldSize(fcf);
+
+	if (is_security_enabled(fcf)) {
+		ash_start = calculate_addr_field_size(fcf);
 		return (uint8_t)((pdu[ash_start] & MaskKeyIdMode) >> OffsetKeyIdMode);
 	}
 
 	return 0xFF;
 }
 
-bool IsKeyIdMode1(uint8_t *pdu, uint16_t lenght)
+bool is_keyid_mode_1(uint8_t *pdu, uint16_t length)
 {
-	uint8_t key_mode = GetKeyIdentifierMode(pdu, lenght);
+	uint8_t key_mode = get_keyid_mode(pdu, length);
+
 	if (key_mode == 0x01) {
 		return true;
 	}
@@ -269,35 +271,37 @@ bool IsKeyIdMode1(uint8_t *pdu, uint16_t lenght)
 	return false;
 }
 
-void SetFrameCounter(uint8_t *pdu, uint16_t lenght, uint32_t fc)
+void set_frame_counter(uint8_t *pdu, uint16_t length, uint32_t fc)
 {
-	uint16_t fcf = GetFrameControlField(pdu, lenght);
-	if (IsSecurityEnabled(fcf)) {
-		uint8_t ash_start = CalculateAddrFieldSize(fcf);
+	uint16_t fcf = get_frame_control_field(pdu, length);
+
+	if (is_security_enabled(fcf)) {
+		uint8_t ash_start = calculate_addr_field_size(fcf);
 		uint8_t scf = pdu[ash_start];
 
-		// check that Frame Counter Suppression is not set
+		/* check that Frame Counter Suppression is not set */
 		if (!(scf & MaskFrameCntSuppression)) {
 			sys_put_le32(fc, &pdu[ash_start + 1]);
 		}
 	}
 }
 
-static uint8_t GetASNSize(uint8_t *pdu, uint16_t lenght)
+static uint8_t get_asn_size(uint8_t *pdu, uint16_t length)
 {
-	uint16_t fcf = GetFrameControlField(pdu, lenght);
-	if (IsSecurityEnabled(fcf)) {
-		uint8_t ash_start = CalculateAddrFieldSize(fcf);
+	uint16_t fcf = get_frame_control_field(pdu, length);
+
+	if (is_security_enabled(fcf)) {
+		uint8_t ash_start = calculate_addr_field_size(fcf);
 		uint8_t scf = pdu[ash_start];
-		// scf size
 		uint8_t size = 1;
 
-		// Frame Counter Suppression is not set
+		/* Frame Counter Suppression is not set */
 		if (!(scf & MaskFrameCntSuppression)) {
 			size += 4;
 		}
 
-		uint8_t key_mode = GetKeyIdentifierMode(pdu, lenght);
+		uint8_t key_mode = get_keyid_mode(pdu, length);
+
 		switch (key_mode) {
 		case 0x01:
 			size += 1;
@@ -315,24 +319,25 @@ static uint8_t GetASNSize(uint8_t *pdu, uint16_t lenght)
 	return 0;
 }
 
-static uint8_t *GetCslIeContentStart(uint8_t *pdu, uint16_t lenght)
+static uint8_t *get_csl_ie_content_start(uint8_t *pdu, uint16_t length)
 {
-	uint16_t fcf = GetFrameControlField(pdu, lenght);
-	if (IsIEPresent(fcf)) {
-		uint8_t ie_start_idx = CalculateAddrFieldSize(fcf) + GetASNSize(pdu, lenght);
+	uint16_t fcf = get_frame_control_field(pdu, length);
+
+	if (is_ie_present(fcf)) {
+		uint8_t ie_start_idx = calculate_addr_field_size(fcf) + get_asn_size(pdu, length);
 		uint8_t *cur_ie = &pdu[ie_start_idx];
 
 		uint8_t ie_header = (uint16_t)(cur_ie[0] | (cur_ie[1] << 8));
-		uint8_t ie_lenght = ie_header & 0x7F;
+		uint8_t ie_length = ie_header & 0x7F;
 		uint8_t ie_el_id = ie_header & 0x7F80;
 
 		while ((ie_el_id != 0x7e) && (ie_el_id != 0x7f)) {
 			if (ie_el_id == 0x1a) {
 				return (cur_ie + 2);
 			}
-			cur_ie += (2 + ie_lenght);
+			cur_ie += (2 + ie_length);
 			ie_header = (uint16_t)(cur_ie[0] | (cur_ie[1] << 8));
-			ie_lenght = ie_header & 0x7F;
+			ie_length = ie_header & 0x7F;
 			ie_el_id = ie_header & 0x7F80;
 		}
 	}
@@ -340,11 +345,12 @@ static uint8_t *GetCslIeContentStart(uint8_t *pdu, uint16_t lenght)
 	return NULL;
 }
 
-void SetCslIe(uint8_t *pdu, uint16_t lenght, uint16_t period, uint16_t phase)
+void set_csl_ie(uint8_t *pdu, uint16_t length, uint16_t period, uint16_t phase)
 {
-	uint8_t *CslIeContent = GetCslIeContentStart(pdu, lenght);
-	if (CslIeContent) {
-		sys_put_le16(phase, CslIeContent);
-		sys_put_le16(period, CslIeContent + 2);
+	uint8_t *csl_ie_content = get_csl_ie_content_start(pdu, length);
+
+	if (csl_ie_content) {
+		sys_put_le16(phase, csl_ie_content);
+		sys_put_le16(period, csl_ie_content + 2);
 	}
 }
