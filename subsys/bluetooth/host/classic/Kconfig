@@ -70,6 +70,13 @@ config BT_RFCOMM_DLC_STACK_SIZE
 	  advanced things in its callbacks that require extra stack
 	  space, this value can be increased to accommodate for that.
 
+config BT_SPP
+	bool "Bluetooth SPP protocol support [EXPERIMENTAL]"
+	select BT_RFCOMM
+	select EXPERIMENTAL
+	help
+	  This option enables Bluetooth SPP support
+
 config BT_HFP_HF
 	bool "Bluetooth Handsfree profile HF Role support [EXPERIMENTAL]"
 	depends on PRINTK
