@@ -189,8 +189,10 @@ BLE functionality requires to fetch binary blobs, so make sure to follow
 the ``Fetch Binary Blobs`` section first.
 
 Two images must be written to the board: one for the host (CM33) and one for the NBU (CM3).
+
 - To flash the application (CM33) refer to the ``Application Flashing`` section above.
-- To flash the NBU, follow the instructions below:
+
+- To flash the ``NBU Flashing``, follow the instructions below:
 
    * Install ``blhost`` from NXP's website. This is the tool that will allow you to flash the NBU.
    * Enter ISP mode. To boot the MCU in ISP mode, follow these steps:
@@ -200,31 +202,31 @@ Two images must be written to the board: one for the host (CM33) and one for the
       - Reconnect any external power supply, if needed.
    * Use the following command to flash NBU file:
 
-For bluetooth only NBU:
-.. code-block:: console
+      .. tabs::
 
-   # On Windows
-   blhost.exe -p COMxx -- receive-sb-file mcxw71_nbu_ble.sb3
+         .. group-tab:: For bluetooth only NBU
 
-   # On Linux
-   ./blhost -p /dev/ttyxx -- receive-sb-file mcxw71_nbu_ble.sb3
+            .. code-block:: console
+
+            # On Windows
+            blhost.exe -p COMxx -- receive-sb-file mcxw71_nbu_ble.sb3
+
+            # On Linux
+            ./blhost -p /dev/ttyxx -- receive-sb-file mcxw71_nbu_ble.sb3
+
+         .. group-tab:: For dynamic (bluetooth + ieee802154) NBU
+
+            .. code-block:: console
+
+            # On Windows
+            blhost.exe -p COMxx -- receive-sb-file mcxw71_nbu_ble_15_4_dyn.sb3
+
+            # On Linux
+            ./blhost -p /dev/ttyxx -- receive-sb-file mcxw71_nbu_ble_15_4_dyn.sb3
 
 Please consider changing ``COMxx`` on Windows or ``ttyxx`` on Linux to the serial port used by your board.
 
-The NBU file can be found in : ``<zephyr workspace>/modules/hal/nxp/zephyr/blobs/mcxw71/mcxw71_nbu_ble.sb3``
-
-For dynamic (bluetooth + ieee802154) NBU:
-.. code-block:: console
-
-   # On Windows
-   blhost.exe -p COMxx -- receive-sb-file mcxw71_nbu_ble_15_4_dyn.sb3
-
-   # On Linux
-   ./blhost -p /dev/ttyxx -- receive-sb-file mcxw71_nbu_ble_15_4_dyn.sb3
-
-Please consider changing ``COMxx`` on Windows or ``ttyxx`` on Linux to the serial port used by your board.
-
-The NBU file can be found in : ``<zephyr workspace>/modules/hal/nxp/zephyr/blobs/mcxw71/mcxw71_nbu_ble_15_4_dyn.sb3``
+The NBU files can be found in : ``<zephyr workspace>/modules/hal/nxp/zephyr/blobs/mcxw71/`` folder.
 
 For more details:
 
