@@ -1,0 +1,56 @@
+#include <freq.h>
+#include <zephyr/dt-bindings/gpio/nxp-s32-gpio.h>
+#include <zephyr/dt-bindings/sensor/icm42688.h>
+
+/ {
+	aliases {
+		accel0 = &icm42688_mr_canhubk3_adap;
+		gyro0 = &icm42688_mr_canhubk3_adap;
+	};
+};
+
+&wkpu {
+	status = "okay";
+};
+
+&pinctrl {
+	lpspi4_mr_canhubk3_adap: lpspi4_mr_canhubk3_adap {
+		group1 {
+			pinmux = <PTB10_LPSPI4_SCK_O>, <PTB11_LPSPI4_SIN_O>;
+			output-enable;
+		};
+		group2 {
+			pinmux = <PTB9_LPSPI4_SOUT_I>;
+			input-enable;
+		};
+	};
+};
+
+&lpspi4 {
+	status = "okay";
+	pinctrl-0 = <&lpspi4_mr_canhubk3_adap>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpiob_l 8 GPIO_ACTIVE_LOW>;
+
+	icm42688_mr_canhubk3_adap: icm42688p0@0 {
+		compatible = "invensense,icm42688";
+		reg = <0>;
+		int-gpios = <&gpioe_h 5 NXP_S32_GPIO_INT_WKPU>;
+		spi-max-frequency = <DT_FREQ_M(15)>;
+		accel-pwr-mode = <ICM42688_DT_ACCEL_LN>;
+		accel-odr = <ICM42688_DT_ACCEL_ODR_1000>;
+		accel-fs = <ICM42688_DT_ACCEL_FS_16>;
+		gyro-pwr-mode = <ICM42688_DT_GYRO_LN>;
+		gyro-odr = <ICM42688_DT_GYRO_ODR_1000>;
+		gyro-fs = <ICM42688_DT_GYRO_FS_2000>;
+		status = "okay";
+	};
+};
+
+&gpiob_l {
+	status = "okay";
+};
+
+&gpioe_h {
+	status = "okay";
+};

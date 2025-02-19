@@ -438,21 +438,21 @@
 	data-pin-config = "sdo-in,sdi-out";
 };
 
-&lpspi3 {
-	pinctrl-0 = <&lpspi3_default>;
-	pinctrl-names = "default";
-	data-pin-config = "sdo-in,sdi-out";
-	status = "okay";
+// &lpspi3 {
+// 	pinctrl-0 = <&lpspi3_default>;
+// 	pinctrl-names = "default";
+// 	data-pin-config = "sdo-in,sdi-out";
+// 	status = "okay";
 
-	fs26_wdt: watchdog@0 {
-		compatible = "nxp,fs26-wdog";
-		reg = <0>;
-		spi-max-frequency = <DT_FREQ_M(5)>;
-		type = "challenger";
-		int-gpios = <&gpioa_h 2 GPIO_ACTIVE_LOW>;
-		status = "okay";
-	};
-};
+// 	fs26_wdt: watchdog@0 {
+// 		compatible = "nxp,fs26-wdog";
+// 		reg = <0>;
+// 		spi-max-frequency = <DT_FREQ_M(5)>;
+// 		type = "challenger";
+// 		int-gpios = <&gpioa_h 2 GPIO_ACTIVE_LOW>;
+// 		status = "okay";
+// 	};
+// };
 
 &lpspi4 {
 	pinctrl-0 = <&lpspi4_default>;
