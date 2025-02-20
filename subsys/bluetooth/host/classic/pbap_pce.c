@@ -39,6 +39,9 @@ struct bt_pbap_goep{
     struct bt_pbap_pce *_pbap;
     uint32_t conn_id;
 };
+static int bt_pbap_generate_auth_challenage(uint8_t *pwd, uint8_t *auth_chal_req);
+static int bt_pbap_generate_auth_response(uint8_t *pwd, uint8_t *auth_chal_req, uint8_t *auth_chal_rsp);
+static int bt_pbap_verify_auth(uint8_t *chal, uint8_t *rsp, uint8_t *pwd);
 
 #define PBAP_APPL_PARAM_COUNT_MAX   10U
 struct bt_pbap_appl_param appl_param[PBAP_APPL_PARAM_COUNT_MAX];
@@ -189,6 +192,27 @@ static int pbap_organize_appl_param(struct bt_pbap_appl_param *appl_par, uint8_t
     return -EAGAIN;
 }
 
+static void string_param(uint8_t *data, uint8_t *arry){
+    struct bt_pbap_TLV auth[] = BT_PBAP_AUTH_CHAL(data);
+    memset(arry, 0 ,24);
+    uint8_t index = 0;
+    for(uint8_t i = 0; i<3 ;i++){
+        memcpy(&arry[index], &(auth[i].tag), 1);
+        index += 1;
+        memcpy(&arry[index], &(auth[i].length), 1); 
+        index += 1;
+        if (i > 0){
+            memcpy(&arry[index], auth[i].data, 1);
+            index += 1; 
+        }
+        else{
+            memcpy(&arry[index], auth[i].data, strlen(auth[i].data));
+            index += strlen(auth[i].data);
+        }
+    }
+}
+
+
 static void pbap_goep_transport_connected(struct bt_conn *conn, struct bt_goep *goep)
 {
 	LOG_INF("GOEP %p transport connected on %p", goep, conn);
@@ -216,12 +240,16 @@ static void pbap_goep_transport_connected(struct bt_conn *conn, struct bt_goep *
     }
 
     if (_pbap_goep->_pbap->pwd){
-        err = bt_obex_add_header_auth_challenge(buf, strlen(_pbap_goep->_pbap->pwd), _pbap_goep->_pbap->pwd);
+        bt_pbap_generate_auth_challenage(_pbap_goep->_pbap->pwd, _pbap_goep->_pbap->auth_chal); 
+        uint8_t arry[16 + 2 + 3 +3] = {0};
+        string_param(_pbap_goep->_pbap->auth_chal, arry); 
+        err = bt_obex_add_header_auth_challenge(buf, sizeof(arry), arry);
         if (err){
             LOG_WRN("Fail to add auth_challenge");
             net_buf_unref(buf);
             return;
         }
+        _pbap_goep->_pbap->local_auth = true;
     }
 
     if (_pbap_goep->_pbap->peer_feature){
@@ -265,6 +293,53 @@ static struct bt_goep_transport_ops pbap_goep_transport_ops = {
 	.disconnected = pbap_goep_transport_disconnected,
 };
 
+static bool bt_obex_find_tlv_param_cb(struct bt_pbap_TLV *hdr, void *user_data)
+{
+	struct bt_pbap_TLV *value;
+
+	value = (struct bt_pbap_TLV *)user_data;
+
+	if (hdr->tag == value->tag) {
+		value->data = hdr->data;
+		value->length = hdr->length;
+		return false;
+	}
+	return true;
+}
+static int bt_pbap_get_head_param(uint8_t *buf, uint16_t length,
+    bool (*func)(struct bt_obex_hdr *hdr, void *user_data), void *user_data)
+{
+    uint16_t len = 0;
+    uint16_t total_len  = length;
+    uint8_t header_id;
+	uint8_t header_value_len;
+    struct bt_pbap_TLV bt_param;
+    if (!buf || !func){
+        LOG_WRN("Invalid parameter");
+		return -EINVAL;
+    }
+	while (len < total_len) {
+		header_id = buf[len];
+		len++;
+        header_value_len = buf[len];
+        len++;
+		if ((len + header_value_len) > total_len) {
+			return -EINVAL;
+		}
+
+		bt_param.tag = header_id;
+		bt_param.data = &buf[len];
+		bt_param.length = header_value_len;
+		len += header_value_len;
+
+		if (!func(&bt_param, user_data)) {
+			return 0;
+		}
+	}
+	return 0;
+}
+
+
 static void goep_client_connect(struct bt_obex *obex, uint8_t rsp_code, uint8_t version,
 				uint16_t mopl, struct net_buf *buf)
 {
@@ -272,7 +347,11 @@ static void goep_client_connect(struct bt_obex *obex, uint8_t rsp_code, uint8_t 
 		    bt_obex_rsp_code_to_str(rsp_code), version, mopl);
 
     int err;
+    uint16_t length = 0;
+    uint8_t *auth;
+    struct bt_pbap_TLV bt_auth_param;
     struct bt_pbap_goep *_pbap_goep =  bt_pbap_pce_lookup_obex(obex);
+    struct net_buf *tx_buf;
 
     if (!_pbap_goep){
         LOG_WRN("No available pbap_pce");
@@ -283,13 +362,105 @@ static void goep_client_connect(struct bt_obex *obex, uint8_t rsp_code, uint8_t 
         LOG_WRN("No available connection id");
     }
 
-    if (bt_pce && bt_pce->connect)
+    if (rsp_code == BT_PBAP_RSP_CODE_UNAUTH){
+        tx_buf = bt_goep_create_pdu(&_pbap_goep->_goep, &bt_pbap_pce_pool);
+        if (!tx_buf) {
+            LOG_WRN("Fail to allocate tx buffer");
+            goto failed ;
+        }
+
+        err = bt_obex_get_header_auth_challenge(buf, &length, &auth);
+        if (err){
+            LOG_WRN("No available auth_response");
+            net_buf_unref(tx_buf);
+            goto failed;
+        }
+        _pbap_goep->_pbap->peer_auth = true;
+
+        bt_auth_param.tag = 0x00;
+        bt_pbap_get_head_param(auth, length, bt_obex_find_tlv_param_cb, &bt_auth_param);
+        uint8_t result[16] = {0};
+        uint8_t arry[16 + 2 + 3 +3] = {0};
+
+        // To do
+        // when server auth and client do not provide pwd firstiy, callback connected or get_auth_info to accept pwd from application ?
+        // if (!_pbap_goep->_pbap->pwd){
+        //     bt_pce->connect();?
+        //     bt_pce->get_auth_info();?
+        // }
+
+        bt_pbap_generate_auth_response(_pbap_goep->_pbap->pwd, bt_auth_param.data, result);
+
+        string_param(result, arry);
+        err = bt_obex_add_header_auth_rsp(tx_buf, sizeof(arry), arry);
+        if (err){
+            LOG_WRN("Fail to add auth_challenge");
+            net_buf_unref(tx_buf);
+            goto failed;
+        }
+        
+        if (_pbap_goep->_pbap->local_auth){
+            string_param(_pbap_goep->_pbap->auth_chal, arry);
+            err = bt_obex_add_header_auth_challenge(tx_buf, sizeof(arry), arry);
+            if (err){
+                LOG_WRN("Fail to add auth_challenge");
+                net_buf_unref(tx_buf);
+                goto failed;
+            }
+        }
+
+        err = bt_obex_connect(&_pbap_goep->_goep.obex, _pbap_goep->_pbap->mpl, tx_buf);
+        if (err < 0){
+            net_buf_unref(tx_buf);
+            LOG_WRN("Fail to send conn req %d", err);
+            goto failed;
+        }
+    }
+
+    if (_pbap_goep->_pbap->local_auth && rsp_code == BT_PBAP_RSP_CODE_OK){
+        err = bt_obex_get_header_auth_rsp(buf, &length, &auth);
+        if (err){
+            LOG_WRN("No available auth_response");
+        }
+        bt_auth_param.tag = 0x00;
+        bt_pbap_get_head_param(auth, length, bt_obex_find_tlv_param_cb, &bt_auth_param);
+        err = bt_pbap_verify_auth(_pbap_goep->_pbap->auth_chal, bt_auth_param.data, _pbap_goep->_pbap->pwd);
+        if (!err){
+            LOG_INF("auth success");
+        }else{
+            LOG_WRN("auth fail");
+            err = bt_pbap_pce_disconnect(_pbap_goep->_pbap);
+            if (err){
+                LOG_WRN("Fail to send disconnect command");
+            }
+            return;
+        }
+    }
+
+
+    if (bt_pce && bt_pce->connect && rsp_code == BT_PBAP_RSP_CODE_OK)
     {
         bt_pce->connect(_pbap_goep->_pbap, mopl);
     }
-    
-    atomic_set(&_pbap_goep->_pbap->_state, BT_PBAP_CONNECTED);
-    atomic_set(&_pbap_goep->_pbap->_state, BT_PBAP_IDEL);
+    if (rsp_code == BT_PBAP_RSP_CODE_OK){
+        atomic_set(&_pbap_goep->_pbap->_state, BT_PBAP_CONNECTED);
+        atomic_set(&_pbap_goep->_pbap->_state, BT_PBAP_IDEL);
+    }
+    return;
+
+failed :
+    net_buf_unref(buf);
+    if (_pbap_goep->_goep._goep_v2){
+        err = bt_goep_transport_l2cap_disconnect(&(_pbap_goep->_goep));
+    }
+    else{
+        err = bt_goep_transport_rfcomm_disconnect(&(_pbap_goep->_goep));
+    }
+    if (err){
+        LOG_WRN("Fail to disconnect pbap conn (err %d)", err);
+
+    }
+    return;
 
 }
 
@@ -434,7 +605,6 @@ struct bt_obex_client_ops pbap_goep_client_ops = {
 	.connect = goep_client_connect,
 	.disconnect = goep_client_disconnect,
 	.get = goep_client_get,
-	// .abort = goep_client_abort,
 	.setpath = goep_client_setpath,
 };
 
@@ -862,6 +1032,9 @@ struct net_buf *bt_pbap_create_pdu(struct bt_pbap_pce *pbap_pce, struct net_buf_
 }
 
 
+
+
+
 /* MD5 */
 
 /* The four core functions - F1 is optimized somewhat */
@@ -990,32 +1163,33 @@ void xMD5Update(struct xmd5context *ctx, uint8_t const *buf, int len)
     uint32_t t;
     /* Update byte count */
     t = ctx->bytes[0];
-    if ((ctx->bytes[0] = t + len) < t){
+    ctx->bytes[0] += len;
+    if (ctx->bytes[0] < t){
         ctx->bytes[1]++;
     }
     /* Carry from low to high */
     t = 64U - (t & 0x3fU); /* Space avail in ctx->in (at least 1) */
 
     if ((uint32_t)t > len) {
-        memcpy((uint8_t *)buf, (uint8_t *)ctx->in + 64U - (unsigned)t, len);
+        memcpy((uint8_t *)ctx->in + 64U - (unsigned)t, (uint8_t *)buf, len);
         return;
     }
     /* First chunk is an odd size */
-    memcpy((uint8_t *)buf, (uint8_t *)ctx->in + 64U - (unsigned)t, (unsigned)t);
+    memcpy((uint8_t *)ctx->in + 64U - (unsigned)t, (uint8_t *)buf, (unsigned)t);
     byteSwap(ctx->in, 16);
     xMD5Transform(ctx->buf, ctx->in);
     buf += (unsigned)t;
     len -= (unsigned)t;
     /* Process data in 64-byte chunks */
     while (len >= 64U) {
-        memcpy((uint8_t *)buf, ctx->in, 64U);
+        memcpy(ctx->in, buf, 64U);
         byteSwap(ctx->in, 16U);
         xMD5Transform(ctx->buf, ctx->in);
         buf += 64U;
         len -= 64U;
     }
     /* Handle any remaining bytes of data. */ 
-    memcpy((uint8_t *)buf, ctx->in, len);
+    memcpy(ctx->in, (uint8_t *)buf, len);
 }
 
 /*
@@ -1046,7 +1220,7 @@ void xMD5Final(uint8_t digest[16], struct xmd5context *ctx)
     ctx->in[15] = ctx->bytes[1] << 3 | ctx->bytes[0] >> 29;
     xMD5Transform(ctx->buf, ctx->in);
     byteSwap(ctx->buf, 4);
-    memcpy(ctx->buf, digest, 16);
+    memcpy(digest, ctx->buf, 16);
     memset(ctx, 0U, sizeof(ctx));
 }
 
@@ -1056,4 +1230,60 @@ void MD5(void *dest, void *orig, int len)
     xMD5Init(&context);
     xMD5Update(&context, orig, len);
     xMD5Final(dest, &context);
+}
+
+#define PBAP_PWD_MAX_LENGTH    50
+static int bt_pbap_generate_auth_challenage(uint8_t *pwd, uint8_t *auth_chal_req)
+{
+    uint8_t *key = "Randomize me";
+    uint8_t h[50 + 1 + 1] = {0};
+    if (!pwd){
+        LOG_WRN("no available password");
+        return -EINVAL;
+    }
+
+    if (!auth_chal_req){
+        LOG_WRN("no available auth_chal_req");
+        return -EINVAL;
+    }
+    uint16_t pwd_len = strlen(pwd);
+    uint16_t key_len = strlen(key);
+    memcpy(h, key, key_len);
+    h[key_len] = ':';
+    memcpy(h + key_len + 1, pwd, pwd_len);
+    MD5(auth_chal_req, h, strlen(h));
+    return 0;
+}
+
+static int bt_pbap_generate_auth_response(uint8_t *pwd, uint8_t *auth_chal_req, uint8_t *auth_chal_rsp)
+{
+    uint8_t h[50 + 1 + 1] = {0};
+    if (!pwd){
+        LOG_WRN("no available password");
+        return -EINVAL;
+    }
+
+    if (!auth_chal_req){
+        LOG_WRN("no available auth_chal_req");
+        return -EINVAL;
+    }
+
+    if (!auth_chal_rsp){
+        LOG_WRN("no available auth_chal_rsp");
+        return -EINVAL;
+    }
+
+    memcpy(h, auth_chal_req, 16);
+    h[16] = ':';
+    memcpy(h + 17, pwd, strlen(pwd));
+    MD5(auth_chal_rsp, h, strlen(h));
+}
+
+static int bt_pbap_verify_auth(uint8_t *chal, uint8_t *rsp, uint8_t *pwd)
+{
+    uint8_t result[16] = {0};
+    bt_pbap_generate_auth_response(pwd, chal, result);
+
+    return memcmp(result, rsp, 16);
+
 }

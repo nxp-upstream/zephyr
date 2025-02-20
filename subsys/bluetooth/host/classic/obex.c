@@ -681,22 +681,19 @@ static int obex_client_connect(struct bt_obex *obex, uint8_t rsp_code, uint16_t 
 		return -EINVAL;
 	}
 
-	if (rsp_code == BT_OBEX_RSP_CODE_SUCCESS) {
-		if ((len != buf->len) || (buf->len < sizeof(*rsp_conn_hdr))) {
-			LOG_WRN("Invalid packet size");
+	if ((len != buf->len) || (buf->len < sizeof(*rsp_conn_hdr))) {
+		LOG_WRN("Invalid packet size");
+		goto failed;
+	} else {
+		version = net_buf_pull_u8(buf);
+		flags = net_buf_pull_u8(buf);
+		mopl = net_buf_pull_be16(buf);
+		if (mopl < BT_OBEX_MIN_MTU) {
+			LOG_WRN("Invalid MTU length (%d < %d)", mopl, BT_OBEX_MIN_MTU);
 			goto failed;
-		} else {
-			version = net_buf_pull_u8(buf);
-			flags = net_buf_pull_u8(buf);
-			mopl = net_buf_pull_be16(buf);
-			if (mopl < BT_OBEX_MIN_MTU) {
-				LOG_WRN("Invalid MTU length (%d < %d)", mopl, BT_OBEX_MIN_MTU);
-				goto failed;
-			}
-			obex->tx.mopl = mopl;
 		}
+		obex->tx.mopl = mopl;
 	}
-
 	atomic_set(&obex->_state,
 		   rsp_code == BT_OBEX_RSP_CODE_SUCCESS ? BT_OBEX_CONNECTED : BT_OBEX_DISCONNECTED);
 
