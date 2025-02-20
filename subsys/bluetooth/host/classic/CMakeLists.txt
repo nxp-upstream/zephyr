@@ -37,3 +37,8 @@ zephyr_library_sources_ifdef(
   obex.c
   goep.c
   )
+
+zephyr_library_sources_ifdef(
+  CONFIG_BT_PBAP
+  pbap_pce.c
+  )
