@@ -22,11 +22,17 @@ int spi_mcux_configure(const struct device *dev, const struct spi_config *spi_cf
 {
 	const struct spi_mcux_config *config = dev->config;
 	struct spi_mcux_data *data = dev->data;
+	struct spi_context *ctx = &data->ctx;
 	LPSPI_Type *base = (LPSPI_Type *)DEVICE_MMIO_NAMED_GET(dev, reg_base);
 	uint32_t word_size = SPI_WORD_SIZE_GET(spi_cfg->operation);
 	lpspi_master_config_t master_config;
 	uint32_t clock_freq;
 	int ret;
+
+	/* fast path to avoid reconfigure */
+	if (spi_context_configured(ctx, spi_cfg)) {
+		return 0;
+	}
 
 	if (spi_cfg->operation & SPI_HALF_DUPLEX) {
 		/* the IP DOES support half duplex, need to implement driver support */
