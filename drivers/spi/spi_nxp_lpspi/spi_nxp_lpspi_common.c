@@ -31,6 +31,7 @@ int spi_mcux_configure(const struct device *dev, const struct spi_config *spi_cf
 
 	/* fast path to avoid reconfigure */
 	if (spi_context_configured(ctx, spi_cfg)) {
+		(volatile uint32_t)base->RDR; /* for ERR050456 */
 		return 0;
 	}
 
@@ -62,10 +63,6 @@ int spi_mcux_configure(const struct device *dev, const struct spi_config *spi_cf
 	if (ret) {
 		return ret;
 	}
-
-	base->CR |= LPSPI_CR_RST_MASK;
-	base->CR |= LPSPI_CR_RRF_MASK | LPSPI_CR_RTF_MASK;
-	base->CR = 0x00U;
 
 	if (data->ctx.config != NULL) {
 		/* Setting the baud rate in LPSPI_MasterInit requires module to be disabled. Only
