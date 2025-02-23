@@ -9,7 +9,7 @@
 menuconfig ICM4268X
 	bool "ICM4268X Six-Axis Motion Tracking Device"
 	default y
-	depends on DT_HAS_INVENSENSE_ICM42688_ENABLED
+	depends on DT_HAS_INVENSENSE_ICM4268X_ENABLED
 	select SPI
 	select RTIO_WORKQ if SENSOR_ASYNC_API
 	help
@@ -46,13 +46,13 @@ config ICM4268X_TRIGGER_NONE
 config ICM4268X_TRIGGER_GLOBAL_THREAD
 	bool "Use global thread"
 	depends on GPIO
-	depends on $(dt_compat_any_has_prop,$(DT_COMPAT_INVENSENSE_ICM42688),int-gpios)
+	depends on $(dt_compat_any_has_prop,$(DT_COMPAT_INVENSENSE_ICM4268X),int-gpios)
 	select ICM4268X_TRIGGER
 
 config ICM4268X_TRIGGER_OWN_THREAD
 	bool "Use own thread"
 	depends on GPIO
-	depends on $(dt_compat_any_has_prop,$(DT_COMPAT_INVENSENSE_ICM42688),int-gpios)
+	depends on $(dt_compat_any_has_prop,$(DT_COMPAT_INVENSENSE_ICM4268X),int-gpios)
 	select ICM4268X_TRIGGER
 
 endchoice
