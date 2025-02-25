@@ -112,60 +112,111 @@ struct bt_pbap_appl_param{
     }value;
 }__packed;
 
+/** @brief PBAP client PCE struct */
 struct bt_pbap_pce{
+    /** @brief connection handle */
     struct bt_conn *acl;
+    /** @brief password for authication. When connecting, the application must provide this parameter
+    *  when the component wants to authenticate with the server. 
+    */
     char  *pwd;
+    /** @brief peer device support features. After performing SDP to the server,
+    *  the PCE can obtain the features supported by the PSE.
+    */
     uint32_t peer_feature;
+    /** @brief local device support feature. If PSE provide PCE, application should provide PCE features. */
     uint32_t lcl_feature;
+    /** @brief max package length. When performing a connect operation, the application must provide this parameter.*/
     uint16_t mpl;
     /** @internal Save the current stats, @brief bt_pbap_state */
     atomic_t _state;
-    /** @internal */
+    /** @internal goep handle, @brief bt_goep */
     struct bt_goep *goep;
+    /** @internal save authicathon_challenge nonce */
+    uint8_t auth_chal[16];
+    /** @internal Flag for local device if authicate actively. */
+    bool local_auth;
+    /** @internal Flag for peer device if authicate actively. */
+    bool peer_auth;
 };
-/** @brief PBAP client operations structure.
+/** @brief PBAP client PCE operations structure.
  * 
  * The object has to stay valid and constant for the lifetime of the PBAP client.
  */
 struct bt_pbap_pce_cb{
-    /** @brief PBAP connect response callback
+    /** @brief PBAP PCE connect response callback
      * 
      * if this callback is provided it will be called when the PBAP connect response
      * is received.
      * 
-     * @param pbap  The PBAP object
+     * @param pbap  The PBAP PCE object
      * @param mpl   The max package length of buf that application can use
      */
 
     void (*connect)(struct bt_pbap_pce *pbap, uint16_t mpl);
 
-    /** @brief PBAP disconnect response callback
+    /** @brief PBAP PCE disconnect response callback
      * 
      * if this callback is provided it will be called when the PBAP disconnect response
      * is received.
      * 
-     * @param pbap The PBAP object
+     * @param pbap The PBAP PCE object
      * @param rsp_code  Response code @ref bt_pbap_rsp_code
      */
     void (*disconnect)(struct bt_pbap_pce *pbap, uint8_t rsp_code);
 
-    /** @brief PBAP pull phonebook response callback
+    /** @brief PBAP PCE pull phonebook response callback
      * 
-     * if this callback is provided it will be called when the PBAP pull phonebook
+     * if this callback is provided it will be called when the PCE pull phonebook
+     * response is received.
+     * 
+     * @param pbap The PBAP PCE object
+     * @param rsp_code Response code @ref bt_pbap_rsp_code
+     * @param buf Optional response headers
+     */
+    void (*pull_phonebook)(struct bt_pbap_pce *pbap, uint8_t rsp_code, struct net_buf *buf);
+
+    /** @brief PBAP PCE pull vcardlisting response callback
+     * 
+     * if this callback is provided it will be called when the PCE pull vcardlisting
+     * response is received.
+     * 
+     * @param pbap The PBAP PCE object
+     * @param rsp_code Response code @ref bt_pbap_rsp_code
+     * @param buf Optional response headers
+     */
+    void (*pull_vcardlisting)(struct bt_pbap_pce *pbap, uint8_t rsp_code, struct net_buf *buf);
+
+    /** @brief PBAP PCE pull vcardentey response callback
+     * 
+     * if this callback is provided it will be called when the PCE pull vcardentey
      * response is received.
      * 
      * @param pbap The PBAP object
      * @param rsp_code Response code @ref bt_pbap_rsp_code
      * @param buf Optional response headers
      */
-    void (*pull_phonebook)(struct bt_pbap_pce *pbap, uint8_t rsp_code, struct net_buf *buf);
-
-    void (*pull_vcardlisting)(struct bt_pbap_pce *pbap, uint8_t rsp_code, struct net_buf *buf);
-
     void (*pull_vcardentry)(struct bt_pbap_pce *pbap, uint8_t rsp_code, struct net_buf *buf);
 
-
+    /** @brief PBAP PCE set path response callback
+     * 
+     * if this callback is provided it will be called when the PCE set path
+     * response is received.
+     * 
+     * @param pbap The PBAP object
+     * @param rsp_code Response code @ref bt_pbap_rsp_code
+     */
     void (*set_path)(struct bt_pbap_pce *pbap, uint8_t rsp_code);
+
+    /** @brief PBAP PCE abort response callback
+     * 
+     * if this callback is provided it will be called when the PCE abort
+     * response is received.
+     * 
+     * @param pbap The PBAP object
+     * @param rsp_code Response code @ref bt_pbap_rsp_code
+     */
+    void (*abort)(struct bt_pbap_pce *pbap, uint8_t rsp_code);
 };
 
 enum __packed bt_pbap_state {
@@ -189,29 +240,95 @@ enum __packed bt_pbap_state {
     BT_PBAP_IDEL,
 };
 
-/** @brief PBAP struct */
-
-/** @brief PBAP client register.
+/** @brief PBAP client PCE register.
  * 
- * @param cb PBAP client callback @ref bt_pbap_pce_cb.
+ *  Register PCE application callback @brief bt_pbap_pce_cb.
+ *  All other operations need to be performed after this function.
  * 
- * @return 0 in case of success or negative value in case of error.
+ *  @param cb PBAP client callback @ref bt_pbap_pce_cb.
+ * 
+ *  @return 0 in case of success or negative value in case of error.
  */
 int bt_pbap_pce_register(struct bt_pbap_pce_cb *cb);
 
+/** @brief Allocate the buffer from given pool after reserving head room for PBAP client PCE.
+ *
+ *  For PBAP connection over RFCOMM, the reserved head room includes OBEX, RFCOMM, L2CAP and ACL
+ *  headers.
+ *  For PBAP connection over L2CAP, the reserved head room includes OBEX, L2CAP and ACL headers.
+ *
+ *  @param pbap_pce PBAP PCE object
+ *  @param pool Which pool to take the buffer from
+ *
+ *  @return New buffer.
+ */
 struct net_buf *bt_pbap_create_pdu(struct bt_pbap_pce *pbap_pce, struct net_buf_pool *pool);
-/**
+
+/** @brief PBAP client PCE connect PBAP server PSE over RFCOMM.
+ *
+ *  PBAP connect over RFCOMM, once the connection is completed, the callback
+ *  @ref bt_pbap_pce::connected is called. If the connection is rejected,
+ *  @ref bt_pbap_pce::disconnected callback is called instead.
  * 
+
+ *  The Acl connection handle @brief bt_conn is passed as first parameter.
+ *  The RFCOMM channel is passed as second paramter. The RFCOMM channel 
+ *  of the PBAP server PSE can be obtained through SDP operation.
+ * 
+ *  The PBAP PCE object is passed (over an address of it) as third parameter, application should
+ *  create PBAP PCE object @ref bt_pbap_pce. Then pass to this API the location (address).
+ *  
+ *  @param conn Acl connection handle
+ *  @param channel RFCOMM channel
+ *  @param pbap_pce PBAP PCE object @brief bt_pbap_pce
+ *
+ *  @return 0 in case of success or negative value in case of error.
  */
 int bt_pbap_pce_rfcomm_connect(struct bt_conn *conn, uint8_t channel, struct bt_pbap_pce *pbap_pce);
 
+/** @brief PBAP client PCE connect PBAP server PSE over L2CAP.
+ *
+ *  PBAP connect over L2CAP, once the connection is completed, the callback
+ *  @ref bt_pbap_pce::connected is called. If the connection is rejected,
+ *  @ref bt_pbap_pce::disconnected callback is called instead.
+ * 
+
+ *  The Acl connection handle @brief bt_conn is passed as first parameter.
+ *  The L2cap PSM is passed as second paramter. The L2cap PSM  
+ *  of the PBAP server PSE can be obtained through SDP operation.
+ * 
+ *  The PBAP PCE object is passed (over an address of it) as third parameter, application should
+ *  create PBAP PCE object @ref bt_pbap_pce. Then pass to this API the location (address).
+ *  
+ *  @param conn Acl connection handle
+ *  @param psm  L2cap PSM
+ *  @param pbap_pce PBAP PCE object @brief bt_pbap_pce
+ *
+ *  @return 0 in case of success or negative value in case of error.
+ */
 int bt_pbap_pce_l2cap_connect(struct bt_conn *conn, uint16_t psm, struct bt_pbap_pce *pbap_pce);
 
-int bt_pbap_pce_pull_phonebook(struct bt_pbap_pce *pbap_pce, struct net_buf *buf, char *name, bool wait);
+/** @brief Disconnect PBAP connection from PBAP client PCE. */
+/**
+ *  Disconnect PBAP connection. 
+ * 
+ *  @param pbap_pce PBAP PCE object @brief bt_pbap_pce
+ * 
+ *  @return 0 in case of success or negative value in case of error.
+ */
+int bt_pbap_pce_disconnect(struct bt_pbap_pce *pbap_pce);
 
+/** @brief Disconnect PBAP connection from PBAP client PCE. */
+/**
+ *  Disconnect PBAP connection. 
+ * 
+ *  @param pbap_pce PBAP PCE object @brief bt_pbap_pce
+ * 
+ *  @return 0 in case of success or negative value in case of error.
+ */
 int bt_pbap_pce_pull_phonebook_create_cmd(struct bt_pbap_pce *pbap_pce, struct net_buf *buf, char *name, bool wait);
 
-int bt_pbap_pce_set_path(struct bt_pbap_pce *pbap_pce, struct net_buf *buf, char *name);
+
 
 int bt_pbap_pce_pull_vcardlisting_create_cmd(struct bt_pbap_pce *pbap_pce, struct net_buf *buf, char *name, bool wait);
 
@@ -219,7 +336,8 @@ int bt_pbap_pce_pull_vcardentry_create_cmd(struct bt_pbap_pce *pbap_pce, struct 
 
 int bt_pbap_pce_send_cmd(struct bt_pbap_pce *pbap_pce, struct net_buf *buf);
 
-int bt_pbap_pce_disconnect(struct bt_pbap_pce *pbap_pce);
+int bt_pbap_pce_set_path(struct bt_pbap_pce *pbap_pce, struct net_buf *buf, char *name);
+
 
 int bt_pbap_pce_abort(struct bt_pbap_pce *pbap_pce);
 
@@ -230,6 +348,30 @@ int bt_pbap_pce_get_end_body(struct net_buf *buf, uint16_t *len, uint8_t **body)
  * @}
  */
 
+
+struct bt_pbap_TLV{
+    uint8_t tag;
+    uint8_t length;
+    uint8_t *data;
+};
+
+
+#define BT_PBAP_AUTH_CHAL_NONCE_TL .tag = 0x00U, \
+            .length = 0x10U
+
+#define BT_PBAP_AUTH_CHAL_OPTIONS_TL .tag = 0x01U, \
+            .length = 0x01U
+
+#define BT_PBAP_AUTH_CHAL_REALM_TL .tag = 0x02U, \
+            .length = 0x01U
+
+
+#define BT_PBAP_AUTH_CHAL(_nonce) \ 
+{ \
+    { BT_PBAP_AUTH_CHAL_NONCE_TL, _nonce}, \
+    { BT_PBAP_AUTH_CHAL_OPTIONS_TL, ((uint8_t []){0x00})}, \
+    { BT_PBAP_AUTH_CHAL_REALM_TL , ((uint8_t []){0x00}) }  \
+}
 
  struct xmd5context
  {

@@ -274,10 +274,13 @@ endif # BT_GOEP
 config BT_PBAP
 	bool "Bluetooth PBAP Profile [EXPERIMENTAL]"
 	select BT_GOEP
-	# select EXPERIMENTAL
+	select MBEDTLS_MD5
+	select PSA_WANT_ALG_MD5
+	select MBEDTLS_PSA_BUILTIN_ALG_MD5
+	select MBEDTLS_PSA_BUILTIN_HASH
 	help
-	  This option enables the GOEP profile
+	  This option enables the PBAP profile
 
-endif # BT_CLASSIC
+endif # BT_PBAP
 
 endmenu

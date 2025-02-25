@@ -222,7 +222,9 @@ static int cmd_connect_rfcomm(const struct shell *sh, size_t argc, char *argv[])
 	uint8_t channel = (uint8_t)strtoul(argv[1], NULL, 16);
 	pbap_pce_app.pbap_pce.mpl = 600;
 	pbap_pce_app.pbap_pce.peer_feature = 0x3FF;
-	pbap_pce_app.pbap_pce.pwd = '0000';
+	if (argc > 2){
+		pbap_pce_app.pbap_pce.pwd = argv[2];
+	}
     return bt_pbap_pce_rfcomm_connect(default_conn, channel, &pbap_pce_app.pbap_pce);
 }
 
@@ -340,8 +342,8 @@ static int cmd_common(const struct shell *sh, size_t argc, char **argv)
 
 SHELL_STATIC_SUBCMD_SET_CREATE(pbap_cmds,
 	SHELL_CMD_ARG(register, NULL, "", cmd_register, 1, 0),
-	SHELL_CMD_ARG(connect-rfcomm, NULL, "<channel>", cmd_connect_rfcomm, 2, 0),
-	SHELL_CMD_ARG(connect-l2cap, NULL, "<channel>", cmd_connect_l2cap, 2, 0),
+	SHELL_CMD_ARG(connect-rfcomm, NULL, "<channel> <password(option)>", cmd_connect_rfcomm, 2, 1),
+	SHELL_CMD_ARG(connect-l2cap, NULL, "<channel> <password(option)>", cmd_connect_l2cap, 2, 1),
 	SHELL_CMD_ARG(disconnect, NULL, "<channel>", cmd_disconnect, 1, 0),
 	SHELL_CMD_ARG(pull_pb_create, NULL, "<name>  <srmp>", cmd_pull_pb, 2, 0),
 	SHELL_CMD_ARG(pull_vcardlisting_create, NULL, "<name>  <srmp>", cmd_pull_vcardlisting, 2, 0),
