@@ -21,7 +21,7 @@ extern "C" {
 #define VRING1_ID               CONFIG_OPENAMP_RSC_TABLE_IPM_TX_ID /* (remote to host) */
 
 #define VRING_COUNT             2
-#define RPMSG_IPU_C0_FEATURES   1
+#define RPMSG_IPU_C0_FEATURES   CONFIG_OPENAMP_RSC_TABLE_DEVICE_FEATURES
 
 #define VRING_RX_ADDRESS        -1  /* allocated by Master processor */
 #define VRING_TX_ADDRESS        -1  /* allocated by Master processor */

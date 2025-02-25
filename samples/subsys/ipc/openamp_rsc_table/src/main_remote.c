@@ -202,6 +202,7 @@ platform_create_rpmsg_vdev(unsigned int vdev_index,
 	struct fw_rsc_vdev_vring *vring_rsc;
 	struct virtio_device *vdev;
 	int ret;
+	struct fw_rsc_vdev *fw_rsc_vdev_;
 
 	vdev = rproc_virtio_create_vdev(VIRTIO_DEV_DEVICE, VDEV_ID,
 					rsc_table_to_vdev(rsc_table),
@@ -238,6 +239,12 @@ platform_create_rpmsg_vdev(unsigned int vdev_index,
 		LOG_ERR("failed rpmsg_init_vdev");
 		goto failed;
 	}
+
+	fw_rsc_vdev_ = rsc_table_to_vdev(rsc_table);
+	if (fw_rsc_vdev_)
+		printk("platform_create_rpmsg_vdev: id %d, dfeatures 0x%x, cfg len %d, %d vrings, %d gfeatures\n",
+			fw_rsc_vdev_->id, fw_rsc_vdev_->dfeatures, fw_rsc_vdev_->config_len, fw_rsc_vdev_->num_of_vrings, fw_rsc_vdev_->gfeatures);
+
 
 	return rpmsg_virtio_get_rpmsg_device(&rvdev);
 
