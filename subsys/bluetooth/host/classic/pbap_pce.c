@@ -181,50 +181,14 @@ int bt_pbap_pce_register(struct bt_pbap_pce_cb *cb)
     return 0;
 }
 
-static int pbap_organize_appl_param(struct bt_pbap_appl_param *appl_par, uint8_t tag_id, uint8_t length, uint8_t *data, uint16_t *total_length)
-{
-    uint16_t appl_param_length = *total_length;
-    for (uint8_t i = 0; i < PBAP_APPL_PARAM_COUNT_MAX; i++){
-        if (appl_par[i].id == 0){
-            appl_par[i].id = tag_id;
-            appl_par[i].length = length;
-            memcpy(appl_par[i].value.data, data, length);
-            appl_param_length += sizeof(uint8_t) + sizeof(uint8_t) + length;
-            *total_length = appl_param_length;
-            return 0;
-        }
-    }
-    return -EAGAIN;
-}
-
-static void string_param(uint8_t *data, uint8_t *arry){
-    struct bt_pbap_TLV auth[] = BT_PBAP_AUTH_CHAL(data);
-    memset(arry, 0 ,24);
-    uint8_t index = 0;
-    for(uint8_t i = 0; i<3 ;i++){
-        memcpy(&arry[index], &(auth[i].tag), 1);
-        index += 1;
-        memcpy(&arry[index], &(auth[i].length), 1); 
-        index += 1;
-        if (i > 0){
-            memcpy(&arry[index], auth[i].data, 1);
-            index += 1; 
-        }
-        else{
-            memcpy(&arry[index], auth[i].data, strlen(auth[i].data));
-            index += strlen(auth[i].data);
-        }
-    }
-}
-
-
 static void pbap_goep_transport_connected(struct bt_conn *conn, struct bt_goep *goep)
 {
 	LOG_INF("GOEP %p transport connected on %p", goep, conn);
     int err;
-    uint16_t appl_param_len = 0;
     struct net_buf *buf;
     struct bt_pbap_goep *_pbap_goep;
+    struct bt_obex_tlv auth_challenage;
+    struct bt_obex_tlv appl_param_feature;
     _pbap_goep = bt_pbap_pce_lookup_by_conn_goep(conn, goep);
     if (!_pbap_goep) {
         LOG_WRN("Invalid pbap_pce");
@@ -246,9 +210,10 @@ static void pbap_goep_transport_connected(struct bt_conn *conn, struct bt_goep *
 
     if (_pbap_goep->_pbap->pwd){
         bt_pbap_generate_auth_challenage(_pbap_goep->_pbap->pwd, _pbap_goep->_pbap->auth_chal); 
-        uint8_t arry[16 + 2 + 3 +3] = {0};
-        string_param(_pbap_goep->_pbap->auth_chal, arry); 
-        err = bt_obex_add_header_auth_challenge(buf, sizeof(arry), arry);
+        auth_challenage.type = 0x00;
+        auth_challenage.data_len = 16U;
+        auth_challenage.data = _pbap_goep->_pbap->auth_chal;
+        err = bt_obex_add_header_auth_challenge(buf, 1, &auth_challenage);
         if (err){
             LOG_WRN("Fail to add auth_challenge");
             net_buf_unref(buf);
@@ -259,18 +224,10 @@ static void pbap_goep_transport_connected(struct bt_conn *conn, struct bt_goep *
 
     if (_pbap_goep->_pbap->peer_feature){
         uint32_t value =  sys_get_be32((uint8_t *)&_pbap_goep->_pbap->peer_feature);
-        err = pbap_organize_appl_param(appl_param, BT_PBAP_APPL_PARAM_TAG_ID_SUPPORTED_FEATURES, 4, (uint8_t *)&value, &appl_param_len);
-        if (err){
-            if (err){
-                LOG_WRN("Fail to add appl_param supported feature %d", err);
-                net_buf_unref(buf);
-                return;
-            }
-        }
-    }
-
-    if (appl_param_len){
-        err = bt_obex_add_header_app_param(buf, appl_param_len, (uint8_t *)appl_param);
+        appl_param_feature.type = BT_PBAP_APPL_PARAM_TAG_ID_SUPPORTED_FEATURES;
+        appl_param_feature.data_len = sizeof(value);
+        appl_param_feature.data = (uint8_t *)&value;
+        err = bt_obex_add_header_app_param(buf, 1U, &appl_param_feature);
         if (err){
             LOG_WRN("Fail to add appl_param %d", err);
             net_buf_unref(buf);
@@ -298,15 +255,15 @@ static struct bt_goep_transport_ops pbap_goep_transport_ops = {
 	.disconnected = pbap_goep_transport_disconnected,
 };
 
-static bool bt_obex_find_tlv_param_cb(struct bt_pbap_TLV *hdr, void *user_data)
+static bool bt_obex_find_tlv_param_cb(struct bt_obex_tlv *hdr, void *user_data)
 {
-	struct bt_pbap_TLV *value;
+	struct bt_obex_tlv *value;
 
-	value = (struct bt_pbap_TLV *)user_data;
+	value = (struct bt_obex_tlv *)user_data;
 
-	if (hdr->tag == value->tag) {
+	if (hdr->type == value->type) {
 		value->data = hdr->data;
-		value->length = hdr->length;
+		value->data_len = hdr->data_len;
 		return false;
 	}
 	return true;
@@ -318,7 +275,7 @@ static int bt_pbap_get_head_param(uint8_t *buf, uint16_t length,
     uint16_t total_len  = length;
     uint8_t header_id;
 	uint8_t header_value_len;
-    struct bt_pbap_TLV bt_param;
+    struct bt_obex_tlv bt_param;
     if (!buf || !func){
         LOG_WRN("Invalid parameter");
 		return -EINVAL;
@@ -332,9 +289,9 @@ static int bt_pbap_get_head_param(uint8_t *buf, uint16_t length,
 			return -EINVAL;
 		}
 
-		bt_param.tag = header_id;
+		bt_param.type = header_id;
 		bt_param.data = &buf[len];
-		bt_param.length = header_value_len;
+		bt_param.data_len = header_value_len;
 		len += header_value_len;
 
 		if (!func(&bt_param, user_data)) {
@@ -354,9 +311,13 @@ static void goep_client_connect(struct bt_obex *obex, uint8_t rsp_code, uint8_t 
     int err;
     uint16_t length = 0;
     uint8_t *auth;
-    struct bt_pbap_TLV bt_auth_param;
+    struct bt_obex_tlv bt_auth_challenage;
+    struct bt_obex_tlv bt_auth_response;
     struct bt_pbap_goep *_pbap_goep =  bt_pbap_pce_lookup_obex(obex);
     struct net_buf *tx_buf;
+
+    memset(&bt_auth_challenage, 0, sizeof(bt_auth_challenage));
+    memset(&bt_auth_response, 0, sizeof(bt_auth_response));
 
     if (!_pbap_goep){
         LOG_WRN("No available pbap_pce");
@@ -382,10 +343,9 @@ static void goep_client_connect(struct bt_obex *obex, uint8_t rsp_code, uint8_t 
         }
         _pbap_goep->_pbap->peer_auth = true;
 
-        bt_auth_param.tag = 0x00;
-        bt_pbap_get_head_param(auth, length, bt_obex_find_tlv_param_cb, &bt_auth_param);
-        uint8_t result[16] = {0};
-        uint8_t arry[16 + 2 + 3 +3] = {0};
+        bt_auth_challenage.type = 0x00;
+        bt_pbap_get_head_param(auth, length, bt_obex_find_tlv_param_cb, &bt_auth_challenage);
+
 
         // To do
         // when server auth and client do not provide pwd firstiy, callback connected or get_auth_info to accept pwd from application ?
@@ -394,10 +354,10 @@ static void goep_client_connect(struct bt_obex *obex, uint8_t rsp_code, uint8_t 
         //     bt_pce->get_auth_info();?
         // }
 
-        bt_pbap_generate_auth_response(_pbap_goep->_pbap->pwd, bt_auth_param.data, result);
-
-        string_param(result, arry);
-        err = bt_obex_add_header_auth_rsp(tx_buf, sizeof(arry), arry);
+        bt_pbap_generate_auth_response(_pbap_goep->_pbap->pwd, bt_auth_challenage.data, bt_auth_response.data);
+        bt_auth_response.type = 0x00;
+        bt_auth_response.data_len = 16U;
+        err = bt_obex_add_header_auth_rsp(tx_buf, 1, &bt_auth_response);
         if (err){
             LOG_WRN("Fail to add auth_challenge");
             net_buf_unref(tx_buf);
@@ -405,8 +365,8 @@ static void goep_client_connect(struct bt_obex *obex, uint8_t rsp_code, uint8_t 
         }
         
         if (_pbap_goep->_pbap->local_auth){
-            string_param(_pbap_goep->_pbap->auth_chal, arry);
-            err = bt_obex_add_header_auth_challenge(tx_buf, sizeof(arry), arry);
+            bt_auth_challenage.data = _pbap_goep->_pbap->auth_chal;
+            err = bt_obex_add_header_auth_challenge(tx_buf, 1, &bt_auth_challenage);
             if (err){
                 LOG_WRN("Fail to add auth_challenge");
                 net_buf_unref(tx_buf);
@@ -427,9 +387,9 @@ static void goep_client_connect(struct bt_obex *obex, uint8_t rsp_code, uint8_t 
         if (err){
             LOG_WRN("No available auth_response");
         }
-        bt_auth_param.tag = 0x00;
-        bt_pbap_get_head_param(auth, length, bt_obex_find_tlv_param_cb, &bt_auth_param);
-        err = bt_pbap_verify_auth(_pbap_goep->_pbap->auth_chal, bt_auth_param.data, _pbap_goep->_pbap->pwd);
+        bt_auth_response.type = 0x00;
+        bt_pbap_get_head_param(auth, length, bt_obex_find_tlv_param_cb, &bt_auth_response);
+        err = bt_pbap_verify_auth(_pbap_goep->_pbap->auth_chal, bt_auth_response.data, _pbap_goep->_pbap->pwd);
         if (!err){
             LOG_INF("auth success");
         }else{

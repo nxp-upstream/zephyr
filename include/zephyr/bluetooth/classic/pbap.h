@@ -348,38 +348,6 @@ int bt_pbap_pce_get_end_body(struct net_buf *buf, uint16_t *len, uint8_t **body)
  * @}
  */
 
-
-struct bt_pbap_TLV{
-    uint8_t tag;
-    uint8_t length;
-    uint8_t *data;
-};
-
-
-#define BT_PBAP_AUTH_CHAL_NONCE_TL .tag = 0x00U, \
-            .length = 0x10U
-
-#define BT_PBAP_AUTH_CHAL_OPTIONS_TL .tag = 0x01U, \
-            .length = 0x01U
-
-#define BT_PBAP_AUTH_CHAL_REALM_TL .tag = 0x02U, \
-            .length = 0x01U
-
-
-#define BT_PBAP_AUTH_CHAL(_nonce) \ 
-{ \
-    { BT_PBAP_AUTH_CHAL_NONCE_TL, _nonce}, \
-    { BT_PBAP_AUTH_CHAL_OPTIONS_TL, ((uint8_t []){0x00})}, \
-    { BT_PBAP_AUTH_CHAL_REALM_TL , ((uint8_t []){0x00}) }  \
-}
-
- struct xmd5context
- {
-     uint32_t buf[4];
-     uint32_t bytes[2];
-     uint32_t in[16];
- };
-
 #ifdef __cplusplus
 }
 #endif
