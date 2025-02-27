@@ -53,7 +53,7 @@
 };
 
 &mbox {
-	status = "okay";
+	status = "disabled";
 };
 
 &gpio4 {
@@ -73,15 +73,15 @@
 };
 
 &green_led {
-	status = "okay";
+	status = "disabled";
 };
 
 &red_led {
-	status = "okay";
+	status = "disabled";
 };
 
 &user_button_2 {
-	status = "okay";
+	status = "disabled";
 };
 
 &edma0 {
@@ -89,19 +89,19 @@
 };
 
 &flexcomm1 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexcomm1_lpspi1 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexcomm2 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexcomm2_lpi2c2 {
-	status = "okay";
+	status = "disabled";
 };
 
 /*
@@ -109,7 +109,7 @@
  * LFLEXCOMM2
  */
 &flexcomm2_lpuart2 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexcomm4 {
@@ -121,19 +121,19 @@
 };
 
 &flexcomm7 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexcomm7_lpi2c7 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexspi {
-	status = "okay";
+	status = "disabled";
 };
 
 &w25q64jvssiq {
-	status = "okay";
+	status = "disabled";
 	partitions {
 		compatible = "fixed-partitions";
 		#address-cells = <1>;
@@ -146,97 +146,97 @@
 };
 
 &dac0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &enet {
-	status = "okay";
+	status = "disabled";
 };
 
 &enet_mac {
-	status = "okay";
+	status = "disabled";
 };
 
 &enet_mdio {
-	status = "okay";
+	status = "disabled";
 };
 
 &wwdt0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexpwm1_pwm0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexcan0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &ctimer0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &usdhc0 {
-	status = "okay";
+	status = "disabled";
 	sdmmc {
 		compatible = "zephyr,sdmmc-disk";
 		disk-name = "SD";
-		status = "okay";
+		status = "disabled";
 	};
 };
 
 &vref {
-	status = "okay";
+	status = "disabled";
 };
 
 &lpadc0 {
-	status = "okay";
+	status = "disabled";
 };
 
 zephyr_udc0: &usb1 {
-	status = "okay";
+	status = "disabled";
 	phy-handle = <&usbphy1>;
 };
 
 &usbphy1 {
-	status = "okay";
+	status = "disabled";
 	tx-d-cal = <4>;
 	tx-cal-45-dp-ohms = <7>;
 	tx-cal-45-dm-ohms = <7>;
 };
 
 &lpcmp0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &lptmr0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &i3c1 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexio0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &mrt0_channel0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &rtc {
-	status = "okay";
+	status = "disabled";
 };
 
 &sc_timer {
-	status = "okay";
+	status = "disabled";
 };
 
 &sai1 {
-	status = "okay";
+	status = "disabled";
 };
 &sai0 {
-	status = "okay";
+	status = "disabled";
 };
