@@ -152,6 +152,11 @@ static int spi_mcux_configure(const struct device *dev, const struct spi_config 
 	uint32_t clock_freq;
 	int ret;
 
+	if (spi_context_configured(&data->ctx, spi_cfg)) {
+		/* This configuration is already in use */
+		return 0;
+	}
+
 	if (spi_cfg->operation & SPI_HALF_DUPLEX) {
 		/* the IP DOES support half duplex, need to implement driver support */
 		LOG_ERR("Half-duplex not supported");
