@@ -1,4 +1,4 @@
-# Copyright 2024 NXP
+# Copyright 2024-2025 NXP
 # SPDX-License-Identifier: Apache-2.0
 
 if SOC_SERIES_MCXN
@@ -31,5 +31,8 @@ config FLASH_FILL_BUFFER_SIZE
 # so the PLL settings will not be performed in the driver.
 config I2S_HAS_PLL_SETTING
 	default n
+
+config FLEXSPI_CONFIG_BLOCK_OFFSET
+	default 0x400
 
 endif # SOC_SERIES_MCXN
