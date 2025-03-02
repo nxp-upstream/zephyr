@@ -210,6 +210,7 @@ test_spi_icm42686: icm42686@31 {
 	accel-aaf-bw = <13>;
 	gyro-aaf-bw = <13>;
 	spi-max-frequency = <24000000>;
+	int-gpios = <&test_gpio 0 0>;
 };
 
 test_spi_max31855: max31855@1b {
