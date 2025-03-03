@@ -53,7 +53,7 @@
 };
 
 &mbox {
-	status = "okay";
+	status = "disabled";
 };
 
 &gpio4 {
@@ -89,11 +89,11 @@
 };
 
 &flexcomm1 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexcomm1_lpspi1 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexcomm2 {
@@ -101,7 +101,7 @@
 };
 
 &flexcomm2_lpi2c2 {
-	status = "okay";
+	status = "disabled";
 };
 
 /*
@@ -121,11 +121,11 @@
 };
 
 &flexcomm7 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexcomm7_lpi2c7 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexspi {
@@ -146,52 +146,52 @@
 };
 
 &dac0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &enet {
-	status = "okay";
+	status = "disabled";
 };
 
 &enet_mac {
-	status = "okay";
+	status = "disabled";
 };
 
 &enet_mdio {
-	status = "okay";
+	status = "disabled";
 };
 
 &wwdt0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexpwm1_pwm0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexcan0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &ctimer0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &usdhc0 {
-	status = "okay";
+	status = "disabled";
 	sdmmc {
 		compatible = "zephyr,sdmmc-disk";
 		disk-name = "SD";
-		status = "okay";
+		status = "disabled";
 	};
 };
 
 &vref {
-	status = "okay";
+	status = "disabled";
 };
 
 &lpadc0 {
-	status = "okay";
+	status = "disabled";
 };
 
 zephyr_udc0: &usb1 {
@@ -207,36 +207,36 @@ zephyr_udc0: &usb1 {
 };
 
 &lpcmp0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &lptmr0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &i3c1 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexio0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &mrt0_channel0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &rtc {
-	status = "okay";
+	status = "disabled";
 };
 
 &sc_timer {
-	status = "okay";
+	status = "disabled";
 };
 
 &sai1 {
-	status = "okay";
+	status = "disabled";
 };
 &sai0 {
-	status = "okay";
+	status = "disabled";
 };

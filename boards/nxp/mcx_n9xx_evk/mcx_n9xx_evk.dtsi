@@ -105,10 +105,10 @@ nxp_8080_touch_panel_i2c: &flexcomm2_lpi2c2 {
 
 /* SmartDMA is used for video driver on this board */
 &smartdma {
-	status = "okay";
+	status = "disabled";
 	program-mem = <0x4000000>;
 	video_sdma: video-sdma {
-		status = "okay";
+		status = "disabled";
 		compatible = "nxp,video-smartdma";
 		pinctrl-0 = <&pinmux_smartdma_camera>;
 		pinctrl-names = "default";
@@ -231,7 +231,7 @@ nxp_8080_touch_panel_i2c: &flexcomm2_lpi2c2 {
 	phy: ethernet-phy@0 {
 		compatible = "ethernet-phy";
 		reg = <0>;
-		status = "okay";
+		status = "disabled";
 	};
 };
 
