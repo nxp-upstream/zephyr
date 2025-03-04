@@ -28,6 +28,7 @@
 extern "C" {
 #endif
 
+typedef struct bt_obex_tlv bt_pbap_tlv;
 /**
  * @brief Phone Book Access Profile(PBAP)
  * @defgroup bt_pbap Phone Book Access Profile (PBAP)
@@ -74,7 +75,7 @@ enum __packed bt_pbap_appl_param_tag_id{
     /* MaxListCount */
     BT_PBAP_APPL_PARAM_TAG_ID_MAX_LIST_COUNT = 0x04,
     /* ListStartOffset */
-    BT_PBAP_APPL_PARAM_TAG_ID_LIST_START_OFF_SET = 0x05,
+    BT_PBAP_APPL_PARAM_TAG_ID_LIST_START_OFFSET = 0x05,
     /* PropertySelector */
     BT_PBAP_APPL_PARAM_TAG_ID_PROPERTY_SELECTOR = 0x06,
     /* Format */
@@ -99,19 +100,6 @@ enum __packed bt_pbap_appl_param_tag_id{
     BT_PBAP_APPL_PARAM_TAG_ID_SUPPORTED_FEATURES = 0x10,
 };
 
-
-struct bt_pbap_appl_param{
-    uint8_t id;
-    uint8_t length;
-    union {
-        uint8_t data[0];
-        uint8_t data_1b;
-        uint16_t data_2b;
-        uint32_t data_4b;
-        uint64_t data_8b;
-    }value;
-}__packed;
-
 /** @brief PBAP client PCE struct */
 struct bt_pbap_pce{
     /** @brief connection handle */
@@ -119,7 +107,7 @@ struct bt_pbap_pce{
     /** @brief password for authication. When connecting, the application must provide this parameter
     *  when the component wants to authenticate with the server. 
     */
-    char  *pwd;
+    char *pwd;
     /** @brief peer device support features. After performing SDP to the server,
     *  the PCE can obtain the features supported by the PSE.
     */
@@ -128,16 +116,8 @@ struct bt_pbap_pce{
     uint32_t lcl_feature;
     /** @brief max package length. When performing a connect operation, the application must provide this parameter.*/
     uint16_t mpl;
-    /** @internal Save the current stats, @brief bt_pbap_state */
-    atomic_t _state;
     /** @internal goep handle, @brief bt_goep */
     struct bt_goep *goep;
-    /** @internal save authicathon_challenge nonce */
-    uint8_t auth_chal[16];
-    /** @internal Flag for local device if authicate actively. */
-    bool local_auth;
-    /** @internal Flag for peer device if authicate actively. */
-    bool peer_auth;
 };
 /** @brief PBAP client PCE operations structure.
  * 
@@ -238,6 +218,8 @@ enum __packed bt_pbap_state {
     BT_PBAP_PULL_VCARDENTRY,
     /** PBAP in idel state */
     BT_PBAP_IDEL,
+    /** PBAP in abort state */
+    BT_PBAP_ABORT,
 };
 
 /** @brief PBAP client PCE register.
@@ -270,7 +252,6 @@ struct net_buf *bt_pbap_create_pdu(struct bt_pbap_pce *pbap_pce, struct net_buf_
  *  @ref bt_pbap_pce::connected is called. If the connection is rejected,
  *  @ref bt_pbap_pce::disconnected callback is called instead.
  * 
-
  *  The Acl connection handle @brief bt_conn is passed as first parameter.
  *  The RFCOMM channel is passed as second paramter. The RFCOMM channel 
  *  of the PBAP server PSE can be obtained through SDP operation.
@@ -318,67 +299,157 @@ int bt_pbap_pce_l2cap_connect(struct bt_conn *conn, uint16_t psm, struct bt_pbap
  */
 int bt_pbap_pce_disconnect(struct bt_pbap_pce *pbap_pce);
 
-/** @brief Disconnect PBAP connection from PBAP client PCE. */
+/** @brief Create commmand for PBAP client PCE to pull phonebook from PBAP server PSE. */
 /**
- *  Disconnect PBAP connection. 
+ *  This API is used to create a pull phonebook command. 
+ * 
+ *  The pbap pce handle @brief bt_pbap_pce is passed as first parameter.
+ *  The buf is passed as second paramter. It can be allocated by func @brief bt_pbap_create_pdu 
+ *  in application before this funcation is called.
+ *  The name is passed as third paramter. It shall contain the absolute path in the 
+ *  virtual folders architecture of the PSE, appended with the name of the file representation of 
+ *  one of the Phone Book Objects.Example: telecom/pb.vcf
+ *  The wait is passed as fourth paramter.It means the value of header Single Response Mode Param(SRMP). 
+ *  If the PBAP connection based on L2CAP and the client wants the server to wait for the client's next request 
+ *  after sending a reply, this value should be True, Otherwith it should be False. 
+ *  If the PBAP connection based on RFcomm, this value is meaningless, so it can be ture or false.
  * 
  *  @param pbap_pce PBAP PCE object @brief bt_pbap_pce
+ *  @param buf Buffer needs to be sent.
+ *  @param name the name of virtual folders which want to pull phonebook from.
+ *  @param wait true if enable SRMP else false.
  * 
  *  @return 0 in case of success or negative value in case of error.
  */
 int bt_pbap_pce_pull_phonebook_create_cmd(struct bt_pbap_pce *pbap_pce, struct net_buf *buf, char *name, bool wait);
 
-
-
+/** @brief Create commmand for PBAP client PCE to pull vcardlisting from PBAP server PSE. */
+/**
+ *  This API is used to create a pull vcardlisting command. 
+ * 
+ *  The pbap pce handle @brief bt_pbap_pce is passed as first parameter.
+ *  The buf is passed as second paramter. It can be allocated by func @brief bt_pbap_create_pdu 
+ *  in application before this funcation is called.
+ *  The name is passed as third paramter. It specifies the name of the folder to be retrieved. 
+ *  The value shall not include any path information,and it can be empty. An empty name
+ *  header may be sent to retrieve the vCard Listing object of the current folder. Example pb.
+ *  The wait is passed as fourth paramter.It means the value of header Single Response Mode Param(SRMP). 
+ *  If the PBAP connection based on L2CAP and the client wants the server to wait for the client's next request 
+ *  after sending a reply, this value should be True, Otherwith it should be False. 
+ *  If the PBAP connection based on RFcomm, this value is meaningless, so it can be ture or false.
+ * 
+ *  @param pbap_pce PBAP PCE object @brief bt_pbap_pce
+ *  @param buf Buffer needs to be sent.
+ *  @param name the name of virtual folders which want to pull phonebook from.
+ *  @param wait true if enable SRMP else false.
+ * 
+ *  @return 0 in case of success or negative value in case of error.
+ */
 int bt_pbap_pce_pull_vcardlisting_create_cmd(struct bt_pbap_pce *pbap_pce, struct net_buf *buf, char *name, bool wait);
 
+/** @brief Create commmand for PBAP client PCE to pull vcardentry from PBAP server PSE. */
+/**
+ *  This API is used to create a pull vcardentry command. 
+ * 
+ *  The pbap pce handle @brief bt_pbap_pce is passed as first parameter.
+ *  The buf is passed as second paramter. It can be allocated by func @brief bt_pbap_create_pdu 
+ *  in application before this funcation is called.
+ *  The name is passed as third paramter. The Name header shall be used to indicate the name or, 
+ *  if supported, the X-BT-UID of the object to be retrieved.The value shall not include any path information.
+ *  Exmaple 0.vcf or X-BT-UID:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.
+ *  The wait is passed as fourth paramter.It means the value of header Single Response Mode Param(SRMP). 
+ *  If the PBAP connection based on L2CAP and the client wants the server to wait for the client's next request 
+ *  after sending a reply, this value should be True, Otherwith it should be False. 
+ *  If the PBAP connection based on RFcomm, this value is meaningless, so it can be ture or false.
+ * 
+ *  @param pbap_pce PBAP PCE object @brief bt_pbap_pce
+ *  @param buf Buffer needs to be sent.
+ *  @param name the name of virtual folders which want to pull phonebook from.
+ *  @param wait true if enable SRMP else false.
+ * 
+ *  @return 0 in case of success or negative value in case of error.
+ */
 int bt_pbap_pce_pull_vcardentry_create_cmd(struct bt_pbap_pce *pbap_pce, struct net_buf *buf, char *name, bool wait);
 
+/** @brief Send commmand for PBAP client PCE to pull something from PBAP server PSE. */
+/**
+ *  This API is used to send a pull command. 
+ * 
+ *  Before this function is called, bt_pbap_pce_pull_xxx_create_cmd must be called.
+ *  If application want to add extra header, call bt_pbap_pce_add_header_xxx to add header to buf.
+ * 
+ *  @param pbap_pce PBAP PCE object @brief bt_pbap_pce
+ *  @param buf Buffer needs to be sent.
+ * 
+ *  @return 0 in case of success or negative value in case of error.
+ */
 int bt_pbap_pce_send_cmd(struct bt_pbap_pce *pbap_pce, struct net_buf *buf);
+
+/** @brief Send cmd to PSE to set current folderpath.
+ *
+ *  This function is to be called after the pabp conn is established.
+ *  This API is to be used to set sets the current folder in pse.
+ *  When name is "/", go to parent directory.
+ *  When name is ".." or "../", go up one level.
+ *  When name is "child" or "./child", go to child
+ *  For multilevel jumps, need to do it on a level-by-level basis
+ *  After receive responese, the callback that is registered by
+ *  bt_pbap_pce_register is called.
+ *  The buf is passed as second paramter. It can be allocated by func @brief bt_pbap_create_pdu 
+ *  in application before this funcation is called.
+ *
+ *  @param pbap_pce  PBAP PCE object
+ *  @param buf       tx net_buf
+ *  @param name      path name string.
+ *
+ *  @return          0 in case of success or otherwise in case of error.
+ */
 
 int bt_pbap_pce_set_path(struct bt_pbap_pce *pbap_pce, struct net_buf *buf, char *name);
 
-
+/** @brief Abort PBAP_PCE operation
+ *
+ *  Abort PBAP_PCE GET operation. This cancels the current outstanding operation.
+ *  The return value of -EINPROGRESS means abort is queued and pending. The current
+ *  outstanding operation will be aborted when receiving next response from the PSE.
+ *
+ *  @param pbap_pce  PBAP_PCE object.
+ *
+ *  @return         0 in case of success or otherwise in case of error.
+ */
 int bt_pbap_pce_abort(struct bt_pbap_pce *pbap_pce);
 
+/**
+ * @brief Helper for getting body.
+ *
+ * A helper for getting Body header. The most
+ * common scenario is to call this helper on the body received in
+ * the callback that was given to bt_pbap_register.
+ *
+ * @param buf       net buffer returned in the callback registered by bt_pbap_register.
+ * @param body      pointer used for holding body data.
+ * @param length    the length of body data.
+ */
 int bt_pbap_pce_get_body(struct net_buf *buf, uint16_t *len, uint8_t **body);
 
+/**
+ * @brief Helper for getting end of body.
+ *
+ * A helper for getting end of body header. The most
+ * common scenario is to call this helper on the end of body received in
+ * the callback that was given to bt_pbap_register.
+ *
+ * @param buf       net buffer returned in the callback registered by bt_pbap_register.
+ * @param body      pointer used for holding body data.
+ * @param length    the length of body data.
+ */
 int bt_pbap_pce_get_end_body(struct net_buf *buf, uint16_t *len, uint8_t **body);
+
+int bt_pap_pce_add_app_param(struct net_buf *buf, size_t count, struct bt_obex_tlv data[]);
+
 /**
  * @}
  */
-
-
-struct bt_pbap_TLV{
-    uint8_t tag;
-    uint8_t length;
-    uint8_t *data;
-};
-
-
-#define BT_PBAP_AUTH_CHAL_NONCE_TL .tag = 0x00U, \
-            .length = 0x10U
-
-#define BT_PBAP_AUTH_CHAL_OPTIONS_TL .tag = 0x01U, \
-            .length = 0x01U
-
-#define BT_PBAP_AUTH_CHAL_REALM_TL .tag = 0x02U, \
-            .length = 0x01U
-
-
-#define BT_PBAP_AUTH_CHAL(_nonce) \ 
-{ \
-    { BT_PBAP_AUTH_CHAL_NONCE_TL, _nonce}, \
-    { BT_PBAP_AUTH_CHAL_OPTIONS_TL, ((uint8_t []){0x00})}, \
-    { BT_PBAP_AUTH_CHAL_REALM_TL , ((uint8_t []){0x00}) }  \
-}
-
- struct xmd5context
- {
-     uint32_t buf[4];
-     uint32_t bytes[2];
-     uint32_t in[16];
- };
 
 #ifdef __cplusplus
 }
