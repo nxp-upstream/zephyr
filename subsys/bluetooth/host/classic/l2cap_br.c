@@ -1010,16 +1010,6 @@ static void l2cap_br_conn_req(struct bt_l2cap_br *l2cap, uint8_t ident,
 		goto no_chan;
 	}
 
-	/*
-	 * Report security violation for non SDP channel without encryption when
-	 * remote supports SSP.
-	 */
-	if (server->sec_level != BT_SECURITY_L0 &&
-	    BT_FEAT_HOST_SSP(conn->br.features) && !conn->encrypt) {
-		result = BT_L2CAP_BR_ERR_SEC_BLOCK;
-		goto no_chan;
-	}
-
 	if (!L2CAP_BR_CID_IS_DYN(scid)) {
 		result = BT_L2CAP_BR_ERR_INVALID_SCID;
 		goto no_chan;
