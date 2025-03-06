@@ -1205,6 +1205,13 @@
 		reg = <0x2cb0000 0x1000>;
 		status = "disabled";
 	};
+
+	bbnsm: bbnsm@4440000 {
+		compatible = "nxp,imx-rtc";
+		reg = <0x4440000 0x1000>;
+		interrupts = <73 0>;
+		status = "disabled";
+	};
 };
 
 &flexspi {
