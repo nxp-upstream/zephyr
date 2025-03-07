@@ -24,3 +24,68 @@ zephyr_udc0: &usb0 {
 	};
 };
 */
+
+/* For UARTs test with hardware flow control */
+&flexcomm1 {
+	status = "okay";
+};
+
+test_uart1: &flexcomm1_lpuart1 {
+	status = "okay";
+	current-speed = <115200>;
+	hw-flow-control;
+	pinctrl-0 = < &pinmux_flexcomm1_lpuart >;
+	pinctrl-names = "default";
+};
+
+&flexcomm2 {
+	status = "okay";
+};
+
+test_uart2: &flexcomm2_lpuart2 {
+		status = "okay";
+		current-speed = <115200>;
+		hw-flow-control;
+		pinctrl-0 = < &pinmux_flexcomm2_lpuart >;
+		pinctrl-names = "default";
+};
+
+&pinctrl {
+	pinmux_flexcomm1_lpuart: pinmux_flexcomm1_lpuart {
+		group0 {
+			pinmux = <FC1_P0_PIO0_24>,
+				<FC1_P1_PIO0_25>,
+				<FC1_P2_PIO0_26>;
+			slew-rate = "fast";
+			drive-strength = "low";
+			input-enable;
+		};
+		group1 {
+			/* Pull-up CTS_b signals */
+			pinmux = <FC1_P3_PIO0_27>;
+			slew-rate = "fast";
+			drive-strength = "low";
+			input-enable;
+			bias-pull-up;
+		};
+	};
+
+	pinmux_flexcomm2_lpuart: pinmux_flexcomm2_lpuart {
+		group0 {
+			pinmux = <FC2_P0_PIO4_0>,
+				<FC2_P1_PIO4_1>,
+				<FC2_P2_PIO4_2>;
+			slew-rate = "fast";
+			drive-strength = "low";
+			input-enable;
+		};
+		group1 {
+			/* Pull-up CTS_b signals */
+			pinmux = <FC2_P3_PIO4_3>;
+			slew-rate = "fast";
+			drive-strength = "low";
+			input-enable;
+			bias-pull-up;
+		};
+	};
+};

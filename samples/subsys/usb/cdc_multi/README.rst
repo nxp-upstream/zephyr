@@ -81,3 +81,18 @@ For this example, it would look like this:
 .. code-block:: none
 
    ATTRS{idVendor}=="8086" ATTRS{idProduct}=="f8a1", ENV{ID_MM_DEVICE_IGNORE}="1"
+
+Hardware Setup
+**************
+
+This sample also performs a loopback UART test through two UARTs.  Some
+platforms require the UART signals to be connected externally:
+
+MCX-N9XX-EVK
+============
+
+These are the HW changes required to run this test:
+   - Short J2-pin18 (FC2_P0/RXD/P4_0) to J2-pin12 (FC1_P1/TXD/P0_25)
+   - Short J2-pin20 (FC2_P1/TXD/P4_1) to J2-pin8  (FC1_P0/RXD/P0_24)
+   - Short J1-pin4  (FC2_P2/RTS/P4_2) to J2-pin6  (FC1_P3/CTS/P0_27)
+   - Short J1-pin2  (FC2_P3/CTS/P4_3) to J2-pin10 (FC1_P2/RTS/P0_26)

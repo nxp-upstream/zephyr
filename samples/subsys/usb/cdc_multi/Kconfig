@@ -1,5 +1,14 @@
 # Copyright (c) 2023 Nordic Semiconductor ASA
+# Copyright 2025 NXP
 # SPDX-License-Identifier: Apache-2.0
+
+config APP_UART_TEST
+	bool
+	prompt "Includes UART test in app"
+
+module = UART_TEST
+module-str = uart_test
+source "subsys/logging/Kconfig.template.log_config"
 
 # Source common USB sample options used to initialize new experimental USB
 # device stack. The scope of these options is limited to USB samples in project

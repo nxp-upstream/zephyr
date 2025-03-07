@@ -5,5 +5,10 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(cdc_multi)
 
 include(${ZEPHYR_BASE}/samples/subsys/usb/common/common.cmake)
-FILE(GLOB app_sources src/*.c)
+list(APPEND app_sources src/main.c)
+
+if (DEFINED CONFIG_APP_UART_TEST)
+	list(APPEND app_sources src/uart_test.c)
+endif()
+
 target_sources(app PRIVATE ${app_sources})
