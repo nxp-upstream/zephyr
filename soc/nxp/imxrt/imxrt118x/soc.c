@@ -62,6 +62,11 @@
  * Only CM33 will set TRDC.
  */
 #define CM33_SET_TRDC 0U
+#elif defined(CONFIG_BOOTLOADER_MCUBOOT)
+/* When zephyr application is booted by MCUboot, this app must NOT require TRDC again
+ * because MCUboot has required TRDC.
+ */
+#define CM33_SET_TRDC 0U
 #else
 #define CM33_SET_TRDC 1U
 #endif
