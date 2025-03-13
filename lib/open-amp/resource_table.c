@@ -47,6 +47,10 @@ static struct fw_resource_table __resource resource_table = {
 #if defined(CONFIG_RAM_CONSOLE)
 		offsetof(struct fw_resource_table, cm_trace),
 #endif
+
+#if defined(CONFIG_OPENAMP_RSC_TABLE_VENDOR_FEATURES)
+		offsetof(struct fw_resource_table, vendor_feat),
+#endif
 	},
 
 #if (CONFIG_OPENAMP_RSC_TABLE_NUM_RPMSG_BUFF > 0)
@@ -70,6 +74,13 @@ static struct fw_resource_table __resource resource_table = {
 		RSC_TRACE,
 		(uint32_t)ram_console_buf, CONFIG_RAM_CONSOLE_BUFFER_SIZE, 0,
 		"Zephyr_log",
+	},
+#endif
+
+#if defined(CONFIG_OPENAMP_RSC_TABLE_VENDOR_FEATURES)
+	.vendor_feat = {
+		RSC_VENDOR_START,
+		VENDOR_SEND_FW_READY,
 	},
 #endif
 };

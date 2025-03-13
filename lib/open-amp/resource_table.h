@@ -28,6 +28,8 @@ extern "C" {
 #define VRING_BUFF_ADDRESS      -1  /* allocated by Master processor */
 #define VRING_ALIGNMENT         16  /* fixed to match with Linux constraint */
 
+#define VENDOR_SEND_FW_READY     0  /* vendor specific feature supported by rproc */
+
 #endif
 
 enum rsc_table_entries {
@@ -36,6 +38,9 @@ enum rsc_table_entries {
 #endif
 #if defined(CONFIG_RAM_CONSOLE)
 	RSC_TABLE_TRACE_ENTRY,
+#endif
+#if defined(CONFIG_OPENAMP_RSC_TABLE_VENDOR_FEATURES)
+	RSC_TABLE_VENDOR_ENTRY,
 #endif
 	RSC_TABLE_NUM_ENTRY
 };
@@ -53,6 +58,11 @@ struct fw_resource_table {
 #if defined(CONFIG_RAM_CONSOLE)
 	/* rpmsg trace entry */
 	struct fw_rsc_trace cm_trace;
+#endif
+
+#if defined(CONFIG_OPENAMP_RSC_TABLE_VENDOR_FEATURES)
+	/* remoteproc vendor specific features */
+	struct fw_rsc_vendor vendor_feat;
 #endif
 } METAL_PACKED_END;
 

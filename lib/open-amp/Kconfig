@@ -34,3 +34,9 @@ config OPENAMP_RSC_TABLE_IPM_TX_ID
 	help
 	   This option specifies the IPM TX channel ID used in a VRING
 	   for interprocessor communication
+
+config OPENAMP_RSC_TABLE_VENDOR_FEATURES
+	bool "Vendor specific features are defined"
+	depends on OPENAMP_RSC_TABLE
+	help
+	  Use vendor specific features supported by remote processor.
