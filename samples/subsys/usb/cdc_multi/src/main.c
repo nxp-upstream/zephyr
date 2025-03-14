@@ -12,7 +12,7 @@
  * to the serial port.
  */
 
-#include <sample_usbd.h>
+#include <dual_usbd.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -26,7 +26,7 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(cdc_acm_echo, LOG_LEVEL_INF);
 
-const struct device *const uart_dev = DEVICE_DT_GET_ONE(zephyr_cdc_acm_uart);
+const struct device *const uart0_dev = DEVICE_DT_GET_ONE(zephyr_cdc_acm_uart);
 
 #define RING_BUF_SIZE 1024
 uint8_t ring_buffer[RING_BUF_SIZE];
@@ -34,6 +34,12 @@ uint8_t ring_buffer[RING_BUF_SIZE];
 struct ring_buf ringbuf;
 
 static bool rx_throttled;
+
+static struct usbd_context *usb0_ctx;
+static struct usbd_context *usb1_ctx;
+
+K_SEM_DEFINE(usb0_dtr_sem, 0, 1);
+K_SEM_DEFINE(usb1_dtr_sem, 0, 1);
 
 static inline void print_baudrate(const struct device *dev)
 {
@@ -48,11 +54,8 @@ static inline void print_baudrate(const struct device *dev)
 	}
 }
 
-#if defined(CONFIG_USB_DEVICE_STACK_NEXT)
-static struct usbd_context *sample_usbd;
-K_SEM_DEFINE(dtr_sem, 0, 1);
 
-static void sample_msg_cb(struct usbd_context *const ctx, const struct usbd_msg *msg)
+static void usb0_msg_cb(struct usbd_context *const ctx, const struct usbd_msg *msg)
 {
 	LOG_INF("USBD message: %s", usbd_msg_type_string(msg->type));
 
@@ -71,11 +74,43 @@ static void sample_msg_cb(struct usbd_context *const ctx, const struct usbd_msg 
 	}
 
 	if (msg->type == USBD_MSG_CDC_ACM_CONTROL_LINE_STATE) {
-		uint32_t dtr = 0U;
+		uint32_t usb0_dtr = 0U;
 
-		uart_line_ctrl_get(msg->dev, UART_LINE_CTRL_DTR, &dtr);
-		if (dtr) {
-			k_sem_give(&dtr_sem);
+		uart_line_ctrl_get(msg->dev, UART_LINE_CTRL_DTR, &usb0_dtr);
+		if (usb0_dtr) {
+			k_sem_give(&usb0_dtr_sem);
+		}
+	}
+
+	if (msg->type == USBD_MSG_CDC_ACM_LINE_CODING) {
+		print_baudrate(msg->dev);
+	}
+}
+
+static void usb1_msg_cb(struct usbd_context *const ctx, const struct usbd_msg *msg)
+{
+	LOG_INF("USBD message: %s", usbd_msg_type_string(msg->type));
+
+	if (usbd_can_detect_vbus(ctx)) {
+		if (msg->type == USBD_MSG_VBUS_READY) {
+			if (usbd_enable(ctx)) {
+				LOG_ERR("Failed to enable device support");
+			}
+		}
+
+		if (msg->type == USBD_MSG_VBUS_REMOVED) {
+			if (usbd_disable(ctx)) {
+				LOG_ERR("Failed to disable device support");
+			}
+		}
+	}
+
+	if (msg->type == USBD_MSG_CDC_ACM_CONTROL_LINE_STATE) {
+		uint32_t usb1_dtr = 0U;
+
+		uart_line_ctrl_get(msg->dev, UART_LINE_CTRL_DTR, &usb1_dtr);
+		if (usb1_dtr) {
+			k_sem_give(&usb1_dtr_sem);
 		}
 	}
 
@@ -88,25 +123,38 @@ static int enable_usb_device_next(void)
 {
 	int err;
 
-	sample_usbd = sample_usbd_init_device(sample_msg_cb);
-	if (sample_usbd == NULL) {
-		LOG_ERR("Failed to initialize USB device");
+	usb0_ctx = usb0_init_device(usb0_msg_cb);
+	if (usb0_ctx == NULL) {
+		LOG_ERR("Failed to initialize usb0 device");
 		return -ENODEV;
 	}
 
-	if (!usbd_can_detect_vbus(sample_usbd)) {
-		err = usbd_enable(sample_usbd);
+	if (!usbd_can_detect_vbus(usb0_ctx)) {
+		err = usbd_enable(usb0_ctx);
 		if (err) {
 			LOG_ERR("Failed to enable device support");
-			return err;
+		} else {
+			LOG_INF("usb0 enabled");
 		}
 	}
 
-	LOG_INF("USB device support enabled");
+	usb1_ctx = usb1_init_device(usb1_msg_cb);
+	if (usb1_ctx == NULL) {
+		LOG_ERR("Failed to initialize usb0 device");
+		return -ENODEV;
+	}
+
+	if (!usbd_can_detect_vbus(usb1_ctx)) {
+		err = usbd_enable(usb1_ctx);
+		if (err) {
+			LOG_ERR("Failed to enable usb1 device support");
+		} else {
+			LOG_INF("usb1 enabled");
+		}
+	}
 
 	return 0;
 }
-#endif /* defined(CONFIG_USB_DEVICE_STACK_NEXT) */
 
 static void interrupt_handler(const struct device *dev, void *user_data)
 {
@@ -173,28 +221,22 @@ int main(void)
 {
 	int ret;
 
-	if (!device_is_ready(uart_dev)) {
+	if (!device_is_ready(uart0_dev)) {
 		LOG_ERR("CDC ACM device not ready");
 		return 0;
 	}
 
-#if defined(CONFIG_USB_DEVICE_STACK_NEXT)
-		ret = enable_usb_device_next();
-#else
-		ret = usb_enable(NULL);
-#endif
-
+	ret = enable_usb_device_next();
 	if (ret != 0) {
 		LOG_ERR("Failed to enable USB");
 		return 0;
 	}
 
 	ring_buf_init(&ringbuf, sizeof(ring_buffer), ring_buffer);
-
 	LOG_INF("Wait for DTR");
 
 #if defined(CONFIG_USB_DEVICE_STACK_NEXT)
-	k_sem_take(&dtr_sem, K_FOREVER);
+	k_sem_take(&usb0_dtr_sem, K_FOREVER);
 #else
 	while (true) {
 		uint32_t dtr = 0U;
@@ -212,12 +254,12 @@ int main(void)
 	LOG_INF("DTR set");
 
 	/* They are optional, we use them to test the interrupt endpoint */
-	ret = uart_line_ctrl_set(uart_dev, UART_LINE_CTRL_DCD, 1);
+	ret = uart_line_ctrl_set(uart0_dev, UART_LINE_CTRL_DCD, 1);
 	if (ret) {
 		LOG_WRN("Failed to set DCD, ret code %d", ret);
 	}
 
-	ret = uart_line_ctrl_set(uart_dev, UART_LINE_CTRL_DSR, 1);
+	ret = uart_line_ctrl_set(uart0_dev, UART_LINE_CTRL_DSR, 1);
 	if (ret) {
 		LOG_WRN("Failed to set DSR, ret code %d", ret);
 	}
@@ -226,12 +268,12 @@ int main(void)
 	k_msleep(100);
 
 #ifndef CONFIG_USB_DEVICE_STACK_NEXT
-	print_baudrate(uart_dev);
+	print_baudrate(uart0_dev);
 #endif
-	uart_irq_callback_set(uart_dev, interrupt_handler);
+	uart_irq_callback_set(uart0_dev, interrupt_handler);
 
 	/* Enable rx interrupts */
-	uart_irq_rx_enable(uart_dev);
+	uart_irq_rx_enable(uart0_dev);
 
 	return 0;
 }

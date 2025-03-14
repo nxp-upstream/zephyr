@@ -4,26 +4,51 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* For USBFS */
-/delete-node/ &zephyr_udc0;
-zephyr_udc0: &usb0 {
-	status = "okay";
+/* For USBHS && USBFS */
+&zephyr_udc0 {
 	cdc_acm_uart0 {
 		compatible = "zephyr,cdc-acm-uart";
-		label = "Zephyr USB CDC-ACM";
+		label = "USB CDC-ACM-UART0 zephyr_udc0";
+	};
+
+	cdc_acm_uart1 {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "USB CDC-ACM-UART1 zephyr_udc0";
+	};
+
+	cdc_acm_uart2 {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "USB CDC-ACM-UART1 zephyr_udc0";
 	};
 };
 
-/* For USBHS */
-/*
-&zephyr_udc0 {
+zephyr_udc1: &usb0 {
 	status = "okay";
-	cdc_acm_uart0 {
+	cdc_acm_uart3 {
 		compatible = "zephyr,cdc-acm-uart";
-		label = "Zephyr USB CDC-ACM";
+		label = "USB CDC-ACM full-speed";
+	};
+
+	cdc_acm_uart4 {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "USB CDC-ACM full-speed";
+	};
+
+	cdc_acm_uart5 {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "USB CDC-ACM full-speed";
+	};
+
+	cdc_acm_uart6 {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "USB CDC-ACM full-speed";
+	};
+
+	cdc_acm_uart7 {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "USB CDC-ACM full-speed";
 	};
 };
-*/
 
 /* For UARTs test with hardware flow control */
 &flexcomm1 {

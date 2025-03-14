@@ -5,7 +5,9 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(cdc_multi)
 
 include(${ZEPHYR_BASE}/samples/subsys/usb/common/common.cmake)
+target_include_directories(app PRIVATE src)
 list(APPEND app_sources src/main.c)
+list(APPEND app_sources src/dual_usbd_init.c)
 
 if (DEFINED CONFIG_APP_UART_TEST)
 	list(APPEND app_sources src/uart_test.c)
