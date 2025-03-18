@@ -35,6 +35,31 @@ config SOC_MIMXRT1189_CM7
 
 if SOC_SERIES_IMXRT118X
 
+if SECOND_CORE_MCUX
+
+config CM7_IMAGE_XIP_IN_FLASH
+	bool "CM7 image XIP in flash directly"
+	default n
+	help
+	  When in multicore use case, CM7 image default execute in ITCM, if want
+	  to directly load and execute CM7 image in flash, set this to y both in
+	  CM33 and CM7 application.
+
+if SOC_MIMXRT1189_CM33
+
+config CM7_VECTOR_START_ADDR
+	hex "CM7 image vector table start address"
+	default 0x0 if !CM7_IMAGE_XIP_IN_FLASH
+	help
+	  The address is used in multicore app for CM33 to kick off CM7 image.
+	  So it is used only in CM33 application. It should be the vector table
+	  start address of CM7 image. Make sure the address is the same as in CM7
+	  image map file.
+
+endif # SOC_MIMXRT1189_CM33
+
+endif # SECOND_CORE_MCUX
+
 config IMAGE_CONTAINER_OFFSET
 	hex "Image container"
 	default 0x1000
