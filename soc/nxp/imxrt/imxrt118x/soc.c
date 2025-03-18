@@ -24,6 +24,7 @@
 #include <cmsis_core.h>
 
 #if  defined(CONFIG_SECOND_CORE_MCUX) && defined(CONFIG_CPU_CORTEX_M33)
+#if !CONFIG_CM7_IMAGE_XIP_IN_FLASH
 #include <zephyr_image_info.h>
 /* Memcpy macro to copy segments from secondary core image stored in flash
  * to RAM section that secondary core boots from.
@@ -33,6 +34,7 @@
 	memcpy((uint32_t *)(((SEGMENT_LMA_ADDRESS_ ## n) - ADJUSTED_LMA) + 0x303C0000),	\
 		(uint32_t *)(SEGMENT_LMA_ADDRESS_ ## n),			\
 		(SEGMENT_SIZE_ ## n))
+#endif
 #endif
 
 /*
@@ -694,6 +696,7 @@ void soc_early_init_hook(void)
 #endif /* defined(CONFIG_WDT_MCUX_RTWDOG) */
 
 #if (defined(CONFIG_SECOND_CORE_MCUX) && defined(CONFIG_CPU_CORTEX_M33))
+#if !CONFIG_CM7_IMAGE_XIP_IN_FLASH
 	/**
 	 * Copy CM7 core from flash to memory. Note that depending on where the
 	 * user decided to store CM7 code, this is likely going to read from the
@@ -704,6 +707,7 @@ void soc_early_init_hook(void)
 	 * ensure the data is written directly to RAM (since the M4 core will use it)
 	 */
 	LISTIFY(SEGMENT_NUM, MEMCPY_SEGMENT, (;));
+#endif
 #endif /* (defined(CONFIG_SECOND_CORE_MCUX) && defined(CONFIG_CPU_CORTEX_M33)) */
 
 	/* Enable data cache */
@@ -719,7 +723,7 @@ void soc_reset_hook(void)
 	SystemInit();
 
 #if defined(CONFIG_SECOND_CORE_MCUX) && defined(CONFIG_CPU_CORTEX_M33)
-	Prepare_CM7(0);
+	Prepare_CM7(CONFIG_CM7_VECTOR_START_ADDR);
 #endif
 }
 #endif
