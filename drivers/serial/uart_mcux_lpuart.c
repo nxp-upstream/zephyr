@@ -1016,21 +1016,43 @@ static int mcux_lpuart_configure_basic(const struct device *dev, const struct ua
 	}
 #endif
 
-#ifdef LPUART_HAS_MODEM
 	switch (cfg->flow_ctrl) {
 	case UART_CFG_FLOW_CTRL_NONE:
+#ifdef LPUART_HAS_MODEM
+		uart_config->enableTxCTS = false;
+		uart_config->enableRxRTS = false;
+#endif
+		break;
+
 	case UART_CFG_FLOW_CTRL_RS485:
+#ifdef LPUART_HAS_MODEM
 		uart_config->enableTxCTS = false;
 		uart_config->enableRxRTS = false;
 		break;
+#else
+		return -ENOTSUP;
+#endif
+
 	case UART_CFG_FLOW_CTRL_RTS_CTS:
+#ifdef LPUART_HAS_MODEM
 		uart_config->enableTxCTS = true;
 		uart_config->enableRxRTS = true;
 		break;
+#else
+		return -ENOTSUP;
+#endif
+
+	case UART_CFG_FLOW_CTRL_DTR_DSR:
+#if defined(FSL_FEATURE_LPUART_HAS_MCR) && FSL_FEATURE_LPUART_HAS_MCR
+		/* DTR/DSR enabled, no config needed */
+		break;
+#else
+		return -ENOTSUP;
+#endif
+
 	default:
 		return -ENOTSUP;
 	}
-#endif
 
 	uart_config->baudRate_Bps = cfg->baudrate;
 	uart_config->enableRx = true;
@@ -1200,6 +1222,20 @@ static void mcux_lpuart_line_ctrl_set_rts(const struct mcux_lpuart_config *confi
 }
 #endif /* LPUART_HAS_MODEM */
 
+#if defined(FSL_FEATURE_LPUART_HAS_MCR) && FSL_FEATURE_LPUART_HAS_MCR
+static void mcux_lpuart_set_dtr(const struct mcux_lpuart_config *config,
+	uint32_t val)
+{
+	if (val >= 1U) {
+		/* assert DTR_b */
+		config->base->MCR &= ~LPUART_MCR_DTR_MASK;
+	} else {
+		/* deassert DTR_b */
+		config->base->MCR |= LPUART_MCR_DTR_MASK;
+	}
+}
+#endif /* FSL_FEATURE_LPUART_HAS_MCR */
+
 static int mcux_lpuart_line_ctrl_set(const struct device *dev,
 		uint32_t ctrl, uint32_t val)
 {
@@ -1218,12 +1254,51 @@ static int mcux_lpuart_line_ctrl_set(const struct device *dev,
 #endif
 		break;
 
+	case UART_LINE_CTRL_DTR:
+#if defined(FSL_FEATURE_LPUART_HAS_MCR) && FSL_FEATURE_LPUART_HAS_MCR
+		mcux_lpuart_set_dtr(config, val);
+#else
+		ret = -ENOTSUP;
+#endif
+		break;
+
 	default:
 		ret = -ENOTSUP;
 	}
 
 	return ret;
 }
+
+static int mcux_lpuart_line_ctrl_get(const struct device *dev,
+	uint32_t ctrl, uint32_t *val)
+{
+	const struct mcux_lpuart_config *config = dev->config;
+	int ret = 0;
+
+	switch (ctrl) {
+	case UART_LINE_CTRL_DSR:
+#if defined(FSL_FEATURE_LPUART_HAS_MCR) && FSL_FEATURE_LPUART_HAS_MCR
+		*val = (config->base->MSR & LPUART_MSR_DSR_MASK) >> LPUART_MSR_DSR_SHIFT;
+#else
+		ret = -ENOTSUP;
+#endif
+		break;
+
+	case UART_LINE_CTRL_DCD:
+#if defined(FSL_FEATURE_LPUART_HAS_MCR) && FSL_FEATURE_LPUART_HAS_MCR
+	*val = (config->base->MSR & LPUART_MSR_DCD_MASK) >> LPUART_MSR_DCD_SHIFT;
+#else
+	ret = -ENOTSUP;
+#endif
+	break;
+
+	default:
+		ret = -ENOTSUP;
+	}
+
+	return ret;
+}
+
 #endif /* CONFIG_UART_LINE_CTRL */
 
 static int mcux_lpuart_init(const struct device *dev)
@@ -1306,6 +1381,7 @@ static DEVICE_API(uart, mcux_lpuart_driver_api) = {
 #endif /* CONFIG_UART_ASYNC_API */
 #ifdef CONFIG_UART_LINE_CTRL
 	.line_ctrl_set = mcux_lpuart_line_ctrl_set,
+	.line_ctrl_get = mcux_lpuart_line_ctrl_get,
 #endif  /* CONFIG_UART_LINE_CTRL */
 };
 
