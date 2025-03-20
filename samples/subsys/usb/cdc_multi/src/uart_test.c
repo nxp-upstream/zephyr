@@ -121,7 +121,10 @@ void UART_Test_thread(void *dummy1, void *dummy2, void *dummy3)
 	ARG_UNUSED(dummy2);
 	ARG_UNUSED(dummy3);
 
-	int err;
+	int err, ret;
+	bool pin_assert_state = false;
+	uint32_t pin_state;
+
 	struct uart_config test_uart_config = {.baudrate = DT_PROP(UART1_NODE, current_speed),
 						.parity = UART_CFG_PARITY_NONE,
 						.stop_bits = UART_CFG_STOP_BITS_1,
@@ -166,6 +169,19 @@ void UART_Test_thread(void *dummy1, void *dummy2, void *dummy3)
 		memset(test1_buffer, 0U, TEST_BUFFER_LEN);
 		memset(test2_buffer, 0U, TEST_BUFFER_LEN);
 
+#ifdef CONFIG_UART_LINE_CTRL
+		/* Toggle pins driven in test */
+		pin_assert_state = !pin_assert_state;
+		ret = uart_line_ctrl_set(uart1_dev, UART_LINE_CTRL_DTR, pin_assert_state);
+		if (ret) {
+			LOG_ERR("uart_line_ctrl_set(uart1, DTR) returned error %d", err);
+		}
+		ret = uart_line_ctrl_set(uart2_dev, UART_LINE_CTRL_DTR, !pin_assert_state);
+		if (ret) {
+			LOG_ERR("uart_line_ctrl_set(uart, DTR) returned error %d", err);
+		}
+#endif /* CONFIG_UART_LINE_CTRL */
+
 		uart_irq_err_enable(uart1_dev);
 		uart_irq_err_enable(uart2_dev);
 
@@ -179,6 +195,50 @@ void UART_Test_thread(void *dummy1, void *dummy2, void *dummy3)
 		k_sleep(K_MSEC(SLEEP_TIME_MS));
 
 		err = 0;
+#ifdef CONFIG_UART_LINE_CTRL
+		/* confirm pin inputs */
+		ret = uart_line_ctrl_get(uart1_dev, UART_LINE_CTRL_DSR, &pin_state);
+		if (ret) {
+			LOG_ERR("uart_line_ctrl_get(uart1, DSR) returned error %d", err);
+			err++;
+		}
+		if (pin_assert_state != (bool) pin_state) {
+			LOG_ERR("DSR does not match DTR for uart1");
+			err++;
+		}
+
+		ret = uart_line_ctrl_get(uart2_dev, UART_LINE_CTRL_DSR, &pin_state);
+		if (ret) {
+			LOG_ERR("uart_line_ctrl_get(uart2, DSR) returned error %d", err);
+			err++;
+		}
+		if (pin_assert_state == (bool) pin_state) {
+			LOG_ERR("DSR does not match DTR for uart2");
+			err++;
+		}
+
+		ret = uart_line_ctrl_get(uart1_dev, UART_LINE_CTRL_DCD, &pin_state);
+		if (ret) {
+			LOG_ERR("uart_line_ctrl_get(uart1, DCD) returned error %d", err);
+			err++;
+		}
+		if (pin_assert_state != (bool) pin_state) {
+			LOG_ERR("DCD does not match DTR for uart1");
+			err++;
+		}
+
+		ret = uart_line_ctrl_get(uart2_dev, UART_LINE_CTRL_DCD, &pin_state);
+		if (ret) {
+			LOG_ERR("uart_line_ctrl_get(uart2, DCD) returned error %d", err);
+			err++;
+		}
+		if (pin_assert_state == (bool) pin_state) {
+			LOG_ERR("DCD does not match DTR for uart2");
+			err++;
+		}
+#endif /* CONFIG_UART_LINE_CTRL */
+
+		/* Confirm received buffers */
 		for (int index = 0; index < TEST_BUFFER_LEN; index++) {
 			if (test1_buffer[index] != test_pattern[index]) {
 				LOG_ERR("test1_buffer index %d does not match pattern", index);

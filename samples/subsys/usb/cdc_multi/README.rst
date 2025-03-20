@@ -2,17 +2,24 @@
    :name: USB CDC-MULTI
    :relevant-api: usbd_api _usb_device_core_api uart_interface
 
-   Use USB CDC-ACM driver to implement a serial port echo.
+   Use USB CDC-ACM driver to enumerate multiple CDC devices on two controllers.
 
 Overview
 ********
 
 This sample app demonstrates use of a USB Communication Device Class (CDC)
-Abstract Control Model (ACM) driver provided by the Zephyr project.
-Received data from the serial port is echoed back to the same port
-provided by this driver.
-This sample can be found under :zephyr_file:`samples/subsys/usb/cdc_acm` in the
+Abstract Control Model (ACM) driver provided by the Zephyr project.  This sample
+configures two USB controllers and a total of 8 CDC devices.  All CDC devices
+enumerate and a terminal program can connect to them.  The debug console will
+update when a connection is established or disconnected.  But the CDC devices
+do not echo characters back.
+This sample can be found under :zephyr_file:`samples/subsys/usb/cdc_multi` in the
 Zephyr project tree.
+
+This sample also performs a UART loopback test.  Two UARTs are connected
+externally with HW flow control signals.  The UART test thread will periodically
+send a message on both UARTs and confirm the message was received on both UARTs,
+and confirms the line control signals.
 
 Requirements
 ************
@@ -59,15 +66,6 @@ The app should respond on serial output with:
    DTR set, start test
    Baudrate detected: 115200
 
-And on ttyACM device, provided by zephyr USB device stack:
-
-.. code-block:: console
-
-   Send characters to the UART device
-   Characters read:
-
-The characters entered in serial port emulator will be echoed back.
-
 Troubleshooting
 ===============
 
@@ -91,8 +89,13 @@ platforms require the UART signals to be connected externally:
 MCX-N9XX-EVK
 ============
 
-These are the HW changes required to run this test:
-   - Short J2-pin18 (FC2_P0/RXD/P4_0) to J2-pin12 (FC1_P1/TXD/P0_25)
-   - Short J2-pin20 (FC2_P1/TXD/P4_1) to J2-pin8  (FC1_P0/RXD/P0_24)
-   - Short J1-pin4  (FC2_P2/RTS/P4_2) to J2-pin6  (FC1_P3/CTS/P0_27)
-   - Short J1-pin2  (FC2_P3/CTS/P4_3) to J2-pin10 (FC1_P2/RTS/P0_26)
+On this platform, the DCD and DSR signals are inputs.  To test these signals,
+they are both shorted externally to DTR.  The UART test toggles the DTR signals
+periodically, and confirms the UART driver reads the DCD and DSR signals
+correctly.  These are the HW changes required to run this test:
+   - Short J2-pin18  (FC2_P0/RXD/P4_0)  to J2-pin12  (FC1_P1/TXD/P0_25)
+   - Short J2-pin20  (FC2_P1/TXD/P4_1)  to J2-pin8   (FC1_P0/RXD/P0_24)
+   - Short J1-pin4   (FC2_P2/RTS/P4_2)  to J2-pin6   (FC1_P3/CTS/P0_27)
+   - Short J1-pin2   (FC2_P3/CTS/P4_3)  to J2-pin10  (FC1_P2/RTS/P0_26)
+   - Short J20-pin25 (FC2_P4/DSR/P4_20) to J20-pin12 (FC1_P5/DTR/P0_13) and J20-pin28 (FC2_P6/DCD/P4_23)
+   - Short J20-pin26 (FC2_P5/DTR/P4_21) to J20-pin9  (FC1_P4/DSR/P0_12) and J4-pin6   (FC1_P6/DCD/P0_14)
