@@ -243,7 +243,7 @@
 	};
 };
 
-#include <zephyr/dt-bindings/sensor/icm42688.h>
+#include <zephyr/dt-bindings/sensor/icm4268x.h>
 
 &lpspi1 {
 	status = "okay";
@@ -254,11 +254,11 @@
 		reg = <0>;
 		int-gpios = <&gpio3 19 GPIO_ACTIVE_HIGH>;
 		spi-max-frequency = <24000000>;
-		accel-pwr-mode = <ICM42688_DT_ACCEL_LN>;
-		accel-odr = <ICM42688_DT_ACCEL_ODR_1000>;
+		accel-pwr-mode = <ICM4268X_DT_ACCEL_LN>;
+		accel-odr = <ICM4268X_DT_ACCEL_ODR_1000>;
 		accel-fs = <ICM42688_DT_ACCEL_FS_16>;
-		gyro-pwr-mode = <ICM42688_DT_GYRO_LN>;
-		gyro-odr = <ICM42688_DT_GYRO_ODR_1000>;
+		gyro-pwr-mode = <ICM4268X_DT_GYRO_LN>;
+		gyro-odr = <ICM4268X_DT_GYRO_ODR_1000>;
 		gyro-fs = <ICM42688_DT_GYRO_FS_2000>;
 	};
 };
@@ -272,11 +272,11 @@
 		reg = <0>;
 		int-gpios = <&gpio2 7 GPIO_ACTIVE_HIGH>;
 		spi-max-frequency = <24000000>;
-		accel-pwr-mode = <ICM42688_DT_ACCEL_LN>;
-		accel-odr = <ICM42688_DT_ACCEL_ODR_1000>;
+		accel-pwr-mode = <ICM4268X_DT_ACCEL_LN>;
+		accel-odr = <ICM4268X_DT_ACCEL_ODR_1000>;
 		accel-fs = <ICM42688_DT_ACCEL_FS_16>;
-		gyro-pwr-mode = <ICM42688_DT_GYRO_LN>;
-		gyro-odr = <ICM42688_DT_GYRO_ODR_1000>;
+		gyro-pwr-mode = <ICM4268X_DT_GYRO_LN>;
+		gyro-odr = <ICM4268X_DT_GYRO_ODR_1000>;
 		gyro-fs = <ICM42688_DT_GYRO_FS_2000>;
 	};
 };
