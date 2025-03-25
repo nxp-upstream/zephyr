@@ -1,0 +1,12 @@
+tests:
+  bluetooth.classic.gap.c:
+    integration_platforms:
+    - native_sim
+    tags:
+    - bluetooth
+    - gap
+    harness: pytest
+    harness_config:
+      pytest_dut_scope: session
+      fixture: usb_hci
+    timeout: 600
