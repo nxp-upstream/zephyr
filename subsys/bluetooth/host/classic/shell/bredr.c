@@ -102,6 +102,25 @@ static int cmd_connect(const struct shell *sh, size_t argc, char *argv[])
 	return 0;
 }
 
+static int cmd_disconnect(const struct shell *sh, size_t argc, char *argv[])
+{
+	int err;
+
+	if (!default_conn) {
+		shell_print(sh, "Not connected");
+		return -ENOEXEC;
+	}
+
+	err = bt_conn_disconnect(default_conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+	if (err) {
+		shell_print(sh, "Disconnection failed (err %d)", err);
+		return -ENOEXEC;
+	}
+
+	shell_print(sh, "Disconnection request sent");
+	return 0;
+}
+
 static void br_device_found(const bt_addr_t *addr, int8_t rssi, const uint8_t cod[3],
 			    const uint8_t eir[240])
 {
@@ -909,6 +928,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(br_cmds,
 	SHELL_CMD_ARG(oob, NULL, NULL, cmd_oob, 1, 0),
 	SHELL_CMD_ARG(pscan, NULL, "<value: on, off>", cmd_connectable, 2, 0),
 	SHELL_CMD_ARG(sdp-find, NULL, "<HFPAG>", cmd_sdp_find_record, 2, 0),
+	SHELL_CMD_ARG(disconnect, NULL, "Disconnect from a remote device", cmd_disconnect, 1, 0),
 	SHELL_SUBCMD_SET_END
 );
 
