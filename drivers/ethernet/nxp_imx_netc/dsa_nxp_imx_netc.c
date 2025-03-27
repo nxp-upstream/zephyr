@@ -195,12 +195,12 @@ static void dsa_netc_iface_init(struct net_if *iface)
 		ethernet_init(iface);
 	}
 
-	/* Do not start the interface until link is up */
-	net_if_carrier_off(iface);
-
 	if (cfg->pseudo_mac) {
 		return;
 	}
+
+	/* Do not start the interface until link is up */
+	net_if_carrier_off(iface);
 
 	if (!device_is_ready(cfg->phy_dev)) {
 		LOG_ERR("PHY device (%p) is not ready, cannot init iface", cfg->phy_dev);

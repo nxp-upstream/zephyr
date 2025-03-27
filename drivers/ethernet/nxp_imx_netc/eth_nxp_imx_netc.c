@@ -128,6 +128,7 @@ static void msgintr_isr(void)
 		/* Transmit interrupt */
 		if (irqs & (1 << config->tx_intr_msg_data)) {
 			EP_CleanTxIntrFlags(&data->handle, 1, 0);
+			EP_CleanTxIntrFlags(&data->handle, 2, 0);
 			data->tx_done = true;
 		}
 		/* Receive interrupt */
@@ -235,11 +236,6 @@ int netc_eth_tx(const struct device *dev, struct net_pkt *pkt)
 
 	__ASSERT(pkt, "Packet pointer is NULL");
 
-	/* TODO: support DSA master */
-	if (cfg->pseudo_mac) {
-		return -ENOSYS;
-	}
-
 	k_mutex_lock(&data->tx_mutex, K_FOREVER);
 
 	/* Copy packet to tx buffer */
@@ -293,10 +289,6 @@ enum ethernet_hw_caps netc_eth_get_capabilities(const struct device *dev)
 		| ETHERNET_PROMISC_MODE
 #endif
 	);
-
-	if (cfg->pseudo_mac) {
-		caps |= ETHERNET_DSA_MASTER_PORT;
-	}
 
 	return caps;
 }
