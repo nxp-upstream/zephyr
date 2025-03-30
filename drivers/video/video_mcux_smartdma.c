@@ -384,6 +384,6 @@ static DEVICE_API(video, nxp_video_sdma_api) = {
 			      CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &nxp_video_sdma_api);            \
                                                                                                    \
 	VIDEO_DEVICE_DEFINE(mipi_csi2rx_##n, DEVICE_DT_INST_GET(n),                                \
-			    mipi_csi2rx_config_##n.sensor_dev);
+			    mipi_csi2rx_config_##n.sensor_dev, true);
 
 DT_INST_FOREACH_STATUS_OKAY(NXP_VIDEO_SDMA_INIT)

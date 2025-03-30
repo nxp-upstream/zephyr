@@ -500,4 +500,4 @@ DEVICE_DT_INST_DEFINE(0, &video_stm32_dcmi_init,
 		    POST_KERNEL, CONFIG_VIDEO_INIT_PRIORITY,
 		    &video_stm32_dcmi_driver_api);
 
-VIDEO_DEVICE_DEFINE(dcmi, DEVICE_DT_INST_GET(0), video_stm32_dcmi_config_0.sensor_dev);
+VIDEO_DEVICE_DEFINE(dcmi, DEVICE_DT_INST_GET(0), video_stm32_dcmi_config_0.sensor_dev, true);

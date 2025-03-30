@@ -696,6 +696,26 @@ struct video_ctrl_query;
 int video_query_ctrl(const struct device *dev, struct video_ctrl_query *cq);
 
 /**
+ * @brief Get a video device by index
+ *
+ * The video subsystem keeps a list of registered video devices that application
+ * can use for streaming. This function is to get a video device in this list by
+ * specifying an index.
+ *
+ * @param ind Index of the video device to get
+ */
+const struct device *video_get_vdev(uint8_t ind);
+
+/**
+ * @brief Get number of registered video devices
+ *
+ * The video subsystem keeps a list of registered video devices that application
+ * can use for streaming. This function is to retrieve the size of this list.
+ *
+ */
+uint8_t video_get_vdevs_num(void);
+
+/**
  * @brief Register/Unregister k_poll signal for a video endpoint.
  *
  * Register a poll signal to the endpoint, which will be signaled on frame

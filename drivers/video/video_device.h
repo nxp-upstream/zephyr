@@ -14,13 +14,15 @@ struct video_device {
 	const struct device *dev;
 	const struct device *src_dev;
 	sys_dlist_t ctrls;
+	bool is_mdev;
 };
 
-#define VIDEO_DEVICE_DEFINE(name, device, source)                                                  \
+#define VIDEO_DEVICE_DEFINE(name, device, source, is_main_dev)                                     \
 	static STRUCT_SECTION_ITERABLE(video_device, name) = {                                     \
 		.dev = device,                                                                     \
 		.src_dev = source,                                                                 \
 		.ctrls = SYS_DLIST_STATIC_INIT(&name.ctrls),                                       \
+		.is_mdev = is_main_dev,                                                            \
 	}
 
 struct video_device *video_find_vdev(const struct device *dev);

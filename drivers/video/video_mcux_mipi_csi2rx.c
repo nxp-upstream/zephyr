@@ -340,6 +340,6 @@ static int mipi_csi2rx_init(const struct device *dev)
 			      &mipi_csi2rx_driver_api);                                            \
                                                                                                    \
 	VIDEO_DEVICE_DEFINE(mipi_csi2rx_##n, DEVICE_DT_INST_GET(n),                                \
-			    mipi_csi2rx_config_##n.sensor_dev);
+			    mipi_csi2rx_config_##n.sensor_dev, false);
 
 DT_INST_FOREACH_STATUS_OKAY(MIPI_CSI2RX_INIT)

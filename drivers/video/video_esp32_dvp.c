@@ -450,7 +450,7 @@ static struct video_esp32_data esp32_data = {0};
 DEVICE_DT_INST_DEFINE(0, video_esp32_init, NULL, &esp32_data, &esp32_config, POST_KERNEL,
 		      CONFIG_VIDEO_INIT_PRIORITY, &esp32_driver_api);
 
-VIDEO_DEVICE_DEFINE(esp32, DEVICE_DT_INST_GET(0), esp32_config.source_dev);
+VIDEO_DEVICE_DEFINE(esp32, DEVICE_DT_INST_GET(0), esp32_config.source_dev, true);
 
 static int video_esp32_cam_init_master_clock(void)
 {

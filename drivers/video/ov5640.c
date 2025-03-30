@@ -1352,6 +1352,6 @@ static int ov5640_init(const struct device *dev)
 	DEVICE_DT_INST_DEFINE(n, &ov5640_init, NULL, &ov5640_data_##n, &ov5640_cfg_##n,            \
 			      POST_KERNEL, CONFIG_VIDEO_INIT_PRIORITY, &ov5640_driver_api);        \
                                                                                                    \
-	VIDEO_DEVICE_DEFINE(ov5640_##n, DEVICE_DT_INST_GET(n), NULL);
+	VIDEO_DEVICE_DEFINE(ov5640_##n, DEVICE_DT_INST_GET(n), NULL, false);
 
 DT_INST_FOREACH_STATUS_OKAY(OV5640_INIT)

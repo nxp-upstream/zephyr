@@ -382,4 +382,4 @@ DEVICE_DEFINE(video_sw_generator, "VIDEO_SW_GENERATOR", &video_sw_generator_init
 	      &video_sw_generator_data_0, NULL, POST_KERNEL, CONFIG_VIDEO_INIT_PRIORITY,
 	      &video_sw_generator_driver_api);
 
-VIDEO_DEVICE_DEFINE(video_sw_generator, DEVICE_GET(video_sw_generator), NULL);
+VIDEO_DEVICE_DEFINE(video_sw_generator, DEVICE_GET(video_sw_generator), NULL, true);

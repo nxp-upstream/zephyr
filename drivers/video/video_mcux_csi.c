@@ -481,6 +481,6 @@ DEVICE_DT_INST_DEFINE(0, &video_mcux_csi_init_0, NULL, &video_mcux_csi_data_0,
 		      &video_mcux_csi_config_0, POST_KERNEL, CONFIG_VIDEO_MCUX_CSI_INIT_PRIORITY,
 		      &video_mcux_csi_driver_api);
 
-VIDEO_DEVICE_DEFINE(csi, DEVICE_DT_INST_GET(0), video_mcux_csi_config_0.source_dev);
+VIDEO_DEVICE_DEFINE(csi, DEVICE_DT_INST_GET(0), video_mcux_csi_config_0.source_dev, true);
 
 #endif

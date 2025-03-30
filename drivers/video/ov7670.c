@@ -626,6 +626,6 @@ static DEVICE_API(video, ov7670_api) = {
 	DEVICE_DT_INST_DEFINE(inst, ov7670_init, NULL, &ov7670_data_##inst, &ov7670_config_##inst, \
 			      POST_KERNEL, CONFIG_VIDEO_INIT_PRIORITY, &ov7670_api);               \
                                                                                                    \
-	VIDEO_DEVICE_DEFINE(ov7670_##inst, DEVICE_DT_INST_GET(inst), NULL);
+	VIDEO_DEVICE_DEFINE(ov7670_##inst, DEVICE_DT_INST_GET(inst), NULL, false);
 
 DT_INST_FOREACH_STATUS_OKAY(OV7670_INIT)
