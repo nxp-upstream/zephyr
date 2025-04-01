@@ -60,7 +60,7 @@ async def send_cmd_to_iut(shell, dut, cmd, parse=None, wait = True):
             for line in lines:
                 if parse in line:
                     found = True
-                    break;
+                    break
         else:
             found = True
     logger.info(f'{lines}')
@@ -1303,6 +1303,34 @@ async def l2cap_case_30(hci_port, shell, dut, address) -> None:
             await send_cmd_to_iut(shell, dut, f"bt disconnect", "Disconnected:")
 
 
+async def l2cap_server_case_1(hci_port, shell, dut, address) -> None:
+    logger.info(f'<<< l2cap_server_case_1 ...')
+
+    async with await open_transport_or_link(hci_port) as hci_transport:
+        device = Device.with_hci(
+            'Bumble',
+            Address('F0:F1:F2:F3:F4:F5'),
+            hci_transport.source,
+            hci_transport.sink,
+        )
+        device.classic_enabled = True
+        device.le_enabled = False
+        logger.info(f'bumble l2cap server register.')
+        
+        with open(f"bumble_hci_{sys._getframe().f_code.co_name}.log", "wb") as snoop_file:
+            device.host.snooper = BtSnooper(snoop_file)
+            await device.power_on()
+            await device.send_command(HCI_Write_Page_Timeout_Command(page_timeout=0xFFFF))
+
+            await send_cmd_to_iut(shell, dut, f"bt clear all", None)
+
+            target_address = address.split(" ")[0]
+            connection = await bumble_acl_connect(shell, dut, device, target_address)
+
+            await send_cmd_to_iut(shell, dut, f"l2cap_client register 1001 {Mode}", f"L2CAP psm {str(int(L2CAP_SERVER_PSM))} registered", wait=False)
+           
+            # l2cap_channle = await connection.create_l2cap_channel(ClassicChannelSpec(psm=L2CAP_SERVER_PSM))
+            
 class TestL2capServer:
         # def test_l2cap_case_1(self, shell: Shell, dut: DeviceAdapter, l2cap_client_dut):  
         #     logger.info(f'test_l2cap_case_1 {l2cap_client_dut}')
@@ -1420,7 +1448,13 @@ class TestL2capServer:
         #     logger.info(f'test_l2cap_case_29 {l2cap_client_dut}')
         #     hci, iut_address = l2cap_client_dut
         #     asyncio.run(l2cap_case_29(hci, shell, dut, iut_address))
-        def test_l2cap_case_30(self, shell: Shell, dut: DeviceAdapter, l2cap_client_dut): 
-            logger.info(f'test_l2cap_case_30 {l2cap_client_dut}')
+        # def test_l2cap_case_30(self, shell: Shell, dut: DeviceAdapter, l2cap_client_dut): 
+        #     logger.info(f'test_l2cap_case_30 {l2cap_client_dut}')
+        #     hci, iut_address = l2cap_client_dut
+        #     asyncio.run(l2cap_case_30(hci, shell, dut, iut_address))
+
+        ######server
+        def test_l2cap_server_case_1(self, shell: Shell, dut: DeviceAdapter, l2cap_client_dut): 
+            logger.info(f'test_l2cap_server_case_1 {l2cap_client_dut}')
             hci, iut_address = l2cap_client_dut
-            asyncio.run(l2cap_case_30(hci, shell, dut, iut_address))
+            asyncio.run(l2cap_server_case_1(hci, shell, dut, iut_address))

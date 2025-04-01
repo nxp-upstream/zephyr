@@ -48,8 +48,32 @@ struct app_l2cap_br_chan {
 	struct l2cap_br_chan l2cap_chan;
 };
 
+struct bt_l2cap_br_server {
+	struct bt_l2cap_server server;
+#if defined(CONFIG_BT_L2CAP_RET_FC)
+	uint8_t options;
+#endif /* CONFIG_BT_L2CAP_RET_FC */
+};
+
+#define BT_L2CAP_BR_SERVER_OPT_RET           BIT(0)
+#define BT_L2CAP_BR_SERVER_OPT_FC            BIT(1)
+#define BT_L2CAP_BR_SERVER_OPT_ERET          BIT(2)
+#define BT_L2CAP_BR_SERVER_OPT_STREAM        BIT(3)
+#define BT_L2CAP_BR_SERVER_OPT_MODE_OPTIONAL BIT(4)
+#define BT_L2CAP_BR_SERVER_OPT_EXT_WIN_SIZE  BIT(5)
+#define BT_L2CAP_BR_SERVER_OPT_HOLD_CREDIT   BIT(6)
+
+struct app_l2cap_br_server {
+	bool active;
+	uint8_t id;
+	struct bt_conn *conn;
+	struct bt_l2cap_br_server l2cap_server;
+};
+
 #define APPL_L2CAP_CONNECTION_MAX_COUNT 2
 struct app_l2cap_br_chan br_l2cap[APPL_L2CAP_CONNECTION_MAX_COUNT] = {0};
+struct app_l2cap_br_server br_l2cap_server[APPL_L2CAP_CONNECTION_MAX_COUNT] = {0};
+
 
 static int l2cap_recv(struct bt_l2cap_chan *chan, struct net_buf *buf)
 {
@@ -157,6 +181,86 @@ struct app_l2cap_br_chan *appl_br_l2cap(struct bt_conn *conn)
 			k_fifo_init(&br_l2cap[index].l2cap_chan.l2cap_recv_fifo);
 #endif
 			return &br_l2cap[index];
+		}
+	}
+	return NULL;
+}
+
+static int l2cap_accept(struct bt_conn *conn, struct bt_l2cap_server *server,
+			struct bt_l2cap_chan **chan)
+{
+	struct bt_l2cap_br_server *br_server;
+	struct app_l2cap_br_server *appl_l2cap_server;
+	struct app_l2cap_br_chan *appl_l2cap = NULL;
+	struct l2cap_br_chan *l2cap_chan = NULL;
+
+	br_server = CONTAINER_OF(server, struct bt_l2cap_br_server, server);
+	appl_l2cap_server = CONTAINER_OF(br_server, struct app_l2cap_br_server, l2cap_server);
+
+	appl_l2cap = appl_br_l2cap(conn);
+	if(!appl_l2cap){
+		bt_shell_error("No channels application br chan");
+		return -ENOMEM;
+	}
+	l2cap_chan = &appl_l2cap->l2cap_chan;
+	*chan = &l2cap_chan->chan.chan;
+
+	bt_shell_print("Incoming BR/EDR conn %p", conn);
+
+#if defined(CONFIG_BT_L2CAP_RET_FC)
+	if (br_server->options & BT_L2CAP_BR_SERVER_OPT_HOLD_CREDIT) {
+		l2cap_chan->hold_credit = true;
+	} else {
+		l2cap_chan->hold_credit = false;
+	}
+
+	if (br_server->options & BT_L2CAP_BR_SERVER_OPT_EXT_WIN_SIZE) {
+		l2cap_chan->chan.rx.extended_control = true;
+	} else {
+		l2cap_chan->chan.rx.extended_control = false;
+	}
+
+	if (br_server->options & BT_L2CAP_BR_SERVER_OPT_MODE_OPTIONAL) {
+		l2cap_chan->chan.rx.optional = true;
+	} else {
+		l2cap_chan->chan.rx.optional = false;
+	}
+
+	l2cap_chan->chan.rx.fcs = BT_L2CAP_BR_FCS_16BIT;
+
+	if (br_server->options & BT_L2CAP_BR_SERVER_OPT_STREAM) {
+		l2cap_chan->chan.rx.mode = BT_L2CAP_BR_LINK_MODE_STREAM;
+		l2cap_chan->chan.rx.max_window = CONFIG_BT_L2CAP_MAX_WINDOW_SIZE;
+		l2cap_chan->chan.rx.max_transmit = 0;
+	} else if (br_server->options & BT_L2CAP_BR_SERVER_OPT_ERET) {
+		l2cap_chan->chan.rx.mode = BT_L2CAP_BR_LINK_MODE_ERET;
+		l2cap_chan->chan.rx.max_window = CONFIG_BT_L2CAP_MAX_WINDOW_SIZE;
+		l2cap_chan->chan.rx.max_transmit = 3;
+	} else if (br_server->options & BT_L2CAP_BR_SERVER_OPT_FC) {
+		l2cap_chan->chan.rx.mode = BT_L2CAP_BR_LINK_MODE_FC;
+		l2cap_chan->chan.rx.max_window = CONFIG_BT_L2CAP_MAX_WINDOW_SIZE;
+		l2cap_chan->chan.rx.max_transmit = 3;
+	} else if (br_server->options & BT_L2CAP_BR_SERVER_OPT_RET) {
+		l2cap_chan->chan.rx.mode = BT_L2CAP_BR_LINK_MODE_RET;
+		l2cap_chan->chan.rx.max_window = CONFIG_BT_L2CAP_MAX_WINDOW_SIZE;
+		l2cap_chan->chan.rx.max_transmit = 3;
+	}
+#endif /* CONFIG_BT_L2CAP_RET_FC */
+	(void)br_server;
+	return 0;
+}
+
+struct app_l2cap_br_server *appl_br_l2cap_server_alloc(uint16_t psm)
+{
+	for (uint8_t index = 0; index < APPL_L2CAP_CONNECTION_MAX_COUNT; index++)
+	{
+		if (br_l2cap_server[index].conn == NULL && br_l2cap_server[index].active == false)
+		{
+			br_l2cap_server[index].active = true;
+			br_l2cap_server[index].id = index;
+			br_l2cap_server[index].l2cap_server.server.psm = psm;
+			br_l2cap_server[index].l2cap_server.server.accept = l2cap_accept;
+			return &br_l2cap_server[index];
 		}
 	}
 	return NULL;
@@ -333,7 +437,90 @@ static int cmd_l2cap_send(const struct shell *sh, size_t argc, char *argv[])
 	return 0;
 }
 
+bool l2cap_psm_registed(uint16_t psm)
+{
+	for (uint8_t index = 0; index < APPL_L2CAP_CONNECTION_MAX_COUNT; index++)
+	{
+		if (br_l2cap_server[index].active == true && br_l2cap_server[index].l2cap_server.server.psm == psm)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+static int cmd_l2cap_register(const struct shell *sh, size_t argc, char *argv[])
+{
+	uint16_t psm = strtoul(argv[1], NULL, 16);
+	struct app_l2cap_br_server *app_l2cap_server;
+	struct bt_l2cap_br_server *l2cap_server;
+	if (l2cap_psm_registed(psm)) {
+		shell_print(sh, "Already registered");
+		return -ENOEXEC;
+	}
+
+	app_l2cap_server = appl_br_l2cap_server_alloc(psm);
+	if (!app_l2cap_server){
+		bt_shell_error("No channels application br chan");
+		return -ENOMEM;
+	}
+	l2cap_server = &app_l2cap_server->l2cap_server;
+	l2cap_server->server.psm = strtoul(argv[1], NULL, 16);
+
+#if defined(CONFIG_BT_L2CAP_RET_FC)
+	l2cap_server->options = 0;
+
+	if (!strcmp(argv[2], "base")) {
+		/* Support mode: None */
+	} else if (!strcmp(argv[2], "ret")) {
+		l2cap_server->options |= BT_L2CAP_BR_SERVER_OPT_RET;
+	} else if (!strcmp(argv[2], "fc")) {
+		l2cap_server->options |= BT_L2CAP_BR_SERVER_OPT_FC;
+	} else if (!strcmp(argv[2], "eret")) {
+		l2cap_server->options |= BT_L2CAP_BR_SERVER_OPT_ERET;
+	} else if (!strcmp(argv[2], "stream")) {
+		l2cap_server->options |= BT_L2CAP_BR_SERVER_OPT_STREAM;
+	} else {
+		l2cap_server->server.psm = 0;
+		shell_help(sh);
+		return SHELL_CMD_HELP_PRINTED;
+	}
+
+	for (size_t index = 3; index < argc; index++) {
+		if (!strcmp(argv[index], "hold_credit")) {
+			l2cap_server->options |= BT_L2CAP_BR_SERVER_OPT_HOLD_CREDIT;
+		} else if (!strcmp(argv[index], "mode_optional")) {
+			l2cap_server->options |= BT_L2CAP_BR_SERVER_OPT_MODE_OPTIONAL;
+		} else if (!strcmp(argv[index], "extended_control")) {
+			l2cap_server->options |= BT_L2CAP_BR_SERVER_OPT_EXT_WIN_SIZE;
+		} else {
+			l2cap_server->server.psm = 0;
+			shell_help(sh);
+			return SHELL_CMD_HELP_PRINTED;
+		}
+	}
+
+	if ((l2cap_server->options & BT_L2CAP_BR_SERVER_OPT_EXT_WIN_SIZE) &&
+	    (!(l2cap_server->options &
+	       (BT_L2CAP_BR_SERVER_OPT_ERET | BT_L2CAP_BR_SERVER_OPT_STREAM)))) {
+		shell_error(sh, "[extended_control] only supports mode eret and stream");
+		l2cap_server->server.psm = 0U;
+		return -ENOEXEC;
+	}
+#endif /* CONFIG_BT_L2CAP_RET_FC */
+
+	if (bt_l2cap_br_server_register(&l2cap_server->server) < 0) {
+		shell_error(sh, "Unable to register psm");
+		l2cap_server->server.psm = 0U;
+		return -ENOEXEC;
+	}
+
+	shell_print(sh, "L2CAP psm %u registered", l2cap_server->server.psm);
+
+	return 0;
+}
+
 SHELL_STATIC_SUBCMD_SET_CREATE(l2cap_client_cmds,
+	SHELL_CMD_ARG(register, NULL, "<psm> <mode> [option]", cmd_l2cap_register, 2, 3),
 	SHELL_CMD_ARG(connect, NULL, "<psm> <mode> [option]", cmd_connect, 2, 3),
 	SHELL_CMD_ARG(disconnect, NULL, "[id]", cmd_l2cap_disconnect, 2, 0),
 	SHELL_CMD_ARG(send, NULL, "[id] [length of data] [data] ",
@@ -353,5 +540,5 @@ static int cmd_default_handler(const struct shell *sh, size_t argc, char **argv)
 	return -EINVAL;
 }
 
-SHELL_CMD_REGISTER(l2cap_client, &l2cap_client_cmds, "Bluetooth classic SDP client shell commands",
+SHELL_CMD_REGISTER(l2cap_client, &l2cap_client_cmds, "Bluetooth classic l2cap client shell commands",
 		   cmd_default_handler);
