@@ -1,8 +1,11 @@
 #
 # Copyright (c) 2021 Linaro, Limited
+# Copyright 2025 NXP
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 config MCUX_ACMP
 	bool "Include ACMP driver from MCUX SDK"
+
+rsource "psa_crypto_hse/Kconfig.nxp_s32"
