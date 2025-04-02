@@ -1,0 +1,9 @@
+# Copyright NXP 2025
+# SPDX-License-Identifier: Apache-2.0
+
+config PSA_CRYPTO_HSE_DRIVER
+	bool "PSA Crypto driver on HSE"
+	default y if MBEDTLS_PSA_CRYPTO_CLIENT
+	imply MBEDTLS_HAVE_TIME_DATE
+	help
+	  Enable to use PSA Crypto driver on HSE

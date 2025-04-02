@@ -75,8 +75,11 @@ int mbedtls_init(void)
 	return _mbedtls_init();
 }
 
+/* TODO: remove this */
+#if !defined(CONFIG_PSA_CRYPTO_HSE_DRIVER)
 /* TLS 1.3 ticket lifetime needs a timing interface */
 mbedtls_ms_time_t mbedtls_ms_time(void)
 {
 	return (mbedtls_ms_time_t)k_uptime_get();
 }
+#endif
