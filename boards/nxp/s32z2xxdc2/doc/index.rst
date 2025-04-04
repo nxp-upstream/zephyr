@@ -68,6 +68,9 @@ The boards support the following hardware features:
 +-----------+------------+-------------------------------------+
 | PIT       | on-chip    | counter                             |
 +-----------+------------+-------------------------------------+
+| PSA Crypto| on-chip    | Hse, Mu                             |
+| on HSE    |            |                                     |
++-----------+------------+-------------------------------------+
 
 Other hardware features are not currently supported by the port.
 
@@ -183,6 +186,69 @@ External Flash
 
 The on-board S26HS512T 512M-bit HyperFlash memory is connected to the QSPI controller
 port A1. This board configuration selects it as the default flash controller.
+
+PSA Crypto on HSE
+=================
+
+PSA Crypto on HSE has not been upstreamed, in order to use it, the following packages need to be obtained from NXP:
++-------------+------------+---------------------------------------------------------------------------------------------+
+| Package     | Version    | How to obtain the package                                                                   |
++=============+============+============================================================================================+|
+| Zephyr      | on top of  | This package is located in NXP Github                                                       |
+|             | v4.1.0     |                                                                                             |
+|             |            | Original repo: "https://github.com/nxp-upstream/zephyr/commits/s32z-mbedtls-psa-hse"        |
++-------------+------------+---------------------------------------------------------------------------------------------+
+| MbedTLS     | on top of  | Run "west update zephyr-mbedtls".                                                           |
+|             | v3.6.2     | This package is located in NXP Github.                                                      |
+|             |            | Original repo: "https://github.com/nxp-upstream/zephyr-mbedtls/commits/s32z-mbedtls-psa-hse"|
++-------------+------------+---------------------------------------------------------------------------------------------+
+| HAL NXP     | N/A        | Run "west update hal_nxp"                                                                   |
+|             |            | This package is located in NXP Github                                                       |
+|             |            | Original repo: "https://github.com/nxp-upstream/hal_nxp/commits/s32z-mbedtls-psa-hse"       |
++-------------+------------+---------------------------------------------------------------------------------------------+
+| PSA MbedTLS | 0.8.0 CD01 | The package contains both MbedTLS and PSA Crypto driver. However, only PSA Crypto driver    |
+| w/HSE       |            | is being used. MbedTLS is obtained as mentioned above                                       |
+|             |            | used.                                                                                       |
+|             |            |                                                                                             |
+|             |            | Please ask your NXP representative to obtain the package.                                   |
++-------------+------------+---------------------------------------------------------------------------------------------+
+| HSE Firmware| 0.2.37.0   | Please ask your NXP representative to obtain the package                                    |
++-------------+------------+---------------------------------------------------------------------------------------------+
+
+Set up
+------
+
+First, setup Zephyr environment according version v4.1.0, and obtain and install required software packages.
+
+Next, setup the hardware and ensure HSE Firmware is installed. Please consult HSE Firmware User Manual for the details.
+
+Run the PSA sample
+------------------
+
+- The PSA sample is located in "samples\boards\nxp\s32\psa_crypto_hse", it re-uses the demo from MbedTLS wHSE package.
+
+- Set the PSA_CRYPTO_HSE_PATH environment variable to the MbedTLS wHSE package, for example on Windows PowerShell:
+  .. code-block:: console
+
+   $env:PSA_CRYPTO_HSE_PATH='C:/NXP/PSA_wHSE_SW32ZE_0_8_0_CD01'
+
+- Build: "west build -p -b <board-name> samples\boards\nxp\s32\psa_crypto_hse"
+
+- Run with Lauterbach Trace32: "west <debug/flash> -r trace32"
+
+Known Issues and Limitations
+----------------------------
+- MU0 is used by default. To run with a different instance, modifications are required in both the demo and the
+  PSA Crypto driver. However, this scenario has not been verified.
+
+- Compiler warnings from PSA Crypto driver have not been resolved.
+
+- Input and output data used for crypto operations should be placed in a non-cacheable section.
+
+- The application must implement "psa_crypto_hse_init" to ensure the HSE FW is ready for use.
+  The implementation in "samples\boards\nxp\s32\psa_crypto_hse" serves as a demo.
+
+- List of supported PSA APIs, algorithms please consult MbedTLS wHSE Release Notes.
 
 Programming and Debugging
 *************************
