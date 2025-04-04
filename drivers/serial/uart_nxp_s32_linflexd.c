@@ -1,5 +1,5 @@
 /*
- * Copyright 2022-2024 NXP
+ * Copyright 2022-2025 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -10,6 +10,7 @@
 #include <zephyr/irq.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/drivers/pinctrl.h>
+#include <zephyr/drivers/clock_control.h>
 
 #include <Linflexd_Uart_Ip.h>
 #include <Linflexd_Uart_Ip_Irq.h>
@@ -291,9 +292,111 @@ static void uart_nxp_s32_event_handler(const uint8 instance,
 
 #endif /* CONFIG_UART_INTERRUPT_DRIVEN */
 
+static int uart_nxp_s32_do_configure(const struct device *dev, const struct uart_config *cfg,
+				     bool deinit)
+{
+	const struct uart_nxp_s32_config *config = dev->config;
+	struct uart_nxp_s32_data *data = dev->data;
+	Linflexd_Uart_Ip_UserConfigType *linflexd_uart_cfg = &data->linflexd_uart_cfg;
+	int err;
+	uint32_t clock_rate;
+
+	switch (cfg->parity) {
+	case UART_CFG_PARITY_NONE:
+		linflexd_uart_cfg->ParityCheck = false;
+		break;
+	case UART_CFG_PARITY_ODD:
+		linflexd_uart_cfg->ParityCheck = true;
+		linflexd_uart_cfg->ParityType = LINFLEXD_UART_IP_PARITY_ODD;
+		break;
+	case UART_CFG_PARITY_EVEN:
+		linflexd_uart_cfg->ParityCheck = true;
+		linflexd_uart_cfg->ParityType = LINFLEXD_UART_IP_PARITY_EVEN;
+		break;
+	case UART_CFG_PARITY_MARK:
+		linflexd_uart_cfg->ParityCheck = true;
+		linflexd_uart_cfg->ParityType = LINFLEXD_UART_IP_PARITY_ONE;
+		break;
+	case UART_CFG_PARITY_SPACE:
+		linflexd_uart_cfg->ParityCheck = true;
+		linflexd_uart_cfg->ParityType = LINFLEXD_UART_IP_PARITY_ZERO;
+		break;
+	default:
+		return -ENOTSUP;
+	}
+
+	switch (cfg->stop_bits) {
+	case UART_CFG_STOP_BITS_1:
+		linflexd_uart_cfg->StopBitsCount = LINFLEXD_UART_IP_ONE_STOP_BIT;
+		break;
+	case UART_CFG_STOP_BITS_2:
+		linflexd_uart_cfg->StopBitsCount = LINFLEXD_UART_IP_TWO_STOP_BIT;
+		break;
+	default:
+		return -ENOTSUP;
+	}
+
+	switch (cfg->data_bits) {
+	case UART_CFG_DATA_BITS_7:
+		linflexd_uart_cfg->WordLength = LINFLEXD_UART_IP_7_BITS;
+		break;
+	case UART_CFG_DATA_BITS_8:
+		linflexd_uart_cfg->WordLength = LINFLEXD_UART_IP_8_BITS;
+		break;
+	default:
+		return -ENOTSUP;
+	}
+
+	if (cfg->flow_ctrl != UART_CFG_FLOW_CTRL_NONE) {
+		return -ENOTSUP;
+	}
+
+	linflexd_uart_cfg->BaudRate = cfg->baudrate;
+
+	if (deinit) {
+		err = Linflexd_Uart_Ip_Deinit(config->instance);
+		if (err) {
+			return -EIO;
+		}
+	}
+
+	err = clock_control_get_rate(config->clock_dev, config->clock_subsys, &clock_rate);
+	if (err) {
+		return err;
+	}
+
+	Linflexd_Uart_Ip_Init(config->instance, linflexd_uart_cfg);
+
+	err = Linflexd_Uart_Ip_SetBaudrate(config->instance, linflexd_uart_cfg->BaudRate,
+					   clock_rate);
+	if (err) {
+		return -EIO;
+	}
+
+	data->uart_cfg = *cfg;
+
+	return 0;
+}
+
+#ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
+static int uart_nxp_s32_config_get(const struct device *dev, struct uart_config *cfg)
+{
+	struct uart_nxp_s32_data *data = dev->data;
+	*cfg = data->uart_cfg;
+
+	return 0;
+}
+
+static int uart_nxp_s32_configure(const struct device *dev, const struct uart_config *cfg)
+{
+	return uart_nxp_s32_do_configure(dev, cfg, true);
+}
+#endif /* CONFIG_UART_USE_RUNTIME_CONFIGURE */
+
 static int uart_nxp_s32_init(const struct device *dev)
 {
 	const struct uart_nxp_s32_config *config = dev->config;
+	struct uart_nxp_s32_data *data = dev->data;
 	int err;
 
 	err = pinctrl_apply_state(config->pincfg, PINCTRL_STATE_DEFAULT);
@@ -301,7 +404,19 @@ static int uart_nxp_s32_init(const struct device *dev)
 		return err;
 	}
 
-	Linflexd_Uart_Ip_Init(config->instance, &config->hw_cfg);
+	if (!device_is_ready(config->clock_dev)) {
+		return -ENODEV;
+	}
+
+	err = clock_control_on(config->clock_dev, config->clock_subsys);
+	if (err) {
+		return err;
+	}
+
+	err = uart_nxp_s32_do_configure(dev, &data->uart_cfg, false);
+	if (err) {
+		return err;
+	}
 
 	return 0;
 }
@@ -326,6 +441,10 @@ static DEVICE_API(uart, uart_nxp_s32_driver_api) = {
 	.irq_update	  = uart_nxp_s32_irq_update,
 	.irq_callback_set = uart_nxp_s32_irq_callback_set,
 #endif	/* CONFIG_UART_INTERRUPT_DRIVEN */
+#ifdef CONFIG_UART_USE_RUNTIME_CONFIGURE
+	.configure = uart_nxp_s32_configure,
+	.config_get = uart_nxp_s32_config_get,
+#endif /* CONFIG_UART_USE_RUNTIME_CONFIGURE */
 
 };
 
@@ -361,15 +480,39 @@ static DEVICE_API(uart, uart_nxp_s32_driver_api) = {
 		))								\
 	}
 
+#define ZEPHYR_UART_CONFIG(n)							\
+	{									\
+		.baudrate = DT_INST_PROP(n, current_speed),			\
+		.parity = DT_INST_ENUM_IDX(n, parity),				\
+		.stop_bits = DT_INST_ENUM_IDX(n, stop_bits),			\
+		.data_bits = DT_INST_ENUM_IDX(n, data_bits),			\
+		.flow_ctrl = UART_CFG_FLOW_CTRL_NONE,				\
+	}
+
 #define UART_NXP_S32_INIT_DEVICE(n)						\
+	BUILD_ASSERT(DT_INST_ENUM_IDX(n, stop_bits) == UART_CFG_STOP_BITS_1 ||	\
+		DT_INST_ENUM_IDX(n, stop_bits) == UART_CFG_STOP_BITS_2,		\
+		"Node " DT_NODE_PATH(DT_DRV_INST(n))				\
+		" has unsupported stop bits configuration");			\
+	BUILD_ASSERT(DT_INST_ENUM_IDX(n, data_bits) == UART_CFG_DATA_BITS_7 ||	\
+		DT_INST_ENUM_IDX(n, data_bits) == UART_CFG_DATA_BITS_8,		\
+		"Node " DT_NODE_PATH(DT_DRV_INST(n))				\
+		" has unsupported data bits configuration");			\
+	BUILD_ASSERT(DT_INST_PROP(n, hw_flow_control) == UART_CFG_FLOW_CTRL_NONE,\
+		"Node " DT_NODE_PATH(DT_DRV_INST(n))				\
+		" has unsupported flow control configuration");			\
 	PINCTRL_DT_INST_DEFINE(n);						\
-	IF_ENABLED(CONFIG_UART_INTERRUPT_DRIVEN,				\
-		(static struct uart_nxp_s32_data uart_nxp_s32_data_##n;))	\
+	static struct uart_nxp_s32_data uart_nxp_s32_data_##n = {		\
+		.linflexd_uart_cfg = UART_NXP_S32_HW_CONFIG(n),			\
+		.uart_cfg = ZEPHYR_UART_CONFIG(n),				\
+	};									\
 	static const struct uart_nxp_s32_config uart_nxp_s32_config_##n = {	\
 		.instance = UART_NXP_S32_HW_INSTANCE(n),			\
 		.base = (LINFLEXD_Type *)DT_INST_REG_ADDR(n),			\
 		.pincfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),			\
-		.hw_cfg = UART_NXP_S32_HW_CONFIG(n),				\
+		.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)),		\
+		.clock_subsys = (clock_control_subsys_t)			\
+				DT_INST_CLOCKS_CELL(n, name),			\
 	};									\
 	static int uart_nxp_s32_init_##n(const struct device *dev)		\
 	{									\
@@ -381,8 +524,7 @@ static DEVICE_API(uart, uart_nxp_s32_driver_api) = {
 	DEVICE_DT_INST_DEFINE(n,						\
 			uart_nxp_s32_init_##n,					\
 			NULL,							\
-			COND_CODE_1(CONFIG_UART_INTERRUPT_DRIVEN,		\
-				   (&uart_nxp_s32_data_##n), (NULL)),		\
+			&uart_nxp_s32_data_##n,					\
 			&uart_nxp_s32_config_##n,				\
 			PRE_KERNEL_1,						\
 			CONFIG_SERIAL_INIT_PRIORITY,				\
