@@ -437,6 +437,10 @@ static int cmd_l2cap_register(const struct shell *sh, size_t argc, char *argv[])
 			l2cap_server.options |= BT_L2CAP_BR_SERVER_OPT_MODE_OPTIONAL;
 		} else if (!strcmp(argv[index], "extended_control")) {
 			l2cap_server.options |= BT_L2CAP_BR_SERVER_OPT_EXT_WIN_SIZE;
+		} else if (!strcmp(argv[index], "sec")) {
+			l2cap_server.server.sec_level = strtoul(argv[++index], NULL, 16);
+		} else if(!strcmp(argv[index], "mtu")){
+			l2cap_chan.chan.rx.mtu = strtoul(argv[++index], NULL, 16);
 		} else {
 			l2cap_server.server.psm = 0;
 			shell_help(sh);
@@ -519,6 +523,10 @@ static int cmd_l2cap_connect(const struct shell *sh, size_t argc, char *argv[])
 			l2cap_chan.chan.rx.optional = true;
 		} else if (!strcmp(argv[index], "extended_control")) {
 			l2cap_chan.chan.rx.extended_control = true;
+		} else if (!strcmp(argv[index], "sec")){
+			l2cap_chan.chan.required_sec_level = strtoul(argv[++index], NULL, 16);
+		} else if(!strcmp(argv[index], "mtu")){
+			l2cap_chan.chan.rx.mtu = strtoul(argv[++index], NULL, 16);
 		} else {
 			shell_help(sh);
 			return SHELL_CMD_HELP_PRINTED;
@@ -989,16 +997,16 @@ static int cmd_default_handler(const struct shell *sh, size_t argc, char **argv)
 #define HELP_ADDR "<address: XX:XX:XX:XX:XX:XX>"
 #define HELP_REG                                                      \
 	"<psm> <mode: none, ret, fc, eret, stream> [hold_credit] "    \
-	"[mode_optional] [extended_control]"
+	"[mode_optional] [extended_control] [sec: 0-4] [mtu: XX]"
 
 #define HELP_CONN                                                     \
 	"<psm> <mode: none, ret, fc, eret, stream> [hold_credit] "    \
-	"[mode_optional] [extended_control]"
+	"[mode_optional] [extended_control] [sec: 0-4] [mtu: XX]"
 
 SHELL_STATIC_SUBCMD_SET_CREATE(l2cap_cmds,
 #if defined(CONFIG_BT_L2CAP_RET_FC)
-	SHELL_CMD_ARG(register, NULL, HELP_REG, cmd_l2cap_register, 3, 3),
-	SHELL_CMD_ARG(connect, NULL, HELP_CONN, cmd_l2cap_connect, 3, 3),
+	SHELL_CMD_ARG(register, NULL, HELP_REG, cmd_l2cap_register, 3, 7),
+	SHELL_CMD_ARG(connect, NULL, HELP_CONN, cmd_l2cap_connect, 3, 7),
 #else
 	SHELL_CMD_ARG(register, NULL, "<psm>", cmd_l2cap_register, 2, 0),
 	SHELL_CMD_ARG(connect, NULL, "<psm>", cmd_l2cap_connect, 2, 0),
