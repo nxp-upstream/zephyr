@@ -1,0 +1,12 @@
+tests:
+  l2cap.t:
+    integration_platforms:
+      - native_sim
+    tags:
+      - bluetooth
+      - l2cap
+    harness: pytest
+    harness_config:
+      pytest_dut_scope: session
+      fixture: usb_hci
+    timeout: 360
