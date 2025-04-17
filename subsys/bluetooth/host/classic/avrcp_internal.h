@@ -19,16 +19,12 @@
 
 #define AVRCP_SUBUNIT_PAGE           (0) /* Fixed value according to AVRCP */
 #define AVRCP_SUBUNIT_EXTENSION_CODE (7) /* Fixed value according to TA Document 2001012 */
+#define BT_AVRCP_UNIT_INFO_CMD_SIZE  (5)
 
 typedef enum __packed {
 	BT_AVRCP_SUBUNIT_ID_ZERO = 0x0,
 	BT_AVRCP_SUBUNIT_ID_IGNORE = 0x7,
 } bt_avrcp_subunit_id_t;
-
-typedef enum __packed {
-	BT_AVRCP_SUBUNIT_TYPE_PANEL = 0x9,
-	BT_AVRCP_SUBUNIT_TYPE_UNIT = 0x1F,
-} bt_avrcp_subunit_type_t;
 
 typedef enum __packed {
 	BT_AVRCP_OPC_VENDOR_DEPENDENT = 0x0,
@@ -123,6 +119,16 @@ struct bt_avrcp_avc_pdu {
 	uint16_t param_len;
 	uint8_t param[];
 } __packed;
+
+/* bt_avrcp flags: the flags defined here represent AVRCP state */
+enum {
+	BT_AVRCP_TG_ENABLE,        /* AVRCP TG enable*/
+	BT_AVRCP_TG_DISABLE,       /* AVRCP TG disable*/
+	BT_AVRCP_CT_ENABLE,        /* AVRCP CT enable*/
+	BT_AVRCP_CT_DISABLE,       /* AVRCP CT disable*/
+	/* Total number of flags - must be at the end of the enum */
+	BT_AVRCP_NUM_FLAGS,
+};
 
 /** The 4-bit command type or the 4-bit response code. */
 #define BT_AVRCP_HDR_GET_CTYPE_OR_RSP(hdr) FIELD_GET(GENMASK(3, 0), ((hdr)->byte0))
