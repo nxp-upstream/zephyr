@@ -17,6 +17,7 @@ extern "C" {
 #endif
 
 #define BT_AVRCP_COMPANY_ID_SIZE          (3)
+#define BT_AVRCP_UNIT_INFO_CMD_SIZE       (5)
 #define BT_AVRCP_COMPANY_ID_BLUETOOTH_SIG (0x001958)
 
 /** @brief AVRCP Capability ID */
@@ -137,6 +138,8 @@ typedef enum __packed {
 
 /** @brief AVRCP CT structure */
 struct bt_avrcp_ct;
+/** @brief AVRCP TG structure */
+struct bt_avrcp_tg;
 
 struct bt_avrcp_unit_info_rsp {
 	uint8_t unit_type;
@@ -318,6 +321,58 @@ int bt_avrcp_ct_get_subunit_info(struct bt_avrcp_ct *ct, uint8_t tid);
 int bt_avrcp_ct_passthrough(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t opid, uint8_t state,
 			    const uint8_t *payload, uint8_t len);
 
+struct bt_avrcp_tg_cb {
+        /** @brief An AVRCP connection has been established.
+         *
+         *  This callback notifies the application of an avrcp connection,
+         *  i.e., an AVCTP L2CAP connection.
+         *
+	 *  @param conn Connection object.
+	 *  @param tg AVRCP TG connection object.
+         */
+        void (*connected)(struct bt_conn *conn, struct bt_avrcp_tg *tg);
+
+        /** @brief An AVRCP connection has been disconnected.
+         *
+         *  This callback notifies the application that an avrcp connection
+         *  has been disconnected.
+         *
+	 *  @param tg AVRCP TG connection object.
+         */
+        void (*disconnected)(struct bt_avrcp_tg *tg);
+
+	/** @brief Unit info request callback.
+	 *
+	 *  This callback is called whenever an AVRCP unit info is requested.
+	 *
+	 *  @param tid The transaction label of the request.
+	 *  @param tg AVRCP TG connection object.
+	 */
+	void (*unit_info_req)(struct bt_avrcp_tg *tg, uint8_t tid);
+};
+
+/** @brief Register callback.
+ *
+ *  Register AVRCP callbacks to monitor the state and interact with the remote device.
+ *
+ *  @param cb The AVRCP TG callback function.
+ *
+ *  @return 0 in case of success or error code in case of error.
+ */
+int bt_avrcp_tg_register_cb(const struct bt_avrcp_tg_cb *cb);
+
+/** @brief Send the unit info response.
+ *
+ *  This function is called by the application to send the unit info response.
+ *
+ *  @param avrcp The AVRCP instance.
+ *  @param tid The transaction label of the response, valid from 0 to 15.
+ *  @param rsp The response for UNIT INFO command.
+ *
+ *  @return 0 in case of success or error code in case of error.
+ */
+int bt_avrcp_tg_send_unit_info_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
+                                   struct bt_avrcp_unit_info_rsp *rsp);
 #ifdef __cplusplus
 }
 #endif

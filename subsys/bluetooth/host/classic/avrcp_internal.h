@@ -124,6 +124,16 @@ struct bt_avrcp_avc_pdu {
 	uint8_t param[];
 } __packed;
 
+/* bt_avrcp flags: the flags defined here represent AVRCP state */
+enum {
+	BT_AVRCP_TG_ENABLE,        /* AVRCP TG enable*/
+	BT_AVRCP_TG_DISABLE,       /* AVRCP TG disable*/
+	BT_AVRCP_CT_ENABLE,        /* AVRCP CT enable*/
+	BT_AVRCP_CT_DISABLE,       /* AVRCP CT disable*/
+	/* Total number of flags - must be at the end of the enum */
+	BT_AVRCP_NUM_FLAGS,
+};
+
 /** The 4-bit command type or the 4-bit response code. */
 #define BT_AVRCP_HDR_GET_CTYPE_OR_RSP(hdr) FIELD_GET(GENMASK(3, 0), ((hdr)->byte0))
 /** Taken together, the subunit_type and subunit_ID fields define the command recipient’s  address
