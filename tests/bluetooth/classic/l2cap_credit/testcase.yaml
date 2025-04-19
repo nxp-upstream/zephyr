@@ -1,0 +1,17 @@
+tests:
+  bluetooth.classic.l2cap.credit:
+    platform_allow:
+      - mimxrt1170_evk@B/mimxrt1176/cm7
+    integration_platforms:
+      - mimxrt1170_evk@B/mimxrt1176/cm7
+    tags:
+      - bluetooth
+      - sdp
+      - b2b
+    build_only: false
+    harness: pytest
+    harness_config:
+      pytest_dut_scope: session
+      fixture: usb_hci
+    timeout: 180
+    extra_args: CONF_FILE="prj_br.conf"
