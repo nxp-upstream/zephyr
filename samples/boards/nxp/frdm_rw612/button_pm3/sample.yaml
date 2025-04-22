@@ -1,0 +1,13 @@
+#
+# Copyright 2025 NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+sample:
+  name: Button sample for PM3 mode on RW61x
+common:
+  tags: power
+tests:
+  sample.boards.frdm_rw612.button_pm3:
+    build_only: true
+    platform_allow: frdm_rw612
