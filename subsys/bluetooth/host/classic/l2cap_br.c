@@ -5550,8 +5550,8 @@ static void bt_l2cap_br_ret_fc_i_recv(struct bt_l2cap_br_chan *br_chan, struct n
 		}
 	} else {
 		control = net_buf_pull_le16(buf);
-		req_seq = BT_L2CAP_I_FRAME_STD_CONTROL_GET_REQ_SEQ(control);
-		sar = BT_L2CAP_I_FRAME_STD_CONTROL_GET_SAR(control);
+		req_seq = BT_L2CAP_I_FRAME_STD_CONTROL_GET_REQ_SEQ(control); 
+		sar = BT_L2CAP_I_FRAME_STD_CONTROL_GET_SAR(control); 
 		r = BT_L2CAP_I_FRAME_STD_CONTROL_GET_R(control);
 		tx_seq = BT_L2CAP_I_FRAME_STD_CONTROL_GET_TX_SEQ(control);
 		bt_l2cap_br_update_r(br_chan, r);

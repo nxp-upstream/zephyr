@@ -616,6 +616,30 @@ static int cmd_modify_max_transmit(const struct shell *sh, size_t argc, char *ar
 	return 0;
 }
 
+static int cmd_search_conf_param_options(const struct shell *sh, size_t argc, char *argv[])
+{
+	uint16_t psm = strtoul(argv[1], NULL, 16);
+	char *role = argv[2];
+	uint8_t index = 0;
+	for (index = 0; index < APPL_L2CAP_CONNECTION_MAX_COUNT; index++) {
+		if (br_l2cap[index].l2cap_chan.chan.psm == psm) {
+			if (!strcmp(role, "local")) {
+				struct bt_l2cap_br_endpoint *l2cap_config = &(br_l2cap[index].l2cap_chan.chan.rx);
+				shell_print(sh, "local max_transmit=%u,ret_timeout=%u,monitor_timeout=%u,max_window=%u,mps=%u", l2cap_config->max_transmit,l2cap_config->ret_timeout,l2cap_config->monitor_timeout,l2cap_config->max_window,l2cap_config->mps);
+			}else if (!strcmp(role, "peer")) {
+				struct bt_l2cap_br_endpoint *l2cap_config = &(br_l2cap[index].l2cap_chan.chan.tx);
+				shell_print(sh, "peer max_transmit=%u,ret_timeout=%u,monitor_timeout=%u,max_window=%u,mps=%u", l2cap_config->max_transmit,l2cap_config->ret_timeout,l2cap_config->monitor_timeout,l2cap_config->max_window,l2cap_config->mps);
+			}
+			return 0;
+		}
+	}
+	if (index >= APPL_L2CAP_CONNECTION_MAX_COUNT) {
+		shell_print(sh, "psm %u is not connect", psm);
+		return SHELL_CMD_HELP_PRINTED;
+	}
+	return 0;
+}
+
 SHELL_STATIC_SUBCMD_SET_CREATE(
 	l2cap_br_cmds,
 	SHELL_CMD_ARG(register, NULL, "<psm> <mode> [option]", cmd_l2cap_register, 2, 5),
@@ -626,6 +650,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 	SHELL_CMD_ARG(modify_appl_status, NULL, "[psm] [status(0/1)]", cmd_modify_appl_status, 3,
 		      0),
 	SHELL_CMD_ARG(modify_max_transmit, NULL, "[modify_max_transmit]", cmd_modify_max_transmit, 2, 0),
+	SHELL_CMD_ARG(search_conf_param_options, NULL, "[psm] [local/peer]", cmd_search_conf_param_options, 3, 0),
 	SHELL_SUBCMD_SET_END);
 
 static int cmd_default_handler(const struct shell *sh, size_t argc, char **argv)
