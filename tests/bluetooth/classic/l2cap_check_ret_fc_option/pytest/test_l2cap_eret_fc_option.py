@@ -1,5 +1,4 @@
 import time
-import re
 
 from conftest import (
     L2CAP_SERVER_PSM_ERET,
@@ -22,8 +21,8 @@ def test_l2cap_eret_mode_TC05(client, server):
     client.iexpect(f'l2cap_br modify_max_transmit 8', f"MaxTransmit is 8", wait = False)
     server.iexpect(f'l2cap_br modify_max_transmit 7', f"MaxTransmit is 7", wait = False)
 
-    logger.info(f'client create l2cap. psm = {L2CAP_SERVER_PSM_ERET}, mode = ret, mode_option = false')
-    client.iexpect(f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} ret', f'It is enhance retransmission mode')
+    logger.info(f'client create l2cap. psm = {L2CAP_SERVER_PSM_ERET}, mode = eret, mode_option = false')
+    client.iexpect(f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} eret', f'It is enhance retransmission mode')
 
     logger.info(f'Check server configuration in server side')
     lines = server.exec_command(f'l2cap_br search_conf_param_options {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} local')

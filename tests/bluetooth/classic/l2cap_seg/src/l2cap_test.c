@@ -27,7 +27,7 @@
 #include "host/shell/bt.h"
 #include "common/bt_shell_private.h"
 
-#define DATA_BREDR_MTU 48
+#define DATA_BREDR_MTU 158
 
 NET_BUF_POOL_FIXED_DEFINE(data_tx_pool, 1, BT_L2CAP_SDU_BUF_SIZE(DATA_BREDR_MTU),
 			  CONFIG_BT_CONN_TX_USER_DATA_SIZE, NULL);
@@ -166,6 +166,13 @@ static void l2cap_disconnected(struct bt_l2cap_chan *chan)
 void l2cap_seg_recv(struct bt_l2cap_chan *chan, size_t sdu_len, off_t seg_offset,
 		    struct net_buf_simple *seg)
 {
+	bt_shell_print("Incoming data channel %p SDU len %u offset %lu len %u", chan, sdu_len,
+		       seg_offset, seg->len);
+
+	if (seg->len) {
+		bt_shell_print("Incoming data:%.*s\r\n", seg->len, seg->data);
+		
+	}
 }
 #endif
 
@@ -174,9 +181,9 @@ static const struct bt_l2cap_chan_ops l2cap_ops = {
 	.recv = l2cap_recv,
 	.connected = l2cap_connected,
 	.disconnected = l2cap_disconnected,
-	// #if defined(CONFIG_BT_L2CAP_SEG_RECV)
-	// 	.seg_recv = l2cap_seg_recv,
-	// #endif
+#if defined(CONFIG_BT_L2CAP_SEG_RECV)
+	.seg_recv = l2cap_seg_recv,
+#endif
 };
 
 struct app_l2cap_br_chan *appl_br_l2cap(struct bt_conn *conn)
@@ -616,30 +623,6 @@ static int cmd_modify_max_transmit(const struct shell *sh, size_t argc, char *ar
 	return 0;
 }
 
-static int cmd_search_conf_param_options(const struct shell *sh, size_t argc, char *argv[])
-{
-	uint16_t psm = strtoul(argv[1], NULL, 16);
-	char *role = argv[2];
-	uint8_t index = 0;
-	for (index = 0; index < APPL_L2CAP_CONNECTION_MAX_COUNT; index++) {
-		if (br_l2cap[index].l2cap_chan.chan.psm == psm) {
-			if (!strcmp(role, "local")) {
-				struct bt_l2cap_br_endpoint *l2cap_config = &(br_l2cap[index].l2cap_chan.chan.rx);
-				shell_print(sh, "local max_transmit=%u,ret_timeout=%u,monitor_timeout=%u,max_window=%u,mps=%u", l2cap_config->max_transmit,l2cap_config->ret_timeout,l2cap_config->monitor_timeout,l2cap_config->max_window,l2cap_config->mps);
-			}else if (!strcmp(role, "peer")) {
-				struct bt_l2cap_br_endpoint *l2cap_config = &(br_l2cap[index].l2cap_chan.chan.tx);
-				shell_print(sh, "peer max_transmit=%u,ret_timeout=%u,monitor_timeout=%u,max_window=%u,mps=%u", l2cap_config->max_transmit,l2cap_config->ret_timeout,l2cap_config->monitor_timeout,l2cap_config->max_window,l2cap_config->mps);
-			}
-			return 0;
-		}
-	}
-	if (index >= APPL_L2CAP_CONNECTION_MAX_COUNT) {
-		shell_print(sh, "psm %u is not connect", psm);
-		return SHELL_CMD_HELP_PRINTED;
-	}
-	return 0;
-}
-
 SHELL_STATIC_SUBCMD_SET_CREATE(
 	l2cap_br_cmds,
 	SHELL_CMD_ARG(register, NULL, "<psm> <mode> [option]", cmd_l2cap_register, 2, 5),
@@ -650,7 +633,6 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 	SHELL_CMD_ARG(modify_appl_status, NULL, "[psm] [status(0/1)]", cmd_modify_appl_status, 3,
 		      0),
 	SHELL_CMD_ARG(modify_max_transmit, NULL, "[modify_max_transmit]", cmd_modify_max_transmit, 2, 0),
-	SHELL_CMD_ARG(search_conf_param_options, NULL, "[psm] [local/peer]", cmd_search_conf_param_options, 3, 0),
 	SHELL_SUBCMD_SET_END);
 
 static int cmd_default_handler(const struct shell *sh, size_t argc, char **argv)

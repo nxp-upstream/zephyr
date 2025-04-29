@@ -83,7 +83,7 @@ static int l2cap_recv(struct bt_l2cap_chan *chan, struct net_buf *buf)
 	bt_shell_print("Incoming data channel %d len %u", appl_br_chan->id, buf->len);
 
 	if (buf->len) {
-		printk("Incoming data :%.*s\r\n", buf->len, buf->data);
+		bt_shell_print("Incoming data :%.*s\r\n", buf->len, buf->data);
 	}
 
 #if defined(CONFIG_BT_L2CAP_RET_FC)

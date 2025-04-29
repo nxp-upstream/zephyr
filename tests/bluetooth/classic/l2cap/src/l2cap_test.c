@@ -174,9 +174,6 @@ static const struct bt_l2cap_chan_ops l2cap_ops = {
 	.recv = l2cap_recv,
 	.connected = l2cap_connected,
 	.disconnected = l2cap_disconnected,
-	// #if defined(CONFIG_BT_L2CAP_SEG_RECV)
-	// 	.seg_recv = l2cap_seg_recv,
-	// #endif
 };
 
 struct app_l2cap_br_chan *appl_br_l2cap(struct bt_conn *conn)
