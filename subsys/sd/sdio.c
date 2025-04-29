@@ -468,6 +468,8 @@ static inline void sdio_select_bus_speed(struct sd_card *card)
 	} else {
 		card->card_speed = SD_TIMING_DEFAULT;
 	}
+	card->card_speed = SD_TIMING_DDR50;
+	card->switch_caps.uhs_max_dtr = UHS_DDR50_MAX_DTR;
 }
 
 /* Applies selected card bus speed to card and host */
