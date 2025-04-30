@@ -27,26 +27,21 @@
 #include "host/shell/bt.h"
 #include "common/bt_shell_private.h"
 
-#define DATA_BREDR_MTU 158
-
-NET_BUF_POOL_FIXED_DEFINE(data_tx_pool, 1, BT_L2CAP_SDU_BUF_SIZE(DATA_BREDR_MTU),
-			  CONFIG_BT_CONN_TX_USER_DATA_SIZE, NULL);
-NET_BUF_POOL_FIXED_DEFINE(data_rx_pool, 1, DATA_BREDR_MTU, 8, NULL);
-
+static uint16_t data_bredr_mtu = 48;
 static uint8_t MaxTransmit = 3;
+#define DATA_POOL_SIZE 200
+
+NET_BUF_POOL_FIXED_DEFINE(data_tx_pool, 1, BT_L2CAP_SDU_BUF_SIZE(DATA_POOL_SIZE),
+			  CONFIG_BT_CONN_TX_USER_DATA_SIZE, NULL);
+NET_BUF_POOL_FIXED_DEFINE(data_rx_pool, 1, DATA_POOL_SIZE, 8, NULL);
+
 struct l2cap_br_chan {
+	bool active;
 	struct bt_l2cap_br_chan chan;
 #if defined(CONFIG_BT_L2CAP_RET_FC)
 	struct k_fifo l2cap_recv_fifo;
 	bool hold_credit;
 #endif /* CONFIG_BT_L2CAP_RET_FC */
-};
-
-struct app_l2cap_br_chan {
-	bool active;
-	uint8_t id;
-	struct bt_conn *conn;
-	struct l2cap_br_chan l2cap_chan;
 };
 
 struct bt_l2cap_br_server {
@@ -64,26 +59,19 @@ struct bt_l2cap_br_server {
 #define BT_L2CAP_BR_SERVER_OPT_EXT_WIN_SIZE  BIT(5)
 #define BT_L2CAP_BR_SERVER_OPT_HOLD_CREDIT   BIT(6)
 
-struct app_l2cap_br_server {
-	bool active;
-	struct bt_conn *conn;
-	struct bt_l2cap_br_server l2cap_server;
-};
-
 #define APPL_L2CAP_CONNECTION_MAX_COUNT 10
-struct app_l2cap_br_chan br_l2cap[APPL_L2CAP_CONNECTION_MAX_COUNT] = {0};
-struct app_l2cap_br_server br_l2cap_server[APPL_L2CAP_CONNECTION_MAX_COUNT] = {0};
+static struct l2cap_br_chan br_l2cap[APPL_L2CAP_CONNECTION_MAX_COUNT];
+static struct bt_l2cap_br_server br_l2cap_server[APPL_L2CAP_CONNECTION_MAX_COUNT];
 
 static int l2cap_recv(struct bt_l2cap_chan *chan, struct net_buf *buf)
 {
-	struct l2cap_br_chan *br_chan = CONTAINER_OF(chan, struct l2cap_br_chan, chan.chan);
-	struct app_l2cap_br_chan *appl_br_chan =
-		CONTAINER_OF(br_chan, struct app_l2cap_br_chan, l2cap_chan);
+	struct l2cap_br_chan *br_chan = CONTAINER_OF(
+		CONTAINER_OF(chan, struct bt_l2cap_br_chan, chan), struct l2cap_br_chan, chan);
 
-	bt_shell_print("Incoming data channel %d len %u", appl_br_chan->id, buf->len);
+	bt_shell_print("Incoming data channel %d len %u", ARRAY_INDEX(br_l2cap, br_chan), buf->len);
 
 	if (buf->len) {
-		bt_shell_print("Incoming data :%.*s\r\n", buf->len, buf->data);
+		printk("Incoming data :%.*s\r\n", buf->len, buf->data);
 	}
 
 #if defined(CONFIG_BT_L2CAP_RET_FC)
@@ -106,10 +94,10 @@ static struct net_buf *l2cap_alloc_buf(struct bt_l2cap_chan *chan)
 
 static void l2cap_connected(struct bt_l2cap_chan *chan)
 {
-	struct l2cap_br_chan *br_chan = CONTAINER_OF(chan, struct l2cap_br_chan, chan.chan);
-	struct app_l2cap_br_chan *appl_br_chan =
-		CONTAINER_OF(br_chan, struct app_l2cap_br_chan, l2cap_chan);
-	bt_shell_print("Channel %d connected", appl_br_chan->id);
+	struct l2cap_br_chan *br_chan = CONTAINER_OF(
+		CONTAINER_OF(chan, struct bt_l2cap_br_chan, chan), struct l2cap_br_chan, chan);
+
+	bt_shell_print("Channel %d connected", ARRAY_INDEX(br_l2cap, br_chan));
 
 #if defined(CONFIG_BT_L2CAP_RET_FC)
 	switch (br_chan->chan.rx.mode) {
@@ -142,13 +130,11 @@ static void l2cap_connected(struct bt_l2cap_chan *chan)
 
 static void l2cap_disconnected(struct bt_l2cap_chan *chan)
 {
-	struct l2cap_br_chan *br_chan = CONTAINER_OF(chan, struct l2cap_br_chan, chan.chan);
-	struct app_l2cap_br_chan *appl_br_chan =
-		CONTAINER_OF(br_chan, struct app_l2cap_br_chan, l2cap_chan);
-	appl_br_chan->conn = NULL;
-	appl_br_chan->active = false;
+	struct l2cap_br_chan *br_chan = CONTAINER_OF(
+		CONTAINER_OF(chan, struct bt_l2cap_br_chan, chan), struct l2cap_br_chan, chan);
 
-	bt_shell_print("Channel %d disconnected", appl_br_chan->id);
+	br_chan->active = false;
+	bt_shell_print("Channel %d disconnected", ARRAY_INDEX(br_l2cap, br_chan));
 
 #if defined(CONFIG_BT_L2CAP_RET_FC)
 	struct net_buf *buf;
@@ -171,7 +157,6 @@ void l2cap_seg_recv(struct bt_l2cap_chan *chan, size_t sdu_len, off_t seg_offset
 
 	if (seg->len) {
 		bt_shell_print("Incoming data:%.*s\r\n", seg->len, seg->data);
-		
 	}
 }
 #endif
@@ -186,17 +171,15 @@ static const struct bt_l2cap_chan_ops l2cap_ops = {
 #endif
 };
 
-struct app_l2cap_br_chan *appl_br_l2cap(struct bt_conn *conn)
+static struct l2cap_br_chan *appl_br_l2cap()
 {
 	for (uint8_t index = 0; index < APPL_L2CAP_CONNECTION_MAX_COUNT; index++) {
-		if (br_l2cap[index].conn == NULL && br_l2cap[index].active == false) {
-			br_l2cap[index].conn = conn;
+		if (br_l2cap[index].active == false) {
 			br_l2cap[index].active = true;
-			br_l2cap[index].id = index;
-			br_l2cap[index].l2cap_chan.chan.chan.ops = &l2cap_ops;
-			br_l2cap[index].l2cap_chan.chan.rx.mtu = DATA_BREDR_MTU;
+			br_l2cap[index].chan.chan.ops = &l2cap_ops;
+			br_l2cap[index].chan.rx.mtu = data_bredr_mtu;
 #if defined(CONFIG_BT_L2CAP_RET_FC)
-			k_fifo_init(&br_l2cap[index].l2cap_chan.l2cap_recv_fifo);
+			k_fifo_init(&br_l2cap[index].l2cap_recv_fifo);
 #endif
 			return &br_l2cap[index];
 		}
@@ -208,20 +191,17 @@ static int l2cap_accept(struct bt_conn *conn, struct bt_l2cap_server *server,
 			struct bt_l2cap_chan **chan)
 {
 	struct bt_l2cap_br_server *br_server;
-	struct app_l2cap_br_server *appl_l2cap_server;
-	struct app_l2cap_br_chan *appl_l2cap = NULL;
 	struct l2cap_br_chan *l2cap_chan = NULL;
 
 	br_server = CONTAINER_OF(server, struct bt_l2cap_br_server, server);
-	appl_l2cap_server = CONTAINER_OF(br_server, struct app_l2cap_br_server, l2cap_server);
 
-	appl_l2cap = appl_br_l2cap(conn);
-	if (!appl_l2cap) {
+	l2cap_chan = appl_br_l2cap();
+	if (!l2cap_chan) {
 		bt_shell_error("No channels application br chan");
 		return -ENOMEM;
 	}
-	appl_l2cap->l2cap_chan.chan.psm = server->psm;
-	l2cap_chan = &appl_l2cap->l2cap_chan;
+
+	l2cap_chan->chan.psm = server->psm;
 	*chan = &l2cap_chan->chan.chan;
 
 	bt_shell_print("Incoming BR/EDR conn %p", conn);
@@ -269,13 +249,12 @@ static int l2cap_accept(struct bt_conn *conn, struct bt_l2cap_server *server,
 	return 0;
 }
 
-struct app_l2cap_br_server *appl_br_l2cap_server_alloc(uint16_t psm)
+static struct bt_l2cap_br_server *appl_br_l2cap_server_alloc(uint16_t psm)
 {
 	for (uint8_t index = 0; index < APPL_L2CAP_CONNECTION_MAX_COUNT; index++) {
-		if (br_l2cap_server[index].conn == NULL && br_l2cap_server[index].active == false) {
-			br_l2cap_server[index].active = true;
-			br_l2cap_server[index].l2cap_server.server.psm = psm;
-			br_l2cap_server[index].l2cap_server.server.accept = l2cap_accept;
+		if (br_l2cap_server[index].server.psm == 0) {
+			br_l2cap_server[index].server.psm = psm;
+			br_l2cap_server[index].server.accept = l2cap_accept;
 			return &br_l2cap_server[index];
 		}
 	}
@@ -287,7 +266,6 @@ static int cmd_connect(const struct shell *sh, size_t argc, char *argv[])
 	uint16_t psm;
 	struct bt_conn_info info;
 	int err;
-	struct app_l2cap_br_chan *appl_l2cap = NULL;
 	struct l2cap_br_chan *l2cap_chan = NULL;
 
 	if (!default_conn) {
@@ -295,26 +273,23 @@ static int cmd_connect(const struct shell *sh, size_t argc, char *argv[])
 		return -ENOEXEC;
 	}
 
-	appl_l2cap = appl_br_l2cap(default_conn);
-	if (!appl_l2cap) {
+	l2cap_chan = appl_br_l2cap();
+	if (!l2cap_chan) {
 		bt_shell_error("No channels application br chan");
-		appl_l2cap->active = false;
-		appl_l2cap->conn = NULL;
+		l2cap_chan->active = false;
 		return -ENOMEM;
 	}
-	l2cap_chan = &appl_l2cap->l2cap_chan;
+
 	if (l2cap_chan->chan.chan.conn) {
 		bt_shell_error("No channels available");
-		appl_l2cap->active = false;
-		appl_l2cap->conn = NULL;
+		l2cap_chan->active = false;
 		return -ENOMEM;
 	}
 
 	err = bt_conn_get_info(default_conn, &info);
 	if ((err < 0) || (info.type != BT_CONN_TYPE_BR)) {
 		shell_error(sh, "Invalid conn type");
-		appl_l2cap->active = false;
-		appl_l2cap->conn = NULL;
+		l2cap_chan->active = false;
 		return -ENOEXEC;
 	}
 
@@ -336,9 +311,8 @@ static int cmd_connect(const struct shell *sh, size_t argc, char *argv[])
 		l2cap_chan->chan.rx.mode = BT_L2CAP_BR_LINK_MODE_STREAM;
 		l2cap_chan->chan.rx.max_transmit = 0;
 	} else {
+		l2cap_chan->active = false;
 		shell_help(sh);
-		appl_l2cap->active = false;
-		appl_l2cap->conn = NULL;
 		return SHELL_CMD_HELP_PRINTED;
 	}
 
@@ -358,8 +332,7 @@ static int cmd_connect(const struct shell *sh, size_t argc, char *argv[])
 		} else if (!strcmp(argv[index], "mtu")) {
 			l2cap_chan->chan.rx.mtu = strtoul(argv[++index], NULL, 16);
 		} else {
-			appl_l2cap->active = false;
-			appl_l2cap->conn = NULL;
+			l2cap_chan->active = false;
 			shell_help(sh);
 			return SHELL_CMD_HELP_PRINTED;
 		}
@@ -368,16 +341,15 @@ static int cmd_connect(const struct shell *sh, size_t argc, char *argv[])
 	if ((l2cap_chan->chan.rx.extended_control) &&
 	    ((l2cap_chan->chan.rx.mode != BT_L2CAP_BR_LINK_MODE_ERET) &&
 	     (l2cap_chan->chan.rx.mode != BT_L2CAP_BR_LINK_MODE_STREAM))) {
+		l2cap_chan->active = false;
 		shell_error(sh, "[extended_control] only supports mode eret and stream");
-		appl_l2cap->active = false;
-		appl_l2cap->conn = NULL;
 		return -ENOEXEC;
 	}
 
 	if (l2cap_chan->hold_credit && (l2cap_chan->chan.rx.mode == BT_L2CAP_BR_LINK_MODE_BASIC)) {
+
+		l2cap_chan->active = false;
 		shell_error(sh, "[hold_credit] cannot support basic mode");
-		appl_l2cap->active = false;
-		appl_l2cap->conn = NULL;
 		return -ENOEXEC;
 	}
 
@@ -387,8 +359,8 @@ static int cmd_connect(const struct shell *sh, size_t argc, char *argv[])
 	err = bt_l2cap_chan_connect(default_conn, &l2cap_chan->chan.chan, psm);
 	if (err < 0) {
 		shell_error(sh, "Unable to connect to psm %u (err %d)", psm, err);
-		appl_l2cap->conn = NULL;
-		appl_l2cap->active = false;
+
+		l2cap_chan->active = false;
 	} else {
 		shell_print(sh, "L2CAP connection pending");
 	}
@@ -404,7 +376,7 @@ static int cmd_l2cap_disconnect(const struct shell *sh, size_t argc, char *argv[
 	id = strtoul(argv[1], NULL, 16);
 
 	if (br_l2cap[id].active == true) {
-		err = bt_l2cap_chan_disconnect(&br_l2cap[id].l2cap_chan.chan.chan);
+		err = bt_l2cap_chan_disconnect(&br_l2cap[id].chan.chan);
 		if (err) {
 			shell_error(sh, "Unable to disconnect: %u", -err);
 			return err;
@@ -416,48 +388,34 @@ static int cmd_l2cap_disconnect(const struct shell *sh, size_t argc, char *argv[
 
 static int cmd_l2cap_send(const struct shell *sh, size_t argc, char *argv[])
 {
-	int err, mtu_len = DATA_BREDR_MTU, data_len = 0;
+	int err, data_len = 0;
 	uint8_t id;
 	struct net_buf *buf;
-	uint16_t len;
-	uint16_t send_length = 0, remaining_data = 0;
-	struct l2cap_br_chan *l2cap_chan = NULL;
+	uint16_t send_len;
 
 	id = strtoul(argv[1], NULL, 16);
 	data_len = strtoul(argv[3], NULL, 16);
-	mtu_len = MIN(l2cap_chan->chan.tx.mtu, DATA_BREDR_MTU);
+	send_len = MIN(data_len, data_bredr_mtu);
 
-	shell_print(sh, "data_len = %d", data_len);
+	shell_print(sh, "send data len = %d", data_len);
 
 	if (br_l2cap[id].active == true) {
-		l2cap_chan = &br_l2cap[id].l2cap_chan;
-		remaining_data = data_len;
-		while (remaining_data > 0) {
-			buf = net_buf_alloc(&data_tx_pool, K_SECONDS(2));
-			if (!buf) {
-				if (l2cap_chan->chan.state != BT_L2CAP_CONNECTED) {
-					shell_error(sh, "Channel disconnected, stopping TX");
-					return -EAGAIN;
-				}
-				shell_error(sh, "Allocation timeout, stopping TX");
+		buf = net_buf_alloc(&data_tx_pool, K_SECONDS(2));
+		if (!buf) {
+			if (br_l2cap[id].chan.state != BT_L2CAP_CONNECTED) {
+				shell_error(sh, "Channel disconnected, stopping TX");
 				return -EAGAIN;
 			}
-			net_buf_reserve(buf, BT_L2CAP_CHAN_SEND_RESERVE);
-			if (remaining_data > mtu_len) {
-				net_buf_add_mem(buf, argv[2] + send_length, mtu_len);
-				len = mtu_len;
-			} else {
-				net_buf_add_mem(buf, argv[2] + send_length, remaining_data);
-				len = remaining_data;
-			}
-			err = bt_l2cap_chan_send(&l2cap_chan->chan.chan, buf);
-			if (err < 0) {
-				shell_error(sh, "Unable to send: %d", -err);
-				net_buf_unref(buf);
-				return -ENOEXEC;
-			}
-			send_length += len;
-			remaining_data -= len;
+			shell_error(sh, "Allocation timeout, stopping TX");
+			return -EAGAIN;
+		}
+		net_buf_reserve(buf, BT_L2CAP_CHAN_SEND_RESERVE);
+		net_buf_add_mem(buf, argv[2], send_len);
+		err = bt_l2cap_chan_send(&br_l2cap[id].chan.chan, buf);
+		if (err < 0) {
+			shell_error(sh, "Unable to send: %d", -err);
+			net_buf_unref(buf);
+			return -ENOEXEC;
 		}
 	} else {
 		shell_print(sh, "channel %d not support", id);
@@ -466,20 +424,19 @@ static int cmd_l2cap_send(const struct shell *sh, size_t argc, char *argv[])
 	return 0;
 }
 
-bool l2cap_psm_registered(uint16_t psm)
+static bool l2cap_psm_registered(uint16_t psm)
 {
 	for (uint8_t index = 0; index < APPL_L2CAP_CONNECTION_MAX_COUNT; index++) {
-		if (br_l2cap_server[index].active == true &&
-		    br_l2cap_server[index].l2cap_server.server.psm == psm) {
+		if (br_l2cap_server[index].server.psm == psm) {
 			return true;
 		}
 	}
 	return false;
 }
+
 static int cmd_l2cap_register(const struct shell *sh, size_t argc, char *argv[])
 {
 	uint16_t psm = strtoul(argv[1], NULL, 16);
-	struct app_l2cap_br_server *app_l2cap_server;
 	struct bt_l2cap_br_server *l2cap_server;
 
 	if (l2cap_psm_registered(psm)) {
@@ -487,12 +444,11 @@ static int cmd_l2cap_register(const struct shell *sh, size_t argc, char *argv[])
 		return -ENOEXEC;
 	}
 
-	app_l2cap_server = appl_br_l2cap_server_alloc(psm);
-	if (!app_l2cap_server) {
+	l2cap_server = appl_br_l2cap_server_alloc(psm);
+	if (!l2cap_server) {
 		bt_shell_error("No channels application br chan");
 		return -ENOMEM;
 	}
-	l2cap_server = &app_l2cap_server->l2cap_server;
 	l2cap_server->server.psm = strtoul(argv[1], NULL, 16);
 
 #if defined(CONFIG_BT_L2CAP_RET_FC)
@@ -550,6 +506,36 @@ static int cmd_l2cap_register(const struct shell *sh, size_t argc, char *argv[])
 	return 0;
 }
 
+static int cmd_change_mtu(const struct shell *sh, size_t argc, char *argv[])
+{
+	uint16_t mtu = strtoul(argv[1], NULL, 16);
+
+	if (mtu < 48 || mtu > 65535) {
+		shell_error(sh, "mtu must be in range 48-65535");
+		return -EINVAL;
+	}
+	data_bredr_mtu = mtu;
+	return 0;
+}
+
+static int cmd_search_mtu(const struct shell *sh, size_t argc, char *argv[])
+{
+	uint8_t id = strtoul(argv[1], NULL, 16);
+	char *role = argv[2];
+
+	if (br_l2cap[id].active == true) {
+		if (!strcmp(role, "local")) {
+			shell_print(sh, "local mtu = %d", br_l2cap[id].chan.rx.mtu);
+		} else if (!strcmp(role, "peer")) {
+			shell_print(sh, "peer mtu = %d", br_l2cap[id].chan.tx.mtu);
+		} else {
+			shell_error(sh, "role must be local or peer");
+			return -EINVAL;
+		}
+	}
+	return 0;
+}
+
 static int cmd_modify_optional(const struct shell *sh, size_t argc, char *argv[])
 {
 	uint16_t psm = strtoul(argv[1], NULL, 16);
@@ -557,16 +543,16 @@ static int cmd_modify_optional(const struct shell *sh, size_t argc, char *argv[]
 	uint8_t index = 0;
 
 	for (index = 0; index < APPL_L2CAP_CONNECTION_MAX_COUNT; index++) {
-		if (br_l2cap_server[index].l2cap_server.server.psm == psm) {
+		if (br_l2cap_server[index].server.psm == psm) {
 			if (mode_optional) {
-				br_l2cap_server[index].l2cap_server.options |=
+				br_l2cap_server[index].options |=
 					BT_L2CAP_BR_SERVER_OPT_MODE_OPTIONAL;
 			} else {
-				br_l2cap_server[index].l2cap_server.options &=
+				br_l2cap_server[index].options &=
 					~(BT_L2CAP_BR_SERVER_OPT_MODE_OPTIONAL);
 			}
 			shell_print(sh, "psm %u mode_optional %u",
-				    br_l2cap_server[index].l2cap_server.server.psm, mode_optional);
+				    br_l2cap_server[index].server.psm, mode_optional);
 			return 0;
 		}
 	}
@@ -585,16 +571,15 @@ static int cmd_modify_appl_status(const struct shell *sh, size_t argc, char *arg
 	int err;
 	struct net_buf *buf;
 	for (index = 0; index < APPL_L2CAP_CONNECTION_MAX_COUNT; index++) {
-		if (br_l2cap[index].l2cap_chan.chan.psm == psm) {
+		if (br_l2cap[index].chan.psm == psm) {
 			if (status) {
-				br_l2cap[index].l2cap_chan.hold_credit = true;
+				br_l2cap[index].hold_credit = true;
 			} else {
-				br_l2cap[index].l2cap_chan.hold_credit = false;
-				buf = k_fifo_get(&br_l2cap[index].l2cap_chan.l2cap_recv_fifo,
-						 K_NO_WAIT);
+				br_l2cap[index].hold_credit = false;
+				buf = k_fifo_get(&br_l2cap[index].l2cap_recv_fifo, K_NO_WAIT);
 				if (buf != NULL) {
 					err = bt_l2cap_chan_recv_complete(
-						&br_l2cap[index].l2cap_chan.chan.chan, buf);
+						&br_l2cap[index].chan.chan, buf);
 					if (err < 0) {
 						shell_error(sh, "Unable to set recv_complete: %d",
 							    -err);
@@ -603,8 +588,7 @@ static int cmd_modify_appl_status(const struct shell *sh, size_t argc, char *arg
 					shell_warn(sh, "No pending recv buffer");
 				}
 			}
-			shell_print(sh, "psm %u appl status %u",
-				    br_l2cap[index].l2cap_chan.chan.psm, status);
+			shell_print(sh, "psm %u appl status %u", br_l2cap[index].chan.psm, status);
 			return 0;
 		}
 	}
@@ -623,16 +607,59 @@ static int cmd_modify_max_transmit(const struct shell *sh, size_t argc, char *ar
 	return 0;
 }
 
+static int cmd_search_conf_param_options(const struct shell *sh, size_t argc, char *argv[])
+{
+	uint16_t psm = strtoul(argv[1], NULL, 16);
+	char *role = argv[2];
+	uint8_t index = 0;
+	for (index = 0; index < APPL_L2CAP_CONNECTION_MAX_COUNT; index++) {
+		if (br_l2cap[index].chan.psm == psm) {
+			if (!strcmp(role, "local")) {
+				struct bt_l2cap_br_endpoint *l2cap_config =
+					&(br_l2cap[index].chan.rx);
+				shell_print(sh,
+					    "local "
+					    "max_transmit=%u,ret_timeout=%u,monitor_timeout=%u,max_"
+					    "window=%u,mps=%u",
+					    l2cap_config->max_transmit, l2cap_config->ret_timeout,
+					    l2cap_config->monitor_timeout, l2cap_config->max_window,
+					    l2cap_config->mps);
+			} else if (!strcmp(role, "peer")) {
+				struct bt_l2cap_br_endpoint *l2cap_config =
+					&(br_l2cap[index].chan.tx);
+				shell_print(sh,
+					    "peer "
+					    "max_transmit=%u,ret_timeout=%u,monitor_timeout=%u,max_"
+					    "window=%u,mps=%u",
+					    l2cap_config->max_transmit, l2cap_config->ret_timeout,
+					    l2cap_config->monitor_timeout, l2cap_config->max_window,
+					    l2cap_config->mps);
+			}
+			return 0;
+		}
+	}
+	if (index >= APPL_L2CAP_CONNECTION_MAX_COUNT) {
+		shell_print(sh, "psm %u is not connect", psm);
+		return SHELL_CMD_HELP_PRINTED;
+	}
+	return 0;
+}
+
 SHELL_STATIC_SUBCMD_SET_CREATE(
 	l2cap_br_cmds,
 	SHELL_CMD_ARG(register, NULL, "<psm> <mode> [option]", cmd_l2cap_register, 2, 5),
 	SHELL_CMD_ARG(connect, NULL, "<psm> <mode> [option]", cmd_connect, 2, 3),
 	SHELL_CMD_ARG(disconnect, NULL, "[id]", cmd_l2cap_disconnect, 2, 0),
 	SHELL_CMD_ARG(send, NULL, "[id] [length of data] [data] ", cmd_l2cap_send, 4, 0),
+	SHELL_CMD_ARG(change_mtu, NULL, "[mtu]", cmd_change_mtu, 2, 0),
+	SHELL_CMD_ARG(search_mtu, NULL, "[id] [local/peer]", cmd_search_mtu, 3, 0),
 	SHELL_CMD_ARG(modify_mop, NULL, "[psm] [mode_option(0/1)]", cmd_modify_optional, 3, 0),
 	SHELL_CMD_ARG(modify_appl_status, NULL, "[psm] [status(0/1)]", cmd_modify_appl_status, 3,
 		      0),
-	SHELL_CMD_ARG(modify_max_transmit, NULL, "[modify_max_transmit]", cmd_modify_max_transmit, 2, 0),
+	SHELL_CMD_ARG(modify_max_transmit, NULL, "[modify_max_transmit]", cmd_modify_max_transmit,
+		      2, 0),
+	SHELL_CMD_ARG(search_conf_param_options, NULL, "[psm] [local/peer]",
+		      cmd_search_conf_param_options, 3, 0),
 	SHELL_SUBCMD_SET_END);
 
 static int cmd_default_handler(const struct shell *sh, size_t argc, char **argv)
