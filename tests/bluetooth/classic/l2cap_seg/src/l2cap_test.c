@@ -71,7 +71,7 @@ static int l2cap_recv(struct bt_l2cap_chan *chan, struct net_buf *buf)
 	bt_shell_print("Incoming data channel %d len %u", ARRAY_INDEX(br_l2cap, br_chan), buf->len);
 
 	if (buf->len) {
-		printk("Incoming data :%.*s\r\n", buf->len, buf->data);
+		bt_shell_print("Incoming data :%.*s\r\n", buf->len, buf->data);
 	}
 
 #if defined(CONFIG_BT_L2CAP_RET_FC)
@@ -171,7 +171,7 @@ static const struct bt_l2cap_chan_ops l2cap_ops = {
 #endif
 };
 
-static struct l2cap_br_chan *appl_br_l2cap()
+static struct l2cap_br_chan *appl_br_l2cap(void)
 {
 	for (uint8_t index = 0; index < APPL_L2CAP_CONNECTION_MAX_COUNT; index++) {
 		if (br_l2cap[index].active == false) {
@@ -347,7 +347,6 @@ static int cmd_connect(const struct shell *sh, size_t argc, char *argv[])
 	}
 
 	if (l2cap_chan->hold_credit && (l2cap_chan->chan.rx.mode == BT_L2CAP_BR_LINK_MODE_BASIC)) {
-
 		l2cap_chan->active = false;
 		shell_error(sh, "[hold_credit] cannot support basic mode");
 		return -ENOEXEC;
@@ -359,7 +358,6 @@ static int cmd_connect(const struct shell *sh, size_t argc, char *argv[])
 	err = bt_l2cap_chan_connect(default_conn, &l2cap_chan->chan.chan, psm);
 	if (err < 0) {
 		shell_error(sh, "Unable to connect to psm %u (err %d)", psm, err);
-
 		l2cap_chan->active = false;
 	} else {
 		shell_print(sh, "L2CAP connection pending");
@@ -391,11 +389,9 @@ static int cmd_l2cap_send(const struct shell *sh, size_t argc, char *argv[])
 	int err, data_len = 0;
 	uint8_t id;
 	struct net_buf *buf;
-	uint16_t send_len;
 
 	id = strtoul(argv[1], NULL, 16);
 	data_len = strtoul(argv[3], NULL, 16);
-	send_len = MIN(data_len, data_bredr_mtu);
 
 	shell_print(sh, "send data len = %d", data_len);
 
@@ -410,7 +406,7 @@ static int cmd_l2cap_send(const struct shell *sh, size_t argc, char *argv[])
 			return -EAGAIN;
 		}
 		net_buf_reserve(buf, BT_L2CAP_CHAN_SEND_RESERVE);
-		net_buf_add_mem(buf, argv[2], send_len);
+		net_buf_add_mem(buf, argv[2], data_len);
 		err = bt_l2cap_chan_send(&br_l2cap[id].chan.chan, buf);
 		if (err < 0) {
 			shell_error(sh, "Unable to send: %d", -err);

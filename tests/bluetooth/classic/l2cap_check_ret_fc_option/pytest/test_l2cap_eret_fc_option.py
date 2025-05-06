@@ -4,32 +4,38 @@ from conftest import (
     L2CAP_SERVER_PSM_ERET,
     logger,
 )
-MODE="eret"
+
+MODE = "eret"
+
 
 def test_l2cap_eret_mode_TC05(client, server):
-    """ Now in the stack, TxWindow size picks the minimum value and notifies the other side. so max_window is always 5.
-        The spec states that this value is not negotiated in eret mode and is determined individually in eret mode.
-    """
     L2CAP_CHAN_IUT_ID_ERET = 0
 
     time.sleep(1)
     logger.info(f'acl connect {server.addr}')
-    client.iexpect(f'br connect {server.addr}', f'Connected')
-    time.sleep(.5)
+    client.iexpect(f'br connect {server.addr}', 'Connected', timeout=10)
+    time.sleep(0.5)
 
-    logger.info(f'set server  max_transmit = 7, set client max_transmit = 8')
-    client.iexpect(f'l2cap_br modify_max_transmit 8', f"MaxTransmit is 8", wait = False)
-    server.iexpect(f'l2cap_br modify_max_transmit 7', f"MaxTransmit is 7", wait = False)
+    logger.info('set server  max_transmit = 7, set client max_transmit = 8')
+    client.iexpect('l2cap_br modify_max_transmit 8', "MaxTransmit is 8", wait=False)
+    server.iexpect('l2cap_br modify_max_transmit 7', "MaxTransmit is 7", wait=False)
 
-    logger.info(f'client create l2cap. psm = {L2CAP_SERVER_PSM_ERET}, mode = eret, mode_option = false')
-    client.iexpect(f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} eret', f'It is enhance retransmission mode')
+    logger.info(
+        f'client create l2cap. psm = {L2CAP_SERVER_PSM_ERET}, mode = eret, mode_option = false'
+    )
+    client.iexpect(
+        f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} eret',
+        'It is enhance retransmission mode',
+    )
 
-    logger.info(f'Check server configuration in server side')
-    lines = server.exec_command(f'l2cap_br search_conf_param_options {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} local')
+    logger.info('Check server configuration in server side')
+    lines = server.exec_command(
+        f'l2cap_br search_conf_param_options {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} local'
+    )
     logger.info(f"{lines}")
     for line in lines:
         if "local" in line and "max_transmit" in line:
-            param_list =  line.split(' ')[1].split(',')
+            param_list = line.split(' ')[1].split(',')
             for param in param_list:
                 param_list = param.split('=')
                 assert len(param_list) == 2
@@ -37,9 +43,7 @@ def test_l2cap_eret_mode_TC05(client, server):
                 value = int(param_list[1])
                 if name == 'max_transmit':
                     assert value == 7
-                elif name == 'ret_timeout':
-                    assert value == 2000
-                elif name == 'monitor_timeout':
+                elif name == 'ret_timeout' or name == 'monitor_timeout':
                     assert value == 2000
                 elif name == "max_window":
                     assert value == 5
@@ -47,12 +51,14 @@ def test_l2cap_eret_mode_TC05(client, server):
                     assert value == 48
             break
 
-    logger.info(f'Check client configuration in server side')
-    lines = server.exec_command(f'l2cap_br search_conf_param_options {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} peer')
+    logger.info('Check client configuration in server side')
+    lines = server.exec_command(
+        f'l2cap_br search_conf_param_options {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} peer'
+    )
     logger.info(f"{lines}")
     for line in lines:
         if "peer" in line and "max_transmit" in line:
-            param_list =  line.split(' ')[1].split(',')
+            param_list = line.split(' ')[1].split(',')
             for param in param_list:
                 param_list = param.split('=')
                 assert len(param_list) == 2
@@ -60,22 +66,22 @@ def test_l2cap_eret_mode_TC05(client, server):
                 value = int(param_list[1])
                 if name == 'max_transmit':
                     assert value == 8
-                elif name == 'ret_timeout':
-                    assert value == 1000
-                elif name == 'monitor_timeout':
+                elif name == 'ret_timeout' or name == 'monitor_timeout':
                     assert value == 1000
                 elif name == "max_window":
                     assert value == 5
                 elif name == 'mps':
                     assert value == 48
             break
-                
-    logger.info(f'Check client configuration in client side')
-    lines = client.exec_command(f'l2cap_br search_conf_param_options {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} local')
+
+    logger.info('Check client configuration in client side')
+    lines = client.exec_command(
+        f'l2cap_br search_conf_param_options {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} local'
+    )
     logger.info(f"{lines}")
     for line in lines:
         if "local" in line and "max_transmit" in line:
-            param_list =  line.split(' ')[1].split(',')
+            param_list = line.split(' ')[1].split(',')
             for param in param_list:
                 param_list = param.split('=')
                 assert len(param_list) == 2
@@ -83,9 +89,7 @@ def test_l2cap_eret_mode_TC05(client, server):
                 value = int(param_list[1])
                 if name == 'max_transmit':
                     assert value == 8
-                elif name == 'ret_timeout':
-                    assert value == 1000
-                elif name == 'monitor_timeout':
+                elif name == 'ret_timeout' or name == 'monitor_timeout':
                     assert value == 1000
                 elif name == "max_window":
                     assert value == 5
@@ -93,12 +97,14 @@ def test_l2cap_eret_mode_TC05(client, server):
                     assert value == 48
             break
 
-    logger.info(f'Check server configuration in client side')
-    lines = client.exec_command(f'l2cap_br search_conf_param_options {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} peer')
+    logger.info('Check server configuration in client side')
+    lines = client.exec_command(
+        f'l2cap_br search_conf_param_options {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} peer'
+    )
     logger.info(f"{lines}")
     for line in lines:
         if "peer" in line and "max_transmit" in line:
-            param_list =  line.split(' ')[1].split(',')
+            param_list = line.split(' ')[1].split(',')
             for param in param_list:
                 param_list = param.split('=')
                 assert len(param_list) == 2
@@ -106,9 +112,7 @@ def test_l2cap_eret_mode_TC05(client, server):
                 value = int(param_list[1])
                 if name == 'max_transmit':
                     assert value == 7
-                elif name == 'ret_timeout':
-                    assert value == 2000
-                elif name == 'monitor_timeout':
+                elif name == 'ret_timeout' or name == 'monitor_timeout':
                     assert value == 2000
                 elif name == "max_window":
                     assert value == 5
@@ -116,6 +120,9 @@ def test_l2cap_eret_mode_TC05(client, server):
                     assert value == 48
             break
 
-    client.iexpect(f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID_ERET}', f'Channel {L2CAP_CHAN_IUT_ID_ERET} disconnected')
+    client.iexpect(
+        f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID_ERET}',
+        f'Channel {L2CAP_CHAN_IUT_ID_ERET} disconnected',
+    )
 
     client.iexpect('bt disconnect', r'Disconnected')

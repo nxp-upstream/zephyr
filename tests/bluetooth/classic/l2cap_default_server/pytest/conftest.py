@@ -3,39 +3,37 @@
 import copy
 import logging
 import os
-from pathlib import Path
 import re
 import subprocess
 import sys
-from typing import Type
 import time
+from pathlib import Path
 
 import pytest
-
-from twister_harness import Shell, DeviceAdapter
+from twister_harness import DeviceAdapter, Shell
 from twister_harness.device.factory import DeviceFactory
-
 from twister_harness.helpers.utils import find_in_config
 from twister_harness.twister_harness_config import DeviceConfig
+from twister_harness.helpers.domains_helper import ZEPHYR_BASE
 
+sys.path.insert(0, os.path.join(ZEPHYR_BASE, 'scripts'))  # import zephyr_module in environment.py
+sys.path.insert(0, os.path.join(ZEPHYR_BASE, 'scripts', 'pylib', 'twister'))
 logger = logging.getLogger(__name__)
 
-from twister_harness.helpers.domains_helper import ZEPHYR_BASE
-sys.path.insert(0, os.path.join(ZEPHYR_BASE, 'scripts')) # import zephyr_module in environment.py
-sys.path.insert(0, os.path.join(ZEPHYR_BASE, 'scripts', 'pylib', 'twister'))
-from twisterlib.hardwaremap import HardwareMap
 
-L2CAP_SERVER_PSM_BASIC=0x1001
-L2CAP_SERVER_PSM_RET=0x1003
-L2CAP_SERVER_PSM_FC=0x1005
-L2CAP_SERVER_PSM_ERET=0x1007
-L2CAP_SERVER_PSM_STREAM=0x1009
+L2CAP_SERVER_PSM_BASIC = 0x1001
+L2CAP_SERVER_PSM_RET = 0x1003
+L2CAP_SERVER_PSM_FC = 0x1005
+L2CAP_SERVER_PSM_ERET = 0x1007
+L2CAP_SERVER_PSM_STREAM = 0x1009
 
 MODE_OPTION = "mode_optional"
+
 
 @pytest.fixture(scope='session')
 def harness_devices(request, twister_harness_config):
     """Return harness_device list object."""
+    from twisterlib.hardwaremap import HardwareMap
 
     class TwisterOptionsWrapper:
         """Wrapper class for Twister test configuration options."""
@@ -71,14 +69,12 @@ def harness_devices(request, twister_harness_config):
     harness_device_hwm.load(harness_device_yml)
     logger.info(f'harness_device_hwm[0]:{harness_device_hwm.duts[0]}')
 
-
     # reuse most dut config for harness_device, only build and flash different app into them
     dut_device_config: DeviceConfig = twister_harness_config.devices[0]
     logger.info(f'dut_device_config:{dut_device_config}')
 
     harness_devices = []
     for index, harness_hw in enumerate(harness_device_hwm.duts):
-
         if index < len(harness_app_list):
             harness_app = harness_app_list[index]
             # split harness_app into appname, extra_config
@@ -89,8 +85,11 @@ def harness_devices(request, twister_harness_config):
             # build harness_app image for harness device
             platform_in_dir = harness_hw.platform.replace('@', '_').replace('/', '_')
             build_dir = f'./harness_{platform_in_dir}_{os.path.basename(appname)}'
-            cmd = ['west', 'build', appname, '-b', harness_hw.platform] + \
-                ['--build-dir', build_dir] + extra_config
+            cmd = (
+                ['west', 'build', appname, '-b', harness_hw.platform]
+                + ['--build-dir', build_dir]
+                + extra_config
+            )
             logger.info(' '.join(cmd))
             logger.info(os.getcwd())
             subprocess.call(' '.join(cmd), shell=True)
@@ -105,7 +104,7 @@ def harness_devices(request, twister_harness_config):
         logger.info(f'harness_device_config:{harness_device_config}')
 
         # init harness device as DuT
-        device_class: Type[DeviceAdapter] = DeviceFactory.get_device(harness_device_config.type)
+        device_class: type[DeviceAdapter] = DeviceFactory.get_device(harness_device_config.type)
         device_object = device_class(harness_device_config)
         device_object.initialize_log_files(request.node.name)
         harness_devices.append(device_object)
@@ -119,7 +118,7 @@ def harness_devices(request, twister_harness_config):
             device_object.close()
 
 
-class BaseBoard(object):
+class BaseBoard:
     """Base class for board-level test functionality."""
 
     def __init__(self, shell, dut):
@@ -136,8 +135,8 @@ class BaseBoard(object):
         if 'timeout' not in kwargs:
             kwargs['timeout'] = 3
         return self.dut.readlines_until(*args, **kwargs)
-    
-    def _wait_for_shell_response(self, response, timeout=5):
+
+    def _wait_for_shell_response(self, response, timeout=3):
         found = False
         lines = []
         try:
@@ -155,18 +154,17 @@ class BaseBoard(object):
             raise e
         assert found is not False
         return found, lines
-    
-    def iexpect(self, command, response, wait = True, timeout = 5):
+
+    def iexpect(self, command, response, wait=True, timeout=3):
         """send command and  return output matching an expected pattern."""
         lines = self.shell.exec_command(command)
-        if wait: 
-            found, lines =  self._wait_for_shell_response(response, timeout = timeout)
+        if wait:
+            found, lines = self._wait_for_shell_response(response, timeout=timeout)
         else:
             found = [re.search(response, line) for line in lines]
         assert found is not False
         return found, lines
-        
-        
+
 
 class BluetoothBoard(BaseBoard):
     """Board implementation with Bluetooth Classic functionality."""
@@ -196,7 +194,7 @@ class BluetoothBoard(BaseBoard):
             match = re.search(pattern, line)
             if match:
                 mac_address = match.group(1)  # address
-                addr_type = match.group(3)    # addr type (public/random)
+                addr_type = match.group(3)  # addr type (public/random)
                 logging.info(f"MAC Address: {mac_address}")
                 logging.info(f"Address Type: {addr_type}")
                 logging.info(f"addr:{mac_address}, type:{addr_type}")
@@ -206,6 +204,7 @@ class BluetoothBoard(BaseBoard):
     def clear(self):
         """Clear the board console's output."""
         return self.exec_command('clear\n')
+
 
 # @pytest.fixture(autouse=True, scope='session')
 # def testsetup(request, testenv: Testestenv):
@@ -245,20 +244,34 @@ def server(shell: Shell, dut: DeviceAdapter):
     board = BluetoothBoard(shell, dut)
     board.get_address()
     lines = board.exec_command("br pscan on")
-    assert any([re.search(".*connectable done.*", line) for line in lines]), 'fail to set connectable'
+    assert any([re.search(".*connectable done.*", line) for line in lines]), (
+        'fail to set connectable'
+    )
     # time.sleep(.5)
     lines = board.exec_command("br iscan on")
-    assert any([re.search(".*discoverable done.*", line) for line in lines]), 'fail to set discoverable'
+    assert any([re.search(".*discoverable done.*", line) for line in lines]), (
+        'fail to set discoverable'
+    )
     lines = board.exec_command(f"l2cap_br register {str(hex(L2CAP_SERVER_PSM_BASIC))[2:]} basic")
-    assert any([re.search(r"L2CAP psm[\s\S]*registered.*", line) for line in lines]), f'fail to register psm {L2CAP_SERVER_PSM_BASIC}'
+    assert any([re.search(r"L2CAP psm[\s\S]*registered.*", line) for line in lines]), (
+        f'fail to register psm {L2CAP_SERVER_PSM_BASIC}'
+    )
     board.exec_command(f"l2cap_br register {str(hex(L2CAP_SERVER_PSM_RET))[2:]} ret")
-    assert any([re.search(r"L2CAP psm[\s\S]*registered.*", line) for line in lines]), f'fail to register psm {L2CAP_SERVER_PSM_RET}'
+    assert any([re.search(r"L2CAP psm[\s\S]*registered.*", line) for line in lines]), (
+        f'fail to register psm {L2CAP_SERVER_PSM_RET}'
+    )
     board.exec_command(f"l2cap_br register {str(hex(L2CAP_SERVER_PSM_FC))[2:]} fc")
-    assert any([re.search(r"L2CAP psm[\s\S]*registered.*", line) for line in lines]), f'fail to register psm {L2CAP_SERVER_PSM_FC}'
+    assert any([re.search(r"L2CAP psm[\s\S]*registered.*", line) for line in lines]), (
+        f'fail to register psm {L2CAP_SERVER_PSM_FC}'
+    )
     board.exec_command(f"l2cap_br register {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} eret")
-    assert any([re.search(r"L2CAP psm[\s\S]*registered.*", line) for line in lines]), f'fail to register psm {L2CAP_SERVER_PSM_ERET}'
+    assert any([re.search(r"L2CAP psm[\s\S]*registered.*", line) for line in lines]), (
+        f'fail to register psm {L2CAP_SERVER_PSM_ERET}'
+    )
     board.exec_command(f"l2cap_br register {str(hex(L2CAP_SERVER_PSM_STREAM))[2:]} stream")
-    assert any([re.search(r"L2CAP psm[\s\S]*registered.*", line) for line in lines]), f'fail to register psm {L2CAP_SERVER_PSM_STREAM}'
+    assert any([re.search(r"L2CAP psm[\s\S]*registered.*", line) for line in lines]), (
+        f'fail to register psm {L2CAP_SERVER_PSM_STREAM}'
+    )
     yield board
 
 
@@ -273,10 +286,11 @@ def init_shell(harness_device: DeviceAdapter):
         pytest.fail('Prompt not found')
     return shell
 
+
 @pytest.fixture(scope='session')
 def client(harness_devices):
     """Fixture for Bluetooth server setup."""
-    harness_device =  harness_devices[0]
+    harness_device = harness_devices[0]
     shell = init_shell(harness_device)
     board = BluetoothBoard(shell, harness_device)
     board.exec_command("bt init")

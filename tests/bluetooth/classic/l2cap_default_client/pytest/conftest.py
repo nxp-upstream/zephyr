@@ -3,18 +3,15 @@
 import copy
 import logging
 import os
-from pathlib import Path
 import re
 import subprocess
 import sys
-from typing import Type
 import time
+from pathlib import Path
 
 import pytest
-
-from twister_harness import Shell, DeviceAdapter
+from twister_harness import DeviceAdapter, Shell
 from twister_harness.device.factory import DeviceFactory
-
 from twister_harness.helpers.utils import find_in_config
 from twister_harness.twister_harness_config import DeviceConfig
 from twister_harness.helpers.domains_helper import ZEPHYR_BASE
@@ -22,6 +19,7 @@ from twister_harness.helpers.domains_helper import ZEPHYR_BASE
 sys.path.insert(0, os.path.join(ZEPHYR_BASE, 'scripts'))  # import zephyr_module in environment.py
 sys.path.insert(0, os.path.join(ZEPHYR_BASE, 'scripts', 'pylib', 'twister'))
 logger = logging.getLogger(__name__)
+
 
 L2CAP_SERVER_PSM_BASIC = 0x1001
 L2CAP_SERVER_PSM_RET = 0x1003
@@ -36,7 +34,6 @@ MODE_OPTION = "mode_optional"
 def harness_devices(request, twister_harness_config):
     """Return harness_device list object."""
     from twisterlib.hardwaremap import HardwareMap
-
     class TwisterOptionsWrapper:
         """Wrapper class for Twister test configuration options."""
 
@@ -106,7 +103,7 @@ def harness_devices(request, twister_harness_config):
         logger.info(f'harness_device_config:{harness_device_config}')
 
         # init harness device as DuT
-        device_class: Type[DeviceAdapter] = DeviceFactory.get_device(harness_device_config.type)
+        device_class: type[DeviceAdapter] = DeviceFactory.get_device(harness_device_config.type)
         device_object = device_class(harness_device_config)
         device_object.initialize_log_files(request.node.name)
         harness_devices.append(device_object)
@@ -120,7 +117,7 @@ def harness_devices(request, twister_harness_config):
             device_object.close()
 
 
-class BaseBoard(object):
+class BaseBoard:
     """Base class for board-level test functionality."""
 
     def __init__(self, shell, dut):
@@ -150,10 +147,10 @@ class BaseBoard(object):
                         break
                 lines = lines + read_lines
                 time.sleep(1)
+            logger.info(f'{str(lines)}')
         except Exception as e:
             logger.error(f'{e}!', exc_info=True)
             raise e
-        logger.info(f'{lines}')
         assert found is not False
         return found, lines
 
@@ -164,7 +161,6 @@ class BaseBoard(object):
             found, lines = self._wait_for_shell_response(response, timeout=timeout)
         else:
             found = [re.search(response, line) for line in lines]
-        logger.info(f'{str(lines)}')
         assert found is not False
         return found, lines
 
