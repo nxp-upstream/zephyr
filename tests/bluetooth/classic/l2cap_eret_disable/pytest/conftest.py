@@ -153,7 +153,6 @@ class BaseBoard(object):
         except Exception as e:
             logger.error(f'{e}!', exc_info=True)
             raise e
-        logger.info(f'{lines}')
         assert found is not False
         return found, lines
 

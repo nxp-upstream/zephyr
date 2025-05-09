@@ -12,7 +12,7 @@ from conftest import (
 
 MODE = "ret"
 
-
+# stack do not support eret. disable CONFIG_BT_L2CAP_ENH_RET in  prj.conf
 def test_l2cap_ret_mode_client_TC01(client, server):
     L2CAP_CHAN_IUT_ID = 0
     time.sleep(1)
@@ -21,7 +21,7 @@ def test_l2cap_ret_mode_client_TC01(client, server):
     client.iexpect(f'br connect {server.addr}', f'Connected', timeout=10)
 
     logger.info(
-        f'client create l2cap connection, mode = {MODE}, mode_option = false'
+        f'client create l2cap. psm = {L2CAP_SERVER_PSM_RET}, mode = {MODE}, mode_option = false'
     )
 
     logger.info(f'server register , psm = {L2CAP_SERVER_PSM_BASIC},mode=basic, mode_option = false')
@@ -54,7 +54,7 @@ def test_l2cap_ret_mode_client_TC01(client, server):
     )
     client.iexpect(
         f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_RET))[2:]} {MODE}',
-        f'It is enhance retransmission mode',
+        f'It is retransmission mode',
     )
     client.iexpect(
         f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID}', f'Channel {L2CAP_CHAN_IUT_ID} disconnected'
@@ -68,7 +68,7 @@ def test_l2cap_ret_mode_client_TC01(client, server):
     )
     client.iexpect(
         f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_RET))[2:]} {MODE}',
-        f'It is enhance retransmission mode',
+        f'It is retransmission mode',
     )
     client.iexpect(
         f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID}', f'Channel {L2CAP_CHAN_IUT_ID} disconnected'
@@ -82,7 +82,7 @@ def test_l2cap_ret_mode_client_TC01(client, server):
     )
     client.iexpect(
         f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_FC))[2:]} {MODE}',
-        f'It is enhance retransmission mode',
+        f'It is retransmission mode',
     )
     client.iexpect(
         f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID}', f'Channel {L2CAP_CHAN_IUT_ID} disconnected'
@@ -96,35 +96,7 @@ def test_l2cap_ret_mode_client_TC01(client, server):
     )
     client.iexpect(
         f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_FC))[2:]} {MODE}',
-        f'It is enhance retransmission mode',
-    )
-    client.iexpect(
-        f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID}', f'Channel {L2CAP_CHAN_IUT_ID} disconnected'
-    )
-
-    logger.info(f'server register , psm = {L2CAP_SERVER_PSM_ERET},mode=eret, mode_option = false')
-    server.iexpect(
-        f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} 0',
-        f'psm {str(int(L2CAP_SERVER_PSM_ERET))} mode_optional 0',
-        wait=False,
-    )
-    client.iexpect(
-        f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} {MODE}',
-        f'It is enhance retransmission mode',
-    )
-    client.iexpect(
-        f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID}', f'Channel {L2CAP_CHAN_IUT_ID} disconnected'
-    )
-
-    logger.info(f'server register , psm = {L2CAP_SERVER_PSM_ERET},mode=eret, mode_option = true')
-    server.iexpect(
-        f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} 1',
-        f'psm {str(int(L2CAP_SERVER_PSM_ERET))} mode_optional 1',
-        wait=False,
-    )
-    client.iexpect(
-        f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} {MODE}',
-        f'It is enhance retransmission mode',
+        f'It is retransmission mode',
     )
     client.iexpect(
         f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID}', f'Channel {L2CAP_CHAN_IUT_ID} disconnected'
@@ -153,14 +125,13 @@ def test_l2cap_ret_mode_client_TC01(client, server):
     )
     client.iexpect(
         f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_STREAM))[2:]} {MODE}',
-        f'It is enhance retransmission mode',
+        f'It is retransmission mode',
     )
     client.iexpect(
         f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID}', f'Channel {L2CAP_CHAN_IUT_ID} disconnected'
     )
 
     client.iexpect('bt disconnect', r'Disconnected')
-
 
 def test_l2cap_ret_mode_client_TC02(client, server):
     L2CAP_CHAN_IUT_ID = 0
@@ -170,16 +141,15 @@ def test_l2cap_ret_mode_client_TC02(client, server):
     client.iexpect(f'br connect {server.addr}', f'Connected', timeout=10)
 
     logger.info(
-        f'client create l2cap connection, mode = {MODE}, mode_option = true'
+        f'client create l2cap. psm = {L2CAP_SERVER_PSM_RET}, mode = {MODE}, mode_option = true'
     )
 
-    logger.info(f'server register,psm = {L2CAP_SERVER_PSM_BASIC},mode=basic, mode_option = false')
+    logger.info(f'server register , psm = {L2CAP_SERVER_PSM_BASIC},mode=basic, mode_option = false')
     server.iexpect(
         f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_BASIC))[2:]} 0',
         f'psm {str(int(L2CAP_SERVER_PSM_BASIC))} mode_optional 0',
         wait=False,
     )
-
     client.iexpect(
         f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_BASIC))[2:]} {MODE} {MODE_OPTION}',
         f'It is basic mode',
@@ -210,7 +180,7 @@ def test_l2cap_ret_mode_client_TC02(client, server):
     )
     client.iexpect(
         f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_RET))[2:]} {MODE} {MODE_OPTION}',
-        f'It is enhance retransmission mode',
+        f'It is retransmission mode',
     )
     client.iexpect(
         f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID}', f'Channel {L2CAP_CHAN_IUT_ID} disconnected'
@@ -224,7 +194,7 @@ def test_l2cap_ret_mode_client_TC02(client, server):
     )
     client.iexpect(
         f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_RET))[2:]} {MODE} {MODE_OPTION}',
-        f'It is enhance retransmission mode',
+        f'It is retransmission mode',
     )
     client.iexpect(
         f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID}', f'Channel {L2CAP_CHAN_IUT_ID} disconnected'
@@ -238,7 +208,7 @@ def test_l2cap_ret_mode_client_TC02(client, server):
     )
     client.iexpect(
         f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_FC))[2:]} {MODE} {MODE_OPTION}',
-        f'It is enhance retransmission mode',
+        f'It is retransmission mode',
     )
     client.iexpect(
         f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID}', f'Channel {L2CAP_CHAN_IUT_ID} disconnected'
@@ -252,35 +222,7 @@ def test_l2cap_ret_mode_client_TC02(client, server):
     )
     client.iexpect(
         f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_FC))[2:]} {MODE} {MODE_OPTION}',
-        f'It is enhance retransmission mode',
-    )
-    client.iexpect(
-        f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID}', f'Channel {L2CAP_CHAN_IUT_ID} disconnected'
-    )
-
-    logger.info(f'server register , psm = {L2CAP_SERVER_PSM_ERET},mode=eret, mode_option = false')
-    server.iexpect(
-        f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} 0',
-        f'psm {str(int(L2CAP_SERVER_PSM_ERET))} mode_optional 0',
-        wait=False,
-    )
-    client.iexpect(
-        f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} {MODE} {MODE_OPTION}',
-        f'It is enhance retransmission mode',
-    )
-    client.iexpect(
-        f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID}', f'Channel {L2CAP_CHAN_IUT_ID} disconnected'
-    )
-
-    logger.info(f'server register , psm = {L2CAP_SERVER_PSM_ERET},mode=eret, mode_option = true')
-    server.iexpect(
-        f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} 1',
-        f'psm {str(int(L2CAP_SERVER_PSM_ERET))} mode_optional 1',
-        wait=False,
-    )
-    client.iexpect(
-        f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} {MODE} {MODE_OPTION}',
-        f'It is enhance retransmission mode',
+        f'It is retransmission mode',
     )
     client.iexpect(
         f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID}', f'Channel {L2CAP_CHAN_IUT_ID} disconnected'
@@ -312,7 +254,7 @@ def test_l2cap_ret_mode_client_TC02(client, server):
     )
     client.iexpect(
         f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_STREAM))[2:]} {MODE} {MODE_OPTION}',
-        f'It is enhance retransmission mode',
+        f'It is retransmission mode',
     )
     client.iexpect(
         f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID}', f'Channel {L2CAP_CHAN_IUT_ID} disconnected'
@@ -323,6 +265,7 @@ def test_l2cap_ret_mode_client_TC02(client, server):
 
 def test_l2cap_ret_mode_client_TC03(client, server):
     L2CAP_CHAN_IUT_ID = 0
+    max_transmit = 5
 
     time.sleep(1)
     logger.info(f'acl connect {server.addr}')
@@ -336,15 +279,96 @@ def test_l2cap_ret_mode_client_TC03(client, server):
         wait=False,
     )
 
+    logger.info(f'set max_transmit = {max_transmit}')
+    server.iexpect(
+        f'l2cap_br modify_max_transmit {max_transmit}', f"MaxTransmit is {max_transmit}", wait=False
+    )
+
     logger.info(
         f'client create l2cap. psm = {L2CAP_SERVER_PSM_RET}, mode = ret, mode_option = false'
     )
     client.iexpect(
-        f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_RET))[2:]} ret',
-        f'It is enhance retransmission mode',
+        f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_RET))[2:]} ret', f'It is retransmission mode'
     )
 
-    logger.info(f'set server and client appl status = idle')
+    logger.info(f'set client client status - idle, and server appl status = busy')
+    client.iexpect(
+        f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
+        f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 0",
+        wait=False,
+    )
+    server.iexpect(
+        f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 1',
+        f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 1",
+        wait=False,
+    )
+
+    logger.info(f'client send data1, server recv data1 and result is successful')
+    data1 = "client_send_data"
+    client.exec_command(
+        f'l2cap_br send {L2CAP_CHAN_IUT_ID} {data1}  {str(hex(len(data1)))[2:]}'
+    )
+    server._wait_for_shell_response(f"{data1}")
+
+    logger.info(f'client send data2, server recv data2 and result is fail')
+    data2 = "client_send_data2"
+    client.exec_command(
+        f'l2cap_br send {L2CAP_CHAN_IUT_ID} {data2}  {str(hex(len(data2)))[2:]}'
+    )
+
+    logger.info(f"check retransmission time")
+    _, lines = client._wait_for_shell_response(
+        f"Channel {L2CAP_CHAN_IUT_ID} disconnected", timeout=40
+    )
+    send_count = 1  # because "l2cap_br send" is the first time
+    for line in lines:
+        if "Retransmission I-frame" in line:
+            send_count += 1
+    logger.info(f"send_count : {send_count}")
+    assert send_count == max_transmit
+
+    _, lines = server._wait_for_shell_response(
+        f"Channel {L2CAP_CHAN_IUT_ID} disconnected", timeout=40
+    )
+    recv_count = 0
+    for line in lines:
+        if "allocate buffer for SDU" in line:
+            recv_count += 1
+    logger.info(f"recv_count : {recv_count}")
+    assert recv_count == max_transmit
+
+    time.sleep(0.5)
+    client.iexpect('bt disconnect', r'Disconnected')
+
+def test_l2cap_ret_mode_client_TC04(client, server):
+    L2CAP_CHAN_IUT_ID = 0
+    max_transmit = 7
+
+    time.sleep(1)
+    logger.info(f'acl connect {server.addr}')
+    client.iexpect(f'br connect {server.addr}', f'Connected', timeout=10)
+    time.sleep(0.5)
+
+    logger.info(f'server registered , psm = {L2CAP_SERVER_PSM_RET}, mode_option = false')
+    server.iexpect(
+        f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
+        f"psm {str(int(L2CAP_SERVER_PSM_RET))} mode_optional 0",
+        wait=False,
+    )
+
+    logger.info(f'set max_transmit = {max_transmit}')
+    server.iexpect(
+        f'l2cap_br modify_max_transmit {max_transmit}', f"MaxTransmit is {max_transmit}", wait=False
+    )
+
+    logger.info(
+        f'client create l2cap. psm = {L2CAP_SERVER_PSM_RET}, mode = ret, mode_option = false'
+    )
+    client.iexpect(
+        f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_RET))[2:]} ret', f'It is retransmission mode'
+    )
+
+    logger.info(f'set server appl status - idle, and client appl status = idle')
     server.iexpect(
         f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
         f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 0",
@@ -358,10 +382,12 @@ def test_l2cap_ret_mode_client_TC03(client, server):
 
     logger.info(f'client send data1, server recv data1 and result is successful')
     data1 = "client_send_data"
-    client.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID} {data1}  {str(hex(len(data1)))[2:]}')
+    client.exec_command(
+        f'l2cap_br send {L2CAP_CHAN_IUT_ID} {data1}  {str(hex(len(data1)))[2:]}'
+    )
     server._wait_for_shell_response(f"{data1}")
 
-    logger.info(f'set l2cap server busy status')
+    logger.info(f'set server appl status = busy')
     server.iexpect(
         f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 1',
         f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 1",
@@ -370,43 +396,51 @@ def test_l2cap_ret_mode_client_TC03(client, server):
 
     logger.info(f'client send data2, server recv data2 and result is successful')
     data2 = "client_send_data2"
-    client.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID} {data2}  {str(hex(len(data2)))[2:]}')
+    client.exec_command(
+        f'l2cap_br send {L2CAP_CHAN_IUT_ID} {data2}  {str(hex(len(data2)))[2:]}'
+    )
     server._wait_for_shell_response(f"{data2}")
 
     logger.info(f'client send data3, server recv data3 and result is fail')
     data3 = "client_send_data3"
-    client.iexpect(
-        f'l2cap_br send {L2CAP_CHAN_IUT_ID} {data3}  {str(hex(len(data3)))[2:]}',
-        f"RNR p=0 f=0 on chan",
+    client.exec_command(
+        f'l2cap_br send {L2CAP_CHAN_IUT_ID} {data3}  {str(hex(len(data3)))[2:]}'
     )
-    server._wait_for_shell_response(f"to allocate buffer for SDU")
 
-    logger.info(f'set l2cap server idle status')
+    logger.info(f'client re_send data3 automatically, server recv data3 and result is fail')
+    server._wait_for_shell_response(f"allocate buffer for SDU", timeout=10)
+    client._wait_for_shell_response(f"Retransmission I-frame", timeout=10)
+
+    logger.info(f'set server appl status = idle')
     server.iexpect(
         f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
         f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 0",
         wait=False,
     )
-    server._wait_for_shell_response(f"{data3}", timeout=5)
-    client._wait_for_shell_response(r'Retransmission I-frame', timeout=5)
+
+    logger.info(f'server can recv data3')
+    server._wait_for_shell_response(f"{data3}", timeout=10)
 
     logger.info(f'client send data4, server recv data4 and result is successful')
     data4 = "client_send_data4"
-    client.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID} {data4} {str(hex(len(data4)))[2:]}')
-    server._wait_for_shell_response(f"{data4}", timeout=5)
+    client.exec_command(
+        f'l2cap_br send {L2CAP_CHAN_IUT_ID} {data4}  {str(hex(len(data4)))[2:]}'
+    )
+    server._wait_for_shell_response(f"{data4}")
 
-    server.iexpect(
-        f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID}', f'Channel {L2CAP_CHAN_IUT_ID} disconnected'
+    client.iexpect(
+        f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID}',
+        f'Channel {L2CAP_CHAN_IUT_ID} disconnected',
     )
     client.iexpect('bt disconnect', r'Disconnected')
 
-
-def test_l2cap_ret_mode_client_TC04(client, server):
+def test_l2cap_ret_mode_client_TC05(client, server):
     L2CAP_CHAN_IUT_ID = 0
+    max_transmit = 7
 
     time.sleep(1)
     logger.info(f'acl connect {server.addr}')
-    client.iexpect(f'br connect {server.addr}', f'Connected', timeout=10)
+    client.iexpect(f'br connect {server.addr}', f'Connected',timeout=10)
     time.sleep(0.5)
 
     logger.info(f'server registered , psm = {L2CAP_SERVER_PSM_RET}, mode_option = false')
@@ -416,12 +450,16 @@ def test_l2cap_ret_mode_client_TC04(client, server):
         wait=False,
     )
 
+    logger.info(f'set max_transmit = {max_transmit}')
+    client.iexpect(
+        f'l2cap_br modify_max_transmit {max_transmit}', f"MaxTransmit is {max_transmit}", wait=False
+    )
+
     logger.info(
         f'client create l2cap. psm = {L2CAP_SERVER_PSM_RET}, mode = ret, mode_option = false'
     )
     client.iexpect(
-        f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_RET))[2:]} ret',
-        f'It is enhance retransmission mode',
+        f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_RET))[2:]} ret', f'It is retransmission mode'
     )
 
     logger.info(f'set server and client appl status = idle')
@@ -438,7 +476,9 @@ def test_l2cap_ret_mode_client_TC04(client, server):
 
     logger.info(f'server send data1, client recv data1 and result is successful')
     data1 = "client_recv_data"
-    server.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID} {data1}  {str(hex(len(data1)))[2:]}')
+    server.exec_command(
+        f'l2cap_br send {L2CAP_CHAN_IUT_ID} {data1}  {str(hex(len(data1)))[2:]}'
+    )
     client._wait_for_shell_response(f"{data1}")
 
     logger.info(f'set l2cap client busy status')
@@ -450,16 +490,19 @@ def test_l2cap_ret_mode_client_TC04(client, server):
 
     logger.info(f'server send data2, client recv data2 and result is successful')
     data2 = "client_recv_data2"
-    server.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID} {data2}  {str(hex(len(data2)))[2:]}')
+    server.exec_command(
+        f'l2cap_br send {L2CAP_CHAN_IUT_ID} {data2}  {str(hex(len(data2)))[2:]}'
+    )
     client._wait_for_shell_response(f"{data2}")
 
     logger.info(f'server send data3, client recv data3 and result is fail')
     data3 = "client_recv_data3"
     server.iexpect(
         f'l2cap_br send {L2CAP_CHAN_IUT_ID} {data3}  {str(hex(len(data3)))[2:]}',
-        f"RNR p=0 f=0 on chan",
+        f"Retransmission I-frame",
+        timeout=10,
     )
-    client._wait_for_shell_response(f"to allocate buffer for SDU")
+    client._wait_for_shell_response(f"to allocate buffer for SDU", timeout=10)
 
     logger.info(f'set l2cap client idle status')
     client.iexpect(
@@ -467,15 +510,15 @@ def test_l2cap_ret_mode_client_TC04(client, server):
         f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 0",
         wait=False,
     )
-    client._wait_for_shell_response(f"{data3}", timeout=5)
-    server._wait_for_shell_response(r'Retransmission I-frame', timeout=5)
+    client._wait_for_shell_response(f"{data3}")
 
     logger.info(f'server send data4, client recv data4 and result is successful')
     data4 = "client_recv_data4"
     server.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID} {data4} {str(hex(len(data4)))[2:]}')
-    client._wait_for_shell_response(f"{data4}", timeout=5)
+    client._wait_for_shell_response(f"{data4}")
 
-    server.iexpect(
-        f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID}', f'Channel {L2CAP_CHAN_IUT_ID} disconnected'
+    client.iexpect(
+        f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID}',
+        f'Channel {L2CAP_CHAN_IUT_ID} disconnected',
     )
     client.iexpect('bt disconnect', r'Disconnected')

@@ -149,7 +149,6 @@ class BaseBoard:
                         break
                 lines = lines + read_lines
                 time.sleep(1)
-            logger.info(f'{str(lines)}')
         except Exception as e:
             logger.error(f'{e}!', exc_info=True)
             raise e
@@ -164,6 +163,7 @@ class BaseBoard:
         else:
             logger.info(f'{lines}')
             found = [re.search(response, line) for line in lines]
+        logger.info(f'{str(lines)}')
         assert found is not False
         return found, lines
 

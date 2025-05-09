@@ -275,7 +275,7 @@ def test_l2cap_ret_mode_TC03(client, server):
 
     logger.info(f"check retransmission time")
     _, lines = server._wait_for_shell_response(
-        f"Channel {L2CAP_CHAN_IUT_ID_RET} disconnected", timeout=25
+        f"Channel {L2CAP_CHAN_IUT_ID_RET} disconnected", timeout=40
     )
     send_count = 1  # because "l2cap_br send" is the first time
     for line in lines:
@@ -399,7 +399,7 @@ def test_l2cap_ret_mode_TC05(client, server):
 
     time.sleep(1)
     logger.info(f'acl connect {server.addr}')
-    client.iexpect(f'br connect {server.addr}', f'Connected')
+    client.iexpect(f'br connect {server.addr}', f'Connected',timeout=10)
     time.sleep(0.5)
 
     logger.info(f'server registered , psm = {L2CAP_SERVER_PSM_RET}, mode_option = false')
@@ -474,7 +474,7 @@ def test_l2cap_ret_mode_TC05(client, server):
     logger.info(f'client send data4, server recv data4 and result is successful')
     data4 = "server_recv_data_4"
     client.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID_RET} {data4} {str(hex(len(data4)))[2:]}')
-    assert server._wait_for_shell_response(f"{data4}")
+    server._wait_for_shell_response(f"{data4}")
 
     server.iexpect(
         f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID_RET}',

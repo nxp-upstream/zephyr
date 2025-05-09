@@ -286,10 +286,10 @@ def test_l2cap_eret_mode_TC03(client, server):
     )
 
     logger.info(
-        f'client create l2cap. psm = {L2CAP_SERVER_PSM_ERET}, mode = ret, mode_option = false'
+        f'client create l2cap. psm = {L2CAP_SERVER_PSM_ERET}, mode = eret, mode_option = false'
     )
     client.iexpect(
-        f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} ret',
+        f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} eret',
         f'It is enhance retransmission mode',
     )
 
@@ -373,10 +373,10 @@ def test_l2cap_eret_mode_TC04(client, server):
     )
 
     logger.info(
-        f'client create l2cap. psm = {L2CAP_SERVER_PSM_ERET}, mode = ret, mode_option = false'
+        f'client create l2cap. psm = {L2CAP_SERVER_PSM_ERET}, mode = eret, mode_option = false'
     )
     client.iexpect(
-        f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} ret',
+        f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_ERET))[2:]} eret',
         f'It is enhance retransmission mode',
     )
 

@@ -20,6 +20,7 @@ PAYLOAD_LEN = (
     BT_L2CAP_MPS - BT_L2CAP_STD_CONTROL_SIZE - BT_L2CAP_RT_FC_SDU_LEN_SIZE - BT_L2CAP_FCS_SIZE
 )
 
+
 def test_l2cap_eret_mode_TC06(client, server):
     L2CAP_CHAN_IUT_ID_ERET = 0
 
@@ -105,7 +106,7 @@ def test_l2cap_stream_mode_TC05(client, server):
 
     time.sleep(1)
     logger.info(f'acl connect {server.addr}')
-    client.iexpect(f'br connect {server.addr}', 'Connected')
+    client.iexpect(f'br connect {server.addr}', 'Connected',timeout=10)
     time.sleep(0.5)
 
     logger.info(

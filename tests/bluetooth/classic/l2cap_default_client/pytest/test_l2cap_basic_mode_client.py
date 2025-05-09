@@ -10,6 +10,7 @@ from conftest import (
     logger,
 )
 
+
 def test_l2cap_basic_mode_client_TC01(client, server):
     L2CAP_CHAN_IUT_ID = 0
     time.sleep(1)
@@ -18,7 +19,7 @@ def test_l2cap_basic_mode_client_TC01(client, server):
     client.iexpect(f'br connect {server.addr}', f'Connected', timeout=10)
 
     logger.info(
-        f'client create l2cap. psm = {L2CAP_SERVER_PSM_BASIC}, mode = basic, mode_option = false'
+        f'client create l2cap connection, mode = basic, mode_option = false'
     )
 
     logger.info(f'server register , psm = {L2CAP_SERVER_PSM_BASIC},mode=basic, mode_option = false')
@@ -158,7 +159,7 @@ def test_l2cap_basic_mode_client_TC02(client, server):
     client.iexpect(f'br connect {server.addr}', f'Connected', timeout=10)
 
     logger.info(
-        f'client create l2cap. psm = {L2CAP_SERVER_PSM_BASIC}, mode = basic, mode_option = true'
+        f'client create l2cap connection, mode = basic, mode_option = true'
     )
 
     logger.info(f'server register , psm = {L2CAP_SERVER_PSM_BASIC},mode=basic, mode_option = false')
@@ -341,5 +342,5 @@ def test_l2cap_basic_mode_client_TC03(client, server):
             client._wait_for_shell_response("len 0", timeout=2)
         else:
             client._wait_for_shell_response("Incoming data :" + data[:length], timeout=2)
-            
+
     client.iexpect('bt disconnect', r'Disconnected')

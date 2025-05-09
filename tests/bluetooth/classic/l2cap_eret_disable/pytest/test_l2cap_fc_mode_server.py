@@ -335,7 +335,7 @@ def test_l2cap_fc_mode_TC04(client, server):
         wait=False,
     )
 
-    logger.info(f'server send data1 to server, client recv data1 success')
+    logger.info(f'server send data1 to client, client recv data1 success')
     data1 = "server_send_data"
     server.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID_FC} {data1}  {str(hex(len(data1)))[2:]}')
     client._wait_for_shell_response(f"{data1}")
@@ -347,17 +347,17 @@ def test_l2cap_fc_mode_TC04(client, server):
         wait=False,
     )
 
-    logger.info(f'server send data2 to server, client recv data2 success')
+    logger.info(f'server send data2 to client, client recv data2 success')
     data2 = "server_send_data2"
     server.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID_FC} {data2}  {str(hex(len(data2)))[2:]}')
     client._wait_for_shell_response(f"{data2}")
 
-    logger.info(f'server send data3 to server, client recv data3 fail')
+    logger.info(f'server send data3 to client, client recv data3 fail')
     data3 = "server_send_data3"
     server.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID_FC} {data3}  {str(hex(len(data3)))[2:]}')
     client._wait_for_shell_response(f"to allocate buffer for SDU")
 
-    logger.info(f'server send data4 to server, client recv data3 fail')
+    logger.info(f'server send data4 to client, client recv data4 fail')
     data4 = "server_send_data4"
     server.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID_FC} {data4}  {str(hex(len(data4)))[2:]}')
     client._wait_for_shell_response(f"to allocate buffer for SDU")

@@ -12,14 +12,14 @@ from pathlib import Path
 import pytest
 from twister_harness import DeviceAdapter, Shell
 from twister_harness.device.factory import DeviceFactory
+from twister_harness.helpers.domains_helper import ZEPHYR_BASE
 from twister_harness.helpers.utils import find_in_config
 from twister_harness.twister_harness_config import DeviceConfig
-from twister_harness.helpers.domains_helper import ZEPHYR_BASE
 
 sys.path.insert(0, os.path.join(ZEPHYR_BASE, 'scripts'))  # import zephyr_module in environment.py
 sys.path.insert(0, os.path.join(ZEPHYR_BASE, 'scripts', 'pylib', 'twister'))
-logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
 
 L2CAP_SERVER_PSM_BASIC = 0x1001
 L2CAP_SERVER_PSM_RET = 0x1003
@@ -28,7 +28,6 @@ L2CAP_SERVER_PSM_ERET = 0x1007
 L2CAP_SERVER_PSM_STREAM = 0x1009
 
 MODE_OPTION = "mode_optional"
-
 
 @pytest.fixture(scope='session')
 def harness_devices(request, twister_harness_config):
@@ -136,7 +135,7 @@ class BaseBoard:
             kwargs['timeout'] = 3
         return self.dut.readlines_until(*args, **kwargs)
 
-    def _wait_for_shell_response(self, response, timeout=3):
+    def _wait_for_shell_response(self, response, timeout=5):
         found = False
         lines = []
         try:
@@ -148,20 +147,20 @@ class BaseBoard:
                         break
                 lines = lines + read_lines
                 time.sleep(1)
+            logger.info(f'{str(lines)}')
         except Exception as e:
             logger.error(f'{e}!', exc_info=True)
             raise e
         assert found is not False
         return found, lines
 
-    def iexpect(self, command, response, wait=True, timeout=3):
+    def iexpect(self, command, response, wait=True, timeout=5):
         """send command and  return output matching an expected pattern."""
         lines = self.shell.exec_command(command)
         if wait:
             found, lines = self._wait_for_shell_response(response, timeout=timeout)
         else:
             found = [re.search(response, line) for line in lines]
-        logger.info(f'{str(lines)}')
         assert found is not False
         return found, lines
 

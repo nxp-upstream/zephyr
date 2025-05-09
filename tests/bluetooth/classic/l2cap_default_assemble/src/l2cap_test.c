@@ -243,6 +243,8 @@ static int l2cap_accept(struct bt_conn *conn, struct bt_l2cap_server *server,
 		l2cap_chan->chan.rx.mode = BT_L2CAP_BR_LINK_MODE_RET;
 		l2cap_chan->chan.rx.max_window = CONFIG_BT_L2CAP_MAX_WINDOW_SIZE;
 		l2cap_chan->chan.rx.max_transmit = MaxTransmit;
+	} else {
+		l2cap_chan->chan.rx.mode = BT_L2CAP_BR_LINK_MODE_BASIC;
 	}
 #endif /* CONFIG_BT_L2CAP_RET_FC */
 	(void)br_server;

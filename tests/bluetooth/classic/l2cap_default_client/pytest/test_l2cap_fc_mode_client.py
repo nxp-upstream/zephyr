@@ -10,10 +10,10 @@ from conftest import (
     logger,
 )
 
-MODE = "ret"
+MODE = "fc"
 
 
-def test_l2cap_ret_mode_client_TC01(client, server):
+def test_l2cap_fc_mode_client_TC01(client, server):
     L2CAP_CHAN_IUT_ID = 0
     time.sleep(1)
 
@@ -162,7 +162,7 @@ def test_l2cap_ret_mode_client_TC01(client, server):
     client.iexpect('bt disconnect', r'Disconnected')
 
 
-def test_l2cap_ret_mode_client_TC02(client, server):
+def test_l2cap_fc_mode_client_TC02(client, server):
     L2CAP_CHAN_IUT_ID = 0
     time.sleep(1)
 
@@ -321,7 +321,7 @@ def test_l2cap_ret_mode_client_TC02(client, server):
     client.iexpect('bt disconnect', r'Disconnected')
 
 
-def test_l2cap_ret_mode_client_TC03(client, server):
+def test_l2cap_fc_mode_client_TC03(client, server):
     L2CAP_CHAN_IUT_ID = 0
 
     time.sleep(1)
@@ -329,30 +329,30 @@ def test_l2cap_ret_mode_client_TC03(client, server):
     client.iexpect(f'br connect {server.addr}', f'Connected', timeout=10)
     time.sleep(0.5)
 
-    logger.info(f'server registered , psm = {L2CAP_SERVER_PSM_RET}, mode_option = false')
+    logger.info(f'server registered , psm = {L2CAP_SERVER_PSM_FC}, mode_option = false')
     server.iexpect(
-        f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
-        f"psm {str(int(L2CAP_SERVER_PSM_RET))} mode_optional 0",
+        f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_FC))[2:]} 0',
+        f"psm {str(int(L2CAP_SERVER_PSM_FC))} mode_optional 0",
         wait=False,
     )
 
     logger.info(
-        f'client create l2cap. psm = {L2CAP_SERVER_PSM_RET}, mode = ret, mode_option = false'
+        f'client create l2cap. psm = {L2CAP_SERVER_PSM_FC}, mode = ret, mode_option = false'
     )
     client.iexpect(
-        f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_RET))[2:]} ret',
+        f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_FC))[2:]} ret',
         f'It is enhance retransmission mode',
     )
 
     logger.info(f'set server and client appl status = idle')
     server.iexpect(
-        f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
-        f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 0",
+        f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_FC))[2:]} 0',
+        f"psm {str(int(L2CAP_SERVER_PSM_FC))} appl status 0",
         wait=False,
     )
     client.iexpect(
-        f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
-        f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 0",
+        f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_FC))[2:]} 0',
+        f"psm {str(int(L2CAP_SERVER_PSM_FC))} appl status 0",
         wait=False,
     )
 
@@ -363,8 +363,8 @@ def test_l2cap_ret_mode_client_TC03(client, server):
 
     logger.info(f'set l2cap server busy status')
     server.iexpect(
-        f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 1',
-        f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 1",
+        f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_FC))[2:]} 1',
+        f"psm {str(int(L2CAP_SERVER_PSM_FC))} appl status 1",
         wait=False,
     )
 
@@ -383,8 +383,8 @@ def test_l2cap_ret_mode_client_TC03(client, server):
 
     logger.info(f'set l2cap server idle status')
     server.iexpect(
-        f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
-        f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 0",
+        f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_FC))[2:]} 0',
+        f"psm {str(int(L2CAP_SERVER_PSM_FC))} appl status 0",
         wait=False,
     )
     server._wait_for_shell_response(f"{data3}", timeout=5)
@@ -401,7 +401,7 @@ def test_l2cap_ret_mode_client_TC03(client, server):
     client.iexpect('bt disconnect', r'Disconnected')
 
 
-def test_l2cap_ret_mode_client_TC04(client, server):
+def test_l2cap_fc_mode_client_TC04(client, server):
     L2CAP_CHAN_IUT_ID = 0
 
     time.sleep(1)
@@ -409,30 +409,30 @@ def test_l2cap_ret_mode_client_TC04(client, server):
     client.iexpect(f'br connect {server.addr}', f'Connected', timeout=10)
     time.sleep(0.5)
 
-    logger.info(f'server registered , psm = {L2CAP_SERVER_PSM_RET}, mode_option = false')
+    logger.info(f'server registered , psm = {L2CAP_SERVER_PSM_FC}, mode_option = false')
     server.iexpect(
-        f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
-        f"psm {str(int(L2CAP_SERVER_PSM_RET))} mode_optional 0",
+        f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_FC))[2:]} 0',
+        f"psm {str(int(L2CAP_SERVER_PSM_FC))} mode_optional 0",
         wait=False,
     )
 
     logger.info(
-        f'client create l2cap. psm = {L2CAP_SERVER_PSM_RET}, mode = ret, mode_option = false'
+        f'client create l2cap. psm = {L2CAP_SERVER_PSM_FC}, mode = ret, mode_option = false'
     )
     client.iexpect(
-        f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_RET))[2:]} ret',
+        f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_FC))[2:]} ret',
         f'It is enhance retransmission mode',
     )
 
     logger.info(f'set server and client appl status = idle')
     server.iexpect(
-        f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
-        f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 0",
+        f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_FC))[2:]} 0',
+        f"psm {str(int(L2CAP_SERVER_PSM_FC))} appl status 0",
         wait=False,
     )
     client.iexpect(
-        f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
-        f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 0",
+        f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_FC))[2:]} 0',
+        f"psm {str(int(L2CAP_SERVER_PSM_FC))} appl status 0",
         wait=False,
     )
 
@@ -443,8 +443,8 @@ def test_l2cap_ret_mode_client_TC04(client, server):
 
     logger.info(f'set l2cap client busy status')
     client.iexpect(
-        f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 1',
-        f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 1",
+        f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_FC))[2:]} 1',
+        f"psm {str(int(L2CAP_SERVER_PSM_FC))} appl status 1",
         wait=False,
     )
 
@@ -463,8 +463,8 @@ def test_l2cap_ret_mode_client_TC04(client, server):
 
     logger.info(f'set l2cap client idle status')
     client.iexpect(
-        f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
-        f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 0",
+        f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_FC))[2:]} 0',
+        f"psm {str(int(L2CAP_SERVER_PSM_FC))} appl status 0",
         wait=False,
     )
     client._wait_for_shell_response(f"{data3}", timeout=5)
