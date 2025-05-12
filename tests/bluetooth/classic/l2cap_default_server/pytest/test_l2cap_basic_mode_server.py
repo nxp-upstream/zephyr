@@ -239,7 +239,58 @@ def test_l2cap_basic_mode_TC02(client, server):
         f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_BASIC))[2:]} stream {MODE_OPTION}',
         f'It is basic mode',
     )
+    server.iexpect(
+        f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID_BASIC}',
+        f'Channel {L2CAP_CHAN_IUT_ID_BASIC} disconnected',
+    )
+
+    server.iexpect('bt disconnect', r'Disconnected')
+
+def test_l2cap_basic_mode_TC03(client, server):
+    L2CAP_CHAN_IUT_ID_BASIC = 0
+    mtu = 50
+    data = "1234567891234567891234567891233454656787899323455667"
+    time.sleep(1)
+
+    logger.info(f'acl connect {server.addr}')
+    client.iexpect(f'br connect {server.addr}', f'Connected', timeout=10)
+
+    logger.info(f'set mtu 50 in server and client')
+    client.exec_command(f'l2cap_br change_mtu {str(hex(mtu))}')
+    server.exec_command(f'l2cap_br change_mtu {str(hex(mtu))}')
+
+    logger.info(f'server register , psm = {L2CAP_SERVER_PSM_BASIC},mode=basic, mode_option = false')
+    server.iexpect(
+        f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_BASIC))[2:]} 0',
+        f'psm {str(int(L2CAP_SERVER_PSM_BASIC))} mode_optional 0',
+    )
     client.iexpect(
+        f'l2cap_br connect {str(hex(L2CAP_SERVER_PSM_BASIC))[2:]} basic', f'It is basic mode'
+    )
+
+    logger.info("server send data which length from 0 to 50, client can recv data successfully.")
+    for length in range(mtu + 1):
+        server.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID_BASIC} {data}  {str(hex(length))[2:]}')
+        if length == 0:
+            client._wait_for_shell_response("len 0", timeout=2)
+        else:
+            client._wait_for_shell_response("Incoming data :" + data[:length], timeout=2)
+
+    logger.info("server send data which length is 51 fail")
+    server.iexpect(
+        f'l2cap_br send {L2CAP_CHAN_IUT_ID_BASIC} {data}  {str(hex(mtu + 1))[2:]}',
+        "attempt to send",
+    )
+
+    logger.info("client send data which length from 0 to 50, server can recv data successfully.")
+    for length in range(mtu + 1):
+        client.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID_BASIC} {data}  {str(hex(length))[2:]}')
+        if length == 0:
+            server._wait_for_shell_response("len 0", timeout=2)
+        else:
+            server._wait_for_shell_response("Incoming data :" + data[:length], timeout=2)
+
+    server.iexpect(
         f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID_BASIC}',
         f'Channel {L2CAP_CHAN_IUT_ID_BASIC} disconnected',
     )
