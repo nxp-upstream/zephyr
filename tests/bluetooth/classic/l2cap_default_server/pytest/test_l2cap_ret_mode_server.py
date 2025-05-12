@@ -15,7 +15,6 @@ def test_l2cap_ret_mode_TC01(client, server):
     server.iexpect(
         f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
         f"psm {str(int(L2CAP_SERVER_PSM_RET))} mode_optional 0",
-        wait=False,
     )
 
     logger.info(f'acl connect {server.addr}')
@@ -141,7 +140,6 @@ def test_l2cap_ret_mode_TC02(client, server):
     server.iexpect(
         f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 1',
         f"psm {str(int(L2CAP_SERVER_PSM_RET))} mode_optional 1",
-        wait=False,
     )
 
     logger.info(f'acl connect {server.addr}')
@@ -281,7 +279,6 @@ def test_l2cap_ret_mode_TC03(client, server):
     server.iexpect(
         f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
         f"psm {str(int(L2CAP_SERVER_PSM_RET))} mode_optional 0",
-        wait=False,
     )
 
     logger.info(
@@ -296,12 +293,10 @@ def test_l2cap_ret_mode_TC03(client, server):
     server.iexpect(
         f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
         f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 0",
-        wait=False,
     )
     client.iexpect(
         f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
         f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 0",
-        wait=False,
     )
 
     logger.info(f'client send data1, server recv data1 and result is successful')
@@ -315,7 +310,6 @@ def test_l2cap_ret_mode_TC03(client, server):
     server.iexpect(
         f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 1',
         f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 1",
-        wait=False,
     )
 
     logger.info(f'client send data2, server recv data2 and result is successful')
@@ -337,7 +331,6 @@ def test_l2cap_ret_mode_TC03(client, server):
     server.iexpect(
         f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
         f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 0",
-        wait=False,
     )
     server._wait_for_shell_response(f"{data3}",timeout=5)
     client._wait_for_shell_response(r'Retransmission I-frame',timeout=5)
@@ -366,7 +359,6 @@ def test_l2cap_ret_mode_TC04(client, server):
     server.iexpect(
         f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
         f"psm {str(int(L2CAP_SERVER_PSM_RET))} mode_optional 0",
-        wait=False,
     )
 
     logger.info(
@@ -381,12 +373,10 @@ def test_l2cap_ret_mode_TC04(client, server):
     server.iexpect(
         f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
         f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 0",
-        wait=False,
     )
     client.iexpect(
         f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
         f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 0",
-        wait=False,
     )
 
     logger.info(f'server send data1, client recv data1 and result is successful')
@@ -400,7 +390,6 @@ def test_l2cap_ret_mode_TC04(client, server):
     client.iexpect(
         f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 1',
         f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 1",
-        wait=False,
     )
 
     logger.info(f'server send data2, client recv data2 and result is successful')
@@ -422,7 +411,6 @@ def test_l2cap_ret_mode_TC04(client, server):
     client.iexpect(
         f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_RET))[2:]} 0',
         f"psm {str(int(L2CAP_SERVER_PSM_RET))} appl status 0",
-        wait=False,
     )
     client._wait_for_shell_response(f"{data3}",timeout=5)
     server._wait_for_shell_response(r'Retransmission I-frame',timeout=5)

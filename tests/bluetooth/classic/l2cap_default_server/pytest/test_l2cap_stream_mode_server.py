@@ -14,7 +14,6 @@ def test_l2cap_stream_mode_TC01(client, server):
     server.iexpect(
         f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_STREAM))[2:]} 0',
         f"psm {str(int(L2CAP_SERVER_PSM_STREAM))} mode_optional 0",
-        wait=False,
     )
 
     time.sleep(1)
@@ -132,7 +131,6 @@ def test_l2cap_stream_mode_TC02(client, server):
     server.iexpect(
         f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_STREAM))[2:]} 1',
         f"psm {str(int(L2CAP_SERVER_PSM_STREAM))} mode_optional 1",
-        wait=False,
     )
 
     time.sleep(1)
@@ -268,7 +266,6 @@ def test_l2cap_stream_mode_TC03(client, server):
     server.iexpect(
         f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_STREAM))[2:]} 0',
         f"psm {str(int(L2CAP_SERVER_PSM_STREAM))} mode_optional 0",
-        wait=False,
     )
 
     time.sleep(1)
@@ -287,12 +284,10 @@ def test_l2cap_stream_mode_TC03(client, server):
     server.iexpect(
         f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_STREAM))[2:]} 0',
         f"psm {str(int(L2CAP_SERVER_PSM_STREAM))} appl status 0",
-        wait=False,
     )
     client.iexpect(
         f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_STREAM))[2:]} 0',
         f"psm {str(int(L2CAP_SERVER_PSM_STREAM))} appl status 0",
-        wait=False,
     )
 
     logger.info("server send data1, client recv data1 successfully.")
@@ -306,7 +301,6 @@ def test_l2cap_stream_mode_TC03(client, server):
     client.iexpect(
         f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_STREAM))[2:]} 1',
         f"psm {str(int(L2CAP_SERVER_PSM_STREAM))} appl status 1",
-        wait=False,
     )
 
     logger.info("server send data2, client recv data2 successfully.")
@@ -334,7 +328,6 @@ def test_l2cap_stream_mode_TC03(client, server):
     client.iexpect(
         f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_STREAM))[2:]} 0',
         f"psm {str(int(L2CAP_SERVER_PSM_STREAM))} appl status 0",
-        wait=False,
     )
 
     logger.info("server send data5, client recv data1 successfully.")
@@ -358,7 +351,6 @@ def test_l2cap_stream_mode_TC04(client, server):
     server.iexpect(
         f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_STREAM))[2:]} 0',
         f"psm {str(int(L2CAP_SERVER_PSM_STREAM))} mode_optional 0",
-        wait=False,
     )
 
     time.sleep(1)
@@ -377,12 +369,10 @@ def test_l2cap_stream_mode_TC04(client, server):
     server.iexpect(
         f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_STREAM))[2:]} 0',
         f"psm {str(int(L2CAP_SERVER_PSM_STREAM))} appl status 0",
-        wait=False,
     )
     client.iexpect(
         f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_STREAM))[2:]} 0',
         f"psm {str(int(L2CAP_SERVER_PSM_STREAM))} appl status 0",
-        wait=False,
     )
 
     logger.info("client send data1, server recv data1 successfully.")
@@ -396,7 +386,6 @@ def test_l2cap_stream_mode_TC04(client, server):
     server.iexpect(
         f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_STREAM))[2:]} 1',
         f"psm {str(int(L2CAP_SERVER_PSM_STREAM))} appl status 1",
-        wait=False,
     )
 
     logger.info("client send data2, server recv data2 successfully.")
@@ -424,7 +413,6 @@ def test_l2cap_stream_mode_TC04(client, server):
     server.iexpect(
         f'l2cap_br modify_appl_status {str(hex(L2CAP_SERVER_PSM_STREAM))[2:]} 0',
         f"psm {str(int(L2CAP_SERVER_PSM_STREAM))} appl status 0",
-        wait=False,
     )
 
     logger.info("client send data5, server recv data5 successfully.")

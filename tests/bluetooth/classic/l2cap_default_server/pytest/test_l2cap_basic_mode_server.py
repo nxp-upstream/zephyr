@@ -15,7 +15,6 @@ def test_l2cap_basic_mode_TC01(client, server):
     server.iexpect(
         f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_BASIC))[2:]} 0',
         f'psm {str(int(L2CAP_SERVER_PSM_BASIC))} mode_optional 0',
-        wait=False,
     )
 
     logger.info(f'acl connect {server.addr}')
@@ -136,7 +135,6 @@ def test_l2cap_basic_mode_TC02(client, server):
     server.iexpect(
         f'l2cap_br modify_mop {str(hex(L2CAP_SERVER_PSM_BASIC))[2:]} 1',
         f'psm {str(int(L2CAP_SERVER_PSM_BASIC))} mode_optional 1',
-        wait=False,
     )
 
     logger.info(f'acl connect {server.addr}')

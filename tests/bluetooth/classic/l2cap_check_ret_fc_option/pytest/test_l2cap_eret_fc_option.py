@@ -17,8 +17,8 @@ def test_l2cap_eret_mode_TC05(client, server):
     time.sleep(0.5)
 
     logger.info('set server  max_transmit = 7, set client max_transmit = 8')
-    client.iexpect('l2cap_br modify_max_transmit 8', "MaxTransmit is 8", wait=False)
-    server.iexpect('l2cap_br modify_max_transmit 7', "MaxTransmit is 7", wait=False)
+    client.iexpect('l2cap_br modify_max_transmit 8', "MaxTransmit is 8")
+    server.iexpect('l2cap_br modify_max_transmit 7', "MaxTransmit is 7")
 
     logger.info(
         f'client create l2cap. psm = {L2CAP_SERVER_PSM_ERET}, mode = eret, mode_option = false'

@@ -156,13 +156,12 @@ class BaseBoard(object):
         assert found is not False
         return found, lines
 
-    def iexpect(self, command, response, wait=True, timeout=3):
+    def iexpect(self, command, response,timeout=3):
         """send command and  return output matching an expected pattern."""
         lines = self.shell.exec_command(command)
-        if wait:
+        found = any([response in line for line in lines])
+        if found is False:
             found, lines = self._wait_for_shell_response(response, timeout=timeout)
-        else:
-            found = [re.search(response, line) for line in lines]
         logger.info(f'{str(lines)}')
         assert found is not False
         return found, lines
