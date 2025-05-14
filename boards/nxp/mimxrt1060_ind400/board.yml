@@ -1,0 +1,8 @@
+boards:
+  - name: mimxrt1060_ind400
+    full_name: MIMXRT1060-IND400
+    vendor: nxp
+    socs:
+      - name: mimxrt1062
+        variants:
+          - name: "qspi"

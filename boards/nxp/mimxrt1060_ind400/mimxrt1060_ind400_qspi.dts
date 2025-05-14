@@ -1,0 +1,90 @@
+/*
+ * Copyright 2024 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include "mimxrt1060_ind400.dtsi"
+#include <zephyr/dt-bindings/memory-attr/memory-attr-arm.h>
+
+/ {
+	chosen {
+		zephyr,flash-controller = &is25lp256h;
+		zephyr,flash = &is25lp256h;
+		zephyr,code-partition = &slot0_partition;
+	};
+
+	hyperram: memory@70000000 {
+		compatible = "zephyr,memory-region", "mmio-sram";
+		reg = <0x70000000 DT_SIZE_M(32)>;
+		zephyr,memory-region="HYPERRAM";
+		zephyr,memory-attr = <(DT_MEM_ARM(ATTR_MPU_RAM))>;
+	};
+};
+
+&flexspi {
+	status = "okay";
+	pinctrl-0 = <&pinmux_flexspi1>;
+	pinctrl-names = "default";
+	ahb-prefetch;
+	ahb-read-addr-opt;
+	rx-clock-source = <1>;
+	reg = <0x402a8000 0x4000>, <0x60000000 DT_SIZE_M(32)>;
+	is25lp256h: is25lp256h@0 {
+		compatible = "nxp,imx-flexspi-nor";
+		size = <67108864>;
+		reg = <0>;
+		spi-max-frequency = <104000000>;
+		status = "okay";
+		jedec-id = [9d 60 19];
+		erase-block-size = <4096>;
+		write-block-size = <1>;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			boot_partition: partition@0 {
+				label = "mcuboot";
+				reg = <0x00000000 DT_SIZE_K(128)>;
+			};
+			/* The MCUBoot swap-move algorithm uses the last 2 sectors
+			 * of the primary slot0 for swap status and move.
+			 */
+			slot0_partition: partition@20000 {
+				label = "image-0";
+				reg = <0x00020000 (DT_SIZE_M(3) + DT_SIZE_K(8))>;
+			};
+			slot1_partition: partition@322000 {
+				label = "image-1";
+				reg = <0x00322000 DT_SIZE_M(3)>;
+			};
+			storage_partition: partition@622000 {
+				label = "storage";
+				reg = <0x00622000 (DT_SIZE_M(2) - DT_SIZE_K(136))>;
+			};
+		};
+	};
+};
+
+&flexspi2 {
+	status = "okay";
+	pinctrl-0 = <&pinmux_flexspi2>;
+	pinctrl-names = "default";
+	ahb-prefetch;
+	ahb-read-addr-opt;
+	combination-mode;
+	rx-clock-source = <3>;
+	reg = <0x402a4000 0x4000>, <0x70000000 DT_SIZE_M(32)>;
+	s80ks2562: s80ks2562@0 {
+		compatible = "nxp,imx-flexspi-w956a8mbya";
+		size = <33554432>;
+		reg = <0>;
+		spi-max-frequency = <327000000>;
+		cs-interval = <2>;
+		data-valid-time = <1>;
+		column-space = <3>;
+		word-addressable;
+		status = "disabled";
+	};
+};
