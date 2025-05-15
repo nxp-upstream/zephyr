@@ -1,0 +1,4 @@
+/* Enable PM3 (Sleep) mode */
+&standby {
+	status = "okay";
+};
