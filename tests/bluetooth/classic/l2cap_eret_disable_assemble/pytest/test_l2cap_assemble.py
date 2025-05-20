@@ -38,6 +38,13 @@ def test_l2cap_ret_mode_TC07(client, server):
 
     logger.info('TEST client send data to server')
 
+    logger.info('client send data, len = 0')
+    data = "this_is_data"
+    data_len = 0
+    assert data_len == 0
+    client.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID_RET} {data} {str(hex(data_len))}')
+    server._wait_for_shell_response(f"len 0")
+
     logger.info('client send data1, len < PAYLOAD_LEN')
     data1 = "this_is_data1"
     data_len = len(data1)
@@ -54,20 +61,27 @@ def test_l2cap_ret_mode_TC07(client, server):
 
     logger.info('TEST server send data to client')
 
-    logger.info('client send data3, len < PAYLOAD_LEN')
+    logger.info('server send data, len = 0')
+    data = "this_is_data"
+    data_len = 0
+    assert data_len == 0
+    server.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID_RET} {data} {str(hex(data_len))}')
+    client._wait_for_shell_response(f"len 0")
+
+    logger.info('server send data3, len < PAYLOAD_LEN')
     data3 = "this_is_server_send"
     data_len = len(data3)
     assert data_len < PAYLOAD_LEN
-    client.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID_RET} {data3} {str(hex(data_len))}')
-    server._wait_for_shell_response(f"{data3}")
+    server.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID_RET} {data3} {str(hex(data_len))}')
+    client._wait_for_shell_response(f"{data3}")
  
 
     logger.info('server send data4, PAYLOAD_LEN< len < 2*PAYLOAD_LEN')
     data4 = "1234567890QWERTYUIOPASDFGHJKLZXCVBNM1234567][]"
     data_len = len(data4)
     assert data_len > PAYLOAD_LEN and data_len < 2 * PAYLOAD_LEN
-    client.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID_RET} {data4} {str(hex(data_len))}')
-    server._wait_for_shell_response(f"{data4}")
+    server.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID_RET} {data4} {str(hex(data_len))}')
+    client._wait_for_shell_response(f"{data4}")
 
 
     server.iexpect(
@@ -95,6 +109,13 @@ def test_l2cap_fc_mode_TC06(client, server):
 
     logger.info('TEST client send data to server')
 
+    logger.info('client send data, len = 0')
+    data = "this_is_data"
+    data_len = 0
+    assert data_len == 0
+    client.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID_FC} {data} {str(hex(data_len))}')
+    server._wait_for_shell_response(f"len 0")
+
     logger.info('client send data1, len < PAYLOAD_LEN')
     data1 = "this_is_data1"
     data_len = len(data1)
@@ -112,19 +133,26 @@ def test_l2cap_fc_mode_TC06(client, server):
 
     logger.info('TEST server send data to client')
 
-    logger.info('client send data3, len < PAYLOAD_LEN')
+    logger.info('server send data, len = 0')
+    data = "this_is_data"
+    data_len = 0
+    assert data_len == 0
+    server.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID_FC} {data} {str(hex(data_len))}')
+    client._wait_for_shell_response(f"len 0")
+
+    logger.info('server send data3, len < PAYLOAD_LEN')
     data3 = "this_is_server_send"
     data_len = len(data3)
     assert data_len < PAYLOAD_LEN
-    client.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID_FC} {data3} {str(hex(data_len))}')
-    server._wait_for_shell_response(f"{data3}")
+    server.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID_FC} {data3} {str(hex(data_len))}')
+    client._wait_for_shell_response(f"{data3}")
 
     logger.info('server send data4, PAYLOAD_LEN< len < BT_L2CAP_MPS < 2*PAYLOAD_LEN')
     data4 = "1234567890QWERTYUIOPASDFGHJKLZXCVBNM1234567][]"
     data_len = len(data4)
     assert data_len > PAYLOAD_LEN and data_len < 2 * PAYLOAD_LEN and data_len < BT_L2CAP_MPS
-    client.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID_FC} {data4} {str(hex(data_len))}')
-    server._wait_for_shell_response(f"{data4}")
+    server.exec_command(f'l2cap_br send {L2CAP_CHAN_IUT_ID_FC} {data4} {str(hex(data_len))}')
+    client._wait_for_shell_response(f"{data4}")
 
     server.iexpect(
         f'l2cap_br disconnect {L2CAP_CHAN_IUT_ID_FC}',

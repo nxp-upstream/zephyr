@@ -136,26 +136,28 @@ class BaseBoard:
             kwargs['timeout'] = 3
         return self.dut.readlines_until(*args, **kwargs)
 
-    def _wait_for_shell_response(self, response, timeout=3):
+    def _wait_for_shell_response(self, response, timeout=10):
         found = False
         lines = []
         try:
             for _ in range(0, timeout):
-                read_lines = self.dut.readlines()
-                for line in read_lines:
-                    if response in line:
-                        found = True
-                        break
-                lines = lines + read_lines
-                time.sleep(1)
-            logger.info(f'{str(lines)}')
+                if found is False:
+                    read_lines = self.dut.readlines()
+                    for line in read_lines:
+                        if response in line:
+                            found = True
+                            break
+                    lines = lines + read_lines
+                    time.sleep(1)
+                else:
+                    break
         except Exception as e:
             logger.error(f'{e}!', exc_info=True)
             raise e
         assert found is not False
         return found, lines
 
-    def iexpect(self, command, response,timeout=3):
+    def iexpect(self, command, response,timeout=10):
         """send command and  return output matching an expected pattern."""
         lines = self.shell.exec_command(command)
         found = any([re.search(response, line) for line in lines])
