@@ -400,11 +400,14 @@ static int dma_nxp_sdma_get_status(const struct device *dev, uint32_t channel,
 {
 	struct sdma_dev_data *dev_data = dev->data;
 	struct sdma_channel_data *chan_data;
+	unsigned int key;
 
 	chan_data = &dev_data->chan[channel];
 
+	key = irq_lock();
 	stat->free = chan_data->stat.free;
 	stat->pending_length = chan_data->stat.pending_length;
+	irq_unlock(key);
 
 	return 0;
 }
@@ -414,6 +417,7 @@ static int dma_nxp_sdma_reload(const struct device *dev, uint32_t channel, uint3
 {
 	struct sdma_dev_data *dev_data = dev->data;
 	struct sdma_channel_data *chan_data;
+	unsigned int key;
 
 	chan_data = &dev_data->chan[channel];
 
@@ -427,11 +431,13 @@ static int dma_nxp_sdma_reload(const struct device *dev, uint32_t channel, uint3
 		return -EINVAL;
 	}
 
+	key = irq_lock();
 	if (chan_data->direction == MEMORY_TO_PERIPHERAL) {
 		dma_nxp_sdma_produce(chan_data, size);
 	} else {
 		dma_nxp_sdma_consume(chan_data, size);
 	}
+	irq_unlock(key);
 
 	return 0;
 }
