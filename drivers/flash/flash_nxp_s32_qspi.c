@@ -63,7 +63,7 @@ int nxp_s32_qspi_read(const struct device *dev, off_t offset, void *dest, size_t
 		return 0;
 	}
 
-	if (!dest) {
+	if (dest == NULL) {
 		return -EINVAL;
 	}
 
@@ -71,18 +71,16 @@ int nxp_s32_qspi_read(const struct device *dev, off_t offset, void *dest, size_t
 		return -EINVAL;
 	}
 
-	if (size) {
-		nxp_s32_qspi_lock(dev);
+	nxp_s32_qspi_lock(dev);
 
-		status = Qspi_Ip_Read(data->instance, (uint32_t)offset, (uint8_t *)dest,
-				      (uint32_t)size);
-		if (status != STATUS_QSPI_IP_SUCCESS) {
-			LOG_ERR("Failed to read %zu bytes at 0x%lx (%d)", size, offset, status);
-			ret = -EIO;
-		}
-
-		nxp_s32_qspi_unlock(dev);
+	status = Qspi_Ip_Read(data->instance, (uint32_t)offset, (uint8_t *)dest,
+			      (uint32_t)size);
+	if (status != STATUS_QSPI_IP_SUCCESS) {
+		LOG_ERR("Failed to read %zu bytes at 0x%lx (%d)", size, offset, status);
+		ret = -EIO;
 	}
+
+	nxp_s32_qspi_unlock(dev);
 
 	return ret;
 }
@@ -97,11 +95,11 @@ int nxp_s32_qspi_write(const struct device *dev, off_t offset, const void *src, 
 	size_t len;
 	int ret = 0;
 
-	if (!size) {
+	if (size == 0) {
 		return 0;
 	}
 
-	if (!src) {
+	if (src == NULL) {
 		return -EINVAL;
 	}
 

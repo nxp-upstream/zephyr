@@ -329,7 +329,7 @@ static int flash_flexspi_nor_read(const struct device *dev, off_t offset,
 		return 0;
 	}
 
-	if (!buffer) {
+	if (buffer == NULL) {
 		return -EINVAL;
 	}
 
@@ -351,7 +351,7 @@ static int flash_flexspi_nor_write(const struct device *dev, off_t offset,
 {
 	struct flash_flexspi_nor_data *data = dev->data;
 
-	if (!buffer) {
+	if (buffer == NULL) {
 		return -EINVAL;
 	}
 
@@ -378,7 +378,7 @@ static int flash_flexspi_nor_write(const struct device *dev, off_t offset,
 		memc_flexspi_wait_bus_idle(&data->controller);
 	}
 
-	while (len) {
+	while (len != 0) {
 		/* If the offset isn't a multiple of the NOR page size, we first need
 		 * to write the remaining part that fits, otherwise the write could
 		 * be wrapped around within the same page

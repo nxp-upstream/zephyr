@@ -399,14 +399,14 @@ static int flash_flexspi_hyperflash_read(const struct device *dev, off_t offset,
 		return 0;
 	}
 
-	if (!buffer) {
+	if (buffer == NULL) {
 		return -EINVAL;
 	}
 
 	uint8_t *src = memc_flexspi_get_ahb_address(&data->controller,
 			data->port,
 			offset);
-	if (!src) {
+	if (src != NULL) {
 		return -EINVAL;
 	}
 
@@ -428,7 +428,7 @@ static int flash_flexspi_hyperflash_write(const struct device *dev, off_t offset
 	uint8_t *dst = memc_flexspi_get_ahb_address(&data->controller,
 			data->port,
 			offset);
-	if (!dst) {
+	if (dst == NULL) {
 		return -EINVAL;
 	}
 
@@ -446,7 +446,7 @@ static int flash_flexspi_hyperflash_write(const struct device *dev, off_t offset
 	(void)memc_flexspi_update_clock(&data->controller, &data->config,
 					data->port, MHZ(84));
 
-	while (len) {
+	while (len != 0) {
 		/* Writing between two page sizes crashes the platform so we
 		 * have to write the part that fits in the first page and then
 		 * update the offset.
@@ -521,7 +521,7 @@ static int flash_flexspi_hyperflash_erase(const struct device *dev, off_t offset
 			data->port,
 			offset);
 
-	if (!dst) {
+	if (dst == NULL) {
 		return -EINVAL;
 	}
 
