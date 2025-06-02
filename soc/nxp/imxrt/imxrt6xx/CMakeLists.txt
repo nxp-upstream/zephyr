@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+#this is a test
+
 if(CONFIG_SOC_MIMXRT685S_CM33)
   add_subdirectory(cm33)
 endif()
