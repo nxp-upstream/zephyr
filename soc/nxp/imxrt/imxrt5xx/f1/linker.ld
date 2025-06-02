@@ -6,6 +6,8 @@
 
 OUTPUT_ARCH(xtensa)
 
+/* this is a test */
+
 #include <soc/memory.h>
 #include <xtensa/config/core-isa.h>
 
