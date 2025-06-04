@@ -41,7 +41,11 @@
 #include "btp_tmap.h"
 #include "btp_ots.h"
 #include "btp_pbp.h"
+<<<<<<< HEAD
 #include "btp_sdp.h"
+=======
+#include "btp_hfp.h"
+>>>>>>> 77146ab2caa (Bluetooth: Tester: update tester to support BR HFP PTS test cases)
 
 #define BTP_MTU 1024
 #define BTP_DATA_MAX_SIZE (BTP_MTU - sizeof(struct btp_hdr))
@@ -83,8 +87,9 @@
 #define BTP_SERVICE_ID_OTS      0x1d
 #define BTP_SERVICE_ID_PBP      0x1e
 #define BTP_SERVICE_ID_SDP      0x1f
+#define BTP_SERVICE_ID_HFP      0x21
 
-#define BTP_SERVICE_ID_MAX	BTP_SERVICE_ID_SDP
+#define BTP_SERVICE_ID_MAX	BTP_SERVICE_ID_HFP
 
 #define BTP_STATUS_SUCCESS	0x00
 #define BTP_STATUS_FAILED	0x01
