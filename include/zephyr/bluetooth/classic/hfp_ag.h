@@ -855,6 +855,20 @@ int bt_hfp_ag_hf_indicator(struct bt_hfp_ag *ag, enum hfp_ag_hf_indicators indic
 int bt_hfp_ag_ongoing_calls(struct bt_hfp_ag *ag, struct bt_hfp_ag_ongoing_call *calls,
 			    size_t count);
 
+/** @brief Get the HF indicator value
+ *
+ *  Get the current value of a specific HFP AG indicator.
+ *
+ *  @param ag HFP AG object.
+ *  @param index HFP AG indicator index to retrieve.
+ *  @param value Pointer to store the retrieved indicator value.
+ *
+ *  @return 0 in case of success or negative value in case of error.
+ *  @retval -EINVAL Invalid parameters (ag is NULL, value is NULL, or invalid index).
+ *  @retval -ENOTCONN HFP AG is not connected.
+ */
+int bt_hfp_ag_get_indicator(struct bt_hfp_ag *ag, enum bt_hfp_ag_indicator index, uint8_t *value);
+
 #ifdef __cplusplus
 }
 #endif

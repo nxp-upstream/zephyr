@@ -4730,6 +4730,42 @@ int bt_hfp_ag_explicit_call_transfer(struct bt_hfp_ag *ag)
 #endif /* CONFIG_BT_HFP_AG_3WAY_CALL */
 }
 
+int bt_hfp_ag_get_indicator(struct bt_hfp_ag *ag, enum bt_hfp_ag_indicator index, uint8_t *value)
+{
+	LOG_DBG("");
+
+	if (ag == NULL || value == NULL) {
+		return -EINVAL;
+	}
+
+	hfp_ag_lock(ag);
+	if (ag->state != BT_HFP_CONNECTED) {
+		hfp_ag_unlock(ag);
+		return -ENOTCONN;
+	}
+
+	switch (index) {
+	case BT_HFP_AG_SERVICE_IND:
+	case BT_HFP_AG_SIGNAL_IND:
+	case BT_HFP_AG_ROAM_IND:
+	case BT_HFP_AG_BATTERY_IND:
+	case BT_HFP_AG_CALL_IND:
+	case BT_HFP_AG_CALL_SETUP_IND:
+	case BT_HFP_AG_CALL_HELD_IND:
+		*value = ag->indicator_value[index];
+		break;
+	default:
+		hfp_ag_unlock(ag);
+		return -EINVAL;
+	}
+
+	hfp_ag_unlock(ag);
+	
+	LOG_DBG("Retrieved indicator %d value: %d", index, *value);
+	
+	return 0;
+}
+
 int bt_hfp_ag_set_indicator(struct bt_hfp_ag *ag, enum bt_hfp_ag_indicator index, uint8_t value)
 {
 	int err;
