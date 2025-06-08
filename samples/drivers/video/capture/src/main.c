@@ -5,6 +5,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <string.h>
+
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 
@@ -181,11 +183,15 @@ int main(void)
 
 	/* Get supported controls */
 	LOG_INF("- Supported controls:");
+	const char *dev_name = NULL;
+	struct video_ctrl_query cq = {.dev = video_dev, .id = VIDEO_CTRL_FLAG_NEXT_CTRL};
 
-	struct video_ctrl_query cq = {.id = VIDEO_CTRL_FLAG_NEXT_CTRL};
-
-	while (!video_query_ctrl(video_dev, &cq)) {
-		video_print_ctrl(video_dev, &cq);
+	while (!video_query_ctrl(&cq)) {
+		if (strcmp(dev_name, cq.dev->name) != 0) {
+			dev_name = cq.dev->name;
+			LOG_INF("\t\tdevice: %s", dev_name);
+		}
+		video_print_ctrl(&cq);
 		cq.id |= VIDEO_CTRL_FLAG_NEXT_CTRL;
 	}
 
