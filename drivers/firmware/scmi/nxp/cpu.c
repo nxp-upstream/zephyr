@@ -6,6 +6,7 @@
 
 #include <string.h>
 #include <zephyr/drivers/firmware/scmi/nxp/cpu.h>
+#include <zephyr/kernel.h>
 
 DT_SCMI_PROTOCOL_DEFINE_NODEV(DT_INST(0, nxp_scmi_cpu), NULL);
 
@@ -33,7 +34,7 @@ int scmi_cpu_sleep_mode_set(struct scmi_cpu_sleep_mode_config *cfg)
 	reply.len = sizeof(status);
 	reply.content = &status;
 
-	ret = scmi_send_message(proto, &msg, &reply);
+	ret = scmi_send_message(proto, &msg, &reply, true);
 	if (ret < 0) {
 		return ret;
 	}

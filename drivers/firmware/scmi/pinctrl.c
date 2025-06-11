@@ -5,6 +5,7 @@
  */
 
 #include <zephyr/drivers/firmware/scmi/pinctrl.h>
+#include <zephyr/kernel.h>
 
 DT_SCMI_PROTOCOL_DEFINE_NODEV(DT_INST(0, arm_scmi_pinctrl), NULL);
 
@@ -50,7 +51,7 @@ int scmi_pinctrl_settings_configure(struct scmi_pinctrl_settings *settings)
 	reply.len = sizeof(status);
 	reply.content = &status;
 
-	ret = scmi_send_message(proto, &msg, &reply);
+	ret = scmi_send_message(proto, &msg, &reply, k_is_pre_kernel());
 	if (ret < 0) {
 		return ret;
 	}

@@ -159,7 +159,7 @@ out_release_mutex:
 }
 
 int scmi_send_message(struct scmi_protocol *proto, struct scmi_message *msg,
-		      struct scmi_message *reply)
+		      struct scmi_message *reply, bool pre_kernel)
 {
 	if (!proto->tx) {
 		return -ENODEV;
@@ -169,7 +169,7 @@ int scmi_send_message(struct scmi_protocol *proto, struct scmi_message *msg,
 		return -EINVAL;
 	}
 
-	if (k_is_pre_kernel()) {
+	if (pre_kernel) {
 		return scmi_send_message_pre_kernel(proto, msg, reply);
 	} else {
 		return scmi_send_message_post_kernel(proto, msg, reply);
