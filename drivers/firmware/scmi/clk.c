@@ -6,6 +6,7 @@
 
 #include <zephyr/drivers/firmware/scmi/clk.h>
 #include <string.h>
+#include <zephyr/kernel.h>
 
 /* TODO: if extended attributes are supported this should be moved
  * to the header file so that users will have access to it.
@@ -57,7 +58,7 @@ int scmi_clock_rate_get(struct scmi_protocol *proto,
 	reply.len = sizeof(reply_buffer);
 	reply.content = &reply_buffer;
 
-	ret = scmi_send_message(proto, &msg, &reply);
+	ret = scmi_send_message(proto, &msg, &reply, k_is_pre_kernel());
 	if (ret < 0) {
 		return ret;
 	}
@@ -98,7 +99,7 @@ int scmi_clock_rate_set(struct scmi_protocol *proto, struct scmi_clock_rate_conf
 	reply.len = sizeof(status);
 	reply.content = &status;
 
-	ret = scmi_send_message(proto, &msg, &reply);
+	ret = scmi_send_message(proto, &msg, &reply, k_is_pre_kernel());
 	if (ret < 0) {
 		return ret;
 	}
@@ -134,7 +135,7 @@ int scmi_clock_parent_get(struct scmi_protocol *proto, uint32_t clk_id, uint32_t
 	reply.len = sizeof(reply_buffer);
 	reply.content = &reply_buffer;
 
-	ret = scmi_send_message(proto, &msg, &reply);
+	ret = scmi_send_message(proto, &msg, &reply, k_is_pre_kernel());
 	if (ret < 0) {
 		return ret;
 	}
@@ -172,7 +173,7 @@ int scmi_clock_parent_set(struct scmi_protocol *proto, uint32_t clk_id, uint32_t
 	reply.len = sizeof(status);
 	reply.content = &status;
 
-	ret = scmi_send_message(proto, &msg, &reply);
+	ret = scmi_send_message(proto, &msg, &reply, k_is_pre_kernel());
 	if (ret < 0) {
 		return ret;
 	}
@@ -223,7 +224,7 @@ int scmi_clock_config_set(struct scmi_protocol *proto,
 	reply.len = sizeof(status);
 	reply.content = &status;
 
-	ret = scmi_send_message(proto, &msg, &reply);
+	ret = scmi_send_message(proto, &msg, &reply, k_is_pre_kernel());
 	if (ret < 0) {
 		return ret;
 	}
@@ -260,7 +261,7 @@ int scmi_clock_protocol_attributes(struct scmi_protocol *proto, uint32_t *attrib
 	reply.len = sizeof(reply_buffer);
 	reply.content = &reply_buffer;
 
-	ret = scmi_send_message(proto, &msg, &reply);
+	ret = scmi_send_message(proto, &msg, &reply, k_is_pre_kernel());
 	if (ret < 0) {
 		return ret;
 	}

@@ -126,9 +126,11 @@ int scmi_status_to_errno(int scmi_status);
  *
  * @retval 0 if successful
  * @retval negative errno if failure
+ * @param pre_kernel current kernel state
  */
 int scmi_send_message(struct scmi_protocol *proto,
-		      struct scmi_message *msg, struct scmi_message *reply);
+		      struct scmi_message *msg, struct scmi_message *reply,
+		      bool pre_kernel);
 
 /**
  * @brief Read an SCMI message and send reply into scmi platform
