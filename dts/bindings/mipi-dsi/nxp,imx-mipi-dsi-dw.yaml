@@ -1,0 +1,55 @@
+#
+# Copyright 2025 NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+description: NXP MCUX MIPI DSI DW
+
+compatible: "nxp,imx-mipi-dsi-dw"
+
+include: mipi-dsi-host.yaml
+
+properties:
+  interrupts:
+    required: true
+
+  nxp,lcdif:
+    type: phandle
+    description:
+      Instance of the LCDIF peripheral. Only required when using the MIPI
+      DSI in video mode.
+
+  dpi-color-coding:
+    type: string
+    enum:
+      - "16-bit-config-1"
+      - "16-bit-config-2"
+      - "16-bit-config-3"
+      - "18-bit-config-1"
+      - "18-bit-config-2"
+      - "24-bit"
+    description:
+      MIPI DPI interface color coding. Sets the distribution of RGB bits within
+      the 24-bit d bus, as specified by the DPI specification.
+
+  dpi-video-mode:
+    type: string
+    enum:
+      - "non-burst-sync-pulse"
+      - "non-burst-sync-event"
+      - "burst"
+    description:
+      DPI video mode.
+
+  dphy-ref-frequency:
+    type: int
+    required: false
+    description:
+      Maximum clock speed supported by the device, in Hz.
+
+  phy-clock:
+    type: int
+    required: false
+    description:
+      MIPI PHY clock frequency. Should be set to ensure clock frequency is at
+      least (pixel clock * bits per output pixel) / number of mipi data lanes

@@ -43,3 +43,10 @@ config MIPI_DSI_MCUX_2L_SWAP16
 
 
 endif # MIPI_DSI_MCUX_2L
+
+config MIPI_DSI_MCUX_DW
+	bool "NXP MCUX MIPI-DSI DW Host Controller"
+	default y
+	depends on DT_HAS_NXP_IMX_MIPI_DSI_DW_ENABLED
+	help
+	  NXP MIPI DSI DW controller driver

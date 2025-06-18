@@ -116,6 +116,7 @@ set_variable_ifdef(CONFIG_COUNTER_MCUX_SNVS     CONFIG_MCUX_COMPONENT_driver.snv
 set_variable_ifdef(CONFIG_MCUX_LPTMR_TIMER      CONFIG_MCUX_COMPONENT_driver.lptmr)
 set_variable_ifdef(CONFIG_COUNTER_MCUX_LPTMR    CONFIG_MCUX_COMPONENT_driver.lptmr)
 set_variable_ifdef(CONFIG_IMX_USDHC	            CONFIG_MCUX_COMPONENT_driver.usdhc)
+set_variable_ifdef(CONFIG_MIPI_DSI_MCUX_DW      CONFIG_MCUX_COMPONENT_driver.mipi_dsi_imx)
 set_variable_ifdef(CONFIG_MIPI_DSI_MCUX         CONFIG_MCUX_COMPONENT_driver.mipi_dsi_split)
 set_variable_ifdef(CONFIG_MIPI_DSI_MCUX_2L      CONFIG_MCUX_COMPONENT_driver.mipi_dsi)
 set_variable_ifdef(CONFIG_MCUX_SDIF             CONFIG_MCUX_COMPONENT_driver.sdif)
