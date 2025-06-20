@@ -1,0 +1,9 @@
+description: NXP Error Reporting Module
+
+compatible: "nxp,erm"
+
+include: [reset-device.yaml, base.yaml]
+
+properties:
+  channels:
+    type: array

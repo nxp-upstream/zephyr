@@ -1,0 +1,18 @@
+description: NXP Error Injection Channel
+
+compatible: "nxp,eim-channel"
+
+include: base.yaml
+
+properties:
+  channel-id:
+    type: int
+
+  start-address:
+    type: int
+
+  inject-enable:
+    type: int
+
+  ecc-enable:
+    type: int

@@ -11,10 +11,10 @@
 #include <zephyr/drivers/edac.h>
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(main, CONFIG_LOG_DEFAULT_LEVEL);
+LOG_MODULE_REGISTER(main, 0);
 
 #define STACKSIZE	1024
-#define PRIORITY	7
+#define PRIORITY	15
 
 static atomic_t handled;
 
@@ -32,7 +32,7 @@ static void notification_callback(const struct device *dev, void *data)
 
 int main(void)
 {
-	const struct device *const dev = DEVICE_DT_GET(DT_NODELABEL(ibecc));
+	const struct device *const dev = DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_edac));
 
 	if (!device_is_ready(dev)) {
 		printk("%s: device not ready.\n", dev->name);
@@ -60,5 +60,5 @@ void thread_function(void)
 	}
 }
 
-K_THREAD_DEFINE(thread_id, STACKSIZE, thread_function, NULL, NULL, NULL,
+K_THREAD_DEFINE(thread_edac, STACKSIZE, thread_function, NULL, NULL, NULL,
 		PRIORITY, 0, 0);
