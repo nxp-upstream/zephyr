@@ -11,7 +11,7 @@
 #include <zephyr/drivers/edac.h>
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(main, CONFIG_LOG_DEFAULT_LEVEL);
+LOG_MODULE_REGISTER(main, 0);
 
 #define STACKSIZE	1024
 #define PRIORITY	7
@@ -32,33 +32,33 @@ static void notification_callback(const struct device *dev, void *data)
 
 int main(void)
 {
-	const struct device *const dev = DEVICE_DT_GET(DT_NODELABEL(ibecc));
+	const struct device *const dev = DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_edac));
 
 	if (!device_is_ready(dev)) {
 		printk("%s: device not ready.\n", dev->name);
 		return 0;
 	}
 
-	if (edac_notify_callback_set(dev, notification_callback)) {
-		LOG_ERR("Cannot set notification callback");
-		return 0;
-	}
+	// if (edac_notify_callback_set(dev, notification_callback)) {
+	// 	LOG_ERR("Cannot set notification callback");
+	// 	return 0;
+	// }
 
 	LOG_INF("EDAC shell application initialized");
 	return 0;
 }
 
-void thread_function(void)
-{
-	LOG_DBG("Thread started");
+// void thread_function(void)
+// {
+// 	LOG_DBG("Thread started");
 
-	while (true) {
-		if (atomic_cas(&handled, true, false)) {
-			printk("Got notification about IBECC event\n");
-			k_sleep(K_MSEC(300));
-		}
-	}
-}
+// 	while (true) {
+// 		if (atomic_cas(&handled, true, false)) {
+// 			printk("Got notification about IBECC event\n");
+// 			k_sleep(K_MSEC(300));
+// 		}
+// 	}
+// }
 
-K_THREAD_DEFINE(thread_id, STACKSIZE, thread_function, NULL, NULL, NULL,
-		PRIORITY, 0, 0);
+// K_THREAD_DEFINE(thread_id, STACKSIZE, thread_function, NULL, NULL, NULL,
+// 		PRIORITY, 0, 0);
