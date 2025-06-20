@@ -32,7 +32,7 @@ static void notification_callback(const struct device *dev, void *data)
 
 int main(void)
 {
-	const struct device *const dev = DEVICE_DT_GET(DT_NODELABEL(ibecc));
+	const struct device *const dev = DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_edac));
 
 	if (!device_is_ready(dev)) {
 		printk("%s: device not ready.\n", dev->name);

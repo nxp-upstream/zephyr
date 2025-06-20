@@ -35,6 +35,13 @@ config EDAC_SYNOPSYS
 	help
 	  Enable the Synopsys DDR controller EDAC driver.
 
+config EDAC_NXP_ERM
+	bool "NXP ERM/EIM EDAC driver"
+	default y
+	depends on DT_HAS_NXP_ERM_ENABLED
+	help
+	  Enable the NXP ERM/EIM EDAC driver.
+
 module = EDAC
 module-str = edac
 source "subsys/logging/Kconfig.template.log_config"
