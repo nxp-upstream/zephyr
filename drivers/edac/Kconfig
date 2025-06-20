@@ -35,6 +35,7 @@ config EDAC_SYNOPSYS
 	help
 	  Enable the Synopsys DDR controller EDAC driver.
 
+source "drivers/edac/Kconfig.nxp"
 module = EDAC
 module-str = edac
 source "subsys/logging/Kconfig.template.log_config"

@@ -1,0 +1,15 @@
+config EDAC_NXP_ERM
+	bool "NXP ERM driver"
+	default y
+	depends on DT_HAS_NXP_ERM_ENABLED
+	help
+	  Enable the NXP Error Reporting Module driver.
+
+config EDAC_NXP_EIM
+	bool "NXP EIM driver"
+	default y
+	depends on DT_HAS_NXP_EIM_ENABLED
+	select EDAC_ERROR_INJECT
+	help
+	  Enable the NXP Error Injection Module driver.
+

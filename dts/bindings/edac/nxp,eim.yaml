@@ -1,0 +1,5 @@
+description: NXP Error Injection Module
+
+compatible: "nxp,eim"
+
+include: base.yaml

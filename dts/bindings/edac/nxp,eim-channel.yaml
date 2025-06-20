@@ -1,0 +1,5 @@
+description: NXP Error Injection Channel
+
+compatible: "nxp,eim-channel"
+
+include: base.yaml
