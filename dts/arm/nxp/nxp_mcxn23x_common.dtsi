@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 NXP
+ * Copyright 2024-2025 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -38,6 +38,10 @@
 &sram {
 	#address-cells = <1>;
 	#size-cells = <1>;
+
+	chosen {
+		zephyr,edac = &erm0;
+	};
 
 	sramx: memory@4000000 {
 		compatible =  "zephyr,memory-region", "mmio-sram";
@@ -167,6 +171,19 @@
 		gpio-controller;
 		#gpio-cells = <2>;
 		nxp,kinetis-port = <&portf>;
+	};
+
+	eim0: eim@5b000 {
+		compatible = "nxp,eim";
+		status = "disabled";
+		reg = <0x5b000 0x1000>;
+	};
+
+	erm0: erm@5c000 {
+		compatible = "nxp,erm";
+		status = "okay";
+		reg = <0x5c000 0x1000>;
+		interrupts = <136 0>,<137 0>;
 	};
 
 	flexcomm0: flexcomm@92000 {
