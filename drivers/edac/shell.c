@@ -108,9 +108,9 @@ static int cmd_edac_info(const struct shell *sh, size_t argc, char **argv)
 
 	shell_fprintf(sh, SHELL_NORMAL, "Show EDAC status\n");
 
-	(void)ecc_error_show(sh, edac_device);
+	// (void)ecc_error_show(sh, edac_device);
 
-	(void)parity_error_show(sh, edac_device);
+	// (void)parity_error_show(sh, edac_device);
 
 	shell_fprintf(sh, SHELL_NORMAL, "Errors correctable: %d Errors uncorrectable: %d\n",
 		      edac_errors_cor_get(edac_device), edac_errors_uc_get(edac_device));

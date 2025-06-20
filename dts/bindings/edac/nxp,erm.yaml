@@ -1,0 +1,5 @@
+description: NXP Error Reporting Module
+
+compatible: "nxp,erm"
+
+include: base.yaml
