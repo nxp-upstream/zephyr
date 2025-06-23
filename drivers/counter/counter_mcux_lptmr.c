@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020 Vestas Wind Systems A/S
+ * Copyright 2025 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -22,6 +23,9 @@ struct mcux_lptmr_config {
 	lptmr_pin_select_t pin;
 	lptmr_pin_polarity_t polarity;
 	void (*irq_config_func)(const struct device *dev);
+#if CONFIG_PM
+	bool wakeup_source;
+#endif /* CONFIG_PM */
 };
 
 struct mcux_lptmr_data {
@@ -106,6 +110,13 @@ static uint32_t mcux_lptmr_get_top_value(const struct device *dev)
 	return (config->base->CMR & LPTMR_CMR_COMPARE_MASK) + 1U;
 }
 
+static uint32_t mcux_lptmr_get_freq(const struct device *dev)
+{
+	const struct mcux_lptmr_config *config = dev->config;
+
+	return config->info.freq;
+}
+
 static void mcux_lptmr_isr(const struct device *dev)
 {
 	const struct mcux_lptmr_config *config = dev->config;
@@ -153,14 +164,16 @@ static DEVICE_API(counter, mcux_lptmr_driver_api) = {
 	.set_top_value = mcux_lptmr_set_top_value,
 	.get_pending_int = mcux_lptmr_get_pending_int,
 	.get_top_value = mcux_lptmr_get_top_value,
+        .get_freq = mcux_lptmr_get_freq,
 };
 
 #define COUNTER_MCUX_LPTMR_DEVICE_INIT(n)					\
 	static void mcux_lptmr_irq_config_##n(const struct device *dev)		\
 	{									\
 		IRQ_CONNECT(DT_INST_IRQN(n), DT_INST_IRQ(n, priority),		\
-			mcux_lptmr_isr, DEVICE_DT_INST_GET(n), 0);		\
-		irq_enable(DT_INST_IRQN(n));					\
+			mcux_lptmr_isr, DEVICE_DT_INST_GET(n),			\
+			COND_CODE_1(DT_INST_PROP(n, wakeup_source),		\
+			IRQ_ZERO_LATENCY, (0)));				\
 	}									\
 										\
 	static struct mcux_lptmr_data mcux_lptmr_data_##n;			\
@@ -193,6 +206,8 @@ static DEVICE_API(counter, mcux_lptmr_driver_api) = {
 		.prescaler_glitch = DT_INST_PROP(n, prescale_glitch_filter) +	\
 			DT_INST_PROP(n, timer_mode_sel) - 1,			\
 		.irq_config_func = mcux_lptmr_irq_config_##n,			\
+		COND_CODE_1(CONFIG_PM,						\
+		(.wakeup_source = DT_INST_PROP_OR(n, wakeup_source, 0),), ())	\
 	};									\
 										\
 	DEVICE_DT_INST_DEFINE(n, &mcux_lptmr_init, NULL,			\

@@ -45,6 +45,8 @@ config SOC_MCXN236
 	select ARMV8_M_DSP
 	select SOC_RESET_HOOK
 	select ARM_TRUSTZONE_M
+	select HAS_PM
+	select HAS_POWEROFF
 
 if SOC_SERIES_MCXN
 

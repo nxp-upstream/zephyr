@@ -1,4 +1,4 @@
-# Copyright 2024 NXP
+# Copyright 2024-2025 NXP
 # SPDX-License-Identifier: Apache-2.0
 
 # Do NOT select anything from the MCX family kconfig,
@@ -11,5 +11,6 @@
 if SOC_FAMILY_NXP_MCX
 
 rsource "*/Kconfig"
+rsource "../common/Kconfig.peripherals"
 
 endif # SOC_FAMILY_NXP_MCX
