@@ -112,11 +112,8 @@ static int spi_numaker_configure(const struct device *dev, const struct spi_conf
 
 	/* full/half duplex */
 	if (config->operation & SPI_HALF_DUPLEX) {
-		/* half duplex, which results in 3-wire usage */
-		SPI_ENABLE_3WIRE_MODE(dev_cfg->spi);
-	} else {
-		/* full duplex */
-		SPI_DISABLE_3WIRE_MODE(dev_cfg->spi);
+		/* TODO: This is possible in hardware, it just hasn't been implemented */
+		return -ENOTSUP;
 	}
 
 	/* Active high CS logic */
