@@ -190,10 +190,8 @@ static void create_tasks(void)
 	task_a_init();
 	task_b_init();
 
-	k_thread_create(&thread_a_id, stack_a, TASK_STACK_SIZE, task_a_thread,
-		NULL, NULL, NULL, PRIORITY,  K_INHERIT_PERMS, K_FOREVER);
-	k_thread_create(&thread_b_id, stack_b, TASK_STACK_SIZE, task_b_thread,
-		NULL, NULL, NULL, PRIORITY,  K_INHERIT_PERMS, K_FOREVER);
+	k_thread_create(&thread_a_id, stack_a, TASK_STACK_SIZE, task_a_thread, NULL, NULL, NULL, PRIORITY,  K_INHERIT_PERMS, K_FOREVER);
+	k_thread_create(&thread_b_id, stack_b, TASK_STACK_SIZE, task_b_thread, NULL, NULL, NULL, PRIORITY,  K_INHERIT_PERMS, K_FOREVER);
 
 	k_thread_start(&thread_a_id);
 	k_thread_start(&thread_b_id);
@@ -285,14 +283,13 @@ int test_pwr_mgmt_singlethread(uint8_t cycles)
 
 	pm_notifier_register(&notifier);
 	checks_enabled = true;
-	while (iterations-- > 0) {
-
+	while (iterations-- > 0) 
+	{
 		/* Trigger Light Sleep 1 state. 48MHz PLL stays on */
 		LOG_INF("About to enter light sleep");
 		measure_entry_latency = true;
 		pm_trigger_marker();
-		k_usleep(residency_info[0].min_residency_us +
-				LT_EXTRA_SLP_TIME_US);
+		k_usleep(residency_info[0].min_residency_us + LT_EXTRA_SLP_TIME_US);
 		LOG_INF("Wake from Light Sleep");
 		pm_exit_marker();
 
@@ -303,9 +300,7 @@ int test_pwr_mgmt_singlethread(uint8_t cycles)
 		LOG_INF("About to enter deep Sleep");
 		measure_entry_latency = true;
 		pm_trigger_marker();
-		k_usleep(
-			residency_info[residency_info_len - 1].min_residency_us +
-			DP_EXTRA_SLP_TIME_US);
+		k_usleep(residency_info[residency_info_len - 1].min_residency_us + DP_EXTRA_SLP_TIME_US);
 		LOG_INF("Wake from Deep Sleep");
 		pm_exit_marker();
 	}

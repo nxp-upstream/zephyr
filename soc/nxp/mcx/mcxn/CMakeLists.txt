@@ -24,6 +24,10 @@ endif()
 
 zephyr_sources(soc.c)
 
+if(CONFIG_POWEROFF OR CONFIG_PM)
+  zephyr_sources(power.c)
+endif()
+
 if(CONFIG_FLASH_MCUX_FLEXSPI_XIP OR CONFIG_FLASH_MCUX_FLEXSPI_NOR)
   zephyr_sources(flash_clock_setup.c)
   if(CONFIG_FLASH_MCUX_FLEXSPI_XIP)

@@ -68,3 +68,15 @@ static int second_core_boot(void)
 
 SYS_INIT(second_core_boot, PRE_KERNEL_2, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
 #endif
+
+#if CONFIG_PM
+void pm_state_set(enum pm_state state, uint8_t substate_id)
+{
+
+}
+
+void pm_state_exit_post_ops(enum pm_state state, uint8_t substate_id)
+{
+
+}
+#endif /* CONFIG_PM */

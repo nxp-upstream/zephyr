@@ -215,7 +215,7 @@ void board_early_init_hook(void)
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(vref))
 	CLOCK_EnableClock(kCLOCK_Vref);
-	SPC_EnableActiveModeAnalogModules(SPC0, kSPC_controlVref);
+//	SPC_EnableActiveModeAnalogModules(SPC0, kSPC_controlVref);
 #endif
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpadc0))
@@ -224,16 +224,16 @@ void board_early_init_hook(void)
 #endif
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(usb1)) && (CONFIG_USB_DC_NXP_EHCI || CONFIG_UDC_NXP_EHCI)
-	SPC0->ACTIVE_VDELAY = 0x0500;
+	//SPC0->ACTIVE_VDELAY = 0x0500;
 	/* Change the power DCDC to 1.8v (By default, DCDC is 1.8V), CORELDO to 1.1v (By default,
 	 * CORELDO is 1.0V)
 	 */
-	SPC0->ACTIVE_CFG &= ~SPC_ACTIVE_CFG_CORELDO_VDD_DS_MASK;
-	SPC0->ACTIVE_CFG |= SPC_ACTIVE_CFG_DCDC_VDD_LVL(0x3) | SPC_ACTIVE_CFG_CORELDO_VDD_LVL(0x3) |
-			    SPC_ACTIVE_CFG_SYSLDO_VDD_DS_MASK | SPC_ACTIVE_CFG_DCDC_VDD_DS(0x2u);
+	//SPC0->ACTIVE_CFG &= ~SPC_ACTIVE_CFG_CORELDO_VDD_DS_MASK;
+	//SPC0->ACTIVE_CFG |= SPC_ACTIVE_CFG_DCDC_VDD_LVL(0x3) | SPC_ACTIVE_CFG_CORELDO_VDD_LVL(0x3) |
+	//		    SPC_ACTIVE_CFG_SYSLDO_VDD_DS_MASK | SPC_ACTIVE_CFG_DCDC_VDD_DS(0x2u);
 	/* Wait until it is done */
-	while (SPC0->SC & SPC_SC_BUSY_MASK) {
-	};
+	//while (SPC0->SC & SPC_SC_BUSY_MASK) {
+	//};
 	if ((SCG0->LDOCSR & SCG_LDOCSR_LDOEN_MASK) == 0u) {
 		SCG0->TRIM_LOCK = SCG_TRIM_LOCK_TRIM_LOCK_KEY(0x5a5a) |
 			    SCG_TRIM_LOCK_TRIM_UNLOCK_MASK;
@@ -267,7 +267,7 @@ void board_early_init_hook(void)
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(lpcmp0))
 	CLOCK_SetClkDiv(kCLOCK_DivCmp0FClk, 1U);
 	CLOCK_AttachClk(kFRO12M_to_CMP0F);
-	SPC_EnableActiveModeAnalogModules(SPC0, (kSPC_controlCmp0 | kSPC_controlCmp0Dac));
+	//SPC_EnableActiveModeAnalogModules(SPC0, (kSPC_controlCmp0 | kSPC_controlCmp0Dac));
 #endif
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(flexio0))

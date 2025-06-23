@@ -1,0 +1,7 @@
+# Copyright 2025 NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "FRDM MCXN236 POWER OFF DEMO"
+
+source "Kconfig.zephyr"
