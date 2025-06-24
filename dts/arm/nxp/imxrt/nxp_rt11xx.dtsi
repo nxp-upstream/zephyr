@@ -386,7 +386,6 @@
 			reg = <0x40804000 0x4000>;
 			interrupts = <54 0>;
 			status = "disabled";
-			nxp,pxp = <&pxp>;
 		};
 
 		lcdifv2: display-controller@40808000 {
