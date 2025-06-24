@@ -1047,7 +1047,6 @@
 			compatible = "nxp,imx-elcdif";
 			reg = <0x40804000 0x4000>;
 			interrupts = <54 0>;
-			nxp,pxp = <&pxp>;
 			status = "disabled";
 		};
 
