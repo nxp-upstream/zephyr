@@ -1,0 +1,19 @@
+/*
+ * Copyright 2025 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+
+#include <nxp/mcx/MCXE247VLQ-pinctrl.h>
+
+&pinctrl {
+	pinmux_lpuart2: pinmux_lpuart2 {
+		group0 {
+			pinmux = <LPUART2_RX_PTD17>,
+				<LPUART2_TX_PTE12>;
+			drive-strength = "low";
+			slew-rate = "slow";
+		};
+	};
+};

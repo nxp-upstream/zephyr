@@ -1,0 +1,110 @@
+/*
+ * Copyright 2025 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <nxp/nxp_mcxe247.dtsi>
+#include "frdm_mcxe247-pinctrl.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+/ {
+	model = "NXP FRDM-MCXE247 board";
+	compatible = "nxp,mcxe247", "nxp,mcx";
+
+	aliases {
+		led0 = &red_led;
+		led1 = &green_led;
+		led2 = &blue_led;
+		sw0 = &user_button_2;
+		sw1 = &user_button_3;
+	};
+
+	chosen {
+		zephyr,sram = &sram_l;
+		zephyr,flash = &flash0;
+		zephyr,console = &lpuart2;
+		zephyr,shell-uart = &lpuart2;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		red_led: led_0 {
+			gpios = <&gpioc 13 GPIO_ACTIVE_LOW>;
+			label = "Red LED";
+		};
+		green_led: led_1 {
+			gpios = <&gpiob 11 GPIO_ACTIVE_LOW>;
+			label = "Green LED";
+		};
+		blue_led: led_2 {
+			gpios = <&gpioc 12 GPIO_ACTIVE_LOW>;
+			label = "Blue LED";
+		};
+	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+		user_button_2: button_2 {
+			label = "User SW2";
+			gpios = <&gpioa 9 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_0>;
+		};
+		user_button_3: button_3 {
+			label = "User SW3";
+			gpios = <&gpioc 10 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_1>;
+		};
+	};
+};
+
+&cpu0 {
+	clock-frequency = <80000000>;
+};
+
+&sosc_clk {
+	clock-frequency = <8000000>;
+	status = "okay";
+};
+
+&spll_clk {
+	status = "okay";
+};
+
+&core_clk {
+	clocks = <&spll_clk>;
+	clock-div = <2>;
+};
+
+&bus_clk {
+	clock-div = <2>;
+};
+
+&slow_clk {
+	clock-div = <4>;
+};
+
+&fircdiv2_clk {
+	clock-div = <1>;
+};
+
+&gpioa {
+	status = "okay";
+};
+
+&gpiob {
+	status = "okay";
+};
+
+&gpioc {
+	status = "okay";
+};
+
+&lpuart2 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&pinmux_lpuart2>;
+	pinctrl-names = "default";
+};
