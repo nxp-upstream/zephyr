@@ -1100,7 +1100,6 @@
 			compatible = "nxp,pxp";
 			reg = <0x40814000 0x4000>;
 			interrupts = <57 0>;
-			#dma-cells = <0>;
 			status = "disabled";
 		};
 
