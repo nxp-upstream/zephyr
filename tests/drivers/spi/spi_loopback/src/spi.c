@@ -199,7 +199,8 @@ static int spi_loopback_gpio_cs_loopback_init(void)
 /* just a wrapper of the driver transceive call with ztest error assert */
 static void spi_loopback_transceive(struct spi_dt_spec *const spec,
 				    const struct spi_buf_set *const tx,
-				    const struct spi_buf_set *const rx)
+				    const struct spi_buf_set *const rx,
+				    int expected_cs_count)
 {
 	int ret;
 
@@ -213,7 +214,7 @@ static void spi_loopback_transceive(struct spi_dt_spec *const spec,
 	}
 	zassert_ok(ret, "SPI transceive failed, code %d", ret);
 	/* There should be two CS triggers during the transaction, start and end */
-	zassert_false(spi_loopback_gpio_cs_loopback_check(2));
+	zassert_ok(spi_loopback_gpio_cs_loopback_check(expected_cs_count));
 	zassert_ok(pm_device_runtime_put(spec->bus));
 }
 
@@ -280,7 +281,7 @@ ZTEST(spi_loopback, test_spi_complete_multiple)
 							      buffer_rx, BUF_SIZE,
 							      buffer2_rx, BUF2_SIZE);
 
-	spi_loopback_transceive(spec, &tx, &rx);
+	spi_loopback_transceive(spec, &tx, &rx, 2);
 
 	spi_loopback_compare_bufs(buffer_tx, buffer_rx, BUF_SIZE,
 				  buffer_print_tx, buffer_print_rx);
@@ -310,7 +311,7 @@ ZTEST(spi_loopback, test_spi_complete_multiple_timed)
 
 	/* since this is a test program, there shouldn't be much to interfere with measurement */
 	start_time = k_cycle_get_32();
-	spi_loopback_transceive(spec, &tx, &rx);
+	spi_loopback_transceive(spec, &tx, &rx, 2);
 	end_time = k_cycle_get_32();
 
 	zassert_ok(pm_device_runtime_put(spec->bus));
@@ -386,7 +387,7 @@ void spi_loopback_test_mode(struct spi_dt_spec *spec, bool cpol, bool cpha)
 		spec->config.operation &= ~SPI_MODE_CPHA;
 	}
 
-	spi_loopback_transceive(spec, &tx, &rx);
+	spi_loopback_transceive(spec, &tx, &rx, 2);
 
 	spec->config.operation = original_op;
 
@@ -441,7 +442,7 @@ ZTEST(spi_loopback, test_spi_null_tx_buf)
 
 	(void)memset(buffer_rx, 0x77, BUF_SIZE);
 
-	spi_loopback_transceive(spec, &tx, &rx);
+	spi_loopback_transceive(spec, &tx, &rx, 2);
 
 	spi_loopback_compare_bufs(expected_nop_return_buf, buffer_rx, BUF_SIZE,
 				  buffer_print_rx, buffer_print_rx);
@@ -457,7 +458,7 @@ ZTEST(spi_loopback, test_spi_rx_half_start)
 
 	(void)memset(buffer_rx, 0, BUF_SIZE);
 
-	spi_loopback_transceive(spec, &tx, &rx);
+	spi_loopback_transceive(spec, &tx, &rx, 2);
 
 	spi_loopback_compare_bufs(buffer_tx, buffer_rx, 8,
 				  buffer_print_tx, buffer_print_rx);
@@ -479,7 +480,7 @@ ZTEST(spi_loopback, test_spi_rx_half_end)
 
 	(void)memset(buffer_rx, 0, BUF_SIZE);
 
-	spi_loopback_transceive(spec, &tx, &rx);
+	spi_loopback_transceive(spec, &tx, &rx, 2);
 
 	spi_loopback_compare_bufs(buffer_tx+8, buffer_rx, 8,
 				  buffer_print_tx, buffer_print_rx);
@@ -503,7 +504,7 @@ ZTEST(spi_loopback, test_spi_rx_every_4)
 
 	(void)memset(buffer_rx, 0, BUF_SIZE);
 
-	spi_loopback_transceive(spec, &tx, &rx);
+	spi_loopback_transceive(spec, &tx, &rx, 2);
 
 	spi_loopback_compare_bufs(buffer_tx+4, buffer_rx, 4,
 				  buffer_print_tx, buffer_print_rx);
@@ -531,7 +532,7 @@ ZTEST(spi_loopback, test_spi_rx_bigger_than_tx)
 
 	(void)memset(buffer_rx, 0xff, BUF_SIZE);
 
-	spi_loopback_transceive(spec, &tx, &rx);
+	spi_loopback_transceive(spec, &tx, &rx, 2);
 
 	spi_loopback_compare_bufs(buffer_tx, buffer_rx, tx_buf_size,
 				  buffer_print_tx, buffer_print_rx);
@@ -551,7 +552,7 @@ ZTEST(spi_loopback, test_spi_complete_large_transfers)
 	const struct spi_buf_set rx = spi_loopback_setup_xfer(rx_bufs_pool, 1,
 							      large_buffer_rx, BUF3_SIZE);
 
-	spi_loopback_transceive(spec, &tx, &rx);
+	spi_loopback_transceive(spec, &tx, &rx, 2);
 
 	zassert_false(memcmp(large_buffer_tx, large_buffer_rx, BUF3_SIZE),
 			"Large Buffer contents are different");
@@ -566,7 +567,7 @@ ZTEST(spi_loopback, test_spi_null_tx_buf_set)
 
 	(void)memset(buffer_rx, 0x77, BUF_SIZE);
 
-	spi_loopback_transceive(spec, NULL, &rx);
+	spi_loopback_transceive(spec, NULL, &rx, 2);
 
 	spi_loopback_compare_bufs(expected_nop_return_buf, buffer_rx, BUF_SIZE,
 				  buffer_print_rx, buffer_print_rx);
@@ -578,14 +579,14 @@ ZTEST(spi_loopback, test_spi_null_rx_buf_set)
 	const struct spi_buf_set tx = spi_loopback_setup_xfer(tx_bufs_pool, 1,
 							      buffer_tx, BUF_SIZE);
 
-	spi_loopback_transceive(spec, &tx, NULL);
+	spi_loopback_transceive(spec, &tx, NULL, 2);
 }
 
 ZTEST(spi_loopback, test_spi_null_tx_rx_buf_set)
 {
 	struct spi_dt_spec *spec = loopback_specs[spec_idx];
 
-	spi_loopback_transceive(spec, NULL, NULL);
+	spi_loopback_transceive(spec, NULL, NULL, 0);
 }
 
 ZTEST(spi_loopback, test_nop_nil_bufs)
@@ -594,7 +595,7 @@ ZTEST(spi_loopback, test_nop_nil_bufs)
 	const struct spi_buf_set tx = spi_loopback_setup_xfer(tx_bufs_pool, 1, NULL, 0);
 	const struct spi_buf_set rx = spi_loopback_setup_xfer(rx_bufs_pool, 1, NULL, 0);
 
-	spi_loopback_transceive(spec, &tx, &rx);
+	spi_loopback_transceive(spec, &tx, &rx, 0);
 
 	/* nothing really to check here, check is done in spi_loopback_transceive */
 }
@@ -610,7 +611,7 @@ ZTEST(spi_loopback, test_spi_write_back)
 
 	memcpy(buffer_rx, tx_data, sizeof(tx_data));
 
-	spi_loopback_transceive(spec, &tx, &rx);
+	spi_loopback_transceive(spec, &tx, &rx, 2);
 
 	spi_loopback_compare_bufs(tx_data, buffer_rx, BUF_SIZE,
 				  buffer_print_tx, buffer_print_rx);
@@ -629,7 +630,7 @@ ZTEST(spi_loopback, test_spi_same_buf_cmd)
 
 	memcpy(buffer_rx, tx_data, sizeof(tx_data));
 
-	spi_loopback_transceive(spec, &tx, &rx);
+	spi_loopback_transceive(spec, &tx, &rx, 2);
 
 	spi_loopback_compare_bufs(tx_data, buffer_rx, BUF_SIZE,
 				  buffer_print_tx, buffer_print_rx);
@@ -656,7 +657,7 @@ static void spi_loopback_test_word_size(struct spi_dt_spec *spec,
 	const struct spi_buf_set rx = spi_loopback_setup_xfer(rx_bufs_pool, 1,
 							      rx_buffer, buffer_size);
 
-	spi_loopback_transceive(spec_copy, &tx, &rx);
+	spi_loopback_transceive(spec_copy, &tx, &rx, 2);
 
 	zassert_false(memcmp(compare_data, rx_buffer, buffer_size),
 		      "%d-bit word buffer contents are different", word_size);
@@ -950,11 +951,11 @@ ZTEST(spi_extra_api_features, test_spi_lock_release)
 	lock_spec->config.operation |= SPI_LOCK_ON;
 
 	zassert_ok(pm_device_runtime_get(lock_spec->bus));
-	spi_loopback_transceive(lock_spec, &tx, &rx);
+	spi_loopback_transceive(lock_spec, &tx, &rx, 2);
 	zassert_false(spi_release_dt(lock_spec), "SPI release failed");
 	zassert_ok(pm_device_runtime_put(lock_spec->bus));
 
-	spi_loopback_transceive(try_spec, &tx, &rx);
+	spi_loopback_transceive(try_spec, &tx, &rx, 2);
 
 	lock_spec->config.operation &= ~SPI_LOCK_ON;
 }
@@ -1010,7 +1011,7 @@ ZTEST(spi_extra_api_features, test_spi_hold_on_cs)
 	}
 
 	/* now just do a normal transfer to make sure there was no leftover effects */
-	spi_loopback_transceive(hold_spec, &tx, &rx);
+	spi_loopback_transceive(hold_spec, &tx, &rx, 2);
 
 	return;
 
