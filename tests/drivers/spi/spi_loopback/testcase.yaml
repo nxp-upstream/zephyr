@@ -17,6 +17,7 @@ tests:
     filter: DT_HAS_NXP_LPSPI_ENABLED and DT_HAS_NXP_MCUX_EDMA_ENABLED
     extra_configs:
       - CONFIG_SPI_NXP_LPSPI_DMA=y
+      - CONFIG_SPI_IDEAL_TRANSFER_DURATION_SCALING=40
   drivers.spi.loopback.lpspi.async.unset:
     filter: DT_HAS_NXP_LPSPI_ENABLED and DT_HAS_NXP_MCUX_EDMA_ENABLED
     extra_configs:
@@ -27,6 +28,7 @@ tests:
     extra_configs:
       - CONFIG_SPI_NXP_LPSPI_DMA=y
       - CONFIG_SPI_ASYNC=n
+      - CONFIG_SPI_IDEAL_TRANSFER_DURATION_SCALING=40
   drivers.spi.loopback.rtio:
     extra_configs:
       - CONFIG_SPI_RTIO=y
