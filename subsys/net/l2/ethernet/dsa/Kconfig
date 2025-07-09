@@ -39,6 +39,12 @@ config DSA_TAG_SIZE
 	help
 	  Set the DSA tag length in bytes.
 
+config DSA_TAG_PROTOCOL_NETC
+	bool "Tag protocol - NETC"
+	default y if DT_HAS_NXP_NETC_SWITCH_ENABLED
+	help
+	  NXP NETC tag protocol.
+
 module = NET_DSA
 module-dep = NET_LOG
 module-str = Log level for DSA
