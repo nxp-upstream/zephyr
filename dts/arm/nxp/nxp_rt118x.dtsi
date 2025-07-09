@@ -619,6 +619,7 @@
 	};
 
 	netc: ethernet@60000000 {
+		compatible = "nxp,imx-netc";
 		reg = <0x60000000 0x1000000>;
 		#address-cells = <1>;
 		#size-cells = <1>;
@@ -638,15 +639,6 @@
 			mac-index = <1>;
 			si-index = <1>;
 			phy-connection-type = "internal";
-			status = "disabled";
-		};
-
-		emdio: mdio@60ba0000 {
-			compatible = "nxp,imx-netc-emdio";
-			reg = <0x60ba0000 0x1c44>;
-			clocks = <&ccm IMX_CCM_NETC_CLK 0x0 0>;
-			#address-cells = <1>;
-			#size-cells = <0>;
 			status = "disabled";
 		};
 
@@ -684,6 +676,17 @@
 				status = "disabled";
 			};
 		};
+	};
+
+	emdio: mdio@60ba0000 {
+		compatible = "nxp,imx-netc-emdio";
+		reg = <0x60ba0000 0x1c44>,
+			<0x60001000 0x1000>;
+		reg-names = "basic", "pfconfig";
+		clocks = <&ccm IMX_CCM_NETC_CLK 0x0 0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "disabled";
 	};
 
 	flexcan1: can@43a0000 {
