@@ -10,6 +10,7 @@ LOG_MODULE_REGISTER(net_dsa_port, CONFIG_NET_DSA_LOG_LEVEL);
 #include <zephyr/net/ethernet.h>
 #include <zephyr/net/phy.h>
 #include <zephyr/net/dsa_core.h>
+#include "dsa_tag.h"
 
 #if defined(CONFIG_NET_INTERFACE_NAME_LEN)
 #define INTERFACE_NAME_LEN CONFIG_NET_INTERFACE_NAME_LEN
@@ -35,7 +36,9 @@ int dsa_port_initialize(const struct device *dev)
 			LOG_ERR("DSA: Conduit iface NOT found!");
 		}
 
+		/* Set up tag protocol on the cpu port */
 		eth_ctx->dsa_port = DSA_CPU_PORT;
+		dsa_tag_setup(dev);
 
 		/* Provide DSA information to the conduit port */
 		eth_ctx_conduit = net_if_l2_data(dsa_switch_ctx->iface_conduit);
