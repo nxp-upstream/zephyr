@@ -700,6 +700,9 @@ struct ethernet_context {
 
 	/** DSA switch context pointer */
 	struct dsa_switch_context *dsa_switch_ctx;
+
+	/** DSA CPU port connected. */
+	struct net_if *dsa_cpu_iface;
 #endif
 
 	/** Is network carrier up */
