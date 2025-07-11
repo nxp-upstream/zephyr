@@ -73,8 +73,8 @@ MEMORY
     org = XCHAL_DOUBLEEXC_VECTOR_PADDR_IRAM + MEM_VECT_TEXT_SIZE,
     len = (IRAM_BASE + IRAM_SIZE) - (XCHAL_DOUBLEEXC_VECTOR_PADDR + MEM_VECT_TEXT_SIZE)
   sdram0 :
-    org = SDRAM0_BASE,
-    len = SDRAM0_SIZE
+    org = DRAM_BASE,
+    len = DRAM_SIZE
 #ifdef CONFIG_GEN_ISR_TABLES
   IDT_LIST :
     org = IDT_BASE,
@@ -413,6 +413,13 @@ SECTIONS
     _memmap_seg_dsp_core_end = ALIGN(0x8);
   } >sdram0 :sdram0_phdr
 
+  #include <zephyr/linker/common-rom.ld>
+  /* Located in generated directory. This file is populated by calling
+  * zephyr_linker_sources(ROM_SECTIONS ...). Useful for grouping iterable RO structs.
+  */
+  #include <snippets-rom-sections.ld>
+  #include <zephyr/linker/common-ram.ld>
+
   .heap_mem (NOLOAD) : ALIGN(8)
   {
     . = ALIGN (8);
@@ -478,12 +485,6 @@ SECTIONS
   {
     *(.note.GNU-stack)
   }
-#include <zephyr/linker/common-rom.ld>
-/* Located in generated directory. This file is populated by calling
- * zephyr_linker_sources(ROM_SECTIONS ...). Useful for grouping iterable RO structs.
- */
-#include <snippets-rom-sections.ld>
-#include <zephyr/linker/common-ram.ld>
 
 #ifdef CONFIG_GEN_ISR_TABLES
 #include <zephyr/linker/intlist.ld>

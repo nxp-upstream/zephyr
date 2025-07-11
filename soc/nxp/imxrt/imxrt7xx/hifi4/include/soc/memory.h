@@ -18,7 +18,7 @@
 #define DRAM_SIZE 0x10000
 
 #define SDRAM0_BASE 0x20200000
-#define SDRAM0_SIZE 0xFFFFF
+#define SDRAM0_SIZE 0x10000
 
 /* The reset vector address in IRAM and its size. */
 #define XCHAL_RESET_VECTOR0_PADDR_IRAM IRAM_BASE
