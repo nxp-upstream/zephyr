@@ -1,0 +1,13 @@
+# Copyright 2025 NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+
+sample:
+  name: Poweroff demo for NXP MCXN series
+common:
+  tags: power
+tests:
+  sample.boards.nxp.mcx.mcxn.poweroff:
+    platform_allow:
+    - frdm_mcxn236/mcxn236
+    - frdm_mcxn947/mcxn947/cpu0
