@@ -65,9 +65,12 @@ CPU's UART1 for Cortex-A55, and UART8 for Cortex-M33.
 Ethernet
 --------
 
-NETC driver supports to manage the Physical Station Interface (PSI).
+NETC driver supports to manage the Physical Station Interface (PSI), and TSN switch.
 The ENET0, ENETC1, ENETC2 ports could be enabled for M33 by west build option
 ``-DEXTRA_DTC_OVERLAY_FILE=enetc.overlay``.
+
+The two switch ports could be enabled for M33 by west build option.
+``-DEXTRA_DTC_OVERLAY_FILE=netc-switch.overlay``.
 
 Programming and Debugging (A55)
 *******************************
