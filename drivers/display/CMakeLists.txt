@@ -37,6 +37,7 @@ zephyr_library_sources_ifdef(CONFIG_WAVESHARE_7INCH_DSI_LCD_C display_waveshare_
 zephyr_library_sources_ifdef(CONFIG_RM68200 display_rm68200.c)
 zephyr_library_sources_ifdef(CONFIG_RM67162 display_rm67162.c)
 zephyr_library_sources_ifdef(CONFIG_RM67199 display_rm67199.c)
+zephyr_library_sources_ifdef(CONFIG_RM692C9 display_rm692c9.c)
 zephyr_library_sources_ifdef(CONFIG_HUB12 display_hub12.c)
 zephyr_library_sources_ifdef(CONFIG_HX8379C display_hx8379c.c)
 zephyr_library_sources_ifdef(CONFIG_HX8394 display_hx8394.c)
