@@ -92,5 +92,4 @@ int scmi_shmem_vendor_write_message(struct scmi_shmem_layout *layout);
  * @retval negative errno if failure
  */
 int scmi_shmem_vendor_read_message(const struct scmi_shmem_layout *layout);
-
 #endif /* _INCLUDE_ZEPHYR_DRIVERS_FIRMWARE_SCMI_SHMEM_H_ */
