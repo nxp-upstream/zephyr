@@ -5,12 +5,20 @@
  */
 
 #include "mimxrt1060_evk.dtsi"
+#include <zephyr/dt-bindings/memory-attr/memory-attr-arm.h>
 
 / {
 	chosen {
-		zephyr,flash-controller = &is25wp064;
-		zephyr,flash = &is25wp064;
-		zephyr,code-partition = &slot0_partition;
+		zephyr,flash-controller = &w25n01kv;
+		zephyr,flash = &w25n01kv;
+//		zephyr,code-partition = &slot0_partition;
+	};
+
+	nand_flash: memory@60000000 {
+		compatible = "zephyr,memory-region", "mmio-sram";
+		reg = <0x60000000 DT_SIZE_M(256)>;
+		zephyr,memory-region = "NAND_FLASH";
+		zephyr,memory-attr = <(DT_MEM_ARM(ATTR_MPU_FLASH))>;
 	};
 };
 
@@ -21,39 +29,25 @@
 	ahb-prefetch;
 	ahb-read-addr-opt;
 	rx-clock-source = <1>;
-	reg = <0x402a8000 0x4000>, <0x60000000 DT_SIZE_M(8)>;
-	is25wp064: is25wp064@0 {
-		compatible = "nxp,imx-flexspi-nor";
-		size = <67108864>;
+	reg = <0x402a8000 0x4000>, <0x60000000 DT_SIZE_M(256)>;
+	w25n01kv: w25n01kv@0 {
+		compatible = "nxp,imx-flexspi-w25n01kv";
+		size = <DT_SIZE_M(256*8)>;
 		reg = <0>;
 		spi-max-frequency = <104000000>;
+		column-space = <12>;
 		status = "okay";
-		jedec-id = [9d 70 17];
-		erase-block-size = <4096>;
-		write-block-size = <1>;
+		jedec-id = [ef ae 21];
+		erase-block-size = <131072>;
+		write-block-size = <2048>;
 
 		partitions {
 			compatible = "fixed-partitions";
 			#address-cells = <1>;
 			#size-cells = <1>;
-			boot_partition: partition@0 {
-				label = "mcuboot";
-				reg = <0x00000000 DT_SIZE_K(128)>;
-			};
-			/* The MCUBoot swap-move algorithm uses the last 2 sectors
-			 * of the primary slot0 for swap status and move.
-			 */
-			slot0_partition: partition@20000 {
-				label = "image-0";
-				reg = <0x00020000 (DT_SIZE_M(3) + DT_SIZE_K(8))>;
-			};
-			slot1_partition: partition@322000 {
-				label = "image-1";
-				reg = <0x00322000 DT_SIZE_M(3)>;
-			};
-			storage_partition: partition@622000 {
+			storage_partition: partition@0 {
 				label = "storage";
-				reg = <0x00622000 (DT_SIZE_M(2) - DT_SIZE_K(136))>;
+				reg = <0x0 DT_SIZE_M(128)>;
 			};
 		};
 	};
