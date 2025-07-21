@@ -301,6 +301,14 @@ __weak void clock_init(void)
 	CLOCK_SetMux(kCLOCK_TraceMux, 0);
 #endif
 
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(flexspi))
+    CLOCK_InitSysPfd(kCLOCK_Pfd2, 23);//413
+    /* Set FLEXSPI_PODF. */
+    CLOCK_SetDiv(kCLOCK_FlexspiDiv, 3);
+    /* Set Flexspi clock source from syspll pfd2. */
+    CLOCK_SetMux(kCLOCK_FlexspiMux, 2);
+#endif
+
 	/* Keep the system clock running so SYSTICK can wake up the system from
 	 * wfi.
 	 */

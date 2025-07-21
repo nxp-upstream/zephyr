@@ -32,6 +32,7 @@ zephyr_library_sources_ifdef(CONFIG_FLASH_INFINEON_CAT1 flash_ifx_cat1.c)
 zephyr_library_sources_ifdef(CONFIG_FLASH_MCUX_FLEXSPI_HYPERFLASH flash_mcux_flexspi_hyperflash.c)
 zephyr_library_sources_ifdef(CONFIG_FLASH_MCUX_FLEXSPI_MX25UM51345G flash_mcux_flexspi_mx25um51345g.c)
 zephyr_library_sources_ifdef(CONFIG_FLASH_MCUX_FLEXSPI_NOR flash_mcux_flexspi_nor.c)
+zephyr_library_sources_ifdef(CONFIG_FLASH_MCUX_FLEXSPI_W25N01KV flash_mcux_flexspi_w25n01kv.c)
 zephyr_library_sources_ifdef(CONFIG_FLASH_MSPI_ATXP032 flash_mspi_atxp032.c)
 zephyr_library_sources_ifdef(CONFIG_FLASH_MSPI_EMUL_DEVICE flash_mspi_emul_device.c)
 zephyr_library_sources_ifdef(CONFIG_FLASH_MSPI_NOR flash_mspi_nor.c)
@@ -149,6 +150,11 @@ zephyr_library_include_directories_ifdef(
 
 zephyr_library_include_directories_ifdef(
   CONFIG_FLASH_MCUX_FLEXSPI_HYPERFLASH
+  ${ZEPHYR_BASE}/drivers/memc
+)
+
+zephyr_library_include_directories_ifdef(
+  CONFIG_FLASH_MCUX_FLEXSPI_W25N01KV
   ${ZEPHYR_BASE}/drivers/memc
 )
 
