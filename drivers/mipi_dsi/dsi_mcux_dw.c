@@ -123,10 +123,6 @@ static int dsi_mcux_attach(const struct device *dev, uint8_t channel,
 						 MEDIAMIX_BLK_CTRL_RESET_ref_clk_en_MASK);
 	BLK_CTRL_MEDIAMIX->CLK_RESETN.RESET |=
 		(MEDIAMIX_BLK_CTRL_RESET_dsi_apb_en_MASK | MEDIAMIX_BLK_CTRL_RESET_ref_clk_en_MASK);
-	BLK_CTRL_MEDIAMIX->CLK_RESETN.CLK =
-		MEDIAMIX_BLK_CTRL_RESET_cam_clk_en(1) | MEDIAMIX_BLK_CTRL_RESET_csi_apb_en(1) |
-		MEDIAMIX_BLK_CTRL_RESET_pxp_axi_en(1) | MEDIAMIX_BLK_CTRL_RESET_pxp_apb_en(1) |
-		MEDIAMIX_BLK_CTRL_RESET_isi_proc_en(1) | MEDIAMIX_BLK_CTRL_RESET_isi_apb_en(1);
 
 	BLK_CTRL_MEDIAMIX->MIPI.DSI_W0 =
 		MEDIAMIX_BLK_CTRL_DSI_W0_PROP_CNTRL(
@@ -158,9 +154,9 @@ static int dsi_mcux_attach(const struct device *dev, uint8_t channel,
 	} else {
 		LOG_INF("%s succeeded\n", __func__);
 	}
-#if DUMP_REG
+
 	dump_reg(base);
-#endif
+
 	return 0;
 }
 
