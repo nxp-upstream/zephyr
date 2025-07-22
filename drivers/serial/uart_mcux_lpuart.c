@@ -155,6 +155,7 @@ static void mcux_lpuart_pm_policy_state_lock_put(const struct device *dev)
 		pm_policy_state_lock_put(PM_STATE_SUSPEND_TO_IDLE, PM_ALL_SUBSTATES);
 	}
 }
+
 #endif /* CONFIG_PM */
 
 static int mcux_lpuart_poll_in(const struct device *dev, unsigned char *c)
