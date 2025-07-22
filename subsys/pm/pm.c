@@ -149,6 +149,13 @@ bool pm_system_suspend(int32_t kernel_ticks)
 	int32_t ticks, events_ticks;
 	uint32_t exit_latency_ticks;
 
+#ifdef CONFIG_PM_CPU_SHELL
+	if (pm_cpu_shell_forced_idle()) {
+		/* Directly enter cpu_idle, no about soc level low power mode */
+		return false;
+	}
+#endif
+
 	SYS_PORT_TRACING_FUNC_ENTER(pm, system_suspend, kernel_ticks);
 
 	if (!pm_policy_state_any_active() && (z_cpus_pm_forced_state[id] == NULL)) {
@@ -196,11 +203,15 @@ bool pm_system_suspend(int32_t kernel_ticks)
 
 	exit_latency_ticks = EXIT_LATENCY_US_TO_TICKS(z_cpus_pm_state[id]->exit_latency_us);
 	if ((exit_latency_ticks > 0) && (ticks != K_TICKS_FOREVER)) {
+#ifdef CONFIG_PM_CPU_SHELL
+		sys_clock_set_timeout(K_TICKS_FOREVER, true);
+#else
 		/*
 		 * We need to set the timer to interrupt a little bit early to
 		 * accommodate the time required by the CPU to fully wake up.
 		 */
 		sys_clock_set_timeout(ticks - exit_latency_ticks, true);
+#endif
 	}
 
 	/*
@@ -231,6 +242,12 @@ bool pm_system_suspend(int32_t kernel_ticks)
 
 	pm_system_resume();
 	k_sched_unlock();
+
+#ifdef CONFIG_PM_CPU_SHELL
+	sys_clock_announce(1);
+	resume_user_threads();
+#endif
+
 	SYS_PORT_TRACING_FUNC_EXIT(pm, system_suspend, ticks,
 				   z_cpus_pm_state[id] ?
 				   z_cpus_pm_state[id]->state : PM_STATE_ACTIVE);

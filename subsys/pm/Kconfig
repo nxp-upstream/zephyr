@@ -71,6 +71,12 @@ config PM_PREWAKEUP_CONV_MODE_CEIL
 config PM_PREWAKEUP_CONV_MODE_FLOOR
 	bool "Round down"
 
+config PM_CPU_SHELL
+        bool "CPU Power Management shell"
+        depends on SHELL
+        help
+          Enable the device power management shell, for triggering device power
+          management events through the shell interface.
 endchoice
 
 endif # PM

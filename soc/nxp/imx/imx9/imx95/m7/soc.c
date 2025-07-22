@@ -120,7 +120,6 @@ void pm_state_before(void)
 	scmi_cpu_pd_lpm_set(&cpu_pd_lpm_cfg);
 }
 
-
 void pm_state_set(enum pm_state state, uint8_t substate_id)
 {
 	struct scmi_cpu_sleep_mode_config cpu_cfg = {0};

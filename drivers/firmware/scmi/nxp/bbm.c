@@ -32,7 +32,7 @@ int scmi_bbm_button_notify(uint32_t flags)
 	reply.len = sizeof(uint32_t);
 	reply.content = &status;
 
-	ret = scmi_send_message(proto, &msg, &reply);
+	ret = scmi_send_message(proto, &msg, &reply, true);
 	if (ret < 0) {
 		return ret;
 	}

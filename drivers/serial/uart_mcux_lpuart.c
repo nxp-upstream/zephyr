@@ -14,6 +14,7 @@
 #include <zephyr/irq.h>
 #include <zephyr/kernel.h>
 #include <zephyr/pm/policy.h>
+#include <zephyr/pm/device.h>
 #include <zephyr/drivers/pinctrl.h>
 #ifdef CONFIG_UART_ASYNC_API
 #include <zephyr/drivers/dma.h>
@@ -155,6 +156,29 @@ static void mcux_lpuart_pm_policy_state_lock_put(const struct device *dev)
 		pm_policy_state_lock_put(PM_STATE_SUSPEND_TO_IDLE, PM_ALL_SUBSTATES);
 	}
 }
+
+#ifdef CONFIG_PM_DEVICE
+static int mcux_lpuart_pm_action(const struct device *dev,
+                                enum pm_device_action action)
+{
+	const struct mcux_lpuart_config *config = dev->config;
+        int ret;
+
+        switch (action) {
+        case PM_DEVICE_ACTION_RESUME:
+		LPUART_EnableTx(config->base, true);
+                break;
+        case PM_DEVICE_ACTION_SUSPEND:
+		LPUART_EnableTx(config->base, false);
+                break;
+        default:
+                return -ENOTSUP;
+        }
+
+        return 0;
+}
+#endif
+
 #endif /* CONFIG_PM */
 
 static int mcux_lpuart_poll_in(const struct device *dev, unsigned char *c)
@@ -1539,9 +1563,10 @@ static const struct mcux_lpuart_config mcux_lpuart_##n##_config = {     \
 									\
 	LPUART_MCUX_DECLARE_CFG(n)					\
 									\
+	PM_DEVICE_DT_DEFINE(n, mcux_lpuart_pm_action);			\
 	DEVICE_DT_INST_DEFINE(n,					\
 			    mcux_lpuart_init,				\
-			    NULL,					\
+			    PM_DEVICE_DT_GET(n),			\
 			    &mcux_lpuart_##n##_data,			\
 			    &mcux_lpuart_##n##_config,			\
 			    PRE_KERNEL_1,				\
