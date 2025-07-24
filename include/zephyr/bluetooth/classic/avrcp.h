@@ -319,6 +319,339 @@ struct bt_avrcp_set_browsed_player_rsp {
 	struct bt_avrcp_folder_name folder_names[0]; /**< Folder names data */
 } __packed;
 
+typedef enum __packed {
+	/** Capabilities */
+	BT_AVRCP_PDU_ID_GET_CAPS = 0x10,
+
+	/** Player Application Settings */
+	BT_AVRCP_PDU_ID_LIST_PLAYER_APP_SETTING_ATTRS = 0x11,
+	BT_AVRCP_PDU_ID_LIST_PLAYER_APP_SETTING_VALS = 0x12,
+	BT_AVRCP_PDU_ID_GET_CURR_PLAYER_APP_SETTING_VAL = 0x13,
+	BT_AVRCP_PDU_ID_SET_PLAYER_APP_SETTING_VAL = 0x14,
+	BT_AVRCP_PDU_ID_GET_PLAYER_APP_SETTING_ATTR_TEXT = 0x15,
+	BT_AVRCP_PDU_ID_GET_PLAYER_APP_SETTING_VAL_TEXT = 0x16,
+	BT_AVRCP_PDU_ID_INFORM_DISPLAYABLE_CHAR_SET = 0x17,
+	BT_AVRCP_PDU_ID_INFORM_BATT_STATUS_OF_CT = 0x18,
+
+	/** Metadata Attributes for Current Media Item */
+	BT_AVRCP_PDU_ID_GET_ELEMENT_ATTRS = 0x20,
+
+	/** Notifications */
+	BT_AVRCP_PDU_ID_GET_PLAY_STATUS = 0x30,
+	BT_AVRCP_PDU_ID_REGISTER_NOTIFICATION = 0x31,
+	BT_AVRCP_PDU_ID_EVT_PLAYBACK_STATUS_CHANGED = 0x31,
+	BT_AVRCP_PDU_ID_EVT_TRACK_CHANGED = 0x31,
+	BT_AVRCP_PDU_ID_EVT_TRACK_REACHED_END = 0x31,
+	BT_AVRCP_PDU_ID_EVT_TRACK_REACHED_START = 0x31,
+	BT_AVRCP_PDU_ID_EVT_PLAYBACK_POS_CHANGED = 0x31,
+	BT_AVRCP_PDU_ID_EVT_BATT_STATUS_CHANGED = 0x31,
+	BT_AVRCP_PDU_ID_EVT_SYSTEM_STATUS_CHANGED = 0x31,
+	BT_AVRCP_PDU_ID_EVT_PLAYER_APP_SETTING_CHANGED = 0x31,
+	BT_AVRCP_PDU_ID_EVT_VOLUME_CHANGED = 0x31,
+	BT_AVRCP_PDU_ID_EVT_ADDRESSED_PLAYER_CHANGED = 0x31,
+	BT_AVRCP_PDU_ID_EVT_AVAILABLE_PLAYERS_CHANGED = 0x31,
+	BT_AVRCP_PDU_ID_EVT_UIDS_CHANGED = 0x31,
+
+	/** Continuation */
+	BT_AVRCP_PDU_ID_REQ_CONTINUING_RSP = 0x40,
+	BT_AVRCP_PDU_ID_ABORT_CONTINUING_RSP = 0x41,
+
+	/** Absolute Volume */
+	BT_AVRCP_PDU_ID_SET_ABSOLUTE_VOLUME = 0x50,
+
+	/** Media Player Selection */
+	BT_AVRCP_PDU_ID_SET_ADDRESSED_PLAYER = 0x60,
+
+	/** Browsing */
+	BT_AVRCP_PDU_ID_SET_BROWSED_PLAYER = 0x70,
+	BT_AVRCP_PDU_ID_GET_FOLDER_ITEMS = 0x71,
+	BT_AVRCP_PDU_ID_CHANGE_PATH = 0x72,
+	BT_AVRCP_PDU_ID_GET_ITEM_ATTRS = 0x73,
+	BT_AVRCP_PDU_ID_PLAY_ITEM = 0x74,
+	BT_AVRCP_PDU_ID_GET_TOTAL_NUMBER_OF_ITEMS = 0x75,
+
+	/** Search */
+	BT_AVRCP_PDU_ID_SEARCH = 0x80,
+
+	/** Now Playing */
+	BT_AVRCP_PDU_ID_ADD_TO_NOW_PLAYING = 0x90,
+
+	/** Error Response */
+	BT_AVRCP_PDU_ID_GENERAL_REJECT = 0xa0,
+} bt_avrcp_pdu_id_t;
+
+/** @brief AVRCP Playback Status */
+typedef enum __packed {
+	BT_AVRCP_PLAYBACK_STATUS_STOPPED  = 0x00,
+	BT_AVRCP_PLAYBACK_STATUS_PLAYING  = 0x01,
+	BT_AVRCP_PLAYBACK_STATUS_PAUSED   = 0x02,
+	BT_AVRCP_PLAYBACK_STATUS_FWD_SEEK = 0x03,
+	BT_AVRCP_PLAYBACK_STATUS_REV_SEEK = 0x04,
+	BT_AVRCP_PLAYBACK_STATUS_ERROR    = 0xFF,
+} bt_avrcp_playback_status_t;
+
+/** @brief AVRCP System Status Code. */
+typedef enum __packed {
+	BT_AVRCP_SYSTEM_STATUS_POWER_ON  = 0x00,
+	BT_AVRCP_SYSTEM_STATUS_POWER_OFF = 0x01,
+	BT_AVRCP_SYSTEM_STATUS_UNPLUGGED = 0x02,
+} bt_avrcp_system_status_t;
+
+/** @brief AVRCP Battery Status Code. */
+typedef enum __packed {
+	BT_AVRCP_BATTERY_STATUS_NORMAL   = 0x00,
+	BT_AVRCP_BATTERY_STATUS_WARNING  = 0x01,
+	BT_AVRCP_BATTERY_STATUS_CRITICAL = 0x02,
+	BT_AVRCP_BATTERY_STATUS_EXTERNAL = 0x03,
+	BT_AVRCP_BATTERY_STATUS_FULL     = 0x04,
+} bt_avrcp_battery_status_t;
+
+/** AVRCP MAX absolute volume. */
+#define BT_AVRCP_MAX_ABSOLUTE_VOLUME 0x7F
+
+/** @brief AVRCP Media Attribute IDs */
+typedef enum __packed {
+	BT_AVRCP_MEDIA_ATTR_TITLE = 0x01,
+	BT_AVRCP_MEDIA_ATTR_ARTIST = 0x02,
+	BT_AVRCP_MEDIA_ATTR_ALBUM = 0x03,
+	BT_AVRCP_MEDIA_ATTR_TRACK_NUMBER = 0x04,
+	BT_AVRCP_MEDIA_ATTR_TOTAL_TRACKS = 0x05,
+	BT_AVRCP_MEDIA_ATTR_GENRE = 0x06,
+	BT_AVRCP_MEDIA_ATTR_PLAYING_TIME = 0x07,
+} bt_avrcp_media_attr_t;
+
+/** @brief AVRCP Media Attribute structure */
+struct bt_avrcp_media_attr {
+	uint32_t attr_id;    /**< Media attribute ID, see @ref bt_avrcp_media_attr_t */
+	uint16_t charset_id; /**< Character set ID, see @ref bt_avrcp_charset_t */
+	uint16_t attr_len;   /**< Length of attribute value */
+	uint8_t attr_val[];  /**< Attribute value data */
+} __packed;
+
+/** @brief GetElementAttributes command request structure */
+struct bt_avrcp_get_element_attrs_cmd {
+	uint64_t identifier;  /**< Element identifier (0x0 for currently playing) */
+	uint8_t num_attrs;    /**< Number of attributes requested (0 = all) */
+	uint32_t attr_ids[];  /**< Array of requested attribute IDs */
+} __packed;
+
+/** @brief GetElementAttributes response structure */
+struct bt_avrcp_get_element_attrs_rsp {
+	uint8_t num_attrs;			/**< Number of attributes in response */
+	struct bt_avrcp_media_attr attrs[];	/**< Array of media attributes */
+} __packed;
+
+/** @brief AVRCP Player Application Setting Attribute IDs */
+typedef enum __packed {
+	BT_AVRCP_PLAYER_ATTR_EQUALIZER = 0x01U,
+	BT_AVRCP_PLAYER_ATTR_REPEAT_MODE = 0x02U,
+	BT_AVRCP_PLAYER_ATTR_SHUFFLE = 0x03U,
+	BT_AVRCP_PLAYER_ATTR_SCAN = 0x04U,
+} bt_avrcp_player_attr_id_t;
+
+/** @brief AVRCP Player Application Setting Values for Equalizer */
+typedef enum __packed {
+	BT_AVRCP_EQUALIZER_OFF = 0x01U,
+	BT_AVRCP_EQUALIZER_ON = 0x02U,
+} bt_avrcp_equalizer_value_t;
+
+/** @brief AVRCP Player Application Setting Values for Repeat Mode */
+typedef enum __packed {
+	BT_AVRCP_REPEAT_MODE_OFF = 0x01U,
+	BT_AVRCP_REPEAT_MODE_SINGLE_TRACK = 0x02U,
+	BT_AVRCP_REPEAT_MODE_ALL_TRACKS = 0x03U,
+	BT_AVRCP_REPEAT_MODE_GROUP = 0x04U,
+} bt_avrcp_repeat_mode_value_t;
+
+/** @brief AVRCP Player Application Setting Values for Shuffle */
+typedef enum __packed {
+	BT_AVRCP_SHUFFLE_OFF = 0x01U,
+	BT_AVRCP_SHUFFLE_ALL_TRACKS = 0x02U,
+	BT_AVRCP_SHUFFLE_GROUP = 0x03U,
+} bt_avrcp_shuffle_value_t;
+
+/** @brief AVRCP Player Application Setting Values for Scan */
+typedef enum __packed {
+	BT_AVRCP_SCAN_OFF = 0x01U,
+	BT_AVRCP_SCAN_ALL_TRACKS = 0x02U,
+	BT_AVRCP_SCAN_GROUP = 0x03U,
+} bt_avrcp_scan_value_t;
+
+/** @brief ListPlayerApplicationSettingAttributes response */
+struct bt_avrcp_list_app_setting_attr_rsp {
+	uint8_t num_attrs;       /**< Number of application setting attributes */
+	uint8_t attr_ids[];      /**< Array of attribute IDs @ref bt_avrcp_player_attr_id_t */
+} __packed;
+
+/** @brief ListPlayerApplicationSettingValues command request */
+struct bt_avrcp_list_app_setting_values_cmd {
+	uint8_t attr_id;         /**< Attribute ID to query values for */
+} __packed;
+
+/** @brief ListPlayerApplicationSettingValues response */
+struct bt_avrcp_list_app_setting_values_rsp {
+	uint8_t num_values;      /**< Number of values for the attribute */
+	uint8_t values[];        /**< Array of possible values */
+} __packed;
+
+/** @brief GetCurrentPlayerApplicationSettingValue command request */
+struct bt_avrcp_get_cur_app_setting_value_cmd {
+	uint8_t num_attrs;       /**< Number of attributes to query */
+	uint8_t attr_ids[];      /**< Array of attribute IDs */
+} __packed;
+
+/** @brief AVRCP Attribute-Value Pair */
+struct bt_avrcp_app_setting_attr_val {
+	uint8_t attr_id;   /**< Attribute ID */
+	uint8_t value_id;  /**< Value ID */
+} __packed;
+
+/** @brief GetCurrentPlayerApplicationSettingValue response */
+struct bt_avrcp_get_cur_app_setting_value_rsp {
+	uint8_t num_attrs;       /**< Number of attributes returned */
+	struct bt_avrcp_app_setting_attr_val attr_vals[]; /**< Array of attribute-value pairs */
+} __packed;
+
+/** @brief SetPlayerApplicationSettingValue command request */
+struct bt_avrcp_set_app_setting_value_cmd {
+	uint8_t num_attrs;       /**< Number of attributes to set */
+	struct bt_avrcp_app_setting_attr_val attr_vals[]; /**< Array of attribute-value pairs */
+} __packed;
+
+/** @brief GetPlayerApplicationSettingAttributeText command request */
+struct bt_avrcp_get_app_attr_text_cmd {
+	uint8_t num_attrs;       /**< Number of attributes to get text for */
+	uint8_t attr_ids[];      /**< Array of attribute IDs */
+} __packed;
+
+/** @brief AVRCP Attribute Text Entry */
+struct bt_avrcp_app_setting_attr_text {
+	uint8_t attr_id;       /**< Attribute ID */
+	uint16_t charset_id;   /**< Charset ID */
+	uint8_t text_len;      /**< Length of text */
+	uint8_t text[];        /**< Text string */
+} __packed;
+
+/** @brief GetPlayerApplicationSettingAttributeText response */
+struct bt_avrcp_get_app_attr_text_rsp {
+	uint8_t num_attrs;       /**< Number of attributes returned */
+	struct bt_avrcp_app_setting_attr_text attr_text[];
+} __packed;
+
+/** @brief GetPlayerApplicationSettingValueText command request */
+struct bt_avrcp_get_app_value_text_cmd {
+	uint8_t attr_id;         /**< Attribute ID */
+	uint8_t num_values;      /**< Number of values to get text for */
+	uint8_t value_ids[];     /**< Array of value IDs */
+} __packed;
+
+/** @brief AVRCP Attribute Text Entry */
+struct bt_avrcp_app_setting_value_text {
+	uint8_t value_id;    /**< Value ID */
+	uint16_t charset_id;   /**< Charset ID */
+	uint8_t text_len;      /**< Length of text */
+	uint8_t text[];        /**< Text string */
+} __packed;
+
+/** @brief GetPlayerApplicationSettingValueText response */
+struct bt_avrcp_get_app_value_text_rsp {
+	uint8_t num_values;      /**< Number of values returned */
+	struct bt_avrcp_app_setting_value_text value_text[];
+} __packed;
+
+/** @brief InformDisplayableCharacterSet command request */
+struct bt_avrcp_inform_charset_cmd {
+	uint8_t num_charsets;    /**< Number of character sets supported */
+	uint16_t charset_ids[];  /**< Array of character set IDs */
+} __packed;
+
+/** @brief InformBatteryStatusOfCT command request */
+struct bt_avrcp_inform_battery_status_cmd {
+	uint8_t battery_status;  /**< Battery status value @ref bt_avrcp_battery_status_t */
+} __packed;
+
+/** @brief GetPlayStatus response */
+struct bt_avrcp_get_play_status_rsp {
+	uint32_t song_length;    /**< Total length of the song in milliseconds */
+	uint32_t song_position;  /**< Current position in the song in milliseconds */
+	uint8_t play_status;     /**< Play status: @ref  bt_avrcp_playback_status_t*/
+} __packed;
+
+/** @brief RegisterNotification command request */
+struct bt_avrcp_register_notification_cmd {
+    uint8_t event_id;        /**< Event ID to register for */
+    uint32_t interval;       /**< Playback interval (used only for event_id = 0x05) */
+} __packed;
+
+/** @brief RegisterNotification response */
+struct bt_avrcp_register_notification_rsp {
+	uint8_t event_id;        /**< Event ID */
+
+	union {
+		/* EVENT_PLAYBACK_STATUS_CHANGED */
+		uint8_t play_status;
+
+		/* EVENT_TRACK_CHANGED */
+		uint8_t identifier[8];
+
+		/* EVENT_PLAYBACK_POS_CHANGED */
+		uint32_t playback_pos;
+
+		/* EVENT_BATT_STATUS_CHANGED */
+		uint8_t battery_status;
+
+		/* EVENT_SYSTEM_STATUS_CHANGED */
+		uint8_t system_status;
+
+		/* EVENT_PLAYER_APPLICATION_SETTING_CHANGED */
+		struct  __packed {
+			uint8_t num_of_attr;
+			struct bt_avrcp_app_setting_attr_val attr_vals[];
+		} setting_changed;
+
+		/* EVENT_ADDRESSED_PLAYER_CHANGED */
+		struct  __packed {
+			uint16_t player_id;
+			uint16_t uid_counter;
+		} addressed_player_changed;
+
+		/* EVENT_UIDS_CHANGED */
+		uint16_t uid_counter;
+
+		/* EVENT_VOLUME_CHANGED */
+		uint8_t absolute_volume;
+	} param;
+} __packed;
+
+/** @brief SetAbsoluteVolume command request */
+struct bt_avrcp_set_absolute_volume_cmd {
+	uint8_t volume;          /**< Volume level (0x00 to 0x7F) */
+} __packed;
+
+/** @brief SetAbsoluteVolume response */
+struct bt_avrcp_set_absolute_volume_rsp {
+	uint8_t volume;          /**< Volume level acknowledged */
+} __packed;
+
+/** @brief SetAddressedPlayer command request */
+struct bt_avrcp_set_addressed_player_cmd {
+	uint16_t player_id;      /**< Player ID to be addressed */
+} __packed;
+
+/** @brief PlayItem command request */
+struct bt_avrcp_play_item_cmd {
+	uint8_t scope;           /**< Scope (0x00 = Media Player List, 0x01 = Filesystem, 0x02 = Search, 0x03 = Now Playing) */
+	uint32_t uid[2];         /**< UID of the item (64-bit split into two 32-bit values) */
+	uint32_t uid_counter;    /**< UID counter */
+} __packed;
+
+/** @brief AddToNowPlaying command request */
+struct bt_avrcp_add_to_now_playing_cmd {
+	uint8_t scope;           /**< Scope (e.g., Filesystem, Search, etc.) */
+	uint32_t uid[2];         /**< UID of the item */
+	uint32_t uid_counter;    /**< UID counter */
+} __packed;
+
 struct bt_avrcp_ct_cb {
 	/** @brief An AVRCP CT connection has been established.
 	 *
@@ -414,7 +747,45 @@ struct bt_avrcp_ct_cb {
 	 *             @ref bt_avrcp_set_browsed_player_rsp. Note that the data is encoded in
 	 *             big-endian format.
 	 */
+
 	void (*browsed_player_rsp)(struct bt_avrcp_ct *ct, uint8_t tid, struct net_buf *buf);
+
+	/**
+	 * @brief Callback for handling AVRCP CT vendor dependent response.
+	 *
+	 * This function is called when a response to a vendor dependent command
+	 * sent via @ref bt_avrcp_ct_vendor_dependent is received.
+	 *
+	 *  @param ct AVRCP CT connection object.
+	 *  @param tid The transaction label of the response.
+	 *  @param pdu_id The PDU ID of the vendor dependent command.
+	 *  @param rsp The response code for the vendor dependent command.
+	 *  @param buf Pointer to the response buffer containing the vendor dependent response data.
+	 *            The payload format should be parsed according to the relevant AVRCP specification.
+	 *            Note: The data is encoded in big-endian format.
+	 *  *         The payload format should be constructed according to the relevant AVRCP specification.
+	*             The application is responsible for constructing the payload and can refer to the
+	* 	      table below for guidance.
+	*             pdu_id                                    parameter
+	*  BT_AVRCP_PDU_ID_GET_CAPS                             bt_avrcp_get_cap_rsp
+	*  BT_AVRCP_PDU_ID_LIST_PLAYER_APP_SETTING_ATTRS        bt_avrcp_list_app_setting_attr_rsp
+	*  BT_AVRCP_PDU_ID_LIST_PLAYER_APP_SETTING_VALS         bt_avrcp_list_app_setting_values_rsp
+	*  BT_AVRCP_PDU_ID_GET_CURR_PLAYER_APP_SETTING_VAL	bt_avrcp_get_cur_app_setting_value_rsp
+	*  BT_AVRCP_PDU_ID_SET_PLAYER_APP_SETTING_VAL		NULL
+	*  BT_AVRCP_PDU_ID_GET_PLAYER_APP_SETTING_ATTR_TEXT	bt_avrcp_get_app_attr_text_rsp
+	*  BT_AVRCP_PDU_ID_GET_PLAYER_APP_SETTING_VAL_TEXT	bt_avrcp_get_app_value_text_rsp
+	*  BT_AVRCP_PDU_ID_INFORM_DISPLAYABLE_CHAR_SET		NULL
+	*   BT_AVRCP_PDU_ID_INFORM_BATT_STATUS_OF_CT	     	NULL
+	*  BT_AVRCP_PDU_ID_GET_ELEMENT_ATTRS			bt_avrcp_get_element_attrs_rsp
+	*  BT_AVRCP_PDU_ID_GET_PLAY_STATUS			bt_avrcp_get_play_status_rsp
+	*  BT_AVRCP_PDU_ID_REGISTER_NOTIFICATION		bt_avrcp_register_notification_rsp
+	*  BT_AVRCP_PDU_ID_SET_ABSOLUTE_VOLUME		        bt_avrcp_set_absolute_volume_rsp
+	*  BT_AVRCP_PDU_ID_SET_ADDRESSED_PLAYER		        status(uint8_t)
+	*  BT_AVRCP_PDU_ID_PLAY_ITEMS			        status(uint8_t)
+	*  BT_AVRCP_PDU_ID_ADD_TO_NOW_PLAYING		        status(uint8_t)
+	 */
+	void (*vendor_dependent_rsp)(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t pdu_id,
+				     bt_avrcp_rsp_t rsp, struct net_buf *buf);
 };
 
 /** @brief Connect AVRCP.
@@ -548,6 +919,41 @@ int bt_avrcp_ct_passthrough(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t opid, u
  */
 int bt_avrcp_ct_set_browsed_player(struct bt_avrcp_ct *ct, uint8_t tid, uint16_t player_id);
 
+/**
+ * @brief Send a vendor dependent response from CT.
+ *
+ * This function sends a vendor dependent command by the AVRCP CT.
+ *
+ *  @param ct The AVRCP CT instance.
+ *  @param tid The transaction label of the response, valid from 0 to 15.
+ *  @param pdu_id The PDU ID of the vendor dependent command @ref xx.
+  * @param buf The payload of the vendor dependent command. Should not be NULL if len is not zero.
+ *        The payload format should be constructed according to the relevant AVRCP specification.
+ *        Note: The data is encoded in big-endian format. The application buf use bellow table
+ *        as reference to construct the payload.
+ *             pdu_id                                    parameter
+ *  BT_AVRCP_PDU_ID_GET_CAPS                            bt_avrcp_get_cap_cmd
+ *  BT_AVRCP_PDU_ID_LIST_PLAYER_APP_SETTING_ATTRS       NULL
+ *  BT_AVRCP_PDU_ID_LIST_PLAYER_APP_SETTING_VALS        bt_avrcp_list_app_setting_values_cmd
+ *  BT_AVRCP_PDU_ID_GET_CURR_PLAYER_APP_SETTING_VAL	bt_avrcp_get_cur_app_setting_value_cmd
+ *  BT_AVRCP_PDU_ID_SET_PLAYER_APP_SETTING_VAL		bt_avrcp_set_app_setting_value_cmd
+ *  BT_AVRCP_PDU_ID_GET_PLAYER_APP_SETTING_ATTR_TEXT	bt_avrcp_get_app_attr_text_cmd
+ *  BT_AVRCP_PDU_ID_GET_PLAYER_APP_SETTING_VAL_TEXT	bt_avrcp_get_app_value_text_cmd
+ *  BT_AVRCP_PDU_ID_INFORM_DISPLAYABLE_CHAR_SET		bt_avrcp_inform_charset_cmd
+*   BT_AVRCP_PDU_ID_INFORM_BATT_STATUS_OF_CT	     	bt_avrcp_inform_battery_status_cmd
+ *  BT_AVRCP_PDU_ID_GET_ELEMENT_ATTRS			bt_avrcp_get_element_attrs_cmd
+ *  BT_AVRCP_PDU_ID_GET_PLAY_STATUS			NULL
+ *  BT_AVRCP_PDU_ID_REGISTER_NOTIFICATION		bt_avrcp_register_notification_cmd
+ *  BT_AVRCP_PDU_ID_SET_ABSOLUTE_VOLUME		        bt_avrcp_set_absolute_volume_cmd
+ *  BT_AVRCP_PDU_ID_SET_ADDRESSED_PLAYER		bt_avrcp_set_addressed_player_cmd
+ *  BT_AVRCP_PDU_ID_PLAY_ITEMS			        bt_avrcp_play_item_cmd
+ *  BT_AVRCP_PDU_ID_ADD_TO_NOW_PLAYING		        bt_avrcp_add_to_now_playing_cmd
+ *
+ *  @return 0 in case of success or error code in case of error.
+ */
+int bt_avrcp_ct_vendor_dependent(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t pdu_id,
+                                struct net_buf *buf);
+
 struct bt_avrcp_tg_cb {
 	/** @brief An AVRCP TG connection has been established.
 	 *
@@ -585,6 +991,16 @@ struct bt_avrcp_tg_cb {
 	 *  @param tg AVRCP TG connection object.
 	 */
 	void (*subunit_info_req)(struct bt_avrcp_tg *tg, uint8_t tid);
+
+	/** @brief Get capabilities request callback.
+	 *
+	 *  This callback is called whenever an AVRCP get capabilities command is received.
+	 *
+	 *  @param tg AVRCP TG connection object.
+	 *  @param tid The transaction label of the request.
+	 *  @param cap_id The capability ID requested.
+	 */
+	void (*get_cap_cmd_req)(struct bt_avrcp_tg *tg, uint8_t tid, uint8_t cap_id);
 
 	/** @brief An AVRCP TG browsing connection has been established.
 	 *
@@ -627,6 +1043,39 @@ struct bt_avrcp_tg_cb {
 	 *             in big-endian format.
 	 */
 	void (*passthrough_cmd_req)(struct bt_avrcp_tg *tg, uint8_t tid, struct net_buf *buf);
+
+	/**
+	 * @brief Callback for handling AVRCP TG vendor dependent request.
+	 *
+	 * This function is called when a vendor dependent command is received
+	 * via AVRCP TG.
+	 *
+	 *  @param tg AVRCP TG connection object.
+	 *  @param tid The transaction label of the request.
+	 *  @param pdu_id The PDU ID of the vendor dependent command.
+	 *  @param buf Pointer to the request buffer containing the vendor dependent command data.
+	 *            The payload format should be parsed according to the relevant AVRCP specification.
+	 *            Note: The data is encoded in big-endian format.
+	*             pdu_id                                    parameter
+	*  BT_AVRCP_PDU_ID_GET_CAPS                             bt_avrcp_get_cap_cmd
+	*  BT_AVRCP_PDU_ID_LIST_PLAYER_APP_SETTING_ATTRS        NULL
+	*  BT_AVRCP_PDU_ID_LIST_PLAYER_APP_SETTING_VALS         bt_avrcp_list_app_setting_values_cmd
+	*  BT_AVRCP_PDU_ID_GET_CURR_PLAYER_APP_SETTING_VAL	bt_avrcp_get_cur_app_setting_value_cmd
+	*  BT_AVRCP_PDU_ID_SET_PLAYER_APP_SETTING_VAL		bt_avrcp_set_app_setting_value_cmd
+	*  BT_AVRCP_PDU_ID_GET_PLAYER_APP_SETTING_ATTR_TEXT	bt_avrcp_get_app_attr_text_cmd
+	*  BT_AVRCP_PDU_ID_GET_PLAYER_APP_SETTING_VAL_TEXT	bt_avrcp_get_app_value_text_cmd
+	*  BT_AVRCP_PDU_ID_INFORM_DISPLAYABLE_CHAR_SET		bt_avrcp_inform_charset_cmd
+	*  BT_AVRCP_PDU_ID_INFORM_BATT_STATUS_OF_CT	     	bt_avrcp_inform_battery_status_cmd
+	*  BT_AVRCP_PDU_ID_GET_ELEMENT_ATTRS			bt_avrcp_get_element_attrs_cmd
+	*  BT_AVRCP_PDU_ID_GET_PLAY_STATUS			NULL
+	*  BT_AVRCP_PDU_ID_REGISTER_NOTIFICATION		bt_avrcp_register_notification_cmd
+	*  BT_AVRCP_PDU_ID_SET_ABSOLUTE_VOLUME		        bt_avrcp_set_absolute_volume_cmd
+	*  BT_AVRCP_PDU_ID_SET_ADDRESSED_PLAYER		        bt_avrcp_set_addressed_player_cmd
+	*  BT_AVRCP_PDU_ID_PLAY_ITEMS			        bt_avrcp_play_item_cmd
+	*  BT_AVRCP_PDU_ID_ADD_TO_NOW_PLAYING		        bt_avrcp_add_to_now_playing_cmd
+	 */
+	void (*vendor_dependent_req)(struct bt_avrcp_tg *tg, uint8_t tid, uint8_t pdu_id,
+				     struct net_buf *buf);
 };
 
 /** @brief Register callback.
@@ -662,6 +1111,18 @@ int bt_avrcp_tg_send_unit_info_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
  *  @return 0 in case of success or error code in case of error.
  */
 int bt_avrcp_tg_send_subunit_info_rsp(struct bt_avrcp_tg *tg, uint8_t tid);
+/** @brief Send GET_CAPABILITIES response.
+ *
+ *  This function is called by the application to send the GET_CAPABILITIES response.
+ *
+ *  @param tg The AVRCP TG instance.
+ *  @param tid The transaction label of the response, valid from 0 to 15.
+ *  @param rsp The response for GET_CAPABILITIES command.
+ *
+ *  @return 0 in case of success or error code in case of error.
+ */
+int bt_avrcp_tg_send_get_cap_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
+				 const struct bt_avrcp_get_cap_rsp *rsp);
 
 /** @brief Send the set browsed player response.
  *
@@ -693,6 +1154,42 @@ int bt_avrcp_tg_send_set_browsed_player_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
  */
 int bt_avrcp_tg_send_passthrough_rsp(struct bt_avrcp_tg *tg, uint8_t tid, bt_avrcp_rsp_t result,
 				     struct net_buf *buf);
+
+/**
+ * @brief Send a vendor dependent response from the AVRCP Target (TG).
+ *
+ * This function sends a response to a vendor dependent command received by the AVRCP TG.
+ *
+ * @param tg Pointer to the AVRCP Target (TG) instance.
+ * @param tid Transaction label of the response, valid range: 0–15.
+ * @param pdu_id PDU ID of the vendor dependent command. Refer to the appropriate AVRCP specification.
+ * @param rsp Response type, indicating the status of the command (e.g., accepted, rejected).
+ * @param buf Pointer to the payload buffer of the response. Must not be NULL if payload length is non-zero.
+ *        The payload format should be constructed according to the relevant AVRCP specification.
+ *        Note: The data is encoded in big-endian format. The application is responsible for
+ * 	  constructing the payload and can refer to the table below for guidance.
+ *             pdu_id                                    parameter
+ *  BT_AVRCP_PDU_ID_GET_CAPS                            bt_avrcp_get_cap_rsp
+ *  BT_AVRCP_PDU_ID_LIST_PLAYER_APP_SETTING_ATTRS       bt_avrcp_list_app_setting_attr_rsp
+ *  BT_AVRCP_PDU_ID_LIST_PLAYER_APP_SETTING_VALS        bt_avrcp_list_app_setting_values_rsp
+ *  BT_AVRCP_PDU_ID_GET_CURR_PLAYER_APP_SETTING_VAL	bt_avrcp_get_cur_app_setting_value_rsp
+ *  BT_AVRCP_PDU_ID_SET_PLAYER_APP_SETTING_VAL		NULL
+ *  BT_AVRCP_PDU_ID_GET_PLAYER_APP_SETTING_ATTR_TEXT	bt_avrcp_get_app_attr_text_rsp
+ *  BT_AVRCP_PDU_ID_GET_PLAYER_APP_SETTING_VAL_TEXT	bt_avrcp_get_app_value_text_rsp
+ *  BT_AVRCP_PDU_ID_INFORM_DISPLAYABLE_CHAR_SET		NULL
+*   BT_AVRCP_PDU_ID_INFORM_BATT_STATUS_OF_CT	     	NULL
+ *  BT_AVRCP_PDU_ID_GET_ELEMENT_ATTRS			bt_avrcp_get_element_attrs_rsp
+ *  BT_AVRCP_PDU_ID_GET_PLAY_STATUS			bt_avrcp_get_play_status_rsp
+ *  BT_AVRCP_PDU_ID_REGISTER_NOTIFICATION		bt_avrcp_register_notification_rsp
+ *  BT_AVRCP_PDU_ID_SET_ABSOLUTE_VOLUME		        bt_avrcp_set_absolute_volume_rsp
+ *  BT_AVRCP_PDU_ID_SET_ADDRESSED_PLAYER		status(uint8_t)
+ *  BT_AVRCP_PDU_ID_PLAY_ITEMS			        status(uint8_t)
+ *  BT_AVRCP_PDU_ID_ADD_TO_NOW_PLAYING		        status(uint8_t)
+ *
+ * @return 0 on success, or a negative error code on failure.
+ */
+int bt_avrcp_tg_send_vendor_dependent_rsp(struct bt_avrcp_tg *tg, uint8_t tid, uint8_t pdu_id,
+					  bt_avrcp_rsp_t rsp, struct net_buf *buf);
 #ifdef __cplusplus
 }
 #endif
