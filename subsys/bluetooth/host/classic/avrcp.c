@@ -753,6 +753,9 @@ err_rsp:
 	err = bt_avrcp_send_unit_info_err_rsp(avrcp, tid);
 	if (err) {
 		LOG_ERR("Failed to send unit info error response");
+		if (bt_avrcp_disconnect(avrcp->acl_conn)) {
+			LOG_ERR("Failed to disconnect AVRCP connection");
+		}
 	}
 }
 
@@ -809,6 +812,9 @@ err_rsp:
 	err = bt_avrcp_send_subunit_info_err_rsp(avrcp);
 	if (err) {
 		LOG_ERR("Failed to send subunit info error response");
+		if (bt_avrcp_disconnect(avrcp->acl_conn)) {
+			LOG_ERR("Failed to disconnect AVRCP connection");
+		}
 	}
 }
 
@@ -868,6 +874,9 @@ err_rsp:
 					       0U, NULL, 0U);
 	if (err) {
 		LOG_ERR("Failed to send passthrough error response");
+		if (bt_avrcp_disconnect(avrcp->acl_conn)) {
+			LOG_ERR("Failed to disconnect AVRCP connection");
+		}
 	}
 }
 
