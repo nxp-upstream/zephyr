@@ -29,7 +29,7 @@ LOG_MODULE_REGISTER(flash_flexspi_nand, CONFIG_FLASH_LOG_LEVEL);
 
 enum {
 	/* Instructions */
-	WRITE_ENABLE,
+	WRITE_ENABLE=1,
 	READ_STATUS,
 	READ_PAGE,
 	READ_CACHE,
