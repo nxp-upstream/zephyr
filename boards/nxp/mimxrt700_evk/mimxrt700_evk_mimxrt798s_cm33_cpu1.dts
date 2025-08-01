@@ -23,7 +23,7 @@
 
 	chosen {
 		zephyr,flash = &sram_code;
-		zephyr,sram = &sram0;
+		zephyr,sram = &sram3;
 		zephyr,console = &flexcomm19_lpuart19;
 		zephyr,shell-uart = &flexcomm19_lpuart19;
 	};
