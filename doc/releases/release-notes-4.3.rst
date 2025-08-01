@@ -79,6 +79,12 @@ New APIs and options
 
   * :kconfig:option:`CONFIG_SRAM_SW_ISR_TABLE`
 
+* Opamp
+
+  * Introduced opamp device driver subsystem selected with :kconfig:option:`CONFIG_OPAMP`
+  * Added support for NXP OPAMP (:dtcompatible:`nordic,opamp`)
+  * Added support for NXP OPAMP_FAST (:dtcompatible:`nxp,opamp_fast`)
+
 * Power management
 
    * :c:func:`pm_device_driver_deinit`
