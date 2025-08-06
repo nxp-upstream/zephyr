@@ -135,11 +135,41 @@ typedef enum __packed {
 	BT_AVRCP_OPID_VENDOR_UNIQUE = 0x7e,
 } bt_avrcp_opid_t;
 
+/** @brief AVRCP Playback Status */
+typedef enum __packed {
+	BT_AVRCP_PLAYBACK_STATUS_STOPPED  = 0x00,
+	BT_AVRCP_PLAYBACK_STATUS_PLAYING  = 0x01,
+	BT_AVRCP_PLAYBACK_STATUS_PAUSED   = 0x02,
+	BT_AVRCP_PLAYBACK_STATUS_FWD_SEEK = 0x03,
+	BT_AVRCP_PLAYBACK_STATUS_REV_SEEK = 0x04,
+	BT_AVRCP_PLAYBACK_STATUS_ERROR    = 0xFF,
+} bt_avrcp_playback_status_t;
+
 /** @brief AVRCP button state flag */
 typedef enum __packed {
 	BT_AVRCP_BUTTON_PRESSED = 0,
 	BT_AVRCP_BUTTON_RELEASED = 1,
 } bt_avrcp_button_state_t;
+
+
+/** @brief AVRCP System Status Code. */
+typedef enum __packed {
+	BT_AVRCP_SYSTEM_STATUS_POWER_ON  = 0x00,
+	BT_AVRCP_SYSTEM_STATUS_POWER_OFF = 0x01,
+	BT_AVRCP_SYSTEM_STATUS_UNPLUGGED = 0x02,
+} bt_avrcp_system_status_t;
+
+/** @brief AVRCP Battery Status Code. */
+typedef enum __packed {
+	BT_AVRCP_BATTERY_STATUS_NORMAL   = 0x00,
+	BT_AVRCP_BATTERY_STATUS_WARNING  = 0x01,
+	BT_AVRCP_BATTERY_STATUS_CRITICAL = 0x02,
+	BT_AVRCP_BATTERY_STATUS_EXTERNAL = 0x03,
+	BT_AVRCP_BATTERY_STATUS_FULL     = 0x04,
+} bt_avrcp_battery_status_t;
+
+/** AVRCP MAX absolute volume. */
+#define BT_AVRCP_MAX_ABSOLUTE_VOLUME 0x7F
 
 /* AVRCP Browsing Status Codes */
 typedef enum __packed {
@@ -242,6 +272,52 @@ struct bt_avrcp_get_element_attrs_cmd {
 struct bt_avrcp_get_element_attrs_rsp {
 	uint8_t num_attrs;			/**< Number of attributes in response */
 	const struct bt_avrcp_media_attr *attrs;	/**< Array of media attributes */
+};
+
+/** @brief attribute value  */
+struct bt_avrcp_player_attr_value
+{
+    uint8_t attr_id;
+    uint8_t value_id;
+};
+
+struct bt_avrcp_event_rsp {
+    uint8_t event_id;
+
+    union {
+        /* EVENT_PLAYBACK_STATUS_CHANGED */
+        uint8_t play_status;
+
+        /* EVENT_TRACK_CHANGED */
+        uint8_t identifier[8];
+
+        /* EVENT_PLAYBACK_POS_CHANGED */
+        uint32_t playback_pos;
+
+        /* EVENT_BATT_STATUS_CHANGED */
+        uint8_t battery_status;
+
+        /* EVENT_SYSTEM_STATUS_CHANGED */
+        uint8_t system_status;
+
+        /* EVENT_PLAYER_APPLICATION_SETTING_CHANGED */
+        struct {
+            uint8_t num_of_attr;
+            struct bt_avrcp_player_attr_value attr_vals[];
+        } setting_changed;
+
+        /* EVENT_ADDRESSED_PLAYER_CHANGED */
+        struct {
+            uint16_t player_id;
+            uint16_t uid_counter;
+        } addressed_player_changed;
+
+        /* EVENT_UIDS_CHANGED */
+        uint16_t uid_counter;
+
+        /* EVENT_VOLUME_CHANGED */
+        uint8_t absolute_volume;
+    };
 };
 
 /** @brief Set browsed player request structure */
@@ -358,6 +434,19 @@ struct bt_avrcp_ct_cb {
 	 */
 	void (*get_element_attrs_rsp)(struct bt_avrcp_ct *ct, uint8_t tid,
 				      const struct bt_avrcp_get_element_attrs_rsp *rsp);
+
+	/** @brief Callback function for register notification response.
+	 *
+	 *  Called when a notification response is received.
+	 *
+	 * @param ct AVRCP CT connection object.
+	 * @param tid The transaction label of the response.
+	 * @param type The type of notification response (BT_AVRCP_RSP_INTERIM or BT_AVRCP_RSP_CHANGED).
+	 * @param rsp The notification event response data.
+	 */
+	void (*notification_rsp)(struct bt_avrcp_ct *ct, uint8_t tid,
+				bt_avrcp_rsp_t type,
+				const struct bt_avrcp_event_rsp *rsp);
 
 	/** @brief Callback function for bt_avrcp_ct_set_browsed_player().
 	 *
@@ -493,6 +582,23 @@ int bt_avrcp_ct_passthrough(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t opid, u
  */
 int bt_avrcp_ct_get_element_attrs(struct bt_avrcp_ct *ct, uint8_t tid, uint64_t identifier,
 				  const uint32_t *attr_ids, uint8_t num_attrs);
+
+/** @brief Register for AVRCP notifications.
+ *
+ *  This function registers for notifications from the target device.
+ *  The notification response will be received through the notification_rsp callback.
+ *
+ *  @param ct The AVRCP CT instance.
+ *  @param tid The transaction label of the request, valid from 0 to 15.
+ *  @param event_id The event ID to register for, see @ref bt_avrcp_evt_t.
+ *  @param playback_interval The playback interval for position changed events.
+ *    	   Other events will have this value set to 0 to ignore.
+ *
+ *  @return 0 in case of success or error code in case of error.
+ */
+int bt_avrcp_ct_register_notification(struct bt_avrcp_ct *ct, uint8_t tid,
+				     bt_avrcp_evt_t event_id,
+				     uint32_t playback_interval);
 /** @brief Set browsed player.
  *
  *  This function sets the browsed player on the remote device.
@@ -554,6 +660,20 @@ struct bt_avrcp_tg_cb {
 	 */
 	void (*get_element_attrs_cmd_req)(struct bt_avrcp_tg *tg, uint8_t tid,
 					  const struct bt_avrcp_get_element_attrs_cmd *cmd);
+
+	/** @brief Register notification request callback.
+	 *
+	 *  This callback is called whenever an AVRCP register notification is requested.
+	 *
+	 *  @param tg AVRCP TG connection object.
+	 *  @param tid The transaction label of the request.
+	 *  @param event_id The event ID that the CT wants to register for.
+	 *  @param playback_interval The playback interval for position changed event.
+	 *         other events will have this value set to 0 for ingnoring.
+	 */
+	void (*register_notification_req)(struct bt_avrcp_tg *tg, uint8_t tid,
+					 bt_avrcp_evt_t event_id,
+					 uint32_t playback_interval);
 
 	/** @brief Subunit Info Request callback.
 	 *
@@ -659,6 +779,25 @@ int bt_avrcp_tg_send_get_cap_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
  */
 int bt_avrcp_tg_send_get_element_attrs_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
 					   const struct bt_avrcp_get_element_attrs_rsp *rsp);
+
+
+/**
+ * @brief Send notification response.
+ *
+ * This function sends a notification response to the controller.
+ * This can be either an interim or changed notification response.
+ *
+ * @param tg The AVRCP TG instance.
+ * @param tid The transaction label of the response, valid from 0 to 15.
+ * @param type The type of notification response (BT_AVRCP_RSP_INTERIM or BT_AVRCP_RSP_CHANGED).
+ * @param rsp The notification response data.
+ *
+ * @return 0 in case of success or error code in case of error.
+ */
+int bt_avrcp_tg_send_notification_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
+				      bt_avrcp_rsp_t type,
+				      const struct bt_avrcp_event_rsp *rsp);
+
 
 /** @brief Send the subunit info response.
  *

@@ -1127,9 +1127,131 @@ static void process_get_element_attrs_rsp(struct bt_avrcp *avrcp, uint8_t tid, u
 	avrcp_ct_cb->get_element_attrs_rsp(get_avrcp_ct(avrcp), tid, rsp);
 }
 
+static void process_register_notification_rsp(struct bt_avrcp *avrcp, uint8_t tid, uint8_t ctype_or_rsp,
+					      struct net_buf *buf)
+{
+	struct bt_avrcp_event_rsp temp_rsp;
+	uint8_t event_id;
+	uint16_t expected_len;
+
+	if ((avrcp_ct_cb == NULL) || (avrcp_ct_cb->notification_rsp == NULL)) {
+		return;
+	}
+
+	/* The first byte is the event_id */
+	if (buf->len < 1U) {
+		LOG_ERR("Invalid notification response length");
+		return;
+	}
+
+	event_id = net_buf_pull_u8(buf);
+
+	memset(&temp_rsp, 0, sizeof(temp_rsp));
+	temp_rsp.event_id = event_id;
+
+	/* Parse event-specific data */
+	switch (event_id) {
+	case BT_AVRCP_EVT_PLAYBACK_STATUS_CHANGED:
+		if (buf->len < sizeof(temp_rsp.play_status)) {
+			LOG_ERR("Invalid PLAYBACK_STATUS_CHANGED response length");
+			return;
+		}
+		temp_rsp.play_status = net_buf_pull_u8(buf);
+		if (temp_rsp.play_status > BT_AVRCP_PLAYBACK_STATUS_REV_SEEK &&
+		    temp_rsp.play_status != BT_AVRCP_PLAYBACK_STATUS_ERROR) {
+			LOG_ERR("Invalid playback status: %d", temp_rsp.play_status);
+			return;
+		}
+		break;
+	case BT_AVRCP_EVT_TRACK_CHANGED:
+		if (buf->len < sizeof(temp_rsp.identifier)) {
+			LOG_ERR("Invalid TRACK_CHANGED response length");
+			return;
+		}
+		uint64_t id = net_buf_pull_be64(buf);
+
+		memcpy(temp_rsp.identifier, &id, sizeof(id));
+		break;
+	case BT_AVRCP_EVT_PLAYBACK_POS_CHANGED:
+		if (buf->len < sizeof(temp_rsp.playback_pos)) {
+			LOG_ERR("Invalid PLAYBACK_POS_CHANGED response length");
+			return;
+		}
+		temp_rsp.playback_pos = net_buf_pull_be32(buf);
+		break;
+	case BT_AVRCP_EVT_BATT_STATUS_CHANGED:
+		if (buf->len < sizeof(temp_rsp.battery_status)) {
+			LOG_ERR("Invalid BATT_STATUS_CHANGED response length");
+			return;
+		}
+		temp_rsp.battery_status = net_buf_pull_u8(buf);
+		if (temp_rsp.battery_status > BT_AVRCP_BATTERY_STATUS_FULL) {
+			LOG_ERR("Invalid battery status: %d", temp_rsp.battery_status);
+			return;
+		}
+		break;
+	case BT_AVRCP_EVT_SYSTEM_STATUS_CHANGED:
+		if (buf->len < sizeof(temp_rsp.system_status)) {
+			LOG_ERR("Invalid SYSTEM_STATUS_CHANGED response length");
+			return;
+		}
+		temp_rsp.system_status = net_buf_pull_u8(buf);
+		if (temp_rsp.system_status > BT_AVRCP_SYSTEM_STATUS_UNPLUGGED) {
+			LOG_ERR("Invalid system status: %d", temp_rsp.system_status);
+			return;
+		}
+		break;
+	case BT_AVRCP_EVT_PLAYER_APP_SETTING_CHANGED:
+		if (buf->len < sizeof(temp_rsp.setting_changed.num_of_attr)) {
+			LOG_ERR("Invalid PLAYER_APP_SETTING_CHANGED response length");
+			return;
+		}
+		temp_rsp.setting_changed.num_of_attr = net_buf_pull_u8(buf);
+		expected_len = temp_rsp.setting_changed.num_of_attr * sizeof(struct bt_avrcp_player_attr_value);
+		if (buf->len < expected_len) {
+			LOG_ERR("Invalid PLAYER_APP_SETTING_CHANGED attribute length");
+			return;
+		}
+		memcpy(&temp_rsp.setting_changed.attr_vals[0], net_buf_pull_mem(buf, expected_len), expected_len);
+		break;
+	case BT_AVRCP_EVT_ADDRESSED_PLAYER_CHANGED:
+		if (buf->len < 4U) {
+			LOG_ERR("Invalid ADDRESSED_PLAYER_CHANGED response length");
+			return;
+		}
+		temp_rsp.addressed_player_changed.player_id = net_buf_pull_be16(buf);
+		temp_rsp.addressed_player_changed.uid_counter = net_buf_pull_be16(buf);
+		break;
+	case BT_AVRCP_EVT_UIDS_CHANGED:
+		if (buf->len < sizeof(temp_rsp.uid_counter)) {
+			LOG_ERR("Invalid UIDS_CHANGED response length");
+			return;
+		}
+		temp_rsp.uid_counter = net_buf_pull_be16(buf);
+		break;
+	case BT_AVRCP_EVT_VOLUME_CHANGED:
+		if (buf->len < sizeof(temp_rsp.absolute_volume)) {
+			LOG_ERR("Invalid VOLUME_CHANGED response length");
+			return;
+		}
+		temp_rsp.absolute_volume = net_buf_pull_u8(buf);
+		if (temp_rsp.absolute_volume > BT_AVRCP_MAX_ABSOLUTE_VOLUME) {
+			LOG_ERR("Invalid absolute volume: %d", temp_rsp.absolute_volume);
+			return;
+		}
+		break;
+	default:
+		LOG_WRN("Unknown notification event_id: 0x%02X", event_id);
+		return;
+	}
+
+	avrcp_ct_cb->notification_rsp(get_avrcp_ct(avrcp), tid, ctype_or_rsp, &temp_rsp);
+}
+
 static const struct avrcp_vendor_handler  rsp_vendor_handlers[] = {
 	{BT_AVRCP_PDU_ID_GET_CAPS, process_get_cap_rsp},
 	{BT_AVRCP_PDU_ID_GET_ELEMENT_ATTRS, process_get_element_attrs_rsp},
+	{BT_AVRCP_PDU_ID_REGISTER_NOTIFICATION, process_register_notification_rsp},
 };
 
 static void process_common_vendor_rsp(struct bt_avrcp *avrcp, struct bt_avrcp_avc_pdu *pdu,
@@ -1539,6 +1661,62 @@ err_rsp:
 	}
 }
 
+static void avrcp_register_notification_cmd_handler(struct bt_avrcp *avrcp, uint8_t tid,
+						    uint8_t ctype_or_rsp, struct net_buf *buf)
+{
+	struct bt_avrcp_avc_pdu *pdu;
+	bt_avrcp_evt_t event_id;
+	uint32_t playback_interval = 0U; /* Default value */
+	uint16_t len;
+	int err;
+
+	if ((avrcp_tg_cb == NULL) || (avrcp_tg_cb->register_notification_req == NULL)) {
+		goto err_rsp;
+	}
+
+	if (ctype_or_rsp != BT_AVRCP_CTYPE_NOTIFY) {
+		LOG_ERR("Invalid ctype_or_rsp: 0x%02x", ctype_or_rsp);
+		goto err_rsp;
+	}
+
+	if (buf->len < sizeof(*pdu)) {
+		LOG_ERR("Invalid vendor payload length: %d", buf->len);
+		goto err_rsp;
+	}
+
+	pdu = net_buf_pull_mem(buf, sizeof(*pdu));
+
+	if (BT_AVRCP_AVC_PDU_GET_PACKET_TYPE(pdu) != BT_AVRVP_PKT_TYPE_SINGLE) {
+		LOG_ERR("Invalid packet type");
+		goto err_rsp;
+	}
+
+	len = sys_be16_to_cpu(pdu->param_len);
+
+	if (len < sizeof(uint8_t) || buf->len < len) {
+		LOG_ERR("Invalid event command length: %d, buf length = %d", len, buf->len);
+		goto err_rsp;
+	}
+
+	event_id = net_buf_pull_u8(buf);
+	if (event_id == BT_AVRCP_EVT_PLAYBACK_POS_CHANGED) {
+		if (buf->len < sizeof(playback_interval)) {
+			LOG_ERR("Invalid playback interval length");
+			goto err_rsp;
+		}
+		playback_interval = net_buf_pull_be32(buf);
+	}
+
+	return avrcp_tg_cb->register_notification_req(get_avrcp_tg(avrcp), tid, event_id, playback_interval);
+
+err_rsp:
+	err = bt_avrcp_tg_send_vendor_err_rsp(get_avrcp_tg(avrcp), tid,
+					      BT_AVRCP_PDU_ID_REGISTER_NOTIFICATION);
+	if (err) {
+		LOG_ERR("Failed to send GetElementAttributes error response");
+	}
+}
+
 static void handle_avrcp_continuing_rsp(struct bt_avrcp *avrcp, uint8_t tid, uint8_t ctype_or_rsp,
 					struct net_buf *buf)
 {
@@ -1568,6 +1746,7 @@ static const struct avrcp_vendor_handler cmd_vendor_handlers[] = {
 	{BT_AVRCP_PDU_ID_ABORT_CONTINUING_RSP, handle_avrcp_abort_continuing_rsp},
 	{BT_AVRCP_PDU_ID_GET_CAPS, process_get_cap_cmd},
 	{BT_AVRCP_PDU_ID_GET_ELEMENT_ATTRS, process_get_element_attrs_cmd},
+	{BT_AVRCP_PDU_ID_REGISTER_NOTIFICATION, avrcp_register_notification_cmd_handler},
 };
 
 static void avrcp_vendor_dependent_cmd_handler(struct bt_avrcp *avrcp, uint8_t tid,
@@ -2340,6 +2519,42 @@ int bt_avrcp_ct_get_element_attrs(struct bt_avrcp_ct *ct, uint8_t tid, uint64_t 
 	return avrcp_send(ct->avrcp, buf);
 }
 
+int bt_avrcp_ct_register_notification(struct bt_avrcp_ct *ct, uint8_t tid,
+				      bt_avrcp_evt_t event_id,
+				      uint32_t playback_interval)
+{
+	struct net_buf *buf;
+	uint16_t param_len = sizeof(event_id) + sizeof(playback_interval);
+
+	if ((ct == NULL) || (ct->avrcp == NULL)) {
+		return -EINVAL;
+	}
+
+	if (!IS_CT_ROLE_SUPPORTED()) {
+		return -ENOTSUP;
+	}
+
+	buf = avrcp_prepare_vendor_pdu(ct->avrcp, tid, BT_AVRVP_PKT_TYPE_SINGLE, BT_AVCTP_CMD,
+				      BT_AVRCP_CTYPE_NOTIFY, BT_AVRCP_PDU_ID_REGISTER_NOTIFICATION,
+				      param_len);
+	if (!buf) {
+		return -ENOMEM;
+	}
+
+	if (net_buf_tailroom(buf) < param_len) {
+		LOG_ERR("Not enough space in net_buf");
+		return -ENOMEM;
+	}
+	/* Add event ID */
+	net_buf_add_u8(buf, event_id);
+
+	/* Add playback interval (big-endian) */
+	net_buf_add_be32(buf, playback_interval);
+
+	return avrcp_send(ct->avrcp, buf);
+}
+
+
 int bt_avrcp_ct_set_browsed_player(struct bt_avrcp_ct *ct, uint8_t tid, uint16_t player_id)
 {
 	struct net_buf *buf;
@@ -2569,6 +2784,137 @@ int bt_avrcp_tg_send_get_element_attrs_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
 
 	return bt_avrcp_tg_send_vendor_rsp(tg, tid, BT_AVRCP_PDU_ID_GET_ELEMENT_ATTRS,
 					   BT_AVRCP_RSP_STABLE, temp_buf);
+}
+
+static int build_notification_rsp_data(const struct bt_avrcp_event_rsp *rsp,
+				       struct net_buf *buf)
+{
+	uint16_t param_len;
+
+	/* Calculate parameter length based on event type */
+	switch (rsp->event_id) {
+	case BT_AVRCP_EVT_PLAYBACK_STATUS_CHANGED:
+		param_len = sizeof(rsp->event_id) + sizeof(rsp->play_status);
+		break;
+	case BT_AVRCP_EVT_TRACK_CHANGED:
+		param_len = sizeof(rsp->event_id) + sizeof(rsp->identifier);
+		break;
+	case BT_AVRCP_EVT_PLAYBACK_POS_CHANGED:
+		param_len = sizeof(rsp->event_id) + sizeof(rsp->playback_pos);
+		break;
+	case BT_AVRCP_EVT_BATT_STATUS_CHANGED:
+		param_len = sizeof(rsp->event_id) + sizeof(rsp->battery_status);
+		break;
+	case BT_AVRCP_EVT_SYSTEM_STATUS_CHANGED:
+		param_len = sizeof(rsp->event_id) + sizeof(rsp->system_status);
+		break;
+	case BT_AVRCP_EVT_PLAYER_APP_SETTING_CHANGED:
+		param_len = sizeof(rsp->event_id) + sizeof(rsp->setting_changed.num_of_attr) +
+		rsp->setting_changed.num_of_attr * sizeof(struct bt_avrcp_player_attr_value);
+		break;
+	case BT_AVRCP_EVT_ADDRESSED_PLAYER_CHANGED:
+		param_len = sizeof(rsp->event_id) + sizeof(rsp->addressed_player_changed);
+		break;
+	case BT_AVRCP_EVT_UIDS_CHANGED:
+		param_len = sizeof(rsp->event_id) + sizeof(rsp->uid_counter);
+		break;
+	case BT_AVRCP_EVT_VOLUME_CHANGED:
+		param_len = sizeof(rsp->event_id) + sizeof(rsp->absolute_volume);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	if (net_buf_tailroom(buf) < param_len) {
+		LOG_ERR("Not enough space in net_buf");
+		return -ENOMEM;
+	}
+
+	net_buf_add_u8(buf, rsp->event_id);
+	switch (rsp->event_id) {
+	case BT_AVRCP_EVT_PLAYBACK_STATUS_CHANGED:
+		if (rsp->play_status > BT_AVRCP_PLAYBACK_STATUS_REV_SEEK &&
+		    rsp->play_status != BT_AVRCP_PLAYBACK_STATUS_ERROR) {
+			LOG_ERR("Invalid playback status: %d", rsp->play_status);
+			return -EINVAL;
+		}
+		net_buf_add_u8(buf, rsp->play_status);
+		break;
+	case BT_AVRCP_EVT_TRACK_CHANGED:
+		net_buf_add_mem(buf, rsp->identifier, sizeof(rsp->identifier));
+		break;
+	case BT_AVRCP_EVT_PLAYBACK_POS_CHANGED:
+		net_buf_add_be32(buf, rsp->playback_pos);
+		break;
+	case BT_AVRCP_EVT_BATT_STATUS_CHANGED:
+		if (rsp->battery_status > BT_AVRCP_BATTERY_STATUS_FULL) {
+			LOG_ERR("Invalid battery status: %d", rsp->battery_status);
+			return -EINVAL;
+		}
+		net_buf_add_u8(buf, rsp->battery_status);
+		break;
+	case BT_AVRCP_EVT_SYSTEM_STATUS_CHANGED:
+		if (rsp->system_status > BT_AVRCP_SYSTEM_STATUS_UNPLUGGED) {
+			LOG_ERR("Invalid system status: %d", rsp->system_status);
+			return -EINVAL;
+		}
+		net_buf_add_u8(buf, rsp->system_status);
+		break;
+	case BT_AVRCP_EVT_PLAYER_APP_SETTING_CHANGED:
+		net_buf_add_u8(buf, rsp->setting_changed.num_of_attr);
+		net_buf_add_mem(buf, rsp->setting_changed.attr_vals,
+		rsp->setting_changed.num_of_attr * sizeof(struct bt_avrcp_player_attr_value));
+		break;
+	case BT_AVRCP_EVT_ADDRESSED_PLAYER_CHANGED:
+		net_buf_add_be16(buf, rsp->addressed_player_changed.player_id);
+		net_buf_add_be16(buf, rsp->addressed_player_changed.uid_counter);
+		break;
+	case BT_AVRCP_EVT_UIDS_CHANGED:
+		net_buf_add_be16(buf, rsp->uid_counter);
+		break;
+	case BT_AVRCP_EVT_VOLUME_CHANGED:
+		if (rsp->absolute_volume > BT_AVRCP_MAX_ABSOLUTE_VOLUME) {
+			LOG_ERR("Invalid absolute volume: %d", rsp->absolute_volume);
+			return -EINVAL;
+		}
+		net_buf_add_u8(buf, rsp->absolute_volume);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+    return 0;
+}
+
+int bt_avrcp_tg_send_notification_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
+				     bt_avrcp_rsp_t type,
+				     const struct bt_avrcp_event_rsp *rsp)
+{
+	struct net_buf *temp_buf;
+	int err;
+
+	if ((tg == NULL) || (tg->avrcp == NULL) || (rsp == NULL)) {
+		return -EINVAL;
+	}
+
+	if (!IS_TG_ROLE_SUPPORTED()) {
+		return -ENOTSUP;
+	}
+
+	temp_buf = net_buf_alloc(&avrcp_tx_pool, K_NO_WAIT);
+	if (NULL == temp_buf) {
+		LOG_ERR("Failed to allocate temporary buffer");
+		return -ENOMEM;
+	}
+
+	err = build_notification_rsp_data(rsp, temp_buf);
+	if (err < 0) {
+		net_buf_unref(temp_buf);
+		return err;
+	}
+
+	return bt_avrcp_tg_send_vendor_rsp(tg, tid, BT_AVRCP_PDU_ID_REGISTER_NOTIFICATION,
+					   type, temp_buf);
 }
 
 int bt_avrcp_tg_send_subunit_info_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
