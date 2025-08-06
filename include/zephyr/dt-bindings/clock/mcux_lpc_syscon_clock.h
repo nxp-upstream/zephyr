@@ -159,4 +159,7 @@
 /** SEMA42 peripheral clock identifier. */
 #define MCUX_SEMA42_CLK MCUX_LPC_CLK_ID(0x23, 0x00)
 
+/** INPUTMUX peripheral clock identifier. */
+#define MCUX_INPUTMUX_CLK MCUX_LPC_CLK_ID(0x18, 0x00)
+
 #endif /* ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_MCUX_LPC_SYSCON_H_ */
