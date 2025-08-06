@@ -170,7 +170,7 @@ int memc_flexspi_set_device_config(const struct device *dev,
 		}
 	}
 
-	data->size[0] = 8192 * KB(1);
+	data->size[0] = 32 * 1024 * KB(1);
 	data->size[port] = device_config->flashSize * KB(1);
 
 	if (memc_flexspi_is_running_xip(dev)) {
@@ -204,7 +204,7 @@ int memc_flexspi_set_device_config(const struct device *dev,
 	// FLEXSPI_UpdateLUT(data->base, data->port_luts[port].lut_offset,
 	// 		  lut_ptr, lut_count);
 	FLEXSPI_UpdateLUT(data->base, 4,
-			  lut_ptr, lut_count);
+			  lut_ptr + 4, lut_count);
 	irq_unlock(key);
 
 	return 0;

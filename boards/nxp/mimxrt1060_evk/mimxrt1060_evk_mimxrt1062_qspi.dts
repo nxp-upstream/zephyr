@@ -32,7 +32,7 @@
 	reg = <0x402a8000 0x4000>, <0x60000000 DT_SIZE_M(256)>;
 	is25wp064: is25wp064@0 {
 		compatible = "nxp,imx-flexspi-nor";
-		size = <DT_SIZE_M(8 * 8)>;
+		size = <DT_SIZE_M(32 * 8)>;
 		reg = <0>;
 		spi-max-frequency = <104000000>;
 		status = "disabled";
@@ -69,7 +69,7 @@
 	};
 	w25n01kv: w25n01kv@2 {
 		compatible = "nxp,imx-flexspi-w25n01kv";
-		size = <DT_SIZE_M(248*8)>;
+		size = <DT_SIZE_M(224 * 8)>;
 		reg = <2>;
 		spi-max-frequency = <104000000>;
 		column-space = <12>;
