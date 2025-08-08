@@ -32,6 +32,51 @@ Build and flash as follows, replacing ``stm32f3_disco`` with your board:
    :board: mimxrt700_evk/mimxrt798s/cm33_cpu1
    :goals: build ram
 
+.. zephyr-app-commands::
+   :zephyr-app: samples/drivers/rtc
+   :board: frdm_k22f
+   :goals: build flash
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/drivers/rtc
+   :board: frdm_k32l2b3
+   :goals: build flash
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/drivers/rtc
+   :board: frdm_k64f
+   :goals: build flash
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/drivers/rtc
+   :board: frdm_k82f
+   :goals: build flash
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/drivers/rtc
+   :board: frdm_ke15z
+   :goals: build flash
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/drivers/rtc
+   :board: frdm_mcxc242
+   :goals: build flash
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/drivers/rtc
+   :board: frdm_mcxc444
+   :goals: build flash
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/drivers/rtc
+   :board: frdm_mcxw71
+   :goals: build flash
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/drivers/rtc
+   :board: frdm_mcxw72/mcxw727c/cpu0
+   :goals: build flash
+
 Sample Output
 =============
 

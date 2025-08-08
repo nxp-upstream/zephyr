@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2025 Ishraq Ibne Ashraf <ishraq.i.ashraf@gmail.com>
+ * Copyright 2025 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -290,7 +291,7 @@
 		};
 
 		rtc: rtc@4003d000 {
-			compatible = "nxp,rtc";
+			compatible = "nxp,srtc";
 			reg = <0x4003d000 0x1000>;
 			interrupts = <20 0>, <21 0>;
 			interrupt-names = "alarm", "seconds";

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 SEAL AG
+ * Copyright 2025 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -326,12 +327,13 @@
 		};
 
 		rtc: rtc@4003d000 {
-			compatible = "nxp,rtc";
+			compatible = "nxp,srtc";
 			reg = <0x4003d000 0x1000>;
 			interrupts = <46 0>, <47 0>;
 			interrupt-names = "alarm", "seconds";
 			clock-frequency = <32768>;
 			prescaler = <32768>;
+			status = "disabled";
 		};
 
 		spi0: spi@4002c000 {
