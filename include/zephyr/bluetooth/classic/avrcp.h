@@ -606,12 +606,12 @@ struct bt_avrcp_register_notification_cmd {
 
 /** @brief SetAbsoluteVolume command request */
 struct bt_avrcp_set_absolute_volume_cmd {
-	uint8_t volume;          /**< Volume level (0x00 to 0x7F) */
+	uint8_t absolute_volume;          /**< Volume level (0x00 to 0x7F) */
 } __packed;
 
 /** @brief SetAbsoluteVolume response */
 struct bt_avrcp_set_absolute_volume_rsp {
-	uint8_t volume;          /**< Volume level acknowledged */
+	uint8_t absolute_volume;          /**< Volume level acknowledged */
 } __packed;
 
 /** @brief SetAddressedPlayer command request */
@@ -622,14 +622,14 @@ struct bt_avrcp_set_addressed_player_cmd {
 /** @brief PlayItem command request */
 struct bt_avrcp_play_item_cmd {
 	uint8_t scope;        /**< Scope: @ref bt_avrcp_scope_t */
-	uint32_t uid[2];      /**< UID of the item (64-bit split into two 32-bit values) */
+	uint8_t uid[8];      /**< UID of the item */
 	uint32_t uid_counter; /**< UID counter */
 } __packed;
 
 /** @brief AddToNowPlaying command request */
 struct bt_avrcp_add_to_now_playing_cmd {
 	uint8_t scope;           /**< Scope: @ref bt_avrcp_scope_t */
-	uint32_t uid[2];         /**< UID of the item */
+	uint8_t uid[8];         /**< UID of the item */
 	uint32_t uid_counter;    /**< UID counter */
 } __packed;
 
@@ -639,7 +639,7 @@ struct bt_avrcp_event_data {
 		uint8_t play_status;
 
 		/* EVENT_TRACK_CHANGED */
-		uint64_t identifier __aligned(8);
+		uint8_t identifier[8];
 
 		/* EVENT_PLAYBACK_POS_CHANGED */
 		uint32_t playback_pos;
@@ -768,7 +768,7 @@ struct bt_avrcp_ct_cb {
 	 *  @param result The result of the operation.
 	 *  @param rsp The response for PASS THROUGH command.
 	 */
-	void (*passthrough_rsp)(struct bt_avrcp_ct *ct, uint8_t tid, bt_avrcp_rsp_t result,
+	void (*passthrough_rsp)(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t rsp_code,
 				const struct bt_avrcp_passthrough_rsp *rsp);
 
 	/** @brief Callback function for bt_avrcp_ct_set_browsed_player().
@@ -783,6 +783,214 @@ struct bt_avrcp_ct_cb {
 	 *             big-endian format.
 	 */
 	void (*browsed_player_rsp)(struct bt_avrcp_ct *ct, uint8_t tid, struct net_buf *buf);
+
+	/**
+	 * @brief Callback function for Set Absolute Volume response (CT).
+	 *
+	 * Called when the Set Absolute Volume response is received from the TG.
+	 *
+	 * @param ct AVRCP CT connection object.
+	 * @param rsp_code The response code for the vendor dependent command.
+	 * @param tid The transaction label of the response.
+	 * @param absolute_volume The absolute volume value (0x00-0x7F).
+	 */
+	void (*set_absolute_volume_rsp)(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t rsp_code,
+					uint8_t absolute_volume);
+
+	/**
+	 * @brief Callback for PDU ID LIST_PLAYER_APP_SETTING_ATTRS.
+	 *
+	 * Called when the response for LIST_PLAYER_APP_SETTING_ATTRS is received.
+	 *
+	 * @param ct AVRCP CT connection object.
+	 * @param tid The transaction label of the request.
+	 * @param rsp_code The response code for the vendor dependent command.
+	 * @param buf The response buffer containing the LIST_PLAYER_APP_SETTING_ATTRS
+	 *            payload returned by the TG.
+	 *            The application can parse this payload according to the format
+	 *            defined in @ref bt_avrcp_list_app_setting_attr_rsp.
+	 *            Note that all multi-octet fields are encoded in big-endian format.
+	 */
+	void (*list_player_app_setting_attrs_rsp)(struct bt_avrcp_ct *ct, uint8_t tid,
+						  uint8_t rsp_code, struct net_buf *buf);
+
+	/**
+	 * @brief Callback for PDU ID LIST_PLAYER_APP_SETTING_VALS.
+	 *
+	 * Called when the response for LIST_PLAYER_APP_SETTING_VALS is received.`
+	 *
+	 * @param ct AVRCP CT connection object.
+	 * @param tid The transaction label of the request.
+	 * @param rsp_code The response code for the vendor dependent command.
+	 * @param buf The response buffer containing the LIST_PLAYER_APP_SETTING_VALS
+	 *            payload returned by the TG.
+	 *            The application can parse this payload according to the format
+	 *            defined in @ref bt_avrcp_list_player_app_setting_vals_rsp.
+	 *            Note that all multi-octet fields are encoded in big-endian format.
+	 */
+	void (*list_player_app_setting_vals_rsp)(struct bt_avrcp_ct *ct, uint8_t tid,
+						 uint8_t rsp_code, struct net_buf *buf);
+
+	/**
+	 * @brief Callback for PDU ID GET_CURR_PLAYER_APP_SETTING_VAL.
+	 *
+	 * Called when the response for GET_CURR_PLAYER_APP_SETTING_VAL is received.
+	 *
+	 * @param ct AVRCP CT connection object.
+	 * @param tid The transaction label of the request.
+	 * @param rsp_code The response code for the vendor dependent command.
+	 * @param buf The response buffer containing the GET_CURR_PLAYER_APP_SETTING_VAL
+	 *            payload returned by the TG.
+	 *            The application can parse this payload according to the format
+	 *            defined in @ref bt_avrcp_get_curr_player_app_setting_val_rsp.
+	 *            Note that all multi-octet fields are encoded in big-endian format.
+	 */
+	void (*get_curr_player_app_setting_val_rsp)(struct bt_avrcp_ct *ct, uint8_t tid,
+						    uint8_t rsp_code, struct net_buf *buf);
+
+	/**
+	 * @brief Callback for PDU ID SET_PLAYER_APP_SETTING_VAL.
+	 *
+	 * Called when the response for SET_PLAYER_APP_SETTING_VAL is received.
+	 *
+	 * @param ct AVRCP CT connection object.
+	 * @param tid The transaction label of the request.
+	 * @param rsp_code The response code for the vendor dependent command.
+	 */
+	void (*set_player_app_setting_val_rsp)(struct bt_avrcp_ct *ct, uint8_t tid,
+					      uint8_t rsp_code);
+
+	/**
+	 * @brief Callback for PDU ID GET_PLAYER_APP_SETTING_ATTR_TEXT.
+	 *
+	 * Called when the response for GET_PLAYER_APP_SETTING_ATTR_TEXT is received.
+	 *
+	 * @param ct AVRCP CT connection object.
+	 * @param tid The transaction label of the request.
+	 * @param rsp_code The response code for the vendor dependent command.
+	 * @param buf The response buffer containing the GET_PLAYER_APP_SETTING_ATTR_TEXT
+	 *            payload returned by the TG, formatted as
+	 *            @ref bt_avrcp_get_player_app_setting_attr_text_rsp.
+	 *            Note that all multi-octet fields are encoded in big-endian format.
+	 */
+	void (*get_player_app_setting_attr_text_rsp)(struct bt_avrcp_ct *ct, uint8_t tid,
+						     uint8_t rsp_code, struct net_buf *buf);
+
+	/**
+	 * @brief Callback for PDU ID GET_PLAYER_APP_SETTING_VAL_TEXT.
+	 *
+	 * Called when the response for GET_PLAYER_APP_SETTING_VAL_TEXT is received.
+	 *
+	 * @param ct AVRCP CT connection object.
+	 * @param tid The transaction label of the request.
+	 * @param rsp_code The response code for the vendor dependent command.
+	 * @param buf The response buffer containing the GET_PLAYER_APP_SETTING_VAL_TEXT
+	 *            payload returned by the TG, formatted as
+	 *            @ref bt_avrcp_get_player_app_setting_val_text_rsp.
+	 *            Note that all multi-octet fields are encoded in big-endian format.
+	 */
+	void (*get_player_app_setting_val_text_rsp)(struct bt_avrcp_ct *ct, uint8_t tid,
+						    uint8_t rsp_code, struct net_buf *buf);
+
+	/**
+	 * @brief Callback for PDU ID INFORM_DISPLAYABLE_CHAR_SET.
+	 *
+	 * Called when the response for INFORM_DISPLAYABLE_CHAR_SET is received.
+	 *
+	 * @param ct AVRCP CT connection object.
+	 * @param tid The transaction label of the request.
+	 * @param rsp_code The response code for the vendor dependent command.
+	 */
+	void (*inform_displayable_char_set_rsp)(struct bt_avrcp_ct *ct, uint8_t tid,
+						uint8_t rsp_code);
+
+	/**
+	 * @brief Callback for PDU ID INFORM_BATT_STATUS_OF_CT.
+	 *
+	 * Called when the response for INFORM_BATT_STATUS_OF_CT is received.
+	 *
+	 * @param ct AVRCP CT connection object.
+	 * @param tid The transaction label of the request.
+	 * @param rsp_code The response code for the vendor dependent command.
+	 */
+	void (*inform_batt_status_of_ct_rsp)(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t rsp_code);
+
+	/**
+	 * @brief Callback for PDU ID GET_ELEMENT_ATTRS.
+	 *
+	 * Called when the response for GET_ELEMENT_ATTRS is received.
+	 *
+	 * @param ct AVRCP CT connection object.
+	 * @param tid The transaction label of the request.
+	 * @param rsp_code The response code for the vendor dependent command.
+	 * @param buf The response buffer containing the GET_ELEMENT_ATTRS payload
+	 *            returned by the TG, formatted as
+	 *            @ref bt_avrcp_get_element_attrs_rsp.
+	 *            Note that all multi-octet fields are encoded in big-endian format.
+	 */
+	void (*get_element_attrs_rsp)(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t rsp_code,
+				      struct net_buf *buf);
+
+	/**
+	 * @brief Callback for PDU ID GET_PLAY_STATUS.
+	 *
+	 * Called when the response for GET_PLAY_STATUS is received.
+	 *
+	 * @param ct AVRCP CT connection object.
+	 * @param tid The transaction label of the request.
+	 * @param rsp_code The response code for the vendor dependent command.
+	 * @param buf The response buffer containing the GET_PLAY_STATUS payload
+	 *            returned by the TG, formatted as
+	 *            @ref bt_avrcp_get_play_status_rsp.
+	 *            Note that all multi-octet fields are encoded in big-endian format.
+	 */
+	void (*get_play_status_rsp)(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t rsp_code,
+				    struct net_buf *buf);
+
+	/**
+	 * @brief Callback for PDU ID SET_ADDRESSED_PLAYER.
+	 *
+	 * Called when the response for SET_ADDRESSED_PLAYER is received.
+	 *
+	 * @param ct AVRCP CT connection object.
+	 * @param tid The transaction label of the request.
+	 * @param rsp_code The response code for the vendor dependent command.
+	 * @param status The status value returned by the TG, indicating the result of the
+	 *               operation. Typically corresponds to BT_AVRCP_STATUS_* values such as
+	 *               BT_AVRCP_STATUS_SUCCESS or BT_AVRCP_STATUS_INVALID_PARAMETER.
+	 */
+	void (*set_addressed_player_rsp)(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t rsp_code,
+					 uint8_t status);
+
+	/**
+	 * @brief Callback for PDU ID PLAY_ITEMS.
+	 *
+	 * Called when the response for PLAY_ITEMS is received.
+	 *
+	 * @param ct AVRCP CT connection object.
+	 * @param tid The transaction label of the request.
+	 * @param rsp_code The response code for the vendor dependent command.
+	 * @param status The status value returned by the TG, indicating the result of the
+	 *               operation. Typically corresponds to BT_AVRCP_STATUS_* values such as
+	 *               BT_AVRCP_STATUS_SUCCESS or BT_AVRCP_STATUS_INVALID_PARAMETER.
+	 */
+	void (*play_item_rsp)(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t rsp_code,
+			      uint8_t status);
+
+	/**
+	 * @brief Callback for PDU ID ADD_TO_NOW_PLAYING.
+	 *
+	 * Called when the response for ADD_TO_NOW_PLAYING is received.
+	 *
+	 * @param ct AVRCP CT connection object.
+	 * @param tid The transaction label of the request.
+	 * @param rsp_code The response code for the vendor dependent command.
+	 * @param status The status value returned by the TG, indicating the result of the
+	 *               operation. Typically corresponds to BT_AVRCP_STATUS_* values such as
+	 *               BT_AVRCP_STATUS_SUCCESS or BT_AVRCP_STATUS_INVALID_PARAMETER.
+	 */
+	void (*add_to_now_playing_rsp)(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t rsp_code,
+				       uint8_t status);
 };
 
 /** @brief Connect AVRCP.
@@ -922,6 +1130,7 @@ int bt_avrcp_ct_set_browsed_player(struct bt_avrcp_ct *ct, uint8_t tid, uint16_t
  *  The notification response will be received through the provided callback function.
  *
  *  @param ct The AVRCP CT instance.
+ *  @param tid The transaction label of the response, valid from 0 to 15.
  *  @param event_id The event ID to register for, see @ref bt_avrcp_evt_t.
  *  @param interval The playback interval for position changed events.
  *         Other events will have this value set to 0 to ignore.
@@ -929,8 +1138,201 @@ int bt_avrcp_ct_set_browsed_player(struct bt_avrcp_ct *ct, uint8_t tid, uint16_t
  *
  *  @return 0 in case of success or error code in case of error.
  */
-int bt_avrcp_ct_register_notification(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t event_id, uint32_t interval,
-				      bt_avrcp_notification_cb_t cb);
+int bt_avrcp_ct_register_notification(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t event_id,
+				      uint32_t interval, bt_avrcp_notification_cb_t cb);
+
+/**
+ * @brief Send Set Absolute Volume command (CT).
+ *
+ * This function sends the Set Absolute Volume command to the TG.
+ *
+ * @param ct The AVRCP CT instance.
+ * @param tid The transaction label of the command, valid from 0 to 15.
+ * @param absolute_volume The absolute volume value (0x00-0x7F).
+ *
+ * @return 0 in case of success or error code in case of error.
+ */
+int bt_avrcp_ct_set_absolute_volume(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t absolute_volume);
+
+/**
+ * @brief AVRCP CT API declarations for player application settings.
+ */
+/**
+ * @brief Send AVRCP vendor dependent command for LIST_PLAYER_APP_SETTING_ATTRS.
+ *
+ * @param ct AVRCP CT connection object.
+ * @param tid The transaction label of the response, valid from 0 to 15.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_ct_list_player_app_setting_attrs(struct bt_avrcp_ct *ct, uint8_t tid);
+
+/**
+ * @brief Send AVRCP vendor dependent command for LIST_PLAYER_APP_SETTING_VALS.
+ *
+ * @param ct AVRCP CT connection object.
+ * @param tid The transaction label of the response, valid from 0 to 15.
+ * @param attr_id Player application setting attribute ID for which the possible
+ *        values should be listed (e.g., Equalizer, Repeat Mode, Shuffle, Scan).
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_ct_list_player_app_setting_vals(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t attr_id);
+
+/**
+ * @brief Send AVRCP vendor dependent command for GET_CURR_PLAYER_APP_SETTING_VAL.
+ *
+ * @param ct AVRCP CT connection object.
+ * @param tid The transaction label of the response, valid from 0 to 15.
+ * @param buf The command buffer containing the GET_CURR_PLAYER_APP_SETTING_VAL
+ *          request payload, formatted as
+ *          @ref bt_avrcp_get_curr_player_app_setting_val_cmd.
+ *          Note that all multi-octet fields are encoded in big-endian format.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_ct_get_curr_player_app_setting_val(struct bt_avrcp_ct *ct, uint8_t tid,
+						struct net_buf *buf);
+
+/**
+ * @brief Send AVRCP vendor dependent command for SET_PLAYER_APP_SETTING_VAL.
+ *
+ * @param ct AVRCP CT connection object.
+ * @param tid The transaction label of the response, valid from 0 to 15.
+ * @param buf The command buffer containing the SET_PLAYER_APP_SETTING_VAL
+ *            request payload, formatted as
+ *            @ref bt_avrcp_set_player_app_setting_val_cmd.
+ *            Note that all multi-octet fields are encoded in big-endian format.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_ct_set_player_app_setting_val(struct bt_avrcp_ct *ct, uint8_t tid,
+					   struct net_buf *buf);
+
+/**
+ * @brief Send AVRCP vendor dependent command for GET_PLAYER_APP_SETTING_ATTR_TEXT.
+ *
+ * @param ct AVRCP CT connection object.
+ * @param tid The transaction label of the response, valid from 0 to 15.
+ * @param buf The command buffer containing the GET_PLAYER_APP_SETTING_ATTR_TEXT
+ *            request payload, formatted as
+ *            @ref bt_avrcp_get_player_app_setting_attr_text_cmd.
+ *            Note that all multi-octet fields are encoded in big-endian format.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_ct_get_player_app_setting_attr_text(struct bt_avrcp_ct *ct, uint8_t tid,
+						 struct net_buf *buf);
+
+/**
+ * @brief Send AVRCP vendor dependent command for GET_PLAYER_APP_SETTING_VAL_TEXT.
+ *
+ * @param ct AVRCP CT connection object.
+ * @param tid The transaction label of the response, valid from 0 to 15.
+ * @param buf The command buffer containing the GET_PLAYER_APP_SETTING_VAL_TEXT
+ *            request payload, formatted as
+ *            @ref bt_avrcp_get_player_app_setting_val_text_cmd.
+ *            Note that all multi-octet fields are encoded in big-endian format.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_ct_get_player_app_setting_val_text(struct bt_avrcp_ct *ct, uint8_t tid,
+						struct net_buf *buf);
+
+/**
+ * @brief Send AVRCP vendor dependent command for INFORM_DISPLAYABLE_CHAR_SET.
+ *
+ * @param ct AVRCP CT connection object.
+ * @param tid The transaction label of the response, valid from 0 to 15.
+ * @param buf The command buffer containing the INFORM_DISPLAYABLE_CHAR_SET
+ *            request payload, formatted as
+ *            @ref bt_avrcp_inform_displayable_char_set_cmd.
+ *            Note that all multi-octet fields are encoded in big-endian format
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_ct_inform_displayable_char_set(struct bt_avrcp_ct *ct, uint8_t tid,
+					    struct net_buf *buf);
+
+/**
+ * @brief Send AVRCP vendor dependent command for INFORM_BATT_STATUS_OF_CT.
+ *
+ * @param ct AVRCP CT connection object.
+ * @param tid The transaction label of the response, valid from 0 to 15.
+ * @param buf The command buffer containing the INFORM_BATT_STATUS_OF_CT
+ *            request payload, formatted as
+ *            @ref bt_avrcp_inform_batt_status_of_ct_cmd.
+ *            Note that all multi-octet fields are encoded in big-endian format.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_ct_inform_batt_status_of_ct(struct bt_avrcp_ct *ct, uint8_t tid, struct net_buf *buf);
+
+/**
+ * @brief Send AVRCP vendor dependent command for GET_ELEMENT_ATTRS.
+ *
+ * @param ct AVRCP CT connection object.
+ * @param tid The transaction label of the response, valid from 0 to 15.
+ * @param buf The command buffer containing the GET_ELEMENT_ATTRS
+ *            request payload, formatted as
+ *            @ref bt_avrcp_get_element_attrs_cmd.
+ *            Note that all multi-octet fields are encoded in big-endian format.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_ct_get_element_attrs(struct bt_avrcp_ct *ct, uint8_t tid, struct net_buf *buf);
+
+/**
+ * @brief Send AVRCP vendor dependent command for GET_PLAY_STATUS.
+ *
+ * @param ct AVRCP CT connection object.
+ * @param tid The transaction label of the response, valid from 0 to 15.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_ct_get_play_status(struct bt_avrcp_ct *ct, uint8_t tid);
+
+/**
+ * @brief Send AVRCP vendor dependent command for SET_ADDRESSED_PLAYER.
+ *
+ * @param ct AVRCP CT connection object.
+ * @param tid The transaction label of the response, valid from 0 to 15.
+ * @param buf The command buffer containing the SET_ADDRESSED_PLAYER
+ *            request payload, formatted as
+ *            @ref bt_avrcp_set_addressed_player_cmd.
+ *            Note that all multi-octet fields are encoded in big-endian format.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_ct_set_addressed_player(struct bt_avrcp_ct *ct, uint8_t tid, struct net_buf *buf);
+
+/**
+ * @brief Send AVRCP vendor dependent command for PLAY_ITEMS.
+ *
+ * @param ct AVRCP CT connection object.
+ * @param tid The transaction label of the response, valid from 0 to 15.
+ * @param buf The command buffer containing the PLAY_ITEM
+ *            request payload, formatted as
+ *            @ref bt_avrcp_play_item_cmd.
+ *            Note that all multi-octet fields are encoded in big-endian format.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_ct_play_item(struct bt_avrcp_ct *ct, uint8_t tid, struct net_buf *buf);
+
+/**
+ * @brief Send AVRCP vendor dependent command for ADD_TO_NOW_PLAYING.
+ *
+ * @param ct AVRCP CT connection object.
+ * @param tid The transaction label of the response, valid from 0 to 15.
+ * @param buf The command buffer containing the ADD_TO_NOW_PLAYING
+ *            request payload, formatted as
+ *            @ref bt_avrcp_add_to_now_playing_cmd.
+ *            Note that all multi-octet fields are encoded in big-endian format.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_ct_add_to_now_playing(struct bt_avrcp_ct *ct, uint8_t tid, struct net_buf *buf);
 
 struct bt_avrcp_tg_cb {
 	/** @brief An AVRCP TG connection has been established.
@@ -968,11 +1370,11 @@ struct bt_avrcp_tg_cb {
 	 *  @param tg AVRCP TG connection object.
 	 *  @param tid The transaction label of the request.
 	 *  @param event_id The event ID that the CT wants to register for @ref bt_avrcp_evt_t.
-	 *  @param playback_interval The playback interval for position changed event.
+	 *  @param interval The playback interval for position changed event.
 	 *         other events will have this value set to 0 for ingnoring.
 	 */
 	void (*register_notification_req)(struct bt_avrcp_tg *tg, uint8_t tid, uint8_t event_id,
-					 uint32_t playback_interval);
+					 uint32_t interval);
 
 	/** @brief Subunit Info Request callback.
 	 *
@@ -1034,6 +1436,186 @@ struct bt_avrcp_tg_cb {
 	 *             in big-endian format.
 	 */
 	void (*passthrough_req)(struct bt_avrcp_tg *tg, uint8_t tid, struct net_buf *buf);
+	/**
+	 * @brief Callback function for Set Absolute Volume command (TG).
+	 *
+	 * Called when the Set Absolute Volume command is received from the CT.
+	 *
+	 * @param tg AVRCP TG connection object.
+	 * @param tid The transaction label of the command.
+	 * @param absolute_volume The absolute volume value (0x00-0x7F).
+	 */
+	void (*set_absolute_volume_req)(struct bt_avrcp_tg *tg, uint8_t tid,
+					uint8_t absolute_volume);
+
+	/**
+	 * @brief Callback for PDU ID BT_AVRCP_PDU_ID_LIST_PLAYER_APP_SETTING_ATTRS.
+	 *
+	 * Called when the TG receives a vendor dependent command for LIST_PLAYER_APP_SETTING_ATTRS.
+	 *
+	 * @param tg AVRCP TG connection object.
+	 * @param tid The transaction label of the command.
+	 */
+	void (*list_player_app_setting_attrs_req)(struct bt_avrcp_tg *tg, uint8_t tid);
+
+	/**
+	 * @brief Callback for PDU ID BT_AVRCP_PDU_ID_LIST_PLAYER_APP_SETTING_VALS.
+	 *
+	 * Called when the TG receives a vendor dependent command for LIST_PLAYER_APP_SETTING_VALS.
+	 *
+	 * @param tg AVRCP TG connection object.
+	 * @param tid The transaction label of the command.
+	 * @param attr_id Player application setting attribute ID for which the possible
+	 *        values should be listed (e.g., Equalizer, Repeat Mode, Shuffle, Scan).
+	 */
+	void (*list_player_app_setting_vals_req)(struct bt_avrcp_tg *tg, uint8_t tid,
+						 uint8_t attr_id);
+
+	/**
+	 * @brief Callback for PDU ID BT_AVRCP_PDU_ID_GET_CURR_PLAYER_APP_SETTING_VAL.
+	 *
+	 * Called when the TG receives a vendor dependent command GET_CURR_PLAYER_APP_SETTING_VAL.
+	 *
+	 * @param tg AVRCP TG connection object.
+	 * @param tid The transaction label of the command.
+	 * @param buf The buffer containing the GET_CURR_PLAYER_APP_SETTING_VAL command payload,
+	 *            formatted as @ref bt_avrcp_get_curr_player_app_setting_val_cmd.
+	 *            The application should parse fields in big-endian order.
+	 */
+	void (*get_curr_player_app_setting_val_req)(struct bt_avrcp_tg *tg, uint8_t tid,
+						    struct net_buf *buf);
+
+	/**
+	 * @brief Callback for PDU ID BT_AVRCP_PDU_ID_SET_PLAYER_APP_SETTING_VAL.
+	 *
+	 * Called when the TG receives a vendor dependent command for SET_PLAYER_APP_SETTING_VAL.
+	 *
+	 * @param tg AVRCP TG connection object.
+	 * @param tid The transaction label of the command.
+	 * @param buf The buffer containing the SET_PLAYER_APP_SETTING_VAL command payload,
+	 *            formatted as @ref bt_avrcp_set_player_app_setting_val_cmd.
+	 *            The application should parse fields in big-endian order.
+	 */
+	void (*set_player_app_setting_val_req)(struct bt_avrcp_tg *tg, uint8_t tid,
+					       struct net_buf *buf);
+
+	/**
+	 * @brief Callback for PDU ID BT_AVRCP_PDU_ID_GET_PLAYER_APP_SETTING_ATTR_TEXT.
+	 *
+	 * Called when the TG receives a vendor dependent command GET_PLAYER_APP_SETTING_ATTR_TEXT.
+	 *
+	 * @param tg AVRCP TG connection object.
+	 * @param tid The transaction label of the command.
+	 * @param buf The buffer containing the GET_PLAYER_APP_SETTING_VAL_TEXT command payload,
+	 *            formatted as @ref bt_avrcp_get_player_app_setting_val_text_cmd.
+	 *            The application should parse fields in big-endian order.
+	 */
+	void (*get_player_app_setting_attr_text_req)(struct bt_avrcp_tg *tg, uint8_t tid,
+						     struct net_buf *buf);
+
+	/**
+	 * @brief Callback for PDU ID BT_AVRCP_PDU_ID_GET_PLAYER_APP_SETTING_VAL_TEXT.
+	 *
+	 * Called when the TG receives a vendor dependent command GET_PLAYER_APP_SETTING_VAL_TEXT.
+	 *
+	 * @param tg AVRCP TG connection object.
+	 * @param tid The transaction label of the command.
+	 * @param buf The buffer containing the GET_PLAYER_APP_SETTING_VAL_TEXT command payload,
+	 *            formatted as @ref bt_avrcp_get_player_app_setting_val_text_cmd.
+	 *            The application should parse fields in big-endian order.
+	 */
+	void (*get_player_app_setting_val_text_req)(struct bt_avrcp_tg *tg, uint8_t tid,
+						    struct net_buf *buf);
+
+	/**
+	 * @brief Callback for PDU ID BT_AVRCP_PDU_ID_INFORM_DISPLAYABLE_CHAR_SET.
+	 *
+	 * Called when the TG receives a vendor dependent command for INFORM_DISPLAYABLE_CHAR_SET.
+	 *
+	 * @param tg AVRCP TG connection object.
+	 * @param tid The transaction label of the command.
+	 * @param buf The buffer containing the INFORM_DISPLAYABLE_CHAR_SET command payload,
+	 *            formatted as @ref bt_avrcp_inform_displayable_char_set_cmd.
+	 *            The application should parse fields in big-endian order.
+	 */
+	void (*inform_displayable_char_set_req)(struct bt_avrcp_tg *tg, uint8_t tid,
+						struct net_buf *buf);
+
+	/**
+	 * @brief Callback for PDU ID BT_AVRCP_PDU_ID_INFORM_BATT_STATUS_OF_CT.
+	 *
+	 * Called when the TG receives a vendor dependent command for INFORM_BATT_STATUS_OF_CT.
+	 *
+	 * @param tg AVRCP TG connection object.
+	 * @param tid The transaction label of the command.
+	 * @param buf The buffer containing the INFORM_BATT_STATUS_OF_CT command payload,
+	 *            formatted as @ref bt_avrcp_inform_batt_status_of_ct_cmd.
+	 *            The application should parse fields in big-endian order.
+	 */
+	void (*inform_batt_status_of_ct_req)(struct bt_avrcp_tg *tg, uint8_t tid,
+					     struct net_buf *buf);
+
+	/**
+	 * @brief Callback for PDU ID BT_AVRCP_PDU_ID_GET_ELEMENT_ATTRS.
+	 *
+	 * Called when the TG receives a vendor dependent command for GET_ELEMENT_ATTRS.
+	 *
+	 * @param tg AVRCP TG connection object.
+	 * @param tid The transaction label of the command.
+	 * @param buf The buffer containing the GET_ELEMENT_ATTRS command payload,
+	 *            formatted as @ref bt_avrcp_get_element_attrs_cmd.
+	 *            The application should parse fields in big-endian order.
+	 */
+	void (*get_element_attrs_req)(struct bt_avrcp_tg *tg, uint8_t tid, struct net_buf *buf);
+
+	/**
+	 * @brief Callback for PDU ID BT_AVRCP_PDU_ID_GET_PLAY_STATUS.
+	 *
+	 * Called when the TG receives a vendor dependent command for GET_PLAY_STATUS.
+	 *
+	 * @param tg AVRCP TG connection object.
+	 * @param tid The transaction label of the command.
+	 */
+	void (*get_play_status_req)(struct bt_avrcp_tg *tg, uint8_t tid);
+
+	/**
+	 * @brief Callback for PDU ID BT_AVRCP_PDU_ID_SET_ADDRESSED_PLAYER.
+	 *
+	 * Called when the TG receives a vendor dependent command for SET_ADDRESSED_PLAYER.
+	 *
+	 * @param tg AVRCP TG connection object.
+	 * @param tid The transaction label of the command.
+	 * @param buf The buffer containing the SET_ADDRESSED_PLAYER command payload,
+	 *            formatted as @ref bt_avrcp_set_addressed_player_cmd.
+	 *            The application should parse fields in big-endian order.
+	 */
+	void (*set_addressed_player_req)(struct bt_avrcp_tg *tg, uint8_t tid, struct net_buf *buf);
+
+	/**
+	 * @brief Callback for PDU ID BT_AVRCP_PDU_ID_PLAY_ITEMS.
+	 *
+	 * Called when the TG receives a vendor dependent command for PLAY_ITEMS.
+	 *
+	 * @param tg AVRCP TG connection object.
+	 * @param tid The transaction label of the command.
+	 * @param buf The buffer containing the PLAY_ITEM command payload,
+	 *            formatted as @ref bt_avrcp_play_item_cmd.
+	 *            The application should parse fields in big-endian order.
+	 */
+	void (*play_item_req)(struct bt_avrcp_tg *tg, uint8_t tid, struct net_buf *buf);
+
+	/**
+	 * @brief Callback for PDU ID BT_AVRCP_PDU_ID_ADD_TO_NOW_PLAYING.
+	 *
+	 * Called when the TG receives a vendor dependent command for ADD_TO_NOW_PLAYING.
+	 *
+	 * @param tg AVRCP TG connection object.
+	 * @param tid The transaction label of the command.
+	 * @param buf The buffer containing the ADD_TO_NOW_PLAYING command payload,
+	 *            formatted as @ref bt_avrcp_add_to_now_playing_cmd.
+	 *            The application should parse fields in big-endian order.
+	 */
+	void (*add_to_now_playing_req)(struct bt_avrcp_tg *tg, uint8_t tid, struct net_buf *buf);
 };
 
 /** @brief Register callback.
@@ -1097,7 +1679,7 @@ int bt_avrcp_tg_send_get_caps_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
  *
  * @return 0 in case of success or error code in case of error.
  */
-int bt_avrcp_tg_send_notification_rsp(struct bt_avrcp_tg *tg, uint8_t tid, bt_avrcp_rsp_t type,
+int bt_avrcp_tg_send_notification_rsp(struct bt_avrcp_tg *tg, uint8_t tid, uint8_t type,
 				      uint8_t event_id, struct bt_avrcp_event_data *data);
 
 /** @brief Send the set browsed player response.
@@ -1112,6 +1694,21 @@ int bt_avrcp_tg_send_notification_rsp(struct bt_avrcp_tg *tg, uint8_t tid, bt_av
  */
 int bt_avrcp_tg_send_set_browsed_player_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
 					    struct net_buf *buf);
+
+/**
+ * @brief Send Set Absolute Volume response (TG).
+ *
+ * This function sends the Set Absolute Volume response to the CT.
+ *
+ * @param tg The AVRCP TG instance.
+ * @param tid The transaction label of the response, valid from 0 to 15.
+ * @param rsp_code AVRCP response code for this vendor dependent PDU.
+ * @param absolute_volume The absolute volume value (0x00-0x7F).
+ *
+ * @return 0 in case of success or error code in case of error.
+ */
+int bt_avrcp_tg_send_absolute_volume_rsp(struct bt_avrcp_tg *tg, uint8_t tid, uint8_t rsp_code,
+					 uint8_t absolute_volume);
 
 /** @brief Send AVRCP Pass Through response.
  *
@@ -1128,8 +1725,188 @@ int bt_avrcp_tg_send_set_browsed_player_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
  *
  *  @return 0 in case of success or error code in case of error.
  */
-int bt_avrcp_tg_send_passthrough_rsp(struct bt_avrcp_tg *tg, uint8_t tid, bt_avrcp_rsp_t result,
+int bt_avrcp_tg_send_passthrough_rsp(struct bt_avrcp_tg *tg, uint8_t tid, uint8_t rsp_code,
 				     struct net_buf *buf);
+
+/**
+ * @brief Send response for PDU ID BT_AVRCP_PDU_ID_LIST_PLAYER_APP_SETTING_ATTRS.
+ *
+ * @param tg AVRCP TG connection object.
+ * @param tid The transaction label of the request.
+ * @param rsp_code AVRCP response code for this vendor dependent PDU.
+ * @param buf The response buffer containing the LIST_PLAYER_APP_SETTING_ATTRS payload,
+ *            formatted as @ref bt_avrcp_list_app_setting_attr_rsp.
+ *            Note that all multi-octet fields are encoded in big-endian format.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_tg_send_list_player_app_setting_attrs_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
+						       uint8_t rsp_code, struct net_buf *buf);
+
+/**
+ * @brief Send response for PDU ID BT_AVRCP_PDU_ID_LIST_PLAYER_APP_SETTING_VALS.
+ *
+ * @param tg AVRCP TG connection object.
+ * @param tid The transaction label of the request.
+ * @param rsp_code AVRCP response code for this vendor dependent PDU.
+ * @param buf The response buffer containing the LIST_PLAYER_APP_SETTING_VALS payload,
+ *            formatted as @ref bt_avrcp_list_player_app_setting_vals_rsp.
+ *            Note that all multi-octet fields are encoded in big-endian format.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_tg_send_list_player_app_setting_vals_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
+						      uint8_t rsp_code, struct net_buf *buf);
+
+/**
+ * @brief Send response for PDU ID BT_AVRCP_PDU_ID_GET_CURR_PLAYER_APP_SETTING_VAL.
+ *
+ * @param tg AVRCP TG connection object.
+ * @param tid The transaction label of the request.
+ * @param rsp_code AVRCP response code for this vendor dependent PDU.
+ * @param buf The response buffer containing the GET_CURR_PLAYER_APP_SETTING_VAL payload,
+ *            formatted as @ref bt_avrcp_get_curr_player_app_setting_val_rsp.
+ *            Note that all multi-octet fields are encoded in big-endian format.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_tg_send_get_curr_player_app_setting_val_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
+							 uint8_t rsp_code, struct net_buf *buf);
+
+/**
+ * @brief Send response for PDU ID BT_AVRCP_PDU_ID_SET_PLAYER_APP_SETTING_VAL.
+ *
+ * @param tg AVRCP TG connection object.
+ * @param tid The transaction label of the request.
+ * @param rsp_code AVRCP response code for this vendor dependent PDU.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_tg_send_set_player_app_setting_val_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
+						    uint8_t rsp_code);
+
+/**
+ * @brief Send response for PDU ID BT_AVRCP_PDU_ID_GET_PLAYER_APP_SETTING_ATTR_TEXT.
+ *
+ * @param tg AVRCP TG connection object.
+ * @param tid The transaction label of the request.
+ * @param rsp_code AVRCP response code for this vendor dependent PDU.
+ * @param buf The response buffer containing the GET_PLAYER_APP_SETTING_ATTR_TEXT payload,
+ *            formatted as @ref bt_avrcp_get_player_app_setting_attr_text_rsp.
+ *            Note that all multi-octet fields are encoded in big-endian format.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_tg_send_get_player_app_setting_attr_text_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
+							  uint8_t rsp_code, struct net_buf *buf);
+
+/**
+ * @brief Send response for PDU ID BT_AVRCP_PDU_ID_GET_PLAYER_APP_SETTING_VAL_TEXT.
+ *
+ * @param tg AVRCP TG connection object.
+ * @param tid The transaction label of the request.
+ * @param rsp_code AVRCP response code for this vendor dependent PDU.
+ * @param buf The response buffer containing the GET_PLAYER_APP_SETTING_VAL_TEXT payload,
+ *            formatted as @ref bt_avrcp_get_player_app_setting_val_text_rsp.
+ *            Note that all multi-octet fields are encoded in big-endian format.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_tg_send_get_player_app_setting_val_text_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
+							 uint8_t rsp_code, struct net_buf *buf);
+
+/**
+ * @brief Send response for PDU ID BT_AVRCP_PDU_ID_INFORM_DISPLAYABLE_CHAR_SET.
+ *
+ * @param tg AVRCP TG connection object.
+ * @param tid The transaction label of the request.
+ * @param rsp_code AVRCP response code for this vendor dependent PDU.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_tg_send_inform_displayable_char_set_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
+						     uint8_t rsp_code);
+
+/**
+ * @brief Send response for PDU ID BT_AVRCP_PDU_ID_INFORM_BATT_STATUS_OF_CT.
+ *
+ * @param tg AVRCP TG connection object.
+ * @param tid The transaction label of the request.
+ * @param rsp_code AVRCP response code for this vendor dependent PDU.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_tg_send_inform_batt_status_of_ct_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
+						  uint8_t rsp_code);
+
+/**
+ * @brief Send response for PDU ID BT_AVRCP_PDU_ID_GET_ELEMENT_ATTRS.
+ *
+ * @param tg AVRCP TG connection object.
+ * @param tid The transaction label of the request.
+ * @param rsp_code AVRCP response code for this vendor dependent PDU.
+ * @param buf The response buffer containing the GET_ELEMENT_ATTRS payload,
+ *            formatted as @ref bt_avrcp_get_element_attrs_rsp.
+ *            Note that all multi-octet fields are encoded in big-endian format.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_tg_send_get_element_attrs_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
+					   uint8_t rsp_code, struct net_buf *buf);
+
+/**
+ * @brief Send response for PDU ID BT_AVRCP_PDU_ID_GET_PLAY_STATUS.
+ *
+ * @param tg AVRCP TG connection object.
+ * @param tid The transaction label of the request.
+ * @param rsp_code AVRCP response code for this vendor dependent PDU.
+ * @param buf The response buffer containing the GET_PLAY_STATUS payload,
+ *            formatted as @ref bt_avrcp_get_play_status_rsp.
+ *            Note that all multi-octet fields are encoded in big-endian format.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_tg_send_get_play_status_rsp(struct bt_avrcp_tg *tg, uint8_t tid, uint8_t rsp_code,
+					 struct net_buf *buf);
+
+/**
+ * @brief Send response for PDU ID BT_AVRCP_PDU_ID_SET_ADDRESSED_PLAYER.
+ *
+ * @param tg AVRCP TG connection object.
+ * @param tid The transaction label of the request.
+ * @param rsp_code AVRCP response code for this vendor dependent PDU.
+ * @param status status.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_tg_send_set_addressed_player_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
+					    uint8_t rsp_code, uint8_t status);
+
+/**
+ * @brief Send response for PDU ID BT_AVRCP_PDU_ID_PLAY_ITEMS.
+ *
+ * @param tg AVRCP TG connection object.
+ * @param tid The transaction label of the request.
+ * @param rsp_code AVRCP response code for this vendor dependent PDU.
+ * @param status status.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_tg_send_play_item_rsp(struct bt_avrcp_tg *tg, uint8_t tid, uint8_t rsp_code,
+				    uint8_t status);
+
+/**
+ * @brief Send response for PDU ID BT_AVRCP_PDU_ID_ADD_TO_NOW_PLAYING.
+ *
+ * @param tg AVRCP TG connection object.
+ * @param tid The transaction label of the request.
+ * @param rsp_code AVRCP response code for this vendor dependent PDU.
+ * @param status status.
+ *
+ * @return 0 on success or error code.
+ */
+int bt_avrcp_tg_send_add_to_now_playing_rsp(struct bt_avrcp_tg *tg, uint8_t tid,
+					    uint8_t rsp_code, uint8_t status);
 #ifdef __cplusplus
 }
 #endif
