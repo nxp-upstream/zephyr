@@ -288,7 +288,7 @@ static void handle_get_element_attrs_rsp(struct bt_avrcp_ct *ct, uint8_t tid, st
 
 
 }
-static void handle_get_element_attrs_cmd_req(struct bt_avrcp_tg *tg, uint8_t tid, struct net_buf *buf)
+static void handle_get_element_attrs_req(struct bt_avrcp_tg *tg, uint8_t tid, struct net_buf *buf)
 {
 	struct bt_avrcp_get_element_attrs_cmd *cmd;
 	uint8_t i;
@@ -409,6 +409,18 @@ static void avrcp_register_notification_req(struct bt_avrcp_tg *tg, uint8_t tid,
 	tg_tid = tid;
 }
 
+static void avrcp_set_absolute_volume_rsp(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t absolute_volume)
+{
+	bt_shell_print("AVRCP set_absolute_volume_rsp: tid=0x%02x, absolute_volume=0x%02x", tid, absolute_volume);
+}
+
+static void avrcp_set_absolute_volume_req(struct bt_avrcp_tg *tg, uint8_t tid, uint8_t absolute_volume)
+{
+	bt_shell_print("AVRCP set_absolute_volume_req: tid=0x%02x, absolute_volume=0x%02x", tid, absolute_volume);
+	/* Store for shell test response */
+	tg_tid = tid;
+}
+
 static void avrcp_browsed_player_rsp(struct bt_avrcp_ct *ct, uint8_t tid,
 				     struct net_buf *buf)
 {
@@ -486,7 +498,7 @@ static void avrcp_vendor_dependent_req_cb(struct bt_avrcp_tg *tg, uint8_t tid, u
 	bt_shell_print("AVRCP TG vendor dependent request received, tid=0x%02x, pdu_id=%u, len=%u", tid, pdu_id, buf->len);
 	if (BT_AVRCP_PDU_ID_GET_ELEMENT_ATTRS == pdu_id)
 	{
-		return handle_get_element_attrs_cmd_req(tg, tid, buf);
+		return handle_get_element_attrs_req(tg, tid, buf);
 	}
 	if (buf->len > 0U) {
 		bt_shell_hexdump(buf->data, buf->len);
@@ -504,6 +516,7 @@ static struct bt_avrcp_ct_cb app_avrcp_ct_cb = {
 	.passthrough_rsp = avrcp_passthrough_rsp,
 	.browsed_player_rsp = avrcp_browsed_player_rsp,
 	.vendor_dependent_rsp = avrcp_vendor_dependent_rsp_cb,
+	.set_absolute_volume_rsp = avrcp_set_absolute_volume_rsp,
 };
 
 static void avrcp_tg_connected(struct bt_conn *conn, struct bt_avrcp_tg *tg)
@@ -535,7 +548,7 @@ static void avrcp_subunit_info_req(struct bt_avrcp_tg *tg, uint8_t tid)
 	tg_tid = tid;
 }
 
-static void avrcp_get_caps_cmd_req(struct bt_avrcp_tg *tg, uint8_t tid, uint8_t cap_id)
+static void avrcp_get_caps_req(struct bt_avrcp_tg *tg, uint8_t tid, uint8_t cap_id)
 {
 	const char *cap_type_str;
 
@@ -618,11 +631,13 @@ static struct bt_avrcp_tg_cb app_avrcp_tg_cb = {
 	.browsing_disconnected = avrcp_tg_browsing_disconnected,
 	.unit_info_req = avrcp_unit_info_req,
 	.subunit_info_req = avrcp_subunit_info_req,
-	.get_cap_req = avrcp_get_caps_cmd_req,
+	.get_cap_req = avrcp_get_caps_req,
 	.set_browsed_player_req = avrcp_set_browsed_player_req,
 	.register_notification_req = avrcp_register_notification_req,
+	.set_absolute_volume_req = avrcp_set_absolute_volume_req,
 	.passthrough_req = avrcp_passthrough_req,
-	.vendor_dependent_req = avrcp_vendor_dependent_req_cb,
+	//.vendor_dependent_req = avrcp_vendor_dependent_req_cb,
+	.get_element_attrs_req = handle_get_element_attrs_req,
 };
 
 static int register_ct_cb(const struct shell *sh)
@@ -1386,6 +1401,58 @@ done:
 	return err;
 }
 
+static int cmd_ct_set_absolute_volume(const struct shell *sh, int argc, char *argv[])
+{
+	uint8_t absolute_volume;
+	int err;
+
+	if (!avrcp_ct_registered && register_ct_cb(sh) != 0) {
+		return -ENOEXEC;
+	}
+
+	if (default_ct == NULL) {
+		shell_error(sh, "AVRCP CT is not connected");
+		return -ENOEXEC;
+	}
+
+	absolute_volume = (uint8_t)strtoul(argv[1], NULL, 0);
+
+	err = bt_avrcp_ct_set_absolute_volume(default_ct, get_next_tid(), absolute_volume);
+	if (err) {
+		shell_error(sh, "Failed to set absolute volume: %d", err);
+	} else {
+		shell_print(sh, "set absolute volume"
+			    " absolute_volume=0x%02x", absolute_volume);
+	}
+	return err;
+}
+
+static int cmd_tg_send_absolute_volume_rsp(const struct shell *sh, int32_t argc, char *argv[])
+{
+	uint8_t absolute_volume;
+	int err;
+
+	if (!avrcp_tg_registered && register_tg_cb(sh) != 0) {
+		return -ENOEXEC;
+	}
+
+	if (default_tg == NULL) {
+		shell_error(sh, "AVRCP TG is not connected");
+		return -ENOEXEC;
+	}
+
+	absolute_volume = (uint8_t)strtoul(argv[1], NULL, 0);
+
+	err = bt_avrcp_tg_send_absolute_volume_rsp(default_tg, tg_tid, absolute_volume);
+	if (err) {
+		shell_error(sh, "Failed to send set absolute volume response: %d", err);
+	} else {
+		shell_print(sh, "Set absolute volume response sent successfully");
+	}
+
+	return err;
+}
+
 static int cmd_set_browsed_player(const struct shell *sh, int32_t argc, char *argv[])
 {
 	uint16_t player_id;
@@ -1603,6 +1670,8 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 		      cmd_get_element_attrs, 1, 9),
 	SHELL_CMD_ARG(register_notification, NULL, "register notify <event_id> [playback_interval]",
 		      cmd_ct_register_notification, 2, 1),
+	SHELL_CMD_ARG(set_absolute_volume, NULL, "set absolute volume <volume>",
+		      cmd_ct_set_absolute_volume, 2, 0),
 	SHELL_CMD_ARG(set_browsed_player, NULL, "set browsed player <player_id>",
 		      cmd_set_browsed_player, 2, 0),
 	SHELL_CMD_ARG(vendor_dependent, NULL, "send vendor dependent command",
@@ -1620,6 +1689,8 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 		      cmd_send_get_element_attrs_rsp, 2, 0),
 	SHELL_CMD_ARG(send_notification_rsp, NULL, "send notify rsp <event_id> <type> [value...]",
 		     cmd_tg_send_notification_rsp, 3, 10),
+	SHELL_CMD_ARG(send_absolute_volume_rsp, NULL, "send absolute volume rsp <volume>",
+		     cmd_tg_send_absolute_volume_rsp, 2, 0),
 	SHELL_CMD_ARG(send_browsed_player_rsp, NULL, HELP_BROWSED_PLAYER_RSP,
 		      cmd_send_set_browsed_player_rsp, 1, 5),
 	SHELL_CMD_ARG(send_passthrough_rsp, NULL, HELP_PASSTHROUGH_RSP, cmd_send_passthrough_rsp,
