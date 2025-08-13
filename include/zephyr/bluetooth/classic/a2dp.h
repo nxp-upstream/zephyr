@@ -42,6 +42,7 @@ extern "C" {
 		.codec_type = _codec,                                                              \
 		.sep = {.sep_info = {.media_type = BT_AVDTP_AUDIO, .tsep = _role}},                \
 		.codec_cap = _capability, .stream = NULL,                                          \
+		COND_CODE_1(CONFIG_BT_A2DP_DELAY_REPORT, (.delay_report = true,), ())              \
 	}
 
 /** @brief define the audio sink endpoint
@@ -321,6 +322,10 @@ struct bt_a2dp_codec_ie {
 
 /** @brief The endpoint configuration */
 struct bt_a2dp_codec_cfg {
+#ifdef CONFIG_BT_A2DP_DELAY_REPORT
+	/** the delay reporting configured state */
+	bool delay_report;
+#endif
 	/** The media codec configuration content */
 	struct bt_a2dp_codec_ie *codec_config;
 };
@@ -329,6 +334,10 @@ struct bt_a2dp_codec_cfg {
 struct bt_a2dp_ep {
 	/** Code Type @ref bt_a2dp_codec_type */
 	uint8_t codec_type;
+#ifdef CONFIG_BT_A2DP_DELAY_REPORT
+	/** Whether the endpoint has delay reporting service */
+	bool delay_report;
+#endif
 	/** Capabilities */
 	struct bt_a2dp_codec_ie *codec_cap;
 	/** AVDTP Stream End Point Identifier */
@@ -340,6 +349,10 @@ struct bt_a2dp_ep {
 struct bt_a2dp_ep_info {
 	/** Code Type @ref bt_a2dp_codec_type */
 	uint8_t codec_type;
+#ifdef CONFIG_BT_A2DP_DELAY_REPORT
+	/** Whether the endpoint has delay reporting service */
+	bool delay_report;
+#endif
 	/** Codec capabilities, if SBC, use function of a2dp_codec_sbc.h to parse it */
 	struct bt_a2dp_codec_ie codec_cap;
 	/** Stream End Point Information */
@@ -575,6 +588,56 @@ struct bt_a2dp_cb {
 	 *                          bt_a2dp_err_code or bt_avdtp_err_code
 	 */
 	void (*abort_rsp)(struct bt_a2dp_stream *stream, uint8_t rsp_err_code);
+	/**
+	 * @brief Stream get config callback
+	 *
+	 * The callback is called whenever an stream is requested to response
+	 * configured configuration.
+	 *
+	 *  @param[in] stream    Pointer to stream object.
+	 *  @param[out] rsp_err_code  give the error code if response error.
+	 *                          bt_a2dp_err_code or bt_avdtp_err_code
+	 *
+	 * @return 0 in case of success or negative value in case of error.
+	 */
+	int (*get_config_req)(struct bt_a2dp_stream *stream, uint8_t *rsp_err_code);
+	/** @brief Callback function for bt_a2dp_stream_get_config()
+	 *
+	 *  Called when the get configuration operation is completed.
+	 *
+	 *  @param[in] stream    Pointer to stream object.
+	 *  @param[in] rsp_err_code the remote responded error code
+	 *                          bt_a2dp_err_code or bt_avdtp_err_code
+	 */
+	void (*get_config_rsp)(struct bt_a2dp_stream *stream, struct bt_a2dp_codec_cfg *codec_cfg,
+			       uint8_t rsp_err_code);
+#ifdef CONFIG_BT_A2DP_DELAY_REPORT
+#ifdef CONFIG_BT_A2DP_SOURCE
+	/**
+	 * @brief Stream delay report is received
+	 *
+	 * The callback is called whenever an stream's delay report is received.
+	 *
+	 *  @param[in] stream    Pointer to stream object.
+	 *  @param[out] rsp_err_code  give the error code if response error.
+	 *                          bt_a2dp_err_code or bt_avdtp_err_code
+	 *
+	 * @return 0 in case of success or negative value in case of error.
+	 */
+	int (*delay_report_req)(struct bt_a2dp_stream *stream, uint8_t *rsp_err_code);
+#endif
+#ifdef CONFIG_BT_A2DP_SINK
+	/** @brief Callback function for bt_a2dp_stream_delay_report()
+	 *
+	 *  Called when the delay report sending is completed.
+	 *
+	 *  @param[in] stream    Pointer to stream object.
+	 *  @param[in] rsp_err_code the remote responded error code
+	 *                          bt_a2dp_err_code or bt_avdtp_err_code
+	 */
+	void (*delay_report_rsp)(struct bt_a2dp_stream *stream, uint8_t rsp_err_code);
+#endif
+#endif
 };
 
 /** @brief A2DP Connect.
@@ -651,6 +714,10 @@ struct bt_a2dp_stream {
 	struct bt_a2dp_ep *remote_ep;
 	/** remote endpoint's Stream End Point ID */
 	uint8_t remote_ep_id;
+#ifdef CONFIG_BT_A2DP_DELAY_REPORT
+	/** whether the delay report is configured on the stream */
+	bool delay_report;
+#endif
 	/** Audio stream operations */
 	struct bt_a2dp_stream_ops *ops;
 	/** the a2dp connection */
@@ -735,6 +802,18 @@ struct bt_a2dp_stream_ops {
 	 * @param stream Stream object.
 	 */
 	void (*sent)(struct bt_a2dp_stream *stream);
+#ifdef CONFIG_BT_A2DP_DELAY_REPORT
+	/**
+	 * @brief The delay report value is received
+	 *
+	 * This callback will be called once delay report is replied with accept
+	 * (If `delay_report_req` is not set or `delay_report_req` reply success).
+	 *
+	 * @param stream Stream object.
+	 * @param value The delay report value in 1/10 milliseconds.
+	 */
+	void (*delay_report)(struct bt_a2dp_stream *stream, uint16_t value);
+#endif
 #endif
 };
 
@@ -766,6 +845,16 @@ void bt_a2dp_stream_cb_register(struct bt_a2dp_stream *stream, struct bt_a2dp_st
 int bt_a2dp_stream_config(struct bt_a2dp *a2dp, struct bt_a2dp_stream *stream,
 			  struct bt_a2dp_ep *local_ep, struct bt_a2dp_ep *remote_ep,
 			  struct bt_a2dp_codec_cfg *config);
+
+/** @brief get config of the stream
+ *
+ * This function sends the AVDTP_GET_CONFIGURATION command.
+ *
+ *  @param stream The stream object.
+ *
+ *  @return 0 in case of success and error code in case of error.
+ */
+int bt_a2dp_stream_get_config(struct bt_a2dp_stream *stream);
 
 /** @brief establish a2dp streamer.
  *
@@ -851,6 +940,17 @@ uint32_t bt_a2dp_get_mtu(struct bt_a2dp_stream *stream);
  */
 int bt_a2dp_stream_send(struct bt_a2dp_stream *stream, struct net_buf *buf, uint16_t seq_num,
 			uint32_t ts);
+
+/** @brief send delay report
+ *
+ * Only A2DP sink side can call this function.
+ *
+ *  @param stream The stream object.
+ *  @param delay Value in 1/10 milliseconds.
+ *
+ *  @return 0 in case of success and error code in case of error.
+ */
+int bt_a2dp_stream_delay_report(struct bt_a2dp_stream *stream, uint16_t delay);
 
 #ifdef __cplusplus
 }
