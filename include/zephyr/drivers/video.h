@@ -37,7 +37,7 @@ extern "C" {
  * Flag used by @ref video_caps structure to indicate endpoint operates on
  * buffers the size of the video frame
  */
-#define LINE_COUNT_HEIGHT (-1)
+#define LINE_COUNT_HEIGHT (-1)//?
 
 struct video_control;
 
@@ -87,7 +87,7 @@ struct video_format {
  *
  * Used to describe a video endpoint format capability.
  */
-struct video_format_cap {
+struct video_format_cap {//todo why
 	/** FourCC pixel format value (\ref video_pixel_formats). */
 	uint32_t pixelformat;
 	/** minimum supported frame width in pixels. */
@@ -933,7 +933,7 @@ int video_format_caps_index(const struct video_format_cap *fmts, const struct vi
  *
  * @return The frame interval value in microseconds.
  */
-static inline uint64_t video_frmival_nsec(const struct video_frmival *frmival)
+static inline uint64_t video_frmival_nsec(const struct video_frmival *frmival)//todo
 {
 	__ASSERT_NO_MSG(frmival != NULL);
 	__ASSERT_NO_MSG(frmival->denominator != 0);

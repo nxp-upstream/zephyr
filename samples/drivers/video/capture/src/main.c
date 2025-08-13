@@ -205,12 +205,12 @@ int main(void)
 	LOG_INF("- Video format: %s %ux%u",
 		VIDEO_FOURCC_TO_STR(fmt.pixelformat), fmt.width, fmt.height);
 
-	if (video_set_format(video_dev, &fmt)) {
+	if (video_set_format(video_dev, &fmt)) {//todo
 		LOG_ERR("Unable to set format");
 		return 0;
 	}
 
-	if (!video_get_frmival(video_dev, &frmival)) {
+	if (!video_get_frmival(video_dev, &frmival)) {//todo
 		LOG_INF("- Default frame rate : %f fps",
 			1.0 * frmival.denominator / frmival.numerator);
 	}

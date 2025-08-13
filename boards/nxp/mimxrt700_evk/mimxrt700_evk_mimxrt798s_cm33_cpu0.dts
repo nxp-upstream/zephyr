@@ -166,6 +166,12 @@ zephyr_mipi_dsi: &mipi_dsi {};
 
 zephyr_lcdif: &lcdif {};
 
+zephyr_mipi_dbi_parallel: &lcdif {
+	reset-gpios = <&gpio2 15 GPIO_ACTIVE_HIGH>;
+	pinctrl-0 = <&pinmux_lcdif_dbi>;
+	pinctrl-names = "default";
+};
+
 &gpio0 {
 	status = "okay";
 };
