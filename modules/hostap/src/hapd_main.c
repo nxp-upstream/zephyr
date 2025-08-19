@@ -173,7 +173,7 @@ static int hostapd_disable_iface_cb(struct hostapd_iface *hapd_iface)
 	return 0;
 }
 
-static int hostapd_global_init(struct hapd_interfaces *interfaces, const char *entropy_file)
+static int hostapd_global_init(struct hapd_interfaces *interfaces)
 {
 	int i;
 
@@ -452,15 +452,8 @@ static struct hostapd_iface *hostapd_interface_init(struct hapd_interfaces *inte
 	return iface;
 }
 
-void zephyr_hostapd_init(struct hapd_interfaces *interfaces)
+static void zephyr_hostapd_global_init(struct hapd_interfaces *interfaces)
 {
-	size_t i;
-	int ret, debug = 0;
-	struct net_if *iface;
-	char ifname[IFNAMSIZ + 1] = { 0 };
-	const char *entropy_file = NULL;
-	size_t num_bss_configs = 0;
-	int start_ifaces_in_sync = 0;
 #ifdef CONFIG_DPP
 	struct dpp_global_config dpp_conf;
 #endif /* CONFIG_DPP */
@@ -471,6 +464,7 @@ void zephyr_hostapd_init(struct hapd_interfaces *interfaces)
 	interfaces->for_each_interface = hostapd_for_each_interface;
 	interfaces->driver_init        = hostapd_driver_init;
 	interfaces->global_ctrl_sock   = -1;
+	interfaces->terminate_on_error = 0;
 	dl_list_init(&interfaces->global_ctrl_dst);
 #ifdef CONFIG_DPP
 	os_memset(&dpp_conf, 0, sizeof(dpp_conf));
@@ -481,43 +475,53 @@ void zephyr_hostapd_init(struct hapd_interfaces *interfaces)
 	}
 #endif /* CONFIG_DPP */
 
-	interfaces->count = 1;
-	if (interfaces->count || num_bss_configs) {
-		interfaces->iface = os_calloc(interfaces->count + num_bss_configs,
-					      sizeof(struct hostapd_iface *));
-		if (interfaces->iface == NULL) {
-			wpa_printf(MSG_ERROR, "malloc failed");
-			return;
-		}
-	}
-
-	if (hostapd_global_init(interfaces, entropy_file)) {
+	if (hostapd_global_init(interfaces)) {
 		wpa_printf(MSG_ERROR, "Failed to initialize global context");
 		return;
 	}
 
-	eloop_register_timeout(HOSTAPD_CLEANUP_INTERVAL, 0,
-			       hostapd_periodic, interfaces, NULL);
+	interfaces->count = 0;
+	/*only support 1 iface count for hostapd */
+	interfaces->iface = os_calloc(1, sizeof(struct hostapd_iface *));
+	if (!interfaces->iface) {
+		wpa_printf(MSG_ERROR, "hostapd interfaces alloc failed");
+		return;
+	}
+	interfaces->iface[0] = NULL;
+}
 
-	iface = net_if_get_wifi_sap();
+void zephyr_hostapd_add_interface(struct hapd_interfaces *interfaces,
+				  struct net_if *iface)
+{
+	int i;
+	int ret;
+	char ifname[IFNAMSIZ + 1] = {0};
+	struct hostapd_iface *tmp = NULL;
+
+	if (!interfaces || !interfaces->iface || !iface) {
+		wpa_printf(MSG_ERROR, "add NULL hostapd interface");
+		return;
+	}
+
+	if (interfaces->count || interfaces->iface[0]) {
+		wpa_printf(MSG_ERROR, "hostapd already has iface count %d", interfaces->count);
+		return;
+	}
+
 	ret = net_if_get_name(iface, ifname, sizeof(ifname) - 1);
 	if (ret < 0) {
 		wpa_printf(MSG_ERROR, "Cannot get interface %d (%p) name",
 			   net_if_get_by_iface(iface), iface);
-		goto out;
+		return;
 	}
 
-	for (i = 0; i < interfaces->count; i++) {
-		interfaces->iface[i] = hostapd_interface_init(interfaces, ifname,
-							      "hostapd.conf", debug);
-		if (!interfaces->iface[i]) {
-			wpa_printf(MSG_ERROR, "Failed to initialize interface");
-			goto out;
-		}
-		if (start_ifaces_in_sync) {
-			interfaces->iface[i]->need_to_start_in_sync = 0;
-		}
+	tmp = hostapd_interface_init(interfaces, ifname,
+				     "hostapd.conf", 0);
+	if (!tmp) {
+		wpa_printf(MSG_ERROR, "Failed to initialize hostapd interface");
+		return;
 	}
+	tmp->need_to_start_in_sync = 0;
 
 	/*
 	 * Enable configured interfaces. Depending on channel configuration,
@@ -527,18 +531,77 @@ void zephyr_hostapd_init(struct hapd_interfaces *interfaces)
 	 * In such case, the interface will be enabled from eloop context within
 	 * hostapd_global_run().
 	 */
-	interfaces->terminate_on_error = 0;
-	for (i = 0; i < interfaces->count; i++) {
-		if (hostapd_driver_init(interfaces->iface[i])) {
-			goto out;
-		}
-		interfaces->iface[i]->enable_iface_cb  = hostapd_enable_iface_cb;
-		interfaces->iface[i]->disable_iface_cb = hostapd_disable_iface_cb;
-		zephyr_hostapd_ctrl_init((void *)interfaces->iface[i]->bss[0]);
+	if (hostapd_driver_init(tmp)) {
+		wpa_printf(MSG_ERROR, "Failed to initialize hostapd interface driver");
+		hostapd_interface_deinit_free(tmp);
+		return;
+	}
+	tmp->enable_iface_cb  = hostapd_enable_iface_cb;
+	tmp->disable_iface_cb = hostapd_disable_iface_cb;
+	zephyr_hostapd_ctrl_init((void *)tmp->bss[0]);
+	wifi_nm_register_mgd_type_iface(wifi_nm_get_instance("hostapd"),
+				        WIFI_TYPE_SAP, iface);
+
+	interfaces->iface[0] = tmp;
+	interfaces->count = 1;
+}
+
+void zephyr_hostapd_del_interface(struct hapd_interfaces *interfaces,
+				  struct net_if *iface)
+{
+	int i;
+	int ret;
+	char ifname[IFNAMSIZ + 1] = {0};
+	struct hostapd_iface *tmp = NULL;
+
+	if (!interfaces || !interfaces->iface || !iface) {
+		wpa_printf(MSG_ERROR, "del NULL hostapd interface");
+		return;
 	}
 
-out:
-	return;
+	if (!interfaces->count || !interfaces->iface[0])
+	{
+		wpa_printf(MSG_ERROR, "hostapd interface empty");
+		return;
+	}
+
+	/* deinit iface */
+	tmp = interfaces->iface[0];
+	zephyr_hostapd_ctrl_deinit(tmp->bss[0]);
+	hostapd_interface_deinit_free(tmp);
+	wifi_nm_unregister_mgd_iface(wifi_nm_get_instance("hostapd"), iface);
+	interfaces->count = 0;
+	interfaces->iface[0] = NULL;
+}
+
+void zephyr_hostapd_init(struct hapd_interfaces *interfaces)
+{
+	zephyr_hostapd_global_init(interfaces);
+
+	eloop_register_timeout(HOSTAPD_CLEANUP_INTERVAL, 0,
+			       hostapd_periodic, interfaces, NULL);
+}
+
+void zephyr_hostapd_deinit(struct hapd_interfaces *interfaces)
+{
+	if (interfaces->iface[0]) {
+		zephyr_hostapd_ctrl_deinit(interfaces->iface[0]->bss[0]);
+		hostapd_interface_deinit_free(interfaces->iface[0]);
+		interfaces->iface[0] = NULL;
+	}
+	os_free(interfaces->iface);
+	interfaces->count = 0;
+	interfaces->iface = NULL;
+
+	dpp_global_deinit(interfaces->dpp);
+	if (interfaces->eloop_initialized) {
+		eloop_cancel_timeout(hostapd_periodic, interfaces, NULL);
+		interfaces->eloop_initialized = 0;
+	}
+
+	os_free(hglobal.drv_priv);
+	hglobal.drv_count = 0;
+	os_memset(&hglobal, 0, sizeof(struct hapd_global));
 }
 
 void zephyr_hostapd_msg(void *ctx, const char *txt, size_t len)
