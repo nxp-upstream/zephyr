@@ -25,7 +25,8 @@
 &flexspi {
 	status = "okay";
 	pinctrl-0 = <&pinmux_flexspi1>;
-	pinctrl-names = "default";
+	pinctrl-1 = <&pinmux_flexspi1_nand>;
+	pinctrl-names = "default", "nand";
 	ahb-prefetch;
 	ahb-read-addr-opt;
 	rx-clock-source = <1>;
@@ -86,6 +87,33 @@
 				label = "storage";
 				reg = <0x0 DT_SIZE_M(128)>;
 			};
+		};
+	};
+};
+
+&pinctrl {
+	pinmux_flexspi1_nand: pinmux_flexspi1_nand {
+		group0 {
+			pinmux = <&iomuxc_gpio_sd_b0_05_flexspi_b_dqs>;
+			drive-strength = "r0-6";
+			input-schmitt-enable;
+			bias-pull-down;
+			bias-pull-down-value = "100k";
+			slew-rate = "fast";
+			nxp,speed = "200-mhz";
+			input-enable;
+		};
+		group1 {
+			pinmux = <&iomuxc_gpio_sd_b0_04_flexspi_b_ss0_b>,
+				<&iomuxc_gpio_sd_b1_00_flexspi_b_data3>,
+				<&iomuxc_gpio_sd_b1_01_flexspi_b_data2>,
+				<&iomuxc_gpio_sd_b1_02_flexspi_b_data1>,
+				<&iomuxc_gpio_sd_b1_03_flexspi_b_data0>,
+				<&iomuxc_gpio_sd_b1_04_flexspi_b_sclk>;
+			drive-strength = "r0-6";
+			slew-rate = "fast";
+			nxp,speed = "200-mhz";
+			input-enable;
 		};
 	};
 };

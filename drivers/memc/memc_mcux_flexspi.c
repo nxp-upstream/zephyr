@@ -28,6 +28,7 @@
 #endif
 
 #define FLEXSPI_MAX_LUT 64U
+#define PINCTRL_STATE_NAND PINCTRL_STATE_PRIV_START
 
 LOG_MODULE_REGISTER(memc_flexspi, CONFIG_MEMC_LOG_LEVEL);
 
@@ -280,6 +281,12 @@ static int memc_flexspi_init(const struct device *dev)
 	int ret;
 	uint8_t i;
 
+	/* pinmux config for nand flash */
+	ret = pinctrl_apply_state(data->pincfg, PINCTRL_STATE_NAND);
+	if (ret < 0 && ret != -ENOENT) {
+		return ret;
+	}
+
 	/* we should not configure the device we are running on */
 	if (memc_flexspi_is_running_xip(dev)) {
 		if (!IS_ENABLED(CONFIG_MEMC_MCUX_FLEXSPI_INIT_XIP)) {
@@ -287,6 +294,7 @@ static int memc_flexspi_init(const struct device *dev)
 			return 0;
 		}
 	}
+
 	/*
 	 * SOCs such as the RT1064 and RT1024 have internal flash, and no pinmux
 	 * settings, continue if no pinctrl state found.
