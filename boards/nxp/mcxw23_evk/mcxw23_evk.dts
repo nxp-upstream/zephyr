@@ -1,0 +1,24 @@
+/*
+ * Copyright 2025 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <nxp/nxp_mcxw236_ns.dtsi>
+#include "mcxw23_evk_common.dtsi"
+
+/ {
+	model = "NXP MCXW23-EVK board";
+	compatible = "nxp,mcxw236", "nxp,mcx";
+};
+
+/*
+ * Default for this board is to allocate SRAM0-2 for data.  But the
+ * application can have an application specific device tree to
+ * allocate the SRAMs differently.
+ */
+&sram0 {
+	reg = <0x20004000 DT_SIZE_K(112)>;
+};
