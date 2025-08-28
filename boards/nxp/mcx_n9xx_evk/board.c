@@ -450,6 +450,12 @@ void board_early_init_hook(void)
 	CLOCK_EnableClock(kCLOCK_Sai1);
 #endif
 
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(micfil))
+	CLOCK_SetClkDiv(kCLOCK_DivMicfilFClk, 1U);
+    CLOCK_AttachClk(kPLL1_CLK0_to_MICFILF);
+	CLOCK_EnableClock(kCLOCK_Micfil);
+#endif
+
 	/* Set SystemCoreClock variable. */
 	SystemCoreClock = CLOCK_INIT_CORE_CLOCK;
 }

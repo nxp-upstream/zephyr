@@ -241,3 +241,15 @@ zephyr_udc0: &usb1 {
 &sai1 {
 	status = "okay";
 };
+
+&micfil {
+	status = "okay";
+};
+
+&pdmc0 {
+	status = "okay";
+};
+
+&pdmc1 {
+	status = "okay";
+};

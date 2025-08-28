@@ -270,4 +270,14 @@
 			bias-pull-up;
 		};
 	};
+
+	pinmux_micfil_n5xx: pinmux_micfil_n5xx {
+		group0 {
+			pinmux = <PDM0_CLK_PIO0_16>,
+				<PDM0_DATA0_PIO0_17>;
+			slew-rate = "fast";
+			drive-strength = "low";
+			input-enable;
+		};
+	};
 };

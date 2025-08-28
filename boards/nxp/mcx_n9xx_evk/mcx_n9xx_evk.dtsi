@@ -260,3 +260,8 @@ zephyr_mipi_dbi_parallel: &flexio0_lcd {
 	pinctrl-0 = <&pinmux_sctimer>;
 	pinctrl-names = "default";
 };
+
+&micfil {
+	pinctrl-0 = <&pinmux_micfil_n5xx>;
+	pinctrl-names = "default";
+};
