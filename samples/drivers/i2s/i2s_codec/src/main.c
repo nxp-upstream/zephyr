@@ -19,17 +19,17 @@
 #define I2S_CODEC_TX DT_ALIAS(i2s_codec_tx)
 
 #define SAMPLE_FREQUENCY CONFIG_SAMPLE_FREQ
-#define SAMPLE_BIT_WIDTH (16U)
-#define BYTES_PER_SAMPLE sizeof(int16_t)
+#define SAMPLE_BIT_WIDTH (32U)
+#define BYTES_PER_SAMPLE sizeof(uint32_t)
 #if CONFIG_USE_DMIC
-#define NUMBER_OF_CHANNELS CONFIG_DMIC_CHANNELS
+#define NUMBER_OF_CHANNELS (CONFIG_DMIC_CHANNELS)
 #else
 #define NUMBER_OF_CHANNELS (2U)
 #endif
 /* Such block length provides an echo with the delay of 100 ms. */
 #define SAMPLES_PER_BLOCK ((SAMPLE_FREQUENCY / 10) * NUMBER_OF_CHANNELS)
 #define INITIAL_BLOCKS    CONFIG_I2S_INIT_BUFFERS
-#define TIMEOUT           (2000U)
+#define TIMEOUT           (2000)
 
 #define BLOCK_SIZE  (BYTES_PER_SAMPLE * SAMPLES_PER_BLOCK)
 #define BLOCK_COUNT (INITIAL_BLOCKS + 32)
@@ -65,6 +65,8 @@ static bool trigger_command(const struct device *i2s_dev_codec, enum i2s_trigger
 
 int main(void)
 {
+	sys_cache_data_disable();
+
 	k_mem_slab_init(&mem_slab, mem_slab_buf, BLOCK_SIZE, BLOCK_COUNT);
 
 	const struct device *const i2s_dev_codec = DEVICE_DT_GET(I2S_CODEC_TX);
@@ -88,7 +90,7 @@ int main(void)
 			 * to those supported by the microphone.
 			 */
 			.min_pdm_clk_freq = 1000000,
-			.max_pdm_clk_freq = 3500000,
+			.max_pdm_clk_freq = 35000000,
 			.min_pdm_clk_dc   = 40,
 			.max_pdm_clk_dc   = 60,
 		},
@@ -119,7 +121,7 @@ int main(void)
 	audio_cfg.dai_route = AUDIO_ROUTE_PLAYBACK;
 	audio_cfg.dai_type = AUDIO_DAI_TYPE_I2S;
 	audio_cfg.dai_cfg.i2s.word_size = SAMPLE_BIT_WIDTH;
-	audio_cfg.dai_cfg.i2s.channels = 2;
+	audio_cfg.dai_cfg.i2s.channels = NUMBER_OF_CHANNELS;
 	audio_cfg.dai_cfg.i2s.format = I2S_FMT_DATA_FORMAT_I2S;
 #ifdef CONFIG_CODEC_MASTER
 	audio_cfg.dai_cfg.i2s.options = I2S_OPT_FRAME_CLK_MASTER | I2S_OPT_BIT_CLK_MASTER;
@@ -135,7 +137,7 @@ int main(void)
 #if CONFIG_USE_DMIC
 	cfg.channel.req_num_chan = 2;
 	cfg.channel.req_chan_map_lo = dmic_build_channel_map(0, 0, PDM_CHAN_LEFT) |
-				      dmic_build_channel_map(1, 0, PDM_CHAN_RIGHT);
+				      dmic_build_channel_map(1, 1, PDM_CHAN_RIGHT);
 	cfg.streams[0].pcm_rate = SAMPLE_FREQUENCY;
 	cfg.streams[0].block_size = BLOCK_SIZE;
 
