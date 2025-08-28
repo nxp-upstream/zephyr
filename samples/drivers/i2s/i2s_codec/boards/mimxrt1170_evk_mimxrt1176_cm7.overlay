@@ -7,3 +7,15 @@
 &sai1 {
 	mclk-output;
 };
+
+dmic_dev: &dmic {
+	status = "okay";
+};
+
+&gpio6 {
+	status = "disabled";
+};
+
+&gpio12 {
+	status = "disabled";
+};
