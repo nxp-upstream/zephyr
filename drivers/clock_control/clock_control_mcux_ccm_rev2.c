@@ -182,6 +182,12 @@ static int mcux_ccm_get_subsys_rate(const struct device *dev,
 		break;
 #endif
 
+#ifdef CONFIG_AUDIO_DMIC_MCUX_PDM
+	case IMX_CCM_PDM_CLK:
+		clock_root = kCLOCK_Root_Mic;
+		break;
+#endif
+
 #if defined(CONFIG_SOC_MIMX9352) && defined(CONFIG_DAI_NXP_SAI)
 	case IMX_CCM_SAI1_CLK:
 	case IMX_CCM_SAI2_CLK:

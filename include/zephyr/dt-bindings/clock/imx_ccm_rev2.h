@@ -156,4 +156,7 @@
 #define IMX_CCM_QTMR3_CLK              0x6002UL
 #define IMX_CCM_QTMR4_CLK              0x6003UL
 
+/* PDM */
+#define IMX_CCM_PDM_CLK                0x6100UL
+
 #endif /* ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_IMX_CCM_REV2_H_ */
