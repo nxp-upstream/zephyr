@@ -32,7 +32,7 @@ if USE_DMIC
 
 config DMIC_CHANNELS
 	int "Number of DMIC channels"
-	default 1
+	default 2
 	help
 	  Count of DMIC channels to capture and process.
 
