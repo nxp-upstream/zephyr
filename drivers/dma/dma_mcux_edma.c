@@ -448,11 +448,32 @@ static int dma_mcux_edma_configure(const struct device *dev, uint32_t channel,
 			data->transfer_settings.write_idx = 0;
 			data->transfer_settings.empty_tcds = CONFIG_DMA_TCD_QUEUE_SIZE;
 
-			EDMA_PrepareTransfer(
-				&data->transferConfig, (void *)block_config->source_address,
-				config->source_data_size, (void *)block_config->dest_address,
-				config->dest_data_size, config->source_burst_length,
-				block_config->block_size, transfer_type);
+			uint32_t source_offset = block_config->source_gather_interval;
+			uint32_t dest_offset = block_config->dest_scatter_interval;
+
+			if(source_offset == 0 && 
+				(transfer_type == kEDMA_MemoryToMemory || transfer_type == kEDMA_MemoryToPeripheral)
+			) {
+				source_offset = config->source_data_size;
+			}
+
+			if(dest_offset == 0 && 
+				(transfer_type == kEDMA_MemoryToMemory || transfer_type == kEDMA_PeripheralToMemory)
+			) {
+				dest_offset = config->dest_data_size;
+			}
+
+			EDMA_PrepareTransferConfig(
+				&data->transferConfig,
+				(void *)block_config->source_address,
+				config->source_data_size,
+				source_offset,
+				(void *)block_config->dest_address,
+				config->dest_data_size,
+				dest_offset,
+				config->source_burst_length,
+				block_config->block_size
+			);
 
 			/* Init all TCDs with the para in transfer config and link them. */
 			for (int i = 0; i < CONFIG_DMA_TCD_QUEUE_SIZE; i++) {
