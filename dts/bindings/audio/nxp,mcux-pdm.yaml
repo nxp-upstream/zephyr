@@ -1,0 +1,116 @@
+# Copyright 2025 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  NXP MCUX PDM (Pulse Density Modulation) peripheral
+
+  The PDM peripheral allows to capture audio data from PDM digital microphones
+  and convert it into PCM audio data. 32-bit PCM sample depth is supported.
+  
+  The channels are internally grouped into pairs, using a single data line for
+  each pair. A DDR clock then differentiates those channels within each pair. 8
+  channels in total are supported.
+
+  This driver uses a single DMA channel for transferring audio data into
+  locations given by the Zephyr dmic API. Samples in written blocks are
+  reordered based on a given channel map.
+
+  As part of the PDM to PCM conversion, this peripheral allows a DC cutoff
+  frequency and a gain value to be configured.
+
+  Example devicetree configuration:
+
+  pdm: pdm@400b4000 {
+    #address-cells = <1>;
+    #size-cells = <0>;
+    
+    compatible = "nxp,mcux-pdm";
+    reg = <0x400b4000 0x1000>;
+
+    interrupts = <202 0>;
+    clocks = <&ccm IMX_CCM_PDM_CLK 0x2204 0>;
+    dmas = <&edma0 0 68>;
+
+    pinctrl-0 = <&pinmux_pdm>;
+    pinctrl-names = "default";
+    
+    fifo-depth = <8>;
+
+    /* PDM Channel configurations */
+    pdmc0: dmic-channel@0 {
+      reg = <0>;
+      gain = <7>;
+      dc-cutoff = <83>;
+      status = "okay";
+    };
+
+    pdmc0: dmic-channel@1 {
+      reg = <1>;
+      gain = <7>;
+      dc-cutoff = <83>;
+      status = "okay";
+    };
+
+    /* ... */
+  };
+
+compatible: "nxp,mcux-pdm"
+
+include: [base.yaml, pinctrl-device.yaml, reset-device.yaml]
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  clocks:
+    required: true
+
+  dmas:
+    required: true
+
+  fifo-depth:
+    type: int
+    default: 8
+    description: PDM FIFO depth in words
+
+child-binding:
+  description: PDM channel configuration
+  include:
+    - name: base.yaml
+      property-allowlist:
+        - reg
+  properties:
+    gain:
+      type: int
+      required: true
+      description: Digital filter output gain
+      enum:
+        - 0
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        - 7
+        - 8
+        - 9
+        - 10
+        - 11
+        - 12
+        - 13
+        - 14
+        - 15
+
+    dc-cutoff:
+      type: int
+      default: 0
+      description: DC remover cutoff frequency in Hz
+      enum:
+        - 0
+        - 21
+        - 83
+        - 152
