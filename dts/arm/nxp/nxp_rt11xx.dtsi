@@ -1285,6 +1285,76 @@
 				status = "disabled";
 			};
 		};
+
+		dmic: dmic@40c20000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			
+			compatible = "nxp,mcux-pdm";
+			reg = <0x40c20000 0x4000>;
+
+			interrupts = <202 0>;
+			clocks = <&ccm IMX_CCM_PDM_CLK 0x2204 0>;
+			dmas = <&edma0 5 181>;
+
+			status = "disabled";
+
+			pdmc0: dmic-channel@0 {
+				reg = <0>;
+				gain = <7>;
+				dc-cutoff = <83>;
+				status = "disabled";
+			};
+
+			pdmc1: dmic-channel@1 {
+				reg = <1>;
+				gain = <7>;
+				dc-cutoff = <83>;
+				status = "disabled";
+			};
+
+			pdmc2: dmic-channel@2 {
+				reg = <2>;
+				gain = <7>;
+				dc-cutoff = <83>;
+				status = "disabled";
+			};
+
+			pdmc3: dmic-channel@3 {
+				reg = <3>;
+				gain = <7>;
+				dc-cutoff = <83>;
+				status = "disabled";
+			};
+
+			pdmc4: dmic-channel@4 {
+				reg = <4>;
+				gain = <7>;
+				dc-cutoff = <83>;
+				status = "disabled";
+			};
+
+			pdmc5: dmic-channel@5 {
+				reg = <5>;
+				gain = <1>;
+				dc-cutoff = <83>;
+				status = "disabled";
+			};
+
+			pdmc6: dmic-channel@6 {
+				reg = <6>;
+				gain = <1>;
+				dc-cutoff = <83>;
+				status = "disabled";
+			};
+
+			pdmc7: dmic-channel@7 {
+				reg = <7>;
+				gain = <1>;
+				dc-cutoff = <83>;
+				status = "disabled";
+			};
+		};		
 	};
 };
 

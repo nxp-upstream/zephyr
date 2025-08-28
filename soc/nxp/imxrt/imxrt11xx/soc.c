@@ -65,6 +65,13 @@ static const clock_sys_pll2_config_t sysPll2Config = {
 	.ssEnable = false,
 };
 
+const clock_audio_pll_config_t audioPllConfig = {
+    .loopDivider = 32,   /* PLL loop divider. Valid range for DIV_SELECT divider value: 27~54. */
+    .postDivider = 1,    /* Divider after the PLL, should only be 0, 1, 2, 3, 4, 5 */
+    .numerator   = 768,  /* 30 bit numerator of fractional loop divider. */
+    .denominator = 1000, /* 30 bit denominator of fractional loop divider */
+};
+
 #if CONFIG_USB_DC_NXP_EHCI
 usb_phy_config_struct_t usbPhyConfig = {
 	BOARD_USB_PHY_D_CAL,
@@ -175,6 +182,9 @@ __weak void clock_init(void)
 	}
 
 	rootCfg.div = 1;
+
+	/* Init Audio PLL */
+	CLOCK_InitAudioPll(&audioPllConfig);
 
 #ifdef CONFIG_CPU_CORTEX_M7
 	/* Switch both core, M7 Systick and Bus_Lpsr to OscRC48MDiv2 first */
@@ -557,6 +567,12 @@ __weak void clock_init(void)
 	rootCfg.mux = kCLOCK_FLEXSPI2_ClockRoot_MuxOscRc48MDiv2;
 	rootCfg.div = 1;
 	CLOCK_SetRootClock(kCLOCK_Root_Flexspi2, &rootCfg);
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(dmic))
+	rootCfg.mux = kCLOCK_MIC_ClockRoot_MuxAudioPllOut;
+	rootCfg.div = 16;
+	CLOCK_SetRootClock(kCLOCK_Root_Mic, &rootCfg);
 #endif
 
 	/* Keep core clock ungated during WFI */
