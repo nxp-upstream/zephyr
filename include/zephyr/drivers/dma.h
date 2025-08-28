@@ -261,6 +261,8 @@ struct dma_config {
 	uint32_t  dest_burst_length :   16;
 	/** Number of blocks in transfer list */
 	uint32_t block_count;
+	uint32_t source_burst_offset;
+	uint32_t dest_burst_offset;
 	/** Pointer to the first block in the transfer list */
 	struct dma_block_config *head_block;
 	/** Optional attached user data for callbacks */
