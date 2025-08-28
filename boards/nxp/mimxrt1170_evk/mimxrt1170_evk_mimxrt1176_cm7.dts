@@ -182,6 +182,21 @@ zephyr_udc0: &usb1 {
 	status = "okay";
 };
 
+&dmic {
+	status = "okay";
+
+	pinctrl-0 = <&pinmux_pdm>;
+	pinctrl-names = "default";
+};
+
+&pdmc0 {
+	status = "okay";
+};
+
+&pdmc1 {
+	status = "okay";
+};
+
 nxp_cam_i2c: &lpi2c6 {};
 
 nxp_mipi_csi: &mipi_csi2rx {};
