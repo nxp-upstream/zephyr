@@ -1,0 +1,28 @@
+# Copyright (c) 2024 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+source "Kconfig.zephyr"
+
+config I2S_INIT_BUFFERS
+	int "Initial count of audio data blocks"
+	default 4
+	help
+	  Controls the initial count of audio data blocks, which are (optionally)
+	  filled by data from the DMIC peripheral and played back by the I2S
+	  output peripheral.
+
+config SAMPLE_FREQ
+	int "Sample rate"
+	default 16000
+	help
+	  Sample frequency of the system.
+
+config I2S_MASTER
+	bool "Configure the selected I2S peripheral as a master device."
+	default true
+
+config DMIC_CHANNELS
+	int "Number of DMIC channels"
+	default 2
+	help
+	  Count of DMIC channels to capture and process.

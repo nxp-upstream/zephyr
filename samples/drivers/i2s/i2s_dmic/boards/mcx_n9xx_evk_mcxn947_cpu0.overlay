@@ -1,0 +1,29 @@
+/ {
+    aliases {
+        i2s-codec-tx = &sai1;
+    };
+};
+
+&pinctrl {
+    pinmux_sai1_alt: pinmux_sai1_alt {
+        group0 {
+            pinmux = <SAI1_TX_BCLK_PIO1_0>,
+                <SAI1_TX_FS_PIO1_1>,
+                <SAI1_TXD0_PIO1_2>;
+            drive-strength = "high";
+            slew-rate = "fast";
+            input-enable;
+        };
+    };  
+};
+
+&sai1 {
+    pinctrl-0 = <&pinmux_sai1_alt>;
+    pinctrl-names = "default";
+
+    status = "okay";
+
+    mclk-output;
+};
+
+dmic_dev: &micfil { };
