@@ -69,3 +69,10 @@
 &lpit3_channel3 {
 	status = "okay";
 };
+
+&lptmr3 {
+    status = "okay";
+	prescaler = <1024>;
+    prescale-glitch-filter = <10>;
+};
+
