@@ -185,8 +185,7 @@ static DEVICE_API(counter, mcux_lptmr_driver_api) = {
 		},								\
 		.base = (LPTMR_Type *)DT_INST_REG_ADDR(n),			\
 		.clk_source = DT_INST_PROP(n, clk_source),			\
-		.bypass_prescaler_glitch =					\
-			1 - DT_INST_PROP(n, timer_mode_sel),			\
+		.bypass_prescaler_glitch = (DT_INST_PROP(n, prescaler) == 1),	\
 		.mode = DT_INST_PROP(n, timer_mode_sel),			\
 		.pin = DT_INST_PROP_OR(n, input_pin, 0),			\
 		.polarity = DT_INST_PROP(n, active_low),			\
