@@ -11,6 +11,7 @@
 
  /* Page and block size are standard, not configurable. */
  #define SPI_NAND_PAGE_SIZE    0x0800U
+ #define SPI_NAND_PAGE_SIZE_WITH_PARITY_AREA   0x1000U
  #define SPI_NAND_BLOCK_SIZE   0x20000U
 
 enum

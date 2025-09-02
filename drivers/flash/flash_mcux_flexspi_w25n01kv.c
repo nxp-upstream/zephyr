@@ -186,12 +186,12 @@ static int flash_flexspi_nand_set_cfg(const struct device *dev,
 }
 
 static int flash_flexspi_nand_read_status(const struct device *dev,
-		uint32_t *status)
+		off_t offset, uint32_t *status)
 {
 	struct flash_flexspi_nand_data *data = dev->data;
 
 	flexspi_transfer_t transfer = {
-		.deviceAddress = 0,
+		.deviceAddress = offset,
 		.port = data->port,
 		.cmdType = kFLEXSPI_Read,
 		.SeqNumber = 1,
@@ -205,12 +205,13 @@ static int flash_flexspi_nand_read_status(const struct device *dev,
 	return memc_flexspi_transfer(data->controller, &transfer);
 }
 
-static int flash_flexspi_nand_write_enable(const struct device *dev)
+static int flash_flexspi_nand_write_enable(const struct device *dev,
+		off_t offset)
 {
 	struct flash_flexspi_nand_data *data = dev->data;
 	flexspi_transfer_t transfer;
 
-	transfer.deviceAddress = 0;
+	transfer.deviceAddress = offset;
 	transfer.port = data->port;
 	transfer.cmdType = kFLEXSPI_Command;
 	transfer.SeqNumber = 1;
@@ -321,13 +322,13 @@ static int flash_flexspi_nand_read_cache(const struct device *dev,
 	return memc_flexspi_transfer(data->controller, &transfer);
 }
 
-static int flash_flexspi_nand_wait_bus_busy(const struct device *dev)
+static int flash_flexspi_nand_wait_bus_busy(const struct device *dev, off_t offset)
 {
 	uint32_t status = 0;
 	int ret;
 
 	do {
-		ret = flash_flexspi_nand_read_status(dev, &status);
+		ret = flash_flexspi_nand_read_status(dev, offset, &status);
 		LOG_DBG("status: 0x%x", status);
 		if (ret) {
 			LOG_ERR("Could not read status");
@@ -338,12 +339,12 @@ static int flash_flexspi_nand_wait_bus_busy(const struct device *dev)
 	return 0;
 }
 
-static int flash_flexspi_nand_check_error(const struct device *dev)
+static int flash_flexspi_nand_check_error(const struct device *dev, off_t offset)
 {
 	uint32_t status = 0;
 	int ret;
 
-    ret = flash_flexspi_nand_read_status(dev, &status);
+    ret = flash_flexspi_nand_read_status(dev, offset, &status);
     LOG_DBG("status: 0x%x", status);
     if (ret) {
         LOG_ERR("Could not read status");
@@ -364,12 +365,12 @@ static int flash_flexspi_nand_check_error(const struct device *dev)
 	return 0;
 }
 
-static int flash_flexspi_nand_check_ecc(const struct device *dev)
+static int flash_flexspi_nand_check_ecc(const struct device *dev, off_t offset)
 {
 	uint32_t status = 0;
 	int ret;
 
-    ret = flash_flexspi_nand_read_status(dev, &status);
+    ret = flash_flexspi_nand_read_status(dev, offset, &status);
     LOG_DBG("status: 0x%x", status);
     if (ret) {
         LOG_ERR("Could not read status");
@@ -390,55 +391,82 @@ static int flash_flexspi_nand_enable_ecc(const struct device *dev)
 	struct flash_flexspi_nand_data *data = dev->data;
 
 	uint8_t value = 0;
-	flash_flexspi_nand_write_enable(dev);
+	flash_flexspi_nand_write_enable(dev, 0);
 	flash_flexspi_nand_set_prot(dev, value);
-	flash_flexspi_nand_wait_bus_busy(dev);
+	flash_flexspi_nand_wait_bus_busy(dev, 0);
 
-    value = NAND_FLASH_ENABLE_ECC_CMD;
-	flash_flexspi_nand_write_enable(dev);
+	value = NAND_FLASH_ENABLE_ECC_CMD;
+	flash_flexspi_nand_write_enable(dev, 0);
 	flash_flexspi_nand_set_cfg(dev, value);
-	flash_flexspi_nand_wait_bus_busy(dev);
+	flash_flexspi_nand_wait_bus_busy(dev, 0);
 
 	memc_flexspi_reset(data->controller);
 
 	return 0;
 }
 
+static off_t flash_flexspi_nand_convert_offset(const struct device *dev,
+		off_t offset)
+{
+	struct flash_flexspi_nand_data *data = dev->data;
+	size_t page_size = data->flash_parameters.write_block_size;
+	uint8_t columnspace = data->config.columnspace;
+	off_t conv_offset = 0;
+	off_t align = offset % page_size;
+	uint8_t mul = SPI_NAND_PAGE_SIZE_WITH_PARITY_AREA / page_size;
+
+	if ((1U << columnspace) == page_size) {
+		return offset;
+	}
+
+	if (align){
+		conv_offset = (offset / page_size) * page_size * mul + align;
+	}
+	else {
+		conv_offset = offset * mul;
+	}
+
+	return conv_offset;
+}
+
 static int flash_flexspi_nand_read(const struct device *dev, off_t offset,
 		void *buffer, size_t len)
 {
 	struct flash_flexspi_nand_data *data = dev->data;
+	size_t page_size = data->flash_parameters.write_block_size;
 	uint8_t *src = (uint8_t *) buffer;
 	int i;
-    int ret;
+	int ret;
+	off_t conv_offset;
 
 	while (len) {
 		/* If the offset isn't a multiple of the NAND page size, we first need
 		 * to write the remaining part that fits, otherwise the read could
 		 * be wrapped around within the same page
 		 */
-		i = MIN(SPI_NAND_PAGE_SIZE - (offset % SPI_NAND_PAGE_SIZE), len);
-		ret = flash_flexspi_nand_read_page(dev, offset);
-        if (ret) {
+		i = MIN(page_size - (offset % page_size), len);
+		conv_offset = flash_flexspi_nand_convert_offset(dev, offset);
+		ret = flash_flexspi_nand_read_page(dev, conv_offset);
+		if (ret) {
 			LOG_ERR("Could not execute read");
 			return ret;
 		}
-        ret = flash_flexspi_nand_wait_bus_busy(dev);
+		ret = flash_flexspi_nand_wait_bus_busy(dev, conv_offset);
 		if (ret) {
 			return ret;
 		}
 		memc_flexspi_reset(data->controller);
-        ret = flash_flexspi_nand_check_ecc(dev);
+		ret = flash_flexspi_nand_check_ecc(dev, conv_offset);
 		if (ret) {
 			return ret;
 		}
 #ifdef CONFIG_FLASH_MCUX_FLEXSPI_NAND_PAGE_BUFFER
-		ret = flash_flexspi_nand_read_cache(dev, offset, nand_page_buf, i);
-                memcpy(src, nand_page_buf, i);
+		ret = flash_flexspi_nand_read_cache(dev, conv_offset, nand_page_buf, i);
+		memcpy(src, nand_page_buf, i);
 #else
-		ret = flash_flexspi_nand_read_cache(dev, offset, src, i);
+		ret = flash_flexspi_nand_read_cache(dev, conv_offset, src, i);
 #endif
-        if (ret) {
+		if (ret) {
 			LOG_ERR("Could not read page data");
 			return ret;
 		}
@@ -454,43 +482,46 @@ static int flash_flexspi_nand_write(const struct device *dev, off_t offset,
 		const void *buffer, size_t len)
 {
 	struct flash_flexspi_nand_data *data = dev->data;
+	size_t page_size = data->flash_parameters.write_block_size;
 	uint8_t *src = (uint8_t *) buffer;
 	int i;
-    int ret;
+	int ret;
+	off_t conv_offset;
 
 	while (len) {
 		/* If the offset isn't a multiple of the NAND page size, we first need
 		 * to write the remaining part that fits, otherwise the write could
 		 * be wrapped around within the same page
 		 */
-		i = MIN(SPI_NAND_PAGE_SIZE - (offset % SPI_NAND_PAGE_SIZE), len);
+		i = MIN(page_size - (offset % page_size), len);
+		conv_offset = flash_flexspi_nand_convert_offset(dev, offset);
 #ifdef CONFIG_FLASH_MCUX_FLEXSPI_NAND_PAGE_BUFFER
 		memcpy(nand_page_buf, src, i);
 #endif
-		flash_flexspi_nand_write_enable(dev);
+		flash_flexspi_nand_write_enable(dev, conv_offset);
 #ifdef CONFIG_FLASH_MCUX_FLEXSPI_NAND_PAGE_BUFFER
-		ret = flash_flexspi_nand_page_program_load(dev, offset, nand_page_buf, i);
+		ret = flash_flexspi_nand_page_program_load(dev, conv_offset, nand_page_buf, i);
 #else
-		ret = flash_flexspi_nand_page_program_load(dev, offset, src, i);
+		ret = flash_flexspi_nand_page_program_load(dev, conv_offset, src, i);
 #endif
-        if (ret) {
+		if (ret) {
 			LOG_ERR("Could not program page data");
 			return ret;
 		}
-		ret = flash_flexspi_nand_page_program_exec(dev, offset);
-        if (ret) {
+		ret = flash_flexspi_nand_page_program_exec(dev, conv_offset);
+		if (ret) {
 			LOG_ERR("Could not execute program");
 			return ret;
 		}
-        ret = flash_flexspi_nand_wait_bus_busy(dev);
+		ret = flash_flexspi_nand_wait_bus_busy(dev, conv_offset);
 		if (ret) {
 			return ret;
 		}
-        ret = flash_flexspi_nand_check_error(dev);
+		ret = flash_flexspi_nand_check_error(dev, conv_offset);
 		if (ret) {
 			return ret;
 		}
-        ret = flash_flexspi_nand_check_ecc(dev);
+		ret = flash_flexspi_nand_check_ecc(dev, conv_offset);
 		if (ret) {
 			return ret;
 		}
@@ -507,42 +538,45 @@ static int flash_flexspi_nand_erase(const struct device *dev, off_t offset,
 		size_t size)
 {
 	struct flash_flexspi_nand_data *data = dev->data;
-	int num_blocks = size / SPI_NAND_BLOCK_SIZE;
+	size_t block_size = data->layout.pages_size;
+	int num_blocks = size / block_size;
 	int i;
-    int ret;
+	int ret;
+	off_t conv_offset;
 
-	if (offset % SPI_NAND_BLOCK_SIZE) {
+	if (offset % block_size) {
 		LOG_ERR("Invalid offset");
 		return -EINVAL;
 	}
 
-	if (size % SPI_NAND_BLOCK_SIZE) {
+	if (size % block_size) {
 		LOG_ERR("Invalid size");
 		return -EINVAL;
 	}
 
 	for (i = 0; i < num_blocks; i++) {
-        flash_flexspi_nand_write_enable(dev);
-        ret = flash_flexspi_nand_erase_block(dev, offset);
+		conv_offset = flash_flexspi_nand_convert_offset(dev, offset);
+		flash_flexspi_nand_write_enable(dev, conv_offset);
+		ret = flash_flexspi_nand_erase_block(dev, conv_offset);
 		if (ret) {
 			LOG_ERR("Could not erase block");
 			return ret;
 		}
-        ret = flash_flexspi_nand_wait_bus_busy(dev);
+		ret = flash_flexspi_nand_wait_bus_busy(dev, conv_offset);
 		if (ret) {
 			return ret;
 		}
-        ret = flash_flexspi_nand_check_error(dev);
+		ret = flash_flexspi_nand_check_error(dev, conv_offset);
 		if (ret) {
 			return ret;
 		}
-        ret = flash_flexspi_nand_check_ecc(dev);
+		ret = flash_flexspi_nand_check_ecc(dev, conv_offset);
 		if (ret) {
 			return ret;
 		}
-        memc_flexspi_reset(data->controller);
-        offset += SPI_NAND_BLOCK_SIZE;
-    }
+		memc_flexspi_reset(data->controller);
+		offset += block_size;
+	}
 
 	return 0;
 }
