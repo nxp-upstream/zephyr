@@ -12,6 +12,10 @@ zephyr_sources_ifdef(CONFIG_NXP_NBU
 
 zephyr_include_directories(.)
 
+zephyr_sources_ifdef(CONFIG_PM
+  power.c
+  )
+
 set(SOC_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/linker.ld CACHE INTERNAL "")
 
 if (CONFIG_BT OR CONFIG_IEEE802154)
