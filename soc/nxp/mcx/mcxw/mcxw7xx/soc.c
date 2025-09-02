@@ -15,6 +15,7 @@
 #include <fsl_ccm32k.h>
 #include <fsl_common.h>
 #include <fsl_clock.h>
+#include "fsl_spc.h"
 
 extern uint32_t SystemCoreClock;
 extern void nxp_nbu_init(void);
@@ -221,6 +222,71 @@ static void vbat_init(void)
 	base->STATUSA |= VBAT_STATUSA_POR_DET_MASK;
 };
 
+#if CONFIG_PM
+/*
+ * In active mode, all HVDs/LVDs are disabled.
+ * DCDC regulated to 1.8V, Core LDO regulated to 1.1V;
+ * In low power modes, all HVDs/LVDs are disabled.
+ * Bandgap is disabled, DCDC regulated to 1.25V, Core LDO regulated to 1.05V.
+ */
+
+__weak void set_spc_configuration(void)
+{
+	/* Disable LVDs and HVDs in Active mode. */
+	SPC_EnableActiveModeCoreHighVoltageDetect(SPC0, false);
+	SPC_EnableActiveModeCoreLowVoltageDetect(SPC0, false);
+	SPC_EnableActiveModeSystemHighVoltageDetect(SPC0, false);
+	SPC_EnableActiveModeSystemLowVoltageDetect(SPC0, false);
+	SPC_EnableActiveModeIOHighVoltageDetect(SPC0, false);
+	SPC_EnableActiveModeIOLowVoltageDetect(SPC0, false);
+
+	while (SPC_GetBusyStatusFlag(SPC0)) {
+	}
+
+	spc_active_mode_regulators_config_t active_mode_regulator;
+	active_mode_regulator.bandgapMode = kSPC_BandgapEnabledBufferDisabled;
+	active_mode_regulator.lpBuff = false;
+	/* DCDC regulate to 1.8V. */
+	active_mode_regulator.DCDCOption.DCDCVoltage = kSPC_DCDC_SafeModeVoltage;
+	active_mode_regulator.DCDCOption.DCDCDriveStrength = kSPC_DCDC_NormalDriveStrength;
+	active_mode_regulator.SysLDOOption.SysLDOVoltage = kSPC_SysLDO_NormalVoltage;
+	active_mode_regulator.SysLDOOption.SysLDODriveStrength = kSPC_SysLDO_NormalDriveStrength;
+	/* Core LDO regulate to 1.1V. */
+	active_mode_regulator.CoreLDOOption.CoreLDOVoltage = kSPC_CoreLDO_MidDriveVoltage;
+#if defined(FSL_FEATURE_SPC_HAS_CORELDO_VDD_DS) && FSL_FEATURE_SPC_HAS_CORELDO_VDD_DS
+	active_mode_regulator.CoreLDOOption.CoreLDODriveStrength = kSPC_CoreLDO_NormalDriveStrength;
+#endif /* FSL_FEATURE_SPC_HAS_CORELDO_VDD_DS */
+
+	SPC_SetActiveModeDCDCRegulatorConfig(SPC0, &active_mode_regulator.DCDCOption);
+
+	while (SPC_GetBusyStatusFlag(SPC0)) {
+	}
+
+	SPC_SetActiveModeSystemLDORegulatorConfig(SPC0, &active_mode_regulator.SysLDOOption);
+
+	SPC_SetActiveModeBandgapModeConfig(SPC0, active_mode_regulator.bandgapMode);
+
+	SPC_SetActiveModeCoreLDORegulatorConfig(SPC0, &active_mode_regulator.CoreLDOOption);
+
+	SPC_EnableActiveModeCMPBandgapBuffer(SPC0, active_mode_regulator.lpBuff);
+
+	spc_lowpower_mode_regulators_config_t low_power_regulator;
+	low_power_regulator.lpIREF = false;
+	low_power_regulator.bandgapMode = kSPC_BandgapDisabled;
+	low_power_regulator.lpBuff = false;
+	low_power_regulator.CoreIVS = false;
+	low_power_regulator.DCDCOption.DCDCVoltage = kSPC_DCDC_LowUnderVoltage;
+	low_power_regulator.DCDCOption.DCDCDriveStrength = kSPC_DCDC_LowDriveStrength;
+	low_power_regulator.SysLDOOption.SysLDODriveStrength = kSPC_SysLDO_LowDriveStrength;
+	low_power_regulator.CoreLDOOption.CoreLDOVoltage = kSPC_CoreLDO_MidDriveVoltage;
+	low_power_regulator.CoreLDOOption.CoreLDODriveStrength = kSPC_CoreLDO_LowDriveStrength;
+
+	SPC_SetLowPowerModeRegulatorsConfig(SPC0, &low_power_regulator);
+
+	SPC_SetLowPowerWakeUpDelay(SPC0, 0xFFFFU);
+}
+#endif
+
 void soc_early_init_hook(void)
 {
 	unsigned int oldLevel; /* old interrupt lock level */
@@ -233,6 +299,10 @@ void soc_early_init_hook(void)
 
 	/* Smart power switch initialization */
 	vbat_init();
+
+#if CONFIG_PM
+	set_spc_configuration();
+#endif
 
 	/* restore interrupt state */
 	irq_unlock(oldLevel);
