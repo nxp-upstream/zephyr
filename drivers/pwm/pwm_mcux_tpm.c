@@ -133,7 +133,9 @@ static int mcux_tpm_set_cycles(const struct device *dev, uint32_t channel,
 		pulse_cycles = period_cycles + 1U;
 	}
 
-	base->CONTROLS[channel].CnV = pulse_cycles;
+	do {
+		base->CONTROLS[channel].CnV = pulse_cycles;
+	} while (base->CONTROLS[channel].CnV != pulse_cycles);
 
 	return 0;
 }
