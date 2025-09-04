@@ -128,6 +128,16 @@ struct uvc_device {
 	struct k_poll_signal *sig;
 	/** Byte offset within the currently transmitted video buffer */
 	size_t vbuf_offset;
+	/** Current video buffer being filled */
+	struct video_buffer *current_vbuf;
+	/** Expected frame ID for synchronization */
+	uint8_t expect_frame_id;
+	/** Flag to discard first incomplete frame */
+	uint8_t discard_first_frame;
+	/** Count of discarded frames */
+	uint32_t discard_frame_cnt;
+	/** Number of transfers to prime initially */
+	uint8_t multi_prime_cnt;
 	/** Number of completed transfers for current frame */
 	size_t transfer_count;
 	/** USB camera control parameters */
@@ -2235,57 +2245,52 @@ static int uvc_host_remove_payload_header(struct net_buf *buf, struct video_buff
  * @return 0 on success, negative error code on failure
  */
 static int uvc_host_initiate_transfer(struct uvc_device *uvc_dev,
-                        struct video_buffer *const vbuf)
+				      struct video_buffer *const vbuf)
 {
-    struct net_buf *buf;
-    struct uhc_transfer *xfer;
-    int ret;
+	struct net_buf *buf;
+	struct uhc_transfer *xfer;
+	int ret;
 
-    /* Validate input parameters */
-    if (!vbuf || !uvc_dev || !uvc_dev->current_stream_iface_info.current_stream_ep) {
-        LOG_ERR("Invalid parameters for transfer initiation");
-        return -EINVAL;
-    }
+	/* Validate input parameters */
+	if (!vbuf || !uvc_dev || !uvc_dev->current_stream_iface_info.current_stream_ep) {
+		LOG_ERR("Invalid parameters for transfer initiation");
+		return -EINVAL;
+	}
 
-    LOG_DBG("Initiating transfer: ep=0x%02x, vbuf=%p",
-            uvc_dev->current_stream_iface_info.current_stream_ep->bEndpointAddress, vbuf);
+	LOG_DBG("Initiating transfer: ep=0x%02x, vbuf=%p",
+		uvc_dev->current_stream_iface_info.current_stream_ep->bEndpointAddress, vbuf);
 
-    /* Allocate USB transfer with callback */
-    xfer = usbh_xfer_alloc(uvc_dev->udev, uvc_dev->current_stream_iface_info.current_stream_ep->bEndpointAddress,
-                    uvc_host_stream_iso_req_cb, uvc_dev);
-    if (!xfer) {
-        LOG_ERR("Failed to allocate transfer");
-        return -ENOMEM;
-    }
+	/* Allocate USB transfer with callback */
+	xfer = usbh_xfer_alloc(uvc_dev->udev, 
+			       uvc_dev->current_stream_iface_info.current_stream_ep->bEndpointAddress,
+			       uvc_host_stream_iso_req_cb, uvc_dev);
+	if (!xfer) {
+		LOG_ERR("Failed to allocate transfer");
+		return -ENOMEM;
+	}
 
-    /* Allocate transfer buffer with maximum packet size */
-    buf = usbh_xfer_buf_alloc(&uvc_dev->udev, uvc_dev->current_stream_iface_info.cur_ep_mps_mult);
-    if (!buf) {
-        LOG_ERR("Failed to allocate buffer");
-        usbh_xfer_free(uvc_dev->udev, xfer);
-        return -ENOMEM;
-    }
-      
-    buf->len = 0;
+	/* Allocate transfer buffer with maximum packet size */
+	buf = usbh_xfer_buf_alloc(&uvc_dev->udev, 
+				  uvc_dev->current_stream_iface_info.cur_ep_mps_mult);
+	if (!buf) {
+		LOG_ERR("Failed to allocate buffer");
+		usbh_xfer_free(uvc_dev->udev, xfer);
+		return -ENOMEM;
+	}
 
-    /* Reset buffer offset and associate video buffer with transfer */
-    uvc_dev->vbuf_offset = 0;
-    vbuf->bytesused = 0;
-    memset(vbuf->buffer, 0, vbuf->size);
+	buf->len = 0;
+	uvc_dev->vbuf_offset = 0;
+	xfer->buf = buf;
 
-    /* Save video buffer pointer in transfer's user data */
-    *(void **)net_buf_user_data(buf) = vbuf;
-    xfer->buf = buf;
+	ret = usbh_xfer_enqueue(uvc_dev->udev, xfer);
+	if (ret != 0) {
+		LOG_ERR("Enqueue failed: ret=%d", ret);
+		net_buf_unref(buf);
+		usbh_xfer_free(uvc_dev->udev, xfer);
+		return ret;
+	}
 
-    ret = usbh_xfer_enqueue(uvc_dev->udev, xfer);
-    if (ret != 0) {
-        LOG_ERR("Enqueue failed: ret=%d", ret);
-        net_buf_unref(buf);
-        usbh_xfer_free(uvc_dev->udev, xfer);
-        return ret;
-    }
-
-    return 0;
+	return 0;
 }
 
 /**
@@ -2312,7 +2317,6 @@ static int uvc_host_continue_transfer(struct uvc_device *uvc_dev, struct uhc_tra
 	}
 
 	buf->len = 0;
-	*(void **)net_buf_user_data(buf) = vbuf;
 	xfer->buf = buf;
 
 	ret = usbh_xfer_enqueue(uvc_dev->udev, xfer);
@@ -2330,6 +2334,7 @@ static int uvc_host_continue_transfer(struct uvc_device *uvc_dev, struct uhc_tra
  *
  * Handles completion of isochronous video data transfers. Processes
  * received video data, removes UVC headers, and manages frame completion.
+ * Only processes data with matching frame ID to ensure frame integrity.
  *
  * @param dev Pointer to USB device
  * @param xfer Pointer to completed transfer
@@ -2339,10 +2344,15 @@ static int uvc_host_stream_iso_req_cb(struct usb_device *const dev, struct uhc_t
 {
 	struct uvc_device *uvc_dev = (struct uvc_device *)xfer->priv;
 	struct net_buf *buf = xfer->buf;
-	struct video_buffer *vbuf = *(struct video_buffer **)net_buf_user_data(buf);
+	struct video_buffer *vbuf = uvc_dev->current_vbuf;
 	struct uvc_payload_header *payload_header;
+	uint32_t headLength;
+	uint32_t dataSize;
 	uint8_t endOfFrame;
-	uint32_t payload_len;
+	uint8_t frame_id;
+	uint32_t presentationTime;
+	static uint8_t s_savePicture = 0;
+	static uint32_t s_currentFrameTimeStamp = 0;
 
 	/* Validate callback parameters */
 	if (!buf || !uvc_dev) {
@@ -2353,54 +2363,116 @@ static int uvc_host_stream_iso_req_cb(struct usb_device *const dev, struct uhc_t
 	/* Handle transfer completion status */
 	if (xfer->err == -ECONNRESET) {
 		LOG_INF("ISO transfer canceled");
+		goto cleanup;
 	} else if (xfer->err) {
 		LOG_WRN("ISO request failed, err %d", xfer->err);
-	} else {
-		LOG_DBG("ISO request finished, len=%u", buf->len);
+		goto cleanup;
 	}
 
-	/* Process received video data if present */
-	if (buf->len > 0 && vbuf)
-	{
-		/* Extract frame end marker from payload header */
-		payload_header = (struct uvc_payload_header *)buf->data;
-		endOfFrame = payload_header->bmHeaderInfo & UVC_BMHEADERINFO_END_OF_FRAME;
-		/* Remove UVC header and extract payload data */
-		payload_len = uvc_host_remove_payload_header(buf, vbuf);
-		if (payload_len < 0) {
-			LOG_ERR("Header removal failed: %d", payload_len);
-			goto cleanup;
-		}
+	payload_header = (struct uvc_payload_header *)buf->data;
+	endOfFrame = payload_header->bmHeaderInfo & UVC_BMHEADERINFO_END_OF_FRAME;
+	frame_id = payload_header->bmHeaderInfo & UVC_BMHEADERINFO_FRAMEID;
+	presentationTime = sys_le32_to_cpu(payload_header->dwPresentationTime);
+	headLength = payload_header->bHeaderLength;
 
-		/* Update video buffer with processed data */
-		vbuf->bytesused += payload_len;
-		uvc_dev->vbuf_offset = vbuf->bytesused;
+	if (buf->len > 0) {
+		/* the standard header is 12 bytes */
+		if (buf->len > 11) {
+			dataSize = buf->len - headLength;
+			/* there is payload for this transfer */
+			if (dataSize) {
+				if (vbuf->bytesused == 0U) {
+					if (s_currentFrameTimeStamp != presentationTime) {
+						s_currentFrameTimeStamp = presentationTime;
+					}
+				}
+				/* presentation time should be the same for the same frame, if not, discard this picture */
+				else if (presentationTime != s_currentFrameTimeStamp) {
+					s_savePicture = 0;
+				}
 
-		LOG_DBG("Processed %u payload bytes, total: %u, EOF: %u",
-				payload_len, vbuf->bytesused, endOfFrame);
-
-		/* Handle frame completion */
-		if (endOfFrame) {
-			LOG_INF("Frame completed: %u bytes", vbuf->bytesused);
-			/* Release network buffer reference */
-			net_buf_unref(buf);
-			/* Move completed buffer from input to output queue */
-			k_fifo_get(&uvc_dev->fifo_in, K_NO_WAIT);
-			k_fifo_put(&uvc_dev->fifo_out, vbuf);
-
-			/* Clean up transfer resources */
-			uvc_dev->vbuf_offset = 0;
-			usbh_xfer_free(dev, xfer);
-			uvc_dev->transfer_count = 0;
-
-			/* Signal frame completion to application */
-			LOG_DBG("Raising VIDEO_BUF_DONE signal");
-			k_poll_signal_raise(uvc_dev->sig, VIDEO_BUF_DONE);
-			if ((vbuf = k_fifo_peek_head(&uvc_dev->fifo_in)) != NULL) {
-				vbuf->bytesused = 0;
-				uvc_host_initiate_transfer(uvc_dev, vbuf);
+				/* the current picture buffers are not available, now discard the receiving picture */
+				if ((!vbuf && s_savePicture)) {
+					s_savePicture = 0;
+				} else if (s_savePicture) {
+					if (dataSize > (vbuf->size - vbuf->bytesused)) { /* error here */
+						s_savePicture = 0;
+						vbuf->bytesused = 0U;
+						uvc_dev->vbuf_offset = 0;
+					} else {
+						/* the same frame id indicates they belong to the same frame */
+						if (frame_id == uvc_dev->expect_frame_id) {
+							/* copy data to picture buffer */
+							memcpy((void *)(((uint8_t *)vbuf->buffer) + vbuf->bytesused),
+									(void *)(((uint8_t *)buf->data) + headLength),
+									dataSize);
+							vbuf->bytesused += dataSize;
+							uvc_dev->vbuf_offset = vbuf->bytesused;
+							
+							LOG_DBG("Processed %u payload bytes (FID:%u), total: %u, EOF: %u",
+									dataSize, frame_id, vbuf->bytesused, endOfFrame);
+						} else {
+							/* for the payload that has different frame id, discard it */
+							s_savePicture = 0;
+							LOG_DBG("Frame ID mismatch: expected %u, got %u - discarding",
+									uvc_dev->expect_frame_id, frame_id);
+						}
+					}
+				} else {
+					/* no action */
+				}
 			}
-			return 0;
+
+			if (s_savePicture) {
+				if (endOfFrame) {
+					if (vbuf->bytesused != 0) {
+						LOG_INF("Frame completed: %u bytes (FID: %u)", 
+								vbuf->bytesused, frame_id);
+								
+						/* Move completed buffer from input to output queue */
+						k_fifo_get(&uvc_dev->fifo_in, K_NO_WAIT);
+						k_fifo_put(&uvc_dev->fifo_out, vbuf);
+
+						/* toggle the expected frame id */
+						uvc_dev->expect_frame_id = uvc_dev->expect_frame_id ^ 1;
+						s_savePicture = 1;
+						
+						/* Clean up transfer resources */
+						uvc_dev->vbuf_offset = 0;
+						uvc_dev->transfer_count = 0;
+
+						/* Signal frame completion to application */
+						LOG_DBG("Raising VIDEO_BUF_DONE signal");
+						k_poll_signal_raise(uvc_dev->sig, VIDEO_BUF_DONE);
+						
+						/* switch to another buffer to save picture frame */
+						if ((vbuf = k_fifo_peek_head(&uvc_dev->fifo_in)) != NULL) {
+							vbuf->bytesused = 0;
+							memset(vbuf->buffer, 0, vbuf->size);
+							uvc_dev->current_vbuf = vbuf;
+						}
+					}
+				}
+			} else {
+				/* the last frame of one picture */
+				if (endOfFrame) {
+					if (uvc_dev->discard_first_frame) {
+						uvc_dev->discard_first_frame = 0;
+						uvc_dev->expect_frame_id = frame_id ^ 1;
+					}
+					if (vbuf && vbuf->bytesused != 0) {
+						uvc_dev->discard_frame_cnt++;
+					}
+					if (vbuf) {
+						vbuf->bytesused = 0U;
+						uvc_dev->vbuf_offset = 0;
+					}
+					if (!uvc_dev->discard_first_frame) {
+						uvc_dev->expect_frame_id = frame_id ^ 1;
+					}
+					s_savePicture = 1;
+				}
+			}
 		}
 	}
 
@@ -2408,7 +2480,9 @@ cleanup:
 	/* Release network buffer reference */
 	net_buf_unref(buf);
 	/* Continue processing pending buffers */
-	uvc_host_continue_transfer(uvc_dev, xfer, vbuf);
+	if (vbuf) {
+		uvc_host_continue_transfer(uvc_dev, xfer, vbuf);
+	}
 	return 0;
 }
 
@@ -2742,7 +2816,6 @@ static int uvc_host_init(struct usbh_class_data *cdata)
 	uvc_dev->vs_input_header = NULL;
 	uvc_dev->vs_output_header = NULL;
 
-
 	/** Initialize format information */
 	memset(&uvc_dev->formats, 0, sizeof(struct uvc_format_info_all));
 	if (uvc_dev->video_format_caps) {
@@ -2752,6 +2825,12 @@ static int uvc_host_init(struct usbh_class_data *cdata)
 
 	/** Initialize current format information */
 	memset(&uvc_dev->current_format, 0, sizeof(struct uvc_format_info));
+
+	uvc_dev->expect_frame_id = 0xFF;
+	/* dicard the first picture because the first picture may be not complete */
+	uvc_dev->discard_first_frame =	1;
+	uvc_dev->discard_frame_cnt = 0;
+	uvc_dev->multi_prime_cnt = CONFIG_USBH_VIDEO_MULTIPLE_PRIME_COUNT;
 
 	LOG_INF("UVC device structure initialized successfully");
 	return 0;
@@ -2884,6 +2963,8 @@ static int uvc_host_removed(struct usb_device *udev, struct usbh_class_data *cda
 		cdata->class_matched = 0;
 		return -ENODEV;
 	}
+
+	/*TODO: cancel all of transfers and free all of usb xfer */
 
 	/* Reset video buffer state */
 	uvc_dev->vbuf_offset = 0;
@@ -3591,7 +3672,14 @@ static int video_usb_uvc_host_set_stream(const struct device *dev, bool enable, 
 	if (enable)
 	{
 	    if ((vbuf = k_fifo_peek_head(&uvc_dev->fifo_in)) != NULL) {
-			uvc_host_initiate_transfer(uvc_dev, vbuf);
+			vbuf->bytesused = 0;
+			memset(vbuf->buffer, 0, vbuf->size);
+			uvc_dev->current_vbuf = vbuf;
+			while (uvc_dev->multi_prime_cnt)
+			{
+				uvc_host_initiate_transfer(uvc_dev, vbuf);
+				uvc_dev->multi_prime_cnt--;
+			}
 		}
 	}
 
@@ -3715,4 +3803,3 @@ static DEVICE_API(video, uvc_host_video_api) = {
 	VIDEO_DEVICE_DEFINE(usb_camera_##n, (void *)DEVICE_DT_INST_GET(n), NULL);
 
 DT_INST_FOREACH_STATUS_OKAY(USBH_VIDEO_DT_DEVICE_DEFINE)
-
