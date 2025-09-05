@@ -283,3 +283,7 @@ p3t1755dp_ard_i2c_interface: &flexcomm8_lpi2c8 {};
 &mbox4 {
 	status = "okay";
 };
+
+&pmc_tmpsns {
+	status = "okay";
+};
