@@ -72,7 +72,7 @@ def analyze_headers(include_dir, scan_dir, file_list):
     # Get the list of header files which contains syscalls to be emitted.
     # If file_list does not exist, we emit all syscalls.
     if file_list:
-        with open(file_list, encoding="utf-8") as fp:
+        with open(file_list, encoding="utf-8", errors="ignore") as fp:
             contents = fp.read()
 
             for one_file in contents.split(";"):
@@ -118,7 +118,7 @@ def analyze_headers(include_dir, scan_dir, file_list):
 
     # Parse files to extract syscall functions
     for one_file in syscall_files:
-        with open(one_file, encoding="utf-8") as fp:
+        with open(one_file, encoding="utf-8", errors="ignore") as fp:
             try:
                 contents = fp.read()
             except Exception:
