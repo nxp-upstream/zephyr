@@ -399,6 +399,18 @@ int main(void)
 					fie.index++;
 				}
 
+#if CONFIG_VIDEO_TARGET_FPS > 0
+				frmival.denominator = CONFIG_VIDEO_TARGET_FPS;
+				frmival.numerator = 1;
+				if (!video_set_frmival(uvc_host, &frmival)) {
+					/* Get the actual frame rate that was set */
+					if (!video_get_frmival(uvc_host, &frmival)) {
+						LOG_INF("- Target frame rate set to: %f fps",
+							1.0 * frmival.denominator / frmival.numerator);
+					}
+				}
+#endif
+
 				/* Get supported controls */
 				LOG_INF("- Supported controls:");
 				const struct device *last_dev = NULL;
@@ -456,7 +468,6 @@ int main(void)
 					break;
 				}
 
-				/* TODO: CONFIG_VIDEO_BUFFER_POOL_NUM_MAX is 1 now, consider to use multiple video buffers */
 				for (i = 0; i < CONFIG_VIDEO_BUFFER_POOL_NUM_MAX; i++) {
 					/*
 					 * For some hardwares, such as the PxP used on i.MX RT1170 to do image rotation,
