@@ -52,6 +52,16 @@ config USBH_VIDEO_MAX_FORMATS
 	  being used. TThe maximum count for each format type (e.g., MJPEG, uncompressed), not the
 	  total number of all formats.
 
+config USBH_VIDEO_MULTIPLE_PRIME_COUNT
+	int "Number of concurrent USB transfers to initiate when starting stream"
+	range 1 16
+	default 1
+	help
+	  Number of concurrent USB isochronous transfers initiated when video
+	  streaming starts. Higher values improve throughput but use more resources.
+	  Lower values (1-2) suit low frame rates, higher values (4-8) suit high
+	  frame rates.
+
 module = USBH_VIDEO
 module-str = usbh uvc
 default-count = 1
