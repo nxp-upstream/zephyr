@@ -426,7 +426,7 @@ static void avrcp_set_absolute_volume_req(struct bt_avrcp_tg *tg, uint8_t tid,
 	tg_tid = tid;
 }
 
-static void avrcp_browsed_player_rsp(struct bt_avrcp_ct *ct, uint8_t tid,
+static void avrcp_set_browsed_player_rsp(struct bt_avrcp_ct *ct, uint8_t tid,
 				     struct net_buf *buf)
 {
 	struct bt_avrcp_set_browsed_player_rsp *rsp;
@@ -632,7 +632,7 @@ static struct bt_avrcp_ct_cb app_avrcp_ct_cb = {
 	.unit_info_rsp = avrcp_unit_info_rsp,
 	.subunit_info_rsp = avrcp_subunit_info_rsp,
 	.passthrough_rsp = avrcp_passthrough_rsp,
-	.browsed_player_rsp = avrcp_browsed_player_rsp,
+	.set_browsed_player_rsp = avrcp_set_browsed_player_rsp,
 	.set_absolute_volume_rsp = avrcp_set_absolute_volume_rsp,
 	.get_element_attrs_rsp = avrcp_get_element_attrs_rsp,
 	.list_player_app_setting_attrs_rsp = avrcp_list_player_app_setting_attrs_rsp,
