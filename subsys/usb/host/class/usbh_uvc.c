@@ -276,256 +276,6 @@ process_frames:
 }
 
 /**
- * @brief Check if Processing Unit supports specific control
- * @param uvc_dev UVC device
- * @param bmcontrol_bit Control bit mask to check (UVC_PU_BMCONTROL_*)
- * @return true if supported, false otherwise
- */
-static bool uvc_host_pu_supports_control(struct uvc_device *uvc_dev, uint32_t bmcontrol_bit)
-{
-	if (!uvc_dev || !uvc_dev->vc_pud) {
-		return false;
-	}
-
-	struct uvc_processing_unit_descriptor *pud = uvc_dev->vc_pud;
-
-	if (pud->bControlSize == 0) {
-		return false;
-	}
-
-	/* Convert the bmControls array to a 32-bit value for easier bit checking */
-	uint32_t controls = 0;
-	for (int i = 0; i < pud->bControlSize && i < 4; i++) {
-		controls |= ((uint32_t)pud->bmControls[i]) << (i * 8);
-	}
-
-	return (controls & bmcontrol_bit) != 0;
-}
-
-/**
- * @brief Check if Camera Terminal supports specific control
- * @param uvc_dev UVC device
- * @param bmcontrol_bit Control bit mask to check (UVC_CT_BMCONTROL_*)
- * @return true if supported, false otherwise
- */
-static bool uvc_host_ct_supports_control(struct uvc_device *uvc_dev, uint32_t bmcontrol_bit)
-{
-	if (!uvc_dev || !uvc_dev->vc_ctd) {
-		return false;
-	}
-
-	struct uvc_camera_terminal_descriptor *vc_ctd = uvc_dev->vc_ctd;
-
-	if (vc_ctd->bControlSize == 0) {
-		return false;
-	}
-
-	/* Convert the bmControls array to a 32-bit value for easier bit checking */
-	uint32_t controls = 0;
-	for (int i = 0; i < vc_ctd->bControlSize && i < 4; i++) {
-		controls |= ((uint32_t)vc_ctd->bmControls[i]) << (i * 8);
-	}
-
-	return (controls & bmcontrol_bit) != 0;
-}
-
-/**
- * @brief Initialize USB camera controls based on device capabilities
- *
- * Initializes video controls supported by the UVC device based on
- * Processing Unit and Camera Terminal capabilities.
- *
- * @param dev Video device pointer
- * @return 0 on success, negative error code on failure
- */
-static int usb_host_camera_init_controls(const struct device *dev)
-{
-	int ret;
-	struct uvc_device *uvc_dev = dev->data;
-	struct usb_camera_ctrls *ctrls = &uvc_dev->ctrls;
-	int initialized_count = 0;
-
-	if (!uvc_dev->vc_pud) {
-		LOG_WRN("No processing unit found, skipping control initialization");
-		return 0;
-	}
-
-	LOG_INF("Initializing controls based on processing unit capabilities");
-
-	/* Brightness control */
-	if (uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_BRIGHTNESS)) {
-		ret = video_init_ctrl(&ctrls->brightness, dev, VIDEO_CID_BRIGHTNESS,
-					  (struct video_ctrl_range){.min = -128, .max = 127, .step = 1, .def = 0});
-		if (!ret) {
-			initialized_count++;
-			LOG_DBG("Brightness control initialized");
-		}
-	}
-
-	/* Contrast control */
-	if (uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_CONTRAST)) {
-		ret = video_init_ctrl(&ctrls->contrast, dev, VIDEO_CID_CONTRAST,
-					  (struct video_ctrl_range){.min = 0, .max = 255, .step = 1, .def = 128});
-		if (!ret) {
-			initialized_count++;
-			LOG_DBG("Contrast control initialized");
-		}
-	}
-
-	/* Hue control */
-	if (uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_HUE)) {
-		ret = video_init_ctrl(&ctrls->hue, dev, VIDEO_CID_HUE,
-					  (struct video_ctrl_range){.min = -180, .max = 180, .step = 1, .def = 0});
-		if (!ret) {
-			initialized_count++;
-			LOG_DBG("Hue control initialized");
-		}
-	}
-
-	/* Saturation control */
-	if (uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_SATURATION)) {
-		ret = video_init_ctrl(&ctrls->saturation, dev, VIDEO_CID_SATURATION,
-					  (struct video_ctrl_range){.min = 0, .max = 255, .step = 1, .def = 128});
-		if (!ret) {
-			initialized_count++;
-			LOG_DBG("Saturation control initialized");
-		}
-	}
-
-	/* Sharpness control */
-	if (uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_SHARPNESS)) {
-		ret = video_init_ctrl(&ctrls->sharpness, dev, VIDEO_CID_SHARPNESS,
-					  (struct video_ctrl_range){.min = 0, .max = 255, .step = 1, .def = 128});
-		if (!ret) {
-			initialized_count++;
-			LOG_DBG("Sharpness control initialized");
-		}
-	}
-
-	/* Gamma control */
-	if (uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_GAMMA)) {
-		ret = video_init_ctrl(&ctrls->gamma, dev, VIDEO_CID_GAMMA,
-					  (struct video_ctrl_range){.min = 100, .max = 300, .step = 1, .def = 100});
-		if (!ret) {
-			initialized_count++;
-			LOG_DBG("Gamma control initialized");
-		}
-	}
-
-	/* Gain controls */
-	if (uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_GAIN)) {
-		ret = video_init_ctrl(&ctrls->auto_gain, dev, VIDEO_CID_AUTOGAIN,
-					  (struct video_ctrl_range){.min = 0, .max = 1, .step = 1, .def = 1});
-		if (!ret) {
-			initialized_count++;
-			LOG_DBG("Auto gain control initialized");
-		}
-
-		ret = video_init_ctrl(&ctrls->gain, dev, VIDEO_CID_GAIN,
-					  (struct video_ctrl_range){.min = 0, .max = 255, .step = 1, .def = 0});
-		if (!ret) {
-			initialized_count++;
-			/* Create auto gain cluster if both controls exist */
-			if (ctrls->auto_gain.id != 0) {
-				video_auto_cluster_ctrl(&ctrls->auto_gain, 2, true);
-			}
-			LOG_DBG("Gain control initialized");
-		}
-	}
-
-	/* White Balance Temperature control */
-	if (uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_WHITE_BALANCE_TEMPERATURE)) {
-		ret = video_init_ctrl(&ctrls->white_balance_temperature, dev, VIDEO_CID_WHITE_BALANCE_TEMPERATURE,
-					  (struct video_ctrl_range){.min = 2800, .max = 6500, .step = 1, .def = 4000});
-		if (!ret) {
-			initialized_count++;
-			LOG_DBG("White balance temperature control initialized");
-		}
-	}
-
-	/* Auto White Balance control */
-	if (uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_WHITE_BALANCE_TEMPERATURE_AUTO)) {
-		ret = video_init_ctrl(&ctrls->auto_white_balance_temperature, dev, VIDEO_CID_AUTO_WHITE_BALANCE,
-					  (struct video_ctrl_range){.min = 0, .max = 1, .step = 1, .def = 1});
-		if (!ret) {
-			initialized_count++;
-			LOG_DBG("Auto white balance control initialized");
-		}
-	}
-
-	/* Backlight Compensation control */
-	if (uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_BACKLIGHT_COMPENSATION)) {
-		ret = video_init_ctrl(&ctrls->backlight_compensation, dev, VIDEO_CID_BACKLIGHT_COMPENSATION,
-					  (struct video_ctrl_range){.min = 0, .max = 2, .step = 1, .def = 1});
-		if (!ret) {
-			initialized_count++;
-			LOG_DBG("Backlight compensation control initialized");
-		}
-	}
-
-	/* Power line frequency control */
-	if (uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_POWER_LINE_FREQUENCY)) {
-		ret = video_init_menu_ctrl(&ctrls->light_freq, dev, VIDEO_CID_POWER_LINE_FREQUENCY,
-						VIDEO_CID_POWER_LINE_FREQUENCY_AUTO, NULL);
-		if (!ret) {
-			initialized_count++;
-			LOG_DBG("Power line frequency control initialized");
-		}
-	}
-
-	/* Auto exposure control - Camera Terminal control */
-	if (uvc_host_ct_supports_control(uvc_dev, UVC_CT_BMCONTROL_AE_MODE)) {
-		ret = video_init_ctrl(&ctrls->auto_exposure, dev, VIDEO_CID_EXPOSURE_AUTO,
-					  (struct video_ctrl_range){.min = 0, .max = 1, .step = 1, .def = 1});
-		if (!ret) {
-			initialized_count++;
-			LOG_DBG("Auto exposure control initialized");
-		}
-	}
-
-	/* Exposure absolute control - Camera Terminal control */
-	if (uvc_host_ct_supports_control(uvc_dev, UVC_CT_BMCONTROL_EXPOSURE_TIME_ABSOLUTE)) {
-		ret = video_init_ctrl(&ctrls->exposure_absolute, dev, VIDEO_CID_EXPOSURE_ABSOLUTE,
-					  (struct video_ctrl_range){
-					.min = 1,			/* Minimum exposure time 1μs */
-					.max = 10000000,	/* Maximum exposure time 10s (10,000,000μs) */
-					.step = 1,
-					.def = 33333		/* Default 1/30s ≈ 33.33ms */
-					  });
-		if (!ret) {
-			initialized_count++;
-			/* Create auto exposure cluster if both controls exist */
-			if (ctrls->auto_exposure.id != 0) {
-				video_auto_cluster_ctrl(&ctrls->auto_exposure, 2, true);
-			}
-			LOG_DBG("Exposure absolute control initialized");
-		}
-	}
-
-	/* Focus controls - Camera Terminal control */
-	if (uvc_host_ct_supports_control(uvc_dev, UVC_CT_BMCONTROL_FOCUS_AUTO)) {
-		ret = video_init_ctrl(&ctrls->auto_focus, dev, VIDEO_CID_FOCUS_AUTO,
-					  (struct video_ctrl_range){.min = 0, .max = 1, .step = 1, .def = 1});
-		if (!ret) {
-			initialized_count++;
-			LOG_DBG("Auto focus control initialized");
-		}
-	}
-
-	if (uvc_host_ct_supports_control(uvc_dev, UVC_CT_BMCONTROL_FOCUS_ABSOLUTE)) {
-		ret = video_init_ctrl(&ctrls->focus_absolute, dev, VIDEO_CID_FOCUS_ABSOLUTE,
-					  (struct video_ctrl_range){.min = 0, .max = 1023, .step = 1, .def = 0});
-		if (!ret) {
-			initialized_count++;
-			LOG_DBG("Focus absolute control initialized");
-		}
-	}
-
-	LOG_INF("Initialized %d camera controls", initialized_count);
-	return 0;
-}
-
-/**
  * @brief Configure UVC device interfaces
  *
  * Sets up control and streaming interfaces with proper alternate settings.
@@ -2765,6 +2515,433 @@ cleanup:
 	return ret;
 }
 
+/**
+ * @brief Check if Processing Unit supports specific control
+ * @param uvc_dev UVC device
+ * @param bmcontrol_bit Control bit mask to check (UVC_PU_BMCONTROL_*)
+ * @return true if supported, false otherwise
+ */
+static bool uvc_host_pu_supports_control(struct uvc_device *uvc_dev, uint32_t bmcontrol_bit)
+{
+	if (!uvc_dev || !uvc_dev->vc_pud) {
+		return false;
+	}
+
+	struct uvc_processing_unit_descriptor *pud = uvc_dev->vc_pud;
+
+	if (pud->bControlSize == 0) {
+		return false;
+	}
+
+	/* Convert the bmControls array to a 32-bit value for easier bit checking */
+	uint32_t controls = 0;
+	for (int i = 0; i < pud->bControlSize && i < 4; i++) {
+		controls |= ((uint32_t)pud->bmControls[i]) << (i * 8);
+	}
+
+	return (controls & bmcontrol_bit) != 0;
+}
+
+/**
+ * @brief Check if Camera Terminal supports specific control
+ * @param uvc_dev UVC device
+ * @param bmcontrol_bit Control bit mask to check (UVC_CT_BMCONTROL_*)
+ * @return true if supported, false otherwise
+ */
+static bool uvc_host_ct_supports_control(struct uvc_device *uvc_dev, uint32_t bmcontrol_bit)
+{
+	if (!uvc_dev || !uvc_dev->vc_ctd) {
+		return false;
+	}
+
+	struct uvc_camera_terminal_descriptor *vc_ctd = uvc_dev->vc_ctd;
+
+	if (vc_ctd->bControlSize == 0) {
+		return false;
+	}
+
+	/* Convert the bmControls array to a 32-bit value for easier bit checking */
+	uint32_t controls = 0;
+	for (int i = 0; i < vc_ctd->bControlSize && i < 4; i++) {
+		controls |= ((uint32_t)vc_ctd->bmControls[i]) << (i * 8);
+	}
+
+	return (controls & bmcontrol_bit) != 0;
+}
+
+/**
+ * @brief Initialize individual control based on CID
+ *
+ * @param dev Video device
+ * @param cid Control ID
+ * @param range Control range
+ * @return 0 on success, negative error code on failure
+ */
+static int uvc_host_init_control_by_cid(const struct device *dev, uint32_t cid,
+					const struct video_ctrl_range *range)
+{
+	struct uvc_device *uvc_dev = dev->data;
+	struct usb_camera_ctrls *ctrls = &uvc_dev->ctrls;
+	int ret = -ENOTSUP;
+
+	switch (cid) {
+	/* Processing Unit Controls */
+	case VIDEO_CID_BRIGHTNESS:
+		ret = video_init_ctrl(&ctrls->brightness, dev, cid, *range);
+		break;
+
+	case VIDEO_CID_CONTRAST:
+		ret = video_init_ctrl(&ctrls->contrast, dev, cid, *range);
+		break;
+
+	case VIDEO_CID_HUE:
+		ret = video_init_ctrl(&ctrls->hue, dev, cid, *range);
+		break;
+
+	case VIDEO_CID_SATURATION:
+		ret = video_init_ctrl(&ctrls->saturation, dev, cid, *range);
+		break;
+
+	case VIDEO_CID_SHARPNESS:
+		ret = video_init_ctrl(&ctrls->sharpness, dev, cid, *range);
+		break;
+
+	case VIDEO_CID_GAMMA:
+		ret = video_init_ctrl(&ctrls->gamma, dev, cid, *range);
+		break;
+
+	case VIDEO_CID_GAIN:
+		ret = video_init_ctrl(&ctrls->gain, dev, cid, *range);
+		break;
+
+	case VIDEO_CID_AUTOGAIN:
+		ret = video_init_ctrl(&ctrls->auto_gain, dev, cid, *range);
+		/* Create auto-gain cluster if manual gain control exists */
+		if (ret == 0 && ctrls->gain.id != 0) {
+			video_auto_cluster_ctrl(&ctrls->auto_gain, 2, true);
+			LOG_DBG("Created auto-gain cluster");
+		}
+		break;
+
+	case VIDEO_CID_WHITE_BALANCE_TEMPERATURE:
+		ret = video_init_ctrl(&ctrls->white_balance_temperature, dev, cid, *range);
+		break;
+
+	case VIDEO_CID_AUTO_WHITE_BALANCE:
+		ret = video_init_ctrl(&ctrls->auto_white_balance_temperature, dev, cid, *range);
+		break;
+
+	case VIDEO_CID_BACKLIGHT_COMPENSATION:
+		ret = video_init_ctrl(&ctrls->backlight_compensation, dev, cid, *range);
+		break;
+
+	case VIDEO_CID_POWER_LINE_FREQUENCY:
+		ret = video_init_menu_ctrl(&ctrls->light_freq, dev, cid,
+					   VIDEO_CID_POWER_LINE_FREQUENCY_AUTO, NULL);
+		break;
+
+	/* Camera Terminal Controls */
+	case VIDEO_CID_EXPOSURE_AUTO:
+		ret = video_init_ctrl(&ctrls->auto_exposure, dev, cid, *range);
+		break;
+
+	case VIDEO_CID_EXPOSURE_ABSOLUTE:
+		ret = video_init_ctrl(&ctrls->exposure_absolute, dev, cid, *range);
+		/* Create auto-exposure cluster if auto-exposure control exists */
+		if (ret == 0 && ctrls->auto_exposure.id != 0) {
+			video_auto_cluster_ctrl(&ctrls->auto_exposure, 2, true);
+			LOG_DBG("Created auto-exposure cluster");
+		}
+		break;
+
+	case VIDEO_CID_FOCUS_AUTO:
+		ret = video_init_ctrl(&ctrls->auto_focus, dev, cid, *range);
+		break;
+
+	case VIDEO_CID_FOCUS_ABSOLUTE:
+		ret = video_init_ctrl(&ctrls->focus_absolute, dev, cid, *range);
+		break;
+
+	case VIDEO_CID_TEST_PATTERN:
+		ret = video_init_ctrl(&ctrls->test_pattern, dev, cid, *range);
+		break;
+
+	default:
+		LOG_DBG("Control CID 0x%08x not implemented", cid);
+		break;
+	}
+
+	return ret;
+}
+
+/**
+ * @brief Extract control bitmap from bmControls array
+ *
+ * @param bmControls Control bitmap array
+ * @param control_size Size of the control bitmap array
+ * @return 32-bit control bitmap
+ */
+static uint32_t uvc_host_extract_control_bitmap(const uint8_t *bmControls, uint8_t control_size)
+{
+	uint32_t controls = 0;
+
+	for (int i = 0; i < control_size && i < 4; i++) {
+		controls |= ((uint32_t)bmControls[i]) << (i * 8);
+	}
+
+	return controls;
+}
+
+/**
+ * @brief Extract control value from data buffer based on size and type
+ *
+ * @param data Data buffer containing the control value
+ * @param size Size of the control data (1, 2, or 4 bytes)
+ * @param type Control type (signed or unsigned)
+ * @return Extracted control value
+ */
+static int32_t uvc_host_extract_control_value(const uint8_t *data, uint8_t size, uint8_t type)
+{
+	switch (size) {
+	case 1:
+		return (type == UVC_CONTROL_SIGNED) ? (int8_t)data[0] : (uint8_t)data[0];
+
+	case 2:
+		if (type == UVC_CONTROL_SIGNED) {
+			return (int16_t)sys_le16_to_cpu(*(uint16_t*)data);
+		} else {
+			return (uint16_t)sys_le16_to_cpu(*(uint16_t*)data);
+		}
+
+	case 4:
+		return (int32_t)sys_le32_to_cpu(*(uint32_t*)data);
+
+	default:
+		LOG_ERR("Unsupported control data size: %u", size);
+		return 0;
+	}
+}
+
+/**
+ * @brief Query actual control range from UVC device
+ *
+ * @param uvc_dev UVC device structure
+ * @param entity_id Entity ID (unit or terminal)
+ * @param map Control mapping information
+ * @param range Output range structure
+ * @return 0 on success, negative error code on failure
+ */
+static int uvc_host_query_control_range(struct uvc_device *uvc_dev,
+					uint8_t entity_id,
+					const struct uvc_control_map *map,
+					struct video_ctrl_range *range)
+{
+	uint8_t data[4];
+	int ret;
+
+	/* Query minimum value */
+	ret = uvc_host_control_unit_and_terminal_request(uvc_dev, UVC_GET_MIN,
+							 map->selector, entity_id, data, map->size);
+	if (ret) {
+		LOG_DBG("Failed to get min value for selector 0x%02x: %d", map->selector, ret);
+		return ret;
+	}
+	range->min = uvc_host_extract_control_value(data, map->size, map->type);
+
+	/* Query maximum value */
+	ret = uvc_host_control_unit_and_terminal_request(uvc_dev, UVC_GET_MAX,
+							 map->selector, entity_id, data, map->size);
+	if (ret) {
+		LOG_DBG("Failed to get max value for selector 0x%02x: %d", map->selector, ret);
+		return ret;
+	}
+	range->max = uvc_host_extract_control_value(data, map->size, map->type);
+
+	/* Query step/resolution value */
+	ret = uvc_host_control_unit_and_terminal_request(uvc_dev, UVC_GET_RES,
+							 map->selector, entity_id, data, map->size);
+	if (ret) {
+		range->step = 1; /* Default step */
+		LOG_DBG("Using default step=1 for selector 0x%02x", map->selector);
+	} else {
+		int32_t step_val = uvc_host_extract_control_value(data, map->size, map->type);
+
+		range->step = (step_val > 0) ? step_val : 1;
+	}
+
+	/* Query default value */
+	ret = uvc_host_control_unit_and_terminal_request(uvc_dev, UVC_GET_DEF,
+							 map->selector, entity_id, data, map->size);
+	if (ret) {
+		range->def = (range->min + range->max) / 2; /* Use middle value as default */
+		LOG_DBG("Using middle value as default for selector 0x%02x", map->selector);
+	} else {
+		range->def = uvc_host_extract_control_value(data, map->size, map->type);
+	}
+
+	LOG_DBG("Control 0x%02x range: [%d, %d, %d, %d]", map->selector,
+		range->min, range->max, range->step, range->def);
+
+	return 0;
+}
+
+/**
+ * @brief Initialize controls for a specific UVC unit/terminal
+ *
+ * @param uvc_dev UVC device structure
+ * @param dev Video device
+ * @param unit_subtype UVC unit subtype
+ * @param entity_id Entity ID
+ * @param supported_controls Bitmap of supported controls
+ * @param initialized_count Pointer to initialized control counter
+ * @return 0 on success, negative error code on failure
+ */
+static int uvc_host_init_unit_controls(struct uvc_device *uvc_dev,
+				       const struct device *dev,
+				       uint8_t unit_subtype,
+				       uint8_t entity_id,
+				       uint32_t supported_controls,
+				       int *initialized_count)
+{
+	const struct uvc_control_map *map;
+	size_t map_length;
+	int ret;
+
+	/* Get control mapping table for this unit type */
+	ret = uvc_get_control_map(unit_subtype, &map, &map_length);
+	if (ret) {
+		LOG_ERR("Failed to get control map for unit subtype %u: %d", unit_subtype, ret);
+		return ret;
+	}
+
+	LOG_DBG("Processing %zu controls for unit subtype %u, entity ID %u",
+		map_length, unit_subtype, entity_id);
+
+	/* Iterate through all controls in the mapping table */
+	for (size_t i = 0; i < map_length; i++) {
+		const struct uvc_control_map *ctrl_map = &map[i];
+		struct video_ctrl_range range;
+
+		/* Check if device supports this control */
+		if (!(supported_controls & BIT(ctrl_map->bit))) {
+			LOG_DBG("Control bit %u not supported by device", ctrl_map->bit);
+			continue;
+		}
+
+		/* Query actual control range from device */
+		ret = uvc_host_query_control_range(uvc_dev, entity_id, ctrl_map, &range);
+		if (ret) {
+			LOG_WRN("Failed to query range for control 0x%02x, skipping",
+				ctrl_map->selector);
+			continue;
+		}
+
+		/* Initialize the control */
+		ret = uvc_host_init_control_by_cid(dev, ctrl_map->cid, &range);
+		if (ret == 0) {
+			(*initialized_count)++;
+			LOG_DBG("Successfully initialized control CID 0x%08x", ctrl_map->cid);
+		} else if (ret != -ENOTSUP) {
+			LOG_WRN("Failed to initialize control CID 0x%08x: %d", ctrl_map->cid, ret);
+		}
+	}
+
+	return 0;
+}
+
+/**
+ * @brief Initialize USB camera controls based on device capabilities
+ *
+ * Initializes video controls supported by the UVC device based on
+ * Processing Unit and Camera Terminal capabilities.
+ *
+ * @param dev Video device pointer
+ * @return 0 on success, negative error code on failure
+ */
+static int usb_host_camera_init_controls(const struct device *dev)
+{
+	int ret;
+	struct uvc_device *uvc_dev = dev->data;
+	struct usb_camera_ctrls *ctrls = &uvc_dev->ctrls;
+	uint32_t control_bitmap;
+	int initialized_count = 0;
+
+	if (!uvc_dev->vc_pud) {
+		LOG_WRN("No processing unit found, skipping control initialization");
+		return 0;
+	}
+
+	LOG_INF("Initializing controls based on processing unit capabilities");
+
+	/* Initialize Processing Unit controls */
+	if (uvc_dev->vc_pud) {
+		LOG_DBG("Found Processing Unit (ID: %u)", uvc_dev->vc_pud->bUnitID);
+
+		control_bitmap = uvc_host_extract_control_bitmap(uvc_dev->vc_pud->bmControls,
+								 uvc_dev->vc_pud->bControlSize);
+
+		ret = uvc_host_init_unit_controls(uvc_dev, dev, UVC_VC_PROCESSING_UNIT,
+						  uvc_dev->vc_pud->bUnitID, control_bitmap,
+						  &initialized_count);
+		if (ret) {
+			LOG_ERR("Failed to initialize Processing Unit controls: %d", ret);
+		}
+	} else {
+		LOG_WRN("No Processing Unit found, skipping PU controls");
+	}
+
+	/* Initialize Camera Terminal controls */
+	if (uvc_dev->vc_ctd) {
+		LOG_DBG("Found Camera Terminal (ID: %u)", uvc_dev->vc_ctd->bTerminalID);
+
+		control_bitmap = uvc_host_extract_control_bitmap(uvc_dev->vc_ctd->bmControls,
+								 uvc_dev->vc_ctd->bControlSize);
+
+		ret = uvc_host_init_unit_controls(uvc_dev, dev, UVC_VC_INPUT_TERMINAL,
+						  uvc_dev->vc_ctd->bTerminalID, control_bitmap,
+						  &initialized_count);
+		if (ret) {
+			LOG_ERR("Failed to initialize Camera Terminal controls: %d", ret);
+		}
+	} else {
+		LOG_DBG("No Camera Terminal found, skipping CT controls");
+	}
+
+	/* Initialize Selector Unit controls */
+	if (uvc_dev->vc_sud) {
+		LOG_DBG("Found Selector Unit (ID: %u)", uvc_dev->vc_sud->bUnitID);
+
+		/* Selector Unit typically supports input selection control */
+		control_bitmap = BIT(0);
+
+		ret = uvc_host_init_unit_controls(uvc_dev, dev, UVC_VC_SELECTOR_UNIT,
+						  uvc_dev->vc_sud->bUnitID, control_bitmap,
+						  &initialized_count);
+		if (ret) {
+			LOG_ERR("Failed to initialize Selector Unit controls: %d", ret);
+		}
+	}
+
+	/* Initialize Extension Unit controls */
+	if (uvc_dev->vc_extension_unit) {
+		LOG_DBG("Found Extension Unit (ID: %u)", uvc_dev->vc_extension_unit->bUnitID);
+
+		control_bitmap = uvc_host_extract_control_bitmap(
+					uvc_dev->vc_extension_unit->bmControls,
+					uvc_dev->vc_extension_unit->bControlSize);
+
+		ret = uvc_host_init_unit_controls(uvc_dev, dev, UVC_VC_EXTENSION_UNIT,
+						  uvc_dev->vc_extension_unit->bUnitID, control_bitmap,
+						  &initialized_count);
+		if (ret) {
+			LOG_ERR("Failed to initialize Extension Unit controls: %d", ret);
+		}
+	}
+
+	LOG_INF("Successfully initialized %d camera controls", initialized_count);
+	return 0;
+}
+
 static int uvc_host_init(struct usbh_class_data *cdata)
 {
 	const struct device *dev = cdata->priv;
@@ -3316,302 +3493,343 @@ static int video_usb_uvc_host_get_volatile_ctrl(const struct device *dev, uint32
 }
 
 /**
- * @brief Set UVC control value
+ * @brief Find control mapping by CID based on available units
  *
- * Video API implementation to set various camera control parameters.
- * Maps video control IDs to UVC-specific control selectors and sends
- * appropriate USB control requests.
- *
- * @param dev Pointer to video device
- * @param ctrl Pointer to video control structure containing ID and value
- * @return 0 on success, negative error code on failure
+ * @param uvc_dev UVC device structure
+ * @param cid Control ID to find
+ * @param unit_subtype Output: unit subtype where control was found
+ * @param map Output: pointer to control mapping
+ * @return 0 on success, negative error code if not found
  */
-static int video_usb_uvc_host_set_ctrl(const struct device *dev, struct video_control *ctrl)
+static int uvc_host_find_control_mapping(struct uvc_device *uvc_dev, uint32_t cid,
+					 uint8_t *unit_subtype,
+					 const struct uvc_control_map **map)
 {
-	struct uvc_device *uvc_dev = dev->data;
-	int ret = 0;
-	uint8_t entity_id = 0;
-	uint8_t control_selector = 0;
-	uint8_t data[4] = {0}; /* Buffer for control data */
-	uint8_t data_len = 0;
+	const struct uvc_control_map *map_table;
+	size_t map_length;
+	int ret;
 
-	if (!uvc_dev || !ctrl) {
-		return -EINVAL;
+	/* Search in Processing Unit if it exists */
+	if (uvc_dev->vc_pud) {
+		ret = uvc_get_control_map(UVC_VC_PROCESSING_UNIT, &map_table, &map_length);
+		if (ret == 0) {
+			for (size_t i = 0; i < map_length; i++) {
+				if (map_table[i].cid == cid) {
+					*unit_subtype = UVC_VC_PROCESSING_UNIT;
+					*map = &map_table[i];
+					LOG_DBG("Found control CID 0x%08x in Processing Unit", cid);
+					return 0;
+				}
+			}
+		}
 	}
 
-	/* Map control ID to UVC entity and control selector */
+	/* Search in Camera Terminal if it exists */
+	if (uvc_dev->vc_ctd) {
+		ret = uvc_get_control_map(UVC_VC_INPUT_TERMINAL, &map_table, &map_length);
+		if (ret == 0) {
+			for (size_t i = 0; i < map_length; i++) {
+				if (map_table[i].cid == cid) {
+					*unit_subtype = UVC_VC_INPUT_TERMINAL;
+					*map = &map_table[i];
+					LOG_DBG("Found control CID 0x%08x in Camera Terminal", cid);
+					return 0;
+				}
+			}
+		}
+	}
+
+	/* Search in Selector Unit if it exists */
+	if (uvc_dev->vc_sud) {
+		ret = uvc_get_control_map(UVC_VC_SELECTOR_UNIT, &map_table, &map_length);
+		if (ret == 0) {
+			for (size_t i = 0; i < map_length; i++) {
+				if (map_table[i].cid == cid) {
+					*unit_subtype = UVC_VC_SELECTOR_UNIT;
+					*map = &map_table[i];
+					LOG_DBG("Found control CID 0x%08x in Selector Unit", cid);
+					return 0;
+				}
+			}
+		}
+	}
+
+	/* Search in Extension Unit if it exists */
+	if (uvc_dev->vc_extension_unit) {
+		ret = uvc_get_control_map(UVC_VC_EXTENSION_UNIT, &map_table, &map_length);
+		if (ret == 0) {
+			for (size_t i = 0; i < map_length; i++) {
+				if (map_table[i].cid == cid) {
+					*unit_subtype = UVC_VC_EXTENSION_UNIT;
+					*map = &map_table[i];
+					LOG_DBG("Found control CID 0x%08x in Extension Unit", cid);
+					return 0;
+				}
+			}
+		}
+	}
+
+	LOG_DBG("Control CID 0x%08x not found in any available unit", cid);
+	return -ENOENT;
+}
+
+/**
+ * @brief Get entity ID for a specific unit subtype
+ *
+ * @param uvc_dev UVC device structure
+ * @param unit_subtype Unit subtype
+ * @return Entity ID, or 0 if not found
+ */
+static uint8_t uvc_host_get_entity_id(struct uvc_device *uvc_dev, uint8_t unit_subtype)
+{
+	switch (unit_subtype) {
+	case UVC_VC_PROCESSING_UNIT:
+		return uvc_dev->vc_pud ? uvc_dev->vc_pud->bUnitID : 0;
+
+	case UVC_VC_INPUT_TERMINAL:
+		return uvc_dev->vc_ctd ? uvc_dev->vc_ctd->bTerminalID : 0;
+
+	case UVC_VC_SELECTOR_UNIT:
+		return uvc_dev->vc_sud ? uvc_dev->vc_sud->bUnitID : 0;
+
+	case UVC_VC_EXTENSION_UNIT:
+		return uvc_dev->vc_extension_unit ? uvc_dev->vc_extension_unit->bUnitID : 0;
+
+	default:
+		LOG_ERR("Unknown unit subtype: %u", unit_subtype);
+		return 0;
+	}
+}
+
+/**
+ * @brief Encode control value into data buffer
+ *
+ * @param ctrl Control structure with ID and value
+ * @param map Control mapping information
+ * @param data Output data buffer
+ * @return 0 on success, negative error code on failure
+ */
+static int uvc_host_encode_control_value(struct video_control *ctrl,
+					 const struct uvc_control_map *map,
+					 uint8_t *data)
+{
 	switch (ctrl->id) {
-	/* Processing Unit Controls */
+	/* Special control handling */
+
+	/* Signed 16-bit controls */
 	case VIDEO_CID_BRIGHTNESS:
-		if (!uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_BRIGHTNESS)) {
-			return -ENOTSUP;
-		}
-		entity_id = uvc_dev->vc_pud->bUnitID;
-		control_selector = UVC_PU_BRIGHTNESS_CONTROL;
-		sys_put_le16(ctrl->val, data);
-		data_len = 2;
-		break;
-
-	case VIDEO_CID_CONTRAST:
-		if (!uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_CONTRAST)) {
-			return -ENOTSUP;
-		}
-		entity_id = uvc_dev->vc_pud->bUnitID;
-		control_selector = UVC_PU_CONTRAST_CONTROL;
-		sys_put_le16(ctrl->val, data);
-		data_len = 2;
-		break;
-
 	case VIDEO_CID_HUE:
-		if (!uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_HUE)) {
-			return -ENOTSUP;
-		}
-		entity_id = uvc_dev->vc_pud->bUnitID;
-		control_selector = UVC_PU_HUE_CONTROL;
-		sys_put_le16(ctrl->val, data);
-		data_len = 2;
+		sys_put_le16((int16_t)ctrl->val, data);
 		break;
 
+	/* Unsigned 16-bit controls */
+	case VIDEO_CID_CONTRAST:
 	case VIDEO_CID_SATURATION:
-		if (!uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_SATURATION)) {
-			return -ENOTSUP;
-		}
-		entity_id = uvc_dev->vc_pud->bUnitID;
-		control_selector = UVC_PU_SATURATION_CONTROL;
-		sys_put_le16(ctrl->val, data);
-		data_len = 2;
-		break;
-
 	case VIDEO_CID_SHARPNESS:
-		if (!uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_SHARPNESS)) {
-			return -ENOTSUP;
-		}
-		entity_id = uvc_dev->vc_pud->bUnitID;
-		control_selector = UVC_PU_SHARPNESS_CONTROL;
-		sys_put_le16(ctrl->val, data);
-		data_len = 2;
-		break;
-
 	case VIDEO_CID_GAMMA:
-		if (!uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_GAMMA)) {
-			return -ENOTSUP;
-		}
-		entity_id = uvc_dev->vc_pud->bUnitID;
-		control_selector = UVC_PU_GAMMA_CONTROL;
-		sys_put_le16(ctrl->val, data);
-		data_len = 2;
-		break;
-
 	case VIDEO_CID_GAIN:
-		if (!uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_GAIN)) {
-			return -ENOTSUP;
-		}
-		entity_id = uvc_dev->vc_pud->bUnitID;
-		control_selector = UVC_PU_GAIN_CONTROL;
-		sys_put_le16(ctrl->val, data);
-		data_len = 2;
-		break;
-
-	case VIDEO_CID_AUTOGAIN:
-		/* Auto gain implemented through gain control's automatic mode */
-		if (!uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_GAIN)) {
-			return -ENOTSUP;
-		}
-		entity_id = uvc_dev->vc_pud->bUnitID;
-		control_selector = UVC_PU_GAIN_CONTROL;
-		data[0] = ctrl->val ? 0xFF : 0x00; /* Auto mode flag */
-		data_len = 1;
-		break;
-
-	case VIDEO_CID_POWER_LINE_FREQUENCY:
-		if (!uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_POWER_LINE_FREQUENCY)) {
-			return -ENOTSUP;
-		}
-		entity_id = uvc_dev->vc_pud->bUnitID;
-		control_selector = UVC_PU_POWER_LINE_FREQUENCY_CONTROL;
-		data[0] = ctrl->val; /* 0=Disabled, 1=50Hz, 2=60Hz, 3=Auto */
-		data_len = 1;
-		break;
-
 	case VIDEO_CID_WHITE_BALANCE_TEMPERATURE:
-		if (!uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_WHITE_BALANCE_TEMPERATURE)) {
-			return -ENOTSUP;
-		}
-		entity_id = uvc_dev->vc_pud->bUnitID;
-		control_selector = UVC_PU_WHITE_BALANCE_TEMP_CONTROL;
-		sys_put_le16(ctrl->val, data);
-		data_len = 2;
-		break;
-
-	case VIDEO_CID_AUTO_WHITE_BALANCE:
-		if (!uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_WHITE_BALANCE_TEMPERATURE_AUTO)) {
-			return -ENOTSUP;
-		}
-		entity_id = uvc_dev->vc_pud->bUnitID;
-		control_selector = UVC_PU_WHITE_BALANCE_TEMP_AUTO_CONTROL;
-		data[0] = ctrl->val ? 1 : 0;
-		data_len = 1;
-		break;
-
 	case VIDEO_CID_BACKLIGHT_COMPENSATION:
-		if (!uvc_host_pu_supports_control(uvc_dev, UVC_PU_BMCONTROL_BACKLIGHT_COMPENSATION)) {
-			return -ENOTSUP;
-		}
-		entity_id = uvc_dev->vc_pud->bUnitID;
-		control_selector = UVC_PU_BACKLIGHT_COMPENSATION_CONTROL;
-		sys_put_le16(ctrl->val, data);
-		data_len = 2;
-		break;
-
-	/* Camera Terminal Controls */
-	case VIDEO_CID_EXPOSURE_AUTO:
-		if (uvc_host_ct_supports_control(uvc_dev, UVC_CT_BMCONTROL_AE_MODE)) {
-			entity_id = uvc_dev->vc_ctd->bTerminalID;
-			control_selector = UVC_CT_AE_MODE_CONTROL;
-			data[0] = ctrl->val;
-			data_len = 1;
-		} else {
-			LOG_WRN("Auto exposure mode control not supported");
-			ret = -ENOTSUP;
-		}
-		break;
-
-	case VIDEO_CID_EXPOSURE_AUTO_PRIORITY:
-		if (uvc_host_ct_supports_control(uvc_dev, UVC_CT_BMCONTROL_AE_PRIORITY)) {
-			entity_id = uvc_dev->vc_ctd->bTerminalID;
-			control_selector = UVC_CT_AE_PRIORITY_CONTROL;
-			data[0] = ctrl->val;
-			data_len = 1;
-		} else {
-			LOG_WRN("Auto exposure priority control not supported");
-			ret = -ENOTSUP;
-		}
-		break;
-
-	case VIDEO_CID_EXPOSURE_ABSOLUTE:
-		if (uvc_host_ct_supports_control(uvc_dev, UVC_CT_BMCONTROL_EXPOSURE_TIME_ABSOLUTE)) {
-			entity_id = uvc_dev->vc_ctd->bTerminalID;
-			control_selector = UVC_CT_EXPOSURE_TIME_ABS_CONTROL;
-			sys_put_le32(ctrl->val, data);
-			data_len = 4;
-		} else {
-			LOG_WRN("Exposure absolute control not supported");
-			ret = -ENOTSUP;
-		}
-		break;
-
 	case VIDEO_CID_FOCUS_ABSOLUTE:
-		if (uvc_host_ct_supports_control(uvc_dev, UVC_CT_BMCONTROL_FOCUS_ABSOLUTE)) {
-			entity_id = uvc_dev->vc_ctd->bTerminalID;
-			control_selector = UVC_CT_FOCUS_ABS_CONTROL;
-			sys_put_le16(ctrl->val, data);
-			data_len = 2;
-		} else {
-			LOG_WRN("Focus absolute control not supported");
-			ret = -ENOTSUP;
-		}
-		break;
-
-	case VIDEO_CID_FOCUS_AUTO:
-		if (uvc_host_ct_supports_control(uvc_dev, UVC_CT_BMCONTROL_FOCUS_AUTO)) {
-			entity_id = uvc_dev->vc_ctd->bTerminalID;
-			control_selector = UVC_CT_FOCUS_AUTO_CONTROL;
-			data[0] = ctrl->val;
-			data_len = 1;
-		} else {
-			LOG_WRN("Auto focus control not supported");
-			ret = -ENOTSUP;
-		}
-		break;
-
-	case VIDEO_CID_FOCUS_RELATIVE:
-		if (uvc_host_ct_supports_control(uvc_dev, UVC_CT_BMCONTROL_FOCUS_RELATIVE)) {
-			entity_id = uvc_dev->vc_ctd->bTerminalID;
-			control_selector = UVC_CT_FOCUS_REL_CONTROL;
-			sys_put_le16(ctrl->val, data);
-			data_len = 2;
-		} else {
-			LOG_WRN("Focus relative control not supported");
-			ret = -ENOTSUP;
-		}
-		break;
-
+	case VIDEO_CID_IRIS_ABSOLUTE:
 	case VIDEO_CID_ZOOM_ABSOLUTE:
-		if (uvc_host_ct_supports_control(uvc_dev, UVC_CT_BMCONTROL_ZOOM_ABSOLUTE)) {
-			entity_id = uvc_dev->vc_ctd->bTerminalID;
-			control_selector = UVC_CT_ZOOM_ABS_CONTROL;
-			sys_put_le16(ctrl->val, data);
-			data_len = 2;
-		} else {
-			LOG_WRN("Zoom absolute control not supported");
-			ret = -ENOTSUP;
+		sys_put_le16((uint16_t)ctrl->val, data);
+		break;
+
+	/* Boolean controls (1 = enable/auto, 0 = disable/manual) */
+	case VIDEO_CID_AUTO_WHITE_BALANCE:
+	case VIDEO_CID_FOCUS_AUTO:
+	case VIDEO_CID_EXPOSURE_AUTO_PRIORITY:
+		data[0] = ctrl->val ? 1 : 0;
+		break;
+
+	/* Direct 8-bit controls */
+	case VIDEO_CID_EXPOSURE_AUTO:
+	case VIDEO_CID_IRIS_RELATIVE:
+		data[0] = (uint8_t)ctrl->val;
+		break;
+
+	/* Special auto gain (0xFF = auto, 0x00 = manual) */
+	case VIDEO_CID_AUTOGAIN:
+		data[0] = ctrl->val ? 0xFF : 0x00;
+		break;
+
+	/* Power line frequency with range check */
+	case VIDEO_CID_POWER_LINE_FREQUENCY:
+		if (ctrl->val < 0 || ctrl->val > 3) {
+			return -EINVAL;
 		}
+		data[0] = (uint8_t)ctrl->val;
+		break;
+
+	/* 32-bit controls */
+	case VIDEO_CID_EXPOSURE_ABSOLUTE:
+		sys_put_le32((uint32_t)ctrl->val, data);
+		break;
+
+	/* Multi-byte relative controls */
+	case VIDEO_CID_FOCUS_RELATIVE:
+		data[0] = (int8_t)ctrl->val;  /* focus value */
+		data[1] = 0x01;               /* speed */
 		break;
 
 	case VIDEO_CID_ZOOM_RELATIVE:
-		if (uvc_host_ct_supports_control(uvc_dev, UVC_CT_BMCONTROL_ZOOM_RELATIVE)) {
-			entity_id = uvc_dev->vc_ctd->bTerminalID;
-			control_selector = UVC_CT_ZOOM_REL_CONTROL;
-			data[0] = ctrl->val; /* zoom value */
-			data[1] = 0x00; /* digital zoom (not used) */
-			data[2] = 0x01; /* speed */
-			data_len = 3;
-		} else {
-			LOG_WRN("Zoom relative control not supported");
-			ret = -ENOTSUP;
-		}
+		data[0] = (int8_t)ctrl->val; /* zoom value */
+		data[1] = 0x00;              /* digital zoom (not used) */
+		data[2] = 0x01;              /* speed */
 		break;
 
 	case VIDEO_CID_TILT_RELATIVE:
-		if (uvc_host_ct_supports_control(uvc_dev, UVC_CT_BMCONTROL_PAN_TILT_RELATIVE)) {
-			entity_id = uvc_dev->vc_ctd->bTerminalID;
-			control_selector = UVC_CT_PANTILT_REL_CONTROL;
-			data[0] = 0x00; /* pan relative (LSB) */
-			data[1] = 0x00; /* pan relative (MSB) */
-			sys_put_le16(ctrl->val, &data[2]); /* tilt relative */
-			data_len = 4;
-		} else {
-			LOG_WRN("Tilt relative control not supported");
-			ret = -ENOTSUP;
-		}
-		break;
-
-	case VIDEO_CID_IRIS_ABSOLUTE:
-		if (uvc_host_ct_supports_control(uvc_dev, UVC_CT_BMCONTROL_IRIS_ABSOLUTE)) {
-			entity_id = uvc_dev->vc_ctd->bTerminalID;
-			control_selector = UVC_CT_IRIS_ABS_CONTROL;
-			sys_put_le16(ctrl->val, data);
-			data_len = 2;
-		} else {
-			LOG_WRN("Iris absolute control not supported");
-			ret = -ENOTSUP;
-		}
-		break;
-
-	case VIDEO_CID_IRIS_RELATIVE:
-		if (uvc_host_ct_supports_control(uvc_dev, UVC_CT_BMCONTROL_IRIS_RELATIVE)) {
-			entity_id = uvc_dev->vc_ctd->bTerminalID;
-			control_selector = UVC_CT_IRIS_REL_CONTROL;
-			data[0] = ctrl->val; /* iris value */
-			data_len = 1;
-		} else {
-			LOG_WRN("Iris relative control not supported");
-			ret = -ENOTSUP;
-		}
+		data[0] = 0x00; /* pan relative (LSB) */
+		data[1] = 0x00; /* pan relative (MSB) */
+		sys_put_le16((int16_t)ctrl->val, &data[2]); /* tilt relative */
 		break;
 
 	default:
-		LOG_ERR("Unknown control ID: %u", ctrl->id);
+		/* Standard encoding logic based on mapping table */
+		switch (map->size) {
+		case 1:
+			data[0] = (uint8_t)ctrl->val;
+			break;
+
+		case 2:
+			if (map->type == UVC_CONTROL_SIGNED) {
+				sys_put_le16((int16_t)ctrl->val, data);
+			} else {
+				sys_put_le16((uint16_t)ctrl->val, data);
+			}
+			break;
+
+		case 3:
+			data[0] = (uint8_t)(ctrl->val & 0xFF);
+			data[1] = (uint8_t)((ctrl->val >> 8) & 0xFF);
+			data[2] = (uint8_t)((ctrl->val >> 16) & 0xFF);
+			break;
+
+		case 4:
+			if (map->type == UVC_CONTROL_SIGNED) {
+				sys_put_le32((int32_t)ctrl->val, data);
+			} else {
+				sys_put_le32((uint32_t)ctrl->val, data);
+			}
+			break;
+
+		default:
+			return -EINVAL;
+		}
+		break;
+	}
+
+	return 0;
+}
+
+/**
+ * @brief Check if control is supported by checking the corresponding bit
+ *
+ * @param uvc_dev UVC device structure
+ * @param unit_subtype Unit subtype
+ * @param entity_id Entity ID
+ * @param control_bit Control bit to check
+ * @return true if supported, false otherwise
+ */
+static bool uvc_host_is_control_supported(struct uvc_device *uvc_dev, uint8_t unit_subtype,
+					  uint8_t entity_id, uint32_t control_bit)
+{
+	switch (unit_subtype) {
+	case UVC_VC_PROCESSING_UNIT:
+		return uvc_host_pu_supports_control(uvc_dev, control_bit);
+
+	case UVC_VC_INPUT_TERMINAL:
+		return uvc_host_ct_supports_control(uvc_dev, control_bit);
+
+	case UVC_VC_SELECTOR_UNIT:
+		/* TODO: Check selector unit's bmControls field from descriptor */
+		return true;
+
+	case UVC_VC_EXTENSION_UNIT:
+		/* TODO: Check extension unit's bmControls field from descriptor */
+		return true;
+
+	default:
+		return false;
+	}
+}
+
+/**
+ * @brief Set UVC control value
+ *
+ * @param dev Pointer to video device
+ * @param id Control ID to set
+ * @return 0 on success, negative error code on failure
+ */
+static int video_usb_uvc_host_set_ctrl(const struct device *dev, uint32_t id)
+{
+	struct uvc_device *uvc_dev = dev->data;
+	const struct uvc_control_map *map;
+	struct video_ctrl *ctrl = NULL;
+	uint8_t unit_subtype;
+	uint8_t entity_id;
+	uint8_t data[4] = {0};
+	int ret;
+
+	if (!uvc_dev || !dev) {
+		LOG_ERR("Invalid parameters: dev=%p", dev);
 		return -EINVAL;
 	}
 
-	/* Send control request if parameters are valid and no error occurred */
-	if (ret == 0 && entity_id != 0 && control_selector != 0 && data_len > 0) {
-		ret = uvc_host_control_unit_and_terminal_request(uvc_dev, UVC_SET_CUR, control_selector,
-							entity_id, data, data_len);
+	if (!uvc_dev->connected) {
+		LOG_ERR("UVC device not connected");
+		return -ENODEV;
 	}
 
-	return ret;
+	ret = video_find_ctrl(dev, id, &ctrl);
+	if (ret) {
+		LOG_ERR("Control ID 0x%08x not found", id);
+		return ret;
+	}
+
+	LOG_DBG("Setting control CID 0x%08x to value %d", id, ctrl->val);
+
+	/* Find control mapping in mapping tables */
+	ret = uvc_host_find_control_mapping(uvc_dev, id, &unit_subtype, &map);
+	if (ret) {
+		LOG_ERR("Control CID 0x%08x not found in mapping tables", id);
+		return -EINVAL;
+	}
+
+	/* Get entity ID for this unit type */
+	entity_id = uvc_host_get_entity_id(uvc_dev, unit_subtype);
+	if (entity_id == 0) {
+		LOG_ERR("Entity not found for unit subtype %u", unit_subtype);
+		return -ENODEV;
+	}
+
+	/* Check if device supports this control */
+	uint32_t control_bit = BIT(map->bit);
+
+	if (!uvc_host_is_control_supported(uvc_dev, unit_subtype, entity_id, control_bit)) {
+		LOG_WRN("Control CID 0x%08x (bit %u) not supported by device", id, map->bit);
+		return -ENOTSUP;
+	}
+
+	/* Encode control value (handles both special and standard controls) */
+	ret = uvc_host_encode_control_value(ctrl, map, data);
+	if (ret) {
+		LOG_ERR("Failed to encode control value %d: %d", ctrl->val, ret);
+		return ret;
+	}
+
+	/* Send control request */
+	ret = uvc_host_control_unit_and_terminal_request(uvc_dev, UVC_SET_CUR, map->selector,
+							 entity_id, data, map->size);
+	if (ret) {
+		LOG_ERR("Failed to set control CID 0x%08x to value %d: %d", 
+			ctrl->id, ctrl->val, ret);
+		return ret;
+	}
+
+	LOG_DBG("Successfully set control CID 0x%08x to value %d", ctrl->id, ctrl->val);
+	return 0;
 }
 
 /**
