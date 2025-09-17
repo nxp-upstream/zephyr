@@ -72,6 +72,8 @@ int video_init_menu_ctrl(struct video_ctrl *ctrl, const struct device *dev, uint
 int video_init_int_menu_ctrl(struct video_ctrl *ctrl, const struct device *dev, uint32_t id,
 			     uint8_t def, const int64_t menu[], size_t menu_len);
 
+int video_find_ctrl(const struct device *dev, uint32_t id, struct video_ctrl **ctrl);
+
 void video_cluster_ctrl(struct video_ctrl *ctrls, uint8_t sz);
 
 void video_auto_cluster_ctrl(struct video_ctrl *ctrls, uint8_t sz, bool set_volatile);

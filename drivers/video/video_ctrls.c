@@ -270,7 +270,7 @@ void video_auto_cluster_ctrl(struct video_ctrl *ctrls, uint8_t sz, bool set_vola
 	}
 }
 
-static int video_find_ctrl(const struct device *dev, uint32_t id, struct video_ctrl **ctrl)
+int video_find_ctrl(const struct device *dev, uint32_t id, struct video_ctrl **ctrl)
 {
 	struct video_device *vdev = video_find_vdev(dev);
 
