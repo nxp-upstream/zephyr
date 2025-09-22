@@ -426,12 +426,6 @@ static int sco_setup_sync_conn(struct bt_conn *sco_conn)
 	cp->pkt_type = sys_cpu_to_le16(sco_conn->sco.pkt_type);
 	cp->tx_bandwidth = sys_cpu_to_le32(0x00001f40);
 	cp->rx_bandwidth = sys_cpu_to_le32(0x00001f40);
-	cp->max_latency = sys_cpu_to_le16(BT_HCI_SCO_MAX_LATENCY_DEFAULT);
-	cp->retrans_effort = BT_HCI_SCO_RETRANS_EFFORT_DEFAULT;
-	cp->content_format = sys_cpu_to_le16(sco_conn->sco.chan->voice_setting);
-
-	notify_setup_sco_cmd(sco_conn->sco.acl, cp);
-
 	err = bt_hci_cmd_send_sync(BT_HCI_OP_SETUP_SYNC_CONN, buf, NULL);
 	if (err < 0) {
 		return err;
