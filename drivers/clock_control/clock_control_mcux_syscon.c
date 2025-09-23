@@ -137,7 +137,11 @@ static int mcux_lpc_syscon_clock_control_on(const struct device *dev,
 #endif /* DT_NODE_HAS_STATUS(DT_NODELABEL(rtc), okay) */
 
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(pdm), okay)
+#if defined(CONFIG_SOC_SERIES_IMXRT7XX)
+	CLOCK_GetMicfilClkFreq();
+#else
 	CLOCK_EnableClock(kCLOCK_Micfil);
+#endif
 #endif
 
 	return 0;

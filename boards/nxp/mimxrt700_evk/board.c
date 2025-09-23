@@ -534,6 +534,14 @@ void board_early_init_hook(void)
 	CLOCK_EnableClock(kCLOCK_Acmp0);
 	RESET_ClearPeripheralReset(kACMP0_RST_SHIFT_RSTn);
 #endif
+
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(pdm), okay)
+	/* PDM clock 368.64MHz / 15 = 24.576MHz */
+	CLOCK_AttachClk(kAUDIO_PLL_PFD3_to_MICFIL0);
+	CLOCK_SetClkDiv(kCLOCK_DivMicfil0Clk, 15U);
+	CLOCK_EnableClock(kCLOCK_Pdm);
+	RESET_ClearPeripheralReset(kPDM_RST_SHIFT_RSTn);
+#endif
 }
 
 static void GlikeyWriteEnable(GLIKEY_Type *base, uint8_t idx)
@@ -568,6 +576,8 @@ static void BOARD_InitAHBSC(void)
 	AHBSC0->MEDIA_ARB0RAM_ACCESS_ENABLE = 0x3FFFFFFF;
 	AHBSC0->NPU_ARB0RAM_ACCESS_ENABLE = 0x3FFFFFFF;
 	AHBSC0->HIFI4_ARB0RAM_ACCESS_ENABLE = 0x3FFFFFFF;
+
+	//AHBSC0->AIPS2_BRIDGE_GROUP0_MEM_RULE1 &= ~(0x3 << 24);
 #endif
 
 	GlikeyWriteEnable(GLIKEY1, 1U);
@@ -591,6 +601,10 @@ static void BOARD_InitAHBSC(void)
 	GlikeyWriteEnable(GLIKEY1, 7U);
 	AHBSC3->COMPUTE_AIPS_PERIPHERAL_ACCESS_ENABLE = 0xffffffff;
 	AHBSC3->SENSE_AIPS_PERIPHERAL_ACCESS_ENABLE = 0xffffffff;
+
+	//AHBSC3->AIPS2_BRIDGE_GROUP0_MEM_RULE1 &= ~(0x3 << 24);
+	AHBSC3->COMPUTE_AIPS_PERIPHERAL_ACCESS_ENABLE |= (1 << 14);
+	AHBSC3->SENSE_AIPS_PERIPHERAL_ACCESS_ENABLE |= (1 << 14);
 
 	GlikeyWriteEnable(GLIKEY2, 1U);
 	/*Disable secure and secure privilege checking. */

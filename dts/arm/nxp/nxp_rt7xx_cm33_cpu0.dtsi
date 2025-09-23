@@ -1239,6 +1239,48 @@
 
 		status = "disabled";
 	};
+
+	pdm: pdm@20e000 {
+		compatible = "nxp,pdm";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		interrupts = <18 0>;
+		reg = <0x20e000 0x1000>;
+		clocks = <&clkctl3 MCUX_PDM_CLK>;
+		status = "disabled";
+		quality-mode = <1>;
+		cic-decimation-rate = <16>;
+		fifo-watermark = <7>;
+		sample-rate = <16000>;
+
+		channel0: pdm-channel@0 {
+			reg = <0>;
+			status = "disabled";
+			dc-remover-cutoff-freq = <2>;
+			decimation-filter-gain = <5>;
+		};
+
+		channel1: pdm-channel@1 {
+			reg = <1>;
+			status = "disabled";
+			dc-remover-cutoff-freq = <2>;
+			decimation-filter-gain = <5>;
+		};
+
+		channel2: pdm-channel@2 {
+			reg = <2>;
+			status = "disabled";
+			dc-remover-cutoff-freq = <2>;
+			decimation-filter-gain = <5>;
+		};
+
+		channel3: pdm-channel@3 {
+			reg = <3>;
+			status = "disabled";
+			dc-remover-cutoff-freq = <2>;
+			decimation-filter-gain = <5>;
+		};
+	};
 };
 
 &systick {
