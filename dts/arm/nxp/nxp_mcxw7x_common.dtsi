@@ -40,6 +40,74 @@
 				reg = <0xe000ed90 0x40>;
 			};
 		};
+
+		power-states {
+			/* This is corresponding to entering the "sleep" mode
+			 * of the MCXW without any futher configurations. This is most simple
+			 * state and is just entered by doing WFI mostly.
+			 */
+			sleep: sleep {
+				compatible = "zephyr,power-state";
+				power-state-name = "runtime-idle";
+				exit-latency-us = <10>;
+			};
+			/* This is corresponding to "sleep mode" with extra
+			 * optimization by gating the clocks of certain peripherals,
+			 * also the subdomains voltage levels could be configured differently
+			 * Note it is "suspend-to-idle" for zephyr due to some peripherals may
+			 * lose operation if their clock is gated, even though it is same
+			 * hardware power mode.
+			 */
+			sleep_optimized: sleep-optimized {
+				compatible = "zephyr,power-state";
+				power-state-name = "suspend-to-idle";
+				substate-id = <0>;
+				exit-latency-us = <10>;
+			};
+			/* This is corresponding to the "deep sleep" mode of the SOC
+			 * with no extra configurations. Note it is also "suspend-to-idle"
+			 * due to some peripherals may stop operating but do not lose their
+			 * state. Therefore the differentation from the optimized sleep state
+			 * is the substate id.
+			 */
+			/*deep_sleep: deep-sleep {
+				compatible = "zephyr,power-state";
+				power-state-name = "suspend-to-idle";
+				substate-id = <1>;
+				exit-latency-us = <11>;
+			};*/
+			/* It is possible to do more configuring of the hardware in addition
+			 * to just enter deep sleep, the peripherals in core domain
+			 * can be power gated instead of just low power retention,
+			 * and different peripheral in wakeup domain can be put in low power
+			 * instead of remaining operational. So this is "standby" due to
+			 * allowing configure of power gating peripherals which could lose state
+			 */
+			deep_sleep_optimized: deep-sleep-optimized {
+				compatible = "zephyr,power-state";
+				power-state-name = "standby";
+				exit-latency-us = <11>;
+			};
+			/* This is a theoretical case of using the "power down" mode of the SOC
+			 * and manually saving and restoring the CPU operating state from RAM,
+			 * and re-initializing the peripherals. The wake domain peripherals
+			 * can actually remain active in this mode too.
+			 */
+			/*power_down: power-down {
+				compatible = "zephyr,power-state";
+				power-state-name = "suspend-to-ram";
+				exit-latency-us = <235>;
+			};*/
+			/* This mode essentially turns everything off and is like rebooting
+			 * from scratch. only the VDD_SYS domain or external reset can wake
+			 * the device such as RTC and LPTMR or GPIOD and the memory is not retain.
+			 */
+			/*deep_power_down: deep-power-down {
+				compatible = "zephyr,power-state";
+				power-state-name = "soft-off";
+				exit-latency-us = <835>;
+			};*/
+		};
 	};
 
 	soc {
