@@ -108,7 +108,10 @@ set_variable_ifdef(CONFIG_UART_MCUX_IUART       CONFIG_MCUX_COMPONENT_driver.iua
 set_variable_ifdef(CONFIG_ADC_MCUX_12B1MSPS_SAR CONFIG_MCUX_COMPONENT_driver.adc_12b1msps_sar)
 set_variable_ifdef(CONFIG_HWINFO_MCUX_MCX_CMC   CONFIG_MCUX_COMPONENT_driver.mcx_cmc)
 set_variable_ifdef(CONFIG_HWINFO_MCUX_SRC       CONFIG_MCUX_COMPONENT_driver.src)
+set_variable_ifdef(CONFIG_NXP_SPC               CONFIG_MCUX_COMPONENT_driver.spc)
+set_variable_ifdef(CONFIG_NXP_CMC               CONFIG_MCUX_COMPONENT_driver.cmc)
 set_variable_ifdef(CONFIG_HWINFO_MCUX_SIM       CONFIG_MCUX_COMPONENT_driver.sim)
+set_variable_ifdef(CONFIG_NXP_VBAT              CONFIG_MCUX_COMPONENT_driver.vbat)
 set_variable_ifdef(CONFIG_HWINFO_MCUX_RCM       CONFIG_MCUX_COMPONENT_driver.rcm)
 set_variable_ifdef(CONFIG_IPM_MCUX              CONFIG_MCUX_COMPONENT_driver.mailbox)
 set_variable_ifdef(CONFIG_MBOX_NXP_MAILBOX      CONFIG_MCUX_COMPONENT_driver.mailbox)
@@ -183,10 +186,6 @@ endif()
 
 if(CONFIG_SOC_FAMILY_MCXN OR CONFIG_SOC_FAMILY_MCXA)
   set(CONFIG_MCUX_COMPONENT_driver.mcx_spc ON)
-endif()
-
-if(CONFIG_BT_NXP AND CONFIG_SOC_FAMILY_MCXW OR CONFIG_IEEE802154_MCXW)
-  set(CONFIG_MCUX_COMPONENT_driver.spc ON)
 endif()
 
 if(((${MCUX_DEVICE} MATCHES "MIMXRT1[0-9][0-9][0-9]") AND (NOT (CONFIG_SOC_MIMXRT1166_CM4 OR CONFIG_SOC_MIMXRT1176_CM4 OR CONFIG_SOC_MIMXRT1189_CM33))) OR

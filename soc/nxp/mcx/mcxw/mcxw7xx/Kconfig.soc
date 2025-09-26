@@ -5,6 +5,10 @@
 config SOC_SERIES_MCXW7XX
 	bool
 	select SOC_FAMILY_MCXW
+	# Pull in the cmc, spc and vbat SDK drivers
+	select NXP_CMC
+	select NXP_SPC
+	select NXP_VBAT
 
 config SOC_SERIES
 	default "mcxw7xx" if SOC_SERIES_MCXW7XX

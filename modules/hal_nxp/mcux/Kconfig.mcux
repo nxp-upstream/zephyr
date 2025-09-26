@@ -81,4 +81,19 @@ config NXP_RF_IMU
 	help
 	   RF_IMU adapter is needed for intercore messaging.
 
+config NXP_CMC
+	bool "Include the NXP CMC HAL drirver"
+	help
+	  If enabled, the NXP CMC HAL driver will be linked in.
+
+config NXP_SPC
+	bool "Include the NXP CMC HAL drirver"
+	help
+	  If enabled, the NXP SPC HAL driver will be linked in.
+
+config NXP_VBAT
+	bool "Include the NXP VBAT HAL drirver"
+	help
+	  If enabled, the NXP VBAT HAL driver will be linked in.
+
 endif # HAS_MCUX
