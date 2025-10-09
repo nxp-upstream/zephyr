@@ -38,6 +38,7 @@ static struct net_mgmt_event_callback ail_net_event_ipv4_addr_add_cb;
 #endif /* CONFIG_NET_IPV4 */
 static uint32_t ail_iface_index;
 static struct net_if *ail_iface_ptr;
+static struct net_if *ot_iface_ptr;
 static bool is_border_router_started;
 char otbr_vendor_name[] = OTBR_VENDOR_NAME;
 char otbr_base_service_instance_name[] = OTBR_BASE_SERVICE_INSTANCE_NAME;
@@ -66,6 +67,7 @@ int openthread_start_border_router_services(struct net_if *ot_iface, struct net_
 	otInstance *instance = openthread_get_default_instance();
 	ail_iface_index = (uint32_t)net_if_get_by_iface(ail_iface);
 	ail_iface_ptr = ail_iface;
+	ot_iface_ptr = ot_iface;
 
 	net_if_flag_set(ot_iface, NET_IF_FORWARD_MULTICASTS);
 
@@ -477,6 +479,10 @@ static bool openthread_border_router_check_unicast_packet_forwarding_policy(stru
 	hdr = (struct net_ipv6_hdr *)net_pkt_get_data(pkt, &ipv6_access);
 	if (hdr == NULL) {
 		return false;
+	}
+
+	if (net_pkt_orig_iface(pkt) != ail_iface_ptr && net_pkt_iface(pkt) == ot_iface_ptr) {
+		return true;
 	}
 
 	/* An IPv6 packet with a link-local source address or a link-local destination address
