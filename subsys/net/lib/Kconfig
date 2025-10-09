@@ -9,6 +9,8 @@ source "subsys/net/lib/dns/Kconfig"
 
 source "subsys/net/lib/latmon/Kconfig"
 
+source "subsys/net/lib/mcp/Kconfig"
+
 source "subsys/net/lib/midi2/Kconfig"
 
 source "subsys/net/lib/mqtt/Kconfig"
@@ -30,6 +32,7 @@ source "subsys/net/lib/socks/Kconfig"
 source "subsys/net/lib/sntp/Kconfig"
 
 source "subsys/net/lib/ocpp/Kconfig"
+
 
 endmenu
 
