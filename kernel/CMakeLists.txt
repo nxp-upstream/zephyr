@@ -71,6 +71,7 @@ kernel_sources(
   float.c
   version.c
   )
+zephyr_library_sources_ifdef(CONFIG_TIMING_FUNCTIONS busy_wait.c)
 
 kernel_sources_ifdef(CONFIG_SCHED_CPU_MASK
   cpu_mask.c

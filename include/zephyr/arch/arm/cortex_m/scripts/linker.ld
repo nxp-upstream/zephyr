@@ -456,4 +456,12 @@ _flash_used = LOADADDR(.last_section) + SIZEOF(.last_section) - __rom_region_sta
 
     GROUP_END(RAMABLE_REGION)
 
+/* VG Lite heap in RAM, noinit */
+.vglite.noinit.mem_pool.* (NOLOAD) :
+{
+    . = ALIGN(4);
+    KEEP(*(.vglite.noinit.mem_pool.*))
+    . = ALIGN(4);
+} > RAM
+
     }

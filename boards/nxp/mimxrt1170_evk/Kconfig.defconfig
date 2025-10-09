@@ -36,5 +36,8 @@ endif # DISK_DRIVERS
 
 configdefault NET_L2_ETHERNET
 	default y if DT_HAS_NXP_ENET_ENABLED
+	
+config ARCH_HAS_CUSTOM_BUSY_WAIT
+        def_bool n
 
 endif
