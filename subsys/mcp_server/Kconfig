@@ -1,0 +1,16 @@
+# Copyright 2025 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig MCP_SERVER
+	bool "Model Context Protocol (MCP) Server support"
+	depends on NETWORKING && HTTP_SERVER && JSON_LIBRARY
+	help
+	  Enable support for MCP Server functionality.
+
+if MCP_SERVER
+
+module = MCP
+module-str = MCP Server
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # MCP_SERVER
