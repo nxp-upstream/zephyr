@@ -39,6 +39,23 @@ int scmi_shmem_get_channel_status(const struct device *dev, uint32_t *status)
 	return 0;
 }
 
+int scmi_shmem_clear_channel_status(const struct device *dev, bool a2p)
+{
+	struct scmi_shmem_data *data;
+	struct scmi_shmem_layout *layout;
+
+	data = dev->data;
+	layout = (struct scmi_shmem_layout *)data->regmap;
+
+	if (a2p) {
+		layout->chan_status &= ~SCMI_SHMEM_CHAN_STATUS_BUSY_BIT;
+	} else {
+		layout->chan_status |= SCMI_SHMEM_CHAN_STATUS_BUSY_BIT;
+	}
+
+	return 0;
+}
+
 static void scmi_shmem_memcpy(mm_reg_t dst, mm_reg_t src, uint32_t bytes)
 {
 	int i;
@@ -115,6 +132,7 @@ int scmi_shmem_write_message(const struct device *shmem, struct scmi_message *ms
 	struct scmi_shmem_layout *layout;
 	struct scmi_shmem_data *data;
 	const struct scmi_shmem_config *cfg;
+	bool a2p = true;
 
 	data = shmem->data;
 	cfg = shmem->config;
@@ -150,7 +168,7 @@ int scmi_shmem_write_message(const struct device *shmem, struct scmi_message *ms
 	}
 
 	/* done, mark channel as busy and proceed */
-	layout->chan_status &= ~SCMI_SHMEM_CHAN_STATUS_BUSY_BIT;
+	scmi_shmem_clear_channel_status(shmem, a2p);
 
 	return 0;
 }
