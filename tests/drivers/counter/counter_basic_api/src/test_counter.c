@@ -75,6 +75,9 @@ static const struct device *const devices[] = {
 #ifdef CONFIG_COUNTER_MCUX_RTC
 	DEVS_FOR_DT_COMPAT(nxp_rtc)
 #endif
+#ifdef CONFIG_COUNTER_MCUX_RTC_JDP
+	DEVS_FOR_DT_COMPAT(nxp_rtc_jdp)
+#endif
 #ifdef CONFIG_COUNTER_MCUX_QTMR
 	DEVS_FOR_DT_COMPAT(nxp_imx_tmr)
 #endif
@@ -152,6 +155,9 @@ static const struct device *const devices[] = {
 static const struct device *const period_devs[] = {
 #ifdef CONFIG_COUNTER_MCUX_RTC
 	DEVS_FOR_DT_COMPAT(nxp_rtc)
+#endif
+#ifdef CONFIG_COUNTER_MCUX_RTC_JDP
+	DEVS_FOR_DT_COMPAT(nxp_rtc_jdp)
 #endif
 #ifdef CONFIG_COUNTER_MCUX_LPC_RTC
 	DEVS_FOR_DT_COMPAT(nxp_lpc_rtc)
