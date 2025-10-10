@@ -27,9 +27,12 @@ static void scmi_mbox_rx_notify_cb(const struct device *mbox,
 				struct mbox_msg *data)
 {
 	struct scmi_channel *scmi_chan = user_data;
+	struct scmi_mbox_channel *mbox_chan = scmi_chan->data;
+	const struct device *shmem = mbox_chan->shmem;
 
 	if (scmi_chan->cb) {
 		scmi_chan->cb(scmi_chan);
+		scmi_shmem_clear_channel_status(shmem);
 	}
 }
 
@@ -74,7 +77,7 @@ static bool scmi_mbox_channel_is_free(const struct device *transport,
 	struct scmi_mbox_channel *mbox_chan = chan->data;
 
 	return scmi_shmem_channel_status(mbox_chan->shmem) &
-		SCMI_SHMEM_CHAN_STATUS_BUSY_BIT;
+		SCMI_SHMEM_CHAN_STATUS_FREE_BIT;
 }
 
 static int scmi_mbox_setup_chan(const struct device *transport,

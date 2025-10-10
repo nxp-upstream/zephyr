@@ -16,7 +16,7 @@
 #include <zephyr/arch/cpu.h>
 #include <errno.h>
 
-#define SCMI_SHMEM_CHAN_STATUS_BUSY_BIT BIT(0)
+#define SCMI_SHMEM_CHAN_STATUS_FREE_BIT BIT(0)
 #define SCMI_SHMEM_CHAN_FLAG_IRQ_BIT BIT(0)
 
 struct scmi_shmem_layout {
@@ -92,5 +92,15 @@ int scmi_shmem_vendor_write_message(struct scmi_shmem_layout *layout);
  * @retval negative errno if failure
  */
 int scmi_shmem_vendor_read_message(const struct scmi_shmem_layout *layout);
+
+/**
+ * @brief Clear a SHMEM area channel status
+ *
+ * @param dev pointer to shmem device
+ *
+ * @retval 0 if successful
+ * @retval negative errno if failure
+ */
+int scmi_shmem_clear_channel_status(const struct device *dev);
 
 #endif /* _INCLUDE_ZEPHYR_DRIVERS_FIRMWARE_SCMI_SHMEM_H_ */
