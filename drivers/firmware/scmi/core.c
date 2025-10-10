@@ -43,8 +43,20 @@ int scmi_status_to_errno(int scmi_status)
 	}
 }
 
-static void scmi_core_reply_cb(struct scmi_channel *chan)
+static void scmi_core_reply_cb(struct scmi_channel *chan, struct scmi_message *msg)
 {
+	int msg_type;
+
+	msg_type = SCMI_MESSAGE_HDR_EX_TYPE(msg->hdr);
+
+	switch (msg_type) {
+	case SCMI_COMMAND:
+	case SCMI_DELAYED_REPLY:
+	case SCMI_NOTIFICATION:
+	default:
+		LOG_WRN("Unexpected message type %u", msg_type);
+	}
+
 	if (!k_is_pre_kernel()) {
 		k_sem_give(&chan->sem);
 	}
