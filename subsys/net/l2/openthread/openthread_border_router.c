@@ -269,17 +269,28 @@ static void ot_bbr_multicast_listener_handler(void *context,
 					      const otIp6Address *address)
 {
 	struct openthread_context *ot_context = context;
-	struct in6_addr mcast_prefix = {0};
+	struct in6_addr recv_addr = {0};
+	struct net_if_mcast_addr *mcast_addr;
 
-	memcpy(mcast_prefix.s6_addr, address->mFields.m32, sizeof(otIp6Address));
+	memcpy(recv_addr.s6_addr, address->mFields.m32, sizeof(otIp6Address));
 
 	if (event == OT_BACKBONE_ROUTER_MULTICAST_LISTENER_ADDED) {
-		net_route_mcast_add((struct net_if *)ot_context->iface, &mcast_prefix, 16);
+		net_route_mcast_add(ot_context->iface, &recv_addr, sizeof(otIp6Address) * 8U);
+		mcast_addr = net_if_ipv6_maddr_add(ot_context->iface,
+				      (const struct in6_addr *)&recv_addr);
+		net_if_ipv6_maddr_join(ot_context->iface, mcast_addr);
 	} else {
-		struct net_route_entry_mcast *route_to_del = net_route_mcast_lookup(&mcast_prefix);
+		struct net_route_entry_mcast *route_to_del = net_route_mcast_lookup(&recv_addr);
+		struct net_if_mcast_addr *addr_to_del;
 
+		addr_to_del = net_if_ipv6_maddr_lookup(&recv_addr,
+						       &(ot_context->iface));
 		if (route_to_del != NULL) {
 			net_route_mcast_del(route_to_del);
+		}
+
+		if (addr_to_del != NULL && net_if_ipv6_maddr_is_joined(addr_to_del)) {
+			net_if_ipv6_maddr_leave(ot_context->iface, addr_to_del);
 		}
 	}
 }
