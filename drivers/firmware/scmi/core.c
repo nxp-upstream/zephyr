@@ -258,6 +258,31 @@ int scmi_send_message(struct scmi_protocol *proto, struct scmi_message *msg,
 	}
 }
 
+int scmi_read_message(struct scmi_protocol *proto, struct scmi_message *msg)
+{
+	int ret;
+
+	if (!proto->rx) {
+		return -ENODEV;
+	}
+
+	if (!proto->rx->ready) {
+		return -EINVAL;
+	}
+
+	/* read message from platform, such as notification event
+	 *
+	 * Unlike scmi_send_message, reading messages with scmi_read_message is not currently
+	 * required in the PRE_KERNEL stage. The interrupt-based logic is used here.
+	 */
+	if (k_is_pre_kernel()) {
+		return -EINVAL;
+	}
+
+	ret = scmi_transport_read_message(proto->transport, proto->rx, msg);
+
+	return ret;
+}
 static int scmi_core_protocol_setup(const struct device *transport)
 {
 	int ret;
