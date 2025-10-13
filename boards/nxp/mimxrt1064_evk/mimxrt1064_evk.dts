@@ -22,6 +22,7 @@
 		watchdog0 = &wdog0;
 		sdhc0 = &usdhc1;
 		mcuboot-button0 = &user_button;
+		rtc = &counter_rtc;
 	};
 
 	chosen {
@@ -363,3 +364,11 @@ zephyr_udc0: &usb1 {
 dvp_fpc24_i2c: &lpi2c1 {};
 
 dvp_fpc24_interface: &csi {};
+
+&snvs {
+	status = "okay";
+};
+
+&counter_rtc {
+	status = "okay";
+};

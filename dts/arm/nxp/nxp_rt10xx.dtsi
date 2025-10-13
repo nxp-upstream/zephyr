@@ -338,6 +338,21 @@
 		};
 
 		snvs: snvs@400d4000 {
+			compatible = "nxp,imx-snvs-rtc";
+			reg = <0x400d4000 0x4000>;
+			interrupts = <46 0>;
+			wakeup-source;
+			status = "disabled";
+
+			counter_rtc: counter_rtc {
+				compatible = "zephyr,rtc-counter";
+				status = "disabled";
+			};
+		};
+
+		/*
+
+		snvs: snvs@400d4000 {
 			compatible = "nxp,imx-snvs";
 			reg = <0x400d4000 0x4000>;
 
@@ -347,6 +362,7 @@
 				wakeup-source;
 			};
 		};
+		*/
 
 		gpio1: gpio@401b8000 {
 			compatible = "nxp,imx-gpio";

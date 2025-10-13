@@ -463,7 +463,7 @@ static int rtc_counter_get_time(const struct device *dev, struct rtc_time *timep
 	struct rtc_counter_data *data = dev->data;
 	uint32_t now_ticks;
 	int ret;
-	int64_t epoch;
+	int64_t epoch = 0;
 	int64_t current_seconds;
 
 	if (timeptr == NULL) {
