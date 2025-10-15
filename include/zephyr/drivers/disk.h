@@ -68,6 +68,9 @@ extern "C" {
  */
 #define DISK_IOCTL_CTRL_DEINIT			7
 
+/* Define missing IOCTL if not defined in system headers */
+#define DISK_IOCTL_SET_SIGNAL			8
+
 /**
  * @brief Possible return bitmasks for disk_status()
  */

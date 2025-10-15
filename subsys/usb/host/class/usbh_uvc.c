@@ -36,26 +36,16 @@
 LOG_MODULE_REGISTER(usbh_uvc, CONFIG_USBH_VIDEO_LOG_LEVEL);
 
 /**
- * @brief UVC device code table for matching UVC devices
+ * @brief MSC device code table for matching MSC devices
  *
- * This table defines the device matching criteria for USB Video Class (UVC) devices.
- * It includes specific device entries and generic interface matching rules.
+ * This table defines the device matching criteria for Mass Storage Class (MSC) devices.
  */
 static const struct usbh_device_code_table uvc_device_code[] = {
-	/* Intel D435i depth camera - specific device match */
-	{
-		.match_type					= USBH_MATCH_DEVICE,
-		.vid						= 0x8086,
-		.pid						= 0x0b3a,
-		.interface_class_code		= UVC_SC_VIDEOCLASS,
-		.interface_subclass_code	= UVC_SC_VIDEOCONTROL,
-		.interface_protocol_code	= 0,
-	},
 	/* Generic UVC video control interface match */
 	{
 		.match_type					= USBH_MATCH_INTFACE,
-		.interface_class_code		= UVC_SC_VIDEOCLASS,
-		.interface_subclass_code	= UVC_SC_VIDEOCONTROL,
+		.interface_class_code		= MSC_SC_MSCCLASS,
+		.interface_subclass_code	= MSC_SC_MSCCONTROL,
 		.interface_protocol_code	= 0,
 	}
 };

@@ -1,0 +1,36 @@
+# USB Host MSC optimization configuration
+
+config USBH_MSC_LOG_LEVEL
+	int "USB Host MSC log level"
+	default 3
+	range 0 4
+	help
+	  Set log level for USB Host MSC driver.
+	  0 = OFF, 1 = ERROR, 2 = WARNING, 3 = INFO, 4 = DEBUG
+
+config USBH_MSC_SCSI_LOG_LEVEL
+	int "USB Host MSC SCSI log level"
+	default 3
+	range 0 4
+	help
+	  Set log level for USB Host MSC SCSI layer.
+
+config USBH_MSC_PERFORMANCE_MONITORING
+	bool "Enable performance monitoring"
+	default y
+	help
+	  Enable performance monitoring and statistics collection.
+
+config USBH_MSC_MAX_TRANSFER_SIZE
+	int "Maximum transfer size in bytes"
+	default 65536
+	range 4096 131072
+	help
+	  Maximum size for a single USB transfer.
+
+config USBH_MSC_RETRY_COUNT
+	int "Maximum retry count for failed operations"
+	default 3
+	range 1 10
+	help
+	  Number of retries for failed USB transfers.

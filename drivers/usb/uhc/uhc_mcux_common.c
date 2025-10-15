@@ -294,7 +294,7 @@ usb_host_pipe_t *uhc_mcux_init_hal_ep(const struct device *dev, struct uhc_trans
 	if (pipe_init.endpointAddress == 0) {
 		pipe_init.pipeType = USB_ENDPOINT_CONTROL;
 	} else {
-		pipe_init.pipeType = USB_ENDPOINT_ISOCHRONOUS;
+		pipe_init.pipeType = USB_ENDPOINT_BULK;
 	}
 
 	status = priv->mcux_if->controllerOpenPipe(priv->mcux_host.controllerHandle,

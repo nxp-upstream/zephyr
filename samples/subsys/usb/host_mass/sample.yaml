@@ -1,0 +1,24 @@
+sample:
+  name: USB Host Mass Storage
+tests:
+  sample.usbh.mass_storage:
+    tags:
+      - usb
+      - samples
+    extra_configs:
+      - CONFIG_FAT_FILESYSTEM_ELM=y
+      - CONFIG_USB_HOST=y
+    harness: console
+    harness_config:
+      type: multi_line
+      ordered: true
+      regex:
+        - "USB Host Mass Storage Detection Sample"
+        - "Waiting for USB Mass Storage device..."
+        - "USB Mass Storage device connected!"
+    platform_allow:
+      - rd_rw612_bga/rw612
+    depends_on:
+      - usbh
+    integration_platforms:
+      - rd_rw612_bga/rw612
