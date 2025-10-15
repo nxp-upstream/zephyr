@@ -1,4 +1,5 @@
 # Copyright (c) 2022 Bjarki Arge Andreasen
+# Copyright 2025 NXP
 # SPDX-License-Identifier: Apache-2.0
 
 tests:
@@ -12,3 +13,28 @@ tests:
     timeout: 100
     platform_exclude:
       - qemu_x86_64
+
+  drivers.rtc.rtc_api.rtc_counter:
+    tags:
+      - drivers
+      - rtc
+      - api
+    filter: dt_alias_exists("rtc")
+    depends_on: rtc
+    timeout: 100
+    platform_allow:
+      - frdm_mcxw71
+      - lpcxpresso55s69/lpc55s69/cpu0
+      - mimxrt1010_evk
+      - mimxrt1015_evk
+      - mimxrt1020_evk
+      - mimxrt1024_evk
+      - mimxrt1040_evk
+      - mimxrt1050_evk
+      - mimxrt1060_evk
+      - mimxrt1062_fmurt6
+      - mimxrt1064_evk
+    extra_configs:
+      - CONFIG_RTC_ALARM=y
+      - CONFIG_RTC_INIT_PRIORITY=70
+      - CONFIG_TEST_RTC_ALARM_TIME_MASK=255
