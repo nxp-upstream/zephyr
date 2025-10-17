@@ -106,4 +106,16 @@ int scmi_shmem_vendor_read_message(const struct scmi_shmem_layout *layout);
  */
 int scmi_shmem_clear_channel_status(const struct device *dev, bool a2p);
 
+/**
+ * @brief Read a message header from a SHMEM area
+ *
+ * @param shmem pointer to shmem device
+ * @param msg message to write the data into
+ *
+ * @retval 0 if successful
+ * @retval negative errno if failure
+ */
+
+int scmi_shmem_read_hdr(const struct device *shmem, struct scmi_message *msg);
+
 #endif /* _INCLUDE_ZEPHYR_DRIVERS_FIRMWARE_SCMI_SHMEM_H_ */
