@@ -38,6 +38,12 @@ BUILD_ASSERT(DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT) == 1,
 #define MAX_CYCLES (MAX_TICKS * CYCLES_PER_TICK)
 #define MIN_DELAY  1000
 
+#ifdef CONFIG_MCUX_LPTMR_TIMER_SAFETY_WINDOW_CYCLES
+#define SAFETY_WINDOW_CYCLES CONFIG_MCUX_LPTMR_TIMER_SAFETY_WINDOW_CYCLES
+#else
+#define SAFETY_WINDOW_CYCLES 100
+#endif
+
 /* 32 bit cycle counter */
 static volatile uint32_t cycles;
 
@@ -49,6 +55,22 @@ static uint32_t announced_cycles;
 
 /* Lock on shared variables */
 static struct k_spinlock lock;
+
+static void lptmr_set_safe_immediate(uint32_t target_cycles)
+{
+	uint32_t hw_counter;
+
+	/* Read current hardware counter */
+	hw_counter = LPTMR_GetCurrentTimerCount(LPTMR_BASE);
+
+	/* adjust target to be outside of safety window */
+	if ((target_cycles > hw_counter) &&
+			((target_cycles - hw_counter) <= SAFETY_WINDOW_CYCLES)) {
+		target_cycles = hw_counter + SAFETY_WINDOW_CYCLES + 1;
+	}
+
+	LPTMR_SetTimerPeriod(LPTMR_BASE, target_cycles);
+}
 
 void sys_clock_set_timeout(int32_t ticks, bool idle)
 {
@@ -96,7 +118,7 @@ void sys_clock_set_timeout(int32_t ticks, bool idle)
 	next += announced_cycles;
 
 	/* Set LPTMR output value */
-	LPTMR_SetTimerPeriod(LPTMR_BASE, next);
+	lptmr_set_safe_immediate(next);
 	k_spin_unlock(&lock, key);
 }
 
