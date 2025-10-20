@@ -265,7 +265,9 @@ static int gpio_mcux_lpc_pint_interrupt_cfg(const struct device *dev,
 	uint32_t port = config->port_no;
 	bool wake = ((trig & GPIO_INT_WAKEUP) == GPIO_INT_WAKEUP);
 	int ret;
+	unsigned int key;
 
+	key = irq_lock();
 	trig &= ~GPIO_INT_WAKEUP;
 
 	switch (mode) {
@@ -300,9 +302,12 @@ static int gpio_mcux_lpc_pint_interrupt_cfg(const struct device *dev,
 		return ret;
 	}
 	/* Install callback */
-	return nxp_pint_pin_set_callback((port * 32) + pin,
+	ret = nxp_pint_pin_set_callback((port * 32) + pin,
 					  gpio_mcux_lpc_pint_cb,
 					  (struct device *)dev);
+	irq_unlock(key);
+
+	return ret;
 }
 #endif /* CONFIG_NXP_PINT */
 

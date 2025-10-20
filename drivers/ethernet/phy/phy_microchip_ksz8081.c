@@ -134,19 +134,20 @@ static int phy_mc_ksz8081_clear_interrupt(struct mc_ksz8081_data *data)
 	uint32_t ics;
 	int ret;
 
+	LOG_INF("clear interrupts");
 	/* Lock mutex */
 	ret = k_mutex_lock(&data->mutex, K_FOREVER);
 	if (ret < 0) {
 		LOG_ERR("PHY mutex lock error");
 		return ret;
 	}
-
+#if 1
 	/* Read/clear PHY interrupt status register */
 	ret = phy_mc_ksz8081_read(dev, PHY_MC_KSZ8081_ICS_REG, &ics);
 	if (ret < 0) {
 		LOG_ERR("Error reading phy (%d) interrupt status register", config->addr);
 	}
-
+#endif
 	/* Unlock mutex */
 	k_mutex_unlock(&data->mutex);
 	return ret;
@@ -155,14 +156,16 @@ static int phy_mc_ksz8081_clear_interrupt(struct mc_ksz8081_data *data)
 static int phy_mc_ksz8081_config_interrupt(const struct device *dev)
 {
 	struct mc_ksz8081_data *data = dev->data;
-	uint32_t ics;
+	uint32_t ics = 0;
 	int ret;
 
+#if 1
 	/* Read Interrupt Control/Status register to write back */
 	ret = phy_mc_ksz8081_read(dev, PHY_MC_KSZ8081_ICS_REG, &ics);
 	if (ret < 0) {
 		return ret;
 	}
+#endif
 	ics |= PHY_MC_KSZ8081_ICS_LINK_UP_IE_MASK | PHY_MC_KSZ8081_ICS_LINK_DOWN_IE_MASK;
 
 	/* Write settings to Interrupt Control/Status register */
@@ -185,6 +188,16 @@ static void phy_mc_ksz8081_interrupt_handler(const struct device *port, struct g
 {
 	struct mc_ksz8081_data *data = CONTAINER_OF(cb, struct mc_ksz8081_data, gpio_callback);
 	int ret = -ESRCH;
+
+	/* Clear interrupt */
+	const struct device *dev = data->dev;
+	const struct mc_ksz8081_config *config = dev->config;
+
+	if ((data->flags & KSZ8081_INITIALIZED) != KSZ8081_INITIALIZED)
+		return;
+
+	/* disable GPIO int before we handle it */
+	//gpio_pin_interrupt_configure_dt(&config->interrupt_gpio, GPIO_INT_DISABLE);
 
 	if (data->flags & KSZ8081_INITIALIZED) {
 		ret = k_work_reschedule(&data->phy_monitor_work, K_NO_WAIT);
@@ -224,6 +237,7 @@ static int phy_mc_ksz8081_autonegotiate(const struct device *dev)
 
 	ret = phy_mc_ksz8081_write(dev, MII_BMCR, bmcr);
 	if (ret) {
+		LOG_INF("phy_mc_ksz8081_write error");
 		goto done;
 	}
 
@@ -370,12 +384,15 @@ static int phy_mc_ksz8081_static_cfg(const struct device *dev)
 		return ret;
 	}
 
+#if 1
 	omso &= ~PHY_MC_KSZ8081_OMSO_FACTORY_MODE_MASK &
 		~PHY_MC_KSZ8081_OMSO_NAND_TREE_MASK;
 	if (config->phy_iface == KSZ8081_RMII || config->phy_iface == KSZ8081_RMII_25MHZ) {
 		omso &= ~PHY_MC_KSZ8081_OMSO_MII_OVERRIDE_MASK;
 		omso |= PHY_MC_KSZ8081_OMSO_RMII_OVERRIDE_MASK;
 	}
+#endif
+	LOG_INF("omso is 0x%x", omso);
 
 	ret = phy_mc_ksz8081_write(dev, PHY_MC_KSZ8081_OMSO_REG, (uint32_t)omso);
 	if (ret) {
@@ -451,10 +468,12 @@ static int phy_mc_ksz8081_reset(const struct device *dev)
 	}
 
 	ret = phy_mc_ksz8081_reset_gpio(config);
+
+#if 0
 	if (ret != -ENODEV) { /* On -ENODEV, attempt command-based reset */
 		goto done;
 	}
-
+#endif
 	ret = phy_mc_ksz8081_write(dev, MII_BMCR, MII_BMCR_RESET);
 	if (ret) {
 		goto done;
@@ -518,6 +537,7 @@ done:
 	k_mutex_unlock(&data->mutex);
 
 	if (USING_INTERRUPT_GPIO) {
+		gpio_pin_interrupt_configure_dt(&config->interrupt_gpio, GPIO_INT_EDGE_TO_ACTIVE);
 		return ret;
 	}
 
@@ -561,10 +581,12 @@ static void phy_mc_ksz8081_monitor_work_handler(struct k_work *work)
 		}
 	}
 
+#if 1
 	if (!data->state.is_up) {
 		/* some overrides might need set on cold reset way late for some reason */
 		phy_mc_ksz8081_static_cfg(dev);
 	}
+#endif
 
 	/* (re)do autonegotiation if needed */
 	if (data->flags & KSZ8081_DO_AUTONEG_FLAG) {
@@ -605,6 +627,8 @@ static void phy_mc_ksz8081_monitor_work_handler(struct k_work *work)
 	}
 
 	if (USING_INTERRUPT_GPIO) {
+		//LOG_INF("re enable interrupt");
+		//gpio_pin_interrupt_configure_dt(&config->interrupt_gpio, GPIO_INT_EDGE_TO_ACTIVE);
 		return;
 	}
 
@@ -641,6 +665,7 @@ static int ksz8081_init_int_gpios(const struct device *dev)
 		goto done;
 	}
 
+	//ret = gpio_pin_interrupt_configure_dt(&config->interrupt_gpio, GPIO_INT_DISABLE);
 	ret = gpio_pin_interrupt_configure_dt(&config->interrupt_gpio, GPIO_INT_EDGE_TO_ACTIVE);
 done:
 	if (ret < 0) {
@@ -673,6 +698,7 @@ static int phy_mc_ksz8081_init(const struct device *dev)
 	const struct mc_ksz8081_config *config = dev->config;
 	struct mc_ksz8081_data *data = dev->data;
 	int ret;
+	uint32_t ctrl2 = 0;
 
 	data->dev = dev;
 
@@ -681,13 +707,37 @@ static int phy_mc_ksz8081_init(const struct device *dev)
 		return ret;
 	}
 
-	mdio_bus_enable(config->mdio_dev);
-
 	ret = ksz8081_init_reset_gpios(dev);
 	if (ret) {
 		return ret;
 	}
+#if 0
+	ret = k_mutex_lock(&data->mutex, K_FOREVER);
+	if (ret < 0) {
+		LOG_ERR("PHY mutex lock error");
+		return ret;
+	}
+	/* init ref clock mode */
+	/* Select correct reference clock mode depending on interface setup */
+	ret = phy_mc_ksz8081_read(dev, PHY_MC_KSZ8081_CTRL2_REG, (uint32_t *)&ctrl2);
+	if (ret) {
+		return ret;
+	}
 
+	if (config->phy_iface == KSZ8081_RMII) {
+		ctrl2 |= PHY_MC_KSZ8081_CTRL2_REF_CLK_SEL;
+	} else {
+		ctrl2 &= ~PHY_MC_KSZ8081_CTRL2_REF_CLK_SEL;
+	}
+
+	ret = phy_mc_ksz8081_write(dev, PHY_MC_KSZ8081_CTRL2_REG, (uint32_t)ctrl2);
+	if (ret) {
+		return ret;
+	}
+
+	/* Unlock mutex */
+	k_mutex_unlock(&data->mutex);
+#endif
 	/* Reset PHY */
 	ret = phy_mc_ksz8081_reset(dev);
 	if (ret) {
@@ -707,7 +757,7 @@ static int phy_mc_ksz8081_init(const struct device *dev)
 
 	data->flags |= KSZ8081_INITIALIZED;
 
-	k_work_reschedule(&data->phy_monitor_work, K_MSEC(CONFIG_PHY_MONITOR_PERIOD));
+	//k_work_reschedule(&data->phy_monitor_work, K_MSEC(CONFIG_PHY_MONITOR_PERIOD));
 
 	return 0;
 }

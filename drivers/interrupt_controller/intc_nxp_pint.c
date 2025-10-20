@@ -67,11 +67,13 @@ static void attach_pin_to_pint(uint8_t pin, uint8_t pint_slot)
 int nxp_pint_pin_enable(uint8_t pin, enum nxp_pint_trigger trigger, bool wake)
 {
 	uint8_t slot = 0U;
+	unsigned int key;
 
 	if (pin >= ARRAY_SIZE(pin_pint_id)) {
 		/* Invalid pin ID */
 		return -EINVAL;
 	}
+
 	/* Find unused IRQ slot */
 	if (pin_pint_id[pin] != NO_PINT_ID) {
 		slot = pin_pint_id[pin];
@@ -87,24 +89,45 @@ int nxp_pint_pin_enable(uint8_t pin, enum nxp_pint_trigger trigger, bool wake)
 		}
 		pin_pint_id[pin] = slot;
 	}
+
+	/* Enter critical section to prevent race conditions during configuration */
+	key = irq_lock();
+
 	pint_irq_cfg[slot].used = true;
 	pint_irq_cfg[slot].pin = pin;
+
+	/* Disable the specific PINT IRQ during configuration */
+	irq_disable(pint_irq_cfg[slot].irq);
+
+	/* Clear any pending interrupts for this slot before configuration */
+	PINT_PinInterruptClrStatus(pint_base, slot);
+
 	/* Attach pin to interrupt slot using INPUTMUX */
 	attach_pin_to_pint(pin, slot);
+
 	/* Now configure the interrupt. No need to install callback, this
 	 * driver handles the IRQ
 	 */
 	PINT_PinInterruptConfig(pint_base, slot, trigger, NULL);
+
+	/* Clear any interrupts that may have been triggered during config */
+	PINT_PinInterruptClrStatus(pint_base, slot);
+
+	/* Configure wake-up and enable IRQ */
 	if (wake) {
 		NXP_ENABLE_WAKEUP_SIGNAL(pint_irq_cfg[slot].irq);
 	} else {
 		NXP_DISABLE_WAKEUP_SIGNAL(pint_irq_cfg[slot].irq);
-		irq_enable(pint_irq_cfg[slot].irq);
 	}
+
+	/* Re-enable the IRQ after configuration is complete */
+	irq_enable(pint_irq_cfg[slot].irq);
+
+	/* Exit critical section */
+	irq_unlock(key);
 
 	return 0;
 }
-
 
 /**
  * @brief disable PINT interrupt source.
@@ -178,11 +201,15 @@ void nxp_pint_pin_unset_callback(uint8_t pin)
 /* NXP PINT ISR handler- called with PINT slot ID */
 static void nxp_pint_isr(uint8_t *slot)
 {
+	unsigned int key;
+
+	key = irq_lock();
 	PINT_PinInterruptClrStatus(pint_base, *slot);
 	if (pint_irq_cfg[*slot].used && pint_irq_cfg[*slot].callback) {
 		pint_irq_cfg[*slot].callback(pint_irq_cfg[*slot].pin,
 					pint_irq_cfg[*slot].user_data);
 	}
+	irq_unlock(key);	
 }
 
 static int intc_nxp_pm_action(const struct device *dev, enum pm_device_action action)
