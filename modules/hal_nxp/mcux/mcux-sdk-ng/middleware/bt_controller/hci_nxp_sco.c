@@ -17,7 +17,7 @@
 
 #define LOG_LEVEL CONFIG_BT_HCI_DRIVER_LOG_LEVEL
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(bt_nxp_ctlr);
+LOG_MODULE_REGISTER(bt_nxp_sco);
 
 #include "common/bt_str.h"
 

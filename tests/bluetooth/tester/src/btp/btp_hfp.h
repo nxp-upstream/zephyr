@@ -48,41 +48,42 @@ struct btp_hfp_signal_strength_send_rp {
 
 enum btp_hfp_control_type
 {
-	HFP_ENABLE_INBAND_RING        = 0x01,
-	HFP_DISABLE_CALL              = 0x02,
-	HFP_MUTE_INBAND_RING          = 0x03,
-	HFP_AG_ANSWER_CALL            = 0x04,
-	HFP_REJECT_CALL               = 0x05,
-	HFP_OUT_CALL                  = 0x06,
-	HFP_CLS_MEM_CALL_LIST         = 0x07,
-	HFP_OUT_MEM_CALL              = 0x08,
-	HFP_OUT_MEM_OUTOFRANGE_CALL   = 0x09,
-	HFP_OUT_LAST_CALL             = 0x0a,
-	HFP_TWC_CALL                  = 0x0b,
-	HFP_END_SECOND_CALL           = 0x0c,
-	HFP_DISABLE_ACTIVE_CALL       = 0x0d,
-	HFP_HELD_ACTIVE_CALL          = 0x0e,
-	HFP_EC_NR_DISABLE             = 0x0f,
-	HFP_ENABLE_BINP               = 0x10,
-	HFP_ENABLE_SUB_NUMBER         = 0x11,
-	HFP_ENABLE_VR                 = 0x12,
-	HFP_DISABLE_VR                = 0x13,
-	HFP_QUERY_LIST_CALL           = 0x14,
-	HFP_REJECT_HELD_CALL          = 0x15,
-	HFP_ACCEPT_HELD_CALL          = 0x16,
+	HFP_ENABLE_INBAND_RING = 0x01,
+	HFP_DISABLE_CALL = 0x02,
+	HFP_MUTE_INBAND_RING = 0x03,
+	HFP_AG_ANSWER_CALL = 0x04,
+	HFP_REJECT_CALL = 0x05,
+	HFP_OUT_CALL = 0x06,
+	HFP_CLS_MEM_CALL_LIST = 0x07,
+	HFP_OUT_MEM_CALL = 0x08,
+	HFP_OUT_MEM_OUTOFRANGE_CALL = 0x09,
+	HFP_OUT_LAST_CALL = 0x0a,
+	HFP_TWC_CALL = 0x0b,
+	HFP_END_SECOND_CALL = 0x0c,
+	HFP_DISABLE_ACTIVE_CALL = 0x0d,
+	HFP_HELD_ACTIVE_CALL = 0x0e,
+	HFP_EC_NR_DISABLE = 0x0f,
+	HFP_ENABLE_BINP = 0x10,
+	HFP_ENABLE_SUB_NUMBER  = 0x11,
+	HFP_ENABLE_VR = 0x12,
+	HFP_DISABLE_VR = 0x13,
+	HFP_QUERY_LIST_CALL = 0x14,
+	HFP_REJECT_HELD_CALL = 0x15,
+	HFP_ACCEPT_HELD_CALL = 0x16,
 	HFP_ACCEPT_INCOMING_HELD_CALL = 0x17,
-	HFP_SEND_IIA                  = 0x18,
-	HFP_SEND_BCC                  = 0x19,
-	HFP_DIS_CTR_CHN               = 0x1a,
-	HFP_IMPAIR_SIGNAL             = 0x1b,
-	HFP_JOIN_CONVERSATION_CALL    = 0x1c,
-	HFP_EXPLICIT_TRANSFER_CALL    = 0x1d,
-	HFP_ENABLE_CLIP               = 0x1e,
-	HFP_DISABLE_IN_BAND           = 0x1f,
-	HFP_DISCOVER_START            = 0x20,
-	HFP_INTG_HELD_CALL            = 0x21,
-	HFP_SEND_BCC_MSBC              = 0x22,
-	HFP_SEND_BCC_SWB              = 0x23,
+	HFP_SEND_IIA = 0x18,
+	HFP_SEND_BCC = 0x19,
+	HFP_DIS_CTR_CHN = 0x1a,
+	HFP_IMPAIR_SIGNAL = 0x1b,
+	HFP_JOIN_CONVERSATION_CALL = 0x1c,
+	HFP_EXPLICIT_TRANSFER_CALL = 0x1d,
+	HFP_ENABLE_CLIP = 0x1e,
+	HFP_DISABLE_IN_BAND = 0x1f,
+	HFP_DISCOVER_START = 0x20,
+	HFP_INTG_HELD_CALL = 0x21,
+	HFP_SEND_BCC_MSBC = 0x22,
+	HFP_SEND_BCC_SWB = 0x23,
+	HFP_END_CALL = 0x24,
 };
 struct btp_hfp_control_cmd {
 	enum btp_hfp_control_type control_type;
@@ -174,11 +175,11 @@ struct btp_hfp_hf_answer_call_rp {
 #define BTP_HFP_VERIFY  0x0D
 enum btp_hfp_verify_type
 {
-	HFP_VERIFY_INBAND_RING        = 0x01,
+	HFP_VERIFY_INBAND_RING = 0x01,
 	HFP_VERIFY_INBAND_RING_MUTING = 0x02,
-	HFP_VERIFY_IUT_ALERTING       = 0x03,
-	HFP_VERIFY_IUT_NOT_ALERTING   = 0x04,
-	HFP_VERIFY_EC_NR_DISABLED     = 0x05,
+	HFP_VERIFY_IUT_ALERTING = 0x03,
+	HFP_VERIFY_IUT_NOT_ALERTING = 0x04,
+	HFP_VERIFY_EC_NR_DISABLED = 0x05,
 };
 struct btp_hfp_verify_cmd {
 	uint8_t verify_type;
@@ -351,6 +352,70 @@ struct btp_hfp_ag_vre_text_rp {
 } __packed;
 
 
+#define BTP_HFP_DTMF_CODE_SEND  0x20
+struct btp_hfp_dtmf_code_send_cmd {
+	char dtmf_code;
+	uint8_t flags;
+} __packed;
+
+struct btp_hfp_dtmf_code_send_rp {
+} __packed;
+
+
+#define BTP_HFP_VERIFY_ROAM_INACTIVE  0x21
+struct btp_hfp_verify_roam_inactive_cmd {
+	uint8_t flags;
+} __packed;
+
+struct btp_hfp_verify_roam_inactive_rp {
+
+} __packed;
+
+
+#define BTP_HFP_PRIVATE_CONSULTATION_MODE  0x22
+struct btp_hfp_private_consultation_mode_cmd {
+	uint8_t index;
+	uint8_t flags;
+} __packed;
+
+struct btp_hfp_private_consultation_mode_rp {
+
+} __packed;
+
+
+#define BTP_HFP_RELEASE_SPECIFIED_CALL  0x23
+struct btp_hfp_release_specified_call_cmd {
+	uint8_t index;
+	uint8_t flags;
+} __packed;
+
+struct btp_hfp_release_specified_call_rp {
+
+} __packed;
+
+
+#define BTP_HFP_SET_ONGOING_CALLS  0x24
+struct btp_hfp_set_ongoing_calls_cmd {
+	char* number;
+	uint8_t type;
+	uint8_t status;
+	uint8_t dir;
+	uint8_t all;
+	uint8_t flags;
+} __packed;
+
+struct btp_hfp_set_ongoing_calls_rp {
+
+} __packed;
+
+#define BTP_HFP_HOLD_INCOMING  0x25
+struct btp_hfp_ag_hold_incoming_cmd {
+	uint8_t flags;
+} __packed;
+
+struct btp_hfp_ag_hold_incoming_rp {
+
+} __packed;
 /* BTP HEAD FILE */
 
 struct btp_hfp_verify_battery_discharged_rp {

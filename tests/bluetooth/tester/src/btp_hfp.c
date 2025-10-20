@@ -23,7 +23,7 @@
 #define LOG_MODULE_NAME bttester_hfp
 LOG_MODULE_REGISTER(LOG_MODULE_NAME, CONFIG_BTTESTER_LOG_LEVEL);
 
-static volatile uint8_t hf_check_signal_strength;
+static volatile uint8_t hf_check_signal_strength = 5;
 static uint8_t hfp_in_calling_status = 0xff;
 uint8_t call_active = 0;
 static bool audio_conn_created;
@@ -36,14 +36,14 @@ static uint8_t wait_call = 0;
 static uint8_t call_held = 0;
 static bool mem_call_list = 0;
 static bool ec_nr_disabled = 1;
-static volatile uint8_t hf_check_mic_volume;
-static volatile uint8_t hf_check_speaker_volume;
+static bool inband_ring_tone_set;
+static bool mute_inband_ringtone;
 static volatile uint8_t hf_check_mic_volume;
 static volatile uint8_t hf_check_speaker_volume;
 static uint8_t codecs_negotiate_done = 0;
 struct bt_conn *default_conn;
 static volatile bool hf_accept_call;
-static bool ring_alert;
+static bool ring_alert = false;
 static volatile bool roam_active_state;
 static uint8_t signal_value;
 static bool hf_auto_select_codec;
@@ -58,7 +58,7 @@ struct bt_conn *hfp_ag_sco_conn;
 static struct bt_hfp_ag_call *hfp_ag_call[CONFIG_BT_HFP_AG_MAX_CALLS];
 
 static uint32_t conn_count = 0;
-// static struct bt_hfp_ag_ongoing_call ag_ongoing_call_info[CONFIG_BT_HFP_AG_MAX_CALLS];
+static struct bt_hfp_ag_ongoing_call ag_ongoing_call_info[CONFIG_BT_HFP_AG_MAX_CALLS];
 
 static size_t ag_ongoing_calls;
 
@@ -220,12 +220,12 @@ static void ag_codec(struct bt_hfp_ag *ag, uint32_t ids)
 
 void ag_vgm(struct bt_hfp_ag *ag, uint8_t gain)
 {
-	LOG_DBG("AG received vgm %d", gain);
+	hf_check_mic_volume = gain;
 }
 
 void ag_vgs(struct bt_hfp_ag *ag, uint8_t gain)
 {
-	LOG_DBG("AG received vgs %d", gain);
+	hf_check_speaker_volume = gain;
 }
 
 void ag_codec_negotiate(struct bt_hfp_ag *ag, int err)
@@ -367,7 +367,7 @@ static struct bt_hfp_ag_cb ag_cb = {
 // #if defined(CONFIG_BT_HFP_AG_VOICE_TAG)
 // 	.request_phone_number = ag_request_phone_number,
 // #endif /* CONFIG_BT_HFP_AG_VOICE_TAG */
-// 	.transmit_dtmf_code = ag_transmit_dtmf_code,
+	.transmit_dtmf_code = ag_transmit_dtmf_code,
 // 	.subscriber_number = ag_subscriber_number,
 // 	.hf_indicator_value = ag_hf_indicator_value,
 };
@@ -471,7 +471,6 @@ void hf_outgoing(struct bt_hfp_hf *hf, struct bt_hfp_hf_call *call)
 static void hf_incoming(struct bt_hfp_hf *hf, struct bt_hfp_hf_call *call)
 {
 	hf_add_a_call(call);
-	bt_hfp_hf_accept(call);
 }
 
 static void hf_roam(struct bt_conn *conn, uint32_t value)
@@ -496,6 +495,32 @@ static void hf_codec_negotiate(struct bt_hfp_hf *hf, uint8_t id)
 }
 #endif /* CONFIG_BT_HFP_HF_CODEC_NEG */
 
+#if defined(CONFIG_BT_HFP_HF_VOLUME)
+static void hf_vgm(struct bt_hfp_hf *hf, uint8_t gain)
+{
+	hf_check_mic_volume = gain;
+}
+
+static void hf_vgs(struct bt_hfp_hf *hf, uint8_t gain)
+{
+	hf_check_speaker_volume = gain;
+}
+#endif /* CONFIG_BT_HFP_HF_VOLUME */
+
+static void hf_operator(struct bt_hfp_hf *hf, uint8_t mode, uint8_t format, char *operator)
+{
+	size_t len = strlen(operator);
+	size_t copy_len = (len < MAX_COPS_NAME_SIZE - 1) ? len : MAX_COPS_NAME_SIZE - 1;
+
+	memcpy(cops_name, operator, copy_len);
+	cops_name[copy_len] = '\0';
+}
+
+static void hf_inband_ring(struct bt_hfp_hf *hf, bool inband)
+{
+	inband_ring_tone_set = inband;
+}
+
 /* Minimal set of callbacks needed for connection */
 static struct bt_hfp_hf_cb hf_cb = {
 	.connected = hf_connected,
@@ -517,6 +542,11 @@ static struct bt_hfp_hf_cb hf_cb = {
 #if defined(CONFIG_BT_HFP_HF_CODEC_NEG)
 	.codec_negotiate = hf_codec_negotiate,
 #endif /* CONFIG_BT_HFP_HF_CODEC_NEG */
+#if defined(CONFIG_BT_HFP_HF_VOLUME)
+	.vgm = hf_vgm,
+	.vgs = hf_vgs,
+#endif /* CONFIG_BT_HFP_HF_VOLUME */
+	.operator = hf_operator,
 };
 
 static uint8_t read_supported_commands(const void *cmd, uint16_t cmd_len,
@@ -655,18 +685,29 @@ static uint8_t control(const void *cmd, uint16_t cmd_len,
 		bt_hfp_ag_set_indicator(hfp_ag, BT_HFP_AG_SIGNAL_IND, hf_check_signal_strength);
 		break;
 	case HFP_AG_ANSWER_CALL:
-		err = bt_hfp_ag_accept(hfp_ag_call[0]);
+		err = bt_hfp_ag_remote_accept(hfp_ag_call[0]);
 		s_hfp_in_calling_status = 3;
 		break;
 	case HFP_REJECT_CALL:
 		if (hfp_ag) {
 			err = bt_hfp_ag_reject(hfp_ag_call[0]);
 		} else {
-			// bt_hfp_hf_send_cmd(default_conn, BT_HFP_HF_AT_CHUP);
+			// err = bt_hfp_hf_reject(hfp_hf_call[0]);
+			err = bt_hfp_hf_terminate(hfp_hf_call[0]);
+		}
+		break;
+	case HFP_END_CALL:
+		if (hfp_ag) {
+			err = bt_hfp_ag_terminate(hfp_ag_call[0]);
+		} else {
+			err = bt_hfp_hf_terminate(hfp_hf_call[0]);
 		}
 		break;
 	case HFP_DISABLE_IN_BAND:
 		err = bt_hfp_ag_inband_ringtone(hfp_ag, false);
+		break;
+	case HFP_ENABLE_INBAND_RING:
+		err = bt_hfp_ag_inband_ringtone(hfp_ag, true);
 		break;
 	case HFP_TWC_CALL:
 		if (hfp_ag) {
@@ -674,7 +715,11 @@ static uint8_t control(const void *cmd, uint16_t cmd_len,
 		}
 		break;
 	case HFP_ENABLE_VR:
-		err = bt_hfp_ag_voice_recognition(hfp_ag, true);
+		if (hfp_ag) {
+			err = bt_hfp_ag_voice_recognition(hfp_ag, true);
+		} else {
+			err = bt_hfp_hf_voice_recognition(hfp_hf, true);
+		}
 		break;
 	case HFP_SEND_BCC:
 		if (hfp_ag) {
@@ -708,22 +753,29 @@ static uint8_t control(const void *cmd, uint16_t cmd_len,
 			err = -1;
 		}
 		break;
+	case HFP_HELD_ACTIVE_CALL:
+		err = bt_hfp_hf_hold_active_accept_other(hfp_hf);
+		break;
 	case HFP_ACCEPT_INCOMING_HELD_CALL:
 		if (hfp_hf_call[0]) {
-			err = bt_hfp_hf_hold_incoming(hfp_hf_call[0]);
+			err = bt_hfp_hf_accept(hfp_hf_call[0]);
 		} else {
 			err = -1;
 		}
 		break;
 	case HFP_REJECT_HELD_CALL:
-		if (hfp_hf_call[0]) {
-			err = bt_hfp_hf_reject(hfp_hf_call[0]);
+		if (hfp_ag) {
+			err = bt_hfp_ag_reject(hfp_ag_call[0]);
 		} else {
-			err = -1;
+			err = bt_hfp_hf_reject(hfp_hf_call[0]);
 		}
 		break;
 	case HFP_OUT_CALL:
-		bt_hfp_ag_outgoing(hfp_ag, '7654321');
+		if(hfp_ag) {
+			bt_hfp_ag_outgoing(hfp_ag, '7654321');
+		} else {
+			bt_hfp_hf_number_call(hfp_hf, "7654321");
+		}
 		break;
 	case HFP_ENABLE_CLIP:
 		err = bt_hfp_hf_cli(hfp_hf, true);
@@ -740,11 +792,43 @@ static uint8_t control(const void *cmd, uint16_t cmd_len,
 	case HFP_OUT_MEM_CALL:
 		err = bt_hfp_hf_memory_dial(hfp_hf, "1");
 		break;
+	case HFP_OUT_MEM_OUTOFRANGE_CALL:
+		err = bt_hfp_hf_memory_dial(hfp_hf, "2");
+		break;	
 	case HFP_EC_NR_DISABLE:
 		err = bt_hfp_hf_turn_off_ecnr(hfp_hf);
 		break;
 	case HFP_DISABLE_VR:
-		err = bt_hfp_ag_voice_recognition(hfp_ag, false);
+		if (hfp_ag) {
+			err = bt_hfp_ag_voice_recognition(hfp_ag, false);
+		} else {
+			err = bt_hfp_hf_voice_recognition(hfp_hf, false);
+		}
+		break;
+	case HFP_ENABLE_BINP:
+		err = bt_hfp_hf_request_phone_number(hfp_hf);
+		break;
+	case HFP_JOIN_CONVERSATION_CALL:
+		if (hfp_ag) {
+			err = bt_hfp_ag_explicit_call_transfer(hfp_ag);
+		} else {
+			err = bt_hfp_hf_join_conversation(hfp_hf);
+		}
+		break;
+	case HFP_EXPLICIT_TRANSFER_CALL:
+		err = bt_hfp_hf_explicit_call_transfer(hfp_hf);
+		break;
+	case HFP_OUT_LAST_CALL:
+		err = bt_hfp_hf_redial(hfp_hf);
+		break;
+	case HFP_DISABLE_ACTIVE_CALL:
+		err = bt_hfp_hf_release_active_accept_other(hfp_hf);
+		break;
+	case HFP_END_SECOND_CALL:
+		err = bt_hfp_hf_terminate(hfp_hf_call[1]);
+		break;
+	case HFP_MUTE_INBAND_RING:
+		mute_inband_ringtone = true;
 		break;
 	default:
 		err = -1;
@@ -794,7 +878,7 @@ static uint8_t hf_discoverable(const void *cmd, uint16_t cmd_len,
 }
 
 static uint8_t verify_network_operator(const void *cmd, uint16_t cmd_len,
-			   void *rsp, uint16_t *rsp_len)
+				       void *rsp, uint16_t *rsp_len)
 {
 	const struct btp_hfp_verify_network_operator_cmd *cp = cmd;
 	struct btp_hfp_verify_network_operator_rp *rp = rsp;
@@ -821,7 +905,7 @@ static uint8_t ag_disable_call_external(const void *cmd, uint16_t cmd_len,
 }
 
 static uint8_t hf_answer_call(const void *cmd, uint16_t cmd_len,
-			   void *rsp, uint16_t *rsp_len)
+			      void *rsp, uint16_t *rsp_len)
 {
 	const struct btp_hfp_hf_answer_call_cmd *cp = cmd;
 	struct btp_hfp_hf_answer_call_rp *rp = rsp;
@@ -840,13 +924,39 @@ static uint8_t verify(const void *cmd, uint16_t cmd_len,
 
 	switch (cp->verify_type) {
 	case HFP_VERIFY_EC_NR_DISABLED:
-		if (ec_nr_disabled) {
-			return BTP_STATUS_SUCCESS;
-		} else {
+		if (!ec_nr_disabled) {
 			return BTP_STATUS_FAILED;
 		}
 		break;
 	case HFP_VERIFY_INBAND_RING:
+		if (inband_ring_tone_set && audio_conn_created) {
+			return BTP_STATUS_SUCCESS;
+		}
+		else {
+			uint16_t delay = 12;
+
+			while (delay--) {
+				OSA_TimeDelay(500);
+				if (inband_ring_tone_set && audio_conn_created) {
+					return BTP_STATUS_SUCCESS;
+				}
+			}
+		}
+		break;
+	case HFP_VERIFY_IUT_ALERTING:
+		if (!ring_alert) {
+			return BTP_STATUS_FAILED;
+		}
+		break;	
+	case HFP_VERIFY_IUT_NOT_ALERTING:
+		if (ring_alert) {
+			return BTP_STATUS_FAILED;
+		}
+		break;
+	case HFP_VERIFY_INBAND_RING_MUTING:
+		if (inband_ring_tone_set && (!mute_inband_ringtone)) {
+			return BTP_STATUS_FAILED;
+		}
 		break;
 	default:
 		break;
@@ -858,10 +968,10 @@ static uint8_t verify(const void *cmd, uint16_t cmd_len,
 static uint8_t verify_voice_tag(const void *cmd, uint16_t cmd_len,
 			        void *rsp, uint16_t *rsp_len)
 {
-	const struct btp_hfp_verify_voice_tag_cmd *cp = cmd;
+	const char *cp = (const char *)cmd;
 	struct btp_hfp_verify_voice_tag_rp *rp = rsp;
 
-	if (strncmp(cp->voice_tag, voice_tag, MAX_COPS_NAME_SIZE) == 0) {
+	if (strncmp(cp, voice_tag, MAX_COPS_NAME_SIZE) == 0) {
 		return BTP_STATUS_SUCCESS;
 	}
 
@@ -878,34 +988,26 @@ static uint8_t speaker_mic_volume_send(const void *cmd, uint16_t cmd_len,
 	if (cp->speaker_mic == 0x0) {
 		if (hfp_ag != NULL) {
 			err = bt_hfp_ag_vgs(hfp_ag, cp->speaker_mic_volume);
-			if (err) {
-				return BTP_STATUS_FAILED;
-			}
 		}
-		else if (default_conn != NULL) {
-			err = bt_hfp_ag_vgs(hfp_ag, cp->speaker_mic_volume);
-			if (err) {
-				return BTP_STATUS_FAILED;
-			}
+		else {
+			err = bt_hfp_hf_vgs(hfp_hf, cp->speaker_mic_volume);
 		}
 		hf_check_speaker_volume = cp->speaker_mic_volume;
 	} else if (cp->speaker_mic == 0x1) {
 		if (hfp_ag != NULL) {
 			err = bt_hfp_ag_vgm(hfp_ag, cp->speaker_mic_volume);
-			if (err) {
-				return BTP_STATUS_FAILED;
-			}
 		}
-		else if (default_conn != NULL) {
-			err = bt_hfp_ag_vgm(hfp_ag, cp->speaker_mic_volume);
-			if (err) {
-				return BTP_STATUS_FAILED;
-			}
+		else {
+			err = bt_hfp_hf_vgm(hfp_hf, cp->speaker_mic_volume);
 		}
 
 		hf_check_mic_volume = cp->speaker_mic_volume;
 	} else {
 		return BTP_STATUS_UNKNOWN_CMD;
+	}
+
+	if (err) {
+		return BTP_STATUS_FAILED;
 	}
 	return BTP_STATUS_SUCCESS;
 }
@@ -1144,6 +1246,120 @@ static uint8_t ag_vre_text(const void *cmd, uint16_t cmd_len,
 	return BTP_STATUS_SUCCESS;
 }
 
+static uint8_t dtmf_code_send(const void *cmd, uint16_t cmd_len,
+			   void *rsp, uint16_t *rsp_len)
+{
+	const struct btp_hfp_dtmf_code_send_cmd *cp = cmd;
+	struct btp_hfp_dtmf_code_send_rp *rp = rsp;
+	int err;
+
+	// err = bt_hfp_hf_transmit_dtmf_code(hfp_hf_call[0], cp->dtmf_code);
+	// if (err) {
+	// 	return BTP_STATUS_FAILED;
+	// }
+
+	return BTP_STATUS_SUCCESS;
+}
+
+static uint8_t verify_roam_inactive(const void *cmd, uint16_t cmd_len,
+			   void *rsp, uint16_t *rsp_len)
+{
+	const struct btp_hfp_verify_roam_inactive_cmd *cp = cmd;
+	struct btp_hfp_verify_roam_inactive_rp *rp = rsp;
+
+	if (!roam_active_state) {
+		return BTP_STATUS_SUCCESS;
+	}
+	return BTP_STATUS_FAILED;
+}
+
+static uint8_t private_consultation_mode(const void *cmd, uint16_t cmd_len,
+			   void *rsp, uint16_t *rsp_len)
+{
+	const struct btp_hfp_private_consultation_mode_cmd *cp = cmd;
+	struct btp_hfp_private_consultation_mode_rp *rp = rsp;
+	int err;
+
+	err = bt_hfp_hf_private_consultation_mode(hfp_hf_call[cp->index]);
+	if (err) {
+		return BTP_STATUS_FAILED;
+	}
+
+	return BTP_STATUS_SUCCESS;
+}
+
+static uint8_t release_specified_call(const void *cmd, uint16_t cmd_len,
+				      void *rsp, uint16_t *rsp_len)
+{
+	const struct btp_hfp_release_specified_call_cmd *cp = cmd;
+	struct btp_hfp_release_specified_call_rp *rp = rsp;
+	int err;
+
+	err = bt_hfp_hf_release_specified_call(hfp_hf_call[cp->index]);
+	if (err) {
+		return BTP_STATUS_FAILED;
+	}
+
+	return BTP_STATUS_SUCCESS;
+}
+
+static int set_ongoing_calls(void)
+{
+	int err;
+
+	err = bt_hfp_ag_ongoing_calls(hfp_ag_ongoing, &ag_ongoing_call_info[0], ag_ongoing_calls);
+	ag_ongoing_calls = 0;
+	hfp_ag_ongoing = NULL;
+	if (err != 0) {
+		return BTP_STATUS_FAILED;
+	}
+	return BTP_STATUS_SUCCESS;
+}
+
+static uint8_t ag_set_ongoing_calls(const void *cmd, uint16_t cmd_len,
+			   void *rsp, uint16_t *rsp_len)
+{
+	const struct btp_hfp_set_ongoing_calls_cmd *cp = cmd;
+	struct btp_hfp_set_ongoing_calls_rp *rp = rsp;
+	size_t max_calls;
+
+	max_calls =  MIN(CONFIG_BT_HFP_AG_MAX_CALLS, ARRAY_SIZE(ag_ongoing_call_info));
+	if (ag_ongoing_calls >= max_calls) {
+		return set_ongoing_calls();
+	}
+
+	memset(ag_ongoing_call_info[ag_ongoing_calls].number, 0,
+		sizeof(ag_ongoing_call_info[ag_ongoing_calls].number));
+	memcpy(ag_ongoing_call_info[ag_ongoing_calls].number, cp->number,
+		MIN(strlen(cp->number), sizeof(ag_ongoing_call_info[ag_ongoing_calls].number) - 1));
+	ag_ongoing_call_info[ag_ongoing_calls].type = (uint8_t)atoi(cp->type);
+	ag_ongoing_call_info[ag_ongoing_calls].status = (enum bt_hfp_ag_call_status)atoi(cp->status);
+	ag_ongoing_call_info[ag_ongoing_calls].dir = (enum bt_hfp_ag_call_dir)atoi(cp->dir);
+
+	ag_ongoing_calls++;
+
+	if (cp->all) {
+		return set_ongoing_calls();
+	}
+
+	return BTP_STATUS_SUCCESS;
+}
+
+static uint8_t ag_hold_incoming(const void *cmd, uint16_t cmd_len,
+	void *rsp, uint16_t *rsp_len)
+{
+	const struct btp_hfp_ag_hold_incoming_cmd *cp = cmd;
+	struct btp_hfp_ag_hold_incoming_rp *rp = rsp;
+	int err;
+
+	err = bt_hfp_ag_hold_incoming(hfp_ag_call[0]);
+	if (err) {
+		return BTP_STATUS_FAILED;
+	}
+
+	return BTP_STATUS_SUCCESS;
+}
+
 /* BTP API COMPLETION */
 
 static const struct btp_handler hfp_handlers[] = {
@@ -1318,6 +1534,41 @@ static const struct btp_handler hfp_handlers[] = {
 		.opcode = BTP_HFP_AG_VRE_TEXT,
 		.expect_len = sizeof(struct btp_hfp_ag_vre_text_cmd),
 		.func = ag_vre_text
+	},
+
+	{
+		.opcode = BTP_HFP_DTMF_CODE_SEND,
+		.expect_len = sizeof(struct btp_hfp_dtmf_code_send_cmd),
+		.func = dtmf_code_send
+	},
+
+	{
+		.opcode = BTP_HFP_VERIFY_ROAM_INACTIVE,
+		.expect_len = sizeof(struct btp_hfp_verify_roam_inactive_cmd),
+		.func = verify_roam_inactive
+	},
+
+	{
+		.opcode = BTP_HFP_PRIVATE_CONSULTATION_MODE,
+		.expect_len = sizeof(struct btp_hfp_private_consultation_mode_cmd),
+		.func = private_consultation_mode
+	},
+
+	{
+		.opcode = BTP_HFP_RELEASE_SPECIFIED_CALL,
+		.expect_len = sizeof(struct btp_hfp_release_specified_call_cmd),
+		.func = release_specified_call
+	},
+
+	{
+		.opcode = BTP_HFP_SET_ONGOING_CALLS,
+		.expect_len = sizeof(struct btp_hfp_set_ongoing_calls_cmd),
+		.func = ag_set_ongoing_calls
+	},
+	{
+		.opcode = BTP_HFP_HOLD_INCOMING,
+		.expect_len = sizeof(struct btp_hfp_ag_hold_incoming_cmd),
+		.func = ag_hold_incoming
 	},
 /* BTP BONDING COMPLETION */
 };
