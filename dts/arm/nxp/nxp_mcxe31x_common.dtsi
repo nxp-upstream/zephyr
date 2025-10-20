@@ -683,10 +683,19 @@
 	};
 
 	rtc: rtc@288000 {
-		compatible = "nxp,rtc";
+		compatible = "nxp,rtc_jdp";
 		reg = <0x288000 0x34>;
 		interrupts = <102 0>;
+		clock-frequency = <32000>;
+		clock-source = <1>;
+		prescaler = <16384>;
 		status = "disabled";
+
+		counter_rtc: counter-rtc {
+			compatible = "zephyr,rtc-counter";
+			alarms-count = <2>;
+			status = "disabled";
+		};
 	};
 
 	sai_0: sai@36c000 {
