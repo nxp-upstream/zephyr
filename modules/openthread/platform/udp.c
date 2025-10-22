@@ -257,10 +257,15 @@ otError otPlatUdpSend(otUdpSocket *aUdpSocket,
 	peer.sin6_port = htons(aMessageInfo->mPeerPort);
 	memcpy(&peer.sin6_addr, &aMessageInfo->mPeerAddr, sizeof(otIp6Address));
 
+	/* sin6_scope_id field is only used for link-local addresses */
 	if (((aMessageInfo->mPeerAddr.mFields.m8[0] == 0xfe) &&
-	    ((aMessageInfo->mPeerAddr.mFields.m8[1] & 0xc0) == 0x80)) &&
-	    !aMessageInfo->mIsHostInterface) {
-		peer.sin6_scope_id = ail_iface_index;
+	    ((aMessageInfo->mPeerAddr.mFields.m8[1] & 0xc0) == 0x80))) {
+		if (aMessageInfo->mIsHostInterface) {
+			peer.sin6_scope_id = (uint8_t)ail_iface_index;
+		}
+		else {
+			peer.sin6_scope_id = (uint8_t)ot_iface_index;
+		}
 	}
 
 	msg_hdr.msg_name = &peer;
@@ -289,7 +294,11 @@ otError otPlatUdpSend(otUdpSocket *aUdpSocket,
 		cmsg_hdr->cmsg_type = IPV6_PKTINFO;
 		cmsg_hdr->cmsg_len = CMSG_LEN(sizeof(pktinfo));
 
-		pktinfo.ipi6_ifindex = aMessageInfo->mIsHostInterface ? 0 : ail_iface_index;
+		if (aMessageInfo->mIsHostInterface) {
+			pktinfo.ipi6_ifindex = ail_iface_index;
+		} else {
+			pktinfo.ipi6_ifindex = ot_iface_index;
+		}
 
 		memcpy(&pktinfo.ipi6_addr, &aMessageInfo->mSockAddr, sizeof(otIp6Address));
 		memcpy(CMSG_DATA(cmsg_hdr), &pktinfo, sizeof(pktinfo));
