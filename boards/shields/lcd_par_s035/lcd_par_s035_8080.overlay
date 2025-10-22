@@ -15,6 +15,7 @@
 	lvgl_pointer {
 		compatible = "zephyr,lvgl-pointer-input";
 		input = <&gt911_lcd_par_s035>;
+		display = <&st7796s>;
 		swap-xy;
 		invert-y;
 	};
