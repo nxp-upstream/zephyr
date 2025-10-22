@@ -329,9 +329,11 @@ static void mdns_receive_handler(struct net_socket_service_event *evt)
 	ssize_t len = 0;
 	int family;
 	struct otbr_msg_ctx *req = NULL;
+	otError error = OT_ERROR_NONE;
 
 	VerifyOrExit(evt->event.revents & ZSOCK_POLLIN);
-	VerifyOrExit(openthread_border_router_allocate_message((void **)&req) == OT_ERROR_NONE);
+	VerifyOrExit(openthread_border_router_allocate_message((void **)&req) == OT_ERROR_NONE,
+		     error = OT_ERROR_FAILED);
 #if defined(CONFIG_NET_IPV4)
 	(void)zsock_getsockopt(evt->event.fd, SOL_SOCKET, SO_DOMAIN, &family, &optlen);
 
@@ -339,7 +341,7 @@ static void mdns_receive_handler(struct net_socket_service_event *evt)
 		addrlen = sizeof(addr_v4);
 		len = zsock_recvfrom(mdns_sock_v4, req->buffer, sizeof(req->buffer), 0,
 			       (struct sockaddr *)&addr_v4, &addrlen);
-		VerifyOrExit(len > 0);
+		VerifyOrExit(len > 0, error = OT_ERROR_FAILED);
 		otIp4ToIp4MappedIp6Address((otIp4Address *)&addr_v4.sin_addr.s_addr,
 					   &req->addr_info.mAddress);
 		req->addr_info.mPort = ntohs(addr_v4.sin_port);
@@ -348,7 +350,7 @@ static void mdns_receive_handler(struct net_socket_service_event *evt)
 		addrlen = sizeof(addr_v6);
 		len = zsock_recvfrom(mdns_sock_v6, req->buffer, sizeof(req->buffer), 0,
 			       (struct sockaddr *)&addr_v6, &addrlen);
-		VerifyOrExit(len > 0);
+		VerifyOrExit(len > 0, error = OT_ERROR_FAILED);
 		memcpy(&req->addr_info.mAddress, &addr_v6.sin6_addr,
 		       sizeof(req->addr_info.mAddress));
 		req->addr_info.mPort = ntohs(addr_v6.sin6_port);
@@ -362,6 +364,10 @@ static void mdns_receive_handler(struct net_socket_service_event *evt)
 	openthread_border_router_post_message(req);
 
 exit:
+	if (error != OT_ERROR_NONE && req != NULL) {
+		openthread_border_router_deallocate_message((void *)req);
+	}
+
 	return;
 }
 

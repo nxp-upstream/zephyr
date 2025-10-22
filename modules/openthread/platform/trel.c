@@ -112,6 +112,7 @@ static void trel_receive_handler(struct net_socket_service_event *evt)
 	socklen_t addrlen = sizeof(addr);
 	ssize_t len = 0;
 	struct otbr_msg_ctx *req = NULL;
+	otError error = OT_ERROR_NONE;
 
 	trel_counters.mRxPackets++;
 
@@ -120,7 +121,7 @@ static void trel_receive_handler(struct net_socket_service_event *evt)
 
 	len = zsock_recvfrom(trel_sock, req->buffer, sizeof(req->buffer), 0,
 		       (struct sockaddr *)&addr, &addrlen);
-	VerifyOrExit(len > 0);
+	VerifyOrExit(len > 0, error = OT_ERROR_FAILED);
 
 	trel_counters.mRxBytes += len;
 
@@ -132,6 +133,10 @@ static void trel_receive_handler(struct net_socket_service_event *evt)
 	openthread_border_router_post_message(req);
 
 exit:
+	if (error != OT_ERROR_NONE && req != NULL) {
+		openthread_border_router_deallocate_message((void *)req);
+	}
+
 	return;
 }
 

@@ -246,7 +246,8 @@ otError otPlatUdpSend(otUdpSocket *aUdpSocket,
 	VerifyOrExit(sock >= 0, error = OT_ERROR_INVALID_ARGS);
 
 	VerifyOrExit(len <= OTBR_MESSAGE_SIZE, error = OT_ERROR_FAILED);
-	VerifyOrExit(openthread_border_router_allocate_message((void **)&req) == OT_ERROR_NONE);
+	VerifyOrExit(openthread_border_router_allocate_message((void **)&req) == OT_ERROR_NONE,
+		     error = OT_ERROR_FAILED);
 	VerifyOrExit(otMessageRead(aMessage, 0, req->buffer, len) == len, error = OT_ERROR_FAILED);
 
 	iov.iov_base = req->buffer;
@@ -320,10 +321,14 @@ otError otPlatUdpSend(otUdpSocket *aUdpSocket,
 	}
 
 exit:
-	if (error == OT_ERROR_NONE && aMessage) {
+	if (aMessage != NULL) {
 		otMessageFree(aMessage);
 	}
-	openthread_border_router_deallocate_message((void *)req);
+
+	if (req != NULL) {
+		openthread_border_router_deallocate_message((void *)req);
+	}
+
 	return error;
 }
 
