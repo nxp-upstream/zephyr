@@ -1,0 +1,9 @@
+# Copyright 2025 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config NVMEM_NXP_OCOTP
+	bool "NXP On-Chip OTP controller driver"
+	default y
+	depends on DT_HAS_NXP_OCOTP_ENABLED
+	help
+	  NXP On-Chip OTP controller as a FUSE provider.
