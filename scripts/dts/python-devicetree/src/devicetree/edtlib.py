@@ -1,6 +1,7 @@
 # Copyright (c) 2019 Nordic Semiconductor ASA
 # Copyright (c) 2019 Linaro Limited
-# SPDX-License-Identifier: BSD-3-Clause
+# Copyright 2025 NXP
+# SPDX-License-Identifier: Apache-2.0
 
 # Tip: You can view just the documentation with 'pydoc3 devicetree.edtlib'
 
@@ -1361,6 +1362,13 @@ class Node:
                 # works the same way in Zephyr as it does elsewhere.
                 binding = None
 
+                # Collect all available bindings for this compatible for warning purposes
+                available_bindings = []
+                for ((binding_compat, binding_bus), candidate_binding) in (
+                        self.edt._compat2binding.items()):
+                    if binding_compat == compat:
+                        available_bindings.append((binding_bus, candidate_binding.path))
+
                 for bus in on_buses:
                     if (compat, bus) in self.edt._compat2binding:
                         binding = self.edt._compat2binding[compat, bus]
@@ -1370,6 +1378,32 @@ class Node:
                     if (compat, None) in self.edt._compat2binding:
                         binding = self.edt._compat2binding[compat, None]
                     else:
+                        # No matching binding found - warn if bindings exist for other buses
+                        if (available_bindings and
+                            self.edt._warn_bus_mismatch):
+                            current_bus = on_buses[0] if on_buses else "none"
+
+                            # Format available bus information for the warning
+                            available_bus_info = []
+                            for bus, binding_path in available_bindings:  # type: ignore
+                                if bus is not None:
+                                    bus_name = bus
+                                else:
+                                    bus_name = "any"
+                                # Get relative path for cleaner output
+                                if binding_path is not None:
+                                    rel_path = os.path.relpath(binding_path)
+                                else:
+                                    rel_path = "unknown"
+                                bus_info = f"'{bus_name}' (from {rel_path})"
+                                available_bus_info.append(bus_info)
+
+                            _LOG.warning(
+                                f"Node '{self.path}' with compatible '{compat}' "
+                                f"is on bus '{current_bus}', but available bindings "
+                                f"expect: {', '.join(available_bus_info)}. "
+                                f"No binding will be applied to this node."
+                            )
                         continue
 
                 self._binding = binding
@@ -1995,7 +2029,8 @@ class EDT:
                  support_fixed_partitions_on_any_bus: bool = True,
                  infer_binding_for_paths: Optional[Iterable[str]] = None,
                  vendor_prefixes: Optional[dict[str, str]] = None,
-                 werror: bool = False):
+                 werror: bool = False,
+                 warn_bus_mismatch: bool = False):
         """EDT constructor.
 
         dts:
@@ -2039,6 +2074,10 @@ class EDT:
           If True, some edtlib specific warnings become errors. This currently
           errors out if 'dts' has any deprecated properties set, or an unknown
           vendor prefix is used.
+
+        warn_bus_mismatch (default: False):
+          If True, a warning is logged if a node's actual bus does not match
+            the bus specified in its binding.
         """
         # All instance attributes should be initialized here.
         # This makes it easy to keep track of them, which makes
@@ -2065,6 +2104,7 @@ class EDT:
         self._infer_binding_for_paths: set[str] = set(infer_binding_for_paths or [])
         self._vendor_prefixes: dict[str, str] = vendor_prefixes or {}
         self._werror: bool = bool(werror)
+        self._warn_bus_mismatch: bool = warn_bus_mismatch
 
         # Other internal state
         self._compat2binding: dict[tuple[str, Optional[str]], Binding] = {}
