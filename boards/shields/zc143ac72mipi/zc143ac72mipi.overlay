@@ -7,6 +7,32 @@
 / {
 	chosen {
 		zephyr,display = &co5300_zc143ac72mipi;
+		zephyr,touch = &tma525b_zc143ac72mipi;
+	};
+
+	en_mipi_display_zc143ac72mipi: enable-mipi-display {
+		compatible = "regulator-fixed";
+		regulator-name = "en_mipi_display";
+		enable-gpios = <&nxp_mipi_connector 32 GPIO_ACTIVE_HIGH>;
+		regulator-boot-on;
+	};
+
+	lvgl_pointer {
+		compatible = "zephyr,lvgl-pointer-input";
+		input = <&tma525b_zc143ac72mipi>;
+		display = <&co5300_zc143ac72mipi>;
+		invert-y;
+	};
+};
+
+&nxp_mipi_i2c {
+	status = "okay";
+
+	tma525b_zc143ac72mipi: tma525b@38 {
+		compatible = "infineon,tma525b";
+		reg = <0x24>;
+		int-gpios = <&nxp_mipi_connector 29 GPIO_ACTIVE_LOW>;
+		reset-gpios = <&nxp_mipi_connector 28 GPIO_ACTIVE_LOW>;
 	};
 };
 
