@@ -45,3 +45,7 @@
 	pinctrl-0 = <&lpuart12_default>;
 	pinctrl-names = "default";
 };
+
+&lptmr2 {
+	status = "okay";
+};
