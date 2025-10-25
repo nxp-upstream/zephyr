@@ -1,0 +1,39 @@
+# Copyright 2025 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: NXP OCOTP eFuse access via ROM API table
+
+compatible: "nxp,ocotp"
+
+include:
+  - fixed-layout.yaml
+
+properties:
+  reg:
+    type: array
+    required: false
+    description: |
+      For OCOTP devices accessed via the ROM API the device's MMIO
+      'reg' is generally not used by the provider. When named nvmem
+      cells are declared under the OCOTP node (using the included
+      fixed-layout.yaml) the 'reg' address is interpreted as a byte
+      offset into the efuse memory and the size cell is in bytes.
+
+      Example: with the nvmem cell declared as
+        reg = <0x134 0x1>;
+      the address 0x134 is a byte offset (308 decimal) which equals
+      efuse word index 77 (308 / 4 == 77). The provider/driver is
+      expected to read the containing 32-bit word and extract the
+      requested byte(s).
+
+      If a different convention is used (for example the board's DT
+      encodes efuse word indices rather than byte offsets), document
+      that convention here and ensure the OCOTP provider/driver
+      performs the appropriate conversion.
+
+  rom-api-tree-addr:
+    type: int
+    required: true
+    description: |
+      Absolute address of the ROM API tree base;
+      the OCOTP driver pointer is read from index 12

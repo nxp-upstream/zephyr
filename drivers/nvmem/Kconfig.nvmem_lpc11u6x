@@ -1,0 +1,11 @@
+# Copyright (c) 2020 Seagate Technology LLC
+# Copyright 2025 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config NVMEM_LPC11U6X
+	bool "LPC11U6x on-chip EEPROM (NVMEM provider)"
+	default y
+	depends on DT_HAS_NXP_LPC11U6X_EEPROM_ENABLED
+	depends on !EEPROM_LPC11U6X
+	help
+	  Enable the LPC11U6x on-chip EEPROM as an NVMEM provider device.
