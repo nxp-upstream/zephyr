@@ -13,6 +13,9 @@ LOG_MODULE_REGISTER(mcp_sample_hello, LOG_LEVEL_INF);
 int main(void)
 {
 	printk("Hello World\n\r");
+	printk("Initializing...\n\r");
 	mcp_server_init();
+	printk("Starting...\n\r");
+	mcp_server_start();
 	return 0;
 }
