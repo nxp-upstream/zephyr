@@ -409,6 +409,13 @@
 			status = "disabled";
 		};
 
+		gpt_hw_timer1: gpt@446f0000 {
+			compatible = "nxp,gpt-hw-timer";
+			reg = <0x446f0000 0x4000>;
+			interrupts = <39 0>;
+			status = "disabled";
+		};
+
 		netc: ethernet {
 			compatible = "nxp,imx-netc";
 			interrupts = <294 0>;

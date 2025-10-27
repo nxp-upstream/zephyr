@@ -281,6 +281,20 @@
 			status = "disabled";
 		};
 
+		gpt_hw_timer2: gpt@428a0000 {
+			compatible = "nxp,gpt-hw-timer";
+			reg = <0x428a0000 0x4000>;
+			interrupts = <144 0>;
+			status = "disabled";
+		};
+
+		gpt_hw_timer3: gpt@428b0000 {
+			compatible = "nxp,gpt-hw-timer";
+			reg = <0x428b0000 0x4000>;
+			interrupts = <145 0>;
+			status = "disabled";
+		};
+
 		netc: ethernet@4ca00000 {
 			reg = <0x4ca00000 0x500000>;
 			interrupts = <294 0>;
