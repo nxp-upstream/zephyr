@@ -13,11 +13,29 @@
 extern "C" {
 #endif
 
+struct mcp_message_msg {
+	uint32_t token;
+	/* More fields will be added later */
+};
+
 /**
  * @brief Initialize the MCP Server.
  *
  */
 int mcp_server_init(void);
+
+/**
+ * @brief Start the MCP Server.
+ *
+ */
+int mcp_server_start(void);
+
+/**
+ * @brief Queues a response to the MCP Server library, which takes care of sending it to
+ * the MCP Client.
+ *
+ */
+int mcp_queue_response(void);
 
 #ifdef __cplusplus
 }

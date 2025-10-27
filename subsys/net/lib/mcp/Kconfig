@@ -5,9 +5,158 @@ menuconfig MCP_SERVER
 	bool "Model Context Protocol (MCP) Server support"
 	depends on NETWORKING && HTTP_SERVER && JSON_LIBRARY
 	help
-	  Enable support for MCP Server functionality.
+	  Support for MCP Server functionality.
 
 if MCP_SERVER
+
+config HTTP_SERVER_MAX_CLIENTS
+	int "Max number of HTTP/2 clients"
+	default 3
+	range 1 100
+	help
+	  This setting determines the maximum number of HTTP/2 clients that the server can handle at once.
+
+config HTTP_SERVER_MAX_STREAMS
+	int "Max number of HTTP/2 streams"
+	default 3
+	range 1 100
+	help
+	  This setting determines the maximum number of HTTP/2 streams for each client.
+
+config MCP_SERVER_INFO_NAME_MAX_LEN
+	int "Maximum server info name length"
+	default 64
+	help
+	  Maximum length for the server name field in serverInfo.
+
+config MCP_SERVER_INFO_NAME
+	string "Server name"
+	default "Zephyr MCP Server"
+	help
+	  The name of the MCP server reported in serverInfo.
+
+config MCP_SERVER_INFO_VERSION_MAX_LEN
+	int "Maximum server info version length"
+	default 16
+	help
+	  Maximum length for the server version field in serverInfo.
+
+config MCP_SERVER_INFO_VERSION
+	string "Server version"
+	default "1.0.0"
+	help
+	  The version of the MCP server reported in serverInfo.
+
+config MCP_SERVER_INFO_TITLE
+	bool "Include server title in serverInfo"
+	default n
+	help
+	  Include optional title field in the serverInfo section.
+
+if MCP_SERVER_INFO_TITLE
+
+config MCP_SERVER_INFO_TITLE_MAX_LEN
+	int "Maximum server info title length"
+	default 64
+	help
+	  Maximum length for the server title field in serverInfo.
+
+config MCP_SERVER_INFO_TITLE_VALUE
+	string "Server title"
+	default "Zephyr MCP Server"
+	help
+	  The title of the MCP server reported in serverInfo.
+
+endif # MCP_SERVER_INFO_TITLE
+
+config MCP_SERVER_INFO_INSTRUCTIONS
+	bool "Include server instructions in serverInfo"
+	default n
+	help
+	  Include optional instructions field in the serverInfo section.
+
+if MCP_SERVER_INFO_INSTRUCTIONS
+
+config MCP_SERVER_INFO_INSTRUCTIONS_MAX_LEN
+	int "Maximum server info instructions length"
+	default 256
+	help
+	  Maximum length for the server instructions field in serverInfo.
+
+config MCP_SERVER_INFO_INSTRUCTIONS_VALUE
+	string "Server instructions"
+	default "This is a Zephyr-based MCP server providing tool capabilities."
+	help
+	  The instructions for the MCP server reported in serverInfo.
+
+endif # MCP_SERVER_INFO_INSTRUCTIONS
+
+config MCP_TOOLS_CAPABILITY
+	bool "Tools capability"
+	default y
+	help
+	  Tools capability in the MCP server. This allows the server
+	  to register and execute tools via tools/list and tools/call methods.
+
+if MCP_TOOLS_CAPABILITY
+
+config MCP_MAX_TOOLS
+	int "Maximum number of registered tools"
+	default 4
+
+config MCP_TOOL_NAME_MAX_LEN
+	int "Maximum tool name length"
+	default 32
+	help
+	  Maximum length for tool name and title fields.
+
+config MCP_TOOL_DESC
+	bool "Include tool description in tools/list response"
+	default n
+	help
+	  Include optional description field in the tools/list response.
+
+if MCP_TOOL_DESC
+
+config MCP_TOOL_DESC_MAX_LEN
+	int "Maximum tool description length"
+	default 256
+	help
+	  Maximum length for tool description field.
+
+endif # MCP_TOOL_DESC
+
+config MCP_TOOL_SCHEMA_MAX_LEN
+	int "Maximum input/output schema length"
+	default 512
+	help
+	  Maximum length for tool input and output schema fields.
+
+config MCP_TOOL_INPUT_ARGS_MAX_LEN
+	int "Maximum input argument length"
+	default 512
+	help
+	  Maximum length for tool input arguments RPC field.
+
+config MCP_TOOL_TITLE
+	bool "Include tool title field"
+	default n
+	help
+	  Include optional title field for tools. Adds memory overhead.
+
+config MCP_TOOL_OUTPUT_SCHEMA
+	bool "Include tool output schema field"
+	default n
+	help
+	  Include optional output schema field for tools. Adds memory overhead.
+
+config MCP_TOOL_RESULT_MAX_LEN
+	int "Maximum tool execution result length"
+	default 256
+	help
+	  Maximum length for tool execution result.
+
+endif # MCP_TOOLS_CAPABILITY
 
 module = MCP
 module-str = MCP Server
