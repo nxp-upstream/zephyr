@@ -32,4 +32,7 @@ source "lib/uuid/Kconfig"
 source "lib/word_granular_access/Kconfig"
 
 source "lib/min_heap/Kconfig"
+
+source "lib/libmp/Kconfig"
+
 endmenu
