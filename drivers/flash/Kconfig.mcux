@@ -119,7 +119,7 @@ endchoice
 
 endif # DT_HAS_NXP_IMX_FLEXSPI_ENABLED
 
-if DT_HAS_NXP_S32K3X_C40_FLASH_ENABLED
+if DT_HAS_NXP_S32K3X_C40_ENABLED
 # MCUX C40 internal flash driver (S32K3x)
 config SOC_FLASH_MCUX_C40
 	def_bool y
@@ -146,4 +146,4 @@ config SOC_FLASH_MCUX_C40_APPLY_PROTECTION
 	  during driver init. Useful on XIP systems to keep IVT/bootloader
 	  areas read-only. Disable if your bootloader/policy manages this.
 
-endif # DT_HAS_NXP_S32K3X_C40_FLASH_ENABLED
+endif # DT_HAS_NXP_S32K3X_C40_ENABLED

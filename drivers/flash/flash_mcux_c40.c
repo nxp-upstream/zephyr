@@ -6,7 +6,7 @@
  * Zephyr driver for NXP S32K3x C40 internal flash
  */
 
-#define DT_DRV_COMPAT nxp_s32k3x_c40_flash
+#define DT_DRV_COMPAT nxp_s32k3x_c40
 
 #include <zephyr/device.h>
 #include <zephyr/drivers/flash.h>

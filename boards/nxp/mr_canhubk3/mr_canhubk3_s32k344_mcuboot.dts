@@ -17,6 +17,8 @@
 &flash0 {
 	/* Replace any board-default partitions with the MCUboot layout */
 	/delete-node/ partitions;
+	status = "okay";
+
 	partitions {
 		compatible = "fixed-partitions";
 		#address-cells = <1>;
