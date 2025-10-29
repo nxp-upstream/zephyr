@@ -11,7 +11,7 @@
 #include "mp_zaud_gain.h"
 #include "mp_zaud_property.h"
 
-LOG_MODULE_REGISTER(mp_zaud_gain, CONFIG_LOG_DEFAULT_LEVEL);
+LOG_MODULE_REGISTER(mp_zaud_gain, CONFIG_LIBMP_LOG_LEVEL);
 
 /* Gain percentage definitions */
 #define GAIN_PERCENT_MIN   0    /* 0% = mute */

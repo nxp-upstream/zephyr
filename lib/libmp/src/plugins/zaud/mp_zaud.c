@@ -16,7 +16,7 @@
 #include "mp_zaud_gain.h"
 #include "mp_zaud_i2s_codec_sink.h"
 
-LOG_MODULE_REGISTER(mp_zaud, CONFIG_LOG_DEFAULT_LEVEL); // CONFIG_LIBMP_LOG_LEVEL_DEBUG
+LOG_MODULE_REGISTER(mp_zaud, CONFIG_LIBMP_LOG_LEVEL);
 
 typedef struct {
 	uint32_t value;
