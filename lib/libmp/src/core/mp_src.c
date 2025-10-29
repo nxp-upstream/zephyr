@@ -11,7 +11,7 @@
 #include "mp_src.h"
 #include "mp_task.h"
 
-LOG_MODULE_REGISTER(mp_src, CONFIG_LOG_DEFAULT_LEVEL);
+LOG_MODULE_REGISTER(mp_src, CONFIG_LIBMP_LOG_LEVEL);
 
 int mp_src_set_property(MpObject *obj, uint32_t key, const void *val)
 {

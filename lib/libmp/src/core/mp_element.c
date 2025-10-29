@@ -10,7 +10,7 @@
 #include "mp_element.h"
 #include "mp_pad.h"
 
-LOG_MODULE_REGISTER(mp_element, CONFIG_LOG_DEFAULT_LEVEL); // CONFIG_LIBMP_LOG_LEVEL_DEBUG
+LOG_MODULE_REGISTER(mp_element, CONFIG_LIBMP_LOG_LEVEL);
 
 void mp_element_add_pad(MpElement *element, MpPad *pad)
 {

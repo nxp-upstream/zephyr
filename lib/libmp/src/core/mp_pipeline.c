@@ -13,7 +13,7 @@
 #include "mp_element_factory.h"
 #include "mp_pipeline.h"
 
-LOG_MODULE_REGISTER(mp_pipeline, CONFIG_LOG_DEFAULT_LEVEL); // CONFIG_LIBMP_LOG_LEVEL_DEBUG
+LOG_MODULE_REGISTER(mp_pipeline, CONFIG_LIBMP_LOG_LEVEL);
 
 static int mp_pipeline_set_property(MpObject *obj, uint32_t id, const void *val)
 {
