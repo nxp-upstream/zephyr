@@ -9,7 +9,7 @@
 #include "mp_zaud.h"
 #include "mp_zaud_buffer_pool.h"
 
-LOG_MODULE_REGISTER(mp_zaud_buffer_pool, CONFIG_LOG_DEFAULT_LEVEL);
+LOG_MODULE_REGISTER(mp_zaud_buffer_pool, CONFIG_LIBMP_LOG_LEVEL);
 
 static bool mp_zaud_buffer_pool_config(MpBufferPool *pool, MpStructure *config)
 {
