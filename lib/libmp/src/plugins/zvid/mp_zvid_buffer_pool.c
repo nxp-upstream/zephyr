@@ -10,7 +10,7 @@
 #include "mp_zvid_buffer_pool.h"
 #include "mp_zvid_object.h"
 
-LOG_MODULE_REGISTER(mp_zvid_buffer_pool, CONFIG_LOG_DEFAULT_LEVEL);
+LOG_MODULE_REGISTER(mp_zvid_buffer_pool, CONFIG_LIBMP_LOG_LEVEL);
 
 static bool mp_zvid_buffer_pool_configure(MpBufferPool *pool, MpStructure *config)
 {

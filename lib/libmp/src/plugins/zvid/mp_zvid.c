@@ -12,7 +12,7 @@
 #include "mp_zvid_src.h"
 #include "mp_zvid_transform.h"
 
-LOG_MODULE_REGISTER(mp_zvid, CONFIG_LOG_DEFAULT_LEVEL); // CONFIG_LIBMP_LOG_LEVEL_DEBUG
+LOG_MODULE_REGISTER(mp_zvid, CONFIG_LIBMP_LOG_LEVEL);
 
 static void plugin_init()
 {

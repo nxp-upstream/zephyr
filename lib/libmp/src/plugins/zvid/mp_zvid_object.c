@@ -14,7 +14,7 @@
 #include "mp_zvid.h"
 #include "mp_zvid_object.h"
 
-LOG_MODULE_REGISTER(mp_zvid_object, CONFIG_LOG_DEFAULT_LEVEL);
+LOG_MODULE_REGISTER(mp_zvid_object, CONFIG_LIBMP_LOG_LEVEL);
 
 int mp_zvid_object_set_property(MpZvidObject *zvid_obj, uint32_t key, const void *val)
 {
