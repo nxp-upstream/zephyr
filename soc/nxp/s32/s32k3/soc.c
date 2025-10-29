@@ -55,7 +55,7 @@ const struct ivt ivt_header __attribute__((section(".ivt_header"), used)) = {
 	.lc_configure = NULL,
 };
 #endif
-#endif
+#endif /* CONFIG_XIP */
 
 void soc_early_init_hook(void)
 {

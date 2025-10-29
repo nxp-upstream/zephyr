@@ -8,6 +8,7 @@ arch: arm
 toolchain:
   - zephyr
 ram: 320
-flash: 4096
+flash: 1919
 vendor: nxp
 extends: mr_canhubk3
+sysbuild: true

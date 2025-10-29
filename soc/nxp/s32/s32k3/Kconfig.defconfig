@@ -31,6 +31,6 @@ config CACHE_MANAGEMENT
 # S32K3 places the vector table at +0x400
 # This makes the bootloader and the sign tool compatible with that.
 config ROM_START_OFFSET
-	default 0x400 if BOOTLOADER_MCUBOOT
+	default 0x400 if (BOOTLOADER_MCUBOOT || MCUBOOT)
 
 endif # SOC_SERIES_S32K3

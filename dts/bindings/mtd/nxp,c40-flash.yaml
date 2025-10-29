@@ -1,10 +1,11 @@
+# Copyright 2025 NXP
 # SPDX-License-Identifier: Apache-2.0
-title: NXP S32K3x C40 Internal Flash Controller
+title: NXP C40 Internal Flash
 
 description: |
-  On-chip C40 flash used in NXP S32K3x MCUs (e.g. S32K344).
+  On-chip C40 flash array used with NXP C40 flash controller.
 
-compatible: "nxp,s32k3x-c40"
+compatible: "nxp,c40-flash"
 
 # Inherit common SoC flash schema (reg/status, partitions, etc.)
 include: soc-nv-flash.yaml

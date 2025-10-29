@@ -296,64 +296,47 @@ For example, to erase and verify flash content:
 
    west flash -r trace32 --startup-args elfFile=build/zephyr/zephyr.elf loadTo=flash eraseFlash=yes verifyFlash=yes
 
-MCUboot (sysbuild)
-========
+MCUboot
+=======
 
-This board supports MCUboot chain-loading using Zephyr’s sysbuild.
+This board supports app chain-loading using MCUboot.
 
 The command below builds MCUboot and the application together.
 It also generated .hex output files for convenience in flashing.
 
 .. code-block:: console
 
-west build -p -b mr_canhubk3/s32k344/mcuboot --sysbuild
--s zephyr/samples/drivers/flash_shell
--d build/sys_mcuboot
--- 
--Dmcuboot_CONFIG_BUILD_OUTPUT_HEX=y
--Dflash_shell_CONFIG_BUILD_OUTPUT_HEX=y
+ $west build -p -b mr_canhubk3/s32k344/mcuboot samples/drivers/flash_shell --sysbuild
 
 The resulting artifacts are:
-
-    MCUboot: build/sys_mcuboot/mcuboot/zephyr/zephyr.hex
-
-    App (unsigned): build/sys_mcuboot/flash_shell/zephyr/zephyr.hex
+MCUboot: build/mcuboot/zephyr/zephyr.hex
+App (unsigned): build/flash_shell/zephyr/zephyr.hex
 
 Signing the application
 -----------------------
 
 Preferred (sysbuild)
-Pass your key to sysbuild so it signs during the build. For example:
+Pass your key to sysbuild so the app is signed during the build. For example:
 
 .. code-block:: console
 
- west build -p -b mr_canhubk3/s32k344/mcuboot --sysbuild \
-   -s zephyr/samples/drivers/flash_shell \
-   -d build/sys_mcuboot \
-   -- \
-   -DSB_CONFIG_BOOT_SIGNATURE_TYPE_RSA=y \
-   -DSB_CONFIG_BOOT_SIGNATURE_KEY_FILE="$PWD/bootloader/mcuboot/root-rsa-2048.pem" \
+ $ west build -p -b mr_canhubk3/s32k344/mcuboot samples/drivers/flash_shell --sysbuild \
+     -- -DSB_CONFIG_BOOT_SIGNATURE_TYPE_RSA=y \
+     -DSB_CONFIG_BOOT_SIGNATURE_KEY_FILE="$PWD/bootloader/mcuboot/root-rsa-2048.pem"
 
 The signed image will be at:
-build/sys_mcuboot/flash_shell/zephyr/zephyr.signed.bin
+build/flash_shell/zephyr/zephyr.signed.bin
 
 Flashing
 --------
 
-    Flash MCUboot:
+    Flash The MCUboot & The App:
 
     .. code-block:: console
 
-    west flash -d build/sys_mcuboot/mcuboot -r jlink
+ $ west flash --domain mcuboot -r jlink
 
-    Flash the signed application to the primary slot (image-0).
-    With J-Link Commander, for example:
-
-    .. code-block:: text
-
-    loadbin build/sys_mcuboot/flash_shell/zephyr/zephyr.signed.bin, 0x00422000
-    r
-    g
+ $ west flash --domain flash_shell
 
 Troubleshooting
 ---------------
