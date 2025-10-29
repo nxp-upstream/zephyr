@@ -13,7 +13,7 @@
 #include "mp_bin.h"
 #include "mp_pad.h"
 
-LOG_MODULE_REGISTER(mp_bin, CONFIG_LOG_DEFAULT_LEVEL); // CONFIG_LIBMP_LOG_LEVEL_DEBUG
+LOG_MODULE_REGISTER(mp_bin, CONFIG_LIBMP_LOG_LEVEL);
 
 bool mp_bin_add(MpBin *bin, MpElement *element, ...)
 {

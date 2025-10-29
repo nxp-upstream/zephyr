@@ -12,7 +12,7 @@
 #include "mp_pad.h"
 #include "mp_task.h"
 
-LOG_MODULE_REGISTER(mp_pad, CONFIG_LOG_DEFAULT_LEVEL); // CONFIG_LIBMP_LOG_LEVEL_DEBUG
+LOG_MODULE_REGISTER(mp_pad, CONFIG_LIBMP_LOG_LEVEL);
 
 void mp_pad_init(MpPad *pad, const char *name, MpPadDirection direction, MpPadPresence presence,
 		 MpCaps *caps)
