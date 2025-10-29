@@ -1,4 +1,4 @@
-# libMP - Media Pipe library for Zephyr
+# libMP - Media Pipe library
 
 A lightweight, modular media processing pipeline library designed for embedded systems running Zephyr RTOS.
 
