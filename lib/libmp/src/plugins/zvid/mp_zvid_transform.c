@@ -12,7 +12,7 @@
 #include "mp_zvid_property.h"
 #include "mp_zvid_transform.h"
 
-LOG_MODULE_REGISTER(mp_zvid_transform, CONFIG_LOG_DEFAULT_LEVEL);
+LOG_MODULE_REGISTER(mp_zvid_transform, CONFIG_LIBMP_LOG_LEVEL);
 
 static bool mp_zvid_transform_chainfn(MpPad *pad, MpBuffer *buffer)
 {
