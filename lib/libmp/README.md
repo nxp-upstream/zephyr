@@ -1,52 +1,24 @@
-# MediaPipe Library # {#mainpage}
+# libMP - Media Pipe library for Zephyr
 
-<h1 align="center"> MediaPipe Library </h1>
-
----
-
-#### Table of content
-- [Overview](#overview)
-- [Get started](#get-started)
-- [Examples](#examples)
-- [Services](#services)
-- [Contributing](#contributing)
+A lightweight, modular media processing pipeline library designed for embedded systems running Zephyr RTOS.
 
 ## Overview
-### Features
-### Requirements
-### Supported platforms
-## Get started
-### On Zephyr platform
 
-1. User needs to check if the dependencies for zephyr are installed on your developpement environment if not please follow [Zephyr-Getting Started-Install dependencies](https://docs.zephyrproject.org/latest/develop/getting_started/index.html#install-dependencies) to install them.
+libMP provides a flexible framework for building media processing pipelines in resource-constrained environments. It features a pipeline-based architecture with support for various media formats and processing elements.
 
-2. The libmp can be setup as a standalone project or as a Zephyr module depend on the user needs:
-- Standalone libmp - Pulls only the MPP's required dependencies:
-    1. Create the virtual environnement if this is not done yet ``python3 -m venv ~/<folder name>/libmp_virtual_env``
-    2. Install west: ``pip3 install west``
-    3. Initialize the repository libmp: ``west init -m <libmp git repository> --mr <revison or branch> --mf west-standalone.yml <foldername>``
-    4. cd ``<folder name>``
-    5. ``west update``
-    6. cd ``libmp``
-    7. Intall west extension command using ``west packages pip --install``
+libMP aims to simplify the development of multimedia applications by:
+    • Abstracting buffer management and synchronization between media components.
+    • Providing a modular and extensible pipeline architecture.
 
-- libmp as a Zephyr module:
-    1. Update the Zephyr's west.yml file:
-    ```yml
-        projects:
-        name: libmp
-        url: <libmp repository url>
-        revison: <branch name or revision of libmp>
-        path: modules/multimedia/libmp
-        import: west.yml
-    ```
-    2. Run west update libmp command.
+It also streamlines the development of multimedia components (plugins) by:
+    • Offering a consistent, well-defined framework for plugin developers.
+    • Enabling reuse across different multimedia components.
 
-## Eamples
-To build the basic example for imxrt1170 evkb, use the command:
+## Getting Started
 
-``west build -p -b mimxrt1170_evk@B/mimxrt1176/cm7 examples/basic_example``
+Try one of the examples in samples/subsys/libMP to quickly get started with simple media processing pipelines.
 
-### C
-
-## Contributing
+### Prerequisites
+- Zephyr RTOS development environment
+- CMake build system
+- Supported hardware platforms
