@@ -115,8 +115,8 @@ static int mcux_c40_write(const struct device *dev, off_t off, const void *buf, 
 		__ISB();
 	}
 
-	st = FLASH_Program(&data->cfg, (uint32_t)(cfg->base + (uintptr_t)off),
-				    (uint32_t *)buf, (uint32_t)len);
+	st = FLASH_Program(&data->cfg, (uint32_t)(cfg->base + (uintptr_t)off), (uint32_t *)buf,
+			   (uint32_t)len);
 
 	if (IS_ENABLED(CONFIG_ARM)) {
 		__DSB();
@@ -152,7 +152,7 @@ static int mcux_c40_erase(const struct device *dev, off_t off, size_t len)
 	}
 
 	st = FLASH_Erase(&data->cfg, (uint32_t)(cfg->base + (uintptr_t)off), (uint32_t)len,
-				  kFLASH_ApiEraseKey);
+			 kFLASH_ApiEraseKey);
 
 	if (IS_ENABLED(CONFIG_ARM)) {
 		__DSB();
@@ -222,8 +222,9 @@ static __attribute__((noinline)) status_t c40_apply_protection(flash_config_t *f
 				key = irq_lock();
 
 				if (IS_ENABLED(CONFIG_ARM)) {
-					/* Didn't use __ISB() here since
-					 * there is no instruction side stream change */
+					/* Didn't use __ISB() here since there is no
+					 * instruction side stream change
+					 */
 					__DSB();
 				}
 
@@ -308,8 +309,8 @@ static int mcux_c40_init(const struct device *dev)
 		nprot_al++;
 	}
 
-	st = c40_apply_protection(&data->cfg, cfg->base, cfg->size, cfg->erase_block,
-					  prot_aligned, nprot_al);
+	st = c40_apply_protection(&data->cfg, cfg->base, cfg->size, cfg->erase_block, prot_aligned,
+				  nprot_al);
 	if (st != kStatus_FLASH_Success) {
 		LOG_ERR("Protection apply failed: %d", (int)st);
 		return mcux_to_errno(st);
@@ -341,7 +342,7 @@ static const struct flash_driver_api mcux_c40_api = {
 #if defined(CONFIG_SOC_FLASH_MCUX_C40_APPLY_PROTECTION)
 
 /* Emit one initializer element if the label exists and belongs to this inst */
-#define C40_PROT_ENTRY(lbl, inst)                                                   \
+#define C40_PROT_ENTRY(lbl, inst)                                                                  \
 	COND_CODE_1(                                                                \
 		DT_NODE_HAS_STATUS(DT_NODELABEL(lbl), okay),                        \
 		(COND_CODE_1(                                                      \
@@ -356,37 +357,36 @@ static const struct flash_driver_api mcux_c40_api = {
 		),                                                                \
 		())
 
-#define C40_MAKE_PROT_TBL(inst)                                                    \
-	static const struct prot_range mcux_c40_prot_##inst[] = {                   \
-		C40_PROT_ENTRY(ivt_header, inst)                                   \
-		C40_PROT_ENTRY(ivt_pad,    inst)                                   \
-		C40_PROT_ENTRY(mcuboot,    inst) /* common MCUboot label */        \
-		C40_PROT_ENTRY(boot_partition, inst) /* fallback */                  \
-	};                                                                          \
-	enum { mcux_c40_prot_cnt_##inst = ARRAY_SIZE(mcux_c40_prot_##inst) }
+#define C40_MAKE_PROT_TBL(inst)                                                                    \
+	static const struct prot_range mcux_c40_prot_##inst[] = {                                  \
+		C40_PROT_ENTRY(ivt_header, inst) C40_PROT_ENTRY(ivt_pad, inst)                     \
+			C40_PROT_ENTRY(mcuboot, inst) /* common MCUboot label */                   \
+		C40_PROT_ENTRY(boot_partition, inst)  /* fallback */                               \
+	};                                                                                         \
+	enum {                                                                                     \
+		mcux_c40_prot_cnt_##inst = ARRAY_SIZE(mcux_c40_prot_##inst)                        \
+	}
 
 #else
 #define C40_MAKE_PROT_TBL(inst)
 #endif
 
-#define C40_INIT(inst)                                                             \
-	C40_MAKE_PROT_TBL(inst);                                                   \
-	C40_PARAMS(inst);                                                          \
-	static const struct mcux_c40_cfg mcux_c40_cfg_##inst = {                   \
-		.base        = DT_REG_ADDR(DT_INST(inst, DT_DRV_COMPAT)),          \
-		.size        = DT_REG_SIZE(DT_INST(inst, DT_DRV_COMPAT)),          \
-		.erase_block = DT_PROP(DT_INST(inst, DT_DRV_COMPAT), erase_block_size), \
-		.write_block = DT_PROP(DT_INST(inst, DT_DRV_COMPAT), write_block_size), \
-		.params      = &mcux_c40_params_##inst,                            \
+#define C40_INIT(inst)                                                                             \
+	C40_MAKE_PROT_TBL(inst);                                                                   \
+	C40_PARAMS(inst);                                                                          \
+	static const struct mcux_c40_cfg mcux_c40_cfg_##inst = {                                   \
+		.base = DT_REG_ADDR(DT_INST(inst, DT_DRV_COMPAT)),                                 \
+		.size = DT_REG_SIZE(DT_INST(inst, DT_DRV_COMPAT)),                                 \
+		.erase_block = DT_PROP(DT_INST(inst, DT_DRV_COMPAT), erase_block_size),            \
+		.write_block = DT_PROP(DT_INST(inst, DT_DRV_COMPAT), write_block_size),            \
+		.params = &mcux_c40_params_##inst,                                                 \
 		IF_ENABLED(CONFIG_SOC_FLASH_MCUX_C40_APPLY_PROTECTION, (               \
 			.prot_tbl = mcux_c40_prot_##inst,                          \
 			.prot_cnt = mcux_c40_prot_cnt_##inst,                      \
-		))                                                                \
-	};                                                                        \
-	static struct mcux_c40_data mcux_c40_data_##inst;                         \
-	DEVICE_DT_INST_DEFINE(inst, mcux_c40_init, NULL,                          \
-			      &mcux_c40_data_##inst, &mcux_c40_cfg_##inst,     \
-			      POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEVICE,  \
-			      &mcux_c40_api);
+		)) };                               \
+	static struct mcux_c40_data mcux_c40_data_##inst;                                          \
+	DEVICE_DT_INST_DEFINE(inst, mcux_c40_init, NULL, &mcux_c40_data_##inst,                    \
+			      &mcux_c40_cfg_##inst, POST_KERNEL,                                   \
+			      CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &mcux_c40_api);
 
 DT_INST_FOREACH_STATUS_OKAY(C40_INIT)

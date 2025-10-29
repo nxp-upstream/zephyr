@@ -306,18 +306,15 @@ It also generated .hex output files for convenience in flashing.
 
 .. code-block:: console
 
-west build -p -b mr_canhubk3/s32k344/mcuboot --sysbuild
--s zephyr/samples/drivers/flash_shell
--d build/sys_mcuboot
--- 
--Dmcuboot_CONFIG_BUILD_OUTPUT_HEX=y
--Dflash_shell_CONFIG_BUILD_OUTPUT_HEX=y
+ west build -p -b mr_canhubk3/s32k344/mcuboot --sysbuild \
+   -s zephyr/samples/drivers/flash_shell \
+   -d build/sys_mcuboot \
+   -- \
+   -Dmcuboot_CONFIG_BUILD_OUTPUT_HEX=y -Dflash_shell_CONFIG_BUILD_OUTPUT_HEX=y \
 
 The resulting artifacts are:
-
-    MCUboot: build/sys_mcuboot/mcuboot/zephyr/zephyr.hex
-
-    App (unsigned): build/sys_mcuboot/flash_shell/zephyr/zephyr.hex
+MCUboot: build/sys_mcuboot/mcuboot/zephyr/zephyr.hex
+App (unsigned): build/sys_mcuboot/flash_shell/zephyr/zephyr.hex
 
 Signing the application
 -----------------------
