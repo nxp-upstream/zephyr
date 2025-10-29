@@ -59,11 +59,11 @@ static bool mp_zvid_buffer_pool_start(MpBufferPool *pool)
 	}
 
 	if (video_stream_start(zvid_pool->zvid_obj->vdev, zvid_pool->zvid_obj->type)) {
-		LOG_ERR("Unable to start streaming");
+		LOG_ERR("Unable to start buffer pool");
 		return false;
 	}
 
-	LOG_INF("Started streaming");
+	LOG_INF("Started buffer pool");
 
 	return true;
 }
