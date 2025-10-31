@@ -131,7 +131,8 @@ static void mp_src_loop(void *userdata, void *, void *)
 	pad->task.running = true;
 	while (pad->task.running) {
 		/* Flag checking at every run may be avoided when we figure out how to
-		 * trigger the re-negotiation */
+		 * trigger the re-negotiation
+		 */
 		if (MP_OBJECT(pad)->flags & MP_PAD_FLAG_NEGOTIATE) {
 			if (!mp_src_negotiate(src)) {
 				LOG_ERR("Negotiation failed");
@@ -168,7 +169,7 @@ static MpStateChangeReturn mp_src_change_state(MpElement *self, MpStateChange tr
 
 	switch (transition) {
 	case MP_STATE_CHANGE_READY_TO_PAUSED:
-		// no_preroll = mp_src_is_live(self);
+		/* TODO */
 		break;
 	case MP_STATE_CHANGE_PAUSED_TO_PLAYING:
 		mp_pad_start_task(&MP_SRC(self)->srcpad, (MpTaskFunction)mp_src_loop,

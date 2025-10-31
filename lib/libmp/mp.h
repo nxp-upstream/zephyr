@@ -32,6 +32,6 @@
  * - registering built-in elements
  * - loading standard plugins
  */
-void mp_init();
+void mp_init(void);
 
 #endif /* __MP_H__ */

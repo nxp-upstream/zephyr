@@ -46,7 +46,7 @@ struct _MpObject {
 	int (*set_property)(MpObject *self, uint32_t key, const void *val);
 	/** Function to get property */
 	int (*get_property)(MpObject *self, uint32_t key, void *val);
-	/** Function to free the ressource using by the object */
+	/** Function to free the resource using by the object */
 	void (*release)(MpObject *obj);
 };
 

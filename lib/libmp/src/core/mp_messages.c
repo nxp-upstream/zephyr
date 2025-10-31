@@ -15,6 +15,7 @@ static uint32_t seq_id = 1;
 MpMessage *mp_message_new(MpMessageType type, MpObject *src, MpStructure *data)
 {
 	MpMessage *msg = k_malloc(sizeof(MpMessage));
+
 	if (msg == NULL) {
 		return NULL;
 	}

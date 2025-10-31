@@ -8,11 +8,11 @@
 #include <src/core/mp_pipeline.h>
 #include <src/core/mp_plugin.h>
 
-void mp_init()
+void mp_init(void)
 {
-    /* Built-in elements */
-    MP_ELEMENTFACTORY_DEFINE(pipeline, sizeof(MpPipeline), mp_pipeline_init);
+	/* Built-in elements */
+	MP_ELEMENTFACTORY_DEFINE(pipeline, sizeof(MpPipeline), mp_pipeline_init);
 
-    /* Plugins */
-    initialize_plugins();
+	/* Plugins */
+	initialize_plugins();
 }

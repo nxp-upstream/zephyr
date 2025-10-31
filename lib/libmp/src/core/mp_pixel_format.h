@@ -28,7 +28,7 @@ typedef enum {
 	MP_PIXEL_FORMAT_MONO10,
 	/** 8-bit grey scale luma-only */
 	MP_PIXEL_FORMAT_GREY8,
-	/**8-bit grey scale luminance with 8-bit alpha channel first */
+	/** 8-bit grey scale luminance with 8-bit alpha channel first */
 	MP_PIXEL_FORMAT_AL88,
 	/**
 	 * Chroma (U/V) are subsampled horizontaly and vertically
@@ -76,9 +76,9 @@ typedef enum {
 	 * @endcode
 	 */
 	MP_PIXEL_FORMAT_NV21,
-	/** 
+	/**
 	 * YUV format: Luminance (Y) and chrominance (U, V) channels.
-	 * 
+	 *
 	 * @code{.unparsed}
 	 * | Uuuuuuuu Yyyyyyyy | Vvvvvvvv Yyyyyyyy | ...
 	 * @endcode
@@ -125,7 +125,7 @@ typedef enum {
 	MP_PIXEL_FORMAT_RGB24,
 	/**
 	 * 32-bit RGB with 8-bit alpha channel first
-	 * 
+	 *
 	 * @code{.unparsed}
 	 * | Aaaaaaaa Rrrrrrrr Gggggggg Bbbbbbbb | ...
 	 * @endcode

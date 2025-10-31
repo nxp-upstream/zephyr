@@ -36,7 +36,7 @@ void mp_caps_init(MpCaps *caps, uint32_t flag)
 	caps->object.flags = flag;
 }
 
-static MpCaps *mp_caps_new_empty()
+static MpCaps *mp_caps_new_empty(void)
 {
 	MpCaps *caps = k_malloc(sizeof(MpCaps));
 
@@ -45,7 +45,7 @@ static MpCaps *mp_caps_new_empty()
 	return mp_caps_ref(caps);
 };
 
-MpCaps *mp_caps_new_any()
+MpCaps *mp_caps_new_any(void)
 {
 	MpCaps *caps = k_malloc(sizeof(MpCaps));
 

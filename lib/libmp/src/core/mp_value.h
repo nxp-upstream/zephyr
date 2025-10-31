@@ -131,8 +131,8 @@ void mp_value_list_append(MpValue *list, MpValue *append_value);
  * Set values to type
  * @param value value to set
  * @param type type of value
- * @param ... Variadic arguments used to initialize the value, same
- * rule as @ref mp_value_new()
+ * @param ... Variadic arguments used to initialize the value,
+ * same rule as @ref mp_value_new()
  */
 void mp_value_set(MpValue *value, int type, ...);
 
@@ -175,15 +175,18 @@ int mp_value_get_int_range_max(const MpValue *range);
 int mp_value_get_int_range_step(const MpValue *range);
 
 /** Get the min value of a MpValue with type MP_TYPE_FRACTION_RANGE, returning a MpValue with
- * MP_TYPE_FRACTION */
+ * MP_TYPE_FRACTION
+ */
 const MpValue *mp_value_get_fraction_range_min(const MpValue *fraction_range);
 
 /** Get the max value of a MpValue with type MP_TYPE_FRACTION_RANGE, returning a MpValue with
- * MP_TYPE_FRACTION */
+ * MP_TYPE_FRACTION
+ */
 const MpValue *mp_value_get_fraction_range_max(const MpValue *fraction_range);
 
 /** Get the step value of a MpValue with type MP_TYPE_FRACTION_RANGE, returning a MpValue
- * with MP_TYPE_FRACTION */
+ * with MP_TYPE_FRACTION
+ */
 const MpValue *mp_value_get_fraction_range_step(const MpValue *fraction_range);
 
 /** Get the object reference of a MpValue with MP_TYPE_OBJECT */
@@ -195,10 +198,10 @@ MpObject *mp_value_get_object(MpValue *value);
  * @param val1 first value
  * @param val2 second value
  * @return MP_VALUE_GREATER_THAN if val1 > val2
- * 	MP_VALUE_LESS_THAN if val1 < val2
- * 	MP_VALUE_EQUAL if val1 == val2
- * 	MP_VALUE_UNORDERED if val1 and val2 are not comparable
- * 	MP_VALUE_COMPARE_FAILED if val1 and val2 are not same type
+ *	MP_VALUE_LESS_THAN if val1 < val2
+ *	MP_VALUE_EQUAL if val1 == val2
+ *	MP_VALUE_UNORDERED if val1 and val2 are not comparable
+ *	MP_VALUE_COMPARE_FAILED if val1 and val2 are not same type
  */
 int mp_value_compare(const MpValue *val1, const MpValue *val2);
 
@@ -217,8 +220,8 @@ MpValue *mp_value_intersect(const MpValue *val1, const MpValue *val2);
  * @param frac1 first fraction
  * @param frac2 second fraction
  * @return MP_VALUE_GREATER_THAN if frac1 > frac2
- * 	MP_VALUE_LESS_THAN if frac1 < frac2
- * 	MP_VALUE_EQUAL if frac1 == frac2
+ * MP_VALUE_LESS_THAN if frac1 < frac2
+ * MP_VALUE_EQUAL if frac1 == frac2
  */
 int mp_value_compare_fraction(const MpValue *frac1, const MpValue *frac2);
 

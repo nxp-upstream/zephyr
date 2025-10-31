@@ -22,7 +22,9 @@ void mp_element_add_pad(MpElement *element, MpPad *pad)
 
 	if (MP_PAD_IS_SRC(pad)) {
 		sys_dlist_append(&element->srcpads, &pad->object.node);
-	} else if (MP_PAD_IS_SINK(pad)) {
+	}
+
+	if (MP_PAD_IS_SINK(pad)) {
 		sys_dlist_append(&element->sinkpads, &pad->object.node);
 	}
 }
@@ -137,27 +139,22 @@ bool mp_element_send_event_default(MpElement *element, MpEvent *event)
 {
 	MpObject *obj;
 	bool ret = false;
+	sys_dlist_t *pad_list = NULL;
 
 	if (element == NULL || event == NULL) {
-		return ret;
+		return false;
 	}
 
 	if (MP_EVENT_DIRECTION(event) & MP_EVENT_DIRECTION_UPSTREAM) {
-		SYS_DLIST_FOR_EACH_CONTAINER(&element->sinkpads, obj, node) {
-			MpPad *pad = MP_PAD(obj);
-			ret = mp_pad_send_event(pad, event);
-			if (!ret) {
-				break;
-			}
-		}
-	} else if (MP_EVENT_DIRECTION(event) & MP_EVENT_DIRECTION_DOWNSTREAM) {
-		SYS_DLIST_FOR_EACH_CONTAINER(&element->srcpads, obj, node) {
-			MpPad *pad = MP_PAD(obj);
-			ret = mp_pad_send_event(pad, event);
-			if (!ret) {
-				break;
-			}
-		}
+		pad_list = &element->sinkpads;
+	}
+
+	if (MP_EVENT_DIRECTION(event) & MP_EVENT_DIRECTION_DOWNSTREAM) {
+		pad_list = &element->srcpads;
+	}
+
+	SYS_DLIST_FOR_EACH_CONTAINER(pad_list, obj, node) {
+		ret |= mp_pad_send_event(MP_PAD(obj), event);
 	}
 
 	return ret;
@@ -171,6 +168,7 @@ void mp_element_init(MpElement *self)
 	self->current_state = MP_STATE_READY;
 	self->set_state = mp_element_set_state_func;
 	self->change_state = mp_element_change_state_func;
+	self->eventfn = mp_element_send_event_default;
 }
 
 MpBus *mp_element_get_bus(MpElement *element)

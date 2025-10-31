@@ -36,7 +36,8 @@ static MpCaps *mp_transform_transform_caps(MpTransform *self, MpPadDirection dir
 	return self->transform_caps ? self->transform_caps(self, direction, incaps) : NULL;
 }
 
-static inline bool mp_transform_query_caps(MpTransform *self, MpPadDirection direction, MpQuery *query)
+static inline bool mp_transform_query_caps(MpTransform *self, MpPadDirection direction,
+					   MpQuery *query)
 {
 	int ret = false;
 	MpPad *this_pad, *other_pad;
@@ -144,8 +145,8 @@ static bool mp_transform_query(MpPad *pad, MpQuery *query)
 			}
 
 			/* Configure the output buffer pool with negotiated configs */
-			if (!self->outpool->configure(self->outpool,
-							mp_caps_get_structure(self->srcpad.caps, 0))) {
+			if (!self->outpool->configure(
+				    self->outpool, mp_caps_get_structure(self->srcpad.caps, 0))) {
 				return false;
 			}
 
@@ -184,7 +185,8 @@ static bool mp_transform_event(MpPad *pad, MpEvent *event)
 			return false;
 		}
 
-		transformed_caps = transform->transform_caps(transform, other_pad->direction, event_caps);
+		transformed_caps =
+			transform->transform_caps(transform, other_pad->direction, event_caps);
 		if (transformed_caps == NULL) {
 			return false;
 		}

@@ -131,6 +131,7 @@ static void mp_value_set_va_list(MpValue *value, int type, va_list *args)
 		break;
 	case MP_TYPE_LIST:
 		MpValue *list_item;
+
 		while ((list_item = va_arg(*args, MpValue *)) != NULL) {
 			mp_value_list_append(value, list_item);
 		}
@@ -143,6 +144,7 @@ static void mp_value_set_va_list(MpValue *value, int type, va_list *args)
 void mp_value_set(MpValue *value, int type, ...)
 {
 	va_list args;
+
 	va_start(args, type);
 	mp_value_set_va_list(value, type, &args);
 	va_end(args);

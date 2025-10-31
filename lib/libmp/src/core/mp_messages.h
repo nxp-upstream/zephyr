@@ -31,10 +31,10 @@
  * Supported message types to notify the application
  */
 typedef enum {
-	MP_MESSAGE_UNKNOWN = 0,               /**< Unknown message type */
-	MP_MESSAGE_EOS = (1 << 0),            /**< End-of-stream message */
-	MP_MESSAGE_ERROR = (1 << 1),          /**< Error message */
-	MP_MESSAGE_ANY = (uint32_t)0xFFFFFFFF /**< Wildcard for any message type */
+	MP_MESSAGE_UNKNOWN = 0,      /**< Unknown message type */
+	MP_MESSAGE_EOS = (1 << 0),   /**< End-of-stream message */
+	MP_MESSAGE_ERROR = (1 << 1), /**< Error message */
+	MP_MESSAGE_ANY = 0xFFFFFFFF  /**< Wildcard for any message type */
 } MpMessageType;
 
 /**

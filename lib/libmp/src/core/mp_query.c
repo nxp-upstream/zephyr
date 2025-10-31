@@ -61,6 +61,7 @@ bool mp_query_set_caps(MpQuery *query, MpCaps *caps)
 	}
 
 	MpValue *value = mp_structure_get_value(&query->structure, "caps");
+
 	if (value) {
 		mp_value_set(value, MP_TYPE_OBJECT, caps);
 	} else {
