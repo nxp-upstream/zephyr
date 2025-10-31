@@ -39,8 +39,10 @@ struct _MpPipeline {
 	MpBus bus;
 	/** The running time - total time spent in PLAYING state without being flushed */
 	uint64_t stream_time;
-	/** Extra delay added to base_time to compensate for computing delays when setting
-	 * elements to PLAYING */
+	/**
+	 * Extra delay added to base_time to compensate for computing delays when setting
+	 * elements to PLAYING
+	 */
 	uint64_t delay;
 };
 

@@ -27,7 +27,7 @@ typedef struct _MpElementFactory {
 	/** Size in bytes of the element structure */
 	size_t size;
 	/** Initialization function for the element */
-	void (*init)(MpElement *);
+	void (*init)(MpElement *element);
 } MpElementFactory;
 
 /**

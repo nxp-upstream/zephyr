@@ -75,13 +75,14 @@ MpMessage *mp_bus_pop_msg(MpBus *bus, MpMessageType type)
 	__ASSERT_NO_MSG(bus != NULL);
 
 	MpMessage *message = NULL;
+
 	while ((message = k_fifo_get(&bus->fifo, K_FOREVER)) != NULL) {
 		if (MP_MESSAGE_TYPE(message) & type) {
 			break;
-		} else {
-			/* Discard unmatched message */
-			mp_message_destroy(message);
 		}
+
+		/* Discard unmatched message */
+		mp_message_destroy(message);
 	}
 
 	return message;
@@ -94,13 +95,7 @@ MpMessage *mp_bus_pop(MpBus *bus)
 
 MpMessage *mp_bus_peek(MpBus *bus)
 {
-	MpMessage *message;
-
-	if ((message = k_fifo_peek_head(&bus->fifo)) != NULL) {
-		return message;
-	}
-
-	return NULL;
+	return bus != NULL ? k_fifo_peek_head(&bus->fifo) : NULL;
 }
 
 void mp_bus_flush(MpBus *bus)

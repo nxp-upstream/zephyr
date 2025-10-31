@@ -12,9 +12,10 @@ K_THREAD_STACK_ARRAY_DEFINE(thread_stack, CONFIG_MP_THREADS_NUM, CONFIG_MP_THREA
 
 uint8_t mp_thread_pool[CONFIG_MP_THREADS_NUM] = {0};
 
-static int mp_thread_stack_acquire()
+static int mp_thread_stack_acquire(void)
 {
-	int stack_id = -1;
+	int stack_id = 0;
+
 	for (stack_id = 0; stack_id < CONFIG_MP_THREADS_NUM; stack_id++) {
 		if (mp_thread_pool[stack_id] == 0) {
 			break;

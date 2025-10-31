@@ -40,7 +40,7 @@ typedef struct {
 	/** Flag to indicate task status */
 	bool running;
 	/** Thread stack ID */
-	uint8_t stack_id;
+	int8_t stack_id;
 } MpTask;
 
 /**

@@ -18,7 +18,6 @@ ZTEST(caps, test_caps_intersection_primitive)
 
 	sys_heap_runtime_stats_get(&_system_heap.heap, &stats_before);
 
-	/*case 1: test between primitives*/
 	MpCaps *caps1 =
 		mp_caps_new("test/x-primitive", "test-bool", MP_TYPE_BOOLEAN, true, "test-int",
 			    MP_TYPE_INT, 123, "test-uint", MP_TYPE_UINT, 123, "test-string",
@@ -28,9 +27,9 @@ ZTEST(caps, test_caps_intersection_primitive)
 			    MP_TYPE_INT, 123, "test-uint", MP_TYPE_UINT, 123, "test-string",
 			    MP_TYPE_STRING, "xRGB", "test-fraction", MP_TYPE_FRACTION, 30, 1, NULL);
 	MpCaps *caps_intersect = mp_caps_intersect(caps1, caps2);
-
 	MpStructure *structure = mp_caps_get_structure(caps_intersect, 0);
 	MpValue *value = mp_structure_get_value(structure, "test-bool");
+
 	zassert_not_null(value);
 	zassert_equal(mp_value_get_boolean(value), true);
 
@@ -101,7 +100,8 @@ ZTEST(caps, test_caps_intersection_range)
 	zassert_not_null(value);
 	zassert_equal(value->type, MP_TYPE_FRACTION_RANGE);
 
-	MpValue *frac = mp_value_get_fraction_range_min(value);
+	const MpValue *frac = mp_value_get_fraction_range_min(value);
+
 	zassert_equal(mp_value_get_fraction_numerator(frac), 30);
 	zassert_equal(mp_value_get_fraction_denominator(frac), 1);
 	frac = mp_value_get_fraction_range_max(value);
@@ -164,6 +164,7 @@ ZTEST(caps, test_caps_intersection_list)
 		      mp_value_list_get_size(list));
 
 	MpValue *value = mp_value_list_get(list, 0);
+
 	zassert_not_null(value);
 	zassert_equal(mp_value_get_int(value), 15);
 	value = mp_value_list_get(list, 1);
@@ -187,24 +188,28 @@ ZTEST(caps, test_caps_intersection_list)
 ZTEST(caps, test_caps_video_sample)
 {
 	struct sys_memory_stats stats_before, stats_after;
+
 	sys_heap_runtime_stats_get(&_system_heap.heap, &stats_before);
 
 	MpValue *frmrates1 = mp_value_new(MP_TYPE_LIST, NULL);
 
-	/** Generate different framerates */
+	/* Generate different framerates */
 	for (int i = 15; i <= 60; i += 15) {
 		mp_value_list_append(frmrates1, mp_value_new(MP_TYPE_FRACTION, i, 1, NULL));
 	}
 
-	/* caps1: video/x-raw, format(string)=xRGB, width(int_range)=[1280, 1280 ,0],
-	 * height(int_range)=[720, 720, 0], framerate={15/1,30/1,45/1,60/1} */
+	/**
+	 * caps1: video/x-raw, format(string)=xRGB, width(int_range)=[1280, 1280 ,0],
+	 * height(int_range)=[720, 720, 0], framerate={15/1,30/1,45/1,60/1}
+	 */
 
 	MpCaps *caps1 = mp_caps_new("video/x-raw", "format", MP_TYPE_STRING, "xRGB", "width",
 				    MP_TYPE_INT_RANGE, 1280, 1280, 0, "height", MP_TYPE_INT_RANGE,
 				    720, 720, 0, "frmrate", MP_TYPE_LIST, frmrates1, NULL);
 	zassert_not_null(caps1, "caps1 allocation failed");
 
-	/* caps2: video/x-raw, format(string)={RGB565, xRGB, YUV}, width(int_range)=[1280, 1280 ,0],
+	/**
+	 * caps2: video/x-raw, format(string)={RGB565, xRGB, YUV}, width(int_range)=[1280, 1280 ,0],
 	 * height(int_range)=[720, 720, 0]
 	 */
 	MpCaps *caps2 =
@@ -234,6 +239,7 @@ ZTEST(caps, test_caps_video_sample)
 	/* Check intersection result */
 	MpStructure *structure = mp_caps_get_structure(caps_intersect, 0);
 	MpValue *value = mp_structure_get_value(structure, "format");
+
 	zassert_equal(value->type, MP_TYPE_LIST);
 	zassert_str_equal(mp_value_get_string(mp_value_list_get(value, 0)), "xRGB");
 
@@ -257,6 +263,7 @@ ZTEST(caps, test_caps_video_sample)
 
 	for (int i = 15, j = 0; i <= 60; i += 15, j++) {
 		MpValue *frac = mp_value_list_get(value, j);
+
 		zassert_not_null(frac);
 		zassert_equal(frac->type, MP_TYPE_FRACTION);
 		zassert_equal(mp_value_get_fraction_numerator(frac), i,
@@ -269,6 +276,7 @@ ZTEST(caps, test_caps_video_sample)
 
 	/* check fixate */
 	MpCaps *caps_fixate = mp_caps_fixate(caps_intersect);
+
 	mp_caps_unref(caps_intersect);
 	zassert_not_null(caps_fixate);
 	structure = mp_caps_get_structure(caps_fixate, 0);
@@ -293,7 +301,7 @@ ZTEST(caps, test_caps_video_sample)
 	zassert_equal(mp_value_get_fraction_numerator(value), 15);
 	zassert_equal(mp_value_get_fraction_denominator(value), 1);
 
-	// Free all allocated memory
+	/* Free all allocated memory */
 	mp_caps_unref(caps_fixate);
 	sys_heap_runtime_stats_get(&_system_heap.heap, &stats_after);
 	zassert_equal(stats_before.allocated_bytes, stats_after.allocated_bytes,

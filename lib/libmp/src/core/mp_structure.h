@@ -28,7 +28,7 @@
  * The structure can be modified at runtime by appending, removing fields.
  *
  * Example an structure :
- * 	video/x-raw, format=RGB565, width=1920, height=1080, framerate=30/1
+ *	video/x-raw, format=RGB565, width=1920, height=1080, framerate=30/1
  *
  * @code{.c}
  *
@@ -91,7 +91,7 @@ typedef struct {
  *
  * The list must be terminated by a `NULL` field name. The number and type of
  * arguments for each field depend on the field's type with the same rule as @ref mp_value_new()),
- * except for the MP_TYPE_LIST which requires one arguement which is a pre-created MpValue list.
+ * except for the MP_TYPE_LIST which requires one argument which is a pre-created MpValue list.
  *
  * @param name Name of the structure. If NULL, the structure will be unnamed.
  * @param ... Variadic list of field definitions, terminated by NULL.

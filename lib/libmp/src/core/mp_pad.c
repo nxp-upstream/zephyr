@@ -23,6 +23,7 @@ void mp_pad_init(MpPad *pad, const char *name, MpPadDirection direction, MpPadPr
 	pad->direction = direction;
 	pad->presence = presence;
 	pad->caps = caps;
+	pad->eventfn = mp_pad_send_event_default;
 }
 
 MpPad *mp_pad_new(const char *name, MpPadDirection direction, MpPadPresence presence, MpCaps *caps)
@@ -102,18 +103,18 @@ bool mp_pad_send_event_default(MpPad *pad, MpEvent *event)
 	/* Forward the event to other pads within the same element */
 	MpElement *element = MP_ELEMENT_CAST(pad->object.container);
 	MpObject *obj;
-	MpPad *otherpad;
+	sys_dlist_t *otherpad_list = NULL;
 
 	if (is_sink && is_downstream) {
-		SYS_DLIST_FOR_EACH_CONTAINER(&element->srcpads, obj, node) {
-			otherpad = MP_PAD(obj);
-			ret = mp_pad_send_event(otherpad, event);
-		}
-	} else if (is_src && is_upstream) {
-		SYS_DLIST_FOR_EACH_CONTAINER(&element->sinkpads, obj, node) {
-			otherpad = MP_PAD(obj);
-			ret = mp_pad_send_event(otherpad, event);
-		}
+		otherpad_list = &element->srcpads;
+	}
+
+	if (is_src && is_upstream) {
+		otherpad_list = &element->sinkpads;
+	}
+
+	SYS_DLIST_FOR_EACH_CONTAINER(otherpad_list, obj, node) {
+		ret |= mp_pad_send_event(MP_PAD(obj), event);
 	}
 
 	return ret;

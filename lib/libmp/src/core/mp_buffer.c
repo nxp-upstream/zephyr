@@ -35,6 +35,7 @@ static bool mp_buffer_pool_acquire_buffer(MpBufferPool *pool, MpBuffer **buffer)
 
 static void mp_buffer_pool_release_buffer(MpBufferPool *pool, MpBuffer *buffer)
 {
+	/* TODO */
 }
 
 void mp_buffer_pool_init(MpBufferPool *pool)
