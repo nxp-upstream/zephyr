@@ -173,8 +173,8 @@ bool mp_zvid_object_set_caps(MpZvidObject *zvid_obj, MpCaps *caps)
 
 	/* Set frame rate only if the element's caps support it */
 	MpCaps *objcaps = mp_zvid_object_get_caps(zvid_obj);
-	first_structure = mp_caps_get_structure(objcaps, 0);
 
+	first_structure = mp_caps_get_structure(objcaps, 0);
 	if (frmrate != NULL && mp_structure_get_value(first_structure, "framerate") != NULL) {
 		mp_caps_unref(objcaps);
 		frmival.numerator = mp_value_get_fraction_denominator(frmrate);
@@ -209,12 +209,15 @@ bool mp_zvid_object_decide_allocation(MpZvidObject *zvid_obj, MpQuery *query)
 
 		/* Decide alignment */
 		int align = mp_util_lcm(qpc->align, pool_config->align);
+
 		if (align == -1) {
 			return false;
 		} else if (align == 0 && qpc->align != 0) {
 			pool_config->align = qpc->align;
 		} else if (align != 0) {
 			pool_config->align = align;
+		} else {
+			return true;
 		}
 	}
 

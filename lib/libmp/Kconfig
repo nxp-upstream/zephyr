@@ -24,7 +24,7 @@ config MP_THREAD_DEFAULT_PRIORITY
 	default 5
 
 config MP_PLUGIN_ZVID
-    bool "Enable zvid plugin"
+	bool "Enable zvid plugin"
 
 config MP_PLUGIN_ZDISP
     bool "Enable zdisp plugin"
