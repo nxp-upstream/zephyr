@@ -181,11 +181,9 @@ void mp_zdisp_sink_init(MpElement *self)
 	sink->set_caps = mp_zdisp_sink_set_caps;
 	sink->get_caps = mp_zdisp_sink_get_caps;
 	sink->sinkpad.caps = mp_zdisp_sink_get_caps(sink);
-
-	LOG_DBG("mp_zdisp_sink_init called !!!");
 }
 
-static void plugin_init()
+static void plugin_init(void)
 {
 	MP_ELEMENTFACTORY_DEFINE(zdisp_sink, sizeof(MpZdispSink), mp_zdisp_sink_init);
 }
