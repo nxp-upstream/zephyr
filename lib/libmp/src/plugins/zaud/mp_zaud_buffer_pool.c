@@ -74,11 +74,6 @@ static bool mp_zaud_buffer_pool_config(MpBufferPool *pool, MpStructure *config)
 	return true;
 }
 
-static bool mp_zaud_buffer_pool_start(MpBufferPool *pool)
-{
-	return true;
-}
-
 static bool mp_zaud_buffer_pool_stop(MpBufferPool *pool)
 {
 	MpZaudBufferPool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
@@ -99,16 +94,6 @@ static bool mp_zaud_buffer_pool_stop(MpBufferPool *pool)
 	return true;
 }
 
-static bool mp_zaud_buffer_pool_acquire_buffer(MpBufferPool *pool, MpBuffer **buffer)
-{
-	return true;
-}
-
-static void mp_zaud_buffer_pool_release_buffer(MpBufferPool *pool, MpBuffer *buffer)
-{
-	return;
-}
-
 void mp_zaud_buffer_pool_init(MpBufferPool *pool)
 {
 	MpZaudBufferPool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
@@ -116,9 +101,8 @@ void mp_zaud_buffer_pool_init(MpBufferPool *pool)
 	zaud_pool->zaud_dev = NULL;
 	zaud_pool->mem_slab = NULL;
 
+	mp_buffer_pool_init(pool);
+
 	pool->configure = mp_zaud_buffer_pool_config;
-	pool->start = mp_zaud_buffer_pool_start;
 	pool->stop = mp_zaud_buffer_pool_stop;
-	pool->acquire_buffer = mp_zaud_buffer_pool_acquire_buffer;
-	pool->release_buffer = mp_zaud_buffer_pool_release_buffer;
 }
