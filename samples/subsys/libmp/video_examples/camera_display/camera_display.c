@@ -14,7 +14,7 @@ LOG_MODULE_REGISTER(main);
 
 #define LOG_LEVEL LOG_LEVEL_DBG
 
-int main()
+int main(void)
 {
 	int ret;
 
@@ -23,12 +23,14 @@ int main()
 
 	/* Create elements */
 	MpElement *source = mp_element_factory_create("zvid_src", "camsrc");
+
 	if (source == NULL) {
 		LOG_ERR("Failed to create camsrc element");
 		return 1;
 	}
 
 	MpElement *sink = mp_element_factory_create("zdisp_sink", "dispsink");
+
 	if (sink == NULL) {
 		LOG_ERR("Failed to create dispsink element");
 		return 1;
@@ -43,6 +45,7 @@ int main()
 
 	/* Create a new pipeline */
 	MpElement *pipeline = mp_pipeline_new("cam_disp");
+
 	if (pipeline == NULL) {
 		LOG_ERR("Failed to create pipeline");
 		return 1;
@@ -70,6 +73,7 @@ int main()
 	MpBus *bus = mp_element_get_bus(pipeline);
 	/* Wait until an Error or an EOS - blocking */
 	MpMessage *msg = mp_bus_pop_msg(bus, MP_MESSAGE_ERROR | MP_MESSAGE_EOS);
+
 	if (msg != NULL) {
 		switch (MP_MESSAGE_TYPE(msg)) {
 		case MP_MESSAGE_ERROR:
@@ -84,7 +88,7 @@ int main()
 		}
 	}
 
-	/* TODO: Stop pipeline and free allocated ressources */
+	/* TODO: Stop pipeline and free allocated resources */
 
 	return 0;
 }

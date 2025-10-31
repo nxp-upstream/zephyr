@@ -5,7 +5,12 @@
 
 Description
 ***********
-|--[Source element]--|-->--[Transform element]--|-->--[Sink element]--|
+
+::
+
+    +-------------------+     +----------------------+     +------------------+
+    |  Source Element   | --> |  Transform Element   | --> |   Sink Element   |
+    +-------------------+     +----------------------+     +------------------+
 
 This example demonstrates a pipeline consisting of three elements: source, transform, and sink.
 The source element, which acts as a capture device, generates video frames and pushes them to
@@ -29,7 +34,7 @@ For :zephyr:board:`mimxrt1170_evk`, build this sample application with the follo
 
 .. zephyr-app-commands::
    :zephyr-app: samples/subsys/libmp/video_examples/camera_transform_display
-   :board: mimxrt1170_evk/mimxrt1176/cm7
+   :board: mimxrt1170_evk@B/mimxrt1176/cm7
    :shield: nxp_btb44_ov5640,rk055hdmipi4ma0
    :goals: build flash
    :compact:
