@@ -112,16 +112,6 @@ static MpCaps *mp_zaud_src_get_caps(MpSrc *src)
 	return caps;
 }
 
-static bool mp_zaud_src_set_caps(MpSrc *src, MpCaps *caps)
-{
-	return true;
-}
-
-static bool mp_zaud_src_start(MpSrc *src)
-{
-	return true;
-}
-
 void mp_zaud_src_init(MpElement *self)
 {
 	MpSrc *src = MP_SRC(self);
@@ -134,8 +124,6 @@ void mp_zaud_src_init(MpElement *self)
 	self->object.set_property = mp_zaud_src_set_property;
 
 	src->get_caps = mp_zaud_src_get_caps;
-	src->set_caps = mp_zaud_src_set_caps;
-	src->start = mp_zaud_src_start;
 
 	zaud_src->get_audio_caps = NULL;
 }

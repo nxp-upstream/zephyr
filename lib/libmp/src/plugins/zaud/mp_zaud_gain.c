@@ -43,7 +43,7 @@ static int mp_zaud_gain_set_property(MpObject *obj, uint32_t key, const void *va
 	switch (key) {
 	case PROP_GAIN:
 		/* Expect percentage value (0-1000) */
-		self->gain_percent = *(int *)val;
+		self->gain_percent = *(const int *)val;
 		self->gain_fixed = percent_to_fixed_gain(self->gain_percent);
 
 		/* Update mute flag for optimization */
