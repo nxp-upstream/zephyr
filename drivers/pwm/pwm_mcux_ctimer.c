@@ -17,7 +17,11 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(pwm_mcux_ctimer, CONFIG_PWM_LOG_LEVEL);
 
+#ifdef CTIMER_MR_COUNT
+#define CHANNEL_COUNT CTIMER_MR_COUNT
+#else
 #define CHANNEL_COUNT kCTIMER_Match_3 + 1
+#endif
 
 enum pwm_ctimer_channel_role {
 	PWM_CTIMER_CHANNEL_ROLE_NONE = 0,
@@ -245,19 +249,17 @@ static DEVICE_API(pwm, pwm_mcux_ctimer_driver_api) = {
 #define PWM_MCUX_CTIMER_PINCTRL_DEFINE(n) PINCTRL_DT_INST_DEFINE(n);
 #define PWM_MCUX_CTIMER_PINCTRL_INIT(n)   .pincfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),
 
+#define PWM_CTIMER_CHANNEL_INIT_ITEM(i, _) \
+	[kCTIMER_Match_##i] = { \
+		.role = PWM_CTIMER_CHANNEL_ROLE_NONE, \
+		.cycles = 0 \
+	}
+
 #define PWM_MCUX_CTIMER_DEVICE_INIT_MCUX(n)                                                        \
 	static struct pwm_mcux_ctimer_data pwm_mcux_ctimer_data_##n = {                            \
-		.channel_states =                                                                  \
-			{                                                                          \
-				[kCTIMER_Match_0] = {.role = PWM_CTIMER_CHANNEL_ROLE_NONE,         \
-						     .cycles = 0},                                 \
-				[kCTIMER_Match_1] = {.role = PWM_CTIMER_CHANNEL_ROLE_NONE,         \
-						     .cycles = 0},                                 \
-				[kCTIMER_Match_2] = {.role = PWM_CTIMER_CHANNEL_ROLE_NONE,         \
-						     .cycles = 0},                                 \
-				[kCTIMER_Match_3] = {.role = PWM_CTIMER_CHANNEL_ROLE_NONE,         \
-						     .cycles = 0},                                 \
-			},                                                                         \
+		.channel_states = { \
+			LISTIFY(CHANNEL_COUNT, PWM_CTIMER_CHANNEL_INIT_ITEM, (,)) \
+		}, \
 		.current_period_channel = kCTIMER_Match_0,                                         \
 		.is_period_channel_set = false,                                                    \
 	};                                                                                         \
