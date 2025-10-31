@@ -6,7 +6,11 @@
 Description
 ***********
 
-|--[Camera source]--|--->---|--[Display sink]--|
+::
+
+    +------------------+       +------------------+
+    |  Camera Source   | ----> |   Display Sink   |
+    +------------------+       +------------------+
 
 This example demonstrates a pipeline consisting of two elements: source and sink.
 The source element, which acts as a capture device, generates video frames and pushes
@@ -39,7 +43,7 @@ For :zephyr:board:`mimxrt1170_evk`, build the sample with the following command:
 
 .. zephyr-app-commands::
    :zephyr-app: samples/subsys/libmp/video_examples/camera_display
-   :board: mimxrt1170_evk/mimxrt1176/cm7
+   :board: mimxrt1170_evk@B/mimxrt1176/cm7
    :shield: nxp_btb44_ov5640,rk055hdmipi4ma0
    :goals: build
    :compact:
