@@ -28,7 +28,6 @@ static bool mp_zvid_buffer_pool_start(MpBufferPool *pool)
 {
 	MpZvidBufferPool *zvid_pool = MP_ZVID_BUFFERPOOL(pool);
 	struct video_buffer vbuf = {.type = zvid_pool->zvid_obj->type};
-
 	struct video_buffer_request vbr = {
 		.memory = VIDEO_MEMORY_INTERNAL,
 		.count = pool->config.min_buffers,
@@ -36,8 +35,8 @@ static bool mp_zvid_buffer_pool_start(MpBufferPool *pool)
 		.align = pool->config.align,
 		.timeout = K_FOREVER,
 	};
-
 	int ret = video_request_buffers(&vbr);
+
 	if (ret) {
 		LOG_ERR("Failed to request buffers, errno %d", ret);
 		return false;

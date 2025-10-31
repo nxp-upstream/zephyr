@@ -110,7 +110,8 @@ static void get_zvid_fmt_from_structure(MpStructure *structure, struct video_for
 	} else if (value->type == MP_TYPE_LIST) {
 		/* Format may be of MP_TYPE_LIST due to the intersection with a list type but when
 		 * converted to zvid format, it is supposed to be a single-value list, so take the
-		 * 1st item in the list */
+		 * 1st item in the list
+		 */
 		fcaps->pixelformat = mp2zvid_pixfmt(mp_value_get_uint(mp_value_list_get(value, 0)));
 	} else {
 		return;

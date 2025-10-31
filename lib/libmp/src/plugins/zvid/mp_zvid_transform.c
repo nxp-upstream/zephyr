@@ -21,7 +21,6 @@ static bool mp_zvid_transform_chainfn(MpPad *pad, MpBuffer *buffer)
 	MpZvidTransform *zvid_transform = MP_ZVID_TRANSFORM(transform);
 	MpBufferPool *outpool = MP_BUFFERPOOL(&zvid_transform->zvid_obj_out.pool);
 	MpBuffer *out_buf = NULL;
-
 	struct video_buffer in_vbuf = {.type = VIDEO_BUF_TYPE_INPUT, .index = buffer->index};
 
 	/* Enqueue input buffer */
@@ -74,22 +73,22 @@ static bool mp_zvid_transform_set_caps(MpTransform *transform, MpPadDirection di
 				       MpCaps *caps)
 {
 	MpZvidTransform *zvid_transform = MP_ZVID_TRANSFORM(transform);
+	MpZvidObject *zvid_obj = NULL;
 
 	if (direction == MP_PAD_SINK) {
-		if (!mp_zvid_object_set_caps(&zvid_transform->zvid_obj_in, caps)) {
-			return false;
-		}
-
-		/* Set pad's caps only when everything is OK */
-		mp_caps_replace(&transform->sinkpad.caps, caps);
-	} else if (direction == MP_PAD_SRC) {
-		if (!mp_zvid_object_set_caps(&zvid_transform->zvid_obj_out, caps)) {
-			return false;
-		}
-
-		/* Set pad's caps only when everything is OK */
-		mp_caps_replace(&transform->srcpad.caps, caps);
+		zvid_obj = &zvid_transform->zvid_obj_in;
 	}
+
+	if (direction == MP_PAD_SRC) {
+		zvid_obj = &zvid_transform->zvid_obj_out;
+	}
+
+	if (zvid_obj == NULL || !mp_zvid_object_set_caps(zvid_obj, caps)) {
+		return false;
+	}
+
+	/* Set pad's caps only when everything is OK */
+	mp_caps_replace(&transform->sinkpad.caps, caps);
 
 	return true;
 }
@@ -110,14 +109,15 @@ static MpCaps *mp_zvid_transform_transform_caps(MpTransform *self, MpPadDirectio
 		ind = 0;
 		while (video_transform_cap(dev, &vfc, &other_vfc, direction, ind) == 0) {
 			MpPixelFormat mp_fmt = zvid2mp_pixfmt(other_vfc.pixelformat);
+
 			if (mp_fmt != MP_PIXEL_FORMAT_UNKNOWN) {
 				/* TODO: Only supports video/x-raw for now */
 				caps_item = mp_structure_new(
 					"video/x-raw", "format", MP_TYPE_UINT, mp_fmt, "width",
-					MP_TYPE_INT_RANGE, other_vfc.width_min,
-					other_vfc.width_max, other_vfc.width_step, "height",
-					MP_TYPE_INT_RANGE, other_vfc.height_min,
-					other_vfc.height_max, other_vfc.height_step, NULL);
+					MP_TYPE_INT_RANGE, other_vfc.width_min, other_vfc.width_max,
+					other_vfc.width_step, "height", MP_TYPE_INT_RANGE,
+					other_vfc.height_min, other_vfc.height_max,
+					other_vfc.height_step, NULL);
 				/*
 				 * TODO: Avoid duplicated caps items to save memory
 				 */
