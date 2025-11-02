@@ -296,6 +296,58 @@ For example, to erase and verify flash content:
 
    west flash -r trace32 --startup-args elfFile=build/zephyr/zephyr.elf loadTo=flash eraseFlash=yes verifyFlash=yes
 
+MCUboot
+=======
+
+This board supports app chain-loading using MCUboot.
+
+The command below builds MCUboot and the application together.
+It also generated .hex output files for convenience in flashing.
+
+.. code-block:: console
+
+ $west build -p -b mr_canhubk3/s32k344/mcuboot samples/drivers/flash_shell --sysbuild
+
+The resulting artifacts are:
+MCUboot: build/mcuboot/zephyr/zephyr.hex
+App (unsigned): build/flash_shell/zephyr/zephyr.hex
+
+Signing the application
+-----------------------
+
+Preferred (sysbuild)
+Pass your key to sysbuild so the app is signed during the build. For example:
+
+.. code-block:: console
+
+ $ west build -p -b mr_canhubk3/s32k344/mcuboot samples/drivers/flash_shell --sysbuild \
+     -- -DSB_CONFIG_BOOT_SIGNATURE_TYPE_RSA=y \
+     -DSB_CONFIG_BOOT_SIGNATURE_KEY_FILE="$PWD/bootloader/mcuboot/root-rsa-2048.pem"
+
+The signed image will be at:
+build/flash_shell/zephyr/zephyr.signed.bin
+
+Flashing
+--------
+
+    Flash The MCUboot & The App:
+
+    .. code-block:: console
+
+ $ west flash --domain mcuboot -r jlink
+
+ $ west flash --domain flash_shell
+
+Troubleshooting
+---------------
+
+    If MCUboot prints “Image in the primary slot is not valid” or stalls after
+    “Jumping to the first image slot”, the app was likely signed with a 512-byte header.
+    Re-sign with --header-size 0x400 and re-flash.
+
+    Do not add an IVT to MCUboot-chainloaded applications;
+    it’s only emitted for standalone/XIP images or MCUboot itself.
+
 Debugging
 =========
 
