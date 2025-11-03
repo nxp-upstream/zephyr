@@ -811,7 +811,7 @@ static uint8_t control(const void *cmd, uint16_t cmd_len,
 		break;
 	case HFP_OUT_MEM_OUTOFRANGE_CALL:
 		err = bt_hfp_hf_memory_dial(hfp_hf, "2");
-		break;	
+		break;
 	case HFP_EC_NR_DISABLE:
 		err = bt_hfp_hf_turn_off_ecnr(hfp_hf);
 		break;
@@ -1005,7 +1005,7 @@ static uint8_t verify(const void *cmd, uint16_t cmd_len,
 		if (!ring_alert) {
 			return BTP_STATUS_FAILED;
 		}
-		break;	
+		break;
 	case HFP_VERIFY_IUT_NOT_ALERTING:
 		if (ring_alert) {
 			return BTP_STATUS_FAILED;
@@ -1090,7 +1090,7 @@ static uint8_t enable_audio(const void *cmd, uint16_t cmd_len,
 	} else {
 		err = bt_hfp_hf_audio_connect(hfp_hf);
 	}
-	
+
 	if (err) {
 		return BTP_STATUS_FAILED;
 	}
@@ -1319,10 +1319,10 @@ static uint8_t dtmf_code_send(const void *cmd, uint16_t cmd_len,
 	struct btp_hfp_dtmf_code_send_rp *rp = rsp;
 	int err;
 
-	// err = bt_hfp_hf_transmit_dtmf_code(hfp_hf_call[0], cp->dtmf_code);
-	// if (err) {
-	// 	return BTP_STATUS_FAILED;
-	// }
+	err = bt_hfp_hf_transmit_dtmf_code(hfp_hf_call[0], cp->dtmf_code);
+	if (err != 0) {
+		return BTP_STATUS_FAILED;
+	}
 
 	return BTP_STATUS_SUCCESS;
 }
