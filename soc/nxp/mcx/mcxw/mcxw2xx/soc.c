@@ -32,6 +32,10 @@
 extern uint32_t SystemCoreClock;
 extern void nxp_nbu_init(void);
 
+#if CONFIG_PM
+void nxp_mcxw2xx_power_early_init(void);
+#endif /* CONFIG_PM */
+
 #define CTIMER_CLOCK_SOURCE(node_id) \
 	TO_CTIMER_CLOCK_SOURCE(DT_CLOCKS_CELL(node_id, name), DT_PROP(node_id, clk_source))
 #define TO_CTIMER_CLOCK_SOURCE(inst, val) TO_CLOCK_ATTACH_ID(inst, val)
@@ -131,6 +135,10 @@ void soc_reset_hook(void)
 void soc_early_init_hook(void)
 {
 	z_arm_clear_faults();
+
+#if CONFIG_PM
+	nxp_mcxw2xx_power_early_init();
+#endif /* CONFIG_PM */
 
 	/* Initialize FRO/system clock to 96 MHz */
 	clock_init();

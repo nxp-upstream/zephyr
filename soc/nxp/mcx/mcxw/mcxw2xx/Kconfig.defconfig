@@ -4,6 +4,9 @@
 
 if SOC_SERIES_MCXW2XX
 
+config MCUX_OS_TIMER
+	default y if PM
+
 config CORTEX_M_SYSTICK
 	default n if MCUX_OS_TIMER
 
@@ -35,5 +38,36 @@ config MAIN_STACK_SIZE
 	default 2048
 
 endif # BT
+
+if PM
+
+# Enable PM_DEVICE for Suspend mode and Standby mode,
+# because some devices can't work in these modes.
+config PM_DEVICE
+	default y if "$(dt_nodelabel_enabled,standby)" || "$(dt_nodelabel_enabled,suspend)" || "$(dt_nodelabel_enabled,power_off)"
+
+config PM_POLICY_DEVICE_CONSTRAINTS
+	default y if PM_DEVICE
+
+config IDLE_STACK_SIZE
+	default 640
+
+config TICKLESS_KERNEL
+	default y if PM
+
+if BT
+choice PM_POLICY
+	default PM_POLICY_CUSTOM
+endchoice
+endif # BT
+
+endif # PM
+
+if PM_DEVICE
+
+config POWER_DOMAIN
+	default y
+
+endif # PM_DEVICE
 
 endif # SOC_SERIES_MCXW2XX
