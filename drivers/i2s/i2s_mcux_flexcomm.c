@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-
 #define DT_DRV_COMPAT nxp_lpc_i2s
 
 #include <string.h>
@@ -64,10 +63,8 @@ struct i2s_mcux_data {
 	struct dma_block_config tx_dma_blocks[NUM_DMA_BLOCKS];
 };
 
-static int i2s_mcux_flexcomm_cfg_convert(uint32_t base_frequency,
-					 enum i2s_dir dir,
-					 const struct i2s_config *i2s_cfg,
-					 i2s_config_t *fsl_cfg)
+static int i2s_mcux_flexcomm_cfg_convert(uint32_t base_frequency, enum i2s_dir dir,
+					 const struct i2s_config *i2s_cfg, i2s_config_t *fsl_cfg)
 {
 	if (dir == I2S_DIR_RX) {
 		I2S_RxGetDefaultConfig(fsl_cfg);
@@ -76,8 +73,7 @@ static int i2s_mcux_flexcomm_cfg_convert(uint32_t base_frequency,
 	}
 
 	fsl_cfg->dataLength = i2s_cfg->word_size;
-	if ((i2s_cfg->format & I2S_FMT_DATA_FORMAT_MASK) ==
-	    I2S_FMT_DATA_FORMAT_I2S) {
+	if ((i2s_cfg->format & I2S_FMT_DATA_FORMAT_MASK) == I2S_FMT_DATA_FORMAT_I2S) {
 		/* Classic I2S. We always use 2 channels */
 		fsl_cfg->frameLength = 2 * i2s_cfg->word_size;
 	} else {
@@ -135,10 +131,8 @@ static int i2s_mcux_flexcomm_cfg_convert(uint32_t base_frequency,
 	}
 
 	if (fsl_cfg->masterSlave == kI2S_MasterSlaveNormalMaster ||
-		fsl_cfg->masterSlave == kI2S_MasterSlaveWsSyncMaster) {
-		fsl_cfg->divider = base_frequency /
-				   i2s_cfg->frame_clk_freq /
-				   fsl_cfg->frameLength;
+	    fsl_cfg->masterSlave == kI2S_MasterSlaveWsSyncMaster) {
+		fsl_cfg->divider = base_frequency / i2s_cfg->frame_clk_freq / fsl_cfg->frameLength;
 	}
 
 	/*
@@ -166,8 +160,7 @@ static int i2s_mcux_flexcomm_cfg_convert(uint32_t base_frequency,
 	return 0;
 }
 
-static const struct i2s_config *i2s_mcux_config_get(const struct device *dev,
-						    enum i2s_dir dir)
+static const struct i2s_config *i2s_mcux_config_get(const struct device *dev, enum i2s_dir dir)
 {
 	struct i2s_mcux_data *dev_data = dev->data;
 	struct stream *stream;
@@ -206,8 +199,7 @@ static int i2s_mcux_configure(const struct device *dev, enum i2s_dir dir,
 		return -EINVAL;
 	}
 
-	if (stream->state != I2S_STATE_NOT_READY &&
-	    stream->state != I2S_STATE_READY) {
+	if (stream->state != I2S_STATE_NOT_READY && stream->state != I2S_STATE_READY) {
 		LOG_ERR("invalid state");
 		return -EINVAL;
 	}
@@ -235,8 +227,7 @@ static int i2s_mcux_configure(const struct device *dev, enum i2s_dir dir,
 	}
 
 	/* Figure out function base clock */
-	if (clock_control_get_rate(cfg->clock_dev,
-				   cfg->clock_subsys, &base_frequency)) {
+	if (clock_control_get_rate(cfg->clock_dev, cfg->clock_subsys, &base_frequency)) {
 		return -EINVAL;
 	}
 
@@ -244,8 +235,7 @@ static int i2s_mcux_configure(const struct device *dev, enum i2s_dir dir,
 	 * Validate the configuration by converting it to SDK
 	 * format.
 	 */
-	result = i2s_mcux_flexcomm_cfg_convert(base_frequency, dir, i2s_cfg,
-					       &fsl_cfg);
+	result = i2s_mcux_flexcomm_cfg_convert(base_frequency, dir, i2s_cfg, &fsl_cfg);
 	if (result != 0) {
 		return result;
 	}
@@ -258,14 +248,12 @@ static int i2s_mcux_configure(const struct device *dev, enum i2s_dir dir,
 	}
 
 	if ((i2s_cfg->channels > 2) &&
-	    (i2s_cfg->format & I2S_FMT_DATA_FORMAT_MASK) !=
-	    I2S_FMT_DATA_FORMAT_I2S) {
+	    (i2s_cfg->format & I2S_FMT_DATA_FORMAT_MASK) != I2S_FMT_DATA_FORMAT_I2S) {
 		/*
 		 * More than 2 channels are enabled, so we need to enable
 		 * secondary channel pairs.
 		 */
-#if (defined(FSL_FEATURE_I2S_SUPPORT_SECONDARY_CHANNEL) && \
-	FSL_FEATURE_I2S_SUPPORT_SECONDARY_CHANNEL)
+#if defined(FSL_FEATURE_I2S_SUPPORT_SECONDARY_CHANNEL) && FSL_FEATURE_I2S_SUPPORT_SECONDARY_CHANNEL
 		for (uint32_t slot = 1; slot < i2s_cfg->channels / 2; slot++) {
 			/* Position must be set so that data does not overlap
 			 * with previous channel pair. Each channel pair
@@ -311,8 +299,7 @@ static int i2s_mcux_configure(const struct device *dev, enum i2s_dir dir,
 	return 0;
 }
 
-static inline void i2s_purge_stream_buffers(struct stream *stream,
-					    struct k_mem_slab *mem_slab,
+static inline void i2s_purge_stream_buffers(struct stream *stream, struct k_mem_slab *mem_slab,
 					    bool tx)
 {
 	void *buffer;
@@ -458,8 +445,7 @@ static void i2s_mcux_config_dma_blocks(const struct device *dev,
 
 	LOG_DBG("dma_slot is %d", stream->dma_cfg.dma_slot);
 	LOG_DBG("channel_direction is %d", stream->dma_cfg.channel_direction);
-	LOG_DBG("complete_callback_en is %d",
-		stream->dma_cfg.complete_callback_en);
+	LOG_DBG("complete_callback_en is %d", stream->dma_cfg.complete_callback_en);
 	LOG_DBG("error_callback_dis is %d", stream->dma_cfg.error_callback_dis);
 	LOG_DBG("source_handshake is %d", stream->dma_cfg.source_handshake);
 	LOG_DBG("dest_handshake is %d", stream->dma_cfg.dest_handshake);
@@ -475,8 +461,8 @@ static void i2s_mcux_config_dma_blocks(const struct device *dev,
 }
 
 /* This function is executed in the interrupt context */
-static void i2s_mcux_dma_tx_callback(const struct device *dma_dev, void *arg,
-				uint32_t channel, int status)
+static void i2s_mcux_dma_tx_callback(const struct device *dma_dev, void *arg, uint32_t channel,
+				     int status)
 {
 	const struct device *dev = (const struct device *)arg;
 	struct i2s_mcux_data *dev_data = dev->data;
@@ -527,8 +513,8 @@ static void i2s_mcux_dma_tx_callback(const struct device *dma_dev, void *arg,
 			 * or
 			 * No buffers in output queue
 			 */
-			LOG_DBG("DMA status %08x channel %u k_msgq_get ret %d",
-				status, channel, ret);
+			LOG_DBG("DMA status %08x channel %u k_msgq_get ret %d", status, channel,
+				ret);
 			if (stream->state == I2S_STATE_STOPPING) {
 				stream->state = I2S_STATE_READY;
 			} else {
@@ -543,8 +529,8 @@ static void i2s_mcux_dma_tx_callback(const struct device *dma_dev, void *arg,
 	}
 }
 
-static void i2s_mcux_dma_rx_callback(const struct device *dma_dev, void *arg,
-				uint32_t channel, int status)
+static void i2s_mcux_dma_rx_callback(const struct device *dma_dev, void *arg, uint32_t channel,
+				     int status)
 {
 	const struct device *dev = (const struct device *)arg;
 	struct i2s_mcux_data *dev_data = dev->data;
@@ -580,8 +566,8 @@ static void i2s_mcux_dma_rx_callback(const struct device *dma_dev, void *arg,
 			ret = k_mem_slab_alloc(stream->cfg.mem_slab,
 					       &queue_entry.mem_block, K_NO_WAIT);
 			if (ret != 0) {
-				LOG_ERR("buffer alloc from slab %p err %d",
-					stream->cfg.mem_slab, ret);
+				LOG_ERR("buffer alloc from slab %p err %d", stream->cfg.mem_slab,
+					ret);
 				i2s_mcux_rx_stream_disable(dev, false);
 				stream->state = I2S_STATE_ERROR;
 			} else {
@@ -717,8 +703,7 @@ static int i2s_mcux_rx_stream_start(const struct device *dev)
 	return 0;
 }
 
-static int i2s_mcux_trigger(const struct device *dev, enum i2s_dir dir,
-			     enum i2s_trigger_cmd cmd)
+static int i2s_mcux_trigger(const struct device *dev, enum i2s_dir dir, enum i2s_trigger_cmd cmd)
 {
 	struct i2s_mcux_data *dev_data = dev->data;
 	struct stream *stream;
@@ -741,8 +726,7 @@ static int i2s_mcux_trigger(const struct device *dev, enum i2s_dir dir,
 	switch (cmd) {
 	case I2S_TRIGGER_START:
 		if (stream->state != I2S_STATE_READY) {
-			LOG_ERR("START trigger: invalid state %d",
-				    stream->state);
+			LOG_ERR("START trigger: invalid state %d", stream->state);
 			ret = -EIO;
 			break;
 		}
@@ -819,8 +803,7 @@ static int i2s_mcux_trigger(const struct device *dev, enum i2s_dir dir,
 	return ret;
 }
 
-static int i2s_mcux_read(const struct device *dev, void **mem_block,
-			  size_t *size)
+static int i2s_mcux_read(const struct device *dev, void **mem_block, size_t *size)
 {
 	struct i2s_mcux_data *dev_data = dev->data;
 	struct stream *stream = &dev_data->rx;
@@ -832,8 +815,7 @@ static int i2s_mcux_read(const struct device *dev, void **mem_block,
 		return -EIO;
 	}
 
-	ret = k_msgq_get(&stream->out_queue, &buffer,
-			 SYS_TIMEOUT_MS(stream->cfg.timeout));
+	ret = k_msgq_get(&stream->out_queue, &buffer, SYS_TIMEOUT_MS(stream->cfg.timeout));
 
 	if (ret != 0) {
 		if (stream->state == I2S_STATE_ERROR) {
@@ -848,8 +830,7 @@ static int i2s_mcux_read(const struct device *dev, void **mem_block,
 	return 0;
 }
 
-static int i2s_mcux_write(const struct device *dev, void *mem_block,
-			   size_t size)
+static int i2s_mcux_write(const struct device *dev, void *mem_block, size_t size)
 {
 	struct i2s_mcux_data *dev_data = dev->data;
 	struct stream *stream = &dev_data->tx;
@@ -859,14 +840,12 @@ static int i2s_mcux_write(const struct device *dev, void *mem_block,
 		.size = size,
 	};
 
-	if (stream->state != I2S_STATE_RUNNING &&
-		stream->state != I2S_STATE_READY) {
+	if (stream->state != I2S_STATE_RUNNING && stream->state != I2S_STATE_READY) {
 		LOG_ERR("invalid state (%d)", stream->state);
 		return -EIO;
 	}
 
-	ret = k_msgq_put(&stream->in_queue, &queue_entry,
-			 SYS_TIMEOUT_MS(stream->cfg.timeout));
+	ret = k_msgq_put(&stream->in_queue, &queue_entry, SYS_TIMEOUT_MS(stream->cfg.timeout));
 
 	if (ret) {
 		LOG_ERR("k_msgq_put failed %d", ret);
@@ -888,7 +867,7 @@ static int i2s_mcux_get_caps(const struct device *dev, struct audio_caps *caps)
 		AUDIO_SAMPLE_RATE_48000 | AUDIO_SAMPLE_RATE_88200 | AUDIO_SAMPLE_RATE_96000;
 	caps->supported_bit_widths =
 		AUDIO_BIT_WIDTH_8 | AUDIO_BIT_WIDTH_16 | AUDIO_BIT_WIDTH_24 | AUDIO_BIT_WIDTH_32;
-	caps->min_num_buffers = NUM_RX_DMA_BLOCKS;
+	caps->min_num_buffers = NUM_DMA_BLOCKS;
 	caps->min_frame_interval = 1000;   /* 1ms minimum */
 	caps->max_frame_interval = 100000; /* 100ms maximum */
 	caps->interleaved = true;
@@ -1003,37 +982,25 @@ static int i2s_mcux_init(const struct device *dev)
 		}							\
 	}
 
-#define I2S_MCUX_FLEXCOMM_DEVICE(id)					\
-	PINCTRL_DT_INST_DEFINE(id);					\
-	static void i2s_mcux_config_func_##id(const struct device *dev); \
-	static const struct i2s_mcux_config i2s_mcux_config_##id = {	\
-		.base =							\
-		(I2S_Type *)DT_INST_REG_ADDR(id),			\
-		.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(id)), \
-		.clock_subsys =				\
-		(clock_control_subsys_t)DT_INST_CLOCKS_CELL(id, name),\
-		.irq_config = i2s_mcux_config_func_##id,		\
-		.pincfg = PINCTRL_DT_INST_DEV_CONFIG_GET(id),		\
-	};								\
-	static struct i2s_mcux_data i2s_mcux_data_##id = {		\
-		I2S_DMA_CHANNELS(id)					\
-	};								\
-	DEVICE_DT_INST_DEFINE(id,					\
-			    &i2s_mcux_init,			\
-			    NULL,			\
-			    &i2s_mcux_data_##id,			\
-			    &i2s_mcux_config_##id,			\
-			    POST_KERNEL,				\
-			    CONFIG_I2S_INIT_PRIORITY,			\
-			    &i2s_mcux_driver_api);			\
-	static void i2s_mcux_config_func_##id(const struct device *dev)	\
-	{								\
-		IRQ_CONNECT(DT_INST_IRQN(id),				\
-			    DT_INST_IRQ(id, priority),			\
-			    i2s_mcux_isr,						\
-			    DEVICE_DT_INST_GET(id),	\
-			    0);						\
-		irq_enable(DT_INST_IRQN(id));				\
+#define I2S_MCUX_FLEXCOMM_DEVICE(id)                                                               \
+	PINCTRL_DT_INST_DEFINE(id);                                                                \
+	static void i2s_mcux_config_func_##id(const struct device *dev);                           \
+	static const struct i2s_mcux_config i2s_mcux_config_##id = {                               \
+		.base = (I2S_Type *)DT_INST_REG_ADDR(id),                                          \
+		.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(id)),                               \
+		.clock_subsys = (clock_control_subsys_t)DT_INST_CLOCKS_CELL(id, name),             \
+		.irq_config = i2s_mcux_config_func_##id,                                           \
+		.pincfg = PINCTRL_DT_INST_DEV_CONFIG_GET(id),                                      \
+	};                                                                                         \
+	static struct i2s_mcux_data i2s_mcux_data_##id = {I2S_DMA_CHANNELS(id)};                   \
+	DEVICE_DT_INST_DEFINE(id, &i2s_mcux_init, NULL, &i2s_mcux_data_##id,                       \
+			      &i2s_mcux_config_##id, POST_KERNEL, CONFIG_I2S_INIT_PRIORITY,        \
+			      &i2s_mcux_driver_api);                                               \
+	static void i2s_mcux_config_func_##id(const struct device *dev)                            \
+	{                                                                                          \
+		IRQ_CONNECT(DT_INST_IRQN(id), DT_INST_IRQ(id, priority), i2s_mcux_isr,             \
+			    DEVICE_DT_INST_GET(id), 0);                                            \
+		irq_enable(DT_INST_IRQN(id));                                                      \
 	}
 
 DT_INST_FOREACH_STATUS_OKAY(I2S_MCUX_FLEXCOMM_DEVICE)
