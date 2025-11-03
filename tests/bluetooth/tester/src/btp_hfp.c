@@ -52,6 +52,7 @@ static uint32_t supported_codec_ids;
 struct bt_hfp_hf *hfp_hf;
 struct bt_conn *hf_sco_conn;
 static struct bt_hfp_hf_call *hfp_hf_call[CONFIG_BT_HFP_HF_MAX_CALLS];
+static uint8_t hfp_ag_call_dir[CONFIG_BT_HFP_HF_MAX_CALLS];
 
 struct bt_hfp_ag *hfp_ag;
 struct bt_hfp_ag *hfp_ag_ongoing;
@@ -78,6 +79,16 @@ static void ag_add_a_call(struct bt_hfp_ag_call *call)
 		}
 	}
 }
+
+static size_t ag_get_call_index(struct bt_hfp_ag_call *call)
+{
+	ARRAY_FOR_EACH(hfp_ag_call, i) {
+		if (hfp_ag_call[i] == call) {
+			return i;
+		}
+	}
+}
+
 
 static void ag_remove_a_call(struct bt_hfp_ag_call *call)
 {
@@ -176,53 +187,183 @@ static int ag_number_call(struct bt_hfp_ag *ag, const char *number)
 	return 0;
 }
 
+static char last_number[CONFIG_BT_HFP_AG_PHONE_NUMBER_MAX_LEN + 1];
+
+static int ag_redial(struct bt_hfp_ag *ag, char number[CONFIG_BT_HFP_AG_PHONE_NUMBER_MAX_LEN + 1])
+{
+	if (strlen(last_number) == 0) {
+		return -EINVAL;
+	}
+
+	strncpy(number, last_number, CONFIG_BT_HFP_AG_PHONE_NUMBER_MAX_LEN);
+
+	return 0;
+}
+
+#define MAX_CALL_NUMBER_SIZE 0x41
+
+static uint8_t call_status_buf[sizeof(struct btp_hfp_new_call_ev) + MAX_CALL_NUMBER_SIZE];
+
 static void ag_outgoing(struct bt_hfp_ag *ag, struct bt_hfp_ag_call *call, const char *number)
 {
+	struct btp_hfp_new_call_ev *ev;
+
 	LOG_DBG("AG outgoing call %p, number %s", call, number);
 	ag_add_a_call(call);
+
+	if (ag_get_call_index(call) >= CONFIG_BT_HFP_AG_MAX_CALLS) {
+		LOG_ERR("Call index out of range");
+		return;
+	}
+
+	hfp_ag_call_dir[ag_get_call_index(call)] = BTP_HFP_CALL_DIR_OUTGOING;
+
+	ev = (void *)&call_status_buf[0];
+	ev->index = (uint8_t)ag_get_call_index(call);
+	ev->dir = BTP_HFP_CALL_DIR_OUTGOING;
+	memset(ev->number, 0, MAX_CALL_NUMBER_SIZE);
+	strncpy(ev->number, number, MAX_CALL_NUMBER_SIZE - 1);
+	ev->type = 0;
+	ev->number_len = strlen(ev->number);
+
+	tester_event(BTP_SERVICE_ID_HFP, BTP_HFP_EV_NEW_CALL, call_status_buf,
+		     sizeof(*ev) + ev->number_len);
 }
 
 static void ag_incoming(struct bt_hfp_ag *ag, struct bt_hfp_ag_call *call, const char *number)
 {
+	struct btp_hfp_new_call_ev *ev;
+
 	LOG_DBG("AG incoming call %p, number %s", call, number);
 	ag_add_a_call(call);
+
+	if (ag_get_call_index(call) >= CONFIG_BT_HFP_AG_MAX_CALLS) {
+		LOG_ERR("Call index out of range");
+		return;
+	}
+
+	hfp_ag_call_dir[ag_get_call_index(call)] = BTP_HFP_CALL_DIR_INCOMING;
+
+	ev = (void *)&call_status_buf[0];
+	ev->index = (uint8_t)ag_get_call_index(call);
+	ev->dir = BTP_HFP_CALL_DIR_INCOMING;
+	memset(ev->number, 0, MAX_CALL_NUMBER_SIZE);
+	strncpy(ev->number, number, MAX_CALL_NUMBER_SIZE - 1);
+	ev->type = 0;
+	ev->number_len = strlen(ev->number);
+
+	tester_event(BTP_SERVICE_ID_HFP, BTP_HFP_EV_NEW_CALL, call_status_buf,
+		     sizeof(*ev) + ev->number_len);
 }
 
 static void ag_incoming_held(struct bt_hfp_ag_call *call)
 {
+	struct btp_hfp_call_status_ev ev;
+
 	LOG_DBG("AG incoming call %p is held", call);
+
+	if (ag_get_call_index(call) >= CONFIG_BT_HFP_AG_MAX_CALLS) {
+		LOG_ERR("Call index out of range");
+		return;
+	}
+
+	ev.index = (uint8_t)ag_get_call_index(call);
+	ev.status = BTP_HFP_CALL_STATUS_INCOMING_HELD;
+	tester_event(BTP_SERVICE_ID_HFP, BTP_HFP_EV_CALL_STATUS, &ev, sizeof(ev));
 }
 
 static void ag_ringing(struct bt_hfp_ag_call *call, bool in_band)
 {
+	struct btp_hfp_call_status_ev ev;
+
 	LOG_DBG("AG call %p start ringing mode %d", call, in_band);
+
+	if (ag_get_call_index(call) >= CONFIG_BT_HFP_AG_MAX_CALLS) {
+		LOG_ERR("Call index out of range");
+		return;
+	}
+
+	ev.index = (uint8_t)ag_get_call_index(call);
+	ev.status = hfp_ag_call_dir[ev.index] == BTP_HFP_CALL_DIR_INCOMING ?
+					BTP_HFP_CALL_STATUS_WAITING : BTP_HFP_CALL_STATUS_ALERTING;
+	tester_event(BTP_SERVICE_ID_HFP, BTP_HFP_EV_CALL_STATUS, &ev, sizeof(ev));
 }
 
 static void ag_accept(struct bt_hfp_ag_call *call)
 {
+	struct btp_hfp_call_status_ev ev;
 	LOG_DBG("AG call %p accept", call);
+
+	if (ag_get_call_index(call) >= CONFIG_BT_HFP_AG_MAX_CALLS) {
+		LOG_ERR("Call index out of range");
+		return;
+	}
+
+	ev.index = (uint8_t)ag_get_call_index(call);
+	ev.status = BTP_HFP_CALL_STATUS_ACTIVE;
+	tester_event(BTP_SERVICE_ID_HFP, BTP_HFP_EV_CALL_STATUS, &ev, sizeof(ev));
 }
 
 static void ag_held(struct bt_hfp_ag_call *call)
 {
+	struct btp_hfp_call_status_ev ev;
 	LOG_DBG("AG call %p held", call);
+
+	if (ag_get_call_index(call) >= CONFIG_BT_HFP_AG_MAX_CALLS) {
+		LOG_ERR("Call index out of range");
+		return;
+	}
+
+	ev.index = (uint8_t)ag_get_call_index(call);
+	ev.status = BTP_HFP_CALL_STATUS_HELD;
+	tester_event(BTP_SERVICE_ID_HFP, BTP_HFP_EV_CALL_STATUS, &ev, sizeof(ev));
 }
 
 static void ag_retrieve(struct bt_hfp_ag_call *call)
 {
+	struct btp_hfp_call_status_ev ev;
 	LOG_DBG("AG call %p retrieved", call);
+
+	if (ag_get_call_index(call) >= CONFIG_BT_HFP_AG_MAX_CALLS) {
+		LOG_ERR("Call index out of range");
+		return;
+	}
+
+	ev.index = (uint8_t)ag_get_call_index(call);
+	ev.status = BTP_HFP_CALL_STATUS_ACTIVE;
+	tester_event(BTP_SERVICE_ID_HFP, BTP_HFP_EV_CALL_STATUS, &ev, sizeof(ev));
 }
 
 static void ag_reject(struct bt_hfp_ag_call *call)
 {
+	struct btp_hfp_call_status_ev ev;
 	LOG_DBG("AG call %p reject", call);
 	ag_remove_a_call(call);
+
+	if (ag_get_call_index(call) >= CONFIG_BT_HFP_AG_MAX_CALLS) {
+		LOG_ERR("Call index out of range");
+		return;
+	}
+
+	ev.index = (uint8_t)ag_get_call_index(call);
+	ev.status = BTP_HFP_CALL_STATUS_REJECTED;
+	tester_event(BTP_SERVICE_ID_HFP, BTP_HFP_EV_CALL_STATUS, &ev, sizeof(ev));
 }
 
 static void ag_terminate(struct bt_hfp_ag_call *call)
 {
+	struct btp_hfp_call_status_ev ev;
 	LOG_DBG("AG call %p terminate", call);
 	ag_remove_a_call(call);
+
+	if (ag_get_call_index(call) >= CONFIG_BT_HFP_AG_MAX_CALLS) {
+		LOG_ERR("Call index out of range");
+		return;
+	}
+
+	ev.index = (uint8_t)ag_get_call_index(call);
+	ev.status = BTP_HFP_CALL_STATUS_TERMINATED;
+	tester_event(BTP_SERVICE_ID_HFP, BTP_HFP_EV_CALL_STATUS, &ev, sizeof(ev));
 }
 
 static void ag_codec(struct bt_hfp_ag *ag, uint32_t ids)
@@ -350,6 +491,7 @@ static struct bt_hfp_ag_cb ag_cb = {
 	.get_ongoing_call = ag_get_ongoing_call,
 	.memory_dial = ag_memory_dial,
 	.number_call = ag_number_call,
+	.redial = ag_redial,
 	.outgoing = ag_outgoing,
 	.incoming = ag_incoming,
 	.incoming_held = ag_incoming_held,
@@ -703,8 +845,12 @@ static uint8_t control(const void *cmd, uint16_t cmd_len,
 		bt_hfp_ag_set_indicator(hfp_ag, BT_HFP_AG_SIGNAL_IND, true);
 		break;
 	case HFP_AG_ANSWER_CALL:
-		err = bt_hfp_ag_remote_accept(hfp_ag_call[0]);
-		s_hfp_in_calling_status = 3;
+		if ((hfp_ag != NULL) && (cp->value < ARRAY_SIZE(hfp_ag_call))) {
+			err = bt_hfp_ag_remote_accept(hfp_ag_call[cp->value]);
+			s_hfp_in_calling_status = 3;
+		} else {
+			err = -EINVAL;
+		}
 		break;
 	case HFP_REJECT_CALL:
 		if (hfp_ag) {
@@ -856,10 +1002,17 @@ static uint8_t control(const void *cmd, uint16_t cmd_len,
 		}
 		break;
 	case HFP_REMOTE_RING:
-		if (hfp_ag) {
-			err = bt_hfp_ag_remote_ringing(hfp_ag_call[0]);
+		if ((hfp_ag != NULL) && (cp->value < ARRAY_SIZE(hfp_ag_call))) {
+			err = bt_hfp_ag_remote_ringing(hfp_ag_call[cp->value]);
 		} else {
-			err = -1;
+			err = -EINVAL;
+		}
+		break;
+	case HFP_AG_HOLD:
+		if ((hfp_ag != NULL) && (cp->value < ARRAY_SIZE(hfp_ag_call))) {
+			err = bt_hfp_ag_hold(hfp_ag_call[cp->value]);
+		} else {
+			err = -EINVAL;
 		}
 		break;
 	default:
@@ -1442,6 +1595,21 @@ static uint8_t ag_hold_incoming(const void *cmd, uint16_t cmd_len,
 	return BTP_STATUS_SUCCESS;
 }
 
+static uint8_t ag_last_dialed_number(const void *cmd, uint16_t cmd_len, void *rsp,
+				     uint16_t *rsp_len)
+{
+	const struct btp_hfp_ag_last_dialed_number_cmd *cp = cmd;
+	int err;
+
+	if (hfp_ag == NULL) {
+		return BTP_STATUS_FAILED;
+	}
+
+	memset(last_number, 0, sizeof(last_number));
+	memcpy(last_number, cp->number, MIN(cp->number_len, sizeof(last_number) - 1));
+	return BTP_STATUS_SUCCESS;
+}
+
 /* BTP API COMPLETION */
 
 static const struct btp_handler hfp_handlers[] = {
@@ -1651,6 +1819,12 @@ static const struct btp_handler hfp_handlers[] = {
 		.opcode = BTP_HFP_HOLD_INCOMING,
 		.expect_len = sizeof(struct btp_hfp_ag_hold_incoming_cmd),
 		.func = ag_hold_incoming
+	},
+
+	{
+		.opcode = BTP_HFP_LAST_DIALED_NUMBER,
+		.expect_len = BTP_HANDLER_LENGTH_VARIABLE,
+		.func = ag_last_dialed_number
 	},
 /* BTP BONDING COMPLETION */
 };
