@@ -89,6 +89,18 @@ static size_t ag_get_call_index(struct bt_hfp_ag_call *call)
 	}
 }
 
+static size_t ag_get_call_count(void)
+{
+	size_t count = 0;
+
+	ARRAY_FOR_EACH(hfp_ag_call, i) {
+		if (hfp_ag_call[i] != NULL) {
+			count++;
+		}
+	}
+
+	return count;
+}
 
 static void ag_remove_a_call(struct bt_hfp_ag_call *call)
 {
@@ -924,7 +936,11 @@ static uint8_t control(const void *cmd, uint16_t cmd_len,
 		if (hfp_hf_call[0]) {
 			err = bt_hfp_hf_accept(hfp_hf_call[0]);
 		} else {
-			err = bt_hfp_ag_accept(hfp_ag_call[0]);
+			if ((hfp_ag != NULL) && (cp->value < ARRAY_SIZE(hfp_ag_call))) {
+				err = bt_hfp_ag_accept(hfp_ag_call[cp->value]);
+			} else {
+				err = -EINVAL;
+			}
 		}
 		break;
 	case HFP_REJECT_HELD_CALL:
@@ -1015,6 +1031,13 @@ static uint8_t control(const void *cmd, uint16_t cmd_len,
 			err = -EINVAL;
 		}
 		break;
+	case HFP_AG_RETRIEVE:
+		if ((hfp_ag != NULL) && (cp->value < ARRAY_SIZE(hfp_ag_call))) {
+			err = bt_hfp_ag_retrieve(hfp_ag_call[cp->value]);
+		} else {
+			err = -EINVAL;
+		}
+		break;
 	default:
 		err = -1;
 	}
@@ -1050,7 +1073,13 @@ static uint8_t ag_enable_call(const void *cmd, uint16_t cmd_len,
 	int err = 0;
 
 	if (cp->flags == BTP_HFP_AG_ENABLE_CALL_FLAG_REMOTE_INCOMING) {
-		err = bt_hfp_ag_remote_incoming(hfp_ag, "1234567");
+		char *number = "1234567";
+
+		/* The number should be set by upper */
+		if (ag_get_call_count() != 0) {
+			number = "7654321";
+		}
+		err = bt_hfp_ag_remote_incoming(hfp_ag, number);
 		if (err < 0) {
 			return BTP_STATUS_FAILED;
 		}
