@@ -8,6 +8,7 @@
 #define ZEPHYR_SUBSYS_MCP_COMMON_H_
 
 #include <zephyr/kernel.h>
+#include <zephyr/net/mcp/mcp_server.h>
 
 #define MCP_MAX_REQUESTS (CONFIG_HTTP_SERVER_MAX_CLIENTS * CONFIG_HTTP_SERVER_MAX_STREAMS)
 
@@ -51,22 +52,6 @@ typedef enum {
 	MCP_EXEC_FINISHED,
 	MCP_EXEC_ZOMBIE
 } mcp_execution_state_t;
-
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
-typedef struct mcp_tool_metadata {
-	char name[CONFIG_MCP_TOOL_NAME_MAX_LEN];
-	char input_schema[CONFIG_MCP_TOOL_SCHEMA_MAX_LEN];
-#ifdef CONFIG_MCP_TOOL_DESC
-	char description[CONFIG_MCP_TOOL_DESC_MAX_LEN];
-#endif
-#ifdef CONFIG_MCP_TOOL_TITLE
-	char title[CONFIG_MCP_TOOL_NAME_MAX_LEN];
-#endif
-#ifdef CONFIG_MCP_TOOL_OUTPUT_SCHEMA
-	char output_schema[CONFIG_MCP_TOOL_SCHEMA_MAX_LEN];
-#endif
-} mcp_tool_metadata_t;
-#endif
 
 typedef struct mcp_system_msg {
 	mcp_system_msg_type_t type;
@@ -136,28 +121,9 @@ typedef struct mcp_response_queue_msg {
 } mcp_response_queue_msg_t;
 
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
-/* Tool callback function signature */
-typedef int (*mcp_tool_callback_t)(const char *params, uint32_t execution_token);
-
-/* Tool definition structure */
-typedef struct {
-	char name[CONFIG_MCP_TOOL_NAME_MAX_LEN];           /* Required */
-	char input_schema[CONFIG_MCP_TOOL_SCHEMA_MAX_LEN]; /* Required */
-#ifdef CONFIG_MCP_TOOL_DESC
-	char description[CONFIG_MCP_TOOL_DESC_MAX_LEN]; /* Optional */
-#endif
-#ifdef CONFIG_MCP_TOOL_TITLE
-	char title[CONFIG_MCP_TOOL_NAME_MAX_LEN]; /* Optional */
-#endif
-#ifdef CONFIG_MCP_TOOL_OUTPUT_SCHEMA
-	char output_schema[CONFIG_MCP_TOOL_SCHEMA_MAX_LEN]; /* Optional */
-#endif
-	mcp_tool_callback_t callback;
-} mcp_tool_info_t;
-
 /* Tool registry structure */
 typedef struct {
-	mcp_tool_info_t tools[CONFIG_MCP_MAX_TOOLS];
+	mcp_tool_record_t tools[CONFIG_MCP_MAX_TOOLS];
 	struct k_mutex registry_mutex;
 	uint8_t tool_count;
 } mcp_tool_registry_t;
