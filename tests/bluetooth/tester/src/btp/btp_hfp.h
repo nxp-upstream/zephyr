@@ -5,7 +5,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
- 
+
 /* HFP commands */
 #define BTP_HFP_READ_SUPPORTED_COMMANDS  0x01
 
@@ -31,7 +31,7 @@ struct btp_hfp_disable_slc_cmd {
 } __packed;
 
 struct btp_hfp_disable_slc_rp {
-	
+
 } __packed;
 
 #define BTP_HFP_SIGNAL_STRENGTH_SEND  0x04
@@ -41,7 +41,7 @@ struct btp_hfp_signal_strength_send_cmd {
 } __packed;
 
 struct btp_hfp_signal_strength_send_rp {
-	
+
 } __packed;
 
 #define BTP_HFP_CONTROL  0x05
@@ -104,7 +104,7 @@ struct btp_hfp_signal_strength_verify_cmd {
 } __packed;
 
 struct btp_hfp_signal_strength_verify_rp {
-	
+
 } __packed;
 
 #define BTP_HFP_AG_ENABLE_CALL  0x07
@@ -113,7 +113,7 @@ struct btp_hfp_ag_enable_call_cmd {
 } __packed;
 
 struct btp_hfp_ag_enable_call_rp {
-	
+
 } __packed;
 
 #define BTP_HFP_AG_ENABLE_CALL_FLAG_REMOTE_INCOMING 0x00
@@ -126,7 +126,7 @@ struct btp_hfp_ag_discoverable_cmd {
 } __packed;
 
 struct btp_hfp_ag_discoverable_rp {
-	
+
 } __packed;
 
 #define BTP_HFP_HF_DISCOVERABLE  0x09
@@ -135,7 +135,7 @@ struct btp_hfp_hf_discoverable_cmd {
 } __packed;
 
 struct btp_hfp_hf_discoverable_rp {
-	
+
 } __packed;
 
 #define BTP_HFP_ENABLE_AUDIO  0x10
@@ -144,7 +144,7 @@ struct btp_hfp_enable_audio_cmd {
 } __packed;
 
 struct btp_hfp_enable_audio_rp {
-	
+
 } __packed;
 
 #define BTP_HFP_VERIFY_NETWORK_OPERATOR  0x0A
@@ -354,7 +354,7 @@ struct btp_hfp_ag_vre_text_cmd {
 } __packed;
 
 struct btp_hfp_ag_vre_text_rp {
-	
+
 } __packed;
 
 
@@ -402,12 +402,13 @@ struct btp_hfp_release_specified_call_rp {
 
 #define BTP_HFP_SET_ONGOING_CALLS  0x24
 struct btp_hfp_set_ongoing_calls_cmd {
-	char* number;
 	uint8_t type;
 	uint8_t status;
 	uint8_t dir;
 	uint8_t all;
 	uint8_t flags;
+	uint8_t number_len;
+	char number[];
 } __packed;
 
 struct btp_hfp_set_ongoing_calls_rp {
