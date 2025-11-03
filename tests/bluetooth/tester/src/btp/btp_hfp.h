@@ -86,6 +86,7 @@ enum btp_hfp_control_type
 	HFP_END_CALL = 0x24,
 	HFP_REMOTE_REJECT = 0x25,
 	HFP_REMOTE_RING = 0x26,
+	HFP_AG_HOLD = 0x27,
 };
 struct btp_hfp_control_cmd {
 	enum btp_hfp_control_type control_type;
@@ -423,6 +424,15 @@ struct btp_hfp_ag_hold_incoming_cmd {
 struct btp_hfp_ag_hold_incoming_rp {
 
 } __packed;
+
+#define BTP_HFP_LAST_DIALED_NUMBER  0x26
+struct btp_hfp_ag_last_dialed_number_cmd {
+	uint8_t type;
+	uint8_t flags;
+	uint8_t number_len;
+	char number[];
+} __packed;
+
 /* BTP HEAD FILE */
 
 struct btp_hfp_verify_battery_discharged_rp {
@@ -443,4 +453,32 @@ struct btp_hfp_sco_connected_ev {
 
 struct btp_hfp_sco_disconnected_ev {
 
+} __packed;
+
+#define BTP_HFP_EV_NEW_CALL  0x83
+
+#define BTP_HFP_CALL_DIR_OUTGOING 0x00
+#define BTP_HFP_CALL_DIR_INCOMING 0x01
+struct btp_hfp_new_call_ev {
+	uint8_t index;
+	uint8_t type;
+	uint8_t dir;
+	uint8_t number_len;
+	uint8_t number[];
+} __packed;
+
+#define BTP_HFP_EV_CALL_STATUS  0x84
+
+#define BTP_HFP_CALL_STATUS_ACTIVE        0x00
+#define BTP_HFP_CALL_STATUS_HELD          0x01
+#define BTP_HFP_CALL_STATUS_DIALING       0x02
+#define BTP_HFP_CALL_STATUS_ALERTING      0x03
+#define BTP_HFP_CALL_STATUS_INCOMING      0x04
+#define BTP_HFP_CALL_STATUS_WAITING       0x05
+#define BTP_HFP_CALL_STATUS_INCOMING_HELD 0x06
+#define BTP_HFP_CALL_STATUS_REJECTED      0x07
+#define BTP_HFP_CALL_STATUS_TERMINATED    0x08
+struct btp_hfp_call_status_ev {
+	uint8_t index;
+	uint8_t status;
 } __packed;
