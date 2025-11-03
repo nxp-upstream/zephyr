@@ -141,6 +141,7 @@ static int ag_get_ongoing_call(struct bt_hfp_ag *ag)
 		return -EINVAL;
 	}
 
+	has_ongoing_calls = false;
 	hfp_ag_ongoing = ag;
 	(void)k_work_reschedule(&on_going_timer, K_MSEC(10));
 	return 0;
@@ -874,12 +875,18 @@ static uint8_t control(const void *cmd, uint16_t cmd_len,
 
 static void on_going_timer_handler(struct k_work *work)
 {
-	int err = bt_hfp_ag_ongoing_calls(hfp_ag_ongoing, &ag_ongoing_call_info_pre, 1);
+	int err;
+
+	if (hfp_ag_ongoing == NULL) {
+		return;
+	}
+
+	err = bt_hfp_ag_ongoing_calls(hfp_ag_ongoing, ag_ongoing_call_info,
+				      ARRAY_SIZE(ag_ongoing_call_info));
 	if(err) {
 		LOG_DBG("AG ongoing calls set fail!");
 	}
-
-	k_work_cancel_delayable(&on_going_timer);
+	hfp_ag_ongoing = NULL;
 }
 
 static uint8_t ag_enable_call(const void *cmd, uint16_t cmd_len,
@@ -1391,21 +1398,25 @@ static uint8_t ag_set_ongoing_calls(const void *cmd, uint16_t cmd_len,
 
 	max_calls =  MIN(CONFIG_BT_HFP_AG_MAX_CALLS, ARRAY_SIZE(ag_ongoing_call_info));
 	if (ag_ongoing_calls >= max_calls) {
-		return set_ongoing_calls();
+		return BTP_STATUS_FAILED;
 	}
 
 	memset(ag_ongoing_call_info[ag_ongoing_calls].number, 0,
 		sizeof(ag_ongoing_call_info[ag_ongoing_calls].number));
 	memcpy(ag_ongoing_call_info[ag_ongoing_calls].number, cp->number,
-		MIN(strlen(cp->number), sizeof(ag_ongoing_call_info[ag_ongoing_calls].number) - 1));
-	ag_ongoing_call_info[ag_ongoing_calls].type = (uint8_t)atoi(cp->type);
-	ag_ongoing_call_info[ag_ongoing_calls].status = (enum bt_hfp_ag_call_status)atoi(cp->status);
-	ag_ongoing_call_info[ag_ongoing_calls].dir = (enum bt_hfp_ag_call_dir)atoi(cp->dir);
+		MIN(cp->number_len, sizeof(ag_ongoing_call_info[ag_ongoing_calls].number) - 1));
+	ag_ongoing_call_info[ag_ongoing_calls].type = (uint8_t)cp->type;
+	ag_ongoing_call_info[ag_ongoing_calls].status = (enum bt_hfp_ag_call_status)cp->status;
+	ag_ongoing_call_info[ag_ongoing_calls].dir = (enum bt_hfp_ag_call_dir)cp->dir;
 
 	ag_ongoing_calls++;
 
 	if (cp->all) {
-		return set_ongoing_calls();
+		has_ongoing_calls = true;
+	}
+
+	if (ag_ongoing_calls >= max_calls) {
+		has_ongoing_calls = true;
 	}
 
 	return BTP_STATUS_SUCCESS;
@@ -1628,7 +1639,7 @@ static const struct btp_handler hfp_handlers[] = {
 
 	{
 		.opcode = BTP_HFP_SET_ONGOING_CALLS,
-		.expect_len = sizeof(struct btp_hfp_set_ongoing_calls_cmd),
+		.expect_len = BTP_HANDLER_LENGTH_VARIABLE,
 		.func = ag_set_ongoing_calls
 	},
 	{
