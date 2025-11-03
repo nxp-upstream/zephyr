@@ -962,10 +962,15 @@ static uint8_t ag_disable_call_external(const void *cmd, uint16_t cmd_len,
 	struct btp_hfp_ag_disable_call_external_rp *rp = rsp;
 	int err;
 
-	err = bt_hfp_ag_remote_terminate(hfp_ag_call[0]);
-	// if (err) {
-	// 	return BTP_STATUS_FAILED;
-	// }
+	ARRAY_FOR_EACH(hfp_ag_call, i) {
+		if (hfp_ag_call[i] != NULL) {
+			err = bt_hfp_ag_remote_terminate(hfp_ag_call[i]);
+			/* Ignore the error code */
+			if (err != 0) {
+				LOG_ERR("Failed to terminate the call %d", i);
+			}
+		}
+	}
 	return BTP_STATUS_SUCCESS;
 }
 
