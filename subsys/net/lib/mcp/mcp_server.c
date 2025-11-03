@@ -7,6 +7,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/net/mcp/mcp_server.h>
+#include <errno.h>
 #include "mcp_common.h"
 #include "mcp_transport.h"
 
@@ -65,6 +66,7 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 {
 	mcp_request_queue_msg_t request;
 	bool client_registered = false;
+	bool client_initialized = false;
 	int client_index = -1;
 	int worker_id = POINTER_TO_INT(arg1);
 	int ret;
@@ -171,6 +173,7 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 				LOG_ERR("Failed to allocate response for client %u",
 					rpc_request->client_id);
 				/* TODO: Queue error response */
+				mcp_free(rpc_request);
 				break;
 			}
 
@@ -206,6 +209,7 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 
 			/* Reset client tracking variables */
 			client_registered = false;
+			client_initialized = false;
 
 			/* Add RPC request handling logic */
 			ret = k_mutex_lock(&client_registry.registry_mutex, K_FOREVER);
@@ -225,19 +229,24 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 					    MCP_LIFECYCLE_INITIALIZED) {
 						LOG_DBG("Client %u initialized, processing request",
 							rpc_request->client_id);
-					} else {
-						LOG_ERR("Client %u not initialized. Refusing to "
-							"process tools list request.",
-							rpc_request->client_id);
-						k_mutex_unlock(&client_registry.registry_mutex);
-						mcp_free(rpc_request);
-						break;
+
+						client_initialized = true;
 					}
+					break;
 				}
 			}
 
-			if (client_registered == false) {
+			if (!client_registered) {
 				LOG_ERR("Client not registered. Refusing to process tools list "
+					"request.");
+				/* TODO: Handle error response */
+				k_mutex_unlock(&client_registry.registry_mutex);
+				mcp_free(rpc_request);
+				break;
+			}
+
+			if (!client_initialized) {
+				LOG_ERR("Client not initialized. Refusing to process tools list "
 					"request.");
 				/* TODO: Handle error response */
 				k_mutex_unlock(&client_registry.registry_mutex);
@@ -272,21 +281,22 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 			/* Copy tool metadata for transport layer */
 			for (int i = 0; i < tool_registry.tool_count; i++) {
 				/* Required fields - always copy */
-				strncpy(response->tools[i].name, tool_registry.tools[i].name,
+				strncpy(response->tools[i].name,
+					tool_registry.tools[i].metadata.name,
 					CONFIG_MCP_TOOL_NAME_MAX_LEN - 1);
 				response->tools[i].name[CONFIG_MCP_TOOL_NAME_MAX_LEN - 1] = '\0';
 
 				strncpy(response->tools[i].input_schema,
-					tool_registry.tools[i].input_schema,
+					tool_registry.tools[i].metadata.input_schema,
 					CONFIG_MCP_TOOL_SCHEMA_MAX_LEN - 1);
 				response->tools[i]
 					.input_schema[CONFIG_MCP_TOOL_SCHEMA_MAX_LEN - 1] = '\0';
 
 #ifdef CONFIG_MCP_TOOL_DESC
 				/* Description - only copy if not empty */
-				if (strlen(tool_registry.tools[i].description) > 0) {
+				if (strlen(tool_registry.tools[i].metadata.description) > 0) {
 					strncpy(response->tools[i].description,
-						tool_registry.tools[i].description,
+						tool_registry.tools[i].metadata.description,
 						CONFIG_MCP_TOOL_DESC_MAX_LEN - 1);
 					response->tools[i]
 						.description[CONFIG_MCP_TOOL_DESC_MAX_LEN - 1] =
@@ -298,9 +308,9 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 
 #ifdef CONFIG_MCP_TOOL_TITLE
 				/* Title - only copy if not empty */
-				if (strlen(tool_registry.tools[i].title) > 0) {
+				if (strlen(tool_registry.tools[i].metadata.title) > 0) {
 					strncpy(response->tools[i].title,
-						tool_registry.tools[i].title,
+						tool_registry.tools[i].metadata.title,
 						CONFIG_MCP_TOOL_NAME_MAX_LEN - 1);
 					response->tools[i].title[CONFIG_MCP_TOOL_NAME_MAX_LEN - 1] =
 						'\0';
@@ -311,9 +321,9 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 
 #ifdef CONFIG_MCP_TOOL_OUTPUT_SCHEMA
 				/* Output schema - only copy if not empty */
-				if (strlen(tool_registry.tools[i].output_schema) > 0) {
+				if (strlen(tool_registry.tools[i].metadata.output_schema) > 0) {
 					strncpy(response->tools[i].output_schema,
-						tool_registry.tools[i].output_schema,
+						tool_registry.tools[i].metadata.output_schema,
 						CONFIG_MCP_TOOL_SCHEMA_MAX_LEN - 1);
 					response->tools[i]
 						.output_schema[CONFIG_MCP_TOOL_SCHEMA_MAX_LEN - 1] =
@@ -382,14 +392,16 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 					break;
 				}
 			}
-			k_mutex_unlock(&client_registry.registry_mutex);
 
-			if (client_registered == false) {
+			if (!client_registered) {
 				LOG_ERR("Client not registered. Refusing to process notification.");
 				/* TODO: Handle error response */
+				k_mutex_unlock(&client_registry.registry_mutex);
 				mcp_free(notification);
 				break;
 			}
+
+			k_mutex_unlock(&client_registry.registry_mutex);
 
 			switch (notification->method) {
 			case MCP_NOTIF_INITIALIZED: {
@@ -536,3 +548,97 @@ int mcp_server_start(void)
 
 	return 0;
 }
+
+#ifdef CONFIG_MCP_TOOLS_CAPABILITY
+int mcp_server_add_tool(const mcp_tool_record_t *tool_record)
+{
+	int ret;
+	int available_slot = -1;
+
+	if (!tool_record || !tool_record->metadata.name[0] || !tool_record->callback) {
+		LOG_ERR("Invalid tool info provided");
+		return -EINVAL;
+	}
+
+	ret = k_mutex_lock(&tool_registry.registry_mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock tool registry mutex: %d", ret);
+		return ret;
+	}
+
+	/* Check for duplicate names and find first available slot */
+	for (int i = 0; i < CONFIG_MCP_MAX_TOOLS; i++) {
+		/* Check if slot is empty (available) */
+		if (tool_registry.tools[i].metadata.name[0] == '\0' && available_slot == -1) {
+			available_slot = i;
+		}
+
+		/* Check for duplicate tool name */
+		if (tool_registry.tools[i].metadata.name[0] != '\0' &&
+		    strncmp(tool_registry.tools[i].metadata.name, tool_record->metadata.name,
+			    CONFIG_MCP_TOOL_NAME_MAX_LEN) == 0) {
+			LOG_ERR("Tool with name '%s' already exists", tool_record->metadata.name);
+			k_mutex_unlock(&tool_registry.registry_mutex);
+			return -EEXIST;
+		}
+	}
+
+	/* Check if registry is full */
+	if (available_slot == -1) {
+		LOG_ERR("Tool registry is full. Cannot add tool '%s'", tool_record->metadata.name);
+		k_mutex_unlock(&tool_registry.registry_mutex);
+		return -ENOSPC;
+	}
+
+	/* Copy the tool record to the registry */
+	memcpy(&tool_registry.tools[available_slot], tool_record, sizeof(mcp_tool_record_t));
+	tool_registry.tool_count++;
+
+	LOG_INF("Tool '%s' registered successfully at slot %d", tool_record->metadata.name,
+		available_slot);
+
+	k_mutex_unlock(&tool_registry.registry_mutex);
+
+	return 0;
+}
+
+int mcp_server_remove_tool(const char *tool_name)
+{
+	int ret;
+	bool found = false;
+
+	if (!tool_name || !tool_name[0]) {
+		LOG_ERR("Invalid tool name provided");
+		return -EINVAL;
+	}
+
+	ret = k_mutex_lock(&tool_registry.registry_mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock tool registry mutex: %d", ret);
+		return ret;
+	}
+
+	/* Find and remove the tool */
+	for (int i = 0; i < CONFIG_MCP_MAX_TOOLS; i++) {
+		if (tool_registry.tools[i].metadata.name[0] != '\0' &&
+		    strncmp(tool_registry.tools[i].metadata.name, tool_name,
+			    CONFIG_MCP_TOOL_NAME_MAX_LEN) == 0) {
+			/* Clear the tool slot */
+			memset(&tool_registry.tools[i], 0, sizeof(mcp_tool_record_t));
+			tool_registry.tool_count--;
+			found = true;
+			LOG_INF("Tool '%s' removed successfully", tool_name);
+			break;
+		}
+	}
+
+	k_mutex_unlock(&tool_registry.registry_mutex);
+
+	if (!found) {
+		LOG_ERR("Tool '%s' not found", tool_name);
+		return -ENOENT;
+	}
+
+	return 0;
+}
+#endif
