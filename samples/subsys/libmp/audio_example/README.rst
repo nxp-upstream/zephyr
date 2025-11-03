@@ -1,4 +1,4 @@
-.. zephyr:code-sample:: dmic-gain-speaker
+.. zephyr:code-sample:: samples/subsys/libmp/audio_example/dmic-gain-speaker
    :name: DMIC-Gain-Speaker Audio Pipeline
 
 Overview
@@ -28,12 +28,12 @@ This sample has been tested on mimxrt685_evk/mimxrt685s/cm33
 Building and Running
 ********************
 
-This sample can be found under :zephyr_file:`examples/audio_example`.
+This sample can be found under :zephyr_file:`samples/subsys/libmp/audio_example/dmic-gain-speaker`.
 
 For :zephyr:board:`mimxrt685_evk`, build this sample application with the following commands:
 
 .. zephyr-app-commands::
-   :zephyr-app: examples/audio_example
+   :zephyr-app: samples/subsys/libmp/audio_example
    :board: mimxrt685_evk/mimxrt685s/cm33
    :goals: build flash
    :compact:
