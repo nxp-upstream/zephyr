@@ -7,6 +7,11 @@
 #ifndef ZEPHYR_INCLUDE_NET_MCP_SERVER_H_
 #define ZEPHYR_INCLUDE_NET_MCP_SERVER_H_
 
+/**
+ * @file
+ * @brief Model Context Protocol (MCP) Server API
+ */
+
 #include <zephyr/kernel.h>
 #include <errno.h>
 
@@ -15,6 +20,9 @@ extern "C" {
 #endif
 
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
+/**
+ * @brief Tool metadata structure
+ */
 typedef struct mcp_tool_metadata {
 	char name[CONFIG_MCP_TOOL_NAME_MAX_LEN];
 	char input_schema[CONFIG_MCP_TOOL_SCHEMA_MAX_LEN];
@@ -29,10 +37,18 @@ typedef struct mcp_tool_metadata {
 #endif
 } mcp_tool_metadata_t;
 
-/* Tool callback function signature */
+/**
+ * @brief Tool callback function
+ *
+ * @param params JSON string with tool parameters
+ * @param execution_token Unique execution identifier
+ * @return 0 on success, negative errno on failure
+ */
 typedef int (*mcp_tool_callback_t)(const char *params, uint32_t execution_token);
 
-/* Tool definition structure */
+/**
+ * @brief Tool definition structure
+ */
 typedef struct mcp_tool_record {
 	mcp_tool_metadata_t metadata;
 	mcp_tool_callback_t callback;
@@ -41,50 +57,48 @@ typedef struct mcp_tool_record {
 
 struct mcp_message_msg {
 	uint32_t token;
-	/* More fields will be added later */
 };
 
 /**
- * @brief Initialize the MCP Server.
+ * @brief Initialize the MCP Server
  *
- * @return 0 on success, negative errno code on failure
+ * @return 0 on success, negative errno on failure
  */
 int mcp_server_init(void);
 
 /**
- * @brief Start the MCP Server.
+ * @brief Start the MCP Server
  *
- * @return 0 on success, negative errno code on failure
+ * @return 0 on success, negative errno on failure
  */
 int mcp_server_start(void);
 
 /**
- * @brief Queues a response to the MCP Server library, which takes care of sending it to
- * the MCP Client.
+ * @brief Queue a response for delivery
  *
- * @return 0 on success, negative errno code on failure
+ * @return 0 on success, negative errno on failure
  */
 int mcp_queue_response(void);
 
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
 /**
- * @brief Add a tool to the MCP server tool registry
+ * @brief Add a tool to the server
  *
- * @param tool_record Pointer to tool record containing metadata and callback
- * @return 0 on success, negative errno code on failure
- *         -EINVAL if tool_record is NULL or invalid
- *         -EEXIST if tool with same name already exists
- *         -ENOSPC if tool registry is full
+ * @param tool_record Tool definition with metadata and callback
+ * @return 0 on success, negative errno on failure
+ * @retval -EINVAL Invalid tool_record
+ * @retval -EEXIST Tool name already exists
+ * @retval -ENOSPC Registry full
  */
 int mcp_server_add_tool(const mcp_tool_record_t *tool_record);
 
 /**
- * @brief Remove a tool from the MCP server tool registry
+ * @brief Remove a tool from the server
  *
- * @param tool_name Name of the tool to remove
- * @return 0 on success, negative errno code on failure
- *         -EINVAL if tool_name is NULL
- *         -ENOENT if tool not found
+ * @param tool_name Name of tool to remove
+ * @return 0 on success, negative errno on failure
+ * @retval -EINVAL Invalid tool name
+ * @retval -ENOENT Tool not found
  */
 int mcp_server_remove_tool(const char *tool_name);
 #endif
