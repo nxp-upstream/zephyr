@@ -32,7 +32,7 @@ if(CONFIG_MP)
     )
 
     # Plugins
-    if (CONFIG_MP_PLUGIN_ZVID)
+    if(CONFIG_MP_PLUGIN_ZVID)
         message("Including zvid plugin")
         file(GLOB_RECURSE PLUGIN_ZVID_SOURCE_FILES ${MP_PLUGIN_DIR}/zvid/*.c)
         zephyr_library_sources(
