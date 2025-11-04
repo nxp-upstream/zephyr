@@ -88,6 +88,7 @@ enum btp_hfp_control_type
 	HFP_REMOTE_RING = 0x26,
 	HFP_AG_HOLD = 0x27,
 	HFP_AG_RETRIEVE = 0x28,
+	HFP_AG_VRE_STATE = 0x29,
 };
 struct btp_hfp_control_cmd {
 	enum btp_hfp_control_type control_type;

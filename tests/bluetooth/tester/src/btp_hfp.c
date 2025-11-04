@@ -419,15 +419,22 @@ void ag_explicit_call_transfer(struct bt_hfp_ag *ag)
 #if defined(CONFIG_BT_HFP_AG_VOICE_RECG)
 void ag_voice_recognition(struct bt_hfp_ag *ag, bool activate)
 {
+#if 0
 	uint8_t state = 0;
 	state |= BIT(0);
 	bt_hfp_ag_vre_state(hfp_ag, state);
+#endif
 }
 
 #if defined(CONFIG_BT_HFP_AG_ENH_VOICE_RECG)
 void ag_ready_to_accept_audio(struct bt_hfp_ag *ag)
 {
+	uint8_t state = 0;
+
 	LOG_DBG("hf is ready to accept audio");
+
+	state |= BIT(0);
+	bt_hfp_ag_vre_state(hfp_ag, state);
 }
 #endif /* CONFIG_BT_HFP_AG_ENH_VOICE_RECG */
 #endif /* CONFIG_BT_HFP_AG_VOICE_RECG */
@@ -1040,6 +1047,13 @@ static uint8_t control(const void *cmd, uint16_t cmd_len,
 	case HFP_AG_RETRIEVE:
 		if ((hfp_ag != NULL) && (cp->value < ARRAY_SIZE(hfp_ag_call))) {
 			err = bt_hfp_ag_retrieve(hfp_ag_call[cp->value]);
+		} else {
+			err = -EINVAL;
+		}
+		break;
+	case HFP_AG_VRE_STATE:
+		if ((hfp_ag != NULL) && (cp->value < 8)) {
+			err = bt_hfp_ag_vre_state(hfp_ag, BIT(cp->value));
 		} else {
 			err = -EINVAL;
 		}
