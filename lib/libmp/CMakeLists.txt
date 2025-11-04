@@ -23,7 +23,6 @@ if(CONFIG_MP)
 
     file(GLOB MP_CORE_SOURCE_FILES
         ${MP_CORE_DIR}/*.c
-        ${MP_CORE_DIR}/utils/*.c
     )
 
     zephyr_library_sources(

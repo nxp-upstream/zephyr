@@ -5,9 +5,9 @@
  */
 
 #include <zephyr/kernel.h>
+#include <zephyr/sys/util.h>
 
 #include "mp_value.h"
-#include "utils/mp_utils.h"
 
 #define DEFINE_COMPARE_SINGLE_VALUE_FUNC(typename, type)                                           \
 	static int mp_value_compare_##typename(const MpValue *value1, const MpValue *value2)       \
@@ -393,8 +393,8 @@ int mp_value_compare_fraction(const MpValue *frac1, const MpValue *frac2)
 	int d1 = mp_value_get_fraction_denominator(frac1);
 	int n2 = mp_value_get_fraction_numerator(frac2);
 	int d2 = mp_value_get_fraction_denominator(frac2);
-	int gcd1 = mp_util_gcd(n1, d1);
-	int gcd2 = mp_util_gcd(n2, d2);
+	int gcd1 = gcd(n1, d1);
+	int gcd2 = gcd(n2, d2);
 
 	n1 /= gcd1;
 	d1 /= gcd1;

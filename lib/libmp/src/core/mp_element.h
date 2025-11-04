@@ -16,12 +16,12 @@
 #include <stdint.h>
 
 #include <zephyr/sys/dlist.h>
+#include <zephyr/sys/util.h>
 
 #include "mp_bus.h"
 #include "mp_event.h"
 #include "mp_object.h"
 #include "mp_query.h"
-#include "utils/mp_utils.h"
 
 typedef struct _MpElement MpElement;
 typedef struct _MpPad MpPad;
@@ -54,7 +54,7 @@ struct _MpElementFactory;
  * @return Next intermediate state
  *
  */
-#define MP_STATE_GET_NEXT(cur, target) ((MpState)((int)cur + MP_SIGN((int)target - (int)cur)))
+#define MP_STATE_GET_NEXT(cur, target) ((MpState)((int)cur + SIGN((int)target - (int)cur)))
 
 /**
  * @brief Create state transition value
