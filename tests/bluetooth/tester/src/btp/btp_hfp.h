@@ -152,8 +152,8 @@ struct btp_hfp_enable_audio_rp {
 
 #define BTP_HFP_VERIFY_NETWORK_OPERATOR  0x0A
 struct btp_hfp_verify_network_operator_cmd {
-	char *op;
-	uint8_t flags;
+	uint8_t len;
+	char op[16];
 } __packed;
 
 struct btp_hfp_verify_network_operator_rp {
