@@ -40,7 +40,7 @@ if(CONFIG_MP)
         )
     endif()
 
-    if (CONFIG_MP_PLUGIN_ZDISP)
+    if(CONFIG_MP_PLUGIN_ZDISP)
         message("Including zdisp plugin")
         file(GLOB_RECURSE PLUGIN_ZDISP_SOURCE_FILES ${MP_PLUGIN_DIR}/zdisp/*.c)
         zephyr_library_sources(
