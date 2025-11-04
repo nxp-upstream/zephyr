@@ -7,9 +7,9 @@
 #include <zephyr/drivers/video.h>
 #include <zephyr/drivers/video-controls.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/util.h>
 
 #include <src/core/mp_pixel_format.h>
-#include <src/core/utils/mp_utils.h>
 
 #include "mp_zvid.h"
 #include "mp_zvid_object.h"
@@ -208,7 +208,7 @@ bool mp_zvid_object_decide_allocation(MpZvidObject *zvid_obj, MpQuery *query)
 		}
 
 		/* Decide alignment */
-		int align = mp_util_lcm(qpc->align, pool_config->align);
+		int align = lcm(qpc->align, pool_config->align);
 
 		if (align == -1) {
 			return false;
