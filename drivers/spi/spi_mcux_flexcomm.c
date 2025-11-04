@@ -680,6 +680,12 @@ static int transceive_dma(const struct device *dev,
 
 	spi_context_buffers_setup(&data->ctx, tx_bufs, rx_bufs, 1);
 
+	if (spi_context_total_tx_len(&data->ctx) == 0 &&
+	    spi_context_total_rx_len(&data->ctx) == 0) {
+		/* nothing to do */
+		goto out;
+	}
+
 	spi_context_cs_control(&data->ctx, true);
 
 	/* Clear FIFOs and any previous errors before transfer */
