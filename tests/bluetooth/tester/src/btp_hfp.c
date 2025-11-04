@@ -851,8 +851,8 @@ static uint8_t control(const void *cmd, uint16_t cmd_len,
 		}
 		break;
 	case HFP_REJECT_CALL:
-		if (hfp_ag) {
-			err = bt_hfp_ag_reject(hfp_ag_call[0]);
+		if ((hfp_ag != NULL) && (cp->value < ARRAY_SIZE(hfp_ag_call))) {
+			err = bt_hfp_ag_reject(hfp_ag_call[cp->value]);
 		} else {
 			// err = bt_hfp_hf_reject(hfp_hf_call[0]);
 			err = bt_hfp_hf_terminate(hfp_hf_call[0]);
@@ -930,10 +930,16 @@ static uint8_t control(const void *cmd, uint16_t cmd_len,
 		}
 		break;
 	case HFP_REJECT_HELD_CALL:
-		if (hfp_ag) {
-			err = bt_hfp_ag_reject(hfp_ag_call[0]);
+		if ((hfp_ag != NULL) && (cp->value < ARRAY_SIZE(hfp_ag_call))) {
+			err = bt_hfp_ag_reject(hfp_ag_call[cp->value]);
+		} else if ((hfp_hf != NULL) && (cp->value < ARRAY_SIZE(hfp_hf_call))) {
+			if (cp->value == 0) {
+				err = bt_hfp_hf_reject(hfp_hf_call[0]);
+			} else {
+				err = bt_hfp_hf_set_udub(hfp_hf);
+			}
 		} else {
-			err = bt_hfp_hf_reject(hfp_hf_call[0]);
+			err = -EINVAL;
 		}
 		break;
 	case HFP_OUT_CALL:
