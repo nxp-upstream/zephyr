@@ -416,12 +416,7 @@ void ag_voice_recognition(struct bt_hfp_ag *ag, bool activate)
 #if defined(CONFIG_BT_HFP_AG_ENH_VOICE_RECG)
 void ag_ready_to_accept_audio(struct bt_hfp_ag *ag)
 {
-	uint8_t state = 0;
-
 	LOG_DBG("hf is ready to accept audio");
-
-	state |= BIT(0);
-	bt_hfp_ag_vre_state(hfp_ag, state);
 }
 #endif /* CONFIG_BT_HFP_AG_ENH_VOICE_RECG */
 #endif /* CONFIG_BT_HFP_AG_VOICE_RECG */
