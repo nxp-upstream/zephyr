@@ -8,7 +8,9 @@ module-str = libmp
 source "subsys/logging/Kconfig.template.log_config"
 
 config MP
-	bool "Enable MP core"
+	bool "Media Pipe core support"
+
+if MP
 
 config MP_THREADS_NUM
 	int "Maximum number of threads could be used"
@@ -31,3 +33,5 @@ config MP_PLUGIN_ZDISP
 
 config MP_PLUGIN_ZAUD
 	bool "Enable zaud plugin"
+
+endif # MP
