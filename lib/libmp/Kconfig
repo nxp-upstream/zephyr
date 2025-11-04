@@ -31,7 +31,7 @@ config MP_PLUGIN_ZVID
 	bool "Zvid plugin support"
 
 config MP_PLUGIN_ZDISP
-	bool "Enable zdisp plugin"
+	bool "Zdisp plugin support"
 
 config MP_PLUGIN_ZAUD
 	bool "Enable zaud plugin"
