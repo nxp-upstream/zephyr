@@ -631,3 +631,15 @@ int mcp_server_remove_tool(const char *tool_name)
 	return 0;
 }
 #endif
+
+#ifdef CONFIG_ZTEST
+uint8_t mcp_server_get_client_count(void)
+{
+	return client_registry.client_count;
+}
+
+uint8_t mcp_server_get_tool_count(void)
+{
+	return tool_registry.tool_count;
+}
+#endif
