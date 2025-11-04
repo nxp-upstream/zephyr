@@ -351,6 +351,8 @@ struct btp_hfp_query_network_operator_rp {
 
 #define BTP_HFP_AG_VRE_TEXT  0x1F
 struct btp_hfp_ag_vre_text_cmd {
+	uint8_t status;
+	uint16_t id;
 	uint8_t type;
 	uint8_t operation;
 	uint32_t delay;

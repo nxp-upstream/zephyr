@@ -1499,6 +1499,8 @@ static uint8_t query_network_operator(const void *cmd, uint16_t cmd_len,
 
 struct btp_ag_vre_text {
 	struct k_work_delayable work;
+	uint8_t status;
+	uint16_t id;
 	uint8_t type;
 	uint8_t operation;
 };
@@ -1508,6 +1510,7 @@ static void vre_text_work_handler(struct k_work *work)
 	struct btp_ag_vre_text *vre_text;
 	struct k_work_delayable *dwork = CONTAINER_OF(work, struct k_work_delayable, work);
 	int err;
+	char id[sizeof(vre_text->id) * 2 + 1];
 
 	if (hfp_ag == NULL) {
 		return;
@@ -1515,8 +1518,9 @@ static void vre_text_work_handler(struct k_work *work)
 
 	vre_text = CONTAINER_OF(dwork, struct btp_ag_vre_text, work);
 
-	bt_hfp_ag_vre_textual_representation(hfp_ag, 1, "2", vre_text->type, vre_text->operation,
-					     "1");
+	bin2hex((uint8_t *)&vre_text->id, sizeof(vre_text->id), id, sizeof(id));
+	bt_hfp_ag_vre_textual_representation(hfp_ag, vre_text->status, id, vre_text->type,
+					     vre_text->operation, "1");
 }
 
 static struct btp_ag_vre_text vre_text = {
@@ -1529,10 +1533,13 @@ static uint8_t ag_vre_text(const void *cmd, uint16_t cmd_len,
 	const struct btp_hfp_ag_vre_text_cmd *cp = cmd;
 	struct btp_hfp_ag_vre_text_rp *rp = rsp;
 	int err;
+	char id[sizeof(cp->id) * 2 + 1];
 
 	if (cp->delay != 0) {
 		vre_text.operation = cp->operation;
 		vre_text.type = cp->type;
+		vre_text.id = cp->id;
+		vre_text.status = cp->status;
 		err = k_work_schedule(&vre_text.work, K_MSEC(cp->delay));
 		if (err < 0) {
 			return BTP_STATUS_FAILED;
@@ -1540,7 +1547,9 @@ static uint8_t ag_vre_text(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_SUCCESS;
 	}
 
-	err = bt_hfp_ag_vre_textual_representation(hfp_ag, 1, "2", cp->type, cp->operation, "1");
+	bin2hex((uint8_t *)&cp->id, sizeof(cp->id), id, sizeof(id));
+	err = bt_hfp_ag_vre_textual_representation(hfp_ag, cp->status, id, cp->type,
+						   cp->operation, "1");
 	if (err) {
 		return BTP_STATUS_FAILED;
 	}
