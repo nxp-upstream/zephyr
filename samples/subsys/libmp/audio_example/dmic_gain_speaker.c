@@ -29,9 +29,6 @@ int main()
 	int gain = 90; /* Set gain to 90% (0.9x amplification) */
 	int ret = 0;
 
-	/* Initialize built-in elements and plugins */
-	mp_init();
-
 	/* Create elements */
 	MpElement *source = mp_element_factory_create("zaud_dmic_src", "dmic");
 	if (source == NULL) {
