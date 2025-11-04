@@ -112,8 +112,6 @@ typedef enum {
 struct _MpPad {
 	/** Base object */
 	MpObject object;
-	/** Node for linking in pad lists */
-	sys_dnode_t node;
 	/** The direction of the pad, cannot change after creating the pad */
 	MpPadDirection direction;
 	/** The presence of the pad */

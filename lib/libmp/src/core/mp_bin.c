@@ -55,6 +55,8 @@ MpStateChangeReturn mp_bin_change_state_func(MpElement *self, MpStateChange tran
 	MpStateChangeReturn ret = MP_STATE_CHANGE_FAILURE;
 	MpBin *bin = MP_BIN(self);
 	MpState next = (MpState)MP_STATE_TRANSITION_NEXT(transition);
+	MpPad *first_sinkpad;
+	sys_dnode_t *first_sinkpad_node;
 
 	/* TODO: Activate bin's own src pads */
 
@@ -79,15 +81,13 @@ MpStateChangeReturn mp_bin_change_state_func(MpElement *self, MpStateChange tran
 		}
 
 		/* Get the 1st sinkpad of the element */
-		sys_dnode_t *first_sinkpad_node = sys_dlist_peek_head(&element->sinkpads);
-
+		first_sinkpad_node = sys_dlist_peek_head(&element->sinkpads);
 		if (first_sinkpad_node == NULL) {
 			LOG_DBG("We reached the source\n");
 			break;
 		}
 
-		MpPad *first_sinkpad = MP_PAD(CONTAINER_OF(first_sinkpad_node, MpObject, node));
-
+		first_sinkpad = CONTAINER_OF(first_sinkpad_node, MpPad, object.node);
 		/* Get next element */
 		element = MP_ELEMENT_CAST(first_sinkpad->peer->object.container);
 	}

@@ -6,7 +6,7 @@
 
 cmake_minimum_required(VERSION 3.20.0)
 
-if (CONFIG_MP)
+if(CONFIG_MP)
     set(MP_BASE_DIR ${CMAKE_CURRENT_LIST_DIR})
     set(MP_CORE_DIR ${MP_BASE_DIR}/src/core)
     set(MP_PLUGIN_DIR ${MP_BASE_DIR}/src/plugins)

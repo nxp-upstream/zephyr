@@ -101,7 +101,7 @@ struct _MpElementFactory;
  * @param element The element
  * @return Next state
  */
-#define MP_STATE_NEXT(element)    (MP_ELEMENT_CAST(element)->next_state)
+#define MP_STATE_NEXT(element) (MP_ELEMENT_CAST(element)->next_state)
 
 /**
  * @brief Get target state of element
@@ -109,7 +109,7 @@ struct _MpElementFactory;
  * @param element The element
  * @return Target state
  */
-#define MP_STATE_TARGET(element)  (MP_ELEMENT_CAST(element)->target_state)
+#define MP_STATE_TARGET(element) (MP_ELEMENT_CAST(element)->target_state)
 
 /**
  * @brief States of an element
