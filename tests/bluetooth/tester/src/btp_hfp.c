@@ -894,7 +894,7 @@ static uint8_t control(const void *cmd, uint16_t cmd_len,
 		break;
 	case HFP_TWC_CALL:
 		if (hfp_ag) {
-			err = bt_hfp_ag_explicit_call_transfer(hfp_ag);
+			err = bt_hfp_ag_remote_incoming(hfp_ag, "7654321");
 		}
 		break;
 	case HFP_ENABLE_VR:
