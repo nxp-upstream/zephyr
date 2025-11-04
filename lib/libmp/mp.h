@@ -25,13 +25,4 @@
 #include <src/plugins/zaud/mp_zaud_property.h>
 #endif
 
-/**
- * mp_init:
- *
- * Initializes the whole MP library
- * - registering built-in elements
- * - loading standard plugins
- */
-void mp_init(void);
-
 #endif /* __MP_H__ */
