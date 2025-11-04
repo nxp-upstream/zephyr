@@ -55,7 +55,7 @@ if(CONFIG_MP)
         )
     endif()
 
-    zephyr_linker_sources(DATA_SECTIONS ${MP_CORE_DIR}/mp_zephyr.ld)
+    zephyr_linker_sources(DATA_SECTIONS ${MP_CORE_DIR}/mp.ld)
 
     zephyr_iterable_section(NAME MpElementFactory GROUP DATA_REGION ${XIP_ALIGN_WITH_INPUT})
 
