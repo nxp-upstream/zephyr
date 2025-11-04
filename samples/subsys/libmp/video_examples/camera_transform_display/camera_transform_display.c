@@ -18,9 +18,6 @@ int main(void)
 {
 	int ret;
 
-	/* Initialize built-in elements and plugins */
-	mp_init();
-
 	/* Create elements */
 	MpElement *source = mp_element_factory_create("zvid_src", "camsrc");
 
