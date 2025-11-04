@@ -353,6 +353,7 @@ struct btp_hfp_query_network_operator_rp {
 struct btp_hfp_ag_vre_text_cmd {
 	uint8_t type;
 	uint8_t operation;
+	uint32_t delay;
 	uint8_t flags;
 } __packed;
 
