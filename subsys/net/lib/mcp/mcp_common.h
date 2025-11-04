@@ -29,11 +29,10 @@ typedef enum {
 	MCP_MSG_RESPONSE_TOOLS_CALL,
 #endif
 	MCP_MSG_NOTIFICATION,
-	/* unknown method, unknown tool, other errors */
 } mcp_queue_msg_type_t;
 
 typedef enum {
-	MCP_SYS_DISCONNECTION,
+	MCP_SYS_CLIENT_SHUTDOWN,
 	MCP_SYS_CANCEL
 } mcp_system_msg_type_t;
 
@@ -56,15 +55,12 @@ typedef enum {
 typedef struct mcp_system_msg {
 	mcp_system_msg_type_t type;
 	uint32_t request_id;
+	uint32_t client_id;
 } mcp_system_msg_t;
 
 typedef struct mcp_initialize_request {
 	uint32_t request_id;
 	uint32_t client_id;
-
-	/* MCP Core ignores client params and clientInfo and won't try
-	 * to use any client capabilities, in this implementation.
-	 */
 } mcp_initialize_request_t;
 
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
@@ -76,7 +72,6 @@ typedef struct mcp_tools_list_request {
 typedef struct mcp_tools_call_request {
 	uint32_t request_id;
 	uint32_t client_id;
-
 	char name[CONFIG_MCP_TOOL_NAME_MAX_LEN];
 	char arguments[CONFIG_MCP_TOOL_INPUT_ARGS_MAX_LEN];
 } mcp_tools_call_request_t;
@@ -109,26 +104,23 @@ typedef struct mcp_server_notification {
 	mcp_notification_method_type_t method;
 } mcp_server_notification_t;
 
-/* Queue message structures using void pointers */
 typedef struct mcp_request_queue_msg {
 	mcp_queue_msg_type_t type;
-	void *data; /* Points to allocated message data */
+	void *data;
 } mcp_request_queue_msg_t;
 
 typedef struct mcp_response_queue_msg {
 	mcp_queue_msg_type_t type;
-	void *data; /* Points to allocated message data */
+	void *data;
 } mcp_response_queue_msg_t;
 
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
-/* Tool registry structure */
 typedef struct {
 	mcp_tool_record_t tools[CONFIG_MCP_MAX_TOOLS];
 	struct k_mutex registry_mutex;
 	uint8_t tool_count;
 } mcp_tool_registry_t;
 
-/* Execution context for tracking active tool executions */
 typedef struct {
 	uint32_t execution_token;
 	uint32_t request_id;
@@ -141,26 +133,13 @@ typedef struct {
 	mcp_execution_state_t execution_state;
 } mcp_execution_context_t;
 
-/* Execution registry for tracking active executions */
 typedef struct {
 	mcp_execution_context_t executions[MCP_MAX_REQUESTS];
 	struct k_mutex execution_mutex;
 } mcp_execution_registry_t;
 #endif
 
-/**
- * @brief Allocate memory for MCP operations
- *
- * @param size Size in bytes to allocate
- * @return Pointer to allocated memory, or NULL on failure
- */
 void *mcp_alloc(size_t size);
-
-/**
- * @brief Free memory allocated by mcp_alloc()
- *
- * @param ptr Pointer to memory to free, or NULL (no-op if NULL)
- */
 void mcp_free(void *ptr);
 
 #endif /* ZEPHYR_SUBSYS_MCP_COMMON_H_ */
