@@ -627,6 +627,11 @@ static void hf_incoming(struct bt_hfp_hf *hf, struct bt_hfp_hf_call *call)
 	hf_add_a_call(call);
 }
 
+static void hf_accept(struct bt_hfp_hf_call *call)
+{
+	ring_alert = false;
+}
+
 static void hf_roam(struct bt_conn *conn, uint32_t value)
 {
 	roam_active_state = value ? true : false;
@@ -688,6 +693,7 @@ static struct bt_hfp_hf_cb hf_cb = {
 	.remote_ringing = hf_remote_ringing,
 	.incoming = hf_incoming,
 	.outgoing = hf_outgoing,
+	.accept = hf_accept,
 	.roam = hf_roam,
 	.subscriber_number = hf_subscriber_number,
 #if defined(CONFIG_BT_HFP_HF_ECNR)
