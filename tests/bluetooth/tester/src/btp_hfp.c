@@ -1093,31 +1093,15 @@ static uint8_t ag_enable_call(const void *cmd, uint16_t cmd_len,
 	struct btp_hfp_ag_enable_call_rp *rp = rsp;
 	int err = 0;
 
-	if (cp->flags == BTP_HFP_AG_ENABLE_CALL_FLAG_REMOTE_INCOMING) {
-		char *number = "1234567";
+	char *number = "1234567";
 
-		/* The number should be set by upper */
-		if (ag_get_call_count() != 0) {
-			number = "7654321";
-		}
-		err = bt_hfp_ag_remote_incoming(hfp_ag, number);
-		if (err < 0) {
-			return BTP_STATUS_FAILED;
-		}
-	} else if (cp->flags == BTP_HFP_AG_ENABLE_CALL_FLAG_ON_GOING_CALL) {
-		memcpy(ag_ongoing_call_info_pre.number, "1234567", sizeof("1234567"));
-		ag_ongoing_call_info_pre.type = 0;
-		ag_ongoing_call_info_pre.dir = BT_HFP_AG_CALL_DIR_INCOMING;
-		ag_ongoing_call_info_pre.status = BT_HFP_AG_CALL_STATUS_HELD;
-
-		has_ongoing_calls = true;
-	} else if (cp->flags == BTP_HFP_AG_ENABLE_CALL_FLAG_INCOMING_HELD) {
-		memcpy(ag_ongoing_call_info_pre.number, "1234567", sizeof("1234567"));
-		ag_ongoing_call_info_pre.type = 0;
-		ag_ongoing_call_info_pre.dir = BT_HFP_AG_CALL_DIR_INCOMING;
-		ag_ongoing_call_info_pre.status = BT_HFP_AG_CALL_STATUS_INCOMING_HELD;
-
-		has_ongoing_calls = true;
+	/* The number should be set by upper */
+	if (ag_get_call_count() != 0) {
+		number = "7654321";
+	}
+	err = bt_hfp_ag_remote_incoming(hfp_ag, number);
+	if (err < 0) {
+		return BTP_STATUS_FAILED;
 	}
 
 	return BTP_STATUS_SUCCESS;
