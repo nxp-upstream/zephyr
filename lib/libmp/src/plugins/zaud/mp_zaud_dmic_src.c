@@ -34,25 +34,21 @@ static bool mp_zaud_dmic_src_set_caps(MpSrc *src, MpCaps *caps)
 		.mem_slab = zaud_dmic_src->pool.mem_slab,
 	};
 
-	struct dmic_cfg cfg = {
-		.io =
-			{
-				/* These fields can be used to limit the PDM clock
-				 * configurations that the driver is allowed to use
-				 * to those supported by the microphone.
-				 */
-				/* TODO: Move to DT and driver init */
-				.min_pdm_clk_freq = 1000000,
-				.max_pdm_clk_freq = 3500000,
-				.min_pdm_clk_dc = 40,
-				.max_pdm_clk_dc = 60,
-			},
-		.streams = &stream,
-		.channel =
-			{
-				.req_num_streams = 1,
-			},
-	};
+	struct dmic_cfg cfg = {0};
+
+	/* These fields can be used to limit the PDM clock
+	 * configurations that the driver is allowed to use
+	 * to those supported by the microphone.
+	 */
+	/* TODO: Move to DT and driver init */
+	cfg.io.min_pdm_clk_freq = 1000000;
+	cfg.io.max_pdm_clk_freq = 3500000;
+	cfg.io.min_pdm_clk_dc = 40;
+	cfg.io.max_pdm_clk_dc = 60;
+
+	cfg.streams = &stream;
+
+	cfg.channel.req_num_streams = 1;
 
 	if (zaud_dmic_src->pool.mem_slab == NULL) {
 		LOG_ERR("Memory slab not configured");
@@ -142,7 +138,7 @@ void mp_zaud_dmic_src_init(MpElement *self)
 #if DT_NODE_EXISTS(DT_NODELABEL(dmic_dev))
 	zaud_dmic_src->pool.zaud_dev = DEVICE_DT_GET(DT_NODELABEL(dmic_dev));
 #else
-#error "dmic_dev node label not found in device tree. Please add the node to your board's device tree overlay."
+#error "dmic_dev node label not found in device tree."
 #endif
 
 	if (!device_is_ready(zaud_dmic_src->pool.zaud_dev)) {

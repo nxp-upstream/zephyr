@@ -41,15 +41,16 @@ static bool mp_zaud_buffer_pool_config(MpBufferPool *pool, MpStructure *config)
 	pool->config.align = bit_width >> 3;
 
 	/* Allocate just the pool's buffers structure */
-	if ((pool->buffers = k_calloc(pool->config.min_buffers, sizeof(MpBuffer))) == NULL) {
+	pool->buffers = k_calloc(pool->config.min_buffers, sizeof(MpBuffer));
+	if (pool->buffers == NULL) {
 		LOG_ERR("Unable to allocate pool buffer");
 		return false;
 	}
 
 	/* TODO: Need to allocate in non-cachable memory */
-	if ((zaud_pool->unaligned_buffer =
-		     (void *)k_calloc(1, (pool->config.size * pool->config.min_buffers) +
-						 (pool->config.align - 1))) == NULL) {
+	zaud_pool->unaligned_buffer = (void *)k_calloc(
+		1, (pool->config.size * pool->config.min_buffers) + (pool->config.align - 1));
+	if (zaud_pool->unaligned_buffer == NULL) {
 		LOG_ERR("Unable to allocate mem_slab buffer");
 		return false;
 	}
