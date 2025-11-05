@@ -13,6 +13,7 @@
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/dt-bindings/clock/mcux_lpc_syscon_clock.h>
+#include <zephyr/logging/log.h>
 
 #ifdef CONFIG_PWM_CAPTURE
 #include <zephyr/irq.h>
@@ -55,7 +56,6 @@ struct pwm_mcux_ctimer_capture_data {
 	bool overflowed : 1;
 	bool pulse_capture : 1;
 	bool first_edge_captured : 1;
-	bool inverted : 1;
 };
 #endif /* CONFIG_PWM_CAPTURE */
 
@@ -319,28 +319,20 @@ static int mcux_ctimer_configure_capture(const struct device *dev,
 		return -ENOTSUP;
 	}
 
+	data->capture.overflowed = false;
+	data->capture.first_edge_captured = false;
+	data->capture.overflow_count = 0;
+	data->capture.first_capture_value = 0;
 	data->capture.callback = cb;
 	data->capture.user_data = user_data;
 	data->capture.channel = channel;
-	data->capture.inverted = inverted;
 	data->capture.continuous =
 		(flags & PWM_CAPTURE_MODE_MASK) == PWM_CAPTURE_MODE_CONTINUOUS;
-
-	if (flags & PWM_CAPTURE_TYPE_PERIOD) {
-		data->capture.pulse_capture = false;
-		/* For period capture, we need rising edge (or falling if inverted) */
-		edge = inverted ? kCTIMER_Capture_FallEdge : kCTIMER_Capture_RiseEdge;
-	} else {
-		data->capture.pulse_capture = true;
-		/* For pulse capture, we need both edges */
-		edge = kCTIMER_Capture_BothEdge;
-	}
+	edge = inverted ? kCTIMER_Capture_RiseEdge : kCTIMER_Capture_FallEdge;
+	data->capture.pulse_capture = (flags & PWM_CAPTURE_TYPE_PERIOD) ? false : true;
 
 	/* Setup capture on the specified channel and enable capture interrput */
 	CTIMER_SetupCapture(config->base, (ctimer_capture_channel_t)channel, edge, true);
-
-	/* Mark channel as being used for capture */
-	data->channel_states[channel].role = PWM_CTIMER_CHANNEL_ROLE_CAPTURE;
 
 	/* Enable match interrupt, match value is 0xffffffff, to get overflow count */
 	mcux_ctimer_set_overflow(dev, channel);
@@ -363,15 +355,13 @@ static int mcux_ctimer_enable_capture(const struct device *dev, uint32_t channel
 		return -EINVAL;
 	}
 
-	if (!mcux_ctimer_channel_is_active(dev, channel)) {
-		LOG_ERR("PWM capture not configured for channel %u", channel);
-		return -EINVAL;
+	if (mcux_ctimer_channel_is_active(dev, channel)) {
+		LOG_ERR("PWM capture already enabled");
+		return -EBUSY;
 	}
 
-	data->capture.overflowed = false;
-	data->capture.first_edge_captured = false;
-	data->capture.overflow_count = 0;
-	data->capture.first_capture_value = 0;
+	/* Mark channel as being used for capture */
+	data->channel_states[channel].role = PWM_CTIMER_CHANNEL_ROLE_CAPTURE;
 
 	CTIMER_StartTimer(config->base);
 
@@ -408,12 +398,12 @@ static int mcux_ctimer_calc_ticks(uint32_t first_capture, uint32_t second_captur
 		ticks = second_capture - first_capture;
 	} else {
 		/* Timer overflowed between captures */
-		ticks = (0xFFFFFFFF - first_capture) + second_capture + 1;
+		ticks = (0xFFFFFFFFU - first_capture) + second_capture + 1;
 		if (overflows > 0) {
 			overflows--; /* Account for the overflow we just calculated */
 		}
 	}
-
+	
 	/* Add additional overflows */
 	if (u32_mul_overflow(overflows, 0xFFFFFFFF, &overflows)) {
 		return -ERANGE;
@@ -423,8 +413,21 @@ static int mcux_ctimer_calc_ticks(uint32_t first_capture, uint32_t second_captur
 		return -ERANGE;
 	}
 
+	LOG_DBG("1st: %d, 2nd: %d, overflows: %d, ticks: %d\n", first_capture, second_capture, overflows, ticks);
+
 	*result = ticks;
 	return 0;
+}
+
+// write a function to change capture edge
+static void mcux_ctimer_reverse_capture_edge(const struct device *dev, uint32_t channel)
+{
+	const struct pwm_mcux_ctimer_config *config = dev->config;
+	uint32_t reg;
+
+	reg = config->base->CCR;
+	reg ^= ((CTIMER_CCR_CAP0RE_MASK | CTIMER_CCR_CAP0FE_MASK) << (channel * 3U));
+	config->base->CCR = reg;
 }
 
 static void mcux_ctimer_isr(const struct device *dev)
@@ -461,6 +464,10 @@ static void mcux_ctimer_isr(const struct device *dev)
 		data->capture.first_capture_value = capture_value;
 		data->capture.overflow_count = 0;
 		data->capture.overflowed = false;
+		/* Change capture edge to reverse edge */
+		if (data->capture.pulse_capture) {
+			mcux_ctimer_reverse_capture_edge(dev, channel);
+		}
 		return;
 	}
 
@@ -485,8 +492,12 @@ static void mcux_ctimer_isr(const struct device *dev)
 
 	if (data->capture.continuous) {
 		if (data->capture.pulse_capture) {
-			/* For pulse capture, we need to wait for the next rising edge */
+			/* For pulse capture, we need to wait for the next edge */
 			data->capture.first_edge_captured = false;
+			/* Change capture edge which is reverse to second edge */
+			if (data->capture.pulse_capture) {
+				mcux_ctimer_reverse_capture_edge(dev, channel);
+			}
 		} else {
 			/* For period capture, this edge becomes the start of next period */
 			data->capture.first_capture_value = capture_value;
@@ -522,7 +533,6 @@ static int mcux_ctimer_pwm_init(const struct device *dev)
 	CTIMER_Init(config->base, &pwm_config);
 
 #ifdef CONFIG_PWM_CAPTURE
-
     /*  CtimerInp8 connect to Timer0Captsel 0 */
     INPUTMUX_Init(INPUTMUX0);
     INPUTMUX_AttachSignal(INPUTMUX0, 0U, kINPUTMUX_CtimerInp8ToTimer0Captsel);
