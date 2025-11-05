@@ -9,5 +9,8 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/net/mcp/mcp_server.h>
+#include "mcp_common.h"
+
+int mcp_transport_queue_response(mcp_response_queue_msg_t *msg);
 
 #endif /* ZEPHYR_SUBSYS_MCP_TRANSPORT_H_ */

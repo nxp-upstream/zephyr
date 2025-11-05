@@ -1,0 +1,5 @@
+tests:
+  net.mcp.server:
+    tags: mcp net
+    min_ram: 32
+    timeout: 30
