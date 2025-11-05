@@ -1059,6 +1059,16 @@ static uint8_t control(const void *cmd, uint16_t cmd_len,
 			err = -EINVAL;
 		}
 		break;
+	case HFP_HF_INDICATOR_VALUE:
+		if (cp->flags == 1) {
+			(void)bt_hfp_hf_enhanced_safety(hfp_hf, cp->value);
+		} else {
+			(void)bt_hfp_hf_battery(hfp_hf, cp->value);
+		}
+		break;
+	case HFP_HF_READY_ACCEPT_AUDIO:
+		err = bt_hfp_hf_ready_to_accept_audio(hfp_hf);
+		break;
 	default:
 		err = -1;
 	}

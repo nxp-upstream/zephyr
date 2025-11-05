@@ -89,6 +89,8 @@ enum btp_hfp_control_type
 	HFP_AG_HOLD = 0x27,
 	HFP_AG_RETRIEVE = 0x28,
 	HFP_AG_VRE_STATE = 0x29,
+	HFP_HF_INDICATOR_VALUE = 0x2A,
+	HFP_HF_READY_ACCEPT_AUDIO = 0x2B,
 };
 struct btp_hfp_control_cmd {
 	enum btp_hfp_control_type control_type;
