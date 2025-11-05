@@ -1,0 +1,53 @@
+/*
+* Copyright 2025 NXP
+*
+* SPDX-License-Identifier: Apache-2.0
+*/
+ 
+&pinctrl {
+    // out
+	ctimer1_default: ctimer1_default {
+		group0 {
+			pinmux = <CT1_MAT2_P1_4>;
+			drive-strength = "high";
+			slew-rate = "fast";
+		};
+	};
+    // in
+	ctimer0_default: ctimer0_default {
+		group0 {
+			pinmux = <CT_INP8_P1_8>;
+			drive-strength = "low";
+			slew-rate = "fast";
+            input-enable;
+		};
+	};
+};
+ 
+/* To test this sample, connect
+* P1_4(J2-1) ---> P1_8(J2-18)
+*/
+ 
+/ {
+	pwm_loopback_0 {
+		compatible = "test-pwm-loopback";
+		pwms = <&ctimer1 2 0 0>, /* P1_4(J2-1), out */
+                <&ctimer0 0 0 0>; /* P1_8(J2-18), in */
+	};
+};
+ 
+&ctimer1 {
+	compatible = "nxp,ctimer-pwm";
+	status = "okay";
+	pinctrl-0 = <&ctimer1_default>;
+	pinctrl-names = "default";
+	#pwm-cells = <3>;
+};
+ 
+&ctimer0 {
+	compatible = "nxp,ctimer-pwm";
+	status = "okay";
+	pinctrl-0 = <&ctimer0_default>;
+	pinctrl-names = "default";
+	#pwm-cells = <3>;
+};
