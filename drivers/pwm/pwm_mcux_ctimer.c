@@ -210,8 +210,10 @@ static int mcux_ctimer_pwm_set_cycles(const struct device *dev, uint32_t pulse_c
 		LOG_ERR("could not select valid period channel. ret=%d", ret);
 		return ret;
 	}
-
-	if (flags & PWM_POLARITY_INVERTED) {
+	/* The PWM output will not be high until the MR matched, therefore the actual
+	 * pulse is (period - pulse) if not inverted.
+	 */
+	if (!(flags & PWM_POLARITY_INVERTED)) {
 		if (pulse_cycles == 0) {
 			/* make pulse cycles greater than period so event never occurs */
 			pulse_cycles = period_cycles + 1;
@@ -328,7 +330,7 @@ static int mcux_ctimer_configure_capture(const struct device *dev,
 	data->capture.channel = channel;
 	data->capture.continuous =
 		(flags & PWM_CAPTURE_MODE_MASK) == PWM_CAPTURE_MODE_CONTINUOUS;
-	edge = inverted ? kCTIMER_Capture_RiseEdge : kCTIMER_Capture_FallEdge;
+	edge = inverted ? kCTIMER_Capture_FallEdge : kCTIMER_Capture_RiseEdge;
 	data->capture.pulse_capture = (flags & PWM_CAPTURE_TYPE_PERIOD) ? false : true;
 
 	/* Setup capture on the specified channel and enable capture interrput */
