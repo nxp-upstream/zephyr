@@ -24,25 +24,28 @@ LOG_MODULE_REGISTER(main);
  */
 __nocache struct k_mem_slab mem_slab;
 
-int main()
+int main(void)
 {
 	int gain = 90; /* Set gain to 90% (0.9x amplification) */
 	int ret = 0;
 
 	/* Create elements */
 	MpElement *source = mp_element_factory_create("zaud_dmic_src", "dmic");
+
 	if (source == NULL) {
 		LOG_ERR("Failed to create dmic element");
 		return 0;
 	}
 
 	MpElement *transform = mp_element_factory_create("zaud_gain", "gain");
+
 	if (transform == NULL) {
 		LOG_ERR("Failed to create gain element");
 		return 0;
 	}
 
 	MpElement *sink = mp_element_factory_create("zaud_i2s_codec_sink", "speaker");
+
 	if (sink == NULL) {
 		LOG_ERR("Failed to create speaker element");
 		return 0;
@@ -70,6 +73,7 @@ int main()
 
 	/* Create a new pipeline */
 	MpElement *pipeline = mp_pipeline_new("dmic_gain_speaker_pipeline");
+
 	if (pipeline == NULL) {
 		LOG_ERR("Failed to create pipeline");
 		return 0;
@@ -97,6 +101,7 @@ int main()
 	MpBus *bus = mp_element_get_bus(pipeline);
 	/* Wait until an Error or an EOS - blocking */
 	MpMessage *msg = mp_bus_pop_msg(bus, MP_MESSAGE_ERROR | MP_MESSAGE_EOS);
+
 	if (msg != NULL) {
 		switch (MP_MESSAGE_TYPE(msg)) {
 		case MP_MESSAGE_ERROR:
