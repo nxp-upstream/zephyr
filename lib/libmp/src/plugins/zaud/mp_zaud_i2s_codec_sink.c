@@ -219,12 +219,12 @@ void mp_zaud_i2s_codec_sink_init(MpElement *self)
 #if DT_NODE_EXISTS(DT_ALIAS(i2s_codec_tx))
 	zaud_i2s_codec_sink->i2s_dev = DEVICE_DT_GET(DT_ALIAS(i2s_codec_tx));
 #else
-#error "i2s_codec_tx node alias not found in device tree. Please add the node to your board's device tree overlay."
+#error "i2s_codec_tx node alias not found in device tree."
 #endif
 #if DT_NODE_EXISTS(DT_NODELABEL(audio_codec))
 	zaud_i2s_codec_sink->codec_dev = DEVICE_DT_GET(DT_NODELABEL(audio_codec));
 #else
-#error "audio_codec node label not found in device tree. Please add the node to your board's device tree overlay."
+#error "audio_codec node label not found in device tree."
 #endif
 
 	if (!device_is_ready(zaud_i2s_codec_sink->i2s_dev)) {
