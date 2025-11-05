@@ -119,10 +119,6 @@ struct btp_hfp_ag_enable_call_rp {
 
 } __packed;
 
-#define BTP_HFP_AG_ENABLE_CALL_FLAG_REMOTE_INCOMING 0x00
-#define BTP_HFP_AG_ENABLE_CALL_FLAG_ON_GOING_CALL 0x01
-#define BTP_HFP_AG_ENABLE_CALL_FLAG_INCOMING_HELD 0x02
-
 #define BTP_HFP_AG_DISCOVERABLE  0x08
 struct btp_hfp_ag_discoverable_cmd {
 	uint8_t flags;
