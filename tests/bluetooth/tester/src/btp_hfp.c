@@ -862,7 +862,6 @@ static uint8_t control(const void *cmd, uint16_t cmd_len,
 			hf_check_signal_strength--;
 		}
 		bt_hfp_ag_signal_strength(hfp_ag, hf_check_signal_strength);
-		bt_hfp_ag_set_indicator(hfp_ag, BT_HFP_AG_SIGNAL_IND, true);
 		break;
 	case HFP_AG_ANSWER_CALL:
 		if ((hfp_ag != NULL) && (cp->value < ARRAY_SIZE(hfp_ag_call))) {
