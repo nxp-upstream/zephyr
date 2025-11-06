@@ -15,4 +15,5 @@ supported:
   - gpio
   - counter
   - i2c
+  - watchdog
 vendor: nxp
