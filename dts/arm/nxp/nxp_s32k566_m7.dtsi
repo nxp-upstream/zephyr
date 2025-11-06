@@ -203,3 +203,7 @@
 &lpuart20 {
 	interrupts = <175 0>;
 };
+
+&swt_startup {
+	interrupts = <27 0>;
+};
