@@ -4139,13 +4139,10 @@ static struct bt_hfp_ag *hfp_ag_create(struct bt_conn *conn)
 	/* Set the supported features*/
 	ag->ag_features = BT_HFP_AG_SUPPORTED_FEATURES;
 	ag->ag_features |= BT_FEAT_SC(bt_dev.features) ? BT_HFP_AG_FEATURE_ESCO_S4 : 0;
-<<<<<<< HEAD
 
 	/* Set the default HF infrmation */
 	ag->hf_sdp_features = 0;
 	ag->hf_sdp_version = BT_HFP_VERSION_0_96;
-=======
->>>>>>> 16f55c48e65 (Bluetooth: Tester: update tester to support BR HFP PTS test cases)
 
 	/* Support HF indicators */
 	if (IS_ENABLED(CONFIG_BT_HFP_AG_HF_INDICATOR_ENH_SAFETY)) {
