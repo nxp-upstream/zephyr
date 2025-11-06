@@ -142,12 +142,12 @@ static uint32_t mcux_lpc_ostick_set_counter_timeout(int32_t curr_timeout)
 	}
 	counter_running = true;
 
-	if (IS_ENABLED(CONFIG_MCUX_OS_TIMER_PM_POWERED_OFF)) {
-		/* Capture the current timer value for cases where it loses its state
-		 * in low power modes.
-		 */
-		cyc_sys_compensated += OSTIMER_GetCurrentTimerValue(base);
-	}
+#if defined(CONFIG_MCUX_OS_TIMER_PM_POWERED_OFF)
+	/* Capture the current timer value for cases where it loses its state
+	 * in low power modes.
+	 */
+	cyc_sys_compensated += OSTIMER_GetCurrentTimerValue(base);
+#endif /* defined(CONFIG_MCUX_OS_TIMER_PM_POWERED_OFF) */
 
 	return 0;
 }
@@ -179,12 +179,13 @@ static uint32_t mcux_lpc_ostick_compensate_system_timer(void)
 	}
 	slept_time_us = counter_ticks_to_us(counter_dev, slept_time_ticks);
 	cyc_sys_compensated += CYC_PER_US * slept_time_us;
-	if (IS_ENABLED(CONFIG_MCUX_OS_TIMER_PM_POWERED_OFF)) {
-		/* Reset the OS Timer to a known state */
-		RESET_PeripheralReset(kOSEVENT_TIMER_RST_SHIFT_RSTn);
-		/* Reactivate os_timer for cases where it loses its state */
-		OSTIMER_Init(base);
-	}
+
+#if defined(CONFIG_MCUX_OS_TIMER_PM_POWERED_OFF)
+	/* Reset the OS Timer to a known state */
+	RESET_PeripheralReset(kOSEVENT_TIMER_RST_SHIFT_RSTn);
+	/* Reactivate os_timer for cases where it loses its state */
+	OSTIMER_Init(base);
+#endif /* defined(CONFIG_MCUX_OS_TIMER_PM_POWERED_OFF) */
 
 	/* Announce the time slept to the kernel*/
 	mcux_lpc_ostick_isr(NULL);
