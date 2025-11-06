@@ -1073,8 +1073,7 @@ static void on_going_timer_handler(struct k_work *work)
 		return;
 	}
 
-	err = bt_hfp_ag_ongoing_calls(hfp_ag_ongoing, ag_ongoing_call_info,
-				      ARRAY_SIZE(ag_ongoing_call_info));
+	err = bt_hfp_ag_ongoing_calls(hfp_ag_ongoing, ag_ongoing_call_info, ag_ongoing_calls);
 	if(err) {
 		LOG_DBG("AG ongoing calls set fail!");
 	}
@@ -1605,19 +1604,6 @@ static uint8_t release_specified_call(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	return BTP_STATUS_SUCCESS;
-}
-
-static int set_ongoing_calls(void)
-{
-	int err;
-
-	err = bt_hfp_ag_ongoing_calls(hfp_ag_ongoing, &ag_ongoing_call_info[0], ag_ongoing_calls);
-	ag_ongoing_calls = 0;
-	hfp_ag_ongoing = NULL;
-	if (err != 0) {
-		return BTP_STATUS_FAILED;
-	}
 	return BTP_STATUS_SUCCESS;
 }
 
