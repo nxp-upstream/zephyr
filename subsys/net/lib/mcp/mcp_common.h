@@ -125,7 +125,7 @@ typedef struct {
 	uint32_t execution_token;
 	uint32_t request_id;
 	uint32_t client_id;
-	uint32_t worker_id;
+	k_tid_t worker_id;
 	int64_t start_timestamp;
 	int64_t cancel_timestamp;
 	int64_t last_message_timestamp;
@@ -135,7 +135,7 @@ typedef struct {
 
 typedef struct {
 	mcp_execution_context_t executions[MCP_MAX_REQUESTS];
-	struct k_mutex execution_mutex;
+	struct k_mutex registry_mutex;
 } mcp_execution_registry_t;
 #endif
 

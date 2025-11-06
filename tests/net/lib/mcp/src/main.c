@@ -17,6 +17,8 @@ extern struct k_msgq mcp_message_queue;
 extern int mcp_transport_queue_call_count;
 extern mcp_response_queue_msg_t mcp_transport_last_queued_msg;
 
+static int tool_execution_count;
+
 #ifdef CONFIG_ZTEST
 extern uint8_t mcp_server_get_client_count(void);
 extern uint8_t mcp_server_get_tool_count(void);
@@ -80,6 +82,48 @@ static void reset_transport_mock(void)
 {
 	mcp_transport_queue_call_count = 0;
 	memset(&mcp_transport_last_queued_msg, 0, sizeof(mcp_transport_last_queued_msg));
+}
+
+static int test_execution_tool_callback(const char *params, uint32_t execution_token)
+{
+	tool_execution_count++;
+
+	printk("Tool execution callback executed! Count: %d, Token: %u, Arguments: %s\n",
+	       tool_execution_count, execution_token, params ? params : "(null)");
+
+	return 0;
+}
+
+static void send_tools_call_request(uint32_t client_id, uint32_t request_id, const char *tool_name,
+				    const char *arguments)
+{
+	int ret;
+	mcp_request_queue_msg_t msg;
+	mcp_tools_call_request_t *tools_req;
+
+	tools_req = (mcp_tools_call_request_t *)mcp_alloc(sizeof(mcp_tools_call_request_t));
+	zassert_not_null(tools_req, "Tools call request allocation failed");
+
+	tools_req->request_id = request_id;
+	tools_req->client_id = client_id;
+
+	strncpy(tools_req->name, tool_name, CONFIG_MCP_TOOL_NAME_MAX_LEN - 1);
+	tools_req->name[CONFIG_MCP_TOOL_NAME_MAX_LEN - 1] = '\0';
+
+	if (arguments) {
+		strncpy(tools_req->arguments, arguments, CONFIG_MCP_TOOL_INPUT_ARGS_MAX_LEN - 1);
+		tools_req->arguments[CONFIG_MCP_TOOL_INPUT_ARGS_MAX_LEN - 1] = '\0';
+	} else {
+		tools_req->arguments[0] = '\0';
+	}
+
+	msg.type = MCP_MSG_REQUEST_TOOLS_CALL;
+	msg.data = tools_req;
+
+	ret = k_msgq_put(&mcp_request_queue, &msg, K_NO_WAIT);
+	zassert_equal(ret, 0, "Tools call request queueing failed");
+
+	k_msleep(100);
 }
 
 static void send_initialize_request(uint32_t client_id, uint32_t request_id)
@@ -213,22 +257,25 @@ ZTEST(mcp_server_tests, test_tools_list_response)
 			.output_schema = "{\"type\":\"string\"}",
 #endif
 		},
-		.callback = stub_tool_callback_1};
+		.callback = stub_tool_callback_1
+	};
 
-	mcp_tool_record_t test_tool2 = {.metadata = {
-		.name = "test_tool_2",
-		.input_schema = "{\"type\":\"array\"}",
+	mcp_tool_record_t test_tool2 = {
+		.metadata = {
+			.name = "test_tool_2",
+			.input_schema = "{\"type\":\"array\"}",
 #ifdef CONFIG_MCP_TOOL_DESC
-		.description = "Second test tool",
+			.description = "Second test tool",
 #endif
 #ifdef CONFIG_MCP_TOOL_TITLE
-		.title = "Test Tool Two",
+			.title = "Test Tool Two",
 #endif
 #ifdef CONFIG_MCP_TOOL_OUTPUT_SCHEMA
-		.output_schema = "{\"type\":\"number\"}",
+			.output_schema = "{\"type\":\"number\"}",
 #endif
-	},
-	.callback = stub_tool_callback_2};
+		},
+		.callback = stub_tool_callback_2
+	};
 
 	ret = mcp_server_add_tool(&test_tool1);
 	zassert_equal(ret, 0, "Test tool 1 should register successfully");
@@ -347,20 +394,22 @@ ZTEST(mcp_server_tests, test_tool_registration_valid)
 	int ret;
 	uint8_t initial_count = mcp_server_get_tool_count();
 
-	mcp_tool_record_t valid_tool = {.metadata = {
-		.name = "test_tool_valid",
-		.input_schema = "{\"type\":\"object\"}",
+	mcp_tool_record_t valid_tool = {
+		.metadata = {
+			.name = "test_tool_valid",
+			.input_schema = "{\"type\":\"object\"}",
 #ifdef CONFIG_MCP_TOOL_DESC
-		.description = "Test tool description",
+			.description = "Test tool description",
 #endif
 #ifdef CONFIG_MCP_TOOL_TITLE
-		.title = "Test Tool",
+			.title = "Test Tool",
 #endif
 #ifdef CONFIG_MCP_TOOL_OUTPUT_SCHEMA
-		.output_schema = "{\"type\":\"object\"}",
+			.output_schema = "{\"type\":\"object\"}",
 #endif
-	},
-	.callback = stub_tool_callback_1};
+		},
+		.callback = stub_tool_callback_1
+	};
 
 	ret = mcp_server_add_tool(&valid_tool);
 	zassert_equal(ret, 0, "Valid tool registration should succeed");
@@ -378,16 +427,20 @@ ZTEST(mcp_server_tests, test_tool_registration_duplicate)
 	int ret;
 	uint8_t initial_count = mcp_server_get_tool_count();
 
-	mcp_tool_record_t tool1 = {.metadata = {
-		.name = "duplicate_tool",
-		.input_schema = "{\"type\":\"object\"}",
-	},
-	.callback = stub_tool_callback_1};
-	mcp_tool_record_t tool2 = {.metadata = {
-		.name = "duplicate_tool",
-		.input_schema = "{\"type\":\"object\"}",
-	},
-	.callback = stub_tool_callback_2};
+	mcp_tool_record_t tool1 = {
+		.metadata = {
+			.name = "duplicate_tool",
+			.input_schema = "{\"type\":\"object\"}",
+		},
+		.callback = stub_tool_callback_1
+	};
+	mcp_tool_record_t tool2 = {
+		.metadata = {
+			.name = "duplicate_tool",
+			.input_schema = "{\"type\":\"object\"}",
+		},
+		.callback = stub_tool_callback_2
+	};
 
 	ret = mcp_server_add_tool(&tool1);
 	zassert_equal(ret, 0, "First tool registration should succeed");
@@ -416,7 +469,8 @@ ZTEST(mcp_server_tests, test_tool_registration_edge_cases)
 			.name = "",
 			.input_schema = "{\"type\":\"object\"}",
 		},
-		.callback = stub_tool_callback_1};
+		.callback = stub_tool_callback_1
+	};
 
 	ret = mcp_server_add_tool(&empty_name_tool);
 	zassert_equal(ret, -EINVAL, "Empty tool name should fail");
@@ -426,7 +480,8 @@ ZTEST(mcp_server_tests, test_tool_registration_edge_cases)
 			.name = "null_callback_tool",
 			.input_schema = "{\"type\":\"object\"}",
 		},
-		.callback = NULL};
+		.callback = NULL
+	};
 
 	ret = mcp_server_add_tool(&null_callback_tool);
 	zassert_equal(ret, -EINVAL, "NULL callback should fail");
@@ -446,7 +501,8 @@ ZTEST(mcp_server_tests, test_tool_registration_edge_cases)
 		 .callback = stub_tool_callback_3},
 		{.metadata = {.name = "registry_test_tool_4",
 			      .input_schema = "{\"type\":\"object\"}"},
-		 .callback = stub_tool_callback_3}};
+		 .callback = stub_tool_callback_3}
+	};
 
 	for (int i = 0; i < ARRAY_SIZE(registry_tools); i++) {
 		ret = mcp_server_add_tool(&registry_tools[i]);
@@ -456,11 +512,13 @@ ZTEST(mcp_server_tests, test_tool_registration_edge_cases)
 	zassert_equal(mcp_server_get_tool_count(), CONFIG_MCP_MAX_TOOLS,
 		      "Registry should be at maximum capacity");
 
-	mcp_tool_record_t overflow_tool = {.metadata = {
-		.name = "registry_overflow_tool",
-		.input_schema = "{\"type\":\"object\"}",
-	},
-	.callback = stub_tool_callback_3};
+	mcp_tool_record_t overflow_tool = {
+		.metadata = {
+			.name = "registry_overflow_tool",
+			.input_schema = "{\"type\":\"object\"}",
+		},
+		.callback = stub_tool_callback_3
+	};
 
 	ret = mcp_server_add_tool(&overflow_tool);
 	zassert_equal(ret, -ENOSPC, "Registry overflow should fail");
@@ -480,11 +538,13 @@ ZTEST(mcp_server_tests, test_tool_removal)
 	int ret;
 	uint8_t initial_count = mcp_server_get_tool_count();
 
-	mcp_tool_record_t test_tool = {.metadata = {
-		.name = "removal_test_tool",
-		.input_schema = "{\"type\":\"object\"}",
-	},
-	.callback = stub_tool_callback_1};
+	mcp_tool_record_t test_tool = {
+		.metadata = {
+			.name = "removal_test_tool",
+			.input_schema = "{\"type\":\"object\"}",
+		},
+		.callback = stub_tool_callback_1
+	};
 
 	ret = mcp_server_add_tool(&test_tool);
 	zassert_equal(ret, 0, "Tool addition should succeed");
@@ -673,6 +733,72 @@ ZTEST(mcp_server_tests, test_null_data_request)
 
 	zassert_equal(mcp_transport_queue_call_count, 0,
 		      "No response should be sent for NULL data pointer");
+}
+
+ZTEST(mcp_server_tests, test_tools_call)
+{
+	int ret;
+	uint8_t initial_tool_count = mcp_server_get_tool_count();
+
+	tool_execution_count = 0;
+
+	reset_transport_mock();
+
+	mcp_tool_record_t execution_tool = {
+		.metadata = {
+			.name = "execution_test_tool",
+			.input_schema = "{\"type\":\"object\",\"properties\":"
+					"{\"param1\":{\"type\":\"string\"}}}",
+#ifdef CONFIG_MCP_TOOL_DESC
+			.description = "Tool for testing execution",
+#endif
+#ifdef CONFIG_MCP_TOOL_TITLE
+			.title = "Execution Test Tool",
+#endif
+#ifdef CONFIG_MCP_TOOL_OUTPUT_SCHEMA
+			.output_schema = "{\"type\":\"string\"}",
+#endif
+		},
+		.callback = test_execution_tool_callback
+	};
+
+	ret = mcp_server_add_tool(&execution_tool);
+	zassert_equal(ret, 0, "Execution test tool should register successfully");
+	zassert_equal(mcp_server_get_tool_count(), initial_tool_count + 1,
+		      "Tool count should increase");
+
+	initialize_client_fully(CLIENT_ID_EDGE_CASE_TEST, REQ_ID_EDGE_CASE_INITIALIZE);
+
+	reset_transport_mock();
+	send_tools_call_request(CLIENT_ID_EDGE_CASE_TEST, REQ_ID_EDGE_CASE_TOOLS_LIST,
+				"execution_test_tool", "{\"param1\":\"test_value\"}");
+
+	zassert_equal(tool_execution_count, 1, "Tool callback should have been executed once");
+
+	int previous_count = tool_execution_count;
+
+	reset_transport_mock();
+	send_tools_call_request(CLIENT_ID_EDGE_CASE_TEST, REQ_ID_EDGE_CASE_TOOLS_LIST + 1,
+				"non_existent_tool", "{}");
+
+	zassert_equal(tool_execution_count, previous_count,
+		      "Tool callback should not be executed for non-existent tool");
+
+	previous_count = tool_execution_count;
+	reset_transport_mock();
+	send_tools_call_request(CLIENT_ID_UNREGISTERED, REQ_ID_EDGE_CASE_UNREGISTERED,
+				"execution_test_tool", "{}");
+
+	zassert_equal(tool_execution_count, previous_count,
+		      "Tool callback should not be executed for unregistered client");
+
+	mcp_server_remove_tool("execution_test_tool");
+	zassert_equal(mcp_server_get_tool_count(), initial_tool_count,
+		      "Tool count should return to initial value");
+
+	send_client_shutdown(CLIENT_ID_EDGE_CASE_TEST);
+
+	printk("Tool execution test completed successfully\n");
 }
 
 static void *mcp_server_tests_setup(void)
