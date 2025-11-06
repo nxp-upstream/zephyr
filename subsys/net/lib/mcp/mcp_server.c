@@ -19,7 +19,6 @@ LOG_MODULE_REGISTER(mcp_server, CONFIG_MCP_LOG_LEVEL);
 #define MCP_MESSAGE_QUEUE_SIZE 10
 #define MCP_WORKER_PRIORITY    7
 
-/* Client lifecycle states */
 typedef enum {
 	MCP_LIFECYCLE_DEINITIALIZED = 0,
 	MCP_LIFECYCLE_NEW,
@@ -31,7 +30,7 @@ typedef enum {
 typedef struct {
 	uint32_t client_id;
 	mcp_lifecycle_state_t lifecycle_state;
-	uint32_t active_requests[MCP_MAX_REQUESTS];
+	uint32_t active_requests[CONFIG_HTTP_SERVER_MAX_STREAMS];
 	uint8_t active_request_count;
 } mcp_client_context_t;
 
@@ -43,6 +42,7 @@ typedef struct {
 
 static mcp_client_registry_t client_registry;
 static mcp_tool_registry_t tool_registry;
+static mcp_execution_registry_t execution_registry;
 
 K_MSGQ_DEFINE(mcp_request_queue, sizeof(mcp_request_queue_msg_t), MCP_REQUEST_QUEUE_SIZE, 4);
 K_MSGQ_DEFINE(mcp_message_queue, sizeof(mcp_response_queue_msg_t), MCP_MESSAGE_QUEUE_SIZE, 4);
@@ -53,13 +53,67 @@ K_THREAD_STACK_ARRAY_DEFINE(mcp_message_worker_stacks, MCP_MESSAGE_WORKERS, 2048
 static struct k_thread mcp_request_workers[MCP_REQUEST_WORKERS];
 static struct k_thread mcp_message_workers[MCP_MESSAGE_WORKERS];
 
+/* Helper functions */
+
+static int find_client_index(uint32_t client_id)
+{
+	for (int i = 0; i < CONFIG_HTTP_SERVER_MAX_CLIENTS; i++) {
+		if (client_registry.clients[i].client_id == client_id) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+static int find_tool_index(const char *tool_name)
+{
+	for (int i = 0; i < CONFIG_MCP_MAX_TOOLS; i++) {
+		if (tool_registry.tools[i].metadata.name[0] != '\0' &&
+		    strncmp(tool_registry.tools[i].metadata.name, tool_name,
+			    CONFIG_MCP_TOOL_NAME_MAX_LEN) == 0) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+static int find_available_client_slot(void)
+{
+	for (int i = 0; i < CONFIG_HTTP_SERVER_MAX_CLIENTS; i++) {
+		if (client_registry.clients[i].client_id == 0) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+static int find_available_tool_slot(void)
+{
+	for (int i = 0; i < CONFIG_MCP_MAX_TOOLS; i++) {
+		if (tool_registry.tools[i].metadata.name[0] == '\0') {
+			return i;
+		}
+	}
+	return -1;
+}
+
+static int find_available_request_slot(int client_index)
+{
+	for (int i = 0; i < CONFIG_HTTP_SERVER_MAX_STREAMS; i++) {
+		if (client_registry.clients[client_index].active_requests[i] == 0) {
+			return i;
+		}
+	}
+	return -1;
+}
+
 /* Must be called with registry_mutex held */
 static void cleanup_client_registry_entry(int client_index)
 {
 	client_registry.clients[client_index].client_id = 0;
 	client_registry.clients[client_index].active_request_count = 0;
 
-	for (int i = 0; i < MCP_MAX_REQUESTS; i++) {
+	for (int i = 0; i < CONFIG_HTTP_SERVER_MAX_STREAMS; i++) {
 		client_registry.clients[client_index].active_requests[i] = 0;
 	}
 
@@ -67,10 +121,123 @@ static void cleanup_client_registry_entry(int client_index)
 	client_registry.client_count--;
 }
 
+static int register_new_client(uint32_t client_id)
+{
+	int slot_index;
+
+	if (client_registry.client_count >= CONFIG_HTTP_SERVER_MAX_CLIENTS) {
+		return -ENOSPC;
+	}
+
+	slot_index = find_available_client_slot();
+	if (slot_index == -1) {
+		return -ENOSPC;
+	}
+
+	client_registry.clients[slot_index].client_id = client_id;
+	client_registry.clients[slot_index].lifecycle_state = MCP_LIFECYCLE_NEW;
+	client_registry.clients[slot_index].active_request_count = 0;
+	client_registry.client_count++;
+
+	return slot_index;
+}
+
+#ifdef CONFIG_MCP_TOOLS_CAPABILITY
+static uint32_t generate_execution_token(uint32_t request_id)
+{
+	/* Mocking the generation for the 1st phase of development. Security phase
+	 * will replace this with UUID generation to make token guessing harder.
+	 */
+	return request_id;
+}
+
+static int create_execution_context(mcp_tools_call_request_t *request, uint32_t *execution_token)
+{
+	int ret;
+
+	if (request == NULL || execution_token == NULL) {
+		LOG_ERR("Invalid parameter(s)");
+		return -EINVAL;
+	}
+
+	ret = k_mutex_lock(&execution_registry.registry_mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock execution registry: %d", ret);
+		return ret;
+	}
+
+	*execution_token = generate_execution_token(request->request_id);
+
+	bool found_slot = false;
+
+	for (int i = 0; i < MCP_MAX_REQUESTS; i++) {
+		if (execution_registry.executions[i].execution_token == 0) {
+			mcp_execution_context_t *context = &execution_registry.executions[i];
+
+			context->execution_token = *execution_token;
+			context->request_id = request->request_id;
+			context->client_id = request->client_id;
+			context->worker_id = k_current_get();
+			context->start_timestamp = k_uptime_get();
+			context->cancel_timestamp = 0;
+			context->last_message_timestamp = 0;
+			context->worker_released = false;
+			context->execution_state = MCP_EXEC_ACTIVE;
+
+			found_slot = true;
+			break;
+		}
+	}
+
+	k_mutex_unlock(&execution_registry.registry_mutex);
+
+	if (!found_slot) {
+		LOG_ERR("Execution registry full");
+		return -ENOENT;
+	}
+
+	return 0;
+}
+
+static int destroy_execution_context(uint32_t execution_token)
+{
+	int ret;
+
+	ret = k_mutex_lock(&execution_registry.registry_mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock execution registry: %d", ret);
+		return ret;
+	}
+
+	bool found_token = false;
+
+	for (int i = 0; i < MCP_MAX_REQUESTS; i++) {
+		if (execution_registry.executions[i].execution_token == execution_token) {
+			mcp_execution_context_t *context = &execution_registry.executions[i];
+
+			memset(context, 0, sizeof(*context));
+			found_token = true;
+			break;
+		}
+	}
+
+	k_mutex_unlock(&execution_registry.registry_mutex);
+
+	if (!found_token) {
+		LOG_ERR("Unknown execution token");
+		return -ENOENT;
+	}
+
+	return 0;
+}
+#endif
+
+/* Message handlers */
+
 static int handle_system_message(mcp_system_msg_t *system_msg)
 {
 	int ret;
-	int client_index = -1;
+	int client_index;
 
 	LOG_DBG("Processing system request");
 
@@ -82,20 +249,15 @@ static int handle_system_message(mcp_system_msg_t *system_msg)
 			return ret;
 		}
 
-		for (int i = 0; i < CONFIG_HTTP_SERVER_MAX_CLIENTS; i++) {
-			if (client_registry.clients[i].client_id == system_msg->client_id) {
-				client_index = i;
-				client_registry.clients[i].lifecycle_state =
-					MCP_LIFECYCLE_DEINITIALIZING;
-				break;
-			}
-		}
-
+		client_index = find_client_index(system_msg->client_id);
 		if (client_index == -1) {
 			LOG_ERR("Client not registered");
 			k_mutex_unlock(&client_registry.registry_mutex);
 			return -ENOENT;
 		}
+
+		client_registry.clients[client_index].lifecycle_state =
+			MCP_LIFECYCLE_DEINITIALIZING;
 
 		/* TODO: Cancel active tool executions */
 		cleanup_client_registry_entry(client_index);
@@ -114,7 +276,7 @@ static int handle_initialize_request(mcp_initialize_request_t *request)
 {
 	mcp_initialize_response_t *response_data;
 	mcp_response_queue_msg_t response;
-	int client_index = -1;
+	int client_index;
 	int ret;
 
 	LOG_DBG("Processing initialize request");
@@ -125,31 +287,13 @@ static int handle_initialize_request(mcp_initialize_request_t *request)
 		return ret;
 	}
 
-	/* Search for existing client */
-	for (int i = 0; i < CONFIG_HTTP_SERVER_MAX_CLIENTS; i++) {
-		if (client_registry.clients[i].client_id == request->client_id) {
-			client_index = i;
-			break;
-		}
-	}
-
-	/* Register new client if needed */
+	client_index = find_client_index(request->client_id);
 	if (client_index == -1) {
-		if (client_registry.client_count >= CONFIG_HTTP_SERVER_MAX_CLIENTS) {
+		client_index = register_new_client(request->client_id);
+		if (client_index < 0) {
 			LOG_ERR("Client registry full");
 			k_mutex_unlock(&client_registry.registry_mutex);
-			return -ENOSPC;
-		}
-
-		for (int i = 0; i < CONFIG_HTTP_SERVER_MAX_CLIENTS; i++) {
-			if (client_registry.clients[i].client_id == 0) {
-				client_registry.clients[i].client_id = request->client_id;
-				client_registry.clients[i].lifecycle_state = MCP_LIFECYCLE_NEW;
-				client_registry.clients[i].active_request_count = 0;
-				client_index = i;
-				client_registry.client_count++;
-				break;
-			}
+			return client_index;
 		}
 	}
 
@@ -190,59 +334,24 @@ static int handle_initialize_request(mcp_initialize_request_t *request)
 }
 
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
-static int handle_tools_list_request(mcp_tools_list_request_t *request)
+static int validate_client_for_tools_request(uint32_t client_id, int *client_index)
 {
-	mcp_tools_list_response_t *response_data;
-	mcp_response_queue_msg_t response;
-	int client_index = -1;
-	int ret;
-
-	LOG_DBG("Processing tools list request");
-
-	/* Check client state in single lock operation */
-	ret = k_mutex_lock(&client_registry.registry_mutex, K_FOREVER);
-	if (ret != 0) {
-		LOG_ERR("Failed to lock client registry mutex: %d", ret);
-		return ret;
-	}
-
-	for (int i = 0; i < CONFIG_HTTP_SERVER_MAX_CLIENTS; i++) {
-		if (client_registry.clients[i].client_id == request->client_id) {
-			client_index = i;
-			break;
-		}
-	}
-
-	if (client_index == -1) {
-		k_mutex_unlock(&client_registry.registry_mutex);
+	*client_index = find_client_index(client_id);
+	if (*client_index == -1) {
 		return -ENOENT;
 	}
 
-	if (client_registry.clients[client_index].lifecycle_state != MCP_LIFECYCLE_INITIALIZED) {
-		k_mutex_unlock(&client_registry.registry_mutex);
+	if (client_registry.clients[*client_index].lifecycle_state != MCP_LIFECYCLE_INITIALIZED) {
 		return -EPERM;
 	}
 
-	k_mutex_unlock(&client_registry.registry_mutex);
+	return 0;
+}
 
-	response_data = (mcp_tools_list_response_t *)mcp_alloc(sizeof(mcp_tools_list_response_t));
-	if (!response_data) {
-		LOG_ERR("Failed to allocate response");
-		return -ENOMEM;
-	}
-
-	response_data->request_id = request->request_id;
-
-	ret = k_mutex_lock(&tool_registry.registry_mutex, K_FOREVER);
-	if (ret != 0) {
-		LOG_ERR("Failed to lock tool registry");
-		mcp_free(response_data);
-		return ret;
-	}
-
+static int copy_tool_metadata_to_response(mcp_tools_list_response_t *response_data)
+{
 	response_data->tool_count = tool_registry.tool_count;
 
-	/* Copy tool metadata */
 	for (int i = 0; i < tool_registry.tool_count; i++) {
 		strncpy(response_data->tools[i].name, tool_registry.tools[i].metadata.name,
 			CONFIG_MCP_TOOL_NAME_MAX_LEN - 1);
@@ -289,6 +398,47 @@ static int handle_tools_list_request(mcp_tools_list_request_t *request)
 #endif
 	}
 
+	return 0;
+}
+
+static int handle_tools_list_request(mcp_tools_list_request_t *request)
+{
+	mcp_tools_list_response_t *response_data;
+	mcp_response_queue_msg_t response;
+	int client_index;
+	int ret;
+
+	LOG_DBG("Processing tools list request");
+
+	ret = k_mutex_lock(&client_registry.registry_mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock client registry mutex: %d", ret);
+		return ret;
+	}
+
+	ret = validate_client_for_tools_request(request->client_id, &client_index);
+	k_mutex_unlock(&client_registry.registry_mutex);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	response_data = (mcp_tools_list_response_t *)mcp_alloc(sizeof(mcp_tools_list_response_t));
+	if (!response_data) {
+		LOG_ERR("Failed to allocate response");
+		return -ENOMEM;
+	}
+
+	response_data->request_id = request->request_id;
+
+	ret = k_mutex_lock(&tool_registry.registry_mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock tool registry");
+		mcp_free(response_data);
+		return ret;
+	}
+
+	copy_tool_metadata_to_response(response_data);
 	k_mutex_unlock(&tool_registry.registry_mutex);
 
 	response.type = MCP_MSG_RESPONSE_TOOLS_LIST;
@@ -306,16 +456,92 @@ static int handle_tools_list_request(mcp_tools_list_request_t *request)
 
 static int handle_tools_call_request(mcp_tools_call_request_t *request)
 {
-	LOG_DBG("Tool call request for client %u", request->client_id);
-	/* TODO: Implement tool execution */
+	int ret;
+	int tool_index;
+	int client_index;
+	int next_active_request_index;
+	mcp_tool_callback_t callback;
+	uint32_t execution_token;
+
+	LOG_DBG("Processing tools call request");
+
+	ret = k_mutex_lock(&client_registry.registry_mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock client registry mutex: %d", ret);
+		return ret;
+	}
+
+	ret = validate_client_for_tools_request(request->client_id, &client_index);
+	if (ret != 0) {
+		k_mutex_unlock(&client_registry.registry_mutex);
+		return ret;
+	}
+
+	next_active_request_index = find_available_request_slot(client_index);
+	if (next_active_request_index == -1) {
+		LOG_ERR("No available request slot for client");
+		k_mutex_unlock(&client_registry.registry_mutex);
+		return -ENOSPC;
+	}
+
+	client_registry.clients[client_index].active_requests[next_active_request_index] =
+		request->request_id;
+	client_registry.clients[client_index].active_request_count++;
+
+	k_mutex_unlock(&client_registry.registry_mutex);
+
+	ret = k_mutex_lock(&tool_registry.registry_mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock tool registry: %d", ret);
+		goto cleanup_active_request;
+	}
+
+	tool_index = find_tool_index(request->name);
+	if (tool_index == -1) {
+		LOG_ERR("Tool '%s' not found", request->name);
+		k_mutex_unlock(&tool_registry.registry_mutex);
+		ret = -ENOENT;
+		goto cleanup_active_request;
+	}
+
+	callback = tool_registry.tools[tool_index].callback;
+	k_mutex_unlock(&tool_registry.registry_mutex);
+
+	ret = create_execution_context(request, &execution_token);
+	if (ret != 0) {
+		LOG_ERR("Failed to create execution context: %d", ret);
+		goto cleanup_active_request;
+	}
+
+	ret = callback(request->arguments, execution_token);
+	if (ret != 0) {
+		LOG_ERR("Tool callback failed: %d", ret);
+		destroy_execution_context(execution_token);
+		goto cleanup_active_request;
+	}
+
 	return 0;
+
+cleanup_active_request:
+	ret = k_mutex_lock(&client_registry.registry_mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock client registry mutex: %d. Client registry is broken.",
+			ret);
+		return ret;
+	}
+
+	client_registry.clients[client_index].active_requests[next_active_request_index] = 0;
+	client_registry.clients[client_index].active_request_count--;
+
+	k_mutex_unlock(&client_registry.registry_mutex);
+	return ret;
 }
 #endif
 
 static int handle_notification(mcp_client_notification_t *notification)
 {
 	int ret;
-	int client_index = -1;
+	int client_index;
 
 	LOG_DBG("Processing notification");
 
@@ -325,13 +551,7 @@ static int handle_notification(mcp_client_notification_t *notification)
 		return ret;
 	}
 
-	for (int i = 0; i < CONFIG_HTTP_SERVER_MAX_CLIENTS; i++) {
-		if (client_registry.clients[i].client_id == notification->client_id) {
-			client_index = i;
-			break;
-		}
-	}
-
+	client_index = find_client_index(notification->client_id);
 	if (client_index == -1) {
 		LOG_ERR("Client not found");
 		k_mutex_unlock(&client_registry.registry_mutex);
@@ -361,6 +581,8 @@ static int handle_notification(mcp_client_notification_t *notification)
 	k_mutex_unlock(&client_registry.registry_mutex);
 	return 0;
 }
+
+/* Worker threads */
 
 static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 {
@@ -468,6 +690,8 @@ static void mcp_message_worker(void *arg1, void *arg2, void *arg3)
 	}
 }
 
+/* Public API functions */
+
 int mcp_server_init(void)
 {
 	int ret;
@@ -486,9 +710,16 @@ int mcp_server_init(void)
 		return ret;
 	}
 
+	ret = k_mutex_init(&execution_registry.registry_mutex);
+	if (ret != 0) {
+		LOG_ERR("Failed to init tool mutex: %d", ret);
+		return ret;
+	}
+
 	memset(&client_registry.clients, 0, sizeof(client_registry.clients));
 	tool_registry.tool_count = 0;
 	memset(&tool_registry.tools, 0, sizeof(tool_registry.tools));
+	memset(&execution_registry.executions, 0, sizeof(execution_registry.executions));
 
 	LOG_INF("MCP Server initialized");
 	return 0;
@@ -549,7 +780,7 @@ int mcp_queue_response(void)
 int mcp_server_add_tool(const mcp_tool_record_t *tool_record)
 {
 	int ret;
-	int available_slot = -1;
+	int available_slot;
 
 	if (!tool_record || !tool_record->metadata.name[0] || !tool_record->callback) {
 		LOG_ERR("Invalid tool record");
@@ -562,21 +793,13 @@ int mcp_server_add_tool(const mcp_tool_record_t *tool_record)
 		return ret;
 	}
 
-	/* Find available slot and check for duplicates */
-	for (int i = 0; i < CONFIG_MCP_MAX_TOOLS; i++) {
-		if (tool_registry.tools[i].metadata.name[0] == '\0' && available_slot == -1) {
-			available_slot = i;
-		}
-
-		if (tool_registry.tools[i].metadata.name[0] != '\0' &&
-		    strncmp(tool_registry.tools[i].metadata.name, tool_record->metadata.name,
-			    CONFIG_MCP_TOOL_NAME_MAX_LEN) == 0) {
-			LOG_ERR("Tool '%s' already exists", tool_record->metadata.name);
-			k_mutex_unlock(&tool_registry.registry_mutex);
-			return -EEXIST;
-		}
+	if (find_tool_index(tool_record->metadata.name) != -1) {
+		LOG_ERR("Tool '%s' already exists", tool_record->metadata.name);
+		k_mutex_unlock(&tool_registry.registry_mutex);
+		return -EEXIST;
 	}
 
+	available_slot = find_available_tool_slot();
 	if (available_slot == -1) {
 		LOG_ERR("Tool registry full");
 		k_mutex_unlock(&tool_registry.registry_mutex);
@@ -595,7 +818,7 @@ int mcp_server_add_tool(const mcp_tool_record_t *tool_record)
 int mcp_server_remove_tool(const char *tool_name)
 {
 	int ret;
-	int tool_index = -1;
+	int tool_index;
 
 	if (!tool_name || !tool_name[0]) {
 		LOG_ERR("Invalid tool name");
@@ -608,15 +831,7 @@ int mcp_server_remove_tool(const char *tool_name)
 		return ret;
 	}
 
-	for (int i = 0; i < CONFIG_MCP_MAX_TOOLS; i++) {
-		if (tool_registry.tools[i].metadata.name[0] != '\0' &&
-		    strncmp(tool_registry.tools[i].metadata.name, tool_name,
-			    CONFIG_MCP_TOOL_NAME_MAX_LEN) == 0) {
-			tool_index = i;
-			break;
-		}
-	}
-
+	tool_index = find_tool_index(tool_name);
 	if (tool_index == -1) {
 		k_mutex_unlock(&tool_registry.registry_mutex);
 		LOG_ERR("Tool '%s' not found", tool_name);
