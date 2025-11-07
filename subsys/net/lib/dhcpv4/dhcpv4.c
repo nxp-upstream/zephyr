@@ -718,6 +718,7 @@ static void dhcpv4_enter_requesting(struct net_if *iface, struct dhcp_msg *msg)
 	dhcpv4_send_request(iface);
 }
 
+uint8_t boud_flag = 0;
 /* Must be invoked with lock held */
 static void dhcpv4_enter_bound(struct net_if *iface)
 {
@@ -757,6 +758,7 @@ static void dhcpv4_enter_bound(struct net_if *iface)
 	net_mgmt_event_notify_with_info(NET_EVENT_IPV4_DHCP_BOUND, iface,
 					&iface->config.dhcpv4,
 					sizeof(iface->config.dhcpv4));
+	boud_flag = 1;
 }
 
 static void dhcpv4_enter_renewing(struct net_if *iface)
