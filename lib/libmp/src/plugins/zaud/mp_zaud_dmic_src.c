@@ -26,8 +26,8 @@ static bool mp_zaud_dmic_src_set_caps(MpSrc *src, MpCaps *caps)
 	int bit_width = mp_value_get_int(mp_structure_get_value(first_structure, "bitwidth"));
 	int num_of_channel =
 		mp_value_get_int(mp_structure_get_value(first_structure, "numOfchannel"));
-	int frame_interval =
-		mp_value_get_int(mp_structure_get_value(first_structure, "frameinterval"));
+	uint32_t frame_interval =
+		mp_value_get_uint(mp_structure_get_value(first_structure, "frameinterval"));
 
 	struct pcm_stream_cfg stream = {
 		.pcm_width = bit_width,
