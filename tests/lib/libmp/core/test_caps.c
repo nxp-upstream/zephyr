@@ -18,14 +18,14 @@ ZTEST(caps, test_caps_intersection_primitive)
 
 	sys_heap_runtime_stats_get(&_system_heap.heap, &stats_before);
 
-	MpCaps *caps1 =
-		mp_caps_new("test/x-primitive", "test-bool", MP_TYPE_BOOLEAN, true, "test-int",
-			    MP_TYPE_INT, 123, "test-uint", MP_TYPE_UINT, 123, "test-string",
-			    MP_TYPE_STRING, "xRGB", "test-fraction", MP_TYPE_FRACTION, 30, 1, NULL);
-	MpCaps *caps2 =
-		mp_caps_new("test/x-primitive", "test-bool", MP_TYPE_BOOLEAN, true, "test-int",
-			    MP_TYPE_INT, 123, "test-uint", MP_TYPE_UINT, 123, "test-string",
-			    MP_TYPE_STRING, "xRGB", "test-fraction", MP_TYPE_FRACTION, 30, 1, NULL);
+	MpCaps *caps1 = mp_caps_new("test/x-primitive", "test-bool", MP_TYPE_BOOLEAN, true,
+				    "test-int", MP_TYPE_INT, -123, "test-uint", MP_TYPE_UINT, 123,
+				    "test-string", MP_TYPE_STRING, "xRGB", "test-fraction",
+				    MP_TYPE_INT_FRACTION, 30, 1, NULL);
+	MpCaps *caps2 = mp_caps_new("test/x-primitive", "test-bool", MP_TYPE_BOOLEAN, true,
+				    "test-int", MP_TYPE_INT, -123, "test-uint", MP_TYPE_UINT, 123,
+				    "test-string", MP_TYPE_STRING, "xRGB", "test-fraction",
+				    MP_TYPE_INT_FRACTION, 30, 1, NULL);
 	MpCaps *caps_intersect = mp_caps_intersect(caps1, caps2);
 	MpStructure *structure = mp_caps_get_structure(caps_intersect, 0);
 	MpValue *value = mp_structure_get_value(structure, "test-bool");
@@ -35,7 +35,7 @@ ZTEST(caps, test_caps_intersection_primitive)
 
 	value = mp_structure_get_value(structure, "test-int");
 	zassert_not_null(value);
-	zassert_equal(mp_value_get_int(value), 123);
+	zassert_equal(mp_value_get_int(value), -123);
 
 	value = mp_structure_get_value(structure, "test-uint");
 	zassert_not_null(value);
@@ -66,43 +66,53 @@ ZTEST(caps, test_caps_intersection_range)
 
 	sys_heap_runtime_stats_get(&_system_heap.heap, &stats_before);
 
-	MpCaps *caps1 = mp_caps_new("test/x-range", "test-range", MP_TYPE_INT_RANGE, 1280, 1920, 1,
-				    "test-range-int", MP_TYPE_INT, 1500, "test-fraction-range",
-				    MP_TYPE_FRACTION_RANGE, 15, 1, 60, 1, 1, 1,
-				    "test-fraction-range-fraction", MP_TYPE_FRACTION, 30, 1, NULL);
+	MpCaps *caps1 = mp_caps_new(
+		"test/x-range", "test-range-int", MP_TYPE_INT, 1500, "test-range-uint",
+		MP_TYPE_UINT, 1500, "test-int-fraction-range", MP_TYPE_INT_FRACTION_RANGE, -15, 1,
+		60, 1, 1, 1, "test-uint-fraction-range", MP_TYPE_UINT_FRACTION_RANGE, 30, 1, 80, 1,
+		1, 1, "test-uint-fraction-range-fraction", MP_TYPE_INT_FRACTION, 30, 1,
+		"test-int-fraction-range-fraction", MP_TYPE_INT_FRACTION_RANGE, -20, 1, 40, 1, 1, 1,
+		"test-uint-range", MP_TYPE_UINT_RANGE, 100, 500, 1, "test-int-range",
+		MP_TYPE_INT_RANGE, 1500, 2000, 1, NULL);
 
-	MpCaps *caps2 = mp_caps_new("test/x-range", "test-range", MP_TYPE_INT_RANGE, 1500, 2000, 1,
-				    "test-range-int", MP_TYPE_INT_RANGE, 1400, 1600, 1,
-				    "test-fraction-range", MP_TYPE_FRACTION_RANGE, 30, 1, 90, 1, 1,
-				    1, "test-fraction-range-fraction", MP_TYPE_FRACTION_RANGE, 20,
-				    1, 40, 1, 1, 1, NULL);
+	MpCaps *caps2 = mp_caps_new(
+		"test/x-range", "test-range-int", MP_TYPE_INT_RANGE, -1400, 1600, 1,
+		"test-range-uint", MP_TYPE_UINT_RANGE, 1400, 1600, 1, "test-int-fraction-range",
+		MP_TYPE_INT_FRACTION_RANGE, 15, 1, 90, 1, 1, 1, "test-uint-fraction-range",
+		MP_TYPE_UINT_FRACTION_RANGE, 30, 1, 90, 1, 1, 1,
+		"test-uint-fraction-range-fraction", MP_TYPE_INT_FRACTION_RANGE, 20, 1, 40, 1, 1, 1,
+		"test-int-fraction-range-fraction", MP_TYPE_INT_FRACTION, -15, 1, "test-uint-range",
+		MP_TYPE_UINT_RANGE, 200, 800, 1, "test-int-range", MP_TYPE_INT_RANGE, 1280, 1920, 1,
+		NULL);
 
 	MpCaps *caps_intersect = mp_caps_intersect(caps1, caps2);
 	MpStructure *structure = mp_caps_get_structure(caps_intersect, 0);
-	MpValue *value = mp_structure_get_value(structure, "test-range");
+	MpValue *value = mp_structure_get_value(structure, "test-range-int");
 
 	mp_caps_print(caps1);
 	mp_caps_print(caps2);
 	mp_caps_print(caps_intersect);
 
-	zassert_not_null(value);
-	zassert_equal(value->type, MP_TYPE_INT_RANGE);
-	zassert_equal(mp_value_get_int_range_min(value), 1500);
-	zassert_equal(mp_value_get_int_range_max(value), 1920);
-	zassert_equal(mp_value_get_int_range_step(value), 1);
-
-	value = mp_structure_get_value(structure, "test-range-int");
+	/* Check test-range-int: INT 1500 intersect with INT_RANGE [-1400, 1600] = INT 1500 */
 	zassert_not_null(value);
 	zassert_equal(value->type, MP_TYPE_INT);
 	zassert_equal(mp_value_get_int(value), 1500);
 
-	value = mp_structure_get_value(structure, "test-fraction-range");
+	/* Check test-range-uint: UINT 1500 intersect with UINT_RANGE [1400, 1600] = UINT 1500 */
+	value = mp_structure_get_value(structure, "test-range-uint");
 	zassert_not_null(value);
-	zassert_equal(value->type, MP_TYPE_FRACTION_RANGE);
+	zassert_equal(value->type, MP_TYPE_UINT);
+	zassert_equal(mp_value_get_uint(value), 1500);
+
+	/* Check test-int-fraction-range: INT_FRACTION_RANGE [15/1, 60/1] intersect with [-30/1,
+	 * 90/1] = [15/1, 60/1] */
+	value = mp_structure_get_value(structure, "test-int-fraction-range");
+	zassert_not_null(value);
+	zassert_equal(value->type, MP_TYPE_INT_FRACTION_RANGE);
 
 	const MpValue *frac = mp_value_get_fraction_range_min(value);
 
-	zassert_equal(mp_value_get_fraction_numerator(frac), 30);
+	zassert_equal(mp_value_get_fraction_numerator(frac), 15);
 	zassert_equal(mp_value_get_fraction_denominator(frac), 1);
 	frac = mp_value_get_fraction_range_max(value);
 	zassert_equal(mp_value_get_fraction_numerator(frac), 60);
@@ -110,11 +120,59 @@ ZTEST(caps, test_caps_intersection_range)
 	frac = mp_value_get_fraction_range_step(value);
 	zassert_equal(mp_value_get_fraction_numerator(frac), 1);
 	zassert_equal(mp_value_get_fraction_denominator(frac), 1);
-	frac = mp_structure_get_value(structure, "test-fraction-range-fraction");
-	zassert_not_null(frac);
-	zassert_equal(frac->type, MP_TYPE_FRACTION);
+
+	/* Check test-uint-fraction-range: UINT_FRACTION_RANGE [30/1, 80/1]
+	 * intersect with [30/1, 90/1] = [30/1, 80/1]
+	 */
+	value = mp_structure_get_value(structure, "test-uint-fraction-range");
+	zassert_not_null(value);
+	zassert_equal(value->type, MP_TYPE_UINT_FRACTION_RANGE);
+
+	frac = mp_value_get_fraction_range_min(value);
 	zassert_equal(mp_value_get_fraction_numerator(frac), 30);
 	zassert_equal(mp_value_get_fraction_denominator(frac), 1);
+	frac = mp_value_get_fraction_range_max(value);
+	zassert_equal(mp_value_get_fraction_numerator(frac), 80);
+	zassert_equal(mp_value_get_fraction_denominator(frac), 1);
+	frac = mp_value_get_fraction_range_step(value);
+	zassert_equal(mp_value_get_fraction_numerator(frac), 1);
+	zassert_equal(mp_value_get_fraction_denominator(frac), 1);
+
+	/* Check test-uint-fraction-range-fraction: INT_FRACTION 30/1 intersect with
+	 * INT_FRACTION_RANGE [20/1, 40/1] = INT_FRACTION 30/1
+	 */
+	value = mp_structure_get_value(structure, "test-uint-fraction-range-fraction");
+	zassert_not_null(value);
+	zassert_equal(value->type, MP_TYPE_INT_FRACTION);
+	zassert_equal(mp_value_get_fraction_numerator(value), 30);
+	zassert_equal(mp_value_get_fraction_denominator(value), 1);
+
+	/* Check test-int-fraction-range-fraction: INT_FRACTION_RANGE [-20/1, 40/1] intersect with
+	 * INT_FRACTION -15/1 = INT_FRACTION -15/1
+	 */
+	value = mp_structure_get_value(structure, "test-int-fraction-range-fraction");
+	zassert_not_null(value);
+	zassert_equal(value->type, MP_TYPE_INT_FRACTION);
+	zassert_equal(mp_value_get_fraction_numerator(value), -15);
+	zassert_equal(mp_value_get_fraction_denominator(value), 1);
+
+	/* Check test-uint-range: UINT_RANGE [100, 500] intersect with [200, 800] = [200, 500] */
+	value = mp_structure_get_value(structure, "test-uint-range");
+	zassert_not_null(value);
+	zassert_equal(value->type, MP_TYPE_UINT_RANGE);
+	zassert_equal(mp_value_get_int_range_min(value), 200);
+	zassert_equal(mp_value_get_int_range_max(value), 500);
+	zassert_equal(mp_value_get_int_range_step(value), 1);
+
+	/* Check test-int-range: INT_RANGE [1500, 2000] intersect
+	 * with [1280, 1920] = [1500, 1920]
+	 */
+	value = mp_structure_get_value(structure, "test-int-range");
+	zassert_not_null(value);
+	zassert_equal(value->type, MP_TYPE_INT_RANGE);
+	zassert_equal(mp_value_get_int_range_min(value), 1500);
+	zassert_equal(mp_value_get_int_range_max(value), 1920);
+	zassert_equal(mp_value_get_int_range_step(value), 1);
 
 	mp_caps_unref(caps1);
 	mp_caps_unref(caps2);
@@ -135,9 +193,10 @@ ZTEST(caps, test_caps_intersection_list)
 	MpCaps *caps1 = mp_caps_new(
 		"test/x-list", "list", MP_TYPE_LIST,
 		mp_value_new(MP_TYPE_LIST, mp_value_new(MP_TYPE_INT, 15),
-			     mp_value_new(MP_TYPE_UINT, 30), mp_value_new(MP_TYPE_FRACTION, 15, 1),
+			     mp_value_new(MP_TYPE_UINT, 30),
+			     mp_value_new(MP_TYPE_INT_FRACTION, 15, 1),
 			     mp_value_new(MP_TYPE_INT_RANGE, 1, 100, 1),
-			     mp_value_new(MP_TYPE_FRACTION_RANGE, 100, 1, 60, 1, 1, 1),
+			     mp_value_new(MP_TYPE_INT_FRACTION_RANGE, 100, 1, 60, 1, 1, 1),
 			     mp_value_new(MP_TYPE_STRING, "RGB"),
 			     mp_value_new(MP_TYPE_LIST, mp_value_new(MP_TYPE_INT, 15), NULL), NULL),
 		NULL);
@@ -147,8 +206,8 @@ ZTEST(caps, test_caps_intersection_list)
 			     mp_value_new(MP_TYPE_UINT, 30),
 			     mp_value_new(MP_TYPE_LIST, mp_value_new(MP_TYPE_INT, 15), NULL),
 			     mp_value_new(MP_TYPE_INT_RANGE, 1, 100, 1),
-			     mp_value_new(MP_TYPE_FRACTION, 15, 1),
-			     mp_value_new(MP_TYPE_FRACTION_RANGE, 100, 1, 60, 1, 1, 1),
+			     mp_value_new(MP_TYPE_INT_FRACTION, 15, 1),
+			     mp_value_new(MP_TYPE_INT_FRACTION_RANGE, 100, 1, 60, 1, 1, 1),
 			     mp_value_new(MP_TYPE_INT, 15), NULL),
 		NULL);
 	MpCaps *caps_intersect = mp_caps_intersect(caps1, caps2);
@@ -195,10 +254,10 @@ ZTEST(caps, test_caps_video_sample)
 
 	/* Generate different framerates */
 	for (int i = 15; i <= 60; i += 15) {
-		mp_value_list_append(frmrates1, mp_value_new(MP_TYPE_FRACTION, i, 1, NULL));
+		mp_value_list_append(frmrates1, mp_value_new(MP_TYPE_INT_FRACTION, i, 1));
 	}
 
-	/**
+	/*
 	 * caps1: video/x-raw, format(string)=xRGB, width(int_range)=[1280, 1280 ,0],
 	 * height(int_range)=[720, 720, 0], framerate={15/1,30/1,45/1,60/1}
 	 */
@@ -208,15 +267,15 @@ ZTEST(caps, test_caps_video_sample)
 				    720, 720, 0, "frmrate", MP_TYPE_LIST, frmrates1, NULL);
 	zassert_not_null(caps1, "caps1 allocation failed");
 
-	/**
+	/*
 	 * caps2: video/x-raw, format(string)={RGB565, xRGB, YUV}, width(int_range)=[1280, 1280 ,0],
 	 * height(int_range)=[720, 720, 0]
 	 */
 	MpCaps *caps2 =
 		mp_caps_new("video/x-raw", "format", MP_TYPE_LIST,
-			    mp_value_new(MP_TYPE_LIST, mp_value_new(MP_TYPE_STRING, "RGB565", NULL),
-					 mp_value_new(MP_TYPE_STRING, "xRGB", NULL),
-					 mp_value_new(MP_TYPE_STRING, "YUV", NULL), NULL),
+			    mp_value_new(MP_TYPE_LIST, mp_value_new(MP_TYPE_STRING, "RGB565"),
+					 mp_value_new(MP_TYPE_STRING, "xRGB"),
+					 mp_value_new(MP_TYPE_STRING, "YUV"), NULL),
 			    "width", MP_TYPE_INT_RANGE, 1280, 1280, 0, "height", MP_TYPE_INT_RANGE,
 			    720, 720, 0, NULL);
 	zassert_not_null(caps2, "caps2 allocation failed");
@@ -265,7 +324,7 @@ ZTEST(caps, test_caps_video_sample)
 		MpValue *frac = mp_value_list_get(value, j);
 
 		zassert_not_null(frac);
-		zassert_equal(frac->type, MP_TYPE_FRACTION);
+		zassert_equal(frac->type, MP_TYPE_INT_FRACTION);
 		zassert_equal(mp_value_get_fraction_numerator(frac), i,
 			      "mp_value_get_fraction_numerator(value) %d",
 			      mp_value_get_fraction_numerator(frac));
@@ -297,7 +356,7 @@ ZTEST(caps, test_caps_video_sample)
 
 	value = mp_structure_get_value(structure, "frmrate");
 	zassert_not_null(value);
-	zassert_equal(value->type, MP_TYPE_FRACTION);
+	zassert_equal(value->type, MP_TYPE_INT_FRACTION);
 	zassert_equal(mp_value_get_fraction_numerator(value), 15);
 	zassert_equal(mp_value_get_fraction_denominator(value), 1);
 

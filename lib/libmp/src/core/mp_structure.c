@@ -280,7 +280,12 @@ MpStructure *mp_structure_fixate(MpStructure *src)
 			fixated_value =
 				mp_value_new(MP_TYPE_INT, mp_value_get_int_range_min(field->value));
 			break;
-		case MP_TYPE_FRACTION_RANGE:
+		case MP_TYPE_UINT_RANGE:
+			fixated_value = mp_value_new(MP_TYPE_UINT,
+						     mp_value_get_int_range_min(field->value));
+			break;
+		case MP_TYPE_INT_FRACTION_RANGE:
+		case MP_TYPE_UINT_FRACTION_RANGE:
 			fixated_value =
 				mp_value_duplicate(mp_value_get_fraction_range_min(field->value));
 			break;

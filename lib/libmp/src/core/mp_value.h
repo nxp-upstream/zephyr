@@ -41,19 +41,22 @@
  * @brief MpValue type enumeration
  */
 typedef enum {
-	MP_TYPE_NONE = 0,       /**< No type */
-	MP_TYPE_BOOLEAN,        /**< Boolean value */
-	MP_TYPE_ENUM,           /**< Enumeration value */
-	MP_TYPE_INT,            /**< Signed integer value */
-	MP_TYPE_UINT,           /**< Unsigned integer value */
-	MP_TYPE_FRACTION,       /**< Fraction value */
-	MP_TYPE_STRING,         /**< String value */
-	MP_TYPE_INT_RANGE,      /**< Integer range value */
-	MP_TYPE_FRACTION_RANGE, /**< Fraction range value */
-	MP_TYPE_LIST,           /**< List of values */
-	MP_TYPE_OBJECT,         /**< Object reference */
-	MP_TYPE_PTR,            /**< Pointer type */
-	MP_TYPE_COUNT           /**< Number of types */
+	MP_TYPE_NONE = 0,            /**< No type */
+	MP_TYPE_BOOLEAN,             /**< Boolean value */
+	MP_TYPE_ENUM,                /**< Enumeration value */
+	MP_TYPE_INT,                 /**< Signed integer value */
+	MP_TYPE_UINT,                /**< Unsigned integer value */
+	MP_TYPE_UINT_FRACTION,       /**< Unsigned integer fraction value */
+	MP_TYPE_INT_FRACTION,        /**< Fraction value */
+	MP_TYPE_STRING,              /**< String value */
+	MP_TYPE_INT_RANGE,           /**< Integer range value */
+	MP_TYPE_INT_FRACTION_RANGE,  /**< Integer fraction range value */
+	MP_TYPE_UINT_RANGE,          /**< Unsigned integer range value */
+	MP_TYPE_UINT_FRACTION_RANGE, /**< Unsigned integer fraction range value */
+	MP_TYPE_LIST,                /**< List of values */
+	MP_TYPE_OBJECT,              /**< Object reference */
+	MP_TYPE_PTR,                 /**< Pointer type */
+	MP_TYPE_COUNT                /**< Number of types */
 } MpValueType;
 
 /**
