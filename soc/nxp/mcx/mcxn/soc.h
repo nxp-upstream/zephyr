@@ -19,6 +19,10 @@
 extern "C" {
 #endif
 
+#if CONFIG_PM
+void pm_deeppowerpower_exit_post_ops(void);
+#endif
+
 int flexspi_clock_set_freq(uint32_t clock_name, uint32_t rate);
 void flexspi_clock_safe_config(void);
 
