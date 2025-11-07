@@ -30,7 +30,7 @@ static bool audio_conn_created;
 static volatile bool battery_charged_state;
 #define MAX_COPS_NAME_SIZE (16)
 static char cops_name[MAX_COPS_NAME_SIZE];
-static char voice_tag[MAX_COPS_NAME_SIZE] = "\"1234567\",129"; // "+918067064000";
+static char voice_tag[MAX_COPS_NAME_SIZE] = "+8613812345678";
 static uint8_t s_hfp_in_calling_status = 0xff;
 static uint8_t wait_call = 0;
 static uint8_t call_held = 0;
@@ -437,16 +437,9 @@ void ag_ready_to_accept_audio(struct bt_hfp_ag *ag)
 #if defined(CONFIG_BT_HFP_AG_VOICE_TAG)
 int ag_request_phone_number(struct bt_hfp_ag *ag, char **number)
 {
-	static bool valid_number;
+	*number = voice_tag;
 
-	if (valid_number && number) {
-		valid_number = false;
-		*number = "123456789";
-		return 0;
-	}
-
-	valid_number = true;
-	return -EINVAL;
+	return 0;
 }
 #endif /* CONFIG_BT_HFP_AG_VOICE_TAG */
 
@@ -532,11 +525,11 @@ static struct bt_hfp_ag_cb ag_cb = {
 	.ready_to_accept_audio = ag_ready_to_accept_audio,
 #endif /* CONFIG_BT_HFP_AG_ENH_VOICE_RECG */
 #endif /* CONFIG_BT_HFP_AG_VOICE_RECG */
-// #if defined(CONFIG_BT_HFP_AG_VOICE_TAG)
-// 	.request_phone_number = ag_request_phone_number,
-// #endif /* CONFIG_BT_HFP_AG_VOICE_TAG */
+#if defined(CONFIG_BT_HFP_AG_VOICE_TAG)
+ 	.request_phone_number = ag_request_phone_number,
+#endif /* CONFIG_BT_HFP_AG_VOICE_TAG */
 	.transmit_dtmf_code = ag_transmit_dtmf_code,
-// 	.subscriber_number = ag_subscriber_number,
+	.subscriber_number = ag_subscriber_number,
 // 	.hf_indicator_value = ag_hf_indicator_value,
 };
 
