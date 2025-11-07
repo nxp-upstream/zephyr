@@ -103,10 +103,13 @@ static const size_t mp_value_type_sizes[MP_TYPE_COUNT] = {
 	[MP_TYPE_ENUM] = sizeof(MpValueSimple),
 	[MP_TYPE_INT] = sizeof(MpValueSimple),
 	[MP_TYPE_UINT] = sizeof(MpValueSimple),
-	[MP_TYPE_FRACTION] = sizeof(MpValueFraction),
+	[MP_TYPE_UINT_FRACTION] = sizeof(MpValueFraction),
+	[MP_TYPE_INT_FRACTION] = sizeof(MpValueFraction),
 	[MP_TYPE_STRING] = sizeof(MpValueSimple),
 	[MP_TYPE_INT_RANGE] = sizeof(MpValueRange),
-	[MP_TYPE_FRACTION_RANGE] = sizeof(MpValueFractionRange),
+	[MP_TYPE_UINT_RANGE] = sizeof(MpValueRange),
+	[MP_TYPE_INT_FRACTION_RANGE] = sizeof(MpValueFractionRange),
+	[MP_TYPE_UINT_FRACTION_RANGE] = sizeof(MpValueFractionRange),
 	[MP_TYPE_LIST] = sizeof(MpValueList),
 	[MP_TYPE_OBJECT] = sizeof(MpValueSimple),
 	[MP_TYPE_PTR] = sizeof(MpValueSimple),
@@ -117,16 +120,23 @@ static const uint32_t mp_value_intersect_mask[MP_TYPE_COUNT] = {
 	[MP_TYPE_BOOLEAN] = BIT(MP_TYPE_BOOLEAN) | BIT(MP_TYPE_LIST),
 	[MP_TYPE_ENUM] = BIT(MP_TYPE_ENUM) | BIT(MP_TYPE_LIST),
 	[MP_TYPE_INT] = BIT(MP_TYPE_INT) | BIT(MP_TYPE_INT_RANGE) | BIT(MP_TYPE_LIST),
-	[MP_TYPE_UINT] = BIT(MP_TYPE_UINT) | BIT(MP_TYPE_LIST),
-	[MP_TYPE_FRACTION] =
-		BIT(MP_TYPE_FRACTION) | BIT(MP_TYPE_FRACTION_RANGE) | BIT(MP_TYPE_LIST),
+	[MP_TYPE_UINT] = BIT(MP_TYPE_UINT) | BIT(MP_TYPE_UINT_RANGE) | BIT(MP_TYPE_LIST),
+	[MP_TYPE_UINT_FRACTION] =
+		BIT(MP_TYPE_UINT_FRACTION) | BIT(MP_TYPE_UINT_FRACTION_RANGE) | BIT(MP_TYPE_LIST),
+	[MP_TYPE_INT_FRACTION] =
+		BIT(MP_TYPE_INT_FRACTION) | BIT(MP_TYPE_INT_FRACTION_RANGE) | BIT(MP_TYPE_LIST),
 	[MP_TYPE_STRING] = BIT(MP_TYPE_STRING) | BIT(MP_TYPE_LIST),
 	[MP_TYPE_INT_RANGE] = BIT(MP_TYPE_INT) | BIT(MP_TYPE_INT_RANGE) | BIT(MP_TYPE_LIST),
-	[MP_TYPE_FRACTION_RANGE] =
-		BIT(MP_TYPE_FRACTION) | BIT(MP_TYPE_FRACTION_RANGE) | BIT(MP_TYPE_LIST),
+	[MP_TYPE_UINT_RANGE] = BIT(MP_TYPE_UINT) | BIT(MP_TYPE_UINT_RANGE) | BIT(MP_TYPE_LIST),
+	[MP_TYPE_UINT_FRACTION_RANGE] =
+		BIT(MP_TYPE_UINT_FRACTION) | BIT(MP_TYPE_UINT_FRACTION_RANGE) | BIT(MP_TYPE_LIST),
+	[MP_TYPE_INT_FRACTION_RANGE] =
+		BIT(MP_TYPE_INT_FRACTION) | BIT(MP_TYPE_INT_FRACTION_RANGE) | BIT(MP_TYPE_LIST),
 	[MP_TYPE_LIST] = BIT(MP_TYPE_BOOLEAN) | BIT(MP_TYPE_ENUM) | BIT(MP_TYPE_INT) |
-			 BIT(MP_TYPE_UINT) | BIT(MP_TYPE_FRACTION) | BIT(MP_TYPE_STRING) |
-			 BIT(MP_TYPE_INT_RANGE) | BIT(MP_TYPE_FRACTION_RANGE) | BIT(MP_TYPE_LIST),
+			 BIT(MP_TYPE_UINT) | BIT(MP_TYPE_UINT_FRACTION) |
+			 BIT(MP_TYPE_INT_FRACTION) | BIT(MP_TYPE_STRING) | BIT(MP_TYPE_INT_RANGE) |
+			 BIT(MP_TYPE_UINT_RANGE) | BIT(MP_TYPE_UINT_FRACTION_RANGE) |
+			 BIT(MP_TYPE_INT_FRACTION_RANGE) | BIT(MP_TYPE_LIST),
 	[MP_TYPE_OBJECT] = 0,
 	[MP_TYPE_PTR] = 0,
 };
@@ -138,21 +148,61 @@ bool mp_value_is_primitive(const MpValue *value)
 	}
 
 	return ((BIT(MP_TYPE_BOOLEAN) | BIT(MP_TYPE_ENUM) | BIT(MP_TYPE_INT) | BIT(MP_TYPE_UINT) |
-		 BIT(MP_TYPE_FRACTION) | BIT(MP_TYPE_STRING)) &
+		 BIT(MP_TYPE_INT_FRACTION) | BIT(MP_TYPE_UINT_FRACTION) | BIT(MP_TYPE_STRING)) &
 		BIT(value->type)) != 0;
 }
 
-static void mp_value_set_fraction(MpValueFraction *frac, int num, int denom)
+static void mp_value_set_range(MpValue *value, int type, va_list *args)
 {
-	frac->base.type = MP_TYPE_FRACTION;
-	frac->num.v_int = num;
-	frac->denom.v_int = denom;
+	value->type = type;
+	MP_VALUE_RANGE(value)->min.v_uint = va_arg(*args, uint32_t);
+	MP_VALUE_RANGE(value)->max.v_uint = va_arg(*args, uint32_t);
+	MP_VALUE_RANGE(value)->step.v_uint = va_arg(*args, uint32_t);
+}
+
+static void mp_value_set_fraction(MpValue *value, int type, va_list *args)
+{
+	uint32_t gcd = 1;
+
+	value->type = type;
+
+	MP_VALUE_FRACTION(value)->num.v_uint = va_arg(*args, uint32_t);
+	MP_VALUE_FRACTION(value)->denom.v_uint = va_arg(*args, uint32_t);
+	__ASSERT_NO_MSG(MP_VALUE_FRACTION(value)->denom.v_uint != 0);
+	if (type == MP_TYPE_UINT_FRACTION) {
+		gcd = gcd(MP_VALUE_FRACTION(value)->num.v_int,
+			  MP_VALUE_FRACTION(value)->denom.v_int);
+	} else {
+		gcd = gcd(MP_VALUE_FRACTION(value)->num.v_uint,
+			  MP_VALUE_FRACTION(value)->denom.v_uint);
+	}
+
+	MP_VALUE_FRACTION(value)->num.v_uint /= gcd;
+	MP_VALUE_FRACTION(value)->denom.v_uint /= gcd;
+}
+
+static void mp_value_set_fraction_range(MpValue *value, int type, va_list *args)
+{
+	int base_type = (type == MP_TYPE_UINT_FRACTION_RANGE) ? MP_TYPE_UINT_FRACTION
+							      : MP_TYPE_INT_FRACTION;
+
+	value->type = type;
+	mp_value_set_fraction(MP_VALUE(&MP_VALUE_FRACTION_RANGE(value)->min), base_type, args);
+	mp_value_set_fraction(MP_VALUE(&MP_VALUE_FRACTION_RANGE(value)->max), base_type, args);
+	mp_value_set_fraction(MP_VALUE(&MP_VALUE_FRACTION_RANGE(value)->step), base_type, args);
+}
+
+static void mp_value_set_list(MpValue *value, va_list *args)
+{
+	MpValue *list_item;
+
+	while ((list_item = va_arg(*args, MpValue *)) != NULL) {
+		mp_value_list_append(value, list_item);
+	}
 }
 
 static void mp_value_set_va_list(MpValue *value, int type, va_list *args)
 {
-	int num, denom;
-
 	if (value == NULL) {
 		return;
 	}
@@ -176,32 +226,22 @@ static void mp_value_set_va_list(MpValue *value, int type, va_list *args)
 	case MP_TYPE_PTR:
 		MP_VALUE_SIMPLE(value)->v_ptr = va_arg(*args, void *);
 		break;
-	case MP_TYPE_FRACTION:
-		num = va_arg(*args, int);
-		denom = va_arg(*args, int);
-		mp_value_set_fraction(MP_VALUE_FRACTION(value), num, denom);
+	case MP_TYPE_UINT_FRACTION:
+	case MP_TYPE_INT_FRACTION:
+		mp_value_set_fraction(value, type, args);
 		break;
 	case MP_TYPE_INT_RANGE:
-		MP_VALUE_RANGE(value)->min.v_int = va_arg(*args, int);
-		MP_VALUE_RANGE(value)->max.v_int = va_arg(*args, int);
-		MP_VALUE_RANGE(value)->step.v_int = va_arg(*args, int);
+	case MP_TYPE_UINT_RANGE:
+		mp_value_set_range(value, type, args);
 		break;
-	case MP_TYPE_FRACTION_RANGE:
-		num = va_arg(*args, int);
-		denom = va_arg(*args, int);
-		mp_value_set_fraction(&MP_VALUE_FRACTION_RANGE(value)->min, num, denom);
-		num = va_arg(*args, int);
-		denom = va_arg(*args, int);
-		mp_value_set_fraction(&MP_VALUE_FRACTION_RANGE(value)->max, num, denom);
-		num = va_arg(*args, int);
-		denom = va_arg(*args, int);
-		mp_value_set_fraction(&MP_VALUE_FRACTION_RANGE(value)->step, num, denom);
+		break;
+
+	case MP_TYPE_UINT_FRACTION_RANGE:
+	case MP_TYPE_INT_FRACTION_RANGE:
+		mp_value_set_fraction_range(value, type, args);
 		break;
 	case MP_TYPE_LIST:
-		MpValue *list_item;
-		while ((list_item = va_arg(*args, MpValue *)) != NULL) {
-			mp_value_list_append(value, list_item);
-		}
+		mp_value_set_list(value, args);
 		break;
 	default:
 		break;
@@ -421,26 +461,20 @@ MpObject *mp_value_get_object(MpValue *value)
 
 int mp_value_compare_fraction(const MpValue *frac1, const MpValue *frac2)
 {
-	int n1 = MP_VALUE_FRACTION_CONST(frac1)->num.v_int;
-	int d1 = MP_VALUE_FRACTION_CONST(frac1)->denom.v_int;
-	int n2 = MP_VALUE_FRACTION_CONST(frac2)->num.v_int;
-	int d2 = MP_VALUE_FRACTION_CONST(frac2)->denom.v_int;
-	int gcd1 = gcd(n1, d1);
-	int gcd2 = gcd(n2, d2);
-
-	n1 /= gcd1;
-	d1 /= gcd1;
-
-	n2 /= gcd2;
-	d2 /= gcd2;
-
-	if (n1 * d2 > n2 * d1) {
-		return MP_VALUE_GREATER_THAN;
-	} else if (n1 * d2 < n2 * d1) {
-		return MP_VALUE_LESS_THAN;
+	if (frac1->type == MP_TYPE_INT_FRACTION && frac2->type == MP_TYPE_INT_FRACTION) {
+		return MP_FRACTION_COMPARE(
+			MP_VALUE_FRACTION(frac1)->num.v_int, MP_VALUE_FRACTION(frac1)->denom.v_int,
+			MP_VALUE_FRACTION(frac2)->num.v_int, MP_VALUE_FRACTION(frac2)->denom.v_int);
 	}
 
-	return MP_VALUE_EQUAL;
+	if (frac1->type == MP_TYPE_UINT_FRACTION && frac2->type == MP_TYPE_UINT_FRACTION) {
+		return MP_FRACTION_COMPARE(MP_VALUE_FRACTION(frac1)->num.v_uint,
+					   MP_VALUE_FRACTION(frac1)->denom.v_uint,
+					   MP_VALUE_FRACTION(frac2)->num.v_uint,
+					   MP_VALUE_FRACTION(frac2)->denom.v_uint);
+	}
+
+	return MP_VALUE_COMPARE_FAILED;
 }
 
 static int mp_value_list_compare(const MpValue *list1, const MpValue *list2);
@@ -465,13 +499,15 @@ int mp_value_compare(const MpValue *val1, const MpValue *val2)
 	case MP_TYPE_UINT:
 		return MP_COMPARE(MP_VALUE_SIMPLE_CONST(val1)->v_uint,
 				  MP_VALUE_SIMPLE_CONST(val2)->v_uint);
-	case MP_TYPE_FRACTION:
+	case MP_TYPE_UINT_FRACTION:
+	case MP_TYPE_INT_FRACTION:
 		return mp_value_compare_fraction(val1, val2);
 	case MP_TYPE_STRING:
 		return strcmp(MP_VALUE_SIMPLE_CONST(val1)->v_cstring,
 			      MP_VALUE_SIMPLE_CONST(val2)->v_cstring) == 0
 			       ? MP_VALUE_EQUAL
 			       : MP_VALUE_UNORDERED;
+	case MP_TYPE_UINT_RANGE:
 	case MP_TYPE_INT_RANGE:
 		is_equal = (MP_VALUE_RANGE_CONST(val1)->min.v_uint ==
 				    MP_VALUE_RANGE_CONST(val2)->min.v_uint &&
@@ -481,7 +517,8 @@ int mp_value_compare(const MpValue *val1, const MpValue *val2)
 				    MP_VALUE_RANGE_CONST(val2)->step.v_uint);
 
 		return is_equal ? MP_VALUE_EQUAL : MP_VALUE_UNORDERED;
-	case MP_TYPE_FRACTION_RANGE:
+	case MP_TYPE_INT_FRACTION_RANGE:
+	case MP_TYPE_UINT_FRACTION_RANGE:
 		is_equal = mp_value_compare_fraction(
 				   MP_VALUE_CONST(&MP_VALUE_FRACTION_RANGE_CONST(val1)->min),
 				   MP_VALUE_CONST(&MP_VALUE_FRACTION_RANGE_CONST(val2)->min)) ==
@@ -541,27 +578,22 @@ bool mp_value_can_intersect(const MpValue *val1, const MpValue *val2)
 
 MpValue *mp_value_intersect_int_range(const MpValue *ref_val, const MpValue *compare_val)
 {
-	int r1_min, r1_max, r2_min, r2_max, r1_step, r2_step;
-	MpValue *intersect_value = NULL;
+	MpValue *intersect_value;
 
-	r1_min = MP_VALUE_RANGE(ref_val)->min.v_int;
-	r1_max = MP_VALUE_RANGE(ref_val)->max.v_int;
-	r1_step = MP_VALUE_RANGE(ref_val)->step.v_int;
-	if (compare_val->type == MP_TYPE_INT_RANGE) {
-		r2_min = MP_VALUE_RANGE(compare_val)->min.v_int;
-		r2_max = MP_VALUE_RANGE(compare_val)->max.v_int;
-		r2_step = MP_VALUE_RANGE(compare_val)->step.v_int;
-		if (r1_min > r2_max || r2_min > r1_max) {
-			return NULL;
-		}
-
-		intersect_value = mp_value_new(MP_TYPE_INT_RANGE, MAX(r1_min, r2_min),
-					       MIN(r1_max, r2_max), MIN(r1_step, r2_step), NULL);
-	} else if (compare_val->type == MP_TYPE_INT) {
-		if (IN_RANGE(MP_VALUE_SIMPLE(compare_val)->v_int, r1_min, r1_max)) {
-			intersect_value = mp_value_new(MP_TYPE_INT,
-						       MP_VALUE_SIMPLE(compare_val)->v_int, NULL);
-		}
+	if (compare_val->type == MP_TYPE_INT_RANGE && ref_val->type == MP_TYPE_INT_RANGE) {
+		intersect_value = MP_VALUE_CREATE_INTERSECT_RANGE(ref_val, compare_val, v_int,
+								  MP_TYPE_INT_RANGE);
+	} else if (compare_val->type == MP_TYPE_UINT_RANGE && ref_val->type == MP_TYPE_UINT_RANGE) {
+		intersect_value = MP_VALUE_CREATE_INTERSECT_RANGE(ref_val, compare_val, v_uint,
+								  MP_TYPE_UINT_RANGE);
+	} else if ((ref_val->type == MP_TYPE_INT_RANGE && compare_val->type == MP_TYPE_INT &&
+		    MP_SINGLE_VALUE_IN_RANGE(ref_val, compare_val, v_int)) ||
+		   (ref_val->type == MP_TYPE_UINT_RANGE && compare_val->type == MP_TYPE_UINT &&
+		    MP_SINGLE_VALUE_IN_RANGE(ref_val, compare_val, v_uint))) {
+		intersect_value =
+			mp_value_new(compare_val->type, MP_VALUE_SIMPLE(compare_val)->v_uint, NULL);
+	} else {
+		intersect_value = NULL;
 	}
 
 	return intersect_value;
@@ -588,33 +620,59 @@ static const MpValue *mp_value_min_max(const MpValue *value1, const MpValue *val
 	}
 }
 
+#define MP_VALUE_FRACTION_RANGES_OVERLAP(ref_val, cmp_val)                                         \
+	!(mp_value_compare_fraction(MP_VALUE(&MP_VALUE_FRACTION_RANGE(ref_val)->min),              \
+				    MP_VALUE(&MP_VALUE_FRACTION_RANGE(cmp_val)->max)) ==           \
+		  MP_VALUE_GREATER_THAN ||                                                         \
+	  mp_value_compare_fraction(MP_VALUE(&MP_VALUE_FRACTION_RANGE(ref_val)->max),              \
+				    MP_VALUE(&MP_VALUE_FRACTION_RANGE(cmp_val)->min)) ==           \
+		  MP_VALUE_LESS_THAN)
+
+#define MP_VALUE_FRACTION_IN_RANGE(frac_val, range_val)                                            \
+	(mp_value_compare_fraction(MP_VALUE(&MP_VALUE_FRACTION_RANGE(range_val)->min),             \
+				   frac_val) == MP_VALUE_LESS_THAN &&                              \
+	 mp_value_compare_fraction(MP_VALUE(&MP_VALUE_FRACTION_RANGE(range_val)->max),             \
+				   frac_val) == MP_VALUE_GREATER_THAN)
+
 MpValue *mp_value_intersect_fraction_range(const MpValue *ref_val, const MpValue *compare_val)
 {
-	const MpValue *frac_min1, *frac_max1, *frac_min2, *frac_max2;
-	MpValue *intersect_value = NULL;
+	MpValue *intersect_value;
+	int f_type = MP_VALUE(&MP_VALUE_FRACTION_RANGE(ref_val)->step)->type;
 
-	frac_min1 = MP_VALUE(&MP_VALUE_FRACTION_RANGE(ref_val)->min);
-	frac_max1 = MP_VALUE(&MP_VALUE_FRACTION_RANGE(ref_val)->max);
-	if (compare_val->type == MP_TYPE_FRACTION_RANGE) {
-		frac_min2 = MP_VALUE(&MP_VALUE_FRACTION_RANGE(compare_val)->min);
-		frac_max2 = MP_VALUE(&MP_VALUE_FRACTION_RANGE(compare_val)->max);
-		if (mp_value_compare_fraction(frac_min1, frac_max2) == MP_VALUE_GREATER_THAN ||
-		    mp_value_compare_fraction(frac_max1, frac_min2) == MP_VALUE_LESS_THAN) {
-			return NULL;
+	if ((compare_val->type == MP_TYPE_UINT_FRACTION_RANGE ||
+	     compare_val->type == MP_TYPE_INT_FRACTION_RANGE) &&
+	    MP_VALUE_FRACTION_RANGES_OVERLAP(ref_val, compare_val)) {
+		intersect_value = mp_value_new_empty(ref_val->type);
+		MP_VALUE_FRACTION_RANGE(intersect_value)->min = *MP_VALUE_FRACTION(mp_value_min_max(
+			MP_VALUE(&MP_VALUE_FRACTION_RANGE(ref_val)->min),
+			MP_VALUE(&MP_VALUE_FRACTION_RANGE(compare_val)->min), false));
+		MP_VALUE_FRACTION_RANGE(intersect_value)->max = *MP_VALUE_FRACTION(mp_value_min_max(
+			MP_VALUE(&MP_VALUE_FRACTION_RANGE(ref_val)->max),
+			MP_VALUE(&MP_VALUE_FRACTION_RANGE(compare_val)->max), true));
+		if (f_type == MP_TYPE_INT_FRACTION) {
+			mp_value_set(MP_VALUE(&MP_VALUE_FRACTION_RANGE(intersect_value)->step),
+				     f_type,
+				     gcd(MP_VALUE_FRACTION_RANGE(ref_val)->step.num.v_int,
+					 MP_VALUE_FRACTION_RANGE(compare_val)->step.num.v_int),
+				     lcm(MP_VALUE_FRACTION_RANGE(ref_val)->step.denom.v_int,
+					 MP_VALUE_FRACTION_RANGE(compare_val)->step.denom.v_int));
+		} else {
+			mp_value_set(MP_VALUE(&MP_VALUE_FRACTION_RANGE(intersect_value)->step),
+				     f_type,
+				     gcd(MP_VALUE_FRACTION_RANGE(ref_val)->step.num.v_uint,
+					 MP_VALUE_FRACTION_RANGE(compare_val)->step.num.v_uint),
+				     lcm(MP_VALUE_FRACTION_RANGE(ref_val)->step.denom.v_uint,
+					 MP_VALUE_FRACTION_RANGE(compare_val)->step.denom.v_uint));
 		}
-
-		intersect_value = mp_value_new_empty(MP_TYPE_FRACTION_RANGE);
-		MP_VALUE_FRACTION_RANGE(intersect_value)->min =
-			*MP_VALUE_FRACTION(mp_value_min_max(frac_min1, frac_min2, false));
-		MP_VALUE_FRACTION_RANGE(intersect_value)->max =
-			*MP_VALUE_FRACTION(mp_value_min_max(frac_max1, frac_max2, true));
-		mp_value_set_fraction(&((MpValueFractionRange *)intersect_value)->step, 1, 1);
-	} else if (compare_val->type == MP_TYPE_FRACTION &&
-		   mp_value_compare_fraction(frac_min1, compare_val) == MP_VALUE_LESS_THAN &&
-		   mp_value_compare_fraction(frac_max1, compare_val) == MP_VALUE_GREATER_THAN) {
-		intersect_value =
-			mp_value_new(MP_TYPE_FRACTION, MP_VALUE_FRACTION(compare_val)->num.v_int,
-				     MP_VALUE_FRACTION(compare_val)->denom.v_int, NULL);
+	} else if ((compare_val->type == MP_TYPE_INT_FRACTION ||
+		    compare_val->type == MP_TYPE_UINT_FRACTION) &&
+		   MP_VALUE_FRACTION_IN_RANGE(compare_val, ref_val)) {
+		intersect_value = mp_value_new(f_type, MP_VALUE_FRACTION(compare_val)->num.v_uint,
+					       MP_VALUE_FRACTION(compare_val)->denom.v_uint, NULL);
+	} else {
+		printk("Failed to intersect fraction ranges %d %d", compare_val->type,
+		       ref_val->type);
+		intersect_value = NULL;
 	}
 
 	return intersect_value;
@@ -637,16 +695,19 @@ MpValue *mp_value_intersect_list(const MpValue *list, const MpValue *compare_val
 		case MP_TYPE_ENUM:
 		case MP_TYPE_INT:
 		case MP_TYPE_UINT:
-		case MP_TYPE_FRACTION:
+		case MP_TYPE_UINT_FRACTION:
+		case MP_TYPE_INT_FRACTION:
 		case MP_TYPE_STRING:
 			if (mp_value_compare(compare_val, v_node1->value) == MP_VALUE_EQUAL) {
 				intersect_value = mp_value_duplicate(compare_val);
 			}
 			break;
 		case MP_TYPE_INT_RANGE:
+		case MP_TYPE_UINT_RANGE:
 			intersect_value = mp_value_intersect_int_range(compare_val, v_node1->value);
 			break;
-		case MP_TYPE_FRACTION_RANGE:
+		case MP_TYPE_UINT_FRACTION_RANGE:
+		case MP_TYPE_INT_FRACTION_RANGE:
 			intersect_value =
 				mp_value_intersect_fraction_range(compare_val, v_node1->value);
 			break;
@@ -701,9 +762,11 @@ MpValue *mp_value_intersect(const MpValue *val1, const MpValue *val2)
 	} else {
 		switch (ref_val->type) {
 		case MP_TYPE_INT_RANGE:
+		case MP_TYPE_UINT_RANGE:
 			intersect_val = mp_value_intersect_int_range(ref_val, compare_val);
 			break;
-		case MP_TYPE_FRACTION_RANGE:
+		case MP_TYPE_INT_FRACTION_RANGE:
+		case MP_TYPE_UINT_FRACTION_RANGE:
 			intersect_val = mp_value_intersect_fraction_range(ref_val, compare_val);
 			break;
 		case MP_TYPE_LIST:
@@ -738,10 +801,21 @@ static inline void mp_value_print_int_range(const MpValue *value)
 	       MP_VALUE_RANGE_CONST(value)->max.v_int, MP_VALUE_RANGE_CONST(value)->step.v_int);
 }
 
+static inline void mp_value_print_uint_range(const MpValue *value)
+{
+	printk("[%u, %u, %u]", MP_VALUE_RANGE_CONST(value)->min.v_uint,
+	       MP_VALUE_RANGE_CONST(value)->max.v_uint, MP_VALUE_RANGE_CONST(value)->step.v_uint);
+}
+
 static inline void mp_value_print_fraction(const MpValue *value)
 {
-	printk("%d/%d", MP_VALUE_FRACTION_CONST(value)->num.v_int,
-	       MP_VALUE_FRACTION_CONST(value)->denom.v_int);
+	if (value->type == MP_TYPE_UINT_FRACTION) {
+		printk("%u/%u", MP_VALUE_FRACTION_CONST(value)->num.v_uint,
+		       MP_VALUE_FRACTION_CONST(value)->denom.v_uint);
+	} else {
+		printk("%d/%d", MP_VALUE_FRACTION_CONST(value)->num.v_int,
+		       MP_VALUE_FRACTION_CONST(value)->denom.v_int);
+	}
 }
 
 static inline void mp_value_print_fraction_range(const MpValue *value)
@@ -779,12 +853,14 @@ void mp_value_print(const MpValue *value, bool new_line)
 		[MP_TYPE_ENUM] = mp_value_print_int,
 		[MP_TYPE_INT] = mp_value_print_int,
 		[MP_TYPE_UINT] = mp_value_print_uint,
-		[MP_TYPE_FRACTION] = mp_value_print_fraction,
+		[MP_TYPE_UINT_FRACTION] = mp_value_print_fraction,
+		[MP_TYPE_INT_FRACTION] = mp_value_print_fraction,
 		[MP_TYPE_INT_RANGE] = mp_value_print_int_range,
+		[MP_TYPE_UINT_RANGE] = mp_value_print_uint_range,
 		[MP_TYPE_STRING] = mp_value_print_string,
 		[MP_TYPE_LIST] = mp_value_print_list,
-		[MP_TYPE_FRACTION_RANGE] = mp_value_print_fraction_range,
-		[MP_TYPE_FRACTION_RANGE] = mp_value_print_fraction_range,
+		[MP_TYPE_UINT_FRACTION_RANGE] = mp_value_print_fraction_range,
+		[MP_TYPE_INT_FRACTION_RANGE] = mp_value_print_fraction_range,
 		[MP_TYPE_OBJECT] = NULL,
 		[MP_TYPE_PTR] = NULL,
 	};
@@ -795,54 +871,10 @@ void mp_value_print(const MpValue *value, bool new_line)
 		return;
 	}
 
-	switch (value->type) {
-	case MP_TYPE_BOOLEAN:
-	case MP_TYPE_ENUM:
-	case MP_TYPE_INT:
-		printk("%d", MP_VALUE_SIMPLE_CONST(value)->v_int);
-		break;
-	case MP_TYPE_UINT:
-		printk("%u", MP_VALUE_SIMPLE_CONST(value)->v_uint);
-		break;
-	case MP_TYPE_FRACTION:
-		printk("%d/%d", MP_VALUE_FRACTION_CONST(value)->num.v_int,
-		       MP_VALUE_FRACTION_CONST(value)->denom.v_int);
-		break;
-	case MP_TYPE_INT_RANGE:
-		printk("[%d, %d, %d]", MP_VALUE_RANGE_CONST(value)->min.v_int,
-		       MP_VALUE_RANGE_CONST(value)->max.v_int,
-		       MP_VALUE_RANGE_CONST(value)->step.v_int);
-		break;
-	case MP_TYPE_STRING:
-		printk("%s", MP_VALUE_SIMPLE_CONST(value)->v_cstring);
-		break;
-	case MP_TYPE_LIST:
-		sys_snode_t *node, *next_node;
-		MpValueNode *valueNode;
+	MpValuePrintFn print_fn = mp_value_print_table[value->type];
 
-		printk("{");
-		SYS_SLIST_FOR_EACH_NODE(&MP_VALUE_LIST_CONST(value)->v_list, node) {
-			valueNode = CONTAINER_OF(node, MpValueNode, node);
-			next_node = sys_slist_peek_next(node);
-			mp_value_print(valueNode->value, false);
-			if (next_node != NULL) {
-
-				printk(", ");
-			}
-		}
-		printk("}");
-		break;
-	case MP_TYPE_FRACTION_RANGE:
-		printk("[");
-		mp_value_print(MP_VALUE_CONST(&MP_VALUE_FRACTION_RANGE_CONST(value)->min), false);
-		printk(",");
-		mp_value_print(MP_VALUE_CONST(&MP_VALUE_FRACTION_RANGE_CONST(value)->max), false);
-		printk(",");
-		mp_value_print(MP_VALUE_CONST(&MP_VALUE_FRACTION_RANGE_CONST(value)->step), false);
-		printk("]");
-		break;
-	default:
-		break;
+	if (print_fn) {
+		print_fn(value);
 	}
 
 	if (new_line) {
