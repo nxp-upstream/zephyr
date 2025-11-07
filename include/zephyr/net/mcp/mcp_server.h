@@ -19,6 +19,14 @@
 extern "C" {
 #endif
 
+typedef enum {
+#ifdef CONFIG_MCP_TOOLS_CAPABILITY
+	MCP_USR_TOOL_RESPONSE,
+	MCP_USR_TOOL_NOTIFICATION,
+#endif
+	MCP_USR_GENERIC_RESPONSE
+} mcp_app_msg_type_t;
+
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
 /**
  * @brief Tool metadata structure
@@ -55,9 +63,11 @@ typedef struct mcp_tool_record {
 } mcp_tool_record_t;
 #endif
 
-struct mcp_message_msg {
-	uint32_t token;
-};
+typedef struct mcp_user_message {
+	mcp_app_msg_type_t type;
+	int length;
+	void *data;
+} mcp_app_message_t;
 
 /**
  * @brief Initialize the MCP Server
@@ -73,12 +83,7 @@ int mcp_server_init(void);
  */
 int mcp_server_start(void);
 
-/**
- * @brief Queue a response for delivery
- *
- * @return 0 on success, negative errno on failure
- */
-int mcp_queue_response(void);
+int mcp_server_submit_app_message(const mcp_app_message_t *user_msg, uint32_t execution_token);
 
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
 /**
