@@ -38,7 +38,7 @@ static int32_t percent_to_fixed_gain(int gain_percent)
 
 static int mp_zaud_gain_set_property(MpObject *obj, uint32_t key, const void *val)
 {
-	MpZaudGain *self = MP_ZAUD_GAIN(obj);
+	mp_zaud_gain *self = MP_ZAUD_GAIN(obj);
 
 	switch (key) {
 	case PROP_GAIN:
@@ -61,7 +61,7 @@ static int mp_zaud_gain_set_property(MpObject *obj, uint32_t key, const void *va
 
 static int mp_zaud_gain_get_property(MpObject *obj, uint32_t key, void *val)
 {
-	MpZaudGain *self = MP_ZAUD_GAIN(obj);
+	mp_zaud_gain *self = MP_ZAUD_GAIN(obj);
 
 	switch (key) {
 	case PROP_GAIN:
@@ -111,7 +111,7 @@ static void apply_audio_gain(MpBuffer *buffer, int32_t gain_fixed, uint8_t bit_w
 static bool mp_zaud_gain_chainfn(MpPad *pad, MpBuffer *buffer)
 {
 	MpTransform *transform = MP_TRANSFORM(pad->object.container);
-	MpZaudGain *zaud_gain = MP_ZAUD_GAIN(pad->object.container);
+	mp_zaud_gain *zaud_gain = MP_ZAUD_GAIN(pad->object.container);
 
 	/* Validate buffer */
 	if (!buffer || !buffer->data || buffer->size == 0) {
@@ -173,7 +173,7 @@ static bool mp_zaud_gain_set_caps(MpTransform *transform, MpPadDirection directi
 void mp_zaud_gain_init(MpElement *self)
 {
 	MpTransform *transform = MP_TRANSFORM(self);
-	MpZaudGain *zaud_gain = MP_ZAUD_GAIN(self);
+	mp_zaud_gain *zaud_gain = MP_ZAUD_GAIN(self);
 
 	/* Init base class */
 	mp_transform_init(self);

@@ -18,11 +18,11 @@
 
 #include "mp_zaud.h"
 
-/** @brief Cast object pointer to MpZaudBufferPool pointer */
-#define MP_ZAUD_BUFFER_POOL(self) ((MpZaudBufferPool *)self)
+/** @brief Cast object pointer to mp_zaud_buffer_pool pointer */
+#define MP_ZAUD_BUFFER_POOL(self) ((mp_zaud_buffer_pool *)self)
 
 /**
- * @struct MpZaudBufferPool
+ * @struct mp_zaud_buffer_pool
  * @brief Audio buffer pool structure
  *
  * This structure manages memory allocation and buffer handling for audio
@@ -37,7 +37,7 @@ typedef struct {
 	struct k_mem_slab *mem_slab;
 	/** Pointer to unaligned buffer memory */
 	void *unaligned_buffer;
-} MpZaudBufferPool;
+} mp_zaud_buffer_pool;
 
 /**
  * @brief Initialize an audio buffer pool

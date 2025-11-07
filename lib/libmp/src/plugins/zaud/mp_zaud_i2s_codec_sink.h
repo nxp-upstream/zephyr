@@ -16,11 +16,11 @@
 
 #include <src/core/mp_sink.h>
 
-/** @brief Cast object pointer to MpZaudI2sCodecSink pointer */
-#define MP_ZAUD_I2S_CODEC_SINK(self) ((MpZaudI2sCodecSink *)self)
+/** @brief Cast object pointer to mp_zaud_i2s_codec_sink pointer */
+#define MP_ZAUD_I2S_CODEC_SINK(self) ((mp_zaud_i2s_codec_sink *)self)
 
 /**
- * @struct MpZaudI2sCodecSink
+ * @struct mp_zaud_i2s_codec_sink
  * @brief Audio I2S codec sink element structure.
  *
  * This structure represents an audio sink element that outputs audio data
@@ -40,7 +40,7 @@ typedef struct {
 	uint8_t count;
 	/** Flag indicating if the sink has been started */
 	bool started;
-} MpZaudI2sCodecSink;
+} mp_zaud_i2s_codec_sink;
 
 /**
  * @brief Initialize an audio I2S codec sink element.

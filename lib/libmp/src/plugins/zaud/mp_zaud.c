@@ -62,9 +62,9 @@ const uint32_t audio2mp_bit_width(uint32_t bit_width_mask)
 
 static void plugin_init(void)
 {
-	MP_ELEMENTFACTORY_DEFINE(zaud_dmic_src, sizeof(MpZaudDmicSrc), mp_zaud_dmic_src_init);
-	MP_ELEMENTFACTORY_DEFINE(zaud_gain, sizeof(MpZaudGain), mp_zaud_gain_init);
-	MP_ELEMENTFACTORY_DEFINE(zaud_i2s_codec_sink, sizeof(MpZaudI2sCodecSink),
+	MP_ELEMENTFACTORY_DEFINE(zaud_dmic_src, sizeof(mp_zaud_dmic_src), mp_zaud_dmic_src_init);
+	MP_ELEMENTFACTORY_DEFINE(zaud_gain, sizeof(mp_zaud_gain), mp_zaud_gain_init);
+	MP_ELEMENTFACTORY_DEFINE(zaud_i2s_codec_sink, sizeof(mp_zaud_i2s_codec_sink),
 				 mp_zaud_i2s_codec_sink_init);
 }
 
