@@ -245,8 +245,7 @@ static usb_host_pipe_handle uhc_mcux_check_hal_ep(const struct device *dev,
 
 	/* TODO: need to check endpoint type too */
 	if (mcux_ep != NULL &&
-	    (mcux_ep->maxPacketSize != xfer->mps ||
-	     mcux_ep->interval != xfer->interval)) {
+	    (mcux_ep->maxPacketSize != xfer->mps)) {
 		/* re-initialize the ep */
 		status = priv->mcux_if->controllerClosePipe(priv->mcux_host.controllerHandle,
 							    mcux_ep);
@@ -293,7 +292,12 @@ usb_host_pipe_t *uhc_mcux_init_hal_ep(const struct device *dev, struct uhc_trans
 	/* TODO: need right way to implement it. */
 	if (pipe_init.endpointAddress == 0) {
 		pipe_init.pipeType = USB_ENDPOINT_CONTROL;
-	} else {
+	}
+	else if (pipe_init.endpointAddress == 3) {
+		pipe_init.pipeType = USB_ENDPOINT_INTERRUPT;
+	}
+	else
+	{
 		pipe_init.pipeType = USB_ENDPOINT_BULK;
 	}
 
