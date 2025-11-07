@@ -12,21 +12,47 @@
 
 LOG_MODULE_REGISTER(mp_value, CONFIG_LIBMP_LOG_LEVEL);
 
-#define DEFINE_COMPARE_SINGLE_VALUE_FUNC(typename, type)                                           \
-	static int mp_value_compare_##typename(const MpValue *value1, const MpValue *value2)       \
-	{                                                                                          \
-		type val1 = ((const MpValueSimple *)value1)->data.v_##typename;                    \
-		type val2 = ((const MpValueSimple *)value2)->data.v_##typename;                    \
-		if (val1 > val2) {                                                                 \
-			return MP_VALUE_GREATER_THAN;                                              \
-		}                                                                                  \
-                                                                                                   \
-		if (val1 < val2) {                                                                 \
-			return MP_VALUE_LESS_THAN;                                                 \
-		}                                                                                  \
-                                                                                                   \
-		return MP_VALUE_EQUAL;                                                             \
-	}
+#define MP_VALUE(value)                      ((MpValue *)value)
+#define MP_VALUE_SIMPLE(value)               ((MpValueSimple *)value)
+#define MP_VALUE_RANGE(value)                ((MpValueRange *)value)
+#define MP_VALUE_FRACTION(value)             ((MpValueFraction *)value)
+#define MP_VALUE_FRACTION_RANGE(value)       ((MpValueFractionRange *)value)
+#define MP_VALUE_LIST(value)                 ((MpValueList *)value)
+#define MP_VALUE_CONST(value)                ((const MpValue *)(value))
+#define MP_VALUE_SIMPLE_CONST(value)         ((const MpValueSimple *)(value))
+#define MP_VALUE_RANGE_CONST(value)          ((const MpValueRange *)(value))
+#define MP_VALUE_FRACTION_CONST(value)       ((const MpValueFraction *)(value))
+#define MP_VALUE_FRACTION_RANGE_CONST(value) ((const MpValueFractionRange *)(value))
+#define MP_VALUE_LIST_CONST(value)           ((const MpValueList *)(value))
+
+#define MP_COMPARE(a, b)                                                                           \
+	((a) < (b) ? MP_VALUE_LESS_THAN : ((a) > (b) ? MP_VALUE_GREATER_THAN : MP_VALUE_EQUAL))
+
+#define MP_FRACTION_COMPARE(a_num, a_den, b_num, b_den)                                            \
+	_Generic((a_num),                                                                          \
+		int32_t: MP_COMPARE((int64_t)a_num *(int64_t)b_den,                                \
+				    (int64_t)b_num *(int64_t)b_den),                               \
+		uint32_t: MP_COMPARE((uint64_t)a_num *(uint64_t)b_den,                             \
+				     (uint64_t)b_num *(uint64_t)b_den))
+
+#define MP_VALUE_RANGES_OVERLAP(ref_val, cmp_val, vtype)                                           \
+	!(MP_VALUE_RANGE(ref_val)->min.vtype > MP_VALUE_RANGE(cmp_val)->max.vtype ||               \
+	  MP_VALUE_RANGE(cmp_val)->min.vtype > MP_VALUE_RANGE(ref_val)->max.vtype)
+
+#define MP_VALUE_CREATE_INTERSECT_RANGE(ref_val, cmp_val, vtype, type_enum)                        \
+	MP_VALUE_RANGES_OVERLAP(ref_val, cmp_val, vtype)                                           \
+	? mp_value_new(                                                                            \
+		  type_enum,                                                                       \
+		  MAX(MP_VALUE_RANGE(ref_val)->min.vtype, MP_VALUE_RANGE(cmp_val)->min.vtype),     \
+		  MIN(MP_VALUE_RANGE(ref_val)->max.vtype, MP_VALUE_RANGE(cmp_val)->max.vtype),     \
+		  gcd(MP_VALUE_RANGE(ref_val)->step.vtype,                                         \
+		      MP_VALUE_RANGE(compare_val)->step.vtype),                                    \
+		  NULL)                                                                            \
+	: NULL
+
+#define MP_SINGLE_VALUE_IN_RANGE(ref_val, cmp_val, vtype)                                          \
+	(IN_RANGE(MP_VALUE_SIMPLE(cmp_val)->vtype, MP_VALUE_RANGE(ref_val)->min.vtype,             \
+		  MP_VALUE_RANGE(ref_val)->max.vtype))
 
 typedef struct {
 	MpValue base;
@@ -37,7 +63,7 @@ typedef struct {
 		const char *v_cstring;
 		MpObject *v_obj;
 		void *v_ptr;
-	} data;
+	};
 } MpValueSimple;
 
 typedef struct {
@@ -134,47 +160,45 @@ static void mp_value_set_va_list(MpValue *value, int type, va_list *args)
 	value->type = type;
 	switch (value->type) {
 	case MP_TYPE_BOOLEAN:
-		((MpValueSimple *)value)->data.v_boolean = va_arg(*args, int);
-		break;
+	case MP_TYPE_ENUM:
 	case MP_TYPE_INT:
-		((MpValueSimple *)value)->data.v_int = va_arg(*args, int);
+		MP_VALUE_SIMPLE(value)->v_int = va_arg(*args, int);
 		break;
 	case MP_TYPE_STRING:
-		((MpValueSimple *)value)->data.v_cstring = va_arg(*args, const char *);
+		MP_VALUE_SIMPLE(value)->v_cstring = va_arg(*args, const char *);
 		break;
 	case MP_TYPE_UINT:
-		((MpValueSimple *)value)->data.v_uint = va_arg(*args, uint32_t);
+		MP_VALUE_SIMPLE(value)->v_uint = va_arg(*args, uint32_t);
+		break;
+	case MP_TYPE_OBJECT:
+		mp_object_replace(&MP_VALUE_SIMPLE(value)->v_obj, va_arg(*args, MpObject *));
 		break;
 	case MP_TYPE_PTR:
-		((MpValueSimple *)value)->data.v_ptr = va_arg(*args, void *);
+		MP_VALUE_SIMPLE(value)->v_ptr = va_arg(*args, void *);
 		break;
 	case MP_TYPE_FRACTION:
 		num = va_arg(*args, int);
 		denom = va_arg(*args, int);
-		mp_value_set_fraction(((MpValueFraction *)value), num, denom);
+		mp_value_set_fraction(MP_VALUE_FRACTION(value), num, denom);
 		break;
 	case MP_TYPE_INT_RANGE:
-		((MpValueRange *)value)->min.v_int = va_arg(*args, int);
-		((MpValueRange *)value)->max.v_int = va_arg(*args, int);
-		((MpValueRange *)value)->step.v_int = va_arg(*args, int);
+		MP_VALUE_RANGE(value)->min.v_int = va_arg(*args, int);
+		MP_VALUE_RANGE(value)->max.v_int = va_arg(*args, int);
+		MP_VALUE_RANGE(value)->step.v_int = va_arg(*args, int);
 		break;
 	case MP_TYPE_FRACTION_RANGE:
 		num = va_arg(*args, int);
 		denom = va_arg(*args, int);
-		mp_value_set_fraction(&((MpValueFractionRange *)value)->min, num, denom);
+		mp_value_set_fraction(&MP_VALUE_FRACTION_RANGE(value)->min, num, denom);
 		num = va_arg(*args, int);
 		denom = va_arg(*args, int);
-		mp_value_set_fraction(&((MpValueFractionRange *)value)->max, num, denom);
+		mp_value_set_fraction(&MP_VALUE_FRACTION_RANGE(value)->max, num, denom);
 		num = va_arg(*args, int);
 		denom = va_arg(*args, int);
-		mp_value_set_fraction(&((MpValueFractionRange *)value)->step, num, denom);
-		break;
-	case MP_TYPE_OBJECT:
-		mp_object_replace(&((MpValueSimple *)value)->data.v_obj, va_arg(*args, MpObject *));
+		mp_value_set_fraction(&MP_VALUE_FRACTION_RANGE(value)->step, num, denom);
 		break;
 	case MP_TYPE_LIST:
 		MpValue *list_item;
-
 		while ((list_item = va_arg(*args, MpValue *)) != NULL) {
 			mp_value_list_append(value, list_item);
 		}
@@ -187,7 +211,6 @@ static void mp_value_set_va_list(MpValue *value, int type, va_list *args)
 void mp_value_set(MpValue *value, int type, ...)
 {
 	va_list args;
-
 	va_start(args, type);
 	mp_value_set_va_list(value, type, &args);
 	va_end(args);
@@ -195,52 +218,52 @@ void mp_value_set(MpValue *value, int type, ...)
 
 int mp_value_get_fraction_numerator(const MpValue *frac)
 {
-	return ((MpValueFraction *)frac)->num.v_int;
+	return MP_VALUE_FRACTION_CONST(frac)->num.v_int;
 }
 
 int mp_value_get_fraction_denominator(const MpValue *frac)
 {
-	return ((MpValueFraction *)frac)->denom.v_int;
+	return MP_VALUE_FRACTION_CONST(frac)->denom.v_int;
 }
 
 const MpValue *mp_value_get_fraction_range_min(const MpValue *fraction_range)
 {
-	return (MpValue *)&((MpValueFractionRange *)fraction_range)->min;
+	return MP_VALUE_CONST(&MP_VALUE_FRACTION_RANGE_CONST(fraction_range)->min);
 }
 
 const MpValue *mp_value_get_fraction_range_max(const MpValue *fraction_range)
 {
-	return (MpValue *)&((MpValueFractionRange *)fraction_range)->max;
+	return MP_VALUE_CONST(&MP_VALUE_FRACTION_RANGE_CONST(fraction_range)->max);
 }
 
 const MpValue *mp_value_get_fraction_range_step(const MpValue *fraction_range)
 {
-	return (MpValue *)&((MpValueFractionRange *)fraction_range)->step;
+	return MP_VALUE_CONST(&MP_VALUE_FRACTION_RANGE_CONST(fraction_range)->step);
 }
 
 const char *mp_value_get_string(const MpValue *value)
 {
-	return ((MpValueSimple *)value)->data.v_cstring;
+	return MP_VALUE_SIMPLE_CONST(value)->v_cstring;
 }
 
 int mp_value_get_int(const MpValue *value)
 {
-	return ((MpValueSimple *)value)->data.v_int;
+	return MP_VALUE_SIMPLE_CONST(value)->v_int;
 }
 
 uint32_t mp_value_get_uint(const MpValue *value)
 {
-	return ((MpValueSimple *)value)->data.v_uint;
+	return MP_VALUE_SIMPLE_CONST(value)->v_uint;
 }
 
 void *mp_value_get_ptr(const MpValue *value)
 {
-	return value ? ((MpValueSimple *)value)->data.v_ptr : NULL;
+	return value ? MP_VALUE_SIMPLE_CONST(value)->v_ptr : NULL;
 }
 
 bool mp_value_get_boolean(const MpValue *value)
 {
-	return ((MpValueSimple *)value)->data.v_boolean;
+	return MP_VALUE_SIMPLE_CONST(value)->v_boolean;
 }
 
 MpValue *mp_value_new_empty(MpValueType type)
@@ -260,7 +283,7 @@ MpValue *mp_value_new_empty(MpValueType type)
 
 	value->type = type;
 	if (value->type == MP_TYPE_LIST) {
-		sys_slist_init(&((MpValueList *)value)->v_list);
+		sys_slist_init(&MP_VALUE_LIST(value)->v_list);
 	}
 
 	return value;
@@ -268,17 +291,19 @@ MpValue *mp_value_new_empty(MpValueType type)
 
 void mp_value_destroy(MpValue *value)
 {
+	MpValueNode *valueNode;
+
 	if (value->type == MP_TYPE_LIST) {
-		while (!sys_slist_is_empty(&((MpValueList *)value)->v_list)) {
-			MpValueNode *valueNode = CONTAINER_OF(
-				sys_slist_get(&((MpValueList *)value)->v_list), MpValueNode, node);
+		while (!sys_slist_is_empty(&MP_VALUE_LIST(value)->v_list)) {
+			valueNode = CONTAINER_OF(sys_slist_get(&MP_VALUE_LIST(value)->v_list),
+						 MpValueNode, node);
 			mp_value_destroy(valueNode->value);
 			k_free(valueNode);
 		}
 	}
 
 	if (value->type == MP_TYPE_OBJECT) {
-		mp_object_unref(((MpValueSimple *)value)->data.v_obj);
+		mp_object_unref(MP_VALUE_SIMPLE(value)->v_obj);
 	}
 
 	k_free(value);
@@ -308,25 +333,31 @@ MpValue *mp_value_new_va_list(MpValueType type, va_list *args)
 	return value;
 }
 
+static void mp_value_copy(MpValue *dst, const MpValue *src)
+{
+	if (src->type == MP_TYPE_LIST) {
+		MpValueNode *v_node;
+
+		SYS_SLIST_FOR_EACH_CONTAINER(&MP_VALUE_LIST(src)->v_list, v_node, node) {
+			mp_value_list_append(dst, mp_value_duplicate(v_node->value));
+		}
+	} else if (src->type == MP_TYPE_OBJECT) {
+		MP_VALUE_SIMPLE(dst)->v_obj = MP_VALUE_SIMPLE(src)->v_obj;
+		mp_object_ref(MP_VALUE_SIMPLE(dst)->v_obj);
+	} else {
+		memcpy(dst, src, mp_value_type_sizes[src->type]);
+	}
+}
+
 MpValue *mp_value_duplicate(const MpValue *value)
 {
 	MpValue *dup_value = mp_value_new_empty(value->type);
-	MpValueNode *v_node;
 
 	if (dup_value == NULL) {
 		return NULL;
 	}
 
-	if (value->type == MP_TYPE_LIST) {
-		SYS_SLIST_FOR_EACH_CONTAINER(&((MpValueList *)value)->v_list, v_node, node) {
-			mp_value_list_append(dup_value, mp_value_duplicate(v_node->value));
-		}
-	} else if (value->type == MP_TYPE_OBJECT) {
-		((MpValueSimple *)dup_value)->data.v_obj =
-			mp_object_ref(((MpValueSimple *)value)->data.v_obj);
-	} else {
-		memcpy(dup_value, value, mp_value_type_sizes[value->type]);
-	}
+	mp_value_copy(dup_value, value);
 
 	return dup_value;
 }
@@ -339,7 +370,7 @@ void mp_value_list_append(MpValue *list, MpValue *append_value)
 	node = k_malloc(sizeof(MpValueNode));
 	__ASSERT_NO_MSG(node != NULL);
 	node->value = append_value;
-	sys_slist_append(&((MpValueList *)list)->v_list, &node->node);
+	sys_slist_append(&MP_VALUE_LIST(list)->v_list, &node->node);
 }
 
 MpValue *mp_value_list_get(const MpValue *list, int index)
@@ -348,7 +379,7 @@ MpValue *mp_value_list_get(const MpValue *list, int index)
 	MpValueNode *valueNode = NULL;
 	int count = 0;
 
-	SYS_SLIST_FOR_EACH_NODE(&((MpValueList *)list)->v_list, node) {
+	SYS_SLIST_FOR_EACH_NODE(&MP_VALUE_LIST_CONST(list)->v_list, node) {
 		if (count++ == index) {
 			valueNode = CONTAINER_OF(node, MpValueNode, node);
 			break;
@@ -360,43 +391,40 @@ MpValue *mp_value_list_get(const MpValue *list, int index)
 
 bool mp_value_list_is_empty(const MpValue *list)
 {
-	return sys_slist_is_empty(&((MpValueList *)list)->v_list);
+	return sys_slist_is_empty(&MP_VALUE_LIST_CONST(list)->v_list);
 }
 
 size_t mp_value_list_get_size(const MpValue *list)
 {
-	return sys_slist_len(&((MpValueList *)list)->v_list);
+	return sys_slist_len(&MP_VALUE_LIST_CONST(list)->v_list);
 }
 
 int mp_value_get_int_range_min(const MpValue *range)
 {
-	return ((MpValueRange *)range)->min.v_int;
+	return MP_VALUE_RANGE_CONST(range)->min.v_uint;
 }
 
 int mp_value_get_int_range_max(const MpValue *range)
 {
-	return ((MpValueRange *)range)->max.v_int;
+	return MP_VALUE_RANGE_CONST(range)->max.v_uint;
 }
 
 int mp_value_get_int_range_step(const MpValue *range)
 {
-	return ((MpValueRange *)range)->step.v_int;
+	return MP_VALUE_RANGE_CONST(range)->step.v_uint;
 }
 
 MpObject *mp_value_get_object(MpValue *value)
 {
-	return value ? ((MpValueSimple *)value)->data.v_obj : NULL;
+	return value ? MP_VALUE_SIMPLE_CONST(value)->v_obj : NULL;
 }
-
-DEFINE_COMPARE_SINGLE_VALUE_FUNC(int, int);
-DEFINE_COMPARE_SINGLE_VALUE_FUNC(uint, uint32_t);
 
 int mp_value_compare_fraction(const MpValue *frac1, const MpValue *frac2)
 {
-	int n1 = mp_value_get_fraction_numerator(frac1);
-	int d1 = mp_value_get_fraction_denominator(frac1);
-	int n2 = mp_value_get_fraction_numerator(frac2);
-	int d2 = mp_value_get_fraction_denominator(frac2);
+	int n1 = MP_VALUE_FRACTION_CONST(frac1)->num.v_int;
+	int d1 = MP_VALUE_FRACTION_CONST(frac1)->denom.v_int;
+	int n2 = MP_VALUE_FRACTION_CONST(frac2)->num.v_int;
+	int d2 = MP_VALUE_FRACTION_CONST(frac2)->denom.v_int;
 	int gcd1 = gcd(n1, d1);
 	int gcd2 = gcd(n2, d2);
 
@@ -427,35 +455,46 @@ int mp_value_compare(const MpValue *val1, const MpValue *val2)
 
 	switch (val1->type) {
 	case MP_TYPE_BOOLEAN:
-		if (mp_value_get_boolean(val1) == mp_value_get_boolean(val2)) {
-			return MP_VALUE_EQUAL;
-		}
-		return MP_VALUE_UNORDERED;
 	case MP_TYPE_ENUM:
+		return MP_VALUE_SIMPLE_CONST(val1)->v_uint == MP_VALUE_SIMPLE_CONST(val2)->v_uint
+			       ? MP_VALUE_EQUAL
+			       : MP_VALUE_UNORDERED;
 	case MP_TYPE_INT:
-		return mp_value_compare_int(val1, val2);
+		return MP_COMPARE(MP_VALUE_SIMPLE_CONST(val1)->v_int,
+				  MP_VALUE_SIMPLE_CONST(val2)->v_int);
 	case MP_TYPE_UINT:
-		return mp_value_compare_uint(val1, val2);
+		return MP_COMPARE(MP_VALUE_SIMPLE_CONST(val1)->v_uint,
+				  MP_VALUE_SIMPLE_CONST(val2)->v_uint);
 	case MP_TYPE_FRACTION:
 		return mp_value_compare_fraction(val1, val2);
 	case MP_TYPE_STRING:
-		return strcmp(mp_value_get_string(val1), mp_value_get_string(val2));
+		return strcmp(MP_VALUE_SIMPLE_CONST(val1)->v_cstring,
+			      MP_VALUE_SIMPLE_CONST(val2)->v_cstring) == 0
+			       ? MP_VALUE_EQUAL
+			       : MP_VALUE_UNORDERED;
 	case MP_TYPE_INT_RANGE:
-		is_equal = (mp_value_get_int_range_min(val1) == mp_value_get_int_range_min(val2) &&
-			    mp_value_get_int_range_max(val1) == mp_value_get_int_range_max(val2) &&
-			    mp_value_get_int_range_step(val1) == mp_value_get_int_range_step(val2));
+		is_equal = (MP_VALUE_RANGE_CONST(val1)->min.v_uint ==
+				    MP_VALUE_RANGE_CONST(val2)->min.v_uint &&
+			    MP_VALUE_RANGE_CONST(val1)->max.v_uint ==
+				    MP_VALUE_RANGE_CONST(val2)->max.v_uint &&
+			    MP_VALUE_RANGE_CONST(val1)->step.v_uint ==
+				    MP_VALUE_RANGE_CONST(val2)->step.v_uint);
 
 		return is_equal ? MP_VALUE_EQUAL : MP_VALUE_UNORDERED;
 	case MP_TYPE_FRACTION_RANGE:
-		is_equal = mp_value_compare_fraction(mp_value_get_fraction_range_min(val1),
-						     mp_value_get_fraction_range_min(val2)) ==
+		is_equal = mp_value_compare_fraction(
+				   MP_VALUE_CONST(&MP_VALUE_FRACTION_RANGE_CONST(val1)->min),
+				   MP_VALUE_CONST(&MP_VALUE_FRACTION_RANGE_CONST(val2)->min)) ==
 				   MP_VALUE_EQUAL &&
-			   mp_value_compare_fraction(mp_value_get_fraction_range_max(val1),
-						     mp_value_get_fraction_range_max(val2)) ==
+			   mp_value_compare_fraction(
+				   MP_VALUE_CONST(&MP_VALUE_FRACTION_RANGE_CONST(val1)->max),
+				   MP_VALUE_CONST(&MP_VALUE_FRACTION_RANGE_CONST(val2)->max)) ==
 				   MP_VALUE_EQUAL &&
-			   mp_value_compare_fraction(mp_value_get_fraction_range_step(val1),
-						     mp_value_get_fraction_range_step(val2)) ==
+			   mp_value_compare_fraction(
+				   MP_VALUE_CONST(&MP_VALUE_FRACTION_RANGE_CONST(val1)->step),
+				   MP_VALUE_CONST(&MP_VALUE_FRACTION_RANGE_CONST(val2)->step)) ==
 				   MP_VALUE_EQUAL;
+
 		return is_equal ? MP_VALUE_EQUAL : MP_VALUE_UNORDERED;
 	case MP_TYPE_LIST:
 		return mp_value_list_compare(val1, val2);
@@ -479,8 +518,8 @@ static int mp_value_list_compare(const MpValue *list1, const MpValue *list2)
 		return MP_VALUE_UNORDERED;
 	}
 
-	SYS_SLIST_FOR_EACH_CONTAINER(&((MpValueList *)list1)->v_list, v_node1, node) {
-		SYS_SLIST_FOR_EACH_CONTAINER(&((MpValueList *)list2)->v_list, v_node2, node) {
+	SYS_SLIST_FOR_EACH_CONTAINER(&MP_VALUE_LIST(list1)->v_list, v_node1, node) {
+		SYS_SLIST_FOR_EACH_CONTAINER(&MP_VALUE_LIST(list2)->v_list, v_node2, node) {
 			if (mp_value_compare(v_node1->value, v_node2->value) == MP_VALUE_EQUAL) {
 				count_matched++;
 			}
@@ -505,13 +544,13 @@ MpValue *mp_value_intersect_int_range(const MpValue *ref_val, const MpValue *com
 	int r1_min, r1_max, r2_min, r2_max, r1_step, r2_step;
 	MpValue *intersect_value = NULL;
 
-	r1_min = mp_value_get_int_range_min(ref_val);
-	r1_max = mp_value_get_int_range_max(ref_val);
-	r1_step = mp_value_get_int_range_step(ref_val);
+	r1_min = MP_VALUE_RANGE(ref_val)->min.v_int;
+	r1_max = MP_VALUE_RANGE(ref_val)->max.v_int;
+	r1_step = MP_VALUE_RANGE(ref_val)->step.v_int;
 	if (compare_val->type == MP_TYPE_INT_RANGE) {
-		r2_min = mp_value_get_int_range_min(compare_val);
-		r2_max = mp_value_get_int_range_max(compare_val);
-		r2_step = mp_value_get_int_range_step(compare_val);
+		r2_min = MP_VALUE_RANGE(compare_val)->min.v_int;
+		r2_max = MP_VALUE_RANGE(compare_val)->max.v_int;
+		r2_step = MP_VALUE_RANGE(compare_val)->step.v_int;
 		if (r1_min > r2_max || r2_min > r1_max) {
 			return NULL;
 		}
@@ -519,9 +558,9 @@ MpValue *mp_value_intersect_int_range(const MpValue *ref_val, const MpValue *com
 		intersect_value = mp_value_new(MP_TYPE_INT_RANGE, MAX(r1_min, r2_min),
 					       MIN(r1_max, r2_max), MIN(r1_step, r2_step), NULL);
 	} else if (compare_val->type == MP_TYPE_INT) {
-		if (IN_RANGE(mp_value_get_int(compare_val), r1_min, r1_max)) {
-			intersect_value =
-				mp_value_new(MP_TYPE_INT, mp_value_get_int(compare_val), NULL);
+		if (IN_RANGE(MP_VALUE_SIMPLE(compare_val)->v_int, r1_min, r1_max)) {
+			intersect_value = mp_value_new(MP_TYPE_INT,
+						       MP_VALUE_SIMPLE(compare_val)->v_int, NULL);
 		}
 	}
 
@@ -554,28 +593,28 @@ MpValue *mp_value_intersect_fraction_range(const MpValue *ref_val, const MpValue
 	const MpValue *frac_min1, *frac_max1, *frac_min2, *frac_max2;
 	MpValue *intersect_value = NULL;
 
-	frac_min1 = mp_value_get_fraction_range_min(ref_val);
-	frac_max1 = mp_value_get_fraction_range_max(ref_val);
+	frac_min1 = MP_VALUE(&MP_VALUE_FRACTION_RANGE(ref_val)->min);
+	frac_max1 = MP_VALUE(&MP_VALUE_FRACTION_RANGE(ref_val)->max);
 	if (compare_val->type == MP_TYPE_FRACTION_RANGE) {
-		frac_min2 = mp_value_get_fraction_range_min(compare_val);
-		frac_max2 = mp_value_get_fraction_range_max(compare_val);
+		frac_min2 = MP_VALUE(&MP_VALUE_FRACTION_RANGE(compare_val)->min);
+		frac_max2 = MP_VALUE(&MP_VALUE_FRACTION_RANGE(compare_val)->max);
 		if (mp_value_compare_fraction(frac_min1, frac_max2) == MP_VALUE_GREATER_THAN ||
 		    mp_value_compare_fraction(frac_max1, frac_min2) == MP_VALUE_LESS_THAN) {
 			return NULL;
 		}
 
-		intersect_value = mp_value_new(MP_TYPE_FRACTION_RANGE, NULL);
-		((MpValueFractionRange *)intersect_value)->min =
-			*(MpValueFraction *)mp_value_min_max(frac_min1, frac_min2, false);
-		((MpValueFractionRange *)intersect_value)->max =
-			*(MpValueFraction *)mp_value_min_max(frac_max1, frac_max2, true);
+		intersect_value = mp_value_new_empty(MP_TYPE_FRACTION_RANGE);
+		MP_VALUE_FRACTION_RANGE(intersect_value)->min =
+			*MP_VALUE_FRACTION(mp_value_min_max(frac_min1, frac_min2, false));
+		MP_VALUE_FRACTION_RANGE(intersect_value)->max =
+			*MP_VALUE_FRACTION(mp_value_min_max(frac_max1, frac_max2, true));
 		mp_value_set_fraction(&((MpValueFractionRange *)intersect_value)->step, 1, 1);
 	} else if (compare_val->type == MP_TYPE_FRACTION &&
 		   mp_value_compare_fraction(frac_min1, compare_val) == MP_VALUE_LESS_THAN &&
 		   mp_value_compare_fraction(frac_max1, compare_val) == MP_VALUE_GREATER_THAN) {
 		intersect_value =
-			mp_value_new(MP_TYPE_FRACTION, mp_value_get_fraction_numerator(compare_val),
-				     mp_value_get_fraction_denominator(compare_val), NULL);
+			mp_value_new(MP_TYPE_FRACTION, MP_VALUE_FRACTION(compare_val)->num.v_int,
+				     MP_VALUE_FRACTION(compare_val)->denom.v_int, NULL);
 	}
 
 	return intersect_value;
@@ -591,7 +630,7 @@ MpValue *mp_value_intersect_list(const MpValue *list, const MpValue *compare_val
 		return NULL;
 	}
 
-	SYS_SLIST_FOR_EACH_CONTAINER(&((MpValueList *)list)->v_list, v_node1, node) {
+	SYS_SLIST_FOR_EACH_CONTAINER(&MP_VALUE_LIST_CONST(list)->v_list, v_node1, node) {
 		intersect_value = NULL;
 		switch (compare_val->type) {
 		case MP_TYPE_BOOLEAN:
@@ -612,8 +651,8 @@ MpValue *mp_value_intersect_list(const MpValue *list, const MpValue *compare_val
 				mp_value_intersect_fraction_range(compare_val, v_node1->value);
 			break;
 		case MP_TYPE_LIST:
-			SYS_SLIST_FOR_EACH_CONTAINER(&((MpValueList *)compare_val)->v_list, v_node2,
-						     node) {
+			SYS_SLIST_FOR_EACH_CONTAINER(&MP_VALUE_LIST_CONST(compare_val)->v_list,
+						     v_node2, node) {
 				if (mp_value_compare(v_node1->value, v_node2->value) ==
 				    MP_VALUE_EQUAL) {
 					intersect_value = mp_value_duplicate(v_node2->value);
@@ -680,39 +719,39 @@ MpValue *mp_value_intersect(const MpValue *val1, const MpValue *val2)
 
 static inline void mp_value_print_int(const MpValue *value)
 {
-	printk("%d", mp_value_get_int(value));
+	printk("%d", MP_VALUE_SIMPLE_CONST(value)->v_int);
 }
 
 static inline void mp_value_print_uint(const MpValue *value)
 {
-	printk("%u", mp_value_get_uint(value));
+	printk("%u", MP_VALUE_SIMPLE_CONST(value)->v_uint);
 }
 
 static inline void mp_value_print_string(const MpValue *value)
 {
-	printk("%s", mp_value_get_string(value));
+	printk("%s", MP_VALUE_SIMPLE_CONST(value)->v_cstring);
 }
 
 static inline void mp_value_print_int_range(const MpValue *value)
 {
-	printk("[%d, %d, %d]", mp_value_get_int_range_min(value), mp_value_get_int_range_max(value),
-	       mp_value_get_int_range_step(value));
+	printk("[%d, %d, %d]", MP_VALUE_RANGE_CONST(value)->min.v_int,
+	       MP_VALUE_RANGE_CONST(value)->max.v_int, MP_VALUE_RANGE_CONST(value)->step.v_int);
 }
 
 static inline void mp_value_print_fraction(const MpValue *value)
 {
-	printk("%d/%d", mp_value_get_fraction_numerator(value),
-	       mp_value_get_fraction_denominator(value));
+	printk("%d/%d", MP_VALUE_FRACTION_CONST(value)->num.v_int,
+	       MP_VALUE_FRACTION_CONST(value)->denom.v_int);
 }
 
 static inline void mp_value_print_fraction_range(const MpValue *value)
 {
 	printk("[");
-	mp_value_print_fraction(mp_value_get_fraction_range_min(value));
+	mp_value_print_fraction(MP_VALUE_CONST(&MP_VALUE_FRACTION_RANGE_CONST(value)->min));
 	printk(",");
-	mp_value_print_fraction(mp_value_get_fraction_range_max(value));
+	mp_value_print_fraction(MP_VALUE_CONST(&MP_VALUE_FRACTION_RANGE_CONST(value)->max));
 	printk(",");
-	mp_value_print_fraction(mp_value_get_fraction_range_step(value));
+	mp_value_print_fraction(MP_VALUE_CONST(&MP_VALUE_FRACTION_RANGE_CONST(value)->step));
 	printk("]");
 }
 
@@ -721,7 +760,7 @@ static inline void mp_value_print_list(const MpValue *value)
 	MpValueNode *valueNode;
 
 	printk("{");
-	SYS_SLIST_FOR_EACH_CONTAINER(&((MpValueList *)value)->v_list, valueNode, node) {
+	SYS_SLIST_FOR_EACH_CONTAINER(&MP_VALUE_LIST_CONST(value)->v_list, valueNode, node) {
 		mp_value_print(valueNode->value, false);
 		if (sys_slist_peek_next(&valueNode->node) != NULL) {
 
@@ -756,10 +795,54 @@ void mp_value_print(const MpValue *value, bool new_line)
 		return;
 	}
 
-	MpValuePrintFn print_fn = mp_value_print_table[value->type];
+	switch (value->type) {
+	case MP_TYPE_BOOLEAN:
+	case MP_TYPE_ENUM:
+	case MP_TYPE_INT:
+		printk("%d", MP_VALUE_SIMPLE_CONST(value)->v_int);
+		break;
+	case MP_TYPE_UINT:
+		printk("%u", MP_VALUE_SIMPLE_CONST(value)->v_uint);
+		break;
+	case MP_TYPE_FRACTION:
+		printk("%d/%d", MP_VALUE_FRACTION_CONST(value)->num.v_int,
+		       MP_VALUE_FRACTION_CONST(value)->denom.v_int);
+		break;
+	case MP_TYPE_INT_RANGE:
+		printk("[%d, %d, %d]", MP_VALUE_RANGE_CONST(value)->min.v_int,
+		       MP_VALUE_RANGE_CONST(value)->max.v_int,
+		       MP_VALUE_RANGE_CONST(value)->step.v_int);
+		break;
+	case MP_TYPE_STRING:
+		printk("%s", MP_VALUE_SIMPLE_CONST(value)->v_cstring);
+		break;
+	case MP_TYPE_LIST:
+		sys_snode_t *node, *next_node;
+		MpValueNode *valueNode;
 
-	if (print_fn) {
-		print_fn(value);
+		printk("{");
+		SYS_SLIST_FOR_EACH_NODE(&MP_VALUE_LIST_CONST(value)->v_list, node) {
+			valueNode = CONTAINER_OF(node, MpValueNode, node);
+			next_node = sys_slist_peek_next(node);
+			mp_value_print(valueNode->value, false);
+			if (next_node != NULL) {
+
+				printk(", ");
+			}
+		}
+		printk("}");
+		break;
+	case MP_TYPE_FRACTION_RANGE:
+		printk("[");
+		mp_value_print(MP_VALUE_CONST(&MP_VALUE_FRACTION_RANGE_CONST(value)->min), false);
+		printk(",");
+		mp_value_print(MP_VALUE_CONST(&MP_VALUE_FRACTION_RANGE_CONST(value)->max), false);
+		printk(",");
+		mp_value_print(MP_VALUE_CONST(&MP_VALUE_FRACTION_RANGE_CONST(value)->step), false);
+		printk("]");
+		break;
+	default:
+		break;
 	}
 
 	if (new_line) {
