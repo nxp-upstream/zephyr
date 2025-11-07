@@ -68,14 +68,14 @@ static void append_frmrates_to_structure(const struct device *vdev, struct video
 	while (video_enum_frmival(vdev, &fie) == 0) {
 		switch (fie.type) {
 		case VIDEO_FRMIVAL_TYPE_DISCRETE:
-			frmrate = mp_value_new(MP_TYPE_FRACTION, fie.discrete.denominator,
+			frmrate = mp_value_new(MP_TYPE_UINT_FRACTION, fie.discrete.denominator,
 					       fie.discrete.numerator);
 
 			mp_value_list_append(frmrates, frmrate);
 			break;
 		case VIDEO_FRMIVAL_TYPE_STEPWISE:
 			frmrate = mp_value_new(
-				MP_TYPE_FRACTION_RANGE, fie.stepwise.max.denominator,
+				MP_TYPE_UINT_FRACTION_RANGE, fie.stepwise.max.denominator,
 				fie.stepwise.max.numerator, fie.stepwise.min.denominator,
 				fie.stepwise.min.numerator, fie.stepwise.step.denominator,
 				fie.stepwise.step.numerator);
