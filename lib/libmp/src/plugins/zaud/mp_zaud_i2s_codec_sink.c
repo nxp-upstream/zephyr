@@ -108,7 +108,7 @@ static MpCaps *mp_zaud_i2s_codec_sink_get_caps(MpSink *sink)
 		(i2s_caps.max_total_channels < codec_caps.max_total_channels)
 			? i2s_caps.max_total_channels
 			: codec_caps.max_total_channels,
-		1, "frameinterval", MP_TYPE_INT_RANGE,
+		1, "frameinterval", MP_TYPE_UINT_RANGE,
 		(i2s_caps.min_frame_interval > codec_caps.min_frame_interval)
 			? i2s_caps.min_frame_interval
 			: codec_caps.min_frame_interval,
@@ -138,7 +138,7 @@ static bool mp_zaud_i2s_codec_sink_set_caps(MpSink *sink, MpCaps *caps)
 	int bit_width = mp_value_get_int(mp_structure_get_value(first_structure, "bitwidth"));
 	int num_of_channel =
 		mp_value_get_int(mp_structure_get_value(first_structure, "numOfchannel"));
-	int frame_interval =
+	uint32_t frame_interval =
 		mp_value_get_int(mp_structure_get_value(first_structure, "frameinterval"));
 
 	if (zaud_i2s_codec_sink->mem_slab == NULL) {

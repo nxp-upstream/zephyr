@@ -19,7 +19,8 @@ static bool mp_zaud_buffer_pool_config(MpBufferPool *pool, MpStructure *config)
 	int sample_rate = mp_value_get_int(mp_structure_get_value(config, "samplerate"));
 	int bit_width = mp_value_get_int(mp_structure_get_value(config, "bitwidth"));
 	int num_of_channel = mp_value_get_int(mp_structure_get_value(config, "numOfchannel"));
-	int frame_interval = mp_value_get_int(mp_structure_get_value(config, "frameinterval"));
+	uint32_t frame_interval =
+		mp_value_get_uint(mp_structure_get_value(config, "frameinterval"));
 	int buffer_count = mp_value_get_int(mp_structure_get_value(config, "buffercount"));
 
 	/*

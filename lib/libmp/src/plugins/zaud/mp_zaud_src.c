@@ -103,7 +103,7 @@ static MpCaps *mp_zaud_src_get_caps(MpSrc *src)
 		"audio/pcm", "samplerate", MP_TYPE_LIST, supported_sample_rate, "bitwidth",
 		MP_TYPE_LIST, supported_bit_width, "numOfchannel", MP_TYPE_INT_RANGE,
 		src_caps.min_total_channels, src_caps.max_total_channels, 1, "frameinterval",
-		MP_TYPE_INT_RANGE, src_caps.min_frame_interval, src_caps.max_frame_interval, 1,
+		MP_TYPE_UINT_RANGE, src_caps.min_frame_interval, src_caps.max_frame_interval, 1,
 		"buffercount", MP_TYPE_INT_RANGE, src_caps.min_num_buffers, UINT8_MAX, 1,
 		"interleaved", MP_TYPE_BOOLEAN, src_caps.interleaved, NULL);
 
