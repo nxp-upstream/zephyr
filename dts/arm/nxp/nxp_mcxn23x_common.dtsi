@@ -22,10 +22,41 @@
 			reg = <0>;
 			#address-cells = <1>;
 			#size-cells = <1>;
+			cpu-power-states = <&sleep &deepsleep &powerdown &deeppowerdown>;
 
 			mpu: mpu@e000ed90 {
 				compatible = "arm,armv8m-mpu";
 				reg = <0xe000ed90 0x40>;
+			};
+		};
+
+		power-states {
+			sleep: sleep {
+				compatible = "zephyr,power-state";
+				power-state-name = "runtime-idle";
+				min-residency-us = <10>;
+				exit-latency-us = <1>;
+			};
+
+			deepsleep: deepsleep {
+				compatible = "zephyr,power-state";
+				power-state-name = "suspend-to-idle";
+				min-residency-us = <500>;
+				exit-latency-us = <10>;
+			};
+
+			powerdown: powerdown {
+				compatible = "zephyr,power-state";
+				power-state-name = "standby";
+				min-residency-us = <3000>;
+				exit-latency-us = <11>;
+			};
+
+			deeppowerdown: deeppowerdown {
+				compatible = "zephyr,power-state";
+				power-state-name = "suspend-to-ram";
+				min-residency-us = <40000>;
+				exit-latency-us = <5800>;
 			};
 		};
 	};
@@ -1024,6 +1055,30 @@
 			dc-remover-cutoff-freq = <2>;
 			decimation-filter-gain = <4>;
 		};
+	};
+
+	spc: system-modules@45000 {
+		compatible = "nxp,spc";
+		reg = <0x45000 0x1000>;
+		interrupts = <146 0>;
+	};
+
+	wuu: system-modules@46000 {
+		compatible = "nxp,wuu";
+		reg = <0x46000 0x1000>;
+		interrupts = <147 0>;
+	};
+
+	cmc: system-modules@48000 {
+		compatible = "nxp,cmc";
+		reg = <0x48000 0x1000>;
+		interrupts = <154 0>;
+	};
+
+	vbat: system-modules@59000 {
+		compatible = "nxp,vbat";
+		reg = <0x59000 0x1000>;
+		interrupts = <99 0>;
 	};
 };
 
