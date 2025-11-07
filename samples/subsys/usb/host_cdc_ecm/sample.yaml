@@ -1,0 +1,41 @@
+sample:
+  name: USB Host CDC ECM Network Interface
+  description: >
+    USB Host CDC ECM (Communication Device Class - Ethernet Control Model)
+    network interface sample. Demonstrates how to use USB CDC ECM devices
+    as Ethernet network interfaces, including DHCP configuration, DNS
+    resolution, and UDP echo server functionality.
+
+tests:
+  sample.usbh.cdc_ecm:
+    tags:
+      - usb
+      - networking
+      - samples
+      - ethernet
+    extra_configs:
+      - CONFIG_USB_HOST_STACK=y
+      - CONFIG_USBH_CDC_ECM_CLASS=y
+      - CONFIG_NETWORKING=y
+      - CONFIG_NET_IPV4=y
+      - CONFIG_NET_DHCPV4=y
+      - CONFIG_DNS_RESOLVER=y
+    harness: console
+    harness_config:
+      type: multi_line
+      ordered: false
+      regex:
+        - "USB Host CDC ECM Network Interface Sample"
+        - "Waiting for USB CDC ECM device..."
+        - "CDC ECM network interface initialized"
+        - "Interface.*coming up"
+        - "(DHCP bound|IPv4 address configured)"
+        - "Start resolving domain name"
+    timeout: 60
+    platform_allow:
+      - rd_rw612_bga/rw612
+    depends_on:
+      - usbh
+      - netif
+    integration_platforms:
+      - rd_rw612_bga/rw612

@@ -6,3 +6,4 @@
 
 rsource "Kconfig.uvc_host"
 rsource "Kconfig.msc_host"
+rsource "Kconfig.cdc_ecm_host"

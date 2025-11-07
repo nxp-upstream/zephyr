@@ -1,0 +1,218 @@
+# Copyright (c) 2025 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+menu "USB Host CDC ECM Sample Options"
+
+config SAMPLE_USB_HOST_CDC_ECM
+	bool "Enable USB Host CDC ECM sample"
+	default y
+	select USB_HOST_STACK
+	select USBH_CDC_ECM_CLASS
+	select NET_L2_ETHERNET
+	select NET_IPV4
+	select NET_UDP
+	select NET_TCP
+	select NET_DHCPV4
+	select DNS_RESOLVER
+	help
+	  Enable USB Host CDC ECM network interface sample application.
+	  This sample demonstrates how to use USB CDC ECM devices as
+	  network interfaces in host mode.
+
+if SAMPLE_USB_HOST_CDC_ECM
+
+config SAMPLE_CDC_ECM_DNS_TEST
+	bool "Enable DNS resolution test"
+	default y
+	depends on DNS_RESOLVER
+	help
+	  Enable DNS resolution test that will try to resolve a test domain
+	  name when the network interface becomes available.
+
+config SAMPLE_CDC_ECM_DNS_TEST_DOMAIN
+	string "Test domain name for DNS resolution"
+	default "nxp.com"
+	depends on SAMPLE_CDC_ECM_DNS_TEST
+	help
+	  Domain name to resolve during DNS test. Default is "nxp.com".
+
+config SAMPLE_CDC_ECM_UDP_ECHO_SERVER
+	bool "Enable UDP Echo Server"
+	default y
+	help
+	  Enable UDP echo server that listens on port 4242 and echoes
+	  back received UDP packets to demonstrate network functionality.
+
+config SAMPLE_CDC_ECM_UDP_ECHO_PORT
+	int "UDP Echo Server port"
+	default 4242
+	range 1024 65535
+	depends on SAMPLE_CDC_ECM_UDP_ECHO_SERVER
+	help
+	  Port number for the UDP echo server.
+
+config SAMPLE_CDC_ECM_NETWORK_TIMEOUT
+	int "Network configuration timeout (seconds)"
+	default 30
+	range 10 300
+	help
+	  Maximum time to wait for network configuration (DHCP) to complete.
+
+config SAMPLE_CDC_ECM_MAX_RECV_SIZE
+	int "Maximum UDP receive buffer size"
+	default 1024
+	range 64 2048
+	depends on SAMPLE_CDC_ECM_UDP_ECHO_SERVER
+	help
+	  Maximum size of UDP packets that can be received and echoed back.
+
+config SAMPLE_CDC_ECM_AUTO_START_SERVICES
+	bool "Automatically start network services"
+	default y
+	help
+	  Automatically start network services (DNS test, UDP echo server)
+	  when the network interface becomes ready. If disabled, services
+	  need to be started manually.
+
+config SAMPLE_CDC_ECM_DHCP_RETRY_COUNT
+	int "DHCP retry attempts"
+	default 3
+	range 1 10
+	help
+	  Number of DHCP configuration attempts before giving up.
+
+config SAMPLE_CDC_ECM_INTERFACE_NAME
+	string "CDC ECM interface name filter"
+	default ""
+	help
+	  If specified, only CDC ECM interfaces matching this name will be used.
+	  Leave empty to use any available CDC ECM interface.
+
+config SAMPLE_CDC_ECM_STATIC_IP
+	bool "Use static IP configuration"
+	default n
+	help
+	  Use static IP configuration instead of DHCP. When enabled,
+	  you need to configure the static IP parameters below.
+
+if SAMPLE_CDC_ECM_STATIC_IP
+
+config SAMPLE_CDC_ECM_STATIC_IP_ADDR
+	string "Static IP address"
+	default "192.168.1.100"
+	help
+	  Static IP address for the CDC ECM interface.
+
+config SAMPLE_CDC_ECM_STATIC_NETMASK
+	string "Static network mask"
+	default "255.255.255.0"
+	help
+	  Static network mask for the CDC ECM interface.
+
+config SAMPLE_CDC_ECM_STATIC_GATEWAY
+	string "Static gateway address"
+	default "192.168.1.1"
+	help
+	  Static gateway address for the CDC ECM interface.
+
+config SAMPLE_CDC_ECM_STATIC_DNS_SERVER
+	string "Static DNS server address"
+	default "8.8.8.8"
+	help
+	  Static DNS server address for name resolution.
+
+endif # SAMPLE_CDC_ECM_STATIC_IP
+
+config SAMPLE_CDC_ECM_VERBOSE_LOGGING
+	bool "Enable verbose logging"
+	default n
+	help
+	  Enable verbose logging for debugging network operations.
+	  This will show detailed information about packet transmission,
+	  DHCP negotiation, and DNS resolution.
+
+config SAMPLE_CDC_ECM_NETWORK_STATS
+	bool "Enable network statistics"
+	default y
+	select NET_STATISTICS
+	select NET_STATISTICS_ETHERNET
+	select NET_STATISTICS_IPV4
+	select NET_STATISTICS_UDP
+	help
+	  Enable collection and display of network statistics including
+	  packet counts, error rates, and throughput metrics.
+
+config SAMPLE_CDC_ECM_SHELL_COMMANDS
+	bool "Enable shell commands for CDC ECM control"
+	default y
+	depends on SHELL
+	help
+	  Enable shell commands for controlling and monitoring the CDC ECM
+	  interface, including status display and manual service control.
+
+endif # SAMPLE_USB_HOST_CDC_ECM
+
+# USB Host CDC ECM Class driver configuration
+config USBH_CDC_ECM_CLASS
+	bool "USB Host CDC ECM Class driver"
+	depends on USB_HOST_STACK
+	select NET_L2_ETHERNET
+	help
+	  Enable USB Host CDC ECM (Communication Device Class - Ethernet
+	  Control Model) driver. This allows the host to use USB CDC ECM
+	  devices as Ethernet network interfaces.
+
+if USBH_CDC_ECM_CLASS
+
+config USBH_CDC_ECM_MAX_INSTANCES
+	int "Maximum number of CDC ECM instances"
+	default 1
+	range 1 8
+	help
+	  Maximum number of USB CDC ECM devices that can be supported
+	  simultaneously.
+
+config USBH_CDC_ECM_RX_BUF_COUNT
+	int "Number of RX buffers per CDC ECM instance"
+	default 4
+	range 2 16
+	help
+	  Number of receive buffers allocated per CDC ECM device instance.
+	  More buffers can improve receive performance but consume more memory.
+
+config USBH_CDC_ECM_TX_BUF_COUNT
+	int "Number of TX buffers per CDC ECM instance"  
+	default 4
+	range 2 16
+	help
+	  Number of transmit buffers allocated per CDC ECM device instance.
+	  More buffers can improve transmit performance but consume more memory.
+
+config USBH_CDC_ECM_MTU
+	int "CDC ECM Maximum Transmission Unit"
+	default 1500
+	range 576 1500
+	help
+	  Maximum Transmission Unit (MTU) for CDC ECM interfaces.
+	  Standard Ethernet MTU is 1500 bytes.
+
+config USBH_CDC_ECM_MAC_ADDRESS_RANDOM
+	bool "Use random MAC address if device doesn't provide one"
+	default y
+	help
+	  Generate a random MAC address if the CDC ECM device doesn't
+	  provide a valid MAC address string descriptor.
+
+module = USBH_CDC_ECM_CLASS
+module-str = usbh cdc ecm
+default-count = 1
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # USBH_CDC_ECM_CLASS
+
+endmenu
+
+# Source common USB sample options used to initialize USB device stack
+source "samples/subsys/usb/common/Kconfig.sample_usbd"
+
+source "Kconfig.zephyr"
