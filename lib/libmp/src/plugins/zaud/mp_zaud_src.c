@@ -16,7 +16,7 @@ LOG_MODULE_REGISTER(mp_zaud_src, CONFIG_LIBMP_LOG_LEVEL);
 static int mp_zaud_src_set_property(MpObject *obj, uint32_t key, const void *val)
 {
 	MpSrc *src = MP_SRC(obj);
-	MpZaudBufferPool *pool = MP_ZAUD_BUFFER_POOL(src->pool);
+	mp_zaud_buffer_pool *pool = MP_ZAUD_BUFFER_POOL(src->pool);
 
 	switch (key) {
 	case PROP_ZAUD_SRC_SLAB_PTR:
@@ -32,7 +32,7 @@ static int mp_zaud_src_set_property(MpObject *obj, uint32_t key, const void *val
 static int mp_zaud_src_get_property(MpObject *obj, uint32_t key, void *val)
 {
 	MpSrc *src = MP_SRC(obj);
-	MpZaudBufferPool *pool = MP_ZAUD_BUFFER_POOL(src->pool);
+	mp_zaud_buffer_pool *pool = MP_ZAUD_BUFFER_POOL(src->pool);
 
 	if (val == NULL) {
 		return -1;
@@ -55,8 +55,8 @@ static int mp_zaud_src_get_property(MpObject *obj, uint32_t key, void *val)
 
 static MpCaps *mp_zaud_src_get_caps(MpSrc *src)
 {
-	MpZaudSrc *zaud_src = MP_ZAUD_SRC(src);
-	MpZaudBufferPool *pool = MP_ZAUD_BUFFER_POOL(src->pool);
+	mp_zaud_src *zaud_src = MP_ZAUD_SRC(src);
+	mp_zaud_buffer_pool *pool = MP_ZAUD_BUFFER_POOL(src->pool);
 	struct audio_caps src_caps;
 	int i = 0;
 
@@ -115,7 +115,7 @@ static MpCaps *mp_zaud_src_get_caps(MpSrc *src)
 void mp_zaud_src_init(MpElement *self)
 {
 	MpSrc *src = MP_SRC(self);
-	MpZaudSrc *zaud_src = MP_ZAUD_SRC(self);
+	mp_zaud_src *zaud_src = MP_ZAUD_SRC(self);
 
 	/* Init base class */
 	mp_src_init(MP_ELEMENT_CAST(&zaud_src->src));

@@ -13,7 +13,7 @@ LOG_MODULE_REGISTER(mp_zaud_buffer_pool, CONFIG_LIBMP_LOG_LEVEL);
 
 static bool mp_zaud_buffer_pool_config(MpBufferPool *pool, MpStructure *config)
 {
-	MpZaudBufferPool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
+	mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
 	void *aligned_buffer = NULL;
 
 	int sample_rate = mp_value_get_int(mp_structure_get_value(config, "samplerate"));
@@ -77,7 +77,7 @@ static bool mp_zaud_buffer_pool_config(MpBufferPool *pool, MpStructure *config)
 
 static bool mp_zaud_buffer_pool_stop(MpBufferPool *pool)
 {
-	MpZaudBufferPool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
+	mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
 
 	if (pool->buffers != NULL) {
 		k_free(pool->buffers);
@@ -97,7 +97,7 @@ static bool mp_zaud_buffer_pool_stop(MpBufferPool *pool)
 
 void mp_zaud_buffer_pool_init(MpBufferPool *pool)
 {
-	MpZaudBufferPool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
+	mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
 
 	zaud_pool->zaud_dev = NULL;
 	zaud_pool->mem_slab = NULL;

@@ -16,21 +16,21 @@
 
 #include "mp_zaud_src.h"
 
-/** @brief Cast object pointer to MpZaudDmicSrc pointer */
-#define MP_ZAUD_DMIC_SRC(self) ((MpZaudDmicSrc *)self)
+/** @brief Cast object pointer to mp_zaud_dmic_src pointer */
+#define MP_ZAUD_DMIC_SRC(self) ((mp_zaud_dmic_src *)self)
 
 /**
- * @struct MpZaudDmicSrc
+ * @struct mp_zaud_dmic_src
  * @brief Audio DMIC source element structure
  *
  * This structure represents a digital microphone source element.
  */
 typedef struct {
 	/** Base audio source structure */
-	MpZaudSrc zaud_src;
+	mp_zaud_src zaud_src;
 	/** Buffer pool for managing audio data buffers */
-	MpZaudBufferPool pool;
-} MpZaudDmicSrc;
+	mp_zaud_buffer_pool pool;
+} mp_zaud_dmic_src;
 
 /**
  * @brief Initialize an audio DMIC source element

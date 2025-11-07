@@ -19,11 +19,11 @@
 #include "mp_zaud.h"
 #include "mp_zaud_buffer_pool.h"
 
-/** @brief Cast object pointer to MpZaudSrc pointer */
-#define MP_ZAUD_SRC(self) ((MpZaudSrc *)self)
+/** @brief Cast object pointer to mp_zaud_src pointer */
+#define MP_ZAUD_SRC(self) ((mp_zaud_src *)self)
 
 /**
- * @struct MpZaudSrc
+ * @struct mp_zaud_src
  * @brief Audio source element structure
  *
  * This structure represents an audio source element.
@@ -31,7 +31,7 @@
 typedef struct {
 	MpSrc src;
 	int (*get_audio_caps)(const struct device *dev, struct audio_caps *caps);
-} MpZaudSrc;
+} mp_zaud_src;
 
 /**
  * @brief Initialize an audio source element
