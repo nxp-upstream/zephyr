@@ -65,12 +65,32 @@ static int find_client_index(uint32_t client_id)
 	return -1;
 }
 
+static int find_request_index(int client_index, uint32_t request_id)
+{
+	for (int i = 0; i < CONFIG_HTTP_SERVER_MAX_STREAMS; i++) {
+		if (client_registry.clients[client_index].active_requests[i] == request_id) {
+			return i;
+		}
+	}
+	return -1;
+}
+
 static int find_tool_index(const char *tool_name)
 {
 	for (int i = 0; i < CONFIG_MCP_MAX_TOOLS; i++) {
 		if (tool_registry.tools[i].metadata.name[0] != '\0' &&
 		    strncmp(tool_registry.tools[i].metadata.name, tool_name,
 			    CONFIG_MCP_TOOL_NAME_MAX_LEN) == 0) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+static int find_token_index(const uint32_t execution_token)
+{
+	for (int i = 0; i < MCP_MAX_REQUESTS; i++) {
+		if (execution_registry.executions[i].execution_token == execution_token) {
 			return i;
 		}
 	}
@@ -151,11 +171,12 @@ static uint32_t generate_execution_token(uint32_t request_id)
 	return request_id;
 }
 
-static int create_execution_context(mcp_tools_call_request_t *request, uint32_t *execution_token)
+static int create_execution_context(mcp_tools_call_request_t *request, uint32_t *execution_token,
+				    int *execution_token_index)
 {
 	int ret;
 
-	if (request == NULL || execution_token == NULL) {
+	if (request == NULL || execution_token == NULL || execution_token_index == NULL) {
 		LOG_ERR("Invalid parameter(s)");
 		return -EINVAL;
 	}
@@ -185,6 +206,7 @@ static int create_execution_context(mcp_tools_call_request_t *request, uint32_t 
 			context->execution_state = MCP_EXEC_ACTIVE;
 
 			found_slot = true;
+			*execution_token_index = i;
 			break;
 		}
 	}
@@ -196,6 +218,23 @@ static int create_execution_context(mcp_tools_call_request_t *request, uint32_t 
 		return -ENOENT;
 	}
 
+	return 0;
+}
+
+static int set_worker_released_execution_context(int execution_token_index)
+{
+	int ret;
+
+	ret = k_mutex_lock(&execution_registry.registry_mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock execution registry: %d", ret);
+
+		return ret;
+	}
+
+	execution_registry.executions[execution_token_index].worker_released = true;
+
+	k_mutex_unlock(&execution_registry.registry_mutex);
 	return 0;
 }
 
@@ -275,11 +314,11 @@ static int handle_system_message(mcp_system_msg_t *system_msg)
 static int handle_initialize_request(mcp_initialize_request_t *request)
 {
 	mcp_initialize_response_t *response_data;
-	mcp_response_queue_msg_t response;
 	int client_index;
 	int ret;
 
 	LOG_DBG("Processing initialize request");
+	/* TODO: Handle sending error responses to client */
 
 	ret = k_mutex_lock(&client_registry.registry_mutex, K_FOREVER);
 	if (ret != 0) {
@@ -320,10 +359,7 @@ static int handle_initialize_request(mcp_initialize_request_t *request)
 	response_data->capabilities |= MCP_TOOLS;
 #endif
 
-	response.type = MCP_MSG_RESPONSE_INITIALIZE;
-	response.data = response_data;
-
-	ret = mcp_transport_queue_response(&response);
+	ret = mcp_transport_queue_response(MCP_MSG_RESPONSE_INITIALIZE, response_data);
 	if (ret != 0) {
 		LOG_ERR("Failed to queue response: %d", ret);
 		mcp_free(response_data);
@@ -404,10 +440,10 @@ static int copy_tool_metadata_to_response(mcp_tools_list_response_t *response_da
 static int handle_tools_list_request(mcp_tools_list_request_t *request)
 {
 	mcp_tools_list_response_t *response_data;
-	mcp_response_queue_msg_t response;
 	int client_index;
 	int ret;
 
+	/* TODO: Handle sending error responses to client */
 	LOG_DBG("Processing tools list request");
 
 	ret = k_mutex_lock(&client_registry.registry_mutex, K_FOREVER);
@@ -441,10 +477,7 @@ static int handle_tools_list_request(mcp_tools_list_request_t *request)
 	copy_tool_metadata_to_response(response_data);
 	k_mutex_unlock(&tool_registry.registry_mutex);
 
-	response.type = MCP_MSG_RESPONSE_TOOLS_LIST;
-	response.data = response_data;
-
-	ret = mcp_transport_queue_response(&response);
+	ret = mcp_transport_queue_response(MCP_MSG_RESPONSE_TOOLS_LIST, response_data);
 	if (ret != 0) {
 		LOG_ERR("Failed to queue response: %d", ret);
 		mcp_free(response_data);
@@ -459,6 +492,7 @@ static int handle_tools_call_request(mcp_tools_call_request_t *request)
 	int ret;
 	int tool_index;
 	int client_index;
+	int execution_token_index;
 	int next_active_request_index;
 	mcp_tool_callback_t callback;
 	uint32_t execution_token;
@@ -507,7 +541,7 @@ static int handle_tools_call_request(mcp_tools_call_request_t *request)
 	callback = tool_registry.tools[tool_index].callback;
 	k_mutex_unlock(&tool_registry.registry_mutex);
 
-	ret = create_execution_context(request, &execution_token);
+	ret = create_execution_context(request, &execution_token, &execution_token_index);
 	if (ret != 0) {
 		LOG_ERR("Failed to create execution context: %d", ret);
 		goto cleanup_active_request;
@@ -520,9 +554,18 @@ static int handle_tools_call_request(mcp_tools_call_request_t *request)
 		goto cleanup_active_request;
 	}
 
+	ret = set_worker_released_execution_context(execution_token_index);
+	if (ret != 0) {
+		LOG_ERR("Setting worker released to true failed: %d", ret);
+		/* TODO: Cancel tool execution */
+		destroy_execution_context(execution_token);
+		goto cleanup_active_request;
+	}
+
 	return 0;
 
 cleanup_active_request:
+	int final_ret = ret;
 	ret = k_mutex_lock(&client_registry.registry_mutex, K_FOREVER);
 	if (ret != 0) {
 		LOG_ERR("Failed to lock client registry mutex: %d. Client registry is broken.",
@@ -534,7 +577,7 @@ cleanup_active_request:
 	client_registry.clients[client_index].active_request_count--;
 
 	k_mutex_unlock(&client_registry.registry_mutex);
-	return ret;
+	return final_ret;
 }
 #endif
 
@@ -617,49 +660,52 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 		}
 
 		case MCP_MSG_REQUEST_INITIALIZE: {
-			mcp_initialize_request_t *req = (mcp_initialize_request_t *)request.data;
+			mcp_initialize_request_t *init_request =
+				(mcp_initialize_request_t *)request.data;
 
-			ret = handle_initialize_request(req);
+			ret = handle_initialize_request(init_request);
 			if (ret != 0) {
 				LOG_ERR("Initialize request failed: %d", ret);
 			}
-			mcp_free(req);
+			mcp_free(init_request);
 			break;
 		}
 
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
 		case MCP_MSG_REQUEST_TOOLS_LIST: {
-			mcp_tools_list_request_t *req = (mcp_tools_list_request_t *)request.data;
+			mcp_tools_list_request_t *tools_list_request =
+				(mcp_tools_list_request_t *)request.data;
 
-			ret = handle_tools_list_request(req);
+			ret = handle_tools_list_request(tools_list_request);
 			if (ret != 0) {
 				LOG_ERR("Tools list request failed: %d", ret);
 			}
-			mcp_free(req);
+			mcp_free(tools_list_request);
 			break;
 		}
 
 		case MCP_MSG_REQUEST_TOOLS_CALL: {
-			mcp_tools_call_request_t *req = (mcp_tools_call_request_t *)request.data;
+			mcp_tools_call_request_t *tools_call_request =
+				(mcp_tools_call_request_t *)request.data;
 
-			ret = handle_tools_call_request(req);
+			ret = handle_tools_call_request(tools_call_request);
 			if (ret != 0) {
 				LOG_ERR("Tools call request failed: %d", ret);
 			}
-			mcp_free(req);
+			mcp_free(tools_call_request);
 			break;
 		}
 #endif
 
 		case MCP_MSG_NOTIFICATION: {
-			mcp_client_notification_t *notif =
+			mcp_client_notification_t *notification =
 				(mcp_client_notification_t *)request.data;
 
-			ret = handle_notification(notif);
+			ret = handle_notification(notification);
 			if (ret != 0) {
 				LOG_ERR("Notification failed: %d", ret);
 			}
-			mcp_free(notif);
+			mcp_free(notification);
 			break;
 		}
 
@@ -671,21 +717,34 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 	}
 }
 
-static void mcp_message_worker(void *arg1, void *arg2, void *arg3)
+static void mcp_response_worker(void *arg1, void *arg2, void *arg3)
 {
-	struct mcp_message_msg msg;
+	mcp_response_queue_msg_t response;
 	int worker_id = POINTER_TO_INT(arg1);
 	int ret;
 
-	LOG_INF("Message worker %d started", worker_id);
+	LOG_INF("Response worker %d started", worker_id);
 
 	while (1) {
-		ret = k_msgq_get(&mcp_message_queue, &msg, K_FOREVER);
+		ret = k_msgq_get(&mcp_message_queue, &response, K_FOREVER);
 		if (ret == 0) {
-			LOG_DBG("Processing message (worker %d)", worker_id);
-			/* TODO: Implement message processing */
+			LOG_DBG("Processing response (worker %d)", worker_id);
+			/* TODO: When Server-sent Events and Authorization are added, implement the
+			 * processing
+			 */
+			/* In phase 1, the response worker queue and workers are pretty much
+			 * redundant by design
+			 */
+			/* TODO: Consider making response workers a configurable resource that can
+			 * be bypassed
+			 */
+			ret = mcp_transport_queue_response(response.type, response.data);
+			if (ret != 0) {
+				LOG_ERR("Failed to queue response to transport: %d", ret);
+				mcp_free(response.data);
+			}
 		} else {
-			LOG_ERR("Failed to get message: %d", ret);
+			LOG_ERR("Failed to get response: %d", ret);
 		}
 	}
 }
@@ -751,7 +810,7 @@ int mcp_server_start(void)
 	for (int i = 0; i < MCP_MESSAGE_WORKERS; i++) {
 		tid = k_thread_create(&mcp_message_workers[i], mcp_message_worker_stacks[i],
 				      K_THREAD_STACK_SIZEOF(mcp_message_worker_stacks[i]),
-				      mcp_message_worker, INT_TO_POINTER(i), NULL, NULL,
+				      mcp_response_worker, INT_TO_POINTER(i), NULL, NULL,
 				      K_PRIO_COOP(MCP_WORKER_PRIORITY), 0, K_NO_WAIT);
 		if (tid == NULL) {
 			LOG_ERR("Failed to create message worker %d", i);
@@ -770,9 +829,137 @@ int mcp_server_start(void)
 	return 0;
 }
 
-int mcp_queue_response(void)
+int mcp_server_submit_app_message(const mcp_app_message_t *app_msg, uint32_t execution_token)
 {
-	/* TODO: Implement response queuing */
+	int ret;
+	int execution_token_index;
+	uint32_t request_id;
+	uint32_t client_id;
+	mcp_response_queue_msg_t response;
+
+	if (app_msg == NULL || app_msg->data == NULL) {
+		LOG_ERR("Invalid user message");
+		return -EINVAL;
+	}
+
+	if (execution_token == 0) {
+		LOG_ERR("Invalid execution token");
+		return -EINVAL;
+	}
+
+	ret = k_mutex_lock(&execution_registry.registry_mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock execution registry: %d", ret);
+		return ret;
+	}
+
+	execution_token_index = find_token_index(execution_token);
+	if (execution_token_index == -1) {
+		LOG_ERR("Execution token not found");
+		k_mutex_unlock(&execution_registry.registry_mutex);
+		return -ENOENT;
+	}
+
+	mcp_execution_context_t *execution_context =
+		&execution_registry.executions[execution_token_index];
+	request_id = execution_context->request_id;
+	client_id = execution_context->client_id;
+
+	if (app_msg->type == MCP_USR_TOOL_RESPONSE) {
+		execution_context->execution_state = MCP_EXEC_FINISHED;
+	}
+
+	execution_context->last_message_timestamp = k_uptime_get();
+	k_mutex_unlock(&execution_registry.registry_mutex);
+
+	switch (app_msg->type) {
+		/* Result is passed as a complete JSON string that gets attached to the full JSON
+		 * RPC response inside the Transport layer
+		 */
+#ifdef CONFIG_MCP_TOOLS_CAPABILITY
+	case MCP_USR_TOOL_RESPONSE: {
+		mcp_tools_call_response_t *response_data =
+			(mcp_tools_call_response_t *)mcp_alloc(sizeof(mcp_tools_call_response_t));
+		if (response_data == NULL) {
+			LOG_ERR("Failed to allocate memory for response");
+			return -ENOMEM;
+		}
+
+		response_data->request_id = request_id;
+		response_data->length = app_msg->length;
+
+		if (app_msg->length > CONFIG_MCP_TOOL_RESULT_MAX_LEN) {
+			/* TODO: Truncate or fail? */
+			LOG_WRN("Result truncated to max length");
+			response_data->length = CONFIG_MCP_TOOL_RESULT_MAX_LEN;
+			response_data->result[CONFIG_MCP_TOOL_RESULT_MAX_LEN - 1] = '\0';
+		}
+
+		strncpy((char *)response_data->result, (char *)app_msg->data,
+			response_data->length);
+
+		response.type = MCP_MSG_RESPONSE_TOOLS_CALL;
+		response.data = response_data;
+		break;
+	}
+#endif
+
+	default:
+		LOG_ERR("Unsupported application message type: %u", app_msg->type);
+		return -EINVAL;
+	}
+
+	/* TODO: Make response workers configurable? If not used, call transport API directly? */
+	ret = k_msgq_put(&mcp_message_queue, &response, K_NO_WAIT);
+	if (ret != 0) {
+		LOG_ERR("Failed to submit response to message queue: %d", ret);
+		mcp_free(response.data);
+		return ret;
+	}
+
+	if (app_msg->type == MCP_USR_TOOL_RESPONSE) {
+		ret = k_mutex_lock(&client_registry.registry_mutex, K_FOREVER);
+		if (ret != 0) {
+			LOG_ERR("Failed to lock client registry mutex: %d. Client registry is "
+				"broken.",
+				ret);
+			goto skip_client_cleanup;
+		}
+
+		int client_index = find_client_index(client_id);
+
+		if (client_index == -1) {
+			LOG_ERR("Failed to find client index in the client registry. Client "
+				"registry is broken.");
+			k_mutex_unlock(&client_registry.registry_mutex);
+			goto skip_client_cleanup;
+		}
+
+		int request_index = find_request_index(client_index, request_id);
+
+		if (ret == -1) {
+			LOG_ERR("Failed to find request index in client's active requests. Client "
+				"registry is broken.");
+			k_mutex_unlock(&client_registry.registry_mutex);
+			goto skip_client_cleanup;
+		}
+
+		client_registry.clients[client_index].active_requests[request_index] = 0;
+		client_registry.clients[client_index].active_request_count--;
+
+		k_mutex_unlock(&client_registry.registry_mutex);
+
+skip_client_cleanup:
+		ret = destroy_execution_context(execution_token);
+		if (ret != 0) {
+			LOG_ERR("Failed to destroy execution context: %d. Execution registry is "
+				"broken. Message was submitted successfully.",
+				ret);
+			return ret;
+		}
+		/* TODO: Any way to wait until request worker is released? */
+	}
+
 	return 0;
 }
 

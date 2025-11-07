@@ -91,6 +91,7 @@ typedef struct mcp_tools_list_response {
 
 typedef struct mcp_tools_call_response {
 	uint32_t request_id;
+	int length;
 	char result[CONFIG_MCP_TOOL_RESULT_MAX_LEN];
 } mcp_tools_call_response_t;
 #endif
@@ -108,6 +109,11 @@ typedef struct mcp_request_queue_msg {
 	mcp_queue_msg_type_t type;
 	void *data;
 } mcp_request_queue_msg_t;
+
+typedef struct mcp_transport_queue_msg {
+	mcp_queue_msg_type_t type;
+	void *data;
+} mcp_transport_queue_msg_t;
 
 typedef struct mcp_response_queue_msg {
 	mcp_queue_msg_type_t type;
