@@ -12,19 +12,14 @@
 #include <dt-bindings/pwm/pwm.h>
 #include "mr_canhubk3-pinctrl.dtsi"
 #include <zephyr/dt-bindings/sensor/qdec_nxp_s32.h>
+#include "mr_canhubk3_common.dtsi"
 
 / {
 	model = "NXP MR-CANHUBK3";
 	compatible = "nxp,mr_canhubk3";
 
 	chosen {
-		zephyr,sram = &sram0_1;
-		zephyr,flash = &flash0;
-		zephyr,itcm = &itcm;
-		zephyr,dtcm = &dtcm;
 		zephyr,code-partition = &code_partition;
-		zephyr,console = &lpuart2;
-		zephyr,shell-uart = &lpuart2;
 		zephyr,flash-controller = &mx25l6433f;
 		zephyr,canbus = &flexcan0;
 		zephyr,display = &ssd1306;
@@ -216,6 +211,8 @@
 };
 
 &flash0 {
+	status = "okay";
+
 	partitions {
 		compatible = "fixed-partitions";
 		#address-cells = <1>;

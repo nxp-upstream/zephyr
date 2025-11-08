@@ -1,0 +1,23 @@
+/*
+ * Copyright 2025 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <nxp/nxp_s32k344_m7.dtsi>
+
+/ {
+	chosen {
+		zephyr,sram = &sram0_1;     /* use your existing SRAM label */
+		zephyr,flash = &flash0;
+		zephyr,console = &lpuart2;
+		zephyr,shell-uart = &lpuart2;
+		zephyr,itcm = &itcm;
+		zephyr,dtcm = &dtcm;
+	};
+};
+
+/* Let each variant define its own partitions */
+&flash0 {
+	status = "disabled";
+};
