@@ -29,6 +29,7 @@ static uint32_t ail_iface_index;
 static struct net_icmp_ctx ra_ctx;
 static struct net_icmp_ctx rs_ctx;
 static struct net_icmp_ctx na_ctx;
+static struct in6_addr mcast_addr;
 
 static void infra_if_handle_backbone_icmp6(struct otbr_msg_ctx *msg_ctx_ptr);
 static void handle_ra_from_ot(const uint8_t *buffer, uint16_t buffer_length);
@@ -118,15 +119,30 @@ otError otPlatGetInfraIfLinkLayerAddress(otInstance *aInstance, uint32_t aIfInde
 otError infra_if_init(otInstance *instance, struct net_if *ail_iface)
 {
 	otError error = OT_ERROR_NONE;
-	struct in6_addr addr = {0};
 
 	ot_instance = instance;
 	ail_iface_ptr = ail_iface;
 	ail_iface_index = (uint32_t)net_if_get_by_iface(ail_iface_ptr);
-	net_ipv6_addr_create_ll_allrouters_mcast(&addr);
-	VerifyOrExit(net_ipv6_mld_join(ail_iface, &addr) == 0, error = OT_ERROR_FAILED);
+	net_ipv6_addr_create_ll_allrouters_mcast(&mcast_addr);
+	VerifyOrExit(net_ipv6_mld_join(ail_iface, &mcast_addr) == 0, error = OT_ERROR_FAILED);
 
 exit:
+	return error;
+}
+
+otError infra_if_deinit(void)
+{
+	otError error = OT_ERROR_NONE;
+
+	ot_instance = NULL;
+	ail_iface_index = 0;
+
+	VerifyOrExit(net_ipv6_mld_leave(ail_iface_ptr, &mcast_addr) == 0,
+		     error = OT_ERROR_FAILED);
+
+exit:
+	ail_iface_ptr = NULL;
+
 	return error;
 }
 

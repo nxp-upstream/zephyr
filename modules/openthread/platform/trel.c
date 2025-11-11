@@ -63,6 +63,9 @@ void otPlatTrelDisable(otInstance *aInstance)
 	sockfd_udp[0].fd = -1;
 	trel_sock = -1;
 
+	net_socket_service_register(&trel_udp_service, sockfd_udp,
+				    ARRAY_SIZE(sockfd_udp), NULL);
+
 	trel_is_enabled = false;
 
 exit:

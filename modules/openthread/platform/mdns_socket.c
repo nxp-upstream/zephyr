@@ -20,6 +20,7 @@
 #include <zephyr/net/socket_service.h>
 #include <openthread/nat64.h>
 #include "sockets_internal.h"
+#include <errno.h>
 
 #define MULTICAST_PORT 5353
 #if defined(CONFIG_NET_IPV4) && defined(CONFIG_NET_IPV6)
@@ -108,6 +109,7 @@ static otError mdns_socket_init_v6(uint32_t ail_iface_idx)
 	struct ipv6_mreq mreq_v6 = {0};
 	int mcast_hops = 255;
 	int on = 1;
+	int mcast_join_ret = 0;
 
 	struct sockaddr_in6 addr = {.sin6_family = AF_INET6,
 				    .sin6_port = htons(MULTICAST_PORT),
@@ -132,8 +134,9 @@ static otError mdns_socket_init_v6(uint32_t ail_iface_idx)
 		     error = OT_ERROR_FAILED);
 	mreq_v6.ipv6mr_ifindex = ail_iface_idx;
 	net_ipv6_addr_create(&mreq_v6.ipv6mr_multiaddr, 0xff02, 0, 0, 0, 0, 0, 0, 0x00fb);
-	VerifyOrExit(zsock_setsockopt(mdns_sock_v6, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, &mreq_v6,
-				      sizeof(mreq_v6)) == 0,
+	mcast_join_ret = zsock_setsockopt(mdns_sock_v6, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
+					  &mreq_v6, sizeof(mreq_v6));
+	VerifyOrExit(mcast_join_ret == 0 || (mcast_join_ret == -1 && errno == EALREADY),
 		     error = OT_ERROR_FAILED);
 	VerifyOrExit(zsock_setsockopt(mdns_sock_v6, IPPROTO_IPV6, IPV6_MULTICAST_LOOP,
 				      &on, sizeof(on)) == 0,
@@ -170,6 +173,7 @@ static otError mdns_socket_init_v4(uint32_t ail_iface_idx)
 	struct ip_mreqn mreq_v4 = {0};
 	int mcast_hops = 255;
 	int on = 1;
+	int mcast_join_ret = 0;
 
 	struct sockaddr_in addr = {.sin_family = AF_INET,
 				   .sin_port = htons(MULTICAST_PORT),
@@ -190,8 +194,9 @@ static otError mdns_socket_init_v4(uint32_t ail_iface_idx)
 		     error = OT_ERROR_FAILED);
 	mreq_v4.imr_ifindex = ail_iface_idx;
 	mreq_v4.imr_multiaddr.s_addr = htonl(0xE00000FB);
-	VerifyOrExit(zsock_setsockopt(mdns_sock_v4, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq_v4,
-				      sizeof(mreq_v4)) == 0,
+	mcast_join_ret = zsock_setsockopt(mdns_sock_v4, IPPROTO_IP, IP_ADD_MEMBERSHIP,
+					  &mreq_v4, sizeof(mreq_v4));
+	VerifyOrExit(mcast_join_ret == 0 || (mcast_join_ret == -1 && errno == EALREADY),
 		     error = OT_ERROR_FAILED);
 	VerifyOrExit(zsock_setsockopt(mdns_sock_v4, IPPROTO_IP, IP_MULTICAST_LOOP, &on,
 				      sizeof(on)) == 0,
@@ -237,6 +242,10 @@ static otError mdns_socket_deinit(void)
 	sockfd_udp[1].fd = -1;
 	mdns_sock_v4 = -1;
 #endif /* CONFIG_NET_IPV4 */
+
+	VerifyOrExit(net_socket_service_register(&mdns_udp_service, sockfd_udp,
+						 ARRAY_SIZE(sockfd_udp), NULL) == 0,
+						 error = OT_ERROR_FAILED);
 exit:
 	return error;
 }
