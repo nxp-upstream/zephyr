@@ -99,6 +99,11 @@ static volatile uint32_t overflow_cyc;
  * mode state.
  */
 static bool timeout_idle;
+static uint8_t timeout_idle_prints;
+
+/* Save/restore SysTick CTRL across idle to prevent SysTick IRQ from aborting WFI */
+static uint32_t systick_ctrl_prev;
+static bool systick_suppressed;
 
 #if !defined(CONFIG_CORTEX_M_SYSTICK_RESET_BY_LPM)
 /* Cycle counter before entering the idle state. */
@@ -115,6 +120,15 @@ static const struct device *idle_timer = DEVICE_DT_GET(DT_CHOSEN(zephyr_cortex_m
 #endif /* !CONFIG_CORTEX_M_SYSTICK_LPM_TIMER_NONE */
 
 #if defined(CONFIG_CORTEX_M_SYSTICK_LPM_TIMER_COUNTER)
+static void idle_alarm_noop_cb(const struct device *dev, uint8_t chan_id,
+							  uint32_t ticks, void *user_data)
+{
+	ARG_UNUSED(dev);
+	ARG_UNUSED(chan_id);
+	ARG_UNUSED(ticks);
+	ARG_UNUSED(user_data);
+}
+
 /**
  * To simplify the driver, implement the callout to Counter API
  * as hooks that would be provided by platform drivers if
@@ -122,23 +136,30 @@ static const struct device *idle_timer = DEVICE_DT_GET(DT_CHOSEN(zephyr_cortex_m
  */
 void z_cms_lptim_hook_on_lpm_entry(uint64_t max_lpm_time_us)
 {
+	/* Nothing here yet */
+	if (!device_is_ready(idle_timer)) {
+		printk("idle_timer '%s' not ready, skip cancel/set.\r\n", idle_timer->name);
+		return;
+	}
+
 	struct counter_alarm_cfg cfg = {
-		.callback = NULL,
+		.callback = idle_alarm_noop_cb,
 		.ticks = counter_us_to_ticks(idle_timer, max_lpm_time_us),
 		.user_data = NULL,
 		.flags = 0,
 	};
+	int rc;
 
 	/**
 	 * Disable the counter alarm in case it was already running.
 	 */
-	counter_cancel_channel_alarm(idle_timer, 0);
+	rc = counter_cancel_channel_alarm(idle_timer, 0);
 
 	/* Set the alarm using timer that runs the idle.
 	 * Needed rump-up/setting time, lower accurency etc. should be
 	 * included in the exit-latency in the power state definition.
 	 */
-	counter_set_channel_alarm(idle_timer, 0, &cfg);
+	rc = counter_set_channel_alarm(idle_timer, 0, &cfg);
 
 	/* Store current value of the selected timer to calculate a
 	 * difference in measurements after exiting the idle state.
@@ -267,6 +288,13 @@ __attribute__((interrupt("IRQ"))) void sys_clock_isr(void)
 	 * sys_clock_idle_exit function.
 	 */
 	if (timeout_idle) {
+		/* Extra diagnostics to catch early-wake reasons (throttled) */
+		if (timeout_idle_prints < 3) {
+			uint32_t icsr = SCB->ICSR;
+			printk("[SysTick-ISR] timeout_idle=1 ICSR=%#x CTRL=%#x VAL=%u\r\n",
+				   icsr, SysTick->CTRL, SysTick->VAL);
+			timeout_idle_prints++;
+		}
 		ISR_DIRECT_PM();
 		z_arm_int_exit();
 
@@ -324,7 +352,21 @@ void sys_clock_set_timeout(int32_t ticks, bool idle)
 		uint64_t timeout_us =
 			((uint64_t)ticks * USEC_PER_SEC) / CONFIG_SYS_CLOCK_TICKS_PER_SEC;
 
-		timeout_idle = true;
+	timeout_idle = true;
+	timeout_idle_prints = 0;
+
+	/* Suppress SysTick exception during idle window to avoid pre-WFI pending */
+#if defined(CONFIG_CORTEX_M_SYSTICK_SUPPRESS_IN_IDLE)
+	systick_ctrl_prev = SysTick->CTRL;
+	systick_suppressed = true;
+	if (systick_ctrl_prev & SysTick_CTRL_TICKINT_Msk) {
+	    SysTick->CTRL = systick_ctrl_prev & ~SysTick_CTRL_TICKINT_Msk;
+	}
+	/* Clear any pending SysTick to prevent immediate wake */
+	SCB->ICSR = SCB_ICSR_PENDSTCLR_Msk;
+	__DSB();
+	__ISB();
+#endif
 
 		/**
 		 * Invoke platform-specific layer to configure LPTIM
@@ -509,8 +551,17 @@ void sys_clock_idle_exit(void)
 		announced_cycles += dticks * CYC_PER_TICK;
 		sys_clock_announce(dticks);
 
-		/* We've alredy performed all needed operations */
+		/* We've already performed all needed operations */
 		timeout_idle = false;
+
+	/* Restore SysTick CTRL after leaving idle window */
+#if defined(CONFIG_CORTEX_M_SYSTICK_SUPPRESS_IN_IDLE)
+	if (systick_suppressed) {
+	    SysTick->CTRL = systick_ctrl_prev;
+	    systick_suppressed = false;
+	    __ISB();
+	}
+#endif
 	}
 #endif /* !CONFIG_CORTEX_M_SYSTICK_LPM_TIMER_NONE */
 

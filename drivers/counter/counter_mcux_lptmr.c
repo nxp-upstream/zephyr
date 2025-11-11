@@ -11,6 +11,7 @@
 #include <zephyr/drivers/counter.h>
 #include <zephyr/irq.h>
 #include <fsl_lptmr.h>
+#include <zephyr/kernel.h>
 
 struct mcux_lptmr_config {
 	struct counter_config_info info;
@@ -157,30 +158,44 @@ static void mcux_lptmr_isr(const struct device *dev)
 	uint32_t flags;
 
 	flags = LPTMR_GetStatusFlags(config->base);
-	LPTMR_ClearStatusFlags(config->base, flags);
+		printk("=== LPTMR isr ===\r\n");
 
 	if (data->alarm_active && data->alarm_callback) {
-		/* One-shot: call alarm callback then disarm */
+		/* One-shot alarm path: prevent re-entry while reprogramming */
 		counter_alarm_callback_t cb = data->alarm_callback;
 		void *ud = data->alarm_user_data;
 		uint32_t ticks = data->alarm_target_ticks;
 
-		/* Disarm to avoid repeated interrupts */
+		/* Mask LPTMR interrupt first to avoid a second ISR due to reprogramming */
+		LPTMR_DisableInterrupts(config->base, kLPTMR_TimerInterruptEnable);
+
+		/* Reprogram CMR while CSR[TCF] is still set as required by HW */
+		LPTMR_SetTimerPeriod(config->base, data->current_top);
+
+		/* Now clear the compare flag we latched at entry */
+		LPTMR_ClearStatusFlags(config->base, flags);
+
+		/* Disarm to avoid repeated interrupts (one-shot semantics) */
 		data->alarm_active = false;
 		data->alarm_callback = NULL;
 		data->alarm_user_data = NULL;
 
-		/* Restore compare to current top period and keep timer running */
-		LPTMR_SetTimerPeriod(config->base, data->current_top);
-
-		/* If no periodic top callback, mask further interrupts */
+		/* If no periodic top callback, stop timer; else re-enable interrupt */
 		if (!data->top_callback) {
-			LPTMR_DisableInterrupts(config->base, kLPTMR_TimerInterruptEnable);
+			LPTMR_StopTimer(config->base);
+		} else {
+			LPTMR_EnableInterrupts(config->base, kLPTMR_TimerInterruptEnable);
 		}
 
+		/* Invoke user callback last */
 		cb(dev, 0, ticks, ud);
-	} else {
+	} else if (data->top_callback) {
+		/* Periodic top event: just clear and notify */
+		LPTMR_ClearStatusFlags(config->base, flags);
 		data->top_callback(dev, data->top_user_data);
+	} else {
+		/* Spurious/pending flag only, just clear */
+		LPTMR_ClearStatusFlags(config->base, flags);
 	}
 }
 
@@ -238,15 +253,14 @@ static int mcux_lptmr_set_alarm(const struct device *dev, uint8_t chan_id,
 
 	LPTMR_SetTimerPeriod(config->base, delta);
 	LPTMR_EnableInterrupts(config->base, kLPTMR_TimerInterruptEnable);
-
-	if ((config->base->CSR & LPTMR_CSR_TEN_MASK) != 0U) {
-		LPTMR_StartTimer(config->base);
-	}
+	LPTMR_StartTimer(config->base);
 
 	data->alarm_callback = alarm_cfg->callback;
 	data->alarm_user_data = alarm_cfg->user_data;
 	data->alarm_target_ticks = target;
 	data->alarm_active = true;
+
+	printk("2. lptmr CMR = %d, CSR = %d, ticks = %d\r\n", config->base->CMR, config->base->CSR, delta);
 
 	return 0;
 }
@@ -259,6 +273,14 @@ static int mcux_lptmr_cancel_alarm(const struct device *dev, uint8_t chan_id)
 	struct mcux_lptmr_data *data = dev->data;
 
 	LPTMR_DisableInterrupts(config->base, kLPTMR_TimerInterruptEnable);
+	/* If a previous compare already fired during deep sleep wake-up path,
+	 * TCF may be left set without having entered the ISR. Clear it now to
+	 * avoid a stale pending condition when we restore the periodic top.
+	 */
+	uint32_t flags = LPTMR_GetStatusFlags(config->base);
+	if (flags & kLPTMR_TimerCompareFlag) {
+		LPTMR_ClearStatusFlags(config->base, kLPTMR_TimerCompareFlag);
+	}
 	LPTMR_SetTimerPeriod(config->base, data->current_top);
 
 	if (data->top_callback) {
@@ -269,6 +291,8 @@ static int mcux_lptmr_cancel_alarm(const struct device *dev, uint8_t chan_id)
 	data->alarm_callback = NULL;
 	data->alarm_user_data = NULL;
 	data->alarm_target_ticks = 0U;
+
+	printk("1. lptmr CMR = %d, CSR = %d\r\n", config->base->CMR, config->base->CSR);
 
 	return 0;
 }
@@ -340,7 +364,7 @@ static DEVICE_API(counter, mcux_lptmr_driver_api) = {
 			.freq = DT_INST_PROP(n, clock_frequency) /		\
 				BIT(DT_INST_PROP(n, prescale_glitch_filter)),	\
 			.flags = COUNTER_CONFIG_INFO_COUNT_UP,			\
-			.channels = 0,						\
+			.channels = 1,							\
 		},								\
 		.base = (LPTMR_Type *)DT_INST_REG_ADDR(n),			\
 		.clk_source = DT_INST_PROP(n, clk_source),			\

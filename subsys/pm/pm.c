@@ -173,6 +173,8 @@ bool pm_system_suspend(int32_t kernel_ticks)
 	events_ticks = pm_policy_next_event_ticks();
 	ticks = ticks_expiring_sooner(kernel_ticks, events_ticks);
 
+	printk("kernel_ticks = %d, events_ticks = %d, ticks = %d\r\n", kernel_ticks, events_ticks, ticks);
+
 	key = k_spin_lock(&pm_forced_state_lock);
 	if (z_cpus_pm_forced_state[id] != NULL) {
 		z_cpus_pm_state[id] = z_cpus_pm_forced_state[id];
@@ -205,6 +207,8 @@ bool pm_system_suspend(int32_t kernel_ticks)
 #endif
 
 	exit_latency_ticks = EXIT_LATENCY_US_TO_TICKS(z_cpus_pm_state[id]->exit_latency_us);
+	printk("exit_latency_ticks = %d\r\n", exit_latency_ticks);
+
 	if ((exit_latency_ticks > 0) && (ticks != K_TICKS_FOREVER)) {
 		/*
 		 * We need to set the timer to interrupt a little bit early to

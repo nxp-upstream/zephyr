@@ -26,6 +26,8 @@
 		zephyr,console = &flexcomm4_lpuart4;
 		zephyr,shell-uart = &flexcomm4_lpuart4;
 		zephyr,canbus = &flexcan1;
+		/* Select LPTMR0 as the low-power idle counter used by SysTick hooks */
+		zephyr,cortex-m-idle-timer = &lptmr0;
 	};
 
 	aliases {
@@ -146,23 +148,23 @@
 };
 
 &green_led {
-	status = "okay";
+	status = "disabled";
 };
 
 &red_led {
-	status = "okay";
+	status = "disabled";
 };
 
 &user_button_2 {
-	status = "okay";
+	status = "disabled";
 };
 
 &edma0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexcomm2 {
-	status = "okay";
+	status = "disabled";
 };
 
 /*
@@ -170,11 +172,11 @@
  * LFLEXCOMM2
  */
 &flexcomm2_lpuart2 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexcomm2_lpi2c2 {
-	status = "okay";
+	status = "disabled";
 	pinctrl-0 = <&pinmux_flexcomm2_i2c>;
 	pinctrl-names = "default";
 	clock-frequency = <I2C_BITRATE_STANDARD>;
@@ -194,11 +196,11 @@
 };
 
 &flexcomm3 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexcomm3_lpspi3 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexcomm4 {
@@ -210,35 +212,35 @@
 };
 
 &flexcomm5 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexcomm5_lpi2c5 {
-	status = "okay";
+	status = "disabled";
 };
 
 &wwdt0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexpwm1_pwm0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexcan1 {
-	status = "okay";
+	status = "disabled";
 };
 
 &ctimer0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &vref {
-	status = "okay";
+	status = "disabled";
 };
 
 &lpadc0 {
-	status = "okay";
+	status = "disabled";
 };
 
 zephyr_udc0: &usb1 {
@@ -254,15 +256,15 @@ zephyr_udc0: &usb1 {
 };
 
 &lpcmp0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &i3c1 {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexio0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &lptmr0 {
@@ -270,11 +272,11 @@ zephyr_udc0: &usb1 {
 };
 
 &mrt0_channel0 {
-	status = "okay";
+	status = "disabled";
 };
 
 &rtc {
-	status = "okay";
+	status = "disabled";
 };
 
 &flexcomm0_lpuart0 {
@@ -414,7 +416,7 @@ p3t1755dp_ard_i2c_interface: &flexcomm5_lpi2c5 {};
 /* SmartDMA is used for video driver on this board */
 &smartdma {
 	/* Shields do not enable video-sdma parent node so enable it by default */
-	status = "okay";
+	status = "disabled";
 	program-mem = <0x4000000>;
 
 	video_sdma: video-sdma {
@@ -433,19 +435,19 @@ dvp_20pin_i2c: &flexcomm2_lpi2c2 {};
 dvp_20pin_interface: &video_sdma {};
 
 &sai0 {
-	status = "okay";
+	status = "disabled";
 	pinctrl-0 = <&pinmux_sai0>;
 	pinctrl-names = "default";
 };
 
 &sai1 {
-	status = "okay";
+	status = "disabled";
 	pinctrl-0 = <&pinmux_sai1>;
 	pinctrl-names = "default";
 };
 
 &micfil {
-	status = "okay";
+	status = "disabled";
 	pinctrl-0 = <&pinmux_micfil>;
 	pinctrl-names = "default";
 };

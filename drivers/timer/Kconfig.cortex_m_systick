@@ -110,3 +110,21 @@ config CORTEX_M_SYSTICK_RESET_BY_LPM
 	  active in low-power mode, since SysTick cannot be used for timekeeping.
 
 	  Refer to CONFIG_CORTEX_M_SYSTICK_LPM_TIMER for more details.
+
+config CORTEX_M_SYSTICK_SUPPRESS_IN_IDLE
+	bool "Suppress SysTick IRQ during idle window"
+	depends on CORTEX_M_SYSTICK
+	# Effective and recommended when using a separate low-power timer and tickless
+	default y if (TICKLESS_KERNEL && PM && !CORTEX_M_SYSTICK_LPM_TIMER_NONE)
+	help
+	  When the kernel is about to enter idle using a separate low-power timer
+	  (for example, LPTMR) to wake the system, frequent SysTick interrupts can
+	  immediately pend before WFI and prevent the CPU from actually entering
+	  low-power mode. Enable this option to temporarily mask the SysTick
+	  exception (TICKINT) for the duration of the idle window, clearing any
+	  pending SysTick before executing WFI, and restoring the original SysTick
+	  configuration upon idle exit.
+
+	  This improves entry into low-power states and reduces spurious wakeups
+	  on Cortex-M SoCs where SysTick continues to run in run mode while a
+	  separate low-power timer is responsible for wake events.

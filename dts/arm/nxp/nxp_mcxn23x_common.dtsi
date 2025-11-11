@@ -22,7 +22,7 @@
 			reg = <0>;
 			#address-cells = <1>;
 			#size-cells = <1>;
-			cpu-power-states = <&sleep &deepsleep &powerdown &deeppowerdown>;
+			cpu-power-states = <&sleep &deepsleep &powerdown>;
 
 			mpu: mpu@e000ed90 {
 				compatible = "arm,armv8m-mpu";
@@ -34,30 +34,33 @@
 			sleep: sleep {
 				compatible = "zephyr,power-state";
 				power-state-name = "runtime-idle";
-				min-residency-us = <10>;
+				//residency too short has no power consumption benefit.
+				//We need to set appropriate values ​​in actual engineering projects.
+				//set 100 here for testing purpose, 100us is one tick of 10KHz frequency (CONFIG_SYS_CLOCK_TICKS_PER_SEC).
+				min-residency-us = <100>;
 				exit-latency-us = <1>;
 			};
 
 			deepsleep: deepsleep {
 				compatible = "zephyr,power-state";
 				power-state-name = "suspend-to-idle";
-				min-residency-us = <500>;
+				min-residency-us = <1000>;
 				exit-latency-us = <10>;
 			};
 
 			powerdown: powerdown {
 				compatible = "zephyr,power-state";
 				power-state-name = "standby";
-				min-residency-us = <3000>;
+				min-residency-us = <2000>;
 				exit-latency-us = <11>;
 			};
 
-			deeppowerdown: deeppowerdown {
-				compatible = "zephyr,power-state";
-				power-state-name = "suspend-to-ram";
-				min-residency-us = <40000>;
-				exit-latency-us = <5800>;
-			};
+			//deeppowerdown: deeppowerdown {
+			//	compatible = "zephyr,power-state";
+			//	power-state-name = "suspend-to-ram";
+			//	min-residency-us = <30000>;
+			//	exit-latency-us = <5800>;
+			//};
 		};
 	};
 
