@@ -28,12 +28,12 @@ LOG_MODULE_REGISTER(mp_value, CONFIG_LIBMP_LOG_LEVEL);
 #define MP_COMPARE(a, b)                                                                           \
 	((a) < (b) ? MP_VALUE_LESS_THAN : ((a) > (b) ? MP_VALUE_GREATER_THAN : MP_VALUE_EQUAL))
 
-#define MP_FRACTION_COMPARE(a_num, a_den, b_num, b_den)                                            \
-	_Generic((a_num),                                                                          \
-		int32_t: MP_COMPARE((int64_t)a_num *(int64_t)b_den,                                \
-				    (int64_t)b_num *(int64_t)b_den),                               \
-		uint32_t: MP_COMPARE((uint64_t)a_num *(uint64_t)b_den,                             \
-				     (uint64_t)b_num *(uint64_t)b_den))
+#define MP_FRACTION_COMPARE(a_num, a_den, b_num, b_den) \
+	_Generic((a_num), \
+		int32_t : MP_COMPARE((int64_t)a_num * (int64_t)b_den, \
+				    (int64_t)b_num * (int64_t)a_den), \
+		uint32_t : MP_COMPARE((uint64_t)a_num * (uint64_t)b_den, \
+				     (uint64_t)b_num * (uint64_t)a_den))
 
 #define MP_VALUE_RANGES_OVERLAP(ref_val, cmp_val, vtype)                                           \
 	!(MP_VALUE_RANGE(ref_val)->min.vtype > MP_VALUE_RANGE(cmp_val)->max.vtype ||               \
@@ -251,6 +251,7 @@ static void mp_value_set_va_list(MpValue *value, int type, va_list *args)
 void mp_value_set(MpValue *value, int type, ...)
 {
 	va_list args;
+
 	va_start(args, type);
 	mp_value_set_va_list(value, type, &args);
 	va_end(args);
@@ -629,10 +630,12 @@ static const MpValue *mp_value_min_max(const MpValue *value1, const MpValue *val
 		  MP_VALUE_LESS_THAN)
 
 #define MP_VALUE_FRACTION_IN_RANGE(frac_val, range_val)                                            \
-	(mp_value_compare_fraction(MP_VALUE(&MP_VALUE_FRACTION_RANGE(range_val)->min),             \
-				   frac_val) == MP_VALUE_LESS_THAN &&                              \
-	 mp_value_compare_fraction(MP_VALUE(&MP_VALUE_FRACTION_RANGE(range_val)->max),             \
-				   frac_val) == MP_VALUE_GREATER_THAN)
+	!(mp_value_compare_fraction(frac_val,                                                      \
+				    MP_VALUE(&MP_VALUE_FRACTION_RANGE(range_val)->min)) ==         \
+		  MP_VALUE_LESS_THAN ||                                                            \
+	  mp_value_compare_fraction(frac_val,                                                      \
+				    MP_VALUE(&MP_VALUE_FRACTION_RANGE(range_val)->max)) ==         \
+		  MP_VALUE_GREATER_THAN)
 
 MpValue *mp_value_intersect_fraction_range(const MpValue *ref_val, const MpValue *compare_val)
 {
