@@ -1,0 +1,18 @@
+# Copyright 2025 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config CACHE_DEVICE_NXP_CACHE64
+	bool "NXP Cache64 device-specific cache driver"
+    default y
+    depends on DT_HAS_ZEPHYR_CACHE_DEVICE_ENABLED
+	help
+	  This option enables the Cache64 device driver for NXP SOCs.
+	  Cache64 is typically used for caching external flash memory
+	  accessed via FlexSPI interface, providing improved performance
+	  for external memory access.
+
+	  The driver provides device-specific cache operations including:
+	  - Enable/disable cache
+	  - Flush and invalidate operations (all and range-based)
+	  - Cache information retrieval
+	  - FlexSPI memory region cache management
