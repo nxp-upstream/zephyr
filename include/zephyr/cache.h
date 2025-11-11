@@ -16,6 +16,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/arch/cpu.h>
 #include <zephyr/debug/sparse.h>
+#include <zephyr/cache_info.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,6 +28,25 @@ extern "C" {
 #elif defined(CONFIG_ARCH_CACHE)
 #include <zephyr/arch/cache.h>
 
+#endif
+
+#ifdef CONFIG_CACHE_DEVICE_ROUTER
+void z_sys_cache_data_enable_router(void);
+void z_sys_cache_data_disable_router(void);
+void z_sys_cache_instr_enable_router(void);
+void z_sys_cache_instr_disable_router(void);
+int z_sys_cache_data_flush_range_router(void *addr, size_t size);
+int z_sys_cache_data_invd_range_router(void *addr, size_t size);
+int z_sys_cache_data_flush_and_invd_range_router(void *addr, size_t size);
+int z_sys_cache_data_flush_all_router(void);
+int z_sys_cache_data_invd_all_router(void);
+int z_sys_cache_data_flush_and_invd_all_router(void);
+int z_sys_cache_instr_flush_range_router(void *addr, size_t size);
+int z_sys_cache_instr_invd_range_router(void *addr, size_t size);
+int z_sys_cache_instr_flush_and_invd_range_router(void *addr, size_t size);
+int z_sys_cache_instr_flush_all_router(void);
+int z_sys_cache_instr_invd_all_router(void);
+int z_sys_cache_instr_flush_and_invd_all_router(void);
 #endif
 
 /**
@@ -43,7 +63,9 @@ extern "C" {
  */
 static ALWAYS_INLINE void sys_cache_data_enable(void)
 {
-#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE)
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_CACHE_DEVICE_ROUTER)
+	z_sys_cache_data_enable_router();
+#elif defined(CONFIG_DCACHE)
 	cache_data_enable();
 #endif
 }
@@ -56,7 +78,9 @@ static ALWAYS_INLINE void sys_cache_data_enable(void)
  */
 static ALWAYS_INLINE void sys_cache_data_disable(void)
 {
-#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE)
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_CACHE_DEVICE_ROUTER)
+	z_sys_cache_data_disable_router();
+#elif defined(CONFIG_DCACHE)
 	cache_data_disable();
 #endif
 }
@@ -69,7 +93,9 @@ static ALWAYS_INLINE void sys_cache_data_disable(void)
  */
 static ALWAYS_INLINE void sys_cache_instr_enable(void)
 {
-#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_ICACHE)
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_CACHE_DEVICE_ROUTER)
+	z_sys_cache_instr_enable_router();
+#elif defined(CONFIG_ICACHE)
 	cache_instr_enable();
 #endif
 }
@@ -82,7 +108,9 @@ static ALWAYS_INLINE void sys_cache_instr_enable(void)
  */
 static ALWAYS_INLINE void sys_cache_instr_disable(void)
 {
-#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_ICACHE)
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_CACHE_DEVICE_ROUTER)
+	z_sys_cache_instr_disable_router();
+#elif defined(CONFIG_ICACHE)
 	cache_instr_disable();
 #endif
 }
@@ -98,7 +126,9 @@ static ALWAYS_INLINE void sys_cache_instr_disable(void)
  */
 static ALWAYS_INLINE int sys_cache_data_flush_all(void)
 {
-#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE)
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_CACHE_DEVICE_ROUTER)
+	return z_sys_cache_data_flush_all_router();
+#elif defined(CONFIG_DCACHE)
 	return cache_data_flush_all();
 #endif
 	return -ENOTSUP;
@@ -115,7 +145,9 @@ static ALWAYS_INLINE int sys_cache_data_flush_all(void)
  */
 static ALWAYS_INLINE int sys_cache_instr_flush_all(void)
 {
-#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_ICACHE)
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_CACHE_DEVICE_ROUTER)
+	return z_sys_cache_instr_flush_all_router();
+#elif defined(CONFIG_ICACHE)
 	return cache_instr_flush_all();
 #endif
 	return -ENOTSUP;
@@ -132,7 +164,9 @@ static ALWAYS_INLINE int sys_cache_instr_flush_all(void)
  */
 static ALWAYS_INLINE int sys_cache_data_invd_all(void)
 {
-#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE)
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_CACHE_DEVICE_ROUTER)
+	return z_sys_cache_data_invd_all_router();
+#elif defined(CONFIG_DCACHE)
 	return cache_data_invd_all();
 #endif
 	return -ENOTSUP;
@@ -149,7 +183,9 @@ static ALWAYS_INLINE int sys_cache_data_invd_all(void)
  */
 static ALWAYS_INLINE int sys_cache_instr_invd_all(void)
 {
-#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_ICACHE)
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_CACHE_DEVICE_ROUTER)
+	return z_sys_cache_instr_invd_all_router();
+#elif defined(CONFIG_ICACHE)
 	return cache_instr_invd_all();
 #endif
 	return -ENOTSUP;
@@ -166,7 +202,9 @@ static ALWAYS_INLINE int sys_cache_instr_invd_all(void)
  */
 static ALWAYS_INLINE int sys_cache_data_flush_and_invd_all(void)
 {
-#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE)
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_CACHE_DEVICE_ROUTER)
+	return z_sys_cache_data_flush_and_invd_all_router();
+#elif defined(CONFIG_DCACHE)
 	return cache_data_flush_and_invd_all();
 #endif
 	return -ENOTSUP;
@@ -183,7 +221,9 @@ static ALWAYS_INLINE int sys_cache_data_flush_and_invd_all(void)
  */
 static ALWAYS_INLINE int sys_cache_instr_flush_and_invd_all(void)
 {
-#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_ICACHE)
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_CACHE_DEVICE_ROUTER)
+	return z_sys_cache_instr_flush_and_invd_all_router();
+#elif defined(CONFIG_ICACHE)
 	return cache_instr_flush_and_invd_all();
 #endif
 	return -ENOTSUP;
@@ -212,7 +252,9 @@ __syscall_always_inline int sys_cache_data_flush_range(void *addr, size_t size);
 
 static ALWAYS_INLINE int z_impl_sys_cache_data_flush_range(void *addr, size_t size)
 {
-#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE)
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_CACHE_DEVICE_ROUTER)
+	return z_sys_cache_data_flush_range_router(addr, size);
+#elif defined(CONFIG_DCACHE)
 	return cache_data_flush_range(addr, size);
 #endif
 	ARG_UNUSED(addr);
@@ -242,7 +284,9 @@ static ALWAYS_INLINE int z_impl_sys_cache_data_flush_range(void *addr, size_t si
  */
 static ALWAYS_INLINE int sys_cache_instr_flush_range(void *addr, size_t size)
 {
-#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_ICACHE)
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_CACHE_DEVICE_ROUTER)
+	return z_sys_cache_instr_flush_range_router(addr, size);
+#elif defined(CONFIG_ICACHE)
 	return cache_instr_flush_range(addr, size);
 #endif
 	ARG_UNUSED(addr);
@@ -275,7 +319,9 @@ __syscall_always_inline int sys_cache_data_invd_range(void *addr, size_t size);
 
 static ALWAYS_INLINE int z_impl_sys_cache_data_invd_range(void *addr, size_t size)
 {
-#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE)
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_CACHE_DEVICE_ROUTER)
+	return z_sys_cache_data_invd_range_router(addr, size);
+#elif defined(CONFIG_DCACHE)
 	return cache_data_invd_range(addr, size);
 #endif
 	ARG_UNUSED(addr);
@@ -306,7 +352,9 @@ static ALWAYS_INLINE int z_impl_sys_cache_data_invd_range(void *addr, size_t siz
  */
 static ALWAYS_INLINE int sys_cache_instr_invd_range(void *addr, size_t size)
 {
-#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_ICACHE)
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_CACHE_DEVICE_ROUTER)
+	return z_sys_cache_instr_invd_range_router(addr, size);
+#elif defined(CONFIG_ICACHE)
 	return cache_instr_invd_range(addr, size);
 #endif
 	ARG_UNUSED(addr);
@@ -339,7 +387,9 @@ __syscall_always_inline int sys_cache_data_flush_and_invd_range(void *addr, size
 
 static ALWAYS_INLINE int z_impl_sys_cache_data_flush_and_invd_range(void *addr, size_t size)
 {
-#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE)
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_CACHE_DEVICE_ROUTER)
+	return z_sys_cache_data_flush_and_invd_range_router(addr, size);
+#elif defined(CONFIG_DCACHE)
 	return cache_data_flush_and_invd_range(addr, size);
 #endif
 	ARG_UNUSED(addr);
@@ -370,7 +420,9 @@ static ALWAYS_INLINE int z_impl_sys_cache_data_flush_and_invd_range(void *addr, 
  */
 static ALWAYS_INLINE int sys_cache_instr_flush_and_invd_range(void *addr, size_t size)
 {
-#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_ICACHE)
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_CACHE_DEVICE_ROUTER)
+	return z_sys_cache_instr_flush_and_invd_range_router(addr, size);
+#elif defined(CONFIG_ICACHE)
 	return cache_instr_flush_and_invd_range(addr, size);
 #endif
 	ARG_UNUSED(addr);
@@ -384,6 +436,9 @@ static ALWAYS_INLINE int sys_cache_instr_flush_and_invd_range(void *addr, size_t
  * @brief Get the d-cache line size.
  *
  * The API is provided to get the data cache line.
+ *
+ * @note Reports CPU cache characteristics only. External/device caches are
+ *       not queried by this helper even when the cache router is enabled.
  *
  * The cache line size is calculated (in order of priority):
  *
@@ -411,6 +466,9 @@ static ALWAYS_INLINE size_t sys_cache_data_line_size_get(void)
  *
  * The API is provided to get the instruction cache line.
  *
+ * @note Reports CPU cache characteristics only. External/device caches are
+ *       not queried by this helper even when the cache router is enabled.
+ *
  * The cache line size is calculated (in order of priority):
  *
  * - At run-time when @kconfig{CONFIG_ICACHE_LINE_SIZE_DETECT} is set.
@@ -429,6 +487,62 @@ static ALWAYS_INLINE size_t sys_cache_instr_line_size_get(void)
 #else
 	return 0;
 #endif
+}
+
+/**
+ * @brief Get basic d-cache information for sys cache platforms
+ *
+ * Populates line size and common fields; other fields may be zero when
+ * not discoverable generically.
+ *
+ * @note Reports CPU cache characteristics only. External/device caches are
+ *       not queried by this helper even when the cache router is enabled.
+ *
+ * @param info Pointer to structure to fill
+ * @retval 0 if successful
+ * @retval -EINVAL if info is NULL
+ * @retval -ENOTSUP if d-cache not supported or line size unavailable
+ */
+static ALWAYS_INLINE int sys_cache_data_get_info(struct cache_info *info)
+{
+	if (info == NULL) {
+		return -EINVAL;
+	}
+
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE) && defined(CONFIG_SYS_CACHE_INFO)
+	return cache_data_get_info(info);
+#endif
+
+	ARG_UNUSED(info);
+	return -ENOTSUP;
+}
+
+/**
+ * @brief Get basic i-cache information for sys cache platforms
+ *
+ * Populates line size and common fields; other fields may be zero when
+ * not discoverable generically.
+ *
+ * @note Reports CPU cache characteristics only. External/device caches are
+ *       not queried by this helper even when the cache router is enabled.
+ *
+ * @param info Pointer to structure to fill
+ * @retval 0 if successful
+ * @retval -EINVAL if info is NULL
+ * @retval -ENOTSUP if i-cache not supported or line size unavailable
+ */
+static ALWAYS_INLINE int sys_cache_instr_get_info(struct cache_info *info)
+{
+	if (info == NULL) {
+		return -EINVAL;
+	}
+
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_ICACHE) && defined(CONFIG_SYS_CACHE_INFO)
+	return cache_instr_get_info(info);
+#endif
+
+	ARG_UNUSED(info);
+	return -ENOTSUP;
 }
 
 /**

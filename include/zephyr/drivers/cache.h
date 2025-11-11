@@ -14,6 +14,7 @@
 #define ZEPHYR_INCLUDE_DRIVERS_CACHE_H_
 
 #include <stddef.h>
+#include <zephyr/cache_info.h>
 
 /**
  * @brief Interfaces for external cache controllers.
@@ -293,6 +294,36 @@ size_t cache_instr_line_size_get(void);
 #endif /* CONFIG_ICACHE_LINE_SIZE_DETECT */
 
 #endif /* CONFIG_ICACHE */
+
+#if defined(CONFIG_SYS_CACHE_INFO)
+#if defined(CONFIG_DCACHE)
+/**
+ * @brief Provide system data cache information
+ *
+ * Fills struct cache_info with system D-cache characteristics.
+ *
+ * @param info Pointer to struct to populate
+ * @retval 0 on success
+ * @retval -EINVAL if info is NULL
+ * @retval -ENOTSUP if not supported or not configured
+ */
+int cache_data_get_info(struct cache_info *info);
+#endif /* CONFIG_DCACHE */
+
+#if defined(CONFIG_ICACHE)
+/**
+ * @brief Provide system instruction cache information
+ *
+ * Fills struct cache_info with system I-cache characteristics.
+ *
+ * @param info Pointer to struct to populate
+ * @retval 0 on success
+ * @retval -EINVAL if info is NULL
+ * @retval -ENOTSUP if not supported or not configured
+ */
+int cache_instr_get_info(struct cache_info *info);
+#endif /* CONFIG_ICACHE */
+#endif /* CONFIG_SYS_CACHE_INFO */
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,2 @@
+compatible: "nxp,cache64"
+include: zephyr,cache-device.yaml

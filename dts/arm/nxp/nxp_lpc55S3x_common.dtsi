@@ -518,6 +518,24 @@
 		nxp,internal-voltage-regulator-en;
 		nxp,chop-oscillator-en;
 	};
+
+	cache64: cache64@2E000 {
+		compatible = "nxp,cache64", "zephyr,cache-device";
+		reg = <0x2E000 0x1000>;
+		status = "disabled";
+		/* cache_info: device-side cache characteristics */
+		cache-type = "unified";
+		/* Last-level, external memory-side cache for FlexSPI */
+		cache-level = <2>;
+		/* 8 KiB per LPC55S36 reference (see datasheet, Cache64) */
+		cache-size = <DT_SIZE_K(8)>;
+		/* 2-way set associative, 32-byte line size, 128 sets */
+		cache-ways = <2>;
+		cache-line-size = <32>;
+		cache-sets = <128>;
+		/* FlexSPI XIP address window: base + size (128 MiB) */
+		cache-windows = <0x08000000 0x08000000>;
+	};
 };
 
 &nvic {

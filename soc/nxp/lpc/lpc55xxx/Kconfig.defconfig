@@ -1,4 +1,4 @@
-# Copyright 2019,2024 NXP
+# Copyright 2019, 2024-2025 NXP
 # SPDX-License-Identifier: Apache-2.0
 
 if SOC_SERIES_LPC55XXX
@@ -52,6 +52,40 @@ config CAN_MCUX_MCAN
 	depends on CAN
 
 endif # SOC_LPC55S16
+
+if SOC_LPC55S36
+
+# Enable cache management features
+config CACHE_MANAGEMENT
+	default y
+
+choice CACHE_TYPE
+	default EXTERNAL_CACHE
+endchoice
+
+config ICACHE_LINE_SIZE
+	default 256
+
+# System instruction cache information for LPCAC (code bus)
+config SYS_ICACHE_INFO_LEVEL
+	default 1
+
+config SYS_ICACHE_INFO_LINE_SIZE
+	default 256
+
+config SYS_ICACHE_INFO_WAYS
+	default 8
+
+config SYS_ICACHE_INFO_SETS
+	default 4
+
+config SYS_ICACHE_INFO_SIZE
+	default 8192
+
+config SYS_ICACHE_INFO_ATTRIBUTES
+	default 0
+
+endif # SOC_LPC55S36
 
 if SOC_LPC55S69_CPU0
 

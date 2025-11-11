@@ -1,0 +1,43 @@
+# Copyright (c) 2025 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig CACHE_DEVICE
+	bool "Device-specific cache controller drivers"
+	help
+	  Enable support for device-specific cache controllers that can be
+	  managed as individual device instances. This provides fine-grained
+	  control over cache operations for different memory regions or purposes.
+
+if CACHE_DEVICE
+
+config CACHE_DEVICE_HAS_DRIVER
+	bool
+
+config CACHE_DEVICE_INIT_PRIORITY
+	int "Cache device initialization priority"
+	default 60
+	help
+	  Cache devices initialization priority. This should be high enough to
+	  ensure that cache devices are initialized after basic system services
+	  but before devices that may depend on cache coherency.
+
+config DEVICE_CACHE_INFO
+	bool "Expose device cache information API"
+	depends on CACHE_DEVICE
+	default y
+	help
+		Enable cache_device_get_info() to return populated struct cache_info
+		data for device-side caches. When disabled, cache_device_get_info()
+		will return -ENOTSUP regardless of driver implementation. Keeping
+		this enabled by default surfaces useful metadata (line size, size,
+		ways) for performance tuning and diagnostics.
+
+module = CACHE_DEVICE
+module-str = cache_device
+source "subsys/logging/Kconfig.template.log_config"
+
+comment "Device Drivers"
+
+source "drivers/cache_device/Kconfig.nxp_cache64"
+
+endif # CACHE_DEVICE

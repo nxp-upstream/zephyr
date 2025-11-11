@@ -1,0 +1,16 @@
+common:
+  tags:
+    - cache
+    - dma
+    - drivers
+  harness: ztest
+  harness_config:
+    type: ztest
+
+tests:
+  cache.coherence_info:
+    platform_allow:
+      - lpcxpresso55s36
+    integration_platforms:
+      - lpcxpresso55s36
+    depends_on: gpio

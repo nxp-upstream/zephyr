@@ -1,0 +1,65 @@
+# Copyright 2025 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Shared cache information properties.
+
+  This schema defines common cache information properties which can be
+  included by cache controller bindings. It captures cache attributes
+  similar to Linux cacheinfo and is intended for device-specific cache
+  controllers and other cache bindings to avoid duplication.
+
+include: base.yaml
+
+properties:
+  cache-type:
+    type: string
+    required: false
+    description: |
+      Type of cache controller.
+    enum:
+      - instruction
+      - data
+      - unified
+
+  cache-level:
+    type: int
+    required: false
+    description: |
+      Cache hierarchy level (1 for L1, 2 for L2, ...).
+
+  cache-line-size:
+    type: int
+    required: false
+    description: |
+      Cache line size in bytes (coherency line size).
+
+  cache-ways:
+    type: int
+    required: false
+    description: |
+      Number of ways in set-associative cache.
+
+  cache-sets:
+    type: int
+    required: false
+    description: |
+      Number of sets in the cache.
+
+  cache-size:
+    type: int
+    required: false
+    description: |
+      Total cache size in bytes.
+
+  cache-attributes:
+    type: string-array
+    required: false
+    enum:
+      - write-through
+      - write-back
+      - read-allocate
+      - write-allocate
+    description: |
+      Supported capability attributes of the cache controller.
+      Maps to CACHE_INFO_ATTR_* flags in the shared cache_info.h.

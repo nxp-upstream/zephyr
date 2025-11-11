@@ -214,3 +214,7 @@ zephyr_udc0: &usbfs {
 	pinctrl-0 = <&pinmux_opamp0>;
 	pinctrl-names = "default";
 };
+
+&cache64 {
+	status = "okay";
+};

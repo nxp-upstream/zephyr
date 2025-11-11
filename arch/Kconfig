@@ -1177,7 +1177,93 @@ config EXTERNAL_CACHE
 
 endchoice
 
+config SYS_CACHE_INFO
+	bool "Expose sys cache information API"
+	depends on CACHE_MANAGEMENT
+	default n
+	help
+	  Enable sys_cache_data_get_info()/sys_cache_instr_get_info() to report
+	  basic cache characteristics via struct cache_info. Platforms using either
+	  ARCH_CACHE or EXTERNAL_CACHE may implement provider hooks. If hooks are
+	  absent, the APIs return -ENOTSUP.
+
 endif # CACHE_MANAGEMENT
+
+if SYS_CACHE_INFO
+
+config SYS_DCACHE_INFO_LEVEL
+	int "System D-cache level"
+	default 0
+	help
+	  Cache level for system data cache (1=L1, 2=L2, etc.).
+
+config SYS_DCACHE_INFO_LINE_SIZE
+	int "System D-cache line size (bytes)"
+	default 0
+	help
+	  Line size in bytes. Set 0 if unknown/not present.
+
+config SYS_DCACHE_INFO_WAYS
+	int "System D-cache associativity (ways)"
+	default 0
+	help
+	  Number of ways. Set 0 if unknown.
+
+config SYS_DCACHE_INFO_SETS
+	int "System D-cache sets"
+	default 0
+	help
+	  Number of sets. Set 0 if unknown.
+
+config SYS_DCACHE_INFO_SIZE
+	int "System D-cache total size (bytes)"
+	default 0
+	help
+	  Total size in bytes. Set 0 if unknown.
+
+config SYS_DCACHE_INFO_ATTRIBUTES
+	hex "System D-cache attributes (bitfield)"
+	default 0
+	help
+	  Bitfield of CACHE_INFO_ATTR_* flags if applicable.
+
+config SYS_ICACHE_INFO_LEVEL
+	int "System I-cache level"
+	default 0
+	help
+	  Cache level for system instruction cache (1=L1, 2=L2, etc.).
+
+config SYS_ICACHE_INFO_LINE_SIZE
+	int "System I-cache line size (bytes)"
+	default 0
+	help
+	  Line size in bytes. Set 0 if unknown/not present.
+
+config SYS_ICACHE_INFO_WAYS
+	int "System I-cache associativity (ways)"
+	default 0
+	help
+	  Number of ways. Set 0 if unknown.
+
+config SYS_ICACHE_INFO_SETS
+	int "System I-cache sets"
+	default 0
+	help
+	  Number of sets. Set 0 if unknown.
+
+config SYS_ICACHE_INFO_SIZE
+	int "System I-cache total size (bytes)"
+	default 0
+	help
+	  Total size in bytes. Set 0 if unknown.
+
+config SYS_ICACHE_INFO_ATTRIBUTES
+	hex "System I-cache attributes (bitfield)"
+	default 0
+	help
+	  Bitfield of CACHE_INFO_ATTR_* flags if applicable.
+
+endif # SYS_CACHE_INFO
 
 endmenu
 

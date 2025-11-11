@@ -12,6 +12,15 @@ if CACHE
 config CACHE_HAS_DRIVER
 	bool
 
+config CACHE_DEVICE_ROUTER
+    bool "Compose sys cache with device caches"
+    depends on CACHE_DEVICE && CACHE_MANAGEMENT
+    help
+      When enabled, sys_cache_* range and all operations will call both
+      the CPU/arch caches and any registered device-side caches via the
+      cache_device_* APIs. This is a convenience layer for platforms
+      with memory-side caches (e.g. external/XIP controllers).
+
 module = CACHE
 module-str = cache
 source "subsys/logging/Kconfig.template.log_config"
@@ -21,6 +30,7 @@ comment "Device Drivers"
 source "drivers/cache/Kconfig.aspeed"
 source "drivers/cache/Kconfig.nrf"
 source "drivers/cache/Kconfig.andes"
+source "drivers/cache/Kconfig.nxp_syscon_lpcac"
 source "drivers/cache/Kconfig.nxp_xcache"
 source "drivers/cache/Kconfig.stm32"
 source "drivers/cache/Kconfig.bflb"
