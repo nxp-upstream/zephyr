@@ -950,6 +950,7 @@
 			nxp,version = <2>;
 			dma-channels = <32>;
 			dma-requests = <128>;
+			mux-type = "DMAMUX";
 			nxp,mem2mem;
 			nxp,a-on;
 			reg = <0x400E8000 0x4000>,

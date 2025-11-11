@@ -1153,6 +1153,7 @@
 			dma-channels = <32>;
 			dma-requests = <64>;
 			dmamux-reg-offset = <3>;
+			mux-type = "DMAMUX";
 			#dma-cells = <2>;
 			nxp,mem2mem;
 			interrupts = <GIC_SPI 31 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>,
@@ -1198,6 +1199,7 @@
 			dma-channels = <16>;
 			dma-requests = <64>;
 			dmamux-reg-offset = <3>;
+			mux-type = "DMAMUX";
 			#dma-cells = <2>;
 			nxp,mem2mem;
 			interrupts = <GIC_SPI 65 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>,
@@ -1227,6 +1229,7 @@
 			dma-channels = <32>;
 			dma-requests = <64>;
 			dmamux-reg-offset = <3>;
+			mux-type = "DMAMUX";
 			#dma-cells = <2>;
 			nxp,mem2mem;
 			interrupts = <GIC_SPI 83 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>,
@@ -1256,6 +1259,7 @@
 			dma-channels = <32>;
 			dma-requests = <64>;
 			dmamux-reg-offset = <3>;
+			mux-type = "DMAMUX";
 			#dma-cells = <2>;
 			nxp,mem2mem;
 			interrupts = <GIC_SPI 101 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>,

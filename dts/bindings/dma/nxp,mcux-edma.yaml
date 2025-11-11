@@ -1,4 +1,4 @@
-# Copyright (c) 2020,2024 NXP
+# Copyright (c) 2020,2024-2025 NXP
 # SPDX-License-Identifier: Apache-2.0
 
 description: NXP MCUX EDMA controller
@@ -37,6 +37,17 @@ properties:
     description:
       The offset value for obtaining DMAMUX register index from DMAMUX channel.
       Default value means DMAMUX channel is identical with DMAMUX register index
+
+  mux-type:
+    type: string
+    enum:
+      - "DMAMUX"
+      - "TRGMUX"
+    description: |
+      Specifies the type of multiplexer used for DMA request routing.
+      - DMAMUX: Direct Memory Access Multiplexer
+      - TRGMUX: Trigger Multiplexer
+      If not specified, no specific multiplexer type is assumed.
 
   channel-gap:
     type: array

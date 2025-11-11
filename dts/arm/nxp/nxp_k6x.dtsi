@@ -527,6 +527,7 @@
 			nxp,version = <2>;
 			dma-channels = <16>;
 			dma-requests = <64>;
+			mux-type = "DMAMUX";
 			nxp,mem2mem;
 			reg = <0x40008000 0x1000>,
 			      <0x40021000 0x1000>;

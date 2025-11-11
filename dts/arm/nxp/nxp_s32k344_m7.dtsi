@@ -664,6 +664,7 @@
 			dma-channels = <32>;
 			dma-requests = <64>;
 			dmamux-reg-offset = <3>;
+			mux-type = "DMAMUX";
 			channel-gap = <12 127>;
 			#dma-cells = <2>;
 			nxp,mem2mem;

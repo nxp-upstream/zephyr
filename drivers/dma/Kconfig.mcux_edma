@@ -1,10 +1,11 @@
 # DMA configuration options
 
-# Copyright (c) 2020, NXP
+# Copyright (c) 2020, 2025 NXP
 # SPDX-License-Identifier: Apache-2.0
 
 EDMA_COMPAT := $(DT_COMPAT_NXP_MCUX_EDMA)
 REV_PROP := nxp,version
+MUX_TYPE := mux-type
 
 config DMA_MCUX_EDMA
 	bool "MCUX DMA driver"
@@ -34,6 +35,20 @@ config DMA_MCUX_EDMA_V5
 	depends on $(dt_compat_any_has_prop,$(EDMA_COMPAT),$(REV_PROP),5)
 	help
 	  DMA version 5 driver for MCUX series SoCs.
+
+config DMA_MCUX_EDMA_DMAMUX
+	bool "DMAMUX support"
+	default y
+	depends on $(dt_compat_any_has_prop,$(EDMA_COMPAT),$(MUX_TYPE),DMAMUX)
+	help
+	  Enable DMAMUX support for EDMA controller.
+
+config DMA_MCUX_EDMA_TRGMUX
+	bool "TRGMUX support"
+	default y
+	depends on $(dt_compat_any_has_prop,$(EDMA_COMPAT),$(MUX_TYPE),TRGMUX)
+	help
+	  Enable TRGMUX support for EDMA controller.
 
 config DMA_MCUX_MAX_DATA_SIZE
 	int

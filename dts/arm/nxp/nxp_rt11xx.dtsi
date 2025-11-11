@@ -1040,6 +1040,7 @@
 			nxp,version = <2>;
 			dma-channels = <32>;
 			dma-requests = <208>;
+			mux-type = "DMAMUX";
 			nxp,mem2mem;
 			nxp,a-on;
 			reg = <0x40070000 0x4000>,
@@ -1059,6 +1060,7 @@
 			nxp,version = <2>;
 			dma-channels = <32>;
 			dma-requests = <208>;
+			mux-type = "DMAMUX";
 			nxp,mem2mem;
 			nxp,a-on;
 			reg = <0x40c14000 0x4000>,

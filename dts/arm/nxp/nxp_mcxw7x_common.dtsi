@@ -431,6 +431,7 @@
 		nxp,version = <3>;
 		dma-channels = <16>;
 		dma-requests = <64>;
+		mux-type = "TRGMUX";
 		reg = <0x2000 0x140>;
 		clocks = <&scg SCG_K4_EDMA_CLK 0x410>;
 		interrupts = <2 0>, <3 0>, <4 0>, <5 0>,
