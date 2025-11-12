@@ -296,6 +296,57 @@ For example, to erase and verify flash content:
 
    west flash -r trace32 --startup-args elfFile=build/zephyr/zephyr.elf loadTo=flash eraseFlash=yes verifyFlash=yes
 
+MCUboot
+=======
+
+This board supports app chain-loading using MCUboot.
+
+The command below builds MCUboot and the application together.
+It also generated .hex output files for convenience in flashing.
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/drivers/flash_shell
+   :board: mr_canhubk3/s32k344/mcuboot
+   :goals: build
+   :build-dir: build
+   :gen-args: --sysbuild
+   :compact:
+
+The resulting artifacts are:
+MCUboot: build/mcuboot/zephyr/zephyr.hex
+App (unsigned): build/flash_shell/zephyr/zephyr.hex
+
+Flashing
+--------
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/drivers/flash_shell
+   :board: mr_canhubk3/s32k344/mcuboot
+   :build-dir: build
+   :goals: flash
+   :gen-args: --sysbuild
+   :flash-args: --domain mcuboot -r jlink
+   :compact:
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/drivers/flash_shell
+   :board: mr_canhubk3/s32k344/mcuboot
+   :build-dir: build
+   :goals: flash
+   :gen-args: --sysbuild
+   :flash-args: --domain flash_shell
+   :compact:
+
+Troubleshooting
+---------------
+
+    If MCUboot prints “Image in the primary slot is not valid” or stalls after
+    “Jumping to the first image slot”, the app was likely signed with a 512-byte header.
+    Re-sign with --header-size 0x400 and re-flash.
+
+    Do not add an IVT to MCUboot-chainloaded applications;
+    it’s only emitted for standalone/XIP images or MCUboot itself.
+
 Debugging
 =========
 
