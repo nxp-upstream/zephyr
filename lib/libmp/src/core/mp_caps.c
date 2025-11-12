@@ -131,6 +131,7 @@ void mp_caps_print(MpCaps *caps)
 	MpCapStructure *cs;
 
 	if (caps == NULL) {
+		printk("Caps NULL\n");
 		return;
 	}
 
