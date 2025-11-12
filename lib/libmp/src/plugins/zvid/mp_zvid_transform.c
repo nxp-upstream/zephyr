@@ -114,8 +114,8 @@ static MpCaps *mp_zvid_transform_transform_caps(MpTransform *self, MpPadDirectio
 				/* TODO: Only supports video/x-raw for now */
 				caps_item = mp_structure_new(
 					"video/x-raw", "format", MP_TYPE_UINT, mp_fmt, "width",
-					MP_TYPE_INT_RANGE, other_vfc.width_min, other_vfc.width_max,
-					other_vfc.width_step, "height", MP_TYPE_INT_RANGE,
+					MP_TYPE_UINT_RANGE, other_vfc.width_min, other_vfc.width_max,
+					other_vfc.width_step, "height", MP_TYPE_UINT_RANGE,
 					other_vfc.height_min, other_vfc.height_max,
 					other_vfc.height_step, NULL);
 				/*

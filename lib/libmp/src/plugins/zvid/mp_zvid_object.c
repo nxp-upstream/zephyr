@@ -125,9 +125,9 @@ MpCaps *mp_zvid_object_get_caps(MpZvidObject *zvid_obj)
 
 		/* TODO: Add support for MP_TYPE_UINT_RANGE and use it here */
 		caps_item = mp_structure_new(
-			"video/x-raw", "format", MP_TYPE_UINT, mp_fmt, "width", MP_TYPE_INT_RANGE,
+			"video/x-raw", "format", MP_TYPE_UINT, mp_fmt, "width", MP_TYPE_UINT_RANGE,
 			vcaps.format_caps[i].width_min, vcaps.format_caps[i].width_max,
-			vcaps.format_caps[i].width_step, "height", MP_TYPE_INT_RANGE,
+			vcaps.format_caps[i].width_step, "height", MP_TYPE_UINT_RANGE,
 			vcaps.format_caps[i].height_min, vcaps.format_caps[i].height_max,
 			vcaps.format_caps[i].height_step, NULL);
 
