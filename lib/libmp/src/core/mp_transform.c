@@ -24,16 +24,41 @@ static bool mp_transform_chainfn(MpPad *pad, MpBuffer *buffer)
 {
 	MpTransform *transform = MP_TRANSFORM(pad->object.container);
 
-	/* Doing all transform tasks here */
-
-	/* Push buffer to src pad */
+	/* Default implementation for MP_MODE_PASSTHROUGH */
 	return mp_pad_push(&transform->srcpad, buffer);
+}
+
+static MpCaps *mp_transform_get_caps(MpTransform *transform, MpPadDirection direction)
+{
+	/* Default implementation simply returns the pad's caps. However, subclasses should return
+	 * the real caps of the element */
+	if (direction == MP_PAD_SRC) {
+		return mp_caps_ref(transform->srcpad.caps);
+	}
+	if (direction == MP_PAD_SINK) {
+		return mp_caps_ref(transform->sinkpad.caps);
+	}
+
+	return NULL;
+}
+
+static bool mp_transform_set_caps(MpTransform *transform, MpPadDirection direction, MpCaps *caps)
+{
+	if (direction == MP_PAD_SINK) {
+		mp_caps_replace(&(transform->sinkpad.caps), caps);
+	} else if (direction == MP_PAD_SRC) {
+		mp_caps_replace(&(transform->srcpad.caps), caps);
+	} else {
+		return false;
+	}
+
+	return true;
 }
 
 static MpCaps *mp_transform_transform_caps(MpTransform *self, MpPadDirection direction,
 					   MpCaps *incaps)
 {
-	return self->transform_caps ? self->transform_caps(self, direction, incaps) : NULL;
+	return mp_caps_ref(incaps);
 }
 
 static inline bool mp_transform_query_caps(MpTransform *self, MpPadDirection direction,
@@ -62,8 +87,7 @@ static inline bool mp_transform_query_caps(MpTransform *self, MpPadDirection dir
 		return false;
 	}
 
-	transformed_caps =
-		mp_transform_transform_caps(self, other_pad->direction, queried_pad_caps);
+	transformed_caps = self->transform_caps(self, other_pad->direction, queried_pad_caps);
 	if (transformed_caps == NULL) {
 		return false;
 	}
@@ -91,7 +115,7 @@ static inline bool mp_transform_query_caps(MpTransform *self, MpPadDirection dir
 	mp_caps_replace(&other_pad->caps, query_caps);
 
 	/* Transform back the query_caps */
-	query_back_caps = mp_transform_transform_caps(self, this_pad->direction, query_caps);
+	query_back_caps = self->transform_caps(self, this_pad->direction, query_caps);
 
 	/* Intersect with the original queried_pad_caps */
 	res_caps = mp_caps_intersect(query_back_caps, queried_pad_caps);
@@ -243,6 +267,10 @@ void mp_transform_init(MpElement *self)
 	self->object.set_property = mp_transform_set_property;
 	self->object.get_property = mp_transform_get_property;
 
+	transform->mode = MP_MODE_PASSTHROUGH;
+	transform->get_caps = mp_transform_get_caps;
+	transform->set_caps = mp_transform_set_caps;
+	transform->transform_caps = mp_transform_transform_caps;
 	transform->sinkpad.chainfn = mp_transform_chainfn;
 	transform->sinkpad.queryfn = mp_transform_query;
 	transform->srcpad.queryfn = mp_transform_query;
