@@ -6,6 +6,9 @@
 
 #include <zephyr/init.h>
 
+#if (CONFIG_MP_CAPSFILTER)
+#include <src/core/mp_capsfilter.h>
+#endif
 #include <src/core/mp_element_factory.h>
 #include <src/core/mp_pipeline.h>
 #include <src/core/mp_plugin.h>
@@ -20,6 +23,10 @@ int mp_init(void)
 {
 	/* Built-in elements */
 	MP_ELEMENTFACTORY_DEFINE(pipeline, sizeof(MpPipeline), mp_pipeline_init);
+
+	#if (CONFIG_MP_CAPSFILTER)
+		MP_ELEMENTFACTORY_DEFINE(capsfilter, sizeof(struct mp_caps_filter), mp_caps_filter_init);
+	#endif
 
 	/* Plugins */
 	initialize_plugins();

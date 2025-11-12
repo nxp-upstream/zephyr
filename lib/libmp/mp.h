@@ -13,9 +13,17 @@
 #define __MP_H__
 
 #include <src/core/mp_bus.h>
+#if (CONFIG_MP_CAPSFILTER)
+#include <src/core/mp_capsfilter.h>
+#endif
 #include <src/core/mp_element.h>
 #include <src/core/mp_element_factory.h>
 #include <src/core/mp_pipeline.h>
+#include <src/core/mp_pixel_format.h>
+
+#if CONFIG_MP_PLUGIN_ZVID
+#include <src/plugins/zvid/mp_zvid_property.h>
+#endif
 
 #if CONFIG_MP_PLUGIN_ZVID
 #include <src/plugins/zvid/mp_zvid_property.h>
