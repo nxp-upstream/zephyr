@@ -1,20 +1,21 @@
 .. zephyr:code-sample:: libmp_camera_display
    :name: Camera Display Example
 
-   A sample pipeline composed of two elements: a camera source and a display sink.
+   A sample pipeline composed of 3 elements: a camera source, a capsfilter and a display sink.
 
 Description
 ***********
 
 ::
 
-    +------------------+       +------------------+
-    |  Camera Source   | ----> |   Display Sink   |
-    +------------------+       +------------------+
+    +-----------------+     +--------------+     +----------------+
+    |  Camera Source  | --> |  Capsfilter  | --> |  Display Sink  |
+    +-----------------+     +--------------+     +----------------+
 
-This example demonstrates a pipeline consisting of two elements: source and sink.
-The source element, which acts as a capture device, generates video frames and pushes
-them to the sink element, which serves as a display device to render the content on screen.
+This example demonstrates a pipeline consisting of 3 elements. The camera source element generates
+video frames. The capsfilter is used to enforce a video format and/or resolution and/or framerate.
+This element is optional, without it, the pipeline is still working but with the default negotiated
+format. The display sink then renders the video frames on the screen.
 
 Requirements
 ************

@@ -22,29 +22,46 @@ int main(void)
 	MpElement *source = mp_element_factory_create("zvid_src", "camsrc");
 
 	if (source == NULL) {
-		LOG_ERR("Failed to create camsrc element");
-		return 0;
+		goto err;
+	}
+
+	MpElement *caps_filter = mp_element_factory_create("capsfilter", "capsfilter");
+
+	if (caps_filter == NULL) {
+		goto err;
 	}
 
 	MpElement *transform = mp_element_factory_create("zvid_transform", "vtransform");
 
 	if (transform == NULL) {
-		LOG_ERR("Failed to create vtransform element");
-		return 0;
+		goto err;
 	}
 
 	MpElement *sink = mp_element_factory_create("zdisp_sink", "dispsink");
 
 	if (sink == NULL) {
-		LOG_ERR("Failed to create dispsink element");
-		return 0;
+		goto err;
 	}
 
 	/* Set elements' properties */
 	ret = mp_object_set_properties(MP_OBJECT(source), PROP_NUM_BUFS, 3, VIDEO_CID_HFLIP, 1,
 				       PROP_LIST_END);
 	if (ret < 0) {
-		return ret;
+		goto err;
+	}
+
+	MpCaps *filtered_caps =
+		mp_caps_new("video/x-raw", "width", MP_TYPE_UINT, 640, "height", MP_TYPE_UINT, 480,
+			    "framerate", MP_TYPE_UINT_FRACTION, 60, 1, NULL);
+
+	if (filtered_caps == NULL) {
+		goto err;
+	}
+
+	ret = mp_object_set_properties(MP_OBJECT(caps_filter), PROP_CAPS, filtered_caps, PROP_LIST_END);
+	mp_caps_unref(filtered_caps);
+	if (ret < 0) {
+		goto err;
 	}
 
 	static const struct device *const pxp_dev = DEVICE_DT_GET(DT_NODELABEL(pxp));
@@ -57,33 +74,32 @@ int main(void)
 	ret = mp_object_set_properties(MP_OBJECT(transform), PROP_DEVICE, pxp_dev, VIDEO_CID_ROTATE,
 				       90, PROP_LIST_END);
 	if (ret < 0) {
-		return ret;
+		goto err;
 	}
 
 	/* Create a new pipeline */
 	MpElement *pipeline = mp_pipeline_new("cam_transform_disp");
 
 	if (pipeline == NULL) {
-		LOG_ERR("Failed to create pipeline");
-		return 0;
+		goto err;
 	}
 
 	/* Add elements to the pipeline - order does not matter */
-	if (mp_bin_add(MP_BIN(pipeline), source, transform, sink, NULL) == false) {
+	if (!mp_bin_add(MP_BIN(pipeline), source, caps_filter, transform, sink, NULL)) {
 		LOG_ERR("Failed to add elements");
-		return 0;
+		goto err;
 	}
 
 	/* Link elements together - order does matter */
-	if (mp_element_link(source, transform, sink, NULL) == false) {
+	if (!mp_element_link(source, caps_filter, transform, sink, NULL)) {
 		LOG_ERR("Failed to link elements");
-		return 0;
+		goto err;
 	}
 
 	/* Start playing */
 	if (mp_element_set_state(pipeline, MP_STATE_PLAYING) != MP_STATE_CHANGE_SUCCESS) {
 		LOG_ERR("Failed to start pipeline");
-		return 0;
+		goto err;
 	}
 
 	/* Handle message from the pipeline */
@@ -107,5 +123,9 @@ int main(void)
 
 	/* TODO: Stop pipeline and free allocated resources */
 
+	return 0;
+
+err:
+	LOG_ERR("Aborting sample");
 	return 0;
 }
