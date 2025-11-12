@@ -144,8 +144,8 @@ static MpCaps *mp_zdisp_sink_get_caps(MpSink *sink)
 	}
 
 	return mp_caps_new("video/x-raw", "format", MP_TYPE_LIST, supported_fmt, "width",
-			   MP_TYPE_INT_RANGE, DEFAULT_WIDTH_MIN, display_caps.x_resolution, 1,
-			   "height", MP_TYPE_INT_RANGE, DEFAULT_HEIGHT_MIN,
+			   MP_TYPE_UINT_RANGE, DEFAULT_WIDTH_MIN, display_caps.x_resolution, 1,
+			   "height", MP_TYPE_UINT_RANGE, DEFAULT_HEIGHT_MIN,
 			   display_caps.y_resolution, 1, NULL);
 }
 
