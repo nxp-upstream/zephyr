@@ -135,12 +135,6 @@ static bool mp_zaud_gain_chainfn(MpPad *pad, MpBuffer *buffer)
 	return true;
 }
 
-static MpCaps *mp_zaud_gain_transform_caps(MpTransform *self, MpPadDirection direction,
-					   MpCaps *incaps)
-{
-	return mp_caps_ref(incaps);
-}
-
 static MpCaps *mp_zaud_gain_get_caps(MpTransform *transform, MpPadDirection direction)
 {
 	MpValue *supported_bit_width = mp_value_new(MP_TYPE_LIST, NULL);
@@ -157,17 +151,6 @@ static MpCaps *mp_zaud_gain_get_caps(MpTransform *transform, MpPadDirection dire
 	}
 
 	return NULL;
-}
-
-static bool mp_zaud_gain_set_caps(MpTransform *transform, MpPadDirection direction, MpCaps *caps)
-{
-	if (direction == MP_PAD_SINK) {
-		mp_caps_replace(&(transform->sinkpad.caps), caps);
-	} else if (direction == MP_PAD_SRC) {
-		mp_caps_replace(&(transform->srcpad.caps), caps);
-	}
-
-	return true;
 }
 
 void mp_zaud_gain_init(MpElement *self)
@@ -190,7 +173,5 @@ void mp_zaud_gain_init(MpElement *self)
 	transform->sinkpad.chainfn = mp_zaud_gain_chainfn;
 	transform->sinkpad.caps = mp_zaud_gain_get_caps(transform, MP_PAD_SINK);
 	transform->srcpad.caps = mp_zaud_gain_get_caps(transform, MP_PAD_SRC);
-	transform->transform_caps = mp_zaud_gain_transform_caps;
 	transform->get_caps = mp_zaud_gain_get_caps;
-	transform->set_caps = mp_zaud_gain_set_caps;
 }
