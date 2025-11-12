@@ -1,21 +1,23 @@
 .. zephyr:code-sample:: libmp_camera_transform_display
    :name: Camera Transform Display Example
 
-        A sample pipeline composed of three elements: a camera source, a video transform, and a display sink.
+        A sample pipeline composed of 4 elements: a camera source, a capsfilter,
+        a video transform and a display sink.
 
 Description
 ***********
 
 ::
 
-    +-------------------+     +----------------------+     +------------------+
-    |  Source Element   | --> |  Transform Element   | --> |   Sink Element   |
-    +-------------------+     +----------------------+     +------------------+
+    +-----------------+     +--------------+     +-------------------+     +----------------+
+    |  Camera Source  | --> |  Capsfilter  | --> |  Video Transform  | --> |  Display Sink  |
+    +-----------------+     +--------------+     +-------------------+     +----------------+
 
-This example demonstrates a pipeline consisting of three elements: source, transform, and sink.
-The source element, which acts as a capture device, generates video frames and pushes them to
-the transform element. The transform element then processes these frames and forwards them to
-the sink element, which serves as a display device to render the content on screen.
+This example demonstrates a pipeline consisting of 4 elements. The camera source element generates
+video frames. The capsfilter is used to enforce a video format and/or resolution and/or framerate.
+This element is optional, without it, the pipeline is still working but with the default negotiated
+format. The video transformer then processes the video frames and forwards them to the display sink
+to render them on the screen.
 
 Requirements
 ************
