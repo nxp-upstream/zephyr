@@ -25,6 +25,21 @@ if(CONFIG_MP)
         ${MP_CORE_DIR}/*.c
     )
 
+    # Built-in elements
+    set(BUILTIN_ELEMENTS
+        "mp_capsfilter.c:CONFIG_MP_CAPSFILTER"
+    )
+
+    foreach(ELEMENT_CONFIG ${BUILTIN_ELEMENTS})
+        string(REPLACE ":" ";" ELEMENT_CONFIG_LIST ${ELEMENT_CONFIG})
+        list(GET ELEMENT_CONFIG_LIST 0 ELEMENT_FILE)
+        list(GET ELEMENT_CONFIG_LIST 1 CONFIG_OPTION)
+
+        if(NOT ${CONFIG_OPTION})
+            list(REMOVE_ITEM MP_CORE_SOURCE_FILES ${MP_CORE_DIR}/${ELEMENT_FILE})
+        endif()
+    endforeach()
+
     zephyr_library_sources(
         ${MP_BASE_DIR}/mp.c
         ${MP_CORE_SOURCE_FILES}

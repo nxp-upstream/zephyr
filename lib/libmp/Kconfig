@@ -25,6 +25,9 @@ config MP_THREAD_DEFAULT_PRIORITY
 	int "Priority of a thread"
 	default 5
 
+config MP_CAPSFILTER
+	bool "Capsfilter support"
+
 menu "Media Pipe plugins"
 
 config MP_PLUGIN_ZVID
