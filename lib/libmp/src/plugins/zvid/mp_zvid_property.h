@@ -17,7 +17,7 @@
 /**
  * @brief Zvid Transform Property Identifiers
  *
- * Defined property identifiers specific to zvid transform element. These
+ * Defined property identifiers specific to the zvid transform element. These
  * properties extend the base transform properties defined in @ref PROP_TRANSFORM.
  *
  * The enumeration starts from @ref PROP_TRANSFORM_LAST + 1 to ensure no
