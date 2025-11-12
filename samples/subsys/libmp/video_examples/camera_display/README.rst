@@ -1,7 +1,7 @@
-.. zephyr:code-sample:: video_examples/camera_display
-        :name: Camera Display Example
+.. zephyr:code-sample:: libmp_camera_display
+   :name: Camera Display Example
 
-        A sample pipeline composed of two elements: a camera source and a display sink.
+   A sample pipeline composed of two elements: a camera source and a display sink.
 
 Description
 ***********
@@ -24,8 +24,10 @@ Requirements
 * Sufficient RAM for video buffering
 
 This sample has been tested on the following boards:
-* native_sim/native/64
-* mimxrt1170_evk@B/mimxrt1176/cm7
+
+- :zephyr:board:`native_sim`
+
+- :zephyr:board:`mimxrt1170_evk`
 
 Building and Running
 ********************

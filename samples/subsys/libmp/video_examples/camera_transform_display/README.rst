@@ -1,5 +1,5 @@
-.. zephyr:code-sample:: video_examples/camera_transform_display
-        :name: Camera Transform Display Example
+.. zephyr:code-sample:: libmp_camera_transform_display
+   :name: Camera Transform Display Example
 
         A sample pipeline composed of three elements: a camera source, a video transform, and a display sink.
 
@@ -25,7 +25,8 @@ Requirements
 * Sufficient RAM for video buffering
 
 This sample has been tested on the following boards:
-* mimxrt1170_evk@B/mimxrt1176/cm7
+
+- :zephyr:board:`mimxrt1170_evk`
 
 Building and Running
 ********************
