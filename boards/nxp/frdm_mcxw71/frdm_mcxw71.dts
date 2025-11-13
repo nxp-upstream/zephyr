@@ -189,7 +189,17 @@
 		};
 
 		storage_partition: partition@E4000 {
-			reg = <0xE4000 DT_SIZE_K(104)>;
+			reg = <0xE4000 DT_SIZE_K(72)>;
+		};
+
+		zb_nvram1: partition@F6000 {
+			label = "zb-nvram1";
+			reg = <0xF6000 DT_SIZE_K(16)>;
+		};
+
+		zb_nvram2: partition@FA000 {
+			label = "zb-nvram2";
+			reg = <0xFA000 DT_SIZE_K(16)>;
 		};
 
 		hw_params_partition: partition@FE000 {
