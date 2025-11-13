@@ -82,4 +82,10 @@ config NXP_RF_IMU
 	help
 	   RF_IMU adapter is needed for intercore messaging.
 
+config NXP_IEEE802154_MAC
+	bool "Enable communication with NBU MAC core"
+	depends on !IEEE802154
+	help
+	   NBU MAC dependencies.
+
 endif # HAS_MCUX
