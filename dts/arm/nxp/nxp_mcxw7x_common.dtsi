@@ -134,12 +134,6 @@
 		interrupts = <1 0>;
 	};
 
-	spc: system-modules@16000 {
-		compatible = "nxp,spc";
-		reg = <0x16000 0x1000>;
-		interrupts = <21 0>;
-	};
-
 	wuu: system-modules@19000 {
 		compatible = "nxp,wuu";
 		reg = <0x19000 0x1000>;
