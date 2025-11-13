@@ -131,7 +131,17 @@
 		#size-cells = <1>;
 
 		code_partition: partition@0 {
-			reg = <0x0 DT_SIZE_K(2024)>;
+			reg = <0x0 DT_SIZE_K(1992)>;
+		};
+
+		zb_nvram1: partition@1F2000 {
+			label = "zb-nvram1";
+			reg = <0x1F2000 DT_SIZE_K(16)>;
+		};
+
+		zb_nvram2: partition@1F6000 {
+			label = "zb-nvram2";
+			reg = <0x1F6000 DT_SIZE_K(16)>;
 		};
 
 		storage_partition: partition@1FA000 {
