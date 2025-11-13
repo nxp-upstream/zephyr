@@ -40,47 +40,44 @@ extern "C" {
 #define CACHE_DEVICE_TYPE_UNIFIED     (CACHE_DEVICE_TYPE_INSTRUCTION | CACHE_DEVICE_TYPE_DATA)
 /** @} */
 
+/* Cache purpose removed: device caches in this model are external by nature. */
+
 /**
- * @brief Cache purpose definitions
- * @name Cache Purpose
- * @{
+ * @brief Cache attribute flags (capabilities)
+ *
+ * These describe cache capabilities similar to Linux cacheinfo attributes.
  */
-#define CACHE_DEVICE_PURPOSE_INTERNAL_FLASH   BIT(0)
-#define CACHE_DEVICE_PURPOSE_EXTERNAL_FLASH   BIT(1)
-#define CACHE_DEVICE_PURPOSE_SYSTEM          BIT(2)
-/** @} */
+#define CACHE_DEVICE_ATTR_WRITE_THROUGH  BIT(0)
+#define CACHE_DEVICE_ATTR_WRITE_BACK     BIT(1)
+#define CACHE_DEVICE_ATTR_READ_ALLOCATE  BIT(2)
+#define CACHE_DEVICE_ATTR_WRITE_ALLOCATE BIT(3)
 
-/* Cache information structure removed to keep API minimal. */
-
-/* -------------------------------------------------------------------------
- * Region-based cache policy (simple API)
- * ------------------------------------------------------------------------- */
-
-/* Per-range cache policy. */
-enum cache_device_region_policy {
-    CACHE_DEVICE_POLICY_NONCACHEABLE = 0,  /* Bypass the cache */
-    CACHE_DEVICE_POLICY_WRITE_THROUGH = 1, /* Cacheable, writes propagate */
-    CACHE_DEVICE_POLICY_WRITE_BACK    = 2, /* Cacheable, write-back */
+/**
+ * @brief Cache information structure (device cache)
+ *
+ * Describes a device cache controller instance. This is distinct from
+ * architecture/core caches in zephyr/include/zephyr/cache.h.
+ */
+struct cache_device_info {
+    /** Optional identifier unique within (type, level) for this device cache */
+    uint32_t id;
+    /** Cache type (instruction, data, or unified), see CACHE_DEVICE_TYPE_* */
+    uint32_t cache_type;
+    /** Cache level (1 for L1, 2 for L2, etc.) */
+    uint32_t cache_level;
+    /** Cache line size in bytes (coherency line size) */
+    uint32_t line_size;
+    /** Number of ways (associativity) */
+    uint32_t ways;
+    /** Number of sets */
+    uint32_t sets;
+    /** Physical line partition (if applicable, else 0) */
+    uint32_t physical_line_partition;
+    /** Total cache size in bytes */
+    uint32_t size;
+    /** Capability attributes bitfield, see CACHE_DEVICE_ATTR_* */
+    uint32_t attributes;
 };
-
-/**
- * @brief Set cache policy for a memory range.
- *
- * Program the device-side cache policy for [start, start+length-1].
- * Implementations may align start/length to hardware granularity and may
- * coalesce with existing regions as required by the controller.
- *
- * Boundary semantics follow typical device caches (e.g., CACHE64): the
- * boundary address is part of the upper region when partitioning.
- *
- * @param start  Start system address.
- * @param length Length in bytes; must be > 0.
- * @param policy Desired cache policy for the range.
- * @return 0 on success, -EINVAL on invalid args, -ENOTSUP if unsupported.
- */
-int cache_device_set_range_policy(uintptr_t start,
-                                  size_t length,
-                                  enum cache_device_region_policy policy);
 
 /**
  * @cond INTERNAL_HIDDEN
@@ -124,7 +121,11 @@ typedef int (*cache_device_api_flush_and_invalidate_all)(const struct device *de
  * based on the address window.
  */
 
-/* get_info callback removed. */
+/**
+ * @typedef cache_device_api_get_info
+ * @brief API for getting cache information
+ */
+typedef int (*cache_device_api_get_info)(const struct device *dev, struct cache_device_info *info);
 
 /**
  * @brief Extended cache driver API
@@ -135,7 +136,8 @@ __subsystem struct cache_device_driver_api {
     cache_device_api_flush_all flush_all;
     cache_device_api_invalidate_all invalidate_all;
     cache_device_api_flush_and_invalidate_all flush_and_invalidate_all;
-    /* Range callbacks removed from per-device API; get_info removed. */
+    /** Optional: get cache info */
+    cache_device_api_get_info get_info;
 };
 
 /** @endcond */
@@ -315,7 +317,34 @@ int cache_device_instr_flush_range(void *addr, size_t size);
 int cache_device_instr_invalidate_range(void *addr, size_t size);
 int cache_device_instr_flush_and_invalidate_range(void *addr, size_t size);
 
-/* cache_device_get_info() removed. */
+/**
+ * @brief Get cache information for a device cache instance
+ *
+ * @param dev Cache device instance
+ * @param info Pointer to cache info structure to fill
+ *
+ * @return 0 if successful
+ * @return -EINVAL if info parameter is NULL
+ * @return -ENOSYS if operation not supported by this device
+ * @return -errno code if failure
+ */
+__syscall int cache_device_get_info(const struct device *dev, struct cache_device_info *info);
+
+static inline int z_impl_cache_device_get_info(const struct device *dev, struct cache_device_info *info)
+{
+    const struct cache_device_driver_api *api =
+        (const struct cache_device_driver_api *)dev->api;
+
+    if (!info) {
+        return -EINVAL;
+    }
+
+    if (!api->get_info) {
+        return -ENOSYS;
+    }
+
+    return api->get_info(dev, info);
+}
 
 #ifdef __cplusplus
 }
