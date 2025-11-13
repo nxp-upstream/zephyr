@@ -19,6 +19,16 @@ LOG_MODULE_REGISTER(main, CONFIG_LOG_DEFAULT_LEVEL);
 const char *led_label[] = {
 	DT_FOREACH_CHILD_SEP_VARGS(LED_PWM_NODE_ID, DT_PROP_OR, (,), label, NULL)
 };
+#if CONFIG_BLINK_DELAY_AUTO_FALLBACK
+/* Generic macro to get PWM period for each child */
+#define GET_LED_PERIOD(node_id) DT_PWMS_PERIOD(node_id),
+
+/* Create array of PWM periods */
+static const uint32_t led_periods_ns[] = {
+	DT_FOREACH_CHILD(LED_PWM_NODE_ID, GET_LED_PERIOD)
+};
+#endif
+
 
 const int num_leds = ARRAY_SIZE(led_label);
 
@@ -34,6 +44,7 @@ static void run_led_test(const struct device *led_pwm, uint8_t led)
 {
 	int err;
 	int16_t level;
+	uint32_t led_delay;
 
 	LOG_INF("Testing LED %d - %s", led, led_label[led] ? : "no label");
 
@@ -80,31 +91,61 @@ static void run_led_test(const struct device *led_pwm, uint8_t led)
 	k_sleep(K_MSEC(1000));
 
 #if CONFIG_BLINK_DELAY_SHORT > 0
+	led_delay = CONFIG_BLINK_DELAY_SHORT;
 	/* Start LED blinking (short cycle) */
-	err = led_blink(led_pwm, led, CONFIG_BLINK_DELAY_SHORT, CONFIG_BLINK_DELAY_SHORT);
+	err = led_blink(led_pwm, led, led_delay, led_delay);
 	if (err < 0) {
-		LOG_ERR("err=%d", err);
-		return;
+#if CONFIG_BLINK_DELAY_AUTO_FALLBACK && CONFIG_BLINK_DELAY_SHORT_LED_PERIOD_DIV > 0
+		LOG_INF("CONFIG_BLINK_DELAY_SHORT (%d ms) exceeds PWM capabilities for LED. %d",
+			CONFIG_BLINK_DELAY_SHORT, led);
+
+		led_delay = led_periods_ns[led] / 1000000 /
+			CONFIG_BLINK_DELAY_SHORT_LED_PERIOD_DIV / 2;
+		/* Ensure minimum 1ms for visibility */
+		led_delay = MAX(1, led_delay);
+
+		LOG_INF("Auto-calculating delay: %u ms.", led_delay);
+
+		err = led_blink(led_pwm, led, led_delay, led_delay);
+#endif
+		if (err < 0) {
+			LOG_ERR("err=%d", err);
+			return;
+		}
 	}
 	LOG_INF("  Blinking "
-		"on: " STRINGIFY(CONFIG_BLINK_DELAY_SHORT) " msec, "
-		"off: " STRINGIFY(CONFIG_BLINK_DELAY_SHORT) " msec");
+		"on: %d msec, "
+		"off: %d msec", led_delay, led_delay);
 	k_sleep(K_MSEC(5000));
 #endif
 
 #if CONFIG_BLINK_DELAY_LONG > 0
+	led_delay = CONFIG_BLINK_DELAY_LONG;
 	/* Start LED blinking (long cycle) */
-	err = led_blink(led_pwm, led, CONFIG_BLINK_DELAY_LONG, CONFIG_BLINK_DELAY_LONG);
+	err = led_blink(led_pwm, led, led_delay, led_delay);
 	if (err < 0) {
-		LOG_ERR("err=%d", err);
-		LOG_INF("  Cycle period not supported - "
-			"on: " STRINGIFY(CONFIG_BLINK_DELAY_LONG) "  msec, "
-			"off: " STRINGIFY(CONFIG_BLINK_DELAY_LONG) " msec");
-	} else {
-		LOG_INF("  Blinking "
-			"on: " STRINGIFY(CONFIG_BLINK_DELAY_LONG) " msec, "
-			"off: " STRINGIFY(CONFIG_BLINK_DELAY_LONG) " msec");
+#if CONFIG_BLINK_DELAY_AUTO_FALLBACK && CONFIG_BLINK_DELAY_LONG_LED_PERIOD_DIV > 0
+		LOG_INF("CONFIG_BLINK_DELAY_LONG (%d ms) exceeds PWM capabilities for LED. %d",
+			CONFIG_BLINK_DELAY_LONG, led);
+		led_delay = led_periods_ns[led] / 1000000 /
+			CONFIG_BLINK_DELAY_LONG_LED_PERIOD_DIV / 2;
+		/* Ensure minimum 1ms for visibility */
+		led_delay = MAX(1, led_delay);
+
+		LOG_INF("Auto-calculating delay: %u ms.", led_delay);
+
+		err = led_blink(led_pwm, led, led_delay, led_delay);
+#endif
+		if (err < 0) {
+			LOG_ERR("err=%d", err);
+			LOG_INF("  Cycle period not supported - "
+				"on: %d msec, "
+				"off: %d msec", led_delay, led_delay);
+		}
 	}
+	LOG_INF("  Blinking "
+		"on: %d msec, "
+		"off: %d msec", led_delay, led_delay);
 	k_sleep(K_MSEC(5000));
 #endif
 
