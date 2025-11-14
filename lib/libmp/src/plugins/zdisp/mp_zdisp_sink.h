@@ -16,20 +16,20 @@
 
 #include <src/core/mp_sink.h>
 
-#define MP_ZDISP_SINK(self) ((MpZdispSink *)self)
+#define MP_ZDISP_SINK(self) ((struct mp_zdisp_sink *)self)
 
 /**
  * @brief Display Sink structure
  *
  * This structure represents a display sink element that can render
- * image on a display device. It extends the base @ref MpSink
+ * image on a display device. It extends the base @ref struct mp_sink
  * functionality with display-specific capabilities.
  */
-typedef struct {
+struct mp_zdisp_sink {
 	/** Base sink element */
-	MpSink sink;
+	struct mp_sink sink;
 	/** Display device instance */
 	const struct device *display_dev;
-} MpZdispSink;
+};
 
 #endif /* __MP_ZDISP_SINK_H__ */
