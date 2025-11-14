@@ -19,19 +19,19 @@ int main(void)
 	int ret;
 
 	/* Create elements */
-	MpElement *source = mp_element_factory_create("zvid_src", "camsrc");
+	struct mp_element *source = mp_element_factory_create("zvid_src", "camsrc");
 
 	if (source == NULL) {
 		goto err;
 	}
 
-	MpElement *caps_filter = mp_element_factory_create("capsfilter", "capsfilter");
+	struct mp_element *caps_filter = mp_element_factory_create("capsfilter", "capsfilter");
 
 	if (caps_filter == NULL) {
 		goto err;
 	}
 
-	MpElement *sink = mp_element_factory_create("zdisp_sink", "dispsink");
+	struct mp_element *sink = mp_element_factory_create("zdisp_sink", "dispsink");
 
 	if (sink == NULL) {
 		goto err;
@@ -44,7 +44,7 @@ int main(void)
 		goto err;
 	}
 
-	MpCaps *filtered_caps =
+	struct mp_caps *filtered_caps =
 		mp_caps_new("video/x-raw", "width",
 			    MP_TYPE_UINT, 320, "height", MP_TYPE_UINT, 240, "framerate",
 			    MP_TYPE_UINT_FRACTION, 30, 1, NULL);
@@ -61,7 +61,7 @@ int main(void)
 	}
 
 	/* Create a new pipeline */
-	MpElement *pipeline = mp_pipeline_new("cam_disp");
+	struct mp_element *pipeline = mp_pipeline_new("cam_disp");
 
 	if (pipeline == NULL) {
 		goto err;
@@ -86,9 +86,9 @@ int main(void)
 	}
 
 	/* Handle message from the pipeline */
-	MpBus *bus = mp_element_get_bus(pipeline);
+	struct mp_bus *bus = mp_element_get_bus(pipeline);
 	/* Wait until an Error or an EOS - blocking */
-	MpMessage *msg = mp_bus_pop_msg(bus, MP_MESSAGE_ERROR | MP_MESSAGE_EOS);
+	struct mp_message *msg = mp_bus_pop_msg(bus, MP_MESSAGE_ERROR | MP_MESSAGE_EOS);
 
 	if (msg != NULL) {
 		switch (MP_MESSAGE_TYPE(msg)) {
