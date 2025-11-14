@@ -11,9 +11,9 @@
 
 LOG_MODULE_REGISTER(mp_zaud_buffer_pool, CONFIG_LIBMP_LOG_LEVEL);
 
-static bool mp_zaud_buffer_pool_config(MpBufferPool *pool, MpStructure *config)
+static bool mp_zaud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_structure *config)
 {
-	mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
+	struct mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
 	void *aligned_buffer = NULL;
 
 	int sample_rate = mp_value_get_int(mp_structure_get_value(config, "samplerate"));
@@ -42,7 +42,7 @@ static bool mp_zaud_buffer_pool_config(MpBufferPool *pool, MpStructure *config)
 	pool->config.align = bit_width >> 3;
 
 	/* Allocate just the pool's buffers structure */
-	pool->buffers = k_calloc(pool->config.min_buffers, sizeof(MpBuffer));
+	pool->buffers = k_calloc(pool->config.min_buffers, sizeof(struct mp_buffer));
 	if (pool->buffers == NULL) {
 		LOG_ERR("Unable to allocate pool buffer");
 		return false;
@@ -76,9 +76,9 @@ static bool mp_zaud_buffer_pool_config(MpBufferPool *pool, MpStructure *config)
 	return true;
 }
 
-static bool mp_zaud_buffer_pool_stop(MpBufferPool *pool)
+static bool mp_zaud_buffer_pool_stop(struct mp_buffer_pool *pool)
 {
-	mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
+	struct mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
 
 	if (pool->buffers != NULL) {
 		k_free(pool->buffers);
@@ -96,9 +96,9 @@ static bool mp_zaud_buffer_pool_stop(MpBufferPool *pool)
 	return true;
 }
 
-void mp_zaud_buffer_pool_init(MpBufferPool *pool)
+void mp_zaud_buffer_pool_init(struct mp_buffer_pool *pool)
 {
-	mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
+	struct mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
 
 	zaud_pool->zaud_dev = NULL;
 	zaud_pool->mem_slab = NULL;

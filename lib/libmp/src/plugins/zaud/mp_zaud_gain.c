@@ -36,9 +36,9 @@ static int32_t percent_to_fixed_gain(int gain_percent)
 	return (gain_percent * GAIN_UNITY_FIXED) / 100;
 }
 
-static int mp_zaud_gain_set_property(MpObject *obj, uint32_t key, const void *val)
+static int mp_zaud_gain_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
-	mp_zaud_gain *self = MP_ZAUD_GAIN(obj);
+	struct mp_zaud_gain *self = MP_ZAUD_GAIN(obj);
 
 	switch (key) {
 	case PROP_GAIN:
@@ -59,9 +59,9 @@ static int mp_zaud_gain_set_property(MpObject *obj, uint32_t key, const void *va
 	return 0;
 }
 
-static int mp_zaud_gain_get_property(MpObject *obj, uint32_t key, void *val)
+static int mp_zaud_gain_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
-	mp_zaud_gain *self = MP_ZAUD_GAIN(obj);
+	struct mp_zaud_gain *self = MP_ZAUD_GAIN(obj);
 
 	switch (key) {
 	case PROP_GAIN:
@@ -75,7 +75,7 @@ static int mp_zaud_gain_get_property(MpObject *obj, uint32_t key, void *val)
 	return 0;
 }
 
-static void apply_gain_16bit(MpBuffer *buffer, int32_t gain_fixed)
+static void apply_gain_16bit(struct mp_buffer *buffer, int32_t gain_fixed)
 {
 	int16_t *samples = (int16_t *)buffer->data;
 	size_t num_samples = buffer->size / sizeof(int16_t);
@@ -95,7 +95,7 @@ static void apply_gain_16bit(MpBuffer *buffer, int32_t gain_fixed)
 	}
 }
 
-static void apply_audio_gain(MpBuffer *buffer, int32_t gain_fixed, uint8_t bit_width)
+static void apply_audio_gain(struct mp_buffer *buffer, int32_t gain_fixed, uint8_t bit_width)
 {
 	/* Handle other bit widths */
 	switch (bit_width) {
@@ -108,10 +108,10 @@ static void apply_audio_gain(MpBuffer *buffer, int32_t gain_fixed, uint8_t bit_w
 	}
 }
 
-static bool mp_zaud_gain_chainfn(MpPad *pad, MpBuffer *buffer)
+static bool mp_zaud_gain_chainfn(struct mp_pad *pad, struct mp_buffer *buffer)
 {
-	MpTransform *transform = MP_TRANSFORM(pad->object.container);
-	mp_zaud_gain *zaud_gain = MP_ZAUD_GAIN(pad->object.container);
+	struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
+	struct mp_zaud_gain *zaud_gain = MP_ZAUD_GAIN(pad->object.container);
 
 	/* Validate buffer */
 	if (!buffer || !buffer->data || buffer->size == 0) {
@@ -135,9 +135,10 @@ static bool mp_zaud_gain_chainfn(MpPad *pad, MpBuffer *buffer)
 	return true;
 }
 
-static MpCaps *mp_zaud_gain_get_caps(MpTransform *transform, MpPadDirection direction)
+static struct mp_caps *mp_zaud_gain_get_caps(struct mp_transform *transform,
+					     enum mp_pad_direction direction)
 {
-	MpValue *supported_bit_width = mp_value_new(MP_TYPE_LIST, NULL);
+	struct mp_value *supported_bit_width = mp_value_new(MP_TYPE_LIST, NULL);
 
 	mp_value_list_append(supported_bit_width, mp_value_new(MP_TYPE_UINT, MP_ZAUD_BIT_WIDTH_16));
 
@@ -153,10 +154,10 @@ static MpCaps *mp_zaud_gain_get_caps(MpTransform *transform, MpPadDirection dire
 	return NULL;
 }
 
-void mp_zaud_gain_init(MpElement *self)
+void mp_zaud_gain_init(struct mp_element *self)
 {
-	MpTransform *transform = MP_TRANSFORM(self);
-	mp_zaud_gain *zaud_gain = MP_ZAUD_GAIN(self);
+	struct mp_transform *transform = MP_TRANSFORM(self);
+	struct mp_zaud_gain *zaud_gain = MP_ZAUD_GAIN(self);
 
 	/* Init base class */
 	mp_transform_init(self);

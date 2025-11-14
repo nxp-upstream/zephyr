@@ -19,9 +19,9 @@ LOG_MODULE_REGISTER(mp_zaud_i2s_codec_sink, CONFIG_LIBMP_LOG_LEVEL);
 #define DEFAULT_PROP_I2S_DEVICE   DEVICE_DT_GET(DT_ALIAS(i2s_codec_tx))
 #define DEFAULT_PROP_CODEC_DEVICE DEVICE_DT_GET(DT_NODELABEL(audio_codec));
 
-static int mp_zaud_i2s_codec_sink_set_property(MpObject *obj, uint32_t key, const void *val)
+static int mp_zaud_i2s_codec_sink_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
-	mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = MP_ZAUD_I2S_CODEC_SINK(obj);
+	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = MP_ZAUD_I2S_CODEC_SINK(obj);
 
 	switch (key) {
 	case PROP_ZAUD_SINK_SLAB_PTR:
@@ -34,9 +34,9 @@ static int mp_zaud_i2s_codec_sink_set_property(MpObject *obj, uint32_t key, cons
 	return 0;
 }
 
-static int mp_zaud_i2s_codec_sink_get_property(MpObject *obj, uint32_t key, void *val)
+static int mp_zaud_i2s_codec_sink_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
-	mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = MP_ZAUD_I2S_CODEC_SINK(obj);
+	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = MP_ZAUD_I2S_CODEC_SINK(obj);
 
 	if (val == NULL) {
 		return -1;
@@ -56,7 +56,7 @@ static int mp_zaud_i2s_codec_sink_get_property(MpObject *obj, uint32_t key, void
 	return 0;
 }
 
-static MpCaps *mp_zaud_i2s_codec_sink_get_caps(MpSink *sink)
+static struct mp_caps *mp_zaud_i2s_codec_sink_get_caps(struct mp_sink *sink)
 {
 	int i = 0;
 	struct audio_caps i2s_caps;
@@ -65,8 +65,8 @@ static MpCaps *mp_zaud_i2s_codec_sink_get_caps(MpSink *sink)
 	i2s_get_caps(MP_ZAUD_I2S_CODEC_SINK(sink)->i2s_dev, &i2s_caps);
 	audio_codec_get_caps(MP_ZAUD_I2S_CODEC_SINK(sink)->codec_dev, &codec_caps);
 
-	MpValue *supported_sample_rate = mp_value_new(MP_TYPE_LIST, NULL);
-	MpValue *supported_bit_width = mp_value_new(MP_TYPE_LIST, NULL);
+	struct mp_value *supported_sample_rate = mp_value_new(MP_TYPE_LIST, NULL);
+	struct mp_value *supported_bit_width = mp_value_new(MP_TYPE_LIST, NULL);
 
 	uint32_t sample_rates = i2s_caps.supported_sample_rates & codec_caps.supported_sample_rates;
 	uint32_t bit_widths = i2s_caps.supported_bit_widths & codec_caps.supported_bit_widths;
@@ -98,8 +98,8 @@ static MpCaps *mp_zaud_i2s_codec_sink_get_caps(MpSink *sink)
 		return NULL;
 	}
 
-	MpCaps *caps = mp_caps_new(NULL);
-	MpStructure *structure = mp_structure_new(
+	struct mp_caps *caps = mp_caps_new(NULL);
+	struct mp_structure *structure = mp_structure_new(
 		"audio/pcm", "samplerate", MP_TYPE_LIST, supported_sample_rate, "bitwidth",
 		MP_TYPE_LIST, supported_bit_width, "numOfchannel", MP_TYPE_INT_RANGE,
 		(i2s_caps.min_total_channels > codec_caps.min_total_channels)
@@ -126,13 +126,13 @@ static MpCaps *mp_zaud_i2s_codec_sink_get_caps(MpSink *sink)
 	return caps;
 }
 
-static bool mp_zaud_i2s_codec_sink_set_caps(MpSink *sink, MpCaps *caps)
+static bool mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
 {
-	mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = MP_ZAUD_I2S_CODEC_SINK(sink);
+	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = MP_ZAUD_I2S_CODEC_SINK(sink);
 	struct i2s_config config;
 	struct audio_codec_cfg audio_cfg;
 
-	MpStructure *first_structure = mp_caps_get_structure(caps, 0);
+	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
 
 	int sample_rate = mp_value_get_int(mp_structure_get_value(first_structure, "samplerate"));
 	int bit_width = mp_value_get_int(mp_structure_get_value(first_structure, "bitwidth"));
@@ -187,9 +187,10 @@ static bool mp_zaud_i2s_codec_sink_set_caps(MpSink *sink, MpCaps *caps)
 	return true;
 }
 
-bool mp_zaud_i2s_codec_sink_chainfn(MpPad *pad, MpBuffer *buffer)
+bool mp_zaud_i2s_codec_sink_chainfn(struct mp_pad *pad, struct mp_buffer *buffer)
 {
-	mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = MP_ZAUD_I2S_CODEC_SINK(pad->object.container);
+	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink =
+		MP_ZAUD_I2S_CODEC_SINK(pad->object.container);
 	int ret = -1;
 
 	ret = i2s_write(zaud_i2s_codec_sink->i2s_dev, buffer->data, buffer->size);
@@ -208,10 +209,10 @@ bool mp_zaud_i2s_codec_sink_chainfn(MpPad *pad, MpBuffer *buffer)
 	return true;
 }
 
-void mp_zaud_i2s_codec_sink_init(MpElement *self)
+void mp_zaud_i2s_codec_sink_init(struct mp_element *self)
 {
-	MpSink *sink = MP_SINK(self);
-	mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = MP_ZAUD_I2S_CODEC_SINK(self);
+	struct mp_sink *sink = MP_SINK(self);
+	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = MP_ZAUD_I2S_CODEC_SINK(self);
 
 	/* Init base class */
 	mp_sink_init(self);
