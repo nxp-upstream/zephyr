@@ -8,12 +8,12 @@
 
 #include "mp_query.h"
 
-static MpQuery *mp_query_new(MpQueryType type, ...)
+static struct mp_query *mp_query_new(enum mp_query_type type, ...)
 {
 	va_list args;
-	MpValue *value;
+	struct mp_value *value;
 	const char *field_name;
-	MpQuery *query = (MpQuery *)k_malloc(sizeof(MpQuery));
+	struct mp_query *query = (struct mp_query *)k_malloc(sizeof(struct mp_query));
 
 	if (query == NULL) {
 		return NULL;
@@ -34,18 +34,18 @@ static MpQuery *mp_query_new(MpQueryType type, ...)
 	return query;
 }
 
-void mp_query_destroy(MpQuery *query)
+void mp_query_destroy(struct mp_query *query)
 {
 	mp_structure_clear(&query->structure);
 	k_free(query);
 }
 
-MpQuery *mp_query_new_caps(MpCaps *caps)
+struct mp_query *mp_query_new_caps(struct mp_caps *caps)
 {
 	return mp_query_new(MP_QUERY_CAPS, "caps", MP_TYPE_OBJECT, caps, NULL);
 }
 
-MpCaps *mp_query_get_caps(MpQuery *query)
+struct mp_caps *mp_query_get_caps(struct mp_query *query)
 {
 	if (query == NULL || query->type != MP_QUERY_CAPS) {
 		return NULL;
@@ -54,13 +54,13 @@ MpCaps *mp_query_get_caps(MpQuery *query)
 	return MP_CAPS(mp_value_get_object(mp_structure_get_value(&query->structure, "caps")));
 }
 
-bool mp_query_set_caps(MpQuery *query, MpCaps *caps)
+bool mp_query_set_caps(struct mp_query *query, struct mp_caps *caps)
 {
 	if (query == NULL || query->type != MP_QUERY_CAPS) {
 		return false;
 	}
 
-	MpValue *value = mp_structure_get_value(&query->structure, "caps");
+	struct mp_value *value = mp_structure_get_value(&query->structure, "caps");
 
 	if (value) {
 		mp_value_set(value, MP_TYPE_OBJECT, caps);
@@ -71,14 +71,14 @@ bool mp_query_set_caps(MpQuery *query, MpCaps *caps)
 	return true;
 }
 
-MpQuery *mp_query_new_allocation(MpCaps *caps)
+struct mp_query *mp_query_new_allocation(struct mp_caps *caps)
 {
 	return mp_query_new(MP_QUERY_ALLOCATION, "allocation", MP_TYPE_OBJECT, caps, NULL);
 }
 
-static bool mp_query_set_ptr(MpQuery *query, void *ptr, const char *name)
+static bool mp_query_set_ptr(struct mp_query *query, void *ptr, const char *name)
 {
-	MpValue *value;
+	struct mp_value *value;
 
 	if (query == NULL || query->type != MP_QUERY_ALLOCATION) {
 		return false;
@@ -94,7 +94,7 @@ static bool mp_query_set_ptr(MpQuery *query, void *ptr, const char *name)
 	return true;
 }
 
-static void *mp_query_get_ptr(MpQuery *query, const char *name)
+static void *mp_query_get_ptr(struct mp_query *query, const char *name)
 {
 	if (query == NULL || query->type != MP_QUERY_ALLOCATION) {
 		return NULL;
@@ -103,22 +103,22 @@ static void *mp_query_get_ptr(MpQuery *query, const char *name)
 	return mp_value_get_ptr(mp_structure_get_value(&query->structure, name));
 }
 
-bool mp_query_set_pool(MpQuery *query, MpBufferPool *pool)
+bool mp_query_set_pool(struct mp_query *query, struct mp_buffer_pool *pool)
 {
 	return mp_query_set_ptr(query, pool, "pool");
 }
 
-bool mp_query_set_pool_config(MpQuery *query, MpBufferPoolConfig *config)
+bool mp_query_set_pool_config(struct mp_query *query, struct mp_buffer_pool_config *config)
 {
 	return mp_query_set_ptr(query, config, "pool_config");
 }
 
-MpBufferPool *mp_query_get_pool(MpQuery *query)
+struct mp_buffer_pool *mp_query_get_pool(struct mp_query *query)
 {
-	return (MpBufferPool *)mp_query_get_ptr(query, "pool");
+	return (struct mp_buffer_pool *)mp_query_get_ptr(query, "pool");
 }
 
-MpBufferPoolConfig *mp_query_get_pool_config(MpQuery *query)
+struct mp_buffer_pool_config *mp_query_get_pool_config(struct mp_query *query)
 {
-	return (MpBufferPoolConfig *)mp_query_get_ptr(query, "pool_config");
+	return (struct mp_buffer_pool_config *)mp_query_get_ptr(query, "pool_config");
 }

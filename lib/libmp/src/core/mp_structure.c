@@ -11,13 +11,13 @@
 #include "mp_structure.h"
 #include "mp_value.h"
 
-typedef struct {
+struct mp_structure_field {
 	const char *name;
-	MpValue *value;
+	struct mp_value *value;
 	sys_snode_t node;
-} MpStructureField;
+};
 
-void mp_structure_init(MpStructure *structure, const char *name)
+void mp_structure_init(struct mp_structure *structure, const char *name)
 {
 	if (structure != NULL) {
 		structure->name = name;
@@ -25,56 +25,57 @@ void mp_structure_init(MpStructure *structure, const char *name)
 	}
 }
 
-MpStructure *mp_structure_new_empty(const char *name)
+struct mp_structure *mp_structure_new_empty(const char *name)
 {
-	MpStructure *structure = k_malloc(sizeof(MpStructure));
+	struct mp_structure *structure = k_malloc(sizeof(struct mp_structure));
 
 	mp_structure_init(structure, name);
 
 	return structure;
 }
 
-void mp_structure_clear(MpStructure *structure)
+void mp_structure_clear(struct mp_structure *structure)
 {
-	MpStructureField *field;
+	struct mp_structure_field *field;
 
 	if (structure == NULL) {
 		return;
 	}
 
 	while (!sys_slist_is_empty(&structure->fields)) {
-		field = CONTAINER_OF(sys_slist_get(&structure->fields), MpStructureField, node);
+		field = CONTAINER_OF(sys_slist_get(&structure->fields), struct mp_structure_field,
+				     node);
 		mp_value_destroy(field->value);
 		k_free(field);
 	}
 }
 
-void mp_structure_destroy(MpStructure *structure)
+void mp_structure_destroy(struct mp_structure *structure)
 {
 	mp_structure_clear(structure);
 	k_free(structure);
 }
 
-void mp_structure_append(MpStructure *structure, const char *name, MpValue *value)
+void mp_structure_append(struct mp_structure *structure, const char *name, struct mp_value *value)
 {
-	MpStructureField *field;
+	struct mp_structure_field *field;
 
 	if (structure == NULL || name == NULL || value == NULL) {
 		return;
 	}
 
-	field = k_malloc(sizeof(MpStructureField));
+	field = k_malloc(sizeof(struct mp_structure_field));
 	field->name = name;
 	field->value = value;
 	sys_slist_append(&structure->fields, &field->node);
 }
 
-MpStructure *mp_structure_new(const char *name, ...)
+struct mp_structure *mp_structure_new(const char *name, ...)
 {
 	va_list args;
-	MpStructure *structure = k_malloc(sizeof(MpStructure));
-	MpValueType type;
-	MpValue *value;
+	struct mp_structure *structure = k_malloc(sizeof(struct mp_structure));
+	enum mp_value_type type;
+	struct mp_value *value;
 	const char *field_name;
 
 	if (structure == NULL) {
@@ -94,7 +95,7 @@ MpStructure *mp_structure_new(const char *name, ...)
 		if (type != MP_TYPE_LIST) {
 			value = mp_value_new_va_list(type, &args);
 		} else {
-			value = va_arg(args, MpValue *);
+			value = va_arg(args, struct mp_value *);
 		}
 
 		mp_structure_append(structure, field_name, value);
@@ -104,9 +105,9 @@ MpStructure *mp_structure_new(const char *name, ...)
 	return structure;
 }
 
-void mp_structure_print(MpStructure *structure)
+void mp_structure_print(struct mp_structure *structure)
 {
-	MpStructureField *field;
+	struct mp_structure_field *field;
 
 	printk("\n");
 	printk("%s\n", structure->name);
@@ -116,9 +117,9 @@ void mp_structure_print(MpStructure *structure)
 	}
 }
 
-MpValue *mp_structure_get_value(MpStructure *structure, const char *name)
+struct mp_value *mp_structure_get_value(struct mp_structure *structure, const char *name)
 {
-	MpStructureField *field;
+	struct mp_structure_field *field;
 
 	if (structure == NULL || name == NULL) {
 		return NULL;
@@ -133,9 +134,9 @@ MpValue *mp_structure_get_value(MpStructure *structure, const char *name)
 	return NULL;
 }
 
-bool mp_structure_remove_field(MpStructure *structure, const char *name)
+bool mp_structure_remove_field(struct mp_structure *structure, const char *name)
 {
-	MpStructureField *field, *prev_field = NULL;
+	struct mp_structure_field *field, *prev_field = NULL;
 
 	if (structure == NULL || name == NULL) {
 		return false;
@@ -155,16 +156,16 @@ bool mp_structure_remove_field(MpStructure *structure, const char *name)
 	return false;
 }
 
-int mp_structure_len(MpStructure *structure)
+int mp_structure_len(struct mp_structure *structure)
 {
 	return sys_slist_len(&structure->fields);
 }
 
-bool mp_structure_can_intersect(MpStructure *struct1, MpStructure *struct2)
+bool mp_structure_can_intersect(struct mp_structure *struct1, struct mp_structure *struct2)
 {
-	MpStructure *big_structure, *small_structure;
-	MpStructureField *field;
-	MpValue *compared_value, *intersect_value;
+	struct mp_structure *big_structure, *small_structure;
+	struct mp_structure_field *field;
+	struct mp_value *compared_value, *intersect_value;
 
 	if (struct1 == NULL || struct2 == NULL) {
 		return false;
@@ -201,12 +202,13 @@ bool mp_structure_can_intersect(MpStructure *struct1, MpStructure *struct2)
 	return true;
 }
 
-MpStructure *mp_structure_intersect(MpStructure *struct1, MpStructure *struct2)
+struct mp_structure *mp_structure_intersect(struct mp_structure *struct1,
+					    struct mp_structure *struct2)
 {
-	MpStructureField *field;
-	MpStructure *big_structure, *small_structure;
-	MpStructure *intersect_structure;
-	MpValue *compared_value, *intersect_value;
+	struct mp_structure_field *field;
+	struct mp_structure *big_structure, *small_structure;
+	struct mp_structure *intersect_structure;
+	struct mp_value *compared_value, *intersect_value;
 
 	if (!mp_structure_can_intersect(struct1, struct2)) {
 		return NULL;
@@ -236,11 +238,11 @@ MpStructure *mp_structure_intersect(MpStructure *struct1, MpStructure *struct2)
 	return intersect_structure;
 }
 
-MpStructure *mp_structure_duplicate(MpStructure *src)
+struct mp_structure *mp_structure_duplicate(struct mp_structure *src)
 {
-	MpStructureField *field;
-	MpStructure *dup;
-	MpValue *copy_value;
+	struct mp_structure_field *field;
+	struct mp_structure *dup;
+	struct mp_value *copy_value;
 
 	if (src == NULL) {
 		return NULL;
@@ -255,9 +257,9 @@ MpStructure *mp_structure_duplicate(MpStructure *src)
 	return dup;
 }
 
-bool mp_structure_is_fixed(MpStructure *structure)
+bool mp_structure_is_fixed(struct mp_structure *structure)
 {
-	MpStructureField *field;
+	struct mp_structure_field *field;
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&structure->fields, field, node) {
 		if (!mp_value_is_primitive(field->value)) {
@@ -268,11 +270,11 @@ bool mp_structure_is_fixed(MpStructure *structure)
 	return true;
 }
 
-MpStructure *mp_structure_fixate(MpStructure *src)
+struct mp_structure *mp_structure_fixate(struct mp_structure *src)
 {
-	MpStructureField *field;
-	MpStructure *fixated_structure = mp_structure_new_empty(src->name);
-	MpValue *fixated_value;
+	struct mp_structure_field *field;
+	struct mp_structure *fixated_structure = mp_structure_new_empty(src->name);
+	struct mp_value *fixated_value;
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&src->fields, field, node) {
 		switch (field->value->type) {

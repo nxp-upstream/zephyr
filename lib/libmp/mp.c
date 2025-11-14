@@ -22,7 +22,7 @@
 int mp_init(void)
 {
 	/* Built-in elements */
-	MP_ELEMENTFACTORY_DEFINE(pipeline, sizeof(MpPipeline), mp_pipeline_init);
+	MP_ELEMENTFACTORY_DEFINE(pipeline, sizeof(struct mp_pipeline), mp_pipeline_init);
 
 #if (CONFIG_MP_CAPSFILTER)
 	MP_ELEMENTFACTORY_DEFINE(capsfilter, sizeof(struct mp_caps_filter), mp_caps_filter_init);

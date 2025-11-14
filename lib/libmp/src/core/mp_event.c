@@ -12,9 +12,9 @@
 
 #include "mp_event.h"
 
-MpEvent *mp_event_new_custom(MpEventType type, MpStructure *structure)
+struct mp_event *mp_event_new_custom(enum mp_event_type type, struct mp_structure *structure)
 {
-	MpEvent *event = (MpEvent *)k_malloc(sizeof(MpEvent));
+	struct mp_event *event = (struct mp_event *)k_malloc(sizeof(struct mp_event));
 
 	if (event == NULL) {
 		return NULL;
@@ -27,19 +27,19 @@ MpEvent *mp_event_new_custom(MpEventType type, MpStructure *structure)
 	return event;
 }
 
-MpEvent *mp_event_new_eos(void)
+struct mp_event *mp_event_new_eos(void)
 {
 	return mp_event_new_custom(MP_EVENT_EOS, NULL);
 }
 
-MpEvent *mp_event_new_caps(MpCaps *caps)
+struct mp_event *mp_event_new_caps(struct mp_caps *caps)
 {
 
 	return mp_event_new_custom(MP_EVENT_CAPS,
 				   mp_structure_new(NULL, "caps", MP_TYPE_OBJECT, caps, NULL));
 }
 
-void mp_event_destroy(MpEvent *event)
+void mp_event_destroy(struct mp_event *event)
 {
 	if (event) {
 		mp_structure_destroy(event->structure);
@@ -47,7 +47,7 @@ void mp_event_destroy(MpEvent *event)
 	}
 }
 
-MpCaps *mp_event_get_caps(MpEvent *event)
+struct mp_caps *mp_event_get_caps(struct mp_event *event)
 {
 	if (event == NULL || event->type != MP_EVENT_CAPS) {
 		return NULL;
@@ -56,13 +56,13 @@ MpCaps *mp_event_get_caps(MpEvent *event)
 	return MP_CAPS(mp_value_get_object(mp_structure_get_value(event->structure, "caps")));
 }
 
-bool mp_event_set_caps(MpEvent *event, MpCaps *caps)
+bool mp_event_set_caps(struct mp_event *event, struct mp_caps *caps)
 {
 	if (event == NULL || event->type != MP_EVENT_CAPS || event->structure == NULL) {
 		return false;
 	}
 
-	MpValue *value = mp_structure_get_value(event->structure, "caps");
+	struct mp_value *value = mp_structure_get_value(event->structure, "caps");
 
 	if (value) {
 		mp_value_set(value, MP_TYPE_OBJECT, caps);

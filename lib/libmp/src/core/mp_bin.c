@@ -15,16 +15,16 @@
 
 LOG_MODULE_REGISTER(mp_bin, CONFIG_LIBMP_LOG_LEVEL);
 
-bool mp_bin_add(MpBin *bin, MpElement *element, ...)
+bool mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...)
 {
 	va_list args;
 
 	va_start(args, element);
-	MpBus *bus = mp_element_get_bus(&bin->element);
+	struct mp_bus *bus = mp_element_get_bus(&bin->element);
 
 	while (element) {
 		/* Check element name uniqueness in the bin */
-		MpObject *obj;
+		struct mp_object *obj;
 
 		SYS_DLIST_FOR_EACH_CONTAINER(&bin->children, obj, node) {
 			if (strcmp(element->object.name, obj->name) == 0) {
@@ -40,7 +40,7 @@ bool mp_bin_add(MpBin *bin, MpElement *element, ...)
 		bin->children_num++;
 		element->bus = bus;
 
-		element = va_arg(args, MpElement *);
+		element = va_arg(args, struct mp_element *);
 	}
 
 	va_end(args);
@@ -48,14 +48,15 @@ bool mp_bin_add(MpBin *bin, MpElement *element, ...)
 	return true;
 }
 
-MpStateChangeReturn mp_bin_change_state_func(MpElement *self, MpStateChange transition)
+enum mp_state_change_return mp_bin_change_state_func(struct mp_element *self,
+						     enum mp_state_change transition)
 {
-	MpObject *obj;
-	MpElement *element = NULL;
-	MpStateChangeReturn ret = MP_STATE_CHANGE_FAILURE;
-	MpBin *bin = MP_BIN(self);
-	MpState next = (MpState)MP_STATE_TRANSITION_NEXT(transition);
-	MpPad *first_sinkpad;
+	struct mp_object *obj;
+	struct mp_element *element = NULL;
+	enum mp_state_change_return ret = MP_STATE_CHANGE_FAILURE;
+	struct mp_bin *bin = MP_BIN(self);
+	enum mp_state next = MP_STATE_TRANSITION_NEXT(transition);
+	struct mp_pad *first_sinkpad;
 	sys_dnode_t *first_sinkpad_node;
 
 	/* TODO: Activate bin's own src pads */
@@ -87,7 +88,7 @@ MpStateChangeReturn mp_bin_change_state_func(MpElement *self, MpStateChange tran
 			break;
 		}
 
-		first_sinkpad = CONTAINER_OF(first_sinkpad_node, MpPad, object.node);
+		first_sinkpad = CONTAINER_OF(first_sinkpad_node, struct mp_pad, object.node);
 		/* Get next element */
 		element = MP_ELEMENT_CAST(first_sinkpad->peer->object.container);
 	}
@@ -97,9 +98,9 @@ MpStateChangeReturn mp_bin_change_state_func(MpElement *self, MpStateChange tran
 	return MP_STATE_CHANGE_SUCCESS;
 }
 
-void mp_bin_init(MpElement *self)
+void mp_bin_init(struct mp_element *self)
 {
-	MpBin *bin = MP_BIN(self);
+	struct mp_bin *bin = MP_BIN(self);
 
 	self->change_state = mp_bin_change_state_func;
 

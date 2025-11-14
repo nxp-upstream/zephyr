@@ -19,31 +19,20 @@
 #include "mp_messages.h"
 
 /**
- * @defgroup MpBus
+ * @defgroup mp_bus
  * @brief Message bus for the communication between elements to application
  *
  * @{
  */
 
 /**
- * Callback function for synchronous message listeners.
- *
- * @typedef MpBusSyncListenerCallback
- *
- * @param message Pointer to the received message
- * @param data User-defined data passed to the callback
- * @return true if the message was handled, false otherwise
- */
-typedef bool (*MpBusSyncListenerCallback)(MpMessage *message, void *data);
-
-/**
- * @struct MpBus
+ * @struct mp_bus
  * Message bus structure
  */
-typedef struct {
+struct mp_bus {
 	/**
 	 * FIFO queue used to store messages that are not handled by any
-	 * listener and can manually get using the @ref mp_bus_pop
+	 * listener and can manually get using the mp_bus_pop
 	 */
 	struct k_fifo fifo;
 	/**
@@ -51,29 +40,31 @@ typedef struct {
 	 * delivered to these listeners first
 	 */
 	sys_slist_t sync_listeners;
-} MpBus;
+};
+
+typedef bool (*callback_fn)(struct mp_message *message, void *data);
 
 /**
- * @struct MpBusSyncListener
+ * @struct mp_bus_sync_listener
  * Structure representing a synchronous listener on the message bus.
  */
-typedef struct {
+struct mp_bus_sync_listener {
 	/** Callback function for message handling */
-	MpBusSyncListenerCallback callback;
+	callback_fn cb;
 	/** Message type filter */
-	MpMessageType filter_type;
+	enum mp_message_type filter_type;
 	/** User-defined data passed to callback */
 	void *user_data;
 	/** Node for linked list management */
 	sys_snode_t node;
-} MpBusSyncListener;
+};
 
 /**
  * Initialize a message bus.
  *
- * @param bus Pointer to the MpBus to initialize
+ * @param bus Pointer to the struct mp_bus to initialize
  */
-static inline void mp_bus_init(MpBus *bus)
+static inline void mp_bus_init(struct mp_bus *bus)
 {
 	k_fifo_init(&bus->fifo);
 	sys_slist_init(&bus->sync_listeners);
@@ -82,71 +73,71 @@ static inline void mp_bus_init(MpBus *bus)
 /**
  * Destroy a message bus and release its resources.
  *
- * @param bus Pointer to the MpBus to destroy
+ * @param bus Pointer to the struct mp_bus to destroy
  */
-void mp_bus_destroy(MpBus *bus);
+void mp_bus_destroy(struct mp_bus *bus);
 
 /**
  * Post a message to the bus.
  *
- * @param bus Pointer to the MpBus
+ * @param bus Pointer to the struct mp_bus
  * @param message Pointer to the message to post
  * @return true if the message was posted successfully, false otherwise
  */
-bool mp_bus_post(MpBus *bus, MpMessage *message);
+bool mp_bus_post(struct mp_bus *bus, struct mp_message *message);
 
 /**
  * Flush all messages from the bus.
  *
- * @param bus Pointer to the MpBus to flush
+ * @param bus Pointer to the struct mp_bus to flush
  */
-void mp_bus_flush(MpBus *bus);
+void mp_bus_flush(struct mp_bus *bus);
 
 /**
  * Peek at the last message in the bus without removing it.
  *
- * @param bus Pointer to the MpBus
+ * @param bus Pointer to the struct mp_bus
  * @return Pointer to the message if available, NULL otherwise
  */
-MpMessage *mp_bus_peek(MpBus *bus);
+struct mp_message *mp_bus_peek(struct mp_bus *bus);
 
 /**
  * Pop the last message from the bus.
  *
- * @param bus Pointer to the MpBus
+ * @param bus Pointer to the struct mp_bus
  * @return Pointer to the popped message, or NULL if none available
  */
-MpMessage *mp_bus_pop(MpBus *bus);
+struct mp_message *mp_bus_pop(struct mp_bus *bus);
 
 /**
  * Pop a message from the bus matching a specific type.
  *
  * This function waits for a message matching the specified type mask.
  *
- * @param bus Pointer to the MpBus
+ * @param bus Pointer to the struct mp_bus
  * @param type Message type mask to match
  * @return Pointer to the matching message, or NULL if none found
  */
-MpMessage *mp_bus_pop_msg(MpBus *bus, MpMessageType type);
+struct mp_message *mp_bus_pop_msg(struct mp_bus *bus, enum mp_message_type type);
 
 /**
  * Add a synchronous listener to the bus.
  *
- * @param bus Pointer to the MpBus
- * @param func Callback function to invoke when a matching message is received
+ * @param bus Pointer to the struct mp_bus
+ * @param cb Callback function to invoke when a matching message is received
  * @param type Message type to listen for
  * @param user_data User-defined data passed to the callback
  */
-void mp_bus_add_sync_listener(MpBus *bus, MpBusSyncListenerCallback func, MpMessageType type,
+void mp_bus_add_sync_listener(struct mp_bus *bus, callback_fn cb, enum mp_message_type type,
 			      void *user_data);
 
 /**
  * Remove a synchronous listener from the bus.
  *
- * @param bus Pointer to the MpBus
+ * @param bus Pointer to the struct mp_bus
  * @param listener Pointer to the listener to remove
  */
-void mp_bus_remove_sync_listener(MpBus *bus, MpBusSyncListener *listener);
+void mp_bus_remove_sync_listener(struct mp_bus *bus, struct mp_bus_sync_listener *listener);
 
 /** @} */
 

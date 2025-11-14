@@ -8,7 +8,7 @@
 
 void initialize_plugins(void)
 {
-	STRUCT_SECTION_FOREACH(_MpPlugin, p) {
+	STRUCT_SECTION_FOREACH(mp_plugin, p) {
 		if (p->init) {
 			p->init();
 		}

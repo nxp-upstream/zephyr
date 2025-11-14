@@ -6,29 +6,28 @@
 
 /**
  * @file
- * @brief Main header for MpElementFactory.
+ * @brief Main header for mp_element_factory.
  */
 
 #ifndef __MP_ELEMENT_FACTORY_H__
 #define __MP_ELEMENT_FACTORY_H__
 
 #include <stddef.h>
-
-typedef struct _MpElement MpElement;
+#include "mp_element.h"
 
 /**
  * @brief Element Factory structure
  *
  * Defines a factory for creating specific types of elements.
  */
-typedef struct _MpElementFactory {
+struct mp_element_factory {
 	/** Factory name identifier */
 	const char *name;
 	/** Size in bytes of the element structure */
 	size_t size;
 	/** Initialization function for the element */
-	void (*init)(MpElement *element);
-} MpElementFactory;
+	void (*init)(struct mp_element *element);
+};
 
 /**
  * @brief Define and register an element factory
@@ -41,7 +40,7 @@ typedef struct _MpElementFactory {
  *
  */
 #define MP_ELEMENTFACTORY_DEFINE(fname, sz, initfunc)                                              \
-	static const STRUCT_SECTION_ITERABLE(_MpElementFactory, fname) = {                         \
+	static const STRUCT_SECTION_ITERABLE(mp_element_factory, fname) = {                        \
 		.name = STRINGIFY(fname), .size = sz, .init = initfunc,                            \
 	}
 
@@ -54,11 +53,11 @@ typedef struct _MpElementFactory {
  * @param fname Factory name to use for element creation
  * @param ename Instance name for the created element
  *
- * @return Pointer to the created @ref MpElement, or NULL if factory not found
+ * @return Pointer to the created @ref struct mp_element, or NULL if factory not found
  *         or allocation failed
  *
  * @note The caller is responsible for freeing the returned element when done
  */
-MpElement *mp_element_factory_create(const char *fname, const char *ename);
+struct mp_element *mp_element_factory_create(const char *fname, const char *ename);
 
 #endif /* __MP_ELEMENT_FACTORY_H__ */

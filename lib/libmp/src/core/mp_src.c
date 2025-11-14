@@ -13,9 +13,9 @@
 
 LOG_MODULE_REGISTER(mp_src, CONFIG_LIBMP_LOG_LEVEL);
 
-int mp_src_set_property(MpObject *obj, uint32_t key, const void *val)
+int mp_src_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
-	MpSrc *src = MP_SRC(obj);
+	struct mp_src *src = MP_SRC(obj);
 
 	switch (key) {
 	case PROP_NUM_BUFS:
@@ -27,9 +27,9 @@ int mp_src_set_property(MpObject *obj, uint32_t key, const void *val)
 	}
 }
 
-int mp_src_get_property(MpObject *obj, uint32_t key, void *val)
+int mp_src_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
-	MpSrc *src = MP_SRC(obj);
+	struct mp_src *src = MP_SRC(obj);
 
 	switch (key) {
 	case PROP_NUM_BUFS:
@@ -43,11 +43,11 @@ int mp_src_get_property(MpObject *obj, uint32_t key, void *val)
 	return 0;
 }
 
-static bool mp_src_query(MpPad *pad, MpQuery *query)
+static bool mp_src_query(struct mp_pad *pad, struct mp_query *query)
 {
 	bool ret = false;
-	MpSrc *src = MP_SRC(pad->object.container);
-	MpCaps *intersect_caps, *query_caps;
+	struct mp_src *src = MP_SRC(pad->object.container);
+	struct mp_caps *intersect_caps, *query_caps;
 
 	switch (query->type) {
 	case MP_QUERY_CAPS:
@@ -68,17 +68,17 @@ static bool mp_src_query(MpPad *pad, MpQuery *query)
 	return ret;
 }
 
-static bool mp_src_decide_allocation(MpSrc *self, MpQuery *query)
+static bool mp_src_decide_allocation(struct mp_src *self, struct mp_query *query)
 {
 	return true;
 }
 
-static bool mp_src_negotiate(MpSrc *src)
+static bool mp_src_negotiate(struct mp_src *src)
 {
 	bool ret = false;
-	MpCaps *fixated_caps;
-	MpQuery *caps_query, *alloc_query;
-	MpEvent *caps_event;
+	struct mp_caps *fixated_caps;
+	struct mp_query *caps_query, *alloc_query;
+	struct mp_event *caps_event;
 
 	/* Caps negotiation */
 	if (src->srcpad.caps == NULL) {
@@ -124,9 +124,9 @@ static bool mp_src_negotiate(MpSrc *src)
 
 static void mp_src_loop(void *userdata, void *, void *)
 {
-	MpPad *pad = MP_PAD(userdata);
-	MpSrc *src = MP_SRC(pad->object.container);
-	MpBuffer *buffer = NULL;
+	struct mp_pad *pad = MP_PAD(userdata);
+	struct mp_src *src = MP_SRC(pad->object.container);
+	struct mp_buffer *buffer = NULL;
 
 	pad->task.running = true;
 	while (pad->task.running) {
@@ -163,16 +163,17 @@ static void mp_src_loop(void *userdata, void *, void *)
 	}
 }
 
-static MpStateChangeReturn mp_src_change_state(MpElement *self, MpStateChange transition)
+static enum mp_state_change_return mp_src_change_state(struct mp_element *self,
+						       enum mp_state_change transition)
 {
-	MpStateChangeReturn ret = MP_STATE_CHANGE_SUCCESS;
+	enum mp_state_change_return ret = MP_STATE_CHANGE_SUCCESS;
 
 	switch (transition) {
 	case MP_STATE_CHANGE_READY_TO_PAUSED:
 		/* TODO */
 		break;
 	case MP_STATE_CHANGE_PAUSED_TO_PLAYING:
-		mp_pad_start_task(&MP_SRC(self)->srcpad, (MpTaskFunction)mp_src_loop,
+		mp_pad_start_task(&MP_SRC(self)->srcpad, (mp_task_function)mp_src_loop,
 				  CONFIG_MP_THREAD_DEFAULT_PRIORITY, NULL);
 		break;
 	default:
@@ -182,14 +183,14 @@ static MpStateChangeReturn mp_src_change_state(MpElement *self, MpStateChange tr
 	return ret;
 }
 
-static bool mp_src_set_caps(MpSrc *src, MpCaps *caps)
+static bool mp_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 {
 	return true;
 }
 
-void mp_src_init(MpElement *self)
+void mp_src_init(struct mp_element *self)
 {
-	MpSrc *src = MP_SRC(self);
+	struct mp_src *src = MP_SRC(self);
 
 	/* Add pad */
 	mp_pad_init(&src->srcpad, "src", MP_PAD_SRC, MP_PAD_ALWAYS, NULL);

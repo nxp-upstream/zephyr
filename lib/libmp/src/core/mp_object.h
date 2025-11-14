@@ -6,7 +6,7 @@
 
 /**
  * @file
- * @brief Main header for MpObject.
+ * @brief Main header for mp_object.
  */
 
 #ifndef __MP_OBJECT_H__
@@ -17,9 +17,7 @@
 #include <zephyr/sys/atomic_types.h>
 #include <zephyr/sys/dlist.h>
 
-typedef struct _MpObject MpObject;
-
-#define MP_OBJECT(object) ((MpObject *)object)
+#define MP_OBJECT(object) ((struct mp_object *)object)
 
 /** Base flag of the object */
 #define OBJECT_FLAG_BASE BIT(0)
@@ -31,9 +29,9 @@ typedef struct _MpObject MpObject;
  * in the MP object system. It provides reference counting, property access,
  * and lifecycle management functionality.
  */
-struct _MpObject {
+struct mp_object {
 	/** Object that contains this object */
-	MpObject *container;
+	struct mp_object *container;
 	/** Reference counter */
 	atomic_t ref;
 	/** Name of the object */
@@ -43,11 +41,11 @@ struct _MpObject {
 	/** Object node to be used in a linked list */
 	sys_dnode_t node;
 	/** Function to set property */
-	int (*set_property)(MpObject *self, uint32_t key, const void *val);
+	int (*set_property)(struct mp_object *self, uint32_t key, const void *val);
 	/** Function to get property */
-	int (*get_property)(MpObject *self, uint32_t key, void *val);
+	int (*get_property)(struct mp_object *self, uint32_t key, void *val);
 	/** Function to free the resource using by the object */
-	void (*release)(MpObject *obj);
+	void (*release)(struct mp_object *obj);
 };
 
 /**
@@ -56,7 +54,7 @@ struct _MpObject {
  * @param obj Pointer to the object.
  * @return A new pointer to the object with its reference count increased.
  */
-MpObject *mp_object_ref(MpObject *obj);
+struct mp_object *mp_object_ref(struct mp_object *obj);
 
 /**
  * Decrease the reference counter of an object.
@@ -65,7 +63,7 @@ MpObject *mp_object_ref(MpObject *obj);
  *
  * @param obj Pointer to the object to unreference.
  */
-void mp_object_unref(MpObject *obj);
+void mp_object_unref(struct mp_object *obj);
 
 /**
  * Replace the pointer to an object with a new object.
@@ -74,10 +72,10 @@ void mp_object_unref(MpObject *obj);
  * @param ptr Pointer to the object pointer to be replaced.
  * @param new_obj Pointer to the new object.
  */
-void mp_object_replace(MpObject **ptr, MpObject *new_obj);
+void mp_object_replace(struct mp_object **ptr, struct mp_object *new_obj);
 
 /**
- * @brief Set multiple properties of an MpObject.
+ * @brief Set multiple properties of an mp_object.
  *
  * This function sets one or more properties on the given object.
  * The arguments must be provided as a sequence of {key, value} pairs, terminated by NULL.
@@ -88,14 +86,14 @@ void mp_object_replace(MpObject **ptr, MpObject *new_obj);
  * mp_object_set_properties(obj, "key1", val1, "key2", val2, NULL);
  * @endcode
  *
- * @param obj Pointer to a @ref MpObject.
+ * @param obj Pointer to a @ref struct mp_object.
  * @param ... A variable list of {uint32_t key, const void *val} pairs, terminated by NULL.
  *
  */
-int mp_object_set_properties(MpObject *obj, ...);
+int mp_object_set_properties(struct mp_object *obj, ...);
 
 /**
- * @brief Get multiple properties' values of an MpObject.
+ * @brief Get multiple properties' values of an mp_object.
  *
  * This function gets one or more properties' values of the given object.
  * The arguments must be provided as a sequence of {key, value} pairs, terminated by NULL.
@@ -106,10 +104,10 @@ int mp_object_set_properties(MpObject *obj, ...);
  * mp_object_get_properties(obj, "key1", val1, "key2", val2, NULL);
  * @endcode
  *
- * @param obj Pointer to a @ref MpObject.
+ * @param obj Pointer to a @ref struct mp_object.
  * @param ... A variable list of {uint32_t key, void *val} pairs, terminated by NULL.
  *
  */
-int mp_object_get_properties(MpObject *obj, ...);
+int mp_object_get_properties(struct mp_object *obj, ...);
 
 #endif /* __MP_OBJECT_H__ */

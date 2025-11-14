@@ -12,9 +12,9 @@
 #include "mp_element.h"
 #include "mp_element_factory.h"
 
-MpElementFactory *mp_element_factory_find(const char *name)
+struct mp_element_factory *mp_element_factory_find(const char *name)
 {
-	STRUCT_SECTION_FOREACH(_MpElementFactory, ef) {
+	STRUCT_SECTION_FOREACH(mp_element_factory, ef) {
 		if (strcmp(ef->name, name) == 0) {
 			return ef;
 		}
@@ -23,12 +23,12 @@ MpElementFactory *mp_element_factory_find(const char *name)
 	return NULL;
 }
 
-MpElement *mp_element_factory_create(const char *fname, const char *ename)
+struct mp_element *mp_element_factory_create(const char *fname, const char *ename)
 {
-	MpElementFactory *ef = mp_element_factory_find(fname);
+	struct mp_element_factory *ef = mp_element_factory_find(fname);
 
 	if (ef) {
-		MpElement *element = (MpElement *)k_calloc(1, ef->size);
+		struct mp_element *element = (struct mp_element *)k_calloc(1, ef->size);
 
 		element->factory = ef;
 		element->object.name = ename;

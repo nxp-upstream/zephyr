@@ -6,7 +6,7 @@
 
 /**
  * @file
- * @brief Main header for MpElement.
+ * @brief Main header for mp_element.
  */
 
 #ifndef __MP_ELEMENT_H__
@@ -23,38 +23,35 @@
 #include "mp_object.h"
 #include "mp_query.h"
 
-typedef struct _MpElement MpElement;
-typedef struct _MpPad MpPad;
+struct mp_pad;
 
-struct _MpElementFactory;
-
-#define MP_ELEMENT_CAST(self) ((MpElement *)self)
+#define MP_ELEMENT_CAST(self) ((struct mp_element *)self)
 
 /**
  * @brief Helper macro to define element structures
  *
  * @param type The new element type name
- * @param basetype The base type (usually MpElement)
+ * @param basetype The base type (usually struct mp_element)
  * @param base The base member name
  * @param ... Additional members for the element
  */
 #define MP_ELEMENT(type, basetype, base, ...)                                                      \
-	typedef struct {                                                                           \
+	struct type {                                                                              \
 		basetype base;                                                                     \
 		__VA_ARGS__                                                                        \
-	} type
+	}
 
 /**
  * @brief Calculate the next state
  *
  * Given a current state and a target state, calculate the next intermediate state
  *
- * @param cur Current state, see @ref MpState
- * @param target Target state, see @ref MpState
+ * @param cur Current state, see @ref enum mp_state
+ * @param target Target state, see @ref enum mp_state
  * @return Next intermediate state
  *
  */
-#define MP_STATE_GET_NEXT(cur, target) ((MpState)((int)cur + SIGN((int)target - (int)cur)))
+#define MP_STATE_GET_NEXT(cur, target) ((enum mp_state)((int)cur + SIGN((int)target - (int)cur)))
 
 /**
  * @brief Create state transition value
@@ -70,22 +67,22 @@ struct _MpElementFactory;
  *
  * Given a state transition, extract the current state.
  *
- * @param trans A transition state, see @ref MpStateChange
+ * @param trans A transition state, see @ref enum mp_state_change
  * @return The current state
  *
  */
-#define MP_STATE_TRANSITION_CURRENT(trans) ((MpState)((trans) >> 2))
+#define MP_STATE_TRANSITION_CURRENT(trans) ((enum mp_state)((trans) >> 2))
 
 /**
  * @brief Extract the next state from the state transition
  *
  * Given a state transition, extract the next state.
  *
- * @param trans A transition state, see @ref MpStateChange
+ * @param trans A transition state, see @ref enum mp_state_change
  * @return The next state
  *
  */
-#define MP_STATE_TRANSITION_NEXT(trans) ((MpState)((trans) & 0x3))
+#define MP_STATE_TRANSITION_NEXT(trans) ((enum mp_state)((trans) & 0x3))
 
 /**
  * @brief Get current state of element
@@ -116,21 +113,21 @@ struct _MpElementFactory;
  *
  * All possible states that an element can be in.
  */
-typedef enum {
+enum mp_state {
 	/** The element is initialized READY to go to PAUSED. */
 	MP_STATE_READY = 0,
 	/** The element is PAUSED and ready to receive, process or transfer data. */
 	MP_STATE_PAUSED = 1,
 	/** The element is PLAYING, data is flowing through the element */
 	MP_STATE_PLAYING = 2,
-} MpState;
+};
 
 /**
- * @brief MpStateChange
+ * @brief enum mp_state_change
  *
  * Different possible state changes that an element can go through.
  */
-typedef enum {
+enum mp_state_change {
 	/** State change from READY to PAUSED */
 	MP_STATE_CHANGE_READY_TO_PAUSED = MP_STATE_TRANSITION(MP_STATE_READY, MP_STATE_PAUSED),
 	/** State change from PAUSED to PLAYING*/
@@ -139,21 +136,21 @@ typedef enum {
 	MP_STATE_CHANGE_PLAYING_TO_PAUSED = MP_STATE_TRANSITION(MP_STATE_PLAYING, MP_STATE_PAUSED),
 	/** State change from PAUSED to READY */
 	MP_STATE_CHANGE_PAUSED_TO_READY = MP_STATE_TRANSITION(MP_STATE_PAUSED, MP_STATE_READY),
-} MpStateChange;
+};
 
 /**
- * @brief MpStateChangeReturn
+ * @brief enum mp_state_change_return
  *
  * Possible returned values from a state change function
  */
-typedef enum {
+enum mp_state_change_return {
 	/* The state change has failed */
 	MP_STATE_CHANGE_FAILURE = 0,
 	/* The state change has succeeded */
 	MP_STATE_CHANGE_SUCCESS = 1,
 	/* The state change will happen asynchronously */
 	MP_STATE_CHANGE_ASYNC = 2,
-} MpStateChangeReturn;
+};
 
 /**
  * @brief Element base class
@@ -162,12 +159,12 @@ typedef enum {
  * of a multimedia pipeline. They can have source pads (outputs) and sink
  * pads (inputs) and can be linked together to form processing chains.
  */
-struct _MpElement {
+struct mp_element {
 	/** Base object */
-	MpObject object;
+	struct mp_object object;
 
 	/** Factory that created this element */
-	struct _MpElementFactory *factory;
+	struct mp_element_factory *factory;
 
 	/** List of source pads */
 	sys_dlist_t srcpads;
@@ -175,48 +172,49 @@ struct _MpElement {
 	sys_dlist_t sinkpads;
 
 	/** Current state of the element */
-	MpState current_state;
+	enum mp_state current_state;
 	/** Next state (for transitions) */
-	MpState next_state;
+	enum mp_state next_state;
 	/** Pending state (for async transitions) */
-	MpState pending_state;
+	enum mp_state pending_state;
 	/** Target state */
-	MpState target_state;
+	enum mp_state target_state;
 
 	/** Bus for posting messages */
-	MpBus *bus;
+	struct mp_bus *bus;
 
 	/** Event handler function */
-	bool (*eventfn)(MpElement *element, MpEvent *event);
+	bool (*eventfn)(struct mp_element *element, struct mp_event *event);
 	/** Query handler function */
-	bool (*queryfn)(MpElement *element, MpQuery *query);
+	bool (*queryfn)(struct mp_element *element, struct mp_query *query);
 
 	/** Get current state function */
-	MpStateChangeReturn (*get_state)(MpElement *element, MpState *state);
+	enum mp_state_change_return (*get_state)(struct mp_element *element, enum mp_state *state);
 	/** Set state function */
-	MpStateChangeReturn (*set_state)(MpElement *element, MpState state);
+	enum mp_state_change_return (*set_state)(struct mp_element *element, enum mp_state state);
 	/** Change state function */
-	MpStateChangeReturn (*change_state)(MpElement *element, MpStateChange transition);
+	enum mp_state_change_return (*change_state)(struct mp_element *element,
+						    enum mp_state_change transition);
 };
 
 /**
  * @brief Initialize an element
  *
- * Initializes the base @ref MpElement structure.
+ * Initializes the base @ref struct mp_element structure.
  *
  * @param self The element to initialize
  */
-void mp_element_init(MpElement *self);
+void mp_element_init(struct mp_element *self);
 
 /**
  * @brief Add a pad to an element
  *
  * Adds a pad to the element. The pad's container will be set to the element.
  *
- * @param element The @MpElement to add the pad to
- * @param pad The @ref MpPad to add to the element
+ * @param element The @struct mp_element to add the pad to
+ * @param pad The @ref struct mp_pad to add to the element
  */
-void mp_element_add_pad(MpElement *element, MpPad *pad);
+void mp_element_add_pad(struct mp_element *element, struct mp_pad *pad);
 
 /**
  * @brief Link elements together
@@ -231,7 +229,7 @@ void mp_element_add_pad(MpElement *element, MpPad *pad);
  * @retval true If all elements were successfully linked
  * @retval false If any link operation failed
  */
-bool mp_element_link(MpElement *element_1, MpElement *element_2, ...);
+bool mp_element_link(struct mp_element *element_1, struct mp_element *element_2, ...);
 
 /**
  * @brief Set the state of an element
@@ -241,19 +239,19 @@ bool mp_element_link(MpElement *element_1, MpElement *element_2, ...);
  * the element's state change function for each.
  *
  * @param element The element to change state of
- * @param state The element's new @ref MpState
- * @return Result of the state change, one of @ref MpStateChangeReturn
+ * @param state The element's new @ref enum mp_state
+ * @return Result of the state change, one of @ref enum mp_state_change_return
  */
-MpStateChangeReturn mp_element_set_state(MpElement *element, MpState state);
+enum mp_state_change_return mp_element_set_state(struct mp_element *element, enum mp_state state);
 
 /**
  * @brief Get the bus of an element
  *
- * Retrieves the @ref MpBus associated with the element.
+ * Retrieves the @ref struct mp_bus associated with the element.
  *
  * @param element The element to get the bus from
- * @return The @ref MpBus of the element or NULL if no bus is found
+ * @return The @ref struct mp_bus of the element or NULL if no bus is found
  */
-MpBus *mp_element_get_bus(MpElement *self);
+struct mp_bus *mp_element_get_bus(struct mp_element *self);
 
 #endif /* __MP_ELEMENT_H__ */

@@ -17,7 +17,7 @@
  *
  * Supported pixel formats of a media type e.g. video, display.
  */
-typedef enum {
+enum mp_pixel_format {
 	/** Unknown or unsupported pixel format id */
 	MP_PIXEL_FORMAT_UNKNOWN,
 	/** Encoded formats such as H.264, H.265, etc. */
@@ -139,6 +139,6 @@ typedef enum {
 	 * @endcode
 	 */
 	MP_PIXEL_FORMAT_XRGB32,
-} MpPixelFormat;
+};
 
 #endif /* __MP_PIXEL_FORMAT_H__ */
