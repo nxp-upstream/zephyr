@@ -19,7 +19,7 @@
 #include "mp_zaud.h"
 
 /** @brief Cast object pointer to mp_zaud_buffer_pool pointer */
-#define MP_ZAUD_BUFFER_POOL(self) ((mp_zaud_buffer_pool *)self)
+#define MP_ZAUD_BUFFER_POOL(self) ((struct mp_zaud_buffer_pool *)self)
 
 /**
  * @struct mp_zaud_buffer_pool
@@ -28,16 +28,16 @@
  * This structure manages memory allocation and buffer handling for audio
  * data processing within the plugin.
  */
-typedef struct {
+struct mp_zaud_buffer_pool {
 	/** Base buffer pool structure */
-	MpBufferPool pool;
+	struct mp_buffer_pool pool;
 	/** Pointer to the associated audio device */
 	const struct device *zaud_dev;
 	/** Memory slab for efficient buffer allocation */
 	struct k_mem_slab *mem_slab;
 	/** Pointer to unaligned buffer memory */
 	void *unaligned_buffer;
-} mp_zaud_buffer_pool;
+};
 
 /**
  * @brief Initialize an audio buffer pool
@@ -47,6 +47,6 @@ typedef struct {
  *
  * @param pool Pointer to the buffer pool structure to initialize.
  */
-void mp_zaud_buffer_pool_init(MpBufferPool *pool);
+void mp_zaud_buffer_pool_init(struct mp_buffer_pool *pool);
 
 #endif /* __MP_ZAUD_BUFFER_POOL_H__ */

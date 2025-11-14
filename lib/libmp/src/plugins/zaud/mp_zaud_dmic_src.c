@@ -16,11 +16,11 @@
 
 LOG_MODULE_REGISTER(mp_zaud_dmic_src, CONFIG_LIBMP_LOG_LEVEL);
 
-static bool mp_zaud_dmic_src_set_caps(MpSrc *src, MpCaps *caps)
+static bool mp_zaud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 {
-	mp_zaud_dmic_src *zaud_dmic_src = MP_ZAUD_DMIC_SRC(src);
+	struct mp_zaud_dmic_src *zaud_dmic_src = MP_ZAUD_DMIC_SRC(src);
 
-	MpStructure *first_structure = mp_caps_get_structure(caps, 0);
+	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
 
 	int sample_rate = mp_value_get_int(mp_structure_get_value(first_structure, "samplerate"));
 	int bit_width = mp_value_get_int(mp_structure_get_value(first_structure, "bitwidth"));
@@ -87,9 +87,9 @@ static bool mp_zaud_dmic_src_set_caps(MpSrc *src, MpCaps *caps)
 	return true;
 }
 
-static bool mp_zaud_dmic_src_acquire_buffer(MpBufferPool *pool, MpBuffer **buffer)
+static bool mp_zaud_dmic_src_acquire_buffer(struct mp_buffer_pool *pool, struct mp_buffer **buffer)
 {
-	mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
+	struct mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
 	void *mem_block = NULL;
 	int err = -1;
 
@@ -109,9 +109,9 @@ static bool mp_zaud_dmic_src_acquire_buffer(MpBufferPool *pool, MpBuffer **buffe
 	return true;
 }
 
-static bool mp_zaud_dmic_src_start(MpBufferPool *pool)
+static bool mp_zaud_dmic_src_start(struct mp_buffer_pool *pool)
 {
-	mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
+	struct mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
 
 	/* Stream on */
 	if (dmic_trigger(zaud_pool->zaud_dev, DMIC_TRIGGER_START) < 0) {
@@ -123,10 +123,10 @@ static bool mp_zaud_dmic_src_start(MpBufferPool *pool)
 	return true;
 }
 
-void mp_zaud_dmic_src_init(MpElement *self)
+void mp_zaud_dmic_src_init(struct mp_element *self)
 {
-	MpSrc *src = MP_SRC(self);
-	mp_zaud_dmic_src *zaud_dmic_src = MP_ZAUD_DMIC_SRC(self);
+	struct mp_src *src = MP_SRC(self);
+	struct mp_zaud_dmic_src *zaud_dmic_src = MP_ZAUD_DMIC_SRC(self);
 
 	/* Init base class */
 	mp_zaud_src_init(MP_ELEMENT_CAST(&(zaud_dmic_src->zaud_src)));

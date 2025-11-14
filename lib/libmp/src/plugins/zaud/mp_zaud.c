@@ -18,12 +18,12 @@
 
 LOG_MODULE_REGISTER(mp_zaud, CONFIG_LIBMP_LOG_LEVEL);
 
-typedef struct {
+struct mp_zaud_desc {
 	uint32_t value;
 	uint32_t mask;
-} MpZaudDesc;
+};
 
-static const MpZaudDesc mp_zaud_sample_rates[] = {
+static const struct mp_zaud_desc mp_zaud_sample_rates[] = {
 	{MP_ZAUD_SAMPLE_RATE_8000, AUDIO_SAMPLE_RATE_8000},
 	{MP_ZAUD_SAMPLE_RATE_16000, AUDIO_SAMPLE_RATE_16000},
 	{MP_ZAUD_SAMPLE_RATE_32000, AUDIO_SAMPLE_RATE_32000},
@@ -32,7 +32,7 @@ static const MpZaudDesc mp_zaud_sample_rates[] = {
 	{MP_ZAUD_SAMPLE_RATE_96000, AUDIO_SAMPLE_RATE_96000},
 };
 
-static const MpZaudDesc mp_zaud_bit_widths[] = {
+static const struct mp_zaud_desc mp_zaud_bit_widths[] = {
 	{MP_ZAUD_BIT_WIDTH_16, AUDIO_BIT_WIDTH_16},
 	{MP_ZAUD_BIT_WIDTH_24, AUDIO_BIT_WIDTH_24},
 	{MP_ZAUD_BIT_WIDTH_32, AUDIO_BIT_WIDTH_32},
@@ -62,9 +62,10 @@ const uint32_t audio2mp_bit_width(uint32_t bit_width_mask)
 
 static void plugin_init(void)
 {
-	MP_ELEMENTFACTORY_DEFINE(zaud_dmic_src, sizeof(mp_zaud_dmic_src), mp_zaud_dmic_src_init);
-	MP_ELEMENTFACTORY_DEFINE(zaud_gain, sizeof(mp_zaud_gain), mp_zaud_gain_init);
-	MP_ELEMENTFACTORY_DEFINE(zaud_i2s_codec_sink, sizeof(mp_zaud_i2s_codec_sink),
+	MP_ELEMENTFACTORY_DEFINE(zaud_dmic_src, sizeof(struct mp_zaud_dmic_src),
+				 mp_zaud_dmic_src_init);
+	MP_ELEMENTFACTORY_DEFINE(zaud_gain, sizeof(struct mp_zaud_gain), mp_zaud_gain_init);
+	MP_ELEMENTFACTORY_DEFINE(zaud_i2s_codec_sink, sizeof(struct mp_zaud_i2s_codec_sink),
 				 mp_zaud_i2s_codec_sink_init);
 }
 
