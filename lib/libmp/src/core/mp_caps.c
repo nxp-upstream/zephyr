@@ -12,14 +12,14 @@
 #include "mp_structure.h"
 #include "mp_object.h"
 
-static void mp_caps_destroy(MpObject *obj)
+static void mp_caps_destroy(struct mp_object *obj)
 {
-	MpCapStructure *caps_structure;
+	struct mp_cap_structure *caps_structure;
 
 	__ASSERT_NO_MSG(obj != NULL);
 	while (!sys_slist_is_empty(&MP_CAPS(obj)->caps_structures)) {
 		caps_structure = CONTAINER_OF(sys_slist_get(&MP_CAPS(obj)->caps_structures),
-					      MpCapStructure, node);
+					      struct mp_cap_structure, node);
 
 		mp_structure_destroy(caps_structure->structure);
 		k_free(caps_structure);
@@ -27,7 +27,7 @@ static void mp_caps_destroy(MpObject *obj)
 	k_free(obj);
 }
 
-void mp_caps_init(MpCaps *caps, uint32_t flag)
+void mp_caps_init(struct mp_caps *caps, uint32_t flag)
 {
 	__ASSERT_NO_MSG(caps != NULL);
 	sys_slist_init(&caps->caps_structures);
@@ -36,32 +36,32 @@ void mp_caps_init(MpCaps *caps, uint32_t flag)
 	caps->object.flags = flag;
 }
 
-static MpCaps *mp_caps_new_empty(void)
+static struct mp_caps *mp_caps_new_empty(void)
 {
-	MpCaps *caps = k_malloc(sizeof(MpCaps));
+	struct mp_caps *caps = k_malloc(sizeof(struct mp_caps));
 
 	mp_caps_init(caps, 0);
 
 	return mp_caps_ref(caps);
 };
 
-MpCaps *mp_caps_new_any(void)
+struct mp_caps *mp_caps_new_any(void)
 {
-	MpCaps *caps = k_malloc(sizeof(MpCaps));
+	struct mp_caps *caps = k_malloc(sizeof(struct mp_caps));
 
 	mp_caps_init(caps, MP_CAPS_FLAG_ANY);
 
 	return mp_caps_ref(caps);
 }
 
-MpCaps *mp_caps_new(const char *media_type, ...)
+struct mp_caps *mp_caps_new(const char *media_type, ...)
 {
-	MpCaps *caps = mp_caps_new_empty();
+	struct mp_caps *caps = mp_caps_new_empty();
 	va_list var_args;
-	MpStructure *structure;
+	struct mp_structure *structure;
 	const char *field_name;
-	MpValueType type;
-	MpValue *value;
+	enum mp_value_type type;
+	struct mp_value *value;
 
 	if (media_type == NULL) {
 		return caps;
@@ -80,7 +80,7 @@ MpCaps *mp_caps_new(const char *media_type, ...)
 			value = mp_value_new_va_list(type, &var_args);
 
 		} else {
-			value = va_arg(var_args, MpValue *);
+			value = va_arg(var_args, struct mp_value *);
 		}
 		if (value == NULL) {
 			break;
@@ -94,11 +94,11 @@ MpCaps *mp_caps_new(const char *media_type, ...)
 	return caps;
 }
 
-void mp_caps_replace(MpCaps **target_caps, MpCaps *new_caps)
+void mp_caps_replace(struct mp_caps **target_caps, struct mp_caps *new_caps)
 {
 	__ASSERT_NO_MSG(target_caps != NULL);
 
-	MpCaps *old_caps = *target_caps;
+	struct mp_caps *old_caps = *target_caps;
 
 	/* Update the target with a new reference */
 	*target_caps = mp_caps_ref(new_caps);
@@ -107,15 +107,15 @@ void mp_caps_replace(MpCaps **target_caps, MpCaps *new_caps)
 	mp_caps_unref(old_caps);
 }
 
-bool mp_caps_append(MpCaps *caps, MpStructure *structure)
+bool mp_caps_append(struct mp_caps *caps, struct mp_structure *structure)
 {
-	MpCapStructure *cs;
+	struct mp_cap_structure *cs;
 
 	if (caps == NULL || caps->object.flags == MP_CAPS_FLAG_ANY || !structure) {
 		return false;
 	}
 
-	cs = k_malloc(sizeof(MpCapStructure));
+	cs = k_malloc(sizeof(struct mp_cap_structure));
 	if (cs == NULL) {
 		return false;
 	}
@@ -126,9 +126,9 @@ bool mp_caps_append(MpCaps *caps, MpStructure *structure)
 	return true;
 }
 
-void mp_caps_print(MpCaps *caps)
+void mp_caps_print(struct mp_caps *caps)
 {
-	MpCapStructure *cs;
+	struct mp_cap_structure *cs;
 
 	if (caps == NULL) {
 		printk("Caps NULL\n");
@@ -150,20 +150,20 @@ void mp_caps_print(MpCaps *caps)
 	}
 }
 
-bool mp_caps_is_empty(MpCaps *caps)
+bool mp_caps_is_empty(struct mp_caps *caps)
 {
 	return caps != NULL && caps->object.flags != MP_CAPS_FLAG_ANY &&
 	       sys_slist_is_empty(&caps->caps_structures);
 }
 
-bool mp_caps_is_any(MpCaps *caps)
+bool mp_caps_is_any(struct mp_caps *caps)
 {
 	return caps != NULL && caps->object.flags == MP_CAPS_FLAG_ANY;
 }
 
-bool mp_caps_is_fixed(MpCaps *caps)
+bool mp_caps_is_fixed(struct mp_caps *caps)
 {
-	MpStructure *first_structure;
+	struct mp_structure *first_structure;
 	int structure_count;
 
 	if (caps == NULL) {
@@ -180,10 +180,10 @@ bool mp_caps_is_fixed(MpCaps *caps)
 	return first_structure ? mp_structure_is_fixed(first_structure) : false;
 }
 
-MpCaps *mp_caps_intersect(MpCaps *caps1, MpCaps *caps2)
+struct mp_caps *mp_caps_intersect(struct mp_caps *caps1, struct mp_caps *caps2)
 {
-	MpCaps *intersect_caps;
-	MpCapStructure *cs1, *cs2;
+	struct mp_caps *intersect_caps;
+	struct mp_cap_structure *cs1, *cs2;
 
 	if (caps1 == NULL || caps2 == NULL || mp_caps_is_empty(caps1) || mp_caps_is_empty(caps2)) {
 		return NULL;
@@ -200,7 +200,7 @@ MpCaps *mp_caps_intersect(MpCaps *caps1, MpCaps *caps2)
 	intersect_caps = mp_caps_new_empty();
 	SYS_SLIST_FOR_EACH_CONTAINER(&caps1->caps_structures, cs1, node) {
 		SYS_SLIST_FOR_EACH_CONTAINER(&caps2->caps_structures, cs2, node) {
-			MpStructure *struct_intersect =
+			struct mp_structure *struct_intersect =
 				mp_structure_intersect(cs1->structure, cs2->structure);
 
 			if (struct_intersect) {
@@ -212,10 +212,10 @@ MpCaps *mp_caps_intersect(MpCaps *caps1, MpCaps *caps2)
 	return intersect_caps;
 }
 
-bool mp_caps_can_intersect(MpCaps *caps1, MpCaps *caps2)
+bool mp_caps_can_intersect(struct mp_caps *caps1, struct mp_caps *caps2)
 {
 
-	MpCapStructure *cs1, *cs2;
+	struct mp_cap_structure *cs1, *cs2;
 
 	if (caps1 == NULL || caps2 == NULL || mp_caps_is_empty(caps1) || mp_caps_is_empty(caps2)) {
 		return false;
@@ -236,11 +236,11 @@ bool mp_caps_can_intersect(MpCaps *caps1, MpCaps *caps2)
 	return false;
 }
 
-MpCaps *mp_caps_duplicate(MpCaps *caps)
+struct mp_caps *mp_caps_duplicate(struct mp_caps *caps)
 {
-	MpCapStructure *cs;
-	MpStructure *structure;
-	MpCaps *caps_copy;
+	struct mp_cap_structure *cs;
+	struct mp_structure *structure;
+	struct mp_caps *caps_copy;
 
 	if (caps == NULL) {
 		return NULL;
@@ -261,10 +261,10 @@ MpCaps *mp_caps_duplicate(MpCaps *caps)
 	return caps_copy;
 }
 
-MpStructure *mp_caps_get_structure(MpCaps *caps, int index)
+struct mp_structure *mp_caps_get_structure(struct mp_caps *caps, int index)
 {
 	int i = 0;
-	MpCapStructure *cs;
+	struct mp_cap_structure *cs;
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&caps->caps_structures, cs, node) {
 		if (i++ == index) {
@@ -275,12 +275,12 @@ MpStructure *mp_caps_get_structure(MpCaps *caps, int index)
 	return NULL;
 }
 
-MpCaps *mp_caps_fixate(MpCaps *caps)
+struct mp_caps *mp_caps_fixate(struct mp_caps *caps)
 {
 	sys_snode_t *node;
-	MpCaps *fixed_caps;
-	MpStructure *fixated_structure;
-	MpCapStructure *cs;
+	struct mp_caps *fixed_caps;
+	struct mp_structure *fixated_structure;
+	struct mp_cap_structure *cs;
 
 	if (caps == NULL || mp_caps_is_any(caps) || mp_caps_is_empty(caps)) {
 		return NULL;
@@ -292,7 +292,7 @@ MpCaps *mp_caps_fixate(MpCaps *caps)
 		return NULL;
 	}
 
-	cs = CONTAINER_OF(node, MpCapStructure, node);
+	cs = CONTAINER_OF(node, struct mp_cap_structure, node);
 	fixated_structure = mp_structure_fixate(cs->structure);
 	if (fixated_structure == NULL) {
 		return NULL;

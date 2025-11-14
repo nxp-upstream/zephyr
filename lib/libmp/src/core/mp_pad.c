@@ -14,8 +14,8 @@
 
 LOG_MODULE_REGISTER(mp_pad, CONFIG_LIBMP_LOG_LEVEL);
 
-void mp_pad_init(MpPad *pad, const char *name, MpPadDirection direction, MpPadPresence presence,
-		 MpCaps *caps)
+void mp_pad_init(struct mp_pad *pad, const char *name, enum mp_pad_direction direction,
+		 enum mp_pad_presence presence, struct mp_caps *caps)
 {
 	__ASSERT_NO_MSG(pad != NULL);
 
@@ -26,16 +26,17 @@ void mp_pad_init(MpPad *pad, const char *name, MpPadDirection direction, MpPadPr
 	pad->eventfn = mp_pad_send_event_default;
 }
 
-MpPad *mp_pad_new(const char *name, MpPadDirection direction, MpPadPresence presence, MpCaps *caps)
+struct mp_pad *mp_pad_new(const char *name, enum mp_pad_direction direction,
+			  enum mp_pad_presence presence, struct mp_caps *caps)
 {
-	MpPad *pad = k_malloc(sizeof(MpPad));
+	struct mp_pad *pad = k_malloc(sizeof(struct mp_pad));
 
 	mp_pad_init(pad, name, direction, presence, caps);
 
 	return pad;
 }
 
-bool mp_pad_link(MpPad *srcpad, MpPad *sinkpad)
+bool mp_pad_link(struct mp_pad *srcpad, struct mp_pad *sinkpad)
 {
 	if (srcpad == NULL || sinkpad == NULL) {
 		return false;
@@ -56,7 +57,7 @@ bool mp_pad_link(MpPad *srcpad, MpPad *sinkpad)
 	return true;
 }
 
-bool mp_pad_start_task(MpPad *pad, MpTaskFunction func, int priority, void *user_data)
+bool mp_pad_start_task(struct mp_pad *pad, mp_task_function func, int priority, void *user_data)
 {
 	k_tid_t thread = NULL;
 
@@ -69,17 +70,17 @@ bool mp_pad_start_task(MpPad *pad, MpTaskFunction func, int priority, void *user
 	return thread != NULL;
 }
 
-bool mp_pad_chain(MpPad *pad, MpBuffer *buffer)
+bool mp_pad_chain(struct mp_pad *pad, struct mp_buffer *buffer)
 {
 	return pad->chainfn(pad, buffer);
 }
 
-bool mp_pad_push(MpPad *pad, MpBuffer *buffer)
+bool mp_pad_push(struct mp_pad *pad, struct mp_buffer *buffer)
 {
 	return mp_pad_chain(pad->peer, buffer);
 }
 
-bool mp_pad_query(MpPad *pad, MpQuery *query)
+bool mp_pad_query(struct mp_pad *pad, struct mp_query *query)
 {
 	if (pad == NULL || query == NULL || pad->queryfn == NULL) {
 		return false;
@@ -88,7 +89,7 @@ bool mp_pad_query(MpPad *pad, MpQuery *query)
 	return pad->queryfn(pad, query);
 }
 
-bool mp_pad_send_event_default(MpPad *pad, MpEvent *event)
+bool mp_pad_send_event_default(struct mp_pad *pad, struct mp_event *event)
 {
 	bool ret = false;
 
@@ -107,8 +108,8 @@ bool mp_pad_send_event_default(MpPad *pad, MpEvent *event)
 	}
 
 	/* Forward the event to other pads within the same element */
-	MpElement *element = MP_ELEMENT_CAST(pad->object.container);
-	MpObject *obj;
+	struct mp_element *element = MP_ELEMENT_CAST(pad->object.container);
+	struct mp_object *obj;
 	sys_dlist_t *otherpad_list = NULL;
 
 	if (is_sink && is_downstream) {
@@ -126,7 +127,7 @@ bool mp_pad_send_event_default(MpPad *pad, MpEvent *event)
 	return ret;
 }
 
-bool mp_pad_send_event(MpPad *pad, MpEvent *event)
+bool mp_pad_send_event(struct mp_pad *pad, struct mp_event *event)
 {
 	if (pad == NULL || event == NULL || pad->eventfn == NULL) {
 		return false;

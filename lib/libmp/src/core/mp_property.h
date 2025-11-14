@@ -6,7 +6,7 @@
 
 /**
  * @file
- * @brief Main header for MpProperty.
+ * @brief Main header for mp_property.
  */
 
 #ifndef __MP_PROPS_H__
@@ -24,32 +24,32 @@
  *
  * Enumeration of properties that can be configured for base source
  */
-typedef enum {
+enum prop_src {
 	/** Number of buffers */
 	PROP_NUM_BUFS,
 	/** Last source property marker (for validation/iteration) */
 	PROP_SRC_LAST,
-} PROP_SRC;
+};
 
 /**
  * @brief Properties for a transform element
  *
  * Enumeration of properties that can be configured for base transform
  */
-typedef enum {
+enum prop_transform {
 	/** Last transform property marker (for validation/iteration) */
 	PROP_TRANSFORM_LAST,
-} PROP_TRANSFORM;
+};
 
 /**
  * @brief Properties for a sink element
  *
  * Enumeration of properties that can be configured for base sink
  */
-typedef enum {
+enum prop_sink {
 	/** Last sink property marker (for validation/iteration) */
 	PROP_SINK_LAST,
-} PROP_SINK;
+};
 
 /**
  * @}

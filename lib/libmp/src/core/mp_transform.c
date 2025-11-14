@@ -10,25 +10,26 @@
 
 LOG_MODULE_REGISTER(mp_transform, CONFIG_LIBMP_LOG_LEVEL);
 
-int mp_transform_set_property(MpObject *obj, uint32_t key, const void *val)
+int mp_transform_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
 	return 0;
 }
 
-int mp_transform_get_property(MpObject *obj, uint32_t key, void *val)
+int mp_transform_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
 	return 0;
 }
 
-static bool mp_transform_chainfn(MpPad *pad, MpBuffer *buffer)
+static bool mp_transform_chainfn(struct mp_pad *pad, struct mp_buffer *buffer)
 {
-	MpTransform *transform = MP_TRANSFORM(pad->object.container);
+	struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
 
 	/* Default implementation for MP_MODE_PASSTHROUGH */
 	return mp_pad_push(&transform->srcpad, buffer);
 }
 
-static MpCaps *mp_transform_get_caps(MpTransform *transform, MpPadDirection direction)
+static struct mp_caps *mp_transform_get_caps(struct mp_transform *transform,
+					     enum mp_pad_direction direction)
 {
 	/*
 	 * Default implementation simply returns the pad's caps. However, subclasses
@@ -44,7 +45,8 @@ static MpCaps *mp_transform_get_caps(MpTransform *transform, MpPadDirection dire
 	return NULL;
 }
 
-bool mp_transform_set_caps(MpTransform *transform, MpPadDirection direction, MpCaps *caps)
+bool mp_transform_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
+			   struct mp_caps *caps)
 {
 	if (direction == MP_PAD_SINK) {
 		mp_caps_replace(&(transform->sinkpad.caps), caps);
@@ -57,18 +59,20 @@ bool mp_transform_set_caps(MpTransform *transform, MpPadDirection direction, MpC
 	return true;
 }
 
-static MpCaps *mp_transform_transform_caps(MpTransform *self, MpPadDirection direction,
-					   MpCaps *incaps)
+static struct mp_caps *mp_transform_transform_caps(struct mp_transform *self,
+						   enum mp_pad_direction direction,
+						   struct mp_caps *incaps)
 {
 	return mp_caps_ref(incaps);
 }
 
-static inline bool mp_transform_query_caps(MpTransform *self, MpPadDirection direction,
-					   MpQuery *query)
+static inline bool mp_transform_query_caps(struct mp_transform *self,
+					   enum mp_pad_direction direction, struct mp_query *query)
 {
 	int ret = false;
-	MpPad *this_pad, *other_pad;
-	MpCaps *queried_pad_caps, *transformed_caps, *query_caps, *query_back_caps, *res_caps;
+	struct mp_pad *this_pad, *other_pad;
+	struct mp_caps *queried_pad_caps, *transformed_caps, *query_caps, *query_back_caps,
+		*res_caps;
 
 	switch (direction) {
 	case MP_PAD_SINK:
@@ -131,26 +135,26 @@ static inline bool mp_transform_query_caps(MpTransform *self, MpPadDirection dir
 	return ret;
 }
 
-static bool mp_transform_decide_allocation(MpTransform *self, MpQuery *query)
+static bool mp_transform_decide_allocation(struct mp_transform *self, struct mp_query *query)
 {
 	return true;
 }
 
-static bool mp_transform_propose_allocation(MpTransform *self, MpQuery *query)
+static bool mp_transform_propose_allocation(struct mp_transform *self, struct mp_query *query)
 {
 	return true;
 }
 
-static bool mp_transform_query(MpPad *pad, MpQuery *query)
+static bool mp_transform_query(struct mp_pad *pad, struct mp_query *query)
 {
-	MpTransform *self = MP_TRANSFORM(pad->object.container);
+	struct mp_transform *self = MP_TRANSFORM(pad->object.container);
 	int ret = false;
 
 	switch (query->type) {
 	case MP_QUERY_CAPS:
 		return mp_transform_query_caps(self, pad->direction, query);
 	case MP_QUERY_ALLOCATION:
-		MpQuery *peer_query = mp_query_new_allocation(self->srcpad.caps);
+		struct mp_query *peer_query = mp_query_new_allocation(self->srcpad.caps);
 
 		/* Query the downstream */
 		if (!mp_pad_query(self->srcpad.peer, peer_query)) {
@@ -189,7 +193,7 @@ static bool mp_transform_query(MpPad *pad, MpQuery *query)
 	}
 }
 
-static bool mp_transform_event(MpPad *pad, MpEvent *event)
+static bool mp_transform_event(struct mp_pad *pad, struct mp_event *event)
 {
 	bool ret = false;
 
@@ -199,9 +203,9 @@ static bool mp_transform_event(MpPad *pad, MpEvent *event)
 		return mp_pad_send_event_default(pad, event);
 	case MP_EVENT_CAPS:
 		LOG_DBG("MP_EVENT_CAPS");
-		MpTransform *transform = MP_TRANSFORM(pad->object.container);
-		MpPad *other_pad;
-		MpCaps *event_caps, *transformed_caps, *intersect_caps, *fixated_caps;
+		struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
+		struct mp_pad *other_pad;
+		struct mp_caps *event_caps, *transformed_caps, *intersect_caps, *fixated_caps;
 
 		other_pad =
 			(pad->direction == MP_PAD_SINK) ? &transform->srcpad : &transform->sinkpad;
@@ -256,9 +260,9 @@ static bool mp_transform_event(MpPad *pad, MpEvent *event)
 	}
 }
 
-void mp_transform_init(MpElement *self)
+void mp_transform_init(struct mp_element *self)
 {
-	MpTransform *transform = MP_TRANSFORM(self);
+	struct mp_transform *transform = MP_TRANSFORM(self);
 
 	/* Add pads */
 	mp_pad_init(&transform->sinkpad, "sink", MP_PAD_SINK, MP_PAD_ALWAYS, NULL);

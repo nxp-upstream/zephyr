@@ -6,7 +6,7 @@
 
 /**
  * @file
- * @brief Main header for MpPipeline.
+ * @brief Main header for mp_pipeline.
  */
 
 #ifndef __MP_PIPELINE_H__
@@ -22,21 +22,19 @@
  * @{
  */
 
-typedef struct _MpPipeline MpPipeline;
-
-#define MP_PIPELINE(self) ((MpPipeline *)self)
+#define MP_PIPELINE(self) ((struct mp_pipeline *)self)
 
 /**
- * @brief MpPipeline structure
+ * @brief struct mp_pipeline structure
  *
  * Contains all the state and timing information needed to manage
  * a complete media processing pipeline.
  */
-struct _MpPipeline {
+struct mp_pipeline {
 	/** Base bin container */
-	MpBin bin;
+	struct mp_bin bin;
 	/** Message bus for pipeline communication */
-	MpBus bus;
+	struct mp_bus bus;
 	/** The running time - total time spent in PLAYING state without being flushed */
 	uint64_t stream_time;
 	/**
@@ -51,9 +49,9 @@ struct _MpPipeline {
  *
  * Initializes the pipeline structure, including the base bin and message bus.
  *
- * @param self Pointer to the @ref MpElement to initialize as a pipeline
+ * @param self Pointer to the @ref struct mp_element to initialize as a pipeline
  */
-void mp_pipeline_init(MpElement *self);
+void mp_pipeline_init(struct mp_element *self);
 
 /**
  * @brief Create a new pipeline
@@ -62,9 +60,9 @@ void mp_pipeline_init(MpElement *self);
  * processing elements.
  *
  * @param name Name to assign to the new pipeline element
- * @return Pointer to the newly created @ref MpElement pipeline, or NULL on failure
+ * @return Pointer to the newly created @ref struct mp_element pipeline, or NULL on failure
  */
-MpElement *mp_pipeline_new(const char *name);
+struct mp_element *mp_pipeline_new(const char *name);
 
 /**
  * @}

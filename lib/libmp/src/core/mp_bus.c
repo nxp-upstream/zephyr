@@ -5,11 +5,10 @@
  */
 
 #include "mp_bus.h"
-
-typedef enum {
+enum mp_bus_sync_reply {
 	MP_BUS_DROP = 0,
 	MP_BUS_PASS = 1,
-} MpBusSyncReply;
+};
 
 /**
  * Sync handler for the bus.
@@ -18,25 +17,27 @@ typedef enum {
  * If a listener consumes the message, it returns MP_BUS_DROP,
  * otherwise it returns MP_BUS_PASS.
  *
- * @param bus: a @ref MpBus to handle the message
+
+ * @param bus: a struct mp_bus to handle the message
  * @param message: the message to handle
  */
-static MpBusSyncReply mp_bus_sync_handler(MpBus *bus, MpMessage *message)
+static enum mp_bus_sync_reply mp_bus_sync_handler(struct mp_bus *bus, struct mp_message *message)
 {
-	MpBusSyncListener *listener;
+
+	struct mp_bus_sync_listener *listener;
 	bool ret = false;
 
 	/* Deliver the message to the correct listener */
 	SYS_SLIST_FOR_EACH_CONTAINER(&bus->sync_listeners, listener, node) {
 		if (MP_MESSAGE_TYPE(message) & listener->filter_type) {
-			ret |= listener->callback(message, listener->user_data);
+			ret |= listener->cb(message, listener->user_data);
 		}
 	}
 
 	return ret ? MP_BUS_DROP : MP_BUS_PASS;
 }
 
-void mp_bus_destroy(MpBus *bus)
+void mp_bus_destroy(struct mp_bus *bus)
 {
 	void *message;
 
@@ -49,9 +50,10 @@ void mp_bus_destroy(MpBus *bus)
 	k_free(bus);
 }
 
-bool mp_bus_post(MpBus *bus, MpMessage *message)
+bool mp_bus_post(struct mp_bus *bus, struct mp_message *message)
 {
-	MpBusSyncReply reply = MP_BUS_PASS;
+
+	enum mp_bus_sync_reply reply = MP_BUS_PASS;
 
 	if (bus == NULL || message == NULL) {
 		return false;
@@ -70,11 +72,11 @@ bool mp_bus_post(MpBus *bus, MpMessage *message)
 	return true;
 }
 
-MpMessage *mp_bus_pop_msg(MpBus *bus, MpMessageType type)
+struct mp_message *mp_bus_pop_msg(struct mp_bus *bus, enum mp_message_type type)
 {
 	__ASSERT_NO_MSG(bus != NULL);
 
-	MpMessage *message = NULL;
+	struct mp_message *message = NULL;
 
 	while ((message = k_fifo_get(&bus->fifo, K_FOREVER)) != NULL) {
 		if (MP_MESSAGE_TYPE(message) & type) {
@@ -88,19 +90,18 @@ MpMessage *mp_bus_pop_msg(MpBus *bus, MpMessageType type)
 	return message;
 }
 
-MpMessage *mp_bus_pop(MpBus *bus)
+struct mp_message *mp_bus_pop(struct mp_bus *bus)
 {
 	return mp_bus_pop_msg(bus, MP_MESSAGE_ANY);
 }
 
-MpMessage *mp_bus_peek(MpBus *bus)
+struct mp_message *mp_bus_peek(struct mp_bus *bus)
 {
 	return bus != NULL ? k_fifo_peek_head(&bus->fifo) : NULL;
 }
-
-void mp_bus_flush(MpBus *bus)
+void mp_bus_flush(struct mp_bus *bus)
 {
-	MpMessage *message;
+	struct mp_message *message;
 
 	__ASSERT_NO_MSG(bus != NULL);
 
@@ -110,19 +111,20 @@ void mp_bus_flush(MpBus *bus)
 	}
 }
 
-void mp_bus_add_sync_listener(MpBus *bus, MpBusSyncListenerCallback func, MpMessageType type,
+void mp_bus_add_sync_listener(struct mp_bus *bus, callback_fn cb, enum mp_message_type type,
 			      void *user_data)
 {
-	MpBusSyncListener *listener = k_malloc(sizeof(MpBusSyncListener));
+
+	struct mp_bus_sync_listener *listener = k_malloc(sizeof(struct mp_bus_sync_listener));
 
 	__ASSERT_NO_MSG(listener != NULL);
-	listener->callback = func;
+	listener->cb = cb;
 	listener->filter_type = type;
 	listener->user_data = user_data;
 	sys_slist_append(&bus->sync_listeners, &listener->node);
 }
 
-void mp_bus_remove_sync_listener(MpBus *bus, MpBusSyncListener *listener)
+void mp_bus_remove_sync_listener(struct mp_bus *bus, struct mp_bus_sync_listener *listener)
 {
 	__ASSERT_NO_MSG(bus != NULL && listener != NULL);
 	sys_slist_find_and_remove(&bus->sync_listeners, &listener->node);

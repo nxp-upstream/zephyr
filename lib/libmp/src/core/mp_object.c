@@ -11,7 +11,7 @@
 #include "mp_object.h"
 #include "mp_property.h"
 
-int mp_object_set_properties(MpObject *obj, ...)
+int mp_object_set_properties(struct mp_object *obj, ...)
 {
 	int ret;
 	uint32_t key;
@@ -41,7 +41,7 @@ int mp_object_set_properties(MpObject *obj, ...)
 	return 0;
 }
 
-int mp_object_get_properties(MpObject *obj, ...)
+int mp_object_get_properties(struct mp_object *obj, ...)
 {
 	int ret;
 	uint32_t key;
@@ -71,7 +71,7 @@ int mp_object_get_properties(MpObject *obj, ...)
 	return 0;
 }
 
-MpObject *mp_object_ref(MpObject *obj)
+struct mp_object *mp_object_ref(struct mp_object *obj)
 {
 	if (obj == NULL) {
 		return NULL;
@@ -82,7 +82,7 @@ MpObject *mp_object_ref(MpObject *obj)
 	return obj;
 }
 
-void mp_object_unref(MpObject *obj)
+void mp_object_unref(struct mp_object *obj)
 {
 	if (obj != NULL) {
 		__ASSERT_NO_MSG(atomic_get(&obj->ref) > 0);
@@ -92,9 +92,9 @@ void mp_object_unref(MpObject *obj)
 	}
 }
 
-void mp_object_replace(MpObject **ptr, MpObject *new_obj)
+void mp_object_replace(struct mp_object **ptr, struct mp_object *new_obj)
 {
-	MpObject *old_ref;
+	struct mp_object *old_ref;
 
 	__ASSERT_NO_MSG(ptr != NULL);
 	old_ref = *ptr;

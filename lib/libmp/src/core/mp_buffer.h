@@ -6,7 +6,7 @@
 
 /**
  * @file
- * @brief Main header for MpBuffer.
+ * @brief Main header for mp_buffer.
  */
 
 #ifndef __MP_BUFFER_H__
@@ -19,10 +19,8 @@
 #include "mp_object.h"
 #include "mp_structure.h"
 
-#define MP_BUFFER(obj)      ((MpBuffer *)(obj))
-#define MP_BUFFERPOOL(pool) ((MpBufferPool *)pool)
-
-typedef struct _MpBufferPool MpBufferPool;
+#define MP_BUFFER(obj)      ((struct mp_buffer *)(obj))
+#define MP_BUFFERPOOL(pool) ((struct mp_buffer_pool *)pool)
 
 /**
  * @brief Buffer structure
@@ -31,11 +29,11 @@ typedef struct _MpBufferPool MpBufferPool;
  * in the pipeline. Buffers are managed by buffer pools and use
  * reference counting for memory management.
  */
-typedef struct {
+struct mp_buffer {
 	/** Base object that the buffer is based on */
-	MpObject object;
+	struct mp_object object;
 	/** The pool this buffer belongs to */
-	MpBufferPool *pool;
+	struct mp_buffer_pool *pool;
 	/** Pointer to the buffer data */
 	void *data;
 	/** Index of this buffer in the pool */
@@ -51,9 +49,9 @@ typedef struct {
 	 * constitute a partial frame.
 	 */
 	uint16_t line_offset;
-} MpBuffer;
+};
 
-typedef struct {
+struct mp_buffer_pool_config {
 	/** Minimum number of buffers in the pool */
 	uint8_t min_buffers;
 	/** Maximum number of buffers in the pool */
@@ -62,7 +60,7 @@ typedef struct {
 	uint16_t align;
 	/** Size of each buffer in bytes */
 	size_t size;
-} MpBufferPoolConfig;
+};
 
 /**
  * @brief Buffer pool structure
@@ -70,25 +68,25 @@ typedef struct {
  * Manages a pool of buffers for efficient memory allocation and reuse.
  * Provides methods for buffer lifecycle management.
  */
-struct _MpBufferPool {
+struct mp_buffer_pool {
 	/** Base object */
-	MpObject object;
+	struct mp_object object;
 	/** Array of buffers managed by the pool */
-	MpBuffer *buffers;
+	struct mp_buffer *buffers;
 	/** Pool configuration parameters */
-	MpBufferPoolConfig config;
+	struct mp_buffer_pool_config config;
 
 	/* Pool operations */
 	/** Configure the pool with given parameters */
-	bool (*configure)(MpBufferPool *pool, MpStructure *config);
+	bool (*configure)(struct mp_buffer_pool *pool, struct mp_structure *config);
 	/** Start the pool and allocate resources */
-	bool (*start)(MpBufferPool *pool);
+	bool (*start)(struct mp_buffer_pool *pool);
 	/** Stop the pool and free resources */
-	bool (*stop)(MpBufferPool *pool);
+	bool (*stop)(struct mp_buffer_pool *pool);
 	/** Acquire a buffer from the pool */
-	bool (*acquire_buffer)(MpBufferPool *pool, MpBuffer **buffer);
+	bool (*acquire_buffer)(struct mp_buffer_pool *pool, struct mp_buffer **buffer);
 	/** Release a buffer back to the pool */
-	void (*release_buffer)(MpBufferPool *pool, MpBuffer *buffer);
+	void (*release_buffer)(struct mp_buffer_pool *pool, struct mp_buffer *buffer);
 };
 
 /**
@@ -98,7 +96,7 @@ struct _MpBufferPool {
  *
  * @param pool Pointer to the buffer pool to initialize
  */
-void mp_buffer_pool_init(MpBufferPool *pool);
+void mp_buffer_pool_init(struct mp_buffer_pool *pool);
 
 /**
  * @brief Release a buffer object
@@ -106,9 +104,9 @@ void mp_buffer_pool_init(MpBufferPool *pool);
  * Releases a buffer back to its pool. This is typically called when
  * the buffer reference count reaches zero.
  *
- * @param obj Buffer object to release (must be an @ref MpBuffer)
+ * @param obj Buffer object to release (must be an @ref mp_buffer)
  */
-void mp_buffer_release(MpObject *obj);
+void mp_buffer_release(struct mp_object *obj);
 
 /**
  * @brief Increment buffer reference count
@@ -119,9 +117,9 @@ void mp_buffer_release(MpObject *obj);
  * @param buffer Buffer to reference
  * @return Pointer to the referenced buffer
  */
-static inline MpBuffer *mp_buffer_ref(MpBuffer *buffer)
+static inline struct mp_buffer *mp_buffer_ref(struct mp_buffer *buffer)
 {
-	return (MpBuffer *)mp_object_ref(&buffer->object);
+	return (struct mp_buffer *)mp_object_ref(&buffer->object);
 }
 
 /**
@@ -132,7 +130,7 @@ static inline MpBuffer *mp_buffer_ref(MpBuffer *buffer)
  *
  * @param buffer Buffer to unreference
  */
-static inline void mp_buffer_unref(MpBuffer *buffer)
+static inline void mp_buffer_unref(struct mp_buffer *buffer)
 {
 	mp_object_unref(&buffer->object);
 }

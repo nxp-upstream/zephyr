@@ -18,7 +18,7 @@
 #include "mp_structure.h"
 
 /**
- * @defgroup MpMessage
+ * @defgroup mp_message
  * @brief Message used to notify application
  *
  * @{
@@ -27,29 +27,29 @@
 #define MP_MESSAGE_TYPE(msg) (msg->type)
 
 /**
- * @enum MpMessageType
+ * @enum mp_message_type
  * Supported message types to notify the application
  */
-typedef enum {
+enum mp_message_type {
 	MP_MESSAGE_UNKNOWN = 0,      /**< Unknown message type */
 	MP_MESSAGE_EOS = (1 << 0),   /**< End-of-stream message */
 	MP_MESSAGE_ERROR = (1 << 1), /**< Error message */
 	MP_MESSAGE_ANY = 0xFFFFFFFF  /**< Wildcard for any message type */
-} MpMessageType;
+};
 
 /**
- * @struct _MpMessage
+ * @struct mp_message
  * @brief Message structure
  *
  * Message structure used to notify application
  */
-typedef struct {
-	MpMessageType type; /**< type of message */
-	MpObject *src;      /**< (nullable) object originating message */
-	uint32_t timestamp; /**< Creation time of message */
-	uint32_t seq_id;    /**< sequence id of message */
-	MpStructure *data;  /**< (nullable) data to be sent with message */
-} MpMessage;
+struct mp_message {
+	enum mp_message_type type; /**< type of message */
+	struct mp_object *src;     /**< (nullable) object originating message */
+	uint32_t timestamp;        /**< Creation time of message */
+	uint32_t seq_id;           /**< sequence id of message */
+	struct mp_structure *data; /**< (nullable) data to be sent with message */
+};
 
 /**
  * Create new message.
@@ -59,14 +59,15 @@ typedef struct {
  * @param data (nullable) data to be sent with message
  * @return (nullable) new message
  */
-MpMessage *mp_message_new(MpMessageType type, MpObject *src, MpStructure *data);
+struct mp_message *mp_message_new(enum mp_message_type type, struct mp_object *src,
+				  struct mp_structure *data);
 
 /**
  * Destroys message and its data
  *
  * @param msg Pointer to the message to be destroyed.
  */
-void mp_message_destroy(MpMessage *msg);
+void mp_message_destroy(struct mp_message *msg);
 
 /** @} */
 

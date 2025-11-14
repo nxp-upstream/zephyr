@@ -39,7 +39,7 @@ static void mp_thread_stack_release(int stack_id)
 	mp_thread_pool[stack_id] = 0;
 }
 
-k_tid_t mp_task_create(MpTask *task, k_thread_entry_t func, void *p1, void *p2, void *p3,
+k_tid_t mp_task_create(struct mp_task *task, k_thread_entry_t func, void *p1, void *p2, void *p3,
 		       int priority)
 {
 	task->stack_id = mp_thread_stack_acquire();
@@ -53,7 +53,7 @@ k_tid_t mp_task_create(MpTask *task, k_thread_entry_t func, void *p1, void *p2, 
 			       p3, priority, 0, K_NO_WAIT);
 }
 
-void mp_task_destroy(MpTask *task)
+void mp_task_destroy(struct mp_task *task)
 {
 	task->running = false;
 	mp_thread_stack_release(task->stack_id);

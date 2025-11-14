@@ -6,23 +6,23 @@
 
 #include "mp_capsfilter.h"
 
-int mp_caps_filter_set_property(MpObject *obj, uint32_t key, const void *val)
+int mp_caps_filter_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
-	MpTransform *transform = MP_TRANSFORM(obj);
+	struct mp_transform *transform = MP_TRANSFORM(obj);
 
 	switch (key) {
 	case PROP_CAPS:
-		mp_caps_replace(&transform->sinkpad.caps, (MpCaps *)val);
-		mp_caps_replace(&transform->srcpad.caps, (MpCaps *)val);
+		mp_caps_replace(&transform->sinkpad.caps, (struct mp_caps *)val);
+		mp_caps_replace(&transform->srcpad.caps, (struct mp_caps *)val);
 		return 0;
 	default:
 		return mp_transform_set_property(obj, key, val);
 	}
 }
 
-int mp_caps_filter_get_property(MpObject *obj, uint32_t key, void *val)
+int mp_caps_filter_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
-	MpTransform *transform = MP_TRANSFORM(obj);
+	struct mp_transform *transform = MP_TRANSFORM(obj);
 
 	switch (key) {
 	case PROP_CAPS:
@@ -38,7 +38,8 @@ int mp_caps_filter_get_property(MpObject *obj, uint32_t key, void *val)
 	}
 }
 
-static bool mp_caps_filter_set_caps(MpTransform *transform, MpPadDirection direction, MpCaps *caps)
+static bool mp_caps_filter_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
+				    struct mp_caps *caps)
 {
 	if (!mp_transform_set_caps(transform, direction, caps)) {
 		return false;
@@ -57,9 +58,9 @@ static bool mp_caps_filter_set_caps(MpTransform *transform, MpPadDirection direc
 	return true;
 }
 
-void mp_caps_filter_init(MpElement *self)
+void mp_caps_filter_init(struct mp_element *self)
 {
-	MpTransform *transform = MP_TRANSFORM(self);
+	struct mp_transform *transform = MP_TRANSFORM(self);
 
 	/* Init base class */
 	mp_transform_init(self);

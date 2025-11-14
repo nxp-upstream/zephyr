@@ -15,22 +15,23 @@
 
 LOG_MODULE_REGISTER(mp_pipeline, CONFIG_LIBMP_LOG_LEVEL);
 
-static int mp_pipeline_set_property(MpObject *obj, uint32_t id, const void *val)
+static int mp_pipeline_set_property(struct mp_object *obj, uint32_t id, const void *val)
 {
 	return 0;
 }
 
-static int mp_pipeline_get_property(MpObject *obj, uint32_t id, void *val)
+static int mp_pipeline_get_property(struct mp_object *obj, uint32_t id, void *val)
 {
 	return 0;
 }
 
-static MpStateChangeReturn mp_pipeline_change_state(MpElement *element, MpStateChange transition)
+static enum mp_state_change_return mp_pipeline_change_state(struct mp_element *element,
+							    enum mp_state_change transition)
 {
 	return mp_bin_change_state_func(element, transition);
 }
 
-void mp_pipeline_init(MpElement *self)
+void mp_pipeline_init(struct mp_element *self)
 {
 	/* Init base class */
 	mp_bin_init(self);
@@ -45,7 +46,7 @@ void mp_pipeline_init(MpElement *self)
 	self->bus = &MP_PIPELINE(self)->bus;
 }
 
-MpElement *mp_pipeline_new(const char *name)
+struct mp_element *mp_pipeline_new(const char *name)
 {
 	return mp_element_factory_create("pipeline", name);
 }

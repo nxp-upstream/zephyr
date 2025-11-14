@@ -6,7 +6,7 @@
 
 /**
  * @file
- * @brief Main header for MpPlugin.
+ * @brief Main header for mp_plugin.
  */
 
 #ifndef __MP_PLUGIN_H__
@@ -23,12 +23,12 @@
  * @brief Plugin structure
  *
  */
-typedef struct _MpPlugin {
+struct mp_plugin {
 	/** Plugin name as a string */
 	const char *const name;
 	/** Plugin initialization function pointer */
 	void (*init)(void);
-} MpPlugin;
+};
 
 /**
  * @brief Statically define and initialize a plugin
@@ -50,7 +50,7 @@ typedef struct _MpPlugin {
  * @endcode
  */
 #define MP_PLUGIN_DEFINE(pname, initfunc)                                                          \
-	static const STRUCT_SECTION_ITERABLE(_MpPlugin, pname) = {                                 \
+	static const STRUCT_SECTION_ITERABLE(mp_plugin, pname) = {                                 \
 		.name = STRINGIFY(pname), .init = initfunc,                                        \
 	}
 

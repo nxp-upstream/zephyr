@@ -6,7 +6,7 @@
 
 /**
  * @file
- * @brief Main header for MpSrc.
+ * @brief Main header for mp_src.
  */
 
 #ifndef __MP_SRC_H__
@@ -17,9 +17,7 @@
 #include "mp_element_factory.h"
 #include "mp_pad.h"
 
-#define MP_SRC(self) ((MpSrc *)self)
-
-typedef struct _MpSrc MpSrc;
+#define MP_SRC(self) ((struct mp_src *)self)
 
 /**
  * @brief Base Source Element Structure
@@ -27,21 +25,21 @@ typedef struct _MpSrc MpSrc;
  * The source element is responsible for generating data and pushing it downstream.
  * It contains a source pad for output.
  */
-struct _MpSrc {
+struct mp_src {
 	/** Base element structure */
-	MpElement element;
+	struct mp_element element;
 	/** Source pad for output data */
-	MpPad srcpad;
+	struct mp_pad srcpad;
 	/** Number of buffers to allocate */
 	uint8_t num_buffers;
 	/** Buffer pool for managing output buffers */
-	MpBufferPool *pool;
+	struct mp_buffer_pool *pool;
 	/** Callback to set capabilities on the source pad */
-	bool (*set_caps)(MpSrc *src, MpCaps *caps);
+	bool (*set_caps)(struct mp_src *src, struct mp_caps *caps);
 	/** Callback to get capabilities from the source pad */
-	MpCaps *(*get_caps)(MpSrc *src);
+	struct mp_caps *(*get_caps)(struct mp_src *src);
 	/** Callback to decide buffer allocation strategy */
-	bool (*decide_allocation)(MpSrc *self, MpQuery *query);
+	bool (*decide_allocation)(struct mp_src *self, struct mp_query *query);
 };
 
 /**
@@ -50,28 +48,28 @@ struct _MpSrc {
  * This function initializes the base source element structure, including
  * the source pad and default callbacks.
  *
- * @param self Pointer to the @ref MpElement to initialize as a source
+ * @param self Pointer to the @ref struct mp_element to initialize as a source
  */
-void mp_src_init(MpElement *self);
+void mp_src_init(struct mp_element *self);
 
 /**
  * @brief Set property on source element
  *
- * @param obj Pointer to the @ref MpObject (source element)
+ * @param obj Pointer to the @ref struct mp_object (source element)
  * @param key Property key identifier
  * @param val Pointer to the property value to set
  * @return 0 on success, negative error code on failure
  */
-int mp_src_set_property(MpObject *obj, uint32_t key, const void *val);
+int mp_src_set_property(struct mp_object *obj, uint32_t key, const void *val);
 
 /**
  * @brief Get property from source element
  *
- * @param obj Pointer to the @ref MpObject (source element)
+ * @param obj Pointer to the @ref struct mp_object (source element)
  * @param key Property key identifier
  * @param val Pointer to store the retrieved property value
  * @return 0 on success, negative error code on failure
  */
-int mp_src_get_property(MpObject *obj, uint32_t key, void *val);
+int mp_src_get_property(struct mp_object *obj, uint32_t key, void *val);
 
 #endif /* __MP_SRC_H__ */

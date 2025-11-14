@@ -12,9 +12,10 @@
 
 static uint32_t seq_id = 1;
 
-MpMessage *mp_message_new(MpMessageType type, MpObject *src, MpStructure *data)
+struct mp_message *mp_message_new(enum mp_message_type type, struct mp_object *src,
+				  struct mp_structure *data)
 {
-	MpMessage *msg = k_malloc(sizeof(MpMessage));
+	struct mp_message *msg = k_malloc(sizeof(struct mp_message));
 
 	if (msg == NULL) {
 		return NULL;
@@ -29,7 +30,7 @@ MpMessage *mp_message_new(MpMessageType type, MpObject *src, MpStructure *data)
 	return msg;
 }
 
-void mp_message_destroy(MpMessage *msg)
+void mp_message_destroy(struct mp_message *msg)
 {
 	if (msg == NULL) {
 		return;

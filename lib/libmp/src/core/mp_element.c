@@ -12,7 +12,7 @@
 
 LOG_MODULE_REGISTER(mp_element, CONFIG_LIBMP_LOG_LEVEL);
 
-void mp_element_add_pad(MpElement *element, MpPad *pad)
+void mp_element_add_pad(struct mp_element *element, struct mp_pad *pad)
 {
 	__ASSERT_NO_MSG(element != NULL);
 	__ASSERT_NO_MSG(pad != NULL);
@@ -29,11 +29,11 @@ void mp_element_add_pad(MpElement *element, MpPad *pad)
 	}
 }
 
-static MpPad *mp_element_get_unlinked_pad(MpElement *element, const char *padname,
-					  MpPadDirection direction)
+static struct mp_pad *mp_element_get_unlinked_pad(struct mp_element *element, const char *padname,
+						  enum mp_pad_direction direction)
 {
-	MpObject *obj;
-	MpPad *pad;
+	struct mp_object *obj;
+	struct mp_pad *pad;
 
 	sys_dlist_t *pads = direction == MP_PAD_SRC ? &element->srcpads : &element->sinkpads;
 
@@ -48,11 +48,11 @@ static MpPad *mp_element_get_unlinked_pad(MpElement *element, const char *padnam
 	return NULL;
 }
 
-bool mp_element_link_pads(MpElement *src, const char *srcpadname, MpElement *sink,
+bool mp_element_link_pads(struct mp_element *src, const char *srcpadname, struct mp_element *sink,
 			  const char *sinkpadname)
 {
-	MpPad *srcpad = mp_element_get_unlinked_pad(src, srcpadname, MP_PAD_SRC);
-	MpPad *sinkpad = mp_element_get_unlinked_pad(sink, sinkpadname, MP_PAD_SINK);
+	struct mp_pad *srcpad = mp_element_get_unlinked_pad(src, srcpadname, MP_PAD_SRC);
+	struct mp_pad *sinkpad = mp_element_get_unlinked_pad(sink, sinkpadname, MP_PAD_SINK);
 
 	if (mp_caps_can_intersect(srcpad->caps, sinkpad->caps)) {
 		return mp_pad_link(srcpad, sinkpad);
@@ -61,7 +61,7 @@ bool mp_element_link_pads(MpElement *src, const char *srcpadname, MpElement *sin
 	return false;
 }
 
-bool mp_element_link(MpElement *element, MpElement *next_element, ...)
+bool mp_element_link(struct mp_element *element, struct mp_element *next_element, ...)
 {
 	bool ret = false;
 	va_list args;
@@ -74,14 +74,14 @@ bool mp_element_link(MpElement *element, MpElement *next_element, ...)
 		}
 
 		element = next_element;
-		next_element = va_arg(args, MpElement *);
+		next_element = va_arg(args, struct mp_element *);
 	}
 	va_end(args);
 
 	return ret;
 }
 
-MpStateChangeReturn mp_element_set_state(MpElement *element, MpState state)
+enum mp_state_change_return mp_element_set_state(struct mp_element *element, enum mp_state state)
 {
 	if (element->set_state) {
 		return element->set_state(element, state);
@@ -90,12 +90,13 @@ MpStateChangeReturn mp_element_set_state(MpElement *element, MpState state)
 	return MP_STATE_CHANGE_FAILURE;
 }
 
-static MpStateChangeReturn mp_element_set_state_func(MpElement *element, MpState state)
+static enum mp_state_change_return mp_element_set_state_func(struct mp_element *element,
+							     enum mp_state state)
 {
-	MpStateChangeReturn ret = MP_STATE_CHANGE_SUCCESS;
-	MpStateChange transition;
-	MpState next;
-	MpState *current = &MP_STATE_CURRENT(element);
+	enum mp_state_change_return ret = MP_STATE_CHANGE_SUCCESS;
+	enum mp_state_change transition;
+	enum mp_state next;
+	enum mp_state *current = &MP_STATE_CURRENT(element);
 
 	/* Currently, implement this in an iterative way, not recursive. */
 	while (*current != state) {
@@ -114,10 +115,10 @@ static MpStateChangeReturn mp_element_set_state_func(MpElement *element, MpState
 	return ret;
 }
 
-static MpStateChangeReturn mp_element_change_state_func(MpElement *element,
-							MpStateChange transition)
+static enum mp_state_change_return mp_element_change_state_func(struct mp_element *element,
+								enum mp_state_change transition)
 {
-	MpStateChangeReturn result = MP_STATE_CHANGE_SUCCESS;
+	enum mp_state_change_return result = MP_STATE_CHANGE_SUCCESS;
 
 	switch (transition) {
 	case MP_STATE_CHANGE_READY_TO_PAUSED:
@@ -135,9 +136,9 @@ static MpStateChangeReturn mp_element_change_state_func(MpElement *element,
 	return result;
 }
 
-bool mp_element_send_event_default(MpElement *element, MpEvent *event)
+bool mp_element_send_event_default(struct mp_element *element, struct mp_event *event)
 {
-	MpObject *obj;
+	struct mp_object *obj;
 	bool ret = false;
 	sys_dlist_t *pad_list = NULL;
 
@@ -160,7 +161,7 @@ bool mp_element_send_event_default(MpElement *element, MpEvent *event)
 	return ret;
 }
 
-void mp_element_init(MpElement *self)
+void mp_element_init(struct mp_element *self)
 {
 	sys_dlist_init(&self->srcpads);
 	sys_dlist_init(&self->sinkpads);
@@ -171,7 +172,7 @@ void mp_element_init(MpElement *self)
 	self->eventfn = mp_element_send_event_default;
 }
 
-MpBus *mp_element_get_bus(MpElement *element)
+struct mp_bus *mp_element_get_bus(struct mp_element *element)
 {
 	if (element == NULL) {
 		return NULL;

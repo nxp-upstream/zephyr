@@ -17,12 +17,12 @@
 #include "mp_value.h"
 
 /**
- * @defgroup MpStructure
+ * @defgroup mp_structure
  * @brief Dynamic structure for holding named fields and values.
  *
  *
- * MpStructure is a flexible container used to represent a set of named fields,
- * which is associated with a @ref MpValue.
+ * mp_structure is a flexible container used to represent a set of named fields,
+ * which is associated with a @ref struct mp_value.
  *
  * Each field must have an unique name, each field is stored in single linked list.
  * The structure can be modified at runtime by appending, removing fields.
@@ -32,7 +32,7 @@
  *
  * @code{.c}
  *
- *  MpStructure *structure = mp_structure_new("video/x-raw",
+ *  struct mp_structure *structure = mp_structure_new("video/x-raw",
  * "format", MP_TYPE_UINT, MP_PIXEL_FORMAT_RGB565,
  * "width", MP_TYPE_INT, 1280,
  * "height", MP_TYPE_INT, 720,
@@ -49,11 +49,11 @@
  * To create a new structure this one structure structure:
  * @code{.c}
  *
- * MpValue *list = mp_value_new(MP_TYPE_LIST, NULL);
+ * struct mp_value *list = mp_value_new(MP_TYPE_LIST, NULL);
  * mp_value_list_append(list, mp_value_new(MP_TYPE_UINT, MP_PIXEL_FORMAT_RGB565, NULL));
  * mp_value_list_append(list, mp_value_new(MP_TYPE_UINT, MP_PIXEL_FORMAT_XRGB32, NULL));
  *
- * MpStructure *structure = mp_structure_new("video/x-dummy",
+ * struct mp_structure *structure = mp_structure_new("video/x-dummy",
  *     "fieldA", MP_TYPE_LIST, list,
  *     "fieldB", MP_TYPE_RANGE_INT, 720, 1080, 720,
  *     "fieldC", MP_TYPE_RANGE_INT, 960, 1920, 960,
@@ -62,7 +62,7 @@
  * @endcode
  *
  * Intersection rules for structures:
- * Two @ref MpStructure instances can intersect if all common fields between them
+ * Two @ref struct mp_structure instances can intersect if all common fields between them
  * have intersecting values. The intersection operation produces a new structure
  * containing only the compatible fields and values.
  *
@@ -70,18 +70,18 @@
  */
 
 /**
- * @struct MpStructure
+ * @struct mp_structure
  * @brief Dynamic structure for holding named fields and values.
  */
-typedef struct {
+struct mp_structure {
 	/** List of fields in the structure */
 	sys_slist_t fields;
 	/** Optional name of the structure (can be NULL) */
 	const char *name;
-} MpStructure;
+};
 
 /**
- * @brief Create a new MpStructure.
+ * @brief Create a new mp_structure.
  *
  * This function creates a new structure with the specified name and a variadic
  * list of field definitions. Each field is defined by a sequence of arguments:
@@ -91,51 +91,51 @@ typedef struct {
  *
  * The list must be terminated by a `NULL` field name. The number and type of
  * arguments for each field depend on the field's type with the same rule as @ref mp_value_new()),
- * except for the MP_TYPE_LIST which requires one argument which is a pre-created MpValue list.
+ * except for the MP_TYPE_LIST which requires one argument which is a pre-created mp_value list.
  *
  * @param name Name of the structure. If NULL, the structure will be unnamed.
  * @param ... Variadic list of field definitions, terminated by NULL.
  *
- * @return Pointer to the newly created @ref MpStructure.
+ * @return Pointer to the newly created @ref struct mp_structure.
  * @retval NULL If memory allocation fails or the argument list is invalid.
  */
-MpStructure *mp_structure_new(const char *name, ...);
+struct mp_structure *mp_structure_new(const char *name, ...);
 
 /**
- * @brief Initialize an @ref MpStructure.
+ * @brief Initialize an @ref struct mp_structure.
  *
  * @param structure Structure to initialize.
  * @param name Name of the structure. Can be NULL for unnamed structures.
  */
-void mp_structure_init(MpStructure *structure, const char *name);
+void mp_structure_init(struct mp_structure *structure, const char *name);
 
 /**
- * @brief Append a field to an @ref MpStructure
+ * @brief Append a field to an @ref struct mp_structure
  *
  * @param structure Structure to append the field to.
  * @param name Field name (field name must be unique)
  * @param value Field value (the value will be copied)
  */
-void mp_structure_append(MpStructure *structure, const char *name, MpValue *value);
+void mp_structure_append(struct mp_structure *structure, const char *name, struct mp_value *value);
 
 /**
- * @brief Clear all fields from an @ref MpStructure.
+ * @brief Clear all fields from an @ref struct mp_structure.
  *
  * @param structure Structure to clear.
  */
-void mp_structure_clear(MpStructure *structure);
+void mp_structure_clear(struct mp_structure *structure);
 
 /**
- * @brief Destroy an @ref MpStructure.
+ * @brief Destroy an @ref struct mp_structure.
  *
  * Clears all fields and releases resources associated with the structure.
  *
  * @param structure Pointer to the structure to destroy.
  */
-void mp_structure_destroy(MpStructure *structure);
+void mp_structure_destroy(struct mp_structure *structure);
 
 /**
- * @brief Check if an @ref MpStructure is fixed.
+ * @brief Check if an @ref struct mp_structure is fixed.
  *
  * A structure is considered fixed if all its fields contain single values.
  *
@@ -143,10 +143,10 @@ void mp_structure_destroy(MpStructure *structure);
  *
  * @return True if the structure is fixed, false otherwise.
  */
-bool mp_structure_is_fixed(MpStructure *structure);
+bool mp_structure_is_fixed(struct mp_structure *structure);
 
 /**
- * @brief Get the value of a field in an @ref MpStructure.
+ * @brief Get the value of a field in an @ref struct mp_structure.
  *
  * Retrieves the value associated with the specified field name.
  *
@@ -155,10 +155,10 @@ bool mp_structure_is_fixed(MpStructure *structure);
  *
  * @return Pointer to the value of the field, NULL if the field was not found.
  */
-MpValue *mp_structure_get_value(MpStructure *structure, const char *string);
+struct mp_value *mp_structure_get_value(struct mp_structure *structure, const char *string);
 
 /**
- * @brief Remove a field from an @ref MpStructure.
+ * @brief Remove a field from an @ref struct mp_structure.
  *
  * Deletes the field with the specified name from the structure.
  *
@@ -167,10 +167,10 @@ MpValue *mp_structure_get_value(MpStructure *structure, const char *string);
  *
  * @return True if the field was found and removed, false otherwise.
  */
-bool mp_structure_remove_field(MpStructure *structure, const char *name);
+bool mp_structure_remove_field(struct mp_structure *structure, const char *name);
 
 /**
- * @brief Check if two @ref MpStructures can intersect.
+ * @brief Check if two @ref struct mp_structure can intersect.
  *
  * Two structures can intersect if all common fields have intersecting values.
  *
@@ -179,20 +179,21 @@ bool mp_structure_remove_field(MpStructure *structure, const char *name);
  *
  * @return True if the structures can intersect, false otherwise.
  */
-bool mp_structure_can_intersect(MpStructure *struct1, MpStructure *struct2);
+bool mp_structure_can_intersect(struct mp_structure *struct1, struct mp_structure *struct2);
 
 /**
- * @brief Create a new intersected @ref MpStructure.
+ * @brief Create a new intersected @ref struct mp_structure.
  *
  * @param structure1 First structure.
  * @param structure2 Second structure.
  *
  * @return Pointer to the new intersected structure.
  */
-MpStructure *mp_structure_intersect(MpStructure *structure1, MpStructure *structure2);
+struct mp_structure *mp_structure_intersect(struct mp_structure *structure1,
+					    struct mp_structure *structure2);
 
 /**
- * @brief Create a new fixated @ref MpStructure.
+ * @brief Create a new fixated @ref struct mp_structure.
  *
  * Generates a new structure containing only single values from the input structure.
  *
@@ -200,25 +201,25 @@ MpStructure *mp_structure_intersect(MpStructure *structure1, MpStructure *struct
  *
  * @return Pointer to the new fixated structure.
  */
-MpStructure *mp_structure_fixate(MpStructure *src);
+struct mp_structure *mp_structure_fixate(struct mp_structure *src);
 
 /**
- * @brief Duplicate an @ref MpStructure.
+ * @brief Duplicate an @ref struct mp_structure.
  *
  * @param src Structure to duplicate.
  *
  * @return Pointer to the duplicated structure.
  */
-MpStructure *mp_structure_duplicate(MpStructure *src);
+struct mp_structure *mp_structure_duplicate(struct mp_structure *src);
 
 /**
- * @brief Print an @ref MpStructure.
+ * @brief Print an @ref struct mp_structure.
  *
  * Outputs the contents of the structure for debugging or inspection.
  *
  * @param structure Structure to print.
  */
-void mp_structure_print(MpStructure *structure);
+void mp_structure_print(struct mp_structure *structure);
 
 /** @} */
 
