@@ -25,20 +25,20 @@
  *
  * Maps between libmp pixel formats and Zephyr video driver pixel formats.
  */
-typedef struct {
+struct mp_zvid_pixfmt_desc {
 	/** libMP pixel format */
-	MpPixelFormat mp_fmt;
+	enum mp_pixel_format mp_fmt;
 	/** Zephyr video pixel format */
 	uint32_t zvid_fmt;
-} MpZvidPixfmtDesc;
+};
 
 /**
  * @brief Pixel format mapping table
  *
- * Static array mapping between @ref MpPixelFormat and Zephyr video formats.
+ * Static array mapping between @ref enum mp_pixel_format and Zephyr video formats.
  * Keep this array synchronized with Zephyr video formats.
  */
-static const MpZvidPixfmtDesc mp_zvid_pixfmt_map[] = {
+static const struct mp_zvid_pixfmt_desc mp_zvid_pixfmt_map[] = {
 	{MP_PIXEL_FORMAT_YUYV, VIDEO_PIX_FMT_YUYV},
 	{MP_PIXEL_FORMAT_XYUV32, VIDEO_PIX_FMT_XYUV32},
 	{MP_PIXEL_FORMAT_RGB24, VIDEO_PIX_FMT_RGB24},
@@ -52,9 +52,9 @@ static const MpZvidPixfmtDesc mp_zvid_pixfmt_map[] = {
  *
  * @param zvid_fmt Zephyr video pixel format
  *
- * @return Corresponding @ref MpPixelFormat, or MP_PIXEL_FORMAT_UNKNOWN if not found
+ * @return Corresponding @ref enum mp_pixel_format, or MP_PIXEL_FORMAT_UNKNOWN if not found
  */
-static const MpPixelFormat zvid2mp_pixfmt(uint32_t zvid_fmt)
+static const enum mp_pixel_format zvid2mp_pixfmt(uint32_t zvid_fmt)
 {
 	for (uint8_t i = 0; i < ARRAY_SIZE(mp_zvid_pixfmt_map); i++) {
 		if (mp_zvid_pixfmt_map[i].zvid_fmt == zvid_fmt) {
@@ -68,11 +68,11 @@ static const MpPixelFormat zvid2mp_pixfmt(uint32_t zvid_fmt)
 /**
  * @brief Convert libMP pixel format to Zephyr video format
  *
- * @param mp_fmt libMP pixel format from @ref MpPixelFormat
+ * @param mp_fmt libMP pixel format from @ref enum mp_pixel_format
  *
  * @return Corresponding Zephyr video pixel format, or 0 if not found
  */
-static const uint32_t mp2zvid_pixfmt(MpPixelFormat mp_fmt)
+static const uint32_t mp2zvid_pixfmt(enum mp_pixel_format mp_fmt)
 {
 	for (uint8_t i = 0; i < ARRAY_SIZE(mp_zvid_pixfmt_map); i++) {
 		if (mp_zvid_pixfmt_map[i].mp_fmt == mp_fmt) {
@@ -86,19 +86,20 @@ static const uint32_t mp2zvid_pixfmt(MpPixelFormat mp_fmt)
 /**
  * @brief Extract Zephyr video format capabilities from libMP structure
  *
- * Parses an @ref MpStructure containing video format information and populates
+ * Parses an @ref struct mp_structure containing video format information and populates
  * a Zephyr video format capability structure. The function extracts:
  * - Pixel format (from "format" field)
  * - Width (from "width" field)
  * - Height (from "height" field)
  *
- * @param structure Pointer to @ref MpStructure containing format information
+ * @param structure Pointer to @ref struct mp_structure containing format information
  * @param fcaps Pointer to video_format_cap structure to be populated
  *
  */
-static void get_zvid_fmt_from_structure(MpStructure *structure, struct video_format_cap *fcaps)
+static void get_zvid_fmt_from_structure(struct mp_structure *structure,
+					struct video_format_cap *fcaps)
 {
-	MpValue *value;
+	struct mp_value *value;
 
 	/* Get pixel format field */
 	value = mp_structure_get_value(structure, "format");

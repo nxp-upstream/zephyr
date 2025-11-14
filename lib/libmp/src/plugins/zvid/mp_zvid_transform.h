@@ -17,7 +17,7 @@
 
 #include "mp_zvid_object.h"
 
-#define MP_ZVID_TRANSFORM(self) ((MpZvidTransform *)self)
+#define MP_ZVID_TRANSFORM(self) ((struct mp_zvid_transform *)self)
 
 /**
  * @brief Video Transform Element Structure
@@ -31,20 +31,20 @@
  * - Video scaling (upscaling/downscaling)
  * - Other hardware-supported video transformations
  */
-typedef struct {
+struct mp_zvid_transform {
 	/** Base transform element */
-	MpTransform transform;
+	struct mp_transform transform;
 	/** Input video object for receiving video data */
-	MpZvidObject zvid_obj_in;
+	struct mp_zvid_object zvid_obj_in;
 	/** Output video object for producing transformed video data */
-	MpZvidObject zvid_obj_out;
-} MpZvidTransform;
+	struct mp_zvid_object zvid_obj_out;
+};
 
 /**
  * @brief Initialize a Video Transform Element
  *
- * @param self Pointer to the @ref MpElement to initialize as a video transform
+ * @param self Pointer to the @ref struct mp_element to initialize as a video transform
  */
-void mp_zvid_transform_init(MpElement *self);
+void mp_zvid_transform_init(struct mp_element *self);
 
 #endif /* __MP_ZVID_TRANSFORM_H__ */

@@ -16,10 +16,10 @@ LOG_MODULE_REGISTER(mp_zvid_src, CONFIG_LIBMP_LOG_LEVEL);
 
 #define DEFAULT_PROP_DEVICE DEVICE_DT_GET(DT_CHOSEN(zephyr_camera))
 
-static int mp_zvid_src_set_property(MpObject *obj, uint32_t key, const void *val)
+static int mp_zvid_src_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
 	int ret;
-	MpZvidSrc *zvid_src = MP_ZVID_SRC(obj);
+	struct mp_zvid_src *zvid_src = MP_ZVID_SRC(obj);
 
 	ret = mp_zvid_object_set_property(&(zvid_src->zvid_obj), key, val);
 	if (ret != 0) {
@@ -29,10 +29,10 @@ static int mp_zvid_src_set_property(MpObject *obj, uint32_t key, const void *val
 	return 0;
 }
 
-static int mp_zvid_src_get_property(MpObject *obj, uint32_t key, void *val)
+static int mp_zvid_src_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
 	int ret;
-	MpZvidSrc *zvid_src = MP_ZVID_SRC(obj);
+	struct mp_zvid_src *zvid_src = MP_ZVID_SRC(obj);
 
 	ret = mp_zvid_object_get_property(&(zvid_src->zvid_obj), key, val);
 	if (ret != 0) {
@@ -42,16 +42,16 @@ static int mp_zvid_src_get_property(MpObject *obj, uint32_t key, void *val)
 	return 0;
 }
 
-static MpCaps *mp_zvid_src_get_caps(MpSrc *src)
+static struct mp_caps *mp_zvid_src_get_caps(struct mp_src *src)
 {
-	MpZvidSrc *zvid_src = MP_ZVID_SRC(src);
+	struct mp_zvid_src *zvid_src = MP_ZVID_SRC(src);
 
 	return mp_zvid_object_get_caps(&zvid_src->zvid_obj);
 }
 
-static bool mp_zvid_src_set_caps(MpSrc *src, MpCaps *caps)
+static bool mp_zvid_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 {
-	MpZvidSrc *zvid_src = MP_ZVID_SRC(src);
+	struct mp_zvid_src *zvid_src = MP_ZVID_SRC(src);
 
 	if (!mp_zvid_object_set_caps(&zvid_src->zvid_obj, caps)) {
 		return false;
@@ -63,15 +63,15 @@ static bool mp_zvid_src_set_caps(MpSrc *src, MpCaps *caps)
 	return true;
 }
 
-static bool mp_zvid_src_decide_allocation(MpSrc *self, MpQuery *query)
+static bool mp_zvid_src_decide_allocation(struct mp_src *self, struct mp_query *query)
 {
 	return mp_zvid_object_decide_allocation(&MP_ZVID_SRC(self)->zvid_obj, query);
 }
 
-void mp_zvid_src_init(MpElement *self)
+void mp_zvid_src_init(struct mp_element *self)
 {
-	MpSrc *src = MP_SRC(self);
-	MpZvidSrc *zvid_src = MP_ZVID_SRC(self);
+	struct mp_src *src = MP_SRC(self);
+	struct mp_zvid_src *zvid_src = MP_ZVID_SRC(self);
 
 	/* Init base class */
 	mp_src_init(self);
