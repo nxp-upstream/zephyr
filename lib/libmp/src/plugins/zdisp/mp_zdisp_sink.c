@@ -25,13 +25,13 @@ enum {
 	PROP_DEVICE,
 };
 
-typedef struct {
-	MpPixelFormat mp_fmt;
+struct mp_zdisp_pixfmt_desc {
+	enum mp_pixel_format mp_fmt;
 	enum display_pixel_format zdisp_fmt;
-} MpZdispPixfmtDesc;
+};
 
 /* Keep this array in the same order and in sync with Zephyr display pixel formats */
-static const MpZdispPixfmtDesc mp_zdisp_pixfmt_map[] = {
+static const struct mp_zdisp_pixfmt_desc mp_zdisp_pixfmt_map[] = {
 	{MP_PIXEL_FORMAT_RGB24, PIXEL_FORMAT_RGB_888},
 	{MP_PIXEL_FORMAT_MONO01, PIXEL_FORMAT_MONO01},
 	{MP_PIXEL_FORMAT_MONO10, PIXEL_FORMAT_MONO10},
@@ -43,7 +43,7 @@ static const MpZdispPixfmtDesc mp_zdisp_pixfmt_map[] = {
 	{MP_PIXEL_FORMAT_XRGB32, PIXEL_FORMAT_XRGB_8888},
 };
 
-static const MpPixelFormat zdisp2mp_pixfmt(enum display_pixel_format zdisp_fmt)
+static const enum mp_pixel_format zdisp2mp_pixfmt(enum display_pixel_format zdisp_fmt)
 {
 	for (uint8_t i = 0; i < ARRAY_SIZE(mp_zdisp_pixfmt_map); i++) {
 		if (mp_zdisp_pixfmt_map[i].zdisp_fmt == zdisp_fmt) {
@@ -54,7 +54,7 @@ static const MpPixelFormat zdisp2mp_pixfmt(enum display_pixel_format zdisp_fmt)
 	return MP_PIXEL_FORMAT_UNKNOWN;
 }
 
-static const enum display_pixel_format mp2zdisp_pixfmt(MpPixelFormat mp_fmt)
+static const enum display_pixel_format mp2zdisp_pixfmt(enum mp_pixel_format mp_fmt)
 {
 	for (uint8_t i = 0; i < ARRAY_SIZE(mp_zdisp_pixfmt_map); i++) {
 		if (mp_zdisp_pixfmt_map[i].mp_fmt == mp_fmt) {
@@ -65,17 +65,18 @@ static const enum display_pixel_format mp2zdisp_pixfmt(MpPixelFormat mp_fmt)
 	return 0;
 }
 
-static int mp_zdisp_sink_set_property(MpObject *obj, uint32_t key, const void *val)
+static int mp_zdisp_sink_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
 	return 0;
 }
 
-static int mp_zdisp_sink_get_property(MpObject *obj, uint32_t key, void *val)
+static int mp_zdisp_sink_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
 	return 0;
 }
 
-static int mp_zdisp_sink_setup(MpZdispSink *zdisp_sink, const enum display_pixel_format pixfmt)
+static int mp_zdisp_sink_setup(struct mp_zdisp_sink *zdisp_sink,
+			       const enum display_pixel_format pixfmt)
 {
 	int ret = 0;
 
@@ -97,13 +98,13 @@ static int mp_zdisp_sink_setup(MpZdispSink *zdisp_sink, const enum display_pixel
 	return ret;
 }
 
-bool mp_zdisp_sink_chainfn(MpPad *pad, MpBuffer *buffer)
+bool mp_zdisp_sink_chainfn(struct mp_pad *pad, struct mp_buffer *buffer)
 {
-	MpZdispSink *zdisp_sink = MP_ZDISP_SINK(pad->object.container);
+	struct mp_zdisp_sink *zdisp_sink = MP_ZDISP_SINK(pad->object.container);
 
 	/* Get width / height from pad's caps */
-	MpStructure *first_structure = mp_caps_get_structure(pad->caps, 0);
-	MpValue *value;
+	struct mp_structure *first_structure = mp_caps_get_structure(pad->caps, 0);
+	struct mp_value *value;
 	struct display_buffer_descriptor buf_desc = {
 		.buf_size = buffer->bytesused,
 	};
@@ -127,11 +128,11 @@ bool mp_zdisp_sink_chainfn(MpPad *pad, MpBuffer *buffer)
 	return true;
 }
 
-static MpCaps *mp_zdisp_sink_get_caps(MpSink *sink)
+static struct mp_caps *mp_zdisp_sink_get_caps(struct mp_sink *sink)
 {
-	MpPixelFormat mp_fmt;
+	enum mp_pixel_format mp_fmt;
 	struct display_capabilities display_caps;
-	MpValue *supported_fmt = mp_value_new(MP_TYPE_LIST, NULL);
+	struct mp_value *supported_fmt = mp_value_new(MP_TYPE_LIST, NULL);
 
 	display_get_capabilities(MP_ZDISP_SINK(sink)->display_dev, &display_caps);
 
@@ -149,10 +150,10 @@ static MpCaps *mp_zdisp_sink_get_caps(MpSink *sink)
 			   display_caps.y_resolution, 1, NULL);
 }
 
-static bool mp_zdisp_sink_set_caps(MpSink *sink, MpCaps *caps)
+static bool mp_zdisp_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
 {
-	MpStructure *first_structure = mp_caps_get_structure(caps, 0);
-	MpValue *value = mp_structure_get_value(first_structure, "format");
+	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
+	struct mp_value *value = mp_structure_get_value(first_structure, "format");
 	enum display_pixel_format zdisp_fmt = mp2zdisp_pixfmt(mp_value_get_uint(value));
 
 	if (zdisp_fmt == 0 || mp_zdisp_sink_setup(MP_ZDISP_SINK(sink), zdisp_fmt) != 0) {
@@ -164,10 +165,10 @@ static bool mp_zdisp_sink_set_caps(MpSink *sink, MpCaps *caps)
 	return true;
 }
 
-void mp_zdisp_sink_init(MpElement *self)
+void mp_zdisp_sink_init(struct mp_element *self)
 {
-	MpSink *sink = MP_SINK(self);
-	MpZdispSink *zdisp_sink = MP_ZDISP_SINK(self);
+	struct mp_sink *sink = MP_SINK(self);
+	struct mp_zdisp_sink *zdisp_sink = MP_ZDISP_SINK(self);
 
 	/* Init base class */
 	mp_sink_init(self);
@@ -185,7 +186,7 @@ void mp_zdisp_sink_init(MpElement *self)
 
 static void plugin_init(void)
 {
-	MP_ELEMENTFACTORY_DEFINE(zdisp_sink, sizeof(MpZdispSink), mp_zdisp_sink_init);
+	MP_ELEMENTFACTORY_DEFINE(zdisp_sink, sizeof(struct mp_zdisp_sink), mp_zdisp_sink_init);
 }
 
 MP_PLUGIN_DEFINE(zdisp, plugin_init);
