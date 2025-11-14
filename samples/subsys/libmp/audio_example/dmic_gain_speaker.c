@@ -30,21 +30,21 @@ int main(void)
 	int ret = 0;
 
 	/* Create elements */
-	MpElement *source = mp_element_factory_create("zaud_dmic_src", "dmic");
+	struct mp_element *source = mp_element_factory_create("zaud_dmic_src", "dmic");
 
 	if (source == NULL) {
 		LOG_ERR("Failed to create dmic element");
 		return 0;
 	}
 
-	MpElement *transform = mp_element_factory_create("zaud_gain", "gain");
+	struct mp_element *transform = mp_element_factory_create("zaud_gain", "gain");
 
 	if (transform == NULL) {
 		LOG_ERR("Failed to create gain element");
 		return 0;
 	}
 
-	MpElement *sink = mp_element_factory_create("zaud_i2s_codec_sink", "speaker");
+	struct mp_element *sink = mp_element_factory_create("zaud_i2s_codec_sink", "speaker");
 
 	if (sink == NULL) {
 		LOG_ERR("Failed to create speaker element");
@@ -72,7 +72,7 @@ int main(void)
 	}
 
 	/* Create a new pipeline */
-	MpElement *pipeline = mp_pipeline_new("dmic_gain_speaker_pipeline");
+	struct mp_element *pipeline = mp_pipeline_new("dmic_gain_speaker_pipeline");
 
 	if (pipeline == NULL) {
 		LOG_ERR("Failed to create pipeline");
@@ -98,9 +98,9 @@ int main(void)
 	}
 
 	/* Handle message from the pipeline */
-	MpBus *bus = mp_element_get_bus(pipeline);
+	struct mp_bus *bus = mp_element_get_bus(pipeline);
 	/* Wait until an Error or an EOS - blocking */
-	MpMessage *msg = mp_bus_pop_msg(bus, MP_MESSAGE_ERROR | MP_MESSAGE_EOS);
+	struct mp_message *msg = mp_bus_pop_msg(bus, MP_MESSAGE_ERROR | MP_MESSAGE_EOS);
 
 	if (msg != NULL) {
 		switch (MP_MESSAGE_TYPE(msg)) {
