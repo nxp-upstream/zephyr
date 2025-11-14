@@ -130,6 +130,8 @@ struct _MpPad {
 	bool (*queryfn)(MpPad *pad, MpQuery *query);
 	/** Event function for handling events */
 	bool (*eventfn)(MpPad *pad, MpEvent *event);
+	/** Link function for link validation and doing some pad's specific stuffs */
+	bool (*linkfn)(MpPad *pad);
 };
 
 /**

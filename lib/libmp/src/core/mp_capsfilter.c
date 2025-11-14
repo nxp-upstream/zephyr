@@ -38,6 +38,25 @@ int mp_caps_filter_get_property(MpObject *obj, uint32_t key, void *val)
 	}
 }
 
+static bool mp_caps_filter_set_caps(MpTransform *transform, MpPadDirection direction, MpCaps *caps)
+{
+	if (!mp_transform_set_caps(transform, direction, caps)) {
+		return false;
+	}
+
+	/*
+	 * After caps negotiation, capsfilter is bypassed in the pipeline for two reasons:
+	 *  - Gain some small overhead during buffer flow
+	 *  - More importanly, allow allocation negotiation can take place between the elements
+	 *    before and after the capsfilter.
+	 *
+	 * TODO: Remember to remove this shortcut whenever caps negotiation is re-triggered.
+	 */
+	transform->sinkpad.peer->peer = transform->srcpad.peer;
+
+	return true;
+}
+
 void mp_caps_filter_init(MpElement *self)
 {
 	MpTransform *transform = MP_TRANSFORM(self);
@@ -49,6 +68,7 @@ void mp_caps_filter_init(MpElement *self)
 	self->object.get_property = mp_caps_filter_get_property;
 
 	transform->mode = MP_MODE_PASSTHROUGH;
+	transform->set_caps = mp_caps_filter_set_caps;
 	/* All-pass filter is set by default */
 	transform->sinkpad.caps = mp_caps_new_any();
 	transform->srcpad.caps = mp_caps_new_any();

@@ -68,7 +68,7 @@ static bool mp_src_query(MpPad *pad, MpQuery *query)
 	return ret;
 }
 
-static bool mp_src_decide_allocation_default(MpSrc *self, MpQuery *query)
+static bool mp_src_decide_allocation(MpSrc *self, MpQuery *query)
 {
 	return true;
 }
@@ -204,7 +204,7 @@ void mp_src_init(MpElement *self)
 
 	src->set_caps = mp_src_set_caps;
 	src->srcpad.queryfn = mp_src_query;
-	src->decide_allocation = mp_src_decide_allocation_default;
+	src->decide_allocation = mp_src_decide_allocation;
 
 	/* Set MP_PAD_FLAG_NEGOTIATE flag */
 	MP_OBJECT(&src->srcpad)->flags |= MP_PAD_FLAG_NEGOTIATE;

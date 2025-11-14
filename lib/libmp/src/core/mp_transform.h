@@ -126,4 +126,6 @@ int mp_transform_set_property(MpObject *obj, uint32_t key, const void *val);
  */
 int mp_transform_get_property(MpObject *obj, uint32_t key, void *val);
 
+bool mp_transform_set_caps(MpTransform *transform, MpPadDirection direction, MpCaps *caps);
+
 #endif /* __MP_TRANSFORM_H__ */

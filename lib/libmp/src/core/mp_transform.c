@@ -44,7 +44,7 @@ static MpCaps *mp_transform_get_caps(MpTransform *transform, MpPadDirection dire
 	return NULL;
 }
 
-static bool mp_transform_set_caps(MpTransform *transform, MpPadDirection direction, MpCaps *caps)
+bool mp_transform_set_caps(MpTransform *transform, MpPadDirection direction, MpCaps *caps)
 {
 	if (direction == MP_PAD_SINK) {
 		mp_caps_replace(&(transform->sinkpad.caps), caps);
@@ -131,12 +131,12 @@ static inline bool mp_transform_query_caps(MpTransform *self, MpPadDirection dir
 	return ret;
 }
 
-static bool mp_transform_decide_allocation_default(MpTransform *self, MpQuery *query)
+static bool mp_transform_decide_allocation(MpTransform *self, MpQuery *query)
 {
 	return true;
 }
 
-static bool mp_transform_propose_allocation_default(MpTransform *self, MpQuery *query)
+static bool mp_transform_propose_allocation(MpTransform *self, MpQuery *query)
 {
 	return true;
 }
@@ -278,6 +278,6 @@ void mp_transform_init(MpElement *self)
 	transform->srcpad.queryfn = mp_transform_query;
 	transform->sinkpad.eventfn = mp_transform_event;
 	transform->srcpad.eventfn = mp_transform_event;
-	transform->decide_allocation = mp_transform_decide_allocation_default;
-	transform->propose_allocation = mp_transform_propose_allocation_default;
+	transform->decide_allocation = mp_transform_decide_allocation;
+	transform->propose_allocation = mp_transform_propose_allocation;
 }

@@ -46,7 +46,7 @@ static MpStateChangeReturn mp_sink_change_state(MpElement *self, MpStateChange t
 	return ret;
 }
 
-bool mp_sink_propose_allocation_default(MpSink *self, MpQuery *query)
+static bool mp_sink_propose_allocation(MpSink *self, MpQuery *query)
 {
 	return true;
 }
@@ -75,7 +75,7 @@ static bool mp_sink_query(MpPad *pad, MpQuery *query)
 	}
 }
 
-bool mp_sink_event(MpPad *pad, MpEvent *event)
+static bool mp_sink_event(MpPad *pad, MpEvent *event)
 {
 	MpSink *sink = MP_SINK(pad->object.container);
 
@@ -107,5 +107,5 @@ void mp_sink_init(MpElement *self)
 	self->change_state = mp_sink_change_state;
 
 	sink->set_caps = mp_sink_set_caps;
-	sink->propose_allocation = mp_sink_propose_allocation_default;
+	sink->propose_allocation = mp_sink_propose_allocation;
 }
