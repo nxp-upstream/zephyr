@@ -8,6 +8,11 @@
  * @file
  * @ingroup cache_device_interface
  * @brief Extended cache controller driver API for device-specific operations.
+ *
+ * The cache information exposed by this API aligns with the common
+ * Devicetree cache information properties defined in
+ * dts/bindings/cacheinfo.yaml. See that schema for the
+ * canonical property names used by cache controller nodes.
  */
 
 #ifndef ZEPHYR_INCLUDE_DRIVERS_CACHE_DEVICE_H_
@@ -25,59 +30,13 @@
 #include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <zephyr/cache_info.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/**
- * @brief Cache type definitions
- * @name Cache Types
- * @{
- */
-#define CACHE_DEVICE_TYPE_INSTRUCTION  BIT(0)
-#define CACHE_DEVICE_TYPE_DATA        BIT(1)
-#define CACHE_DEVICE_TYPE_UNIFIED     (CACHE_DEVICE_TYPE_INSTRUCTION | CACHE_DEVICE_TYPE_DATA)
-/** @} */
-
 /* Cache purpose removed: device caches in this model are external by nature. */
-
-/**
- * @brief Cache attribute flags (capabilities)
- *
- * These describe cache capabilities similar to Linux cacheinfo attributes.
- */
-#define CACHE_DEVICE_ATTR_WRITE_THROUGH  BIT(0)
-#define CACHE_DEVICE_ATTR_WRITE_BACK     BIT(1)
-#define CACHE_DEVICE_ATTR_READ_ALLOCATE  BIT(2)
-#define CACHE_DEVICE_ATTR_WRITE_ALLOCATE BIT(3)
-
-/**
- * @brief Cache information structure (device cache)
- *
- * Describes a device cache controller instance. This is distinct from
- * architecture/core caches in zephyr/include/zephyr/cache.h.
- */
-struct cache_device_info {
-    /** Optional identifier unique within (type, level) for this device cache */
-    uint32_t id;
-    /** Cache type (instruction, data, or unified), see CACHE_DEVICE_TYPE_* */
-    uint32_t cache_type;
-    /** Cache level (1 for L1, 2 for L2, etc.) */
-    uint32_t cache_level;
-    /** Cache line size in bytes (coherency line size) */
-    uint32_t line_size;
-    /** Number of ways (associativity) */
-    uint32_t ways;
-    /** Number of sets */
-    uint32_t sets;
-    /** Physical line partition (if applicable, else 0) */
-    uint32_t physical_line_partition;
-    /** Total cache size in bytes */
-    uint32_t size;
-    /** Capability attributes bitfield, see CACHE_DEVICE_ATTR_* */
-    uint32_t attributes;
-};
 
 /**
  * @cond INTERNAL_HIDDEN
@@ -125,7 +84,7 @@ typedef int (*cache_device_api_flush_and_invalidate_all)(const struct device *de
  * @typedef cache_device_api_get_info
  * @brief API for getting cache information
  */
-typedef int (*cache_device_api_get_info)(const struct device *dev, struct cache_device_info *info);
+typedef int (*cache_device_api_get_info)(const struct device *dev, struct cache_info *info);
 
 /**
  * @brief Extended cache driver API
@@ -328,9 +287,9 @@ int cache_device_instr_flush_and_invalidate_range(void *addr, size_t size);
  * @return -ENOSYS if operation not supported by this device
  * @return -errno code if failure
  */
-__syscall int cache_device_get_info(const struct device *dev, struct cache_device_info *info);
+__syscall int cache_device_get_info(const struct device *dev, struct cache_info *info);
 
-static inline int z_impl_cache_device_get_info(const struct device *dev, struct cache_device_info *info)
+static inline int z_impl_cache_device_get_info(const struct device *dev, struct cache_info *info)
 {
     const struct cache_device_driver_api *api =
         (const struct cache_device_driver_api *)dev->api;

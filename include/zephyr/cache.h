@@ -11,11 +11,20 @@
 /**
  * @file
  * @brief cache API interface
+ *
+ * Note: Device-specific cache controller information (type/level/line size,
+ * etc.) is described via Devicetree using the shared schema in
+ * dts/bindings/cacheinfo.yaml and surfaced through the
+ * cache_device driver API (include/zephyr/drivers/cache_device.h).
+ * This header exposes the architecture/sys cache control APIs.
  */
 
 #include <zephyr/kernel.h>
 #include <zephyr/arch/cpu.h>
 #include <zephyr/debug/sparse.h>
+#include <errno.h>
+#include <zephyr/cache_info.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,6 +43,9 @@ extern "C" {
  * @ingroup os_services
  * @{
  */
+
+/* Cache interface APIs */
+
 
 /**
  * @brief Enable the d-cache
@@ -429,6 +441,71 @@ static ALWAYS_INLINE size_t sys_cache_instr_line_size_get(void)
 #else
 	return 0;
 #endif
+}
+
+extern int cache_data_get_info(struct cache_info *info) __attribute__((weak));
+extern int cache_instr_get_info(struct cache_info *info) __attribute__((weak));
+
+/**
+ * @brief Get basic d-cache information for sys cache platforms
+ *
+ * Populates line size and common fields; other fields may be zero when
+ * not discoverable generically.
+ *
+ * @param info Pointer to structure to fill
+ * @retval 0 if successful
+ * @retval -EINVAL if info is NULL
+ * @retval -ENOTSUP if d-cache not supported or line size unavailable
+ */
+static ALWAYS_INLINE int sys_cache_data_get_info(struct cache_info *info)
+{
+	if (info == NULL) {
+		return -EINVAL;
+	}
+
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE)
+	if (cache_data_get_info) {
+		return cache_data_get_info(info);
+	}
+	else
+	{
+		return -ENOTSUP;
+	}
+#endif
+
+	ARG_UNUSED(info);
+	return -ENOTSUP;
+}
+
+/**
+ * @brief Get basic i-cache information for sys cache platforms
+ *
+ * Populates line size and common fields; other fields may be zero when
+ * not discoverable generically.
+ *
+ * @param info Pointer to structure to fill
+ * @retval 0 if successful
+ * @retval -EINVAL if info is NULL
+ * @retval -ENOTSUP if i-cache not supported or line size unavailable
+ */
+static ALWAYS_INLINE int sys_cache_instr_get_info(struct cache_info *info)
+{
+	if (info == NULL) {
+		return -EINVAL;
+	}
+
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_ICACHE)
+	if (cache_instr_get_info) {
+		return cache_instr_get_info(info);
+	}
+	else
+	{
+		return -ENOTSUP;
+	}
+#endif
+
+	ARG_UNUSED(info);
+	return -ENOTSUP;
 }
 
 /**

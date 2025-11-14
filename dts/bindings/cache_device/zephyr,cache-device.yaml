@@ -10,67 +10,15 @@ description: |
 
 compatible: "zephyr,cache-device"
 
-include: base.yaml
+include:
+  - base.yaml
+  - cacheinfo.yaml
 
 properties:
   reg:
     required: true
     description: |
       Cache controller register base address and size.
-
-  cache-type:
-    type: string
-    required: false
-    description: |
-      Type of cache controller.
-    enum:
-      - instruction
-      - data
-      - unified
-
-  cache-level:
-    type: int
-    required: false
-    description: |
-      Cache hierarchy level (1 for L1, 2 for L2, ...).
-
-  cache-line-size:
-    type: int
-    required: false
-    description: |
-      Cache line size in bytes (coherency line size).
-
-  cache-ways:
-    type: int
-    required: false
-    description: |
-      Number of ways in set-associative cache.
-
-  cache-sets:
-    type: int
-    required: false
-    description: |
-      Number of sets in the cache.
-
-  cache-size:
-    type: int
-    required: false
-    description: |
-      Total cache size in bytes.
-
-  cache-attributes:
-    type: array
-    required: false
-    items:
-      type: string
-      enum:
-        - write-through
-        - write-back
-        - read-allocate
-        - write-allocate
-    description: |
-      Supported capability attributes of the cache controller.
-      This corresponds to CACHE_DEVICE_ATTR_* flags in the driver API.
 
   # cache-type:
   #   type: string
