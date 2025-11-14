@@ -9,7 +9,7 @@
  * @brief Capsfilter element.
  *
  * This element does not modify data, but used to enforce limitations on the data format.
- * 
+ *
  */
 
 #ifndef __MP_CAPSFILTER_H__

@@ -58,7 +58,8 @@ int main(void)
 		goto err;
 	}
 
-	ret = mp_object_set_properties(MP_OBJECT(caps_filter), PROP_CAPS, filtered_caps, PROP_LIST_END);
+	ret = mp_object_set_properties(MP_OBJECT(caps_filter), PROP_CAPS, filtered_caps,
+				       PROP_LIST_END);
 	mp_caps_unref(filtered_caps);
 	if (ret < 0) {
 		goto err;

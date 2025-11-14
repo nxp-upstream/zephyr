@@ -30,8 +30,10 @@ static bool mp_transform_chainfn(MpPad *pad, MpBuffer *buffer)
 
 static MpCaps *mp_transform_get_caps(MpTransform *transform, MpPadDirection direction)
 {
-	/* Default implementation simply returns the pad's caps. However, subclasses should return
-	 * the real caps of the element */
+	/*
+	 * Default implementation simply returns the pad's caps. However, subclasses
+	 * should return the real caps of the element.
+	 */
 	if (direction == MP_PAD_SRC) {
 		return mp_caps_ref(transform->srcpad.caps);
 	}
