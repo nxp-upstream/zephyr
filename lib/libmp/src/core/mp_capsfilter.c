@@ -26,9 +26,11 @@ int mp_caps_filter_get_property(MpObject *obj, uint32_t key, void *val)
 
 	switch (key) {
 	case PROP_CAPS:
-		/* The pad's caps may change during and after caps negotiation but the function is
+		/*
+		 * The pad's caps may change during and after caps negotiation but the function is
 		 * generally called before any pipeline process, so it's OK to get the filter caps
-		 * from the pad's caps */
+		 * from the pad's caps
+		 */
 		val = transform->sinkpad.caps;
 		return 0;
 	default:
