@@ -37,8 +37,6 @@ MpPad *mp_pad_new(const char *name, MpPadDirection direction, MpPadPresence pres
 
 bool mp_pad_link(MpPad *srcpad, MpPad *sinkpad)
 {
-	int ret = true;
-
 	if (srcpad == NULL || sinkpad == NULL) {
 		return false;
 	}
@@ -47,7 +45,15 @@ bool mp_pad_link(MpPad *srcpad, MpPad *sinkpad)
 	srcpad->peer = sinkpad;
 	sinkpad->peer = srcpad;
 
-	return ret;
+	if (srcpad->linkfn != NULL && !srcpad->linkfn(srcpad)) {
+		return false;
+	}
+
+	if (sinkpad->linkfn != NULL && !sinkpad->linkfn(sinkpad)) {
+		return false;
+	}
+
+	return true;
 }
 
 bool mp_pad_start_task(MpPad *pad, MpTaskFunction func, int priority, void *user_data)
