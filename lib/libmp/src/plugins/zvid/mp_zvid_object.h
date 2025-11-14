@@ -23,7 +23,7 @@
 
 #include "mp_zvid_buffer_pool.h"
 
-#define MP_ZVIDOBJECT(self) ((MpZvidObject *)self)
+#define MP_ZVIDOBJECT(self) ((struct mp_zvid_object *)self)
 
 /**
  * @brief Video Object structure
@@ -31,36 +31,36 @@
  * This structure represents a video object that provides common video
  * functionalities for the video source and transform elements.
  */
-typedef struct _MpZvidObject {
+struct mp_zvid_object {
 	/** Pointer to the video device */
 	const struct device *vdev;
 	/** Video buffer type */
 	enum video_buf_type type;
 	/** Associated buffer pool */
-	MpZvidBufferPool pool;
-} MpZvidObject;
+	struct mp_zvid_buffer_pool pool;
+};
 
 /**
  * @brief Set a property on the video object
  *
- * @param zvid_obj Pointer to the @ref MpZvidObject
+ * @param zvid_obj Pointer to the @ref struct mp_zvid_object
  * @param key Property key/control ID
  * @param val Property value to set
  *
  * @return 0 on success or a negative errno codes on failure
  */
-int mp_zvid_object_set_property(MpZvidObject *zvid_obj, uint32_t key, const void *val);
+int mp_zvid_object_set_property(struct mp_zvid_object *zvid_obj, uint32_t key, const void *val);
 
 /**
  * @brief Get a property from the video object
  *
- * @param zvid_obj Pointer to the @ref MpZvidObject
+ * @param zvid_obj Pointer to the @ref struct mp_zvid_object
  * @param key Property key/control ID to retrieve
  * @param val Pointer to store the retrieved property value
  *
  * @return 0 on success or a negative errno codes on failure
  */
-int mp_zvid_object_get_property(MpZvidObject *zvid_obj, uint32_t key, void *val);
+int mp_zvid_object_get_property(struct mp_zvid_object *zvid_obj, uint32_t key, void *val);
 
 /**
  * @brief Get capabilities of the video object
@@ -68,11 +68,11 @@ int mp_zvid_object_get_property(MpZvidObject *zvid_obj, uint32_t key, void *val)
  * Queries the underlying video device for its capabilities including pixel formats,
  * resolutions, and frame rates.
  *
- * @param zvid_obj Pointer to the @ref MpZvidObject
+ * @param zvid_obj Pointer to the @ref struct mp_zvid_object
  *
- * @return Pointer to @ref MpCaps containing device capabilities, or NULL on error
+ * @return Pointer to @ref struct mp_caps containing device capabilities, or NULL on error
  */
-MpCaps *mp_zvid_object_get_caps(MpZvidObject *zvid_obj);
+struct mp_caps *mp_zvid_object_get_caps(struct mp_zvid_object *zvid_obj);
 
 /**
  * @brief Set capabilities on the video object
@@ -80,12 +80,12 @@ MpCaps *mp_zvid_object_get_caps(MpZvidObject *zvid_obj);
  * Configures the video device with the specified capabilities (video format
  * and frame rate). The capabilities must be fixed (not ranges).
  *
- * @param zvid_obj Pointer to the @ref MpZvidObject
- * @param caps Pointer to @ref MpCaps with fixed capabilities to set
+ * @param zvid_obj Pointer to the @ref struct mp_zvid_object
+ * @param caps Pointer to @ref struct mp_caps with fixed capabilities to set
  *
  * @return true on success and false on failure
  */
-bool mp_zvid_object_set_caps(MpZvidObject *zvid_obj, MpCaps *caps);
+bool mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *caps);
 
 /**
  * @brief Decide buffer allocation parameters
@@ -94,11 +94,11 @@ bool mp_zvid_object_set_caps(MpZvidObject *zvid_obj, MpCaps *caps);
  * and the query requirements. The video object always uses its own buffer
  * pool and just negotiates the configuration parameters.
  *
- * @param zvid_obj Pointer to the @ref MpZvidObject
- * @param query Pointer to @ref MpQuery containing allocation requirements
+ * @param zvid_obj Pointer to the @ref struct mp_zvid_object
+ * @param query Pointer to @ref struct mp_query containing allocation requirements
  *
  * @return true on success and false on failure
  */
-bool mp_zvid_object_decide_allocation(MpZvidObject *zvid_obj, MpQuery *query);
+bool mp_zvid_object_decide_allocation(struct mp_zvid_object *zvid_obj, struct mp_query *query);
 
 #endif /* __MP_ZVID_OBJECT_H__ */

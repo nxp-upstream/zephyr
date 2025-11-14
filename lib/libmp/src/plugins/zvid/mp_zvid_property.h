@@ -23,9 +23,9 @@
  * The enumeration starts from @ref PROP_TRANSFORM_LAST + 1 to ensure no
  * conflicts with base transform properties.
  */
-typedef enum {
+enum prop_zvid_transform {
 	/** Device property identifier */
 	PROP_DEVICE = PROP_TRANSFORM_LAST + 1,
-} PROP_ZVID_TRANSFORM;
+};
 
 #endif /* __MP_ZVID_PROPS_H__ */

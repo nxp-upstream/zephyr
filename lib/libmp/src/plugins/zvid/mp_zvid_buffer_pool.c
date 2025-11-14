@@ -12,10 +12,10 @@
 
 LOG_MODULE_REGISTER(mp_zvid_buffer_pool, CONFIG_LIBMP_LOG_LEVEL);
 
-static bool mp_zvid_buffer_pool_configure(MpBufferPool *pool, MpStructure *config)
+static bool mp_zvid_buffer_pool_configure(struct mp_buffer_pool *pool, struct mp_structure *config)
 {
 	/* Allocate just the pool's buffers structure */
-	pool->buffers = k_calloc(pool->config.min_buffers, sizeof(MpBuffer));
+	pool->buffers = k_calloc(pool->config.min_buffers, sizeof(struct mp_buffer));
 
 	for (uint8_t i = 0; i < pool->config.min_buffers; i++) {
 		pool->buffers[i].object.release = mp_buffer_release;
@@ -24,9 +24,9 @@ static bool mp_zvid_buffer_pool_configure(MpBufferPool *pool, MpStructure *confi
 	return true;
 }
 
-static bool mp_zvid_buffer_pool_start(MpBufferPool *pool)
+static bool mp_zvid_buffer_pool_start(struct mp_buffer_pool *pool)
 {
-	MpZvidBufferPool *zvid_pool = MP_ZVID_BUFFERPOOL(pool);
+	struct mp_zvid_buffer_pool *zvid_pool = MP_ZVID_BUFFERPOOL(pool);
 	struct video_buffer vbuf = {.type = zvid_pool->zvid_obj->type};
 	struct video_buffer_request vbr = {
 		.memory = VIDEO_MEMORY_INTERNAL,
@@ -67,15 +67,16 @@ static bool mp_zvid_buffer_pool_start(MpBufferPool *pool)
 	return true;
 }
 
-static bool mp_zvid_buffer_pool_stop(MpBufferPool *pool)
+static bool mp_zvid_buffer_pool_stop(struct mp_buffer_pool *pool)
 {
 	return true;
 }
 
-static bool mp_zvid_buffer_pool_acquire_buffer(MpBufferPool *pool, MpBuffer **buffer)
+static bool mp_zvid_buffer_pool_acquire_buffer(struct mp_buffer_pool *pool,
+					       struct mp_buffer **buffer)
 {
 	struct video_buffer *vbuf = &(struct video_buffer){};
-	MpZvidBufferPool *zvid_pool = MP_ZVID_BUFFERPOOL(pool);
+	struct mp_zvid_buffer_pool *zvid_pool = MP_ZVID_BUFFERPOOL(pool);
 	int err;
 
 	vbuf->type = zvid_pool->zvid_obj->type;
@@ -101,10 +102,11 @@ static bool mp_zvid_buffer_pool_acquire_buffer(MpBufferPool *pool, MpBuffer **bu
 	return false;
 }
 
-static void mp_zvid_buffer_pool_release_buffer(MpBufferPool *pool, MpBuffer *buffer)
+static void mp_zvid_buffer_pool_release_buffer(struct mp_buffer_pool *pool,
+					       struct mp_buffer *buffer)
 {
 	int err;
-	MpZvidBufferPool *zvid_pool = MP_ZVID_BUFFERPOOL(pool);
+	struct mp_zvid_buffer_pool *zvid_pool = MP_ZVID_BUFFERPOOL(pool);
 	struct video_buffer vbuf = {.type = zvid_pool->zvid_obj->type, .index = buffer->index};
 
 	err = video_enqueue(zvid_pool->zvid_obj->vdev, &vbuf);
@@ -114,9 +116,9 @@ static void mp_zvid_buffer_pool_release_buffer(MpBufferPool *pool, MpBuffer *buf
 	}
 }
 
-void mp_zvid_buffer_pool_init(MpBufferPool *pool, MpZvidObject *obj)
+void mp_zvid_buffer_pool_init(struct mp_buffer_pool *pool, struct mp_zvid_object *obj)
 {
-	MpZvidBufferPool *zvid_pool = MP_ZVID_BUFFERPOOL(pool);
+	struct mp_zvid_buffer_pool *zvid_pool = MP_ZVID_BUFFERPOOL(pool);
 
 	zvid_pool->zvid_obj = obj;
 

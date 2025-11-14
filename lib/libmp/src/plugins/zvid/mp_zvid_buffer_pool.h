@@ -16,33 +16,33 @@
 
 #include <src/core/mp_buffer.h>
 
-#define MP_ZVID_BUFFERPOOL(self) ((MpZvidBufferPool *)self)
+#define MP_ZVID_BUFFERPOOL(self) ((struct mp_zvid_buffer_pool *)self)
 
-typedef struct _MpZvidObject MpZvidObject;
+struct mp_zvid_object;
 
 /**
  * @brief Video Buffer Pool structure
  *
  * This structure represents a specialized buffer pool for video operations.
- * It extends the generic @ref MpBufferPool with video-specific functionality.
+ * It extends the generic @ref struct mp_buffer_pool with video-specific functionality.
  *
  * The video buffer pool manages video buffers handling buffer allocation,
  * queuing, and dequeuing buffers through the Zephyr video subsystem.
  */
-typedef struct {
+struct mp_zvid_buffer_pool {
 	/** Base buffer pool structure */
-	MpBufferPool pool;
+	struct mp_buffer_pool pool;
 	/** Associated video object */
-	MpZvidObject *zvid_obj;
-} MpZvidBufferPool;
+	struct mp_zvid_object *zvid_obj;
+};
 
 /**
  * @brief Initialize a Zephyr video buffer pool
  *
- * @param pool Pointer to the @ref MpBufferPool structure to initialize
- * @param obj Pointer to the @ref MpZvidObject to associate with this pool
+ * @param pool Pointer to the @ref struct mp_buffer_pool structure to initialize
+ * @param obj Pointer to the @ref struct mp_zvid_object to associate with this pool
  *
  */
-void mp_zvid_buffer_pool_init(MpBufferPool *pool, MpZvidObject *obj);
+void mp_zvid_buffer_pool_init(struct mp_buffer_pool *pool, struct mp_zvid_object *obj);
 
 #endif /* __MP_ZVID_BUFFER_POOL_H__ */

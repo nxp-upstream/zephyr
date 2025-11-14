@@ -16,7 +16,7 @@
 
 LOG_MODULE_REGISTER(mp_zvid_object, CONFIG_LIBMP_LOG_LEVEL);
 
-int mp_zvid_object_set_property(MpZvidObject *zvid_obj, uint32_t key, const void *val)
+int mp_zvid_object_set_property(struct mp_zvid_object *zvid_obj, uint32_t key, const void *val)
 {
 	switch (key) {
 	default:
@@ -32,7 +32,7 @@ int mp_zvid_object_set_property(MpZvidObject *zvid_obj, uint32_t key, const void
 	return -ENOTSUP;
 }
 
-int mp_zvid_object_get_property(MpZvidObject *zvid_obj, uint32_t key, void *val)
+int mp_zvid_object_get_property(struct mp_zvid_object *zvid_obj, uint32_t key, void *val)
 {
 	int ret;
 
@@ -58,10 +58,10 @@ int mp_zvid_object_get_property(MpZvidObject *zvid_obj, uint32_t key, void *val)
 }
 
 static void append_frmrates_to_structure(const struct device *vdev, struct video_format *fmt,
-					 MpStructure *caps_item)
+					 struct mp_structure *caps_item)
 {
-	MpValue *frmrates = mp_value_new(MP_TYPE_LIST, NULL);
-	MpValue *frmrate = NULL;
+	struct mp_value *frmrates = mp_value_new(MP_TYPE_LIST, NULL);
+	struct mp_value *frmrate = NULL;
 	struct video_frmival_enum fie = {0};
 
 	fie.format = fmt;
@@ -94,13 +94,13 @@ static void append_frmrates_to_structure(const struct device *vdev, struct video
 	}
 }
 
-MpCaps *mp_zvid_object_get_caps(MpZvidObject *zvid_obj)
+struct mp_caps *mp_zvid_object_get_caps(struct mp_zvid_object *zvid_obj)
 {
-	MpCaps *caps = mp_caps_new(NULL);
-	MpStructure *caps_item = NULL;
+	struct mp_caps *caps = mp_caps_new(NULL);
+	struct mp_structure *caps_item = NULL;
 	struct video_caps vcaps = {.type = zvid_obj->type};
 	struct video_format fmt = {.type = zvid_obj->type};
-	MpPixelFormat mp_fmt;
+	enum mp_pixel_format mp_fmt;
 
 	if (video_get_caps(zvid_obj->vdev, &vcaps)) {
 		LOG_WRN("Unable to retrieve device's capabilities");
@@ -144,13 +144,13 @@ MpCaps *mp_zvid_object_get_caps(MpZvidObject *zvid_obj)
 	return caps;
 }
 
-bool mp_zvid_object_set_caps(MpZvidObject *zvid_obj, MpCaps *caps)
+bool mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *caps)
 {
 	struct video_format_cap fcaps = {0};
 	struct video_format fmt;
 	struct video_frmival frmival;
-	MpStructure *first_structure = mp_caps_get_structure(caps, 0);
-	MpValue *frmrate = mp_structure_get_value(first_structure, "framerate");
+	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
+	struct mp_value *frmrate = mp_structure_get_value(first_structure, "framerate");
 
 	if (!mp_caps_is_fixed(caps)) {
 		return false;
@@ -172,7 +172,7 @@ bool mp_zvid_object_set_caps(MpZvidObject *zvid_obj, MpCaps *caps)
 	MP_BUFFERPOOL(&zvid_obj->pool)->config.size = fmt.size;
 
 	/* Set frame rate only if the element's caps support it */
-	MpCaps *objcaps = mp_zvid_object_get_caps(zvid_obj);
+	struct mp_caps *objcaps = mp_zvid_object_get_caps(zvid_obj);
 
 	first_structure = mp_caps_get_structure(objcaps, 0);
 	if (frmrate != NULL && mp_structure_get_value(first_structure, "framerate") != NULL) {
@@ -188,11 +188,11 @@ bool mp_zvid_object_set_caps(MpZvidObject *zvid_obj, MpCaps *caps)
 	return true;
 }
 
-bool mp_zvid_object_decide_allocation(MpZvidObject *zvid_obj, MpQuery *query)
+bool mp_zvid_object_decide_allocation(struct mp_zvid_object *zvid_obj, struct mp_query *query)
 {
-	MpBufferPool *query_pool = mp_query_get_pool(query);
-	MpBufferPoolConfig *pool_config = &MP_BUFFERPOOL(&zvid_obj->pool)->config;
-	MpBufferPoolConfig *qpc = NULL;
+	struct mp_buffer_pool *query_pool = mp_query_get_pool(query);
+	struct mp_buffer_pool_config *pool_config = &MP_BUFFERPOOL(&zvid_obj->pool)->config;
+	struct mp_buffer_pool_config *qpc = NULL;
 
 	if (query_pool == NULL) {
 		qpc = mp_query_get_pool_config(query);
