@@ -23,6 +23,7 @@
 #include "mp_object.h"
 #include "mp_query.h"
 
+struct mp_element_factory;
 struct mp_pad;
 
 #define MP_ELEMENT_CAST(self) ((struct mp_element *)self)

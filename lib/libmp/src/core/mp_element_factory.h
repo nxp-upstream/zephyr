@@ -13,7 +13,8 @@
 #define __MP_ELEMENT_FACTORY_H__
 
 #include <stddef.h>
-#include "mp_element.h"
+
+struct mp_element;
 
 /**
  * @brief Element Factory structure
