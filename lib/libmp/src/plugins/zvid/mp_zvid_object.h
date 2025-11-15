@@ -23,7 +23,7 @@
 
 #include "mp_zvid_buffer_pool.h"
 
-#define MP_ZVIDOBJECT(self) ((struct mp_zvid_object *)self)
+#define MP_ZVID_OBJECT(self) ((struct mp_zvid_object *)self)
 
 /**
  * @brief Video Object structure

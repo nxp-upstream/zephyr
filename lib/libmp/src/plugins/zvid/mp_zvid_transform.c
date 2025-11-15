@@ -19,7 +19,7 @@ static bool mp_zvid_transform_chainfn(struct mp_pad *pad, struct mp_buffer *buff
 	int ret;
 	struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
 	struct mp_zvid_transform *zvid_transform = MP_ZVID_TRANSFORM(transform);
-	struct mp_buffer_pool *outpool = MP_BUFFERPOOL(&zvid_transform->zvid_obj_out.pool);
+	struct mp_buffer_pool *outpool = MP_BUFFER_POOL(&zvid_transform->zvid_obj_out.pool);
 	struct mp_buffer *out_buf = NULL;
 	struct video_buffer in_vbuf = {.type = VIDEO_BUF_TYPE_INPUT, .index = buffer->index};
 
@@ -211,8 +211,8 @@ void mp_zvid_transform_init(struct mp_element *self)
 	 * pools needs to be set before calling get_caps() as
 	 * some pool's configs will be set during get_caps()
 	 */
-	transform->inpool = MP_BUFFERPOOL(&zvid_transform->zvid_obj_in.pool);
-	transform->outpool = MP_BUFFERPOOL(&zvid_transform->zvid_obj_out.pool);
+	transform->inpool = MP_BUFFER_POOL(&zvid_transform->zvid_obj_in.pool);
+	transform->outpool = MP_BUFFER_POOL(&zvid_transform->zvid_obj_out.pool);
 
 	transform->sinkpad.caps = mp_zvid_transform_get_caps(transform, MP_PAD_SINK);
 	transform->srcpad.caps = mp_zvid_transform_get_caps(transform, MP_PAD_SRC);

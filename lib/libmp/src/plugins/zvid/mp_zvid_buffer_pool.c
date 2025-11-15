@@ -89,7 +89,7 @@ static bool mp_zvid_buffer_pool_acquire_buffer(struct mp_buffer_pool *pool,
 	for (uint8_t i = 0; i < pool->config.min_buffers; i++) {
 		if (pool->buffers[i].index == vbuf->index) {
 			pool->buffers[i].data = vbuf->buffer;
-			pool->buffers[i].bytesused = vbuf->bytesused;
+			pool->buffers[i].bytes_used = vbuf->bytesused;
 			pool->buffers[i].timestamp = vbuf->timestamp;
 			pool->buffers[i].line_offset = vbuf->line_offset;
 
