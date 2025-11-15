@@ -106,7 +106,7 @@ bool mp_zdisp_sink_chainfn(struct mp_pad *pad, struct mp_buffer *buffer)
 	struct mp_structure *first_structure = mp_caps_get_structure(pad->caps, 0);
 	struct mp_value *value;
 	struct display_buffer_descriptor buf_desc = {
-		.buf_size = buffer->bytesused,
+		.buf_size = buffer->bytes_used,
 	};
 
 	value = mp_structure_get_value(first_structure, "width");
