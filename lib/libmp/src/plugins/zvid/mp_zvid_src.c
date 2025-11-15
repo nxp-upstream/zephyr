@@ -87,7 +87,7 @@ void mp_zvid_src_init(struct mp_element *self)
 	 * pool needs to be set before calling get_caps() as
 	 * some pool's configs will be set during get_caps()
 	 */
-	src->pool = MP_BUFFERPOOL(&zvid_src->zvid_obj.pool);
+	src->pool = MP_BUFFER_POOL(&zvid_src->zvid_obj.pool);
 
 	src->srcpad.caps = mp_zvid_src_get_caps(src);
 	src->get_caps = mp_zvid_src_get_caps;
