@@ -21,6 +21,10 @@
 
 void soc_reset_hook(void)
 {
+#if CONFIG_PM
+	pm_deeppowerpower_exit_hook();
+#endif
+
 	SystemInit();
 }
 

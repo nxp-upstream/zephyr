@@ -13,6 +13,7 @@
 			slew-rate = "fast";
 			drive-strength = "low";
 			input-enable;
+			bias-pull-up;
 		};
 	};
 

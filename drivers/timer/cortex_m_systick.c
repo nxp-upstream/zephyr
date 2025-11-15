@@ -11,6 +11,7 @@
 #include <zephyr/irq.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/drivers/counter.h>
+//#include <zephyr/sys/printk.h>
 
 #include "cortex_m_systick.h"
 
@@ -108,9 +109,27 @@ static cycle_t cycle_pre_idle;
 #if defined(CONFIG_CORTEX_M_SYSTICK_LPM_TIMER_COUNTER)
 /* Idle timer value before entering the idle state. */
 static uint32_t idle_timer_pre_idle;
+/* Requested ticks for the one-shot idle alarm. */
+static uint32_t idle_timer_ticks_requested;
+/* Whether the idle timer alarm actually fired while in low power. */
+static volatile bool idle_timer_alarm_fired;
 
 /* Idle timer used for timer while entering the idle state */
 static const struct device *idle_timer = DEVICE_DT_GET(DT_CHOSEN(zephyr_cortex_m_idle_timer));
+
+/* Stub callback to satisfy Counter API (cannot be NULL) */
+static void idle_timer_alarm_stub(const struct device *dev, uint8_t chan_id,
+				uint32_t ticks, void *user_data)
+{
+	ARG_UNUSED(dev);
+	ARG_UNUSED(chan_id);
+	ARG_UNUSED(ticks);
+	ARG_UNUSED(user_data);
+
+	/* Mark that the programmed idle alarm fired. */
+	idle_timer_alarm_fired = true;
+}
+
 #endif /* CONFIG_CORTEX_M_SYSTICK_LPM_TIMER_COUNTER */
 #endif /* !CONFIG_CORTEX_M_SYSTICK_LPM_TIMER_NONE */
 
@@ -122,9 +141,11 @@ static const struct device *idle_timer = DEVICE_DT_GET(DT_CHOSEN(zephyr_cortex_m
  */
 void z_cms_lptim_hook_on_lpm_entry(uint64_t max_lpm_time_us)
 {
+	uint32_t req_ticks = counter_us_to_ticks(idle_timer, max_lpm_time_us);
+
 	struct counter_alarm_cfg cfg = {
-		.callback = NULL,
-		.ticks = counter_us_to_ticks(idle_timer, max_lpm_time_us),
+		.callback = idle_timer_alarm_stub,
+		.ticks = req_ticks,
 		.user_data = NULL,
 		.flags = 0,
 	};
@@ -133,17 +154,29 @@ void z_cms_lptim_hook_on_lpm_entry(uint64_t max_lpm_time_us)
 	 * Disable the counter alarm in case it was already running.
 	 */
 	counter_cancel_channel_alarm(idle_timer, 0);
+	/* Reset fired flag for this low power session */
+	idle_timer_alarm_fired = false;
 
 	/* Set the alarm using timer that runs the idle.
 	 * Needed rump-up/setting time, lower accurency etc. should be
 	 * included in the exit-latency in the power state definition.
 	 */
 	counter_set_channel_alarm(idle_timer, 0, &cfg);
+	/* Cache requested ticks to be used on exit to avoid race with ISR */
+	idle_timer_ticks_requested = req_ticks;
 
 	/* Store current value of the selected timer to calculate a
 	 * difference in measurements after exiting the idle state.
 	 */
 	counter_get_value(idle_timer, &idle_timer_pre_idle);
+	/*
+	uint32_t top_after = counter_get_top_value(idle_timer);
+	uint32_t cur_after;
+	counter_get_value(idle_timer, &cur_after);
+	printk("LPTMR idle entry: req_ticks=%u pre_idle=%u cur_after=%u top=%u\r\n",
+	       req_ticks, idle_timer_pre_idle, cur_after, top_after);
+	*/
+	//printk("req_ticks=%u\r\n", req_ticks);
 }
 
 uint64_t z_cms_lptim_hook_on_lpm_exit(void)
@@ -153,19 +186,29 @@ uint64_t z_cms_lptim_hook_on_lpm_exit(void)
 	 */
 	uint32_t idle_timer_post, idle_timer_diff;
 
-	counter_get_value(idle_timer, &idle_timer_post);
-
-	/**
-	 * Check for counter timer overflow
-	 * (TODO: this doesn't work for downcounting timers!)
+	/* If our alarm fired, prefer the requested ticks to avoid
+	 * any ISR reprogramming affecting the measurement.
 	 */
-	if (idle_timer_pre_idle > idle_timer_post) {
-		idle_timer_diff =
-			(counter_get_top_value(idle_timer) - idle_timer_pre_idle) +
-			idle_timer_post + 1;
+	if (idle_timer_alarm_fired) {
+		idle_timer_diff = idle_timer_ticks_requested;
 	} else {
-		idle_timer_diff = idle_timer_post - idle_timer_pre_idle;
+		counter_get_value(idle_timer, &idle_timer_post);
+
+		/* Check for counter timer overflow (up-counting assumption) */
+		if (idle_timer_pre_idle > idle_timer_post) {
+			idle_timer_diff =
+				(counter_get_top_value(idle_timer) - idle_timer_pre_idle) +
+				idle_timer_post + 1;
+		} else {
+			idle_timer_diff = idle_timer_post - idle_timer_pre_idle;
+		}
 	}
+
+	///printk("idle_timer_diff=%u, idle_timer_alarm_fired=%u\r\n", idle_timer_diff, idle_timer_alarm_fired);
+	/* Ensure the idle alarm is not left armed after exit. */
+	(void)counter_cancel_channel_alarm(idle_timer, 0);
+	/* Clear fired flag for next session */
+	idle_timer_alarm_fired = false;
 
 	return (uint64_t)counter_ticks_to_us(idle_timer, idle_timer_diff);
 }
@@ -307,6 +350,8 @@ ARCH_ISR_DIAG_ON
 
 void sys_clock_set_timeout(int32_t ticks, bool idle)
 {
+	//volatile uint32_t systick_ctrl;
+	//volatile uint32_t lptmr0_csr, lptmr0_cmr;
 	/* Fast CPUs and a 24 bit counter mean that even idle systems
 	 * need to wake up multiple times per second.  If the kernel
 	 * allows us to miss tick announcements in idle, then shut off
@@ -331,6 +376,8 @@ void sys_clock_set_timeout(int32_t ticks, bool idle)
 		 * such that system wakes up after timeout elapses.
 		 */
 		z_cms_lptim_hook_on_lpm_entry(timeout_us);
+		//lptmr0_csr = LPTMR0->CSR;
+		//lptmr0_cmr = LPTMR0->CMR;
 
 #if !defined(CONFIG_CORTEX_M_SYSTICK_RESET_BY_LPM)
 		/* Store current value of SysTick counter to be able to
@@ -346,7 +393,8 @@ void sys_clock_set_timeout(int32_t ticks, bool idle)
 		 * to it after waking up.
 		 */
 		sys_clock_disable();
-
+		//systick_ctrl = SysTick->CTRL;
+		//printk("1=%x, 2=%x, 3=%x\r\n", lptmr0_csr, lptmr0_cmr, systick_ctrl);
 		cycle_count += elapsed();
 		overflow_cyc = 0;
 #endif /* !CONFIG_CORTEX_M_SYSTICK_RESET_BY_LPM */
@@ -419,6 +467,7 @@ void sys_clock_set_timeout(int32_t ticks, bool idle)
 	}
 	k_spin_unlock(&lock, key);
 #endif
+	//printk("1=%x, 2=%x, 3=%x\r\n", lptmr0_csr, lptmr0_cmr, systick_ctrl);
 }
 
 uint32_t sys_clock_elapsed(void)
@@ -481,6 +530,7 @@ void sys_clock_idle_exit(void)
 		 * Query platform-specific code for elapsed time according to LPTIM.
 		 */
 		idle_timer_us = z_cms_lptim_hook_on_lpm_exit();
+		//printk("1=%x, 2=%x, 3=%x, 4=%d\r\n", LPTMR0->CSR, LPTMR0->CMR, SysTick->CTRL, idle_timer_us);
 
 		/* Calculate difference in measurements to get how much time
 		 * the SysTick missed in idle state.

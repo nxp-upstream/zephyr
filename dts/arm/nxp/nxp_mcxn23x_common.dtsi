@@ -22,12 +22,55 @@
 			reg = <0>;
 			#address-cells = <1>;
 			#size-cells = <1>;
+			cpu-power-states = <&sleep &deepsleep &powerdown>;
 
 			mpu: mpu@e000ed90 {
 				compatible = "arm,armv8m-mpu";
 				reg = <0xe000ed90 0x40>;
 			};
 		};
+
+		power-states {
+			sleep: sleep {
+				compatible = "zephyr,power-state";
+				power-state-name = "runtime-idle";
+				//residency too short has no power consumption benefit.
+				//We need to set appropriate values ​​in actual engineering projects.
+				//set 100 here for testing purpose, 100us is one tick of 10KHz frequency (CONFIG_SYS_CLOCK_TICKS_PER_SEC).
+				min-residency-us = <2000>;
+				exit-latency-us = <1>;
+			};
+
+			deepsleep: deepsleep {
+				compatible = "zephyr,power-state";
+				power-state-name = "suspend-to-idle";
+				min-residency-us = <5000>;
+				exit-latency-us = <10>;
+			};
+
+			powerdown: powerdown {
+				compatible = "zephyr,power-state";
+				power-state-name = "standby";
+				min-residency-us = <8000>;
+				exit-latency-us = <11>;
+			};
+
+			//deeppowerdown: deeppowerdown {
+			//	compatible = "zephyr,power-state";
+			//	power-state-name = "suspend-to-ram";
+			//	min-residency-us = <30000>;
+			//	exit-latency-us = <5800>;
+			//};
+		};
+	};
+
+	/* Power domain to toggle selected devices around deep power states.
+	 * Turn OFF devices before these PM states, and ON after exit.
+	 */
+	power_dpd_domain: power-dpd-domain {
+		compatible = "power-domain-soc-state-change";
+		onoff-power-states = <&sleep &deepsleep &powerdown>;
+		#power-domain-cells = <0>;
 	};
 
 	pinctrl: pinctrl {
@@ -186,6 +229,7 @@
 			reg = <0x92000 0x1000>;
 			clocks = <&syscon MCUX_FLEXCOMM0_CLK>;
 			status = "disabled";
+			//power-domains = <&power_dpd_domain>;
 		};
 
 		flexcomm0_lpspi0: spi@92000 {
@@ -197,6 +241,7 @@
 			status = "disabled";
 			tx-fifo-size = <8>;
 			rx-fifo-size = <8>;
+
 		};
 
 		flexcomm0_lpi2c0: lpi2c@92800 {
@@ -227,6 +272,7 @@
 			dmas = <&edma0 0 71>, <&edma0 1 72>;
 			dma-names = "rx", "tx";
 			status = "disabled";
+			//power-domains = <&power_dpd_domain>;
 		};
 
 		flexcomm1_lpspi1: spi@93000 {
@@ -271,6 +317,7 @@
 			dmas = <&edma0 4 73>, <&edma0 5 74>;
 			dma-names = "rx", "tx";
 			status = "disabled";
+			//power-domains = <&power_dpd_domain>;
 		};
 
 		flexcomm2_lpspi2: spi@94000 {
@@ -312,6 +359,7 @@
 			reg = <0x95000 0x1000>;
 			clocks = <&syscon MCUX_FLEXCOMM3_CLK>;
 			status = "disabled";
+			//power-domains = <&power_dpd_domain>;
 		};
 
 		flexcomm3_lpspi3: spi@95000 {
@@ -353,6 +401,7 @@
 			dmas = <&edma0 2 77>, <&edma0 3 78>;
 			dma-names = "rx", "tx";
 			status = "disabled";
+			power-domains = <&power_dpd_domain>;
 		};
 
 		flexcomm4_lpspi4: spi@b4000 {
@@ -394,6 +443,7 @@
 			reg = <0xb5000 0x1000>;
 			clocks = <&syscon MCUX_FLEXCOMM5_CLK>;
 			status = "disabled";
+			//power-domains = <&power_dpd_domain>;
 		};
 
 		flexcomm5_lpspi5: spi@b5000 {
@@ -432,6 +482,7 @@
 			reg = <0xb6000 0x1000>;
 			clocks = <&syscon MCUX_FLEXCOMM6_CLK>;
 			status = "disabled";
+			//power-domains = <&power_dpd_domain>;
 		};
 
 		flexcomm6_lpspi6: spi@b6000 {
@@ -470,6 +521,7 @@
 			reg = <0xb7000 0x1000>;
 			clocks = <&syscon MCUX_FLEXCOMM7_CLK>;
 			status = "disabled";
+			//power-domains = <&power_dpd_domain>;
 		};
 
 		flexcomm7_lpspi7: spi@b7000 {
@@ -1024,6 +1076,31 @@
 			dc-remover-cutoff-freq = <2>;
 			decimation-filter-gain = <4>;
 		};
+	};
+
+	spc: system-modules@45000 {
+		compatible = "nxp,spc";
+		reg = <0x45000 0x1000>;
+		interrupts = <146 0>;
+		wakeup-delay = <780>;
+	};
+
+	wuu: system-modules@46000 {
+		compatible = "nxp,wuu";
+		reg = <0x46000 0x1000>;
+		interrupts = <147 0>;
+	};
+
+	cmc: system-modules@48000 {
+		compatible = "nxp,cmc";
+		reg = <0x48000 0x1000>;
+		interrupts = <154 0>;
+	};
+
+	vbat: system-modules@59000 {
+		compatible = "nxp,vbat";
+		reg = <0x59000 0x1000>;
+		interrupts = <99 0>;
 	};
 };
 

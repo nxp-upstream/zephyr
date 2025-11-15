@@ -17,6 +17,7 @@
 #include <zephyr/irq.h>
 #include <zephyr/kernel.h>
 #include <zephyr/pm/policy.h>
+#include <zephyr/pm/device.h>
 #include <zephyr/drivers/pinctrl.h>
 #if LPUART_ASYNC_ENABLE
 #include <zephyr/drivers/dma.h>
@@ -1343,6 +1344,72 @@ static int mcux_lpuart_line_ctrl_get(const struct device *dev,
 #endif /* LPUART_HAS_MCR */
 #endif /* CONFIG_UART_LINE_CTRL */
 
+#if defined(CONFIG_PM_DEVICE)
+static void mcux_lpuart_prepare_for_suspend(const struct device *dev)
+{
+	const struct mcux_lpuart_config *config = dev->config;
+
+        while ((LPUART_GetStatusFlags(config->base) & kLPUART_TransmissionCompleteFlag) == 0U) {
+		/* busy wait until the TX finishes */
+	}
+
+        while ((LPUART_GetStatusFlags(config->base) & kLPUART_RxDataRegFullFlag) != 0U) {
+		(void)LPUART_ReadByte(config->base); /* Flush RX */
+	}
+
+	LPUART_DisableInterrupts(config->base, kLPUART_AllInterruptEnable);
+	LPUART_ClearStatusFlags(config->base, kLPUART_AllClearFlags);
+	config->base->CTRL &= ~(LPUART_CTRL_RE_MASK | LPUART_CTRL_TE_MASK);
+        
+	/* De-assert RSRC to avoid deinit hang */
+	config->base->CTRL &= ~LPUART_CTRL_RSRC_MASK;
+
+	/* Disable the peripheral */
+	LPUART_Deinit(config->base);
+}
+
+static int mcux_lpuart_pm_action(const struct device *dev, enum pm_device_action action)
+{
+	const struct mcux_lpuart_config *config = dev->config;
+	struct mcux_lpuart_data *data = dev->data;
+	int ret;
+
+	switch (action) {
+	case PM_DEVICE_ACTION_SUSPEND:
+                ret = -ENOTSUP;
+		break;
+
+	case PM_DEVICE_ACTION_RESUME:
+                ret = -ENOTSUP;
+		break;
+
+	case PM_DEVICE_ACTION_TURN_OFF:
+                mcux_lpuart_prepare_for_suspend(dev);
+		if (device_is_ready(config->clock_dev)) {
+			(void)clock_control_off(config->clock_dev, config->clock_subsys);
+		}
+		ret = 0;
+		break;
+
+	case PM_DEVICE_ACTION_TURN_ON:
+		if (device_is_ready(config->clock_dev)) {
+			(void)clock_control_on(config->clock_dev, config->clock_subsys);
+		}
+		/* Restore configuration */
+		(void)mcux_lpuart_configure_init(dev, &data->uart_config);
+		(void)mcux_lpuart_config_pinctrl(dev, data->uart_config.flow_ctrl);
+		ret = 0;
+		break;
+
+	default:
+		ret = -ENOTSUP;
+		break;
+	}
+
+	return ret;
+}
+#endif /* defined(CONFIG_PM_DEVICE) */
+
 static int mcux_lpuart_init(const struct device *dev)
 {
 	const struct mcux_lpuart_config *config = dev->config;
@@ -1377,7 +1444,11 @@ static int mcux_lpuart_init(const struct device *dev)
 	data->tx_int_stream_on = false;
 #endif
 
+#if defined(CONFIG_PM_DEVICE)
+	return pm_device_driver_init(dev, mcux_lpuart_pm_action);
+#else
 	return 0;
+#endif
 }
 
 static DEVICE_API(uart, mcux_lpuart_driver_api) = {
@@ -1542,9 +1613,11 @@ static const struct mcux_lpuart_config mcux_lpuart_##n##_config = {     \
 									\
 	LPUART_MCUX_DECLARE_CFG(n)					\
 									\
+	PM_DEVICE_DT_INST_DEFINE(n, mcux_lpuart_pm_action);		\
+									\
 	DEVICE_DT_INST_DEFINE(n,					\
 			    mcux_lpuart_init,				\
-			    NULL,					\
+			    PM_DEVICE_DT_INST_GET(n),			\
 			    &mcux_lpuart_##n##_data,			\
 			    &mcux_lpuart_##n##_config,			\
 			    PRE_KERNEL_1,				\

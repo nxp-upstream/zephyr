@@ -7,7 +7,11 @@
 #include <zephyr/kernel.h>
 #include <zephyr/ztest.h>
 #include <zephyr/pm/pm.h>
+#include <zephyr/pm/policy.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/console/console.h>
+#include <stdio.h>
+
 #define LOG_LEVEL LOG_LEVEL_DBG
 LOG_MODULE_REGISTER(pwrmgmt_test);
 
@@ -324,6 +328,14 @@ int test_dummy_init(void)
 
 	LOG_INF("PM dummy single-thread test started for one cycle");
 
+	console_init();
+	LOG_INF("Press 'enter' key to power off the system\n");
+	/* Prevent system from entering low-power states while waiting for input */
+	pm_policy_state_all_lock_get();
+	console_getchar();
+	/* Re-enable low-power states after user input */
+	pm_policy_state_all_lock_put();
+
 	checks_enabled = true;
 	while (iterations-- > 0) {
 		LOG_INF("About to enter light sleep");
@@ -343,7 +355,7 @@ int test_dummy_init(void)
 		LOG_INF("Wake from Deep Sleep");
 		pm_exit_marker();
 	}
-
+while(1);
 	LOG_INF("PM dummy single-thread completed");
 	pm_reset_counters();
 	return 0;
