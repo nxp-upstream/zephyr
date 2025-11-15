@@ -45,9 +45,8 @@ int main(void)
 	}
 
 	struct mp_caps *filtered_caps =
-		mp_caps_new("video/x-raw", "width",
-			    MP_TYPE_UINT, 320, "height", MP_TYPE_UINT, 240, "framerate",
-			    MP_TYPE_UINT_FRACTION, 30, 1, NULL);
+		mp_caps_new("video/x-raw", "width", MP_TYPE_UINT, 320, "height", MP_TYPE_UINT, 240,
+			    "framerate", MP_TYPE_UINT_FRACTION, 30, 1, NULL);
 
 	if (filtered_caps == NULL) {
 		goto err;
