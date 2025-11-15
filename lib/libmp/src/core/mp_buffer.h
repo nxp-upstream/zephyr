@@ -19,8 +19,8 @@
 #include "mp_object.h"
 #include "mp_structure.h"
 
-#define MP_BUFFER(obj)      ((struct mp_buffer *)(obj))
-#define MP_BUFFERPOOL(pool) ((struct mp_buffer_pool *)pool)
+#define MP_BUFFER(obj)       ((struct mp_buffer *)(obj))
+#define MP_BUFFER_POOL(pool) ((struct mp_buffer_pool *)pool)
 
 /**
  * @brief Buffer structure
@@ -41,7 +41,7 @@ struct mp_buffer {
 	/** Total size of the buffer in bytes */
 	size_t size;
 	/** Number of bytes of valid data in the buffer */
-	uint32_t bytesused;
+	uint32_t bytes_used;
 	/** Timestamp in milliseconds when the last byte of data was received/consumed */
 	uint32_t timestamp;
 	/** Line offset from the beginning of the frame this buffer represents (in horizontal

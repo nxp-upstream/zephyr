@@ -74,9 +74,9 @@ enum mp_event_type {
  * Event structure.
  */
 struct mp_event {
-	enum mp_event_type type;       /**< Type of the event */
+	enum mp_event_type type;        /**< Type of the event */
 	struct mp_structure *structure; /**< Associated metadata structure */
-	uint32_t timestamp;     /**< Timestamp of the event */
+	uint32_t timestamp;             /**< Timestamp of the event */
 };
 
 /**
