@@ -1762,16 +1762,9 @@ static uint8_t unpair(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 keys:
-	if (cp->address.type == BTP_BR_ADDRESS_TYPE) {
-		err = bt_br_unpair(&cp->address.a);
-		if (err < 0) {
-			return BTP_STATUS_FAILED;
-		}
-	} else {
-		err = bt_unpair(BT_ID_DEFAULT, &cp->address);
-		if (err < 0) {
-			return BTP_STATUS_FAILED;
-		}
+	err = bt_unpair(BT_ID_DEFAULT, &cp->address);
+	if (err < 0) {
+		return BTP_STATUS_FAILED;
 	}
 
 	return BTP_STATUS_SUCCESS;
