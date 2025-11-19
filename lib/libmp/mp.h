@@ -19,12 +19,16 @@
 #include <src/core/mp_element.h>
 #include <src/core/mp_element_factory.h>
 #include <src/core/mp_pipeline.h>
-#if CONFIG_MP_PLUGIN_ZVID
+#if (CONFIG_MP_PLUGIN_ZVID || CONFIG_MP_PLUGIN_ZDISP)
 #include <src/core/mp_pixel_format.h>
 #endif
 
 #if CONFIG_MP_PLUGIN_ZVID
 #include <src/plugins/zvid/mp_zvid_property.h>
+#endif
+
+#if CONFIG_MP_PLUGIN_ZDISP
+#include <src/plugins/zdisp/mp_zdisp_property.h>
 #endif
 
 #if CONFIG_MP_PLUGIN_ZAUD

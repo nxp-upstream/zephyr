@@ -11,19 +11,16 @@
 #include <src/core/mp_pixel_format.h>
 #include <src/core/mp_plugin.h>
 
+#include "mp_zdisp_property.h"
 #include "mp_zdisp_sink.h"
 
 LOG_MODULE_REGISTER(mp_zdisp_sink, CONFIG_LIBMP_LOG_LEVEL);
 
-#define DEFAULT_PROP_DEVICE DEVICE_DT_GET(DT_CHOSEN(zephyr_display))
+#define DEFAULT_PROP_DEVICE DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_display))
 
 /* Default supported minimum width/height may depend on the HW but currently no way to get it */
 #define DEFAULT_WIDTH_MIN  1
 #define DEFAULT_HEIGHT_MIN 1
-
-enum {
-	PROP_DEVICE,
-};
 
 struct mp_zdisp_pixfmt_desc {
 	enum mp_pixel_format mp_fmt;
@@ -65,16 +62,6 @@ static const enum display_pixel_format mp2zdisp_pixfmt(enum mp_pixel_format mp_f
 	return 0;
 }
 
-static int mp_zdisp_sink_set_property(struct mp_object *obj, uint32_t key, const void *val)
-{
-	return 0;
-}
-
-static int mp_zdisp_sink_get_property(struct mp_object *obj, uint32_t key, void *val)
-{
-	return 0;
-}
-
 static int mp_zdisp_sink_setup(struct mp_zdisp_sink *zdisp_sink,
 			       const enum display_pixel_format pixfmt)
 {
@@ -96,36 +83,6 @@ static int mp_zdisp_sink_setup(struct mp_zdisp_sink *zdisp_sink,
 	}
 
 	return ret;
-}
-
-bool mp_zdisp_sink_chainfn(struct mp_pad *pad, struct mp_buffer *buffer)
-{
-	struct mp_zdisp_sink *zdisp_sink = MP_ZDISP_SINK(pad->object.container);
-
-	/* Get width / height from pad's caps */
-	struct mp_structure *first_structure = mp_caps_get_structure(pad->caps, 0);
-	struct mp_value *value;
-	struct display_buffer_descriptor buf_desc = {
-		.buf_size = buffer->bytes_used,
-	};
-
-	value = mp_structure_get_value(first_structure, "width");
-	if (value) {
-		buf_desc.width = mp_value_get_int(value);
-		buf_desc.pitch = mp_value_get_int(value);
-	}
-
-	value = mp_structure_get_value(first_structure, "height");
-	if (value) {
-		buf_desc.height = mp_value_get_int(value);
-	}
-
-	display_write(zdisp_sink->display_dev, 0, buffer->line_offset, &buf_desc, buffer->data);
-
-	/* Done with the buffer, unref it */
-	mp_buffer_unref(buffer);
-
-	return true;
 }
 
 static struct mp_caps *mp_zdisp_sink_get_caps(struct mp_sink *sink)
@@ -161,6 +118,68 @@ static bool mp_zdisp_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
 	}
 
 	mp_caps_replace(&sink->sinkpad.caps, caps);
+
+	return true;
+}
+
+static int mp_zdisp_sink_set_property(struct mp_object *obj, uint32_t key, const void *val)
+{
+	struct mp_sink *sink = MP_SINK(obj);
+	struct mp_zdisp_sink *zdisp_sink = MP_ZDISP_SINK(obj);
+
+	switch (key) {
+	case PROP_ZDISP_SINK_DEVICE:
+		zdisp_sink->display_dev = val;
+		/* Device has been set or changed. Get caps from HW and update pad caps */
+		struct mp_caps *new_caps = mp_zdisp_sink_get_caps(sink);
+
+		mp_caps_replace(&sink->sinkpad.caps, new_caps);
+		mp_caps_unref(new_caps);
+		return 0;
+	default:
+		return mp_sink_set_property(obj, key, val);
+	}
+}
+
+static int mp_zdisp_sink_get_property(struct mp_object *obj, uint32_t key, void *val)
+{
+	struct mp_zdisp_sink *zdisp_sink = MP_ZDISP_SINK(obj);
+
+	switch (key) {
+	case PROP_ZDISP_SINK_DEVICE:
+		*(const struct device **)val = zdisp_sink->display_dev;
+		return 0;
+	default:
+		return mp_sink_get_property(obj, key, val);
+	}
+}
+
+bool mp_zdisp_sink_chainfn(struct mp_pad *pad, struct mp_buffer *buffer)
+{
+	struct mp_zdisp_sink *zdisp_sink = MP_ZDISP_SINK(pad->object.container);
+
+	/* Get width / height from pad's caps */
+	struct mp_structure *first_structure = mp_caps_get_structure(pad->caps, 0);
+	struct mp_value *value;
+	struct display_buffer_descriptor buf_desc = {
+		.buf_size = buffer->bytes_used,
+	};
+
+	value = mp_structure_get_value(first_structure, "width");
+	if (value) {
+		buf_desc.width = mp_value_get_int(value);
+		buf_desc.pitch = mp_value_get_int(value);
+	}
+
+	value = mp_structure_get_value(first_structure, "height");
+	if (value) {
+		buf_desc.height = mp_value_get_int(value);
+	}
+
+	display_write(zdisp_sink->display_dev, 0, buffer->line_offset, &buf_desc, buffer->data);
+
+	/* Done with the buffer, unref it */
+	mp_buffer_unref(buffer);
 
 	return true;
 }
