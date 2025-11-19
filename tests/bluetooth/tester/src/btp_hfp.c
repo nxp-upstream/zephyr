@@ -1061,6 +1061,14 @@ static uint8_t control(const void *cmd, uint16_t cmd_len,
 	case HFP_HF_READY_ACCEPT_AUDIO:
 		err = bt_hfp_hf_ready_to_accept_audio(hfp_hf);
 		break;
+	case HFP_AG_SET_LAST_NUM:
+		if (hfp_ag) {
+			err = 0;
+			memcpy(last_number, "12345678", sizeof("12345678"));
+		} else {
+			err = -1;
+		}
+		break;
 	default:
 		err = -1;
 	}

@@ -91,6 +91,7 @@ enum btp_hfp_control_type
 	HFP_AG_VRE_STATE = 0x29,
 	HFP_HF_INDICATOR_VALUE = 0x2A,
 	HFP_HF_READY_ACCEPT_AUDIO = 0x2B,
+	HFP_AG_SET_LAST_NUM = 0x2c,
 };
 struct btp_hfp_control_cmd {
 	enum btp_hfp_control_type control_type;
