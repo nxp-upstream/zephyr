@@ -4,7 +4,7 @@
 config USBH_CDC_ECM_CLASS
 	bool "USB Host CDC ECM Class implementation"
 	default y
-	depends on NET_L2_ETHERNET
+	select NET_L2_ETHERNET
 	depends on DT_HAS_ZEPHYR_USBH_CDC_ECM_ENABLED
 	help
 	  USB Host CDC Ethernet Control Model (ECM) implementation.
