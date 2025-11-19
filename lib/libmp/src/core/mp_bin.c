@@ -68,7 +68,7 @@ enum mp_state_change_return mp_bin_change_state_func(struct mp_element *self,
 
 	/* Find the 1st sink element */
 	SYS_DLIST_FOR_EACH_CONTAINER(&bin->children, obj, node) {
-		element = MP_ELEMENT_CAST(obj);
+		element = MP_ELEMENT(obj);
 		if (sys_dlist_is_empty(&element->srcpads)) {
 			break;
 		}
@@ -90,7 +90,7 @@ enum mp_state_change_return mp_bin_change_state_func(struct mp_element *self,
 
 		first_sinkpad = CONTAINER_OF(first_sinkpad_node, struct mp_pad, object.node);
 		/* Get next element */
-		element = MP_ELEMENT_CAST(first_sinkpad->peer->object.container);
+		element = MP_ELEMENT(first_sinkpad->peer->object.container);
 	}
 
 	LOG_DBG("State changed to %d", next);

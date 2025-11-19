@@ -108,7 +108,7 @@ bool mp_pad_send_event_default(struct mp_pad *pad, struct mp_event *event)
 	}
 
 	/* Forward the event to other pads within the same element */
-	struct mp_element *element = MP_ELEMENT_CAST(pad->object.container);
+	struct mp_element *element = MP_ELEMENT(pad->object.container);
 	struct mp_object *obj;
 	sys_dlist_t *otherpad_list = NULL;
 
