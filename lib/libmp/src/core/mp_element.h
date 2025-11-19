@@ -26,21 +26,7 @@
 struct mp_element_factory;
 struct mp_pad;
 
-#define MP_ELEMENT_CAST(self) ((struct mp_element *)self)
-
-/**
- * @brief Helper macro to define element structures
- *
- * @param type The new element type name
- * @param basetype The base type (usually struct mp_element)
- * @param base The base member name
- * @param ... Additional members for the element
- */
-#define MP_ELEMENT(type, basetype, base, ...)                                                      \
-	struct type {                                                                              \
-		basetype base;                                                                     \
-		__VA_ARGS__                                                                        \
-	}
+#define MP_ELEMENT(self) ((struct mp_element *)self)
 
 /**
  * @brief Calculate the next state
@@ -91,7 +77,7 @@ struct mp_pad;
  * @param element The element
  * @return Current state
  */
-#define MP_STATE_CURRENT(element) (MP_ELEMENT_CAST(element)->current_state)
+#define MP_STATE_CURRENT(element) (MP_ELEMENT(element)->current_state)
 
 /**
  * @brief Get next state of element
@@ -99,7 +85,7 @@ struct mp_pad;
  * @param element The element
  * @return Next state
  */
-#define MP_STATE_NEXT(element) (MP_ELEMENT_CAST(element)->next_state)
+#define MP_STATE_NEXT(element) (MP_ELEMENT(element)->next_state)
 
 /**
  * @brief Get target state of element
@@ -107,7 +93,7 @@ struct mp_pad;
  * @param element The element
  * @return Target state
  */
-#define MP_STATE_TARGET(element) (MP_ELEMENT_CAST(element)->target_state)
+#define MP_STATE_TARGET(element) (MP_ELEMENT(element)->target_state)
 
 /**
  * @brief States of an element

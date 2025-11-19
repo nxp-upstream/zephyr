@@ -25,7 +25,7 @@
  * Enumeration of properties that can be configured for base source
  */
 enum prop_src {
-	/** Number of buffers */
+	/** Number of buffers that the source outputs before sending EOS */
 	PROP_NUM_BUFS,
 	/** Last source property marker (for validation/iteration) */
 	PROP_SRC_LAST,
