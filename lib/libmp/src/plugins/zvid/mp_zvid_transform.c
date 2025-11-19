@@ -14,6 +14,8 @@
 
 LOG_MODULE_REGISTER(mp_zvid_transform, CONFIG_LIBMP_LOG_LEVEL);
 
+#define DEFAULT_PROP_DEVICE DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_videotrans))
+
 static bool mp_zvid_transform_chainfn(struct mp_pad *pad, struct mp_buffer *buffer)
 {
 	int ret;
@@ -139,21 +141,15 @@ static int mp_zvid_transform_set_property(struct mp_object *obj, uint32_t key, c
 	struct mp_zvid_transform *zvid_transform = MP_ZVID_TRANSFORM(obj);
 
 	switch (key) {
-	case PROP_DEVICE:
-		zvid_transform->zvid_obj_in.vdev = val;
-		zvid_transform->zvid_obj_out.vdev = val;
-		/* Device has been set or changed. Get caps from HW */
-		struct mp_caps *sink_caps = mp_zvid_transform_get_caps(transform, MP_PAD_SINK);
-		struct mp_caps *src_caps = mp_zvid_transform_get_caps(transform, MP_PAD_SRC);
-
-		mp_caps_replace(&transform->sinkpad.caps, sink_caps);
-		mp_caps_unref(sink_caps);
-		mp_caps_replace(&transform->srcpad.caps, src_caps);
-		mp_caps_unref(src_caps);
+	case PROP_ZVID_TRANSFORM_DEVICE:
+		mp_zvid_object_set_property(&zvid_transform->zvid_obj_in, key, val,
+					    &transform->sinkpad.caps);
+		mp_zvid_object_set_property(&zvid_transform->zvid_obj_out, key, val,
+					    &transform->srcpad.caps);
 		break;
 	default:
-		ret = mp_zvid_object_set_property(&zvid_transform->zvid_obj_in, key, val);
-		if (ret != 0) {
+		ret = mp_zvid_object_set_property(&zvid_transform->zvid_obj_in, key, val, NULL);
+		if (ret == -ENOTSUP) {
 			return mp_transform_set_property(obj, key, val);
 		}
 	}
@@ -166,15 +162,9 @@ static int mp_zvid_transform_get_property(struct mp_object *obj, uint32_t key, v
 	int ret = 0;
 	struct mp_zvid_transform *self = MP_ZVID_TRANSFORM(obj);
 
-	switch (key) {
-	case PROP_DEVICE:
-		*(const struct device **)val = self->zvid_obj_in.vdev;
-		break;
-	default:
-		ret = mp_zvid_object_get_property(&self->zvid_obj_in, key, val);
-		if (ret != 0) {
-			return mp_transform_get_property(obj, key, val);
-		}
+	ret = mp_zvid_object_get_property(&self->zvid_obj_in, key, val);
+	if (ret == -ENOTSUP) {
+		return mp_transform_get_property(obj, key, val);
 	}
 
 	return ret;
@@ -197,6 +187,12 @@ void mp_zvid_transform_init(struct mp_element *self)
 
 	/* Init base class */
 	mp_transform_init(self);
+
+	/* Initialize zvid objects */
+	zvid_transform->zvid_obj_in.vdev = DEFAULT_PROP_DEVICE;
+	zvid_transform->zvid_obj_out.vdev = DEFAULT_PROP_DEVICE;
+	zvid_transform->zvid_obj_in.type = VIDEO_BUF_TYPE_INPUT;
+	zvid_transform->zvid_obj_out.type = VIDEO_BUF_TYPE_OUTPUT;
 
 	self->object.set_property = mp_zvid_transform_set_property;
 	self->object.get_property = mp_zvid_transform_get_property;
@@ -222,10 +218,6 @@ void mp_zvid_transform_init(struct mp_element *self)
 	transform->sinkpad.chainfn = mp_zvid_transform_chainfn;
 	transform->decide_allocation = mp_zvid_transform_decide_allocation;
 	transform->propose_allocation = mp_zvid_transform_propose_allocation;
-
-	/* Initialize zvid objects */
-	zvid_transform->zvid_obj_in.type = VIDEO_BUF_TYPE_INPUT;
-	zvid_transform->zvid_obj_out.type = VIDEO_BUF_TYPE_OUTPUT;
 
 	/* Initialize buffer pools */
 	mp_zvid_buffer_pool_init(transform->inpool, &(zvid_transform->zvid_obj_in));

@@ -14,32 +14,31 @@
 
 LOG_MODULE_REGISTER(mp_zvid_src, CONFIG_LIBMP_LOG_LEVEL);
 
-#define DEFAULT_PROP_DEVICE DEVICE_DT_GET(DT_CHOSEN(zephyr_camera))
+#define DEFAULT_PROP_DEVICE DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_camera))
 
 static int mp_zvid_src_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
-	int ret;
+	struct mp_src *src = MP_SRC(obj);
 	struct mp_zvid_src *zvid_src = MP_ZVID_SRC(obj);
+	int ret = mp_zvid_object_set_property(&zvid_src->zvid_obj, key, val, &src->srcpad.caps);
 
-	ret = mp_zvid_object_set_property(&(zvid_src->zvid_obj), key, val);
-	if (ret != 0) {
+	if (ret == -ENOTSUP) {
 		return mp_src_set_property(obj, key, val);
 	}
 
-	return 0;
+	return ret;
 }
 
 static int mp_zvid_src_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
-	int ret;
 	struct mp_zvid_src *zvid_src = MP_ZVID_SRC(obj);
+	int ret = mp_zvid_object_get_property(&zvid_src->zvid_obj, key, val);
 
-	ret = mp_zvid_object_get_property(&(zvid_src->zvid_obj), key, val);
-	if (ret != 0) {
+	if (ret == -ENOTSUP) {
 		return mp_src_get_property(obj, key, val);
 	}
 
-	return 0;
+	return ret;
 }
 
 static struct mp_caps *mp_zvid_src_get_caps(struct mp_src *src)

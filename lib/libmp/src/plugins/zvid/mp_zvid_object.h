@@ -46,10 +46,12 @@ struct mp_zvid_object {
  * @param zvid_obj Pointer to the @ref struct mp_zvid_object
  * @param key Property key/control ID
  * @param val Property value to set
+ * @param pad_caps set
  *
  * @return 0 on success or a negative errno codes on failure
  */
-int mp_zvid_object_set_property(struct mp_zvid_object *zvid_obj, uint32_t key, const void *val);
+int mp_zvid_object_set_property(struct mp_zvid_object *zvid_obj, uint32_t key, const void *val,
+				struct mp_caps **pad_caps);
 
 /**
  * @brief Get a property from the video object
