@@ -687,6 +687,11 @@ static void hf_inband_ring(struct bt_hfp_hf *hf, bool inband)
 	inband_ring_tone_set = inband;
 }
 
+static void hf_query_call(struct bt_hfp_hf *hf, struct bt_hfp_hf_current_call *call)
+{
+	LOG_DBG("hf query call %p", call);
+}
+
 /* Minimal set of callbacks needed for connection */
 static struct bt_hfp_hf_cb hf_cb = {
 	.connected = hf_connected,
@@ -714,6 +719,7 @@ static struct bt_hfp_hf_cb hf_cb = {
 	.vgs = hf_vgs,
 #endif /* CONFIG_BT_HFP_HF_VOLUME */
 	.operator = hf_operator,
+	.query_call = hf_query_call,
 };
 
 static uint8_t read_supported_commands(const void *cmd, uint16_t cmd_len,
@@ -967,7 +973,7 @@ static uint8_t control(const void *cmd, uint16_t cmd_len,
 		err = bt_hfp_hf_cli(hfp_hf, true);
 		break;
 	case HFP_QUERY_LIST_CALL:
-		// err = bt_hfp_hf_query_respond_hold_status(hfp_hf);
+		err = bt_hfp_hf_query_list_of_current_calls(hfp_hf);
 		break;
 	case HFP_SEND_IIA:
 		err = bt_hfp_hf_indicator_status(hfp_hf, 5);
