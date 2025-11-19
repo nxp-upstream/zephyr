@@ -529,7 +529,7 @@ static int cdc_ecm_host_set_config(const struct device *dev,
 
 	case ETHERNET_CONFIG_TYPE_FILTER: {
 		ret = cdc_ecm_send_cmd(priv, SET_ETHERNET_PACKET_FILTER,
-				       CDC_ECM_ETHERNET_PACKET_FILTER_ALL,
+				       0xFF,
 				       priv->ctrl_iface, NULL, 0);
 		break;
 	}
