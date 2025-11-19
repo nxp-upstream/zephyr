@@ -1,0 +1,6 @@
+/ {
+	cdc_ecm_host: cdc_ecm_host {
+		compatible = "zephyr,usbh-cdc-ecm";
+		status = "okay";
+	};
+};
