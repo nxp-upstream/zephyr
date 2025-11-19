@@ -13,49 +13,9 @@
 
 #include "mp_zvid.h"
 #include "mp_zvid_object.h"
+#include "mp_zvid_property.h"
 
 LOG_MODULE_REGISTER(mp_zvid_object, CONFIG_LIBMP_LOG_LEVEL);
-
-int mp_zvid_object_set_property(struct mp_zvid_object *zvid_obj, uint32_t key, const void *val)
-{
-	switch (key) {
-	default:
-		if (IN_RANGE(key, VIDEO_CID_BASE, VIDEO_CID_LASTP1) ||
-		    IN_RANGE(key, VIDEO_CID_CODEC_CLASS_BASE, VIDEO_CID_JPEG_COMPRESSION_QUALITY) ||
-		    key > VIDEO_CID_PRIVATE_BASE) {
-			struct video_control ctrl = {.id = key, .val = (int32_t)(uintptr_t)val};
-
-			return video_set_ctrl(zvid_obj->vdev, &ctrl);
-		}
-	}
-
-	return -ENOTSUP;
-}
-
-int mp_zvid_object_get_property(struct mp_zvid_object *zvid_obj, uint32_t key, void *val)
-{
-	int ret;
-
-	switch (key) {
-	default:
-		if (IN_RANGE(key, VIDEO_CID_BASE, VIDEO_CID_LASTP1) ||
-		    IN_RANGE(key, VIDEO_CID_CODEC_CLASS_BASE, VIDEO_CID_JPEG_COMPRESSION_QUALITY) ||
-		    key > VIDEO_CID_PRIVATE_BASE) {
-			struct video_control ctrl = {.id = key};
-
-			ret = video_get_ctrl(zvid_obj->vdev, &ctrl);
-			if (ret < 0) {
-				return ret;
-			}
-
-			*(int32_t *)val = ctrl.val;
-
-			return 0;
-		}
-	}
-
-	return -ENOTSUP;
-}
 
 static void append_frmrates_to_structure(const struct device *vdev, struct video_format *fmt,
 					 struct mp_structure *caps_item)
@@ -186,6 +146,63 @@ bool mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *ca
 	}
 
 	return true;
+}
+
+int mp_zvid_object_set_property(struct mp_zvid_object *zvid_obj, uint32_t key, const void *val,
+				struct mp_caps **pad_caps)
+{
+	/*
+	 * PROP_ZVID_SRC_DEVICE and PROP_ZVID_TRANSFORM_DEVICE may evaluate to the same value so
+	 * cannot use switch case
+	 */
+	if (key == PROP_ZVID_SRC_DEVICE || key == PROP_ZVID_TRANSFORM_DEVICE) {
+		zvid_obj->vdev = val;
+		if (pad_caps != NULL) {
+			/* Device has been set or changed. Get caps from HW and update pad caps */
+			struct mp_caps *new_caps = mp_zvid_object_get_caps(zvid_obj);
+
+			mp_caps_replace(pad_caps, new_caps);
+			mp_caps_unref(new_caps);
+		}
+		return 0;
+	} else if (IN_RANGE(key, VIDEO_CID_BASE, VIDEO_CID_LASTP1) ||
+		   IN_RANGE(key, VIDEO_CID_CODEC_CLASS_BASE, VIDEO_CID_JPEG_COMPRESSION_QUALITY) ||
+		   key > VIDEO_CID_PRIVATE_BASE) {
+		struct video_control ctrl = {.id = key, .val = (int32_t)(uintptr_t)val};
+
+		return video_set_ctrl(zvid_obj->vdev, &ctrl);
+	}
+
+	return -ENOTSUP;
+}
+
+int mp_zvid_object_get_property(struct mp_zvid_object *zvid_obj, uint32_t key, void *val)
+{
+	int ret;
+
+	/*
+	 * PROP_ZVID_SRC_DEVICE and PROP_ZVID_TRANSFORM_DEVICE may evaluate to the same value so
+	 * cannot use switch case
+	 */
+	if (key == PROP_ZVID_SRC_DEVICE || key == PROP_ZVID_TRANSFORM_DEVICE) {
+		*(const struct device **)val = zvid_obj->vdev;
+		return 0;
+	} else if (IN_RANGE(key, VIDEO_CID_BASE, VIDEO_CID_LASTP1) ||
+		   IN_RANGE(key, VIDEO_CID_CODEC_CLASS_BASE, VIDEO_CID_JPEG_COMPRESSION_QUALITY) ||
+		   key > VIDEO_CID_PRIVATE_BASE) {
+		struct video_control ctrl = {.id = key};
+
+		ret = video_get_ctrl(zvid_obj->vdev, &ctrl);
+		if (ret < 0) {
+			return ret;
+		}
+
+		*(int32_t *)val = ctrl.val;
+
+		return 0;
+	}
+
+	return -ENOTSUP;
 }
 
 bool mp_zvid_object_decide_allocation(struct mp_zvid_object *zvid_obj, struct mp_query *query)
