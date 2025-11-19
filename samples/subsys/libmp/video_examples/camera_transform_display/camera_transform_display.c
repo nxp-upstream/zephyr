@@ -44,7 +44,7 @@ int main(void)
 	}
 
 	/* Set elements' properties */
-	ret = mp_object_set_properties(MP_OBJECT(source), PROP_NUM_BUFS, 3, VIDEO_CID_HFLIP, 1,
+	ret = mp_object_set_properties(MP_OBJECT(source), PROP_NUM_BUFS, 300, VIDEO_CID_HFLIP, 1,
 				       PROP_LIST_END);
 	if (ret < 0) {
 		goto err;
@@ -65,15 +65,7 @@ int main(void)
 		goto err;
 	}
 
-	static const struct device *const pxp_dev = DEVICE_DT_GET(DT_NODELABEL(pxp));
-
-	if (!device_is_ready(pxp_dev)) {
-		LOG_ERR("%s: pxp device is not ready", pxp_dev->name);
-		return -ENODEV;
-	}
-
-	ret = mp_object_set_properties(MP_OBJECT(transform), PROP_DEVICE, pxp_dev, VIDEO_CID_ROTATE,
-				       90, PROP_LIST_END);
+	ret = mp_object_set_properties(MP_OBJECT(transform), VIDEO_CID_ROTATE, 90, PROP_LIST_END);
 	if (ret < 0) {
 		goto err;
 	}
@@ -123,6 +115,7 @@ int main(void)
 	}
 
 	/* TODO: Stop pipeline and free allocated resources */
+	mp_message_destroy(msg);
 
 	return 0;
 
