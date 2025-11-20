@@ -26,9 +26,9 @@ async def device_power_on(device) -> None:
 
 
 # wait for shell response
-async def _wait_for_shell_response(dut, response, max_wait_sec=20):
+async def gap_c_read_messages_with_wait(dut, response, max_wait_sec=20):
     """
-    _wait_for_shell_response() is used to wait for shell response.
+    gap_c_read_messages_with_wait() is used to wait for shell response.
     It will return after finding a specific 'response' or waiting long enough.
     :param dut:
     :param response: shell response that you want to monitor.
@@ -56,11 +56,11 @@ async def _wait_for_shell_response(dut, response, max_wait_sec=20):
 
 
 # interact between script and DUT
-async def send_cmd_to_iut(
+async def gap_c_exec_command_with_wait(
     shell, dut, cmd, response=None, expect_to_find_resp=True, max_wait_sec=20
 ):
     """
-    send_cmd_to_iut() is used to send shell cmd to DUT and monitor the response.
+    gap_c_exec_command_with_wait() is used to send shell cmd to DUT and monitor the response.
     It can choose whether to monitor the shell response of DUT.
     Use 'expect_to_find_resp' to set whether to expect the response to contain certain 'response'.
     'max_wait_sec' indicates the maximum waiting time.
@@ -79,7 +79,7 @@ async def send_cmd_to_iut(
     """
     shell.exec_command(cmd)
     if response is not None:
-        found, lines = await _wait_for_shell_response(dut, response, max_wait_sec)
+        found, lines = await gap_c_read_messages_with_wait(dut, response, max_wait_sec)
     else:
         found = True
         lines = ''
@@ -171,14 +171,14 @@ async def tc_gap_c_1(hci_port, shell, dut, address) -> None:
             # Test Start
             logger.info("Step 1: DUT initiates general inquiry")
             # Use limited inquiry as the control group
-            await send_cmd_to_iut(shell, dut, "br discovery on 8 limited", dongle_address, False)
-            await send_cmd_to_iut(shell, dut, "br discovery on", dongle_address)
+            await gap_c_exec_command_with_wait(shell, dut, "br discovery on 8 limited", dongle_address, False)
+            await gap_c_exec_command_with_wait(shell, dut, "br discovery on", dongle_address)
 
             logger.info("Step 2: Tester responds to the inquiry")
             logger.info("This is a passive step and it always succeed.")
 
             logger.info("Step 3: DUT sends connect request to tester")
-            await send_cmd_to_iut(shell, dut, f"br connect {dongle_address}", "Connected")
+            await gap_c_exec_command_with_wait(shell, dut, f"br connect {dongle_address}", "Connected")
 
             logger.info(
                 "Step 5: Tester accepts the connection request and connected event is received"
@@ -186,7 +186,7 @@ async def tc_gap_c_1(hci_port, shell, dut, address) -> None:
             logger.info("This is a passive step and it always succeed.")
 
             logger.info("Step 6: DUT initiates disconnection")
-            await send_cmd_to_iut(shell, dut, "bt disconnect", "Disconnected")
+            await gap_c_exec_command_with_wait(shell, dut, "bt disconnect", "Disconnected")
 
             logger.info("Step 7: Connection is terminated")
             logger.info("This is a passive step and it is verified in previous step.")
@@ -223,13 +223,13 @@ async def tc_gap_c_2(hci_port, shell, dut, address) -> None:
             # Test Start
             logger.info("Step 1: DUT initiates general inquiry")
             # Use limited inquiry as the control group
-            await send_cmd_to_iut(shell, dut, "br discovery on", dongle_address)
+            await gap_c_exec_command_with_wait(shell, dut, "br discovery on", dongle_address)
 
             logger.info("Step 2: Tester responds to the inquiry")
             logger.info("This is a passive step and it always succeed.")
 
             logger.info("Step 3: DUT sends connect request to tester")
-            await send_cmd_to_iut(shell, dut, f"br connect {dongle_address}", "Connected")
+            await gap_c_exec_command_with_wait(shell, dut, f"br connect {dongle_address}", "Connected")
 
             logger.info(
                 "Step 4: Tester accepts the connection request and connected event is received"
@@ -242,7 +242,7 @@ async def tc_gap_c_2(hci_port, shell, dut, address) -> None:
             await connection.disconnect()
 
             logger.info("Step 6: Connection is terminated")
-            found, _ = await _wait_for_shell_response(dut, "Disconnected")
+            found, _ = await gap_c_read_messages_with_wait(dut, "Disconnected")
             assert found, "Disconnection event not received"
 
 
@@ -276,7 +276,7 @@ async def tc_gap_c_3(hci_port, shell, dut, address) -> None:
 
             # Test Start
             logger.info("Step 1: DUT initiates general inquiry")
-            await send_cmd_to_iut(shell, dut, "br discovery on", dongle_address)
+            await gap_c_exec_command_with_wait(shell, dut, "br discovery on", dongle_address)
 
             logger.info("Step 2: Tester responds to the inquiry")
             logger.info("This is a passive step and it always succeed.")
@@ -291,7 +291,7 @@ async def tc_gap_c_3(hci_port, shell, dut, address) -> None:
             # Wait some time for the connection attempt to fail
             await asyncio.sleep(5)
             # Verify connection failure - Connected message should not appear
-            found, _ = await _wait_for_shell_response(dut, "Failed to connect", 5)
+            found, _ = await gap_c_read_messages_with_wait(dut, "Failed to connect", 5)
             assert found, "Connected event was received when it should have failed"
 
 
@@ -324,18 +324,18 @@ async def tc_gap_c_4(hci_port, shell, dut, address) -> None:
 
             # Test Start
             logger.info("Step 1: DUT initiates limited inquiry")
-            await send_cmd_to_iut(shell, dut, "br discovery off")  # Reset discovery first
+            await gap_c_exec_command_with_wait(shell, dut, "br discovery off")  # Reset discovery first
             # Use general inquiry as the control group
-            await send_cmd_to_iut(
+            await gap_c_exec_command_with_wait(
                 shell, dut, "br discovery on", dongle_address, False, max_wait_sec=30
             )
-            await send_cmd_to_iut(shell, dut, "br discovery on 8 limited", dongle_address)
+            await gap_c_exec_command_with_wait(shell, dut, "br discovery on 8 limited", dongle_address)
 
             logger.info("Step 2: Tester responds to the inquiry")
             logger.info("This is a passive step and it always succeed.")
 
             logger.info("Step 3: DUT sends connect request to tester")
-            await send_cmd_to_iut(shell, dut, f"br connect {dongle_address}", "Connected")
+            await gap_c_exec_command_with_wait(shell, dut, f"br connect {dongle_address}", "Connected")
 
             logger.info(
                 "Step 4: Tester accepts the connection request and connected event is received"
@@ -343,7 +343,7 @@ async def tc_gap_c_4(hci_port, shell, dut, address) -> None:
             logger.info("This is a passive step and it always succeed.")
 
             logger.info("Step 5: DUT initiates disconnection")
-            await send_cmd_to_iut(shell, dut, "bt disconnect", "Disconnected")
+            await gap_c_exec_command_with_wait(shell, dut, "bt disconnect", "Disconnected")
 
             logger.info("Step 6: Connection is terminated")
             logger.info("This is a passive step and it is verified in previous step.")
@@ -379,14 +379,14 @@ async def tc_gap_c_5(hci_port, shell, dut, address) -> None:
 
             # Test Start
             logger.info("Step 1: DUT initiates limited inquiry")
-            await send_cmd_to_iut(shell, dut, "br discovery off")  # Reset discovery first
-            await send_cmd_to_iut(shell, dut, "br discovery on 8 limited", dongle_address)
+            await gap_c_exec_command_with_wait(shell, dut, "br discovery off")  # Reset discovery first
+            await gap_c_exec_command_with_wait(shell, dut, "br discovery on 8 limited", dongle_address)
 
             logger.info("Step 2: Tester responds to the inquiry")
             logger.info("This is a passive step and it always succeed.")
 
             logger.info("Step 3: DUT sends connect request to tester")
-            await send_cmd_to_iut(shell, dut, f"br connect {dongle_address}", "Connected")
+            await gap_c_exec_command_with_wait(shell, dut, f"br connect {dongle_address}", "Connected")
 
             logger.info(
                 "Step 4: Tester accepts the connection request and connected event is received"
@@ -399,7 +399,7 @@ async def tc_gap_c_5(hci_port, shell, dut, address) -> None:
             await connection.disconnect()
 
             logger.info("Step 6: Connection is terminated")
-            found, _ = await _wait_for_shell_response(dut, "Disconnected")
+            found, _ = await gap_c_read_messages_with_wait(dut, "Disconnected")
             assert found, "Disconnection event not received"
 
 
@@ -433,8 +433,8 @@ async def tc_gap_c_6(hci_port, shell, dut, address) -> None:
 
             # Test Start
             logger.info("Step 1: DUT initiates limited inquiry")
-            await send_cmd_to_iut(shell, dut, "br discovery off")  # Reset discovery first
-            await send_cmd_to_iut(shell, dut, "br discovery on 8 limited", dongle_address)
+            await gap_c_exec_command_with_wait(shell, dut, "br discovery off")  # Reset discovery first
+            await gap_c_exec_command_with_wait(shell, dut, "br discovery on 8 limited", dongle_address)
 
             logger.info("Step 2: Tester responds to the inquiry")
             logger.info("This is a passive step and it always succeed.")
@@ -448,7 +448,7 @@ async def tc_gap_c_6(hci_port, shell, dut, address) -> None:
             logger.info("Step 5: Wait some time for the connection attempt to fail")
             await asyncio.sleep(5)
             # Verify connection failure - Connected message should not appear
-            found, _ = await _wait_for_shell_response(dut, "Failed to connect", 5)
+            found, _ = await gap_c_read_messages_with_wait(dut, "Failed to connect", 5)
             assert found, "Connected event was received when it should have failed"
 
 

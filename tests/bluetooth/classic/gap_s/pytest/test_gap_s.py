@@ -26,9 +26,9 @@ async def device_power_on(device) -> None:
 
 
 # wait for shell response
-async def _wait_for_shell_response(dut, response, max_wait_sec=20):
+async def gap_s_read_messages_with_wait(dut, response, max_wait_sec=20):
     """
-    _wait_for_shell_response() is used to wait for shell response.
+    gap_s_read_messages_with_wait() is used to wait for shell response.
     It will return after finding a specific 'response' or waiting long enough.
     :param dut:
     :param response: shell response that you want to monitor.
@@ -56,11 +56,11 @@ async def _wait_for_shell_response(dut, response, max_wait_sec=20):
 
 
 # interact between script and DUT
-async def send_cmd_to_iut(
+async def gap_s_exec_command_with_wait(
     shell, dut, cmd, response=None, expect_to_find_resp=True, max_wait_sec=20
 ):
     """
-    send_cmd_to_iut() is used to send shell cmd to DUT and monitor the response.
+    gap_s_exec_command_with_wait() is used to send shell cmd to DUT and monitor the response.
     It can choose whether to monitor the shell response of DUT.
     Use 'expect_to_find_resp' to set whether to expect the response to contain certain 'response'.
     'max_wait_sec' indicates the maximum waiting time.
@@ -79,7 +79,7 @@ async def send_cmd_to_iut(
     """
     shell.exec_command(cmd)
     if response is not None:
-        found, lines = await _wait_for_shell_response(dut, response, max_wait_sec)
+        found, lines = await gap_s_read_messages_with_wait(dut, response, max_wait_sec)
     else:
         found = True
         lines = ''
@@ -149,16 +149,16 @@ async def tc_gap_s_1(hci_port, shell, dut, address) -> None:
             await device.send_command(HCI_Write_Page_Timeout_Command(page_timeout=0xFFFF))
 
             # Start of Initial Condition
-            await send_cmd_to_iut(shell, dut, "br pscan off")
-            await send_cmd_to_iut(shell, dut, "br iscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan off")
             # End of Initial Condition
 
             # Test Start
             logger.info('Step 1: Configure the DUT to operate in non-connectable mode')
-            await send_cmd_to_iut(shell, dut, "br pscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan off")
 
             logger.info('Step 2: Configure the DUT to operate in non-discoverable mode')
-            await send_cmd_to_iut(shell, dut, "br iscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan off")
 
             logger.info('Step 3: Tester searches for DUT advertisements')
             # Try general inquiry
@@ -190,7 +190,7 @@ async def tc_gap_s_1(hci_port, shell, dut, address) -> None:
 
             # Verify there was no connection established
             await asyncio.sleep(2)
-            found, _ = await _wait_for_shell_response(dut, "Connected", max_wait_sec=5)
+            found, _ = await gap_s_read_messages_with_wait(dut, "Connected", max_wait_sec=5)
             assert not found, "DUT should not have established connection"
 
 
@@ -218,15 +218,15 @@ async def tc_gap_s_2(hci_port, shell, dut, address) -> None:
             await device.send_command(HCI_Write_Page_Timeout_Command(page_timeout=0xFFFF))
 
             # Start of Initial Condition
-            await send_cmd_to_iut(shell, dut, "br pscan off")
-            await send_cmd_to_iut(shell, dut, "br iscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan off")
             # End of Initial Condition
 
             logger.info('Step 1: Configure the DUT to operate in connectable mode')
-            await send_cmd_to_iut(shell, dut, "br pscan on")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan on")
 
             logger.info('Step 2: Configure the DUT to operate in non-discoverable mode')
-            await send_cmd_to_iut(shell, dut, "br iscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan off")
 
             logger.info('Step 3: Verify DUT cannot be discovered')
             await device.start_discovery()
@@ -251,7 +251,7 @@ async def tc_gap_s_2(hci_port, shell, dut, address) -> None:
             # passive
 
             logger.info('Step 6: DUT initiates disconnection')
-            await send_cmd_to_iut(shell, dut, "bt disconnect", "Disconnected")
+            await gap_s_exec_command_with_wait(shell, dut, "bt disconnect", "Disconnected")
 
 
 async def tc_gap_s_3(hci_port, shell, dut, address) -> None:
@@ -278,16 +278,16 @@ async def tc_gap_s_3(hci_port, shell, dut, address) -> None:
             await device.send_command(HCI_Write_Page_Timeout_Command(page_timeout=0xFFFF))
 
             # Start of Initial Condition
-            await send_cmd_to_iut(shell, dut, "br pscan off")
-            await send_cmd_to_iut(shell, dut, "br iscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan off")
             # End of Initial Condition
 
             # Test Start
             logger.info('Step 1: Configure the DUT to operate in connectable mode')
-            await send_cmd_to_iut(shell, dut, "br pscan on")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan on")
 
             logger.info('Step 2: Configure the DUT to operate in non-discoverable mode')
-            await send_cmd_to_iut(shell, dut, "br iscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan off")
 
             logger.info('Step 3: Verify DUT cannot be discovered')
             await device.start_discovery()
@@ -303,14 +303,14 @@ async def tc_gap_s_3(hci_port, shell, dut, address) -> None:
             connection = await device.connect(dut_address, transport=BT_BR_EDR_TRANSPORT)
 
             logger.info('Step 5: DUT accepts connection request')
-            found, _ = await _wait_for_shell_response(dut, "Connected", max_wait_sec=5)
+            found, _ = await gap_s_read_messages_with_wait(dut, "Connected", max_wait_sec=5)
             assert found, "DUT should accept connection request"
 
             logger.info('Step 6: Tester initiates disconnection')
             await connection.disconnect()
 
             logger.info('Step 7: Verify disconnection is complete')
-            found, _ = await _wait_for_shell_response(dut, "Disconnected", max_wait_sec=5)
+            found, _ = await gap_s_read_messages_with_wait(dut, "Disconnected", max_wait_sec=5)
             assert found, "DUT should properly handle disconnection initiated by Tester"
 
 
@@ -338,16 +338,16 @@ async def tc_gap_s_4(hci_port, shell, dut, address) -> None:
             await device.send_command(HCI_Write_Page_Timeout_Command(page_timeout=0xFFFF))
 
             # Start of Initial Condition
-            await send_cmd_to_iut(shell, dut, "br pscan off")
-            await send_cmd_to_iut(shell, dut, "br iscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan off")
             # End of Initial Condition
 
             # Test Start
             logger.info('Step 1: Configure the DUT to operate in connectable mode')
-            await send_cmd_to_iut(shell, dut, "br pscan on")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan on")
 
             logger.info('Step 2: Configure the DUT to operate in non-discoverable mode')
-            await send_cmd_to_iut(shell, dut, "br iscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan off")
 
             logger.info('Step 3: Verify DUT cannot be discovered')
             await device.start_discovery()
@@ -359,7 +359,7 @@ async def tc_gap_s_4(hci_port, shell, dut, address) -> None:
 
             logger.info('Step 4: Configure the DUT to reject connection requests')
             # Make the DUT non-connectable to simulate connection rejection
-            await send_cmd_to_iut(shell, dut, "br pscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan off")
 
             logger.info(
                 'Step 5: Tester attempts to establish connection with DUT using known address'
@@ -371,7 +371,7 @@ async def tc_gap_s_4(hci_port, shell, dut, address) -> None:
                 logger.info('Expected connection failure when connection is rejected')
 
             logger.info('Step 6: Verify connection was rejected')
-            found, _ = await _wait_for_shell_response(dut, "Connected", max_wait_sec=5)
+            found, _ = await gap_s_read_messages_with_wait(dut, "Connected", max_wait_sec=5)
             assert not found, "DUT should reject connection request"
 
 
@@ -399,17 +399,17 @@ async def tc_gap_s_5(hci_port, shell, dut, address) -> None:
             await device.send_command(HCI_Write_Page_Timeout_Command(page_timeout=0xFFFF))
 
             # Start of Initial Condition
-            await send_cmd_to_iut(shell, dut, "br pscan off")
-            await send_cmd_to_iut(shell, dut, "br iscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan off")
             # End of Initial Condition
 
             # Test Start
             logger.info('Step 1: Configure the DUT to operate in connectable mode')
-            await send_cmd_to_iut(shell, dut, "br pscan on")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan on")
 
             logger.info('Step 2: Configure the DUT to operate in limited discoverable mode')
-            await send_cmd_to_iut(shell, dut, "br iscan off")
-            await send_cmd_to_iut(shell, dut, "br iscan on limited")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan on limited")
 
             logger.info('Step 3: Tester performs limited discovery procedure')
             await start_limited_discovery(device)
@@ -425,11 +425,11 @@ async def tc_gap_s_5(hci_port, shell, dut, address) -> None:
             await device.connect(dut_address, transport=BT_BR_EDR_TRANSPORT)
 
             logger.info('Step 6: DUT accepts connection request')
-            found, _ = await _wait_for_shell_response(dut, "Connected", max_wait_sec=5)
+            found, _ = await gap_s_read_messages_with_wait(dut, "Connected", max_wait_sec=5)
             assert found, "DUT should accept connection request"
 
             logger.info('Step 7: DUT initiates disconnection')
-            await send_cmd_to_iut(shell, dut, "bt disconnect", "Disconnected")
+            await gap_s_exec_command_with_wait(shell, dut, "bt disconnect", "Disconnected")
 
             logger.info('Step 8: Verify disconnection is complete')
             # Already verified by response check in previous step
@@ -459,17 +459,17 @@ async def tc_gap_s_6(hci_port, shell, dut, address) -> None:
             await device.send_command(HCI_Write_Page_Timeout_Command(page_timeout=0xFFFF))
 
             # Start of Initial Condition
-            await send_cmd_to_iut(shell, dut, "br pscan off")
-            await send_cmd_to_iut(shell, dut, "br iscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan off")
             # End of Initial Condition
 
             # Test Start
             logger.info('Step 1: Configure the DUT to operate in connectable mode')
-            await send_cmd_to_iut(shell, dut, "br pscan on")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan on")
 
             logger.info('Step 2: Configure the DUT to operate in limited discoverable mode')
-            await send_cmd_to_iut(shell, dut, "br iscan off")
-            await send_cmd_to_iut(shell, dut, "br iscan on limited")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan on limited")
 
             logger.info('Step 3: Tester performs limited discovery procedure')
             await start_limited_discovery(device)
@@ -485,14 +485,14 @@ async def tc_gap_s_6(hci_port, shell, dut, address) -> None:
             connection = await device.connect(dut_address, transport=BT_BR_EDR_TRANSPORT)
 
             logger.info('Step 6: DUT accepts connection request')
-            found, _ = await _wait_for_shell_response(dut, "Connected", max_wait_sec=5)
+            found, _ = await gap_s_read_messages_with_wait(dut, "Connected", max_wait_sec=5)
             assert found, "DUT should accept connection request"
 
             logger.info('Step 7: Tester initiates disconnection')
             await connection.disconnect()
 
             logger.info('Step 8: Verify disconnection is complete')
-            found, _ = await _wait_for_shell_response(dut, "Disconnected", max_wait_sec=5)
+            found, _ = await gap_s_read_messages_with_wait(dut, "Disconnected", max_wait_sec=5)
             assert found, "DUT should properly handle disconnection initiated by Tester"
 
 
@@ -520,17 +520,17 @@ async def tc_gap_s_7(hci_port, shell, dut, address) -> None:
             await device.send_command(HCI_Write_Page_Timeout_Command(page_timeout=0xFFFF))
 
             # Start of Initial Condition
-            await send_cmd_to_iut(shell, dut, "br pscan off")
-            await send_cmd_to_iut(shell, dut, "br iscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan off")
             # End of Initial Condition
 
             # Test Start
             logger.info('Step 1: Configure the DUT to operate in connectable mode')
-            await send_cmd_to_iut(shell, dut, "br pscan on")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan on")
 
             logger.info('Step 2: Configure the DUT to operate in limited discoverable mode')
-            await send_cmd_to_iut(shell, dut, "br iscan off")
-            await send_cmd_to_iut(shell, dut, "br iscan on limited")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan on limited")
 
             logger.info('Step 3: Tester performs limited discovery procedure')
             await start_limited_discovery(device)
@@ -544,7 +544,7 @@ async def tc_gap_s_7(hci_port, shell, dut, address) -> None:
 
             logger.info('Step 5: Configure the DUT to reject connection requests')
             # Make the DUT non-connectable to simulate connection rejection
-            await send_cmd_to_iut(shell, dut, "br pscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan off")
 
             logger.info('Step 6: Tester attempts to establish connection with discovered DUT')
             try:
@@ -554,7 +554,7 @@ async def tc_gap_s_7(hci_port, shell, dut, address) -> None:
                 logger.info('Expected connection failure when connection is rejected')
 
             logger.info('Step 7: Verify connection was rejected')
-            found, _ = await _wait_for_shell_response(dut, "Connected", max_wait_sec=5)
+            found, _ = await gap_s_read_messages_with_wait(dut, "Connected", max_wait_sec=5)
             assert not found, "DUT should reject connection request"
 
 
@@ -582,16 +582,16 @@ async def tc_gap_s_8(hci_port, shell, dut, address) -> None:
             await device.send_command(HCI_Write_Page_Timeout_Command(page_timeout=0xFFFF))
 
             # Start of Initial Condition
-            await send_cmd_to_iut(shell, dut, "br pscan off")
-            await send_cmd_to_iut(shell, dut, "br iscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan off")
             # End of Initial Condition
 
             # Test Start
             logger.info('Step 1: Configure the DUT to operate in connectable mode')
-            await send_cmd_to_iut(shell, dut, "br pscan on")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan on")
 
             logger.info('Step 2: Configure the DUT to operate in general discoverable mode')
-            await send_cmd_to_iut(shell, dut, "br iscan on")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan on")
 
             logger.info('Step 3: Tester performs general discovery procedure')
             await device.start_discovery()
@@ -607,11 +607,11 @@ async def tc_gap_s_8(hci_port, shell, dut, address) -> None:
             await device.connect(dut_address, transport=BT_BR_EDR_TRANSPORT)
 
             logger.info('Step 6: DUT accepts connection request')
-            found, _ = await _wait_for_shell_response(dut, "Connected", max_wait_sec=5)
+            found, _ = await gap_s_read_messages_with_wait(dut, "Connected", max_wait_sec=5)
             assert found, "DUT should accept connection request"
 
             logger.info('Step 7: DUT initiates disconnection')
-            await send_cmd_to_iut(shell, dut, "bt disconnect", "Disconnected")
+            await gap_s_exec_command_with_wait(shell, dut, "bt disconnect", "Disconnected")
 
             logger.info('Step 8: Verify disconnection is complete')
             # Already verified by response check in previous step
@@ -641,16 +641,16 @@ async def tc_gap_s_9(hci_port, shell, dut, address) -> None:
             await device.send_command(HCI_Write_Page_Timeout_Command(page_timeout=0xFFFF))
 
             # Start of Initial Condition
-            await send_cmd_to_iut(shell, dut, "br pscan off")
-            await send_cmd_to_iut(shell, dut, "br iscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan off")
             # End of Initial Condition
 
             # Test Start
             logger.info('Step 1: Configure the DUT to operate in connectable mode')
-            await send_cmd_to_iut(shell, dut, "br pscan on")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan on")
 
             logger.info('Step 2: Configure the DUT to operate in general discoverable mode')
-            await send_cmd_to_iut(shell, dut, "br iscan on")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan on")
 
             logger.info('Step 3: Tester performs general discovery procedure')
             await device.start_discovery()
@@ -666,14 +666,14 @@ async def tc_gap_s_9(hci_port, shell, dut, address) -> None:
             connection = await device.connect(dut_address, transport=BT_BR_EDR_TRANSPORT)
 
             logger.info('Step 6: DUT accepts connection request')
-            found, _ = await _wait_for_shell_response(dut, "Connected", max_wait_sec=5)
+            found, _ = await gap_s_read_messages_with_wait(dut, "Connected", max_wait_sec=5)
             assert found, "DUT should accept connection request"
 
             logger.info('Step 7: Tester initiates disconnection')
             await connection.disconnect()
 
             logger.info('Step 8: Verify disconnection is complete')
-            found, _ = await _wait_for_shell_response(dut, "Disconnected", max_wait_sec=5)
+            found, _ = await gap_s_read_messages_with_wait(dut, "Disconnected", max_wait_sec=5)
             assert found, "DUT should properly handle disconnection initiated by Tester"
 
 
@@ -701,16 +701,16 @@ async def tc_gap_s_10(hci_port, shell, dut, address) -> None:
             await device.send_command(HCI_Write_Page_Timeout_Command(page_timeout=0xFFFF))
 
             # Start of Initial Condition
-            await send_cmd_to_iut(shell, dut, "br pscan off")
-            await send_cmd_to_iut(shell, dut, "br iscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan off")
             # End of Initial Condition
 
             # Test Start
             logger.info('Step 1: Configure the DUT to operate in connectable mode')
-            await send_cmd_to_iut(shell, dut, "br pscan on")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan on")
 
             logger.info('Step 2: Configure the DUT to operate in general discoverable mode')
-            await send_cmd_to_iut(shell, dut, "br iscan on")
+            await gap_s_exec_command_with_wait(shell, dut, "br iscan on")
 
             logger.info('Step 3: Tester performs general discovery procedure')
             await device.start_discovery()
@@ -724,7 +724,7 @@ async def tc_gap_s_10(hci_port, shell, dut, address) -> None:
 
             logger.info('Step 5: Configure the DUT to reject connection requests')
             # Make the DUT non-connectable to simulate connection rejection
-            await send_cmd_to_iut(shell, dut, "br pscan off")
+            await gap_s_exec_command_with_wait(shell, dut, "br pscan off")
 
             logger.info('Step 6: Tester attempts to establish connection with discovered DUT')
             try:
@@ -734,7 +734,7 @@ async def tc_gap_s_10(hci_port, shell, dut, address) -> None:
                 logger.info('Expected connection failure when connection is rejected')
 
             logger.info('Step 7: Verify connection was rejected')
-            found, _ = await _wait_for_shell_response(dut, "Connected", max_wait_sec=5)
+            found, _ = await gap_s_read_messages_with_wait(dut, "Connected", max_wait_sec=5)
             assert not found, "DUT should reject connection request"
 
 
