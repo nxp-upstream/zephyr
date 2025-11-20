@@ -19,7 +19,7 @@ int mp_src_set_property(struct mp_object *obj, uint32_t key, const void *val)
 
 	switch (key) {
 	case PROP_NUM_BUFS:
-		src->num_buffers = (uint8_t)(uintptr_t)val;
+		src->num_buffers = (uint32_t)(uintptr_t)val;
 		return 0;
 	default:
 		LOG_ERR("Property %d is unknown", key);
@@ -33,7 +33,7 @@ int mp_src_get_property(struct mp_object *obj, uint32_t key, void *val)
 
 	switch (key) {
 	case PROP_NUM_BUFS:
-		*(uint8_t *)val = src->num_buffers;
+		*(uint32_t *)val = src->num_buffers;
 		break;
 	default:
 		LOG_ERR("Property %d is unknown", key);
@@ -127,12 +127,11 @@ static void mp_src_loop(void *userdata, void *, void *)
 	struct mp_pad *pad = MP_PAD(userdata);
 	struct mp_src *src = MP_SRC(pad->object.container);
 	struct mp_buffer *buffer = NULL;
+	struct mp_message *eos_message = NULL;
+	uint32_t count = 0;
 
 	pad->task.running = true;
-	while (pad->task.running) {
-		/* Flag checking at every run may be avoided when we figure out how to
-		 * trigger the re-negotiation
-		 */
+	while (pad->task.running && count++ <= src->num_buffers) {
 		if (MP_OBJECT(pad)->flags & MP_PAD_FLAG_NEGOTIATE) {
 			if (!mp_src_negotiate(src)) {
 				LOG_ERR("Negotiation failed");
@@ -161,6 +160,10 @@ static void mp_src_loop(void *userdata, void *, void *)
 		src->pool->acquire_buffer(src->pool, &buffer);
 		mp_pad_push(pad, buffer);
 	}
+
+	/* Post EOS message to the pipeline's bus */
+	eos_message = mp_message_new(MP_MESSAGE_EOS, MP_OBJECT(src), NULL);
+	mp_bus_post(mp_element_get_bus(MP_ELEMENT(src)), eos_message);
 }
 
 static enum mp_state_change_return mp_src_change_state(struct mp_element *self,
@@ -197,7 +200,7 @@ void mp_src_init(struct mp_element *self)
 	mp_element_add_pad(self, &src->srcpad);
 
 	/* Initialize property values */
-	src->num_buffers = 2;
+	src->num_buffers = UINT32_MAX;
 
 	self->object.set_property = mp_src_set_property;
 	self->object.get_property = mp_src_get_property;
