@@ -43,6 +43,9 @@ static void handler(struct net_mgmt_event_callback *cb, uint64_t mgmt_event, str
 	case NET_EVENT_IPV4_DHCP_STOP:
 		LOG_INF("DHCP Client stop callback of %s", net_if_get_device(iface)->name);
 		break;
+	case NET_EVENT_IPV4_ADDR_ADD:
+		LOG_INF("DHCP Client address added callback of %s", net_if_get_device(iface)->name);
+		break;
 	case NET_EVENT_IPV4_DHCP_BOUND: {
 		LOG_INF("DHCP Client bound callback of %s", net_if_get_device(iface)->name);
 
@@ -111,7 +114,7 @@ int main(void)
 
 	net_mgmt_init_event_callback(&mgmt_dhcp_cb, handler,
 				     NET_EVENT_IPV4_DHCP_START | NET_EVENT_IPV4_DHCP_STOP |
-					     NET_EVENT_IPV4_DHCP_BOUND);
+					     NET_EVENT_IPV4_DHCP_BOUND | NET_EVENT_IPV4_ADDR_ADD);
 	net_mgmt_init_event_callback(&mgmt_if_cb, handler, NET_EVENT_IF_UP | NET_EVENT_IF_DOWN);
 	net_mgmt_add_event_callback(&mgmt_dhcp_cb);
 	net_mgmt_add_event_callback(&mgmt_if_cb);
