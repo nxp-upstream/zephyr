@@ -1,4 +1,4 @@
-# Hybrid Sys/Device Cache Model and DMA Coherence in Zephyr
+# Sys/Device Cache Model and DMA Coherence in Zephyr
 
 ## Problem Description
 
@@ -16,9 +16,9 @@ Today, xcache/lpcac can fit the sys cache, but cache64 cannot be supported simul
 
 ## Proposed Change
 
-### Hybrid Architecture
+### Architecture
 
-This RFC applies a pragmatic, hybrid cache model with 2 layers. It preserves the existing, user-facing `sys_cache_*` APIs while introducing an internal device-cache layer. This somehow mirrors Linux: arch-owned CPU cache + “outer” cache drivers (e.g., PL310, LLCC) and a cacheinfo-style introspection.
+This RFC applies a pragmatic cache model with 2 layers. It preserves the existing, user-facing `sys_cache_*` APIs while introducing an internal device-cache layer. This somehow mirrors Linux: arch-owned CPU cache + “outer” cache drivers (e.g., PL310, LLCC) and a cacheinfo-style introspection.
 
 ```text
 ┌─────────────────────────────────────────┐
