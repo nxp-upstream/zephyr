@@ -26,82 +26,13 @@ properties:
       Base/size pairs describing external memory windows covered by this cache.
       The list must contain an even number of 32-bit values.
 
-  # cache-type:
-  #   type: string
-  #   required: true
-  #   description: |
-  #     Type of cache controller.
-  #   enum:
-  #     - "instruction"
-  #     - "data"
-  #     - "unified"
-
-  # cache-purpose:
-  #   type: string
-  #   required: false
-  #   default: "system"
-  #   description: |
-  #     Primary purpose/target of this cache.
-  #   enum:
-  #     - "internal-flash"
-  #     - "external-flash"
-  #     - "system"
-  #     - "peripheral"
-
-  # cache-level:
-  #   type: int
-  #   required: false
-  #   default: 1
-  #   description: |
-  #     Cache hierarchy level (L1, L2, L3, etc.).
-
-  # cache-line-size:
-  #   type: int
-  #   required: false
-  #   description: |
-  #     Cache line size in bytes.
-
-  # cache-ways:
-  #   type: int
-  #   required: false
-  #   description: |
-  #     Number of ways in set-associative cache.
-
-  # cache-sets:
-  #   type: int
-  #   required: false
-  #   description: |
-  #     Number of sets in the cache.
-
-  # cache-size:
-  #   type: int
-  #   required: false
-  #   description: |
-  #     Total cache size in bytes.
-
-  # memory-region:
-  #   type: array
-  #   required: false
-  #   description: |
-  #     Memory regions that this cache manages, specified as
-  #     [start-address, size] pairs.
-
-  # interrupts:
-  #   required: false
-  #   description: |
-  #     Cache controller interrupt configuration.
-
-  # clocks:
-  #   required: false
-  #   description: |
-  #     Cache controller clock configuration.
-
-  # power-domain:
-  #   required: false
-  #   description: |
-  #     Power domain for the cache controller.
-
-  # status:
-  #   required: false
-  #   default: "disabled"
-
+  dma-coherent:
+    type: boolean
+    required: false
+    description: |
+      Hint that memory served by this cache is coherent for DMA/data paths
+      and does not require explicit device-cache maintenance. When present,
+      the corresponding cache_device driver may choose to return -ENOTSUP
+      from its range/all maintenance ops so that only CPU/sys cache is
+      maintained while the device cache remains part of the generic model
+      for topology and cache_info.
