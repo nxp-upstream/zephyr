@@ -118,7 +118,7 @@ void mp_zaud_src_init(struct mp_element *self)
 	struct mp_zaud_src *zaud_src = MP_ZAUD_SRC(self);
 
 	/* Init base class */
-	mp_src_init(MP_ELEMENT_CAST(&zaud_src->src));
+	mp_src_init(MP_ELEMENT(&zaud_src->src));
 
 	self->object.get_property = mp_zaud_src_get_property;
 	self->object.set_property = mp_zaud_src_set_property;
