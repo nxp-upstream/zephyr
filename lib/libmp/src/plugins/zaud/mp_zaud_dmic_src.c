@@ -129,7 +129,7 @@ void mp_zaud_dmic_src_init(struct mp_element *self)
 	struct mp_zaud_dmic_src *zaud_dmic_src = MP_ZAUD_DMIC_SRC(self);
 
 	/* Init base class */
-	mp_zaud_src_init(MP_ELEMENT_CAST(&(zaud_dmic_src->zaud_src)));
+	mp_zaud_src_init(MP_ELEMENT(&(zaud_dmic_src->zaud_src)));
 
 	/* Initialize buffer pool */
 	src->pool = &(zaud_dmic_src->pool.pool);
