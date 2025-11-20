@@ -11,4 +11,5 @@ toolchain:
   - zephyr
 supported:
   - gpio
+  - i2c
 vendor: nxp
