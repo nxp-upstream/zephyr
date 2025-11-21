@@ -13,6 +13,11 @@ LOG_MODULE_REGISTER(main);
 
 #define LOG_LEVEL LOG_LEVEL_DBG
 
+#define PIPELINE_ID 0
+#define DMIC_SRC_ID 1
+#define AUD_GAIN_ID 2
+#define I2S_SINK_ID 3
+
 /*
  * WORKAROUND: Direct memory slab management in application code
  *
@@ -29,23 +34,31 @@ int main(void)
 	int gain = 90; /* Set gain to 90% (0.9x amplification) */
 	int ret = 0;
 
+	/* Create a new pipeline */
+	struct mp_element *pipeline = mp_pipeline_new(PIPELINE_ID);
+
+	if (pipeline == NULL) {
+		LOG_ERR("Failed to create pipeline");
+		return 0;
+	}
+
 	/* Create elements */
-	struct mp_element *source = mp_element_factory_create("zaud_dmic_src", "dmic");
+	struct mp_element *source = mp_element_factory_create(MP_ZAUD_DMIC_SRC_ELEM, DMIC_SRC_ID);
 
 	if (source == NULL) {
 		LOG_ERR("Failed to create dmic element");
 		return 0;
 	}
 
-	struct mp_element *transform = mp_element_factory_create("zaud_gain", "gain");
+	struct mp_element *transform = mp_element_factory_create(MP_ZAUD_GAIN_ELEM, AUD_GAIN_ID);
 
 	if (transform == NULL) {
 		LOG_ERR("Failed to create gain element");
 		return 0;
 	}
 
-	struct mp_element *sink = mp_element_factory_create("zaud_i2s_codec_sink", "speaker");
-
+	struct mp_element *sink =
+		mp_element_factory_create(MP_ZAUD_I2S_CODEC_SINK_ELEM, I2S_SINK_ID);
 	if (sink == NULL) {
 		LOG_ERR("Failed to create speaker element");
 		return 0;
@@ -68,14 +81,6 @@ int main(void)
 				       PROP_LIST_END);
 	if (ret < 0) {
 		LOG_ERR("Failed to set properties for speaker element");
-		return 0;
-	}
-
-	/* Create a new pipeline */
-	struct mp_element *pipeline = mp_pipeline_new("dmic_gain_speaker_pipeline");
-
-	if (pipeline == NULL) {
-		LOG_ERR("Failed to create pipeline");
 		return 0;
 	}
 
@@ -105,18 +110,19 @@ int main(void)
 	if (msg != NULL) {
 		switch (MP_MESSAGE_TYPE(msg)) {
 		case MP_MESSAGE_ERROR:
-			LOG_INF("Received ERROR from %s\n", msg->src->name);
+			LOG_INF("ERROR message from element %d", msg->src->id);
 			break;
 		case MP_MESSAGE_EOS:
-			LOG_INF("Received EOS from %s\n", msg->src->name);
+			LOG_INF("EOS message from element %d", msg->src->id);
 			break;
 		default:
-			LOG_ERR("Unexpected message received from %s\n", msg->src->name);
+			LOG_ERR("Unexpected message from element %d", msg->src->id);
 			break;
 		}
 	}
 
-	/* TODO: Stop the pipeline */
+	/* TODO: Stop pipeline and free allocated resources */
+	mp_message_destroy(msg);
 
 	return 0;
 }
