@@ -14,24 +14,24 @@
 
 LOG_MODULE_REGISTER(mp_pad, CONFIG_LIBMP_LOG_LEVEL);
 
-void mp_pad_init(struct mp_pad *pad, const char *name, enum mp_pad_direction direction,
+void mp_pad_init(struct mp_pad *pad, uint8_t id, enum mp_pad_direction direction,
 		 enum mp_pad_presence presence, struct mp_caps *caps)
 {
 	__ASSERT_NO_MSG(pad != NULL);
 
-	pad->object.name = name;
+	pad->object.id = id;
 	pad->direction = direction;
 	pad->presence = presence;
 	pad->caps = caps;
 	pad->eventfn = mp_pad_send_event_default;
 }
 
-struct mp_pad *mp_pad_new(const char *name, enum mp_pad_direction direction,
+struct mp_pad *mp_pad_new(uint8_t id, enum mp_pad_direction direction,
 			  enum mp_pad_presence presence, struct mp_caps *caps)
 {
 	struct mp_pad *pad = k_malloc(sizeof(struct mp_pad));
 
-	mp_pad_init(pad, name, direction, presence, caps);
+	mp_pad_init(pad, id, direction, presence, caps);
 
 	return pad;
 }

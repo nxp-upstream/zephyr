@@ -13,6 +13,8 @@
 
 LOG_MODULE_REGISTER(mp_src, CONFIG_LIBMP_LOG_LEVEL);
 
+#define MP_PAD_SRC_ID 0
+
 int mp_src_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
 	struct mp_src *src = MP_SRC(obj);
@@ -161,9 +163,12 @@ static void mp_src_loop(void *userdata, void *, void *)
 		mp_pad_push(pad, buffer);
 	}
 
-	/* Post EOS message to the pipeline's bus */
-	eos_message = mp_message_new(MP_MESSAGE_EOS, MP_OBJECT(src), NULL);
-	mp_bus_post(mp_element_get_bus(MP_ELEMENT(src)), eos_message);
+	if (count > src->num_buffers) {
+		/* Stop the thread and post EOS message to the pipeline's bus */
+		pad->task.running = false;
+		eos_message = mp_message_new(MP_MESSAGE_EOS, MP_OBJECT(src), NULL);
+		mp_bus_post(mp_element_get_bus(MP_ELEMENT(src)), eos_message);
+	}
 }
 
 static enum mp_state_change_return mp_src_change_state(struct mp_element *self,
@@ -196,7 +201,7 @@ void mp_src_init(struct mp_element *self)
 	struct mp_src *src = MP_SRC(self);
 
 	/* Add pad */
-	mp_pad_init(&src->srcpad, "src", MP_PAD_SRC, MP_PAD_ALWAYS, NULL);
+	mp_pad_init(&src->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS, NULL);
 	mp_element_add_pad(self, &src->srcpad);
 
 	/* Initialize property values */

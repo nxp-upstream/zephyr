@@ -133,17 +133,17 @@ struct mp_pad {
 };
 
 /**
- * @brief Create a new pad
+ * @brief Create a new pad dynamically
  *
  * Creates a new @ref struct mp_pad with the specified parameters.
  *
- * @param name Name of the pad
+ * @param id Unique ID of the pad instance in the element
  * @param direction Direction of the pad (@ref enum mp_pad_direction)
  * @param presence Presence of the pad (@ref enum mp_pad_presence)
  * @param caps Capabilities of the pad (@ref struct mp_caps)
  * @return Pointer to the newly created @ref struct mp_pad, or NULL on failure
  */
-struct mp_pad *mp_pad_new(const char *name, enum mp_pad_direction direction,
+struct mp_pad *mp_pad_new(uint8_t id, enum mp_pad_direction direction,
 			  enum mp_pad_presence presence, struct mp_caps *caps);
 
 /**
@@ -152,12 +152,12 @@ struct mp_pad *mp_pad_new(const char *name, enum mp_pad_direction direction,
  * Initializes an existing @ref struct mp_pad structure with the specified parameters.
  *
  * @param pad Pointer to the @ref struct mp_pad to initialize
- * @param name Name of the pad
+ * @param id Unique ID of the pad instance in the element
  * @param direction Direction of the pad (@ref enum mp_pad_direction)
  * @param presence Presence of the pad (@ref enum mp_pad_presence)
  * @param caps Capabilities of the pad (@ref struct mp_caps)
  */
-void mp_pad_init(struct mp_pad *pad, const char *name, enum mp_pad_direction direction,
+void mp_pad_init(struct mp_pad *pad, uint8_t id, enum mp_pad_direction direction,
 		 enum mp_pad_presence presence, struct mp_caps *caps);
 
 /**

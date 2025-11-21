@@ -5,7 +5,6 @@
  */
 
 #include <stdarg.h>
-#include <string.h>
 
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/util.h>
@@ -23,17 +22,20 @@ bool mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...)
 	struct mp_bus *bus = mp_element_get_bus(&bin->element);
 
 	while (element) {
-		/* Check element name uniqueness in the bin */
+		/*
+		 * Check element ID uniqueness in the nearest bin
+		 * TODO: Should check in the whole pipeline
+		 */
 		struct mp_object *obj;
 
 		SYS_DLIST_FOR_EACH_CONTAINER(&bin->children, obj, node) {
-			if (strcmp(element->object.name, obj->name) == 0) {
+			if (MP_OBJECT(element)->id == obj->id) {
 				return false;
 			}
 		}
 
 		/* Set the element's parent */
-		element->object.container = MP_OBJECT(bin);
+		MP_OBJECT(element)->container = MP_OBJECT(bin);
 
 		/* Add the element to the bin's list of children */
 		sys_dlist_append(&bin->children, &element->object.node);
