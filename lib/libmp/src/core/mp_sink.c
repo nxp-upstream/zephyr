@@ -10,6 +10,8 @@
 
 LOG_MODULE_REGISTER(mp_sink, CONFIG_LIBMP_LOG_LEVEL);
 
+#define MP_PAD_SINK_ID 0
+
 int mp_sink_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
 	return 0;
@@ -97,7 +99,7 @@ void mp_sink_init(struct mp_element *self)
 	struct mp_sink *sink = MP_SINK(self);
 
 	/* Add pad */
-	mp_pad_init(&sink->sinkpad, "sink", MP_PAD_SINK, MP_PAD_ALWAYS, NULL);
+	mp_pad_init(&sink->sinkpad, MP_PAD_SINK_ID, MP_PAD_SINK, MP_PAD_ALWAYS, NULL);
 	mp_element_add_pad(self, &sink->sinkpad);
 
 	sink->sinkpad.queryfn = mp_sink_query;

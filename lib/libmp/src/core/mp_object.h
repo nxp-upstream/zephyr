@@ -34,8 +34,10 @@ struct mp_object {
 	struct mp_object *container;
 	/** Reference counter */
 	atomic_t ref;
-	/** Name of the object */
-	const char *name;
+	/** Unique ID given to an object instance. The max value (UINT8_MAX) is reserved and
+	 * should not be used
+	 */
+	uint8_t id;
 	/** Flags of the object, bitfield inheritable */
 	uint32_t flags;
 	/** Object node to be used in a linked list */

@@ -13,45 +13,59 @@
 #define __MP_PLUGIN_H__
 
 #include <zephyr/sys/iterable_sections.h>
-#include <zephyr/toolchain.h>
 
 /**
  * @{
  */
 
 /**
+ * @brief Element factory identifiers
+ *
+ */
+enum mp_element_factory_id {
+	/* Built-in elements */
+	/** Pipeline */
+	MP_PIPELINE_ELEM = 0,
+	/** Capsfilter */
+	MP_CAPS_FILTER_ELEM,
+	/** Last item for counter only */
+	MP_ELEM_COUNT,
+};
+
+/**
+ * @brief Plugin identifiers
+ *
+ */
+enum mp_plugin_id {
+	/** Last item for counter only */
+	MP_PLUGIN_COUNT,
+};
+
+/**
  * @brief Plugin structure
  *
  */
 struct mp_plugin {
-	/** Plugin name as a string */
-	const char *const name;
+	/** Plugin id */
+	enum mp_plugin_id id;
 	/** Plugin initialization function pointer */
 	void (*init)(void);
 };
 
 /**
- * @brief Statically define and initialize a plugin
+ * @brief Macro to register a plugin
  *
  * This macro creates a plugin entry that will be automatically collected
  * into the plugin resgistry and can be initialized by @ref initialize_plugins().
  *
- * @param pname Name of the plugin (will be stringified for the name field)
- * @param initfunc Pointer to the init function of the plugin
+ * @param plugin_id Unique ID given to the plugin
+ * @param init_func Pointer to the init function of the plugin
  *
- * Example usage:
- * @code
- * static void my_plugin_init(void)
- * {
- *     // Plugin initialization code
- * }
- *
- * MP_PLUGIN_DEFINE(my_plugin, my_plugin_init);
- * @endcode
  */
-#define MP_PLUGIN_DEFINE(pname, initfunc)                                                          \
-	static const STRUCT_SECTION_ITERABLE(mp_plugin, pname) = {                                 \
-		.name = STRINGIFY(pname), .init = initfunc,                                        \
+#define MP_PLUGIN_DEFINE(plugin_id, init_func)                                                     \
+	static const STRUCT_SECTION_ITERABLE(mp_plugin, plugin_id##_REGISTERED) = {                \
+		.id = plugin_id,                                                                   \
+		.init = init_func,                                                                 \
 	}
 
 /**

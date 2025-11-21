@@ -10,6 +10,9 @@
 
 LOG_MODULE_REGISTER(mp_transform, CONFIG_LIBMP_LOG_LEVEL);
 
+#define MP_PAD_SINK_ID 0
+#define MP_PAD_SRC_ID  1
+
 int mp_transform_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
 	return 0;
@@ -265,8 +268,8 @@ void mp_transform_init(struct mp_element *self)
 	struct mp_transform *transform = MP_TRANSFORM(self);
 
 	/* Add pads */
-	mp_pad_init(&transform->sinkpad, "sink", MP_PAD_SINK, MP_PAD_ALWAYS, NULL);
-	mp_pad_init(&transform->srcpad, "src", MP_PAD_SRC, MP_PAD_ALWAYS, NULL);
+	mp_pad_init(&transform->sinkpad, MP_PAD_SINK_ID, MP_PAD_SINK, MP_PAD_ALWAYS, NULL);
+	mp_pad_init(&transform->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS, NULL);
 	mp_element_add_pad(self, &transform->sinkpad);
 	mp_element_add_pad(self, &transform->srcpad);
 

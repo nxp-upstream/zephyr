@@ -59,10 +59,10 @@ void mp_pipeline_init(struct mp_element *self);
  * Creates a new pipeline instance. The pipeline serves as the top-level container for media
  * processing elements.
  *
- * @param name Name to assign to the new pipeline element
+ * @param id Unique instance ID of the new pipeline element
  * @return Pointer to the newly created @ref struct mp_element pipeline, or NULL on failure
  */
-struct mp_element *mp_pipeline_new(const char *name);
+struct mp_element *mp_pipeline_new(uint8_t id);
 
 /**
  * @}

@@ -46,7 +46,7 @@ void mp_pipeline_init(struct mp_element *self)
 	self->bus = &MP_PIPELINE(self)->bus;
 }
 
-struct mp_element *mp_pipeline_new(const char *name)
+struct mp_element *mp_pipeline_new(uint8_t id)
 {
-	return mp_element_factory_create("pipeline", name);
+	return mp_element_factory_create(MP_PIPELINE_ELEM, id);
 }

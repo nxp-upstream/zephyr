@@ -29,7 +29,7 @@ void mp_element_add_pad(struct mp_element *element, struct mp_pad *pad)
 	}
 }
 
-static struct mp_pad *mp_element_get_unlinked_pad(struct mp_element *element, const char *padname,
+static struct mp_pad *mp_element_get_unlinked_pad(struct mp_element *element, uint8_t pad_id,
 						  enum mp_pad_direction direction)
 {
 	struct mp_object *obj;
@@ -39,8 +39,7 @@ static struct mp_pad *mp_element_get_unlinked_pad(struct mp_element *element, co
 
 	SYS_DLIST_FOR_EACH_CONTAINER(pads, obj, node) {
 		pad = MP_PAD(obj);
-		if (pad->peer == NULL &&
-		    (padname == NULL || (padname == NULL && strcmp(obj->name, padname) == 0))) {
+		if (pad->peer == NULL && (pad_id == UINT8_MAX || pad_id == obj->id)) {
 			return pad;
 		}
 	}
@@ -48,11 +47,11 @@ static struct mp_pad *mp_element_get_unlinked_pad(struct mp_element *element, co
 	return NULL;
 }
 
-bool mp_element_link_pads(struct mp_element *src, const char *srcpadname, struct mp_element *sink,
-			  const char *sinkpadname)
+bool mp_element_link_pads(struct mp_element *src, uint8_t src_pad_id, struct mp_element *sink,
+			  uint8_t sink_pad_id)
 {
-	struct mp_pad *srcpad = mp_element_get_unlinked_pad(src, srcpadname, MP_PAD_SRC);
-	struct mp_pad *sinkpad = mp_element_get_unlinked_pad(sink, sinkpadname, MP_PAD_SINK);
+	struct mp_pad *srcpad = mp_element_get_unlinked_pad(src, src_pad_id, MP_PAD_SRC);
+	struct mp_pad *sinkpad = mp_element_get_unlinked_pad(sink, sink_pad_id, MP_PAD_SINK);
 
 	if (mp_caps_can_intersect(srcpad->caps, sinkpad->caps)) {
 		return mp_pad_link(srcpad, sinkpad);
@@ -68,7 +67,8 @@ bool mp_element_link(struct mp_element *element, struct mp_element *next_element
 
 	va_start(args, next_element);
 	while (next_element != NULL) {
-		ret = mp_element_link_pads(element, NULL, next_element, NULL);
+		/* Connect the 1st unlinked pad of each element together */
+		ret = mp_element_link_pads(element, UINT8_MAX, next_element, UINT8_MAX);
 		if (!ret) {
 			break;
 		}
