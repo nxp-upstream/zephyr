@@ -8,6 +8,7 @@
 #include <zephyr/logging/log.h>
 
 #include <src/core/mp_buffer.h>
+#include <src/core/mp_element_factory.h>
 #include <src/core/mp_pixel_format.h>
 #include <src/core/mp_plugin.h>
 
@@ -202,10 +203,9 @@ void mp_zdisp_sink_init(struct mp_element *self)
 	sink->get_caps = mp_zdisp_sink_get_caps;
 	sink->sinkpad.caps = mp_zdisp_sink_get_caps(sink);
 }
-
 static void plugin_init(void)
 {
-	MP_ELEMENTFACTORY_DEFINE(zdisp_sink, sizeof(struct mp_zdisp_sink), mp_zdisp_sink_init);
+	MP_ELEMENT_FACTORY_DEFINE(MP_ZDISP_SINK_ELEM, sizeof(struct mp_zdisp_sink), mp_zdisp_sink_init);
 }
 
-MP_PLUGIN_DEFINE(zdisp, plugin_init);
+MP_PLUGIN_DEFINE(MP_ZDISP_PLUGIN, plugin_init);
