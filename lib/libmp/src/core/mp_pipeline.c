@@ -36,14 +36,9 @@ void mp_pipeline_init(struct mp_element *self)
 	/* Init base class */
 	mp_bin_init(self);
 
-	/* Init bus */
-	mp_bus_init(&MP_PIPELINE(self)->bus);
-
 	self->object.set_property = mp_pipeline_set_property;
 	self->object.get_property = mp_pipeline_get_property;
 	self->change_state = mp_pipeline_change_state;
-
-	self->bus = &MP_PIPELINE(self)->bus;
 }
 
 struct mp_element *mp_pipeline_new(uint8_t id)

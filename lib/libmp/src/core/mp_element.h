@@ -167,9 +167,6 @@ struct mp_element {
 	/** Target state */
 	enum mp_state target_state;
 
-	/** Bus for posting messages */
-	struct mp_bus *bus;
-
 	/** Event handler function */
 	bool (*eventfn)(struct mp_element *element, struct mp_event *event);
 	/** Query handler function */

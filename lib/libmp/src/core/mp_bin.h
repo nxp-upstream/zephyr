@@ -31,6 +31,8 @@
 struct mp_bin {
 	/** Base element structure */
 	struct mp_element element;
+	/** Message bus to communicate with application */
+	struct mp_bus bus;
 	/** Number of children in the bin */
 	int children_num;
 	/** List of children elements in the bin */

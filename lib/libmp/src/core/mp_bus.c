@@ -5,6 +5,7 @@
  */
 
 #include "mp_bus.h"
+
 enum mp_bus_sync_reply {
 	MP_BUS_DROP = 0,
 	MP_BUS_PASS = 1,

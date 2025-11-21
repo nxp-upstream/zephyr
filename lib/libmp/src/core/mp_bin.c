@@ -19,8 +19,6 @@ bool mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...)
 	va_list args;
 
 	va_start(args, element);
-	struct mp_bus *bus = mp_element_get_bus(&bin->element);
-
 	while (element) {
 		/*
 		 * Check element ID uniqueness in the nearest bin
@@ -40,8 +38,6 @@ bool mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...)
 		/* Add the element to the bin's list of children */
 		sys_dlist_append(&bin->children, &element->object.node);
 		bin->children_num++;
-		element->bus = bus;
-
 		element = va_arg(args, struct mp_element *);
 	}
 
@@ -107,4 +103,6 @@ void mp_bin_init(struct mp_element *self)
 	self->change_state = mp_bin_change_state_func;
 
 	sys_dlist_init(&bin->children);
+
+	mp_bus_init(&bin->bus);
 }
