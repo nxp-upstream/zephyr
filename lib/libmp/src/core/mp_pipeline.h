@@ -33,8 +33,6 @@
 struct mp_pipeline {
 	/** Base bin container */
 	struct mp_bin bin;
-	/** Message bus for pipeline communication */
-	struct mp_bus bus;
 	/** The running time - total time spent in PLAYING state without being flushed */
 	uint64_t stream_time;
 	/**

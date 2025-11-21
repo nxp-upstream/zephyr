@@ -7,6 +7,7 @@
 #include <zephyr/sys/util.h>
 #include <zephyr/logging/log.h>
 
+#include "mp_bin.h"
 #include "mp_element.h"
 #include "mp_pad.h"
 
@@ -178,5 +179,13 @@ struct mp_bus *mp_element_get_bus(struct mp_element *element)
 		return NULL;
 	}
 
-	return element->bus;
+	/* Get the top-level bin (i.e. pipeline) bus to send the message for now, but messages may
+	 * be passed hierachically from the nearest bin to the pipeline if they need to be filtered
+	 * or modified at each level.
+	 */
+	while (MP_OBJECT(element)->container != NULL) {
+		element = MP_ELEMENT(MP_OBJECT(element)->container);
+	}
+
+	return &MP_BIN(element)->bus;
 }
