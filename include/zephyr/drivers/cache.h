@@ -212,6 +212,9 @@ int cache_instr_flush_and_invd_all(void);
 /**
  * @brief Flush an address range in the i-cache
  *
+ * Requires :kconfig:option:`CONFIG_ICACHE_RANGE_OPS`. When that option is
+ * disabled this API will return ``-ENOTSUP`` immediately.
+ *
  * Flush the specified address range of the instruction cache.
  *
  * @note the cache operations act on cache line. When multiple data structures
@@ -232,6 +235,9 @@ int cache_instr_flush_range(void *addr, size_t size);
 
 /**
  * @brief Invalidate an address range in the i-cache
+ *
+ * Requires :kconfig:option:`CONFIG_ICACHE_RANGE_OPS`. When that option is
+ * disabled this API will return ``-ENOTSUP`` immediately.
  *
  * Invalidate the specified address range of the instruction cache.
  *
@@ -254,6 +260,9 @@ int cache_instr_invd_range(void *addr, size_t size);
 
 /**
  * @brief Flush and Invalidate an address range in the i-cache
+ *
+ * Requires :kconfig:option:`CONFIG_ICACHE_RANGE_OPS`. When that option is
+ * disabled this API will return ``-ENOTSUP`` immediately.
  *
  * Flush and Invalidate the specified address range of the instruction cache.
  *
