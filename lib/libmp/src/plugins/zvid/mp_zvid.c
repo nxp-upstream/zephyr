@@ -16,9 +16,9 @@ LOG_MODULE_REGISTER(mp_zvid, CONFIG_LIBMP_LOG_LEVEL);
 
 static void plugin_init(void)
 {
-	MP_ELEMENTFACTORY_DEFINE(zvid_src, sizeof(struct mp_zvid_src), mp_zvid_src_init);
-	MP_ELEMENTFACTORY_DEFINE(zvid_transform, sizeof(struct mp_zvid_transform),
-				 mp_zvid_transform_init);
+	MP_ELEMENT_FACTORY_DEFINE(MP_ZVID_SRC_ELEM, sizeof(struct mp_zvid_src), mp_zvid_src_init);
+	MP_ELEMENT_FACTORY_DEFINE(MP_ZVID_TRANSFORM_ELEM, sizeof(struct mp_zvid_transform),
+				  mp_zvid_transform_init);
 }
 
-MP_PLUGIN_DEFINE(zvid, plugin_init);
+MP_PLUGIN_DEFINE(MP_ZVID_PLUGIN, plugin_init);
