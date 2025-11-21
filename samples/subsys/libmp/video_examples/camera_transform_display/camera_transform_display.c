@@ -14,30 +14,45 @@ LOG_MODULE_REGISTER(main);
 
 #define LOG_LEVEL LOG_LEVEL_DBG
 
+#define PIPELINE_ID    0
+#define CAM_SRC_ID     1
+#define CAPS_FILTER_ID 2
+#define VID_TRANS_ID   3
+#define DISP_SINK_ID   4
+
 int main(void)
 {
 	int ret;
 
+	/* Create a new pipeline */
+	struct mp_element *pipeline = mp_pipeline_new(PIPELINE_ID);
+
+	if (pipeline == NULL) {
+		goto err;
+	}
+
 	/* Create elements */
-	struct mp_element *source = mp_element_factory_create("zvid_src", "camsrc");
+	struct mp_element *source = mp_element_factory_create(MP_ZVID_SRC_ELEM, CAM_SRC_ID);
 
 	if (source == NULL) {
 		goto err;
 	}
 
-	struct mp_element *caps_filter = mp_element_factory_create("capsfilter", "capsfilter");
+	struct mp_element *caps_filter =
+		mp_element_factory_create(MP_CAPS_FILTER_ELEM, CAPS_FILTER_ID);
 
 	if (caps_filter == NULL) {
 		goto err;
 	}
 
-	struct mp_element *transform = mp_element_factory_create("zvid_transform", "vtransform");
+	struct mp_element *transform =
+		mp_element_factory_create(MP_ZVID_TRANSFORM_ELEM, VID_TRANS_ID);
 
 	if (transform == NULL) {
 		goto err;
 	}
 
-	struct mp_element *sink = mp_element_factory_create("zdisp_sink", "dispsink");
+	struct mp_element *sink = mp_element_factory_create(MP_ZDISP_SINK_ELEM, DISP_SINK_ID);
 
 	if (sink == NULL) {
 		goto err;
@@ -70,13 +85,6 @@ int main(void)
 		goto err;
 	}
 
-	/* Create a new pipeline */
-	struct mp_element *pipeline = mp_pipeline_new("cam_transform_disp");
-
-	if (pipeline == NULL) {
-		goto err;
-	}
-
 	/* Add elements to the pipeline - order does not matter */
 	if (!mp_bin_add(MP_BIN(pipeline), source, caps_filter, transform, sink, NULL)) {
 		LOG_ERR("Failed to add elements");
@@ -103,13 +111,13 @@ int main(void)
 	if (msg != NULL) {
 		switch (MP_MESSAGE_TYPE(msg)) {
 		case MP_MESSAGE_ERROR:
-			LOG_INF("Received ERROR from %s", msg->src->name);
+			LOG_INF("ERROR message from element %d", msg->src->id);
 			break;
 		case MP_MESSAGE_EOS:
-			LOG_INF("Received EOS from %s", msg->src->name);
+			LOG_INF("EOS message from element %d", msg->src->id);
 			break;
 		default:
-			LOG_ERR("Unexpected message received from %s", msg->src->name);
+			LOG_ERR("Unexpected message from element %d", msg->src->id);
 			break;
 		}
 	}
