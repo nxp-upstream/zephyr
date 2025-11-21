@@ -25,15 +25,31 @@ LOG_MODULE_REGISTER(mp_value, CONFIG_LIBMP_LOG_LEVEL);
 #define MP_VALUE_FRACTION_RANGE_CONST(value) ((const struct mp_value_fraction_range *)value)
 #define MP_VALUE_LIST_CONST(value)           ((const struct mp_value_list *)value)
 
-#define MP_COMPARE(a, b)                                                                           \
-	((a) < (b) ? MP_VALUE_LESS_THAN : ((a) > (b) ? MP_VALUE_GREATER_THAN : MP_VALUE_EQUAL))
+#define mp_compare(a, b)                                                                           \
+	({                                                                                         \
+		__typeof__(a) _a = (a);                                                            \
+		__typeof__(b) _b = (b);                                                            \
+		(_a < _b) ? MP_VALUE_LESS_THAN                                                     \
+			  : ((_a > _b) ? MP_VALUE_GREATER_THAN : MP_VALUE_EQUAL);                  \
+	})
 
-#define MP_FRACTION_COMPARE(a_num, a_den, b_num, b_den) \
-	_Generic((a_num), \
-		int32_t : MP_COMPARE((int64_t)a_num * (int64_t)b_den, \
-				    (int64_t)b_num * (int64_t)a_den), \
-		uint32_t : MP_COMPARE((uint64_t)a_num * (uint64_t)b_den, \
-				     (uint64_t)b_num * (uint64_t)a_den))
+#define mp_fraction_compare(a_num, a_den, b_num, b_den) \
+	({ \
+		__typeof__(a_num) _a_num = (a_num); \
+		__typeof__(a_den) _a_den = (a_den); \
+		__typeof__(b_num) _b_num = (b_num); \
+		__typeof__(b_den) _b_den = (b_den); \
+		__typeof__(a_num) sign_a_positive = ((_a_num < 0) ^ (_a_den < 0)); \
+		__typeof__(b_num) sign_b_positive = ((_b_num < 0) ^ (_b_den < 0)); \
+		_Generic((_a_num), \
+			int32_t : ((sign_a_positive != sign_b_positive) \
+					  ? (sign_a_positive ? MP_VALUE_LESS_THAN \
+							     : MP_VALUE_GREATER_THAN) \
+					  : mp_compare((int64_t)_a_num * (int64_t)_b_den, \
+						       (int64_t)_b_num * (int64_t)_a_den)), \
+			uint32_t : mp_compare((uint64_t)_a_num * (uint64_t)_b_den, \
+					     (uint64_t)_b_num * (uint64_t)_a_den)); \
+	})
 
 #define MP_VALUE_RANGES_OVERLAP(ref_val, cmp_val, vtype)                                           \
 	!(MP_VALUE_RANGE(ref_val)->min.vtype > MP_VALUE_RANGE(cmp_val)->max.vtype ||               \
@@ -464,13 +480,13 @@ struct mp_object *mp_value_get_object(struct mp_value *value)
 int mp_value_compare_fraction(const struct mp_value *frac1, const struct mp_value *frac2)
 {
 	if (frac1->type == MP_TYPE_INT_FRACTION && frac2->type == MP_TYPE_INT_FRACTION) {
-		return MP_FRACTION_COMPARE(
+		return mp_fraction_compare(
 			MP_VALUE_FRACTION(frac1)->num.v_int, MP_VALUE_FRACTION(frac1)->denom.v_int,
 			MP_VALUE_FRACTION(frac2)->num.v_int, MP_VALUE_FRACTION(frac2)->denom.v_int);
 	}
 
 	if (frac1->type == MP_TYPE_UINT_FRACTION && frac2->type == MP_TYPE_UINT_FRACTION) {
-		return MP_FRACTION_COMPARE(MP_VALUE_FRACTION(frac1)->num.v_uint,
+		return mp_fraction_compare(MP_VALUE_FRACTION(frac1)->num.v_uint,
 					   MP_VALUE_FRACTION(frac1)->denom.v_uint,
 					   MP_VALUE_FRACTION(frac2)->num.v_uint,
 					   MP_VALUE_FRACTION(frac2)->denom.v_uint);
@@ -496,10 +512,10 @@ int mp_value_compare(const struct mp_value *val1, const struct mp_value *val2)
 			       ? MP_VALUE_EQUAL
 			       : MP_VALUE_UNORDERED;
 	case MP_TYPE_INT:
-		return MP_COMPARE(MP_VALUE_SIMPLE_CONST(val1)->v_int,
+		return mp_compare(MP_VALUE_SIMPLE_CONST(val1)->v_int,
 				  MP_VALUE_SIMPLE_CONST(val2)->v_int);
 	case MP_TYPE_UINT:
-		return MP_COMPARE(MP_VALUE_SIMPLE_CONST(val1)->v_uint,
+		return mp_compare(MP_VALUE_SIMPLE_CONST(val1)->v_uint,
 				  MP_VALUE_SIMPLE_CONST(val2)->v_uint);
 	case MP_TYPE_UINT_FRACTION:
 	case MP_TYPE_INT_FRACTION:
@@ -677,6 +693,14 @@ struct mp_value *mp_value_intersect_fraction_range(const struct mp_value *ref_va
 		intersect_value = mp_value_new(f_type, MP_VALUE_FRACTION(compare_val)->num.v_uint,
 					       MP_VALUE_FRACTION(compare_val)->denom.v_uint, NULL);
 	} else {
+		printk("%d\n",
+		       mp_value_compare_fraction(
+			       compare_val, MP_VALUE(&MP_VALUE_FRACTION_RANGE(ref_val)->min)) ==
+			       MP_VALUE_LESS_THAN);
+		printk("%d\n",
+		       mp_value_compare_fraction(
+			       compare_val, MP_VALUE(&MP_VALUE_FRACTION_RANGE(ref_val)->max)) ==
+			       MP_VALUE_GREATER_THAN);
 		printk("Failed to intersect fraction ranges %d %d", compare_val->type,
 		       ref_val->type);
 		intersect_value = NULL;
