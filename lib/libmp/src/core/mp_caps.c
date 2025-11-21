@@ -36,22 +36,26 @@ void mp_caps_init(struct mp_caps *caps, uint32_t flag)
 	caps->object.flags = flag;
 }
 
-static struct mp_caps *mp_caps_new_empty(void)
+static struct mp_caps *mp_caps_new_empty_with_flag(uint32_t flags)
 {
 	struct mp_caps *caps = k_malloc(sizeof(struct mp_caps));
 
-	mp_caps_init(caps, 0);
+	if (caps == NULL) {
+		return NULL;
+	}
 
+	mp_caps_init(caps, flags);
 	return mp_caps_ref(caps);
-};
+}
+
+static inline struct mp_caps *mp_caps_new_empty(void)
+{
+	return mp_caps_new_empty_with_flag(0);
+}
 
 struct mp_caps *mp_caps_new_any(void)
 {
-	struct mp_caps *caps = k_malloc(sizeof(struct mp_caps));
-
-	mp_caps_init(caps, MP_CAPS_FLAG_ANY);
-
-	return mp_caps_ref(caps);
+	return mp_caps_new_empty_with_flag(MP_CAPS_FLAG_ANY);
 }
 
 struct mp_caps *mp_caps_new(const char *media_type, ...)
