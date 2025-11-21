@@ -14,25 +14,37 @@ LOG_MODULE_REGISTER(main);
 
 #define LOG_LEVEL LOG_LEVEL_DBG
 
+#define PIPELINE_ID    0
+#define CAM_SRC_ID     1
+#define CAPS_FILTER_ID 2
+#define DISP_SINK_ID   3
+
 int main(void)
 {
 	int ret;
 
+	/* Create a new pipeline */
+	struct mp_element *pipeline = mp_pipeline_new(PIPELINE_ID);
+
+	if (pipeline == NULL) {
+		goto err;
+	}
+
 	/* Create elements */
-	struct mp_element *source = mp_element_factory_create("zvid_src", "camsrc");
+	struct mp_element *source = mp_element_factory_create(MP_ZVID_SRC_ELEM, CAM_SRC_ID);
 
 	if (source == NULL) {
 		goto err;
 	}
 
-	struct mp_element *caps_filter = mp_element_factory_create("capsfilter", "capsfilter");
+	struct mp_element *caps_filter =
+		mp_element_factory_create(MP_CAPS_FILTER_ELEM, CAPS_FILTER_ID);
 
 	if (caps_filter == NULL) {
 		goto err;
 	}
 
-	struct mp_element *sink = mp_element_factory_create("zdisp_sink", "dispsink");
-
+	struct mp_element *sink = mp_element_factory_create(MP_ZDISP_SINK_ELEM, DISP_SINK_ID);
 	if (sink == NULL) {
 		goto err;
 	}
@@ -56,13 +68,6 @@ int main(void)
 				       PROP_LIST_END);
 	mp_caps_unref(filtered_caps);
 	if (ret < 0) {
-		goto err;
-	}
-
-	/* Create a new pipeline */
-	struct mp_element *pipeline = mp_pipeline_new("cam_disp");
-
-	if (pipeline == NULL) {
 		goto err;
 	}
 
@@ -92,13 +97,13 @@ int main(void)
 	if (msg != NULL) {
 		switch (MP_MESSAGE_TYPE(msg)) {
 		case MP_MESSAGE_ERROR:
-			LOG_INF("Received ERROR from %s", msg->src->name);
+			LOG_INF("ERROR message from element %d", msg->src->id);
 			break;
 		case MP_MESSAGE_EOS:
-			LOG_INF("Received EOS from %s", msg->src->name);
+			LOG_INF("EOS message from element %d", msg->src->id);
 			break;
 		default:
-			LOG_ERR("Unexpected message received from %s", msg->src->name);
+			LOG_ERR("Unexpected message from element %d", msg->src->id);
 			break;
 		}
 	}
