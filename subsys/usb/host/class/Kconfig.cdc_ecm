@@ -1,14 +1,15 @@
 # Copyright (c) 2025 Linumiz GmbH
+# Copyright 2025 NXP
+#
 # SPDX-License-Identifier: Apache-2.0
 
 config USBH_CDC_ECM_CLASS
-	bool "USB Host CDC ECM Class implementation"
-	default y
+	bool "USB Communication Device Class - Ethernet Control Mode (CDC-ECM) implementation [EXPERIMENTAL]"
+	depends on DT_HAS_ZEPHYR_CDC_ECM_HOST_ENABLED
+	select EXPERIMENTAL
 	select NET_L2_ETHERNET
-	depends on DT_HAS_ZEPHYR_USBH_CDC_ECM_ENABLED
 	help
-	  USB Host CDC Ethernet Control Model (ECM) implementation.
-	  Supports communication with CDC ECM-compliant USB Ethernet devices.
+	  USB Host Communication Device Class - Ethernet Control Mode (CDC-ECM) implementation.
 
 if USBH_CDC_ECM_CLASS
 
