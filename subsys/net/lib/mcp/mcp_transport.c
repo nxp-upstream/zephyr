@@ -16,7 +16,6 @@ mcp_transport_queue_msg_t mcp_transport_last_queued_msg = {0};
 
 int mcp_transport_queue_response(mcp_queue_msg_type_t type, void *msg_data)
 {
-	/* queue msg to the correct requests queue */
 	mcp_transport_queue_msg_t msg;
 
 	msg.type = type;
@@ -38,20 +37,45 @@ int mcp_transport_queue_response(mcp_queue_msg_type_t type, void *msg_data)
 		/* Locate correct k_msg_q based on init_response->request_id */
 		/* Queue message to the transport layer */
 		break;
+	case MCP_MSG_ERROR_INITIALIZE:
+		mcp_error_response_t *init_error = (mcp_error_response_t *)msg_data;
+
+		msg.data = msg_data;
+		/* Create JSON-RPC error response for initialize */
+		/* Queue error message to the transport layer */
+		break;
+#ifdef CONFIG_MCP_TOOLS_CAPABILITY
 	case MCP_MSG_RESPONSE_TOOLS_LIST:
 		mcp_tools_list_response_t *tools_list_response =
 			(mcp_tools_list_response_t *)msg_data;
+
 		msg.data = msg_data;
 		/* Locate correct k_msg_q based on tools_list_response->request_id */
 		/* Queue message to the transport layer */
+		break;
+	case MCP_MSG_ERROR_TOOLS_LIST:
+		mcp_error_response_t *tools_list_error = (mcp_error_response_t *)msg_data;
+
+		msg.data = msg_data;
+		/* Create JSON-RPC error response for tools/list */
+		/* Queue error message to the transport layer */
 		break;
 	case MCP_MSG_RESPONSE_TOOLS_CALL:
 		mcp_tools_call_response_t *tools_call_response =
 			(mcp_tools_call_response_t *)msg_data;
+
 		msg.data = msg_data;
-		/* Locate correct k_msg_q based on tools_list_response->request_id */
+		/* Locate correct k_msg_q based on tools_call_response->request_id */
 		/* Queue message to the transport layer */
 		break;
+	case MCP_MSG_ERROR_TOOLS_CALL:
+		mcp_error_response_t *tools_call_error = (mcp_error_response_t *)msg_data;
+
+		msg.data = msg_data;
+		/* Create JSON-RPC error response for tools/call */
+		/* Queue error message to the transport layer */
+		break;
+#endif
 	default:
 		/* Unsupported message type */
 		mcp_free(msg_data);
