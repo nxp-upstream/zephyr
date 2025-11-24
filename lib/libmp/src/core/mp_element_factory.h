@@ -13,6 +13,7 @@
 #define __MP_ELEMENT_FACTORY_H__
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include "mp_plugin.h"
 
