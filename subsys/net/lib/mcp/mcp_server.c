@@ -162,6 +162,34 @@ static int register_new_client(uint32_t client_id)
 	return slot_index;
 }
 
+static int send_error_response(uint32_t request_id, mcp_queue_msg_type_t error_type,
+			       int32_t error_code, const char *error_message)
+{
+	mcp_error_response_t *error_response;
+	int ret;
+
+	error_response = (mcp_error_response_t *)mcp_alloc(sizeof(mcp_error_response_t));
+	if (!error_response) {
+		LOG_ERR("Failed to allocate error response");
+		return -ENOMEM;
+	}
+
+	error_response->request_id = request_id;
+	error_response->error_code = error_code;
+	strncpy(error_response->error_message, error_message,
+		sizeof(error_response->error_message) - 1);
+	error_response->error_message[sizeof(error_response->error_message) - 1] = '\0';
+
+	ret = mcp_transport_queue_response(error_type, error_response);
+	if (ret != 0) {
+		LOG_ERR("Failed to queue error response: %d", ret);
+		mcp_free(error_response);
+		return ret;
+	}
+
+	return 0;
+}
+
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
 static uint32_t generate_execution_token(uint32_t request_id)
 {
@@ -626,7 +654,6 @@ static int handle_notification(mcp_client_notification_t *notification)
 }
 
 /* Worker threads */
-
 static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 {
 	mcp_request_queue_msg_t request;
@@ -666,6 +693,11 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 			ret = handle_initialize_request(init_request);
 			if (ret != 0) {
 				LOG_ERR("Initialize request failed: %d", ret);
+				/* Send error response according to JSON-RPC spec */
+				send_error_response(init_request->request_id,
+						    MCP_MSG_ERROR_INITIALIZE,
+						    -32603, /* Internal error */
+						    "Server initialization failed");
 			}
 			mcp_free(init_request);
 			break;
@@ -679,6 +711,24 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 			ret = handle_tools_list_request(tools_list_request);
 			if (ret != 0) {
 				LOG_ERR("Tools list request failed: %d", ret);
+				const char *error_msg;
+				int32_t error_code;
+
+				if (ret == -ENOENT) {
+					error_code = -32602; /* Invalid params */
+					error_msg = "Client not found or not initialized";
+				} else if (ret == -EPERM) {
+					error_code = -32602; /* Invalid params */
+					error_msg =
+						"Client not in correct state for tools requests";
+				} else {
+					error_code = -32603; /* Internal error */
+					error_msg = "Internal server error processing tools list";
+				}
+
+				send_error_response(tools_list_request->request_id,
+						    MCP_MSG_ERROR_TOOLS_LIST, error_code,
+						    error_msg);
 			}
 			mcp_free(tools_list_request);
 			break;
@@ -691,12 +741,31 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 			ret = handle_tools_call_request(tools_call_request);
 			if (ret != 0) {
 				LOG_ERR("Tools call request failed: %d", ret);
+				const char *error_msg;
+				int32_t error_code;
+
+				if (ret == -ENOENT) {
+					error_code = -32601; /* Method not found */
+					error_msg = "Tool not found";
+				} else if (ret == -EPERM) {
+					error_code = -32602; /* Invalid params */
+					error_msg = "Client not authorized for tool execution";
+				} else if (ret == -ENOSPC) {
+					error_code = -32603; /* Internal error */
+					error_msg = "No available execution slots";
+				} else {
+					error_code = -32603; /* Internal error */
+					error_msg = "Internal server error processing tool call";
+				}
+
+				send_error_response(tools_call_request->request_id,
+						    MCP_MSG_ERROR_TOOLS_CALL, error_code,
+						    error_msg);
 			}
 			mcp_free(tools_call_request);
 			break;
 		}
 #endif
-
 		case MCP_MSG_NOTIFICATION: {
 			mcp_client_notification_t *notification =
 				(mcp_client_notification_t *)request.data;

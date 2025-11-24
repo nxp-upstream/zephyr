@@ -94,7 +94,7 @@ static void send_tools_call_request(uint32_t client_id, uint32_t request_id, con
 	ret = k_msgq_put(&mcp_request_queue, &msg, K_NO_WAIT);
 	zassert_equal(ret, 0, "Tools call request queueing failed");
 
-	k_msleep(100);
+	k_msleep(200);
 }
 
 static void send_initialize_request(uint32_t client_id, uint32_t request_id)
@@ -545,44 +545,54 @@ ZTEST(mcp_server_tests, test_tools_call_comprehensive)
 	zassert_true(strstr(response->result, "isError\": true") != NULL,
 		     "Error response should indicate error");
 
-	/* Test 5: Non-existent tool */
+	/* Test 5: Non-existent tool - now expects error response */
 	printk("=== Test 5: Non-existent tool ===\n");
 	int execution_count_before_nonexistent = tool_execution_count;
-
 	reset_transport_mock();
 	send_tools_call_request(CLIENT_ID_EDGE_CASE_TEST, 3005, "non_existent_tool", "{}");
 
 	zassert_equal(tool_execution_count, execution_count_before_nonexistent,
 		      "Non-existent tool should not execute");
-	zassert_equal(mcp_transport_queue_call_count, 0,
-		      "No response should be submitted for non-existent tool");
+	zassert_equal(mcp_transport_queue_call_count, 1,
+		      "Error response should be submitted for non-existent tool");
+	zassert_equal(mcp_transport_last_queued_msg.type, MCP_MSG_ERROR_TOOLS_CALL,
+		      "Transport should receive tools/call error response");
 
-	/* Test 6: Tool execution from unregistered client */
+	/* Verify error response */
+	mcp_error_response_t *error_response =
+		(mcp_error_response_t *)mcp_transport_last_queued_msg.data;
+	zassert_not_null(error_response, "Error response data should not be NULL");
+	zassert_equal(error_response->request_id, 3005,
+		      "Error response should have correct request ID");
+
+	/* Test 6: Tool execution from unregistered client - now expects error response */
 	printk("=== Test 6: Unregistered client ===\n");
 	int execution_count_before_unregistered = tool_execution_count;
-
 	reset_transport_mock();
 	send_tools_call_request(CLIENT_ID_UNREGISTERED, 3006, "test_success_tool", "{}");
 
 	zassert_equal(tool_execution_count, execution_count_before_unregistered,
 		      "Unregistered client should not execute tools");
-	zassert_equal(mcp_transport_queue_call_count, 0,
-		      "No response should be submitted for unregistered client");
+	zassert_equal(mcp_transport_queue_call_count, 1,
+		      "Error response should be submitted for unregistered client");
+	zassert_equal(mcp_transport_last_queued_msg.type, MCP_MSG_ERROR_TOOLS_CALL,
+		      "Transport should receive tools/call error response");
 
-	/* Test 7: Tool execution from non-initialized client */
+	/* Test 7: Tool execution from non-initialized client - now expects error response */
 	printk("=== Test 7: Non-initialized client ===\n");
 	/* Register a new client but don't send initialized notification */
 	send_initialize_request(CLIENT_ID_INITIALIZE_TEST, 3007);
 
 	int execution_count_before_uninitialized = tool_execution_count;
-
 	reset_transport_mock();
 	send_tools_call_request(CLIENT_ID_INITIALIZE_TEST, 3008, "test_success_tool", "{}");
 
 	zassert_equal(tool_execution_count, execution_count_before_uninitialized,
 		      "Non-initialized client should not execute tools");
-	zassert_equal(mcp_transport_queue_call_count, 0,
-		      "No response should be submitted for non-initialized client");
+	zassert_equal(mcp_transport_queue_call_count, 1,
+		      "Error response should be submitted for non-initialized client");
+	zassert_equal(mcp_transport_last_queued_msg.type, MCP_MSG_ERROR_TOOLS_CALL,
+		      "Transport should receive tools/call error response");
 
 	/* Test 8: Multiple tool executions */
 	printk("=== Test 8: Multiple tool executions ===\n");
@@ -601,15 +611,12 @@ ZTEST(mcp_server_tests, test_tools_call_comprehensive)
 	/* Test 9: Long parameter string */
 	printk("=== Test 9: Long parameter string ===\n");
 	static char long_params[CONFIG_MCP_TOOL_INPUT_ARGS_MAX_LEN];
-
 	memset(long_params, 'x', sizeof(long_params) - 1);
 	long_params[sizeof(long_params) - 1] = '\0';
 
 	int execution_count_before_long = tool_execution_count;
-
 	reset_transport_mock();
 	send_tools_call_request(CLIENT_ID_EDGE_CASE_TEST, 3012, "test_success_tool", long_params);
-	k_msleep(200);
 
 	zassert_equal(tool_execution_count, execution_count_before_long + 1,
 		      "Long parameter string should work");
@@ -619,10 +626,8 @@ ZTEST(mcp_server_tests, test_tools_call_comprehensive)
 	/* Test 10: Slow tool execution */
 	printk("=== Test 10: Slow tool execution ===\n");
 	int execution_count_before_slow = tool_execution_count;
-
 	reset_transport_mock();
 	send_tools_call_request(CLIENT_ID_EDGE_CASE_TEST, 3013, "test_slow_tool", "{}");
-	k_msleep(300); /* Wait longer for slow tool */
 
 	zassert_equal(tool_execution_count, execution_count_before_slow + 1,
 		      "Slow tool should complete execution");
@@ -672,10 +677,8 @@ ZTEST(mcp_server_tests, test_tools_call_concurrent_clients)
 	/* Execute tool from both clients */
 	send_tools_call_request(CLIENT_ID_MULTI_CLIENT_1, 4001, "concurrent_test_tool",
 				"{\"client\":\"1\"}");
-	k_msleep(200);
 	send_tools_call_request(CLIENT_ID_MULTI_CLIENT_2, 4002, "concurrent_test_tool",
 				"{\"client\":\"2\"}");
-	k_msleep(200);
 
 	/* Both executions should succeed */
 	zassert_equal(tool_execution_count, 2, "Tool should execute from both clients");
@@ -723,18 +726,15 @@ ZTEST(mcp_server_tests, test_tools_call_edge_cases)
 	long_tool_name[sizeof(long_tool_name) - 1] = '\0';
 
 	send_tools_call_request(CLIENT_ID_EDGE_CASE_TEST, 5001, long_tool_name, "{}");
-	k_msleep(200);
 	zassert_equal(tool_execution_count, 0, "Tool with long name should not execute");
 
 	/* Test: Empty tool name */
 	send_tools_call_request(CLIENT_ID_EDGE_CASE_TEST, 5002, "", "{}");
-	k_msleep(200);
 	zassert_equal(tool_execution_count, 0, "Tool with empty name should not execute");
 
 	/* Test: Special characters in parameters */
 	send_tools_call_request(CLIENT_ID_EDGE_CASE_TEST, 5003, "edge_case_tool",
 				"{\"special\":\"\\\"quotes\\\"\"}");
-	k_msleep(200);
 	zassert_equal(tool_execution_count, 1, "Tool with special characters should execute");
 
 	/* Clean up */
@@ -771,9 +771,12 @@ ZTEST(mcp_server_tests, test_tools_list_response)
 
 	reset_transport_mock();
 
+	/* Unregistered client should now get error response */
 	send_tools_list_request(CLIENT_ID_UNREGISTERED, REQ_ID_EDGE_CASE_UNREGISTERED);
-	zassert_equal(mcp_transport_queue_call_count, 0,
-		      "Tools/list should be rejected for unregistered client");
+	zassert_equal(mcp_transport_queue_call_count, 1,
+		      "Tools/list should send error response for unregistered client");
+	zassert_equal(mcp_transport_last_queued_msg.type, MCP_MSG_ERROR_TOOLS_LIST,
+		      "Should receive error response");
 
 	mcp_tool_record_t test_tool1 = {
 		.metadata = {
@@ -1111,8 +1114,10 @@ ZTEST(mcp_server_tests, test_client_lifecycle)
 
 	reset_transport_mock();
 	send_tools_list_request(CLIENT_ID_LIFECYCLE_TEST, REQ_ID_LIFECYCLE_TOOLS_INIT);
-	zassert_equal(mcp_transport_queue_call_count, 0,
-		      "Tools/list should be rejected before client is initialized");
+	zassert_equal(mcp_transport_queue_call_count, 1,
+		      "Tools/list should send error response before client is initialized");
+	zassert_equal(mcp_transport_last_queued_msg.type, MCP_MSG_ERROR_TOOLS_LIST,
+		      "Should receive error response");
 
 	send_initialized_notification(CLIENT_ID_LIFECYCLE_TEST);
 
@@ -1144,8 +1149,10 @@ ZTEST(mcp_server_tests, test_client_shutdown)
 
 	reset_transport_mock();
 	send_tools_list_request(CLIENT_ID_SHUTDOWN_TEST, REQ_ID_SHUTDOWN_TOOLS_DEAD);
-	zassert_equal(mcp_transport_queue_call_count, 0,
-		      "Tools/list should be rejected for shutdown client");
+	zassert_equal(mcp_transport_queue_call_count, 1,
+		      "Tools/list should send error response for shutdown client");
+	zassert_equal(mcp_transport_last_queued_msg.type, MCP_MSG_ERROR_TOOLS_LIST,
+		      "Should receive error response");
 
 	reset_transport_mock();
 	send_client_shutdown(CLIENT_ID_UNREGISTERED);
@@ -1162,7 +1169,10 @@ ZTEST(mcp_server_tests, test_invalid_states)
 
 	reset_transport_mock();
 	send_initialize_request(CLIENT_ID_INVALID_STATE_TEST, REQ_ID_INVALID_REINITIALIZE);
-	zassert_equal(mcp_transport_queue_call_count, 0, "Re-initialization should be rejected");
+	zassert_equal(mcp_transport_queue_call_count, 1,
+		      "Re-initialization should send error response");
+	zassert_equal(mcp_transport_last_queued_msg.type, MCP_MSG_ERROR_INITIALIZE,
+		      "Should receive initialize error response");
 
 	reset_transport_mock();
 	send_initialized_notification(CLIENT_ID_UNREGISTERED);
@@ -1190,8 +1200,10 @@ ZTEST(mcp_server_tests, test_multiple_client_lifecycle)
 
 	reset_transport_mock();
 	send_initialize_request(CLIENT_ID_MULTI_CLIENT_4, REQ_ID_MULTI_CLIENT_4_INIT_1);
-	zassert_equal(mcp_transport_queue_call_count, 0,
-		      "4th client should be rejected when registry is full");
+	zassert_equal(mcp_transport_queue_call_count, 1,
+		      "4th client should send error response when registry is full");
+	zassert_equal(mcp_transport_last_queued_msg.type, MCP_MSG_ERROR_INITIALIZE,
+		      "Should receive initialize error response");
 
 	send_client_shutdown(CLIENT_ID_MULTI_CLIENT_1);
 
@@ -1221,9 +1233,6 @@ ZTEST(mcp_server_tests, test_unknown_message_type)
 
 	ret = k_msgq_put(&mcp_request_queue, &msg, K_NO_WAIT);
 	zassert_equal(ret, 0, "Invalid message queueing should succeed");
-
-	k_msleep(100);
-
 	zassert_equal(mcp_transport_queue_call_count, 0,
 		      "No response should be sent for unknown message type");
 }
@@ -1248,9 +1257,6 @@ ZTEST(mcp_server_tests, test_null_data_request)
 
 	ret = k_msgq_put(&mcp_request_queue, &msg, K_NO_WAIT);
 	zassert_equal(ret, 0, "NULL data message queueing should succeed");
-
-	k_msleep(100);
-
 	zassert_equal(mcp_transport_queue_call_count, 0,
 		      "No response should be sent for NULL data pointer");
 }
@@ -1380,8 +1386,6 @@ ZTEST(mcp_server_tests, test_invalid_execution_tokens)
 
 	/* Execute the tool - this will create and then destroy an execution token */
 	send_tools_call_request(CLIENT_ID_EDGE_CASE_TEST, 4500, "token_test_tool", "{}");
-	k_msleep(200); /* Wait for tool execution to complete */
-
 	zassert_equal(tool_execution_count, 1, "Tool should have executed once");
 	uint32_t used_token = last_execution_token;
 

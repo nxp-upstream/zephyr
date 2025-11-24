@@ -28,6 +28,11 @@ typedef enum {
 	MCP_MSG_RESPONSE_TOOLS_LIST,
 	MCP_MSG_RESPONSE_TOOLS_CALL,
 #endif
+	MCP_MSG_ERROR_INITIALIZE,
+#ifdef CONFIG_MCP_TOOLS_CAPABILITY
+	MCP_MSG_ERROR_TOOLS_LIST,
+	MCP_MSG_ERROR_TOOLS_CALL,
+#endif
 	MCP_MSG_NOTIFICATION,
 } mcp_queue_msg_type_t;
 
@@ -57,6 +62,12 @@ typedef struct mcp_system_msg {
 	uint32_t request_id;
 	uint32_t client_id;
 } mcp_system_msg_t;
+
+typedef struct mcp_error_response {
+	uint32_t request_id;
+	int32_t error_code;
+	char error_message[128];
+} mcp_error_response_t;
 
 typedef struct mcp_initialize_request {
 	uint32_t request_id;
