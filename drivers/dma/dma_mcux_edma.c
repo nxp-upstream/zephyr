@@ -42,6 +42,8 @@ LOG_MODULE_REGISTER(dma_mcux_edma, CONFIG_DMA_LOG_LEVEL);
 
 #if defined(CONFIG_DMA_MCUX_EDMA_V5)
 typedef DMA5_Type DMAx_Type;
+#elif defined(CONFIG_DMA_MCUX_EDMA_V4)
+typedef EDMA_Type DMAx_Type;
 #else
 typedef DMA_Type DMAx_Type;
 #endif
@@ -952,13 +954,7 @@ static int dma_mcux_edma_get_status(const struct device *dev, uint32_t channel,
 	edma_log_dmamux(dev, channel);
 
 #if defined(CONFIG_DMA_MCUX_EDMA_V3) || defined(CONFIG_DMA_MCUX_EDMA_V4)
-	LOG_DBG("DMA MP_CSR 0x%x",  DEV_BASE(dev)->MP_CSR);
-	LOG_DBG("DMA MP_ES 0x%x",   DEV_BASE(dev)->MP_ES);
-	LOG_DBG("DMA CHx_ES 0x%x",  DEV_BASE(dev)->CH[hw_channel].CH_ES);
-	LOG_DBG("DMA CHx_CSR 0x%x", DEV_BASE(dev)->CH[hw_channel].CH_CSR);
-	LOG_DBG("DMA CHx_ES 0x%x",  DEV_BASE(dev)->CH[hw_channel].CH_ES);
-	LOG_DBG("DMA CHx_INT 0x%x", DEV_BASE(dev)->CH[hw_channel].CH_INT);
-	LOG_DBG("DMA TCD_CSR 0x%x", DEV_BASE(dev)->CH[hw_channel].TCD_CSR);
+
 #elif defined(CONFIG_DMA_MCUX_EDMA_V5)
 	LOG_DBG("DMA MP_CSR 0x%x",  DEV_BASE(dev)->MP_CSR);
 	LOG_DBG("DMA MP_ES 0x%x",   DEV_BASE(dev)->MP_ES);
