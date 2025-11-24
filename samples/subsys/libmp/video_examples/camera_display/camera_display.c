@@ -45,6 +45,7 @@ int main(void)
 	}
 
 	struct mp_element *sink = mp_element_factory_create(MP_ZDISP_SINK_ELEM, DISP_SINK_ID);
+
 	if (sink == NULL) {
 		goto err;
 	}
