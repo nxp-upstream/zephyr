@@ -23,7 +23,7 @@ static int mp_zaud_src_set_property(struct mp_object *obj, uint32_t key, const v
 		pool->mem_slab = (struct k_mem_slab *)val;
 		break;
 	default:
-		return -1; /* Return error for unknown properties */
+		return mp_src_set_property(obj, key, val);
 	}
 
 	return 0;
@@ -47,7 +47,7 @@ static int mp_zaud_src_get_property(struct mp_object *obj, uint32_t key, void *v
 		}
 		break;
 	default:
-		return -1; /* Return error for unknown properties */
+		return mp_src_get_property(obj, key, val);
 	}
 
 	return 0;

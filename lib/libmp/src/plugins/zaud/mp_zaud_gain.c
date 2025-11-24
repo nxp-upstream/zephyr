@@ -142,16 +142,12 @@ static struct mp_caps *mp_zaud_gain_get_caps(struct mp_transform *transform,
 
 	mp_value_list_append(supported_bit_width, mp_value_new(MP_TYPE_UINT, MP_ZAUD_BIT_WIDTH_16));
 
-	if (direction == MP_PAD_SRC) {
+	if ((direction == MP_PAD_SRC) || (direction == MP_PAD_SINK)) {
 		return mp_caps_new("audio/pcm", "bitwidth", MP_TYPE_LIST, supported_bit_width,
 				   "interleaved", MP_TYPE_BOOLEAN, true, NULL);
+	} else {
+		return NULL;
 	}
-	if (direction == MP_PAD_SINK) {
-		return mp_caps_new("audio/pcm", "bitwidth", MP_TYPE_LIST, supported_bit_width,
-				   "interleaved", MP_TYPE_BOOLEAN, true, NULL);
-	}
-
-	return NULL;
 }
 
 void mp_zaud_gain_init(struct mp_element *self)
