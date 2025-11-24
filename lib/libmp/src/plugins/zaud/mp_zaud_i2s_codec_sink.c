@@ -28,7 +28,7 @@ static int mp_zaud_i2s_codec_sink_set_property(struct mp_object *obj, uint32_t k
 		zaud_i2s_codec_sink->mem_slab = (struct k_mem_slab *)val;
 		break;
 	default:
-		return -1; /* Return error for unknown properties */
+		return mp_sink_set_property(obj, key, val);
 	}
 
 	return 0;
@@ -51,7 +51,7 @@ static int mp_zaud_i2s_codec_sink_get_property(struct mp_object *obj, uint32_t k
 		}
 		break;
 	default:
-		return -1; /* Return error for unknown properties */
+		return mp_sink_get_property(obj, key, val);
 	}
 	return 0;
 }
