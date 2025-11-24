@@ -90,7 +90,7 @@ static int submit_xfer(struct usbh_cdc_ecm_data *priv, uint8_t ep, usbh_udev_cb_
 		net_buf_add(buf, buf_size);
 	} else {
 		/* RX 场景或 ZLP：只设置缓冲区大小 */
-		net_buf_add(buf, buf_size);
+		// net_buf_add(buf, buf_size);
 		/* RX: USB 栈会填充数据 */
 		/* ZLP: buf_size == 0 */
 	}
