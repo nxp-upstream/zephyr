@@ -11,10 +11,19 @@
 
 LOG_MODULE_REGISTER(mp_zaud_buffer_pool, CONFIG_LIBMP_LOG_LEVEL);
 
+static __nocache uint8_t
+	zaud_buffer_pool_buf[CONFIG_ZAUD_BUFFER_POOL_SZ_MAX * CONFIG_ZAUD_BUFFER_POOL_NUM_MAX];
+
+static struct k_heap zaud_buffer_pool_heap;
+static bool zaud_buffer_pool_heap_initialized;
+
+#define ZAUD_BUFFER_HEAP_ALLOC(align, size)                                                        \
+	k_heap_aligned_alloc(&zaud_buffer_pool_heap, align, size, K_NO_WAIT)
+#define ZAUD_BUFFER_FREE(block) k_heap_free(&zaud_buffer_pool_heap, block)
+
 static bool mp_zaud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_structure *config)
 {
 	struct mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
-	void *aligned_buffer = NULL;
 
 	int sample_rate = mp_value_get_int(mp_structure_get_value(config, "samplerate"));
 	int bit_width = mp_value_get_int(mp_structure_get_value(config, "bitwidth"));
@@ -48,21 +57,15 @@ static bool mp_zaud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_st
 		return false;
 	}
 
-	/* TODO: Need to allocate in non-cachable memory */
-	zaud_pool->unaligned_buffer = (void *)k_calloc(
-		1, (pool->config.size * pool->config.min_buffers) + (pool->config.align - 1));
-	if (zaud_pool->unaligned_buffer == NULL) {
+	zaud_pool->buffer = (void *)ZAUD_BUFFER_HEAP_ALLOC(
+		pool->config.align, (pool->config.size * pool->config.min_buffers));
+
+	if (zaud_pool->buffer == NULL) {
 		LOG_ERR("Unable to allocate mem_slab buffer");
 		return false;
 	}
 
-	/* Align buffer to required alignment */
-	uintptr_t unaligned_addr = (uintptr_t)zaud_pool->unaligned_buffer;
-	uintptr_t aligned_addr =
-		(unaligned_addr + pool->config.align - 1) & ~(pool->config.align - 1);
-	aligned_buffer = (void *)aligned_addr;
-
-	k_mem_slab_init(zaud_pool->mem_slab, aligned_buffer, pool->config.size,
+	k_mem_slab_init(zaud_pool->mem_slab, zaud_pool->buffer, pool->config.size,
 			pool->config.min_buffers);
 
 	for (uint8_t i = 0; i < pool->config.min_buffers; i++) {
@@ -86,8 +89,8 @@ static bool mp_zaud_buffer_pool_stop(struct mp_buffer_pool *pool)
 	}
 
 	if (zaud_pool->mem_slab->buffer != NULL) {
-		k_free(zaud_pool->unaligned_buffer);
-		zaud_pool->unaligned_buffer = NULL;
+		ZAUD_BUFFER_FREE(zaud_pool->buffer);
+		zaud_pool->buffer = NULL;
 		zaud_pool->mem_slab->buffer = NULL;
 	}
 
@@ -102,8 +105,15 @@ void mp_zaud_buffer_pool_init(struct mp_buffer_pool *pool)
 
 	zaud_pool->zaud_dev = NULL;
 	zaud_pool->mem_slab = NULL;
+	zaud_pool->buffer = NULL;
 
 	mp_buffer_pool_init(pool);
+
+	if (zaud_buffer_pool_heap_initialized != true) {
+		k_heap_init(&zaud_buffer_pool_heap, zaud_buffer_pool_buf,
+			    sizeof(zaud_buffer_pool_buf));
+		zaud_buffer_pool_heap_initialized = true;
+	}
 
 	pool->configure = mp_zaud_buffer_pool_config;
 	pool->stop = mp_zaud_buffer_pool_stop;
