@@ -342,7 +342,6 @@ static int handle_initialize_request(mcp_initialize_request_t *request)
 	int ret;
 
 	LOG_DBG("Processing initialize request");
-	/* TODO: Handle sending error responses to client */
 
 	ret = k_mutex_lock(&client_registry.registry_mutex, K_FOREVER);
 	if (ret != 0) {
@@ -467,7 +466,6 @@ static int handle_tools_list_request(mcp_tools_list_request_t *request)
 	int client_index;
 	int ret;
 
-	/* TODO: Handle sending error responses to client */
 	LOG_DBG("Processing tools list request");
 
 	ret = k_mutex_lock(&client_registry.registry_mutex, K_FOREVER);
@@ -689,10 +687,17 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 			ret = handle_initialize_request(init_request);
 			if (ret != 0) {
 				LOG_ERR("Initialize request failed: %d", ret);
-				send_error_response(init_request->request_id, 
-						   MCP_MSG_ERROR_INITIALIZE,
-						   MCP_ERROR_INTERNAL_ERROR,
-						   "Server initialization failed");
+				if (ret == -EALREADY) {
+					send_error_response(
+						init_request->request_id, MCP_MSG_ERROR_INITIALIZE,
+						MCP_ERROR_INVALID_PARAMS,
+						"Client already initialized or in invalid state");
+				} else {
+					send_error_response(init_request->request_id,
+							    MCP_MSG_ERROR_INITIALIZE,
+							    MCP_ERROR_INTERNAL_ERROR,
+							    "Server initialization failed");
+				}
 			}
 			mcp_free(init_request);
 			break;
