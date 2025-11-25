@@ -187,6 +187,10 @@ set(EXTRA_KCONFIG_TARGET_COMMAND_FOR_guiconfig
   ${ZEPHYR_BASE}/scripts/kconfig/guiconfig.py
   )
 
+set(EXTRA_KCONFIG_TARGET_COMMAND_FOR_webconfig
+  ${ZEPHYR_BASE}/scripts/kconfig/webconfig.py
+  )
+
 set(EXTRA_KCONFIG_TARGET_COMMAND_FOR_hardenconfig
   ${ZEPHYR_BASE}/scripts/kconfig/hardenconfig.py
   )
@@ -197,7 +201,7 @@ set(EXTRA_KCONFIG_TARGET_COMMAND_FOR_traceconfig
   ${PROJECT_BINARY_DIR}/kconfig-trace.md
   )
 
-set_ifndef(KCONFIG_TARGETS menuconfig guiconfig hardenconfig traceconfig)
+set_ifndef(KCONFIG_TARGETS menuconfig guiconfig hardenconfig traceconfig webconfig)
 
 foreach(kconfig_target
     ${KCONFIG_TARGETS}

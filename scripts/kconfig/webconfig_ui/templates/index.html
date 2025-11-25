@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kconfig Web Interface</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>Kconfig Configuration</h1>
+            <div class="toolbar">
+                <button onclick="saveConfig()">Save</button>
+                <button onclick="saveAsConfig()">Save As...</button>
+                <button onclick="saveAndExit()" class="btn-exit">Save & Exit</button>
+                <button onclick="loadConfig()">Load...</button>
+                <label>
+                    <input type="checkbox" id="show-all" onchange="toggleShowAll()">
+                    Show All
+                </label>
+                <input type="text" id="search" placeholder="Search symbols..." onkeyup="searchSymbols()">
+            </div>
+            <div id="status-bar"></div>
+        </header>
+        <div class="main-content">
+            <div class="tree-panel">
+                <div class="tabs">
+                    <button class="tab-button active" data-tab="tree" onclick="switchTab('tree')">Configuration Tree</button>
+                    <button class="tab-button" data-tab="session-changes" onclick="switchTab('session-changes')">Session Changes (<span id="session-changes-count">0</span>)</button>
+                    <button class="tab-button" data-tab="all-changes" onclick="switchTab('all-changes')">All Changes (<span id="all-changes-count">0</span>)</button>
+                </div>
+                <div id="tab-tree" class="tab-content active">
+                    <div id="menu-tree"></div>
+                </div>
+                <div id="tab-session-changes" class="tab-content">
+                    <div id="session-changes-list"></div>
+                </div>
+                <div id="tab-all-changes" class="tab-content">
+                    <div id="all-changes-list"></div>
+                </div>
+            </div>
+
+            <div class="detail-panel">
+                <div id="symbol-details">
+                    <p>Select a configuration option to see details</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='webconfig.js') }}"></script>
+</body>
+</html>
