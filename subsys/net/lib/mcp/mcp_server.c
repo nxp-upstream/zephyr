@@ -693,11 +693,10 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 			ret = handle_initialize_request(init_request);
 			if (ret != 0) {
 				LOG_ERR("Initialize request failed: %d", ret);
-				/* Send error response according to JSON-RPC spec */
-				send_error_response(init_request->request_id,
-						    MCP_MSG_ERROR_INITIALIZE,
-						    -32603, /* Internal error */
-						    "Server initialization failed");
+				send_error_response(init_request->request_id, 
+						   MCP_MSG_ERROR_INITIALIZE,
+						   MCP_ERROR_INTERNAL_ERROR,
+						   "Server initialization failed");
 			}
 			mcp_free(init_request);
 			break;
@@ -711,24 +710,21 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 			ret = handle_tools_list_request(tools_list_request);
 			if (ret != 0) {
 				LOG_ERR("Tools list request failed: %d", ret);
-				const char *error_msg;
+				
 				int32_t error_code;
+				const char *error_msg;
 
-				if (ret == -ENOENT) {
-					error_code = -32602; /* Invalid params */
+				if (ret == -ENOENT || ret == -EPERM) {
+					error_code = MCP_ERROR_INVALID_PARAMS;
 					error_msg = "Client not found or not initialized";
-				} else if (ret == -EPERM) {
-					error_code = -32602; /* Invalid params */
-					error_msg =
-						"Client not in correct state for tools requests";
 				} else {
-					error_code = -32603; /* Internal error */
+					error_code = MCP_ERROR_INTERNAL_ERROR;
 					error_msg = "Internal server error processing tools list";
 				}
 
 				send_error_response(tools_list_request->request_id,
-						    MCP_MSG_ERROR_TOOLS_LIST, error_code,
-						    error_msg);
+						   MCP_MSG_ERROR_TOOLS_LIST,
+						   error_code, error_msg);
 			}
 			mcp_free(tools_list_request);
 			break;
@@ -741,26 +737,27 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 			ret = handle_tools_call_request(tools_call_request);
 			if (ret != 0) {
 				LOG_ERR("Tools call request failed: %d", ret);
-				const char *error_msg;
+				
 				int32_t error_code;
+				const char *error_msg;
 
 				if (ret == -ENOENT) {
-					error_code = -32601; /* Method not found */
+					error_code = MCP_ERROR_METHOD_NOT_FOUND;
 					error_msg = "Tool not found";
 				} else if (ret == -EPERM) {
-					error_code = -32602; /* Invalid params */
+					error_code = MCP_ERROR_INVALID_PARAMS;
 					error_msg = "Client not authorized for tool execution";
 				} else if (ret == -ENOSPC) {
-					error_code = -32603; /* Internal error */
+					error_code = MCP_ERROR_SERVER_ERROR;
 					error_msg = "No available execution slots";
 				} else {
-					error_code = -32603; /* Internal error */
+					error_code = MCP_ERROR_INTERNAL_ERROR;
 					error_msg = "Internal server error processing tool call";
 				}
 
 				send_error_response(tools_call_request->request_id,
-						    MCP_MSG_ERROR_TOOLS_CALL, error_code,
-						    error_msg);
+						   MCP_MSG_ERROR_TOOLS_CALL,
+						   error_code, error_msg);
 			}
 			mcp_free(tools_call_request);
 			break;
@@ -1026,7 +1023,6 @@ skip_client_cleanup:
 				ret);
 			return ret;
 		}
-		/* TODO: Any way to wait until request worker is released? */
 	}
 
 	return 0;

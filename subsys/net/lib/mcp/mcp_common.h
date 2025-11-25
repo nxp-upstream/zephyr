@@ -57,6 +57,16 @@ typedef enum {
 	MCP_EXEC_ZOMBIE
 } mcp_execution_state_t;
 
+typedef enum {
+	/* JSON-RPC 2.0 standard error codes */
+	MCP_ERROR_PARSE_ERROR = -32700,
+	MCP_ERROR_INVALID_REQUEST = -32600,
+	MCP_ERROR_METHOD_NOT_FOUND = -32601,
+	MCP_ERROR_INVALID_PARAMS = -32602,
+	MCP_ERROR_INTERNAL_ERROR = -32603,
+	MCP_ERROR_SERVER_ERROR = -32000,
+} mcp_error_code_t;
+
 typedef struct mcp_system_msg {
 	mcp_system_msg_type_t type;
 	uint32_t request_id;
