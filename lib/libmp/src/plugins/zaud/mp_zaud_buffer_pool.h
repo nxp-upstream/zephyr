@@ -35,8 +35,8 @@ struct mp_zaud_buffer_pool {
 	const struct device *zaud_dev;
 	/** Memory slab for efficient buffer allocation */
 	struct k_mem_slab *mem_slab;
-	/** Pointer to unaligned buffer memory */
-	void *unaligned_buffer;
+	/** Pointer to buffer memory */
+	void *buffer;
 };
 
 /**
