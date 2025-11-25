@@ -13,10 +13,11 @@ LOG_MODULE_REGISTER(main);
 
 #define LOG_LEVEL LOG_LEVEL_DBG
 
-#define PIPELINE_ID 0
-#define DMIC_SRC_ID 1
-#define AUD_GAIN_ID 2
-#define I2S_SINK_ID 3
+#define PIPELINE_ID    0
+#define DMIC_SRC_ID    1
+#define CAPS_FILTER_ID 2
+#define AUD_GAIN_ID    3
+#define I2S_SINK_ID    4
 
 /*
  * WORKAROUND: Direct memory slab management in application code
@@ -39,7 +40,7 @@ int main(void)
 
 	if (pipeline == NULL) {
 		LOG_ERR("Failed to create pipeline");
-		return 0;
+		goto err;
 	}
 
 	/* Create elements */
@@ -47,59 +48,87 @@ int main(void)
 
 	if (source == NULL) {
 		LOG_ERR("Failed to create dmic element");
-		return 0;
+		goto err;
+	}
+
+	struct mp_element *caps_filter =
+		mp_element_factory_create(MP_CAPS_FILTER_ELEM, CAPS_FILTER_ID);
+
+	if (caps_filter == NULL) {
+		LOG_ERR("Failed to create cap filter element");
+		goto err;
 	}
 
 	struct mp_element *transform = mp_element_factory_create(MP_ZAUD_GAIN_ELEM, AUD_GAIN_ID);
 
 	if (transform == NULL) {
 		LOG_ERR("Failed to create gain element");
-		return 0;
+		goto err;
 	}
 
 	struct mp_element *sink =
 		mp_element_factory_create(MP_ZAUD_I2S_CODEC_SINK_ELEM, I2S_SINK_ID);
 	if (sink == NULL) {
 		LOG_ERR("Failed to create speaker element");
-		return 0;
+		goto err;
 	}
 
+	/* Set element's properties */
 	ret = mp_object_set_properties(MP_OBJECT(source), PROP_ZAUD_SRC_SLAB_PTR, &mem_slab,
 				       PROP_LIST_END);
+
 	if (ret < 0) {
 		LOG_ERR("Failed to set properties for dmic element");
-		return 0;
+		goto err;
+	}
+
+	uint32_t frame_interval = 10000; /* 10ms */
+	struct mp_caps *filtered_caps =
+		mp_caps_new("audio/pcm", "frameinterval", MP_TYPE_UINT, frame_interval, NULL);
+
+	if (filtered_caps == NULL) {
+		LOG_ERR("Failed to create a filtered caps");
+		goto err;
+	}
+
+	ret = mp_object_set_properties(MP_OBJECT(caps_filter), PROP_CAPS, filtered_caps,
+				       PROP_LIST_END);
+	mp_caps_unref(filtered_caps);
+	if (ret < 0) {
+		LOG_ERR("Failed to set properties for caps filter element");
+		goto err;
 	}
 
 	ret = mp_object_set_properties(MP_OBJECT(transform), PROP_GAIN, &gain, PROP_LIST_END);
+
 	if (ret < 0) {
 		LOG_ERR("Failed to set properties for transform element");
-		return 0;
+		goto err;
 	}
 
 	ret = mp_object_set_properties(MP_OBJECT(sink), PROP_ZAUD_SINK_SLAB_PTR, &mem_slab,
 				       PROP_LIST_END);
 	if (ret < 0) {
 		LOG_ERR("Failed to set properties for speaker element");
-		return 0;
+		goto err;
 	}
 
 	/* Add elements to the pipeline - order does not matter */
-	if (mp_bin_add(MP_BIN(pipeline), source, transform, sink, NULL) == false) {
+	if (mp_bin_add(MP_BIN(pipeline), source, caps_filter, transform, sink, NULL) == false) {
 		LOG_ERR("Failed to add elements");
-		return 0;
+		goto err;
 	}
 
 	/* Link elements together - order does matter */
-	if (mp_element_link(source, transform, sink, NULL) == false) {
+	if (mp_element_link(source, caps_filter, transform, sink, NULL) == false) {
 		LOG_ERR("Failed to link elements");
-		return 0;
+		goto err;
 	}
 
 	/* Start playing */
 	if (mp_element_set_state(pipeline, MP_STATE_PLAYING) != MP_STATE_CHANGE_SUCCESS) {
 		LOG_ERR("Failed to start pipeline");
-		return 0;
+		goto err;
 	}
 
 	/* Handle message from the pipeline */
@@ -124,5 +153,9 @@ int main(void)
 	/* TODO: Stop pipeline and free allocated resources */
 	mp_message_destroy(msg);
 
+	return 0;
+
+err:
+	LOG_ERR("Aborting sample");
 	return 0;
 }
