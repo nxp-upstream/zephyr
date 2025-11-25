@@ -23,6 +23,36 @@ config HTTP_SERVER_MAX_STREAMS
 	help
 	  This setting determines the maximum number of HTTP/2 streams for each client.
 
+config MCP_REQUEST_WORKERS
+	int "Number of MCP request worker threads"
+	default 2
+	range 1 8
+	help
+	  Number of worker threads that process incoming MCP requests.
+	  More workers allow better concurrent handling of client requests.
+
+config MCP_RESPONSE_WORKERS
+	int "Number of MCP message worker threads"
+	default 2
+	range 0 8
+	help
+	  Number of worker threads that process outgoing MCP responses.
+	  Set to 0 to disable response workers and process responses directly.
+
+config MCP_REQUEST_QUEUE_SIZE
+	int "MCP request queue size"
+	default 5
+	range 1 100
+	help
+	  Maximum number of pending MCP requests that can be queued for processing.
+
+config MCP_RESPONSE_QUEUE_SIZE
+	int "MCP response queue size"
+	default 5
+	range 1 100
+	help
+	  Maximum number of pending MCP responses that can be queued for sending.
+
 config MCP_SERVER_INFO_NAME_MAX_LEN
 	int "Maximum server info name length"
 	default 64

@@ -13,10 +13,6 @@
 
 LOG_MODULE_REGISTER(mcp_server, CONFIG_MCP_LOG_LEVEL);
 
-#define MCP_REQUEST_WORKERS    2
-#define MCP_MESSAGE_WORKERS    2
-#define MCP_REQUEST_QUEUE_SIZE 10
-#define MCP_MESSAGE_QUEUE_SIZE 10
 #define MCP_WORKER_PRIORITY    7
 
 typedef enum {
@@ -44,16 +40,16 @@ static mcp_client_registry_t client_registry;
 static mcp_tool_registry_t tool_registry;
 static mcp_execution_registry_t execution_registry;
 
-K_MSGQ_DEFINE(mcp_request_queue, sizeof(mcp_request_queue_msg_t), MCP_REQUEST_QUEUE_SIZE, 4);
-K_MSGQ_DEFINE(mcp_message_queue, sizeof(mcp_response_queue_msg_t), MCP_MESSAGE_QUEUE_SIZE, 4);
+K_MSGQ_DEFINE(mcp_request_queue, sizeof(mcp_request_queue_msg_t), CONFIG_MCP_REQUEST_QUEUE_SIZE, 4);
+K_THREAD_STACK_ARRAY_DEFINE(mcp_request_worker_stacks, CONFIG_MCP_REQUEST_WORKERS, 2048);
+static struct k_thread mcp_request_workers[CONFIG_MCP_REQUEST_WORKERS];
 
-K_THREAD_STACK_ARRAY_DEFINE(mcp_request_worker_stacks, MCP_REQUEST_WORKERS, 2048);
-K_THREAD_STACK_ARRAY_DEFINE(mcp_message_worker_stacks, MCP_MESSAGE_WORKERS, 2048);
-
-static struct k_thread mcp_request_workers[MCP_REQUEST_WORKERS];
-static struct k_thread mcp_message_workers[MCP_MESSAGE_WORKERS];
-
-/* Helper functions */
+#if CONFIG_MCP_RESPONSE_WORKERS > 0
+K_MSGQ_DEFINE(mcp_response_queue, sizeof(mcp_response_queue_msg_t), CONFIG_MCP_RESPONSE_QUEUE_SIZE,
+	      4);
+K_THREAD_STACK_ARRAY_DEFINE(mcp_response_worker_stacks, CONFIG_MCP_RESPONSE_WORKERS, 2048);
+static struct k_thread mcp_response_workers[CONFIG_MCP_RESPONSE_WORKERS];
+#endif
 
 static int find_client_index(uint32_t client_id)
 {
@@ -783,6 +779,7 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 	}
 }
 
+#if CONFIG_MCP_RESPONSE_WORKERS > 0
 static void mcp_response_worker(void *arg1, void *arg2, void *arg3)
 {
 	mcp_response_queue_msg_t response;
@@ -792,7 +789,7 @@ static void mcp_response_worker(void *arg1, void *arg2, void *arg3)
 	LOG_INF("Response worker %d started", worker_id);
 
 	while (1) {
-		ret = k_msgq_get(&mcp_message_queue, &response, K_FOREVER);
+		ret = k_msgq_get(&mcp_response_queue, &response, K_FOREVER);
 		if (ret == 0) {
 			LOG_DBG("Processing response (worker %d)", worker_id);
 			/* TODO: When Server-sent Events and Authorization are added, implement the
@@ -800,9 +797,6 @@ static void mcp_response_worker(void *arg1, void *arg2, void *arg3)
 			 */
 			/* In phase 1, the response worker queue and workers are pretty much
 			 * redundant by design
-			 */
-			/* TODO: Consider making response workers a configurable resource that can
-			 * be bypassed
 			 */
 			ret = mcp_transport_queue_response(response.type, response.data);
 			if (ret != 0) {
@@ -814,8 +808,7 @@ static void mcp_response_worker(void *arg1, void *arg2, void *arg3)
 		}
 	}
 }
-
-/* Public API functions */
+#endif
 
 int mcp_server_init(void)
 {
@@ -857,7 +850,7 @@ int mcp_server_start(void)
 
 	LOG_INF("Starting MCP Server");
 
-	for (int i = 0; i < MCP_REQUEST_WORKERS; i++) {
+	for (int i = 0; i < CONFIG_MCP_REQUEST_WORKERS; i++) {
 		tid = k_thread_create(&mcp_request_workers[i], mcp_request_worker_stacks[i],
 				      K_THREAD_STACK_SIZEOF(mcp_request_worker_stacks[i]),
 				      mcp_request_worker, INT_TO_POINTER(i), NULL, NULL,
@@ -873,24 +866,26 @@ int mcp_server_start(void)
 		}
 	}
 
-	for (int i = 0; i < MCP_MESSAGE_WORKERS; i++) {
-		tid = k_thread_create(&mcp_message_workers[i], mcp_message_worker_stacks[i],
-				      K_THREAD_STACK_SIZEOF(mcp_message_worker_stacks[i]),
+#if CONFIG_MCP_RESPONSE_WORKERS > 0
+	for (int i = 0; i < CONFIG_MCP_RESPONSE_WORKERS; i++) {
+		tid = k_thread_create(&mcp_response_workers[i], mcp_response_worker_stacks[i],
+				      K_THREAD_STACK_SIZEOF(mcp_response_worker_stacks[i]),
 				      mcp_response_worker, INT_TO_POINTER(i), NULL, NULL,
 				      K_PRIO_COOP(MCP_WORKER_PRIORITY), 0, K_NO_WAIT);
 		if (tid == NULL) {
-			LOG_ERR("Failed to create message worker %d", i);
+			LOG_ERR("Failed to create response worker %d", i);
 			return -ENOMEM;
 		}
 
-		ret = k_thread_name_set(&mcp_message_workers[i], "mcp_msg_worker");
+		ret = k_thread_name_set(&mcp_response_workers[i], "mcp_msg_worker");
 		if (ret != 0) {
 			LOG_WRN("Failed to set thread name: %d", ret);
 		}
 	}
+#endif
 
-	LOG_INF("MCP Server started: %d request, %d message workers", MCP_REQUEST_WORKERS,
-		MCP_MESSAGE_WORKERS);
+	LOG_INF("MCP Server started: %d request, %d response workers", CONFIG_MCP_REQUEST_WORKERS,
+		CONFIG_MCP_RESPONSE_WORKERS);
 
 	return 0;
 }
@@ -975,13 +970,22 @@ int mcp_server_submit_app_message(const mcp_app_message_t *app_msg, uint32_t exe
 		return -EINVAL;
 	}
 
+#if CONFIG_MCP_RESPONSE_WORKERS > 0
 	/* TODO: Make response workers configurable? If not used, call transport API directly? */
-	ret = k_msgq_put(&mcp_message_queue, &response, K_NO_WAIT);
+	ret = k_msgq_put(&mcp_response_queue, &response, K_NO_WAIT);
 	if (ret != 0) {
-		LOG_ERR("Failed to submit response to message queue: %d", ret);
+		LOG_ERR("Failed to submit response to response queue: %d", ret);
 		mcp_free(response.data);
 		return ret;
 	}
+#else
+	ret = mcp_transport_queue_response(response.type, response.data);
+	if (ret != 0) {
+		LOG_ERR("Failed to queue response to transport: %d", ret);
+		mcp_free(response.data);
+		return ret;
+	}
+#endif
 
 	if (app_msg->type == MCP_USR_TOOL_RESPONSE) {
 		ret = k_mutex_lock(&client_registry.registry_mutex, K_FOREVER);
