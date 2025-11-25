@@ -1,16 +1,26 @@
 .. zephyr:code-sample:: libmp_dmic_gain_speaker
    :name: DMIC-Gain-Speaker Audio Pipeline
 
+        A sample pipeline composed of 4 elements: a dmic source, a caps filter,
+        a gain transform and a i2s codec sink.
 Overview
 ********
+
+::
+
+    +---------------+     +---------------+     +------------- ----+     +------------------+
+    |  DMIC Source  | --> |  Caps Filter  | --> |  Gain Transform  | --> |  I2S Codec Sink  |
+    +---------------+     +---------------+     +------------------+     +------------------+
 
 This sample demonstrates audio processing. It creates a simple audio pipeline
 that captures audio from a digital microphone (DMIC), applies gain control, and
 outputs the processed audio through an I2S codec to a speaker.
+The caps filter is used to enforce an audio frame interval.
 
 The sample showcases:
 
 * Digital microphone audio capture
+* Audio frame interval enforcement through caps filter
 * Real-time audio gain processing
 * I2S codec audio output
 * Media pipeline creation and management
@@ -72,11 +82,12 @@ The sample requires proper devicetree configuration for:
 Implementation Details
 **********************
 
-The sample creates a three-element pipeline:
+The sample creates a four-element pipeline:
 
 1. **DMIC Source** (``zaud_dmic_src``): Captures audio from digital microphone
-2. **Gain Transform** (``zaud_gain``): Applies configurable gain to audio signal
-3. **I2S Codec Sink** (``zaud_i2s_codec_sink``): Outputs processed audio
+2. **Caps Filter** (``caps_filter``): Enforces audio frame interval
+3. **Gain Transform** (``zaud_gain``): Applies configurable gain to audio signal
+4. **I2S Codec Sink** (``zaud_i2s_codec_sink``): Outputs processed audio
 
 The pipeline uses DMA-compatible memory slabs for efficient audio buffer management.
 The ``__nocache`` attribute ensures proper DMA operation by preventing cache
