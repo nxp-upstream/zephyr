@@ -158,6 +158,10 @@
 #define GET_CRC_MODE           0x89
 #define SET_CRC_MODE           0x8A
 
+/** Ethernet Power Management Pattern Activation */
+#define ETHERNET_PM_PATTERN_ACTIVE_TRUE  0x0001
+#define ETHERNET_PM_PATTERN_ACTIVE_FALSE 0x0000
+
 /** Ethernet Packet Filter Bitmap */
 #define PACKET_TYPE_MULTICAST		0x10
 #define PACKET_TYPE_BROADCAST		0x08
@@ -228,6 +232,39 @@ struct cdc_ecm_descriptor {
 	uint16_t wNumberMCFilters;
 	uint8_t bNumberPowerFilters;
 } __packed;
+
+/** Ethernet Statistics Feature Selector */
+enum cdc_ecm_ethernet_stats {
+	XMIT_OK = 0x01,                /* Frames transmitted without errors */
+	RCV_OK = 0x02,                 /* Frames received without errors */
+	XMIT_ERROR = 0x03,             /* Frames not transmitted, or transmitted with */
+	RCV_ERROR = 0x04,              /* Frames received with errors */
+	RCV_NO_BUFFER = 0x05,          /* Frames missed, no buffers */
+	DIRECTED_BYTES_XMIT = 0x06,    /* Directed bytes transmitted without errors */
+	DIRECTED_FRAMES_XMIT = 0x07,   /* Directed frames transmitted without errors */
+	MULTICAST_BYTES_XMIT = 0x08,   /* Multicast bytes transmitted without errors */
+	MULTICAST_FRAMES_XMIT = 0x09,  /* Multicast frames transmitted without errors */
+	BROADCAST_BYTES_XMIT = 0x0A,   /* Broadcast bytes transmitted without errors */
+	BROADCAST_FRAMES_XMIT = 0x0B,  /* Broadcast frames transmitted without errors */
+	DIRECTED_BYTES_RCV = 0x0C,     /* Directed bytes received without errors */
+	DIRECTED_FRAMES_RCV = 0x0D,    /* Directed frames received without errors */
+	MULTICAST_BYTES_RCV = 0x0E,    /* Multicast bytes received without errors */
+	MULTICAST_FRAMES_RCV = 0x0F,   /* Multicast frames received without errors */
+	BROADCAST_BYTES_RCV = 0x10,    /* Broadcast bytes received without errors */
+	BROADCAST_FRAMES_RCV = 0x11,   /* Broadcast frames received without errors */
+	RCV_CRC_ERROR = 0x12,          /* Frames received with circular redundancy check (CRC) or frame check sequence (FCS) error */
+	TRANSMIT_QUEUE_LENGTH = 0x13,  /* Length of transmit queue */
+	RCV_ERROR_ALIGNMENT = 0x14,    /* Frames received with alignment error */
+	XMIT_ONE_COLLISION = 0x15,     /* Frames transmitted with one collision */
+	XMIT_MORE_COLLISIONS = 0x16,   /* Frames transmitted with more than one collision */
+	XMIT_DEFERRED = 0x17,          /* Frames transmitted after deferral */
+	XMIT_MAX_COLLISIONS = 0x18,    /* Frames not transmitted due to collisions */
+	RCV_OVERRUN = 0x19,            /* Frames not received due to overrun */
+	XMIT_UNDERRUN = 0x1A,          /* Frames not transmitted due to underrun */
+	XMIT_HEARTBEAT_FAILURE = 0x1B, /* Frames transmitted with heartbeat failure */
+	XMIT_TIMES_CRS_LOST = 0x1C,    /* Times carrier sense signal lost during transmission */
+	XMIT_LATE_COLLISIONS = 0x1D,   /* Late collisions detected */
+};
 
 /** Ethernet Network Control Model (NCM) Descriptor */
 struct cdc_ncm_descriptor {
