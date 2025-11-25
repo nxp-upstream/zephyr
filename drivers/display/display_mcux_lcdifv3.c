@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -15,6 +15,11 @@
 #include <zephyr/cache.h>
 
 LOG_MODULE_REGISTER(display_mcux_lcdifv3, CONFIG_DISPLAY_LOG_LEVEL);
+
+#define MCUX_LCDIFV3_FB_PITCH_ALIGN (64U)
+
+static const uint32_t mcux_lcdifv3_supported_fmts = PIXEL_FORMAT_RGB_565 | PIXEL_FORMAT_ARGB_8888 |
+						    PIXEL_FORMAT_RGB_888 | PIXEL_FORMAT_ABGR_8888;
 
 /* Required by DEVICE_MMIO_NAMED_* macros */
 #define DEV_CFG(_dev)  ((const struct mcux_lcdifv3_config *)(_dev)->config)
@@ -34,22 +39,22 @@ struct mcux_lcdifv3_config {
 	uint32_t media_apb_clk_rate;
 
 	void (*irq_config_func)(const struct device *dev);
-	lcdifv3_buffer_config_t buffer_config;
 	lcdifv3_display_config_t display_config;
-	enum display_pixel_format pixel_format;
 	uint8_t *fb_ptr;
-	size_t fb_bytes;
 };
 
 struct mcux_lcdifv3_data {
 	DEVICE_MMIO_NAMED_RAM(reg_base);
 	/* Pointer to active framebuffer */
 	const uint8_t *active_fb;
+	enum display_pixel_format pixel_format;
+	lcdifv3_buffer_config_t buffer_config;
 	uint8_t *fb[CONFIG_MCUX_LCDIFV3_FB_NUM];
 	uint8_t pixel_bytes;
 	struct k_sem sem;
 	/* Tracks index of next active driver framebuffer */
 	uint8_t next_idx;
+	size_t fb_bytes;
 };
 
 static void dump_reg(LCDIF_Type *base)
@@ -79,16 +84,18 @@ static int mcux_lcdifv3_write(const struct device *dev, const uint16_t x, const 
 	uint32_t h_idx;
 	const uint8_t *src;
 	uint8_t *dst;
+	uint32_t src_stride_bytes = (uint32_t)desc->pitch * data->pixel_bytes;
+	uint32_t cache_flush_size = data->fb_bytes;
 
-	__ASSERT((data->pixel_bytes * desc->pitch * desc->height) <= desc->buf_size,
-		 "Input buffer too small");
+	__ASSERT((src_stride_bytes * desc->height) <= desc->buf_size, "Input buffer too small");
 
 	LOG_DBG("W=%d, H=%d @%d,%d", desc->width, desc->height, x, y);
 
 	if ((x == 0) && (y == 0) && (desc->width == config->display_config.panelWidth) &&
-	    (desc->height == config->display_config.panelHeight) && (desc->pitch == desc->width)) {
+	    (desc->height == config->display_config.panelHeight) &&
+	    (src_stride_bytes == data->buffer_config.strideBytes)) {
 		/* We can use the display buffer directly, without copying */
-		LOG_DBG("Setting FB from %p->%p", (void *)data->active_fb, (void *)buf);
+		LOG_DBG("Setting FB from %p->%p", (void *)(uintptr_t)data->active_fb, (void *)buf);
 		data->active_fb = buf;
 	} else {
 		/* We must use partial framebuffer copy */
@@ -102,25 +109,29 @@ static int mcux_lcdifv3_write(const struct device *dev, const uint16_t x, const 
 			 */
 			src = data->active_fb;
 			dst = data->fb[data->next_idx];
-			memcpy(dst, src, config->fb_bytes);
+			memcpy(dst, src, data->fb_bytes);
 		}
 		/* Write the display update to the active framebuffer */
 		src = buf;
 		dst = data->fb[data->next_idx];
-		dst += data->pixel_bytes * (y * config->display_config.panelWidth + x);
+		dst += y * data->buffer_config.strideBytes + x * data->pixel_bytes;
 
 		for (h_idx = 0; h_idx < desc->height; h_idx++) {
 			memcpy(dst, src, data->pixel_bytes * desc->width);
-			src += data->pixel_bytes * desc->pitch;
-			dst += data->pixel_bytes * config->display_config.panelWidth;
+			src += src_stride_bytes;
+			dst += data->buffer_config.strideBytes;
 		}
-		LOG_DBG("Setting FB from %p->%p", (void *)data->active_fb,
+		LOG_DBG("Setting FB from %p->%p", (void *)(uintptr_t)data->active_fb,
 			(void *)data->fb[data->next_idx]);
 		/* Set new active framebuffer */
 		data->active_fb = data->fb[data->next_idx];
 	}
 
-	sys_cache_data_flush_and_invd_range((void *)data->active_fb, config->fb_bytes);
+	if (data->active_fb == buf) {
+		cache_flush_size = src_stride_bytes * desc->height;
+	}
+
+	sys_cache_data_flush_and_invd_range((void *)(uintptr_t)data->active_fb, cache_flush_size);
 
 	k_sem_reset(&data->sem);
 
@@ -149,13 +160,55 @@ static void mcux_lcdifv3_get_capabilities(const struct device *dev,
 					  struct display_capabilities *capabilities)
 {
 	const struct mcux_lcdifv3_config *config = dev->config;
+	struct mcux_lcdifv3_data *dev_data = dev->data;
 
 	memset(capabilities, 0, sizeof(struct display_capabilities));
 	capabilities->x_resolution = config->display_config.panelWidth;
 	capabilities->y_resolution = config->display_config.panelHeight;
-	capabilities->supported_pixel_formats = config->pixel_format;
-	capabilities->current_pixel_format = config->pixel_format;
+	capabilities->supported_pixel_formats = mcux_lcdifv3_supported_fmts;
+	capabilities->current_pixel_format = dev_data->pixel_format;
 	capabilities->current_orientation = DISPLAY_ORIENTATION_NORMAL;
+}
+
+static int mcux_lcdifv3_set_pixel_format(const struct device *dev,
+					 const enum display_pixel_format pixel_format)
+{
+	const struct mcux_lcdifv3_config *config = dev->config;
+	struct mcux_lcdifv3_data *dev_data = dev->data;
+
+	if (!(pixel_format & mcux_lcdifv3_supported_fmts)) {
+		LOG_ERR("Unsupported pixel format");
+		return -ENOTSUP;
+	}
+
+	switch (pixel_format) {
+	case PIXEL_FORMAT_RGB_565:
+		dev_data->buffer_config.pixelFormat = kLCDIFV3_PixelFormatRGB565;
+		dev_data->pixel_bytes = 2;
+		break;
+	case PIXEL_FORMAT_RGB_888:
+		dev_data->buffer_config.pixelFormat = kLCDIFV3_PixelFormatRGB888;
+		dev_data->pixel_bytes = 3;
+		break;
+	case PIXEL_FORMAT_ARGB_8888:
+		dev_data->buffer_config.pixelFormat = kLCDIFV3_PixelFormatARGB8888;
+		dev_data->pixel_bytes = 4;
+		break;
+	case PIXEL_FORMAT_ABGR_8888:
+		dev_data->buffer_config.pixelFormat = kLCDIFV3_PixelFormatABGR8888;
+		dev_data->pixel_bytes = 4;
+		break;
+	default:
+		return -ENOTSUP;
+	}
+
+	dev_data->buffer_config.strideBytes =
+		ROUND_UP(dev_data->pixel_bytes * config->display_config.panelWidth,
+			 MCUX_LCDIFV3_FB_PITCH_ALIGN);
+	dev_data->fb_bytes =
+		dev_data->buffer_config.strideBytes * config->display_config.panelHeight;
+
+	return 0;
 }
 
 static void mcux_lcdifv3_isr(const struct device *dev)
@@ -167,7 +220,9 @@ static void mcux_lcdifv3_isr(const struct device *dev)
 	status = LCDIFV3_GetInterruptStatus(base);
 	LCDIFV3_ClearInterruptStatus(base, status);
 
-	k_sem_give(&dev_data->sem);
+	if (status & kLCDIFV3_VerticalBlankingInterrupt) {
+		k_sem_give(&dev_data->sem);
+	}
 }
 
 static int mcux_lcdifv3_configure_clock(const struct device *dev)
@@ -224,16 +279,31 @@ static int mcux_lcdifv3_init(const struct device *dev)
 
 	config->irq_config_func(dev);
 
+	/* Set pixel format */
+	if (data->pixel_format == PANEL_PIXEL_FORMAT_RGB_565) {
+		mcux_lcdifv3_set_pixel_format(dev, PIXEL_FORMAT_RGB_565);
+	} else if (data->pixel_format == PANEL_PIXEL_FORMAT_RGB_888) {
+		mcux_lcdifv3_set_pixel_format(dev, PIXEL_FORMAT_RGB_888);
+	} else if (data->pixel_format == PANEL_PIXEL_FORMAT_ARGB_8888) {
+		mcux_lcdifv3_set_pixel_format(dev, PIXEL_FORMAT_ARGB_8888);
+	} else if (data->pixel_format == PANEL_PIXEL_FORMAT_ABGR_8888) {
+		mcux_lcdifv3_set_pixel_format(dev, PIXEL_FORMAT_ABGR_8888);
+	} else {
+		/* Unsupported pixel format */
+		LOG_ERR("Pixel format not supported");
+		return -ENOTSUP;
+	}
+
 	for (int i = 0; i < CONFIG_MCUX_LCDIFV3_FB_NUM; i++) {
 		/* Record pointers to each driver framebuffer */
-		data->fb[i] = config->fb_ptr + (config->fb_bytes * i);
+		data->fb[i] = config->fb_ptr + (data->fb_bytes * i);
 	}
 	data->active_fb = config->fb_ptr;
 
 	k_sem_init(&data->sem, 1, 1);
 
 	/* Clear external memory, as it is uninitialized */
-	memset(config->fb_ptr, 0, config->fb_bytes * CONFIG_MCUX_LCDIFV3_FB_NUM);
+	memset(config->fb_ptr, 0, data->fb_bytes * CONFIG_MCUX_LCDIFV3_FB_NUM);
 
 	/* configure disp_pix_clk */
 	if (!device_is_ready(config->disp_pix_clk_dev)) {
@@ -251,16 +321,8 @@ static int mcux_lcdifv3_init(const struct device *dev)
 	}
 	LOG_INF("disp_pix clock frequency %d", clk_freq);
 
-	lcdifv3_buffer_config_t buffer_config = config->buffer_config;
+	lcdifv3_buffer_config_t buffer_config = data->buffer_config;
 	lcdifv3_display_config_t display_config = config->display_config;
-	/* Set the Pixel format */
-	if (config->pixel_format == PIXEL_FORMAT_RGB_565X) {
-		buffer_config.pixelFormat = kLCDIFV3_PixelFormatRGB565;
-	} else if (config->pixel_format == PIXEL_FORMAT_RGB_888) {
-		buffer_config.pixelFormat = kLCDIFV3_PixelFormatRGB888;
-	} else if (config->pixel_format == PIXEL_FORMAT_ARGB_8888) {
-		buffer_config.pixelFormat = kLCDIFV3_PixelFormatARGB8888;
-	}
 
 	LCDIFV3_Init(base);
 
@@ -270,7 +332,7 @@ static int mcux_lcdifv3_init(const struct device *dev)
 	LCDIFV3_SetLayerSize(base, 0, display_config.panelWidth, display_config.panelHeight);
 	LCDIFV3_EnableLayer(base, 0, true);
 	LCDIFV3_EnablePlanePanic(base);
-	LCDIFV3_SetLayerBufferAddr(base, 0, (uint64_t)data->fb[0]);
+	LCDIFV3_SetLayerBufferAddr(base, 0, (uint32_t)(uintptr_t)data->fb[0]);
 	LCDIFV3_TriggerLayerShadowLoad(base, 0);
 	LCDIFV3_EnableInterrupts(base, kLCDIFV3_VerticalBlankingInterrupt);
 
@@ -282,26 +344,19 @@ static int mcux_lcdifv3_init(const struct device *dev)
 }
 
 static DEVICE_API(display, mcux_lcdifv3_api) = {
+	.set_pixel_format = mcux_lcdifv3_set_pixel_format,
 	.write = mcux_lcdifv3_write,
 	.get_framebuffer = mcux_lcdifv3_get_framebuffer,
 	.get_capabilities = mcux_lcdifv3_get_capabilities,
 };
 
-#define GET_PIXEL_FORMAT(id)                                                                       \
-	((DT_INST_ENUM_IDX(id, pixel_format) == 0)                                                 \
-		 ? PIXEL_FORMAT_RGB_565X                                                           \
-		 : ((DT_INST_ENUM_IDX(id, pixel_format) == 1) ? PIXEL_FORMAT_RGB_888               \
-							      : PIXEL_FORMAT_ARGB_8888))
-
-#define GET_PIXEL_BYTES(id)                                                                        \
-	((DT_INST_ENUM_IDX(id, pixel_format) == 0)                                                 \
-		 ? 2                                                                               \
-		 : ((DT_INST_ENUM_IDX(id, pixel_format) == 1) ? 3 : 4))
-
+/* Use 4 Bpp to calculate the largest possible framebuffer size. */
 #define MCUX_LCDIFV3_FRAMEBUFFER_DECL(id)                                                          \
 	uint8_t __aligned(64)                                                                      \
-	mcux_lcdifv3_frame_buffer_##id[DT_INST_PROP(id, width) * DT_INST_PROP(id, height) *        \
-				       GET_PIXEL_BYTES(id) * CONFIG_MCUX_LCDIFV3_FB_NUM]
+	mcux_lcdifv3_frame_buffer_##id[CONFIG_MCUX_LCDIFV3_FB_NUM * DT_INST_PROP(id, height) *     \
+				       ROUND_UP((DT_INST_PROP(id, width) * 4U),                    \
+						MCUX_LCDIFV3_FB_PITCH_ALIGN)]
+
 #define MCUX_LCDIFV3_FRAMEBUFFER(id) mcux_lcdifv3_frame_buffer_##id
 
 #define MCUX_LCDIFV3_DEVICE_INIT(id)                                                               \
@@ -314,7 +369,7 @@ static DEVICE_API(display, mcux_lcdifv3_api) = {
 	MCUX_LCDIFV3_FRAMEBUFFER_DECL(id);                                                         \
 	static struct mcux_lcdifv3_data mcux_lcdifv3_data_##id = {                                 \
 		.next_idx = 0,                                                                     \
-		.pixel_bytes = GET_PIXEL_BYTES(id),                                                \
+		.pixel_format = DT_INST_PROP(id, pixel_format),                                    \
 	};                                                                                         \
 	static const struct mcux_lcdifv3_config mcux_lcdifv3_config_##id = {                       \
 		DEVICE_MMIO_NAMED_ROM_INIT(reg_base, DT_DRV_INST(id)),                             \
@@ -331,10 +386,6 @@ static DEVICE_API(display, mcux_lcdifv3_api) = {
 			(clock_control_subsys_t)DT_INST_CLOCKS_CELL_BY_IDX(id, 2, name),           \
 		.media_apb_clk_rate = DT_INST_PROP(id, media_apb_clk_rate),                        \
 		.irq_config_func = mcux_lcdifv3_config_func_##id,                                  \
-		.buffer_config =                                                                   \
-			{                                                                          \
-				.strideBytes = GET_PIXEL_BYTES(id) * DT_INST_PROP(id, width),      \
-			},                                                                         \
 		.display_config =                                                                  \
 			{                                                                          \
 				.panelWidth = DT_INST_PROP(id, width),                             \
@@ -361,10 +412,7 @@ static DEVICE_API(display, mcux_lcdifv3_api) = {
 						 ? kLCDIFV3_DriveDataOnRisingClkEdge               \
 						 : kLCDIFV3_DriveDataOnFallingClkEdge),            \
 			},                                                                         \
-		.pixel_format = GET_PIXEL_FORMAT(id),                                              \
 		.fb_ptr = MCUX_LCDIFV3_FRAMEBUFFER(id),                                            \
-		.fb_bytes =                                                                        \
-			DT_INST_PROP(id, width) * DT_INST_PROP(id, height) * GET_PIXEL_BYTES(id),  \
 	};                                                                                         \
 	DEVICE_DT_INST_DEFINE(id, &mcux_lcdifv3_init, NULL, &mcux_lcdifv3_data_##id,               \
 			      &mcux_lcdifv3_config_##id, POST_KERNEL,                              \
