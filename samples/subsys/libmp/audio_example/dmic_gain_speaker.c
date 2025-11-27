@@ -83,8 +83,8 @@ int main(void)
 	}
 
 	uint32_t frame_interval = 10000; /* 10ms */
-	struct mp_caps *filtered_caps =
-		mp_caps_new("audio/pcm", "frameinterval", MP_TYPE_UINT, frame_interval, NULL);
+	struct mp_caps *filtered_caps = mp_caps_new(MP_MEDIA_AUDIO_PCM, MP_CAPS_FRAME_INTERVAL,
+						    MP_TYPE_UINT, frame_interval, MP_CAPS_END);
 
 	if (filtered_caps == NULL) {
 		LOG_ERR("Failed to create a filtered caps");
