@@ -16,6 +16,7 @@
 #if CONFIG_MP_CAPSFILTER
 #include <src/core/mp_capsfilter.h>
 #endif
+#include <src/core/mp_caps.h>
 #include <src/core/mp_element.h>
 #include <src/core/mp_element_factory.h>
 #include <src/core/mp_pipeline.h>

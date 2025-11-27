@@ -36,7 +36,8 @@ struct mp_event *mp_event_new_caps(struct mp_caps *caps)
 {
 
 	return mp_event_new_custom(MP_EVENT_CAPS,
-				   mp_structure_new(NULL, "caps", MP_TYPE_OBJECT, caps, NULL));
+				   mp_structure_new(MP_MEDIA_UNKNOWN, MP_EVENT_CAPS, MP_TYPE_OBJECT,
+						    caps, MP_EVENT_END));
 }
 
 void mp_event_destroy(struct mp_event *event)
@@ -53,7 +54,8 @@ struct mp_caps *mp_event_get_caps(struct mp_event *event)
 		return NULL;
 	}
 
-	return MP_CAPS(mp_value_get_object(mp_structure_get_value(event->structure, "caps")));
+	return MP_CAPS(
+		mp_value_get_object(mp_structure_get_value(event->structure, MP_EVENT_CAPS)));
 }
 
 bool mp_event_set_caps(struct mp_event *event, struct mp_caps *caps)
@@ -62,12 +64,13 @@ bool mp_event_set_caps(struct mp_event *event, struct mp_caps *caps)
 		return false;
 	}
 
-	struct mp_value *value = mp_structure_get_value(event->structure, "caps");
+	struct mp_value *value = mp_structure_get_value(event->structure, MP_EVENT_CAPS);
 
 	if (value) {
 		mp_value_set(value, MP_TYPE_OBJECT, caps);
 	} else {
-		mp_structure_append(event->structure, "caps", mp_value_new(MP_TYPE_OBJECT, caps));
+		mp_structure_append(event->structure, MP_EVENT_CAPS,
+				    mp_value_new(MP_TYPE_OBJECT, caps));
 	}
 
 	return true;

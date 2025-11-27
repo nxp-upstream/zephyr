@@ -30,6 +30,60 @@
  */
 
 /**
+ * @brief Media type identifiers
+ */
+enum {
+	/** Unknown media type */
+	MP_MEDIA_UNKNOWN = 0,
+
+	/** Audio in PCM format */
+	MP_MEDIA_AUDIO_PCM,
+	/** Raw (Uncompressed) video format */
+	MP_MEDIA_VIDEO_RAW,
+
+	/** Maximum media type identifier */
+	MP_MEDIA_END = UINT8_MAX,
+};
+
+/**
+ * @brief Caps identifiers for media structures
+ */
+enum {
+	/** Unknown caps field identifier */
+	MP_CAPS_UNKNOWN = 0,
+
+	/* Common fields used in display and video domains */
+	/** Pixel format */
+	MP_CAPS_PIXEL_FORMAT,
+	/** Image width */
+	MP_CAPS_IMAGE_WIDTH,
+	/** Image height */
+	MP_CAPS_IMAGE_HEIGHT,
+	/** Frame rate */
+	MP_CAPS_FRAME_RATE,
+
+	/* Common fields used in Audio domain */
+	/** Sample rate */
+	MP_CAPS_SAMPLE_RATE,
+	/** Bit width */
+	MP_CAPS_BITWIDTH,
+	/** Number of channels */
+	MP_CAPS_NUM_OF_CHANNEL,
+	/** Frame interval */
+	MP_CAPS_FRAME_INTERVAL,
+	/** Data buffer count */
+	MP_CAPS_BUFFER_COUNT,
+	/**
+	 * The layout of channels within a buffer: interleaved (LRLRLRLR) and non-interleaved
+	 * (LLLLRRRR)
+	 */
+	MP_CAPS_INTERLEAVED,
+
+	/** End of the caps field and maximum caps field identifier */
+	MP_CAPS_END = UINT8_MAX,
+};
+
+/**
  * @struct mp_caps
  *
  * @brief Represents a list of media capabilities.
@@ -45,8 +99,8 @@ struct mp_caps {
  * @brief structure used to hold a single capability structure.
  *
  * Each caps structure has:
- * - A media type: Specifies the nature (e.g., video, audio) and format (e.g., raw, compressed) of
-the media.
+ * - A media type ID: Specifies the nature (e.g., video, audio) and format type (e.g., raw,
+ * compressed) of the media stream.
  * - A set of field–value pairs: Each pair represents a specific capability of the element.
  */
 struct mp_cap_structure {
@@ -61,18 +115,17 @@ struct mp_cap_structure {
 #define MP_CAPS(obj) ((struct mp_caps *)(obj))
 
 /**
- * @brief Create new @ref struct mp_caps of one caps structure with a media type and fields in the
- * same way as the @ref mp_structure_new
+ * @brief Create a new @ref struct mp_caps of one caps structure with a media type ID and fields in
+ * the same way as the @ref mp_structure_new
  *
- * @param media_type Media type string
+ * @param media_type_id Media type ID
  * @param ... Variadic list of field definitions:
- *            (const char *field_name, int field_type, void *field_value),
- *            terminated by NULL
+ *            (uint8_t field_id, int field_type, void *field_value),
+ *            terminated by 0
  *
  * @return Pointer to newly created @ref struct mp_caps, or NULL on failure
  */
-struct mp_caps *mp_caps_new(const char *media_type, ...);
-
+struct mp_caps *mp_caps_new(uint8_t media_type_id, ...);
 /**
  * @brief Create new @ref struct mp_caps of type ANY.
  *
@@ -86,7 +139,7 @@ struct mp_caps *mp_caps_new_any(void);
  * @param caps Pointer to @ref struct mp_caps to initialize
  * @param flag Initialization flags (i.e., 0 if no flag or MP_CAPS_FLAG_ANY)
  */
-void mp_caps_init(struct mp_caps *caps, uint32_t flag);
+void mp_caps_init(struct mp_caps *caps, uint8_t flag);
 
 /**
  * @brief Append a structure to the @ref struct mp_caps.

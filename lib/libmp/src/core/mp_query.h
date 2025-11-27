@@ -28,7 +28,7 @@
  * @param num	Query id number (A new type of query must have unique id number)
  * @param flags Query flags
  */
-#define MP_QUERY_CREATE_TYPE(num, flags) (((num) << 8) | (flags))
+#define MP_QUERY_CREATE_TYPE(num, flags) (((num) << 2) | (flags))
 
 /**
  * @enum mp_query_direction
@@ -50,6 +50,8 @@ enum mp_query_type {
 	MP_QUERY_ALLOCATION =
 		MP_QUERY_CREATE_TYPE(1, MP_QUERY_DIRECTION_BOTH),         /**< Allocation query */
 	MP_QUERY_CAPS = MP_QUERY_CREATE_TYPE(2, MP_QUERY_DIRECTION_BOTH), /**< Capabilities query */
+
+	MP_QUERY_END = UINT8_MAX, /**< Maximum query type identifer */
 };
 
 /**
@@ -57,7 +59,7 @@ enum mp_query_type {
  * Structure of query
  */
 struct mp_query {
-	int type;                      /**< Type of the query */
+	uint8_t type;                  /**< Type of the query */
 	struct mp_structure structure; /**< Associated field-value structure */
 };
 
