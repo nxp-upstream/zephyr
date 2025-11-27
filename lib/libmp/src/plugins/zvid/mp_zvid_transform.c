@@ -6,6 +6,7 @@
 
 #include <zephyr/logging/log.h>
 
+#include <src/core/mp_caps.h>
 #include <src/core/mp_pixel_format.h>
 
 #include "mp_zvid.h"
@@ -102,7 +103,7 @@ static struct mp_caps *mp_zvid_transform_transform_caps(struct mp_transform *sel
 {
 	struct mp_zvid_transform *zvid_transform = MP_ZVID_TRANSFORM(self);
 	const struct device *dev = zvid_transform->zvid_obj_in.vdev;
-	struct mp_caps *other_caps = mp_caps_new(NULL);
+	struct mp_caps *other_caps = mp_caps_new(MP_MEDIA_END);
 	struct mp_structure *caps_item = NULL;
 	struct mp_cap_structure *cs;
 	struct video_format_cap vfc, other_vfc;
@@ -117,11 +118,12 @@ static struct mp_caps *mp_zvid_transform_transform_caps(struct mp_transform *sel
 			if (mp_fmt != MP_PIXEL_FORMAT_UNKNOWN) {
 				/* TODO: Only supports video/x-raw for now */
 				caps_item = mp_structure_new(
-					"video/x-raw", "format", MP_TYPE_UINT, mp_fmt, "width",
-					MP_TYPE_UINT_RANGE, other_vfc.width_min,
-					other_vfc.width_max, other_vfc.width_step, "height",
+					MP_MEDIA_VIDEO_RAW, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
+					mp_fmt, MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE,
+					other_vfc.width_min, other_vfc.width_max,
+					other_vfc.width_step, MP_CAPS_IMAGE_HEIGHT,
 					MP_TYPE_UINT_RANGE, other_vfc.height_min,
-					other_vfc.height_max, other_vfc.height_step, NULL);
+					other_vfc.height_max, other_vfc.height_step, MP_CAPS_END);
 				/*
 				 * TODO: Avoid duplicated caps items to save memory
 				 */
