@@ -27,7 +27,7 @@ static void mp_caps_destroy(struct mp_object *obj)
 	k_free(obj);
 }
 
-void mp_caps_init(struct mp_caps *caps, uint32_t flag)
+void mp_caps_init(struct mp_caps *caps, uint8_t flag)
 {
 	__ASSERT_NO_MSG(caps != NULL);
 	sys_slist_init(&caps->caps_structures);
@@ -36,7 +36,7 @@ void mp_caps_init(struct mp_caps *caps, uint32_t flag)
 	caps->object.flags = flag;
 }
 
-static struct mp_caps *mp_caps_new_empty_with_flag(uint32_t flags)
+static struct mp_caps *mp_caps_new_empty_with_flag(uint8_t flags)
 {
 	struct mp_caps *caps = k_malloc(sizeof(struct mp_caps));
 
@@ -58,39 +58,39 @@ struct mp_caps *mp_caps_new_any(void)
 	return mp_caps_new_empty_with_flag(MP_CAPS_FLAG_ANY);
 }
 
-struct mp_caps *mp_caps_new(const char *media_type, ...)
+struct mp_caps *mp_caps_new(uint8_t media_type_id, ...)
 {
 	struct mp_caps *caps = mp_caps_new_empty();
 	va_list var_args;
 	struct mp_structure *structure;
-	const char *field_name;
+	uint8_t field_id;
 	enum mp_value_type type;
 	struct mp_value *value;
 
-	if (media_type == NULL) {
+	if (media_type_id == MP_MEDIA_END) {
 		return caps;
 	}
 
-	va_start(var_args, media_type);
-	structure = mp_structure_new(media_type, NULL);
+	va_start(var_args, media_type_id);
+	structure = mp_structure_new(media_type_id, MP_CAPS_END);
 	while (true) {
-		field_name = va_arg(var_args, const char *);
-		if (field_name == NULL) {
+		field_id = (uint8_t)va_arg(var_args, uint32_t);
+		if (field_id == MP_CAPS_END) {
 			break;
 		}
 
 		type = va_arg(var_args, int);
 		if (type != MP_TYPE_LIST) {
 			value = mp_value_new_va_list(type, &var_args);
-
 		} else {
 			value = va_arg(var_args, struct mp_value *);
 		}
+
 		if (value == NULL) {
 			break;
 		}
 
-		mp_structure_append(structure, field_name, value);
+		mp_structure_append(structure, field_id, value);
 	}
 	mp_caps_append(caps, structure);
 	va_end(var_args);

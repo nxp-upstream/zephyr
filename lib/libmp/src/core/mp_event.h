@@ -29,7 +29,7 @@
  * @param num	Event id number (A new type of event must have unique number id)
  * @param flags Event flags
  */
-#define MP_EVENT_CREATE_TYPE(num, flags) (((num) << 8) | (flags))
+#define MP_EVENT_CREATE_TYPE(num, flags) (((num) << 2) | (flags))
 
 /**
  * Get the type of an event.
@@ -47,7 +47,7 @@
  *
  * @retval direction of event @ref enum mp_event_direction
  */
-#define MP_EVENT_DIRECTION(event) (MP_EVENT_TYPE(event) & 0x0F)
+#define MP_EVENT_DIRECTION(event) (MP_EVENT_TYPE(event) & 0b11)
 
 /**
  * Event direction flags.
@@ -68,13 +68,15 @@ enum mp_event_type {
 		MP_EVENT_CREATE_TYPE(1, MP_EVENT_DIRECTION_DOWNSTREAM), /**< Capabilities event */
 	MP_EVENT_EOS =
 		MP_EVENT_CREATE_TYPE(2, MP_EVENT_DIRECTION_DOWNSTREAM), /**< End-of-stream event */
+
+	MP_EVENT_END = UINT8_MAX, /**< Maximum event type identifer */
 };
 
 /**
  * Event structure.
  */
 struct mp_event {
-	enum mp_event_type type;        /**< Type of the event */
+	uint8_t type;                   /**< Type of the event */
 	struct mp_structure *structure; /**< Associated metadata structure */
 	uint32_t timestamp;             /**< Timestamp of the event */
 };
