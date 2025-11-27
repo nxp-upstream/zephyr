@@ -9,6 +9,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/util.h>
 
+#include <src/core/mp_caps.h>
 #include <src/core/mp_pixel_format.h>
 
 #include "mp_zvid.h"
@@ -40,7 +41,7 @@ static void append_frmrates_to_structure(const struct device *vdev, struct video
 				fie.stepwise.min.numerator, fie.stepwise.step.denominator,
 				fie.stepwise.step.numerator);
 
-			mp_structure_append(caps_item, "framerate", frmrate);
+			mp_structure_append(caps_item, MP_CAPS_FRAME_RATE, frmrate);
 
 			break;
 		default:
@@ -50,13 +51,13 @@ static void append_frmrates_to_structure(const struct device *vdev, struct video
 	}
 
 	if (!mp_value_list_is_empty(frmrates)) {
-		mp_structure_append(caps_item, "framerate", frmrates);
+		mp_structure_append(caps_item, MP_CAPS_FRAME_RATE, frmrates);
 	}
 }
 
 struct mp_caps *mp_zvid_object_get_caps(struct mp_zvid_object *zvid_obj)
 {
-	struct mp_caps *caps = mp_caps_new(NULL);
+	struct mp_caps *caps = mp_caps_new(MP_MEDIA_END);
 	struct mp_structure *caps_item = NULL;
 	struct video_caps vcaps = {.type = zvid_obj->type};
 	struct video_format fmt = {.type = zvid_obj->type};
@@ -85,11 +86,12 @@ struct mp_caps *mp_zvid_object_get_caps(struct mp_zvid_object *zvid_obj)
 
 		/* TODO: Add support for MP_TYPE_UINT_RANGE and use it here */
 		caps_item = mp_structure_new(
-			"video/x-raw", "format", MP_TYPE_UINT, mp_fmt, "width", MP_TYPE_UINT_RANGE,
-			vcaps.format_caps[i].width_min, vcaps.format_caps[i].width_max,
-			vcaps.format_caps[i].width_step, "height", MP_TYPE_UINT_RANGE,
-			vcaps.format_caps[i].height_min, vcaps.format_caps[i].height_max,
-			vcaps.format_caps[i].height_step, NULL);
+			MP_MEDIA_VIDEO_RAW, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT, mp_fmt,
+			MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE, vcaps.format_caps[i].width_min,
+			vcaps.format_caps[i].width_max, vcaps.format_caps[i].width_step,
+			MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE, vcaps.format_caps[i].height_min,
+			vcaps.format_caps[i].height_max, vcaps.format_caps[i].height_step,
+			MP_CAPS_END);
 
 		/*
 		 * Only query the frame interval for the min frame size
@@ -110,7 +112,7 @@ bool mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *ca
 	struct video_format fmt;
 	struct video_frmival frmival;
 	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
-	struct mp_value *frmrate = mp_structure_get_value(first_structure, "framerate");
+	struct mp_value *frmrate = mp_structure_get_value(first_structure, MP_CAPS_FRAME_RATE);
 
 	if (!mp_caps_is_fixed(caps)) {
 		return false;
@@ -135,7 +137,8 @@ bool mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *ca
 	struct mp_caps *objcaps = mp_zvid_object_get_caps(zvid_obj);
 
 	first_structure = mp_caps_get_structure(objcaps, 0);
-	if (frmrate != NULL && mp_structure_get_value(first_structure, "framerate") != NULL) {
+	if (frmrate != NULL &&
+	    mp_structure_get_value(first_structure, MP_CAPS_FRAME_RATE) != NULL) {
 		mp_caps_unref(objcaps);
 		frmival.numerator = mp_value_get_fraction_denominator(frmrate);
 		frmival.denominator = mp_value_get_fraction_numerator(frmrate);

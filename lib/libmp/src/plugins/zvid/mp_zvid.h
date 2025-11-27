@@ -17,6 +17,7 @@
 #include <zephyr/drivers/video.h>
 #include <zephyr/sys/util.h>
 
+#include <src/core/mp_caps.h>
 #include <src/core/mp_structure.h>
 #include <src/core/mp_value.h>
 
@@ -102,7 +103,7 @@ static void get_zvid_fmt_from_structure(struct mp_structure *structure,
 	struct mp_value *value;
 
 	/* Get pixel format field */
-	value = mp_structure_get_value(structure, "format");
+	value = mp_structure_get_value(structure, MP_CAPS_PIXEL_FORMAT);
 	if (value == NULL) {
 		return;
 	}
@@ -119,7 +120,7 @@ static void get_zvid_fmt_from_structure(struct mp_structure *structure,
 	}
 
 	/* Get width fields */
-	value = mp_structure_get_value(structure, "width");
+	value = mp_structure_get_value(structure, MP_CAPS_IMAGE_WIDTH);
 	if (value == NULL) {
 		return;
 	}
@@ -131,7 +132,7 @@ static void get_zvid_fmt_from_structure(struct mp_structure *structure,
 		value->type == MP_TYPE_INT_RANGE ? mp_value_get_int_range_step(value) : 0;
 
 	/* Get height fields */
-	value = mp_structure_get_value(structure, "height");
+	value = mp_structure_get_value(structure, MP_CAPS_IMAGE_HEIGHT);
 	if (value == NULL) {
 		return;
 	}
