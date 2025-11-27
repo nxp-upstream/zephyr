@@ -6,6 +6,8 @@
 
 #include <zephyr/logging/log.h>
 
+#include <src/core/mp_caps.h>
+
 #include "mp_zaud.h"
 #include "mp_zaud_buffer_pool.h"
 
@@ -25,12 +27,13 @@ static bool mp_zaud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_st
 {
 	struct mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
 
-	int sample_rate = mp_value_get_int(mp_structure_get_value(config, "samplerate"));
-	int bit_width = mp_value_get_int(mp_structure_get_value(config, "bitwidth"));
-	int num_of_channel = mp_value_get_int(mp_structure_get_value(config, "numOfchannel"));
+	int sample_rate = mp_value_get_int(mp_structure_get_value(config, MP_CAPS_SAMPLE_RATE));
+	int bit_width = mp_value_get_int(mp_structure_get_value(config, MP_CAPS_BITWIDTH));
+	int num_of_channel =
+		mp_value_get_int(mp_structure_get_value(config, MP_CAPS_NUM_OF_CHANNEL));
 	uint32_t frame_interval =
-		mp_value_get_uint(mp_structure_get_value(config, "frameinterval"));
-	int buffer_count = mp_value_get_int(mp_structure_get_value(config, "buffercount"));
+		mp_value_get_uint(mp_structure_get_value(config, MP_CAPS_FRAME_INTERVAL));
+	int buffer_count = mp_value_get_int(mp_structure_get_value(config, MP_CAPS_BUFFER_COUNT));
 
 	/*
 	 * TEMPORARY WORKAROUND: Adding 2 extra buffers to the minimum count

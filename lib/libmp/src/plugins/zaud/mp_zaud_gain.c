@@ -6,7 +6,6 @@
 
 #include <zephyr/logging/log.h>
 
-#include "mp.h"
 #include "mp_zaud.h"
 #include "mp_zaud_gain.h"
 #include "mp_zaud_property.h"
@@ -143,8 +142,9 @@ static struct mp_caps *mp_zaud_gain_get_caps(struct mp_transform *transform,
 	mp_value_list_append(supported_bit_width, mp_value_new(MP_TYPE_UINT, MP_ZAUD_BIT_WIDTH_16));
 
 	if ((direction == MP_PAD_SRC) || (direction == MP_PAD_SINK)) {
-		return mp_caps_new("audio/pcm", "bitwidth", MP_TYPE_LIST, supported_bit_width,
-				   "interleaved", MP_TYPE_BOOLEAN, true, NULL);
+		return mp_caps_new(MP_MEDIA_AUDIO_PCM, MP_CAPS_BITWIDTH, MP_TYPE_LIST,
+				   supported_bit_width, MP_CAPS_INTERLEAVED, MP_TYPE_BOOLEAN, true,
+				   MP_CAPS_END);
 	} else {
 		return NULL;
 	}

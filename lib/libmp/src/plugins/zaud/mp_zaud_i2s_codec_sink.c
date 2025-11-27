@@ -98,28 +98,30 @@ static struct mp_caps *mp_zaud_i2s_codec_sink_get_caps(struct mp_sink *sink)
 		return NULL;
 	}
 
-	struct mp_caps *caps = mp_caps_new(NULL);
-	struct mp_structure *structure = mp_structure_new(
-		"audio/pcm", "samplerate", MP_TYPE_LIST, supported_sample_rate, "bitwidth",
-		MP_TYPE_LIST, supported_bit_width, "numOfchannel", MP_TYPE_INT_RANGE,
-		(i2s_caps.min_total_channels > codec_caps.min_total_channels)
-			? i2s_caps.min_total_channels
-			: codec_caps.min_total_channels,
-		(i2s_caps.max_total_channels < codec_caps.max_total_channels)
-			? i2s_caps.max_total_channels
-			: codec_caps.max_total_channels,
-		1, "frameinterval", MP_TYPE_UINT_RANGE,
-		(i2s_caps.min_frame_interval > codec_caps.min_frame_interval)
-			? i2s_caps.min_frame_interval
-			: codec_caps.min_frame_interval,
-		(i2s_caps.max_frame_interval < codec_caps.max_frame_interval)
-			? i2s_caps.max_frame_interval
-			: codec_caps.max_frame_interval,
-		1, "buffercount", MP_TYPE_INT_RANGE,
-		(i2s_caps.min_num_buffers > codec_caps.min_num_buffers)
-			? i2s_caps.min_num_buffers
-			: codec_caps.min_num_buffers,
-		UINT8_MAX, 1, "interleaved", MP_TYPE_BOOLEAN, codec_caps.interleaved, NULL);
+	struct mp_caps *caps = mp_caps_new(MP_MEDIA_END);
+	struct mp_structure *structure =
+		mp_structure_new(MP_MEDIA_AUDIO_PCM, MP_CAPS_SAMPLE_RATE, MP_TYPE_LIST,
+				 supported_sample_rate, MP_CAPS_BITWIDTH, MP_TYPE_LIST,
+				 supported_bit_width, MP_CAPS_NUM_OF_CHANNEL, MP_TYPE_INT_RANGE,
+				 (i2s_caps.min_total_channels > codec_caps.min_total_channels)
+					 ? i2s_caps.min_total_channels
+					 : codec_caps.min_total_channels,
+				 (i2s_caps.max_total_channels < codec_caps.max_total_channels)
+					 ? i2s_caps.max_total_channels
+					 : codec_caps.max_total_channels,
+				 1, MP_CAPS_FRAME_INTERVAL, MP_TYPE_UINT_RANGE,
+				 (i2s_caps.min_frame_interval > codec_caps.min_frame_interval)
+					 ? i2s_caps.min_frame_interval
+					 : codec_caps.min_frame_interval,
+				 (i2s_caps.max_frame_interval < codec_caps.max_frame_interval)
+					 ? i2s_caps.max_frame_interval
+					 : codec_caps.max_frame_interval,
+				 1, MP_CAPS_BUFFER_COUNT, MP_TYPE_INT_RANGE,
+				 (i2s_caps.min_num_buffers > codec_caps.min_num_buffers)
+					 ? i2s_caps.min_num_buffers
+					 : codec_caps.min_num_buffers,
+				 UINT8_MAX, 1, MP_CAPS_INTERLEAVED, MP_TYPE_BOOLEAN,
+				 codec_caps.interleaved, MP_CAPS_END);
 
 	mp_caps_append(caps, structure);
 
@@ -134,12 +136,13 @@ static bool mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps
 
 	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
 
-	int sample_rate = mp_value_get_int(mp_structure_get_value(first_structure, "samplerate"));
-	int bit_width = mp_value_get_int(mp_structure_get_value(first_structure, "bitwidth"));
+	int sample_rate =
+		mp_value_get_int(mp_structure_get_value(first_structure, MP_CAPS_SAMPLE_RATE));
+	int bit_width = mp_value_get_int(mp_structure_get_value(first_structure, MP_CAPS_BITWIDTH));
 	int num_of_channel =
-		mp_value_get_int(mp_structure_get_value(first_structure, "numOfchannel"));
+		mp_value_get_int(mp_structure_get_value(first_structure, MP_CAPS_NUM_OF_CHANNEL));
 	uint32_t frame_interval =
-		mp_value_get_int(mp_structure_get_value(first_structure, "frameinterval"));
+		mp_value_get_int(mp_structure_get_value(first_structure, MP_CAPS_FRAME_INTERVAL));
 
 	if (zaud_i2s_codec_sink->mem_slab == NULL) {
 		LOG_ERR("Memory slab not configured");

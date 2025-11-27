@@ -98,14 +98,15 @@ static struct mp_caps *mp_zaud_src_get_caps(struct mp_src *src)
 		i++;
 	}
 
-	struct mp_caps *caps = mp_caps_new(NULL);
+	struct mp_caps *caps = mp_caps_new(MP_MEDIA_END);
 	struct mp_structure *structure = mp_structure_new(
-		"audio/pcm", "samplerate", MP_TYPE_LIST, supported_sample_rate, "bitwidth",
-		MP_TYPE_LIST, supported_bit_width, "numOfchannel", MP_TYPE_INT_RANGE,
-		src_caps.min_total_channels, src_caps.max_total_channels, 1, "frameinterval",
-		MP_TYPE_UINT_RANGE, src_caps.min_frame_interval, src_caps.max_frame_interval, 1,
-		"buffercount", MP_TYPE_INT_RANGE, src_caps.min_num_buffers, UINT8_MAX, 1,
-		"interleaved", MP_TYPE_BOOLEAN, src_caps.interleaved, NULL);
+		MP_MEDIA_AUDIO_PCM, MP_CAPS_SAMPLE_RATE, MP_TYPE_LIST, supported_sample_rate,
+		MP_CAPS_BITWIDTH, MP_TYPE_LIST, supported_bit_width, MP_CAPS_NUM_OF_CHANNEL,
+		MP_TYPE_INT_RANGE, src_caps.min_total_channels, src_caps.max_total_channels, 1,
+		MP_CAPS_FRAME_INTERVAL, MP_TYPE_UINT_RANGE, src_caps.min_frame_interval,
+		src_caps.max_frame_interval, 1, MP_CAPS_BUFFER_COUNT, MP_TYPE_INT_RANGE,
+		src_caps.min_num_buffers, UINT8_MAX, 1, MP_CAPS_INTERLEAVED, MP_TYPE_BOOLEAN,
+		src_caps.interleaved, MP_CAPS_END);
 
 	mp_caps_append(caps, structure);
 
