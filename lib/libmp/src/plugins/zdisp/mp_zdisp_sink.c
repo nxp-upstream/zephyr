@@ -8,6 +8,7 @@
 #include <zephyr/logging/log.h>
 
 #include <src/core/mp_buffer.h>
+#include <src/core/mp_caps.h>
 #include <src/core/mp_element_factory.h>
 #include <src/core/mp_pixel_format.h>
 #include <src/core/mp_plugin.h>
@@ -102,16 +103,16 @@ static struct mp_caps *mp_zdisp_sink_get_caps(struct mp_sink *sink)
 		}
 	}
 
-	return mp_caps_new("video/x-raw", "format", MP_TYPE_LIST, supported_fmt, "width",
-			   MP_TYPE_UINT_RANGE, DEFAULT_WIDTH_MIN, display_caps.x_resolution, 1,
-			   "height", MP_TYPE_UINT_RANGE, DEFAULT_HEIGHT_MIN,
-			   display_caps.y_resolution, 1, NULL);
+	return mp_caps_new(MP_MEDIA_VIDEO_RAW, MP_CAPS_PIXEL_FORMAT, MP_TYPE_LIST, supported_fmt,
+			   MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE, DEFAULT_WIDTH_MIN,
+			   display_caps.x_resolution, 1, MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE,
+			   DEFAULT_HEIGHT_MIN, display_caps.y_resolution, 1, MP_CAPS_END);
 }
 
 static bool mp_zdisp_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
 {
 	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
-	struct mp_value *value = mp_structure_get_value(first_structure, "format");
+	struct mp_value *value = mp_structure_get_value(first_structure, MP_CAPS_PIXEL_FORMAT);
 	enum display_pixel_format zdisp_fmt = mp2zdisp_pixfmt(mp_value_get_uint(value));
 
 	if (zdisp_fmt == 0 || mp_zdisp_sink_setup(MP_ZDISP_SINK(sink), zdisp_fmt) != 0) {
@@ -166,13 +167,13 @@ bool mp_zdisp_sink_chainfn(struct mp_pad *pad, struct mp_buffer *buffer)
 		.buf_size = buffer->bytes_used,
 	};
 
-	value = mp_structure_get_value(first_structure, "width");
+	value = mp_structure_get_value(first_structure, MP_CAPS_IMAGE_WIDTH);
 	if (value) {
 		buf_desc.width = mp_value_get_int(value);
 		buf_desc.pitch = mp_value_get_int(value);
 	}
 
-	value = mp_structure_get_value(first_structure, "height");
+	value = mp_structure_get_value(first_structure, MP_CAPS_IMAGE_HEIGHT);
 	if (value) {
 		buf_desc.height = mp_value_get_int(value);
 	}
