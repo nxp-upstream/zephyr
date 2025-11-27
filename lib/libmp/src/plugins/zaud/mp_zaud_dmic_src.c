@@ -22,12 +22,13 @@ static bool mp_zaud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 
 	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
 
-	int sample_rate = mp_value_get_int(mp_structure_get_value(first_structure, "samplerate"));
-	int bit_width = mp_value_get_int(mp_structure_get_value(first_structure, "bitwidth"));
+	int sample_rate =
+		mp_value_get_int(mp_structure_get_value(first_structure, MP_CAPS_SAMPLE_RATE));
+	int bit_width = mp_value_get_int(mp_structure_get_value(first_structure, MP_CAPS_BITWIDTH));
 	int num_of_channel =
-		mp_value_get_int(mp_structure_get_value(first_structure, "numOfchannel"));
+		mp_value_get_int(mp_structure_get_value(first_structure, MP_CAPS_NUM_OF_CHANNEL));
 	uint32_t frame_interval =
-		mp_value_get_uint(mp_structure_get_value(first_structure, "frameinterval"));
+		mp_value_get_uint(mp_structure_get_value(first_structure, MP_CAPS_FRAME_INTERVAL));
 
 	struct pcm_stream_cfg stream = {
 		.pcm_width = bit_width,
