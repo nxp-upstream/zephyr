@@ -12,34 +12,24 @@
 #ifndef __MP_ZVID_PROPS_H__
 #define __MP_ZVID_PROPS_H__
 
+#include <zephyr/sys/util.h>
+
 #include <src/core/mp_property.h>
 
 /**
- * @brief Zvid Transform Property Identifiers
+ * @brief Zvid Property Identifiers
  *
- * Defined property identifiers specific to the zvid transform element. These
- * properties extend the base transform properties defined in @ref prop_transform.
+ * This extends the base source and transform properties defined in @ref prop_src and @ref
+ * prop_transform
  *
  * The enumeration starts from @ref PROP_TRANSFORM_LAST + 1 to ensure no
- * conflicts with base transform properties.
+ * conflicts with base source or transform properties.
  */
-enum prop_zvid_transform {
-	/** Video device property identifier */
-	PROP_ZVID_TRANSFORM_DEVICE = PROP_TRANSFORM_LAST + 1,
-};
-
-/**
- * @brief Zvid Src Property Identifiers
- *
- * Defined property identifiers specific to the zvid src element. These
- * properties extend the base src properties defined in @ref prop_src.
- *
- * The enumeration starts from @ref PROP_SRC_LAST + 1 to ensure no
- * conflicts with base src properties.
- */
-enum prop_zvid_src {
-	/** Video device property identifier */
-	PROP_ZVID_SRC_DEVICE = PROP_SRC_LAST + 1,
+enum prop_zvid {
+	/** Video device property */
+	PROP_ZVID_DEVICE = MAX((int)PROP_SRC_LAST, (int)PROP_TRANSFORM_LAST) + 1,
+	/** Crop selection target property */
+	PROP_ZVID_CROP,
 };
 
 #endif /* __MP_ZVID_PROPS_H__ */

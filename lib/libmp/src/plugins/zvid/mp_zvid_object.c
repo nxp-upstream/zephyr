@@ -57,15 +57,51 @@ static void append_frmrates_to_structure(const struct device *vdev, struct video
 
 struct mp_caps *mp_zvid_object_get_caps(struct mp_zvid_object *zvid_obj)
 {
+	int ret;
 	struct mp_caps *caps = mp_caps_new(MP_MEDIA_END);
 	struct mp_structure *caps_item = NULL;
 	struct video_caps vcaps = {.type = zvid_obj->type};
 	struct video_format fmt = {.type = zvid_obj->type};
 	enum mp_pixel_format mp_fmt;
+	uint32_t crop_w = UINT32_MAX;
+	uint32_t crop_h = UINT32_MAX;
+	uint32_t comp_min_w = UINT32_MAX;
+	uint32_t comp_min_h = UINT32_MAX;
+	uint32_t comp_max_w = 0;
+	uint32_t comp_max_h = 0;
+	struct video_selection sel = {
+		.type = zvid_obj->type,
+		.target = VIDEO_SEL_TGT_CROP,
+	};
 
+	/* Get caps */
 	if (video_get_caps(zvid_obj->vdev, &vcaps)) {
 		LOG_WRN("Unable to retrieve device's capabilities");
 		return NULL;
+	}
+
+	/* Get crop selection */
+	ret = video_get_selection(zvid_obj->vdev, &sel);
+	if (ret == 0) {
+		crop_w = sel.rect.width;
+		crop_h = sel.rect.height;
+	}
+
+	/* Get compose selection upper-bound */
+	sel.target = VIDEO_SEL_TGT_COMPOSE_BOUND;
+	ret = video_get_selection(zvid_obj->vdev, &sel);
+	if (ret == 0) {
+		comp_max_w = sel.rect.width + sel.rect.left;
+		comp_max_h = sel.rect.height + sel.rect.top;
+	}
+
+	/* Get compose selection lower-bound */
+	sel.target = VIDEO_SEL_TGT_COMPOSE;
+	sel.rect = (struct video_rect){.top = 0, .left = 0, .width = 1, .height = 1};
+	ret = video_set_selection(zvid_obj->vdev, &sel);
+	if (ret == 0) {
+		comp_min_w = sel.rect.width + sel.rect.left;
+		comp_min_h = sel.rect.height + sel.rect.top;
 	}
 
 	/* Set buffer pool's min_buffers and alignment */
@@ -83,22 +119,19 @@ struct mp_caps *mp_zvid_object_get_caps(struct mp_zvid_object *zvid_obj)
 		 * e.g. video/x-bayer, video/x-h264, image/jpeg, etc.
 		 */
 		fmt.pixelformat = vcaps.format_caps[i].pixelformat;
-
-		/* TODO: Add support for MP_TYPE_UINT_RANGE and use it here */
 		caps_item = mp_structure_new(
 			MP_MEDIA_VIDEO_RAW, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT, mp_fmt,
-			MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE, vcaps.format_caps[i].width_min,
-			vcaps.format_caps[i].width_max, vcaps.format_caps[i].width_step,
-			MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE, vcaps.format_caps[i].height_min,
-			vcaps.format_caps[i].height_max, vcaps.format_caps[i].height_step,
-			MP_CAPS_END);
+			MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE,
+			min3(vcaps.format_caps[i].width_min, crop_w, comp_min_w),
+			max(vcaps.format_caps[i].width_max, comp_max_w),
+			vcaps.format_caps[i].width_step, MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE,
+			min3(vcaps.format_caps[i].height_min, crop_h, comp_min_h),
+			max(vcaps.format_caps[i].height_max, comp_max_h),
+			vcaps.format_caps[i].height_step, MP_CAPS_END);
 
-		/*
-		 * Only query the frame interval for the min frame size
-		 */
+		/* Get frame rate */
 		fmt.width = vcaps.format_caps[i].width_min;
 		fmt.height = vcaps.format_caps[i].height_min;
-
 		append_frmrates_to_structure(zvid_obj->vdev, &fmt, caps_item);
 		mp_caps_append(caps, caps_item);
 	}
@@ -125,7 +158,7 @@ bool mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *ca
 	fmt.pixelformat = fcaps.pixelformat;
 	fmt.width = fcaps.width_min;
 	fmt.height = fcaps.height_min;
-	if (video_set_format(zvid_obj->vdev, &fmt)) {
+	if (video_set_compose_format(zvid_obj->vdev, &fmt)) {
 		LOG_ERR("Unable to set format");
 		return false;
 	}
@@ -154,58 +187,75 @@ bool mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *ca
 int mp_zvid_object_set_property(struct mp_zvid_object *zvid_obj, uint32_t key, const void *val,
 				struct mp_caps **pad_caps)
 {
-	/*
-	 * PROP_ZVID_SRC_DEVICE and PROP_ZVID_TRANSFORM_DEVICE may evaluate to the same value so
-	 * cannot use switch case
-	 */
-	if (key == PROP_ZVID_SRC_DEVICE || key == PROP_ZVID_TRANSFORM_DEVICE) {
-		zvid_obj->vdev = val;
+	switch (key) {
+	case PROP_ZVID_DEVICE:
+	case PROP_ZVID_CROP:
+		if (key == PROP_ZVID_DEVICE) {
+			zvid_obj->vdev = val;
+		} else {
+			zvid_obj->crop = *(struct video_rect *)val;
+
+			/* Set crop selection target to HW */
+			struct video_selection sel = {
+				.type = zvid_obj->type,
+				.target = VIDEO_SEL_TGT_CROP,
+				.rect = zvid_obj->crop,
+			};
+
+			video_set_selection(zvid_obj->vdev, &sel);
+		}
+
+		/* Get caps from driver and update the pad's caps */
 		if (pad_caps != NULL) {
-			/* Device has been set or changed. Get caps from HW and update pad caps */
 			struct mp_caps *new_caps = mp_zvid_object_get_caps(zvid_obj);
 
 			mp_caps_replace(pad_caps, new_caps);
 			mp_caps_unref(new_caps);
 		}
+
 		return 0;
-	} else if (IN_RANGE(key, VIDEO_CID_BASE, VIDEO_CID_LASTP1) ||
-		   IN_RANGE(key, VIDEO_CID_CODEC_CLASS_BASE, VIDEO_CID_JPEG_COMPRESSION_QUALITY) ||
-		   key > VIDEO_CID_PRIVATE_BASE) {
-		struct video_control ctrl = {.id = key, .val = (int32_t)(uintptr_t)val};
+	default:
+		if (IN_RANGE(key, VIDEO_CID_BASE, VIDEO_CID_LASTP1) ||
+		    IN_RANGE(key, VIDEO_CID_CODEC_CLASS_BASE, VIDEO_CID_JPEG_COMPRESSION_QUALITY) ||
+		    key > VIDEO_CID_PRIVATE_BASE) {
+			struct video_control ctrl = {.id = key, .val = (int32_t)(uintptr_t)val};
 
-		return video_set_ctrl(zvid_obj->vdev, &ctrl);
+			return video_set_ctrl(zvid_obj->vdev, &ctrl);
+		}
+
+		return -ENOTSUP;
 	}
-
-	return -ENOTSUP;
 }
 
 int mp_zvid_object_get_property(struct mp_zvid_object *zvid_obj, uint32_t key, void *val)
 {
 	int ret;
 
-	/*
-	 * PROP_ZVID_SRC_DEVICE and PROP_ZVID_TRANSFORM_DEVICE may evaluate to the same value so
-	 * cannot use switch case
-	 */
-	if (key == PROP_ZVID_SRC_DEVICE || key == PROP_ZVID_TRANSFORM_DEVICE) {
+	switch (key) {
+	case PROP_ZVID_DEVICE:
 		*(const struct device **)val = zvid_obj->vdev;
 		return 0;
-	} else if (IN_RANGE(key, VIDEO_CID_BASE, VIDEO_CID_LASTP1) ||
-		   IN_RANGE(key, VIDEO_CID_CODEC_CLASS_BASE, VIDEO_CID_JPEG_COMPRESSION_QUALITY) ||
-		   key > VIDEO_CID_PRIVATE_BASE) {
-		struct video_control ctrl = {.id = key};
+	case PROP_ZVID_CROP:
+		*(struct video_rect *)val = zvid_obj->crop;
+		return 0;
+	default:
+		if (IN_RANGE(key, VIDEO_CID_BASE, VIDEO_CID_LASTP1) ||
+		    IN_RANGE(key, VIDEO_CID_CODEC_CLASS_BASE, VIDEO_CID_JPEG_COMPRESSION_QUALITY) ||
+		    key > VIDEO_CID_PRIVATE_BASE) {
+			struct video_control ctrl = {.id = key};
 
-		ret = video_get_ctrl(zvid_obj->vdev, &ctrl);
-		if (ret < 0) {
-			return ret;
+			ret = video_get_ctrl(zvid_obj->vdev, &ctrl);
+			if (ret < 0) {
+				return ret;
+			}
+
+			*(int32_t *)val = ctrl.val;
+
+			return 0;
 		}
 
-		*(int32_t *)val = ctrl.val;
-
-		return 0;
+		return -ENOTSUP;
 	}
-
-	return -ENOTSUP;
 }
 
 bool mp_zvid_object_decide_allocation(struct mp_zvid_object *zvid_obj, struct mp_query *query)
