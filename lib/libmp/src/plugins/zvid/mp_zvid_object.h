@@ -38,6 +38,8 @@ struct mp_zvid_object {
 	enum video_buf_type type;
 	/** Associated buffer pool */
 	struct mp_zvid_buffer_pool pool;
+	/** Rectangle area to crop the input image in pixels */
+	struct video_rect crop;
 };
 
 /**

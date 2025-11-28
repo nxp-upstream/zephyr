@@ -143,7 +143,7 @@ static int mp_zvid_transform_set_property(struct mp_object *obj, uint32_t key, c
 	struct mp_zvid_transform *zvid_transform = MP_ZVID_TRANSFORM(obj);
 
 	switch (key) {
-	case PROP_ZVID_TRANSFORM_DEVICE:
+	case PROP_ZVID_DEVICE:
 		mp_zvid_object_set_property(&zvid_transform->zvid_obj_in, key, val,
 					    &transform->sinkpad.caps);
 		mp_zvid_object_set_property(&zvid_transform->zvid_obj_out, key, val,
