@@ -2,6 +2,7 @@
 
 /*
  * Copyright (c) 2017 PHYTEC Messtechnik GmbH
+ * Copyright 2025 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -74,8 +75,9 @@
 #define USB_CDC_AUX_JACK_HOOK_STATE	0x08
 #define USB_CDC_RING_DETECT		0x09
 #define USB_CDC_SERIAL_STATE		0x20
-#define USB_CDC_CALL_STATE_CHANGE	0x28
 #define USB_CDC_LINE_STATE_CHANGE	0x23
+#define USB_CDC_CALL_STATE_CHANGE	0x28
+#define USB_CDC_CONNECTION_SPEED_CHANGE 0x2A
 
 /**
  * @brief PSTN UART State Bitmap Values
@@ -273,6 +275,18 @@ struct cdc_ncm_descriptor {
 	uint8_t bDescriptorSubtype;
 	uint16_t bcdNcmVersion;
 	uint8_t bmNetworkCapabilities;
+} __packed;
+
+/** CDC Notification Packet */
+struct cdc_notification_packet {
+	union {
+		uint8_t bmRequestType;
+		struct usb_req_type_field RequestType;
+	} __packed;
+	uint8_t bNotification;
+	uint16_t wValue;
+	uint16_t wIndex;
+	uint16_t wLength;
 } __packed;
 
 #endif /* ZEPHYR_INCLUDE_USB_CLASS_USB_CDC_H_ */

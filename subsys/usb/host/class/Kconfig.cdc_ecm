@@ -1,5 +1,5 @@
-# Copyright (c) 2025 Linumiz GmbH
 # Copyright 2025 NXP
+# Copyright (c) 2025 Linumiz GmbH
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -8,10 +8,36 @@ config USBH_CDC_ECM_CLASS
 	depends on DT_HAS_ZEPHYR_CDC_ECM_HOST_ENABLED
 	select EXPERIMENTAL
 	select NET_L2_ETHERNET
+	select NET_L2_ETHERNET_MGMT
 	help
 	  USB Host Communication Device Class - Ethernet Control Mode (CDC-ECM) implementation.
 
 if USBH_CDC_ECM_CLASS
+
+config USBH_CDC_ECM_STACK_SIZE
+	int "USB CDC-ECM thread stack size"
+	default 1024
+	help
+	  USB CDC-ECM thread stack size.
+
+config USBH_CDC_ECM_DATA_TX_BUF_COUNT
+	int "Number of tx buffers per CDC-ECM instance"
+    	default 8
+    	help
+      	  increase if you see "buffer pool exhausted" warnings.
+
+config USBH_CDC_ECM_DATA_RX_BUF_COUNT
+	int "Number of rx buffers per CDC-ECM instance"
+    	default 16
+    	help
+      	  increase if you see "buffer pool exhausted" warnings.
+
+config USBH_CDC_ECM_DATA_BUF_POOL_SIZE
+	int "USB CDC-ECM buffer pool size"
+	default 1514
+	range 60 9000
+	help
+	  USB CDC-ECM buffer pool size in bytes.
 
 module = USBH_CDC_ECM
 module-str = "usbh cdc_ecm"
