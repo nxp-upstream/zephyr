@@ -5,12 +5,12 @@
  */
 
 #include <zephyr/drivers/display.h>
+#include <zephyr/drivers/video.h>
 #include <zephyr/logging/log.h>
 
 #include <src/core/mp_buffer.h>
 #include <src/core/mp_caps.h>
 #include <src/core/mp_element_factory.h>
-#include <src/core/mp_pixel_format.h>
 #include <src/core/mp_plugin.h>
 
 #include "mp_zdisp_property.h"
@@ -24,40 +24,37 @@ LOG_MODULE_REGISTER(mp_zdisp_sink, CONFIG_LIBMP_LOG_LEVEL);
 #define DEFAULT_WIDTH_MIN  1
 #define DEFAULT_HEIGHT_MIN 1
 
-struct mp_zdisp_pixfmt_desc {
-	enum mp_pixel_format mp_fmt;
-	enum display_pixel_format zdisp_fmt;
+struct mp_disp_vid_pix_fmt {
+	enum display_pixel_format disp_fmt;
+	uint32_t vid_fmt;
 };
 
-/* Keep this array in the same order and in sync with Zephyr display pixel formats */
-static const struct mp_zdisp_pixfmt_desc mp_zdisp_pixfmt_map[] = {
-	{MP_PIXEL_FORMAT_RGB24, PIXEL_FORMAT_RGB_888},
-	{MP_PIXEL_FORMAT_MONO01, PIXEL_FORMAT_MONO01},
-	{MP_PIXEL_FORMAT_MONO10, PIXEL_FORMAT_MONO10},
-	{MP_PIXEL_FORMAT_ARGB32, PIXEL_FORMAT_ARGB_8888},
-	{MP_PIXEL_FORMAT_RGB565, PIXEL_FORMAT_RGB_565},
-	{MP_PIXEL_FORMAT_BGR565, PIXEL_FORMAT_BGR_565},
-	{MP_PIXEL_FORMAT_GREY8, PIXEL_FORMAT_L_8},
-	{MP_PIXEL_FORMAT_AL88, PIXEL_FORMAT_AL_88},
-	{MP_PIXEL_FORMAT_XRGB32, PIXEL_FORMAT_XRGB_8888},
+/* Pixel formats mapping betwen video and display */
+static const struct mp_disp_vid_pix_fmt mp_disp_vid_pix_fmt_map[] = {
+	{PIXEL_FORMAT_RGB_888, VIDEO_PIX_FMT_RGB24},
+	{PIXEL_FORMAT_ARGB_8888, VIDEO_PIX_FMT_ARGB32},
+	{PIXEL_FORMAT_RGB_565, VIDEO_PIX_FMT_RGB565},
+	{PIXEL_FORMAT_BGR_565, VIDEO_PIX_FMT_RGB565X},
+	{PIXEL_FORMAT_L_8, VIDEO_PIX_FMT_GREY},
+	{PIXEL_FORMAT_XRGB_8888, VIDEO_PIX_FMT_XRGB32},
 };
 
-static const enum mp_pixel_format zdisp2mp_pixfmt(enum display_pixel_format zdisp_fmt)
+static const uint32_t disp_to_vid_pix_fmt(enum display_pixel_format disp_fmt)
 {
-	for (uint8_t i = 0; i < ARRAY_SIZE(mp_zdisp_pixfmt_map); i++) {
-		if (mp_zdisp_pixfmt_map[i].zdisp_fmt == zdisp_fmt) {
-			return mp_zdisp_pixfmt_map[i].mp_fmt;
+	for (uint8_t i = 0; i < ARRAY_SIZE(mp_disp_vid_pix_fmt_map); i++) {
+		if (mp_disp_vid_pix_fmt_map[i].disp_fmt == disp_fmt) {
+			return mp_disp_vid_pix_fmt_map[i].vid_fmt;
 		}
 	}
 
-	return MP_PIXEL_FORMAT_UNKNOWN;
+	return 0;
 }
 
-static const enum display_pixel_format mp2zdisp_pixfmt(enum mp_pixel_format mp_fmt)
+static const enum display_pixel_format vid_to_disp_pix_fmt(uint32_t vid_fmt)
 {
-	for (uint8_t i = 0; i < ARRAY_SIZE(mp_zdisp_pixfmt_map); i++) {
-		if (mp_zdisp_pixfmt_map[i].mp_fmt == mp_fmt) {
-			return mp_zdisp_pixfmt_map[i].zdisp_fmt;
+	for (uint8_t i = 0; i < ARRAY_SIZE(mp_disp_vid_pix_fmt_map); i++) {
+		if (mp_disp_vid_pix_fmt_map[i].vid_fmt == vid_fmt) {
+			return mp_disp_vid_pix_fmt_map[i].disp_fmt;
 		}
 	}
 
@@ -68,8 +65,6 @@ static int mp_zdisp_sink_setup(struct mp_zdisp_sink *zdisp_sink,
 			       const enum display_pixel_format pixfmt)
 {
 	int ret = 0;
-
-	LOG_INF("Display device: %s", zdisp_sink->display_dev->name);
 
 	ret = display_set_pixel_format(zdisp_sink->display_dev, pixfmt);
 	if (ret) {
@@ -89,17 +84,17 @@ static int mp_zdisp_sink_setup(struct mp_zdisp_sink *zdisp_sink,
 
 static struct mp_caps *mp_zdisp_sink_get_caps(struct mp_sink *sink)
 {
-	enum mp_pixel_format mp_fmt;
+	uint32_t vid_fmt;
 	struct display_capabilities display_caps;
 	struct mp_value *supported_fmt = mp_value_new(MP_TYPE_LIST, NULL);
 
 	display_get_capabilities(MP_ZDISP_SINK(sink)->display_dev, &display_caps);
 
-	for (uint8_t i = 0; i < ARRAY_SIZE(mp_zdisp_pixfmt_map); i++) {
-		mp_fmt = zdisp2mp_pixfmt(display_caps.supported_pixel_formats &
-					 mp_zdisp_pixfmt_map[i].zdisp_fmt);
-		if (mp_fmt != MP_PIXEL_FORMAT_UNKNOWN) {
-			mp_value_list_append(supported_fmt, mp_value_new(MP_TYPE_UINT, mp_fmt));
+	for (uint8_t i = 0; i < ARRAY_SIZE(mp_disp_vid_pix_fmt_map); i++) {
+		vid_fmt = disp_to_vid_pix_fmt(display_caps.supported_pixel_formats &
+					      mp_disp_vid_pix_fmt_map[i].disp_fmt);
+		if (vid_fmt != 0) {
+			mp_value_list_append(supported_fmt, mp_value_new(MP_TYPE_UINT, vid_fmt));
 		}
 	}
 
@@ -113,9 +108,9 @@ static bool mp_zdisp_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
 {
 	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
 	struct mp_value *value = mp_structure_get_value(first_structure, MP_CAPS_PIXEL_FORMAT);
-	enum display_pixel_format zdisp_fmt = mp2zdisp_pixfmt(mp_value_get_uint(value));
+	enum display_pixel_format disp_fmt = vid_to_disp_pix_fmt(mp_value_get_uint(value));
 
-	if (zdisp_fmt == 0 || mp_zdisp_sink_setup(MP_ZDISP_SINK(sink), zdisp_fmt) != 0) {
+	if (disp_fmt == 0 || mp_zdisp_sink_setup(MP_ZDISP_SINK(sink), disp_fmt) != 0) {
 		return false;
 	}
 
