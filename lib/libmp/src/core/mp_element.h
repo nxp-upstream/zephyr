@@ -71,29 +71,6 @@ struct mp_pad;
  */
 #define MP_STATE_TRANSITION_NEXT(trans) ((enum mp_state)((trans) & 0x3))
 
-/**
- * @brief Get current state of element
- *
- * @param element The element
- * @return Current state
- */
-#define MP_STATE_CURRENT(element) (MP_ELEMENT(element)->current_state)
-
-/**
- * @brief Get next state of element
- *
- * @param element The element
- * @return Next state
- */
-#define MP_STATE_NEXT(element) (MP_ELEMENT(element)->next_state)
-
-/**
- * @brief Get target state of element
- *
- * @param element The element
- * @return Target state
- */
-#define MP_STATE_TARGET(element) (MP_ELEMENT(element)->target_state)
 
 /**
  * @brief States of an element

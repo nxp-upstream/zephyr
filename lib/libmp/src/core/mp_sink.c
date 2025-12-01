@@ -82,7 +82,7 @@ bool mp_sink_event(struct mp_pad *pad, struct mp_event *event)
 {
 	struct mp_sink *sink = MP_SINK(pad->object.container);
 
-	switch (MP_EVENT_TYPE(event)) {
+	switch (event->type) {
 	case MP_EVENT_EOS:
 		LOG_DBG("MP_EVENT_EOS");
 		return true;

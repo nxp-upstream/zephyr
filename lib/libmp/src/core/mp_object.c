@@ -22,7 +22,7 @@ int mp_object_set_properties(struct mp_object *obj, ...)
 
 	va_start(args, obj);
 
-	while (true) {
+	while (1) {
 		key = va_arg(args, uint32_t);
 		val = va_arg(args, const void *);
 
@@ -52,7 +52,7 @@ int mp_object_get_properties(struct mp_object *obj, ...)
 
 	va_start(args, obj);
 
-	while (true) {
+	while (1) {
 		key = va_arg(args, uint32_t);
 		val = va_arg(args, void *);
 

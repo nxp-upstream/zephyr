@@ -24,8 +24,6 @@
  * @{
  */
 
-#define MP_MESSAGE_TYPE(msg) (msg->type)
-
 /**
  * @enum mp_message_type
  * Supported message types to notify the application

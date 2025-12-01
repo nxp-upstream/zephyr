@@ -93,7 +93,7 @@ struct mp_structure *mp_structure_new(uint8_t media_type_id, ...)
 	structure->media_type_id = media_type_id;
 	sys_slist_init(&structure->fields);
 	va_start(args, media_type_id);
-	while (true) {
+	while (1) {
 		field_id = va_arg(args, uint32_t);
 		if (field_id == MP_CAPS_END) {
 			break;
