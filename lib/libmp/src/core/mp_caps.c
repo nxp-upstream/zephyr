@@ -73,7 +73,7 @@ struct mp_caps *mp_caps_new(uint8_t media_type_id, ...)
 
 	va_start(var_args, media_type_id);
 	structure = mp_structure_new(media_type_id, MP_CAPS_END);
-	while (true) {
+	while (1) {
 		field_id = (uint8_t)va_arg(var_args, uint32_t);
 		if (field_id == MP_CAPS_END) {
 			break;

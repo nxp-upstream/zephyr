@@ -30,7 +30,7 @@ static enum mp_bus_sync_reply mp_bus_sync_handler(struct mp_bus *bus, struct mp_
 
 	/* Deliver the message to the correct listener */
 	SYS_SLIST_FOR_EACH_CONTAINER(&bus->sync_listeners, listener, node) {
-		if (MP_MESSAGE_TYPE(message) & listener->filter_type) {
+		if (message->type & listener->filter_type) {
 			ret |= listener->cb(message, listener->user_data);
 		}
 	}
@@ -80,7 +80,7 @@ struct mp_message *mp_bus_pop_msg(struct mp_bus *bus, enum mp_message_type type)
 	struct mp_message *message = NULL;
 
 	while ((message = k_fifo_get(&bus->fifo, K_FOREVER)) != NULL) {
-		if (MP_MESSAGE_TYPE(message) & type) {
+		if (message->type & type) {
 			break;
 		}
 

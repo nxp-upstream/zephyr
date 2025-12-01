@@ -32,22 +32,13 @@
 #define MP_EVENT_CREATE_TYPE(num, flags) (((num) << 2) | (flags))
 
 /**
- * Get the type of an event.
- *
- * @param event Pointer to struct mp_event
- *
- * @retval type of event @ref enum mp_event_type
- */
-#define MP_EVENT_TYPE(event) (((struct mp_event *)event)->type)
-
-/**
  * Get the direction of an event.
  *
  * @param event Pointer to struct mp_event
  *
  * @retval direction of event @ref enum mp_event_direction
  */
-#define MP_EVENT_DIRECTION(event) (MP_EVENT_TYPE(event) & 0b11)
+#define MP_EVENT_DIRECTION(event) (event->type & 0b11)
 
 /**
  * Event direction flags.

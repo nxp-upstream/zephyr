@@ -21,11 +21,11 @@ void mp_element_add_pad(struct mp_element *element, struct mp_pad *pad)
 	/* Set element that contains this pad */
 	MP_OBJECT(pad)->container = MP_OBJECT(element);
 
-	if (MP_PAD_IS_SRC(pad)) {
+	if (pad->direction == MP_PAD_SRC) {
 		sys_dlist_append(&element->srcpads, &pad->object.node);
 	}
 
-	if (MP_PAD_IS_SINK(pad)) {
+	if (pad->direction == MP_PAD_SINK) {
 		sys_dlist_append(&element->sinkpads, &pad->object.node);
 	}
 }
@@ -97,7 +97,7 @@ static enum mp_state_change_return mp_element_set_state_func(struct mp_element *
 	enum mp_state_change_return ret = MP_STATE_CHANGE_SUCCESS;
 	enum mp_state_change transition;
 	enum mp_state next;
-	enum mp_state *current = &MP_STATE_CURRENT(element);
+	enum mp_state *current = &element->current_state;
 
 	/* Currently, implement this in an iterative way, not recursive. */
 	while (*current != state) {

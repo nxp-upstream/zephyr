@@ -31,31 +31,6 @@
 #define MP_PAD(self) ((struct mp_pad *)self)
 
 /**
- * @brief Get the peer pad of a pad
- */
-#define MP_PAD_PEER(pad) ((struct mp_pad *)pad->peer)
-
-/**
- * @brief Check if a pad is a source pad
- */
-#define MP_PAD_IS_SRC(pad) (pad->direction == MP_PAD_SRC)
-
-/**
- * @brief Check if a pad is a sink pad
- */
-#define MP_PAD_IS_SINK(pad) (pad->direction == MP_PAD_SINK)
-
-/**
- * @brief Check if a pad is linked to another pad
- */
-#define MP_PAD_IS_LINKED(pad) (pad->peer != NULL)
-
-/**
- * @brief Check if a pad is active
- */
-#define MP_PAD_IS_ACTIVE(pad) (pad->mode != MP_PAD_MODE_NONE)
-
-/**
  * @brief The direction of a pad
  */
 enum mp_pad_direction {
