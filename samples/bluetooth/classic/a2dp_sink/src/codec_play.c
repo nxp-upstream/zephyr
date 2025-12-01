@@ -126,11 +126,11 @@ static void codec_play_data(uint8_t *data, uint32_t length)
 											length;
 	audio_data_sync_buf_w++;
 
-	if ((data != NULL) && (length != 0U)) {
-		if (!audio_start) {
-			return;
-		}
+	if (!audio_start) {
+		return;
+	}
 
+	if ((data != NULL) && (length != 0U)) {
 		codec_play_to_dev(data, length);
 	} else {
 		codec_play_to_dev(a2dp_silence_data,
