@@ -137,7 +137,7 @@ int main(void)
 	struct mp_message *msg = mp_bus_pop_msg(bus, MP_MESSAGE_ERROR | MP_MESSAGE_EOS);
 
 	if (msg != NULL) {
-		switch (MP_MESSAGE_TYPE(msg)) {
+		switch (msg->type) {
 		case MP_MESSAGE_ERROR:
 			LOG_INF("ERROR message from element %d", msg->src->id);
 			break;
