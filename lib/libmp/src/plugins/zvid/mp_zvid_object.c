@@ -10,13 +10,67 @@
 #include <zephyr/sys/util.h>
 
 #include <src/core/mp_caps.h>
-#include <src/core/mp_pixel_format.h>
 
-#include "mp_zvid.h"
 #include "mp_zvid_object.h"
 #include "mp_zvid_property.h"
 
 LOG_MODULE_REGISTER(mp_zvid_object, CONFIG_LIBMP_LOG_LEVEL);
+
+static int set_dimension_fields(struct mp_structure *structure, uint8_t key, uint32_t *min,
+				uint32_t *max, uint16_t *step)
+{
+	const struct mp_value *value = mp_structure_get_value(structure, key);
+	if (value == NULL) {
+		return -EINVAL;
+	}
+
+	if (value->type == MP_TYPE_UINT_RANGE) {
+		*min = mp_value_get_uint_range_min(value);
+		*max = mp_value_get_uint_range_max(value);
+		*step = (uint16_t)mp_value_get_uint_range_step(value);
+	} else if (value->type == MP_TYPE_UINT) {
+		*min = mp_value_get_uint(value);
+		*max = *min;
+		*step = 0;
+	} else {
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+int mp_structure_to_vfc(struct mp_structure *structure, struct video_format_cap *vfc)
+{
+	int ret;
+	struct mp_value *value;
+
+	/* Get pixel format field */
+	value = mp_structure_get_value(structure, MP_CAPS_PIXEL_FORMAT);
+	if (value == NULL) {
+		return -EINVAL;
+	}
+	if (value->type == MP_TYPE_UINT) {
+		vfc->pixelformat = mp_value_get_uint(value);
+	} else if (value->type == MP_TYPE_LIST) {
+		/* Format may be of MP_TYPE_LIST due to the intersection with a list type but it is
+		 * actually a single-value list, so take the 1st item in the list
+		 */
+		vfc->pixelformat = mp_value_get_uint(mp_value_list_get(value, 0));
+	} else {
+		return -EINVAL;
+	}
+
+	/* Get width fields */
+	ret = set_dimension_fields(structure, MP_CAPS_IMAGE_WIDTH, &vfc->width_min, &vfc->width_max,
+				   &vfc->width_step);
+	if (ret < 0) {
+		return ret;
+	}
+
+	/* Get height fields */
+	return set_dimension_fields(structure, MP_CAPS_IMAGE_HEIGHT, &vfc->height_min,
+				    &vfc->height_max, &vfc->height_step);
+}
 
 static void append_frmrates_to_structure(const struct device *vdev, struct video_format *fmt,
 					 struct mp_structure *caps_item)
@@ -62,7 +116,6 @@ struct mp_caps *mp_zvid_object_get_caps(struct mp_zvid_object *zvid_obj)
 	struct mp_structure *caps_item = NULL;
 	struct video_caps vcaps = {.type = zvid_obj->type};
 	struct video_format fmt = {.type = zvid_obj->type};
-	enum mp_pixel_format mp_fmt;
 	uint32_t crop_w = UINT32_MAX;
 	uint32_t crop_h = UINT32_MAX;
 	uint32_t comp_min_w = UINT32_MAX;
@@ -109,19 +162,13 @@ struct mp_caps *mp_zvid_object_get_caps(struct mp_zvid_object *zvid_obj)
 	MP_BUFFER_POOL(&zvid_obj->pool)->config.align = vcaps.buf_align;
 
 	for (uint8_t i = 0; vcaps.format_caps[i].pixelformat != 0; i++) {
-		mp_fmt = zvid2mp_pixfmt(vcaps.format_caps[i].pixelformat);
-		if (mp_fmt == MP_PIXEL_FORMAT_UNKNOWN) {
-			continue;
-		}
-
 		/*
 		 * TODO: Only supports video/x-raw for now. Should detect other media types,
 		 * e.g. video/x-bayer, video/x-h264, image/jpeg, etc.
 		 */
-		fmt.pixelformat = vcaps.format_caps[i].pixelformat;
 		caps_item = mp_structure_new(
-			MP_MEDIA_VIDEO_RAW, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT, mp_fmt,
-			MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE,
+			MP_MEDIA_VIDEO_RAW, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
+			vcaps.format_caps[i].pixelformat, MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE,
 			min3(vcaps.format_caps[i].width_min, crop_w, comp_min_w),
 			max(vcaps.format_caps[i].width_max, comp_max_w),
 			vcaps.format_caps[i].width_step, MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE,
@@ -130,9 +177,11 @@ struct mp_caps *mp_zvid_object_get_caps(struct mp_zvid_object *zvid_obj)
 			vcaps.format_caps[i].height_step, MP_CAPS_END);
 
 		/* Get frame rate */
+		fmt.pixelformat = vcaps.format_caps[i].pixelformat;
 		fmt.width = vcaps.format_caps[i].width_min;
 		fmt.height = vcaps.format_caps[i].height_min;
 		append_frmrates_to_structure(zvid_obj->vdev, &fmt, caps_item);
+
 		mp_caps_append(caps, caps_item);
 	}
 
@@ -141,7 +190,7 @@ struct mp_caps *mp_zvid_object_get_caps(struct mp_zvid_object *zvid_obj)
 
 bool mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *caps)
 {
-	struct video_format_cap fcaps = {0};
+	struct video_format_cap vfc = {0};
 	struct video_format fmt;
 	struct video_frmival frmival;
 	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
@@ -152,12 +201,14 @@ bool mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *ca
 	}
 
 	/* Set format */
-	get_zvid_fmt_from_structure(first_structure, &fcaps);
+	if (mp_structure_to_vfc(first_structure, &vfc) < 0) {
+		return false;
+	}
 
 	fmt.type = zvid_obj->type;
-	fmt.pixelformat = fcaps.pixelformat;
-	fmt.width = fcaps.width_min;
-	fmt.height = fcaps.height_min;
+	fmt.pixelformat = vfc.pixelformat;
+	fmt.width = vfc.width_min;
+	fmt.height = vfc.height_min;
 	if (video_set_compose_format(zvid_obj->vdev, &fmt)) {
 		LOG_ERR("Unable to set format");
 		return false;

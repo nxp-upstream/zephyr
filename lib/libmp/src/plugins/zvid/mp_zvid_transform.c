@@ -7,9 +7,7 @@
 #include <zephyr/logging/log.h>
 
 #include <src/core/mp_caps.h>
-#include <src/core/mp_pixel_format.h>
 
-#include "mp_zvid.h"
 #include "mp_zvid_property.h"
 #include "mp_zvid_transform.h"
 
@@ -110,25 +108,23 @@ static struct mp_caps *mp_zvid_transform_transform_caps(struct mp_transform *sel
 	uint16_t ind;
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&caps->caps_structures, cs, node) {
-		get_zvid_fmt_from_structure(cs->structure, &vfc);
+		if (mp_structure_to_vfc(cs->structure, &vfc) < 0) {
+			continue;
+		}
 		ind = 0;
 		while (video_transform_cap(dev, &vfc, &other_vfc, direction, ind) == 0) {
-			enum mp_pixel_format mp_fmt = zvid2mp_pixfmt(other_vfc.pixelformat);
+			/* TODO: Only supports video/x-raw for now */
+			caps_item = mp_structure_new(
+				MP_MEDIA_VIDEO_RAW, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
+				other_vfc.pixelformat, MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE,
+				other_vfc.width_min, other_vfc.width_max, other_vfc.width_step,
+				MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE, other_vfc.height_min,
+				other_vfc.height_max, other_vfc.height_step, MP_CAPS_END);
+			/*
+			 * TODO: Avoid duplicated caps items to save memory
+			 */
+			mp_caps_append(other_caps, caps_item);
 
-			if (mp_fmt != MP_PIXEL_FORMAT_UNKNOWN) {
-				/* TODO: Only supports video/x-raw for now */
-				caps_item = mp_structure_new(
-					MP_MEDIA_VIDEO_RAW, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
-					mp_fmt, MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE,
-					other_vfc.width_min, other_vfc.width_max,
-					other_vfc.width_step, MP_CAPS_IMAGE_HEIGHT,
-					MP_TYPE_UINT_RANGE, other_vfc.height_min,
-					other_vfc.height_max, other_vfc.height_step, MP_CAPS_END);
-				/*
-				 * TODO: Avoid duplicated caps items to save memory
-				 */
-				mp_caps_append(other_caps, caps_item);
-			}
 			ind++;
 		}
 	}
