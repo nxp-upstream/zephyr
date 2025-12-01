@@ -43,6 +43,18 @@ struct mp_zvid_object {
 };
 
 /**
+ * @brief Convert a @ref mp_structure to a @ref video_format_cap
+ *
+ * Populates a @ref video_format_cap with information from a @ref mp_structure.
+ *
+ * @param structure Pointer to @ref mp_structure containing video format information
+ * @param vfc Pointer to video_format_cap structure to be populated
+ *
+ * @return 0 on success or a negative errno code on failure
+ */
+int mp_structure_to_vfc(struct mp_structure *structure, struct video_format_cap *vfc);
+
+/**
  * @brief Set a property on the video object
  *
  * @param zvid_obj Pointer to the @ref struct mp_zvid_object
@@ -50,7 +62,7 @@ struct mp_zvid_object {
  * @param val Property value to set
  * @param pad_caps set
  *
- * @return 0 on success or a negative errno codes on failure
+ * @return 0 on success or a negative errno code on failure
  */
 int mp_zvid_object_set_property(struct mp_zvid_object *zvid_obj, uint32_t key, const void *val,
 				struct mp_caps **pad_caps);
@@ -62,7 +74,7 @@ int mp_zvid_object_set_property(struct mp_zvid_object *zvid_obj, uint32_t key, c
  * @param key Property key/control ID to retrieve
  * @param val Pointer to store the retrieved property value
  *
- * @return 0 on success or a negative errno codes on failure
+ * @return 0 on success or a negative errno code on failure
  */
 int mp_zvid_object_get_property(struct mp_zvid_object *zvid_obj, uint32_t key, void *val);
 
