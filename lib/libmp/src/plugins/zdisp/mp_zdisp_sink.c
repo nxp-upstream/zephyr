@@ -98,7 +98,7 @@ static struct mp_caps *mp_zdisp_sink_get_caps(struct mp_sink *sink)
 		}
 	}
 
-	return mp_caps_new(MP_MEDIA_VIDEO_RAW, MP_CAPS_PIXEL_FORMAT, MP_TYPE_LIST, supported_fmt,
+	return mp_caps_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_LIST, supported_fmt,
 			   MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE, DEFAULT_WIDTH_MIN,
 			   display_caps.x_resolution, 1, MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE,
 			   DEFAULT_HEIGHT_MIN, display_caps.y_resolution, 1, MP_CAPS_END);
