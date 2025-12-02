@@ -176,6 +176,16 @@ int mp_value_get_int_range_max(const struct mp_value *range);
 
 /** Get step value of @ref struct mp_value with MP_TYPE_INT_RANGE */
 int mp_value_get_int_range_step(const struct mp_value *range);
+
+/** Get minimum value of @ref struct mp_value with MP_TYPE_UINT_RANGE */
+uint32_t mp_value_get_uint_range_min(const struct mp_value *range);
+
+/** Get maximum value of @ref struct mp_value with MP_TYPE_UINT_RANGE */
+uint32_t mp_value_get_uint_range_max(const struct mp_value *range);
+
+/** Get step value of @ref struct mp_value with MP_TYPE_UINT_RANGE */
+uint32_t mp_value_get_uint_range_step(const struct mp_value *range);
+
 /** Get the min value of a mp_value with type MP_TYPE_FRACTION_RANGE, returning a mp_value with
  * MP_TYPE_FRACTION
  */

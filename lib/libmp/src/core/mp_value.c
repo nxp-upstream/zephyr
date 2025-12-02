@@ -459,15 +459,30 @@ size_t mp_value_list_get_size(const struct mp_value *list)
 
 int mp_value_get_int_range_min(const struct mp_value *range)
 {
-	return MP_VALUE_RANGE_CONST(range)->min.v_uint;
+	return MP_VALUE_RANGE_CONST(range)->min.v_int;
 }
 
 int mp_value_get_int_range_max(const struct mp_value *range)
 {
-	return MP_VALUE_RANGE_CONST(range)->max.v_uint;
+	return MP_VALUE_RANGE_CONST(range)->max.v_int;
 }
 
 int mp_value_get_int_range_step(const struct mp_value *range)
+{
+	return MP_VALUE_RANGE_CONST(range)->step.v_int;
+}
+
+uint32_t mp_value_get_uint_range_min(const struct mp_value *range)
+{
+	return MP_VALUE_RANGE_CONST(range)->min.v_uint;
+}
+
+uint32_t mp_value_get_uint_range_max(const struct mp_value *range)
+{
+	return MP_VALUE_RANGE_CONST(range)->max.v_uint;
+}
+
+uint32_t mp_value_get_uint_range_step(const struct mp_value *range)
 {
 	return MP_VALUE_RANGE_CONST(range)->step.v_uint;
 }
