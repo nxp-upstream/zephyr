@@ -14,5 +14,6 @@ supported:
   - arduino_gpio
   - gpio
   - rtc
+  - dma
   - watchdog
 vendor: nxp
