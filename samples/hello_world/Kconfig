@@ -1,0 +1,17 @@
+# MCP Parser Configuration
+
+source "Kconfig.zephyr"
+
+menu "MCP Parser Settings"
+
+config MCP_TOOL_NAME_MAX_LEN
+    int "Maximum tool name length"
+    default 32
+    range 16 128
+    help
+      Maximum length for tool name and title fields.
+      This determines the size of the tool_name array in the
+      mcp_message structure. Adjust based on your expected
+      tool name lengths. Default is 32 characters.
+
+endmenu
