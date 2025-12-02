@@ -162,12 +162,8 @@ struct mp_caps *mp_zvid_object_get_caps(struct mp_zvid_object *zvid_obj)
 	MP_BUFFER_POOL(&zvid_obj->pool)->config.align = vcaps.buf_align;
 
 	for (uint8_t i = 0; vcaps.format_caps[i].pixelformat != 0; i++) {
-		/*
-		 * TODO: Only supports video/x-raw for now. Should detect other media types,
-		 * e.g. video/x-bayer, video/x-h264, image/jpeg, etc.
-		 */
 		caps_item = mp_structure_new(
-			MP_MEDIA_VIDEO_RAW, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
+			MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
 			vcaps.format_caps[i].pixelformat, MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE,
 			min3(vcaps.format_caps[i].width_min, crop_w, comp_min_w),
 			max(vcaps.format_caps[i].width_max, comp_max_w),
