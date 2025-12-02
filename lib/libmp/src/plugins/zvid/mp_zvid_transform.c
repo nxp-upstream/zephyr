@@ -113,9 +113,8 @@ static struct mp_caps *mp_zvid_transform_transform_caps(struct mp_transform *sel
 		}
 		ind = 0;
 		while (video_transform_cap(dev, &vfc, &other_vfc, direction, ind) == 0) {
-			/* TODO: Only supports video/x-raw for now */
 			caps_item = mp_structure_new(
-				MP_MEDIA_VIDEO_RAW, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
+				MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
 				other_vfc.pixelformat, MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE,
 				other_vfc.width_min, other_vfc.width_max, other_vfc.width_step,
 				MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE, other_vfc.height_min,
