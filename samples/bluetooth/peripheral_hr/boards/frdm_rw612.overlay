@@ -1,0 +1,16 @@
+/*
+ * Copyright 2025 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* 
+
+/* See boards\nxp\frdm_rw612_common.dtsi */
+&flexcomm2 {
+	led_ctrl1: is31fl3733@50 {
+		reg = <0x50>;
+		compatible = "issi,is31fl3733";
+		sdb-gpios = <&hsgpio0 10 GPIO_ACTIVE_HIGH>;
+	};
+};

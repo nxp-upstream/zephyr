@@ -53,7 +53,6 @@
 			pinmux = <IO_MUX_FC1_SPI_SS0>;
 			slew-rate = "ultra";
 		};
-
 		group1 {
 			pinmux = <IO_MUX_FC1_SPI_SS1>;
 			slew-rate = "ultra";
@@ -100,9 +99,10 @@
 		};
 
 		group1 {
-			pinmux = <IO_MUX_GPIO0
-				  IO_MUX_GPIO1
-				  IO_MUX_GPIO12>;
+			pinmux = <IO_MUX_GPIO10
+				IO_MUX_GPIO0
+				IO_MUX_GPIO1
+				IO_MUX_GPIO12>;
 			slew-rate = "normal";
 			sleep-output = "high";
 		};

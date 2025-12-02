@@ -18,7 +18,144 @@
 #include <zephyr/bluetooth/services/bas.h>
 #include <zephyr/bluetooth/services/hrs.h>
 
+//-------------- LED -------------------------------------------
+#include <zephyr/drivers/led.h>
+#include <zephyr/drivers/led/is31fl3733.h>
+
+#define HW_ROW_COUNT 12
+#define HW_COL_COUNT 16
+
+#define CONFIG_LED_ROW_COUNT 12       // TODO move to Kconfig
+#define CONFIG_LED_COLUMN_COUNT 16
+
+/* LED matrix is addressed using a row major format */
+#define LED_MATRIX_COORD(x, y) ((x) * HW_COL_COUNT) + (y)
+
+static uint8_t led_state[HW_COL_COUNT * HW_ROW_COUNT];
+const struct device *led_dev = DEVICE_DT_GET_ONE(issi_is31fl3733);
+
+static bool bt_connected = false;
+
+//----------------------------------------------------------------
+
+const uint8_t nxp_scr[HW_ROW_COUNT * HW_COL_COUNT] = 
+{
+	 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 0,
+	 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1,
+	 1, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1,
+	 1, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1,
+	 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0,
+	 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0,
+	 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0,
+	 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+};		
+
+const uint8_t bsh_scr[HW_ROW_COUNT * HW_COL_COUNT] = 
+{
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1,
+	1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1,
+	1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1,
+	1, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1,
+	1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1,
+	1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1,
+	1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1,
+	1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
+const uint8_t zephyr_scr[HW_ROW_COUNT * HW_COL_COUNT] = 
+{
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+	1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0,
+	0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0,
+	0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 0,
+	0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0,
+	1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0,
+	1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
+const uint8_t demo_scr[HW_ROW_COUNT * HW_COL_COUNT] = 
+{
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0,
+	1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1, 0, 1,
+	1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1,
+	1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1,
+	1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1,
+	1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1,
+	1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1,
+	1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
+const uint8_t clock_scr1[HW_ROW_COUNT * HW_COL_COUNT] = 
+{
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0,
+	0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0,
+	0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0,
+	0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0,
+	1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0,
+	1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+	1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0,
+	1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+	1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
+const uint8_t clock_scr2[HW_ROW_COUNT * HW_COL_COUNT] = 
+{
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0,
+	0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0,
+	0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0,
+	0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0,
+	1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0,
+	1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0,
+	1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0,
+	1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0,
+	1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
+const uint8_t clock_scr3[HW_ROW_COUNT * HW_COL_COUNT] = 
+{
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0,
+	0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0,
+	0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 0,
+	0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0,
+	1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0,
+	1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0,
+	1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0,
+	1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0,
+	1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0, 0, 1, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
+#define	NUM_SCREENS 7
+#define BRIGHT 20
+uint8_t *display_scr[NUM_SCREENS];
+//----------------------------------------------------------------
+
 static bool hrf_ntf_enabled;
+
 
 static const struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
@@ -40,11 +177,103 @@ static const struct bt_data sd[] = {
 enum {
 	STATE_CONNECTED,
 	STATE_DISCONNECTED,
-
 	STATE_BITS,
 };
 
 static ATOMIC_DEFINE(state, STATE_BITS);
+
+static void blink_start(void);
+static void blink_stop(void);
+
+//-------------- LED -------------------------------------------
+static int led_brightness(const struct device *led, uint8_t val)
+{
+	int ret;
+	uint8_t row, col;
+
+	/* Set LED brightness to low value sequentially */
+	printk("Set LEDs to half brightness sequentially\n");
+	for (row = 0; row < CONFIG_LED_ROW_COUNT; row++) {
+		for (col = 0; col < CONFIG_LED_COLUMN_COUNT; col++) {
+			ret = led_set_brightness(led, LED_MATRIX_COORD(row, col), val);
+			if (ret < 0) {
+				printk("Error: could not enable led at [%d, %d]: (%d)\n",
+					row, col, ret);
+				return ret;
+			}
+			k_msleep(50); /* Reduced delay for BT responsiveness */
+		}
+	}
+	return 0;
+}
+
+static int led_on_off(const struct device *led)
+{
+	int ret;
+	uint8_t row, col;
+
+	printk("Toggle each led\n");
+	/* Turn on each led for a short duration */
+	for (row = 0; row < CONFIG_LED_ROW_COUNT; row++) {
+		for (col = 0; col < CONFIG_LED_COLUMN_COUNT; col++) {
+			ret = led_off(led, LED_MATRIX_COORD(row, col));
+			if (ret < 0) {
+				printk("Error: could not disable led at [%d, %d]: (%d)\n",
+					row, col, ret);
+				return ret;
+			}
+			k_msleep(10); /* Reduced delay for BT responsiveness */
+			ret = led_on(led, LED_MATRIX_COORD(row, col));
+			if (ret < 0) {
+				printk("Error: could not enable led at [%d, %d]: (%d)\n",
+					row, col, ret);
+				return ret;
+			}
+		}
+	}
+	k_msleep(500);
+	return 0;
+}
+
+static void led_indicate_bt_status(void)
+{
+	if (!device_is_ready(led_dev)) {
+		return;
+	}
+
+	if (bt_connected) {
+
+		blink_start(); // Indicate BT connnection Green LED blink
+	} 
+	// BT connection lost -disconnected
+	else {
+
+		blink_stop(); // Indicate BT connection is Lost!
+	}
+}
+//------------------ LED SHOW -----------------------------------
+
+static void led_show_scr(const uint8_t *msg, uint8_t bright, uint8_t move)
+{
+	int ret;
+	uint8_t row, col, idx=move;
+	
+	if (!device_is_ready(led_dev)) {
+		return;
+	}
+	for (row = 0; row < CONFIG_LED_ROW_COUNT; row++) {
+		for (col = CONFIG_LED_COLUMN_COUNT; col > 0; col--) {
+			ret = led_off(led_dev, LED_MATRIX_COORD(row, col-1)); // Clr screen		    
+			if(msg[idx] == 1)
+			{
+			  //ret = led_on(led_dev, LED_MATRIX_COORD(row, col-1));
+			  ret = led_set_brightness(led_dev, LED_MATRIX_COORD(row, col-1), bright);
+			}
+			idx++;
+		}
+	}
+}
+//----------------------------------------------------------------
 
 static void connected(struct bt_conn *conn, uint8_t err)
 {
@@ -54,6 +283,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 		printk("Connected\n");
 
 		(void)atomic_set_bit(state, STATE_CONNECTED);
+                bt_connected = true;
 	}
 }
 
@@ -62,6 +292,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 	printk("Disconnected, reason 0x%02x %s\n", reason, bt_hci_err_to_str(reason));
 
 	(void)atomic_set_bit(state, STATE_DISCONNECTED);
+        bt_connected = false;
 }
 
 BT_CONN_CB_DEFINE(conn_callbacks) = {
@@ -183,7 +414,9 @@ static void blink_stop(void)
 	k_work_cancel_delayable_sync(&blink_work, &work_sync);
 
 	/* Keep LED on */
-	led_is_on = true;
+	//led_is_on = true;
+	led_is_on = false;
+	
 	gpio_pin_set(led.port, led.pin, (int)led_is_on);
 }
 #endif /* LED0_NODE */
@@ -192,7 +425,26 @@ static void blink_stop(void)
 int main(void)
 {
 	int err;
+	uint8_t shift_text =0;
+	uint8_t i;
+	uint8_t scr=0;
+	
+	display_scr[0] = (uint8_t*)&nxp_scr;
+	display_scr[1] = (uint8_t*)&bsh_scr;
+	display_scr[2] = (uint8_t*)&zephyr_scr;
+	display_scr[3] = (uint8_t*)&demo_scr;
+	display_scr[4] = (uint8_t*)&clock_scr1;
+	display_scr[5] = (uint8_t*)&clock_scr2;
+	display_scr[6] = (uint8_t*)&clock_scr3;
 
+    // LED display driver init
+	if (!device_is_ready(led_dev)) {
+		printk("Warning: LED device is not ready\n");
+	} else {
+		printk("LED device initialized\n");
+	}
+
+    // BT Init continues here
 	err = bt_enable(NULL);
 	if (err) {
 		printk("Bluetooth init failed (err %d)\n", err);
@@ -262,12 +514,12 @@ int main(void)
 		return 0;
 	}
 
-	blink_start();
+	blink_stop(); // Indicate BT connection
 #endif /* HAS_LED */
 
 	/* Implement notification. */
 	while (1) {
-		k_sleep(K_SECONDS(1));
+		k_sleep(K_MSEC(1000));
 
 		/* Heartrate measurements simulation */
 		hrs_notify();
@@ -275,6 +527,38 @@ int main(void)
 		/* Battery level simulation */
 		bas_notify();
 
+        // LED display animations
+        led_indicate_bt_status();
+
+		//led_show_scr(nxp_scr, 0);
+		//led_show_scr(display_scr[1], 0);
+
+		led_show_scr(display_scr[scr], BRIGHT, 0);
+		scr++;
+
+        if (scr >= NUM_SCREENS) 
+		{
+			
+			/*
+			for(i=BRIGHT;i<100;i++){
+				//i++;
+            	led_show_scr(clock_scr3, i, 0); // Brightness ramp up
+				k_msleep(5);
+			}
+			*/
+			
+			for(i=BRIGHT;i>0;i--){
+            	led_show_scr(clock_scr3, i, 0); // Brightness ramp down
+				k_msleep(5);
+			}
+			for(i=0;i<100;i++){
+				i++;
+            	led_show_scr(clock_scr3, i, 0); // Brightness ramp up
+				k_msleep(5);
+			}
+		scr = 0U;
+		}
+		
 		if (atomic_test_and_clear_bit(state, STATE_CONNECTED)) {
 			/* Connected callback executed */
 
