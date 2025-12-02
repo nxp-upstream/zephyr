@@ -38,8 +38,8 @@ enum {
 
 	/** Audio in PCM format */
 	MP_MEDIA_AUDIO_PCM,
-	/** Raw (Uncompressed) video format */
-	MP_MEDIA_VIDEO_RAW,
+	/** Video type including raw, bayer, compressed formats */
+	MP_MEDIA_VIDEO,
 
 	/** Maximum media type identifier */
 	MP_MEDIA_END = UINT8_MAX,
