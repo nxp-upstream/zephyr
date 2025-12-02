@@ -20,7 +20,11 @@
 #define VGLITE_STACK_SIZE 8192 /* Adjust as needed */
 #define VGLITE_PRIORITY   0    /* Zephyr: lower number = higher priority */
 
+#if USE_PSRAM_FRAMEBUFFER == 0
 __aligned(FRAME_BUFFER_ALIGN) static uint16_t tiled_fb_mem[APP_BUFFER_COUNT][720 * 1280];
+#else
+__aligned(128) __section(".lvgl_buf") uint16_t tiled_fb_mem[720 * 1280];
+#endif
 
 K_THREAD_STACK_DEFINE(vglite_stack, VGLITE_STACK_SIZE);
 static struct k_thread vglite_thread;
