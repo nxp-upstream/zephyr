@@ -63,7 +63,7 @@ void mp_structure_append(struct mp_structure *structure, uint8_t field_id, struc
 {
 	struct mp_structure_field *field;
 
-	if (structure == NULL || field_id == 0 || value == NULL) {
+	if (structure == NULL || value == NULL) {
 		return;
 	}
 
@@ -129,7 +129,7 @@ struct mp_value *mp_structure_get_value(struct mp_structure *structure, uint8_t 
 {
 	struct mp_structure_field *field;
 
-	if (structure == NULL || field_id == 0) {
+	if (structure == NULL) {
 		return NULL;
 	}
 
@@ -146,7 +146,7 @@ bool mp_structure_remove_field(struct mp_structure *structure, uint8_t field_id)
 {
 	struct mp_structure_field *field, *prev_field = NULL;
 
-	if (structure == NULL || field_id == 0) {
+	if (structure == NULL) {
 		return false;
 	}
 
