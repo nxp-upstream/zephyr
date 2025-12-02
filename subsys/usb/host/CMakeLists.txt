@@ -1,4 +1,5 @@
 # SPDX-FileCopyrightText: Copyright Nordic Semiconductor ASA
+# Copyright 2025 NXP
 # SPDX-License-Identifier: Apache-2.0
 
 zephyr_library()
@@ -22,6 +23,12 @@ zephyr_library_sources_ifdef(
 zephyr_library_sources_ifdef(
   CONFIG_USBH_VIDEO_CLASS
   class/usbh_uvc.c
+)
+
+zephyr_library_sources_ifdef(
+  CONFIG_USBH_HUB_CLASS
+  class/usbh_hub.c
+  class/usbh_hub_mgr.c
 )
 
 zephyr_library_sources_ifdef(
