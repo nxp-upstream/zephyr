@@ -244,6 +244,9 @@ static void ail_connection_handler(struct net_mgmt_event_callback *cb, uint64_t 
 			break;
 		}
 #endif /* CONFIG_NET_IPV4*/
+#if defined(CONFIG_NET_L2_ETHERNET)
+		net_if_up(ot_context->iface);
+#endif
 		(void)openthread_start_border_router_services(ot_context->iface, iface);
 		break;
 	case NET_EVENT_IF_DOWN:
@@ -284,7 +287,9 @@ static void ail_ipv4_address_event_handler(struct net_mgmt_event_callback *cb, u
 
 	if (mgmt_event == NET_EVENT_IPV4_ADDR_ADD) {
 		struct openthread_context *ot_context = openthread_get_default_context();
-
+#if defined(CONFIG_NET_L2_ETHERNET)
+		net_if_up(ot_context->iface);
+#endif
 		openthread_start_border_router_services(ot_context->iface, iface);
 	}
 
