@@ -1,0 +1,17 @@
+sample:
+  name: USB host video sample
+tests:
+  sample.subsys.usb.host.uvc.camera:
+    tags:
+      - video
+      - usbh
+      - shield
+      - samples
+    extra_args:
+      - platform:rd_rw612_bga/rw612:SHIELD="lcd_par_s035_8080"
+    extra_configs:
+      - CONFIG_FPU=y
+    platform_allow:
+      - rd_rw612_bga/rw612
+    integration_platforms:
+      - rd_rw612_bga/rw612
