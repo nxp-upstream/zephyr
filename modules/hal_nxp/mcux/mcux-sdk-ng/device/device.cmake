@@ -145,3 +145,7 @@ if(CONFIG_MCUX_COMPONENT_device.boot_header)
   endif()
 
 endif()
+
+if(CONFIG_SOC_SERIES_IMXRT7XX AND CONFIG_IMX_USDHC)
+  mcux_add_macro(FSL_SDK_ENABLE_DRIVER_CACHE_CONTROL=1)
+endif()
