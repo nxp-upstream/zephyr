@@ -202,7 +202,6 @@ static uint8_t *a2dp_produce_media(uint32_t samples_num)
 	return media;
 }
 
-
 static void audio_play_check(void)
 {
 	uint32_t a2dp_src_num_samples;
@@ -223,17 +222,17 @@ static void audio_play_check(void)
 	pdu_len = frame_num * sbc_frame_encoded_bytes(&encoder);
 
 	if (pdu_len > net_buf_tailroom(buf)) {
-		PRINTF("need increase buf size %d > %d\n", pdu_len, net_buf_tailroom(buf));
+		printk("need increase buf size %d > %d\n", pdu_len, net_buf_tailroom(buf));
 	}
 
 	pdu_len += buf->len;
 	if (pdu_len > bt_a2dp_get_mtu(&sbc_stream)) {
-		PRINTF("need decrease CONFIG_BT_A2DP_SOURCE_DATA_SEND_INTERVAL %d > %d\n", pdu_len,
+		printk("need decrease CONFIG_BT_A2DP_SOURCE_DATA_SEND_INTERVAL %d > %d\n", pdu_len,
 			bt_a2dp_get_mtu(&sbc_stream));
 	}
 
 	if (!a2dp_produce_media_check(a2dp_src_num_samples)) {
-		PRINTF("need increase a2dp_pcm_buffer\n");
+		printk("need increase a2dp_pcm_buffer\n");
 	}
 
 	net_buf_unref(buf);
@@ -375,6 +374,7 @@ static void sbc_stream_configured(struct bt_a2dp_stream *stream)
 static void sbc_stream_established(struct bt_a2dp_stream *stream)
 {
 	printk("stream established\n");
+	audio_play_check();
 	bt_a2dp_stream_start(&sbc_stream);
 }
 
