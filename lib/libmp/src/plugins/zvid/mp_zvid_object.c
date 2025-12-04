@@ -20,6 +20,7 @@ static int set_dimension_fields(struct mp_structure *structure, uint8_t key, uin
 				uint32_t *max, uint16_t *step)
 {
 	const struct mp_value *value = mp_structure_get_value(structure, key);
+
 	if (value == NULL) {
 		return -EINVAL;
 	}
