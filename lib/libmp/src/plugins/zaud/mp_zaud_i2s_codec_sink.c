@@ -154,7 +154,7 @@ static bool mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps
 	audio_cfg.dai_cfg.i2s.word_size = bit_width;
 	audio_cfg.dai_cfg.i2s.channels = num_of_channel;
 	audio_cfg.dai_cfg.i2s.format = I2S_FMT_DATA_FORMAT_I2S;
-#ifdef CONFIG_CODEC_MASTER
+#ifdef CONFIG_ZAUD_I2S_CODEC_SINK_CODEC_MASTER
 	audio_cfg.dai_cfg.i2s.options = I2S_OPT_FRAME_CLK_MASTER | I2S_OPT_BIT_CLK_MASTER;
 #else
 	audio_cfg.dai_cfg.i2s.options = I2S_OPT_FRAME_CLK_SLAVE | I2S_OPT_BIT_CLK_SLAVE;
@@ -169,7 +169,7 @@ static bool mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps
 	config.word_size = bit_width;
 	config.channels = num_of_channel;
 	config.format = I2S_FMT_DATA_FORMAT_I2S;
-#ifdef CONFIG_I2S_MASTER
+#ifdef CONFIG_ZAUD_I2S_CODEC_SINK_I2S_MASTER
 	config.options = I2S_OPT_BIT_CLK_MASTER | I2S_OPT_FRAME_CLK_MASTER;
 #else
 	config.options = I2S_OPT_BIT_CLK_SLAVE | I2S_OPT_FRAME_CLK_SLAVE;
