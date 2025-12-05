@@ -1595,6 +1595,19 @@
 		nxp,rx-dma-channel = <8>;
 		status = "disabled";
 	};
+
+	vref: vref@2e30000 {
+		compatible = "nxp,vref";
+		reg = <0x2e30000 0x24>;
+		#nxp,reference-cells = <1>;
+		nxp,current-compensation-en;
+		nxp,internal-voltage-regulator-en;
+		nxp,chop-oscillator-en;
+		nxp,buffer-startup-delay-us = <200>;
+		nxp,bandgap-startup-time-us = <400>;
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <1221000>;
+	};
 };
 
 &flexspi {
