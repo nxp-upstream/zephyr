@@ -7,7 +7,6 @@ config USBH_CDC_ECM_CLASS
 	depends on DT_HAS_ZEPHYR_CDC_ECM_HOST_ENABLED
 	select EXPERIMENTAL
 	select NET_L2_ETHERNET
-	select NET_L2_ETHERNET_MGMT
 	help
 	  USB Host Communication Device Class - Ethernet Control Mode (CDC-ECM) implementation.
 
