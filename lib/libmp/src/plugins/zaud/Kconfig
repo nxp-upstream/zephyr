@@ -19,10 +19,9 @@ config ZAUD_BUFFER_POOL_NUM_MAX
 
 config ZAUD_I2S_CODEC_SINK_CODEC_MASTER
 	bool "Configure the selected codec device as a master device."
-	default true
+	default y
 
 config ZAUD_I2S_CODEC_SINK_I2S_MASTER
 	bool "Configure the selected I2S peripheral as a master device."
-	default false
 
 endif # MP_PLUGIN_ZAUD
