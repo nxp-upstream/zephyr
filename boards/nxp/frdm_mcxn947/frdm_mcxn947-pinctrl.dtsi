@@ -251,7 +251,7 @@
 
 	pinmux_lpcmp0: pinmux_lpcmp0 {
 		group0 {
-			pinmux = <CMP0_IN0_PIO1_0>;
+			pinmux = <HSCMP0_IN3_PIO1_5>;
 			drive-strength = "low";
 			slew-rate = "fast";
 			bias-pull-up;
