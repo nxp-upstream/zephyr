@@ -58,12 +58,24 @@ static int mp_zaud_i2s_codec_sink_get_property(struct mp_object *obj, uint32_t k
 
 static struct mp_caps *mp_zaud_i2s_codec_sink_get_caps(struct mp_sink *sink)
 {
-	int i = 0;
+	int ret = 0;
+	uint8_t i = 0;
 	struct audio_caps i2s_caps;
 	struct audio_caps codec_caps;
 
-	i2s_get_caps(MP_ZAUD_I2S_CODEC_SINK(sink)->i2s_dev, &i2s_caps);
-	audio_codec_get_caps(MP_ZAUD_I2S_CODEC_SINK(sink)->codec_dev, &codec_caps);
+	ret = i2s_get_caps(MP_ZAUD_I2S_CODEC_SINK(sink)->i2s_dev, &i2s_caps);
+
+	if (ret != 0) {
+		LOG_ERR("Failed to get I2S capabilities");
+		return NULL;
+	}
+
+	ret = audio_codec_get_caps(MP_ZAUD_I2S_CODEC_SINK(sink)->codec_dev, &codec_caps);
+
+	if (ret != 0) {
+		LOG_ERR("Failed to get codec capabilities");
+		return NULL;
+	}
 
 	struct mp_value *supported_sample_rate = mp_value_new(MP_TYPE_LIST, NULL);
 	struct mp_value *supported_bit_width = mp_value_new(MP_TYPE_LIST, NULL);
@@ -71,7 +83,6 @@ static struct mp_caps *mp_zaud_i2s_codec_sink_get_caps(struct mp_sink *sink)
 	uint32_t sample_rates = i2s_caps.supported_sample_rates & codec_caps.supported_sample_rates;
 	uint32_t bit_widths = i2s_caps.supported_bit_widths & codec_caps.supported_bit_widths;
 
-	i = 0;
 	while (sample_rates > 0) {
 		if (sample_rates & 1) {
 			mp_value_list_append(
