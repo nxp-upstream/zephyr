@@ -3,26 +3,11 @@
 
 menuconfig MCP_SERVER
 	bool "Model Context Protocol (MCP) Server support"
-	depends on NETWORKING && HTTP_SERVER && JSON_LIBRARY
+	select JSON_LIBRARY
 	help
 	  Support for MCP Server functionality.
 
 if MCP_SERVER
-
-config HTTP_SERVER_MAX_CLIENTS
-	int "Max number of HTTP/2 clients"
-	default 3
-	range 1 100
-	help
-	  This setting determines the maximum number of HTTP/2 clients that the server can handle at once.
-
-config HTTP_SERVER_MAX_STREAMS
-	int "Max number of HTTP/2 streams"
-	default 3
-	range 1 100
-	help
-	  This setting determines the maximum number of HTTP/2 streams for each client.
-
 config MCP_REQUEST_WORKERS
 	int "Number of MCP request worker threads"
 	default 2
@@ -226,6 +211,87 @@ config MCP_TOOL_CANCEL_TIMEOUT_MS
 endif # MCP_HEALTH_MONITOR
 
 endif # MCP_TOOLS_CAPABILITY
+
+choice MCP_TRANSPORT
+	prompt "MCP Transport Mechanism"
+	default MCP_TRANSPORT_HTTP
+	help
+	  Select the transport mechanism for MCP communication.
+
+config MCP_TRANSPORT_HTTP
+	bool "HTTP/Server-Sent Events transport"
+	depends on NETWORKING
+	select POSIX_API
+	select NET_TCP
+	select NET_IPV4
+	select NET_IPV6
+	select NET_SOCKETS
+	select HTTP_SERVER
+	help
+	  Use HTTP with Server-Sent Events for MCP transport.
+
+config MCP_TRANSPORT_STDIO
+	bool "Standard I/O transport"
+	help
+	  Use stdin/stdout for MCP transport.
+
+endchoice
+
+config MCP_TRANSPORT_BUFFER_SIZE
+	int "Transport buffer size"
+	default 2048
+	help
+	  Size of buffers used for transport serialization.
+
+config MCP_TRANSPORT_BUFFER_POOL_SIZE
+	int "Transport buffer pool size"
+	default 4
+	range 2 16
+	help
+	  Number of buffers in the transport buffer pool.
+
+if MCP_TRANSPORT_HTTP
+config HTTP_SERVER_MAX_CLIENTS
+	int "Max number of HTTP/2 clients"
+	default 3
+	range 1 100
+	help
+	  This setting determines the maximum number of HTTP/2 clients that the server can handle at once.
+
+config HTTP_SERVER_MAX_STREAMS
+	int "Max number of HTTP/2 streams"
+	default 3
+	range 1 100
+	help
+	  This setting determines the maximum number of HTTP/2 streams for each client.
+
+config MCP_HTTP_PORT
+	int "HTTP server port"
+	default 8080
+	help
+	  Port number for the MCP HTTP server.
+
+config MCP_HTTP_SSE_ENDPOINT
+	string "SSE endpoint path"
+	default "/sse"
+	help
+	  URL path for Server-Sent Events endpoint.
+
+config MCP_HTTP_MESSAGE_ENDPOINT
+	string "Message endpoint path"
+	default "/message"
+	help
+	  URL path for message POST endpoint.
+
+config MCP_HTTP_SSE_KEEPALIVE_MS
+	int "SSE keepalive interval (ms)"
+	default 30000
+	range 5000 120000
+	help
+	  Interval for sending SSE keepalive messages to prevent connection timeout.
+
+endif # MCP_TRANSPORT_HTTP
+
 module = MCP
 module-str = MCP Server
 source "subsys/logging/Kconfig.template.log_config"

@@ -10,6 +10,7 @@
 #include <errno.h>
 #include "mcp_common.h"
 #include "mcp_transport.h"
+#include "mcp_server_internal.h"
 
 LOG_MODULE_REGISTER(mcp_server, CONFIG_MCP_LOG_LEVEL);
 
@@ -1055,6 +1056,29 @@ int mcp_server_start(void)
 		CONFIG_MCP_RESPONSE_WORKERS);
 #endif
 
+	return 0;
+}
+
+int mcp_server_submit_request(mcp_queue_msg_type_t type, void *data)
+{
+	mcp_request_queue_msg_t msg;
+	int ret;
+
+	if (!data) {
+		LOG_ERR("NULL data in request");
+		return -EINVAL;
+	}
+
+	msg.type = type;
+	msg.data = data;
+
+	ret = k_msgq_put(&mcp_request_queue, &msg, K_NO_WAIT);
+	if (ret != 0) {
+		LOG_ERR("Failed to submit request: %d", ret);
+		return ret;
+	}
+
+	LOG_DBG("Request submitted to server (type=%d)", type);
 	return 0;
 }
 

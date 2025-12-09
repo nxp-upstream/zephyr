@@ -86,6 +86,14 @@ int mcp_server_init(void);
 int mcp_server_start(void);
 
 int mcp_server_submit_tool_message(const mcp_app_message_t *user_msg, uint32_t execution_token);
+/**
+ * @brief Submit an application message (response/notification)
+ *
+ * @param user_msg Application message to submit
+ * @param execution_token Execution token for tracking
+ * @return 0 on success, negative errno on failure
+ */
+int mcp_server_submit_app_message(const mcp_app_message_t *user_msg, uint32_t execution_token);
 
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
 /**
