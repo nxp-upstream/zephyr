@@ -117,6 +117,7 @@ struct mp_caps *mp_zvid_object_get_caps(struct mp_zvid_object *zvid_obj)
 	struct mp_structure *caps_item = NULL;
 	struct video_caps vcaps = {.type = zvid_obj->type};
 	struct video_format fmt = {.type = zvid_obj->type};
+	struct video_rect rect;
 	uint32_t crop_w = UINT32_MAX;
 	uint32_t crop_h = UINT32_MAX;
 	uint32_t comp_min_w = UINT32_MAX;
@@ -149,7 +150,14 @@ struct mp_caps *mp_zvid_object_get_caps(struct mp_zvid_object *zvid_obj)
 		comp_max_h = sel.rect.height + sel.rect.top;
 	}
 
-	/* Get compose selection lower-bound */
+	/* Memorize the current compose selection */
+	sel.target = VIDEO_SEL_TGT_COMPOSE;
+	ret = video_get_selection(zvid_obj->vdev, &sel);
+	if (ret == 0) {
+		rect = sel.rect;
+	}
+
+	/* Probe the compose selection lower-bound */
 	sel.target = VIDEO_SEL_TGT_COMPOSE;
 	sel.rect = (struct video_rect){.top = 0, .left = 0, .width = 1, .height = 1};
 	ret = video_set_selection(zvid_obj->vdev, &sel);
@@ -157,6 +165,10 @@ struct mp_caps *mp_zvid_object_get_caps(struct mp_zvid_object *zvid_obj)
 		comp_min_w = sel.rect.width + sel.rect.left;
 		comp_min_h = sel.rect.height + sel.rect.top;
 	}
+
+	/* Set back the original compose selection */
+	sel.rect = rect;
+	video_set_selection(zvid_obj->vdev, &sel);
 
 	/* Set buffer pool's min_buffers and alignment */
 	MP_BUFFER_POOL(&zvid_obj->pool)->config.min_buffers = vcaps.min_vbuf_count;
