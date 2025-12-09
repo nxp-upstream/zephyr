@@ -192,9 +192,11 @@ static void reset_transport_mock(void)
 	mcp_transport_queue_call_count = 0;
 	memset(&mcp_transport_last_queued_msg, 0, sizeof(mcp_transport_last_queued_msg));
 }
+
 static int stub_tool_callback_1(const char *params, uint32_t execution_token)
 {
 	int ret;
+	bool is_canceled;
 	mcp_app_message_t response;
 	char result_data[] = "{"
 			     "\"content\": ["
@@ -207,12 +209,28 @@ static int stub_tool_callback_1(const char *params, uint32_t execution_token)
 			     "\"isError\": false"
 			     "}";
 
+	tool_execution_count++;
+	last_execution_token = execution_token;
+
 	printk("Stub tool 1 executed - Token: %u, Args: %s\n", execution_token,
 	       params ? params : "(null)");
 
-	response.type = MCP_USR_TOOL_RESPONSE;
-	response.data = result_data;
-	response.length = strlen(result_data);
+	ret = mcp_server_is_execution_canceled(execution_token, &is_canceled);
+
+	if (ret != 0) {
+		printk("Couldn't determine if tool execution is canceled. Proceeding as if not "
+		       "canceled.");
+	}
+
+	if (is_canceled) {
+		response.type = MCP_USR_TOOL_CANCEL_ACK;
+		response.data = NULL;
+		response.length = 0;
+	} else {
+		response.type = MCP_USR_TOOL_RESPONSE;
+		response.data = result_data;
+		response.length = strlen(result_data);
+	}
 
 	ret = mcp_server_submit_app_message(&response, execution_token);
 	if (ret != 0) {
@@ -226,7 +244,9 @@ static int stub_tool_callback_1(const char *params, uint32_t execution_token)
 static int stub_tool_callback_2(const char *params, uint32_t execution_token)
 {
 	int ret;
+	bool is_canceled;
 	mcp_app_message_t response;
+
 	char result_data[] = "{"
 			     "\"content\": ["
 			     "{"
@@ -237,12 +257,28 @@ static int stub_tool_callback_2(const char *params, uint32_t execution_token)
 			     "\"isError\": false"
 			     "}";
 
+	tool_execution_count++;
+	last_execution_token = execution_token;
+
 	printk("Stub tool 2 executed - Token: %u, Args: %s\n", execution_token,
 	       params ? params : "(null)");
 
-	response.type = MCP_USR_TOOL_RESPONSE;
-	response.data = result_data;
-	response.length = strlen(result_data);
+	ret = mcp_server_is_execution_canceled(execution_token, &is_canceled);
+
+	if (ret != 0) {
+		printk("Couldn't determine if tool execution is canceled. Proceeding as if not "
+		       "canceled.");
+	}
+
+	if (is_canceled) {
+		response.type = MCP_USR_TOOL_CANCEL_ACK;
+		response.data = NULL;
+		response.length = 0;
+	} else {
+		response.type = MCP_USR_TOOL_RESPONSE;
+		response.data = result_data;
+		response.length = strlen(result_data);
+	}
 
 	ret = mcp_server_submit_app_message(&response, execution_token);
 	if (ret != 0) {
@@ -256,6 +292,7 @@ static int stub_tool_callback_2(const char *params, uint32_t execution_token)
 static int stub_tool_callback_3(const char *params, uint32_t execution_token)
 {
 	int ret;
+	bool is_canceled;
 	mcp_app_message_t response;
 	char result_data[] =
 		"{"
@@ -268,12 +305,28 @@ static int stub_tool_callback_3(const char *params, uint32_t execution_token)
 		"\"isError\": false"
 		"}";
 
+	tool_execution_count++;
+	last_execution_token = execution_token;
+
 	printk("Stub tool 3 executed - Token: %u, Args: %s\n", execution_token,
 	       params ? params : "(null)");
 
-	response.type = MCP_USR_TOOL_RESPONSE;
-	response.data = result_data;
-	response.length = strlen(result_data);
+	ret = mcp_server_is_execution_canceled(execution_token, &is_canceled);
+
+	if (ret != 0) {
+		printk("Couldn't determine if tool execution is canceled. Proceeding as if not "
+		       "canceled.");
+	}
+
+	if (is_canceled) {
+		response.type = MCP_USR_TOOL_CANCEL_ACK;
+		response.data = NULL;
+		response.length = 0;
+	} else {
+		response.type = MCP_USR_TOOL_RESPONSE;
+		response.data = result_data;
+		response.length = strlen(result_data);
+	}
 
 	ret = mcp_server_submit_app_message(&response, execution_token);
 	if (ret != 0) {
@@ -287,6 +340,7 @@ static int stub_tool_callback_3(const char *params, uint32_t execution_token)
 static int test_tool_success_callback(const char *params, uint32_t execution_token)
 {
 	int ret;
+	bool is_canceled;
 	mcp_app_message_t response;
 	char result_data[512];
 	char text_content[256];
@@ -318,9 +372,22 @@ static int test_tool_success_callback(const char *params, uint32_t execution_tok
 	printk("SUCCESS tool executed! Count: %d, Token: %u, Args: %s\n", tool_execution_count,
 	       execution_token, params ? params : "(null)");
 
-	response.type = MCP_USR_TOOL_RESPONSE;
-	response.data = result_data;
-	response.length = strlen(result_data);
+	ret = mcp_server_is_execution_canceled(execution_token, &is_canceled);
+
+	if (ret != 0) {
+		printk("Couldn't determine if tool execution is canceled. Proceeding as if not "
+		       "canceled.");
+	}
+
+	if (is_canceled) {
+		response.type = MCP_USR_TOOL_CANCEL_ACK;
+		response.data = NULL;
+		response.length = 0;
+	} else {
+		response.type = MCP_USR_TOOL_RESPONSE;
+		response.data = result_data;
+		response.length = strlen(result_data);
+	}
 
 	ret = mcp_server_submit_app_message(&response, execution_token);
 	if (ret != 0) {
@@ -334,6 +401,7 @@ static int test_tool_success_callback(const char *params, uint32_t execution_tok
 static int test_tool_error_callback(const char *params, uint32_t execution_token)
 {
 	int ret;
+	bool is_canceled;
 	mcp_app_message_t response;
 	char result_data[] = "{"
 			     "\"content\": ["
@@ -347,13 +415,27 @@ static int test_tool_error_callback(const char *params, uint32_t execution_token
 			     "}";
 
 	tool_execution_count++;
+	last_execution_token = execution_token;
 
 	printk("ERROR tool executed! Count: %d, Token: %u, Args: %s (submitting error response)\n",
 	       tool_execution_count, execution_token, params ? params : "(null)");
 
-	response.type = MCP_USR_TOOL_RESPONSE;
-	response.data = result_data;
-	response.length = strlen(result_data);
+	ret = mcp_server_is_execution_canceled(execution_token, &is_canceled);
+
+	if (ret != 0) {
+		printk("Couldn't determine if tool execution is canceled. Proceeding as if not "
+		       "canceled.");
+	}
+
+	if (is_canceled) {
+		response.type = MCP_USR_TOOL_CANCEL_ACK;
+		response.data = NULL;
+		response.length = 0;
+	} else {
+		response.type = MCP_USR_TOOL_RESPONSE;
+		response.data = result_data;
+		response.length = strlen(result_data);
+	}
 
 	ret = mcp_server_submit_app_message(&response, execution_token);
 	if (ret != 0) {
@@ -367,6 +449,7 @@ static int test_tool_error_callback(const char *params, uint32_t execution_token
 static int test_tool_slow_callback(const char *params, uint32_t execution_token)
 {
 	int ret;
+	bool is_canceled;
 	mcp_app_message_t response;
 	char result_data[] = "{"
 			     "\"content\": ["
@@ -380,14 +463,30 @@ static int test_tool_slow_callback(const char *params, uint32_t execution_token)
 			     "}";
 
 	tool_execution_count++;
+	last_execution_token = execution_token;
 
 	printk("SLOW tool starting execution! Token: %u\n", execution_token);
-	k_msleep(100); /* Simulate slow operation */
+
+	k_msleep(3000);
+
 	printk("SLOW tool completed execution! Token: %u\n", execution_token);
 
-	response.type = MCP_USR_TOOL_RESPONSE;
-	response.data = result_data;
-	response.length = strlen(result_data);
+	ret = mcp_server_is_execution_canceled(execution_token, &is_canceled);
+
+	if (ret != 0) {
+		printk("Couldn't determine if tool execution is canceled. Proceeding as if not "
+		       "canceled.");
+	}
+
+	if (is_canceled) {
+		response.type = MCP_USR_TOOL_CANCEL_ACK;
+		response.data = NULL;
+		response.length = 0;
+	} else {
+		response.type = MCP_USR_TOOL_RESPONSE;
+		response.data = result_data;
+		response.length = strlen(result_data);
+	}
 
 	ret = mcp_server_submit_app_message(&response, execution_token);
 	if (ret != 0) {
@@ -397,6 +496,7 @@ static int test_tool_slow_callback(const char *params, uint32_t execution_token)
 
 	return 0;
 }
+
 /* Reset tool execution tracking */
 static void reset_tool_execution_tracking(void)
 {
@@ -628,6 +728,8 @@ ZTEST(mcp_server_tests, test_tools_call_comprehensive)
 	int execution_count_before_slow = tool_execution_count;
 	reset_transport_mock();
 	send_tools_call_request(CLIENT_ID_EDGE_CASE_TEST, 3013, "test_slow_tool", "{}");
+
+	k_sleep(K_MSEC(4000));
 
 	zassert_equal(tool_execution_count, execution_count_before_slow + 1,
 		      "Slow tool should complete execution");
@@ -1133,8 +1235,18 @@ ZTEST(mcp_server_tests, test_client_lifecycle)
 
 ZTEST(mcp_server_tests, test_client_shutdown)
 {
+	int ret;
+	uint8_t initial_tool_count = mcp_server_get_tool_count();
+	uint32_t execution_token_1 = 0;
+	uint32_t execution_token_2 = 0;
+	uint32_t execution_token_3 = 0;
+	int initial_execution_count;
+	bool is_canceled;
+
+	reset_tool_execution_tracking();
 	reset_transport_mock();
 
+	printk("=== Testing basic client shutdown ===\n");
 	initialize_client_fully(CLIENT_ID_SHUTDOWN_TEST, REQ_ID_SHUTDOWN_INITIALIZE);
 	zassert_equal(mcp_transport_queue_call_count, 1, "Client initialization should succeed");
 
@@ -1158,6 +1270,88 @@ ZTEST(mcp_server_tests, test_client_shutdown)
 	send_client_shutdown(CLIENT_ID_UNREGISTERED);
 	zassert_equal(mcp_transport_queue_call_count, 0,
 		      "Shutdown of unregistered client should be handled gracefully");
+
+	printk("=== Testing client shutdown cancels active tool executions ===\n");
+
+	mcp_tool_record_t slow_cancel_tool = {
+		.metadata = {
+				.name = "slow_cancel_tool",
+				.input_schema = "{\"type\":\"object\"}",
+#ifdef CONFIG_MCP_TOOL_DESC
+				.description = "Slow tool for testing cancellation",
+#endif
+			},
+		.callback = test_tool_slow_callback};
+
+	ret = mcp_server_add_tool(&slow_cancel_tool);
+	zassert_equal(ret, 0, "Slow cancel tool should register successfully");
+
+	reset_transport_mock();
+	initialize_client_fully(CLIENT_ID_MULTI_CLIENT_1, REQ_ID_MULTI_CLIENT_1_INIT);
+
+	printk("=== Starting multiple tool executions ===\n");
+	initial_execution_count = tool_execution_count;
+
+	send_tools_call_request(CLIENT_ID_MULTI_CLIENT_1, 5001, "slow_cancel_tool",
+				"{\"id\":\"1\"}");
+	execution_token_1 = last_execution_token;
+
+	send_tools_call_request(CLIENT_ID_MULTI_CLIENT_1, 5002, "slow_cancel_tool",
+				"{\"id\":\"2\"}");
+	execution_token_2 = last_execution_token;
+
+	send_tools_call_request(CLIENT_ID_MULTI_CLIENT_1, 5003, "slow_cancel_tool",
+				"{\"id\":\"3\"}");
+	execution_token_3 = last_execution_token;
+
+	zassert_not_equal(execution_token_1, 0, "First execution token should be captured");
+	zassert_not_equal(execution_token_2, 0, "Second execution token should be captured");
+	zassert_not_equal(execution_token_3, 0, "Third execution token should be captured");
+
+	k_msleep(50);
+
+	printk("=== Verifying executions are active before shutdown ===\n");
+	ret = mcp_server_is_execution_canceled(execution_token_1, &is_canceled);
+	zassert_equal(ret, 0, "Checking execution 1 cancellation status should succeed");
+	zassert_false(is_canceled, "Execution 1 should not be canceled yet");
+
+	ret = mcp_server_is_execution_canceled(execution_token_2, &is_canceled);
+	zassert_equal(ret, 0, "Checking execution 2 cancellation status should succeed");
+	zassert_false(is_canceled, "Execution 2 should not be canceled yet");
+
+	ret = mcp_server_is_execution_canceled(execution_token_3, &is_canceled);
+	zassert_equal(ret, 0, "Checking execution 3 cancellation status should succeed");
+	zassert_false(is_canceled, "Execution 3 should not be canceled yet");
+
+	printk("=== Shutting down client with active tool executions ===\n");
+	send_client_shutdown(CLIENT_ID_MULTI_CLIENT_1);
+
+	k_msleep(100);
+
+	printk("=== Verifying all executions are canceled after shutdown ===\n");
+	ret = mcp_server_is_execution_canceled(execution_token_1, &is_canceled);
+	zassert_equal(ret, 0, "Checking execution 1 cancellation status should succeed");
+	zassert_true(is_canceled, "Execution 1 should be canceled after client shutdown");
+
+	ret = mcp_server_is_execution_canceled(execution_token_2, &is_canceled);
+	zassert_equal(ret, 0, "Checking execution 2 cancellation status should succeed");
+	zassert_true(is_canceled, "Execution 2 should be canceled after client shutdown");
+
+	ret = mcp_server_is_execution_canceled(execution_token_3, &is_canceled);
+	zassert_equal(ret, 0, "Checking execution 3 cancellation status should succeed");
+	zassert_true(is_canceled, "Execution 3 should be canceled after client shutdown");
+
+	k_msleep(6000);
+
+	printk("=== Verifying tool callbacks completed with cancellation ===\n");
+	zassert_equal(tool_execution_count, initial_execution_count + 3,
+		      "All three tool executions should have completed");
+
+	mcp_server_remove_tool("slow_cancel_tool");
+	zassert_equal(mcp_server_get_tool_count(), initial_tool_count,
+		      "Tool count should return to initial value");
+
+	printk("=== Client shutdown test completed ===\n");
 }
 
 ZTEST(mcp_server_tests, test_invalid_states)

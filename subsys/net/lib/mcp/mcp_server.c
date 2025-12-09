@@ -322,7 +322,37 @@ static int handle_system_message(mcp_system_msg_t *system_msg)
 		client_registry.clients[client_index].lifecycle_state =
 			MCP_LIFECYCLE_DEINITIALIZING;
 
-		/* TODO: Cancel active tool executions */
+#ifdef CONFIG_MCP_TOOLS_CAPABILITY
+		ret = k_mutex_lock(&execution_registry.registry_mutex, K_FOREVER);
+		if (ret != 0) {
+			LOG_ERR("Failed to lock execution registry: %d", ret);
+		} else {
+			for (int i = 0; i < MCP_MAX_REQUESTS; i++) {
+				if (execution_registry.executions[i].execution_token != 0 &&
+				    execution_registry.executions[i].client_id ==
+					    system_msg->client_id) {
+					uint32_t *cancel_token =
+						(uint32_t *)mcp_alloc(sizeof(uint32_t));
+					if (cancel_token == NULL) {
+						ret = -ENOMEM;
+						LOG_ERR("Failed to allocate cancel_token, cannot "
+							"cancel tool execution %d for client %d.",
+							i, system_msg->client_id);
+						continue;
+					}
+
+					LOG_DBG("Requesting cancellation for execution token %u",
+						execution_registry.executions[i].execution_token);
+					execution_registry.executions[i].execution_state =
+						MCP_EXEC_CANCELED;
+					execution_registry.executions[i].cancel_timestamp =
+						k_uptime_get();
+				}
+			}
+			k_mutex_unlock(&execution_registry.registry_mutex);
+		}
+#endif
+
 		cleanup_client_registry_entry(client_index);
 		k_mutex_unlock(&client_registry.registry_mutex);
 		break;
@@ -903,7 +933,8 @@ int mcp_server_submit_app_message(const mcp_app_message_t *app_msg, uint32_t exe
 	uint32_t client_id;
 	mcp_response_queue_msg_t response;
 
-	if (app_msg == NULL || app_msg->data == NULL) {
+	if ((app_msg == NULL) ||
+	    ((app_msg->data == NULL) && (app_msg->type != MCP_USR_TOOL_CANCEL_ACK))) {
 		LOG_ERR("Invalid user message");
 		return -EINVAL;
 	}
@@ -931,68 +962,81 @@ int mcp_server_submit_app_message(const mcp_app_message_t *app_msg, uint32_t exe
 	request_id = execution_context->request_id;
 	client_id = execution_context->client_id;
 
-	if (app_msg->type == MCP_USR_TOOL_RESPONSE) {
-		execution_context->execution_state = MCP_EXEC_FINISHED;
-	}
+	bool is_execution_canceled = (execution_context->execution_state == MCP_EXEC_CANCELED);
 
-	execution_context->last_message_timestamp = k_uptime_get();
-	k_mutex_unlock(&execution_registry.registry_mutex);
+	if (is_execution_canceled) {
+		if (app_msg->type == MCP_USR_TOOL_CANCEL_ACK) {
+			execution_context->execution_state = MCP_EXEC_FINISHED;
+		} else if (app_msg->type == MCP_USR_TOOL_RESPONSE) {
+			execution_context->execution_state = MCP_EXEC_FINISHED;
+			LOG_WRN("Execution canceled, tool message will be dropped.");
+		}
+		k_mutex_unlock(&execution_registry.registry_mutex);
+	} else {
+		if (app_msg->type == MCP_USR_TOOL_RESPONSE) {
+			execution_context->execution_state = MCP_EXEC_FINISHED;
+		}
 
-	switch (app_msg->type) {
-		/* Result is passed as a complete JSON string that gets attached to the full JSON
-		 * RPC response inside the Transport layer
-		 */
+		execution_context->last_message_timestamp = k_uptime_get();
+		k_mutex_unlock(&execution_registry.registry_mutex);
+
+		switch (app_msg->type) {
+			/* Result is passed as a complete JSON string that gets attached to the full
+			 * JSON RPC response inside the Transport layer
+			 */
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
-	case MCP_USR_TOOL_RESPONSE: {
-		mcp_tools_call_response_t *response_data =
-			(mcp_tools_call_response_t *)mcp_alloc(sizeof(mcp_tools_call_response_t));
-		if (response_data == NULL) {
-			LOG_ERR("Failed to allocate memory for response");
-			return -ENOMEM;
+		case MCP_USR_TOOL_RESPONSE: {
+			mcp_tools_call_response_t *response_data =
+				(mcp_tools_call_response_t *)mcp_alloc(
+					sizeof(mcp_tools_call_response_t));
+			if (response_data == NULL) {
+				LOG_ERR("Failed to allocate memory for response");
+				return -ENOMEM;
+			}
+
+			response_data->request_id = request_id;
+			response_data->length = app_msg->length;
+
+			if (app_msg->length > CONFIG_MCP_TOOL_RESULT_MAX_LEN) {
+				/* TODO: Truncate or fail? */
+				LOG_WRN("Result truncated to max length");
+				response_data->length = CONFIG_MCP_TOOL_RESULT_MAX_LEN;
+				response_data->result[CONFIG_MCP_TOOL_RESULT_MAX_LEN - 1] = '\0';
+			}
+
+			strncpy((char *)response_data->result, (char *)app_msg->data,
+				response_data->length);
+
+			response.type = MCP_MSG_RESPONSE_TOOLS_CALL;
+			response.data = response_data;
+			break;
 		}
-
-		response_data->request_id = request_id;
-		response_data->length = app_msg->length;
-
-		if (app_msg->length > CONFIG_MCP_TOOL_RESULT_MAX_LEN) {
-			/* TODO: Truncate or fail? */
-			LOG_WRN("Result truncated to max length");
-			response_data->length = CONFIG_MCP_TOOL_RESULT_MAX_LEN;
-			response_data->result[CONFIG_MCP_TOOL_RESULT_MAX_LEN - 1] = '\0';
-		}
-
-		strncpy((char *)response_data->result, (char *)app_msg->data,
-			response_data->length);
-
-		response.type = MCP_MSG_RESPONSE_TOOLS_CALL;
-		response.data = response_data;
-		break;
-	}
 #endif
 
-	default:
-		LOG_ERR("Unsupported application message type: %u", app_msg->type);
-		return -EINVAL;
-	}
+		default:
+			LOG_ERR("Unsupported application message type: %u", app_msg->type);
+			return -EINVAL;
+		}
 
 #if CONFIG_MCP_RESPONSE_WORKERS > 0
-	/* TODO: Make response workers configurable? If not used, call transport API directly? */
-	ret = k_msgq_put(&mcp_response_queue, &response, K_NO_WAIT);
-	if (ret != 0) {
-		LOG_ERR("Failed to submit response to response queue: %d", ret);
-		mcp_free(response.data);
-		return ret;
-	}
+		ret = k_msgq_put(&mcp_response_queue, &response, K_NO_WAIT);
+		if (ret != 0) {
+			LOG_ERR("Failed to submit response to response queue: %d", ret);
+			mcp_free(response.data);
+			return ret;
+		}
 #else
-	ret = mcp_transport_queue_response(response.type, response.data);
-	if (ret != 0) {
-		LOG_ERR("Failed to queue response to transport: %d", ret);
-		mcp_free(response.data);
-		return ret;
-	}
+		ret = mcp_transport_queue_response(response.type, response.data);
+		if (ret != 0) {
+			LOG_ERR("Failed to queue response to transport: %d", ret);
+			mcp_free(response.data);
+			return ret;
+		}
 #endif
+	}
 
-	if (app_msg->type == MCP_USR_TOOL_RESPONSE) {
+	if ((app_msg->type == MCP_USR_TOOL_RESPONSE) ||
+	    (app_msg->type == MCP_USR_TOOL_CANCEL_ACK)) {
 		ret = k_mutex_lock(&client_registry.registry_mutex, K_FOREVER);
 		if (ret != 0) {
 			LOG_ERR("Failed to lock client registry mutex: %d. Client registry is "
@@ -1004,8 +1048,13 @@ int mcp_server_submit_app_message(const mcp_app_message_t *app_msg, uint32_t exe
 		int client_index = find_client_index(client_id);
 
 		if (client_index == -1) {
-			LOG_ERR("Failed to find client index in the client registry. Client "
-				"registry is broken.");
+			if (is_execution_canceled) {
+				LOG_DBG("Execution canceled, client was already cleaned up.");
+			} else {
+				LOG_ERR("Failed to find client index in the client registry. "
+					"Client "
+					"registry is broken.");
+			}
 			k_mutex_unlock(&client_registry.registry_mutex);
 			goto skip_client_cleanup;
 		}
@@ -1104,6 +1153,32 @@ int mcp_server_remove_tool(const char *tool_name)
 	LOG_INF("Tool '%s' removed", tool_name);
 
 	k_mutex_unlock(&tool_registry.registry_mutex);
+	return 0;
+}
+
+int mcp_server_is_execution_canceled(uint32_t execution_token, bool *is_canceled)
+{
+	int ret = k_mutex_lock(&execution_registry.registry_mutex, K_FOREVER);
+
+	if (ret != 0) {
+		LOG_ERR("Failed to lock execution registry: %d", ret);
+		*is_canceled = false;
+		return ret;
+	}
+
+	int index = find_token_index(execution_token);
+
+	if (index == -1) {
+		LOG_ERR("Execution token not found");
+		k_mutex_unlock(&execution_registry.registry_mutex);
+		*is_canceled = false;
+		return -ENOENT;
+	}
+
+	*is_canceled = (execution_registry.executions[index].execution_state == MCP_EXEC_CANCELED);
+
+	k_mutex_unlock(&execution_registry.registry_mutex);
+
 	return 0;
 }
 #endif

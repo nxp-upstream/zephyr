@@ -23,6 +23,7 @@ typedef enum {
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
 	MCP_USR_TOOL_RESPONSE,
 	MCP_USR_TOOL_NOTIFICATION,
+	MCP_USR_TOOL_CANCEL_ACK,
 #endif
 	MCP_USR_GENERIC_RESPONSE
 } mcp_app_msg_type_t;
@@ -106,6 +107,8 @@ int mcp_server_add_tool(const mcp_tool_record_t *tool_record);
  * @retval -ENOENT Tool not found
  */
 int mcp_server_remove_tool(const char *tool_name);
+
+int mcp_server_is_execution_canceled(uint32_t execution_token, bool *is_canceled);
 #endif
 
 #ifdef __cplusplus
