@@ -157,21 +157,25 @@ bool mp_zdisp_sink_chainfn(struct mp_pad *pad, struct mp_buffer *buffer)
 
 	/* Get width / height from pad's caps */
 	struct mp_structure *first_structure = mp_caps_get_structure(pad->caps, 0);
-	struct mp_value *value;
+	struct mp_value *value = mp_structure_get_value(first_structure, MP_CAPS_PIXEL_FORMAT);
 	struct display_buffer_descriptor buf_desc = {
 		.buf_size = buffer->bytes_used,
 	};
+	enum display_pixel_format disp_fmt = 0;
+
+	if (value != NULL) {
+		disp_fmt = vid_to_disp_pix_fmt(mp_value_get_uint(value));
+	}
 
 	value = mp_structure_get_value(first_structure, MP_CAPS_IMAGE_WIDTH);
-	if (value) {
+	if (value != NULL) {
 		buf_desc.width = mp_value_get_int(value);
-		buf_desc.pitch = mp_value_get_int(value);
 	}
 
-	value = mp_structure_get_value(first_structure, MP_CAPS_IMAGE_HEIGHT);
-	if (value) {
-		buf_desc.height = mp_value_get_int(value);
-	}
+	buf_desc.pitch = buf_desc.width;
+	/* Do not get height from caps as sometimes buffer is just a partial frame */
+	buf_desc.height = buf_desc.buf_size /
+			  (buf_desc.width * DISPLAY_BITS_PER_PIXEL(disp_fmt) / BITS_PER_BYTE);
 
 	display_write(zdisp_sink->display_dev, 0, buffer->line_offset, &buf_desc, buffer->data);
 
