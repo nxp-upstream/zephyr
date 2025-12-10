@@ -20,6 +20,7 @@ extern mcp_transport_queue_msg_t mcp_transport_last_queued_msg;
 static int tool_execution_count;
 static char last_execution_params[CONFIG_MCP_TOOL_INPUT_ARGS_MAX_LEN];
 static uint32_t last_execution_token;
+static uint32_t last_cancelled_token;
 
 #ifdef CONFIG_ZTEST
 extern uint8_t mcp_server_get_client_count(void);
@@ -223,6 +224,7 @@ static int stub_tool_callback_1(const char *params, uint32_t execution_token)
 	}
 
 	if (is_canceled) {
+		last_cancelled_token = execution_token;
 		response.type = MCP_USR_TOOL_CANCEL_ACK;
 		response.data = NULL;
 		response.length = 0;
@@ -232,7 +234,7 @@ static int stub_tool_callback_1(const char *params, uint32_t execution_token)
 		response.length = strlen(result_data);
 	}
 
-	ret = mcp_server_submit_app_message(&response, execution_token);
+	ret = mcp_server_submit_tool_message(&response, execution_token);
 	if (ret != 0) {
 		printk("Failed to submit response from callback 1: %d\n", ret);
 		return ret;
@@ -271,6 +273,7 @@ static int stub_tool_callback_2(const char *params, uint32_t execution_token)
 	}
 
 	if (is_canceled) {
+		last_cancelled_token = execution_token;
 		response.type = MCP_USR_TOOL_CANCEL_ACK;
 		response.data = NULL;
 		response.length = 0;
@@ -280,7 +283,7 @@ static int stub_tool_callback_2(const char *params, uint32_t execution_token)
 		response.length = strlen(result_data);
 	}
 
-	ret = mcp_server_submit_app_message(&response, execution_token);
+	ret = mcp_server_submit_tool_message(&response, execution_token);
 	if (ret != 0) {
 		printk("Failed to submit response from callback 2: %d\n", ret);
 		return ret;
@@ -319,6 +322,7 @@ static int stub_tool_callback_3(const char *params, uint32_t execution_token)
 	}
 
 	if (is_canceled) {
+		last_cancelled_token = execution_token;
 		response.type = MCP_USR_TOOL_CANCEL_ACK;
 		response.data = NULL;
 		response.length = 0;
@@ -328,7 +332,7 @@ static int stub_tool_callback_3(const char *params, uint32_t execution_token)
 		response.length = strlen(result_data);
 	}
 
-	ret = mcp_server_submit_app_message(&response, execution_token);
+	ret = mcp_server_submit_tool_message(&response, execution_token);
 	if (ret != 0) {
 		printk("Failed to submit response from callback 3: %d\n", ret);
 		return ret;
@@ -380,6 +384,7 @@ static int test_tool_success_callback(const char *params, uint32_t execution_tok
 	}
 
 	if (is_canceled) {
+		last_cancelled_token = execution_token;
 		response.type = MCP_USR_TOOL_CANCEL_ACK;
 		response.data = NULL;
 		response.length = 0;
@@ -389,7 +394,7 @@ static int test_tool_success_callback(const char *params, uint32_t execution_tok
 		response.length = strlen(result_data);
 	}
 
-	ret = mcp_server_submit_app_message(&response, execution_token);
+	ret = mcp_server_submit_tool_message(&response, execution_token);
 	if (ret != 0) {
 		printk("Failed to submit response from success callback: %d\n", ret);
 		return ret;
@@ -428,6 +433,7 @@ static int test_tool_error_callback(const char *params, uint32_t execution_token
 	}
 
 	if (is_canceled) {
+		last_cancelled_token = execution_token;
 		response.type = MCP_USR_TOOL_CANCEL_ACK;
 		response.data = NULL;
 		response.length = 0;
@@ -437,7 +443,7 @@ static int test_tool_error_callback(const char *params, uint32_t execution_token
 		response.length = strlen(result_data);
 	}
 
-	ret = mcp_server_submit_app_message(&response, execution_token);
+	ret = mcp_server_submit_tool_message(&response, execution_token);
 	if (ret != 0) {
 		printk("Failed to submit response from error callback: %d\n", ret);
 		return ret;
@@ -456,7 +462,7 @@ static int test_tool_slow_callback(const char *params, uint32_t execution_token)
 			     "{"
 			     "\"type\": \"text\","
 			     "\"text\": \"Slow operation completed successfully. The task took "
-			     "100ms to simulate a long-running operation.\""
+			     "3000ms to simulate a long-running operation.\""
 			     "}"
 			     "],"
 			     "\"isError\": false"
@@ -479,6 +485,7 @@ static int test_tool_slow_callback(const char *params, uint32_t execution_token)
 	}
 
 	if (is_canceled) {
+		last_cancelled_token = execution_token;
 		response.type = MCP_USR_TOOL_CANCEL_ACK;
 		response.data = NULL;
 		response.length = 0;
@@ -488,10 +495,201 @@ static int test_tool_slow_callback(const char *params, uint32_t execution_token)
 		response.length = strlen(result_data);
 	}
 
-	ret = mcp_server_submit_app_message(&response, execution_token);
+	ret = mcp_server_submit_tool_message(&response, execution_token);
 	if (ret != 0) {
 		printk("Failed to submit response from slow callback: %d\n", ret);
 		return ret;
+	}
+
+	return 0;
+}
+
+static int test_tool_execution_timeout_callback(const char *params, uint32_t execution_token)
+{
+	int ret;
+	bool is_canceled;
+	mcp_app_message_t response;
+	char result_data[] = "{"
+			     "\"content\": ["
+			     "{"
+			     "\"type\": \"text\","
+			     "\"text\": \"Timeout operation completed successfully.\""
+			     "}"
+			     "],"
+			     "\"isError\": false"
+			     "}";
+
+	tool_execution_count++;
+	last_execution_token = execution_token;
+
+	printk("TIMEOUT tool starting execution! Token: %u\n", execution_token);
+
+	int i_max = (CONFIG_MCP_TOOL_EXEC_TIMEOUT_MS / CONFIG_MCP_TOOL_IDLE_TIMEOUT_MS) * 10;
+
+	for (int i = 0; i < i_max; i++) {
+		k_msleep(CONFIG_MCP_TOOL_IDLE_TIMEOUT_MS / 2);
+		ret = mcp_server_is_execution_canceled(execution_token, &is_canceled);
+
+		if (ret != 0) {
+			printk("Couldn't determine if tool execution is canceled. Proceeding as if "
+			       "not canceled.");
+		}
+
+		if (is_canceled) {
+			last_cancelled_token = execution_token;
+			break;
+		}
+
+		response.type = MCP_USR_TOOL_PING;
+		response.data = NULL;
+		response.length = 0;
+
+		ret = mcp_server_submit_tool_message(&response, execution_token);
+		if (ret != 0) {
+			printk("Failed to submit ping from timeout callback: %d\n", ret);
+			return ret;
+		}
+	}
+
+	ret = mcp_server_submit_tool_message(&response, execution_token);
+	if (ret != 0) {
+		printk("Failed to submit response from slow callback: %d\n", ret);
+		return ret;
+	}
+
+	printk("TIMEOUT tool completed execution! Token: %u\n", execution_token);
+
+	ret = mcp_server_is_execution_canceled(execution_token, &is_canceled);
+
+	if (ret != 0) {
+		printk("Couldn't determine if tool execution is canceled. Proceeding as if not "
+		       "canceled.");
+	}
+
+	if (is_canceled) {
+		last_cancelled_token = execution_token;
+		response.type = MCP_USR_TOOL_CANCEL_ACK;
+		response.data = NULL;
+		response.length = 0;
+	} else {
+		response.type = MCP_USR_TOOL_RESPONSE;
+		response.data = result_data;
+		response.length = strlen(result_data);
+	}
+
+	ret = mcp_server_submit_tool_message(&response, execution_token);
+	if (ret != 0) {
+		printk("Failed to submit response from slow callback: %d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+static int test_tool_idle_timeout_callback(const char *params, uint32_t execution_token)
+{
+	int ret;
+	bool is_canceled;
+	mcp_app_message_t response;
+	char result_data[] = "{"
+			     "\"content\": ["
+			     "{"
+			     "\"type\": \"text\","
+			     "\"text\": \"Idle timeout test completed.\""
+			     "}"
+			     "],"
+			     "\"isError\": false"
+			     "}";
+
+	tool_execution_count++;
+	last_execution_token = execution_token;
+
+	printk("IDLE TIMEOUT tool starting execution! Token: %u\n", execution_token);
+
+	for (int i = 0; i < 10; i++) {
+		k_msleep(CONFIG_MCP_TOOL_IDLE_TIMEOUT_MS / 2);
+		ret = mcp_server_is_execution_canceled(execution_token, &is_canceled);
+
+		if (ret != 0) {
+			printk("Couldn't determine if tool execution is canceled. Proceeding as if "
+			       "not "
+			       "canceled.");
+		}
+
+		if (is_canceled) {
+			last_cancelled_token = execution_token;
+			break;
+		}
+	}
+
+	printk("IDLE TIMEOUT tool checking cancellation status! Token: %u\n", execution_token);
+
+	if (is_canceled) {
+		printk("IDLE TIMEOUT tool was canceled! Token: %u\n", execution_token);
+		response.type = MCP_USR_TOOL_CANCEL_ACK;
+		response.data = NULL;
+		response.length = 0;
+	} else {
+		printk("IDLE TIMEOUT tool completed without cancellation! Token: %u\n",
+		       execution_token);
+		response.type = MCP_USR_TOOL_RESPONSE;
+		response.data = result_data;
+		response.length = strlen(result_data);
+	}
+
+	ret = mcp_server_submit_tool_message(&response, execution_token);
+	if (ret != 0) {
+		printk("Failed to submit response from idle timeout callback: %d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+static int test_tool_cancel_timeout_callback(const char *params, uint32_t execution_token)
+{
+	int ret;
+	bool is_canceled;
+
+	tool_execution_count++;
+	last_execution_token = execution_token;
+
+	printk("CANCEL TIMEOUT tool starting execution! Token: %u\n", execution_token);
+
+	for (int i = 0; i < 10; i++) {
+		k_msleep(CONFIG_MCP_TOOL_IDLE_TIMEOUT_MS / 2);
+		ret = mcp_server_is_execution_canceled(execution_token, &is_canceled);
+
+		if (ret != 0) {
+			printk("Couldn't determine if tool execution is canceled. Proceeding as if "
+			       "not "
+			       "canceled.");
+		}
+
+		if (is_canceled) {
+			last_cancelled_token = execution_token;
+			k_msleep(CONFIG_MCP_TOOL_CANCEL_TIMEOUT_MS * 2);
+			break;
+		}
+	}
+
+	printk("CANCEL TIMEOUT tool checking cancellation status! Token: %u\n", execution_token);
+
+	ret = mcp_server_is_execution_canceled(execution_token, &is_canceled);
+
+	if (ret != 0) {
+		printk("Couldn't determine if tool execution is canceled.\n");
+		return ret;
+	}
+
+	if (is_canceled) {
+		printk("CANCEL TIMEOUT tool was canceled! Ignoring cancellation to test cancel "
+		       "timeout. Token: %u\n",
+		       execution_token);
+
+		k_msleep(CONFIG_MCP_TOOL_CANCEL_TIMEOUT_MS + 2000);
+
+		printk("CANCEL TIMEOUT tool exceeded cancel timeout! Token: %u\n", execution_token);
 	}
 
 	return 0;
@@ -1542,7 +1740,7 @@ ZTEST(mcp_server_tests, test_invalid_execution_tokens)
 
 	/* Test 1: Zero execution token (invalid) */
 	printk("=== Test 1: Zero execution token ===\n");
-	ret = mcp_server_submit_app_message(&app_msg, 0);
+	ret = mcp_server_submit_tool_message(&app_msg, 0);
 	zassert_equal(ret, -EINVAL, "Zero execution token should be rejected with -EINVAL");
 
 	/* Test 2: Non-existent execution token */
@@ -1550,7 +1748,7 @@ ZTEST(mcp_server_tests, test_invalid_execution_tokens)
 
 	uint32_t fake_token = 99999;
 
-	ret = mcp_server_submit_app_message(&app_msg, fake_token);
+	ret = mcp_server_submit_tool_message(&app_msg, fake_token);
 	zassert_equal(ret, -ENOENT, "Non-existent execution token should be rejected with -ENOENT");
 
 	/* Test 3: Create a valid token, use it, then try to use it again */
@@ -1587,19 +1785,19 @@ ZTEST(mcp_server_tests, test_invalid_execution_tokens)
 
 	/* Now try to use the same token again - it should be rejected */
 	printk("=== Test 3a: Attempting to reuse token %u ===\n", used_token);
-	ret = mcp_server_submit_app_message(&app_msg, used_token);
+	ret = mcp_server_submit_tool_message(&app_msg, used_token);
 	zassert_equal(ret, -ENOENT, "Completed execution token should be rejected with -ENOENT");
 
 	/* Test 4: NULL app_msg */
 	printk("=== Test 4: NULL app_msg ===\n");
-	ret = mcp_server_submit_app_message(NULL, 1234);
+	ret = mcp_server_submit_tool_message(NULL, 1234);
 	zassert_equal(ret, -EINVAL, "NULL app_msg should be rejected with -EINVAL");
 
 	/* Test 5: app_msg with NULL data */
 	printk("=== Test 5: app_msg with NULL data ===\n");
 	mcp_app_message_t null_data_msg = {
 		.type = MCP_USR_TOOL_RESPONSE, .data = NULL, .length = 10};
-	ret = mcp_server_submit_app_message(&null_data_msg, 1234);
+	ret = mcp_server_submit_tool_message(&null_data_msg, 1234);
 	zassert_equal(ret, -EINVAL, "app_msg with NULL data should be rejected with -EINVAL");
 
 	/* Clean up */
@@ -1610,6 +1808,135 @@ ZTEST(mcp_server_tests, test_invalid_execution_tokens)
 		      "Tool count should return to initial value");
 
 	printk("=== Invalid execution token testing completed ===\n");
+}
+
+ZTEST(mcp_server_tests, test_health_monitor)
+{
+	int ret;
+	uint8_t initial_tool_count = mcp_server_get_tool_count();
+	uint32_t execution_token_max_duration = 0;
+	uint32_t execution_token_idle = 0;
+	uint32_t execution_token_cancel = 0;
+	bool is_canceled;
+
+	reset_tool_execution_tracking();
+	reset_transport_mock();
+
+	printk("=== Testing health monitor functionality ===\n");
+
+	mcp_tool_record_t timeout_tool = {
+		.metadata = {
+				.name = "timeout_tool",
+				.input_schema = "{\"type\":\"object\"}",
+#ifdef CONFIG_MCP_TOOL_DESC
+				.description = "Tool for testing execution timeout",
+#endif
+			},
+		.callback = test_tool_execution_timeout_callback};
+
+	mcp_tool_record_t idle_timeout_tool = {
+		.metadata = {
+				.name = "idle_timeout_tool",
+				.input_schema = "{\"type\":\"object\"}",
+#ifdef CONFIG_MCP_TOOL_DESC
+				.description = "Tool for testing idle timeout",
+#endif
+			},
+		.callback = test_tool_idle_timeout_callback};
+
+	mcp_tool_record_t cancel_timeout_tool = {
+		.metadata = {
+				.name = "cancel_timeout_tool",
+				.input_schema = "{\"type\":\"object\"}",
+#ifdef CONFIG_MCP_TOOL_DESC
+				.description = "Tool for testing cancel timeout",
+#endif
+			},
+		.callback = test_tool_cancel_timeout_callback};
+
+	ret = mcp_server_add_tool(&timeout_tool);
+	zassert_equal(ret, 0, "Timeout tool should register successfully");
+
+	ret = mcp_server_add_tool(&idle_timeout_tool);
+	zassert_equal(ret, 0, "Idle timeout tool should register successfully");
+
+	ret = mcp_server_add_tool(&cancel_timeout_tool);
+	zassert_equal(ret, 0, "Cancel timeout tool should register successfully");
+
+	initialize_client_fully(CLIENT_ID_MULTI_CLIENT_1, REQ_ID_MULTI_CLIENT_1_INIT);
+
+	printk("=== Test 1: Maximum execution duration timeout ===\n");
+	send_tools_call_request(CLIENT_ID_MULTI_CLIENT_1, 6001, "timeout_tool",
+				"{\"test\":\"max_duration\"}");
+	execution_token_max_duration = last_execution_token;
+	zassert_not_equal(execution_token_max_duration, 0,
+			  "Execution token should be captured for max duration test");
+
+	k_msleep(CONFIG_MCP_TOOL_IDLE_TIMEOUT_MS + 1000);
+
+	ret = mcp_server_is_execution_canceled(execution_token_max_duration, &is_canceled);
+	zassert_equal(ret, 0, "Checking cancellation status should succeed");
+	zassert_false(is_canceled, "Execution should not be canceled yet");
+
+	k_msleep(CONFIG_MCP_TOOL_EXEC_TIMEOUT_MS + 2000);
+
+	zassert_equal(last_cancelled_token, execution_token_max_duration,
+		      "Execution token should be canceled");
+
+	k_msleep(3000);
+
+	printk("=== Test 2: Idle timeout ===\n");
+	send_tools_call_request(CLIENT_ID_MULTI_CLIENT_1, 6002, "idle_timeout_tool",
+				"{\"test\":\"idle\"}");
+	execution_token_idle = last_execution_token;
+	zassert_not_equal(execution_token_idle, 0,
+			  "Execution token should be captured for idle test");
+
+	k_msleep(CONFIG_MCP_TOOL_IDLE_TIMEOUT_MS / 2);
+
+	ret = mcp_server_is_execution_canceled(execution_token_idle, &is_canceled);
+	zassert_equal(ret, 0, "Checking cancellation status should succeed");
+	zassert_false(is_canceled, "Execution should not be canceled yet");
+
+	k_msleep(CONFIG_MCP_TOOL_IDLE_TIMEOUT_MS * 2);
+
+	zassert_equal(last_cancelled_token, execution_token_idle,
+		      "Execution token should be canceled");
+
+	k_msleep(2000);
+
+	printk("=== Test 3: Cancel timeout enforcement ===\n");
+	send_tools_call_request(CLIENT_ID_MULTI_CLIENT_1, 6003, "cancel_timeout_tool",
+				"{\"test\":\"cancel\"}");
+	execution_token_cancel = last_execution_token;
+	zassert_not_equal(execution_token_cancel, 0,
+			  "Execution token should be captured for cancel test");
+
+	k_msleep(CONFIG_MCP_TOOL_IDLE_TIMEOUT_MS / 2);
+
+	ret = mcp_server_is_execution_canceled(execution_token_cancel, &is_canceled);
+	zassert_equal(ret, 0, "Checking cancellation status should succeed");
+	zassert_false(is_canceled, "Execution should not be canceled yet");
+
+	k_msleep(CONFIG_MCP_TOOL_EXEC_TIMEOUT_MS + 2000);
+
+	zassert_equal(last_cancelled_token, execution_token_cancel,
+		      "Execution token should be canceled");
+
+	k_msleep(CONFIG_MCP_TOOL_CANCEL_TIMEOUT_MS + 3000);
+
+	printk("=== Waiting for all tool executions to complete ===\n");
+	k_msleep(2000);
+
+	mcp_server_remove_tool("timeout_tool");
+	mcp_server_remove_tool("idle_timeout_tool");
+	mcp_server_remove_tool("cancel_timeout_tool");
+	send_client_shutdown(CLIENT_ID_MULTI_CLIENT_1);
+
+	zassert_equal(mcp_server_get_tool_count(), initial_tool_count,
+		      "Tool count should return to initial value");
+
+	printk("=== Health monitor test completed ===\n");
 }
 
 static void *mcp_server_tests_setup(void)

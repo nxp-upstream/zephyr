@@ -184,10 +184,48 @@ config MCP_TOOL_RESULT_MAX_LEN
 	int "Maximum tool execution result length"
 	default 256
 	help
-	  Maximum length for tool execution result.
+			Maximum length for tool execution result.
+
+config MCP_HEALTH_MONITOR
+	bool "Health monitor usage"
+	default y
+	help
+			This option enables the health monitoring thread that checks for execution timeouts
+			and cancels long-running or stalled tool executions.
+
+if MCP_HEALTH_MONITOR
+
+config MCP_HEALTH_CHECK_INTERVAL_MS
+	int "Health monitor check interval in milliseconds"
+	default 30000
+	help
+			How often the health monitor thread checks execution contexts
+			for timeout conditions.
+
+config MCP_TOOL_EXEC_TIMEOUT_MS
+	int "Maximum execution duration in milliseconds"
+	default 600000
+	help
+			Maximum time allowed for a tool execution before it is canceled.
+			Default is 10 minutes (600000 ms).
+
+config MCP_TOOL_IDLE_TIMEOUT_MS
+	int "Execution idle timeout in milliseconds"
+	default 100000
+	help
+			Maximum time allowed since last message from a tool execution
+			before it is canceled. Default is 5 minutes (300000 ms).
+
+config MCP_TOOL_CANCEL_TIMEOUT_MS
+	int "Execution cancellation timeout in milliseconds"
+	default 300000
+	help
+			Maximum time allowed for a tool to acknowledge cancellation
+			before an error is logged. Default is 1 minute (60000 ms).
+
+endif # MCP_HEALTH_MONITOR
 
 endif # MCP_TOOLS_CAPABILITY
-
 module = MCP
 module-str = MCP Server
 source "subsys/logging/Kconfig.template.log_config"

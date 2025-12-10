@@ -13,7 +13,7 @@
 
 LOG_MODULE_REGISTER(mcp_server, CONFIG_MCP_LOG_LEVEL);
 
-#define MCP_WORKER_PRIORITY    7
+#define MCP_WORKER_PRIORITY 7
 
 typedef enum {
 	MCP_LIFECYCLE_DEINITIALIZED = 0,
@@ -49,6 +49,11 @@ K_MSGQ_DEFINE(mcp_response_queue, sizeof(mcp_response_queue_msg_t), CONFIG_MCP_R
 	      4);
 K_THREAD_STACK_ARRAY_DEFINE(mcp_response_worker_stacks, CONFIG_MCP_RESPONSE_WORKERS, 2048);
 static struct k_thread mcp_response_workers[CONFIG_MCP_RESPONSE_WORKERS];
+#endif
+
+#if defined(CONFIG_MCP_HEALTH_MONITOR) && defined(CONFIG_MCP_TOOLS_CAPABILITY)
+K_THREAD_STACK_DEFINE(mcp_health_monitor_stack, 2048);
+static struct k_thread mcp_health_monitor_thread;
 #endif
 
 static int find_client_index(uint32_t client_id)
@@ -187,6 +192,115 @@ static int send_error_response(uint32_t request_id, mcp_queue_msg_type_t error_t
 }
 
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
+#ifdef CONFIG_MCP_HEALTH_MONITOR
+static void mcp_health_monitor_worker(void *arg1, void *arg2, void *arg3)
+{
+	int ret;
+	int64_t current_time;
+	int64_t execution_duration;
+	int64_t idle_duration;
+	int64_t cancel_duration;
+
+	while (1) {
+		k_sleep(K_MSEC(CONFIG_MCP_HEALTH_CHECK_INTERVAL_MS));
+
+		current_time = k_uptime_get();
+
+		ret = k_mutex_lock(&execution_registry.registry_mutex, K_FOREVER);
+		if (ret != 0) {
+			LOG_ERR("Failed to lock execution registry: %d", ret);
+			continue;
+		}
+
+		for (int i = 0; i < MCP_MAX_REQUESTS; i++) {
+			mcp_execution_context_t *context = &execution_registry.executions[i];
+
+			if (context->execution_token == 0) {
+				continue;
+			}
+
+			if (context->execution_state == MCP_EXEC_CANCELED) {
+				cancel_duration = current_time - context->cancel_timestamp;
+
+				if (cancel_duration > CONFIG_MCP_TOOL_CANCEL_TIMEOUT_MS) {
+					if (!context->worker_released) {
+						LOG_ERR("Execution token %u exceeded cancellation "
+							"timeout "
+							"(%lld ms). Request ID: %u, Client ID: %u, "
+							"Worker ID %u "
+							"still not released.",
+							context->execution_token, cancel_duration,
+							context->request_id, context->client_id,
+							(uint32_t) context->worker_id);
+					} else {
+						LOG_ERR("Execution token %u exceeded cancellation "
+							"timeout "
+							"(%lld ms). Request ID: %u, Client ID: %u",
+							context->execution_token, cancel_duration,
+							context->request_id, context->client_id);
+					}
+					/* TODO: Clean up execution record? */
+				}
+				continue;
+			}
+
+			if (context->execution_state == MCP_EXEC_FINISHED) {
+				continue;
+			}
+
+			execution_duration = current_time - context->start_timestamp;
+
+			if (execution_duration > CONFIG_MCP_TOOL_EXEC_TIMEOUT_MS) {
+				if (!context->worker_released) {
+					LOG_WRN("Execution token %u exceeded execution timeout "
+						"(%lld ms). Request ID: %u, Client ID: %u, Worker "
+						"ID %u "
+						"still not released.",
+						context->execution_token, execution_duration,
+						context->request_id, context->client_id,
+						(uint32_t) context->worker_id);
+				} else {
+					LOG_WRN("Execution token %u exceeded execution timeout "
+						"(%lld ms). Request ID: %u, Client ID: %u",
+						context->execution_token, execution_duration,
+						context->request_id, context->client_id);
+				}
+				/* TODO: Notify client? */
+				context->execution_state = MCP_EXEC_CANCELED;
+				context->cancel_timestamp = current_time;
+				continue;
+			}
+
+			if (context->last_message_timestamp > 0) {
+				idle_duration = current_time - context->last_message_timestamp;
+
+				if (idle_duration > CONFIG_MCP_TOOL_IDLE_TIMEOUT_MS) {
+					if (!context->worker_released) {
+						LOG_WRN("Execution token %u exceeded idle timeout "
+							"(%lld ms). Request ID: %u, Client ID: %u, "
+							"Worker ID %u "
+							"still not released.",
+							context->execution_token, idle_duration,
+							context->request_id, context->client_id,
+							(uint32_t) context->worker_id);
+					} else {
+						LOG_WRN("Execution token %u exceeded idle timeout "
+							"(%lld ms). Request ID: %u, Client ID: %u",
+							context->execution_token, idle_duration,
+							context->request_id, context->client_id);
+					}
+					/* TODO: Notify client? */
+					context->execution_state = MCP_EXEC_CANCELED;
+					context->cancel_timestamp = current_time;
+				}
+			}
+		}
+
+		k_mutex_unlock(&execution_registry.registry_mutex);
+	}
+}
+#endif
+
 static uint32_t generate_execution_token(uint32_t request_id)
 {
 	/* Mocking the generation for the 1st phase of development. Security phase
@@ -225,7 +339,7 @@ static int create_execution_context(mcp_tools_call_request_t *request, uint32_t 
 			context->worker_id = k_current_get();
 			context->start_timestamp = k_uptime_get();
 			context->cancel_timestamp = 0;
-			context->last_message_timestamp = 0;
+			context->last_message_timestamp = k_uptime_get();
 			context->worker_released = false;
 			context->execution_state = MCP_EXEC_ACTIVE;
 
@@ -741,7 +855,7 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 			ret = handle_tools_list_request(tools_list_request);
 			if (ret != 0) {
 				LOG_ERR("Tools list request failed: %d", ret);
-				
+
 				int32_t error_code;
 				const char *error_msg;
 
@@ -754,8 +868,8 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 				}
 
 				send_error_response(tools_list_request->request_id,
-						   MCP_MSG_ERROR_TOOLS_LIST,
-						   error_code, error_msg);
+						    MCP_MSG_ERROR_TOOLS_LIST, error_code,
+						    error_msg);
 			}
 			mcp_free(tools_list_request);
 			break;
@@ -768,7 +882,7 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 			ret = handle_tools_call_request(tools_call_request);
 			if (ret != 0) {
 				LOG_ERR("Tools call request failed: %d", ret);
-				
+
 				int32_t error_code;
 				const char *error_msg;
 
@@ -787,8 +901,8 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 				}
 
 				send_error_response(tools_call_request->request_id,
-						   MCP_MSG_ERROR_TOOLS_CALL,
-						   error_code, error_msg);
+						    MCP_MSG_ERROR_TOOLS_CALL, error_code,
+						    error_msg);
 			}
 			mcp_free(tools_call_request);
 			break;
@@ -919,13 +1033,33 @@ int mcp_server_start(void)
 	}
 #endif
 
+#if defined(CONFIG_MCP_HEALTH_MONITOR) && defined(CONFIG_MCP_TOOLS_CAPABILITY)
+	tid = k_thread_create(&mcp_health_monitor_thread, mcp_health_monitor_stack,
+			      K_THREAD_STACK_SIZEOF(mcp_health_monitor_stack),
+			      mcp_health_monitor_worker, NULL, NULL, NULL,
+			      K_PRIO_COOP(MCP_WORKER_PRIORITY + 1), 0, K_NO_WAIT);
+	if (tid == NULL) {
+		LOG_ERR("Failed to create health monitor thread");
+		return -ENOMEM;
+	}
+
+	ret = k_thread_name_set(&mcp_health_monitor_thread, "mcp_health_mon");
+	if (ret != 0) {
+		LOG_WRN("Failed to set health monitor thread name: %d", ret);
+	}
+
+	LOG_INF("MCP Server started: %d request, %d response workers, health monitor enabled",
+		CONFIG_MCP_REQUEST_WORKERS, CONFIG_MCP_RESPONSE_WORKERS);
+#else
 	LOG_INF("MCP Server started: %d request, %d response workers", CONFIG_MCP_REQUEST_WORKERS,
 		CONFIG_MCP_RESPONSE_WORKERS);
+#endif
 
 	return 0;
 }
 
-int mcp_server_submit_app_message(const mcp_app_message_t *app_msg, uint32_t execution_token)
+#ifdef CONFIG_MCP_TOOLS_CAPABILITY
+int mcp_server_submit_tool_message(const mcp_app_message_t *app_msg, uint32_t execution_token)
 {
 	int ret;
 	int execution_token_index;
@@ -934,7 +1068,8 @@ int mcp_server_submit_app_message(const mcp_app_message_t *app_msg, uint32_t exe
 	mcp_response_queue_msg_t response;
 
 	if ((app_msg == NULL) ||
-	    ((app_msg->data == NULL) && (app_msg->type != MCP_USR_TOOL_CANCEL_ACK))) {
+	    ((app_msg->data == NULL) && (app_msg->type != MCP_USR_TOOL_CANCEL_ACK) &&
+	     (app_msg->type != MCP_USR_TOOL_PING))) {
 		LOG_ERR("Invalid user message");
 		return -EINVAL;
 	}
@@ -973,10 +1108,6 @@ int mcp_server_submit_app_message(const mcp_app_message_t *app_msg, uint32_t exe
 		}
 		k_mutex_unlock(&execution_registry.registry_mutex);
 	} else {
-		if (app_msg->type == MCP_USR_TOOL_RESPONSE) {
-			execution_context->execution_state = MCP_EXEC_FINISHED;
-		}
-
 		execution_context->last_message_timestamp = k_uptime_get();
 		k_mutex_unlock(&execution_registry.registry_mutex);
 
@@ -984,7 +1115,10 @@ int mcp_server_submit_app_message(const mcp_app_message_t *app_msg, uint32_t exe
 			/* Result is passed as a complete JSON string that gets attached to the full
 			 * JSON RPC response inside the Transport layer
 			 */
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
+		case MCP_USR_TOOL_PING: {
+			return 0;
+		}
+
 		case MCP_USR_TOOL_RESPONSE: {
 			mcp_tools_call_response_t *response_data =
 				(mcp_tools_call_response_t *)mcp_alloc(
@@ -1009,9 +1143,10 @@ int mcp_server_submit_app_message(const mcp_app_message_t *app_msg, uint32_t exe
 
 			response.type = MCP_MSG_RESPONSE_TOOLS_CALL;
 			response.data = response_data;
+
+			execution_context->execution_state = MCP_EXEC_FINISHED;
 			break;
 		}
-#endif
 
 		default:
 			LOG_ERR("Unsupported application message type: %u", app_msg->type);
@@ -1086,7 +1221,6 @@ skip_client_cleanup:
 	return 0;
 }
 
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
 int mcp_server_add_tool(const mcp_tool_record_t *tool_record)
 {
 	int ret;

@@ -53,8 +53,7 @@ typedef enum {
 typedef enum {
 	MCP_EXEC_ACTIVE,
 	MCP_EXEC_CANCELED,
-	MCP_EXEC_FINISHED,
-	MCP_EXEC_ZOMBIE
+	MCP_EXEC_FINISHED
 } mcp_execution_state_t;
 
 typedef enum {
