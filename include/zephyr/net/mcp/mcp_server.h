@@ -24,6 +24,7 @@ typedef enum {
 	MCP_USR_TOOL_RESPONSE,
 	MCP_USR_TOOL_NOTIFICATION,
 	MCP_USR_TOOL_CANCEL_ACK,
+	MCP_USR_TOOL_PING,
 #endif
 	MCP_USR_GENERIC_RESPONSE
 } mcp_app_msg_type_t;
@@ -84,7 +85,7 @@ int mcp_server_init(void);
  */
 int mcp_server_start(void);
 
-int mcp_server_submit_app_message(const mcp_app_message_t *user_msg, uint32_t execution_token);
+int mcp_server_submit_tool_message(const mcp_app_message_t *user_msg, uint32_t execution_token);
 
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
 /**
