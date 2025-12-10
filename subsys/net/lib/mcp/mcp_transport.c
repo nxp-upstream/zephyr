@@ -53,6 +53,12 @@ struct transport_buffer {
 static struct transport_buffer buffer_pool[TRANSPORT_BUFFER_POOL_SIZE];
 static struct k_mutex buffer_pool_mutex;
 
+#ifdef CONFIG_ZTEST
+/* Test instrumentation - only compiled for tests */
+int mcp_transport_queue_call_count = 0;
+mcp_transport_queue_msg_t mcp_transport_last_queued_msg = {0};
+#endif
+
 /* Request-to-client mapping functions */
 
 int mcp_transport_map_request_to_client(uint32_t request_id, uint32_t client_id)
@@ -499,6 +505,13 @@ int mcp_transport_queue_response(mcp_queue_msg_type_t type, void *data)
 
 	msg.type = type;
 	msg.data = data;
+
+#ifdef CONFIG_ZTEST
+	/* Store call information for testing */
+	mcp_transport_queue_call_count++;
+	mcp_transport_last_queued_msg.type = type;
+	mcp_transport_last_queued_msg.data = data;
+#endif
 
 	ret = k_msgq_put(&mcp_transport_queue, &msg, K_NO_WAIT);
 	if (ret != 0) {
