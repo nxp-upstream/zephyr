@@ -95,6 +95,10 @@
 	};
 };
 
+&adc_0 {
+	status = "okay";
+};
+
 &core0 {
 	clock-frequency = <DT_FREQ_M(160)>;
 };

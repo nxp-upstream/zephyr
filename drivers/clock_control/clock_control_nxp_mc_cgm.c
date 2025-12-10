@@ -262,6 +262,14 @@ static int mc_cgm_get_subsys_rate(const struct device *dev, clock_control_subsys
 		*rate = CLOCK_GetStmClkFreq(1);
 		break;
 #endif /* defined(CONFIG_COUNTER_MCUX_STM) */
+
+#if defined(CONFIG_ADC_MCUX_SAR_ADC)
+	case MCUX_ADC0_CLK:
+	case MCUX_ADC1_CLK:
+	case MCUX_ADC2_CLK:
+		*rate = CLOCK_GetCoreClkFreq();
+		break;
+#endif /* defined(CONFIG_ADC_MCUX_SAR_ADC) */
 	}
 	return 0;
 }

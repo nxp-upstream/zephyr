@@ -1,0 +1,25 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Copyright 2025 NXP
+ */
+
+/ {
+	zephyr,user {
+		io-channels = <&adc_0 48>;
+	};
+};
+
+&adc_0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	channel@48 {
+		reg = <48>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,vref-mv = <3300>;
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+	};
+};
