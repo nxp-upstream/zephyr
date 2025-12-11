@@ -56,3 +56,4 @@ config SOC_MCXA344
 	select CPU_HAS_FPU
 	select ARMV8_M_DSP
 	select HAS_MCUX_CACHE
+	select HAS_PM
