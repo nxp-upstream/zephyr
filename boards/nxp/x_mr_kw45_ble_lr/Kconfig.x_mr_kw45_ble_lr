@@ -1,0 +1,7 @@
+# Copyright 2025 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_X_MR_KW45_BLE_LR
+        bool "NXP X-MR-KW45-BLE-LR"
+        select SOC_KW45B41Z
+        select SOC_PART_NUMBER_KW45B41Z83
