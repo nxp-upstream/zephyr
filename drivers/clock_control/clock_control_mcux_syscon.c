@@ -46,10 +46,12 @@ static int mcux_lpc_syscon_clock_control_on(const struct device *dev,
 
 #if defined(CONFIG_PINCTRL_NXP_PORT)
 	switch ((uint32_t)sub_system) {
+#if defined(CONFIG_SOC_FAMILY_MCXA) || defined(CONFIG_SOC_FAMILY_MCXL)
 #if defined(CONFIG_SOC_FAMILY_MCXA)
 	case MCUX_PORT0_CLK:
 		CLOCK_EnableClock(kCLOCK_GatePORT0);
 		break;
+#endif /* defined(CONFIG_SOC_FAMILY_MCXA) */
 	case MCUX_PORT1_CLK:
 		CLOCK_EnableClock(kCLOCK_GatePORT1);
 		break;
@@ -80,7 +82,7 @@ static int mcux_lpc_syscon_clock_control_on(const struct device *dev,
 	case MCUX_PORT4_CLK:
 		CLOCK_EnableClock(kCLOCK_Port4);
 		break;
-#endif /* defined(CONFIG_SOC_FAMILY_MCXA) */
+#endif /* defined(CONFIG_SOC_FAMILY_MCXA) || defined(CONFIG_SOC_FAMILY_MCXL) */
 	default:
 		break;
 	}
