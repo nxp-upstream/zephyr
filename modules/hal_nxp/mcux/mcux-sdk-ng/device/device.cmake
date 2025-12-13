@@ -6,16 +6,11 @@ string(TOUPPER ${CONFIG_SOC} MCUX_DEVICE)
 
 if(CONFIG_SOC_KW45B41Z)
   if(DEFINED CONFIG_SOC_PART_NUMBER AND NOT "${CONFIG_SOC_PART_NUMBER}" STREQUAL "")
-    # Full part, e.g. KW45B41Z83AFTA
-    string(TOUPPER "${CONFIG_SOC_PART_NUMBER}" MCUX_CPU_PART)
+    string(TOUPPER "${CONFIG_SOC_PART_NUMBER}" _kw45_part)
 
-    # Define CPU macro for fsl_device_registers.h
-    zephyr_compile_definitions(CPU_${MCUX_CPU_PART})
-
-    # Derive base device folder name explicitly
     # KW45B41Z83AFTA -> KW45B41Z83
     string(REGEX REPLACE "^(KW45B41Z[0-9][0-9]).*$" "\\1"
-           MCUX_DEVICE "${MCUX_CPU_PART}")
+           MCUX_DEVICE "${_kw45_part}")
   endif()
 endif()
 
