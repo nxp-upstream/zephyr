@@ -48,8 +48,8 @@ family:
   - name: mcxw7xx
     socs:
     - name: mcxw716c
-    - name: mcxw727c
     - name: kw45b41z
+    - name: mcxw727c
       cpuclusters:
       - name: cpu0
       - name: cpu1
