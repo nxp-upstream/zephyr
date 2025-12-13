@@ -37,12 +37,6 @@ if(NOT mcux_device_folder)
   message(FATAL_ERROR "Device ${MCUX_DEVICE} not found in ${SdkRootDirPath}/devices/")
 endif()
 
-if(CONFIG_SOC_KW45B41Z)
-  if(DEFINED CONFIG_SOC_PART_NUMBER AND NOT "${CONFIG_SOC_PART_NUMBER}" STREQUAL "")
-    string(TOUPPER "${CONFIG_SOC_PART_NUMBER}" MCUX_CPU_PART)
-    zephyr_compile_definitions("CPU_${MCUX_CPU_PART}")
-  endif()
-endif()
 # Note: Difference between `core_id` and `core_id_suffix_name` in MCUX SDK NG.
 #
 # MCUX SDK NG uses `core_id` to distinguish which core currently is running on.
