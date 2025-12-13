@@ -4,6 +4,18 @@
 
 string(TOUPPER ${CONFIG_SOC} MCUX_DEVICE)
 
+# MCUX SDK NG keeps KW45 device folders part-number based (e.g. KW45B41Z83).
+# While Zephyr CONFIG_SOC is kw45b41z. Derive the folder name from
+# CONFIG_SOC_PART_NUMBER (e.g. KW45B41Z83AFTA -> KW45B41Z83).
+if(CONFIG_SOC_KW45B41Z)
+  if(DEFINED CONFIG_SOC_PART_NUMBER AND NOT "${CONFIG_SOC_PART_NUMBER}" STREQUAL "")
+    string(TOUPPER "${CONFIG_SOC_PART_NUMBER}" KW45_PART)
+
+    string(REGEX REPLACE "^(KW45B41Z[0-9][0-9]).*$" "\\1"
+           MCUX_DEVICE "${KW45_PART}")
+  endif()
+endif()
+
 # Find the folder in mcux-sdk/devices that matches the device name
 message(STATUS "Looking for device ${MCUX_DEVICE} in ${SdkRootDirPath}/devices/")
 
@@ -11,7 +23,7 @@ file(GLOB_RECURSE device_cmake_files ${SdkRootDirPath}/devices/*/CMakeLists.txt)
 foreach(file ${device_cmake_files})
   get_filename_component(folder ${file} DIRECTORY)
   get_filename_component(folder_name ${folder} NAME)
-  if(folder_name STREQUAL ${MCUX_DEVICE})
+  if("${folder_name}" STREQUAL ${MCUX_DEVICE})
     message(STATUS "Found device folder: ${folder}")
     set(mcux_device_folder ${folder})
     break()
