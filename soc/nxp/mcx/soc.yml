@@ -49,6 +49,7 @@ family:
   - name: mcxw7xx
     socs:
     - name: mcxw716c
+    - name: kw45b41z
     - name: mcxw727c
       cpuclusters:
       - name: cpu0
@@ -90,6 +91,8 @@ runners:
       - qualifiers:
         - mcxw236
       - qualifiers:
+        - kw45b41z
+      - qualifiers:
         - mcxa344
     '--reset':
     - run: last
@@ -125,5 +128,7 @@ runners:
         - mcxw716c
       - qualifiers:
         - mcxw236
+      - qualifiers:
+        - kw45b41z
       - qualifiers:
         - mcxa344
