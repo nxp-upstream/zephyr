@@ -1,0 +1,9 @@
+#include <nxp/nxp_mcxw71.dtsi>
+
+&{/chosen} {
+	/delete-property/ zephyr,ieee802154;
+};
+
+&ieee802154 {
+	status = "disabled";
+};
