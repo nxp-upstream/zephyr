@@ -1,0 +1,6 @@
+board:
+  name: x_mr_kw45_ble_lr
+  full_name: X-MR-KW45-BLE-LR
+  vendor: nxp
+  socs:
+    - name: kw45b41z
