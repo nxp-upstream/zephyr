@@ -295,13 +295,6 @@ static int usbh_cdc_ecm_comm_rx_cb(struct usb_device *const udev, struct uhc_tra
 		goto cleanup;
 	}
 
-	err = usbh_cdc_ecm_comm_rx(ctx);
-	if (err != 0 && err != -ENODEV) {
-		msg.ctx = ctx;
-		msg.event = CDC_ECM_EVENT_COMM_RX;
-		(void)usbh_cdc_ecm_msgq_put(&msg);
-	}
-
 	(void)k_mutex_lock(&ctx->lock, K_FOREVER);
 	locked = true;
 
@@ -374,6 +367,13 @@ cleanup:
 		(void)k_mutex_unlock(&ctx->lock);
 	}
 
+	err = usbh_cdc_ecm_comm_rx(ctx);
+	if (err && err != -ENODEV) {
+		msg.ctx = ctx;
+		msg.event = CDC_ECM_EVENT_COMM_RX;
+		(void)usbh_cdc_ecm_msgq_put(&msg);
+	}
+
 	return ret;
 }
 
@@ -434,13 +434,6 @@ static int usbh_cdc_ecm_data_rx_cb(struct usb_device *const udev, struct uhc_tra
 	if (!ctx) {
 		ret = -EINVAL;
 		goto cleanup;
-	}
-
-	err = usbh_cdc_ecm_data_rx(ctx);
-	if (err != 0 && err != -ENODEV) {
-		msg.ctx = ctx;
-		msg.event = CDC_ECM_EVENT_DATA_RX;
-		(void)usbh_cdc_ecm_msgq_put(&msg);
 	}
 
 	(void)k_mutex_lock(&ctx->lock, K_FOREVER);
@@ -505,6 +498,13 @@ cleanup:
 		(void)k_mutex_unlock(&ctx->lock);
 	}
 
+	err = usbh_cdc_ecm_data_rx(ctx);
+	if (err && err != -ENODEV) {
+		msg.ctx = ctx;
+		msg.event = CDC_ECM_EVENT_DATA_RX;
+		(void)usbh_cdc_ecm_msgq_put(&msg);
+	}
+
 	return ret;
 }
 
@@ -524,6 +524,11 @@ static int usbh_cdc_ecm_data_rx(struct usbh_cdc_ecm_ctx *const ctx)
 
 	if (!usbh_cdc_ecm_is_configured(ctx)) {
 		ret = -ENODEV;
+		goto done;
+	}
+
+	if (ctx->active_data_rx_xfers >= CONFIG_USBH_CDC_ECM_DATA_RX_QUEUE_DEPTH) {
+		ret = -EBUSY;
 		goto done;
 	}
 
@@ -1147,6 +1152,16 @@ static int usbh_cdc_ecm_removed(struct usbh_class_data *const c_data)
 
 	(void)k_mutex_unlock(&ctx->lock);
 
+	while (true) {
+		(void)k_mutex_lock(&ctx->lock, K_FOREVER);
+		if (ctx->active_data_rx_xfers) {
+			(void)k_mutex_unlock(&ctx->lock);
+			break;
+		}
+		(void)k_mutex_unlock(&ctx->lock);
+		k_sleep(K_MSEC(10));
+	}
+
 	LOG_INF("device removed");
 
 	return 0;
@@ -1297,7 +1312,7 @@ static void usbh_cdc_ecm_thread(void *arg1, void *arg2, void *arg3)
 			break;
 		}
 
-		if (err != 0 && err != -ENODEV) {
+		if (err && err != -ENODEV) {
 			LOG_WRN("thread event[%d] error (%d)", msg.event, err);
 		}
 	}
