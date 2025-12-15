@@ -18,23 +18,11 @@
 
 #define DT_DRV_COMPAT zephyr_cdc_ecm_host
 
-LOG_MODULE_REGISTER(usbh_cdc_ecm, CONFIG_USBH_CDC_ECM_LOG_LEVEL);
-
 #define USBH_CDC_ECM_INSTANCE_COUNT DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT)
 
-NET_BUF_POOL_DEFINE(usbh_cdc_ecm_data_tx_pool,
-		    USBH_CDC_ECM_INSTANCE_COUNT *CONFIG_USBH_CDC_ECM_DATA_TX_BUF_COUNT,
-		    CONFIG_USBH_CDC_ECM_DATA_BUF_POOL_SIZE, 0, NULL);
-
-NET_BUF_POOL_DEFINE(usbh_cdc_ecm_data_rx_pool,
-		    USBH_CDC_ECM_INSTANCE_COUNT *CONFIG_USBH_CDC_ECM_DATA_RX_BUF_COUNT,
-		    CONFIG_USBH_CDC_ECM_DATA_BUF_POOL_SIZE, 0, NULL);
-
-#define USBH_CDC_ECM_SIG_COMM_RX_IDLE BIT(0)
-#define USBH_CDC_ECM_SIG_DATA_RX_IDLE BIT(1)
-
-struct usbh_cdc_ecm_data {
-	struct usbh_class_data *c_data;
+struct usbh_cdc_ecm_ctx {
+	struct k_mutex lock;
+	struct usb_device *udev;
 	uint8_t comm_if_num;
 	uint8_t data_if_num;
 	uint8_t data_alt_num;
@@ -43,22 +31,20 @@ struct usbh_cdc_ecm_data {
 	uint8_t data_out_ep_addr;
 	uint16_t data_out_ep_mps;
 	uint8_t mac_str_desc_idx;
-	struct net_eth_addr eth_mac;
+	uint16_t max_segment_size;
+	bool link_state;
 	uint32_t upload_speed;
 	uint32_t download_speed;
-	uint16_t max_segment_size;
-	atomic_t eth_pkt_filter_bitmap;
+	uint32_t active_data_rx_xfers;
 	struct net_if *iface;
+	struct net_eth_addr eth_mac;
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
 	struct net_stats_eth stats;
 #endif
-	atomic_t auto_rx_enabled;
-	atomic_t rx_pending_sig_vals;
-	struct k_poll_signal *rx_sig;
-	uint8_t dev_idx;
 };
 
 struct usbh_cdc_ecm_req_params {
+	uint16_t if_num;
 	uint8_t bRequest;
 	union {
 		struct {
@@ -92,11 +78,49 @@ struct usbh_cdc_ecm_xfer_params {
 	struct uhc_transfer *xfer;
 };
 
-static struct k_poll_event usbh_cdc_ecm_data_events[USBH_CDC_ECM_INSTANCE_COUNT];
-static struct k_poll_signal usbh_cdc_ecm_data_signals[USBH_CDC_ECM_INSTANCE_COUNT];
-static struct usbh_cdc_ecm_data *usbh_cdc_ecm_data_instances[USBH_CDC_ECM_INSTANCE_COUNT] = {0};
+enum usbh_cdc_ecm_event_code {
+	CDC_ECM_EVENT_TASK_START,
+	CDC_ECM_EVENT_COMM_RX,
+	CDC_ECM_EVENT_DATA_RX,
+};
 
-static int usbh_cdc_ecm_req(struct usbh_cdc_ecm_data *const data, struct usb_device *const udev,
+struct usbh_cdc_ecm_msg {
+	struct usbh_cdc_ecm_ctx *ctx;
+	enum usbh_cdc_ecm_event_code event;
+};
+
+LOG_MODULE_REGISTER(usbh_cdc_ecm, CONFIG_USBH_CDC_ECM_LOG_LEVEL);
+
+NET_BUF_POOL_DEFINE(usbh_cdc_ecm_data_tx_pool,
+		    USBH_CDC_ECM_INSTANCE_COUNT *CONFIG_USBH_CDC_ECM_DATA_TX_BUF_COUNT,
+		    CONFIG_USBH_CDC_ECM_DATA_BUF_POOL_SIZE, 0, NULL);
+
+NET_BUF_POOL_DEFINE(usbh_cdc_ecm_data_rx_pool,
+		    USBH_CDC_ECM_INSTANCE_COUNT *CONFIG_USBH_CDC_ECM_DATA_RX_BUF_COUNT,
+		    CONFIG_USBH_CDC_ECM_DATA_BUF_POOL_SIZE, 0, NULL);
+
+K_MSGQ_DEFINE(usbh_cdc_ecm_msgq, sizeof(struct usbh_cdc_ecm_msg),
+	      USBH_CDC_ECM_INSTANCE_COUNT *CONFIG_USBH_CDC_ECM_MSG_QUEUE_DEPTH, 4);
+
+static bool usbh_cdc_ecm_is_configured(struct usbh_cdc_ecm_ctx *const ctx)
+{
+	if (!ctx || !ctx->udev) {
+		return false;
+	}
+
+	if (ctx->udev->state != USB_STATE_CONFIGURED) {
+		return false;
+	}
+
+	return true;
+}
+
+static int usbh_cdc_ecm_msgq_put(struct usbh_cdc_ecm_msg const *msg)
+{
+	return k_msgq_put(&usbh_cdc_ecm_msgq, msg, K_NO_WAIT);
+}
+
+static int usbh_cdc_ecm_req(struct usbh_cdc_ecm_ctx *const ctx,
 			    struct usbh_cdc_ecm_req_params *const param)
 {
 	uint8_t bmRequestType = USB_REQTYPE_TYPE_CLASS << 5 | USB_REQTYPE_RECIPIENT_INTERFACE;
@@ -104,7 +128,15 @@ static int usbh_cdc_ecm_req(struct usbh_cdc_ecm_data *const data, struct usb_dev
 	uint16_t wLength;
 	struct net_buf *req_buf = NULL;
 	uint16_t pm_pattern_filter_mask_size;
-	int ret;
+	int ret = 0;
+
+	if (!ctx || !param) {
+		return -EINVAL;
+	}
+
+	if (!usbh_cdc_ecm_is_configured(ctx)) {
+		return -ENODEV;
+	}
 
 	switch (param->bRequest) {
 	case SET_ETHERNET_MULTICAST_FILTERS:
@@ -114,7 +146,7 @@ static int usbh_cdc_ecm_req(struct usbh_cdc_ecm_data *const data, struct usb_dev
 		bmRequestType |= USB_REQTYPE_DIR_TO_DEVICE << 7;
 		wValue = param->multicast_filter_list.len;
 		wLength = param->multicast_filter_list.len * 6;
-		req_buf = usbh_xfer_buf_alloc(udev, wLength);
+		req_buf = usbh_xfer_buf_alloc(ctx->udev, wLength);
 		if (!req_buf) {
 			return -ENOMEM;
 		}
@@ -133,7 +165,7 @@ static int usbh_cdc_ecm_req(struct usbh_cdc_ecm_data *const data, struct usb_dev
 		wValue = param->pm_pattern_filter.num;
 		wLength = 2 + param->pm_pattern_filter.mask_size +
 			  param->pm_pattern_filter.pattern_size;
-		req_buf = usbh_xfer_buf_alloc(udev, wLength);
+		req_buf = usbh_xfer_buf_alloc(ctx->udev, wLength);
 		if (!req_buf) {
 			return -ENOMEM;
 		}
@@ -157,7 +189,7 @@ static int usbh_cdc_ecm_req(struct usbh_cdc_ecm_data *const data, struct usb_dev
 		bmRequestType |= USB_REQTYPE_DIR_TO_HOST << 7;
 		wValue = param->pm_pattern_activation.num;
 		wLength = 2;
-		req_buf = usbh_xfer_buf_alloc(udev, wLength);
+		req_buf = usbh_xfer_buf_alloc(ctx->udev, wLength);
 		if (!req_buf) {
 			return -ENOMEM;
 		}
@@ -172,7 +204,7 @@ static int usbh_cdc_ecm_req(struct usbh_cdc_ecm_data *const data, struct usb_dev
 		bmRequestType |= USB_REQTYPE_DIR_TO_HOST << 7;
 		wValue = param->eth_stats.feature_sel;
 		wLength = 4;
-		req_buf = usbh_xfer_buf_alloc(udev, wLength);
+		req_buf = usbh_xfer_buf_alloc(ctx->udev, wLength);
 		if (!req_buf) {
 			return -ENOMEM;
 		}
@@ -181,7 +213,7 @@ static int usbh_cdc_ecm_req(struct usbh_cdc_ecm_data *const data, struct usb_dev
 		return -ENOTSUP;
 	}
 
-	ret = usbh_req_setup(udev, bmRequestType, param->bRequest, wValue, data->comm_if_num,
+	ret = usbh_req_setup(ctx->udev, bmRequestType, param->bRequest, wValue, param->if_num,
 			     wLength, req_buf);
 
 	if (!ret && req_buf) {
@@ -205,86 +237,81 @@ static int usbh_cdc_ecm_req(struct usbh_cdc_ecm_data *const data, struct usb_dev
 
 cleanup:
 	if (req_buf) {
-		usbh_xfer_buf_free(udev, req_buf);
+		usbh_xfer_buf_free(ctx->udev, req_buf);
 	}
 
 	return ret;
 }
 
-static int usbh_cdc_ecm_xfer(struct usb_device *const udev,
+static int usbh_cdc_ecm_xfer(struct usbh_cdc_ecm_ctx *const ctx,
 			     struct usbh_cdc_ecm_xfer_params *const param)
 {
 	int ret;
 
 	param->xfer = NULL;
 
-	if (!param || !param->ep_addr || !param->cb || !param->buf) {
+	if (!ctx || !param) {
 		return -EINVAL;
 	}
 
-	param->xfer = usbh_xfer_alloc(udev, param->ep_addr, param->cb, param->cb_priv);
+	if (!usbh_cdc_ecm_is_configured(ctx)) {
+		return -ENODEV;
+	}
+
+	param->xfer = usbh_xfer_alloc(ctx->udev, param->ep_addr, param->cb, param->cb_priv);
 	if (!param->xfer) {
 		return -ENOMEM;
 	}
 
-	ret = usbh_xfer_buf_add(udev, param->xfer, param->buf);
+	ret = usbh_xfer_buf_add(ctx->udev, param->xfer, param->buf);
 	if (ret) {
-		goto cleanup;
+		(void)usbh_xfer_free(ctx->udev, param->xfer);
+		return ret;
 	}
 
-	ret = usbh_xfer_enqueue(udev, param->xfer);
+	ret = usbh_xfer_enqueue(ctx->udev, param->xfer);
 	if (ret) {
-		goto cleanup;
+		(void)usbh_xfer_free(ctx->udev, param->xfer);
+		return ret;
 	}
 
-	goto done;
-
-cleanup:
-	(void)usbh_xfer_free(udev, param->xfer);
-
-done:
-	return ret;
+	return 0;
 }
 
-static int usbh_cdc_ecm_comm_rx(struct usbh_cdc_ecm_data *const data);
-static int usbh_cdc_ecm_data_rx(struct usbh_cdc_ecm_data *const data);
-
-static void usbh_cdc_ecm_sig_raise(struct usbh_cdc_ecm_data *const data, unsigned int result)
-{
-	(void)atomic_or(&data->rx_pending_sig_vals, result);
-	(void)k_poll_signal_raise(data->rx_sig, 0);
-}
-
-static void usbh_cdc_ecm_start_auto_rx(struct usbh_cdc_ecm_data *const data)
-{
-	(void)atomic_set(&data->auto_rx_enabled, 1);
-
-	usbh_cdc_ecm_sig_raise(data, USBH_CDC_ECM_SIG_COMM_RX_IDLE | USBH_CDC_ECM_SIG_DATA_RX_IDLE);
-}
-
-static void usbh_cdc_ecm_stop_auto_rx(struct usbh_cdc_ecm_data *const data)
-{
-	(void)atomic_clear(&data->auto_rx_enabled);
-	(void)atomic_clear(&data->rx_pending_sig_vals);
-
-	k_poll_signal_reset(data->rx_sig);
-}
+static int usbh_cdc_ecm_comm_rx(struct usbh_cdc_ecm_ctx *const ctx);
 
 static int usbh_cdc_ecm_comm_rx_cb(struct usb_device *const udev, struct uhc_transfer *const xfer)
 {
-	struct usbh_cdc_ecm_data *priv = xfer->priv;
+	struct usbh_cdc_ecm_ctx *ctx = xfer->priv;
+	struct usbh_cdc_ecm_msg msg;
 	struct cdc_notification_packet *notif;
 	uint32_t *link_speeds;
-	int ret = xfer->err;
+	bool locked = false;
+	int err;
+	int ret = 0;
 
-	if (atomic_get(&priv->auto_rx_enabled)) {
-		if (usbh_cdc_ecm_comm_rx(priv)) {
-			usbh_cdc_ecm_sig_raise(priv, USBH_CDC_ECM_SIG_COMM_RX_IDLE);
-		}
+	if (!ctx) {
+		ret = -EINVAL;
+		goto cleanup;
 	}
 
+	err = usbh_cdc_ecm_comm_rx(ctx);
+	if (err != 0 && err != -ENODEV) {
+		msg.ctx = ctx;
+		msg.event = CDC_ECM_EVENT_COMM_RX;
+		(void)usbh_cdc_ecm_msgq_put(&msg);
+	}
+
+	(void)k_mutex_lock(&ctx->lock, K_FOREVER);
+	locked = true;
+
 	if (xfer->err) {
-		LOG_ERR("comm rx xfer callback error (%d)", ret);
+		LOG_WRN("notification RX transfer error (%d)", xfer->err);
+		goto cleanup;
+	}
+
+	if (!ctx->udev || ctx->udev != udev) {
+		ret = -ENODEV;
 		goto cleanup;
 	}
 
@@ -295,350 +322,479 @@ static int usbh_cdc_ecm_comm_rx_cb(struct usb_device *const udev, struct uhc_tra
 			ret = -EBADMSG;
 			goto cleanup;
 		}
+
 		if (sys_le16_to_cpu(notif->wValue)) {
-			net_if_carrier_on(priv->iface);
+			ctx->link_state = true;
 		} else {
-			net_if_carrier_off(priv->iface);
+			ctx->link_state = false;
 		}
-		LOG_DBG("comm rx xfer callback get network %s",
-			sys_le16_to_cpu(notif->wValue) ? "connected" : "disconnected");
 		break;
 	case USB_CDC_CONNECTION_SPEED_CHANGE:
 		if (xfer->buf->len != (sizeof(struct cdc_notification_packet) + 8)) {
 			ret = -EBADMSG;
 			goto cleanup;
 		}
+
 		link_speeds = (uint32_t *)(notif + 1);
-		priv->download_speed = sys_le32_to_cpu(link_speeds[0]);
-		priv->upload_speed = sys_le32_to_cpu(link_speeds[1]);
-		LOG_DBG("comm rx xfer callback get connection speed UL %d bps / DL %d bps",
-			priv->upload_speed, priv->download_speed);
+		ctx->download_speed = sys_le32_to_cpu(link_speeds[0]);
+		ctx->upload_speed = sys_le32_to_cpu(link_speeds[1]);
+
+		LOG_INF("network %s", ctx->link_state ? "connected" : "disconnected");
+		LOG_INF("link speed: UL %u bps / DL %u bps", ctx->upload_speed,
+			ctx->download_speed);
+
+		if (ctx->link_state) {
+			net_if_carrier_on(ctx->iface);
+
+			msg.ctx = ctx;
+			msg.event = CDC_ECM_EVENT_DATA_RX;
+			err = usbh_cdc_ecm_msgq_put(&msg);
+			if (err) {
+				LOG_ERR("failed to send task data RX message");
+			}
+		} else {
+			net_if_carrier_off(ctx->iface);
+		}
 		break;
 	default:
+		ret = -ENOTSUP;
 		break;
 	}
 
 cleanup:
 	if (xfer->buf) {
-		usbh_xfer_buf_free(priv->c_data->udev, xfer->buf);
+		usbh_xfer_buf_free(udev, xfer->buf);
 	}
 
-	(void)usbh_xfer_free(priv->c_data->udev, xfer);
+	if (udev) {
+		(void)usbh_xfer_free(udev, xfer);
+	}
+
+	if (locked) {
+		(void)k_mutex_unlock(&ctx->lock);
+	}
 
 	return ret;
 }
 
-static int usbh_cdc_ecm_comm_rx(struct usbh_cdc_ecm_data *const data)
+static int usbh_cdc_ecm_comm_rx(struct usbh_cdc_ecm_ctx *const ctx)
 {
 	struct usbh_cdc_ecm_xfer_params param;
+	struct net_buf *buf;
 	int ret;
 
-	struct net_buf *buf =
-		usbh_xfer_buf_alloc(data->c_data->udev, sizeof(struct cdc_notification_packet) + 8);
+	if (!ctx) {
+		return -EINVAL;
+	}
+
+	if (k_mutex_lock(&ctx->lock, K_NO_WAIT)) {
+		return -EBUSY;
+	}
+
+	if (!usbh_cdc_ecm_is_configured(ctx)) {
+		ret = -ENODEV;
+		goto done;
+	}
+
+	buf = usbh_xfer_buf_alloc(ctx->udev, sizeof(struct cdc_notification_packet) + 8);
 	if (!buf) {
-		LOG_WRN("comm rx xfer buffer allocation failed");
-		return -ENOMEM;
+		LOG_WRN("failed to allocate data buffer for notification reception");
+		ret = -ENOMEM;
+		goto done;
 	}
 
 	param.buf = buf;
 	param.cb = usbh_cdc_ecm_comm_rx_cb;
-	param.cb_priv = data;
-	param.ep_addr = data->comm_in_ep_addr;
+	param.cb_priv = ctx;
+	param.ep_addr = ctx->comm_in_ep_addr;
 
-	ret = usbh_cdc_ecm_xfer(data->c_data->udev, &param);
+	ret = usbh_cdc_ecm_xfer(ctx, &param);
 	if (ret) {
-		LOG_ERR("comm rx xfer request failed (%d)", ret);
-		usbh_xfer_buf_free(data->c_data->udev, buf);
+		LOG_ERR("request notification RX transfer error (%d)", ret);
+		usbh_xfer_buf_free(ctx->udev, buf);
 	}
+
+done:
+	(void)k_mutex_unlock(&ctx->lock);
 
 	return ret;
 }
 
+static int usbh_cdc_ecm_data_rx(struct usbh_cdc_ecm_ctx *const ctx);
+
 static int usbh_cdc_ecm_data_rx_cb(struct usb_device *const udev, struct uhc_transfer *const xfer)
 {
-	struct usbh_cdc_ecm_data *priv = xfer->priv;
+	struct usbh_cdc_ecm_ctx *ctx = xfer->priv;
+	struct usbh_cdc_ecm_msg msg;
 	struct net_pkt *pkt;
-	int ret = xfer->err;
+	bool locked = false;
+	int err;
+	int ret = 0;
 
-	if (atomic_get(&priv->auto_rx_enabled)) {
-		if (usbh_cdc_ecm_data_rx(priv)) {
-			usbh_cdc_ecm_sig_raise(priv, USBH_CDC_ECM_SIG_DATA_RX_IDLE);
-		}
-	}
-
-	if (xfer->err) {
-		LOG_ERR("data rx xfer callback error (%d)", ret);
+	if (!ctx) {
+		ret = -EINVAL;
 		goto cleanup;
 	}
 
-	if (!net_if_is_up(priv->iface) || !net_if_is_carrier_ok(priv->iface)) {
+	err = usbh_cdc_ecm_data_rx(ctx);
+	if (err != 0 && err != -ENODEV) {
+		msg.ctx = ctx;
+		msg.event = CDC_ECM_EVENT_DATA_RX;
+		(void)usbh_cdc_ecm_msgq_put(&msg);
+	}
+
+	(void)k_mutex_lock(&ctx->lock, K_FOREVER);
+	locked = true;
+
+	ctx->active_data_rx_xfers--;
+
+	if (xfer->err) {
+		LOG_WRN("data RX transfer error (%d)", xfer->err);
+		goto cleanup;
+	}
+
+	if (!ctx->udev || ctx->udev != udev) {
+		ret = -ENODEV;
 		goto cleanup;
 	}
 
 	if (!xfer->buf->len) {
-		LOG_DBG("data rx xfer callback discard 0 length packet");
+		LOG_DBG("discard received 0 length data");
 		goto cleanup;
 	}
 
-	if (xfer->buf->len > priv->max_segment_size) {
-		LOG_WRN("data rx xfer callback dropped data (length: %d) with exceeding max "
-			"segment size (%d)",
-			xfer->buf->len, priv->max_segment_size);
+	if (xfer->buf->len > ctx->max_segment_size) {
+		LOG_WRN("dropped received data which length[%u] exceeding max segment size[%u]",
+			xfer->buf->len, ctx->max_segment_size);
 		goto cleanup;
 	}
 
-	pkt = net_pkt_rx_alloc_on_iface(priv->iface, K_NO_WAIT);
+	if (!ctx->link_state) {
+		goto cleanup;
+	}
+
+	pkt = net_pkt_rx_alloc_with_buffer(ctx->iface, xfer->buf->len, AF_UNSPEC, 0, K_NO_WAIT);
 	if (!pkt) {
-		LOG_WRN("data rx xfer callback alloc net pkt failed and lost data");
-		ret = -ENOMEM;
+		LOG_WRN("failed to allocate net packet and lost received data");
 		goto cleanup;
 	}
 
-	net_pkt_set_family(pkt, AF_UNSPEC);
-	net_pkt_append_buffer(pkt, xfer->buf);
-	xfer->buf = NULL;
-
-	ret = net_recv_data(priv->iface, pkt);
+	ret = net_pkt_write(pkt, xfer->buf->data, xfer->buf->len);
 	if (ret) {
-		LOG_ERR("data rx xfer callback transmits data into network stack failed (error: "
-			"%d)",
-			ret);
+		LOG_ERR("write data into net packet error (%d)", ret);
+		net_pkt_unref(pkt);
+		goto cleanup;
+	}
+
+	ret = net_recv_data(ctx->iface, pkt);
+	if (ret) {
+		LOG_ERR("passed data into network stack error (%d)", ret);
 		net_pkt_unref(pkt);
 	}
-
-	goto done;
 
 cleanup:
 	if (xfer->buf) {
 		net_buf_unref(xfer->buf);
 	}
 
-done:
-	(void)usbh_xfer_free(priv->c_data->udev, xfer);
+	if (udev) {
+		(void)usbh_xfer_free(udev, xfer);
+	}
+
+	if (locked) {
+		(void)k_mutex_unlock(&ctx->lock);
+	}
 
 	return ret;
 }
 
-static int usbh_cdc_ecm_data_rx(struct usbh_cdc_ecm_data *const data)
+static int usbh_cdc_ecm_data_rx(struct usbh_cdc_ecm_ctx *const ctx)
 {
 	struct usbh_cdc_ecm_xfer_params param;
-	int ret;
+	struct net_buf *buf;
+	int ret = 0;
 
-	struct net_buf *buf = net_buf_alloc(&usbh_cdc_ecm_data_rx_pool, K_NO_WAIT);
+	if (!ctx) {
+		return -EINVAL;
+	}
+
+	if (k_mutex_lock(&ctx->lock, K_NO_WAIT)) {
+		return -EBUSY;
+	}
+
+	if (!usbh_cdc_ecm_is_configured(ctx)) {
+		ret = -ENODEV;
+		goto done;
+	}
+
+	buf = net_buf_alloc(&usbh_cdc_ecm_data_rx_pool, K_NO_WAIT);
 	if (!buf) {
-		LOG_WRN("data rx xfer buffer allocation failed");
-		return -ENOMEM;
+		LOG_WRN("failed to allocate data buffer for data reception");
+		ret = -ENOMEM;
+		goto done;
 	}
 
 	param.buf = buf;
 	param.cb = usbh_cdc_ecm_data_rx_cb;
-	param.cb_priv = data;
-	param.ep_addr = data->data_in_ep_addr;
+	param.cb_priv = ctx;
+	param.ep_addr = ctx->data_in_ep_addr;
 
-	ret = usbh_cdc_ecm_xfer(data->c_data->udev, &param);
+	ret = usbh_cdc_ecm_xfer(ctx, &param);
 	if (ret) {
-		LOG_ERR("data rx xfer request failed (%d)", ret);
+		LOG_ERR("request data RX transfer error (%d)", ret);
 		net_buf_unref(buf);
+		goto done;
 	}
+	ctx->active_data_rx_xfers++;
+
+done:
+	(void)k_mutex_unlock(&ctx->lock);
+
+	return ret;
+}
+
+static int usbh_cdc_ecm_data_rx_queue(struct usbh_cdc_ecm_ctx *const ctx)
+{
+	struct usbh_cdc_ecm_xfer_params param;
+	struct net_buf *buf;
+	int ret = 0;
+
+	if (!ctx) {
+		return -EINVAL;
+	}
+
+	if (k_mutex_lock(&ctx->lock, K_NO_WAIT)) {
+		return -EBUSY;
+	}
+
+	if (!usbh_cdc_ecm_is_configured(ctx)) {
+		ret = -ENODEV;
+		goto done;
+	}
+
+	while (ctx->active_data_rx_xfers < CONFIG_USBH_CDC_ECM_DATA_RX_QUEUE_DEPTH) {
+		buf = net_buf_alloc(&usbh_cdc_ecm_data_rx_pool, K_NO_WAIT);
+		if (!buf) {
+			LOG_WRN("failed to allocate data buffer for data reception");
+			ret = -ENOMEM;
+			break;
+		}
+
+		param.buf = buf;
+		param.cb = usbh_cdc_ecm_data_rx_cb;
+		param.cb_priv = ctx;
+		param.ep_addr = ctx->data_in_ep_addr;
+
+		ret = usbh_cdc_ecm_xfer(ctx, &param);
+		if (ret) {
+			LOG_ERR("request data RX transfer error (%d)", ret);
+			net_buf_unref(buf);
+			break;
+		}
+		ctx->active_data_rx_xfers++;
+	}
+
+done:
+	(void)k_mutex_unlock(&ctx->lock);
 
 	return ret;
 }
 
 static int usbh_cdc_ecm_data_tx_cb(struct usb_device *const udev, struct uhc_transfer *const xfer)
 {
-	struct usbh_cdc_ecm_data *priv = xfer->priv;
-	int ret = xfer->err;
+	struct usbh_cdc_ecm_ctx *ctx = xfer->priv;
+	bool locked = false;
+	int ret = 0;
 
-	if (ret) {
-		LOG_ERR("data tx xfer callback error (%d)", ret);
+	if (!ctx) {
+		ret = -EINVAL;
+		goto cleanup;
 	}
 
+	(void)k_mutex_lock(&ctx->lock, K_FOREVER);
+	locked = true;
+
+	if (xfer->err) {
+		LOG_WRN("data TX transfer error (%d)", xfer->err);
+		goto cleanup;
+	}
+
+	if (!ctx->udev || ctx->udev != udev) {
+		ret = -ENODEV;
+		goto cleanup;
+	}
+
+	/** TODO: statistics processing */
+
+cleanup:
 	if (xfer->buf) {
 		net_buf_unref(xfer->buf);
 	}
 
-	(void)usbh_xfer_free(priv->c_data->udev, xfer);
+	if (udev) {
+		(void)usbh_xfer_free(udev, xfer);
+	}
+
+	if (locked) {
+		(void)k_mutex_unlock(&ctx->lock);
+	}
 
 	return ret;
 }
 
-static int usbh_cdc_ecm_data_tx(struct usbh_cdc_ecm_data *const data, struct net_buf *buf)
+static int usbh_cdc_ecm_data_tx(struct usbh_cdc_ecm_ctx *const ctx, struct net_buf *buf)
 {
 	struct usbh_cdc_ecm_xfer_params param;
 	struct uhc_transfer *fst_xfer = NULL;
 	struct net_buf *tx_buf = NULL;
 	struct net_buf *zlp_buf = NULL;
-	struct net_buf *frag;
 	size_t total_len;
 	int ret = 0;
 
-	if (!buf) {
-		LOG_ERR("data tx xfer get NULL buffer");
+	if (!ctx) {
 		return -EINVAL;
 	}
 
+	if (k_mutex_lock(&ctx->lock, K_NO_WAIT)) {
+		return -EBUSY;
+	}
+
+	if (!usbh_cdc_ecm_is_configured(ctx)) {
+		ret = -ENODEV;
+		goto done;
+	}
+
 	total_len = net_buf_frags_len(buf);
-	if (!total_len || total_len > data->max_segment_size) {
-		LOG_ERR("data tx xfer invalid buffer length (%zu)", total_len);
-		return -EMSGSIZE;
+	if (!total_len || total_len > ctx->max_segment_size) {
+		LOG_ERR("invalid buffer length[%zu] for data TX transfer", total_len);
+		ret = -EMSGSIZE;
+		goto done;
 	}
 
 	if (!buf->frags) {
 		tx_buf = net_buf_ref(buf);
 	} else {
-		frag = buf;
-		while (frag) {
-			frag = net_buf_ref(frag);
-			frag = frag->frags;
-		}
-
 		tx_buf = net_buf_alloc(&usbh_cdc_ecm_data_tx_pool, K_NO_WAIT);
 		if (!tx_buf) {
-			LOG_WRN("data tx xfer linearized buffer allocation failed");
+			LOG_WRN("failed to allocate linearized data buffer for data transmit");
 			ret = -ENOMEM;
-			goto unref_frags;
+			goto done;
 		}
 
 		if (net_buf_linearize(tx_buf->data, total_len, buf, 0, total_len) != total_len) {
-			LOG_ERR("data tx xfer linearize fragmented buffer error");
+			LOG_ERR("fragmented buffer linearization failed for data transmit");
+			net_buf_unref(tx_buf);
 			ret = -EIO;
-			(void)net_buf_unref(tx_buf);
-			goto unref_frags;
+			goto done;
 		}
 
 		(void)net_buf_add(tx_buf, total_len);
-
-unref_frags:
-		frag = buf;
-		while (frag) {
-			struct net_buf *next = frag->frags;
-			(void)net_buf_unref(frag);
-			frag = next;
-		}
-
-		if (ret) {
-			return ret;
-		}
 	}
 
 	param.buf = tx_buf;
 	param.cb = usbh_cdc_ecm_data_tx_cb;
-	param.cb_priv = data;
-	param.ep_addr = data->data_out_ep_addr;
+	param.cb_priv = ctx;
+	param.ep_addr = ctx->data_out_ep_addr;
 
-	ret = usbh_cdc_ecm_xfer(data->c_data->udev, &param);
+	ret = usbh_cdc_ecm_xfer(ctx, &param);
 	if (ret) {
-		LOG_ERR("data tx xfer request failed (%d)", ret);
-		(void)net_buf_unref(tx_buf);
-		return ret;
+		LOG_ERR("request data TX transfer error (%d)", ret);
+		net_buf_unref(tx_buf);
+		goto done;
 	}
 
 	fst_xfer = param.xfer;
 
-	if (!(total_len % data->data_out_ep_mps)) {
+	if (!(total_len % ctx->data_out_ep_mps)) {
 		zlp_buf = net_buf_alloc(&usbh_cdc_ecm_data_tx_pool, K_NO_WAIT);
 		if (!zlp_buf) {
-			LOG_WRN("data tx xfer zlp buffer allocation failed");
+			LOG_WRN("failed to allocate ZLP buffer for data transmit");
 			ret = -ENOMEM;
 			goto dequeue_first;
 		}
 
 		param.buf = zlp_buf;
 
-		ret = usbh_cdc_ecm_xfer(data->c_data->udev, &param);
+		ret = usbh_cdc_ecm_xfer(ctx, &param);
 		if (ret) {
-			LOG_ERR("data tx xfer (zlp) request failed (%d)", ret);
-			(void)net_buf_unref(zlp_buf);
+			LOG_ERR("request data TX ZLP transfer error (%d)", ret);
+			net_buf_unref(zlp_buf);
 			goto dequeue_first;
 		}
 	}
 
-	return 0;
+	goto done;
 
 dequeue_first:
-	if (!usbh_xfer_dequeue(data->c_data->udev, fst_xfer)) {
-		(void)net_buf_unref(tx_buf);
-		(void)usbh_xfer_free(data->c_data->udev, fst_xfer);
+	if (!usbh_xfer_dequeue(ctx->udev, fst_xfer)) {
+		net_buf_unref(tx_buf);
+		(void)usbh_xfer_free(ctx->udev, fst_xfer);
 	}
+
+done:
+	(void)k_mutex_unlock(&ctx->lock);
 
 	return ret;
 }
 
-static int usbh_cdc_ecm_set_pkt_filter(struct usbh_cdc_ecm_data *const data,
-				       struct usb_device *const udev, uint16_t packet_type)
-{
-	struct usbh_cdc_ecm_req_params param;
-	uint16_t current_filter, target_filter;
-	int ret;
-
-	current_filter = (uint16_t)atomic_or(&data->eth_pkt_filter_bitmap, packet_type);
-	target_filter = current_filter | packet_type;
-
-	if (current_filter == target_filter) {
-		return 0;
-	}
-
-	param.bRequest = SET_ETHERNET_PACKET_FILTER;
-	param.eth_pkt_filter_bitmap = target_filter;
-	ret = usbh_cdc_ecm_req(data, udev, &param);
-	if (ret) {
-		(void)atomic_and(&data->eth_pkt_filter_bitmap, ~packet_type);
-	}
-
-	return ret;
-}
-
-static int usbh_cdc_ecm_unset_pkt_filter(struct usbh_cdc_ecm_data *const data,
-					 struct usb_device *const udev, uint16_t packet_type)
-{
-	struct usbh_cdc_ecm_req_params param;
-	uint16_t current_filter, target_filter;
-	int ret;
-
-	current_filter = (uint16_t)atomic_and(&data->eth_pkt_filter_bitmap, ~packet_type);
-	target_filter = current_filter & ~packet_type;
-
-	if (current_filter == target_filter) {
-		return 0;
-	}
-
-	param.bRequest = SET_ETHERNET_PACKET_FILTER;
-	param.eth_pkt_filter_bitmap = target_filter;
-	ret = usbh_cdc_ecm_req(data, udev, &param);
-	if (ret) {
-		(void)atomic_or(&data->eth_pkt_filter_bitmap, packet_type);
-	}
-
-	return ret;
-}
-
-static int usbh_cdc_ecm_parse_descriptors(struct usbh_cdc_ecm_data *const data,
-					  struct usb_device *const udev,
+static int usbh_cdc_ecm_parse_descriptors(struct usbh_cdc_ecm_ctx *const ctx,
 					  const struct usb_desc_header *desc)
 {
-	const void *desc_end = usbh_desc_get_cfg_end(udev);
+	const void *desc_end = NULL;
 	struct usb_if_descriptor *if_desc = NULL;
 	struct cdc_header_descriptor *cdc_header_desc = NULL;
 	struct cdc_union_descriptor *cdc_union_desc = NULL;
 	struct cdc_ecm_descriptor *cdc_ecm_desc = NULL;
 	struct usb_ep_descriptor *ep_desc = NULL;
+	uint8_t current_if_num = UINT8_MAX;
+	uint8_t comm_if_num = UINT8_MAX;
+	uint8_t data_if_num = UINT8_MAX;
+	uint8_t union_ctrl_if = UINT8_MAX;
+	uint8_t union_subord_if = UINT8_MAX;
 	bool cdc_header_func_ready = false;
 	bool cdc_union_func_ready = false;
+	bool cdc_ecm_func_ready = false;
+
+	if (!ctx || !desc) {
+		return -EINVAL;
+	}
+
+	if (!ctx->udev) {
+		return -ENODEV;
+	}
+
+	desc_end = usbh_desc_get_cfg_end(ctx->udev);
+	if (!desc_end) {
+		return -ENODEV;
+	}
+
+	ctx->comm_if_num = 0;
+	ctx->data_if_num = 0;
+	ctx->data_alt_num = 0;
+	ctx->comm_in_ep_addr = 0;
+	ctx->data_in_ep_addr = 0;
+	ctx->data_out_ep_addr = 0;
+	ctx->data_out_ep_mps = 0;
+	ctx->mac_str_desc_idx = 0;
+	ctx->max_segment_size = 0;
 
 	while (desc) {
 		switch (desc->bDescriptorType) {
 		case USB_DESC_INTERFACE:
 			if_desc = (struct usb_if_descriptor *)desc;
+			current_if_num = if_desc->bInterfaceNumber;
 			if (if_desc->bInterfaceClass == USB_BCC_CDC_CONTROL &&
 			    if_desc->bInterfaceSubClass == ECM_SUBCLASS) {
-				data->comm_if_num = if_desc->bInterfaceNumber;
+				comm_if_num = if_desc->bInterfaceNumber;
+				ctx->comm_if_num = comm_if_num;
 			} else if (if_desc->bInterfaceClass == USB_BCC_CDC_DATA) {
-				data->data_if_num = if_desc->bInterfaceNumber;
-				if (if_desc->bNumEndpoints) {
-					data->data_alt_num = if_desc->bAlternateSetting;
+				if (data_if_num == UINT8_MAX) {
+					data_if_num = if_desc->bInterfaceNumber;
+					ctx->data_if_num = data_if_num;
 				}
-			} else {
-				return -ENOTSUP;
+				if (if_desc->bNumEndpoints >= 2) {
+					ctx->data_alt_num = if_desc->bAlternateSetting;
+				}
 			}
 			break;
 		case USB_DESC_CS_INTERFACE:
@@ -647,45 +803,48 @@ static int usbh_cdc_ecm_parse_descriptors(struct usbh_cdc_ecm_data *const data,
 				cdc_header_func_ready = true;
 			} else if (cdc_header_desc->bDescriptorSubtype == UNION_FUNC_DESC &&
 				   cdc_header_func_ready) {
-				cdc_union_func_ready = true;
 				cdc_union_desc = (struct cdc_union_descriptor *)desc;
-				if (cdc_union_desc->bControlInterface != data->comm_if_num) {
+				union_ctrl_if = cdc_union_desc->bControlInterface;
+				if (cdc_union_desc->bFunctionLength >=
+				    sizeof(struct cdc_union_descriptor)) {
+					union_subord_if = cdc_union_desc->bSubordinateInterface0;
+				} else {
 					return -ENODEV;
 				}
+				cdc_union_func_ready = true;
 			} else if (cdc_header_desc->bDescriptorSubtype == ETHERNET_FUNC_DESC &&
 				   cdc_union_func_ready) {
 				cdc_ecm_desc = (struct cdc_ecm_descriptor *)desc;
-				data->mac_str_desc_idx = cdc_ecm_desc->iMACAddress;
+				ctx->mac_str_desc_idx = cdc_ecm_desc->iMACAddress;
 				/** TODO: Ethernet Statistics Feature */
-				data->max_segment_size =
+				ctx->max_segment_size =
 					sys_le16_to_cpu(cdc_ecm_desc->wMaxSegmentSize);
 				/** TODO: MCFilter Feature */
 				/** TODO: Power Filter Feature */
+				cdc_ecm_func_ready = true;
 			}
 			break;
 		case USB_DESC_ENDPOINT:
 			ep_desc = (struct usb_ep_descriptor *)desc;
-			if (!if_desc) {
-				return -ENODEV;
+			if (current_if_num == UINT8_MAX) {
+				break;
 			}
-			if (if_desc->bInterfaceClass == USB_BCC_CDC_CONTROL) {
+			if (current_if_num == comm_if_num) {
 				if ((ep_desc->bEndpointAddress & USB_EP_DIR_MASK) ==
 				    USB_EP_DIR_IN) {
-					data->comm_in_ep_addr = ep_desc->bEndpointAddress;
+					ctx->comm_in_ep_addr = ep_desc->bEndpointAddress;
 				} else {
 					return -ENODEV;
 				}
-			} else if (if_desc->bInterfaceClass == USB_BCC_CDC_DATA) {
+			} else if (current_if_num == data_if_num) {
 				if ((ep_desc->bEndpointAddress & USB_EP_DIR_MASK) ==
 				    USB_EP_DIR_IN) {
-					data->data_in_ep_addr = ep_desc->bEndpointAddress;
+					ctx->data_in_ep_addr = ep_desc->bEndpointAddress;
 				} else {
-					data->data_out_ep_addr = ep_desc->bEndpointAddress;
-					data->data_out_ep_mps =
+					ctx->data_out_ep_addr = ep_desc->bEndpointAddress;
+					ctx->data_out_ep_mps =
 						sys_le16_to_cpu(ep_desc->wMaxPacketSize);
 				}
-			} else {
-				return -ENOTSUP;
 			}
 			break;
 		}
@@ -693,30 +852,85 @@ static int usbh_cdc_ecm_parse_descriptors(struct usbh_cdc_ecm_data *const data,
 		desc = usbh_desc_get_next(desc, desc_end);
 	}
 
-	if (!cdc_header_func_ready || !cdc_union_func_ready) {
+	if (!cdc_header_func_ready) {
+		LOG_ERR("CDC Header descriptor not found");
 		return -ENODEV;
 	}
 
-	if (data->mac_str_desc_idx == 0) {
+	if (!cdc_union_func_ready) {
+		LOG_ERR("CDC Union descriptor not found");
 		return -ENODEV;
 	}
 
-	if (!data->comm_in_ep_addr || !data->data_in_ep_addr || !data->data_out_ep_addr) {
+	if (!cdc_ecm_func_ready) {
+		LOG_ERR("CDC-ECM descriptor not found");
 		return -ENODEV;
 	}
+
+	if (comm_if_num == UINT8_MAX) {
+		LOG_ERR("communication interface not found");
+		return -ENODEV;
+	}
+
+	if (data_if_num == UINT8_MAX) {
+		LOG_ERR("data interface not found");
+		return -ENODEV;
+	}
+
+	if (union_ctrl_if != comm_if_num) {
+		LOG_ERR("union control interface mismatch communication interface (%u != %u)",
+			union_ctrl_if, comm_if_num);
+		return -ENODEV;
+	}
+
+	if (union_subord_if != data_if_num) {
+		LOG_ERR("union subordinate interface mismatch data interface (%u != %u)",
+			union_subord_if, data_if_num);
+		return -ENODEV;
+	}
+
+	if (!ctx->mac_str_desc_idx) {
+		LOG_ERR("MAC address string descriptor index is 0");
+		return -ENODEV;
+	}
+
+	if (!ctx->max_segment_size) {
+		LOG_WRN("wMaxSegmentSize is 0, using default %u",
+			CONFIG_USBH_CDC_ECM_DATA_BUF_POOL_SIZE);
+		ctx->max_segment_size = CONFIG_USBH_CDC_ECM_DATA_BUF_POOL_SIZE;
+	}
+
+	if (!ctx->comm_in_ep_addr) {
+		LOG_ERR("COMM IN endpoint not found");
+		return -ENODEV;
+	}
+
+	if (!ctx->data_in_ep_addr || !ctx->data_out_ep_addr) {
+		LOG_ERR("DATA endpoints not found (IN=0x%02x, OUT=0x%02x)", ctx->data_in_ep_addr,
+			ctx->data_out_ep_addr);
+		return -ENODEV;
+	}
+
+	LOG_INF("device information:");
+	LOG_INF("  Communication: interface %u, endpoint 0x%02x", ctx->comm_if_num,
+		ctx->comm_in_ep_addr);
+	LOG_INF("  Data: interface %u (alt %d), IN 0x%02x, OUT 0x%02x (MPS %u)", ctx->data_if_num,
+		ctx->data_alt_num, ctx->data_in_ep_addr, ctx->data_out_ep_addr,
+		ctx->data_out_ep_mps);
+	LOG_INF("  wMaxSegmentSize %u bytes, MAC string descriptor index %u", ctx->max_segment_size,
+		ctx->mac_str_desc_idx);
 
 	return 0;
 }
 
-static int usbh_cdc_ecm_get_mac_address(struct usbh_cdc_ecm_data *const data,
-					struct usb_device *const udev)
+static int usbh_cdc_ecm_get_mac_address(struct usbh_cdc_ecm_ctx *const ctx)
 {
 	struct usb_string_descriptor zero_str_desc_head;
 	struct usb_string_descriptor *zero_str_desc = NULL;
 	bool zero_str_desc_allocated = false;
 	size_t langid_size = 0;
 	uint8_t *langid_data = NULL;
-	uint8_t mac_str_desc_buf[2 + NET_ETH_ADDR_LEN * 2 * 2];
+	uint8_t mac_str_desc_buf[2 + NET_ETH_ADDR_LEN * 4];
 	struct usb_string_descriptor *mac_str_desc =
 		(struct usb_string_descriptor *)mac_str_desc_buf;
 	uint8_t *mac_utf16le = NULL;
@@ -724,11 +938,11 @@ static int usbh_cdc_ecm_get_mac_address(struct usbh_cdc_ecm_data *const data,
 	bool found_mac = false;
 	int ret;
 
-	if (!data->mac_str_desc_idx) {
+	if (!ctx || !ctx->udev) {
 		return -EINVAL;
 	}
 
-	ret = usbh_req_desc_str(udev, 0, sizeof(zero_str_desc_head), 0, &zero_str_desc_head);
+	ret = usbh_req_desc_str(ctx->udev, 0, sizeof(zero_str_desc_head), 0, &zero_str_desc_head);
 	if (ret) {
 		return ret;
 	}
@@ -743,7 +957,7 @@ static int usbh_cdc_ecm_get_mac_address(struct usbh_cdc_ecm_data *const data,
 
 		zero_str_desc_allocated = true;
 
-		ret = usbh_req_desc_str(udev, 0, zero_str_desc_head.bLength, 0, zero_str_desc);
+		ret = usbh_req_desc_str(ctx->udev, 0, zero_str_desc_head.bLength, 0, zero_str_desc);
 		if (ret) {
 			goto cleanup;
 		}
@@ -756,7 +970,8 @@ static int usbh_cdc_ecm_get_mac_address(struct usbh_cdc_ecm_data *const data,
 	langid_data = (uint8_t *)&zero_str_desc->bString;
 
 	for (size_t i = 0; i < langid_size; i++) {
-		ret = usbh_req_desc_str(udev, data->mac_str_desc_idx, ARRAY_SIZE(mac_str_desc_buf),
+		ret = usbh_req_desc_str(ctx->udev, ctx->mac_str_desc_idx,
+					ARRAY_SIZE(mac_str_desc_buf),
 					sys_get_le16(&langid_data[i * 2]), mac_str_desc);
 		if (ret) {
 			continue;
@@ -772,9 +987,9 @@ static int usbh_cdc_ecm_get_mac_address(struct usbh_cdc_ecm_data *const data,
 			mac_str[j] = (char)sys_get_le16(&mac_utf16le[j * 2]);
 		}
 
-		if (hex2bin(mac_str, NET_ETH_ADDR_LEN * 2, data->eth_mac.addr, NET_ETH_ADDR_LEN) ==
+		if (hex2bin(mac_str, NET_ETH_ADDR_LEN * 2, ctx->eth_mac.addr, NET_ETH_ADDR_LEN) ==
 		    NET_ETH_ADDR_LEN) {
-			if (net_eth_is_addr_valid(&data->eth_mac)) {
+			if (net_eth_is_addr_valid(&ctx->eth_mac)) {
 				found_mac = true;
 				break;
 			}
@@ -782,8 +997,13 @@ static int usbh_cdc_ecm_get_mac_address(struct usbh_cdc_ecm_data *const data,
 	}
 
 	if (!found_mac) {
+		LOG_WRN("failed to retrieve valid MAC address");
 		ret = -ENODEV;
-		goto cleanup;
+	} else {
+		LOG_INF("device MAC address: %02x:%02x:%02x:%02x:%02x:%02x", ctx->eth_mac.addr[0],
+			ctx->eth_mac.addr[1], ctx->eth_mac.addr[2], ctx->eth_mac.addr[3],
+			ctx->eth_mac.addr[4], ctx->eth_mac.addr[5]);
+		ret = 0;
 	}
 
 cleanup:
@@ -798,12 +1018,11 @@ static int usbh_cdc_ecm_init(struct usbh_class_data *const c_data,
 			     struct usbh_context *const uhs_ctx)
 {
 	struct device *dev = c_data->priv;
-	struct usbh_cdc_ecm_data *priv = dev->data;
+	struct usbh_cdc_ecm_ctx *ctx = dev->data;
 
 	ARG_UNUSED(uhs_ctx);
 
-	priv->c_data = c_data;
-	usbh_cdc_ecm_data_instances[priv->dev_idx] = priv;
+	(void)k_mutex_init(&ctx->lock);
 
 	return 0;
 }
@@ -821,92 +1040,114 @@ static int usbh_cdc_ecm_probe(struct usbh_class_data *const c_data, struct usb_d
 			      const uint8_t iface)
 {
 	struct device *dev = c_data->priv;
-	struct usbh_cdc_ecm_data *priv = dev->data;
+	struct usbh_cdc_ecm_ctx *ctx = dev->data;
+	const void *const desc_beg = usbh_desc_get_cfg(udev);
 	const void *const desc_end = usbh_desc_get_cfg_end(udev);
 	const struct usb_desc_header *desc;
+	const struct usb_association_descriptor *assoc_desc;
+	struct usbh_cdc_ecm_req_params param;
+	struct usbh_cdc_ecm_msg msg;
 	int ret;
 
-	desc = usbh_desc_get_by_iface(usbh_desc_get_cfg(udev), desc_end, iface);
+	(void)k_mutex_lock(&ctx->lock, K_FOREVER);
+
+	ctx->udev = udev;
+	ctx->link_state = false;
+	ctx->upload_speed = 0;
+	ctx->download_speed = 0;
+	ctx->active_data_rx_xfers = 0;
+
+	desc = usbh_desc_get_by_iface(desc_beg, desc_end, iface);
 	if (!desc) {
 		LOG_ERR("no descriptor found for interface %u", iface);
-		return -ENODEV;
+		ret = -ENODEV;
+		goto done;
 	}
 
 	if (desc->bDescriptorType == USB_DESC_INTERFACE_ASSOC) {
-		const struct usb_association_descriptor *assoc_desc =
-			(struct usb_association_descriptor *)desc;
+		assoc_desc = (struct usb_association_descriptor *)desc;
 		desc = usbh_desc_get_by_iface(desc, desc_end, assoc_desc->bFirstInterface);
 		if (!desc) {
-			LOG_ERR("no descriptor (iad) found for interface %u", iface);
-			return -ENODEV;
+			LOG_ERR("no descriptor (IAD) found for interface %u", iface);
+			ret = -ENODEV;
+			goto done;
 		}
 	}
 
-	priv->comm_if_num = 0;
-	priv->data_if_num = 0;
-	priv->data_alt_num = 0;
-	priv->comm_in_ep_addr = 0;
-	priv->data_in_ep_addr = 0;
-	priv->data_out_ep_addr = 0;
-
-	ret = usbh_cdc_ecm_parse_descriptors(priv, udev, desc);
+	ret = usbh_cdc_ecm_parse_descriptors(ctx, desc);
 	if (ret) {
 		LOG_ERR("parse descriptor error (%d)", ret);
-		return ret;
+		goto done;
 	}
 
-	LOG_INF("communication interface %d, IN endpoint addr 0x%02x", priv->comm_if_num,
-		priv->comm_in_ep_addr);
-	LOG_INF("data interface %d, IN endpoint addr 0x%02x, OUT endpoint addr 0x%02x",
-		priv->data_if_num, priv->data_in_ep_addr, priv->data_out_ep_addr);
-	LOG_INF("device wMaxSegmentSize is %d", priv->max_segment_size);
-
-	ret = usbh_cdc_ecm_get_mac_address(priv, udev);
-	if (ret) {
-		LOG_ERR("get mac address error (%d)", ret);
-		return ret;
-	}
-
-	LOG_INF("device mac address %02x:%02x:%02x:%02x:%02x:%02x", priv->eth_mac.addr[0],
-		priv->eth_mac.addr[1], priv->eth_mac.addr[2], priv->eth_mac.addr[3],
-		priv->eth_mac.addr[4], priv->eth_mac.addr[5]);
-
-	net_if_set_link_addr(priv->iface, priv->eth_mac.addr, ARRAY_SIZE(priv->eth_mac.addr),
-			     NET_LINK_ETHERNET);
-
-	if (priv->data_alt_num) {
-		ret = usbh_device_interface_set(udev, priv->data_if_num, priv->data_alt_num, false);
+	if (ctx->data_alt_num) {
+		ret = usbh_device_interface_set(ctx->udev, ctx->data_if_num, ctx->data_alt_num,
+						false);
 		if (ret) {
 			LOG_ERR("set data interface alternate setting error (%d)", ret);
-			return ret;
+			goto done;
 		}
 	}
 
-	(void)atomic_clear(&priv->eth_pkt_filter_bitmap);
-
-	ret = usbh_cdc_ecm_set_pkt_filter(priv, udev,
-					  PACKET_TYPE_BROADCAST | PACKET_TYPE_DIRECTED |
-						  PACKET_TYPE_ALL_MULTICAST);
+	ret = usbh_cdc_ecm_get_mac_address(ctx);
 	if (ret) {
-		LOG_ERR("set packet filter error (%d)", ret);
-		return ret;
+		LOG_ERR("get MAC address error (%d)", ret);
+		goto done;
 	}
 
-	usbh_cdc_ecm_start_auto_rx(priv);
+	ret = net_if_set_link_addr(ctx->iface, ctx->eth_mac.addr, ARRAY_SIZE(ctx->eth_mac.addr),
+				   NET_LINK_ETHERNET);
+	if (ret) {
+		LOG_ERR("set MAC address error (%d)", ret);
+		goto done;
+	}
 
-	return 0;
+	param.bRequest = SET_ETHERNET_PACKET_FILTER;
+	param.eth_pkt_filter_bitmap =
+		PACKET_TYPE_BROADCAST | PACKET_TYPE_DIRECTED | PACKET_TYPE_ALL_MULTICAST;
+	ret = usbh_cdc_ecm_req(ctx, &param);
+	if (ret) {
+		LOG_ERR("set default ethernet packet filter error (%d)", ret);
+		goto done;
+	}
+
+	msg.ctx = ctx;
+	msg.event = CDC_ECM_EVENT_TASK_START;
+	ret = usbh_cdc_ecm_msgq_put(&msg);
+	if (ret) {
+		LOG_ERR("send task start message error (%d)", ret);
+		goto done;
+	}
+
+	LOG_INF("device probed");
+
+done:
+	if (ret) {
+		ctx->udev = NULL;
+	}
+
+	(void)k_mutex_unlock(&ctx->lock);
+
+	return ret;
 }
 
 static int usbh_cdc_ecm_removed(struct usbh_class_data *const c_data)
 {
 	struct device *dev = c_data->priv;
-	struct usbh_cdc_ecm_data *priv = dev->data;
+	struct usbh_cdc_ecm_ctx *ctx = dev->data;
 
-	net_if_carrier_off(priv->iface);
+	(void)k_mutex_lock(&ctx->lock, K_FOREVER);
 
-	usbh_cdc_ecm_stop_auto_rx(priv);
+	ctx->udev = NULL;
+	ctx->link_state = false;
+	ctx->upload_speed = 0;
+	ctx->download_speed = 0;
 
-	(void)atomic_clear(&priv->eth_pkt_filter_bitmap);
+	net_if_carrier_off(ctx->iface);
+
+	(void)k_mutex_unlock(&ctx->lock);
+
+	LOG_INF("device removed");
 
 	return 0;
 }
@@ -936,12 +1177,17 @@ static struct usbh_class_api usbh_cdc_ecm_class_api = {
 
 static void eth_usbh_cdc_ecm_iface_init(struct net_if *iface)
 {
-	struct usbh_cdc_ecm_data *priv = net_if_get_device(iface)->data;
+	struct usbh_cdc_ecm_ctx *ctx = net_if_get_device(iface)->data;
 
-	priv->iface = iface;
+	(void)k_mutex_lock(&ctx->lock, K_FOREVER);
 
-	ethernet_init(iface);
-	net_if_carrier_off(iface);
+	ctx->iface = iface;
+
+	ethernet_init(ctx->iface);
+
+	net_if_carrier_off(ctx->iface);
+
+	(void)k_mutex_unlock(&ctx->lock);
 }
 
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
@@ -957,22 +1203,20 @@ struct net_stats_eth *eth_usbh_cdc_ecm_get_stats(const struct device *dev)
 static int eth_usbh_cdc_ecm_set_config(const struct device *dev, enum ethernet_config_type type,
 				       const struct ethernet_config *config)
 {
-	struct usbh_cdc_ecm_data *priv = dev->data;
+	struct usbh_cdc_ecm_ctx *ctx = dev->data;
 	int ret = 0;
 
 	switch (type) {
 	case ETHERNET_CONFIG_TYPE_MAC_ADDRESS:
-		ret = net_if_set_link_addr(priv->iface, (uint8_t *)config->mac_address.addr,
+		ret = net_if_set_link_addr(ctx->iface, (uint8_t *)config->mac_address.addr,
 					   NET_ETH_ADDR_LEN, NET_LINK_ETHERNET);
 		break;
 #if defined(CONFIG_NET_PROMISCUOUS_MODE)
 	case ETHERNET_CONFIG_TYPE_PROMISC_MODE:
 		if (config->promisc_mode) {
-			ret = usbh_cdc_ecm_set_pkt_filter(priv, priv->c_data->udev,
-							  PACKET_TYPE_PROMISCUOUS);
+			;
 		} else {
-			ret = usbh_cdc_ecm_unset_pkt_filter(priv, priv->c_data->udev,
-							    PACKET_TYPE_PROMISCUOUS);
+			;
 		}
 		break;
 #endif
@@ -986,17 +1230,13 @@ static int eth_usbh_cdc_ecm_set_config(const struct device *dev, enum ethernet_c
 
 static int eth_usbh_cdc_ecm_send(const struct device *dev, struct net_pkt *pkt)
 {
-	struct usbh_cdc_ecm_data *priv = dev->data;
+	struct usbh_cdc_ecm_ctx *ctx = dev->data;
 
-	if (priv->c_data->udev->state != USB_STATE_CONFIGURED) {
-		return -ENETDOWN;
-	}
-
-	if (!pkt || !pkt->frags) {
+	if (!pkt) {
 		return -EINVAL;
 	}
 
-	return usbh_cdc_ecm_data_tx(priv, pkt->frags);
+	return usbh_cdc_ecm_data_tx(ctx, pkt->buffer);
 }
 
 static struct ethernet_api eth_usbh_cdc_ecm_api = {
@@ -1014,96 +1254,62 @@ static struct usbh_class_filter cdc_ecm_filters[] = {{
 	.sub = ECM_SUBCLASS,
 }};
 
-static void usbh_cdc_ecm_thread_entry(void *arg1, void *arg2, void *arg3)
+static void usbh_cdc_ecm_thread(void *arg1, void *arg2, void *arg3)
 {
-	struct usbh_cdc_ecm_data *data;
-	struct k_poll_signal *sig;
-	struct k_poll_event *evt;
-	unsigned int signaled;
-	int result;
-	unsigned int pending_sig_val;
-	int ret;
+	struct usbh_cdc_ecm_msg msg, new_msg;
+	struct usbh_cdc_ecm_ctx *ctx;
+	int err;
 
 	ARG_UNUSED(arg1);
 	ARG_UNUSED(arg2);
 	ARG_UNUSED(arg3);
 
-	for (size_t i = 0; i < USBH_CDC_ECM_INSTANCE_COUNT; i++) {
-		k_poll_signal_init(&usbh_cdc_ecm_data_signals[i]);
-		k_poll_event_init(&usbh_cdc_ecm_data_events[i], K_POLL_TYPE_SIGNAL,
-				  K_POLL_MODE_NOTIFY_ONLY, &usbh_cdc_ecm_data_signals[i]);
-	}
-
 	while (true) {
-		ret = k_poll(usbh_cdc_ecm_data_events, ARRAY_SIZE(usbh_cdc_ecm_data_events),
-			     K_FOREVER);
-		if (ret) {
-			k_sleep(K_MSEC(1000));
+		(void)k_msgq_get(&usbh_cdc_ecm_msgq, &msg, K_FOREVER);
+
+		ctx = msg.ctx;
+
+		if (!ctx) {
 			continue;
 		}
 
-		for (size_t i = 0; i < ARRAY_SIZE(usbh_cdc_ecm_data_events); i++) {
-			evt = &usbh_cdc_ecm_data_events[i];
-			sig = &usbh_cdc_ecm_data_signals[i];
-			data = usbh_cdc_ecm_data_instances[i];
+		err = 0;
 
-			if (evt->state != K_POLL_STATE_SIGNALED) {
-				continue;
+		switch (msg.event) {
+		case CDC_ECM_EVENT_TASK_START:
+			(void)k_mutex_lock(&ctx->lock, K_NO_WAIT);
+			if (!usbh_cdc_ecm_is_configured(ctx)) {
+				err = -ENODEV;
+			} else {
+				new_msg.ctx = ctx;
+				new_msg.event = CDC_ECM_EVENT_COMM_RX;
+				err = usbh_cdc_ecm_msgq_put(&new_msg);
 			}
+			(void)k_mutex_unlock(&ctx->lock);
+			break;
+		case CDC_ECM_EVENT_COMM_RX:
+			err = usbh_cdc_ecm_comm_rx(ctx);
+			break;
+		case CDC_ECM_EVENT_DATA_RX:
+			err = usbh_cdc_ecm_data_rx_queue(ctx);
+			break;
+		default:
+			break;
+		}
 
-			k_poll_signal_check(sig, &signaled, &result);
-
-			evt->state = K_POLL_STATE_NOT_READY;
-
-			if (signaled) {
-				k_poll_signal_reset(sig);
-
-				if (!data) {
-					continue;
-				}
-
-				if (!atomic_get(&data->auto_rx_enabled)) {
-					continue;
-				}
-
-				result = atomic_clear(&data->rx_pending_sig_vals);
-				pending_sig_val = 0;
-
-				if (result & USBH_CDC_ECM_SIG_COMM_RX_IDLE) {
-					ret = usbh_cdc_ecm_comm_rx(data);
-					if (ret) {
-						pending_sig_val |= USBH_CDC_ECM_SIG_COMM_RX_IDLE;
-					}
-				}
-
-				if (result & USBH_CDC_ECM_SIG_DATA_RX_IDLE) {
-					ret = usbh_cdc_ecm_data_rx(data);
-					if (ret) {
-						pending_sig_val |= USBH_CDC_ECM_SIG_DATA_RX_IDLE;
-					}
-				}
-
-				if (pending_sig_val) {
-					if (result & pending_sig_val) {
-						k_sleep(K_MSEC(500));
-					}
-					usbh_cdc_ecm_sig_raise(data, pending_sig_val);
-				}
-			}
+		if (err != 0 && err != -ENODEV) {
+			LOG_WRN("thread event[%d] error (%d)", msg.event, err);
 		}
 	}
 }
 
-K_THREAD_DEFINE(usbh_cdc_ecm_thread, CONFIG_USBH_CDC_ECM_STACK_SIZE, usbh_cdc_ecm_thread_entry,
-		NULL, NULL, NULL, CONFIG_SYSTEM_WORKQUEUE_PRIORITY, 0, 0);
+K_THREAD_DEFINE(usbh_cdc_ecm, CONFIG_USBH_CDC_ECM_STACK_SIZE, usbh_cdc_ecm_thread, NULL, NULL, NULL,
+		CONFIG_SYSTEM_WORKQUEUE_PRIORITY, 0, 0);
 
 #define USBH_CDC_ECM_DT_DEVICE_DEFINE(n)                                                           \
-	static struct usbh_cdc_ecm_data cdc_ecm_data_##n = {                                       \
-		.dev_idx = n,                                                                      \
-		.rx_sig = &usbh_cdc_ecm_data_signals[n],                                           \
-	};                                                                                         \
+	static struct usbh_cdc_ecm_ctx cdc_ecm_ctx_##n;                                            \
                                                                                                    \
-	ETH_NET_DEVICE_DT_INST_DEFINE(n, NULL, NULL, &cdc_ecm_data_##n, NULL,                      \
+	ETH_NET_DEVICE_DT_INST_DEFINE(n, NULL, NULL, &cdc_ecm_ctx_##n, NULL,                       \
 				      CONFIG_ETH_INIT_PRIORITY, &eth_usbh_cdc_ecm_api,             \
 				      NET_ETH_MTU);                                                \
                                                                                                    \

@@ -18,9 +18,22 @@ config USBH_CDC_ECM_STACK_SIZE
 	help
 	  USB CDC-ECM thread stack size in bytes.
 
+config USBH_CDC_ECM_MSG_QUEUE_DEPTH
+	int "USB CDC-ECM message queue depth"
+	default 8
+	help
+	  Number of USB CDC-ECM message queue depth per instance for handling events.
+
+config USBH_CDC_ECM_DATA_BUF_POOL_SIZE
+	int "USB CDC-ECM buffer pool size"
+	default 1514
+	range 60 9000
+	help
+	  USB CDC-ECM buffer pool size in bytes.
+
 config USBH_CDC_ECM_DATA_TX_BUF_COUNT
 	int "Number of CDC-ECM data tx buffers"
-	default 8
+	default 16
 	help
 	  Number of CDC-ECM data tx buffers per instance for transmitting data.
 
@@ -30,12 +43,11 @@ config USBH_CDC_ECM_DATA_RX_BUF_COUNT
 	help
       	  Number of CDC-ECM data rx buffers per instance for receiving data.
 
-config USBH_CDC_ECM_DATA_BUF_POOL_SIZE
-	int "USB CDC-ECM buffer pool size"
-	default 1514
-	range 60 9000
+config USBH_CDC_ECM_DATA_RX_QUEUE_DEPTH
+	int "CDC-ECM data rx queue depth"
+	default 2
 	help
-	  USB CDC-ECM buffer pool size in bytes.
+	  Number of CDC-ECM data rx queue depth per instance for queuing data reception requests.
 
 module = USBH_CDC_ECM
 module-str = "usbh cdc_ecm"
