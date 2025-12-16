@@ -758,7 +758,7 @@ static int usbh_cdc_ecm_parse_descriptors(struct usbh_cdc_ecm_ctx *const ctx,
 	uint8_t union_subord_if = UINT8_MAX;
 	bool cdc_header_func_ready = false;
 	bool cdc_union_func_ready = false;
-	bool cdc_ecm_func_ready = false;
+	bool cdc_ethernet_func_ready = false;
 
 	if (!ctx || !desc) {
 		return -EINVAL;
@@ -826,7 +826,7 @@ static int usbh_cdc_ecm_parse_descriptors(struct usbh_cdc_ecm_ctx *const ctx,
 					sys_le16_to_cpu(cdc_ecm_desc->wMaxSegmentSize);
 				/** TODO: MCFilter Feature */
 				/** TODO: Power Filter Feature */
-				cdc_ecm_func_ready = true;
+				cdc_ethernet_func_ready = true;
 			}
 			break;
 		case USB_DESC_ENDPOINT:
@@ -867,8 +867,8 @@ static int usbh_cdc_ecm_parse_descriptors(struct usbh_cdc_ecm_ctx *const ctx,
 		return -ENODEV;
 	}
 
-	if (!cdc_ecm_func_ready) {
-		LOG_ERR("CDC-ECM descriptor not found");
+	if (!cdc_ethernet_func_ready) {
+		LOG_ERR("CDC Ethernet descriptor not found");
 		return -ENODEV;
 	}
 
