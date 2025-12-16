@@ -38,7 +38,8 @@ struct mp_pad;
  * @return Next intermediate state
  *
  */
-#define MP_STATE_GET_NEXT(cur, target) ((enum mp_state)((int)cur + SIGN((int)target - (int)cur)))
+#define MP_STATE_GET_NEXT(cur, target)                                                             \
+	((enum mp_state)((int)cur + SYS_SIGN((int)target - (int)cur)))
 
 /**
  * @brief Create state transition value

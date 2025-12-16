@@ -61,8 +61,8 @@ LOG_MODULE_REGISTER(mp_value, CONFIG_LIBMP_LOG_LEVEL);
 		  type_enum,                                                                       \
 		  MAX(MP_VALUE_RANGE(ref_val)->min.vtype, MP_VALUE_RANGE(cmp_val)->min.vtype),     \
 		  MIN(MP_VALUE_RANGE(ref_val)->max.vtype, MP_VALUE_RANGE(cmp_val)->max.vtype),     \
-		  gcd(MP_VALUE_RANGE(ref_val)->step.vtype,                                         \
-		      MP_VALUE_RANGE(compare_val)->step.vtype),                                    \
+		  sys_gcd(MP_VALUE_RANGE(ref_val)->step.vtype,                                     \
+			  MP_VALUE_RANGE(compare_val)->step.vtype),                                \
 		  NULL)                                                                            \
 	: NULL
 
@@ -186,11 +186,11 @@ static void mp_value_set_fraction(struct mp_value *value, int type, va_list *arg
 	MP_VALUE_FRACTION(value)->denom.v_uint = va_arg(*args, uint32_t);
 	__ASSERT_NO_MSG(MP_VALUE_FRACTION(value)->denom.v_uint != 0);
 	if (type == MP_TYPE_UINT_FRACTION) {
-		gcd = gcd(MP_VALUE_FRACTION(value)->num.v_int,
-			  MP_VALUE_FRACTION(value)->denom.v_int);
+		gcd = sys_gcd(MP_VALUE_FRACTION(value)->num.v_int,
+			      MP_VALUE_FRACTION(value)->denom.v_int);
 	} else {
-		gcd = gcd(MP_VALUE_FRACTION(value)->num.v_uint,
-			  MP_VALUE_FRACTION(value)->denom.v_uint);
+		gcd = sys_gcd(MP_VALUE_FRACTION(value)->num.v_uint,
+			      MP_VALUE_FRACTION(value)->denom.v_uint);
 	}
 
 	MP_VALUE_FRACTION(value)->num.v_uint /= gcd;
@@ -688,19 +688,19 @@ struct mp_value *mp_value_intersect_fraction_range(const struct mp_value *ref_va
 			MP_VALUE(&MP_VALUE_FRACTION_RANGE(ref_val)->max),
 			MP_VALUE(&MP_VALUE_FRACTION_RANGE(compare_val)->max), true));
 		if (f_type == MP_TYPE_INT_FRACTION) {
-			mp_value_set(MP_VALUE(&MP_VALUE_FRACTION_RANGE(intersect_value)->step),
-				     f_type,
-				     gcd(MP_VALUE_FRACTION_RANGE(ref_val)->step.num.v_int,
-					 MP_VALUE_FRACTION_RANGE(compare_val)->step.num.v_int),
-				     lcm(MP_VALUE_FRACTION_RANGE(ref_val)->step.denom.v_int,
-					 MP_VALUE_FRACTION_RANGE(compare_val)->step.denom.v_int));
+			mp_value_set(
+				MP_VALUE(&MP_VALUE_FRACTION_RANGE(intersect_value)->step), f_type,
+				sys_gcd(MP_VALUE_FRACTION_RANGE(ref_val)->step.num.v_int,
+					MP_VALUE_FRACTION_RANGE(compare_val)->step.num.v_int),
+				sys_lcm(MP_VALUE_FRACTION_RANGE(ref_val)->step.denom.v_int,
+					MP_VALUE_FRACTION_RANGE(compare_val)->step.denom.v_int));
 		} else {
-			mp_value_set(MP_VALUE(&MP_VALUE_FRACTION_RANGE(intersect_value)->step),
-				     f_type,
-				     gcd(MP_VALUE_FRACTION_RANGE(ref_val)->step.num.v_uint,
-					 MP_VALUE_FRACTION_RANGE(compare_val)->step.num.v_uint),
-				     lcm(MP_VALUE_FRACTION_RANGE(ref_val)->step.denom.v_uint,
-					 MP_VALUE_FRACTION_RANGE(compare_val)->step.denom.v_uint));
+			mp_value_set(
+				MP_VALUE(&MP_VALUE_FRACTION_RANGE(intersect_value)->step), f_type,
+				sys_gcd(MP_VALUE_FRACTION_RANGE(ref_val)->step.num.v_uint,
+					MP_VALUE_FRACTION_RANGE(compare_val)->step.num.v_uint),
+				sys_lcm(MP_VALUE_FRACTION_RANGE(ref_val)->step.denom.v_uint,
+					MP_VALUE_FRACTION_RANGE(compare_val)->step.denom.v_uint));
 		}
 	} else if ((compare_val->type == MP_TYPE_INT_FRACTION ||
 		    compare_val->type == MP_TYPE_UINT_FRACTION) &&
