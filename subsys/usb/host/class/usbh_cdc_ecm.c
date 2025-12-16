@@ -532,6 +532,10 @@ static int usbh_cdc_ecm_data_rx(struct usbh_cdc_ecm_ctx *const ctx)
 		goto done;
 	}
 
+	if (!ctx->link_state) {
+		goto done;
+	}
+
 	if (ctx->active_data_rx_xfers >= CONFIG_USBH_CDC_ECM_DATA_RX_QUEUE_DEPTH) {
 		ret = -EBUSY;
 		goto done;
@@ -579,6 +583,10 @@ static int usbh_cdc_ecm_data_rx_queue(struct usbh_cdc_ecm_ctx *const ctx)
 
 	if (!usbh_cdc_ecm_is_configured(ctx)) {
 		ret = -ENODEV;
+		goto done;
+	}
+
+	if (!ctx->link_state) {
 		goto done;
 	}
 
