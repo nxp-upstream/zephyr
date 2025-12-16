@@ -300,7 +300,9 @@ static int usbh_cdc_ecm_comm_rx_cb(struct usb_device *const udev, struct uhc_tra
 	locked = true;
 
 	if (xfer->err) {
-		LOG_WRN("notification RX transfer error (%d)", xfer->err);
+		if (xfer->err != -EIO) {
+			LOG_WRN("notification RX transfer error (%d)", xfer->err);
+		}
 		goto cleanup;
 	}
 
@@ -447,7 +449,9 @@ static int usbh_cdc_ecm_data_rx_cb(struct usb_device *const udev, struct uhc_tra
 	ctx->active_data_rx_xfers--;
 
 	if (xfer->err) {
-		LOG_WRN("data RX transfer error (%d)", xfer->err);
+		if (xfer->err != -EIO) {
+			LOG_WRN("data RX transfer error (%d)", xfer->err);
+		}
 		goto cleanup;
 	}
 
@@ -633,7 +637,9 @@ static int usbh_cdc_ecm_data_tx_cb(struct usb_device *const udev, struct uhc_tra
 	locked = true;
 
 	if (xfer->err) {
-		LOG_WRN("data TX transfer error (%d)", xfer->err);
+		if (xfer->err != -EIO) {
+			LOG_WRN("data TX transfer error (%d)", xfer->err);
+		}
 		goto cleanup;
 	}
 
