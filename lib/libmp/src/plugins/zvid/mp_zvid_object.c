@@ -338,7 +338,7 @@ bool mp_zvid_object_decide_allocation(struct mp_zvid_object *zvid_obj, struct mp
 		}
 
 		/* Decide alignment */
-		int align = lcm(qpc->align, pool_config->align);
+		int align = sys_lcm(qpc->align, pool_config->align);
 
 		if (align == -1) {
 			return false;
