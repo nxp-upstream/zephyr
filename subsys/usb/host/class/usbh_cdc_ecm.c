@@ -287,6 +287,7 @@ static int usbh_cdc_ecm_comm_rx_cb(struct usb_device *const udev, struct uhc_tra
 	struct cdc_notification_packet *notif;
 	uint32_t *link_speeds;
 	bool locked = false;
+	bool link_updated = false;
 	int err;
 	int ret = 0;
 
@@ -332,11 +333,8 @@ static int usbh_cdc_ecm_comm_rx_cb(struct usb_device *const udev, struct uhc_tra
 		ctx->download_speed = sys_le32_to_cpu(link_speeds[0]);
 		ctx->upload_speed = sys_le32_to_cpu(link_speeds[1]);
 
-		LOG_INF("network %s", ctx->link_state ? "connected" : "disconnected");
-		LOG_INF("link speed: UL %u bps / DL %u bps", ctx->upload_speed,
-			ctx->download_speed);
-
-		if (ctx->link_state) {
+		if (ctx->link_state && !net_if_is_carrier_ok(ctx->iface)) {
+			link_updated = true;
 			net_if_carrier_on(ctx->iface);
 
 			msg.ctx = ctx;
@@ -345,8 +343,15 @@ static int usbh_cdc_ecm_comm_rx_cb(struct usb_device *const udev, struct uhc_tra
 			if (err) {
 				LOG_ERR("failed to send task data RX message");
 			}
-		} else {
+		} else if (!ctx->link_state && net_if_is_carrier_ok(ctx->iface)) {
+			link_updated = true;
 			net_if_carrier_off(ctx->iface);
+		}
+
+		if (link_updated) {
+			LOG_INF("network %s, link speed: UL %u bps / DL %u bps",
+				ctx->link_state ? "connected" : "disconnected", ctx->upload_speed,
+				ctx->download_speed);
 		}
 		break;
 	default:
