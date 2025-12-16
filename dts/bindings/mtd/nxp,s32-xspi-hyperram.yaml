@@ -1,0 +1,69 @@
+# Copyright 2025 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  XSPI hyperram connected to the NXP S32 XSPI bus.
+
+compatible: "nxp,s32-xspi-hyperram"
+
+include: "nxp,s32-xspi-device.yaml"
+
+properties:
+  device-id-word-addr:
+    required: true
+    type: int
+    description: |
+      The word address of the device ID in ASO (Application-Specific Object).
+      This address specifies the exact location within the memory where the device ID is stored.
+
+  master-locked-type:
+    type: string
+    enum:
+      - "SINGLE_ENDED"
+      - "DIFFERENTIAL"
+    description: |
+      Selects the clock types:
+        - Differential Clock: Command, address, and data information is output with respect
+          to the crossing of the CK and CK# signals. Differential clock is used on 1.8V I/O devices.
+        - Single Ended Clock: CK# is not used on 3.0V devices, only a single ended CK is used.
+          The clock is not required to be free-running.
+
+  drive-strength-ohm:
+    type: int
+    required: true
+    enum: [0, 1, 2, 3, 4, 5, 6, 7]
+    description: |
+      Specifies the output drive strength in ohm, which based on the operating device VCC.
+      The supported typical impedance settings:
+        0 — 34 ohms (default)
+        1 — 115 ohms
+        2 — 67 ohms
+        3 — 46 ohms
+        4 — 34 ohms
+        5 — 27 ohms
+        6 — 22 ohms
+        7 — 19 ohms
+      See the CR0[14:12] field in CR0 configuration register in the memory device datasheet.
+
+  refresh-interval:
+    type: int
+    required: true
+    enum: [0, 1, 2, 3]
+    description: |
+      Set the automatic refresh interval for HyperRAM, ensuring the memory is regularly refreshed
+      without host intervention.
+      This helps keep data safe and prevents long access delays.
+        0 — default
+          4 us for Industrial temperature range devices
+          1 us for Auto Grade (A2, A3) temperature range devices
+        1 — 1.5 times default
+        2 — 2 times default
+        3 — 4 times default
+
+  initial-latency-cycles:
+    type: int
+    required: true
+    enum: [3, 4, 5, 6, 7]
+    description: |
+      Specifies the read latency in cycles, which is determined based on the operating frequency
+      as specified in the memory device datasheet.
