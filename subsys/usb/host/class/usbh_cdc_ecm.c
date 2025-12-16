@@ -1107,6 +1107,7 @@ static int usbh_cdc_ecm_probe(struct usbh_class_data *const c_data, struct usb_d
 		goto done;
 	}
 
+	param.if_num = ctx->comm_if_num;
 	param.bRequest = SET_ETHERNET_PACKET_FILTER;
 	param.eth_pkt_filter_bitmap =
 		PACKET_TYPE_BROADCAST | PACKET_TYPE_DIRECTED | PACKET_TYPE_ALL_MULTICAST;
