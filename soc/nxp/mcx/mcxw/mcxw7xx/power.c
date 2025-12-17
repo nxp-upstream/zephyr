@@ -33,9 +33,28 @@ void mcxw7xx_set_wakeup(int32_t sig)
 static void set_cmc_configuration(void)
 {
 	CMC_SetPowerModeProtection(MCXW7_CMC_ADDR, kCMC_AllowAllLowPowerModes);
+	CMC_SetClockMode(MCXW7_CMC_ADDR, kCMC_GateNoneClock);
+	CMC_SetMAINPowerMode(MCXW7_CMC_ADDR, kCMC_ActiveMode);
+	CMC_SetWAKEPowerMode(MCXW7_CMC_ADDR, kCMC_ActiveMode);
 	CMC_LockPowerModeProtectionSetting(MCXW7_CMC_ADDR);
 	CMC_EnableDebugOperation(MCXW7_CMC_ADDR, IS_ENABLED(CONFIG_DEBUG));
 	CMC_ConfigFlashMode(MCXW7_CMC_ADDR, false, false, false);
+}
+
+static void clear_low_power_request(void)
+{
+	if (SPC_CheckPowerDomainLowPowerRequest(MCXW7_SPC_ADDR, kSPC_PowerDomain0)) {
+		SPC_ClearPowerDomainLowPowerRequestFlag(MCXW7_SPC_ADDR, kSPC_PowerDomain0);
+	}
+	if (SPC_CheckPowerDomainLowPowerRequest(MCXW7_SPC_ADDR, kSPC_PowerDomain1)) {
+		SPC_ClearPowerDomainLowPowerRequestFlag(MCXW7_SPC_ADDR, kSPC_PowerDomain1);
+	}
+	if (SPC_CheckPowerDomainLowPowerRequest(MCXW7_SPC_ADDR, kSPC_PowerDomain2)) {
+		RFMC->RF2P4GHZ_CTRL = (RFMC->RF2P4GHZ_CTRL & (~RFMC_RF2P4GHZ_CTRL_LP_MODE_MASK));
+		RFMC->RF2P4GHZ_CTRL &= ~RFMC_RF2P4GHZ_CTRL_LP_ENTER_MASK;
+		SPC_ClearPowerDomainLowPowerRequestFlag(MCXW7_SPC_ADDR, kSPC_PowerDomain2);
+	}
+	SPC_ClearLowPowerRequest(MCXW7_SPC_ADDR);
 }
 
 /*
@@ -62,6 +81,7 @@ __weak void pm_state_set(enum pm_state state, uint8_t substate_id)
 	/* Set BASEPRI to 0 */
 	irq_unlock(0);
 
+	clear_low_power_request();
 	set_cmc_configuration();
 	deinit_vbat();
 
@@ -98,9 +118,14 @@ __weak void pm_state_set(enum pm_state state, uint8_t substate_id)
 		/* Set MAIN_CORE and MAIN_WAKE power domain into Deep Sleep Mode. */
 		config.clock_mode  = kCMC_GateAllSystemClocksEnterLowPowerMode;
 		config.main_domain = kCMC_DeepSleepMode;
-		config.wake_domain = kCMC_DeepSleepMode;
-
+		if (substate_id == 1) {
+			config.wake_domain = kCMC_DeepSleepMode;
+		} else if (substate_id == 0) {
+			config.wake_domain = kCMC_SleepMode;
+		}
+		
 		CMC_EnterLowPowerMode(MCXW7_CMC_ADDR, &config);
+		clear_low_power_request();
 
 		break;
 	default:
@@ -117,19 +142,7 @@ __weak void pm_state_exit_post_ops(enum pm_state state, uint8_t substate_id)
 
 	/* Clear PRIMASK */
 	__enable_irq();
-
-	if (SPC_CheckPowerDomainLowPowerRequest(MCXW7_SPC_ADDR, kSPC_PowerDomain0)) {
-		SPC_ClearPowerDomainLowPowerRequestFlag(MCXW7_SPC_ADDR, kSPC_PowerDomain0);
-	}
-	if (SPC_CheckPowerDomainLowPowerRequest(MCXW7_SPC_ADDR, kSPC_PowerDomain1)) {
-		SPC_ClearPowerDomainLowPowerRequestFlag(MCXW7_SPC_ADDR, kSPC_PowerDomain1);
-	}
-	if (SPC_CheckPowerDomainLowPowerRequest(MCXW7_SPC_ADDR, kSPC_PowerDomain2)) {
-		RFMC->RF2P4GHZ_CTRL = (RFMC->RF2P4GHZ_CTRL & (~RFMC_RF2P4GHZ_CTRL_LP_MODE_MASK));
-		RFMC->RF2P4GHZ_CTRL &= ~RFMC_RF2P4GHZ_CTRL_LP_ENTER_MASK;
-		SPC_ClearPowerDomainLowPowerRequestFlag(MCXW7_SPC_ADDR, kSPC_PowerDomain2);
-	}
-	SPC_ClearLowPowerRequest(MCXW7_SPC_ADDR);
+	clear_low_power_request();
 }
 
 /*
@@ -202,4 +215,6 @@ void nxp_mcxw7x_power_init(void)
 	set_spc_configuration();
 	/* Enable LPTMR0 as wakeup source */
 	NXP_ENABLE_WAKEUP_SIGNAL(WUU_WAKEUP_LPTMR_IDX);
+	clear_low_power_request();
+	RFMC->RF2P4GHZ_CFG |= RFMC_RF2P4GHZ_CFG_FORCE_DBG_PWRUP_ACK_MASK;
 }

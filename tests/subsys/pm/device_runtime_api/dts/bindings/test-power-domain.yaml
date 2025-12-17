@@ -1,0 +1,10 @@
+# Copyright (c) 2025 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+include: [base.yaml, pm.yaml]
+
+description: 
+  This binding provides resource required to build and run power domain tests
+  for device runtime API in Zephyr.
+
+compatible: "test-power-domain"

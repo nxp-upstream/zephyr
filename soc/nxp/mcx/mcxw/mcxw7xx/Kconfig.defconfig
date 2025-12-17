@@ -67,4 +67,10 @@ config NXP_RF_IMU
 
 endif # IEEE802154
 
+config POWER_DOMAIN_CMC_INIT_PRIORITY
+	default 0
+
+config POWER_DOMAIN_SPC_INIT_PRIORITY
+	default 0
+
 endif

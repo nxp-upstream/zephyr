@@ -372,6 +372,14 @@ int pm_device_driver_init(const struct device *dev,
 	if (!pm_device_is_powered(dev)) {
 		return 0;
 	}
+// #ifdef CONFIG_PM_DEVICE_POWER_DOMAIN
+// 	if (pm->domain != NULL) {
+// 		rc = pm_device_action_run(pm->domain, PM_DEVICE_ACTION_TURN_ON);
+// 		if (rc < 0) {
+// 			return rc;
+// 		}
+// 	}
+// #endif /* CONFIG_PM_DEVICE_POWER_DOMAIN */
 
 	/* Run power-up logic */
 	rc = action_cb(dev, PM_DEVICE_ACTION_TURN_ON);
@@ -409,9 +417,18 @@ int pm_device_driver_deinit(const struct device *dev,
 			    pm_device_action_cb_t action_cb)
 {
 	struct pm_device_base *pm = dev->pm_base;
+	int ret = 0;
 
-	return pm->state == PM_DEVICE_STATE_SUSPENDED ||
+	ret = pm->state == PM_DEVICE_STATE_SUSPENDED ||
 	       pm->state == PM_DEVICE_STATE_OFF ?
 	       0 :
 	       -EBUSY;
+// #ifdef CONFIG_PM_DEVICE_POWER_DOMAIN
+// 	if ((ret == 0) && (pm->domain != NULL)) {
+// 		/* Notify power domain, it can turn off if needed. */
+// 		pm_device_action_run(pm->domain, PM_DEVICE_ACTION_TURN_OFF);
+// 	}
+// #endif
+
+	return ret;
 }

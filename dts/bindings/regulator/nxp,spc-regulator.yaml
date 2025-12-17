@@ -1,0 +1,11 @@
+# Copyright 2025 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: NXP SPC regulator
+
+compatible: "nxp,spc-regulator"
+
+include:
+  - name: regulator.yaml
+    property-allowlist:
+      - regulator-boot-on

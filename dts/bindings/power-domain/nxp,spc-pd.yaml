@@ -1,0 +1,17 @@
+description: NXP SPC power domain
+
+compatible: "nxp,spc-pd"
+
+include:
+  - power-domain.yaml
+  - base.yaml
+
+properties:
+  pd-ctrl-bit:
+    type: int
+    required: false
+    description: |
+      Control bit in SPC[EVD_CFG] to control this power domain.
+
+  "#power-domain-cells":
+    const: 0  

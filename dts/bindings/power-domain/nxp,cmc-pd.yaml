@@ -1,0 +1,23 @@
+# Copyright (c) 2025, NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: NXP CMC power domain
+
+compatible: "nxp,cmc-pd"
+
+include: power-domain.yaml
+
+properties:
+  on-off,disabling-power-states:
+    type: phandles
+    description: |
+      List of power states that will turn this power domain on/off.
+  
+  resume-suspend,disabling-power-states:
+    type: phandles
+    description: |
+      List of power states that will resume/suspend this power domain.
+
+  "#power-domain-cells":
+    const: 0  
+  

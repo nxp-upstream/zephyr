@@ -65,7 +65,7 @@ static int scu_pd_init(const struct device *dev)
 		return -ENODEV;
 	}
 
-	return pm_device_runtime_enable(dev);
+	return ret;
 }
 
 

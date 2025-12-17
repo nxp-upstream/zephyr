@@ -13,6 +13,7 @@
 
 
 static const struct device *test_dev;
+static const struct device *test_power_domain;
 
 #ifdef CONFIG_PM_DEVICE_RUNTIME_ASYNC
 static struct k_thread get_runner_td;

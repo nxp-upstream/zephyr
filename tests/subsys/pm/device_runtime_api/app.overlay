@@ -1,7 +1,13 @@
 / {
+	test_power_domain: test_power_domain {
+		compatible = "test-power-domain";
+		status = "okay";
+		#power-domain-cells = <0>;
+	};
 	test_dev: test_dev {
 		compatible = "test-device-pm";
 		status = "okay";
 		zephyr,pm-device-runtime-auto;
+		power-domains = < &test_power_domain >;
 	};
 };

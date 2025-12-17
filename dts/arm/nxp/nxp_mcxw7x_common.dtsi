@@ -32,7 +32,7 @@
 		cpu0: cpu@0 {
 			compatible = "arm,cortex-m33f";
 			reg = <0>;
-			cpu-power-states = <&sleep &deep_sleep>;
+			cpu-power-states = <&sleep &deep_sleep1 &deep_sleep2 &power_down1 &power_down2 &deep_power_down>;
 			#address-cells = <1>;
 			#size-cells = <1>;
 
@@ -49,10 +49,41 @@
 				exit-latency-us = <10>;
 			};
 
-			deep_sleep: deep-sleep {
+			// deep_sleep: deep-sleep {
+			// 	compatible = "zephyr,power-state";
+			// 	power-state-name = "standby";
+			// 	exit-latency-us = <11>;
+			// };
+
+			deep_sleep1: main-ds-wake-sleep {
+				compatible = "zephyr,power-state";
+				power-state-name = "standby";
+				substate-id = <0>;
+				exit-latency-us = <11>;
+			};
+
+			deep_sleep2: main-ds-wake-ds {
 				compatible = "zephyr,power-state";
 				power-state-name = "standby";
 				exit-latency-us = <11>;
+				substate-id = <1>;
+			};
+			power_down1: main-pd-wake-sleep {
+				compatible = "zephyr,power-state";
+				power-state-name = "standby";
+				exit-latency-us = <11>;
+				substate-id = <2>;
+			};
+			
+			power_down2: main-pd-wake-pd {
+				compatible = "zephyr,power-state";
+				power-state-name = "suspend-to-ram";
+				exit-latency-us = <235>;
+			};
+			deep_power_down: main-dpd-wake-dpd {
+				compatible = "zephyr,power-state";
+				power-state-name = "suspend-to-disk";
+				exit-latency-us = <835>;
 			};
 		};
 	};
@@ -91,10 +122,76 @@
 			};
 		};
 
+		// dcdc: dcdc@50016000 {
+		// 	compatible = "nxp,spc-regulator";
+		// 	regulator-boot-on;
+		// };
+
+		// ldo_core: vdd-core-ldo@50016000 {
+		// 	compatible = "nxp,spc-regulator";
+		// 	regulator-boot-on;
+		// };
+
+		// ldo_system: system-ldo@50016000 {
+		// 	compatible = "nxp,spc-regulator";
+		// 	regulator-boot-on;
+		// };
+
 		peripheral: peripheral@50000000 {
 			ranges = <0x0 0x50000000 0x10000000>;
 			#address-cells = <1>;
 			#size-cells = <1>;
+	
+			pd_core_main: core-main-power-domain {
+				compatible = "nxp,cmc-pd";
+				on-off,disabling-power-states = <&power_down1 &power_down2 &deep_power_down>;
+				resume-suspend,disabling-power-states = <&deep_sleep2 &deep_sleep1>;
+				#power-domain-cells = <0>;
+				status = "okay";
+			};
+
+			pd_core_wake: core-wake-power-domain {
+				compatible = "nxp,cmc-pd";
+				on-off,disabling-power-states = <&power_down2 &deep_power_down>;
+				resume-suspend,disabling-power-states = <&deep_sleep2>;
+				#power-domain-cells = <0>;
+				status = "okay";
+			};
+
+			pd_core_radio: core-radio-power-domain {
+				compatible = "nxp,cmc-pd";
+				#power-domain-cells = <0>;
+			};
+
+			pd_system: system-power-domain@16000 {
+				compatible = "nxp,spc-pd";
+				reg = <0x16000 0x1000>;
+				#power-domain-cells = <0>;
+				status = "okay";
+			};
+
+			pd_io_abc: io-abc-power-domain@16000 {
+				compatible = "nxp,spc-pd";
+				reg = <0x16000 0x1000>;
+				pd-ctrl-bit = <0>;
+				#power-domain-cells = <0>;
+				status = "okay";
+			};
+
+			pd_io_d: io-d-power-domain@16000 {
+				compatible = "nxp,spc-pd";
+				reg = <0x16000 0x1000>;
+				pd-ctrl-bit = <2>;
+				#power-domain-cells = <0>;
+			};
+
+			pd_io_ana: io-ana-power-domain@16000 {
+				compatible = "nxp,spc-pd";
+				reg = <0x16000 0x1000>;
+				pd-ctrl-bit = <1>;
+				#power-domain-cells = <0>;
+				status = "okay";
+			};
 
 			pbridge2: pbridge2@0 {
 				ranges = <>;
@@ -145,32 +242,38 @@
 		compatible = "nxp,wuu";
 		reg = <0x19000 0x1000>;
 		interrupts = <22 0>;
+		power-domains = <&pd_system>;
 	};
 
 	scg: clock-controller@1e000 {
 		compatible = "nxp,scg-k4";
 		reg = <0x1e000 0x404>;
 		#clock-cells = <2>;
+		power-domains = <&pd_core_wake>;
 	};
 
 	porta: pinctrl@42000 {
 		compatible = "nxp,port-pinmux";
 		clocks = <&scg SCG_K4_SLOW_CLK 0x108>;
+		power-domains = <&pd_io_abc>;
 	};
 
 	portb: pinctrl@43000 {
 		compatible = "nxp,port-pinmux";
 		clocks = <&scg SCG_K4_SLOW_CLK 0x10c>;
+		power-domains = <&pd_io_abc>;
 	};
 
 	portc: pinctrl@44000 {
 		compatible = "nxp,port-pinmux";
 		clocks = <&scg SCG_K4_SLOW_CLK 0x110>;
+		power-domains = <&pd_io_abc>;
 	};
 
 	portd: pinctrl@45000 {
 		compatible = "nxp,port-pinmux";
 		clocks = <&scg SCG_K4_SLOW_CLK 0>;
+		power-domains = <&pd_io_d>;
 	};
 
 	lpit0: timer@2f000 {
@@ -182,7 +285,7 @@
 		max-load-value = <0xffffffff>;
 		#address-cells = <1>;
 		#size-cells = <0>;
-
+		power-domains = <&pd_core_main>;
 		lpit1_channel0: lpit_channel@0 {
 			compatible = "nxp,lpit-channel";
 			reg = <0>;
@@ -216,6 +319,7 @@
 		dmas = <&edma 0 32>, <&edma 1 31>;
 		dma-names = "tx", "rx";
 		status = "disabled";
+		power-domains = <&pd_core_wake>;
 	};
 
 	lpuart1: serial@39000 {
@@ -226,6 +330,7 @@
 		dmas = <&edma 2 34>, <&edma 3 33>;
 		dma-names = "tx", "rx";
 		status = "disabled";
+		power-domains = <&pd_core_main>;
 	};
 
 	lpi2c0: i2c@33000 {
@@ -237,6 +342,7 @@
 		interrupts = <39 0>;
 		clocks = <&scg SCG_K4_FIRC_CLK 0xe0>;
 		status = "disabled";
+		power-domains = <&pd_core_wake>;
 	};
 
 	lpi2c1: i2c@34000 {
@@ -248,6 +354,7 @@
 		interrupts = <40 0>;
 		clocks = <&scg SCG_K4_FIRC_CLK 0xe4>;
 		status = "disabled";
+		power-domains = <&pd_core_main>;
 	};
 
 	lpspi0: spi@36000 {
@@ -260,6 +367,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		status = "disabled";
+		power-domains = <&pd_core_wake>;
 	};
 
 	lpspi1: spi@37000 {
@@ -272,6 +380,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		status = "disabled";
+		power-domains = <&pd_core_main>;
 	};
 
 	gpiod: gpio@46000 {
@@ -282,6 +391,7 @@
 		#gpio-cells = <2>;
 		nxp,kinetis-port = <&portd>;
 		status = "disabled";
+		power-domains = <&pd_system>;
 	};
 
 	vbat: vbat@2b000 {
@@ -298,6 +408,7 @@
 		prescaler = <16>;
 		status = "disabled";
 		#pwm-cells = <3>;
+		power-domains = <&pd_core_wake>;
 	};
 
 	tpm1: pwm@32000 {
@@ -308,6 +419,7 @@
 		prescaler = <16>;
 		status = "disabled";
 		#pwm-cells = <3>;
+		power-domains = <&pd_core_main>;
 	};
 
 	wdog0: watchdog@1a000 {
@@ -318,6 +430,7 @@
 		clk-source = <1>;
 		clk-divider = <1>;
 		status = "okay";
+		power-domains = <&pd_core_wake>;
 	};
 
 	wdog1: watchdog@1b000 {
@@ -328,6 +441,7 @@
 		clk-source = <1>;
 		clk-divider = <1>;
 		status = "disabled";
+		power-domains = <&pd_core_wake>;
 	};
 
 	lptmr0: timer@2d000 {
@@ -339,6 +453,7 @@
 		prescale-glitch-filter = <0>;
 		resolution = <32>;
 		status = "disabled";
+		power-domains = <&pd_system>;
 	};
 
 	lptmr1: timer@2e000 {
@@ -350,12 +465,14 @@
 		prescale-glitch-filter = <0>;
 		resolution = <32>;
 		status = "disabled";
+		power-domains = <&pd_system>;
 	};
 
 	nbu: nbu {
 		compatible = "nxp,nbu";
 		interrupts = <48 2>;
 		interrupt-names = "nbu_rx_int";
+		power-domains = <&pd_core_radio>;
 	};
 
 	hci: hci_ble {
@@ -378,6 +495,7 @@
 		clocks = <&scg SCG_K4_FIRC_CLK 0xec>;
 		clk-source = <2>;
 		status = "disabled";
+		power-domains = <&pd_core_main>;
 	};
 
 	adc0: adc@47000 {
@@ -394,6 +512,7 @@
 		#io-channel-cells = <1>;
 		nxp,references = <&vref 1800>;
 		status = "disabled";
+		power-domains = <&pd_core_main>;
 	};
 
 	vref: regulator@4a000 {
@@ -409,6 +528,7 @@
 		nxp,internal-voltage-regulator-en;
 		nxp,chop-oscillator-en;
 		status = "disabled";
+		power-domains = <&pd_core_main>;
 	};
 
 	rtc: rtc@4002c000 {
@@ -418,7 +538,7 @@
 		interrupt-names = "alarm", "seconds";
 		clock-frequency = <32768>;
 		prescaler = <32768>;
-
+		power-domains = <&pd_system>;
 		counter_rtc: counter_rtc {
 			compatible = "zephyr,rtc-counter";
 			alarms-count = <1>;
@@ -439,6 +559,7 @@
 			     <10 0>, <11 0>, <12 0>, <13 0>,
 			     <14 0>, <15 0>, <16 0>, <17 0>;
 		status = "disabled";
+		power-domains = <&pd_core_main>;
 	};
 
 	ewm0: ewm@13000 {
@@ -447,6 +568,7 @@
 		status = "disabled";
 		interrupts = <18 0>;
 		clk-divider = <0x0>;
+		power-domains = <&pd_core_wake>;
 	};
 
 	flexio: flexio@3a000 {
@@ -455,7 +577,7 @@
 		interrupts = <46 0>;
 		clocks = <&scg SCG_K4_FLEXIO_CLK 0xe8>;
 		status = "disabled";
-
+		power-domains = <&pd_core_main>;
 		flexio_pwm {
 			compatible = "nxp,flexio-pwm";
 			#pwm-cells = <3>;
@@ -473,6 +595,7 @@
 		nxp,kinetis-port = <&porta>;
 		reg = <0x10000 0x128>;
 		interrupts = <59 0>, <60 0>;
+		power-domains = <&pd_core_wake>;
 	};
 
 	gpiob: gpio@20000 {
@@ -483,6 +606,7 @@
 		nxp,kinetis-port = <&portb>;
 		reg = <0x20000 0x128>;
 		interrupts = <61 0>, <62 0>;
+		power-domains = <&pd_core_main>;
 	};
 
 	gpioc: gpio@30000 {
@@ -493,5 +617,6 @@
 		nxp,kinetis-port = <&portc>;
 		reg = <0x30000 0x128>;
 		interrupts = <63 0>, <64 0>;
+		power-domains = <&pd_core_main>;
 	};
 };

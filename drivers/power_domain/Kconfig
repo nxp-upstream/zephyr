@@ -123,7 +123,41 @@ config SOC_POWER_DOMAIN_INIT
 
 endif #POWER_DOMAIN_TISCI
 
-# zephyr-keep-sorted-start
+config POWER_DOMAIN_NXP_CMC
+	bool "NXP CMC power domain"
+	default y
+	depends on DT_HAS_NXP_CMC_PD_ENABLED
+	select DEVICE_DEPS
+	help
+		Enable support for NXP CMC power domain driver.
+
+if POWER_DOMAIN_NXP_CMC
+
+config POWER_DOMAIN_CMC_INIT_PRIORITY
+	int "NXP CMC power domain init priority"
+	default POWER_DOMAIN_INIT_PRIORITY
+	help
+		NXP CMC power domain initialization priority.
+
+endif
+
+config POWER_DOMAIN_NXP_SPC
+	bool "NXP SPC power domain"
+	default y
+	depends on DT_HAS_NXP_SPC_PD_ENABLED
+	help
+		Enable support for NXP SPC power domain driver.
+
+if POWER_DOMAIN_NXP_SPC
+
+config POWER_DOMAIN_SPC_INIT_PRIORITY
+	int "NXP SPC power domain init priority"
+	default POWER_DOMAIN_INIT_PRIORITY
+	help
+		NXP SPC power domain initialization priority.
+
+endif #POWER_DOMAIN_NXP_SPC
+
 rsource "Kconfig.nrfs_gdpwr"
 rsource "Kconfig.nrfs_swext"
 rsource "Kconfig.silabs_siwx91x"
