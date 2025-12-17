@@ -167,6 +167,7 @@
 				 <ESAI_PIN_SDO2_SDI3 ESAI_PIN_DISCONNECTED>,
 				 <ESAI_PIN_SDO1 ESAI_PIN_DISCONNECTED>;
 		status = "disabled";
+		zephyr,pm-device-runtime-auto;
 	};
 
 	/* LSIO MU2, used to interact with the SCFW */
