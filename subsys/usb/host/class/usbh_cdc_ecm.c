@@ -119,11 +119,6 @@ static bool usbh_cdc_ecm_is_configured(struct usbh_cdc_ecm_ctx *const ctx)
 	return true;
 }
 
-static int usbh_cdc_ecm_msgq_put(struct usbh_cdc_ecm_msg const *msg)
-{
-	return k_msgq_put(&usbh_cdc_ecm_msgq, msg, K_NO_WAIT);
-}
-
 static int usbh_cdc_ecm_req(struct usbh_cdc_ecm_ctx *const ctx,
 			    struct usbh_cdc_ecm_req_params *const param)
 {
@@ -353,7 +348,7 @@ static int usbh_cdc_ecm_comm_rx_cb(struct usb_device *const udev, struct uhc_tra
 
 			msg.ctx = ctx;
 			msg.event = CDC_ECM_EVENT_DATA_RX;
-			err = usbh_cdc_ecm_msgq_put(&msg);
+			err = k_msgq_put(&usbh_cdc_ecm_msgq, &msg, K_NO_WAIT);
 			if (err) {
 				LOG_ERR("failed to send task data RX message");
 			}
@@ -390,7 +385,7 @@ cleanup:
 	if (err && err != -ENODEV) {
 		msg.ctx = ctx;
 		msg.event = CDC_ECM_EVENT_COMM_RX;
-		(void)usbh_cdc_ecm_msgq_put(&msg);
+		(void)k_msgq_put(&usbh_cdc_ecm_msgq, &msg, K_NO_WAIT);
 	}
 
 	return ret;
@@ -574,7 +569,7 @@ cleanup:
 	if (err && err != -ENODEV) {
 		msg.ctx = ctx;
 		msg.event = CDC_ECM_EVENT_DATA_RX;
-		(void)usbh_cdc_ecm_msgq_put(&msg);
+		(void)k_msgq_put(&usbh_cdc_ecm_msgq, &msg, K_NO_WAIT);
 	}
 
 	return ret;
@@ -1405,7 +1400,7 @@ static int usbh_cdc_ecm_probe(struct usbh_class_data *const c_data, struct usb_d
 
 	msg.ctx = ctx;
 	msg.event = CDC_ECM_EVENT_TASK_START;
-	ret = usbh_cdc_ecm_msgq_put(&msg);
+	ret = k_msgq_put(&usbh_cdc_ecm_msgq, &msg, K_NO_WAIT);
 	if (ret) {
 		LOG_ERR("send task start message error (%d)", ret);
 		goto done;
@@ -1598,7 +1593,7 @@ static void usbh_cdc_ecm_thread(void *arg1, void *arg2, void *arg3)
 			} else {
 				new_msg.ctx = ctx;
 				new_msg.event = CDC_ECM_EVENT_COMM_RX;
-				err = usbh_cdc_ecm_msgq_put(&new_msg);
+				err = k_msgq_put(&usbh_cdc_ecm_msgq, &new_msg, K_NO_WAIT);
 			}
 			(void)k_mutex_unlock(&ctx->lock);
 			break;
