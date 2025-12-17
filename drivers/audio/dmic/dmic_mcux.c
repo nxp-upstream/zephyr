@@ -2,7 +2,7 @@
  * Copyright 2023 NXP
  * Copyright (c) 2021 Nordic Semiconductor ASA
  *
- * based on dmic_nrfx_pdm.c
+ * based on dmic/dmic_nrfx_pdm.c
  *
  * SPDX-License-Identifier: Apache-2.0
  */
