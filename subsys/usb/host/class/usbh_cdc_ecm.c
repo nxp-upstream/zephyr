@@ -39,7 +39,11 @@ struct usbh_cdc_ecm_ctx {
 	struct net_if *iface;
 	struct net_eth_addr eth_mac;
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
-	struct net_stats_eth stats;
+	struct {
+		uint32_t hw_caps;
+		struct net_stats_eth map;
+		k_timepoint_t last_tp;
+	} stats;
 #endif
 };
 
@@ -200,7 +204,12 @@ static int usbh_cdc_ecm_req(struct usbh_cdc_ecm_ctx *const ctx,
 		wLength = 0;
 		req_buf = NULL;
 		break;
+#if defined(CONFIG_NET_STATISTICS_ETHERNET)
 	case GET_ETHERNET_STATISTIC:
+		if (!(ctx->stats.hw_caps & BIT(param->eth_stats.feature_sel - 1))) {
+			return -ENOTSUP;
+		}
+
 		bmRequestType |= USB_REQTYPE_DIR_TO_HOST << 7;
 		wValue = param->eth_stats.feature_sel;
 		wLength = 4;
@@ -209,6 +218,7 @@ static int usbh_cdc_ecm_req(struct usbh_cdc_ecm_ctx *const ctx,
 			return -ENOMEM;
 		}
 		break;
+#endif
 	default:
 		return -ENOTSUP;
 	}
@@ -225,6 +235,7 @@ static int usbh_cdc_ecm_req(struct usbh_cdc_ecm_ctx *const ctx,
 				ret = -EIO;
 			}
 			break;
+#if defined(CONFIG_NET_STATISTICS_ETHERNET)
 		case GET_ETHERNET_STATISTIC:
 			if (req_buf->len == 4 && !req_buf->frags) {
 				param->eth_stats.data = sys_get_le32(req_buf->data);
@@ -232,6 +243,7 @@ static int usbh_cdc_ecm_req(struct usbh_cdc_ecm_ctx *const ctx,
 				ret = -EIO;
 			}
 			break;
+#endif
 		}
 	}
 
@@ -434,6 +446,10 @@ static int usbh_cdc_ecm_data_rx_cb(struct usb_device *const udev, struct uhc_tra
 	struct usbh_cdc_ecm_ctx *ctx = xfer->priv;
 	struct usbh_cdc_ecm_msg msg;
 	struct net_pkt *pkt;
+#if defined(CONFIG_NET_STATISTICS_ETHERNET)
+	bool is_broadcast;
+	bool is_multicast;
+#endif
 	bool locked = false;
 	int err;
 	int ret = 0;
@@ -452,6 +468,15 @@ static int usbh_cdc_ecm_data_rx_cb(struct usb_device *const udev, struct uhc_tra
 		if (xfer->err != -EIO) {
 			LOG_WRN("data RX transfer error (%d)", xfer->err);
 		}
+
+#if defined(CONFIG_NET_STATISTICS_ETHERNET)
+		ctx->stats.map.errors.rx++;
+
+		if (xfer->err == -EPIPE) {
+			ctx->stats.map.error_details.rx_over_errors++;
+		}
+#endif
+
 		goto cleanup;
 	}
 
@@ -468,6 +493,12 @@ static int usbh_cdc_ecm_data_rx_cb(struct usb_device *const udev, struct uhc_tra
 	if (xfer->buf->len > ctx->max_segment_size) {
 		LOG_WRN("dropped received data which length[%u] exceeding max segment size[%u]",
 			xfer->buf->len, ctx->max_segment_size);
+
+#if defined(CONFIG_NET_STATISTICS_ETHERNET)
+		ctx->stats.map.errors.rx++;
+		ctx->stats.map.error_details.rx_length_errors++;
+#endif
+
 		goto cleanup;
 	}
 
@@ -478,20 +509,52 @@ static int usbh_cdc_ecm_data_rx_cb(struct usb_device *const udev, struct uhc_tra
 	pkt = net_pkt_rx_alloc_with_buffer(ctx->iface, xfer->buf->len, AF_UNSPEC, 0, K_NO_WAIT);
 	if (!pkt) {
 		LOG_WRN("failed to allocate net packet and lost received data");
+
+#if defined(CONFIG_NET_STATISTICS_ETHERNET)
+		ctx->stats.map.errors.rx++;
+		ctx->stats.map.error_details.rx_no_buffer_count++;
+#endif
+
 		goto cleanup;
 	}
 
 	ret = net_pkt_write(pkt, xfer->buf->data, xfer->buf->len);
 	if (ret) {
 		LOG_ERR("write data into net packet error (%d)", ret);
+
+#if defined(CONFIG_NET_STATISTICS_ETHERNET)
+		ctx->stats.map.errors.rx++;
+#endif
+
 		net_pkt_unref(pkt);
 		goto cleanup;
 	}
 
+#if defined(CONFIG_NET_STATISTICS_ETHERNET)
+	is_broadcast = net_eth_is_addr_broadcast((struct net_eth_addr *)xfer->buf->data);
+	is_multicast = net_eth_is_addr_multicast((struct net_eth_addr *)xfer->buf->data);
+#endif
+
 	ret = net_recv_data(ctx->iface, pkt);
 	if (ret) {
 		LOG_ERR("passed data into network stack error (%d)", ret);
+
+#if defined(CONFIG_NET_STATISTICS_ETHERNET)
+		ctx->stats.map.errors.rx++;
+#endif
+
 		net_pkt_unref(pkt);
+	} else {
+#if defined(CONFIG_NET_STATISTICS_ETHERNET)
+		ctx->stats.map.pkts.rx++;
+		ctx->stats.map.bytes.received += xfer->buf->len;
+
+		if (is_broadcast) {
+			ctx->stats.map.broadcast.rx++;
+		} else if (is_multicast) {
+			ctx->stats.map.multicast.rx++;
+		}
+#endif
 	}
 
 cleanup:
@@ -625,6 +688,10 @@ done:
 static int usbh_cdc_ecm_data_tx_cb(struct usb_device *const udev, struct uhc_transfer *const xfer)
 {
 	struct usbh_cdc_ecm_ctx *ctx = xfer->priv;
+#if defined(CONFIG_NET_STATISTICS_ETHERNET)
+	bool is_broadcast;
+	bool is_multicast;
+#endif
 	bool locked = false;
 	int ret = 0;
 
@@ -640,6 +707,17 @@ static int usbh_cdc_ecm_data_tx_cb(struct usb_device *const udev, struct uhc_tra
 		if (xfer->err != -EIO) {
 			LOG_WRN("data TX transfer error (%d)", xfer->err);
 		}
+
+#if defined(CONFIG_NET_STATISTICS_ETHERNET)
+		ctx->stats.map.errors.tx++;
+
+		if (xfer->err == -EPIPE) {
+			ctx->stats.map.error_details.tx_fifo_errors++;
+		} else if (xfer->err == -ECONNABORTED || xfer->err == -ENODEV) {
+			ctx->stats.map.error_details.tx_aborted_errors++;
+		}
+#endif
+
 		goto cleanup;
 	}
 
@@ -648,7 +726,20 @@ static int usbh_cdc_ecm_data_tx_cb(struct usb_device *const udev, struct uhc_tra
 		goto cleanup;
 	}
 
-	/** TODO: statistics processing */
+#if defined(CONFIG_NET_STATISTICS_ETHERNET)
+	if (xfer->buf && xfer->buf->len) {
+		ctx->stats.map.pkts.tx++;
+		ctx->stats.map.bytes.sent += xfer->buf->len;
+
+		is_broadcast = net_eth_is_addr_broadcast((struct net_eth_addr *)xfer->buf->data);
+		is_multicast = net_eth_is_addr_multicast((struct net_eth_addr *)xfer->buf->data);
+		if (is_broadcast) {
+			ctx->stats.map.broadcast.tx++;
+		} else if (is_multicast) {
+			ctx->stats.map.multicast.tx++;
+		}
+	}
+#endif
 
 cleanup:
 	if (xfer->buf) {
@@ -761,6 +852,173 @@ done:
 	return ret;
 }
 
+#if defined(CONFIG_NET_STATISTICS_ETHERNET)
+static int usbh_cdc_ecm_update_stats(struct usbh_cdc_ecm_ctx *const ctx)
+{
+	struct usbh_cdc_ecm_req_params param;
+	uint32_t sent_bytes[3] = {0};
+	uint8_t sent_mask = 0;
+	uint32_t recv_bytes[3] = {0};
+	uint8_t recv_mask = 0;
+	uint32_t collisions[3] = {0};
+	uint8_t collisions_mask = 0;
+	int err;
+	int ret = 0;
+
+	if (!ctx) {
+		return -EINVAL;
+	}
+
+	if (k_mutex_lock(&ctx->lock, K_NO_WAIT)) {
+		return -EBUSY;
+	}
+
+	if (!usbh_cdc_ecm_is_configured(ctx)) {
+		ret = -ENODEV;
+		goto done;
+	}
+
+	param.if_num = ctx->comm_if_num;
+	param.bRequest = GET_ETHERNET_STATISTIC;
+
+	for (size_t i = 0; i < 29; i++) {
+		if (!(ctx->stats.hw_caps & BIT(i))) {
+			continue;
+		}
+
+		param.eth_stats.feature_sel = i + 1;
+		err = usbh_cdc_ecm_req(ctx, &param);
+		if (!err) {
+			switch (param.eth_stats.feature_sel) {
+			case XMIT_OK:
+				ctx->stats.map.pkts.tx = param.eth_stats.data;
+				break;
+			case RCV_OK:
+				ctx->stats.map.pkts.rx = param.eth_stats.data;
+				break;
+			case XMIT_ERROR:
+				ctx->stats.map.errors.tx = param.eth_stats.data;
+				break;
+			case RCV_ERROR:
+				ctx->stats.map.errors.rx = param.eth_stats.data;
+				break;
+			case RCV_NO_BUFFER:
+				ctx->stats.map.error_details.rx_no_buffer_count =
+					param.eth_stats.data;
+				break;
+			case DIRECTED_BYTES_XMIT:
+				sent_mask |= BIT(0);
+				sent_bytes[0] = param.eth_stats.data;
+				break;
+			case DIRECTED_FRAMES_XMIT:
+				break;
+			case MULTICAST_BYTES_XMIT:
+				sent_mask |= BIT(1);
+				sent_bytes[1] = param.eth_stats.data;
+				break;
+			case MULTICAST_FRAMES_XMIT:
+				ctx->stats.map.multicast.tx = param.eth_stats.data;
+				break;
+			case BROADCAST_BYTES_XMIT:
+				sent_mask |= BIT(2);
+				sent_bytes[2] = param.eth_stats.data;
+				break;
+			case BROADCAST_FRAMES_XMIT:
+				ctx->stats.map.broadcast.tx = param.eth_stats.data;
+				break;
+			case DIRECTED_BYTES_RCV:
+				recv_mask |= BIT(0);
+				recv_bytes[0] = param.eth_stats.data;
+				break;
+			case DIRECTED_FRAMES_RCV:
+				break;
+			case MULTICAST_BYTES_RCV:
+				recv_mask |= BIT(1);
+				recv_bytes[1] = param.eth_stats.data;
+				break;
+			case MULTICAST_FRAMES_RCV:
+				ctx->stats.map.multicast.rx = param.eth_stats.data;
+				break;
+			case BROADCAST_BYTES_RCV:
+				recv_mask |= BIT(2);
+				recv_bytes[2] = param.eth_stats.data;
+				break;
+			case BROADCAST_FRAMES_RCV:
+				ctx->stats.map.broadcast.rx = param.eth_stats.data;
+				break;
+			case RCV_CRC_ERROR:
+				ctx->stats.map.error_details.rx_crc_errors = param.eth_stats.data;
+				break;
+			case TRANSMIT_QUEUE_LENGTH:
+				break;
+			case RCV_ERROR_ALIGNMENT:
+				ctx->stats.map.error_details.rx_align_errors = param.eth_stats.data;
+				break;
+			case XMIT_ONE_COLLISION:
+				collisions_mask |= BIT(0);
+				collisions[0] = param.eth_stats.data;
+				break;
+			case XMIT_MORE_COLLISIONS:
+				collisions_mask |= BIT(1);
+				collisions[1] = param.eth_stats.data;
+				break;
+			case XMIT_DEFERRED:
+				break;
+			case XMIT_MAX_COLLISIONS:
+				ctx->stats.map.error_details.tx_aborted_errors =
+					param.eth_stats.data;
+				break;
+			case RCV_OVERRUN:
+				ctx->stats.map.error_details.rx_over_errors = param.eth_stats.data;
+				break;
+			case XMIT_UNDERRUN:
+				ctx->stats.map.error_details.tx_fifo_errors = param.eth_stats.data;
+				break;
+			case XMIT_HEARTBEAT_FAILURE:
+				ctx->stats.map.error_details.tx_heartbeat_errors =
+					param.eth_stats.data;
+				break;
+			case XMIT_TIMES_CRS_LOST:
+				ctx->stats.map.error_details.tx_carrier_errors =
+					param.eth_stats.data;
+				break;
+			case XMIT_LATE_COLLISIONS:
+				collisions_mask |= BIT(2);
+				collisions[2] = param.eth_stats.data;
+				break;
+			default:
+				break;
+			}
+		} else {
+			if (err != -ENODEV) {
+				LOG_WRN("get ethernet statistic for feature %u error (%d)",
+					param.eth_stats.feature_sel, err);
+			} else {
+				ret = err;
+				goto done;
+			}
+		}
+	}
+
+	if (sent_mask == 0x07) {
+		ctx->stats.map.bytes.sent = sent_bytes[0] + sent_bytes[1] + sent_bytes[2];
+	}
+
+	if (recv_mask == 0x07) {
+		ctx->stats.map.bytes.received = recv_bytes[0] + recv_bytes[1] + recv_bytes[2];
+	}
+
+	if (collisions_mask == 0x07) {
+		ctx->stats.map.collisions = collisions[0] + collisions[1] + collisions[2];
+	}
+
+done:
+	(void)k_mutex_unlock(&ctx->lock);
+
+	return ret;
+}
+#endif
+
 static int usbh_cdc_ecm_parse_descriptors(struct usbh_cdc_ecm_ctx *const ctx,
 					  const struct usb_desc_header *desc)
 {
@@ -801,6 +1059,9 @@ static int usbh_cdc_ecm_parse_descriptors(struct usbh_cdc_ecm_ctx *const ctx,
 	ctx->data_out_ep_mps = 0;
 	ctx->mac_str_desc_idx = 0;
 	ctx->max_segment_size = 0;
+#if defined(CONFIG_NET_STATISTICS_ETHERNET)
+	ctx->stats.hw_caps = 0;
+#endif
 
 	while (desc) {
 		switch (desc->bDescriptorType) {
@@ -840,9 +1101,12 @@ static int usbh_cdc_ecm_parse_descriptors(struct usbh_cdc_ecm_ctx *const ctx,
 				   cdc_union_func_ready) {
 				cdc_ecm_desc = (struct cdc_ecm_descriptor *)desc;
 				ctx->mac_str_desc_idx = cdc_ecm_desc->iMACAddress;
-				/** TODO: Ethernet Statistics Feature */
 				ctx->max_segment_size =
 					sys_le16_to_cpu(cdc_ecm_desc->wMaxSegmentSize);
+#if defined(CONFIG_NET_STATISTICS_ETHERNET)
+				ctx->stats.hw_caps =
+					sys_le32_to_cpu(cdc_ecm_desc->bmEthernetStatistics);
+#endif
 				/** TODO: MCFilter Feature */
 				/** TODO: Power Filter Feature */
 				cdc_ethernet_func_ready = true;
@@ -1080,6 +1344,9 @@ static int usbh_cdc_ecm_probe(struct usbh_class_data *const c_data, struct usb_d
 	ctx->upload_speed = 0;
 	ctx->download_speed = 0;
 	ctx->active_data_rx_xfers = 0;
+#if defined(CONFIG_NET_STATISTICS_ETHERNET)
+	memset(&ctx->stats.map, 0, sizeof(ctx->stats.map));
+#endif
 
 	desc = usbh_desc_get_by_iface(desc_beg, desc_end, iface);
 	if (!desc) {
@@ -1167,6 +1434,9 @@ static int usbh_cdc_ecm_removed(struct usbh_class_data *const c_data)
 	ctx->link_state = false;
 	ctx->upload_speed = 0;
 	ctx->download_speed = 0;
+#if defined(CONFIG_NET_STATISTICS_ETHERNET)
+	memset(&ctx->stats.map, 0, sizeof(ctx->stats.map));
+#endif
 
 	net_if_carrier_off(ctx->iface);
 
@@ -1228,10 +1498,20 @@ static void eth_usbh_cdc_ecm_iface_init(struct net_if *iface)
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
 struct net_stats_eth *eth_usbh_cdc_ecm_get_stats(const struct device *dev)
 {
+	struct usbh_cdc_ecm_ctx *ctx = dev->data;
 
-	struct usbh_cdc_ecm_data *priv = dev->data;
+	(void)k_mutex_lock(&ctx->lock, K_FOREVER);
 
-	return &priv->stats;
+	if (sys_timepoint_expired(ctx->stats.last_tp)) {
+		if (!usbh_cdc_ecm_update_stats(ctx)) {
+			ctx->stats.last_tp = sys_timepoint_calc(K_SECONDS(
+				CONFIG_USBH_CDC_ECM_HARDWARE_NETWORK_STATISTICS_INTERVAL));
+		}
+	}
+
+	(void)k_mutex_unlock(&ctx->lock);
+
+	return &ctx->stats.map;
 }
 #endif
 

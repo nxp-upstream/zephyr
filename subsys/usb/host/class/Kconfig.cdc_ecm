@@ -49,6 +49,12 @@ config USBH_CDC_ECM_DATA_RX_QUEUE_DEPTH
 	help
 	  Number of CDC-ECM data rx queue depth per instance for queuing data reception requests.
 
+config USBH_CDC_ECM_HARDWARE_NETWORK_STATISTICS_INTERVAL
+	int "CDC-ECM hardware network statistics interval"
+	default 1
+	help
+	  CDC-ECM hardware network statistics collection interval in seconds.
+
 module = USBH_CDC_ECM
 module-str = "usbh cdc_ecm"
 default-count = 1
