@@ -150,6 +150,7 @@
 		dmas = <&edma0 15 0>, <&edma0 14 0>;
 		dma-names = "tx", "rx";
 		status = "disabled";
+		zephyr,pm-device-runtime-auto;
 	};
 
 	esai0: dai@59010000 {

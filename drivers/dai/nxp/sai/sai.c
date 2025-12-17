@@ -923,7 +923,7 @@ static int sai_init(const struct device *dev)
 	/* register ISR */
 	cfg->irq_config();
 
-	return pm_device_runtime_enable(dev);
+	return ret;
 }
 
 #define SAI_INIT(inst)								\

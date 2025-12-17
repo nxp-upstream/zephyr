@@ -474,6 +474,7 @@
 		dmas = <&edma4 0 60>, <&edma4 1 61>;
 		dma-names = "tx", "rx";
 		status = "disabled";
+		zephyr,pm-device-runtime-auto;
 	};
 
 	sai3_2: sai@42660000 {

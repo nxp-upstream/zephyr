@@ -111,6 +111,7 @@
 			dmas = <&sdma3 5 5>, <&sdma3 4 5>;
 			dma-names = "tx", "rx";
 			status = "disabled";
+			zephyr,pm-device-runtime-auto;
 		};
 
 		micfil: micfil@30ca0000 {

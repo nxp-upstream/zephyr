@@ -338,6 +338,7 @@
 			dmas = <&edma2 4 60>, <&edma2 5 61>;
 			dma-names = "tx", "rx";
 			status = "disabled";
+			zephyr,pm-device-runtime-auto;
 		};
 
 		lpuart7: serial@42690000 {

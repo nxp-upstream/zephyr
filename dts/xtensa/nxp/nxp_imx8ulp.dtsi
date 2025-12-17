@@ -87,6 +87,7 @@
 		dma-names = "tx", "rx";
 		dai-index = <5>;
 		status = "disabled";
+		zephyr,pm-device-runtime-auto;
 	};
 
 	sai6: dai@2da90000 {
@@ -98,6 +99,7 @@
 		dma-names = "tx", "rx";
 		dai-index = <6>;
 		status = "disabled";
+		zephyr,pm-device-runtime-auto;
 	};
 
 	mu3: mbox@2da20000 {
