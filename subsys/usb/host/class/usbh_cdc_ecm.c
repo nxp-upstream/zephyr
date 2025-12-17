@@ -32,6 +32,18 @@ struct usbh_cdc_ecm_ctx {
 	uint16_t data_out_ep_mps;
 	uint8_t mac_str_desc_idx;
 	uint16_t max_segment_size;
+	struct {
+		bool imperfect_filtering;
+		uint16_t num;
+		sys_slist_t multicast_addrs;
+	} multicast_filters;
+	struct {
+		bool block_multicast;
+		bool block_broadcast;
+		bool block_unicast;
+		bool block_all_multicast;
+		bool promiscuous_mode_enabled;
+	} packet_filter_settings;
 	bool link_state;
 	uint32_t upload_speed;
 	uint32_t download_speed;
@@ -45,6 +57,11 @@ struct usbh_cdc_ecm_ctx {
 		k_timepoint_t last_tp;
 	} stats;
 #endif
+};
+
+struct multicast_addr_node {
+	sys_snode_t node;
+	struct net_eth_addr mac_addr;
 };
 
 struct usbh_cdc_ecm_req_params {
@@ -142,16 +159,26 @@ static int usbh_cdc_ecm_req(struct usbh_cdc_ecm_ctx *const ctx,
 		if (param->multicast_filter_list.len > UINT16_MAX / 6) {
 			return -EINVAL;
 		}
+
+		if (!ctx->multicast_filters.num ||
+		    ctx->multicast_filters.num < param->multicast_filter_list.len) {
+			return -ENOTSUP;
+		}
+
 		bmRequestType |= USB_REQTYPE_DIR_TO_DEVICE << 7;
 		wValue = param->multicast_filter_list.len;
 		wLength = param->multicast_filter_list.len * 6;
-		req_buf = usbh_xfer_buf_alloc(ctx->udev, wLength);
-		if (!req_buf) {
-			return -ENOMEM;
-		}
-		if (!net_buf_add_mem(req_buf, param->multicast_filter_list.m_addr, wLength)) {
-			ret = -ENOMEM;
-			goto cleanup;
+		req_buf = NULL;
+		if (wLength) {
+			req_buf = usbh_xfer_buf_alloc(ctx->udev, wLength);
+			if (!req_buf) {
+				return -ENOMEM;
+			}
+			if (!net_buf_add_mem(req_buf, param->multicast_filter_list.m_addr,
+					     wLength)) {
+				ret = -ENOMEM;
+				goto cleanup;
+			}
 		}
 		break;
 	case SET_ETHERNET_PM_FILTER:
@@ -798,7 +825,7 @@ static int usbh_cdc_ecm_data_tx(struct usbh_cdc_ecm_ctx *const ctx, struct net_b
 			goto done;
 		}
 
-		(void)net_buf_add(tx_buf, total_len);
+		net_buf_add(tx_buf, total_len);
 	}
 
 	param.buf = tx_buf;
@@ -847,6 +874,184 @@ done:
 	return ret;
 }
 
+static int usbh_cdc_ecm_update_packet_filter(struct usbh_cdc_ecm_ctx *const ctx)
+{
+	struct usbh_cdc_ecm_req_params param;
+	int ret = 0;
+
+	if (!ctx) {
+		return -EINVAL;
+	}
+
+	if (!usbh_cdc_ecm_is_configured(ctx)) {
+		return -ENODEV;
+	}
+
+	param.if_num = ctx->comm_if_num;
+	param.bRequest = SET_ETHERNET_PACKET_FILTER;
+	param.eth_pkt_filter_bitmap = 0;
+
+#if defined(CONFIG_NET_PROMISCUOUS_MODE)
+	if (ctx->packet_filter_settings.promiscuous_mode_enabled) {
+		param.eth_pkt_filter_bitmap |= PACKET_TYPE_PROMISCUOUS;
+	}
+#endif
+
+	if (!ctx->packet_filter_settings.block_all_multicast) {
+		param.eth_pkt_filter_bitmap |= PACKET_TYPE_ALL_MULTICAST;
+	}
+
+	if (!ctx->packet_filter_settings.block_unicast) {
+		param.eth_pkt_filter_bitmap |= PACKET_TYPE_DIRECTED;
+	}
+
+	if (!ctx->packet_filter_settings.block_broadcast) {
+		param.eth_pkt_filter_bitmap |= PACKET_TYPE_BROADCAST;
+	}
+
+	if (!ctx->packet_filter_settings.block_multicast) {
+		param.eth_pkt_filter_bitmap |= PACKET_TYPE_MULTICAST;
+	}
+
+	ret = usbh_cdc_ecm_req(ctx, &param);
+	if (ret) {
+		LOG_ERR("set default ethernet packet filter error (%d)", ret);
+	}
+
+	return ret;
+}
+
+static int usbh_cdc_ecm_add_multicast_group(struct usbh_cdc_ecm_ctx *const ctx,
+					    const struct net_eth_addr *mac_addr)
+{
+	struct multicast_addr_node *multicast_addr, *new_multicast_addr;
+	struct usbh_cdc_ecm_req_params param;
+	int idx = 0;
+	int ret;
+
+	if (!ctx || !mac_addr) {
+		return -EINVAL;
+	}
+
+	if (!usbh_cdc_ecm_is_configured(ctx)) {
+		return -ENODEV;
+	}
+
+	SYS_SLIST_FOR_EACH_CONTAINER(&ctx->multicast_filters.multicast_addrs, multicast_addr,
+				     node) {
+		if (!memcmp(&multicast_addr->mac_addr, mac_addr, sizeof(struct net_eth_addr))) {
+			return 0;
+		}
+	}
+
+	new_multicast_addr = k_malloc(sizeof(struct multicast_addr_node));
+	if (!new_multicast_addr) {
+		LOG_ERR("failed to allocate multicast address node");
+		return -ENOMEM;
+	}
+
+	memcpy(&new_multicast_addr->mac_addr, mac_addr, sizeof(struct net_eth_addr));
+
+	sys_slist_append(&ctx->multicast_filters.multicast_addrs, &new_multicast_addr->node);
+
+	param.if_num = ctx->comm_if_num;
+	param.bRequest = SET_ETHERNET_MULTICAST_FILTERS;
+	param.multicast_filter_list.len = sys_slist_len(&ctx->multicast_filters.multicast_addrs);
+	param.multicast_filter_list.m_addr =
+		k_malloc(sizeof(struct net_eth_addr) * param.multicast_filter_list.len);
+	if (!param.multicast_filter_list.m_addr) {
+		LOG_ERR("failed to allocate multicast filter list[add]");
+		(void)sys_slist_find_and_remove(&ctx->multicast_filters.multicast_addrs,
+						&new_multicast_addr->node);
+		k_free(new_multicast_addr);
+		return -ENOMEM;
+	}
+
+	SYS_SLIST_FOR_EACH_CONTAINER(&ctx->multicast_filters.multicast_addrs, multicast_addr,
+				     node) {
+		memcpy(&param.multicast_filter_list.m_addr[idx++], multicast_addr->mac_addr.addr,
+		       NET_ETH_ADDR_LEN);
+	}
+
+	ret = usbh_cdc_ecm_req(ctx, &param);
+	if (ret) {
+		LOG_ERR("set ethernet multicast filters[add] error (%d)", ret);
+		(void)sys_slist_find_and_remove(&ctx->multicast_filters.multicast_addrs,
+						&new_multicast_addr->node);
+		k_free(new_multicast_addr);
+	}
+
+	k_free(param.multicast_filter_list.m_addr);
+
+	return ret;
+}
+
+static int usbh_cdc_ecm_leave_multicast_group(struct usbh_cdc_ecm_ctx *const ctx,
+					      const struct net_eth_addr *mac_addr)
+{
+	struct multicast_addr_node *multicast_addr, *removed_multicast_addr = NULL;
+	struct usbh_cdc_ecm_req_params param;
+	int idx = 0;
+	int ret;
+
+	if (!ctx || !mac_addr) {
+		return -EINVAL;
+	}
+
+	if (!usbh_cdc_ecm_is_configured(ctx)) {
+		return -ENODEV;
+	}
+
+	SYS_SLIST_FOR_EACH_CONTAINER(&ctx->multicast_filters.multicast_addrs, multicast_addr,
+				     node) {
+		if (!memcmp(&multicast_addr->mac_addr, mac_addr, sizeof(struct net_eth_addr))) {
+			removed_multicast_addr = multicast_addr;
+			break;
+		}
+	}
+
+	if (!removed_multicast_addr) {
+		return 0;
+	}
+
+	(void)sys_slist_find_and_remove(&ctx->multicast_filters.multicast_addrs,
+					&removed_multicast_addr->node);
+
+	param.if_num = ctx->comm_if_num;
+	param.bRequest = SET_ETHERNET_MULTICAST_FILTERS;
+	param.multicast_filter_list.len = sys_slist_len(&ctx->multicast_filters.multicast_addrs);
+	param.multicast_filter_list.m_addr = NULL;
+	if (param.multicast_filter_list.len) {
+		param.multicast_filter_list.m_addr =
+			k_malloc(sizeof(struct net_eth_addr) * param.multicast_filter_list.len);
+		if (!param.multicast_filter_list.m_addr) {
+			LOG_ERR("failed to allocate multicast filter list[leave]");
+			sys_slist_append(&ctx->multicast_filters.multicast_addrs,
+					 &removed_multicast_addr->node);
+			return -ENOMEM;
+		}
+	}
+
+	SYS_SLIST_FOR_EACH_CONTAINER(&ctx->multicast_filters.multicast_addrs, multicast_addr,
+				     node) {
+		memcpy(&param.multicast_filter_list.m_addr[idx++], multicast_addr->mac_addr.addr,
+		       NET_ETH_ADDR_LEN);
+	}
+
+	ret = usbh_cdc_ecm_req(ctx, &param);
+	if (ret) {
+		LOG_ERR("set ethernet multicast filters[leave] error (%d)", ret);
+		sys_slist_append(&ctx->multicast_filters.multicast_addrs,
+				 &removed_multicast_addr->node);
+	} else {
+		k_free(removed_multicast_addr);
+	}
+
+	k_free(param.multicast_filter_list.m_addr);
+
+	return ret;
+}
+
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
 static int usbh_cdc_ecm_update_stats(struct usbh_cdc_ecm_ctx *const ctx)
 {
@@ -864,13 +1069,8 @@ static int usbh_cdc_ecm_update_stats(struct usbh_cdc_ecm_ctx *const ctx)
 		return -EINVAL;
 	}
 
-	if (k_mutex_lock(&ctx->lock, K_NO_WAIT)) {
-		return -EBUSY;
-	}
-
 	if (!usbh_cdc_ecm_is_configured(ctx)) {
-		ret = -ENODEV;
-		goto done;
+		return -ENODEV;
 	}
 
 	param.if_num = ctx->comm_if_num;
@@ -989,8 +1189,7 @@ static int usbh_cdc_ecm_update_stats(struct usbh_cdc_ecm_ctx *const ctx)
 				LOG_WRN("get ethernet statistic for feature %u error (%d)",
 					param.eth_stats.feature_sel, err);
 			} else {
-				ret = err;
-				goto done;
+				return err;
 			}
 		}
 	}
@@ -1006,9 +1205,6 @@ static int usbh_cdc_ecm_update_stats(struct usbh_cdc_ecm_ctx *const ctx)
 	if (collisions_mask == 0x07) {
 		ctx->stats.map.collisions = collisions[0] + collisions[1] + collisions[2];
 	}
-
-done:
-	(void)k_mutex_unlock(&ctx->lock);
 
 	return ret;
 }
@@ -1054,6 +1250,8 @@ static int usbh_cdc_ecm_parse_descriptors(struct usbh_cdc_ecm_ctx *const ctx,
 	ctx->data_out_ep_mps = 0;
 	ctx->mac_str_desc_idx = 0;
 	ctx->max_segment_size = 0;
+	ctx->multicast_filters.imperfect_filtering = true;
+	ctx->multicast_filters.num = 0;
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
 	ctx->stats.hw_caps = 0;
 #endif
@@ -1098,11 +1296,15 @@ static int usbh_cdc_ecm_parse_descriptors(struct usbh_cdc_ecm_ctx *const ctx,
 				ctx->mac_str_desc_idx = cdc_ecm_desc->iMACAddress;
 				ctx->max_segment_size =
 					sys_le16_to_cpu(cdc_ecm_desc->wMaxSegmentSize);
+				ctx->multicast_filters.imperfect_filtering =
+					(bool)(sys_le16_to_cpu(cdc_ecm_desc->wNumberMCFilters) &
+					       BIT(15));
+				ctx->multicast_filters.num =
+					sys_le16_to_cpu(cdc_ecm_desc->wNumberMCFilters) & 0x7FFF;
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
 				ctx->stats.hw_caps =
 					sys_le32_to_cpu(cdc_ecm_desc->bmEthernetStatistics);
 #endif
-				/** TODO: MCFilter Feature */
 				/** TODO: Power Filter Feature */
 				cdc_ethernet_func_ready = true;
 			}
@@ -1202,6 +1404,9 @@ static int usbh_cdc_ecm_parse_descriptors(struct usbh_cdc_ecm_ctx *const ctx,
 		ctx->data_out_ep_mps);
 	LOG_INF("  wMaxSegmentSize %u bytes, MAC string descriptor index %u", ctx->max_segment_size,
 		ctx->mac_str_desc_idx);
+	LOG_INF("  Hardware Multicast Filters: %u (%s)", ctx->multicast_filters.num,
+		ctx->multicast_filters.imperfect_filtering ? "imperfect - hashing"
+							   : "perfect - non-hashing");
 
 	return 0;
 }
@@ -1328,7 +1533,6 @@ static int usbh_cdc_ecm_probe(struct usbh_class_data *const c_data, struct usb_d
 	const void *const desc_end = usbh_desc_get_cfg_end(udev);
 	const struct usb_desc_header *desc;
 	const struct usb_association_descriptor *assoc_desc;
-	struct usbh_cdc_ecm_req_params param;
 	struct usbh_cdc_ecm_msg msg;
 	int ret;
 
@@ -1339,6 +1543,14 @@ static int usbh_cdc_ecm_probe(struct usbh_class_data *const c_data, struct usb_d
 	ctx->upload_speed = 0;
 	ctx->download_speed = 0;
 	ctx->active_data_rx_xfers = 0;
+	ctx->packet_filter_settings.block_all_multicast = false;
+	ctx->packet_filter_settings.block_broadcast = false;
+	ctx->packet_filter_settings.block_multicast = false;
+	ctx->packet_filter_settings.block_unicast = false;
+	ctx->packet_filter_settings.promiscuous_mode_enabled = false;
+
+	sys_slist_init(&ctx->multicast_filters.multicast_addrs);
+
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
 	memset(&ctx->stats.map, 0, sizeof(ctx->stats.map));
 #endif
@@ -1388,11 +1600,7 @@ static int usbh_cdc_ecm_probe(struct usbh_class_data *const c_data, struct usb_d
 		goto done;
 	}
 
-	param.if_num = ctx->comm_if_num;
-	param.bRequest = SET_ETHERNET_PACKET_FILTER;
-	param.eth_pkt_filter_bitmap =
-		PACKET_TYPE_BROADCAST | PACKET_TYPE_DIRECTED | PACKET_TYPE_ALL_MULTICAST;
-	ret = usbh_cdc_ecm_req(ctx, &param);
+	ret = usbh_cdc_ecm_update_packet_filter(ctx);
 	if (ret) {
 		LOG_ERR("set default ethernet packet filter error (%d)", ret);
 		goto done;
@@ -1422,6 +1630,8 @@ static int usbh_cdc_ecm_removed(struct usbh_class_data *const c_data)
 {
 	struct device *dev = c_data->priv;
 	struct usbh_cdc_ecm_ctx *ctx = dev->data;
+	struct multicast_addr_node *multicast_addr;
+	sys_snode_t *node;
 
 	(void)k_mutex_lock(&ctx->lock, K_FOREVER);
 
@@ -1435,11 +1645,16 @@ static int usbh_cdc_ecm_removed(struct usbh_class_data *const c_data)
 
 	net_if_carrier_off(ctx->iface);
 
+	while ((node = sys_slist_get(&ctx->multicast_filters.multicast_addrs)) != NULL) {
+		multicast_addr = CONTAINER_OF(node, struct multicast_addr_node, node);
+		k_free(multicast_addr);
+	}
+
 	(void)k_mutex_unlock(&ctx->lock);
 
 	while (true) {
 		(void)k_mutex_lock(&ctx->lock, K_FOREVER);
-		if (ctx->active_data_rx_xfers) {
+		if (!ctx->active_data_rx_xfers) {
 			(void)k_mutex_unlock(&ctx->lock);
 			break;
 		}
@@ -1498,10 +1713,9 @@ struct net_stats_eth *eth_usbh_cdc_ecm_get_stats(const struct device *dev)
 	(void)k_mutex_lock(&ctx->lock, K_FOREVER);
 
 	if (sys_timepoint_expired(ctx->stats.last_tp)) {
-		if (!usbh_cdc_ecm_update_stats(ctx)) {
-			ctx->stats.last_tp = sys_timepoint_calc(K_SECONDS(
-				CONFIG_USBH_CDC_ECM_HARDWARE_NETWORK_STATISTICS_INTERVAL));
-		}
+		ctx->stats.last_tp = sys_timepoint_calc(
+			K_SECONDS(CONFIG_USBH_CDC_ECM_HARDWARE_NETWORK_STATISTICS_INTERVAL));
+		(void)usbh_cdc_ecm_update_stats(ctx);
 	}
 
 	(void)k_mutex_unlock(&ctx->lock);
@@ -1518,16 +1732,38 @@ static int eth_usbh_cdc_ecm_set_config(const struct device *dev, enum ethernet_c
 
 	switch (type) {
 	case ETHERNET_CONFIG_TYPE_MAC_ADDRESS:
+		(void)k_mutex_lock(&ctx->lock, K_FOREVER);
 		ret = net_if_set_link_addr(ctx->iface, (uint8_t *)config->mac_address.addr,
 					   NET_ETH_ADDR_LEN, NET_LINK_ETHERNET);
+		(void)k_mutex_unlock(&ctx->lock);
+		break;
+	case ETHERNET_CONFIG_TYPE_FILTER:
+		(void)k_mutex_lock(&ctx->lock, K_FOREVER);
+		if (config->filter.set) {
+			if (ctx->multicast_filters.num) {
+				ret = usbh_cdc_ecm_add_multicast_group(ctx,
+								       &config->filter.mac_address);
+			} else {
+				ctx->packet_filter_settings.block_all_multicast = false;
+				ret = usbh_cdc_ecm_update_packet_filter(ctx);
+			}
+		} else {
+			if (ctx->multicast_filters.num) {
+				ret = usbh_cdc_ecm_leave_multicast_group(
+					ctx, &config->filter.mac_address);
+			} else {
+				ctx->packet_filter_settings.block_all_multicast = true;
+				ret = usbh_cdc_ecm_update_packet_filter(ctx);
+			}
+		}
+		(void)k_mutex_unlock(&ctx->lock);
 		break;
 #if defined(CONFIG_NET_PROMISCUOUS_MODE)
 	case ETHERNET_CONFIG_TYPE_PROMISC_MODE:
-		if (config->promisc_mode) {
-			;
-		} else {
-			;
-		}
+		(void)k_mutex_lock(&ctx->lock, K_FOREVER);
+		ctx->packet_filter_settings.promiscuous_mode_enabled = config->promisc_mode;
+		ret = usbh_cdc_ecm_update_packet_filter(ctx);
+		(void)k_mutex_unlock(&ctx->lock);
 		break;
 #endif
 	default:
