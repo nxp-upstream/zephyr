@@ -1,0 +1,17 @@
+/*
+ * Copyright 2025 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+dut: &lpuart0 {
+	dmas = <&edma 0 94>, <&edma 2 93>;
+	dma-names = "tx", "rx";
+	current-speed = <115200>;
+	nxp,loopback;
+	status = "okay";
+};
+
+&edma {
+	status = "okay";
+};
