@@ -31,13 +31,13 @@ static void usbh_hub_mgr_process(struct k_work *work);
 static void usbh_hub_port_process(struct k_work *work);
 static int usbh_hub_mgr_start_interrupt(struct usbh_hub_mgr_data *hub_mgr_data);
 static int usbh_hub_mgr_interrupt_in_cb(struct usb_device *const dev,
-					 struct uhc_transfer *const xfer);
+					struct uhc_transfer *const xfer);
 
 /**
  * @brief Resubmit interrupt IN transfer
  */
 static int usbh_hub_mgr_resubmit_interrupt_in(struct usbh_hub_mgr_data *hub_mgr_data,
-					       struct uhc_transfer *xfer)
+					      struct uhc_transfer *xfer)
 {
 	struct net_buf *buf;
 	int ret;
@@ -48,7 +48,7 @@ static int usbh_hub_mgr_resubmit_interrupt_in(struct usbh_hub_mgr_data *hub_mgr_
 	}
 
 	/* Allocate buffer for next transfer */
-	buf = usbh_xfer_buf_alloc(hub_mgr_data->hub_udev, 
+	buf = usbh_xfer_buf_alloc(hub_mgr_data->hub_udev,
 				  sys_le16_to_cpu(hub_mgr_data->int_ep->wMaxPacketSize));
 	if (!buf) {
 		LOG_ERR("Failed to allocate interrupt IN buffer");
@@ -106,7 +106,7 @@ static int usbh_hub_mgr_start_interrupt(struct usbh_hub_mgr_data *hub_mgr_data)
 	hub_mgr_data->interrupt_transfer = xfer;
 
 	/* Allocate receive buffer */
-	buf = usbh_xfer_buf_alloc(hub_mgr_data->hub_udev, 
+	buf = usbh_xfer_buf_alloc(hub_mgr_data->hub_udev,
 				  sys_le16_to_cpu(hub_mgr_data->int_ep->wMaxPacketSize));
 	if (!buf) {
 		LOG_ERR("Failed to allocate interrupt buffer");
@@ -127,7 +127,7 @@ static int usbh_hub_mgr_start_interrupt(struct usbh_hub_mgr_data *hub_mgr_data)
 	hub_mgr_data->interrupt_transfer = xfer;
 	hub_mgr_data->int_active = true;
 	hub_mgr_data->prime_status = HUB_PRIME_INTERRUPT;
-	
+
 	LOG_DBG("Hub level %d interrupt monitoring started", hub_mgr_data->hub_level);
 	return 0;
 }
@@ -138,16 +138,16 @@ static int usbh_hub_mgr_start_interrupt(struct usbh_hub_mgr_data *hub_mgr_data)
 static struct usbh_hub_mgr_data *find_hub_mgr_by_udev(struct usb_device *udev)
 {
 	struct usbh_hub_mgr_data *hub_mgr_data;
-	
+
 	k_mutex_lock(&hub_mgr.lock, K_FOREVER);
-	
+
 	SYS_SLIST_FOR_EACH_CONTAINER(&hub_mgr.hub_list, hub_mgr_data, node) {
 		if (hub_mgr_data->hub_udev == udev) {
 			k_mutex_unlock(&hub_mgr.lock);
 			return hub_mgr_data;
 		}
 	}
-	
+
 	k_mutex_unlock(&hub_mgr.lock);
 
 	return NULL;
@@ -171,7 +171,7 @@ static void usbh_hub_mgr_process_data(struct usbh_hub_mgr_data *hub_mgr_data)
 	}
 
 	if (hub_mgr_data->state != HUB_STATE_OPERATIONAL) {
-		LOG_DBG("Hub level %d not operational yet, deferring interrupt processing", 
+		LOG_DBG("Hub level %d not operational yet, deferring interrupt processing",
 			hub_mgr_data->hub_level);
 		k_mutex_unlock(&hub_mgr_data->lock);
 		/* Resubmit interrupt to process later */
@@ -191,8 +191,7 @@ static void usbh_hub_mgr_process_data(struct usbh_hub_mgr_data *hub_mgr_data)
 		if (port_index == 0) {
 			/* Hub status change */
 			LOG_INF("Hub level %d status changed, processing", hub_mgr_data->hub_level);
-			ret = usbh_hub_get_hub_status(&hub_mgr_data->hub_instance, 
-						      &hub_status,
+			ret = usbh_hub_get_hub_status(&hub_mgr_data->hub_instance, &hub_status,
 						      &hub_change);
 			if (ret != 0) {
 				LOG_ERR("Failed to get hub status: %d", ret);
@@ -202,42 +201,45 @@ static void usbh_hub_mgr_process_data(struct usbh_hub_mgr_data *hub_mgr_data)
 			hub_mgr_data->hub_instance.hub_status.wHubStatus = hub_status;
 			hub_mgr_data->hub_instance.hub_status.wHubChange = hub_change;
 
-			LOG_DBG("Hub status: 0x%04x, change: 0x%04x", 
+			LOG_DBG("Hub status: 0x%04x, change: 0x%04x",
 				hub_mgr_data->hub_instance.hub_status.wHubStatus,
 				hub_mgr_data->hub_instance.hub_status.wHubChange);
 
-			if (hub_mgr_data->hub_instance.hub_status.wHubChange & 
+			if (hub_mgr_data->hub_instance.hub_status.wHubChange &
 			    (1UL << USB_HUB_FEATURE_C_HUB_LOCAL_POWER)) {
 				LOG_WRN("Hub local power status changed");
-				ret = usbh_hub_clear_hub_feature(&hub_mgr_data->hub_instance, 
-								USB_HUB_FEATURE_C_HUB_LOCAL_POWER);
+				ret = usbh_hub_clear_hub_feature(&hub_mgr_data->hub_instance,
+								 USB_HUB_FEATURE_C_HUB_LOCAL_POWER);
 				if (ret != 0) {
 					LOG_ERR("Failed to clear hub local power feature: %d", ret);
 				}
 			}
 
-			if (hub_mgr_data->hub_instance.hub_status.wHubChange & 
+			if (hub_mgr_data->hub_instance.hub_status.wHubChange &
 			    (1UL << USB_HUB_FEATURE_C_HUB_OVER_CURRENT)) {
 				LOG_ERR("Hub over-current detected!");
-				ret = usbh_hub_clear_hub_feature(&hub_mgr_data->hub_instance, 
-								USB_HUB_FEATURE_C_HUB_OVER_CURRENT);
+				ret = usbh_hub_clear_hub_feature(
+					&hub_mgr_data->hub_instance,
+					USB_HUB_FEATURE_C_HUB_OVER_CURRENT);
 				if (ret != 0) {
-					LOG_ERR("Failed to clear hub over-current feature: %d", ret);
+					LOG_ERR("Failed to clear hub over-current feature: %d",
+						ret);
 				}
 			}
 		} else {
-			if (hub_mgr.processing_hub != NULL && hub_mgr.processing_hub != hub_mgr_data) {
+			if (hub_mgr.processing_hub != NULL &&
+			    hub_mgr.processing_hub != hub_mgr_data) {
 				continue;
 			}
 
 			hub_mgr.processing_hub = hub_mgr_data;
 			hub_mgr_data->current_port = port_index;
-			
-			LOG_INF("Hub level %d port %d status changed, starting processing", 
+
+			LOG_INF("Hub level %d port %d status changed, starting processing",
 				hub_mgr_data->hub_level, port_index);
-			
+
 			k_mutex_unlock(&hub_mgr_data->lock);
-			
+
 			k_work_submit(&hub_mgr_data->port_work.work);
 			return;
 		}
@@ -254,7 +256,7 @@ static void usbh_hub_mgr_process_data(struct usbh_hub_mgr_data *hub_mgr_data)
  * @brief Hub interrupt IN callback
  */
 static int usbh_hub_mgr_interrupt_in_cb(struct usb_device *const dev,
-					 struct uhc_transfer *const xfer)
+					struct uhc_transfer *const xfer)
 {
 	struct usbh_hub_mgr_data *hub_mgr_data = (struct usbh_hub_mgr_data *)xfer->priv;
 	struct net_buf *buf = xfer->buf;
@@ -270,19 +272,19 @@ static int usbh_hub_mgr_interrupt_in_cb(struct usb_device *const dev,
 	hub_mgr_data->prime_status = HUB_PRIME_NONE;
 
 	if (!buf || buf->len == 0) {
-		LOG_ERR("Hub level %d interrupt transfer failed or no data", 
-		hub_mgr_data->hub_level);
+		LOG_ERR("Hub level %d interrupt transfer failed or no data",
+			hub_mgr_data->hub_level);
 		hub_mgr.processing_hub = NULL;
 		hub_mgr_data->current_port = 0;
 		k_mutex_unlock(&hub_mgr_data->lock);
 		goto resubmit;
 	}
 
-	memcpy(hub_mgr_data->int_buffer, buf->data, 
+	memcpy(hub_mgr_data->int_buffer, buf->data,
 	       MIN(buf->len, sizeof(hub_mgr_data->int_buffer)));
 
-	LOG_DBG("Hub level %d interrupt data received: length=%d", 
-		hub_mgr_data->hub_level, buf->len);
+	LOG_DBG("Hub level %d interrupt data received: length=%d", hub_mgr_data->hub_level,
+		buf->len);
 
 	k_mutex_unlock(&hub_mgr_data->lock);
 
@@ -318,7 +320,7 @@ cleanup_and_exit:
 static void usbh_hub_mgr_process(struct k_work *work)
 {
 	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
-	struct usbh_hub_mgr_data *hub_mgr_data = 
+	struct usbh_hub_mgr_data *hub_mgr_data =
 		CONTAINER_OF(dwork, struct usbh_hub_mgr_data, hub_work);
 	struct usb_hub_descriptor *hub_desc;
 	uint16_t total_hub_desc_len = 0;
@@ -353,7 +355,8 @@ static void usbh_hub_mgr_process(struct k_work *work)
 		hub_mgr_data->hub_status = HUB_RUN_GET_DESCRIPTOR_7;
 		/* Get basic hub descriptor */
 		ret = usbh_hub_get_descriptor(&hub_mgr_data->hub_instance,
-					      hub_mgr_data->hub_instance.hub_desc_buf, sizeof(struct usb_hub_descriptor));
+					      hub_mgr_data->hub_instance.hub_desc_buf,
+					      sizeof(struct usb_hub_descriptor));
 		if (ret == 0) {
 			process_success = 1;
 			LOG_DBG("Getting 7-byte hub descriptor");
@@ -366,11 +369,11 @@ static void usbh_hub_mgr_process(struct k_work *work)
 
 	case HUB_RUN_GET_DESCRIPTOR_7:
 		hub_desc = (struct usb_hub_descriptor *)hub_mgr_data->hub_instance.hub_desc_buf;
-		
+
 		/* Save hub properties */
 		hub_mgr_data->hub_instance.num_ports = hub_desc->bNbrPorts;
 		hub_mgr_data->num_ports = hub_desc->bNbrPorts;
-		
+
 		if (hub_mgr_data->num_ports > USB_HUB_MAX_PORTS) {
 			LOG_ERR("Too many ports: %d", hub_mgr_data->num_ports);
 			hub_mgr_data->hub_status = HUB_RUN_INVALID;
@@ -380,8 +383,10 @@ static void usbh_hub_mgr_process(struct k_work *work)
 		LOG_INF("Hub has %d ports", hub_mgr_data->num_ports);
 
 		/* the value is the hub's itself think time */
-		hub_mgr_data->hub_instance.hub_udev->total_think_time = (((sys_le16_to_cpu(hub_desc->wHubCharacteristics) & 0x0060) >> 5) + 1) << 3;
-		LOG_INF("hub's think time: %d", hub_mgr_data->hub_instance.hub_udev->total_think_time);
+		hub_mgr_data->hub_instance.hub_udev->total_think_time =
+			(((sys_le16_to_cpu(hub_desc->wHubCharacteristics) & 0x0060) >> 5) + 1) << 3;
+		LOG_INF("hub's think time: %d",
+			hub_mgr_data->hub_instance.hub_udev->total_think_time);
 
 		hub_mgr_data->hub_status = HUB_RUN_SET_PORT_POWER;
 
@@ -403,7 +408,7 @@ static void usbh_hub_mgr_process(struct k_work *work)
 	case HUB_RUN_SET_PORT_POWER:
 		/* Allocate port list if not already done */
 		if (hub_mgr_data->port_list == NULL) {
-			hub_mgr_data->port_list = k_malloc(hub_mgr_data->num_ports * 
+			hub_mgr_data->port_list = k_malloc(hub_mgr_data->num_ports *
 							   sizeof(struct usbh_hub_port_instance));
 			if (hub_mgr_data->port_list == NULL) {
 				LOG_ERR("Failed to allocate port list");
@@ -417,15 +422,15 @@ static void usbh_hub_mgr_process(struct k_work *work)
 		if (hub_mgr_data->port_index < hub_mgr_data->num_ports) {
 			hub_mgr_data->port_index++;
 			ret = usbh_hub_set_port_feature(&hub_mgr_data->hub_instance,
-							 hub_mgr_data->port_index,
-							 USB_HUB_FEATURE_PORT_POWER);
+							hub_mgr_data->port_index,
+							USB_HUB_FEATURE_PORT_POWER);
 			if (ret == 0) {
 				process_success = 1;
 				LOG_DBG("Setting port %d power", hub_mgr_data->port_index);
 				k_work_submit(&hub_mgr_data->hub_work.work);
 			} else {
-				LOG_ERR("Failed to set port %d power: %d", 
-					hub_mgr_data->port_index, ret);
+				LOG_ERR("Failed to set port %d power: %d", hub_mgr_data->port_index,
+					ret);
 				need_prime_interrupt = 1;
 			}
 			break;
@@ -439,9 +444,10 @@ static void usbh_hub_mgr_process(struct k_work *work)
 			hub_mgr_data->port_list[i].port_status = HUB_PORT_RUN_WAIT_PORT_CHANGE;
 			hub_mgr_data->port_list[i].state = PORT_STATE_DISCONNECTED;
 			hub_mgr_data->port_list[i].port_num = i + 1;
-			hub_mgr_data->port_list[i].speed = USB_SPEED_SPEED_FS; /* Default full speed */
+			hub_mgr_data->port_list[i].speed =
+				USB_SPEED_SPEED_FS; /* Default full speed */
 		}
-		
+
 		hub_mgr_data->hub_status = HUB_RUN_IDLE;
 		hub_mgr_data->state = HUB_STATE_OPERATIONAL;
 		need_prime_interrupt = 1;
@@ -480,8 +486,7 @@ static void usbh_hub_mgr_recursive_disconnect(struct usbh_hub_mgr_data *hub_mgr_
 		return;
 	}
 
-	LOG_DBG("Recursively disconnecting Hub level %d and all children", 
-		hub_mgr_data->hub_level);
+	LOG_DBG("Recursively disconnecting Hub level %d and all children", hub_mgr_data->hub_level);
 
 	k_work_cancel_delayable(&hub_mgr_data->port_work);
 	k_work_cancel_delayable(&hub_mgr_data->hub_work);
@@ -496,7 +501,7 @@ static void usbh_hub_mgr_recursive_disconnect(struct usbh_hub_mgr_data *hub_mgr_
 		if (hub_mgr_data->port_list && hub_mgr_data->port_list[i].udev) {
 			struct usb_device *port_udev = hub_mgr_data->port_list[i].udev;
 			struct usbh_hub_mgr_data *child_hub = find_hub_mgr_by_udev(port_udev);
-			
+
 			if (child_hub) {
 				LOG_DBG("Found child Hub on port %d, recursing", i + 1);
 				usbh_hub_mgr_recursive_disconnect(child_hub);
@@ -524,21 +529,20 @@ static void usbh_hub_mgr_recursive_disconnect(struct usbh_hub_mgr_data *hub_mgr_
 static void usbh_hub_print_info(struct usbh_hub_mgr_data *hub_mgr_data)
 {
 	struct usb_device_descriptor *dev_desc;
-	
+
 	if (!hub_mgr_data || !hub_mgr_data->hub_udev) {
 		return;
 	}
-	
+
 	dev_desc = &hub_mgr_data->hub_udev->dev_desc;
-	
+
 	LOG_INF("=== USB Hub Information ===");
 	LOG_INF("Hub Level: %d", hub_mgr_data->hub_level);
 	LOG_INF("Vendor ID: 0x%04x", sys_le16_to_cpu(dev_desc->idVendor));
 	LOG_INF("Product ID: 0x%04x", sys_le16_to_cpu(dev_desc->idProduct));
 	LOG_INF("Device Address: %d", hub_mgr_data->hub_udev->addr);
 	if (hub_mgr_data->parent_hub) {
-		LOG_INF("Parent Hub Level: %d, Port: %d", 
-			hub_mgr_data->parent_hub->hub_level, 
+		LOG_INF("Parent Hub Level: %d, Port: %d", hub_mgr_data->parent_hub->hub_level,
 			hub_mgr_data->parent_port);
 	} else {
 		LOG_INF("Root Hub (no parent)");
@@ -550,8 +554,8 @@ static void usbh_hub_print_info(struct usbh_hub_mgr_data *hub_mgr_data)
  * @brief Establish parent-child hub relationship
  */
 static int usbh_hub_establish_parent_child_relationship(struct usbh_hub_mgr_data *parent_hub,
-					struct usbh_hub_mgr_data *child_hub,
-					uint8_t port_num)
+							struct usbh_hub_mgr_data *child_hub,
+							uint8_t port_num)
 {
 	uint8_t new_level;
 
@@ -559,8 +563,8 @@ static int usbh_hub_establish_parent_child_relationship(struct usbh_hub_mgr_data
 
 	/* Check maximum hub chain depth */
 	if (new_level > CONFIG_USBH_HUB_MAX_LEVELS) {
-		LOG_ERR("Hub chain depth limit exceeded (%d > %d), removing hub", 
-			new_level, CONFIG_USBH_HUB_MAX_LEVELS);
+		LOG_ERR("Hub chain depth limit exceeded (%d > %d), removing hub", new_level,
+			CONFIG_USBH_HUB_MAX_LEVELS);
 
 		k_mutex_lock(&child_hub->lock, K_FOREVER);
 		child_hub->being_removed = true;
@@ -590,7 +594,7 @@ static int usbh_hub_establish_parent_child_relationship(struct usbh_hub_mgr_data
 static void usbh_hub_port_process(struct k_work *work)
 {
 	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
-	struct usbh_hub_mgr_data *hub_mgr_data = 
+	struct usbh_hub_mgr_data *hub_mgr_data =
 		CONTAINER_OF(dwork, struct usbh_hub_mgr_data, port_work);
 	struct usbh_hub_mgr_data *child_hub;
 	struct usbh_hub_port_instance *port_instance = NULL;
@@ -636,8 +640,7 @@ static void usbh_hub_port_process(struct k_work *work)
 	case HUB_PORT_RUN_WAIT_PORT_CHANGE:
 		LOG_DBG("Port %d: Getting port status", port_num);
 		port_instance->port_status = HUB_PORT_RUN_CHECK_C_PORT_CONNECTION;
-		ret = usbh_hub_get_port_status(&hub_mgr_data->hub_instance, port_num,
-					       &port_status,
+		ret = usbh_hub_get_port_status(&hub_mgr_data->hub_instance, port_num, &port_status,
 					       &port_change);
 		if (ret != 0) {
 			LOG_ERR("Failed to get port status: %d", ret);
@@ -654,8 +657,7 @@ static void usbh_hub_port_process(struct k_work *work)
 		spec_status = ((uint32_t)hub_mgr_data->hub_instance.port_status.wPortChange << 16) |
 			      hub_mgr_data->hub_instance.port_status.wPortStatus;
 
-		LOG_DBG("Port %d status: wPortStatus=0x%04x, wPortChange=0x%04x", 
-			port_num, 
+		LOG_DBG("Port %d status: wPortStatus=0x%04x, wPortChange=0x%04x", port_num,
 			hub_mgr_data->hub_instance.port_status.wPortStatus,
 			hub_mgr_data->hub_instance.port_status.wPortChange);
 
@@ -707,7 +709,8 @@ static void usbh_hub_port_process(struct k_work *work)
 		}
 
 		if (feature != 0) {
-			ret = usbh_hub_clear_port_feature(&hub_mgr_data->hub_instance, port_num, feature);
+			ret = usbh_hub_clear_port_feature(&hub_mgr_data->hub_instance, port_num,
+							  feature);
 			if (ret != 0) {
 				LOG_ERR("Failed to clear feature %d: %d", feature, ret);
 				goto error_recovery;
@@ -720,8 +723,7 @@ static void usbh_hub_port_process(struct k_work *work)
 
 	case HUB_PORT_RUN_GET_PORT_CONNECTION:
 		port_instance->port_status = HUB_PORT_RUN_CHECK_PORT_CONNECTION;
-		ret = usbh_hub_get_port_status(&hub_mgr_data->hub_instance, port_num,
-					       &port_status,
+		ret = usbh_hub_get_port_status(&hub_mgr_data->hub_instance, port_num, &port_status,
 					       &port_change);
 		if (ret != 0) {
 			LOG_ERR("Failed to get port connection status: %d", ret);
@@ -761,7 +763,8 @@ static void usbh_hub_port_process(struct k_work *work)
 
 	case HUB_PORT_RUN_WAIT_PORT_RESET_DONE:
 		port_instance->port_status = HUB_PORT_RUN_WAIT_C_PORT_RESET;
-		/* Wait for interrupt notification of reset completion, restart interrupt listening */
+		/* Wait for interrupt notification of reset completion, restart interrupt listening
+		 */
 		if (!hub_mgr_data->int_active && !hub_mgr_data->being_removed) {
 			ret = usbh_hub_mgr_start_interrupt(hub_mgr_data);
 			if (ret) {
@@ -773,8 +776,7 @@ static void usbh_hub_port_process(struct k_work *work)
 
 	case HUB_PORT_RUN_WAIT_C_PORT_RESET:
 		port_instance->port_status = HUB_PORT_RUN_CHECK_C_PORT_RESET;
-		ret = usbh_hub_get_port_status(&hub_mgr_data->hub_instance, port_num,
-					       &port_status,
+		ret = usbh_hub_get_port_status(&hub_mgr_data->hub_instance, port_num, &port_status,
 					       &port_change);
 		if (ret != 0) {
 			LOG_ERR("Failed to get port status for reset check: %d", ret);
@@ -789,13 +791,13 @@ static void usbh_hub_port_process(struct k_work *work)
 
 	case HUB_PORT_RUN_CHECK_C_PORT_RESET:
 		spec_status = ((uint32_t)hub_mgr_data->hub_instance.port_status.wPortChange << 16) |
-				hub_mgr_data->hub_instance.port_status.wPortStatus;
+			      hub_mgr_data->hub_instance.port_status.wPortStatus;
 
 		if (spec_status & (1UL << USB_HUB_FEATURE_C_PORT_RESET)) {
 			if (port_instance->reset_count == 0) {
 				/* Reset completed, device connected */
 				port_instance->port_status = HUB_PORT_RUN_PORT_ATTACHED;
-				
+
 				/* Detect device speed */
 				if (spec_status & (1UL << USB_HUB_FEATURE_PORT_HIGH_SPEED)) {
 					port_instance->speed = USB_SPEED_SPEED_HS;
@@ -804,18 +806,19 @@ static void usbh_hub_port_process(struct k_work *work)
 				} else {
 					port_instance->speed = USB_SPEED_SPEED_FS;
 				}
-				
+
 				LOG_INF("Device ready on port %d (speed: %s)", port_num,
-					port_instance->speed == USB_SPEED_SPEED_HS ? "HIGH" :
-					port_instance->speed == USB_SPEED_SPEED_LS ? "LOW" : "FULL");
+					port_instance->speed == USB_SPEED_SPEED_HS   ? "HIGH"
+					: port_instance->speed == USB_SPEED_SPEED_LS ? "LOW"
+										     : "FULL");
 			} else {
 				/* Need another reset */
 				port_instance->port_status = HUB_PORT_RUN_RESET_AGAIN;
 			}
-			
+
 			/* Clear C_PORT_RESET */
 			ret = usbh_hub_clear_port_feature(&hub_mgr_data->hub_instance, port_num,
-							USB_HUB_FEATURE_C_PORT_RESET);
+							  USB_HUB_FEATURE_C_PORT_RESET);
 			if (ret != 0) {
 				LOG_ERR("Failed to clear port reset feature: %d", ret);
 				goto error_recovery;
@@ -832,11 +835,10 @@ static void usbh_hub_port_process(struct k_work *work)
 		break;
 
 	case HUB_PORT_RUN_RESET_AGAIN:
-		LOG_INF("Port %d retrying reset (%d attempts left)", 
-				port_num, port_instance->reset_count);
+		LOG_INF("Port %d retrying reset (%d attempts left)", port_num,
+			port_instance->reset_count);
 		port_instance->port_status = HUB_PORT_RUN_CHECK_PORT_CONNECTION;
-		ret = usbh_hub_get_port_status(&hub_mgr_data->hub_instance, port_num,
-					       &port_status,
+		ret = usbh_hub_get_port_status(&hub_mgr_data->hub_instance, port_num, &port_status,
 					       &port_change);
 		if (ret != 0) {
 			LOG_ERR("Failed to get port status for reset again: %d", ret);
@@ -851,10 +853,10 @@ static void usbh_hub_port_process(struct k_work *work)
 
 	case HUB_PORT_RUN_PORT_ATTACHED:
 		LOG_INF("Device attached to port %d", port_num);
-		
+
 		/* Notify USB host stack to start device enumeration */
 		udev = usbh_device_alloc(hub_mgr_data->uhs_ctx);
-		
+
 		if (udev != NULL) {
 
 			udev->hub_addr = hub_mgr_data->hub_udev->addr;
@@ -873,33 +875,35 @@ static void usbh_hub_port_process(struct k_work *work)
 
 			usbh_connect_device(hub_mgr_data->uhs_ctx, udev);
 
-			LOG_INF("Device enumeration completed for port %d, addr=%d", 
-				port_num, udev->addr);
-				
+			LOG_INF("Device enumeration completed for port %d, addr=%d", port_num,
+				udev->addr);
+
 			port_instance->udev = udev;
 
 			child_hub = find_hub_mgr_by_udev(port_instance->udev);
-			if (child_hub)
-			{
+			if (child_hub) {
 				port_instance->port_status = HUB_PORT_RUN_CHECK_CHILD_HUB;
 				/* for hub, delay to wait hub probe finished */
 				k_work_reschedule(&hub_mgr_data->port_work, K_MSEC(50));
 				return;
 			} else {
 				/* update total tink time */
-				port_instance->udev->total_think_time = hub_mgr_data->hub_instance.hub_udev->total_think_time;
+				port_instance->udev->total_think_time =
+					hub_mgr_data->hub_instance.hub_udev->total_think_time;
 
-				LOG_INF("udev addr: %d, total_think_time: %d", port_instance->udev->addr, port_instance->udev->total_think_time);
+				LOG_INF("udev addr: %d, total_think_time: %d",
+					port_instance->udev->addr,
+					port_instance->udev->total_think_time);
 			}
 		} else {
 			LOG_ERR("Device enumeration failed for port %d", port_num);
-			
+
 			/* Retry enumeration */
 			if (port_instance->reset_count > 0) {
 				port_instance->reset_count--;
 				port_instance->port_status = HUB_PORT_RUN_WAIT_PORT_CHANGE;
-				LOG_WRN("Port %d enumeration failed, %d retries left", 
-						port_num, port_instance->reset_count);
+				LOG_WRN("Port %d enumeration failed, %d retries left", port_num,
+					port_instance->reset_count);
 				k_work_reschedule(&hub_mgr_data->port_work, K_MSEC(1000));
 				return;
 			} else {
@@ -915,13 +919,16 @@ static void usbh_hub_port_process(struct k_work *work)
 		goto exit_processing;
 
 	case HUB_PORT_RUN_CHECK_CHILD_HUB:
-		
-		usbh_hub_establish_parent_child_relationship(hub_mgr_data, find_hub_mgr_by_udev(port_instance->udev), port_num);
+
+		usbh_hub_establish_parent_child_relationship(
+			hub_mgr_data, find_hub_mgr_by_udev(port_instance->udev), port_num);
 
 		/* update total tink time */
-		port_instance->udev->total_think_time += hub_mgr_data->hub_instance.hub_udev->total_think_time;
+		port_instance->udev->total_think_time +=
+			hub_mgr_data->hub_instance.hub_udev->total_think_time;
 
-		LOG_INF("udev addr: %d, total_think_time: %d", port_instance->udev->addr, port_instance->udev->total_think_time);
+		LOG_INF("udev addr: %d, total_think_time: %d", port_instance->udev->addr,
+			port_instance->udev->total_think_time);
 
 		/* Complete port processing */
 		process_complete = true;
@@ -941,14 +948,14 @@ static void usbh_hub_port_process(struct k_work *work)
 process_disconnection:
 	if (port_instance->udev) {
 		udev = port_instance->udev;
-		
-		LOG_INF("Device disconnected from Hub level %d port %d", 
-			hub_mgr_data->hub_level, port_num);
-		
+
+		LOG_INF("Device disconnected from Hub level %d port %d", hub_mgr_data->hub_level,
+			port_num);
+
 		/* Clear port state immediately */
 		port_instance->udev = NULL;
 		port_instance->state = PORT_STATE_DISCONNECTED;
-		
+
 		if (udev) {
 			child_hub = find_hub_mgr_by_udev(udev);
 			if (child_hub) {
@@ -964,7 +971,8 @@ process_disconnection:
 
 exit_processing:
 	/* Processing completed, cleanup state */
-	if (process_complete || (port_instance && port_instance->port_status == HUB_PORT_RUN_INVALID)) {
+	if (process_complete ||
+	    (port_instance && port_instance->port_status == HUB_PORT_RUN_INVALID)) {
 		hub_mgr_data->current_port = 0;
 		hub_mgr.processing_hub = NULL;
 		port_instance->port_status = HUB_PORT_RUN_WAIT_PORT_CHANGE;
@@ -992,8 +1000,9 @@ error_recovery:
 	if (port_instance->reset_count > 0) {
 		port_instance->reset_count--;
 		port_instance->port_status = HUB_PORT_RUN_WAIT_PORT_CHANGE;
-		
-		LOG_WRN("Port %d error recovery, %d retries left", port_num, port_instance->reset_count);
+
+		LOG_WRN("Port %d error recovery, %d retries left", port_num,
+			port_instance->reset_count);
 		k_work_reschedule(&hub_mgr_data->port_work, K_MSEC(3000));
 	} else {
 		LOG_ERR("Port %d max retries exceeded, disabling", port_num);
@@ -1005,9 +1014,8 @@ error_recovery:
 /**
  * @brief USBH class implementation for HUB devices
  */
-static int usbh_hub_mgr_probe(struct usbh_class_data *const c_data,
-			  struct usb_device *const udev,
-			  const uint8_t iface)
+static int usbh_hub_mgr_probe(struct usbh_class_data *const c_data, struct usb_device *const udev,
+			      const uint8_t iface)
 {
 	struct usbh_hub_mgr_data *hub_mgr_data;
 	const void *desc_start;
@@ -1015,8 +1023,7 @@ static int usbh_hub_mgr_probe(struct usbh_class_data *const c_data,
 	const void *cfg_end;
 	int ret;
 
-	if (CONFIG_USBH_HUB_MAX_COUNT == hub_mgr.total_hubs)
-	{
+	if (CONFIG_USBH_HUB_MAX_COUNT == hub_mgr.total_hubs) {
 		LOG_ERR("Maximum number of hubs reached (%d)", CONFIG_USBH_HUB_MAX_COUNT);
 		return -ENOMEM;
 	}
@@ -1045,7 +1052,7 @@ static int usbh_hub_mgr_probe(struct usbh_class_data *const c_data,
 	}
 
 	memset(hub_mgr_data, 0, sizeof(*hub_mgr_data));
-	
+
 	ret = usbh_hub_init_instance(&hub_mgr_data->hub_instance, udev);
 	if (ret) {
 		LOG_ERR("Failed to initialize HUB instance: %d", ret);
@@ -1080,11 +1087,12 @@ static int usbh_hub_mgr_probe(struct usbh_class_data *const c_data,
 
 		if (header->bDescriptorType == USB_DESC_ENDPOINT) {
 			struct usb_ep_descriptor *ep_desc = (struct usb_ep_descriptor *)desc_buf;
-			
+
 			if ((ep_desc->bEndpointAddress & USB_EP_DIR_MASK) == USB_EP_DIR_IN &&
-			    (ep_desc->bmAttributes & USB_EP_TRANSFER_TYPE_MASK) == USB_EP_TYPE_INTERRUPT) {
+			    (ep_desc->bmAttributes & USB_EP_TRANSFER_TYPE_MASK) ==
+				    USB_EP_TYPE_INTERRUPT) {
 				hub_mgr_data->int_ep = ep_desc;
-				LOG_DBG("Found hub interrupt IN endpoint 0x%02x", 
+				LOG_DBG("Found hub interrupt IN endpoint 0x%02x",
 					ep_desc->bEndpointAddress);
 				break;
 			}
@@ -1165,7 +1173,8 @@ static int usbh_hub_mgr_removed(struct usbh_class_data *const cdata)
 		}
 
 		if (hub_mgr_data->interrupt_transfer->buf) {
-			usbh_xfer_buf_free(hub_mgr_data->hub_udev, hub_mgr_data->interrupt_transfer->buf);
+			usbh_xfer_buf_free(hub_mgr_data->hub_udev,
+					   hub_mgr_data->interrupt_transfer->buf);
 		}
 		usbh_xfer_free(hub_mgr_data->hub_udev, hub_mgr_data->interrupt_transfer);
 
@@ -1189,7 +1198,8 @@ static int usbh_hub_mgr_removed(struct usbh_class_data *const cdata)
 	/* Remove from parent hub's child hub list */
 	if (hub_mgr_data->parent_hub) {
 		k_mutex_lock(&hub_mgr_data->parent_hub->lock, K_FOREVER);
-		sys_slist_find_and_remove(&hub_mgr_data->parent_hub->child_hubs, &hub_mgr_data->child_node);
+		sys_slist_find_and_remove(&hub_mgr_data->parent_hub->child_hubs,
+					  &hub_mgr_data->child_node);
 		k_mutex_unlock(&hub_mgr_data->parent_hub->lock);
 	}
 
@@ -1211,8 +1221,7 @@ static int usbh_hub_mgr_removed(struct usbh_class_data *const cdata)
 	}
 
 	LOG_INF("Hub (level %d, Vendor ID: 0x%04x, Product ID: 0x%04x) removal completed",
-		hub_mgr_data->hub_level,
-		sys_le16_to_cpu(hub_mgr_data->hub_udev->dev_desc.idVendor),
+		hub_mgr_data->hub_level, sys_le16_to_cpu(hub_mgr_data->hub_udev->dev_desc.idVendor),
 		sys_le16_to_cpu(hub_mgr_data->hub_udev->dev_desc.idProduct));
 
 	k_free(hub_mgr_data);
@@ -1223,7 +1232,8 @@ static int usbh_hub_mgr_removed(struct usbh_class_data *const cdata)
 /**
  * @brief Hub class initialization function
  */
-static int usbh_hub_mgr_class_init(struct usbh_class_data *const c_data, struct usbh_context *const uhs_ctx)
+static int usbh_hub_mgr_class_init(struct usbh_class_data *const c_data,
+				   struct usbh_context *const uhs_ctx)
 {
 	c_data->uhs_ctx = uhs_ctx;
 	return 0;
@@ -1262,8 +1272,7 @@ static int usbh_hub_mgr_init(void)
 
 SYS_INIT(usbh_hub_mgr_init, POST_KERNEL, CONFIG_USBH_INIT_PRIO);
 
-#define USBH_DEFINE_HUB_CLASS(i, _) \
-USBH_DEFINE_CLASS(UTIL_CAT(usbh_hub_class_, i), &usbh_hub_class_api, \
-		NULL, hub_filters)
+#define USBH_DEFINE_HUB_CLASS(i, _)                                                                \
+	USBH_DEFINE_CLASS(UTIL_CAT(usbh_hub_class_, i), &usbh_hub_class_api, NULL, hub_filters)
 
 LISTIFY(CONFIG_USBH_HUB_MAX_COUNT, USBH_DEFINE_HUB_CLASS, (;), _)

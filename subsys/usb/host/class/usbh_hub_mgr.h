@@ -42,18 +42,18 @@ enum usbh_hub_port_app_status {
 enum usbh_hub_prime_status {
 	HUB_PRIME_NONE = 0,
 	HUB_PRIME_CONTROL,
-	HUB_PRIME_PORT_CONTROL, 
+	HUB_PRIME_PORT_CONTROL,
 	HUB_PRIME_INTERRUPT,
 };
 
 /* Port instance structure (unified structure with necessary fields) */
 struct usbh_hub_port_instance {
-	struct usb_device *udev;		/* Connected USB device */
-	uint8_t port_status;			/* Port application status */
-	enum usbh_port_state state;		/* Port overall state */
-	uint8_t reset_count;			/* Reset retry count */
-	uint8_t speed;				/* Device speed */
-	uint8_t port_num;			/* Port number */
+	struct usb_device *udev;    /* Connected USB device */
+	uint8_t port_status;        /* Port application status */
+	enum usbh_port_state state; /* Port overall state */
+	uint8_t reset_count;        /* Reset retry count */
+	uint8_t speed;              /* Device speed */
+	uint8_t port_num;           /* Port number */
 };
 
 /**
@@ -71,10 +71,10 @@ struct usbh_hub_mgr_data {
 	enum usbh_hub_app_status hub_status;
 
 	/* Port management - unified using port_list */
-	struct usbh_hub_port_instance *port_list;	/* Port instance list */
-	uint8_t num_ports;				/* Total number of ports */
-	uint8_t current_port;				/* Currently processing port */
-	uint8_t port_index;				/* Port index */
+	struct usbh_hub_port_instance *port_list; /* Port instance list */
+	uint8_t num_ports;                        /* Total number of ports */
+	uint8_t current_port;                     /* Currently processing port */
+	uint8_t port_index;                       /* Port index */
 
 	/* Work items for state machine processing */
 	struct k_work_delayable hub_work;

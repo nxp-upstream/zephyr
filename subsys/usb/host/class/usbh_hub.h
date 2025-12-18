@@ -10,27 +10,27 @@
 #include <zephyr/usb/usb_ch9.h>
 
 /* USB HUB Class-specific requests */
-#define USB_HUB_REQ_GET_STATUS          0x00
-#define USB_HUB_REQ_CLEAR_FEATURE       0x01
-#define USB_HUB_REQ_SET_FEATURE         0x03
-#define USB_HUB_REQ_GET_DESCRIPTOR      0x06
+#define USB_HUB_REQ_GET_STATUS     0x00
+#define USB_HUB_REQ_CLEAR_FEATURE  0x01
+#define USB_HUB_REQ_SET_FEATURE    0x03
+#define USB_HUB_REQ_GET_DESCRIPTOR 0x06
 
 /* USB HUB Descriptor Type */
-#define USB_HUB_DESCRIPTOR_TYPE         0x29
+#define USB_HUB_DESCRIPTOR_TYPE 0x29
 
 /* USB HUB Port Features */
-#define USB_HUB_FEATURE_PORT_CONNECTION     0x00
-#define USB_HUB_FEATURE_PORT_ENABLE         0x01
-#define USB_HUB_FEATURE_PORT_SUSPEND        0x02
-#define USB_HUB_FEATURE_PORT_OVER_CURRENT   0x03
-#define USB_HUB_FEATURE_PORT_RESET          0x04
-#define USB_HUB_FEATURE_PORT_POWER          0x08
-#define USB_HUB_FEATURE_PORT_LOW_SPEED      0x09
-#define USB_HUB_FEATURE_PORT_HIGH_SPEED     0x0A
+#define USB_HUB_FEATURE_PORT_CONNECTION   0x00
+#define USB_HUB_FEATURE_PORT_ENABLE       0x01
+#define USB_HUB_FEATURE_PORT_SUSPEND      0x02
+#define USB_HUB_FEATURE_PORT_OVER_CURRENT 0x03
+#define USB_HUB_FEATURE_PORT_RESET        0x04
+#define USB_HUB_FEATURE_PORT_POWER        0x08
+#define USB_HUB_FEATURE_PORT_LOW_SPEED    0x09
+#define USB_HUB_FEATURE_PORT_HIGH_SPEED   0x0A
 
 /* USB Hub Status Change */
-#define USB_HUB_FEATURE_C_HUB_LOCAL_POWER    0
-#define USB_HUB_FEATURE_C_HUB_OVER_CURRENT   1
+#define USB_HUB_FEATURE_C_HUB_LOCAL_POWER  0
+#define USB_HUB_FEATURE_C_HUB_OVER_CURRENT 1
 
 /* USB HUB Port Change Features */
 #define USB_HUB_FEATURE_C_PORT_CONNECTION   0x10
@@ -40,17 +40,17 @@
 #define USB_HUB_FEATURE_C_PORT_RESET        0x14
 
 /* USB HUB Class codes */
-#define USB_HUB_CLASS_CODE      0x09
-#define USB_HUB_SUBCLASS_CODE   0x00
-#define USB_HUB_PROTOCOL_CODE   0x00
+#define USB_HUB_CLASS_CODE    0x09
+#define USB_HUB_SUBCLASS_CODE 0x00
+#define USB_HUB_PROTOCOL_CODE 0x00
 
 /* Maximum ports per hub */
-#define USB_HUB_MAX_PORTS       7
+#define USB_HUB_MAX_PORTS 7
 
 /* Maximum hub descriptor size.
  * 7 bytes (fixed) + max 32 bytes (DeviceRemovable) + max 32 bytes (PortPwrCtrlMask)
  */
-#define USBH_HUB_DESC_BUF_SIZE  71
+#define USBH_HUB_DESC_BUF_SIZE 71
 
 /* USB HUB descriptor structure */
 struct usb_hub_descriptor {
@@ -130,28 +130,23 @@ struct usbh_hub_instance {
 };
 
 /* Hub transfer callback function type */
-typedef void (*usbh_hub_callback_t)(void *param, uint8_t *data,
-				     uint32_t data_len, int status);
+typedef void (*usbh_hub_callback_t)(void *param, uint8_t *data, uint32_t data_len, int status);
 
-int usbh_hub_init_instance(struct usbh_hub_instance *hub_instance,
-			   struct usb_device *udev);
+int usbh_hub_init_instance(struct usbh_hub_instance *hub_instance, struct usb_device *udev);
 
-int usbh_hub_get_descriptor(struct usbh_hub_instance *hub_instance,
-			    uint8_t *buffer, uint16_t buffer_length);
+int usbh_hub_get_descriptor(struct usbh_hub_instance *hub_instance, uint8_t *buffer,
+			    uint16_t buffer_length);
 
-int usbh_hub_set_port_feature(struct usbh_hub_instance *hub_instance,
-			      uint8_t port_number, uint8_t feature);
+int usbh_hub_set_port_feature(struct usbh_hub_instance *hub_instance, uint8_t port_number,
+			      uint8_t feature);
 
-int usbh_hub_clear_port_feature(struct usbh_hub_instance *hub_instance,
-				uint8_t port_number, uint8_t feature);
+int usbh_hub_clear_port_feature(struct usbh_hub_instance *hub_instance, uint8_t port_number,
+				uint8_t feature);
 
-int usbh_hub_get_port_status(struct usbh_hub_instance *hub_instance,
-			      uint8_t port_number, 
-			      uint16_t *const wPortStatus, 
-			      uint16_t *const wPortChange);
+int usbh_hub_get_port_status(struct usbh_hub_instance *hub_instance, uint8_t port_number,
+			     uint16_t *const wPortStatus, uint16_t *const wPortChange);
 
-int usbh_hub_get_hub_status(struct usbh_hub_instance *hub_instance,
-			    uint16_t *const wHubStatus, 
+int usbh_hub_get_hub_status(struct usbh_hub_instance *hub_instance, uint16_t *const wHubStatus,
 			    uint16_t *const wHubChange);
 
 int usbh_hub_clear_hub_feature(struct usbh_hub_instance *hub_instance, uint8_t feature);
