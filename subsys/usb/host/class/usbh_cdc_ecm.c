@@ -113,15 +113,15 @@ struct usbh_cdc_ecm_msg {
 LOG_MODULE_REGISTER(usbh_cdc_ecm, CONFIG_USBH_CDC_ECM_LOG_LEVEL);
 
 NET_BUF_POOL_DEFINE(usbh_cdc_ecm_data_tx_pool,
-		    USBH_CDC_ECM_INSTANCE_COUNT *CONFIG_USBH_CDC_ECM_DATA_TX_BUF_COUNT,
+		    USBH_CDC_ECM_INSTANCE_COUNT * CONFIG_USBH_CDC_ECM_DATA_TX_BUF_COUNT,
 		    CONFIG_USBH_CDC_ECM_DATA_BUF_POOL_SIZE, 0, NULL);
 
 NET_BUF_POOL_DEFINE(usbh_cdc_ecm_data_rx_pool,
-		    USBH_CDC_ECM_INSTANCE_COUNT *CONFIG_USBH_CDC_ECM_DATA_RX_BUF_COUNT,
+		    USBH_CDC_ECM_INSTANCE_COUNT * CONFIG_USBH_CDC_ECM_DATA_RX_BUF_COUNT,
 		    CONFIG_USBH_CDC_ECM_DATA_BUF_POOL_SIZE, 0, NULL);
 
 K_MSGQ_DEFINE(usbh_cdc_ecm_msgq, sizeof(struct usbh_cdc_ecm_msg),
-	      USBH_CDC_ECM_INSTANCE_COUNT *CONFIG_USBH_CDC_ECM_MSG_QUEUE_DEPTH, 4);
+	      USBH_CDC_ECM_INSTANCE_COUNT * CONFIG_USBH_CDC_ECM_MSG_QUEUE_DEPTH, 4);
 
 static bool usbh_cdc_ecm_is_configured(struct usbh_cdc_ecm_ctx *const ctx)
 {
@@ -1449,10 +1449,10 @@ static int usbh_cdc_ecm_get_mac_address(struct usbh_cdc_ecm_ctx *const ctx)
 		if (ret) {
 			goto cleanup;
 		}
-	} else if (zero_str_desc_head.bLength < sizeof(zero_str_desc_head)) {
-		return -ENODEV;
-	} else {
+	} else if (zero_str_desc_head.bLength == sizeof(zero_str_desc_head)) {
 		zero_str_desc = &zero_str_desc_head;
+	} else {
+		return -ENODEV;
 	}
 
 	langid_data = (uint8_t *)&zero_str_desc->bString;
