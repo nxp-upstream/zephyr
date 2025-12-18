@@ -39,9 +39,16 @@
 
 static struct net_mgmt_event_callback ail_net_event_connection_cb;
 static struct net_mgmt_event_callback ail_net_event_ipv6_addr_cb;
-#if defined(CONFIG_NET_IPV4)
+static bool has_backbone_connectivity;
+#if defined(CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_IPV4)
 static struct net_mgmt_event_callback ail_net_event_ipv4_addr_cb;
-#endif /* CONFIG_NET_IPV4 */
+static bool has_ipv4_connectivity;
+struct dhcp_timeout_data {
+	struct k_work_delayable work;
+	struct net_if *ail_iface;
+};
+static struct dhcp_timeout_data dhcp_work_context;
+#endif /* CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_IPV4 */
 static uint32_t ail_iface_index;
 static struct net_if *ail_iface_ptr;
 static struct net_if *ot_iface_ptr;
@@ -67,13 +74,11 @@ static void openthread_border_router_start_nat64_service(void);
 static void openthread_border_router_stop_nat64_service(void);
 #endif /* CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_NAT64_TRANSLATOR */
 
-#if defined(CONFIG_NET_IPV4)
-static void openthread_border_router_check_for_dhcpv4_addr(struct net_if *iface,
-							   struct net_if_addr *addr,
-							   void *user_data);
-#endif /* CONFIG_NET_IPV4 */
+#if defined(CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_IPV4)
+static void openthread_border_router_dhcp_timeout_handler(struct k_work *work);
+#endif /* CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_IPV4 */
 
-int openthread_start_border_router_services(struct net_if *ot_iface, struct net_if *ail_iface)
+int openthread_start_border_router_services_ipv6(struct net_if *ot_iface, struct net_if *ail_iface)
 {
 	int error = 0;
 	otInstance *instance = openthread_get_default_instance();
@@ -169,6 +174,37 @@ exit:
 	return error;
 }
 
+int openthread_start_border_router_services_ipv4(struct net_if *ot_iface, struct net_if *ail_iface)
+{
+	int error = 0;
+	otInstance *instance = openthread_get_default_instance();
+	ail_iface_index = (uint32_t)net_if_get_by_iface(ail_iface);
+
+	openthread_mutex_lock();
+
+	if (otPlatMdnsSetListeningEnabled(instance, true, ail_iface_index) != OT_ERROR_NONE) {
+		error = -EIO;
+		goto exit;
+	}
+
+	if (IS_ENABLED(CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_NAT64_TRANSLATOR)) {
+		openthread_border_router_start_nat64_service();
+		openthread_border_router_set_nat64_translator_enabled(true);
+	}
+
+	openthread_mutex_unlock();
+
+	is_border_router_started = true;
+
+exit:
+	if (error) {
+		openthread_mutex_unlock();
+		return error;
+	}
+
+	return error;
+}
+
 static int openthread_stop_border_router_services(struct net_if *ot_iface,
 						  struct net_if *ail_iface)
 {
@@ -193,9 +229,11 @@ static int openthread_stop_border_router_services(struct net_if *ot_iface,
 		infra_if_stop_icmp6_listener();
 		otBorderAgentSetEnabled(instance, false);
 		udp_plat_deinit();
-#if defined(CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_NAT64_TRANSLATOR)
-		openthread_border_router_stop_nat64_service();
-#endif /* CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_NAT64_TRANSLATOR */
+		if (IS_ENABLED(CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_NAT64_TRANSLATOR) &&
+		    IS_ENABLED(CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_IPV4)) {
+			openthread_border_router_stop_nat64_service();
+			(void)infra_if_nat64_deinit();
+		}
 		openthread_border_router_add_or_rm_route_to_multicast_groups(false);
 
 	}
@@ -221,6 +259,8 @@ void openthread_set_bbr_multicast_listener_cb(openthread_bbr_multicast_listener_
 static void ail_connection_handler(struct net_mgmt_event_callback *cb, uint64_t mgmt_event,
 				   struct net_if *iface)
 {
+	static bool is_first_connection = true;
+
 	if (net_if_l2(iface) != &NET_L2_GET_NAME(ETHERNET)) {
 		return;
 	}
@@ -233,23 +273,30 @@ static void ail_connection_handler(struct net_mgmt_event_callback *cb, uint64_t 
 
 	switch (mgmt_event) {
 	case NET_EVENT_IF_UP:
-#if defined(CONFIG_NET_IPV4)
-		bool addr_present = false;
+		has_backbone_connectivity = true;
 
-		net_if_ipv4_addr_foreach(iface, openthread_border_router_check_for_dhcpv4_addr,
-					 &addr_present);
-		if (!addr_present) {
+		if (is_first_connection &&
+		    IS_ENABLED(CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_IPV4)) {
+			dhcp_work_context.ail_iface = iface;
+			k_work_init_delayable(&dhcp_work_context.work,
+					openthread_border_router_dhcp_timeout_handler);
+			is_first_connection = false;
+			/** If IPV4 is also configured, return;
+			 * Delayed work will be started when NET_EVENT_IPV4_DHCP_START event
+			 * is triggered;
+			 * App waits for IPV4 assignment, so it can start mDNS probe/announcements
+			 * on both interfaces, if possible; If timeout occurs, only IPV6 will be used.
+			 */
 			break;
 		}
-#endif /* CONFIG_NET_IPV4*/
 
 		if (!net_if_is_wifi(iface)) {
 			net_if_up(ot_context->iface);
 		}
-
-		(void)openthread_start_border_router_services(ot_context->iface, iface);
+		(void)openthread_start_border_router_services_ipv6(ot_context->iface, iface);
 		break;
 	case NET_EVENT_IF_DOWN:
+		has_backbone_connectivity = false;
 		(void)openthread_stop_border_router_services(ot_context->iface, iface);
 		break;
 	default:
@@ -273,7 +320,7 @@ static void ail_ipv6_address_event_handler(struct net_mgmt_event_callback *cb, u
 	mdns_plat_monitor_interface(iface);
 }
 
-#if defined(CONFIG_NET_IPV4)
+#if defined(CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_IPV4)
 static void ail_ipv4_address_event_handler(struct net_mgmt_event_callback *cb, uint64_t mgmt_event,
 					   struct net_if *iface)
 {
@@ -281,26 +328,34 @@ static void ail_ipv4_address_event_handler(struct net_mgmt_event_callback *cb, u
 		return;
 	}
 
-	if ((mgmt_event & (NET_EVENT_IPV4_ADDR_ADD | NET_EVENT_IPV4_ADDR_DEL)) != mgmt_event) {
+	if ((mgmt_event & (NET_EVENT_IPV4_ADDR_ADD | NET_EVENT_IPV4_DHCP_START |
+			   NET_EVENT_IPV4_DHCP_BOUND)) != mgmt_event) {
 		return;
 	}
 
-	if (mgmt_event == NET_EVENT_IPV4_ADDR_ADD) {
-		struct openthread_context *ot_context = openthread_get_default_context();
+	struct openthread_context *ot_context = openthread_get_default_context();
 
-	if (!net_if_is_wifi(iface)) {
-		net_if_up(ot_context->iface);
+	switch (mgmt_event) {
+	case NET_EVENT_IPV4_DHCP_START:
+		k_work_schedule(&dhcp_work_context.work,
+				K_SECONDS(CONFIG_NET_CONFIG_INIT_TIMEOUT));
+		break;
+	case NET_EVENT_IPV4_DHCP_BOUND:
+		has_ipv4_connectivity = true;
+		k_work_cancel_delayable(&dhcp_work_context.work);
+
+
+		if (!net_if_is_wifi(iface)) {
+			net_if_up(ot_context->iface);
+		}
+			has_ipv4_connectivity = true;
+			openthread_start_border_router_services_ipv6(ot_context->iface, iface);
+			openthread_start_border_router_services_ipv4(ot_context->iface, iface);
+		break;
 	}
-
-		openthread_start_border_router_services(ot_context->iface, iface);
-	}
-
 	mdns_plat_monitor_interface(iface);
-#if defined(CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_NAT64_TRANSLATOR)
-	openthread_border_router_start_nat64_service();
-#endif /* CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_NAT64_TRANSLATOR */
 }
-#endif /* CONFIG_NET_IPV4 */
+#endif /* CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_IPV4 */
 
 static void ot_bbr_multicast_listener_handler(void *context,
 					      otBackboneRouterMulticastListenerEvent event,
@@ -354,12 +409,16 @@ void openthread_border_router_init(struct openthread_context *ot_ctx)
 	net_mgmt_init_event_callback(&ail_net_event_ipv6_addr_cb, ail_ipv6_address_event_handler,
 				     NET_EVENT_IPV6_ADDR_ADD | NET_EVENT_IPV6_ADDR_DEL);
 	net_mgmt_add_event_callback(&ail_net_event_ipv6_addr_cb);
-#if defined(CONFIG_NET_IPV4)
-	net_mgmt_init_event_callback(&ail_net_event_ipv4_addr_cb,
-				     ail_ipv4_address_event_handler,
-				     NET_EVENT_IPV4_ADDR_ADD);
-	net_mgmt_add_event_callback(&ail_net_event_ipv4_addr_cb);
-#endif /* CONFIG_NET_IPV4 */
+
+	if (IS_ENABLED(CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_IPV4)) {
+		net_mgmt_init_event_callback(&ail_net_event_ipv4_addr_cb,
+					ail_ipv4_address_event_handler,
+					NET_EVENT_IPV4_ADDR_ADD |
+					NET_EVENT_IPV4_DHCP_START |
+					NET_EVENT_IPV4_DHCP_BOUND);
+		net_mgmt_add_event_callback(&ail_net_event_ipv4_addr_cb);
+	}
+
 	udp_plat_init_sockfd();
 	openthread_set_bbr_multicast_listener_cb(ot_bbr_multicast_listener_handler, (void *)ot_ctx);
 	(void)infra_if_start_icmp6_listener();
@@ -454,22 +513,26 @@ void openthread_border_router_deallocate_message(void *msg)
 	k_mem_slab_free(&border_router_messages_slab, msg);
 }
 
-#if defined(CONFIG_NET_IPV4)
-static void openthread_border_router_check_for_dhcpv4_addr(struct net_if *iface,
-							   struct net_if_addr *addr,
-							   void *user_data)
+#if defined(CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_IPV4)
+static void openthread_border_router_dhcp_timeout_handler(struct k_work *work)
 {
-	(void)iface;
+	struct openthread_context *ot_context = openthread_get_default_context();
+	struct k_work_delayable *current_work = k_work_delayable_from_work(work);
+	struct dhcp_timeout_data *data = CONTAINER_OF(current_work, struct dhcp_timeout_data,
+						      work);
 
-	bool *is_addr_present = (bool *)user_data;
-
-	if (addr->addr_type != NET_ADDR_DHCP) {
-		return;
+	if (has_backbone_connectivity) {
+		if (!net_if_is_wifi(data->ail_iface)) {
+			net_if_up(ot_context->iface);
+		}
+		openthread_start_border_router_services_ipv6(ot_context->iface, data->ail_iface);
 	}
-
-	*is_addr_present = true;
 }
-#endif /* CONFIG_NET_IPV4 */
+
+bool openthread_border_router_has_ipv4_connectivity(void) {
+	return has_ipv4_connectivity;
+}
+#endif /* CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_IPV4 */
 
 static bool openthread_border_router_has_multicast_listener(const uint8_t *address)
 {
@@ -660,7 +723,6 @@ static void openthread_border_router_add_or_rm_route_to_multicast_groups(bool ad
 		}
 	}
 }
-
 
 #if defined(CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_NAT64_TRANSLATOR)
 void openthread_border_router_set_nat64_translator_enabled(bool enable)

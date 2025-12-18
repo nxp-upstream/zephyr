@@ -29,12 +29,13 @@
 
 static struct zsock_pollfd sockfd_udp[MAX_SERVICES];
 static int mdns_sock_v6 = -1;
+static bool mdns_socket_v6_is_enabled;
 #if defined(CONFIG_NET_IPV4)
 static int mdns_sock_v4 = -1;
+static bool mdns_socket_v4_is_enabled;
 #endif /* CONFIG_NET_IPV4 */
 static struct otInstance *ot_instance_ptr;
 static uint32_t ail_iface_index;
-static bool mdns_socket_is_enabled;
 
 static otError mdns_socket_init_v6(uint32_t ail_iface_idx);
 #if defined(CONFIG_NET_IPV4)
@@ -83,17 +84,21 @@ static otError set_listening_enable(otInstance *instance, bool enable, uint32_t 
 	otError error = OT_ERROR_NONE;
 
 	if (enable) {
-		SuccessOrExit(error = mdns_socket_init_v6(ail_iface_idx));
+		if (!mdns_socket_v6_is_enabled) {
+			SuccessOrExit(error = mdns_socket_init_v6(ail_iface_idx));
+		}
 #if defined(CONFIG_NET_IPV4)
-		SuccessOrExit(error = mdns_socket_init_v4(ail_iface_idx));
+
+		if (!mdns_socket_v4_is_enabled &&
+		    openthread_border_router_has_ipv4_connectivity()) {
+			SuccessOrExit(error = mdns_socket_init_v4(ail_iface_idx));
+		}
 #endif /* CONFIG_NET_IPV4 */
-		mdns_socket_is_enabled = true;
 		mdns_plat_monitor_interface(net_if_get_by_index(ail_iface_idx));
 		ExitNow();
 	}
 
 	SuccessOrExit(error = mdns_socket_deinit());
-	mdns_socket_is_enabled = false;
 exit:
 	return error;
 
@@ -160,6 +165,8 @@ static otError mdns_socket_init_v6(uint32_t ail_iface_idx)
 						 ARRAY_SIZE(sockfd_udp), NULL) == 0,
 		     error = OT_ERROR_FAILED);
 
+	mdns_socket_v6_is_enabled = true;
+
 exit:
 	return error;
 }
@@ -222,6 +229,8 @@ static otError mdns_socket_init_v4(uint32_t ail_iface_idx)
 						 ARRAY_SIZE(sockfd_udp), NULL) == 0,
 		     error = OT_ERROR_FAILED);
 
+	mdns_socket_v4_is_enabled = true;
+
 exit:
 	return error;
 }
@@ -231,18 +240,23 @@ static otError mdns_socket_deinit(void)
 {
 	otError error = OT_ERROR_NONE;
 
-	VerifyOrExit(mdns_sock_v6 != -1, error = OT_ERROR_INVALID_STATE);
-	VerifyOrExit(zsock_close(mdns_sock_v6) == 0, error = OT_ERROR_FAILED);
+	if (mdns_socket_v6_is_enabled) {
+		VerifyOrExit(mdns_sock_v6 != -1, error = OT_ERROR_INVALID_STATE);
+		VerifyOrExit(zsock_close(mdns_sock_v6) == 0, error = OT_ERROR_FAILED);
 
-	sockfd_udp[0].fd = -1;
-	mdns_sock_v6 = -1;
-
+		sockfd_udp[0].fd = -1;
+		mdns_sock_v6 = -1;
+		mdns_socket_v6_is_enabled = false;
+	}
 #if defined(CONFIG_NET_IPV4)
-	VerifyOrExit(mdns_sock_v4 != -1, error = OT_ERROR_INVALID_STATE);
-	VerifyOrExit(zsock_close(mdns_sock_v4) == 0, error = OT_ERROR_FAILED);
+	if (mdns_socket_v4_is_enabled) {
+		VerifyOrExit(mdns_sock_v4 != -1, error = OT_ERROR_INVALID_STATE);
+		VerifyOrExit(zsock_close(mdns_sock_v4) == 0, error = OT_ERROR_FAILED);
 
-	sockfd_udp[1].fd = -1;
-	mdns_sock_v4 = -1;
+		sockfd_udp[1].fd = -1;
+		mdns_sock_v4 = -1;
+		mdns_socket_v4_is_enabled = false;
+	}
 #endif /* CONFIG_NET_IPV4 */
 
 	VerifyOrExit(net_socket_service_register(&mdns_udp_service, sockfd_udp,
@@ -280,9 +294,11 @@ static void mdns_send_multicast(otMessage *message, uint32_t ail_iface_idx)
 				  (struct net_sockaddr *)&addr_v6,
 				  sizeof(addr_v6)) > 0);
 #if defined(CONFIG_NET_IPV4)
-	VerifyOrExit(zsock_sendto(mdns_sock_v4, req->buffer, length, 0,
-				  (struct net_sockaddr *)&addr_v4,
-				  sizeof(addr_v4)) > 0);
+	if (mdns_socket_v4_is_enabled) {
+		VerifyOrExit(zsock_sendto(mdns_sock_v4, req->buffer, length, 0,
+					(struct net_sockaddr *)&addr_v4,
+					sizeof(addr_v4)) > 0);
+	}
 #endif /* CONFIG_NET_IPV4 */
 exit:
 	otMessageFree(message);
@@ -308,7 +324,8 @@ static void mdns_send_unicast(otMessage *message, const otPlatMdnsAddressInfo *a
 	VerifyOrExit(length <= OTBR_MESSAGE_SIZE);
 	VerifyOrExit(openthread_border_router_allocate_message((void **)&req) == OT_ERROR_NONE);
 #if defined(CONFIG_NET_IPV4)
-	if (otIp4FromIp4MappedIp6Address(&aAddress->mAddress, &ot_ipv4_addr) == OT_ERROR_NONE) {
+	if (otIp4FromIp4MappedIp6Address(&aAddress->mAddress, &ot_ipv4_addr) == OT_ERROR_NONE &&
+	    mdns_socket_v4_is_enabled) {
 		addr_v4.sin_family = NET_AF_INET;
 		addr_v4.sin_port = net_htons(aAddress->mPort);
 		memcpy(&addr_v4.sin_addr.s_addr, &ot_ipv4_addr, sizeof(otIp4Address));
@@ -429,7 +446,7 @@ void mdns_plat_monitor_interface(struct net_if *ail_iface)
 	otIp6Address ip6_addr = {0};
 	struct net_if_addr *unicast = NULL;
 
-	VerifyOrExit(mdns_socket_is_enabled);
+	VerifyOrExit(mdns_socket_v6_is_enabled || mdns_socket_v4_is_enabled);
 
 	net_if_lock(ail_iface);
 
@@ -449,21 +466,23 @@ void mdns_plat_monitor_interface(struct net_if *ail_iface)
 	}
 
 #if defined(CONFIG_NET_IPV4) && defined(CONFIG_NET_IPV4_MAPPING_TO_IPV6)
-	struct net_if_ipv4 *ipv4 = NULL;
-	otIp4Address ip4_addr = {0};
+	if (openthread_border_router_has_ipv4_connectivity()) {
+		struct net_if_ipv4 *ipv4 = NULL;
+		otIp4Address ip4_addr = {0};
 
-	ipv4 = ail_iface->config.ip.ipv4;
-	ARRAY_FOR_EACH(ipv4->unicast, idx) {
-		unicast = &ipv4->unicast[idx].ipv4;
+		ipv4 = ail_iface->config.ip.ipv4;
+		ARRAY_FOR_EACH(ipv4->unicast, idx) {
+			unicast = &ipv4->unicast[idx].ipv4;
 
-		if (!unicast->is_used) {
-			continue;
+			if (!unicast->is_used) {
+				continue;
+			}
+			memcpy(&ip4_addr.mFields.m32, &unicast->address.in_addr.s4_addr32,
+			sizeof(otIp4Address));
+			otIp4ToIp4MappedIp6Address(&ip4_addr, &ip6_addr);
+			otPlatMdnsHandleHostAddressEvent(ot_instance_ptr, &ip6_addr, true,
+							ail_iface_index);
 		}
-		memcpy(&ip4_addr.mFields.m32, &unicast->address.in_addr.s4_addr32,
-		       sizeof(otIp4Address));
-		otIp4ToIp4MappedIp6Address(&ip4_addr, &ip6_addr);
-		otPlatMdnsHandleHostAddressEvent(ot_instance_ptr, &ip6_addr, true,
-						 ail_iface_index);
 	}
 #endif /* CONFIG_NET_IPV4 && CONFIG_NET_IPV4_MAPPING_TO_IPV6 */
 
