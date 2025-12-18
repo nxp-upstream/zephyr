@@ -41,7 +41,7 @@ config USBH_CDC_ECM_DATA_RX_BUF_COUNT
 	int "Number of CDC-ECM data rx buffers"
 	default 16
 	help
-      	  Number of CDC-ECM data rx buffers per instance for receiving data.
+	  Number of CDC-ECM data rx buffers per instance for receiving data.
 
 config USBH_CDC_ECM_DATA_RX_QUEUE_DEPTH
 	int "CDC-ECM data rx queue depth"
