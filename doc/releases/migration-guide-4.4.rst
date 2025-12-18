@@ -79,6 +79,17 @@ Controller Area Network (CAN)
   * :kconfig:option:`CONFIG_CAN_STM32_FDCAN_MAX_STD_ID_FILTERS` for :dtcompatible:`st,stm32-fdcan`
   * :kconfig:option:`CONFIG_CAN_XMC4XXX_MAX_FILTERS` for :dtcompatible:`infineon,xmc4xxx-can-node`
 
+DMA
+===
+
+* NXP MCUX eDMA
+
+  * The ``nxp,version`` property in :dtcompatible:`nxp,mcux-edma` now indicates driver
+    version instead of IP revision. The enum value ``5`` has been removed. Update
+    ``nxp,version = <5>`` to ``nxp,version = <4>`` in devicetree, as the version 4 driver
+    supports all eDMA IP types (EDMA, DMA3, EDMA4, EDMA5). (:github:`100341`)
+
+
 Ethernet
 ========
 
