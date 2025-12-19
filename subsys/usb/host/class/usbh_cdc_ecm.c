@@ -8,7 +8,6 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/net/ethernet.h>
 #include <zephyr/net/net_if.h>
-#include <zephyr/net/ethernet_mgmt.h>
 #include <zephyr/usb/usbh.h>
 #include <zephyr/usb/class/usb_cdc.h>
 
@@ -42,7 +41,9 @@ struct usbh_cdc_ecm_ctx {
 		bool block_broadcast;
 		bool block_unicast;
 		bool block_all_multicast;
+#if defined(CONFIG_NET_PROMISCUOUS_MODE)
 		bool promiscuous_mode_enabled;
+#endif
 	} packet_filter_settings;
 	bool link_state;
 	uint32_t upload_speed;
@@ -874,9 +875,11 @@ done:
 	return ret;
 }
 
-static int usbh_cdc_ecm_update_packet_filter(struct usbh_cdc_ecm_ctx *const ctx)
+static int usbh_cdc_ecm_update_packet_filter(struct usbh_cdc_ecm_ctx *const ctx, bool enable,
+					     uint16_t eth_pkt_filter_bitmap)
 {
 	struct usbh_cdc_ecm_req_params param;
+	uint16_t old_eth_pkt_filter_bitmap = 0;
 	int ret = 0;
 
 	if (!ctx) {
@@ -887,35 +890,59 @@ static int usbh_cdc_ecm_update_packet_filter(struct usbh_cdc_ecm_ctx *const ctx)
 		return -ENODEV;
 	}
 
-	param.if_num = ctx->comm_if_num;
-	param.bRequest = SET_ETHERNET_PACKET_FILTER;
-	param.eth_pkt_filter_bitmap = 0;
-
 #if defined(CONFIG_NET_PROMISCUOUS_MODE)
 	if (ctx->packet_filter_settings.promiscuous_mode_enabled) {
-		param.eth_pkt_filter_bitmap |= PACKET_TYPE_PROMISCUOUS;
+		old_eth_pkt_filter_bitmap |= PACKET_TYPE_PROMISCUOUS;
 	}
 #endif
 
 	if (!ctx->packet_filter_settings.block_all_multicast) {
-		param.eth_pkt_filter_bitmap |= PACKET_TYPE_ALL_MULTICAST;
+		old_eth_pkt_filter_bitmap |= PACKET_TYPE_ALL_MULTICAST;
 	}
 
 	if (!ctx->packet_filter_settings.block_unicast) {
-		param.eth_pkt_filter_bitmap |= PACKET_TYPE_DIRECTED;
+		old_eth_pkt_filter_bitmap |= PACKET_TYPE_DIRECTED;
 	}
 
 	if (!ctx->packet_filter_settings.block_broadcast) {
-		param.eth_pkt_filter_bitmap |= PACKET_TYPE_BROADCAST;
+		old_eth_pkt_filter_bitmap |= PACKET_TYPE_BROADCAST;
 	}
 
 	if (!ctx->packet_filter_settings.block_multicast) {
-		param.eth_pkt_filter_bitmap |= PACKET_TYPE_MULTICAST;
+		old_eth_pkt_filter_bitmap |= PACKET_TYPE_MULTICAST;
+	}
+
+	param.if_num = ctx->comm_if_num;
+	param.bRequest = SET_ETHERNET_PACKET_FILTER;
+	param.eth_pkt_filter_bitmap = 0;
+
+	if (enable) {
+		param.eth_pkt_filter_bitmap = old_eth_pkt_filter_bitmap | eth_pkt_filter_bitmap;
+	} else {
+		param.eth_pkt_filter_bitmap = old_eth_pkt_filter_bitmap & ~eth_pkt_filter_bitmap;
+	}
+
+	if (old_eth_pkt_filter_bitmap == param.eth_pkt_filter_bitmap) {
+		return 0;
 	}
 
 	ret = usbh_cdc_ecm_req(ctx, &param);
 	if (ret) {
-		LOG_ERR("set default ethernet packet filter error (%d)", ret);
+		LOG_ERR("set default ethernet packet filter[bitmap: 0x%04x -> 0x%04x] error (%d)",
+			old_eth_pkt_filter_bitmap, param.eth_pkt_filter_bitmap, ret);
+	} else {
+#if defined(CONFIG_NET_PROMISCUOUS_MODE)
+		ctx->packet_filter_settings.promiscuous_mode_enabled =
+			(bool)(param.eth_pkt_filter_bitmap & PACKET_TYPE_PROMISCUOUS);
+#endif
+		ctx->packet_filter_settings.block_all_multicast =
+			!(bool)(param.eth_pkt_filter_bitmap & PACKET_TYPE_ALL_MULTICAST);
+		ctx->packet_filter_settings.block_unicast =
+			!(bool)(param.eth_pkt_filter_bitmap & PACKET_TYPE_DIRECTED);
+		ctx->packet_filter_settings.block_broadcast =
+			!(bool)(param.eth_pkt_filter_bitmap & PACKET_TYPE_BROADCAST);
+		ctx->packet_filter_settings.block_multicast =
+			!(bool)(param.eth_pkt_filter_bitmap & PACKET_TYPE_MULTICAST);
 	}
 
 	return ret;
@@ -1543,11 +1570,13 @@ static int usbh_cdc_ecm_probe(struct usbh_class_data *const c_data, struct usb_d
 	ctx->upload_speed = 0;
 	ctx->download_speed = 0;
 	ctx->active_data_rx_xfers = 0;
-	ctx->packet_filter_settings.block_all_multicast = false;
-	ctx->packet_filter_settings.block_broadcast = false;
-	ctx->packet_filter_settings.block_multicast = false;
-	ctx->packet_filter_settings.block_unicast = false;
+	ctx->packet_filter_settings.block_all_multicast = true;
+	ctx->packet_filter_settings.block_broadcast = true;
+	ctx->packet_filter_settings.block_multicast = true;
+	ctx->packet_filter_settings.block_unicast = true;
+#if defined(CONFIG_NET_PROMISCUOUS_MODE)
 	ctx->packet_filter_settings.promiscuous_mode_enabled = false;
+#endif
 
 	sys_slist_init(&ctx->multicast_filters.multicast_addrs);
 
@@ -1600,7 +1629,9 @@ static int usbh_cdc_ecm_probe(struct usbh_class_data *const c_data, struct usb_d
 		goto done;
 	}
 
-	ret = usbh_cdc_ecm_update_packet_filter(ctx);
+	ret = usbh_cdc_ecm_update_packet_filter(ctx, true,
+						PACKET_TYPE_ALL_MULTICAST | PACKET_TYPE_DIRECTED |
+							PACKET_TYPE_BROADCAST);
 	if (ret) {
 		LOG_ERR("set default ethernet packet filter error (%d)", ret);
 		goto done;
@@ -1743,17 +1774,26 @@ static int eth_usbh_cdc_ecm_set_config(const struct device *dev, enum ethernet_c
 			if (ctx->multicast_filters.num) {
 				ret = usbh_cdc_ecm_add_multicast_group(ctx,
 								       &config->filter.mac_address);
+				if (!ret) {
+					ret = usbh_cdc_ecm_update_packet_filter(
+						ctx, true, PACKET_TYPE_MULTICAST);
+				}
 			} else {
-				ctx->packet_filter_settings.block_all_multicast = false;
-				ret = usbh_cdc_ecm_update_packet_filter(ctx);
+				ret = usbh_cdc_ecm_update_packet_filter(ctx, true,
+									PACKET_TYPE_ALL_MULTICAST);
 			}
 		} else {
 			if (ctx->multicast_filters.num) {
 				ret = usbh_cdc_ecm_leave_multicast_group(
 					ctx, &config->filter.mac_address);
+				if (!ret &&
+				    !sys_slist_len(&ctx->multicast_filters.multicast_addrs)) {
+					ret = usbh_cdc_ecm_update_packet_filter(
+						ctx, false, PACKET_TYPE_MULTICAST);
+				}
 			} else {
-				ctx->packet_filter_settings.block_all_multicast = true;
-				ret = usbh_cdc_ecm_update_packet_filter(ctx);
+				ret = usbh_cdc_ecm_update_packet_filter(ctx, false,
+									PACKET_TYPE_ALL_MULTICAST);
 			}
 		}
 		(void)k_mutex_unlock(&ctx->lock);
@@ -1761,8 +1801,8 @@ static int eth_usbh_cdc_ecm_set_config(const struct device *dev, enum ethernet_c
 #if defined(CONFIG_NET_PROMISCUOUS_MODE)
 	case ETHERNET_CONFIG_TYPE_PROMISC_MODE:
 		(void)k_mutex_lock(&ctx->lock, K_FOREVER);
-		ctx->packet_filter_settings.promiscuous_mode_enabled = config->promisc_mode;
-		ret = usbh_cdc_ecm_update_packet_filter(ctx);
+		ret = usbh_cdc_ecm_update_packet_filter(ctx, config->promisc_mode,
+							PACKET_TYPE_PROMISCUOUS);
 		(void)k_mutex_unlock(&ctx->lock);
 		break;
 #endif
