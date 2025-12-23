@@ -94,9 +94,9 @@ Deprecated APIs and options
       been introduced to support NXP LPCMP peripheral. SoCs and boards that previously supported the ``mcux_lpcmp``
       driver and its associated sample have now migrated to use the ``comparator_nxp_lpcmp`` driver along with the
       ``gpio_loopback`` test case (:zephyr_file:`tests/drivers/comparator/gpio_loopback/src/test.c`).
-    * The original :dtcompatible:`nxp,lpcmp` has been renamed to :dtcompatible:`nxp,sensor-lpcmp`, applications
+    * The original :dtcompatible:`nxp,lpcmp` has been renamed to :dtcompatible:`nxp,mcx-lpcmp`, applications
       using the old compatible must update their devicetree nodes to use the ``mcux_lpcmp`` driver. The
-      :dtcompatible:`nxp,lpcmp` now is used for the ``comparator_nxp_lpcmp`` driver. (:github:`100998`).
+      :dtcompatible:`nxp,lpcmp` now is used for the ``comparator_nxp_lpcmp`` driver. (:github:`101469`).
 
 New APIs and options
 ====================
