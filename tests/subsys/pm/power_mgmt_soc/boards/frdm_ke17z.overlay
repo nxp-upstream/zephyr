@@ -1,0 +1,18 @@
+/*
+ * Copyright 2025 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* Use LPTMR as the low power idle timer / wake source */
+&lptmr0 {
+	status = "okay";
+};
+
+/*
+ * Disable PWT: it shares IRQ 29 with LPTMR on KE1xZ and the test relies
+ * on LPTMR for wakeups.
+ */
+&pwt {
+	status = "disabled";
+};

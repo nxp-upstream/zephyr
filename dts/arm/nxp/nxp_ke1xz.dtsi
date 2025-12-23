@@ -33,24 +33,33 @@
 			idle: idle {
 				compatible = "zephyr,power-state";
 				power-state-name = "runtime-idle";
+				min-residency-us = <10>;
+				/* 0.7 µs rounded */
+				exit-latency-us = <1>;
 			};
 
 			stop: stop {
 				compatible = "zephyr,power-state";
 				power-state-name = "suspend-to-idle";
 				substate-id = <0>;
+				min-residency-us = <140>;
+				exit-latency-us = <14>;
 			};
 
 			pstop1: pstop1 {
 				compatible = "zephyr,power-state";
 				power-state-name = "suspend-to-idle";
 				substate-id = <1>;
+				min-residency-us = <60>;
+				exit-latency-us = <6>;
 			};
 
 			pstop2: pstop2 {
 				compatible = "zephyr,power-state";
 				power-state-name = "suspend-to-idle";
 				substate-id = <2>;
+				min-residency-us = <30>;
+				exit-latency-us = <3>;
 			};
 		};
 	};
