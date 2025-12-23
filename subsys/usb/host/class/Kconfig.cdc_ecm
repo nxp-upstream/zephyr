@@ -51,7 +51,7 @@ config USBH_CDC_ECM_DATA_RX_QUEUE_DEPTH
 
 config USBH_CDC_ECM_HARDWARE_NETWORK_STATISTICS_INTERVAL
 	int "CDC-ECM hardware network statistics interval"
-	default 1
+	default 10
 	help
 	  CDC-ECM hardware network statistics collection interval in seconds.
 

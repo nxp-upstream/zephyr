@@ -1670,9 +1670,6 @@ static int usbh_cdc_ecm_removed(struct usbh_class_data *const c_data)
 	ctx->link_state = false;
 	ctx->upload_speed = 0;
 	ctx->download_speed = 0;
-#if defined(CONFIG_NET_STATISTICS_ETHERNET)
-	memset(&ctx->stats.map, 0, sizeof(ctx->stats.map));
-#endif
 
 	net_if_carrier_off(ctx->iface);
 
@@ -1755,6 +1752,15 @@ struct net_stats_eth *eth_usbh_cdc_ecm_get_stats(const struct device *dev)
 }
 #endif
 
+static enum ethernet_hw_caps eth_usbh_cdc_ecm_get_capabilities(const struct device *dev)
+{
+	return ETHERNET_LINK_10BASE | ETHERNET_LINK_100BASE |
+#if defined(CONFIG_NET_PROMISCUOUS_MODE)
+	       ETHERNET_PROMISC_MODE |
+#endif
+	       ETHERNET_HW_FILTERING;
+}
+
 static int eth_usbh_cdc_ecm_set_config(const struct device *dev, enum ethernet_config_type type,
 				       const struct ethernet_config *config)
 {
@@ -1830,6 +1836,7 @@ static struct ethernet_api eth_usbh_cdc_ecm_api = {
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
 	.get_stats = eth_usbh_cdc_ecm_get_stats,
 #endif
+	.get_capabilities = eth_usbh_cdc_ecm_get_capabilities,
 	.set_config = eth_usbh_cdc_ecm_set_config,
 	.send = eth_usbh_cdc_ecm_send,
 };
