@@ -5,7 +5,6 @@
 
 config MCUX_LPCMP
 	bool "NXP LPCMP driver [DEPRECATED]"
-	default y
 	depends on DT_HAS_NXP_MCX_LPCMP_ENABLED
 	select PINCTRL
 	select DEPRECATED
