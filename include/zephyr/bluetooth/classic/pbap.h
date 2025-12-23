@@ -39,12 +39,17 @@ extern "C" {
 
 struct bt_pbap_pce;
 
+#define PBAP_TARGET_LEN 16U
+static const uint8_t pbap_target[PBAP_TARGET_LEN] = {0x79U, 0x61U, 0x35U, 0xf0U, 0xf0U, 0xc5U,
+						     0x11U, 0xd8U, 0x09U, 0x66U, 0x08U, 0x00U,
+						     0x20U, 0x0cU, 0x9aU, 0x66U};
+
 #define BT_PBAP_PULL_PHONEBOOK_TYPE     "x-bt/phonebook"
 #define BT_PBAP_PULL_VCARD_LISTING_TYPE "x-bt/vcard-listing"
 #define BT_PBAP_PULL_VCARD_ENTRY_TYPE   "x-bt/vcard"
 
-#define BT_PBAP_SET_PATH_FLAGS_UP        BIT(0) | BIT(1)
-#define BT_PBAP_SET_PATH_FLAGS_DOWN_OR_ROOT      BIT(1)
+#define BT_PBAP_SET_PATH_FLAGS_UP           (BIT(0) | BIT(1))
+#define BT_PBAP_SET_PATH_FLAGS_DOWN_OR_ROOT BIT(1)
 
 /** @brief PBAP response Code. */
 enum __packed bt_pbap_rsp_code {
@@ -162,25 +167,75 @@ for a remote PCE.*/
 
 enum __packed bt_pbap_state {
 	/** PBAP disconnected */
-	BT_PBAP_DISCONNECTED,
+	BT_PBAP_STATE_DISCONNECTED = 0,
 	/** PBAP disconnecting */
-	BT_PBAP_DISCONNECTING,
-	/** PBAP in connecting state */
-	BT_PBAP_CONNECTING,
+	BT_PBAP_STATE_DISCONNECTING = 1,
 	/** PBAP ready for upper layer traffic on it */
-	BT_PBAP_CONNECTED,
-	/** PBAP in PULL Phonebook Function state  */
-	BT_PBAP_PULL_PHONEBOOK,
-	/** PBAP in Set Path Function state */
-	B_PBAP_SET_PATH,
-	/** PBAP in PULL Vcardlisting Function state  */
-	BT_PBAP_PULL_VCARDLISTING,
-	/** PBAP in PULL Vcardentry Function state  */
-	BT_PBAP_PULL_VCARDENTRY,
-	/** PBAP in idel state */
-	BT_PBAP_IDEL,
-	/** PBAP in abort state */
-	BT_PBAP_ABORT,
+	BT_PBAP_STATE_CONNECTED = 2,
+	/** PBAP in connecting state */
+	BT_PBAP_STATE_CONNECTING = 3,
+};
+
+struct bt_pbap;
+
+enum __packed bt_pbap_transport_state {
+	/** @brief Transport is disconnected */
+	BT_PBAP_TRANSPORT_STATE_DISCONNECTED = 0,
+	/** @brief Transport is connecting */
+	BT_PBAP_TRANSPORT_STATE_CONNECTING = 1,
+	/** @brief Transport is connected */
+	BT_PBAP_TRANSPORT_STATE_CONNECTED = 2,
+	/** @brief Transport is disconnecting */
+	BT_PBAP_TRANSPORT_STATE_DISCONNECTING = 3,
+};
+
+struct bt_pbap_transport_ops {
+	/**
+	 * @brief Transport connected callback
+	 *
+	 * Called when the underlying transport (RFCOMM/L2CAP) is connected
+	 *
+	 * @param conn Bluetooth connection
+	 * @param bip BIP instance
+	 */
+	void (*connected)(struct bt_conn *conn, struct bt_pbap *pbap);
+
+	/**
+	 * @brief Transport disconnected callback
+	 *
+	 * Called when the underlying transport is disconnected
+	 *
+	 * @param bip BIP instance
+	 */
+	void (*disconnected)(struct bt_pbap *pbap);
+};
+
+int bt_pbap_rfcomm_connect(struct bt_conn *conn, struct bt_pbap *pbap, uint8_t channel);
+int bt_pbap_rfcomm_disconnect(struct bt_pbap *pbap);
+
+int bt_pbap_l2cap_connect(struct bt_conn *conn, struct bt_pbap *pbap, uint16_t psm);
+int bt_pbap_l2cap_disconnect(struct bt_pbap *pbap);
+
+/** @brief Allocate buffer from pool with reserved headroom for PBAP client PCE.
+ *
+ *  Allocates a network buffer from the given pool after reserving headroom for PBAP client PCE.
+ *  For PBAP connection over RFCOMM, the reserved headroom includes OBEX, RFCOMM, L2CAP and ACL
+ *  headers.
+ *  For PBAP connection over L2CAP, the reserved headroom includes OBEX, L2CAP and ACL headers.
+ *  This ensures proper packet formatting for the underlying transport.
+ *
+ *  @param pbap_pce PBAP PCE object that will use this buffer.
+ *  @param pool Network buffer pool from which to allocate the buffer.
+ *
+ *  @return Pointer to newly allocated buffer with reserved headroom, or NULL on failure.
+ */
+struct net_buf *bt_pbap_create_pdu(struct bt_pbap *pbap, struct net_buf_pool *pool);
+struct bt_pbap {
+	struct bt_goep goep;
+
+	const struct bt_pbap_transport_ops *ops;
+	/** @internal Transport state (atomic) */
+	atomic_t _transport_state;
 };
 
 /** @brief PBAP client PCE operations structure.
@@ -219,7 +274,7 @@ struct bt_pbap_pce_cb {
 	 * @param pbap_pce The PBAP PCE object
 	 * @param rsp_code  Response code @ref bt_pbap_rsp_code
 	 */
-	void (*disconnect)(struct bt_pbap_pce *pbap_pce, uint8_t rsp_code);
+	void (*disconnect)(struct bt_pbap_pce *pbap_pce, uint8_t rsp_code, struct net_buf *buf);
 
 	/** @brief PBAP PCE pull phonebook response callback
 	 *
@@ -264,7 +319,7 @@ struct bt_pbap_pce_cb {
 	 * @param pbap_pce The PBAP object
 	 * @param rsp_code Response code @ref bt_pbap_rsp_code
 	 */
-	void (*set_path)(struct bt_pbap_pce *pbap_pce, uint8_t rsp_code);
+	void (*set_path)(struct bt_pbap_pce *pbap_pce, uint8_t rsp_code, struct net_buf *buf);
 
 	/** @brief PBAP PCE abort response callback
 	 *
@@ -274,13 +329,14 @@ struct bt_pbap_pce_cb {
 	 * @param pbap_pce The PBAP object
 	 * @param rsp_code Response code @ref bt_pbap_rsp_code
 	 */
-	void (*abort)(struct bt_pbap_pce *pbap_pce, uint8_t rsp_code);
+	void (*abort)(struct bt_pbap_pce *pbap_pce, uint8_t rsp_code, struct net_buf *buf);
 };
 
 /** @brief PBAP PCE (Phone Book Access Profile Client Equipment) structure */
 struct bt_pbap_pce {
 
 	struct bt_pbap_pce_cb *cb;
+	struct bt_pbap *_pbap;
 
 	/** @brief Password for authentication
 	 *  When connecting, the application must provide this parameter when the component
@@ -307,6 +363,7 @@ struct bt_pbap_pce {
 	 *  Indicates whether SRMP is enabled. When true, the server should wait for
 	 *  the client's next request after sending a reply (applicable for L2CAP connections)
 	 */
+        bool _srm;
 	bool _srmp;
 
 	/** @brief Peer device supported features
@@ -325,7 +382,6 @@ struct bt_pbap_pce {
 	/** @brief GOEP (Generic Object Exchange Profile) handle
 	 *  Internal GOEP structure for managing object exchange operations
 	 */
-	struct bt_goep _goep;
 
 	/** @brief OBEX client handle
 	 *  Internal OBEX client structure for managing OBEX protocol operations
@@ -344,21 +400,6 @@ struct bt_pbap_pce {
 	/** @internal current request function type */
 	const char *_req_type;
 };
-
-/** @brief Allocate buffer from pool with reserved headroom for PBAP client PCE.
- *
- *  Allocates a network buffer from the given pool after reserving headroom for PBAP client PCE.
- *  For PBAP connection over RFCOMM, the reserved headroom includes OBEX, RFCOMM, L2CAP and ACL
- *  headers.
- *  For PBAP connection over L2CAP, the reserved headroom includes OBEX, L2CAP and ACL headers.
- *  This ensures proper packet formatting for the underlying transport.
- *
- *  @param pbap_pce PBAP PCE object that will use this buffer.
- *  @param pool Network buffer pool from which to allocate the buffer.
- *
- *  @return Pointer to newly allocated buffer with reserved headroom, or NULL on failure.
- */
-struct net_buf *bt_pbap_pce_create_pdu(struct bt_pbap_pce *pbap_pce, struct net_buf_pool *pool);
 
 /** @brief Connect PBAP client PCE to PBAP server PSE over RFCOMM.
  *
@@ -379,28 +420,8 @@ struct net_buf *bt_pbap_pce_create_pdu(struct bt_pbap_pce *pbap_pce, struct net_
  *
  *  @return 0 in case of success or negative value in case of error.
  */
-int bt_pbap_pce_rfcomm_connect(struct bt_conn *conn, uint8_t channel, struct bt_pbap_pce *pbap_pce, struct bt_pbap_pce_cb *cb);
-
-/** @brief Connect PBAP client PCE to PBAP server PSE over L2CAP.
- *
- *  Initiates a PBAP connection over L2CAP transport. Once the connection is completed,
- *  the callback @ref bt_pbap_pce_cb::connect is called. If the connection is rejected,
- *  @ref bt_pbap_pce_cb::disconnect callback is called instead.
- *
- *  The ACL connection handle @ref bt_conn is passed as first parameter.
- *  The L2CAP PSM is passed as second parameter. The L2CAP PSM
- *  of the PBAP server PSE can be obtained through SDP operation.
- *
- *  The PBAP PCE object is passed (over an address of it) as third parameter. Application should
- *  create and initialize the PBAP PCE object @ref bt_pbap_pce before calling this function.
- *
- *  @param conn ACL connection handle to the remote device.
- *  @param psm L2CAP Protocol Service Multiplexer of the PSE (obtained via SDP).
- *  @param pbap_pce Pointer to PBAP PCE object @ref bt_pbap_pce.
- *
- *  @return 0 in case of success or negative value in case of error.
- */
-int bt_pbap_pce_l2cap_connect(struct bt_conn *conn, uint16_t psm, struct bt_pbap_pce *pbap_pce, struct bt_pbap_pce_cb *cb);
+int bt_pbap_pce_connect(struct bt_pbap *pbap, struct bt_pbap_pce *pbap_pce,
+			struct bt_pbap_pce_cb *cb, struct net_buf *buf);
 
 /** @brief Disconnect PBAP connection from PBAP client PCE.
  *
@@ -419,7 +440,7 @@ int bt_pbap_pce_l2cap_connect(struct bt_conn *conn, uint16_t psm, struct bt_pbap
  *
  *  @return 0 in case of success or negative value in case of error.
  */
-int bt_pbap_pce_disconnect(struct bt_pbap_pce *pbap_pce, bool enforce);
+int bt_pbap_pce_disconnect(struct bt_pbap_pce *pbap_pce, struct net_buf *buf);
 
 /** @brief Create command for PBAP client PCE to pull phonebook from PBAP server PSE.
  *
@@ -427,7 +448,7 @@ int bt_pbap_pce_disconnect(struct bt_pbap_pce *pbap_pce, bool enforce);
  *  object from the PSE.
  *
  *  @param pbap_pce PBAP PCE object @ref bt_pbap_pce.
- *  @param buf Buffer to be sent. Can be allocated by @ref bt_pbap_pce_create_pdu
+ *  @param buf Buffer to be sent. Can be allocated by @ref bt_pbap_create_pdu
  *             in application before this function is called. Should contain any optional
  *             application parameters (filters, format, etc.).
  *  @param name Absolute path in the virtual folders architecture of the PSE, appended
@@ -446,25 +467,9 @@ int bt_pbap_pce_pull_vcardlisting(struct bt_pbap_pce *pbap_pce, struct net_buf *
 
 int bt_pbap_pce_pull_vcardentry(struct bt_pbap_pce *pbap_pce, struct net_buf *buf);
 
-int bt_pbap_pce_set_path(struct bt_pbap_pce *pbap_pce, uint8_t flags, struct net_buf *buf);
-/**
- * @brief Helper for adding application parameters to PBAP request.
- *
- * A helper macro for adding Application Parameters header to a PBAP request buffer.
- * Application parameters are used to specify various options for PBAP operations,
- * such as filters, search criteria, list ranges, format preferences, etc.
- *
- * The application parameters should be formatted as TLV (Tag-Length-Value) triplets
- * according to the PBAP specification.
- *
- * @param buf    Network buffer to which the application parameters will be added.
- *               Should be allocated via bt_pbap_pce_create_pdu.
- * @param count  Total length in bytes of the application parameters data.
- * @param data   Pointer to the application parameters data in TLV format.
- *
- * @return 0 on success, negative error code on failure.
- */
-#define bt_pbap_add_app_param(buf, count, data) bt_obex_add_header_app_param(buf, count, data)
+int bt_pbap_pce_setpath(struct bt_pbap_pce *pbap_pce, uint8_t flags, struct net_buf *buf);
+
+int bt_pbap_pce_abort(struct bt_pbap_pce *pbap_pce, struct net_buf *buf);
 
 /**
  * @brief Helper for adding Single Response Mode Parameter (SRMP) header to PBAP request.
@@ -477,95 +482,19 @@ int bt_pbap_pce_set_path(struct bt_pbap_pce *pbap_pce, uint8_t flags, struct net
  * This is primarily used for L2CAP-based PBAP connections.
  *
  * @param buf    Network buffer to which the SRMP header will be added.
- *               Should be allocated via bt_pbap_pce_create_pdu.
+ *               Should be allocated via bt_pbap_create_pdu.
  *
  * @return 0 on success, negative error code on failure.
  */
+#define bt_pbap_add_header_srm(buf)       bt_obex_add_header_srm(buf, 0x01)
 #define bt_pbap_add_header_srm_param(buf) bt_obex_add_header_srm_param(buf, 0x01)
 
-/**
- * @brief Helper for extracting application parameters from PBAP response.
- *
- * A helper macro for extracting Application Parameters header from a received PBAP response.
- * The application parameters in the response contain information such as phonebook size,
- * new missed calls count, folder version counters, database identifier, etc.
- *
- * The extracted data is in TLV (Tag-Length-Value) format and should be parsed using
- * bt_pbap_tlv_parse or manually according to the PBAP specification.
- *
- * @param buf         Network buffer returned in the callback registered by bt_pbap_pce_register.
- * @param len         Pointer to variable that will receive the length of application parameters.
- * @param app_param   Pointer that will be set to point to the application parameters data.
- *
- * @return 0 on success, negative error code on failure.
- * @retval 0 Application parameters header found and extracted successfully.
- * @retval -ENOENT Application parameters header not present in buffer.
- */
-#define bt_pbap_get_header_app_param(buf, len, app_param)                                          \
-	bt_obex_get_header_app_param(buf, len, app_param)
+#define bt_pbap_add_header_target(buf) bt_obex_add_header_target(buf, PBAP_TARGET_LEN, pbap_target)
+#define bt_pbap_add_header_who(buf)    bt_obex_add_header_who(buf, PBAP_TARGET_LEN, pbap_target)
 
-/**
- * @brief Helper for getting body data from response buffer.
- *
- * A helper macro for extracting Body header data from a received PBAP response.
- * The most common scenario is to call this helper on the buffer received in
- * the callback that was registered via bt_pbap_pce_register.
- *
- * The Body header is used when the object being transferred is large and needs
- * to be sent in multiple packets. This is typically followed by an End of Body header
- * in the final packet.
- *
- * @param buf    Network buffer returned in the callback registered by bt_pbap_pce_register.
- * @param len    Pointer to variable that will receive the length of body data.
- * @param body   Pointer that will be set to point to the body data.
- *
- * @return 0 on success, negative error code on failure.
- */
-#define bt_pbap_get_body(buf, len, body) bt_obex_get_header_body(buf, len, body)
-
-/**
- * @brief Helper for getting end of body data from response buffer.
- *
- * A helper macro for extracting End of Body header data from a received PBAP response.
- * The most common scenario is to call this helper on the buffer received in
- * the callback that was registered via bt_pbap_pce_register.
- *
- * The End of Body header indicates the final chunk of data in a multi-packet transfer,
- * or contains the complete data if the object fits in a single packet.
- *
- * @param buf    Network buffer returned in the callback registered by bt_pbap_pce_register.
- * @param len    Pointer to variable that will receive the length of body data.
- * @param body   Pointer that will be set to point to the end of body data.
- *
- * @return 0 on success, negative error code on failure.
- */
-#define bt_pbap_get_end_body(buf, len, body) bt_obex_get_header_end_body(buf, len, body)
-
-/**
- * @brief Helper for parsing TLV-formatted application parameters.
- *
- * A helper macro for parsing TLV (Tag-Length-Value) formatted application parameters
- * received in PBAP responses. This macro iterates through the TLV data and calls
- * the provided callback function for each TLV triplet found.
- *
- * The callback function should have the signature:
- * bool callback(uint8_t tag, uint8_t len, const uint8_t *value, void *user_data)
- *
- * The callback should return true to continue parsing, or false to stop.
- *
- * @param len        Length of the TLV data to parse.
- * @param data       Pointer to the TLV-formatted data.
- * @param func       Callback function to be called for each TLV triplet.
- * @param user_data  User-defined data to be passed to the callback function.
- *
- * @return 0 on success, negative error code on failure.
- */
-#define bt_pbap_tlv_parse(len, data, func, user_data) bt_obex_tlv_parse(len, data, func, user_data)
 /**
  * @}
  */
-
-
 
 struct bt_pbap_pse;
  /** @brief PBAP server PSE operations structure.
@@ -581,7 +510,7 @@ struct bt_pbap_pse_cb {
 	 * @param mopl   The max package length of buf that application can use
 	 */
 
-	int (*connect)(struct bt_pbap_pse *pbap_pse, uint8_t version,
+	void (*connect)(struct bt_pbap_pse *pbap_pse, uint8_t version,
 			uint16_t mopl, struct net_buf *buf);
 
 	/** PBAP_PCE get authentication information callback to application
@@ -603,7 +532,7 @@ struct bt_pbap_pse_cb {
 	 * @param pbap_pce The PBAP PCE object
 	 * @param rsp_code  Response code @ref bt_pbap_rsp_code
 	 */
-	void (*disconnect)(struct bt_pbap_pse *pbap_pse, uint8_t rsp_code);
+	void (*disconnect)(struct bt_pbap_pse *pbap_pse, struct net_buf *buf);
 
 	/** @brief PBAP PCE pull phonebook response callback
 	 *
@@ -614,13 +543,56 @@ struct bt_pbap_pse_cb {
 	 * @param rsp_code Response code @ref bt_pbap_rsp_code
 	 * @param buf Optional response headers
 	 */
-	void (*pull_phonebook)(struct bt_pbap_pse *pbap_pse, uint8_t rsp_code, struct net_buf *buf);
+	void (*pull_phonebook)(struct bt_pbap_pse *pbap_pse, struct net_buf *buf);
 
+	void (*pull_vcardlisting)(struct bt_pbap_pse *pbap_pse, struct net_buf *buf);
+
+	void (*pull_vcardentry)(struct bt_pbap_pse *pbap_pse, struct net_buf *buf);
+
+        void (*setpath)(struct bt_pbap_pse *pbap_pse, uint8_t flags, struct net_buf *buf);
+
+	void (*abort)(struct bt_pbap_pse *pbap_pse, struct net_buf *buf);
+};
+
+struct bt_pbap_pse_rfcomm {
+        /** @brief Underlying GOEP RFCOMM server */
+	struct bt_goep_transport_rfcomm_server server;
+
+	/**
+	 * @brief Accept connection callback
+	 *
+	 * Called when a new RFCOMM connection is accepted
+	 *
+	 * @param conn Bluetooth connection
+	 * @param server RFCOMM server instance
+	 * @param pbap Pointer to store the created BIP instance
+	 * @return 0 on success, negative error code on failure
+	 */
+	int (*accept)(struct bt_conn *conn, struct bt_pbap_pse_rfcomm *pbap_pse,
+		      struct bt_pbap **pbap);
+};
+
+struct bt_pbap_pse_l2cap {
+        /** @brief Underlying GOEP RFCOMM server */
+	struct bt_goep_transport_l2cap_server server;
+
+	/**
+	 * @brief Accept connection callback
+	 *
+	 * Called when a new RFCOMM connection is accepted
+	 *
+	 * @param conn Bluetooth connection
+	 * @param server RFCOMM server instance
+	 * @param pbap Pointer to store the created BIP instance
+	 * @return 0 on success, negative error code on failure
+	 */
+	int (*accept)(struct bt_conn *conn, struct bt_pbap_pse_l2cap *pbap_pse,
+		      struct bt_pbap **pbap);
 };
 
 struct bt_pbap_pse {
         struct bt_pbap_pse_cb *cb;
-
+	struct bt_pbap *_pbap;
 	/** @brief Password for authentication
 	 *  When connecting, the application must provide this parameter when the component
 	 *  wants to authenticate with the server. Set to NULL if no authentication is required.
@@ -646,6 +618,8 @@ struct bt_pbap_pse {
 	 *  Indicates whether SRMP is enabled. When true, the server should wait for
 	 *  the client's next request after sending a reply (applicable for L2CAP connections)
 	 */
+        bool _srm;
+
 	bool _srmp;
 
 	/** @brief Peer device supported features
@@ -660,11 +634,6 @@ struct bt_pbap_pse {
 	 *  Defines the maximum size of OBEX packets that can be exchanged
 	 */
 	uint16_t mopl;
-
-	/** @brief GOEP (Generic Object Exchange Profile) handle
-	 *  Internal GOEP structure for managing object exchange operations
-	 */
-	struct bt_goep _goep;
 
 	/** @brief OBEX client handle
 	 *  Internal OBEX client structure for managing OBEX protocol operations
@@ -684,15 +653,29 @@ struct bt_pbap_pse {
 	atomic_t _state;
 
 	/** @internal Pending response callback */
-	void (*_rsp_cb)(struct bt_pbap_pce *pbap_pce, uint8_t rsp_code, struct net_buf *buf);
+        void (*_req_cb)(struct bt_pbap_pse *pse, struct net_buf *buf);
 
-	/** @internal current request function type */
-	const char *_req_type;
+	/** @internal Current operation type string */
+	const char *_optype;
 };
 
+int bt_pbap_pse_rfcomm_register(struct bt_pbap_pse_rfcomm *server);
 
-int bt_pbap_pse_rfcomm_register(struct bt_pbap_pse *pbap_pse, struct bt_pbap_pse_cb *cb);
+int bt_pbap_pse_l2cap_register(struct bt_pbap_pse_l2cap *server);
 
+int bt_pbap_pse_register(struct bt_pbap *pbap, struct bt_pbap_pse *pbap_pse, struct bt_pbap_pse_cb *cb);
+
+int bt_pbap_pse_connect_rsp(struct bt_pbap_pse *pbap_pse, uint8_t rsp_code, struct net_buf *buf);
+
+int bt_pbap_pse_pull_phonebook_rsp(struct bt_pbap_pse *pbap_pse, uint8_t rsp_code, struct net_buf *buf);
+
+int bt_pbap_pse_pull_vcardlisting_rsp(struct bt_pbap_pse *pbap_pse, uint8_t rsp_code, struct net_buf *buf);
+
+int bt_pbap_pse_pull_vcardentry_rsp(struct bt_pbap_pse *pbap_pse, uint8_t rsp_code, struct net_buf *buf);
+
+int bt_pbap_pse_setpath_rsp(struct bt_pbap_pse *pbap_pse, uint8_t rsp_code, struct net_buf *buf);
+
+int bt_pbap_pse_abort_rsp(struct bt_pbap_pse *pbap_pse, uint8_t rsp_code, struct net_buf *buf);
 #ifdef __cplusplus
 }
 #endif

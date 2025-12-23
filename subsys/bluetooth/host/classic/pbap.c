@@ -40,9 +40,6 @@ NET_BUF_POOL_FIXED_DEFINE(bt_pbap_pool, CONFIG_BT_MAX_CONN,
 			  BT_RFCOMM_BUF_SIZE(CONFIG_BT_GOEP_RFCOMM_MTU),
 			  CONFIG_BT_CONN_TX_USER_DATA_SIZE, NULL);
 
-const uint8_t pbap_target_id[] = {0x79U, 0x61U, 0x35U, 0xf0U, 0xf0U, 0xc5U, 0x11U, 0xd8U,
-				  0x09U, 0x66U, 0x08U, 0x00U, 0x20U, 0x0cU, 0x9aU, 0x66U};
-
 #define PBAP_PCE_NAME_SUFFIX            ".vcf"
 #define PBAP_PCE_VCARDENTRY_NAME_PREFIX "X-BT-UID:"
 
@@ -51,190 +48,114 @@ static int bt_pbap_generate_auth_response(const uint8_t *pwd, uint8_t *auth_chal
 					  uint8_t *auth_chal_rsp);
 static int bt_pbap_verify_auth(uint8_t *auth_chal_req, uint8_t *auth_chal_rsp, const uint8_t *pwd);
 
-static struct bt_sdp_attribute pbap_pce_attrs[] = {
-	BT_SDP_NEW_SERVICE,
-	BT_SDP_LIST(BT_SDP_ATTR_SVCLASS_ID_LIST,
-		    /* ServiceClassIDList */
-		    BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 3), // 35 03
-		    BT_SDP_DATA_ELEM_LIST(
-			    {
-				    BT_SDP_TYPE_SIZE(BT_SDP_UUID16),         // 19
-				    BT_SDP_ARRAY_16(BT_SDP_PBAP_PCE_SVCLASS) // 11 2E
-			    }, )),
-	BT_SDP_LIST(
-		BT_SDP_ATTR_PROFILE_DESC_LIST, BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 8), // 35 08
-		BT_SDP_DATA_ELEM_LIST({BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 6),         // 35 06
-				       BT_SDP_DATA_ELEM_LIST(
-					       {
-						       BT_SDP_TYPE_SIZE(BT_SDP_UUID16),     // 19
-						       BT_SDP_ARRAY_16(BT_SDP_PBAP_SVCLASS) // 11 30
-					       },
-					       {
-						       BT_SDP_TYPE_SIZE(BT_SDP_UINT16), // 09
-						       BT_SDP_ARRAY_16(0x0102U)         // 01 02
-					       }, )}, )),
-	BT_SDP_SERVICE_NAME("Phonebook Access PCE"),
+static void pbap_pce_clear_pending_request(struct bt_pbap_pce *pbap_pce)
+{
+	pbap_pce->_rsp_cb = NULL;
+	pbap_pce->_req_type = NULL;
+}
+
+static void pbap_transport_connected(struct bt_conn *conn, struct bt_goep *goep)
+{
+	struct bt_pbap *pbap = CONTAINER_OF(goep, struct bt_pbap, goep);
+
+	atomic_set(&pbap->_transport_state, BT_PBAP_TRANSPORT_STATE_CONNECTED);
+
+	if (pbap->ops != NULL && pbap->ops->connected != NULL) {
+		pbap->ops->connected(conn, pbap);
+	}
+}
+
+static void pbap_transport_disconnected(struct bt_goep *goep)
+{
+	struct bt_pbap *pbap = CONTAINER_OF(goep, struct bt_pbap, goep);
+
+	atomic_set(&pbap->_transport_state, BT_PBAP_TRANSPORT_STATE_DISCONNECTED);
+	if (pbap->ops != NULL && pbap->ops->disconnected != NULL) {
+		pbap->ops->disconnected(pbap);
+	}
+}
+
+static struct bt_goep_transport_ops pbap_transport_ops = {
+	.connected = pbap_transport_connected,
+	.disconnected = pbap_transport_disconnected,
 };
 
-static struct bt_sdp_record pbap_pce_rec = BT_SDP_RECORD(pbap_pce_attrs);
-
-static bool endwith(char *str, char *suffix)
-{
-	uint8_t str_len;
-	uint8_t suffix_len;
-
-	if (str == NULL || suffix == NULL) {
-		return false;
-	}
-
-	str_len = (uint8_t)strlen(str);
-	suffix_len = (uint8_t)strlen(suffix);
-
-	if (str_len < suffix_len) {
-		return 0;
-	}
-
-	return strcmp(str + str_len - suffix_len, suffix) == 0;
-}
-
-static bool startwith(char *str, char *prefix)
-{
-	uint8_t str_len;
-	uint8_t prefix_len;
-
-	if (str == NULL || prefix == NULL) {
-		return false;
-	}
-
-	str_len = strlen(str);
-	prefix_len = strlen(prefix);
-
-	if (prefix_len > str_len) {
-		return false;
-	}
-
-	return strncmp(str, prefix, prefix_len) == 0;
-}
-
-// int bt_pbap_pce_register(struct bt_pbap_pce *pbap_pce, struct bt_pbap_pce_cb *cb)
-// {
-// 	int err;
-
-// 	if (cb == NULL) {
-// 		LOG_ERR("Invalid callback parameter");
-// 		return -EINVAL;
-// 	}
-
-// 	pbap_pce->cb = cb;
-
-// 	err = bt_sdp_register_service(&pbap_pce_rec);
-// 	if (err != 0) {
-// 		LOG_WRN("Fail to register SDP service");
-// 	}
-
-// 	return err;
-// }
-
-static void pbap_goep_transport_connected(struct bt_conn *conn, struct bt_goep *goep)
+static int bt_pbap_transport_connect(struct bt_conn *conn, struct bt_pbap *pbap, uint8_t channel,
+				     uint16_t psm)
 {
 	int err;
-	struct net_buf *buf;
-	struct bt_obex_tlv data;
-	struct bt_pbap_pce *pbap_pce;
 
-	if (goep == NULL) {
-		LOG_ERR("Invalid GOEP parameter");
-		return;
+	if (conn == NULL || pbap == NULL || (channel == 0 && psm == 0)) {
+		return -EINVAL;
 	}
 
-	pbap_pce = CONTAINER_OF(goep, struct bt_pbap_pce, _goep);
-
-	buf = bt_goep_create_pdu(&pbap_pce->_goep, &bt_pbap_pool);
-	if (buf == NULL) {
-		LOG_ERR("Fail to allocate tx buffer");
-		return;
+	if (atomic_get(&pbap->_transport_state) != BT_PBAP_TRANSPORT_STATE_DISCONNECTED) {
+		return -EINPROGRESS;
 	}
 
-	err = bt_obex_add_header_target(buf, (uint16_t)sizeof(pbap_target_id), pbap_target_id);
-	if (err != 0) {
-		LOG_WRN("Fail to add header target");
-		net_buf_unref(buf);
-		return;
-	}
+	pbap->goep.transport_ops = &pbap_transport_ops;
 
-	pbap_pce->local_auth = false;
-	if (pbap_pce->pwd != NULL) {
-		err = bt_pbap_generate_auth_challenge(pbap_pce->pwd,
-						      (uint8_t *)pbap_pce->_auth_challenge_nonce);
-		if (err != 0) {
-			LOG_ERR("Failed to generate auth challenge (err %d)", err);
-			net_buf_unref(buf);
-			return;
-		}
-
-		data.type = BT_OBEX_CHALLENGE_TAG_NONCE;
-		data.data_len = BT_OBEX_CHALLENGE_TAG_NONCE_LEN;
-		data.data = pbap_pce->_auth_challenge_nonce;
-		err = bt_obex_add_header_auth_challenge(buf, 1U, &data);
-		if (err != 0) {
-			LOG_WRN("Fail to add auth_challenge");
-			net_buf_unref(buf);
-			return;
-		}
-
-		pbap_pce->local_auth = true;
-	}
-
-	if (pbap_pce->_peer_feature != 0) {
-		uint32_t feature_value;
-
-		feature_value = sys_get_be32((uint8_t *)&pbap_pce->_peer_feature);
-		data.type = BT_PBAP_APPL_PARAM_TAG_ID_SUPPORTED_FEATURES;
-		data.data_len = sizeof(feature_value);
-		data.data = (uint8_t *)&feature_value;
-		err = bt_obex_add_header_app_param(buf, 1U, &data);
-		if (err != 0) {
-			LOG_WRN("Fail to add support feature %d", err);
-			net_buf_unref(buf);
-			return;
-		}
+	if (channel != 0 && psm == 0) {
+		err = bt_goep_transport_rfcomm_connect(conn, &pbap->goep, channel);
 	} else {
-		pbap_pce->_peer_feature = PSE_ASSUMED_SUPPORT_FEATURE;
+		err = bt_goep_transport_l2cap_connect(conn, &pbap->goep, psm);
 	}
 
-	/** IPhone issue */
-	if (!pbap_pce->_goep._goep_v2 && pbap_pce->_mopl > pbap_pce->_goep.obex.rx.mtu - 1U) {
-		LOG_DBG("Adjusting MPL from %u to %u for GOEP v1", pbap_pce->_mopl,
-			pbap_pce->_goep.obex.rx.mtu - 1U);
-		pbap_pce->_mopl = pbap_pce->_goep.obex.rx.mtu - 1U;
-	}
-
-	err = bt_obex_connect(&pbap_pce->_client, pbap_pce->_mopl, buf);
 	if (err != 0) {
-		net_buf_unref(buf);
-		LOG_ERR("Fail to send conn req %d", err);
+		atomic_set(&pbap->_transport_state, BT_PBAP_TRANSPORT_STATE_DISCONNECTED);
 	}
 
-	return;
+	atomic_set(&pbap->_transport_state, BT_PBAP_TRANSPORT_STATE_CONNECTING);
+
+	return err;
 }
 
-static void pbap_goep_transport_disconnected(struct bt_goep *goep)
+static int bt_pbap_transport_disconnect(struct bt_pbap *pbap, bool is_rfcomm)
 {
-	struct bt_pbap_pce *pbap_pce;
+	int err;
 
-	pbap_pce = CONTAINER_OF(goep, struct bt_pbap_pce, _goep);
-
-	if (pbap_pce->cb->disconnect) {
-		pbap_pce->cb->disconnect(pbap_pce, BT_PBAP_RSP_CODE_OK);
+	if (pbap == NULL) {
+		return -EINVAL;
 	}
 
-	atomic_set(&pbap_pce->_state, BT_PBAP_DISCONNECTED);
+	if (atomic_get(&pbap->_transport_state) != BT_PBAP_TRANSPORT_STATE_CONNECTED) {
+		return -EINPROGRESS;
+	}
+
+	if (is_rfcomm) {
+		err = bt_goep_transport_rfcomm_disconnect(&pbap->goep);
+	} else {
+		err = bt_goep_transport_l2cap_disconnect(&pbap->goep);
+	}
+
+	if (err != 0) {
+		atomic_set(&pbap->_transport_state, BT_PBAP_TRANSPORT_STATE_CONNECTED);
+	}
+
+	atomic_set(&pbap->_transport_state, BT_PBAP_TRANSPORT_STATE_CONNECTING);
+
+	return err;
 }
 
-static struct bt_goep_transport_ops pbap_goep_transport_ops = {
-	.connected = pbap_goep_transport_connected,
-	.disconnected = pbap_goep_transport_disconnected,
-};
+int bt_pbap_rfcomm_connect(struct bt_conn *conn, struct bt_pbap *pbap, uint8_t channel)
+{
+	return bt_pbap_transport_connect(conn, pbap, channel, 0);
+}
+
+int bt_pbap_rfcomm_disconnect(struct bt_pbap *pbap)
+{
+	return bt_pbap_transport_disconnect(pbap, true);
+}
+
+int bt_pbap_l2cap_connect(struct bt_conn *conn, struct bt_pbap *pbap, uint16_t psm)
+{
+	return bt_pbap_transport_connect(conn, pbap, 0, psm);
+}
+
+int bt_pbap_l2cap_disconnect(struct bt_pbap *pbap)
+{
+	return bt_pbap_transport_disconnect(pbap, false);
+}
 
 static bool bt_pbap_find_tlv_param_cb(struct bt_obex_tlv *hdr, void *user_data)
 {
@@ -251,8 +172,8 @@ static bool bt_pbap_find_tlv_param_cb(struct bt_obex_tlv *hdr, void *user_data)
 	return true;
 }
 
-static void pbap_pce_connect(struct bt_obex_client *client, uint8_t rsp_code, uint8_t version,
-			     uint16_t mopl, struct net_buf *buf)
+static void pbap_pce_connect_cb(struct bt_obex_client *client, uint8_t rsp_code, uint8_t version,
+				uint16_t mopl, struct net_buf *buf)
 {
 	int err;
 	uint16_t length = 0;
@@ -277,7 +198,7 @@ static void pbap_pce_connect(struct bt_obex_client *client, uint8_t rsp_code, ui
 	}
 
 	if (rsp_code == BT_PBAP_RSP_CODE_UNAUTH) {
-		tx_buf = bt_goep_create_pdu(&pbap_pce->_goep, &bt_pbap_pool);
+		tx_buf = bt_goep_create_pdu(&pbap_pce->_pbap->goep, &bt_pbap_pool);
 		if (tx_buf == NULL) {
 			LOG_WRN("Fail to allocate tx buffer");
 			goto disconnect;
@@ -290,7 +211,7 @@ static void pbap_pce_connect(struct bt_obex_client *client, uint8_t rsp_code, ui
 		}
 
 		bt_auth_challenge.type = BT_OBEX_CHALLENGE_TAG_NONCE;
-		bt_pbap_tlv_parse(length, auth, bt_pbap_find_tlv_param_cb, &bt_auth_challenge);
+		bt_obex_tlv_parse(length, auth, bt_pbap_find_tlv_param_cb, &bt_auth_challenge);
 
 		if (pbap_pce->pwd == NULL) {
 			if (pbap_pce->cb->get_auth_info != NULL) {
@@ -346,7 +267,7 @@ static void pbap_pce_connect(struct bt_obex_client *client, uint8_t rsp_code, ui
 			goto disconnect;
 		}
 		bt_auth_response.type = BT_OBEX_RESPONSE_TAG_REQ_DIGEST;
-		bt_pbap_tlv_parse(length, auth, bt_pbap_find_tlv_param_cb, &bt_auth_response);
+		bt_obex_tlv_parse(length, auth, bt_pbap_find_tlv_param_cb, &bt_auth_response);
 		err = bt_pbap_verify_auth(pbap_pce->_auth_challenge_nonce,
 					  (uint8_t *)bt_auth_response.data, pbap_pce->pwd);
 		if (err == 0) {
@@ -359,58 +280,37 @@ static void pbap_pce_connect(struct bt_obex_client *client, uint8_t rsp_code, ui
 
 	if (pbap_pce->cb->connect != NULL && rsp_code == BT_PBAP_RSP_CODE_OK) {
 		pbap_pce->cb->connect(pbap_pce, rsp_code, version, mopl, buf);
-		atomic_set(&pbap_pce->_state, BT_PBAP_CONNECTED);
-		atomic_set(&pbap_pce->_state, BT_PBAP_IDEL);
+		atomic_set(&pbap_pce->_state, BT_PBAP_STATE_CONNECTED);
 	}
+
 	return;
 
 disconnect:
 	net_buf_unref(buf);
 
-	err = bt_pbap_pce_disconnect(pbap_pce, true);
+	err = bt_pbap_pce_disconnect(pbap_pce, NULL);
 	if (err != 0) {
 		LOG_WRN("Fail to send disconnect command");
 	}
 	return;
 }
 
-static void pbap_pce_clear_pending_request(struct bt_pbap_pce *pbap_pce)
+static void pbap_pce_disconnect_cb(struct bt_obex_client *client, uint8_t rsp_code,
+				   struct net_buf *buf)
 {
-	pbap_pce->_rsp_cb = NULL;
-	pbap_pce->_req_type = NULL;
-}
+	struct bt_pbap_pce *pbap_pce = CONTAINER_OF(client, struct bt_pbap_pce, _client);
 
-static void pbap_pce_disconnect(struct bt_obex_client *client, uint8_t rsp_code,
-				struct net_buf *buf)
-{
-	int err;
-	struct bt_pbap_pce *pbap_pce;
+	if (rsp_code == BT_OBEX_RSP_CODE_SUCCESS) {
+		atomic_set(&pbap_pce->_state, BT_PBAP_STATE_DISCONNECTED);
 
-	if (client == NULL) {
-		LOG_ERR("Invalid client parameter");
-		return;
-	}
-
-	pbap_pce = CONTAINER_OF(client, struct bt_pbap_pce, _client);
-
-	if (rsp_code != BT_PBAP_RSP_CODE_OK) {
 		pbap_pce_clear_pending_request(pbap_pce);
-		if (pbap_pce->cb->disconnect) {
-			pbap_pce->cb->disconnect(pbap_pce, rsp_code);
-		}
-		return;
 	} else {
-		if (pbap_pce->_goep._goep_v2) {
-			err = bt_goep_transport_l2cap_disconnect(&(pbap_pce->_goep));
-		} else {
-			err = bt_goep_transport_rfcomm_disconnect(&(pbap_pce->_goep));
-		}
-		if (err) {
-			LOG_WRN("Fail to disconnect pbap conn (err %d)", err);
-		}
-		return;
+		atomic_set(&pbap_pce->_state, BT_PBAP_STATE_CONNECTED);
 	}
-	return;
+
+	if (pbap_pce->cb->disconnect != NULL) {
+		pbap_pce->cb->disconnect(pbap_pce, rsp_code, buf);
+	}
 }
 
 static void pbap_pce_get_cb(struct bt_obex_client *client, uint8_t rsp_code, struct net_buf *buf)
@@ -424,7 +324,7 @@ static void pbap_pce_get_cb(struct bt_obex_client *client, uint8_t rsp_code, str
 		return;
 	}
 
-	if (pbap_pce->_goep._goep_v2) {
+	if (pbap_pce->_pbap->goep._goep_v2) {
 		bt_obex_get_header_srm(buf, &srm);
 		if (srm != 0x01) {
 			LOG_WRN("Fail to get srm header");
@@ -434,13 +334,13 @@ static void pbap_pce_get_cb(struct bt_obex_client *client, uint8_t rsp_code, str
 
 	if (rsp_code != BT_PBAP_RSP_CODE_CONTINUE) {
 		pbap_pce_clear_pending_request(pbap_pce);
-		atomic_set(&pbap_pce->_state, BT_PBAP_IDEL);
 	}
 
 	return;
 }
 
-static void pbap_pce_setpath(struct bt_obex_client *client, uint8_t rsp_code, struct net_buf *buf)
+static void pbap_pce_setpath_cb(struct bt_obex_client *client, uint8_t rsp_code,
+				struct net_buf *buf)
 {
 
 	struct bt_pbap_pce *pbap_pce;
@@ -453,114 +353,34 @@ static void pbap_pce_setpath(struct bt_obex_client *client, uint8_t rsp_code, st
 	pbap_pce = CONTAINER_OF(client, struct bt_pbap_pce, _client);
 
 	if (pbap_pce->cb->set_path) {
-		pbap_pce->cb->set_path(pbap_pce, rsp_code);
+		pbap_pce->cb->set_path(pbap_pce, rsp_code, buf);
+	}
+}
+
+static void pbap_pce_abort_cb(struct bt_obex_client *client, uint8_t rsp_code, struct net_buf *buf)
+{
+
+	struct bt_pbap_pce *pbap_pce;
+
+	if (client == NULL) {
+		LOG_ERR("Invalid client parameter");
+		return;
 	}
 
-	atomic_set(&pbap_pce->_state, BT_PBAP_IDEL);
+	pbap_pce = CONTAINER_OF(client, struct bt_pbap_pce, _client);
+
+	if (pbap_pce->cb->abort) {
+		pbap_pce->cb->abort(pbap_pce, rsp_code, buf);
+	}
 }
 
 struct bt_obex_client_ops pbap_pce_ops = {
-	.connect = pbap_pce_connect,
-	.disconnect = pbap_pce_disconnect,
+	.connect = pbap_pce_connect_cb,
+	.disconnect = pbap_pce_disconnect_cb,
 	.get = pbap_pce_get_cb,
-	.setpath = pbap_pce_setpath,
+	.setpath = pbap_pce_setpath_cb,
+        .abort = pbap_pce_abort_cb,
 };
-
-static int bt_pbap_pce_connect(struct bt_conn *conn, uint8_t channel, uint16_t psm,
-			       struct bt_pbap_pce *pbap_pce, struct bt_pbap_pce_cb *cb)
-{
-	int err;
-
-	if (cb == NULL) {
-		LOG_ERR("Invalid callback parameter");
-		return -EINVAL;
-	}
-
-	err = bt_sdp_register_service(&pbap_pce_rec);
-	if (err != 0) {
-		LOG_WRN("Fail to register SDP service");
-	}
-
-	if (conn == NULL) {
-		LOG_WRN("Invalid connection");
-		return -ENOTCONN;
-	}
-
-	if (pbap_pce == NULL) {
-		LOG_WRN("No available pbap_pce");
-		return -EINVAL;
-	}
-
-	if (pbap_pce->pwd != NULL && strlen(pbap_pce->pwd) > PBAP_PWD_MAX_LENGTH) {
-		LOG_ERR("Password length exceeds maximum");
-		return -EINVAL;
-	}
-
-	pbap_pce->_goep.transport_ops = &pbap_goep_transport_ops;
-	pbap_pce->_client.ops = &pbap_pce_ops;
-	pbap_pce->_client.obex = &pbap_pce->_goep.obex;
-
-	if (channel != 0) {
-		err = bt_goep_transport_rfcomm_connect(conn, &pbap_pce->_goep, channel);
-		pbap_pce->_goep._goep_v2 = false;
-	} else {
-		err = bt_goep_transport_l2cap_connect(conn, &pbap_pce->_goep, psm);
-		pbap_pce->_goep._goep_v2 = true;
-	}
-
-	if (err != 0) {
-		LOG_ERR("Fail to connect (err %d)", err);
-		return err;
-	} else {
-                pbap_pce->cb = cb;
-		LOG_INF("PBAP connection pending");
-	}
-
-	atomic_set(&pbap_pce->_state, BT_PBAP_CONNECTING);
-
-	return 0;
-}
-
-int bt_pbap_pce_rfcomm_connect(struct bt_conn *conn, uint8_t channel, struct bt_pbap_pce *pbap_pce,struct bt_pbap_pce_cb *cb)
-{
-	return bt_pbap_pce_connect(conn, channel, 0, pbap_pce, cb);
-}
-
-int bt_pbap_pce_l2cap_connect(struct bt_conn *conn, uint16_t psm, struct bt_pbap_pce *pbap_pce, struct bt_pbap_pce_cb *cb)
-{
-	return bt_pbap_pce_connect(conn, 0, psm, pbap_pce, cb);
-}
-
-int bt_pbap_pce_disconnect(struct bt_pbap_pce *pbap_pce, bool enforce)
-{
-	int err;
-
-	if (pbap_pce == NULL) {
-		LOG_WRN("No available pbap_pce");
-		return -EINVAL;
-	};
-
-	if (enforce) {
-		if (pbap_pce->_goep._goep_v2) {
-			err = bt_goep_transport_l2cap_disconnect(&pbap_pce->_goep);
-		} else {
-			err = bt_goep_transport_rfcomm_disconnect(&pbap_pce->_goep);
-		}
-		if (err) {
-			LOG_WRN("Fail to disconnect pbap conn (err %d)", err);
-		}
-	} else {
-		err = bt_obex_disconnect(&pbap_pce->_client, NULL);
-		if (err) {
-			LOG_WRN("Fail to send disconn req %d", err);
-		}
-	}
-
-	if (!err) {
-		atomic_set(&pbap_pce->_state, BT_PBAP_DISCONNECTING);
-	}
-	return err;
-}
 
 static int pbap_check_conn_id(uint32_t id, struct net_buf *buf)
 {
@@ -619,6 +439,164 @@ static int pbap_check_srmp(struct net_buf *buf)
 	return 0;
 }
 
+static int pbap_check_target(struct net_buf *buf)
+{
+        uint16_t len;
+        const uint8_t *target;
+        int err;
+
+        err = bt_obex_get_header_target(buf, &len, &target);
+        if (err != 0) {
+                LOG_ERR("Failed to get target %d", err);
+                return err;
+        }
+
+        if (len != PBAP_TARGET_LEN) {
+                LOG_ERR("target length %d is wrong", len);
+                return -EINVAL;
+        }
+
+        for (uint8_t i = 0; i < len; i++) {
+                if (target[i] != pbap_target[i]) {
+                        LOG_ERR("target mismatch at index %d", i);
+                        return -EINVAL;
+                }
+        }
+
+        return 0;
+}
+
+static int pbap_check_who(struct net_buf *buf)
+{
+        uint16_t len;
+        const uint8_t *who;
+        int err;
+
+        err = bt_obex_get_header_who(buf, &len, &who);
+        if (err != 0) {
+                LOG_ERR("Failed to get who %d", err);
+                return err;
+        }
+
+        if (len != PBAP_TARGET_LEN) {
+                LOG_ERR("who length %d is wrong", len);
+                return -EINVAL;
+        }
+
+        for (uint8_t i = 0; i < len; i++) {
+                if (who[i] != pbap_target[i]) {
+                        LOG_ERR("who mismatch at index %d", i);
+                        return -EINVAL;
+                }
+        }
+
+        return 0;
+}
+
+int bt_pbap_pce_connect(struct bt_pbap *pbap, struct bt_pbap_pce *pbap_pce,
+			struct bt_pbap_pce_cb *cb, struct net_buf *buf)
+{
+	int err;
+        bool allocated = false;
+
+	if (atomic_get(&pbap->_transport_state) != BT_PBAP_TRANSPORT_STATE_CONNECTED) {
+		LOG_ERR("Transport connection is not established");
+		return -EINVAL;
+	}
+
+	if (atomic_get(&pbap_pce->_state) != BT_PBAP_STATE_DISCONNECTED) {
+		LOG_ERR("Invalid state %u", (uint8_t)atomic_get(&pbap_pce->_state));
+		return -EINVAL;
+	}
+
+        if (cb == NULL) {
+                LOG_ERR("No available callback");
+		return -EINVAL;
+        }
+
+        if (buf == NULL) {
+		buf = bt_goep_create_pdu(&pbap_pce->_pbap->goep, NULL);
+		if (buf == NULL) {
+			LOG_ERR("Failed to allocate buffer");
+			return -ENOBUFS;
+		}
+		allocated = true;
+        }
+	if (bt_obex_has_header(buf, BT_OBEX_HEADER_ID_TARGET)) {
+		err = pbap_check_target(buf);
+                if (err != 0) {
+                        goto failed;
+                }
+	} else {
+                err = bt_obex_add_header_target(buf, PBAP_TARGET_LEN, pbap_target);
+                if (err != 0) {
+                        LOG_ERR("Failed to add WHO header");
+                        goto failed;
+                }
+
+	}
+	pbap_pce->cb = cb;
+	pbap_pce->_pbap = pbap;
+	pbap_pce->_client.ops = &pbap_pce_ops;
+	pbap_pce->_client.obex = &pbap->goep.obex;
+
+	if (pbap_pce->_mopl > pbap_pce->_pbap->goep.obex.rx.mtu - 1U) {
+		pbap_pce->_mopl = pbap_pce->_pbap->goep.obex.rx.mtu - 1U;
+	}
+
+	err = bt_obex_connect(&pbap_pce->_client, pbap_pce->_mopl, buf);
+	if (err != 0) {
+		LOG_ERR("Failed to send conn req");
+		goto failed;
+	}
+
+	atomic_set(&pbap_pce->_state, BT_PBAP_STATE_CONNECTING);
+	return 0;
+
+failed:
+	if (allocated) {
+		net_buf_unref(buf);
+	}
+	return err;
+
+}
+
+int bt_pbap_pce_disconnect(struct bt_pbap_pce *pbap_pce, struct net_buf *buf)
+{
+	int err;
+	bool allocated = false;
+
+	if (pbap_pce == NULL || pbap_pce->_pbap == NULL) {
+		return -EINVAL;
+	}
+
+	if (atomic_get(&pbap_pce->_state) != BT_PBAP_STATE_CONNECTED) {
+		LOG_ERR("Invalid state %u", (uint8_t)atomic_get(&pbap_pce->_state));
+		return -EINVAL;
+	}
+
+	if (buf == NULL) {
+		buf = bt_goep_create_pdu(&pbap_pce->_pbap->goep, NULL);
+		if (buf == NULL) {
+			LOG_ERR("Failed to allocate buffer");
+			return -ENOBUFS;
+		}
+		allocated = true;
+	}
+
+	err = bt_obex_disconnect(&pbap_pce->_client, buf);
+	if (err != 0) {
+		LOG_ERR("Failed to send conn rsp %d", err);
+		if (allocated) {
+			net_buf_unref(buf);
+		}
+		return err;
+	}
+
+	atomic_set(&pbap_pce->_state, BT_PBAP_STATE_DISCONNECTING);
+	return 0;
+}
+
 #define PBAP_REQUIRED_HDR(_count, _hdrs)                                                           \
 	{                                                                                          \
 		.count = (_count), .hdrs = (const uint8_t *)(_hdrs),                               \
@@ -636,11 +614,12 @@ struct pbap_required_hdr {
 
 typedef void (*bt_pbap_pce_cb_t)(struct bt_pbap_pce *pbap_pce, uint8_t rsp_code,
 				 struct net_buf *buf);
+typedef void (*bt_pbap_pse_cb_t)(struct bt_pbap_pse *server, struct net_buf *buf);
 
 struct pbap_pull_function {
 	const char *type;
 	struct pbap_required_hdr req_hdr;
-	// bt_bip_server_cb_t (*get_server_cb)(struct bt_bip_server *server);
+	bt_pbap_pse_cb_t (*get_server_cb)(struct bt_pbap_pse *server);
 	bt_pbap_pce_cb_t (*get_client_cb)(struct bt_pbap_pce *pbap_pce);
 };
 
@@ -668,12 +647,25 @@ static bt_pbap_pce_cb_t pbap_pce_pull_vcardentry_cb(struct bt_pbap_pce *pbap_pce
 	return pbap_pce->cb->pull_vcardentry;
 }
 
+static bt_pbap_pse_cb_t pbap_pse_pull_phonebook_cb(struct bt_pbap_pse *pbap_pse)
+{
+        return pbap_pse->cb->pull_phonebook;
+}
+
+static bt_pbap_pse_cb_t pbap_pse_pull_vcardlisting_cb(struct bt_pbap_pse *pbap_pse)
+{
+        return pbap_pse->cb->pull_vcardlisting;
+}
+static bt_pbap_pse_cb_t pbap_pse_pull_vcardentry_cb(struct bt_pbap_pse *pbap_pse)
+{
+        return pbap_pse->cb->pull_vcardentry;
+}
 static struct pbap_pull_function pbap_pull_functions[] = {
-	{BT_PBAP_PULL_PHONEBOOK_TYPE, PBAP_REQUIRED_HDR_LIST(PULL_PHONEBOOK_REQUIRED_HDR),
+	{BT_PBAP_PULL_PHONEBOOK_TYPE, PBAP_REQUIRED_HDR_LIST(PULL_PHONEBOOK_REQUIRED_HDR), pbap_pse_pull_phonebook_cb,
 	 pbap_pce_pull_phonebook_cb},
-	{BT_PBAP_PULL_VCARD_LISTING_TYPE, PBAP_REQUIRED_HDR_LIST(PULL_VCARDLISTING_REQUIRED_HDR),
+	{BT_PBAP_PULL_VCARD_LISTING_TYPE, PBAP_REQUIRED_HDR_LIST(PULL_VCARDLISTING_REQUIRED_HDR),pbap_pse_pull_vcardlisting_cb,
 	 pbap_pce_pull_vcardlisting_cb},
-	{BT_PBAP_PULL_VCARD_ENTRY_TYPE, PBAP_REQUIRED_HDR_LIST(PULL_VCARDENTRY_REQUIRED_HDR),
+	{BT_PBAP_PULL_VCARD_ENTRY_TYPE, PBAP_REQUIRED_HDR_LIST(PULL_VCARDENTRY_REQUIRED_HDR), pbap_pse_pull_vcardentry_cb,
 	 pbap_pce_pull_vcardentry_cb},
 };
 
@@ -705,8 +697,8 @@ static int pbap_pce_get_req_cb(struct bt_pbap_pce *pbap_pce, const char *type, s
 		return -EINVAL;
 	}
 
-	if (len <= strlen(type_data)) {
-		LOG_WRN("Invalid type string len %u <= %u", len, strlen(type_data));
+	if (len < strlen(type_data)) {
+		LOG_WRN("Invalid type string len %u < %u", len, strlen(type_data));
 		return -EINVAL;
 	}
 
@@ -762,15 +754,12 @@ static int pbap_pce_get(struct bt_pbap_pce *pbap_pce, struct net_buf *buf, const
 		return -EINVAL;
 	}
 
-	if (atomic_get(&pbap_pce->_state) != BT_PBAP_IDEL) {
-		LOG_ERR("Invalid state %u", (uint8_t)atomic_get(&pbap_pce->_state));
-		return -EINVAL;
-	}
-
 	old_cb = pbap_pce->_rsp_cb;
 	old_req_type = pbap_pce->_req_type;
 
 	if (pbap_pce->_rsp_cb == NULL || bt_obex_has_header(buf, BT_OBEX_HEADER_ID_TYPE)) {
+                pbap_pce->_srmp = false;
+                pbap_pce->_srm = false;
 		err = pbap_pce_get_req_cb(pbap_pce, type, buf, &cb, &req_type);
 		if (err != 0) {
 			LOG_ERR("Invalid request %d", err);
@@ -781,6 +770,29 @@ static int pbap_pce_get(struct bt_pbap_pce *pbap_pce, struct net_buf *buf, const
 			LOG_ERR("Previous operation is not completed");
 			return -EINVAL;
 		}
+
+                if (pbap_pce->_pbap->goep._goep_v2) {
+                        if (!bt_obex_has_header(buf, BT_OBEX_HEADER_ID_SRM)) {
+                                LOG_ERR("No SRM header");
+                                err = -EINVAL;
+                                goto failed;
+                        } else {
+                                err = pbap_check_srm(buf);
+                                if (err != 0) {
+                                        goto failed;
+                                }
+                        }
+
+                        pbap_pce->_srm = true;
+                        if (bt_obex_has_header(buf, BT_OBEX_HEADER_ID_SRM_PARAM)) {
+                                err = pbap_check_srmp(buf);
+                                if (err == 0) {
+                                        pbap_pce->_srmp = true;
+                                } else {
+                                        goto failed;
+                                }
+                        }
+                }
 
 		pbap_pce->_rsp_cb = cb;
 		pbap_pce->_req_type = req_type;
@@ -798,17 +810,11 @@ static int pbap_pce_get(struct bt_pbap_pce *pbap_pce, struct net_buf *buf, const
 		}
 	}
 
-	if (pbap_pce->_goep._goep_v2) {
-		if (!bt_obex_has_header(buf, BT_OBEX_HEADER_ID_SRM)) {
-			LOG_ERR("No SRM header");
-			err = -EINVAL;
-			goto failed;
-		} else if (pbap_check_srm(buf) != 0) {
-			goto failed;
-		}
+	if (pbap_pce->_pbap->goep._goep_v2 && pbap_pce->_srm == true) {
 		pbap_pce->_srmp = false;
 		if (bt_obex_has_header(buf, BT_OBEX_HEADER_ID_SRM_PARAM)) {
-			if (pbap_check_srmp(buf) == 0) {
+                        err = pbap_check_srmp(buf);
+			if (err == 0) {
 				pbap_pce->_srmp = true;
 			} else {
 				goto failed;
@@ -843,38 +849,93 @@ int bt_pbap_pce_pull_vcardentry(struct bt_pbap_pce *pbap_pce, struct net_buf *bu
 	return pbap_pce_get(pbap_pce, buf, BT_PBAP_PULL_VCARD_ENTRY_TYPE);
 }
 
-int bt_pbap_pce_set_path(struct bt_pbap_pce *pbap_pce, uint8_t flags, struct net_buf *buf)
+int bt_pbap_pce_setpath(struct bt_pbap_pce *pbap_pce, uint8_t flags, struct net_buf *buf)
 {
-        int err;
+	int err;
 
-        if (flags != BT_PBAP_SET_PATH_FLAGS_UP && flags != BT_PBAP_SET_PATH_FLAGS_DOWN_OR_ROOT) {
-                LOG_ERR("Invalid flags %u", flags);
-                return -EINVAL;
-        }
+	if ((flags != BT_PBAP_SET_PATH_FLAGS_UP) && (flags != BT_PBAP_SET_PATH_FLAGS_DOWN_OR_ROOT)) {
+		LOG_ERR("Invalid flags %u", flags);
+		return -EINVAL;
+	}
 
-        if (!bt_obex_has_header(buf, BT_OBEX_HEADER_ID_CONN_ID)) {
-                LOG_ERR("No connection ID header");
-                return -EINVAL;
-        } else if (pbap_check_conn_id(pbap_pce->_conn_id, buf) != 0) {
-                LOG_ERR("Failed to check connection ID");
-                return -EINVAL;
-        }
+	if (!bt_obex_has_header(buf, BT_OBEX_HEADER_ID_CONN_ID)) {
+		LOG_ERR("No connection ID header");
+		return -EINVAL;
+	} else if (pbap_check_conn_id(pbap_pce->_conn_id, buf) != 0) {
+		LOG_ERR("Failed to check connection ID");
+		return -EINVAL;
+	}
 
-        err = bt_obex_setpath(&pbap_pce->_client, flags, buf);
+	err = bt_obex_setpath(&pbap_pce->_client, flags, buf);
 	if (err != 0) {
 		LOG_WRN("Fail to add header srm id %d", err);
 	}
 
-        return err;
+	return err;
 }
 
+int bt_pbap_pce_abort(struct bt_pbap_pce *pbap_pce, struct net_buf *buf)
+{
+	int err;
+	bool allocated = false;
 
-struct net_buf *bt_pbap_pce_create_pdu(struct bt_pbap_pce *pbap_pce, struct net_buf_pool *pool)
+	if (pbap_pce == NULL || pbap_pce->_pbap == NULL) {
+		return -EINVAL;
+	}
+
+	if (atomic_get(&pbap_pce->_state) != BT_PBAP_STATE_CONNECTED) {
+		LOG_ERR("Invalid state %u", (uint8_t)atomic_get(&pbap_pce->_state));
+		return -EINVAL;
+	}
+
+	if (pbap_pce->_rsp_cb == NULL) {
+		LOG_ERR("No operation is ongoing");
+		return -EINVAL;
+	}
+
+	if (buf == NULL) {
+		buf = bt_goep_create_pdu(&pbap_pce->_pbap->goep, NULL);
+		if (buf == NULL) {
+			LOG_ERR("Failed to allocate buffer");
+			return -ENOBUFS;
+		}
+		allocated = true;
+	}
+
+	if (bt_obex_has_header(buf, BT_OBEX_HEADER_ID_CONN_ID)) {
+		err = pbap_check_conn_id(pbap_pce->_conn_id, buf);
+		if (err != 0) {
+			goto failed;
+		}
+	} else {
+		err = bt_obex_add_header_conn_id(buf, pbap_pce->_conn_id);
+		if (err != 0) {
+			LOG_ERR("Failed to add header conn id %d", err);
+			goto failed;
+		}
+	}
+
+	err = bt_obex_abort(&pbap_pce->_client, buf);
+	if (err != 0) {
+		LOG_ERR("Failed to send abort request %d", err);
+		goto failed;
+	}
+
+	return 0;
+
+failed:
+	if (allocated) {
+		net_buf_unref(buf);
+	}
+	return err;
+}
+
+struct net_buf *bt_pbap_create_pdu(struct bt_pbap *pbap, struct net_buf_pool *pool)
 {
 	if (pool == NULL) {
-		return bt_goep_create_pdu(&pbap_pce->_goep, &bt_pbap_pool);
+		return bt_goep_create_pdu(&pbap->goep, &bt_pbap_pool);
 	}
-	return bt_goep_create_pdu(&(pbap_pce->_goep), pool);
+	return bt_goep_create_pdu(&(pbap->goep), pool);
 }
 
 static int bt_pbap_generate_auth_challenge(const uint8_t *pwd, uint8_t *auth_chal_req)
@@ -969,174 +1030,193 @@ static int bt_pbap_verify_auth(uint8_t *auth_chal_req, uint8_t *auth_chal_rsp, c
 	return status;
 }
 
-#define BT_PBAP_PSE_SUPPORTED_FEATURES 0x000003FF
-#define BT_PBAP_PSE_SUPPORTED_REPOSITORIES  0x0F
-#define BT_RFCOMM_CHAN_PBAP_PSE 9
-#define BT_BR_PSM_PBAP_PSE 0x1003
-#define BT_SDP_PROTP_OBEX  0x0008
 
-static struct bt_sdp_attribute pbap_pse_attrs[] = {
-    BT_SDP_NEW_SERVICE,
-    /* ServiceClassIDList */
-    BT_SDP_LIST(
-        BT_SDP_ATTR_SVCLASS_ID_LIST,
-        BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 3),
-        BT_SDP_DATA_ELEM_LIST(
-        {
-            BT_SDP_TYPE_SIZE(BT_SDP_UUID16),
-            BT_SDP_ARRAY_16(BT_SDP_PBAP_PSE_SVCLASS)
-        },
-        )
-    ),
-    /* ProtocolDescriptorList */
-    BT_SDP_LIST(
-        BT_SDP_ATTR_PROTO_DESC_LIST,
-        BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 17), 
-        BT_SDP_DATA_ELEM_LIST(
-        {
-            BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 3), 
-            BT_SDP_DATA_ELEM_LIST(
-            {
-                BT_SDP_TYPE_SIZE(BT_SDP_UUID16), 
-                BT_SDP_ARRAY_16(BT_SDP_PROTO_L2CAP) 
-            },
-            )
-        },
-        {
-            BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 5),
-            BT_SDP_DATA_ELEM_LIST(
-            {
-                BT_SDP_TYPE_SIZE(BT_SDP_UUID16), 
-                BT_SDP_ARRAY_16(BT_SDP_PROTO_RFCOMM), 
-            },
-            {
-                BT_SDP_TYPE_SIZE(BT_SDP_UINT8), 
-                BT_SDP_ARRAY_8(BT_RFCOMM_CHAN_PBAP_PSE) 
-            },
-            )
-        },
-        {
-            BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 3),
-            BT_SDP_DATA_ELEM_LIST(
-            {
-                BT_SDP_TYPE_SIZE(BT_SDP_UUID16),
-                BT_SDP_ARRAY_16(BT_SDP_PROTP_OBEX),
-            },
-            )
-        },
-        )
-    ),
-    /* BluetoothProfileDescriptorList */
-    BT_SDP_LIST(
-        BT_SDP_ATTR_PROFILE_DESC_LIST,
-        BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 8),
-        BT_SDP_DATA_ELEM_LIST(
-        {
-            BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 6),
-            BT_SDP_DATA_ELEM_LIST(
-            {
-                BT_SDP_TYPE_SIZE(BT_SDP_UUID16), 
-                BT_SDP_ARRAY_16(BT_SDP_PBAP_SVCLASS) 
-            },
-            {
-                BT_SDP_TYPE_SIZE(BT_SDP_UINT16), 
-                BT_SDP_ARRAY_16(0x0102U) 
-            },
-            )
-        },
-        )
-    ),
-    BT_SDP_SERVICE_NAME("Phonebook Access PSE"),
-     /* GoepL2CapPsm */
-   BT_SDP_ATTR_GOEP_L2CAP_PSM,
-   {
-       BT_SDP_TYPE_SIZE(BT_SDP_UINT16),
-       BT_SDP_ARRAY_16(BT_BR_PSM_PBAP_PSE)
-   },
 
-    /* SupportedRepositories */
-    BT_SDP_ATTR_SUPPORTED_REPOSITORIES,
-    {
-        BT_SDP_TYPE_SIZE(BT_SDP_UINT8),
-        BT_SDP_ARRAY_8(BT_PBAP_PSE_SUPPORTED_REPOSITORIES)
-    },
-
-    /* PBAP_PSE SupportedFeatures */
-    BT_SDP_ATTR_PBAP_SUPPORTED_FEATURES,
-    {
-        BT_SDP_TYPE_SIZE(BT_SDP_UINT32),
-        BT_SDP_ARRAY_32(BT_PBAP_PSE_SUPPORTED_FEATURES)
-    },
-};
-
-static struct bt_sdp_record pbap_pse_rec = BT_SDP_RECORD(pbap_pse_attrs);
-
-static void pse_server_connect(struct bt_obex_server *server, uint8_t version, uint16_t mopl,
+static void pse_connect(struct bt_obex_server *server, uint8_t version, uint16_t mopl,
 				struct net_buf *buf)
 {
-        int rsp_code = BT_PBAP_RSP_CODE_SUCCESS;
-        int err;
-        struct net_buf *tx_buf;
+	struct bt_pbap_pse *pbap_pse = CONTAINER_OF(server, struct bt_pbap_pse, _server);
 
-        struct bt_pbap_pse *pbap_pse = CONTAINER_OF(server, struct bt_pbap_pse, _server);
-	tx_buf = bt_goep_create_pdu(&pbap_pse->_goep, &bt_pbap_pool);
-	if (tx_buf == NULL) {
-		LOG_ERR("Fail to allocate tx buffer");
-		return;
+	atomic_set(&pbap_pse->_state, BT_PBAP_STATE_CONNECTING);
+
+	if (pbap_pse->cb->connect != NULL) {
+		pbap_pse->cb->connect(pbap_pse, version, mopl, buf);
 	}
-
-        err = bt_obex_add_header_who(tx_buf, sizeof(pbap_target_id), pbap_target_id);
-        if (err != 0) {
-                LOG_ERR("Fail to add header who %d", err);
-                goto failed;
-        }
-
-        err = bt_obex_add_header_conn_id(tx_buf, pbap_pse->_conn_id);
-        if (err != 0) {
-                LOG_ERR("Fail to add header conn id %d", err);
-                goto failed;
-        }
-
-
-	rsp_code = pbap_pse->cb->connect(pbap_pse, version, mopl, buf);
-
-        err = bt_obex_connect_rsp(server, rsp_code, pbap_pse->mopl, tx_buf);
-        if (err != 0) {
-                LOG_ERR("Failed to send connect response %d", err);
-                goto failed;
-        }
-
-        return;
-
-failed:
-        net_buf_unref(tx_buf);
-        return;
 }
 
-static void pse_server_disconnect(struct bt_obex_server *server, struct net_buf *buf)
+static void pse_disconnect(struct bt_obex_server *server, struct net_buf *buf)
 {
-        return;
+	struct bt_pbap_pse *pbap_pse = CONTAINER_OF(server, struct bt_pbap_pse, _server);
+
+	atomic_set(&pbap_pse->_state, BT_PBAP_STATE_DISCONNECTING);
+
+	if (pbap_pse->cb->disconnect != NULL) {
+		pbap_pse->cb->disconnect(pbap_pse, buf);
+	}
+}
+
+static enum bt_obex_rsp_code pbap_pse_get_req_cb(struct bt_pbap_pse *pbap_pse,
+						   struct net_buf *buf,
+						   bt_pbap_pse_cb_t *cb)
+{
+	const uint8_t *type;
+	uint16_t len;
+	int err;
+
+	err = bt_obex_get_header_type(buf, &len, &type);
+	if (err != 0) {
+		LOG_WRN("Failed to get type header %d", err);
+		return BT_OBEX_RSP_CODE_BAD_REQ;
+	}
+
+	if (len <= strlen(type)) {
+		LOG_WRN("Invalid type string len %u <= %u", len, strlen(type));
+		return BT_OBEX_RSP_CODE_BAD_REQ;
+	}
+
+	*cb = NULL;
+	ARRAY_FOR_EACH(pbap_pull_functions, i) {
+		if (pbap_pse->_optype != NULL && pbap_pull_functions[i].type != pbap_pse->_optype) {
+			continue;
+		}
+
+		if (strcmp(pbap_pull_functions[i].type, type) != 0) {
+			continue;
+		}
+
+		if (!has_required_hdrs(buf, &pbap_pull_functions[i].req_hdr)) {
+			continue;
+		}
+
+		/* Application parameter tag id is not checked. */
+
+		if (pbap_pull_functions[i].get_server_cb == NULL) {
+			continue;
+		}
+
+		*cb = pbap_pull_functions[i].get_server_cb(pbap_pse);
+		if (*cb == NULL) {
+			continue;
+		}
+
+		pbap_pse->_optype = pbap_pull_functions[i].type;
+		break;
+	}
+
+	if (*cb == NULL) {
+		LOG_WRN("Unsupported request");
+		return BT_OBEX_RSP_CODE_NOT_IMPL;
+	}
+
+	return BT_OBEX_RSP_CODE_SUCCESS;
+}
+
+static void pse_get(struct bt_obex_server *server, bool final, struct net_buf *buf)
+{
+	struct bt_pbap_pse *pbap_pse = CONTAINER_OF(server, struct bt_pbap_pse, _server);
+	int err = 0;
+	enum bt_obex_rsp_code rsp_code;
+
+	if (pbap_pse->_optype == NULL || bt_obex_has_header(buf, BT_OBEX_HEADER_ID_TYPE)) {
+		rsp_code = pbap_pse_get_req_cb(pbap_pse, buf, &pbap_pse->_req_cb);
+		if (rsp_code != BT_OBEX_RSP_CODE_SUCCESS) {
+			LOG_WRN("Failed to parse req %u", (uint8_t)rsp_code);
+			goto failed;
+		}
+	}
+
+	if (pbap_pse->_optype == NULL || pbap_pse->_req_cb == NULL) {
+		rsp_code = BT_OBEX_RSP_CODE_NOT_IMPL;
+		LOG_WRN("Invalid request");
+		goto failed;
+	}
+
+        pbap_pse->_srm = false;
+        pbap_pse->_srmp = false;
+        if (pbap_pse->_pbap->goep._goep_v2) {
+                if (bt_obex_has_header(buf, BT_OBEX_HEADER_ID_SRM)) {
+                        err = pbap_check_srm(buf);
+                        if (err != 0) {
+                                LOG_WRN("SRM header is error : %d", err);
+                                rsp_code = BT_OBEX_RSP_CODE_BAD_REQ;
+                                goto failed;
+                        }
+                        pbap_pse->_srm = true;
+                        if (bt_obex_has_header(buf, BT_OBEX_HEADER_ID_SRM_PARAM)) {
+                                err = pbap_check_srmp(buf);
+                                if (err != 0) {
+                                        LOG_WRN("SRMP header is error : %d", err);
+                                        rsp_code = BT_OBEX_RSP_CODE_BAD_REQ;
+                                        goto failed;
+                                }
+                                pbap_pse->_srmp = true;
+                        }
+                } else {
+                        LOG_WRN("Failed to add SRM header %d", err);
+                        rsp_code = BT_OBEX_RSP_CODE_BAD_REQ;
+                        goto failed;
+                }
+        }
+
+	pbap_pse->_req_cb(pbap_pse, buf);
+
+	return;
+
+failed:
+	pbap_pse->_optype = NULL;
+	pbap_pse->_req_cb = NULL;
+	err = bt_obex_get_rsp(server, rsp_code, NULL);
+	if (err != 0) {
+		LOG_ERR("Failed to send get rsp %d", err);
+	}
+}
+
+static void pse_setpath(struct bt_obex_server *server, uint8_t flags, struct net_buf *buf)
+{
+        struct bt_pbap_pse *pbap_pse = CONTAINER_OF(server, struct bt_pbap_pse, _server);
+
+        if (pbap_pse != NULL && pbap_pse->cb != NULL && pbap_pse->cb->setpath != NULL) {
+                pbap_pse->cb->setpath(pbap_pse, flags, buf);
+        }
+}
+
+void pse_abort(struct bt_obex_server *server, struct net_buf *buf)
+{
+        struct bt_pbap_pse *pbap_pse = CONTAINER_OF(server, struct bt_pbap_pse, _server);
+
+        if (pbap_pse != NULL && pbap_pse->cb != NULL && pbap_pse->cb->abort != NULL) {
+                pbap_pse->cb->abort(pbap_pse, buf);
+        }
 }
 
 struct bt_obex_server_ops pbap_pse_server_ops = {
-	.connect = pse_server_connect,
-	.disconnect = pse_server_disconnect,
-	// .put = goep_server_put,
-	// .get = goep_server_get,
-	// .abort = goep_server_abort,
-	// .setpath = goep_server_setpath,
-	// .action = goep_server_action,
+	.connect = pse_connect,
+	.disconnect = pse_disconnect,
+	.get = pse_get,
+	.abort = pse_abort,
+	.setpath = pse_setpath,
 };
-
 
 static void pse_transport_connected(struct bt_conn *conn, struct bt_goep *goep)
 {
-	LOG_INF("GOEP %p transport connected on %p", goep, conn);
+	struct bt_pbap *pbap = CONTAINER_OF(goep, struct bt_pbap, goep);
+
+	atomic_set(&pbap->_transport_state, BT_PBAP_TRANSPORT_STATE_CONNECTED);
+
+	if (pbap->ops != NULL && pbap->ops->connected != NULL) {
+		pbap->ops->connected(conn, pbap);
+	}
 }
 
 static void pse_transport_disconnected(struct bt_goep *goep)
 {
-	LOG_INF("GOEP %p transport disconnected", goep);
+	struct bt_pbap *pbap = CONTAINER_OF(goep, struct bt_pbap, goep);
+
+	atomic_set(&pbap->_transport_state, BT_PBAP_TRANSPORT_STATE_DISCONNECTED);
+
+	if (pbap->ops != NULL && pbap->ops->disconnected != NULL) {
+		pbap->ops->disconnected(pbap);
+	}
 }
 
 struct bt_goep_transport_ops pse_transport_ops = {
@@ -1144,40 +1224,115 @@ struct bt_goep_transport_ops pse_transport_ops = {
 	.disconnected = pse_transport_disconnected,
 };
 
-#define PBAP_RFDCOMM_SERVER(server) CONTAINER_OF(server, struct bt_pbap_pse, transport_server.rfcomm_server)
-static int pbap_pse_rfcomm_accept(struct bt_conn *conn, struct bt_goep_transport_rfcomm_server *server,
-			 struct bt_goep **goep)
+#define PBAP_RFDCOMM_SERVER(server) CONTAINER_OF(server, struct bt_pbap_pse_rfcomm,server)
+#define PBAP_L2CAP_SERVER(server) CONTAINER_OF(server, struct bt_pbap_pse_l2cap,server)
+
+static int pbap_pse_rfcomm_accept(struct bt_conn *conn, struct bt_goep_transport_rfcomm_server *server, struct bt_goep **goep)
 {
-        struct bt_pbap_pse *pbap_pse;
+        struct bt_pbap_pse_rfcomm *pbap_pse;
+        struct bt_pbap *pbap;
+        int err;
 
         pbap_pse = PBAP_RFDCOMM_SERVER(server);
-        pbap_pse->_goep.transport_ops = &pse_transport_ops;
-	*goep = &pbap_pse->_goep;
+	if (pbap_pse->accept == NULL) {
+		return -ENOTSUP;
+	}
+
+	err = pbap_pse->accept(conn, pbap_pse, &pbap);
+	if (err != 0) {
+		return err;
+	}
+        pbap->goep.transport_ops = &pse_transport_ops;
+	*goep = &pbap->goep;
+
+	atomic_set(&pbap->_transport_state, BT_PBAP_TRANSPORT_STATE_CONNECTING);
+
 	return 0;
 }
 
+static int pbap_pse_l2cap_accept(struct bt_conn *conn, struct bt_goep_transport_l2cap_server *server, struct bt_goep **goep)
+{
+        struct bt_pbap_pse_l2cap *pbap_pse;
+        struct bt_pbap *pbap;
+        int err;
 
-int bt_pbap_pse_rfcomm_register(struct bt_pbap_pse *pbap_pse, struct bt_pbap_pse_cb *cb)
+        pbap_pse = PBAP_L2CAP_SERVER(server);
+	if (pbap_pse->accept == NULL) {
+		return -ENOTSUP;
+	}
+
+	err = pbap_pse->accept(conn, pbap_pse, &pbap);
+	if (err != 0) {
+		return err;
+	}
+        pbap->goep.transport_ops = &pse_transport_ops;
+	*goep = &pbap->goep;
+
+	atomic_set(&pbap->_transport_state, BT_PBAP_TRANSPORT_STATE_CONNECTING);
+
+	return 0;
+}
+
+int bt_pbap_pse_rfcomm_register(struct bt_pbap_pse_rfcomm *server)
+{
+        int err;
+
+	if (server == NULL || server->accept == NULL) {
+		return -EINVAL;
+	}
+
+	server->server.accept = pbap_pse_rfcomm_accept;
+
+	err = bt_goep_transport_rfcomm_server_register(&server->server);
+	if (err != 0) {
+		LOG_ERR("Fail to register RFCOMM server (error %d)", err);
+		return -ENOEXEC;
+	}
+
+        return 0;
+}
+
+int bt_pbap_pse_l2cap_register(struct bt_pbap_pse_l2cap *server)
+{
+        int err;
+
+	if (server == NULL || server->accept == NULL) {
+		return -EINVAL;
+	}
+
+	server->server.accept = pbap_pse_l2cap_accept;
+
+	err = bt_goep_transport_l2cap_server_register(&server->server);
+	if (err != 0) {
+		LOG_ERR("Fail to register l2cap server (error %d)", err);
+		return -ENOEXEC;
+	}
+
+        return 0;
+}
+
+static uint32_t pbap_pse_get_connect_id(void)
+{
+	static uint32_t connect_id;
+
+	connect_id++;
+
+	return connect_id;
+}
+
+int bt_pbap_pse_register(struct bt_pbap *pbap, struct bt_pbap_pse *pbap_pse, struct bt_pbap_pse_cb *cb)
 {
         int err;
 
         if (pbap_pse == NULL || cb == NULL) {
-                LOG_ERR("Invalid parameters");
                 return -EINVAL;
         }
 
-
-        pbap_pse->transport_server.rfcomm_server.accept = &pbap_pse_rfcomm_accept;
-        pbap_pse->transport_server.rfcomm_server.rfcomm.channel = BT_RFCOMM_CHAN_PBAP_PSE;
+        pbap_pse->_pbap = pbap;
         pbap_pse->_server.ops = &pbap_pse_server_ops;
-        pbap_pse->_server.obex = &pbap_pse->_goep.obex;
+        pbap_pse->_server.obex = &pbap_pse->_pbap->goep.obex;
         pbap_pse->cb = cb;
-
-
-	err = bt_sdp_register_service(&pbap_pse_rec);
-	if (err != 0) {
-		LOG_WRN("Fail to register SDP service");
-	}
+        pbap_pse->_conn_id = pbap_pse_get_connect_id();
 
 	err = bt_obex_server_register(&pbap_pse->_server, NULL);
 	if (err != 0) {
@@ -1185,10 +1340,193 @@ int bt_pbap_pse_rfcomm_register(struct bt_pbap_pse *pbap_pse, struct bt_pbap_pse
                 return err;
 	}
 
-	err = bt_goep_transport_rfcomm_server_register(&pbap_pse->transport_server.rfcomm_server);
-	if (err != 0) {
-		LOG_ERR("Fail to register RFCOMM server (error %d)", err);
-		pbap_pse->transport_server.rfcomm_server.rfcomm.channel = 0;
-		return -ENOEXEC;
+        return 0;
+}
+
+int bt_pbap_pse_connect_rsp(struct bt_pbap_pse *pbap_pse, uint8_t rsp_code, struct net_buf *buf)
+{
+        int err;
+	bool allocated = false;
+
+        if (pbap_pse == NULL) {
+                return -EINVAL;
+        }
+
+        if (atomic_get(&pbap_pse->_state) != BT_PBAP_STATE_CONNECTING) {
+                LOG_ERR("Invalid state %u", (uint8_t)atomic_get(&pbap_pse->_state));
+                return -EINVAL;
 	}
+	if (buf == NULL) {
+		buf = bt_goep_create_pdu(&pbap_pse->_pbap->goep, NULL);
+		if (buf == NULL) {
+			LOG_ERR("Failed to allocate buffer");
+			return -ENOBUFS;
+		}
+		allocated = true;
+	}
+
+        if (bt_obex_has_header(buf, BT_OBEX_HEADER_ID_WHO)) {
+                err = pbap_check_who(buf);
+                if (err != 0) {
+                        LOG_ERR("Invalid WHO header");
+                        goto failed;
+                }
+        } else {
+                err = bt_obex_add_header_who(buf, PBAP_TARGET_LEN, pbap_target);
+                if (err != 0) {
+                        LOG_ERR("Failed to add WHO header");
+                        goto failed;
+                }
+        }
+
+        if (bt_obex_has_header(buf, BT_OBEX_HEADER_ID_CONN_ID)) {
+                err = pbap_check_conn_id(pbap_pse->_conn_id, buf);
+                if (err != 0) {
+                        LOG_ERR("Invalid connection ID");
+                        goto failed;
+                }
+        } else {
+                err = bt_obex_add_header_conn_id(buf, pbap_pse->_conn_id);
+                if (err != 0) {
+                        LOG_ERR("Failed to add connection ID header");
+                        goto failed;
+                }
+        }
+
+        err = bt_obex_connect_rsp(&pbap_pse->_server, rsp_code, pbap_pse->mopl, buf);
+        if (err != 0) {
+                LOG_ERR("Failed to send CONNECT response (error %d)", err);
+                goto failed;
+        }
+
+	atomic_set(&pbap_pse->_state, BT_PBAP_STATE_CONNECTED);
+        return 0;
+failed:
+	if (allocated) {
+		net_buf_unref(buf);
+	}
+	return err;
+}
+
+
+static int pbap_pse_get_rsp(struct bt_pbap_pse *pbap_pse, uint8_t rsp_code, struct net_buf *buf, const char *type)
+{
+        int err;
+
+	if (atomic_get(&pbap_pse->_state) != BT_PBAP_STATE_CONNECTED) {
+		LOG_ERR("Invalid state %u", (uint8_t)atomic_get(&pbap_pse->_state));
+		return -EINVAL;
+	}
+
+	if (pbap_pse->_optype != NULL && strcmp(pbap_pse->_optype, type) != 0) {
+		LOG_ERR("Invalid operation type %s != %s", pbap_pse->_optype, type);
+		return -EINVAL;
+	}
+
+        if (pbap_pse->_pbap->goep._goep_v2) {
+                if (pbap_pse->_srm && rsp_code == BT_PBAP_RSP_CODE_SUCCESS) {
+                        if (!bt_obex_has_header(buf, BT_OBEX_HEADER_ID_SRM)) {
+                                LOG_ERR("No add header SRM when add header SRMP");
+                                return -EINVAL;
+                        } else {
+                                err = pbap_check_srm(buf);
+                                LOG_ERR("Header SRM is wrong");
+                                return err;
+                        }
+                }
+
+                if (bt_obex_has_header(buf, BT_OBEX_HEADER_ID_SRM_PARAM)) {
+                        err  = pbap_check_srmp(buf);
+                        if (err != 0) {
+                                LOG_ERR("Failed to add SRM header");
+                                return err;
+                        }
+                }
+
+        }
+
+        err = bt_obex_get_rsp(&pbap_pse->_server, rsp_code, buf);
+	if (err != 0) {
+		LOG_ERR("Failed to send get rsp %d", err);
+		return err;
+	}
+
+	if (rsp_code != BT_OBEX_RSP_CODE_CONTINUE) {
+		pbap_pse->_optype = NULL;
+		pbap_pse->_req_cb = NULL;
+	}
+
+        return 0;
+}
+
+int bt_pbap_pse_pull_phonebook_rsp(struct bt_pbap_pse *pbap_pse, uint8_t rsp_code, struct net_buf *buf)
+{
+        return pbap_pse_get_rsp(pbap_pse, rsp_code, buf, BT_PBAP_PULL_PHONEBOOK_TYPE);
+}
+
+int bt_pbap_pse_pull_vcardlisting_rsp(struct bt_pbap_pse *pbap_pse, uint8_t rsp_code, struct net_buf *buf)
+{
+        return pbap_pse_get_rsp(pbap_pse, rsp_code, buf, BT_PBAP_PULL_VCARD_LISTING_TYPE);
+}
+
+int bt_pbap_pse_pull_vcardentry_rsp(struct bt_pbap_pse *pbap_pse, uint8_t rsp_code, struct net_buf *buf)
+{
+        return pbap_pse_get_rsp(pbap_pse, rsp_code, buf, BT_PBAP_PULL_VCARD_ENTRY_TYPE);
+}
+
+int bt_pbap_pse_setpath_rsp(struct bt_pbap_pse *pbap_pse, uint8_t rsp_code, struct net_buf *buf)
+{
+        int err;
+        bool allocated = false;
+
+	if (atomic_get(&pbap_pse->_state) != BT_PBAP_STATE_CONNECTED) {
+		LOG_ERR("Invalid state %u", (uint8_t)atomic_get(&pbap_pse->_state));
+		return -EINVAL;
+	}
+
+        if (buf == NULL) {
+		buf = bt_goep_create_pdu(&pbap_pse->_pbap->goep, NULL);
+		if (buf == NULL) {
+			LOG_ERR("Failed to allocate buffer");
+			return -ENOBUFS;
+		}
+		allocated = true;
+	}
+
+        err = bt_obex_setpath_rsp(&pbap_pse->_server, rsp_code, buf);
+        if (err != 0) {
+                LOG_ERR("Failed to send SETPATH response (error %d)", err);
+                if (allocated) {
+                        net_buf_unref(buf);
+                }
+        }
+
+        return 0;
+}
+
+int bt_pbap_pse_abort_rsp(struct bt_pbap_pse *pbap_pse, uint8_t rsp_code, struct net_buf *buf)
+{
+	int err;
+
+	if (pbap_pse == NULL) {
+		return -EINVAL;
+	}
+
+	if (atomic_get(&pbap_pse->_state) != BT_PBAP_STATE_CONNECTED) {
+		LOG_ERR("Invalid state %u", (uint8_t)atomic_get(&pbap_pse->_state));
+		return -EINVAL;
+	}
+
+	err = bt_obex_abort_rsp(&pbap_pse->_server, rsp_code, buf);
+	if (err != 0) {
+		LOG_ERR("Failed to send abort rsp %d", err);
+		return err;
+	}
+
+	if (rsp_code == BT_OBEX_RSP_CODE_SUCCESS) {
+		pbap_pse->_optype = NULL;
+		pbap_pse->_req_cb = NULL;
+	}
+
+	return 0;
 }
