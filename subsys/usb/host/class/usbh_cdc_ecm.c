@@ -1680,16 +1680,6 @@ static int usbh_cdc_ecm_removed(struct usbh_class_data *const c_data)
 
 	(void)k_mutex_unlock(&ctx->lock);
 
-	while (true) {
-		(void)k_mutex_lock(&ctx->lock, K_FOREVER);
-		if (!ctx->active_data_rx_xfers) {
-			(void)k_mutex_unlock(&ctx->lock);
-			break;
-		}
-		(void)k_mutex_unlock(&ctx->lock);
-		k_sleep(K_MSEC(10));
-	}
-
 	LOG_INF("device removed");
 
 	return 0;
