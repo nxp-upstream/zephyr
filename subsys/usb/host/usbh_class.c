@@ -76,10 +76,10 @@ void usbh_class_remove_all(struct usb_device *const udev)
  * USB functions will only have one class matching, and calling usbh_class_probe_function()
  * multiple times consequently has no effect.
  */
-static void usbh_class_probe_function(struct usb_device *const udev,
+static int usbh_class_probe_function(struct usb_device *const udev,
 				      struct usbh_class_filter *const info, const uint8_t iface)
 {
-	int ret;
+	int ret = -ENOTSUP;
 
 	/* Assumes that udev->mutex is locked */
 
@@ -88,9 +88,9 @@ static void usbh_class_probe_function(struct usb_device *const udev,
 		struct usbh_class_data *const c_data = c_node->c_data;
 
 		if (c_node->state == USBH_CLASS_STATE_BOUND &&
-		    c_data->udev == udev && c_data->iface == iface) {
+		    c_data->udev == udev) {
 			LOG_DBG("Interface %u bound to '%s', skipping", iface, c_data->name);
-			return;
+			return 0;
 		}
 	}
 
@@ -120,17 +120,17 @@ static void usbh_class_probe_function(struct usb_device *const udev,
 		c_data->iface = iface;
 		break;
 	}
+
+	return ret;
 }
 
-void usbh_class_probe_device(struct usb_device *const udev)
+int usbh_class_probe_device(struct usb_device *const udev)
 {
 	const void *desc_end;
 	const struct usb_desc_header *desc;
 	struct usbh_class_filter info;
 	uint8_t iface;
-	int ret;
-
-	k_mutex_lock(&udev->mutex, K_FOREVER);
+	int ret = -ENOTSUP;
 
 	desc = usbh_desc_get_cfg(udev);
 	desc_end = usbh_desc_get_cfg_end(udev);
@@ -149,10 +149,10 @@ void usbh_class_probe_device(struct usb_device *const udev)
 			continue;
 		}
 
-		usbh_class_probe_function(udev, &info, iface);
+		ret = usbh_class_probe_function(udev, &info, iface);
 	}
 
-	k_mutex_unlock(&udev->mutex);
+	return ret;
 }
 
 bool usbh_class_is_matching(struct usbh_class_filter *const filters,
