@@ -57,6 +57,21 @@ __weak void pm_state_set(enum pm_state state, uint8_t substate_id)
 		__WFI();
 		break;
 
+	case PM_STATE_SUSPEND_TO_RAM:
+		/*
+		 * MCXN236 Deep Power Down wakes via reset and only retains a limited SRAM
+		 * partition, which does not match Zephyr's S2RAM resume expectations.
+		 *
+		 * Map S2RAM to Power Down mode so execution can resume after an interrupt
+		 * wake-up while RAM contents are retained.
+		 */
+		SPC_SetLowPowerWakeUpDelay(SPC0, MCXN_WAKEUP_DELAY);
+		CMC_SetClockMode(MCXN_CMC_ADDR, kCMC_GateAllSystemClocksEnterLowPowerMode);
+		CMC_SetMAINPowerMode(MCXN_CMC_ADDR, kCMC_PowerDownMode);
+		CMC_SetWAKEPowerMode(MCXN_CMC_ADDR, kCMC_PowerDownMode);
+		__WFI();
+		break;
+
 	default:
 		break;
 	}

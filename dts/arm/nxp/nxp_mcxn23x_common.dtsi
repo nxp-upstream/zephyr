@@ -22,7 +22,7 @@
 			reg = <0>;
 			#address-cells = <1>;
 			#size-cells = <1>;
-			cpu-power-states = <&sleep &deepsleep &powerdown>;
+			cpu-power-states = <&sleep &deepsleep &powerdown &s2ram>;
 
 			mpu: mpu@e000ed90 {
 				compatible = "arm,armv8m-mpu";
@@ -78,6 +78,13 @@
 			power-state-name = "standby";
 			min-residency-us = <80000>;
 			exit-latency-us = <20>;
+		};
+
+		s2ram: s2ram {
+			compatible = "zephyr,power-state";
+			power-state-name = "suspend-to-ram";
+			min-residency-us = <120000>;
+			exit-latency-us = <50>;
 		};
 	};
 
