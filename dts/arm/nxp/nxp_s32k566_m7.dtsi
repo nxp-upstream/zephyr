@@ -166,3 +166,7 @@
 &lpuart20 {
 	interrupts = <175 0>;
 };
+
+&lpe_ftm {
+	interrupts = <223 0>;
+};
