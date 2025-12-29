@@ -88,7 +88,7 @@ static int usbh_class_probe_function(struct usb_device *const udev,
 		struct usbh_class_data *const c_data = c_node->c_data;
 
 		if (c_node->state == USBH_CLASS_STATE_BOUND &&
-		    c_data->udev == udev) {
+		    c_data->udev == udev && c_data->iface == iface) {
 			LOG_DBG("Interface %u bound to '%s', skipping", iface, c_data->name);
 			return 0;
 		}
@@ -130,7 +130,8 @@ int usbh_class_probe_device(struct usb_device *const udev)
 	const struct usb_desc_header *desc;
 	struct usbh_class_filter info;
 	uint8_t iface;
-	int ret = -ENOTSUP;
+	int ret;
+	bool any_success = false;
 
 	desc = usbh_desc_get_cfg(udev);
 	desc_end = usbh_desc_get_cfg_end(udev);
@@ -150,9 +151,12 @@ int usbh_class_probe_device(struct usb_device *const udev)
 		}
 
 		ret = usbh_class_probe_function(udev, &info, iface);
+		if (ret == 0) {
+			any_success = true;
+		}
 	}
 
-	return ret;
+	return any_success ? 0 : -ENOTSUP;
 }
 
 bool usbh_class_is_matching(struct usbh_class_filter *const filters,
