@@ -14,16 +14,19 @@
 #include <zephyr/usb/usbd.h>
 #include <zephyr/usb/class/usbd_uac2.h>
 #include <zephyr/drivers/i2s.h>
+#include <zephyr/audio/codec.h>
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(uac2_sample, LOG_LEVEL_INF);
 
+#define I2S_CODEC_TX DT_ALIAS(i2s_codec_tx)
+
 #define HEADPHONES_OUT_TERMINAL_ID UAC2_ENTITY_ID(DT_NODELABEL(out_terminal))
 
-#define FS_SAMPLES_PER_SOF  48
+#define FS_SAMPLES_PER_SOF  6
 #define HS_SAMPLES_PER_SOF  6
 #define MAX_SAMPLES_PER_SOF MAX(FS_SAMPLES_PER_SOF, HS_SAMPLES_PER_SOF)
-#define SAMPLE_FREQUENCY    (FS_SAMPLES_PER_SOF * 1000)
+#define SAMPLE_FREQUENCY    (48 * 1000)
 #define SAMPLE_BIT_WIDTH    16
 #define NUMBER_OF_CHANNELS  2
 #define BYTES_PER_SAMPLE    DIV_ROUND_UP(SAMPLE_BIT_WIDTH, 8)
@@ -37,7 +40,7 @@ LOG_MODULE_REGISTER(uac2_sample, LOG_LEVEL_INF);
  * offset errors), but add 2 additional buffers to prevent out of memory errors
  * when USB host decides to perform rapid terminal enable/disable cycles.
  */
-#define I2S_BUFFERS_COUNT   7
+#define I2S_BUFFERS_COUNT   15
 K_MEM_SLAB_DEFINE_STATIC(i2s_tx_slab, ROUND_UP(MAX_BLOCK_SIZE, UDC_BUF_GRANULARITY),
 			 I2S_BUFFERS_COUNT, UDC_BUF_ALIGN);
 
@@ -191,7 +194,7 @@ static void uac2_buf_release_cb(const struct device *dev, uint8_t terminal,
  * is (6 << 16).
  */
 static volatile bool use_hardcoded_feedback;
-static volatile uint32_t hardcoded_feedback = (48 << 14) + 1;
+static volatile uint32_t hardcoded_feedback = (6 << 16);
 
 static uint32_t uac2_feedback_cb(const struct device *dev, uint8_t terminal,
 				 void *user_data)
@@ -241,7 +244,7 @@ static void uac2_sof(const struct device *dev, void *user_data)
 	 *   OUT DATA0 n+3 received from host
 	 */
 	if (!ctx->i2s_started && ctx->terminal_enabled &&
-	    ctx->i2s_blocks_written >= 2) {
+	    ctx->i2s_blocks_written >= 4) {
 		i2s_trigger(ctx->i2s_dev, I2S_DIR_TX, I2S_TRIGGER_START);
 		ctx->i2s_started = true;
 		feedback_start(ctx->fb, ctx->i2s_blocks_written, ctx->microframes);
@@ -262,16 +265,31 @@ static struct usb_i2s_ctx main_ctx;
 int main(void)
 {
 	const struct device *dev = DEVICE_DT_GET(DT_NODELABEL(uac2_headphones));
+	const struct device *const codec_dev = DEVICE_DT_GET(DT_NODELABEL(audio_codec));
+	struct audio_codec_cfg audio_cfg;
 	struct usbd_context *sample_usbd;
 	struct i2s_config config;
 	int ret;
 
-	main_ctx.i2s_dev = DEVICE_DT_GET(DT_NODELABEL(i2s_tx));
+	main_ctx.i2s_dev = DEVICE_DT_GET(I2S_CODEC_TX);
 
 	if (!device_is_ready(main_ctx.i2s_dev)) {
 		printk("%s is not ready\n", main_ctx.i2s_dev->name);
 		return 0;
 	}
+
+	audio_cfg.dai_route = AUDIO_ROUTE_PLAYBACK;
+	audio_cfg.dai_type = AUDIO_DAI_TYPE_I2S;
+	audio_cfg.dai_cfg.i2s.word_size = SAMPLE_BIT_WIDTH;
+	audio_cfg.dai_cfg.i2s.channels = 2;
+	audio_cfg.dai_cfg.i2s.format = I2S_FMT_DATA_FORMAT_I2S;
+	audio_cfg.dai_cfg.i2s.options = I2S_OPT_FRAME_CLK_SLAVE | I2S_OPT_BIT_CLK_SLAVE;
+
+	audio_cfg.dai_cfg.i2s.frame_clk_freq = SAMPLE_FREQUENCY;
+	audio_cfg.dai_cfg.i2s.mem_slab = &i2s_tx_slab;
+	audio_cfg.dai_cfg.i2s.block_size = BLOCK_SIZE;
+	audio_codec_configure(codec_dev, &audio_cfg);
+	k_msleep(1000);
 
 	config.word_size = SAMPLE_BIT_WIDTH;
 	config.channels = NUMBER_OF_CHANNELS;
