@@ -12,6 +12,7 @@ toolchain:
 supported:
   - adc
   - can
+  - spi
   - gpio
   - counter
   - i2c
