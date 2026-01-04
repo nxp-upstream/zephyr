@@ -344,6 +344,20 @@ void board_early_init_hook(void)
 	CLOCK_EnableClock(kCLOCK_Micfil);
 #endif
 
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(systick))
+	CLOCK_EnableClock(kCLOCK_Clk1M);
+	/* Ensure SysTick clock divider is running.
+	 * On MCXN23x the SYSTICK clock output can be halted/reset via
+	 * SYSCON->SYSTICKCLKDIV[0]. If left halted, selecting the
+	 * external/reference SysTick clock (CLKSOURCE=0) results in a
+	 * non-ticking SysTick and timeouts never expire.
+	 */
+	CLOCK_SetClkDiv(kCLOCK_DivSystickClk0, 1U);
+	CLOCK_AttachClk(kCLK_1M_to_SYSTICK0);
+#endif
+
 	/* Set SystemCoreClock variable. */
 	SystemCoreClock = CLOCK_INIT_CORE_CLOCK;
 }
+
+

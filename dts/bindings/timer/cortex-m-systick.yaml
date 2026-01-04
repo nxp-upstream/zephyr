@@ -7,3 +7,15 @@ include: base.yaml
 properties:
   reg:
     required: true
+
+  clock-source:
+    type: int
+    default: 1
+    enum:
+      - 0
+      - 1
+    description: |
+      Selects the SysTick clock source.
+
+      - 0: External/reference clock (CLKSOURCE bit cleared)
+      - 1: Processor/core clock (CLKSOURCE bit set)

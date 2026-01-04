@@ -11,6 +11,7 @@
 #include <zephyr/irq.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/drivers/counter.h>
+#include <zephyr/devicetree.h>
 
 #include "cortex_m_systick.h"
 
@@ -339,6 +340,24 @@ __attribute__((interrupt("IRQ"))) void sys_clock_isr(void)
 }
 ARCH_ISR_DIAG_ON
 
+static inline uint32_t systick_ctrl_clksource_flag_from_dt(void)
+{
+	/* DeviceTree property `clock-source`:
+	 *   0 = external/reference clock (CLKSOURCE cleared)
+	 *   1 = processor/core clock (CLKSOURCE set)
+	 * If the property is absent, default to legacy behavior (core clock).
+	 */
+#if DT_NODE_HAS_PROP(DT_NODELABEL(systick), clock_source)
+#if DT_PROP(DT_NODELABEL(systick), clock_source) == 1
+	return SysTick_CTRL_CLKSOURCE_Msk;
+#else
+	return 0U;
+#endif
+#else
+	return SysTick_CTRL_CLKSOURCE_Msk;
+#endif
+}
+
 void sys_clock_set_timeout(int32_t ticks, bool idle)
 {
 	/* Fast CPUs and a 24 bit counter mean that even idle systems
@@ -562,7 +581,7 @@ void sys_clock_idle_exit(void)
 				NVIC_SetPriority(SysTick_IRQn, _IRQ_PRIO_OFFSET);
 				SysTick->CTRL |= (SysTick_CTRL_ENABLE_Msk |
 						  SysTick_CTRL_TICKINT_Msk |
-						  SysTick_CTRL_CLKSOURCE_Msk);
+						  systick_ctrl_clksource_flag_from_dt());
 			}
 		}
 	}
@@ -581,9 +600,15 @@ static int sys_clock_driver_init(void)
 	overflow_cyc = 0U;
 	SysTick->LOAD = last_load - 1;
 	SysTick->VAL = 0; /* resets timer to last_load */
-	SysTick->CTRL |= (SysTick_CTRL_ENABLE_Msk |
-			  SysTick_CTRL_TICKINT_Msk |
-			  SysTick_CTRL_CLKSOURCE_Msk);
+
+	uint32_t ctrl_flags = SysTick_CTRL_ENABLE_Msk | SysTick_CTRL_TICKINT_Msk |
+			systick_ctrl_clksource_flag_from_dt();
+
+	/* Program CTRL deterministically. Using '|=' would not clear CLKSOURCE when
+	 * switching to external/reference clock, and can result in an interrupt storm
+	 * if CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC reflects the external clock rate.
+	 */
+	SysTick->CTRL = ctrl_flags;
 	return 0;
 }
 
