@@ -346,18 +346,18 @@ static int release_client(struct mcp_http_client_ctx *client)
 static int mcp_endpoint_post_handler(struct http_client_ctx *client, const struct http_request_ctx *request_ctx, struct mcp_http_request_accumulator *accumulator, struct http_response_ctx *response_ctx)
 {
 	int ret = 0;
-    uint32_t actual_session_id;
+	uint32_t actual_session_id;
 	mcp_queue_msg_type_t msg_type;
 	struct mcp_http_client_ctx *mcp_client_ctx;
-    struct mcp_http_response_item *response_data = NULL;
+	struct mcp_http_response_item *response_data = NULL;
 
-    ret = mcp_server_handle_request((const char *)accumulator->data,
-                    accumulator->data_len, accumulator->session_id_hdr, &actual_session_id, &msg_type);
-    if (ret) {
-        LOG_ERR("Invalid request: %d", ret);
-        response_ctx->status = HTTP_500_INTERNAL_SERVER_ERROR;
-        return ret;
-    }
+	ret = mcp_server_handle_request((const char *)accumulator->data,
+					accumulator->data_len, accumulator->session_id_hdr, &actual_session_id, &msg_type);
+	if (ret) {
+		LOG_ERR("Invalid request: %d", ret);
+		response_ctx->status = HTTP_500_INTERNAL_SERVER_ERROR;
+		return ret;
+	}
 
 	/* If initialize, create a new client. respond with appropriate headers. Don't send text event, block here and wait for response from server core */
 	if (msg_type == MCP_MSG_REQUEST_INITIALIZE) {
@@ -407,30 +407,30 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client, const struc
 
 		response_ctx->status = HTTP_200_OK;
 
-        if (msg_type == MCP_MSG_ERROR_TOOLS_LIST) {
-            /* Wait for the response since there is no tool call needed */
-            response_data = k_fifo_get(&mcp_client_ctx->response_queue, K_FOREVER);
+		if (msg_type == MCP_MSG_ERROR_TOOLS_LIST) {
+			/* Wait for the response since there is no tool call needed */
+			response_data = k_fifo_get(&mcp_client_ctx->response_queue, K_FOREVER);
 			mcp_client_ctx->response_headers[0].name = "Content-Type";
 			mcp_client_ctx->response_headers[0].value = "application/json";
-            memcpy(mcp_client_ctx->response_body, response_data->data, response_data->length);
-            response_ctx->body = (const char *)mcp_client_ctx->response_body;
-            response_ctx->body_len = response_data->length;
-        }
+			memcpy(mcp_client_ctx->response_body, response_data->data, response_data->length);
+			response_ctx->body = (const char *)mcp_client_ctx->response_body;
+			response_ctx->body_len = response_data->length;
+		}
 
 		if (msg_type == MCP_MSG_ERROR_TOOLS_CALL) {
 			mcp_client_ctx->response_headers[0].name = "Content-Type";
 			mcp_client_ctx->response_headers[0].value = "text/event-stream";
-            int body_len = snprintf(mcp_client_ctx->response_body, sizeof(mcp_client_ctx->response_body), "\"id\": \"%d\" \"data\": {}", mcp_client_ctx->next_event_id++);
-            response_ctx->body = mcp_client_ctx->response_body;
-            response_ctx->body_len = body_len;
-            mcp_client_ctx->busy = true;
-        }
+			int body_len = snprintf(mcp_client_ctx->response_body, sizeof(mcp_client_ctx->response_body), "\"id\": \"%d\" \"data\": {}", mcp_client_ctx->next_event_id++);
+			response_ctx->body = mcp_client_ctx->response_body;
+			response_ctx->body_len = body_len;
+			mcp_client_ctx->busy = true;
+		}
 
-        response_ctx->headers =  mcp_client_ctx->response_headers;
-        response_ctx->header_count = 2;
+		response_ctx->headers =  mcp_client_ctx->response_headers;
+		response_ctx->header_count = 2;
 
-        mcp_client_ctx->response_headers[1].name = "Mcp-Session-Id";
-        mcp_client_ctx->response_headers[1].value = (const char *)mcp_client_ctx->session_id_str;
+		mcp_client_ctx->response_headers[1].name = "Mcp-Session-Id";
+		mcp_client_ctx->response_headers[1].value = (const char *)mcp_client_ctx->session_id_str;
 		response_ctx->final_chunk = true;
 	}
 
