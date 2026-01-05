@@ -38,7 +38,7 @@ typedef enum {
 	MCP_MSG_NOTIFICATION,
 	MCP_MSG_NOTIF_CANCELLED,
 	MCP_MSG_NOTIF_PROGRESS,
-    MCP_MSG_UNKNOWN,
+	MCP_MSG_UNKNOWN,
 } mcp_queue_msg_type_t;
 
 typedef enum {
@@ -74,7 +74,7 @@ typedef enum {
 
 typedef struct mcp_queue_msg {
 	mcp_queue_msg_type_t type;
-    uint32_t client_id;
+	uint32_t client_id;
 	void *data;
 } mcp_queue_msg_t;
 

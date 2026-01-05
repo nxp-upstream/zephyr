@@ -204,33 +204,33 @@ static int send_error_response(uint32_t request_id, uint32_t client_id, mcp_queu
 		sizeof(error_response->error_message) - 1);
 	error_response->error_message[sizeof(error_response->error_message) - 1] = '\0';
 
-    /* Allocate buffer for serialization */
-    uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
-    if (!json_buffer) {
-        LOG_ERR("Failed to allocate buffer, dropping message");
-        mcp_free(error_response);
-        return -ENOMEM;
-    }
+	/* Allocate buffer for serialization */
+	uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
+	if (!json_buffer) {
+		LOG_ERR("Failed to allocate buffer, dropping message");
+		mcp_free(error_response);
+		return -ENOMEM;
+	}
 
-    /* Serialize response to JSON */
-    ret = mcp_json_serialize_error_response(error_response, (char *)json_buffer,
-                    CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
-    if (ret <= 0) {
-        LOG_ERR("Failed to serialize response: %d", ret);
-        mcp_free(error_response);
-        mcp_free(json_buffer);
-        return ret;
-    }
+	/* Serialize response to JSON */
+	ret = mcp_json_serialize_error_response(error_response, (char *)json_buffer,
+					CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
+	if (ret <= 0) {
+		LOG_ERR("Failed to serialize response: %d", ret);
+		mcp_free(error_response);
+		mcp_free(json_buffer);
+		return ret;
+	}
 
-    ret = transport_mechanism->send(client_id, json_buffer, ret);
-    if (ret) {
-        LOG_ERR("Failed to send error response");
-        mcp_free(error_response);
-        mcp_free(json_buffer);
-        return -EIO;
-    }
+	ret = transport_mechanism->send(client_id, json_buffer, ret);
+	if (ret) {
+		LOG_ERR("Failed to send error response");
+		mcp_free(error_response);
+		mcp_free(json_buffer);
+		return -EIO;
+	}
 
-    mcp_free(error_response);
+	mcp_free(error_response);
 	return 0;
 }
 
@@ -569,33 +569,33 @@ static int handle_initialize_request(mcp_initialize_request_t *request)
 	response_data->capabilities |= MCP_TOOLS;
 #endif
 
-    /* Allocate buffer for serialization */
-    uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
-    if (!json_buffer) {
-        LOG_ERR("Failed to allocate buffer, dropping message");
-        mcp_free(response_data);
-        return -ENOMEM;
-    }
+	/* Allocate buffer for serialization */
+	uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
+	if (!json_buffer) {
+		LOG_ERR("Failed to allocate buffer, dropping message");
+		mcp_free(response_data);
+		return -ENOMEM;
+	}
 
-    /* Serialize response to JSON */
-    ret = mcp_json_serialize_initialize_response(response_data, (char *)json_buffer,
-                    CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
-    if (ret <= 0) {
-        LOG_ERR("Failed to serialize response: %d", ret);
-        mcp_free(response_data);
-        mcp_free(json_buffer);
-        return ret;
-    }
+	/* Serialize response to JSON */
+	ret = mcp_json_serialize_initialize_response(response_data, (char *)json_buffer,
+					CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
+	if (ret <= 0) {
+		LOG_ERR("Failed to serialize response: %d", ret);
+		mcp_free(response_data);
+		mcp_free(json_buffer);
+		return ret;
+	}
 
-    ret = transport_mechanism->send(request->client_id, json_buffer, ret);
-    if (ret) {
-        LOG_ERR("Failed to send initialize response %d", ret);
-        mcp_free(response_data);
-        mcp_free(json_buffer);
-        return -EIO;
-    }
+	ret = transport_mechanism->send(request->client_id, json_buffer, ret);
+	if (ret) {
+		LOG_ERR("Failed to send initialize response %d", ret);
+		mcp_free(response_data);
+		mcp_free(json_buffer);
+		return -EIO;
+	}
 
-    mcp_free(response_data);
+	mcp_free(response_data);
 	return 0;
 }
 
@@ -708,33 +708,33 @@ static int handle_tools_list_request(mcp_tools_list_request_t *request)
 	copy_tool_metadata_to_response(response_data);
 	k_mutex_unlock(&tool_registry.registry_mutex);
 
-    /* Allocate buffer for serialization */
-    uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
-    if (!json_buffer) {
-        LOG_ERR("Failed to allocate buffer, dropping message");
-        mcp_free(response_data);
-        return -ENOMEM;
-    }
+	/* Allocate buffer for serialization */
+	uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
+	if (!json_buffer) {
+		LOG_ERR("Failed to allocate buffer, dropping message");
+		mcp_free(response_data);
+		return -ENOMEM;
+	}
 
-    /* Serialize response to JSON */
-    ret = mcp_json_serialize_tools_list_response(response_data, (char *)json_buffer,
-                    CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
-    if (ret <= 0) {
-        LOG_ERR("Failed to serialize response: %d", ret);
-        mcp_free(response_data);
-        mcp_free(json_buffer);
-        return ret;
-    }
+	/* Serialize response to JSON */
+	ret = mcp_json_serialize_tools_list_response(response_data, (char *)json_buffer,
+					CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
+	if (ret <= 0) {
+		LOG_ERR("Failed to serialize response: %d", ret);
+		mcp_free(response_data);
+		mcp_free(json_buffer);
+		return ret;
+	}
 
-    ret = transport_mechanism->send(request->client_id, json_buffer, ret);
-    if (ret) {
-        LOG_ERR("Failed to send tools list response");
-        mcp_free(response_data);
-        mcp_free(json_buffer);
-        return -EIO;
-    }
+	ret = transport_mechanism->send(request->client_id, json_buffer, ret);
+	if (ret) {
+		LOG_ERR("Failed to send tools list response");
+		mcp_free(response_data);
+		mcp_free(json_buffer);
+		return -EIO;
+	}
 
-    mcp_free(response_data);
+	mcp_free(response_data);
 	return 0;
 }
 
@@ -900,7 +900,7 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 		switch (request.type) {
 		case MCP_MSG_SYSTEM: {
 			mcp_system_msg_t *system_msg = (mcp_system_msg_t *)request.data;
-            system_msg->client_id = request.client_id;
+			system_msg->client_id = request.client_id;
 
 			ret = handle_system_message(system_msg);
 			if (ret != 0) {
@@ -913,7 +913,7 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 		case MCP_MSG_REQUEST_INITIALIZE: {
 			mcp_initialize_request_t *init_request =
 				(mcp_initialize_request_t *)request.data;
-            init_request->client_id = request.client_id;
+			init_request->client_id = request.client_id;
 
 			ret = handle_initialize_request(init_request);
 			if (ret != 0) {
@@ -938,7 +938,7 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 		case MCP_MSG_REQUEST_TOOLS_LIST: {
 			mcp_tools_list_request_t *tools_list_request =
 				(mcp_tools_list_request_t *)request.data;
-            tools_list_request->client_id = request.client_id;
+			tools_list_request->client_id = request.client_id;
 
 			ret = handle_tools_list_request(tools_list_request);
 			if (ret != 0) {
@@ -966,7 +966,7 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 		case MCP_MSG_REQUEST_TOOLS_CALL: {
 			mcp_tools_call_request_t *tools_call_request =
 				(mcp_tools_call_request_t *)request.data;
-            tools_call_request->client_id = request.client_id;
+			tools_call_request->client_id = request.client_id;
 
 			ret = handle_tools_call_request(tools_call_request);
 			if (ret != 0) {
@@ -1000,7 +1000,7 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 		case MCP_MSG_NOTIFICATION: {
 			mcp_client_notification_t *notification =
 				(mcp_client_notification_t *)request.data;
-            notification->client_id = request.client_id;
+			notification->client_id = request.client_id;
 
 			ret = handle_notification(notification);
 			if (ret != 0) {
@@ -1024,7 +1024,7 @@ int mcp_server_init(struct mcp_transport_ops *transport_ops)
 
 	LOG_INF("Initializing MCP Server");
 
-    transport_mechanism = transport_ops;
+	transport_mechanism = transport_ops;
 
 	ret = transport_mechanism->init();
 	if (ret < 0) {
@@ -1133,48 +1133,48 @@ int mcp_server_handle_request(const char *json, size_t length, uint32_t in_clien
 		return -EINVAL;
 	}
 
-    /* Determine the client id. Initialize request requires a new client id. */
-    switch (msg.type) {
-    case MCP_MSG_REQUEST_INITIALIZE:
-        /* Assign a new client id */
-        ret = generate_client_id(out_client_id);
-        if (ret) {
-            LOG_ERR("Unable to geenrate session id");
-            return ret;
-        }
+	/* Determine the client id. Initialize request requires a new client id. */
+	switch (msg.type) {
+	case MCP_MSG_REQUEST_INITIALIZE:
+		/* Assign a new client id */
+		ret = generate_client_id(out_client_id);
+		if (ret) {
+			LOG_ERR("Unable to geenrate session id");
+			return ret;
+		}
 
-        msg.client_id = *out_client_id;
-        break;
+		msg.client_id = *out_client_id;
+		break;
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
-    case MCP_MSG_REQUEST_TOOLS_LIST:
-    case MCP_MSG_REQUEST_TOOLS_CALL:
+	case MCP_MSG_REQUEST_TOOLS_LIST:
+	case MCP_MSG_REQUEST_TOOLS_CALL:
 #endif
-    case MCP_MSG_SYSTEM:
-    case MCP_MSG_NOTIFICATION:
-        ret = find_client_index(in_client_id);
-        if (ret == -1)
-        {
-            LOG_ERR("Can't find client with id %u", in_client_id);
-            return -ENOENT;
-        }
+	case MCP_MSG_SYSTEM:
+	case MCP_MSG_NOTIFICATION:
+		ret = find_client_index(in_client_id);
+		if (ret == -1)
+		{
+			LOG_ERR("Can't find client with id %u", in_client_id);
+			return -ENOENT;
+		}
 
-        msg.client_id = in_client_id;
-        *out_client_id = in_client_id;
-        break;
-    default:
-        LOG_WRN("Request not recognized. Dropping.");
-        return -EINVAL;
-        break;
-    }
+		msg.client_id = in_client_id;
+		*out_client_id = in_client_id;
+		break;
+	default:
+		LOG_WRN("Request not recognized. Dropping.");
+		return -EINVAL;
+		break;
+	}
 
-    ret = k_msgq_put(&mcp_request_queue, &msg, K_NO_WAIT);
-    if (ret != 0) {
-        LOG_ERR("Failed to submit request: %d", ret);
-        return -ENOMEM;
-    }
+	ret = k_msgq_put(&mcp_request_queue, &msg, K_NO_WAIT);
+	if (ret != 0) {
+		LOG_ERR("Failed to submit request: %d", ret);
+		return -ENOMEM;
+	}
 
-    *msg_type = msg.type;
-    return 0;
+	*msg_type = msg.type;
+	return 0;
 }
 
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
@@ -1185,7 +1185,7 @@ int mcp_server_submit_tool_message(const mcp_app_message_t *app_msg, uint32_t ex
 	uint32_t request_id;
 	uint32_t client_id;
 	mcp_queue_msg_t response;
-    mcp_tools_call_response_t *response_data;
+	mcp_tools_call_response_t *response_data;
 
 	if ((app_msg == NULL) ||
 		((app_msg->data == NULL) && (app_msg->type != MCP_USR_TOOL_CANCEL_ACK) &&
@@ -1273,33 +1273,33 @@ int mcp_server_submit_tool_message(const mcp_app_message_t *app_msg, uint32_t ex
 			return -EINVAL;
 		}
 
-        /* Allocate buffer for serialization */
-        uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
-        if (!json_buffer) {
-            LOG_ERR("Failed to allocate buffer, dropping message");
-            mcp_free(response_data);
-            return -ENOMEM;
-        }
+		/* Allocate buffer for serialization */
+		uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
+		if (!json_buffer) {
+			LOG_ERR("Failed to allocate buffer, dropping message");
+			mcp_free(response_data);
+			return -ENOMEM;
+		}
 
-        /* Serialize response to JSON */
-        ret = mcp_json_serialize_tools_call_response(response_data, (char *)json_buffer,
-                        CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
-        if (ret <= 0) {
-            LOG_ERR("Failed to serialize response: %d", ret);
-            mcp_free(response_data);
-            mcp_free(json_buffer);
-            return ret;
-        }
+		/* Serialize response to JSON */
+		ret = mcp_json_serialize_tools_call_response(response_data, (char *)json_buffer,
+						CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
+		if (ret <= 0) {
+			LOG_ERR("Failed to serialize response: %d", ret);
+			mcp_free(response_data);
+			mcp_free(json_buffer);
+			return ret;
+		}
 
-        ret = transport_mechanism->send(client_id, json_buffer, ret);
-        if (ret) {
-            LOG_ERR("Failed to tool response");
-            mcp_free(response_data);
-            mcp_free(json_buffer);
-            return -EIO;
-        }
+		ret = transport_mechanism->send(client_id, json_buffer, ret);
+		if (ret) {
+			LOG_ERR("Failed to tool response");
+			mcp_free(response_data);
+			mcp_free(json_buffer);
+			return -EIO;
+		}
 
-        mcp_free(response_data);
+		mcp_free(response_data);
 	}
 
 	if ((app_msg->type == MCP_USR_TOOL_RESPONSE) ||
