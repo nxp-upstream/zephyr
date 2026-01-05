@@ -8,30 +8,27 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/data/json.h>
 #include <string.h>
+#include <stdlib.h>
 #include "mcp_json.h"
 #include "mcp_common.h"
 
 LOG_MODULE_REGISTER(mcp_json, CONFIG_MCP_LOG_LEVEL);
 
+#define MAX_METHOD_NAME_LEN 64
+#define MAX_TOOL_NAME_LEN 128
 /* =============================================================================
- * JSON-RPC 2.0 Structure Definitions
+ * JSON-RPC 2.0 Base Structures
  * =============================================================================
  */
 
-/* Base JSON-RPC request structure (with id for requests) */
-struct jsonrpc_base {
+/* Base JSON-RPC request structure */
+struct jsonrpc_request {
 	const char *jsonrpc;
 	uint32_t id;
 	const char *method;
 };
 
-static const struct json_obj_descr jsonrpc_base_descr[] = {
-	JSON_OBJ_DESCR_PRIM(struct jsonrpc_base, jsonrpc, JSON_TOK_STRING),
-	JSON_OBJ_DESCR_PRIM(struct jsonrpc_base, id, JSON_TOK_NUMBER),
-	JSON_OBJ_DESCR_PRIM(struct jsonrpc_base, method, JSON_TOK_STRING),
-};
-
-/* JSON-RPC notification structure (no id field) */
+/* JSON-RPC notification (no id) */
 struct jsonrpc_notification {
 	const char *jsonrpc;
 	const char *method;
@@ -42,13 +39,38 @@ static const struct json_obj_descr jsonrpc_notification_descr[] = {
 	JSON_OBJ_DESCR_PRIM(struct jsonrpc_notification, method, JSON_TOK_STRING),
 };
 
-/* Initialize request parameters */
+/* =============================================================================
+ * Initialize Request/Response
+ * =============================================================================
+ */
+
+struct client_info {
+	const char *name;
+	const char *version;
+	/* Optional fields - check for NULL after parsing */
+	const char *title;
+	const char *description;
+	const char *websiteUrl;
+};
+
+static const struct json_obj_descr client_info_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct client_info, name, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct client_info, version, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct client_info, title, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct client_info, description, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct client_info, websiteUrl, JSON_TOK_STRING),
+};
+
 struct initialize_params {
 	const char *protocolVersion;
+	struct client_info clientInfo;
+	/* capabilities is optional and we don't parse its contents */
 };
 
 static const struct json_obj_descr initialize_params_descr[] = {
 	JSON_OBJ_DESCR_PRIM(struct initialize_params, protocolVersion, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_OBJECT(struct initialize_params, clientInfo, client_info_descr),
+	/* capabilities object is optional and ignored */
 };
 
 struct initialize_request_json {
@@ -65,16 +87,53 @@ static const struct json_obj_descr initialize_request_json_descr[] = {
 	JSON_OBJ_DESCR_OBJECT(struct initialize_request_json, params, initialize_params_descr),
 };
 
+/* =============================================================================
+ * Ping Request/Response
+ * =============================================================================
+ */
+
+/* Ping has no parameters, uses base jsonrpc_request */
+
+/* =============================================================================
+ * Tools - List Request/Response
+ * =============================================================================
+ */
+
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
-/* Tools call request parameters */
+struct tools_list_params {
+	const char *cursor;  /* Optional pagination cursor */
+};
+
+static const struct json_obj_descr tools_list_params_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct tools_list_params, cursor, JSON_TOK_STRING),
+};
+
+struct tools_list_request_json {
+	const char *jsonrpc;
+	uint32_t id;
+	const char *method;
+	struct tools_list_params params;
+};
+
+static const struct json_obj_descr tools_list_request_json_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct tools_list_request_json, jsonrpc, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct tools_list_request_json, id, JSON_TOK_NUMBER),
+	JSON_OBJ_DESCR_PRIM(struct tools_list_request_json, method, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_OBJECT(struct tools_list_request_json, params, tools_list_params_descr),
+};
+
+/* =============================================================================
+ * Tools - Call Request/Response
+ * =============================================================================
+ */
+
 struct tools_call_params {
 	const char *name;
-	const char *arguments;
+	/* arguments is extracted manually from raw JSON */
 };
 
 static const struct json_obj_descr tools_call_params_descr[] = {
 	JSON_OBJ_DESCR_PRIM(struct tools_call_params, name, JSON_TOK_STRING),
-	JSON_OBJ_DESCR_PRIM(struct tools_call_params, arguments, JSON_TOK_STRING),
 };
 
 struct tools_call_request_json {
@@ -93,15 +152,67 @@ static const struct json_obj_descr tools_call_request_json_descr[] = {
 #endif
 
 /* =============================================================================
+ * Notifications
+ * =============================================================================
+ */
+
+/* notifications/initialized - no params */
+
+/* notifications/cancelled */
+struct cancelled_params {
+	const char *requestId;
+	const char *reason;  /* Optional */
+};
+
+static const struct json_obj_descr cancelled_params_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct cancelled_params, requestId, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct cancelled_params, reason, JSON_TOK_STRING),
+};
+
+struct cancelled_notification_json {
+	const char *jsonrpc;
+	const char *method;
+	struct cancelled_params params;
+};
+
+static const struct json_obj_descr cancelled_notification_json_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct cancelled_notification_json, jsonrpc, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct cancelled_notification_json, method, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_OBJECT(struct cancelled_notification_json, params, cancelled_params_descr),
+};
+
+/* notifications/progress */
+struct progress_params {
+	const char *progressToken;
+	uint32_t progress;
+	uint32_t total;  /* Optional */
+	const char *message;  /* Optional */
+};
+
+static const struct json_obj_descr progress_params_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct progress_params, progressToken, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct progress_params, progress, JSON_TOK_NUMBER),
+	JSON_OBJ_DESCR_PRIM(struct progress_params, total, JSON_TOK_NUMBER),
+	JSON_OBJ_DESCR_PRIM(struct progress_params, message, JSON_TOK_STRING),
+};
+
+struct progress_notification_json {
+	const char *jsonrpc;
+	const char *method;
+	struct progress_params params;
+};
+
+static const struct json_obj_descr progress_notification_json_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct progress_notification_json, jsonrpc, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct progress_notification_json, method, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_OBJECT(struct progress_notification_json, params, progress_params_descr),
+};
+
+/* =============================================================================
  * Helper Functions
  * =============================================================================
  */
 
-/**
- * @brief Create a mutable copy of a JSON string
- *
- * json_obj_parse modifies the input buffer, so we need mutable copies
- */
 static char *create_json_copy(const char *json, size_t length)
 {
 	char *copy;
@@ -121,20 +232,6 @@ static char *create_json_copy(const char *json, size_t length)
 	return copy;
 }
 
-/**
- * @brief Check if JSON string contains an "id" field
- */
-static bool has_id_field(const char *json)
-{
-	if (!json) {
-		return false;
-	}
-	return (strstr(json, "\"id\"") != NULL);
-}
-
-/**
- * @brief Validate JSON-RPC version string
- */
 static bool is_valid_jsonrpc_version(const char *version)
 {
 	if (!version) {
@@ -143,16 +240,143 @@ static bool is_valid_jsonrpc_version(const char *version)
 	return (strcmp(version, "2.0") == 0);
 }
 
+#ifdef CONFIG_MCP_TOOLS_CAPABILITY
+/**
+ * @brief Extract arguments object from JSON manually
+ *
+ * The Zephyr JSON parser doesn't easily handle arbitrary JSON objects,
+ * so we extract the "arguments" field as a raw JSON string.
+ */
+static int extract_arguments_field(const char *json, size_t length,
+					char *output_buf, size_t buf_size)
+{
+	const char *args_start = strstr(json, "\"arguments\"");
+	if (!args_start) {
+		/* Arguments are optional */
+		output_buf[0] = '{';
+		output_buf[1] = '}';
+		output_buf[2] = '\0';
+		return 0;
+	}
+
+	/* Find the colon after "arguments" */
+	const char *colon = strchr(args_start, ':');
+	if (!colon) {
+		return -EINVAL;
+	}
+
+	/* Skip whitespace after colon */
+	const char *value_start = colon + 1;
+	while (*value_start && (*value_start == ' ' || *value_start == '\t' ||
+		   *value_start == '\n' || *value_start == '\r')) {
+		value_start++;
+	}
+
+	if (*value_start != '{') {
+		LOG_ERR("Expected '{' at start of arguments object");
+		return -EINVAL;
+	}
+
+	/* Find matching closing brace */
+	const char *value_end = value_start + 1;
+	int brace_count = 1;
+	bool in_string = false;
+	bool escaped = false;
+
+	while (*value_end && brace_count > 0) {
+		if (escaped) {
+			escaped = false;
+		} else if (*value_end == '\\') {
+			escaped = true;
+		} else if (*value_end == '"') {
+			in_string = !in_string;
+		} else if (!in_string) {
+			if (*value_end == '{') {
+				brace_count++;
+			} else if (*value_end == '}') {
+				brace_count--;
+			}
+		}
+		if (brace_count > 0) {
+			value_end++;
+		}
+	}
+
+	if (brace_count != 0) {
+		LOG_ERR("Unmatched braces in arguments object");
+		return -EINVAL;
+	}
+
+	/* Include the closing brace */
+	value_end++;
+
+	size_t arg_len = value_end - value_start;
+	if (arg_len >= buf_size) {
+		LOG_ERR("Arguments too large: %zu bytes (max %zu)", arg_len, buf_size - 1);
+		return -ENOMEM;
+	}
+
+	memcpy(output_buf, value_start, arg_len);
+	output_buf[arg_len] = '\0';
+
+	return 0;
+}
+#endif
+
+/**
+ * @brief Quick scan to determine if JSON contains an "id" field
+ */
+static bool has_id_field(const char *json, size_t length)
+{
+	return (strstr(json, "\"id\"") != NULL);
+}
+
+/**
+ * @brief Extract method name from JSON
+ */
+static int get_method_from_json(const char *json, size_t length, char *method_buf,
+				size_t method_buf_size)
+{
+	const char *method_start = strstr(json, "\"method\"");
+	if (!method_start) {
+		LOG_ERR("Missing 'method' field in JSON");
+		return -EINVAL;
+	}
+
+	const char *colon = strchr(method_start, ':');
+	if (!colon) {
+		return -EINVAL;
+	}
+
+	const char *quote1 = strchr(colon, '"');
+	if (!quote1) {
+		return -EINVAL;
+	}
+
+	const char *quote2 = strchr(quote1 + 1, '"');
+	if (!quote2) {
+		return -EINVAL;
+	}
+
+	size_t method_len = quote2 - quote1 - 1;
+	if (method_len >= method_buf_size) {
+		LOG_ERR("Method name too long");
+		return -EINVAL;
+	}
+
+	memcpy(method_buf, quote1 + 1, method_len);
+	method_buf[method_len] = '\0';
+
+	return 0;
+}
+
 /* =============================================================================
- * Request Parsing Functions
+ * Request Parsers
  * =============================================================================
  */
 
-/**
- * @brief Parse initialize request
- */
-static int parse_initialize(char *json_buffer, size_t length, uint32_t client_id,
-			    mcp_initialize_request_t **out_request)
+static int parse_initialize(char *json_buffer, size_t length,
+				mcp_initialize_request_t **out_request)
 {
 	struct initialize_request_json parsed;
 	mcp_initialize_request_t *request;
@@ -161,13 +385,13 @@ static int parse_initialize(char *json_buffer, size_t length, uint32_t client_id
 	memset(&parsed, 0, sizeof(parsed));
 
 	ret = json_obj_parse(json_buffer, length, initialize_request_json_descr,
-			     ARRAY_SIZE(initialize_request_json_descr), &parsed);
+				 ARRAY_SIZE(initialize_request_json_descr), &parsed);
 	if (ret < 0) {
 		LOG_ERR("Failed to parse initialize request JSON: %d", ret);
 		return -EINVAL;
 	}
 
-	/* Validate parsed fields */
+	/* Validate required fields */
 	if (!parsed.jsonrpc || !is_valid_jsonrpc_version(parsed.jsonrpc)) {
 		LOG_ERR("Invalid or missing jsonrpc version");
 		return -EINVAL;
@@ -179,7 +403,17 @@ static int parse_initialize(char *json_buffer, size_t length, uint32_t client_id
 		return -EINVAL;
 	}
 
-	/* Allocate output structure */
+	if (!parsed.params.protocolVersion) {
+		LOG_ERR("Missing protocolVersion in params");
+		return -EINVAL;
+	}
+
+	if (!parsed.params.clientInfo.name || !parsed.params.clientInfo.version) {
+		LOG_ERR("Missing required clientInfo fields");
+		return -EINVAL;
+	}
+
+	/* Allocate request structure */
 	request = (mcp_initialize_request_t *)mcp_alloc(sizeof(mcp_initialize_request_t));
 	if (!request) {
 		LOG_ERR("Failed to allocate initialize request");
@@ -187,47 +421,39 @@ static int parse_initialize(char *json_buffer, size_t length, uint32_t client_id
 	}
 
 	request->request_id = parsed.id;
-	request->client_id = client_id;
 
 	*out_request = request;
 
-	LOG_DBG("Parsed initialize request: id=%u, client=%u", request->request_id, client_id);
 	return 0;
 }
 
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
-/**
- * @brief Parse tools/list request
- */
-static int parse_tools_list(char *json_buffer, size_t length, uint32_t client_id,
-			     mcp_tools_list_request_t **out_request)
+static int parse_tools_list(char *json_buffer, size_t length,
+				mcp_tools_list_request_t **out_request)
 {
-	struct jsonrpc_base parsed;
+	struct tools_list_request_json parsed;
 	mcp_tools_list_request_t *request;
 	int ret;
 
 	memset(&parsed, 0, sizeof(parsed));
 
-	ret = json_obj_parse(json_buffer, length, jsonrpc_base_descr,
-			     ARRAY_SIZE(jsonrpc_base_descr), &parsed);
+	ret = json_obj_parse(json_buffer, length, tools_list_request_json_descr,
+				 ARRAY_SIZE(tools_list_request_json_descr), &parsed);
 	if (ret < 0) {
 		LOG_ERR("Failed to parse tools/list request JSON: %d", ret);
 		return -EINVAL;
 	}
 
-	/* Validate parsed fields */
 	if (!parsed.jsonrpc || !is_valid_jsonrpc_version(parsed.jsonrpc)) {
 		LOG_ERR("Invalid or missing jsonrpc version");
 		return -EINVAL;
 	}
 
 	if (!parsed.method || strcmp(parsed.method, "tools/list") != 0) {
-		LOG_ERR("Method mismatch: expected 'tools/list', got '%s'",
-			parsed.method ? parsed.method : "NULL");
+		LOG_ERR("Method mismatch: expected 'tools/list'");
 		return -EINVAL;
 	}
 
-	/* Allocate output structure */
 	request = (mcp_tools_list_request_t *)mcp_alloc(sizeof(mcp_tools_list_request_t));
 	if (!request) {
 		LOG_ERR("Failed to allocate tools/list request");
@@ -235,19 +461,13 @@ static int parse_tools_list(char *json_buffer, size_t length, uint32_t client_id
 	}
 
 	request->request_id = parsed.id;
-	request->client_id = client_id;
-
 	*out_request = request;
 
-	LOG_DBG("Parsed tools/list request: id=%u, client=%u", request->request_id, client_id);
 	return 0;
 }
 
-/**
- * @brief Parse tools/call request
- */
-static int parse_tools_call(char *json_buffer, size_t length, uint32_t client_id,
-			     mcp_tools_call_request_t **out_request)
+static int parse_tools_call(const char *original_json, char *json_buffer, size_t length,
+				mcp_tools_call_request_t **out_request)
 {
 	struct tools_call_request_json parsed;
 	mcp_tools_call_request_t *request;
@@ -256,21 +476,19 @@ static int parse_tools_call(char *json_buffer, size_t length, uint32_t client_id
 	memset(&parsed, 0, sizeof(parsed));
 
 	ret = json_obj_parse(json_buffer, length, tools_call_request_json_descr,
-			     ARRAY_SIZE(tools_call_request_json_descr), &parsed);
+				 ARRAY_SIZE(tools_call_request_json_descr), &parsed);
 	if (ret < 0) {
 		LOG_ERR("Failed to parse tools/call request JSON: %d", ret);
 		return -EINVAL;
 	}
 
-	/* Validate parsed fields */
 	if (!parsed.jsonrpc || !is_valid_jsonrpc_version(parsed.jsonrpc)) {
 		LOG_ERR("Invalid or missing jsonrpc version");
 		return -EINVAL;
 	}
 
 	if (!parsed.method || strcmp(parsed.method, "tools/call") != 0) {
-		LOG_ERR("Method mismatch: expected 'tools/call', got '%s'",
-			parsed.method ? parsed.method : "NULL");
+		LOG_ERR("Method mismatch: expected 'tools/call'");
 		return -EINVAL;
 	}
 
@@ -279,7 +497,6 @@ static int parse_tools_call(char *json_buffer, size_t length, uint32_t client_id
 		return -EINVAL;
 	}
 
-	/* Allocate output structure */
 	request = (mcp_tools_call_request_t *)mcp_alloc(sizeof(mcp_tools_call_request_t));
 	if (!request) {
 		LOG_ERR("Failed to allocate tools/call request");
@@ -287,33 +504,26 @@ static int parse_tools_call(char *json_buffer, size_t length, uint32_t client_id
 	}
 
 	request->request_id = parsed.id;
-	request->client_id = client_id;
 
-	/* Copy tool name */
 	strncpy(request->name, parsed.params.name, CONFIG_MCP_TOOL_NAME_MAX_LEN - 1);
 	request->name[CONFIG_MCP_TOOL_NAME_MAX_LEN - 1] = '\0';
 
-	/* Copy arguments (may be NULL) */
-	if (parsed.params.arguments) {
-		strncpy(request->arguments, parsed.params.arguments,
-			CONFIG_MCP_TOOL_INPUT_ARGS_MAX_LEN - 1);
-		request->arguments[CONFIG_MCP_TOOL_INPUT_ARGS_MAX_LEN - 1] = '\0';
-	} else {
-		request->arguments[0] = '\0';
+	/* Extract arguments as raw JSON */
+	ret = extract_arguments_field(original_json, length,
+					   request->arguments, CONFIG_MCP_TOOL_INPUT_ARGS_MAX_LEN);
+	if (ret != 0) {
+		LOG_ERR("Failed to extract arguments: %d", ret);
+		mcp_free(request);
+		return ret;
 	}
 
 	*out_request = request;
 
-	LOG_DBG("Parsed tools/call request: id=%u, client=%u, tool=%s",
-		request->request_id, client_id, request->name);
 	return 0;
 }
 #endif
 
-/**
- * @brief Parse notifications/initialized notification
- */
-static int parse_notification_initialized(char *json_buffer, size_t length, uint32_t client_id,
+static int parse_notification_initialized(char *json_buffer, size_t length,
 					  mcp_client_notification_t **out_notification)
 {
 	struct jsonrpc_notification parsed;
@@ -323,178 +533,219 @@ static int parse_notification_initialized(char *json_buffer, size_t length, uint
 	memset(&parsed, 0, sizeof(parsed));
 
 	ret = json_obj_parse(json_buffer, length, jsonrpc_notification_descr,
-			     ARRAY_SIZE(jsonrpc_notification_descr), &parsed);
+				 ARRAY_SIZE(jsonrpc_notification_descr), &parsed);
 	if (ret < 0) {
 		LOG_ERR("Failed to parse notification JSON: %d", ret);
 		return -EINVAL;
 	}
 
-	/* Validate parsed fields */
 	if (!parsed.jsonrpc || !is_valid_jsonrpc_version(parsed.jsonrpc)) {
 		LOG_ERR("Invalid or missing jsonrpc version");
 		return -EINVAL;
 	}
 
 	if (!parsed.method || strcmp(parsed.method, "notifications/initialized") != 0) {
-		LOG_ERR("Method mismatch: expected 'notifications/initialized', got '%s'",
-			parsed.method ? parsed.method : "NULL");
+		LOG_ERR("Method mismatch: expected 'notifications/initialized'");
 		return -EINVAL;
 	}
 
-	/* Allocate output structure */
 	notification = (mcp_client_notification_t *)mcp_alloc(sizeof(mcp_client_notification_t));
 	if (!notification) {
 		LOG_ERR("Failed to allocate notification");
 		return -ENOMEM;
 	}
 
-	notification->client_id = client_id;
 	notification->method = MCP_NOTIF_INITIALIZED;
 
 	*out_notification = notification;
 
-	LOG_DBG("Parsed initialized notification: client=%u", client_id);
 	return 0;
 }
 
-/**
- * @brief Determine the method from JSON to route to correct parser
- */
-static int get_method_from_json(char *json_buffer, size_t length, const char **method,
-				bool *is_notification)
+static int parse_notification_cancelled(char *json_buffer, size_t length,
+					mcp_cancelled_notification_t **out_notification)
 {
-	struct jsonrpc_base parsed_req;
-	struct jsonrpc_notification parsed_notif;
+	struct cancelled_notification_json parsed;
+	mcp_cancelled_notification_t *notification;
 	int ret;
 
-	/* Check if this has an id field (request vs notification) */
-	*is_notification = !has_id_field(json_buffer);
+	memset(&parsed, 0, sizeof(parsed));
 
-	if (*is_notification) {
-		/* Parse as notification */
-		memset(&parsed_notif, 0, sizeof(parsed_notif));
-		ret = json_obj_parse(json_buffer, length, jsonrpc_notification_descr,
-				     ARRAY_SIZE(jsonrpc_notification_descr), &parsed_notif);
-		if (ret < 0) {
-			LOG_ERR("Failed to parse as notification: %d", ret);
-			return -EINVAL;
-		}
-
-		if (!parsed_notif.method) {
-			LOG_ERR("Missing method in notification");
-			return -EINVAL;
-		}
-
-		*method = parsed_notif.method;
-	} else {
-		/* Parse as request */
-		memset(&parsed_req, 0, sizeof(parsed_req));
-		ret = json_obj_parse(json_buffer, length, jsonrpc_base_descr,
-				     ARRAY_SIZE(jsonrpc_base_descr), &parsed_req);
-		if (ret < 0) {
-			LOG_ERR("Failed to parse as request: %d", ret);
-			return -EINVAL;
-		}
-
-		if (!parsed_req.method) {
-			LOG_ERR("Missing method in request");
-			return -EINVAL;
-		}
-
-		*method = parsed_req.method;
+	ret = json_obj_parse(json_buffer, length, cancelled_notification_json_descr,
+				 ARRAY_SIZE(cancelled_notification_json_descr), &parsed);
+	if (ret < 0) {
+		LOG_ERR("Failed to parse cancelled notification JSON: %d", ret);
+		return -EINVAL;
 	}
+
+	if (!parsed.jsonrpc || !is_valid_jsonrpc_version(parsed.jsonrpc)) {
+		LOG_ERR("Invalid or missing jsonrpc version");
+		return -EINVAL;
+	}
+
+	if (!parsed.method || strcmp(parsed.method, "notifications/cancelled") != 0) {
+		LOG_ERR("Method mismatch: expected 'notifications/cancelled'");
+		return -EINVAL;
+	}
+
+	if (!parsed.params.requestId) {
+		LOG_ERR("Missing required 'requestId' parameter");
+		return -EINVAL;
+	}
+
+	notification = (mcp_cancelled_notification_t *)mcp_alloc(
+		sizeof(mcp_cancelled_notification_t));
+	if (!notification) {
+		LOG_ERR("Failed to allocate cancelled notification");
+		return -ENOMEM;
+	}
+
+	notification->request_id = (uint32_t)atoi(parsed.params.requestId);
+
+	if (parsed.params.reason) {
+		strncpy(notification->reason, parsed.params.reason, sizeof(notification->reason) - 1);
+		notification->reason[sizeof(notification->reason) - 1] = '\0';
+	} else {
+		notification->reason[0] = '\0';
+	}
+
+	*out_notification = notification;
+
+	return 0;
+}
+
+static int parse_notification_progress(char *json_buffer, size_t length,
+					   mcp_progress_notification_t **out_notification)
+{
+	struct progress_notification_json parsed;
+	mcp_progress_notification_t *notification;
+	int ret;
+
+	memset(&parsed, 0, sizeof(parsed));
+
+	ret = json_obj_parse(json_buffer, length, progress_notification_json_descr,
+				 ARRAY_SIZE(progress_notification_json_descr), &parsed);
+	if (ret < 0) {
+		LOG_ERR("Failed to parse progress notification JSON: %d", ret);
+		return -EINVAL;
+	}
+
+	if (!parsed.jsonrpc || !is_valid_jsonrpc_version(parsed.jsonrpc)) {
+		LOG_ERR("Invalid or missing jsonrpc version");
+		return -EINVAL;
+	}
+
+	if (!parsed.method || strcmp(parsed.method, "notifications/progress") != 0) {
+		LOG_ERR("Method mismatch: expected 'notifications/progress'");
+		return -EINVAL;
+	}
+
+	if (!parsed.params.progressToken) {
+		LOG_ERR("Missing required 'progressToken' parameter");
+		return -EINVAL;
+	}
+
+	notification = (mcp_progress_notification_t *)mcp_alloc(
+		sizeof(mcp_progress_notification_t));
+	if (!notification) {
+		LOG_ERR("Failed to allocate progress notification");
+		return -ENOMEM;
+	}
+
+	strncpy(notification->progress_token, parsed.params.progressToken,
+		sizeof(notification->progress_token) - 1);
+	notification->progress_token[sizeof(notification->progress_token) - 1] = '\0';
+
+	notification->progress = parsed.params.progress;
+	notification->total = parsed.params.total;  /* May be 0 if not provided */
+
+	if (parsed.params.message) {
+		strncpy(notification->message, parsed.params.message,
+			sizeof(notification->message) - 1);
+		notification->message[sizeof(notification->message) - 1] = '\0';
+	} else {
+		notification->message[0] = '\0';
+	}
+
+	*out_notification = notification;
 
 	return 0;
 }
 
 /* =============================================================================
- * Public API Implementation
+ * Main Parser Entry Point
  * =============================================================================
  */
 
-/**
- * @brief Parse JSON-RPC request into MCP message
- */
 int mcp_json_parse_request(const char *json, size_t length,
-			   uint32_t client_id,
 			   mcp_queue_msg_type_t *type, void **data)
 {
-	char *json_buffer1 = NULL;
-	char *json_buffer2 = NULL;
-	const char *method = NULL;
-	bool is_notification = false;
+	char *json_buffer = NULL;
+	char method[MAX_METHOD_NAME_LEN];
+	bool is_notification;
 	int ret;
 
-	/* Validate parameters */
-	if (!json || length == 0) {
-		LOG_ERR("Invalid JSON input");
+	if (!json || length == 0 || !type || !data) {
+		LOG_ERR("Invalid parameters");
 		return -EINVAL;
 	}
 
-	if (!type || !data) {
-		LOG_ERR("Invalid output parameters");
-		return -EINVAL;
-	}
-
-	if (client_id == 0) {
-		LOG_ERR("Invalid client_id");
-		return -EINVAL;
-	}
-
-	/* Initialize outputs */
-	*type = 0;
+	*type = MCP_MSG_UNKNOWN;
 	*data = NULL;
 
-	/* Create first working copy to determine method */
-	json_buffer1 = create_json_copy(json, length);
-	if (!json_buffer1) {
-		LOG_ERR("Failed to allocate JSON buffer");
-		return -ENOMEM;
-	}
+	/* Determine if this is a notification (no id field) */
+	is_notification = !has_id_field(json, length);
 
-	/* Determine method and message type */
-	ret = get_method_from_json(json_buffer1, length, &method, &is_notification);
+	/* Extract method name */
+	ret = get_method_from_json(json, length, method, sizeof(method));
 	if (ret != 0) {
-		LOG_ERR("Failed to determine method: %d", ret);
-		mcp_free(json_buffer1);
+		LOG_ERR("Failed to extract method: %d", ret);
 		return ret;
 	}
 
 	LOG_DBG("Method: %s, is_notification: %d", method, is_notification);
 
-	/* Create fresh copy for actual parsing (first copy is now corrupted) */
-	json_buffer2 = create_json_copy(json, length);
-	if (!json_buffer2) {
-		LOG_ERR("Failed to allocate second JSON buffer");
-		mcp_free(json_buffer1);
+	/* Create mutable copy for json_obj_parse */
+	json_buffer = create_json_copy(json, length);
+	if (!json_buffer) {
+		LOG_ERR("Failed to allocate JSON buffer");
 		return -ENOMEM;
 	}
 
-	/* Route to appropriate parser based on method */
+	/* Route to appropriate parser */
 	if (is_notification) {
 		if (strcmp(method, "notifications/initialized") == 0) {
 			*type = MCP_MSG_NOTIFICATION;
-			ret = parse_notification_initialized(json_buffer2, length, client_id,
-							     (mcp_client_notification_t **)data);
+			ret = parse_notification_initialized(json_buffer, length,
+								 (mcp_client_notification_t **)data);
+		} else if (strcmp(method, "notifications/cancelled") == 0) {
+			*type = MCP_MSG_NOTIF_CANCELLED;
+			ret = parse_notification_cancelled(json_buffer, length,
+							  (mcp_cancelled_notification_t **)data);
+		} else if (strcmp(method, "notifications/progress") == 0) {
+			*type = MCP_MSG_NOTIF_PROGRESS;
+			ret = parse_notification_progress(json_buffer, length,
+							 (mcp_progress_notification_t **)data);
 		} else {
 			LOG_ERR("Unknown notification method: %s", method);
-			ret = -EINVAL;
+			ret = -ENOTSUP;
 		}
 	} else {
+		/* Requests */
 		if (strcmp(method, "initialize") == 0) {
 			*type = MCP_MSG_REQUEST_INITIALIZE;
-			ret = parse_initialize(json_buffer2, length, client_id,
-					       (mcp_initialize_request_t **)data);
+			ret = parse_initialize(json_buffer, length,
+						   (mcp_initialize_request_t **)data);
 		}
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
 		else if (strcmp(method, "tools/list") == 0) {
 			*type = MCP_MSG_REQUEST_TOOLS_LIST;
-			ret = parse_tools_list(json_buffer2, length, client_id,
-					       (mcp_tools_list_request_t **)data);
+			ret = parse_tools_list(json_buffer, length,
+						   (mcp_tools_list_request_t **)data);
 		} else if (strcmp(method, "tools/call") == 0) {
 			*type = MCP_MSG_REQUEST_TOOLS_CALL;
-			ret = parse_tools_call(json_buffer2, length, client_id,
-					       (mcp_tools_call_request_t **)data);
+			ret = parse_tools_call(json, json_buffer, length,
+						   (mcp_tools_call_request_t **)data);
 		}
 #endif
 		else {
@@ -503,9 +754,7 @@ int mcp_json_parse_request(const char *json, size_t length,
 		}
 	}
 
-	/* Cleanup */
-	mcp_free(json_buffer1);
-	mcp_free(json_buffer2);
+	mcp_free(json_buffer);
 
 	if (ret != 0) {
 		LOG_ERR("Failed to parse %s: %d", method, ret);
@@ -516,28 +765,52 @@ int mcp_json_parse_request(const char *json, size_t length,
 		return ret;
 	}
 
-	/* Verify data was allocated */
 	if (!*data) {
 		LOG_ERR("Parse succeeded but data is NULL");
 		return -EINVAL;
 	}
 
-	LOG_DBG("Successfully parsed %s", method);
 	return 0;
 }
 
+/*
+ * @brief Check if JSON method is initialize request
+ */
+bool mcp_json_is_initialize_request(const char *json, size_t length)
+{
+	char method[MAX_METHOD_NAME_LEN];
+	int ret;
+
+	if (!json || length == 0) {
+		return false;
+	}
+
+	/* Extract method name from JSON */
+	ret = get_method_from_json(json, length, method, sizeof(method));
+	if (ret != 0) {
+		LOG_DBG("Failed to extract method from JSON");
+		return false;
+	}
+
+	/* Check if method is "initialize" */
+	if (strcmp(method, "initialize") == 0) {
+		LOG_DBG("Detected initialize request");
+		return true;
+	}
+
+	return false;
+}
+
 /* =============================================================================
- * JSON Serialization Functions
+ * Response Serializers
  * =============================================================================
  */
 
-/**
- * @brief Serialize initialize response to JSON (MCP Spec Compliant)
- */
 int mcp_json_serialize_initialize_response(const mcp_initialize_response_t *resp,
 					   char *buffer, size_t buffer_size)
 {
-	char capabilities_buf[256];
+	char capabilities_buf[512];
+	int cap_len = 0;
 	int len;
 
 	if (!resp || !buffer || buffer_size == 0) {
@@ -545,43 +818,37 @@ int mcp_json_serialize_initialize_response(const mcp_initialize_response_t *resp
 		return -EINVAL;
 	}
 
-	/* Build capabilities object - per MCP spec, capabilities are objects */
-	/* If not supported, omit the field entirely */
+	/* Build capabilities object */
+	cap_len = snprintf(capabilities_buf, sizeof(capabilities_buf), "{");
+
+	bool first = true;
+
+#ifdef CONFIG_MCP_TOOLS_CAPABILITY
 	if (resp->capabilities & MCP_TOOLS) {
-		snprintf(capabilities_buf, sizeof(capabilities_buf), "\"tools\":{}");
-	} else {
-		capabilities_buf[0] = '\0';  /* Empty - no capabilities */
+		cap_len += snprintf(capabilities_buf + cap_len,
+					sizeof(capabilities_buf) - cap_len,
+					"%s\"tools\":{\"listChanged\":false}",
+					first ? "" : ",");
+		first = false;
 	}
-
-	/* Build serverInfo object */
-	char serverinfo_buf[512];
-	int si_len = snprintf(serverinfo_buf, sizeof(serverinfo_buf),
-			      "\"name\":\"%s\",\"version\":\"%s\"",
-			      CONFIG_MCP_SERVER_INFO_NAME,
-			      CONFIG_MCP_SERVER_INFO_VERSION);
-
-#ifdef CONFIG_MCP_SERVER_INFO_TITLE
-	si_len += snprintf(serverinfo_buf + si_len, sizeof(serverinfo_buf) - si_len,
-			   ",\"title\":\"%s\"",
-			   CONFIG_MCP_SERVER_INFO_TITLE_VALUE);
 #endif
 
-#ifdef CONFIG_MCP_SERVER_INFO_INSTRUCTIONS
-	si_len += snprintf(serverinfo_buf + si_len, sizeof(serverinfo_buf) - si_len,
-			   ",\"instructions\":\"%s\"",
-			   CONFIG_MCP_SERVER_INFO_INSTRUCTIONS_VALUE);
-#endif
+	cap_len += snprintf(capabilities_buf + cap_len,
+				sizeof(capabilities_buf) - cap_len, "}");
 
-	/* Build complete response */
+	/* Build full response */
 	len = snprintf(buffer, buffer_size,
-		       "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{"
-		       "\"protocolVersion\":\"2024-11-05\","
-		       "\"capabilities\":{%s},"
-		       "\"serverInfo\":{%s}"
-		       "}}",
-		       resp->request_id,
-		       capabilities_buf,
-		       serverinfo_buf);
+			   "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{"
+			   "\"protocolVersion\":\"2024-11-05\","
+			   "\"capabilities\":%s,"
+			   "\"serverInfo\":{"
+			   "\"name\":\"%s\","
+			   "\"version\":\"%s\""
+			   "}}}",
+			   resp->request_id,
+			   capabilities_buf,
+			   CONFIG_MCP_SERVER_INFO_NAME,
+			   CONFIG_MCP_SERVER_INFO_VERSION);
 
 	if (len < 0) {
 		LOG_ERR("snprintf failed");
@@ -593,19 +860,14 @@ int mcp_json_serialize_initialize_response(const mcp_initialize_response_t *resp
 		return -ENOMEM;
 	}
 
-	LOG_DBG("%s", buffer);
-
 	return len;
 }
 
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
-/**
- * @brief Serialize tools/list response to JSON
- */
 int mcp_json_serialize_tools_list_response(const mcp_tools_list_response_t *resp,
 					   char *buffer, size_t buffer_size)
 {
-	size_t offset = 0;
+	int len = 0;
 	int ret;
 
 	if (!resp || !buffer || buffer_size == 0) {
@@ -613,87 +875,53 @@ int mcp_json_serialize_tools_list_response(const mcp_tools_list_response_t *resp
 		return -EINVAL;
 	}
 
-	/* Start JSON-RPC response */
-	ret = snprintf(buffer + offset, buffer_size - offset,
-		       "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"tools\":[",
-		       resp->request_id);
-	if (ret < 0 || ret >= (buffer_size - offset)) {
+	ret = snprintf(buffer, buffer_size,
+			   "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"tools\":[",
+			   resp->request_id);
+	if (ret < 0 || ret >= buffer_size) {
 		return -ENOMEM;
 	}
-	offset += ret;
+	len += ret;
 
-	/* Add each tool */
 	for (int i = 0; i < resp->tool_count; i++) {
-		/* Tool opening */
-		ret = snprintf(buffer + offset, buffer_size - offset,
-			       "%s{\"name\":\"%s\",\"inputSchema\":%s",
-			       (i > 0) ? "," : "",
-			       resp->tools[i].name,
-			       resp->tools[i].input_schema);
-		if (ret < 0 || ret >= (buffer_size - offset)) {
+		ret = snprintf(buffer + len, buffer_size - len,
+				   "%s{\"name\":\"%s\",\"inputSchema\":%s",
+				   (i > 0) ? "," : "",
+				   resp->tools[i].name,
+				   resp->tools[i].input_schema);
+		if (ret < 0 || ret >= (buffer_size - len)) {
 			return -ENOMEM;
 		}
-		offset += ret;
+		len += ret;
 
 #ifdef CONFIG_MCP_TOOL_DESC
 		if (resp->tools[i].description[0] != '\0') {
-			ret = snprintf(buffer + offset, buffer_size - offset,
-				       ",\"description\":\"%s\"",
-				       resp->tools[i].description);
-			if (ret < 0 || ret >= (buffer_size - offset)) {
+			ret = snprintf(buffer + len, buffer_size - len,
+					   ",\"description\":\"%s\"",
+					   resp->tools[i].description);
+			if (ret < 0 || ret >= (buffer_size - len)) {
 				return -ENOMEM;
 			}
-			offset += ret;
+			len += ret;
 		}
 #endif
 
-#ifdef CONFIG_MCP_TOOL_TITLE
-		if (resp->tools[i].title[0] != '\0') {
-			ret = snprintf(buffer + offset, buffer_size - offset,
-				       ",\"title\":\"%s\"",
-				       resp->tools[i].title);
-			if (ret < 0 || ret >= (buffer_size - offset)) {
-				return -ENOMEM;
-			}
-			offset += ret;
-		}
-#endif
-
-#ifdef CONFIG_MCP_TOOL_OUTPUT_SCHEMA
-		if (resp->tools[i].output_schema[0] != '\0') {
-			ret = snprintf(buffer + offset, buffer_size - offset,
-				       ",\"outputSchema\":%s",
-				       resp->tools[i].output_schema);
-			if (ret < 0 || ret >= (buffer_size - offset)) {
-				return -ENOMEM;
-			}
-			offset += ret;
-		}
-#endif
-
-		/* Close tool object */
-		ret = snprintf(buffer + offset, buffer_size - offset, "}");
-		if (ret < 0 || ret >= (buffer_size - offset)) {
+		ret = snprintf(buffer + len, buffer_size - len, "}");
+		if (ret < 0 || ret >= (buffer_size - len)) {
 			return -ENOMEM;
 		}
-		offset += ret;
+		len += ret;
 	}
 
-	/* Close response */
-	ret = snprintf(buffer + offset, buffer_size - offset, "]}}");
-	if (ret < 0 || ret >= (buffer_size - offset)) {
+	ret = snprintf(buffer + len, buffer_size - len, "]}}");
+	if (ret < 0 || ret >= (buffer_size - len)) {
 		return -ENOMEM;
 	}
-	offset += ret;
+	len += ret;
 
-	LOG_DBG("%s", buffer);
-
-	return offset;
+	return len;
 }
 
-/**
- * @brief Serialize tools/call response to JSON
- */
 int mcp_json_serialize_tools_call_response(const mcp_tools_call_response_t *resp,
 					   char *buffer, size_t buffer_size)
 {
@@ -704,39 +932,27 @@ int mcp_json_serialize_tools_call_response(const mcp_tools_call_response_t *resp
 		return -EINVAL;
 	}
 
-	if (resp->length < 0 || resp->length > CONFIG_MCP_TOOL_RESULT_MAX_LEN) {
-		LOG_ERR("Invalid result length: %d", resp->length);
+	if (resp->length == 0) {
+		LOG_ERR("Empty result");
 		return -EINVAL;
 	}
 
-	/* Result should already be valid JSON */
 	len = snprintf(buffer, buffer_size,
-		       "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"content\":[{\"type\":\"text\",\"text\":%.*s}]}}",
-		       resp->request_id,
-		       resp->length,
-		       resp->result);
+			   "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":%.*s}",
+			   resp->request_id,
+			   resp->length,
+			   resp->result);
 
-	if (len < 0) {
-		LOG_ERR("snprintf failed");
-		return -EINVAL;
-	}
-
-	if (len >= buffer_size) {
-		LOG_ERR("Buffer too small (need %d, have %zu)", len + 1, buffer_size);
+	if (len < 0 || len >= buffer_size) {
 		return -ENOMEM;
 	}
-
-	LOG_DBG("%s", buffer);
 
 	return len;
 }
 #endif
 
-/**
- * @brief Serialize error response to JSON
- */
 int mcp_json_serialize_error_response(const mcp_error_response_t *resp,
-				      char *buffer, size_t buffer_size)
+					  char *buffer, size_t buffer_size)
 {
 	int len;
 
@@ -746,22 +962,14 @@ int mcp_json_serialize_error_response(const mcp_error_response_t *resp,
 	}
 
 	len = snprintf(buffer, buffer_size,
-		       "{\"jsonrpc\":\"2.0\",\"id\":%u,\"error\":{\"code\":%d,\"message\":\"%s\"}}",
-		       resp->request_id,
-		       resp->error_code,
-		       resp->error_message);
+			   "{\"jsonrpc\":\"2.0\",\"id\":%u,\"error\":{\"code\":%d,\"message\":\"%s\"}}",
+			   resp->request_id,
+			   resp->error_code,
+			   resp->error_message);
 
-	if (len < 0) {
-		LOG_ERR("snprintf failed");
-		return -EINVAL;
-	}
-
-	if (len >= buffer_size) {
-		LOG_ERR("Buffer too small (need %d, have %zu)", len + 1, buffer_size);
+	if (len < 0 || len >= buffer_size) {
 		return -ENOMEM;
 	}
-
-	LOG_DBG("%s", buffer);
 
 	return len;
 }
