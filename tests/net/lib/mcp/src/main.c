@@ -15,7 +15,7 @@
 extern struct k_msgq mcp_request_queue;
 extern struct k_msgq mcp_message_queue;
 extern int mcp_transport_queue_call_count;
-extern mcp_transport_queue_msg_t mcp_transport_last_queued_msg;
+extern mcp_queue_msg_t mcp_transport_last_queued_msg;
 /* Tool execution test callbacks with different behaviors */
 static int tool_execution_count;
 static char last_execution_params[CONFIG_MCP_TOOL_INPUT_ARGS_MAX_LEN];
@@ -70,7 +70,7 @@ static void send_tools_call_request(uint32_t client_id, uint32_t request_id, con
 				    const char *arguments)
 {
 	int ret;
-	mcp_request_queue_msg_t msg;
+	mcp_queue_msg_t msg;
 	mcp_tools_call_request_t *tools_req;
 
 	tools_req = (mcp_tools_call_request_t *)mcp_alloc(sizeof(mcp_tools_call_request_t));
@@ -101,7 +101,7 @@ static void send_tools_call_request(uint32_t client_id, uint32_t request_id, con
 static void send_initialize_request(uint32_t client_id, uint32_t request_id)
 {
 	int ret;
-	mcp_request_queue_msg_t msg;
+	mcp_queue_msg_t msg;
 	mcp_initialize_request_t *init_req;
 
 	init_req = (mcp_initialize_request_t *)mcp_alloc(sizeof(mcp_initialize_request_t));
@@ -122,7 +122,7 @@ static void send_initialize_request(uint32_t client_id, uint32_t request_id)
 static void send_client_shutdown(uint32_t client_id)
 {
 	int ret;
-	mcp_request_queue_msg_t msg;
+	mcp_queue_msg_t msg;
 	mcp_system_msg_t *sys_msg;
 
 	sys_msg = (mcp_system_msg_t *)mcp_alloc(sizeof(mcp_system_msg_t));
@@ -143,7 +143,7 @@ static void send_client_shutdown(uint32_t client_id)
 static void send_initialized_notification(uint32_t client_id)
 {
 	int ret;
-	mcp_request_queue_msg_t msg;
+	mcp_queue_msg_t msg;
 	mcp_client_notification_t *notification;
 
 	notification = (mcp_client_notification_t *)mcp_alloc(sizeof(mcp_client_notification_t));
@@ -164,7 +164,7 @@ static void send_initialized_notification(uint32_t client_id)
 static void send_tools_list_request(uint32_t client_id, uint32_t request_id)
 {
 	int ret;
-	mcp_request_queue_msg_t msg;
+	mcp_queue_msg_t msg;
 	mcp_tools_list_request_t *tools_req;
 
 	tools_req = (mcp_tools_list_request_t *)mcp_alloc(sizeof(mcp_tools_list_request_t));
@@ -1611,7 +1611,7 @@ ZTEST(mcp_server_tests, test_multiple_client_lifecycle)
 ZTEST(mcp_server_tests, test_unknown_message_type)
 {
 	int ret;
-	mcp_request_queue_msg_t msg;
+	mcp_queue_msg_t msg;
 	char *test_data;
 
 	reset_transport_mock();
@@ -1640,7 +1640,7 @@ ZTEST(mcp_server_tests, test_server_double_init)
 ZTEST(mcp_server_tests, test_null_data_request)
 {
 	int ret;
-	mcp_request_queue_msg_t msg;
+	mcp_queue_msg_t msg;
 
 	reset_transport_mock();
 

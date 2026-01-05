@@ -14,13 +14,11 @@
  *
  * @param json JSON string to parse
  * @param length Length of JSON string
- * @param client_id Client identifier for the request
  * @param type Output parameter for message type
  * @param data Output parameter for parsed data (caller must free)
  * @return 0 on success, negative errno on failure
  */
 int mcp_json_parse_request(const char *json, size_t length,
-			   uint32_t client_id,
 			   mcp_queue_msg_type_t *type, void **data);
 
 /**

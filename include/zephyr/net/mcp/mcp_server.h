@@ -71,12 +71,39 @@ typedef struct mcp_user_message {
 	void *data;
 } mcp_app_message_t;
 
+/*
+ * @brief Transport operations structure for MCP server communication.
+ */
+struct mcp_transport_ops {
+	/**
+	 * @brief Initialize the transport mechanism
+	 * @return 0 on success, negative errno on failure
+	 */
+	int (*init)(void);
+
+	/**
+	 * @brief Send data to a client
+	 * @param client_id Client identifier
+	 * @param data Data buffer to send
+	 * @param length Data length
+	 * @return 0 on success, negative errno on failure
+	 */
+	int (*send)(uint32_t client_id, const void *data, size_t length);
+
+	/*
+	 * @brief Disconnect a client
+	 * @param client_id Client identifier
+	 * @return 0 on success, negative errno on failure
+	 */
+	int (*disconnect)(uint32_t client_id);
+};
+
 /**
  * @brief Initialize the MCP Server
  *
  * @return 0 on success, negative errno on failure
  */
-int mcp_server_init(void);
+int mcp_server_init(struct mcp_transport_ops *transport_ops);
 
 /**
  * @brief Start the MCP Server
@@ -94,6 +121,13 @@ int mcp_server_submit_tool_message(const mcp_app_message_t *user_msg, uint32_t e
  * @return 0 on success, negative errno on failure
  */
 int mcp_server_submit_app_message(const mcp_app_message_t *user_msg, uint32_t execution_token);
+
+/*
+ * @brief Register transport operations with the MCP server
+ * @param transport_ops Transport operations structure
+ * @return 0 on success, negative errno on failure
+ */
+int mcp_server_register_bus(struct mcp_transport_ops *transport_ops);
 
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
 /**

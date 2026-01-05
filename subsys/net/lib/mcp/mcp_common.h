@@ -11,9 +11,11 @@
 #include <zephyr/net/mcp/mcp_server.h>
 
 #define MCP_MAX_REQUESTS (CONFIG_HTTP_SERVER_MAX_CLIENTS * CONFIG_HTTP_SERVER_MAX_STREAMS)
-
+#define INVALID_CLIENT_ID 0
 typedef enum {
-	MCP_NOTIF_INITIALIZED
+	MCP_NOTIF_INITIALIZED,
+	MCP_NOTIF_CANCELLED,
+	MCP_NOTIF_PROGRESS
 } mcp_notification_method_type_t;
 
 typedef enum {
@@ -34,6 +36,9 @@ typedef enum {
 	MCP_MSG_ERROR_TOOLS_CALL,
 #endif
 	MCP_MSG_NOTIFICATION,
+	MCP_MSG_NOTIF_CANCELLED,
+	MCP_MSG_NOTIF_PROGRESS,
+    MCP_MSG_UNKNOWN,
 } mcp_queue_msg_type_t;
 
 typedef enum {
@@ -53,7 +58,8 @@ typedef enum {
 typedef enum {
 	MCP_EXEC_ACTIVE,
 	MCP_EXEC_CANCELED,
-	MCP_EXEC_FINISHED
+	MCP_EXEC_FINISHED,
+	MCP_EXEC_ZOMBIE
 } mcp_execution_state_t;
 
 typedef enum {
@@ -66,17 +72,37 @@ typedef enum {
 	MCP_ERROR_SERVER_ERROR = -32000,
 } mcp_error_code_t;
 
+typedef struct mcp_queue_msg {
+	mcp_queue_msg_type_t type;
+    uint32_t client_id;
+	void *data;
+} mcp_queue_msg_t;
+
+/*******************************************************************************
+ * Requests
+ ******************************************************************************/
 typedef struct mcp_system_msg {
 	mcp_system_msg_type_t type;
 	uint32_t request_id;
 	uint32_t client_id;
 } mcp_system_msg_t;
 
-typedef struct mcp_error_response {
+typedef struct mcp_client_notification {
+	uint32_t client_id;
+	mcp_notification_method_type_t method;
+} mcp_client_notification_t;
+
+typedef struct mcp_cancelled_notification {
 	uint32_t request_id;
-	int32_t error_code;
-	char error_message[128];
-} mcp_error_response_t;
+	char reason[128];
+} mcp_cancelled_notification_t;
+
+typedef struct mcp_progress_notification {
+	char progress_token[64];
+	uint32_t progress;
+	uint32_t total;
+	char message[256];
+} mcp_progress_notification_t;
 
 typedef struct mcp_initialize_request {
 	uint32_t request_id;
@@ -97,10 +123,23 @@ typedef struct mcp_tools_call_request {
 } mcp_tools_call_request_t;
 #endif
 
+/*******************************************************************************
+ * Responses
+ ******************************************************************************/
+typedef struct mcp_server_notification {
+	mcp_notification_method_type_t method;
+} mcp_server_notification_t;
+
 typedef struct mcp_initialize_response {
 	uint32_t request_id;
 	uint32_t capabilities;
 } mcp_initialize_response_t;
+
+typedef struct mcp_error_response {
+	uint32_t request_id;
+	int32_t error_code;
+	char error_message[128];
+} mcp_error_response_t;
 
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
 typedef struct mcp_tools_list_response {
@@ -115,30 +154,6 @@ typedef struct mcp_tools_call_response {
 	char result[CONFIG_MCP_TOOL_RESULT_MAX_LEN];
 } mcp_tools_call_response_t;
 #endif
-
-typedef struct mcp_client_notification {
-	uint32_t client_id;
-	mcp_notification_method_type_t method;
-} mcp_client_notification_t;
-
-typedef struct mcp_server_notification {
-	mcp_notification_method_type_t method;
-} mcp_server_notification_t;
-
-typedef struct mcp_request_queue_msg {
-	mcp_queue_msg_type_t type;
-	void *data;
-} mcp_request_queue_msg_t;
-
-typedef struct mcp_transport_queue_msg {
-	mcp_queue_msg_type_t type;
-	void *data;
-} mcp_transport_queue_msg_t;
-
-typedef struct mcp_response_queue_msg {
-	mcp_queue_msg_type_t type;
-	void *data;
-} mcp_response_queue_msg_t;
 
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
 typedef struct {

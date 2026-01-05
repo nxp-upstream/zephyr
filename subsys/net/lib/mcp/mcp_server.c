@@ -7,10 +7,11 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/net/mcp/mcp_server.h>
+#include <zephyr/random/random.h>
 #include <errno.h>
 #include "mcp_common.h"
-#include "mcp_transport.h"
 #include "mcp_server_internal.h"
+#include "mcp_json.h"
 
 LOG_MODULE_REGISTER(mcp_server, CONFIG_MCP_LOG_LEVEL);
 
@@ -40,22 +41,43 @@ typedef struct {
 static mcp_client_registry_t client_registry;
 static mcp_tool_registry_t tool_registry;
 static mcp_execution_registry_t execution_registry;
+static struct mcp_transport_ops *transport_mechanism;
 
-K_MSGQ_DEFINE(mcp_request_queue, sizeof(mcp_request_queue_msg_t), CONFIG_MCP_REQUEST_QUEUE_SIZE, 4);
+K_MSGQ_DEFINE(mcp_request_queue, sizeof(mcp_queue_msg_t), CONFIG_MCP_REQUEST_QUEUE_SIZE, 4);
 K_THREAD_STACK_ARRAY_DEFINE(mcp_request_worker_stacks, CONFIG_MCP_REQUEST_WORKERS, 2048);
 static struct k_thread mcp_request_workers[CONFIG_MCP_REQUEST_WORKERS];
-
-#if CONFIG_MCP_RESPONSE_WORKERS > 0
-K_MSGQ_DEFINE(mcp_response_queue, sizeof(mcp_response_queue_msg_t), CONFIG_MCP_RESPONSE_QUEUE_SIZE,
-	      4);
-K_THREAD_STACK_ARRAY_DEFINE(mcp_response_worker_stacks, CONFIG_MCP_RESPONSE_WORKERS, 2048);
-static struct k_thread mcp_response_workers[CONFIG_MCP_RESPONSE_WORKERS];
-#endif
 
 #if defined(CONFIG_MCP_HEALTH_MONITOR) && defined(CONFIG_MCP_TOOLS_CAPABILITY)
 K_THREAD_STACK_DEFINE(mcp_health_monitor_stack, 2048);
 static struct k_thread mcp_health_monitor_thread;
 #endif
+
+static int generate_client_id(uint32_t *client_id)
+{
+	int ret;
+
+	*client_id = 0;
+
+	ret = k_mutex_lock(&client_registry.registry_mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock registry mutex: %d", ret);
+		return -EBUSY;
+	}
+
+	do {
+		*client_id = sys_rand32_get();
+		for (uint32_t i = 0; i < CONFIG_HTTP_SERVER_MAX_CLIENTS; i++) {
+			if ((client_registry.clients[i].lifecycle_state != MCP_LIFECYCLE_DEINITIALIZED) &&
+				(client_registry.clients[i].client_id == *client_id)) {
+				*client_id = 0;
+			}
+		}
+	} while (*client_id == 0);
+
+	k_mutex_unlock(&client_registry.registry_mutex);
+
+	return 0;
+}
 
 static int find_client_index(uint32_t client_id)
 {
@@ -81,8 +103,8 @@ static int find_tool_index(const char *tool_name)
 {
 	for (int i = 0; i < CONFIG_MCP_MAX_TOOLS; i++) {
 		if (tool_registry.tools[i].metadata.name[0] != '\0' &&
-		    strncmp(tool_registry.tools[i].metadata.name, tool_name,
-			    CONFIG_MCP_TOOL_NAME_MAX_LEN) == 0) {
+			strncmp(tool_registry.tools[i].metadata.name, tool_name,
+				CONFIG_MCP_TOOL_NAME_MAX_LEN) == 0) {
 			return i;
 		}
 	}
@@ -164,8 +186,8 @@ static int register_new_client(uint32_t client_id)
 	return slot_index;
 }
 
-static int send_error_response(uint32_t request_id, mcp_queue_msg_type_t error_type,
-			       int32_t error_code, const char *error_message)
+static int send_error_response(uint32_t request_id, uint32_t client_id, mcp_queue_msg_type_t error_type,
+				   int32_t error_code, const char *error_message)
 {
 	mcp_error_response_t *error_response;
 	int ret;
@@ -182,13 +204,33 @@ static int send_error_response(uint32_t request_id, mcp_queue_msg_type_t error_t
 		sizeof(error_response->error_message) - 1);
 	error_response->error_message[sizeof(error_response->error_message) - 1] = '\0';
 
-	ret = mcp_transport_queue_response(error_type, error_response);
-	if (ret != 0) {
-		LOG_ERR("Failed to queue error response: %d", ret);
-		mcp_free(error_response);
-		return ret;
-	}
+    /* Allocate buffer for serialization */
+    uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
+    if (!json_buffer) {
+        LOG_ERR("Failed to allocate buffer, dropping message");
+        mcp_free(error_response);
+        return -ENOMEM;
+    }
 
+    /* Serialize response to JSON */
+    ret = mcp_json_serialize_error_response(error_response, (char *)json_buffer,
+                    CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
+    if (ret <= 0) {
+        LOG_ERR("Failed to serialize response: %d", ret);
+        mcp_free(error_response);
+        mcp_free(json_buffer);
+        return ret;
+    }
+
+    ret = transport_mechanism->send(client_id, json_buffer, ret);
+    if (ret) {
+        LOG_ERR("Failed to send error response");
+        mcp_free(error_response);
+        mcp_free(json_buffer);
+        return -EIO;
+    }
+
+    mcp_free(error_response);
 	return 0;
 }
 
@@ -311,7 +353,7 @@ static uint32_t generate_execution_token(uint32_t request_id)
 }
 
 static int create_execution_context(mcp_tools_call_request_t *request, uint32_t *execution_token,
-				    int *execution_token_index)
+					int *execution_token_index)
 {
 	int ret;
 
@@ -370,9 +412,9 @@ static int set_worker_released_execution_context(int execution_token_index)
 
 		return ret;
 	}
-
+	LOG_DBG("Releasing worker for execution token index: %d", execution_token_index);
 	execution_registry.executions[execution_token_index].worker_released = true;
-
+	LOG_DBG("Released worker for execution token index: %d", execution_token_index);
 	k_mutex_unlock(&execution_registry.registry_mutex);
 	return 0;
 }
@@ -444,8 +486,8 @@ static int handle_system_message(mcp_system_msg_t *system_msg)
 		} else {
 			for (int i = 0; i < MCP_MAX_REQUESTS; i++) {
 				if (execution_registry.executions[i].execution_token != 0 &&
-				    execution_registry.executions[i].client_id ==
-					    system_msg->client_id) {
+					execution_registry.executions[i].client_id ==
+						system_msg->client_id) {
 					uint32_t *cancel_token =
 						(uint32_t *)mcp_alloc(sizeof(uint32_t));
 					if (cancel_token == NULL) {
@@ -527,13 +569,33 @@ static int handle_initialize_request(mcp_initialize_request_t *request)
 	response_data->capabilities |= MCP_TOOLS;
 #endif
 
-	ret = mcp_transport_queue_response(MCP_MSG_RESPONSE_INITIALIZE, response_data);
-	if (ret != 0) {
-		LOG_ERR("Failed to queue response: %d", ret);
-		mcp_free(response_data);
-		return ret;
-	}
+    /* Allocate buffer for serialization */
+    uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
+    if (!json_buffer) {
+        LOG_ERR("Failed to allocate buffer, dropping message");
+        mcp_free(response_data);
+        return -ENOMEM;
+    }
 
+    /* Serialize response to JSON */
+    ret = mcp_json_serialize_initialize_response(response_data, (char *)json_buffer,
+                    CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
+    if (ret <= 0) {
+        LOG_ERR("Failed to serialize response: %d", ret);
+        mcp_free(response_data);
+        mcp_free(json_buffer);
+        return ret;
+    }
+
+    ret = transport_mechanism->send(request->client_id, json_buffer, ret);
+    if (ret) {
+        LOG_ERR("Failed to send initialize response %d", ret);
+        mcp_free(response_data);
+        mcp_free(json_buffer);
+        return -EIO;
+    }
+
+    mcp_free(response_data);
 	return 0;
 }
 
@@ -542,10 +604,12 @@ static int validate_client_for_tools_request(uint32_t client_id, int *client_ind
 {
 	*client_index = find_client_index(client_id);
 	if (*client_index == -1) {
+		LOG_DBG("Client not found: %u", client_id);
 		return -ENOENT;
 	}
 
 	if (client_registry.clients[*client_index].lifecycle_state != MCP_LIFECYCLE_INITIALIZED) {
+		LOG_DBG("Client not in initialized state: %u", client_id);
 		return -EPERM;
 	}
 
@@ -644,13 +708,33 @@ static int handle_tools_list_request(mcp_tools_list_request_t *request)
 	copy_tool_metadata_to_response(response_data);
 	k_mutex_unlock(&tool_registry.registry_mutex);
 
-	ret = mcp_transport_queue_response(MCP_MSG_RESPONSE_TOOLS_LIST, response_data);
-	if (ret != 0) {
-		LOG_ERR("Failed to queue response: %d", ret);
-		mcp_free(response_data);
-		return ret;
-	}
+    /* Allocate buffer for serialization */
+    uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
+    if (!json_buffer) {
+        LOG_ERR("Failed to allocate buffer, dropping message");
+        mcp_free(response_data);
+        return -ENOMEM;
+    }
 
+    /* Serialize response to JSON */
+    ret = mcp_json_serialize_tools_list_response(response_data, (char *)json_buffer,
+                    CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
+    if (ret <= 0) {
+        LOG_ERR("Failed to serialize response: %d", ret);
+        mcp_free(response_data);
+        mcp_free(json_buffer);
+        return ret;
+    }
+
+    ret = transport_mechanism->send(request->client_id, json_buffer, ret);
+    if (ret) {
+        LOG_ERR("Failed to send tools list response");
+        mcp_free(response_data);
+        mcp_free(json_buffer);
+        return -EIO;
+    }
+
+    mcp_free(response_data);
 	return 0;
 }
 
@@ -763,7 +847,7 @@ static int handle_notification(mcp_client_notification_t *notification)
 
 	client_index = find_client_index(notification->client_id);
 	if (client_index == -1) {
-		LOG_ERR("Client not found");
+		LOG_ERR("Client not found %x", notification->client_id);
 		k_mutex_unlock(&client_registry.registry_mutex);
 		return -ENOENT;
 	}
@@ -772,7 +856,7 @@ static int handle_notification(mcp_client_notification_t *notification)
 	case MCP_NOTIF_INITIALIZED:
 		/* State transition: INITIALIZING -> INITIALIZED */
 		if (client_registry.clients[client_index].lifecycle_state ==
-		    MCP_LIFECYCLE_INITIALIZING) {
+			MCP_LIFECYCLE_INITIALIZING) {
 			client_registry.clients[client_index].lifecycle_state =
 				MCP_LIFECYCLE_INITIALIZED;
 		} else {
@@ -795,7 +879,7 @@ static int handle_notification(mcp_client_notification_t *notification)
 /* Worker threads */
 static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 {
-	mcp_request_queue_msg_t request;
+	mcp_queue_msg_t request;
 	int worker_id = POINTER_TO_INT(arg1);
 	int ret;
 
@@ -816,6 +900,7 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 		switch (request.type) {
 		case MCP_MSG_SYSTEM: {
 			mcp_system_msg_t *system_msg = (mcp_system_msg_t *)request.data;
+            system_msg->client_id = request.client_id;
 
 			ret = handle_system_message(system_msg);
 			if (ret != 0) {
@@ -828,20 +913,21 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 		case MCP_MSG_REQUEST_INITIALIZE: {
 			mcp_initialize_request_t *init_request =
 				(mcp_initialize_request_t *)request.data;
+            init_request->client_id = request.client_id;
 
 			ret = handle_initialize_request(init_request);
 			if (ret != 0) {
 				LOG_ERR("Initialize request failed: %d", ret);
 				if (ret == -EALREADY) {
 					send_error_response(
-						init_request->request_id, MCP_MSG_ERROR_INITIALIZE,
+						init_request->request_id, request.client_id, MCP_MSG_ERROR_INITIALIZE,
 						MCP_ERROR_INVALID_PARAMS,
 						"Client already initialized or in invalid state");
 				} else {
-					send_error_response(init_request->request_id,
-							    MCP_MSG_ERROR_INITIALIZE,
-							    MCP_ERROR_INTERNAL_ERROR,
-							    "Server initialization failed");
+					send_error_response(init_request->request_id, request.client_id,
+								MCP_MSG_ERROR_INITIALIZE,
+								MCP_ERROR_INTERNAL_ERROR,
+								"Server initialization failed");
 				}
 			}
 			mcp_free(init_request);
@@ -852,6 +938,7 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 		case MCP_MSG_REQUEST_TOOLS_LIST: {
 			mcp_tools_list_request_t *tools_list_request =
 				(mcp_tools_list_request_t *)request.data;
+            tools_list_request->client_id = request.client_id;
 
 			ret = handle_tools_list_request(tools_list_request);
 			if (ret != 0) {
@@ -868,9 +955,9 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 					error_msg = "Internal server error processing tools list";
 				}
 
-				send_error_response(tools_list_request->request_id,
-						    MCP_MSG_ERROR_TOOLS_LIST, error_code,
-						    error_msg);
+				send_error_response(tools_list_request->request_id, request.client_id,
+							MCP_MSG_ERROR_TOOLS_LIST, error_code,
+							error_msg);
 			}
 			mcp_free(tools_list_request);
 			break;
@@ -879,6 +966,7 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 		case MCP_MSG_REQUEST_TOOLS_CALL: {
 			mcp_tools_call_request_t *tools_call_request =
 				(mcp_tools_call_request_t *)request.data;
+            tools_call_request->client_id = request.client_id;
 
 			ret = handle_tools_call_request(tools_call_request);
 			if (ret != 0) {
@@ -901,9 +989,9 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 					error_msg = "Internal server error processing tool call";
 				}
 
-				send_error_response(tools_call_request->request_id,
-						    MCP_MSG_ERROR_TOOLS_CALL, error_code,
-						    error_msg);
+				send_error_response(tools_call_request->request_id, request.client_id,
+							MCP_MSG_ERROR_TOOLS_CALL, error_code,
+							error_msg);
 			}
 			mcp_free(tools_call_request);
 			break;
@@ -912,6 +1000,7 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 		case MCP_MSG_NOTIFICATION: {
 			mcp_client_notification_t *notification =
 				(mcp_client_notification_t *)request.data;
+            notification->client_id = request.client_id;
 
 			ret = handle_notification(notification);
 			if (ret != 0) {
@@ -929,42 +1018,19 @@ static void mcp_request_worker(void *arg1, void *arg2, void *arg3)
 	}
 }
 
-#if CONFIG_MCP_RESPONSE_WORKERS > 0
-static void mcp_response_worker(void *arg1, void *arg2, void *arg3)
-{
-	mcp_response_queue_msg_t response;
-	int worker_id = POINTER_TO_INT(arg1);
-	int ret;
-
-	LOG_INF("Response worker %d started", worker_id);
-
-	while (1) {
-		ret = k_msgq_get(&mcp_response_queue, &response, K_FOREVER);
-		if (ret == 0) {
-			LOG_DBG("Processing response (worker %d)", worker_id);
-			/* TODO: When Server-sent Events and Authorization are added, implement the
-			 * processing
-			 */
-			/* In phase 1, the response worker queue and workers are pretty much
-			 * redundant by design
-			 */
-			ret = mcp_transport_queue_response(response.type, response.data);
-			if (ret != 0) {
-				LOG_ERR("Failed to queue response to transport: %d", ret);
-				mcp_free(response.data);
-			}
-		} else {
-			LOG_ERR("Failed to get response: %d", ret);
-		}
-	}
-}
-#endif
-
-int mcp_server_init(void)
+int mcp_server_init(struct mcp_transport_ops *transport_ops)
 {
 	int ret;
 
 	LOG_INF("Initializing MCP Server");
+
+    transport_mechanism = transport_ops;
+
+	ret = transport_mechanism->init();
+	if (ret < 0) {
+		LOG_ERR("Failed to initialize HTTP transport: %d", ret);
+		return ret;
+	}
 
 	ret = k_mutex_init(&client_registry.registry_mutex);
 	if (ret != 0) {
@@ -1002,9 +1068,9 @@ int mcp_server_start(void)
 
 	for (int i = 0; i < CONFIG_MCP_REQUEST_WORKERS; i++) {
 		tid = k_thread_create(&mcp_request_workers[i], mcp_request_worker_stacks[i],
-				      K_THREAD_STACK_SIZEOF(mcp_request_worker_stacks[i]),
-				      mcp_request_worker, INT_TO_POINTER(i), NULL, NULL,
-				      K_PRIO_COOP(MCP_WORKER_PRIORITY), 0, K_NO_WAIT);
+					  K_THREAD_STACK_SIZEOF(mcp_request_worker_stacks[i]),
+					  mcp_request_worker, INT_TO_POINTER(i), NULL, NULL,
+					  K_PRIO_COOP(MCP_WORKER_PRIORITY), 0, K_NO_WAIT);
 		if (tid == NULL) {
 			LOG_ERR("Failed to create request worker %d", i);
 			return -ENOMEM;
@@ -1016,29 +1082,11 @@ int mcp_server_start(void)
 		}
 	}
 
-#if CONFIG_MCP_RESPONSE_WORKERS > 0
-	for (int i = 0; i < CONFIG_MCP_RESPONSE_WORKERS; i++) {
-		tid = k_thread_create(&mcp_response_workers[i], mcp_response_worker_stacks[i],
-				      K_THREAD_STACK_SIZEOF(mcp_response_worker_stacks[i]),
-				      mcp_response_worker, INT_TO_POINTER(i), NULL, NULL,
-				      K_PRIO_COOP(MCP_WORKER_PRIORITY), 0, K_NO_WAIT);
-		if (tid == NULL) {
-			LOG_ERR("Failed to create response worker %d", i);
-			return -ENOMEM;
-		}
-
-		ret = k_thread_name_set(&mcp_response_workers[i], "mcp_msg_worker");
-		if (ret != 0) {
-			LOG_WRN("Failed to set thread name: %d", ret);
-		}
-	}
-#endif
-
 #if defined(CONFIG_MCP_HEALTH_MONITOR) && defined(CONFIG_MCP_TOOLS_CAPABILITY)
 	tid = k_thread_create(&mcp_health_monitor_thread, mcp_health_monitor_stack,
-			      K_THREAD_STACK_SIZEOF(mcp_health_monitor_stack),
-			      mcp_health_monitor_worker, NULL, NULL, NULL,
-			      K_PRIO_COOP(MCP_WORKER_PRIORITY + 1), 0, K_NO_WAIT);
+				  K_THREAD_STACK_SIZEOF(mcp_health_monitor_stack),
+				  mcp_health_monitor_worker, NULL, NULL, NULL,
+				  K_PRIO_COOP(MCP_WORKER_PRIORITY + 1), 0, K_NO_WAIT);
 	if (tid == NULL) {
 		LOG_ERR("Failed to create health monitor thread");
 		return -ENOMEM;
@@ -1059,27 +1107,74 @@ int mcp_server_start(void)
 	return 0;
 }
 
-int mcp_server_submit_request(mcp_queue_msg_type_t type, void *data)
+int mcp_server_handle_request(const char *json, size_t length, uint32_t in_client_id, uint32_t *out_client_id, mcp_queue_msg_type_t *msg_type)
 {
-	mcp_request_queue_msg_t msg;
+	mcp_queue_msg_t msg;
 	int ret;
 
-	if (!data) {
-		LOG_ERR("NULL data in request");
+	*msg_type = MCP_MSG_UNKNOWN;
+
+	if (!json || length == 0) {
+		LOG_ERR("Invalid request parameters");
 		return -EINVAL;
 	}
 
-	msg.type = type;
-	msg.data = data;
+	LOG_DBG("Transport parsing JSON request from client %x (%zu bytes)", in_client_id, length);
 
-	ret = k_msgq_put(&mcp_request_queue, &msg, K_NO_WAIT);
-	if (ret != 0) {
-		LOG_ERR("Failed to submit request: %d", ret);
-		return ret;
+	/* Parse JSON request */
+	ret = mcp_json_parse_request(json, length, &msg.type, &msg.data);
+	if (ret) {
+		LOG_ERR("Failed to parse JSON request: %d", ret);
+		return -EINVAL;
 	}
 
-	LOG_DBG("Request submitted to server (type=%d)", type);
-	return 0;
+	if (!msg.data) {
+		LOG_ERR("JSON parsing returned NULL data");
+		return -EINVAL;
+	}
+
+    /* Determine the client id. Initialize request requires a new client id. */
+    switch (msg.type) {
+    case MCP_MSG_REQUEST_INITIALIZE:
+        /* Assign a new client id */
+        ret = generate_client_id(out_client_id);
+        if (ret) {
+            LOG_ERR("Unable to geenrate session id");
+            return ret;
+        }
+
+        msg.client_id = *out_client_id;
+        break;
+#ifdef CONFIG_MCP_TOOLS_CAPABILITY
+    case MCP_MSG_REQUEST_TOOLS_LIST:
+    case MCP_MSG_REQUEST_TOOLS_CALL:
+#endif
+    case MCP_MSG_SYSTEM:
+    case MCP_MSG_NOTIFICATION:
+        ret = find_client_index(in_client_id);
+        if (ret == -1)
+        {
+            LOG_ERR("Can't find client with id %u", in_client_id);
+            return -ENOENT;
+        }
+
+        msg.client_id = in_client_id;
+        *out_client_id = in_client_id;
+        break;
+    default:
+        LOG_WRN("Request not recognized. Dropping.");
+        return -EINVAL;
+        break;
+    }
+
+    ret = k_msgq_put(&mcp_request_queue, &msg, K_NO_WAIT);
+    if (ret != 0) {
+        LOG_ERR("Failed to submit request: %d", ret);
+        return -ENOMEM;
+    }
+
+    *msg_type = msg.type;
+    return 0;
 }
 
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
@@ -1089,11 +1184,12 @@ int mcp_server_submit_tool_message(const mcp_app_message_t *app_msg, uint32_t ex
 	int execution_token_index;
 	uint32_t request_id;
 	uint32_t client_id;
-	mcp_response_queue_msg_t response;
+	mcp_queue_msg_t response;
+    mcp_tools_call_response_t *response_data;
 
 	if ((app_msg == NULL) ||
-	    ((app_msg->data == NULL) && (app_msg->type != MCP_USR_TOOL_CANCEL_ACK) &&
-	     (app_msg->type != MCP_USR_TOOL_PING))) {
+		((app_msg->data == NULL) && (app_msg->type != MCP_USR_TOOL_CANCEL_ACK) &&
+		 (app_msg->type != MCP_USR_TOOL_PING))) {
 		LOG_ERR("Invalid user message");
 		return -EINVAL;
 	}
@@ -1144,7 +1240,7 @@ int mcp_server_submit_tool_message(const mcp_app_message_t *app_msg, uint32_t ex
 		}
 
 		case MCP_USR_TOOL_RESPONSE: {
-			mcp_tools_call_response_t *response_data =
+			response_data =
 				(mcp_tools_call_response_t *)mcp_alloc(
 					sizeof(mcp_tools_call_response_t));
 			if (response_data == NULL) {
@@ -1177,25 +1273,37 @@ int mcp_server_submit_tool_message(const mcp_app_message_t *app_msg, uint32_t ex
 			return -EINVAL;
 		}
 
-#if CONFIG_MCP_RESPONSE_WORKERS > 0
-		ret = k_msgq_put(&mcp_response_queue, &response, K_NO_WAIT);
-		if (ret != 0) {
-			LOG_ERR("Failed to submit response to response queue: %d", ret);
-			mcp_free(response.data);
-			return ret;
-		}
-#else
-		ret = mcp_transport_queue_response(response.type, response.data);
-		if (ret != 0) {
-			LOG_ERR("Failed to queue response to transport: %d", ret);
-			mcp_free(response.data);
-			return ret;
-		}
-#endif
+        /* Allocate buffer for serialization */
+        uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
+        if (!json_buffer) {
+            LOG_ERR("Failed to allocate buffer, dropping message");
+            mcp_free(response_data);
+            return -ENOMEM;
+        }
+
+        /* Serialize response to JSON */
+        ret = mcp_json_serialize_tools_call_response(response_data, (char *)json_buffer,
+                        CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
+        if (ret <= 0) {
+            LOG_ERR("Failed to serialize response: %d", ret);
+            mcp_free(response_data);
+            mcp_free(json_buffer);
+            return ret;
+        }
+
+        ret = transport_mechanism->send(client_id, json_buffer, ret);
+        if (ret) {
+            LOG_ERR("Failed to tool response");
+            mcp_free(response_data);
+            mcp_free(json_buffer);
+            return -EIO;
+        }
+
+        mcp_free(response_data);
 	}
 
 	if ((app_msg->type == MCP_USR_TOOL_RESPONSE) ||
-	    (app_msg->type == MCP_USR_TOOL_CANCEL_ACK)) {
+		(app_msg->type == MCP_USR_TOOL_CANCEL_ACK)) {
 		ret = k_mutex_lock(&client_registry.registry_mutex, K_FOREVER);
 		if (ret != 0) {
 			LOG_ERR("Failed to lock client registry mutex: %d. Client registry is "

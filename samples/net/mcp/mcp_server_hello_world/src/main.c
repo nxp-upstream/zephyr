@@ -7,8 +7,11 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/net/mcp/mcp_server.h>
+#include <zephyr/net/mcp/mcp_server_http.h>
 
 LOG_MODULE_REGISTER(mcp_sample_hello, LOG_LEVEL_INF);
+
+MCP_SERVER_HTTP_DT_DEFINE(mcp_http_server);
 
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
 /* Tool callback functions */
@@ -70,7 +73,7 @@ int main(void)
 
 	printk("Hello World\n\r");
 	printk("Initializing...\n\r");
-	ret = mcp_server_init();
+	ret = mcp_server_init(&mcp_http_server);
 	if (ret != 0) {
 		printk("MCP Server initialization failed: %d\n\r", ret);
 		return ret;
