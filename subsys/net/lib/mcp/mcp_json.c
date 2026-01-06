@@ -790,7 +790,7 @@ int mcp_json_serialize_initialize_response(const struct mcp_initialize_response 
 	if (resp->capabilities & MCP_TOOLS) {
 		cap_len += snprintf(capabilities_buf + cap_len,
 					sizeof(capabilities_buf) - cap_len,
-					"%s\"tools\":{\"listChanged\":false}",
+					"%s\"tools\": {\"listChanged\":false}",
 					first ? "" : ",");
 		first = false;
 	}
@@ -837,7 +837,7 @@ int mcp_json_serialize_tools_list_response(const struct mcp_tools_list_response 
 	}
 
 	ret = snprintf(buffer, buffer_size,
-			   "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"tools\":[",
+			   "{\"jsonrpc\": \"2.0\",\"id\": %u,\"result\": {\"tools\":[",
 			   resp->request_id);
 	if (ret < 0 || ret >= buffer_size) {
 		return -ENOMEM;
@@ -858,7 +858,7 @@ int mcp_json_serialize_tools_list_response(const struct mcp_tools_list_response 
 #ifdef CONFIG_MCP_TOOL_DESC
 		if (resp->tools[i].description[0] != '\0') {
 			ret = snprintf(buffer + len, buffer_size - len,
-					   ",\"description\":\"%s\"",
+					   ",\"description\": \"%s\"",
 					   resp->tools[i].description);
 			if (ret < 0 || ret >= (buffer_size - len)) {
 				return -ENOMEM;
@@ -899,7 +899,7 @@ int mcp_json_serialize_tools_call_response(const struct mcp_tools_call_response 
 	}
 
 	len = snprintf(buffer, buffer_size,
-			   "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":%.*s}",
+			   "{\"jsonrpc\": \"2.0\",\"id\": %u,\"result\": {%.*s}}",
 			   resp->request_id,
 			   resp->length,
 			   resp->result);
@@ -922,7 +922,7 @@ int mcp_json_serialize_error_response(const struct mcp_error_response *resp,
 	}
 
 	len = snprintf(buffer, buffer_size,
-			   "{\"jsonrpc\":\"2.0\",\"id\":%u,\"error\":{\"code\":%d,\"message\":\"%s\"}}",
+			   "{\"jsonrpc\": \"2.0\",\"id\":%u,\"error\": {\"code\":%d,\"message\":\"%s\"}}",
 			   resp->request_id,
 			   resp->error_code,
 			   resp->error_message);

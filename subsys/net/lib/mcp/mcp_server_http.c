@@ -406,7 +406,7 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client, const struc
 
 		response_ctx->status = HTTP_200_OK;
 
-		if (msg_type == MCP_MSG_ERROR_TOOLS_LIST) {
+		if (msg_type == MCP_MSG_REQUEST_TOOLS_LIST) {
 			/* Wait for the response since there is no tool call needed */
 			response_data = k_fifo_get(&mcp_client_ctx->response_queue, K_FOREVER);
 			mcp_client_ctx->response_headers[0].name = "Content-Type";
@@ -416,7 +416,7 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client, const struc
 			response_ctx->body_len = response_data->length;
 		}
 
-		if (msg_type == MCP_MSG_ERROR_TOOLS_CALL) {
+		if (msg_type == MCP_MSG_REQUEST_TOOLS_CALL) {
 			mcp_client_ctx->response_headers[0].name = "Content-Type";
 			mcp_client_ctx->response_headers[0].value = "text/event-stream";
 			int body_len = snprintf(mcp_client_ctx->response_body, sizeof(mcp_client_ctx->response_body), "\"id\": \"%d\" \"data\": {}", mcp_client_ctx->next_event_id++);
@@ -454,7 +454,7 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client, const struct
 	/* Check if queue has response */
 	struct mcp_http_response_item *response_data = k_fifo_get(&mcp_client_ctx->response_queue, K_NO_WAIT);
 	if (response_data) {
-		if (accumulator->last_event_id_hdr <= response_data->event_id) {
+		if (response_data->event_id < accumulator->last_event_id_hdr) {
 			LOG_DBG("Event ID %d matches or exceeds last event ID %d", response_data->event_id, accumulator->last_event_id_hdr);
 			response_ctx->status = HTTP_204_NO_CONTENT;
 			response_ctx->body_len = 0;
@@ -585,6 +585,11 @@ int mcp_server_http_send(uint32_t client_id, const void *data, size_t length)
 	struct mcp_http_client_ctx *client;
 	struct mcp_http_response_item *item;
 
+	if (!http_transport_state.initialized) {
+		LOG_WRN("HTTP transport not initialized");
+		return -ENODEV;
+	}
+
 	if (!data || length == 0) {
 		LOG_ERR("Invalid send parameters");
 		return -EINVAL;
@@ -626,6 +631,11 @@ int mcp_server_http_send(uint32_t client_id, const void *data, size_t length)
 int mcp_server_http_disconnect(uint32_t client_id)
 {
 	struct mcp_http_client_ctx *client;
+
+	if (!http_transport_state.initialized) {
+		LOG_WRN("HTTP transport not initialized");
+		return -ENODEV;
+	}
 
 	/* Find the client */
 	client = get_client(client_id);
