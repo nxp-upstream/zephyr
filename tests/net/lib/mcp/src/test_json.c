@@ -23,7 +23,7 @@ ZTEST(mcp_json_parse, test_parse_initialize_request_valid)
 		      "\"params\":{\"protocolVersion\":\"2024-11-05\","
 		      "\"clientInfo\":{\"name\":\"test-client\",\"version\":\"1.0.0\"}}}";
 
-	mcp_queue_msg_type_t type;
+	enum mcp_queue_msg_type type;
 	void *data = NULL;
 	int ret;
 
@@ -33,7 +33,7 @@ ZTEST(mcp_json_parse, test_parse_initialize_request_valid)
 	zassert_equal(type, MCP_MSG_REQUEST_INITIALIZE, "Should be initialize request");
 	zassert_not_null(data, "Data should not be NULL");
 
-	mcp_initialize_request_t *req = (mcp_initialize_request_t *)data;
+	struct mcp_initialize_request *req = (struct mcp_initialize_request *)data;
 	zassert_equal(req->request_id, 1, "Request ID should be 1");
 	zassert_equal(req->client_id, 123, "Client ID should be 123");
 
@@ -45,7 +45,7 @@ ZTEST(mcp_json_parse, test_parse_initialize_request_invalid_jsonrpc_version)
 	char json[] = "{\"jsonrpc\":\"1.0\",\"id\":1,\"method\":\"initialize\","
 		      "\"params\":{\"protocolVersion\":\"2024-11-05\"}}";
 
-	mcp_queue_msg_type_t type;
+	enum mcp_queue_msg_type type;
 	void *data = NULL;
 	int ret;
 
@@ -60,7 +60,7 @@ ZTEST(mcp_json_parse, test_parse_initialize_request_missing_method)
 	char json[] = "{\"jsonrpc\":\"2.0\",\"id\":1,"
 		      "\"params\":{\"protocolVersion\":\"2024-11-05\"}}";
 
-	mcp_queue_msg_type_t type;
+	enum mcp_queue_msg_type type;
 	void *data = NULL;
 	int ret;
 
@@ -75,7 +75,7 @@ ZTEST(mcp_json_parse, test_parse_initialize_request_wrong_method)
 	char json[] = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"wrong_method\","
 		      "\"params\":{\"protocolVersion\":\"2024-11-05\"}}";
 
-	mcp_queue_msg_type_t type;
+	enum mcp_queue_msg_type type;
 	void *data = NULL;
 	int ret;
 
@@ -90,7 +90,7 @@ ZTEST(mcp_json_parse, test_parse_initialize_request_invalid_client_id)
 	char json[] = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\","
 		      "\"params\":{\"protocolVersion\":\"2024-11-05\"}}";
 
-	mcp_queue_msg_type_t type;
+	enum mcp_queue_msg_type type;
 	void *data = NULL;
 	int ret;
 
@@ -110,7 +110,7 @@ ZTEST(mcp_json_parse, test_parse_tools_list_request_valid)
 {
 	char json[] = "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}";
 
-	mcp_queue_msg_type_t type;
+	enum mcp_queue_msg_type type;
 	void *data = NULL;
 	int ret;
 
@@ -120,7 +120,7 @@ ZTEST(mcp_json_parse, test_parse_tools_list_request_valid)
 	zassert_equal(type, MCP_MSG_REQUEST_TOOLS_LIST, "Should be tools/list request");
 	zassert_not_null(data, "Data should not be NULL");
 
-	mcp_tools_list_request_t *req = (mcp_tools_list_request_t *)data;
+	struct mcp_tools_list_request *req = (struct mcp_tools_list_request *)data;
 	zassert_equal(req->request_id, 2, "Request ID should be 2");
 	zassert_equal(req->client_id, 456, "Client ID should be 456");
 
@@ -133,7 +133,7 @@ ZTEST(mcp_json_parse, test_parse_tools_call_request_valid)
 		      "\"params\":{\"name\":\"test_tool\","
 		      "\"arguments\":\"{\\\"param1\\\":\\\"value1\\\"}\"}}";
 
-	mcp_queue_msg_type_t type;
+	enum mcp_queue_msg_type type;
 	void *data = NULL;
 	int ret;
 
@@ -143,7 +143,7 @@ ZTEST(mcp_json_parse, test_parse_tools_call_request_valid)
 	zassert_equal(type, MCP_MSG_REQUEST_TOOLS_CALL, "Should be tools/call request");
 	zassert_not_null(data, "Data should not be NULL");
 
-	mcp_tools_call_request_t *req = (mcp_tools_call_request_t *)data;
+	struct mcp_tools_call_request *req = (struct mcp_tools_call_request *)data;
 	zassert_equal(req->request_id, 3, "Request ID should be 3");
 	zassert_equal(req->client_id, 789, "Client ID should be 789");
 	zassert_mem_equal(req->name, "test_tool", strlen("test_tool"), "Tool name should match");
@@ -156,7 +156,7 @@ ZTEST(mcp_json_parse, test_parse_tools_call_request_missing_name)
 	char json[] = "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\","
 		      "\"params\":{\"arguments\":\"{\\\"param1\\\":\\\"value1\\\"}\"}}";
 
-	mcp_queue_msg_type_t type;
+	enum mcp_queue_msg_type type;
 	void *data = NULL;
 	int ret;
 
@@ -171,7 +171,7 @@ ZTEST(mcp_json_parse, test_parse_tools_call_request_empty_arguments)
 	char json[] = "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\","
 		      "\"params\":{\"name\":\"test_tool\"}}";
 
-	mcp_queue_msg_type_t type;
+	enum mcp_queue_msg_type type;
 	void *data = NULL;
 	int ret;
 
@@ -180,7 +180,7 @@ ZTEST(mcp_json_parse, test_parse_tools_call_request_empty_arguments)
 	zassert_equal(ret, 0, "Parse should succeed with empty arguments");
 	zassert_not_null(data, "Data should not be NULL");
 
-	mcp_tools_call_request_t *req = (mcp_tools_call_request_t *)data;
+	struct mcp_tools_call_request *req = (struct mcp_tools_call_request *)data;
 	zassert_equal(req->arguments[0], '\0', "Arguments should be empty string");
 
 	mcp_free(data);
@@ -196,7 +196,7 @@ ZTEST(mcp_json_parse, test_parse_initialized_notification_valid)
 {
 	char json[] = "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}";
 
-	mcp_queue_msg_type_t type;
+	enum mcp_queue_msg_type type;
 	void *data = NULL;
 	int ret;
 
@@ -217,7 +217,7 @@ ZTEST(mcp_json_parse, test_parse_notification_unknown_method)
 {
 	char json[] = "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/unknown\"}";
 
-	mcp_queue_msg_type_t type;
+	enum mcp_queue_msg_type type;
 	void *data = NULL;
 	int ret;
 
@@ -234,7 +234,7 @@ ZTEST(mcp_json_parse, test_parse_notification_unknown_method)
 
 ZTEST(mcp_json_parse, test_parse_null_json)
 {
-	mcp_queue_msg_type_t type;
+	enum mcp_queue_msg_type type;
 	void *data = NULL;
 	int ret;
 
@@ -247,7 +247,7 @@ ZTEST(mcp_json_parse, test_parse_null_json)
 ZTEST(mcp_json_parse, test_parse_zero_length)
 {
 	char json[] = "{\"jsonrpc\":\"2.0\"}";
-	mcp_queue_msg_type_t type;
+	enum mcp_queue_msg_type type;
 	void *data = NULL;
 	int ret;
 
@@ -262,7 +262,7 @@ ZTEST(mcp_json_parse, test_parse_malformed_json)
 
 	char json[] = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\"";
 
-	mcp_queue_msg_type_t type;
+	enum mcp_queue_msg_type type;
 	void *data = NULL;
 	int ret;
 
@@ -279,7 +279,7 @@ ZTEST(mcp_json_parse, test_parse_malformed_json)
 
 ZTEST(mcp_json_serialize, test_serialize_initialize_response_basic)
 {
-	mcp_initialize_response_t resp = {
+	struct mcp_initialize_response resp = {
 		.request_id = 1,
 		.capabilities = MCP_TOOLS,
 	};
@@ -301,7 +301,7 @@ ZTEST(mcp_json_serialize, test_serialize_initialize_response_basic)
 
 ZTEST(mcp_json_serialize, test_serialize_initialize_response_no_tools)
 {
-	mcp_initialize_response_t resp = {
+	struct mcp_initialize_response resp = {
 		.request_id = 2,
 		.capabilities = 0,  /* No tools */
 	};
@@ -317,7 +317,7 @@ ZTEST(mcp_json_serialize, test_serialize_initialize_response_no_tools)
 
 ZTEST(mcp_json_serialize, test_serialize_initialize_response_buffer_too_small)
 {
-	mcp_initialize_response_t resp = {
+	struct mcp_initialize_response resp = {
 		.request_id = 1,
 		.capabilities = MCP_TOOLS,
 	};
@@ -337,7 +337,7 @@ ZTEST(mcp_json_serialize, test_serialize_initialize_response_buffer_too_small)
 #ifdef CONFIG_MCP_TOOLS_CAPABILITY
 ZTEST(mcp_json_serialize, test_serialize_tools_list_response_empty)
 {
-	mcp_tools_list_response_t resp = {
+	struct mcp_tools_list_response resp = {
 		.request_id = 3,
 		.tool_count = 0,
 	};
@@ -354,7 +354,7 @@ ZTEST(mcp_json_serialize, test_serialize_tools_list_response_empty)
 
 ZTEST(mcp_json_serialize, test_serialize_tools_list_response_single_tool)
 {
-	mcp_tools_list_response_t resp = {
+	struct mcp_tools_list_response resp = {
 		.request_id = 4,
 		.tool_count = 1,
 	};
@@ -376,7 +376,7 @@ ZTEST(mcp_json_serialize, test_serialize_tools_list_response_single_tool)
 
 ZTEST(mcp_json_serialize, test_serialize_tools_list_response_multiple_tools)
 {
-	mcp_tools_list_response_t resp = {
+	struct mcp_tools_list_response resp = {
 		.request_id = 5,
 		.tool_count = 2,
 	};
@@ -401,7 +401,7 @@ ZTEST(mcp_json_serialize, test_serialize_tools_list_response_multiple_tools)
 
 ZTEST(mcp_json_serialize, test_serialize_tools_call_response_valid)
 {
-	mcp_tools_call_response_t resp = {
+	struct mcp_tools_call_response resp = {
 		.request_id = 3,
 		.length = 18,
 	};
@@ -427,7 +427,7 @@ ZTEST(mcp_json_serialize, test_serialize_tools_call_response_valid)
 
 ZTEST(mcp_json_serialize, test_serialize_error_response_valid)
 {
-	mcp_error_response_t resp = {
+	struct mcp_error_response resp = {
 		.request_id = 7,
 		.error_code = MCP_ERROR_INVALID_REQUEST,
 	};
@@ -462,7 +462,7 @@ ZTEST(mcp_json_serialize, test_serialize_error_response_all_error_codes)
 	};
 
 	for (int i = 0; i < ARRAY_SIZE(error_codes); i++) {
-		mcp_error_response_t resp = {
+		struct mcp_error_response resp = {
 			.request_id = 100 + i,
 			.error_code = error_codes[i].code,
 		};

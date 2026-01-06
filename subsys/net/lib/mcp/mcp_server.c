@@ -38,7 +38,7 @@ struct mcp_client_registry {
 	uint8_t client_count;
 };
 
-/*
+/**
  * @brief MCP server context structure
  * @details Contains all state and resources needed to manage an MCP server instance,
  * including client registry, transport operations, request processing workers,
@@ -50,7 +50,7 @@ struct mcp_server_ctx {
 	struct mcp_transport_ops *transport_mechanism;
 	struct k_thread request_workers[CONFIG_MCP_REQUEST_WORKERS];
 	struct k_msgq request_queue;
-	char request_queue_buffers[CONFIG_MCP_REQUEST_QUEUE_SIZE * sizeof(mcp_queue_msg_t)];
+	char request_queue_buffers[CONFIG_MCP_REQUEST_QUEUE_SIZE * sizeof(struct mcp_queue_msg)];
 	bool in_use;
 	struct mcp_tool_registry tool_registry;
 	struct mcp_execution_registry execution_registry;
@@ -228,13 +228,13 @@ static int register_new_client(struct mcp_server_ctx *server, uint32_t client_id
 	return slot_index;
 }
 
-static int send_error_response(struct mcp_server_ctx *server, uint32_t request_id, uint32_t client_id, mcp_queue_msg_type_t error_type,
+static int send_error_response(struct mcp_server_ctx *server, uint32_t request_id, uint32_t client_id, enum mcp_queue_msg_type error_type,
 				   int32_t error_code, const char *error_message)
 {
-	mcp_error_response_t *error_response;
+	struct mcp_error_response *error_response;
 	int ret;
 
-	error_response = (mcp_error_response_t *)mcp_alloc(sizeof(mcp_error_response_t));
+	error_response = (struct mcp_error_response *)mcp_alloc(sizeof(struct mcp_error_response));
 	if (!error_response) {
 		LOG_ERR("Failed to allocate error response");
 		return -ENOMEM;
@@ -277,7 +277,7 @@ static int send_error_response(struct mcp_server_ctx *server, uint32_t request_i
 }
 
 #ifdef CONFIG_MCP_HEALTH_MONITOR
-/*
+/**
  * @brief Health monitor worker thread
  * @param ctx Server context pointer
  * @param arg2 NULL
@@ -305,7 +305,7 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 		}
 
 		for (int i = 0; i < MCP_MAX_REQUESTS; i++) {
-			mcp_execution_context_t *context = &execution_registry->executions[i];
+			struct mcp_execution_context *context = &execution_registry->executions[i];
 
 			if (context->execution_token == 0) {
 				continue;
@@ -401,7 +401,7 @@ static uint32_t generate_execution_token(uint32_t request_id)
 	return request_id;
 }
 
-static int create_execution_context(struct mcp_server_ctx *server, mcp_tools_call_request_t *request, uint32_t *execution_token,
+static int create_execution_context(struct mcp_server_ctx *server, struct mcp_tools_call_request *request, uint32_t *execution_token,
 					int *execution_token_index)
 {
 	int ret;
@@ -424,7 +424,7 @@ static int create_execution_context(struct mcp_server_ctx *server, mcp_tools_cal
 
 	for (int i = 0; i < ARRAY_SIZE(execution_registry->executions); i++) {
 		if (execution_registry->executions[i].execution_token == 0) {
-			mcp_execution_context_t *context = &execution_registry->executions[i];
+			struct mcp_execution_context *context = &execution_registry->executions[i];
 
 			context->execution_token = *execution_token;
 			context->request_id = request->request_id;
@@ -485,7 +485,7 @@ static int destroy_execution_context(struct mcp_server_ctx *server, uint32_t exe
 
 	for (int i = 0; i < ARRAY_SIZE(execution_registry->executions); i++) {
 		if (execution_registry->executions[i].execution_token == execution_token) {
-			mcp_execution_context_t *context = &execution_registry->executions[i];
+			struct mcp_execution_context *context = &execution_registry->executions[i];
 
 			memset(context, 0, sizeof(*context));
 			found_token = true;
@@ -505,7 +505,7 @@ static int destroy_execution_context(struct mcp_server_ctx *server, uint32_t exe
 
 /* Message handlers */
 
-static int handle_system_message(struct mcp_server_ctx *server, mcp_system_msg_t *system_msg)
+static int handle_system_message(struct mcp_server_ctx *server, struct mcp_system_msg *system_msg)
 {
 	int ret;
 	int client_index;
@@ -573,9 +573,9 @@ static int handle_system_message(struct mcp_server_ctx *server, mcp_system_msg_t
 	return 0;
 }
 
-static int handle_initialize_request(struct mcp_server_ctx *server, mcp_initialize_request_t *request)
+static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_initialize_request *request)
 {
-	mcp_initialize_response_t *response_data;
+	struct mcp_initialize_response *response_data;
 	int client_index;
 	int ret;
 	struct mcp_client_registry *client_registry = &server->client_registry;
@@ -609,7 +609,7 @@ static int handle_initialize_request(struct mcp_server_ctx *server, mcp_initiali
 
 	k_mutex_unlock(&client_registry->registry_mutex);
 
-	response_data = (mcp_initialize_response_t *)mcp_alloc(sizeof(mcp_initialize_response_t));
+	response_data = (struct mcp_initialize_response *)mcp_alloc(sizeof(struct mcp_initialize_response));
 	if (!response_data) {
 		LOG_ERR("Failed to allocate response");
 		return -ENOMEM;
@@ -667,7 +667,7 @@ static int validate_client_for_tools_request(struct mcp_server_ctx *server, uint
 	return 0;
 }
 
-static int copy_tool_metadata_to_response(struct mcp_server_ctx *server, mcp_tools_list_response_t *response_data)
+static int copy_tool_metadata_to_response(struct mcp_server_ctx *server, struct mcp_tools_list_response *response_data)
 {
 	struct mcp_tool_registry *tool_registry = &server->tool_registry;
 
@@ -722,9 +722,9 @@ static int copy_tool_metadata_to_response(struct mcp_server_ctx *server, mcp_too
 	return 0;
 }
 
-static int handle_tools_list_request(struct mcp_server_ctx *server, mcp_tools_list_request_t *request)
+static int handle_tools_list_request(struct mcp_server_ctx *server, struct mcp_tools_list_request *request)
 {
-	mcp_tools_list_response_t *response_data;
+	struct mcp_tools_list_response *response_data;
 	int client_index;
 	int ret;
 
@@ -746,7 +746,7 @@ static int handle_tools_list_request(struct mcp_server_ctx *server, mcp_tools_li
 		return ret;
 	}
 
-	response_data = (mcp_tools_list_response_t *)mcp_alloc(sizeof(mcp_tools_list_response_t));
+	response_data = (struct mcp_tools_list_response *)mcp_alloc(sizeof(struct mcp_tools_list_response));
 	if (!response_data) {
 		LOG_ERR("Failed to allocate response");
 		return -ENOMEM;
@@ -794,7 +794,7 @@ static int handle_tools_list_request(struct mcp_server_ctx *server, mcp_tools_li
 	return 0;
 }
 
-static int handle_tools_call_request(struct mcp_server_ctx *server, mcp_tools_call_request_t *request)
+static int handle_tools_call_request(struct mcp_server_ctx *server, struct mcp_tools_call_request *request)
 {
 	int ret;
 	int tool_index;
@@ -890,7 +890,7 @@ cleanup_active_request:
 	return final_ret;
 }
 
-static int handle_notification(struct mcp_server_ctx *server, mcp_client_notification_t *notification)
+static int handle_notification(struct mcp_server_ctx *server, struct mcp_client_notification *notification)
 {
 	int ret;
 	int client_index;
@@ -935,14 +935,15 @@ static int handle_notification(struct mcp_server_ctx *server, mcp_client_notific
 	return 0;
 }
 
-/* @brief Worker threads
+/**
+ * @brief Worker threads
  * @param ctx pointer to server context
  * @param wid worker id
  * @param arg3 NULL
  */
 static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 {
-	mcp_queue_msg_t request;
+	struct mcp_queue_msg request;
 	int worker_id = POINTER_TO_INT(wid);
 	int ret;
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
@@ -963,7 +964,7 @@ static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 
 		switch (request.type) {
 		case MCP_MSG_SYSTEM: {
-			mcp_system_msg_t *system_msg = (mcp_system_msg_t *)request.data;
+			struct mcp_system_msg *system_msg = (struct mcp_system_msg *)request.data;
 			system_msg->client_id = request.client_id;
 
 			ret = handle_system_message(server, system_msg);
@@ -975,8 +976,8 @@ static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 		}
 
 		case MCP_MSG_REQUEST_INITIALIZE: {
-			mcp_initialize_request_t *init_request =
-				(mcp_initialize_request_t *)request.data;
+			struct mcp_initialize_request *init_request =
+				(struct mcp_initialize_request *)request.data;
 			init_request->client_id = request.client_id;
 
 			ret = handle_initialize_request(server, init_request);
@@ -999,8 +1000,8 @@ static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 		}
 
 		case MCP_MSG_REQUEST_TOOLS_LIST: {
-			mcp_tools_list_request_t *tools_list_request =
-				(mcp_tools_list_request_t *)request.data;
+			struct mcp_tools_list_request *tools_list_request =
+				(struct mcp_tools_list_request *)request.data;
 			tools_list_request->client_id = request.client_id;
 
 			ret = handle_tools_list_request(server, tools_list_request);
@@ -1027,8 +1028,8 @@ static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 		}
 
 		case MCP_MSG_REQUEST_TOOLS_CALL: {
-			mcp_tools_call_request_t *tools_call_request =
-				(mcp_tools_call_request_t *)request.data;
+			struct mcp_tools_call_request *tools_call_request =
+				(struct mcp_tools_call_request *)request.data;
 			tools_call_request->client_id = request.client_id;
 
 			ret = handle_tools_call_request(server, tools_call_request);
@@ -1060,8 +1061,8 @@ static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 			break;
 		}
 		case MCP_MSG_NOTIFICATION: {
-			mcp_client_notification_t *notification =
-				(mcp_client_notification_t *)request.data;
+			struct mcp_client_notification *notification =
+				(struct mcp_client_notification *)request.data;
 			notification->client_id = request.client_id;
 
 			ret = handle_notification(server, notification);
@@ -1097,9 +1098,9 @@ static struct mcp_server_ctx *allocate_mcp_server_context(void)
 /*******************************************************************************
  * Internal Interface Implementation
  ******************************************************************************/
-int mcp_server_handle_request(mcp_server_ctx_t ctx, const char *json, size_t length, uint32_t in_client_id, uint32_t *out_client_id, mcp_queue_msg_type_t *msg_type)
+int mcp_server_handle_request(mcp_server_ctx_t ctx, const char *json, size_t length, uint32_t in_client_id, uint32_t *out_client_id, enum mcp_queue_msg_type *msg_type)
 {
-	mcp_queue_msg_t msg;
+	struct mcp_queue_msg msg;
 	int ret;
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 
@@ -1198,7 +1199,7 @@ mcp_server_ctx_t mcp_server_init(struct mcp_transport_ops *transport_ops)
 		return NULL;
 	}
 
-	k_msgq_init(&server_ctx->request_queue, server_ctx->request_queue_buffers, sizeof(mcp_queue_msg_t), CONFIG_MCP_REQUEST_QUEUE_SIZE);
+	k_msgq_init(&server_ctx->request_queue, server_ctx->request_queue_buffers, sizeof(struct mcp_queue_msg), CONFIG_MCP_REQUEST_QUEUE_SIZE);
 
 	ret = k_mutex_init(&server_ctx->client_registry.registry_mutex);
 	if (ret != 0) {
@@ -1277,14 +1278,14 @@ int mcp_server_start(mcp_server_ctx_t ctx)
 	return 0;
 }
 
-int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const mcp_app_message_t *app_msg, uint32_t execution_token)
+int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_message *app_msg, uint32_t execution_token)
 {
 	int ret;
 	int execution_token_index;
 	uint32_t request_id;
 	uint32_t client_id;
-	mcp_queue_msg_t response;
-	mcp_tools_call_response_t *response_data;
+	struct mcp_queue_msg response;
+	struct mcp_tools_call_response *response_data;
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 
 	if (!server) {
@@ -1320,7 +1321,7 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const mcp_app_message_t
 		return -ENOENT;
 	}
 
-	mcp_execution_context_t *execution_context =
+	struct mcp_execution_context *execution_context =
 		&execution_registry->executions[execution_token_index];
 	request_id = execution_context->request_id;
 	client_id = execution_context->client_id;
@@ -1349,8 +1350,8 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const mcp_app_message_t
 
 		case MCP_USR_TOOL_RESPONSE: {
 			response_data =
-				(mcp_tools_call_response_t *)mcp_alloc(
-					sizeof(mcp_tools_call_response_t));
+				(struct mcp_tools_call_response *)mcp_alloc(
+					sizeof(struct mcp_tools_call_response));
 			if (response_data == NULL) {
 				LOG_ERR("Failed to allocate memory for response");
 				return -ENOMEM;
@@ -1461,7 +1462,7 @@ skip_client_cleanup:
 	return 0;
 }
 
-int mcp_server_add_tool(mcp_server_ctx_t ctx, const mcp_tool_record_t *tool_record)
+int mcp_server_add_tool(mcp_server_ctx_t ctx, const struct mcp_tool_record *tool_record)
 {
 	int ret;
 	int available_slot;
@@ -1498,7 +1499,7 @@ int mcp_server_add_tool(mcp_server_ctx_t ctx, const mcp_tool_record_t *tool_reco
 		return -ENOSPC;
 	}
 
-	memcpy(&tool_registry->tools[available_slot], tool_record, sizeof(mcp_tool_record_t));
+	memcpy(&tool_registry->tools[available_slot], tool_record, sizeof(struct mcp_tool_record));
 	tool_registry->tool_count++;
 
 	LOG_INF("Tool '%s' registered at slot %d", tool_record->metadata.name, available_slot);
@@ -1538,7 +1539,7 @@ int mcp_server_remove_tool(mcp_server_ctx_t ctx, const char *tool_name)
 		return -ENOENT;
 	}
 
-	memset(&tool_registry->tools[tool_index], 0, sizeof(mcp_tool_record_t));
+	memset(&tool_registry->tools[tool_index], 0, sizeof(struct mcp_tool_record));
 	tool_registry->tool_count--;
 	LOG_INF("Tool '%s' removed", tool_name);
 

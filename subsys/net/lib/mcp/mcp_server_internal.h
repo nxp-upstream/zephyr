@@ -1,5 +1,16 @@
+/*
+ * Copyright 2025 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef ZEPHYR_SUBSYS_NET_LIB_MCP_MCP_SERVER_INTERNAL_H_
 #define ZEPHYR_SUBSYS_NET_LIB_MCP_MCP_SERVER_INTERNAL_H_
+
+/**
+ * @file
+ * @brief Model Context Protocol (MCP) Server Internal API
+ */
 
 #include <zephyr/kernel.h>
 #include "mcp_common.h"
@@ -17,6 +28,6 @@
  * @param msg_type The request type is stored here
  * @return 0 on success, negative errno on failure
  */
-int mcp_server_handle_request(mcp_server_ctx_t ctx, const char *json, size_t length, uint32_t in_client_id, uint32_t *out_client_id, mcp_queue_msg_type_t *msg_type);
+int mcp_server_handle_request(mcp_server_ctx_t ctx, const char *json, size_t length, uint32_t in_client_id, uint32_t *out_client_id, enum mcp_queue_msg_type *msg_type);
 
 #endif /* ZEPHYR_SUBSYS_NET_LIB_MCP_MCP_SERVER_INTERNAL_H_ */

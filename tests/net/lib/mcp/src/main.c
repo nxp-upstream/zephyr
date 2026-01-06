@@ -15,7 +15,7 @@
 extern struct k_msgq mcp_request_queue;
 extern struct k_msgq mcp_message_queue;
 extern int mcp_transport_queue_call_count;
-extern mcp_queue_msg_t mcp_transport_last_queued_msg;
+extern struct mcp_queue_msg mcp_transport_last_queued_msg;
 /* Tool execution test callbacks with different behaviors */
 static int tool_execution_count;
 static char last_execution_params[CONFIG_MCP_TOOL_INPUT_ARGS_MAX_LEN];
@@ -70,10 +70,10 @@ static void send_tools_call_request(uint32_t client_id, uint32_t request_id, con
 				    const char *arguments)
 {
 	int ret;
-	mcp_queue_msg_t msg;
-	mcp_tools_call_request_t *tools_req;
+	struct mcp_queue_msg msg;
+	struct mcp_tools_call_request *tools_req;
 
-	tools_req = (mcp_tools_call_request_t *)mcp_alloc(sizeof(mcp_tools_call_request_t));
+	tools_req = (struct mcp_tools_call_request *)mcp_alloc(sizeof(struct mcp_tools_call_request));
 	zassert_not_null(tools_req, "Tools call request allocation failed");
 
 	tools_req->request_id = request_id;
@@ -101,10 +101,10 @@ static void send_tools_call_request(uint32_t client_id, uint32_t request_id, con
 static void send_initialize_request(uint32_t client_id, uint32_t request_id)
 {
 	int ret;
-	mcp_queue_msg_t msg;
-	mcp_initialize_request_t *init_req;
+	struct mcp_queue_msg msg;
+	struct mcp_initialize_request *init_req;
 
-	init_req = (mcp_initialize_request_t *)mcp_alloc(sizeof(mcp_initialize_request_t));
+	init_req = (struct mcp_initialize_request *)mcp_alloc(sizeof(struct mcp_initialize_request));
 	zassert_not_null(init_req, "Initialize request allocation failed");
 
 	init_req->request_id = request_id;
@@ -122,10 +122,10 @@ static void send_initialize_request(uint32_t client_id, uint32_t request_id)
 static void send_client_shutdown(uint32_t client_id)
 {
 	int ret;
-	mcp_queue_msg_t msg;
-	mcp_system_msg_t *sys_msg;
+	struct mcp_queue_msg msg;
+	struct mcp_system_msg *sys_msg;
 
-	sys_msg = (mcp_system_msg_t *)mcp_alloc(sizeof(mcp_system_msg_t));
+	sys_msg = (struct mcp_system_msg *)mcp_alloc(sizeof(struct mcp_system_msg));
 	zassert_not_null(sys_msg, "System message allocation failed");
 
 	sys_msg->type = MCP_SYS_CLIENT_SHUTDOWN;
@@ -143,7 +143,7 @@ static void send_client_shutdown(uint32_t client_id)
 static void send_initialized_notification(uint32_t client_id)
 {
 	int ret;
-	mcp_queue_msg_t msg;
+	struct mcp_queue_msg msg;
 	mcp_client_notification_t *notification;
 
 	notification = (mcp_client_notification_t *)mcp_alloc(sizeof(mcp_client_notification_t));
@@ -164,10 +164,10 @@ static void send_initialized_notification(uint32_t client_id)
 static void send_tools_list_request(uint32_t client_id, uint32_t request_id)
 {
 	int ret;
-	mcp_queue_msg_t msg;
-	mcp_tools_list_request_t *tools_req;
+	struct mcp_queue_msg msg;
+	struct mcp_tools_list_request *tools_req;
 
-	tools_req = (mcp_tools_list_request_t *)mcp_alloc(sizeof(mcp_tools_list_request_t));
+	tools_req = (struct mcp_tools_list_request *)mcp_alloc(sizeof(struct mcp_tools_list_request));
 	zassert_not_null(tools_req, "Tools request allocation failed");
 
 	tools_req->request_id = request_id;
@@ -198,7 +198,7 @@ static int stub_tool_callback_1(const char *params, uint32_t execution_token)
 {
 	int ret;
 	bool is_canceled;
-	mcp_app_message_t response;
+	struct mcp_user_message response;
 	char result_data[] = "{"
 			     "\"content\": ["
 			     "{"
@@ -247,7 +247,7 @@ static int stub_tool_callback_2(const char *params, uint32_t execution_token)
 {
 	int ret;
 	bool is_canceled;
-	mcp_app_message_t response;
+	struct mcp_user_message response;
 
 	char result_data[] = "{"
 			     "\"content\": ["
@@ -296,7 +296,7 @@ static int stub_tool_callback_3(const char *params, uint32_t execution_token)
 {
 	int ret;
 	bool is_canceled;
-	mcp_app_message_t response;
+	struct mcp_user_message response;
 	char result_data[] =
 		"{"
 		"\"content\": ["
@@ -345,7 +345,7 @@ static int test_tool_success_callback(const char *params, uint32_t execution_tok
 {
 	int ret;
 	bool is_canceled;
-	mcp_app_message_t response;
+	struct mcp_user_message response;
 	char result_data[512];
 	char text_content[256];
 
@@ -407,7 +407,7 @@ static int test_tool_error_callback(const char *params, uint32_t execution_token
 {
 	int ret;
 	bool is_canceled;
-	mcp_app_message_t response;
+	struct mcp_user_message response;
 	char result_data[] = "{"
 			     "\"content\": ["
 			     "{"
@@ -456,7 +456,7 @@ static int test_tool_slow_callback(const char *params, uint32_t execution_token)
 {
 	int ret;
 	bool is_canceled;
-	mcp_app_message_t response;
+	struct mcp_user_message response;
 	char result_data[] = "{"
 			     "\"content\": ["
 			     "{"
@@ -508,7 +508,7 @@ static int test_tool_execution_timeout_callback(const char *params, uint32_t exe
 {
 	int ret;
 	bool is_canceled;
-	mcp_app_message_t response;
+	struct mcp_user_message response;
 	char result_data[] = "{"
 			     "\"content\": ["
 			     "{"
@@ -590,7 +590,7 @@ static int test_tool_idle_timeout_callback(const char *params, uint32_t executio
 {
 	int ret;
 	bool is_canceled;
-	mcp_app_message_t response;
+	struct mcp_user_message response;
 	char result_data[] = "{"
 			     "\"content\": ["
 			     "{"
@@ -708,7 +708,7 @@ static void register_test_tools(void)
 {
 	int ret;
 
-	mcp_tool_record_t success_tool = {
+	struct mcp_tool_record success_tool = {
 		.metadata = {
 				.name = "test_success_tool",
 				.input_schema = "{\"type\":\"object\",\"properties\":{\"message\":{"
@@ -727,7 +727,7 @@ static void register_test_tools(void)
 		.callback = test_tool_success_callback
 	};
 
-	mcp_tool_record_t error_tool = {
+	struct mcp_tool_record error_tool = {
 		.metadata = {
 				.name = "test_error_tool",
 				.input_schema = "{\"type\":\"object\"}",
@@ -738,7 +738,7 @@ static void register_test_tools(void)
 		.callback = test_tool_error_callback
 	};
 
-	mcp_tool_record_t slow_tool = {
+	struct mcp_tool_record slow_tool = {
 		.metadata = {
 				.name = "test_slow_tool",
 				.input_schema = "{\"type\":\"object\"}",
@@ -797,8 +797,8 @@ ZTEST(mcp_server_tests, test_tools_call_comprehensive)
 		      "Transport should receive tools/call response");
 
 	/* Verify response content contains expected data */
-	mcp_tools_call_response_t *response =
-		(mcp_tools_call_response_t *)mcp_transport_last_queued_msg.data;
+	struct mcp_tools_call_response *response =
+		(struct mcp_tools_call_response *)mcp_transport_last_queued_msg.data;
 	zassert_not_null(response, "Response data should not be NULL");
 	zassert_equal(response->request_id, 3001, "Response should have correct request ID");
 	zassert_true(strstr(response->result, "Success tool executed successfully") != NULL,
@@ -837,7 +837,7 @@ ZTEST(mcp_server_tests, test_tools_call_comprehensive)
 		      "Transport should receive error tools/call response");
 
 	/* Verify error response content */
-	response = (mcp_tools_call_response_t *)mcp_transport_last_queued_msg.data;
+	response = (struct mcp_tools_call_response *)mcp_transport_last_queued_msg.data;
 	zassert_not_null(response, "Error response data should not be NULL");
 	zassert_equal(response->request_id, 3004, "Error response should have correct request ID");
 	zassert_true(strstr(response->result, "isError\": true") != NULL,
@@ -857,8 +857,8 @@ ZTEST(mcp_server_tests, test_tools_call_comprehensive)
 		      "Transport should receive tools/call error response");
 
 	/* Verify error response */
-	mcp_error_response_t *error_response =
-		(mcp_error_response_t *)mcp_transport_last_queued_msg.data;
+	struct mcp_error_response *error_response =
+		(struct mcp_error_response *)mcp_transport_last_queued_msg.data;
 	zassert_not_null(error_response, "Error response data should not be NULL");
 	zassert_equal(error_response->request_id, 3005,
 		      "Error response should have correct request ID");
@@ -954,7 +954,7 @@ ZTEST(mcp_server_tests, test_tools_call_concurrent_clients)
 	reset_transport_mock();
 
 	/* Register a test tool */
-	mcp_tool_record_t concurrent_tool = {
+	struct mcp_tool_record concurrent_tool = {
 		.metadata = {
 				.name = "concurrent_test_tool",
 				.input_schema = "{\"type\":\"object\"}",
@@ -1002,7 +1002,7 @@ ZTEST(mcp_server_tests, test_tools_call_edge_cases)
 	reset_transport_mock();
 
 	/* Register a test tool */
-	mcp_tool_record_t edge_case_tool = {
+	struct mcp_tool_record edge_case_tool = {
 		.metadata = {
 			.name = "edge_case_tool",
 			.input_schema = "{\"type\":\"object\"}",
@@ -1078,7 +1078,7 @@ ZTEST(mcp_server_tests, test_tools_list_response)
 	zassert_equal(mcp_transport_last_queued_msg.type, MCP_MSG_ERROR_TOOLS_LIST,
 		      "Should receive error response");
 
-	mcp_tool_record_t test_tool1 = {
+	struct mcp_tool_record test_tool1 = {
 		.metadata = {
 			.name = "test_tool_1",
 			.input_schema = "{\"type\":\"object\",\"properties\":{}}",
@@ -1095,7 +1095,7 @@ ZTEST(mcp_server_tests, test_tools_list_response)
 		.callback = stub_tool_callback_1
 	};
 
-	mcp_tool_record_t test_tool2 = {
+	struct mcp_tool_record test_tool2 = {
 		.metadata = {
 			.name = "test_tool_2",
 			.input_schema = "{\"type\":\"array\"}",
@@ -1126,8 +1126,8 @@ ZTEST(mcp_server_tests, test_tools_list_response)
 	zassert_equal(mcp_transport_last_queued_msg.type, MCP_MSG_RESPONSE_TOOLS_LIST,
 		      "Response should be tools/list type");
 
-	mcp_tools_list_response_t *response =
-		(mcp_tools_list_response_t *)mcp_transport_last_queued_msg.data;
+	struct mcp_tools_list_response *response =
+		(struct mcp_tools_list_response *)mcp_transport_last_queued_msg.data;
 
 	zassert_not_null(response, "Response data should not be NULL");
 
@@ -1202,8 +1202,8 @@ ZTEST(mcp_server_tests, test_initialize_request)
 	zassert_equal(mcp_transport_last_queued_msg.type, MCP_MSG_RESPONSE_INITIALIZE,
 		      "Response type should be initialize");
 
-	mcp_initialize_response_t *response =
-		(mcp_initialize_response_t *)mcp_transport_last_queued_msg.data;
+	struct mcp_initialize_response *response =
+		(struct mcp_initialize_response *)mcp_transport_last_queued_msg.data;
 
 	zassert_not_null(response, "Response data should not be NULL");
 	zassert_equal(response->request_id, REQ_ID_INITIALIZE_TEST,
@@ -1230,7 +1230,7 @@ ZTEST(mcp_server_tests, test_tool_registration_valid)
 	int ret;
 	uint8_t initial_count = mcp_server_get_tool_count();
 
-	mcp_tool_record_t valid_tool = {
+	struct mcp_tool_record valid_tool = {
 		.metadata = {
 			.name = "test_tool_valid",
 			.input_schema = "{\"type\":\"object\"}",
@@ -1263,14 +1263,14 @@ ZTEST(mcp_server_tests, test_tool_registration_duplicate)
 	int ret;
 	uint8_t initial_count = mcp_server_get_tool_count();
 
-	mcp_tool_record_t tool1 = {
+	struct mcp_tool_record tool1 = {
 		.metadata = {
 			.name = "duplicate_tool",
 			.input_schema = "{\"type\":\"object\"}",
 		},
 		.callback = stub_tool_callback_1
 	};
-	mcp_tool_record_t tool2 = {
+	struct mcp_tool_record tool2 = {
 		.metadata = {
 			.name = "duplicate_tool",
 			.input_schema = "{\"type\":\"object\"}",
@@ -1300,7 +1300,7 @@ ZTEST(mcp_server_tests, test_tool_registration_edge_cases)
 	ret = mcp_server_add_tool(NULL);
 	zassert_equal(ret, -EINVAL, "NULL tool_record should fail");
 
-	mcp_tool_record_t empty_name_tool = {
+	struct mcp_tool_record empty_name_tool = {
 		.metadata = {
 			.name = "",
 			.input_schema = "{\"type\":\"object\"}",
@@ -1311,7 +1311,7 @@ ZTEST(mcp_server_tests, test_tool_registration_edge_cases)
 	ret = mcp_server_add_tool(&empty_name_tool);
 	zassert_equal(ret, -EINVAL, "Empty tool name should fail");
 
-	mcp_tool_record_t null_callback_tool = {
+	struct mcp_tool_record null_callback_tool = {
 		.metadata = {
 			.name = "null_callback_tool",
 			.input_schema = "{\"type\":\"object\"}",
@@ -1325,7 +1325,7 @@ ZTEST(mcp_server_tests, test_tool_registration_edge_cases)
 	zassert_equal(mcp_server_get_tool_count(), initial_count,
 		      "Tool count should not change after invalid attempts");
 
-	mcp_tool_record_t registry_tools[] = {
+	struct mcp_tool_record registry_tools[] = {
 		{.metadata = {.name = "registry_test_tool_1",
 			      .input_schema = "{\"type\":\"object\"}"},
 		 .callback = stub_tool_callback_3},
@@ -1348,7 +1348,7 @@ ZTEST(mcp_server_tests, test_tool_registration_edge_cases)
 	zassert_equal(mcp_server_get_tool_count(), CONFIG_MCP_MAX_TOOLS,
 		      "Registry should be at maximum capacity");
 
-	mcp_tool_record_t overflow_tool = {
+	struct mcp_tool_record overflow_tool = {
 		.metadata = {
 			.name = "registry_overflow_tool",
 			.input_schema = "{\"type\":\"object\"}",
@@ -1374,7 +1374,7 @@ ZTEST(mcp_server_tests, test_tool_removal)
 	int ret;
 	uint8_t initial_count = mcp_server_get_tool_count();
 
-	mcp_tool_record_t test_tool = {
+	struct mcp_tool_record test_tool = {
 		.metadata = {
 			.name = "removal_test_tool",
 			.input_schema = "{\"type\":\"object\"}",
@@ -1471,7 +1471,7 @@ ZTEST(mcp_server_tests, test_client_shutdown)
 
 	printk("=== Testing client shutdown cancels active tool executions ===\n");
 
-	mcp_tool_record_t slow_cancel_tool = {
+	struct mcp_tool_record slow_cancel_tool = {
 		.metadata = {
 				.name = "slow_cancel_tool",
 				.input_schema = "{\"type\":\"object\"}",
@@ -1611,7 +1611,7 @@ ZTEST(mcp_server_tests, test_multiple_client_lifecycle)
 ZTEST(mcp_server_tests, test_unknown_message_type)
 {
 	int ret;
-	mcp_queue_msg_t msg;
+	struct mcp_queue_msg msg;
 	char *test_data;
 
 	reset_transport_mock();
@@ -1640,7 +1640,7 @@ ZTEST(mcp_server_tests, test_server_double_init)
 ZTEST(mcp_server_tests, test_null_data_request)
 {
 	int ret;
-	mcp_queue_msg_t msg;
+	struct mcp_queue_msg msg;
 
 	reset_transport_mock();
 
@@ -1662,7 +1662,7 @@ ZTEST(mcp_server_tests, test_tools_call)
 
 	reset_transport_mock();
 
-	mcp_tool_record_t execution_tool = {
+	struct mcp_tool_record execution_tool = {
 		.metadata = {
 				.name = "execution_test_tool",
 				.input_schema = "{\"type\":\"object\",\"properties\":"
@@ -1721,7 +1721,7 @@ ZTEST(mcp_server_tests, test_tools_call)
 ZTEST(mcp_server_tests, test_invalid_execution_tokens)
 {
 	int ret;
-	mcp_app_message_t app_msg;
+	struct mcp_user_message app_msg;
 	char response_data[] = "{"
 			       "\"content\": ["
 			       "{"
@@ -1757,7 +1757,7 @@ ZTEST(mcp_server_tests, test_invalid_execution_tokens)
 	uint8_t initial_tool_count = mcp_server_get_tool_count();
 
 	/* Register a test tool for this test */
-	mcp_tool_record_t token_test_tool = {
+	struct mcp_tool_record token_test_tool = {
 		.metadata = {
 				.name = "token_test_tool",
 				.input_schema = "{\"type\":\"object\"}",
@@ -1795,7 +1795,7 @@ ZTEST(mcp_server_tests, test_invalid_execution_tokens)
 
 	/* Test 5: app_msg with NULL data */
 	printk("=== Test 5: app_msg with NULL data ===\n");
-	mcp_app_message_t null_data_msg = {
+	struct mcp_user_message null_data_msg = {
 		.type = MCP_USR_TOOL_RESPONSE, .data = NULL, .length = 10};
 	ret = mcp_server_submit_tool_message(&null_data_msg, 1234);
 	zassert_equal(ret, -EINVAL, "app_msg with NULL data should be rejected with -EINVAL");
@@ -1824,7 +1824,7 @@ ZTEST(mcp_server_tests, test_health_monitor)
 
 	printk("=== Testing health monitor functionality ===\n");
 
-	mcp_tool_record_t timeout_tool = {
+	struct mcp_tool_record timeout_tool = {
 		.metadata = {
 				.name = "timeout_tool",
 				.input_schema = "{\"type\":\"object\"}",
@@ -1834,7 +1834,7 @@ ZTEST(mcp_server_tests, test_health_monitor)
 			},
 		.callback = test_tool_execution_timeout_callback};
 
-	mcp_tool_record_t idle_timeout_tool = {
+	struct mcp_tool_record idle_timeout_tool = {
 		.metadata = {
 				.name = "idle_timeout_tool",
 				.input_schema = "{\"type\":\"object\"}",
@@ -1844,7 +1844,7 @@ ZTEST(mcp_server_tests, test_health_monitor)
 			},
 		.callback = test_tool_idle_timeout_callback};
 
-	mcp_tool_record_t cancel_timeout_tool = {
+	struct mcp_tool_record cancel_timeout_tool = {
 		.metadata = {
 				.name = "cancel_timeout_tool",
 				.input_schema = "{\"type\":\"object\"}",
