@@ -372,10 +372,10 @@ static int get_method_from_json(const char *json, size_t length, char *method_bu
  */
 
 static int parse_initialize(char *json_buffer, size_t length,
-				mcp_initialize_request_t **out_request)
+				struct mcp_initialize_request **out_request)
 {
 	struct initialize_request_json parsed;
-	mcp_initialize_request_t *request;
+	struct mcp_initialize_request *request;
 	int ret;
 
 	memset(&parsed, 0, sizeof(parsed));
@@ -410,7 +410,7 @@ static int parse_initialize(char *json_buffer, size_t length,
 	}
 
 	/* Allocate request structure */
-	request = (mcp_initialize_request_t *)mcp_alloc(sizeof(mcp_initialize_request_t));
+	request = (struct mcp_initialize_request *)mcp_alloc(sizeof(struct mcp_initialize_request));
 	if (!request) {
 		LOG_ERR("Failed to allocate initialize request");
 		return -ENOMEM;
@@ -424,10 +424,10 @@ static int parse_initialize(char *json_buffer, size_t length,
 }
 
 static int parse_tools_list(char *json_buffer, size_t length,
-				mcp_tools_list_request_t **out_request)
+				struct mcp_tools_list_request **out_request)
 {
 	struct tools_list_request_json parsed;
-	mcp_tools_list_request_t *request;
+	struct mcp_tools_list_request *request;
 	int ret;
 
 	memset(&parsed, 0, sizeof(parsed));
@@ -449,7 +449,7 @@ static int parse_tools_list(char *json_buffer, size_t length,
 		return -EINVAL;
 	}
 
-	request = (mcp_tools_list_request_t *)mcp_alloc(sizeof(mcp_tools_list_request_t));
+	request = (struct mcp_tools_list_request *)mcp_alloc(sizeof(struct mcp_tools_list_request));
 	if (!request) {
 		LOG_ERR("Failed to allocate tools/list request");
 		return -ENOMEM;
@@ -462,10 +462,10 @@ static int parse_tools_list(char *json_buffer, size_t length,
 }
 
 static int parse_tools_call(const char *original_json, char *json_buffer, size_t length,
-				mcp_tools_call_request_t **out_request)
+				struct mcp_tools_call_request **out_request)
 {
 	struct tools_call_request_json parsed;
-	mcp_tools_call_request_t *request;
+	struct mcp_tools_call_request *request;
 	int ret;
 
 	memset(&parsed, 0, sizeof(parsed));
@@ -492,7 +492,7 @@ static int parse_tools_call(const char *original_json, char *json_buffer, size_t
 		return -EINVAL;
 	}
 
-	request = (mcp_tools_call_request_t *)mcp_alloc(sizeof(mcp_tools_call_request_t));
+	request = (struct mcp_tools_call_request *)mcp_alloc(sizeof(struct mcp_tools_call_request));
 	if (!request) {
 		LOG_ERR("Failed to allocate tools/call request");
 		return -ENOMEM;
@@ -518,10 +518,10 @@ static int parse_tools_call(const char *original_json, char *json_buffer, size_t
 }
 
 static int parse_notification_initialized(char *json_buffer, size_t length,
-					  mcp_client_notification_t **out_notification)
+					  struct mcp_client_notification **out_notification)
 {
 	struct jsonrpc_notification parsed;
-	mcp_client_notification_t *notification;
+	struct mcp_client_notification *notification;
 	int ret;
 
 	memset(&parsed, 0, sizeof(parsed));
@@ -543,7 +543,7 @@ static int parse_notification_initialized(char *json_buffer, size_t length,
 		return -EINVAL;
 	}
 
-	notification = (mcp_client_notification_t *)mcp_alloc(sizeof(mcp_client_notification_t));
+	notification = (struct mcp_client_notification *)mcp_alloc(sizeof(struct mcp_client_notification));
 	if (!notification) {
 		LOG_ERR("Failed to allocate notification");
 		return -ENOMEM;
@@ -557,10 +557,10 @@ static int parse_notification_initialized(char *json_buffer, size_t length,
 }
 
 static int parse_notification_cancelled(char *json_buffer, size_t length,
-					mcp_cancelled_notification_t **out_notification)
+					struct mcp_cancelled_notification **out_notification)
 {
 	struct cancelled_notification_json parsed;
-	mcp_cancelled_notification_t *notification;
+	struct mcp_cancelled_notification *notification;
 	int ret;
 
 	memset(&parsed, 0, sizeof(parsed));
@@ -587,8 +587,8 @@ static int parse_notification_cancelled(char *json_buffer, size_t length,
 		return -EINVAL;
 	}
 
-	notification = (mcp_cancelled_notification_t *)mcp_alloc(
-		sizeof(mcp_cancelled_notification_t));
+	notification = (struct mcp_cancelled_notification *)mcp_alloc(
+		sizeof(struct mcp_cancelled_notification));
 	if (!notification) {
 		LOG_ERR("Failed to allocate cancelled notification");
 		return -ENOMEM;
@@ -609,10 +609,10 @@ static int parse_notification_cancelled(char *json_buffer, size_t length,
 }
 
 static int parse_notification_progress(char *json_buffer, size_t length,
-					   mcp_progress_notification_t **out_notification)
+					   struct mcp_progress_notification **out_notification)
 {
 	struct progress_notification_json parsed;
-	mcp_progress_notification_t *notification;
+	struct mcp_progress_notification *notification;
 	int ret;
 
 	memset(&parsed, 0, sizeof(parsed));
@@ -639,8 +639,8 @@ static int parse_notification_progress(char *json_buffer, size_t length,
 		return -EINVAL;
 	}
 
-	notification = (mcp_progress_notification_t *)mcp_alloc(
-		sizeof(mcp_progress_notification_t));
+	notification = (struct mcp_progress_notification *)mcp_alloc(
+		sizeof(struct mcp_progress_notification));
 	if (!notification) {
 		LOG_ERR("Failed to allocate progress notification");
 		return -ENOMEM;
@@ -672,7 +672,7 @@ static int parse_notification_progress(char *json_buffer, size_t length,
  */
 
 int mcp_json_parse_request(const char *json, size_t length,
-			   mcp_queue_msg_type_t *type, void **data)
+			   enum mcp_queue_msg_type *type, void **data)
 {
 	char *json_buffer = NULL;
 	char method[MAX_METHOD_NAME_LEN];
@@ -711,15 +711,15 @@ int mcp_json_parse_request(const char *json, size_t length,
 		if (strcmp(method, "notifications/initialized") == 0) {
 			*type = MCP_MSG_NOTIFICATION;
 			ret = parse_notification_initialized(json_buffer, length,
-								 (mcp_client_notification_t **)data);
+								 (struct mcp_client_notification **)data);
 		} else if (strcmp(method, "notifications/cancelled") == 0) {
 			*type = MCP_MSG_NOTIF_CANCELLED;
 			ret = parse_notification_cancelled(json_buffer, length,
-							  (mcp_cancelled_notification_t **)data);
+							  (struct mcp_cancelled_notification **)data);
 		} else if (strcmp(method, "notifications/progress") == 0) {
 			*type = MCP_MSG_NOTIF_PROGRESS;
 			ret = parse_notification_progress(json_buffer, length,
-							 (mcp_progress_notification_t **)data);
+							 (struct mcp_progress_notification **)data);
 		} else {
 			LOG_ERR("Unknown notification method: %s", method);
 			ret = -ENOTSUP;
@@ -729,16 +729,16 @@ int mcp_json_parse_request(const char *json, size_t length,
 		if (strcmp(method, "initialize") == 0) {
 			*type = MCP_MSG_REQUEST_INITIALIZE;
 			ret = parse_initialize(json_buffer, length,
-						   (mcp_initialize_request_t **)data);
+						   (struct mcp_initialize_request **)data);
 		}
 		else if (strcmp(method, "tools/list") == 0) {
 			*type = MCP_MSG_REQUEST_TOOLS_LIST;
 			ret = parse_tools_list(json_buffer, length,
-						   (mcp_tools_list_request_t **)data);
+						   (struct mcp_tools_list_request **)data);
 		} else if (strcmp(method, "tools/call") == 0) {
 			*type = MCP_MSG_REQUEST_TOOLS_CALL;
 			ret = parse_tools_call(json, json_buffer, length,
-						   (mcp_tools_call_request_t **)data);
+						   (struct mcp_tools_call_request **)data);
 		}
 		else {
 			LOG_ERR("Unknown request method: %s", method);
@@ -770,7 +770,7 @@ int mcp_json_parse_request(const char *json, size_t length,
  * =============================================================================
  */
 
-int mcp_json_serialize_initialize_response(const mcp_initialize_response_t *resp,
+int mcp_json_serialize_initialize_response(const struct mcp_initialize_response *resp,
 					   char *buffer, size_t buffer_size)
 {
 	char capabilities_buf[512];
@@ -825,7 +825,7 @@ int mcp_json_serialize_initialize_response(const mcp_initialize_response_t *resp
 	return len;
 }
 
-int mcp_json_serialize_tools_list_response(const mcp_tools_list_response_t *resp,
+int mcp_json_serialize_tools_list_response(const struct mcp_tools_list_response *resp,
 					   char *buffer, size_t buffer_size)
 {
 	int len = 0;
@@ -883,7 +883,7 @@ int mcp_json_serialize_tools_list_response(const mcp_tools_list_response_t *resp
 	return len;
 }
 
-int mcp_json_serialize_tools_call_response(const mcp_tools_call_response_t *resp,
+int mcp_json_serialize_tools_call_response(const struct mcp_tools_call_response *resp,
 					   char *buffer, size_t buffer_size)
 {
 	int len;
@@ -911,7 +911,7 @@ int mcp_json_serialize_tools_call_response(const mcp_tools_call_response_t *resp
 	return len;
 }
 
-int mcp_json_serialize_error_response(const mcp_error_response_t *resp,
+int mcp_json_serialize_error_response(const struct mcp_error_response *resp,
 					  char *buffer, size_t buffer_size)
 {
 	int len;

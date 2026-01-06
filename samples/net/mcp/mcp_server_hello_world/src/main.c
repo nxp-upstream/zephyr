@@ -30,7 +30,7 @@ static int goodbye_world_tool_callback(const char *params, uint32_t execution_to
 }
 
 /* Tool definitions */
-static const mcp_tool_record_t hello_world_tool = {
+static const struct mcp_tool_record hello_world_tool = {
 	.metadata = {
 			.name = "hello_world",
 			.input_schema = "{\"type\":\"object\",\"properties\":{\"message\":{"
@@ -48,7 +48,7 @@ static const mcp_tool_record_t hello_world_tool = {
 		},
 	.callback = hello_world_tool_callback};
 
-static const mcp_tool_record_t goodbye_world_tool = {
+static const struct mcp_tool_record goodbye_world_tool = {
 	.metadata = {
 			.name = "goodbye_world",
 			.input_schema = "{\"type\":\"object\",\"properties\":{\"message\":{"

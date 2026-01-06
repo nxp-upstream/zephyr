@@ -258,12 +258,12 @@ ZTEST(mcp_transport, test_map_multiple_requests)
 
 ZTEST(mcp_transport, test_queue_response_valid)
 {
-	mcp_initialize_response_t *response;
+	struct mcp_initialize_response *response;
 	int ret;
 
 	reset_mock_transport();
 
-	response = (mcp_initialize_response_t *)mcp_alloc(sizeof(mcp_initialize_response_t));
+	response = (struct mcp_initialize_response *)mcp_alloc(sizeof(struct mcp_initialize_response));
 	zassert_not_null(response, "Allocation should succeed");
 
 	response->request_id = 123;
@@ -286,7 +286,7 @@ ZTEST(mcp_transport, test_queue_response_null_data)
 
 ZTEST(mcp_transport, test_queue_and_send_response)
 {
-	mcp_initialize_response_t *response;
+	struct mcp_initialize_response *response;
 	int ret;
 
 	reset_mock_transport();
@@ -308,7 +308,7 @@ ZTEST(mcp_transport, test_queue_and_send_response)
 	zassert_equal(ret, 0, "Mapping should succeed");
 
 	/* Queue response */
-	response = (mcp_initialize_response_t *)mcp_alloc(sizeof(mcp_initialize_response_t));
+	response = (struct mcp_initialize_response *)mcp_alloc(sizeof(struct mcp_initialize_response));
 	zassert_not_null(response, "Allocation should succeed");
 
 	response->request_id = 456;
@@ -530,7 +530,7 @@ ZTEST(mcp_transport, test_e2e_tools_call_flow)
 
 ZTEST(mcp_transport, test_error_response_routing)
 {
-	mcp_error_response_t *error_resp;
+	struct mcp_error_response *error_resp;
 	int ret;
 
 	reset_mock_transport();
@@ -545,7 +545,7 @@ ZTEST(mcp_transport, test_error_response_routing)
 	zassert_equal(ret, 0, "Mapping should succeed");
 
 	/* Create error response */
-	error_resp = (mcp_error_response_t *)mcp_alloc(sizeof(mcp_error_response_t));
+	error_resp = (struct mcp_error_response *)mcp_alloc(sizeof(struct mcp_error_response));
 	zassert_not_null(error_resp, "Allocation should succeed");
 
 	error_resp->request_id = 777;

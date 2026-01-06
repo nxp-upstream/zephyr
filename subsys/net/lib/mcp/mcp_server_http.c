@@ -102,7 +102,7 @@ HTTP_SERVER_REGISTER_HEADER_CAPTURE(content_type_hdr, "Content-Type");
 HTTP_SERVER_REGISTER_HEADER_CAPTURE(mcp_session_id_hdr, "Mcp-Session-Id");
 HTTP_SERVER_REGISTER_HEADER_CAPTURE(last_event_id_hdr, "Last-Event-Id");
 
-/*
+/**
  * @brief Get or allocate an accumulator for the given file descriptor
  * This function searches for an existing accumulator associated with the given fd.
  * If found, it returns a pointer to it. If not found, it allocates the first
@@ -348,7 +348,7 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client, const struc
 {
 	int ret = 0;
 	uint32_t actual_session_id;
-	mcp_queue_msg_type_t msg_type;
+	enum mcp_queue_msg_type msg_type;
 	struct mcp_http_client_ctx *mcp_client_ctx;
 	struct mcp_http_response_item *response_data = NULL;
 
@@ -620,7 +620,7 @@ int mcp_server_http_send(uint32_t client_id, const void *data, size_t length)
 	return 0;
 }
 
-/*
+/**
  * @brief Disconnect a client
  * @param client_id Client identifier
  * @return 0 on success, negative errno on failure
