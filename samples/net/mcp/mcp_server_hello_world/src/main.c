@@ -17,15 +17,29 @@ mcp_server_ctx_t server;
 /* Tool callback functions */
 static int hello_world_tool_callback(const char *params, uint32_t execution_token)
 {
+	struct mcp_user_message response = {
+		.type = MCP_USR_TOOL_RESPONSE,
+		.data = "Hello World from tool!",
+		.length = strlen("Hello World from tool!")
+	};
+
 	printk("Hello World tool executed with params: %s, token: %u\n", params ? params : "none",
 	       execution_token);
+	mcp_server_submit_tool_message(server, &response, execution_token);
 	return 0;
 }
 
 static int goodbye_world_tool_callback(const char *params, uint32_t execution_token)
 {
+	struct mcp_user_message response = {
+		.type = MCP_USR_TOOL_RESPONSE,
+		.data = "Goodbye World from tool!",
+		.length = strlen("Goodbye World from tool!")
+	};
+
 	printk("Goodbye World tool executed with params: %s, token: %u\n", params ? params : "none",
 	       execution_token);
+	mcp_server_submit_tool_message(server, &response, execution_token);
 	return 0;
 }
 
@@ -46,7 +60,8 @@ static const struct mcp_tool_record hello_world_tool = {
 					 "\"type\":\"string\"}}}",
 #endif
 		},
-	.callback = hello_world_tool_callback};
+	.callback = hello_world_tool_callback
+};
 
 static const struct mcp_tool_record goodbye_world_tool = {
 	.metadata = {
