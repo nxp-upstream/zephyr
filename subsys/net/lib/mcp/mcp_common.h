@@ -21,20 +21,14 @@ typedef enum {
 typedef enum {
 	MCP_MSG_SYSTEM,
 	MCP_MSG_REQUEST_INITIALIZE,
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
 	MCP_MSG_REQUEST_TOOLS_LIST,
 	MCP_MSG_REQUEST_TOOLS_CALL,
-#endif
 	MCP_MSG_RESPONSE_INITIALIZE,
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
 	MCP_MSG_RESPONSE_TOOLS_LIST,
 	MCP_MSG_RESPONSE_TOOLS_CALL,
-#endif
 	MCP_MSG_ERROR_INITIALIZE,
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
 	MCP_MSG_ERROR_TOOLS_LIST,
 	MCP_MSG_ERROR_TOOLS_CALL,
-#endif
 	MCP_MSG_NOTIFICATION,
 	MCP_MSG_NOTIF_CANCELLED,
 	MCP_MSG_NOTIF_PROGRESS,
@@ -109,7 +103,6 @@ typedef struct mcp_initialize_request {
 	uint32_t client_id;
 } mcp_initialize_request_t;
 
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
 typedef struct mcp_tools_list_request {
 	uint32_t request_id;
 	uint32_t client_id;
@@ -121,7 +114,6 @@ typedef struct mcp_tools_call_request {
 	char name[CONFIG_MCP_TOOL_NAME_MAX_LEN];
 	char arguments[CONFIG_MCP_TOOL_INPUT_ARGS_MAX_LEN];
 } mcp_tools_call_request_t;
-#endif
 
 /*******************************************************************************
  * Responses
@@ -141,7 +133,6 @@ typedef struct mcp_error_response {
 	char error_message[128];
 } mcp_error_response_t;
 
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
 typedef struct mcp_tools_list_response {
 	uint32_t request_id;
 	uint8_t tool_count;
@@ -153,14 +144,12 @@ typedef struct mcp_tools_call_response {
 	int length;
 	char result[CONFIG_MCP_TOOL_RESULT_MAX_LEN];
 } mcp_tools_call_response_t;
-#endif
 
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
-typedef struct {
+struct mcp_tool_registry {
 	mcp_tool_record_t tools[CONFIG_MCP_MAX_TOOLS];
 	struct k_mutex registry_mutex;
 	uint8_t tool_count;
-} mcp_tool_registry_t;
+};
 
 typedef struct {
 	uint32_t execution_token;
@@ -174,11 +163,10 @@ typedef struct {
 	mcp_execution_state_t execution_state;
 } mcp_execution_context_t;
 
-typedef struct {
+struct mcp_execution_registry {
 	mcp_execution_context_t executions[MCP_MAX_REQUESTS];
 	struct k_mutex registry_mutex;
-} mcp_execution_registry_t;
-#endif
+};
 
 void *mcp_alloc(size_t size);
 void mcp_free(void *ptr);

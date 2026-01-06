@@ -12,8 +12,8 @@
 LOG_MODULE_REGISTER(mcp_sample_hello, LOG_LEVEL_INF);
 
 MCP_SERVER_HTTP_DT_DEFINE(mcp_http_server);
+mcp_server_ctx_t server;
 
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
 /* Tool callback functions */
 static int hello_world_tool_callback(const char *params, uint32_t execution_token)
 {
@@ -64,8 +64,8 @@ static const mcp_tool_record_t goodbye_world_tool = {
 					 "\"type\":\"string\"}}}",
 #endif
 		},
-	.callback = goodbye_world_tool_callback};
-#endif /* CONFIG_MCP_TOOLS_CAPABILITY */
+	.callback = goodbye_world_tool_callback
+};
 
 int main(void)
 {
@@ -73,15 +73,14 @@ int main(void)
 
 	printk("Hello World\n\r");
 	printk("Initializing...\n\r");
-	ret = mcp_server_init(&mcp_http_server);
-	if (ret != 0) {
-		printk("MCP Server initialization failed: %d\n\r", ret);
-		return ret;
+	server = mcp_server_init(&mcp_http_server);
+	if (server == NULL) {
+		printk("MCP Server initialization failed");
+		return -ENOMEM;
 	}
 
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
 	printk("Registering Tool #1: Hello world!...\n\r");
-	ret = mcp_server_add_tool(&hello_world_tool);
+	ret = mcp_server_add_tool(server, &hello_world_tool);
 	if (ret != 0) {
 		printk("Tool #1 registration failed.\n\r");
 		return ret;
@@ -89,18 +88,15 @@ int main(void)
 	printk("Tool #1 registered.\n\r");
 
 	printk("Registering Tool #2: Goodbye world!...\n\r");
-	ret = mcp_server_add_tool(&goodbye_world_tool);
+	ret = mcp_server_add_tool(server, &goodbye_world_tool);
 	if (ret != 0) {
 		printk("Tool #2 registration failed.\n\r");
 		return ret;
 	}
 	printk("Tool #2 registered.\n\r");
-#else
-	printk("MCP Tools capability not enabled - skipping tool registration\n\r");
-#endif /* CONFIG_MCP_TOOLS_CAPABILITY */
 
 	printk("Starting...\n\r");
-	ret = mcp_server_start();
+	ret = mcp_server_start(server);
 	if (ret != 0) {
 		printk("MCP Server start failed: %d\n\r", ret);
 		return ret;

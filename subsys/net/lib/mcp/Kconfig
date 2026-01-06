@@ -8,6 +8,13 @@ menuconfig MCP_SERVER
 	  Support for MCP Server functionality.
 
 if MCP_SERVER
+config MCP_SERVER_COUNT
+	int "Number of MCP server instances"
+	default 1
+	range 1 10
+	help
+		Number of MCP server instances that can be created and run concurrently.
+
 config MCP_REQUEST_WORKERS
 	int "Number of MCP request worker threads"
 	default 2
@@ -106,15 +113,6 @@ config MCP_SERVER_INFO_INSTRUCTIONS_VALUE
 
 endif # MCP_SERVER_INFO_INSTRUCTIONS
 
-config MCP_TOOLS_CAPABILITY
-	bool "Tools capability"
-	default y
-	help
-	  Tools capability in the MCP server. This allows the server
-	  to register and execute tools via tools/list and tools/call methods.
-
-if MCP_TOOLS_CAPABILITY
-
 config MCP_MAX_TOOLS
 	int "Maximum number of registered tools"
 	default 4
@@ -209,8 +207,6 @@ config MCP_TOOL_CANCEL_TIMEOUT_MS
 			before an error is logged. Default is 1 minute (60000 ms).
 
 endif # MCP_HEALTH_MONITOR
-
-endif # MCP_TOOLS_CAPABILITY
 
 choice MCP_TRANSPORT
 	prompt "MCP Transport Mechanism"

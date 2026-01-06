@@ -99,7 +99,6 @@ static const struct json_obj_descr initialize_request_json_descr[] = {
  * =============================================================================
  */
 
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
 struct tools_list_params {
 	const char *cursor;  /* Optional pagination cursor */
 };
@@ -149,7 +148,6 @@ static const struct json_obj_descr tools_call_request_json_descr[] = {
 	JSON_OBJ_DESCR_PRIM(struct tools_call_request_json, method, JSON_TOK_STRING),
 	JSON_OBJ_DESCR_OBJECT(struct tools_call_request_json, params, tools_call_params_descr),
 };
-#endif
 
 /* =============================================================================
  * Notifications
@@ -240,7 +238,6 @@ static bool is_valid_jsonrpc_version(const char *version)
 	return (strcmp(version, "2.0") == 0);
 }
 
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
 /**
  * @brief Extract arguments object from JSON manually
  *
@@ -321,7 +318,6 @@ static int extract_arguments_field(const char *json, size_t length,
 
 	return 0;
 }
-#endif
 
 /**
  * @brief Quick scan to determine if JSON contains an "id" field
@@ -427,7 +423,6 @@ static int parse_initialize(char *json_buffer, size_t length,
 	return 0;
 }
 
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
 static int parse_tools_list(char *json_buffer, size_t length,
 				mcp_tools_list_request_t **out_request)
 {
@@ -521,7 +516,6 @@ static int parse_tools_call(const char *original_json, char *json_buffer, size_t
 
 	return 0;
 }
-#endif
 
 static int parse_notification_initialized(char *json_buffer, size_t length,
 					  mcp_client_notification_t **out_notification)
@@ -737,7 +731,6 @@ int mcp_json_parse_request(const char *json, size_t length,
 			ret = parse_initialize(json_buffer, length,
 						   (mcp_initialize_request_t **)data);
 		}
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
 		else if (strcmp(method, "tools/list") == 0) {
 			*type = MCP_MSG_REQUEST_TOOLS_LIST;
 			ret = parse_tools_list(json_buffer, length,
@@ -747,7 +740,6 @@ int mcp_json_parse_request(const char *json, size_t length,
 			ret = parse_tools_call(json, json_buffer, length,
 						   (mcp_tools_call_request_t **)data);
 		}
-#endif
 		else {
 			LOG_ERR("Unknown request method: %s", method);
 			ret = -ENOTSUP;
@@ -773,34 +765,6 @@ int mcp_json_parse_request(const char *json, size_t length,
 	return 0;
 }
 
-/*
- * @brief Check if JSON method is initialize request
- */
-bool mcp_json_is_initialize_request(const char *json, size_t length)
-{
-	char method[MAX_METHOD_NAME_LEN];
-	int ret;
-
-	if (!json || length == 0) {
-		return false;
-	}
-
-	/* Extract method name from JSON */
-	ret = get_method_from_json(json, length, method, sizeof(method));
-	if (ret != 0) {
-		LOG_DBG("Failed to extract method from JSON");
-		return false;
-	}
-
-	/* Check if method is "initialize" */
-	if (strcmp(method, "initialize") == 0) {
-		LOG_DBG("Detected initialize request");
-		return true;
-	}
-
-	return false;
-}
-
 /* =============================================================================
  * Response Serializers
  * =============================================================================
@@ -823,7 +787,6 @@ int mcp_json_serialize_initialize_response(const mcp_initialize_response_t *resp
 
 	bool first = true;
 
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
 	if (resp->capabilities & MCP_TOOLS) {
 		cap_len += snprintf(capabilities_buf + cap_len,
 					sizeof(capabilities_buf) - cap_len,
@@ -831,7 +794,6 @@ int mcp_json_serialize_initialize_response(const mcp_initialize_response_t *resp
 					first ? "" : ",");
 		first = false;
 	}
-#endif
 
 	cap_len += snprintf(capabilities_buf + cap_len,
 				sizeof(capabilities_buf) - cap_len, "}");
@@ -863,7 +825,6 @@ int mcp_json_serialize_initialize_response(const mcp_initialize_response_t *resp
 	return len;
 }
 
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
 int mcp_json_serialize_tools_list_response(const mcp_tools_list_response_t *resp,
 					   char *buffer, size_t buffer_size)
 {
@@ -949,7 +910,6 @@ int mcp_json_serialize_tools_call_response(const mcp_tools_call_response_t *resp
 
 	return len;
 }
-#endif
 
 int mcp_json_serialize_error_response(const mcp_error_response_t *resp,
 					  char *buffer, size_t buffer_size)

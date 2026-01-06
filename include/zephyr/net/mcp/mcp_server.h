@@ -20,16 +20,13 @@ extern "C" {
 #endif
 
 typedef enum {
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
 	MCP_USR_TOOL_RESPONSE,
 	MCP_USR_TOOL_NOTIFICATION,
 	MCP_USR_TOOL_CANCEL_ACK,
 	MCP_USR_TOOL_PING,
-#endif
 	MCP_USR_GENERIC_RESPONSE
 } mcp_app_msg_type_t;
 
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
 /**
  * @brief Tool metadata structure
  */
@@ -63,13 +60,17 @@ typedef struct mcp_tool_record {
 	mcp_tool_metadata_t metadata;
 	mcp_tool_callback_t callback;
 } mcp_tool_record_t;
-#endif
 
 typedef struct mcp_user_message {
 	mcp_app_msg_type_t type;
 	int length;
 	void *data;
 } mcp_app_message_t;
+
+/*
+ * @brief Server context handle
+ */
+typedef void* mcp_server_ctx_t;
 
 /*
  * @brief Transport operations structure for MCP server communication.
@@ -79,7 +80,7 @@ struct mcp_transport_ops {
 	 * @brief Initialize the transport mechanism
 	 * @return 0 on success, negative errno on failure
 	 */
-	int (*init)(void);
+	int (*init)(mcp_server_ctx_t server_ctx);
 
 	/**
 	 * @brief Send data to a client
@@ -103,16 +104,16 @@ struct mcp_transport_ops {
  *
  * @return 0 on success, negative errno on failure
  */
-int mcp_server_init(struct mcp_transport_ops *transport_ops);
+mcp_server_ctx_t mcp_server_init(struct mcp_transport_ops *transport_ops);
 
 /**
  * @brief Start the MCP Server
  *
  * @return 0 on success, negative errno on failure
  */
-int mcp_server_start(void);
+int mcp_server_start(mcp_server_ctx_t server_ctx);
 
-int mcp_server_submit_tool_message(const mcp_app_message_t *user_msg, uint32_t execution_token);
+int mcp_server_submit_tool_message(mcp_server_ctx_t server_ctx, const mcp_app_message_t *user_msg, uint32_t execution_token);
 /**
  * @brief Submit an application message (response/notification)
  *
@@ -120,16 +121,8 @@ int mcp_server_submit_tool_message(const mcp_app_message_t *user_msg, uint32_t e
  * @param execution_token Execution token for tracking
  * @return 0 on success, negative errno on failure
  */
-int mcp_server_submit_app_message(const mcp_app_message_t *user_msg, uint32_t execution_token);
+int mcp_server_submit_app_message(mcp_server_ctx_t server_ctx, const mcp_app_message_t *user_msg, uint32_t execution_token);
 
-/*
- * @brief Register transport operations with the MCP server
- * @param transport_ops Transport operations structure
- * @return 0 on success, negative errno on failure
- */
-int mcp_server_register_bus(struct mcp_transport_ops *transport_ops);
-
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
 /**
  * @brief Add a tool to the server
  *
@@ -139,7 +132,7 @@ int mcp_server_register_bus(struct mcp_transport_ops *transport_ops);
  * @retval -EEXIST Tool name already exists
  * @retval -ENOSPC Registry full
  */
-int mcp_server_add_tool(const mcp_tool_record_t *tool_record);
+int mcp_server_add_tool(mcp_server_ctx_t server_ctx, const mcp_tool_record_t *tool_record);
 
 /**
  * @brief Remove a tool from the server
@@ -149,10 +142,9 @@ int mcp_server_add_tool(const mcp_tool_record_t *tool_record);
  * @retval -EINVAL Invalid tool name
  * @retval -ENOENT Tool not found
  */
-int mcp_server_remove_tool(const char *tool_name);
+int mcp_server_remove_tool(mcp_server_ctx_t server_ctx, const char *tool_name);
 
-int mcp_server_is_execution_canceled(uint32_t execution_token, bool *is_canceled);
-#endif
+int mcp_server_is_execution_canceled(mcp_server_ctx_t server_ctx, uint32_t execution_token, bool *is_canceled);
 
 #ifdef __cplusplus
 }
