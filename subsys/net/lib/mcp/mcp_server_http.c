@@ -22,7 +22,7 @@
 LOG_MODULE_REGISTER(mcp_http_transport, CONFIG_MCP_LOG_LEVEL);
 
 #define SESSION_ID_STR_LEN ((sizeof(uint32_t) * 2) + 1)
-#define CONTENT_TYPE_HDR_LEN (sizeof("application/json") + 1)
+#define CONTENT_TYPE_HDR_LEN (sizeof("text/event-stream") + 1) // worst case for content-type header
 #define ORIGIN_HDR_LEN 128
 #define MAX_RESPONSE_HEADERS 4 /* Content-Type, Last-Event-Id, Mcp-Session-Id, extra buffer */
 
@@ -97,6 +97,7 @@ HTTP_RESOURCE_DEFINE(mcp_endpoint_resource, mcp_http_service,
 HTTP_SERVICE_DEFINE(mcp_http_service, CONFIG_NET_CONFIG_MY_IPV4_ADDR, &mcp_http_port,
 			CONFIG_HTTP_SERVER_MAX_CLIENTS, 10, NULL, NULL, NULL);
 
+/* HTTP headers capture */
 HTTP_SERVER_REGISTER_HEADER_CAPTURE(origin_hdr, "Origin");
 HTTP_SERVER_REGISTER_HEADER_CAPTURE(content_type_hdr, "Content-Type");
 HTTP_SERVER_REGISTER_HEADER_CAPTURE(mcp_session_id_hdr, "Mcp-Session-Id");
@@ -167,8 +168,7 @@ static int accumulate_request(struct http_client_ctx *client,
 				  enum http_data_status status)
 {
 
-	if (request_ctx->data_len > 0)
-	{
+	if (request_ctx->data_len > 0) {
 		if ((accumulator->data_len + request_ctx->data_len) > CONFIG_MCP_TRANSPORT_BUFFER_SIZE) {
 			LOG_WRN("Accumulator full. Dropping current chunk");
 			return -ENOMEM;
@@ -228,10 +228,8 @@ static int accumulate_request(struct http_client_ctx *client,
 		}
 	}
 
-	if (status == HTTP_SERVER_DATA_FINAL)
-	{
-		if (accumulator->data_len < CONFIG_MCP_TRANSPORT_BUFFER_SIZE)
-		{
+	if (status == HTTP_SERVER_DATA_FINAL) {
+		if (accumulator->data_len < CONFIG_MCP_TRANSPORT_BUFFER_SIZE) {
 			accumulator->data[accumulator->data_len] = '\0';
 		} else {
 			LOG_WRN("Cannot null-terminate accumulator: buffer full");
