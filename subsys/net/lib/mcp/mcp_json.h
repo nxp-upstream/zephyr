@@ -32,7 +32,6 @@ int mcp_json_parse_request(const char *json, size_t length,
 int mcp_json_serialize_initialize_response(const mcp_initialize_response_t *resp,
 					   char *buffer, size_t buffer_size);
 
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
 /**
  * @brief Serialize tools/list response to JSON
  *
@@ -54,7 +53,6 @@ int mcp_json_serialize_tools_list_response(const mcp_tools_list_response_t *resp
  */
 int mcp_json_serialize_tools_call_response(const mcp_tools_call_response_t *resp,
 					   char *buffer, size_t buffer_size);
-#endif
 
 /**
  * @brief Serialize error response to JSON

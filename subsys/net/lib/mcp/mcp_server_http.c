@@ -64,6 +64,7 @@ struct http_transport_state {
 	struct k_mutex accumulators_mutex;
 	struct mcp_http_client_ctx clients[CONFIG_HTTP_SERVER_MAX_CLIENTS];
 	struct k_mutex clients_mutex;
+	mcp_server_ctx_t *server_core;
 	bool initialized;
 };
 
@@ -351,7 +352,7 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client, const struc
 	struct mcp_http_client_ctx *mcp_client_ctx;
 	struct mcp_http_response_item *response_data = NULL;
 
-	ret = mcp_server_handle_request((const char *)accumulator->data,
+	ret = mcp_server_handle_request(http_transport_state.server_core, (const char *)accumulator->data,
 					accumulator->data_len, accumulator->session_id_hdr, &actual_session_id, &msg_type);
 	if (ret) {
 		LOG_ERR("Invalid request: %d", ret);
@@ -538,7 +539,7 @@ static int mcp_server_http_resource_handler(struct http_client_ctx *client,
 /**
  * @brief Initialize HTTP transport
  */
-int mcp_server_http_init(void)
+int mcp_server_http_init(mcp_server_ctx_t server_ctx)
 {
 	int ret;
 
@@ -569,6 +570,7 @@ int mcp_server_http_init(void)
 		return ret;
 	}
 
+	http_transport_state.server_core = server_ctx;
 	http_transport_state.initialized = true;
 
 	LOG_INF("HTTP transport initialized on port %d, endpoint: %s",
