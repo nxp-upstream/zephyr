@@ -1,0 +1,7 @@
+identifier: nxp_virtual/mimxrt798s/hifi4
+name: NXP Virtual (nxp_virtual/mimxrt798s/hifi4)
+type: mcu
+arch: xtensa
+toolchain:
+  - zephyr
+vendor: nxp
