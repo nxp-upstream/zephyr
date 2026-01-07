@@ -13,7 +13,6 @@
 #define __MP_TRANSFORM_H__
 
 #include "mp_element.h"
-#include "mp_element_factory.h"
 #include "mp_pad.h"
 
 #define MP_TRANSFORM(self) ((struct mp_transform *)self)

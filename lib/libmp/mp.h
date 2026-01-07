@@ -18,7 +18,6 @@
 #endif
 #include <src/core/mp_caps.h>
 #include <src/core/mp_element.h>
-#include <src/core/mp_element_factory.h>
 #include <src/core/mp_pipeline.h>
 
 #if CONFIG_MP_PLUGIN_ZVID

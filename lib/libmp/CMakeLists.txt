@@ -41,7 +41,6 @@ if(CONFIG_MP)
     endforeach()
 
     zephyr_library_sources(
-        ${MP_BASE_DIR}/mp.c
         ${MP_CORE_SOURCE_FILES}
     )
 
@@ -69,11 +68,5 @@ if(CONFIG_MP)
             ${PLUGIN_ZAUD_SOURCE_FILES}
         )
     endif()
-
-    zephyr_linker_sources(DATA_SECTIONS ${MP_CORE_DIR}/mp.ld)
-
-    zephyr_iterable_section(NAME MpElementFactory GROUP DATA_REGION ${XIP_ALIGN_WITH_INPUT})
-
-    zephyr_iterable_section(NAME MpPlugin GROUP DATA_REGION ${XIP_ALIGN_WITH_INPUT})
 
 endif()

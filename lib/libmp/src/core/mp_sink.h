@@ -15,7 +15,6 @@
 #include "mp_buffer.h"
 #include "mp_caps.h"
 #include "mp_element.h"
-#include "mp_element_factory.h"
 #include "mp_pad.h"
 #include "mp_query.h"
 
