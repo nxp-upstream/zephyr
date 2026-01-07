@@ -28,6 +28,7 @@
 
 #if CONFIG_MP_PLUGIN_ZDISP
 #include <src/plugins/zdisp/mp_zdisp_property.h>
+#include <src/plugins/zdisp/mp_zdisp_sink.h>
 #endif
 
 #if CONFIG_MP_PLUGIN_ZAUD

@@ -32,4 +32,6 @@ struct mp_zdisp_sink {
 	const struct device *display_dev;
 };
 
+void mp_zdisp_sink_init(struct mp_element *self);
+
 #endif /* __MP_ZDISP_SINK_H__ */
