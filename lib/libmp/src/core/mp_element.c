@@ -162,17 +162,6 @@ bool mp_element_send_event_default(struct mp_element *element, struct mp_event *
 	return ret;
 }
 
-void mp_element_init(struct mp_element *self)
-{
-	sys_dlist_init(&self->srcpads);
-	sys_dlist_init(&self->sinkpads);
-
-	self->current_state = MP_STATE_READY;
-	self->set_state = mp_element_set_state_func;
-	self->change_state = mp_element_change_state_func;
-	self->eventfn = mp_element_send_event_default;
-}
-
 struct mp_bus *mp_element_get_bus(struct mp_element *element)
 {
 	if (element == NULL) {
@@ -188,4 +177,17 @@ struct mp_bus *mp_element_get_bus(struct mp_element *element)
 	}
 
 	return &MP_BIN(element)->bus;
+}
+
+void mp_element_init(struct mp_element *self, uint8_t id)
+{
+	self->object.id = id;
+
+	sys_dlist_init(&self->srcpads);
+	sys_dlist_init(&self->sinkpads);
+
+	self->current_state = MP_STATE_READY;
+	self->set_state = mp_element_set_state_func;
+	self->change_state = mp_element_change_state_func;
+	self->eventfn = mp_element_send_event_default;
 }

@@ -23,10 +23,11 @@
 #include "mp_object.h"
 #include "mp_query.h"
 
-struct mp_element_factory;
-struct mp_pad;
-
-#define MP_ELEMENT(self) ((struct mp_element *)self)
+#define MP_ELEMENT_INIT(elem, type, id)                                                            \
+	({                                                                                         \
+		mp_element_init(MP_ELEMENT(elem), id);                                             \
+		mp_##type##_init(MP_ELEMENT(elem));                                                \
+	})
 
 /**
  * @brief Calculate the next state
@@ -72,7 +73,6 @@ struct mp_pad;
  */
 #define MP_STATE_TRANSITION_NEXT(trans) ((enum mp_state)((trans) & 0x3))
 
-
 /**
  * @brief States of an element
  *
@@ -116,6 +116,10 @@ enum mp_state_change_return {
 	/* The state change will happen asynchronously */
 	MP_STATE_CHANGE_ASYNC = 2,
 };
+
+struct mp_element;
+
+#define MP_ELEMENT(self) ((struct mp_element *)self)
 
 /**
  * @brief Element base class
@@ -166,7 +170,9 @@ struct mp_element {
  *
  * @param self The element to initialize
  */
-void mp_element_init(struct mp_element *self);
+void mp_element_init(struct mp_element *self, uint8_t id);
+
+struct mp_pad;
 
 /**
  * @brief Add a pad to an element

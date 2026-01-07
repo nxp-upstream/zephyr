@@ -14,7 +14,6 @@
 
 #include "mp_buffer.h"
 #include "mp_element.h"
-#include "mp_element_factory.h"
 #include "mp_pad.h"
 
 #define MP_SRC(self) ((struct mp_src *)self)

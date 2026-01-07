@@ -10,7 +10,6 @@
 
 #include "mp_bus.h"
 #include "mp_element.h"
-#include "mp_element_factory.h"
 #include "mp_pipeline.h"
 
 LOG_MODULE_REGISTER(mp_pipeline, CONFIG_LIBMP_LOG_LEVEL);
@@ -39,9 +38,4 @@ void mp_pipeline_init(struct mp_element *self)
 	self->object.set_property = mp_pipeline_set_property;
 	self->object.get_property = mp_pipeline_get_property;
 	self->change_state = mp_pipeline_change_state;
-}
-
-struct mp_element *mp_pipeline_new(uint8_t id)
-{
-	return mp_element_factory_create(MP_PIPELINE_ELEM, id);
 }
