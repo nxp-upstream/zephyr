@@ -70,7 +70,7 @@ struct mcp_user_message {
 /**
  * @brief Server context handle
  */
-typedef void* mcp_server_ctx_t;
+typedef void *mcp_server_ctx_t;
 
 /**
  * @brief Transport operations structure for MCP server communication.
@@ -113,7 +113,9 @@ mcp_server_ctx_t mcp_server_init(struct mcp_transport_ops *transport_ops);
  */
 int mcp_server_start(mcp_server_ctx_t server_ctx);
 
-int mcp_server_submit_tool_message(mcp_server_ctx_t server_ctx, const struct mcp_user_message *user_msg, uint32_t execution_token);
+int mcp_server_submit_tool_message(mcp_server_ctx_t server_ctx,
+				   const struct mcp_user_message *user_msg,
+				   uint32_t execution_token);
 /**
  * @brief Submit an application message (response/notification)
  *
@@ -121,7 +123,9 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t server_ctx, const struct mcp
  * @param execution_token Execution token for tracking
  * @return 0 on success, negative errno on failure
  */
-int mcp_server_submit_app_message(mcp_server_ctx_t server_ctx, const struct mcp_user_message *user_msg, uint32_t execution_token);
+int mcp_server_submit_app_message(mcp_server_ctx_t server_ctx,
+				  const struct mcp_user_message *user_msg,
+				  uint32_t execution_token);
 
 /**
  * @brief Add a tool to the server
@@ -144,7 +148,8 @@ int mcp_server_add_tool(mcp_server_ctx_t server_ctx, const struct mcp_tool_recor
  */
 int mcp_server_remove_tool(mcp_server_ctx_t server_ctx, const char *tool_name);
 
-int mcp_server_is_execution_canceled(mcp_server_ctx_t server_ctx, uint32_t execution_token, bool *is_canceled);
+int mcp_server_is_execution_canceled(mcp_server_ctx_t server_ctx, uint32_t execution_token,
+				     bool *is_canceled);
 
 #ifdef __cplusplus
 }

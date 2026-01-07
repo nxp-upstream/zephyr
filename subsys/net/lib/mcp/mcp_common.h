@@ -10,13 +10,18 @@
 #include <zephyr/kernel.h>
 #include <zephyr/net/mcp/mcp_server.h>
 
-#define MCP_MAX_REQUESTS (CONFIG_HTTP_SERVER_MAX_CLIENTS * CONFIG_HTTP_SERVER_MAX_STREAMS)
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define MCP_MAX_REQUESTS  (CONFIG_HTTP_SERVER_MAX_CLIENTS * CONFIG_HTTP_SERVER_MAX_STREAMS)
 #define INVALID_CLIENT_ID 0
+
 enum mcp_notification_method_type {
 	MCP_NOTIF_INITIALIZED,
 	MCP_NOTIF_CANCELLED,
 	MCP_NOTIF_PROGRESS
-} ;
+};
 
 enum mcp_queue_msg_type {
 	MCP_MSG_SYSTEM,
@@ -170,5 +175,9 @@ struct mcp_execution_registry {
 
 void *mcp_alloc(size_t size);
 void mcp_free(void *ptr);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* ZEPHYR_SUBSYS_MCP_COMMON_H_ */
