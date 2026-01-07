@@ -22,6 +22,8 @@
 
 #if CONFIG_MP_PLUGIN_ZVID
 #include <src/plugins/zvid/mp_zvid_property.h>
+#include <src/plugins/zvid/mp_zvid_src.h>
+#include <src/plugins/zvid/mp_zvid_transform.h>
 #endif
 
 #if CONFIG_MP_PLUGIN_ZDISP
