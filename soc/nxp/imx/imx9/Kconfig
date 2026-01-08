@@ -2,5 +2,32 @@
 # SPDX-License-Identifier: Apache-2.0
 
 if SOC_SERIES_IMX9
+
+choice SOC_SERIES_IMX9_GCC_LARGE_TU_DIAGNOSTICS
+	prompt "GCC diagnostics behavior for large translation units"
+	default SOC_SERIES_IMX9_GCC_SUPPRESS_MISLEADING_INDENTATION
+	help
+	  Some i.MX9 builds pull in large NXP HAL headers, which can make GCC
+	  disable column-tracking and then auto-disable -Wmisleading-indentation.
+	  This choice lets you either suppress that warning (quiet builds) or
+	  keep it by enabling -flarge-source-files (more diagnostics, higher cost).
+
+config SOC_SERIES_IMX9_GCC_SUPPRESS_MISLEADING_INDENTATION
+	bool "Suppress -Wmisleading-indentation (quiet builds)"
+	help
+	  Adds -Wno-misleading-indentation for i.MX9 builds.
+	  This avoids noisy GCC notes when column-tracking gets disabled for
+	  very large sources/headers.
+
+config SOC_SERIES_IMX9_GCC_ENABLE_FLARGE_SOURCE_FILES
+	bool "Use -flarge-source-files (keep column-tracking longer)"
+	help
+	  Adds -flarge-source-files for i.MX9 builds.
+	  This helps GCC retain column-tracking for large sources/headers so
+	  -Wmisleading-indentation can remain enabled, at the expense of
+	  compilation time and memory.
+
+endchoice
+
 rsource "*/Kconfig"
 endif

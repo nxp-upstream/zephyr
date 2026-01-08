@@ -1,6 +1,12 @@
 # Copyright 2024-2025 NXP
 # SPDX-License-Identifier: Apache-2.0
 
+if(CONFIG_SOC_SERIES_IMX9_GCC_ENABLE_FLARGE_SOURCE_FILES)
+  zephyr_compile_options(-flarge-source-files)
+else()
+  zephyr_compile_options(-Wno-misleading-indentation)
+endif()
+
 if(CONFIG_SOC_MIMX9131 OR CONFIG_SOC_MIMX9111)
   add_subdirectory(imx91)
 elseif(CONFIG_SOC_MIMX9352)
