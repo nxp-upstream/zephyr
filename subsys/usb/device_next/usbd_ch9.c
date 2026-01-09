@@ -81,6 +81,23 @@ static int post_status_stage(struct usbd_context *const uds_ctx)
 	return ret;
 }
 
+static struct net_buf *usbd_alloc_status_stage(struct usbd_context *const uds_ctx,
+					       uint8_t ep)
+{
+	size_t size = (ep == USB_CONTROL_EP_OUT) ? 64 : 0;
+	struct net_buf *buf;
+
+	buf = udc_ep_buf_alloc(uds_ctx->dev, ep, size);
+	if (buf) {
+		struct udc_buf_info *bi;
+
+		bi = udc_get_buf_info(buf);
+		bi->status = true;
+	}
+
+	return buf;
+}
+
 static int sreq_set_address(struct usbd_context *const uds_ctx)
 {
 	struct usb_setup_packet *setup = usbd_get_setup_pkt(uds_ctx);
@@ -1058,10 +1075,8 @@ static int ctrl_xfer_get_setup(struct usbd_context *const uds_ctx,
 			       struct net_buf *const buf)
 {
 	struct usb_setup_packet *setup = usbd_get_setup_pkt(uds_ctx);
-	struct net_buf *buf_b;
-	struct udc_buf_info *bi, *bi_b;
 
-	if (buf->len < sizeof(struct usb_setup_packet)) {
+	if (buf->len != sizeof(struct usb_setup_packet)) {
 		return -EINVAL;
 	}
 
@@ -1071,65 +1086,31 @@ static int ctrl_xfer_get_setup(struct usbd_context *const uds_ctx,
 	setup->wIndex = sys_le16_to_cpu(setup->wIndex);
 	setup->wLength = sys_le16_to_cpu(setup->wLength);
 
-	bi = udc_get_buf_info(buf);
+	return 0;
+}
 
-	buf_b = buf->frags;
-	if (buf_b == NULL) {
-		LOG_ERR("Buffer for data|status is missing");
-		return -ENODATA;
+static int usbd_enqueue_setup(struct usbd_context *const uds_ctx)
+{
+	struct net_buf *setup;
+	int ret;
+
+	setup = udc_ctrl_setup_alloc(uds_ctx->dev);
+	if (setup == NULL) {
+		return -ENOMEM;
 	}
 
-	bi_b = udc_get_buf_info(buf_b);
-
-	if (reqtype_is_to_device(setup)) {
-		if (setup->wLength) {
-			if (!bi_b->data) {
-				LOG_ERR("%p is not data", buf_b);
-				return -EINVAL;
-			}
-		} else {
-			if (!bi_b->status) {
-				LOG_ERR("%p is not status", buf_b);
-				return -EINVAL;
-			}
-		}
-	} else {
-		if (!setup->wLength) {
-			LOG_ERR("device-to-host with wLength zero");
-			return -ENOTSUP;
-		}
-
-		if (!bi_b->data) {
-			LOG_ERR("%p is not data", buf_b);
-			return -EINVAL;
-		}
-
+	ret = usbd_ep_ctrl_enqueue(uds_ctx, setup);
+	if (ret) {
+		LOG_ERR("Failed to enqueue SETUP buffer");
+		net_buf_unref(setup);
+		return ret;
 	}
 
 	return 0;
 }
 
-static struct net_buf *spool_data_out(struct net_buf *const buf)
-{
-	struct net_buf *next_buf = buf;
-	struct udc_buf_info *bi;
-
-	while (next_buf) {
-		LOG_INF("spool %p", next_buf);
-		next_buf = net_buf_frag_del(NULL, next_buf);
-		if (next_buf) {
-			bi = udc_get_buf_info(next_buf);
-			if (bi->status) {
-				return next_buf;
-			}
-		}
-	}
-
-	return NULL;
-}
-
 int usbd_handle_ctrl_xfer(struct usbd_context *const uds_ctx,
-			  struct net_buf *const buf, const int err)
+			  struct net_buf *const buf, int err)
 {
 	struct usb_setup_packet *setup = usbd_get_setup_pkt(uds_ctx);
 	struct udc_buf_info *bi;
@@ -1141,45 +1122,72 @@ int usbd_handle_ctrl_xfer(struct usbd_context *const uds_ctx,
 		return -EIO;
 	}
 
-	if (err && err != -ENOMEM && !bi->setup) {
-		if (err == -ECONNABORTED) {
-			LOG_INF("Transfer 0x%02x aborted (bus reset?)", bi->ep);
-			net_buf_unref(buf);
-			return 0;
+	LOG_INF("Handle control %p ep 0x%02x, len %u, s:%u d:%u s:%u, err %d",
+		buf, bi->ep, buf->len, bi->setup, bi->data, bi->status, err);
+
+	if (err) {
+		net_buf_unref(buf);
+
+		if (bi->setup || (bi->data && bi->ep == USB_CONTROL_EP_OUT)) {
+			return usbd_enqueue_setup(uds_ctx);
 		}
 
-		LOG_ERR("Control transfer for 0x%02x has error %d, halt",
-			bi->ep, err);
-		net_buf_unref(buf);
-		return err;
+		return 0;
 	}
 
-	LOG_INF("Handle control %p ep 0x%02x, len %u, s:%u d:%u s:%u",
-		buf, bi->ep, buf->len, bi->setup, bi->data, bi->status);
+	if (bi->data && bi->ep == USB_CONTROL_EP_IN) {
+		net_buf_unref(buf);
+		return 0;
+	}
 
-	if (bi->setup && bi->ep == USB_CONTROL_EP_OUT) {
+	if ((bi->setup || bi->data) && bi->ep == USB_CONTROL_EP_OUT) {
 		struct net_buf *next_buf;
 
-		if (ctrl_xfer_get_setup(uds_ctx, buf)) {
-			LOG_ERR("Malformed setup packet");
-			net_buf_unref(buf);
-			goto ctrl_xfer_stall;
-		}
+		if (bi->setup) {
+			if (ctrl_xfer_get_setup(uds_ctx, buf)) {
+				LOG_ERR("Malformed setup packet");
+				net_buf_unref(buf);
+				goto ctrl_xfer_stall;
+			}
 
-		/* Remove setup packet buffer from the chain */
-		next_buf = net_buf_frag_del(NULL, buf);
-		if (next_buf == NULL) {
-			LOG_ERR("Buffer for data|status is missing");
-			goto ctrl_xfer_stall;
+			/* Remove setup packet buffer from the chain */
+			next_buf = net_buf_frag_del(NULL, buf);
+			if (next_buf != NULL) {
+				LOG_ERR("Unexpected buffer linked to setup");
+				net_buf_unref(next_buf);
+				goto ctrl_xfer_stall;
+			}
+
+			if (reqtype_is_to_device(setup) && setup->wLength) {
+				next_buf = udc_ctrl_data_alloc(uds_ctx->dev, USB_CONTROL_EP_OUT,
+							       setup->wLength);
+				if (next_buf == NULL) {
+					err = -ENOMEM;
+					goto ctrl_xfer_stall;
+				}
+				ret = usbd_ep_ctrl_enqueue(uds_ctx, next_buf);
+				return ret;
+			}
+
+			if (setup->wLength) {
+				/* Stack is supposed to allocate buffer */
+				next_buf = usbd_ep_ctrl_data_in_alloc(uds_ctx, setup->wLength);
+			}
+		} else {
+			/* Data OUT received */
+			next_buf = buf;
 		}
 
 		/*
 		 * Handle request and data stage, next_buf is either
-		 * data+status or status buffers.
+		 * data buffer or is NULL.
 		 */
 		ret = handle_setup_request(uds_ctx, next_buf);
-		if (ret) {
+		if ((ret || errno) && next_buf) {
 			net_buf_unref(next_buf);
+		}
+
+		if (ret) {
 			return ret;
 		}
 
@@ -1188,24 +1196,45 @@ int usbd_handle_ctrl_xfer(struct usbd_context *const uds_ctx,
 			 * Halt, only protocol errors are recoverable.
 			 * Free data stage and linked status stage buffer.
 			 */
-			net_buf_unref(next_buf);
 			goto ctrl_xfer_stall;
 		}
 
 		ch9_set_ctrl_type(uds_ctx, CTRL_AWAIT_STATUS_STAGE);
-		if (reqtype_is_to_device(setup) && setup->wLength) {
-			/* Enqueue STATUS (IN) buffer */
-			next_buf = spool_data_out(next_buf);
-			if (next_buf == NULL) {
-				LOG_ERR("Buffer for status is missing");
-				goto ctrl_xfer_stall;
+		if (setup->wLength == 0 || reqtype_is_to_device(setup)) {
+			if (next_buf) {
+				/* Data OUT buffer is no longer needed */
+				net_buf_unref(next_buf);
 			}
 
-			ret = usbd_ep_ctrl_enqueue(uds_ctx, next_buf);
-		} else {
-			/* Enqueue DATA (IN) or STATUS (OUT) buffer */
-			ret = usbd_ep_ctrl_enqueue(uds_ctx, next_buf);
+			next_buf = usbd_alloc_status_stage(uds_ctx, USB_CONTROL_EP_IN);
 		}
+
+		if (next_buf == NULL) {
+			goto ctrl_xfer_stall;
+		}
+
+		LOG_INF("Enqueue data IN or status");
+		ret = usbd_ep_ctrl_enqueue(uds_ctx, next_buf);
+		if (ret) {
+			net_buf_unref(next_buf);
+			goto ctrl_xfer_stall;
+		}
+
+		if (setup->wLength && usb_reqtype_is_to_host(setup)) {
+			/* 8.5.3.3 Error Handling on the Last Data Transaction
+			 * effectively requires us to enqueue status OUT before
+			 * device knows that data IN finishes.
+			 */
+			next_buf = usbd_alloc_status_stage(uds_ctx, USB_CONTROL_EP_OUT);
+			ret = usbd_ep_ctrl_enqueue(uds_ctx, next_buf);
+
+			if (ret) {
+				net_buf_unref(next_buf);
+				goto ctrl_xfer_stall;
+			}
+		}
+
+		ret = usbd_enqueue_setup(uds_ctx);
 
 		return ret;
 	}
@@ -1219,7 +1248,7 @@ int usbd_handle_ctrl_xfer(struct usbd_context *const uds_ctx,
 
 		net_buf_unref(buf);
 
-		return 0;
+		return ret;
 	}
 
 	if (bi->status && bi->ep == USB_CONTROL_EP_IN) {
@@ -1257,11 +1286,21 @@ ctrl_xfer_stall:
 
 	ch9_set_ctrl_type(uds_ctx, CTRL_AWAIT_SETUP_DATA);
 
+	ret = usbd_enqueue_setup(uds_ctx);
+
 	return ret;
 }
 
 int usbd_init_control_pipe(struct usbd_context *const uds_ctx)
 {
+	int ret;
+
+	/* Signal to UDC that stack is ready to process SETUP data */
+	ret = usbd_enqueue_setup(uds_ctx);
+	if (ret) {
+		return ret;
+	}
+
 	uds_ctx->ch9_data.state = USBD_STATE_DEFAULT;
 	ch9_set_ctrl_type(uds_ctx, CTRL_AWAIT_SETUP_DATA);
 
