@@ -1,5 +1,5 @@
 /*
- * Copyright 2017,2021,2023-2025 NXP
+ * Copyright 2017,2021,2023-2026 NXP
  * Copyright (c) 2020 Softube
  *
  * SPDX-License-Identifier: Apache-2.0
@@ -1152,6 +1152,24 @@ static int mcux_lpuart_configure_init(const struct device *dev, const struct uar
 
 	if (!device_is_ready(config->clock_dev)) {
 		return -ENODEV;
+	}
+
+	/* Configure clock of lpuart firstly if support. */
+	ret = clock_control_off(config->clock_dev, config->clock_subsys);
+	if (ret) {
+		return ret;
+	}
+
+	ret = clock_control_configure(config->clock_dev, config->clock_subsys, NULL);
+	if (ret != 0) {
+		/* Check if error is due to lack of support */
+		if ((ret != -ENOTSUP) && (ret != -ENOSYS)) {
+			/* Real error occurred */
+			LOG_ERR("Failed to configure clock: %d", ret);
+			return ret;
+		}
+		/* Configuration not supported, continue with default settings */
+		LOG_DBG("Clock configuration not supported, using default settings");
 	}
 
 	if (clock_control_get_rate(config->clock_dev, config->clock_subsys,
