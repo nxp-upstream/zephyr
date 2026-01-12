@@ -77,7 +77,7 @@ static int mp_zaud_gain_get_property(struct mp_object *obj, uint32_t key, void *
 static void apply_gain_16bit(struct mp_buffer *buffer, int32_t gain_fixed)
 {
 	int16_t *samples = (int16_t *)buffer->data;
-	size_t num_samples = buffer->size / sizeof(int16_t);
+	size_t num_samples = buffer->pool->config.size / sizeof(int16_t);
 
 	for (size_t i = 0; i < num_samples; i++) {
 		/* Apply gain using fixed-point arithmetic */
@@ -113,14 +113,14 @@ static bool mp_zaud_gain_chainfn(struct mp_pad *pad, struct mp_buffer *buffer)
 	struct mp_zaud_gain *zaud_gain = MP_ZAUD_GAIN(pad->object.container);
 
 	/* Validate buffer */
-	if (!buffer || !buffer->data || buffer->size == 0) {
+	if (!buffer || !buffer->data || buffer->pool->config.size == 0) {
 		LOG_ERR("Invalid buffer received");
 		return false;
 	}
 
 	/* Apply mute if enabled or gain is 0% */
 	if (zaud_gain->mute == true || zaud_gain->gain_percent == 0) {
-		memset(buffer->data, 0, buffer->size);
+		memset(buffer->data, 0, buffer->pool->config.size);
 	} else if (zaud_gain->gain_percent != GAIN_PERCENT_UNITY) {
 		/* Apply gain only if not unity (100%) */
 		/* TODO: bitWidth hardcoded */

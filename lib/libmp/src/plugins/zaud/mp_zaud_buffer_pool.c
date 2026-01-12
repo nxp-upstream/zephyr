@@ -74,7 +74,6 @@ static bool mp_zaud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_st
 	for (uint8_t i = 0; i < pool->config.min_buffers; i++) {
 		/* Wrap mem_slab buffer to generic libMP buffer */
 		pool->buffers[i].pool = pool;
-		pool->buffers[i].size = pool->config.size;
 		pool->buffers[i].data = &(zaud_pool->mem_slab->buffer[pool->config.size * i]);
 		pool->buffers[i].index = i;
 	}
