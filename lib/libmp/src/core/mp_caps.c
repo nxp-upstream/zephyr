@@ -6,6 +6,7 @@
 
 #include <stdarg.h>
 #include <string.h>
+
 #include <zephyr/kernel.h>
 
 #include "mp_caps.h"

@@ -71,13 +71,6 @@ static inline void mp_bus_init(struct mp_bus *bus)
 }
 
 /**
- * Destroy a message bus and release its resources.
- *
- * @param bus Pointer to the struct mp_bus to destroy
- */
-void mp_bus_destroy(struct mp_bus *bus);
-
-/**
  * Post a message to the bus.
  *
  * @param bus Pointer to the struct mp_bus
