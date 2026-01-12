@@ -45,6 +45,11 @@ struct mcp_tool_metadata {
 };
 
 /**
+ * @brief Server context handle
+ */
+typedef void *mcp_server_ctx_t;
+
+/**
  * @brief Tool callback function
  *
  * @param params JSON string with tool parameters
@@ -68,43 +73,11 @@ struct mcp_user_message {
 };
 
 /**
- * @brief Server context handle
- */
-typedef void *mcp_server_ctx_t;
-
-/**
- * @brief Transport operations structure for MCP server communication.
- */
-struct mcp_transport_ops {
-	/**
-	 * @brief Initialize the transport mechanism
-	 * @return 0 on success, negative errno on failure
-	 */
-	int (*init)(mcp_server_ctx_t server_ctx);
-
-	/**
-	 * @brief Send data to a client
-	 * @param client_id Client identifier
-	 * @param data Data buffer to send
-	 * @param length Data length
-	 * @return 0 on success, negative errno on failure
-	 */
-	int (*send)(uint32_t client_id, const void *data, size_t length);
-
-	/**
-	 * @brief Disconnect a client
-	 * @param client_id Client identifier
-	 * @return 0 on success, negative errno on failure
-	 */
-	int (*disconnect)(uint32_t client_id);
-};
-
-/**
  * @brief Initialize the MCP Server
  *
  * @return 0 on success, negative errno on failure
  */
-mcp_server_ctx_t mcp_server_init(struct mcp_transport_ops *transport_ops);
+mcp_server_ctx_t mcp_server_init(void);
 
 /**
  * @brief Start the MCP Server
