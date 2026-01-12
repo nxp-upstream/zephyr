@@ -38,19 +38,6 @@ static enum mp_bus_sync_reply mp_bus_sync_handler(struct mp_bus *bus, struct mp_
 	return ret ? MP_BUS_DROP : MP_BUS_PASS;
 }
 
-void mp_bus_destroy(struct mp_bus *bus)
-{
-	void *message;
-
-	/** Drain the FIFO and free all messages */
-	while ((message = k_fifo_get(&bus->fifo, K_NO_WAIT)) != NULL) {
-		k_free(message);
-	}
-
-	/** Now free the bus itself */
-	k_free(bus);
-}
-
 bool mp_bus_post(struct mp_bus *bus, struct mp_message *message)
 {
 
@@ -108,7 +95,7 @@ void mp_bus_flush(struct mp_bus *bus)
 
 	/** Drain the FIFO and free all messages */
 	while ((message = k_fifo_get(&bus->fifo, K_NO_WAIT)) != NULL) {
-		k_free(message);
+		mp_message_destroy(message);
 	}
 }
 
