@@ -11,7 +11,6 @@
 
 LOG_MODULE_REGISTER(mcp_sample_hello, LOG_LEVEL_INF);
 
-MCP_SERVER_HTTP_DT_DEFINE(mcp_http_server);
 mcp_server_ctx_t server;
 
 /* Tool callback functions */
@@ -88,10 +87,17 @@ int main(void)
 
 	printk("Hello World\n\r");
 	printk("Initializing...\n\r");
-	server = mcp_server_init(&mcp_http_server);
+
+	server = mcp_server_init();
 	if (server == NULL) {
 		printk("MCP Server initialization failed");
 		return -ENOMEM;
+	}
+
+	ret = mcp_server_http_init(server);
+	if (ret != 0) {
+		printk("MCP HTTP Server initialization failed: %d\n\r", ret);
+		return ret;
 	}
 
 	printk("Registering Tool #1: Hello world!...\n\r");
@@ -114,6 +120,12 @@ int main(void)
 	ret = mcp_server_start(server);
 	if (ret != 0) {
 		printk("MCP Server start failed: %d\n\r", ret);
+		return ret;
+	}
+
+	ret = mcp_server_http_start(server);
+	if (ret != 0) {
+		printk("MCP HTTP Server start failed: %d\n\r", ret);
 		return ret;
 	}
 
