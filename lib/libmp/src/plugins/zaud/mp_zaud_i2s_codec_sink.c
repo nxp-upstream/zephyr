@@ -207,7 +207,7 @@ bool mp_zaud_i2s_codec_sink_chainfn(struct mp_pad *pad, struct mp_buffer *buffer
 		MP_ZAUD_I2S_CODEC_SINK(pad->object.container);
 	int ret = -1;
 
-	ret = i2s_write(zaud_i2s_codec_sink->i2s_dev, buffer->data, buffer->size);
+	ret = i2s_write(zaud_i2s_codec_sink->i2s_dev, buffer->data, buffer->pool->config.size);
 	if (ret < 0) {
 		LOG_DBG("Failed to write data: %d\n", ret);
 		return false;
