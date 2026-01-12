@@ -6,6 +6,7 @@
 
 #include <zephyr/kernel.h>
 
+#include "mp_pad.h"
 #include "mp_task.h"
 
 K_THREAD_STACK_ARRAY_DEFINE(thread_stack, CONFIG_MP_THREADS_NUM, CONFIG_MP_THREAD_STACK_SIZE);
@@ -39,9 +40,11 @@ static void mp_thread_stack_release(int stack_id)
 	mp_thread_pool[stack_id] = 0;
 }
 
-k_tid_t mp_task_create(struct mp_task *task, k_thread_entry_t func, void *p1, void *p2, void *p3,
-		       int priority)
+k_tid_t mp_task_create(struct mp_task *task, k_thread_entry_t func, void *user_data, int priority)
 {
+
+	struct mp_pad *pad = CONTAINER_OF(task, struct mp_pad, task);
+
 	task->stack_id = mp_thread_stack_acquire();
 	if (task->stack_id < 0) {
 		printk("No more thread stacks available\n");
@@ -49,8 +52,8 @@ k_tid_t mp_task_create(struct mp_task *task, k_thread_entry_t func, void *p1, vo
 	}
 
 	return k_thread_create(&task->thread_data, thread_stack[task->stack_id],
-			       K_THREAD_STACK_SIZEOF(thread_stack[task->stack_id]), func, p1, p2,
-			       p3, priority, 0, K_NO_WAIT);
+			       K_THREAD_STACK_SIZEOF(thread_stack[task->stack_id]), func, pad,
+			       user_data, NULL, priority, 0, K_NO_WAIT);
 }
 
 void mp_task_destroy(struct mp_task *task)
