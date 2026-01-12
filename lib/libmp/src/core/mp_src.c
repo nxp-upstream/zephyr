@@ -124,16 +124,15 @@ static bool mp_src_negotiate(struct mp_src *src)
 	return ret;
 }
 
-static void mp_src_loop(void *userdata, void *, void *)
+static void mp_src_loop(void *pad, void *userdata)
 {
-	struct mp_pad *pad = MP_PAD(userdata);
-	struct mp_src *src = MP_SRC(pad->object.container);
+	struct mp_src *src = MP_SRC(MP_PAD(pad)->object.container);
 	struct mp_buffer *buffer = NULL;
 	struct mp_message *eos_message = NULL;
 	uint32_t count = 0;
 
-	pad->task.running = true;
-	while (pad->task.running && count++ <= src->num_buffers) {
+	MP_PAD(pad)->task.running = true;
+	while (MP_PAD(pad)->task.running && count++ <= src->num_buffers) {
 		if (MP_OBJECT(pad)->flags & MP_PAD_FLAG_NEGOTIATE) {
 			if (!mp_src_negotiate(src)) {
 				LOG_ERR("Negotiation failed");
@@ -141,13 +140,13 @@ static void mp_src_loop(void *userdata, void *, void *)
 			}
 
 			/* Config buffer pool */
-			if (!src->srcpad.caps) {
+			if (!MP_PAD(pad)->caps) {
 				LOG_ERR("No source pad capabilities configured");
 				break;
 			}
 
 			if (!src->pool->configure(src->pool,
-						  mp_caps_get_structure(src->srcpad.caps, 0))) {
+						  mp_caps_get_structure(MP_PAD(pad)->caps, 0))) {
 				LOG_ERR("Failed to configure buffer pool");
 				break;
 			}
@@ -165,7 +164,7 @@ static void mp_src_loop(void *userdata, void *, void *)
 
 	if (count > src->num_buffers) {
 		/* Stop the thread and post EOS message to the pipeline's bus */
-		pad->task.running = false;
+		MP_PAD(pad)->task.running = false;
 		eos_message = mp_message_new(MP_MESSAGE_EOS, MP_OBJECT(src), NULL);
 		mp_bus_post(mp_element_get_bus(MP_ELEMENT(src)), eos_message);
 	}

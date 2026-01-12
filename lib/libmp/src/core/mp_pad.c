@@ -61,11 +61,11 @@ bool mp_pad_start_task(struct mp_pad *pad, mp_task_function func, int priority, 
 {
 	k_tid_t thread = NULL;
 
-	if (pad->task.running) {
+	if (pad == NULL || pad->task.running) {
 		return false;
 	}
 
-	thread = mp_task_create(&pad->task, func, pad, NULL, NULL, priority);
+	thread = mp_task_create(&pad->task, func, user_data, priority);
 
 	return thread != NULL;
 }

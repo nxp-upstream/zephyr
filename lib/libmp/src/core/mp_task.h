@@ -48,14 +48,11 @@ struct mp_task {
  *
  * @param task: pointer to task structure
  * @param func: entry function for the task
- * @param p1: first parameter to pass to the function
- * @param p2: second parameter to pass to the function
- * @param p3: third parameter to pass to the function
+ * @param user_data: Additional data from user
  * @param priority: priority of the task
  * @return k_tid_t which is the pointer to the k_thread structure
  */
-k_tid_t mp_task_create(struct mp_task *task, k_thread_entry_t func, void *p1, void *p2, void *p3,
-		       int priority);
+k_tid_t mp_task_create(struct mp_task *task, k_thread_entry_t func, void *user_data, int priority);
 
 /**
  * Destroy a task
