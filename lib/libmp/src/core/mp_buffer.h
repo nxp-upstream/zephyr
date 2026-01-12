@@ -38,8 +38,6 @@ struct mp_buffer {
 	void *data;
 	/** Index of this buffer in the pool */
 	uint8_t index;
-	/** Total size of the buffer in bytes */
-	size_t size;
 	/** Number of bytes of valid data in the buffer */
 	uint32_t bytes_used;
 	/** Timestamp in milliseconds when the last byte of data was received/consumed */
