@@ -45,7 +45,6 @@ static bool mp_zvid_buffer_pool_start(struct mp_buffer_pool *pool)
 	for (uint8_t i = 0; i < vbr.count; i++) {
 		/* Wrap the zvid buffer to a generic libMP buffer */
 		pool->buffers[i].pool = pool;
-		pool->buffers[i].size = pool->config.size;
 		pool->buffers[i].index = vbr.start_index + i;
 
 		/* Enqueue the buffer */
