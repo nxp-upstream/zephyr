@@ -130,7 +130,7 @@ static int generate_client_id(struct mcp_server_ctx *server, uint32_t *client_id
 	int ret;
 	struct mcp_client_registry *client_registry = &server->client_registry;
 
-	*client_id = 0;
+	*client_id = INVALID_CLIENT_ID;
 
 	ret = k_mutex_lock(&client_registry->registry_mutex, K_FOREVER);
 	if (ret != 0) {
@@ -147,7 +147,7 @@ static int generate_client_id(struct mcp_server_ctx *server, uint32_t *client_id
 				*client_id = 0;
 			}
 		}
-	} while (*client_id == 0);
+	} while (*client_id == INVALID_CLIENT_ID);
 
 	k_mutex_unlock(&client_registry->registry_mutex);
 
@@ -157,6 +157,10 @@ static int generate_client_id(struct mcp_server_ctx *server, uint32_t *client_id
 static struct mcp_client_context *get_client(struct mcp_server_ctx *server, uint32_t client_id)
 {
 	struct mcp_client_registry *client_registry = &server->client_registry;
+
+	if (client_id == INVALID_CLIENT_ID) {
+		return NULL;
+	}
 
 	for (int i = 0; i < ARRAY_SIZE(client_registry->clients); i++) {
 		if (client_registry->clients[i].client_id == client_id) {
