@@ -62,6 +62,8 @@ static struct mp_caps *mp_zaud_i2s_codec_sink_get_caps(struct mp_sink *sink)
 	uint8_t i = 0;
 	struct audio_caps i2s_caps;
 	struct audio_caps codec_caps;
+	uint32_t sr = 0;
+	uint32_t bw = 0;
 
 	ret = i2s_get_caps(MP_ZAUD_I2S_CODEC_SINK(sink)->i2s_dev, &i2s_caps);
 
@@ -84,10 +86,13 @@ static struct mp_caps *mp_zaud_i2s_codec_sink_get_caps(struct mp_sink *sink)
 	uint32_t bit_widths = i2s_caps.supported_bit_widths & codec_caps.supported_bit_widths;
 
 	while (sample_rates > 0) {
-		if (sample_rates & 1) {
-			mp_value_list_append(
-				supported_sample_rate,
-				mp_value_new(MP_TYPE_UINT, audio2mp_sample_rate(1 << i)));
+		if ((sample_rates & 0x1U) != 0U) {
+			sr = audio2mp_sample_rate(1 << i);
+
+			if (sr > 0) {
+				mp_value_list_append(supported_sample_rate,
+						     mp_value_new(MP_TYPE_UINT, sr));
+			}
 		}
 		sample_rates >>= 1;
 		i++;
@@ -95,10 +100,13 @@ static struct mp_caps *mp_zaud_i2s_codec_sink_get_caps(struct mp_sink *sink)
 
 	i = 0;
 	while (bit_widths > 0) {
-		if (bit_widths & 1) {
-			mp_value_list_append(
-				supported_bit_width,
-				mp_value_new(MP_TYPE_UINT, audio2mp_bit_width(1 << i)));
+		if ((bit_widths & 0x1U) != 0U) {
+			bw = audio2mp_bit_width(1 << i);
+
+			if (bw > 0) {
+				mp_value_list_append(supported_bit_width,
+						     mp_value_new(MP_TYPE_UINT, bw));
+			}
 		}
 		bit_widths >>= 1;
 		i++;

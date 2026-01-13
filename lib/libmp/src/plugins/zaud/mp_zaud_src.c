@@ -59,6 +59,8 @@ static struct mp_caps *mp_zaud_src_get_caps(struct mp_src *src)
 	struct mp_zaud_buffer_pool *pool = MP_ZAUD_BUFFER_POOL(src->pool);
 	struct audio_caps src_caps;
 	int i = 0;
+	uint32_t sr = 0;
+	uint32_t bw = 0;
 
 	if (zaud_src->get_audio_caps == NULL || pool->zaud_dev == NULL) {
 		LOG_ERR("Audio capabilities and device not configured");
@@ -78,10 +80,13 @@ static struct mp_caps *mp_zaud_src_get_caps(struct mp_src *src)
 
 	i = 0;
 	while (sample_rates > 0) {
-		if (sample_rates & 1) {
-			mp_value_list_append(
-				supported_sample_rate,
-				mp_value_new(MP_TYPE_UINT, audio2mp_sample_rate(1 << i)));
+		if ((sample_rates & 0x1U) != 0U) {
+			sr = audio2mp_sample_rate(1 << i);
+
+			if (sr > 0) {
+				mp_value_list_append(supported_sample_rate,
+						     mp_value_new(MP_TYPE_UINT, sr));
+			}
 		}
 		sample_rates >>= 1;
 		i++;
@@ -89,10 +94,13 @@ static struct mp_caps *mp_zaud_src_get_caps(struct mp_src *src)
 
 	i = 0;
 	while (bit_widths > 0) {
-		if (bit_widths & 1) {
-			mp_value_list_append(
-				supported_bit_width,
-				mp_value_new(MP_TYPE_UINT, audio2mp_bit_width(1 << i)));
+		if ((bit_widths & 0x1U) != 0U) {
+			bw = audio2mp_bit_width(1 << i);
+
+			if (bw > 0) {
+				mp_value_list_append(supported_bit_width,
+						     mp_value_new(MP_TYPE_UINT, bw));
+			}
 		}
 		bit_widths >>= 1;
 		i++;
