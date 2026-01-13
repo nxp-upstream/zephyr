@@ -21,36 +21,37 @@
 extern "C" {
 #endif
 
-/* ===== Tunable limits ===== */
+/* Tunable limits */
 #define MCP_MAX_NAME_LEN       64  /* tool names, client/server names */
 #define MCP_MAX_DESC_LEN       128 /* log messages, reasons, etc. */
 #define MCP_MAX_TEXT_LEN       256 /* text content block */
 #define MCP_MAX_PROTO_VER_LEN  32  /* "2024-11-05" etc. */
 #define MCP_MAX_VERSION_LEN    32
 #define MCP_MAX_JSON_CHUNK_LEN 512 /* for small opaque JSON blobs */
+#define MCP_MAX_CONTENT_ITEMS  2
 
-/* ===== JSON-RPC message kind (incoming) ===== */
+/* JSON-RPC message kind (incoming) */
 enum mcp_msg_kind {
 	MCP_MSG_INVALID = 0,
 	MCP_MSG_REQUEST,
 	MCP_MSG_NOTIFICATION,
 };
 
-/* ===== Method identifiers (subset used by server) ===== */
+/* Method identifiers (subset used by server) */
 enum mcp_method {
 	MCP_METHOD_UNKNOWN = 0,
 	/* Core lifecycle */
-	MCP_METHOD_INITIALIZE, // "initialize"
-	MCP_METHOD_PING,       // "ping"
+	MCP_METHOD_INITIALIZE,
+	MCP_METHOD_PING,
 	/* Tools domain */
-	MCP_METHOD_TOOLS_LIST, // "tools/list"
-	MCP_METHOD_TOOLS_CALL, // "tools/call"
-	/* Notifications (client → server) */
-	MCP_METHOD_NOTIF_INITIALIZED, // "notifications/initialized"
-	MCP_METHOD_NOTIF_CANCELLED,   // "notifications/cancelled"
+	MCP_METHOD_TOOLS_LIST,
+	MCP_METHOD_TOOLS_CALL,
+	/* Notifications (client to server) */
+	MCP_METHOD_NOTIF_INITIALIZED,
+	MCP_METHOD_NOTIF_CANCELLED,
 };
 
-/* ===== JSON-RPC error codes (common subset) ===== */
+/* JSON-RPC error codes (common subset) */
 enum mcp_error_code {
 	MCP_ERR_PARSE_ERROR = -32700,
 	MCP_ERR_INVALID_REQUEST = -32600,
@@ -63,7 +64,7 @@ enum mcp_error_code {
 	MCP_ERR_NOT_INITIALIZED = -32003,
 };
 
-/* ===== Generic JSON-RPC error object (outgoing) ===== */
+/* Generic JSON-RPC error object (outgoing) */
 struct mcp_error {
 	int32_t code;
 	char message[MCP_MAX_DESC_LEN];
@@ -71,7 +72,7 @@ struct mcp_error {
 	bool has_data;
 };
 
-/* ===== Content type (for tool results) ===== */
+/* Content type (for tool results) */
 enum mcp_content_type {
 	MCP_CONTENT_TEXT = 0, /* extend later with more types if needed */
 };
@@ -81,18 +82,16 @@ struct mcp_content {
 	char text[MCP_MAX_TEXT_LEN]; /* if type == TEXT */
 };
 
-#define MCP_MAX_CONTENT_ITEMS 2
-
 struct mcp_content_list {
 	uint8_t count;
 	struct mcp_content items[MCP_MAX_CONTENT_ITEMS];
 };
 
-/* ===== Per-method param/result structs ===== */
+/* Per-method param/result structs */
 /* --- initialize --- */
 struct mcp_params_initialize {
 	char protocol_version[MCP_MAX_PROTO_VER_LEN];
-	/* You can add capabilities/clientInfo fields later if you want. */
+	/* Capabilities/clientInfo fields can be added if needed */
 };
 
 struct mcp_result_initialize {
@@ -124,7 +123,7 @@ struct mcp_params_tools_list {
 };
 
 struct mcp_result_tools_list {
-	/* For now, we keep the tools array as raw JSON that you generate. */
+	/* For now, keep the tools array as raw JSON that the user generates. */
 	char tools_json[MCP_MAX_JSON_CHUNK_LEN];
 };
 
@@ -151,7 +150,7 @@ struct mcp_params_notif_cancelled {
 	bool has_reason;
 };
 
-/* ===== Top-level incoming message struct ===== */
+/* Top-level incoming message struct */
 struct mcp_message {
 	enum mcp_msg_kind kind; /* REQUEST / NOTIFICATION */
 	bool has_id;
@@ -159,7 +158,7 @@ struct mcp_message {
 	enum mcp_method method; /* MCP_METHOD_* enum; UNKNOWN if not recognized */
 	/* Direction-specific payload: */
 	union {
-		/* === For REQUESTS === */
+		/* For REQUESTS */
 		struct {
 			union {
 				struct mcp_params_initialize initialize;
@@ -168,7 +167,7 @@ struct mcp_message {
 				struct mcp_params_tools_call tools_call;
 			} u;
 		} req;
-		/* === For NOTIFICATIONS === */
+		/* For NOTIFICATIONS */
 		struct {
 			union {
 				struct mcp_params_notif_initialized initialized;
@@ -178,11 +177,11 @@ struct mcp_message {
 	};
 };
 
-/* ============================================================
+/*******************************************************************************
  * Public API – parser
- * ============================================================ */
+ ******************************************************************************/
 /**
- * Parse a single MCP JSON message into an mcp_message_t.
+ * @brief Parse a single MCP JSON message into an mcp_message structure.
  *
  * Designed for *server-side* messages:
  *   - Requests: initialize, ping, tools/list, tools/call
@@ -192,17 +191,17 @@ struct mcp_message {
  * @param len Length of JSON in buf.
  * @param out Output message structure (must be non-NULL).
  *
- * @return 0 on success,
- *        -EINVAL on parse/validation error.
+ * @return 0 on success, -EINVAL on parse/validation error.
  */
 int mcp_json_parse_message(const char *buf, size_t len, struct mcp_message *out);
 
-/* ============================================================
- * Public API – serializers (server → client)
- * ============================================================ */
+/*******************************************************************************
+ * Public API – serializers
+ ******************************************************************************/
 /**
- * Serialize a successful initialize response.
+ * @brief Serialize a successful initialize response.
  *
+ * Generates a JSON-RPC response message:
  * {
  *   "jsonrpc":"2.0",
  *   "id":<id>,
@@ -212,37 +211,66 @@ int mcp_json_parse_message(const char *buf, size_t len, struct mcp_message *out)
  *     "capabilities":{...}   // optional if has_capabilities
  *   }
  * }
+ *
+ * @param out Output buffer for the serialized JSON string.
+ * @param out_len Size of the output buffer.
+ * @param id JSON-RPC request ID to include in the response.
+ * @param res Pointer to the initialize result structure containing response data.
+ *
+ * @return Number of bytes written (excluding NUL terminator) on success,
+ *         negative error code on failure.
  */
 int mcp_json_serialize_initialize_result(char *out, size_t out_len, int64_t id,
 					 const struct mcp_result_initialize *res);
 
 /**
- * Serialize a successful ping response:
+ * @brief Serialize a successful ping response.
+ *
+ * Generates a JSON-RPC response message:
  * {
  *   "jsonrpc":"2.0",
  *   "id":<id>,
  *   "result":{}
  * }
+ *
+ * @param out Output buffer for the serialized JSON string.
+ * @param out_len Size of the output buffer.
+ * @param id JSON-RPC request ID to include in the response.
+ * @param res Pointer to the ping result structure (may contain optional payload).
+ *
+ * @return Number of bytes written (excluding NUL terminator) on success,
+ *         negative error code on failure.
  */
 int mcp_json_serialize_ping_result(char *out, size_t out_len, int64_t id,
 				   const struct mcp_result_ping *res);
 
 /**
- * Serialize a tools/list response:
+ * @brief Serialize a tools/list response.
+ *
+ * Generates a JSON-RPC response message:
  * {
  *   "jsonrpc":"2.0",
  *   "id":<id>,
  *   "result":{"tools":[ ... ]}
  * }
  *
- * tools_json must be a valid JSON array, e.g.:
- *   [ {"name":"foo",...}, {"name":"bar",...} ]
+ * @param out Output buffer for the serialized JSON string.
+ * @param out_len Size of the output buffer.
+ * @param id JSON-RPC request ID to include in the response.
+ * @param res Pointer to the tools list result structure. The tools_json field
+ *            must contain a valid JSON array, e.g.:
+ *            [ {"name":"foo",...}, {"name":"bar",...} ]
+ *
+ * @return Number of bytes written (excluding NUL terminator) on success,
+ *         negative error code on failure.
  */
 int mcp_json_serialize_tools_list_result(char *out, size_t out_len, int64_t id,
 					 const struct mcp_result_tools_list *res);
 
 /**
- * Serialize a tools/call response:
+ * @brief Serialize a tools/call response.
+ *
+ * Generates a JSON-RPC response message:
  * {
  *   "jsonrpc":"2.0",
  *   "id":<id>,
@@ -251,28 +279,45 @@ int mcp_json_serialize_tools_list_result(char *out, size_t out_len, int64_t id,
  *   }
  * }
  *
- * Only content.type == TEXT is supported for now.
+ * @param out Output buffer for the serialized JSON string.
+ * @param out_len Size of the output buffer.
+ * @param id JSON-RPC request ID to include in the response.
+ * @param res Pointer to the tools call result structure containing content blocks.
+ *            Only content.type == TEXT is supported for now.
+ *
+ * @return Number of bytes written (excluding NUL terminator) on success,
+ *         negative error code on failure.
  */
 int mcp_json_serialize_tools_call_result(char *out, size_t out_len, int64_t id,
 					 const struct mcp_result_tools_call *res);
 
 /**
- * Serialize a JSON-RPC error:
+ * @brief Serialize a JSON-RPC error response.
  *
+ * Generates a JSON-RPC error message:
  * {
  *   "jsonrpc":"2.0",
  *   "id":<id> or null,
  *   "error":{"code":X,"message":"...","data":...}
  * }
  *
- * If has_data == false, "data" is omitted.
+ * @param out Output buffer for the serialized JSON string.
+ * @param out_len Size of the output buffer.
+ * @param has_id Whether the error response should include an ID field.
+ * @param id JSON-RPC request ID (only used if has_id is true).
+ * @param err Pointer to the error structure containing code, message, and optional data.
+ *            If err->has_data is false, the "data" field is omitted.
+ *
+ * @return Number of bytes written (excluding NUL terminator) on success,
+ *         negative error code on failure.
  */
 int mcp_json_serialize_error(char *out, size_t out_len, bool has_id, int64_t id,
 			     const struct mcp_error *err);
 
 /**
- * Serialize a logging message notification:
+ * @brief Serialize a logging message notification.
  *
+ * Generates a JSON-RPC notification message:
  * {
  *   "jsonrpc":"2.0",
  *   "method":"notifications/logging/message",
@@ -284,21 +329,36 @@ int mcp_json_serialize_error(char *out, size_t out_len, bool has_id, int64_t id,
  *   }
  * }
  *
- * level, logger, message are plain strings.
- * data_json must be valid JSON if has_data == true.
+ * @param out Output buffer for the serialized JSON string.
+ * @param out_len Size of the output buffer.
+ * @param level Log level string (e.g., "info", "warning", "error").
+ * @param logger Logger name/identifier string.
+ * @param message Log message content string.
+ * @param data_json Optional JSON data (must be valid JSON if has_data is true).
+ * @param has_data Whether to include the data field in the notification.
+ *
+ * @return Number of bytes written (excluding NUL terminator) on success,
+ *         negative error code on failure.
  */
 int mcp_json_serialize_logging_message_notif(char *out, size_t out_len, const char *level,
 					     const char *logger, const char *message,
 					     const char *data_json, bool has_data);
 
 /**
- * Serialize tools/list_changed notification:
+ * @brief Serialize a tools/list_changed notification.
  *
+ * Generates a JSON-RPC notification message:
  * {
  *   "jsonrpc":"2.0",
  *   "method":"notifications/tools/list_changed",
  *   "params":{}
  * }
+ *
+ * @param out Output buffer for the serialized JSON string.
+ * @param out_len Size of the output buffer.
+ *
+ * @return Number of bytes written (excluding NUL terminator) on success,
+ *         negative error code on failure.
  */
 int mcp_json_serialize_tools_list_changed_notif(char *out, size_t out_len);
 
