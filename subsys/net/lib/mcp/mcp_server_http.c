@@ -34,7 +34,7 @@ struct mcp_http_request_accumulator {
 	char data[CONFIG_MCP_TRANSPORT_BUFFER_SIZE];
 	size_t data_len;
 	uint32_t session_id_hdr;
-	uint32_t last_event_id_hdr;
+	uint32_t event_id_hdr;
 	char content_type_hdr[CONTENT_TYPE_HDR_LEN];
 	char origin_hdr[ORIGIN_HDR_LEN];
 	uint32_t fd;
@@ -187,7 +187,6 @@ static int accumulate_request(struct http_client_ctx *client,
 			      const struct http_request_ctx *request_ctx,
 			      enum http_data_status status)
 {
-
 	if (request_ctx->data_len > 0) {
 		if ((accumulator->data_len + request_ctx->data_len) >
 		    CONFIG_MCP_TRANSPORT_BUFFER_SIZE) {
@@ -200,66 +199,61 @@ static int accumulate_request(struct http_client_ctx *client,
 		accumulator->data_len += request_ctx->data_len;
 	}
 
-	if ((request_ctx->headers_status == HTTP_HEADER_STATUS_OK) &&
-	    (request_ctx->header_count > 0)) {
+	/* Parse headers whenever they are available, not just on final status */
+	if (request_ctx->header_count > 0) {
 		for (uint32_t i = 0; i < request_ctx->header_count; i++) {
 			const struct http_header *header = &request_ctx->headers[i];
+			LOG_DBG("Header[%u]: %s = %s", i, header->name ? header->name : "(null)",
+				header->value ? header->value : "(null)");
 			if (header->name && header->value) {
-				LOG_DBG("Header: %s = %s", header->name, header->value);
 				if (strcmp(header->name, "Mcp-Session-Id") == 0) {
 					/* Convert hex string to uint32_t */
 					char *endptr;
 					accumulator->session_id_hdr =
 						strtoul(header->value, &endptr, 16);
 					if (*endptr != '\0') {
-						LOG_ERR("Invalid session ID format: %s",
+						LOG_ERR("Invalid Mcp-Session-Id format: %s",
 							header->value);
 						return -EINVAL;
 					}
-					LOG_DBG("Stored session id header: %" PRIx32,
+					LOG_DBG("Stored Mcp-Session-Id header: %" PRIx32,
 						accumulator->session_id_hdr);
-				}
-
-				if (strcmp(header->name, "Last-Event-Id") == 0) {
-					/* Convert hex string to uint32_t */
+				} else if (strcmp(header->name, "Last-Event-Id") == 0) {
+					/* Convert decimal string to uint32_t */
 					char *endptr;
-					accumulator->session_id_hdr =
+					accumulator->event_id_hdr =
 						strtoul(header->value, &endptr, 10);
 					if (*endptr != '\0') {
-						LOG_ERR("Invalid session ID format: %s",
+						LOG_ERR("Invalid Last-Event-Id format: %s",
 							header->value);
 						return -EINVAL;
 					}
-					LOG_DBG("Stored session id header: %" PRIx32,
-						accumulator->session_id_hdr);
-				}
-
-				if (strcmp(header->name, "Origin") == 0) {
+					LOG_DBG("Stored Last-Event-Id header: %" PRIu32,
+						accumulator->event_id_hdr);
+				} else if (strcmp(header->name, "Origin") == 0) {
 					if (strlen(header->value) <
 					    sizeof(accumulator->origin_hdr)) {
-						memcpy(accumulator->origin_hdr, header->value,
-						       strlen(header->value));
-						accumulator->origin_hdr[strlen(header->value)] =
-							'\0';
+						strncpy(accumulator->origin_hdr, header->value,
+							sizeof(accumulator->origin_hdr) - 1);
+						accumulator->origin_hdr[sizeof(
+							accumulator->origin_hdr) - 1] = '\0';
 						LOG_DBG("Stored origin header: %s",
 							accumulator->origin_hdr);
 					} else {
-						LOG_WRN("Session ID too long for buffer");
+						LOG_WRN("Origin too long for buffer");
 					}
-				}
-
-				if (strcmp(header->name, "Content-Type") == 0) {
+				} else if (strcmp(header->name, "Content-Type") == 0) {
 					if (strlen(header->value) <
 					    sizeof(accumulator->content_type_hdr)) {
-						memcpy(accumulator->content_type_hdr, header->value,
-						       strlen(header->value));
-						accumulator
-							->content_type_hdr[strlen(header->value)] =
-							'\0';
+						strncpy(accumulator->content_type_hdr,
+							header->value,
+							sizeof(accumulator->content_type_hdr) - 1);
+						accumulator->content_type_hdr[sizeof(
+							accumulator->content_type_hdr) - 1] = '\0';
 						LOG_DBG("Stored content type header: %s",
 							accumulator->content_type_hdr);
 					} else {
-						LOG_WRN("Session ID too long for buffer");
+						LOG_WRN("Content-Type too long for buffer");
 					}
 				}
 			}
@@ -474,11 +468,10 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 				    struct mcp_http_request_accumulator *accumulator,
 				    struct http_response_ctx *response_ctx)
 {
-
 	/* Find client based on session id */
 	struct mcp_transport_binding *binding = mcp_server_get_client_binding(
 		http_transport_state.server_core, accumulator->session_id_hdr);
-	if (!binding) {
+	if (binding == NULL) {
 		LOG_ERR("Client session not found for session ID: %" PRIx32,
 			accumulator->session_id_hdr);
 		response_ctx->status = HTTP_400_BAD_REQUEST;
@@ -501,9 +494,9 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 		return 0;
 	}
 
-	if (response_data->event_id < accumulator->last_event_id_hdr) {
-		LOG_DBG("Event ID %d matches or exceeds last event ID %d", response_data->event_id,
-			accumulator->last_event_id_hdr);
+	if (response_data->event_id < accumulator->event_id_hdr) {
+		LOG_DBG("Response Event ID %d <= client last event ID %d", response_data->event_id,
+			accumulator->event_id_hdr);
 		response_ctx->status = HTTP_204_NO_CONTENT;
 		response_ctx->body_len = 0;
 		response_ctx->final_chunk = true;
