@@ -442,15 +442,20 @@ int mcp_json_parse_message(const char *buf, size_t len, struct mcp_message *out)
 		switch (out->method) {
 		case MCP_METHOD_INITIALIZE:
 			ret = parse_initialize_request(json_copy, len, out);
+			break;
 		case MCP_METHOD_PING:
 			ret = parse_ping_request(json_copy, len, out);
+			break;
 		case MCP_METHOD_TOOLS_LIST:
 			ret = parse_tools_list_request(json_copy, len, out);
+			break;
 		case MCP_METHOD_TOOLS_CALL:
 			ret = parse_tools_call_request(json_copy, len, out);
+			break;
 		default:
 			/* Unknown method: let core treat as "method not found". */
 			ret = 0;
+			break;
 		}
 	} else if (out->kind == MCP_MSG_NOTIFICATION) {
 		switch (out->method) {
