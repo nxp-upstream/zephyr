@@ -359,15 +359,13 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 	struct mcp_transport_binding *binding;
 	struct mcp_http_response_item *response_data = NULL;
 
-	struct mcp_request_data request_data = {
-		.json_data = accumulator->data,
-		.json_len = accumulator->data_len,
-		.client_id_hint = accumulator->session_id_hdr,
-		.callback = mcp_server_http_new_client_handler
-	};
+	struct mcp_request_data request_data = {.json_data = accumulator->data,
+						.json_len = accumulator->data_len,
+						.client_id_hint = accumulator->session_id_hdr,
+						.callback = mcp_server_http_new_client_handler};
 
-	msg_type = mcp_server_handle_request(
-		http_transport_state.server_core, &request_data, &binding);
+	msg_type = mcp_server_handle_request(http_transport_state.server_core, &request_data,
+					     &binding);
 
 	if (msg_type == MCP_METHOD_UNKNOWN || binding == NULL) {
 		LOG_ERR("Invalid request: %d", msg_type);
@@ -504,11 +502,11 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 	response_data = k_fifo_get(&mcp_client_ctx->response_queue, K_NO_WAIT);
 
 	/* Send response data. TODO: What happens if resp_data->data is larger than
-		* response_body buffer? Do we chunk it? */
+	 * response_body buffer? Do we chunk it? */
 	LOG_DBG("Sending response with event ID %d", response_data->event_id);
-	int body_len = snprintf(mcp_client_ctx->response_body,
-				sizeof(mcp_client_ctx->response_body), "\"id\": \"%d\" %s",
-				response_data->event_id, response_data->data);
+	int body_len =
+		snprintf(mcp_client_ctx->response_body, sizeof(mcp_client_ctx->response_body),
+			 "\"id\": \"%d\" %s", response_data->event_id, response_data->data);
 	response_ctx->body = mcp_client_ctx->response_body;
 	response_ctx->body_len = body_len;
 	response_ctx->status = HTTP_200_OK;
@@ -517,8 +515,7 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 	mcp_client_ctx->response_headers[0].name = "Content-Type";
 	mcp_client_ctx->response_headers[0].value = "text/event-stream";
 	mcp_client_ctx->response_headers[1].name = "Mcp-Session-Id";
-	mcp_client_ctx->response_headers[1].value =
-		(const char *)mcp_client_ctx->session_id_str;
+	mcp_client_ctx->response_headers[1].value = (const char *)mcp_client_ctx->session_id_str;
 
 	response_ctx->headers = mcp_client_ctx->response_headers;
 	response_ctx->header_count = 2;
