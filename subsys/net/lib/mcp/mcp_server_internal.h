@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef ZEPHYR_SUBSYS_NET_LIB_MCP_MCP_SERVER_INTERNAL_H_
-#define ZEPHYR_SUBSYS_NET_LIB_MCP_MCP_SERVER_INTERNAL_H_
+#ifndef ZEPHYR_SUBSYS_MCP_SERVER_INTERNAL_H_
+#define ZEPHYR_SUBSYS_MCP_SERVER_INTERNAL_H_
 
 /**
  * @file
@@ -92,8 +92,9 @@ struct mcp_request_data {
  *         MCP_HANDLE_OK for successful existing client request,
  *         MCP_HANDLE_ERROR on failure
  */
-enum mcp_method mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_request_data *request,
-					  struct mcp_transport_binding **client_binding);
+int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_request_data *request,
+			      enum mcp_method *method,
+			      struct mcp_transport_binding **client_binding);
 
 /**
  * @brief Get the transport binding for a specific client (INTERNAL)
@@ -108,4 +109,4 @@ enum mcp_method mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_reque
 struct mcp_transport_binding *mcp_server_get_client_binding(mcp_server_ctx_t ctx,
 							    uint32_t client_id);
 
-#endif /* ZEPHYR_SUBSYS_NET_LIB_MCP_MCP_SERVER_INTERNAL_H_ */
+#endif /* ZEPHYR_SUBSYS_MCP_SERVER_INTERNAL_H_ */

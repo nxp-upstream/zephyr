@@ -10,8 +10,8 @@
  *
  * Parser uses Zephyr JSON library: <zephyr/data/json.h>
  */
-#ifndef ZEPHYR_INCLUDE_NET_MCP_JSON_H_
-#define ZEPHYR_INCLUDE_NET_MCP_JSON_H_
+#ifndef ZEPHYR_SUBSYS_MCP_JSON_H_
+#define ZEPHYR_SUBSYS_MCP_JSON_H_
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -306,4 +306,4 @@ int mcp_json_serialize_tools_list_changed_notif(char *out, size_t out_len);
 }
 #endif
 
-#endif /* ZEPHYR_SUBSYS_NET_LIB_MCP_MCP_JSON_H_ */
+#endif /* ZEPHYR_SUBSYS_MCP_JSON_H_ */
