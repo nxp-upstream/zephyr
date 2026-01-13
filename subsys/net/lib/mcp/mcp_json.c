@@ -1,11 +1,15 @@
-/* mcp_json.c - MCP JSON-RPC parser/serializer using Zephyr JSON library
-*
-* Parser: server-side messages
-*   - Requests: initialize, ping, tools/list, tools/call
-*   - Notifications: notifications/initialized, notifications/cancelled
-*
-* Serializers: server-side responses & notifications
-*/
+/*
+ * Copyright 2025 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Parser: server-side messages
+ *   - Requests: initialize, ping, tools/list, tools/call
+ *   - Notifications: notifications/initialized, notifications/cancelled
+ *
+ * Serializers: server-side responses & notifications
+ */
+
 #include "mcp_json.h"
 #include <string.h>
 #include <stdio.h>
@@ -16,9 +20,10 @@
 #include "mcp_common.h"
 
 LOG_MODULE_REGISTER(mcp_json, CONFIG_MCP_LOG_LEVEL);
-/* ============================================================
-* Small helpers
-* ============================================================ */
+
+/*******************************************************************************
+ * Helpers
+ ******************************************************************************/
 static void mcp_safe_strcpy(char *dst, size_t dst_sz, const char *src)
 {
 	if (!dst || dst_sz == 0) {
@@ -69,9 +74,9 @@ static bool json_has_top_level_key(const char *buf, size_t len, const char *key)
 	return false;
 }
 
-/* ============================================================
-* Envelope descriptor (jsonrpc, method, id)
-* ============================================================ */
+/*******************************************************************************
+ * Envelope descriptor (jsonrpc, method, id)
+ ******************************************************************************/
 struct mcp_json_envelope {
 	const char *jsonrpc;
 	const char *method; /* may be NULL */
@@ -84,7 +89,7 @@ static const struct json_obj_descr mcp_envelope_descr[] = {
 	JSON_OBJ_DESCR_PRIM(struct mcp_json_envelope, id, JSON_TOK_INT64),
 };
 
-/* Map method string → enum */
+/* Map method string to enum */
 static enum mcp_method mcp_method_from_string(const char *m)
 {
 	if (!m) {
@@ -106,10 +111,10 @@ static enum mcp_method mcp_method_from_string(const char *m)
 	return MCP_METHOD_UNKNOWN;
 }
 
-/* ============================================================
-* Per-method parsing helpers
-* ============================================================ */
-/* --- initialize request: { "params": { "protocolVersion": "..." } } */
+/*******************************************************************************
+ * Per-method parsing helpers
+ ******************************************************************************/
+/* initialize request: { "params": { "protocolVersion": "..." } } */
 struct mcp_json_init_req {
 	struct {
 		const char *protocolVersion;
@@ -143,7 +148,7 @@ static int parse_initialize_request(const char *buf, size_t len, struct mcp_mess
 	return 0;
 }
 
-/* --- ping request: we ignore params for now --- */
+/* ping request: we ignore params for now */
 static int parse_ping_request(const char *buf, size_t len, struct mcp_message *msg)
 {
 	(void)buf;
@@ -153,7 +158,7 @@ static int parse_ping_request(const char *buf, size_t len, struct mcp_message *m
 	return 0;
 }
 
-/* --- tools/list request: no params in v1 --- */
+/* tools/list request: no params in v1 */
 static int parse_tools_list_request(const char *buf, size_t len, struct mcp_message *msg)
 {
 	(void)buf;
@@ -291,7 +296,6 @@ static int parse_tools_call_request(const char *buf, size_t len, struct mcp_mess
 	return 0;
 }
 
-/* --- notifications/initialized --- */
 static int parse_notif_initialized(const char *buf, size_t len, struct mcp_message *msg)
 {
 	(void)buf;
@@ -369,9 +373,9 @@ static char *create_json_copy(const char *json, size_t length)
 	return copy;
 }
 
-/* ============================================================
+/*******************************************************************************
  * Public parser API
- * ============================================================ */
+ ******************************************************************************/
 int mcp_json_parse_message(const char *buf, size_t len, struct mcp_message *out)
 {
 	if (!buf || !out || len == 0) {
@@ -475,9 +479,9 @@ int mcp_json_parse_message(const char *buf, size_t len, struct mcp_message *out)
 	return ret;
 }
 
-/* ============================================================
+/*******************************************************************************
  * Serializers
- * ============================================================ */
+ ******************************************************************************/
 /* JSON string literal helper: write "text" with proper escaping.
  * For v1, we handle the common escapes (", \, \n, \r, \t) and drop others.
  */
@@ -541,7 +545,6 @@ static int json_escape_string(char *dst, size_t dst_sz, const char *src)
 	return (int)pos;
 }
 
-/* --- initialize result --- */
 int mcp_json_serialize_initialize_result(char *out, size_t out_len, int64_t id,
 					 const struct mcp_result_initialize *res)
 {
@@ -617,7 +620,6 @@ int mcp_json_serialize_initialize_result(char *out, size_t out_len, int64_t id,
    return ret;
 }
 
-/* --- ping result --- */
 int mcp_json_serialize_ping_result(char *out, size_t out_len, int64_t id,
 				   const struct mcp_result_ping *res)
 {
@@ -642,7 +644,6 @@ int mcp_json_serialize_ping_result(char *out, size_t out_len, int64_t id,
    return ret;
 }
 
-/* --- tools/list result --- */
 int mcp_json_serialize_tools_list_result(char *out, size_t out_len, int64_t id,
 					 const struct mcp_result_tools_list *res)
 {
@@ -673,7 +674,6 @@ int mcp_json_serialize_tools_list_result(char *out, size_t out_len, int64_t id,
    return ret;
 }
 
-/* --- tools/call result --- */
 int mcp_json_serialize_tools_call_result(char *out, size_t out_len, int64_t id,
 					 const struct mcp_result_tools_call *res)
 {
@@ -738,7 +738,6 @@ int mcp_json_serialize_tools_call_result(char *out, size_t out_len, int64_t id,
    return ret;
 }
 
-/* --- JSON-RPC error --- */
 int mcp_json_serialize_error(char *out, size_t out_len, bool has_id, int64_t id,
 			     const struct mcp_error *err)
 {
@@ -821,7 +820,6 @@ int mcp_json_serialize_error(char *out, size_t out_len, bool has_id, int64_t id,
    return ret;
 }
 
-/* --- logging message notification --- */
 int mcp_json_serialize_logging_message_notif(char *out, size_t out_len, const char *level,
 					     const char *logger, const char *message,
 					     const char *data_json, bool has_data)
@@ -886,7 +884,6 @@ int mcp_json_serialize_logging_message_notif(char *out, size_t out_len, const ch
    return ret;
 }
 
-/* --- tools/list_changed notification --- */
 int mcp_json_serialize_tools_list_changed_notif(char *out, size_t out_len)
 {
    if (!out || out_len == 0) {

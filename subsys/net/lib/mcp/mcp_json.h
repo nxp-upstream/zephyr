@@ -1,4 +1,7 @@
-/* mcp_json.h - MCP JSON-RPC protocol structs + parser/serializer API
+/*
+ * Copyright 2025 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *
  * This is tailored for an MCP *server* on Zephyr that supports:
  *   - initialize (+ notifications/initialized)
