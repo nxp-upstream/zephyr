@@ -21,8 +21,11 @@
 
 LOG_MODULE_REGISTER(mcp_http_transport, CONFIG_MCP_LOG_LEVEL);
 
+/*******************************************************************************
+ * Definitions
+ ******************************************************************************/
 #define SESSION_ID_STR_LEN   ((sizeof(uint32_t) * 2) + 1)
-#define CONTENT_TYPE_HDR_LEN (sizeof("text/event-stream") + 1) // worst case for content-type header
+#define CONTENT_TYPE_HDR_LEN (sizeof("text/event-stream") + 1) /* worst case for content-type header */
 #define ORIGIN_HDR_LEN       128
 #define MAX_RESPONSE_HEADERS 4 /* Content-Type, Last-Event-Id, Mcp-Session-Id, extra buffer */
 
@@ -68,8 +71,9 @@ struct http_transport_state {
 	bool initialized;
 };
 
-static struct http_transport_state http_transport_state;
-
+/*******************************************************************************
+ * Forward declarations
+ ******************************************************************************/
 /* Forward declarations */
 static int mcp_server_http_resource_handler(struct http_client_ctx *client,
 					    enum http_data_status status,
@@ -80,6 +84,15 @@ static int mcp_server_http_send(struct mcp_transport_binding *ep, uint32_t clien
 				const void *data, size_t length);
 static int mcp_server_http_disconnect(struct mcp_transport_binding *ep, uint32_t client_id);
 
+/*******************************************************************************
+ * Static variables and resource definitions
+ ******************************************************************************/
+const struct mcp_transport_ops mcp_http_transport_ops = {
+	.send = mcp_server_http_send,
+	.disconnect = mcp_server_http_disconnect,
+};
+
+static struct http_transport_state http_transport_state;
 static struct http_resource_detail_dynamic mcp_resource_detail = {
 	.common =
 		{
@@ -92,11 +105,6 @@ static struct http_resource_detail_dynamic mcp_resource_detail = {
 };
 
 uint32_t mcp_http_port = CONFIG_MCP_HTTP_PORT;
-
-const struct mcp_transport_ops mcp_http_transport_ops = {
-	.send = mcp_server_http_send,
-	.disconnect = mcp_server_http_disconnect,
-};
 
 /* HTTP resource definition */
 HTTP_RESOURCE_DEFINE(mcp_endpoint_resource, mcp_http_service, CONFIG_MCP_HTTP_ENDPOINT,
@@ -112,10 +120,13 @@ HTTP_SERVER_REGISTER_HEADER_CAPTURE(content_type_hdr, "Content-Type");
 HTTP_SERVER_REGISTER_HEADER_CAPTURE(mcp_session_id_hdr, "Mcp-Session-Id");
 HTTP_SERVER_REGISTER_HEADER_CAPTURE(last_event_id_hdr, "Last-Event-Id");
 
+/*******************************************************************************
+ * Accumulator helpers
+ ******************************************************************************/
 /**
- * @brief Get or allocate an accumulator for the given file descriptor
+ * Get or allocate an accumulator for the given file descriptor
  * This function searches for an existing accumulator associated with the given fd.
- * If found, it returns a pointer to it. If not found, it allocates the first
+ * If found, it returns a pointer to it. If not found, it allocates the first.
  */
 static struct mcp_http_request_accumulator *get_accumulator(int fd)
 {
@@ -266,6 +277,9 @@ static int accumulate_request(struct http_client_ctx *client,
 	return 0;
 }
 
+/*******************************************************************************
+ * Client context helpers
+ ******************************************************************************/
 static struct mcp_http_client_ctx *allocate_client(uint32_t session_id)
 {
 	struct mcp_http_client_ctx *client = NULL;
@@ -303,9 +317,6 @@ static struct mcp_http_client_ctx *allocate_client(uint32_t session_id)
 	return client;
 }
 
-/**
- * @brief Release client context
- */
 static int release_client(struct mcp_http_client_ctx *client)
 {
 	int ret;
@@ -346,9 +357,9 @@ void mcp_server_http_new_client_handler(struct mcp_transport_binding *ep, uint32
 	ep->context = (void *)client_ctx;
 }
 
-/**
- * @brief HTTP POST handler for MCP endpoint
- */
+/*******************************************************************************
+ * POST Handler
+ ******************************************************************************/
 static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 				     const struct http_request_ctx *request_ctx,
 				     struct mcp_http_request_accumulator *accumulator,
@@ -455,9 +466,9 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 	return 0;
 }
 
-/**
- * @brief HTTP GET handler for MCP endpoint
- */
+/*******************************************************************************
+ * GET Handler
+ ******************************************************************************/
 static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 				    const struct http_request_ctx *request_ctx,
 				    struct mcp_http_request_accumulator *accumulator,
@@ -527,9 +538,9 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 	return 0;
 }
 
-/**
- * @brief HTTP resource handler wrapper
- */
+/*******************************************************************************
+ * HTTP resource handler
+ ******************************************************************************/
 static int mcp_server_http_resource_handler(struct http_client_ctx *client,
 					    enum http_data_status status,
 					    const struct http_request_ctx *request_ctx,
@@ -576,9 +587,6 @@ static int mcp_server_http_resource_handler(struct http_client_ctx *client,
 /*******************************************************************************
  * Interface Implementation
  ******************************************************************************/
-/**
- * @brief Initialize HTTP transport
- */
 int mcp_server_http_init(mcp_server_ctx_t server_ctx)
 {
 	int ret;
@@ -640,9 +648,6 @@ int mcp_server_http_start(mcp_server_ctx_t server_ctx)
 	return 0;
 }
 
-/**
- * @brief Send data to a client
- */
 static int mcp_server_http_send(struct mcp_transport_binding *ep, uint32_t client_id,
 				const void *data, size_t length)
 {
@@ -658,14 +663,12 @@ static int mcp_server_http_send(struct mcp_transport_binding *ep, uint32_t clien
 		return -EINVAL;
 	}
 
-	/* Find the client */
 	struct mcp_http_client_ctx *client = (struct mcp_http_client_ctx *)ep->context;
 	if (!client) {
 		LOG_ERR("Client %u not found", client_id);
 		return -ENOENT;
 	}
 
-	/* Allocate response item */
 	item = (struct mcp_http_response_item *)mcp_alloc(sizeof(struct mcp_http_response_item));
 	if (!item) {
 		LOG_ERR("Failed to allocate response item");
@@ -677,7 +680,7 @@ static int mcp_server_http_send(struct mcp_transport_binding *ep, uint32_t clien
 	item->length = length;
 	item->event_id = client->next_event_id++;
 
-	/* Add to client's response queue */
+	/* POST/GET handlers are responsible for freeing response items and data from core */
 	k_fifo_put(&client->response_queue, item);
 
 	LOG_DBG("Queued %zu bytes for client %u (event_id=%u)", length, client_id, item->event_id);
@@ -685,11 +688,6 @@ static int mcp_server_http_send(struct mcp_transport_binding *ep, uint32_t clien
 	return 0;
 }
 
-/**
- * @brief Disconnect a client
- * @param client_id Client identifier
- * @return 0 on success, negative errno on failure
- */
 static int mcp_server_http_disconnect(struct mcp_transport_binding *ep, uint32_t client_id)
 {
 	if (!http_transport_state.initialized) {
