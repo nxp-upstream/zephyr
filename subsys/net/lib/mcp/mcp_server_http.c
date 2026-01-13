@@ -354,6 +354,7 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 				     struct mcp_http_request_accumulator *accumulator,
 				     struct http_response_ctx *response_ctx)
 {
+	int ret;
 	enum mcp_method msg_type;
 	struct mcp_http_client_ctx *mcp_client_ctx;
 	struct mcp_transport_binding *binding;
@@ -364,11 +365,10 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 						.client_id_hint = accumulator->session_id_hdr,
 						.callback = mcp_server_http_new_client_handler};
 
-	msg_type = mcp_server_handle_request(http_transport_state.server_core, &request_data,
-					     &binding);
-
-	if (msg_type == MCP_METHOD_UNKNOWN || binding == NULL) {
-		LOG_ERR("Invalid request: %d", msg_type);
+	ret = mcp_server_handle_request(http_transport_state.server_core, &request_data, &msg_type,
+					&binding);
+	if (ret) {
+		LOG_ERR("Error processing request: %d", ret);
 		response_ctx->status = HTTP_500_INTERNAL_SERVER_ERROR;
 		response_ctx->final_chunk = true;
 		return -EINVAL;

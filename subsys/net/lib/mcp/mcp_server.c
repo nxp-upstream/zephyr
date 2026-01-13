@@ -566,7 +566,7 @@ static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_m
 	/* Serialize response to JSON */
 	ret = mcp_json_serialize_initialize_result(
 		(char *)json_buffer, CONFIG_MCP_TRANSPORT_BUFFER_SIZE, request->id, response_data);
-	if (ret) {
+	if (ret < 0) {
 		LOG_ERR("Failed to serialize response: %d", ret);
 		mcp_free(response_data);
 		mcp_free(json_buffer);
