@@ -104,8 +104,10 @@ static bool mp_src_negotiate(struct mp_src *src)
 	/* Send caps event to configure downstream */
 	caps_event = mp_event_new_caps(fixated_caps);
 	ret = mp_pad_send_event(src->srcpad.peer, caps_event);
-	if (ret) {
-		src->set_caps(src, fixated_caps);
+	if (ret && !src->set_caps(src, fixated_caps)) {
+		mp_caps_unref(fixated_caps);
+		mp_event_destroy(caps_event);
+		return false;
 	}
 	mp_caps_unref(fixated_caps);
 	mp_event_destroy(caps_event);
