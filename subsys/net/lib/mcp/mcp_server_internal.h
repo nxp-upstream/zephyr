@@ -72,10 +72,10 @@ typedef void (*new_client_cb)(struct mcp_transport_binding *binding, uint32_t cl
  * and callback for new client setup.
  */
 struct mcp_request_data {
-	char *json_data;         /**< Pointer to JSON request payload */
-	size_t json_len;         /**< Length of JSON data in bytes */
-	uint32_t client_id_hint; /**< Client ID hint (0 for new clients) */
-	new_client_cb callback;  /**< Callback for new client initialization */
+	char *json_data;         /* Pointer to JSON request payload */
+	size_t json_len;         /* Length of JSON data in bytes */
+	uint32_t client_id_hint; /* Client ID hint (0 for new clients) */
+	new_client_cb callback;  /* Callback for new client initialization */
 };
 
 /**
