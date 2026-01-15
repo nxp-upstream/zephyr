@@ -441,7 +441,7 @@ static int send_error_response(struct mcp_server_ctx *server, uint32_t request_i
 	int ret;
 
 	error_response = (struct mcp_error *)mcp_alloc(sizeof(struct mcp_error));
-	if (!error_response) {
+	if (error_response == NULL) {
 		LOG_ERR("Failed to allocate error response");
 		return -ENOMEM;
 	}
@@ -453,15 +453,15 @@ static int send_error_response(struct mcp_server_ctx *server, uint32_t request_i
 	error_response->has_data = false; /* no data for now */
 
 	/* Allocate buffer for serialization */
-	char *json_buffer = (char *)mcp_alloc(CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
-	if (!json_buffer) {
+	char *json_buffer = (char *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
+	if (json_buffer == NULL) {
 		LOG_ERR("Failed to allocate buffer, dropping message");
 		mcp_free(error_response);
 		return -ENOMEM;
 	}
 
-	ret = mcp_json_serialize_error(json_buffer, CONFIG_MCP_TRANSPORT_BUFFER_SIZE, true,
-				       request_id, error_response);
+	ret = mcp_json_serialize_error(json_buffer, CONFIG_MCP_MAX_MESSAGE_SIZE, true, request_id,
+				       error_response);
 	if (ret <= 0) {
 		LOG_ERR("Failed to serialize response: %d", ret);
 		mcp_free(error_response);
@@ -470,7 +470,7 @@ static int send_error_response(struct mcp_server_ctx *server, uint32_t request_i
 	}
 
 	struct mcp_client_context *client = get_client(server, client_id);
-	if (!client) {
+	if (client == NULL) {
 		LOG_ERR("Client context not found for client_id: %u", client_id);
 		mcp_free(error_response);
 		mcp_free(json_buffer);
@@ -538,7 +538,7 @@ static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_m
 
 	struct mcp_result_initialize *response_data =
 		(struct mcp_result_initialize *)mcp_alloc(sizeof(struct mcp_result_initialize));
-	if (!response_data) {
+	if (response_data == NULL) {
 		LOG_ERR("Failed to allocate response");
 		remove_client(server, new_client);
 		return -ENOMEM;
@@ -559,8 +559,8 @@ static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_m
 	response_data->has_capabilities = true;
 
 	/* Allocate buffer for serialization */
-	uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
-	if (!json_buffer) {
+	uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
+	if (json_buffer == NULL) {
 		LOG_ERR("Failed to allocate buffer, dropping message");
 		mcp_free(response_data);
 		remove_client(server, new_client);
@@ -568,8 +568,8 @@ static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_m
 	}
 
 	/* Serialize response to JSON */
-	ret = mcp_json_serialize_initialize_result(
-		(char *)json_buffer, CONFIG_MCP_TRANSPORT_BUFFER_SIZE, request->id, response_data);
+	ret = mcp_json_serialize_initialize_result((char *)json_buffer, CONFIG_MCP_MAX_MESSAGE_SIZE,
+						   request->id, response_data);
 	if (ret < 0) {
 		LOG_ERR("Failed to serialize response: %d", ret);
 		mcp_free(response_data);
@@ -630,7 +630,7 @@ static int handle_tools_list_request(struct mcp_server_ctx *server, uint32_t cli
 
 	response_data =
 		(struct mcp_result_tools_list *)mcp_alloc(sizeof(struct mcp_result_tools_list));
-	if (!response_data) {
+	if (response_data == NULL) {
 		LOG_ERR("Failed to allocate response");
 		return -ENOMEM;
 	}
@@ -646,16 +646,16 @@ static int handle_tools_list_request(struct mcp_server_ctx *server, uint32_t cli
 	k_mutex_unlock(&tool_registry->registry_mutex);
 
 	/* Allocate buffer for serialization */
-	uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
-	if (!json_buffer) {
+	uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
+	if (json_buffer == NULL) {
 		LOG_ERR("Failed to allocate buffer, dropping message");
 		mcp_free(response_data);
 		return -ENOMEM;
 	}
 
 	/* Serialize response to JSON */
-	ret = mcp_json_serialize_tools_list_result(
-		(char *)json_buffer, CONFIG_MCP_TRANSPORT_BUFFER_SIZE, request->id, response_data);
+	ret = mcp_json_serialize_tools_list_result((char *)json_buffer, CONFIG_MCP_MAX_MESSAGE_SIZE,
+						   request->id, response_data);
 	if (ret <= 0) {
 		LOG_ERR("Failed to serialize response: %d", ret);
 		mcp_free(response_data);
@@ -1043,7 +1043,8 @@ int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_request_data *req
 	struct mcp_client_context *client = NULL;
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 
-	if (!server || !request || !request->json_data || !method || !client_binding) {
+	if ((server == NULL) || (request == NULL) || (request->json_data == NULL) ||
+	    (method == NULL) || (client_binding == NULL)) {
 		LOG_ERR("Invalid parameters passed to mcp_server_handle_request");
 		return -EINVAL;
 	}
@@ -1113,7 +1114,7 @@ struct mcp_transport_binding *mcp_server_get_client_binding(mcp_server_ctx_t ctx
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 	struct mcp_client_context *client;
 
-	if (!server) {
+	if (server == NULL) {
 		LOG_ERR("Invalid server");
 		return NULL;
 	}
@@ -1231,7 +1232,7 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 	struct mcp_result_tools_call *response_data;
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 
-	if (!server) {
+	if (server == NULL) {
 		LOG_ERR("Invalid server context");
 		return -EINVAL;
 	}
@@ -1294,7 +1295,6 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 
 			if (client == NULL) {
 				LOG_ERR("Client context not found for client_id: %u", client_id);
-				k_mutex_unlock(&execution_registry->registry_mutex);
 				return -ENOENT;
 			}
 
@@ -1302,7 +1302,6 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 				sizeof(struct mcp_result_tools_call));
 			if (response_data == NULL) {
 				LOG_ERR("Failed to allocate memory for response");
-				k_mutex_unlock(&execution_registry->registry_mutex);
 				return -ENOMEM;
 			}
 
@@ -1321,8 +1320,8 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 		}
 
 		/* Allocate buffer for serialization */
-		uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_TRANSPORT_BUFFER_SIZE);
-		if (!json_buffer) {
+		uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
+		if (json_buffer == NULL) {
 			LOG_ERR("Failed to allocate buffer, dropping message");
 			mcp_free(response_data);
 			return -ENOMEM;
@@ -1330,8 +1329,8 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 
 		/* Serialize response to JSON */
 		ret = mcp_json_serialize_tools_call_result((char *)json_buffer,
-							   CONFIG_MCP_TRANSPORT_BUFFER_SIZE,
-							   request_id, response_data);
+							   CONFIG_MCP_MAX_MESSAGE_SIZE, request_id,
+							   response_data);
 		if (ret <= 0) {
 			LOG_ERR("Failed to serialize response: %d", ret);
 			mcp_free(response_data);
@@ -1404,12 +1403,13 @@ int mcp_server_add_tool(mcp_server_ctx_t ctx, const struct mcp_tool_record *tool
 	int ret;
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 
-	if (!server) {
+	if (server == NULL) {
 		LOG_ERR("Invalid server context");
 		return -EINVAL;
 	}
 
-	if (!tool_record || !tool_record->metadata.name[0] || !tool_record->callback) {
+	if ((tool_record == NULL) || (tool_record->metadata.name[0] == '\0') ||
+	    (tool_record->callback == NULL)) {
 		LOG_ERR("Invalid tool record");
 		return -EINVAL;
 	}
@@ -1447,12 +1447,12 @@ int mcp_server_remove_tool(mcp_server_ctx_t ctx, const char *tool_name)
 	int ret;
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 
-	if (!server) {
+	if (server == NULL) {
 		LOG_ERR("Invalid server context");
 		return -EINVAL;
 	}
 
-	if (!tool_name || !tool_name[0]) {
+	if ((tool_name == NULL) || (tool_name[0] == '\0')) {
 		LOG_ERR("Invalid tool name");
 		return -EINVAL;
 	}
@@ -1485,12 +1485,12 @@ int mcp_server_is_execution_canceled(mcp_server_ctx_t ctx, uint32_t execution_to
 {
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 
-	if (!server) {
+	if (server == NULL) {
 		LOG_ERR("Invalid server context");
 		return -EINVAL;
 	}
 
-	if (!is_canceled) {
+	if (is_canceled == NULL) {
 		LOG_ERR("Invalid is_canceled pointer");
 		return -EINVAL;
 	}

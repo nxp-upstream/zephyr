@@ -45,6 +45,12 @@ config MCP_RESPONSE_QUEUE_SIZE
 	help
 	  Maximum number of pending MCP responses that can be queued for sending.
 
+config MCP_MAX_MESSAGE_SIZE
+	int "Maximum MCP message size"
+	default 2048
+	help
+	  Size of the buffer for MCP messages in bytes.
+
 config MCP_SERVER_INFO_NAME_MAX_LEN
 	int "Maximum server info name length"
 	default 64
@@ -228,12 +234,6 @@ config MCP_TRANSPORT_HTTP
 	  Use HTTP for MCP transport.
 
 endchoice
-
-config MCP_TRANSPORT_BUFFER_SIZE
-	int "Transport buffer size"
-	default 2048
-	help
-	  Size of buffers used for transport serialization.
 
 if MCP_TRANSPORT_HTTP
 
