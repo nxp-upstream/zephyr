@@ -31,10 +31,17 @@ if(CONFIG_NXP_IMXRT_BOOT_HEADER)
     # if another SDRAM chip is used on your custom board.
     zephyr_library_compile_definitions(XIP_BOOT_HEADER_XMCD_ENABLE=1)
     zephyr_library_sources(xmcd/xmcd.c)
+  elseif (CONFIG_DEVICE_CONFIGURATION_DATA)
+    # Include devce memory configuration data block for RT1170 EVK from NXP's HAL.
+    # This configuration block may need modification if another SDRAM chip
+    # is used on your custom board.
+    zephyr_compile_definitions(XIP_BOOT_HEADER_DCD_ENABLE=1)
+    zephyr_library_sources(dcd/dcd.c)
   else()
     if(CONFIG_SRAM_BASE_ADDRESS EQUAL 0x80000000)
       message(WARNING "You are using SDRAM as RAM but no external memory"
-        "configuration data (XMCD) is included. This configuration may not boot")
+        "configuration data (XMCD) or device configuration data (DCD) is
+        included. This configuration may not boot")
     endif()
   endif()
 endif()
