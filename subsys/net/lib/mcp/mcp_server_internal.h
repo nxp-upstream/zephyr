@@ -27,6 +27,7 @@ struct mcp_transport_binding;
 struct mcp_transport_ops {
 	/**
 	 * @brief Send data to a client
+	 * @param ep Transport endpoint
 	 * @param client_id Client identifier
 	 * @param data Data buffer to send
 	 * @param length Data length
@@ -37,6 +38,7 @@ struct mcp_transport_ops {
 
 	/**
 	 * @brief Disconnect a client
+	 * @param ep Transport endpoint
 	 * @param client_id Client identifier
 	 * @return 0 on success, negative errno on failure
 	 */
@@ -87,6 +89,7 @@ struct mcp_request_data {
  * @param ctx Server context
  * @param request Request data structure containing JSON payload, length, client ID hint,
  *                and new client callback
+ * @param method Pointer to store the request method type (output parameter)
  * @param client_binding Pointer to store the client's transport binding (output parameter)
  * @return MCP_HANDLE_NEW_CLIENT for new client initialization,
  *         MCP_HANDLE_OK for successful existing client request,
