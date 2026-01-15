@@ -74,7 +74,6 @@ struct http_transport_state {
 /*******************************************************************************
  * Forward declarations
  ******************************************************************************/
-/* Forward declarations */
 static int mcp_server_http_resource_handler(struct http_client_ctx *client,
 					    enum http_data_status status,
 					    const struct http_request_ctx *request_ctx,
@@ -164,7 +163,7 @@ static int release_accumulator(struct mcp_http_request_accumulator *accumulator)
 {
 	int ret;
 
-	if (!accumulator) {
+	if (accumulator == NULL) {
 		return -EINVAL;
 	}
 
@@ -544,7 +543,7 @@ static int mcp_server_http_resource_handler(struct http_client_ctx *client,
 	/* TODO: Validate origin */
 
 	struct mcp_http_request_accumulator *accumulator = get_accumulator(client->fd);
-	if (!accumulator) {
+	if (accumulator == NULL) {
 		LOG_ERR("Failed to allocate mcp accumualator fd=%d", client->fd);
 		return -ENOMEM;
 	}
@@ -622,7 +621,7 @@ int mcp_server_http_init(mcp_server_ctx_t server_ctx)
 
 int mcp_server_http_start(mcp_server_ctx_t server_ctx)
 {
-	if (!server_ctx || (server_ctx != http_transport_state.server_core) ||
+	if ((server_ctx == NULL) || (server_ctx != http_transport_state.server_core) ||
 	    !http_transport_state.initialized) {
 		LOG_ERR("HTTP server context invalid or transport not initialized");
 		return -EINVAL;
@@ -651,7 +650,7 @@ static int mcp_server_http_send(struct mcp_transport_binding *ep, uint32_t clien
 		return -ENODEV;
 	}
 
-	if (!ep || !data || length == 0) {
+	if ((ep == NULL) || (data == NULL) || length == 0) {
 		LOG_ERR("Invalid send parameters");
 		return -EINVAL;
 	}
@@ -688,7 +687,7 @@ static int mcp_server_http_disconnect(struct mcp_transport_binding *ep, uint32_t
 		return -ENODEV;
 	}
 
-	if (!ep) {
+	if ((ep == NULL)) {
 		LOG_ERR("Invalid send parameters");
 		return -EINVAL;
 	}
