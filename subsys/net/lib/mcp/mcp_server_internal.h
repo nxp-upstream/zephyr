@@ -27,22 +27,22 @@ struct mcp_transport_binding;
 struct mcp_transport_ops {
 	/**
 	 * @brief Send data to a client
-	 * @param ep Transport endpoint
+	 * @param binding Client transport binding
 	 * @param client_id Client identifier
 	 * @param data Data buffer to send
 	 * @param length Data length
 	 * @return 0 on success, negative errno on failure
 	 */
-	int (*send)(struct mcp_transport_binding *ep, uint32_t client_id, const void *data,
+	int (*send)(struct mcp_transport_binding *binding, uint32_t client_id, const void *data,
 		    size_t length);
 
 	/**
 	 * @brief Disconnect a client
-	 * @param ep Transport endpoint
+	 * @param binding Client transport binding
 	 * @param client_id Client identifier
 	 * @return 0 on success, negative errno on failure
 	 */
-	int (*disconnect)(struct mcp_transport_binding *ep, uint32_t client_id);
+	int (*disconnect)(struct mcp_transport_binding *binding, uint32_t client_id);
 };
 
 /**
