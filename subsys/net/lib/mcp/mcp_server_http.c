@@ -24,14 +24,15 @@ LOG_MODULE_REGISTER(mcp_http_transport, CONFIG_MCP_LOG_LEVEL);
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
-#define SESSION_ID_STR_LEN   ((sizeof(uint32_t) * 2) + 1)
-#define CONTENT_TYPE_HDR_LEN (sizeof("text/event-stream") + 1) /* worst case for content-type header */
+#define SESSION_ID_STR_LEN ((sizeof(uint32_t) * 2) + 1)
+#define CONTENT_TYPE_HDR_LEN                                                                       \
+	(sizeof("text/event-stream") + 1) /* worst case for content-type header */
 #define ORIGIN_HDR_LEN       128
 #define MAX_RESPONSE_HEADERS 4 /* Content-Type, Last-Event-Id, Mcp-Session-Id, extra buffer */
 
 /* Request accumulation buffer for each client */
 struct mcp_http_request_accumulator {
-	char data[CONFIG_MCP_TRANSPORT_BUFFER_SIZE];
+	char data[CONFIG_MCP_MAX_MESSAGE_SIZE];
 	size_t data_len;
 	uint32_t session_id_hdr;
 	uint32_t event_id_hdr;
@@ -54,8 +55,8 @@ struct mcp_http_client_ctx {
 	char session_id_str[SESSION_ID_STR_LEN];
 	uint32_t next_event_id;
 	struct http_header response_headers[MAX_RESPONSE_HEADERS];
-	char response_body[CONFIG_MCP_TRANSPORT_BUFFER_SIZE]; /* TODO: set appropriate size */
-	struct k_fifo response_queue;                         /* Response queue for SSE */
+	char response_body[CONFIG_MCP_MAX_MESSAGE_SIZE]; /* TODO: set appropriate size */
+	struct k_fifo response_queue;                    /* Response queue for SSE */
 	bool in_use;
 	bool busy; /* Since we only support one request per client at a time,
 				  this is cleared once the server responds to a client request */
@@ -187,8 +188,7 @@ static int accumulate_request(struct http_client_ctx *client,
 			      enum http_data_status status)
 {
 	if (request_ctx->data_len > 0) {
-		if ((accumulator->data_len + request_ctx->data_len) >
-		    CONFIG_MCP_TRANSPORT_BUFFER_SIZE) {
+		if ((accumulator->data_len + request_ctx->data_len) > CONFIG_MCP_MAX_MESSAGE_SIZE) {
 			LOG_WRN("Accumulator full. Dropping current chunk");
 			return -ENOMEM;
 		}
@@ -234,8 +234,9 @@ static int accumulate_request(struct http_client_ctx *client,
 					    sizeof(accumulator->origin_hdr)) {
 						strncpy(accumulator->origin_hdr, header->value,
 							sizeof(accumulator->origin_hdr) - 1);
-						accumulator->origin_hdr[sizeof(
-							accumulator->origin_hdr) - 1] = '\0';
+						accumulator->origin_hdr
+							[sizeof(accumulator->origin_hdr) - 1] =
+							'\0';
 						LOG_DBG("Stored origin header: %s",
 							accumulator->origin_hdr);
 					} else {
@@ -247,8 +248,9 @@ static int accumulate_request(struct http_client_ctx *client,
 						strncpy(accumulator->content_type_hdr,
 							header->value,
 							sizeof(accumulator->content_type_hdr) - 1);
-						accumulator->content_type_hdr[sizeof(
-							accumulator->content_type_hdr) - 1] = '\0';
+						accumulator->content_type_hdr
+							[sizeof(accumulator->content_type_hdr) -
+							 1] = '\0';
 						LOG_DBG("Stored content type header: %s",
 							accumulator->content_type_hdr);
 					} else {
@@ -260,7 +262,7 @@ static int accumulate_request(struct http_client_ctx *client,
 	}
 
 	if (status == HTTP_SERVER_DATA_FINAL) {
-		if (accumulator->data_len < CONFIG_MCP_TRANSPORT_BUFFER_SIZE) {
+		if (accumulator->data_len < CONFIG_MCP_MAX_MESSAGE_SIZE) {
 			accumulator->data[accumulator->data_len] = '\0';
 		} else {
 			LOG_WRN("Cannot null-terminate accumulator: buffer full");
