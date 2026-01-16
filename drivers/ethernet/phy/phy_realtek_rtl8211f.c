@@ -13,6 +13,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/net/phy.h>
 #include <zephyr/net/mii.h>
+#include <zephyr/pm/device.h>
 #include <zephyr/drivers/mdio.h>
 #include <string.h>
 #include <zephyr/sys/util_macro.h>
@@ -458,6 +459,84 @@ static void phy_rt_rtl8211f_monitor_work_handler(struct k_work *work)
 #endif /* DT_ANY_INST_HAS_PROP_STATUS_OKAY(int_gpios) */
 }
 
+static int phy_realtek_rtl8211f_suspend(const struct device *dev)
+{
+	struct rt_rtl8211f_data *data = dev->data;
+
+#if DT_ANY_INST_HAS_PROP_STATUS_OKAY(int_gpios)
+	int ret;
+	const struct rt_rtl8211f_config *config = dev->config;
+
+	if (config->interrupt_gpio.port) {
+		ret = gpio_pin_interrupt_configure_dt(&config->interrupt_gpio,
+				GPIO_INT_DISABLE);
+		if (ret) {
+			return ret;
+		}
+	}
+#endif
+	k_work_cancel_delayable(&data->phy_monitor_work);
+	phy_rt_rtl8211f_modify(dev, MII_BMCR, MII_BMCR_POWER_DOWN, 1);
+
+	return 0;
+}
+
+static int phy_realtek_rtl8211f_resume(const struct device *dev)
+{
+	struct rt_rtl8211f_data *data = dev->data;
+
+#if DT_ANY_INST_HAS_PROP_STATUS_OKAY(int_gpios)
+	int ret;
+	const struct rt_rtl8211f_config *config = dev->config;
+
+	if (config->interrupt_gpio.port) {
+		/* Clear any pending interrupts */
+		ret = phy_rt_rtl8211f_clear_interrupt(data);
+		if (ret) {
+			return ret;
+		}
+		/* Re-enable interrupt */
+		ret = gpio_pin_interrupt_configure_dt(&config->interrupt_gpio,
+				GPIO_INT_EDGE_TO_ACTIVE);
+		if (ret) {
+			return ret;
+		}
+	} else {
+		k_work_reschedule(&data->phy_monitor_work, K_NO_WAIT);
+	}
+#else
+	k_work_reschedule(&data->phy_monitor_work, K_NO_WAIT);
+#endif
+	phy_rt_rtl8211f_modify(dev, MII_BMCR, MII_BMCR_POWER_DOWN, 0);
+
+	return 0;
+}
+
+static int phy_realtek_rtl8211f_pm_action(const struct device *dev,
+					enum pm_device_action action)
+{
+	int ret = 0;
+
+	LOG_INF("PHY: PM action %d", action);
+
+	switch (action) {
+	case PM_DEVICE_ACTION_SUSPEND:
+		ret = phy_realtek_rtl8211f_suspend(dev);
+		break;
+	case PM_DEVICE_ACTION_RESUME:
+		ret = phy_realtek_rtl8211f_resume(dev);
+		break;
+	case PM_DEVICE_ACTION_TURN_ON:
+		break;
+	case PM_DEVICE_ACTION_TURN_OFF:
+		break;
+	default:
+		return -ENOTSUP;
+	}
+
+	return ret;
+}
+
 static int phy_rt_rtl8211f_init(const struct device *dev)
 {
 	const struct rt_rtl8211f_config *config = dev->config;
@@ -621,7 +700,7 @@ skip_int_gpio:
 	/* Advertise default speeds */
 	phy_rt_rtl8211f_cfg_link(dev, config->default_speeds, 0);
 
-	return 0;
+	return pm_device_driver_init(dev, phy_realtek_rtl8211f_pm_action);
 }
 
 static DEVICE_API(ethphy, rt_rtl8211f_phy_api) = {
@@ -657,7 +736,9 @@ static DEVICE_API(ethphy, rt_rtl8211f_phy_api) = {
 										\
 	static struct rt_rtl8211f_data rt_rtl8211f_##n##_data;			\
 										\
-	DEVICE_DT_INST_DEFINE(n, &phy_rt_rtl8211f_init, NULL,			\
+	PM_DEVICE_DT_INST_DEFINE(n, phy_realtek_rtl8211f_pm_action);		\
+	DEVICE_DT_INST_DEFINE(n, &phy_rt_rtl8211f_init,				\
+			PM_DEVICE_DT_INST_GET(n),				\
 			&rt_rtl8211f_##n##_data, &rt_rtl8211f_##n##_config,	\
 			POST_KERNEL, CONFIG_PHY_INIT_PRIORITY,			\
 			&rt_rtl8211f_phy_api);
