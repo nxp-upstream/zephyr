@@ -1,5 +1,5 @@
 /*
- * Copyright 2024-2025 NXP
+ * Copyright 2024-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -132,9 +132,13 @@ struct netc_eth_data {
 	unsigned int tx_intid;
 	unsigned int rx_intid;
 #endif
+#ifdef CONFIG_PM_DEVICE
+	struct phy_link_state last_link_state;
+#endif
 };
 
-int netc_eth_init_common(const struct device *dev);
+int netc_eth_init_hw(const struct device *dev);
+int netc_eth_init_sw(const struct device *dev);
 int netc_eth_tx(const struct device *dev, struct net_pkt *pkt);
 enum ethernet_hw_caps netc_eth_get_capabilities(const struct device *dev);
 int netc_eth_set_config(const struct device *dev, enum ethernet_config_type type,
