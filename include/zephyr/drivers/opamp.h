@@ -1,5 +1,5 @@
 /*
- * SPDX-License-Identifier: Copyright 2025-2026 NXP
+ * Copyright 2025 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -14,8 +14,8 @@
 #define ZEPHYR_INCLUDE_DRIVERS_OPAMP_H_
 
 /**
- * @brief Configure and control operational amplifiers.
- * @defgroup opamp_interface Operational amplifiers
+ * @brief Interfaces for operational amplifiers (OPAMP).
+ * @defgroup opamp_interface OPAMP
  * @since 4.3
  * @version 0.1.0
  * @ingroup io_interfaces
@@ -32,24 +32,24 @@ extern "C" {
 
 /** @brief OPAMP gain factors. */
 enum opamp_gain {
-	OPAMP_GAIN_1_7 = 0, /**< Gain factor: 1/7. */
-	OPAMP_GAIN_1_3,     /**< Gain factor: 1/3. */
-	OPAMP_GAIN_1,       /**< Gain factor: 1. */
-	OPAMP_GAIN_5_3,     /**< Gain factor: 5/3. */
-	OPAMP_GAIN_2,       /**< Gain factor: 2. */
-	OPAMP_GAIN_11_5,    /**< Gain factor: 11/5. */
-	OPAMP_GAIN_3,       /**< Gain factor: 3. */
-	OPAMP_GAIN_4,       /**< Gain factor: 4. */
-	OPAMP_GAIN_13_3,    /**< Gain factor: 13/3. */
-	OPAMP_GAIN_7,       /**< Gain factor: 7. */
-	OPAMP_GAIN_8,       /**< Gain factor: 8. */
-	OPAMP_GAIN_15,      /**< Gain factor: 15. */
-	OPAMP_GAIN_16,      /**< Gain factor: 16. */
-	OPAMP_GAIN_31,      /**< Gain factor: 31. */
-	OPAMP_GAIN_32,      /**< Gain factor: 32. */
-	OPAMP_GAIN_33,      /**< Gain factor: 33. */
-	OPAMP_GAIN_63,      /**< Gain factor: 63. */
-	OPAMP_GAIN_64,      /**< Gain factor: 64. */
+	OPAMP_GAIN_1_7 = 0, /**< x 1/7. */
+	OPAMP_GAIN_1_3,     /**< x 1/3. */
+	OPAMP_GAIN_1,       /**< x 1. */
+	OPAMP_GAIN_5_3,     /**< x 5/3. */
+	OPAMP_GAIN_2,       /**< x 2. */
+	OPAMP_GAIN_11_5,    /**< x 11/5. */
+	OPAMP_GAIN_3,       /**< x 3. */
+	OPAMP_GAIN_4,       /**< x 4. */
+	OPAMP_GAIN_13_3,    /**< x 13/3. */
+	OPAMP_GAIN_7,       /**< x 7. */
+	OPAMP_GAIN_8,       /**< x 8. */
+	OPAMP_GAIN_15,      /**< x 15. */
+	OPAMP_GAIN_16,      /**< x 16. */
+	OPAMP_GAIN_31,      /**< x 31. */
+	OPAMP_GAIN_32,      /**< x 32. */
+	OPAMP_GAIN_33,      /**< x 33. */
+	OPAMP_GAIN_63,      /**< x 63. */
+	OPAMP_GAIN_64,      /**< x 64. */
 };
 
 /**
@@ -67,13 +67,13 @@ __subsystem struct opamp_driver_api {
 /** @endcond */
 
 /**
- * @brief Set the OPAMP gain.
+ * @brief Set opamp gain.
  *
- * @param[in] dev Device instance for the OPAMP driver.
- * @param gain Requested gain setting. Must be a valid member of enum opamp_gain.
+ * @param dev		Pointer to the device structure for the driver instance.
+ * @param gain		Opamp gain, refer to enum @ref opamp_gain.
  *
- * @retval 0 Success.
- * @return The result of the underlying driver call.
+ * @retval 0		If opamp gain has been successfully set.
+ * @retval -errno	Negative errno in case of failure.
  */
 __syscall int opamp_set_gain(const struct device *dev, enum opamp_gain gain);
 
