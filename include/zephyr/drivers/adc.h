@@ -667,9 +667,9 @@ enum adc_action {
  * @brief Type definition of the optional callback function to be called after
  *        a requested sampling is done.
  *
- * @param dev             Pointer to the device structure for the driver
+ * @param[in] dev         Pointer to the device structure for the driver
  *                        instance.
- * @param sequence        Pointer to the sequence structure that triggered
+ * @param[in] sequence    Pointer to the sequence structure that triggered
  *                        the sampling. This parameter points to a copy of
  *                        the structure that was supplied to the call that
  *                        started the sampling sequence, thus it cannot be
@@ -678,9 +678,9 @@ enum adc_action {
  *                        Instead, the adc_sequence_options::user_data field
  *                        should be used for such purpose.
  *
- * @param sampling_index  Index (0-65535) of the sampling done.
+ * @param[in] sampling_index Index of the sampling completed (0-65535).
  *
- * @returns Action to be performed by the driver. See @ref adc_action.
+ * @return Action to be performed by the driver. See @ref adc_action.
  */
 typedef enum adc_action (*adc_sequence_callback)(const struct device *dev,
 						 const struct adc_sequence *sequence,
@@ -788,31 +788,49 @@ struct adc_sequence {
 	bool calibrate;
 };
 
+/**
+ * @brief Header for decoded ADC samples.
+ */
 struct adc_data_header {
 	/**
-	 * The closest timestamp for when the first frame was generated as attained by
-	 * :c:func:`k_uptime_ticks`.
+	 * Timestamp corresponding to the first sample in @ref adc_data.readings.
+	 *
+	 * The value is expressed in nanoseconds. The time base is driver-defined but
+	 * must be consistent with the per-sample timestamp deltas.
 	 */
 	uint64_t base_timestamp_ns;
 	/**
-	 * The number of elements in the 'readings' array.
+	 * Number of valid elements in the @ref adc_data.readings array.
 	 *
-	 * This must be at least 1
+	 * This must be at least 1.
 	 */
 	uint16_t reading_count;
 };
 
 /**
- * Data for the adc channel.
+ * @brief Decoded sample data for an ADC channel.
+ *
+ * The number of valid elements in @ref readings is given by
+ * adc_data_header::reading_count.
  */
 struct adc_data {
+	/** Decoded data header. */
 	struct adc_data_header header;
+	/** Shift value used to scale decoded sample values. */
 	int8_t shift;
+	/** Sample data for a single reading. */
 	struct adc_sample_data {
+		/** Timestamp offset from adc_data_header::base_timestamp_ns, in nanoseconds. */
 		uint32_t timestamp_delta;
 		union {
+			/** Decoded sample value. */
 			q31_t value;
 		};
+	/**
+	 * Variable-length array of decoded readings.
+	 *
+	 * The array contains at least one element.
+	 */
 	} readings[1];
 };
 
@@ -830,54 +848,65 @@ enum adc_trigger_type {
 	ADC_TRIG_FIFO_FULL,
 
 	/**
-	 * Number of all common adc triggers.
+	 * Number of all common ADC triggers.
 	 */
 	ADC_TRIG_COMMON_COUNT,
 
 	/**
-	 * This and higher values are adc specific.
-	 * Refer to the adc header file.
+	 * This and higher values are ADC driver-specific.
+	 * Refer to the ADC driver documentation.
 	 */
 	ADC_TRIG_PRIV_START = ADC_TRIG_COMMON_COUNT,
 
 	/**
-	 * Maximum value describing a adc trigger type.
+	 * Maximum value describing an ADC trigger type.
 	 */
 	ADC_TRIG_MAX = INT16_MAX,
 };
 
 /**
- * @brief Options for what to do with the associated data when a trigger is consumed
+ * @brief Options for handling trigger-associated data.
+ *
+ * These values describe what should happen to the data associated with a
+ * consumed trigger when streaming.
  */
 enum adc_stream_data_opt {
-	/** @brief Include whatever data is associated with the trigger */
+	/** Include any data associated with the trigger. */
 	ADC_STREAM_DATA_INCLUDE = 0,
-	/** @brief Do nothing with the associated trigger data, it may be consumed later */
+	/** Keep the associated data for later consumption. */
 	ADC_STREAM_DATA_NOP = 1,
-	/** @brief Flush/clear whatever data is associated with the trigger */
+	/** Drop any data associated with the trigger. */
 	ADC_STREAM_DATA_DROP = 2,
 };
 
+/**
+ * @brief Streaming trigger selection.
+ */
 struct adc_stream_trigger {
+	/** Trigger type to match. */
 	enum adc_trigger_type trigger;
+	/** How to handle data associated with the trigger. */
 	enum adc_stream_data_opt opt;
 };
 
 /**
- * @brief ADC Channel Specification
+ * @brief ADC channel specification.
  *
- * A ADC channel specification is a unique identifier per ADC device describing
- * a measurement channel.
+ * An ADC channel specification uniquely identifies a measurement channel on a
+ * specific ADC device.
  *
  */
 struct adc_chan_spec {
-	uint8_t chan_idx; /**< A ADC channel index */
-	uint8_t chan_resolution;  /**< A ADC channel resolution */
+	/** Channel index within the ADC device. */
+	uint8_t chan_idx;
+	/** Effective channel resolution, in bits. */
+	uint8_t chan_resolution;
 };
 
+/** @cond INTERNAL_HIDDEN */
 /*
  * Internal data structure used to store information about the IODevice for async reading and
- * streaming adc data.
+ * streaming ADC data.
  */
 struct adc_read_config {
 	const struct device *adc;
@@ -890,64 +919,61 @@ struct adc_read_config {
 	size_t adc_spec_cnt;
 	size_t trigger_cnt;
 };
+/** @endcond */
 
-/**
- * @brief Decodes a single raw data buffer
- *
- */
+/** @brief Decoder interface for ADC streaming buffers. */
 struct adc_decoder_api {
 	/**
 	 * @brief Get the number of frames in the current buffer.
 	 *
 	 * @param[in]  buffer The buffer provided on the @ref rtio context.
-	 * @param[in]  channel The channel to get the count for
-	 * @param[out] frame_count The number of frames on the buffer (at least 1)
-	 * @return 0 on success
-	 * @return -ENOTSUP if the channel/channel_idx aren't found
+	 * @param[in]  channel The channel to get the count for.
+	 * @param[out] frame_count Number of frames in @p buffer (at least 1).
+	 * @retval 0 On success.
+	 * @retval -ENOTSUP If @p channel is not supported.
 	 */
 	int (*get_frame_count)(const uint8_t *buffer, uint32_t channel,
 			       uint16_t *frame_count);
 
 	/**
-	 * @brief Get the size required to decode a given channel
+	 * @brief Get the size required to decode a given channel.
 	 *
 	 * When decoding a single frame, use @p base_size. For every additional frame, add another
 	 * @p frame_size. As an example, to decode 3 frames use: 'base_size + 2 * frame_size'.
 	 *
-	 * @param[in] adc_spec ADC Specs
-	 * @param[in]  channel The channel to query
-	 * @param[out] base_size The size of decoding the first frame
-	 * @param[out] frame_size The additional size of every additional frame
-	 * @return 0 on success
-	 * @return -ENOTSUP if the channel is not supported
+	 * @param[in]  adc_spec ADC specification.
+	 * @param[in]  channel The channel to query.
+	 * @param[out] base_size Size required to decode the first frame.
+	 * @param[out] frame_size Additional size required for each extra frame.
+	 * @retval 0 On success.
+	 * @retval -ENOTSUP If @p channel is not supported.
 	 */
 	int (*get_size_info)(struct adc_dt_spec adc_spec, uint32_t channel, size_t *base_size,
 			     size_t *frame_size);
 
 	/**
-	 * @brief Decode up to @p max_count samples from the buffer
+	 * @brief Decode up to @p max_count samples from the buffer.
 	 *
-	 * Decode samples of channel across multiple frames. If there exist
-	 * multiple instances of the same channel, @p channel_index is used to differentiate them.
+	 * Decode samples of a channel across multiple frames.
 	 *
-	 * @param[in]     buffer The buffer provided on the @ref rtio context
-	 * @param[in]     channel The channel to decode
-	 * @param[in,out] fit The current frame iterator
-	 * @param[in]     max_count The maximum number of channels to decode.
-	 * @param[out]    data_out The decoded data
-	 * @return 0 no more samples to decode
-	 * @return >0 the number of decoded frames
-	 * @return <0 on error
+	 * @param[in]     buffer The buffer provided on the @ref rtio context.
+	 * @param[in]     channel The channel to decode.
+	 * @param[in,out] fit Frame iterator.
+	 * @param[in]     max_count Maximum number of samples to decode.
+	 * @param[out]    data_out Decoded output data.
+	 * @return 0 if no more samples are available.
+	 * @return Positive number of decoded samples.
+	 * @return -errno Negative errno code on error.
 	 */
 	int (*decode)(const uint8_t *buffer, uint32_t channel, uint32_t *fit,
 		      uint16_t max_count, void *data_out);
 
 	/**
-	 * @brief Check if the given trigger type is present
+	 * @brief Check whether a trigger type is present.
 	 *
-	 * @param[in] buffer The buffer provided on the @ref rtio context
-	 * @param[in] trigger The trigger type in question
-	 * @return Whether the trigger is present in the buffer
+	 * @param[in] buffer The buffer provided on the @ref rtio context.
+	 * @param[in] trigger Trigger type to check.
+	 * @return true if @p trigger is present in @p buffer, false otherwise.
 	 */
 	bool (*has_trigger)(const uint8_t *buffer, enum adc_trigger_type trigger);
 };
@@ -967,16 +993,15 @@ typedef int (*adc_api_read)(const struct device *dev,
 			    const struct adc_sequence *sequence);
 
 /**
- * @brief Type definition of ADC API function for setting an submit
- *        stream request.
+ * @brief Type definition of ADC API function for submitting a streaming request.
  */
 typedef void (*adc_api_submit)(const struct device *dev,
 				  struct rtio_iodev_sqe *sqe);
 
 /**
- * @brief Get the decoder associate with the given device
+ * @brief Get the decoder associated with the given device.
  *
- * @see adc_get_decoder() for more details
+ * @see adc_get_decoder() for more details.
  */
 typedef int (*adc_api_get_decoder)(const struct device *dev,
 				    const struct adc_decoder_api **api);
@@ -1102,15 +1127,14 @@ static inline int adc_read_dt(const struct adc_dt_spec *spec,
  * If invoked from user mode, any sequence struct options for callback must
  * be NULL.
  *
- * @param dev       Pointer to the device structure for the driver instance.
- * @param sequence  Structure specifying requested sequence of samplings.
- * @param async     Pointer to a valid and ready to be signaled struct
- *                  k_poll_signal. (Note: if NULL this function will not notify
- *                  the end of the transaction, and whether it went successfully
- *                  or not).
+ * @param[in] dev Pointer to the device structure for the driver instance.
+ * @param[in] sequence Structure specifying requested sequence of samplings.
+ * @param[out] async Optional pointer to a valid and ready-to-be-signaled
+ *                   k_poll_signal. If NULL, the function does not signal
+ *                   completion.
  *
- * @returns 0 on success, negative error code otherwise.
- *          See adc_read() for a list of possible error codes.
+ * @retval 0 On success.
+ * @retval -errno Negative errno code on error. See adc_read() for possible error codes.
  *
  */
 __syscall int adc_read_async(const struct device *dev,
@@ -1135,12 +1159,11 @@ static inline int z_impl_adc_read_async(const struct device *dev,
  * If invoked from user mode, any sequence struct options for callback must
  * be NULL.
  *
- * @param spec      ADC specification from Devicetree.
- * @param sequence  Structure specifying requested sequence of samplings.
- * @param async     Pointer to a valid and ready to be signaled struct
- *                  k_poll_signal. (Note: if NULL this function will not notify
- *                  the end of the transaction, and whether it went successfully
- *                  or not).
+ * @param[in] spec ADC specification from Devicetree.
+ * @param[in] sequence Structure specifying requested sequence of samplings.
+ * @param[out] async Optional pointer to a valid and ready-to-be-signaled
+ *                   k_poll_signal. If NULL, the function does not signal
+ *                   completion.
  *
  * @return A value from adc_read().
  * @see adc_read()
@@ -1154,41 +1177,60 @@ static inline int adc_read_async_dt(const struct adc_dt_spec *spec,
 
 #ifdef CONFIG_ADC_STREAM
 /**
- * @brief Get decoder APIs for that device.
+ * @brief Get the decoder API for an ADC device.
  *
  * @note This function is available only if @kconfig{CONFIG_ADC_STREAM}
  * is selected.
  *
- * @param dev	Pointer to the device structure for the driver instance.
- * @param api	Pointer to the decoder which will be set upon success.
+ * @param[in] dev Pointer to the device structure for the driver instance.
+ * @param[out] api Pointer to where the decoder API pointer is stored on success.
  *
- * @returns 0 on success, negative error code otherwise.
- *
+ * @retval 0 On success.
+ * @retval -errno Negative errno code on error.
  *
  */
 __syscall int adc_get_decoder(const struct device *dev,
 				const struct adc_decoder_api **api);
-/*
- * Generic data structure used for encoding the sample timestamp and number of channels sampled.
+
+/**
+ * @brief Generic header for ADC streaming frames.
+ *
+ * This structure encodes the timestamp and channel list for a single streaming
+ * frame. The structure is packed and followed by a variable-length list of
+ * channel specifications.
  */
 struct __attribute__((__packed__)) adc_data_generic_header {
-	/* The timestamp at which the data was collected from the adc */
+	/** Timestamp at which the frame was collected, in nanoseconds. */
 	uint64_t timestamp_ns;
 
-	/*
-	 * The number of channels present in the frame.
-	 */
+	/** Number of channels present in the frame. */
 	uint8_t num_channels;
 
-	/* Shift value for all samples in the frame */
+	/** Shift value applied to all samples in the frame. */
 	int8_t shift;
 
-	/* This padding is needed to make sure that the 'channels' field is aligned */
+	/** Padding to ensure the @ref channels field alignment. */
 	int16_t _padding;
 
-	/* Channels present in the frame */
+	/**
+	 * Variable-length array describing channels present in the frame.
+	 *
+	 * The array contains @ref num_channels elements.
+	 */
 	struct adc_chan_spec channels[0];
 };
+
+/**
+ * @brief Submit an ADC streaming request via RTIO.
+ *
+ * @param[in] iodev ADC RTIO IO device.
+ * @param[in] ctx RTIO context to submit to.
+ * @param[in] userdata User pointer associated with the request.
+ * @param[out] handle Optional pointer to receive the submitted SQE handle.
+ *
+ * @retval 0 On success.
+ * @retval -ENOMEM If an SQE could not be allocated.
+ */
 
 static inline int adc_stream(struct rtio_iodev *iodev, struct rtio *ctx, void *userdata,
 				struct rtio_sqe **handle)
