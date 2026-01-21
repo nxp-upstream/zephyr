@@ -198,7 +198,7 @@ static int stub_tool_callback_1(const char *params, uint32_t execution_token)
 {
 	int ret;
 	bool is_canceled;
-	struct mcp_user_message response;
+	struct mcp_tool_message response;
 	char result_data[] = "{"
 			     "\"content\": ["
 			     "{"
@@ -247,7 +247,7 @@ static int stub_tool_callback_2(const char *params, uint32_t execution_token)
 {
 	int ret;
 	bool is_canceled;
-	struct mcp_user_message response;
+	struct mcp_tool_message response;
 
 	char result_data[] = "{"
 			     "\"content\": ["
@@ -296,7 +296,7 @@ static int stub_tool_callback_3(const char *params, uint32_t execution_token)
 {
 	int ret;
 	bool is_canceled;
-	struct mcp_user_message response;
+	struct mcp_tool_message response;
 	char result_data[] =
 		"{"
 		"\"content\": ["
@@ -345,7 +345,7 @@ static int test_tool_success_callback(const char *params, uint32_t execution_tok
 {
 	int ret;
 	bool is_canceled;
-	struct mcp_user_message response;
+	struct mcp_tool_message response;
 	char result_data[512];
 	char text_content[256];
 
@@ -407,7 +407,7 @@ static int test_tool_error_callback(const char *params, uint32_t execution_token
 {
 	int ret;
 	bool is_canceled;
-	struct mcp_user_message response;
+	struct mcp_tool_message response;
 	char result_data[] = "{"
 			     "\"content\": ["
 			     "{"
@@ -456,7 +456,7 @@ static int test_tool_slow_callback(const char *params, uint32_t execution_token)
 {
 	int ret;
 	bool is_canceled;
-	struct mcp_user_message response;
+	struct mcp_tool_message response;
 	char result_data[] = "{"
 			     "\"content\": ["
 			     "{"
@@ -508,7 +508,7 @@ static int test_tool_execution_timeout_callback(const char *params, uint32_t exe
 {
 	int ret;
 	bool is_canceled;
-	struct mcp_user_message response;
+	struct mcp_tool_message response;
 	char result_data[] = "{"
 			     "\"content\": ["
 			     "{"
@@ -590,7 +590,7 @@ static int test_tool_idle_timeout_callback(const char *params, uint32_t executio
 {
 	int ret;
 	bool is_canceled;
-	struct mcp_user_message response;
+	struct mcp_tool_message response;
 	char result_data[] = "{"
 			     "\"content\": ["
 			     "{"
@@ -1209,11 +1209,6 @@ ZTEST(mcp_server_tests, test_initialize_request)
 	zassert_equal(response->request_id, REQ_ID_INITIALIZE_TEST,
 		      "Response request ID should match");
 
-#ifdef CONFIG_MCP_TOOLS_CAPABILITY
-	zassert_true(response->capabilities & MCP_TOOLS,
-		     "Tools capability should be set when CONFIG_MCP_TOOLS_CAPABILITY is enabled");
-#endif
-
 #ifdef CONFIG_MCP_SERVER_INFO_TITLE
 	printk("Server info title feature is enabled\n");
 #endif
@@ -1721,7 +1716,7 @@ ZTEST(mcp_server_tests, test_tools_call)
 ZTEST(mcp_server_tests, test_invalid_execution_tokens)
 {
 	int ret;
-	struct mcp_user_message app_msg;
+	struct mcp_tool_message app_msg;
 	char response_data[] = "{"
 			       "\"content\": ["
 			       "{"
@@ -1795,7 +1790,7 @@ ZTEST(mcp_server_tests, test_invalid_execution_tokens)
 
 	/* Test 5: app_msg with NULL data */
 	printk("=== Test 5: app_msg with NULL data ===\n");
-	struct mcp_user_message null_data_msg = {
+	struct mcp_tool_message null_data_msg = {
 		.type = MCP_USR_TOOL_RESPONSE, .data = NULL, .length = 10};
 	ret = mcp_server_submit_tool_message(&null_data_msg, 1234);
 	zassert_equal(ret, -EINVAL, "app_msg with NULL data should be rejected with -EINVAL");

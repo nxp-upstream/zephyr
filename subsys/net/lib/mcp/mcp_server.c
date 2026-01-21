@@ -18,34 +18,37 @@ LOG_MODULE_REGISTER(mcp_server, CONFIG_MCP_LOG_LEVEL);
 #define MCP_WORKER_PRIORITY  7
 #define MCP_MAX_REQUESTS     (CONFIG_HTTP_SERVER_MAX_CLIENTS * CONFIG_HTTP_SERVER_MAX_STREAMS)
 #define MCP_SERVER_VERSION   "1.0.0"
-#define MCP_PROTOCOL_VERSION "2025-11-25"
+#define MCP_PROTOCOL_VERSION "2025-06-18"
 
+/* Lifecycle monitoring of a client's session */
 enum mcp_lifecycle_state {
 	MCP_LIFECYCLE_DEINITIALIZED = 0,
 	MCP_LIFECYCLE_NEW,
 	MCP_LIFECYCLE_INITIALIZING,
-	MCP_LIFECYCLE_INITIALIZED,
-	MCP_LIFECYCLE_DEINITIALIZING
+	MCP_LIFECYCLE_INITIALIZED
 };
 
+/* Lifecycle monitoring of a tool execution */
 enum mcp_execution_state {
 	MCP_EXEC_ACTIVE,
 	MCP_EXEC_CANCELED,
-	MCP_EXEC_FINISHED,
-	MCP_EXEC_ZOMBIE
+	MCP_EXEC_FINISHED
 };
 
+/* Struct holding the pointer to a client's request's data */
 struct mcp_queue_msg {
 	uint32_t client_id;
 	void *data;
 };
 
+/* Registry holding the tools added by the user application to the server */
 struct mcp_tool_registry {
 	struct mcp_tool_record tools[CONFIG_MCP_MAX_TOOLS];
 	struct k_mutex registry_mutex;
 	uint8_t tool_count;
 };
 
+/* Context for a tool execution */
 struct mcp_execution_context {
 	uint32_t execution_token;
 	uint32_t request_id;
@@ -139,7 +142,7 @@ static int generate_client_id(struct mcp_server_ctx *server, uint32_t *client_id
 	}
 
 	do {
-		*client_id = sys_rand32_get();
+		*client_id = sys_rand32_get(); /* TODO: Replace with csrand in security phase */
 		for (uint32_t i = 0; i < ARRAY_SIZE(client_registry->clients); i++) {
 			if ((client_registry->clients[i].lifecycle_state !=
 			     MCP_LIFECYCLE_DEINITIALIZED) &&
@@ -856,7 +859,7 @@ static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 		case MCP_METHOD_INITIALIZE:
 			LOG_DBG("Should never reach here");
 			ret = 0;
-			// Handled immmediately in mcp_server_handle_request
+			/* Handled immmediately in mcp_server_handle_request */
 			break;
 		case MCP_METHOD_NOTIF_INITIALIZED:
 			ret = handle_notification(server, request.client_id, message);
@@ -1173,7 +1176,9 @@ int mcp_server_start(mcp_server_ctx_t ctx)
 {
 	k_tid_t tid;
 	uint32_t thread_stack_idx;
+#if CONFIG_THREAD_NAME
 	int ret;
+#endif
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 
 	if (server == NULL) {
@@ -1195,10 +1200,12 @@ int mcp_server_start(mcp_server_ctx_t ctx)
 			return -ENOMEM;
 		}
 
+#if CONFIG_THREAD_NAME
 		ret = k_thread_name_set(&server->request_workers[i], "mcp_req_worker");
 		if (ret != 0) {
 			LOG_WRN("Failed to set thread name: %d", ret);
 		}
+#endif
 	}
 
 #ifdef CONFIG_MCP_HEALTH_MONITOR
@@ -1211,10 +1218,13 @@ int mcp_server_start(mcp_server_ctx_t ctx)
 		return -ENOMEM;
 	}
 
+#if CONFIG_THREAD_NAME
 	ret = k_thread_name_set(&server->health_monitor_thread, "mcp_health_mon");
 	if (ret != 0) {
 		LOG_WRN("Failed to set health monitor thread name: %d", ret);
 	}
+#endif
+
 	LOG_INF("MCP server health monitor enabled");
 #endif
 
@@ -1223,7 +1233,7 @@ int mcp_server_start(mcp_server_ctx_t ctx)
 	return 0;
 }
 
-int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_message *app_msg,
+int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_message *app_msg,
 				   uint32_t execution_token)
 {
 	int ret;
@@ -1290,6 +1300,9 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 			 * JSON RPC response inside the Transport layer
 			 */
 		case MCP_USR_TOOL_PING:
+			/* Ping from a tool signifying that a long execution is not frozen - no need
+			 * for any kind of processing
+			 */
 			return 0;
 		case MCP_USR_TOOL_RESPONSE:
 

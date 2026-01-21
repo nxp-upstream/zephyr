@@ -560,6 +560,7 @@ static int mcp_server_http_resource_handler(struct http_client_ctx *client,
 	accumulate_request(client, accumulator, request_ctx, status);
 
 	if (status == HTTP_SERVER_DATA_FINAL) {
+		LOG_DBG("%s", accumulator->data);
 		/* Process complete request */
 		if (client->method == HTTP_POST) {
 			stat = mcp_endpoint_post_handler(client, request_ctx, accumulator,
