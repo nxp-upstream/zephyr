@@ -21,6 +21,7 @@
 #include <fsl_usart.h>
 #include <soc.h>
 #include <fsl_device_registers.h>
+#include <fsl_clock.h>
 #include <zephyr/drivers/pinctrl.h>
 #ifdef CONFIG_UART_ASYNC_API
 #include <zephyr/drivers/dma.h>
@@ -161,26 +162,87 @@ static int mcux_flexcomm_poll_in(const struct device *dev, unsigned char *c)
 	return ret;
 }
 
+static uint32_t mcux_flexcomm_get_id(const USART_Type *base)
+{
+	uint32_t id = 0;
+
+#ifdef CONFIG_TRUSTED_EXECUTION_SECURE
+	/* If trust-zone is enabled then check for the secured
+	 * address offset.
+	 */
+	if (base == (USART_Type *)FLEXCOMM0) {
+		id = 0;
+	} else if (base == (USART_Type *)FLEXCOMM1) {
+		id = 1;
+	} else if (base == (USART_Type *)FLEXCOMM2) {
+		id = 2;
+	} else if (base == (USART_Type *)FLEXCOMM3) {
+		id = 3;
+	} else if (base == (USART_Type *)FLEXCOMM14) {
+		id = 14;
+	}
+#elif defined(CONFIG_TRUSTED_EXECUTION_NONSECURE)
+	/* If trust-zone is not enabled then check for the Non-secured
+	 * address offset.
+	 */
+	if (base == (USART_Type *)FLEXCOMM0_NS) {
+		id = 0;
+	} else if (base == (USART_Type *)FLEXCOMM1_NS) {
+		id = 1;
+	} else if (base == (USART_Type *)FLEXCOMM2_NS) {
+		id = 2;
+	} else if (base == (USART_Type *)FLEXCOMM3_NS) {
+		id = 3;
+	} else if (base == (USART_Type *)FLEXCOMM14_NS) {
+		id = 14;
+	}
+#else
+	/* If trust-zone is not supported then check for the regular
+	 * address offset.
+	 */
+	if (base == (USART_Type *)FLEXCOMM0) {
+		id = 0;
+	} else if (base == (USART_Type *)FLEXCOMM1) {
+		id = 1;
+	} else if (base == (USART_Type *)FLEXCOMM2) {
+		id = 2;
+	} else if (base == (USART_Type *)FLEXCOMM3) {
+		id = 3;
+	} else if (base == (USART_Type *)FLEXCOMM14) {
+		id = 14;
+	}
+#endif
+	return id;
+}
+
 static void mcux_flexcomm_poll_out(const struct device *dev,
 					     unsigned char c)
 {
 	const struct mcux_flexcomm_config *config = dev->config;
 
-	/* Wait until space is available in TX FIFO, as per API description:
-	 * This routine checks if the transmitter is full.
-	 * When the transmitter is not full, it writes a character to the data register.
-	 * It waits and blocks the calling thread otherwise.
+	/* Verify if the flexcomm's clock is attached previous accessing
+	 * any of the registers. If the return value is 0, then the clock
+	 * is not active and the flexcomm is not ready to Tx.
+	 * This condition can happen when exiting from a low power mode
+	 * where the routine to attach the clocks has not been completed yet.
 	 */
-	while (!(USART_GetStatusFlags(config->base) & kUSART_TxFifoNotFullFlag)) {
-	}
+	if (CLOCK_GetFlexCommClkFreq(mcux_flexcomm_get_id(config->base))) {
+		/* Wait until space is available in TX FIFO, as per API description:
+		 * This routine checks if the transmitter is full.
+		 * When the transmitter is not full, it writes a character to the data
+		 * register. It waits and blocks the calling thread otherwise.
+		 */
+		while ((!(USART_GetStatusFlags(config->base) & kUSART_TxFifoNotFullFlag))) {
+		}
 
-	USART_WriteByte(config->base, c);
+		USART_WriteByte(config->base, c);
 
-	/* Wait for the transfer to complete, as per API description:
-	 * This function is a blocking call. It blocks the calling thread until the character
-	 * is sent.
-	 */
-	while (!(USART_GetStatusFlags(config->base) & kUSART_TxFifoEmptyFlag)) {
+		/* Wait for the transfer to complete, as per API description:
+		 * This function is a blocking call. It blocks the calling thread until the
+		 * character is sent.
+		 */
+		while (!(USART_GetStatusFlags(config->base) & kUSART_TxFifoEmptyFlag)) {
+		}
 	}
 }
 
