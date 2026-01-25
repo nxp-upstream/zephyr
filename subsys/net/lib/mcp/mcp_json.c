@@ -426,10 +426,10 @@ int mcp_json_parse_message(const char *buf, size_t len, struct mcp_message *out)
 
 	/* Classify as request or notification:
 	 *
-	 * - Request: method + params, with id.
-	 * - Notification: method (+ params), no id.
+	 * - Request: method with id (params optional).
+	 * - Notification: method without id (params optional).
 	 */
-	if (has_method && has_params && out->has_id) {
+	if (has_method && out->has_id) {
 		out->kind = MCP_MSG_REQUEST;
 	} else if (has_method && !out->has_id) {
 		out->kind = MCP_MSG_NOTIFICATION;
@@ -902,4 +902,25 @@ int mcp_json_serialize_tools_list_changed_notif(char *out, size_t out_len)
    }
 
    return ret;
+}
+
+int mcp_json_serialize_empty_response(char *out, size_t out_len, int64_t id)
+{
+	if (!out || out_len == 0) {
+		return -EINVAL;
+	}
+
+	int ret = snprintf(out, out_len,
+		"{"
+		  "\"jsonrpc\":\"2.0\","
+		  "\"id\":%" PRId64 ","
+		  "\"result\":{}"
+		"}",
+		id);
+
+	if (ret < 0 || (size_t)ret >= out_len) {
+		return -ENOSPC;
+	}
+
+	return ret;
 }

@@ -553,7 +553,7 @@ static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_m
 	strncpy(response_data->protocol_version, MCP_PROTOCOL_VERSION,
 		sizeof(response_data->protocol_version) - 1);
 	response_data->protocol_version[sizeof(response_data->protocol_version) - 1] = '\0';
-	strncpy(response_data->capabilities_json, "{\"tools\":{\"listChanged\":false\"}}}",
+	strncpy(response_data->capabilities_json, "{\"tools\":{\"listChanged\":false}}",
 		sizeof(response_data->capabilities_json) - 1);
 	response_data->capabilities_json[sizeof(response_data->capabilities_json) - 1] = '\0';
 	response_data->has_capabilities = true;
@@ -613,6 +613,7 @@ static int handle_tools_list_request(struct mcp_server_ctx *server, uint32_t cli
 	struct mcp_client_context *client = get_client(server, client_id);
 	if (client == NULL) {
 		LOG_DBG("Client not found: %u", client_id);
+		k_mutex_unlock(&client_registry->registry_mutex);
 		return -ENOENT;
 	}
 
@@ -697,6 +698,7 @@ static int handle_tools_call_request(struct mcp_server_ctx *server, uint32_t cli
 	client = get_client(server, client_id);
 	if (client == NULL) {
 		LOG_DBG("Client not found: %u", client_id);
+		k_mutex_unlock(&client_registry->registry_mutex);
 		return -ENOENT;
 	}
 
@@ -813,6 +815,65 @@ static int handle_notification(struct mcp_server_ctx *server, uint32_t client_id
 	}
 
 	k_mutex_unlock(&client_registry->registry_mutex);
+	return 0;
+}
+
+static int handle_ping_request(struct mcp_server_ctx *server, uint32_t client_id, struct mcp_message *request)
+{
+	int ret;
+	struct mcp_client_registry *client_registry = &server->client_registry;
+
+	LOG_DBG("Processing ping request");
+
+	ret = k_mutex_lock(&client_registry->registry_mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock client registry mutex: %d", ret);
+		return ret;
+	}
+
+	struct mcp_client_context *client = get_client(server, client_id);
+	if (client == NULL) {
+		LOG_DBG("Client not found: %u", client_id);
+		k_mutex_unlock(&client_registry->registry_mutex);
+		return -ENOENT;
+	}
+
+	if (client->lifecycle_state != MCP_LIFECYCLE_INITIALIZED) {
+		LOG_DBG("Client not in initialized state: %u", client_id);
+		k_mutex_unlock(&client_registry->registry_mutex);
+		return -EACCES;
+	}
+
+	k_mutex_unlock(&client_registry->registry_mutex);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	/* Allocate buffer for serialization */
+	uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
+	if (json_buffer == NULL) {
+		LOG_ERR("Failed to allocate buffer, dropping message");
+		return -ENOMEM;
+	}
+
+	/* Serialize response to JSON */
+	ret = mcp_json_serialize_empty_response((char *)json_buffer, CONFIG_MCP_MAX_MESSAGE_SIZE,
+						   request->id);
+	if (ret <= 0) {
+		LOG_ERR("Failed to serialize response: %d", ret);
+		mcp_free(json_buffer);
+		return ret;
+	}
+
+	ret = client->transport_binding.ops->send(&client->transport_binding, client_id,
+						  json_buffer, ret);
+	if (ret) {
+		LOG_ERR("Failed to send tools list response");
+		mcp_free(json_buffer);
+		return -EIO;
+	}
+
 	return 0;
 }
 
@@ -1064,11 +1125,23 @@ int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_request_data *req
 	}
 
 	*method = parsed_msg->method;
+	LOG_WRN("Request method: %d", parsed_msg->method);
 
 	switch (parsed_msg->method) {
 	case MCP_METHOD_INITIALIZE:
 		/* We want to handle the initialize request directly */
 		ret = handle_initialize_request(server, parsed_msg, request->callback, &client);
+		mcp_free(parsed_msg);
+		break;
+	case MCP_METHOD_PING:
+		client = get_client(server, request->client_id_hint);
+		if (client == NULL) {
+			LOG_ERR("Can't find client with id %u", request->client_id_hint);
+			ret = -ENOENT;
+			mcp_free(parsed_msg);
+			break;
+		}
+		ret = handle_ping_request(server, request->client_id_hint, parsed_msg);
 		mcp_free(parsed_msg);
 		break;
 	case MCP_METHOD_TOOLS_LIST:
@@ -1094,10 +1167,20 @@ int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_request_data *req
 		}
 
 		break;
+	case MCP_METHOD_UNKNOWN:
+		client = get_client(server, request->client_id_hint);
+		if (client == NULL) {
+			LOG_ERR("Can't find client with id %u", request->client_id_hint);
+			ret = -ENOENT;
+			mcp_free(parsed_msg);
+			break;
+		}
+		ret = send_error_response(server, parsed_msg->id, request->client_id_hint, MCP_ERR_METHOD_NOT_FOUND, "Method not found");
+		mcp_free(parsed_msg);
+		break;
 	default:
 		LOG_WRN("Request not recognized. Dropping.");
 		ret = -ENOTSUP;
-		mcp_free(parsed_msg);
 		break;
 	}
 

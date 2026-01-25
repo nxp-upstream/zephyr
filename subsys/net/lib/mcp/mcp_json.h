@@ -365,6 +365,8 @@ int mcp_json_serialize_logging_message_notif(char *out, size_t out_len, const ch
  */
 int mcp_json_serialize_tools_list_changed_notif(char *out, size_t out_len);
 
+int mcp_json_serialize_empty_response(char *out, size_t out_len, int64_t id);
+
 #ifdef __cplusplus
 }
 #endif

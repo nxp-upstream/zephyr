@@ -36,6 +36,7 @@ struct mcp_http_request_accumulator {
 	size_t data_len;
 	uint32_t session_id_hdr;
 	uint32_t event_id_hdr;
+	bool has_event_id;
 	char content_type_hdr[CONTENT_TYPE_HDR_LEN];
 	char origin_hdr[ORIGIN_HDR_LEN];
 	uint32_t fd;
@@ -112,7 +113,7 @@ HTTP_RESOURCE_DEFINE(mcp_endpoint_resource, mcp_http_service, CONFIG_MCP_HTTP_EN
 
 /* HTTP service definition */
 HTTP_SERVICE_DEFINE(mcp_http_service, CONFIG_NET_CONFIG_MY_IPV4_ADDR, &mcp_http_port,
-		    CONFIG_HTTP_SERVER_MAX_CLIENTS, 10, NULL, NULL, NULL);
+		    1, CONFIG_HTTP_SERVER_MAX_CLIENTS, 10, NULL, NULL);
 
 /* HTTP headers capture */
 HTTP_SERVER_REGISTER_HEADER_CAPTURE(origin_hdr, "Origin");
@@ -154,6 +155,7 @@ static struct mcp_http_request_accumulator *get_accumulator(int fd)
 	if (first_available != NULL) {
 		first_available->fd = fd;
 		first_available->data_len = 0;
+		first_available->has_event_id = false;
 	}
 
 	k_mutex_unlock(&http_transport_state.accumulators_mutex);
@@ -202,8 +204,6 @@ static int accumulate_request(struct http_client_ctx *client,
 	if (request_ctx->header_count > 0) {
 		for (uint32_t i = 0; i < request_ctx->header_count; i++) {
 			const struct http_header *header = &request_ctx->headers[i];
-			LOG_DBG("Header[%u]: %s = %s", i, header->name ? header->name : "(null)",
-				header->value ? header->value : "(null)");
 			if (header->name && header->value) {
 				if (strcmp(header->name, "Mcp-Session-Id") == 0) {
 					/* Convert hex string to uint32_t */
@@ -215,8 +215,6 @@ static int accumulate_request(struct http_client_ctx *client,
 							header->value);
 						return -EINVAL;
 					}
-					LOG_DBG("Stored Mcp-Session-Id header: %" PRIx32,
-						accumulator->session_id_hdr);
 				} else if (strcmp(header->name, "Last-Event-Id") == 0) {
 					/* Convert decimal string to uint32_t */
 					char *endptr;
@@ -227,8 +225,7 @@ static int accumulate_request(struct http_client_ctx *client,
 							header->value);
 						return -EINVAL;
 					}
-					LOG_DBG("Stored Last-Event-Id header: %" PRIu32,
-						accumulator->event_id_hdr);
+					accumulator->has_event_id = true;
 				} else if (strcmp(header->name, "Origin") == 0) {
 					if (strlen(header->value) <
 					    sizeof(accumulator->origin_hdr)) {
@@ -237,8 +234,6 @@ static int accumulate_request(struct http_client_ctx *client,
 						accumulator->origin_hdr
 							[sizeof(accumulator->origin_hdr) - 1] =
 							'\0';
-						LOG_DBG("Stored origin header: %s",
-							accumulator->origin_hdr);
 					} else {
 						LOG_WRN("Origin too long for buffer");
 					}
@@ -251,8 +246,6 @@ static int accumulate_request(struct http_client_ctx *client,
 						accumulator->content_type_hdr
 							[sizeof(accumulator->content_type_hdr) -
 							 1] = '\0';
-						LOG_DBG("Stored content type header: %s",
-							accumulator->content_type_hdr);
 					} else {
 						LOG_WRN("Content-Type too long for buffer");
 					}
@@ -385,8 +378,6 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 	/* If initialize, create a new client. respond with appropriate headers. Don't send text
 	 * event, block here and wait for response from server core */
 	if (msg_type == MCP_METHOD_INITIALIZE) {
-		LOG_DBG("CLient session ID is %x", mcp_client_ctx->session_id);
-
 		mcp_client_ctx->response_headers[0].name = "Content-Type";
 		mcp_client_ctx->response_headers[0].value = "application/json";
 		mcp_client_ctx->response_headers[1].name = "Mcp-Session-Id";
@@ -398,10 +389,16 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 
 		/* Wait for response from server core before sending response to client */
 		response_data = k_fifo_get(&mcp_client_ctx->response_queue, K_FOREVER);
-		memcpy(mcp_client_ctx->response_body, response_data->data, response_data->length);
-
+		int body_len = snprintf(mcp_client_ctx->response_body, ARRAY_SIZE(mcp_client_ctx->response_body), "%s", response_data->data);
+		if (body_len < 0 || (size_t)body_len >= sizeof(mcp_client_ctx->response_body)) {
+			LOG_ERR("Failed to format SSE response");
+			mcp_free(response_data->data);
+			mcp_free(response_data);
+			response_ctx->status = HTTP_500_INTERNAL_SERVER_ERROR;
+			return -ENOSPC;
+		}
 		response_ctx->body = (const char *)mcp_client_ctx->response_body;
-		response_ctx->body_len = response_data->length;
+		response_ctx->body_len = response_data->length; // todo: fix
 		response_ctx->status = HTTP_200_OK;
 		response_ctx->final_chunk = true;
 
@@ -424,38 +421,112 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 			return -EBUSY;
 		}
 
-		response_ctx->status = HTTP_200_OK;
+		mcp_client_ctx->response_headers[0].name = "Content-Type";
+		mcp_client_ctx->response_headers[0].value = "application/json";
+		mcp_client_ctx->response_headers[1].name = "Mcp-Session-Id";
+		mcp_client_ctx->response_headers[1].value =
+			(const char *)mcp_client_ctx->session_id_str;
 
-		if (msg_type == MCP_METHOD_TOOLS_LIST) {
+		response_ctx->status = HTTP_200_OK;
+		response_ctx->headers = mcp_client_ctx->response_headers;
+		response_ctx->header_count = 2;
+		response_ctx->final_chunk = true;
+
+		if (msg_type == MCP_METHOD_UNKNOWN)
+		{
+			LOG_INF("Responding unknown method");
 			/* Wait for the response since there is no tool call needed */
 			response_data = k_fifo_get(&mcp_client_ctx->response_queue, K_FOREVER);
-			mcp_client_ctx->response_headers[0].name = "Content-Type";
-			mcp_client_ctx->response_headers[0].value = "application/json";
-			memcpy(mcp_client_ctx->response_body, response_data->data,
-			       response_data->length);
+			int body_len = snprintf(mcp_client_ctx->response_body,
+				 ARRAY_SIZE(mcp_client_ctx->response_body), "%s",
+				 response_data->data);
+			if (body_len < 0 || (size_t)body_len >= sizeof(mcp_client_ctx->response_body)) {
+				LOG_ERR("Failed to format SSE response");
+				mcp_free(response_data->data);
+				mcp_free(response_data);
+				response_ctx->status = HTTP_500_INTERNAL_SERVER_ERROR;
+				return -ENOSPC;
+			}
 			response_ctx->body = (const char *)mcp_client_ctx->response_body;
 			response_ctx->body_len = response_data->length;
+			mcp_free(response_data->data);
+			mcp_free(response_data);
+			LOG_INF("Sent unknown method response");
+			LOG_DBG("Serialized response: %s", response_ctx->body);
+			LOG_DBG("Response length: %d", response_ctx->body_len);
 		}
 
-		if (msg_type == MCP_METHOD_TOOLS_CALL) {
+		else if (msg_type == MCP_METHOD_PING)
+		{
+			LOG_INF("Responding ping request");
+			/* Wait for the response since there is no tool call needed */
+			response_data = k_fifo_get(&mcp_client_ctx->response_queue, K_FOREVER);
+			int body_len = snprintf(mcp_client_ctx->response_body,
+				 ARRAY_SIZE(mcp_client_ctx->response_body), "%s",
+				 response_data->data);
+			if (body_len < 0 || (size_t)body_len >= sizeof(mcp_client_ctx->response_body)) {
+				LOG_ERR("Failed to format SSE response");
+				mcp_free(response_data->data);
+				mcp_free(response_data);
+				response_ctx->status = HTTP_500_INTERNAL_SERVER_ERROR;
+				return -ENOSPC;
+			}
+			response_ctx->body = (const char *)mcp_client_ctx->response_body;
+			response_ctx->body_len = response_data->length;
+			mcp_free(response_data->data);
+			mcp_free(response_data);
+			LOG_INF("Sent unknown method response");
+			LOG_DBG("Serialized response: %s", response_ctx->body);
+			LOG_DBG("Response length: %d", response_ctx->body_len);
+		}
+
+		else if (msg_type == MCP_METHOD_NOTIF_INITIALIZED) {
+			response_ctx->status = HTTP_202_ACCEPTED;
+		}
+
+		else if (msg_type == MCP_METHOD_TOOLS_LIST) {
+			LOG_INF("Responding tools list");
+			/* Wait for the response since there is no tool call needed */
+			response_data = k_fifo_get(&mcp_client_ctx->response_queue, K_FOREVER);
+			int body_len = snprintf(mcp_client_ctx->response_body,
+				 ARRAY_SIZE(mcp_client_ctx->response_body), "%s",
+				 response_data->data);
+			if (body_len < 0 || (size_t)body_len >= sizeof(mcp_client_ctx->response_body)) {
+				LOG_ERR("Failed to format SSE response");
+				mcp_free(response_data->data);
+				mcp_free(response_data);
+				response_ctx->status = HTTP_500_INTERNAL_SERVER_ERROR;
+				return -ENOSPC;
+			}
+			response_ctx->body = (const char *)mcp_client_ctx->response_body;
+			response_ctx->body_len = response_data->length;
+			mcp_free(response_data->data);
+			mcp_free(response_data);
+			LOG_INF("Sent tools list response");
+			LOG_DBG("Serialized response: %s", response_ctx->body);
+			LOG_DBG("Response length: %d", response_ctx->body_len);
+		}
+
+		else if (msg_type == MCP_METHOD_TOOLS_CALL) {
+			LOG_INF("Priming tools call response");
 			mcp_client_ctx->response_headers[0].name = "Content-Type";
 			mcp_client_ctx->response_headers[0].value = "text/event-stream";
 			int body_len = snprintf(mcp_client_ctx->response_body,
 						sizeof(mcp_client_ctx->response_body),
-						"\"id\": \"%d\" \"data\": {}",
+						"id: %d\ndata:\n\n",
 						mcp_client_ctx->next_event_id++);
+			if (body_len < 0 || (size_t)body_len >= sizeof(mcp_client_ctx->response_body)) {
+				LOG_ERR("Failed to format SSE response");
+				mcp_free(response_data->data);
+				mcp_free(response_data);
+				response_ctx->status = HTTP_500_INTERNAL_SERVER_ERROR;
+				return -ENOSPC;
+			}
 			response_ctx->body = mcp_client_ctx->response_body;
 			response_ctx->body_len = body_len;
 			mcp_client_ctx->busy = true;
-		}
+		} else {}
 
-		response_ctx->headers = mcp_client_ctx->response_headers;
-		response_ctx->header_count = 2;
-
-		mcp_client_ctx->response_headers[1].name = "Mcp-Session-Id";
-		mcp_client_ctx->response_headers[1].value =
-			(const char *)mcp_client_ctx->session_id_str;
-		response_ctx->final_chunk = true;
 	}
 
 	return 0;
@@ -483,47 +554,74 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 
 	struct mcp_http_client_ctx *mcp_client_ctx = (struct mcp_http_client_ctx *)binding->context;
 
+	mcp_client_ctx->response_headers[0].name = "Content-Type";
+	mcp_client_ctx->response_headers[0].value = "text/event-stream";
+	mcp_client_ctx->response_headers[1].name = "Mcp-Session-Id";
+	mcp_client_ctx->response_headers[1].value = (const char *)mcp_client_ctx->session_id_str;
+
+	response_ctx->status = HTTP_200_OK;
+	response_ctx->headers = mcp_client_ctx->response_headers;
+	response_ctx->header_count = 2;
+	response_ctx->final_chunk = true;
+
 	/* Check if queue has response */
 	struct mcp_http_response_item *response_data =
 		k_fifo_peek_head(&mcp_client_ctx->response_queue);
 
 	if (response_data == NULL) {
-		LOG_DBG("No response data available in queue");
-		response_ctx->status = HTTP_204_NO_CONTENT;
-		response_ctx->body_len = 0;
-		response_ctx->final_chunk = true;
+		LOG_DBG("Responding to GET request with retry: 5000");
+		int body_len = snprintf(mcp_client_ctx->response_body,
+					sizeof(mcp_client_ctx->response_body),
+					"retry: 5000\n\n");
+
+		if (body_len < 0 || (size_t)body_len >= sizeof(mcp_client_ctx->response_body)) {
+			LOG_ERR("Failed to format SSE response");
+			response_ctx->status = HTTP_500_INTERNAL_SERVER_ERROR;
+			return -ENOSPC;
+		}
+
+		response_ctx->body = mcp_client_ctx->response_body;
+		response_ctx->body_len = body_len;
 		return 0;
 	}
 
 	if (response_data->event_id < accumulator->event_id_hdr) {
 		LOG_DBG("Response Event ID %d <= client last event ID %d", response_data->event_id,
 			accumulator->event_id_hdr);
-		response_ctx->status = HTTP_204_NO_CONTENT;
-		response_ctx->body_len = 0;
-		response_ctx->final_chunk = true;
+		int body_len = snprintf(mcp_client_ctx->response_body,
+					sizeof(mcp_client_ctx->response_body),
+					"id: 0\ndata:\n\n");
+
+		if (body_len < 0 || (size_t)body_len >= sizeof(mcp_client_ctx->response_body)) {
+			LOG_ERR("Failed to format SSE response");
+			response_ctx->status = HTTP_500_INTERNAL_SERVER_ERROR;
+			return -ENOSPC;
+		}
+
+		response_ctx->body = mcp_client_ctx->response_body;
+		response_ctx->body_len = body_len;
 		return 0;
 	}
 
 	response_data = k_fifo_get(&mcp_client_ctx->response_queue, K_NO_WAIT);
 
-	/* Send response data. TODO: What happens if resp_data->data is larger than
-	 * response_body buffer? Do we chunk it? */
 	LOG_DBG("Sending response with event ID %d", response_data->event_id);
-	int body_len =
-		snprintf(mcp_client_ctx->response_body, sizeof(mcp_client_ctx->response_body),
-			 "\"id\": \"%d\" %s", response_data->event_id, response_data->data);
+	int body_len = snprintf(mcp_client_ctx->response_body,
+				sizeof(mcp_client_ctx->response_body),
+				"id: %d\ndata: %s\n\n",
+				response_data->event_id,
+				response_data->data);
+
+	if (body_len < 0 || (size_t)body_len >= sizeof(mcp_client_ctx->response_body)) {
+		LOG_ERR("Failed to format SSE response");
+		mcp_free(response_data->data);
+		mcp_free(response_data);
+		response_ctx->status = HTTP_500_INTERNAL_SERVER_ERROR;
+		return -ENOSPC;
+	}
+
 	response_ctx->body = mcp_client_ctx->response_body;
 	response_ctx->body_len = body_len;
-	response_ctx->status = HTTP_200_OK;
-	response_ctx->final_chunk = true;
-
-	mcp_client_ctx->response_headers[0].name = "Content-Type";
-	mcp_client_ctx->response_headers[0].value = "text/event-stream";
-	mcp_client_ctx->response_headers[1].name = "Mcp-Session-Id";
-	mcp_client_ctx->response_headers[1].value = (const char *)mcp_client_ctx->session_id_str;
-
-	response_ctx->headers = mcp_client_ctx->response_headers;
-	response_ctx->header_count = 2;
 
 	mcp_client_ctx->busy = false;
 	mcp_free(response_data->data);
@@ -560,6 +658,7 @@ static int mcp_server_http_resource_handler(struct http_client_ctx *client,
 	accumulate_request(client, accumulator, request_ctx, status);
 
 	if (status == HTTP_SERVER_DATA_FINAL) {
+		LOG_DBG("HTTP request: %s", accumulator->data);
 		/* Process complete request */
 		if (client->method == HTTP_POST) {
 			stat = mcp_endpoint_post_handler(client, request_ctx, accumulator,
@@ -677,7 +776,7 @@ static int mcp_server_http_send(struct mcp_transport_binding *binding, uint32_t 
 	/* POST/GET handlers are responsible for freeing response items and data from core */
 	k_fifo_put(&client->response_queue, item);
 
-	LOG_DBG("Queued %zu bytes for client %u (event_id=%u)", length, client_id, item->event_id);
+	LOG_DBG("Queued %zu bytes for client %x (event_id=%u)", length, client_id, item->event_id);
 
 	return 0;
 }
