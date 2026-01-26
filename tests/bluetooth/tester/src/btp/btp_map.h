@@ -188,19 +188,16 @@ struct btp_map_mce_mas_set_ntf_filter_cmd {
 #define BTP_MAP_MCE_MNS_RFCOMM_DISCONNECT		0x16
 struct btp_map_mce_mns_rfcomm_disconnect_cmd {
 	bt_addr_t address;
-	uint8_t instance_id;
 } __packed;
 
 #define BTP_MAP_MCE_MNS_L2CAP_DISCONNECT		0x17
 struct btp_map_mce_mns_l2cap_disconnect_cmd {
 	bt_addr_t address;
-	uint8_t instance_id;
 } __packed;
 
 #define BTP_MAP_MCE_MNS_CONNECT				0x18
 struct btp_map_mce_mns_connect_cmd {
 	bt_addr_t address;
-	uint8_t instance_id;
 	uint8_t rsp_code;
 	uint16_t buf_len;
 	uint8_t buf[];
@@ -209,7 +206,6 @@ struct btp_map_mce_mns_connect_cmd {
 #define BTP_MAP_MCE_MNS_DISCONNECT			0x19
 struct btp_map_mce_mns_disconnect_cmd {
 	bt_addr_t address;
-	uint8_t instance_id;
 	uint8_t rsp_code;
 	uint16_t buf_len;
 	uint8_t buf[];
@@ -218,7 +214,6 @@ struct btp_map_mce_mns_disconnect_cmd {
 #define BTP_MAP_MCE_MNS_ABORT				0x1a
 struct btp_map_mce_mns_abort_cmd {
 	bt_addr_t address;
-	uint8_t instance_id;
 	uint8_t rsp_code;
 	uint16_t buf_len;
 	uint8_t buf[];
@@ -227,7 +222,6 @@ struct btp_map_mce_mns_abort_cmd {
 #define BTP_MAP_MCE_MNS_SEND_EVENT			0x1b
 struct btp_map_mce_mns_send_event_cmd {
 	bt_addr_t address;
-	uint8_t instance_id;
 	uint8_t rsp_code;
 	uint16_t buf_len;
 	uint8_t buf[];
@@ -394,33 +388,28 @@ struct btp_map_mse_mas_set_ntf_filter_cmd {
 #define BTP_MAP_MSE_MNS_RFCOMM_CONNECT			0x2e
 struct btp_map_mse_mns_rfcomm_connect_cmd {
 	bt_addr_t address;
-	uint8_t instance_id;
 	uint8_t channel;
 } __packed;
 
 #define BTP_MAP_MSE_MNS_RFCOMM_DISCONNECT		0x2f
 struct btp_map_mse_mns_rfcomm_disconnect_cmd {
 	bt_addr_t address;
-	uint8_t instance_id;
 } __packed;
 
 #define BTP_MAP_MSE_MNS_L2CAP_CONNECT			0x30
 struct btp_map_mse_mns_l2cap_connect_cmd {
 	bt_addr_t address;
-	uint8_t instance_id;
 	uint16_t psm;
 } __packed;
 
 #define BTP_MAP_MSE_MNS_L2CAP_DISCONNECT		0x31
 struct btp_map_mse_mns_l2cap_disconnect_cmd {
 	bt_addr_t address;
-	uint8_t instance_id;
 } __packed;
 
 #define BTP_MAP_MSE_MNS_CONNECT				0x32
 struct btp_map_mse_mns_connect_cmd {
 	bt_addr_t address;
-	uint8_t instance_id;
 	uint16_t buf_len;
 	uint8_t buf[];
 } __packed;
@@ -428,7 +417,6 @@ struct btp_map_mse_mns_connect_cmd {
 #define BTP_MAP_MSE_MNS_DISCONNECT			0x33
 struct btp_map_mse_mns_disconnect_cmd {
 	bt_addr_t address;
-	uint8_t instance_id;
 	uint16_t buf_len;
 	uint8_t buf[];
 } __packed;
@@ -436,7 +424,6 @@ struct btp_map_mse_mns_disconnect_cmd {
 #define BTP_MAP_MSE_MNS_ABORT				0x34
 struct btp_map_mse_mns_abort_cmd {
 	bt_addr_t address;
-	uint8_t instance_id;
 	uint16_t buf_len;
 	uint8_t buf[];
 } __packed;
@@ -444,7 +431,6 @@ struct btp_map_mse_mns_abort_cmd {
 #define BTP_MAP_MSE_MNS_SEND_EVENT			0x35
 struct btp_map_mse_mns_send_event_cmd {
 	bt_addr_t address;
-	uint8_t instance_id;
 	uint8_t final;
 	uint16_t buf_len;
 	uint8_t buf[];
@@ -453,21 +439,10 @@ struct btp_map_mse_mns_send_event_cmd {
 #define BTP_MAP_SDP_DISCOVER				0x36
 struct btp_map_sdp_discover_cmd {
 	bt_addr_t address;
+	uint16_t uuid;
 } __packed;
 
 /* events */
-#define BTP_MAP_EV_SDP_RECORD				0x80
-struct btp_map_sdp_record_ev {
-	bt_addr_t address;
-	uint8_t instance_id;
-	uint8_t rfcomm_channel;
-	uint16_t l2cap_psm;
-	uint32_t supported_features;
-	uint8_t supported_msg_types;
-	uint8_t service_name_len;
-	uint8_t service_name[];
-} __packed;
-
 /* MAP Client MAS events */
 #define BTP_MAP_MCE_MAS_EV_RFCOMM_CONNECTED		0x80
 struct btp_map_mce_mas_rfcomm_connected_ev {
@@ -643,31 +618,26 @@ struct btp_map_mce_mas_set_ntf_filter_ev {
 #define BTP_MAP_MCE_MNS_EV_RFCOMM_CONNECTED		0x94
 struct btp_map_mce_mns_rfcomm_connected_ev {
 	bt_addr_t address;
-	uint8_t instance_id;
 } __packed;
 
 #define BTP_MAP_MCE_MNS_EV_RFCOMM_DISCONNECTED		0x95
 struct btp_map_mce_mns_rfcomm_disconnected_ev {
 	bt_addr_t address;
-	uint8_t instance_id;
 } __packed;
 
 #define BTP_MAP_MCE_MNS_EV_L2CAP_CONNECTED		0x96
 struct btp_map_mce_mns_l2cap_connected_ev {
 	bt_addr_t address;
-	uint8_t instance_id;
 } __packed;
 
 #define BTP_MAP_MCE_MNS_EV_L2CAP_DISCONNECTED		0x97
 struct btp_map_mce_mns_l2cap_disconnected_ev {
 	bt_addr_t address;
-	uint8_t instance_id;
 } __packed;
 
 #define BTP_MAP_MCE_MNS_EV_CONNECTED			0x98
 struct btp_map_mce_mns_connected_ev {
 	bt_addr_t address;
-	uint8_t instance_id;
 	uint8_t version;
 	uint16_t mopl;
 	uint16_t buf_len;
@@ -677,7 +647,6 @@ struct btp_map_mce_mns_connected_ev {
 #define BTP_MAP_MCE_MNS_EV_DISCONNECTED			0x99
 struct btp_map_mce_mns_disconnected_ev {
 	bt_addr_t address;
-	uint8_t instance_id;
 	uint16_t buf_len;
 	uint8_t buf[];
 } __packed;
@@ -685,7 +654,6 @@ struct btp_map_mce_mns_disconnected_ev {
 #define BTP_MAP_MCE_MNS_EV_ABORT			0x9a
 struct btp_map_mce_mns_abort_ev {
 	bt_addr_t address;
-	uint8_t instance_id;
 	uint16_t buf_len;
 	uint8_t buf[];
 } __packed;
@@ -693,7 +661,6 @@ struct btp_map_mce_mns_abort_ev {
 #define BTP_MAP_MCE_MNS_EV_SEND_EVENT			0x9b
 struct btp_map_mce_mns_send_event_ev {
 	bt_addr_t address;
-	uint8_t instance_id;
 	uint8_t final;
 	uint16_t buf_len;
 	uint8_t buf[];
@@ -871,31 +838,26 @@ struct btp_map_mse_mas_set_ntf_filter_ev {
 #define BTP_MAP_MSE_MNS_EV_RFCOMM_CONNECTED		0xb0
 struct btp_map_mse_mns_rfcomm_connected_ev {
 	bt_addr_t address;
-	uint8_t instance_id;
 } __packed;
 
 #define BTP_MAP_MSE_MNS_EV_RFCOMM_DISCONNECTED		0xb1
 struct btp_map_mse_mns_rfcomm_disconnected_ev {
 	bt_addr_t address;
-	uint8_t instance_id;
 } __packed;
 
 #define BTP_MAP_MSE_MNS_EV_L2CAP_CONNECTED		0xb2
 struct btp_map_mse_mns_l2cap_connected_ev {
 	bt_addr_t address;
-	uint8_t instance_id;
 } __packed;
 
 #define BTP_MAP_MSE_MNS_EV_L2CAP_DISCONNECTED		0xb3
 struct btp_map_mse_mns_l2cap_disconnected_ev {
 	bt_addr_t address;
-	uint8_t instance_id;
 } __packed;
 
 #define BTP_MAP_MSE_MNS_EV_CONNECTED			0xb4
 struct btp_map_mse_mns_connected_ev {
 	bt_addr_t address;
-	uint8_t instance_id;
 	uint8_t rsp_code;
 	uint8_t version;
 	uint16_t mopl;
@@ -906,7 +868,6 @@ struct btp_map_mse_mns_connected_ev {
 #define BTP_MAP_MSE_MNS_EV_DISCONNECTED			0xb5
 struct btp_map_mse_mns_disconnected_ev {
 	bt_addr_t address;
-	uint8_t instance_id;
 	uint8_t rsp_code;
 	uint16_t buf_len;
 	uint8_t buf[];
@@ -915,7 +876,6 @@ struct btp_map_mse_mns_disconnected_ev {
 #define BTP_MAP_MSE_MNS_EV_ABORT			0xb6
 struct btp_map_mse_mns_abort_ev {
 	bt_addr_t address;
-	uint8_t instance_id;
 	uint8_t rsp_code;
 	uint16_t buf_len;
 	uint8_t buf[];
@@ -924,8 +884,19 @@ struct btp_map_mse_mns_abort_ev {
 #define BTP_MAP_MSE_MNS_EV_SEND_EVENT			0xb7
 struct btp_map_mse_mns_send_event_ev {
 	bt_addr_t address;
-	uint8_t instance_id;
 	uint8_t rsp_code;
 	uint16_t buf_len;
 	uint8_t buf[];
+} __packed;
+
+#define BTP_MAP_EV_SDP_RECORD				0xb8
+struct btp_map_sdp_record_ev {
+	bt_addr_t address;
+	uint8_t instance_id;
+	uint8_t rfcomm_channel;
+	uint16_t l2cap_psm;
+	uint32_t supported_features;
+	uint8_t supported_msg_types;
+	uint8_t service_name_len;
+	uint8_t service_name[];
 } __packed;

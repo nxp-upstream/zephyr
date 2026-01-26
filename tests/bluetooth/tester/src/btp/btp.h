@@ -86,6 +86,7 @@
 #define BTP_SERVICE_ID_OTS      0x1d
 #define BTP_SERVICE_ID_PBP      0x1e
 #define BTP_SERVICE_ID_SDP      0x1f
+#define BTP_SERVICE_ID_MAP      0x20
 #define BTP_SERVICE_ID_AVRCP    0x25
 #define BTP_SERVICE_ID_AVCTP    0x26
 

@@ -29,6 +29,9 @@
 LOG_MODULE_REGISTER(LOG_MODULE_NAME, CONFIG_BTTESTER_LOG_LEVEL);
 
 #define MAP_MAS_MAX_NUM 1
+#define MAP_MCE_SUPPORTED_FEATURES 0x0077FFFF
+#define MAP_MSE_SUPPORTED_FEATURES 0x007FFFFF
+#define MAP_MSE_SUPPORTED_MSG_TYPE 0x1F
 
 /* MAP Client MAS instance tracking */
 struct mce_mas_instance {
@@ -47,6 +50,8 @@ struct mce_mns_instance {
 struct mse_mas_instance {
 	struct bt_map_mse_mas mse_mas;
 	struct bt_conn *conn;
+	uint16_t psm;
+	uint8_t channel;
 	uint8_t instance_id;
 };
 
@@ -69,7 +74,7 @@ struct mce_server {
 };
 
 static struct mce_server mce_server = {
-	.supported_features = BT_MAP_MANDATORY_SUPPORTED_FEATURES,
+	.supported_features = MAP_MCE_SUPPORTED_FEATURES,
 };
 
 /* MCE MNS SDP record */
@@ -168,13 +173,13 @@ struct mse_server {
 
 #define MSE_SERVER_INIT(i, _) \
 	{ \
-		.supported_features = BT_MAP_MANDATORY_SUPPORTED_FEATURES, \
+		.supported_features = GET_ARG_N(UTIL_INC(i), MAP_MSE_SUPPORTED_FEATURES), \
 		.instance_id = i, \
-		.supported_msg_type = 0x1F, \
+		.supported_msg_type = GET_ARG_N(UTIL_INC(i), MAP_MSE_SUPPORTED_MSG_TYPE), \
 	}
 
-static struct mse_server mse_server[MAP_MAX_INSTANCES] = {
-	LISTIFY(MAP_MAX_INSTANCES, MSE_SERVER_INIT, (,))
+static struct mse_server mse_server[MAP_MAS_MAX_NUM] = {
+	LISTIFY(MAP_MAS_MAX_NUM, MSE_SERVER_INIT, (,))
 };
 
 /* MSE MAS SDP record */
@@ -280,14 +285,14 @@ static struct bt_sdp_attribute UTIL_CAT(mse_mas_, UTIL_CAT(i, _attrs))[] = { \
 
 #define MSE_MAS_SDP_RECORD_INIT(idx, _) BT_SDP_RECORD(UTIL_CAT(mse_mas_, UTIL_CAT(idx, _attrs)))
 
-LISTIFY(MAP_MAX_INSTANCES, MSE_MAS_ATTRS, (;))
+LISTIFY(MAP_MAS_MAX_NUM, MSE_MAS_ATTRS, (;))
 
-static struct bt_sdp_record mse_mas_rec[MAP_MAX_INSTANCES] = {
-	LISTIFY(MAP_MAX_INSTANCES, MSE_MAS_SDP_RECORD_INIT, (,))
+static struct bt_sdp_record mse_mas_rec[MAP_MAS_MAX_NUM] = {
+	LISTIFY(MAP_MAS_MAX_NUM, MSE_MAS_SDP_RECORD_INIT, (,))
 };
 
 /* SDP discover support */
-static struct bt_sdp_discover_params map_sdp_discover;
+static struct bt_sdp_discover_params map_sdp_discover_params;
 
 NET_BUF_POOL_DEFINE(map_sdp_discover_pool, 1,
 		    BT_L2CAP_BUF_SIZE(CONFIG_BT_L2CAP_TX_MTU),
@@ -522,14 +527,14 @@ static uint8_t map_sdp_discover(const void *cmd, uint16_t cmd_len,
 
 	/* Search for MAP MSE service (Message Server Equipment) */
 	uuid.uuid.type = BT_UUID_TYPE_16;
-	uuid.val = BT_SDP_MAP_MSE_SVCLASS;
+	uuid.val = sys_le16_to_cpu(cp->uuid);
 
-	map_sdp_discover.uuid = &uuid.uuid;
-	map_sdp_discover.func = map_sdp_discover_cb;
-	map_sdp_discover.pool = &map_sdp_discover_pool;
-	map_sdp_discover.type = BT_SDP_DISCOVER_SERVICE_SEARCH_ATTR;
+	map_sdp_discover_params.uuid = &uuid.uuid;
+	map_sdp_discover_params.func = map_sdp_discover_cb;
+	map_sdp_discover_params.pool = &map_sdp_discover_pool;
+	map_sdp_discover_params.type = BT_SDP_DISCOVER_SERVICE_SEARCH_ATTR;
 
-	err = bt_sdp_discover(conn, &map_sdp_discover);
+	err = bt_sdp_discover(conn, &map_sdp_discover_params);
 	bt_conn_unref(conn);
 
 	if (err < 0) {
@@ -757,23 +762,13 @@ static void mse_mns_free(struct mse_mns_instance *inst)
 	}
 }
 
-/* Helper to get address from connection */
-static void get_addr_from_conn(struct bt_conn *conn, bt_addr_t *addr)
-{
-	struct bt_conn_info info;
-	// bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
-	if (bt_conn_get_info(conn, &info) == 0) {
-		bt_addr_copy(addr, info.br.dst);
-	}
-}
-
 /* MAP Client MAS callbacks */
 static void mce_mas_rfcomm_connected_cb(struct bt_conn *conn, struct bt_map_mce_mas *mce_mas)
 {
 	struct mce_mas_instance *inst = CONTAINER_OF(mce_mas, struct mce_mas_instance, mce_mas);
 	struct btp_map_mce_mas_rfcomm_connected_ev ev;
 
-	get_addr_from_conn(conn, &ev.address);
+	bt_addr_copy(&ev.address, bt_conn_get_dst_br(conn));
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MCE_MAS_EV_RFCOMM_CONNECTED, &ev, sizeof(ev));
@@ -784,7 +779,7 @@ static void mce_mas_rfcomm_disconnected_cb(struct bt_map_mce_mas *mce_mas)
 	struct mce_mas_instance *inst = CONTAINER_OF(mce_mas, struct mce_mas_instance, mce_mas);
 	struct btp_map_mce_mas_rfcomm_disconnected_ev ev;
 
-	get_addr_from_conn(inst->conn, &ev.address);
+	bt_addr_copy(&ev.address, bt_conn_get_dst_br(inst->conn));
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MCE_MAS_EV_RFCOMM_DISCONNECTED, &ev, sizeof(ev));
@@ -796,7 +791,7 @@ static void mce_mas_l2cap_connected_cb(struct bt_conn *conn, struct bt_map_mce_m
 	struct mce_mas_instance *inst = CONTAINER_OF(mce_mas, struct mce_mas_instance, mce_mas);
 	struct btp_map_mce_mas_l2cap_connected_ev ev;
 
-	get_addr_from_conn(conn, &ev.address);
+	bt_addr_copy(&ev.address, bt_conn_get_dst_br(conn));
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MCE_MAS_EV_L2CAP_CONNECTED, &ev, sizeof(ev));
@@ -807,7 +802,7 @@ static void mce_mas_l2cap_disconnected_cb(struct bt_map_mce_mas *mce_mas)
 	struct mce_mas_instance *inst = CONTAINER_OF(mce_mas, struct mce_mas_instance, mce_mas);
 	struct btp_map_mce_mas_l2cap_disconnected_ev ev;
 
-	get_addr_from_conn(inst->conn, &ev.address);
+	bt_addr_copy(&ev.address, bt_conn_get_dst_br(inst->conn));
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MCE_MAS_EV_L2CAP_DISCONNECTED, &ev, sizeof(ev));
@@ -827,7 +822,7 @@ static void mce_mas_connected_cb(struct bt_map_mce_mas *mce_mas, uint8_t rsp_cod
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->version = version;
@@ -854,7 +849,7 @@ static void mce_mas_disconnected_cb(struct bt_map_mce_mas *mce_mas, uint8_t rsp_
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -878,7 +873,7 @@ static void mce_mas_abort_cb(struct bt_map_mce_mas *mce_mas, uint8_t rsp_code, s
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -903,7 +898,7 @@ static void mce_mas_set_ntf_reg_cb(struct bt_map_mce_mas *mce_mas, uint8_t rsp_c
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -928,7 +923,7 @@ static void mce_mas_set_folder_cb(struct bt_map_mce_mas *mce_mas, uint8_t rsp_co
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -953,7 +948,7 @@ static void mce_mas_get_folder_listing_cb(struct bt_map_mce_mas *mce_mas, uint8_
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -978,7 +973,7 @@ static void mce_mas_get_msg_listing_cb(struct bt_map_mce_mas *mce_mas, uint8_t r
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1003,7 +998,7 @@ static void mce_mas_get_msg_cb(struct bt_map_mce_mas *mce_mas, uint8_t rsp_code,
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1028,7 +1023,7 @@ static void mce_mas_set_msg_status_cb(struct bt_map_mce_mas *mce_mas, uint8_t rs
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1053,7 +1048,7 @@ static void mce_mas_push_msg_cb(struct bt_map_mce_mas *mce_mas, uint8_t rsp_code
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1078,7 +1073,7 @@ static void mce_mas_update_inbox_cb(struct bt_map_mce_mas *mce_mas, uint8_t rsp_
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1103,7 +1098,7 @@ static void mce_mas_get_mas_inst_info_cb(struct bt_map_mce_mas *mce_mas, uint8_t
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1128,7 +1123,7 @@ static void mce_mas_set_owner_status_cb(struct bt_map_mce_mas *mce_mas, uint8_t 
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1153,7 +1148,7 @@ static void mce_mas_get_owner_status_cb(struct bt_map_mce_mas *mce_mas, uint8_t 
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1178,7 +1173,7 @@ static void mce_mas_get_convo_listing_cb(struct bt_map_mce_mas *mce_mas, uint8_t
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1203,7 +1198,7 @@ static void mce_mas_set_ntf_filter_cb(struct bt_map_mce_mas *mce_mas, uint8_t rs
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1241,11 +1236,9 @@ static const struct bt_map_mce_mas_cb mce_mas_cb = {
 /* MAP Client MNS callbacks */
 static void mce_mns_rfcomm_connected_cb(struct bt_conn *conn, struct bt_map_mce_mns *mce_mns)
 {
-	struct mce_mns_instance *inst = CONTAINER_OF(mce_mns, struct mce_mns_instance, mce_mns);
 	struct btp_map_mce_mns_rfcomm_connected_ev ev;
 
-	get_addr_from_conn(conn, &ev.address);
-	ev.instance_id = inst->instance_id;
+	bt_addr_copy(&ev.address, bt_conn_get_dst_br(conn));
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MCE_MNS_EV_RFCOMM_CONNECTED, &ev, sizeof(ev));
 }
@@ -1255,8 +1248,7 @@ static void mce_mns_rfcomm_disconnected_cb(struct bt_map_mce_mns *mce_mns)
 	struct mce_mns_instance *inst = CONTAINER_OF(mce_mns, struct mce_mns_instance, mce_mns);
 	struct btp_map_mce_mns_rfcomm_disconnected_ev ev;
 
-	get_addr_from_conn(inst->conn, &ev.address);
-	ev.instance_id = inst->instance_id;
+	bt_addr_copy(&ev.address, bt_conn_get_dst_br(inst->conn));
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MCE_MNS_EV_RFCOMM_DISCONNECTED, &ev, sizeof(ev));
 	mce_mns_free(inst);
@@ -1264,11 +1256,9 @@ static void mce_mns_rfcomm_disconnected_cb(struct bt_map_mce_mns *mce_mns)
 
 static void mce_mns_l2cap_connected_cb(struct bt_conn *conn, struct bt_map_mce_mns *mce_mns)
 {
-	struct mce_mns_instance *inst = CONTAINER_OF(mce_mns, struct mce_mns_instance, mce_mns);
 	struct btp_map_mce_mns_l2cap_connected_ev ev;
 
-	get_addr_from_conn(conn, &ev.address);
-	ev.instance_id = inst->instance_id;
+	bt_addr_copy(&ev.address, bt_conn_get_dst_br(conn));
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MCE_MNS_EV_L2CAP_CONNECTED, &ev, sizeof(ev));
 }
@@ -1278,8 +1268,7 @@ static void mce_mns_l2cap_disconnected_cb(struct bt_map_mce_mns *mce_mns)
 	struct mce_mns_instance *inst = CONTAINER_OF(mce_mns, struct mce_mns_instance, mce_mns);
 	struct btp_map_mce_mns_l2cap_disconnected_ev ev;
 
-	get_addr_from_conn(inst->conn, &ev.address);
-	ev.instance_id = inst->instance_id;
+	bt_addr_copy(&ev.address, bt_conn_get_dst_br(inst->conn));
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MCE_MNS_EV_L2CAP_DISCONNECTED, &ev, sizeof(ev));
 	mce_mns_free(inst);
@@ -1298,8 +1287,7 @@ static void mce_mns_connected_cb(struct bt_map_mce_mns *mce_mns, uint8_t version
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
-	ev->instance_id = inst->instance_id;
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->version = version;
 	ev->mopl = sys_cpu_to_le16(mopl);
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1323,8 +1311,7 @@ static void mce_mns_disconnected_cb(struct bt_map_mce_mns *mce_mns, struct net_b
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
-	ev->instance_id = inst->instance_id;
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->buf_len = sys_cpu_to_le16(buf_len);
 	if (buf_len > 0) {
 		memcpy(ev->buf, buf->data, buf_len);
@@ -1346,8 +1333,7 @@ static void mce_mns_abort_cb(struct bt_map_mce_mns *mce_mns, struct net_buf *buf
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
-	ev->instance_id = inst->instance_id;
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->buf_len = sys_cpu_to_le16(buf_len);
 	if (buf_len > 0) {
 		memcpy(ev->buf, buf->data, buf_len);
@@ -1369,8 +1355,7 @@ static void mce_mns_send_event_cb(struct bt_map_mce_mns *mce_mns, bool final, st
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
-	ev->instance_id = inst->instance_id;
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
 	if (buf_len > 0) {
@@ -1405,7 +1390,6 @@ static int mce_mns_rfcomm_accept(struct bt_conn *conn, struct bt_map_mce_mns_rfc
 		return -ENOMEM;
 	}
 
-	inst->instance_id = 0;
 	err = bt_map_mce_mns_cb_register(&inst->mce_mns, &mce_mns_cb);
 	if (err != 0) {
 		mce_mns_free(inst);
@@ -1428,7 +1412,6 @@ static int mce_mns_l2cap_accept(struct bt_conn *conn, struct bt_map_mce_mns_l2ca
 		return -ENOMEM;
 	}
 
-	inst->instance_id = 0;
 	err = bt_map_mce_mns_cb_register(&inst->mce_mns, &mce_mns_cb);
 	if (err != 0) {
 		mce_mns_free(inst);
@@ -1445,7 +1428,7 @@ static void mse_mas_rfcomm_connected_cb(struct bt_conn *conn, struct bt_map_mse_
 	struct mse_mas_instance *inst = CONTAINER_OF(mse_mas, struct mse_mas_instance, mse_mas);
 	struct btp_map_mse_mas_rfcomm_connected_ev ev;
 
-	get_addr_from_conn(conn, &ev.address);
+	bt_addr_copy(&ev.address, bt_conn_get_dst_br(conn));
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MSE_MAS_EV_RFCOMM_CONNECTED, &ev, sizeof(ev));
@@ -1456,7 +1439,7 @@ static void mse_mas_rfcomm_disconnected_cb(struct bt_map_mse_mas *mse_mas)
 	struct mse_mas_instance *inst = CONTAINER_OF(mse_mas, struct mse_mas_instance, mse_mas);
 	struct btp_map_mse_mas_rfcomm_disconnected_ev ev;
 
-	get_addr_from_conn(inst->conn, &ev.address);
+	bt_addr_copy(&ev.address, bt_conn_get_dst_br(inst->conn));
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MSE_MAS_EV_RFCOMM_DISCONNECTED, &ev, sizeof(ev));
@@ -1468,7 +1451,7 @@ static void mse_mas_l2cap_connected_cb(struct bt_conn *conn, struct bt_map_mse_m
 	struct mse_mas_instance *inst = CONTAINER_OF(mse_mas, struct mse_mas_instance, mse_mas);
 	struct btp_map_mse_mas_l2cap_connected_ev ev;
 
-	get_addr_from_conn(conn, &ev.address);
+	bt_addr_copy(&ev.address, bt_conn_get_dst_br(conn));
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MSE_MAS_EV_L2CAP_CONNECTED, &ev, sizeof(ev));
@@ -1479,7 +1462,7 @@ static void mse_mas_l2cap_disconnected_cb(struct bt_map_mse_mas *mse_mas)
 	struct mse_mas_instance *inst = CONTAINER_OF(mse_mas, struct mse_mas_instance, mse_mas);
 	struct btp_map_mse_mas_l2cap_disconnected_ev ev;
 
-	get_addr_from_conn(inst->conn, &ev.address);
+	bt_addr_copy(&ev.address, bt_conn_get_dst_br(inst->conn));
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MSE_MAS_EV_L2CAP_DISCONNECTED, &ev, sizeof(ev));
@@ -1499,7 +1482,7 @@ static void mse_mas_connected_cb(struct bt_map_mse_mas *mse_mas, uint8_t version
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->version = version;
 	ev->mopl = sys_cpu_to_le16(mopl);
@@ -1524,7 +1507,7 @@ static void mse_mas_disconnected_cb(struct bt_map_mse_mas *mse_mas, struct net_b
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
 	if (buf_len > 0) {
@@ -1547,7 +1530,7 @@ static void mse_mas_abort_cb(struct bt_map_mse_mas *mse_mas, struct net_buf *buf
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
 	if (buf_len > 0) {
@@ -1570,7 +1553,7 @@ static void mse_mas_set_ntf_reg_cb(struct bt_map_mse_mas *mse_mas, bool final, s
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1595,7 +1578,7 @@ static void mse_mas_set_folder_cb(struct bt_map_mse_mas *mse_mas, uint8_t flags,
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->flags = flags;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1620,7 +1603,7 @@ static void mse_mas_get_folder_listing_cb(struct bt_map_mse_mas *mse_mas, bool f
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1645,7 +1628,7 @@ static void mse_mas_get_msg_listing_cb(struct bt_map_mse_mas *mse_mas, bool fina
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1669,7 +1652,7 @@ static void mse_mas_get_msg_cb(struct bt_map_mse_mas *mse_mas, bool final, struc
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1694,7 +1677,7 @@ static void mse_mas_set_msg_status_cb(struct bt_map_mse_mas *mse_mas, bool final
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1718,7 +1701,7 @@ static void mse_mas_push_msg_cb(struct bt_map_mse_mas *mse_mas, bool final, stru
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1743,7 +1726,7 @@ static void mse_mas_update_inbox_cb(struct bt_map_mse_mas *mse_mas, bool final,
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1768,7 +1751,7 @@ static void mse_mas_get_mas_inst_info_cb(struct bt_map_mse_mas *mse_mas, bool fi
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1793,7 +1776,7 @@ static void mse_mas_set_owner_status_cb(struct bt_map_mse_mas *mse_mas, bool fin
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1818,7 +1801,7 @@ static void mse_mas_get_owner_status_cb(struct bt_map_mse_mas *mse_mas, bool fin
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1843,7 +1826,7 @@ static void mse_mas_get_convo_listing_cb(struct bt_map_mse_mas *mse_mas, bool fi
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1867,7 +1850,7 @@ static void mse_mas_set_ntf_filter_cb(struct bt_map_mse_mas *mse_mas, bool final
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1902,14 +1885,124 @@ static const struct bt_map_mse_mas_cb mse_mas_cb = {
 	.set_ntf_filter = mse_mas_set_ntf_filter_cb,
 };
 
+static int mse_mas_rfcomm_accept(struct bt_conn *conn,
+				 struct bt_map_mse_mas_rfcomm_server *server,
+				 struct bt_map_mse_mas **mse_mas)
+{
+	struct mse_mas_instance *inst;
+	uint8_t index;
+	uint8_t conn_index;
+	int err;
+
+	for (index = 0; index < ARRAY_SIZE(mse_server); index++) {
+		if (&mse_server[index].rfcomm_server == server) {
+			break;
+		}
+	}
+
+	if (index == ARRAY_SIZE(mse_server)) {
+		LOG_ERR("Cannot find MSE MAS server");
+		return -ENOMEM;
+	}
+
+	/* Check if L2CAP connection already exists */
+	conn_index = bt_conn_index(conn);
+	if (conn_index >= CONFIG_BT_MAX_CONN) {
+		LOG_WRN("conn index %u out of range (max %u)", conn_index,
+			CONFIG_BT_MAX_CONN);
+		return -ENODEV;
+	}
+
+	for (size_t i = 0; i < ARRAY_SIZE(mse_mas_instances[conn_index]); i++) {
+		inst = &mse_mas_instances[conn_index][i];
+
+		if ((inst->conn != NULL) &&
+		    (inst->mse_mas._transport_state == BT_MAP_TRANSPORT_STATE_CONNECTED) &&
+		    (inst->psm == mse_server[index].l2cap_server.server.l2cap.psm)) {
+			return -EAGAIN;
+		}
+	}
+
+	inst = mse_mas_alloc(conn);
+	if (inst == NULL) {
+		LOG_ERR("Cannot allocate MSE MAS instance");
+		return -ENOMEM;
+	}
+
+	inst->channel = server->server.rfcomm.channel;
+	inst->instance_id = mse_server[index].instance_id;
+	err = bt_map_mse_mas_cb_register(&inst->mse_mas, &mse_mas_cb);
+	if (err != 0) {
+		mse_mas_free(inst);
+		LOG_ERR("Failed to register MSE MAS cb (err %d)", err);
+		return err;
+	}
+	*mse_mas = &inst->mse_mas;
+	return 0;
+}
+
+static int mse_mas_l2cap_accept(struct bt_conn *conn,
+				struct bt_map_mse_mas_l2cap_server *server,
+				struct bt_map_mse_mas **mse_mas)
+{
+	struct mse_mas_instance *inst;
+	uint8_t index;
+	uint8_t conn_index;
+	int err;
+
+	for (index = 0; index < ARRAY_SIZE(mse_server); index++) {
+		if (&mse_server[index].l2cap_server == server) {
+			break;
+		}
+	}
+
+	if (index == ARRAY_SIZE(mse_server)) {
+		LOG_ERR("Cannot find MSE MAS server");
+		return -ENOMEM;
+	}
+
+	/* Check if RFCOMM connection already exists */
+	conn_index = bt_conn_index(conn);
+	if (conn_index >= CONFIG_BT_MAX_CONN) {
+		LOG_WRN("conn index %u out of range (max %u)", conn_index,
+			CONFIG_BT_MAX_CONN);
+		return -ENODEV;
+	}
+
+	for (size_t i = 0; i < ARRAY_SIZE(mse_mas_instances[conn_index]); i++) {
+		inst = &mse_mas_instances[conn_index][i];
+
+		if ((inst->conn != NULL) &&
+		    (inst->mse_mas._transport_state == BT_MAP_TRANSPORT_STATE_CONNECTED) &&
+		    (inst->channel == mse_server[index].rfcomm_server.server.rfcomm.channel)) {
+			return -EAGAIN;
+		}
+	}
+
+	inst = mse_mas_alloc(conn);
+	if (inst == NULL) {
+		LOG_ERR("Cannot allocate MSE MAS instance");
+		return -ENOMEM;
+	}
+
+	inst->psm = server->server.l2cap.psm;
+	inst->instance_id = mse_server[index].instance_id;
+	err = bt_map_mse_mas_cb_register(&inst->mse_mas, &mse_mas_cb);
+	if (err != 0) {
+		mse_mas_free(inst);
+		LOG_ERR("Failed to register MSE MAS cb (err %d)", err);
+		return err;
+	}
+	*mse_mas = &inst->mse_mas;
+	return 0;
+}
+
 /* MAP Server MNS callbacks */
 static void mse_mns_rfcomm_connected_cb(struct bt_conn *conn, struct bt_map_mse_mns *mse_mns)
 {
-	struct mse_mns_instance *inst = CONTAINER_OF(mse_mns, struct mse_mns_instance, mse_mns);
 	struct btp_map_mse_mns_rfcomm_connected_ev ev;
 
-	get_addr_from_conn(conn, &ev.address);
-	ev.instance_id = inst->instance_id;
+	bt_addr_copy(&ev.address, bt_conn_get_dst_br(conn));
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MSE_MNS_EV_RFCOMM_CONNECTED, &ev, sizeof(ev));
 }
@@ -1919,8 +2012,7 @@ static void mse_mns_rfcomm_disconnected_cb(struct bt_map_mse_mns *mse_mns)
 	struct mse_mns_instance *inst = CONTAINER_OF(mse_mns, struct mse_mns_instance, mse_mns);
 	struct btp_map_mse_mns_rfcomm_disconnected_ev ev;
 
-	get_addr_from_conn(inst->conn, &ev.address);
-	ev.instance_id = inst->instance_id;
+	bt_addr_copy(&ev.address, bt_conn_get_dst_br(inst->conn));
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MSE_MNS_EV_RFCOMM_DISCONNECTED, &ev, sizeof(ev));
 	mse_mns_free(inst);
@@ -1928,11 +2020,9 @@ static void mse_mns_rfcomm_disconnected_cb(struct bt_map_mse_mns *mse_mns)
 
 static void mse_mns_l2cap_connected_cb(struct bt_conn *conn, struct bt_map_mse_mns *mse_mns)
 {
-	struct mse_mns_instance *inst = CONTAINER_OF(mse_mns, struct mse_mns_instance, mse_mns);
 	struct btp_map_mse_mns_l2cap_connected_ev ev;
 
-	get_addr_from_conn(conn, &ev.address);
-	ev.instance_id = inst->instance_id;
+	bt_addr_copy(&ev.address, bt_conn_get_dst_br(conn));
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MSE_MNS_EV_L2CAP_CONNECTED, &ev, sizeof(ev));
 }
@@ -1942,8 +2032,7 @@ static void mse_mns_l2cap_disconnected_cb(struct bt_map_mse_mns *mse_mns)
 	struct mse_mns_instance *inst = CONTAINER_OF(mse_mns, struct mse_mns_instance, mse_mns);
 	struct btp_map_mse_mns_l2cap_disconnected_ev ev;
 
-	get_addr_from_conn(inst->conn, &ev.address);
-	ev.instance_id = inst->instance_id;
+	bt_addr_copy(&ev.address, bt_conn_get_dst_br(inst->conn));
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MSE_MNS_EV_L2CAP_DISCONNECTED, &ev, sizeof(ev));
 	mse_mns_free(inst);
@@ -1962,8 +2051,7 @@ static void mse_mns_connected_cb(struct bt_map_mse_mns *mse_mns, uint8_t rsp_cod
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
-	ev->instance_id = inst->instance_id;
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->rsp_code = rsp_code;
 	ev->version = version;
 	ev->mopl = sys_cpu_to_le16(mopl);
@@ -1989,8 +2077,7 @@ static void mse_mns_disconnected_cb(struct bt_map_mse_mns *mse_mns, uint8_t rsp_
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
-	ev->instance_id = inst->instance_id;
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
 	if (buf_len > 0) {
@@ -2013,8 +2100,7 @@ static void mse_mns_abort_cb(struct bt_map_mse_mns *mse_mns, uint8_t rsp_code, s
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
-	ev->instance_id = inst->instance_id;
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
 	if (buf_len > 0) {
@@ -2038,8 +2124,7 @@ static void mse_mns_send_event_cb(struct bt_map_mse_mns *mse_mns, uint8_t rsp_co
 		return;
 	}
 
-	get_addr_from_conn(inst->conn, &ev->address);
-	ev->instance_id = inst->instance_id;
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
 	if (buf_len > 0) {
@@ -2811,38 +2896,6 @@ static uint8_t mce_mas_set_ntf_filter(const void *cmd, uint16_t cmd_len,
 }
 
 /* BTP command handlers - MAP Client MNS */
-static int mce_mns_accept_rfcomm(struct bt_conn *conn,
-				 struct bt_map_mce_mns_rfcomm_server *server,
-				 struct bt_map_mce_mns **mce_mns)
-{
-	struct mce_mns_instance *inst;
-
-	inst = mce_mns_alloc(conn);
-	if (!inst) {
-		return -ENOMEM;
-	}
-
-	*mce_mns = &inst->mce_mns;
-
-	return 0;
-}
-
-static int mce_mns_accept_l2cap(struct bt_conn *conn,
-				struct bt_map_mce_mns_l2cap_server *server,
-				struct bt_map_mce_mns **mce_mns)
-{
-	struct mce_mns_instance *inst;
-
-	inst = mce_mns_alloc(conn);
-	if (!inst) {
-		return -ENOMEM;
-	}
-
-	*mce_mns = &inst->mce_mns;
-
-	return 0;
-}
-
 static uint8_t mce_mns_rfcomm_disconnect(const void *cmd, uint16_t cmd_len,
 					 void *rsp, uint16_t *rsp_len)
 {
@@ -3040,38 +3093,6 @@ static uint8_t mce_mns_send_event(const void *cmd, uint16_t cmd_len,
 }
 
 /* BTP command handlers - MAP Server MAS */
-static int mse_mas_accept_rfcomm(struct bt_conn *conn,
-				 struct bt_map_mse_mas_rfcomm_server *server,
-				 struct bt_map_mse_mas **mse_mas)
-{
-	struct mse_mas_instance *inst;
-
-	inst = mse_mas_alloc(conn);
-	if (!inst) {
-		return -ENOMEM;
-	}
-
-	*mse_mas = &inst->mse_mas;
-
-	return 0;
-}
-
-static int mse_mas_accept_l2cap(struct bt_conn *conn,
-				struct bt_map_mse_mas_l2cap_server *server,
-				struct bt_map_mse_mas **mse_mas)
-{
-	struct mse_mas_instance *inst;
-
-	inst = mse_mas_alloc(conn);
-	if (!inst) {
-		return -ENOMEM;
-	}
-
-	*mse_mas = &inst->mse_mas;
-
-	return 0;
-}
-
 static uint8_t mse_mas_rfcomm_disconnect(const void *cmd, uint16_t cmd_len,
 					 void *rsp, uint16_t *rsp_len)
 {
@@ -4312,6 +4333,8 @@ static int mce_mns_rfcomm_register(void)
 	}
 	LOG_DBG("MCE MNS RFCOMM server (channel %02x) registered",
 		mce_server.rfcomm_server.server.rfcomm.channel);
+
+	return 0;
 }
 
 static int mce_mns_l2cap_register(void)
@@ -4338,7 +4361,7 @@ static int mse_mas_rfcomm_register(void)
 	uint8_t i;
 
 	/* Register MSE MAS RFCOMM servers */
-	for (i = 0; i < MAP_MAX_INSTANCES; i++) {
+	for (i = 0; i < MAP_MAS_MAX_NUM; i++) {
 		mse_server[i].rfcomm_server.server.rfcomm.channel = 0;
 		mse_server[i].rfcomm_server.accept = mse_mas_rfcomm_accept;
 		err = bt_map_mse_mas_rfcomm_register(&mse_server[i].rfcomm_server);
@@ -4359,7 +4382,7 @@ static int mse_mas_l2cap_register(void)
 	uint8_t i;
 
 	/* Register MSE MAS L2CAP servers */
-	for (i = 0; i < MAP_MAX_INSTANCES; i++) {
+	for (i = 0; i < MAP_MAS_MAX_NUM; i++) {
 		mse_server[i].l2cap_server.server.l2cap.psm = 0;
 		mse_server[i].l2cap_server.accept = mse_mas_l2cap_accept;
 		err = bt_map_mse_mas_l2cap_register(&mse_server[i].l2cap_server);
@@ -4413,7 +4436,7 @@ uint8_t tester_init_map(void)
 	}
 
 	/* Register MSE MAS SDP records */
-	for (i = 0; i < MAP_MAX_INSTANCES; i++) {
+	for (i = 0; i < MAP_MAS_MAX_NUM; i++) {
 		err = bt_sdp_register_service(&mse_mas_rec[i]);
 		if (err < 0) {
 			return BTP_STATUS_FAILED;
