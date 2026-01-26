@@ -47,7 +47,6 @@ struct mcp_http_response_item {
 	void *fifo_reserved; /* Required for k_fifo */
 	char *data;
 	size_t length;
-	uint32_t event_id;
 };
 
 /* HTTP Client context management */
@@ -501,11 +500,13 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 	mcp_client_ctx->response_headers[0].value = "application/json";
 	mcp_client_ctx->response_headers[1].name = "Mcp-Session-Id";
 	mcp_client_ctx->response_headers[1].value = (const char *)mcp_client_ctx->session_id_str;
+	mcp_client_ctx->response_headers[2].name = "Cache-Control";
+	mcp_client_ctx->response_headers[2].value = "no-cache";
 
 	response_ctx->headers = mcp_client_ctx->response_headers;
 	response_ctx->status = HTTP_200_OK;
 	response_ctx->final_chunk = true;
-	response_ctx->header_count = 2;
+	response_ctx->header_count = 3;
 
 	switch (msg_type) {
 	case MCP_METHOD_UNKNOWN:
@@ -595,9 +596,11 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 	mcp_client_ctx->response_headers[0].value = "text/event-stream";
 	mcp_client_ctx->response_headers[1].name = "Mcp-Session-Id";
 	mcp_client_ctx->response_headers[1].value = (const char *)mcp_client_ctx->session_id_str;
+	mcp_client_ctx->response_headers[2].name = "Cache-Control";
+	mcp_client_ctx->response_headers[2].value = "no-cache";
 
 	response_ctx->headers = mcp_client_ctx->response_headers;
-	response_ctx->header_count = 2;
+	response_ctx->header_count = 3;
 	response_ctx->status = HTTP_200_OK;
 	response_ctx->final_chunk = true;
 
@@ -605,7 +608,7 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 	response_data = k_fifo_peek_head(&mcp_client_ctx->response_queue);
 
 	if (response_data == NULL || !accumulator->has_event_id ||
-		(response_data->event_id < accumulator->event_id_hdr)) {
+		(mcp_client_ctx->next_event_id <= accumulator->event_id_hdr)) {
 		/* Send retry interval when there are no events to stream */
 		ret = format_sse_retry_response(mcp_client_ctx->response_body,
 						sizeof(mcp_client_ctx->response_body),
@@ -627,7 +630,7 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 	response_data = k_fifo_get(&mcp_client_ctx->response_queue, K_NO_WAIT);
 	ret = format_sse_response(mcp_client_ctx->response_body,
 				  sizeof(mcp_client_ctx->response_body),
-				  response_data->event_id,
+				  mcp_client_ctx->next_event_id++,
 				  response_data->data);
 
 	if (ret < 0) {
@@ -798,7 +801,6 @@ static int mcp_server_http_send(struct mcp_transport_binding *binding, uint32_t 
 	/* Take ownership of the data pointer */
 	item->data = (char *)data;
 	item->length = length;
-	item->event_id = client->next_event_id++;
 
 	/* POST/GET handlers are responsible for freeing response items and data from core */
 	k_fifo_put(&client->response_queue, item);
