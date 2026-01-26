@@ -863,8 +863,8 @@ static int handle_ping_request(struct mcp_server_ctx *server, uint32_t client_id
 	}
 
 	/* Serialize response to JSON */
-	ret = mcp_json_serialize_empty_response((char *)json_buffer, CONFIG_MCP_MAX_MESSAGE_SIZE,
-						   request->id);
+	ret = mcp_json_serialize_ping_result((char *)json_buffer, CONFIG_MCP_MAX_MESSAGE_SIZE,
+						   request->id, NULL);
 	if (ret <= 0) {
 		LOG_ERR("Failed to serialize response: %d", ret);
 		mcp_free(json_buffer);
@@ -920,6 +920,7 @@ static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 
 		switch (message->method) {
 		case MCP_METHOD_INITIALIZE:
+		case MCP_METHOD_PING:
 			LOG_DBG("Should never reach here");
 			ret = 0;
 			// Handled immmediately in mcp_server_handle_request
@@ -934,7 +935,6 @@ static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 			ret = handle_tools_call_request(server, request.client_id, message);
 			break;
 		case MCP_METHOD_NOTIF_CANCELLED:
-		case MCP_METHOD_PING:
 			/* TODO: Implement. Ignore for now */
 			break;
 		default:
