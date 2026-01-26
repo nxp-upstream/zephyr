@@ -87,6 +87,13 @@ config FLASH_MCUX_FLEXSPI_NAND
 	  probing (reset/status/read-id/ONFI parameter load + CRC check).
 	  This driver is for bring-up and shell testing.
 
+config FLASH_MCUX_FLEXSPI_NAND_INIT_PRIORITY
+    int "MCUX FlexSPI NAND flash init priority"
+    default FLASH_INIT_PRIORITY
+    help
+      Initialization priority for FlexSPI NAND flash driver.
+      Must be greater than or equal to FLASH_INIT_PRIORITY.
+
 endmenu
 
 if FLASH_MCUX_FLEXSPI_MX25UM51345G
