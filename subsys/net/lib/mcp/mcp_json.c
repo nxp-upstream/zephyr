@@ -15,7 +15,7 @@
 #include <stdio.h>
 #include <zephyr/kernel.h>
 #include <zephyr/data/json.h>
-#include <zephyr/sys/util.h>    /* BIT(), ARRAY_SIZE */
+#include <zephyr/sys/util.h> /* BIT(), ARRAY_SIZE */
 #include <zephyr/logging/log.h>
 #include "mcp_common.h"
 
@@ -37,41 +37,6 @@ static void mcp_safe_strcpy(char *dst, size_t dst_sz, const char *src)
 
 	/* Use snprintf for safe truncation + NUL termination */
 	(void)snprintf(dst, dst_sz, "%s", src);
-}
-
-/* Very simple top-level key detector (for "params", "result", "error") */
-static bool json_has_top_level_key(const char *buf, size_t len, const char *key)
-{
-	if (!buf || !key) {
-		return false;
-	}
-
-	const char *p = buf;
-	const char *end = buf + len;
-	size_t key_len = strlen(key);
-
-	while (p < end) {
-		const char *quote = memchr(p, '"', (size_t)(end - p));
-		if (!quote || (size_t)(end - quote) <= key_len + 2) {
-			return false;
-		}
-
-		quote++; /* skip " */
-		if ((size_t)(end - quote) >= key_len && memcmp(quote, key, key_len) == 0 &&
-		    quote[key_len] == '"') {
-			const char *q = quote + key_len + 1; /* after closing quote */
-			while (q < end && (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r')) {
-				q++;
-			}
-
-			if (q < end && *q == ':') {
-				return true;
-			}
-		}
-		p = quote;
-	}
-
-	return false;
 }
 
 /*******************************************************************************
@@ -547,375 +512,250 @@ static int json_escape_string(char *dst, size_t dst_sz, const char *src)
 int mcp_json_serialize_initialize_result(char *out, size_t out_len, int64_t id,
 					 const struct mcp_result_initialize *res)
 {
-   if (!out || !res || out_len == 0) {
-	   return -EINVAL;
-   }
+	if (!out || !res || out_len == 0) {
+		return -EINVAL;
+	}
 
-   /* Build small pieces with escaping for strings. */
-   char proto_buf[64];
-   char name_buf[96];
-   char ver_buf[64];
+	/* Build small pieces with escaping for strings. */
+	char proto_buf[64];
+	char name_buf[96];
+	char ver_buf[64];
 
-   if (json_escape_string(proto_buf, sizeof(proto_buf),
-						  res->protocol_version) < 0) {
-	   return -EINVAL;
-   }
+	if (json_escape_string(proto_buf, sizeof(proto_buf), res->protocol_version) < 0) {
+		return -EINVAL;
+	}
 
-   if (json_escape_string(name_buf, sizeof(name_buf),
-						  res->server_name) < 0) {
-	   return -EINVAL;
-   }
+	if (json_escape_string(name_buf, sizeof(name_buf), res->server_name) < 0) {
+		return -EINVAL;
+	}
 
-   if (json_escape_string(ver_buf, sizeof(ver_buf),
-						  res->server_version) < 0) {
-	   return -EINVAL;
-   }
+	if (json_escape_string(ver_buf, sizeof(ver_buf), res->server_version) < 0) {
+		return -EINVAL;
+	}
 
-   int ret;
-   if (res->has_capabilities && res->capabilities_json[0] != '\0') {
-	   /* With capabilities */
-	   ret = snprintf(out, out_len,
-		   "{"
-			 "\"jsonrpc\":\"2.0\","
-			 "\"id\":%" PRId64 ","
-			 "\"result\":{"
-			   "\"protocolVersion\":%s,"
-			   "\"serverInfo\":{"
-				 "\"name\":%s,"
-				 "\"version\":%s"
-			   "},"
-			   "\"capabilities\":%s"
-			 "}"
-		   "}",
-		   id,
-		   proto_buf,
-		   name_buf,
-		   ver_buf,
-		   res->capabilities_json);
-   } else {
-	   /* Without capabilities */
-	   ret = snprintf(out, out_len,
-		   "{"
-			 "\"jsonrpc\":\"2.0\","
-			 "\"id\":%" PRId64 ","
-			 "\"result\":{"
-			   "\"protocolVersion\":%s,"
-			   "\"serverInfo\":{"
-				 "\"name\":%s,"
-				 "\"version\":%s"
-			   "}"
-			 "}"
-		   "}",
-		   id,
-		   proto_buf,
-		   name_buf,
-		   ver_buf);
-   }
+	int ret;
+	if (res->has_capabilities && res->capabilities_json[0] != '\0') {
+		/* With capabilities */
+		ret = snprintf(out, out_len,
+				"{"
+					"\"jsonrpc\":\"2.0\","
+					"\"id\":%" PRId64 ","
+					"\"result\":{"
+						"\"protocolVersion\":%s,"
+						"\"serverInfo\":{"
+							"\"name\":%s,"
+							"\"version\":%s"
+						"},"
+						"\"capabilities\":%s"
+					"}"
+				"}",
+				id, proto_buf, name_buf, ver_buf, res->capabilities_json);
+	} else {
+		/* Without capabilities */
+		ret = snprintf(out, out_len,
+				"{"
+					"\"jsonrpc\":\"2.0\","
+					"\"id\":%" PRId64 ","
+					"\"result\":{"
+						"\"protocolVersion\":%s,"
+						"\"serverInfo\":{"
+							"\"name\":%s,"
+							"\"version\":%s"
+						"}"
+					"}"
+				"}",
+				id, proto_buf, name_buf, ver_buf);
+	}
 
-   if (ret < 0 || (size_t)ret >= out_len) {
-	   return -ENOSPC;
-   }
+	if (ret < 0 || (size_t)ret >= out_len) {
+		return -ENOSPC;
+	}
 
-   return ret;
+	return ret;
 }
 
 int mcp_json_serialize_ping_result(char *out, size_t out_len, int64_t id,
 				   const struct mcp_result_ping *res)
 {
-   (void)res; /* currently unused; we return empty {} */
+	(void)res; /* currently unused; we return empty {} */
 
-   if (!out || out_len == 0) {
-	   return -EINVAL;
-   }
-
-   int ret = snprintf(out, out_len,
-	   "{"
-		 "\"jsonrpc\":\"2.0\","
-		 "\"id\":%" PRId64 ","
-		 "\"result\":{}"
-	   "}",
-	   id);
-
-   if (ret < 0 || (size_t)ret >= out_len) {
-	   return -ENOSPC;
-   }
-
-   return ret;
-}
-
-int mcp_json_serialize_tools_list_result(char *out, size_t out_len, int64_t id,
-					 const struct mcp_result_tools_list *res)
-{
-   if (!out || !res || out_len == 0) {
-	   return -EINVAL;
-   }
-
-   const char *tools_json = res->tools_json;
-   if (!tools_json || tools_json[0] == '\0') {
-	   tools_json = "[]";
-   }
-
-   int ret = snprintf(out, out_len,
-	   "{"
-		 "\"jsonrpc\":\"2.0\","
-		 "\"id\":%" PRId64 ","
-		 "\"result\":{"
-		   "\"tools\":[%s]"
-		 "}"
-	   "}",
-	   id,
-	   tools_json);
-
-   if (ret < 0 || (size_t)ret >= out_len) {
-	   return -ENOSPC;
-   }
-
-   return ret;
-}
-
-int mcp_json_serialize_tools_call_result(char *out, size_t out_len, int64_t id,
-					 const struct mcp_result_tools_call *res)
-{
-   if (!out || !res || out_len == 0) {
-	   return -EINVAL;
-   }
-
-   /* For v1, we serialize all content items as type="text". */
-   char content_buf[512];
-   size_t pos = 0;
-   content_buf[pos++] = '[';
-   for (uint8_t i = 0; i < res->content.count; ++i) {
-	   if (pos + 32 >= sizeof(content_buf)) {
-		   break;
-	   }
-
-	   if (i > 0) {
-		   content_buf[pos++] = ',';
-	   }
-
-	   char text_buf[2 * MCP_MAX_TEXT_LEN]; /* after escaping */
-	   if (json_escape_string(text_buf, sizeof(text_buf),
-							  res->content.items[i].text) < 0) {
-		   return -EINVAL;
-	   }
-
-	   int n = snprintf(&content_buf[pos], sizeof(content_buf) - pos,
-		   "{"
-			 "\"type\":\"text\","
-			 "\"text\":%s"
-		   "}",
-		   text_buf);
-
-	   if (n < 0 || (size_t)n >= sizeof(content_buf) - pos) {
-		   return -ENOSPC;
-	   }
-
-	   pos += (size_t)n;
-   }
-
-   if (pos + 2 > sizeof(content_buf)) {
-	   return -ENOSPC;
-   }
-
-   content_buf[pos++] = ']';
-   content_buf[pos]   = '\0';
-   int ret = snprintf(out, out_len,
-	   "{"
-		 "\"jsonrpc\":\"2.0\","
-		 "\"id\":%" PRId64 ","
-		 "\"result\":{"
-		   "\"content\":%s"
-		 "}"
-	   "}",
-	   id,
-	   content_buf);
-
-   if (ret < 0 || (size_t)ret >= out_len) {
-	   return -ENOSPC;
-   }
-
-   return ret;
-}
-
-int mcp_json_serialize_error(char *out, size_t out_len, bool has_id, int64_t id,
-			     const struct mcp_error *err)
-{
-   if (!out || !err || out_len == 0) {
-	   return -EINVAL;
-   }
-
-   char msg_buf[2 * MCP_MAX_DESC_LEN];
-   if (json_escape_string(msg_buf, sizeof(msg_buf), err->message) < 0) {
-	   return -EINVAL;
-   }
-
-   int ret;
-   if (err->has_data && err->data_json[0] != '\0') {
-	   /* With data */
-	   if (has_id) {
-		   ret = snprintf(out, out_len,
-			   "{"
-				 "\"jsonrpc\":\"2.0\","
-				 "\"id\":%" PRId64 ","
-				 "\"error\":{"
-				   "\"code\":%d,"
-				   "\"message\":%s,"
-				   "\"data\":%s"
-				 "}"
-			   "}",
-			   id,
-			   err->code,
-			   msg_buf,
-			   err->data_json);
-	   } else {
-		   ret = snprintf(out, out_len,
-			   "{"
-				 "\"jsonrpc\":\"2.0\","
-				 "\"id\":null,"
-				 "\"error\":{"
-				   "\"code\":%d,"
-				   "\"message\":%s,"
-				   "\"data\":%s"
-				 "}"
-			   "}",
-			   err->code,
-			   msg_buf,
-			   err->data_json);
-	   }
-   } else {
-	   /* Without data */
-	   if (has_id) {
-		   ret = snprintf(out, out_len,
-			   "{"
-				 "\"jsonrpc\":\"2.0\","
-				 "\"id\":%" PRId64 ","
-				 "\"error\":{"
-				   "\"code\":%d,"
-				   "\"message\":%s"
-				 "}"
-			   "}",
-			   id,
-			   err->code,
-			   msg_buf);
-	   } else {
-		   ret = snprintf(out, out_len,
-			   "{"
-				 "\"jsonrpc\":\"2.0\","
-				 "\"id\":null,"
-				 "\"error\":{"
-				   "\"code\":%d,"
-				   "\"message\":%s"
-				 "}"
-			   "}",
-			   err->code,
-			   msg_buf);
-	   }
-   }
-
-   if (ret < 0 || (size_t)ret >= out_len) {
-	   return -ENOSPC;
-   }
-
-   return ret;
-}
-
-int mcp_json_serialize_logging_message_notif(char *out, size_t out_len, const char *level,
-					     const char *logger, const char *message,
-					     const char *data_json, bool has_data)
-{
-   if (!out || out_len == 0) {
-	   return -EINVAL;
-   }
-
-   char level_buf[64];
-   char logger_buf[96];
-   char msg_buf[2 * MCP_MAX_DESC_LEN];
-
-   if (json_escape_string(level_buf, sizeof(level_buf), level) < 0) {
-	   return -EINVAL;
-   }
-
-   if (json_escape_string(logger_buf, sizeof(logger_buf), logger) < 0) {
-	   return -EINVAL;
-   }
-
-   if (json_escape_string(msg_buf, sizeof(msg_buf), message) < 0) {
-	   return -EINVAL;
-   }
-
-   int ret;
-   if (has_data && data_json && data_json[0] != '\0') {
-	   ret = snprintf(out, out_len,
-		   "{"
-			 "\"jsonrpc\":\"2.0\","
-			 "\"method\":\"notifications/logging/message\","
-			 "\"params\":{"
-			   "\"level\":%s,"
-			   "\"logger\":%s,"
-			   "\"message\":%s,"
-			   "\"data\":%s"
-			 "}"
-		   "}",
-		   level_buf,
-		   logger_buf,
-		   msg_buf,
-		   data_json);
-   } else {
-	   ret = snprintf(out, out_len,
-		   "{"
-			 "\"jsonrpc\":\"2.0\","
-			 "\"method\":\"notifications/logging/message\","
-			 "\"params\":{"
-			   "\"level\":%s,"
-			   "\"logger\":%s,"
-			   "\"message\":%s"
-			 "}"
-		   "}",
-		   level_buf,
-		   logger_buf,
-		   msg_buf);
-   }
-
-   if (ret < 0 || (size_t)ret >= out_len) {
-	   return -ENOSPC;
-   }
-
-   return ret;
-}
-
-int mcp_json_serialize_tools_list_changed_notif(char *out, size_t out_len)
-{
-   if (!out || out_len == 0) {
-	   return -EINVAL;
-   }
-
-   int ret = snprintf(out, out_len,
-	   "{"
-		 "\"jsonrpc\":\"2.0\","
-		 "\"method\":\"notifications/tools/list_changed\","
-		 "\"params\":{}"
-	   "}");
-
-   if (ret < 0 || (size_t)ret >= out_len) {
-	   return -ENOSPC;
-   }
-
-   return ret;
-}
-
-int mcp_json_serialize_empty_response(char *out, size_t out_len, int64_t id)
-{
 	if (!out || out_len == 0) {
 		return -EINVAL;
 	}
 
 	int ret = snprintf(out, out_len,
-		"{"
-		  "\"jsonrpc\":\"2.0\","
-		  "\"id\":%" PRId64 ","
-		  "\"result\":{}"
-		"}",
-		id);
+				"{"
+					"\"jsonrpc\":\"2.0\","
+					"\"id\":%" PRId64 ","
+					"\"result\":{}"
+				"}",
+				id);
+
+	if (ret < 0 || (size_t)ret >= out_len) {
+		return -ENOSPC;
+	}
+
+	return ret;
+}
+
+int mcp_json_serialize_tools_list_result(char *out, size_t out_len, int64_t id,
+					 const struct mcp_result_tools_list *res)
+{
+	if (!out || !res || out_len == 0) {
+		return -EINVAL;
+	}
+
+	const char *tools_json = res->tools_json;
+	if (!tools_json || tools_json[0] == '\0') {
+		tools_json = "[]";
+	}
+
+	int ret = snprintf(out, out_len,
+				"{"
+					"\"jsonrpc\":\"2.0\","
+					"\"id\":%" PRId64 ","
+					"\"result\":{"
+						"\"tools\":[%s]"
+					"}"
+				"}",
+				id, tools_json);
+
+	if (ret < 0 || (size_t)ret >= out_len) {
+		return -ENOSPC;
+	}
+
+	return ret;
+}
+
+int mcp_json_serialize_tools_call_result(char *out, size_t out_len, int64_t id,
+					 const struct mcp_result_tools_call *res)
+{
+	if (!out || !res || out_len == 0) {
+		return -EINVAL;
+	}
+
+	/* For v1, we serialize all content items as type="text". */
+	char content_buf[512];
+	size_t pos = 0;
+	content_buf[pos++] = '[';
+	for (uint8_t i = 0; i < res->content.count; ++i) {
+		if (pos + 32 >= sizeof(content_buf)) {
+			break;
+		}
+
+		if (i > 0) {
+			content_buf[pos++] = ',';
+		}
+
+		char text_buf[2 * MCP_MAX_TEXT_LEN]; /* after escaping */
+		if (json_escape_string(text_buf, sizeof(text_buf), res->content.items[i].text) <
+		    0) {
+			return -EINVAL;
+		}
+
+		int n = snprintf(&content_buf[pos], sizeof(content_buf) - pos,
+					"{"
+						"\"type\":\"text\","
+						"\"text\":%s"
+					"}",
+					text_buf);
+
+		if (n < 0 || (size_t)n >= sizeof(content_buf) - pos) {
+			return -ENOSPC;
+		}
+
+		pos += (size_t)n;
+	}
+
+	if (pos + 2 > sizeof(content_buf)) {
+		return -ENOSPC;
+	}
+
+	content_buf[pos++] = ']';
+	content_buf[pos] = '\0';
+	int ret = snprintf(out, out_len,
+				"{"
+					"\"jsonrpc\":\"2.0\","
+					"\"id\":%" PRId64 ","
+					"\"result\":{"
+						"\"content\":%s"
+					"}"
+				"}",
+				id, content_buf);
+
+	if (ret < 0 || (size_t)ret >= out_len) {
+		return -ENOSPC;
+	}
+
+	return ret;
+}
+
+int mcp_json_serialize_error(char *out, size_t out_len, bool has_id, int64_t id,
+			     const struct mcp_error *err)
+{
+	if (!out || !err || out_len == 0) {
+		return -EINVAL;
+	}
+
+	char msg_buf[2 * MCP_MAX_DESC_LEN];
+	if (json_escape_string(msg_buf, sizeof(msg_buf), err->message) < 0) {
+		return -EINVAL;
+	}
+
+	int ret;
+	if (err->has_data && err->data_json[0] != '\0') {
+		/* With data */
+		if (has_id) {
+			ret = snprintf(out, out_len,
+					"{"
+						"\"jsonrpc\":\"2.0\","
+						"\"id\":%" PRId64 ","
+						"\"error\":{"
+							"\"code\":%d,"
+							"\"message\":%s,"
+							"\"data\":%s"
+						"}"
+					"}",
+					id, err->code, msg_buf, err->data_json);
+		} else {
+			ret = snprintf(out, out_len,
+					"{"
+						"\"jsonrpc\":\"2.0\","
+						"\"id\":null,"
+						"\"error\":{"
+							"\"code\":%d,"
+							"\"message\":%s,"
+							"\"data\":%s"
+						"}"
+					"}",
+					err->code, msg_buf, err->data_json);
+		}
+	} else {
+		/* Without data */
+		if (has_id) {
+			ret = snprintf(out, out_len,
+					"{"
+						"\"jsonrpc\":\"2.0\","
+						"\"id\":%" PRId64 ","
+						"\"error\":{"
+							"\"code\":%d,"
+							"\"message\":%s"
+						"}"
+					"}",
+					id, err->code, msg_buf);
+		} else {
+			ret = snprintf(out, out_len,
+					"{"
+						"\"jsonrpc\":\"2.0\","
+						"\"id\":null,"
+						"\"error\":{"
+							"\"code\":%d,"
+							"\"message\":%s"
+						"}"
+					"}",
+					err->code, msg_buf);
+		}
+	}
 
 	if (ret < 0 || (size_t)ret >= out_len) {
 		return -ENOSPC;
