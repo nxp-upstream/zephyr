@@ -41,7 +41,6 @@ struct mce_mas_instance {
 struct mce_mns_instance {
 	struct bt_map_mce_mns mce_mns;
 	struct bt_conn *conn;
-	uint8_t instance_id;
 };
 
 /* MAP Server MAS instance tracking */
@@ -55,7 +54,6 @@ struct mse_mas_instance {
 struct mse_mns_instance {
 	struct bt_map_mse_mns mse_mns;
 	struct bt_conn *conn;
-	uint8_t instance_id;
 };
 
 static struct mce_mas_instance mce_mas_instances[CONFIG_BT_MAX_CONN][MAP_MAS_MAX_NUM];
@@ -547,7 +545,6 @@ static struct mce_mas_instance *mce_mas_alloc(struct bt_conn *conn)
 {
 	uint8_t index;
 
-	conn = bt_conn_lookup_addr_br(address);
 	if (conn == NULL) {
 		return NULL;
 	}
@@ -601,147 +598,170 @@ static void mce_mas_free(struct mce_mas_instance *inst)
 	}
 }
 
-static struct mce_mas_instance *find_mce_mas_instance(const bt_addr_t *address, uint8_t instance_id)
+static struct mce_mns_instance *mce_mns_alloc(struct bt_conn *conn)
 {
-	struct bt_conn *conn;
+	uint8_t index;
 
-	conn = bt_conn_lookup_addr_br(address);
-	if (!conn) {
+	if (conn == NULL) {
 		return NULL;
 	}
 
-	for (int i = 0; i < MAP_MAX_INSTANCES; i++) {
-		if (mce_mas_instances[i].in_use &&
-		    mce_mas_instances[i].conn == conn &&
-		    mce_mas_instances[i].instance_id == instance_id) {
-			bt_conn_unref(conn);
-			return &mce_mas_instances[i];
-		}
-	}
-
-	bt_conn_unref(conn);
-	return NULL;
-}
-
-static struct mce_mas_instance *get_free_mce_mas_instance(void)
-{
-	for (int i = 0; i < MAP_MAX_INSTANCES; i++) {
-		if (!mce_mas_instances[i].in_use) {
-			memset(&mce_mas_instances[i], 0, sizeof(mce_mas_instances[i]));
-			mce_mas_instances[i].in_use = true;
-			return &mce_mas_instances[i];
-		}
-	}
-	return NULL;
-}
-
-static struct mce_mns_instance *find_mce_mns_instance(const bt_addr_t *address, uint8_t instance_id)
-{
-	struct bt_conn *conn;
-
-	conn = bt_conn_lookup_addr_br(address);
-	if (!conn) {
+	index = bt_conn_index(conn);
+	if (index >= CONFIG_BT_MAX_CONN) {
 		return NULL;
 	}
 
-	for (int i = 0; i < MAP_MAX_INSTANCES; i++) {
-		if (mce_mns_instances[i].in_use &&
-		    mce_mns_instances[i].conn == conn &&
-		    mce_mns_instances[i].instance_id == instance_id) {
-			bt_conn_unref(conn);
-			return &mce_mns_instances[i];
-		}
-	}
+	struct mce_mns_instance *inst = &mce_mns_instances[index];
 
-	bt_conn_unref(conn);
-	return NULL;
-}
-
-static struct mce_mns_instance *get_free_mce_mns_instance(void)
-{
-	for (int i = 0; i < MAP_MAX_INSTANCES; i++) {
-		if (!mce_mns_instances[i].in_use) {
-			memset(&mce_mns_instances[i], 0, sizeof(mce_mns_instances[i]));
-			mce_mns_instances[i].in_use = true;
-			return &mce_mns_instances[i];
-		}
-	}
-	return NULL;
-}
-
-static struct mse_mas_instance *find_mse_mas_instance(const bt_addr_t *address, uint8_t instance_id)
-{
-	struct bt_conn *conn;
-
-	conn = bt_conn_lookup_addr_br(address);
-	if (!conn) {
+	if (inst->conn != NULL || atomic_get(&inst->mce_mns._transport_state) !=
+					  BT_MAP_TRANSPORT_STATE_DISCONNECTED) {
 		return NULL;
 	}
 
-	for (int i = 0; i < MAP_MAX_INSTANCES; i++) {
-		if (mse_mas_instances[i].in_use &&
-		    mse_mas_instances[i].conn == conn &&
-		    mse_mas_instances[i].instance_id == instance_id) {
-			bt_conn_unref(conn);
-			return &mse_mas_instances[i];
-		}
-	}
-
-	bt_conn_unref(conn);
-	return NULL;
+	inst->conn = bt_conn_ref(conn);
+	return inst;
 }
 
-static struct mse_mas_instance *get_free_mse_mas_instance(void)
+static struct mce_mns_instance *mce_mns_find(const bt_addr_t *address)
 {
-	for (int i = 0; i < MAP_MAX_INSTANCES; i++) {
-		if (!mse_mas_instances[i].in_use) {
-			memset(&mse_mas_instances[i], 0, sizeof(mse_mas_instances[i]));
-			mse_mas_instances[i].in_use = true;
-			return &mse_mas_instances[i];
-		}
-	}
-	return NULL;
-}
+	struct bt_conn *conn = bt_conn_lookup_addr_br(address);
 
-static struct mse_mns_instance *find_mse_mns_instance(const bt_addr_t *address, uint8_t instance_id)
-{
-	struct bt_conn *conn;
-
-	conn = bt_conn_lookup_addr_br(address);
-	if (!conn) {
+	if (conn == NULL) {
 		return NULL;
 	}
 
-	for (int i = 0; i < MAP_MAX_INSTANCES; i++) {
-		if (mse_mns_instances[i].in_use &&
-		    mse_mns_instances[i].conn == conn &&
-		    mse_mns_instances[i].instance_id == instance_id) {
-			bt_conn_unref(conn);
-			return &mse_mns_instances[i];
+	ARRAY_FOR_EACH(mce_mns_instances, i) {
+		struct mce_mns_instance *inst = &mce_mns_instances[i];
+
+		if (inst->conn == conn) {
+			return inst;
 		}
 	}
 
-	bt_conn_unref(conn);
 	return NULL;
 }
 
-static struct mse_mns_instance *get_free_mse_mns_instance(void)
+static void mce_mns_free(struct mce_mns_instance *inst)
 {
-	for (int i = 0; i < MAP_MAX_INSTANCES; i++) {
-		if (!mse_mns_instances[i].in_use) {
-			memset(&mse_mns_instances[i], 0, sizeof(mse_mns_instances[i]));
-			mse_mns_instances[i].in_use = true;
-			return &mse_mns_instances[i];
+	if (inst->conn != NULL) {
+		bt_conn_unref(inst->conn);
+		memset(&inst->conn, 0, sizeof(*inst) - offsetof(struct mce_mns_instance, conn));
+	}
+}
+
+static struct mse_mas_instance *mse_mas_alloc(struct bt_conn *conn)
+{
+	uint8_t index;
+
+	if (conn == NULL) {
+		return NULL;
+	}
+
+	index = bt_conn_index(conn);
+	if (index >= CONFIG_BT_MAX_CONN) {
+		return NULL;
+	}
+
+	ARRAY_FOR_EACH(mse_mas_instances[index], i) {
+		struct mse_mas_instance *inst = &mse_mas_instances[index][i];
+
+		if (inst->conn != NULL || atomic_get(&inst->mse_mas._transport_state) !=
+						  BT_MAP_TRANSPORT_STATE_DISCONNECTED) {
+			continue;
+		}
+
+		inst->conn = bt_conn_ref(conn);
+		return inst;
+	}
+
+	return NULL;
+}
+
+static struct mse_mas_instance *mse_mas_find(const bt_addr_t *address, uint8_t instance_id)
+{
+	struct bt_conn *conn = bt_conn_lookup_addr_br(address);
+
+	if (conn == NULL) {
+		return NULL;
+	}
+
+	ARRAY_FOR_EACH(mse_mas_instances, i) {
+		ARRAY_FOR_EACH(mse_mas_instances[i], j) {
+			struct mse_mas_instance *inst = &mse_mas_instances[i][j];
+
+			if ((inst->conn == conn) && (inst->instance_id == instance_id)) {
+				return inst;
+			}
 		}
 	}
+
 	return NULL;
+}
+
+static void mse_mas_free(struct mse_mas_instance *inst)
+{
+	if (inst->conn != NULL) {
+		bt_conn_unref(inst->conn);
+		memset(&inst->conn, 0, sizeof(*inst) - offsetof(struct mse_mas_instance, conn));
+	}
+}
+
+static struct mse_mns_instance *mse_mns_alloc(struct bt_conn *conn)
+{
+	uint8_t index;
+
+	if (conn == NULL) {
+		return NULL;
+	}
+
+	index = bt_conn_index(conn);
+	if (index >= CONFIG_BT_MAX_CONN) {
+		return NULL;
+	}
+
+	struct mse_mns_instance *inst = &mse_mns_instances[index];
+
+	if (inst->conn != NULL || atomic_get(&inst->mse_mns._transport_state) !=
+					  BT_MAP_TRANSPORT_STATE_DISCONNECTED) {
+		return NULL;
+	}
+
+	inst->conn = bt_conn_ref(conn);
+	return inst;
+}
+
+static struct mse_mns_instance *mse_mns_find(const bt_addr_t *address)
+{
+	struct bt_conn *conn = bt_conn_lookup_addr_br(address);
+
+	if (conn == NULL) {
+		return NULL;
+	}
+
+	ARRAY_FOR_EACH(mse_mns_instances, i) {
+		struct mse_mns_instance *inst = &mse_mns_instances[i];
+
+		if (inst->conn == conn) {
+			return inst;
+		}
+	}
+
+	return NULL;
+}
+
+static void mse_mns_free(struct mse_mns_instance *inst)
+{
+	if (inst->conn != NULL) {
+		bt_conn_unref(inst->conn);
+		memset(&inst->conn, 0, sizeof(*inst) - offsetof(struct mse_mns_instance, conn));
+	}
 }
 
 /* Helper to get address from connection */
 static void get_addr_from_conn(struct bt_conn *conn, bt_addr_t *addr)
 {
 	struct bt_conn_info info;
-
+	// bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
 	if (bt_conn_get_info(conn, &info) == 0) {
 		bt_addr_copy(addr, info.br.dst);
 	}
@@ -768,6 +788,7 @@ static void mce_mas_rfcomm_disconnected_cb(struct bt_map_mce_mas *mce_mas)
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MCE_MAS_EV_RFCOMM_DISCONNECTED, &ev, sizeof(ev));
+	mce_mas_free(inst);
 }
 
 static void mce_mas_l2cap_connected_cb(struct bt_conn *conn, struct bt_map_mce_mas *mce_mas)
@@ -790,6 +811,7 @@ static void mce_mas_l2cap_disconnected_cb(struct bt_map_mce_mas *mce_mas)
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MCE_MAS_EV_L2CAP_DISCONNECTED, &ev, sizeof(ev));
+	mce_mas_free(inst);
 }
 
 static void mce_mas_connected_cb(struct bt_map_mce_mas *mce_mas, uint8_t rsp_code, uint8_t version,
@@ -1237,6 +1259,7 @@ static void mce_mns_rfcomm_disconnected_cb(struct bt_map_mce_mns *mce_mns)
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MCE_MNS_EV_RFCOMM_DISCONNECTED, &ev, sizeof(ev));
+	mce_mns_free(inst);
 }
 
 static void mce_mns_l2cap_connected_cb(struct bt_conn *conn, struct bt_map_mce_mns *mce_mns)
@@ -1259,6 +1282,7 @@ static void mce_mns_l2cap_disconnected_cb(struct bt_map_mce_mns *mce_mns)
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MCE_MNS_EV_L2CAP_DISCONNECTED, &ev, sizeof(ev));
+	mce_mns_free(inst);
 }
 
 static void mce_mns_connected_cb(struct bt_map_mce_mns *mce_mns, uint8_t version, uint16_t mopl,
@@ -1375,19 +1399,16 @@ static int mce_mns_rfcomm_accept(struct bt_conn *conn, struct bt_map_mce_mns_rfc
 	struct mce_mns_instance *inst;
 	int err;
 
-	inst = get_free_mce_mns_instance();
+	inst = mce_mns_alloc(conn);
 	if (inst == NULL) {
 		LOG_ERR("Cannot allocate MCE MNS instance");
 		return -ENOMEM;
 	}
 
-	inst->conn = bt_conn_ref(conn);
 	inst->instance_id = 0;
 	err = bt_map_mce_mns_cb_register(&inst->mce_mns, &mce_mns_cb);
 	if (err != 0) {
-		inst->in_use = false;
-		bt_conn_unref(inst->conn);
-		inst->conn = NULL;
+		mce_mns_free(inst);
 		LOG_ERR("Failed to register MCE MNS cb (err %d)", err);
 		return err;
 	}
@@ -1401,19 +1422,16 @@ static int mce_mns_l2cap_accept(struct bt_conn *conn, struct bt_map_mce_mns_l2ca
 	struct mce_mns_instance *inst;
 	int err;
 
-	inst = get_free_mce_mns_instance();
+	inst = mce_mns_alloc(conn);
 	if (inst == NULL) {
 		LOG_ERR("Cannot allocate MCE MNS instance");
 		return -ENOMEM;
 	}
 
-	inst->conn = bt_conn_ref(conn);
 	inst->instance_id = 0;
 	err = bt_map_mce_mns_cb_register(&inst->mce_mns, &mce_mns_cb);
 	if (err != 0) {
-		inst->in_use = false;
-		bt_conn_unref(inst->conn);
-		inst->conn = NULL;
+		mce_mns_free(inst);
 		LOG_ERR("Failed to register MCE MNS cb (err %d)", err);
 		return err;
 	}
@@ -1442,6 +1460,7 @@ static void mse_mas_rfcomm_disconnected_cb(struct bt_map_mse_mas *mse_mas)
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MSE_MAS_EV_RFCOMM_DISCONNECTED, &ev, sizeof(ev));
+	mse_mas_free(inst);
 }
 
 static void mse_mas_l2cap_connected_cb(struct bt_conn *conn, struct bt_map_mse_mas *mse_mas)
@@ -1464,6 +1483,7 @@ static void mse_mas_l2cap_disconnected_cb(struct bt_map_mse_mas *mse_mas)
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MSE_MAS_EV_L2CAP_DISCONNECTED, &ev, sizeof(ev));
+	mse_mas_free(inst);
 }
 
 static void mse_mas_connected_cb(struct bt_map_mse_mas *mse_mas, uint8_t version, uint16_t mopl,
@@ -1903,6 +1923,7 @@ static void mse_mns_rfcomm_disconnected_cb(struct bt_map_mse_mns *mse_mns)
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MSE_MNS_EV_RFCOMM_DISCONNECTED, &ev, sizeof(ev));
+	mse_mns_free(inst);
 }
 
 static void mse_mns_l2cap_connected_cb(struct bt_conn *conn, struct bt_map_mse_mns *mse_mns)
@@ -1925,6 +1946,7 @@ static void mse_mns_l2cap_disconnected_cb(struct bt_map_mse_mns *mse_mns)
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MSE_MNS_EV_L2CAP_DISCONNECTED, &ev, sizeof(ev));
+	mse_mns_free(inst);
 }
 
 static void mse_mns_connected_cb(struct bt_map_mse_mns *mse_mns, uint8_t rsp_code, uint8_t version,
@@ -2054,25 +2076,20 @@ static uint8_t mce_mas_rfcomm_connect(const void *cmd, uint16_t cmd_len,
 
 	inst = mce_mas_alloc(conn);
 	if (inst == NULL) {
+		bt_conn_unref(conn);
 		return BTP_STATUS_FAILED;
 	}
 
-	inst->instance_id = instance_id;
+	inst->instance_id = cp->instance_id;
 
 	if (bt_map_mce_mas_cb_register(&inst->mce_mas, &mce_mas_cb) < 0) {
-		if (inst->conn) {
-			bt_conn_unref(inst->conn);
-		}
-		inst->in_use = false;
-		return BTP_STATUS_FAILED;
-	}
-
-	conn = bt_conn_lookup_addr_br(&cp->address);
-	if (!conn) {
+		mce_mas_free(inst);
+		bt_conn_unref(conn);
 		return BTP_STATUS_FAILED;
 	}
 
 	if (bt_map_mce_mas_rfcomm_connect(conn, &inst->mce_mas, cp->channel) < 0) {
+		mce_mas_free(inst);
 		bt_conn_unref(conn);
 		return BTP_STATUS_FAILED;
 	}
@@ -2087,7 +2104,7 @@ static uint8_t mce_mas_rfcomm_disconnect(const void *cmd, uint16_t cmd_len,
 	const struct btp_map_mce_mas_rfcomm_disconnect_cmd *cp = cmd;
 	struct mce_mas_instance *inst;
 
-	inst = find_mce_mas_instance(&cp->address, cp->instance_id);
+	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2106,35 +2123,27 @@ static uint8_t mce_mas_l2cap_connect(const void *cmd, uint16_t cmd_len,
 	struct mce_mas_instance *inst;
 	struct bt_conn *conn;
 
-	inst = find_mce_mas_instance(&cp->address, cp->instance_id);
-	if (!inst) {
-		inst = get_free_mce_mas_instance();
-		if (!inst) {
-			return BTP_STATUS_FAILED;
-		}
-
-		inst->conn = bt_conn_lookup_addr_br(&cp->address);
-		if (!inst->conn) {
-			inst->in_use = false;
-			return BTP_STATUS_FAILED;
-		}
-		inst->instance_id = cp->instance_id;
-	}
-
-	if (bt_map_mce_mas_cb_register(&inst->mce_mas, &mce_mas_cb) < 0) {
-		if (inst->conn) {
-			bt_conn_unref(inst->conn);
-		}
-		inst->in_use = false;
+	conn = bt_conn_lookup_addr_br(&cp->address);
+	if (conn == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
-	conn = bt_conn_lookup_addr_br(&cp->address);
-	if (!conn) {
+	inst = mce_mas_alloc(conn);
+	if (inst == NULL) {
+		bt_conn_unref(conn);
+		return BTP_STATUS_FAILED;
+	}
+
+	inst->instance_id = cp->instance_id;
+
+	if (bt_map_mce_mas_cb_register(&inst->mce_mas, &mce_mas_cb) < 0) {
+		mce_mas_free(inst);
+		bt_conn_unref(conn);
 		return BTP_STATUS_FAILED;
 	}
 
 	if (bt_map_mce_mas_l2cap_connect(conn, &inst->mce_mas, sys_le16_to_cpu(cp->psm)) < 0) {
+		mce_mas_free(inst);
 		bt_conn_unref(conn);
 		return BTP_STATUS_FAILED;
 	}
@@ -2149,7 +2158,7 @@ static uint8_t mce_mas_l2cap_disconnect(const void *cmd, uint16_t cmd_len,
 	const struct btp_map_mce_mas_l2cap_disconnect_cmd *cp = cmd;
 	struct mce_mas_instance *inst;
 
-	inst = find_mce_mas_instance(&cp->address, cp->instance_id);
+	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2178,7 +2187,7 @@ static uint8_t mce_mas_connect(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mce_mas_instance(&cp->address, cp->instance_id);
+	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2218,7 +2227,7 @@ static uint8_t mce_mas_disconnect(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mce_mas_instance(&cp->address, cp->instance_id);
+	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2258,7 +2267,7 @@ static uint8_t mce_mas_abort(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mce_mas_instance(&cp->address, cp->instance_id);
+	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2298,7 +2307,7 @@ static uint8_t mce_mas_set_folder(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mce_mas_instance(&cp->address, cp->instance_id);
+	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2338,7 +2347,7 @@ static uint8_t mce_mas_set_ntf_reg(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mce_mas_instance(&cp->address, cp->instance_id);
+	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2378,7 +2387,7 @@ static uint8_t mce_mas_get_folder_listing(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mce_mas_instance(&cp->address, cp->instance_id);
+	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2418,7 +2427,7 @@ static uint8_t mce_mas_get_msg_listing(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mce_mas_instance(&cp->address, cp->instance_id);
+	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2458,7 +2467,7 @@ static uint8_t mce_mas_get_msg(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mce_mas_instance(&cp->address, cp->instance_id);
+	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2498,7 +2507,7 @@ static uint8_t mce_mas_set_msg_status(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mce_mas_instance(&cp->address, cp->instance_id);
+	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2538,7 +2547,7 @@ static uint8_t mce_mas_push_msg(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mce_mas_instance(&cp->address, cp->instance_id);
+	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2578,7 +2587,7 @@ static uint8_t mce_mas_update_inbox(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mce_mas_instance(&cp->address, cp->instance_id);
+	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2618,7 +2627,7 @@ static uint8_t mce_mas_get_mas_inst_info(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mce_mas_instance(&cp->address, cp->instance_id);
+	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2658,7 +2667,7 @@ static uint8_t mce_mas_set_owner_status(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mce_mas_instance(&cp->address, cp->instance_id);
+	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2698,7 +2707,7 @@ static uint8_t mce_mas_get_owner_status(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mce_mas_instance(&cp->address, cp->instance_id);
+	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2738,7 +2747,7 @@ static uint8_t mce_mas_get_convo_listing(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mce_mas_instance(&cp->address, cp->instance_id);
+	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2778,7 +2787,7 @@ static uint8_t mce_mas_set_ntf_filter(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mce_mas_instance(&cp->address, cp->instance_id);
+	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2808,12 +2817,11 @@ static int mce_mns_accept_rfcomm(struct bt_conn *conn,
 {
 	struct mce_mns_instance *inst;
 
-	inst = get_free_mce_mns_instance();
+	inst = mce_mns_alloc(conn);
 	if (!inst) {
 		return -ENOMEM;
 	}
 
-	inst->conn = bt_conn_ref(conn);
 	*mce_mns = &inst->mce_mns;
 
 	return 0;
@@ -2825,12 +2833,11 @@ static int mce_mns_accept_l2cap(struct bt_conn *conn,
 {
 	struct mce_mns_instance *inst;
 
-	inst = get_free_mce_mns_instance();
+	inst = mce_mns_alloc(conn);
 	if (!inst) {
 		return -ENOMEM;
 	}
 
-	inst->conn = bt_conn_ref(conn);
 	*mce_mns = &inst->mce_mns;
 
 	return 0;
@@ -2842,51 +2849,12 @@ static uint8_t mce_mns_rfcomm_disconnect(const void *cmd, uint16_t cmd_len,
 	const struct btp_map_mce_mns_rfcomm_disconnect_cmd *cp = cmd;
 	struct mce_mns_instance *inst;
 
-	inst = find_mce_mns_instance(&cp->address, cp->instance_id);
+	inst = mce_mns_find(&cp->address);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
 
 	if (bt_map_mce_mns_rfcomm_disconnect(&inst->mce_mns) < 0) {
-		return BTP_STATUS_FAILED;
-	}
-
-	return BTP_STATUS_SUCCESS;
-}
-
-static uint8_t mce_mns_l2cap_register(const void *cmd, uint16_t cmd_len,
-				      void *rsp, uint16_t *rsp_len)
-{
-	const struct btp_map_mce_mns_l2cap_register_cmd *cp = cmd;
-	struct mce_mns_instance *inst;
-
-	inst = find_mce_mns_instance(&cp->address, cp->instance_id);
-	if (!inst) {
-		inst = get_free_mce_mns_instance();
-		if (!inst) {
-			return BTP_STATUS_FAILED;
-		}
-
-		inst->conn = bt_conn_lookup_addr_br(&cp->address);
-		if (!inst->conn) {
-			inst->in_use = false;
-			return BTP_STATUS_FAILED;
-		}
-		inst->instance_id = cp->instance_id;
-	}
-
-	if (bt_map_mce_mns_cb_register(&inst->mce_mns, &mce_mns_cb) < 0) {
-		if (inst->conn) {
-			bt_conn_unref(inst->conn);
-		}
-		inst->in_use = false;
-		return BTP_STATUS_FAILED;
-	}
-
-	inst->l2cap_server.server.accept = NULL;
-	inst->l2cap_server.accept = mce_mns_accept_l2cap;
-
-	if (bt_map_mce_mns_l2cap_register(&inst->l2cap_server) < 0) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -2899,7 +2867,7 @@ static uint8_t mce_mns_l2cap_disconnect(const void *cmd, uint16_t cmd_len,
 	const struct btp_map_mce_mns_l2cap_disconnect_cmd *cp = cmd;
 	struct mce_mns_instance *inst;
 
-	inst = find_mce_mns_instance(&cp->address, cp->instance_id);
+	inst = mce_mns_find(&cp->address);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2928,7 +2896,7 @@ static uint8_t mce_mns_connect(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mce_mns_instance(&cp->address, cp->instance_id);
+	inst = mce_mns_find(&cp->address);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2968,7 +2936,7 @@ static uint8_t mce_mns_disconnect(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mce_mns_instance(&cp->address, cp->instance_id);
+	inst = mce_mns_find(&cp->address);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3008,7 +2976,7 @@ static uint8_t mce_mns_abort(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mce_mns_instance(&cp->address, cp->instance_id);
+	inst = mce_mns_find(&cp->address);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3048,7 +3016,7 @@ static uint8_t mce_mns_send_event(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mce_mns_instance(&cp->address, cp->instance_id);
+	inst = mce_mns_find(&cp->address);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3078,12 +3046,11 @@ static int mse_mas_accept_rfcomm(struct bt_conn *conn,
 {
 	struct mse_mas_instance *inst;
 
-	inst = get_free_mse_mas_instance();
+	inst = mse_mas_alloc(conn);
 	if (!inst) {
 		return -ENOMEM;
 	}
 
-	inst->conn = bt_conn_ref(conn);
 	*mse_mas = &inst->mse_mas;
 
 	return 0;
@@ -3095,53 +3062,14 @@ static int mse_mas_accept_l2cap(struct bt_conn *conn,
 {
 	struct mse_mas_instance *inst;
 
-	inst = get_free_mse_mas_instance();
+	inst = mse_mas_alloc(conn);
 	if (!inst) {
 		return -ENOMEM;
 	}
 
-	inst->conn = bt_conn_ref(conn);
 	*mse_mas = &inst->mse_mas;
 
 	return 0;
-}
-
-static uint8_t mse_mas_rfcomm_register(const void *cmd, uint16_t cmd_len,
-				       void *rsp, uint16_t *rsp_len)
-{
-	const struct btp_map_mse_mas_rfcomm_register_cmd *cp = cmd;
-	struct mse_mas_instance *inst;
-
-	inst = find_mse_mas_instance(&cp->address, cp->instance_id);
-	if (!inst) {
-		inst = get_free_mse_mas_instance();
-		if (!inst) {
-			return BTP_STATUS_FAILED;
-		}
-
-		inst->conn = bt_conn_lookup_addr_br(&cp->address);
-		if (!inst->conn) {
-			inst->in_use = false;
-			return BTP_STATUS_FAILED;
-		}
-		inst->instance_id = cp->instance_id;
-	}
-
-	if (bt_map_mse_mas_cb_register(&inst->mse_mas, &mse_mas_cb) < 0) {
-		if (inst->conn) {
-			bt_conn_unref(inst->conn);
-		}
-		inst->in_use = false;
-		return BTP_STATUS_FAILED;
-	}
-
-	inst->rfcomm_server.accept = mse_mas_accept_rfcomm;
-
-	if (bt_map_mse_mas_rfcomm_register(&inst->rfcomm_server) < 0) {
-		return BTP_STATUS_FAILED;
-	}
-
-	return BTP_STATUS_SUCCESS;
 }
 
 static uint8_t mse_mas_rfcomm_disconnect(const void *cmd, uint16_t cmd_len,
@@ -3150,51 +3078,12 @@ static uint8_t mse_mas_rfcomm_disconnect(const void *cmd, uint16_t cmd_len,
 	const struct btp_map_mse_mas_rfcomm_disconnect_cmd *cp = cmd;
 	struct mse_mas_instance *inst;
 
-	inst = find_mse_mas_instance(&cp->address, cp->instance_id);
+	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
 
 	if (bt_map_mse_mas_rfcomm_disconnect(&inst->mse_mas) < 0) {
-		return BTP_STATUS_FAILED;
-	}
-
-	return BTP_STATUS_SUCCESS;
-}
-
-static uint8_t mse_mas_l2cap_register(const void *cmd, uint16_t cmd_len,
-				      void *rsp, uint16_t *rsp_len)
-{
-	const struct btp_map_mse_mas_l2cap_register_cmd *cp = cmd;
-	struct mse_mas_instance *inst;
-
-	inst = find_mse_mas_instance(&cp->address, cp->instance_id);
-	if (!inst) {
-		inst = get_free_mse_mas_instance();
-		if (!inst) {
-			return BTP_STATUS_FAILED;
-		}
-
-		inst->conn = bt_conn_lookup_addr_br(&cp->address);
-		if (!inst->conn) {
-			inst->in_use = false;
-			return BTP_STATUS_FAILED;
-		}
-		inst->instance_id = cp->instance_id;
-	}
-
-	if (bt_map_mse_mas_cb_register(&inst->mse_mas, &mse_mas_cb) < 0) {
-		if (inst->conn) {
-			bt_conn_unref(inst->conn);
-		}
-		inst->in_use = false;
-		return BTP_STATUS_FAILED;
-	}
-
-	inst->l2cap_server.server.accept = NULL;
-	inst->l2cap_server.accept = mse_mas_accept_l2cap;
-
-	if (bt_map_mse_mas_l2cap_register(&inst->l2cap_server) < 0) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -3207,7 +3096,7 @@ static uint8_t mse_mas_l2cap_disconnect(const void *cmd, uint16_t cmd_len,
 	const struct btp_map_mse_mas_l2cap_disconnect_cmd *cp = cmd;
 	struct mse_mas_instance *inst;
 
-	inst = find_mse_mas_instance(&cp->address, cp->instance_id);
+	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3236,7 +3125,7 @@ static uint8_t mse_mas_connect(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mse_mas_instance(&cp->address, cp->instance_id);
+	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3276,7 +3165,7 @@ static uint8_t mse_mas_disconnect(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mse_mas_instance(&cp->address, cp->instance_id);
+	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3316,7 +3205,7 @@ static uint8_t mse_mas_abort(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mse_mas_instance(&cp->address, cp->instance_id);
+	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3356,7 +3245,7 @@ static uint8_t mse_mas_set_folder(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mse_mas_instance(&cp->address, cp->instance_id);
+	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3396,7 +3285,7 @@ static uint8_t mse_mas_set_ntf_reg(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mse_mas_instance(&cp->address, cp->instance_id);
+	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3436,7 +3325,7 @@ static uint8_t mse_mas_get_folder_listing(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mse_mas_instance(&cp->address, cp->instance_id);
+	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3476,7 +3365,7 @@ static uint8_t mse_mas_get_msg_listing(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mse_mas_instance(&cp->address, cp->instance_id);
+	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3516,7 +3405,7 @@ static uint8_t mse_mas_get_msg(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mse_mas_instance(&cp->address, cp->instance_id);
+	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3556,7 +3445,7 @@ static uint8_t mse_mas_set_msg_status(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mse_mas_instance(&cp->address, cp->instance_id);
+	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3596,7 +3485,7 @@ static uint8_t mse_mas_push_msg(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mse_mas_instance(&cp->address, cp->instance_id);
+	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3636,7 +3525,7 @@ static uint8_t mse_mas_update_inbox(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mse_mas_instance(&cp->address, cp->instance_id);
+	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3676,7 +3565,7 @@ static uint8_t mse_mas_get_mas_inst_info(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mse_mas_instance(&cp->address, cp->instance_id);
+	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3716,7 +3605,7 @@ static uint8_t mse_mas_set_owner_status(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mse_mas_instance(&cp->address, cp->instance_id);
+	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3756,7 +3645,7 @@ static uint8_t mse_mas_get_owner_status(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mse_mas_instance(&cp->address, cp->instance_id);
+	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3796,7 +3685,7 @@ static uint8_t mse_mas_get_convo_listing(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mse_mas_instance(&cp->address, cp->instance_id);
+	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3836,7 +3725,7 @@ static uint8_t mse_mas_set_ntf_filter(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mse_mas_instance(&cp->address, cp->instance_id);
+	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3867,35 +3756,25 @@ static uint8_t mse_mns_rfcomm_connect(const void *cmd, uint16_t cmd_len,
 	struct mse_mns_instance *inst;
 	struct bt_conn *conn;
 
-	inst = find_mse_mns_instance(&cp->address, cp->instance_id);
-	if (!inst) {
-		inst = get_free_mse_mns_instance();
-		if (!inst) {
-			return BTP_STATUS_FAILED;
-		}
-
-		inst->conn = bt_conn_lookup_addr_br(&cp->address);
-		if (!inst->conn) {
-			inst->in_use = false;
-			return BTP_STATUS_FAILED;
-		}
-		inst->instance_id = cp->instance_id;
-	}
-
-	if (bt_map_mse_mns_cb_register(&inst->mse_mns, &mse_mns_cb) < 0) {
-		if (inst->conn) {
-			bt_conn_unref(inst->conn);
-		}
-		inst->in_use = false;
+	conn = bt_conn_lookup_addr_br(&cp->address);
+	if (conn == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
-	conn = bt_conn_lookup_addr_br(&cp->address);
-	if (!conn) {
+	inst = mse_mns_alloc(conn);
+	if (inst == NULL) {
+		bt_conn_unref(conn);
+		return BTP_STATUS_FAILED;
+	}
+
+	if (bt_map_mse_mns_cb_register(&inst->mse_mns, &mse_mns_cb) < 0) {
+		mse_mns_free(inst);
+		bt_conn_unref(conn);
 		return BTP_STATUS_FAILED;
 	}
 
 	if (bt_map_mse_mns_rfcomm_connect(conn, &inst->mse_mns, cp->channel) < 0) {
+		mse_mns_free(inst);
 		bt_conn_unref(conn);
 		return BTP_STATUS_FAILED;
 	}
@@ -3910,7 +3789,7 @@ static uint8_t mse_mns_rfcomm_disconnect(const void *cmd, uint16_t cmd_len,
 	const struct btp_map_mse_mns_rfcomm_disconnect_cmd *cp = cmd;
 	struct mse_mns_instance *inst;
 
-	inst = find_mse_mns_instance(&cp->address, cp->instance_id);
+	inst = mse_mns_find(&cp->address);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3929,35 +3808,25 @@ static uint8_t mse_mns_l2cap_connect(const void *cmd, uint16_t cmd_len,
 	struct mse_mns_instance *inst;
 	struct bt_conn *conn;
 
-	inst = find_mse_mns_instance(&cp->address, cp->instance_id);
-	if (!inst) {
-		inst = get_free_mse_mns_instance();
-		if (!inst) {
-			return BTP_STATUS_FAILED;
-		}
-
-		inst->conn = bt_conn_lookup_addr_br(&cp->address);
-		if (!inst->conn) {
-			inst->in_use = false;
-			return BTP_STATUS_FAILED;
-		}
-		inst->instance_id = cp->instance_id;
-	}
-
-	if (bt_map_mse_mns_cb_register(&inst->mse_mns, &mse_mns_cb) < 0) {
-		if (inst->conn) {
-			bt_conn_unref(inst->conn);
-		}
-		inst->in_use = false;
+	conn = bt_conn_lookup_addr_br(&cp->address);
+	if (conn == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
-	conn = bt_conn_lookup_addr_br(&cp->address);
-	if (!conn) {
+	inst = mse_mns_alloc(conn);
+	if (inst == NULL) {
+		bt_conn_unref(conn);
+		return BTP_STATUS_FAILED;
+	}
+
+	if (bt_map_mse_mns_cb_register(&inst->mse_mns, &mse_mns_cb) < 0) {
+		mse_mns_free(inst);
+		bt_conn_unref(conn);
 		return BTP_STATUS_FAILED;
 	}
 
 	if (bt_map_mse_mns_l2cap_connect(conn, &inst->mse_mns, sys_le16_to_cpu(cp->psm)) < 0) {
+		mse_mns_free(inst);
 		bt_conn_unref(conn);
 		return BTP_STATUS_FAILED;
 	}
@@ -3972,7 +3841,7 @@ static uint8_t mse_mns_l2cap_disconnect(const void *cmd, uint16_t cmd_len,
 	const struct btp_map_mse_mns_l2cap_disconnect_cmd *cp = cmd;
 	struct mse_mns_instance *inst;
 
-	inst = find_mse_mns_instance(&cp->address, cp->instance_id);
+	inst = mse_mns_find(&cp->address);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -4001,7 +3870,7 @@ static uint8_t mse_mns_connect(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mse_mns_instance(&cp->address, cp->instance_id);
+	inst = mse_mns_find(&cp->address);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -4041,7 +3910,7 @@ static uint8_t mse_mns_disconnect(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mse_mns_instance(&cp->address, cp->instance_id);
+	inst = mse_mns_find(&cp->address);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -4081,7 +3950,7 @@ static uint8_t mse_mns_abort(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mse_mns_instance(&cp->address, cp->instance_id);
+	inst = mse_mns_find(&cp->address);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
@@ -4121,7 +3990,7 @@ static uint8_t mse_mns_send_event(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst = find_mse_mns_instance(&cp->address, cp->instance_id);
+	inst = mse_mns_find(&cp->address);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}

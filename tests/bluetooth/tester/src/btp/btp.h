@@ -44,6 +44,7 @@
 #include "btp_sdp.h"
 #include "btp_avrcp.h"
 #include "btp_avctp.h"
+#include "btp_map.h"
 
 #define BTP_MTU 1024
 #define BTP_DATA_MAX_SIZE (BTP_MTU - sizeof(struct btp_hdr))
