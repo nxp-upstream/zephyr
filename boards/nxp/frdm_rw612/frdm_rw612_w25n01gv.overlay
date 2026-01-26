@@ -1,0 +1,29 @@
+/*
+ * FRDM-RW612 rework: U12 APS6404L pSRAM replaced with Winbond W25N01GVZEIG NAND.
+ * Keep the original slot semantic (@2 / reg = 2) so it maps to FlexSPI PortB1.
+ */
+
+&flexspi {
+	aps6404l@2 {
+		compatible = "nxp,imx-flexspi-nand";
+		reg = <2>; /* PortB1 */
+		status = "okay";
+		label = "FLEXSPI_NAND";
+
+		/* W25N01GVZEIG: 1Gbit => 128MiB. Keep legacy "size in bits" convention. */
+		size = <DT_SIZE_M(128 * 8)>;
+
+		/* Prefer keeping the bus frequency; bring-up can downclock if needed. */
+		spi-max-frequency = <DT_FREQ_M(104)>;
+
+		/* Reuse timing knobs from the original slot. */
+		cs-interval-unit = <1>;
+		cs-interval = <2>;
+		cs-hold-time = <3>;
+		cs-setup-time = <3>;
+		data-valid-time = <6>;
+		column-space = <0>;
+		ahb-write-wait-unit = <2>;
+		ahb-write-wait-interval = <0>;
+	};
+};
