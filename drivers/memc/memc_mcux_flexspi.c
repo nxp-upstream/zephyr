@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2023 NXP
+ * Copyright 2020-2023,2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -83,6 +83,13 @@ bool memc_flexspi_is_running_xip(const struct device *dev)
 	struct memc_flexspi_data *data = dev->data;
 
 	return data->xip;
+}
+
+int memc_flexspi_apply_pinctrl(const struct device *dev, uint8_t id)
+{
+	struct memc_flexspi_data *data = dev->data;
+
+	return pinctrl_apply_state(data->pincfg, id);
 }
 
 int memc_flexspi_update_clock(const struct device *dev,
@@ -308,6 +315,16 @@ void *memc_flexspi_get_ahb_address(const struct device *dev,
 	return data->ahb_base + offset;
 }
 
+int memc_flexspi_update_lut(const struct device *dev, flexspi_port_t port, uint32_t seq_idx, const uint32_t *lut_ptr, uint8_t lut_count)
+{
+	struct memc_flexspi_data *data = dev->data;
+
+	uint8_t offset = data->port_luts[port].lut_offset + seq_idx * MEMC_FLEXSPI_CMD_PER_SEQ;
+	FLEXSPI_UpdateLUT(data->base, offset, lut_ptr, lut_count);
+
+	return 0;
+}
+
 static int memc_flexspi_init(const struct device *dev)
 {
 	struct memc_flexspi_data *data = dev->data;
@@ -323,6 +340,7 @@ static int memc_flexspi_init(const struct device *dev)
 			return 0;
 		}
 	}
+
 	/*
 	 * SOCs such as the RT1064 and RT1024 have internal flash, and no pinmux
 	 * settings, continue if no pinctrl state found.
