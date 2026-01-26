@@ -16,6 +16,7 @@
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/classic/map.h>
+#include <zephyr/bluetooth/classic/sdp.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/net_buf.h>
@@ -27,50 +28,579 @@
 #define LOG_MODULE_NAME bttester_map
 LOG_MODULE_REGISTER(LOG_MODULE_NAME, CONFIG_BTTESTER_LOG_LEVEL);
 
-#define MAP_MAX_INSTANCES 4
+#define MAP_MAS_MAX_NUM 1
 
 /* MAP Client MAS instance tracking */
 struct mce_mas_instance {
-	struct bt_conn *conn;
 	struct bt_map_mce_mas mce_mas;
+	struct bt_conn *conn;
 	uint8_t instance_id;
-	bool in_use;
 };
 
 /* MAP Client MNS instance tracking */
 struct mce_mns_instance {
-	struct bt_conn *conn;
 	struct bt_map_mce_mns mce_mns;
-	struct bt_map_mce_mns_rfcomm_server rfcomm_server;
-	struct bt_map_mce_mns_l2cap_server l2cap_server;
+	struct bt_conn *conn;
 	uint8_t instance_id;
-	bool in_use;
 };
 
 /* MAP Server MAS instance tracking */
 struct mse_mas_instance {
-	struct bt_conn *conn;
 	struct bt_map_mse_mas mse_mas;
-	struct bt_map_mse_mas_rfcomm_server rfcomm_server;
-	struct bt_map_mse_mas_l2cap_server l2cap_server;
+	struct bt_conn *conn;
 	uint8_t instance_id;
-	bool in_use;
 };
 
 /* MAP Server MNS instance tracking */
 struct mse_mns_instance {
-	struct bt_conn *conn;
 	struct bt_map_mse_mns mse_mns;
+	struct bt_conn *conn;
 	uint8_t instance_id;
-	bool in_use;
 };
 
-static struct mce_mas_instance mce_mas_instances[MAP_MAX_INSTANCES];
-static struct mce_mns_instance mce_mns_instances[MAP_MAX_INSTANCES];
-static struct mse_mas_instance mse_mas_instances[MAP_MAX_INSTANCES];
-static struct mse_mns_instance mse_mns_instances[MAP_MAX_INSTANCES];
+static struct mce_mas_instance mce_mas_instances[CONFIG_BT_MAX_CONN][MAP_MAS_MAX_NUM];
+static struct mce_mns_instance mce_mns_instances[CONFIG_BT_MAX_CONN];
+static struct mse_mas_instance mse_mas_instances[CONFIG_BT_MAX_CONN][MAP_MAS_MAX_NUM];
+static struct mse_mns_instance mse_mns_instances[CONFIG_BT_MAX_CONN];
+
+/* MCE MNS Server structure */
+struct mce_server {
+	struct bt_map_mce_mns_rfcomm_server rfcomm_server;
+	struct bt_map_mce_mns_l2cap_server l2cap_server;
+	uint32_t supported_features;
+};
+
+static struct mce_server mce_server = {
+	.supported_features = BT_MAP_MANDATORY_SUPPORTED_FEATURES,
+};
+
+/* MCE MNS SDP record */
+static struct bt_sdp_attribute mce_mns_attrs[] = {
+	BT_SDP_NEW_SERVICE,
+	/* ServiceClassIDList */
+	BT_SDP_LIST(
+		BT_SDP_ATTR_SVCLASS_ID_LIST,
+		BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 3),
+		BT_SDP_DATA_ELEM_LIST(
+			{
+				BT_SDP_TYPE_SIZE(BT_SDP_UUID16),
+				BT_SDP_ARRAY_16(BT_SDP_MAP_MCE_SVCLASS)
+			},
+		)
+	),
+	/* ProtocolDescriptorList - RFCOMM */
+	BT_SDP_LIST(
+		BT_SDP_ATTR_PROTO_DESC_LIST,
+		BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 12),
+		BT_SDP_DATA_ELEM_LIST(
+			{
+				BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 3),
+				BT_SDP_DATA_ELEM_LIST(
+					{
+						BT_SDP_TYPE_SIZE(BT_SDP_UUID16),
+						BT_SDP_ARRAY_16(BT_SDP_PROTO_L2CAP)
+					},
+				)
+			},
+			{
+				BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 5),
+				BT_SDP_DATA_ELEM_LIST(
+					{
+						BT_SDP_TYPE_SIZE(BT_SDP_UUID16),
+						BT_SDP_ARRAY_16(BT_SDP_PROTO_RFCOMM)
+					},
+					{
+						BT_SDP_TYPE_SIZE(BT_SDP_UINT8),
+						&mce_server.rfcomm_server.server.rfcomm.channel
+					},
+				)
+			},
+		)
+	),
+	/* BluetoothProfileDescriptorList */
+	BT_SDP_LIST(
+		BT_SDP_ATTR_PROFILE_DESC_LIST,
+		BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 8),
+		BT_SDP_DATA_ELEM_LIST(
+			{
+				BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 6),
+				BT_SDP_DATA_ELEM_LIST(
+					{
+						BT_SDP_TYPE_SIZE(BT_SDP_UUID16),
+						BT_SDP_ARRAY_16(BT_SDP_MAP_SVCLASS)
+					},
+					{
+						BT_SDP_TYPE_SIZE(BT_SDP_UINT16),
+						BT_SDP_ARRAY_16(0x0104)
+					},
+				)
+			},
+		)
+	),
+	/* ServiceName */
+	BT_SDP_SERVICE_NAME("MAP MNS"),
+	/* GOEP L2CAP PSM (Optional) */
+	{
+		BT_SDP_ATTR_GOEP_L2CAP_PSM,
+		{
+			BT_SDP_TYPE_SIZE(BT_SDP_UINT16),
+			&mce_server.l2cap_server.server.l2cap.psm
+		}
+	},
+	/* MAPSupportedFeatures */
+	{
+		BT_SDP_ATTR_MAP_SUPPORTED_FEATURES,
+		{
+			BT_SDP_TYPE_SIZE(BT_SDP_UINT32),
+			&mce_server.supported_features
+		}
+	},
+};
+
+static struct bt_sdp_record mce_mns_rec = BT_SDP_RECORD(mce_mns_attrs);
+
+/* MSE MAS Server structure */
+struct mse_server {
+	struct bt_map_mse_mas_rfcomm_server rfcomm_server;
+	struct bt_map_mse_mas_l2cap_server l2cap_server;
+	uint32_t supported_features;
+	uint8_t instance_id;
+	uint8_t supported_msg_type;
+};
+
+#define MSE_SERVER_INIT(i, _) \
+	{ \
+		.supported_features = BT_MAP_MANDATORY_SUPPORTED_FEATURES, \
+		.instance_id = i, \
+		.supported_msg_type = 0x1F, \
+	}
+
+static struct mse_server mse_server[MAP_MAX_INSTANCES] = {
+	LISTIFY(MAP_MAX_INSTANCES, MSE_SERVER_INIT, (,))
+};
+
+/* MSE MAS SDP record */
+#define MSE_MAS_ATTRS(i, _) \
+static struct bt_sdp_attribute UTIL_CAT(mse_mas_, UTIL_CAT(i, _attrs))[] = { \
+	BT_SDP_NEW_SERVICE, \
+	BT_SDP_LIST( \
+		BT_SDP_ATTR_SVCLASS_ID_LIST, \
+		BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 3), \
+		BT_SDP_DATA_ELEM_LIST( \
+			{ \
+				BT_SDP_TYPE_SIZE(BT_SDP_UUID16), \
+				BT_SDP_ARRAY_16(BT_SDP_MAP_MSE_SVCLASS) \
+			}, \
+		) \
+	), \
+	BT_SDP_LIST( \
+		BT_SDP_ATTR_PROTO_DESC_LIST, \
+		BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 17), \
+		BT_SDP_DATA_ELEM_LIST( \
+			{ \
+				BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 3), \
+				BT_SDP_DATA_ELEM_LIST( \
+					{ \
+						BT_SDP_TYPE_SIZE(BT_SDP_UUID16), \
+						BT_SDP_ARRAY_16(BT_SDP_PROTO_L2CAP) \
+					}, \
+				) \
+			}, \
+			{ \
+				BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 5), \
+				BT_SDP_DATA_ELEM_LIST( \
+					{ \
+						BT_SDP_TYPE_SIZE(BT_SDP_UUID16), \
+						BT_SDP_ARRAY_16(BT_SDP_PROTO_RFCOMM) \
+					}, \
+					{ \
+						BT_SDP_TYPE_SIZE(BT_SDP_UINT8), \
+						&mse_server[i].rfcomm_server.server.rfcomm.channel \
+					}, \
+				) \
+			}, \
+			{ \
+				BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 3), \
+				BT_SDP_DATA_ELEM_LIST( \
+					{ \
+						BT_SDP_TYPE_SIZE(BT_SDP_UUID16), \
+						BT_SDP_ARRAY_16(BT_SDP_PROTO_OBEX) \
+					}, \
+				) \
+			}, \
+		) \
+	), \
+	BT_SDP_LIST( \
+		BT_SDP_ATTR_PROFILE_DESC_LIST, \
+		BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 8), \
+		BT_SDP_DATA_ELEM_LIST( \
+			{ \
+				BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 6), \
+				BT_SDP_DATA_ELEM_LIST( \
+					{ \
+						BT_SDP_TYPE_SIZE(BT_SDP_UUID16), \
+						BT_SDP_ARRAY_16(BT_SDP_MAP_SVCLASS) \
+					}, \
+					{ \
+						BT_SDP_TYPE_SIZE(BT_SDP_UINT16), \
+						BT_SDP_ARRAY_16(0x0104) \
+					}, \
+				) \
+			}, \
+		) \
+	), \
+	BT_SDP_SERVICE_NAME("MAP MAS " STRINGIFY(i)), \
+	{ \
+		BT_SDP_ATTR_MAS_INSTANCE_ID, \
+		{ \
+			BT_SDP_TYPE_SIZE(BT_SDP_UINT8), \
+			&mse_server[i].instance_id \
+		} \
+	}, \
+	{ \
+		BT_SDP_ATTR_SUPPORTED_MESSAGE_TYPES, \
+		{ \
+			BT_SDP_TYPE_SIZE(BT_SDP_UINT8), \
+			&mse_server[i].supported_msg_type \
+		} \
+	}, \
+	{ \
+		BT_SDP_ATTR_GOEP_L2CAP_PSM, \
+		{ \
+			BT_SDP_TYPE_SIZE(BT_SDP_UINT16), \
+			&mse_server[i].l2cap_server.server.l2cap.psm \
+		} \
+	}, \
+	{ \
+		BT_SDP_ATTR_MAP_SUPPORTED_FEATURES, \
+		{ \
+			BT_SDP_TYPE_SIZE(BT_SDP_UINT32), \
+			&mse_server[i].supported_features \
+		} \
+	}, \
+};
+
+#define MSE_MAS_SDP_RECORD_INIT(idx, _) BT_SDP_RECORD(UTIL_CAT(mse_mas_, UTIL_CAT(idx, _attrs)))
+
+LISTIFY(MAP_MAX_INSTANCES, MSE_MAS_ATTRS, (;))
+
+static struct bt_sdp_record mse_mas_rec[MAP_MAX_INSTANCES] = {
+	LISTIFY(MAP_MAX_INSTANCES, MSE_MAS_SDP_RECORD_INIT, (,))
+};
+
+/* SDP discover support */
+static struct bt_sdp_discover_params map_sdp_discover;
+
+NET_BUF_POOL_DEFINE(map_sdp_discover_pool, 1,
+		    BT_L2CAP_BUF_SIZE(CONFIG_BT_L2CAP_TX_MTU),
+		    CONFIG_BT_CONN_TX_USER_DATA_SIZE, NULL);
+
+/* SDP helper functions to extract MAP attributes */
+static int map_sdp_get_goep_l2cap_psm(const struct net_buf *buf, uint16_t *psm)
+{
+	int err;
+	struct bt_sdp_attribute attr;
+	struct bt_sdp_attr_value value;
+
+	err = bt_sdp_get_attr(buf, BT_SDP_ATTR_GOEP_L2CAP_PSM, &attr);
+	if (err != 0) {
+		return err;
+	}
+
+	err = bt_sdp_attr_read(&attr, NULL, &value);
+	if (err != 0) {
+		return err;
+	}
+
+	if ((value.type != BT_SDP_ATTR_VALUE_TYPE_UINT) || (value.uint.size != sizeof(*psm))) {
+		return -EINVAL;
+	}
+
+	*psm = value.uint.u16;
+	return 0;
+}
+
+static int map_sdp_get_features(const struct net_buf *buf, uint32_t *feature)
+{
+	int err;
+	struct bt_sdp_attribute attr;
+	struct bt_sdp_attr_value value;
+
+	err = bt_sdp_get_attr(buf, BT_SDP_ATTR_MAP_SUPPORTED_FEATURES, &attr);
+	if (err != 0) {
+		return err;
+	}
+
+	err = bt_sdp_attr_read(&attr, NULL, &value);
+	if (err != 0) {
+		return err;
+	}
+
+	if ((value.type != BT_SDP_ATTR_VALUE_TYPE_UINT) || (value.uint.size != sizeof(*feature))) {
+		return -EINVAL;
+	}
+
+	*feature = value.uint.u32;
+	return 0;
+}
+
+static int map_sdp_get_instance_id(const struct net_buf *buf, uint8_t *id)
+{
+	int err;
+	struct bt_sdp_attribute attr;
+	struct bt_sdp_attr_value value;
+
+	err = bt_sdp_get_attr(buf, BT_SDP_ATTR_MAS_INSTANCE_ID, &attr);
+	if (err != 0) {
+		return err;
+	}
+
+	err = bt_sdp_attr_read(&attr, NULL, &value);
+	if (err != 0) {
+		return err;
+	}
+
+	if ((value.type != BT_SDP_ATTR_VALUE_TYPE_UINT) || (value.uint.size != sizeof(*id))) {
+		return -EINVAL;
+	}
+
+	*id = value.uint.u8;
+	return 0;
+}
+
+static int map_sdp_get_msg_type(const struct net_buf *buf, uint8_t *msg_type)
+{
+	int err;
+	struct bt_sdp_attribute attr;
+	struct bt_sdp_attr_value value;
+
+	err = bt_sdp_get_attr(buf, BT_SDP_ATTR_SUPPORTED_MESSAGE_TYPES, &attr);
+	if (err != 0) {
+		return err;
+	}
+
+	err = bt_sdp_attr_read(&attr, NULL, &value);
+	if (err != 0) {
+		return err;
+	}
+
+	if ((value.type != BT_SDP_ATTR_VALUE_TYPE_UINT) || (value.uint.size != sizeof(*msg_type))) {
+		return -EINVAL;
+	}
+
+	*msg_type = value.uint.u8;
+	return 0;
+}
+
+static int map_sdp_get_service_name(const struct net_buf *buf, char *name, size_t name_len)
+{
+	int err;
+	struct bt_sdp_attribute attr;
+	struct bt_sdp_attr_value value;
+	size_t copy_len;
+
+	err = bt_sdp_get_attr(buf, BT_SDP_ATTR_SVCNAME_PRIMARY, &attr);
+	if (err != 0) {
+		return err;
+	}
+
+	err = bt_sdp_attr_read(&attr, NULL, &value);
+	if (err != 0) {
+		return err;
+	}
+
+	if (value.type != BT_SDP_ATTR_VALUE_TYPE_TEXT) {
+		return -EINVAL;
+	}
+
+	copy_len = MIN(value.text.len, name_len - 1);
+	memcpy(name, value.text.text, copy_len);
+	name[copy_len] = '\0';
+
+	return 0;
+}
+
+static uint8_t map_sdp_discover_cb(struct bt_conn *conn, struct bt_sdp_client_result *result,
+				   const struct bt_sdp_discover_params *params)
+{
+	struct btp_map_sdp_record_ev *ev;
+	uint8_t buf[sizeof(*ev) + 128]; /* 128 bytes for service name */
+	int err;
+	uint32_t features = 0;
+	uint16_t rfcomm_channel = 0;
+	uint16_t l2cap_psm = 0;
+	uint8_t instance_id = 0;
+	uint8_t msg_type = 0;
+	char service_name[128] = {0};
+	size_t service_name_len = 0;
+
+	if (result == NULL || result->resp_buf == NULL || conn == NULL) {
+		LOG_DBG("SDP discovery completed or no record found");
+		return BT_SDP_DISCOVER_UUID_CONTINUE;
+	}
+
+	ev = (struct btp_map_sdp_record_ev *)buf;
+	memset(ev, 0, sizeof(*ev));
+
+	/* Get connection address */
+	bt_addr_copy(&ev->address, bt_conn_get_dst_br(conn));
+
+	/* Get RFCOMM channel */
+	err = bt_sdp_get_proto_param(result->resp_buf, BT_SDP_PROTO_RFCOMM, &rfcomm_channel);
+	if (err == 0) {
+		ev->rfcomm_channel = (uint8_t)rfcomm_channel;
+		LOG_DBG("Found RFCOMM channel 0x%02x", ev->rfcomm_channel);
+	} else {
+		ev->rfcomm_channel = 0;
+	}
+
+	/* Get L2CAP PSM */
+	err = map_sdp_get_goep_l2cap_psm(result->resp_buf, &l2cap_psm);
+	if (err == 0) {
+		ev->l2cap_psm = sys_cpu_to_le16(l2cap_psm);
+		LOG_DBG("Found L2CAP PSM 0x%04x", l2cap_psm);
+	} else {
+		ev->l2cap_psm = 0;
+	}
+
+	/* Get MAP features */
+	err = map_sdp_get_features(result->resp_buf, &features);
+	if (err == 0) {
+		ev->supported_features = sys_cpu_to_le32(features);
+		LOG_DBG("Found MAP features 0x%08x", features);
+	} else {
+		ev->supported_features = 0;
+	}
+
+	/* Get instance ID (MSE only) */
+	err = map_sdp_get_instance_id(result->resp_buf, &instance_id);
+	if (err == 0) {
+		ev->instance_id = instance_id;
+		LOG_DBG("Found MAP instance ID %u", instance_id);
+	} else {
+		ev->instance_id = 0;
+	}
+
+	/* Get supported message types (MSE only) */
+	err = map_sdp_get_msg_type(result->resp_buf, &msg_type);
+	if (err == 0) {
+		ev->supported_msg_types = msg_type;
+		LOG_DBG("Found MAP MSG type 0x%02x", msg_type);
+	} else {
+		ev->supported_msg_types = 0;
+	}
+
+	/* Get service name */
+	err = map_sdp_get_service_name(result->resp_buf, service_name, sizeof(service_name));
+	if (err == 0) {
+		service_name_len = strlen(service_name);
+		ev->service_name_len = (uint8_t)service_name_len;
+		memcpy(ev->service_name, service_name, service_name_len);
+		LOG_DBG("Found service name: %s", service_name);
+	} else {
+		ev->service_name_len = 0;
+	}
+
+	/* Send event */
+	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_EV_SDP_RECORD, ev,
+		     sizeof(*ev) + ev->service_name_len);
+
+	return BT_SDP_DISCOVER_UUID_CONTINUE;
+}
+
+static uint8_t map_sdp_discover(const void *cmd, uint16_t cmd_len,
+				void *rsp, uint16_t *rsp_len)
+{
+	const struct btp_map_sdp_discover_cmd *cp = cmd;
+	struct bt_conn *conn;
+	static struct bt_uuid_16 uuid;
+	int err;
+
+	conn = bt_conn_lookup_addr_br(&cp->address);
+	if (!conn) {
+		LOG_ERR("Unknown connection");
+		return BTP_STATUS_FAILED;
+	}
+
+	/* Search for MAP MSE service (Message Server Equipment) */
+	uuid.uuid.type = BT_UUID_TYPE_16;
+	uuid.val = BT_SDP_MAP_MSE_SVCLASS;
+
+	map_sdp_discover.uuid = &uuid.uuid;
+	map_sdp_discover.func = map_sdp_discover_cb;
+	map_sdp_discover.pool = &map_sdp_discover_pool;
+	map_sdp_discover.type = BT_SDP_DISCOVER_SERVICE_SEARCH_ATTR;
+
+	err = bt_sdp_discover(conn, &map_sdp_discover);
+	bt_conn_unref(conn);
+
+	if (err < 0) {
+		LOG_ERR("SDP discovery failed (err %d)", err);
+		return BTP_STATUS_FAILED;
+	}
+
+	return BTP_STATUS_SUCCESS;
+}
 
 /* Helper functions to find instances */
+static struct mce_mas_instance *mce_mas_alloc(struct bt_conn *conn)
+{
+	uint8_t index;
+
+	conn = bt_conn_lookup_addr_br(address);
+	if (conn == NULL) {
+		return NULL;
+	}
+
+	index = bt_conn_index(conn);
+	if (index >= CONFIG_BT_MAX_CONN) {
+		return NULL;
+	}
+
+	ARRAY_FOR_EACH(mce_mas_instances[index], i) {
+		struct mce_mas_instance *inst = &mce_mas_instances[index][i];
+
+		if (inst->conn != NULL || atomic_get(&inst->mce_mas._transport_state) !=
+						  BT_MAP_TRANSPORT_STATE_DISCONNECTED) {
+			continue;
+		}
+
+		inst->conn = bt_conn_ref(conn);
+		return inst;
+	}
+
+	return NULL;
+}
+
+static struct mce_mas_instance *mce_mas_find(const bt_addr_t *address, uint8_t instance_id)
+{
+	struct bt_conn *conn = bt_conn_lookup_addr_br(address);
+
+	if (conn == NULL) {
+		return NULL;
+	}
+
+	ARRAY_FOR_EACH(mce_mas_instances, i) {
+		ARRAY_FOR_EACH(mce_mas_instances[i], j) {
+			struct mce_mas_instance *inst = &mce_mas_instances[i][j];
+
+			if ((inst->conn == conn) && (inst->instance_id == instance_id)) {
+				return inst;
+			}
+		}
+	}
+
+	return NULL;
+}
+
+static void mce_mas_free(struct mce_mas_instance *inst)
+{
+	if (inst->conn != NULL) {
+		bt_conn_unref(inst->conn);
+		memset(&inst->conn, 0, sizeof(*inst) - offsetof(struct mce_mas_instance, conn));
+	}
+}
+
 static struct mce_mas_instance *find_mce_mas_instance(const bt_addr_t *address, uint8_t instance_id)
 {
 	struct bt_conn *conn;
@@ -838,6 +1368,59 @@ static const struct bt_map_mce_mns_cb mce_mns_cb = {
 	.send_event = mce_mns_send_event_cb,
 };
 
+/* MCE MNS Server accept callbacks */
+static int mce_mns_rfcomm_accept(struct bt_conn *conn, struct bt_map_mce_mns_rfcomm_server *server,
+				 struct bt_map_mce_mns **mce_mns)
+{
+	struct mce_mns_instance *inst;
+	int err;
+
+	inst = get_free_mce_mns_instance();
+	if (inst == NULL) {
+		LOG_ERR("Cannot allocate MCE MNS instance");
+		return -ENOMEM;
+	}
+
+	inst->conn = bt_conn_ref(conn);
+	inst->instance_id = 0;
+	err = bt_map_mce_mns_cb_register(&inst->mce_mns, &mce_mns_cb);
+	if (err != 0) {
+		inst->in_use = false;
+		bt_conn_unref(inst->conn);
+		inst->conn = NULL;
+		LOG_ERR("Failed to register MCE MNS cb (err %d)", err);
+		return err;
+	}
+	*mce_mns = &inst->mce_mns;
+	return 0;
+}
+
+static int mce_mns_l2cap_accept(struct bt_conn *conn, struct bt_map_mce_mns_l2cap_server *server,
+				struct bt_map_mce_mns **mce_mns)
+{
+	struct mce_mns_instance *inst;
+	int err;
+
+	inst = get_free_mce_mns_instance();
+	if (inst == NULL) {
+		LOG_ERR("Cannot allocate MCE MNS instance");
+		return -ENOMEM;
+	}
+
+	inst->conn = bt_conn_ref(conn);
+	inst->instance_id = 0;
+	err = bt_map_mce_mns_cb_register(&inst->mce_mns, &mce_mns_cb);
+	if (err != 0) {
+		inst->in_use = false;
+		bt_conn_unref(inst->conn);
+		inst->conn = NULL;
+		LOG_ERR("Failed to register MCE MNS cb (err %d)", err);
+		return err;
+	}
+	*mce_mns = &inst->mce_mns;
+	return 0;
+}
+
 /* MAP Server MAS callbacks */
 static void mse_mas_rfcomm_connected_cb(struct bt_conn *conn, struct bt_map_mse_mas *mse_mas)
 {
@@ -1464,20 +2047,17 @@ static uint8_t mce_mas_rfcomm_connect(const void *cmd, uint16_t cmd_len,
 	struct mce_mas_instance *inst;
 	struct bt_conn *conn;
 
-	inst = find_mce_mas_instance(&cp->address, cp->instance_id);
-	if (!inst) {
-		inst = get_free_mce_mas_instance();
-		if (!inst) {
-			return BTP_STATUS_FAILED;
-		}
-
-		inst->conn = bt_conn_lookup_addr_br(&cp->address);
-		if (!inst->conn) {
-			inst->in_use = false;
-			return BTP_STATUS_FAILED;
-		}
-		inst->instance_id = cp->instance_id;
+	conn = bt_conn_lookup_addr_br(&cp->address);
+	if (conn == NULL) {
+		return BTP_STATUS_FAILED;
 	}
+
+	inst = mce_mas_alloc(conn);
+	if (inst == NULL) {
+		return BTP_STATUS_FAILED;
+	}
+
+	inst->instance_id = instance_id;
 
 	if (bt_map_mce_mas_cb_register(&inst->mce_mas, &mce_mas_cb) < 0) {
 		if (inst->conn) {
@@ -2256,45 +2836,6 @@ static int mce_mns_accept_l2cap(struct bt_conn *conn,
 	return 0;
 }
 
-static uint8_t mce_mns_rfcomm_register(const void *cmd, uint16_t cmd_len,
-				       void *rsp, uint16_t *rsp_len)
-{
-	const struct btp_map_mce_mns_rfcomm_register_cmd *cp = cmd;
-	struct mce_mns_instance *inst;
-
-	inst = find_mce_mns_instance(&cp->address, cp->instance_id);
-	if (!inst) {
-		inst = get_free_mce_mns_instance();
-		if (!inst) {
-			return BTP_STATUS_FAILED;
-		}
-
-		inst->conn = bt_conn_lookup_addr_br(&cp->address);
-		if (!inst->conn) {
-			inst->in_use = false;
-			return BTP_STATUS_FAILED;
-		}
-		inst->instance_id = cp->instance_id;
-	}
-
-	if (bt_map_mce_mns_cb_register(&inst->mce_mns, &mce_mns_cb) < 0) {
-		if (inst->conn) {
-			bt_conn_unref(inst->conn);
-		}
-		inst->in_use = false;
-		return BTP_STATUS_FAILED;
-	}
-
-	inst->rfcomm_server.server.accept = NULL;
-	inst->rfcomm_server.accept = mce_mns_accept_rfcomm;
-
-	if (bt_map_mce_mns_rfcomm_register(&inst->rfcomm_server) < 0) {
-		return BTP_STATUS_FAILED;
-	}
-
-	return BTP_STATUS_SUCCESS;
-}
-
 static uint8_t mce_mns_rfcomm_disconnect(const void *cmd, uint16_t cmd_len,
 					 void *rsp, uint16_t *rsp_len)
 {
@@ -2594,7 +3135,6 @@ static uint8_t mse_mas_rfcomm_register(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	inst->rfcomm_server.server.accept = NULL;
 	inst->rfcomm_server.accept = mse_mas_accept_rfcomm;
 
 	if (bt_map_mse_mas_rfcomm_register(&inst->rfcomm_server) < 0) {
@@ -3723,19 +4263,9 @@ static const struct btp_handler handlers[] = {
 		.func = mce_mas_set_ntf_filter,
 	},
 	{
-		.opcode = BTP_MAP_MCE_MNS_RFCOMM_REGISTER,
-		.expect_len = sizeof(struct btp_map_mce_mns_rfcomm_register_cmd),
-		.func = mce_mns_rfcomm_register,
-	},
-	{
 		.opcode = BTP_MAP_MCE_MNS_RFCOMM_DISCONNECT,
 		.expect_len = sizeof(struct btp_map_mce_mns_rfcomm_disconnect_cmd),
 		.func = mce_mns_rfcomm_disconnect,
-	},
-	{
-		.opcode = BTP_MAP_MCE_MNS_L2CAP_REGISTER,
-		.expect_len = sizeof(struct btp_map_mce_mns_l2cap_register_cmd),
-		.func = mce_mns_l2cap_register,
 	},
 	{
 		.opcode = BTP_MAP_MCE_MNS_L2CAP_DISCONNECT,
@@ -3763,19 +4293,9 @@ static const struct btp_handler handlers[] = {
 		.func = mce_mns_send_event,
 	},
 	{
-		.opcode = BTP_MAP_MSE_MAS_RFCOMM_REGISTER,
-		.expect_len = sizeof(struct btp_map_mse_mas_rfcomm_register_cmd),
-		.func = mse_mas_rfcomm_register,
-	},
-	{
 		.opcode = BTP_MAP_MSE_MAS_RFCOMM_DISCONNECT,
 		.expect_len = sizeof(struct btp_map_mse_mas_rfcomm_disconnect_cmd),
 		.func = mse_mas_rfcomm_disconnect,
-	},
-	{
-		.opcode = BTP_MAP_MSE_MAS_L2CAP_REGISTER,
-		.expect_len = sizeof(struct btp_map_mse_mas_l2cap_register_cmd),
-		.func = mse_mas_l2cap_register,
 	},
 	{
 		.opcode = BTP_MAP_MSE_MAS_L2CAP_DISCONNECT,
@@ -3902,12 +4422,134 @@ static const struct btp_handler handlers[] = {
 		.expect_len = BTP_HANDLER_LENGTH_VARIABLE,
 		.func = mse_mns_send_event,
 	},
+	{
+		.opcode = BTP_MAP_SDP_DISCOVER,
+		.expect_len = sizeof(struct btp_map_sdp_discover_cmd),
+		.func = map_sdp_discover,
+	},
 };
+
+static int mce_mns_rfcomm_register(void)
+{
+	int err;
+
+	/* Register MCE MNS RFCOMM server */
+	mce_server.rfcomm_server.server.rfcomm.channel = 0;
+	mce_server.rfcomm_server.accept = mce_mns_rfcomm_accept;
+	err = bt_map_mce_mns_rfcomm_register(&mce_server.rfcomm_server);
+	if (err != 0) {
+		LOG_ERR("Failed to register MCE MNS RFCOMM server (err %d)", err);
+		return err;
+	}
+	LOG_DBG("MCE MNS RFCOMM server (channel %02x) registered",
+		mce_server.rfcomm_server.server.rfcomm.channel);
+}
+
+static int mce_mns_l2cap_register(void)
+{
+	int err;
+
+	/* Register MCE MNS L2CAP server */
+	mce_server.l2cap_server.server.l2cap.psm = 0;
+	mce_server.l2cap_server.accept = mce_mns_l2cap_accept;
+	err = bt_map_mce_mns_l2cap_register(&mce_server.l2cap_server);
+	if (err != 0) {
+		LOG_ERR("Failed to register MCE MNS L2CAP server (err %d)", err);
+		return err;
+	}
+	LOG_DBG("MCE MNS L2CAP server (psm %04x) registered",
+		mce_server.l2cap_server.server.l2cap.psm);
+
+	return 0;
+}
+
+static int mse_mas_rfcomm_register(void)
+{
+	int err;
+	uint8_t i;
+
+	/* Register MSE MAS RFCOMM servers */
+	for (i = 0; i < MAP_MAX_INSTANCES; i++) {
+		mse_server[i].rfcomm_server.server.rfcomm.channel = 0;
+		mse_server[i].rfcomm_server.accept = mse_mas_rfcomm_accept;
+		err = bt_map_mse_mas_rfcomm_register(&mse_server[i].rfcomm_server);
+		if (err != 0) {
+			LOG_ERR("Failed to register MSE MAS RFCOMM server %d (err %d)", i, err);
+			return err;
+		}
+		LOG_DBG("MSE MAS RFCOMM server %d (channel %02x) registered", i,
+			mse_server[i].rfcomm_server.server.rfcomm.channel);
+	}
+
+	return 0;
+}
+
+static int mse_mas_l2cap_register(void)
+{
+	int err;
+	uint8_t i;
+
+	/* Register MSE MAS L2CAP servers */
+	for (i = 0; i < MAP_MAX_INSTANCES; i++) {
+		mse_server[i].l2cap_server.server.l2cap.psm = 0;
+		mse_server[i].l2cap_server.accept = mse_mas_l2cap_accept;
+		err = bt_map_mse_mas_l2cap_register(&mse_server[i].l2cap_server);
+		if (err != 0) {
+			LOG_ERR("Failed to register MSE MAS L2CAP server %d (err %d)", i, err);
+			return err;
+		}
+		LOG_DBG("MSE MAS L2CAP server %d (psm %04x) registered", i,
+			mse_server[i].l2cap_server.server.l2cap.psm);
+	}
+
+	return 0;
+}
 
 uint8_t tester_init_map(void)
 {
+	int err;
+	uint8_t i;
+
 	tester_register_command_handlers(BTP_SERVICE_ID_MAP, handlers,
 					 ARRAY_SIZE(handlers));
+
+	/* Register MCE MNS RFCOMM server */
+	err = mce_mns_rfcomm_register();
+	if (err != 0) {
+		return BTP_STATUS_FAILED;
+	}
+
+	/* Register MCE MNS L2CAP server */
+	err = mce_mns_l2cap_register();
+	if (err != 0) {
+		return BTP_STATUS_FAILED;
+	}
+
+	/* Register MCE MNS SDP record */
+	err = bt_sdp_register_service(&mce_mns_rec);
+	if (err < 0) {
+		return BTP_STATUS_FAILED;
+	}
+
+	/* Register MSE MAS RFCOMM servers */
+	err = mse_mas_rfcomm_register();
+	if (err != 0) {
+		return BTP_STATUS_FAILED;
+	}
+
+	/* Register MSE MAS L2CAP servers */
+	err = mse_mas_l2cap_register();
+	if (err != 0) {
+		return BTP_STATUS_FAILED;
+	}
+
+	/* Register MSE MAS SDP records */
+	for (i = 0; i < MAP_MAX_INSTANCES; i++) {
+		err = bt_sdp_register_service(&mse_mas_rec[i]);
+		if (err < 0) {
+			return BTP_STATUS_FAILED;
+		}
+	}
 
 	return BTP_STATUS_SUCCESS;
 }
