@@ -25,9 +25,9 @@ LOG_MODULE_REGISTER(mcp_http_transport, CONFIG_MCP_LOG_LEVEL);
  * Definitions
  ******************************************************************************/
 #define SESSION_ID_STR_LEN ((sizeof(uint32_t) * 2) + 1)
-#define CONTENT_TYPE_HDR_LEN                                                                       \
+#define CONTENT_TYPE_HDR_LEN	\
 	(sizeof("text/event-stream") + 1) /* worst case for content-type header */
-#define ORIGIN_HDR_LEN       128
+#define ORIGIN_HDR_LEN	   128
 #define MAX_RESPONSE_HEADERS 4 /* Content-Type, Last-Event-Id, Mcp-Session-Id, extra buffer */
 
 /* Request accumulation buffer for each client */
@@ -56,8 +56,8 @@ struct mcp_http_client_ctx {
 	char session_id_str[SESSION_ID_STR_LEN];
 	uint32_t next_event_id;
 	struct http_header response_headers[MAX_RESPONSE_HEADERS];
-	char response_body[CONFIG_MCP_MAX_MESSAGE_SIZE]; /* TODO: set appropriate size */
-	struct k_fifo response_queue;                    /* Response queue for SSE */
+	char response_body[CONFIG_MCP_MAX_MESSAGE_SIZE];
+	struct k_fifo response_queue; /* Response queue for SSE */
 	bool in_use;
 };
 
@@ -74,11 +74,36 @@ struct http_transport_state {
 /*******************************************************************************
  * Forward declarations
  ******************************************************************************/
+static struct mcp_http_request_accumulator *get_accumulator(int fd);
+static int release_accumulator(struct mcp_http_request_accumulator *accumulator);
+static int accumulate_request(struct http_client_ctx *client,
+				  struct mcp_http_request_accumulator *accumulator,
+				  const struct http_request_ctx *request_ctx,
+				  enum http_data_status status);
+
+static struct mcp_http_client_ctx *allocate_client(uint32_t session_id);
+static int release_client(struct mcp_http_client_ctx *client);
+int mcp_server_http_new_client_handler(struct mcp_transport_binding *binding, uint32_t client_id);
+
+static int format_response(char *buffer, size_t buffer_size, const char *json_data);
+static int format_sse_response(char *buffer, size_t buffer_size, int event_id, const char *data);
+static int format_sse_retry_response(char *buffer, size_t buffer_size, uint32_t retry_ms);
+static void cleanup_response_item(struct mcp_http_response_item *item);
+
+static int mcp_endpoint_post_handler(struct http_client_ctx *client,
+					 const struct http_request_ctx *request_ctx,
+					 struct mcp_http_request_accumulator *accumulator,
+					 struct http_response_ctx *response_ctx);
+static int mcp_endpoint_get_handler(struct http_client_ctx *client,
+					const struct http_request_ctx *request_ctx,
+					struct mcp_http_request_accumulator *accumulator,
+					struct http_response_ctx *response_ctx);
 static int mcp_server_http_resource_handler(struct http_client_ctx *client,
-					    enum http_data_status status,
-					    const struct http_request_ctx *request_ctx,
-					    struct http_response_ctx *response_ctx,
-					    void *user_data);
+						enum http_data_status status,
+						const struct http_request_ctx *request_ctx,
+						struct http_response_ctx *response_ctx,
+						void *user_data);
+
 static int mcp_server_http_send(struct mcp_transport_binding *binding, uint32_t client_id,
 				const void *data, size_t length);
 static int mcp_server_http_disconnect(struct mcp_transport_binding *binding, uint32_t client_id);
@@ -107,11 +132,11 @@ uint32_t mcp_http_port = CONFIG_MCP_HTTP_PORT;
 
 /* HTTP resource definition */
 HTTP_RESOURCE_DEFINE(mcp_endpoint_resource, mcp_http_service, CONFIG_MCP_HTTP_ENDPOINT,
-		     &mcp_resource_detail);
+			 &mcp_resource_detail);
 
 /* HTTP service definition */
 HTTP_SERVICE_DEFINE(mcp_http_service, CONFIG_NET_CONFIG_MY_IPV4_ADDR, &mcp_http_port,
-		    1, CONFIG_HTTP_SERVER_MAX_CLIENTS, 10, NULL, NULL);
+			1, CONFIG_HTTP_SERVER_MAX_CLIENTS, 10, NULL, NULL);
 
 /* HTTP headers capture */
 HTTP_SERVER_REGISTER_HEADER_CAPTURE(origin_hdr, "Origin");
@@ -186,9 +211,9 @@ static int release_accumulator(struct mcp_http_request_accumulator *accumulator)
 }
 
 static int accumulate_request(struct http_client_ctx *client,
-			      struct mcp_http_request_accumulator *accumulator,
-			      const struct http_request_ctx *request_ctx,
-			      enum http_data_status status)
+				  struct mcp_http_request_accumulator *accumulator,
+				  const struct http_request_ctx *request_ctx,
+				  enum http_data_status status)
 {
 	char *endptr;
 
@@ -200,7 +225,7 @@ static int accumulate_request(struct http_client_ctx *client,
 		}
 
 		memcpy(accumulator->data + accumulator->data_len, request_ctx->data,
-		       request_ctx->data_len);
+			   request_ctx->data_len);
 		accumulator->data_len += request_ctx->data_len;
 	}
 
@@ -436,9 +461,9 @@ static void cleanup_response_item(struct mcp_http_response_item *item)
  * POST Handler
  ******************************************************************************/
 static int mcp_endpoint_post_handler(struct http_client_ctx *client,
-				     const struct http_request_ctx *request_ctx,
-				     struct mcp_http_request_accumulator *accumulator,
-				     struct http_response_ctx *response_ctx)
+					 const struct http_request_ctx *request_ctx,
+					 struct mcp_http_request_accumulator *accumulator,
+					 struct http_response_ctx *response_ctx)
 {
 	int ret;
 	enum mcp_method msg_type;
@@ -464,7 +489,6 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 
 	mcp_client_ctx = (struct mcp_http_client_ctx *)binding->context;
 
-	/* Verify client session exists for non-initialize requests */
 	if (!mcp_client_ctx) {
 		LOG_ERR("Client session not found for session ID: %" PRIx32,
 			accumulator->session_id_hdr);
@@ -546,9 +570,9 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
  * GET Handler
  ******************************************************************************/
 static int mcp_endpoint_get_handler(struct http_client_ctx *client,
-				    const struct http_request_ctx *request_ctx,
-				    struct mcp_http_request_accumulator *accumulator,
-				    struct http_response_ctx *response_ctx)
+					const struct http_request_ctx *request_ctx,
+					struct mcp_http_request_accumulator *accumulator,
+					struct http_response_ctx *response_ctx)
 {
 	int ret;
 	struct mcp_http_client_ctx *mcp_client_ctx;
@@ -581,7 +605,7 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 	response_data = k_fifo_peek_head(&mcp_client_ctx->response_queue);
 
 	if (response_data == NULL || !accumulator->has_event_id ||
-	    (response_data->event_id < accumulator->event_id_hdr)) {
+		(response_data->event_id < accumulator->event_id_hdr)) {
 		/* Send retry interval when there are no events to stream */
 		ret = format_sse_retry_response(mcp_client_ctx->response_body,
 						sizeof(mcp_client_ctx->response_body),
@@ -626,9 +650,9 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
  * HTTP resource handler
  ******************************************************************************/
 static int mcp_server_http_resource_handler(struct http_client_ctx *client,
-					    enum http_data_status status,
-					    const struct http_request_ctx *request_ctx,
-					    struct http_response_ctx *response_ctx, void *user_data)
+						enum http_data_status status,
+						const struct http_request_ctx *request_ctx,
+						struct http_response_ctx *response_ctx, void *user_data)
 {
 	int stat = 0;
 
@@ -715,7 +739,7 @@ int mcp_server_http_init(mcp_server_ctx_t server_ctx)
 int mcp_server_http_start(mcp_server_ctx_t server_ctx)
 {
 	if ((server_ctx == NULL) || (server_ctx != http_transport_state.server_core) ||
-	    !http_transport_state.initialized) {
+		!http_transport_state.initialized) {
 		LOG_ERR("HTTP server context invalid or transport not initialized");
 		return -EINVAL;
 	}
