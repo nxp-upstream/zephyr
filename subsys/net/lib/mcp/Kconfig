@@ -264,6 +264,12 @@ config MCP_HTTP_ENDPOINT
     help
       URL path for MCP endpoint.
 
+config MCP_HTTP_SSE_RETRY_MS
+	int "SSE retry interval for clients"
+	default 5000
+	help
+	  Interval at which the client should re-connect or poll for responses via
+	  GET methods
 endif # MCP_TRANSPORT_HTTP
 
 module = MCP

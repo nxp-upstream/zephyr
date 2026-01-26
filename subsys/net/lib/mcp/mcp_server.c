@@ -17,7 +17,6 @@ LOG_MODULE_REGISTER(mcp_server, CONFIG_MCP_LOG_LEVEL);
 
 #define MCP_WORKER_PRIORITY  7
 #define MCP_MAX_REQUESTS     (CONFIG_HTTP_SERVER_MAX_CLIENTS * CONFIG_HTTP_SERVER_MAX_STREAMS)
-#define MCP_SERVER_VERSION   "1.0.0"
 #define MCP_PROTOCOL_VERSION "2025-11-25"
 
 enum mcp_lifecycle_state {
@@ -522,7 +521,13 @@ static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_m
 	}
 
 	/* Notify the transport layer about the new client */
-	transport_callback(&new_client->transport_binding, new_client->client_id);
+	ret = transport_callback(&new_client->transport_binding, new_client->client_id);
+	if (ret) {
+		/* Transport unable to handle new client. Clean up */
+		LOG_ERR("Transport failed to handle new  client");
+		remove_client(server, new_client);
+		return -EINVAL;
+	}
 
 	/* Transport layer must initialize the transport_binding.ops */
 	if ((new_client->transport_binding.ops == NULL) ||
@@ -1125,7 +1130,7 @@ int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_request_data *req
 	}
 
 	*method = parsed_msg->method;
-	LOG_WRN("Request method: %d", parsed_msg->method);
+	LOG_DBG("Request method: %d", parsed_msg->method);
 
 	switch (parsed_msg->method) {
 	case MCP_METHOD_INITIALIZE:

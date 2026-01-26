@@ -26,18 +26,43 @@ struct mcp_transport_binding;
  */
 struct mcp_transport_ops {
 	/**
-	 * @brief Send data to a client
-	 * @param binding Client transport binding
+	 * Send MCP response data to a client via transport
+	 *
+	 * This function queues response data for delivery to a client.
+	 *
+	 * Data Ownership and Memory Management:
+	 * -------------------------------------
+	 * INPUT (data parameter):
+	 *   - Caller (MCP core) allocates the response data buffer
+	 *   - This function takes OWNERSHIP of the data pointer
+	 *   - Data is NOT copied - the pointer is stored directly in the response item
+	 *   - Caller must NOT free the data after calling this function
+	 *
+	 * @param binding Transport binding containing client context
 	 * @param client_id Client identifier
-	 * @param data Data buffer to send
-	 * @param length Data length
-	 * @return 0 on success, negative errno on failure
+	 * @param data Response data buffer (ownership transferred to this function)
+	 * @param length Length of the response data in bytes
+	 *
+	 * @return 0 on success, negative error code on failure.
+	 *
+	 * @note The data pointer MUST remain valid until freed by the transport
 	 */
 	int (*send)(struct mcp_transport_binding *binding, uint32_t client_id, const void *data,
 		    size_t length);
 
 	/**
 	 * @brief Disconnect a client
+	 *
+	 * Disconnects a client from the transport and cleans up associated resources.
+	 *
+	 * IMPORTANT: The transport implementation MUST drain and free any queued
+	 * response data that has not yet been sent to the client. This includes:
+	 * - Response items in any FIFO/message queues
+	 * - The actual response data buffers (allocated by MCP core)
+	 * - Any other dynamically allocated resources associated with the client
+	 *
+	 * Failure to properly free queued data will result in memory leaks.
+	 *
 	 * @param binding Client transport binding
 	 * @param client_id Client identifier
 	 * @return 0 on success, negative errno on failure
@@ -64,7 +89,7 @@ struct mcp_transport_binding {
  * @param binding Pointer to the transport binding to be initialized
  * @param client_id The newly assigned client identifier
  */
-typedef void (*new_client_cb)(struct mcp_transport_binding *binding, uint32_t client_id);
+typedef int (*new_client_cb)(struct mcp_transport_binding *binding, uint32_t client_id);
 
 /**
  * @brief Request data structure for submitting requests to the MCP server
@@ -81,19 +106,36 @@ struct mcp_request_data {
 };
 
 /**
- * @brief Submit a parsed request from transport to MCP server (INTERNAL)
+ * Handle an incoming MCP request from a client
  *
- * This is an internal API used by the transport layer to forward
- * parsed requests to the server core. Applications should NOT call this directly.
+ * This function is the main entry point for processing MCP protocol requests.
+ * It parses the incoming JSON request, determines the method type, and routes
+ * the request to the appropriate handler or queues it for asynchronous processing.
  *
- * @param ctx Server context
- * @param request Request data structure containing JSON payload, length, client ID hint,
- *                and new client callback
- * @param method Pointer to store the request method type (output parameter)
- * @param client_binding Pointer to store the client's transport binding (output parameter)
- * @return MCP_HANDLE_NEW_CLIENT for new client initialization,
- *         MCP_HANDLE_OK for successful existing client request,
- *         MCP_HANDLE_ERROR on failure
+ * Request handling flow:
+ * 1. Parse JSON request into MCP message structure
+ * 2. Determine the method type (initialize, ping, tools_list, etc.)
+ * 3. Route based on method:
+ *    - INITIALIZE: Handle directly and create new client context
+ *    - PING: Handle directly with immediate response
+ *    - TOOLS_LIST/TOOLS_CALL/NOTIF_*: Queue for async processing
+ *    - UNKNOWN: Send error response for unsupported methods
+ *
+ * @param ctx MCP server context handle
+ * @param request Request data containing JSON payload and client hint
+ * @param method Output parameter for the detected method type
+ * @param client_binding Output parameter for the client's transport binding
+ *
+ * @return 0 on success, negative error code on failure:
+ *         -EINVAL: Invalid parameters (NULL pointers)
+ *         -ENOMEM: Failed to allocate memory for message parsing
+ *         -ENOENT: Client not found for given client_id_hint
+ *         -ENOTSUP: Request method not recognized/supported
+ *         Other negative values from parsing or handler functions
+ *
+ * @note The parsed message is either freed immediately (for direct handlers)
+ *       or ownership is transferred to the request queue (for async handlers)
+ * @note The client_binding output is only valid if a client context was found
  */
 int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_request_data *request,
 			      enum mcp_method *method,
