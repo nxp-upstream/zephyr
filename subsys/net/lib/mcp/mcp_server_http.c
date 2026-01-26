@@ -26,7 +26,7 @@ LOG_MODULE_REGISTER(mcp_http_transport, CONFIG_MCP_LOG_LEVEL);
  ******************************************************************************/
 #define SESSION_ID_STR_LEN ((sizeof(uint32_t) * 2) + 1)
 #define CONTENT_TYPE_HDR_LEN	\
-	(sizeof("text/event-stream") + 1) /* worst case for content-type header */
+	(sizeof("text/event-stream application/json") + 1) /* worst case for content-type header */
 #define ORIGIN_HDR_LEN	   128
 #define MAX_RESPONSE_HEADERS 4 /* Content-Type, Last-Event-Id, Mcp-Session-Id, extra buffer */
 
@@ -591,6 +591,13 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 	}
 
 	mcp_client_ctx = (struct mcp_http_client_ctx *)binding->context;
+
+	if (!accumulator->has_event_id) {
+		/* Don't allow a listening channel */
+		response_ctx->status = HTTP_405_METHOD_NOT_ALLOWED;
+		response_ctx->final_chunk = true;
+		return 0;
+	}
 
 	mcp_client_ctx->response_headers[0].name = "Content-Type";
 	mcp_client_ctx->response_headers[0].value = "text/event-stream";
