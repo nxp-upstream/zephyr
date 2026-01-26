@@ -74,6 +74,19 @@ config FLASH_MCUX_FLEXSPI_HYPERFLASH
 	select MEMC
 	select MEMC_MCUX_FLEXSPI
 
+config FLASH_MCUX_FLEXSPI_NAND
+	bool "MCUX FlexSPI NAND (ONFI probe)"
+	default y
+	depends on DT_HAS_NXP_IMX_FLEXSPI_NAND_ENABLED
+	select FLASH_HAS_DRIVER_ENABLED
+	select MEMC
+	select MEMC_MCUX_FLEXSPI
+	select CRC
+	help
+	  Minimal NAND driver over NXP FlexSPI, focused on safe 1-1-1
+	  probing (reset/status/read-id/ONFI parameter load + CRC check).
+	  This driver is for bring-up and shell testing.
+
 endmenu
 
 if FLASH_MCUX_FLEXSPI_MX25UM51345G
