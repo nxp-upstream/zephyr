@@ -417,7 +417,6 @@ int mcp_json_parse_message(const char *buf, size_t len, struct mcp_message *out)
 	}
 
 	bool has_method = (ret & BIT(1)) != 0;
-	bool has_params = json_has_top_level_key(buf, len, "params");
 	if (has_method) {
 		out->method = mcp_method_from_string(env.method);
 	} else {

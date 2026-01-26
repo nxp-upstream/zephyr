@@ -365,6 +365,30 @@ int mcp_json_serialize_logging_message_notif(char *out, size_t out_len, const ch
  */
 int mcp_json_serialize_tools_list_changed_notif(char *out, size_t out_len);
 
+/**
+ * Serialize an empty MCP JSON-RPC response
+ *
+ * Creates a minimal JSON-RPC 2.0 response with an empty result object.
+ * This is typically used for acknowledgment responses where no data needs
+ * to be returned (e.g., notifications, successful operations with no output).
+ *
+ * Output format:
+ * {
+ *   "jsonrpc": "2.0",
+ *   "id": <id>,
+ *   "result": {}
+ * }
+ *
+ * @param out Output buffer to write the serialized JSON response
+ * @param out_len Size of the output buffer in bytes
+ * @param id JSON-RPC request ID to include in the response
+ *
+ * @return Number of bytes written (excluding null terminator) on success,
+ *         negative error code on failure.
+ *
+ * @note The output buffer will be null-terminated if successful
+ * @note The returned length does NOT include the null terminator
+ */
 int mcp_json_serialize_empty_response(char *out, size_t out_len, int64_t id);
 
 #ifdef __cplusplus
