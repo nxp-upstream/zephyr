@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2025 NXP
+ * Copyright 2020-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -158,5 +158,10 @@
 
 /** SEMA42 peripheral clock identifier. */
 #define MCUX_SEMA42_CLK MCUX_LPC_CLK_ID(0x23, 0x00)
+
+/** WWDT0 peripheral clock identifier. */
+#define MCUX_WWDT0_CLK MCUX_LPC_CLK_ID(0x24, 0x00)
+/** WWDT1 peripheral clock identifier. */
+#define MCUX_WWDT1_CLK MCUX_LPC_CLK_ID(0x24, 0x01)
 
 #endif /* ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_MCUX_LPC_SYSCON_H_ */
