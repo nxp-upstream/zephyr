@@ -446,7 +446,8 @@ static uint8_t map_sdp_discover_cb(struct bt_conn *conn, struct bt_sdp_client_re
 	memset(ev, 0, sizeof(*ev));
 
 	/* Get connection address */
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 
 	/* Get RFCOMM channel */
 	err = bt_sdp_get_proto_param(result->resp_buf, BT_SDP_PROTO_RFCOMM, &rfcomm_channel);
@@ -519,7 +520,7 @@ static uint8_t map_sdp_discover(const void *cmd, uint16_t cmd_len,
 	static struct bt_uuid_16 uuid;
 	int err;
 
-	conn = bt_conn_lookup_addr_br(&cp->address);
+	conn = bt_conn_lookup_addr_br(&cp->address.a);
 	if (!conn) {
 		LOG_ERR("Unknown connection");
 		return BTP_STATUS_FAILED;
@@ -574,9 +575,15 @@ static struct mce_mas_instance *mce_mas_alloc(struct bt_conn *conn)
 	return NULL;
 }
 
-static struct mce_mas_instance *mce_mas_find(const bt_addr_t *address, uint8_t instance_id)
+static struct mce_mas_instance *mce_mas_find(const bt_addr_le_t *address, uint8_t instance_id)
 {
-	struct bt_conn *conn = bt_conn_lookup_addr_br(address);
+	struct bt_conn *conn;
+
+	if (address->type != BTP_BR_ADDRESS_TYPE) {
+		return NULL;
+	}
+
+	conn = bt_conn_lookup_addr_br(&address->a);
 
 	if (conn == NULL) {
 		return NULL;
@@ -627,9 +634,15 @@ static struct mce_mns_instance *mce_mns_alloc(struct bt_conn *conn)
 	return inst;
 }
 
-static struct mce_mns_instance *mce_mns_find(const bt_addr_t *address)
+static struct mce_mns_instance *mce_mns_find(const bt_addr_le_t *address)
 {
-	struct bt_conn *conn = bt_conn_lookup_addr_br(address);
+	struct bt_conn *conn;
+
+	if (address->type != BTP_BR_ADDRESS_TYPE) {
+		return NULL;
+	}
+
+	conn = bt_conn_lookup_addr_br(&address->a);
 
 	if (conn == NULL) {
 		return NULL;
@@ -682,9 +695,15 @@ static struct mse_mas_instance *mse_mas_alloc(struct bt_conn *conn)
 	return NULL;
 }
 
-static struct mse_mas_instance *mse_mas_find(const bt_addr_t *address, uint8_t instance_id)
+static struct mse_mas_instance *mse_mas_find(const bt_addr_le_t *address, uint8_t instance_id)
 {
-	struct bt_conn *conn = bt_conn_lookup_addr_br(address);
+	struct bt_conn *conn;
+
+	if (address->type != BTP_BR_ADDRESS_TYPE) {
+		return NULL;
+	}
+
+	conn = bt_conn_lookup_addr_br(&address->a);
 
 	if (conn == NULL) {
 		return NULL;
@@ -735,9 +754,15 @@ static struct mse_mns_instance *mse_mns_alloc(struct bt_conn *conn)
 	return inst;
 }
 
-static struct mse_mns_instance *mse_mns_find(const bt_addr_t *address)
+static struct mse_mns_instance *mse_mns_find(const bt_addr_le_t *address)
 {
-	struct bt_conn *conn = bt_conn_lookup_addr_br(address);
+	struct bt_conn *conn;
+
+	if (address->type != BTP_BR_ADDRESS_TYPE) {
+		return NULL;
+	}
+
+	conn = bt_conn_lookup_addr_br(&address->a);
 
 	if (conn == NULL) {
 		return NULL;
@@ -768,7 +793,8 @@ static void mce_mas_rfcomm_connected_cb(struct bt_conn *conn, struct bt_map_mce_
 	struct mce_mas_instance *inst = CONTAINER_OF(mce_mas, struct mce_mas_instance, mce_mas);
 	struct btp_map_mce_mas_rfcomm_connected_ev ev;
 
-	bt_addr_copy(&ev.address, bt_conn_get_dst_br(conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(conn));
+	ev.address.type = BTP_BR_ADDRESS_TYPE;
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MCE_MAS_EV_RFCOMM_CONNECTED, &ev, sizeof(ev));
@@ -779,7 +805,8 @@ static void mce_mas_rfcomm_disconnected_cb(struct bt_map_mce_mas *mce_mas)
 	struct mce_mas_instance *inst = CONTAINER_OF(mce_mas, struct mce_mas_instance, mce_mas);
 	struct btp_map_mce_mas_rfcomm_disconnected_ev ev;
 
-	bt_addr_copy(&ev.address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(inst->conn));
+	ev.address.type = BTP_BR_ADDRESS_TYPE;
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MCE_MAS_EV_RFCOMM_DISCONNECTED, &ev, sizeof(ev));
@@ -791,7 +818,8 @@ static void mce_mas_l2cap_connected_cb(struct bt_conn *conn, struct bt_map_mce_m
 	struct mce_mas_instance *inst = CONTAINER_OF(mce_mas, struct mce_mas_instance, mce_mas);
 	struct btp_map_mce_mas_l2cap_connected_ev ev;
 
-	bt_addr_copy(&ev.address, bt_conn_get_dst_br(conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(conn));
+	ev.address.type = BTP_BR_ADDRESS_TYPE;
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MCE_MAS_EV_L2CAP_CONNECTED, &ev, sizeof(ev));
@@ -802,7 +830,8 @@ static void mce_mas_l2cap_disconnected_cb(struct bt_map_mce_mas *mce_mas)
 	struct mce_mas_instance *inst = CONTAINER_OF(mce_mas, struct mce_mas_instance, mce_mas);
 	struct btp_map_mce_mas_l2cap_disconnected_ev ev;
 
-	bt_addr_copy(&ev.address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(inst->conn));
+	ev.address.type = BTP_BR_ADDRESS_TYPE;
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MCE_MAS_EV_L2CAP_DISCONNECTED, &ev, sizeof(ev));
@@ -820,7 +849,8 @@ static void mce_mas_connected_cb(struct bt_map_mce_mas *mce_mas, uint8_t rsp_cod
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->version = version;
@@ -847,7 +877,8 @@ static void mce_mas_disconnected_cb(struct bt_map_mce_mas *mce_mas, uint8_t rsp_
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -871,7 +902,8 @@ static void mce_mas_abort_cb(struct bt_map_mce_mas *mce_mas, uint8_t rsp_code, s
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -896,7 +928,8 @@ static void mce_mas_set_ntf_reg_cb(struct bt_map_mce_mas *mce_mas, uint8_t rsp_c
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -921,7 +954,8 @@ static void mce_mas_set_folder_cb(struct bt_map_mce_mas *mce_mas, uint8_t rsp_co
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -946,7 +980,8 @@ static void mce_mas_get_folder_listing_cb(struct bt_map_mce_mas *mce_mas, uint8_
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -970,7 +1005,8 @@ static void mce_mas_get_msg_listing_cb(struct bt_map_mce_mas *mce_mas, uint8_t r
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -994,7 +1030,8 @@ static void mce_mas_get_msg_cb(struct bt_map_mce_mas *mce_mas, uint8_t rsp_code,
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1018,7 +1055,8 @@ static void mce_mas_set_msg_status_cb(struct bt_map_mce_mas *mce_mas, uint8_t rs
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1042,7 +1080,8 @@ static void mce_mas_push_msg_cb(struct bt_map_mce_mas *mce_mas, uint8_t rsp_code
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1066,7 +1105,8 @@ static void mce_mas_update_inbox_cb(struct bt_map_mce_mas *mce_mas, uint8_t rsp_
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1090,7 +1130,8 @@ static void mce_mas_get_mas_inst_info_cb(struct bt_map_mce_mas *mce_mas, uint8_t
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1114,7 +1155,8 @@ static void mce_mas_set_owner_status_cb(struct bt_map_mce_mas *mce_mas, uint8_t 
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1138,7 +1180,8 @@ static void mce_mas_get_owner_status_cb(struct bt_map_mce_mas *mce_mas, uint8_t 
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1162,7 +1205,8 @@ static void mce_mas_get_convo_listing_cb(struct bt_map_mce_mas *mce_mas, uint8_t
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1186,7 +1230,8 @@ static void mce_mas_set_ntf_filter_cb(struct bt_map_mce_mas *mce_mas, uint8_t rs
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1227,7 +1272,8 @@ static void mce_mns_rfcomm_connected_cb(struct bt_conn *conn, struct bt_map_mce_
 {
 	struct btp_map_mce_mns_rfcomm_connected_ev ev;
 
-	bt_addr_copy(&ev.address, bt_conn_get_dst_br(conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(conn));
+	ev.address.type = BTP_BR_ADDRESS_TYPE;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MCE_MNS_EV_RFCOMM_CONNECTED, &ev, sizeof(ev));
 }
@@ -1237,7 +1283,8 @@ static void mce_mns_rfcomm_disconnected_cb(struct bt_map_mce_mns *mce_mns)
 	struct mce_mns_instance *inst = CONTAINER_OF(mce_mns, struct mce_mns_instance, mce_mns);
 	struct btp_map_mce_mns_rfcomm_disconnected_ev ev;
 
-	bt_addr_copy(&ev.address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(inst->conn));
+	ev.address.type = BTP_BR_ADDRESS_TYPE;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MCE_MNS_EV_RFCOMM_DISCONNECTED, &ev, sizeof(ev));
 	mce_mns_free(inst);
@@ -1247,7 +1294,8 @@ static void mce_mns_l2cap_connected_cb(struct bt_conn *conn, struct bt_map_mce_m
 {
 	struct btp_map_mce_mns_l2cap_connected_ev ev;
 
-	bt_addr_copy(&ev.address, bt_conn_get_dst_br(conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(conn));
+	ev.address.type = BTP_BR_ADDRESS_TYPE;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MCE_MNS_EV_L2CAP_CONNECTED, &ev, sizeof(ev));
 }
@@ -1257,7 +1305,8 @@ static void mce_mns_l2cap_disconnected_cb(struct bt_map_mce_mns *mce_mns)
 	struct mce_mns_instance *inst = CONTAINER_OF(mce_mns, struct mce_mns_instance, mce_mns);
 	struct btp_map_mce_mns_l2cap_disconnected_ev ev;
 
-	bt_addr_copy(&ev.address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(inst->conn));
+	ev.address.type = BTP_BR_ADDRESS_TYPE;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MCE_MNS_EV_L2CAP_DISCONNECTED, &ev, sizeof(ev));
 	mce_mns_free(inst);
@@ -1274,7 +1323,8 @@ static void mce_mns_connected_cb(struct bt_map_mce_mns *mce_mns, uint8_t version
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->version = version;
 	ev->mopl = sys_cpu_to_le16(mopl);
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1297,7 +1347,8 @@ static void mce_mns_disconnected_cb(struct bt_map_mce_mns *mce_mns, struct net_b
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
 	if (buf_len > 0) {
 		memcpy(ev->buf, buf->data, buf_len);
@@ -1318,7 +1369,8 @@ static void mce_mns_abort_cb(struct bt_map_mce_mns *mce_mns, struct net_buf *buf
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
 	if (buf_len > 0) {
 		memcpy(ev->buf, buf->data, buf_len);
@@ -1339,7 +1391,8 @@ static void mce_mns_send_event_cb(struct bt_map_mce_mns *mce_mns, bool final, st
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
 	if (buf_len > 0) {
@@ -1413,7 +1466,8 @@ static void mse_mas_rfcomm_connected_cb(struct bt_conn *conn, struct bt_map_mse_
 	struct mse_mas_instance *inst = CONTAINER_OF(mse_mas, struct mse_mas_instance, mse_mas);
 	struct btp_map_mse_mas_rfcomm_connected_ev ev;
 
-	bt_addr_copy(&ev.address, bt_conn_get_dst_br(conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(conn));
+	ev.address.type = BTP_BR_ADDRESS_TYPE;
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MSE_MAS_EV_RFCOMM_CONNECTED, &ev, sizeof(ev));
@@ -1424,7 +1478,8 @@ static void mse_mas_rfcomm_disconnected_cb(struct bt_map_mse_mas *mse_mas)
 	struct mse_mas_instance *inst = CONTAINER_OF(mse_mas, struct mse_mas_instance, mse_mas);
 	struct btp_map_mse_mas_rfcomm_disconnected_ev ev;
 
-	bt_addr_copy(&ev.address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(inst->conn));
+	ev.address.type = BTP_BR_ADDRESS_TYPE;
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MSE_MAS_EV_RFCOMM_DISCONNECTED, &ev, sizeof(ev));
@@ -1436,7 +1491,8 @@ static void mse_mas_l2cap_connected_cb(struct bt_conn *conn, struct bt_map_mse_m
 	struct mse_mas_instance *inst = CONTAINER_OF(mse_mas, struct mse_mas_instance, mse_mas);
 	struct btp_map_mse_mas_l2cap_connected_ev ev;
 
-	bt_addr_copy(&ev.address, bt_conn_get_dst_br(conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(conn));
+	ev.address.type = BTP_BR_ADDRESS_TYPE;
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MSE_MAS_EV_L2CAP_CONNECTED, &ev, sizeof(ev));
@@ -1447,7 +1503,8 @@ static void mse_mas_l2cap_disconnected_cb(struct bt_map_mse_mas *mse_mas)
 	struct mse_mas_instance *inst = CONTAINER_OF(mse_mas, struct mse_mas_instance, mse_mas);
 	struct btp_map_mse_mas_l2cap_disconnected_ev ev;
 
-	bt_addr_copy(&ev.address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(inst->conn));
+	ev.address.type = BTP_BR_ADDRESS_TYPE;
 	ev.instance_id = inst->instance_id;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MSE_MAS_EV_L2CAP_DISCONNECTED, &ev, sizeof(ev));
@@ -1465,7 +1522,8 @@ static void mse_mas_connected_cb(struct bt_map_mse_mas *mse_mas, uint8_t version
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->version = version;
 	ev->mopl = sys_cpu_to_le16(mopl);
@@ -1490,7 +1548,8 @@ static void mse_mas_disconnected_cb(struct bt_map_mse_mas *mse_mas, struct net_b
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
 	if (buf_len > 0) {
@@ -1513,7 +1572,8 @@ static void mse_mas_abort_cb(struct bt_map_mse_mas *mse_mas, struct net_buf *buf
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
 	if (buf_len > 0) {
@@ -1536,7 +1596,8 @@ static void mse_mas_set_ntf_reg_cb(struct bt_map_mse_mas *mse_mas, bool final, s
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1561,7 +1622,8 @@ static void mse_mas_set_folder_cb(struct bt_map_mse_mas *mse_mas, uint8_t flags,
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->flags = flags;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1586,7 +1648,8 @@ static void mse_mas_get_folder_listing_cb(struct bt_map_mse_mas *mse_mas, bool f
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1611,7 +1674,8 @@ static void mse_mas_get_msg_listing_cb(struct bt_map_mse_mas *mse_mas, bool fina
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1635,7 +1699,8 @@ static void mse_mas_get_msg_cb(struct bt_map_mse_mas *mse_mas, bool final, struc
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1660,7 +1725,8 @@ static void mse_mas_set_msg_status_cb(struct bt_map_mse_mas *mse_mas, bool final
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1684,7 +1750,8 @@ static void mse_mas_push_msg_cb(struct bt_map_mse_mas *mse_mas, bool final, stru
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1709,7 +1776,8 @@ static void mse_mas_update_inbox_cb(struct bt_map_mse_mas *mse_mas, bool final,
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1734,7 +1802,8 @@ static void mse_mas_get_mas_inst_info_cb(struct bt_map_mse_mas *mse_mas, bool fi
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1759,7 +1828,8 @@ static void mse_mas_set_owner_status_cb(struct bt_map_mse_mas *mse_mas, bool fin
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1784,7 +1854,8 @@ static void mse_mas_get_owner_status_cb(struct bt_map_mse_mas *mse_mas, bool fin
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1809,7 +1880,8 @@ static void mse_mas_get_convo_listing_cb(struct bt_map_mse_mas *mse_mas, bool fi
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1834,7 +1906,8 @@ static void mse_mas_set_ntf_filter_cb(struct bt_map_mse_mas *mse_mas, bool final
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->final = final ? 1 : 0;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
@@ -1988,7 +2061,8 @@ static void mse_mns_rfcomm_connected_cb(struct bt_conn *conn, struct bt_map_mse_
 {
 	struct btp_map_mse_mns_rfcomm_connected_ev ev;
 
-	bt_addr_copy(&ev.address, bt_conn_get_dst_br(conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(conn));
+	ev.address.type = BTP_BR_ADDRESS_TYPE;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MSE_MNS_EV_RFCOMM_CONNECTED, &ev, sizeof(ev));
 }
@@ -1998,7 +2072,8 @@ static void mse_mns_rfcomm_disconnected_cb(struct bt_map_mse_mns *mse_mns)
 	struct mse_mns_instance *inst = CONTAINER_OF(mse_mns, struct mse_mns_instance, mse_mns);
 	struct btp_map_mse_mns_rfcomm_disconnected_ev ev;
 
-	bt_addr_copy(&ev.address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(inst->conn));
+	ev.address.type = BTP_BR_ADDRESS_TYPE;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MSE_MNS_EV_RFCOMM_DISCONNECTED, &ev, sizeof(ev));
 	mse_mns_free(inst);
@@ -2008,7 +2083,8 @@ static void mse_mns_l2cap_connected_cb(struct bt_conn *conn, struct bt_map_mse_m
 {
 	struct btp_map_mse_mns_l2cap_connected_ev ev;
 
-	bt_addr_copy(&ev.address, bt_conn_get_dst_br(conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(conn));
+	ev.address.type = BTP_BR_ADDRESS_TYPE;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MSE_MNS_EV_L2CAP_CONNECTED, &ev, sizeof(ev));
 }
@@ -2018,7 +2094,8 @@ static void mse_mns_l2cap_disconnected_cb(struct bt_map_mse_mns *mse_mns)
 	struct mse_mns_instance *inst = CONTAINER_OF(mse_mns, struct mse_mns_instance, mse_mns);
 	struct btp_map_mse_mns_l2cap_disconnected_ev ev;
 
-	bt_addr_copy(&ev.address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(inst->conn));
+	ev.address.type = BTP_BR_ADDRESS_TYPE;
 
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_MSE_MNS_EV_L2CAP_DISCONNECTED, &ev, sizeof(ev));
 	mse_mns_free(inst);
@@ -2035,7 +2112,8 @@ static void mse_mns_connected_cb(struct bt_map_mse_mns *mse_mns, uint8_t rsp_cod
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->rsp_code = rsp_code;
 	ev->version = version;
 	ev->mopl = sys_cpu_to_le16(mopl);
@@ -2061,7 +2139,8 @@ static void mse_mns_disconnected_cb(struct bt_map_mse_mns *mse_mns, uint8_t rsp_
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
 	if (buf_len > 0) {
@@ -2084,7 +2163,8 @@ static void mse_mns_abort_cb(struct bt_map_mse_mns *mse_mns, uint8_t rsp_code, s
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
 	if (buf_len > 0) {
@@ -2108,7 +2188,8 @@ static void mse_mns_send_event_cb(struct bt_map_mse_mns *mse_mns, uint8_t rsp_co
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
 
-	bt_addr_copy(&ev->address, bt_conn_get_dst_br(inst->conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
+	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->rsp_code = rsp_code;
 	ev->buf_len = sys_cpu_to_le16(buf_len);
 	if (buf_len > 0) {
@@ -2140,7 +2221,11 @@ static uint8_t mce_mas_rfcomm_connect(const void *cmd, uint16_t cmd_len,
 	struct mce_mas_instance *inst;
 	struct bt_conn *conn;
 
-	conn = bt_conn_lookup_addr_br(&cp->address);
+	if (cp->address.type != BTP_BR_ADDRESS_TYPE) {
+		return BTP_STATUS_FAILED;
+	}
+
+	conn = bt_conn_lookup_addr_br(&cp->address.a);
 	if (conn == NULL) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2194,7 +2279,11 @@ static uint8_t mce_mas_l2cap_connect(const void *cmd, uint16_t cmd_len,
 	struct mce_mas_instance *inst;
 	struct bt_conn *conn;
 
-	conn = bt_conn_lookup_addr_br(&cp->address);
+	if (cp->address.type != BTP_BR_ADDRESS_TYPE) {
+		return BTP_STATUS_FAILED;
+	}
+
+	conn = bt_conn_lookup_addr_br(&cp->address.a);
 	if (conn == NULL) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3907,7 +3996,11 @@ static uint8_t mse_mns_rfcomm_connect(const void *cmd, uint16_t cmd_len,
 	struct mse_mns_instance *inst;
 	struct bt_conn *conn;
 
-	conn = bt_conn_lookup_addr_br(&cp->address);
+	if (cp->address.type != BTP_BR_ADDRESS_TYPE) {
+		return BTP_STATUS_FAILED;
+	}
+
+	conn = bt_conn_lookup_addr_br(&cp->address.a);
 	if (conn == NULL) {
 		return BTP_STATUS_FAILED;
 	}
@@ -3959,7 +4052,11 @@ static uint8_t mse_mns_l2cap_connect(const void *cmd, uint16_t cmd_len,
 	struct mse_mns_instance *inst;
 	struct bt_conn *conn;
 
-	conn = bt_conn_lookup_addr_br(&cp->address);
+	if (cp->address.type != BTP_BR_ADDRESS_TYPE) {
+		return BTP_STATUS_FAILED;
+	}
+
+	conn = bt_conn_lookup_addr_br(&cp->address.a);
 	if (conn == NULL) {
 		return BTP_STATUS_FAILED;
 	}
