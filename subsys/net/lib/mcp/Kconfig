@@ -203,14 +203,21 @@ config MCP_TOOL_IDLE_TIMEOUT_MS
 	default 100000
 	help
 			Maximum time allowed since last message from a tool execution
-			before it is canceled. Default is 5 minutes (300000 ms).
+			before it is canceled. Default is 100000 ms.
 
 config MCP_TOOL_CANCEL_TIMEOUT_MS
 	int "Execution cancellation timeout in milliseconds"
 	default 300000
 	help
 			Maximum time allowed for a tool to acknowledge cancellation
-			before an error is logged. Default is 1 minute (60000 ms).
+			before an error is logged. Default is 300000 ms.
+
+config MCP_CLIENT_TIMEOUT_MS
+	int "Maximum idle time for client connections in milliseconds"
+	default 600000
+	help
+			Maximum time allowed for a client to be idle between. Default
+			is 600000 ms.
 
 endif # MCP_HEALTH_MONITOR
 
@@ -229,9 +236,17 @@ config MCP_TRANSPORT_HTTP
 	select NET_IPV6
 	select NET_SOCKETS
 	select HTTP_SERVER
-    select HTTP_SERVER_CAPTURE_HEADERS
+	select HTTP_SERVER_CAPTURE_HEADERS
 	help
 	  Use HTTP for MCP transport.
+
+config MCP_TRANSPORT_MOCK
+	bool "Mock transport (for testing only)"
+	help
+	  Mock transport layer for unit testing.
+	  This option should only be used in test builds.
+	  The mock transport implements the transport_binding interface
+	  and tracks all send/disconnect calls for test verification.
 
 endchoice
 
@@ -259,12 +274,23 @@ config MCP_HTTP_PORT
 	  Port number for the MCP HTTP server.
 
 config MCP_HTTP_ENDPOINT
-    string "MCP endpoint path"
-    default "/mcp"
-    help
-      URL path for MCP endpoint.
+	string "MCP endpoint path"
+	default "/mcp"
+	help
+	  URL path for MCP endpoint.
 
 endif # MCP_TRANSPORT_HTTP
+
+if MCP_TRANSPORT_MOCK
+
+config MCP_MOCK_MAX_CLIENTS
+	int "Max number of mock clients"
+	default 3
+	range 1 100
+	help
+	  Maximum number of clients for mock transport testing.
+
+endif # MCP_TRANSPORT_MOCK
 
 module = MCP
 module-str = MCP Server

@@ -1262,7 +1262,7 @@ int mcp_server_start(mcp_server_ctx_t ctx)
 	return 0;
 }
 
-int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_message *app_msg,
+int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_message *tool_msg,
 				   uint32_t execution_token)
 {
 	int ret;
@@ -1279,9 +1279,9 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_m
 	struct mcp_execution_registry *execution_registry = &server->execution_registry;
 	struct mcp_client_registry *client_registry = &server->client_registry;
 
-	if ((app_msg == NULL) ||
-	    ((app_msg->data == NULL) && (app_msg->type != MCP_USR_TOOL_CANCEL_ACK) &&
-	     (app_msg->type != MCP_USR_TOOL_PING))) {
+	if ((tool_msg == NULL) ||
+	    ((tool_msg->data == NULL) && (tool_msg->type != MCP_USR_TOOL_CANCEL_ACK) &&
+	     (tool_msg->type != MCP_USR_TOOL_PING))) {
 		LOG_ERR("Invalid user message");
 		return -EINVAL;
 	}
@@ -1313,9 +1313,9 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_m
 	bool is_execution_canceled = (execution_ctx->execution_state == MCP_EXEC_CANCELED);
 
 	if (is_execution_canceled) {
-		if (app_msg->type == MCP_USR_TOOL_CANCEL_ACK) {
+		if (tool_msg->type == MCP_USR_TOOL_CANCEL_ACK) {
 			execution_ctx->execution_state = MCP_EXEC_FINISHED;
-		} else if (app_msg->type == MCP_USR_TOOL_RESPONSE) {
+		} else if (tool_msg->type == MCP_USR_TOOL_RESPONSE) {
 			execution_ctx->execution_state = MCP_EXEC_FINISHED;
 			LOG_WRN("Execution canceled, tool message will be dropped.");
 		}
@@ -1324,7 +1324,7 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_m
 		execution_ctx->last_message_timestamp = k_uptime_get();
 		k_mutex_unlock(&execution_registry->registry_mutex);
 
-		switch (app_msg->type) {
+		switch (tool_msg->type) {
 			/* Result is passed as a complete JSON string that gets attached to the full
 			 * JSON RPC response inside the Transport layer
 			 */
@@ -1347,7 +1347,7 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_m
 				return -ENOMEM;
 			}
 
-			strncpy((char *)response_data->content.items[0].text, (char *)app_msg->data,
+			strncpy((char *)response_data->content.items[0].text, (char *)tool_msg->data,
 				sizeof(response_data->content.items[0].text) - 1);
 			response_data->content.items[0]
 				.text[sizeof(response_data->content.items[0].text) - 1] = '\0';
@@ -1357,7 +1357,7 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_m
 			execution_ctx->execution_state = MCP_EXEC_FINISHED;
 			break;
 		default:
-			LOG_ERR("Unsupported application message type: %u", app_msg->type);
+			LOG_ERR("Unsupported application message type: %u", tool_msg->type);
 			return -EINVAL;
 		}
 
@@ -1392,8 +1392,8 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_m
 		mcp_free(response_data);
 	}
 
-	if ((app_msg->type == MCP_USR_TOOL_RESPONSE) ||
-	    (app_msg->type == MCP_USR_TOOL_CANCEL_ACK)) {
+	if ((tool_msg->type == MCP_USR_TOOL_RESPONSE) ||
+	    (tool_msg->type == MCP_USR_TOOL_CANCEL_ACK)) {
 		ret = k_mutex_lock(&client_registry->registry_mutex, K_FOREVER);
 		if (ret != 0) {
 			LOG_ERR("Failed to lock client registry mutex: %d. Client registry is "

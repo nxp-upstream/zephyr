@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-enum mcp_app_msg_type {
+enum mcp_tool_msg_type {
 	MCP_USR_TOOL_RESPONSE,
 	MCP_USR_TOOL_NOTIFICATION,
 	MCP_USR_TOOL_CANCEL_ACK,
@@ -69,7 +69,7 @@ struct mcp_tool_record {
  * @brief Message sent from a tool (response/notification)
  */
 struct mcp_tool_message {
-	enum mcp_app_msg_type type;
+	enum mcp_tool_msg_type type;
 	int length;
 	void *data;
 };
