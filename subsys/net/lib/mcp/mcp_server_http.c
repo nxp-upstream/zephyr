@@ -483,7 +483,7 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 		LOG_ERR("Error processing request: %d", ret);
 		response_ctx->status = HTTP_500_INTERNAL_SERVER_ERROR;
 		response_ctx->final_chunk = true;
-		return -EINVAL;
+		return 0;
 	}
 
 	mcp_client_ctx = (struct mcp_http_client_ctx *)binding->context;
@@ -492,7 +492,7 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 		LOG_ERR("Client session not found for session ID: %" PRIx32,
 			accumulator->session_id_hdr);
 		response_ctx->status = HTTP_400_BAD_REQUEST;
-		return -ENOENT;
+		return 0;
 	}
 
 	/* Setup common response headers */
@@ -513,20 +513,29 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 	case MCP_METHOD_PING:
 	case MCP_METHOD_TOOLS_LIST:
 	case MCP_METHOD_INITIALIZE:
-		/**
-		 * These methods don't take long to process so we can respond within
-		 * the POST handler.
-		 */
-		response_data = k_fifo_get(&mcp_client_ctx->response_queue, K_FOREVER);
+	case MCP_METHOD_TOOLS_CALL:
+		response_data = k_fifo_get(&mcp_client_ctx->response_queue, K_MSEC(CONFIG_MCP_HTTP_TIMEOUT_MS));
 
-		ret = format_response(mcp_client_ctx->response_body,
-					   sizeof(mcp_client_ctx->response_body),
-					   response_data->data);
-		cleanup_response_item(response_data);
+		if (response_data) {
+			ret = format_response(mcp_client_ctx->response_body,
+						sizeof(mcp_client_ctx->response_body),
+						response_data->data);
+			cleanup_response_item(response_data);
+		} else {
+			/**
+			 * Request is taking a long time to process. Switch to SSE
+			 */
+			LOG_DBG("Using SSE");
+			mcp_client_ctx->response_headers[0].value = "text/event-stream";
+			ret = format_sse_response(mcp_client_ctx->response_body,
+						sizeof(mcp_client_ctx->response_body),
+						mcp_client_ctx->next_event_id++,
+						NULL);
+		}
 
 		if (ret < 0) {
 			response_ctx->status = HTTP_500_INTERNAL_SERVER_ERROR;
-			return ret;
+			return 0;
 		}
 
 		response_ctx->body = (const char *)mcp_client_ctx->response_body;
@@ -538,28 +547,8 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 		/* Notifications don't require a response body */
 		response_ctx->status = HTTP_202_ACCEPTED;
 		break;
-	case MCP_METHOD_TOOLS_CALL:
-		/**
-		 * Tools can take a long time to process and generate a response
-		 * so we use SSE for this.
-		 */
-		mcp_client_ctx->response_headers[0].value = "text/event-stream";
-
-		ret = format_sse_response(mcp_client_ctx->response_body,
-					  sizeof(mcp_client_ctx->response_body),
-					  mcp_client_ctx->next_event_id++,
-					  NULL);
-
-		if (ret < 0) {
-			LOG_ERR("Failed to format SSE response: %d", ret);
-			response_ctx->status = HTTP_500_INTERNAL_SERVER_ERROR;
-			return ret;
-		}
-
-		response_ctx->body = mcp_client_ctx->response_body;
-		response_ctx->body_len = ret;
-		break;
 	default:
+		response_ctx->status = HTTP_405_METHOD_NOT_ALLOWED;
 		LOG_WRN("Unhandled method type: %d", msg_type);
 		break;
 	}
@@ -587,7 +576,7 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 			accumulator->session_id_hdr);
 		response_ctx->status = HTTP_400_BAD_REQUEST;
 		response_ctx->final_chunk = true;
-		return -ENOENT;
+		return 0;
 	}
 
 	mcp_client_ctx = (struct mcp_http_client_ctx *)binding->context;
@@ -623,7 +612,7 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 		if (ret < 0) {
 			LOG_ERR("Failed to format SSE retry response: %d", ret);
 			response_ctx->status = HTTP_500_INTERNAL_SERVER_ERROR;
-			return ret;
+			return 0;
 		}
 
 		response_ctx->body = mcp_client_ctx->response_body;
@@ -644,7 +633,7 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 		LOG_ERR("Failed to format SSE response: %d", ret);
 		cleanup_response_item(response_data);
 		response_ctx->status = HTTP_500_INTERNAL_SERVER_ERROR;
-		return ret;
+		return 0;
 	}
 
 	response_ctx->body = mcp_client_ctx->response_body;
@@ -677,11 +666,15 @@ static int mcp_server_http_resource_handler(struct http_client_ctx *client,
 	if (status == HTTP_SERVER_DATA_ABORTED) {
 		/* Request aborted, clean up accumulator */
 		LOG_WRN("HTTP request aborted for client fd=%d", client->fd);
-		release_accumulator(accumulator);
+		stat = release_accumulator(accumulator);
 		return stat;
 	}
 
-	accumulate_request(client, accumulator, request_ctx, status);
+	stat = accumulate_request(client, accumulator, request_ctx, status);
+	if (stat < 0) {
+		LOG_ERR("Failed to allocate mcp accumualator fd=%d", client->fd);
+		return stat;
+	}
 
 	if (status == HTTP_SERVER_DATA_FINAL) {
 		LOG_DBG("HTTP %s request: %s", client->method == HTTP_POST ? "POST" : "GET", accumulator->data);

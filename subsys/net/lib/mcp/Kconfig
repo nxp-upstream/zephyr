@@ -264,12 +264,25 @@ config MCP_HTTP_ENDPOINT
     help
       URL path for MCP endpoint.
 
+config MCP_HTTP_TIMEOUT_MS
+	int "HTTP request timeout in milliseconds"
+	default 500
+	help
+	  Maximum time in milliseconds to wait for an HTTP request to complete
+	  before switching from blocking mode to polling mode. This timeout
+	  applies to both client and server HTTP operations.
+
 config MCP_HTTP_SSE_RETRY_MS
-	int "SSE retry interval for clients"
+	int "SSE reconnection retry interval in milliseconds"
 	default 5000
 	help
-	  Interval at which the client should re-connect or poll for responses via
-	  GET methods
+	  Time interval in milliseconds sent to clients via the SSE 'retry' field.
+	  In this implementation, the retry mechanism instructs clients how
+	  frequently to poll for new responses via GET requests. When a client
+	  receives an SSE event with this retry value, it should wait this amount
+	  of time before making the next GET request to check for additional
+	  server responses.
+
 endif # MCP_TRANSPORT_HTTP
 
 module = MCP
