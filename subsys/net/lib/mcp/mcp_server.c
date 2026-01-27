@@ -71,6 +71,7 @@ struct mcp_client_context {
 	enum mcp_lifecycle_state lifecycle_state;
 	uint32_t active_requests[CONFIG_HTTP_SERVER_MAX_STREAMS];
 	uint8_t active_request_count;
+	int64_t last_message_timestamp;
 	struct mcp_transport_binding transport_binding;
 };
 
@@ -933,6 +934,7 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 	int64_t cancel_duration;
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 	struct mcp_execution_registry *execution_registry = &server->execution_registry;
+	struct mcp_client_registry *client_registry = &server->client_registry;
 
 	while (1) {
 		k_sleep(K_MSEC(CONFIG_MCP_HEALTH_CHECK_INTERVAL_MS));
@@ -1030,6 +1032,33 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 		}
 
 		k_mutex_unlock(&execution_registry->registry_mutex);
+
+		k_mutex_lock(&client_registry->registry_mutex, K_FOREVER);
+		if (ret != 0) {
+			LOG_ERR("Failed to lock client registry: %d", ret);
+			continue;
+		}
+
+		for (int i = 0; i < CONFIG_HTTP_SERVER_MAX_CLIENTS; i++) {
+			struct mcp_client_context *client_context = &client_registry->clients[i];
+
+			if (client_context->client_id == 0) {
+				continue;
+			}
+
+			if (client_context->last_message_timestamp > 0) {
+				idle_duration = current_time - client_context->last_message_timestamp;
+
+				if (idle_duration > CONFIG_MCP_CLIENT_TIMEOUT_MS) {
+					LOG_WRN("Client ID %u exceeded idle timeout (%lld ms). "
+						"Marking as disconnected.",
+						client_context->client_id, idle_duration);
+					
+					remove_client(server, client_context);
+				}
+			}
+		}
+		k_mutex_unlock(&client_registry->registry_mutex);
 	}
 }
 #endif
