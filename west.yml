@@ -352,6 +352,14 @@ manifest:
     - name: open-amp
       revision: 5efe7974f9546582e99f5a842a816ea4b65f5227
       path: modules/lib/open-amp
+    - name: rpmsg-lite
+      url: https://github.com/nxp-mcuxpresso/rpmsg-lite.git
+      revision: main
+      path: modules/lib/rpmsg-lite
+    - name: erpc
+      url: https://github.com/EmbeddedRPC/erpc.git
+      revision: main
+      path: modules/lib/erpc
     - name: openthread
       revision: 9a40380a47b2493cfcd172b362704581e9aef47f
       path: modules/lib/openthread
