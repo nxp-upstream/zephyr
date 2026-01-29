@@ -230,6 +230,14 @@ config MCP_TRANSPORT_HTTP
 	select NET_SOCKETS
 	select HTTP_SERVER
     select HTTP_SERVER_CAPTURE_HEADERS
+	select UUID
+	select UUID_V4
+	select UUID_BASE64
+	select ENTROPY_GENERATOR
+	select MBEDTLS
+	select MBEDTLS_PSA_CRYPTO_C
+	select PSA_WANT_ALG_SHA_1
+	select BASE64
 	help
 	  Use HTTP for MCP transport.
 

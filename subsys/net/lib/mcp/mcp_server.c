@@ -35,7 +35,7 @@ enum mcp_execution_state {
 };
 
 struct mcp_queue_msg {
-	uint32_t client_id;
+	struct mcp_client_context *client;
 	void *data;
 };
 
@@ -48,7 +48,7 @@ struct mcp_tool_registry {
 struct mcp_execution_context {
 	uint32_t execution_token;
 	uint32_t request_id;
-	uint32_t client_id;
+	struct mcp_client_context *client;
 	k_tid_t worker_id;
 	int64_t start_timestamp;
 	int64_t cancel_timestamp;
@@ -67,7 +67,7 @@ struct mcp_client_context {
 	enum mcp_lifecycle_state lifecycle_state;
 	uint32_t active_requests[CONFIG_HTTP_SERVER_MAX_STREAMS];
 	uint8_t active_request_count;
-	struct mcp_transport_binding transport_binding;
+	struct mcp_transport_binding *binding;
 };
 
 struct mcp_client_registry {
@@ -153,7 +153,8 @@ static int generate_client_id(struct mcp_server_ctx *server, uint32_t *client_id
 	return 0;
 }
 
-static struct mcp_client_context *get_client(struct mcp_server_ctx *server, uint32_t client_id)
+static struct mcp_client_context *get_client_by_id(struct mcp_server_ctx *server,
+						   uint32_t client_id)
 {
 	struct mcp_client_registry *client_registry = &server->client_registry;
 
@@ -170,7 +171,21 @@ static struct mcp_client_context *get_client(struct mcp_server_ctx *server, uint
 	return NULL;
 }
 
-static struct mcp_client_context *add_client(struct mcp_server_ctx *server)
+static struct mcp_client_context *get_client_by_binding(struct mcp_server_ctx *server,
+							const struct mcp_transport_binding *binding)
+{
+	struct mcp_client_registry *client_registry = &server->client_registry;
+
+	for (int i = 0; i < ARRAY_SIZE(client_registry->clients); i++) {
+		if (server->client_registry.clients[i].binding == binding) {
+			return &server->client_registry.clients[i];
+		}
+	}
+
+	return NULL;
+}
+
+static struct mcp_client_context *add_client(struct mcp_server_ctx *server, struct mcp_transport_binding *binding)
 {
 	struct mcp_client_registry *client_registry = &server->client_registry;
 	uint32_t client_id;
@@ -186,6 +201,7 @@ static struct mcp_client_context *add_client(struct mcp_server_ctx *server)
 			client_registry->clients[i].client_id = client_id;
 			client_registry->clients[i].lifecycle_state = MCP_LIFECYCLE_NEW;
 			client_registry->clients[i].active_request_count = 0;
+			client_registry->clients[i].binding = binding;
 			client_registry->client_count++;
 			return &client_registry->clients[i];
 		}
@@ -199,7 +215,7 @@ static void remove_client(struct mcp_server_ctx *server, struct mcp_client_conte
 {
 	struct mcp_client_registry *client_registry = &server->client_registry;
 
-	client->transport_binding.ops->disconnect(&client->transport_binding, client->client_id);
+	client->binding->ops->disconnect(client->binding);
 	client->client_id = 0;
 	client->active_request_count = 0;
 
@@ -235,7 +251,8 @@ static struct mcp_execution_context *get_execution_context(struct mcp_server_ctx
 }
 
 static struct mcp_execution_context *add_execution_context(struct mcp_server_ctx *server,
-							   uint32_t request_id, uint32_t client_id)
+							   struct mcp_client_context *client,
+							   uint32_t request_id)
 {
 	int ret;
 	struct mcp_execution_context *context = NULL;
@@ -256,7 +273,7 @@ static struct mcp_execution_context *add_execution_context(struct mcp_server_ctx
 		if (context->execution_token == 0) {
 			context->execution_token = execution_token;
 			context->request_id = request_id;
-			context->client_id = client_id;
+			context->client = client;
 			context->worker_id = k_current_get();
 			context->start_timestamp = k_uptime_get();
 			context->cancel_timestamp = 0;
@@ -433,8 +450,8 @@ static int copy_tool_metadata_to_response(struct mcp_server_ctx *server,
 /*******************************************************************************
  * Request/Response Handling Functions
  ******************************************************************************/
-static int send_error_response(struct mcp_server_ctx *server, uint32_t request_id,
-			       uint32_t client_id, int32_t error_code, const char *error_message)
+static int send_error_response(struct mcp_server_ctx *server, struct mcp_client_context *client,
+			       uint32_t request_id, int32_t error_code, const char *error_message)
 {
 	struct mcp_error *error_response;
 	int ret;
@@ -468,16 +485,7 @@ static int send_error_response(struct mcp_server_ctx *server, uint32_t request_i
 		return ret;
 	}
 
-	struct mcp_client_context *client = get_client(server, client_id);
-	if (client == NULL) {
-		LOG_ERR("Client context not found for client_id: %u", client_id);
-		mcp_free(error_response);
-		mcp_free(json_buffer);
-		return -EINVAL;
-	}
-
-	ret = client->transport_binding.ops->send(&client->transport_binding, client_id,
-						  json_buffer, ret);
+	ret = client->binding->ops->send(client->binding, json_buffer, ret);
 	if (ret) {
 		LOG_ERR("Failed to send error response");
 		mcp_free(error_response);
@@ -490,16 +498,10 @@ static int send_error_response(struct mcp_server_ctx *server, uint32_t request_i
 }
 
 static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_message *request,
-				     new_client_cb transport_callback,
-				     struct mcp_client_context **client)
+				     struct mcp_transport_binding *binding)
 {
 	int ret;
 	struct mcp_client_registry *client_registry = &server->client_registry;
-
-	if (transport_callback == NULL) {
-		LOG_ERR("Missing transport callback for new client");
-		return -EINVAL;
-	}
 
 	if (strcmp(request->req.u.initialize.protocol_version, MCP_PROTOCOL_VERSION) != 0) {
 		LOG_WRN("Protocol version mismatch: %s",
@@ -513,29 +515,11 @@ static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_m
 		return ret;
 	}
 
-	struct mcp_client_context *new_client = add_client(server);
+	struct mcp_client_context *new_client = add_client(server, binding);
 	if (new_client == NULL) {
 		LOG_ERR("Client registry full");
 		k_mutex_unlock(&client_registry->registry_mutex);
 		return -ENOMEM;
-	}
-
-	/* Notify the transport layer about the new client */
-	ret = transport_callback(&new_client->transport_binding, new_client->client_id);
-	if (ret) {
-		/* Transport unable to handle new client. Clean up */
-		LOG_ERR("Transport failed to handle new  client");
-		remove_client(server, new_client);
-		return -EINVAL;
-	}
-
-	/* Transport layer must initialize the transport_binding.ops */
-	if ((new_client->transport_binding.ops == NULL) ||
-	    (new_client->transport_binding.ops->send == NULL) ||
-	    (new_client->transport_binding.ops->disconnect == NULL)) {
-		LOG_ERR("Transport binding not initialized");
-		remove_client(server, new_client);
-		return -EINVAL;
 	}
 
 	new_client->lifecycle_state = MCP_LIFECYCLE_INITIALIZING;
@@ -583,8 +567,7 @@ static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_m
 		return ret;
 	}
 
-	ret = new_client->transport_binding.ops->send(&new_client->transport_binding,
-						      new_client->client_id, json_buffer, ret);
+	ret = new_client->binding->ops->send(new_client->binding, json_buffer, ret);
 	if (ret) {
 		LOG_ERR("Failed to send initialize response %d", ret);
 		mcp_free(response_data);
@@ -594,12 +577,11 @@ static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_m
 	}
 
 	mcp_free(response_data);
-	*client = new_client;
 	return 0;
 }
 
-static int handle_tools_list_request(struct mcp_server_ctx *server, uint32_t client_id,
-				     struct mcp_message *request)
+static int handle_tools_list_request(struct mcp_server_ctx *server,
+				     struct mcp_client_context *client, struct mcp_message *request)
 {
 	struct mcp_result_tools_list *response_data;
 	int ret;
@@ -615,15 +597,8 @@ static int handle_tools_list_request(struct mcp_server_ctx *server, uint32_t cli
 		return ret;
 	}
 
-	struct mcp_client_context *client = get_client(server, client_id);
-	if (client == NULL) {
-		LOG_DBG("Client not found: %u", client_id);
-		k_mutex_unlock(&client_registry->registry_mutex);
-		return -ENOENT;
-	}
-
 	if (client->lifecycle_state != MCP_LIFECYCLE_INITIALIZED) {
-		LOG_DBG("Client not in initialized state: %u", client_id);
+		LOG_DBG("Client not in initialized state: %u", client->client_id);
 		k_mutex_unlock(&client_registry->registry_mutex);
 		return -EACCES;
 	}
@@ -669,8 +644,7 @@ static int handle_tools_list_request(struct mcp_server_ctx *server, uint32_t cli
 		return ret;
 	}
 
-	ret = client->transport_binding.ops->send(&client->transport_binding, client_id,
-						  json_buffer, ret);
+	ret = client->binding->ops->send(client->binding, json_buffer, ret);
 	if (ret) {
 		LOG_ERR("Failed to send tools list response");
 		mcp_free(response_data);
@@ -682,11 +656,10 @@ static int handle_tools_list_request(struct mcp_server_ctx *server, uint32_t cli
 	return 0;
 }
 
-static int handle_tools_call_request(struct mcp_server_ctx *server, uint32_t client_id,
-				     struct mcp_message *request)
+static int handle_tools_call_request(struct mcp_server_ctx *server,
+				     struct mcp_client_context *client, struct mcp_message *request)
 {
 	int ret;
-	struct mcp_client_context *client;
 	mcp_tool_callback_t callback;
 
 	struct mcp_client_registry *client_registry = &server->client_registry;
@@ -700,15 +673,8 @@ static int handle_tools_call_request(struct mcp_server_ctx *server, uint32_t cli
 		return ret;
 	}
 
-	client = get_client(server, client_id);
-	if (client == NULL) {
-		LOG_DBG("Client not found: %u", client_id);
-		k_mutex_unlock(&client_registry->registry_mutex);
-		return -ENOENT;
-	}
-
 	if (client->lifecycle_state != MCP_LIFECYCLE_INITIALIZED) {
-		LOG_DBG("Client not in initialized state: %u", client_id);
+		LOG_DBG("Client not in initialized state: %u", client->client_id);
 		k_mutex_unlock(&client_registry->registry_mutex);
 		return -EACCES;
 	}
@@ -740,7 +706,7 @@ static int handle_tools_call_request(struct mcp_server_ctx *server, uint32_t cli
 	k_mutex_unlock(&tool_registry->registry_mutex);
 
 	struct mcp_execution_context *exec_ctx =
-		add_execution_context(server, request->id, client_id);
+		add_execution_context(server, client, request->id);
 	if (exec_ctx == NULL) {
 		LOG_ERR("Failed to create execution context: %d", ret);
 		goto cleanup_active_request;
@@ -779,7 +745,7 @@ cleanup_active_request:
 	return final_ret;
 }
 
-static int handle_notification(struct mcp_server_ctx *server, uint32_t client_id,
+static int handle_notification(struct mcp_server_ctx *server, struct mcp_client_context *client,
 			       struct mcp_message *notification)
 {
 	int ret;
@@ -793,20 +759,13 @@ static int handle_notification(struct mcp_server_ctx *server, uint32_t client_id
 		return ret;
 	}
 
-	struct mcp_client_context *client = get_client(server, client_id);
-	if (client == NULL) {
-		LOG_ERR("Client not found %x", client_id);
-		k_mutex_unlock(&client_registry->registry_mutex);
-		return -ENOENT;
-	}
-
 	switch (notification->method) {
 	case MCP_METHOD_NOTIF_INITIALIZED:
 		/* State transition: INITIALIZING -> INITIALIZED */
 		if (client->lifecycle_state == MCP_LIFECYCLE_INITIALIZING) {
 			client->lifecycle_state = MCP_LIFECYCLE_INITIALIZED;
 		} else {
-			LOG_ERR("Invalid state transition for client %u", client_id);
+			LOG_ERR("Invalid state transition for client %u", client->client_id);
 			k_mutex_unlock(&client_registry->registry_mutex);
 			return -EPERM;
 		}
@@ -823,7 +782,8 @@ static int handle_notification(struct mcp_server_ctx *server, uint32_t client_id
 	return 0;
 }
 
-static int handle_ping_request(struct mcp_server_ctx *server, uint32_t client_id, struct mcp_message *request)
+static int handle_ping_request(struct mcp_server_ctx *server, struct mcp_client_context *client,
+			       struct mcp_message *request)
 {
 	int ret;
 	struct mcp_client_registry *client_registry = &server->client_registry;
@@ -836,15 +796,8 @@ static int handle_ping_request(struct mcp_server_ctx *server, uint32_t client_id
 		return ret;
 	}
 
-	struct mcp_client_context *client = get_client(server, client_id);
-	if (client == NULL) {
-		LOG_DBG("Client not found: %u", client_id);
-		k_mutex_unlock(&client_registry->registry_mutex);
-		return -ENOENT;
-	}
-
 	if (client->lifecycle_state != MCP_LIFECYCLE_INITIALIZED) {
-		LOG_DBG("Client not in initialized state: %u", client_id);
+		LOG_DBG("Client not in initialized state: %u", client->client_id);
 		k_mutex_unlock(&client_registry->registry_mutex);
 		return -EACCES;
 	}
@@ -864,15 +817,14 @@ static int handle_ping_request(struct mcp_server_ctx *server, uint32_t client_id
 
 	/* Serialize response to JSON */
 	ret = mcp_json_serialize_ping_result((char *)json_buffer, CONFIG_MCP_MAX_MESSAGE_SIZE,
-						   request->id, NULL);
+					     request->id, NULL);
 	if (ret <= 0) {
 		LOG_ERR("Failed to serialize response: %d", ret);
 		mcp_free(json_buffer);
 		return ret;
 	}
 
-	ret = client->transport_binding.ops->send(&client->transport_binding, client_id,
-						  json_buffer, ret);
+	ret = client->binding->ops->send(client->binding, json_buffer, ret);
 	if (ret) {
 		LOG_ERR("Failed to send tools list response");
 		mcp_free(json_buffer);
@@ -920,19 +872,21 @@ static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 
 		switch (message->method) {
 		case MCP_METHOD_INITIALIZE:
-		case MCP_METHOD_PING:
+			// Handled immmediately in mcp_server_handle_request
 			LOG_DBG("Should never reach here");
 			ret = 0;
-			// Handled immmediately in mcp_server_handle_request
+			break;
+		case MCP_METHOD_PING:
+			ret = handle_ping_request(server, request.client, message);
 			break;
 		case MCP_METHOD_NOTIF_INITIALIZED:
-			ret = handle_notification(server, request.client_id, message);
+			ret = handle_notification(server, request.client, message);
 			break;
 		case MCP_METHOD_TOOLS_LIST:
-			ret = handle_tools_list_request(server, request.client_id, message);
+			ret = handle_tools_list_request(server, request.client, message);
 			break;
 		case MCP_METHOD_TOOLS_CALL:
-			ret = handle_tools_call_request(server, request.client_id, message);
+			ret = handle_tools_call_request(server, request.client, message);
 			break;
 		case MCP_METHOD_NOTIF_CANCELLED:
 			/* TODO: Implement. Ignore for now */
@@ -972,7 +926,7 @@ static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 				error_message = "Internal server error";
 				break;
 			}
-			send_error_response(server, message->id, request.client_id, error_code,
+			send_error_response(server, request.client, message->id, error_code,
 					    error_message);
 		}
 
@@ -1026,14 +980,14 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 							"Worker ID %u "
 							"still not released.",
 							context->execution_token, cancel_duration,
-							context->request_id, context->client_id,
+							context->request_id, context->client->client_id,
 							(uint32_t)context->worker_id);
 					} else {
 						LOG_ERR("Execution token %u exceeded cancellation "
 							"timeout "
 							"(%lld ms). Request ID: %u, Client ID: %u",
 							context->execution_token, cancel_duration,
-							context->request_id, context->client_id);
+							context->request_id, context->client->client_id);
 					}
 					/* TODO: Clean up execution record? */
 				}
@@ -1053,13 +1007,13 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 						"ID %u "
 						"still not released.",
 						context->execution_token, execution_duration,
-						context->request_id, context->client_id,
+						context->request_id, context->client->client_id,
 						(uint32_t)context->worker_id);
 				} else {
 					LOG_WRN("Execution token %u exceeded execution timeout "
 						"(%lld ms). Request ID: %u, Client ID: %u",
 						context->execution_token, execution_duration,
-						context->request_id, context->client_id);
+						context->request_id, context->client->client_id);
 				}
 				/* TODO: Notify client? */
 				context->execution_state = MCP_EXEC_CANCELED;
@@ -1077,13 +1031,13 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 							"Worker ID %u "
 							"still not released.",
 							context->execution_token, idle_duration,
-							context->request_id, context->client_id,
+							context->request_id, context->client->client_id,
 							(uint32_t)context->worker_id);
 					} else {
 						LOG_WRN("Execution token %u exceeded idle timeout "
 							"(%lld ms). Request ID: %u, Client ID: %u",
 							context->execution_token, idle_duration,
-							context->request_id, context->client_id);
+							context->request_id, context->client->client_id);
 					}
 					/* TODO: Notify client? */
 					context->execution_state = MCP_EXEC_CANCELED;
@@ -1101,8 +1055,7 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
  * Internal Interface Implementation
  ******************************************************************************/
 int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_request_data *request,
-			      enum mcp_method *method,
-			      struct mcp_transport_binding **client_binding)
+			      enum mcp_method *method)
 {
 	int ret;
 	struct mcp_queue_msg msg;
@@ -1110,7 +1063,7 @@ int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_request_data *req
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 
 	if ((server == NULL) || (request == NULL) || (request->json_data == NULL) ||
-	    (method == NULL) || (client_binding == NULL)) {
+	    (method == NULL)) {
 		LOG_ERR("Invalid parameters passed to mcp_server_handle_request");
 		return -EINVAL;
 	}
@@ -1135,34 +1088,24 @@ int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_request_data *req
 	switch (parsed_msg->method) {
 	case MCP_METHOD_INITIALIZE:
 		/* We want to handle the initialize request directly */
-		ret = handle_initialize_request(server, parsed_msg, request->callback, &client);
+		ret = handle_initialize_request(server, parsed_msg, request->binding);
 		mcp_free(parsed_msg);
 		break;
 	case MCP_METHOD_PING:
-		client = get_client(server, request->client_id_hint);
-		if (client == NULL) {
-			LOG_ERR("Can't find client with id %u", request->client_id_hint);
-			ret = -ENOENT;
-			mcp_free(parsed_msg);
-			break;
-		}
-		ret = handle_ping_request(server, request->client_id_hint, parsed_msg);
-		mcp_free(parsed_msg);
-		break;
 	case MCP_METHOD_TOOLS_LIST:
 	case MCP_METHOD_TOOLS_CALL:
 	case MCP_METHOD_NOTIF_INITIALIZED:
 	case MCP_METHOD_NOTIF_CANCELLED:
-		client = get_client(server, request->client_id_hint);
+		client = get_client_by_binding(server, request->binding);
 		if (client == NULL) {
-			LOG_ERR("Can't find client with id %u", request->client_id_hint);
+			LOG_ERR("Client does not exist");
 			ret = -ENOENT;
 			mcp_free(parsed_msg);
 			break;
 		}
 
 		msg.data = (void *)parsed_msg;
-		msg.client_id = client->client_id;
+		msg.client = client;
 
 		/* Parsed messge is now owned by the queue */
 		ret = k_msgq_put(&server->request_queue, &msg, K_NO_WAIT);
@@ -1173,14 +1116,15 @@ int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_request_data *req
 
 		break;
 	case MCP_METHOD_UNKNOWN:
-		client = get_client(server, request->client_id_hint);
+		client = get_client_by_binding(server, request->binding);
 		if (client == NULL) {
-			LOG_ERR("Can't find client with id %u", request->client_id_hint);
+			LOG_ERR("Client does not exist.");
 			ret = -ENOENT;
 			mcp_free(parsed_msg);
 			break;
 		}
-		ret = send_error_response(server, parsed_msg->id, request->client_id_hint, MCP_ERR_METHOD_NOT_FOUND, "Method not found");
+		ret = send_error_response(server, client, parsed_msg->id, MCP_ERR_METHOD_NOT_FOUND,
+					  "Method not found");
 		mcp_free(parsed_msg);
 		break;
 	default:
@@ -1189,32 +1133,9 @@ int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_request_data *req
 		break;
 	}
 
-	if (client != NULL) {
-		*client_binding = &client->transport_binding;
-	}
-
 	return ret;
 }
 
-struct mcp_transport_binding *mcp_server_get_client_binding(mcp_server_ctx_t ctx,
-							    uint32_t client_id)
-{
-	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
-	struct mcp_client_context *client;
-
-	if (server == NULL) {
-		LOG_ERR("Invalid server");
-		return NULL;
-	}
-
-	client = get_client(server, client_id);
-	if (client == NULL) {
-		LOG_ERR("Can't find client with id %u", client_id);
-		return NULL;
-	}
-
-	return &client->transport_binding;
-}
 /*******************************************************************************
  * API Implementation
  ******************************************************************************/
@@ -1316,7 +1237,6 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 {
 	int ret;
 	uint32_t request_id;
-	uint32_t client_id;
 	struct mcp_result_tools_call *response_data;
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 
@@ -1355,9 +1275,7 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 	}
 
 	request_id = execution_ctx->request_id;
-	client_id = execution_ctx->client_id;
-
-	struct mcp_client_context *client = get_client(server, client_id);
+	struct mcp_client_context *client = execution_ctx->client;
 
 	bool is_execution_canceled = (execution_ctx->execution_state == MCP_EXEC_CANCELED);
 
@@ -1382,7 +1300,8 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 		case MCP_USR_TOOL_RESPONSE:
 
 			if (client == NULL) {
-				LOG_ERR("Client context not found for client_id: %u", client_id);
+				LOG_ERR("Client context not found for client_id: %u",
+					client->client_id);
 				return -ENOENT;
 			}
 
@@ -1426,8 +1345,7 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 			return ret;
 		}
 
-		ret = client->transport_binding.ops->send(&client->transport_binding, client_id,
-							  json_buffer, ret);
+		ret = client->binding->ops->send(client->binding, json_buffer, ret);
 		if (ret) {
 			LOG_ERR("Failed to tool response");
 			mcp_free(response_data);
