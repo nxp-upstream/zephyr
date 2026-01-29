@@ -22,6 +22,9 @@ static int hello_world_tool_callback(const char *params, uint32_t execution_toke
 		.length = strlen("Hello World from tool!")
 	};
 
+	/* Simulate a long workload */
+	k_msleep(10000);
+
 	printk("Hello World tool executed with params: %s, token: %u\n", params ? params : "none",
 	       execution_token);
 	mcp_server_submit_tool_message(server, &response, execution_token);
