@@ -63,7 +63,6 @@ struct mcp_execution_registry {
 };
 
 struct mcp_client_context {
-	uint32_t client_id;
 	enum mcp_lifecycle_state lifecycle_state;
 	uint32_t active_requests[CONFIG_HTTP_SERVER_MAX_STREAMS];
 	uint8_t active_request_count;
@@ -124,53 +123,6 @@ static struct mcp_server_ctx *allocate_mcp_server_context(void)
 /*******************************************************************************
  * Client Context Helper Functions
  ******************************************************************************/
-static int generate_client_id(struct mcp_server_ctx *server, uint32_t *client_id)
-{
-	int ret;
-	struct mcp_client_registry *client_registry = &server->client_registry;
-
-	*client_id = INVALID_CLIENT_ID;
-
-	ret = k_mutex_lock(&client_registry->registry_mutex, K_FOREVER);
-	if (ret != 0) {
-		LOG_ERR("Failed to lock registry mutex: %d", ret);
-		return -EBUSY;
-	}
-
-	do {
-		*client_id = sys_rand32_get();
-		for (uint32_t i = 0; i < ARRAY_SIZE(client_registry->clients); i++) {
-			if ((client_registry->clients[i].lifecycle_state !=
-			     MCP_LIFECYCLE_DEINITIALIZED) &&
-			    (client_registry->clients[i].client_id == *client_id)) {
-				*client_id = 0;
-			}
-		}
-	} while (*client_id == INVALID_CLIENT_ID);
-
-	k_mutex_unlock(&client_registry->registry_mutex);
-
-	return 0;
-}
-
-static struct mcp_client_context *get_client_by_id(struct mcp_server_ctx *server,
-						   uint32_t client_id)
-{
-	struct mcp_client_registry *client_registry = &server->client_registry;
-
-	if (client_id == INVALID_CLIENT_ID) {
-		return NULL;
-	}
-
-	for (int i = 0; i < ARRAY_SIZE(client_registry->clients); i++) {
-		if (client_registry->clients[i].client_id == client_id) {
-			return &client_registry->clients[i];
-		}
-	}
-
-	return NULL;
-}
-
 static struct mcp_client_context *get_client_by_binding(struct mcp_server_ctx *server,
 							const struct mcp_transport_binding *binding)
 {
@@ -188,17 +140,9 @@ static struct mcp_client_context *get_client_by_binding(struct mcp_server_ctx *s
 static struct mcp_client_context *add_client(struct mcp_server_ctx *server, struct mcp_transport_binding *binding)
 {
 	struct mcp_client_registry *client_registry = &server->client_registry;
-	uint32_t client_id;
-
-	/* Assign a new client id */
-	if (generate_client_id(server, &client_id)) {
-		LOG_ERR("Unable to geenrate session id");
-		return NULL;
-	}
 
 	for (int i = 0; i < ARRAY_SIZE(client_registry->clients); i++) {
-		if (client_registry->clients[i].client_id == 0) {
-			client_registry->clients[i].client_id = client_id;
+		if (client_registry->clients[i].lifecycle_state == MCP_LIFECYCLE_DEINITIALIZED) {
 			client_registry->clients[i].lifecycle_state = MCP_LIFECYCLE_NEW;
 			client_registry->clients[i].active_request_count = 0;
 			client_registry->clients[i].binding = binding;
@@ -213,16 +157,12 @@ static struct mcp_client_context *add_client(struct mcp_server_ctx *server, stru
 /* Must be called with registry_mutex held */
 static void remove_client(struct mcp_server_ctx *server, struct mcp_client_context *client)
 {
-	struct mcp_client_registry *client_registry = &server->client_registry;
-
 	client->binding->ops->disconnect(client->binding);
-	client->client_id = 0;
-	client->active_request_count = 0;
 
 	memset(client, 0, sizeof(struct mcp_client_context));
-
 	client->lifecycle_state = MCP_LIFECYCLE_DEINITIALIZED;
-	client_registry->client_count--;
+
+	server->client_registry.client_count--;
 }
 
 /*******************************************************************************
@@ -598,7 +538,7 @@ static int handle_tools_list_request(struct mcp_server_ctx *server,
 	}
 
 	if (client->lifecycle_state != MCP_LIFECYCLE_INITIALIZED) {
-		LOG_DBG("Client not in initialized state: %u", client->client_id);
+		LOG_DBG("Client not in initialized state: %p", client);
 		k_mutex_unlock(&client_registry->registry_mutex);
 		return -EACCES;
 	}
@@ -674,7 +614,7 @@ static int handle_tools_call_request(struct mcp_server_ctx *server,
 	}
 
 	if (client->lifecycle_state != MCP_LIFECYCLE_INITIALIZED) {
-		LOG_DBG("Client not in initialized state: %u", client->client_id);
+		LOG_DBG("Client not in initialized state: %p", client);
 		k_mutex_unlock(&client_registry->registry_mutex);
 		return -EACCES;
 	}
@@ -765,7 +705,7 @@ static int handle_notification(struct mcp_server_ctx *server, struct mcp_client_
 		if (client->lifecycle_state == MCP_LIFECYCLE_INITIALIZING) {
 			client->lifecycle_state = MCP_LIFECYCLE_INITIALIZED;
 		} else {
-			LOG_ERR("Invalid state transition for client %u", client->client_id);
+			LOG_ERR("Invalid state transition for client %p", client);
 			k_mutex_unlock(&client_registry->registry_mutex);
 			return -EPERM;
 		}
@@ -797,7 +737,7 @@ static int handle_ping_request(struct mcp_server_ctx *server, struct mcp_client_
 	}
 
 	if (client->lifecycle_state != MCP_LIFECYCLE_INITIALIZED) {
-		LOG_DBG("Client not in initialized state: %u", client->client_id);
+		LOG_DBG("Client not in initialized state: %p", client);
 		k_mutex_unlock(&client_registry->registry_mutex);
 		return -EACCES;
 	}
@@ -976,18 +916,18 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 					if (!context->worker_released) {
 						LOG_ERR("Execution token %u exceeded cancellation "
 							"timeout "
-							"(%lld ms). Request ID: %u, Client ID: %u, "
+							"(%lld ms). Request ID: %u, Client: %p, "
 							"Worker ID %u "
 							"still not released.",
 							context->execution_token, cancel_duration,
-							context->request_id, context->client->client_id,
+							context->request_id, context->client,
 							(uint32_t)context->worker_id);
 					} else {
 						LOG_ERR("Execution token %u exceeded cancellation "
 							"timeout "
-							"(%lld ms). Request ID: %u, Client ID: %u",
+							"(%lld ms). Request ID: %u, Client: %p",
 							context->execution_token, cancel_duration,
-							context->request_id, context->client->client_id);
+							context->request_id, context->client);
 					}
 					/* TODO: Clean up execution record? */
 				}
@@ -1003,17 +943,17 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 			if (execution_duration > CONFIG_MCP_TOOL_EXEC_TIMEOUT_MS) {
 				if (!context->worker_released) {
 					LOG_WRN("Execution token %u exceeded execution timeout "
-						"(%lld ms). Request ID: %u, Client ID: %u, Worker "
+						"(%lld ms). Request ID: %u, Client: %p, Worker "
 						"ID %u "
 						"still not released.",
 						context->execution_token, execution_duration,
-						context->request_id, context->client->client_id,
+						context->request_id, context->client,
 						(uint32_t)context->worker_id);
 				} else {
 					LOG_WRN("Execution token %u exceeded execution timeout "
-						"(%lld ms). Request ID: %u, Client ID: %u",
+						"(%lld ms). Request ID: %u, Client: %p",
 						context->execution_token, execution_duration,
-						context->request_id, context->client->client_id);
+						context->request_id, context->client);
 				}
 				/* TODO: Notify client? */
 				context->execution_state = MCP_EXEC_CANCELED;
@@ -1027,17 +967,17 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 				if (idle_duration > CONFIG_MCP_TOOL_IDLE_TIMEOUT_MS) {
 					if (!context->worker_released) {
 						LOG_WRN("Execution token %u exceeded idle timeout "
-							"(%lld ms). Request ID: %u, Client ID: %u, "
+							"(%lld ms). Request ID: %u, Client: %p, "
 							"Worker ID %u "
 							"still not released.",
 							context->execution_token, idle_duration,
-							context->request_id, context->client->client_id,
+							context->request_id, context->client,
 							(uint32_t)context->worker_id);
 					} else {
 						LOG_WRN("Execution token %u exceeded idle timeout "
-							"(%lld ms). Request ID: %u, Client ID: %u",
+							"(%lld ms). Request ID: %u, Client: %p",
 							context->execution_token, idle_duration,
-							context->request_id, context->client->client_id);
+							context->request_id, context->client);
 					}
 					/* TODO: Notify client? */
 					context->execution_state = MCP_EXEC_CANCELED;
@@ -1300,8 +1240,8 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 		case MCP_USR_TOOL_RESPONSE:
 
 			if (client == NULL) {
-				LOG_ERR("Client context not found for client_id: %u",
-					client->client_id);
+				LOG_ERR("Client context not found for client: %p",
+					client);
 				return -ENOENT;
 			}
 

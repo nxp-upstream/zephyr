@@ -17,8 +17,6 @@
 #include <zephyr/sys/uuid.h>
 #include "mcp_common.h"
 
-#define INVALID_CLIENT_ID 0
-
 /* Forward declaration */
 struct mcp_transport_binding;
 
