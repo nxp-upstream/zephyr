@@ -47,24 +47,19 @@ struct btp_map_mce_mas_l2cap_disconnect_cmd {
 struct btp_map_mce_mas_connect_cmd {
 	bt_addr_le_t address;
 	uint8_t instance_id;
-	uint16_t buf_len;
-	uint8_t buf[];
+	uint8_t send_supp_feat;
 } __packed;
 
 #define BTP_MAP_MCE_MAS_DISCONNECT			0x07
 struct btp_map_mce_mas_disconnect_cmd {
 	bt_addr_le_t address;
 	uint8_t instance_id;
-	uint16_t buf_len;
-	uint8_t buf[];
 } __packed;
 
 #define BTP_MAP_MCE_MAS_ABORT				0x08
 struct btp_map_mce_mas_abort_cmd {
 	bt_addr_le_t address;
 	uint8_t instance_id;
-	uint16_t buf_len;
-	uint8_t buf[];
 } __packed;
 
 #define BTP_MAP_MCE_MAS_SET_FOLDER			0x09
@@ -199,24 +194,18 @@ struct btp_map_mce_mns_l2cap_disconnect_cmd {
 struct btp_map_mce_mns_connect_cmd {
 	bt_addr_le_t address;
 	uint8_t rsp_code;
-	uint16_t buf_len;
-	uint8_t buf[];
 } __packed;
 
 #define BTP_MAP_MCE_MNS_DISCONNECT			0x19
 struct btp_map_mce_mns_disconnect_cmd {
 	bt_addr_le_t address;
 	uint8_t rsp_code;
-	uint16_t buf_len;
-	uint8_t buf[];
 } __packed;
 
 #define BTP_MAP_MCE_MNS_ABORT				0x1a
 struct btp_map_mce_mns_abort_cmd {
 	bt_addr_le_t address;
 	uint8_t rsp_code;
-	uint16_t buf_len;
-	uint8_t buf[];
 } __packed;
 
 #define BTP_MAP_MCE_MNS_SEND_EVENT			0x1b
@@ -245,8 +234,6 @@ struct btp_map_mse_mas_connect_cmd {
 	bt_addr_le_t address;
 	uint8_t instance_id;
 	uint8_t rsp_code;
-	uint16_t buf_len;
-	uint8_t buf[];
 } __packed;
 
 #define BTP_MAP_MSE_MAS_DISCONNECT			0x1f
@@ -254,8 +241,6 @@ struct btp_map_mse_mas_disconnect_cmd {
 	bt_addr_le_t address;
 	uint8_t instance_id;
 	uint8_t rsp_code;
-	uint16_t buf_len;
-	uint8_t buf[];
 } __packed;
 
 #define BTP_MAP_MSE_MAS_ABORT				0x20
@@ -263,8 +248,6 @@ struct btp_map_mse_mas_abort_cmd {
 	bt_addr_le_t address;
 	uint8_t instance_id;
 	uint8_t rsp_code;
-	uint16_t buf_len;
-	uint8_t buf[];
 } __packed;
 
 #define BTP_MAP_MSE_MAS_SET_FOLDER			0x21
@@ -410,22 +393,16 @@ struct btp_map_mse_mns_l2cap_disconnect_cmd {
 #define BTP_MAP_MSE_MNS_CONNECT				0x32
 struct btp_map_mse_mns_connect_cmd {
 	bt_addr_le_t address;
-	uint16_t buf_len;
-	uint8_t buf[];
 } __packed;
 
 #define BTP_MAP_MSE_MNS_DISCONNECT			0x33
 struct btp_map_mse_mns_disconnect_cmd {
 	bt_addr_le_t address;
-	uint16_t buf_len;
-	uint8_t buf[];
 } __packed;
 
 #define BTP_MAP_MSE_MNS_ABORT				0x34
 struct btp_map_mse_mns_abort_cmd {
 	bt_addr_le_t address;
-	uint16_t buf_len;
-	uint8_t buf[];
 } __packed;
 
 #define BTP_MAP_MSE_MNS_SEND_EVENT			0x35

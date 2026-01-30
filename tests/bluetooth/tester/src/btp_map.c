@@ -2336,38 +2336,44 @@ static uint8_t mce_mas_connect(const void *cmd, uint16_t cmd_len,
 	const struct btp_map_mce_mas_connect_cmd *cp = cmd;
 	struct mce_mas_instance *inst;
 	struct net_buf *buf = NULL;
-	uint16_t buf_len;
-
-	if (cmd_len < sizeof(*cp)) {
-		return BTP_STATUS_FAILED;
-	}
-
-	buf_len = sys_le16_to_cpu(cp->buf_len);
-	if (cmd_len != sizeof(*cp) + buf_len) {
-		return BTP_STATUS_FAILED;
-	}
+	const struct bt_uuid_128 *uuid = BT_MAP_UUID_MAS;
+	uint8_t val[BT_UUID_SIZE_128];
+	int err;
 
 	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
 
-	if (buf_len > 0) {
-		buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
-		if (net_buf_tailroom(buf) < buf_len) {
+	buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, NULL);
+	if (buf == NULL) {
+		return BTP_STATUS_FAILED;
+	}
+
+	sys_memcpy_swap(val, uuid->val, sizeof(val));
+	err = bt_obex_add_header_target(buf, sizeof(val), val);
+	if (err != 0) {
+		net_buf_unref(buf);
+		return BTP_STATUS_FAILED;
+	}
+
+	/* Add supported features as application parameter */
+	if (cp->send_supp_feat != 0U) {
+		uint32_t supported_features = sys_cpu_to_be32(MAP_MCE_SUPPORTED_FEATURES);
+		struct bt_obex_tlv appl_params[] = {
+			{BT_MAP_APPL_PARAM_TAG_ID_MAP_SUPPORTED_FEATURES,
+			 sizeof(supported_features), (const uint8_t *)&supported_features},
+		};
+
+		err = bt_obex_add_header_app_param(buf, ARRAY_SIZE(appl_params), appl_params);
+		if (err != 0) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
 		}
-		net_buf_add_mem(buf, cp->buf, buf_len);
 	}
 
 	if (bt_map_mce_mas_connect(&inst->mce_mas, buf) < 0) {
-		if (buf) {
-			net_buf_unref(buf);
-		}
+		net_buf_unref(buf);
 		return BTP_STATUS_FAILED;
 	}
 
@@ -2379,39 +2385,13 @@ static uint8_t mce_mas_disconnect(const void *cmd, uint16_t cmd_len,
 {
 	const struct btp_map_mce_mas_disconnect_cmd *cp = cmd;
 	struct mce_mas_instance *inst;
-	struct net_buf *buf = NULL;
-	uint16_t buf_len;
-
-	if (cmd_len < sizeof(*cp)) {
-		return BTP_STATUS_FAILED;
-	}
-
-	buf_len = sys_le16_to_cpu(cp->buf_len);
-	if (cmd_len != sizeof(*cp) + buf_len) {
-		return BTP_STATUS_FAILED;
-	}
 
 	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
 
-	if (buf_len > 0) {
-		buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
-		if (net_buf_tailroom(buf) < buf_len) {
-			net_buf_unref(buf);
-			return BTP_STATUS_FAILED;
-		}
-		net_buf_add_mem(buf, cp->buf, buf_len);
-	}
-
-	if (bt_map_mce_mas_disconnect(&inst->mce_mas, buf) < 0) {
-		if (buf) {
-			net_buf_unref(buf);
-		}
+	if (bt_map_mce_mas_disconnect(&inst->mce_mas, NULL) < 0) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -2423,39 +2403,13 @@ static uint8_t mce_mas_abort(const void *cmd, uint16_t cmd_len,
 {
 	const struct btp_map_mce_mas_abort_cmd *cp = cmd;
 	struct mce_mas_instance *inst;
-	struct net_buf *buf = NULL;
-	uint16_t buf_len;
-
-	if (cmd_len < sizeof(*cp)) {
-		return BTP_STATUS_FAILED;
-	}
-
-	buf_len = sys_le16_to_cpu(cp->buf_len);
-	if (cmd_len != sizeof(*cp) + buf_len) {
-		return BTP_STATUS_FAILED;
-	}
 
 	inst = mce_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
 
-	if (buf_len > 0) {
-		buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
-		if (net_buf_tailroom(buf) < buf_len) {
-			net_buf_unref(buf);
-			return BTP_STATUS_FAILED;
-		}
-		net_buf_add_mem(buf, cp->buf, buf_len);
-	}
-
-	if (bt_map_mce_mas_abort(&inst->mce_mas, buf) < 0) {
-		if (buf) {
-			net_buf_unref(buf);
-		}
+	if (bt_map_mce_mas_abort(&inst->mce_mas, NULL) < 0) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -3076,39 +3030,13 @@ static uint8_t mce_mns_connect(const void *cmd, uint16_t cmd_len,
 {
 	const struct btp_map_mce_mns_connect_cmd *cp = cmd;
 	struct mce_mns_instance *inst;
-	struct net_buf *buf = NULL;
-	uint16_t buf_len;
-
-	if (cmd_len < sizeof(*cp)) {
-		return BTP_STATUS_FAILED;
-	}
-
-	buf_len = sys_le16_to_cpu(cp->buf_len);
-	if (cmd_len != sizeof(*cp) + buf_len) {
-		return BTP_STATUS_FAILED;
-	}
 
 	inst = mce_mns_find(&cp->address);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
 
-	if (buf_len > 0) {
-		buf = bt_map_mce_mns_create_pdu(&inst->mce_mns, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
-		if (net_buf_tailroom(buf) < buf_len) {
-			net_buf_unref(buf);
-			return BTP_STATUS_FAILED;
-		}
-		net_buf_add_mem(buf, cp->buf, buf_len);
-	}
-
-	if (bt_map_mce_mns_connect(&inst->mce_mns, cp->rsp_code, buf) < 0) {
-		if (buf) {
-			net_buf_unref(buf);
-		}
+	if (bt_map_mce_mns_connect(&inst->mce_mns, cp->rsp_code, NULL) < 0) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -3120,39 +3048,13 @@ static uint8_t mce_mns_disconnect(const void *cmd, uint16_t cmd_len,
 {
 	const struct btp_map_mce_mns_disconnect_cmd *cp = cmd;
 	struct mce_mns_instance *inst;
-	struct net_buf *buf = NULL;
-	uint16_t buf_len;
-
-	if (cmd_len < sizeof(*cp)) {
-		return BTP_STATUS_FAILED;
-	}
-
-	buf_len = sys_le16_to_cpu(cp->buf_len);
-	if (cmd_len != sizeof(*cp) + buf_len) {
-		return BTP_STATUS_FAILED;
-	}
 
 	inst = mce_mns_find(&cp->address);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
 
-	if (buf_len > 0) {
-		buf = bt_map_mce_mns_create_pdu(&inst->mce_mns, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
-		if (net_buf_tailroom(buf) < buf_len) {
-			net_buf_unref(buf);
-			return BTP_STATUS_FAILED;
-		}
-		net_buf_add_mem(buf, cp->buf, buf_len);
-	}
-
-	if (bt_map_mce_mns_disconnect(&inst->mce_mns, cp->rsp_code, buf) < 0) {
-		if (buf) {
-			net_buf_unref(buf);
-		}
+	if (bt_map_mce_mns_disconnect(&inst->mce_mns, cp->rsp_code, NULL) < 0) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -3164,39 +3066,13 @@ static uint8_t mce_mns_abort(const void *cmd, uint16_t cmd_len,
 {
 	const struct btp_map_mce_mns_abort_cmd *cp = cmd;
 	struct mce_mns_instance *inst;
-	struct net_buf *buf = NULL;
-	uint16_t buf_len;
-
-	if (cmd_len < sizeof(*cp)) {
-		return BTP_STATUS_FAILED;
-	}
-
-	buf_len = sys_le16_to_cpu(cp->buf_len);
-	if (cmd_len != sizeof(*cp) + buf_len) {
-		return BTP_STATUS_FAILED;
-	}
 
 	inst = mce_mns_find(&cp->address);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
 
-	if (buf_len > 0) {
-		buf = bt_map_mce_mns_create_pdu(&inst->mce_mns, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
-		if (net_buf_tailroom(buf) < buf_len) {
-			net_buf_unref(buf);
-			return BTP_STATUS_FAILED;
-		}
-		net_buf_add_mem(buf, cp->buf, buf_len);
-	}
-
-	if (bt_map_mce_mns_abort(&inst->mce_mns, cp->rsp_code, buf) < 0) {
-		if (buf) {
-			net_buf_unref(buf);
-		}
+	if (bt_map_mce_mns_abort(&inst->mce_mns, cp->rsp_code, NULL) < 0) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -3289,39 +3165,13 @@ static uint8_t mse_mas_connect(const void *cmd, uint16_t cmd_len,
 {
 	const struct btp_map_mse_mas_connect_cmd *cp = cmd;
 	struct mse_mas_instance *inst;
-	struct net_buf *buf = NULL;
-	uint16_t buf_len;
-
-	if (cmd_len < sizeof(*cp)) {
-		return BTP_STATUS_FAILED;
-	}
-
-	buf_len = sys_le16_to_cpu(cp->buf_len);
-	if (cmd_len != sizeof(*cp) + buf_len) {
-		return BTP_STATUS_FAILED;
-	}
 
 	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
 
-	if (buf_len > 0) {
-		buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
-		if (net_buf_tailroom(buf) < buf_len) {
-			net_buf_unref(buf);
-			return BTP_STATUS_FAILED;
-		}
-		net_buf_add_mem(buf, cp->buf, buf_len);
-	}
-
-	if (bt_map_mse_mas_connect(&inst->mse_mas, cp->rsp_code, buf) < 0) {
-		if (buf) {
-			net_buf_unref(buf);
-		}
+	if (bt_map_mse_mas_connect(&inst->mse_mas, cp->rsp_code, NULL) < 0) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -3333,39 +3183,13 @@ static uint8_t mse_mas_disconnect(const void *cmd, uint16_t cmd_len,
 {
 	const struct btp_map_mse_mas_disconnect_cmd *cp = cmd;
 	struct mse_mas_instance *inst;
-	struct net_buf *buf = NULL;
-	uint16_t buf_len;
-
-	if (cmd_len < sizeof(*cp)) {
-		return BTP_STATUS_FAILED;
-	}
-
-	buf_len = sys_le16_to_cpu(cp->buf_len);
-	if (cmd_len != sizeof(*cp) + buf_len) {
-		return BTP_STATUS_FAILED;
-	}
 
 	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
 
-	if (buf_len > 0) {
-		buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
-		if (net_buf_tailroom(buf) < buf_len) {
-			net_buf_unref(buf);
-			return BTP_STATUS_FAILED;
-		}
-		net_buf_add_mem(buf, cp->buf, buf_len);
-	}
-
-	if (bt_map_mse_mas_disconnect(&inst->mse_mas, cp->rsp_code, buf) < 0) {
-		if (buf) {
-			net_buf_unref(buf);
-		}
+	if (bt_map_mse_mas_disconnect(&inst->mse_mas, cp->rsp_code, NULL) < 0) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -3377,39 +3201,13 @@ static uint8_t mse_mas_abort(const void *cmd, uint16_t cmd_len,
 {
 	const struct btp_map_mse_mas_abort_cmd *cp = cmd;
 	struct mse_mas_instance *inst;
-	struct net_buf *buf = NULL;
-	uint16_t buf_len;
-
-	if (cmd_len < sizeof(*cp)) {
-		return BTP_STATUS_FAILED;
-	}
-
-	buf_len = sys_le16_to_cpu(cp->buf_len);
-	if (cmd_len != sizeof(*cp) + buf_len) {
-		return BTP_STATUS_FAILED;
-	}
 
 	inst = mse_mas_find(&cp->address, cp->instance_id);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
 
-	if (buf_len > 0) {
-		buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
-		if (net_buf_tailroom(buf) < buf_len) {
-			net_buf_unref(buf);
-			return BTP_STATUS_FAILED;
-		}
-		net_buf_add_mem(buf, cp->buf, buf_len);
-	}
-
-	if (bt_map_mse_mas_abort(&inst->mse_mas, cp->rsp_code, buf) < 0) {
-		if (buf) {
-			net_buf_unref(buf);
-		}
+	if (bt_map_mse_mas_abort(&inst->mse_mas, cp->rsp_code, NULL) < 0) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -4106,39 +3904,13 @@ static uint8_t mse_mns_connect(const void *cmd, uint16_t cmd_len,
 {
 	const struct btp_map_mse_mns_connect_cmd *cp = cmd;
 	struct mse_mns_instance *inst;
-	struct net_buf *buf = NULL;
-	uint16_t buf_len;
-
-	if (cmd_len < sizeof(*cp)) {
-		return BTP_STATUS_FAILED;
-	}
-
-	buf_len = sys_le16_to_cpu(cp->buf_len);
-	if (cmd_len != sizeof(*cp) + buf_len) {
-		return BTP_STATUS_FAILED;
-	}
 
 	inst = mse_mns_find(&cp->address);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
 
-	if (buf_len > 0) {
-		buf = bt_map_mse_mns_create_pdu(&inst->mse_mns, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
-		if (net_buf_tailroom(buf) < buf_len) {
-			net_buf_unref(buf);
-			return BTP_STATUS_FAILED;
-		}
-		net_buf_add_mem(buf, cp->buf, buf_len);
-	}
-
-	if (bt_map_mse_mns_connect(&inst->mse_mns, buf) < 0) {
-		if (buf) {
-			net_buf_unref(buf);
-		}
+	if (bt_map_mse_mns_connect(&inst->mse_mns, NULL) < 0) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -4150,39 +3922,13 @@ static uint8_t mse_mns_disconnect(const void *cmd, uint16_t cmd_len,
 {
 	const struct btp_map_mse_mns_disconnect_cmd *cp = cmd;
 	struct mse_mns_instance *inst;
-	struct net_buf *buf = NULL;
-	uint16_t buf_len;
-
-	if (cmd_len < sizeof(*cp)) {
-		return BTP_STATUS_FAILED;
-	}
-
-	buf_len = sys_le16_to_cpu(cp->buf_len);
-	if (cmd_len != sizeof(*cp) + buf_len) {
-		return BTP_STATUS_FAILED;
-	}
 
 	inst = mse_mns_find(&cp->address);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
 
-	if (buf_len > 0) {
-		buf = bt_map_mse_mns_create_pdu(&inst->mse_mns, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
-		if (net_buf_tailroom(buf) < buf_len) {
-			net_buf_unref(buf);
-			return BTP_STATUS_FAILED;
-		}
-		net_buf_add_mem(buf, cp->buf, buf_len);
-	}
-
-	if (bt_map_mse_mns_disconnect(&inst->mse_mns, buf) < 0) {
-		if (buf) {
-			net_buf_unref(buf);
-		}
+	if (bt_map_mse_mns_disconnect(&inst->mse_mns, NULL) < 0) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -4194,39 +3940,13 @@ static uint8_t mse_mns_abort(const void *cmd, uint16_t cmd_len,
 {
 	const struct btp_map_mse_mns_abort_cmd *cp = cmd;
 	struct mse_mns_instance *inst;
-	struct net_buf *buf = NULL;
-	uint16_t buf_len;
-
-	if (cmd_len < sizeof(*cp)) {
-		return BTP_STATUS_FAILED;
-	}
-
-	buf_len = sys_le16_to_cpu(cp->buf_len);
-	if (cmd_len != sizeof(*cp) + buf_len) {
-		return BTP_STATUS_FAILED;
-	}
 
 	inst = mse_mns_find(&cp->address);
 	if (!inst) {
 		return BTP_STATUS_FAILED;
 	}
 
-	if (buf_len > 0) {
-		buf = bt_map_mse_mns_create_pdu(&inst->mse_mns, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
-		if (net_buf_tailroom(buf) < buf_len) {
-			net_buf_unref(buf);
-			return BTP_STATUS_FAILED;
-		}
-		net_buf_add_mem(buf, cp->buf, buf_len);
-	}
-
-	if (bt_map_mse_mns_abort(&inst->mse_mns, buf) < 0) {
-		if (buf) {
-			net_buf_unref(buf);
-		}
+	if (bt_map_mse_mns_abort(&inst->mse_mns, NULL) < 0) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -4317,17 +4037,17 @@ static const struct btp_handler handlers[] = {
 	},
 	{
 		.opcode = BTP_MAP_MCE_MAS_CONNECT,
-		.expect_len = BTP_HANDLER_LENGTH_VARIABLE,
+		.expect_len = sizeof(struct btp_map_mce_mas_connect_cmd),
 		.func = mce_mas_connect,
 	},
 	{
 		.opcode = BTP_MAP_MCE_MAS_DISCONNECT,
-		.expect_len = BTP_HANDLER_LENGTH_VARIABLE,
+		.expect_len = sizeof(struct btp_map_mce_mas_disconnect_cmd),
 		.func = mce_mas_disconnect,
 	},
 	{
 		.opcode = BTP_MAP_MCE_MAS_ABORT,
-		.expect_len = BTP_HANDLER_LENGTH_VARIABLE,
+		.expect_len = sizeof(struct btp_map_mce_mas_abort_cmd),
 		.func = mce_mas_abort,
 	},
 	{
@@ -4407,17 +4127,17 @@ static const struct btp_handler handlers[] = {
 	},
 	{
 		.opcode = BTP_MAP_MCE_MNS_CONNECT,
-		.expect_len = BTP_HANDLER_LENGTH_VARIABLE,
+		.expect_len = sizeof(struct btp_map_mce_mns_connect_cmd),
 		.func = mce_mns_connect,
 	},
 	{
 		.opcode = BTP_MAP_MCE_MNS_DISCONNECT,
-		.expect_len = BTP_HANDLER_LENGTH_VARIABLE,
+		.expect_len = sizeof(struct btp_map_mce_mns_disconnect_cmd),
 		.func = mce_mns_disconnect,
 	},
 	{
 		.opcode = BTP_MAP_MCE_MNS_ABORT,
-		.expect_len = BTP_HANDLER_LENGTH_VARIABLE,
+		.expect_len = sizeof(struct btp_map_mce_mns_abort_cmd),
 		.func = mce_mns_abort,
 	},
 	{
@@ -4437,17 +4157,17 @@ static const struct btp_handler handlers[] = {
 	},
 	{
 		.opcode = BTP_MAP_MSE_MAS_CONNECT,
-		.expect_len = BTP_HANDLER_LENGTH_VARIABLE,
+		.expect_len = sizeof(struct btp_map_mse_mas_connect_cmd),
 		.func = mse_mas_connect,
 	},
 	{
 		.opcode = BTP_MAP_MSE_MAS_DISCONNECT,
-		.expect_len = BTP_HANDLER_LENGTH_VARIABLE,
+		.expect_len = sizeof(struct btp_map_mse_mas_disconnect_cmd),
 		.func = mse_mas_disconnect,
 	},
 	{
 		.opcode = BTP_MAP_MSE_MAS_ABORT,
-		.expect_len = BTP_HANDLER_LENGTH_VARIABLE,
+		.expect_len =  sizeof(struct btp_map_mse_mas_abort_cmd),
 		.func = mse_mas_abort,
 	},
 	{
@@ -4537,17 +4257,17 @@ static const struct btp_handler handlers[] = {
 	},
 	{
 		.opcode = BTP_MAP_MSE_MNS_CONNECT,
-		.expect_len = BTP_HANDLER_LENGTH_VARIABLE,
+		.expect_len = sizeof(struct btp_map_mse_mns_connect_cmd),
 		.func = mse_mns_connect,
 	},
 	{
 		.opcode = BTP_MAP_MSE_MNS_DISCONNECT,
-		.expect_len = BTP_HANDLER_LENGTH_VARIABLE,
+		.expect_len = sizeof(struct btp_map_mse_mns_disconnect_cmd),
 		.func = mse_mns_disconnect,
 	},
 	{
 		.opcode = BTP_MAP_MSE_MNS_ABORT,
-		.expect_len = BTP_HANDLER_LENGTH_VARIABLE,
+		.expect_len = sizeof(struct btp_map_mse_mns_abort_cmd),
 		.func = mse_mns_abort,
 	},
 	{
