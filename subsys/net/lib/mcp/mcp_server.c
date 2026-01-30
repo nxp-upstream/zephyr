@@ -170,12 +170,12 @@ static void remove_client(struct mcp_server_ctx *server, struct mcp_client_conte
 /*******************************************************************************
  * Execution Context Helper Functions
  ******************************************************************************/
-static uint32_t generate_execution_token(uint32_t request_id)
+static uint32_t generate_execution_token(uint32_t msg_id)
 {
 	/* Mocking the generation for the 1st phase of development. Security phase
 	 * will replace this with UUID generation to make token guessing harder.
 	 */
-	return request_id;
+	return msg_id;
 }
 
 static struct mcp_execution_context *get_execution_context(struct mcp_server_ctx *server,
@@ -206,7 +206,7 @@ static struct mcp_execution_context *add_execution_context(struct mcp_server_ctx
 		return NULL;
 	}
 
-	uint32_t execution_token = generate_execution_token(request_id);
+	uint32_t execution_token = generate_execution_token(msg_id);
 
 	bool found_slot = false;
 
@@ -279,10 +279,10 @@ static int set_worker_released_execution_context(struct mcp_server_ctx *server,
 /*******************************************************************************
  * Request Context Helper Functions
  ******************************************************************************/
-static uint32_t *get_request(struct mcp_client_context *client, uint32_t request_id)
+static uint32_t *get_request(struct mcp_client_context *client, uint32_t msg_id)
 {
 	for (int i = 0; i < ARRAY_SIZE(client->active_requests); i++) {
-		if (client->active_requests[i] == request_id) {
+		if (client->active_requests[i] == msg_id) {
 			return &client->active_requests[i];
 		}
 	}
@@ -290,11 +290,11 @@ static uint32_t *get_request(struct mcp_client_context *client, uint32_t request
 	return NULL;
 }
 
-static uint32_t *add_request(struct mcp_client_context *client, uint32_t request_id)
+static uint32_t *add_request(struct mcp_client_context *client, uint32_t msg_id)
 {
 	for (int i = 0; i < ARRAY_SIZE(client->active_requests); i++) {
 		if (client->active_requests[i] == 0) {
-			client->active_requests[i] = request_id;
+			client->active_requests[i] = msg_id;
 			client->active_request_count++;
 			return &client->active_requests[i];
 		}
