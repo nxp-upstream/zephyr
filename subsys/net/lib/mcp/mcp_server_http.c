@@ -32,7 +32,6 @@ struct mcp_http_request_accumulator {
 	char data[CONFIG_MCP_MAX_MESSAGE_SIZE];
 	size_t data_len;
 	uint32_t last_event_id_hdr;
-	bool has_last_event_id_hdr;
 	char session_id_hdr[CONFIG_HTTP_SERVER_MAX_HEADER_LEN];
 	char content_type_hdr[CONFIG_HTTP_SERVER_MAX_HEADER_LEN];
 	char origin_hdr[CONFIG_HTTP_SERVER_MAX_HEADER_LEN];
@@ -195,8 +194,6 @@ static struct mcp_http_request_accumulator *get_accumulator(int fd)
 
 	if (first_available != NULL) {
 		first_available->fd = fd;
-		first_available->data_len = 0;
-		first_available->has_last_event_id_hdr = false;
 		first_available->in_use = true;
 		result = first_available;
 	}
@@ -265,7 +262,6 @@ static int accumulate_request(struct http_client_ctx *client,
 					LOG_ERR("Invalid Last-Event-Id format: %s", header->value);
 					return -EINVAL;
 				}
-				accumulator->has_last_event_id_hdr = true;
 			} else if (strcmp(header->name, "Origin") == 0) {
 				strncpy(accumulator->origin_hdr, header->value,
 					sizeof(accumulator->origin_hdr) - 1);
@@ -633,14 +629,6 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 		return 0;
 	}
 
-	if (!accumulator->has_last_event_id_hdr) {
-		/* Don't allow a listening channel */
-		LOG_WRN("Listening channel not suppported");
-		response_ctx->status = HTTP_405_METHOD_NOT_ALLOWED;
-		response_ctx->final_chunk = true;
-		return 0;
-	}
-
 	mcp_client->response_headers[0].name = "Content-Type";
 	mcp_client->response_headers[0].value = "text/event-stream";
 	mcp_client->response_headers[1].name = "Mcp-Session-Id";
@@ -654,8 +642,7 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 	response_ctx->final_chunk = true;
 
 	k_mutex_lock(&mcp_client->responses_mutex, K_FOREVER);
-	if (!accumulator->has_last_event_id_hdr ||
-	    (mcp_client->next_event_id <= accumulator->last_event_id_hdr) ||
+	if ((mcp_client->next_event_id <= accumulator->last_event_id_hdr) ||
 	    min_heap_is_empty(&mcp_client->responses)) {
 		/* Send retry interval when there are no events to stream */
 		ret = format_sse_retry_response(mcp_client->response_body,
@@ -695,7 +682,6 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 			mcp_free(response_data.data);
 			LOG_DBG("Sending SSE response: %s", response_ctx->body);
 		}
-
 	}
 get_handler_done:
 	k_mutex_unlock(&mcp_client->responses_mutex);
