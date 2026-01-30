@@ -17,35 +17,39 @@ LOG_MODULE_REGISTER(mcp_server, CONFIG_MCP_LOG_LEVEL);
 
 #define MCP_WORKER_PRIORITY  7
 #define MCP_MAX_REQUESTS     (CONFIG_HTTP_SERVER_MAX_CLIENTS * CONFIG_HTTP_SERVER_MAX_STREAMS)
-#define MCP_PROTOCOL_VERSION "2025-11-25"
+#define MCP_SERVER_VERSION   "1.0.0"
+#define MCP_PROTOCOL_VERSION "2025-06-18"
 
+/* Lifecycle monitoring of a client's session */
 enum mcp_lifecycle_state {
 	MCP_LIFECYCLE_DEINITIALIZED = 0,
 	MCP_LIFECYCLE_NEW,
 	MCP_LIFECYCLE_INITIALIZING,
-	MCP_LIFECYCLE_INITIALIZED,
-	MCP_LIFECYCLE_DEINITIALIZING
+	MCP_LIFECYCLE_INITIALIZED
 };
 
+/* Lifecycle monitoring of a tool execution */
 enum mcp_execution_state {
 	MCP_EXEC_ACTIVE,
 	MCP_EXEC_CANCELED,
-	MCP_EXEC_FINISHED,
-	MCP_EXEC_ZOMBIE
+	MCP_EXEC_FINISHED
 };
 
+/* Struct holding the pointer to a client's request's data */
 struct mcp_queue_msg {
 	struct mcp_client_context *client;
 	uint32_t transport_msg_id;
 	void *data;
 };
 
+/* Registry holding the tools added by the user application to the server */
 struct mcp_tool_registry {
 	struct mcp_tool_record tools[CONFIG_MCP_MAX_TOOLS];
 	struct k_mutex registry_mutex;
 	uint8_t tool_count;
 };
 
+/* Context for a tool execution */
 struct mcp_execution_context {
 	uint32_t execution_token;
 	uint32_t request_id;
@@ -68,7 +72,8 @@ struct mcp_client_context {
 	enum mcp_lifecycle_state lifecycle_state;
 	uint32_t active_requests[CONFIG_HTTP_SERVER_MAX_STREAMS];
 	uint8_t active_request_count;
-	struct mcp_transport_binding *binding;
+	int64_t last_message_timestamp;
+	struct mcp_transport_binding transport_binding;
 };
 
 struct mcp_client_registry {
@@ -129,6 +134,38 @@ static struct mcp_client_context *get_client_by_binding(struct mcp_server_ctx *s
 							const struct mcp_transport_binding *binding)
 {
 	struct mcp_client_registry *client_registry = &server->client_registry;
+
+	*client_id = INVALID_CLIENT_ID;
+
+	ret = k_mutex_lock(&client_registry->registry_mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock registry mutex: %d", ret);
+		return -EBUSY;
+	}
+
+	do {
+		*client_id = sys_rand32_get(); /* TODO: Replace with csrand in security phase */
+		for (uint32_t i = 0; i < ARRAY_SIZE(client_registry->clients); i++) {
+			if ((client_registry->clients[i].lifecycle_state !=
+			     MCP_LIFECYCLE_DEINITIALIZED) &&
+			    (client_registry->clients[i].client_id == *client_id)) {
+				*client_id = 0;
+			}
+		}
+	} while (*client_id == INVALID_CLIENT_ID);
+
+	k_mutex_unlock(&client_registry->registry_mutex);
+
+	return 0;
+}
+
+static struct mcp_client_context *get_client(struct mcp_server_ctx *server, uint32_t client_id)
+{
+	struct mcp_client_registry *client_registry = &server->client_registry;
+
+	if (client_id == INVALID_CLIENT_ID) {
+		return NULL;
+	}
 
 	for (int i = 0; i < ARRAY_SIZE(client_registry->clients); i++) {
 		if (server->client_registry.clients[i].binding == binding) {
@@ -846,6 +883,7 @@ static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 			// Handled immmediately in mcp_server_handle_request
 			LOG_DBG("Should never reach here");
 			ret = 0;
+			/* Handled immmediately in mcp_server_handle_request */
 			break;
 		case MCP_METHOD_PING:
 			ret = handle_ping_request(server, request.client, message, request.transport_msg_id);
@@ -921,6 +959,7 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 	int64_t cancel_duration;
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 	struct mcp_execution_registry *execution_registry = &server->execution_registry;
+	struct mcp_client_registry *client_registry = &server->client_registry;
 
 	while (1) {
 		k_sleep(K_MSEC(CONFIG_MCP_HEALTH_CHECK_INTERVAL_MS));
@@ -1018,6 +1057,33 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 		}
 
 		k_mutex_unlock(&execution_registry->registry_mutex);
+
+		k_mutex_lock(&client_registry->registry_mutex, K_FOREVER);
+		if (ret != 0) {
+			LOG_ERR("Failed to lock client registry: %d", ret);
+			continue;
+		}
+
+		for (int i = 0; i < CONFIG_HTTP_SERVER_MAX_CLIENTS; i++) {
+			struct mcp_client_context *client_context = &client_registry->clients[i];
+
+			if (client_context->client_id == 0) {
+				continue;
+			}
+
+			if (client_context->last_message_timestamp > 0) {
+				idle_duration = current_time - client_context->last_message_timestamp;
+
+				if (idle_duration > CONFIG_MCP_CLIENT_TIMEOUT_MS) {
+					LOG_WRN("Client ID %u exceeded idle timeout (%lld ms). "
+						"Marking as disconnected.",
+						client_context->client_id, idle_duration);
+					
+					remove_client(server, client_context);
+				}
+			}
+		}
+		k_mutex_unlock(&client_registry->registry_mutex);
 	}
 }
 #endif
@@ -1154,7 +1220,9 @@ int mcp_server_start(mcp_server_ctx_t ctx)
 {
 	k_tid_t tid;
 	uint32_t thread_stack_idx;
+#if CONFIG_THREAD_NAME
 	int ret;
+#endif
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 
 	if (server == NULL) {
@@ -1176,10 +1244,12 @@ int mcp_server_start(mcp_server_ctx_t ctx)
 			return -ENOMEM;
 		}
 
+#if CONFIG_THREAD_NAME
 		ret = k_thread_name_set(&server->request_workers[i], "mcp_req_worker");
 		if (ret != 0) {
 			LOG_WRN("Failed to set thread name: %d", ret);
 		}
+#endif
 	}
 
 #ifdef CONFIG_MCP_HEALTH_MONITOR
@@ -1192,10 +1262,13 @@ int mcp_server_start(mcp_server_ctx_t ctx)
 		return -ENOMEM;
 	}
 
+#if CONFIG_THREAD_NAME
 	ret = k_thread_name_set(&server->health_monitor_thread, "mcp_health_mon");
 	if (ret != 0) {
 		LOG_WRN("Failed to set health monitor thread name: %d", ret);
 	}
+#endif
+
 	LOG_INF("MCP server health monitor enabled");
 #endif
 
@@ -1204,7 +1277,7 @@ int mcp_server_start(mcp_server_ctx_t ctx)
 	return 0;
 }
 
-int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_message *app_msg,
+int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_message *tool_msg,
 				   uint32_t execution_token)
 {
 	int ret;
@@ -1220,9 +1293,9 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 	struct mcp_execution_registry *execution_registry = &server->execution_registry;
 	struct mcp_client_registry *client_registry = &server->client_registry;
 
-	if ((app_msg == NULL) ||
-	    ((app_msg->data == NULL) && (app_msg->type != MCP_USR_TOOL_CANCEL_ACK) &&
-	     (app_msg->type != MCP_USR_TOOL_PING))) {
+	if ((tool_msg == NULL) ||
+	    ((tool_msg->data == NULL) && (tool_msg->type != MCP_USR_TOOL_CANCEL_ACK) &&
+	     (tool_msg->type != MCP_USR_TOOL_PING))) {
 		LOG_ERR("Invalid user message");
 		return -EINVAL;
 	}
@@ -1252,9 +1325,9 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 	bool is_execution_canceled = (execution_ctx->execution_state == MCP_EXEC_CANCELED);
 
 	if (is_execution_canceled) {
-		if (app_msg->type == MCP_USR_TOOL_CANCEL_ACK) {
+		if (tool_msg->type == MCP_USR_TOOL_CANCEL_ACK) {
 			execution_ctx->execution_state = MCP_EXEC_FINISHED;
-		} else if (app_msg->type == MCP_USR_TOOL_RESPONSE) {
+		} else if (tool_msg->type == MCP_USR_TOOL_RESPONSE) {
 			execution_ctx->execution_state = MCP_EXEC_FINISHED;
 			LOG_WRN("Execution canceled, tool message will be dropped.");
 		}
@@ -1263,11 +1336,14 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 		execution_ctx->last_message_timestamp = k_uptime_get();
 		k_mutex_unlock(&execution_registry->registry_mutex);
 
-		switch (app_msg->type) {
+		switch (tool_msg->type) {
 			/* Result is passed as a complete JSON string that gets attached to the full
 			 * JSON RPC response inside the Transport layer
 			 */
 		case MCP_USR_TOOL_PING:
+			/* Ping from a tool signifying that a long execution is not frozen - no need
+			 * for any kind of processing
+			 */
 			return 0;
 		case MCP_USR_TOOL_RESPONSE:
 
@@ -1284,7 +1360,7 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 				return -ENOMEM;
 			}
 
-			strncpy((char *)response_data->content.items[0].text, (char *)app_msg->data,
+			strncpy((char *)response_data->content.items[0].text, (char *)tool_msg->data,
 				sizeof(response_data->content.items[0].text) - 1);
 			response_data->content.items[0]
 				.text[sizeof(response_data->content.items[0].text) - 1] = '\0';
@@ -1294,7 +1370,7 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 			execution_ctx->execution_state = MCP_EXEC_FINISHED;
 			break;
 		default:
-			LOG_ERR("Unsupported application message type: %u", app_msg->type);
+			LOG_ERR("Unsupported application message type: %u", tool_msg->type);
 			return -EINVAL;
 		}
 
@@ -1335,8 +1411,8 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 		mcp_free(response_data);
 	}
 
-	if ((app_msg->type == MCP_USR_TOOL_RESPONSE) ||
-	    (app_msg->type == MCP_USR_TOOL_CANCEL_ACK)) {
+	if ((tool_msg->type == MCP_USR_TOOL_RESPONSE) ||
+	    (tool_msg->type == MCP_USR_TOOL_CANCEL_ACK)) {
 		ret = k_mutex_lock(&client_registry->registry_mutex, K_FOREVER);
 		if (ret != 0) {
 			LOG_ERR("Failed to lock client registry mutex: %d. Client registry is "

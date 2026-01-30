@@ -16,7 +16,7 @@ mcp_server_ctx_t server;
 /* Tool callback functions */
 static int hello_world_tool_callback(const char *params, uint32_t execution_token)
 {
-	struct mcp_user_message response = {
+	struct mcp_tool_message response = {
 		.type = MCP_USR_TOOL_RESPONSE,
 		.data = "Hello World from tool!",
 		.length = strlen("Hello World from tool!")
@@ -33,7 +33,7 @@ static int hello_world_tool_callback(const char *params, uint32_t execution_toke
 
 static int goodbye_world_tool_callback(const char *params, uint32_t execution_token)
 {
-	struct mcp_user_message response = {
+	struct mcp_tool_message response = {
 		.type = MCP_USR_TOOL_RESPONSE,
 		.data = "Goodbye World from tool!",
 		.length = strlen("Goodbye World from tool!")
