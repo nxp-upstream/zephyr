@@ -224,6 +224,7 @@ config MCP_TRANSPORT_HTTP
 	bool "HTTP transport"
 	depends on NETWORKING
 	select POSIX_API
+	select MIN_HEAP
 	select NET_TCP
 	select NET_IPV4
 	select NET_IPV6

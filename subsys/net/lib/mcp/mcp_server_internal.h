@@ -19,6 +19,7 @@
 
 /* Forward declaration */
 struct mcp_transport_binding;
+struct mcp_transport_message;
 
 /**
  * @brief Transport operations structure for MCP server communication.
@@ -37,15 +38,13 @@ struct mcp_transport_ops {
 	 *   - Data is NOT copied - the pointer is stored directly in the response item
 	 *   - Caller must NOT free the data after calling this function
 	 *
-	 * @param binding Transport binding containing client context
-	 * @param data Response data buffer (ownership transferred to this function)
-	 * @param length Length of the response data in bytes
+	 * @param msg Transport message data
 	 *
 	 * @return 0 on success, negative error code on failure.
 	 *
 	 * @note The data pointer MUST remain valid until freed by the transport
 	 */
-	int (*send)(struct mcp_transport_binding *binding, const void *data, size_t length);
+	int (*send)(struct mcp_transport_message *msg);
 
 	/**
 	 * @brief Disconnect a client
@@ -82,9 +81,10 @@ struct mcp_transport_binding {
  * This structure encapsulates all information needed to process an incoming
  * request.
  */
-struct mcp_request_data {
+struct mcp_transport_message {
 	char *json_data;
 	size_t json_len;
+	uint32_t msg_id;
 	struct mcp_transport_binding *binding;
 };
 
@@ -120,7 +120,7 @@ struct mcp_request_data {
  *       or ownership is transferred to the request queue (for async handlers)
  * @note The client_binding output is only valid if a client context was found
  */
-int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_request_data *request,
+int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_transport_message *request,
 				  enum mcp_method *method);
 
 #endif /* ZEPHYR_SUBSYS_MCP_SERVER_INTERNAL_H_ */

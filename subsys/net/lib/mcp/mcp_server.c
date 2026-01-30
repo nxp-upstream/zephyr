@@ -36,6 +36,7 @@ enum mcp_execution_state {
 
 struct mcp_queue_msg {
 	struct mcp_client_context *client;
+	uint32_t transport_msg_id;
 	void *data;
 };
 
@@ -48,6 +49,7 @@ struct mcp_tool_registry {
 struct mcp_execution_context {
 	uint32_t execution_token;
 	uint32_t request_id;
+	uint32_t transport_msg_id;
 	struct mcp_client_context *client;
 	k_tid_t worker_id;
 	int64_t start_timestamp;
@@ -87,7 +89,7 @@ struct mcp_server_ctx {
 	struct mcp_client_registry client_registry;
 	struct k_thread request_workers[CONFIG_MCP_REQUEST_WORKERS];
 	struct k_msgq request_queue;
-	char request_queue_buffers[CONFIG_MCP_REQUEST_QUEUE_SIZE * sizeof(struct mcp_queue_msg)];
+	char request_queue_storage[CONFIG_MCP_REQUEST_QUEUE_SIZE * sizeof(struct mcp_queue_msg)];
 	struct mcp_tool_registry tool_registry;
 	struct mcp_execution_registry execution_registry;
 #ifdef CONFIG_MCP_HEALTH_MONITOR
@@ -192,7 +194,7 @@ static struct mcp_execution_context *get_execution_context(struct mcp_server_ctx
 
 static struct mcp_execution_context *add_execution_context(struct mcp_server_ctx *server,
 							   struct mcp_client_context *client,
-							   uint32_t request_id)
+							   uint32_t request_id, uint32_t msg_id)
 {
 	int ret;
 	struct mcp_execution_context *context = NULL;
@@ -213,6 +215,7 @@ static struct mcp_execution_context *add_execution_context(struct mcp_server_ctx
 		if (context->execution_token == 0) {
 			context->execution_token = execution_token;
 			context->request_id = request_id;
+			context->transport_msg_id = msg_id;
 			context->client = client;
 			context->worker_id = k_current_get();
 			context->start_timestamp = k_uptime_get();
@@ -391,7 +394,7 @@ static int copy_tool_metadata_to_response(struct mcp_server_ctx *server,
  * Request/Response Handling Functions
  ******************************************************************************/
 static int send_error_response(struct mcp_server_ctx *server, struct mcp_client_context *client,
-			       uint32_t request_id, int32_t error_code, const char *error_message)
+			       uint32_t request_id, int32_t error_code, const char *error_message, uint32_t msg_id)
 {
 	struct mcp_error *error_response;
 	int ret;
@@ -425,7 +428,14 @@ static int send_error_response(struct mcp_server_ctx *server, struct mcp_client_
 		return ret;
 	}
 
-	ret = client->binding->ops->send(client->binding, json_buffer, ret);
+	struct mcp_transport_message tx_msg = {
+		.binding = client->binding,
+		.msg_id = msg_id,
+		.json_data = json_buffer,
+		.json_len = ret
+	};
+
+	ret = client->binding->ops->send(&tx_msg);
 	if (ret) {
 		LOG_ERR("Failed to send error response");
 		mcp_free(error_response);
@@ -438,7 +448,7 @@ static int send_error_response(struct mcp_server_ctx *server, struct mcp_client_
 }
 
 static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_message *request,
-				     struct mcp_transport_binding *binding)
+				     struct mcp_transport_binding *binding, uint32_t msg_id)
 {
 	int ret;
 	struct mcp_client_registry *client_registry = &server->client_registry;
@@ -507,7 +517,14 @@ static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_m
 		return ret;
 	}
 
-	ret = new_client->binding->ops->send(new_client->binding, json_buffer, ret);
+	struct mcp_transport_message tx_msg = {
+		.binding = new_client->binding,
+		.msg_id = msg_id,
+		.json_data = json_buffer,
+		.json_len = ret
+	};
+
+	ret = new_client->binding->ops->send(&tx_msg);
 	if (ret) {
 		LOG_ERR("Failed to send initialize response %d", ret);
 		mcp_free(response_data);
@@ -521,7 +538,7 @@ static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_m
 }
 
 static int handle_tools_list_request(struct mcp_server_ctx *server,
-				     struct mcp_client_context *client, struct mcp_message *request)
+				     struct mcp_client_context *client, struct mcp_message *request, uint32_t msg_id)
 {
 	struct mcp_result_tools_list *response_data;
 	int ret;
@@ -584,7 +601,14 @@ static int handle_tools_list_request(struct mcp_server_ctx *server,
 		return ret;
 	}
 
-	ret = client->binding->ops->send(client->binding, json_buffer, ret);
+	struct mcp_transport_message tx_msg = {
+		.binding = client->binding,
+		.msg_id = msg_id,
+		.json_data = json_buffer,
+		.json_len = ret
+	};
+
+	ret = client->binding->ops->send(&tx_msg);
 	if (ret) {
 		LOG_ERR("Failed to send tools list response");
 		mcp_free(response_data);
@@ -597,7 +621,7 @@ static int handle_tools_list_request(struct mcp_server_ctx *server,
 }
 
 static int handle_tools_call_request(struct mcp_server_ctx *server,
-				     struct mcp_client_context *client, struct mcp_message *request)
+				     struct mcp_client_context *client, struct mcp_message *request, uint32_t msg_id)
 {
 	int ret;
 	mcp_tool_callback_t callback;
@@ -646,7 +670,7 @@ static int handle_tools_call_request(struct mcp_server_ctx *server,
 	k_mutex_unlock(&tool_registry->registry_mutex);
 
 	struct mcp_execution_context *exec_ctx =
-		add_execution_context(server, client, request->id);
+		add_execution_context(server, client, request->id, msg_id);
 	if (exec_ctx == NULL) {
 		LOG_ERR("Failed to create execution context: %d", ret);
 		goto cleanup_active_request;
@@ -723,7 +747,7 @@ static int handle_notification(struct mcp_server_ctx *server, struct mcp_client_
 }
 
 static int handle_ping_request(struct mcp_server_ctx *server, struct mcp_client_context *client,
-			       struct mcp_message *request)
+			       struct mcp_message *request, uint32_t msg_id)
 {
 	int ret;
 	struct mcp_client_registry *client_registry = &server->client_registry;
@@ -764,7 +788,14 @@ static int handle_ping_request(struct mcp_server_ctx *server, struct mcp_client_
 		return ret;
 	}
 
-	ret = client->binding->ops->send(client->binding, json_buffer, ret);
+	struct mcp_transport_message tx_msg = {
+		.binding = client->binding,
+		.msg_id = msg_id,
+		.json_data = json_buffer,
+		.json_len = ret
+	};
+
+	ret = client->binding->ops->send(&tx_msg);
 	if (ret) {
 		LOG_ERR("Failed to send tools list response");
 		mcp_free(json_buffer);
@@ -817,16 +848,16 @@ static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 			ret = 0;
 			break;
 		case MCP_METHOD_PING:
-			ret = handle_ping_request(server, request.client, message);
+			ret = handle_ping_request(server, request.client, message, request.transport_msg_id);
 			break;
 		case MCP_METHOD_NOTIF_INITIALIZED:
 			ret = handle_notification(server, request.client, message);
 			break;
 		case MCP_METHOD_TOOLS_LIST:
-			ret = handle_tools_list_request(server, request.client, message);
+			ret = handle_tools_list_request(server, request.client, message, request.transport_msg_id);
 			break;
 		case MCP_METHOD_TOOLS_CALL:
-			ret = handle_tools_call_request(server, request.client, message);
+			ret = handle_tools_call_request(server, request.client, message, request.transport_msg_id);
 			break;
 		case MCP_METHOD_NOTIF_CANCELLED:
 			/* TODO: Implement. Ignore for now */
@@ -867,7 +898,7 @@ static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 				break;
 			}
 			send_error_response(server, request.client, message->id, error_code,
-					    error_message);
+					    error_message, request.transport_msg_id);
 		}
 
 		mcp_free(request.data);
@@ -994,7 +1025,7 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 /*******************************************************************************
  * Internal Interface Implementation
  ******************************************************************************/
-int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_request_data *request,
+int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_transport_message *request,
 			      enum mcp_method *method)
 {
 	int ret;
@@ -1028,7 +1059,7 @@ int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_request_data *req
 	switch (parsed_msg->method) {
 	case MCP_METHOD_INITIALIZE:
 		/* We want to handle the initialize request directly */
-		ret = handle_initialize_request(server, parsed_msg, request->binding);
+		ret = handle_initialize_request(server, parsed_msg, request->binding, request->msg_id);
 		mcp_free(parsed_msg);
 		break;
 	case MCP_METHOD_PING:
@@ -1046,6 +1077,7 @@ int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_request_data *req
 
 		msg.data = (void *)parsed_msg;
 		msg.client = client;
+		msg.transport_msg_id = request->msg_id;
 
 		/* Parsed messge is now owned by the queue */
 		ret = k_msgq_put(&server->request_queue, &msg, K_NO_WAIT);
@@ -1064,7 +1096,7 @@ int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_request_data *req
 			break;
 		}
 		ret = send_error_response(server, client, parsed_msg->id, MCP_ERR_METHOD_NOT_FOUND,
-					  "Method not found");
+					  "Method not found", request->msg_id);
 		mcp_free(parsed_msg);
 		break;
 	default:
@@ -1091,7 +1123,7 @@ mcp_server_ctx_t mcp_server_init(void)
 		return NULL;
 	}
 
-	k_msgq_init(&server_ctx->request_queue, server_ctx->request_queue_buffers,
+	k_msgq_init(&server_ctx->request_queue, server_ctx->request_queue_storage,
 		    sizeof(struct mcp_queue_msg), CONFIG_MCP_REQUEST_QUEUE_SIZE);
 
 	ret = k_mutex_init(&server_ctx->client_registry.registry_mutex);
@@ -1285,7 +1317,14 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 			return ret;
 		}
 
-		ret = client->binding->ops->send(client->binding, json_buffer, ret);
+		struct mcp_transport_message tx_msg = {
+			.binding = client->binding,
+			.msg_id = execution_ctx->transport_msg_id,
+			.json_data = json_buffer,
+			.json_len = ret
+		};
+
+		ret = client->binding->ops->send(&tx_msg);
 		if (ret) {
 			LOG_ERR("Failed to tool response");
 			mcp_free(response_data);
