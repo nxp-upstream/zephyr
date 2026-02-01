@@ -18,7 +18,7 @@ LOG_MODULE_REGISTER(mcp_server, CONFIG_MCP_LOG_LEVEL);
 #define MCP_WORKER_PRIORITY  7
 #define MCP_MAX_REQUESTS     (CONFIG_HTTP_SERVER_MAX_CLIENTS * CONFIG_HTTP_SERVER_MAX_STREAMS)
 #define MCP_SERVER_VERSION   "1.0.0"
-#define MCP_PROTOCOL_VERSION "2025-06-18"
+#define MCP_PROTOCOL_VERSION "2025-11-25"
 
 /* Lifecycle monitoring of a client's session */
 enum mcp_lifecycle_state {
@@ -52,7 +52,7 @@ struct mcp_tool_registry {
 /* Context for a tool execution */
 struct mcp_execution_context {
 	uint32_t execution_token;
-	uint32_t request_id;
+	int64_t request_id;
 	uint32_t transport_msg_id;
 	struct mcp_client_context *client;
 	k_tid_t worker_id;
@@ -73,7 +73,7 @@ struct mcp_client_context {
 	uint32_t active_requests[CONFIG_HTTP_SERVER_MAX_STREAMS];
 	uint8_t active_request_count;
 	int64_t last_message_timestamp;
-	struct mcp_transport_binding transport_binding;
+	struct mcp_transport_binding *binding;
 };
 
 struct mcp_client_registry {
@@ -134,38 +134,6 @@ static struct mcp_client_context *get_client_by_binding(struct mcp_server_ctx *s
 							const struct mcp_transport_binding *binding)
 {
 	struct mcp_client_registry *client_registry = &server->client_registry;
-
-	*client_id = INVALID_CLIENT_ID;
-
-	ret = k_mutex_lock(&client_registry->registry_mutex, K_FOREVER);
-	if (ret != 0) {
-		LOG_ERR("Failed to lock registry mutex: %d", ret);
-		return -EBUSY;
-	}
-
-	do {
-		*client_id = sys_rand32_get(); /* TODO: Replace with csrand in security phase */
-		for (uint32_t i = 0; i < ARRAY_SIZE(client_registry->clients); i++) {
-			if ((client_registry->clients[i].lifecycle_state !=
-			     MCP_LIFECYCLE_DEINITIALIZED) &&
-			    (client_registry->clients[i].client_id == *client_id)) {
-				*client_id = 0;
-			}
-		}
-	} while (*client_id == INVALID_CLIENT_ID);
-
-	k_mutex_unlock(&client_registry->registry_mutex);
-
-	return 0;
-}
-
-static struct mcp_client_context *get_client(struct mcp_server_ctx *server, uint32_t client_id)
-{
-	struct mcp_client_registry *client_registry = &server->client_registry;
-
-	if (client_id == INVALID_CLIENT_ID) {
-		return NULL;
-	}
 
 	for (int i = 0; i < ARRAY_SIZE(client_registry->clients); i++) {
 		if (server->client_registry.clients[i].binding == binding) {
@@ -231,7 +199,7 @@ static struct mcp_execution_context *get_execution_context(struct mcp_server_ctx
 
 static struct mcp_execution_context *add_execution_context(struct mcp_server_ctx *server,
 							   struct mcp_client_context *client,
-							   uint32_t request_id, uint32_t msg_id)
+							   int64_t request_id, uint32_t msg_id)
 {
 	int ret;
 	struct mcp_execution_context *context = NULL;
@@ -431,7 +399,7 @@ static int copy_tool_metadata_to_response(struct mcp_server_ctx *server,
  * Request/Response Handling Functions
  ******************************************************************************/
 static int send_error_response(struct mcp_server_ctx *server, struct mcp_client_context *client,
-			       uint32_t request_id, int32_t error_code, const char *error_message, uint32_t msg_id)
+			       int64_t request_id, int32_t error_code, const char *error_message, uint32_t msg_id)
 {
 	struct mcp_error *error_response;
 	int ret;
@@ -680,7 +648,7 @@ static int handle_tools_call_request(struct mcp_server_ctx *server,
 		return -EACCES;
 	}
 
-	uint32_t *request_slot = add_request(client, request->id);
+	uint32_t *request_slot = add_request(client, msg_id);
 	if (request_slot == NULL) {
 		LOG_ERR("No available request slot for client");
 		k_mutex_unlock(&client_registry->registry_mutex);
@@ -986,18 +954,18 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 					if (!context->worker_released) {
 						LOG_ERR("Execution token %u exceeded cancellation "
 							"timeout "
-							"(%lld ms). Request ID: %u, Client: %p, "
+							"(%lld ms). Client: %p, "
 							"Worker ID %u "
 							"still not released.",
 							context->execution_token, cancel_duration,
-							context->request_id, context->client,
+							context->client,
 							(uint32_t)context->worker_id);
 					} else {
 						LOG_ERR("Execution token %u exceeded cancellation "
 							"timeout "
-							"(%lld ms). Request ID: %u, Client: %p",
+							"(%lld ms). Client: %p",
 							context->execution_token, cancel_duration,
-							context->request_id, context->client);
+							context->client);
 					}
 					/* TODO: Clean up execution record? */
 				}
@@ -1013,17 +981,17 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 			if (execution_duration > CONFIG_MCP_TOOL_EXEC_TIMEOUT_MS) {
 				if (!context->worker_released) {
 					LOG_WRN("Execution token %u exceeded execution timeout "
-						"(%lld ms). Request ID: %u, Client: %p, Worker "
+						"(%lld ms). Client: %p, Worker "
 						"ID %u "
 						"still not released.",
 						context->execution_token, execution_duration,
-						context->request_id, context->client,
+						context->client,
 						(uint32_t)context->worker_id);
 				} else {
 					LOG_WRN("Execution token %u exceeded execution timeout "
-						"(%lld ms). Request ID: %u, Client: %p",
+						"(%lld ms). Client: %p",
 						context->execution_token, execution_duration,
-						context->request_id, context->client);
+						context->client);
 				}
 				/* TODO: Notify client? */
 				context->execution_state = MCP_EXEC_CANCELED;
@@ -1037,17 +1005,17 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 				if (idle_duration > CONFIG_MCP_TOOL_IDLE_TIMEOUT_MS) {
 					if (!context->worker_released) {
 						LOG_WRN("Execution token %u exceeded idle timeout "
-							"(%lld ms). Request ID: %u, Client: %p, "
+							"(%lld ms). Client: %p, "
 							"Worker ID %u "
 							"still not released.",
 							context->execution_token, idle_duration,
-							context->request_id, context->client,
+							context->client,
 							(uint32_t)context->worker_id);
 					} else {
 						LOG_WRN("Execution token %u exceeded idle timeout "
-							"(%lld ms). Request ID: %u, Client: %p",
+							"(%lld ms). Client: %p",
 							context->execution_token, idle_duration,
-							context->request_id, context->client);
+							context->client);
 					}
 					/* TODO: Notify client? */
 					context->execution_state = MCP_EXEC_CANCELED;
@@ -1067,7 +1035,7 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 		for (int i = 0; i < CONFIG_HTTP_SERVER_MAX_CLIENTS; i++) {
 			struct mcp_client_context *client_context = &client_registry->clients[i];
 
-			if (client_context->client_id == 0) {
+			if (client_context->lifecycle_state == MCP_LIFECYCLE_DEINITIALIZED) {
 				continue;
 			}
 
@@ -1075,10 +1043,10 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 				idle_duration = current_time - client_context->last_message_timestamp;
 
 				if (idle_duration > CONFIG_MCP_CLIENT_TIMEOUT_MS) {
-					LOG_WRN("Client ID %u exceeded idle timeout (%lld ms). "
+					LOG_WRN("Client %p exceeded idle timeout (%lld ms). "
 						"Marking as disconnected.",
-						client_context->client_id, idle_duration);
-					
+						client_context, idle_duration);
+
 					remove_client(server, client_context);
 				}
 			}
@@ -1281,7 +1249,7 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_m
 				   uint32_t execution_token)
 {
 	int ret;
-	uint32_t request_id;
+	int64_t request_id;
 	struct mcp_result_tools_call *response_data;
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 
@@ -1433,7 +1401,7 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_m
 			goto skip_client_cleanup;
 		}
 
-		uint32_t *request = get_request(client, request_id);
+		uint32_t *request = get_request(client, execution_ctx->transport_msg_id);
 		if (request == NULL) {
 			LOG_ERR("Failed to find request index in client's active requests. Client "
 				"registry is broken.");
