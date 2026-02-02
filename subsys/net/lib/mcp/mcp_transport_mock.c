@@ -15,27 +15,29 @@
 LOG_MODULE_REGISTER(mcp_transport_mock, CONFIG_MCP_LOG_LEVEL);
 
 struct mock_client_context {
-	uint32_t client_id;
+	struct mcp_transport_binding binding;
 	bool active;
 	char last_message[CONFIG_MCP_MAX_MESSAGE_SIZE];
 	size_t last_message_len;
+	uint32_t last_msg_id;
 };
 
 struct mock_transport_context {
 	struct mock_client_context clients[CONFIG_MCP_MOCK_MAX_CLIENTS];
 	int send_call_count;
 	int disconnect_call_count;
-	uint32_t last_client_id;
 	int inject_send_error;
 	int inject_disconnect_error;
 };
 
 static struct mock_transport_context mock_ctx;
 
-static int mock_transport_send(struct mcp_transport_binding *binding, uint32_t client_id,
-				const void *data, size_t length)
+static int mock_transport_send(struct mcp_transport_message *response)
 {
-	ARG_UNUSED(binding);
+	if (response == NULL || response->binding == NULL) {
+		LOG_ERR("Mock: Invalid response or binding");
+		return -EINVAL;
+	}
 
 	if (mock_ctx.inject_send_error != 0) {
 		LOG_DBG("Mock: Injecting send error %d", mock_ctx.inject_send_error);
@@ -43,28 +45,31 @@ static int mock_transport_send(struct mcp_transport_binding *binding, uint32_t c
 	}
 
 	mock_ctx.send_call_count++;
-	mock_ctx.last_client_id = client_id;
 
-	for (int i = 0; i < ARRAY_SIZE(mock_ctx.clients); i++) {
-		if (mock_ctx.clients[i].client_id == client_id && mock_ctx.clients[i].active) {
-			size_t copy_len = MIN(length, sizeof(mock_ctx.clients[i].last_message) - 1);
+	struct mock_client_context *client = (struct mock_client_context *)response->binding->context;
 
-			memcpy(mock_ctx.clients[i].last_message, data, copy_len);
-			mock_ctx.clients[i].last_message[copy_len] = '\0';
-			mock_ctx.clients[i].last_message_len = copy_len;
-
-			LOG_DBG("Mock: Sent %zu bytes to client %u", length, client_id);
-			return 0;
-		}
+	if (client == NULL || !client->active) {
+		LOG_ERR("Mock: Client not found or inactive");
+		return -ENOENT;
 	}
 
-	LOG_ERR("Mock: Client %u not found", client_id);
-	return -ENOENT;
+	size_t copy_len = MIN(response->json_len, sizeof(client->last_message) - 1);
+
+	memcpy(client->last_message, response->json_data, copy_len);
+	client->last_message[copy_len] = '\0';
+	client->last_message_len = copy_len;
+	client->last_msg_id = response->msg_id;
+
+	LOG_DBG("Mock: Sent %zu bytes (msg_id: %u)", response->json_len, response->msg_id);
+	return 0;
 }
 
-static int mock_transport_disconnect(struct mcp_transport_binding *binding, uint32_t client_id)
+static int mock_transport_disconnect(struct mcp_transport_binding *binding)
 {
-	ARG_UNUSED(binding);
+	if (binding == NULL) {
+		LOG_ERR("Mock: Invalid binding");
+		return -EINVAL;
+	}
 
 	if (mock_ctx.inject_disconnect_error != 0) {
 		LOG_DBG("Mock: Injecting disconnect error %d", mock_ctx.inject_disconnect_error);
@@ -73,16 +78,16 @@ static int mock_transport_disconnect(struct mcp_transport_binding *binding, uint
 
 	mock_ctx.disconnect_call_count++;
 
-	for (int i = 0; i < ARRAY_SIZE(mock_ctx.clients); i++) {
-		if (mock_ctx.clients[i].client_id == client_id) {
-			mock_ctx.clients[i].active = false;
-			LOG_DBG("Mock: Disconnected client %u", client_id);
-			return 0;
-		}
+	struct mock_client_context *client = (struct mock_client_context *)binding->context;
+
+	if (client == NULL) {
+		LOG_WRN("Mock: Client not found for disconnect");
+		return -ENOENT;
 	}
 
-	LOG_WRN("Mock: Client %u not found for disconnect", client_id);
-	return -ENOENT;
+	client->active = false;
+	LOG_DBG("Mock: Disconnected client");
+	return 0;
 }
 
 static const struct mcp_transport_ops mock_ops = {
@@ -90,30 +95,43 @@ static const struct mcp_transport_ops mock_ops = {
 	.disconnect = mock_transport_disconnect,
 };
 
-void mcp_transport_mock_new_client_callback(struct mcp_transport_binding *binding,
-					    uint32_t client_id)
+struct mcp_transport_binding *mcp_transport_mock_allocate_client(void)
 {
-	if (binding == NULL) {
-		LOG_ERR("Mock: NULL binding in new client callback");
-		return;
-	}
-
-	binding->ops = &mock_ops;
-	binding->context = &mock_ctx;
-
 	for (int i = 0; i < ARRAY_SIZE(mock_ctx.clients); i++) {
 		if (!mock_ctx.clients[i].active) {
-			mock_ctx.clients[i].client_id = client_id;
 			mock_ctx.clients[i].active = true;
 			mock_ctx.clients[i].last_message_len = 0;
+			mock_ctx.clients[i].last_msg_id = 0;
 			memset(mock_ctx.clients[i].last_message, 0,
 			       sizeof(mock_ctx.clients[i].last_message));
-			LOG_DBG("Mock: Registered client %u in slot %d", client_id, i);
-			return;
+			
+			mock_ctx.clients[i].binding.ops = &mock_ops;
+			mock_ctx.clients[i].binding.context = &mock_ctx.clients[i];
+			
+			LOG_DBG("Mock: Allocated client in slot %d", i);
+			return &mock_ctx.clients[i].binding;
 		}
 	}
 
 	LOG_ERR("Mock: No available client slots");
+	return NULL;
+}
+
+void mcp_transport_mock_release_client(struct mcp_transport_binding *binding)
+{
+	if (binding == NULL) {
+		return;
+	}
+
+	struct mock_client_context *client = (struct mock_client_context *)binding->context;
+
+	if (client != NULL) {
+		client->active = false;
+		memset(client->last_message, 0, sizeof(client->last_message));
+		client->last_message_len = 0;
+		client->last_msg_id = 0;
+		LOG_DBG("Mock: Released client");
+	}
 }
 
 void mcp_transport_mock_inject_send_error(int error)
@@ -143,24 +161,47 @@ int mcp_transport_mock_get_disconnect_count(void)
 	return mock_ctx.disconnect_call_count;
 }
 
-uint32_t mcp_transport_mock_get_last_client_id(void)
+const char *mcp_transport_mock_get_last_message(struct mcp_transport_binding *binding, size_t *length)
 {
-	return mock_ctx.last_client_id;
-}
-
-const char *mcp_transport_mock_get_last_message(uint32_t client_id, size_t *length)
-{
-	for (int i = 0; i < ARRAY_SIZE(mock_ctx.clients); i++) {
-		if (mock_ctx.clients[i].client_id == client_id && mock_ctx.clients[i].active) {
-			if (length) {
-				*length = mock_ctx.clients[i].last_message_len;
-			}
-			return mock_ctx.clients[i].last_message;
+	if (binding == NULL) {
+		if (length) {
+			*length = 0;
 		}
+		return NULL;
+	}
+
+	struct mock_client_context *client = (struct mock_client_context *)binding->context;
+
+	if (client != NULL && client->active) {
+		if (length) {
+			*length = client->last_message_len;
+		}
+		return client->last_message;
 	}
 
 	if (length) {
 		*length = 0;
 	}
 	return NULL;
+}
+
+uint32_t mcp_transport_mock_get_last_msg_id(struct mcp_transport_binding *binding)
+{
+	if (binding == NULL) {
+		return 0;
+	}
+
+	struct mock_client_context *client = (struct mock_client_context *)binding->context;
+
+	if (client != NULL && client->active) {
+		return client->last_msg_id;
+	}
+
+	return 0;
+}
+
+void mcp_transport_mock_reset(void)
+{
+	memset(&mock_ctx, 0, sizeof(mock_ctx));
+	LOG_DBG("Mock: Reset all state");
 }
