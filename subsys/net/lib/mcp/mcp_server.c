@@ -1313,6 +1313,9 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_m
 		} else if (tool_msg->type == MCP_USR_TOOL_RESPONSE) {
 			execution_ctx->execution_state = MCP_EXEC_FINISHED;
 			LOG_WRN("Execution canceled, tool message will be dropped.");
+		} else {
+			LOG_DBG("Execution canceled, ignoring tool message type: %d",
+				tool_msg->type);
 		}
 		k_mutex_unlock(&execution_registry->registry_mutex);
 	} else {

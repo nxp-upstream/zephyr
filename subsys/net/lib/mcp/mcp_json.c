@@ -103,7 +103,10 @@ static enum mcp_method mcp_method_from_string(const char *m, size_t len)
 		return MCP_METHOD_NOTIF_INITIALIZED;
 	} else if (strcmp(method_buf, "notifications/cancelled") == 0) {
 		return MCP_METHOD_NOTIF_CANCELLED;
+	} else {
+		LOG_DBG("Unsupported method: %s", method_buf);
 	}
+
 	return MCP_METHOD_UNKNOWN;
 }
 
