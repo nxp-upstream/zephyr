@@ -194,75 +194,11 @@ static const struct json_obj_descr mcp_tools_call_req_descr[] = {
 	JSON_OBJ_DESCR_OBJECT(struct mcp_json_tools_call_req, params, mcp_tools_call_params_descr),
 };
 
-/* Very simple "extract arguments object" helper:
- * Looks for "arguments":{ ... } at top-level of params and copies the
- * substring for the { ... } part, assuming well-formed JSON.
- *
- * This is not a general JSON parser; it's a small helper tuned for
- * typical MCP tools/call payloads.
+/**
+ * Not supported for now - requires manual parsing of nested JSON object.
  */
 static bool extract_arguments_json(const char *buf, size_t len, char *dst, size_t dst_sz)
 {
-	const char *key = "\"arguments\"";
-	const char *p = buf;
-	const char *end = buf + len;
-	while (p < end) {
-		const char *hit = strstr(p, key);
-		if (!hit || hit >= end) {
-			return false;
-		}
-
-		const char *q = hit + strlen(key);
-		/* skip whitespace */
-		while (q < end && (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r')) {
-			q++;
-		}
-
-		if (q >= end || *q != ':') {
-			p = hit + 1;
-			continue;
-		}
-
-		q++; /* skip ':' */
-		while (q < end && (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r')) {
-			q++;
-		}
-
-		if (q >= end || *q != '{') {
-			p = hit + 1;
-			continue;
-		}
-
-		/* q now at opening '{' of object; we need to find matching '}' */
-		int depth = 0;
-		const char *start = q;
-		const char *r = q;
-		while (r < end) {
-			if (*r == '{') {
-				depth++;
-			} else if (*r == '}') {
-				depth--;
-				if (depth == 0) {
-					/* object ends at r */
-					size_t obj_len = (size_t)(r - start + 1);
-					if (obj_len + 1 > dst_sz) {
-						/* truncated */
-						obj_len = dst_sz - 1;
-					}
-
-					memcpy(dst, start, obj_len);
-					dst[obj_len] = '\0';
-					return true;
-				}
-			}
-
-			r++;
-		}
-
-		/* no matching brace; give up */
-		return false;
-	}
-
 	return false;
 }
 
