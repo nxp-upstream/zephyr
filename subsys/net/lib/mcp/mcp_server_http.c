@@ -54,7 +54,7 @@ struct mcp_http_client_ctx {
 	struct http_header response_headers[MAX_RESPONSE_HEADERS];
 	char response_body[CONFIG_MCP_MAX_MESSAGE_SIZE];
 	struct min_heap responses; /* Response heap for SSE */
-	uint8_t responses_storage[CONFIG_MCP_REQUEST_QUEUE_SIZE *
+	uint8_t responses_storage[CONFIG_MCP_MAX_CLIENT_REQUESTS *
 				  sizeof(struct mcp_http_response_item)];
 	struct k_mutex responses_mutex;
 	bool in_use;
@@ -363,7 +363,7 @@ static struct mcp_http_client_ctx *allocate_client(void)
 
 			/* Initialize response queue */
 			min_heap_init(&client->responses, client->responses_storage,
-				      CONFIG_MCP_REQUEST_QUEUE_SIZE,
+				      CONFIG_MCP_MAX_CLIENT_REQUESTS,
 				      sizeof(struct mcp_http_response_item),
 				      mcp_http_response_compare);
 

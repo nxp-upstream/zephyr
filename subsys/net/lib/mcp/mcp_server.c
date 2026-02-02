@@ -16,7 +16,7 @@
 LOG_MODULE_REGISTER(mcp_server, CONFIG_MCP_LOG_LEVEL);
 
 #define MCP_WORKER_PRIORITY  7
-#define MCP_MAX_REQUESTS     (CONFIG_HTTP_SERVER_MAX_CLIENTS * CONFIG_HTTP_SERVER_MAX_STREAMS)
+#define MCP_MAX_REQUESTS     (CONFIG_MCP_MAX_CLIENTS * CONFIG_MCP_MAX_CLIENT_REQUESTS)
 #define MCP_SERVER_VERSION   "1.0.0"
 #define MCP_PROTOCOL_VERSION "2025-11-25"
 
@@ -70,14 +70,14 @@ struct mcp_execution_registry {
 
 struct mcp_client_context {
 	enum mcp_lifecycle_state lifecycle_state;
-	uint32_t active_requests[CONFIG_HTTP_SERVER_MAX_STREAMS];
+	uint32_t active_requests[CONFIG_MCP_MAX_CLIENT_REQUESTS];
 	uint8_t active_request_count;
 	int64_t last_message_timestamp;
 	struct mcp_transport_binding *binding;
 };
 
 struct mcp_client_registry {
-	struct mcp_client_context clients[CONFIG_HTTP_SERVER_MAX_CLIENTS];
+	struct mcp_client_context clients[CONFIG_MCP_MAX_CLIENTS];
 	struct k_mutex registry_mutex;
 	uint8_t client_count;
 };
@@ -94,7 +94,7 @@ struct mcp_server_ctx {
 	struct mcp_client_registry client_registry;
 	struct k_thread request_workers[CONFIG_MCP_REQUEST_WORKERS];
 	struct k_msgq request_queue;
-	char request_queue_storage[CONFIG_MCP_REQUEST_QUEUE_SIZE * sizeof(struct mcp_queue_msg)];
+	char request_queue_storage[MCP_MAX_REQUESTS * sizeof(struct mcp_queue_msg)];
 	struct mcp_tool_registry tool_registry;
 	struct mcp_execution_registry execution_registry;
 #ifdef CONFIG_MCP_HEALTH_MONITOR
@@ -1032,7 +1032,7 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 			continue;
 		}
 
-		for (int i = 0; i < CONFIG_HTTP_SERVER_MAX_CLIENTS; i++) {
+		for (int i = 0; i < ARRAY_SIZE(client_registry->clients); i++) {
 			struct mcp_client_context *client_context = &client_registry->clients[i];
 
 			if (client_context->lifecycle_state == MCP_LIFECYCLE_DEINITIALIZED) {
@@ -1158,7 +1158,7 @@ mcp_server_ctx_t mcp_server_init(void)
 	}
 
 	k_msgq_init(&server_ctx->request_queue, server_ctx->request_queue_storage,
-		    sizeof(struct mcp_queue_msg), CONFIG_MCP_REQUEST_QUEUE_SIZE);
+		    sizeof(struct mcp_queue_msg), MCP_MAX_REQUESTS);
 
 	ret = k_mutex_init(&server_ctx->client_registry.registry_mutex);
 	if (ret != 0) {

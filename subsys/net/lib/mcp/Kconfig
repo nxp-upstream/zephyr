@@ -15,6 +15,21 @@ config MCP_SERVER_COUNT
 	help
 		Number of MCP server instances that can be created and run concurrently.
 
+config MCP_MAX_CLIENTS
+	int "Max number of clients per server"
+	default 3
+	range 1 100
+	help
+	  This setting determines the maximum number of clients that
+	  the server can handle at once.
+
+config MCP_MAX_CLIENT_REQUESTS
+	int "MCP request queue size"
+	default 5
+	range 1 100
+	help
+	  Maximum number of pending MCP requests that can be queued for processing.
+
 config MCP_REQUEST_WORKERS
 	int "Number of MCP request worker threads"
 	default 2
@@ -30,20 +45,6 @@ config MCP_RESPONSE_WORKERS
 	help
 	  Number of worker threads that process outgoing MCP responses.
 	  Set to 0 to disable response workers and process responses directly.
-
-config MCP_REQUEST_QUEUE_SIZE
-	int "MCP request queue size"
-	default 5
-	range 1 100
-	help
-	  Maximum number of pending MCP requests that can be queued for processing.
-
-config MCP_RESPONSE_QUEUE_SIZE
-	int "MCP response queue size"
-	default 5
-	range 1 100
-	help
-	  Maximum number of pending MCP responses that can be queued for sending.
 
 config MCP_MAX_MESSAGE_SIZE
 	int "Maximum MCP message size"
@@ -260,21 +261,6 @@ config MCP_TRANSPORT_MOCK
 endchoice
 
 if MCP_TRANSPORT_HTTP
-
-config HTTP_SERVER_MAX_CLIENTS
-	int "Max number of HTTP clients"
-	default 3
-	range 1 100
-	help
-	  This setting determines the maximum number of HTTP clients that
-	  the server can handle at once.
-
-config HTTP_SERVER_MAX_STREAMS
-	int "Max number of HTTP streams"
-	default 3
-	range 1 100
-	help
-	  This setting determines the maximum number of HTTP streams for each client.
 
 config MCP_HTTP_PORT
 	int "HTTP server port"
