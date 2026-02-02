@@ -107,7 +107,6 @@ struct mcp_transport_message {
  * @param ctx MCP server context handle
  * @param request Request data containing JSON payload and client hint
  * @param method Output parameter for the detected method type
- * @param client_binding Output parameter for the client's transport binding
  *
  * @return 0 on success, negative error code on failure:
  *         -EINVAL: Invalid parameters (NULL pointers)

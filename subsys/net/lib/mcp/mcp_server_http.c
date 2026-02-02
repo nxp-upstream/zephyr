@@ -276,6 +276,8 @@ static int accumulate_request(struct http_client_ctx *client,
 				accumulator
 					->content_type_hdr[sizeof(accumulator->content_type_hdr) -
 							   1] = '\0';
+			} else {
+				LOG_DBG("Unhandled header: %s", header->name);
 			}
 		}
 	}
