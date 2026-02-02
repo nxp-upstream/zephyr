@@ -17,3 +17,18 @@ void mcp_free(void *ptr)
 {
 	k_free(ptr);
 }
+
+void mcp_safe_strcpy(char *dst, size_t dst_sz, const char *src)
+{
+	if (!dst || dst_sz == 0) {
+		return;
+	}
+
+	if (!src) {
+		dst[0] = '\0';
+		return;
+	}
+
+	/* Use snprintf for safe truncation + NUL termination */
+	(void)snprintf(dst, dst_sz, "%s", src);
+}

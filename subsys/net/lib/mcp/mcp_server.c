@@ -425,10 +425,9 @@ static int send_error_response(struct mcp_server_ctx *server, struct mcp_client_
 		return -ENOMEM;
 	}
 
-	strncpy(error_response->message, error_message, sizeof(error_response->message) - 1);
+	mcp_safe_strcpy(error_response->message, sizeof(error_response->message), error_message);
 
 	error_response->code = error_code;
-	error_response->message[sizeof(error_response->message) - 1] = '\0';
 	error_response->has_data = false; /* no data for now */
 
 	/* Allocate buffer for serialization */
@@ -503,18 +502,14 @@ static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_m
 		return -ENOMEM;
 	}
 
-	strncpy(response_data->server_version, CONFIG_MCP_SERVER_INFO_VERSION,
-		sizeof(response_data->server_version) - 1);
-	response_data->server_version[sizeof(response_data->server_version) - 1] = '\0';
-	strncpy(response_data->server_name, CONFIG_MCP_SERVER_INFO_NAME,
-		sizeof(response_data->server_name) - 1);
-	response_data->server_name[sizeof(response_data->server_name) - 1] = '\0';
-	strncpy(response_data->protocol_version, MCP_PROTOCOL_VERSION,
-		sizeof(response_data->protocol_version) - 1);
-	response_data->protocol_version[sizeof(response_data->protocol_version) - 1] = '\0';
-	strncpy(response_data->capabilities_json, "{\"tools\":{\"listChanged\":false}}",
-		sizeof(response_data->capabilities_json) - 1);
-	response_data->capabilities_json[sizeof(response_data->capabilities_json) - 1] = '\0';
+	mcp_safe_strcpy(response_data->server_version, sizeof(response_data->server_version),
+			CONFIG_MCP_SERVER_INFO_VERSION);
+	mcp_safe_strcpy(response_data->server_name, sizeof(response_data->server_name),
+			CONFIG_MCP_SERVER_INFO_NAME);
+	mcp_safe_strcpy(response_data->protocol_version, sizeof(response_data->protocol_version),
+			MCP_PROTOCOL_VERSION);
+	mcp_safe_strcpy(response_data->capabilities_json, sizeof(response_data->capabilities_json),
+			"{\"tools\":{\"listChanged\":false}}");
 	response_data->has_capabilities = true;
 
 	/* Allocate buffer for serialization */
@@ -1346,10 +1341,9 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_m
 				return -ENOMEM;
 			}
 
-			strncpy((char *)response_data->content.items[0].text, (char *)tool_msg->data,
-				sizeof(response_data->content.items[0].text) - 1);
-			response_data->content.items[0]
-				.text[sizeof(response_data->content.items[0].text) - 1] = '\0';
+			mcp_safe_strcpy((char *)response_data->content.items[0].text,
+					sizeof(response_data->content.items[0].text),
+					(char *)tool_msg->data);
 			response_data->content.count = 1;
 			response_data->content.items[0].type = MCP_CONTENT_TEXT;
 
