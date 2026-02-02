@@ -21,6 +21,9 @@
 #include <zephyr/net/socket.h>
 #include <zephyr/net/socket_service.h>
 #include <zephyr/sys/util.h>
+#include <zephyr/logging/log.h>
+
+LOG_MODULE_REGISTER(net_otPlat_udp, CONFIG_OPENTHREAD_BORDER_ROUTER_PLATFORM_LOG_LEVEL);
 
 static struct zsock_pollfd sockfd_udp[CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_MAX_UDP_SERVICES];
 

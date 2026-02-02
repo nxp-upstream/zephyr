@@ -19,6 +19,9 @@
 #include <inttypes.h>
 #include <zephyr/kernel.h>
 #include <zephyr/shell/shell.h>
+#include <zephyr/logging/log.h>
+
+LOG_MODULE_REGISTER(net_otPlat_border_agent, CONFIG_OPENTHREAD_BORDER_ROUTER_PLATFORM_LOG_LEVEL);
 
 static struct otInstance *ot_instance_ptr;
 static bool border_agent_is_init;
@@ -63,8 +66,12 @@ otError border_agent_init(otInstance *instance)
 #endif /* CONFIG_OPENTHREAD_BORDER_AGENT_EPHEMERAL_KEY_ENABLE */
 
 		border_agent_is_init = true;
+		LOG_DBG("Border agent init done."):
 	}
 exit:
+	if (error != OT_ERROR_NONE) {
+		LOG_ERR("Could not initialize border agent modules: %d", error);
+	}
 	return error;
 }
 
@@ -75,6 +82,8 @@ void border_agent_deinit(void)
 	epskc_active = false;
 #endif /* CONFIG_OPENTHREAD_BORDER_AGENT_EPHEMERAL_KEY_ENABLE */
 	border_agent_is_init = false;
+
+	LOG_DBG("Border agent module stopped.");
 }
 
 static void append_vendor_txt_data(uint8_t *txt_data, uint16_t *txt_data_len)
@@ -174,6 +183,9 @@ static otError border_agent_enable_epskc_service(uint32_t timeout)
 					       ephemeral_key_timeout, 0);
 
 exit:
+	if (error != OT_ERROR_NONE) {
+		LOG_ERR("Could not generate or validate ephemeral key.")
+	}
 	return error;
 }
 

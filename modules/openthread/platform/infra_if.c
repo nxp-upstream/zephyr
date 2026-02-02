@@ -22,6 +22,9 @@
 #include <zephyr/net/socket.h>
 #include <zephyr/net/socket_service.h>
 #include <icmpv6.h>
+#include <zephyr/logging/log.h>
+
+LOG_MODULE_REGISTER(net_otPlat_infra_if, CONFIG_OPENTHREAD_BORDER_ROUTER_PLATFORM_LOG_LEVEL);
 
 #if defined(CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_NAT64_TRANSLATOR)
 #include <zephyr/net/net_pkt_filter.h>
@@ -186,6 +189,8 @@ static void handle_ra_from_ot(const uint8_t *buffer, uint16_t buffer_length)
 	struct net_in6_addr nexthop = {0};
 	uint8_t i = sizeof(struct net_icmp_hdr) + sizeof(struct net_icmpv6_ra_hdr);
 
+	LOG_DBG("Handle Router Advertisement from OpenThread");
+
 	while (i + sizeof(struct net_icmpv6_nd_opt_hdr) <= buffer_length) {
 		const struct net_icmpv6_nd_opt_hdr *opt_hdr =
 			(const struct net_icmpv6_nd_opt_hdr *)&buffer[i];
@@ -264,7 +269,10 @@ static int handle_icmp6_input(struct net_icmp_ctx *ctx, struct net_pkt *pkt,
 
 exit:
 	if (error == OT_ERROR_NONE) {
+		LOG_DBG("Handled ICPM6 message.");
 		return 0;
+	} else {
+		LOG_ERR("Failed to handle ICMP6 message");
 	}
 
 	return -1;
@@ -293,6 +301,11 @@ otError infra_if_start_icmp6_listener(void)
 		     error = OT_ERROR_FAILED);
 
 exit:
+	if (error == OT_ERROR_NONE) {
+		LOG_DBG("ICMP6 listener init done.");
+	} else {
+		LOG_ERR("ICMP6 listener init failed");
+	}
 	return error;
 }
 
@@ -301,6 +314,8 @@ void infra_if_stop_icmp6_listener(void)
 	(void)net_icmp_cleanup_ctx(&ra_ctx);
 	(void)net_icmp_cleanup_ctx(&rs_ctx);
 	(void)net_icmp_cleanup_ctx(&na_ctx);
+
+	LOG_DBG("ICMP6 listener stopped.");
 }
 
 #if defined(CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_NAT64_TRANSLATOR)
@@ -332,6 +347,12 @@ otError infra_if_nat64_init(void)
 	npf_append_ipv4_recv_rule(&npf_default_ok);
 
 exit:
+	if (error == OT_ERROR_NONE) {
+		LOG_DBG("NAT64 init done.");
+	} else {
+		LOG_ERR("NAT64 init failed");
+	}
+
 	return error;
 }
 
@@ -354,6 +375,11 @@ otError infra_if_nat64_deinit(void)
 		     error = OT_ERROR_FAILED);
 
 exit:
+	if (error == OT_ERROR_NONE) {
+		LOG_DBG("NAT64 stopped.");
+	} else {
+		LOG_ERR("NAT64 stop error.");
+	}
 	return error;
 }
 
@@ -389,6 +415,8 @@ exit:
 		if (req != NULL) {
 			openthread_border_router_deallocate_message((void *)req);
 		}
+
+		LOG_ERR("NAT64 socket receive failed.");
 	}
 }
 
@@ -481,6 +509,7 @@ static bool infra_if_nat64_try_consume_packet(struct npf_test *test, struct net_
 	}
 
 	if (otNat64Send(ot_instance, message) == OT_ERROR_NONE) {
+		LOG_DBG("OT NAT64 consumed incoming IPV4 packet");
 		net_pkt_unref(pkt);
 		openthread_mutex_unlock();
 		return true;

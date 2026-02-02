@@ -12,6 +12,9 @@
 #include <openthread.h>
 #include <openthread/platform/dns.h>
 #include <openthread/dnssd_server.h>
+#include <zephyr/logging/log.h>
+
+LOG_MODULE_REGISTER(net_otPlat_dns_resolver, CONFIG_OPENTHREAD_BORDER_ROUTER_PLATFORM_LOG_LEVEL);
 
 #define DNS_TIMEOUT (2 * MSEC_PER_SEC)
 
@@ -114,6 +117,7 @@ exit:
 	net_buf_unref(result);
 	if (error != OT_ERROR_NONE && ctx != NULL) {
 		remove_query_ctx(ctx);
+		LOG_ERR("Failed to allocate context for DNS transaction.");
 	}
 }
 
@@ -143,12 +147,14 @@ otError dns_upstream_resolver_init(otInstance *ot_instance)
 {
 	ot_instance_ptr = ot_instance;
 	dns_resolve_enable_packet_forwarding(dns_resolve_get_default(), dns_pkt_recv_cb);
+	LOG_DBG("DNS upstream resolver init done.");
 	return OT_ERROR_NONE;
 }
 
 static void dns_pkt_recv_cb(struct net_buf *dns_data, size_t buf_len, void *user_data)
 {
 	OT_UNUSED_VARIABLE(buf_len);
+	otError error = OT_ERROR_NONE;
 	struct otbr_msg_ctx *req;
 	struct query_context *ctx;
 
@@ -156,7 +162,7 @@ static void dns_pkt_recv_cb(struct net_buf *dns_data, size_t buf_len, void *user
 
 	if (ctx != NULL) {
 		VerifyOrExit(openthread_border_router_allocate_message((void **)&req) ==
-			     OT_ERROR_NONE);
+			     OT_ERROR_NONE, error = OT_ERROR_FAILED);
 
 		(void)memcpy(req->buffer, dns_data->data, buf_len);
 		UNALIGNED_PUT(net_htons(ctx->originated_query_id), (uint16_t *)(req->buffer));
@@ -169,25 +175,35 @@ static void dns_pkt_recv_cb(struct net_buf *dns_data, size_t buf_len, void *user
 	}
 
 exit:
+	if (error != OT_ERROR_NONE) {
+		LOG_ERR("Failed to allocate message for DNS response");
+	}
 	return;
 }
 
 static void dns_upstream_resolver_handle_response(struct otbr_msg_ctx *msg_ctx_ptr)
 {
+	otError error = OT_ERROR_NONE;
 	otMessageSettings ot_message_settings = {true, OT_MESSAGE_PRIORITY_NORMAL};
 	otMessage *ot_message = NULL;
 	struct query_context *ctx = (struct query_context *)msg_ctx_ptr->user_data;
 
 	ot_message = otUdpNewMessage(ot_instance_ptr, &ot_message_settings);
-	VerifyOrExit(ot_message != NULL);
+	VerifyOrExit(ot_message != NULL, error = OT_ERROR_FAILED);
 	VerifyOrExit(otMessageAppend(ot_message, msg_ctx_ptr->buffer,
-				     msg_ctx_ptr->length) == OT_ERROR_NONE);
+				     msg_ctx_ptr->length) == OT_ERROR_NONE,
+		     error = OT_ERROR_FAILED);
 	otPlatDnsUpstreamQueryDone(ot_instance_ptr,
 				   ctx->transaction, ot_message);
 	ot_message = NULL;
+
+	LOG_DBG("Sent DNS response to OT node.")
 exit:
 	if (ot_message != NULL) {
 		otMessageFree(ot_message);
+	}
+	if (error != OT_ERROR_NONE) {
+		LOG_ERR("Failed to send DNS response to OT node.");
 	}
 }
 

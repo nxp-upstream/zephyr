@@ -21,6 +21,9 @@
 #include <zephyr/net/socket_service.h>
 #include "sockets_internal.h"
 #include <errno.h>
+#include <zephyr/logging/log.h>
+
+LOG_MODULE_REGISTER(net_otPlat_mdns_socket, CONFIG_OPENTHREAD_BORDER_ROUTER_PLATFORM_LOG_LEVEL);
 
 #define MULTICAST_PORT 5353
 #define MAX_SERVICES CONFIG_OPENTHREAD_ZEPHYR_BORDER_ROUTER_MAX_MDNS_SERVICES

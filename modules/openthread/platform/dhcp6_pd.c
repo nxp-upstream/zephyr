@@ -14,6 +14,9 @@
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/net_ip.h>
 #include "sockets_internal.h"
+#include <zephyr/logging/log.h>
+
+LOG_MODULE_REGISTER(net_otPlat_dhcp6_pd, CONFIG_OPENTHREAD_BORDER_ROUTER_PLATFORM_LOG_LEVEL);
 
 #define DHCPV6_SERVER_PORT 547
 #define DHCPV6_CLIENT_PORT 546
