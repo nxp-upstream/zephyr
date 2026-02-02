@@ -1117,7 +1117,7 @@ static int64_t obj_parse(struct json_obj *obj, const struct json_obj_descr *desc
 			ret = decode_value(obj, &descr[i], &kv.value,
 					   decode_field, val);
 			if (ret < 0) {
-				return ret;
+				continue;
 			}
 
 			decoded_fields |= (int64_t)1<<i;

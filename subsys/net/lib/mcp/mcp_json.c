@@ -43,34 +43,65 @@ static void mcp_safe_strcpy(char *dst, size_t dst_sz, const char *src)
  * Envelope descriptor (jsonrpc, method, id)
  ******************************************************************************/
 struct mcp_json_envelope {
-	const char *jsonrpc;
-	const char *method; /* may be NULL */
-	int64_t id;         /* valid only if has_id bit set */
+	struct json_obj_token jsonrpc;
+	struct json_obj_token method;
+	struct json_obj_token id_string;
+	int64_t id_integer;
 };
 
 static const struct json_obj_descr mcp_envelope_descr[] = {
-	JSON_OBJ_DESCR_PRIM(struct mcp_json_envelope, jsonrpc, JSON_TOK_STRING),
-	JSON_OBJ_DESCR_PRIM(struct mcp_json_envelope, method, JSON_TOK_STRING),
-	JSON_OBJ_DESCR_PRIM(struct mcp_json_envelope, id, JSON_TOK_INT64),
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_envelope, jsonrpc, JSON_TOK_OPAQUE),
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_envelope, method, JSON_TOK_OPAQUE),
+	JSON_OBJ_DESCR_PRIM_NAMED(struct mcp_json_envelope, "id", id_string, JSON_TOK_OPAQUE),
+	JSON_OBJ_DESCR_PRIM_NAMED(struct mcp_json_envelope, "id", id_integer, JSON_TOK_INT64),
 };
 
-/* Map method string to enum */
-static enum mcp_method mcp_method_from_string(const char *m)
+/* Helper to extract string from json_obj_token */
+static void extract_token_string(char *dst, size_t dst_sz, const struct json_obj_token *token)
 {
-	if (!m) {
+	if (!dst || dst_sz == 0 || !token || !token->start || token->length == 0) {
+		if (dst && dst_sz > 0) {
+			dst[0] = '\0';
+		}
+		return;
+	}
+
+	size_t len = token->length;
+	if (len >= dst_sz) {
+		len = dst_sz - 1;
+	}
+
+	memcpy(dst, token->start, len);
+	dst[len] = '\0';
+}
+
+/* Map method string to enum */
+static enum mcp_method mcp_method_from_string(const char *m, size_t len)
+{
+	if (!m || len == 0) {
 		return MCP_METHOD_UNKNOWN;
 	}
-	if (strcmp(m, "initialize") == 0) {
+
+	/* Create temporary null-terminated string for comparison */
+	char method_buf[64];
+	if (len >= sizeof(method_buf)) {
+		return MCP_METHOD_UNKNOWN;
+	}
+
+	memcpy(method_buf, m, len);
+	method_buf[len] = '\0';
+
+	if (strcmp(method_buf, "initialize") == 0) {
 		return MCP_METHOD_INITIALIZE;
-	} else if (strcmp(m, "ping") == 0) {
+	} else if (strcmp(method_buf, "ping") == 0) {
 		return MCP_METHOD_PING;
-	} else if (strcmp(m, "tools/list") == 0) {
+	} else if (strcmp(method_buf, "tools/list") == 0) {
 		return MCP_METHOD_TOOLS_LIST;
-	} else if (strcmp(m, "tools/call") == 0) {
+	} else if (strcmp(method_buf, "tools/call") == 0) {
 		return MCP_METHOD_TOOLS_CALL;
-	} else if (strcmp(m, "notifications/initialized") == 0) {
+	} else if (strcmp(method_buf, "notifications/initialized") == 0) {
 		return MCP_METHOD_NOTIF_INITIALIZED;
-	} else if (strcmp(m, "notifications/cancelled") == 0) {
+	} else if (strcmp(method_buf, "notifications/cancelled") == 0) {
 		return MCP_METHOD_NOTIF_CANCELLED;
 	}
 	return MCP_METHOD_UNKNOWN;
@@ -281,14 +312,14 @@ static int parse_notif_initialized(const char *buf, size_t len, struct mcp_messa
  */
 struct mcp_json_cancelled_notif {
 	struct {
-		int64_t requestId;
+		struct json_obj_token requestId;
 		const char *reason;
 	} params;
 };
 
 static const struct json_obj_descr mcp_cancelled_params_descr[] = {
-	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_cancelled_notif *)0)->params), requestId,
-			    JSON_TOK_INT64),
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_cancelled_notif *)0)->params),
+			    requestId, JSON_TOK_OPAQUE),
 	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_cancelled_notif *)0)->params), reason,
 			    JSON_TOK_STRING),
 };
@@ -309,7 +340,10 @@ static int parse_notif_cancelled(const char *buf, size_t len, struct mcp_message
 
 	struct mcp_params_notif_cancelled *p = &msg->notif.u.cancelled;
 	memset(p, 0, sizeof(*p));
-	p->request_id = tmp.params.requestId;
+
+	/* Extract requestId as string (with quotes preserved if string) */
+	extract_token_string(p->request_id.string, sizeof(p->request_id.string),
+			     &tmp.params.requestId);
 
 	if (tmp.params.reason) {
 		mcp_safe_strcpy(p->reason, sizeof(p->reason), tmp.params.reason);
@@ -359,31 +393,53 @@ int mcp_json_parse_message(const char *buf, size_t len, struct mcp_message *out)
 
 	/* Step 1: parse the envelope (jsonrpc, method, id) */
 	struct mcp_json_envelope env = {0};
-	int ret = json_obj_parse((char *)json_copy, len, mcp_envelope_descr,
+	int ret = json_obj_parse(json_copy, len, mcp_envelope_descr,
 				 ARRAY_SIZE(mcp_envelope_descr), &env);
 	if (ret < 0) {
+		LOG_DBG("Failed to parse envelope: %d", ret);
 		mcp_free(json_copy);
 		return -EINVAL;
 	}
 
-	/* Require jsonrpc == "2.0" */
-	if (!env.jsonrpc || strcmp(env.jsonrpc, "2.0") != 0) {
+	/* Check jsonrpc version */
+	char jsonrpc_buf[16];
+	extract_token_string(jsonrpc_buf, sizeof(jsonrpc_buf), &env.jsonrpc);
+	if (strcmp(jsonrpc_buf, "2.0") != 0) {
+		LOG_DBG("Invalid jsonrpc version: %s", jsonrpc_buf);
 		mcp_free(json_copy);
 		return -EINVAL;
 	}
 
-	/* Determine presence of id:
+	/* Determine presence and type of id:
 	 * json_obj_parse returns a bitmask: bit N set if field N decoded.
-	 * Fields: 0=jsonrpc, 1=method, 2=id.
+	 * Fields: 0=jsonrpc, 1=method, 2=id_string, 3=id_integer.
 	 */
-	out->has_id = (ret & BIT(2)) != 0;
-	if (out->has_id) {
-		out->id = env.id;
+	bool has_id_string = (ret & BIT(2)) != 0;
+	bool has_id_integer = (ret & BIT(3)) != 0;
+
+	LOG_DBG("Parse result: jsonrpc=%d method=%d id_string=%d id_integer=%d",
+		(ret & BIT(0)) != 0, (ret & BIT(1)) != 0, has_id_string, has_id_integer);
+
+	/* Store ID as string */
+	if (has_id_integer) {
+		/* Integer ID: store without quotes (e.g., "123") */
+		snprintf(out->id.string, sizeof(out->id.string), "%" PRId64, env.id_integer);
+	} else if (has_id_string) {
+		/* String ID: store with quotes preserved (e.g., "\"abc\"") */
+		char temp[MCP_MAX_ID_LEN - 2];
+		extract_token_string(temp, sizeof(temp), &env.id_string);
+
+		/* Add quotes around the string value */
+		snprintf(out->id.string, sizeof(out->id.string), "\"%s\"", temp);
+	} else {
+		/* No ID */
+		out->id.string[0] = '\0';
 	}
 
+	/* Determine method */
 	bool has_method = (ret & BIT(1)) != 0;
 	if (has_method) {
-		out->method = mcp_method_from_string(env.method);
+		out->method = mcp_method_from_string(env.method.start, env.method.length);
 	} else {
 		out->method = MCP_METHOD_UNKNOWN;
 	}
@@ -393,17 +449,15 @@ int mcp_json_parse_message(const char *buf, size_t len, struct mcp_message *out)
 	 * - Request: method with id (params optional).
 	 * - Notification: method without id (params optional).
 	 */
-	if (has_method && out->has_id) {
+	if (has_method && (has_id_integer || has_id_string)) {
 		out->kind = MCP_MSG_REQUEST;
-	} else if (has_method && !out->has_id) {
+	} else if (has_method && !has_id_integer && !has_id_string) {
 		out->kind = MCP_MSG_NOTIFICATION;
 	} else {
 		/* Server side: we don't expect responses from the client. */
 		mcp_free(json_copy);
 		return -EINVAL;
 	}
-
-	memcpy(json_copy, buf, len);
 
 	/* Dispatch to per-kind, per-method parsers */
 	if (out->kind == MCP_MSG_REQUEST) {
@@ -429,11 +483,14 @@ int mcp_json_parse_message(const char *buf, size_t len, struct mcp_message *out)
 		switch (out->method) {
 		case MCP_METHOD_NOTIF_INITIALIZED:
 			ret = parse_notif_initialized(json_copy, len, out);
+			break;
 		case MCP_METHOD_NOTIF_CANCELLED:
 			ret = parse_notif_cancelled(json_copy, len, out);
+			break;
 		default:
 			/* Unknown notification: ignore content; core can log. */
 			ret = 0;
+			break;
 		}
 	} else {
 		ret = -EINVAL;
@@ -509,7 +566,8 @@ static int json_escape_string(char *dst, size_t dst_sz, const char *src)
 	return (int)pos;
 }
 
-int mcp_json_serialize_initialize_result(char *out, size_t out_len, int64_t id,
+int mcp_json_serialize_initialize_result(char *out, size_t out_len,
+					 const struct mcp_request_id *id,
 					 const struct mcp_result_initialize *res)
 {
 	if (!out || !res || out_len == 0) {
@@ -533,13 +591,16 @@ int mcp_json_serialize_initialize_result(char *out, size_t out_len, int64_t id,
 		return -EINVAL;
 	}
 
+	/* Use id string directly (quotes already included if needed) */
+	const char *id_str = (id && id->string[0] != '\0') ? id->string : "null";
+
 	int ret;
 	if (res->has_capabilities && res->capabilities_json[0] != '\0') {
 		/* With capabilities */
 		ret = snprintf(out, out_len,
 				"{"
 					"\"jsonrpc\":\"2.0\","
-					"\"id\":%" PRId64 ","
+					"\"id\":%s,"
 					"\"result\":{"
 						"\"protocolVersion\":%s,"
 						"\"serverInfo\":{"
@@ -549,13 +610,13 @@ int mcp_json_serialize_initialize_result(char *out, size_t out_len, int64_t id,
 						"\"capabilities\":%s"
 					"}"
 				"}",
-				id, proto_buf, name_buf, ver_buf, res->capabilities_json);
+				id_str, proto_buf, name_buf, ver_buf, res->capabilities_json);
 	} else {
 		/* Without capabilities */
 		ret = snprintf(out, out_len,
 				"{"
 					"\"jsonrpc\":\"2.0\","
-					"\"id\":%" PRId64 ","
+					"\"id\":%s,"
 					"\"result\":{"
 						"\"protocolVersion\":%s,"
 						"\"serverInfo\":{"
@@ -564,7 +625,7 @@ int mcp_json_serialize_initialize_result(char *out, size_t out_len, int64_t id,
 						"}"
 					"}"
 				"}",
-				id, proto_buf, name_buf, ver_buf);
+				id_str, proto_buf, name_buf, ver_buf);
 	}
 
 	if (ret < 0 || (size_t)ret >= out_len) {
@@ -574,7 +635,8 @@ int mcp_json_serialize_initialize_result(char *out, size_t out_len, int64_t id,
 	return ret;
 }
 
-int mcp_json_serialize_ping_result(char *out, size_t out_len, int64_t id,
+int mcp_json_serialize_ping_result(char *out, size_t out_len,
+				   const struct mcp_request_id *id,
 				   const struct mcp_result_ping *res)
 {
 	(void)res; /* currently unused; we return empty {} */
@@ -583,13 +645,15 @@ int mcp_json_serialize_ping_result(char *out, size_t out_len, int64_t id,
 		return -EINVAL;
 	}
 
+	const char *id_str = (id && id->string[0] != '\0') ? id->string : "null";
+
 	int ret = snprintf(out, out_len,
 				"{"
 					"\"jsonrpc\":\"2.0\","
-					"\"id\":%" PRId64 ","
+					"\"id\":%s,"
 					"\"result\":{}"
 				"}",
-				id);
+				id_str);
 
 	if (ret < 0 || (size_t)ret >= out_len) {
 		return -ENOSPC;
@@ -598,13 +662,15 @@ int mcp_json_serialize_ping_result(char *out, size_t out_len, int64_t id,
 	return ret;
 }
 
-int mcp_json_serialize_tools_list_result(char *out, size_t out_len, int64_t id,
+int mcp_json_serialize_tools_list_result(char *out, size_t out_len,
+					 const struct mcp_request_id *id,
 					 const struct mcp_result_tools_list *res)
 {
 	if (!out || !res || out_len == 0) {
 		return -EINVAL;
 	}
 
+	const char *id_str = (id && id->string[0] != '\0') ? id->string : "null";
 	const char *tools_json = res->tools_json;
 	if (!tools_json || tools_json[0] == '\0') {
 		tools_json = "[]";
@@ -613,12 +679,12 @@ int mcp_json_serialize_tools_list_result(char *out, size_t out_len, int64_t id,
 	int ret = snprintf(out, out_len,
 				"{"
 					"\"jsonrpc\":\"2.0\","
-					"\"id\":%" PRId64 ","
+					"\"id\":%s,"
 					"\"result\":{"
 						"\"tools\":[%s]"
 					"}"
 				"}",
-				id, tools_json);
+				id_str, tools_json);
 
 	if (ret < 0 || (size_t)ret >= out_len) {
 		return -ENOSPC;
@@ -627,12 +693,15 @@ int mcp_json_serialize_tools_list_result(char *out, size_t out_len, int64_t id,
 	return ret;
 }
 
-int mcp_json_serialize_tools_call_result(char *out, size_t out_len, int64_t id,
+int mcp_json_serialize_tools_call_result(char *out, size_t out_len,
+					 const struct mcp_request_id *id,
 					 const struct mcp_result_tools_call *res)
 {
 	if (!out || !res || out_len == 0) {
 		return -EINVAL;
 	}
+
+	const char *id_str = (id && id->string[0] != '\0') ? id->string : "null";
 
 	/* For v1, we serialize all content items as type="text". */
 	char content_buf[512];
@@ -676,12 +745,12 @@ int mcp_json_serialize_tools_call_result(char *out, size_t out_len, int64_t id,
 	int ret = snprintf(out, out_len,
 				"{"
 					"\"jsonrpc\":\"2.0\","
-					"\"id\":%" PRId64 ","
+					"\"id\":%s,"
 					"\"result\":{"
 						"\"content\":%s"
 					"}"
 				"}",
-				id, content_buf);
+				id_str, content_buf);
 
 	if (ret < 0 || (size_t)ret >= out_len) {
 		return -ENOSPC;
@@ -690,7 +759,8 @@ int mcp_json_serialize_tools_call_result(char *out, size_t out_len, int64_t id,
 	return ret;
 }
 
-int mcp_json_serialize_error(char *out, size_t out_len, bool has_id, int64_t id,
+int mcp_json_serialize_error(char *out, size_t out_len,
+			     const struct mcp_request_id *id,
 			     const struct mcp_error *err)
 {
 	if (!out || !err || out_len == 0) {
@@ -702,59 +772,34 @@ int mcp_json_serialize_error(char *out, size_t out_len, bool has_id, int64_t id,
 		return -EINVAL;
 	}
 
+	const char *id_str = (id && id->string[0] != '\0') ? id->string : "null";
+
 	int ret;
 	if (err->has_data && err->data_json[0] != '\0') {
 		/* With data */
-		if (has_id) {
-			ret = snprintf(out, out_len,
-					"{"
-						"\"jsonrpc\":\"2.0\","
-						"\"id\":%" PRId64 ","
-						"\"error\":{"
-							"\"code\":%d,"
-							"\"message\":%s,"
-							"\"data\":%s"
-						"}"
-					"}",
-					id, err->code, msg_buf, err->data_json);
-		} else {
-			ret = snprintf(out, out_len,
-					"{"
-						"\"jsonrpc\":\"2.0\","
-						"\"id\":null,"
-						"\"error\":{"
-							"\"code\":%d,"
-							"\"message\":%s,"
-							"\"data\":%s"
-						"}"
-					"}",
-					err->code, msg_buf, err->data_json);
-		}
+		ret = snprintf(out, out_len,
+				"{"
+					"\"jsonrpc\":\"2.0\","
+					"\"id\":%s,"
+					"\"error\":{"
+						"\"code\":%d,"
+						"\"message\":%s,"
+						"\"data\":%s"
+					"}"
+				"}",
+				id_str, err->code, msg_buf, err->data_json);
 	} else {
 		/* Without data */
-		if (has_id) {
-			ret = snprintf(out, out_len,
-					"{"
-						"\"jsonrpc\":\"2.0\","
-						"\"id\":%" PRId64 ","
-						"\"error\":{"
-							"\"code\":%d,"
-							"\"message\":%s"
-						"}"
-					"}",
-					id, err->code, msg_buf);
-		} else {
-			ret = snprintf(out, out_len,
-					"{"
-						"\"jsonrpc\":\"2.0\","
-						"\"id\":null,"
-						"\"error\":{"
-							"\"code\":%d,"
-							"\"message\":%s"
-						"}"
-					"}",
-					err->code, msg_buf);
-		}
+		ret = snprintf(out, out_len,
+				"{"
+					"\"jsonrpc\":\"2.0\","
+					"\"id\":%s,"
+					"\"error\":{"
+						"\"code\":%d,"
+						"\"message\":%s"
+					"}"
+				"}",
+				id_str, err->code, msg_buf);
 	}
 
 	if (ret < 0 || (size_t)ret >= out_len) {

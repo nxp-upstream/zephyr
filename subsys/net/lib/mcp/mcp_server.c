@@ -52,7 +52,7 @@ struct mcp_tool_registry {
 /* Context for a tool execution */
 struct mcp_execution_context {
 	uint32_t execution_token;
-	int64_t request_id;
+	struct mcp_request_id request_id;
 	uint32_t transport_msg_id;
 	struct mcp_client_context *client;
 	k_tid_t worker_id;
@@ -199,7 +199,7 @@ static struct mcp_execution_context *get_execution_context(struct mcp_server_ctx
 
 static struct mcp_execution_context *add_execution_context(struct mcp_server_ctx *server,
 							   struct mcp_client_context *client,
-							   int64_t request_id, uint32_t msg_id)
+							   struct mcp_request_id *request_id, uint32_t msg_id)
 {
 	int ret;
 	struct mcp_execution_context *context = NULL;
@@ -219,7 +219,7 @@ static struct mcp_execution_context *add_execution_context(struct mcp_server_ctx
 		context = &execution_registry->executions[i];
 		if (context->execution_token == 0) {
 			context->execution_token = execution_token;
-			context->request_id = request_id;
+			context->request_id = *request_id;
 			context->transport_msg_id = msg_id;
 			context->client = client;
 			context->worker_id = k_current_get();
@@ -399,7 +399,7 @@ static int copy_tool_metadata_to_response(struct mcp_server_ctx *server,
  * Request/Response Handling Functions
  ******************************************************************************/
 static int send_error_response(struct mcp_server_ctx *server, struct mcp_client_context *client,
-			       int64_t request_id, int32_t error_code, const char *error_message, uint32_t msg_id)
+			       struct mcp_request_id *request_id, int32_t error_code, const char *error_message, uint32_t msg_id)
 {
 	struct mcp_error *error_response;
 	int ret;
@@ -424,7 +424,7 @@ static int send_error_response(struct mcp_server_ctx *server, struct mcp_client_
 		return -ENOMEM;
 	}
 
-	ret = mcp_json_serialize_error(json_buffer, CONFIG_MCP_MAX_MESSAGE_SIZE, true, request_id,
+	ret = mcp_json_serialize_error(json_buffer, CONFIG_MCP_MAX_MESSAGE_SIZE, request_id,
 				       error_response);
 	if (ret <= 0) {
 		LOG_ERR("Failed to serialize response: %d", ret);
@@ -513,7 +513,7 @@ static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_m
 
 	/* Serialize response to JSON */
 	ret = mcp_json_serialize_initialize_result((char *)json_buffer, CONFIG_MCP_MAX_MESSAGE_SIZE,
-						   request->id, response_data);
+						   &request->id, response_data);
 	if (ret < 0) {
 		LOG_ERR("Failed to serialize response: %d", ret);
 		mcp_free(response_data);
@@ -598,7 +598,7 @@ static int handle_tools_list_request(struct mcp_server_ctx *server,
 
 	/* Serialize response to JSON */
 	ret = mcp_json_serialize_tools_list_result((char *)json_buffer, CONFIG_MCP_MAX_MESSAGE_SIZE,
-						   request->id, response_data);
+						   &request->id, response_data);
 	if (ret <= 0) {
 		LOG_ERR("Failed to serialize response: %d", ret);
 		mcp_free(response_data);
@@ -675,7 +675,7 @@ static int handle_tools_call_request(struct mcp_server_ctx *server,
 	k_mutex_unlock(&tool_registry->registry_mutex);
 
 	struct mcp_execution_context *exec_ctx =
-		add_execution_context(server, client, request->id, msg_id);
+		add_execution_context(server, client, &request->id, msg_id);
 	if (exec_ctx == NULL) {
 		LOG_ERR("Failed to create execution context: %d", ret);
 		goto cleanup_active_request;
@@ -786,7 +786,7 @@ static int handle_ping_request(struct mcp_server_ctx *server, struct mcp_client_
 
 	/* Serialize response to JSON */
 	ret = mcp_json_serialize_ping_result((char *)json_buffer, CONFIG_MCP_MAX_MESSAGE_SIZE,
-					     request->id, NULL);
+					     &request->id, NULL);
 	if (ret <= 0) {
 		LOG_ERR("Failed to serialize response: %d", ret);
 		mcp_free(json_buffer);
@@ -903,7 +903,7 @@ static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 				error_message = "Internal server error";
 				break;
 			}
-			send_error_response(server, request.client, message->id, error_code,
+			send_error_response(server, request.client, &message->id, error_code,
 					    error_message, request.transport_msg_id);
 		}
 
@@ -1129,7 +1129,7 @@ int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_transport_message
 			mcp_free(parsed_msg);
 			break;
 		}
-		ret = send_error_response(server, client, parsed_msg->id, MCP_ERR_METHOD_NOT_FOUND,
+		ret = send_error_response(server, client, &parsed_msg->id, MCP_ERR_METHOD_NOT_FOUND,
 					  "Method not found", request->msg_id);
 		mcp_free(parsed_msg);
 		break;
@@ -1249,7 +1249,7 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_m
 				   uint32_t execution_token)
 {
 	int ret;
-	int64_t request_id;
+	struct mcp_request_id *request_id;
 	struct mcp_result_tools_call *response_data;
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 
@@ -1287,7 +1287,7 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_m
 		return -ENOENT;
 	}
 
-	request_id = execution_ctx->request_id;
+	request_id = &execution_ctx->request_id;
 	struct mcp_client_context *client = execution_ctx->client;
 
 	bool is_execution_canceled = (execution_ctx->execution_state == MCP_EXEC_CANCELED);

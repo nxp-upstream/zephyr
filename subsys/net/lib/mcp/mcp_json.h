@@ -32,6 +32,7 @@ extern "C" {
 #define MCP_MAX_VERSION_LEN    32
 #define MCP_MAX_JSON_CHUNK_LEN 512 /* for small opaque JSON blobs */
 #define MCP_MAX_CONTENT_ITEMS  2
+#define MCP_MAX_ID_LEN         64  /* for string IDs */
 
 /* JSON-RPC message kind (incoming) */
 enum mcp_msg_kind {
@@ -65,6 +66,15 @@ enum mcp_error_code {
 	MCP_ERR_CANCELLED = -32001,
 	MCP_ERR_BUSY = -32002,
 	MCP_ERR_NOT_INITIALIZED = -32003,
+};
+
+/* Request ID stored as string
+ * - For integer IDs: stored without quotes (e.g., "123")
+ * - For string IDs: stored with quotes (e.g., "\"abc\"")
+ * - This preserves the original type for serialization
+ */
+struct mcp_request_id {
+	char string[MCP_MAX_ID_LEN];
 };
 
 /* Generic JSON-RPC error object (outgoing) */
@@ -148,7 +158,7 @@ struct mcp_params_notif_initialized {
 
 /* --- notifications/cancelled --- */
 struct mcp_params_notif_cancelled {
-	int64_t request_id;
+	struct mcp_request_id request_id;
 	char reason[MCP_MAX_DESC_LEN];
 	bool has_reason;
 };
@@ -156,8 +166,7 @@ struct mcp_params_notif_cancelled {
 /* Top-level incoming message struct */
 struct mcp_message {
 	enum mcp_msg_kind kind; /* REQUEST / NOTIFICATION */
-	bool has_id;
-	int64_t id;             /* only valid if has_id == true */
+	struct mcp_request_id id;
 	enum mcp_method method; /* MCP_METHOD_* enum; UNKNOWN if not recognized */
 	/* Direction-specific payload: */
 	union {
@@ -217,13 +226,14 @@ int mcp_json_parse_message(const char *buf, size_t len, struct mcp_message *out)
  *
  * @param out Output buffer for the serialized JSON string.
  * @param out_len Size of the output buffer.
- * @param id JSON-RPC request ID to include in the response.
+ * @param id JSON-RPC request ID (as string, with quotes if originally string).
  * @param res Pointer to the initialize result structure containing response data.
  *
  * @return Number of bytes written (excluding NUL terminator) on success,
  *         negative error code on failure.
  */
-int mcp_json_serialize_initialize_result(char *out, size_t out_len, int64_t id,
+int mcp_json_serialize_initialize_result(char *out, size_t out_len,
+					 const struct mcp_request_id *id,
 					 const struct mcp_result_initialize *res);
 
 /**
@@ -238,13 +248,14 @@ int mcp_json_serialize_initialize_result(char *out, size_t out_len, int64_t id,
  *
  * @param out Output buffer for the serialized JSON string.
  * @param out_len Size of the output buffer.
- * @param id JSON-RPC request ID to include in the response.
+ * @param id JSON-RPC request ID (as string, with quotes if originally string).
  * @param res Pointer to the ping result structure (may contain optional payload).
  *
  * @return Number of bytes written (excluding NUL terminator) on success,
  *         negative error code on failure.
  */
-int mcp_json_serialize_ping_result(char *out, size_t out_len, int64_t id,
+int mcp_json_serialize_ping_result(char *out, size_t out_len,
+				   const struct mcp_request_id *id,
 				   const struct mcp_result_ping *res);
 
 /**
@@ -259,7 +270,7 @@ int mcp_json_serialize_ping_result(char *out, size_t out_len, int64_t id,
  *
  * @param out Output buffer for the serialized JSON string.
  * @param out_len Size of the output buffer.
- * @param id JSON-RPC request ID to include in the response.
+ * @param id JSON-RPC request ID (as string, with quotes if originally string).
  * @param res Pointer to the tools list result structure. The tools_json field
  *            must contain a valid JSON array, e.g.:
  *            [ {"name":"foo",...}, {"name":"bar",...} ]
@@ -267,7 +278,8 @@ int mcp_json_serialize_ping_result(char *out, size_t out_len, int64_t id,
  * @return Number of bytes written (excluding NUL terminator) on success,
  *         negative error code on failure.
  */
-int mcp_json_serialize_tools_list_result(char *out, size_t out_len, int64_t id,
+int mcp_json_serialize_tools_list_result(char *out, size_t out_len,
+					 const struct mcp_request_id *id,
 					 const struct mcp_result_tools_list *res);
 
 /**
@@ -284,14 +296,15 @@ int mcp_json_serialize_tools_list_result(char *out, size_t out_len, int64_t id,
  *
  * @param out Output buffer for the serialized JSON string.
  * @param out_len Size of the output buffer.
- * @param id JSON-RPC request ID to include in the response.
+ * @param id JSON-RPC request ID (as string, with quotes if originally string).
  * @param res Pointer to the tools call result structure containing content blocks.
  *            Only content.type == TEXT is supported for now.
  *
  * @return Number of bytes written (excluding NUL terminator) on success,
  *         negative error code on failure.
  */
-int mcp_json_serialize_tools_call_result(char *out, size_t out_len, int64_t id,
+int mcp_json_serialize_tools_call_result(char *out, size_t out_len,
+					 const struct mcp_request_id *id,
 					 const struct mcp_result_tools_call *res);
 
 /**
@@ -306,15 +319,15 @@ int mcp_json_serialize_tools_call_result(char *out, size_t out_len, int64_t id,
  *
  * @param out Output buffer for the serialized JSON string.
  * @param out_len Size of the output buffer.
- * @param has_id Whether the error response should include an ID field.
- * @param id JSON-RPC request ID (only used if has_id is true).
+ * @param id Pointer to request ID (NULL or empty string for id:null).
  * @param err Pointer to the error structure containing code, message, and optional data.
  *            If err->has_data is false, the "data" field is omitted.
  *
  * @return Number of bytes written (excluding NUL terminator) on success,
  *         negative error code on failure.
  */
-int mcp_json_serialize_error(char *out, size_t out_len, bool has_id, int64_t id,
+int mcp_json_serialize_error(char *out, size_t out_len,
+			     const struct mcp_request_id *id,
 			     const struct mcp_error *err);
 
 #ifdef __cplusplus
