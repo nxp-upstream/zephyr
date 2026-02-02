@@ -474,68 +474,43 @@ int mcp_json_parse_message(char *buf, size_t len, struct mcp_message *out)
 /*******************************************************************************
  * Serializers
  ******************************************************************************/
-/* JSON string literal helper: write "text" with proper escaping.
- * For v1, we handle the common escapes (", \, \n, \r, \t) and drop others.
- */
-static int json_escape_string(char *dst, size_t dst_sz, const char *src)
-{
-	if (!dst || dst_sz == 0) {
-		return -EINVAL;
-	}
 
-	if (!src) {
-		src = "";
-	}
+/* Serialization structures for initialize result */
+struct mcp_json_server_info {
+	const char *name;
+	const char *version;
+};
 
-	size_t pos = 0;
-	dst[pos++] = '"';
-	const unsigned char *p = (const unsigned char *)src;
-	while (*p && pos + 2 < dst_sz) {
-		unsigned char c = *p++;
-		if (c == '"' || c == '\\') {
-			if (pos + 2 >= dst_sz) {
-				break;
-			}
+struct mcp_json_init_result_inner {
+	const char *protocolVersion;
+	struct mcp_json_server_info serverInfo;
+	const char *capabilities;
+};
 
-			dst[pos++] = '\\';
-			dst[pos++] = (char)c;
-		} else if (c == '\n') {
-			if (pos + 2 >= dst_sz) {
-				break;
-			}
+struct mcp_json_init_result {
+	const char *jsonrpc;
+	const char *id;
+	struct mcp_json_init_result_inner result;
+};
 
-			dst[pos++] = '\\';
-			dst[pos++] = 'n';
-		} else if (c == '\r') {
-			if (pos + 2 >= dst_sz) {
-				break;
-			}
+static const struct json_obj_descr mcp_json_server_info_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_server_info, name, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_server_info, version, JSON_TOK_STRING),
+};
 
-			dst[pos++] = '\\';
-			dst[pos++] = 'r';
-		} else if (c == '\t') {
-			if (pos + 2 >= dst_sz) {
-				break;
-			}
+static const struct json_obj_descr mcp_json_init_result_inner_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_init_result_inner, protocolVersion, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_OBJECT(struct mcp_json_init_result_inner, serverInfo,
+			      mcp_json_server_info_descr),
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_init_result_inner, capabilities, JSON_TOK_ENCODED_OBJ),
+};
 
-			dst[pos++] = '\\';
-			dst[pos++] = 't';
-		} else {
-			dst[pos++] = (char)c;
-		}
-	}
-
-	if (pos + 1 >= dst_sz) {
-		/* no room for closing quote */
-		dst[dst_sz - 1] = '\0';
-		return -ENOSPC;
-	}
-
-	dst[pos++] = '"';
-	dst[pos] = '\0';
-
-	return (int)pos;
-}
+static const struct json_obj_descr mcp_json_init_result_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_init_result, jsonrpc, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_init_result, id, JSON_TOK_ENCODED_OBJ),
+	JSON_OBJ_DESCR_OBJECT(struct mcp_json_init_result, result,
+			      mcp_json_init_result_inner_descr),
+};
 
 int mcp_json_serialize_initialize_result(char *out, size_t out_len,
 					 const struct mcp_request_id *id,
@@ -545,66 +520,48 @@ int mcp_json_serialize_initialize_result(char *out, size_t out_len,
 		return -EINVAL;
 	}
 
-	/* Build small pieces with escaping for strings. */
-	char proto_buf[64];
-	char name_buf[96];
-	char ver_buf[64];
-
-	if (json_escape_string(proto_buf, sizeof(proto_buf), res->protocol_version) < 0) {
-		return -EINVAL;
-	}
-
-	if (json_escape_string(name_buf, sizeof(name_buf), res->server_name) < 0) {
-		return -EINVAL;
-	}
-
-	if (json_escape_string(ver_buf, sizeof(ver_buf), res->server_version) < 0) {
-		return -EINVAL;
-	}
-
-	/* Use id string directly (quotes already included if needed) */
 	const char *id_str = (id && id->string[0] != '\0') ? id->string : "null";
 
-	int ret;
-	if (res->has_capabilities && res->capabilities_json[0] != '\0') {
-		/* With capabilities */
-		ret = snprintf(out, out_len,
-				"{"
-					"\"jsonrpc\":\"2.0\","
-					"\"id\":%s,"
-					"\"result\":{"
-						"\"protocolVersion\":%s,"
-						"\"serverInfo\":{"
-							"\"name\":%s,"
-							"\"version\":%s"
-						"},"
-						"\"capabilities\":%s"
-					"}"
-				"}",
-				id_str, proto_buf, name_buf, ver_buf, res->capabilities_json);
-	} else {
-		/* Without capabilities */
-		ret = snprintf(out, out_len,
-				"{"
-					"\"jsonrpc\":\"2.0\","
-					"\"id\":%s,"
-					"\"result\":{"
-						"\"protocolVersion\":%s,"
-						"\"serverInfo\":{"
-							"\"name\":%s,"
-							"\"version\":%s"
-						"}"
-					"}"
-				"}",
-				id_str, proto_buf, name_buf, ver_buf);
-	}
+	struct mcp_json_init_result json_res = {
+		.jsonrpc = "2.0",
+		.id = id_str,
+		.result = {
+			.protocolVersion = res->protocol_version,
+			.serverInfo = {
+				.name = res->server_name,
+				.version = res->server_version,
+			},
+			.capabilities = (res->has_capabilities && res->capabilities_json[0] != '\0')
+					? res->capabilities_json : NULL,
+		},
+	};
 
-	if (ret < 0 || (size_t)ret >= out_len) {
-		return -ENOSPC;
-	}
+	int ret = json_obj_encode_buf(mcp_json_init_result_descr,
+				      ARRAY_SIZE(mcp_json_init_result_descr),
+				      &json_res, out, out_len);
 
-	return ret;
+	return (ret == 0) ? strlen(out) : ret;
 }
+
+/* Serialization structures for ping result */
+struct mcp_json_ping_result {
+	const char *jsonrpc;
+	const char *id;
+	struct {
+		bool dummy; /* Empty object */
+	} result;
+};
+
+static const struct json_obj_descr mcp_json_ping_result_inner_descr[] = {
+	/* Empty descriptor for empty object */
+};
+
+static const struct json_obj_descr mcp_json_ping_result_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_ping_result, jsonrpc, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_ping_result, id, JSON_TOK_ENCODED_OBJ),
+	JSON_OBJ_DESCR_OBJECT(struct mcp_json_ping_result, result,
+			      mcp_json_ping_result_inner_descr),
+};
 
 int mcp_json_serialize_ping_result(char *out, size_t out_len,
 				   const struct mcp_request_id *id,
@@ -618,20 +575,39 @@ int mcp_json_serialize_ping_result(char *out, size_t out_len,
 
 	const char *id_str = (id && id->string[0] != '\0') ? id->string : "null";
 
-	int ret = snprintf(out, out_len,
-				"{"
-					"\"jsonrpc\":\"2.0\","
-					"\"id\":%s,"
-					"\"result\":{}"
-				"}",
-				id_str);
+	struct mcp_json_ping_result json_res = {
+		.jsonrpc = "2.0",
+		.id = id_str,
+		.result = { .dummy = false },
+	};
 
-	if (ret < 0 || (size_t)ret >= out_len) {
-		return -ENOSPC;
-	}
+	int ret = json_obj_encode_buf(mcp_json_ping_result_descr,
+				      ARRAY_SIZE(mcp_json_ping_result_descr),
+				      &json_res, out, out_len);
 
-	return ret;
+	return (ret == 0) ? strlen(out) : ret;
 }
+
+/* Serialization structures for tools/list result */
+struct mcp_json_tools_list_result {
+	const char *jsonrpc;
+	const char *id;
+	struct {
+		const char *tools;  /* This should be the raw JSON array */
+	} result;
+};
+
+static const struct json_obj_descr mcp_json_tools_list_result_inner_descr[] = {
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_tools_list_result *)0)->result),
+			    tools, JSON_TOK_ENCODED_OBJ),
+};
+
+static const struct json_obj_descr mcp_json_tools_list_result_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_tools_list_result, jsonrpc, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_tools_list_result, id, JSON_TOK_ENCODED_OBJ),
+	JSON_OBJ_DESCR_OBJECT(struct mcp_json_tools_list_result, result,
+			      mcp_json_tools_list_result_inner_descr),
+};
 
 int mcp_json_serialize_tools_list_result(char *out, size_t out_len,
 					 const struct mcp_request_id *id,
@@ -642,27 +618,60 @@ int mcp_json_serialize_tools_list_result(char *out, size_t out_len,
 	}
 
 	const char *id_str = (id && id->string[0] != '\0') ? id->string : "null";
-	const char *tools_json = res->tools_json;
-	if (!tools_json || tools_json[0] == '\0') {
-		tools_json = "[]";
-	}
 
-	int ret = snprintf(out, out_len,
-				"{"
-					"\"jsonrpc\":\"2.0\","
-					"\"id\":%s,"
-					"\"result\":{"
-						"\"tools\":[%s]"
-					"}"
-				"}",
-				id_str, tools_json);
+	/* tools_json should already be a complete JSON array: [{"name":"foo",...},...]
+	 * If empty, use empty array
+	 */
+	const char *tools_json = (res->tools_json[0] != '\0') ? res->tools_json : "[]";
 
-	if (ret < 0 || (size_t)ret >= out_len) {
-		return -ENOSPC;
-	}
+	struct mcp_json_tools_list_result json_res = {
+		.jsonrpc = "2.0",
+		.id = id_str,
+		.result = {
+			.tools = tools_json,  /* Insert raw JSON array */
+		},
+	};
 
-	return ret;
+	int ret = json_obj_encode_buf(mcp_json_tools_list_result_descr,
+				      ARRAY_SIZE(mcp_json_tools_list_result_descr),
+				      &json_res, out, out_len);
+
+	return (ret == 0) ? strlen(out) : ret;
 }
+
+/* Serialization structures for tools/call result */
+struct mcp_json_content_item {
+	const char *type;
+	const char *text;
+};
+
+struct mcp_json_tools_call_result {
+	const char *jsonrpc;
+	const char *id;
+	struct {
+		struct mcp_json_content_item content[MCP_MAX_CONTENT_ITEMS];
+		size_t content_len;
+	} result;
+};
+
+static const struct json_obj_descr mcp_json_content_item_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_content_item, type, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_content_item, text, JSON_TOK_STRING),
+};
+
+static const struct json_obj_descr mcp_json_tools_call_result_inner_descr[] = {
+	JSON_OBJ_DESCR_OBJ_ARRAY(__typeof__(((struct mcp_json_tools_call_result *)0)->result),
+				 content, MCP_MAX_CONTENT_ITEMS, content_len,
+				 mcp_json_content_item_descr,
+				 ARRAY_SIZE(mcp_json_content_item_descr)),
+};
+
+static const struct json_obj_descr mcp_json_tools_call_result_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_tools_call_result, jsonrpc, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_tools_call_result, id, JSON_TOK_ENCODED_OBJ),
+	JSON_OBJ_DESCR_OBJECT(struct mcp_json_tools_call_result, result,
+			      mcp_json_tools_call_result_inner_descr),
+};
 
 int mcp_json_serialize_tools_call_result(char *out, size_t out_len,
 					 const struct mcp_request_id *id,
@@ -674,61 +683,49 @@ int mcp_json_serialize_tools_call_result(char *out, size_t out_len,
 
 	const char *id_str = (id && id->string[0] != '\0') ? id->string : "null";
 
-	/* For v1, we serialize all content items as type="text". */
-	char content_buf[512];
-	size_t pos = 0;
-	content_buf[pos++] = '[';
-	for (uint8_t i = 0; i < res->content.count; ++i) {
-		if (pos + 32 >= sizeof(content_buf)) {
-			break;
-		}
+	struct mcp_json_tools_call_result json_res = {
+		.jsonrpc = "2.0",
+		.id = id_str,
+		.result = {
+			.content_len = res->content.count,
+		},
+	};
 
-		if (i > 0) {
-			content_buf[pos++] = ',';
-		}
-
-		char text_buf[2 * MCP_MAX_TEXT_LEN]; /* after escaping */
-		if (json_escape_string(text_buf, sizeof(text_buf), res->content.items[i].text) <
-		    0) {
-			return -EINVAL;
-		}
-
-		int n = snprintf(&content_buf[pos], sizeof(content_buf) - pos,
-					"{"
-						"\"type\":\"text\","
-						"\"text\":%s"
-					"}",
-					text_buf);
-
-		if (n < 0 || (size_t)n >= sizeof(content_buf) - pos) {
-			return -ENOSPC;
-		}
-
-		pos += (size_t)n;
+	/* Copy content items */
+	for (size_t i = 0; i < res->content.count && i < MCP_MAX_CONTENT_ITEMS; i++) {
+		json_res.result.content[i].type = "text";
+		json_res.result.content[i].text = res->content.items[i].text;
 	}
 
-	if (pos + 2 > sizeof(content_buf)) {
-		return -ENOSPC;
-	}
+	int ret = json_obj_encode_buf(mcp_json_tools_call_result_descr,
+				      ARRAY_SIZE(mcp_json_tools_call_result_descr),
+				      &json_res, out, out_len);
 
-	content_buf[pos++] = ']';
-	content_buf[pos] = '\0';
-	int ret = snprintf(out, out_len,
-				"{"
-					"\"jsonrpc\":\"2.0\","
-					"\"id\":%s,"
-					"\"result\":{"
-						"\"content\":%s"
-					"}"
-				"}",
-				id_str, content_buf);
-
-	if (ret < 0 || (size_t)ret >= out_len) {
-		return -ENOSPC;
-	}
-
-	return ret;
+	return (ret == 0) ? strlen(out) : ret;
 }
+
+/* Serialization structures for error response */
+struct mcp_json_error {
+	const char *jsonrpc;
+	const char *id;
+	struct {
+		int32_t code;
+		const char *message;
+		const char *data;
+	} error;
+};
+
+static const struct json_obj_descr mcp_json_error_inner_descr[] = {
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_error *)0)->error), code, JSON_TOK_NUMBER),
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_error *)0)->error), message, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_error *)0)->error), data, JSON_TOK_ENCODED_OBJ),
+};
+
+static const struct json_obj_descr mcp_json_error_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_error, jsonrpc, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_error, id, JSON_TOK_ENCODED_OBJ),
+	JSON_OBJ_DESCR_OBJECT(struct mcp_json_error, error, mcp_json_error_inner_descr),
+};
 
 int mcp_json_serialize_error(char *out, size_t out_len,
 			     const struct mcp_request_id *id,
@@ -738,44 +735,22 @@ int mcp_json_serialize_error(char *out, size_t out_len,
 		return -EINVAL;
 	}
 
-	char msg_buf[2 * MCP_MAX_DESC_LEN];
-	if (json_escape_string(msg_buf, sizeof(msg_buf), err->message) < 0) {
-		return -EINVAL;
-	}
-
 	const char *id_str = (id && id->string[0] != '\0') ? id->string : "null";
 
-	int ret;
-	if (err->has_data && err->data_json[0] != '\0') {
-		/* With data */
-		ret = snprintf(out, out_len,
-				"{"
-					"\"jsonrpc\":\"2.0\","
-					"\"id\":%s,"
-					"\"error\":{"
-						"\"code\":%d,"
-						"\"message\":%s,"
-						"\"data\":%s"
-					"}"
-				"}",
-				id_str, err->code, msg_buf, err->data_json);
-	} else {
-		/* Without data */
-		ret = snprintf(out, out_len,
-				"{"
-					"\"jsonrpc\":\"2.0\","
-					"\"id\":%s,"
-					"\"error\":{"
-						"\"code\":%d,"
-						"\"message\":%s"
-					"}"
-				"}",
-				id_str, err->code, msg_buf);
-	}
+	struct mcp_json_error json_err = {
+		.jsonrpc = "2.0",
+		.id = id_str,
+		.error = {
+			.code = err->code,
+			.message = err->message,
+			.data = (err->has_data && err->data_json[0] != '\0')
+				? err->data_json : "null",
+		},
+	};
 
-	if (ret < 0 || (size_t)ret >= out_len) {
-		return -ENOSPC;
-	}
+	int ret = json_obj_encode_buf(mcp_json_error_descr,
+				      ARRAY_SIZE(mcp_json_error_descr),
+				      &json_err, out, out_len);
 
-	return ret;
+	return (ret == 0) ? strlen(out) : ret;
 }
