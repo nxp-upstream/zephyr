@@ -675,6 +675,7 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 				goto get_handler_done;
 			}
 
+			temp = min_heap_peek(&mcp_client->responses);
 			response_ctx->body = mcp_client->response_body;
 			response_ctx->body_len = ret;
 			response_ctx->final_chunk = !(temp && temp->event_id >= accumulator->last_event_id_hdr);
