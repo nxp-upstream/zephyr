@@ -200,12 +200,13 @@ struct mcp_message {
  *   - Notifications: notifications/initialized, notifications/cancelled
  *
  * @param buf JSON buffer (NOT required to be NUL-terminated).
+ *            NOTE: The json library modifies the buffer in place.
  * @param len Length of JSON in buf.
  * @param out Output message structure (must be non-NULL).
  *
  * @return 0 on success, -EINVAL on parse/validation error.
  */
-int mcp_json_parse_message(const char *buf, size_t len, struct mcp_message *out);
+int mcp_json_parse_message(char *buf, size_t len, struct mcp_message *out);
 
 /*******************************************************************************
  * Public API – serializers

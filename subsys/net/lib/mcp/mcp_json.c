@@ -353,29 +353,10 @@ static int parse_notif_cancelled(const char *buf, size_t len, struct mcp_message
 	return 0;
 }
 
-static char *create_json_copy(const char *json, size_t length)
-{
-	char *copy;
-
-	if (!json || length == 0) {
-		return NULL;
-	}
-
-	copy = (char *)mcp_alloc(length + 1);
-	if (!copy) {
-		return NULL;
-	}
-
-	memcpy(copy, json, length);
-	copy[length] = '\0';
-
-	return copy;
-}
-
 /*******************************************************************************
  * Public parser API
  ******************************************************************************/
-int mcp_json_parse_message(const char *buf, size_t len, struct mcp_message *out)
+int mcp_json_parse_message(char *buf, size_t len, struct mcp_message *out)
 {
 	if (!buf || !out || len == 0) {
 		return -EINVAL;
@@ -385,19 +366,12 @@ int mcp_json_parse_message(const char *buf, size_t len, struct mcp_message *out)
 	out->kind = MCP_MSG_INVALID;
 	out->method = MCP_METHOD_UNKNOWN;
 
-	char *json_copy = create_json_copy(buf, len);
-	if (!json_copy) {
-		LOG_ERR("Failed to allocate JSON buffer");
-		return -ENOMEM;
-	}
-
 	/* Step 1: parse the envelope (jsonrpc, method, id) */
 	struct mcp_json_envelope env = {0};
-	int ret = json_obj_parse(json_copy, len, mcp_envelope_descr,
-				 ARRAY_SIZE(mcp_envelope_descr), &env);
+	int ret =
+		json_obj_parse(buf, len, mcp_envelope_descr, ARRAY_SIZE(mcp_envelope_descr), &env);
 	if (ret < 0) {
 		LOG_DBG("Failed to parse envelope: %d", ret);
-		mcp_free(json_copy);
 		return -EINVAL;
 	}
 
@@ -406,7 +380,6 @@ int mcp_json_parse_message(const char *buf, size_t len, struct mcp_message *out)
 	extract_token_string(jsonrpc_buf, sizeof(jsonrpc_buf), &env.jsonrpc);
 	if (strcmp(jsonrpc_buf, "2.0") != 0) {
 		LOG_DBG("Invalid jsonrpc version: %s", jsonrpc_buf);
-		mcp_free(json_copy);
 		return -EINVAL;
 	}
 
@@ -455,7 +428,6 @@ int mcp_json_parse_message(const char *buf, size_t len, struct mcp_message *out)
 		out->kind = MCP_MSG_NOTIFICATION;
 	} else {
 		/* Server side: we don't expect responses from the client. */
-		mcp_free(json_copy);
 		return -EINVAL;
 	}
 
@@ -463,16 +435,16 @@ int mcp_json_parse_message(const char *buf, size_t len, struct mcp_message *out)
 	if (out->kind == MCP_MSG_REQUEST) {
 		switch (out->method) {
 		case MCP_METHOD_INITIALIZE:
-			ret = parse_initialize_request(json_copy, len, out);
+			ret = parse_initialize_request(buf, len, out);
 			break;
 		case MCP_METHOD_PING:
-			ret = parse_ping_request(json_copy, len, out);
+			ret = parse_ping_request(buf, len, out);
 			break;
 		case MCP_METHOD_TOOLS_LIST:
-			ret = parse_tools_list_request(json_copy, len, out);
+			ret = parse_tools_list_request(buf, len, out);
 			break;
 		case MCP_METHOD_TOOLS_CALL:
-			ret = parse_tools_call_request(json_copy, len, out);
+			ret = parse_tools_call_request(buf, len, out);
 			break;
 		default:
 			/* Unknown method: let core treat as "method not found". */
@@ -482,10 +454,10 @@ int mcp_json_parse_message(const char *buf, size_t len, struct mcp_message *out)
 	} else if (out->kind == MCP_MSG_NOTIFICATION) {
 		switch (out->method) {
 		case MCP_METHOD_NOTIF_INITIALIZED:
-			ret = parse_notif_initialized(json_copy, len, out);
+			ret = parse_notif_initialized(buf, len, out);
 			break;
 		case MCP_METHOD_NOTIF_CANCELLED:
-			ret = parse_notif_cancelled(json_copy, len, out);
+			ret = parse_notif_cancelled(buf, len, out);
 			break;
 		default:
 			/* Unknown notification: ignore content; core can log. */
@@ -496,7 +468,6 @@ int mcp_json_parse_message(const char *buf, size_t len, struct mcp_message *out)
 		ret = -EINVAL;
 	}
 
-	mcp_free(json_copy);
 	return ret;
 }
 
