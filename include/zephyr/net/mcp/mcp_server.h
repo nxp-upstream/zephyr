@@ -53,6 +53,13 @@ typedef void *mcp_server_ctx_t;
  *
  * @param params JSON string with tool parameters
  * @param execution_token Unique execution identifier
+ *
+ * @note This callback is executed in the context of an MCP request worker thread.
+ *       The default worker thread stack size is CONFIG_MCP_REQUEST_WORKER_STACK_SIZE.
+ *       If your tool callback requires more stack space increase this value.
+ *
+ *       Consider using heap allocation for large buffers to minimize stack usage.
+ *
  * @return 0 on success, negative errno on failure
  */
 typedef int (*mcp_tool_callback_t)(const char *params, uint32_t execution_token);

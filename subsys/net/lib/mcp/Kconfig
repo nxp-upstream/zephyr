@@ -46,6 +46,17 @@ config MCP_RESPONSE_WORKERS
 	  Number of worker threads that process outgoing MCP responses.
 	  Set to 0 to disable response workers and process responses directly.
 
+config MCP_REQUEST_WORKER_STACK_SIZE
+	int "Stack size for MCP request worker threads"
+	default 2048
+	range 1024 8192
+	help
+	  Stack size in bytes for each request worker thread.
+
+	  The worker thread itself is lightweight, but it calls
+	  user-provided tool callbacks which may have varying
+	  stack requirements.
+
 config MCP_MAX_MESSAGE_SIZE
 	int "Maximum MCP message size"
 	default 2048
@@ -184,6 +195,16 @@ config MCP_HEALTH_MONITOR
 			and cancels long-running or stalled tool executions.
 
 if MCP_HEALTH_MONITOR
+
+config MCP_HEALTH_MONITOR_STACK_SIZE
+	int "Stack size for MCP health monitor thread"
+	default 1024
+	range 512 2048
+	depends on MCP_HEALTH_MONITOR
+	help
+	  Stack size in bytes for the health monitor thread.
+	  This thread performs simple periodic checks and has
+	  minimal stack requirements.
 
 config MCP_HEALTH_CHECK_INTERVAL_MS
 	int "Health monitor check interval in milliseconds"
