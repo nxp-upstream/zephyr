@@ -243,3 +243,12 @@
 &edma2 {
 	status = "okay";
 };
+
+&mipi_csi {
+	data-lanes = <2>;
+	status = "okay";
+};
+
+&mipi_dphy {
+	status = "okay";
+};
