@@ -60,6 +60,11 @@ typedef void *mcp_server_ctx_t;
  *
  *       Consider using heap allocation for large buffers to minimize stack usage.
  *
+ *       This callback blocks an MCP server worker thread. For long-running operations,
+ *       it is recommended to use your own thread pool to execute the work asynchronously
+ *       and return quickly from this callback to avoid blocking the MCP server worker
+ *       thread and potentially degrading server responsiveness.
+ *
  * @return 0 on success, negative errno on failure
  */
 typedef int (*mcp_tool_callback_t)(const char *params, uint32_t execution_token);
