@@ -2,12 +2,6 @@
  * Copyright 2025 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
- *
- * Parser: server-side messages
- *   - Requests: initialize, ping, tools/list, tools/call
- *   - Notifications: notifications/initialized, notifications/cancelled
- *
- * Serializers: server-side responses & notifications
  */
 
 #include "mcp_json.h"
@@ -15,14 +9,14 @@
 #include <stdio.h>
 #include <zephyr/kernel.h>
 #include <zephyr/data/json.h>
-#include <zephyr/sys/util.h> /* BIT(), ARRAY_SIZE */
+#include <zephyr/sys/util.h>
 #include <zephyr/logging/log.h>
 #include "mcp_common.h"
 
 LOG_MODULE_REGISTER(mcp_json, CONFIG_MCP_LOG_LEVEL);
 
 /*******************************************************************************
- * Envelope descriptor (jsonrpc, method, id)
+ * Envelope request descriptor (jsonrpc, method, id)
  ******************************************************************************/
 struct mcp_json_envelope {
 	struct json_obj_token jsonrpc;
@@ -38,6 +32,216 @@ static const struct json_obj_descr mcp_envelope_descr[] = {
 	JSON_OBJ_DESCR_PRIM_NAMED(struct mcp_json_envelope, "id", id_integer, JSON_TOK_INT64),
 };
 
+/*******************************************************************************
+ * Initialize request descriptor
+ ******************************************************************************/
+struct mcp_json_init_req {
+	struct {
+		const char *protocolVersion;
+	} params;
+};
+
+static const struct json_obj_descr mcp_init_params_descr[] = {
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_init_req *)0)->params), protocolVersion,
+			    JSON_TOK_STRING),
+};
+
+static const struct json_obj_descr mcp_init_req_descr[] = {
+	JSON_OBJ_DESCR_OBJECT(struct mcp_json_init_req, params, mcp_init_params_descr),
+};
+
+/*******************************************************************************
+ * Tools call request descriptor
+ ******************************************************************************/
+struct mcp_json_tools_call_req {
+	struct {
+		const char *name;
+	} params;
+};
+
+static const struct json_obj_descr mcp_tools_call_params_descr[] = {
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_tools_call_req *)0)->params), name,
+			    JSON_TOK_STRING),
+};
+
+static const struct json_obj_descr mcp_tools_call_req_descr[] = {
+	JSON_OBJ_DESCR_OBJECT(struct mcp_json_tools_call_req, params, mcp_tools_call_params_descr),
+};
+
+/*******************************************************************************
+ * Notification/cancelled request descriptor
+ ******************************************************************************/
+struct mcp_json_cancelled_notif {
+	struct {
+		struct json_obj_token requestId;
+		const char *reason;
+	} params;
+};
+
+static const struct json_obj_descr mcp_cancelled_params_descr[] = {
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_cancelled_notif *)0)->params), requestId,
+			    JSON_TOK_OPAQUE),
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_cancelled_notif *)0)->params), reason,
+			    JSON_TOK_STRING),
+};
+
+static const struct json_obj_descr mcp_cancelled_notif_descr[] = {
+	JSON_OBJ_DESCR_OBJECT(struct mcp_json_cancelled_notif, params, mcp_cancelled_params_descr),
+};
+
+/*******************************************************************************
+ * Initialize resposne descriptor
+ ******************************************************************************/
+struct mcp_json_server_info {
+	const char *name;
+	const char *version;
+};
+
+struct mcp_json_init_result_inner {
+	const char *protocolVersion;
+	struct mcp_json_server_info serverInfo;
+	const char *capabilities;
+};
+
+struct mcp_json_init_result {
+	const char *jsonrpc;
+	const char *id;
+	struct mcp_json_init_result_inner result;
+};
+
+static const struct json_obj_descr mcp_json_server_info_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_server_info, name, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_server_info, version, JSON_TOK_STRING),
+};
+
+static const struct json_obj_descr mcp_json_init_result_inner_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_init_result_inner, protocolVersion, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_OBJECT(struct mcp_json_init_result_inner, serverInfo,
+			      mcp_json_server_info_descr),
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_init_result_inner, capabilities, JSON_TOK_ENCODED_OBJ),
+};
+
+static const struct json_obj_descr mcp_json_init_result_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_init_result, jsonrpc, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_init_result, id, JSON_TOK_ENCODED_OBJ),
+	JSON_OBJ_DESCR_OBJECT(struct mcp_json_init_result, result,
+			      mcp_json_init_result_inner_descr),
+};
+
+/*******************************************************************************
+ * Ping resposne descriptor
+ ******************************************************************************/
+struct mcp_json_ping_result {
+	const char *jsonrpc;
+	const char *id;
+	struct {
+		bool dummy; /* Empty object */
+	} result;
+};
+
+static const struct json_obj_descr mcp_json_ping_result_inner_descr[] = {
+	/* Empty descriptor for empty object */
+};
+
+static const struct json_obj_descr mcp_json_ping_result_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_ping_result, jsonrpc, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_ping_result, id, JSON_TOK_ENCODED_OBJ),
+	JSON_OBJ_DESCR_OBJECT(struct mcp_json_ping_result, result,
+			      mcp_json_ping_result_inner_descr),
+};
+
+/*******************************************************************************
+ * Tools/list resposne descriptor
+ ******************************************************************************/
+struct mcp_json_tools_list_result {
+	const char *jsonrpc;
+	const char *id;
+	struct {
+		const char *tools; /* This should be the raw JSON array */
+	} result;
+};
+
+static const struct json_obj_descr mcp_json_tools_list_result_inner_descr[] = {
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_tools_list_result *)0)->result), tools,
+			    JSON_TOK_ENCODED_OBJ),
+};
+
+static const struct json_obj_descr mcp_json_tools_list_result_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_tools_list_result, jsonrpc, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_tools_list_result, id, JSON_TOK_ENCODED_OBJ),
+	JSON_OBJ_DESCR_OBJECT(struct mcp_json_tools_list_result, result,
+			      mcp_json_tools_list_result_inner_descr),
+};
+
+/*******************************************************************************
+ * Tools/call resposne descriptor
+ ******************************************************************************/
+struct mcp_json_content_item {
+	const char *type;
+	const char *text;
+};
+
+struct mcp_json_tools_call_result {
+	const char *jsonrpc;
+	const char *id;
+	struct {
+		struct mcp_json_content_item content[MCP_MAX_CONTENT_ITEMS];
+		size_t content_len;
+		bool isError;
+	} result;
+};
+
+static const struct json_obj_descr mcp_json_content_item_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_content_item, type, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_content_item, text, JSON_TOK_STRING),
+};
+
+static const struct json_obj_descr mcp_json_tools_call_result_inner_descr[] = {
+	JSON_OBJ_DESCR_OBJ_ARRAY(__typeof__(((struct mcp_json_tools_call_result *)0)->result),
+				 content, MCP_MAX_CONTENT_ITEMS, content_len,
+				 mcp_json_content_item_descr,
+				 ARRAY_SIZE(mcp_json_content_item_descr)),
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_tools_call_result *)0)->result), isError,
+			    JSON_TOK_TRUE),
+};
+
+static const struct json_obj_descr mcp_json_tools_call_result_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_tools_call_result, jsonrpc, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_tools_call_result, id, JSON_TOK_ENCODED_OBJ),
+	JSON_OBJ_DESCR_OBJECT(struct mcp_json_tools_call_result, result,
+			      mcp_json_tools_call_result_inner_descr),
+};
+
+/*******************************************************************************
+ * Error resposne descriptor
+ ******************************************************************************/
+struct mcp_json_error {
+	const char *jsonrpc;
+	const char *id;
+	struct {
+		int32_t code;
+		const char *message;
+		const char *data;
+	} error;
+};
+
+static const struct json_obj_descr mcp_json_error_inner_descr[] = {
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_error *)0)->error), code, JSON_TOK_NUMBER),
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_error *)0)->error), message,
+			    JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_error *)0)->error), data,
+			    JSON_TOK_ENCODED_OBJ),
+};
+
+static const struct json_obj_descr mcp_json_error_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_error, jsonrpc, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_error, id, JSON_TOK_ENCODED_OBJ),
+	JSON_OBJ_DESCR_OBJECT(struct mcp_json_error, error, mcp_json_error_inner_descr),
+};
+
+/*******************************************************************************
+ * Helpers
+ ******************************************************************************/
 /* Helper to extract string from json_obj_token */
 static void extract_token_string(char *dst, size_t dst_sz, const struct json_obj_token *token)
 {
@@ -57,7 +261,6 @@ static void extract_token_string(char *dst, size_t dst_sz, const struct json_obj
 	dst[len] = '\0';
 }
 
-/* Map method string to enum */
 static enum mcp_method mcp_method_from_string(const char *m, size_t len)
 {
 	if (!m || len == 0) {
@@ -92,25 +295,6 @@ static enum mcp_method mcp_method_from_string(const char *m, size_t len)
 	return MCP_METHOD_UNKNOWN;
 }
 
-/*******************************************************************************
- * Per-method parsing helpers
- ******************************************************************************/
-/* initialize request: { "params": { "protocolVersion": "..." } } */
-struct mcp_json_init_req {
-	struct {
-		const char *protocolVersion;
-	} params;
-};
-
-static const struct json_obj_descr mcp_init_params_descr[] = {
-	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_init_req *)0)->params), protocolVersion,
-			    JSON_TOK_STRING),
-};
-
-static const struct json_obj_descr mcp_init_req_descr[] = {
-	JSON_OBJ_DESCR_OBJECT(struct mcp_json_init_req, params, mcp_init_params_descr),
-};
-
 static int parse_initialize_request(const char *buf, size_t len, struct mcp_message *msg)
 {
 	struct mcp_json_init_req tmp = {0};
@@ -139,7 +323,7 @@ static int parse_ping_request(const char *buf, size_t len, struct mcp_message *m
 	return 0;
 }
 
-/* tools/list request: no params in v1 */
+/* tools/list request: no params for now */
 static int parse_tools_list_request(const char *buf, size_t len, struct mcp_message *msg)
 {
 	(void)buf;
@@ -149,39 +333,7 @@ static int parse_tools_list_request(const char *buf, size_t len, struct mcp_mess
 	return 0;
 }
 
-/* --- tools/call request:
- *     {
- *       "jsonrpc":"2.0",
- *       "id":N,
- *       "method":"tools/call",
- *       "params": {
- *          "name":"tool_name",
- *          "arguments": { ... }
- *       }
- *     }
- *
- * We parse "name". For arguments, we *optionally* copy the raw JSON of the
- * "arguments" object into arguments_json.
- */
-struct mcp_json_tools_call_req {
-	struct {
-		const char *name;
-		/* arguments object will be extracted via substring scan if needed */
-	} params;
-};
-
-static const struct json_obj_descr mcp_tools_call_params_descr[] = {
-	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_tools_call_req *)0)->params), name,
-			    JSON_TOK_STRING),
-};
-
-static const struct json_obj_descr mcp_tools_call_req_descr[] = {
-	JSON_OBJ_DESCR_OBJECT(struct mcp_json_tools_call_req, params, mcp_tools_call_params_descr),
-};
-
-/**
- * Not supported for now - requires manual parsing of nested JSON object.
- */
+/* Not supported for now. Requires manual parsing of nested JSON object. */
 static bool extract_arguments_json(const char *buf, size_t len, char *dst, size_t dst_sz)
 {
 	return false;
@@ -223,31 +375,6 @@ static int parse_notif_initialized(const char *buf, size_t len, struct mcp_messa
 
 	return 0;
 }
-
-/* --- notifications/cancelled:
- *     {
- *       "jsonrpc":"2.0",
- *       "method":"notifications/cancelled",
- *       "params": { "requestId": <id>, "reason": "..." }
- *     }
- */
-struct mcp_json_cancelled_notif {
-	struct {
-		struct json_obj_token requestId;
-		const char *reason;
-	} params;
-};
-
-static const struct json_obj_descr mcp_cancelled_params_descr[] = {
-	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_cancelled_notif *)0)->params), requestId,
-			    JSON_TOK_OPAQUE),
-	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_cancelled_notif *)0)->params), reason,
-			    JSON_TOK_STRING),
-};
-
-static const struct json_obj_descr mcp_cancelled_notif_descr[] = {
-	JSON_OBJ_DESCR_OBJECT(struct mcp_json_cancelled_notif, params, mcp_cancelled_params_descr),
-};
 
 static int parse_notif_cancelled(const char *buf, size_t len, struct mcp_message *msg)
 {
@@ -299,15 +426,12 @@ int mcp_json_parse_message(char *buf, size_t len, struct mcp_message *out)
 	/* Check jsonrpc version */
 	char jsonrpc_buf[16];
 	extract_token_string(jsonrpc_buf, sizeof(jsonrpc_buf), &env.jsonrpc);
-	if (strcmp(jsonrpc_buf, "2.0") != 0) {
+	if (strcmp(jsonrpc_buf, JSON_RPC_VERSION) != 0) {
 		LOG_DBG("Invalid jsonrpc version: %s", jsonrpc_buf);
 		return -EINVAL;
 	}
 
-	/* Determine presence and type of id:
-	 * json_obj_parse returns a bitmask: bit N set if field N decoded.
-	 * Fields: 0=jsonrpc, 1=method, 2=id_string, 3=id_integer.
-	 */
+	/* Determine presence and type of id based on bitmask */
 	bool has_id_string = (ret & BIT(2)) != 0;
 	bool has_id_integer = (ret & BIT(3)) != 0;
 
@@ -316,14 +440,12 @@ int mcp_json_parse_message(char *buf, size_t len, struct mcp_message *out)
 
 	/* Store ID as string */
 	if (has_id_integer) {
-		/* Integer ID: store without quotes (e.g., "123") */
+		/* Integer ID: store without quotes*/
 		snprintf(out->id.string, sizeof(out->id.string), "%" PRId64, env.id_integer);
 	} else if (has_id_string) {
-		/* String ID: store with quotes preserved (e.g., "\"abc\"") */
+		/* String ID: store with quotes */
 		char temp[MCP_MAX_ID_LEN - 2];
 		extract_token_string(temp, sizeof(temp), &env.id_string);
-
-		/* Add quotes around the string value */
 		snprintf(out->id.string, sizeof(out->id.string), "\"%s\"", temp);
 	} else {
 		/* No ID */
@@ -338,8 +460,7 @@ int mcp_json_parse_message(char *buf, size_t len, struct mcp_message *out)
 		out->method = MCP_METHOD_UNKNOWN;
 	}
 
-	/* Classify as request or notification:
-	 *
+	/*
 	 * - Request: method with id (params optional).
 	 * - Notification: method without id (params optional).
 	 */
@@ -348,11 +469,9 @@ int mcp_json_parse_message(char *buf, size_t len, struct mcp_message *out)
 	} else if (has_method && !has_id_integer && !has_id_string) {
 		out->kind = MCP_MSG_NOTIFICATION;
 	} else {
-		/* Server side: we don't expect responses from the client. */
 		return -EINVAL;
 	}
 
-	/* Dispatch to per-kind, per-method parsers */
 	if (out->kind == MCP_MSG_REQUEST) {
 		switch (out->method) {
 		case MCP_METHOD_INITIALIZE:
@@ -368,7 +487,7 @@ int mcp_json_parse_message(char *buf, size_t len, struct mcp_message *out)
 			ret = parse_tools_call_request(buf, len, out);
 			break;
 		default:
-			/* Unknown method: let core treat as "method not found". */
+			/* Unknown method */
 			ret = 0;
 			break;
 		}
@@ -381,7 +500,7 @@ int mcp_json_parse_message(char *buf, size_t len, struct mcp_message *out)
 			ret = parse_notif_cancelled(buf, len, out);
 			break;
 		default:
-			/* Unknown notification: ignore content; core can log. */
+			/* Unknown method */
 			ret = 0;
 			break;
 		}
@@ -395,44 +514,6 @@ int mcp_json_parse_message(char *buf, size_t len, struct mcp_message *out)
 /*******************************************************************************
  * Serializers
  ******************************************************************************/
-
-/* Serialization structures for initialize result */
-struct mcp_json_server_info {
-	const char *name;
-	const char *version;
-};
-
-struct mcp_json_init_result_inner {
-	const char *protocolVersion;
-	struct mcp_json_server_info serverInfo;
-	const char *capabilities;
-};
-
-struct mcp_json_init_result {
-	const char *jsonrpc;
-	const char *id;
-	struct mcp_json_init_result_inner result;
-};
-
-static const struct json_obj_descr mcp_json_server_info_descr[] = {
-	JSON_OBJ_DESCR_PRIM(struct mcp_json_server_info, name, JSON_TOK_STRING),
-	JSON_OBJ_DESCR_PRIM(struct mcp_json_server_info, version, JSON_TOK_STRING),
-};
-
-static const struct json_obj_descr mcp_json_init_result_inner_descr[] = {
-	JSON_OBJ_DESCR_PRIM(struct mcp_json_init_result_inner, protocolVersion, JSON_TOK_STRING),
-	JSON_OBJ_DESCR_OBJECT(struct mcp_json_init_result_inner, serverInfo,
-			      mcp_json_server_info_descr),
-	JSON_OBJ_DESCR_PRIM(struct mcp_json_init_result_inner, capabilities, JSON_TOK_ENCODED_OBJ),
-};
-
-static const struct json_obj_descr mcp_json_init_result_descr[] = {
-	JSON_OBJ_DESCR_PRIM(struct mcp_json_init_result, jsonrpc, JSON_TOK_STRING),
-	JSON_OBJ_DESCR_PRIM(struct mcp_json_init_result, id, JSON_TOK_ENCODED_OBJ),
-	JSON_OBJ_DESCR_OBJECT(struct mcp_json_init_result, result,
-			      mcp_json_init_result_inner_descr),
-};
-
 int mcp_json_serialize_initialize_result(char *out, size_t out_len, const struct mcp_request_id *id,
 					 const struct mcp_result_initialize *res)
 {
@@ -443,7 +524,7 @@ int mcp_json_serialize_initialize_result(char *out, size_t out_len, const struct
 	const char *id_str = (id && id->string[0] != '\0') ? id->string : "null";
 
 	struct mcp_json_init_result json_res = {
-		.jsonrpc = "2.0",
+		.jsonrpc = JSON_RPC_VERSION,
 		.id = id_str,
 		.result =
 			{
@@ -467,26 +548,6 @@ int mcp_json_serialize_initialize_result(char *out, size_t out_len, const struct
 	return (ret == 0) ? strlen(out) : ret;
 }
 
-/* Serialization structures for ping result */
-struct mcp_json_ping_result {
-	const char *jsonrpc;
-	const char *id;
-	struct {
-		bool dummy; /* Empty object */
-	} result;
-};
-
-static const struct json_obj_descr mcp_json_ping_result_inner_descr[] = {
-	/* Empty descriptor for empty object */
-};
-
-static const struct json_obj_descr mcp_json_ping_result_descr[] = {
-	JSON_OBJ_DESCR_PRIM(struct mcp_json_ping_result, jsonrpc, JSON_TOK_STRING),
-	JSON_OBJ_DESCR_PRIM(struct mcp_json_ping_result, id, JSON_TOK_ENCODED_OBJ),
-	JSON_OBJ_DESCR_OBJECT(struct mcp_json_ping_result, result,
-			      mcp_json_ping_result_inner_descr),
-};
-
 int mcp_json_serialize_ping_result(char *out, size_t out_len, const struct mcp_request_id *id,
 				   const struct mcp_result_ping *res)
 {
@@ -499,7 +560,7 @@ int mcp_json_serialize_ping_result(char *out, size_t out_len, const struct mcp_r
 	const char *id_str = (id && id->string[0] != '\0') ? id->string : "null";
 
 	struct mcp_json_ping_result json_res = {
-		.jsonrpc = "2.0",
+		.jsonrpc = JSON_RPC_VERSION,
 		.id = id_str,
 		.result = {.dummy = false},
 	};
@@ -511,27 +572,6 @@ int mcp_json_serialize_ping_result(char *out, size_t out_len, const struct mcp_r
 	return (ret == 0) ? strlen(out) : ret;
 }
 
-/* Serialization structures for tools/list result */
-struct mcp_json_tools_list_result {
-	const char *jsonrpc;
-	const char *id;
-	struct {
-		const char *tools; /* This should be the raw JSON array */
-	} result;
-};
-
-static const struct json_obj_descr mcp_json_tools_list_result_inner_descr[] = {
-	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_tools_list_result *)0)->result), tools,
-			    JSON_TOK_ENCODED_OBJ),
-};
-
-static const struct json_obj_descr mcp_json_tools_list_result_descr[] = {
-	JSON_OBJ_DESCR_PRIM(struct mcp_json_tools_list_result, jsonrpc, JSON_TOK_STRING),
-	JSON_OBJ_DESCR_PRIM(struct mcp_json_tools_list_result, id, JSON_TOK_ENCODED_OBJ),
-	JSON_OBJ_DESCR_OBJECT(struct mcp_json_tools_list_result, result,
-			      mcp_json_tools_list_result_inner_descr),
-};
-
 int mcp_json_serialize_tools_list_result(char *out, size_t out_len, const struct mcp_request_id *id,
 					 const struct mcp_result_tools_list *res)
 {
@@ -541,13 +581,11 @@ int mcp_json_serialize_tools_list_result(char *out, size_t out_len, const struct
 
 	const char *id_str = (id && id->string[0] != '\0') ? id->string : "null";
 
-	/* tools_json should already be a complete JSON array: [{"name":"foo",...},...]
-	 * If empty, use empty array
-	 */
+	/* tools_json should already be a complete JSON array: [{"name":"foo",...},...] */
 	const char *tools_json = (res->tools_json[0] != '\0') ? res->tools_json : "[]";
 
 	struct mcp_json_tools_list_result json_res = {
-		.jsonrpc = "2.0",
+		.jsonrpc = JSON_RPC_VERSION,
 		.id = id_str,
 		.result =
 			{
@@ -562,43 +600,6 @@ int mcp_json_serialize_tools_list_result(char *out, size_t out_len, const struct
 	return (ret == 0) ? strlen(out) : ret;
 }
 
-/* Serialization structures for tools/call result */
-struct mcp_json_content_item {
-	const char *type;
-	const char *text;
-};
-
-struct mcp_json_tools_call_result {
-	const char *jsonrpc;
-	const char *id;
-	struct {
-		struct mcp_json_content_item content[MCP_MAX_CONTENT_ITEMS];
-		size_t content_len;
-		bool isError;
-	} result;
-};
-
-static const struct json_obj_descr mcp_json_content_item_descr[] = {
-	JSON_OBJ_DESCR_PRIM(struct mcp_json_content_item, type, JSON_TOK_STRING),
-	JSON_OBJ_DESCR_PRIM(struct mcp_json_content_item, text, JSON_TOK_STRING),
-};
-
-static const struct json_obj_descr mcp_json_tools_call_result_inner_descr[] = {
-	JSON_OBJ_DESCR_OBJ_ARRAY(__typeof__(((struct mcp_json_tools_call_result *)0)->result),
-				 content, MCP_MAX_CONTENT_ITEMS, content_len,
-				 mcp_json_content_item_descr,
-				 ARRAY_SIZE(mcp_json_content_item_descr)),
-	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_tools_call_result *)0)->result), isError,
-			    JSON_TOK_TRUE),
-};
-
-static const struct json_obj_descr mcp_json_tools_call_result_descr[] = {
-	JSON_OBJ_DESCR_PRIM(struct mcp_json_tools_call_result, jsonrpc, JSON_TOK_STRING),
-	JSON_OBJ_DESCR_PRIM(struct mcp_json_tools_call_result, id, JSON_TOK_ENCODED_OBJ),
-	JSON_OBJ_DESCR_OBJECT(struct mcp_json_tools_call_result, result,
-			      mcp_json_tools_call_result_inner_descr),
-};
-
 int mcp_json_serialize_tools_call_result(char *out, size_t out_len, const struct mcp_request_id *id,
 					 const struct mcp_result_tools_call *res)
 {
@@ -609,7 +610,7 @@ int mcp_json_serialize_tools_call_result(char *out, size_t out_len, const struct
 	const char *id_str = (id && id->string[0] != '\0') ? id->string : "null";
 
 	struct mcp_json_tools_call_result json_res = {
-		.jsonrpc = "2.0",
+		.jsonrpc = JSON_RPC_VERSION,
 		.id = id_str,
 		.result =
 			{
@@ -631,31 +632,6 @@ int mcp_json_serialize_tools_call_result(char *out, size_t out_len, const struct
 	return (ret == 0) ? strlen(out) : ret;
 }
 
-/* Serialization structures for error response */
-struct mcp_json_error {
-	const char *jsonrpc;
-	const char *id;
-	struct {
-		int32_t code;
-		const char *message;
-		const char *data;
-	} error;
-};
-
-static const struct json_obj_descr mcp_json_error_inner_descr[] = {
-	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_error *)0)->error), code, JSON_TOK_NUMBER),
-	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_error *)0)->error), message,
-			    JSON_TOK_STRING),
-	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_error *)0)->error), data,
-			    JSON_TOK_ENCODED_OBJ),
-};
-
-static const struct json_obj_descr mcp_json_error_descr[] = {
-	JSON_OBJ_DESCR_PRIM(struct mcp_json_error, jsonrpc, JSON_TOK_STRING),
-	JSON_OBJ_DESCR_PRIM(struct mcp_json_error, id, JSON_TOK_ENCODED_OBJ),
-	JSON_OBJ_DESCR_OBJECT(struct mcp_json_error, error, mcp_json_error_inner_descr),
-};
-
 int mcp_json_serialize_error(char *out, size_t out_len, const struct mcp_request_id *id,
 			     const struct mcp_error *err)
 {
@@ -666,7 +642,7 @@ int mcp_json_serialize_error(char *out, size_t out_len, const struct mcp_request
 	const char *id_str = (id && id->string[0] != '\0') ? id->string : "null";
 
 	struct mcp_json_error json_err = {
-		.jsonrpc = "2.0",
+		.jsonrpc = JSON_RPC_VERSION,
 		.id = id_str,
 		.error =
 			{
