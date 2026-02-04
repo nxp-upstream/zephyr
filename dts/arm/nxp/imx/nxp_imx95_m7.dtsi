@@ -689,6 +689,15 @@
 			status = "disabled";
 		};
 
+		isi: isi@4ad50000 {
+			compatible = "nxp,imx-isi";
+			reg = <0x4ad50000 0x10000>;
+			interrupts = <221 0>;
+			power-domains = <&camera_mix>;
+			input-port = <2>;
+			status = "disabled";
+		};
+
 		irqsteer: interrupt-controller@44680000 {
 			compatible = "nxp,irqsteer-intc";
 			reg = <0x44680000 DT_SIZE_K(64)>;
