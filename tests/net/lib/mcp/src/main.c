@@ -81,7 +81,7 @@ static void send_tools_call_request(struct mcp_transport_binding *binding, uint3
 {
 	char json_request[1024];
 
-	snprintf(json_request, sizeof(json_request),
+	snprintk(json_request, sizeof(json_request),
 			"{"
 			"\"jsonrpc\":\"2.0\","
 			"\"id\":%u,"
@@ -107,7 +107,7 @@ static struct mcp_transport_binding *send_initialize_request(uint32_t request_id
 		return NULL;
 	}
 
-	snprintf(json_request, sizeof(json_request),
+	snprintk(json_request, sizeof(json_request),
 			"{"
 			"\"jsonrpc\":\"2.0\","
 			"\"id\":%u,"
@@ -129,7 +129,7 @@ static void send_initialized_notification(struct mcp_transport_binding *binding,
 {
 	char json_notification[256];
 
-	snprintf(json_notification, sizeof(json_notification),
+	snprintk(json_notification, sizeof(json_notification),
 			"{"
 			"\"jsonrpc\":\"2.0\","
 			"\"method\":\"notifications/initialized\""
@@ -143,7 +143,7 @@ static void send_tools_list_request(struct mcp_transport_binding *binding, uint3
 {
 	char json_request[256];
 
-	snprintf(json_request, sizeof(json_request),
+	snprintk(json_request, sizeof(json_request),
 			"{"
 			"\"jsonrpc\":\"2.0\","
 			"\"id\":%u,"
@@ -161,15 +161,10 @@ static int stub_tool_callback_1(const char *params, uint32_t execution_token)
 	bool is_canceled;
 	struct mcp_tool_message response;
 	char result_data[] = "{"
-								"\"content\": ["
-								"{"
-								"\"type\": \"text\","
-								"\"text\": \"Hello world from callback 1. This tool processed the "
-								"request successfully.\""
-								"}"
-								"],"
-								"\"isError\": false"
-								"}";
+						"\"type\": \"text\","
+						"\"text\": \"Hello world from callback 1. This tool processed the "
+						"request successfully.\""
+						"}";
 
 	tool_execution_count++;
 	last_execution_token = execution_token;
@@ -189,10 +184,12 @@ static int stub_tool_callback_1(const char *params, uint32_t execution_token)
 		response.type = MCP_USR_TOOL_CANCEL_ACK;
 		response.data = NULL;
 		response.length = 0;
+		response.is_error = false;
 	} else {
 		response.type = MCP_USR_TOOL_RESPONSE;
 		response.data = result_data;
 		response.length = strlen(result_data);
+		response.is_error = false;
 	}
 
 	ret = mcp_server_submit_tool_message(server, &response, execution_token);
@@ -211,14 +208,9 @@ static int stub_tool_callback_2(const char *params, uint32_t execution_token)
 	struct mcp_tool_message response;
 
 	char result_data[] = "{"
-								"\"content\": ["
-								"{"
-								"\"type\": \"text\","
-								"\"text\": \"Hello world from callback 2. Tool execution completed.\""
-								"}"
-								"],"
-								"\"isError\": false"
-								"}";
+						"\"type\": \"text\","
+						"\"text\": \"Hello world from callback 2. Tool execution completed.\""
+						"}";
 
 	tool_execution_count++;
 	last_execution_token = execution_token;
@@ -238,10 +230,12 @@ static int stub_tool_callback_2(const char *params, uint32_t execution_token)
 		response.type = MCP_USR_TOOL_CANCEL_ACK;
 		response.data = NULL;
 		response.length = 0;
+		response.is_error = false;
 	} else {
 		response.type = MCP_USR_TOOL_RESPONSE;
 		response.data = result_data;
 		response.length = strlen(result_data);
+		response.is_error = false;
 	}
 
 	ret = mcp_server_submit_tool_message(server, &response, execution_token);
@@ -260,13 +254,8 @@ static int stub_tool_callback_3(const char *params, uint32_t execution_token)
 	struct mcp_tool_message response;
 	char result_data[] =
 		"{"
-		"\"content\": ["
-		"{"
 		"\"type\": \"text\","
 		"\"text\": \"Hello world from callback 3. Registry tool execution successful.\""
-		"}"
-		"],"
-		"\"isError\": false"
 		"}";
 
 	tool_execution_count++;
@@ -287,10 +276,12 @@ static int stub_tool_callback_3(const char *params, uint32_t execution_token)
 		response.type = MCP_USR_TOOL_CANCEL_ACK;
 		response.data = NULL;
 		response.length = 0;
+		response.is_error = false;
 	} else {
 		response.type = MCP_USR_TOOL_RESPONSE;
 		response.data = result_data;
 		response.length = strlen(result_data);
+		response.is_error = false;
 	}
 
 	ret = mcp_server_submit_tool_message(server, &response, execution_token);
@@ -318,19 +309,14 @@ static int test_tool_success_callback(const char *params, uint32_t execution_tok
 		last_execution_params[sizeof(last_execution_params) - 1] = '\0';
 	}
 
-	snprintf(text_content, sizeof(text_content),
+	snprintk(text_content, sizeof(text_content),
 			"Success tool executed successfully. Execution count: %d. Input parameters: %s",
 			tool_execution_count, params ? params : "none");
 
-	snprintf(result_data, sizeof(result_data),
-			"{"
-			"\"content\": ["
+	snprintk(result_data, sizeof(result_data),
 			"{"
 			"\"type\": \"text\","
 			"\"text\": \"%s\""
-			"}"
-			"],"
-			"\"isError\": false"
 			"}",
 			text_content);
 
@@ -349,10 +335,12 @@ static int test_tool_success_callback(const char *params, uint32_t execution_tok
 		response.type = MCP_USR_TOOL_CANCEL_ACK;
 		response.data = NULL;
 		response.length = 0;
+		response.is_error = false;
 	} else {
 		response.type = MCP_USR_TOOL_RESPONSE;
 		response.data = result_data;
 		response.length = strlen(result_data);
+		response.is_error = false;
 	}
 
 	ret = mcp_server_submit_tool_message(server, &response, execution_token);
@@ -370,15 +358,10 @@ static int test_tool_error_callback(const char *params, uint32_t execution_token
 	bool is_canceled;
 	struct mcp_tool_message response;
 	char result_data[] = "{"
-								"\"content\": ["
-								"{"
-								"\"type\": \"text\","
-								"\"text\": \"Error: This tool intentionally failed to test error "
-								"handling. The operation could not be completed.\""
-								"}"
-								"],"
-								"\"isError\": true"
-								"}";
+						"\"type\": \"text\","
+						"\"text\": \"Error: This tool intentionally failed to test error "
+						"handling. The operation could not be completed.\""
+						"}";
 
 	tool_execution_count++;
 	last_execution_token = execution_token;
@@ -398,10 +381,12 @@ static int test_tool_error_callback(const char *params, uint32_t execution_token
 		response.type = MCP_USR_TOOL_CANCEL_ACK;
 		response.data = NULL;
 		response.length = 0;
+		response.is_error = false;
 	} else {
 		response.type = MCP_USR_TOOL_RESPONSE;
 		response.data = result_data;
 		response.length = strlen(result_data);
+		response.is_error = true;
 	}
 
 	ret = mcp_server_submit_tool_message(server, &response, execution_token);
@@ -419,15 +404,10 @@ static int test_tool_slow_callback(const char *params, uint32_t execution_token)
 	bool is_canceled;
 	struct mcp_tool_message response;
 	char result_data[] = "{"
-								"\"content\": ["
-								"{"
-								"\"type\": \"text\","
-								"\"text\": \"Slow operation completed successfully. The task took "
-								"3000ms to simulate a long-running operation.\""
-								"}"
-								"],"
-								"\"isError\": false"
-								"}";
+						"\"type\": \"text\","
+						"\"text\": \"Slow operation completed successfully. The task took "
+						"3000ms to simulate a long-running operation.\""
+						"}";
 
 	tool_execution_count++;
 	last_execution_token = execution_token;
@@ -450,10 +430,12 @@ static int test_tool_slow_callback(const char *params, uint32_t execution_token)
 		response.type = MCP_USR_TOOL_CANCEL_ACK;
 		response.data = NULL;
 		response.length = 0;
+		response.is_error = false;
 	} else {
 		response.type = MCP_USR_TOOL_RESPONSE;
 		response.data = result_data;
 		response.length = strlen(result_data);
+		response.is_error = false;
 	}
 
 	ret = mcp_server_submit_tool_message(server, &response, execution_token);
@@ -471,14 +453,9 @@ static int test_tool_execution_timeout_callback(const char *params, uint32_t exe
 	bool is_canceled;
 	struct mcp_tool_message response;
 	char result_data[] = "{"
-								"\"content\": ["
-								"{"
-								"\"type\": \"text\","
-								"\"text\": \"Timeout operation completed successfully.\""
-								"}"
-								"],"
-								"\"isError\": false"
-								"}";
+						"\"type\": \"text\","
+						"\"text\": \"Timeout operation completed successfully.\""
+						"}";
 
 	tool_execution_count++;
 	last_execution_token = execution_token;
@@ -504,6 +481,7 @@ static int test_tool_execution_timeout_callback(const char *params, uint32_t exe
 		response.type = MCP_USR_TOOL_PING;
 		response.data = NULL;
 		response.length = 0;
+		response.is_error = false;
 
 		ret = mcp_server_submit_tool_message(server, &response, execution_token);
 		if (ret != 0) {
@@ -526,10 +504,12 @@ static int test_tool_execution_timeout_callback(const char *params, uint32_t exe
 		response.type = MCP_USR_TOOL_CANCEL_ACK;
 		response.data = NULL;
 		response.length = 0;
+		response.is_error = false;
 	} else {
 		response.type = MCP_USR_TOOL_RESPONSE;
 		response.data = result_data;
 		response.length = strlen(result_data);
+		response.is_error = false;
 	}
 
 	ret = mcp_server_submit_tool_message(server, &response, execution_token);
@@ -547,14 +527,9 @@ static int test_tool_idle_timeout_callback(const char *params, uint32_t executio
 	bool is_canceled;
 	struct mcp_tool_message response;
 	char result_data[] = "{"
-								"\"content\": ["
-								"{"
-								"\"type\": \"text\","
-								"\"text\": \"Idle timeout test completed.\""
-								"}"
-								"],"
-								"\"isError\": false"
-								"}";
+						"\"type\": \"text\","
+						"\"text\": \"Idle timeout test completed.\""
+						"}";
 
 	tool_execution_count++;
 	last_execution_token = execution_token;
@@ -583,12 +558,14 @@ static int test_tool_idle_timeout_callback(const char *params, uint32_t executio
 		response.type = MCP_USR_TOOL_CANCEL_ACK;
 		response.data = NULL;
 		response.length = 0;
+		response.is_error = false;
 	} else {
 		printk("IDLE TIMEOUT tool completed without cancellation! Token: %u\n",
 									execution_token);
 		response.type = MCP_USR_TOOL_RESPONSE;
 		response.data = result_data;
 		response.length = strlen(result_data);
+		response.is_error = false;
 	}
 
 	ret = mcp_server_submit_tool_message(server, &response, execution_token);
@@ -645,7 +622,8 @@ static int test_tool_cancel_timeout_callback(const char *params, uint32_t execut
 		struct mcp_tool_message cancel_ack = {
 			.type = MCP_USR_TOOL_CANCEL_ACK,
 			.data = NULL,
-			.length = 0
+			.length = 0,
+			.is_error = false
 		};
 		mcp_server_submit_tool_message(server, &cancel_ack, execution_token);
 	}
@@ -968,6 +946,25 @@ ZTEST(mcp_server_tests, test_07_tools_call_comprehensive)
 
 	mcp_transport_mock_reset_send_count();
 
+	printk("=== Test 4: Tool that returns error ===\n");
+	send_tools_call_request(valid_client_binding, 3004, "test_error_tool",
+				"{\"test\":\"data\"}");
+
+	zassert_equal(tool_execution_count, 4, "Error tool should still execute");
+	zassert_equal(mcp_transport_mock_get_send_count(), 1, "Error tool response should be submitted");
+
+	mcp_transport_mock_reset_send_count();
+
+	msg = mcp_transport_mock_get_last_message(valid_client_binding, &msg_len);
+
+	printk("%s\n\r", msg);
+
+	zassert_not_null(msg, "Error response should not be NULL");
+	zassert_true(strstr(msg, "\"id\":3004") != NULL || strstr(msg, "\"id\": 3004") != NULL,
+		     "Error response should have correct request ID");
+	zassert_true(strstr(msg, "\"isError\":true") != NULL || strstr(msg, "\"isError\": true") != NULL,
+		     "Error response should indicate error");
+
 	printk("=== Test 5: Non-existent tool ===\n");
 	int execution_count_before_nonexistent = tool_execution_count;
 	send_tools_call_request(valid_client_binding, 3005, "non_existent_tool", "{}");
@@ -1145,34 +1142,30 @@ ZTEST(mcp_server_tests, test_09_tools_list_response)
 ZTEST(mcp_server_tests, test_10_invalid_execution_tokens)
 {
 	int ret;
-	struct mcp_tool_message app_msg;
+	struct mcp_tool_message tool_msg;
 	char response_data[] = "{"
-										"\"content\": ["
-										"{"
-										"\"type\": \"text\","
-										"\"text\": \"This should not be accepted\""
-										"}"
-										"],"
-										"\"isError\": false"
-										"}";
+							"\"type\": \"text\","
+							"\"text\": \"This should not be accepted\""
+							"}";
 
-	app_msg.type = MCP_USR_TOOL_RESPONSE;
-	app_msg.data = response_data;
-	app_msg.length = strlen(response_data);
+	tool_msg.type = MCP_USR_TOOL_RESPONSE;
+	tool_msg.data = response_data;
+	tool_msg.length = strlen(response_data);
+	tool_msg.is_error = false;
 
 	reset_tool_execution_tracking();
 
 	printk("=== Testing invalid execution tokens ===\n");
 
 	printk("=== Test 1: Zero execution token ===\n");
-	ret = mcp_server_submit_tool_message(server, &app_msg, 0);
+	ret = mcp_server_submit_tool_message(server, &tool_msg, 0);
 	zassert_equal(ret, -EINVAL, "Zero execution token should be rejected with -EINVAL");
 
 	printk("=== Test 2: Non-existent execution token ===\n");
 
 	uint32_t fake_token = 99999;
 
-	ret = mcp_server_submit_tool_message(server, &app_msg, fake_token);
+	ret = mcp_server_submit_tool_message(server, &tool_msg, fake_token);
 	zassert_equal(ret, -ENOENT, "Non-existent execution token should be rejected with -ENOENT");
 
 	printk("=== Test 3: Reusing completed execution token ===\n");
@@ -1200,19 +1193,19 @@ ZTEST(mcp_server_tests, test_10_invalid_execution_tokens)
 	zassert_not_equal(used_token, 0, "Should have captured the execution token");
 
 	printk("=== Test 3a: Attempting to reuse token %u ===\n", used_token);
-	ret = mcp_server_submit_tool_message(server, &app_msg, used_token);
+	ret = mcp_server_submit_tool_message(server, &tool_msg, used_token);
 	zassert_equal(ret, -ENOENT, "Completed execution token should be rejected with -ENOENT");
 
-	printk("=== Test 4: NULL app_msg ===\n");
+	printk("=== Test 4: NULL tool_msg ===\n");
 	ret = mcp_server_submit_tool_message(server, NULL, 1234);
-	zassert_equal(ret, -EINVAL, "NULL app_msg should be rejected with -EINVAL");
+	zassert_equal(ret, -EINVAL, "NULL tool_msg should be rejected with -EINVAL");
 
-	printk("=== Test 5: app_msg with NULL data ===\n");
+	printk("=== Test 5: tool_msg with NULL data ===\n");
 	struct mcp_tool_message null_data_msg = {
-		.type = MCP_USR_TOOL_RESPONSE, .data = NULL, .length = 10
+		.type = MCP_USR_TOOL_RESPONSE, .data = NULL, .length = 10, .is_error = false
 	};
 	ret = mcp_server_submit_tool_message(server, &null_data_msg, 1234);
-	zassert_equal(ret, -EINVAL, "app_msg with NULL data should be rejected with -EINVAL");
+	zassert_equal(ret, -EINVAL, "tool_msg with NULL data should be rejected with -EINVAL");
 
 	mcp_server_remove_tool(server, "token_test_tool");
 
