@@ -29,5 +29,5 @@ void mcp_safe_strcpy(char *dst, size_t dst_sz, const char *src)
 		return;
 	}
 
-	(void)snprintf(dst, dst_sz, "%s", src);
+	(void)snprintk(dst, dst_sz, "%s", src);
 }

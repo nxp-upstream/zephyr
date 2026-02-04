@@ -441,12 +441,12 @@ int mcp_json_parse_message(char *buf, size_t len, struct mcp_message *out)
 	/* Store ID as string */
 	if (has_id_integer) {
 		/* Integer ID: store without quotes*/
-		snprintf(out->id.string, sizeof(out->id.string), "%" PRId64, env.id_integer);
+		snprintk(out->id.string, sizeof(out->id.string), "%" PRId64, env.id_integer);
 	} else if (has_id_string) {
 		/* String ID: store with quotes */
 		char temp[MCP_MAX_ID_LEN - 2];
 		extract_token_string(temp, sizeof(temp), &env.id_string);
-		snprintf(out->id.string, sizeof(out->id.string), "\"%s\"", temp);
+		snprintk(out->id.string, sizeof(out->id.string), "\"%s\"", temp);
 	} else {
 		/* No ID */
 		out->id.string[0] = '\0';

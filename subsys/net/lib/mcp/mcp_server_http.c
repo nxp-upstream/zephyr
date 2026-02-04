@@ -479,7 +479,7 @@ static int format_response(char *buffer, size_t buffer_size, const char *json_da
 		return -EINVAL;
 	}
 
-	len = snprintf(buffer, buffer_size, "%s", json_data);
+	len = snprintk(buffer, buffer_size, "%s", json_data);
 
 	if (len < 0 || (size_t)len >= buffer_size) {
 		LOG_ERR("Failed to format JSON response (length: %d)", len);
@@ -502,9 +502,9 @@ static int format_sse_response(char *buffer, size_t buffer_size, uint32_t event_
 	}
 
 	if (data && (strlen(data) > 0)) {
-		len = snprintf(buffer, buffer_size, "id: %u\ndata: %s\n\n", event_id, data);
+		len = snprintk(buffer, buffer_size, "id: %u\ndata: %s\n\n", event_id, data);
 	} else {
-		len = snprintf(buffer, buffer_size, "id: %u\ndata:\n\n", event_id);
+		len = snprintk(buffer, buffer_size, "id: %u\ndata:\n\n", event_id);
 	}
 
 	if ((len < 0) || ((size_t)len >= buffer_size)) {
@@ -527,7 +527,7 @@ static int format_sse_retry_response(char *buffer, size_t buffer_size, uint32_t 
 		return -EINVAL;
 	}
 
-	len = snprintf(buffer, buffer_size, "retry: %u\n\n", retry_ms);
+	len = snprintk(buffer, buffer_size, "retry: %u\n\n", retry_ms);
 
 	if ((len < 0) || ((size_t)len >= buffer_size)) {
 		LOG_ERR("Failed to format SSE retry response (retry: %u ms)", retry_ms);

@@ -322,7 +322,7 @@ static int copy_tool_metadata_to_response(struct mcp_server_ctx *server,
 	int ret;
 
 	/* Start with opening bracket */
-	ret = snprintf(buf + offset, buf_size - offset, "[");
+	ret = snprintk(buf + offset, buf_size - offset, "[");
 	if (ret < 0 || (size_t)ret >= buf_size - offset) {
 		LOG_ERR("Buffer overflow adding opening bracket");
 		return -ENOMEM;
@@ -332,7 +332,7 @@ static int copy_tool_metadata_to_response(struct mcp_server_ctx *server,
 	for (int i = 0; i < tool_registry->tool_count; i++) {
 		tool_info = &tool_registry->tools[i].metadata;
 
-		ret = snprintf(buf + offset, buf_size - offset,
+		ret = snprintk(buf + offset, buf_size - offset,
 			       "%s{"
 			       "\"name\":\"%s\","
 #ifdef CONFIG_MCP_TOOL_TITLE
@@ -370,7 +370,7 @@ static int copy_tool_metadata_to_response(struct mcp_server_ctx *server,
 	}
 
 	/* Add closing bracket */
-	ret = snprintf(buf + offset, buf_size - offset, "]");
+	ret = snprintk(buf + offset, buf_size - offset, "]");
 	if (ret < 0 || (size_t)ret >= buf_size - offset) {
 		LOG_ERR("Buffer overflow adding closing bracket");
 		return -ENOMEM;
