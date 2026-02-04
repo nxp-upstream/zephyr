@@ -10,7 +10,6 @@
 #include <zephyr/irq.h>
 #include <zephyr/drivers/video.h>
 #include <zephyr/drivers/clock_control.h>
-#include <zephyr/cache.h>
 #include <fsl_isi.h>
 
 #include <zephyr/logging/log.h>
@@ -128,58 +127,7 @@ static int find_isi_format(uint32_t pixelformat)
 		}
 	}
 
-	LOG_ERR("pixelformat %c%c%c%c not supported",
-		(char)pixelformat,
-		(char)(pixelformat >> 8),
-		(char)(pixelformat >> 16),
-		(char)(pixelformat >> 24));
-	return -1;
-}
-
-static void video_mcux_isi_isr_handler(const struct device *dev)
-{
-	const struct video_mcux_isi_config *config = dev->config;
-	struct video_mcux_isi_data *data = dev->data;
-	ISI_Type *base = config->base;
-	uint32_t int_status;
-	uint32_t buffer_addr;
-	struct video_buffer *vbuf = NULL;
-
-	int_status = ISI_GetInterruptStatus(base);
-	ISI_ClearInterruptStatus(base, int_status);
-
-	/* Check if frame received interrupt */
-	if (!(int_status & (uint32_t)kISI_FrameReceivedInterrupt)) {
-		return;
-	}
-
-	buffer_addr = data->active_buffer[data->buffer_index];
-
-	/* If current finished frame is not drop frame, submit to output queue */
-	if (buffer_addr != data->drop_frame) {
-		vbuf = data->active_vbuf[data->buffer_index];
-		vbuf->timestamp = k_uptime_get_32();
-		vbuf->bytesused = data->isi_config.outputLinePitchBytes * data->fmt.height;
-		k_fifo_put(&data->fifo_out, vbuf);
-	}
-
-	/* Get next buffer from input queue */
-	vbuf = k_fifo_get(&data->fifo_in, K_NO_WAIT);
-
-	/* If no available input buffer, use drop frame buffer */
-	if (vbuf == NULL) {
-		buffer_addr = data->drop_frame;
-		LOG_WRN("No available input buffer, drop frame");
-	} else {
-		buffer_addr = POINTER_TO_UINT(vbuf->buffer);
-		data->active_vbuf[data->buffer_index] = vbuf;
-	}
-
-	data->active_buffer[data->buffer_index] = buffer_addr;
-	ISI_SetOutputBufferAddr(base, data->buffer_index, buffer_addr, 0, 0);
-
-	/* Toggle buffer index */
-	data->buffer_index ^= 1U;
+	return -EPIPE;
 }
 
 static int isi_channel_config(const struct device *dev)
@@ -511,9 +459,50 @@ static DEVICE_API(video, video_mcux_isi_driver_api) = {
 	.enum_frmival = video_mcux_isi_enum_frmival,
 };
 
-static void video_mcux_isi_isr(const void *p)
+static void video_mcux_isi_isr(const struct device *dev)
 {
-	video_mcux_isi_isr_handler((const struct device *)p);
+	const struct video_mcux_isi_config *config = dev->config;
+	struct video_mcux_isi_data *data = dev->data;
+	ISI_Type *base = config->base;
+	uint32_t int_status;
+	uint32_t buffer_addr;
+	struct video_buffer *vbuf = NULL;
+
+	int_status = ISI_GetInterruptStatus(base);
+	ISI_ClearInterruptStatus(base, int_status);
+
+	/* Check if frame received interrupt */
+	if (!(int_status & (uint32_t)kISI_FrameReceivedInterrupt)) {
+		return;
+	}
+
+	buffer_addr = data->active_buffer[data->buffer_index];
+
+	/* If current finished frame is not drop frame, submit to output queue */
+	if (buffer_addr != data->drop_frame) {
+		vbuf = data->active_vbuf[data->buffer_index];
+		vbuf->timestamp = k_uptime_get_32();
+		vbuf->bytesused = data->isi_config.outputLinePitchBytes * data->fmt.height;
+		k_fifo_put(&data->fifo_out, vbuf);
+	}
+
+	/* Get next buffer from input queue */
+	vbuf = k_fifo_get(&data->fifo_in, K_NO_WAIT);
+
+	/* If no available input buffer, use drop frame buffer */
+	if (vbuf == NULL) {
+		buffer_addr = data->drop_frame;
+		LOG_WRN("No available input buffer, drop frame");
+	} else {
+		buffer_addr = POINTER_TO_UINT(vbuf->buffer);
+		data->active_vbuf[data->buffer_index] = vbuf;
+	}
+
+	data->active_buffer[data->buffer_index] = buffer_addr;
+	ISI_SetOutputBufferAddr(base, data->buffer_index, buffer_addr, 0, 0);
+
+	/* Toggle buffer index */
+	data->buffer_index ^= 1U;
 }
 
 static int video_mcux_isi_init(const struct device *dev)
