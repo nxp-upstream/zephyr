@@ -572,6 +572,7 @@ struct mcp_json_tools_call_result {
 	struct {
 		struct mcp_json_content_item content[MCP_MAX_CONTENT_ITEMS];
 		size_t content_len;
+		bool isError;
 	} result;
 };
 
@@ -585,6 +586,8 @@ static const struct json_obj_descr mcp_json_tools_call_result_inner_descr[] = {
 				 content, MCP_MAX_CONTENT_ITEMS, content_len,
 				 mcp_json_content_item_descr,
 				 ARRAY_SIZE(mcp_json_content_item_descr)),
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_tools_call_result *)0)->result),
+			    isError, JSON_TOK_TRUE),
 };
 
 static const struct json_obj_descr mcp_json_tools_call_result_descr[] = {
@@ -609,6 +612,7 @@ int mcp_json_serialize_tools_call_result(char *out, size_t out_len,
 		.id = id_str,
 		.result = {
 			.content_len = res->content.count,
+			.isError = res->is_error,
 		},
 	};
 

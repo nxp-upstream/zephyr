@@ -149,6 +149,7 @@ struct mcp_params_tools_call {
 
 struct mcp_result_tools_call {
 	struct mcp_content_list content; /* one or more content blocks, usually text */
+	bool is_error;                   /* true if tool execution failed */
 };
 
 /* --- notifications/initialized --- */

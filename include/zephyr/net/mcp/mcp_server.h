@@ -79,11 +79,23 @@ struct mcp_tool_record {
 
 /**
  * @brief Message sent from a tool (response/notification)
+ *
+ * This structure is used to submit tool execution results back to the MCP server.
+ *
+ * @note For tool responses (MCP_USR_TOOL_RESPONSE):
+ *       - data should point to a JSON string containing the tool result
+ *       - The result should be a list of content items, each with "type" and "text" fields
+ *         without the square brackets wrapper (the server adds those).
+ *       - Example: "{\"type\":\"text\",\"text\":\"Tool execution result\"},
+ *                   {\"type\":\"text\",\"text":"More results\"}"
+ *       - is_error should be set to true if the tool execution failed
+ *
  */
 struct mcp_tool_message {
 	enum mcp_tool_msg_type type;
 	int length;
 	void *data;
+	bool is_error;
 };
 
 /**

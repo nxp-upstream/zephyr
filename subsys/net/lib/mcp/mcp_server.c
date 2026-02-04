@@ -1363,6 +1363,7 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_m
 					(char *)tool_msg->data);
 			response_data->content.count = 1;
 			response_data->content.items[0].type = MCP_CONTENT_TEXT;
+			response_data->is_error = tool_msg->is_error;
 
 			/* Update execution state */
 			ret = k_mutex_lock(&execution_registry->mutex, K_FOREVER);
