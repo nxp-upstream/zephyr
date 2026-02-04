@@ -46,7 +46,8 @@ static int mock_transport_send(struct mcp_transport_message *response)
 
 	mock_ctx.send_call_count++;
 
-	struct mock_client_context *client = (struct mock_client_context *)response->binding->context;
+	struct mock_client_context *client =
+		(struct mock_client_context *)response->binding->context;
 
 	if (client == NULL || !client->active) {
 		LOG_ERR("Mock: Client not found or inactive");
@@ -104,10 +105,10 @@ struct mcp_transport_binding *mcp_transport_mock_allocate_client(void)
 			mock_ctx.clients[i].last_msg_id = 0;
 			memset(mock_ctx.clients[i].last_message, 0,
 			       sizeof(mock_ctx.clients[i].last_message));
-			
+
 			mock_ctx.clients[i].binding.ops = &mock_ops;
 			mock_ctx.clients[i].binding.context = &mock_ctx.clients[i];
-			
+
 			LOG_DBG("Mock: Allocated client in slot %d", i);
 			return &mock_ctx.clients[i].binding;
 		}
@@ -161,7 +162,8 @@ int mcp_transport_mock_get_disconnect_count(void)
 	return mock_ctx.disconnect_call_count;
 }
 
-const char *mcp_transport_mock_get_last_message(struct mcp_transport_binding *binding, size_t *length)
+const char *mcp_transport_mock_get_last_message(struct mcp_transport_binding *binding,
+						size_t *length)
 {
 	if (binding == NULL) {
 		if (length) {

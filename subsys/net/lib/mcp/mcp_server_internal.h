@@ -120,6 +120,6 @@ struct mcp_transport_message {
  * @note The client_binding output is only valid if a client context was found
  */
 int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_transport_message *request,
-				  enum mcp_method *method);
+			      enum mcp_method *method);
 
 #endif /* ZEPHYR_SUBSYS_MCP_SERVER_INTERNAL_H_ */

@@ -32,7 +32,7 @@ extern "C" {
 #define MCP_MAX_VERSION_LEN    32
 #define MCP_MAX_JSON_CHUNK_LEN 512 /* for small opaque JSON blobs */
 #define MCP_MAX_CONTENT_ITEMS  2
-#define MCP_MAX_ID_LEN         64  /* for string IDs */
+#define MCP_MAX_ID_LEN         64 /* for string IDs */
 
 /* JSON-RPC message kind (incoming) */
 enum mcp_msg_kind {
@@ -234,8 +234,7 @@ int mcp_json_parse_message(char *buf, size_t len, struct mcp_message *out);
  * @return Number of bytes written (excluding NUL terminator) on success,
  *         negative error code on failure.
  */
-int mcp_json_serialize_initialize_result(char *out, size_t out_len,
-					 const struct mcp_request_id *id,
+int mcp_json_serialize_initialize_result(char *out, size_t out_len, const struct mcp_request_id *id,
 					 const struct mcp_result_initialize *res);
 
 /**
@@ -256,8 +255,7 @@ int mcp_json_serialize_initialize_result(char *out, size_t out_len,
  * @return Number of bytes written (excluding NUL terminator) on success,
  *         negative error code on failure.
  */
-int mcp_json_serialize_ping_result(char *out, size_t out_len,
-				   const struct mcp_request_id *id,
+int mcp_json_serialize_ping_result(char *out, size_t out_len, const struct mcp_request_id *id,
 				   const struct mcp_result_ping *res);
 
 /**
@@ -280,8 +278,7 @@ int mcp_json_serialize_ping_result(char *out, size_t out_len,
  * @return Number of bytes written (excluding NUL terminator) on success,
  *         negative error code on failure.
  */
-int mcp_json_serialize_tools_list_result(char *out, size_t out_len,
-					 const struct mcp_request_id *id,
+int mcp_json_serialize_tools_list_result(char *out, size_t out_len, const struct mcp_request_id *id,
 					 const struct mcp_result_tools_list *res);
 
 /**
@@ -305,8 +302,7 @@ int mcp_json_serialize_tools_list_result(char *out, size_t out_len,
  * @return Number of bytes written (excluding NUL terminator) on success,
  *         negative error code on failure.
  */
-int mcp_json_serialize_tools_call_result(char *out, size_t out_len,
-					 const struct mcp_request_id *id,
+int mcp_json_serialize_tools_call_result(char *out, size_t out_len, const struct mcp_request_id *id,
 					 const struct mcp_result_tools_call *res);
 
 /**
@@ -328,8 +324,7 @@ int mcp_json_serialize_tools_call_result(char *out, size_t out_len,
  * @return Number of bytes written (excluding NUL terminator) on success,
  *         negative error code on failure.
  */
-int mcp_json_serialize_error(char *out, size_t out_len,
-			     const struct mcp_request_id *id,
+int mcp_json_serialize_error(char *out, size_t out_len, const struct mcp_request_id *id,
 			     const struct mcp_error *err);
 
 #ifdef __cplusplus

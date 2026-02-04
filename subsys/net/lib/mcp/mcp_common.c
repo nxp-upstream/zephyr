@@ -29,6 +29,5 @@ void mcp_safe_strcpy(char *dst, size_t dst_sz, const char *src)
 		return;
 	}
 
-	/* Use snprintf for safe truncation + NUL termination */
 	(void)snprintf(dst, dst_sz, "%s", src);
 }

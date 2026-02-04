@@ -239,8 +239,8 @@ struct mcp_json_cancelled_notif {
 };
 
 static const struct json_obj_descr mcp_cancelled_params_descr[] = {
-	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_cancelled_notif *)0)->params),
-			    requestId, JSON_TOK_OPAQUE),
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_cancelled_notif *)0)->params), requestId,
+			    JSON_TOK_OPAQUE),
 	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_cancelled_notif *)0)->params), reason,
 			    JSON_TOK_STRING),
 };
@@ -433,8 +433,7 @@ static const struct json_obj_descr mcp_json_init_result_descr[] = {
 			      mcp_json_init_result_inner_descr),
 };
 
-int mcp_json_serialize_initialize_result(char *out, size_t out_len,
-					 const struct mcp_request_id *id,
+int mcp_json_serialize_initialize_result(char *out, size_t out_len, const struct mcp_request_id *id,
 					 const struct mcp_result_initialize *res)
 {
 	if (!out || !res || out_len == 0) {
@@ -446,20 +445,24 @@ int mcp_json_serialize_initialize_result(char *out, size_t out_len,
 	struct mcp_json_init_result json_res = {
 		.jsonrpc = "2.0",
 		.id = id_str,
-		.result = {
-			.protocolVersion = res->protocol_version,
-			.serverInfo = {
-				.name = res->server_name,
-				.version = res->server_version,
+		.result =
+			{
+				.protocolVersion = res->protocol_version,
+				.serverInfo =
+					{
+						.name = res->server_name,
+						.version = res->server_version,
+					},
+				.capabilities =
+					(res->has_capabilities && res->capabilities_json[0] != '\0')
+						? res->capabilities_json
+						: NULL,
 			},
-			.capabilities = (res->has_capabilities && res->capabilities_json[0] != '\0')
-					? res->capabilities_json : NULL,
-		},
 	};
 
 	int ret = json_obj_encode_buf(mcp_json_init_result_descr,
-				      ARRAY_SIZE(mcp_json_init_result_descr),
-				      &json_res, out, out_len);
+				      ARRAY_SIZE(mcp_json_init_result_descr), &json_res, out,
+				      out_len);
 
 	return (ret == 0) ? strlen(out) : ret;
 }
@@ -484,8 +487,7 @@ static const struct json_obj_descr mcp_json_ping_result_descr[] = {
 			      mcp_json_ping_result_inner_descr),
 };
 
-int mcp_json_serialize_ping_result(char *out, size_t out_len,
-				   const struct mcp_request_id *id,
+int mcp_json_serialize_ping_result(char *out, size_t out_len, const struct mcp_request_id *id,
 				   const struct mcp_result_ping *res)
 {
 	(void)res; /* currently unused; we return empty {} */
@@ -499,12 +501,12 @@ int mcp_json_serialize_ping_result(char *out, size_t out_len,
 	struct mcp_json_ping_result json_res = {
 		.jsonrpc = "2.0",
 		.id = id_str,
-		.result = { .dummy = false },
+		.result = {.dummy = false},
 	};
 
 	int ret = json_obj_encode_buf(mcp_json_ping_result_descr,
-				      ARRAY_SIZE(mcp_json_ping_result_descr),
-				      &json_res, out, out_len);
+				      ARRAY_SIZE(mcp_json_ping_result_descr), &json_res, out,
+				      out_len);
 
 	return (ret == 0) ? strlen(out) : ret;
 }
@@ -514,13 +516,13 @@ struct mcp_json_tools_list_result {
 	const char *jsonrpc;
 	const char *id;
 	struct {
-		const char *tools;  /* This should be the raw JSON array */
+		const char *tools; /* This should be the raw JSON array */
 	} result;
 };
 
 static const struct json_obj_descr mcp_json_tools_list_result_inner_descr[] = {
-	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_tools_list_result *)0)->result),
-			    tools, JSON_TOK_ENCODED_OBJ),
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_tools_list_result *)0)->result), tools,
+			    JSON_TOK_ENCODED_OBJ),
 };
 
 static const struct json_obj_descr mcp_json_tools_list_result_descr[] = {
@@ -530,8 +532,7 @@ static const struct json_obj_descr mcp_json_tools_list_result_descr[] = {
 			      mcp_json_tools_list_result_inner_descr),
 };
 
-int mcp_json_serialize_tools_list_result(char *out, size_t out_len,
-					 const struct mcp_request_id *id,
+int mcp_json_serialize_tools_list_result(char *out, size_t out_len, const struct mcp_request_id *id,
 					 const struct mcp_result_tools_list *res)
 {
 	if (!out || !res || out_len == 0) {
@@ -548,14 +549,15 @@ int mcp_json_serialize_tools_list_result(char *out, size_t out_len,
 	struct mcp_json_tools_list_result json_res = {
 		.jsonrpc = "2.0",
 		.id = id_str,
-		.result = {
-			.tools = tools_json,  /* Insert raw JSON array */
-		},
+		.result =
+			{
+				.tools = tools_json, /* Insert raw JSON array */
+			},
 	};
 
 	int ret = json_obj_encode_buf(mcp_json_tools_list_result_descr,
-				      ARRAY_SIZE(mcp_json_tools_list_result_descr),
-				      &json_res, out, out_len);
+				      ARRAY_SIZE(mcp_json_tools_list_result_descr), &json_res, out,
+				      out_len);
 
 	return (ret == 0) ? strlen(out) : ret;
 }
@@ -586,8 +588,8 @@ static const struct json_obj_descr mcp_json_tools_call_result_inner_descr[] = {
 				 content, MCP_MAX_CONTENT_ITEMS, content_len,
 				 mcp_json_content_item_descr,
 				 ARRAY_SIZE(mcp_json_content_item_descr)),
-	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_tools_call_result *)0)->result),
-			    isError, JSON_TOK_TRUE),
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_tools_call_result *)0)->result), isError,
+			    JSON_TOK_TRUE),
 };
 
 static const struct json_obj_descr mcp_json_tools_call_result_descr[] = {
@@ -597,8 +599,7 @@ static const struct json_obj_descr mcp_json_tools_call_result_descr[] = {
 			      mcp_json_tools_call_result_inner_descr),
 };
 
-int mcp_json_serialize_tools_call_result(char *out, size_t out_len,
-					 const struct mcp_request_id *id,
+int mcp_json_serialize_tools_call_result(char *out, size_t out_len, const struct mcp_request_id *id,
 					 const struct mcp_result_tools_call *res)
 {
 	if (!out || !res || out_len == 0) {
@@ -610,10 +611,11 @@ int mcp_json_serialize_tools_call_result(char *out, size_t out_len,
 	struct mcp_json_tools_call_result json_res = {
 		.jsonrpc = "2.0",
 		.id = id_str,
-		.result = {
-			.content_len = res->content.count,
-			.isError = res->is_error,
-		},
+		.result =
+			{
+				.content_len = res->content.count,
+				.isError = res->is_error,
+			},
 	};
 
 	/* Copy content items */
@@ -623,8 +625,8 @@ int mcp_json_serialize_tools_call_result(char *out, size_t out_len,
 	}
 
 	int ret = json_obj_encode_buf(mcp_json_tools_call_result_descr,
-				      ARRAY_SIZE(mcp_json_tools_call_result_descr),
-				      &json_res, out, out_len);
+				      ARRAY_SIZE(mcp_json_tools_call_result_descr), &json_res, out,
+				      out_len);
 
 	return (ret == 0) ? strlen(out) : ret;
 }
@@ -642,8 +644,10 @@ struct mcp_json_error {
 
 static const struct json_obj_descr mcp_json_error_inner_descr[] = {
 	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_error *)0)->error), code, JSON_TOK_NUMBER),
-	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_error *)0)->error), message, JSON_TOK_STRING),
-	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_error *)0)->error), data, JSON_TOK_ENCODED_OBJ),
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_error *)0)->error), message,
+			    JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_error *)0)->error), data,
+			    JSON_TOK_ENCODED_OBJ),
 };
 
 static const struct json_obj_descr mcp_json_error_descr[] = {
@@ -652,8 +656,7 @@ static const struct json_obj_descr mcp_json_error_descr[] = {
 	JSON_OBJ_DESCR_OBJECT(struct mcp_json_error, error, mcp_json_error_inner_descr),
 };
 
-int mcp_json_serialize_error(char *out, size_t out_len,
-			     const struct mcp_request_id *id,
+int mcp_json_serialize_error(char *out, size_t out_len, const struct mcp_request_id *id,
 			     const struct mcp_error *err)
 {
 	if (!out || !err || out_len == 0) {
@@ -665,16 +668,17 @@ int mcp_json_serialize_error(char *out, size_t out_len,
 	struct mcp_json_error json_err = {
 		.jsonrpc = "2.0",
 		.id = id_str,
-		.error = {
-			.code = err->code,
-			.message = err->message,
-			.data = (err->has_data && err->data_json[0] != '\0')
-				? err->data_json : "null",
-		},
+		.error =
+			{
+				.code = err->code,
+				.message = err->message,
+				.data = (err->has_data && err->data_json[0] != '\0')
+						? err->data_json
+						: "null",
+			},
 	};
 
-	int ret = json_obj_encode_buf(mcp_json_error_descr,
-				      ARRAY_SIZE(mcp_json_error_descr),
+	int ret = json_obj_encode_buf(mcp_json_error_descr, ARRAY_SIZE(mcp_json_error_descr),
 				      &json_err, out, out_len);
 
 	return (ret == 0) ? strlen(out) : ret;
