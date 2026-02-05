@@ -71,9 +71,14 @@ typedef int (*mcp_tool_callback_t)(const char *params, uint32_t execution_token)
 
 /**
  * @brief Tool definition structure
+ * 
+ * @note activity_counter is used internally by the MCP server to track tool execution state
+ * and protect against the removal of a tool while it is actively executing.
+ * 
  */
 struct mcp_tool_record {
 	struct mcp_tool_metadata metadata;
+	uint8_t activity_counter;
 	mcp_tool_callback_t callback;
 };
 
@@ -136,16 +141,23 @@ int mcp_server_add_tool(mcp_server_ctx_t server_ctx, const struct mcp_tool_recor
 
 /**
  * @brief Remove a tool from the server
+ * 
+ * @note Should be called again if it returns -EBUSY, which signifies that the
+ * tool is currently being executed.
  *
  * @param tool_name Name of tool to remove
  * @return 0 on success, negative errno on failure
  * @retval -EINVAL Invalid tool name
  * @retval -ENOENT Tool not found
+ * @retval -EBUSY Tool is being executed and can't be removed (try again later)
  */
 int mcp_server_remove_tool(mcp_server_ctx_t server_ctx, const char *tool_name);
 
 /**
  * @brief Helper for checking the execution state of a tool
+ * 
+ * @note Should be called periodically by each tool callback to check whether
+ * it should continue or cancel its execution.
  *
  * @param execution_token Token representing the execution
  * @param is_canceled Pointer to store cancellation state

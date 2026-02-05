@@ -66,6 +66,7 @@ struct mcp_execution_context {
 	struct mcp_request_id request_id;
 	uint32_t transport_msg_id;
 	struct mcp_client_context *client;
+	struct mcp_tool_record *tool;
 	k_tid_t worker_id;
 	int64_t start_timestamp;
 	int64_t cancel_timestamp;
@@ -303,6 +304,7 @@ static struct mcp_tool_record *add_tool(struct mcp_server_ctx *server,
 		if (tool_registry->tools[i].metadata.name[0] == '\0') {
 			memcpy(&tool_registry->tools[i], tool_info, sizeof(struct mcp_tool_record));
 			tool_registry->tool_count++;
+			tool_registry->tools[i].activity_counter = 0;
 			return &tool_registry->tools[i];
 		}
 	}
@@ -675,6 +677,7 @@ static int handle_tools_call_request(struct mcp_server_ctx *server,
 	}
 
 	tool = get_tool(server, request->req.u.tools_call.name);
+	tool->activity_counter++;
 	k_mutex_unlock(&tool_registry->mutex);
 
 	if (tool == NULL) {
@@ -691,6 +694,7 @@ static int handle_tools_call_request(struct mcp_server_ctx *server,
 	}
 
 	exec_ctx = add_execution_context(server, client, &request->id, msg_id);
+	exec_ctx->tool = tool;
 	k_mutex_unlock(&execution_registry->mutex);
 
 	if (exec_ctx == NULL) {
@@ -709,6 +713,13 @@ static int handle_tools_call_request(struct mcp_server_ctx *server,
 			remove_execution_context(server, exec_ctx);
 			k_mutex_unlock(&execution_registry->mutex);
 		}
+
+		/* Decrement tool activity counter on failure */
+		if (k_mutex_lock(&tool_registry->mutex, K_FOREVER) == 0) {
+			tool->activity_counter--;
+			k_mutex_unlock(&tool_registry->mutex);
+		}
+
 		goto cleanup_active_request;
 	}
 
@@ -1290,6 +1301,7 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_m
 
 	struct mcp_execution_registry *execution_registry = &server->execution_registry;
 	struct mcp_client_registry *client_registry = &server->client_registry;
+	struct mcp_tool_registry *tool_registry = &server->tool_registry;
 
 	if ((tool_msg == NULL) ||
 	    ((tool_msg->data == NULL) && (tool_msg->type != MCP_USR_TOOL_CANCEL_ACK) &&
@@ -1442,6 +1454,7 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_m
 		k_mutex_unlock(&client_registry->mutex);
 
 skip_client_cleanup:
+		struct mcp_tool_record *temp_tool_ptr;
 		/* Remove execution context */
 		ret = k_mutex_lock(&execution_registry->mutex, K_FOREVER);
 		if (ret != 0) {
@@ -1450,9 +1463,21 @@ skip_client_cleanup:
 				ret);
 			return ret;
 		}
-
+		temp_tool_ptr = execution_ctx->tool;
 		remove_execution_context(server, execution_ctx);
 		k_mutex_unlock(&execution_registry->mutex);
+
+		/* Decrement tool activity counter */
+		ret = k_mutex_lock(&tool_registry->mutex, K_FOREVER);
+		if (ret != 0) {
+			LOG_ERR("Failed to lock tool registry: %d. Tool registry is "
+				"broken. Message was submitted successfully.",
+				ret);
+			return ret;
+		}
+
+		temp_tool_ptr->activity_counter--;
+		k_mutex_unlock(&tool_registry->mutex);
 	}
 
 	return 0;
@@ -1530,6 +1555,12 @@ int mcp_server_remove_tool(mcp_server_ctx_t ctx, const char *tool_name)
 		k_mutex_unlock(&tool_registry->mutex);
 		LOG_ERR("Tool '%s' not found", tool_name);
 		return -ENOENT;
+	}
+
+	if (tool->activity_counter > 0) {
+		k_mutex_unlock(&tool_registry->mutex);
+		LOG_INF("Requested removal of a currently active tool '%s'", tool_name);
+		return -EBUSY;
 	}
 
 	memset(tool, 0, sizeof(struct mcp_tool_record));
