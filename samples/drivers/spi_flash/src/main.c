@@ -67,6 +67,8 @@
 #define SPI_FLASH_COMPAT nxp_xspi_nor
 #elif DT_HAS_COMPAT_STATUS_OKAY(nxp_imx_flexspi_nor)
 #define SPI_FLASH_COMPAT nxp_imx_flexspi_nor
+#elif DT_HAS_COMPAT_STATUS_OKAY(nxp_imx_flexspi_nand)
+#define SPI_FLASH_COMPAT nxp_imx_flexspi_nand
 #else
 #define SPI_FLASH_COMPAT invalid
 #endif
@@ -76,6 +78,66 @@ const uint8_t erased[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 #else
 const uint8_t erased[] = { 0xff, 0xff, 0xff, 0xff };
 #endif
+
+static int find_erase_size_and_offset(const struct device *flash_dev, size_t *erase_size,
+				     off_t *test_offset)
+{
+	uint64_t flash_size;
+	int rc;
+
+	if (erase_size == NULL || test_offset == NULL) {
+		return -EINVAL;
+	}
+
+	rc = flash_get_size(flash_dev, &flash_size);
+	if (rc != 0 || flash_size == 0U) {
+		/* Fall back to legacy behavior if size query isn't supported. */
+		*erase_size = SPI_FLASH_SECTOR_SIZE;
+		*test_offset = SPI_FLASH_TEST_REGION_OFFSET;
+		return 0;
+	}
+
+	/*
+	 * Keep test activity away from the beginning of the flash and ensure the
+	 * offset is aligned to the erase size.
+	 *
+	 * Some devices (e.g. SPI-NAND) require erase operations to be aligned to a
+	 * block size that can be much larger than 4KiB.
+	 */
+	uint64_t preferred = (uint64_t)MAX((off_t)0, (off_t)SPI_FLASH_TEST_REGION_OFFSET);
+	preferred = MIN(preferred, flash_size);
+
+	for (size_t cand = SPI_FLASH_SECTOR_SIZE; cand <= (size_t)MIN(flash_size / 4U, (uint64_t)SZ_8M);
+	     cand *= 2U) {
+		uint64_t end_margin = (uint64_t)cand * 2U;
+		if (flash_size <= end_margin) {
+			continue;
+		}
+
+		uint64_t offs = preferred;
+		if (offs + cand > flash_size) {
+			offs = flash_size - end_margin;
+		}
+		offs -= (offs % cand);
+		if (offs + cand > flash_size) {
+			continue;
+		}
+
+		/* Probe by trying a single erase at the candidate alignment. */
+		rc = flash_erase(flash_dev, (off_t)offs, cand);
+		if (rc == 0) {
+			*erase_size = cand;
+			*test_offset = (off_t)offs;
+			return 0;
+		}
+		if (rc != -EINVAL) {
+			/* Other failure: no point continuing to probe. */
+			return rc;
+		}
+	}
+
+	return -EINVAL;
+}
 
 void single_sector_test(const struct device *flash_dev)
 {
@@ -87,6 +149,14 @@ void single_sector_test(const struct device *flash_dev)
 	const size_t len = sizeof(expected);
 	uint8_t buf[sizeof(expected)];
 	int rc;
+	size_t erase_sz;
+	off_t test_offs;
+
+	rc = find_erase_size_and_offset(flash_dev, &erase_sz, &test_offs);
+	if (rc != 0) {
+		printf("Failed to determine erase geometry! %d\n", rc);
+		return;
+	}
 
 	printf("\nPerform test on single sector");
 	/* Write protection needs to be disabled before each write or
@@ -99,21 +169,20 @@ void single_sector_test(const struct device *flash_dev)
 	/* Full flash erase if SPI_FLASH_TEST_REGION_OFFSET = 0 and
 	 * SPI_FLASH_SECTOR_SIZE = flash size
 	 */
-	rc = flash_erase(flash_dev, SPI_FLASH_TEST_REGION_OFFSET,
-			 SPI_FLASH_SECTOR_SIZE);
+	rc = flash_erase(flash_dev, test_offs, erase_sz);
 	if (rc != 0) {
 		printf("Flash erase failed! %d\n", rc);
 	} else {
 		/* Check erased pattern */
 		memset(buf, 0, len);
-		rc = flash_read(flash_dev, SPI_FLASH_TEST_REGION_OFFSET, buf, len);
+		rc = flash_read(flash_dev, test_offs, buf, len);
 		if (rc != 0) {
 			printf("Flash read failed! %d\n", rc);
 			return;
 		}
 		if (memcmp(erased, buf, len) != 0) {
 			printf("Flash erase failed at offset 0x%x got 0x%x\n",
-				SPI_FLASH_TEST_REGION_OFFSET, *(uint32_t *)buf);
+				(uint32_t)test_offs, *(uint32_t *)buf);
 			return;
 		}
 		printf("Flash erase succeeded!\n");
@@ -121,14 +190,14 @@ void single_sector_test(const struct device *flash_dev)
 	printf("\nTest 2: Flash write\n");
 
 	printf("Attempting to write %zu bytes\n", len);
-	rc = flash_write(flash_dev, SPI_FLASH_TEST_REGION_OFFSET, expected, len);
+	rc = flash_write(flash_dev, test_offs, expected, len);
 	if (rc != 0) {
 		printf("Flash write failed! %d\n", rc);
 		return;
 	}
 
 	memset(buf, 0, len);
-	rc = flash_read(flash_dev, SPI_FLASH_TEST_REGION_OFFSET, buf, len);
+	rc = flash_read(flash_dev, test_offs, buf, len);
 	if (rc != 0) {
 		printf("Flash read failed! %d\n", rc);
 		return;
@@ -144,7 +213,7 @@ void single_sector_test(const struct device *flash_dev)
 		printf("Data read does not match data written!!\n");
 		while (rp < rpe) {
 			printf("%08x wrote %02x read %02x %s\n",
-			       (uint32_t)(SPI_FLASH_TEST_REGION_OFFSET + (rp - buf)),
+			       (uint32_t)(test_offs + (rp - buf)),
 			       *wp, *rp, (*rp == *wp) ? "match" : "MISMATCH");
 			++rp;
 			++wp;
@@ -163,6 +232,14 @@ void multi_sector_test(const struct device *flash_dev)
 	const size_t len = sizeof(expected);
 	uint8_t buf[sizeof(expected)];
 	int rc;
+	size_t erase_sz;
+	off_t test_offs;
+
+	rc = find_erase_size_and_offset(flash_dev, &erase_sz, &test_offs);
+	if (rc != 0) {
+		printf("Failed to determine erase geometry! %d\n", rc);
+		return;
+	}
 
 	printf("\nPerform test on multiple consecutive sectors");
 
@@ -177,15 +254,15 @@ void multi_sector_test(const struct device *flash_dev)
 	 * SPI_FLASH_SECTOR_SIZE = flash size
 	 * Erase 2 sectors for check for erase of consequtive sectors
 	 */
-	rc = flash_erase(flash_dev, SPI_FLASH_TEST_REGION_OFFSET, SPI_FLASH_SECTOR_SIZE * 2);
+	rc = flash_erase(flash_dev, test_offs, erase_sz * 2);
 	if (rc != 0) {
 		printf("Flash erase failed! %d\n", rc);
 	} else {
 		/* Read the content and check for erased */
 		memset(buf, 0, len);
-		size_t offs = SPI_FLASH_TEST_REGION_OFFSET;
+		size_t offs = (size_t)test_offs;
 
-		while (offs < SPI_FLASH_TEST_REGION_OFFSET + 2 * SPI_FLASH_SECTOR_SIZE) {
+		while (offs < (size_t)test_offs + 2 * erase_sz) {
 			rc = flash_read(flash_dev, offs, buf, len);
 			if (rc != 0) {
 				printf("Flash read failed! %d\n", rc);
@@ -196,16 +273,16 @@ void multi_sector_test(const struct device *flash_dev)
 				offs, *(uint32_t *)buf);
 				return;
 			}
-			offs += SPI_FLASH_SECTOR_SIZE;
+			offs += erase_sz;
 		}
 		printf("Flash erase succeeded!\n");
 	}
 
 	printf("\nTest 2: Flash write\n");
 
-	size_t offs = SPI_FLASH_TEST_REGION_OFFSET;
+	size_t offs = (size_t)test_offs;
 
-	while (offs < SPI_FLASH_TEST_REGION_OFFSET + 2 * SPI_FLASH_SECTOR_SIZE) {
+	while (offs < (size_t)test_offs + 2 * erase_sz) {
 		printf("Attempting to write %zu bytes at offset 0x%x\n", len, offs);
 		rc = flash_write(flash_dev, offs, expected, len);
 		if (rc != 0) {
@@ -236,7 +313,7 @@ void multi_sector_test(const struct device *flash_dev)
 				++wp;
 			}
 		}
-		offs += SPI_FLASH_SECTOR_SIZE;
+		offs += erase_sz;
 	}
 }
 #endif
