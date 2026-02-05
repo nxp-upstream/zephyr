@@ -30,12 +30,6 @@ static bool mp_zvid_transform_chainfn(struct mp_pad *pad, struct mp_buffer *buff
 		return false;
 	}
 
-	/* Start input stream */
-	if (video_stream_start(zvid_transform->zvid_obj_in.vdev, VIDEO_BUF_TYPE_INPUT)) {
-		LOG_ERR("Unable to start input stream");
-		return false;
-	}
-
 	/* Dequeue an input buffer, blocking */
 	struct video_buffer *vbuf =
 		&(struct video_buffer){.type = zvid_transform->zvid_obj_in.type};
