@@ -26,6 +26,11 @@ enum mcp_tool_msg_type {
 	MCP_USR_TOOL_PING
 };
 
+enum mcp_tool_event_type {
+	MCP_TOOL_CALL_REQUEST,
+	MCP_TOOL_CANCEL_REQUEST
+};
+
 /**
  * @brief Tool metadata structure
  */
@@ -51,6 +56,7 @@ typedef void *mcp_server_ctx_t;
 /**
  * @brief Tool callback function
  *
+ * @param event Type of tool event (call or cancel request)
  * @param params JSON string with tool parameters
  * @param execution_token Unique execution identifier
  *
@@ -67,7 +73,7 @@ typedef void *mcp_server_ctx_t;
  *
  * @return 0 on success, negative errno on failure
  */
-typedef int (*mcp_tool_callback_t)(const char *params, uint32_t execution_token);
+typedef int (*mcp_tool_callback_t)(enum mcp_tool_event_type event, const char *params, uint32_t execution_token);
 
 /**
  * @brief Tool definition structure
@@ -156,9 +162,10 @@ int mcp_server_remove_tool(mcp_server_ctx_t server_ctx, const char *tool_name);
 /**
  * @brief Helper for checking the execution state of a tool
  * 
- * @note Should be called periodically by each tool callback to check whether
- * it should continue or cancel its execution.
- *
+ * @note Alternative way of checking the cancellation. Primary check should be through the
+ * tool call event (struct mcp_tool_event_type). This checker needs to use mutexes
+ * and linear search to locate the required execution context.
+ * 
  * @param execution_token Token representing the execution
  * @param is_canceled Pointer to store cancellation state
  * @return 0 on success, negative errno on failure

@@ -15,8 +15,8 @@
 extern "C" {
 #endif
 
-void *mcp_alloc(size_t size);
-void mcp_free(void *ptr);
+__weak void *mcp_alloc(size_t size);
+__weak void mcp_free(void *ptr);
 void mcp_safe_strcpy(char *dst, size_t dst_sz, const char *src);
 
 #ifdef __cplusplus

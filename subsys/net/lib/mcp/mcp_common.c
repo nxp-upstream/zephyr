@@ -8,12 +8,12 @@
 #include <zephyr/logging/log.h>
 #include "mcp_common.h"
 
-void *mcp_alloc(size_t size)
+__weak void *mcp_alloc(size_t size)
 {
 	return k_malloc(size);
 }
 
-void mcp_free(void *ptr)
+__weak void mcp_free(void *ptr)
 {
 	k_free(ptr);
 }

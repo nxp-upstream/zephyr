@@ -14,8 +14,22 @@ LOG_MODULE_REGISTER(mcp_sample_hello, LOG_LEVEL_INF);
 mcp_server_ctx_t server;
 
 /* Tool callback functions */
-static int hello_world_tool_callback(const char *params, uint32_t execution_token)
+static int hello_world_tool_callback(enum mcp_tool_event_type event, const char *params, uint32_t execution_token)
 {
+	if (event == MCP_TOOL_CANCEL_REQUEST)
+	{
+		struct mcp_tool_message cancel_ack = {
+			.type = MCP_USR_TOOL_CANCEL_ACK,
+			.data = NULL,
+			.length = 0
+		};
+
+		mcp_server_submit_tool_message(server, &cancel_ack, execution_token);
+
+		/* Handle cancelation */
+		return 0;
+	}
+
 	struct mcp_tool_message response = {
 		.type = MCP_USR_TOOL_RESPONSE,
 		.data = "Hello World from tool!",
@@ -31,8 +45,22 @@ static int hello_world_tool_callback(const char *params, uint32_t execution_toke
 	return 0;
 }
 
-static int goodbye_world_tool_callback(const char *params, uint32_t execution_token)
+static int goodbye_world_tool_callback(enum mcp_tool_event_type event, const char *params, uint32_t execution_token)
 {
+	if (event == MCP_TOOL_CANCEL_REQUEST)
+	{
+		struct mcp_tool_message cancel_ack = {
+			.type = MCP_USR_TOOL_CANCEL_ACK,
+			.data = NULL,
+			.length = 0
+		};
+
+		mcp_server_submit_tool_message(server, &cancel_ack, execution_token);
+
+		/* Handle cancelation */
+		return 0;
+	}
+
 	struct mcp_tool_message response = {
 		.type = MCP_USR_TOOL_RESPONSE,
 		.data = "Goodbye World from tool!",

@@ -155,7 +155,7 @@ static void send_tools_list_request(struct mcp_transport_binding *binding, uint3
 	k_msleep(50);
 }
 
-static int stub_tool_callback_1(const char *params, uint32_t execution_token)
+static int stub_tool_callback_1(enum mcp_tool_event_type event, const char *params, uint32_t execution_token)
 {
 	int ret;
 	bool is_canceled;
@@ -168,6 +168,12 @@ static int stub_tool_callback_1(const char *params, uint32_t execution_token)
 
 	tool_execution_count++;
 	last_execution_token = execution_token;
+		
+	if (event == MCP_TOOL_CANCEL_REQUEST)
+	{
+		/* Ignore the cancellation event in unit tests. */
+		return 0;
+	}
 
 	printk("Stub tool 1 executed - Token: %u, Args: %s\n", execution_token,
 								params ? params : "(null)");
@@ -201,7 +207,7 @@ static int stub_tool_callback_1(const char *params, uint32_t execution_token)
 	return 0;
 }
 
-static int stub_tool_callback_2(const char *params, uint32_t execution_token)
+static int stub_tool_callback_2(enum mcp_tool_event_type event, const char *params, uint32_t execution_token)
 {
 	int ret;
 	bool is_canceled;
@@ -214,6 +220,12 @@ static int stub_tool_callback_2(const char *params, uint32_t execution_token)
 
 	tool_execution_count++;
 	last_execution_token = execution_token;
+
+	if (event == MCP_TOOL_CANCEL_REQUEST)
+	{
+		/* Ignore the cancellation event in unit tests. */
+		return 0;
+	}
 
 	printk("Stub tool 2 executed - Token: %u, Args: %s\n", execution_token,
 								params ? params : "(null)");
@@ -247,7 +259,7 @@ static int stub_tool_callback_2(const char *params, uint32_t execution_token)
 	return 0;
 }
 
-static int stub_tool_callback_3(const char *params, uint32_t execution_token)
+static int stub_tool_callback_3(enum mcp_tool_event_type event, const char *params, uint32_t execution_token)
 {
 	int ret;
 	bool is_canceled;
@@ -261,6 +273,12 @@ static int stub_tool_callback_3(const char *params, uint32_t execution_token)
 	tool_execution_count++;
 	last_execution_token = execution_token;
 
+	if (event == MCP_TOOL_CANCEL_REQUEST)
+	{
+		/* Ignore the cancellation event in unit tests. */
+		return 0;
+	}
+	
 	printk("Stub tool 3 executed - Token: %u, Args: %s\n", execution_token,
 								params ? params : "(null)");
 
@@ -293,7 +311,7 @@ static int stub_tool_callback_3(const char *params, uint32_t execution_token)
 	return 0;
 }
 
-static int test_tool_success_callback(const char *params, uint32_t execution_token)
+static int test_tool_success_callback(enum mcp_tool_event_type event, const char *params, uint32_t execution_token)
 {
 	int ret;
 	bool is_canceled;
@@ -304,6 +322,12 @@ static int test_tool_success_callback(const char *params, uint32_t execution_tok
 	tool_execution_count++;
 	last_execution_token = execution_token;
 
+	if (event == MCP_TOOL_CANCEL_REQUEST)
+	{
+		/* Ignore the cancellation event in unit tests. */
+		return 0;
+	}
+	
 	if (params) {
 		strncpy(last_execution_params, params, sizeof(last_execution_params) - 1);
 		last_execution_params[sizeof(last_execution_params) - 1] = '\0';
@@ -352,7 +376,7 @@ static int test_tool_success_callback(const char *params, uint32_t execution_tok
 	return 0;
 }
 
-static int test_tool_error_callback(const char *params, uint32_t execution_token)
+static int test_tool_error_callback(enum mcp_tool_event_type event, const char *params, uint32_t execution_token)
 {
 	int ret;
 	bool is_canceled;
@@ -366,6 +390,12 @@ static int test_tool_error_callback(const char *params, uint32_t execution_token
 	tool_execution_count++;
 	last_execution_token = execution_token;
 
+	if (event == MCP_TOOL_CANCEL_REQUEST)
+	{
+		/* Ignore the cancellation event in unit tests. */
+		return 0;
+	}
+	
 	printk("ERROR tool executed! Count: %d, Token: %u, Args: %s (submitting error response)\n",
 								tool_execution_count, execution_token, params ? params : "(null)");
 
@@ -398,7 +428,7 @@ static int test_tool_error_callback(const char *params, uint32_t execution_token
 	return 0;
 }
 
-static int test_tool_slow_callback(const char *params, uint32_t execution_token)
+static int test_tool_slow_callback(enum mcp_tool_event_type event, const char *params, uint32_t execution_token)
 {
 	int ret;
 	bool is_canceled;
@@ -412,6 +442,12 @@ static int test_tool_slow_callback(const char *params, uint32_t execution_token)
 	tool_execution_count++;
 	last_execution_token = execution_token;
 
+	if (event == MCP_TOOL_CANCEL_REQUEST)
+	{
+		/* Ignore the cancellation event in unit tests. */
+		return 0;
+	}
+	
 	printk("SLOW tool starting execution! Token: %u\n", execution_token);
 
 	k_msleep(3000);
@@ -447,7 +483,7 @@ static int test_tool_slow_callback(const char *params, uint32_t execution_token)
 	return 0;
 }
 
-static int test_tool_execution_timeout_callback(const char *params, uint32_t execution_token)
+static int test_tool_execution_timeout_callback(enum mcp_tool_event_type event, const char *params, uint32_t execution_token)
 {
 	int ret;
 	bool is_canceled;
@@ -460,6 +496,12 @@ static int test_tool_execution_timeout_callback(const char *params, uint32_t exe
 	tool_execution_count++;
 	last_execution_token = execution_token;
 
+	if (event == MCP_TOOL_CANCEL_REQUEST)
+	{
+		/* Ignore the cancellation event in unit tests. */
+		return 0;
+	}
+	
 	printk("TIMEOUT tool starting execution! Token: %u\n", execution_token);
 
 	int i_max = (CONFIG_MCP_TOOL_EXEC_TIMEOUT_MS / CONFIG_MCP_TOOL_IDLE_TIMEOUT_MS) * 10;
@@ -521,7 +563,7 @@ static int test_tool_execution_timeout_callback(const char *params, uint32_t exe
 	return 0;
 }
 
-static int test_tool_idle_timeout_callback(const char *params, uint32_t execution_token)
+static int test_tool_idle_timeout_callback(enum mcp_tool_event_type event, const char *params, uint32_t execution_token)
 {
 	int ret;
 	bool is_canceled;
@@ -534,6 +576,12 @@ static int test_tool_idle_timeout_callback(const char *params, uint32_t executio
 	tool_execution_count++;
 	last_execution_token = execution_token;
 
+	if (event == MCP_TOOL_CANCEL_REQUEST)
+	{
+		/* Ignore the cancellation event in unit tests. */
+		return 0;
+	}
+	
 	printk("IDLE TIMEOUT tool starting execution! Token: %u\n", execution_token);
 
 	for (int i = 0; i < 10; i++) {
@@ -577,7 +625,7 @@ static int test_tool_idle_timeout_callback(const char *params, uint32_t executio
 	return 0;
 }
 
-static int test_tool_cancel_timeout_callback(const char *params, uint32_t execution_token)
+static int test_tool_cancel_timeout_callback(enum mcp_tool_event_type event, const char *params, uint32_t execution_token)
 {
 	int ret;
 	bool is_canceled;
@@ -585,6 +633,12 @@ static int test_tool_cancel_timeout_callback(const char *params, uint32_t execut
 	tool_execution_count++;
 	last_execution_token = execution_token;
 
+	if (event == MCP_TOOL_CANCEL_REQUEST)
+	{
+		/* Ignore the cancellation event in unit tests. */
+		return 0;
+	}
+	
 	printk("CANCEL TIMEOUT tool starting execution! Token: %u\n", execution_token);
 
 	for (int i = 0; i < 10; i++) {
