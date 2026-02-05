@@ -1257,6 +1257,103 @@ out:
 	return ret;
 }
 
+#ifdef CONFIG_WIFI_MGMT_WILDCARD_SECURITY
+/**
+ * @brief Get security type from vendor driver's scan results
+ *
+ * Similar to set_ap_bandwidth pattern
+ */
+static int get_security_from_vendor(const struct device *dev,
+				    const uint8_t *ssid,
+				    size_t ssid_len,
+				    enum wifi_security_type *security,
+				    enum wifi_mfp_options *mfp)
+{
+	const struct wifi_mgmt_ops *const wifi_mgmt_api = get_wifi_mgmt_api(dev);
+
+	if (wifi_mgmt_api == NULL || wifi_mgmt_api->get_security_from_scan == NULL) {
+		wpa_printf(MSG_ERROR, "Vendor driver does not support security detection");
+		return -ENOTSUP;
+	}
+
+	return wifi_mgmt_api->get_security_from_scan(dev, ssid, ssid_len, security, mfp);
+}
+
+/**
+ * @brief Resolve wildcard security type to actual security
+ *
+ * @param dev Network device
+ * @param params Connection parameters (will be modified)
+ * @return 0 on success, negative errno on failure
+ */
+static int resolve_wildcard_security(const struct device *dev,
+				     struct wifi_connect_req_params *params)
+{
+	enum wifi_security_type detected_security;
+	enum wifi_mfp_options detected_mfp = WIFI_MFP_OPTIONAL;
+	int ret;
+
+	wpa_printf(MSG_INFO, "Auto-detecting security for SSID '%.*s'...",
+		   (int)params->ssid_length, params->ssid);
+
+	/* Query vendor driver for security type from scan results */
+	ret = get_security_from_vendor(dev, params->ssid, params->ssid_length,
+				       &detected_security, &detected_mfp);
+	if (ret) {
+		if (ret == -ENOENT) {
+			wpa_printf(MSG_ERROR,
+				   "AP with SSID='%.*s' not found in scan results",
+				   (int)params->ssid_length, params->ssid);
+			wpa_printf(MSG_ERROR,
+				   "Please run 'wifi scan' first, then retry connection");
+		} else if (ret == -ENOTSUP) {
+			wpa_printf(MSG_ERROR,
+				   "Wildcard security not supported by vendor driver");
+		} else {
+			wpa_printf(MSG_ERROR, "Failed to detect security: %d", ret);
+		}
+		return ret;
+	}
+
+	/* Update to detected security type */
+	params->security = detected_security;
+
+	wpa_printf(MSG_INFO, "Auto-detected security: %s",
+		   wifi_security_txt(detected_security));
+
+	/* Auto-configure MFP if not explicitly set by user */
+	if (params->mfp == WIFI_MFP_OPTIONAL) {
+		if (detected_security == WIFI_SECURITY_TYPE_SAE_HNP ||
+		    detected_security == WIFI_SECURITY_TYPE_SAE_H2E ||
+		    detected_security == WIFI_SECURITY_TYPE_SAE_AUTO) {
+			params->mfp = WIFI_MFP_REQUIRED;
+			wpa_printf(MSG_INFO, "Auto-set MFP=REQUIRED for SAE");
+		} else if (detected_mfp != WIFI_MFP_UNKNOWN &&
+			   detected_mfp != WIFI_MFP_OPTIONAL) {
+			params->mfp = detected_mfp;
+			wpa_printf(MSG_INFO, "Auto-set MFP=%d from scan results",
+				   detected_mfp);
+		}
+	}
+
+	/* Validate password for secure networks */
+	if (detected_security != WIFI_SECURITY_TYPE_NONE &&
+	    detected_security != WIFI_SECURITY_TYPE_UNKNOWN) {
+		bool has_psk = (params->psk && params->psk_length > 0);
+		bool has_sae = (params->sae_password && params->sae_password_length > 0);
+
+		if (!has_psk && !has_sae) {
+			wpa_printf(MSG_ERROR,
+				   "Detected secure network (%s) but no password provided",
+				   wifi_security_txt(detected_security));
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+#endif /* CONFIG_WIFI_MGMT_WILDCARD_SECURITY */
+
 /* Public API */
 int supplicant_connect(const struct device *dev, struct wifi_connect_req_params *params)
 {
@@ -1269,6 +1366,21 @@ int supplicant_connect(const struct device *dev, struct wifi_connect_req_params 
 			   dev->name);
 		return -1;
 	}
+
+#ifdef CONFIG_WIFI_MGMT_WILDCARD_SECURITY
+	/* Resolve wildcard security type before acquiring mutex
+	 * Similar to set_ap_bandwidth pattern
+	 */
+	if (params->security == WIFI_SECURITY_TYPE_WILDCARD) {
+		ret = resolve_wildcard_security(dev, params);
+		if (ret) {
+			wpa_printf(MSG_ERROR,
+				   "Failed to resolve wildcard security: %d", ret);
+			return ret;
+		}
+		/* params->security is now updated to actual security type */
+	}
+#endif
 
 	k_mutex_lock(&wpa_supplicant_mutex, K_FOREVER);
 
