@@ -1,0 +1,38 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * T1S binding overlay
+ */
+
+/ {
+	soc {
+		/delete-node/ enet_mdio;
+	};
+};
+
+&enet {
+	status = "okay";
+	pinctrl-0 = <&pinmux_t1s>;
+	pinctrl-names = "default";
+};
+
+&enet_mac {
+	status = "okay";
+	phy-connection-type = "internal";
+	zephyr,random-mac-address;
+	phy-handle = <&t1s>;
+};
+
+&t1s {
+	plca-enable;
+	plca-node-id = <1>;
+	plca-node-count = <8>;
+	plca-burst-count = <0>;
+	plca-burst-timer = <0x80>;
+	plca-to-timer = <0x20>;
+	status = "okay";
+};
+
+&pinctrl {
+	/delete-node/ pinmux_enet_qos;
+};
