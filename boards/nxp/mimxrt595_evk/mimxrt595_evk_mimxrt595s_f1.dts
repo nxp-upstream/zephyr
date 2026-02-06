@@ -4,51 +4,87 @@
  */
 
 /dts-v1/;
-#include <mem.h>
-#include <xtensa/xtensa.dtsi>
+
+
+#include <nxp/nxp_rt595_f1.dtsi>
+#include <zephyr/dt-bindings/gpio/gpio.h>
+
+#include "mimxrt595_evk_mimxrt595s_cm33-pinctrl.dtsi"
 
 / {
-	model = "nxp_adsp_rt595";
-	compatible = "nxp";
-
-	cpus {
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		cpu0: cpu@0 {
-			device_type = "cpu";
-			compatible = "cdns,tensilica-xtensa-lx6";
-			reg = <0>;
-		};
-	};
-
-	sram0: memory@0 {
-		#address-cells = <1>;
-		#size-cells = <1>;
-		device_type = "memory";
-		compatible = "mmio-sram";
-		/* Reserve first 512kB of shared memory for ADSP. */
-		reg = <0x0 DT_SIZE_K(512)>;
-
-		/* Reset section must always be at 0 and at least 1kB. */
-		adsp_reset: memory@0 {
-			reg = <0x0 DT_SIZE_K(1)>;
-		};
-
-		/* Code and data sections can be moved around and resized if needed. */
-		adsp_text: memory@400 {
-			reg = <0x400 DT_SIZE_K(255)>;
-		};
-
-		/* On RT595 ADSP shared RAM is mapped at offset 0 on the code bus and at
-		 * offset 0x800000 on the data bus.
-		 */
-		adsp_data: memory@840000 {
-			reg = <0x840000 DT_SIZE_K(256)>;
-		};
-	};
+	model = "NXP MIMXRT595-EVK board, Fusion 1 DSP domain";
+	compatible = "nxp,mimxrt595";
 
 	chosen {
-		zephyr,sram = &adsp_data;
+		zephyr,console = &flexcomm0;
+		zephyr,shell-uart = &flexcomm0;
+	};
+//
+	aliases {
+		led0 = &green_led;
+		led1 = &blue_led;
+		led2 = &red_led;
+		sw0 = &user_button_1;
+		mbox = &mbox;
+	};
+
+	leds: leds {
+		compatible = "gpio-leds";
+
+		green_led: led_1 {
+			gpios = <&gpio1 0 0>;
+			label = "User LED_GREEN";
+		};
+
+		blue_led: led_2 {
+			gpios = <&gpio3 17 0>;
+			label = "User LED_BLUE";
+		};
+
+		red_led: led_3 {
+			gpios = <&gpio0 14 0>;
+			label = "User LED_RED";
+		};
+	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+
+		user_button_1: button_0 {
+			label = "User SW1";
+			gpios = <&gpio0 25 GPIO_ACTIVE_LOW>;
+			zephyr,code = <INPUT_KEY_0>;
+		};
 	};
 };
+
+&gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
+	status = "okay";
+};
+
+&dma0 {
+	status = "okay";
+};
+
+&dma1 {
+	status = "okay";
+};
+
+&flexcomm0 {
+	compatible = "nxp,lpc-usart";
+	pinctrl-0 = <&pinmux_flexcomm0_usart>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+	dmas = <&dma0 0>, <&dma0 1>;
+	dma-names = "rx", "tx";
+};
+
+&mbox {
+	status = "okay";
+};
+

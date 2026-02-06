@@ -4,6 +4,15 @@ type: mcu
 arch: xtensa
 toolchain:
   - zephyr
+  - xt-clang
+  - xtools
+supported:
+  - dma
+  - gpio
+  - i2c
+  - i3c
+  - i2s
+  - spi
 testing:
   only_tags:
     - kernel
