@@ -411,6 +411,8 @@ static int mcux_jpegdec_get_caps(const struct device *dev, struct video_caps *ca
 		caps->format_caps = mcux_jpegdec_in_fmts;
 	}
 
+	caps->buf_align = 16;
+
 	return 0;
 }
 
