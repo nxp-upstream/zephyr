@@ -675,18 +675,20 @@ static int handle_tools_call_request(struct mcp_server_ctx *server,
 	ret = k_mutex_lock(&tool_registry->mutex, K_FOREVER);
 	if (ret != 0) {
 		LOG_ERR("Failed to lock tool registry: %d", ret);
-		goto cleanup_active_request;
+		client_put(server, client);
+		return ret;
 	}
 
 	tool = get_tool(server, request->req.u.tools_call.name);
+	if (tool == NULL) {
+		k_mutex_unlock(&tool_registry->mutex);
+		LOG_ERR("Tool '%s' not found", request->req.u.tools_call.name);
+		client_put(server, client);
+		return -ENOENT;
+	}
+
 	tool->activity_counter++;
 	k_mutex_unlock(&tool_registry->mutex);
-
-	if (tool == NULL) {
-		LOG_ERR("Tool '%s' not found", request->req.u.tools_call.name);
-		ret = -ENOENT;
-		goto cleanup_active_request;
-	}
 
 	/* Create execution context */
 	ret = k_mutex_lock(&execution_registry->mutex, K_FOREVER);
@@ -753,6 +755,13 @@ cleanup_active_request:
 		}
 		k_mutex_unlock(&client_registry->mutex);
 	}
+
+	/* Decrement tool activity counter on failure */
+	if (k_mutex_lock(&tool_registry->mutex, K_FOREVER) == 0) {
+		tool->activity_counter--;
+		k_mutex_unlock(&tool_registry->mutex);
+	}
+
 	client_put(server, client);
 	return ret;
 }
