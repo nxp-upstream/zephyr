@@ -305,6 +305,29 @@ int mcp_json_serialize_tools_call_result(char *out, size_t out_len, const struct
 int mcp_json_serialize_error(char *out, size_t out_len, const struct mcp_request_id *id,
 			     const struct mcp_error *err);
 
+/**
+ * @brief Serialize a notifications/cancelled notification.
+ *
+ * Generates a JSON-RPC notification message:
+ * {
+ *   "jsonrpc":"2.0",
+ *   "method":"notifications/cancelled",
+ *   "params":{
+ *     "requestId":<id>,
+ *     "reason":"..."
+ *   }
+ * }
+ *
+ * @param out Output buffer for the serialized JSON string.
+ * @param out_len Size of the output buffer.
+ * @param params Pointer to the cancelled notification parameters containing
+ *               requestId and optional reason.
+ *
+ * @return Number of bytes written (excluding NUL terminator) on success,
+ *         negative error code on failure.
+ */
+int mcp_json_serialize_cancel_notification(char *out, size_t out_len,
+					   const struct mcp_params_notif_cancelled *params);
 #ifdef __cplusplus
 }
 #endif

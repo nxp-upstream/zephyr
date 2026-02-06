@@ -1015,9 +1015,11 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 	int64_t execution_duration;
 	int64_t idle_duration;
 	int64_t cancel_duration;
+	uint8_t *json_buffer = NULL;
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 	struct mcp_execution_registry *execution_registry = &server->execution_registry;
 	struct mcp_client_registry *client_registry = &server->client_registry;
+	struct mcp_params_notif_cancelled *params = NULL;
 
 	while (1) {
 		k_sleep(K_MSEC(CONFIG_MCP_HEALTH_CHECK_INTERVAL_MS));
@@ -1061,7 +1063,57 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 					"(%lld ms). Client: %p, Worker ID %u",
 					context->execution_token, execution_duration,
 					context->client, (uint32_t)context->worker_id);
-				/* TODO: Notify client? */
+				/* Allocate notification params structure */
+				params = (struct mcp_params_notif_cancelled *)
+					mcp_alloc(sizeof(struct mcp_params_notif_cancelled));
+			
+				if (params == NULL) {
+					LOG_ERR("Failed to allocate notification params");
+					ret = -ENOMEM;
+					continue;
+				}
+
+				/* Allocate buffer for serialization */
+				json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
+				if (json_buffer == NULL) {
+					LOG_ERR("Failed to allocate buffer, dropping notification");
+					mcp_free(params);
+					continue;
+				}
+
+				/* Fill in the notification parameters */
+				params->request_id = context->request_id;
+				mcp_safe_strcpy(params->reason, sizeof(params->reason), "Execution timeout");
+				params->has_reason = true;
+
+				/* Serialize the notification */
+				ret = mcp_json_serialize_cancel_notification((char *)json_buffer,
+													CONFIG_MCP_MAX_MESSAGE_SIZE, params);
+				if (ret <= 0) {
+					LOG_ERR("Failed to serialize cancel notification: %d", ret);
+					mcp_free(params);
+					mcp_free(json_buffer);
+					continue;
+				}
+
+				/* Send the notification to the client */
+				struct mcp_transport_message tx_msg = {
+					.binding = context->client->binding,
+					.msg_id = 0,  /* Notifications don't have a response msg_id */
+					.json_data = (char *)json_buffer,
+					.json_len = ret
+				};
+
+				ret = context->client->binding->ops->send(&tx_msg);
+				if (ret != 0) {
+					LOG_ERR("Failed to send cancel notification: %d", ret);
+				}
+
+				/* Clean up */
+				mcp_free(params);
+				mcp_free(json_buffer);
+
+				/* Update execution state */
 				context->execution_state = MCP_EXEC_CANCELED;
 				context->cancel_timestamp = current_time;
 				context->tool->callback(MCP_TOOL_CANCEL_REQUEST, NULL, context->execution_token);

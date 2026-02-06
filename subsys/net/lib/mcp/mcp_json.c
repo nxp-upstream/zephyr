@@ -69,24 +69,50 @@ static const struct json_obj_descr mcp_tools_call_req_descr[] = {
 };
 
 /*******************************************************************************
- * Notification/cancelled request descriptor
+ * Notification/cancelled request descriptor (client -> server)
  ******************************************************************************/
-struct mcp_json_cancelled_notif {
+struct mcp_json_cancelled_notif_in {
 	struct {
 		struct json_obj_token requestId;
 		const char *reason;
 	} params;
 };
 
-static const struct json_obj_descr mcp_cancelled_params_descr[] = {
-	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_cancelled_notif *)0)->params), requestId,
+static const struct json_obj_descr mcp_cancelled_in_params_descr[] = {
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_cancelled_notif_in *)0)->params), requestId,
 			    JSON_TOK_OPAQUE),
-	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_cancelled_notif *)0)->params), reason,
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_cancelled_notif_in *)0)->params), reason,
 			    JSON_TOK_STRING),
 };
 
-static const struct json_obj_descr mcp_cancelled_notif_descr[] = {
-	JSON_OBJ_DESCR_OBJECT(struct mcp_json_cancelled_notif, params, mcp_cancelled_params_descr),
+static const struct json_obj_descr mcp_cancelled_notif_in_descr[] = {
+	JSON_OBJ_DESCR_OBJECT(struct mcp_json_cancelled_notif_in, params, mcp_cancelled_in_params_descr),
+};
+
+/*******************************************************************************
+ * Notification/cancelled request descriptor (server -> client)
+ ******************************************************************************/
+struct mcp_json_cancelled_notif_out {
+	const char *jsonrpc;
+	const char *method;
+	struct {
+		const char *requestId;
+		const char *reason;
+	} params;
+};
+
+static const struct json_obj_descr mcp_cancelled_out_params_descr[] = {
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_cancelled_notif_out *)0)->params),
+			    requestId, JSON_TOK_ENCODED_OBJ),
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_cancelled_notif_out *)0)->params), reason,
+			    JSON_TOK_STRING),
+};
+
+static const struct json_obj_descr mcp_json_cancelled_notif_out_descr[] = {
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_cancelled_notif_out, jsonrpc, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_cancelled_notif_out, method, JSON_TOK_STRING),
+	JSON_OBJ_DESCR_OBJECT(struct mcp_json_cancelled_notif_out, params,
+			      mcp_cancelled_out_params_descr),
 };
 
 /*******************************************************************************
@@ -378,10 +404,10 @@ static int parse_notif_initialized(const char *buf, size_t len, struct mcp_messa
 
 static int parse_notif_cancelled(const char *buf, size_t len, struct mcp_message *msg)
 {
-	struct mcp_json_cancelled_notif tmp = {0};
+	struct mcp_json_cancelled_notif_in tmp = {0};
 
-	int ret = json_obj_parse((char *)buf, len, mcp_cancelled_notif_descr,
-				 ARRAY_SIZE(mcp_cancelled_notif_descr), &tmp);
+	int ret = json_obj_parse((char *)buf, len, mcp_cancelled_notif_in_descr,
+				 ARRAY_SIZE(mcp_cancelled_notif_in_descr), &tmp);
 	if (ret < 0) {
 		return -EINVAL;
 	}
@@ -656,6 +682,36 @@ int mcp_json_serialize_error(char *out, size_t out_len, const struct mcp_request
 
 	int ret = json_obj_encode_buf(mcp_json_error_descr, ARRAY_SIZE(mcp_json_error_descr),
 				      &json_err, out, out_len);
+
+	return (ret == 0) ? strlen(out) : ret;
+}
+
+int mcp_json_serialize_cancel_notification(char *out, size_t out_len,
+					   const struct mcp_params_notif_cancelled *params)
+{
+	if (!out || !params || out_len == 0) {
+		return -EINVAL;
+	}
+
+	const char *request_id_str =
+		(params->request_id.string[0] != '\0') ? params->request_id.string : "null";
+	const char *reason_str = (params->has_reason && params->reason[0] != '\0')
+					 ? params->reason
+					 : NULL;
+
+	struct mcp_json_cancelled_notif_out json_notif = {
+		.jsonrpc = JSON_RPC_VERSION,
+		.method = "notifications/cancelled",
+		.params =
+			{
+				.requestId = request_id_str,
+				.reason = reason_str,
+			},
+	};
+
+	int ret = json_obj_encode_buf(mcp_json_cancelled_notif_out_descr,
+				      ARRAY_SIZE(mcp_json_cancelled_notif_out_descr), &json_notif,
+				      out, out_len);
 
 	return (ret == 0) ? strlen(out) : ret;
 }
