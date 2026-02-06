@@ -15,6 +15,7 @@
 #include <zephyr/dt-bindings/inputmux/inputmux_trigger_ports.h>
 #include <zephyr/dt-bindings/memory-attr/memory-attr-arm.h>
 #include <zephyr/dt-bindings/reset/nxp_syscon_reset_common.h>
+#include <zephyr/dt-bindings/misc/nxp_rtxxx_dsp_ctrl.h>
 
 / {
 	chosen {
@@ -66,6 +67,31 @@
 			};
 		};
 	};
+
+	dsp: dsp {
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		compatible = "nxp,rt500-dsp-ctrl";
+		sysctl = <&sysctl0>;
+
+		status = "disabled";
+
+		region@180000 {
+			reg = <0x180000 DT_SIZE_K(1)>;
+			type = <NXP_RTXXX_DSP_REGION_RESET>;
+		};
+
+		region@180400 {
+			reg = <0x180400 DT_SIZE_K(255)>;
+			type = <NXP_RTXXX_DSP_REGION_TEXT>;
+		};
+
+		region@80000 {
+			reg = <0x80000 DT_SIZE_K(256)>;
+			type = <NXP_RTXXX_DSP_REGION_DATA>;
+		};
+	};
 };
 
 &sram {
@@ -83,12 +109,12 @@
 	 */
 	sram_code: memory@1b000 {
 		compatible = "mmio-sram";
-		reg = <0x1b000 DT_SIZE_K(1428)>;
+		reg = <0x1b000 DT_SIZE_K(404)>;
 	};
 
-	sram0: memory@20180000 {
+	sram0: memory@280000 {
 		compatible = "mmio-sram";
-		reg = <0x20180000 DT_SIZE_K(3072)>;
+		reg = <0x280000 DT_SIZE_K(2048)>;
 	};
 
 	sram1: memory@40140000 {
@@ -111,6 +137,14 @@
 	#address-cells = <1>;
 	#size-cells = <1>;
 
+	/*
+	 * Dummy node - it does not instantiate a real driver, rather it provide the
+	 * base address of the SYSCTL0 block for use with the "dsp" node.
+	 */
+	sysctl0: sysctl@2000 {
+		reg = <0x2000 0x2000>;
+		compatible = "nxp,rt5xx-sysctl";
+	};
 	/*
 	 * Note that the offsets here are relative to the base address
 	 * defined in either nxp_rt5xx_ns.dtsi or nxp_rt5xx.dtsi. The base
@@ -587,7 +621,7 @@
 		clocks = <&clkctl1 MCUX_LPADC1_CLK>;
 	};
 
-	smartdma: dma@27020 {
+	smartdma: dma@27000 {
 		compatible = "nxp,smartdma";
 		reg = <0x27000 0x1000>;
 		program-mem = <0x24100000>;
