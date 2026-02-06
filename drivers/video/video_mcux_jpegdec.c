@@ -416,6 +416,28 @@ static int mcux_jpegdec_get_caps(const struct device *dev, struct video_caps *ca
 	return 0;
 }
 
+static int mcux_jpegdec_transform_cap(const struct device *const dev,
+				      const struct video_format_cap *const cap,
+				      struct video_format_cap *const res_cap,
+				      enum video_buf_type direction, uint16_t ind)
+{
+	struct mcux_jpegdec_data *data = dev->data;
+
+	if (ind > 0) {
+		return -ERANGE;
+	}
+
+	*res_cap = *cap;
+	if (direction == VIDEO_BUF_TYPE_OUTPUT) {
+		res_cap->pixelformat = data->m2m.in.fmt.pixelformat;
+
+	} else {
+		res_cap->pixelformat = data->m2m.out.fmt.pixelformat;
+	}
+
+	return 0;
+}
+
 static DEVICE_API(video, mcux_jpegdec_driver_api) = {
 	/* mandatory callbacks */
 	.set_format = mcux_jpegdec_set_fmt,
@@ -425,6 +447,7 @@ static DEVICE_API(video, mcux_jpegdec_driver_api) = {
 	/* optional callbacks */
 	.enqueue = mcux_jpegdec_enqueue, /* Enqueue a buffer in the driver’s incoming queue */
 	.dequeue = mcux_jpegdec_dequeue, /* Dequeue a buffer from the driver’s outgoing queue */
+	.transform_cap = mcux_jpegdec_transform_cap,
 };
 
 static int mcux_jpegdec_init(const struct device *dev)
