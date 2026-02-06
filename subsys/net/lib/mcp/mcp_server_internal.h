@@ -26,17 +26,17 @@ struct mcp_transport_message;
  */
 struct mcp_transport_ops {
 	/**
-	 * Send MCP response data to a client via transport
+	 * @brief Send MCP response data to a client via transport
 	 *
-	 * This function queues response data for delivery to a client.
+	 * @note This function queues response data for delivery to a client.
 	 *
-	 * Data Ownership and Memory Management:
-	 * -------------------------------------
-	 * INPUT (data parameter):
-	 *   - Caller (MCP core) allocates the response data buffer
-	 *   - This function takes OWNERSHIP of the data pointer
-	 *   - Data is NOT copied - the pointer is stored directly in the response item
-	 *   - Caller must NOT free the data after calling this function
+	 * 		 Data Ownership and Memory Management:
+	 * 		 -------------------------------------
+	 * 		 INPUT (data parameter):
+	 *   		 - Caller (MCP core) allocates the response data buffer
+	 *   		 - This function takes OWNERSHIP of the data pointer
+	 *   		 - Data is NOT copied - the pointer is stored directly in the response item
+	 *   		 - Caller must NOT free the data after calling this function
 	 *
 	 * @param msg Transport message data
 	 *
@@ -49,15 +49,15 @@ struct mcp_transport_ops {
 	/**
 	 * @brief Disconnect a client
 	 *
-	 * Disconnects a client from the transport and cleans up associated resources.
+	 * @note Disconnects a client from the transport and cleans up associated resources.
 	 *
-	 * IMPORTANT: The transport implementation MUST drain and free any queued
-	 * response data that has not yet been sent to the client. This includes:
-	 * - Response items in any FIFO/message queues
-	 * - The actual response data buffers (allocated by MCP core)
-	 * - Any other dynamically allocated resources associated with the client
+	 * 		 IMPORTANT: The transport implementation MUST drain and free any queued
+	 * 		 response data that has not yet been sent to the client. This includes:
+	 * 		 - Response items in any FIFO/message queues
+	 * 		 - The actual response data buffers (allocated by MCP core)
+	 * 		 - Any other dynamically allocated resources associated with the client
 	 *
-	 * Failure to properly free queued data will result in memory leaks.
+	 * 		 Failure to properly free queued data will result in memory leaks.
 	 *
 	 * @param binding Client transport binding
 	 * @return 0 on success, negative errno on failure
@@ -89,20 +89,20 @@ struct mcp_transport_message {
 };
 
 /**
- * Handle an incoming MCP request from a client
+ * @brief Handle an incoming MCP request from a client
  *
- * This function is the main entry point for processing MCP protocol requests.
- * It parses the incoming JSON request, determines the method type, and routes
- * the request to the appropriate handler or queues it for asynchronous processing.
+ * @note This function is the main entry point for processing MCP protocol requests.
+ * 		 It parses the incoming JSON request, determines the method type, and routes
+ * 		 the request to the appropriate handler or queues it for asynchronous processing.
  *
- * Request handling flow:
- * 1. Parse JSON request into MCP message structure
- * 2. Determine the method type (initialize, ping, tools_list, etc.)
- * 3. Route based on method:
- *    - INITIALIZE: Handle directly and create new client context
- *    - PING: Handle directly with immediate response
- *    - TOOLS_LIST/TOOLS_CALL/NOTIF_*: Queue for async processing
- *    - UNKNOWN: Send error response for unsupported methods
+ * 		 Request handling flow:
+ * 		 1. Parse JSON request into MCP message structure
+ * 		 2. Determine the method type (initialize, ping, tools_list, etc.)
+ * 		 3. Route based on method:
+ *    		 - INITIALIZE: Handle directly and create new client context
+ *    		 - PING: Handle directly with immediate response
+ *    		 - TOOLS_LIST/TOOLS_CALL/NOTIF_*: Queue for async processing
+ *    		 - UNKNOWN: Send error response for unsupported methods
  *
  * @param ctx MCP server context handle
  * @param request Request data containing JSON payload and client hint

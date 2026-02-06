@@ -19,16 +19,22 @@
 extern "C" {
 #endif
 
+/**
+ * @brief MCP Tool message type
+ */
 enum mcp_tool_msg_type {
-	MCP_USR_TOOL_RESPONSE,
-	MCP_USR_TOOL_NOTIFICATION,
-	MCP_USR_TOOL_CANCEL_ACK,
-	MCP_USR_TOOL_PING
+	MCP_USR_TOOL_RESPONSE, /**< JSON-RPC reponse to a client request */
+	MCP_USR_TOOL_NOTIFICATION, /**< Tool to client notification */
+	MCP_USR_TOOL_CANCEL_ACK, /**< Cancelation acknowledgment to the MCP Core */
+	MCP_USR_TOOL_PING /**< Ping to signify the tool is alive to the MCP Core */
 };
 
+/**
+ * @brief MCP Tool event type
+ */
 enum mcp_tool_event_type {
-	MCP_TOOL_CALL_REQUEST,
-	MCP_TOOL_CANCEL_REQUEST
+	MCP_TOOL_CALL_REQUEST, /**< JSON-RPC request calling the tool */
+	MCP_TOOL_CANCEL_REQUEST /**< Tool cancelation request */
 };
 
 /**

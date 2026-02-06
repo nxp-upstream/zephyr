@@ -23,63 +23,85 @@ LOG_MODULE_REGISTER(mcp_server, CONFIG_MCP_LOG_LEVEL);
 #define MCP_SERVER_VERSION   "1.0.0"
 #define MCP_PROTOCOL_VERSION "2025-11-25"
 
-/* Lifecycle monitoring of a client's session */
+/**
+ * @brief Lifecycle monitoring of a client's session
+ */
 enum mcp_lifecycle_state {
-	MCP_LIFECYCLE_DEINITIALIZED = 0,
-	MCP_LIFECYCLE_NEW,
-	MCP_LIFECYCLE_INITIALIZING,
-	MCP_LIFECYCLE_INITIALIZED
+	MCP_LIFECYCLE_DEINITIALIZED = 0, /**< No client allocated */
+	MCP_LIFECYCLE_NEW,               /**< Client allocated, not initialized */
+	MCP_LIFECYCLE_INITIALIZING,      /**< Initialize response sent */
+	MCP_LIFECYCLE_INITIALIZED        /**< Client confirmed initialization */
 };
 
-/* Lifecycle monitoring of a tool execution */
+/**
+ * @brief Lifecycle monitoring of a tool execution
+ */
 enum mcp_execution_state {
-	MCP_EXEC_ACTIVE,
-	MCP_EXEC_CANCELED,
-	MCP_EXEC_FINISHED
+	MCP_EXEC_ACTIVE,    /**< Execution in progress */
+	MCP_EXEC_CANCELED,  /**< Cancellation requested */
+	MCP_EXEC_FINISHED   /**< Execution completed */
 };
 
+/**
+ * @brief Client context
+ * @note Used to hold lifecycle and request tracking information
+ * 		 and the transport layer binding
+ */
 struct mcp_client_context {
-	enum mcp_lifecycle_state lifecycle_state;
-	uint8_t active_request_count;
-	atomic_t refcount;
-	int64_t last_message_timestamp;
-	struct mcp_execution_context *active_requests[CONFIG_MCP_MAX_CLIENT_REQUESTS];
-	struct mcp_transport_binding *binding;
+	enum mcp_lifecycle_state lifecycle_state; /**< Current state */
+	uint8_t active_request_count;             /**< Number of pending requests */
+	atomic_t refcount;                        /**< Reference count for cleanup */
+	int64_t last_message_timestamp;           /**< Last activity time (uptime ms) */
+	struct mcp_execution_context *active_requests[CONFIG_MCP_MAX_CLIENT_REQUESTS]; /**< Active request tracking */
+	struct mcp_transport_binding *binding; /**< Transport layer binding for this client */
 };
 
-/* Struct holding the pointer to a client's request's data */
+/**
+ * @brief Struct holding the pointer to a client's request's data
+ */
 struct mcp_queue_msg {
 	struct mcp_client_context *client;
 	uint32_t transport_msg_id;
 	void *data;
 };
 
-/* Registry holding the tools added by the user application to the server */
+/**
+ * @brief Registry holding the tools added by the user application to the server
+ */
 struct mcp_tool_registry {
 	struct mcp_tool_record tools[CONFIG_MCP_MAX_TOOLS];
 	struct k_mutex mutex;
 	uint8_t tool_count;
 };
 
-/* Context for a tool execution */
+/**
+	* @brief Tool execution context
+	* @note Tracks the state and metadata of a single tool execution
+	*/
 struct mcp_execution_context {
-	uint32_t execution_token;
-	struct mcp_request_id request_id;
-	uint32_t transport_msg_id;
-	struct mcp_client_context *client;
-	struct mcp_tool_record *tool;
-	k_tid_t worker_id;
-	int64_t start_timestamp;
-	int64_t cancel_timestamp;
-	int64_t last_message_timestamp;
-	enum mcp_execution_state execution_state;
+	uint32_t execution_token; /**< Unique token for this execution */
+	struct mcp_request_id request_id; /**< Actual request ID from the client message */
+	uint32_t transport_msg_id; /**< Message ID from transport layer for inter-layer tracking */
+	struct mcp_client_context *client; /**< Client that initiated this execution */
+	struct mcp_tool_record *tool; /**< Tool being executed */
+	k_tid_t worker_id; /**< Thread ID of the worker handling this execution */
+	int64_t start_timestamp; /**< Execution start time in milliseconds (k_uptime_get) */
+	int64_t cancel_timestamp; /**< Time when cancellation was requested (0 if not canceled) */
+	int64_t last_message_timestamp; /**< Last activity/ping time for idle detection */
+	enum mcp_execution_state execution_state; /**< Current execution state (active/canceled/finished) */
 };
 
+/**
+ * @brief Registry holding all active tool executions
+ */
 struct mcp_execution_registry {
 	struct mcp_execution_context executions[MCP_MAX_REQUESTS];
 	struct k_mutex mutex;
 };
 
+/**
+ * @brief Registry holding all active clients connected to the server
+ */
 struct mcp_client_registry {
 	struct mcp_client_context clients[CONFIG_MCP_MAX_CLIENTS];
 	struct k_mutex mutex;
@@ -92,18 +114,19 @@ struct mcp_client_registry {
  * and message queues for handling MCP protocol requests and responses.
  */
 struct mcp_server_ctx {
-	uint8_t idx;
-	bool in_use;
-	struct mcp_client_registry client_registry;
-	struct k_thread request_workers[CONFIG_MCP_REQUEST_WORKERS];
-	struct k_msgq request_queue;
-	char request_queue_storage[MCP_MAX_REQUESTS * sizeof(struct mcp_queue_msg)];
-	struct mcp_tool_registry tool_registry;
-	struct mcp_execution_registry execution_registry;
+	uint8_t idx; /**< Server instance index in the global mcp_servers array */
+	bool in_use; /**< Flag indicating if this server context is allocated */
+	struct mcp_client_registry client_registry; /**< Registry of all connected clients */
+	struct k_thread request_workers[CONFIG_MCP_REQUEST_WORKERS]; /**< Worker threads for async request processing */
+	struct k_msgq request_queue; /**< Message queue for pending client requests */
+	char request_queue_storage[MCP_MAX_REQUESTS * sizeof(struct mcp_queue_msg)]; /**< Static storage for request queue */
+	struct mcp_tool_registry tool_registry; /**< Registry of available tools */
+	struct mcp_execution_registry execution_registry; /**< Registry of active tool executions */
 #ifdef CONFIG_MCP_HEALTH_MONITOR
-	struct k_thread health_monitor_thread;
+	struct k_thread health_monitor_thread; /**< Thread monitoring execution and client timeouts */
 #endif
 };
+
 
 /*******************************************************************************
  * Variables
@@ -121,6 +144,12 @@ K_THREAD_STACK_ARRAY_DEFINE(mcp_health_monitor_stack, CONFIG_MCP_SERVER_COUNT,
 /*******************************************************************************
  * Server Context Helper Functions
  ******************************************************************************/
+
+ /**
+  * @brief Allocate an MCP Server context
+  * 
+  * @return Pointer to allocated server context, or NULL if no slots available
+  */
 static struct mcp_server_ctx *allocate_mcp_server_context(void)
 {
 	for (uint32_t i = 0; i < ARRAY_SIZE(mcp_servers); i++) {
@@ -139,7 +168,11 @@ static struct mcp_server_ctx *allocate_mcp_server_context(void)
  * Client Context Helper Functions
  * NOTE: Functions with _locked suffix assume the caller holds client_registry.mutex
  ******************************************************************************/
-/* Must be called with client_registry.mutex held */
+/**
+ * @brief Find a client context by transport binding
+ * @note Must be called with client_registry.mutex held
+ * @return Pointer to client context if found, NULL otherwise
+ */
 static struct mcp_client_context *
 get_client_by_binding_locked(struct mcp_server_ctx *server,
 			     const struct mcp_transport_binding *binding)
@@ -155,7 +188,11 @@ get_client_by_binding_locked(struct mcp_server_ctx *server,
 	return NULL;
 }
 
-/* Must be called with client_registry.mutex held */
+/**
+ * @brief Atomically increase the refcount for a client
+ * @note Must be called with client_registry.mutex held
+ * @return Pointer to client context if found and valid, NULL otherwise
+ */
 static struct mcp_client_context *client_get_locked(struct mcp_client_context *client)
 {
 	if (client == NULL || client->lifecycle_state == MCP_LIFECYCLE_DEINITIALIZED) {
@@ -165,7 +202,10 @@ static struct mcp_client_context *client_get_locked(struct mcp_client_context *c
 	return client;
 }
 
-/* Can be called without lock */
+/**
+ * @brief Atomically decrease the refcount for a client and clean up if needed
+ * @note Can be called without lock 
+ */
 static void client_put(struct mcp_server_ctx *server, struct mcp_client_context *client)
 {
 	if (client == NULL) {
@@ -180,7 +220,11 @@ static void client_put(struct mcp_server_ctx *server, struct mcp_client_context 
 	}
 }
 
-/* Must be called with client_registry.mutex held */
+/**
+ * @brief Add a new client to the registry
+ * @note Must be called with client_registry.mutex held
+ * @return Pointer to client context if successful, NULL otherwise
+ */
 static struct mcp_client_context *add_client_locked(struct mcp_server_ctx *server,
 						    struct mcp_transport_binding *binding)
 {
@@ -200,7 +244,10 @@ static struct mcp_client_context *add_client_locked(struct mcp_server_ctx *serve
 	return NULL;
 }
 
-/* Must be called with client_registry.mutex held */
+/**
+ * @brief Remove a client from the registry
+ * @note Must be called with client_registry.mutex held
+ */
 static void remove_client_locked(struct mcp_server_ctx *server, struct mcp_client_context *client)
 {
 	/* Mark as deinitialized. Cleanup happens when refcount reaches 0 */
@@ -216,6 +263,12 @@ static void remove_client_locked(struct mcp_server_ctx *server, struct mcp_clien
  * Execution Context Helper Functions
  * NOTE: All these functions assume the caller holds execution_registry.mutex
  ******************************************************************************/
+
+ /**
+ * @brief Generates an execution token
+ * @note The token is used to track each running execution of a tool
+ * @return Execution token
+ */
 static uint32_t generate_execution_token(uint32_t msg_id)
 {
 	/* Mocking the generation for the 1st phase of development. Security phase
@@ -224,7 +277,11 @@ static uint32_t generate_execution_token(uint32_t msg_id)
 	return msg_id;
 }
 
-/* Must be called with execution_registry.mutex held */
+ /**
+ * @brief Find an execution context by its token
+ * @note Must be called with execution_registry.mutex held
+ * @return Pointer to execution context if found, NULL otherwise
+ */
 static struct mcp_execution_context *get_execution_context(struct mcp_server_ctx *server,
 							   const uint32_t execution_token)
 {
@@ -239,7 +296,11 @@ static struct mcp_execution_context *get_execution_context(struct mcp_server_ctx
 	return NULL;
 }
 
-/* Must be called with execution_registry.mutex held */
+ /**
+ * @brief Add a new execution context to the registry
+ * @note Must be called with execution_registry.mutex held
+ * @return Pointer to execution context if successful, NULL otherwise
+ */
 static struct mcp_execution_context *add_execution_context(struct mcp_server_ctx *server,
 							   struct mcp_client_context *client,
 							   struct mcp_request_id *request_id,
@@ -269,7 +330,10 @@ static struct mcp_execution_context *add_execution_context(struct mcp_server_ctx
 	return NULL;
 }
 
-/* Must be called with execution_registry.mutex held */
+ /**
+ * @brief Remove an execution context from the registry
+ * @note Must be called with execution_registry.mutex held
+ */
 static void remove_execution_context(struct mcp_server_ctx *server,
 				     struct mcp_execution_context *execution_context)
 {
@@ -280,7 +344,12 @@ static void remove_execution_context(struct mcp_server_ctx *server,
  * Tools Context Helper Functions
  * NOTE: All these functions assume the caller holds tool_registry.mutex
  ******************************************************************************/
-/* Must be called with tool_registry.mutex held */
+
+ /**
+ * @brief Find a tool by name in the registry
+ * @note Must be called with tool_registry.mutex held
+ * @return Pointer to tool record if found, NULL otherwise
+ */
 static struct mcp_tool_record *get_tool(struct mcp_server_ctx *server, const char *tool_name)
 {
 	struct mcp_tool_registry *tool_registry = &server->tool_registry;
@@ -296,7 +365,11 @@ static struct mcp_tool_record *get_tool(struct mcp_server_ctx *server, const cha
 	return NULL;
 }
 
-/* Must be called with tool_registry.mutex held */
+ /**
+ * @brief Add a new tool to the registry
+ * @note Must be called with tool_registry.mutex held
+ * @return Pointer to tool record if successful, NULL otherwise
+ */
 static struct mcp_tool_record *add_tool(struct mcp_server_ctx *server,
 					const struct mcp_tool_record *tool_info)
 {
@@ -314,7 +387,11 @@ static struct mcp_tool_record *add_tool(struct mcp_server_ctx *server,
 	return NULL;
 }
 
-/* Must be called with tool_registry.mutex held */
+ /**
+ * @brief Copy tool metadata to response buffer
+ * @note Must be called with tool_registry.mutex held
+ * @return 0 on success, negative error code on failure
+ */
 static int copy_tool_metadata_to_response(struct mcp_server_ctx *server,
 					  struct mcp_result_tools_list *response_data)
 {
@@ -386,6 +463,11 @@ static int copy_tool_metadata_to_response(struct mcp_server_ctx *server,
 /*******************************************************************************
  * Request/Response Handling Functions
  ******************************************************************************/
+
+/**
+ * @brief Serialize the error response to JSON and send it to the client
+ * @return 0 on success, negative error code on failure
+ */
 static int send_error_response(struct mcp_server_ctx *server, struct mcp_client_context *client,
 			       struct mcp_request_id *request_id, int32_t error_code,
 			       const char *error_message, uint32_t msg_id)
@@ -438,6 +520,10 @@ static int send_error_response(struct mcp_server_ctx *server, struct mcp_client_
 	return 0;
 }
 
+/**
+ * @brief Handle initialize request from client and respond with server capabilities
+ * @return 0 on success, negative error code on failure
+ */
 static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_message *request,
 				     struct mcp_transport_binding *binding, uint32_t msg_id)
 {
@@ -540,6 +626,10 @@ cleanup:
 	return ret;
 }
 
+/**
+ * @brief Handle tools/list request from client and respond with available tools
+ * @return 0 on success, negative error code on failure
+ */
 static int handle_tools_list_request(struct mcp_server_ctx *server,
 				     struct mcp_client_context *client, struct mcp_message *request,
 				     uint32_t msg_id)
@@ -635,6 +725,10 @@ cleanup:
 	return ret;
 }
 
+/**
+ * @brief Handle tools/call request from client and execute the requested tool
+ * @return 0 on success, negative error code on failure
+ */
 static int handle_tools_call_request(struct mcp_server_ctx *server,
 				     struct mcp_client_context *client, struct mcp_message *request,
 				     uint32_t msg_id)
@@ -766,6 +860,10 @@ cleanup_active_request:
 	return ret;
 }
 
+/**
+ * @brief Handle notification from client
+ * @return 0 on success, negative error code on failure
+ */
 static int handle_notification(struct mcp_server_ctx *server, struct mcp_client_context *client,
 			       struct mcp_message *notification, uint32_t msg_id)
 {
@@ -840,6 +938,10 @@ static int handle_notification(struct mcp_server_ctx *server, struct mcp_client_
 	return 0;
 }
 
+/**
+ * @brief Handle ping request from client and respond with ping response
+ * @return 0 on success, negative error code on failure
+ */
 static int handle_ping_request(struct mcp_server_ctx *server, struct mcp_client_context *client,
 			       struct mcp_message *request, uint32_t msg_id)
 {
@@ -907,7 +1009,7 @@ cleanup:
  * Worker threads
  ******************************************************************************/
 /**
- * @brief Worker threads
+ * @brief MCP Request worker thread
  * @param ctx pointer to server context
  * @param wid worker id
  * @param arg3 NULL
@@ -1017,6 +1119,13 @@ static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 }
 
 #ifdef CONFIG_MCP_HEALTH_MONITOR
+/**
+ * @brief MCP Core health monitor worker thread
+ * @note Monitors execution timeouts and client health status, cancels stale requests
+ * @param ctx pointer to server context
+ * @param wid worker id
+ * @param arg3 NULL
+ */
 static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 {
 	int ret;
