@@ -6,6 +6,12 @@
 zephyr_compile_definitions(CPU_MIMXRT595SFFOC_dsp)
 
 zephyr_include_directories(include)
+zephyr_sources(soc.c)
+
+zephyr_library_include_directories(
+  ${ZEPHYR_BASE}/kernel/include
+  ${ZEPHYR_BASE}/arch/${ARCH}/include
+)
 
 #  west sign
 
