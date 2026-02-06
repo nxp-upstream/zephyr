@@ -27,3 +27,5 @@ endif()
 if(CONFIG_IMX_USDHC)
   zephyr_compile_definitions(FSL_SDK_ENABLE_DRIVER_CACHE_CONTROL=1)
 endif()
+
+zephyr_linker_sources(SECTIONS lvgl_psram.ld)

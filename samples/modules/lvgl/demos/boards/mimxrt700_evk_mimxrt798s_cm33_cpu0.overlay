@@ -1,0 +1,9 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&psram2 {
+	zephyr,memory-attr = <DT_MEM_CACHEABLE>;
+};
