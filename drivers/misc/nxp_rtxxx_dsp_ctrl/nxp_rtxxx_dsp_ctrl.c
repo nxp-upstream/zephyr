@@ -133,3 +133,19 @@ DT_INST_FOREACH_STATUS_OKAY(NXP_RTXXX_DSP_CTRL_RT600_HIFI4);
 	NXP_RTXXX_DSP_CTRL(n, &((SYSCON0_Type *)DT_REG_ADDR(DT_INST_PHANDLE(n, sysctl)))->DSPSTALL)
 #define DT_DRV_COMPAT nxp_rt700_dsp_ctrl_hifi4
 DT_INST_FOREACH_STATUS_OKAY(NXP_RTXXX_DSP_CTRL_RT700_HIFI4);
+
+/* VARIANT: nxp,rt500-dsp-ctrl */
+#undef DT_DRV_COMPAT
+#define NXP_RTXXX_DSP_CTRL_RT500_F1(n)                                                             \
+	static int nxp_rtxxx_dsp_ctrl_##n##_init(const struct device *dev)                         \
+	{                                                                                          \
+		CLOCK_InitSysPfd(kCLOCK_Pfd1, 24); \
+		CLOCK_AttachClk(kDSP_PLL_to_DSP_MAIN_CLK); \
+		CLOCK_SetClkDiv(kCLOCK_DivDspCpuClk, 2); \
+		DSP_SetVecRemap(kDSP_StatVecSelPrimary, 0x600U); \
+		DSP_Init(); \
+		return 0;                                                                          \
+	}                                                                                          \
+	NXP_RTXXX_DSP_CTRL(n, &((SYSCTL0_Type *)DT_REG_ADDR(DT_INST_PHANDLE(n, sysctl)))->DSPSTALL)
+#define DT_DRV_COMPAT nxp_rt500_dsp_ctrl
+DT_INST_FOREACH_STATUS_OKAY(NXP_RTXXX_DSP_CTRL_RT500_F1);
