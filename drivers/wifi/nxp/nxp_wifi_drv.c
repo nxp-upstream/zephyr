@@ -1707,6 +1707,7 @@ static int nxp_wifi_power_save(const struct device *dev, struct wifi_ps_params *
 			}
 			break;
 		case WIFI_PS_PARAM_MODE:
+#ifdef CONFIG_NXP_WIFI_WMM_UAPSD
 			if (params->mode == WIFI_PS_MODE_WMM) {
 				ret = wlan_set_wmm_uapsd(1);
 
@@ -1721,6 +1722,7 @@ static int nxp_wifi_power_save(const struct device *dev, struct wifi_ps_params *
 				}
 			}
 			break;
+#endif
 		case WIFI_PS_PARAM_TIMEOUT:
 			wlan_configure_delay_to_ps((int)params->timeout_ms);
 			break;
@@ -1769,11 +1771,13 @@ int nxp_wifi_get_power_save(const struct device *dev, struct wifi_ps_config *con
 				config->ps_params.wakeup_mode = WIFI_PS_WAKEUP_MODE_DTIM;
 			}
 
+#ifdef CONFIG_NXP_WIFI_WMM_UAPSD
 			if (wlan_is_wmm_uapsd_enabled()) {
 				config->ps_params.mode = WIFI_PS_MODE_WMM;
 			} else {
 				config->ps_params.mode = WIFI_PS_MODE_LEGACY;
 			}
+#endif
 		} else {
 			status = NXP_WIFI_RET_FAIL;
 		}
