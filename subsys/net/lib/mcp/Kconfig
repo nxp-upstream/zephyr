@@ -187,20 +187,10 @@ config MCP_TOOL_RESULT_MAX_LEN
 	help
 			Maximum length for tool execution result.
 
-config MCP_HEALTH_MONITOR
-	bool "Health monitor usage"
-	default y
-	help
-			This option enables the health monitoring thread that checks for execution timeouts
-			and cancels long-running or stalled tool executions.
-
-if MCP_HEALTH_MONITOR
-
 config MCP_HEALTH_MONITOR_STACK_SIZE
 	int "Stack size for MCP health monitor thread"
 	default 1024
 	range 512 2048
-	depends on MCP_HEALTH_MONITOR
 	help
 	  Stack size in bytes for the health monitor thread.
 	  This thread performs simple periodic checks and has
@@ -240,8 +230,6 @@ config MCP_CLIENT_TIMEOUT_MS
 	help
 			Maximum time allowed for a client to be idle between. Default
 			is 600000 ms.
-
-endif # MCP_HEALTH_MONITOR
 
 choice MCP_TRANSPORT
 	prompt "MCP Transport Mechanism"

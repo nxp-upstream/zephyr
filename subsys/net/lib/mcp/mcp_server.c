@@ -122,9 +122,7 @@ struct mcp_server_ctx {
 	char request_queue_storage[MCP_MAX_REQUESTS * sizeof(struct mcp_queue_msg)]; /**< Static storage for request queue */
 	struct mcp_tool_registry tool_registry; /**< Registry of available tools */
 	struct mcp_execution_registry execution_registry; /**< Registry of active tool executions */
-#ifdef CONFIG_MCP_HEALTH_MONITOR
 	struct k_thread health_monitor_thread; /**< Thread monitoring execution and client timeouts */
-#endif
 };
 
 
@@ -136,10 +134,8 @@ static struct mcp_server_ctx mcp_servers[CONFIG_MCP_SERVER_COUNT];
 K_THREAD_STACK_ARRAY_DEFINE(mcp_request_worker_stacks,
 			    CONFIG_MCP_REQUEST_WORKERS *CONFIG_MCP_SERVER_COUNT,
 			    CONFIG_MCP_REQUEST_WORKER_STACK_SIZE);
-#ifdef CONFIG_MCP_HEALTH_MONITOR
 K_THREAD_STACK_ARRAY_DEFINE(mcp_health_monitor_stack, CONFIG_MCP_SERVER_COUNT,
 			    CONFIG_MCP_HEALTH_MONITOR_STACK_SIZE);
-#endif
 
 /*******************************************************************************
  * Server Context Helper Functions
@@ -1118,7 +1114,6 @@ static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 	}
 }
 
-#ifdef CONFIG_MCP_HEALTH_MONITOR
 /**
  * @brief MCP Core health monitor worker thread
  * @note Monitors execution timeouts and client health status, cancels stale requests
@@ -1286,7 +1281,6 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 		k_mutex_unlock(&client_registry->mutex);
 	}
 }
-#endif
 
 /*******************************************************************************
  * Internal Interface Implementation
@@ -1481,7 +1475,6 @@ int mcp_server_start(mcp_server_ctx_t ctx)
 #endif
 	}
 
-#ifdef CONFIG_MCP_HEALTH_MONITOR
 	tid = k_thread_create(&server->health_monitor_thread, mcp_health_monitor_stack[server->idx],
 			      K_THREAD_STACK_SIZEOF(mcp_health_monitor_stack[server->idx]),
 			      mcp_health_monitor_worker, server, NULL, NULL,
@@ -1499,8 +1492,6 @@ int mcp_server_start(mcp_server_ctx_t ctx)
 #endif
 
 	LOG_INF("MCP server health monitor enabled");
-#endif
-
 	LOG_INF("MCP Server started: %d request workers", CONFIG_MCP_REQUEST_WORKERS);
 	return 0;
 }
