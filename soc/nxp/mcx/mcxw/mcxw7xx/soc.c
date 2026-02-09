@@ -260,6 +260,41 @@ void soc_early_init_hook(void)
 	irq_unlock(oldLevel);
 
 #if defined(CONFIG_NXP_NBU)
+	uint32_t rfmc_xo;
+
+	rfmc_xo = RFMC->XO_TEST;
+
+	/* Apply a Trim value/ Current selection for the crystal oscillator */
+	rfmc_xo &= ~(RFMC_XO_TEST_CDAC_MASK);
+	rfmc_xo |= RFMC_XO_TEST_CDAC(CONFIG_SOC_32MHZ_XTAL_CDAC);
+
+	rfmc_xo &= ~(RFMC_XO_TEST_ISEL_MASK);
+	rfmc_xo |= RFMC_XO_TEST_ISEL(CONFIG_SOC_32MHZ_XTAL_ISEL);
+
+	RFMC->XO_TEST = rfmc_xo;
+
 	nxp_nbu_init();
+#else
+	/* Shutdown NBU as not used */
+
+	/* Reset all RFMC registers and put the NBU CM3 in reset */
+	RFMC->CTRL |= RFMC_CTRL_RFMC_RST(0x1U);
+	/* Wait for a few microseconds before releasing the NBU reset,
+	 * without this the system may hang in the loop waiting for FRO clock valid
+	 */
+	k_busy_wait(31U);
+	/* Release NBU reset */
+	RFMC->CTRL &= ~RFMC_CTRL_RFMC_RST_MASK;
+
+	/* NBU was probably in low power before the RFMC reset, so we need to wait for the FRO clock
+	 * to be valid before accessing RF_CMC
+	 */
+	while ((RFMC->RF2P4GHZ_STAT & RFMC_RF2P4GHZ_STAT_FRO_CLK_VLD_STAT_MASK) == 0U) {
+		;
+	}
+
+	/* Force low power entry request to the radio domain */
+	RF_CMC1->RADIO_LP |= RF_CMC1_RADIO_LP_CK(0x2);
+	RFMC->RF2P4GHZ_CTRL |= RFMC_RF2P4GHZ_CTRL_LP_ENTER(0x1U);
 #endif
 }

@@ -1,4 +1,4 @@
-# Copyright 2025 NXP
+# Copyright 2025-2026 NXP
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -14,3 +14,15 @@ config SOC_MCXW716C
 config SOC_MCXW727C
 	bool
 	select NXP_MULTICORE if NXP_NBU
+
+config SOC_32MHZ_XTAL_CDAC
+	int "Trimming value for 32MHz crystal"
+	depends on SOC_SERIES_MCXW7XX && NXP_NBU
+	default 12 if SOC_MCXW716C
+	default 10 if SOC_MCXW727C
+
+config SOC_32MHZ_XTAL_ISEL
+	int "Current selection for 32MHz crystal"
+	depends on SOC_SERIES_MCXW7XX && NXP_NBU
+	default 5 if SOC_MCXW716C
+	default 11 if SOC_MCXW727C
