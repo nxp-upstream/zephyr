@@ -169,3 +169,6 @@ uint8_t tester_unregister_avrcp(void);
 
 uint8_t tester_init_avctp(void);
 uint8_t tester_unregister_avctp(void);
+
+uint8_t tester_init_spp(void);
+uint8_t tester_unregister_spp(void);
