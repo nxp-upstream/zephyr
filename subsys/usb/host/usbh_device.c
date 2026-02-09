@@ -547,11 +547,12 @@ int usbh_device_init(struct usb_device *const udev)
 		return err;
 	}
 
-	/* FIXME: The port to which the device is connected should be reset. */
-	err = uhc_bus_reset(uhs_ctx->dev);
-	if (err) {
-		LOG_ERR("Failed to signal bus reset");
-		return err;
+	if (usbh_device_is_root(uhs_ctx, udev)) {
+		err = uhc_bus_reset(uhs_ctx->dev);
+		if (err) {
+			LOG_ERR("Failed to signal bus reset");
+			return err;
+		}
 	}
 
 	/*
