@@ -152,6 +152,7 @@ static uint8_t supported_services(const void *cmd, uint16_t cmd_len,
 	/* octet 4 */
 #if defined(CONFIG_BT_RFCOMM)
 	tester_set_bit(rp->data, BTP_SERVICE_ID_RFCOMM);
+	tester_set_bit(rp->data, BTP_SERVICE_ID_SPP);
 #endif /* CONFIG_BT_RFCOMM */
 #if defined(CONFIG_BT_HFP_HF)
 	tester_set_bit(rp->data, BTP_SERVICE_ID_HFP_HF);
@@ -330,6 +331,9 @@ static uint8_t register_service(const void *cmd, uint16_t cmd_len,
 #if defined(CONFIG_BT_RFCOMM)
 	case BTP_SERVICE_ID_RFCOMM:
 		status = tester_init_rfcomm();
+		break;
+	case BTP_SERVICE_ID_SPP:
+		status = tester_init_spp();
 		break;
 #endif /* CONFIG_BT_RFCOMM */
 #if defined(CONFIG_BT_HFP_HF)
@@ -525,6 +529,9 @@ static uint8_t unregister_service(const void *cmd, uint16_t cmd_len,
 #if defined(CONFIG_BT_RFCOMM)
 	case BTP_SERVICE_ID_RFCOMM:
 		status = tester_unregister_rfcomm();
+		break;
+	case BTP_SERVICE_ID_SPP:
+		status = tester_unregister_spp();
 		break;
 #endif /* CONFIG_BT_RFCOMM */
 #if defined(CONFIG_BT_HFP_HF)
