@@ -219,7 +219,7 @@ static int uhs_pre_init(void)
 			NULL, NULL, NULL,
 			K_PRIO_COOP(9), 0, K_NO_WAIT);
 
-	k_thread_name_set(&usbh_thread_data, "usbh_bus");
+	k_thread_name_set(&usbh_bus_thread_data, "usbh_bus");
 
 	return 0;
 }
