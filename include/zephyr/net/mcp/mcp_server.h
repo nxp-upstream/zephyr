@@ -1,3 +1,9 @@
+/**
+ * @defgroup mcp_server MCP Server API
+ * @ingroup networking
+ * @{
+ */
+
 /*
  * Copyright 2025 NXP
  *
@@ -186,3 +192,7 @@ int mcp_server_is_execution_canceled(mcp_server_ctx_t server_ctx, uint32_t execu
 #endif
 
 #endif /* ZEPHYR_INCLUDE_MCP_SERVER_H_ */
+
+/**
+ * @}
+ */
