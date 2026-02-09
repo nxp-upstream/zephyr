@@ -34,7 +34,8 @@ if(CONFIG_BT_OTS)
 endif()
 
 if(CONFIG_BT_RFCOMM)
-    target_sources(app PRIVATE src/btp_rfcomm.c)
+  target_sources(app PRIVATE src/btp_rfcomm.c)
+  target_sources(app PRIVATE src/btp_spp.c)
 endif()
 
 if(CONFIG_BT_A2DP)
