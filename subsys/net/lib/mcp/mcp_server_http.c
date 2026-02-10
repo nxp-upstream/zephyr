@@ -17,7 +17,6 @@
 #include <inttypes.h>
 
 #include "mcp_common.h"
-#include "mcp_json.h"
 #include "mcp_server_internal.h"
 
 LOG_MODULE_REGISTER(mcp_http_transport, CONFIG_MCP_LOG_LEVEL);
