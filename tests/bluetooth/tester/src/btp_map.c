@@ -28,10 +28,20 @@
 #define LOG_MODULE_NAME bttester_map
 LOG_MODULE_REGISTER(LOG_MODULE_NAME, CONFIG_BTTESTER_LOG_LEVEL);
 
-#define MAP_MAS_MAX_NUM 1
+#define MAP_MOPL BT_OBEX_MIN_MTU
+/*
+6 bytes - Field length of L2CAP I-frame, including,
+	4 bytes - extended control field,
+	2 bytes - FCS field.
+*/
+#define MAP_TX_BUF_SIZE BT_L2CAP_BUF_SIZE(MAP_MOPL + 6 + BT_OBEX_SEND_BUF_RESERVE - BT_OBEX_HDR_LEN)
+#define MAP_MAS_MAX_NUM 2
 #define MAP_MCE_SUPPORTED_FEATURES 0x0077FFFF
-#define MAP_MSE_SUPPORTED_FEATURES 0x007FFFFF
-#define MAP_MSE_SUPPORTED_MSG_TYPE 0x1F
+#define MAP_MSE_SUPPORTED_FEATURES 0x007FFFFF, 0x007FFFFF
+#define MAP_MSE_SUPPORTED_MSG_TYPE 0x1F, 0x1F
+
+NET_BUF_POOL_FIXED_DEFINE(tx_pool, (CONFIG_BT_MAX_CONN * MAP_MAS_MAX_NUM),
+			  MAP_TX_BUF_SIZE, CONFIG_BT_CONN_TX_USER_DATA_SIZE, NULL);
 
 /* MAP Client MAS instance tracking */
 struct mce_mas_instance {
@@ -94,7 +104,7 @@ static struct bt_sdp_attribute mce_mns_attrs[] = {
 	/* ProtocolDescriptorList - RFCOMM */
 	BT_SDP_LIST(
 		BT_SDP_ATTR_PROTO_DESC_LIST,
-		BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 12),
+		BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 17),
 		BT_SDP_DATA_ELEM_LIST(
 			{
 				BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 3),
@@ -115,6 +125,15 @@ static struct bt_sdp_attribute mce_mns_attrs[] = {
 					{
 						BT_SDP_TYPE_SIZE(BT_SDP_UINT8),
 						&mce_server.rfcomm_server.server.rfcomm.channel
+					},
+				)
+			},
+			{
+				BT_SDP_TYPE_SIZE_VAR(BT_SDP_SEQ8, 3),
+				BT_SDP_DATA_ELEM_LIST(
+					{
+						BT_SDP_TYPE_SIZE(BT_SDP_UUID16),
+						BT_SDP_ARRAY_16(BT_SDP_PROTO_OBEX)
 					},
 				)
 			},
@@ -254,6 +273,13 @@ static struct bt_sdp_attribute UTIL_CAT(mse_mas_, UTIL_CAT(i, _attrs))[] = { \
 	), \
 	BT_SDP_SERVICE_NAME("MAP MAS " STRINGIFY(i)), \
 	{ \
+		BT_SDP_ATTR_GOEP_L2CAP_PSM, \
+		{ \
+			BT_SDP_TYPE_SIZE(BT_SDP_UINT16), \
+			&mse_server[i].l2cap_server.server.l2cap.psm \
+		} \
+	}, \
+	{ \
 		BT_SDP_ATTR_MAS_INSTANCE_ID, \
 		{ \
 			BT_SDP_TYPE_SIZE(BT_SDP_UINT8), \
@@ -265,13 +291,6 @@ static struct bt_sdp_attribute UTIL_CAT(mse_mas_, UTIL_CAT(i, _attrs))[] = { \
 		{ \
 			BT_SDP_TYPE_SIZE(BT_SDP_UINT8), \
 			&mse_server[i].supported_msg_type \
-		} \
-	}, \
-	{ \
-		BT_SDP_ATTR_GOEP_L2CAP_PSM, \
-		{ \
-			BT_SDP_TYPE_SIZE(BT_SDP_UINT16), \
-			&mse_server[i].l2cap_server.server.l2cap.psm \
 		} \
 	}, \
 	{ \
@@ -427,27 +446,34 @@ static uint8_t map_sdp_discover_cb(struct bt_conn *conn, struct bt_sdp_client_re
 				   const struct bt_sdp_discover_params *params)
 {
 	struct btp_map_sdp_record_ev *ev;
-	uint8_t buf[sizeof(*ev) + 128]; /* 128 bytes for service name */
+	struct bt_uuid_16 *uuid;
 	int err;
 	uint32_t features = 0;
 	uint16_t rfcomm_channel = 0;
 	uint16_t l2cap_psm = 0;
+	uint16_t version = 0;
 	uint8_t instance_id = 0;
 	uint8_t msg_type = 0;
-	char service_name[128] = {0};
+	char service_name[64] = {0};
 	size_t service_name_len = 0;
+	uint16_t ev_len = sizeof(struct btp_map_sdp_record_ev) + ARRAY_SIZE(service_name);
 
 	if (result == NULL || result->resp_buf == NULL || conn == NULL) {
 		LOG_DBG("SDP discovery completed or no record found");
 		return BT_SDP_DISCOVER_UUID_CONTINUE;
 	}
 
-	ev = (struct btp_map_sdp_record_ev *)buf;
-	memset(ev, 0, sizeof(*ev));
+	tester_rsp_buffer_lock();
+	tester_rsp_buffer_allocate(ev_len, (uint8_t **)&ev);
+
+	ev->final = result->next_record_hint ? 0 : 1;
 
 	/* Get connection address */
 	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(conn));
 	ev->address.type = BTP_BR_ADDRESS_TYPE;
+
+	uuid = CONTAINER_OF(params->uuid, struct bt_uuid_16, uuid);
+	ev->uuid = sys_cpu_to_le16(uuid->val);
 
 	/* Get RFCOMM channel */
 	err = bt_sdp_get_proto_param(result->resp_buf, BT_SDP_PROTO_RFCOMM, &rfcomm_channel);
@@ -465,6 +491,15 @@ static uint8_t map_sdp_discover_cb(struct bt_conn *conn, struct bt_sdp_client_re
 		LOG_DBG("Found L2CAP PSM 0x%04x", l2cap_psm);
 	} else {
 		ev->l2cap_psm = 0;
+	}
+
+	/* Get MAP version */
+	err = bt_sdp_get_profile_version(result->resp_buf, BT_SDP_MAP_SVCLASS, &version);
+	if (err != 0) {
+		ev->version = version;
+		LOG_DBG("Found MAP MSG version 0x%04x", version);
+	} else {
+		ev->version = 0;
 	}
 
 	/* Get MAP features */
@@ -488,10 +523,10 @@ static uint8_t map_sdp_discover_cb(struct bt_conn *conn, struct bt_sdp_client_re
 	/* Get supported message types (MSE only) */
 	err = map_sdp_get_msg_type(result->resp_buf, &msg_type);
 	if (err == 0) {
-		ev->supported_msg_types = msg_type;
+		ev->msg_types = msg_type;
 		LOG_DBG("Found MAP MSG type 0x%02x", msg_type);
 	} else {
-		ev->supported_msg_types = 0;
+		ev->msg_types = 0;
 	}
 
 	/* Get service name */
@@ -509,6 +544,9 @@ static uint8_t map_sdp_discover_cb(struct bt_conn *conn, struct bt_sdp_client_re
 	tester_event(BTP_SERVICE_ID_MAP, BTP_MAP_EV_SDP_RECORD, ev,
 		     sizeof(*ev) + ev->service_name_len);
 
+	tester_rsp_buffer_free();
+	tester_rsp_buffer_unlock();
+
 	return BT_SDP_DISCOVER_UUID_CONTINUE;
 }
 
@@ -520,9 +558,12 @@ static uint8_t map_sdp_discover(const void *cmd, uint16_t cmd_len,
 	static struct bt_uuid_16 uuid;
 	int err;
 
+	if (cp->address.type != BTP_BR_ADDRESS_TYPE) {
+		return BTP_STATUS_FAILED;
+	}
+
 	conn = bt_conn_lookup_addr_br(&cp->address.a);
-	if (!conn) {
-		LOG_ERR("Unknown connection");
+	if (conn == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -854,6 +895,7 @@ static void mce_mas_connected_cb(struct bt_map_mce_mas *mce_mas, uint8_t rsp_cod
 	ev->instance_id = inst->instance_id;
 	ev->rsp_code = rsp_code;
 	ev->version = version;
+	mopl = MIN(MAP_MOPL, mopl);
 	ev->mopl = sys_cpu_to_le16(mopl);
 	ev->buf_len = sys_cpu_to_le16(buf_len);
 	if (buf_len > 0) {
@@ -1326,6 +1368,7 @@ static void mce_mns_connected_cb(struct bt_map_mce_mns *mce_mns, uint8_t version
 	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(inst->conn));
 	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->version = version;
+	mopl = MIN(MAP_MOPL, mopl);
 	ev->mopl = sys_cpu_to_le16(mopl);
 	ev->buf_len = sys_cpu_to_le16(buf_len);
 	if (buf_len > 0) {
@@ -1526,6 +1569,7 @@ static void mse_mas_connected_cb(struct bt_map_mse_mas *mse_mas, uint8_t version
 	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->instance_id = inst->instance_id;
 	ev->version = version;
+	mopl = MIN(MAP_MOPL, mopl);
 	ev->mopl = sys_cpu_to_le16(mopl);
 	ev->buf_len = sys_cpu_to_le16(buf_len);
 	if (buf_len > 0) {
@@ -2116,6 +2160,7 @@ static void mse_mns_connected_cb(struct bt_map_mse_mns *mse_mns, uint8_t rsp_cod
 	ev->address.type = BTP_BR_ADDRESS_TYPE;
 	ev->rsp_code = rsp_code;
 	ev->version = version;
+	mopl = MIN(MAP_MOPL, mopl);
 	ev->mopl = sys_cpu_to_le16(mopl);
 	ev->buf_len = sys_cpu_to_le16(buf_len);
 	if (buf_len > 0) {
@@ -2345,7 +2390,7 @@ static uint8_t mce_mas_connect(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
-	buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, NULL);
+	buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, &tx_pool);
 	if (buf == NULL) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2438,11 +2483,12 @@ static uint8_t mce_mas_set_folder(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+	buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -2482,11 +2528,13 @@ static uint8_t mce_mas_set_ntf_reg(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -2526,11 +2574,13 @@ static uint8_t mce_mas_get_folder_listing(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -2570,11 +2620,13 @@ static uint8_t mce_mas_get_msg_listing(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -2614,11 +2666,13 @@ static uint8_t mce_mas_get_msg(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -2658,11 +2712,13 @@ static uint8_t mce_mas_set_msg_status(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -2702,11 +2758,13 @@ static uint8_t mce_mas_push_msg(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -2746,11 +2804,13 @@ static uint8_t mce_mas_update_inbox(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -2790,11 +2850,13 @@ static uint8_t mce_mas_get_mas_inst_info(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -2834,11 +2896,13 @@ static uint8_t mce_mas_set_owner_status(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -2878,11 +2942,13 @@ static uint8_t mce_mas_get_owner_status(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -2922,11 +2988,13 @@ static uint8_t mce_mas_get_convo_listing(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -2966,11 +3034,13 @@ static uint8_t mce_mas_set_ntf_filter(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mce_mas_create_pdu(&inst->mce_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -3101,11 +3171,13 @@ static uint8_t mce_mns_send_event(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mce_mns_create_pdu(&inst->mce_mns, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mce_mns_create_pdu(&inst->mce_mns, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -3236,11 +3308,13 @@ static uint8_t mse_mas_set_folder(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -3280,11 +3354,13 @@ static uint8_t mse_mas_set_ntf_reg(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -3324,11 +3400,13 @@ static uint8_t mse_mas_get_folder_listing(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -3368,11 +3446,13 @@ static uint8_t mse_mas_get_msg_listing(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -3412,11 +3492,13 @@ static uint8_t mse_mas_get_msg(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -3456,11 +3538,13 @@ static uint8_t mse_mas_set_msg_status(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -3500,11 +3584,13 @@ static uint8_t mse_mas_push_msg(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -3544,11 +3630,13 @@ static uint8_t mse_mas_update_inbox(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -3588,11 +3676,13 @@ static uint8_t mse_mas_get_mas_inst_info(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -3632,11 +3722,13 @@ static uint8_t mse_mas_set_owner_status(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -3676,11 +3768,13 @@ static uint8_t mse_mas_get_owner_status(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -3720,11 +3814,13 @@ static uint8_t mse_mas_get_convo_listing(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -3764,11 +3860,13 @@ static uint8_t mse_mas_set_ntf_filter(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mse_mas_create_pdu(&inst->mse_mas, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;
@@ -3975,11 +4073,13 @@ static uint8_t mse_mns_send_event(const void *cmd, uint16_t cmd_len,
 		return BTP_STATUS_FAILED;
 	}
 
+
+	buf = bt_map_mse_mns_create_pdu(&inst->mse_mns, &tx_pool);
+	if (!buf) {
+		return BTP_STATUS_FAILED;
+	}
+
 	if (buf_len > 0) {
-		buf = bt_map_mse_mns_create_pdu(&inst->mse_mns, NULL);
-		if (!buf) {
-			return BTP_STATUS_FAILED;
-		}
 		if (net_buf_tailroom(buf) < buf_len) {
 			net_buf_unref(buf);
 			return BTP_STATUS_FAILED;

@@ -869,11 +869,14 @@ struct btp_map_mse_mns_send_event_ev {
 #define BTP_MAP_EV_SDP_RECORD				0xb8
 struct btp_map_sdp_record_ev {
 	bt_addr_le_t address;
+	uint8_t final;
+	uint16_t uuid;
 	uint8_t instance_id;
 	uint8_t rfcomm_channel;
 	uint16_t l2cap_psm;
+	uint16_t version;
 	uint32_t supported_features;
-	uint8_t supported_msg_types;
+	uint8_t msg_types;
 	uint8_t service_name_len;
 	uint8_t service_name[];
 } __packed;
