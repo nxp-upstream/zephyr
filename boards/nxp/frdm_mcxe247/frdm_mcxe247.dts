@@ -220,6 +220,10 @@
 	status = "okay";
 };
 
+&lptmr0 {
+	status = "okay";
+};
+
 &lpit0_channel2 {
 	status = "okay";
 };
