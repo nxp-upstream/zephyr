@@ -11,11 +11,9 @@ include: base.yaml
 properties:
   sdio-reset-gpios:
     type: phandle-array
-    required: true
 
   w-disable-gpios:
     type: phandle-array
-    required: true
 
   hci-operation-speed:
     type: int
