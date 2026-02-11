@@ -19,6 +19,12 @@ config MCTP_HEAP_SIZE
 	  libmctp's allocation operations. This setting defines the size of
 	  the dedicated MCTP heap in bytes. Defaults to 1KB for small packets.
 
+config MCTP_BTU
+    int "MCTP Baseline Transmission Unit"
+    default 64
+    help
+      Baseline transmission unit used by libmctp core for MTU checks and fragmentation.
+
 config MCTP_UART
 	bool "MCTP UART Binding"
 	depends on UART_ASYNC_API
@@ -42,6 +48,23 @@ config MCTP_I2C_GPIO_TARGET
 	help
 	  Build the MCTP I2C+GPIO target binding to use MCTP over Zephyr's I2C target
 	  interface and GPIO to signal writes to the bus controller.
+
+config MCTP_I2C_SMBUS_TARGET
+    bool "MCTP I2C+SMBUS Target Binding"
+    depends on I2C
+    depends on I2C_TARGET
+    help
+      Build the MCTP I2C+SMBUS target binding to use MCTP over Zephyr's I2C target
+      interface and do role Switch to signal writes to the bus controller.
+
+config MCTP_I2C_SMBUS_BLOCK_MAX
+    int "MCTP SMBus block max payload (bytes)"
+    default 32
+    range 1 255
+    depends on MCTP_I2C_SMBUS_TARGET
+    help
+      Maximum number of data bytes in SMBus Block Write for MCTP over SMBus.
+      Classic SMBus is 32.
 
 config MCTP_I3C_CONTROLLER
 	bool "MCTP I3C Controller Binding"
