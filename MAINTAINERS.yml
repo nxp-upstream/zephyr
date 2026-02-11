@@ -3635,6 +3635,7 @@ NXP Platform Wireless:
     - name: MCXW platform
       collaborators:
         - axelnxp
+        - yeaissa
       files:
         - boards/nxp/*mcxw*/
         - soc/nxp/mcx/mcxw/
@@ -3642,6 +3643,7 @@ NXP Platform Wireless:
       collaborators:
         - MaochenWang1
         - axelnxp
+        - yeaissa
       files:
         - soc/nxp/rw/
         - boards/nxp/*rw*/
