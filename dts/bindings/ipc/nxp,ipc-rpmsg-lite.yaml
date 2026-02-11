@@ -1,0 +1,77 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: RPMSG-Lite backend
+
+compatible: "nxp,ipc-rpmsg-lite"
+
+include: base.yaml
+
+properties:
+  role:
+    description: RPMSG-Lite roles
+    required: true
+    type: string
+    enum:
+      - host
+      - remote
+
+  link-id:
+    required: true
+    type: int
+    description: |
+      Link ID of the instance.
+      Has to be same between Instances between Host and Remote.
+
+      Allowed values [0..(DT_NUM_INST_STATUS_OKAY()-1)).
+
+      User is responsible to correctly assign one value for each pair of
+      ipc instances between host and remote.
+
+      This is required to link two instances together with same ID,
+      because DT_INST_FOREACH_STATUS_OKAY does not made any guarantees about the order
+      that instancies appear in the Device Tree expansion.
+
+      For Example:
+      Host:
+       ipc0: ipc0 { link-id = <0>; ... };
+       ipc1: ipc1 { link-id = <1>; ... };
+      Remote:
+       ipc0: ipc0 { link-id = <0>; ... };
+       ipc1: ipc1 { link-id = <1>; ... };
+      This will link Host ipc[0,1] with Remote ipc[0,1].
+
+  memory-region:
+    description: phandle to the shared memory region
+    required: true
+    type: phandle
+
+  mboxes:
+    description: phandle to the MBOX controller (TX and RX are required)
+    required: true
+
+  mbox-names:
+    description: MBOX channel names (must be called "tx" and "rx")
+    required: true
+
+  zephyr,priority:
+    type: array
+    description: |
+      WQ priority for the instance. This property is an array composed by the
+      priority level and the type of priority (PRIO_COOP for cooperative or
+      PRIO_PREEMPT for preemptive).
+
+      For example for a thread priority K_PRIO_COOP(1) in DT we have
+        priority = <1 PRIO_COOP>;
+      or for K_PRIO_PREEMPT(2)
+        priority = <2 PRIO_PREEMPT>;
+
+      When this property is missing a default priority of <0 PRIO_PREEMPT> is
+      assumed.
+
+  zephyr,buffer-size:
+    type: int
+    description: |
+      The size of the buffer used to send data between host and remote. Default
+      value is RL_BUFFER_PAYLOAD_SIZE. This property must be the same for host and
+      remote.
