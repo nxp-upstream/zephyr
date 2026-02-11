@@ -63,6 +63,29 @@ controller, refer to the device reference manual.
 | PTA6  | FLEXCAN0    | CAN0 RX                   |
 +-------+-------------+---------------------------+
 
+Shield Support
+==============
+
+The FRDM-MCXE31B board supports the following shields:
+
+LCD-PAR-S035 Display Shield
+----------------------------
+
+The board supports the :ref:`lcd_par_s035` shield via the 8080 parallel interface.
+To use this shield, build your application with the ``--shield lcd_par_s035_8080`` option:
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/drivers/display
+   :board: frdm_mcxe31b
+   :shield: lcd_par_s035_8080
+   :goals: build
+
+The shield uses:
+
+- FlexIO configured as 8080 parallel interface for display communication
+- LPI2C1 for GT911 touch controller
+- GPIO pins for backlight, reset, and touch interrupt control
+
 System Clock
 ============
 

@@ -17,6 +17,12 @@
 #include <fsl_edma.h>
 #include <fsl_flexio_mculcd.h>
 
+#if CONFIG_SOC_SERIES_MCXE31X
+#define DMA_INST EDMA
+#else
+#define DMA_INST DMA0
+#endif
+
 LOG_MODULE_REGISTER(display_mcux_flexio_lcdif, CONFIG_DISPLAY_LOG_LEVEL);
 
 struct stream {
@@ -280,7 +286,7 @@ static int mipi_dbi_flexio_ldcif_write_display(const struct device *dev,
 	 * in case of the flexio module to form a circular chain between the Shift buffer
 	 * in the FLEXIO module.
 	 */
-	EDMA_SetModulo(DMA0, lcdif_data->dma_tx.channel, kEDMA_ModuloDisable,
+	EDMA_SetModulo(DMA_INST, lcdif_data->dma_tx.channel, kEDMA_ModuloDisable,
 		       flexio_lcdif_get_edma_modulo(num_of_shifters));
 
 	/* For 6800, de-assert the RDWR pin. */

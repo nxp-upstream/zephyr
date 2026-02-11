@@ -94,6 +94,19 @@
 			   <ARDUINO_HEADER_R3_D14 0 &gpioc_l 6 0>,
 			   <ARDUINO_HEADER_R3_D15 0 &gpioc_l 7 0>;
 	};
+
+	/*
+	 * This node describes the GPIO pins of the LCD-PAR-S035 panel 8080 interface.
+	 */
+	nxp_lcd_8080_connector: lcd-8080-connector {
+		compatible = "nxp,lcd-8080";
+		#gpio-cells = <2>;
+		gpio-map-mask = <0xffffffff 0xffffffc0>;
+		gpio-map-pass-thru = <0 0x3f>;
+		gpio-map = <9 0 &gpiob_h 14 0>,	 /* Pin 9, LCD touch INT */
+			   <10 0 &gpioc_h 9 0>, /* Pin 10, LCD backlight control */
+			   <11 0 &gpiob_h 15 0>; /* Pin 11, LCD and touch reset */
+	};
 };
 
 &core0 {
@@ -233,3 +246,31 @@
 
 /* Add lpuart2 label to lpuart_2. */
 lpuart2: &lpuart_2 {};
+
+&flexio {
+	status = "okay";
+};
+
+&lpi2c_1 {
+	pinctrl-0 = <&pinmux_lpi2c_1>;
+	pinctrl-names = "default";
+};
+
+nxp_8080_touch_panel_i2c: &lpi2c_1 {};
+
+zephyr_mipi_dbi_parallel: &flexio_lcd {
+	/* DMA channels 0, muxed to FlexIO TX */
+	dmas = <&edma 0 61>;
+	dma-names = "tx";
+	shifters-count = <8>;
+	timers-count = <1>;
+	enwr-pin = <1>;
+	rd-pin = <0>;
+	data-pin-start = <16>;
+	reset-gpios = <&gpiob_h 15 GPIO_ACTIVE_HIGH>;
+	cs-gpios = <&gpiob_h 1 GPIO_ACTIVE_HIGH>;
+	rs-gpios = <&gpioc_h 8 GPIO_ACTIVE_HIGH>;
+	pinctrl-0 = <&pinmux_flexio_lcd>;
+	pinctrl-names = "default";
+	status = "okay";
+};

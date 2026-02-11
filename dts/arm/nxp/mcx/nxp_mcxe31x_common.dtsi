@@ -382,6 +382,11 @@
 		interrupts = <139 0>;
 		clocks = <&mc_cgm MCUX_FLEXIO_CLK>;
 		status = "disabled";
+
+		flexio_lcd: flexio-lcd {
+			compatible = "nxp,mipi-dbi-flexio-lcdif";
+			status = "disabled";
+		};
 	};
 
 	fxosc: fxosc@2d4000 {
