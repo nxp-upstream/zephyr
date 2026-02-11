@@ -18,6 +18,7 @@
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/drivers/opamp.h>
+#include <zephyr/pm/device.h>
 
 #ifdef CONFIG_ADC_MCUX_LPADC_DMA_DRIVEN
 #include <zephyr/drivers/dma.h>
@@ -750,6 +751,21 @@ static void mcux_lpadc_isr(const struct device *dev)
 	}
 }
 
+static int mcux_lpadc_pm_action(const struct device *dev, enum pm_device_action action)
+{
+	ARG_UNUSED(dev);
+
+	switch (action) {
+	case PM_DEVICE_ACTION_TURN_ON:
+	case PM_DEVICE_ACTION_TURN_OFF:
+	case PM_DEVICE_ACTION_RESUME:
+	case PM_DEVICE_ACTION_SUSPEND:
+		return 0;
+	default:
+		return -ENOTSUP;
+	}
+}
+
 static int mcux_lpadc_init(const struct device *dev)
 {
 	const struct mcux_lpadc_config *config = dev->config;
@@ -757,6 +773,15 @@ static int mcux_lpadc_init(const struct device *dev)
 	ADC_Type *base = config->base;
 	lpadc_config_t adc_config;
 	int err;
+
+#if defined(CONFIG_PM_DEVICE_POWER_DOMAIN)
+	if ((dev->pm_base != NULL) && (dev->pm_base->domain != NULL)) {
+		err = pm_device_action_run(dev->pm_base->domain, PM_DEVICE_ACTION_RESUME);
+		if ((err < 0) && (err != -ENOTSUP)) {
+			return err;
+		}
+	}
+#endif
 
 	err = pinctrl_apply_state(config->pincfg, PINCTRL_STATE_DEFAULT);
 	if (err) {
@@ -840,7 +865,7 @@ static int mcux_lpadc_init(const struct device *dev)
 
 	adc_context_unlock_unconditionally(&data->ctx);
 
-	return 0;
+	return pm_device_driver_init(dev, mcux_lpadc_pm_action);
 }
 
 static DEVICE_API(adc, mcux_lpadc_driver_api) = {
@@ -923,7 +948,8 @@ static DEVICE_API(adc, mcux_lpadc_driver_api) = {
 		ADC_CONTEXT_INIT_SYNC(mcux_lpadc_data_##n, ctx),				\
 	};											\
 												\
-	DEVICE_DT_INST_DEFINE(n, mcux_lpadc_init, NULL, &mcux_lpadc_data_##n,			\
+	PM_DEVICE_DT_INST_DEFINE(n, mcux_lpadc_pm_action);					\
+	DEVICE_DT_INST_DEFINE(n, mcux_lpadc_init, PM_DEVICE_DT_INST_GET(n), &mcux_lpadc_data_##n,	\
 			      &mcux_lpadc_config_##n, POST_KERNEL, CONFIG_ADC_INIT_PRIORITY,	\
 			      &mcux_lpadc_driver_api);						\
 												\

@@ -90,6 +90,16 @@ config POWER_DOMAIN_NXP_SCU_INIT_PRIORITY
 
 endif #POWER_DOMAIN_NXP_SCU
 
+config POWER_DOMAIN_NXP_LPC_PDRUNCFG
+	bool "NXP LPC PDRUNCFG power domain"
+	default y
+	depends on DT_HAS_NXP_LPC_PDRUNCFG_POWER_DOMAIN_ENABLED
+	depends on SOC_SERIES_LPC55XXX
+	select DEVICE_DEPS
+	help
+	  Enable support for NXP LPC power domains controlled via the PDRUNCFG
+	  register using the MCUXpresso SDK POWER_*PD APIs.
+
 config POWER_DOMAIN_SOC_PM_STATE
 	bool "SoC PM state power domain"
 	default y

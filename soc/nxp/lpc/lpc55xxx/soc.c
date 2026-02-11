@@ -402,8 +402,10 @@ DT_FOREACH_STATUS_OKAY(nxp_ctimer_pwm, CTIMER_CLOCK_SETUP)
 			DT_PROP(DT_NODELABEL(adc0), clk_divider), true);
 	CLOCK_AttachClk(MUX_A(CM_ADCASYNCCLKSEL, DT_PROP(DT_NODELABEL(adc0), clk_source)));
 
-	/* Power up the ADC */
+	/* Power up the ADC (fallback when power-domain wiring is not used). */
+#if !defined(CONFIG_PM_DEVICE_POWER_DOMAIN) || !DT_NODE_HAS_PROP(DT_NODELABEL(adc0), power_domains)
 	POWER_DisablePD(kPDRUNCFG_PD_LDOGPADC);
+#endif
 #endif /* SOC platform */
 #endif /* ADC */
 

@@ -1,0 +1,20 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: NXP LPC PDRUNCFG-controlled power domain
+
+compatible: "nxp,lpc-pdruncfg-power-domain"
+
+include: power-domain.yaml
+
+properties:
+  nxp,pdruncfg-mask:
+    type: int
+    required: true
+    description: |
+      Bitmask for the power-down configuration (PDRUNCFG) register.
+      POWER_DisablePD(mask) will be used to power the domain on, and
+      POWER_EnablePD(mask) will be used to power the domain off.
+
+  "#power-domain-cells":
+    const: 0
