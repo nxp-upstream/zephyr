@@ -72,6 +72,14 @@ static int mcux_sim_get_subsys_rate(const struct device *dev,
 	case KINETIS_SIM_LPO_CLK:
 		clock_name = kCLOCK_LpoClk;
 		break;
+	case KINETIS_SIM_MCGPCLK:
+		/*
+		 * Zephyr's dt-binding ID for MCGPCLK is not guaranteed to match the
+		 * SoC's MCUX clock_name_t enum value. Translate it here so drivers can
+		 * consistently use KINETIS_SIM_MCGPCLK in devicetree.
+		 */
+		clock_name = kCLOCK_McgPeriphClk;
+		break;
 	case KINETIS_SIM_ENET_CLK:
 		clock_name = kCLOCK_CoreSysClk;
 		break;
