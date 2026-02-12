@@ -1,0 +1,8 @@
+sample:
+  name: scmi
+  description: This sample demonstrates the interaction between an agent
+    running Zephyr and the platform via SCMI.
+tests:
+  sample.drivers.firmware.scmi:
+    build_only: true
+    filter: CONFIG_ARM_SCMI
