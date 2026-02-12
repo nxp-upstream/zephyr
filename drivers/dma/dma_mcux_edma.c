@@ -694,6 +694,10 @@ static int dma_mcux_edma_configure(const struct device *dev, uint32_t channel,
 static int dma_mcux_edma_start(const struct device *dev, uint32_t channel)
 {
 	struct call_back *data = DEV_CHANNEL_DATA(dev, channel);
+#if (defined(CONFIG_DMA_MCUX_EDMA_V3) || defined(CONFIG_DMA_MCUX_EDMA_V4)) && \
+	(!defined(FSL_FEATURE_SOC_DMAMUX_COUNT) || (FSL_FEATURE_SOC_DMAMUX_COUNT == 0))
+	uint32_t remaining_old = EDMA_GetRemainingMajorLoopCount(DEV_BASE(dev), channel);
+#endif
 
 	LOG_DBG("START TRANSFER");
 
@@ -703,13 +707,24 @@ static int dma_mcux_edma_start(const struct device *dev, uint32_t channel)
 	LOG_DBG("DMA CR 0x%x", DEV_BASE(dev)->CR);
 #endif
 	data->busy = true;
+
 	EDMA_StartTransfer(DEV_EDMA_HANDLE(dev, channel));
-#if defined(CONFIG_DMA_MCUX_EDMA_V3) && \
+
+#if (defined(CONFIG_DMA_MCUX_EDMA_V3) || defined(CONFIG_DMA_MCUX_EDMA_V4)) && \
 	(!defined(FSL_FEATURE_SOC_DMAMUX_COUNT) || (FSL_FEATURE_SOC_DMAMUX_COUNT == 0))
 	struct dma_mcux_channel_transfer_edma_settings *xfer_settings = &data->transfer_settings;
 
 	if (xfer_settings->transfer_type == kEDMA_MemoryToMemory) {
-		EDMA_TriggerChannelStart(DEV_BASE(dev), channel);
+		uint32_t remaining_new = EDMA_GetRemainingMajorLoopCount(DEV_BASE(dev), channel);
+
+		while (remaining_new != 0) {
+			remaining_new = EDMA_GetRemainingMajorLoopCount(DEV_BASE(dev), channel);
+			if ((remaining_new != remaining_old) && (remaining_new > 0)) {
+				remaining_old = remaining_new;
+				/* Still have data to transfer, trigger next transfer */
+				EDMA_TriggerChannelStart(DEV_BASE(dev), channel);
+			}
+		}
 	}
 #endif
 	return 0;
@@ -741,7 +756,7 @@ static int dma_mcux_edma_suspend(const struct device *dev, uint32_t channel)
 {
 	struct call_back *data = DEV_CHANNEL_DATA(dev, channel);
 
-#if defined(CONFIG_DMA_MCUX_EDMA_V3) && \
+#if (defined(CONFIG_DMA_MCUX_EDMA_V3) || defined(CONFIG_DMA_MCUX_EDMA_V4)) && \
 	(!defined(FSL_FEATURE_SOC_DMAMUX_COUNT) || (FSL_FEATURE_SOC_DMAMUX_COUNT == 0))
 	struct dma_mcux_channel_transfer_edma_settings *xfer_settings = &data->transfer_settings;
 
