@@ -173,6 +173,7 @@ arduino_i2c: &lpi2c1 {};
 		compatible = "fixed-partitions";
 		#address-cells = <1>;
 		#size-cells = <1>;
+		ranges;
 
 		/*
 		 * Partition sizes must be aligned

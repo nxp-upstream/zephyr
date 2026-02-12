@@ -126,7 +126,10 @@
 		status = "okay";
 
 		flash0: flash@0 {
+			#address-cells = <1>;
+			#size-cells = <1>;
 			compatible = "soc-nv-flash";
+			ranges = <0x0 0x0 DT_SIZE_K(1016)>;
 			reg = <0x0 DT_SIZE_K(1016)>;
 			erase-block-size = <DT_SIZE_K(8)>;
 			write-block-size = <16>;

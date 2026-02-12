@@ -73,9 +73,12 @@
 			status = "disabled";
 
 			flash: flash@0 {
+				#address-cells = <1>;
+				#size-cells = <1>;
 				compatible = "soc-nv-flash";
 				write-block-size = <16>;
 				erase-block-size = <DT_SIZE_K(8)>;
+				ranges = <>;
 			};
 		};
 
