@@ -64,6 +64,7 @@ struct mcux_lpuart_config {
 	const struct device *clock_dev;
 	const struct pinctrl_dev_config *pincfg;
 	clock_control_subsys_t clock_subsys;
+	clock_control_subsys_t clock_subsys_rate;
 	uint32_t baud_rate;
 	uint8_t flow_ctrl;
 	uint8_t parity;
@@ -1226,7 +1227,7 @@ static int mcux_lpuart_configure_init(const struct device *dev, const struct uar
 		return -ENODEV;
 	}
 
-	ret = clock_control_configure(config->clock_dev, config->clock_subsys, NULL);
+	ret = clock_control_configure(config->clock_dev, config->clock_subsys_rate, NULL);
 	if (ret != 0) {
 		/* Check if error is due to lack of support */
 		if (ret != -ENOSYS) {
@@ -1248,7 +1249,7 @@ static int mcux_lpuart_configure_init(const struct device *dev, const struct uar
 		return ret;
 	}
 
-	ret = clock_control_get_rate(config->clock_dev, config->clock_subsys,
+	ret = clock_control_get_rate(config->clock_dev, config->clock_subsys_rate,
 								&clock_freq);
 	if (ret) {
 		LOG_ERR("Failed to get clock rate: %d", ret);
@@ -1603,11 +1604,31 @@ static DEVICE_API(uart, mcux_lpuart_driver_api) = {
 				? UART_CFG_FLOW_CTRL_RS485   \
 				: UART_CFG_FLOW_CTRL_NONE
 
+/*
+ * For Kinetis SIM, enabling/disabling a peripheral clock needs a packed gate
+ * value (SIM SCGC reg offset + bit). Retrieving a clock rate needs a value
+ * suitable for CLOCK_GetFreq().
+ */
+#if DT_NODE_HAS_STATUS_OKAY(DT_INST(0, nxp_kinetis_sim))
+#define LPUART_MCUX_DT_INST_CLOCK_GATE_SUBSYS(n) \
+	CLK_GATE_DEFINE(DT_INST_CLOCKS_CELL(n, offset), DT_INST_CLOCKS_CELL(n, bits))
+
+#define LPUART_MCUX_DT_INST_CLOCK_RATE_SUBSYS(n) \
+	((clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, name))
+#else
+#define LPUART_MCUX_DT_INST_CLOCK_GATE_SUBSYS(n) \
+	((clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, name))
+
+#define LPUART_MCUX_DT_INST_CLOCK_RATE_SUBSYS(n) \
+	((clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, name))
+#endif
+
 #define LPUART_MCUX_DECLARE_CFG(n)                                      \
 static const struct mcux_lpuart_config mcux_lpuart_##n##_config = {     \
 	.base = (LPUART_Type *) DT_INST_REG_ADDR(n),                          \
 	.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)),                   \
-	.clock_subsys = (clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, name),	\
+	.clock_subsys = (clock_control_subsys_t)LPUART_MCUX_DT_INST_CLOCK_GATE_SUBSYS(n), \
+	.clock_subsys_rate = (clock_control_subsys_t)LPUART_MCUX_DT_INST_CLOCK_RATE_SUBSYS(n), \
 	.baud_rate = DT_INST_PROP(n, current_speed),                          \
 	.flow_ctrl = FLOW_CONTROL(n),                                         \
 	.parity = DT_INST_ENUM_IDX(n, parity),                                \
