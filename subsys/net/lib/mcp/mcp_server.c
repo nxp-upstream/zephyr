@@ -143,7 +143,7 @@ K_THREAD_STACK_ARRAY_DEFINE(mcp_health_monitor_stack, CONFIG_MCP_SERVER_COUNT,
 
  /**
   * @brief Allocate an MCP Server context
-  * 
+  *
   * @return Pointer to allocated server context, or NULL if no slots available
   */
 static struct mcp_server_ctx *allocate_mcp_server_context(void)
@@ -200,7 +200,7 @@ static struct mcp_client_context *client_get_locked(struct mcp_client_context *c
 
 /**
  * @brief Atomically decrease the refcount for a client and clean up if needed
- * @note Can be called without lock 
+ * @note Can be called without lock
  */
 static void client_put(struct mcp_server_ctx *server, struct mcp_client_context *client)
 {
@@ -209,7 +209,21 @@ static void client_put(struct mcp_server_ctx *server, struct mcp_client_context 
 	}
 
 	if (atomic_dec(&client->refcount) == 1) {
-		/* Last reference. Safe to cleanup */
+		/**
+		 * Last reference. Safe to cleanup.
+		 *
+		 * Cleanup is safe because:
+		 *     - In this case, we know that remove_client_locked() set
+		 *       lifecycle_state=DEINITIALIZED under mutex.
+		 *     - This prevents client_get_locked() from creating new references
+		 *
+		 * So even though remove_client_locked() may not have been the last to drop
+		 * a reference (other threads may have held references from queued messages
+		 * or active handlers), we know that:
+		 *     1. No NEW references can be created (lifecycle_state is DEINITIALIZED)
+		 *     2. We just dropped the LAST existing reference
+		 *     3. Therefore cleanup is safe - no one else can access this client
+		 */
 		client->binding->ops->disconnect(client->binding);
 		memset(client, 0, sizeof(struct mcp_client_context));
 		client->lifecycle_state = MCP_LIFECYCLE_DEINITIALIZED;
@@ -1179,7 +1193,7 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 				/* Allocate notification params structure */
 				params = (struct mcp_params_notif_cancelled *)
 					mcp_alloc(sizeof(struct mcp_params_notif_cancelled));
-			
+
 				if (params == NULL) {
 					LOG_ERR("Failed to allocate notification params");
 					ret = -ENOMEM;
@@ -1245,13 +1259,13 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 					/* Allocate notification params structure */
 					params = (struct mcp_params_notif_cancelled *)
 						mcp_alloc(sizeof(struct mcp_params_notif_cancelled));
-				
+
 					if (params == NULL) {
 						LOG_ERR("Failed to allocate notification params");
 						ret = -ENOMEM;
 						continue;
 					}
-					
+
 					/* Allocate buffer for serialization */
 					json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
 					if (json_buffer == NULL) {
@@ -1290,7 +1304,7 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 
 					/* Clean up */
 					mcp_free(params);
-					mcp_free(json_buffer);	
+					mcp_free(json_buffer);
 
 					context->execution_state = MCP_EXEC_CANCELED;
 					context->cancel_timestamp = current_time;
