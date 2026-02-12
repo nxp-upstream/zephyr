@@ -50,6 +50,7 @@ struct mcux_tpm_config {
 	DEVICE_MMIO_NAMED_ROM(base);
 	const struct device *clock_dev;
 	clock_control_subsys_t clock_subsys;
+	clock_control_subsys_t clock_subsys_rate;
 	tpm_clock_source_t tpm_clock_source;
 	tpm_clock_prescale_t prescale;
 	uint8_t channel_count;
@@ -542,7 +543,7 @@ static int mcux_tpm_init(const struct device *dev)
 		return -ENODEV;
 	}
 
-	err = clock_control_configure(config->clock_dev, config->clock_subsys, NULL);
+	err = clock_control_configure(config->clock_dev, config->clock_subsys_rate, NULL);
 	if (err != 0) {
 		/* Check if error is due to lack of support */
 		if (err != -ENOSYS) {
@@ -565,7 +566,7 @@ static int mcux_tpm_init(const struct device *dev)
 	}
 #endif
 
-	if (clock_control_get_rate(config->clock_dev, config->clock_subsys,
+	if (clock_control_get_rate(config->clock_dev, config->clock_subsys_rate,
 				   &data->clock_freq)) {
 		LOG_ERR("Could not get clock frequency");
 		return -EINVAL;
@@ -620,6 +621,25 @@ static DEVICE_API(pwm, mcux_tpm_driver_api) = {
 
 #define TO_TPM_PRESCALE_DIVIDE(val) _DO_CONCAT(kTPM_Prescale_Divide_, val)
 
+/*
+ * For Kinetis SIM, enabling/disabling a peripheral clock needs a packed gate
+ * value (SIM SCGC reg offset + bit). Retrieving a clock rate needs a value
+ * suitable for CLOCK_GetFreq().
+ */
+#if DT_NODE_HAS_STATUS_OKAY(DT_INST(0, nxp_kinetis_sim))
+#define TPM_MCUX_DT_INST_CLOCK_GATE_SUBSYS(n) \
+	CLK_GATE_DEFINE(DT_INST_CLOCKS_CELL(n, offset), DT_INST_CLOCKS_CELL(n, bits))
+
+#define TPM_MCUX_DT_INST_CLOCK_RATE_SUBSYS(n) \
+	((clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, name))
+#else
+#define TPM_MCUX_DT_INST_CLOCK_GATE_SUBSYS(n) \
+	((clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, name))
+
+#define TPM_MCUX_DT_INST_CLOCK_RATE_SUBSYS(n) \
+	((clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, name))
+#endif
+
 #ifdef CONFIG_PWM_CAPTURE
 
 static void mcux_tpm_isr(const struct device *dev)
@@ -649,8 +669,8 @@ static void mcux_tpm_config_func_##n(const struct device *dev) \
 	static const struct mcux_tpm_config mcux_tpm_config_##n = { \
 		DEVICE_MMIO_NAMED_ROM_INIT(base, DT_DRV_INST(n)), \
 		.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)), \
-		.clock_subsys = (clock_control_subsys_t) \
-			DT_INST_CLOCKS_CELL(n, name), \
+		.clock_subsys = (clock_control_subsys_t)TPM_MCUX_DT_INST_CLOCK_GATE_SUBSYS(n), \
+		.clock_subsys_rate = (clock_control_subsys_t)TPM_MCUX_DT_INST_CLOCK_RATE_SUBSYS(n), \
 		.tpm_clock_source = kTPM_SystemClock, \
 		.prescale = TO_TPM_PRESCALE_DIVIDE(DT_INST_PROP(n, prescaler)), \
 		.channel_count = FSL_FEATURE_TPM_CHANNEL_COUNTn((TPM_Type *) \
