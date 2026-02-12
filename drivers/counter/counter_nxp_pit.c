@@ -9,6 +9,7 @@
 #include <zephyr/drivers/counter.h>
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/irq.h>
+#include <fsl_clock.h>
 #include <fsl_pit.h>
 
 #define LOG_MODULE_NAME counter_pit
@@ -47,6 +48,7 @@ struct nxp_pit_config {
 #endif
 	const struct device *clock_dev;
 	clock_control_subsys_t clock_subsys;
+	clock_control_subsys_t clock_subsys_rate;
 	struct nxp_pit_channel_data *const *data;
 	const struct device *const *channels;
 };
@@ -146,7 +148,7 @@ static uint32_t nxp_pit_get_frequency(const struct device *dev)
 	const struct nxp_pit_config *config = dev->config;
 	uint32_t clock_rate;
 
-	if (clock_control_get_rate(config->clock_dev, config->clock_subsys, &clock_rate)) {
+	if (clock_control_get_rate(config->clock_dev, config->clock_subsys_rate, &clock_rate)) {
 		LOG_ERR("Failed to get clock rate");
 		return 0;
 	}
@@ -199,10 +201,17 @@ static int nxp_pit_init(const struct device *dev)
 	const struct nxp_pit_config *config = dev->config;
 	pit_config_t pit_config;
 	uint32_t clock_rate;
+	int err;
 
 	if (!device_is_ready(config->clock_dev)) {
 		LOG_ERR("Clock control device not ready");
 		return -ENODEV;
+	}
+
+	err = clock_control_on(config->clock_dev, config->clock_subsys);
+	if (err) {
+		LOG_ERR("Failed to enable clock: %d", err);
+		return err;
 	}
 
 	PIT_GetDefaultConfig(&pit_config);
@@ -308,6 +317,25 @@ static DEVICE_API(counter, nxp_pit_driver_api) = {
 	};
 #endif
 
+/*
+ * For Kinetis SIM, enabling/disabling a peripheral clock needs a packed gate
+ * value (SIM SCGC reg offset + bit). Retrieving a clock rate needs a value
+ * suitable for CLOCK_GetFreq().
+ */
+#if DT_NODE_HAS_STATUS_OKAY(DT_INST(0, nxp_kinetis_sim))
+#define PIT_MCUX_DT_INST_CLOCK_GATE_SUBSYS(n) \
+	CLK_GATE_DEFINE(DT_INST_CLOCKS_CELL(n, offset), DT_INST_CLOCKS_CELL(n, bits))
+
+#define PIT_MCUX_DT_INST_CLOCK_RATE_SUBSYS(n) \
+	DT_INST_CLOCKS_CELL(n, name)
+#else
+#define PIT_MCUX_DT_INST_CLOCK_GATE_SUBSYS(n) \
+	DT_INST_CLOCKS_CELL(n, name)
+
+#define PIT_MCUX_DT_INST_CLOCK_RATE_SUBSYS(n) \
+	DT_INST_CLOCKS_CELL(n, name)
+#endif
+
 #define COUNTER_NXP_PIT_DEVICE_INIT(n)								\
 												\
 	/* Setup the IRQ either for parent irq or per channel irq */				\
@@ -360,7 +388,9 @@ static DEVICE_API(counter, nxp_pit_driver_api) = {
 			n, DT_NODE_HAS_COMPAT, (+), nxp_pit_channel),				\
 		.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)),				\
 		.clock_subsys = (clock_control_subsys_t)					\
-				DT_INST_CLOCKS_CELL(n, name),					\
+				PIT_MCUX_DT_INST_CLOCK_GATE_SUBSYS(n),				\
+		.clock_subsys_rate = (clock_control_subsys_t)				\
+				PIT_MCUX_DT_INST_CLOCK_RATE_SUBSYS(n),				\
 		.data = nxp_pit_##n##_channel_datas,						\
 		.channels = nxp_pit_##n##_channels,						\
 	};											\
