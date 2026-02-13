@@ -12,16 +12,18 @@
 #include <string.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/devicetree.h>
-#include <zephyr/dfu/mcuboot.h>
 #include <zephyr/dfu/flash_img.h>
 #include <zephyr/storage/flash_map.h>
 #include <zephyr/storage/stream_flash.h>
 
-LOG_MODULE_REGISTER(flash_img, CONFIG_IMG_MANAGER_LOG_LEVEL);
-
+#ifdef CONFIG_BOOTLOADER_MCUBOOT
+#include <zephyr/dfu/mcuboot.h>
 #ifdef CONFIG_IMG_ERASE_PROGRESSIVELY
 #include <bootutil/bootutil_public.h>
 #endif
+#endif /* CONFIG_BOOTLOADER_MCUBOOT */
+
+LOG_MODULE_REGISTER(flash_img, CONFIG_IMG_MANAGER_LOG_LEVEL);
 
 #define FIXED_PARTITION_IS_RUNNING_APP_PARTITION(label)                                            \
 	DT_SAME_NODE(FIXED_PARTITION_NODE_MTD(DT_CHOSEN(zephyr_code_partition)),                   \
@@ -63,6 +65,7 @@ BUILD_ASSERT((CONFIG_IMG_BLOCK_BUF_SIZE % FLASH_WRITE_BLOCK_SIZE == 0),
 #define FLASH_CHECK_ERASED_BUFFER_SIZE 16
 #define ERASED_VAL_32(x) (((x) << 24) | ((x) << 16) | ((x) << 8) | (x))
 
+#ifdef CONFIG_BOOTLOADER_MCUBOOT
 static int scramble_mcuboot_trailer(struct flash_img_context *ctx)
 {
 	int rc = 0;
@@ -75,7 +78,7 @@ static int scramble_mcuboot_trailer(struct flash_img_context *ctx)
 		const struct flash_parameters *fparams =
 			flash_get_parameters(flash_area_get_device(ctx->flash_area));
 #ifdef CONFIG_STREAM_FLASH_ERASE
-		/* for erasable devices prgressive-erase works only along with
+		/* for erasable devices progressive-erase works only along with
 		 * CONFIG_STREAM_FLASH_ERASE option.
 		 */
 		if (flash_params_get_erase_cap(fparams) & FLASH_ERASE_C_EXPLICIT) {
@@ -112,6 +115,7 @@ static int scramble_mcuboot_trailer(struct flash_img_context *ctx)
 
 	return rc;
 }
+#endif /* CONFIG_BOOTLOADER_MCUBOOT */
 
 
 int flash_img_buffered_write(struct flash_img_context *ctx, const uint8_t *data,
@@ -119,6 +123,7 @@ int flash_img_buffered_write(struct flash_img_context *ctx, const uint8_t *data,
 {
 	int rc;
 
+#ifdef CONFIG_BOOTLOADER_MCUBOOT
 	/* If there is a need to erase the trailer, that should happen before any
 	 * write is done to partition.
 	 */
@@ -126,10 +131,11 @@ int flash_img_buffered_write(struct flash_img_context *ctx, const uint8_t *data,
 	if (rc != 0) {
 		return rc;
 	}
+#endif
 
 
 	/* if CONFIG_IMG_ERASE_PROGRESSIVELY is enabled the enabled CONFIG_STREAM_FLASH_ERASE
-	 * ensures that stream_flash erases flash progresively.
+	 * ensures that stream_flash erases flash progressively.
 	 */
 	rc = stream_flash_buffered_write(&ctx->stream, data, len, flush);
 	if (!flush) {
@@ -299,7 +305,11 @@ int flash_img_check(struct flash_img_context *ctx,
 
 	fac.match = fic->match;
 	fac.clen = fic->clen;
+#ifdef CONFIG_BOOTLOADER_MCUBOOT
 	fac.off = boot_get_image_start_offset(area_id);
+#else
+	fac.off = 0;
+#endif
 	fac.rbuf = ctx->buf;
 	fac.rblen = sizeof(ctx->buf);
 
