@@ -330,5 +330,27 @@ ZTEST(power_domain_1cpu, test_power_domain_add_duplicate)
 
 }
 
+ZTEST(power_domain_1cpu, test_power_domain_remove_duplicate)
+{
+	int ret;
+
+	devc = DEVICE_GET(devc);
+	zassert_true(device_is_ready(devc), "Device is not ready!");
+
+	ret = pm_device_power_domain_remove(devc, domain);
+	zassert_equal(ret, -ENOENT);
+
+	ret = pm_device_power_domain_add(devc, domain);
+	zassert_equal(ret, 0);
+	zassert_true(pm_device_on_power_domain(devc), "devc is not in the power domain.");
+
+	ret = pm_device_power_domain_remove(devc, domain);
+	zassert_equal(ret, 0);
+	zassert_false(pm_device_on_power_domain(devc), "devc in the power domain.");
+
+	ret = pm_device_power_domain_remove(devc, domain);
+	zassert_equal(ret, -ENOENT);
+}
+
 ZTEST_SUITE(power_domain_1cpu, NULL, NULL, ztest_simple_1cpu_before,
 			ztest_simple_1cpu_after, NULL);
