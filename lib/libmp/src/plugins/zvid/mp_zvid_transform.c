@@ -84,7 +84,8 @@ static bool mp_zvid_transform_set_caps(struct mp_transform *transform,
 	}
 
 	/* Set pad's caps only when everything is OK */
-	mp_caps_replace(&transform->sinkpad.caps, caps);
+	mp_caps_replace(
+		direction == MP_PAD_SRC ? &transform->srcpad.caps : &transform->sinkpad.caps, caps);
 
 	return true;
 }
@@ -100,6 +101,10 @@ static struct mp_caps *mp_zvid_transform_transform_caps(struct mp_transform *sel
 	struct mp_cap_structure *cs;
 	struct video_format_cap vfc, other_vfc;
 	uint16_t ind;
+
+	if ((direction != MP_PAD_SINK && direction != MP_PAD_SRC) || caps == NULL) {
+		return NULL;
+	}
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&caps->caps_structures, cs, node) {
 		if (mp_structure_to_vfc(cs->structure, &vfc) < 0) {

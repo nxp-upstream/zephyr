@@ -12,8 +12,6 @@
 #ifndef __MP_ZVID_BUFFER_POOL_H__
 #define __MP_ZVID_BUFFER_POOL_H__
 
-#include <zephyr/device.h>
-
 #include <src/core/mp_buffer.h>
 
 #define MP_ZVID_BUFFERPOOL(self) ((struct mp_zvid_buffer_pool *)self)
