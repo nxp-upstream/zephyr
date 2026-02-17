@@ -33,7 +33,7 @@ static bool mp_zvid_buffer_pool_start(struct mp_buffer_pool *pool)
 		.count = pool->config.min_buffers,
 		.size = pool->config.size,
 		.align = pool->config.align,
-		.timeout = K_FOREVER,
+		.timeout = K_NO_WAIT,
 	};
 	int ret = video_request_buffers(&vbr);
 
