@@ -36,7 +36,13 @@ static int hello_world_tool_callback(enum mcp_tool_event_type event, const char 
 		.length = strlen("Hello World from tool!")
 	};
 
-	/* Simulate a long workload */
+	/* Simulate a long workload
+	 * 
+	 * NOTE: This is a simplified example. Real tools performing long-running
+	 * work should use user-managed state (e.g., flags, semaphores) to check
+	 * for cancellation during execution, rather than blocking for extended
+	 * periods.
+	 */
 	k_msleep(10000);
 
 	printk("Hello World tool executed with params: %s, token: %u\n", params ? params : "none",
