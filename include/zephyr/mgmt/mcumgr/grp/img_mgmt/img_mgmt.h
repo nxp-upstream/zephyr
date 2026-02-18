@@ -9,8 +9,8 @@
 #define H_IMG_MGMT_
 
 #include <inttypes.h>
-#include <bootutil/image.h>
 #include <zcbor_common.h>
+#include <zephyr/dfu/dfu_boot.h>
 
 #ifdef CONFIG_MCUMGR_GRP_IMG_VERBOSE_ERR
 #include <zephyr/mgmt/mcumgr/mgmt/mgmt.h>
@@ -35,13 +35,13 @@ extern "C" {
  * @{
  */
 /** Image is set for next swap */
-#define IMG_MGMT_STATE_F_PENDING	0x01
+#define IMG_MGMT_STATE_F_PENDING	DFU_BOOT_STATE_F_PENDING
 /** Image has been confirmed. */
-#define IMG_MGMT_STATE_F_CONFIRMED	0x02
+#define IMG_MGMT_STATE_F_CONFIRMED	DFU_BOOT_STATE_F_CONFIRMED
 /** Image is currently active. */
-#define IMG_MGMT_STATE_F_ACTIVE		0x04
+#define IMG_MGMT_STATE_F_ACTIVE		DFU_BOOT_STATE_F_ACTIVE
 /** Image is to stay in primary slot after the next boot. */
-#define IMG_MGMT_STATE_F_PERMANENT	0x08
+#define IMG_MGMT_STATE_F_PERMANENT	DFU_BOOT_STATE_F_PERMANENT
 /** @} */
 
 /* 255.255.65535.4294967295\0 */
@@ -51,11 +51,11 @@ extern "C" {
  * @name Swap Types for image management state machine
  * @{
  */
-#define IMG_MGMT_SWAP_TYPE_NONE    0   /**< No swap */
-#define IMG_MGMT_SWAP_TYPE_TEST    1   /**< Test swap */
-#define IMG_MGMT_SWAP_TYPE_PERM    2   /**< Permanent swap */
-#define IMG_MGMT_SWAP_TYPE_REVERT  3   /**< Revert swap */
-#define IMG_MGMT_SWAP_TYPE_UNKNOWN 255 /**< Unknown swap */
+#define IMG_MGMT_SWAP_TYPE_NONE    DFU_BOOT_SWAP_TYPE_NONE    /**< No swap */
+#define IMG_MGMT_SWAP_TYPE_TEST    DFU_BOOT_SWAP_TYPE_TEST    /**< Test swap */
+#define IMG_MGMT_SWAP_TYPE_PERM    DFU_BOOT_SWAP_TYPE_PERM    /**< Permanent swap */
+#define IMG_MGMT_SWAP_TYPE_REVERT  DFU_BOOT_SWAP_TYPE_REVERT  /**< Revert swap */
+#define IMG_MGMT_SWAP_TYPE_UNKNOWN DFU_BOOT_SWAP_TYPE_UNKNOWN /**< Unknown swap */
 /** @} */
 
 /**
@@ -193,6 +193,16 @@ enum img_mgmt_id_upload_t {
 extern int boot_current_slot;
 extern struct img_mgmt_state g_img_mgmt_state;
 
+/**
+ * @brief Image version structure (for compatibility with existing code)
+ */
+struct image_version {
+	uint8_t iv_major;
+	uint8_t iv_minor;
+	uint16_t iv_revision;
+	uint32_t iv_build_num;
+};
+
 /** Represents an individual upload request. */
 struct img_mgmt_upload_req {
 	uint32_t image;	/* 0 by default */
@@ -286,7 +296,7 @@ int img_mgmt_active_image(void);
 /**
  * @brief Check if the image slot is in use.
  *
- * The check is based on MCUboot flags, not image contents. This means that
+ * The check is based on bootloader flags, not image contents. This means that
  * slot with image in it, but no bootable flags set, is considered empty.
  * Active slot is always in use.
  *
@@ -297,9 +307,9 @@ int img_mgmt_active_image(void);
 int img_mgmt_slot_in_use(int slot);
 
 /**
- * @brief Check if any slot is in MCUboot pending state.
+ * @brief Check if any slot is in pending state.
  *
- * Function returns 1 if slot 0 or slot 1 is in MCUboot pending state,
+ * Function returns 1 if slot 0 or slot 1 is in pending state,
  * which means that it has been either marked for test or confirmed.
  *
  * @return 1 if there's pending DFU otherwise 0.
@@ -309,7 +319,7 @@ int img_mgmt_state_any_pending(void);
 /**
  * @brief Returns state flags set to slot.
  *
- * Flags are translated from MCUboot image state flags.
+ * Flags are translated from bootloader image state flags.
  * Returned value is zero if no flags are set or a combination of:
  *  IMG_MGMT_STATE_F_PENDING
  *  IMG_MGMT_STATE_F_CONFIRMED

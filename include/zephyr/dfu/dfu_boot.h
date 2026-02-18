@@ -1,99 +1,83 @@
 /*
- * Copyright (c) 2025 NXP
+ * Copyright (c) 2024 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
- * @file
- * @brief DFU Boot abstraction API
- *
- * Generic bootloader abstraction layer for DFU operations.
- * This API provides bootloader-agnostic functions for image management,
- * slot control, and boot state operations.
  */
 
 #ifndef ZEPHYR_INCLUDE_DFU_DFU_BOOT_H_
 #define ZEPHYR_INCLUDE_DFU_DFU_BOOT_H_
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- * @brief DFU Boot abstraction API
- * @defgroup dfu_boot_api DFU Boot API
+ * @brief DFU Boot Abstraction API
+ * @defgroup dfu_boot DFU Boot Abstraction
  * @ingroup dfu
  * @{
  */
 
-/** Maximum version string length: "255.255.65535.4294967295\0" */
-#define DFU_BOOT_VER_MAX_STR_LEN 25
-
-/** Maximum hash length (SHA-512) */
-#define DFU_BOOT_HASH_MAX_LEN 64
-
-/** SHA-256 hash length */
-#define DFU_BOOT_HASH_LEN_SHA256 32
-
-/** SHA-512 hash length */
-#define DFU_BOOT_HASH_LEN_SHA512 64
-
 /**
- * @name Slot state flags
+ * @name Hash lengths
  * @{
  */
-/** Slot is marked for next boot (test or permanent) */
-#define DFU_BOOT_STATE_F_PENDING    BIT(0)
-/** Slot image is confirmed */
-#define DFU_BOOT_STATE_F_CONFIRMED  BIT(1)
-/** Slot is currently active (running) */
-#define DFU_BOOT_STATE_F_ACTIVE     BIT(2)
-/** Slot is marked for permanent swap */
-#define DFU_BOOT_STATE_F_PERMANENT  BIT(3)
+#define DFU_BOOT_HASH_LEN_SHA256	32
+#define DFU_BOOT_HASH_LEN_SHA512	64
+/** @} */
+
+/**
+ * @name Image state flags
+ * @{
+ */
+/** Image is set for next swap */
+#define DFU_BOOT_STATE_F_PENDING	0x01
+/** Image has been confirmed */
+#define DFU_BOOT_STATE_F_CONFIRMED	0x02
+/** Image is currently active */
+#define DFU_BOOT_STATE_F_ACTIVE		0x04
+/** Image is to stay in primary slot after the next boot */
+#define DFU_BOOT_STATE_F_PERMANENT	0x08
 /** @} */
 
 /**
  * @name Swap types
  * @{
  */
-/** No swap scheduled */
-#define DFU_BOOT_SWAP_TYPE_NONE     0
-/** Test swap (revert on next boot unless confirmed) */
-#define DFU_BOOT_SWAP_TYPE_TEST     1
-/** Permanent swap */
-#define DFU_BOOT_SWAP_TYPE_PERM     2
-/** Revert to previous image */
-#define DFU_BOOT_SWAP_TYPE_REVERT   3
-/** Unknown/error state */
-#define DFU_BOOT_SWAP_TYPE_UNKNOWN  255
+#define DFU_BOOT_SWAP_TYPE_NONE		0 /**< No swap */
+#define DFU_BOOT_SWAP_TYPE_TEST		1 /**< Test swap */
+#define DFU_BOOT_SWAP_TYPE_PERM		2 /**< Permanent swap */
+#define DFU_BOOT_SWAP_TYPE_REVERT	3 /**< Revert swap */
+#define DFU_BOOT_SWAP_TYPE_UNKNOWN	255 /**< Unknown swap */
 /** @} */
 
 /**
  * @name Image flags
  * @{
  */
-/** Image is not bootable */
-#define DFU_BOOT_IMG_F_NON_BOOTABLE BIT(0)
+/** Image is non-bootable */
+#define DFU_BOOT_IMG_F_NON_BOOTABLE	0x00000010
 /** Image has fixed ROM address */
-#define DFU_BOOT_IMG_F_ROM_FIXED    BIT(1)
+#define DFU_BOOT_IMG_F_ROM_FIXED	0x00000100
 /** @} */
 
 /**
- * @brief Next boot type
+ * @name Next boot type
+ * @{
  */
 enum dfu_boot_next_type {
-	/** Normal boot to active or scheduled slot */
+	/** Normal boot to active or non-active slot */
 	DFU_BOOT_NEXT_TYPE_NORMAL = 0,
-	/** Test boot (will revert unless confirmed) */
+	/** Test/non-permanent boot to non-active slot */
 	DFU_BOOT_NEXT_TYPE_TEST = 1,
-	/** Revert to previous confirmed slot */
+	/** Revert to already confirmed slot */
 	DFU_BOOT_NEXT_TYPE_REVERT = 2,
 };
+/** @} */
 
 /**
  * @brief Image version structure
@@ -106,90 +90,106 @@ struct dfu_boot_img_version {
 };
 
 /**
+ * @brief Image header structure
+ *
+ * This structure contains information extracted from the image header.
+ */
+struct dfu_boot_img_header {
+	/** Image header magic value */
+	uint32_t magic;
+	/** Image load address */
+	uint32_t load_addr;
+	/** Image header size */
+	uint16_t hdr_size;
+	/** Protected TLV area size */
+	uint16_t protect_tlv_size;
+	/** Image size (not including header) */
+	uint32_t img_size;
+	/** Image flags */
+	uint32_t flags;
+	/** Image version */
+	struct dfu_boot_img_version version;
+};
+
+/**
  * @brief Image information structure
  *
- * Contains all relevant information about an image in a slot.
+ * This structure is used to pass image information from header validation
+ * and image info reading.
  */
 struct dfu_boot_img_info {
 	/** Image version */
 	struct dfu_boot_img_version version;
-	/** Image hash (SHA-256 or SHA-512) */
-	uint8_t hash[DFU_BOOT_HASH_MAX_LEN];
-	/** Length of hash in bytes */
-	uint8_t hash_len;
-	/** Image flags (DFU_BOOT_IMG_F_*) */
+	/** Image flags */
 	uint32_t flags;
-	/** True if a valid image is present in the slot */
+	/** Image load address */
+	uint32_t load_addr;
+	/** Image size */
+	uint32_t img_size;
+	/** Header size */
+	uint16_t hdr_size;
+	/** Hash length */
+	uint8_t hash_len;
+	/** Hash value */
+	uint8_t hash[DFU_BOOT_HASH_LEN_SHA512];
+	/** Whether the image info is valid */
 	bool valid;
 };
 
 /**
- * @brief Get the active (currently running) slot for an image
- *
- * @param image Image index (0 for single-image systems)
- * @return Slot number (0, 1, ...) or negative errno on error
- */
-int dfu_boot_get_active_slot(int image);
-
-/**
- * @brief Get the currently active image index
- *
- * For single-image systems, this always returns 0.
- *
- * @return Image index (>= 0)
- */
-int dfu_boot_get_active_image(void);
-
-/**
- * @brief Read image information from a slot
- *
- * Reads and parses the image header and extracts version, hash, and flags.
+ * @brief Get the state flags for a slot
  *
  * @param slot Slot number
- * @param info Pointer to structure to fill with image info
- * @return 0 on success, negative errno on error
- */
-int dfu_boot_read_img_info(int slot, struct dfu_boot_img_info *info);
-
-/**
- * @brief Get state flags for a slot
  *
- * Returns the current state of a slot as a combination of DFU_BOOT_STATE_F_* flags.
- *
- * @param slot Slot number
- * @return Combination of DFU_BOOT_STATE_F_* flags
+ * @return State flags (combination of DFU_BOOT_STATE_F_* values)
  */
 uint8_t dfu_boot_get_slot_state(int slot);
 
 /**
- * @brief Get the swap type for a slot's image pair
+ * @brief Get the next boot slot for an image
  *
- * @param slot Slot number
- * @return DFU_BOOT_SWAP_TYPE_* value
+ * @param image Image number
+ * @param type Pointer to store the next boot type (can be NULL)
+ *
+ * @return Slot number that will boot next, or -1 on error
  */
-int dfu_boot_get_swap_type(int slot);
+int dfu_boot_get_next_boot_slot(int image, enum dfu_boot_next_type *type);
 
 /**
- * @brief Mark a slot as pending for next boot
+ * @brief Check if any slot is pending
  *
- * @param slot Slot number to mark as pending
- * @param permanent If true, make the change permanent; if false, test only
- * @return 0 on success, negative errno on error
+ * @return true if any slot is pending, false otherwise
+ */
+bool dfu_boot_any_pending(void);
+
+/**
+ * @brief Check if a slot is in use
+ *
+ * @param slot Slot number
+ *
+ * @return Non-zero if slot is in use, 0 otherwise
+ */
+int dfu_boot_slot_in_use(int slot);
+
+/**
+ * @brief Set a slot as pending for next boot
+ *
+ * @param slot Slot number
+ * @param permanent If true, make the change permanent
+ *
+ * @return 0 on success, negative error code on failure
  */
 int dfu_boot_set_pending(int slot, bool permanent);
 
 /**
- * @brief Confirm the currently running image
+ * @brief Confirm the current image
  *
- * Prevents automatic revert on next boot if the current image was
- * booted as a test.
- *
- * @return 0 on success, negative errno on error
+ * @return 0 on success, negative error code on failure
  */
 int dfu_boot_confirm(void);
 
 /**
- * @brief Check if the currently running image is confirmed
+ * @brief Check if the current image is confirmed
  *
  * @return true if confirmed, false otherwise
  */
@@ -198,104 +198,129 @@ bool dfu_boot_is_confirmed(void);
 /**
  * @brief Erase a slot
  *
- * @param slot Slot number to erase
- * @return 0 on success, negative errno on error
+ * @param slot Slot number
+ *
+ * @return 0 on success, negative error code on failure
  */
 int dfu_boot_erase_slot(int slot);
 
 /**
- * @brief Get flash area ID for a slot
+ * @brief Read data from a slot
  *
  * @param slot Slot number
- * @return Flash area ID (>= 0) or negative errno on error
+ * @param offset Offset within the slot
+ * @param dst Destination buffer
+ * @param num_bytes Number of bytes to read
+ *
+ * @return 0 on success, negative error code on failure
+ */
+int dfu_boot_read(int slot, size_t offset, void *dst, size_t num_bytes);
+
+/**
+ * @brief Get the flash area ID for a slot
+ *
+ * @param slot Slot number
+ *
+ * @return Flash area ID, or negative error code on failure
  */
 int dfu_boot_get_flash_area_id(int slot);
 
 /**
- * @brief Check if a slot is in use
- *
- * A slot is considered in use if it's active, pending, or otherwise
- * cannot be safely erased.
+ * @brief Get the swap type for a slot
  *
  * @param slot Slot number
- * @return 1 if in use, 0 if free, negative errno on error
- */
-int dfu_boot_slot_in_use(int slot);
-
-/**
- * @brief Get the slot that will boot next for an image
  *
- * @param image Image index
- * @param type Pointer to store the type of next boot (may be NULL)
- * @return Slot number or negative errno on error
+ * @return Swap type (DFU_BOOT_SWAP_TYPE_* value)
  */
-int dfu_boot_get_next_boot_slot(int image, enum dfu_boot_next_type *type);
-
-/**
- * @brief Check if any slot has a pending operation
- *
- * @return true if any slot is pending, false otherwise
- */
-bool dfu_boot_any_pending(void);
-
-/**
- * @brief Get the erased byte value for a slot's flash
- *
- * @param slot Slot number
- * @param erased_val Pointer to store the erased byte value
- * @return 0 on success, negative errno on error
- */
-int dfu_boot_get_erased_val(int slot, uint8_t *erased_val);
-
-/**
- * @brief Get image data offset within a slot
- *
- * Some bootloaders store image data at an offset within the slot.
- * This function returns that offset.
- *
- * @param slot Slot number
- * @return Offset in bytes (0 for most bootloaders)
- */
-size_t dfu_boot_get_image_offset(int slot);
-
-/**
- * @brief Read raw data from a slot
- *
- * @param slot Slot number
- * @param offset Offset within slot (after image offset)
- * @param dst Destination buffer
- * @param len Number of bytes to read
- * @return 0 on success, negative errno on error
- */
-int dfu_boot_read(int slot, size_t offset, void *dst, size_t len);
+int dfu_boot_get_swap_type(int slot);
 
 /**
  * @brief Compare two image versions
  *
- * Compares versions in semantic versioning order:
- * major.minor.revision.build_num
- *
  * @param a First version
  * @param b Second version
+ *
  * @return -1 if a < b, 0 if a == b, 1 if a > b
  */
 int dfu_boot_vercmp(const struct dfu_boot_img_version *a,
 		    const struct dfu_boot_img_version *b);
 
 /**
- * @brief Format version as string
+ * @brief Get the erased value for a slot's flash
  *
- * Formats version as "major.minor.revision[.build_num]".
- * Build number is only included if non-zero.
+ * @param slot Slot number
+ * @param erased_val Pointer to store the erased value
  *
- * @param ver Version structure
- * @param buf Output buffer
- * @param buf_size Size of output buffer
- * @return Number of characters written (excluding null terminator),
- *         or negative errno on error
+ * @return 0 on success, negative error code on failure
  */
-int dfu_boot_ver_str(const struct dfu_boot_img_version *ver,
-		     char *buf, size_t buf_size);
+int dfu_boot_get_erased_val(int slot, uint8_t *erased_val);
+
+/**
+ * @brief Get the image offset for a slot (for swap-using-offset mode)
+ *
+ * @param slot Slot number
+ *
+ * @return Image offset, or 0 if not applicable
+ */
+size_t dfu_boot_get_image_offset(int slot);
+
+/**
+ * @brief Get the trailer status offset for a given flash area size
+ *
+ * @param area_size Size of the flash area
+ *
+ * @return Offset of the trailer status area
+ */
+size_t dfu_boot_get_trailer_status_offset(size_t area_size);
+
+/**
+ * @brief Validate an image header
+ *
+ * @param data Pointer to the image data (must contain at least the header)
+ * @param len Length of the data
+ * @param info Pointer to store extracted image information (can be NULL)
+ *
+ * @return 0 on success, negative error code on failure
+ */
+int dfu_boot_validate_header(const void *data, size_t len, struct dfu_boot_img_info *info);
+
+/**
+ * @brief Format a version string
+ *
+ * @param ver Pointer to version structure
+ * @param dst Destination buffer
+ * @param dst_size Size of destination buffer
+ *
+ * @return Number of characters written (excluding null terminator),
+ *         or negative error code on failure
+ */
+int dfu_boot_ver_str(const struct dfu_boot_img_version *ver, char *dst, size_t dst_size);
+
+/**
+ * @brief Read image information from a slot
+ *
+ * @param slot Slot number
+ * @param info Pointer to store image information
+ *
+ * @return 0 on success, negative error code on failure
+ */
+int dfu_boot_read_img_info(int slot, struct dfu_boot_img_info *info);
+
+/**
+ * @brief Get the active slot for an image
+ *
+ * @param image Image number
+ *
+ * @return Active slot number
+ */
+int dfu_boot_get_active_slot(int image);
+
+/**
+ * @brief Get the active image number
+ *
+ * @return Active image number
+ */
+int dfu_boot_get_active_image(void);
 
 /**
  * @}

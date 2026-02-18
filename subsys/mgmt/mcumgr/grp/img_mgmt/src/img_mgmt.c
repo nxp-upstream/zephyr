@@ -1,9 +1,9 @@
 /*
- * Copyright (c) 2018-2021 mcumgr authors
- * Copyright (c) 2022-2025 Nordic Semiconductor ASA
- *
- * SPDX-License-Identifier: Apache-2.0
- */
+	* Copyright (c) 2018-2021 mcumgr authors
+	* Copyright (c) 2022-2025 Nordic Semiconductor ASA
+	*
+	* SPDX-License-Identifier: Apache-2.0
+	*/
 
 #include <zephyr/sys/util.h>
 #include <limits.h>
@@ -13,7 +13,7 @@
 #include <zephyr/toolchain.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/storage/flash_map.h>
-#include <zephyr/dfu/mcuboot.h>
+#include <zephyr/dfu/dfu_boot.h>
 
 #include <zcbor_common.h>
 #include <zcbor_decode.h>
@@ -37,88 +37,7 @@
 #endif
 
 #if defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD)
-#include <bootutil/boot_status.h>
 #include <zephyr/retention/blinfo.h>
-#endif
-
-#if !defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD)
-
-#ifndef CONFIG_FLASH_LOAD_OFFSET
-#error MCUmgr requires application to be built with CONFIG_FLASH_LOAD_OFFSET set \
-	to be able to figure out application running slot.
-#endif
-
-#define FIXED_PARTITION_IS_RUNNING_APP_PARTITION(label)                                            \
-	DT_SAME_NODE(FIXED_PARTITION_NODE_MTD(DT_CHOSEN(zephyr_code_partition)),                   \
-		FIXED_PARTITION_MTD(label)) && (FIXED_PARTITION_ADDRESS(label) <=                  \
-			(CONFIG_FLASH_BASE_ADDRESS + CONFIG_FLASH_LOAD_OFFSET) &&                  \
-		FIXED_PARTITION_ADDRESS(label) + FIXED_PARTITION_SIZE(label) >                     \
-			(CONFIG_FLASH_BASE_ADDRESS + CONFIG_FLASH_LOAD_OFFSET))
-
-BUILD_ASSERT(sizeof(struct image_header) == IMAGE_HEADER_SIZE,
-	     "struct image_header not required size");
-
-#if CONFIG_MCUMGR_GRP_IMG_UPDATABLE_IMAGE_NUMBER >= 2
-#if FIXED_PARTITION_EXISTS(slot0_ns_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot0_ns_partition)
-#define ACTIVE_IMAGE_IS 0
-#elif FIXED_PARTITION_EXISTS(slot0_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot0_partition)
-#define ACTIVE_IMAGE_IS 0
-#elif FIXED_PARTITION_EXISTS(slot1_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot1_partition)
-#define ACTIVE_IMAGE_IS 0
-#elif FIXED_PARTITION_EXISTS(slot2_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot2_partition)
-#define ACTIVE_IMAGE_IS 1
-#elif FIXED_PARTITION_EXISTS(slot3_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot3_partition)
-#define ACTIVE_IMAGE_IS 1
-#elif FIXED_PARTITION_EXISTS(slot4_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot4_partition)
-#define ACTIVE_IMAGE_IS 2
-#elif FIXED_PARTITION_EXISTS(slot5_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot5_partition)
-#define ACTIVE_IMAGE_IS 2
-#elif FIXED_PARTITION_EXISTS(slot6_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot6_partition)
-#define ACTIVE_IMAGE_IS 3
-#elif FIXED_PARTITION_EXISTS(slot7_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot7_partition)
-#define ACTIVE_IMAGE_IS 3
-#elif FIXED_PARTITION_EXISTS(slot8_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot8_partition)
-#define ACTIVE_IMAGE_IS 4
-#elif FIXED_PARTITION_EXISTS(slot9_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot9_partition)
-#define ACTIVE_IMAGE_IS 4
-#elif FIXED_PARTITION_EXISTS(slot10_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot10_partition)
-#define ACTIVE_IMAGE_IS 5
-#elif FIXED_PARTITION_EXISTS(slot11_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot11_partition)
-#define ACTIVE_IMAGE_IS 5
-#elif FIXED_PARTITION_EXISTS(slot12_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot12_partition)
-#define ACTIVE_IMAGE_IS 6
-#elif FIXED_PARTITION_EXISTS(slot13_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot13_partition)
-#define ACTIVE_IMAGE_IS 6
-#elif FIXED_PARTITION_EXISTS(slot14_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot14_partition)
-#define ACTIVE_IMAGE_IS 7
-#elif FIXED_PARTITION_EXISTS(slot15_partition) &&			\
-	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot15_partition)
-#define ACTIVE_IMAGE_IS 7
-#else
-#define ACTIVE_IMAGE_IS 0
-#endif
-#else
-#define ACTIVE_IMAGE_IS 0
-#endif
-
-#else
-#define ACTIVE_IMAGE_IS 0
 #endif
 
 #if CONFIG_MCUBOOT_BOOTLOADER_MODE_FIRMWARE_UPDATER
@@ -176,7 +95,8 @@ static bool img_mgmt_slot_max_size(size_t *area_sizes, zcbor_state_t *zse)
 		if (CONFIG_MCUBOOT_UPDATE_FOOTER_SIZE >= area_size_difference) {
 			ok = zcbor_tstr_put_lit(zse, "max_image_size") &&
 			     zcbor_uint32_put(zse, (uint32_t)(area_sizes[0] -
-					      CONFIG_MCUBOOT_UPDATE_FOOTER_SIZE));		}
+					      CONFIG_MCUBOOT_UPDATE_FOOTER_SIZE));
+		}
 	}
 
 	return ok;
@@ -203,66 +123,14 @@ static bool img_mgmt_slot_max_size(size_t *area_sizes, zcbor_state_t *zse)
 }
 #endif
 
-/**
- * Finds the TLVs in the specified image slot, if any.
- */
-static int img_mgmt_find_tlvs(int slot, size_t *start_off, size_t *end_off, uint16_t magic)
-{
-	struct image_tlv_info tlv_info;
-	int rc;
-
-	rc = img_mgmt_read(slot, *start_off, &tlv_info, sizeof(tlv_info));
-	if (rc != 0) {
-		/* Read error. */
-		return rc;
-	}
-
-	if (tlv_info.it_magic != magic) {
-		/* No TLVs. */
-		return IMG_MGMT_ERR_NO_TLVS;
-	}
-
-	*start_off += sizeof(tlv_info);
-	*end_off = *start_off + tlv_info.it_tlv_tot;
-
-	return IMG_MGMT_ERR_OK;
-}
-
 int img_mgmt_active_slot(int image)
 {
-	int slot = 0;
-
-	/* Multi image does not support DirectXIP or RAM load currently */
-#if CONFIG_MCUMGR_GRP_IMG_UPDATABLE_IMAGE_NUMBER > 1
-	slot = (image << 1);
-#elif defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD)
-	/* RAM load requires querying bootloader */
-	int rc;
-	uint8_t temp_slot;
-
-	rc = blinfo_lookup(BLINFO_RUNNING_SLOT, &temp_slot, sizeof(temp_slot));
-
-	if (rc <= 0) {
-		LOG_ERR("Failed to fetch active slot: %d", rc);
-
-		return 255;
-	}
-
-	slot = (int)temp_slot;
-#else
-	/* This covers single image, including DirectXiP */
-	if (FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot1_partition)) {
-		slot = 1;
-	}
-#endif
-	LOG_DBG("(%d) => %d", image, slot);
-
-	return slot;
+	return dfu_boot_get_active_slot(image);
 }
 
 int img_mgmt_active_image(void)
 {
-	return ACTIVE_IMAGE_IS;
+	return dfu_boot_get_active_image();
 }
 
 /*
@@ -270,103 +138,40 @@ int img_mgmt_active_image(void)
  */
 int img_mgmt_read_info(int image_slot, struct image_version *ver, uint8_t *hash, uint32_t *flags)
 {
-	struct image_header hdr;
-	struct image_tlv tlv;
-	size_t data_off;
-	size_t data_end;
-	bool hash_found;
-	uint8_t erased_val;
-	uint32_t erased_val_32;
+	struct dfu_boot_img_info info;
 	int rc;
 
-	rc = img_mgmt_erased_val(image_slot, &erased_val);
+	rc = dfu_boot_read_img_info(image_slot, &info);
 	if (rc != 0) {
-		return IMG_MGMT_ERR_FLASH_CONFIG_QUERY_FAIL;
+		return IMG_MGMT_ERR_FLASH_READ_FAILED;
 	}
 
-	rc = img_mgmt_read(image_slot,
-			   boot_get_image_start_offset(img_mgmt_flash_area_id(image_slot)),
-			   &hdr, sizeof(hdr));
-
-	if (rc != 0) {
-		return rc;
+	if (!info.valid) {
+		return IMG_MGMT_ERR_NO_IMAGE;
 	}
 
 	if (ver != NULL) {
-		memset(ver, erased_val, sizeof(*ver));
+		ver->iv_major = info.version.major;
+		ver->iv_minor = info.version.minor;
+		ver->iv_revision = info.version.revision;
+		ver->iv_build_num = info.version.build_num;
 	}
-	erased_val_32 = ERASED_VAL_32(erased_val);
-	if (hdr.ih_magic == IMAGE_MAGIC) {
-		if (ver != NULL) {
-			memcpy(ver, &hdr.ih_ver, sizeof(*ver));
+
+	if (hash != NULL) {
+		if (info.hash_len == 0) {
+			return IMG_MGMT_ERR_HASH_NOT_FOUND;
 		}
-	} else if (hdr.ih_magic == erased_val_32) {
-		return IMG_MGMT_ERR_NO_IMAGE;
-	} else {
-		return IMG_MGMT_ERR_INVALID_IMAGE_HEADER_MAGIC;
+		memcpy(hash, info.hash, info.hash_len);
 	}
 
 	if (flags != NULL) {
-		*flags = hdr.ih_flags;
-	}
-
-	/* Read the image's TLVs. We first try to find the protected TLVs, if the protected
-	 * TLV does not exist, we try to find non-protected TLV which also contains the hash
-	 * TLV. All images are required to have a hash TLV.  If the hash is missing, the image
-	 * is considered invalid.
-	 */
-	data_off = hdr.ih_hdr_size + hdr.ih_img_size +
-		   boot_get_image_start_offset(img_mgmt_flash_area_id(image_slot));
-
-	rc = img_mgmt_find_tlvs(image_slot, &data_off, &data_end, IMAGE_TLV_PROT_INFO_MAGIC);
-	if (!rc) {
-		/* The data offset should start after the header bytes after the end of
-		 * the protected TLV, if one exists.
-		 */
-		data_off = data_end - sizeof(struct image_tlv_info);
-	}
-
-	rc = img_mgmt_find_tlvs(image_slot, &data_off, &data_end, IMAGE_TLV_INFO_MAGIC);
-	if (rc != 0) {
-		return IMG_MGMT_ERR_NO_TLVS;
-	}
-
-	hash_found = false;
-	while (data_off + sizeof(tlv) <= data_end) {
-		rc = img_mgmt_read(image_slot, data_off, &tlv, sizeof(tlv));
-		if (rc != 0) {
-			return rc;
+		*flags = 0;
+		if (info.flags & DFU_BOOT_IMG_F_NON_BOOTABLE) {
+			*flags |= (1 << 0); /* IMAGE_F_NON_BOOTABLE */
 		}
-		if (tlv.it_type == 0xff && tlv.it_len == 0xffff) {
-			return IMG_MGMT_ERR_INVALID_TLV;
+		if (info.flags & DFU_BOOT_IMG_F_ROM_FIXED) {
+			*flags |= (1 << 8); /* IMAGE_F_ROM_FIXED */
 		}
-		if (tlv.it_type != IMAGE_TLV_SHA || tlv.it_len != IMAGE_SHA_LEN) {
-			/* Non-hash TLV.  Skip it. */
-			data_off += sizeof(tlv) + tlv.it_len;
-			continue;
-		}
-
-		if (hash_found) {
-			/* More than one hash. */
-			return IMG_MGMT_ERR_TLV_MULTIPLE_HASHES_FOUND;
-		}
-		hash_found = true;
-
-		data_off += sizeof(tlv);
-		if (hash != NULL) {
-			if (data_off + IMAGE_SHA_LEN > data_end) {
-				return IMG_MGMT_ERR_TLV_INVALID_SIZE;
-			}
-			rc = img_mgmt_read(image_slot, data_off, hash, IMAGE_SHA_LEN);
-			if (rc != 0) {
-				return rc;
-			}
-		}
-		data_off += IMAGE_SHA_LEN;
-	}
-
-	if (!hash_found) {
-		return IMG_MGMT_ERR_HASH_NOT_FOUND;
 	}
 
 	return 0;
@@ -1131,8 +936,6 @@ static const struct mgmt_handler img_mgmt_handlers[] = {
 	},
 #endif
 };
-
-static const struct mgmt_handler img_mgmt_handlers[];
 
 #define IMG_MGMT_HANDLER_CNT ARRAY_SIZE(img_mgmt_handlers)
 

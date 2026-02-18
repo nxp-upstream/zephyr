@@ -350,13 +350,28 @@ ssize_t boot_get_area_trailer_status_offset(uint8_t area_id)
 
 	return offset;
 }
-	/*
-		* Note: The following functions are now defined as static inline in
-		* <zephyr/dfu/mcuboot.h> and delegate to dfu_boot_* APIs:
-		*   - boot_is_img_confirmed()
-		*   - boot_write_img_confirmed()
-		*   - boot_request_upgrade()
-		*   - boot_request_upgrade_multi()
-		*
-		* They are NOT defined here to avoid redefinition errors.
-		*/
+
+bool boot_is_img_confirmed(void)
+{
+	return dfu_boot_is_confirmed();
+}
+
+int boot_write_img_confirmed(void)
+{
+	return dfu_boot_confirm();
+}
+
+int boot_request_upgrade(int permanent)
+{
+#ifdef FLASH_AREA_IMAGE_SECONDARY
+	return dfu_boot_set_pending(1, permanent == BOOT_UPGRADE_PERMANENT);
+#else
+	return 0;
+#endif
+}
+
+int boot_request_upgrade_multi(int image_index, int permanent)
+{
+	int slot = (image_index * 2) + 1; /* Secondary slot for image */
+	return dfu_boot_set_pending(slot, permanent == BOOT_UPGRADE_PERMANENT);
+}

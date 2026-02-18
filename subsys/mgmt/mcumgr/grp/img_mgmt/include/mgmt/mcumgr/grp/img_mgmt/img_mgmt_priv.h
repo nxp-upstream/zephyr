@@ -13,6 +13,7 @@
 
 #include <zephyr/mgmt/mcumgr/smp/smp.h>
 #include <zephyr/mgmt/mcumgr/grp/img_mgmt/img_mgmt.h>
+#include <zephyr/dfu/dfu_boot.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -126,14 +127,14 @@ static inline int img_mgmt_get_opposite_slot(int slot)
 
 enum img_mgmt_next_boot_type {
 	/** The normal boot to active or non-active slot */
-	NEXT_BOOT_TYPE_NORMAL	=	0,
+	NEXT_BOOT_TYPE_NORMAL	=	DFU_BOOT_NEXT_TYPE_NORMAL,
 	/** The test/non-permanent boot to non-active slot */
-	NEXT_BOOT_TYPE_TEST	=	1,
+	NEXT_BOOT_TYPE_TEST	=	DFU_BOOT_NEXT_TYPE_TEST,
 	/** Next boot will be revert to already confirmed slot; this
 	 * type of next boot means that active slot is not confirmed
 	 * yet as it has been marked for test in previous boot.
 	 */
-	NEXT_BOOT_TYPE_REVERT	=	2
+	NEXT_BOOT_TYPE_REVERT	=	DFU_BOOT_NEXT_TYPE_REVERT
 };
 
 /**
@@ -217,6 +218,16 @@ int img_mgmt_find_by_ver(struct image_version *find, uint8_t *hash);
 int img_mgmt_state_read(struct smp_streamer *ctxt);
 int img_mgmt_state_write(struct smp_streamer *njb);
 int img_mgmt_flash_area_id(int slot);
+
+/**
+ * @brief Set the next boot slot for an image
+ *
+ * @param slot		The slot to boot from next
+ * @param confirm	Whether to confirm (permanent) or test
+ *
+ * @return 0 on success, IMG_MGMT_ERR_[...] code on failure.
+ */
+int img_mgmt_set_next_boot_slot(int slot, bool confirm);
 
 #ifdef __cplusplus
 }

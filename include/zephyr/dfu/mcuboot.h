@@ -106,83 +106,69 @@ int boot_read_bank_header(uint8_t area_id,
  * @return flash area id for the active image slot
  */
 uint8_t boot_fetch_active_slot(void);
+	/**
+		* @brief Check if the currently running image is confirmed as OK.
+		*
+		* @return True if the image is confirmed as OK, false otherwise.
+		*/
+	bool boot_is_img_confirmed(void);
 
-/**
- * @brief Check if the currently running image is confirmed as OK.
- *
- * @return True if the image is confirmed as OK, false otherwise.
- */
-static inline bool boot_is_img_confirmed(void)
-{
-	return dfu_boot_is_confirmed();
-}
+	/**
+		* @brief Marks the currently running image as confirmed.
+		*
+		* @return 0 on success, negative errno code on fail.
+		*/
+	int boot_write_img_confirmed(void);
 
-/**
- * @brief Marks the currently running image as confirmed.
- *
- * @return 0 on success, negative errno code on fail.
- */
-static inline int boot_write_img_confirmed(void)
-{
-	return dfu_boot_confirm();
-}
+	/**
+		* @brief Marks the image with the given index in the primary slot as confirmed.
+		*
+		* @param image_index Image pair index.
+		* @return 0 on success, negative errno code on fail.
+		*/
+	int boot_write_img_confirmed_multi(int image_index);
 
-/**
- * @brief Marks the image with the given index in the primary slot as confirmed.
- *
- * @param image_index Image pair index.
- * @return 0 on success, negative errno code on fail.
- */
-int boot_write_img_confirmed_multi(int image_index);
+	/**
+		* @brief Determines the action, if any, that mcuboot will take on the next reboot.
+		*
+		* @return a BOOT_SWAP_TYPE_[...] constant on success, negative errno code on fail.
+		*/
+	int mcuboot_swap_type(void);
 
-/**
- * @brief Determines the action, if any, that mcuboot will take on the next reboot.
- *
- * @return a BOOT_SWAP_TYPE_[...] constant on success, negative errno code on fail.
- */
-int mcuboot_swap_type(void);
+	/**
+		* @brief Determines the action, if any, that mcuboot will take on the next reboot.
+		*
+		* @param image_index Image pair index.
+		* @return a BOOT_SWAP_TYPE_[...] constant on success, negative errno code on fail.
+		*/
+	int mcuboot_swap_type_multi(int image_index);
 
-/**
- * @brief Determines the action, if any, that mcuboot will take on the next reboot.
- *
- * @param image_index Image pair index.
- * @return a BOOT_SWAP_TYPE_[...] constant on success, negative errno code on fail.
- */
-int mcuboot_swap_type_multi(int image_index);
+	/**
+		* @brief Marks the image in slot 1 as pending.
+		*
+		* @param permanent Whether the image should be used permanently or only tested once.
+		* @return 0 on success, negative errno code on fail.
+		*/
+	int boot_request_upgrade(int permanent);
 
-/**
- * @brief Marks the image in slot 1 as pending.
- *
- * @param permanent Whether the image should be used permanently or only tested once.
- * @return 0 on success, negative errno code on fail.
- */
-static inline int boot_request_upgrade(int permanent)
-{
-	return dfu_boot_set_pending(1, permanent == BOOT_UPGRADE_PERMANENT);
-}
+	/**
+		* @brief Marks the image with the given index in the secondary slot as pending.
+		*
+		* @param image_index Image pair index.
+		* @param permanent Whether the image should be used permanently or only tested once.
+		* @return 0 on success, negative errno code on fail.
+		*/
+	int boot_request_upgrade_multi(int image_index, int permanent);
 
-/**
- * @brief Marks the image with the given index in the secondary slot as pending.
- *
- * @param image_index Image pair index.
- * @param permanent Whether the image should be used permanently or only tested once.
- * @return 0 on success, negative errno code on fail.
- */
-static inline int boot_request_upgrade_multi(int image_index, int permanent)
-{
-	int slot = (image_index * 2) + 1; /* Secondary slot for image */
-	return dfu_boot_set_pending(slot, permanent == BOOT_UPGRADE_PERMANENT);
-}
+	/**
+		* @brief Erase the image Bank.
+		*
+		* @param area_id flash_area ID of image bank to be erased.
+		* @return 0 on success, negative errno code on fail.
+		*/
+	int boot_erase_img_bank(uint8_t area_id);
 
-/**
- * @brief Erase the image Bank.
- *
- * @param area_id flash_area ID of image bank to be erased.
- * @return 0 on success, negative errno code on fail.
- */
-int boot_erase_img_bank(uint8_t area_id);
-
-/**
+	/**
  * @brief Get the offset of the status in the image bank
  *
  * @param area_id flash_area ID of image bank to get the status offset

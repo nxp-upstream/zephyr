@@ -6,12 +6,13 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/init.h>
+#ifdef CONFIG_FLASH
 #include <zephyr/drivers/flash.h>
+#endif
 #include <zephyr/storage/flash_map.h>
-#include <zephyr/dfu/mcuboot.h>
+#include <zephyr/dfu/dfu_boot.h>
 #include <zephyr/dfu/flash_img.h>
 #include <zephyr/logging/log.h>
-#include <bootutil/bootutil_public.h>
 #include <assert.h>
 
 #include <zephyr/mgmt/mcumgr/mgmt/mgmt.h>
@@ -19,76 +20,17 @@
 
 #include <mgmt/mcumgr/grp/img_mgmt/img_mgmt_priv.h>
 
-#if defined(CONFIG_MCUMGR_GRP_IMG_TOO_LARGE_BOOTLOADER_INFO)
+#if defined(CONFIG_MCUMGR_GRP_IMG_TOO_LARGE_BOOTLOADER_INFO) && defined(CONFIG_RETENTION)
 #include <zephyr/retention/retention.h>
 #include <zephyr/retention/blinfo.h>
 #endif
 
 LOG_MODULE_DECLARE(mcumgr_img_grp, CONFIG_MCUMGR_GRP_IMG_LOG_LEVEL);
 
-#define SLOT0_PARTITION		slot0_partition
-#define SLOT1_PARTITION		slot1_partition
-#define SLOT2_PARTITION		slot2_partition
-#define SLOT3_PARTITION		slot3_partition
-#define SLOT4_PARTITION		slot4_partition
-#define SLOT5_PARTITION		slot5_partition
-#define SLOT6_PARTITION		slot6_partition
-#define SLOT7_PARTITION		slot7_partition
-#define SLOT8_PARTITION		slot8_partition
-#define SLOT9_PARTITION		slot9_partition
-#define SLOT10_PARTITION	slot10_partition
-#define SLOT11_PARTITION	slot11_partition
-#define SLOT12_PARTITION	slot12_partition
-#define SLOT13_PARTITION	slot13_partition
-#define SLOT14_PARTITION	slot14_partition
-#define SLOT15_PARTITION	slot15_partition
-
-/* SLOT0_PARTITION and SLOT1_PARTITION are not checked because
- * there is not conditional code that depends on them. If they do
- * not exist compilation will fail, but in case if some of other
- * partitions do not exist, code will compile and will not work
- * properly.
- */
-#if CONFIG_MCUMGR_GRP_IMG_UPDATABLE_IMAGE_NUMBER >= 2
-BUILD_ASSERT(FIXED_PARTITION_EXISTS(SLOT2_PARTITION) &&
-	     FIXED_PARTITION_EXISTS(SLOT3_PARTITION),
-	     "Missing partitions?");
-#endif
-
-#if CONFIG_MCUMGR_GRP_IMG_UPDATABLE_IMAGE_NUMBER >= 3
-BUILD_ASSERT(FIXED_PARTITION_EXISTS(SLOT4_PARTITION) &&
-	     FIXED_PARTITION_EXISTS(SLOT5_PARTITION),
-	     "Missing partitions?");
-#endif
-
-#if CONFIG_MCUMGR_GRP_IMG_UPDATABLE_IMAGE_NUMBER >= 4
-BUILD_ASSERT(FIXED_PARTITION_EXISTS(SLOT6_PARTITION) &&
-	     FIXED_PARTITION_EXISTS(SLOT7_PARTITION),
-	     "Missing partitions?");
-#endif
-
-#if CONFIG_MCUMGR_GRP_IMG_UPDATABLE_IMAGE_NUMBER >= 5
-BUILD_ASSERT(FIXED_PARTITION_EXISTS(SLOT8_PARTITION) &&
-	     FIXED_PARTITION_EXISTS(SLOT9_PARTITION),
-	     "Missing partitions?");
-#endif
-
-#if CONFIG_MCUMGR_GRP_IMG_UPDATABLE_IMAGE_NUMBER >= 6
-BUILD_ASSERT(FIXED_PARTITION_EXISTS(SLOT10_PARTITION) &&
-	     FIXED_PARTITION_EXISTS(SLOT11_PARTITION),
-	     "Missing partitions?");
-#endif
-
-#if CONFIG_MCUMGR_GRP_IMG_UPDATABLE_IMAGE_NUMBER >= 7
-BUILD_ASSERT(FIXED_PARTITION_EXISTS(SLOT12_PARTITION) &&
-	     FIXED_PARTITION_EXISTS(SLOT13_PARTITION),
-	     "Missing partitions?");
-#endif
-
-#if CONFIG_MCUMGR_GRP_IMG_UPDATABLE_IMAGE_NUMBER >= 8
-BUILD_ASSERT(FIXED_PARTITION_EXISTS(SLOT14_PARTITION) &&
-	     FIXED_PARTITION_EXISTS(SLOT15_PARTITION),
-	     "Missing partitions?");
+#if CONFIG_MCUBOOT_BOOTLOADER_MODE_FIRMWARE_UPDATER
+#define SLOTS_PER_IMAGE 1
+#else
+#define SLOTS_PER_IMAGE 2
 #endif
 
 /**
@@ -170,113 +112,9 @@ static int img_mgmt_flash_check_empty(uint8_t fa_id)
  * image_2 and so on. The function treats slot numbers as absolute
  * slot number starting at 0.
  */
-int
-img_mgmt_flash_area_id(int slot)
+int img_mgmt_flash_area_id(int slot)
 {
-	uint8_t fa_id;
-
-	switch (slot) {
-	case 0:
-		fa_id = FIXED_PARTITION_ID(SLOT0_PARTITION);
-		break;
-
-	case 1:
-		fa_id = FIXED_PARTITION_ID(SLOT1_PARTITION);
-		break;
-
-#if !defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_FIRMWARE_UPDATER)
-#if FIXED_PARTITION_EXISTS(SLOT2_PARTITION)
-	case 2:
-		fa_id = FIXED_PARTITION_ID(SLOT2_PARTITION);
-		break;
-#endif
-
-#if FIXED_PARTITION_EXISTS(SLOT3_PARTITION)
-	case 3:
-		fa_id = FIXED_PARTITION_ID(SLOT3_PARTITION);
-		break;
-#endif
-
-#if FIXED_PARTITION_EXISTS(SLOT4_PARTITION)
-	case 4:
-		fa_id = FIXED_PARTITION_ID(SLOT4_PARTITION);
-		break;
-#endif
-
-#if FIXED_PARTITION_EXISTS(SLOT5_PARTITION)
-	case 5:
-		fa_id = FIXED_PARTITION_ID(SLOT5_PARTITION);
-		break;
-#endif
-
-#if FIXED_PARTITION_EXISTS(SLOT6_PARTITION)
-	case 6:
-		fa_id = FIXED_PARTITION_ID(SLOT6_PARTITION);
-		break;
-#endif
-
-#if FIXED_PARTITION_EXISTS(SLOT7_PARTITION)
-	case 7:
-		fa_id = FIXED_PARTITION_ID(SLOT7_PARTITION);
-		break;
-#endif
-
-#if FIXED_PARTITION_EXISTS(SLOT8_PARTITION)
-	case 8:
-		fa_id = FIXED_PARTITION_ID(SLOT8_PARTITION);
-		break;
-#endif
-
-#if FIXED_PARTITION_EXISTS(SLOT9_PARTITION)
-	case 9:
-		fa_id = FIXED_PARTITION_ID(SLOT9_PARTITION);
-		break;
-#endif
-
-#if FIXED_PARTITION_EXISTS(SLOT10_PARTITION)
-	case 10:
-		fa_id = FIXED_PARTITION_ID(SLOT10_PARTITION);
-		break;
-#endif
-
-#if FIXED_PARTITION_EXISTS(SLOT11_PARTITION)
-	case 11:
-		fa_id = FIXED_PARTITION_ID(SLOT11_PARTITION);
-		break;
-#endif
-
-#if FIXED_PARTITION_EXISTS(SLOT12_PARTITION)
-	case 12:
-		fa_id = FIXED_PARTITION_ID(SLOT12_PARTITION);
-		break;
-#endif
-
-#if FIXED_PARTITION_EXISTS(SLOT13_PARTITION)
-	case 13:
-		fa_id = FIXED_PARTITION_ID(SLOT13_PARTITION);
-		break;
-#endif
-
-#if FIXED_PARTITION_EXISTS(SLOT14_PARTITION)
-	case 14:
-		fa_id = FIXED_PARTITION_ID(SLOT14_PARTITION);
-		break;
-#endif
-
-#if FIXED_PARTITION_EXISTS(SLOT15_PARTITION)
-	case 15:
-		fa_id = FIXED_PARTITION_ID(SLOT15_PARTITION);
-		break;
-#endif
-
-#endif /* !defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_FIRMWARE_UPDATER) */
-
-	default:
-		fa_id = -1;
-		break;
-	}
-
-	return fa_id;
+	return dfu_boot_get_flash_area_id(slot);
 }
 
 #if CONFIG_MCUMGR_GRP_IMG_UPDATABLE_IMAGE_NUMBER == 1
@@ -348,71 +186,25 @@ static int img_mgmt_get_unused_slot_area_id(unsigned int image)
 
 int img_mgmt_vercmp(const struct image_version *a, const struct image_version *b)
 {
-	if (a->iv_major < b->iv_major) {
-		return -1;
-	} else if (a->iv_major > b->iv_major) {
-		return 1;
-	}
+	struct dfu_boot_img_version va = {
+		.major = a->iv_major,
+		.minor = a->iv_minor,
+		.revision = a->iv_revision,
+		.build_num = a->iv_build_num,
+	};
+	struct dfu_boot_img_version vb = {
+		.major = b->iv_major,
+		.minor = b->iv_minor,
+		.revision = b->iv_revision,
+		.build_num = b->iv_build_num,
+	};
 
-	if (a->iv_minor < b->iv_minor) {
-		return -1;
-	} else if (a->iv_minor > b->iv_minor) {
-		return 1;
-	}
-
-	if (a->iv_revision < b->iv_revision) {
-		return -1;
-	} else if (a->iv_revision > b->iv_revision) {
-		return 1;
-	}
-
-#if defined(CONFIG_MCUMGR_GRP_IMG_VERSION_CMP_USE_BUILD_NUMBER)
-	if (a->iv_build_num < b->iv_build_num) {
-		return -1;
-	} else if (a->iv_build_num > b->iv_build_num) {
-		return 1;
-	}
-#endif
-
-	return 0;
+	return dfu_boot_vercmp(&va, &vb);
 }
 
 int img_mgmt_erase_slot(int slot)
 {
-	const struct flash_area *fa;
-	int rc;
-	int area_id = img_mgmt_flash_area_id(slot);
-
-	if (area_id < 0) {
-		return IMG_MGMT_ERR_INVALID_SLOT;
-	}
-
-	rc = flash_area_open(area_id, &fa);
-
-	if (rc < 0) {
-		LOG_ERR("Failed to open flash area ID %u: %d", area_id, rc);
-		return IMG_MGMT_ERR_FLASH_OPEN_FAILED;
-	}
-
-	rc = img_mgmt_flash_check_empty_inner(fa);
-
-	if (rc == 0) {
-		rc = flash_area_flatten(fa, 0, fa->fa_size);
-
-		if (rc != 0) {
-			LOG_ERR("Failed to erase flash area: %d", rc);
-			rc = IMG_MGMT_ERR_FLASH_ERASE_FAILED;
-		}
-	} else if (rc == 1) {
-		/* A return value of 1 indicates that the slot is already erased, thus
-		 * return a success code to the client
-		 */
-		rc = 0;
-	}
-
-	flash_area_close(fa);
-
-	return rc;
+	return dfu_boot_erase_slot(slot);
 }
 
 int img_mgmt_write_pending(int slot, bool permanent)
@@ -423,7 +215,7 @@ int img_mgmt_write_pending(int slot, bool permanent)
 		return IMG_MGMT_ERR_INVALID_SLOT;
 	}
 
-	rc = boot_request_upgrade_multi(img_mgmt_slot_to_image(slot), permanent);
+	rc = dfu_boot_set_pending(slot, permanent);
 	if (rc != 0) {
 		LOG_ERR("Failed to write pending flag for slot %d: %d", slot, rc);
 		return IMG_MGMT_ERR_FLASH_WRITE_FAILED;
@@ -436,7 +228,7 @@ int img_mgmt_write_confirmed(void)
 {
 	int rc;
 
-	rc = boot_write_img_confirmed();
+	rc = dfu_boot_confirm();
 	if (rc != 0) {
 		LOG_ERR("Failed to write confirmed flag: %d", rc);
 		return IMG_MGMT_ERR_FLASH_WRITE_FAILED;
@@ -447,25 +239,11 @@ int img_mgmt_write_confirmed(void)
 
 int img_mgmt_read(int slot, unsigned int offset, void *dst, unsigned int num_bytes)
 {
-	const struct flash_area *fa;
 	int rc;
-	int area_id = img_mgmt_flash_area_id(slot);
 
-	if (area_id < 0) {
-		return IMG_MGMT_ERR_INVALID_SLOT;
-	}
-
-	rc = flash_area_open(area_id, &fa);
+	rc = dfu_boot_read(slot, offset, dst, num_bytes);
 	if (rc != 0) {
-		LOG_ERR("Failed to open flash area ID %u: %d", area_id, rc);
-		return IMG_MGMT_ERR_FLASH_OPEN_FAILED;
-	}
-
-	rc = flash_area_read(fa, offset, dst, num_bytes);
-	flash_area_close(fa);
-
-	if (rc != 0) {
-		LOG_ERR("Failed to read data from flash: %d", rc);
+		LOG_ERR("Failed to read from slot %d: %d", slot, rc);
 		return IMG_MGMT_ERR_FLASH_READ_FAILED;
 	}
 
@@ -548,6 +326,7 @@ int img_mgmt_erase_image_data(unsigned int off, unsigned int num_bytes)
 	struct flash_pages_info page;
 	off_t page_offset;
 	size_t erase_size;
+	size_t img_offset;
 
 	if (off != 0) {
 		rc = IMG_MGMT_ERR_INVALID_OFFSET;
@@ -578,8 +357,12 @@ int img_mgmt_erase_image_data(unsigned int off, unsigned int num_bytes)
 	}
 
 	erase_size = page.start_offset + page.size - fa->fa_off;
-	rc = flash_area_flatten(fa, boot_get_image_start_offset(g_img_mgmt_state.area_id),
-				erase_size);
+
+	/* Get image start offset for swap-using-offset mode */
+	img_offset = dfu_boot_get_image_offset(
+		img_mgmt_slot_to_image(g_img_mgmt_state.area_id) * 2 + 1);
+
+	rc = flash_area_flatten(fa, img_offset, erase_size);
 
 	if (rc != 0) {
 		LOG_ERR("image slot erase of 0x%zx bytes failed (err %d)", erase_size,
@@ -597,7 +380,7 @@ int img_mgmt_erase_image_data(unsigned int off, unsigned int num_bytes)
 	 */
 
 	/* erase the image trailer area if it was not erased */
-	off = boot_get_trailer_status_offset(fa->fa_size);
+	off = dfu_boot_get_trailer_status_offset(fa->fa_size);
 	if (off >= erase_size) {
 		rc = flash_get_page_info_by_offs(dev, fa->fa_off + off, &page);
 
@@ -625,20 +408,7 @@ end:
 
 int img_mgmt_swap_type(int slot)
 {
-	int image = img_mgmt_slot_to_image(slot);
-
-	switch (mcuboot_swap_type_multi(image)) {
-	case BOOT_SWAP_TYPE_NONE:
-		return IMG_MGMT_SWAP_TYPE_NONE;
-	case BOOT_SWAP_TYPE_TEST:
-		return IMG_MGMT_SWAP_TYPE_TEST;
-	case BOOT_SWAP_TYPE_PERM:
-		return IMG_MGMT_SWAP_TYPE_PERM;
-	case BOOT_SWAP_TYPE_REVERT:
-		return IMG_MGMT_SWAP_TYPE_REVERT;
-	default:
-		return IMG_MGMT_SWAP_TYPE_UNKNOWN;
-	}
+	return dfu_boot_get_swap_type(slot);
 }
 
 /**
@@ -657,7 +427,7 @@ int img_mgmt_swap_type(int slot)
 int img_mgmt_upload_inspect(const struct img_mgmt_upload_req *req,
 			    struct img_mgmt_upload_action *action)
 {
-	const struct image_header *hdr;
+	struct dfu_boot_img_info hdr_info;
 	struct image_version cur_ver;
 	int rc;
 
@@ -689,11 +459,11 @@ int img_mgmt_upload_inspect(const struct img_mgmt_upload_req *req,
 		int max_image_size;
 #endif
 
-		if (req->img_data.len < sizeof(struct image_header)) {
+		if (req->img_data.len < sizeof(struct dfu_boot_img_header)) {
 			/*  Image header is the first thing in the image */
 			IMG_MGMT_UPLOAD_ACTION_SET_RC_RSN(action, img_mgmt_err_str_hdr_malformed);
-			LOG_DBG("Image data too short: %u < %u", req->img_data.len,
-				sizeof(struct image_header));
+			LOG_DBG("Image data too short: %u < %zu", req->img_data.len,
+				sizeof(struct dfu_boot_img_header));
 			return IMG_MGMT_ERR_INVALID_IMAGE_HEADER;
 		}
 
@@ -706,10 +476,11 @@ int img_mgmt_upload_inspect(const struct img_mgmt_upload_req *req,
 
 		action->size = req->size;
 
-		hdr = (struct image_header *)req->img_data.value;
-		if (hdr->ih_magic != IMAGE_MAGIC) {
+		/* Validate header magic using dfu_boot API */
+		rc = dfu_boot_validate_header(req->img_data.value, req->img_data.len, &hdr_info);
+		if (rc != 0) {
 			IMG_MGMT_UPLOAD_ACTION_SET_RC_RSN(action, img_mgmt_err_str_magic_mismatch);
-			LOG_DBG("Magic mismatch: %08X != %08X", hdr->ih_magic, IMAGE_MAGIC);
+			LOG_DBG("Header validation failed: %d", rc);
 			return IMG_MGMT_ERR_INVALID_IMAGE_HEADER_MAGIC;
 		}
 
@@ -828,13 +599,13 @@ skip_size_check:
 #endif
 
 #if defined(CONFIG_MCUMGR_GRP_IMG_REJECT_DIRECT_XIP_MISMATCHED_SLOT)
-		if (hdr->ih_flags & IMAGE_F_ROM_FIXED) {
-			if (fa->fa_off != hdr->ih_load_addr) {
+		if (hdr_info.flags & DFU_BOOT_IMG_F_ROM_FIXED) {
+			if (fa->fa_off != hdr_info.load_addr) {
 				IMG_MGMT_UPLOAD_ACTION_SET_RC_RSN(action,
 					img_mgmt_err_str_image_bad_flash_addr);
 				flash_area_close(fa);
 				LOG_DBG("Invalid flash address: %08X, expected: %08X",
-					hdr->ih_load_addr, (int)fa->fa_off);
+					hdr_info.load_addr, (int)fa->fa_off);
 				return IMG_MGMT_ERR_INVALID_FLASH_ADDRESS;
 			}
 		}
@@ -852,14 +623,21 @@ skip_size_check:
 				return IMG_MGMT_ERR_VERSION_GET_FAILED;
 			}
 
-			if (img_mgmt_vercmp(&cur_ver, &hdr->ih_ver) >= 0) {
+			struct image_version hdr_ver = {
+				.iv_major = hdr_info.version.major,
+				.iv_minor = hdr_info.version.minor,
+				.iv_revision = hdr_info.version.revision,
+				.iv_build_num = hdr_info.version.build_num,
+			};
+
+			if (img_mgmt_vercmp(&cur_ver, &hdr_ver) >= 0) {
 				IMG_MGMT_UPLOAD_ACTION_SET_RC_RSN(action,
 					img_mgmt_err_str_downgrade);
 				LOG_DBG("Downgrade: %d.%d.%d.%d, expected: %d.%d.%d.%d",
 					cur_ver.iv_major, cur_ver.iv_minor, cur_ver.iv_revision,
-					cur_ver.iv_build_num, hdr->ih_ver.iv_major,
-					hdr->ih_ver.iv_minor, hdr->ih_ver.iv_revision,
-					hdr->ih_ver.iv_build_num);
+					cur_ver.iv_build_num, hdr_ver.iv_major,
+					hdr_ver.iv_minor, hdr_ver.iv_revision,
+					hdr_ver.iv_build_num);
 				return IMG_MGMT_ERR_CURRENT_VERSION_IS_NEWER;
 			}
 		}
@@ -908,23 +686,5 @@ skip_size_check:
 
 int img_mgmt_erased_val(int slot, uint8_t *erased_val)
 {
-	const struct flash_area *fa;
-	int rc;
-	int area_id = img_mgmt_flash_area_id(slot);
-
-	if (area_id < 0) {
-		LOG_DBG("Invalid slot: %d", area_id);
-		return IMG_MGMT_ERR_INVALID_SLOT;
-	}
-
-	rc = flash_area_open(area_id, &fa);
-	if (rc != 0) {
-		LOG_ERR("Failed to open flash area ID %u: %d", area_id, rc);
-		return IMG_MGMT_ERR_FLASH_OPEN_FAILED;
-	}
-
-	*erased_val = flash_area_erased_val(fa);
-	flash_area_close(fa);
-
-	return 0;
+	return dfu_boot_get_erased_val(slot, erased_val);
 }

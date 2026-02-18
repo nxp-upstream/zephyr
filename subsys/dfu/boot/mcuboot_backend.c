@@ -75,285 +75,292 @@ LOG_MODULE_REGISTER(dfu_boot_mcuboot, CONFIG_IMG_MANAGER_LOG_LEVEL);
 #else
 #define SLOTS_PER_IMAGE 2
 #endif
-	/*
-		* Active image detection for multi-image
-		*/
-	#if CONFIG_MCUMGR_GRP_IMG_UPDATABLE_IMAGE_NUMBER >= 2
 
-	#define FIXED_PARTITION_IS_RUNNING_APP_PARTITION(label)                        \
-		(FIXED_PARTITION_EXISTS(label) &&                                      \
-			DT_SAME_NODE(FIXED_PARTITION_NODE_MTD(DT_CHOSEN(zephyr_code_partition)), \
-									FIXED_PARTITION_MTD(label)) &&                           \
-			(FIXED_PARTITION_ADDRESS(label) <=                                    \
-				(CONFIG_FLASH_BASE_ADDRESS + CONFIG_FLASH_LOAD_OFFSET)) &&           \
-			(FIXED_PARTITION_ADDRESS(label) + FIXED_PARTITION_SIZE(label) >       \
-				(CONFIG_FLASH_BASE_ADDRESS + CONFIG_FLASH_LOAD_OFFSET)))
+/*
+ * Active image detection for multi-image
+ */
+#if CONFIG_MCUMGR_GRP_IMG_UPDATABLE_IMAGE_NUMBER >= 2
 
-	#if FIXED_PARTITION_EXISTS(slot0_ns_partition) && \
-		FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot0_ns_partition)
-	#define ACTIVE_IMAGE_INDEX 0
-	#elif FIXED_PARTITION_EXISTS(slot0_partition) && \
-		FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot0_partition)
-	#define ACTIVE_IMAGE_INDEX 0
-	#elif FIXED_PARTITION_EXISTS(slot1_partition) && \
-		FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot1_partition)
-	#define ACTIVE_IMAGE_INDEX 0
-	#elif FIXED_PARTITION_EXISTS(slot2_partition) && \
-		FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot2_partition)
-	#define ACTIVE_IMAGE_INDEX 1
-	#elif FIXED_PARTITION_EXISTS(slot3_partition) && \
-		FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot3_partition)
-	#define ACTIVE_IMAGE_INDEX 1
-	#else
-	#define ACTIVE_IMAGE_INDEX 0
-	#endif
+#define FIXED_PARTITION_IS_RUNNING_APP_PARTITION(label)                        \
+	(FIXED_PARTITION_EXISTS(label) &&                                      \
+	 DT_SAME_NODE(FIXED_PARTITION_NODE_MTD(DT_CHOSEN(zephyr_code_partition)), \
+		      FIXED_PARTITION_MTD(label)) &&                           \
+	 (FIXED_PARTITION_ADDRESS(label) <=                                    \
+	  (CONFIG_FLASH_BASE_ADDRESS + CONFIG_FLASH_LOAD_OFFSET)) &&           \
+	 (FIXED_PARTITION_ADDRESS(label) + FIXED_PARTITION_SIZE(label) >       \
+	  (CONFIG_FLASH_BASE_ADDRESS + CONFIG_FLASH_LOAD_OFFSET)))
 
-	#else /* Single image */
-	#define ACTIVE_IMAGE_INDEX 0
-	#endif /* CONFIG_MCUMGR_GRP_IMG_UPDATABLE_IMAGE_NUMBER >= 2 */
+#if FIXED_PARTITION_EXISTS(slot0_ns_partition) && \
+	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot0_ns_partition)
+#define ACTIVE_IMAGE_INDEX 0
+#elif FIXED_PARTITION_EXISTS(slot0_partition) && \
+	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot0_partition)
+#define ACTIVE_IMAGE_INDEX 0
+#elif FIXED_PARTITION_EXISTS(slot1_partition) && \
+	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot1_partition)
+#define ACTIVE_IMAGE_INDEX 0
+#elif FIXED_PARTITION_EXISTS(slot2_partition) && \
+	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot2_partition)
+#define ACTIVE_IMAGE_INDEX 1
+#elif FIXED_PARTITION_EXISTS(slot3_partition) && \
+	FIXED_PARTITION_IS_RUNNING_APP_PARTITION(slot3_partition)
+#define ACTIVE_IMAGE_INDEX 1
+#else
+#define ACTIVE_IMAGE_INDEX 0
+#endif
 
-	/*
-		* Image index enum for swap using offset mode
-		*/
-	enum image_index {
-		IMAGE_INDEX_INVALID = -1,
-		IMAGE_INDEX_0 = 0,
-		IMAGE_INDEX_1 = 1,
-		IMAGE_INDEX_2 = 2,
-		IMAGE_INDEX_3 = 3,
-		IMAGE_INDEX_4 = 4,
-		IMAGE_INDEX_5 = 5,
-		IMAGE_INDEX_6 = 6,
-		IMAGE_INDEX_7 = 7,
-	};
+#else /* Single image */
+#define ACTIVE_IMAGE_INDEX 0
+#endif /* CONFIG_MCUMGR_GRP_IMG_UPDATABLE_IMAGE_NUMBER >= 2 */
 
-	/*
-		* Helper: convert slot number to image index
-		*/
-	static inline int slot_to_image(int slot)
-	{
-		return slot / SLOTS_PER_IMAGE;
+/*
+ * Image index enum for swap using offset mode
+ */
+enum image_index {
+	IMAGE_INDEX_INVALID = -1,
+	IMAGE_INDEX_0 = 0,
+	IMAGE_INDEX_1 = 1,
+	IMAGE_INDEX_2 = 2,
+	IMAGE_INDEX_3 = 3,
+	IMAGE_INDEX_4 = 4,
+	IMAGE_INDEX_5 = 5,
+	IMAGE_INDEX_6 = 6,
+	IMAGE_INDEX_7 = 7,
+};
+
+/*
+ * Helper: convert slot number to image index
+ */
+static inline int slot_to_image(int slot)
+{
+	return slot / SLOTS_PER_IMAGE;
+}
+
+/*
+ * Helper: get opposite slot in an image pair
+ */
+static inline int get_opposite_slot(int slot)
+{
+	return slot ^ 1;
+}
+
+/*
+ * Helper: erased value as 32-bit word
+ */
+#define ERASED_VAL_32(x) (((x) << 24) | ((x) << 16) | ((x) << 8) | (x))
+
+int dfu_boot_get_flash_area_id(int slot)
+{
+	switch (slot) {
+	case 0:
+		return FIXED_PARTITION_ID(SLOT0_PARTITION);
+	case 1:
+		return FIXED_PARTITION_ID(SLOT1_PARTITION);
+#if FIXED_PARTITION_EXISTS(SLOT2_PARTITION)
+	case 2:
+		return FIXED_PARTITION_ID(SLOT2_PARTITION);
+#endif
+#if FIXED_PARTITION_EXISTS(SLOT3_PARTITION)
+	case 3:
+		return FIXED_PARTITION_ID(SLOT3_PARTITION);
+#endif
+#if FIXED_PARTITION_EXISTS(SLOT4_PARTITION)
+	case 4:
+		return FIXED_PARTITION_ID(SLOT4_PARTITION);
+#endif
+#if FIXED_PARTITION_EXISTS(SLOT5_PARTITION)
+	case 5:
+		return FIXED_PARTITION_ID(SLOT5_PARTITION);
+#endif
+#if FIXED_PARTITION_EXISTS(SLOT6_PARTITION)
+	case 6:
+		return FIXED_PARTITION_ID(SLOT6_PARTITION);
+#endif
+#if FIXED_PARTITION_EXISTS(SLOT7_PARTITION)
+	case 7:
+		return FIXED_PARTITION_ID(SLOT7_PARTITION);
+#endif
+#if FIXED_PARTITION_EXISTS(SLOT8_PARTITION)
+	case 8:
+		return FIXED_PARTITION_ID(SLOT8_PARTITION);
+#endif
+#if FIXED_PARTITION_EXISTS(SLOT9_PARTITION)
+	case 9:
+		return FIXED_PARTITION_ID(SLOT9_PARTITION);
+#endif
+#if FIXED_PARTITION_EXISTS(SLOT10_PARTITION)
+	case 10:
+		return FIXED_PARTITION_ID(SLOT10_PARTITION);
+#endif
+#if FIXED_PARTITION_EXISTS(SLOT11_PARTITION)
+	case 11:
+		return FIXED_PARTITION_ID(SLOT11_PARTITION);
+#endif
+#if FIXED_PARTITION_EXISTS(SLOT12_PARTITION)
+	case 12:
+		return FIXED_PARTITION_ID(SLOT12_PARTITION);
+#endif
+#if FIXED_PARTITION_EXISTS(SLOT13_PARTITION)
+	case 13:
+		return FIXED_PARTITION_ID(SLOT13_PARTITION);
+#endif
+#if FIXED_PARTITION_EXISTS(SLOT14_PARTITION)
+	case 14:
+		return FIXED_PARTITION_ID(SLOT14_PARTITION);
+#endif
+#if FIXED_PARTITION_EXISTS(SLOT15_PARTITION)
+	case 15:
+		return FIXED_PARTITION_ID(SLOT15_PARTITION);
+#endif
+	default:
+		return -EINVAL;
 	}
+}
 
-	/*
-		* Helper: get opposite slot in an image pair
-		*/
-	static inline int get_opposite_slot(int slot)
-	{
-		return slot ^ 1;
+int dfu_boot_get_active_slot(int image)
+{
+	int slot = 0;
+
+#if CONFIG_MCUMGR_GRP_IMG_UPDATABLE_IMAGE_NUMBER > 1
+	slot = image * SLOTS_PER_IMAGE;
+#elif defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD) || \
+	defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD_WITH_REVERT)
+	int rc;
+	uint8_t temp_slot;
+
+	rc = blinfo_lookup(BLINFO_RUNNING_SLOT, &temp_slot, sizeof(temp_slot));
+	if (rc <= 0) {
+		LOG_ERR("Failed to fetch active slot: %d", rc);
+		return -EIO;
 	}
-
-	/*
-		* Helper: erased value as 32-bit word
-		*/
-	#define ERASED_VAL_32(x) (((x) << 24) | ((x) << 16) | ((x) << 8) | (x))
-
-	int dfu_boot_get_flash_area_id(int slot)
-	{
-		switch (slot) {
-		case 0:
-			return FIXED_PARTITION_ID(SLOT0_PARTITION);
-		case 1:
-			return FIXED_PARTITION_ID(SLOT1_PARTITION);
-	#if FIXED_PARTITION_EXISTS(SLOT2_PARTITION)
-		case 2:
-			return FIXED_PARTITION_ID(SLOT2_PARTITION);
-	#endif
-	#if FIXED_PARTITION_EXISTS(SLOT3_PARTITION)
-		case 3:
-			return FIXED_PARTITION_ID(SLOT3_PARTITION);
-	#endif
-	#if FIXED_PARTITION_EXISTS(SLOT4_PARTITION)
-		case 4:
-			return FIXED_PARTITION_ID(SLOT4_PARTITION);
-	#endif
-	#if FIXED_PARTITION_EXISTS(SLOT5_PARTITION)
-		case 5:
-			return FIXED_PARTITION_ID(SLOT5_PARTITION);
-	#endif
-	#if FIXED_PARTITION_EXISTS(SLOT6_PARTITION)
-		case 6:
-			return FIXED_PARTITION_ID(SLOT6_PARTITION);
-	#endif
-	#if FIXED_PARTITION_EXISTS(SLOT7_PARTITION)
-		case 7:
-			return FIXED_PARTITION_ID(SLOT7_PARTITION);
-	#endif
-	#if FIXED_PARTITION_EXISTS(SLOT8_PARTITION)
-		case 8:
-			return FIXED_PARTITION_ID(SLOT8_PARTITION);
-	#endif
-	#if FIXED_PARTITION_EXISTS(SLOT9_PARTITION)
-		case 9:
-			return FIXED_PARTITION_ID(SLOT9_PARTITION);
-	#endif
-	#if FIXED_PARTITION_EXISTS(SLOT10_PARTITION)
-		case 10:
-			return FIXED_PARTITION_ID(SLOT10_PARTITION);
-	#endif
-	#if FIXED_PARTITION_EXISTS(SLOT11_PARTITION)
-		case 11:
-			return FIXED_PARTITION_ID(SLOT11_PARTITION);
-	#endif
-	#if FIXED_PARTITION_EXISTS(SLOT12_PARTITION)
-		case 12:
-			return FIXED_PARTITION_ID(SLOT12_PARTITION);
-	#endif
-	#if FIXED_PARTITION_EXISTS(SLOT13_PARTITION)
-		case 13:
-			return FIXED_PARTITION_ID(SLOT13_PARTITION);
-	#endif
-	#if FIXED_PARTITION_EXISTS(SLOT14_PARTITION)
-		case 14:
-			return FIXED_PARTITION_ID(SLOT14_PARTITION);
-	#endif
-	#if FIXED_PARTITION_EXISTS(SLOT15_PARTITION)
-		case 15:
-			return FIXED_PARTITION_ID(SLOT15_PARTITION);
-	#endif
-		default:
-			return -EINVAL;
-		}
+	slot = (int)temp_slot;
+#else
+	/* Single image, check if running from slot1 */
+	ARG_UNUSED(image);
+#if FIXED_PARTITION_EXISTS(slot1_partition)
+	if (FIXED_PARTITION_ID(SLOT1_PARTITION) == ACTIVE_SLOT_FLASH_AREA_ID) {
+		slot = 1;
 	}
+#endif
+#endif
 
-	int dfu_boot_get_active_slot(int image)
-	{
-		int slot = 0;
+	LOG_DBG("Active slot for image %d: %d", image, slot);
+	return slot;
+}
 
-	#if CONFIG_MCUMGR_GRP_IMG_UPDATABLE_IMAGE_NUMBER > 1
-		slot = image * SLOTS_PER_IMAGE;
-	#elif defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD) || \
-		defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD_WITH_REVERT)
-		int rc;
-		uint8_t temp_slot;
+int dfu_boot_get_active_image(void)
+{
+	return ACTIVE_IMAGE_INDEX;
+}
 
-		rc = blinfo_lookup(BLINFO_RUNNING_SLOT, &temp_slot, sizeof(temp_slot));
-		if (rc <= 0) {
-			LOG_ERR("Failed to fetch active slot: %d", rc);
-			return -EIO;
-		}
-		slot = (int)temp_slot;
-	#else
-		/* Single image, check if running from slot1 */
-		ARG_UNUSED(image);
-	#if FIXED_PARTITION_EXISTS(slot1_partition)
-		if (FIXED_PARTITION_ID(SLOT1_PARTITION) == ACTIVE_SLOT_FLASH_AREA_ID) {
-			slot = 1;
-		}
-	#endif
-	#endif
+#if defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_SWAP_USING_OFFSET)
+/**
+ * Get image index from slot number for swap-using-offset secondary slots
+ * Returns IMAGE_INDEX_INVALID if slot is not a secondary slot
+ */
+static int get_image_index_for_secondary_slot(int slot)
+{
+	int area_id = dfu_boot_get_flash_area_id(slot);
 
-		LOG_DBG("Active slot for image %d: %d", image, slot);
-		return slot;
-	}
-
-	int dfu_boot_get_active_image(void)
-	{
-		return ACTIVE_IMAGE_INDEX;
-	}
-
-	#if defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_SWAP_USING_OFFSET)
-	/**
-		* Get image index from slot number for swap-using-offset secondary slots
-		* Returns IMAGE_INDEX_INVALID if slot is not a secondary slot
-		*/
-	static int get_image_index_for_secondary_slot(int slot)
-	{
-		int area_id = dfu_boot_get_flash_area_id(slot);
-
-		if (area_id < 0) {
-			return IMAGE_INDEX_INVALID;
-		}
-
-		if (area_id == FIXED_PARTITION_ID(SLOT1_PARTITION)) {
-			return IMAGE_INDEX_0;
-		}
-	#if FIXED_PARTITION_EXISTS(SLOT3_PARTITION)
-		if (area_id == FIXED_PARTITION_ID(SLOT3_PARTITION)) {
-			return IMAGE_INDEX_1;
-		}
-	#endif
-	#if FIXED_PARTITION_EXISTS(SLOT5_PARTITION)
-		if (area_id == FIXED_PARTITION_ID(SLOT5_PARTITION)) {
-			return IMAGE_INDEX_2;
-		}
-	#endif
-	#if FIXED_PARTITION_EXISTS(SLOT7_PARTITION)
-		if (area_id == FIXED_PARTITION_ID(SLOT7_PARTITION)) {
-			return IMAGE_INDEX_3;
-		}
-	#endif
-	#if FIXED_PARTITION_EXISTS(SLOT9_PARTITION)
-		if (area_id == FIXED_PARTITION_ID(SLOT9_PARTITION)) {
-			return IMAGE_INDEX_4;
-		}
-	#endif
-	#if FIXED_PARTITION_EXISTS(SLOT11_PARTITION)
-		if (area_id == FIXED_PARTITION_ID(SLOT11_PARTITION)) {
-			return IMAGE_INDEX_5;
-		}
-	#endif
-	#if FIXED_PARTITION_EXISTS(SLOT13_PARTITION)
-		if (area_id == FIXED_PARTITION_ID(SLOT13_PARTITION)) {
-			return IMAGE_INDEX_6;
-		}
-	#endif
-	#if FIXED_PARTITION_EXISTS(SLOT15_PARTITION)
-		if (area_id == FIXED_PARTITION_ID(SLOT15_PARTITION)) {
-			return IMAGE_INDEX_7;
-		}
-	#endif
-
+	if (area_id < 0) {
 		return IMAGE_INDEX_INVALID;
 	}
 
-	size_t dfu_boot_get_image_offset(int slot)
-	{
-		size_t off = 0;
-		int image = get_image_index_for_secondary_slot(slot);
-
-		if (image == IMAGE_INDEX_INVALID) {
-			/* Not a secondary slot, no offset needed */
-			return 0;
-		}
-
-		int area_id = dfu_boot_get_flash_area_id(slot);
-		const struct flash_area *fa;
-		uint32_t num_sectors = SWAP_USING_OFFSET_SECTOR_UPDATE_BEGIN;
-		struct flash_sector sector_data;
-		int rc;
-
-		rc = flash_area_open(area_id, &fa);
-		if (rc) {
-			LOG_ERR("Flash open area %d failed: %d", area_id, rc);
-			return 0;
-		}
-
-		if (mcuboot_swap_type_multi(image) != BOOT_SWAP_TYPE_REVERT) {
-			/* For swap using offset mode, the image starts in the second sector of
-				* the upgrade slot, so apply the offset when this is needed
-				*/
-			rc = flash_area_get_sectors(area_id, &num_sectors, &sector_data);
-			if ((rc != 0 && rc != -ENOMEM) ||
-							num_sectors != SWAP_USING_OFFSET_SECTOR_UPDATE_BEGIN) {
-				LOG_ERR("Failed to get sector details: %d", rc);
-			} else {
-				off = sector_data.fs_size;
-			}
-		}
-
-		flash_area_close(fa);
-
-		LOG_DBG("Image offset for slot %d: 0x%zx", slot, off);
-		return off;
+	if (area_id == FIXED_PARTITION_ID(SLOT1_PARTITION)) {
+		return IMAGE_INDEX_0;
 	}
-	#else
-	size_t dfu_boot_get_image_offset(int slot)
-	{
-		ARG_UNUSED(slot);
+#if FIXED_PARTITION_EXISTS(SLOT3_PARTITION)
+	if (area_id == FIXED_PARTITION_ID(SLOT3_PARTITION)) {
+		return IMAGE_INDEX_1;
+	}
+#endif
+#if FIXED_PARTITION_EXISTS(SLOT5_PARTITION)
+	if (area_id == FIXED_PARTITION_ID(SLOT5_PARTITION)) {
+		return IMAGE_INDEX_2;
+	}
+#endif
+#if FIXED_PARTITION_EXISTS(SLOT7_PARTITION)
+	if (area_id == FIXED_PARTITION_ID(SLOT7_PARTITION)) {
+		return IMAGE_INDEX_3;
+	}
+#endif
+#if FIXED_PARTITION_EXISTS(SLOT9_PARTITION)
+	if (area_id == FIXED_PARTITION_ID(SLOT9_PARTITION)) {
+		return IMAGE_INDEX_4;
+	}
+#endif
+#if FIXED_PARTITION_EXISTS(SLOT11_PARTITION)
+	if (area_id == FIXED_PARTITION_ID(SLOT11_PARTITION)) {
+		return IMAGE_INDEX_5;
+	}
+#endif
+#if FIXED_PARTITION_EXISTS(SLOT13_PARTITION)
+	if (area_id == FIXED_PARTITION_ID(SLOT13_PARTITION)) {
+		return IMAGE_INDEX_6;
+	}
+#endif
+#if FIXED_PARTITION_EXISTS(SLOT15_PARTITION)
+	if (area_id == FIXED_PARTITION_ID(SLOT15_PARTITION)) {
+		return IMAGE_INDEX_7;
+	}
+#endif
+
+	return IMAGE_INDEX_INVALID;
+}
+
+size_t dfu_boot_get_image_offset(int slot)
+{
+	size_t off = 0;
+	int image = get_image_index_for_secondary_slot(slot);
+
+	if (image == IMAGE_INDEX_INVALID) {
+		/* Not a secondary slot, no offset needed */
 		return 0;
 	}
-	#endif /* CONFIG_MCUBOOT_BOOTLOADER_MODE_SWAP_USING_OFFSET */
+
+	int area_id = dfu_boot_get_flash_area_id(slot);
+	const struct flash_area *fa;
+	uint32_t num_sectors = SWAP_USING_OFFSET_SECTOR_UPDATE_BEGIN;
+	struct flash_sector sector_data;
+	int rc;
+
+	rc = flash_area_open(area_id, &fa);
+	if (rc) {
+		LOG_ERR("Flash open area %d failed: %d", area_id, rc);
+		return 0;
+	}
+
+	if (mcuboot_swap_type_multi(image) != BOOT_SWAP_TYPE_REVERT) {
+		/* For swap using offset mode, the image starts in the second sector of
+		 * the upgrade slot, so apply the offset when this is needed
+		 */
+		rc = flash_area_get_sectors(area_id, &num_sectors, &sector_data);
+		if ((rc != 0 && rc != -ENOMEM) ||
+		    num_sectors != SWAP_USING_OFFSET_SECTOR_UPDATE_BEGIN) {
+			LOG_ERR("Failed to get sector details: %d", rc);
+		} else {
+			off = sector_data.fs_size;
+		}
+	}
+
+	flash_area_close(fa);
+
+	LOG_DBG("Image offset for slot %d: 0x%zx", slot, off);
+	return off;
+}
+#else
+size_t dfu_boot_get_image_offset(int slot)
+{
+	ARG_UNUSED(slot);
+	return 0;
+}
+#endif /* CONFIG_MCUBOOT_BOOTLOADER_MODE_SWAP_USING_OFFSET */
+
+size_t dfu_boot_get_trailer_status_offset(size_t area_size)
+{
+	return (size_t)area_size - BOOT_MAGIC_SZ - BOOT_MAX_ALIGN * 2;
+}
+
 int dfu_boot_get_erased_val(int slot, uint8_t *erased_val)
 {
 	const struct flash_area *fa;
@@ -485,7 +492,13 @@ int dfu_boot_read_img_info(int slot, struct dfu_boot_img_info *info)
 	info->version.revision = hdr.ih_ver.iv_revision;
 	info->version.build_num = hdr.ih_ver.iv_build_num;
 
+	/* Extract other info */
+	info->img_size = hdr.ih_img_size;
+	info->hdr_size = hdr.ih_hdr_size;
+	info->load_addr = hdr.ih_load_addr;
+
 	/* Extract flags */
+	info->flags = 0;
 	if (hdr.ih_flags & IMAGE_F_NON_BOOTABLE) {
 		info->flags |= DFU_BOOT_IMG_F_NON_BOOTABLE;
 	}
@@ -551,6 +564,34 @@ int dfu_boot_read_img_info(int slot, struct dfu_boot_img_info *info)
 	}
 
 	info->valid = true;
+	return 0;
+}
+
+int dfu_boot_validate_header(const void *data, size_t len, struct dfu_boot_img_info *info)
+{
+	const struct image_header *hdr = (const struct image_header *)data;
+
+	if (len < sizeof(struct image_header)) {
+		return -EINVAL;
+	}
+
+	if (hdr->ih_magic != IMAGE_MAGIC) {
+		return -EINVAL;
+	}
+
+	if (info != NULL) {
+		memset(info, 0, sizeof(*info));
+		info->version.major = hdr->ih_ver.iv_major;
+		info->version.minor = hdr->ih_ver.iv_minor;
+		info->version.revision = hdr->ih_ver.iv_revision;
+		info->version.build_num = hdr->ih_ver.iv_build_num;
+		info->flags = hdr->ih_flags;
+		info->load_addr = hdr->ih_load_addr;
+		info->img_size = hdr->ih_img_size;
+		info->hdr_size = hdr->ih_hdr_size;
+		info->valid = true;
+	}
+
 	return 0;
 }
 
@@ -704,6 +745,9 @@ int dfu_boot_get_next_boot_slot(int image, enum dfu_boot_next_type *type)
 	struct boot_swap_state active_state, other_state;
 	int fa_id;
 
+	memset(&active_state, 0, sizeof(active_state));
+	memset(&other_state, 0, sizeof(other_state));
+
 	fa_id = dfu_boot_get_flash_area_id(active_slot);
 	if (flash_area_open(fa_id, &fa) == 0) {
 		boot_read_swap_state(fa, &active_state);
@@ -741,174 +785,198 @@ int dfu_boot_get_next_boot_slot(int image, enum dfu_boot_next_type *type)
 			return_slot = other_slot;
 		}
 	}
-	#endif
+#endif
 
-		if (type != NULL) {
-			*type = lt;
-		}
-
-		return return_slot;
-	}
-	#else /* Firmware Updater mode - no next boot slot concept */
-	int dfu_boot_get_next_boot_slot(int image, enum dfu_boot_next_type *type)
-	{
-		if (type != NULL) {
-			*type = DFU_BOOT_NEXT_TYPE_NORMAL;
-		}
-		return dfu_boot_get_active_slot(image);
-	}
-	#endif
-
-	bool dfu_boot_any_pending(void)
-	{
-		return (dfu_boot_get_slot_state(0) & DFU_BOOT_STATE_F_PENDING) ||
-									(dfu_boot_get_slot_state(1) & DFU_BOOT_STATE_F_PENDING);
+	if (type != NULL) {
+		*type = lt;
 	}
 
-	int dfu_boot_slot_in_use(int slot)
-	{
-		int image = slot_to_image(slot);
-		int active_slot = dfu_boot_get_active_slot(image);
+	return return_slot;
+}
+#else /* Firmware Updater mode - no next boot slot concept */
+int dfu_boot_get_next_boot_slot(int image, enum dfu_boot_next_type *type)
+{
+	if (type != NULL) {
+		*type = DFU_BOOT_NEXT_TYPE_NORMAL;
+	}
+	return dfu_boot_get_active_slot(image);
+}
+#endif
 
-	#if !defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_DIRECT_XIP) && \
-		!defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD) && \
-		!defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD_WITH_REVERT) && \
-		!defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_FIRMWARE_UPDATER)
-		enum dfu_boot_next_type type = DFU_BOOT_NEXT_TYPE_NORMAL;
-		int nbs = dfu_boot_get_next_boot_slot(image, &type);
+bool dfu_boot_any_pending(void)
+{
+	return (dfu_boot_get_slot_state(0) & DFU_BOOT_STATE_F_PENDING) ||
+	       (dfu_boot_get_slot_state(1) & DFU_BOOT_STATE_F_PENDING);
+}
 
-		if (slot == nbs && type == DFU_BOOT_NEXT_TYPE_REVERT) {
-			LOG_DBG("Slot %d refused: revert pending", slot);
-			return 1;
-		}
+int dfu_boot_slot_in_use(int slot)
+{
+	int image = slot_to_image(slot);
+	int active_slot = dfu_boot_get_active_slot(image);
 
-		if ((slot == nbs && type == DFU_BOOT_NEXT_TYPE_TEST) ||
-						(active_slot != nbs && type == DFU_BOOT_NEXT_TYPE_NORMAL)) {
-	#if defined(CONFIG_MCUMGR_GRP_IMG_ALLOW_ERASE_PENDING)
-			LOG_DBG("Slot %d: allowed erase pending", slot);
-	#else
-			LOG_DBG("Slot %d refused: pending", slot);
-			return 1;
-	#endif
-		}
-	#endif
+#if !defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_DIRECT_XIP) && \
+	!defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD) && \
+	!defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD_WITH_REVERT) && \
+	!defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_FIRMWARE_UPDATER)
+	enum dfu_boot_next_type type = DFU_BOOT_NEXT_TYPE_NORMAL;
+	int nbs = dfu_boot_get_next_boot_slot(image, &type);
 
-		return (active_slot == slot) ? 1 : 0;
+	if (slot == nbs && type == DFU_BOOT_NEXT_TYPE_REVERT) {
+		LOG_DBG("Slot %d refused: revert pending", slot);
+		return 1;
 	}
 
-	int dfu_boot_set_pending(int slot, bool permanent)
-	{
-		int image = slot_to_image(slot);
-		int rc;
+	if ((slot == nbs && type == DFU_BOOT_NEXT_TYPE_TEST) ||
+	    (active_slot != nbs && type == DFU_BOOT_NEXT_TYPE_NORMAL)) {
+#if defined(CONFIG_MCUMGR_GRP_IMG_ALLOW_ERASE_PENDING)
+		LOG_DBG("Slot %d: allowed erase pending", slot);
+#else
+		LOG_DBG("Slot %d refused: pending", slot);
+		return 1;
+#endif
+	}
+#endif
 
-		rc = boot_set_pending_multi(image, permanent ? 1 : 0);
-		if (rc != 0) {
-			LOG_ERR("Failed to set pending for slot %d: %d", slot, rc);
-			return -EIO;
-		}
+	return (active_slot == slot) ? 1 : 0;
+}
 
-		return 0;
+int dfu_boot_set_pending(int slot, bool permanent)
+{
+	int image = slot_to_image(slot);
+	int rc;
+
+	rc = boot_set_pending_multi(image, permanent ? 1 : 0);
+	if (rc != 0) {
+		LOG_ERR("Failed to set pending for slot %d: %d", slot, rc);
+		return -EIO;
 	}
 
-	int dfu_boot_confirm(void)
-	{
-		int rc;
+	return 0;
+}
 
-		rc = boot_write_img_confirmed();
-		if (rc != 0) {
-			LOG_ERR("Failed to confirm image: %d", rc);
-			return -EIO;
-		}
+int dfu_boot_confirm(void)
+{
+	int rc;
 
-		return 0;
+	rc = boot_write_img_confirmed();
+	if (rc != 0) {
+		LOG_ERR("Failed to confirm image: %d", rc);
+		return -EIO;
 	}
 
-	bool dfu_boot_is_confirmed(void)
-	{
-		return boot_is_img_confirmed();
+	return 0;
+}
+
+bool dfu_boot_is_confirmed(void)
+{
+	struct boot_swap_state state;
+	const struct flash_area *fa;
+	int rc;
+
+	rc = flash_area_open(ACTIVE_SLOT_FLASH_AREA_ID, &fa);
+	if (rc) {
+		return false;
 	}
 
-	int dfu_boot_erase_slot(int slot)
-	{
-		const struct flash_area *fa;
-		int area_id;
-		int rc;
+	rc = boot_read_swap_state(fa, &state);
+	flash_area_close(fa);
 
-		area_id = dfu_boot_get_flash_area_id(slot);
-		if (area_id < 0) {
-			return area_id;
-		}
-
-		rc = flash_area_open(area_id, &fa);
-		if (rc != 0) {
-			LOG_ERR("Failed to open flash area %d: %d", area_id, rc);
-			return -EIO;
-		}
-
-		rc = flash_area_flatten(fa, 0, fa->fa_size);
-		flash_area_close(fa);
-
-		if (rc != 0) {
-			LOG_ERR("Failed to erase slot %d: %d", slot, rc);
-			return -EIO;
-		}
-
-		return 0;
+	if (rc != 0) {
+		return false;
 	}
 
-	int dfu_boot_vercmp(const struct dfu_boot_img_version *a,
-							const struct dfu_boot_img_version *b)
-	{
-		if (a->major != b->major) {
-			return (a->major < b->major) ? -1 : 1;
-		}
-		if (a->minor != b->minor) {
-			return (a->minor < b->minor) ? -1 : 1;
-		}
-		if (a->revision != b->revision) {
-			return (a->revision < b->revision) ? -1 : 1;
-		}
-	#if defined(CONFIG_MCUMGR_GRP_IMG_VERSION_CMP_USE_BUILD_NUMBER)
-		if (a->build_num != b->build_num) {
-			return (a->build_num < b->build_num) ? -1 : 1;
-		}
-	#endif
-		return 0;
+	if (state.magic == BOOT_MAGIC_UNSET) {
+		/* This is initial/preprogrammed image.
+		 * Such image can neither be reverted nor physically confirmed.
+		 * Treat this image as confirmed which ensures consistency
+		 * with `boot_write_img_confirmed...()` procedures.
+		 */
+		return true;
 	}
 
+	return state.image_ok == BOOT_FLAG_SET;
+}
+
+int dfu_boot_erase_slot(int slot)
+{
+	const struct flash_area *fa;
+	int area_id;
+	int rc;
+
+	area_id = dfu_boot_get_flash_area_id(slot);
+	if (area_id < 0) {
+		return area_id;
+	}
+
+	rc = flash_area_open(area_id, &fa);
+	if (rc != 0) {
+		LOG_ERR("Failed to open flash area %d: %d", area_id, rc);
+		return -EIO;
+	}
+
+	rc = flash_area_flatten(fa, 0, fa->fa_size);
+	flash_area_close(fa);
+
+	if (rc != 0) {
+		LOG_ERR("Failed to erase slot %d: %d", slot, rc);
+		return -EIO;
+	}
+
+	return 0;
+}
+
+int dfu_boot_vercmp(const struct dfu_boot_img_version *a,
+		    const struct dfu_boot_img_version *b)
+{
+	if (a->major != b->major) {
+		return (a->major < b->major) ? -1 : 1;
+	}
+	if (a->minor != b->minor) {
+		return (a->minor < b->minor) ? -1 : 1;
+	}
+	if (a->revision != b->revision) {
+		return (a->revision < b->revision) ? -1 : 1;
+	}
+#if defined(CONFIG_MCUMGR_GRP_IMG_VERSION_CMP_USE_BUILD_NUMBER)
+	if (a->build_num != b->build_num) {
+		return (a->build_num < b->build_num) ? -1 : 1;
+	}
+#endif
+	return 0;
+}
 	int dfu_boot_ver_str(const struct dfu_boot_img_version *ver,
-								char *buf, size_t buf_size)
-	{
-		int rc;
+		     char *buf, size_t buf_size)
+{
+	int rc;
 
-		if (buf == NULL || buf_size == 0) {
+	if (buf == NULL || buf_size == 0) {
+		return -EINVAL;
+	}
+
+	rc = snprintf(buf, buf_size, "%u.%u.%u",
+		      (unsigned int)ver->major,
+		      (unsigned int)ver->minor,
+		      (unsigned int)ver->revision);
+
+	if (rc < 0) {
+		return -EINVAL;
+	}
+
+	if ((size_t)rc >= buf_size) {
+		return -ENOSPC;
+	}
+
+	if (ver->build_num != 0) {
+		int rc2 = snprintf(buf + rc, buf_size - rc, ".%u",
+				   (unsigned int)ver->build_num);
+		if (rc2 < 0) {
 			return -EINVAL;
 		}
-
-		rc = snprintf(buf, buf_size, "%u.%u.%u",
-									(unsigned int)ver->major,
-									(unsigned int)ver->minor,
-									(unsigned int)ver->revision);
-
-		if (rc < 0) {
-			return -EINVAL;
-		}
-
-		if (rc >= buf_size) {
+		if ((size_t)rc2 >= (buf_size - rc)) {
 			return -ENOSPC;
 		}
-
-		if (ver->build_num != 0) {
-			int rc2 = snprintf(buf + rc, buf_size - rc, ".%u",
-								(unsigned int)ver->build_num);
-			if (rc2 < 0) {
-				return -EINVAL;
-			}
-			if (rc2 >= (buf_size - rc)) {
-				return -ENOSPC;
-			}
-			rc += rc2;
-		}
-
-		return rc;
+		rc += rc2;
 	}
+
+	return rc;
+}

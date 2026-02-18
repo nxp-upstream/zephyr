@@ -8,28 +8,16 @@
 #include <string.h>
 
 #include <zephyr/mgmt/mcumgr/grp/img_mgmt/img_mgmt.h>
+#include <zephyr/dfu/dfu_boot.h>
 
-int
-img_mgmt_ver_str(const struct image_version *ver, char *dst)
+int img_mgmt_ver_str(const struct image_version *ver, char *dst)
 {
-	int rc = 0;
-	int rc1 = 0;
+	struct dfu_boot_img_version dfu_ver = {
+		.major = ver->iv_major,
+		.minor = ver->iv_minor,
+		.revision = ver->iv_revision,
+		.build_num = ver->iv_build_num,
+	};
 
-	rc = snprintf(dst, IMG_MGMT_VER_MAX_STR_LEN, "%hu.%hu.%hu",
-		(uint16_t)ver->iv_major, (uint16_t)ver->iv_minor,
-		ver->iv_revision);
-
-	if (rc >= 0 && ver->iv_build_num != 0) {
-		rc1 = snprintf(&dst[rc], IMG_MGMT_VER_MAX_STR_LEN - rc, ".%u",
-			ver->iv_build_num);
-	}
-
-	if (rc1 >= 0 && rc >= 0) {
-		rc = rc + rc1;
-	} else {
-		/* If any failed then all failed */
-		rc = -1;
-	}
-
-	return rc;
+	return dfu_boot_ver_str(&dfu_ver, dst, IMG_MGMT_VER_MAX_STR_LEN);
 }
