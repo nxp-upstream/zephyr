@@ -90,13 +90,13 @@ typedef int (*mcp_tool_callback_t)(enum mcp_tool_event_type event, const char *p
 /**
  * @brief Tool definition structure
  * 
- * @note activity_counter is used internally by the MCP server to track tool execution state
+ * @note refcount is used internally by the MCP server to track tool execution state
  * and protect against the removal of a tool while it is actively executing.
  * 
  */
 struct mcp_tool_record {
 	struct mcp_tool_metadata metadata;
-	uint8_t activity_counter;
+	atomic_t refcount;
 	mcp_tool_callback_t callback;
 };
 
