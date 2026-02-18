@@ -7,7 +7,7 @@ LOG_MODULE_REGISTER(mctp_i2c_smbus_target, CONFIG_MCTP_LOG_LEVEL);
 #include "libmctp.h"
 #include <zephyr/pmci/mctp/mctp_i2c_smbus_target.h>
 
-#define SMBUS_XPORT_HDR_LEN 4
+#define SMBUS_XPORT_HDR_LEN 2
 
 enum { RX_WAIT_CMD = 0, RX_WAIT_COUNT, RX_WAIT_DATA, RX_WAIT_PEC, RX_DROP };
 
@@ -101,9 +101,15 @@ static int tgt_write_received(struct i2c_target_config *config, uint8_t val)
 
 		/* Raw bytes as received (transport header + MCTP packet) */
 		if (b->rx_count >= 8) {
-			LOG_INF("SMBus RX: raw[0..7] = %02x %02x %02x %02x %02x %02x %02x %02x",
-				b->rx_buf[0], b->rx_buf[1], b->rx_buf[2], b->rx_buf[3],
-				b->rx_buf[4], b->rx_buf[5], b->rx_buf[6], b->rx_buf[7]);
+//			LOG_INF("SMBus RX: raw[0..7] = %02x %02x %02x %02x %02x %02x %02x %02x",
+//				b->rx_buf[0], b->rx_buf[1], b->rx_buf[2], b->rx_buf[3],
+//				b->rx_buf[4], b->rx_buf[5], b->rx_buf[6], b->rx_buf[7]);
+
+			for (int i = 0; i < b->rx_count; i++) {
+			    printk("%02x ", b->rx_buf[i]);
+			}
+			printk("\n");
+
 		} else if (b->rx_count >= 4) {
 			LOG_INF("SMBus RX: raw first4 = %02x %02x %02x %02x",
 				b->rx_buf[0], b->rx_buf[1], b->rx_buf[2], b->rx_buf[3]);
@@ -130,12 +136,18 @@ static int tgt_write_received(struct i2c_target_config *config, uint8_t val)
 		}
 
 		/* OPTIONAL sanity: MCTP header version nibble should be 0x1? */
+
+		uint8_t som_eom = mctp_bytes[2] & 0xC0;
+		if (som_eom == 0x00) {
+			LOG_WRN("MCTP hdr looks odd: SOM/EOM bits are 0");
+		}
+#if 0
 		if ((mctp_bytes[0] & 0xF0) != 0x10) {
 			LOG_WRN("Stripped bytes don't look like MCTP hdr: byte0=0x%02x (raw0=0x%02x)",
 				mctp_bytes[0], b->rx_buf[0]);
 			/* Don't drop yet if you're not sure; but usually this indicates mis-parse. */
 		}
-
+#endif
 		struct mctp_pktbuf *pkt = mctp_pktbuf_alloc(&b->binding, mctp_len);
 		if (!pkt) {
 			LOG_WRN("pktbuf alloc failed (mctp_len=%u)", (unsigned)mctp_len);
