@@ -82,6 +82,9 @@ typedef void *mcp_server_ctx_t;
  *       it is recommended to use your own thread pool to execute the work asynchronously
  *       and return quickly from this callback to avoid blocking the MCP server worker
  *       thread and potentially degrading server responsiveness.
+ * 
+ * 		 It is up to the user application whether it allows concurrent executions
+ * 		 of the same tool or not.
  *
  * @return 0 on success, negative errno on failure
  */
