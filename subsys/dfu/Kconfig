@@ -16,21 +16,31 @@ menuconfig IMG_MANAGER
 
 if IMG_MANAGER
 
-choice
-	prompt "Image manager"
-	default MCUBOOT_IMG_MANAGER
+choice DFU_BOOT_BACKEND
+	prompt "DFU boot backend"
+	default DFU_BOOT_BACKEND_MCUBOOT
 	help
-	  Choice support for managing DFU image.
-	  So far only mcuboot support is available.
+	  Select the bootloader backend for DFU operations.
+	  This determines how image slots are managed and how
+	  boot decisions are made.
 
-config MCUBOOT_IMG_MANAGER
-	bool "Image manager for mcuboot"
+config DFU_BOOT_BACKEND_MCUBOOT
+	bool "MCUboot"
 	depends on FLASH_MAP
 	select MCUBOOT_BOOTUTIL_LIB
 	help
-	  Enable support for managing DFU image downloaded using mcuboot.
+	  Use MCUboot as the bootloader backend for DFU operations.
+	  This is the default and most common configuration.
 
 endchoice
+
+# Legacy option - maps to new backend selection
+config MCUBOOT_IMG_MANAGER
+	bool
+	default y if DFU_BOOT_BACKEND_MCUBOOT
+	help
+	  Legacy option for backward compatibility.
+	  Use DFU_BOOT_BACKEND_MCUBOOT instead.
 
 config IMG_BLOCK_BUF_SIZE
 	int "Image writer buffer size"
@@ -58,7 +68,7 @@ config IMG_ENABLE_IMAGE_CHECK
 	  Another use is to ensure that firmware upgrade routines from internet
 	  server to flash slot are performing properly.
 
-if MCUBOOT_IMG_MANAGER
+if DFU_BOOT_BACKEND_MCUBOOT
 
 config MCUBOOT_SHELL
 	bool "MCUboot shell"
@@ -86,7 +96,7 @@ config MCUBOOT_UPDATE_FOOTER_SIZE
 	  that MCUboot cannot update due to being too large. This should be set from sysbuild, only
 	  used when MCUMGR_GRP_IMG_TOO_LARGE_SYSBUILD is enabled.
 
-endif # MCUBOOT_IMG_MANAGER
+endif # DFU_BOOT_BACKEND_MCUBOOT
 
 module = IMG_MANAGER
 module-str = image manager
