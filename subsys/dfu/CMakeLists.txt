@@ -10,7 +10,7 @@ zephyr_library_sources(
 )
 
 # Backend-specific sources
-if(CONFIG_DFU_BOOT_BACKEND_MCUBOOT)
+if(CONFIG_MCUBOOT_IMG_MANAGER)
     zephyr_library_sources(
         boot/mcuboot_backend.c
         boot/mcuboot.c

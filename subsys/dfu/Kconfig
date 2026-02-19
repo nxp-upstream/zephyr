@@ -16,59 +16,23 @@ menuconfig IMG_MANAGER
 
 if IMG_MANAGER
 
-choice DFU_BOOT_BACKEND
-	prompt "DFU boot backend"
-	default DFU_BOOT_BACKEND_MCUBOOT
+choice
+	prompt "Image manager"
+	default MCUBOOT_IMG_MANAGER
 	help
-	  Select the bootloader backend for DFU operations.
-	  This determines how image slots are managed and how
-	  boot decisions are made.
+	  Choice support for managing DFU image.
+	  So far only mcuboot support is available.
 
-config DFU_BOOT_BACKEND_MCUBOOT
-	bool "MCUboot"
+config MCUBOOT_IMG_MANAGER
+	bool "Image manager for mcuboot"
 	depends on FLASH_MAP
 	select MCUBOOT_BOOTUTIL_LIB
 	help
-	  Use MCUboot as the bootloader backend for DFU operations.
-	  This is the default and most common configuration.
+	  Enable support for managing DFU image downloaded using mcuboot.
 
 endchoice
 
-# Legacy option - maps to new backend selection
-config MCUBOOT_IMG_MANAGER
-	bool
-	default y if DFU_BOOT_BACKEND_MCUBOOT
-	help
-	  Legacy option for backward compatibility.
-	  Use DFU_BOOT_BACKEND_MCUBOOT instead.
-
-config IMG_BLOCK_BUF_SIZE
-	int "Image writer buffer size"
-	default 512
-	help
-	  Size (in Bytes) of buffer for image writer. Must be a multiple of
-	  the access alignment required by used flash driver.
-
-config IMG_ERASE_PROGRESSIVELY
-	bool "Erase flash progressively when receiving new firmware"
-	select STREAM_FLASH_ERASE if FLASH_HAS_EXPLICIT_ERASE
-	help
-	  If enabled, flash is erased as necessary when receiving new firmware,
-	  instead of erasing the whole image slot at once. This is necessary
-	  on some hardware that has long erase times, to prevent long wait
-	  times at the beginning of the DFU process.
-
-config IMG_ENABLE_IMAGE_CHECK
-	bool "Image check functions"
-	select FLASH_AREA_CHECK_INTEGRITY
-	help
-	  If enabled, there will be available the function to check flash
-	  integrity.  It can be used to verify flash integrity after received
-	  a new firmware.  This is useful to avoid firmware reboot and test.
-	  Another use is to ensure that firmware upgrade routines from internet
-	  server to flash slot are performing properly.
-
-if DFU_BOOT_BACKEND_MCUBOOT
+if MCUBOOT_IMG_MANAGER
 
 config MCUBOOT_SHELL
 	bool "MCUboot shell"
@@ -96,7 +60,33 @@ config MCUBOOT_UPDATE_FOOTER_SIZE
 	  that MCUboot cannot update due to being too large. This should be set from sysbuild, only
 	  used when MCUMGR_GRP_IMG_TOO_LARGE_SYSBUILD is enabled.
 
-endif # DFU_BOOT_BACKEND_MCUBOOT
+endif # MCUBOOT_IMG_MANAGER
+
+config IMG_BLOCK_BUF_SIZE
+	int "Image writer buffer size"
+	default 512
+	help
+	  Size (in Bytes) of buffer for image writer. Must be a multiple of
+	  the access alignment required by used flash driver.
+
+config IMG_ERASE_PROGRESSIVELY
+	bool "Erase flash progressively when receiving new firmware"
+	select STREAM_FLASH_ERASE if FLASH_HAS_EXPLICIT_ERASE
+	help
+	  If enabled, flash is erased as necessary when receiving new firmware,
+	  instead of erasing the whole image slot at once. This is necessary
+	  on some hardware that has long erase times, to prevent long wait
+	  times at the beginning of the DFU process.
+
+config IMG_ENABLE_IMAGE_CHECK
+	bool "Image check functions"
+	select FLASH_AREA_CHECK_INTEGRITY
+	help
+	  If enabled, there will be available the function to check flash
+	  integrity.  It can be used to verify flash integrity after received
+	  a new firmware.  This is useful to avoid firmware reboot and test.
+	  Another use is to ensure that firmware upgrade routines from internet
+	  server to flash slot are performing properly.
 
 module = IMG_MANAGER
 module-str = image manager
