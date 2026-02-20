@@ -51,10 +51,10 @@ LOG_MODULE_REGISTER(dfu_boot_mcuboot, CONFIG_IMG_MANAGER_LOG_LEVEL);
  */
 #ifdef CONFIG_MCUBOOT_BOOTLOADER_USES_SHA512
 #define MCUBOOT_HASH_TLV   IMAGE_TLV_SHA512
-#define MCUBOOT_HASH_LEN   DFU_BOOT_HASH_LEN_SHA512
+#define MCUBOOT_HASH_LEN   CONFIG_IMG_HASH_LEN
 #else
 #define MCUBOOT_HASH_TLV   IMAGE_TLV_SHA256
-#define MCUBOOT_HASH_LEN   DFU_BOOT_HASH_LEN_SHA256
+#define MCUBOOT_HASH_LEN   CONFIG_IMG_HASH_LEN
 #endif
 
 /*
@@ -84,7 +84,7 @@ LOG_MODULE_REGISTER(dfu_boot_mcuboot, CONFIG_IMG_MANAGER_LOG_LEVEL);
 #define FIXED_PARTITION_IS_RUNNING_APP_PARTITION(label)                        \
 	(FIXED_PARTITION_EXISTS(label) &&                                      \
 	 DT_SAME_NODE(FIXED_PARTITION_NODE_MTD(DT_CHOSEN(zephyr_code_partition)), \
-		      FIXED_PARTITION_MTD(label)) &&                           \
+			  FIXED_PARTITION_MTD(label)) &&                           \
 	 (FIXED_PARTITION_ADDRESS(label) <=                                    \
 	  (CONFIG_FLASH_BASE_ADDRESS + CONFIG_FLASH_LOAD_OFFSET)) &&           \
 	 (FIXED_PARTITION_ADDRESS(label) + FIXED_PARTITION_SIZE(label) >       \
@@ -336,7 +336,7 @@ size_t dfu_boot_get_image_offset(int slot)
 		 */
 		rc = flash_area_get_sectors(area_id, &num_sectors, &sector_data);
 		if ((rc != 0 && rc != -ENOMEM) ||
-		    num_sectors != SWAP_USING_OFFSET_SECTOR_UPDATE_BEGIN) {
+			num_sectors != SWAP_USING_OFFSET_SECTOR_UPDATE_BEGIN) {
 			LOG_ERR("Failed to get sector details: %d", rc);
 		} else {
 			off = sector_data.fs_size;
@@ -761,8 +761,8 @@ int dfu_boot_get_next_boot_slot(int image, enum dfu_boot_next_type *type)
 	}
 
 	if (active_state.magic == BOOT_MAGIC_GOOD &&
-	    active_state.copy_done == BOOT_FLAG_SET &&
-	    active_state.image_ok != BOOT_FLAG_SET) {
+		active_state.copy_done == BOOT_FLAG_SET &&
+		active_state.image_ok != BOOT_FLAG_SET) {
 		/* Active slot is pending revert */
 		lt = DFU_BOOT_NEXT_TYPE_REVERT;
 		return_slot = other_slot;
@@ -806,7 +806,7 @@ int dfu_boot_get_next_boot_slot(int image, enum dfu_boot_next_type *type)
 bool dfu_boot_any_pending(void)
 {
 	return (dfu_boot_get_slot_state(0) & DFU_BOOT_STATE_F_PENDING) ||
-	       (dfu_boot_get_slot_state(1) & DFU_BOOT_STATE_F_PENDING);
+		   (dfu_boot_get_slot_state(1) & DFU_BOOT_STATE_F_PENDING);
 }
 
 int dfu_boot_slot_in_use(int slot)
@@ -827,7 +827,7 @@ int dfu_boot_slot_in_use(int slot)
 	}
 
 	if ((slot == nbs && type == DFU_BOOT_NEXT_TYPE_TEST) ||
-	    (active_slot != nbs && type == DFU_BOOT_NEXT_TYPE_NORMAL)) {
+		(active_slot != nbs && type == DFU_BOOT_NEXT_TYPE_NORMAL)) {
 #if defined(CONFIG_MCUMGR_GRP_IMG_ALLOW_ERASE_PENDING)
 		LOG_DBG("Slot %d: allowed erase pending", slot);
 #else
@@ -926,7 +926,7 @@ int dfu_boot_erase_slot(int slot)
 }
 
 int dfu_boot_vercmp(const struct dfu_boot_img_version *a,
-		    const struct dfu_boot_img_version *b)
+			const struct dfu_boot_img_version *b)
 {
 	if (a->major != b->major) {
 		return (a->major < b->major) ? -1 : 1;
@@ -945,7 +945,7 @@ int dfu_boot_vercmp(const struct dfu_boot_img_version *a,
 	return 0;
 }
 	int dfu_boot_ver_str(const struct dfu_boot_img_version *ver,
-		     char *buf, size_t buf_size)
+			 char *buf, size_t buf_size)
 {
 	int rc;
 
@@ -954,9 +954,9 @@ int dfu_boot_vercmp(const struct dfu_boot_img_version *a,
 	}
 
 	rc = snprintf(buf, buf_size, "%u.%u.%u",
-		      (unsigned int)ver->major,
-		      (unsigned int)ver->minor,
-		      (unsigned int)ver->revision);
+			  (unsigned int)ver->major,
+			  (unsigned int)ver->minor,
+			  (unsigned int)ver->revision);
 
 	if (rc < 0) {
 		return -EINVAL;

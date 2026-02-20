@@ -19,17 +19,14 @@
 extern "C" {
 #endif
 
-#ifdef CONFIG_MCUBOOT_BOOTLOADER_USES_SHA512
-#define IMAGE_TLV_SHA		IMAGE_TLV_SHA512
-#define IMAGE_SHA_LEN		64
-#else
-#define IMAGE_TLV_SHA		IMAGE_TLV_SHA256
-#define IMAGE_SHA_LEN		32
-#endif
+/*
+ * Hash length configuration - use dfu_boot defines
+ */
+#define IMAGE_SHA_LEN CONFIG_IMG_HASH_LEN
 
 /**
- * @brief Ensures the spare slot (slot 1) is fully erased.
- *
+  * @brief Ensures the spare slot (slot 1) is fully erased.
+  *
  * @param slot		A slot to erase.
  *
  * @return 0 on success, MGMT_ERR_[...] code on failure.
@@ -82,7 +79,7 @@ int img_mgmt_read(int slot, unsigned int offset, void *dst, unsigned int num_byt
  * @return 0 on success, MGMT_ERR_[...] code on failure.
  */
 int img_mgmt_write_image_data(unsigned int offset, const void *data, unsigned int num_bytes,
-			      bool last);
+				  bool last);
 
 /**
  * @brief Indicates the type of swap operation that will occur on the next
@@ -164,7 +161,7 @@ int img_mgmt_erase_if_needed(uint32_t off, uint32_t len);
  *           A MGMT_ERR code if an error response should be sent instead.
  */
 int img_mgmt_upload_inspect(const struct img_mgmt_upload_req *req,
-			    struct img_mgmt_upload_action *action);
+				struct img_mgmt_upload_action *action);
 
 /**
  * @brief	Takes the image management lock (if enabled) to prevent other

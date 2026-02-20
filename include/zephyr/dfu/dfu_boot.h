@@ -22,12 +22,6 @@ extern "C" {
  * @{
  */
 
-/**
- * @name Hash lengths
- * @{
- */
-#define DFU_BOOT_HASH_LEN_SHA256	32
-#define DFU_BOOT_HASH_LEN_SHA512	64
 /** @} */
 
 /**
@@ -109,7 +103,7 @@ struct dfu_boot_img_info {
 	/** Hash length */
 	uint8_t hash_len;
 	/** Hash value */
-	uint8_t hash[DFU_BOOT_HASH_LEN_SHA512];
+	uint8_t hash[CONFIG_IMG_HASH_LEN];
 	/** Whether the image info is valid */
 	bool valid;
 };
@@ -221,7 +215,7 @@ int dfu_boot_get_swap_type(int slot);
  * @return -1 if a < b, 0 if a == b, 1 if a > b
  */
 int dfu_boot_vercmp(const struct dfu_boot_img_version *a,
-		    const struct dfu_boot_img_version *b);
+			const struct dfu_boot_img_version *b);
 
 /**
  * @brief Get the erased value for a slot's flash

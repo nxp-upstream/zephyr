@@ -94,8 +94,8 @@ static bool img_mgmt_slot_max_size(size_t *area_sizes, zcbor_state_t *zse)
 
 		if (CONFIG_MCUBOOT_UPDATE_FOOTER_SIZE >= area_size_difference) {
 			ok = zcbor_tstr_put_lit(zse, "max_image_size") &&
-			     zcbor_uint32_put(zse, (uint32_t)(area_sizes[0] -
-					      CONFIG_MCUBOOT_UPDATE_FOOTER_SIZE));
+				 zcbor_uint32_put(zse, (uint32_t)(area_sizes[0] -
+						  CONFIG_MCUBOOT_UPDATE_FOOTER_SIZE));
 		}
 	}
 
@@ -116,7 +116,7 @@ static bool img_mgmt_slot_max_size(size_t *area_sizes, zcbor_state_t *zse)
 		LOG_ERR("Failed to lookup max application size: %d", rc);
 	} else if (rc > 0) {
 		ok = zcbor_tstr_put_lit(zse, "max_image_size") &&
-		     zcbor_uint32_put(zse, (uint32_t)max_app_size);
+			 zcbor_uint32_put(zse, (uint32_t)max_app_size);
 	}
 
 	return ok;
@@ -165,7 +165,7 @@ int img_mgmt_read_info(int image_slot, struct image_version *ver, uint8_t *hash,
 	}
 
 	if (flags != NULL) {
-		*flags = 0;
+		*flags = info.flags;
 		if (info.flags & DFU_BOOT_IMG_F_NON_BOOTABLE) {
 			*flags |= (1 << 0); /* IMAGE_F_NON_BOOTABLE */
 		}
@@ -272,7 +272,7 @@ img_mgmt_erase(struct smp_streamer *ctxt)
 		if (img_mgmt_slot_in_use(slot)) {
 			/* No free slot. */
 			ok = smp_add_cmd_err(zse, MGMT_GROUP_ID_IMAGE,
-					     IMG_MGMT_ERR_NO_FREE_SLOT);
+						 IMG_MGMT_ERR_NO_FREE_SLOT);
 			goto end;
 		}
 	}
@@ -326,7 +326,7 @@ static int img_mgmt_slot_info(struct smp_streamer *ctxt)
 	img_mgmt_take_lock();
 
 	ok = zcbor_tstr_put_lit(zse, "images") &&
-	     zcbor_list_start_encode(zse, 10);
+		 zcbor_list_start_encode(zse, 10);
 
 	while (i < CONFIG_MCUMGR_GRP_IMG_UPDATABLE_IMAGE_NUMBER * SLOTS_PER_IMAGE) {
 		const struct flash_area *fa;
@@ -336,10 +336,10 @@ static int img_mgmt_slot_info(struct smp_streamer *ctxt)
 			memset(area_sizes, 0, sizeof(area_sizes));
 
 			ok = zcbor_map_start_encode(zse, 4) &&
-			     zcbor_tstr_put_lit(zse, "image") &&
-			     zcbor_uint32_put(zse, (uint32_t)(i / SLOTS_PER_IMAGE)) &&
-			     zcbor_tstr_put_lit(zse, "slots") &&
-			     zcbor_list_start_encode(zse, 4);
+				 zcbor_tstr_put_lit(zse, "image") &&
+				 zcbor_uint32_put(zse, (uint32_t)(i / SLOTS_PER_IMAGE)) &&
+				 zcbor_tstr_put_lit(zse, "slots") &&
+				 zcbor_list_start_encode(zse, 4);
 
 			if (!ok) {
 				goto finish;
@@ -347,8 +347,8 @@ static int img_mgmt_slot_info(struct smp_streamer *ctxt)
 		}
 
 		ok = zcbor_map_start_encode(zse, 4) &&
-		     zcbor_tstr_put_lit(zse, "slot") &&
-		     zcbor_uint32_put(zse, (uint32_t)(i % SLOTS_PER_IMAGE));
+			 zcbor_tstr_put_lit(zse, "slot") &&
+			 zcbor_uint32_put(zse, (uint32_t)(i % SLOTS_PER_IMAGE));
 
 		if (!ok) {
 			goto finish;
@@ -359,7 +359,7 @@ static int img_mgmt_slot_info(struct smp_streamer *ctxt)
 		if (rc) {
 			/* Failed opening slot, mark as error */
 			ok = zcbor_tstr_put_lit(zse, "rc") &&
-			     zcbor_int32_put(zse, rc);
+				 zcbor_int32_put(zse, rc);
 
 			LOG_ERR("Failed to open slot %d for information fetching: %d", area_id, rc);
 		} else {
@@ -374,10 +374,10 @@ static int img_mgmt_slot_info(struct smp_streamer *ctxt)
 
 			if (sizeof(fa->fa_size) == sizeof(uint64_t)) {
 				ok = zcbor_tstr_put_lit(zse, "size") &&
-				     zcbor_uint64_put(zse, fa->fa_size);
+					 zcbor_uint64_put(zse, fa->fa_size);
 			} else {
 				ok = zcbor_tstr_put_lit(zse, "size") &&
-				     zcbor_uint32_put(zse, fa->fa_size);
+					 zcbor_uint32_put(zse, fa->fa_size);
 			}
 
 			area_sizes[(i % SLOTS_PER_IMAGE)] = fa->fa_size;
@@ -392,11 +392,11 @@ static int img_mgmt_slot_info(struct smp_streamer *ctxt)
 			 */
 #if defined(CONFIG_MCUMGR_GRP_IMG_DIRECT_UPLOAD)
 			ok = zcbor_tstr_put_lit(zse, "upload_image_id") &&
-			     zcbor_uint32_put(zse, (i + 1));
+				 zcbor_uint32_put(zse, (i + 1));
 #else
 			if (img_mgmt_active_slot((i / SLOTS_PER_IMAGE)) != i) {
 				ok = zcbor_tstr_put_lit(zse, "upload_image_id") &&
-				     zcbor_uint32_put(zse, (i / SLOTS_PER_IMAGE));
+					 zcbor_uint32_put(zse, (i / SLOTS_PER_IMAGE));
 			}
 #endif
 
@@ -406,8 +406,8 @@ static int img_mgmt_slot_info(struct smp_streamer *ctxt)
 
 #if defined(CONFIG_MCUMGR_GRP_IMG_SLOT_INFO_HOOKS)
 			status = mgmt_callback_notify(MGMT_EVT_OP_IMG_MGMT_SLOT_INFO_SLOT,
-						      &slot_info_data, sizeof(slot_info_data),
-						      &err_rc, &err_group);
+							  &slot_info_data, sizeof(slot_info_data),
+							  &err_rc, &err_group);
 #endif
 
 			flash_area_close(fa);
@@ -420,7 +420,7 @@ static int img_mgmt_slot_info(struct smp_streamer *ctxt)
 				}
 
 				ok = smp_mgmt_reset_zse(ctxt) &&
-				     smp_add_cmd_err(zse, err_group, (uint16_t)err_rc);
+					 smp_add_cmd_err(zse, err_group, (uint16_t)err_rc);
 
 				goto finish;
 			}
@@ -458,8 +458,8 @@ static int img_mgmt_slot_info(struct smp_streamer *ctxt)
 
 #if defined(CONFIG_MCUMGR_GRP_IMG_SLOT_INFO_HOOKS)
 			status = mgmt_callback_notify(MGMT_EVT_OP_IMG_MGMT_SLOT_INFO_IMAGE,
-						      &image_info_data, sizeof(image_info_data),
-						      &err_rc, &err_group);
+							  &image_info_data, sizeof(image_info_data),
+							  &err_rc, &err_group);
 
 			if (status != MGMT_CB_OK) {
 				if (status == MGMT_CB_ERROR_RC) {
@@ -468,7 +468,7 @@ static int img_mgmt_slot_info(struct smp_streamer *ctxt)
 				}
 
 				ok = smp_mgmt_reset_zse(ctxt) &&
-				     smp_add_cmd_err(zse, err_group, (uint16_t)err_rc);
+					 smp_add_cmd_err(zse, err_group, (uint16_t)err_rc);
 
 				goto finish;
 			}
@@ -501,7 +501,7 @@ img_mgmt_upload_good_rsp(struct smp_streamer *ctxt)
 
 	if (IS_ENABLED(CONFIG_MCUMGR_SMP_LEGACY_RC_BEHAVIOUR)) {
 		ok = zcbor_tstr_put_lit(zse, "rc")		&&
-		     zcbor_int32_put(zse, MGMT_ERR_EOK);
+			 zcbor_int32_put(zse, MGMT_ERR_EOK);
 	}
 
 	ok = ok && zcbor_tstr_put_lit(zse, "off")		&&
@@ -639,7 +639,7 @@ defined(CONFIG_MCUMGR_SMP_COMMAND_STATUS_HOOKS)
 	 * request.
 	 */
 	status = mgmt_callback_notify(MGMT_EVT_OP_IMG_MGMT_DFU_CHUNK, &upload_check_data,
-				      sizeof(upload_check_data), &err_rc, &err_group);
+					  sizeof(upload_check_data), &err_rc, &err_group);
 
 	if (status != MGMT_CB_OK) {
 		IMG_MGMT_UPLOAD_ACTION_SET_RC_RSN(&action, img_mgmt_err_str_app_reject);
@@ -647,7 +647,7 @@ defined(CONFIG_MCUMGR_SMP_COMMAND_STATUS_HOOKS)
 		if (status == MGMT_CB_ERROR_RC) {
 			rc = err_rc;
 			ok = zcbor_tstr_put_lit(zse, "rc")	&&
-			     zcbor_int32_put(zse, rc);
+				 zcbor_int32_put(zse, rc);
 		} else {
 			ok = smp_add_cmd_err(zse, err_group, (uint16_t)err_rc);
 		}
@@ -744,7 +744,7 @@ defined(CONFIG_MCUMGR_SMP_COMMAND_STATUS_HOOKS)
 		}
 
 		rc = img_mgmt_write_image_data(req.off, req.img_data.value, action.write_bytes,
-						    last);
+							last);
 		if (rc == 0) {
 			g_img_mgmt_state.off += action.write_bytes;
 		} else {
@@ -821,7 +821,7 @@ end:
 		if (last && rc == MGMT_ERR_EOK) {
 			/* Append status to last packet */
 			ok = zcbor_tstr_put_lit(zse, "match")	&&
-			     zcbor_bool_put(zse, data_match);
+				 zcbor_bool_put(zse, data_match);
 		}
 #endif
 

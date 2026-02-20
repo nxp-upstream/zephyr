@@ -18,7 +18,8 @@ if IMG_MANAGER
 
 choice
 	prompt "Image manager"
-	default MCUBOOT_IMG_MANAGER
+	# default MCUBOOT_IMG_MANAGER
+	default NXPBOOT_IMG_MANAGER
 	help
 	  Choice support for managing DFU image.
 	  So far only mcuboot support is available.
@@ -29,6 +30,10 @@ config MCUBOOT_IMG_MANAGER
 	select MCUBOOT_BOOTUTIL_LIB
 	help
 	  Enable support for managing DFU image downloaded using mcuboot.
+
+config NXPBOOT_IMG_MANAGER
+	bool "Imagae manager for NXP boot ROM"
+	depends on FLASH_MAP
 
 endchoice
 
@@ -87,6 +92,15 @@ config IMG_ENABLE_IMAGE_CHECK
 	  a new firmware.  This is useful to avoid firmware reboot and test.
 	  Another use is to ensure that firmware upgrade routines from internet
 	  server to flash slot are performing properly.
+
+config IMG_HASH_LEN
+	int "Image hash length"
+	default 64 if MCUBOOT_BOOTLOADER_USES_SHA512
+	default 48 if NXPBOOT_IMG_MANAGER
+	default 32
+	help
+	Length of image hash in bytes. This value is used to determine the size
+	of the hash field in image headers and validation structures.
 
 module = IMG_MANAGER
 module-str = image manager
