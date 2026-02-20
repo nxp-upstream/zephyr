@@ -459,14 +459,6 @@ int img_mgmt_upload_inspect(const struct img_mgmt_upload_req *req,
 		int max_image_size;
 #endif
 
-		if (req->img_data.len < sizeof(struct dfu_boot_img_header)) {
-			/*  Image header is the first thing in the image */
-			IMG_MGMT_UPLOAD_ACTION_SET_RC_RSN(action, img_mgmt_err_str_hdr_malformed);
-			LOG_DBG("Image data too short: %u < %zu", req->img_data.len,
-				sizeof(struct dfu_boot_img_header));
-			return IMG_MGMT_ERR_INVALID_IMAGE_HEADER;
-		}
-
 		if (req->size == SIZE_MAX) {
 			/* Request did not include a `len` field. */
 			IMG_MGMT_UPLOAD_ACTION_SET_RC_RSN(action, img_mgmt_err_str_hdr_malformed);
@@ -481,7 +473,7 @@ int img_mgmt_upload_inspect(const struct img_mgmt_upload_req *req,
 		if (rc != 0) {
 			IMG_MGMT_UPLOAD_ACTION_SET_RC_RSN(action, img_mgmt_err_str_magic_mismatch);
 			LOG_DBG("Header validation failed: %d", rc);
-			return IMG_MGMT_ERR_INVALID_IMAGE_HEADER_MAGIC;
+			return IMG_MGMT_ERR_INVALID_IMAGE_HEADER;
 		}
 
 		if (req->data_sha.len > IMG_MGMT_DATA_SHA_LEN) {

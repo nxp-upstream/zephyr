@@ -125,38 +125,6 @@ static inline int img_mgmt_get_opposite_slot(int slot)
 	return (slot ^ 1);
 }
 
-enum img_mgmt_next_boot_type {
-	/** The normal boot to active or non-active slot */
-	NEXT_BOOT_TYPE_NORMAL	=	DFU_BOOT_NEXT_TYPE_NORMAL,
-	/** The test/non-permanent boot to non-active slot */
-	NEXT_BOOT_TYPE_TEST	=	DFU_BOOT_NEXT_TYPE_TEST,
-	/** Next boot will be revert to already confirmed slot; this
-	 * type of next boot means that active slot is not confirmed
-	 * yet as it has been marked for test in previous boot.
-	 */
-	NEXT_BOOT_TYPE_REVERT	=	DFU_BOOT_NEXT_TYPE_REVERT
-};
-
-/**
- * @brief Get next boot slot number for a given image.
- *
- * @param image			An image number.
- * @param type			Type of next boot
- *
- * @return Number of slot, from pair of slots assigned to image, that will
- * boot on next reset. User needs to compare this slot against active slot
- * to check whether application image will change for the next boot.
- * @return -1 in case when next boot slot can not be established.
- */
-int img_mgmt_get_next_boot_slot(int image, enum img_mgmt_next_boot_type *type);
-
-/**
- * Collects information about the specified image slot.
- *
- * @return Flags of the specified image slot
- */
-uint8_t img_mgmt_state_flags(int query_slot);
-
 /**
  * Erases image data at given offset
  *

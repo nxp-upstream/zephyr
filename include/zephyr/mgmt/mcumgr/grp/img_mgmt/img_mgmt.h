@@ -30,20 +30,6 @@ extern "C" {
 
 #define IMG_MGMT_DATA_SHA_LEN	32 /* SHA256 */
 
-/**
- * @name Image state flags
- * @{
- */
-/** Image is set for next swap */
-#define IMG_MGMT_STATE_F_PENDING	DFU_BOOT_STATE_F_PENDING
-/** Image has been confirmed. */
-#define IMG_MGMT_STATE_F_CONFIRMED	DFU_BOOT_STATE_F_CONFIRMED
-/** Image is currently active. */
-#define IMG_MGMT_STATE_F_ACTIVE		DFU_BOOT_STATE_F_ACTIVE
-/** Image is to stay in primary slot after the next boot. */
-#define IMG_MGMT_STATE_F_PERMANENT	DFU_BOOT_STATE_F_PERMANENT
-/** @} */
-
 /* 255.255.65535.4294967295\0 */
 #define IMG_MGMT_VER_MAX_STR_LEN	(sizeof("255.255.65535.4294967295"))
 
@@ -315,23 +301,6 @@ int img_mgmt_slot_in_use(int slot);
  * @return 1 if there's pending DFU otherwise 0.
  */
 int img_mgmt_state_any_pending(void);
-
-/**
- * @brief Returns state flags set to slot.
- *
- * Flags are translated from bootloader image state flags.
- * Returned value is zero if no flags are set or a combination of:
- *  IMG_MGMT_STATE_F_PENDING
- *  IMG_MGMT_STATE_F_CONFIRMED
- *  IMG_MGMT_STATE_F_ACTIVE
- *  IMG_MGMT_STATE_F_PERMANENT
- *
- * @param query_slot	slot number
- *
- * @return return the state flags.
- *
- */
-uint8_t img_mgmt_state_flags(int query_slot);
 
 /**
  * @brief Sets the pending flag for the specified image slot.

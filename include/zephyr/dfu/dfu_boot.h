@@ -90,28 +90,6 @@ struct dfu_boot_img_version {
 };
 
 /**
- * @brief Image header structure
- *
- * This structure contains information extracted from the image header.
- */
-struct dfu_boot_img_header {
-	/** Image header magic value */
-	uint32_t magic;
-	/** Image load address */
-	uint32_t load_addr;
-	/** Image header size */
-	uint16_t hdr_size;
-	/** Protected TLV area size */
-	uint16_t protect_tlv_size;
-	/** Image size (not including header) */
-	uint32_t img_size;
-	/** Image flags */
-	uint32_t flags;
-	/** Image version */
-	struct dfu_boot_img_version version;
-};
-
-/**
  * @brief Image information structure
  *
  * This structure is used to pass image information from header validation

@@ -55,28 +55,6 @@ LOG_MODULE_DECLARE(mcumgr_img_grp, CONFIG_MCUMGR_GRP_IMG_LOG_LEVEL);
 #endif
 
 /**
- * Collects information about the specified image slot.
- */
-uint8_t img_mgmt_state_flags(int query_slot)
-{
-	return dfu_boot_get_slot_state(query_slot);
-}
-
-int img_mgmt_get_next_boot_slot(int image, enum img_mgmt_next_boot_type *type)
-{
-	enum dfu_boot_next_type dfu_type;
-	int slot;
-
-	slot = dfu_boot_get_next_boot_slot(image, &dfu_type);
-
-	if (type != NULL) {
-		*type = (enum img_mgmt_next_boot_type)dfu_type;
-	}
-
-	return slot;
-}
-
-/**
  * Indicates whether any image slot is pending (i.e., whether a test swap will
  * happen on the next reboot.
  */
@@ -106,12 +84,12 @@ img_mgmt_state_set_pending(int slot, int permanent)
 	uint8_t state_flags;
 	int rc;
 
-	state_flags = img_mgmt_state_flags(slot);
+	state_flags = dfu_boot_get_slot_state(slot);
 
 	/* Unconfirmed slots are always runnable.  A confirmed slot can only be
 	 * run if it is a loader in a split image setup.
 	 */
-	if (state_flags & IMG_MGMT_STATE_F_CONFIRMED && slot != 0) {
+	if (state_flags & DFU_BOOT_STATE_F_CONFIRMED && slot != 0) {
 		rc = IMG_MGMT_ERR_IMAGE_ALREADY_PENDING;
 		goto done;
 	}
@@ -249,23 +227,23 @@ img_mgmt_state_read(struct smp_streamer *ctxt)
 
 	for (i = 0; ok && i < CONFIG_MCUMGR_GRP_IMG_UPDATABLE_IMAGE_NUMBER; i++) {
 		/* _a is active slot, _o is opposite slot */
-		enum img_mgmt_next_boot_type type = NEXT_BOOT_TYPE_NORMAL;
-		int next_boot_slot = img_mgmt_get_next_boot_slot(i, &type);
+        enum dfu_boot_next_type type = DFU_BOOT_NEXT_TYPE_NORMAL;
+		int next_boot_slot = dfu_boot_get_next_boot_slot(i, &type);
 		int slot_a = img_mgmt_active_slot(i);
 		int slot_o = img_mgmt_get_opposite_slot(slot_a);
 		int flags_a = REPORT_SLOT_ACTIVE;
 		int flags_o = 0;
 
-		if (type != NEXT_BOOT_TYPE_REVERT) {
+		if (type != DFU_BOOT_NEXT_TYPE_REVERT) {
 			flags_a |= REPORT_SLOT_CONFIRMED;
 		}
 
 		if (next_boot_slot != slot_a) {
-			if (type == NEXT_BOOT_TYPE_NORMAL) {
+			if (type == DFU_BOOT_NEXT_TYPE_NORMAL) {
 				flags_o = REPORT_SLOT_PENDING | REPORT_SLOT_PERMANENT;
-			} else if (type == NEXT_BOOT_TYPE_REVERT) {
+			} else if (type == DFU_BOOT_NEXT_TYPE_REVERT) {
 				flags_o = REPORT_SLOT_CONFIRMED;
-			} else if (type == NEXT_BOOT_TYPE_TEST) {
+			} else if (type == DFU_BOOT_NEXT_TYPE_TEST) {
 				flags_o = REPORT_SLOT_PENDING;
 			}
 		}
@@ -367,8 +345,8 @@ int img_mgmt_set_next_boot_slot(int slot, bool confirm)
 	 * for a given image.
 	 */
 	int active_slot = img_mgmt_active_slot(image);
-	enum img_mgmt_next_boot_type type = NEXT_BOOT_TYPE_NORMAL;
-	int next_boot_slot = img_mgmt_get_next_boot_slot(image, &type);
+    enum dfu_boot_next_type type = DFU_BOOT_NEXT_TYPE_NORMAL;
+    int next_boot_slot = dfu_boot_get_next_boot_slot(image, &type);
 
 	LOG_DBG("(%d, %s)", slot, confirm ? "confirm" : "test");
 	LOG_DBG("aimg = %d, img = %d, aslot = %d, slot = %d, nbs = %d",
@@ -405,7 +383,7 @@ int img_mgmt_set_next_boot_slot(int slot, bool confirm)
 		return IMG_MGMT_ERR_IMAGE_SETTING_TEST_TO_ACTIVE_DENIED;
 	}
 
-	if (type == NEXT_BOOT_TYPE_TEST) {
+	if (type == DFU_BOOT_NEXT_TYPE_TEST) {
 		/* Do nothing when requested to test the slot already set for test. */
 		if (!confirm && slot == next_boot_slot) {
 			return 0;
@@ -415,7 +393,7 @@ int img_mgmt_set_next_boot_slot(int slot, bool confirm)
 	}
 
 	/* Normal boot means confirmed boot to either active slot or the opposite slot. */
-	if (type == NEXT_BOOT_TYPE_NORMAL) {
+	if (type == DFU_BOOT_NEXT_TYPE_NORMAL) {
 		/* Do nothing when attempting to confirm slot that will be boot next time. */
 		if (confirm && slot == next_boot_slot) {
 			return 0;
@@ -429,7 +407,7 @@ int img_mgmt_set_next_boot_slot(int slot, bool confirm)
 		/* Allow selecting non-active slot for boot */
 	}
 
-	if (type == NEXT_BOOT_TYPE_REVERT) {
+	if (type == DFU_BOOT_NEXT_TYPE_REVERT) {
 		/* Nothing to do when requested to confirm the next boot slot,
 		 * as it is already confirmed in this mode.
 		 */
