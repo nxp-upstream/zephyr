@@ -537,9 +537,6 @@ mcp_server_submit_tool_message(server, &ping, execution_token);
 
 Configuration
 *************
-
-The MCP server is configured through Kconfig options. All options are prefixed with ``CONFIG_MCP_``.
-
 Core Configuration
 ==================
 
@@ -550,11 +547,13 @@ Core Configuration
       Type: bool
       Default: n
 
-   CONFIG_MCP_SERVER_HTTP
-      Enable HTTP transport for MCP Server
-      Type: bool
-      Default: n
-      Depends on: CONFIG_MCP_SERVER
+   CONFIG_MCP_SERVER_COUNT
+      Number of MCP server instances
+      Type: int
+      Default: 1
+      Range: 1-10
+
+      Number of MCP server instances that can be created and run concurrently.
 
 Client and Execution Limits
 ============================
@@ -562,31 +561,27 @@ Client and Execution Limits
 .. code-block:: kconfig
 
    CONFIG_MCP_MAX_CLIENTS
-      Maximum number of concurrent MCP clients
+      Maximum number of concurrent MCP clients per server
       Type: int
-      Default: 4
-      Range: 1-32
-      
+      Default: 3
+      Range: 1-100
+
       Each client consumes memory for tracking state, active requests,
       and execution contexts. Increase if you need more concurrent AI agents.
 
    CONFIG_MCP_MAX_CLIENT_REQUESTS
-      Maximum concurrent requests per client
+      Maximum concurrent requests per client (MCP request queue size)
       Type: int
-      Default: 10
-      Range: 1-64
-      
+      Default: 5
+      Range: 1-100
+
       Limits parallel tool executions from a single client. The total
       execution registry size is MAX_CLIENTS * MAX_CLIENT_REQUESTS.
 
    CONFIG_MCP_MAX_TOOLS
       Maximum number of tools that can be registered
       Type: int
-      Default: 16
-      Range: 1-128
-      
-      Static array size for tool registry. Increase if your application
-      provides many tools to AI agents.
+      Default: 4
 
 Tool Metadata Sizes
 ===================
@@ -596,53 +591,53 @@ Tool Metadata Sizes
    CONFIG_MCP_TOOL_NAME_MAX_LEN
       Maximum length of tool name (including null terminator)
       Type: int
-      Default: 64
-      Range: 8-256
+      Default: 32
 
    CONFIG_MCP_TOOL_SCHEMA_MAX_LEN
-      Maximum length of tool input schema JSON (including null terminator)
+      Maximum length of tool input/output schema JSON (including null terminator)
       Type: int
       Default: 512
-      Range: 64-4096
-      
+
       Input schema is a JSON Schema definition for tool parameters.
       Increase if your tools have complex parameter structures.
+
+   CONFIG_MCP_TOOL_INPUT_ARGS_MAX_LEN
+      Maximum length of tool input arguments RPC field (including null terminator)
+      Type: int
+      Default: 512
 
    CONFIG_MCP_TOOL_DESC
       Enable tool description field
       Type: bool
-      Default: y
-      
+      Default: n
+
       Allows tools to provide human-readable descriptions to AI agents.
 
    CONFIG_MCP_TOOL_DESC_MAX_LEN
       Maximum length of tool description (including null terminator)
       Type: int
       Default: 256
-      Range: 32-1024
       Depends on: CONFIG_MCP_TOOL_DESC
 
    CONFIG_MCP_TOOL_TITLE
       Enable tool title field
       Type: bool
       Default: n
-      
+
       Optional alternative name for the tool.
 
    CONFIG_MCP_TOOL_OUTPUT_SCHEMA
       Enable tool output schema field
       Type: bool
       Default: n
-      
+
       Allows tools to specify expected output format as JSON Schema.
       Future feature for enhanced type safety.
 
-   CONFIG_MCP_TOOL_OUTPUT_SCHEMA_MAX_LEN
-      Maximum length of tool output schema (including null terminator)
+   CONFIG_MCP_TOOL_RESULT_MAX_LEN
+      Maximum length of tool execution result (including null terminator)
       Type: int
-      Default: 512
-      Range: 64-4096
-      Depends on: CONFIG_MCP_TOOL_OUTPUT_SCHEMA
+      Default: 256
 
 Thread Configuration
 ====================
@@ -653,31 +648,93 @@ Thread Configuration
       Number of worker threads for processing MCP requests
       Type: int
       Default: 2
-      Range: 1-16
-      
+      Range: 1-8
+
       More workers allow greater concurrency but consume more stack memory.
       Each worker can process one tool execution at a time.
 
    CONFIG_MCP_REQUEST_WORKER_STACK_SIZE
       Stack size for each worker thread (bytes)
       Type: int
-      Default: 4096
-      Range: 2048-16384
-      
+      Default: 2048
+      Range: 1024-8192
+
       Must be sufficient for:
       - MCP request processing overhead
       - JSON parsing/serialization
       - Tool callback execution (if blocking mode)
-      
+
+      The worker thread itself is lightweight, but it calls user-provided
+      tool callbacks which may have varying stack requirements.
       Increase if tools perform complex operations or use large stack buffers.
 
    CONFIG_MCP_HEALTH_MONITOR_STACK_SIZE
       Stack size for health monitor thread (bytes)
       Type: int
-      Default: 2048
-      Range: 1024-8192
-      
-      Health monitor has minimal stack requirements. Default is usually sufficient.
+      Default: 1024
+      Range: 512-2048
+
+      This thread performs simple periodic checks and has minimal
+      stack requirements. Default is usually sufficient.
+
+Server Information Configuration
+=================================
+
+.. code-block:: kconfig
+
+   CONFIG_MCP_SERVER_INFO_NAME_MAX_LEN
+      Maximum server info name length
+      Type: int
+      Default: 64
+
+   CONFIG_MCP_SERVER_INFO_NAME
+      Server name reported in serverInfo
+      Type: string
+      Default: "Zephyr MCP Server"
+
+   CONFIG_MCP_SERVER_INFO_VERSION_MAX_LEN
+      Maximum server info version length
+      Type: int
+      Default: 16
+
+   CONFIG_MCP_SERVER_INFO_VERSION
+      Server version reported in serverInfo
+      Type: string
+      Default: "1.0.0"
+
+   CONFIG_MCP_SERVER_INFO_TITLE
+      Include server title in serverInfo
+      Type: bool
+      Default: n
+
+   CONFIG_MCP_SERVER_INFO_TITLE_MAX_LEN
+      Maximum server info title length
+      Type: int
+      Default: 64
+      Depends on: CONFIG_MCP_SERVER_INFO_TITLE
+
+   CONFIG_MCP_SERVER_INFO_TITLE_VALUE
+      Server title reported in serverInfo
+      Type: string
+      Default: "Zephyr MCP Server"
+      Depends on: CONFIG_MCP_SERVER_INFO_TITLE
+
+   CONFIG_MCP_SERVER_INFO_INSTRUCTIONS
+      Include server instructions in serverInfo
+      Type: bool
+      Default: n
+
+   CONFIG_MCP_SERVER_INFO_INSTRUCTIONS_MAX_LEN
+      Maximum server info instructions length
+      Type: int
+      Default: 256
+      Depends on: CONFIG_MCP_SERVER_INFO_INSTRUCTIONS
+
+   CONFIG_MCP_SERVER_INFO_INSTRUCTIONS_VALUE
+      Server instructions reported in serverInfo
+      Type: string
+      Default: "This is a Zephyr-based MCP server providing tool capabilities."
+      Depends on: CONFIG_MCP_SERVER_INFO_INSTRUCTIONS
 
 Timeout Configuration
 =====================
@@ -687,87 +744,156 @@ Timeout Configuration
    CONFIG_MCP_HEALTH_CHECK_INTERVAL_MS
       Interval between health monitor checks (milliseconds)
       Type: int
-      Default: 1000
-      Range: 100-10000
-      
+      Default: 30000
+
       How often the health monitor wakes up to check for timeouts.
       Lower values provide faster timeout detection but increase CPU usage.
 
    CONFIG_MCP_TOOL_EXEC_TIMEOUT_MS
       Maximum execution time for a tool (milliseconds)
       Type: int
-      Default: 60000
-      Range: 1000-600000
-      
+      Default: 600000
+
       Tools exceeding this duration are automatically cancelled.
       Set based on longest expected tool execution time.
+      Default is 10 minutes (600000 ms).
 
    CONFIG_MCP_TOOL_IDLE_TIMEOUT_MS
       Idle timeout for tool execution (milliseconds)
       Type: int
-      Default: 10000
-      Range: 1000-300000
-      
+      Default: 100000
+
       If no ping or response within this time, execution is cancelled.
       Tools doing long computation should send periodic pings.
+      Default is 100000 ms.
 
    CONFIG_MCP_TOOL_CANCEL_TIMEOUT_MS
       Timeout for tool cancellation acknowledgment (milliseconds)
       Type: int
-      Default: 5000
-      Range: 500-60000
-      
+      Default: 300000
+
       If tool doesn't acknowledge cancellation within this time,
       health monitor logs an error. Execution remains in CANCELED state.
+      Default is 300000 ms.
 
    CONFIG_MCP_CLIENT_TIMEOUT_MS
       Client idle timeout (milliseconds)
       Type: int
-      Default: 300000
-      Range: 10000-3600000
-      
+      Default: 600000
+
       Clients with no activity for this duration are disconnected.
       All their active executions are cancelled.
+      Default is 600000 ms.
 
-HTTP Transport Configuration
-=============================
+Message Configuration
+=====================
 
 .. code-block:: kconfig
+
+   CONFIG_MCP_MAX_MESSAGE_SIZE
+      Maximum MCP message size (bytes)
+      Type: int
+      Default: 2048
+
+      Size of the buffer for MCP messages in bytes.
+
+Transport Configuration
+=======================
+
+The MCP server supports multiple transport mechanisms selected via a choice:
+
+.. code-block:: kconfig
+
+   CONFIG_MCP_TRANSPORT
+      Select the transport mechanism for MCP communication
+      Type: choice
+      Default: CONFIG_MCP_TRANSPORT_HTTP
+
+      Available options:
+      - CONFIG_MCP_TRANSPORT_HTTP: HTTP transport
+      - CONFIG_MCP_TRANSPORT_MOCK: Mock transport (for testing only)
+
+HTTP Transport Configuration
+-----------------------------
+
+.. code-block:: kconfig
+
+   CONFIG_MCP_TRANSPORT_HTTP
+      Use HTTP for MCP transport
+      Type: bool
+      Default: y (if CONFIG_MCP_TRANSPORT choice)
+      Depends on: NETWORKING
+      Selects: POSIX_API, MIN_HEAP, NET_TCP, NET_IPV4, NET_IPV6,
+               NET_SOCKETS, HTTP_SERVER, HTTP_SERVER_CAPTURE_HEADERS,
+               UUID, UUID_V4, UUID_BASE64, ENTROPY_GENERATOR, MBEDTLS,
+               MBEDTLS_PSA_CRYPTO_C, PSA_WANT_ALG_SHA_1, BASE64
 
    CONFIG_MCP_HTTP_PORT
       HTTP server port for MCP
       Type: int
       Default: 8080
-      Range: 1-65535
 
-   CONFIG_MCP_HTTP_MAX_CONTENT_LENGTH
-      Maximum HTTP request body size (bytes)
+   CONFIG_MCP_HTTP_ENDPOINT
+      URL path for MCP endpoint
+      Type: string
+      Default: "/mcp"
+
+   CONFIG_MCP_HTTP_TIMEOUT_MS
+      HTTP request timeout in milliseconds
       Type: int
-      Default: 4096
-      Range: 512-65536
-      
-      Must accommodate largest expected MCP request (tool calls with parameters).
+      Default: 500
 
-   CONFIG_MCP_HTTP_RESPONSE_QUEUE_SIZE
-      Size of HTTP response queue per client
+      Maximum time to wait for an HTTP request to complete before switching
+      from blocking mode to polling mode. This timeout applies to both client
+      and server HTTP operations.
+
+   CONFIG_MCP_HTTP_SSE_RETRY_MS
+      SSE reconnection retry interval in milliseconds
       Type: int
-      Default: 16
-      Range: 4-64
-      
-      Responses are queued with event ID ordering for SSE compatibility.
-      Increase if clients send many rapid concurrent requests.
+      Default: 5000
 
-Memory Configuration
-====================
+      Time interval sent to clients via the SSE 'retry' field. In this
+      implementation, the retry mechanism instructs clients how frequently
+      to poll for new responses via GET requests.
+
+Mock Transport Configuration
+-----------------------------
 
 .. code-block:: kconfig
 
-   CONFIG_MCP_USE_HEAP
-      Use heap allocation for dynamic memory
+   CONFIG_MCP_TRANSPORT_MOCK
+      Mock transport layer for unit testing
       Type: bool
-      Default: y
-      
-      If disabled, you must provide custom mcp_alloc()/mcp_free() implementations.
+      Default: n
+
+      This option should only be used in test builds. The mock transport
+      implements the transport_binding interface and tracks all send/disconnect
+      calls for test verification.
+
+   CONFIG_MCP_MOCK_MAX_CLIENTS
+      Maximum number of clients for mock transport testing
+      Type: int
+      Default: 3
+      Range: 1-100
+      Depends on: CONFIG_MCP_TRANSPORT_MOCK
+
+Logging Configuration
+=====================
+
+.. code-block:: kconfig
+
+   CONFIG_MCP_LOG_LEVEL
+      MCP Server log level
+      Type: int
+      Default: LOG_DEFAULT_LEVEL
+
+      Sets the logging level for the MCP subsystem.
+      Available levels:
+      - 0: OFF
+      - 1: ERR
+      - 2: WRN
+      - 3: INF
+      - 4: DBG
 
 .. warning::
    The total execution registry size is ``CONFIG_MCP_MAX_CLIENTS * CONFIG_MCP_MAX_CLIENT_REQUESTS``.
@@ -776,7 +902,7 @@ Memory Configuration
 .. note::
    The request queue depth is automatically calculated as:
    ``CONFIG_MCP_MAX_CLIENTS * CONFIG_MCP_MAX_CLIENT_REQUESTS``
-   
+
    This ensures all possible concurrent executions can be queued.
 
 API Reference
@@ -999,107 +1125,6 @@ Tool responses must follow the MCP content format:
               "{\"type\":\"text\","
               "\"text\":\"{\\\"temp\\\":23.5,\\\"unit\\\":\\\"C\\\"}\"}");
 
-Configuration
-*************
-
-Core Settings
-=============
-
-.. code-block:: kconfig
-
-    CONFIG_MCP_SERVER=y                     # Enable MCP server
-    CONFIG_MCP_SERVER_HTTP=y                # Enable HTTP transport
-    CONFIG_MCP_MAX_CLIENTS=4                # Max concurrent clients
-    CONFIG_MCP_MAX_CLIENT_REQUESTS=10       # Max requests per client
-    CONFIG_MCP_MAX_TOOLS=16                 # Max registered tools
-
-Thread Configuration
-====================
-
-.. code-block:: kconfig
-
-    CONFIG_MCP_REQUEST_WORKERS=2                  # Worker thread count
-    CONFIG_MCP_REQUEST_WORKER_STACK_SIZE=4096     # Worker stack size
-    CONFIG_MCP_HEALTH_MONITOR_STACK_SIZE=2048     # Monitor stack size
-
-Timeout Configuration
-=====================
-
-.. code-block:: kconfig
-
-    CONFIG_MCP_TOOL_EXEC_TIMEOUT_MS=60000      # Max execution time
-    CONFIG_MCP_TOOL_IDLE_TIMEOUT_MS=10000      # Idle timeout (use pings)
-    CONFIG_MCP_TOOL_CANCEL_TIMEOUT_MS=5000     # Cancel ack timeout
-    CONFIG_MCP_CLIENT_TIMEOUT_MS=300000        # Client idle timeout
-    CONFIG_MCP_HEALTH_CHECK_INTERVAL_MS=1000   # Monitor check interval
-
-HTTP Transport
-==============
-
-.. code-block:: kconfig
-
-    CONFIG_MCP_HTTP_PORT=8080                      # Server port
-    CONFIG_MCP_HTTP_MAX_CONTENT_LENGTH=4096        # Max request size
-    CONFIG_MCP_HTTP_RESPONSE_QUEUE_SIZE=16         # Response queue depth
-
-Tool Metadata
-=============
-
-.. code-block:: kconfig
-
-    CONFIG_MCP_TOOL_NAME_MAX_LEN=64            # Tool name length
-    CONFIG_MCP_TOOL_SCHEMA_MAX_LEN=512         # Schema JSON length
-    CONFIG_MCP_TOOL_DESC=y                     # Enable descriptions
-    CONFIG_MCP_TOOL_DESC_MAX_LEN=256           # Description length
-
-Performance Tuning
-******************
-
-Stack Sizing
-============
-
-Calculate worker stack requirements:
-
-.. code-block:: none
-
-    WORKER_STACK = Tool callback stack + MCP overhead (~2KB)
-
-For tools using large buffers or deep call stacks, increase:
-
-.. code-block:: kconfig
-
-    CONFIG_MCP_REQUEST_WORKER_STACK_SIZE=8192
-
-Worker Thread Count
-===================
-
-Tune based on concurrency needs:
-
-- **Low concurrency** (1-2 clients): ``CONFIG_MCP_REQUEST_WORKERS=1``
-- **Medium concurrency** (2-4 clients): ``CONFIG_MCP_REQUEST_WORKERS=2`` (default)
-- **High concurrency** (4+ clients): ``CONFIG_MCP_REQUEST_WORKERS=4``
-
-Total memory impact:
-
-.. code-block:: none
-
-    Worker memory = WORKER_COUNT × WORKER_STACK_SIZE
-
-Memory Usage
-============
-
-Total execution registry size:
-
-.. code-block:: none
-
-    Execution slots = MAX_CLIENTS × MAX_CLIENT_REQUESTS
-
-Each slot uses ~100 bytes. For default settings (4 clients × 10 requests):
-
-.. code-block:: none
-
-    Execution registry ≈ 4KB
-
 Custom Memory Allocators
 ========================
 
@@ -1116,46 +1141,6 @@ Override default allocator by redefining weak symbols:
     {
         my_custom_free(ptr);
     }
-
-Transport Layer Ownership
-==========================
-
-After ``transport->ops->send()`` is called:
-
-- Transport layer owns the JSON buffer
-- Transport must free buffer after transmission
-- Transport must free all queued buffers on disconnect
-
-Example Configurations
-======================
-
-**Resource Constrained:**
-
-.. code-block:: kconfig
-
-    CONFIG_MCP_MAX_CLIENTS=2
-    CONFIG_MCP_MAX_CLIENT_REQUESTS=4
-    CONFIG_MCP_REQUEST_WORKERS=1
-    CONFIG_MCP_REQUEST_WORKER_STACK_SIZE=2048
-    CONFIG_MCP_MAX_TOOLS=8
-
-**High Performance:**
-
-.. code-block:: kconfig
-
-    CONFIG_MCP_MAX_CLIENTS=8
-    CONFIG_MCP_MAX_CLIENT_REQUESTS=16
-    CONFIG_MCP_REQUEST_WORKERS=4
-    CONFIG_MCP_REQUEST_WORKER_STACK_SIZE=8192
-    CONFIG_MCP_MAX_TOOLS=32
-
-**Long-Running Operations:**
-
-.. code-block:: kconfig
-
-    CONFIG_MCP_TOOL_EXEC_TIMEOUT_MS=300000
-    CONFIG_MCP_TOOL_IDLE_TIMEOUT_MS=60000
-    CONFIG_MCP_HEALTH_CHECK_INTERVAL_MS=5000
 
 Sample Application
 ******************

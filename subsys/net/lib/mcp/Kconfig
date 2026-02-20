@@ -38,14 +38,6 @@ config MCP_REQUEST_WORKERS
 	  Number of worker threads that process incoming MCP requests.
 	  More workers allow better concurrent handling of client requests.
 
-config MCP_RESPONSE_WORKERS
-	int "Number of MCP message worker threads"
-	default 2
-	range 0 8
-	help
-	  Number of worker threads that process outgoing MCP responses.
-	  Set to 0 to disable response workers and process responses directly.
-
 config MCP_REQUEST_WORKER_STACK_SIZE
 	int "Stack size for MCP request worker threads"
 	default 2048
