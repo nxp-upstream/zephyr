@@ -1565,7 +1565,7 @@ int mcp_server_start(mcp_server_ctx_t ctx)
 	tid = k_thread_create(&server->health_monitor_thread, mcp_health_monitor_stack[server->idx],
 			      K_THREAD_STACK_SIZEOF(mcp_health_monitor_stack[server->idx]),
 			      mcp_health_monitor_worker, server, NULL, NULL,
-			      K_PRIO_COOP(MCP_WORKER_PRIORITY + 1), 0, K_NO_WAIT);
+			      K_PRIO_PREEMPT(MCP_WORKER_PRIORITY - 1), 0, K_NO_WAIT);
 	if (tid == NULL) {
 		LOG_ERR("Failed to create health monitor thread");
 		return -ENOMEM;
