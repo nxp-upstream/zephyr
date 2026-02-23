@@ -191,15 +191,15 @@ Request Queue
 -------------
 
 - Depth: ``CONFIG_MCP_MAX_CLIENTS * CONFIG_MCP_MAX_CLIENT_REQUESTS``
-- Messages include client reference (with refcount), transport message ID, and parsed data
-- FIFO ordering for fairness
+- Messages include client reference, transport message ID, and parsed data
+- FIFO ordering
 
 Health Monitor Thread
 ---------------------
 
 Single dedicated thread:
 
-- Priority: ``K_PRIO_COOP(8)`` (lower priority than workers)
+- Priority: ``K_PRIO_PREEMPT(6)``
 - Stack size: ``CONFIG_MCP_HEALTH_MONITOR_STACK_SIZE``
 - Check interval: ``CONFIG_MCP_HEALTH_CHECK_INTERVAL_MS`` (default: 1000ms)
 - Monitors all execution contexts and client contexts
@@ -215,15 +215,14 @@ Tool callbacks execute in one of two modes:
 1. **Blocking Mode**: Short-running tools execute directly in worker thread context
    
     - Blocks the worker thread until completion
-    - Suitable for fast operations (< 1 second)
+    - Suitable for fast operations
     - Minimizes thread overhead
 
 2. **Async Mode**: Long-running tools spawn their own thread
    
     - Return immediately from callback
+    - Recommended for long-running operations
     - Worker thread returns to pool
-    - Tool thread must call ``mcp_server_submit_tool_message()`` when done
-    - Recommended for operations > 1 second
 
 .. warning::
     Tool callbacks block MCP worker threads. For operations that take significant time,
@@ -368,7 +367,7 @@ Tool executions progress through these states:
       │      │          │
       │      ├──────────┘
       │      │
-      │      ├───► CANCELED ───┐
+      │      ├───► CANCELED ──────┐
       │      │    (timeout or     │
       │      │     client request)│
       │      │                    │
@@ -490,16 +489,12 @@ Cancellation process:
 Execution Token System
 ----------------------
 
-Each tool execution receives a unique token for tracking:
+Each tool execution receives a UUID-based token for tracking:
 
-- **Current Implementation**: Token based on transport message ID
-- **Future (Security Phase)**: UUID-based tokens for better security
-- **Purpose**:
-  
   - Correlates responses with original requests
   - Allows tools to submit responses from any thread
   - Enables execution state queries
-  - Prevents response spoofing (with UUID implementation)
+  - Prevents response spoofing from malicious tools
 
 Execution Monitoring
 --------------------
@@ -1010,8 +1005,8 @@ Define a tool and register it with the server:
     ret = mcp_server_add_tool(server, &my_tool);
 
 .. note::
-    Tool callbacks are executed in worker thread context. For operations taking
-    longer than ~1 second, spawn a separate thread to avoid blocking workers.
+    Tool callbacks are executed in worker thread context. For long-running
+    operations, spawn a separate thread to avoid blocking workers.
 
 Tool Removal
 ============
