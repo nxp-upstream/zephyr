@@ -38,22 +38,23 @@ enum mcp_lifecycle_state {
  */
 enum mcp_execution_state {
 	MCP_EXEC_FREE,
-	MCP_EXEC_ACTIVE,    /**< Execution in progress */
-	MCP_EXEC_CANCELED,  /**< Cancellation requested */
-	MCP_EXEC_FINISHED   /**< Execution completed */
+	MCP_EXEC_ACTIVE,   /**< Execution in progress */
+	MCP_EXEC_CANCELED, /**< Cancellation requested */
+	MCP_EXEC_FINISHED  /**< Execution completed */
 };
 
 /**
  * @brief Client context
  * @note Used to hold lifecycle and request tracking information
- * 		 and the transport layer binding
+ *		 and the transport layer binding
  */
 struct mcp_client_context {
 	enum mcp_lifecycle_state lifecycle_state; /**< Current state */
 	uint8_t active_request_count;             /**< Number of pending requests */
 	atomic_t refcount;                        /**< Reference count for cleanup */
 	int64_t last_message_timestamp;           /**< Last activity time (uptime ms) */
-	struct mcp_execution_context *active_requests[CONFIG_MCP_MAX_CLIENT_REQUESTS]; /**< Active request tracking */
+	struct mcp_execution_context
+		*active_requests[CONFIG_MCP_MAX_CLIENT_REQUESTS]; /**< Active request tracking */
 	struct mcp_transport_binding *binding; /**< Transport layer binding for this client */
 };
 
@@ -81,15 +82,16 @@ struct mcp_tool_registry {
  */
 struct mcp_execution_context {
 	char execution_token[UUID_STR_LEN]; /**< Unique token for this execution (UUID string) */
-	struct mcp_request_id request_id; /**< Actual request ID from the client message */
+	struct mcp_request_id request_id;   /**< Actual request ID from the client message */
 	uint32_t transport_msg_id; /**< Message ID from transport layer for inter-layer tracking */
 	struct mcp_client_context *client; /**< Client that initiated this execution */
-	struct mcp_tool_record *tool; /**< Tool being executed */
-	k_tid_t worker_id; /**< Thread ID of the worker handling this execution */
-	int64_t start_timestamp; /**< Execution start time in milliseconds (k_uptime_get) */
+	struct mcp_tool_record *tool;      /**< Tool being executed */
+	k_tid_t worker_id;                 /**< Thread ID of the worker handling this execution */
+	int64_t start_timestamp;  /**< Execution start time in milliseconds (k_uptime_get) */
 	int64_t cancel_timestamp; /**< Time when cancellation was requested (0 if not canceled) */
 	int64_t last_message_timestamp; /**< Last activity/ping time for idle detection */
-	enum mcp_execution_state execution_state; /**< Current execution state (active/canceled/finished) */
+	enum mcp_execution_state
+		execution_state; /**< Current execution state (active/canceled/finished) */
 };
 
 /**
@@ -118,14 +120,17 @@ struct mcp_server_ctx {
 	uint8_t idx; /**< Server instance index in the global mcp_servers array */
 	bool in_use; /**< Flag indicating if this server context is allocated */
 	struct mcp_client_registry client_registry; /**< Registry of all connected clients */
-	struct k_thread request_workers[CONFIG_MCP_REQUEST_WORKERS]; /**< Worker threads for async request processing */
+	struct k_thread request_workers[CONFIG_MCP_REQUEST_WORKERS]; /**< Worker threads for async
+									request processing */
 	struct k_msgq request_queue; /**< Message queue for pending client requests */
-	char request_queue_storage[MCP_MAX_REQUESTS * sizeof(struct mcp_queue_msg)]; /**< Static storage for request queue */
-	struct mcp_tool_registry tool_registry; /**< Registry of available tools */
+	char request_queue_storage[MCP_MAX_REQUESTS *
+				   sizeof(struct mcp_queue_msg)]; /**< Static storage for request
+								     queue */
+	struct mcp_tool_registry tool_registry;           /**< Registry of available tools */
 	struct mcp_execution_registry execution_registry; /**< Registry of active tool executions */
-	struct k_thread health_monitor_thread; /**< Thread monitoring execution and client timeouts */
+	struct k_thread
+		health_monitor_thread; /**< Thread monitoring execution and client timeouts */
 };
-
 
 /*******************************************************************************
  * Variables
@@ -142,11 +147,11 @@ K_THREAD_STACK_ARRAY_DEFINE(mcp_health_monitor_stack, CONFIG_MCP_SERVER_COUNT,
  * Server Context Helper Functions
  ******************************************************************************/
 
- /**
-  * @brief Allocate an MCP Server context
-  *
-  * @return Pointer to allocated server context, or NULL if no slots available
-  */
+/**
+ * @brief Allocate an MCP Server context
+ *
+ * @return Pointer to allocated server context, or NULL if no slots available
+ */
 static struct mcp_server_ctx *allocate_mcp_server_context(void)
 {
 	for (uint32_t i = 0; i < ARRAY_SIZE(mcp_servers); i++) {
@@ -246,7 +251,9 @@ static struct mcp_client_context *add_client_locked(struct mcp_server_ctx *serve
 			client_registry->clients[i].lifecycle_state = MCP_LIFECYCLE_NEW;
 			client_registry->clients[i].active_request_count = 0;
 			client_registry->clients[i].binding = binding;
-			memset(client_registry->clients[i].active_requests, 0, CONFIG_MCP_MAX_CLIENT_REQUESTS * sizeof(struct mcp_execution_context *));
+			memset(client_registry->clients[i].active_requests, 0,
+			       CONFIG_MCP_MAX_CLIENT_REQUESTS *
+				       sizeof(struct mcp_execution_context *));
 			atomic_set(&client_registry->clients[i].refcount, 1);
 			return &client_registry->clients[i];
 		}
@@ -275,11 +282,11 @@ static void remove_client_locked(struct mcp_server_ctx *server, struct mcp_clien
  * NOTE: All these functions assume the caller holds execution_registry.mutex
  ******************************************************************************/
 /**
-* @brief Generates an execution token
-* @note The token is used to track each running execution of a tool
-* @param token_out Buffer to store the generated UUID string
-* @return 0 on success, negative errno on failure
-*/
+ * @brief Generates an execution token
+ * @note The token is used to track each running execution of a tool
+ * @param token_out Buffer to store the generated UUID string
+ * @return 0 on success, negative errno on failure
+ */
 static int generate_execution_token(char *token_out)
 {
 	struct uuid execution_uuid;
@@ -295,12 +302,12 @@ static int generate_execution_token(char *token_out)
 }
 
 /**
-* @brief Find an execution context by its token
-* @note Must be called with execution_registry.mutex held
-* @return Pointer to execution context if found, NULL otherwise
-*/
+ * @brief Find an execution context by its token
+ * @note Must be called with execution_registry.mutex held
+ * @return Pointer to execution context if found, NULL otherwise
+ */
 static struct mcp_execution_context *get_execution_context(struct mcp_server_ctx *server,
-										const char *execution_token)
+							   const char *execution_token)
 {
 	struct mcp_execution_registry *execution_registry = &server->execution_registry;
 
@@ -310,7 +317,8 @@ static struct mcp_execution_context *get_execution_context(struct mcp_server_ctx
 
 	for (int i = 0; i < ARRAY_SIZE(execution_registry->executions); i++) {
 		if ((execution_registry->executions[i].execution_state != MCP_EXEC_FREE) &&
-			(strcmp(execution_registry->executions[i].execution_token, execution_token) == 0)) {
+		    (strcmp(execution_registry->executions[i].execution_token, execution_token) ==
+		     0)) {
 			return &execution_registry->executions[i];
 		}
 	}
@@ -318,7 +326,7 @@ static struct mcp_execution_context *get_execution_context(struct mcp_server_ctx
 	return NULL;
 }
 
- /**
+/**
  * @brief Add a new execution context to the registry
  * @note Must be called with execution_registry.mutex held
  * @return Pointer to execution context if successful, NULL otherwise
@@ -357,7 +365,7 @@ static struct mcp_execution_context *add_execution_context(struct mcp_server_ctx
 	return NULL;
 }
 
- /**
+/**
  * @brief Remove an execution context from the registry
  * @note Must be called with execution_registry.mutex held
  */
@@ -372,7 +380,7 @@ static void remove_execution_context(struct mcp_server_ctx *server,
  * NOTE: All these functions assume the caller holds tool_registry.mutex
  ******************************************************************************/
 
- /**
+/**
  * @brief Find a tool by name in the registry
  * @note Must be called with tool_registry.mutex held
  * @return Pointer to tool record if found, NULL otherwise
@@ -392,7 +400,7 @@ static struct mcp_tool_record *get_tool(struct mcp_server_ctx *server, const cha
 	return NULL;
 }
 
- /**
+/**
  * @brief Add a new tool to the registry
  * @note Must be called with tool_registry.mutex held
  * @return Pointer to tool record if successful, NULL otherwise
@@ -414,7 +422,7 @@ static struct mcp_tool_record *add_tool(struct mcp_server_ctx *server,
 	return NULL;
 }
 
- /**
+/**
  * @brief Copy tool metadata to response buffer
  * @note Must be called with tool_registry.mutex held
  * @return 0 on success, negative error code on failure
@@ -459,7 +467,9 @@ static int copy_tool_metadata_to_response(struct mcp_server_ctx *server,
 			       ",\"outputSchema\":%s"
 #endif
 			       "}",
-			       (tools_written > 0) ? "," : "", /* Add comma separator except for first item */
+			       (tools_written > 0)
+				       ? ","
+				       : "", /* Add comma separator except for first item */
 			       tool_info->name,
 #ifdef CONFIG_MCP_TOOL_TITLE
 			       tool_info->title,
@@ -868,7 +878,7 @@ cleanup_active_request:
 		client->active_requests[request_index] = 0;
 		k_mutex_unlock(&client_registry->mutex);
 	}
-	
+
 cleanup_execution:
 	if (exec_ctx != NULL) {
 		if (k_mutex_lock(&execution_registry->mutex, K_FOREVER) == 0) {
@@ -879,7 +889,7 @@ cleanup_execution:
 
 cleanup_tool:
 	atomic_dec(&tool->refcount);
-	
+
 	client_put(client);
 	return ret;
 }
@@ -919,7 +929,7 @@ static int handle_notification(struct mcp_server_ctx *server, struct mcp_client_
 			return -EPERM;
 		}
 		break;
-		
+
 	case MCP_METHOD_NOTIF_CANCELLED:
 		if (client->lifecycle_state != MCP_LIFECYCLE_INITIALIZED) {
 			LOG_DBG("Client not in initialized state: %p", client);
@@ -938,11 +948,14 @@ static int handle_notification(struct mcp_server_ctx *server, struct mcp_client_
 		for (int i = 0; i < CONFIG_MCP_MAX_CLIENT_REQUESTS; i++) {
 			if ((client->active_requests[i] != NULL) &&
 			    (client->active_requests[i]->transport_msg_id == msg_id)) {
-				struct mcp_execution_context *execution_ctx = client->active_requests[i];
+				struct mcp_execution_context *execution_ctx =
+					client->active_requests[i];
 
 				ret = k_mutex_lock(&server->execution_registry.mutex, K_FOREVER);
 				if (ret != 0) {
-					LOG_ERR("Failed to lock execution registry: %d. Can't cancel execution.", ret);
+					LOG_ERR("Failed to lock execution registry: %d. Can't "
+						"cancel execution.",
+						ret);
 					k_mutex_unlock(&client_registry->mutex);
 					client_put(client);
 					return -ENOSPC;
@@ -951,7 +964,7 @@ static int handle_notification(struct mcp_server_ctx *server, struct mcp_client_
 				execution_ctx->execution_state = MCP_EXEC_CANCELED;
 				execution_ctx->cancel_timestamp = k_uptime_get();
 				execution_ctx->tool->callback(MCP_TOOL_CANCEL_REQUEST, NULL,
-							     execution_ctx->execution_token);
+							      execution_ctx->execution_token);
 				k_mutex_unlock(&server->execution_registry.mutex);
 				break;
 			}
@@ -1098,7 +1111,8 @@ static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 							request.transport_msg_id);
 			break;
 		case MCP_METHOD_NOTIF_CANCELLED:
-			ret = handle_notification(server, request.client, message, request.transport_msg_id);
+			ret = handle_notification(server, request.client, message,
+						  request.transport_msg_id);
 			break;
 		default:
 			/* Should never get here. Requests are validated in
@@ -1167,7 +1181,6 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 	struct mcp_execution_registry *execution_registry = &server->execution_registry;
 	struct mcp_client_registry *client_registry = &server->client_registry;
-	
 
 	while (1) {
 		k_sleep(K_MSEC(CONFIG_MCP_HEALTH_CHECK_INTERVAL_MS));
@@ -1214,8 +1227,8 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 					context->execution_token, execution_duration,
 					context->client, (uint32_t)context->worker_id);
 				/* Allocate notification params structure */
-				params = (struct mcp_params_notif_cancelled *)
-					mcp_alloc(sizeof(struct mcp_params_notif_cancelled));
+				params = (struct mcp_params_notif_cancelled *)mcp_alloc(
+					sizeof(struct mcp_params_notif_cancelled));
 
 				if (params == NULL) {
 					LOG_ERR("Failed to allocate notification params");
@@ -1233,12 +1246,13 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 
 				/* Fill in the notification parameters */
 				params->request_id = context->request_id;
-				mcp_safe_strcpy(params->reason, sizeof(params->reason), "Execution timeout");
+				mcp_safe_strcpy(params->reason, sizeof(params->reason),
+						"Execution timeout");
 				params->has_reason = true;
 
 				/* Serialize the notification */
-				ret = mcp_json_serialize_cancel_notification((char *)json_buffer,
-													CONFIG_MCP_MAX_MESSAGE_SIZE, params);
+				ret = mcp_json_serialize_cancel_notification(
+					(char *)json_buffer, CONFIG_MCP_MAX_MESSAGE_SIZE, params);
 				if (ret <= 0) {
 					LOG_ERR("Failed to serialize cancel notification: %d", ret);
 					mcp_free(params);
@@ -1249,10 +1263,10 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 				/* Send the notification to the client */
 				struct mcp_transport_message tx_msg = {
 					.binding = context->client->binding,
-					.msg_id = 0,  /* Notifications don't have a response msg_id */
+					.msg_id =
+						0, /* Notifications don't have a response msg_id */
 					.json_data = (char *)json_buffer,
-					.json_len = ret
-				};
+					.json_len = ret};
 
 				ret = context->client->binding->ops->send(&tx_msg);
 				if (ret != 0) {
@@ -1266,7 +1280,8 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 				/* Update execution state */
 				context->execution_state = MCP_EXEC_CANCELED;
 				context->cancel_timestamp = current_time;
-				context->tool->callback(MCP_TOOL_CANCEL_REQUEST, NULL, context->execution_token);
+				context->tool->callback(MCP_TOOL_CANCEL_REQUEST, NULL,
+							context->execution_token);
 				continue;
 			}
 
@@ -1280,8 +1295,8 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 						context->client, (uint32_t)context->worker_id);
 
 					/* Allocate notification params structure */
-					params = (struct mcp_params_notif_cancelled *)
-						mcp_alloc(sizeof(struct mcp_params_notif_cancelled));
+					params = (struct mcp_params_notif_cancelled *)mcp_alloc(
+						sizeof(struct mcp_params_notif_cancelled));
 
 					if (params == NULL) {
 						LOG_ERR("Failed to allocate notification params");
@@ -1290,23 +1305,29 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 					}
 
 					/* Allocate buffer for serialization */
-					json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
+					json_buffer =
+						(uint8_t *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
 					if (json_buffer == NULL) {
-						LOG_ERR("Failed to allocate buffer, dropping notification");
+						LOG_ERR("Failed to allocate buffer, dropping "
+							"notification");
 						mcp_free(params);
 						continue;
 					}
 
 					/* Fill in the notification parameters */
 					params->request_id = context->request_id;
-					mcp_safe_strcpy(params->reason, sizeof(params->reason), "Tool idle timeout");
+					mcp_safe_strcpy(params->reason, sizeof(params->reason),
+							"Tool idle timeout");
 					params->has_reason = true;
 
 					/* Serialize the notification */
-					ret = mcp_json_serialize_cancel_notification((char *)json_buffer,
-														CONFIG_MCP_MAX_MESSAGE_SIZE, params);
+					ret = mcp_json_serialize_cancel_notification(
+						(char *)json_buffer, CONFIG_MCP_MAX_MESSAGE_SIZE,
+						params);
 					if (ret <= 0) {
-						LOG_ERR("Failed to serialize cancel notification: %d", ret);
+						LOG_ERR("Failed to serialize cancel notification: "
+							"%d",
+							ret);
 						mcp_free(params);
 						mcp_free(json_buffer);
 						continue;
@@ -1315,14 +1336,15 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 					/* Send the notification to the client */
 					struct mcp_transport_message tx_msg = {
 						.binding = context->client->binding,
-						.msg_id = 0,  /* Notifications don't have a response msg_id */
+						.msg_id = 0, /* Notifications don't have a response
+								msg_id */
 						.json_data = (char *)json_buffer,
-						.json_len = ret
-					};
+						.json_len = ret};
 
 					ret = context->client->binding->ops->send(&tx_msg);
 					if (ret != 0) {
-						LOG_ERR("Failed to send cancel notification: %d", ret);
+						LOG_ERR("Failed to send cancel notification: %d",
+							ret);
 					}
 
 					/* Clean up */
@@ -1331,7 +1353,8 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 
 					context->execution_state = MCP_EXEC_CANCELED;
 					context->cancel_timestamp = current_time;
-					context->tool->callback(MCP_TOOL_CANCEL_REQUEST, NULL, context->execution_token);
+					context->tool->callback(MCP_TOOL_CANCEL_REQUEST, NULL,
+								context->execution_token);
 				}
 			}
 		}
@@ -1584,7 +1607,7 @@ int mcp_server_start(mcp_server_ctx_t ctx)
 }
 
 int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_message *tool_msg,
-				const char *execution_token)
+				   const char *execution_token)
 {
 	int ret = 0;
 	uint32_t msg_id;
@@ -1729,7 +1752,7 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_m
 		ret = -EINVAL;
 		goto cleanup;
 	}
-	
+
 cleanup:
 	if (response_data) {
 		mcp_free(response_data);
@@ -1740,7 +1763,7 @@ cleanup:
 
 	/* Clean up if this is a final message */
 	if ((tool_msg->type == MCP_USR_TOOL_RESPONSE) ||
-					(tool_msg->type == MCP_USR_TOOL_CANCEL_ACK)) {
+	    (tool_msg->type == MCP_USR_TOOL_CANCEL_ACK)) {
 		int cleanup_ret;
 
 		cleanup_ret = k_mutex_lock(&client_registry->mutex, K_FOREVER);
@@ -1766,7 +1789,7 @@ cleanup:
 
 		for (int i = 0; i < CONFIG_MCP_MAX_CLIENT_REQUESTS; i++) {
 			if ((client->active_requests[i] != NULL) &&
-							(client->active_requests[i]->transport_msg_id == msg_id)) {
+			    (client->active_requests[i]->transport_msg_id == msg_id)) {
 				client->active_requests[i] = 0;
 				break;
 			}

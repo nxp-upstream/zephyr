@@ -107,7 +107,7 @@ The server core (``mcp_server.c``) implements the MCP protocol and manages:
 - **Execution Registry**: Monitors active tool executions
 - **Worker Thread Pool**: Configurable number of threads for async request processing
 - **Health Monitor**: Single thread that detects and handles:
-  
+
   - Execution timeouts (``CONFIG_MCP_TOOL_EXEC_TIMEOUT_MS``)
   - Idle executions (``CONFIG_MCP_TOOL_IDLE_TIMEOUT_MS``)
   - Client timeouts (``CONFIG_MCP_CLIENT_TIMEOUT_MS``)
@@ -177,7 +177,7 @@ Configurable pool (``CONFIG_MCP_REQUEST_WORKERS``, default: 2):
 - Stack size: ``CONFIG_MCP_REQUEST_WORKER_STACK_SIZE`` (default: 4096 bytes)
 - Pull requests from shared message queue
 - Process MCP protocol requests:
-  
+
   - ``initialize``: Client initialization handshake
   - ``ping``: Heartbeat responses
   - ``tools/list``: Return available tools
@@ -213,13 +213,13 @@ Tool Callback Execution Context
 Tool callbacks execute in one of two modes:
 
 1. **Blocking Mode**: Short-running tools execute directly in worker thread context
-   
+
     - Blocks the worker thread until completion
     - Suitable for fast operations
     - Minimizes thread overhead
 
 2. **Async Mode**: Long-running tools spawn their own thread
-   
+
     - Return immediately from callback
     - Recommended for long-running operations
     - Worker thread returns to pool
@@ -308,7 +308,7 @@ Each client context uses atomic reference counting for safe cleanup:
 
 - **Initial reference**: Created when client is allocated (refcount = 1)
 - **Additional references**: Acquired when:
-  
+
   - Message is queued for worker thread processing
   - Execution context is created for tool call
   - Health monitor is checking client state
@@ -406,29 +406,29 @@ Complete Execution Flow
 Normal execution path:
 
 1. **Client Request Arrival**:
-   
+
    - Transport layer receives HTTP request with JSON-RPC message
    - Transport validates headers, creates ``mcp_transport_message``
    - Calls ``mcp_server_handle_request()``
 
 2. **Request Parsing and Validation**:
-   
+
    - JSON message parsed into ``struct mcp_message``
    - Method extracted and validated
    - Client context looked up by transport binding
    - Client state validated (must be ``INITIALIZED`` for tool calls)
 
 3. **Request Queueing**:
-   
+
    - For ``tools/call``: Message queued for worker thread
    - Client reference count incremented
    - ``initialize`` requests handled immediately (special case)
 
 4. **Worker Processing**:
-   
+
    - Worker thread dequeues request from message queue
    - For ``tools/call``:
-     
+
      - Tool looked up in tool registry by name
      - Tool refcount incremented (prevents removal during execution)
      - Execution context created with unique token
@@ -436,15 +436,15 @@ Normal execution path:
      - Execution context added to client's ``active_requests[]`` array
 
 5. **Tool Callback Invocation**:
-   
+
    - Worker calls ``tool->callback(MCP_TOOL_CALL_REQUEST, params, token)``
    - Tool can either:
-     
+
      - **Block**: Process and call ``mcp_server_submit_tool_message()`` before returning
      - **Async**: Spawn thread, return immediately, thread calls ``mcp_server_submit_tool_message()`` later
 
 6. **Tool Response Submission**:
-   
+
    - Tool calls ``mcp_server_submit_tool_message()`` with ``MCP_USR_TOOL_RESPONSE``
    - Execution context looked up by token
    - If execution was canceled, response is dropped with warning
@@ -452,7 +452,7 @@ Normal execution path:
    - Sent via transport layer's ``send()`` operation
 
 7. **Cleanup**:
-   
+
    - Execution state set to ``FINISHED``
    - Removed from client's ``active_requests[]`` array
    - Client's ``active_request_count`` decremented
@@ -475,13 +475,13 @@ Cancellation process:
 2. Cancellation timestamp recorded
 3. Tool callback invoked with ``MCP_TOOL_CANCEL_REQUEST`` event
 4. Tool should:
-   
+
    - Stop processing gracefully
    - Submit ``MCP_USR_TOOL_CANCEL_ACK`` message
    - Clean up any resources
 
 5. If tool doesn't acknowledge within ``CONFIG_MCP_TOOL_CANCEL_TIMEOUT_MS``:
-   
+
    - Health monitor logs error
    - Execution remains in ``CANCELED`` state
    - Cleanup happens when tool finally responds or server restarts

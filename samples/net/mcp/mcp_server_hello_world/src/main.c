@@ -16,8 +16,7 @@ mcp_server_ctx_t server;
 /* Tool callback functions */
 static int hello_world_tool_callback(enum mcp_tool_event_type event, const char *params, const char *execution_token)
 {
-	if (event == MCP_TOOL_CANCEL_REQUEST)
-	{
+	if (event == MCP_TOOL_CANCEL_REQUEST) {
 		struct mcp_tool_message cancel_ack = {
 			.type = MCP_USR_TOOL_CANCEL_ACK,
 			.data = NULL,
@@ -26,7 +25,7 @@ static int hello_world_tool_callback(enum mcp_tool_event_type event, const char 
 
 		mcp_server_submit_tool_message(server, &cancel_ack, execution_token);
 
-		/* Handle cancelation */
+		/* Handle cancellation */
 		return 0;
 	}
 
@@ -37,7 +36,7 @@ static int hello_world_tool_callback(enum mcp_tool_event_type event, const char 
 	};
 
 	/* Simulate a long workload
-	 * 
+	 *
 	 * NOTE: This is a simplified example. Real tools performing long-running
 	 * work should use user-managed state (e.g., flags, semaphores) to check
 	 * for cancellation during execution, rather than blocking for extended
@@ -53,8 +52,7 @@ static int hello_world_tool_callback(enum mcp_tool_event_type event, const char 
 
 static int goodbye_world_tool_callback(enum mcp_tool_event_type event, const char *params, const char *execution_token)
 {
-	if (event == MCP_TOOL_CANCEL_REQUEST)
-	{
+	if (event == MCP_TOOL_CANCEL_REQUEST) {
 		struct mcp_tool_message cancel_ack = {
 			.type = MCP_USR_TOOL_CANCEL_ACK,
 			.data = NULL,
@@ -63,7 +61,7 @@ static int goodbye_world_tool_callback(enum mcp_tool_event_type event, const cha
 
 		mcp_server_submit_tool_message(server, &cancel_ack, execution_token);
 
-		/* Handle cancelation */
+		/* Handle cancellation */
 		return 0;
 	}
 
