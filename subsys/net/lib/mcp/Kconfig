@@ -4,6 +4,8 @@
 menuconfig MCP_SERVER
 	bool "Model Context Protocol (MCP) Server support"
 	select JSON_LIBRARY
+	select UUID
+	select UUID_V4
 	help
 	  Support for MCP Server functionality.
 
@@ -15,6 +17,21 @@ config MCP_SERVER_COUNT
 	help
 		Number of MCP server instances that can be created and run concurrently.
 
+config MCP_MAX_CLIENTS
+	int "Max number of clients per server"
+	default 3
+	range 1 100
+	help
+	  This setting determines the maximum number of clients that
+	  the server can handle at once.
+
+config MCP_MAX_CLIENT_REQUESTS
+	int "MCP request queue size"
+	default 5
+	range 1 100
+	help
+	  Maximum number of pending MCP requests that can be queued for processing.
+
 config MCP_REQUEST_WORKERS
 	int "Number of MCP request worker threads"
 	default 2
@@ -23,27 +40,16 @@ config MCP_REQUEST_WORKERS
 	  Number of worker threads that process incoming MCP requests.
 	  More workers allow better concurrent handling of client requests.
 
-config MCP_RESPONSE_WORKERS
-	int "Number of MCP message worker threads"
-	default 2
-	range 0 8
+config MCP_REQUEST_WORKER_STACK_SIZE
+	int "Stack size for MCP request worker threads"
+	default 2048
+	range 1024 8192
 	help
-	  Number of worker threads that process outgoing MCP responses.
-	  Set to 0 to disable response workers and process responses directly.
+	  Stack size in bytes for each request worker thread.
 
-config MCP_REQUEST_QUEUE_SIZE
-	int "MCP request queue size"
-	default 5
-	range 1 100
-	help
-	  Maximum number of pending MCP requests that can be queued for processing.
-
-config MCP_RESPONSE_QUEUE_SIZE
-	int "MCP response queue size"
-	default 5
-	range 1 100
-	help
-	  Maximum number of pending MCP responses that can be queued for sending.
+	  The worker thread itself is lightweight, but it calls
+	  user-provided tool callbacks which may have varying
+	  stack requirements.
 
 config MCP_MAX_MESSAGE_SIZE
 	int "Maximum MCP message size"
@@ -175,14 +181,14 @@ config MCP_TOOL_RESULT_MAX_LEN
 	help
 			Maximum length for tool execution result.
 
-config MCP_HEALTH_MONITOR
-	bool "Health monitor usage"
-	default y
+config MCP_HEALTH_MONITOR_STACK_SIZE
+	int "Stack size for MCP health monitor thread"
+	default 1024
+	range 512 2048
 	help
-			This option enables the health monitoring thread that checks for execution timeouts
-			and cancels long-running or stalled tool executions.
-
-if MCP_HEALTH_MONITOR
+	  Stack size in bytes for the health monitor thread.
+	  This thread performs simple periodic checks and has
+	  minimal stack requirements.
 
 config MCP_HEALTH_CHECK_INTERVAL_MS
 	int "Health monitor check interval in milliseconds"
@@ -203,16 +209,21 @@ config MCP_TOOL_IDLE_TIMEOUT_MS
 	default 100000
 	help
 			Maximum time allowed since last message from a tool execution
-			before it is canceled. Default is 5 minutes (300000 ms).
+			before it is canceled. Default is 100000 ms.
 
 config MCP_TOOL_CANCEL_TIMEOUT_MS
 	int "Execution cancellation timeout in milliseconds"
 	default 300000
 	help
 			Maximum time allowed for a tool to acknowledge cancellation
-			before an error is logged. Default is 1 minute (60000 ms).
+			before an error is logged. Default is 300000 ms.
 
-endif # MCP_HEALTH_MONITOR
+config MCP_CLIENT_TIMEOUT_MS
+	int "Maximum idle time for client connections in milliseconds"
+	default 600000
+	help
+			Maximum time allowed for a client to be idle between. Default
+			is 600000 ms.
 
 choice MCP_TRANSPORT
 	prompt "MCP Transport Mechanism"
@@ -224,33 +235,35 @@ config MCP_TRANSPORT_HTTP
 	bool "HTTP transport"
 	depends on NETWORKING
 	select POSIX_API
+	select MIN_HEAP
 	select NET_TCP
 	select NET_IPV4
 	select NET_IPV6
 	select NET_SOCKETS
 	select HTTP_SERVER
     select HTTP_SERVER_CAPTURE_HEADERS
+	select UUID
+	select UUID_V4
+	select UUID_BASE64
+	select ENTROPY_GENERATOR
+	select MBEDTLS
+	select MBEDTLS_PSA_CRYPTO_C
+	select PSA_WANT_ALG_SHA_1
+	select BASE64
 	help
 	  Use HTTP for MCP transport.
+
+config MCP_TRANSPORT_MOCK
+	bool "Mock transport (for testing only)"
+	help
+	  Mock transport layer for unit testing.
+	  This option should only be used in test builds.
+	  The mock transport implements the transport_binding interface
+	  and tracks all send/disconnect calls for test verification.
 
 endchoice
 
 if MCP_TRANSPORT_HTTP
-
-config HTTP_SERVER_MAX_CLIENTS
-	int "Max number of HTTP clients"
-	default 3
-	range 1 100
-	help
-	  This setting determines the maximum number of HTTP clients that
-	  the server can handle at once.
-
-config HTTP_SERVER_MAX_STREAMS
-	int "Max number of HTTP streams"
-	default 3
-	range 1 100
-	help
-	  This setting determines the maximum number of HTTP streams for each client.
 
 config MCP_HTTP_PORT
 	int "HTTP server port"
@@ -259,12 +272,42 @@ config MCP_HTTP_PORT
 	  Port number for the MCP HTTP server.
 
 config MCP_HTTP_ENDPOINT
-    string "MCP endpoint path"
-    default "/mcp"
-    help
-      URL path for MCP endpoint.
+	string "MCP endpoint path"
+	default "/mcp"
+	help
+	  URL path for MCP endpoint.
+
+config MCP_HTTP_TIMEOUT_MS
+	int "HTTP request timeout in milliseconds"
+	default 500
+	help
+	  Maximum time in milliseconds to wait for an HTTP request to complete
+	  before switching from blocking mode to polling mode. This timeout
+	  applies to both client and server HTTP operations.
+
+config MCP_HTTP_SSE_RETRY_MS
+	int "SSE reconnection retry interval in milliseconds"
+	default 5000
+	help
+	  Time interval in milliseconds sent to clients via the SSE 'retry' field.
+	  In this implementation, the retry mechanism instructs clients how
+	  frequently to poll for new responses via GET requests. When a client
+	  receives an SSE event with this retry value, it should wait this amount
+	  of time before making the next GET request to check for additional
+	  server responses.
 
 endif # MCP_TRANSPORT_HTTP
+
+if MCP_TRANSPORT_MOCK
+
+config MCP_MOCK_MAX_CLIENTS
+	int "Max number of mock clients"
+	default 3
+	range 1 100
+	help
+	  Maximum number of clients for mock transport testing.
+
+endif # MCP_TRANSPORT_MOCK
 
 module = MCP
 module-str = MCP Server

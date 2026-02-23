@@ -15,8 +15,20 @@
 extern "C" {
 #endif
 
-void *mcp_alloc(size_t size);
-void mcp_free(void *ptr);
+/**
+ * @brief Weak allocation function, uses k_malloc by default
+ */
+__weak void *mcp_alloc(size_t size);
+
+/**
+ * @brief Weak free function, uses k_malloc by default
+ */
+__weak void mcp_free(void *ptr);
+
+/**
+ * @brief Safe string copy function, uses snprintk for bounded copying
+ */
+void mcp_safe_strcpy(char *dst, size_t dst_sz, const char *src);
 
 #ifdef __cplusplus
 }

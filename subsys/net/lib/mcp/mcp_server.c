@@ -15,66 +15,97 @@
 
 LOG_MODULE_REGISTER(mcp_server, CONFIG_MCP_LOG_LEVEL);
 
+/*******************************************************************************
+ * Definitions
+ ******************************************************************************/
 #define MCP_WORKER_PRIORITY  7
-#define MCP_MAX_REQUESTS     (CONFIG_HTTP_SERVER_MAX_CLIENTS * CONFIG_HTTP_SERVER_MAX_STREAMS)
+#define MCP_MAX_REQUESTS     (CONFIG_MCP_MAX_CLIENTS * CONFIG_MCP_MAX_CLIENT_REQUESTS)
 #define MCP_SERVER_VERSION   "1.0.0"
 #define MCP_PROTOCOL_VERSION "2025-11-25"
 
+/**
+ * @brief Lifecycle monitoring of a client's session
+ */
 enum mcp_lifecycle_state {
-	MCP_LIFECYCLE_DEINITIALIZED = 0,
-	MCP_LIFECYCLE_NEW,
-	MCP_LIFECYCLE_INITIALIZING,
-	MCP_LIFECYCLE_INITIALIZED,
-	MCP_LIFECYCLE_DEINITIALIZING
+	MCP_LIFECYCLE_DEINITIALIZED = 0, /**< No client allocated */
+	MCP_LIFECYCLE_NEW,               /**< Client allocated, not initialized */
+	MCP_LIFECYCLE_INITIALIZING,      /**< Initialize response sent */
+	MCP_LIFECYCLE_INITIALIZED        /**< Client confirmed initialization */
 };
 
+/**
+ * @brief Lifecycle monitoring of a tool execution
+ */
 enum mcp_execution_state {
-	MCP_EXEC_ACTIVE,
-	MCP_EXEC_CANCELED,
-	MCP_EXEC_FINISHED,
-	MCP_EXEC_ZOMBIE
+	MCP_EXEC_FREE,
+	MCP_EXEC_ACTIVE,    /**< Execution in progress */
+	MCP_EXEC_CANCELED,  /**< Cancellation requested */
+	MCP_EXEC_FINISHED   /**< Execution completed */
 };
 
+/**
+ * @brief Client context
+ * @note Used to hold lifecycle and request tracking information
+ * 		 and the transport layer binding
+ */
+struct mcp_client_context {
+	enum mcp_lifecycle_state lifecycle_state; /**< Current state */
+	uint8_t active_request_count;             /**< Number of pending requests */
+	atomic_t refcount;                        /**< Reference count for cleanup */
+	int64_t last_message_timestamp;           /**< Last activity time (uptime ms) */
+	struct mcp_execution_context *active_requests[CONFIG_MCP_MAX_CLIENT_REQUESTS]; /**< Active request tracking */
+	struct mcp_transport_binding *binding; /**< Transport layer binding for this client */
+};
+
+/**
+ * @brief Struct holding the pointer to a client's request's data
+ */
 struct mcp_queue_msg {
-	uint32_t client_id;
+	struct mcp_client_context *client;
+	uint32_t transport_msg_id;
 	void *data;
 };
 
+/**
+ * @brief Registry holding the tools added by the user application to the server
+ */
 struct mcp_tool_registry {
 	struct mcp_tool_record tools[CONFIG_MCP_MAX_TOOLS];
-	struct k_mutex registry_mutex;
+	struct k_mutex mutex;
 	uint8_t tool_count;
 };
 
+/**
+ * @brief Tool execution context
+ * @note Tracks the state and metadata of a single tool execution
+ */
 struct mcp_execution_context {
-	uint32_t execution_token;
-	uint32_t request_id;
-	uint32_t client_id;
-	k_tid_t worker_id;
-	int64_t start_timestamp;
-	int64_t cancel_timestamp;
-	int64_t last_message_timestamp;
-	bool worker_released;
-	enum mcp_execution_state execution_state;
+	char execution_token[UUID_STR_LEN]; /**< Unique token for this execution (UUID string) */
+	struct mcp_request_id request_id; /**< Actual request ID from the client message */
+	uint32_t transport_msg_id; /**< Message ID from transport layer for inter-layer tracking */
+	struct mcp_client_context *client; /**< Client that initiated this execution */
+	struct mcp_tool_record *tool; /**< Tool being executed */
+	k_tid_t worker_id; /**< Thread ID of the worker handling this execution */
+	int64_t start_timestamp; /**< Execution start time in milliseconds (k_uptime_get) */
+	int64_t cancel_timestamp; /**< Time when cancellation was requested (0 if not canceled) */
+	int64_t last_message_timestamp; /**< Last activity/ping time for idle detection */
+	enum mcp_execution_state execution_state; /**< Current execution state (active/canceled/finished) */
 };
 
+/**
+ * @brief Registry holding all active tool executions
+ */
 struct mcp_execution_registry {
 	struct mcp_execution_context executions[MCP_MAX_REQUESTS];
-	struct k_mutex registry_mutex;
+	struct k_mutex mutex;
 };
 
-struct mcp_client_context {
-	uint32_t client_id;
-	enum mcp_lifecycle_state lifecycle_state;
-	uint32_t active_requests[CONFIG_HTTP_SERVER_MAX_STREAMS];
-	uint8_t active_request_count;
-	struct mcp_transport_binding transport_binding;
-};
-
+/**
+ * @brief Registry holding all active clients connected to the server
+ */
 struct mcp_client_registry {
-	struct mcp_client_context clients[CONFIG_HTTP_SERVER_MAX_CLIENTS];
-	struct k_mutex registry_mutex;
-	uint8_t client_count;
+	struct mcp_client_context clients[CONFIG_MCP_MAX_CLIENTS];
+	struct k_mutex mutex;
 };
 
 /**
@@ -84,30 +115,38 @@ struct mcp_client_registry {
  * and message queues for handling MCP protocol requests and responses.
  */
 struct mcp_server_ctx {
-	uint8_t idx;
-	bool in_use;
-	struct mcp_client_registry client_registry;
-	struct k_thread request_workers[CONFIG_MCP_REQUEST_WORKERS];
-	struct k_msgq request_queue;
-	char request_queue_buffers[CONFIG_MCP_REQUEST_QUEUE_SIZE * sizeof(struct mcp_queue_msg)];
-	struct mcp_tool_registry tool_registry;
-	struct mcp_execution_registry execution_registry;
-#ifdef CONFIG_MCP_HEALTH_MONITOR
-	struct k_thread health_monitor_thread;
-#endif
+	uint8_t idx; /**< Server instance index in the global mcp_servers array */
+	bool in_use; /**< Flag indicating if this server context is allocated */
+	struct mcp_client_registry client_registry; /**< Registry of all connected clients */
+	struct k_thread request_workers[CONFIG_MCP_REQUEST_WORKERS]; /**< Worker threads for async request processing */
+	struct k_msgq request_queue; /**< Message queue for pending client requests */
+	char request_queue_storage[MCP_MAX_REQUESTS * sizeof(struct mcp_queue_msg)]; /**< Static storage for request queue */
+	struct mcp_tool_registry tool_registry; /**< Registry of available tools */
+	struct mcp_execution_registry execution_registry; /**< Registry of active tool executions */
+	struct k_thread health_monitor_thread; /**< Thread monitoring execution and client timeouts */
 };
 
+
+/*******************************************************************************
+ * Variables
+ ******************************************************************************/
 static struct mcp_server_ctx mcp_servers[CONFIG_MCP_SERVER_COUNT];
 
 K_THREAD_STACK_ARRAY_DEFINE(mcp_request_worker_stacks,
-			    CONFIG_MCP_REQUEST_WORKERS *CONFIG_MCP_SERVER_COUNT, 2048);
-#ifdef CONFIG_MCP_HEALTH_MONITOR
-K_THREAD_STACK_ARRAY_DEFINE(mcp_health_monitor_stack, CONFIG_MCP_SERVER_COUNT, 2048);
-#endif
+			    CONFIG_MCP_REQUEST_WORKERS *CONFIG_MCP_SERVER_COUNT,
+			    CONFIG_MCP_REQUEST_WORKER_STACK_SIZE);
+K_THREAD_STACK_ARRAY_DEFINE(mcp_health_monitor_stack, CONFIG_MCP_SERVER_COUNT,
+			    CONFIG_MCP_HEALTH_MONITOR_STACK_SIZE);
 
 /*******************************************************************************
  * Server Context Helper Functions
  ******************************************************************************/
+
+ /**
+  * @brief Allocate an MCP Server context
+  *
+  * @return Pointer to allocated server context, or NULL if no slots available
+  */
 static struct mcp_server_ctx *allocate_mcp_server_context(void)
 {
 	for (uint32_t i = 0; i < ARRAY_SIZE(mcp_servers); i++) {
@@ -124,46 +163,21 @@ static struct mcp_server_ctx *allocate_mcp_server_context(void)
 
 /*******************************************************************************
  * Client Context Helper Functions
+ * NOTE: Functions with _locked suffix assume the caller holds client_registry.mutex
  ******************************************************************************/
-static int generate_client_id(struct mcp_server_ctx *server, uint32_t *client_id)
-{
-	int ret;
-	struct mcp_client_registry *client_registry = &server->client_registry;
-
-	*client_id = INVALID_CLIENT_ID;
-
-	ret = k_mutex_lock(&client_registry->registry_mutex, K_FOREVER);
-	if (ret != 0) {
-		LOG_ERR("Failed to lock registry mutex: %d", ret);
-		return -EBUSY;
-	}
-
-	do {
-		*client_id = sys_rand32_get();
-		for (uint32_t i = 0; i < ARRAY_SIZE(client_registry->clients); i++) {
-			if ((client_registry->clients[i].lifecycle_state !=
-			     MCP_LIFECYCLE_DEINITIALIZED) &&
-			    (client_registry->clients[i].client_id == *client_id)) {
-				*client_id = 0;
-			}
-		}
-	} while (*client_id == INVALID_CLIENT_ID);
-
-	k_mutex_unlock(&client_registry->registry_mutex);
-
-	return 0;
-}
-
-static struct mcp_client_context *get_client(struct mcp_server_ctx *server, uint32_t client_id)
+/**
+ * @brief Find a client context by transport binding
+ * @note Must be called with client_registry.mutex held
+ * @return Pointer to client context if found, NULL otherwise
+ */
+static struct mcp_client_context *
+get_client_by_binding_locked(struct mcp_server_ctx *server,
+			     const struct mcp_transport_binding *binding)
 {
 	struct mcp_client_registry *client_registry = &server->client_registry;
-
-	if (client_id == INVALID_CLIENT_ID) {
-		return NULL;
-	}
 
 	for (int i = 0; i < ARRAY_SIZE(client_registry->clients); i++) {
-		if (client_registry->clients[i].client_id == client_id) {
+		if (client_registry->clients[i].binding == binding) {
 			return &client_registry->clients[i];
 		}
 	}
@@ -171,23 +185,69 @@ static struct mcp_client_context *get_client(struct mcp_server_ctx *server, uint
 	return NULL;
 }
 
-static struct mcp_client_context *add_client(struct mcp_server_ctx *server)
+/**
+ * @brief Atomically increase the refcount for a client
+ * @note Must be called with client_registry.mutex held
+ * @return Pointer to client context if found and valid, NULL otherwise
+ */
+static struct mcp_client_context *client_get_locked(struct mcp_client_context *client)
 {
-	struct mcp_client_registry *client_registry = &server->client_registry;
-	uint32_t client_id;
-
-	/* Assign a new client id */
-	if (generate_client_id(server, &client_id)) {
-		LOG_ERR("Unable to geenrate session id");
+	if (client == NULL || client->lifecycle_state == MCP_LIFECYCLE_DEINITIALIZED) {
 		return NULL;
 	}
+	atomic_inc(&client->refcount);
+	return client;
+}
+
+/**
+ * @brief Atomically decrease the refcount for a client and clean up if needed
+ * @note Can be called without lock
+ */
+static void client_put(struct mcp_client_context *client)
+{
+	if (client == NULL) {
+		return;
+	}
+
+	if (atomic_dec(&client->refcount) == 1) {
+		/**
+		 * Last reference. Safe to cleanup.
+		 *
+		 * Cleanup is safe because:
+		 *     - In this case, we know that remove_client_locked() set
+		 *       lifecycle_state=DEINITIALIZED under mutex.
+		 *     - This prevents client_get_locked() from creating new references
+		 *
+		 * So even though remove_client_locked() may not have been the last to drop
+		 * a reference (other threads may have held references from queued messages
+		 * or active handlers), we know that:
+		 *     1. No NEW references can be created (lifecycle_state is DEINITIALIZED)
+		 *     2. We just dropped the LAST existing reference
+		 *     3. Therefore cleanup is safe - no one else can access this client
+		 */
+		client->binding->ops->disconnect(client->binding);
+		memset(client, 0, sizeof(struct mcp_client_context));
+		client->lifecycle_state = MCP_LIFECYCLE_DEINITIALIZED;
+	}
+}
+
+/**
+ * @brief Add a new client to the registry
+ * @note Must be called with client_registry.mutex held
+ * @return Pointer to client context if successful, NULL otherwise
+ */
+static struct mcp_client_context *add_client_locked(struct mcp_server_ctx *server,
+						    struct mcp_transport_binding *binding)
+{
+	struct mcp_client_registry *client_registry = &server->client_registry;
 
 	for (int i = 0; i < ARRAY_SIZE(client_registry->clients); i++) {
-		if (client_registry->clients[i].client_id == 0) {
-			client_registry->clients[i].client_id = client_id;
+		if (client_registry->clients[i].lifecycle_state == MCP_LIFECYCLE_DEINITIALIZED) {
 			client_registry->clients[i].lifecycle_state = MCP_LIFECYCLE_NEW;
 			client_registry->clients[i].active_request_count = 0;
-			client_registry->client_count++;
+			client_registry->clients[i].binding = binding;
+			memset(client_registry->clients[i].active_requests, 0, CONFIG_MCP_MAX_CLIENT_REQUESTS * sizeof(struct mcp_execution_context *));
+			atomic_set(&client_registry->clients[i].refcount, 1);
 			return &client_registry->clients[i];
 		}
 	}
@@ -195,39 +255,62 @@ static struct mcp_client_context *add_client(struct mcp_server_ctx *server)
 	return NULL;
 }
 
-/* Must be called with registry_mutex held */
-static void remove_client(struct mcp_server_ctx *server, struct mcp_client_context *client)
+/**
+ * @brief Remove a client from the registry
+ * @note Must be called with client_registry.mutex held
+ */
+static void remove_client_locked(struct mcp_server_ctx *server, struct mcp_client_context *client)
 {
-	struct mcp_client_registry *client_registry = &server->client_registry;
-
-	client->transport_binding.ops->disconnect(&client->transport_binding, client->client_id);
-	client->client_id = 0;
-	client->active_request_count = 0;
-
-	memset(client, 0, sizeof(struct mcp_client_context));
-
+	/* Mark as deinitialized. Cleanup happens when refcount reaches 0 */
 	client->lifecycle_state = MCP_LIFECYCLE_DEINITIALIZED;
-	client_registry->client_count--;
+
+	/* Drop the initial reference */
+	k_mutex_unlock(&server->client_registry.mutex);
+	client_put(client);
+	k_mutex_lock(&server->client_registry.mutex, K_FOREVER);
 }
 
 /*******************************************************************************
  * Execution Context Helper Functions
+ * NOTE: All these functions assume the caller holds execution_registry.mutex
  ******************************************************************************/
-static uint32_t generate_execution_token(uint32_t request_id)
+/**
+* @brief Generates an execution token
+* @note The token is used to track each running execution of a tool
+* @param token_out Buffer to store the generated UUID string
+* @return 0 on success, negative errno on failure
+*/
+static int generate_execution_token(char *token_out)
 {
-	/* Mocking the generation for the 1st phase of development. Security phase
-	 * will replace this with UUID generation to make token guessing harder.
-	 */
-	return request_id;
+	struct uuid execution_uuid;
+
+	if (token_out == NULL) {
+		return -EINVAL;
+	}
+
+	uuid_generate_v4(&execution_uuid);
+	uuid_to_string(&execution_uuid, token_out);
+
+	return 0;
 }
 
+/**
+* @brief Find an execution context by its token
+* @note Must be called with execution_registry.mutex held
+* @return Pointer to execution context if found, NULL otherwise
+*/
 static struct mcp_execution_context *get_execution_context(struct mcp_server_ctx *server,
-							   const uint32_t execution_token)
+										const char *execution_token)
 {
 	struct mcp_execution_registry *execution_registry = &server->execution_registry;
 
+	if (execution_token == NULL) {
+		return NULL;
+	}
+
 	for (int i = 0; i < ARRAY_SIZE(execution_registry->executions); i++) {
-		if (execution_registry->executions[i].execution_token == execution_token) {
+		if ((execution_registry->executions[i].execution_state != MCP_EXEC_FREE) &&
+			(strcmp(execution_registry->executions[i].execution_token, execution_token) == 0)) {
 			return &execution_registry->executions[i];
 		}
 	}
@@ -235,118 +318,65 @@ static struct mcp_execution_context *get_execution_context(struct mcp_server_ctx
 	return NULL;
 }
 
+ /**
+ * @brief Add a new execution context to the registry
+ * @note Must be called with execution_registry.mutex held
+ * @return Pointer to execution context if successful, NULL otherwise
+ */
 static struct mcp_execution_context *add_execution_context(struct mcp_server_ctx *server,
-							   uint32_t request_id, uint32_t client_id)
+							   struct mcp_client_context *client,
+							   struct mcp_request_id *request_id,
+							   uint32_t msg_id)
 {
-	int ret;
 	struct mcp_execution_context *context = NULL;
 	struct mcp_execution_registry *execution_registry = &server->execution_registry;
-
-	ret = k_mutex_lock(&execution_registry->registry_mutex, K_FOREVER);
-	if (ret != 0) {
-		LOG_ERR("Failed to lock execution registry: %d", ret);
-		return NULL;
-	}
-
-	uint32_t execution_token = generate_execution_token(request_id);
-
-	bool found_slot = false;
+	int ret;
 
 	for (int i = 0; i < ARRAY_SIZE(execution_registry->executions); i++) {
 		context = &execution_registry->executions[i];
-		if (context->execution_token == 0) {
-			context->execution_token = execution_token;
-			context->request_id = request_id;
-			context->client_id = client_id;
+		if (context->execution_state == MCP_EXEC_FREE) {
+			ret = generate_execution_token(context->execution_token);
+			if (ret != 0) {
+				LOG_ERR("Failed to generate execution token: %d", ret);
+				return NULL;
+			}
+
+			context->request_id = *request_id;
+			context->transport_msg_id = msg_id;
+			context->client = client;
 			context->worker_id = k_current_get();
 			context->start_timestamp = k_uptime_get();
 			context->cancel_timestamp = 0;
 			context->last_message_timestamp = k_uptime_get();
-			context->worker_released = false;
 			context->execution_state = MCP_EXEC_ACTIVE;
-			found_slot = true;
-			break;
+			return context;
 		}
 	}
 
-	k_mutex_unlock(&execution_registry->registry_mutex);
-
-	if (!found_slot) {
-		LOG_ERR("Execution registry full");
-		return NULL;
-	}
-
-	return context;
+	LOG_ERR("Execution registry full");
+	return NULL;
 }
 
-static int remove_execution_context(struct mcp_server_ctx *server,
-				    struct mcp_execution_context *execution_context)
+ /**
+ * @brief Remove an execution context from the registry
+ * @note Must be called with execution_registry.mutex held
+ */
+static void remove_execution_context(struct mcp_server_ctx *server,
+				     struct mcp_execution_context *execution_context)
 {
-	int ret;
-	struct mcp_execution_registry *execution_registry = &server->execution_registry;
-
-	ret = k_mutex_lock(&execution_registry->registry_mutex, K_FOREVER);
-	if (ret != 0) {
-		LOG_ERR("Failed to lock execution registry: %d", ret);
-		return ret;
-	}
-
 	memset(execution_context, 0, sizeof(struct mcp_execution_context));
-
-	k_mutex_unlock(&execution_registry->registry_mutex);
-
-	return 0;
-}
-
-static int set_worker_released_execution_context(struct mcp_server_ctx *server,
-						 struct mcp_execution_context *exec_ctx)
-{
-	int ret;
-	struct mcp_execution_registry *execution_registry = &server->execution_registry;
-
-	ret = k_mutex_lock(&execution_registry->registry_mutex, K_FOREVER);
-	if (ret != 0) {
-		LOG_ERR("Failed to lock execution registry: %d", ret);
-
-		return ret;
-	}
-	LOG_DBG("Releasing worker for execution token: %d", exec_ctx->execution_token);
-	exec_ctx->worker_released = true;
-	LOG_DBG("Released worker for execution token: %d", exec_ctx->execution_token);
-	k_mutex_unlock(&execution_registry->registry_mutex);
-	return 0;
-}
-
-/*******************************************************************************
- * Request Context Helper Functions
- ******************************************************************************/
-static uint32_t *get_request(struct mcp_client_context *client, uint32_t request_id)
-{
-	for (int i = 0; i < ARRAY_SIZE(client->active_requests); i++) {
-		if (client->active_requests[i] == request_id) {
-			return &client->active_requests[i];
-		}
-	}
-
-	return NULL;
-}
-
-static uint32_t *add_request(struct mcp_client_context *client, uint32_t request_id)
-{
-	for (int i = 0; i < ARRAY_SIZE(client->active_requests); i++) {
-		if (client->active_requests[i] == 0) {
-			client->active_requests[i] = request_id;
-			client->active_request_count++;
-			return &client->active_requests[i];
-		}
-	}
-
-	return NULL;
 }
 
 /*******************************************************************************
  * Tools Context Helper Functions
+ * NOTE: All these functions assume the caller holds tool_registry.mutex
  ******************************************************************************/
+
+ /**
+ * @brief Find a tool by name in the registry
+ * @note Must be called with tool_registry.mutex held
+ * @return Pointer to tool record if found, NULL otherwise
+ */
 static struct mcp_tool_record *get_tool(struct mcp_server_ctx *server, const char *tool_name)
 {
 	struct mcp_tool_registry *tool_registry = &server->tool_registry;
@@ -362,6 +392,11 @@ static struct mcp_tool_record *get_tool(struct mcp_server_ctx *server, const cha
 	return NULL;
 }
 
+ /**
+ * @brief Add a new tool to the registry
+ * @note Must be called with tool_registry.mutex held
+ * @return Pointer to tool record if successful, NULL otherwise
+ */
 static struct mcp_tool_record *add_tool(struct mcp_server_ctx *server,
 					const struct mcp_tool_record *tool_info)
 {
@@ -371,6 +406,7 @@ static struct mcp_tool_record *add_tool(struct mcp_server_ctx *server,
 		if (tool_registry->tools[i].metadata.name[0] == '\0') {
 			memcpy(&tool_registry->tools[i], tool_info, sizeof(struct mcp_tool_record));
 			tool_registry->tool_count++;
+			atomic_set(&tool_registry->tools[i].refcount, 1);
 			return &tool_registry->tools[i];
 		}
 	}
@@ -378,6 +414,11 @@ static struct mcp_tool_record *add_tool(struct mcp_server_ctx *server,
 	return NULL;
 }
 
+ /**
+ * @brief Copy tool metadata to response buffer
+ * @note Must be called with tool_registry.mutex held
+ * @return 0 on success, negative error code on failure
+ */
 static int copy_tool_metadata_to_response(struct mcp_server_ctx *server,
 					  struct mcp_result_tools_list *response_data)
 {
@@ -387,11 +428,24 @@ static int copy_tool_metadata_to_response(struct mcp_server_ctx *server,
 	size_t buf_size = sizeof(response_data->tools_json);
 	size_t offset = 0;
 	int ret;
+	int tools_written = 0;
 
-	for (int i = 0; i < tool_registry->tool_count; i++) {
+	/* Start with opening bracket */
+	ret = snprintk(buf + offset, buf_size - offset, "[");
+	if (ret < 0 || (size_t)ret >= buf_size - offset) {
+		LOG_ERR("Buffer overflow adding opening bracket");
+		return -ENOMEM;
+	}
+	offset += ret;
+
+	for (int i = 0; i < CONFIG_MCP_MAX_TOOLS; i++) {
+		if (tool_registry->tools[i].metadata.name[0] == '\0') {
+			continue;
+		}
+
 		tool_info = &tool_registry->tools[i].metadata;
 
-		ret = snprintf(buf + offset, buf_size - offset,
+		ret = snprintk(buf + offset, buf_size - offset,
 			       "%s{"
 			       "\"name\":\"%s\","
 #ifdef CONFIG_MCP_TOOL_TITLE
@@ -405,7 +459,7 @@ static int copy_tool_metadata_to_response(struct mcp_server_ctx *server,
 			       ",\"outputSchema\":%s"
 #endif
 			       "}",
-			       (i > 0) ? "," : "", /* Add comma separator except for first item */
+			       (tools_written > 0) ? "," : "", /* Add comma separator except for first item */
 			       tool_info->name,
 #ifdef CONFIG_MCP_TOOL_TITLE
 			       tool_info->title,
@@ -420,22 +474,35 @@ static int copy_tool_metadata_to_response(struct mcp_server_ctx *server,
 #endif
 		);
 
-		if (ret < 0 || ret >= buf_size - offset) {
+		if (ret < 0 || (size_t)ret >= buf_size - offset) {
 			LOG_ERR("Buffer overflow adding tool %d", i);
 			return -ENOMEM;
 		}
 
 		offset += ret;
+		tools_written++;
+	}
+
+	/* Add closing bracket */
+	ret = snprintk(buf + offset, buf_size - offset, "]");
+	if (ret < 0 || (size_t)ret >= buf_size - offset) {
+		LOG_ERR("Buffer overflow adding closing bracket");
+		return -ENOMEM;
 	}
 
 	return 0;
 }
-
 /*******************************************************************************
  * Request/Response Handling Functions
  ******************************************************************************/
-static int send_error_response(struct mcp_server_ctx *server, uint32_t request_id,
-			       uint32_t client_id, int32_t error_code, const char *error_message)
+
+/**
+ * @brief Serialize the error response to JSON and send it to the client
+ * @return 0 on success, negative error code on failure
+ */
+static int send_error_response(struct mcp_server_ctx *server, struct mcp_client_context *client,
+			       struct mcp_request_id *request_id, int32_t error_code,
+			       const char *error_message, uint32_t msg_id)
 {
 	struct mcp_error *error_response;
 	int ret;
@@ -446,11 +513,10 @@ static int send_error_response(struct mcp_server_ctx *server, uint32_t request_i
 		return -ENOMEM;
 	}
 
-	strncpy(error_response->message, error_message, sizeof(error_response->message) - 1);
+	mcp_safe_strcpy(error_response->message, sizeof(error_response->message), error_message);
 
 	error_response->code = error_code;
-	error_response->message[sizeof(error_response->message) - 1] = '\0';
-	error_response->has_data = false; /* no data for now */
+	error_response->has_data = false;
 
 	/* Allocate buffer for serialization */
 	char *json_buffer = (char *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
@@ -460,7 +526,7 @@ static int send_error_response(struct mcp_server_ctx *server, uint32_t request_i
 		return -ENOMEM;
 	}
 
-	ret = mcp_json_serialize_error(json_buffer, CONFIG_MCP_MAX_MESSAGE_SIZE, true, request_id,
+	ret = mcp_json_serialize_error(json_buffer, CONFIG_MCP_MAX_MESSAGE_SIZE, request_id,
 				       error_response);
 	if (ret <= 0) {
 		LOG_ERR("Failed to serialize response: %d", ret);
@@ -469,38 +535,35 @@ static int send_error_response(struct mcp_server_ctx *server, uint32_t request_i
 		return ret;
 	}
 
-	struct mcp_client_context *client = get_client(server, client_id);
-	if (client == NULL) {
-		LOG_ERR("Client context not found for client_id: %u", client_id);
-		mcp_free(error_response);
-		mcp_free(json_buffer);
-		return -EINVAL;
-	}
+	struct mcp_transport_message tx_msg = {.binding = client->binding,
+					       .msg_id = msg_id,
+					       .json_data = json_buffer,
+					       .json_len = ret};
 
-	ret = client->transport_binding.ops->send(&client->transport_binding, client_id,
-						  json_buffer, ret);
+	ret = client->binding->ops->send(&tx_msg);
 	if (ret) {
 		LOG_ERR("Failed to send error response");
 		mcp_free(error_response);
 		mcp_free(json_buffer);
-		return -EIO;
+		return ret;
 	}
 
 	mcp_free(error_response);
 	return 0;
 }
 
+/**
+ * @brief Handle initialize request from client and respond with server capabilities
+ * @return 0 on success, negative error code on failure
+ */
 static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_message *request,
-				     new_client_cb transport_callback,
-				     struct mcp_client_context **client)
+				     struct mcp_transport_binding *binding, uint32_t msg_id)
 {
 	int ret;
 	struct mcp_client_registry *client_registry = &server->client_registry;
-
-	if (transport_callback == NULL) {
-		LOG_ERR("Missing transport callback for new client");
-		return -EINVAL;
-	}
+	struct mcp_client_context *new_client;
+	struct mcp_result_initialize *response_data = NULL;
+	uint8_t *json_buffer = NULL;
 
 	if (strcmp(request->req.u.initialize.protocol_version, MCP_PROTOCOL_VERSION) != 0) {
 		LOG_WRN("Protocol version mismatch: %s",
@@ -508,95 +571,103 @@ static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_m
 		return -EINVAL;
 	}
 
-	ret = k_mutex_lock(&client_registry->registry_mutex, K_FOREVER);
+	/* Lock client registry and add new client */
+	ret = k_mutex_lock(&client_registry->mutex, K_FOREVER);
 	if (ret != 0) {
 		LOG_ERR("Failed to lock client registry mutex: %d", ret);
 		return ret;
 	}
 
-	struct mcp_client_context *new_client = add_client(server);
+	new_client = add_client_locked(server, binding);
 	if (new_client == NULL) {
 		LOG_ERR("Client registry full");
-		k_mutex_unlock(&client_registry->registry_mutex);
+		k_mutex_unlock(&client_registry->mutex);
 		return -ENOMEM;
-	}
-
-	/* Notify the transport layer about the new client */
-	transport_callback(&new_client->transport_binding, new_client->client_id);
-
-	/* Transport layer must initialize the transport_binding.ops */
-	if ((new_client->transport_binding.ops == NULL) ||
-	    (new_client->transport_binding.ops->send == NULL) ||
-	    (new_client->transport_binding.ops->disconnect == NULL)) {
-		LOG_ERR("Transport binding not initialized");
-		remove_client(server, new_client);
-		return -EINVAL;
 	}
 
 	new_client->lifecycle_state = MCP_LIFECYCLE_INITIALIZING;
-	k_mutex_unlock(&client_registry->registry_mutex);
 
-	struct mcp_result_initialize *response_data =
+	client_get_locked(new_client);
+	k_mutex_unlock(&client_registry->mutex);
+
+	/* Allocate and prepare response */
+	response_data =
 		(struct mcp_result_initialize *)mcp_alloc(sizeof(struct mcp_result_initialize));
 	if (response_data == NULL) {
 		LOG_ERR("Failed to allocate response");
-		remove_client(server, new_client);
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto cleanup;
 	}
 
-	strncpy(response_data->server_version, CONFIG_MCP_SERVER_INFO_VERSION,
-		sizeof(response_data->server_version) - 1);
-	response_data->server_version[sizeof(response_data->server_version) - 1] = '\0';
-	strncpy(response_data->server_name, CONFIG_MCP_SERVER_INFO_NAME,
-		sizeof(response_data->server_name) - 1);
-	response_data->server_name[sizeof(response_data->server_name) - 1] = '\0';
-	strncpy(response_data->protocol_version, MCP_PROTOCOL_VERSION,
-		sizeof(response_data->protocol_version) - 1);
-	response_data->protocol_version[sizeof(response_data->protocol_version) - 1] = '\0';
-	strncpy(response_data->capabilities_json, "{\"tools\":{\"listChanged\":false\"}}}",
-		sizeof(response_data->capabilities_json) - 1);
-	response_data->capabilities_json[sizeof(response_data->capabilities_json) - 1] = '\0';
+	mcp_safe_strcpy(response_data->server_version, sizeof(response_data->server_version),
+			CONFIG_MCP_SERVER_INFO_VERSION);
+	mcp_safe_strcpy(response_data->server_name, sizeof(response_data->server_name),
+			CONFIG_MCP_SERVER_INFO_NAME);
+	mcp_safe_strcpy(response_data->protocol_version, sizeof(response_data->protocol_version),
+			MCP_PROTOCOL_VERSION);
+	mcp_safe_strcpy(response_data->capabilities_json, sizeof(response_data->capabilities_json),
+			"{\"tools\":{\"listChanged\":false}}");
 	response_data->has_capabilities = true;
 
 	/* Allocate buffer for serialization */
-	uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
+	json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
 	if (json_buffer == NULL) {
 		LOG_ERR("Failed to allocate buffer, dropping message");
-		mcp_free(response_data);
-		remove_client(server, new_client);
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto cleanup;
 	}
 
 	/* Serialize response to JSON */
 	ret = mcp_json_serialize_initialize_result((char *)json_buffer, CONFIG_MCP_MAX_MESSAGE_SIZE,
-						   request->id, response_data);
+						   &request->id, response_data);
 	if (ret < 0) {
 		LOG_ERR("Failed to serialize response: %d", ret);
-		mcp_free(response_data);
-		mcp_free(json_buffer);
-		remove_client(server, new_client);
-		return ret;
+		goto cleanup;
 	}
 
-	ret = new_client->transport_binding.ops->send(&new_client->transport_binding,
-						      new_client->client_id, json_buffer, ret);
+	struct mcp_transport_message tx_msg = {.binding = new_client->binding,
+					       .msg_id = msg_id,
+					       .json_data = json_buffer,
+					       .json_len = ret};
+
+	ret = new_client->binding->ops->send(&tx_msg);
 	if (ret) {
 		LOG_ERR("Failed to send initialize response %d", ret);
-		mcp_free(response_data);
-		mcp_free(json_buffer);
-		remove_client(server, new_client);
-		return -EIO;
+		goto cleanup;
 	}
 
 	mcp_free(response_data);
-	*client = new_client;
+	client_put(new_client);
 	return 0;
+
+cleanup:
+	if (json_buffer) {
+		mcp_free(json_buffer);
+	}
+	if (response_data) {
+		mcp_free(response_data);
+	}
+
+	/* Remove client on failure */
+	if (k_mutex_lock(&client_registry->mutex, K_FOREVER) == 0) {
+		remove_client_locked(server, new_client);
+		k_mutex_unlock(&client_registry->mutex);
+	}
+
+	client_put(new_client);
+	return ret;
 }
 
-static int handle_tools_list_request(struct mcp_server_ctx *server, uint32_t client_id,
-				     struct mcp_message *request)
+/**
+ * @brief Handle tools/list request from client and respond with available tools
+ * @return 0 on success, negative error code on failure
+ */
+static int handle_tools_list_request(struct mcp_server_ctx *server,
+				     struct mcp_client_context *client, struct mcp_message *request,
+				     uint32_t msg_id)
 {
-	struct mcp_result_tools_list *response_data;
+	struct mcp_result_tools_list *response_data = NULL;
+	uint8_t *json_buffer = NULL;
 	int ret;
 
 	struct mcp_client_registry *client_registry = &server->client_registry;
@@ -604,192 +675,235 @@ static int handle_tools_list_request(struct mcp_server_ctx *server, uint32_t cli
 
 	LOG_DBG("Processing tools list request");
 
-	ret = k_mutex_lock(&client_registry->registry_mutex, K_FOREVER);
+	ret = k_mutex_lock(&client_registry->mutex, K_FOREVER);
 	if (ret != 0) {
 		LOG_ERR("Failed to lock client registry mutex: %d", ret);
 		return ret;
 	}
 
-	struct mcp_client_context *client = get_client(server, client_id);
-	if (client == NULL) {
-		LOG_DBG("Client not found: %u", client_id);
-		return -ENOENT;
-	}
-
 	if (client->lifecycle_state != MCP_LIFECYCLE_INITIALIZED) {
-		LOG_DBG("Client not in initialized state: %u", client_id);
-		k_mutex_unlock(&client_registry->registry_mutex);
+		LOG_DBG("Client not in initialized state: %p", client);
+		k_mutex_unlock(&client_registry->mutex);
 		return -EACCES;
 	}
 
-	k_mutex_unlock(&client_registry->registry_mutex);
+	client_get_locked(client);
+	k_mutex_unlock(&client_registry->mutex);
 
-	if (ret != 0) {
-		return ret;
-	}
-
+	/* Allocate response structure */
 	response_data =
 		(struct mcp_result_tools_list *)mcp_alloc(sizeof(struct mcp_result_tools_list));
 	if (response_data == NULL) {
 		LOG_ERR("Failed to allocate response");
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto cleanup;
 	}
 
-	ret = k_mutex_lock(&tool_registry->registry_mutex, K_FOREVER);
+	/* Copy tool metadata while holding tool registry lock */
+	ret = k_mutex_lock(&tool_registry->mutex, K_FOREVER);
 	if (ret != 0) {
 		LOG_ERR("Failed to lock tool registry");
-		mcp_free(response_data);
-		return ret;
+		goto cleanup;
 	}
 
-	copy_tool_metadata_to_response(server, response_data);
-	k_mutex_unlock(&tool_registry->registry_mutex);
+	ret = copy_tool_metadata_to_response(server, response_data);
+	k_mutex_unlock(&tool_registry->mutex);
+
+	if (ret != 0) {
+		goto cleanup;
+	}
 
 	/* Allocate buffer for serialization */
-	uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
+	json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
 	if (json_buffer == NULL) {
 		LOG_ERR("Failed to allocate buffer, dropping message");
-		mcp_free(response_data);
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto cleanup;
 	}
 
 	/* Serialize response to JSON */
 	ret = mcp_json_serialize_tools_list_result((char *)json_buffer, CONFIG_MCP_MAX_MESSAGE_SIZE,
-						   request->id, response_data);
+						   &request->id, response_data);
 	if (ret <= 0) {
 		LOG_ERR("Failed to serialize response: %d", ret);
-		mcp_free(response_data);
-		mcp_free(json_buffer);
-		return ret;
+		goto cleanup;
 	}
 
-	ret = client->transport_binding.ops->send(&client->transport_binding, client_id,
-						  json_buffer, ret);
+	struct mcp_transport_message tx_msg = {.binding = client->binding,
+					       .msg_id = msg_id,
+					       .json_data = json_buffer,
+					       .json_len = ret};
+
+	ret = client->binding->ops->send(&tx_msg);
 	if (ret) {
 		LOG_ERR("Failed to send tools list response");
-		mcp_free(response_data);
-		mcp_free(json_buffer);
-		return -EIO;
+		goto cleanup;
 	}
 
 	mcp_free(response_data);
+	client_put(client);
 	return 0;
+
+cleanup:
+	if (json_buffer) {
+		mcp_free(json_buffer);
+	}
+
+	if (response_data) {
+		mcp_free(response_data);
+	}
+
+	client_put(client);
+	return ret;
 }
 
-static int handle_tools_call_request(struct mcp_server_ctx *server, uint32_t client_id,
-				     struct mcp_message *request)
+/**
+ * @brief Handle tools/call request from client and execute the requested tool
+ * @return 0 on success, negative error code on failure
+ */
+static int handle_tools_call_request(struct mcp_server_ctx *server,
+				     struct mcp_client_context *client, struct mcp_message *request,
+				     uint32_t msg_id)
 {
 	int ret;
-	struct mcp_client_context *client;
-	mcp_tool_callback_t callback;
-
+	int request_index = -1;
 	struct mcp_client_registry *client_registry = &server->client_registry;
 	struct mcp_tool_registry *tool_registry = &server->tool_registry;
+	struct mcp_execution_registry *execution_registry = &server->execution_registry;
+	struct mcp_tool_record *tool = NULL;
+	struct mcp_execution_context *exec_ctx = NULL;
 
 	LOG_DBG("Processing tools call request");
 
-	ret = k_mutex_lock(&client_registry->registry_mutex, K_FOREVER);
+	/* Check client state, increment active request count, and acquire reference */
+	ret = k_mutex_lock(&client_registry->mutex, K_FOREVER);
 	if (ret != 0) {
 		LOG_ERR("Failed to lock client registry mutex: %d", ret);
 		return ret;
 	}
 
-	client = get_client(server, client_id);
-	if (client == NULL) {
-		LOG_DBG("Client not found: %u", client_id);
-		return -ENOENT;
-	}
-
 	if (client->lifecycle_state != MCP_LIFECYCLE_INITIALIZED) {
-		LOG_DBG("Client not in initialized state: %u", client_id);
-		k_mutex_unlock(&client_registry->registry_mutex);
+		LOG_DBG("Client not in initialized state: %p", client);
+		k_mutex_unlock(&client_registry->mutex);
 		return -EACCES;
 	}
 
-	uint32_t *request_slot = add_request(client, request->id);
-	if (request_slot == NULL) {
-		LOG_ERR("No available request slot for client");
-		k_mutex_unlock(&client_registry->registry_mutex);
-		return -ENOSPC;
+	if (client->active_request_count >= CONFIG_MCP_MAX_CLIENT_REQUESTS) {
+		LOG_DBG("Client (%p) has reached maximum active requests", client);
+		k_mutex_unlock(&client_registry->mutex);
+		return -EBUSY;
 	}
 
-	k_mutex_unlock(&client_registry->registry_mutex);
+	client_get_locked(client);
+	k_mutex_unlock(&client_registry->mutex);
 
-	ret = k_mutex_lock(&tool_registry->registry_mutex, K_FOREVER);
+	/* Look up tool */
+	ret = k_mutex_lock(&tool_registry->mutex, K_FOREVER);
 	if (ret != 0) {
 		LOG_ERR("Failed to lock tool registry: %d", ret);
-		goto cleanup_active_request;
-	}
-
-	struct mcp_tool_record *tool = get_tool(server, request->req.u.tools_call.name);
-	if (tool == NULL) {
-		LOG_ERR("Tool '%s' not found", request->req.u.tools_call.name);
-		k_mutex_unlock(&tool_registry->registry_mutex);
-		ret = -ENOENT;
-		goto cleanup_active_request;
-	}
-
-	callback = tool->callback;
-	k_mutex_unlock(&tool_registry->registry_mutex);
-
-	struct mcp_execution_context *exec_ctx =
-		add_execution_context(server, request->id, client_id);
-	if (exec_ctx == NULL) {
-		LOG_ERR("Failed to create execution context: %d", ret);
-		goto cleanup_active_request;
-	}
-
-	ret = callback(request->req.u.tools_call.arguments_json, exec_ctx->execution_token);
-	if (ret != 0) {
-		LOG_ERR("Tool callback failed: %d", ret);
-		remove_execution_context(server, exec_ctx);
-		goto cleanup_active_request;
-	}
-
-	ret = set_worker_released_execution_context(server, exec_ctx);
-	if (ret != 0) {
-		LOG_ERR("Setting worker released to true failed: %d", ret);
-		/* TODO: Cancel tool execution */
-		remove_execution_context(server, exec_ctx);
-		goto cleanup_active_request;
-	}
-
-	return 0;
-
-cleanup_active_request:
-	int final_ret = ret;
-	ret = k_mutex_lock(&client_registry->registry_mutex, K_FOREVER);
-	if (ret != 0) {
-		LOG_ERR("Failed to lock client registry mutex: %d. Client registry is broken.",
-			ret);
+		client_put(client);
 		return ret;
 	}
 
-	*request_slot = 0;
-	client->active_request_count--;
+	tool = get_tool(server, request->req.u.tools_call.name);
+	if (tool == NULL) {
+		k_mutex_unlock(&tool_registry->mutex);
+		LOG_ERR("Tool '%s' not found", request->req.u.tools_call.name);
+		client_put(client);
+		return -ENOENT;
+	}
 
-	k_mutex_unlock(&client_registry->registry_mutex);
-	return final_ret;
+	atomic_inc(&tool->refcount);
+	k_mutex_unlock(&tool_registry->mutex);
+
+	/* Create execution context */
+	ret = k_mutex_lock(&execution_registry->mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock execution registry: %d", ret);
+		goto cleanup_tool;
+	}
+
+	exec_ctx = add_execution_context(server, client, &request->id, msg_id);
+	if (exec_ctx == NULL) {
+		LOG_ERR("Failed to create execution context");
+		k_mutex_unlock(&execution_registry->mutex);
+		ret = -ENOMEM;
+		goto cleanup_tool;
+	}
+
+	exec_ctx->tool = tool;
+	k_mutex_unlock(&execution_registry->mutex);
+
+	ret = k_mutex_lock(&client_registry->mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock client registry: %d", ret);
+		goto cleanup_execution;
+	}
+
+	/* After reaching here, active_request needs to be cleaned up in case of later error */
+	for (request_index = 0; request_index < CONFIG_MCP_MAX_CLIENT_REQUESTS; request_index++) {
+		if (client->active_requests[request_index] == 0) {
+			client->active_requests[request_index] = exec_ctx;
+			break;
+		}
+	}
+
+	client->active_request_count++;
+	k_mutex_unlock(&client_registry->mutex);
+
+	/* Call the tool callback */
+	ret = tool->callback(MCP_TOOL_CALL_REQUEST, request->req.u.tools_call.arguments_json,
+			     exec_ctx->execution_token);
+	if (ret != 0) {
+		LOG_ERR("Tool callback failed: %d", ret);
+		goto cleanup_active_request;
+	}
+
+	client_put(client);
+	return 0;
+
+cleanup_active_request:
+	if (k_mutex_lock(&client_registry->mutex, K_FOREVER) == 0) {
+		client->active_request_count--;
+		client->active_requests[request_index] = 0;
+		k_mutex_unlock(&client_registry->mutex);
+	}
+	
+cleanup_execution:
+	if (exec_ctx != NULL) {
+		if (k_mutex_lock(&execution_registry->mutex, K_FOREVER) == 0) {
+			remove_execution_context(server, exec_ctx);
+			k_mutex_unlock(&execution_registry->mutex);
+		}
+	}
+
+cleanup_tool:
+	atomic_dec(&tool->refcount);
+	
+	client_put(client);
+	return ret;
 }
 
-static int handle_notification(struct mcp_server_ctx *server, uint32_t client_id,
-			       struct mcp_message *notification)
+/**
+ * @brief Handle notification from client
+ * @return 0 on success, negative error code on failure
+ */
+static int handle_notification(struct mcp_server_ctx *server, struct mcp_client_context *client,
+			       struct mcp_message *notification, uint32_t msg_id)
 {
 	int ret;
 	struct mcp_client_registry *client_registry = &server->client_registry;
 
 	LOG_DBG("Processing notification");
 
-	ret = k_mutex_lock(&client_registry->registry_mutex, K_FOREVER);
+	ret = k_mutex_lock(&client_registry->mutex, K_FOREVER);
 	if (ret != 0) {
 		LOG_ERR("Failed to lock client registry");
 		return ret;
 	}
 
-	struct mcp_client_context *client = get_client(server, client_id);
-	if (client == NULL) {
-		LOG_ERR("Client not found %x", client_id);
-		k_mutex_unlock(&client_registry->registry_mutex);
+	if (client_get_locked(client) == NULL) {
+		k_mutex_unlock(&client_registry->mutex);
 		return -ENOENT;
 	}
 
@@ -799,28 +913,135 @@ static int handle_notification(struct mcp_server_ctx *server, uint32_t client_id
 		if (client->lifecycle_state == MCP_LIFECYCLE_INITIALIZING) {
 			client->lifecycle_state = MCP_LIFECYCLE_INITIALIZED;
 		} else {
-			LOG_ERR("Invalid state transition for client %u", client_id);
-			k_mutex_unlock(&client_registry->registry_mutex);
+			LOG_ERR("Invalid state transition for client %p", client);
+			k_mutex_unlock(&client_registry->mutex);
+			client_put(client);
 			return -EPERM;
 		}
 		break;
+		
 	case MCP_METHOD_NOTIF_CANCELLED:
-		/*TODO: Implement */
+		if (client->lifecycle_state != MCP_LIFECYCLE_INITIALIZED) {
+			LOG_DBG("Client not in initialized state: %p", client);
+			k_mutex_unlock(&client_registry->mutex);
+			client_put(client);
+			return -EACCES;
+		}
+
+		if (client->active_request_count <= 0) {
+			LOG_DBG("Client (%p) has no active requests", client);
+			k_mutex_unlock(&client_registry->mutex);
+			client_put(client);
+			return -EINVAL;
+		}
+
+		for (int i = 0; i < CONFIG_MCP_MAX_CLIENT_REQUESTS; i++) {
+			if ((client->active_requests[i] != NULL) &&
+			    (client->active_requests[i]->transport_msg_id == msg_id)) {
+				struct mcp_execution_context *execution_ctx = client->active_requests[i];
+
+				ret = k_mutex_lock(&server->execution_registry.mutex, K_FOREVER);
+				if (ret != 0) {
+					LOG_ERR("Failed to lock execution registry: %d. Can't cancel execution.", ret);
+					k_mutex_unlock(&client_registry->mutex);
+					client_put(client);
+					return -ENOSPC;
+				}
+
+				execution_ctx->execution_state = MCP_EXEC_CANCELED;
+				execution_ctx->cancel_timestamp = k_uptime_get();
+				execution_ctx->tool->callback(MCP_TOOL_CANCEL_REQUEST, NULL,
+							     execution_ctx->execution_token);
+				k_mutex_unlock(&server->execution_registry.mutex);
+				break;
+			}
+		}
+		break;
+
 	default:
 		LOG_ERR("Unknown notification method %u", notification->method);
-		k_mutex_unlock(&client_registry->registry_mutex);
+		k_mutex_unlock(&client_registry->mutex);
+		client_put(client);
 		return -EINVAL;
 	}
 
-	k_mutex_unlock(&client_registry->registry_mutex);
+	k_mutex_unlock(&client_registry->mutex);
+	client_put(client);
 	return 0;
+}
+
+/**
+ * @brief Handle ping request from client and respond with ping response
+ * @return 0 on success, negative error code on failure
+ */
+static int handle_ping_request(struct mcp_server_ctx *server, struct mcp_client_context *client,
+			       struct mcp_message *request, uint32_t msg_id)
+{
+	int ret;
+	struct mcp_client_registry *client_registry = &server->client_registry;
+	uint8_t *json_buffer = NULL;
+
+	LOG_DBG("Processing ping request");
+
+	/* Check client state and acquire reference */
+	ret = k_mutex_lock(&client_registry->mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock client registry mutex: %d", ret);
+		return ret;
+	}
+
+	if (client->lifecycle_state != MCP_LIFECYCLE_INITIALIZED) {
+		LOG_DBG("Client not in initialized state: %p", client);
+		k_mutex_unlock(&client_registry->mutex);
+		return -EACCES;
+	}
+
+	client_get_locked(client);
+	k_mutex_unlock(&client_registry->mutex);
+
+	/* Allocate buffer for serialization */
+	json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
+	if (json_buffer == NULL) {
+		LOG_ERR("Failed to allocate buffer, dropping message");
+		ret = -ENOMEM;
+		goto cleanup;
+	}
+
+	/* Serialize response to JSON */
+	ret = mcp_json_serialize_ping_result((char *)json_buffer, CONFIG_MCP_MAX_MESSAGE_SIZE,
+					     &request->id, NULL);
+	if (ret <= 0) {
+		LOG_ERR("Failed to serialize response: %d", ret);
+		goto cleanup;
+	}
+
+	struct mcp_transport_message tx_msg = {.binding = client->binding,
+					       .msg_id = msg_id,
+					       .json_data = json_buffer,
+					       .json_len = ret};
+
+	ret = client->binding->ops->send(&tx_msg);
+	if (ret) {
+		LOG_ERR("Failed to send ping response");
+		goto cleanup;
+	}
+
+	client_put(client);
+	return 0;
+
+cleanup:
+	if (json_buffer) {
+		mcp_free(json_buffer);
+	}
+	client_put(client);
+	return ret;
 }
 
 /*******************************************************************************
  * Worker threads
  ******************************************************************************/
 /**
- * @brief Worker threads
+ * @brief MCP Request worker thread
  * @param ctx pointer to server context
  * @param wid worker id
  * @param arg3 NULL
@@ -847,6 +1068,9 @@ static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 
 		if (request.data == NULL) {
 			LOG_ERR("NULL data in request");
+			if (request.client) {
+				client_put(request.client);
+			}
 			continue;
 		}
 
@@ -854,37 +1078,39 @@ static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 
 		switch (message->method) {
 		case MCP_METHOD_INITIALIZE:
+			/* Handled immediately in mcp_server_handle_request */
 			LOG_DBG("Should never reach here");
 			ret = 0;
-			// Handled immmediately in mcp_server_handle_request
+			break;
+		case MCP_METHOD_PING:
+			ret = handle_ping_request(server, request.client, message,
+						  request.transport_msg_id);
 			break;
 		case MCP_METHOD_NOTIF_INITIALIZED:
-			ret = handle_notification(server, request.client_id, message);
+			ret = handle_notification(server, request.client, message, 0);
 			break;
 		case MCP_METHOD_TOOLS_LIST:
-			ret = handle_tools_list_request(server, request.client_id, message);
+			ret = handle_tools_list_request(server, request.client, message,
+							request.transport_msg_id);
 			break;
 		case MCP_METHOD_TOOLS_CALL:
-			ret = handle_tools_call_request(server, request.client_id, message);
+			ret = handle_tools_call_request(server, request.client, message,
+							request.transport_msg_id);
 			break;
 		case MCP_METHOD_NOTIF_CANCELLED:
-		case MCP_METHOD_PING:
-			/* TODO: Implement. Ignore for now */
+			ret = handle_notification(server, request.client, message, request.transport_msg_id);
 			break;
 		default:
 			/* Should never get here. Requests are validated in
 			 * mcp_server_handle_request */
 			LOG_ERR("Unknown request");
 			mcp_free(request.data);
+			client_put(request.client);
 			continue;
 		}
 
 		if ((message->kind != MCP_MSG_NOTIFICATION) && (ret != 0)) {
 			switch (ret) {
-			case -EALREADY:
-				error_code = MCP_ERR_INVALID_PARAMS;
-				error_message = "Client already initialized";
-				break;
 			case -ENOENT:
 				error_code = MCP_ERR_METHOD_NOT_FOUND;
 				error_message = "Resource not found";
@@ -901,24 +1127,34 @@ static void mcp_request_worker(void *ctx, void *wid, void *arg3)
 				error_code = MCP_ERR_INTERNAL_ERROR;
 				error_message = "Memory allocation failed";
 				break;
+			case -EACCES:
+				error_code = MCP_ERR_INVALID_PARAMS;
+				error_message = "Client not initialized";
+				break;
+			case -EBUSY:
+				error_code = MCP_ERR_BUSY;
+				error_message = "Client is busy";
+				break;
 			default:
 				error_code = MCP_ERR_INTERNAL_ERROR;
 				error_message = "Internal server error";
 				break;
 			}
-			send_error_response(server, message->id, request.client_id, error_code,
-					    error_message);
+			send_error_response(server, request.client, &message->id, error_code,
+					    error_message, request.transport_msg_id);
 		}
 
 		mcp_free(request.data);
+		/* Release reference acquired when queuing */
+		client_put(request.client);
 	}
 }
 
-#ifdef CONFIG_MCP_HEALTH_MONITOR
 /**
- * @brief Health monitor worker thread
- * @param ctx Server context pointer
- * @param arg2 NULL
+ * @brief MCP Core health monitor worker thread
+ * @note Monitors execution timeouts and client health status, cancels stale requests
+ * @param ctx pointer to server context
+ * @param wid worker id
  * @param arg3 NULL
  */
 static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
@@ -930,22 +1166,27 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 	int64_t cancel_duration;
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 	struct mcp_execution_registry *execution_registry = &server->execution_registry;
+	struct mcp_client_registry *client_registry = &server->client_registry;
+	
 
 	while (1) {
 		k_sleep(K_MSEC(CONFIG_MCP_HEALTH_CHECK_INTERVAL_MS));
 
 		current_time = k_uptime_get();
 
-		ret = k_mutex_lock(&execution_registry->registry_mutex, K_FOREVER);
+		/* Check execution contexts */
+		ret = k_mutex_lock(&execution_registry->mutex, K_FOREVER);
 		if (ret != 0) {
 			LOG_ERR("Failed to lock execution registry: %d", ret);
 			continue;
 		}
 
 		for (int i = 0; i < MCP_MAX_REQUESTS; i++) {
+			uint8_t *json_buffer = NULL;
 			struct mcp_execution_context *context = &execution_registry->executions[i];
+			struct mcp_params_notif_cancelled *params = NULL;
 
-			if (context->execution_token == 0) {
+			if (context->execution_state == MCP_EXEC_FREE) {
 				continue;
 			}
 
@@ -953,23 +1194,10 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 				cancel_duration = current_time - context->cancel_timestamp;
 
 				if (cancel_duration > CONFIG_MCP_TOOL_CANCEL_TIMEOUT_MS) {
-					if (!context->worker_released) {
-						LOG_ERR("Execution token %u exceeded cancellation "
-							"timeout "
-							"(%lld ms). Request ID: %u, Client ID: %u, "
-							"Worker ID %u "
-							"still not released.",
-							context->execution_token, cancel_duration,
-							context->request_id, context->client_id,
-							(uint32_t)context->worker_id);
-					} else {
-						LOG_ERR("Execution token %u exceeded cancellation "
-							"timeout "
-							"(%lld ms). Request ID: %u, Client ID: %u",
-							context->execution_token, cancel_duration,
-							context->request_id, context->client_id);
-					}
-					/* TODO: Clean up execution record? */
+					LOG_ERR("Execution token %s exceeded cancellation "
+						"timeout (%lld ms). Client: %p, Worker ID %u",
+						context->execution_token, cancel_duration,
+						context->client, (uint32_t)context->worker_id);
 				}
 				continue;
 			}
@@ -981,23 +1209,64 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 			execution_duration = current_time - context->start_timestamp;
 
 			if (execution_duration > CONFIG_MCP_TOOL_EXEC_TIMEOUT_MS) {
-				if (!context->worker_released) {
-					LOG_WRN("Execution token %u exceeded execution timeout "
-						"(%lld ms). Request ID: %u, Client ID: %u, Worker "
-						"ID %u "
-						"still not released.",
-						context->execution_token, execution_duration,
-						context->request_id, context->client_id,
-						(uint32_t)context->worker_id);
-				} else {
-					LOG_WRN("Execution token %u exceeded execution timeout "
-						"(%lld ms). Request ID: %u, Client ID: %u",
-						context->execution_token, execution_duration,
-						context->request_id, context->client_id);
+				LOG_WRN("Execution token %s exceeded execution timeout "
+					"(%lld ms). Client: %p, Worker ID %u",
+					context->execution_token, execution_duration,
+					context->client, (uint32_t)context->worker_id);
+				/* Allocate notification params structure */
+				params = (struct mcp_params_notif_cancelled *)
+					mcp_alloc(sizeof(struct mcp_params_notif_cancelled));
+
+				if (params == NULL) {
+					LOG_ERR("Failed to allocate notification params");
+					ret = -ENOMEM;
+					continue;
 				}
-				/* TODO: Notify client? */
+
+				/* Allocate buffer for serialization */
+				json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
+				if (json_buffer == NULL) {
+					LOG_ERR("Failed to allocate buffer, dropping notification");
+					mcp_free(params);
+					continue;
+				}
+
+				/* Fill in the notification parameters */
+				params->request_id = context->request_id;
+				mcp_safe_strcpy(params->reason, sizeof(params->reason), "Execution timeout");
+				params->has_reason = true;
+
+				/* Serialize the notification */
+				ret = mcp_json_serialize_cancel_notification((char *)json_buffer,
+													CONFIG_MCP_MAX_MESSAGE_SIZE, params);
+				if (ret <= 0) {
+					LOG_ERR("Failed to serialize cancel notification: %d", ret);
+					mcp_free(params);
+					mcp_free(json_buffer);
+					continue;
+				}
+
+				/* Send the notification to the client */
+				struct mcp_transport_message tx_msg = {
+					.binding = context->client->binding,
+					.msg_id = 0,  /* Notifications don't have a response msg_id */
+					.json_data = (char *)json_buffer,
+					.json_len = ret
+				};
+
+				ret = context->client->binding->ops->send(&tx_msg);
+				if (ret != 0) {
+					LOG_ERR("Failed to send cancel notification: %d", ret);
+				}
+
+				/* Clean up */
+				mcp_free(params);
+				mcp_free(json_buffer);
+
+				/* Update execution state */
 				context->execution_state = MCP_EXEC_CANCELED;
 				context->cancel_timestamp = current_time;
+				context->tool->callback(MCP_TOOL_CANCEL_REQUEST, NULL, context->execution_token);
 				continue;
 			}
 
@@ -1005,46 +1274,115 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 				idle_duration = current_time - context->last_message_timestamp;
 
 				if (idle_duration > CONFIG_MCP_TOOL_IDLE_TIMEOUT_MS) {
-					if (!context->worker_released) {
-						LOG_WRN("Execution token %u exceeded idle timeout "
-							"(%lld ms). Request ID: %u, Client ID: %u, "
-							"Worker ID %u "
-							"still not released.",
-							context->execution_token, idle_duration,
-							context->request_id, context->client_id,
-							(uint32_t)context->worker_id);
-					} else {
-						LOG_WRN("Execution token %u exceeded idle timeout "
-							"(%lld ms). Request ID: %u, Client ID: %u",
-							context->execution_token, idle_duration,
-							context->request_id, context->client_id);
+					LOG_WRN("Execution token %s exceeded idle timeout "
+						"(%lld ms). Client: %p, Worker ID %u",
+						context->execution_token, idle_duration,
+						context->client, (uint32_t)context->worker_id);
+
+					/* Allocate notification params structure */
+					params = (struct mcp_params_notif_cancelled *)
+						mcp_alloc(sizeof(struct mcp_params_notif_cancelled));
+
+					if (params == NULL) {
+						LOG_ERR("Failed to allocate notification params");
+						ret = -ENOMEM;
+						continue;
 					}
-					/* TODO: Notify client? */
+
+					/* Allocate buffer for serialization */
+					json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
+					if (json_buffer == NULL) {
+						LOG_ERR("Failed to allocate buffer, dropping notification");
+						mcp_free(params);
+						continue;
+					}
+
+					/* Fill in the notification parameters */
+					params->request_id = context->request_id;
+					mcp_safe_strcpy(params->reason, sizeof(params->reason), "Tool idle timeout");
+					params->has_reason = true;
+
+					/* Serialize the notification */
+					ret = mcp_json_serialize_cancel_notification((char *)json_buffer,
+														CONFIG_MCP_MAX_MESSAGE_SIZE, params);
+					if (ret <= 0) {
+						LOG_ERR("Failed to serialize cancel notification: %d", ret);
+						mcp_free(params);
+						mcp_free(json_buffer);
+						continue;
+					}
+
+					/* Send the notification to the client */
+					struct mcp_transport_message tx_msg = {
+						.binding = context->client->binding,
+						.msg_id = 0,  /* Notifications don't have a response msg_id */
+						.json_data = (char *)json_buffer,
+						.json_len = ret
+					};
+
+					ret = context->client->binding->ops->send(&tx_msg);
+					if (ret != 0) {
+						LOG_ERR("Failed to send cancel notification: %d", ret);
+					}
+
+					/* Clean up */
+					mcp_free(params);
+					mcp_free(json_buffer);
+
 					context->execution_state = MCP_EXEC_CANCELED;
 					context->cancel_timestamp = current_time;
+					context->tool->callback(MCP_TOOL_CANCEL_REQUEST, NULL, context->execution_token);
 				}
 			}
 		}
 
-		k_mutex_unlock(&execution_registry->registry_mutex);
+		k_mutex_unlock(&execution_registry->mutex);
+
+		/* Check client contexts */
+		ret = k_mutex_lock(&client_registry->mutex, K_FOREVER);
+		if (ret != 0) {
+			LOG_ERR("Failed to lock client registry: %d", ret);
+			continue;
+		}
+
+		for (int i = 0; i < ARRAY_SIZE(client_registry->clients); i++) {
+			struct mcp_client_context *client_context = &client_registry->clients[i];
+
+			if (client_context->lifecycle_state == MCP_LIFECYCLE_DEINITIALIZED) {
+				continue;
+			}
+
+			if (client_context->last_message_timestamp > 0) {
+				idle_duration =
+					current_time - client_context->last_message_timestamp;
+
+				if (idle_duration > CONFIG_MCP_CLIENT_TIMEOUT_MS) {
+					LOG_WRN("Client %p exceeded idle timeout (%lld ms). "
+						"Marking as disconnected.",
+						client_context, idle_duration);
+
+					remove_client_locked(server, client_context);
+				}
+			}
+		}
+		k_mutex_unlock(&client_registry->mutex);
 	}
 }
-#endif
 
 /*******************************************************************************
  * Internal Interface Implementation
  ******************************************************************************/
-int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_request_data *request,
-			      enum mcp_method *method,
-			      struct mcp_transport_binding **client_binding)
+int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_transport_message *request,
+			      enum mcp_method *method)
 {
 	int ret;
 	struct mcp_queue_msg msg;
 	struct mcp_client_context *client = NULL;
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
+	struct mcp_client_registry *client_registry = &server->client_registry;
 
 	if ((server == NULL) || (request == NULL) || (request->json_data == NULL) ||
-	    (method == NULL) || (client_binding == NULL)) {
+	    (method == NULL)) {
 		LOG_ERR("Invalid parameters passed to mcp_server_handle_request");
 		return -EINVAL;
 	}
@@ -1064,35 +1402,77 @@ int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_request_data *req
 	}
 
 	*method = parsed_msg->method;
+	LOG_DBG("Request method: %d", parsed_msg->method);
 
 	switch (parsed_msg->method) {
 	case MCP_METHOD_INITIALIZE:
 		/* We want to handle the initialize request directly */
-		ret = handle_initialize_request(server, parsed_msg, request->callback, &client);
+		ret = handle_initialize_request(server, parsed_msg, request->binding,
+						request->msg_id);
 		mcp_free(parsed_msg);
 		break;
+	case MCP_METHOD_PING:
 	case MCP_METHOD_TOOLS_LIST:
 	case MCP_METHOD_TOOLS_CALL:
 	case MCP_METHOD_NOTIF_INITIALIZED:
 	case MCP_METHOD_NOTIF_CANCELLED:
-		client = get_client(server, request->client_id_hint);
-		if (client == NULL) {
-			LOG_ERR("Can't find client with id %u", request->client_id_hint);
-			ret = -ENOENT;
+		ret = k_mutex_lock(&client_registry->mutex, K_FOREVER);
+		if (ret != 0) {
+			LOG_ERR("Failed to lock client registry: %d", ret);
 			mcp_free(parsed_msg);
+			return ret;
+		}
+
+		client = get_client_by_binding_locked(server, request->binding);
+		if (client == NULL) {
+			LOG_ERR("Client does not exist");
+			k_mutex_unlock(&client_registry->mutex);
+			mcp_free(parsed_msg);
+			ret = -ENOENT;
 			break;
 		}
 
-		msg.data = (void *)parsed_msg;
-		msg.client_id = client->client_id;
+		/* Acquire reference for queued message */
+		client_get_locked(client);
+		k_mutex_unlock(&client_registry->mutex);
 
-		/* Parsed messge is now owned by the queue */
+		msg.data = (void *)parsed_msg;
+		msg.client = client;
+		msg.transport_msg_id = request->msg_id;
+
+		/* Parsed message is now owned by the queue */
 		ret = k_msgq_put(&server->request_queue, &msg, K_NO_WAIT);
 		if (ret != 0) {
 			LOG_ERR("Failed to queue request message: %d", ret);
 			mcp_free(parsed_msg);
+			client_put(client);
 		}
 
+		break;
+	case MCP_METHOD_UNKNOWN:
+		ret = k_mutex_lock(&client_registry->mutex, K_FOREVER);
+		if (ret != 0) {
+			LOG_ERR("Failed to lock client registry: %d", ret);
+			mcp_free(parsed_msg);
+			return ret;
+		}
+
+		client = get_client_by_binding_locked(server, request->binding);
+		if (client == NULL) {
+			LOG_ERR("Client does not exist.");
+			k_mutex_unlock(&client_registry->mutex);
+			mcp_free(parsed_msg);
+			ret = -ENOENT;
+			break;
+		}
+
+		client_get_locked(client);
+		k_mutex_unlock(&client_registry->mutex);
+
+		ret = send_error_response(server, client, &parsed_msg->id, MCP_ERR_METHOD_NOT_FOUND,
+					  "Method not found", request->msg_id);
+		mcp_free(parsed_msg);
+		client_put(client);
 		break;
 	default:
 		LOG_WRN("Request not recognized. Dropping.");
@@ -1101,32 +1481,9 @@ int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_request_data *req
 		break;
 	}
 
-	if (client != NULL) {
-		*client_binding = &client->transport_binding;
-	}
-
 	return ret;
 }
 
-struct mcp_transport_binding *mcp_server_get_client_binding(mcp_server_ctx_t ctx,
-							    uint32_t client_id)
-{
-	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
-	struct mcp_client_context *client;
-
-	if (server == NULL) {
-		LOG_ERR("Invalid server");
-		return NULL;
-	}
-
-	client = get_client(server, client_id);
-	if (client == NULL) {
-		LOG_ERR("Can't find client with id %u", client_id);
-		return NULL;
-	}
-
-	return &client->transport_binding;
-}
 /*******************************************************************************
  * API Implementation
  ******************************************************************************/
@@ -1142,24 +1499,24 @@ mcp_server_ctx_t mcp_server_init(void)
 		return NULL;
 	}
 
-	k_msgq_init(&server_ctx->request_queue, server_ctx->request_queue_buffers,
-		    sizeof(struct mcp_queue_msg), CONFIG_MCP_REQUEST_QUEUE_SIZE);
+	k_msgq_init(&server_ctx->request_queue, server_ctx->request_queue_storage,
+		    sizeof(struct mcp_queue_msg), MCP_MAX_REQUESTS);
 
-	ret = k_mutex_init(&server_ctx->client_registry.registry_mutex);
+	ret = k_mutex_init(&server_ctx->client_registry.mutex);
 	if (ret != 0) {
 		LOG_ERR("Failed to init client mutex: %d", ret);
 		return NULL;
 	}
 
-	ret = k_mutex_init(&server_ctx->tool_registry.registry_mutex);
+	ret = k_mutex_init(&server_ctx->tool_registry.mutex);
 	if (ret != 0) {
 		LOG_ERR("Failed to init tool mutex: %d", ret);
 		return NULL;
 	}
 
-	ret = k_mutex_init(&server_ctx->execution_registry.registry_mutex);
+	ret = k_mutex_init(&server_ctx->execution_registry.mutex);
 	if (ret != 0) {
-		LOG_ERR("Failed to init tool mutex: %d", ret);
+		LOG_ERR("Failed to init execution mutex: %d", ret);
 		return NULL;
 	}
 
@@ -1173,7 +1530,9 @@ int mcp_server_start(mcp_server_ctx_t ctx)
 {
 	k_tid_t tid;
 	uint32_t thread_stack_idx;
+#if CONFIG_THREAD_NAME
 	int ret;
+#endif
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 
 	if (server == NULL) {
@@ -1195,42 +1554,48 @@ int mcp_server_start(mcp_server_ctx_t ctx)
 			return -ENOMEM;
 		}
 
+#if CONFIG_THREAD_NAME
 		ret = k_thread_name_set(&server->request_workers[i], "mcp_req_worker");
 		if (ret != 0) {
 			LOG_WRN("Failed to set thread name: %d", ret);
 		}
+#endif
 	}
 
-#ifdef CONFIG_MCP_HEALTH_MONITOR
 	tid = k_thread_create(&server->health_monitor_thread, mcp_health_monitor_stack[server->idx],
 			      K_THREAD_STACK_SIZEOF(mcp_health_monitor_stack[server->idx]),
 			      mcp_health_monitor_worker, server, NULL, NULL,
-			      K_PRIO_COOP(MCP_WORKER_PRIORITY + 1), 0, K_NO_WAIT);
+			      K_PRIO_PREEMPT(MCP_WORKER_PRIORITY - 1), 0, K_NO_WAIT);
 	if (tid == NULL) {
 		LOG_ERR("Failed to create health monitor thread");
 		return -ENOMEM;
 	}
 
+#if CONFIG_THREAD_NAME
 	ret = k_thread_name_set(&server->health_monitor_thread, "mcp_health_mon");
 	if (ret != 0) {
 		LOG_WRN("Failed to set health monitor thread name: %d", ret);
 	}
-	LOG_INF("MCP server health monitor enabled");
 #endif
 
-	LOG_INF("MCP Server started: %d request, %d response workers", CONFIG_MCP_REQUEST_WORKERS,
-		CONFIG_MCP_RESPONSE_WORKERS);
+	LOG_INF("MCP server health monitor enabled");
+	LOG_INF("MCP Server started: %d request workers", CONFIG_MCP_REQUEST_WORKERS);
 	return 0;
 }
 
-int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_message *app_msg,
-				   uint32_t execution_token)
+int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_message *tool_msg,
+				const char *execution_token)
 {
-	int ret;
-	uint32_t request_id;
-	uint32_t client_id;
-	struct mcp_result_tools_call *response_data;
+	int ret = 0;
+	uint32_t msg_id;
+	struct mcp_request_id *request_id;
+	struct mcp_result_tools_call *response_data = NULL;
+	uint8_t *json_buffer = NULL;
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
+	struct mcp_execution_context *execution_ctx = NULL;
+	struct mcp_client_context *client = NULL;
+	struct mcp_tool_record *temp_tool_ptr = NULL;
+	bool is_execution_canceled = false;
 
 	if (server == NULL) {
 		LOG_ERR("Invalid server context");
@@ -1240,91 +1605,100 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 	struct mcp_execution_registry *execution_registry = &server->execution_registry;
 	struct mcp_client_registry *client_registry = &server->client_registry;
 
-	if ((app_msg == NULL) ||
-	    ((app_msg->data == NULL) && (app_msg->type != MCP_USR_TOOL_CANCEL_ACK) &&
-	     (app_msg->type != MCP_USR_TOOL_PING))) {
+	if ((tool_msg == NULL) ||
+	    ((tool_msg->data == NULL) && (tool_msg->type != MCP_USR_TOOL_CANCEL_ACK) &&
+	     (tool_msg->type != MCP_USR_TOOL_PING))) {
 		LOG_ERR("Invalid user message");
 		return -EINVAL;
 	}
 
-	if (execution_token == 0) {
+	if ((execution_token == NULL) || (execution_token[0] == '\0')) {
 		LOG_ERR("Invalid execution token");
 		return -EINVAL;
 	}
 
-	ret = k_mutex_lock(&execution_registry->registry_mutex, K_FOREVER);
+	/* Look up execution context and check state */
+	ret = k_mutex_lock(&execution_registry->mutex, K_FOREVER);
 	if (ret != 0) {
 		LOG_ERR("Failed to lock execution registry: %d", ret);
 		return ret;
 	}
 
-	struct mcp_execution_context *execution_ctx =
-		get_execution_context(server, execution_token);
+	execution_ctx = get_execution_context(server, execution_token);
 	if (execution_ctx == NULL) {
 		LOG_ERR("Execution token not found");
-		k_mutex_unlock(&execution_registry->registry_mutex);
+		k_mutex_unlock(&execution_registry->mutex);
 		return -ENOENT;
 	}
 
-	request_id = execution_ctx->request_id;
-	client_id = execution_ctx->client_id;
+	request_id = &execution_ctx->request_id;
+	msg_id = execution_ctx->transport_msg_id;
+	client = execution_ctx->client;
+	temp_tool_ptr = execution_ctx->tool;
 
-	struct mcp_client_context *client = get_client(server, client_id);
-
-	bool is_execution_canceled = (execution_ctx->execution_state == MCP_EXEC_CANCELED);
+	is_execution_canceled = (execution_ctx->execution_state == MCP_EXEC_CANCELED);
 
 	if (is_execution_canceled) {
-		if (app_msg->type == MCP_USR_TOOL_CANCEL_ACK) {
+		if (tool_msg->type == MCP_USR_TOOL_CANCEL_ACK) {
 			execution_ctx->execution_state = MCP_EXEC_FINISHED;
-		} else if (app_msg->type == MCP_USR_TOOL_RESPONSE) {
+			k_mutex_unlock(&execution_registry->mutex);
+			goto cleanup;
+		} else if (tool_msg->type == MCP_USR_TOOL_RESPONSE) {
 			execution_ctx->execution_state = MCP_EXEC_FINISHED;
+			k_mutex_unlock(&execution_registry->mutex);
 			LOG_WRN("Execution canceled, tool message will be dropped.");
-		}
-		k_mutex_unlock(&execution_registry->registry_mutex);
-	} else {
-		execution_ctx->last_message_timestamp = k_uptime_get();
-		k_mutex_unlock(&execution_registry->registry_mutex);
-
-		switch (app_msg->type) {
-			/* Result is passed as a complete JSON string that gets attached to the full
-			 * JSON RPC response inside the Transport layer
-			 */
-		case MCP_USR_TOOL_PING:
+			goto cleanup;
+		} else {
+			LOG_DBG("Execution canceled, ignoring tool message type: %d",
+				tool_msg->type);
+			k_mutex_unlock(&execution_registry->mutex);
 			return 0;
-		case MCP_USR_TOOL_RESPONSE:
-
-			if (client == NULL) {
-				LOG_ERR("Client context not found for client_id: %u", client_id);
-				return -ENOENT;
-			}
-
-			response_data = (struct mcp_result_tools_call *)mcp_alloc(
-				sizeof(struct mcp_result_tools_call));
-			if (response_data == NULL) {
-				LOG_ERR("Failed to allocate memory for response");
-				return -ENOMEM;
-			}
-
-			strncpy((char *)response_data->content.items[0].text, (char *)app_msg->data,
-				sizeof(response_data->content.items[0].text) - 1);
-			response_data->content.items[0]
-				.text[sizeof(response_data->content.items[0].text) - 1] = '\0';
-			response_data->content.count = 1;
-			response_data->content.items[0].type = MCP_CONTENT_TEXT;
-
-			execution_ctx->execution_state = MCP_EXEC_FINISHED;
-			break;
-		default:
-			LOG_ERR("Unsupported application message type: %u", app_msg->type);
-			return -EINVAL;
 		}
+	}
+
+	execution_ctx->last_message_timestamp = k_uptime_get();
+	k_mutex_unlock(&execution_registry->mutex);
+
+	switch (tool_msg->type) {
+	case MCP_USR_TOOL_PING:
+		return 0;
+
+	case MCP_USR_TOOL_RESPONSE:
+		if (client == NULL) {
+			LOG_ERR("Client context not found for client: %p", client);
+			ret = -ENOENT;
+			goto cleanup;
+		}
+
+		response_data = (struct mcp_result_tools_call *)mcp_alloc(
+			sizeof(struct mcp_result_tools_call));
+		if (response_data == NULL) {
+			LOG_ERR("Failed to allocate memory for response");
+			ret = -ENOMEM;
+			goto cleanup;
+		}
+
+		mcp_safe_strcpy((char *)response_data->content.items[0].text,
+				sizeof(response_data->content.items[0].text),
+				(char *)tool_msg->data);
+		response_data->content.count = 1;
+		response_data->content.items[0].type = MCP_CONTENT_TEXT;
+		response_data->is_error = tool_msg->is_error;
+
+		ret = k_mutex_lock(&execution_registry->mutex, K_FOREVER);
+		if (ret != 0) {
+			LOG_ERR("Failed to lock execution registry: %d", ret);
+			goto cleanup;
+		}
+		execution_ctx->execution_state = MCP_EXEC_FINISHED;
+		k_mutex_unlock(&execution_registry->mutex);
 
 		/* Allocate buffer for serialization */
-		uint8_t *json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
+		json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
 		if (json_buffer == NULL) {
 			LOG_ERR("Failed to allocate buffer, dropping message");
-			mcp_free(response_data);
-			return -ENOMEM;
+			ret = -ENOMEM;
+			goto cleanup;
 		}
 
 		/* Serialize response to JSON */
@@ -1333,30 +1707,47 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 							   response_data);
 		if (ret <= 0) {
 			LOG_ERR("Failed to serialize response: %d", ret);
-			mcp_free(response_data);
-			mcp_free(json_buffer);
-			return ret;
+			goto cleanup;
 		}
 
-		ret = client->transport_binding.ops->send(&client->transport_binding, client_id,
-							  json_buffer, ret);
+		struct mcp_transport_message tx_msg = {.binding = client->binding,
+						       .msg_id = msg_id,
+						       .json_data = json_buffer,
+						       .json_len = ret};
+
+		ret = client->binding->ops->send(&tx_msg);
 		if (ret) {
-			LOG_ERR("Failed to tool response");
-			mcp_free(response_data);
-			mcp_free(json_buffer);
-			return -EIO;
+			LOG_ERR("Failed to send tool response");
+			goto cleanup;
 		}
 
+		ret = 0;
+		break;
+
+	default:
+		LOG_ERR("Unsupported application message type: %u", tool_msg->type);
+		ret = -EINVAL;
+		goto cleanup;
+	}
+	
+cleanup:
+	if (response_data) {
 		mcp_free(response_data);
 	}
+	if (json_buffer) {
+		mcp_free(json_buffer);
+	}
 
-	if ((app_msg->type == MCP_USR_TOOL_RESPONSE) ||
-	    (app_msg->type == MCP_USR_TOOL_CANCEL_ACK)) {
-		ret = k_mutex_lock(&client_registry->registry_mutex, K_FOREVER);
-		if (ret != 0) {
+	/* Clean up if this is a final message */
+	if ((tool_msg->type == MCP_USR_TOOL_RESPONSE) ||
+					(tool_msg->type == MCP_USR_TOOL_CANCEL_ACK)) {
+		int cleanup_ret;
+
+		cleanup_ret = k_mutex_lock(&client_registry->mutex, K_FOREVER);
+		if (cleanup_ret != 0) {
 			LOG_ERR("Failed to lock client registry mutex: %d. Client registry is "
 				"broken.",
-				ret);
+				cleanup_ret);
 			goto skip_client_cleanup;
 		}
 
@@ -1364,38 +1755,49 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_user_m
 			if (is_execution_canceled) {
 				LOG_DBG("Execution canceled, client was already cleaned up.");
 			} else {
-				LOG_ERR("Failed to find client index in the client registry. "
-					"Client "
-					"registry is broken.");
+				LOG_ERR("Failed to find client in the client registry. "
+					"Client registry is broken.");
 			}
-			k_mutex_unlock(&client_registry->registry_mutex);
+			k_mutex_unlock(&client_registry->mutex);
 			goto skip_client_cleanup;
 		}
 
-		uint32_t *request = get_request(client, request_id);
-		if (request == NULL) {
-			LOG_ERR("Failed to find request index in client's active requests. Client "
-				"registry is broken.");
-			k_mutex_unlock(&client_registry->registry_mutex);
-			goto skip_client_cleanup;
-		}
-
-		*request = 0;
 		client->active_request_count--;
 
-		k_mutex_unlock(&client_registry->registry_mutex);
+		for (int i = 0; i < CONFIG_MCP_MAX_CLIENT_REQUESTS; i++) {
+			if ((client->active_requests[i] != NULL) &&
+							(client->active_requests[i]->transport_msg_id == msg_id)) {
+				client->active_requests[i] = 0;
+				break;
+			}
+		}
+
+		k_mutex_unlock(&client_registry->mutex);
 
 skip_client_cleanup:
-		ret = remove_execution_context(server, execution_ctx);
-		if (ret != 0) {
-			LOG_ERR("Failed to destroy execution context: %d. Execution registry is "
+		cleanup_ret = k_mutex_lock(&execution_registry->mutex, K_FOREVER);
+		if (cleanup_ret != 0) {
+			LOG_ERR("Failed to lock execution registry: %d. Execution registry is "
 				"broken. Message was submitted successfully.",
-				ret);
-			return ret;
+				cleanup_ret);
+			if (ret == 0) {
+				ret = cleanup_ret;
+			}
+			goto skip_execution_cleanup;
+		}
+
+		if (execution_ctx != NULL) {
+			remove_execution_context(server, execution_ctx);
+		}
+		k_mutex_unlock(&execution_registry->mutex);
+
+skip_execution_cleanup:
+		if (temp_tool_ptr != NULL) {
+			atomic_dec(&temp_tool_ptr->refcount);
 		}
 	}
 
-	return 0;
+	return ret;
 }
 
 int mcp_server_add_tool(mcp_server_ctx_t ctx, const struct mcp_tool_record *tool_record)
@@ -1416,7 +1818,7 @@ int mcp_server_add_tool(mcp_server_ctx_t ctx, const struct mcp_tool_record *tool
 
 	struct mcp_tool_registry *tool_registry = &server->tool_registry;
 
-	ret = k_mutex_lock(&tool_registry->registry_mutex, K_FOREVER);
+	ret = k_mutex_lock(&tool_registry->mutex, K_FOREVER);
 	if (ret != 0) {
 		LOG_ERR("Failed to lock tool registry: %d", ret);
 		return ret;
@@ -1425,20 +1827,20 @@ int mcp_server_add_tool(mcp_server_ctx_t ctx, const struct mcp_tool_record *tool
 	struct mcp_tool_record *tool = get_tool(server, tool_record->metadata.name);
 	if (tool != NULL) {
 		LOG_ERR("Tool '%s' already exists", tool_record->metadata.name);
-		k_mutex_unlock(&tool_registry->registry_mutex);
+		k_mutex_unlock(&tool_registry->mutex);
 		return -EEXIST;
 	}
 
 	struct mcp_tool_record *new_tool = add_tool(server, tool_record);
 	if (new_tool == NULL) {
 		LOG_ERR("Tool registry full");
-		k_mutex_unlock(&tool_registry->registry_mutex);
+		k_mutex_unlock(&tool_registry->mutex);
 		return -ENOSPC;
 	}
 
 	LOG_INF("Tool '%s' registered", tool_record->metadata.name);
 
-	k_mutex_unlock(&tool_registry->registry_mutex);
+	k_mutex_unlock(&tool_registry->mutex);
 	return 0;
 }
 
@@ -1459,7 +1861,7 @@ int mcp_server_remove_tool(mcp_server_ctx_t ctx, const char *tool_name)
 
 	struct mcp_tool_registry *tool_registry = &server->tool_registry;
 
-	ret = k_mutex_lock(&tool_registry->registry_mutex, K_FOREVER);
+	ret = k_mutex_lock(&tool_registry->mutex, K_FOREVER);
 	if (ret != 0) {
 		LOG_ERR("Failed to lock tool registry: %d", ret);
 		return ret;
@@ -1467,20 +1869,26 @@ int mcp_server_remove_tool(mcp_server_ctx_t ctx, const char *tool_name)
 
 	struct mcp_tool_record *tool = get_tool(server, tool_name);
 	if (tool == NULL) {
-		k_mutex_unlock(&tool_registry->registry_mutex);
+		k_mutex_unlock(&tool_registry->mutex);
 		LOG_ERR("Tool '%s' not found", tool_name);
 		return -ENOENT;
+	}
+
+	if (atomic_get(&tool->refcount) > 1) {
+		k_mutex_unlock(&tool_registry->mutex);
+		LOG_INF("Requested removal of a currently active tool '%s'", tool_name);
+		return -EBUSY;
 	}
 
 	memset(tool, 0, sizeof(struct mcp_tool_record));
 	tool_registry->tool_count--;
 	LOG_INF("Tool '%s' removed", tool_name);
 
-	k_mutex_unlock(&tool_registry->registry_mutex);
+	k_mutex_unlock(&tool_registry->mutex);
 	return 0;
 }
 
-int mcp_server_is_execution_canceled(mcp_server_ctx_t ctx, uint32_t execution_token,
+int mcp_server_is_execution_canceled(mcp_server_ctx_t ctx, const char *execution_token,
 				     bool *is_canceled)
 {
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
@@ -1497,7 +1905,7 @@ int mcp_server_is_execution_canceled(mcp_server_ctx_t ctx, uint32_t execution_to
 
 	struct mcp_execution_registry *execution_registry = &server->execution_registry;
 
-	int ret = k_mutex_lock(&execution_registry->registry_mutex, K_FOREVER);
+	int ret = k_mutex_lock(&execution_registry->mutex, K_FOREVER);
 
 	if (ret != 0) {
 		LOG_ERR("Failed to lock execution registry: %d", ret);
@@ -1510,14 +1918,14 @@ int mcp_server_is_execution_canceled(mcp_server_ctx_t ctx, uint32_t execution_to
 
 	if (execution_ctx == NULL) {
 		LOG_ERR("Execution token not found");
-		k_mutex_unlock(&execution_registry->registry_mutex);
+		k_mutex_unlock(&execution_registry->mutex);
 		*is_canceled = false;
 		return -ENOENT;
 	}
 
 	*is_canceled = (execution_ctx->execution_state == MCP_EXEC_CANCELED);
 
-	k_mutex_unlock(&execution_registry->registry_mutex);
+	k_mutex_unlock(&execution_registry->mutex);
 
 	return 0;
 }

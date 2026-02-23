@@ -10,5 +10,5 @@ target_sources(app PRIVATE src/main.c)
 
 target_include_directories(app PRIVATE
     ${ZEPHYR_BASE}/subsys/net/lib/mcp
-    ${ZEPHYR_BASE}/include
+    ${ZEPHYR_BASE}/include/zephyr/net/mcp
 )
