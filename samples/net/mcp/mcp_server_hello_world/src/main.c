@@ -14,7 +14,7 @@ LOG_MODULE_REGISTER(mcp_sample_hello, LOG_LEVEL_INF);
 mcp_server_ctx_t server;
 
 /* Tool callback functions */
-static int hello_world_tool_callback(enum mcp_tool_event_type event, const char *params, uint32_t execution_token)
+static int hello_world_tool_callback(enum mcp_tool_event_type event, const char *params, const char *execution_token)
 {
 	if (event == MCP_TOOL_CANCEL_REQUEST)
 	{
@@ -45,13 +45,13 @@ static int hello_world_tool_callback(enum mcp_tool_event_type event, const char 
 	 */
 	k_msleep(10000);
 
-	printk("Hello World tool executed with params: %s, token: %u\n", params ? params : "none",
+	printk("Hello World tool executed with params: %s, token: %s\n", params ? params : "none",
 	       execution_token);
 	mcp_server_submit_tool_message(server, &response, execution_token);
 	return 0;
 }
 
-static int goodbye_world_tool_callback(enum mcp_tool_event_type event, const char *params, uint32_t execution_token)
+static int goodbye_world_tool_callback(enum mcp_tool_event_type event, const char *params, const char *execution_token)
 {
 	if (event == MCP_TOOL_CANCEL_REQUEST)
 	{
@@ -73,7 +73,7 @@ static int goodbye_world_tool_callback(enum mcp_tool_event_type event, const cha
 		.length = strlen("Goodbye World from tool!")
 	};
 
-	printk("Goodbye World tool executed with params: %s, token: %u\n", params ? params : "none",
+	printk("Goodbye World tool executed with params: %s, token: %s\n", params ? params : "none",
 	       execution_token);
 	mcp_server_submit_tool_message(server, &response, execution_token);
 	return 0;

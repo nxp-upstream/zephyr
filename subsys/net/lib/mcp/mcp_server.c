@@ -76,11 +76,11 @@ struct mcp_tool_registry {
 };
 
 /**
-	* @brief Tool execution context
-	* @note Tracks the state and metadata of a single tool execution
-	*/
+ * @brief Tool execution context
+ * @note Tracks the state and metadata of a single tool execution
+ */
 struct mcp_execution_context {
-	uint32_t execution_token; /**< Unique token for this execution */
+	char execution_token[UUID_STR_LEN]; /**< Unique token for this execution (UUID string) */
 	struct mcp_request_id request_id; /**< Actual request ID from the client message */
 	uint32_t transport_msg_id; /**< Message ID from transport layer for inter-layer tracking */
 	struct mcp_client_context *client; /**< Client that initiated this execution */
@@ -274,33 +274,43 @@ static void remove_client_locked(struct mcp_server_ctx *server, struct mcp_clien
  * Execution Context Helper Functions
  * NOTE: All these functions assume the caller holds execution_registry.mutex
  ******************************************************************************/
-
- /**
- * @brief Generates an execution token
- * @note The token is used to track each running execution of a tool
- * @return Execution token
- */
-static uint32_t generate_execution_token(uint32_t msg_id)
+/**
+* @brief Generates an execution token
+* @note The token is used to track each running execution of a tool
+* @param token_out Buffer to store the generated UUID string
+* @return 0 on success, negative errno on failure
+*/
+static int generate_execution_token(char *token_out)
 {
-	/* Mocking the generation for the 1st phase of development. Security phase
-	 * will replace this with UUID generation to make token guessing harder.
-	 */
-	return msg_id;
+	struct uuid execution_uuid;
+
+	if (token_out == NULL) {
+		return -EINVAL;
+	}
+
+	uuid_generate_v4(&execution_uuid);
+	uuid_to_string(&execution_uuid, token_out);
+
+	return 0;
 }
 
- /**
- * @brief Find an execution context by its token
- * @note Must be called with execution_registry.mutex held
- * @return Pointer to execution context if found, NULL otherwise
- */
+/**
+* @brief Find an execution context by its token
+* @note Must be called with execution_registry.mutex held
+* @return Pointer to execution context if found, NULL otherwise
+*/
 static struct mcp_execution_context *get_execution_context(struct mcp_server_ctx *server,
-							   const uint32_t execution_token)
+										const char *execution_token)
 {
 	struct mcp_execution_registry *execution_registry = &server->execution_registry;
 
+	if (execution_token == NULL) {
+		return NULL;
+	}
+
 	for (int i = 0; i < ARRAY_SIZE(execution_registry->executions); i++) {
 		if ((execution_registry->executions[i].execution_state != MCP_EXEC_FREE) &&
-			(execution_registry->executions[i].execution_token == execution_token)) {
+			(strcmp(execution_registry->executions[i].execution_token, execution_token) == 0)) {
 			return &execution_registry->executions[i];
 		}
 	}
@@ -320,12 +330,17 @@ static struct mcp_execution_context *add_execution_context(struct mcp_server_ctx
 {
 	struct mcp_execution_context *context = NULL;
 	struct mcp_execution_registry *execution_registry = &server->execution_registry;
-	uint32_t execution_token = generate_execution_token(msg_id);
+	int ret;
 
 	for (int i = 0; i < ARRAY_SIZE(execution_registry->executions); i++) {
 		context = &execution_registry->executions[i];
 		if (context->execution_state == MCP_EXEC_FREE) {
-			context->execution_token = execution_token;
+			ret = generate_execution_token(context->execution_token);
+			if (ret != 0) {
+				LOG_ERR("Failed to generate execution token: %d", ret);
+				return NULL;
+			}
+
 			context->request_id = *request_id;
 			context->transport_msg_id = msg_id;
 			context->client = client;
@@ -1179,7 +1194,7 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 				cancel_duration = current_time - context->cancel_timestamp;
 
 				if (cancel_duration > CONFIG_MCP_TOOL_CANCEL_TIMEOUT_MS) {
-					LOG_ERR("Execution token %u exceeded cancellation "
+					LOG_ERR("Execution token %s exceeded cancellation "
 						"timeout (%lld ms). Client: %p, Worker ID %u",
 						context->execution_token, cancel_duration,
 						context->client, (uint32_t)context->worker_id);
@@ -1194,7 +1209,7 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 			execution_duration = current_time - context->start_timestamp;
 
 			if (execution_duration > CONFIG_MCP_TOOL_EXEC_TIMEOUT_MS) {
-				LOG_WRN("Execution token %u exceeded execution timeout "
+				LOG_WRN("Execution token %s exceeded execution timeout "
 					"(%lld ms). Client: %p, Worker ID %u",
 					context->execution_token, execution_duration,
 					context->client, (uint32_t)context->worker_id);
@@ -1259,7 +1274,7 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 				idle_duration = current_time - context->last_message_timestamp;
 
 				if (idle_duration > CONFIG_MCP_TOOL_IDLE_TIMEOUT_MS) {
-					LOG_WRN("Execution token %u exceeded idle timeout "
+					LOG_WRN("Execution token %s exceeded idle timeout "
 						"(%lld ms). Client: %p, Worker ID %u",
 						context->execution_token, idle_duration,
 						context->client, (uint32_t)context->worker_id);
@@ -1569,7 +1584,7 @@ int mcp_server_start(mcp_server_ctx_t ctx)
 }
 
 int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_message *tool_msg,
-				   uint32_t execution_token)
+				const char *execution_token)
 {
 	int ret = 0;
 	uint32_t msg_id;
@@ -1597,7 +1612,7 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_m
 		return -EINVAL;
 	}
 
-	if (execution_token == 0) {
+	if ((execution_token == NULL) || (execution_token[0] == '\0')) {
 		LOG_ERR("Invalid execution token");
 		return -EINVAL;
 	}
@@ -1873,7 +1888,7 @@ int mcp_server_remove_tool(mcp_server_ctx_t ctx, const char *tool_name)
 	return 0;
 }
 
-int mcp_server_is_execution_canceled(mcp_server_ctx_t ctx, uint32_t execution_token,
+int mcp_server_is_execution_canceled(mcp_server_ctx_t ctx, const char *execution_token,
 				     bool *is_canceled)
 {
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;

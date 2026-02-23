@@ -66,29 +66,29 @@ struct mcp_tool_metadata {
 typedef void *mcp_server_ctx_t;
 
 /**
- * @brief Tool callback function
- *
- * @param event Type of tool event (call or cancel request)
- * @param params JSON string with tool parameters
- * @param execution_token Unique execution identifier
- *
- * @note This callback is executed in the context of an MCP request worker thread.
- *       The default worker thread stack size is CONFIG_MCP_REQUEST_WORKER_STACK_SIZE.
- *       If your tool callback requires more stack space increase this value.
- *
- *       Consider using heap allocation for large buffers to minimize stack usage.
- *
- *       This callback blocks an MCP server worker thread. For long-running operations,
- *       it is recommended to use your own thread pool to execute the work asynchronously
- *       and return quickly from this callback to avoid blocking the MCP server worker
- *       thread and potentially degrading server responsiveness.
- * 
- * 		 It is up to the user application whether it allows concurrent executions
- * 		 of the same tool or not.
- *
- * @return 0 on success, negative errno on failure
- */
-typedef int (*mcp_tool_callback_t)(enum mcp_tool_event_type event, const char *params, uint32_t execution_token);
+  * @brief Tool callback function
+  *
+  * @param event Type of tool event (call or cancel request)
+  * @param params JSON string with tool parameters
+  * @param execution_token Unique execution identifier (UUID string)
+  *
+  * @note This callback is executed in the context of an MCP request worker thread.
+  *       The default worker thread stack size is CONFIG_MCP_REQUEST_WORKER_STACK_SIZE.
+  *       If your tool callback requires more stack space increase this value.
+  *
+  *       Consider using heap allocation for large buffers to minimize stack usage.
+  *
+  *       This callback blocks an MCP server worker thread. For long-running operations,
+  *       it is recommended to use your own thread pool to execute the work asynchronously
+  *       and return quickly from this callback to avoid blocking the MCP server worker
+  *       thread and potentially degrading server responsiveness.
+  * 
+  * 		 It is up to the user application whether it allows concurrent executions
+  * 		 of the same tool or not.
+  *
+  * @return 0 on success, negative errno on failure
+  */
+typedef int (*mcp_tool_callback_t)(enum mcp_tool_event_type event, const char *params, const char *execution_token);
 
 /**
  * @brief Tool definition structure
@@ -142,12 +142,12 @@ int mcp_server_start(mcp_server_ctx_t server_ctx);
  * @brief Submit a message from a tool (response/notification)
  *
  * @param user_msg Application message to submit
- * @param execution_token Execution token for tracking
+ * @param execution_token Execution token for tracking (UUID string)
  * @return 0 on success, negative errno on failure
  */
 int mcp_server_submit_tool_message(mcp_server_ctx_t server_ctx,
 				   const struct mcp_tool_message *user_msg,
-				   uint32_t execution_token);
+				   const char *execution_token);
 
 /**
  * @brief Add a tool to the server
@@ -181,13 +181,13 @@ int mcp_server_remove_tool(mcp_server_ctx_t server_ctx, const char *tool_name);
  * tool call event (struct mcp_tool_event_type). This checker needs to use mutexes
  * and linear search to locate the required execution context.
  * 
- * @param execution_token Token representing the execution
+ * @param execution_token Token representing the execution (UUID string)
  * @param is_canceled Pointer to store cancellation state
  * @return 0 on success, negative errno on failure
  * @retval -EINVAL Invalid tool name
  * @retval -ENOENT Tool not found
  */
-int mcp_server_is_execution_canceled(mcp_server_ctx_t server_ctx, uint32_t execution_token,
+int mcp_server_is_execution_canceled(mcp_server_ctx_t server_ctx, const char *execution_token,
 				     bool *is_canceled);
 
 #ifdef __cplusplus

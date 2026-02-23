@@ -4,6 +4,8 @@
 menuconfig MCP_SERVER
 	bool "Model Context Protocol (MCP) Server support"
 	select JSON_LIBRARY
+	select UUID
+	select UUID_V4
 	help
 	  Support for MCP Server functionality.
 
