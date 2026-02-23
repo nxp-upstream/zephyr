@@ -1,5 +1,5 @@
 #
-# Copyright 2024-2025 NXP
+# Copyright 2024-2026 NXP
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -10,6 +10,12 @@ zephyr_compile_definitions_ifdef(CONFIG_NXP_LP_FLEXCOMM LPFLEXCOMM_INIT_NOT_USED
 
 zephyr_linker_sources_ifdef(CONFIG_NXP_FLEXSPI_BOOT_HEADER
   ROM_START SORT_KEY 0 boot_header.ld)
+
+# Configure CPU1 to use secure peripheral addresses (0x50000000 base)
+# This matches the devicetree peripheral@50000000 configuration
+if(CONFIG_SOC_MCXN947_CPU1)
+  zephyr_compile_options(-mcmse)
+endif()
 
 if(CONFIG_NXP_FLEXSPI_BOOT_HEADER)
   zephyr_linker_section_configure(
