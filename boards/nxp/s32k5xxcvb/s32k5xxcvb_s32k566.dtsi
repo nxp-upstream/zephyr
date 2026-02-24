@@ -21,6 +21,8 @@
 
 	chosen {
 		zephyr,canbus = &flexcan0;
+		zephyr,console = &lpe_lpuart0;
+		zephyr,shell-uart = &lpe_lpuart0;
 	};
 
 	leds {
@@ -78,6 +80,13 @@
 &eirq1 {
 	pinctrl-0 = <&eirq1_default>;
 	pinctrl-names = "default";
+	status = "okay";
+};
+
+&lpe_lpuart0 {
+	pinctrl-0 = <&lpe_lpuart0_default>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
 	status = "okay";
 };
 

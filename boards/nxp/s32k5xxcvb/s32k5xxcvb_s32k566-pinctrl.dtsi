@@ -14,6 +14,18 @@
 		};
 	};
 
+	lpe_lpuart0_default: lpe_lpuart0_default {
+		group1 {
+			pinmux = <PM7_LPE_LPUART0_TX_O>;
+			output-enable;
+		};
+
+		group2 {
+			pinmux = <PM8_LPE_LPUART0_RX>;
+			input-enable;
+		};
+	};
+
 	flexcan0_default: flexcan0_default {
 		group1 {
 			pinmux = <PF1_CAN0_TX>;
