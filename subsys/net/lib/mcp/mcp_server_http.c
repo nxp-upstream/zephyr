@@ -19,6 +19,10 @@
 #include "mcp_common.h"
 #include "mcp_server_internal.h"
 
+#if defined(CONFIG_MCP_HTTP_LOG_ADDRESS)
+#include <zephyr/net/net_mgmt.h>
+#endif /* CONFIG_MCP_HTTP_LOG_ADDRESS */
+
 LOG_MODULE_REGISTER(mcp_http_transport, CONFIG_MCP_LOG_LEVEL);
 
 /*******************************************************************************
@@ -131,12 +135,19 @@ static struct http_resource_detail_dynamic mcp_resource_detail = {
 
 uint32_t mcp_http_port = CONFIG_MCP_HTTP_PORT;
 
+/* Compile-time host address selection */
+#if defined(CONFIG_MCP_HTTP_ADDRESS_STATIC)
+#define MCP_HTTP_HOST CONFIG_NET_CONFIG_MY_IPV4_ADDR
+#else
+#define MCP_HTTP_HOST NULL
+#endif
+
 /* HTTP resource definition */
 HTTP_RESOURCE_DEFINE(mcp_endpoint_resource, mcp_http_service, CONFIG_MCP_HTTP_ENDPOINT,
 		     &mcp_resource_detail);
 
 /* HTTP service definition */
-HTTP_SERVICE_DEFINE(mcp_http_service, CONFIG_NET_CONFIG_MY_IPV4_ADDR, &mcp_http_port, 1,
+HTTP_SERVICE_DEFINE(mcp_http_service, MCP_HTTP_HOST, &mcp_http_port, 1,
 		    CONFIG_HTTP_SERVER_MAX_CLIENTS, 10, NULL, NULL);
 
 /* HTTP headers capture */
@@ -798,6 +809,44 @@ static int mcp_server_http_resource_handler(struct http_client_ctx *client,
 }
 
 /*******************************************************************************
+ * Optional IP address logging helper
+ ******************************************************************************/
+#if defined(CONFIG_MCP_HTTP_LOG_ADDRESS)
+static struct net_mgmt_event_callback net_addr_cb;
+
+static void log_http_address(struct net_if *iface)
+{
+#if defined(CONFIG_MCP_HTTP_ADDRESS_STATIC)
+	LOG_INF("HTTP server configured with static address: %s", CONFIG_NET_CONFIG_MY_IPV4_ADDR);
+	LOG_INF("Accessible at: http://%s:%d%s",
+		CONFIG_NET_CONFIG_MY_IPV4_ADDR, CONFIG_MCP_HTTP_PORT, CONFIG_MCP_HTTP_ENDPOINT);
+#else
+	struct in_addr *addr;
+	char addr_str[NET_IPV4_ADDR_LEN];
+	
+	/* For DHCP/dynamic addressing, show all assigned addresses */
+	addr = net_if_ipv4_get_global_addr(iface, NET_ADDR_PREFERRED);
+	if (addr) {
+		net_addr_ntop(AF_INET, addr, addr_str, sizeof(addr_str));
+		LOG_INF("HTTP server accessible at: http://%s:%d%s",
+			addr_str, CONFIG_MCP_HTTP_PORT, CONFIG_MCP_HTTP_ENDPOINT);
+	} else {
+		LOG_INF("HTTP server listening on 0.0.0.0:%d%s (no IP assigned yet)",
+			CONFIG_MCP_HTTP_PORT, CONFIG_MCP_HTTP_ENDPOINT);
+	}
+#endif
+}
+
+static void net_addr_event_handler(struct net_mgmt_event_callback *cb,
+							uint64_t mgmt_event, struct net_if *iface)
+{
+	if (mgmt_event == NET_EVENT_IPV4_ADDR_ADD) {
+		log_http_address(iface);
+	}
+}
+#endif /* CONFIG_MCP_HTTP_LOG_ADDRESS */
+
+/*******************************************************************************
  * Interface Implementation
  ******************************************************************************/
 int mcp_server_http_init(mcp_server_ctx_t server_ctx)
@@ -826,6 +875,13 @@ int mcp_server_http_init(mcp_server_ctx_t server_ctx)
 		return ret;
 	}
 
+#if defined(CONFIG_MCP_HTTP_LOG_ADDRESS)
+	/* Register network address event callback */
+	net_mgmt_init_event_callback(&net_addr_cb, net_addr_event_handler,
+				     NET_EVENT_IPV4_ADDR_ADD);
+	net_mgmt_add_event_callback(&net_addr_cb);
+#endif
+
 	http_transport_state.server_core = server_ctx;
 	http_transport_state.initialized = true;
 
@@ -847,8 +903,21 @@ int mcp_server_http_start(mcp_server_ctx_t server_ctx)
 		return ret;
 	}
 
-	LOG_INF("HTTP transport running on port %d, endpoint: %s", CONFIG_MCP_HTTP_PORT,
-		CONFIG_MCP_HTTP_ENDPOINT);
+#if defined(CONFIG_MCP_HTTP_ADDRESS_STATIC)
+	LOG_INF("HTTP transport running on %s:%d, endpoint: %s",
+		CONFIG_NET_CONFIG_MY_IPV4_ADDR, CONFIG_MCP_HTTP_PORT, CONFIG_MCP_HTTP_ENDPOINT);
+#else
+	LOG_INF("HTTP transport running on port %d, endpoint: %s",
+		CONFIG_MCP_HTTP_PORT, CONFIG_MCP_HTTP_ENDPOINT);
+#endif
+
+#if defined(CONFIG_MCP_HTTP_LOG_ADDRESS)
+	/* Log current address if already assigned */
+	struct net_if *iface = net_if_get_default();
+	if (iface) {
+		log_http_address(iface);
+	}
+#endif
 
 	return 0;
 }

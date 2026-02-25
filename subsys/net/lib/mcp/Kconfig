@@ -296,6 +296,37 @@ config MCP_HTTP_SSE_RETRY_MS
 	  of time before making the next GET request to check for additional
 	  server responses.
 
+choice MCP_HTTP_ADDRESS_MODE
+	prompt "HTTP server address mode"
+	default MCP_HTTP_ADDRESS_ANY
+	help
+	  Select how the HTTP server binds to network addresses.
+
+config MCP_HTTP_ADDRESS_ANY
+	bool "Listen on all interfaces (0.0.0.0)"
+	select NET_CONFIG_SETTINGS
+	select NET_DHCPV4
+	help
+	  HTTP server will listen on all available network interfaces.
+	  This works with DHCP, static IP, or any network configuration.
+
+config MCP_HTTP_ADDRESS_STATIC
+	bool "Use static IP address"
+	select NET_CONFIG_SETTINGS
+	select NET_CONFIG_NEED_IPV4
+	help
+	  HTTP server will bind to a specific static IP address.
+	  This will automatically enable network configuration.
+
+endchoice
+
+config MCP_HTTP_LOG_ADDRESS
+	bool "Log HTTP server address on startup"
+	default y
+	help
+	  Log the HTTP server's accessible address when an IP is assigned.
+	  Useful for DHCP configurations where the address is not known in advance.
+
 endif # MCP_TRANSPORT_HTTP
 
 if MCP_TRANSPORT_MOCK
