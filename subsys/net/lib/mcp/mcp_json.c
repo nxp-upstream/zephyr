@@ -23,6 +23,7 @@ struct mcp_json_envelope {
 	struct json_obj_token method;
 	struct json_obj_token id_string;
 	int64_t id_integer;
+	const char *protocolVersion;
 };
 
 static const struct json_obj_descr mcp_envelope_descr[] = {
@@ -30,6 +31,7 @@ static const struct json_obj_descr mcp_envelope_descr[] = {
 	JSON_OBJ_DESCR_PRIM(struct mcp_json_envelope, method, JSON_TOK_OPAQUE),
 	JSON_OBJ_DESCR_PRIM_NAMED(struct mcp_json_envelope, "id", id_string, JSON_TOK_OPAQUE),
 	JSON_OBJ_DESCR_PRIM_NAMED(struct mcp_json_envelope, "id", id_integer, JSON_TOK_INT64),
+	JSON_OBJ_DESCR_PRIM(struct mcp_json_envelope, protocolVersion, JSON_TOK_STRING),
 };
 
 /*******************************************************************************
@@ -325,17 +327,14 @@ static int parse_initialize_request(const char *buf, size_t len, struct mcp_mess
 {
 	struct mcp_json_init_req tmp = {0};
 	int ret = json_obj_parse((char *)buf, len, mcp_init_req_descr,
-				 ARRAY_SIZE(mcp_init_req_descr), &tmp);
+					ARRAY_SIZE(mcp_init_req_descr), &tmp);
 	if (ret < 0) {
 		LOG_DBG("Failed to parse initialize request: %d", ret);
 		return -EINVAL;
 	}
 	struct mcp_params_initialize *p = &msg->req.u.initialize;
 	memset(p, 0, sizeof(*p));
-	if (tmp.params.protocolVersion) {
-		mcp_safe_strcpy(p->protocol_version, sizeof(p->protocol_version),
-				tmp.params.protocolVersion);
-	}
+
 	return 0;
 }
 
@@ -440,7 +439,7 @@ int mcp_json_parse_message(char *buf, size_t len, struct mcp_message *out)
 	out->kind = MCP_MSG_INVALID;
 	out->method = MCP_METHOD_UNKNOWN;
 
-	/* Step 1: parse the envelope (jsonrpc, method, id) */
+	/* Step 1: parse the envelope (jsonrpc, method, id, protocolVersion) */
 	struct mcp_json_envelope env = {0};
 	int ret =
 		json_obj_parse(buf, len, mcp_envelope_descr, ARRAY_SIZE(mcp_envelope_descr), &env);
@@ -457,12 +456,22 @@ int mcp_json_parse_message(char *buf, size_t len, struct mcp_message *out)
 		return -EINVAL;
 	}
 
+	/* Extract protocol version if present */
+	bool has_protocol_version = (ret & BIT(4)) != 0;
+	if (has_protocol_version && env.protocolVersion) {
+		mcp_safe_strcpy(out->protocol_version, sizeof(out->protocol_version),
+				env.protocolVersion);
+	} else {
+		out->protocol_version[0] = '\0';
+	}
+
 	/* Determine presence and type of id based on bitmask */
 	bool has_id_string = (ret & BIT(2)) != 0;
 	bool has_id_integer = (ret & BIT(3)) != 0;
 
-	LOG_DBG("Parse result: jsonrpc=%d method=%d id_string=%d id_integer=%d",
-		(ret & BIT(0)) != 0, (ret & BIT(1)) != 0, has_id_string, has_id_integer);
+	LOG_DBG("Parse result: jsonrpc=%d method=%d id_string=%d id_integer=%d protocol=%d",
+		(ret & BIT(0)) != 0, (ret & BIT(1)) != 0, has_id_string, has_id_integer,
+		has_protocol_version);
 
 	/* Store ID as string */
 	if (has_id_integer) {
@@ -487,9 +496,9 @@ int mcp_json_parse_message(char *buf, size_t len, struct mcp_message *out)
 	}
 
 	/*
-	 * - Request: method with id (params optional).
-	 * - Notification: method without id (params optional).
-	 */
+		* - Request: method with id (params optional).
+		* - Notification: method without id (params optional).
+		*/
 	if (has_method && (has_id_integer || has_id_string)) {
 		out->kind = MCP_MSG_REQUEST;
 	} else if (has_method && !has_id_integer && !has_id_string) {

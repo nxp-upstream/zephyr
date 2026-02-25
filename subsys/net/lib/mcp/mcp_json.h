@@ -88,8 +88,8 @@ struct mcp_content_list {
 };
 
 struct mcp_params_initialize {
-	char protocol_version[MCP_MAX_PROTO_VER_LEN];
 	/* Capabilities/clientInfo not used for now */
+	bool dummy;
 };
 
 struct mcp_result_initialize {
@@ -144,31 +144,30 @@ struct mcp_params_notif_cancelled {
 	char reason[MCP_MAX_DESC_LEN];
 	bool has_reason;
 };
-
-struct mcp_message {
-	enum mcp_msg_kind kind;
-	struct mcp_request_id id;
-	enum mcp_method method;
-	union {
-		/* For requests */
-		struct {
-			union {
-				struct mcp_params_initialize initialize;
-				struct mcp_params_ping ping;
-				struct mcp_params_tools_list tools_list;
-				struct mcp_params_tools_call tools_call;
-			} u;
-		} req;
-		/* For notifications */
-		struct {
-			union {
-				struct mcp_params_notif_initialized initialized;
-				struct mcp_params_notif_cancelled cancelled;
-			} u;
-		} notif;
+	struct mcp_message {
+		enum mcp_msg_kind kind;
+		struct mcp_request_id id;
+		enum mcp_method method;
+		char protocol_version[MCP_MAX_PROTO_VER_LEN];
+		union {
+			/* For requests */
+			struct {
+				union {
+					struct mcp_params_initialize initialize;
+					struct mcp_params_ping ping;
+					struct mcp_params_tools_list tools_list;
+					struct mcp_params_tools_call tools_call;
+				} u;
+			} req;
+			/* For notifications */
+			struct {
+				union {
+					struct mcp_params_notif_initialized initialized;
+					struct mcp_params_notif_cancelled cancelled;
+				} u;
+			} notif;
+		};
 	};
-};
-
 /*******************************************************************************
  * Public API – parser
  ******************************************************************************/

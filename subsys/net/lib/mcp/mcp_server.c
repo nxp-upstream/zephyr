@@ -575,10 +575,9 @@ static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_m
 	struct mcp_result_initialize *response_data = NULL;
 	uint8_t *json_buffer = NULL;
 
-	if (strcmp(request->req.u.initialize.protocol_version, MCP_PROTOCOL_VERSION) != 0) {
+	if (strcmp(request->protocol_version, MCP_PROTOCOL_VERSION) != 0) {
 		LOG_WRN("Protocol version mismatch: %s",
-			request->req.u.initialize.protocol_version);
-		return -EINVAL;
+			request->protocol_version);
 	}
 
 	/* Lock client registry and add new client */
@@ -1439,6 +1438,13 @@ int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_transport_message
 	case MCP_METHOD_TOOLS_CALL:
 	case MCP_METHOD_NOTIF_INITIALIZED:
 	case MCP_METHOD_NOTIF_CANCELLED:
+		if (strcmp(parsed_msg->protocol_version, MCP_PROTOCOL_VERSION) != 0) {
+			LOG_ERR("Protocol version mismatch: %s",
+				parsed_msg->protocol_version);
+			mcp_free(parsed_msg);
+			return -EPROTO;
+		}
+
 		ret = k_mutex_lock(&client_registry->mutex, K_FOREVER);
 		if (ret != 0) {
 			LOG_ERR("Failed to lock client registry: %d", ret);

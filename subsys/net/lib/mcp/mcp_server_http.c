@@ -591,8 +591,14 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 			client_ref_put(mcp_client);
 		}
 
+		if (ret == -EPROTO) {
+			response_ctx->status = HTTP_400_BAD_REQUEST;
+		}
+		else {
+			response_ctx->status = HTTP_500_INTERNAL_SERVER_ERROR;
+		}
+		
 		LOG_ERR("Error processing request: %d", ret);
-		response_ctx->status = HTTP_500_INTERNAL_SERVER_ERROR;
 		response_ctx->final_chunk = true;
 		return 0;
 	}
