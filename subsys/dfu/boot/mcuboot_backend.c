@@ -478,12 +478,12 @@ int dfu_boot_read_img_info(int slot, struct dfu_boot_img_info *info)
 	/* Check magic */
 	if (hdr.ih_magic == erased_val_32) {
 		/* Slot is empty */
-		return 0;
+		return -ENOENT;
 	}
 
 	if (hdr.ih_magic != IMAGE_MAGIC) {
 		LOG_DBG("Invalid image magic: 0x%08x", hdr.ih_magic);
-		return -ENOENT;
+		return 0;
 	}
 
 	/* Extract version */

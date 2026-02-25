@@ -5,76 +5,83 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/**
- * @file
- * @brief MCUboot-specific legacy functions
- *
- * This file contains MCUboot-specific implementations that provide
- * backward compatibility with existing applications. These functions
- * work with flash area IDs rather than slot numbers.
- */
-
 #include <stddef.h>
 #include <errno.h>
 #include <string.h>
 #include <zephyr/drivers/flash.h>
 #include <zephyr/storage/flash_map.h>
 #include <zephyr/kernel.h>
+#include <zephyr/init.h>
 #include <zephyr/logging/log.h>
+
+#include <zephyr/sys/__assert.h>
 #include <zephyr/sys/byteorder.h>
 
-#include <bootutil/bootutil_public.h>
+#include "bootutil/bootutil_public.h"
 #include <zephyr/dfu/mcuboot.h>
-#include <zephyr/dfu/dfu_boot.h>
 
 #if defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD) || \
 	defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD_WITH_REVERT)
+/* For RAM LOAD mode, the active image must be fetched from the bootloader */
 #include <bootutil/boot_status.h>
 #include <zephyr/retention/blinfo.h>
+
+#define SLOT0_PARTITION		slot0_partition
+#define SLOT1_PARTITION		slot1_partition
+#define SLOT2_PARTITION		slot2_partition
+#define SLOT3_PARTITION		slot3_partition
+#define SLOT4_PARTITION		slot4_partition
+#define SLOT5_PARTITION		slot5_partition
+#define SLOT6_PARTITION		slot6_partition
+#define SLOT7_PARTITION		slot7_partition
+#define SLOT8_PARTITION		slot8_partition
+#define SLOT9_PARTITION		slot9_partition
+#define SLOT10_PARTITION	slot10_partition
+#define SLOT11_PARTITION	slot11_partition
+#define SLOT12_PARTITION	slot12_partition
+#define SLOT13_PARTITION	slot13_partition
+#define SLOT14_PARTITION	slot14_partition
+#define SLOT15_PARTITION	slot15_partition
 #endif
+
+#include "mcuboot_priv.h"
 
 LOG_MODULE_REGISTER(mcuboot_dfu, CONFIG_IMG_MANAGER_LOG_LEVEL);
 
 /*
- * MCUboot header constants
+ * Helpers for image headers and trailers, as defined by mcuboot.
  */
+
+/*
+ * Strict defines: the definitions in the following block contain
+ * values which are MCUboot implementation requirements.
+ */
+
+/* Header: */
 #define BOOT_HEADER_MAGIC_V1 0x96f3b83d
 #define BOOT_HEADER_SIZE_V1 32
 
-/*
- * Image index enum for swap using offset mode
- */
-enum image_index {
+enum IMAGE_INDEXES {
 	IMAGE_INDEX_INVALID = -1,
-	IMAGE_INDEX_0 = 0,
-	IMAGE_INDEX_1 = 1,
-	IMAGE_INDEX_2 = 2,
-	IMAGE_INDEX_3 = 3,
-	IMAGE_INDEX_4 = 4,
-	IMAGE_INDEX_5 = 5,
-	IMAGE_INDEX_6 = 6,
-	IMAGE_INDEX_7 = 7,
+	IMAGE_INDEX_0,
+	IMAGE_INDEX_1,
+	IMAGE_INDEX_2,
+	IMAGE_INDEX_3,
+	IMAGE_INDEX_4,
+	IMAGE_INDEX_5,
+	IMAGE_INDEX_6,
+	IMAGE_INDEX_7,
 };
 
-/*
- * Slot partition definitions (needed for area_id to image mapping)
- */
-#define SLOT0_PARTITION  slot0_partition
-#define SLOT1_PARTITION  slot1_partition
-#define SLOT2_PARTITION  slot2_partition
-#define SLOT3_PARTITION  slot3_partition
-#define SLOT4_PARTITION  slot4_partition
-#define SLOT5_PARTITION  slot5_partition
-#define SLOT6_PARTITION  slot6_partition
-#define SLOT7_PARTITION  slot7_partition
-#define SLOT8_PARTITION  slot8_partition
-#define SLOT9_PARTITION  slot9_partition
-#define SLOT10_PARTITION slot10_partition
-#define SLOT11_PARTITION slot11_partition
-#define SLOT12_PARTITION slot12_partition
-#define SLOT13_PARTITION slot13_partition
-#define SLOT14_PARTITION slot14_partition
-#define SLOT15_PARTITION slot15_partition
+#if defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD) || \
+	defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD_WITH_REVERT)
+/* For RAM LOAD mode, the active image must be fetched from the bootloader */
+#define ACTIVE_SLOT_FLASH_AREA_ID boot_fetch_active_slot()
+#define INVALID_SLOT_ID 255
+#else
+/* Get active partition. zephyr,code-partition chosen node must be defined */
+#define ACTIVE_SLOT_FLASH_AREA_ID DT_FIXED_PARTITION_ID(DT_CHOSEN(zephyr_code_partition))
+#endif
 
 /*
  * Raw (on-flash) representation of the v1 image header.
@@ -95,126 +102,197 @@ struct mcuboot_v1_raw_header {
 	uint32_t pad2;
 } __packed;
 
+/*
+ * End of strict defines
+ */
+
 #if defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD) || \
 	defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD_WITH_REVERT)
-#define INVALID_SLOT_ID 255
-
 uint8_t boot_fetch_active_slot(void)
 {
 	int rc;
 	uint8_t slot;
 
 	rc = blinfo_lookup(BLINFO_RUNNING_SLOT, &slot, sizeof(slot));
+
 	if (rc <= 0) {
 		LOG_ERR("Failed to fetch active slot: %d", rc);
+
 		return INVALID_SLOT_ID;
 	}
 
-	/* Convert slot number to flash area ID */
-	int area_id = dfu_boot_get_flash_area_id(slot);
-	if (area_id < 0) {
-		return INVALID_SLOT_ID;
+	LOG_DBG("Active slot: %d", slot);
+	/* Map slot number back to flash area ID */
+	switch (slot) {
+	case 0:
+		return FIXED_PARTITION_ID(SLOT0_PARTITION);
+
+#if FIXED_PARTITION_EXISTS(SLOT1_PARTITION)
+	case 1:
+		return FIXED_PARTITION_ID(SLOT1_PARTITION);
+#endif
+
+#if FIXED_PARTITION_EXISTS(SLOT2_PARTITION)
+	case 2:
+		return FIXED_PARTITION_ID(SLOT2_PARTITION);
+#endif
+
+#if FIXED_PARTITION_EXISTS(SLOT3_PARTITION)
+	case 3:
+		return FIXED_PARTITION_ID(SLOT3_PARTITION);
+#endif
+
+#if FIXED_PARTITION_EXISTS(SLOT4_PARTITION)
+	case 4:
+		return FIXED_PARTITION_ID(SLOT4_PARTITION);
+#endif
+
+#if FIXED_PARTITION_EXISTS(SLOT5_PARTITION)
+	case 5:
+		return FIXED_PARTITION_ID(SLOT5_PARTITION);
+#endif
+
+#if FIXED_PARTITION_EXISTS(SLOT6_PARTITION)
+	case 6:
+		return FIXED_PARTITION_ID(SLOT6_PARTITION);
+#endif
+
+#if FIXED_PARTITION_EXISTS(SLOT7_PARTITION)
+	case 7:
+		return FIXED_PARTITION_ID(SLOT7_PARTITION);
+#endif
+
+#if FIXED_PARTITION_EXISTS(SLOT8_PARTITION)
+	case 8:
+		return FIXED_PARTITION_ID(SLOT8_PARTITION);
+#endif
+
+#if FIXED_PARTITION_EXISTS(SLOT9_PARTITION)
+	case 9:
+		return FIXED_PARTITION_ID(SLOT9_PARTITION);
+#endif
+
+#if FIXED_PARTITION_EXISTS(SLOT10_PARTITION)
+	case 10:
+		return FIXED_PARTITION_ID(SLOT10_PARTITION);
+#endif
+
+#if FIXED_PARTITION_EXISTS(SLOT11_PARTITION)
+	case 11:
+		return FIXED_PARTITION_ID(SLOT11_PARTITION);
+#endif
+
+#if FIXED_PARTITION_EXISTS(SLOT12_PARTITION)
+	case 12:
+		return FIXED_PARTITION_ID(SLOT12_PARTITION);
+#endif
+
+#if FIXED_PARTITION_EXISTS(SLOT13_PARTITION)
+	case 13:
+		return FIXED_PARTITION_ID(SLOT13_PARTITION);
+#endif
+
+#if FIXED_PARTITION_EXISTS(SLOT14_PARTITION)
+	case 14:
+		return FIXED_PARTITION_ID(SLOT14_PARTITION);
+#endif
+
+#if FIXED_PARTITION_EXISTS(SLOT15_PARTITION)
+	case 15:
+		return FIXED_PARTITION_ID(SLOT15_PARTITION);
+#endif
+
+	default:
+		break;
 	}
 
-	return (uint8_t)area_id;
+	return INVALID_SLOT_ID;
 }
-#else
+#else  /* CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD ||
+	* CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD_WITH_REVERT
+	*/
 uint8_t boot_fetch_active_slot(void)
 {
-	int slot = dfu_boot_get_active_slot(dfu_boot_get_active_image());
-	int area_id = dfu_boot_get_flash_area_id(slot);
-
-	return (area_id >= 0) ? (uint8_t)area_id : 0;
+	return ACTIVE_SLOT_FLASH_AREA_ID;
 }
-#endif
+#endif /* CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD ||
+	* CONFIG_MCUBOOT_BOOTLOADER_MODE_RAM_LOAD_WITH_REVERT
+	*/
 
 #if defined(CONFIG_MCUBOOT_BOOTLOADER_MODE_SWAP_USING_OFFSET)
-/**
- * Get image index from flash area ID for swap-using-offset secondary slots.
- * This is the legacy version that works with area_id instead of slot number.
- * Returns IMAGE_INDEX_INVALID if area_id is not a secondary slot.
- */
-static int get_image_index_from_area_id(uint8_t area_id)
-{
-	if (area_id == FIXED_PARTITION_ID(SLOT1_PARTITION)) {
-		return IMAGE_INDEX_0;
-	}
-#if FIXED_PARTITION_EXISTS(SLOT3_PARTITION)
-	if (area_id == FIXED_PARTITION_ID(SLOT3_PARTITION)) {
-		return IMAGE_INDEX_1;
-	}
-#endif
-#if FIXED_PARTITION_EXISTS(SLOT5_PARTITION)
-	if (area_id == FIXED_PARTITION_ID(SLOT5_PARTITION)) {
-		return IMAGE_INDEX_2;
-	}
-#endif
-#if FIXED_PARTITION_EXISTS(SLOT7_PARTITION)
-	if (area_id == FIXED_PARTITION_ID(SLOT7_PARTITION)) {
-		return IMAGE_INDEX_3;
-	}
-#endif
-#if FIXED_PARTITION_EXISTS(SLOT9_PARTITION)
-	if (area_id == FIXED_PARTITION_ID(SLOT9_PARTITION)) {
-		return IMAGE_INDEX_4;
-	}
-#endif
-#if FIXED_PARTITION_EXISTS(SLOT11_PARTITION)
-	if (area_id == FIXED_PARTITION_ID(SLOT11_PARTITION)) {
-		return IMAGE_INDEX_5;
-	}
-#endif
-#if FIXED_PARTITION_EXISTS(SLOT13_PARTITION)
-	if (area_id == FIXED_PARTITION_ID(SLOT13_PARTITION)) {
-		return IMAGE_INDEX_6;
-	}
-#endif
-#if FIXED_PARTITION_EXISTS(SLOT15_PARTITION)
-	if (area_id == FIXED_PARTITION_ID(SLOT15_PARTITION)) {
-		return IMAGE_INDEX_7;
-	}
-#endif
-
-	return IMAGE_INDEX_INVALID;
-}
-
 size_t boot_get_image_start_offset(uint8_t area_id)
 {
 	size_t off = 0;
-	int image = get_image_index_from_area_id(area_id);
+	int image = IMAGE_INDEX_INVALID;
 
-	if (image == IMAGE_INDEX_INVALID) {
-		/* Not a secondary slot, no offset needed */
-		return 0;
+	if (area_id == FIXED_PARTITION_ID(slot1_partition)) {
+		image = IMAGE_INDEX_0;
+#if FIXED_PARTITION_EXISTS(slot3_partition)
+	} else if (area_id == FIXED_PARTITION_ID(slot3_partition)) {
+		image = IMAGE_INDEX_1;
+#endif
+#if FIXED_PARTITION_EXISTS(slot5_partition)
+	} else if (area_id == FIXED_PARTITION_ID(slot5_partition)) {
+		image = IMAGE_INDEX_2;
+#endif
+#if FIXED_PARTITION_EXISTS(slot7_partition)
+	} else if (area_id == FIXED_PARTITION_ID(slot7_partition)) {
+		image = IMAGE_INDEX_3;
+#endif
+#if FIXED_PARTITION_EXISTS(slot9_partition)
+	} else if (area_id == FIXED_PARTITION_ID(slot9_partition)) {
+		image = IMAGE_INDEX_4;
+#endif
+#if FIXED_PARTITION_EXISTS(slot11_partition)
+	} else if (area_id == FIXED_PARTITION_ID(slot11_partition)) {
+		image = IMAGE_INDEX_5;
+#endif
+#if FIXED_PARTITION_EXISTS(slot13_partition)
+	} else if (area_id == FIXED_PARTITION_ID(slot13_partition)) {
+		image = IMAGE_INDEX_6;
+#endif
+#if FIXED_PARTITION_EXISTS(slot15_partition)
+	} else if (area_id == FIXED_PARTITION_ID(slot15_partition)) {
+		image = IMAGE_INDEX_7;
+#endif
+
 	}
 
-	const struct flash_area *fa;
-	uint32_t num_sectors = SWAP_USING_OFFSET_SECTOR_UPDATE_BEGIN;
-	struct flash_sector sector_data;
-	int rc;
-
-	rc = flash_area_open(area_id, &fa);
-	if (rc) {
-		LOG_ERR("Flash open area %u failed: %d", area_id, rc);
-		return 0;
-	}
-
-	if (mcuboot_swap_type_multi(image) != BOOT_SWAP_TYPE_REVERT) {
-		/* For swap using offset mode, the image starts in the second sector of
-		 * the upgrade slot, so apply the offset when this is needed
+	if (image != IMAGE_INDEX_INVALID) {
+		/* Need to check status from primary slot to get correct offset for secondary
+		 * slot image header
 		 */
-		rc = flash_area_get_sectors(area_id, &num_sectors, &sector_data);
-		if ((rc != 0 && rc != -ENOMEM) ||
-		    num_sectors != SWAP_USING_OFFSET_SECTOR_UPDATE_BEGIN) {
-			LOG_ERR("Failed to get sector details: %d", rc);
-		} else {
-			off = sector_data.fs_size;
+		const struct flash_area *fa;
+		uint32_t num_sectors = SWAP_USING_OFFSET_SECTOR_UPDATE_BEGIN;
+		struct flash_sector sector_data;
+		int rc;
+
+		rc = flash_area_open(area_id, &fa);
+		if (rc) {
+			LOG_ERR("Flash open area %u failed: %d", area_id, rc);
+			goto done;
 		}
+
+		if (mcuboot_swap_type_multi(image) != BOOT_SWAP_TYPE_REVERT) {
+			/* For swap using offset mode, the image starts in the second sector of
+			 * the upgrade slot, so apply the offset when this is needed, do this by
+			 * getting information on first sector only, this is expected to return an
+			 * error as there are more slots, so allow the not enough memory error
+			 */
+			rc = flash_area_get_sectors(area_id, &num_sectors, &sector_data);
+			if ((rc != 0 && rc != -ENOMEM) ||
+			    num_sectors != SWAP_USING_OFFSET_SECTOR_UPDATE_BEGIN) {
+				LOG_ERR("Failed to get sector details: %d", rc);
+			} else {
+				off = sector_data.fs_size;
+			}
+		}
+
+		flash_area_close(fa);
 	}
 
-	flash_area_close(fa);
-
-	LOG_DBG("Start offset for area %u: 0x%zx", area_id, off);
+done:
+	LOG_DBG("Start offset for area %u: 0x%x", area_id, off);
 	return off;
 }
 #endif /* CONFIG_MCUBOOT_BOOTLOADER_MODE_SWAP_USING_OFFSET */
@@ -231,6 +309,9 @@ static int boot_read_v1_header(uint8_t area_id,
 		return rc;
 	}
 
+	/*
+	 * Read and validty-check the raw header.
+	 */
 	rc = flash_area_read(fa, off, v1_raw, sizeof(*v1_raw));
 	flash_area_close(fa);
 	if (rc) {
@@ -240,16 +321,27 @@ static int boot_read_v1_header(uint8_t area_id,
 	v1_raw->header_magic = sys_le32_to_cpu(v1_raw->header_magic);
 	v1_raw->header_size = sys_le16_to_cpu(v1_raw->header_size);
 
+	/*
+	 * Validity checks.
+	 *
+	 * Larger values in header_size than BOOT_HEADER_SIZE_V1 are
+	 * possible, e.g. if Zephyr was linked with
+	 * CONFIG_ROM_START_OFFSET > BOOT_HEADER_SIZE_V1.
+	 */
 	if ((v1_raw->header_magic != BOOT_HEADER_MAGIC_V1) ||
 	    (v1_raw->header_size < BOOT_HEADER_SIZE_V1)) {
 		return -EIO;
 	}
 
-	v1_raw->image_load_address = sys_le32_to_cpu(v1_raw->image_load_address);
+	v1_raw->image_load_address =
+		sys_le32_to_cpu(v1_raw->image_load_address);
+	v1_raw->header_size = sys_le16_to_cpu(v1_raw->header_size);
 	v1_raw->image_size = sys_le32_to_cpu(v1_raw->image_size);
 	v1_raw->image_flags = sys_le32_to_cpu(v1_raw->image_flags);
-	v1_raw->version.revision = sys_le16_to_cpu(v1_raw->version.revision);
-	v1_raw->version.build_num = sys_le32_to_cpu(v1_raw->version.build_num);
+	v1_raw->version.revision =
+		sys_le16_to_cpu(v1_raw->version.revision);
+	v1_raw->version.build_num =
+		sys_le32_to_cpu(v1_raw->version.build_num);
 
 	return 0;
 }
@@ -261,17 +353,30 @@ int boot_read_bank_header(uint8_t area_id,
 	int rc;
 	struct mcuboot_v1_raw_header v1_raw;
 	struct mcuboot_img_sem_ver *sem_ver;
-	size_t v1_min_size = sizeof(uint32_t) + sizeof(struct mcuboot_img_header_v1);
+	size_t v1_min_size = (sizeof(uint32_t) +
+			      sizeof(struct mcuboot_img_header_v1));
 
+	/*
+	 * Only version 1 image headers are supported.
+	 */
 	if (header_size < v1_min_size) {
 		return -ENOMEM;
 	}
-
 	rc = boot_read_v1_header(area_id, &v1_raw);
 	if (rc) {
 		return rc;
 	}
 
+	/*
+	 * Copy just the fields we care about into the return parameter.
+	 *
+	 * - header_magic:       skip (only used to check format)
+	 * - image_load_address: skip (only matters for PIC code)
+	 * - header_size:        skip (only used to check format)
+	 * - image_size:         include
+	 * - image_flags:        skip (all unsupported or not relevant)
+	 * - version:            include
+	 */
 	header->mcuboot_version = 1U;
 	header->h.v1.image_size = v1_raw.image_size;
 	sem_ver = &header->h.v1.sem_ver;
@@ -279,7 +384,6 @@ int boot_read_bank_header(uint8_t area_id,
 	sem_ver->minor = v1_raw.version.minor;
 	sem_ver->revision = v1_raw.version.revision;
 	sem_ver->build_num = v1_raw.version.build_num;
-
 	return 0;
 }
 
@@ -295,6 +399,75 @@ int mcuboot_swap_type(void)
 #else
 	return BOOT_SWAP_TYPE_NONE;
 #endif
+
+}
+
+int boot_request_upgrade(int permanent)
+{
+#ifdef FLASH_AREA_IMAGE_SECONDARY
+	int rc;
+
+	rc = boot_set_pending(permanent);
+	if (rc) {
+		return -EFAULT;
+	}
+#endif /* FLASH_AREA_IMAGE_SECONDARY */
+	return 0;
+}
+
+int boot_request_upgrade_multi(int image_index, int permanent)
+{
+	int rc;
+
+	rc = boot_set_pending_multi(image_index, permanent);
+	if (rc) {
+		return -EFAULT;
+	}
+	return 0;
+}
+
+bool boot_is_img_confirmed(void)
+{
+	struct boot_swap_state state;
+	const struct flash_area *fa;
+	int rc;
+
+	rc = flash_area_open(ACTIVE_SLOT_FLASH_AREA_ID, &fa);
+	if (rc) {
+		return false;
+	}
+
+	rc = boot_read_swap_state(fa, &state);
+	if (rc != 0) {
+		return false;
+	}
+
+	if (state.magic == BOOT_MAGIC_UNSET) {
+		/* This is initial/preprogramed image.
+		 * Such image can neither be reverted nor physically confirmed.
+		 * Treat this image as confirmed which ensures consistency
+		 * with `boot_write_img_confirmed...()` procedures.
+		 */
+		return true;
+	}
+
+	return state.image_ok == BOOT_FLAG_SET;
+}
+
+int boot_write_img_confirmed(void)
+{
+	const struct flash_area *fa;
+	int rc = 0;
+
+	if (flash_area_open(ACTIVE_SLOT_FLASH_AREA_ID, &fa) != 0) {
+		return -EIO;
+	}
+
+	rc = boot_set_next(fa, true, true);
+
+	flash_area_close(fa);
+
+	return rc;
 }
 
 int boot_write_img_confirmed_multi(int image_index)
@@ -320,6 +493,7 @@ int boot_erase_img_bank(uint8_t area_id)
 	}
 
 	rc = flash_area_flatten(fa, 0, fa->fa_size);
+
 	flash_area_close(fa);
 
 	return rc;
@@ -332,9 +506,9 @@ ssize_t boot_get_trailer_status_offset(size_t area_size)
 
 ssize_t boot_get_area_trailer_status_offset(uint8_t area_id)
 {
+	int rc;
 	const struct flash_area *fa;
 	ssize_t offset;
-	int rc;
 
 	rc = flash_area_open(area_id, &fa);
 	if (rc) {
@@ -342,6 +516,7 @@ ssize_t boot_get_area_trailer_status_offset(uint8_t area_id)
 	}
 
 	offset = boot_get_trailer_status_offset(fa->fa_size);
+
 	flash_area_close(fa);
 
 	if (offset < 0) {
@@ -349,29 +524,4 @@ ssize_t boot_get_area_trailer_status_offset(uint8_t area_id)
 	}
 
 	return offset;
-}
-
-bool boot_is_img_confirmed(void)
-{
-	return dfu_boot_is_confirmed();
-}
-
-int boot_write_img_confirmed(void)
-{
-	return dfu_boot_confirm();
-}
-
-int boot_request_upgrade(int permanent)
-{
-#ifdef FLASH_AREA_IMAGE_SECONDARY
-	return dfu_boot_set_pending(1, permanent == BOOT_UPGRADE_PERMANENT);
-#else
-	return 0;
-#endif
-}
-
-int boot_request_upgrade_multi(int image_index, int permanent)
-{
-	int slot = (image_index * 2) + 1; /* Secondary slot for image */
-	return dfu_boot_set_pending(slot, permanent == BOOT_UPGRADE_PERMANENT);
 }

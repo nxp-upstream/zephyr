@@ -143,11 +143,11 @@ int img_mgmt_read_info(int image_slot, struct image_version *ver, uint8_t *hash,
 
 	rc = dfu_boot_read_img_info(image_slot, &info);
 	if (rc != 0) {
-		return IMG_MGMT_ERR_FLASH_READ_FAILED;
+		return IMG_MGMT_ERR_NO_IMAGE;
 	}
 
 	if (!info.valid) {
-		return IMG_MGMT_ERR_NO_IMAGE;
+		return IMG_MGMT_ERR_INVALID_IMAGE_HEADER_MAGIC;
 	}
 
 	if (ver != NULL) {
@@ -166,12 +166,6 @@ int img_mgmt_read_info(int image_slot, struct image_version *ver, uint8_t *hash,
 
 	if (flags != NULL) {
 		*flags = info.flags;
-		if (info.flags & DFU_BOOT_IMG_F_NON_BOOTABLE) {
-			*flags |= (1 << 0); /* IMAGE_F_NON_BOOTABLE */
-		}
-		if (info.flags & DFU_BOOT_IMG_F_ROM_FIXED) {
-			*flags |= (1 << 8); /* IMAGE_F_ROM_FIXED */
-		}
 	}
 
 	return 0;
