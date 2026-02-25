@@ -23,7 +23,6 @@ struct mcp_json_envelope {
 	struct json_obj_token method;
 	struct json_obj_token id_string;
 	int64_t id_integer;
-	const char *protocolVersion;
 };
 
 static const struct json_obj_descr mcp_envelope_descr[] = {
@@ -31,7 +30,6 @@ static const struct json_obj_descr mcp_envelope_descr[] = {
 	JSON_OBJ_DESCR_PRIM(struct mcp_json_envelope, method, JSON_TOK_OPAQUE),
 	JSON_OBJ_DESCR_PRIM_NAMED(struct mcp_json_envelope, "id", id_string, JSON_TOK_OPAQUE),
 	JSON_OBJ_DESCR_PRIM_NAMED(struct mcp_json_envelope, "id", id_integer, JSON_TOK_INT64),
-	JSON_OBJ_DESCR_PRIM(struct mcp_json_envelope, protocolVersion, JSON_TOK_STRING),
 };
 
 /*******************************************************************************
@@ -53,15 +51,55 @@ static const struct json_obj_descr mcp_init_req_descr[] = {
 };
 
 /*******************************************************************************
+ * Ping request descriptor
+ ******************************************************************************/
+struct mcp_json_ping_req {
+	struct {
+		const char *protocolVersion;
+	} params;
+};
+
+static const struct json_obj_descr mcp_ping_params_descr[] = {
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_ping_req *)0)->params), protocolVersion,
+			    JSON_TOK_STRING),
+};
+
+static const struct json_obj_descr mcp_ping_req_descr[] = {
+	JSON_OBJ_DESCR_OBJECT(struct mcp_json_ping_req, params, mcp_ping_params_descr),
+};
+
+/*******************************************************************************
+ * Tools list request descriptor
+ ******************************************************************************/
+struct mcp_json_tools_list_req {
+	struct {
+		const char *protocolVersion;
+	} params;
+};
+
+static const struct json_obj_descr mcp_tools_list_params_descr[] = {
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_tools_list_req *)0)->params),
+			    protocolVersion, JSON_TOK_STRING),
+};
+
+static const struct json_obj_descr mcp_tools_list_req_descr[] = {
+	JSON_OBJ_DESCR_OBJECT(struct mcp_json_tools_list_req, params,
+			      mcp_tools_list_params_descr),
+};
+
+/*******************************************************************************
  * Tools call request descriptor
  ******************************************************************************/
 struct mcp_json_tools_call_req {
 	struct {
+		const char *protocolVersion;
 		const char *name;
 	} params;
 };
 
 static const struct json_obj_descr mcp_tools_call_params_descr[] = {
+	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_tools_call_req *)0)->params),
+			    protocolVersion, JSON_TOK_STRING),
 	JSON_OBJ_DESCR_PRIM(__typeof__(((struct mcp_json_tools_call_req *)0)->params), name,
 			    JSON_TOK_STRING),
 };
@@ -335,26 +373,55 @@ static int parse_initialize_request(const char *buf, size_t len, struct mcp_mess
 	struct mcp_params_initialize *p = &msg->req.u.initialize;
 	memset(p, 0, sizeof(*p));
 
+	if (tmp.params.protocolVersion) {
+		mcp_safe_strcpy(msg->protocol_version, sizeof(msg->protocol_version),
+				tmp.params.protocolVersion);
+	}
+
 	return 0;
 }
 
 /* ping request: we ignore params for now */
 static int parse_ping_request(const char *buf, size_t len, struct mcp_message *msg)
 {
-	(void)buf;
-	(void)len;
+	struct mcp_json_ping_req tmp = {0};
+	int ret = json_obj_parse((char *)buf, len, mcp_ping_req_descr,
+					ARRAY_SIZE(mcp_ping_req_descr), &tmp);
+	if (ret < 0) {
+		LOG_DBG("Failed to parse ping request: %d", ret);
+		return -EINVAL;
+	}
+
 	struct mcp_params_ping *p = &msg->req.u.ping;
 	memset(p, 0, sizeof(*p));
+
+	if (tmp.params.protocolVersion) {
+		mcp_safe_strcpy(msg->protocol_version, sizeof(msg->protocol_version),
+				tmp.params.protocolVersion);
+	}
+
 	return 0;
 }
 
 /* tools/list request: no params for now */
 static int parse_tools_list_request(const char *buf, size_t len, struct mcp_message *msg)
 {
-	(void)buf;
-	(void)len;
+	struct mcp_json_tools_list_req tmp = {0};
+	int ret = json_obj_parse((char *)buf, len, mcp_tools_list_req_descr,
+					ARRAY_SIZE(mcp_tools_list_req_descr), &tmp);
+	if (ret < 0) {
+		LOG_DBG("Failed to parse tools_list request: %d", ret);
+		return -EINVAL;
+	}
+
 	struct mcp_params_tools_list *p = &msg->req.u.tools_list;
 	memset(p, 0, sizeof(*p));
+
+	if (tmp.params.protocolVersion) {
+		mcp_safe_strcpy(msg->protocol_version, sizeof(msg->protocol_version),
+				tmp.params.protocolVersion);
+	}
+
 	return 0;
 }
 
@@ -369,13 +436,18 @@ static int parse_tools_call_request(const char *buf, size_t len, struct mcp_mess
 	struct mcp_json_tools_call_req tmp = {0};
 
 	int ret = json_obj_parse((char *)buf, len, mcp_tools_call_req_descr,
-				 ARRAY_SIZE(mcp_tools_call_req_descr), &tmp);
+					ARRAY_SIZE(mcp_tools_call_req_descr), &tmp);
 	if (ret < 0) {
 		return -EINVAL;
 	}
 
 	struct mcp_params_tools_call *p = &msg->req.u.tools_call;
 	memset(p, 0, sizeof(*p));
+
+	if (tmp.params.protocolVersion) {
+		mcp_safe_strcpy(msg->protocol_version, sizeof(msg->protocol_version),
+				tmp.params.protocolVersion);
+	}
 
 	if (tmp.params.name) {
 		mcp_safe_strcpy(p->name, sizeof(p->name), tmp.params.name);
@@ -456,22 +528,12 @@ int mcp_json_parse_message(char *buf, size_t len, struct mcp_message *out)
 		return -EINVAL;
 	}
 
-	/* Extract protocol version if present */
-	bool has_protocol_version = (ret & BIT(4)) != 0;
-	if (has_protocol_version && env.protocolVersion) {
-		mcp_safe_strcpy(out->protocol_version, sizeof(out->protocol_version),
-				env.protocolVersion);
-	} else {
-		out->protocol_version[0] = '\0';
-	}
-
 	/* Determine presence and type of id based on bitmask */
 	bool has_id_string = (ret & BIT(2)) != 0;
 	bool has_id_integer = (ret & BIT(3)) != 0;
 
-	LOG_DBG("Parse result: jsonrpc=%d method=%d id_string=%d id_integer=%d protocol=%d",
-		(ret & BIT(0)) != 0, (ret & BIT(1)) != 0, has_id_string, has_id_integer,
-		has_protocol_version);
+	LOG_DBG("Parse result: jsonrpc=%d method=%d id_string=%d id_integer=%d",
+		(ret & BIT(0)) != 0, (ret & BIT(1)) != 0, has_id_string, has_id_integer);
 
 	/* Store ID as string */
 	if (has_id_integer) {

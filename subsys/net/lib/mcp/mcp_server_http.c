@@ -38,6 +38,7 @@ struct mcp_http_request_accumulator {
 	char session_id_hdr[CONFIG_HTTP_SERVER_MAX_HEADER_LEN];
 	char content_type_hdr[CONFIG_HTTP_SERVER_MAX_HEADER_LEN];
 	char origin_hdr[CONFIG_HTTP_SERVER_MAX_HEADER_LEN];
+	char protocol_version_hdr[CONFIG_HTTP_SERVER_MAX_HEADER_LEN];
 	uint32_t fd;
 	bool in_use;
 };
@@ -155,6 +156,7 @@ HTTP_SERVER_REGISTER_HEADER_CAPTURE(origin_hdr, "Origin");
 HTTP_SERVER_REGISTER_HEADER_CAPTURE(content_type_hdr, "Content-Type");
 HTTP_SERVER_REGISTER_HEADER_CAPTURE(mcp_session_id_hdr, "Mcp-Session-Id");
 HTTP_SERVER_REGISTER_HEADER_CAPTURE(last_event_id_hdr, "Last-Event-Id");
+HTTP_SERVER_REGISTER_HEADER_CAPTURE(mcp_protocol_version_hdr, "Mcp-Protocol-Version");
 
 /*******************************************************************************
  * Min Heap Helpers
@@ -240,9 +242,9 @@ static int release_accumulator(struct mcp_http_request_accumulator *accumulator)
 }
 
 static int accumulate_request(struct http_client_ctx *client,
-			      struct mcp_http_request_accumulator *accumulator,
-			      const struct http_request_ctx *request_ctx,
-			      enum http_data_status status)
+				struct mcp_http_request_accumulator *accumulator,
+				const struct http_request_ctx *request_ctx,
+				enum http_data_status status)
 {
 	/* Accumulate request data */
 	if (request_ctx->data_len > 0) {
@@ -270,6 +272,12 @@ static int accumulate_request(struct http_client_ctx *client,
 					sizeof(accumulator->session_id_hdr) - 1);
 				accumulator
 					->session_id_hdr[sizeof(accumulator->session_id_hdr) - 1] =
+					'\0';
+			} else if (strcmp(header->name, "Mcp-Protocol-Version") == 0) {
+				strncpy(accumulator->protocol_version_hdr, header->value,
+					sizeof(accumulator->protocol_version_hdr) - 1);
+				accumulator
+					->protocol_version_hdr[sizeof(accumulator->protocol_version_hdr) - 1] =
 					'\0';
 			} else if (strcmp(header->name, "Last-Event-Id") == 0) {
 				char *endptr;
@@ -579,6 +587,17 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 						     .json_len = accumulator->data_len,
 						     .msg_id = mcp_client->next_event_id++,
 						     .binding = &mcp_client->binding};
+
+	/* Copy protocol version from HTTP header, default to 2025-03-26 if not present */
+	if (accumulator->protocol_version_hdr[0] != '\0') {
+		mcp_safe_strcpy(request_data.protocol_version,
+				sizeof(request_data.protocol_version),
+				accumulator->protocol_version_hdr);
+	} else {
+		mcp_safe_strcpy(request_data.protocol_version,
+				sizeof(request_data.protocol_version),
+				"2025-03-26");
+	}
 
 	ret = mcp_server_handle_request(http_transport_state.server_core, &request_data,
 					&request_type);

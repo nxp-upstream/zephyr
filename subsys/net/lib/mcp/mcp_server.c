@@ -1433,18 +1433,17 @@ int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_transport_message
 						request->msg_id);
 		mcp_free(parsed_msg);
 		break;
-	case MCP_METHOD_PING:
 	case MCP_METHOD_TOOLS_LIST:
 	case MCP_METHOD_TOOLS_CALL:
-	case MCP_METHOD_NOTIF_INITIALIZED:
-	case MCP_METHOD_NOTIF_CANCELLED:
-		if (strcmp(parsed_msg->protocol_version, MCP_PROTOCOL_VERSION) != 0) {
+	case MCP_METHOD_PING:
+		if (strcmp(request->protocol_version, MCP_PROTOCOL_VERSION) != 0) {
 			LOG_ERR("Protocol version mismatch: %s",
-				parsed_msg->protocol_version);
+				request->protocol_version);
 			mcp_free(parsed_msg);
 			return -EPROTO;
 		}
-
+	case MCP_METHOD_NOTIF_INITIALIZED:
+	case MCP_METHOD_NOTIF_CANCELLED:
 		ret = k_mutex_lock(&client_registry->mutex, K_FOREVER);
 		if (ret != 0) {
 			LOG_ERR("Failed to lock client registry: %d", ret);

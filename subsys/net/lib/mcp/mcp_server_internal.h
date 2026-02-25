@@ -86,6 +86,7 @@ struct mcp_transport_message {
 	size_t json_len;
 	uint32_t msg_id;
 	struct mcp_transport_binding *binding;
+	char protocol_version[MCP_MAX_PROTO_VER_LEN];
 };
 
 /**
