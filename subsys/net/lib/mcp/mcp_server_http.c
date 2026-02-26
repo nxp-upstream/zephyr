@@ -579,7 +579,16 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 	}
 
 	if (mcp_client == NULL) {
-		response_ctx->status = HTTP_500_INTERNAL_SERVER_ERROR;
+		if (is_initialize_request)
+		{
+			response_ctx->status = HTTP_500_INTERNAL_SERVER_ERROR;
+		}
+		else
+		{
+			response_ctx->status = HTTP_400_BAD_REQUEST;
+		}
+
+		response_ctx->final_chunk = true;
 		return 0;
 	}
 
@@ -657,9 +666,9 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 			 */
 			LOG_DBG("Using SSE");
 			mcp_client->response_headers[0].value = "text/event-stream";
-			ret = format_sse_response(mcp_client->response_body,
-						  sizeof(mcp_client->response_body),
-						  request_data.msg_id, NULL);
+			ret = snprintk(mcp_client->response_body,
+				       sizeof(mcp_client->response_body),
+				       ": waiting for response\n\n");
 		}
 
 		k_mutex_unlock(&mcp_client->responses_mutex);
