@@ -60,6 +60,9 @@
 #else
 #define DFU_BOOT_IMG_SHA_LEN 32
 #endif
+#elif defined(CONFIG_NXPBOOT_IMG_MANAGER)
+/* NXP SB image can use either SHA-256 or SHA-384 */
+#define DFU_BOOT_IMG_SHA_LEN 48
 #else
 /** Image hash size */
 #define DFU_BOOT_IMG_SHA_LEN 64

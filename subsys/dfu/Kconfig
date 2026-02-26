@@ -31,6 +31,13 @@ config MCUBOOT_IMG_MANAGER
 	help
 	  Enable support for managing DFU image downloaded using mcuboot.
 
+config NXPBOOT_IMG_MANAGER
+	bool "Image manager for NXP bootloader"
+	depends on FLASH_MAP
+	select USE_DT_CODE_PARTITION
+	help
+	  Enable support for managing DFU image downloaded using NXP bootloader.
+
 endchoice
 
 config IMG_BLOCK_BUF_SIZE

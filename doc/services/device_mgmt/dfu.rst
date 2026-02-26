@@ -36,8 +36,12 @@ The API provides the following functionality:
 * Querying swap type status
 * Flash area and slot management utilities
 
-Currently, MCUboot is the supported backend implementation, but the abstraction
-allows for other bootloader backends to be added in the future.
+Currently supported backend implementations:
+
+* MCUboot (reference implementation)
+* NXP ROM Bootloader (for MCXW series devices)
+
+The abstraction allows for other bootloader backends to be added in the future.
 
 API Reference
 -------------
@@ -129,6 +133,97 @@ In order to use MCUboot with Zephyr you need to take the following into account:
 More detailed information regarding the use of MCUboot with Zephyr  can be found
 in the `MCUboot with Zephyr`_ documentation page on the MCUboot website.
 
+.. _nxp_rom_boot:
+
+NXP ROM Bootloader
+==================
+
+Zephyr supports the NXP ROM bootloader found on MCXW series devices. This
+bootloader is built into the device ROM and provides OTA (Over-The-Air)
+firmware update capabilities using the NXP Secure Binary (SB3.1) image format.
+
+The NXP ROM bootloader serves as a backend implementation for the
+:ref:`dfu_boot_api`. When :kconfig:option:`CONFIG_NXPBOOT_IMG_MANAGER` is
+enabled, the DFU boot abstraction functions are implemented using the NXP
+ROM boot architecture.
+
+Architecture Overview
+---------------------
+
+The NXP ROM boot architecture uses a two-slot model:
+
+* **slot0**: Contains the active running image in plain binary format
+* **slot1**: Staging area for new firmware in SB3.1 container format
+
+Updates are triggered by programming the OTA configuration into the IFR0
+OTACFG page. On the next boot, the ROM bootloader reads this configuration,
+parses the SB3.1 container from slot1, and performs the update. The
+destination address is encoded within the SB3.1 file itself, allowing updates
+to target different cores or memory regions.
+
+Key characteristics:
+
+* **No swap/revert mechanism**: Updates are permanent once successfully applied
+  by the ROM bootloader
+* **Implicit confirmation**: No explicit confirm step is required; successful
+  ROM update implies confirmation
+* **SB3.1 container format**: New firmware must be packaged in NXP's Secure
+  Binary v3.1 format
+* **Hash support**: Both SHA-256 and SHA-384 are supported depending on SB3.1
+  configuration
+
+Configuration
+-------------
+
+To use the NXP ROM bootloader with Zephyr:
+
+1. Define the required flash partitions in your devicetree, including the IFR0
+   region:
+
+.. code-block:: devicetree
+
+   ifr0: flash@1000000 {
+      compatible = "nxp,mcxw-ifr";
+      reg = <0x1000000 DT_SIZE_K(32)>;
+      erase-block-size = <8192>;
+      write-block-size = <16>;
+      ota-cfg-sector = <3>;
+   };
+
+2. Specify your flash partition as the chosen code partition:
+
+.. code-block:: devicetree
+
+   / {
+      chosen {
+         zephyr,code-partition = &slot0_partition;
+      };
+   };
+
+3. Enable the NXP image manager in your application's :file:`.conf` file:
+
+.. code-block:: cfg
+
+   CONFIG_NXPBOOT_IMG_MANAGER=y
+
+4. Ensure your update images are packaged in NXP SB3.1 format using NXP's
+   secure provisioning tools
+
+OTA Configuration Storage
+-------------------------
+
+The OTA configuration is stored in the IFR0 (Information Flash Region 0)
+OTACFG page. This page contains:
+
+* Update available flag
+* Location of the SB3.1 file (internal or external flash)
+* Address and size of the SB3.1 file
+* Update status after boot
+* Feature unlock key
+
+The ``ota-cfg-sector`` devicetree property specifies which IFR sector is used
+for OTA configuration storage.
+
 Adding New Bootloader Backends
 ==============================
 
@@ -145,6 +240,11 @@ Common utility functions like ``dfu_boot_get_flash_area_id()``,
 ``dfu_boot_get_erased_val()``, ``dfu_boot_read()``, and ``dfu_boot_erase_slot()``
 are provided in :zephyr_file:`subsys/dfu/boot/dfu_boot_utils.c` and can be
 reused by different bootloader backends.
+
+For reference implementations, see:
+
+* :zephyr_file:`subsys/dfu/boot/mcuboot.c` - MCUboot backend
+* :zephyr_file:`subsys/dfu/boot/nxp_boot.c` - NXP ROM bootloader backend
 
 .. _MCUboot boot loader: https://mcuboot.com/
 .. _MCUboot with Zephyr: https://docs.mcuboot.com/readme-zephyr
