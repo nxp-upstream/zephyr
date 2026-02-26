@@ -595,6 +595,7 @@ static int handle_initialize_request(struct mcp_server_ctx *server, struct mcp_m
 	}
 
 	new_client->lifecycle_state = MCP_LIFECYCLE_INITIALIZING;
+	new_client->last_message_timestamp = k_uptime_get();
 
 	client_get_locked(new_client);
 	k_mutex_unlock(&client_registry->mutex);
@@ -1460,6 +1461,8 @@ int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_transport_message
 			break;
 		}
 
+		client->last_message_timestamp = k_uptime_get();
+
 		/* Acquire reference for queued message */
 		client_get_locked(client);
 		k_mutex_unlock(&client_registry->mutex);
@@ -1493,6 +1496,8 @@ int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_transport_message
 			ret = -ENOENT;
 			break;
 		}
+
+		client->last_message_timestamp = k_uptime_get();
 
 		client_get_locked(client);
 		k_mutex_unlock(&client_registry->mutex);
