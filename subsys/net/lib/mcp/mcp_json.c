@@ -747,7 +747,7 @@ int mcp_json_serialize_error(char *out, size_t out_len, const struct mcp_request
 				.message = err->message,
 				.data = (err->has_data && err->data_json[0] != '\0')
 						? err->data_json
-						: "null",
+						: NULL,
 			},
 	};
 
