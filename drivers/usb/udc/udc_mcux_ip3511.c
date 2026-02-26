@@ -52,7 +52,7 @@ struct udc_mcux_data {
 	struct k_work work;
 	struct k_fifo fifo;
 	struct usb_setup_packet setup;
-	uint8_t pending_setup;
+	uint8_t setup_valid;
 	uint8_t controller_id; /* 0xFF is invalid value */
 };
 
@@ -163,10 +163,16 @@ static int udc_mcux_submit_setup(const struct device *dev, struct net_buf *buf)
 {
 	struct udc_mcux_data *priv = udc_get_private(dev);
 
-	priv->pending_setup = 0;
-	net_buf_add_mem(buf, &priv->setup, sizeof(priv->setup));
-
-	return udc_submit_ep_event(dev, buf, 0);
+	udc_mcux_lock(dev);
+	if (priv->setup_valid) {
+		net_buf_add_mem(buf, &priv->setup, sizeof(priv->setup));
+		priv->setup_valid = 0;
+		udc_mcux_unlock(dev);
+		return udc_submit_ep_event(dev, buf, 0);
+	} else {
+		udc_mcux_unlock(dev);
+		return udc_submit_ep_event(dev, buf, -ECONNRESET);
+	}
 }
 
 static int udc_mcux_handler_setup(const struct device *dev, struct usb_setup_packet *setup)
@@ -178,7 +184,10 @@ static int udc_mcux_handler_setup(const struct device *dev, struct usb_setup_pac
 
 	LOG_DBG("setup packet");
 
+	udc_mcux_lock(dev);
 	memcpy(&priv->setup, setup, sizeof(priv->setup));
+	priv->setup_valid = 1;
+	udc_mcux_unlock(dev);
 
 	while ((buf = udc_buf_get(cfg_in))) {
 		udc_submit_ep_event(dev, buf, -ECONNRESET);
@@ -195,7 +204,6 @@ static int udc_mcux_handler_setup(const struct device *dev, struct usb_setup_pac
 	}
 
 	if (buf == NULL) {
-		priv->pending_setup = 1;
 		return 0;
 	}
 
@@ -408,7 +416,7 @@ static void udc_mcux_work_handler(struct k_work *item)
 						USB_MCUX_EP0_SIZE, 0)) {
 				LOG_ERR("Failed to enable control endpoint");
 			}
-			priv->pending_setup = 0;
+			priv->setup_valid = 0;
 			udc_submit_event(ev->dev, UDC_EVT_RESET, 0);
 		} else {
 			ep  = mcux_msg->code;
@@ -531,7 +539,7 @@ static int udc_mcux_ep_enqueue(const struct device *dev,
 		if (bi->setup) {
 			struct udc_mcux_data *priv = udc_get_private(dev);
 
-			if (priv->pending_setup) {
+			if (priv->setup_valid) {
 				return udc_mcux_submit_setup(dev, buf);
 			}
 
