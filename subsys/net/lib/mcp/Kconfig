@@ -192,7 +192,7 @@ config MCP_HEALTH_MONITOR_STACK_SIZE
 
 config MCP_HEALTH_CHECK_INTERVAL_MS
 	int "Health monitor check interval in milliseconds"
-	default 30000
+	default 3000
 	help
 			How often the health monitor thread checks execution contexts
 			for timeout conditions.
@@ -206,24 +206,24 @@ config MCP_TOOL_EXEC_TIMEOUT_MS
 
 config MCP_TOOL_IDLE_TIMEOUT_MS
 	int "Execution idle timeout in milliseconds"
-	default 100000
+	default 5000
 	help
 			Maximum time allowed since last message from a tool execution
-			before it is canceled. Default is 100000 ms.
+			before it is canceled. Default is 5000 ms.
 
 config MCP_TOOL_CANCEL_TIMEOUT_MS
 	int "Execution cancellation timeout in milliseconds"
-	default 300000
+	default 10000
 	help
 			Maximum time allowed for a tool to acknowledge cancellation
-			before an error is logged. Default is 300000 ms.
+			before an error is logged. Default is 10000 ms.
 
 config MCP_CLIENT_TIMEOUT_MS
 	int "Maximum idle time for client connections in milliseconds"
-	default 600000
+	default 30000
 	help
 			Maximum time allowed for a client to be idle between. Default
-			is 600000 ms.
+			is 30000 ms.
 
 choice MCP_TRANSPORT
 	prompt "MCP Transport Mechanism"
