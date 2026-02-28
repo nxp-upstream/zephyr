@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Jan Van Winkel <jan.van_winkel@dxplore.eu>
+ * Copyright (c) 2026 NXP
  *
  * Based on ST7789V sample:
  * Copyright (c) 2019 Marc Reilly
@@ -55,6 +56,82 @@ static void fill_buffer_argb8888(enum corner corner, uint8_t grey, uint8_t *buf,
 	}
 }
 
+static void fill_buffer_abgr8888(enum corner corner, uint8_t grey, uint8_t *buf,
+				 size_t buf_size)
+{
+	uint32_t color = 0;
+
+	switch (corner) {
+	case TOP_LEFT:
+		color = 0x0000FFFFu;
+		break;
+	case TOP_RIGHT:
+		color = 0x00FF00FFu;
+		break;
+	case BOTTOM_RIGHT:
+		color = 0xFF0000FFu;
+		break;
+	case BOTTOM_LEFT:
+		color = 0x000000FFu | grey << 24 | grey << 16 | grey << 8U;
+		break;
+	}
+
+	for (size_t idx = 0; idx < buf_size; idx += 4) {
+		*((uint32_t *)(buf + idx)) = sys_cpu_to_le32(color);
+	}
+}
+
+static void fill_buffer_rgba8888(enum corner corner, uint8_t grey, uint8_t *buf,
+				 size_t buf_size)
+{
+	uint32_t color = 0;
+
+	switch (corner) {
+	case TOP_LEFT:
+		color = 0xFF0000FFu;
+		break;
+	case TOP_RIGHT:
+		color = 0x00FF00FFu;
+		break;
+	case BOTTOM_RIGHT:
+		color = 0x0000FFFFu;
+		break;
+	case BOTTOM_LEFT:
+		color = 0x000000FFu | grey << 24 | grey << 16 | grey << 8U;
+		break;
+	}
+
+	for (size_t idx = 0; idx < buf_size; idx += 4) {
+		*((uint32_t *)(buf + idx)) = sys_cpu_to_le32(color);
+	}
+}
+
+static void fill_buffer_bgra8888(enum corner corner, uint8_t grey, uint8_t *buf,
+				 size_t buf_size)
+{
+	uint32_t color = 0;
+
+	switch (corner) {
+	case TOP_LEFT:
+		color = 0xFF0000FFu;
+		break;
+	case TOP_RIGHT:
+		color = 0xFF00FF00u;
+		break;
+	case BOTTOM_RIGHT:
+		color = 0xFFFF0000u;
+		break;
+	case BOTTOM_LEFT:
+		color = 0xFF000000u | grey << 16 | grey << 8 | grey;
+		break;
+	}
+
+	for (size_t idx = 0; idx < buf_size; idx += 4) {
+		*((uint32_t *)(buf + idx)) = sys_cpu_to_le32(color);
+	}
+}
+
+
 static void fill_buffer_rgb888(enum corner corner, uint8_t grey, uint8_t *buf,
 			       size_t buf_size)
 {
@@ -72,6 +149,33 @@ static void fill_buffer_rgb888(enum corner corner, uint8_t grey, uint8_t *buf,
 		break;
 	case BOTTOM_LEFT:
 		color = grey << 16 | grey << 8 | grey;
+		break;
+	}
+
+	for (size_t idx = 0; idx < buf_size; idx += 3) {
+		*(buf + idx + 0) = (color >> 0) & 0xFFu;
+		*(buf + idx + 1) = (color >> 8) & 0xFFu;
+		*(buf + idx + 2) = (color >> 16) & 0xFFu;
+	}
+}
+
+static void fill_buffer_bgr888(enum corner corner, uint8_t grey, uint8_t *buf,
+				size_t buf_size)
+{
+	uint32_t color = 0;
+
+	switch (corner) {
+	case TOP_LEFT:
+		color = 0x000000FFu;
+		break;
+	case TOP_RIGHT:
+		color = 0x0000FF00u;
+		break;
+	case BOTTOM_RIGHT:
+		color = 0x00FF0000u;
+		break;
+	case BOTTOM_LEFT:
+		color = grey | grey << 8 | grey << 16;
 		break;
 	}
 
@@ -308,6 +412,31 @@ int main(void)
 	case PIXEL_FORMAT_AL_88:
 		bg_color = 0x00u;
 		fill_buffer_fnc = fill_buffer_al_88;
+		break;
+	case PIXEL_FORMAT_BGR_888:
+		bg_color = 0xFFu;
+		fill_buffer_fnc = fill_buffer_bgr888;
+		buf_size *= 3;
+		break;
+	case PIXEL_FORMAT_XRGB_8888:
+		bg_color = 0xFFu;
+		fill_buffer_fnc = fill_buffer_argb8888;
+		buf_size *= 4;
+		break;
+	case PIXEL_FORMAT_ABGR_8888:
+		bg_color = 0x00u;
+		fill_buffer_fnc = fill_buffer_abgr8888;
+		buf_size *= 4;
+		break;
+	case PIXEL_FORMAT_RGBA_8888:
+		bg_color = 0x00u;
+		fill_buffer_fnc = fill_buffer_rgba8888;
+		buf_size *= 4;
+		break;
+	case PIXEL_FORMAT_BGRA_8888:
+		bg_color = 0xFFu;
+		fill_buffer_fnc = fill_buffer_bgra8888;
+		buf_size *= 4;
 		break;
 	case PIXEL_FORMAT_MONO01:
 		bg_color = 0xFFu;
