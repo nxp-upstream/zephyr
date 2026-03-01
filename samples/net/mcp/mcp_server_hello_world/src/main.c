@@ -42,7 +42,7 @@ static int hello_world_tool_callback(enum mcp_tool_event_type event, const char 
 	 * for cancellation during execution, rather than blocking for extended
 	 * periods.
 	 */
-	k_msleep(10000);
+	k_msleep(5000);
 
 	printk("Hello World tool executed with params: %s, token: %s\n", params ? params : "none",
 	       execution_token);
@@ -81,10 +81,19 @@ static int goodbye_world_tool_callback(enum mcp_tool_event_type event, const cha
 static const struct mcp_tool_record hello_world_tool = {
 	.metadata = {
 			.name = "hello_world",
-			.input_schema = "{\"type\":\"object\",\"properties\":{\"message\":{"
-					"\"type\":\"string\"}}}",
+			.input_schema =
+			"{"
+			"\"type\":\"object\","
+			"\"properties\":{"
+				"\"message\":{"
+					"\"type\":\"string\","
+					"\"description\":\"The message to display\""
+				"}"
+			"},"
+			"\"required\":[]"
+			"}",
 #ifdef CONFIG_MCP_TOOL_DESC
-			.description = "A simple hello world greeting tool",
+			.description = "A simple hello world greeting tool (5000ms delay)",
 #endif
 #ifdef CONFIG_MCP_TOOL_TITLE
 			.title = "Hello World Tool",
@@ -100,10 +109,19 @@ static const struct mcp_tool_record hello_world_tool = {
 static const struct mcp_tool_record goodbye_world_tool = {
 	.metadata = {
 			.name = "goodbye_world",
-			.input_schema = "{\"type\":\"object\",\"properties\":{\"message\":{"
-					"\"type\":\"string\"}}}",
+			.input_schema =
+			"{"
+			"\"type\":\"object\","
+			"\"properties\":{"
+				"\"message\":{"
+					"\"type\":\"string\","
+					"\"description\":\"The message to display\""
+				"}"
+			"},"
+			"\"required\":[]"
+			"}",
 #ifdef CONFIG_MCP_TOOL_DESC
-			.description = "A simple goodbye world farewell tool",
+			.description = "A simple goodbye world farewell tool (No delay)",
 #endif
 #ifdef CONFIG_MCP_TOOL_TITLE
 			.title = "Goodbye World Tool",
