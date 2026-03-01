@@ -122,5 +122,10 @@ struct mcp_transport_message {
  */
 int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_transport_message *request,
 			      enum mcp_method *method);
+/**
+ * @brief Update the last activity timestamp for a client
+ */
+int mcp_server_update_client_timestamp(mcp_server_ctx_t ctx,
+	struct mcp_transport_binding *binding);
 
 #endif /* ZEPHYR_SUBSYS_MCP_SERVER_INTERNAL_H_ */

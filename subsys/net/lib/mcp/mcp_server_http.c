@@ -728,6 +728,8 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 		return 0;
 	}
 
+	mcp_server_update_client_timestamp(http_transport_state.server_core, &mcp_client->binding);
+
 	mcp_client->response_headers[0].name = "Content-Type";
 	mcp_client->response_headers[0].value = "text/event-stream";
 	mcp_client->response_headers[1].name = "Mcp-Session-Id";

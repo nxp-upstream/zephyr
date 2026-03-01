@@ -28,6 +28,7 @@ LOG_MODULE_REGISTER(mcp_server, CONFIG_MCP_LOG_LEVEL);
  */
 enum mcp_lifecycle_state {
 	MCP_LIFECYCLE_DEINITIALIZED = 0, /**< No client allocated */
+	MCP_LIFECYCLE_DEINITIALIZING,    /**< Deinitialize in progress */
 	MCP_LIFECYCLE_NEW,               /**< Client allocated, not initialized */
 	MCP_LIFECYCLE_INITIALIZING,      /**< Initialize response sent */
 	MCP_LIFECYCLE_INITIALIZED        /**< Client confirmed initialization */
@@ -197,7 +198,8 @@ get_client_by_binding_locked(struct mcp_server_ctx *server,
  */
 static struct mcp_client_context *client_get_locked(struct mcp_client_context *client)
 {
-	if (client == NULL || client->lifecycle_state == MCP_LIFECYCLE_DEINITIALIZED) {
+	if (client == NULL || client->lifecycle_state == MCP_LIFECYCLE_DEINITIALIZED ||
+		client->lifecycle_state == MCP_LIFECYCLE_DEINITIALIZING) {
 		return NULL;
 	}
 	atomic_inc(&client->refcount);
@@ -268,8 +270,8 @@ static struct mcp_client_context *add_client_locked(struct mcp_server_ctx *serve
  */
 static void remove_client_locked(struct mcp_server_ctx *server, struct mcp_client_context *client)
 {
-	/* Mark as deinitialized. Cleanup happens when refcount reaches 0 */
-	client->lifecycle_state = MCP_LIFECYCLE_DEINITIALIZED;
+	/* Mark as deinitializing. Cleanup happens when refcount reaches 0 */
+	client->lifecycle_state = MCP_LIFECYCLE_DEINITIALIZING;
 
 	/* Drop the initial reference */
 	k_mutex_unlock(&server->client_registry.mutex);
@@ -1371,7 +1373,8 @@ static void mcp_health_monitor_worker(void *ctx, void *arg2, void *arg3)
 		for (int i = 0; i < ARRAY_SIZE(client_registry->clients); i++) {
 			struct mcp_client_context *client_context = &client_registry->clients[i];
 
-			if (client_context->lifecycle_state == MCP_LIFECYCLE_DEINITIALIZED) {
+			if (client_context->lifecycle_state == MCP_LIFECYCLE_DEINITIALIZED ||
+				client_context->lifecycle_state == MCP_LIFECYCLE_DEINITIALIZING) {
 				continue;
 			}
 
@@ -1515,6 +1518,36 @@ int mcp_server_handle_request(mcp_server_ctx_t ctx, struct mcp_transport_message
 	}
 
 	return ret;
+}
+
+int mcp_server_update_client_timestamp(mcp_server_ctx_t ctx, struct mcp_transport_binding *binding) {
+	int ret;
+	struct mcp_client_context *client = NULL;
+	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
+	struct mcp_client_registry *client_registry = &server->client_registry;
+
+	if (server == NULL) {
+		LOG_ERR("Invalid parameters passed to mcp_server_update_client_timestamp");
+		return -EINVAL;
+	}
+
+	ret = k_mutex_lock(&client_registry->mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock client registry: %d", ret);
+		return ret;
+	}
+
+	client = get_client_by_binding_locked(server, binding);
+	if (client == NULL) {
+		LOG_ERR("Client does not exist");
+		k_mutex_unlock(&client_registry->mutex);
+		return -ENOENT;
+	}
+
+	client->last_message_timestamp = k_uptime_get();
+	k_mutex_unlock(&client_registry->mutex);
+
+	return 0;
 }
 
 /*******************************************************************************
@@ -1767,7 +1800,9 @@ cleanup:
 	if (response_data) {
 		mcp_free(response_data);
 	}
-	if (json_buffer) {
+
+	/* Clean up json_buffer in case of error */
+	if ((ret != 0) && (json_buffer)) {
 		mcp_free(json_buffer);
 	}
 
