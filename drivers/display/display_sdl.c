@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2018 Jan Van Winkel <jan.van_winkel@dxplore.eu>
  * Copyright (c) 2021 Nordic Semiconductor
+ * Copyright (c) 2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -199,6 +200,16 @@ static int sdl_display_init(const struct device *dev)
 		PIXEL_FORMAT_L_8
 #elif defined(CONFIG_SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_AL_88)
 		PIXEL_FORMAT_AL_88
+#elif defined(CONFIG_SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_BGR_888)
+		PIXEL_FORMAT_BGR_888
+#elif defined(CONFIG_SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_XRGB_8888)
+		PIXEL_FORMAT_XRGB_8888
+#elif defined(CONFIG_SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_ABGR_8888)
+		PIXEL_FORMAT_ABGR_8888
+#elif defined(CONFIG_SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_RGBA_8888)
+		PIXEL_FORMAT_RGBA_8888
+#elif defined(CONFIG_SDL_DISPLAY_DEFAULT_PIXEL_FORMAT_BGRA_8888)
+		PIXEL_FORMAT_BGRA_8888
 #else  /* SDL_DISPLAY_DEFAULT_PIXEL_FORMAT */
 		PIXEL_FORMAT_ARGB_8888
 #endif /* SDL_DISPLAY_DEFAULT_PIXEL_FORMAT */
@@ -225,7 +236,7 @@ static int sdl_display_init(const struct device *dev)
  *
  * Hence, simple copy is enough
  */
-static void sdl_display_write_argb8888(void *disp_buf,
+static void sdl_display_write_argb8888(uint8_t *disp_buf,
 		const struct display_buffer_descriptor *desc, const void *buf)
 {
 	__ASSERT((desc->pitch * 4U * desc->height) <= desc->buf_size,
@@ -259,6 +270,37 @@ static void sdl_display_write_rgb888(uint8_t *disp_buf,
 			pixel = *(byte_ptr + 2) << 16;		/* R */
 			pixel |= *(byte_ptr + 1) << 8;		/* G */
 			pixel |= *byte_ptr;			/* B */
+			*((uint32_t *)disp_buf) = sys_cpu_to_le32(pixel | 0xFF000000);
+			disp_buf += 4;
+		}
+	}
+}
+
+/*
+ * Convert from			Byte 0   Byte 1   Byte 2
+ *				7......0 15.....8 23....16 31....24
+ * PIXEL_FORMAT_BGR_888		Rrrrrrrr Gggggggg Bbbbbbbb Rrrrrrrr
+ * into
+ * SDL_PIXELFORMAT_BGRA32	Bbbbbbbb Gggggggg Rrrrrrrr Aaaaaaaa
+ */
+static void sdl_display_write_bgr888(uint8_t *disp_buf,
+		const struct display_buffer_descriptor *desc, const void *buf)
+{
+	uint32_t w_idx;
+	uint32_t h_idx;
+	uint32_t pixel;
+	const uint8_t *byte_ptr;
+
+	__ASSERT((desc->pitch * 3U * desc->height) <= desc->buf_size,
+			"Input buffer too small");
+
+	for (h_idx = 0U; h_idx < desc->height; ++h_idx) {
+		for (w_idx = 0U; w_idx < desc->width; ++w_idx) {
+			byte_ptr = (const uint8_t *)buf +
+				((h_idx * desc->pitch) + w_idx) * 3U;
+			pixel = *(byte_ptr + 2);		/* B */
+			pixel |= *(byte_ptr + 1) << 8;		/* G */
+			pixel |= *byte_ptr << 16;		/* R */
 			*((uint32_t *)disp_buf) = sys_cpu_to_le32(pixel | 0xFF000000);
 			disp_buf += 4;
 		}
@@ -437,6 +479,102 @@ static void sdl_display_write_l8(uint8_t *disp_buf, const struct display_buffer_
 	}
 }
 
+/*
+ * Convert from			Byte 0   Byte 1   Byte 2   Byte 3
+ *				7......0 15.....8 23....16 31....24
+ * PIXEL_FORMAT_ABGR_8888	Aaaaaaaa Rrrrrrrr Gggggggg Bbbbbbbb
+ * into
+ * SDL_PIXELFORMAT_BGRA32	Bbbbbbbb Gggggggg Rrrrrrrr Aaaaaaaa
+ */
+static void sdl_display_write_abgr8888(uint8_t *disp_buf,
+		const struct display_buffer_descriptor *desc, const void *buf)
+{
+	uint32_t w_idx;
+	uint32_t h_idx;
+	uint32_t pixel;
+	const uint8_t *byte_ptr;
+
+	__ASSERT((desc->pitch * 4U * desc->height) <= desc->buf_size,
+			"Input buffer too small");
+
+	for (h_idx = 0U; h_idx < desc->height; ++h_idx) {
+		for (w_idx = 0U; w_idx < desc->width; ++w_idx) {
+			byte_ptr = (const uint8_t *)buf +
+				((h_idx * desc->pitch) + w_idx) * 4U;
+			pixel = *(byte_ptr + 3);		/* B */
+			pixel |= *(byte_ptr + 2) << 8;		/* G */
+			pixel |= *(byte_ptr + 1) << 16;		/* R */
+			pixel |= *byte_ptr << 24;		/* A */
+			*((uint32_t *)disp_buf) = sys_cpu_to_le32(pixel);
+			disp_buf += 4;
+		}
+	}
+}
+
+/*
+ * Convert from			Byte 0   Byte 1   Byte 2   Byte 3
+ *				7......0 15.....8 23....16 31....24
+ * PIXEL_FORMAT_RGBA_8888	Aaaaaaaa Bbbbbbbb Gggggggg Rrrrrrrr
+ * into
+ * SDL_PIXELFORMAT_BGRA32	Bbbbbbbb Gggggggg Rrrrrrrr Aaaaaaaa
+ */
+static void sdl_display_write_rgba8888(uint8_t *disp_buf,
+		const struct display_buffer_descriptor *desc, const void *buf)
+{
+	uint32_t w_idx;
+	uint32_t h_idx;
+	uint32_t pixel;
+	const uint8_t *byte_ptr;
+
+	__ASSERT((desc->pitch * 4U * desc->height) <= desc->buf_size,
+			"Input buffer too small");
+
+	for (h_idx = 0U; h_idx < desc->height; ++h_idx) {
+		for (w_idx = 0U; w_idx < desc->width; ++w_idx) {
+			byte_ptr = (const uint8_t *)buf +
+				((h_idx * desc->pitch) + w_idx) * 4U;
+			pixel = *(byte_ptr + 1);		/* B */
+			pixel |= *(byte_ptr + 2) << 8;		/* G */
+			pixel |= *(byte_ptr + 3) << 16;		/* R */
+			pixel |= *byte_ptr << 24;		/* A */
+			*((uint32_t *)disp_buf) = sys_cpu_to_le32(pixel);
+			disp_buf += 4;
+		}
+	}
+}
+
+/*
+ * Convert from			Byte 0   Byte 1   Byte 2   Byte 3
+ *				7......0 15.....8 23....16 31....24
+ * PIXEL_FORMAT_BGRA_8888	Rrrrrrrr Gggggggg Bbbbbbbb Aaaaaaaa
+ * into
+ * SDL_PIXELFORMAT_BGRA32	Bbbbbbbb Gggggggg Rrrrrrrr Aaaaaaaa
+ */
+static void sdl_display_write_bgra8888(uint8_t *disp_buf,
+		const struct display_buffer_descriptor *desc, const void *buf)
+{
+	uint32_t w_idx;
+	uint32_t h_idx;
+	uint32_t pixel;
+	const uint8_t *byte_ptr;
+
+	__ASSERT((desc->pitch * 4U * desc->height) <= desc->buf_size,
+			"Input buffer too small");
+
+	for (h_idx = 0U; h_idx < desc->height; ++h_idx) {
+		for (w_idx = 0U; w_idx < desc->width; ++w_idx) {
+			byte_ptr = (const uint8_t *)buf +
+				((h_idx * desc->pitch) + w_idx) * 4U;
+			pixel = *(byte_ptr + 2);		/* B */
+			pixel |= *(byte_ptr + 1) << 8;		/* G */
+			pixel |= *byte_ptr << 16;		/* R */
+			pixel |= *(byte_ptr + 3) << 24;		/* A */
+			*((uint32_t *)disp_buf) = sys_cpu_to_le32(pixel);
+			disp_buf += 4;
+		}
+	}
+}
+
 static int sdl_display_write(const struct device *dev, const uint16_t x,
 			     const uint16_t y,
 			     const struct display_buffer_descriptor *desc,
@@ -489,6 +627,16 @@ static int sdl_display_write(const struct device *dev, const uint16_t x,
 		sdl_display_write_l8(disp_data->buf, desc, buf);
 	} else if (disp_data->current_pixel_format == PIXEL_FORMAT_AL_88) {
 		sdl_display_write_al88(disp_data->buf, desc, buf);
+	} else if (disp_data->current_pixel_format == PIXEL_FORMAT_BGR_888) {
+		sdl_display_write_bgr888(disp_data->buf, desc, buf);
+	} else if (disp_data->current_pixel_format == PIXEL_FORMAT_XRGB_8888) {
+		sdl_display_write_argb8888(disp_data->buf, desc, buf);
+	} else if (disp_data->current_pixel_format == PIXEL_FORMAT_ABGR_8888) {
+		sdl_display_write_abgr8888(disp_data->buf, desc, buf);
+	} else if (disp_data->current_pixel_format == PIXEL_FORMAT_RGBA_8888) {
+		sdl_display_write_rgba8888(disp_data->buf, desc, buf);
+	} else if (disp_data->current_pixel_format == PIXEL_FORMAT_BGRA_8888) {
+		sdl_display_write_bgra8888(disp_data->buf, desc, buf);
 	}
 
 	if (k_current_get() == &disp_data->sdl_thread) {
@@ -548,6 +696,39 @@ static void sdl_display_read_rgb888(const uint8_t *read_buf,
 			*buf8 = (*pix_ptr & 0xFF00) >> 8;	/* G */
 			buf8 += 1;
 			*buf8 = (*pix_ptr & 0xFF0000) >> 16;	/* R */
+			buf8 += 1;
+		}
+	}
+}
+
+/*
+ * Convert from			Byte 0   Byte 1   Byte 2   Byte 3
+ *				7......0 15.....8 23....16 31....24
+ * SDL_PIXELFORMAT_BGRA32	Bbbbbbbb Gggggggg Rrrrrrrr Ffffffff
+ * into
+ * PIXEL_FORMAT_BGR_888		Rrrrrrrr Gggggggg Bbbbbbbb Rrrrrrrr
+ */
+static void sdl_display_read_bgr888(const uint8_t *read_buf,
+				    const struct display_buffer_descriptor *desc, void *buf)
+{
+	uint32_t w_idx;
+	uint32_t h_idx;
+	uint8_t *buf8;
+	const uint32_t *pix_ptr;
+
+	__ASSERT((desc->pitch * 3U * desc->height) <= desc->buf_size, "Read buffer is too small");
+
+	for (h_idx = 0U; h_idx < desc->height; ++h_idx) {
+		buf8 = ((uint8_t *)buf) + desc->pitch * 3U * h_idx;
+
+		for (w_idx = 0U; w_idx < desc->width; ++w_idx) {
+			pix_ptr = (const uint32_t *)read_buf + ((h_idx * desc->pitch) + w_idx);
+			pix_ptr = sys_le32_to_cpu(pix_ptr);
+			*buf8 = (*pix_ptr & 0xFF0000) >> 16;	/* R */
+			buf8 += 1;
+			*buf8 = (*pix_ptr & 0xFF00) >> 8;	/* G */
+			buf8 += 1;
+			*buf8 = (*pix_ptr & 0xFF);		/* B */
 			buf8 += 1;
 		}
 	}
@@ -721,6 +902,111 @@ static void sdl_display_read_al88(const uint8_t *read_buf,
 	}
 }
 
+/*
+ * Convert from			Byte 0   Byte 1   Byte 2   Byte 3
+ *				7......0 15.....8 23....16 31....24
+ * SDL_PIXELFORMAT_BGRA32	Bbbbbbbb Gggggggg Rrrrrrrr Ffffffff
+ * into
+ * PIXEL_FORMAT_ABGR_8888	Aaaaaaaa Rrrrrrrr Gggggggg Bbbbbbbb
+ */
+static void sdl_display_read_abgr8888(const uint8_t *read_buf,
+				      const struct display_buffer_descriptor *desc, void *buf)
+{
+	uint32_t w_idx;
+	uint32_t h_idx;
+	uint8_t *buf8;
+	const uint32_t *pix_ptr;
+
+	__ASSERT((desc->pitch * 4U * desc->height) <= desc->buf_size, "Read buffer is too small");
+
+	for (h_idx = 0U; h_idx < desc->height; ++h_idx) {
+		buf8 = ((uint8_t *)buf) + desc->pitch * 4U * h_idx;
+
+		for (w_idx = 0U; w_idx < desc->width; ++w_idx) {
+			pix_ptr = (const uint32_t *)read_buf + ((h_idx * desc->pitch) + w_idx);
+			pix_ptr = sys_le32_to_cpu(pix_ptr);
+			*buf8 = (*pix_ptr & 0xFF000000) >> 24;	/* A */
+			buf8 += 1;
+			*buf8 = (*pix_ptr & 0xFF0000) >> 16;	/* R */
+			buf8 += 1;
+			*buf8 = (*pix_ptr & 0xFF00) >> 8;	/* G */
+			buf8 += 1;
+			*buf8 = (*pix_ptr & 0xFF);		/* B */
+			buf8 += 1;
+		}
+	}
+}
+
+/*
+ * Convert from			Byte 0   Byte 1   Byte 2   Byte 3
+ *				7......0 15.....8 23....16 31....24
+ * SDL_PIXELFORMAT_BGRA32	Bbbbbbbb Gggggggg Rrrrrrrr Ffffffff
+ * into
+ * PIXEL_FORMAT_RGBA_8888	Aaaaaaaa Bbbbbbbb Gggggggg Rrrrrrrr
+ */
+static void sdl_display_read_rgba8888(const uint8_t *read_buf,
+				      const struct display_buffer_descriptor *desc, void *buf)
+{
+	uint32_t w_idx;
+	uint32_t h_idx;
+	uint8_t *buf8;
+	const uint32_t *pix_ptr;
+
+	__ASSERT((desc->pitch * 4U * desc->height) <= desc->buf_size, "Read buffer is too small");
+
+	for (h_idx = 0U; h_idx < desc->height; ++h_idx) {
+		buf8 = ((uint8_t *)buf) + desc->pitch * 4U * h_idx;
+
+		for (w_idx = 0U; w_idx < desc->width; ++w_idx) {
+			pix_ptr = (const uint32_t *)read_buf + ((h_idx * desc->pitch) + w_idx);
+			pix_ptr = sys_le32_to_cpu(pix_ptr);
+			*buf8 = (*pix_ptr & 0xFF000000) >> 24;	/* A */
+			buf8 += 1;
+			*buf8 = (*pix_ptr & 0xFF);		/* B */
+			buf8 += 1;
+			*buf8 = (*pix_ptr & 0xFF00) >> 8;	/* G */
+			buf8 += 1;
+			*buf8 = (*pix_ptr & 0xFF0000) >> 16;	/* R */
+			buf8 += 1;
+		}
+	}
+}
+
+/*
+ * Convert from			Byte 0   Byte 1   Byte 2   Byte 3
+ *				7......0 15.....8 23....16 31....24
+ * SDL_PIXELFORMAT_BGRA32	Bbbbbbbb Gggggggg Rrrrrrrr Ffffffff
+ * into
+ * PIXEL_FORMAT_BGRA_8888	Rrrrrrrr Gggggggg Bbbbbbbb Aaaaaaaa
+ */
+static void sdl_display_read_bgra8888(const uint8_t *read_buf,
+				      const struct display_buffer_descriptor *desc, void *buf)
+{
+	uint32_t w_idx;
+	uint32_t h_idx;
+	uint8_t *buf8;
+	const uint32_t *pix_ptr;
+
+	__ASSERT((desc->pitch * 4U * desc->height) <= desc->buf_size, "Read buffer is too small");
+
+	for (h_idx = 0U; h_idx < desc->height; ++h_idx) {
+		buf8 = ((uint8_t *)buf) + desc->pitch * 4U * h_idx;
+
+		for (w_idx = 0U; w_idx < desc->width; ++w_idx) {
+			pix_ptr = (const uint32_t *)read_buf + ((h_idx * desc->pitch) + w_idx);
+			pix_ptr = sys_le32_to_cpu(pix_ptr);
+			*buf8 = (*pix_ptr & 0xFF0000) >> 16;	/* R */
+			buf8 += 1;
+			*buf8 = (*pix_ptr & 0xFF00) >> 8;	/* G */
+			buf8 += 1;
+			*buf8 = (*pix_ptr & 0xFF);		/* B */
+			buf8 += 1;
+			*buf8 = (*pix_ptr & 0xFF000000) >> 24;	/* A */
+			buf8 += 1;
+		}
+	}
+}
+
 static int sdl_display_read(const struct device *dev, const uint16_t x, const uint16_t y,
 			    const struct display_buffer_descriptor *desc, void *buf)
 {
@@ -772,6 +1058,16 @@ static int sdl_display_read(const struct device *dev, const uint16_t x, const ui
 		sdl_display_read_l8(disp_data->read_buf, desc, buf);
 	} else if (disp_data->current_pixel_format == PIXEL_FORMAT_AL_88) {
 		sdl_display_read_al88(disp_data->read_buf, desc, buf);
+	} else if (disp_data->current_pixel_format == PIXEL_FORMAT_BGR_888) {
+		sdl_display_read_bgr888(disp_data->read_buf, desc, buf);
+	} else if (disp_data->current_pixel_format == PIXEL_FORMAT_XRGB_8888) {
+		sdl_display_read_argb8888(disp_data->read_buf, desc, buf);
+	} else if (disp_data->current_pixel_format == PIXEL_FORMAT_ABGR_8888) {
+		sdl_display_read_abgr8888(disp_data->read_buf, desc, buf);
+	} else if (disp_data->current_pixel_format == PIXEL_FORMAT_RGBA_8888) {
+		sdl_display_read_rgba8888(disp_data->read_buf, desc, buf);
+	} else if (disp_data->current_pixel_format == PIXEL_FORMAT_BGRA_8888) {
+		sdl_display_read_bgra8888(disp_data->read_buf, desc, buf);
 	}
 	k_mutex_unlock(&disp_data->task_mutex);
 
@@ -789,9 +1085,14 @@ static int sdl_display_clear(const struct device *dev)
 
 	switch (disp_data->current_pixel_format) {
 	case PIXEL_FORMAT_ARGB_8888:
+	case PIXEL_FORMAT_XRGB_8888:
+	case PIXEL_FORMAT_ABGR_8888:
+	case PIXEL_FORMAT_RGBA_8888:
+	case PIXEL_FORMAT_BGRA_8888:
 		size = config->width * config->height * 4U;
 		break;
 	case PIXEL_FORMAT_RGB_888:
+	case PIXEL_FORMAT_BGR_888:
 		size = config->width * config->height * 3U;
 		break;
 	case PIXEL_FORMAT_MONO10:
@@ -884,7 +1185,12 @@ static void sdl_display_get_capabilities(
 		PIXEL_FORMAT_RGB_565 |
 		PIXEL_FORMAT_RGB_565X |
 		PIXEL_FORMAT_L_8 |
-		PIXEL_FORMAT_AL_88;
+		PIXEL_FORMAT_AL_88 |
+		PIXEL_FORMAT_BGR_888 |
+		PIXEL_FORMAT_XRGB_8888 |
+		PIXEL_FORMAT_ABGR_8888 |
+		PIXEL_FORMAT_RGBA_8888 |
+		PIXEL_FORMAT_BGRA_8888;
 	capabilities->current_pixel_format = disp_data->current_pixel_format;
 	capabilities->screen_info =
 		(IS_ENABLED(CONFIG_SDL_DISPLAY_MONO_VTILED) ? SCREEN_INFO_MONO_VTILED : 0) |
@@ -905,6 +1211,11 @@ static int sdl_display_set_pixel_format(const struct device *dev,
 	case PIXEL_FORMAT_RGB_565X:
 	case PIXEL_FORMAT_L_8:
 	case PIXEL_FORMAT_AL_88:
+	case PIXEL_FORMAT_BGR_888:
+	case PIXEL_FORMAT_XRGB_8888:
+	case PIXEL_FORMAT_ABGR_8888:
+	case PIXEL_FORMAT_RGBA_8888:
+	case PIXEL_FORMAT_BGRA_8888:
 		disp_data->current_pixel_format = pixel_format;
 		return 0;
 	default:
