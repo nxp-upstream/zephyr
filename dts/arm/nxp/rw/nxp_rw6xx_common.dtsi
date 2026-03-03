@@ -1,5 +1,5 @@
 /*
- * Copyright 2022-2024 NXP
+ * Copyright 2022-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -372,6 +372,16 @@
 		status = "disabled";
 		#dma-cells = <1>;
 		dma-channels = <33>;
+		power-domains = <&peripheral_domain>;
+	};
+
+	gdma: dma-controller@4014e000 {
+		compatible = "nxp,gdma";
+		reg = <0x4014e000 0x1000>;
+		interrupts = <128 0>;
+		status = "disabled";
+		#dma-cells = <1>;
+		dma-channels = <4>;
 		power-domains = <&peripheral_domain>;
 	};
 
