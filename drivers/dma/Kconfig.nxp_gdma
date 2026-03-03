@@ -1,0 +1,23 @@
+# Copyright (c) 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config DMA_NXP_GDMA
+	bool "NXP GDMA driver"
+	default y
+	depends on DT_HAS_NXP_GDMA_ENABLED
+	help
+	  DMA driver for NXP GDMA (General DMA) controller.
+	  This driver supports memory-to-memory, memory-to-peripheral,
+	  and peripheral-to-memory transfers.
+
+if DMA_NXP_GDMA
+
+config DMA_NXP_GDMA_NUMBER_OF_DESCRIPTORS
+	int "Number of DMA descriptors to use per channel"
+	default 4
+	help
+	  Each DMA descriptor can be used to transfer up to 8191 bytes of data.
+	  Increase this value if the application needs to transfer larger amounts
+	  of data using linked list mode.
+
+endif # DMA_NXP_GDMA
