@@ -58,6 +58,7 @@ TEST_CASES_GET_DIR_FMT_CONTEXT = [
         None,
         {
             'board': None,
+            'resolved_board': None,
             'west_topdir': str(west_topdir),
             'app': TEST_CWD.name,
             'source_dir': str(TEST_CWD),
@@ -70,6 +71,7 @@ TEST_CASES_GET_DIR_FMT_CONTEXT = [
         west_topdir / 'my' / 'project',
         {
             'board': None,
+            'resolved_board': None,
             'west_topdir': str(west_topdir),
             'app': 'project',
             'source_dir': str(west_topdir / 'my' / 'project'),
@@ -82,6 +84,7 @@ TEST_CASES_GET_DIR_FMT_CONTEXT = [
         ROOT / 'path' / 'to' / 'my-project',
         {
             'board': None,
+            'resolved_board': None,
             'west_topdir': str(west_topdir),
             'app': 'my-project',
             'source_dir': str(ROOT / 'path' / 'to' / 'my-project'),
@@ -94,6 +97,7 @@ TEST_CASES_GET_DIR_FMT_CONTEXT = [
         None,
         {
             'board': 'native_sim',
+            'resolved_board': 'native_sim',
             'west_topdir': str(west_topdir),
             'app': TEST_CWD.name,
             'source_dir': str(TEST_CWD),
@@ -113,6 +117,39 @@ def test_get_dir_fmt_context(monkeypatch, test_case):
     b.args.source_dir = source_dir
     actual = b._get_dir_fmt_context()
     assert expected == actual
+
+
+def test_get_dir_fmt_context_resolve_board_shorthand(monkeypatch):
+    test_args = Namespace(board='nrf5340dk//cpuapp')
+    b = setup_test_build(monkeypatch, test_args)
+    b.args.source_dir = None
+    monkeypatch.setattr(b, '_single_soc_for_board', lambda board_name: 'nrf5340')
+
+    actual = b._get_dir_fmt_context()
+
+    assert actual['board'] == 'nrf5340dk//cpuapp'
+    assert actual['resolved_board'] == 'nrf5340dk/nrf5340/cpuapp'
+
+
+def test_boards_match_for_cache_with_single_soc_shorthand(monkeypatch):
+    b = setup_test_build(monkeypatch)
+    monkeypatch.setattr(
+        b, '_single_soc_for_board',
+        lambda board_name: 'nrf5340' if board_name == 'nrf5340dk' else None,
+    )
+
+    assert b._boards_match_for_cache(
+        'nrf5340dk/nrf5340/cpuapp',
+        'nrf5340dk//cpuapp',
+    )
+    assert b._boards_match_for_cache(
+        'nrf5340dk//cpuapp',
+        'nrf5340dk/nrf5340/cpuapp',
+    )
+    assert not b._boards_match_for_cache(
+        'nrf5340dk/nrf5340/cpuapp',
+        'nrf5340dk/nrf5340/cpunet',
+    )
 
 
 TEST_CASES_BUILD_DIR = [
@@ -153,6 +190,9 @@ TEST_CASES_BUILD_DIR = [
     ),
     # must be able to resolve board (must be specified)
     ({'dir-fmt': '{board}'}, Namespace(board='native_sim'), 'native_sim'),
+    # must be able to resolve board shorthand in resolved_board
+    ({'dir-fmt': '{resolved_board}'}, Namespace(board='nrf5340dk//cpuapp'),
+     'nrf5340dk/nrf5340/cpuapp'),
 ]
 
 
@@ -171,6 +211,10 @@ def test_dir_fmt(monkeypatch, test_case):
 
     # set up and run _setup_build_dir
     b = setup_test_build(monkeypatch, test_args)
+    monkeypatch.setattr(
+        b, '_single_soc_for_board',
+        lambda board_name: 'nrf5340' if board_name == 'nrf5340dk' else None,
+    )
     b._setup_build_dir()
 
     # check for expected build-dir

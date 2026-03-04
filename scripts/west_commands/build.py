@@ -6,6 +6,7 @@ import argparse
 import contextlib
 import os
 import pathlib
+import re
 import shlex
 import sys
 
@@ -17,9 +18,11 @@ from west.version import __version__
 
 from build_helpers import FIND_BUILD_DIR_DESCRIPTION, find_build_dir, is_zephyr_build, load_domains
 from zcmake import DEFAULT_CMAKE_GENERATOR, CMakeCache, run_build, run_cmake
-from zephyr_ext_common import Forceable
+from zephyr_ext_common import Forceable, ZEPHYR_BASE
 
 _ARG_SEPARATOR = '--'
+
+_BOARD_COMPONENTS_RE = re.compile(r'^([^@/]+)(?:@([^@/]+))?(?:/([^@]+))?$')
 
 SYSBUILD_PROJ_DIR = pathlib.Path(__file__).resolve().parent.parent.parent \
                     / pathlib.Path('share/sysbuild')
@@ -94,6 +97,9 @@ class Build(Forceable):
 
         self.cmake_cache = None
         '''Final parsed CMake cache for the build, or None on error.'''
+
+        self._single_soc_cache = {}
+        '''Cache for board-name to single-SoC lookup used by dir-fmt helpers.'''
 
     def _banner(self, msg):
         self.inf('-- west build: ' + msg, colorize=True)
@@ -456,12 +462,115 @@ class Build(Forceable):
         with contextlib.suppress(FileNotFoundError):
             self.cmake_cache = CMakeCache.from_build_dir(self.build_dir)
 
+    @staticmethod
+    def _parse_board_components(board):
+        if board is None:
+            return None
+
+        match = _BOARD_COMPONENTS_RE.match(board)
+        if match is None:
+            return None
+
+        return match.group(1), match.group(2), match.group(3)
+
+    @staticmethod
+    def _format_board_components(name, revision, qualifiers):
+        board = name
+        if revision:
+            board = f'{board}@{revision}'
+        if qualifiers is not None:
+            board = f'{board}/{qualifiers}'
+        return board
+
+    def _single_soc_for_board(self, board_name):
+        # best-effort lookup used by dir-fmt context, do not fail build on errors
+        if board_name in self._single_soc_cache:
+            return self._single_soc_cache[board_name]
+
+        try:
+            script_root = os.fspath(pathlib.Path(__file__).parent.parent)
+            if script_root not in sys.path:
+                sys.path.append(script_root)
+            import list_boards   # pylint: disable=import-outside-toplevel
+            import zephyr_module  # pylint: disable=import-outside-toplevel
+        except Exception as exc:
+            self.dbg(f'could not import board metadata helpers: {exc}',
+                     level=Verbosity.DBG_EXTREME)
+            self._single_soc_cache[board_name] = None
+            return None
+
+        module_settings = {
+            'board_root': [ZEPHYR_BASE],
+            'soc_root': [ZEPHYR_BASE],
+        }
+
+        try:
+            for module in zephyr_module.parse_modules(ZEPHYR_BASE, self.manifest):
+                for key in module_settings:
+                    root = module.meta.get('build', {}).get('settings', {}).get(key)
+                    if root is not None:
+                        module_settings[key].append(pathlib.Path(module.project) / root)
+        except Exception as exc:
+            self.dbg(f'could not parse module roots for board resolution: {exc}',
+                     level=Verbosity.DBG_EXTREME)
+            self._single_soc_cache[board_name] = None
+            return None
+
+        args = argparse.Namespace(
+            board_roots=module_settings['board_root'],
+            soc_roots=module_settings['soc_root'],
+            board=board_name,
+            board_dir=[],
+        )
+        try:
+            board_data = list_boards.find_v2_boards(args).get(board_name)
+        except SystemExit:
+            # list_boards uses sys.exit on parse errors; keep build.dir-fmt robust
+            board_data = None
+        except Exception as exc:
+            self.dbg(f'board metadata lookup failed for {board_name}: {exc}',
+                     level=Verbosity.DBG_EXTREME)
+            board_data = None
+
+        single_soc = None
+        if board_data and len(board_data.socs) == 1 and board_data.socs[0] is not None:
+            single_soc = board_data.socs[0].name
+
+        self._single_soc_cache[board_name] = single_soc
+        return single_soc
+
+    def _resolve_board_for_dir_fmt(self, board):
+        components = self._parse_board_components(board)
+        if components is None:
+            return board
+
+        name, revision, qualifiers = components
+        # Only handle the SoC omission shorthand (e.g. board//cluster) here.
+        if qualifiers is None or not qualifiers.startswith('/'):
+            return board
+
+        single_soc = self._single_soc_for_board(name)
+        if single_soc is None:
+            return board
+
+        resolved_qualifiers = f'{single_soc}{qualifiers}'
+        return self._format_board_components(name, revision, resolved_qualifiers)
+
+    def _boards_match_for_cache(self, requested_board, cached_board):
+        if requested_board == cached_board:
+            return True
+
+        requested_resolved = self._resolve_board_for_dir_fmt(requested_board)
+        cached_resolved = self._resolve_board_for_dir_fmt(cached_board)
+        return requested_resolved == cached_resolved
+
     def _get_dir_fmt_context(self):
         # Return a dictionary of build attributes which are used while
         # substituting the placeholders in the build.dir-fmt format string.
         source_dir = pathlib.Path(self._find_source_dir())
         app = source_dir.name
         board, _ = self._find_board()
+        resolved_board = self._resolve_board_for_dir_fmt(board)
         try:
             west_top_dir = west_topdir(source_dir)
         except WestNotFound:
@@ -471,6 +580,7 @@ class Build(Forceable):
             "source_dir": str(source_dir),
             "app": app,
             "board": board,
+            "resolved_board": resolved_board,
         }
         if source_dir.is_relative_to(west_top_dir):
             context['source_dir_workspace'] = str(source_dir.relative_to(west_top_dir))
@@ -606,7 +716,7 @@ class Build(Forceable):
 
         # Check consistency between cached board and --board.
         boards_mismatched = (self.args.board and cached_board and
-                             self.args.board != cached_board)
+                             not self._boards_match_for_cache(self.args.board, cached_board))
         self.check_force(
             not boards_mismatched or self.auto_pristine,
             f'Build directory {self.build_dir} targets board {cached_board}, '

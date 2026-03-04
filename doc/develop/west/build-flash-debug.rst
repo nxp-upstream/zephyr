@@ -397,7 +397,10 @@ You can :ref:`configure <west-config-cmd>` ``west build`` using these options.
 
          - ``west_topdir``: The absolute path to the west workspace, as
            returned by the ``west_topdir`` command
-         - ``board``: The board name
+         - ``board``: The board string as provided by user/config/cache.
+         - ``resolved_board``: Best-effort board string where single-SoC
+           shorthand qualifiers are resolved (e.g. ``board//cpu`` to
+           ``board/soc/cpu``).
          - ``source_dir``: Path to the CMake source directory, relative to the
            current working directory. If the current working directory is
            inside the source directory, this is an empty string. If no source
