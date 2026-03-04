@@ -114,6 +114,26 @@ static int phy_rt_rtl8211f_write(const struct device *dev,
 	return 0;
 }
 
+static int phy_rt_rtl8211f_modify(const struct device *dev, uint16_t reg,
+		uint32_t mask, uint32_t set)
+{
+	uint32_t data = 0;
+	uint32_t new = 0;
+	int ret;
+
+	ret = phy_rt_rtl8211f_read(dev, reg, &data);
+	if (ret) {
+		return ret;
+	}
+
+	new = (data & ~mask) | set;
+	if (new == data) {
+		return 0;
+	}
+
+	return phy_rt_rtl8211f_write(dev, reg, new);
+}
+
 static int phy_rt_rtl8211f_reset(const struct device *dev)
 {
 	const struct rt_rtl8211f_config *config = dev->config;
