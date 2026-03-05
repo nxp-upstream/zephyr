@@ -9,56 +9,93 @@
 #include <soc.h>
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/dt-bindings/clock/kinetis_sim.h>
+#include <zephyr/sys/util.h>
 #include <fsl_clock.h>
 
 #define LOG_LEVEL CONFIG_CLOCK_CONTROL_LOG_LEVEL
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(clock_control);
 
+static inline uint32_t mcux_sim_subsys_val(clock_control_subsys_t sub_system)
+{
+	return POINTER_TO_UINT(sub_system);
+}
+
+static bool mcux_sim_subsys_is_encoded(uint32_t subsys)
+{
+	return KINETIS_SIM_SUBSYS_IS_ENCODED(subsys);
+}
+
+static clock_ip_name_t mcux_sim_subsys_decode_gate(uint32_t subsys)
+{
+	uint32_t offset = KINETIS_SIM_SUBSYS_DECODE_OFFSET(subsys);
+	uint32_t bit = KINETIS_SIM_SUBSYS_DECODE_BITS(subsys);
+
+	return (clock_ip_name_t)CLK_GATE_DEFINE(offset, bit);
+}
+
+static uint32_t mcux_sim_subsys_decode_name(uint32_t subsys)
+{
+	return KINETIS_SIM_SUBSYS_DECODE_NAME(subsys);
+}
+
+static bool mcux_sim_subsys_is_gate_token(uint32_t subsys)
+{
+	/*
+	 * The MCUX SIM uses CLK_GATE_DEFINE(offset, bit) to encode the gate.
+	 * This yields a 32-bit token with a non-zero high 16-bit register offset.
+	 */
+	return (subsys & 0xFFFF0000U) != 0U;
+}
+
 static int mcux_sim_on(const struct device *dev,
 		       clock_control_subsys_t sub_system)
 {
-	clock_ip_name_t clock_ip_name = (clock_ip_name_t) sub_system;
+	uint32_t subsys = mcux_sim_subsys_val(sub_system);
+	clock_ip_name_t clock_ip_name;
 
-#ifdef CONFIG_ETH_NXP_ENET
-	if ((uint32_t)sub_system == KINETIS_SIM_ENET_CLK) {
-		clock_ip_name = kCLOCK_Enet0;
-	}
-#endif
-#ifdef CONFIG_COMPARATOR_NXP_CMP
-	if ((uint32_t)sub_system == KINETIS_SIM_CMP_CLK) {
-		clock_ip_name = kCLOCK_Cmp0;
-	}
-#endif
+	ARG_UNUSED(dev);
 
-#ifdef CONFIG_REGULATOR_NXP_VREFV1
-	if ((uint32_t)sub_system == KINETIS_SIM_VREF_CLK) {
-		clock_ip_name = kCLOCK_Vref0;
-	}
-#endif
-
-#ifdef CONFIG_DMA_NXP_4CH_DMA
-	if ((uint32_t)sub_system == KINETIS_SIM_DMA_CLK) {
-		clock_ip_name = kCLOCK_Dma0;
+	if (mcux_sim_subsys_is_encoded(subsys)) {
+		clock_ip_name = mcux_sim_subsys_decode_gate(subsys);
+		CLOCK_EnableClock(clock_ip_name);
+		return 0;
 	}
 
-	if ((uint32_t)sub_system == KINETIS_SIM_DMAMUX_CLK) {
-		clock_ip_name = kCLOCK_Dmamux0;
+	/*
+	 * Legacy callers may pass an encoded SIM gate token.
+	 * Name-only tokens (e.g. KINETIS_SIM_MCGPCLK) are not usable for gating.
+	 */
+	if (mcux_sim_subsys_is_gate_token(subsys)) {
+		clock_ip_name = (clock_ip_name_t)subsys;
+		CLOCK_EnableClock(clock_ip_name);
+		return 0;
 	}
-#endif
-
-	CLOCK_EnableClock(clock_ip_name);
-
+	/* Name-only token: nothing to gate here. */
 	return 0;
 }
 
 static int mcux_sim_off(const struct device *dev,
 			clock_control_subsys_t sub_system)
 {
-	clock_ip_name_t clock_ip_name = (clock_ip_name_t) sub_system;
+	uint32_t subsys = mcux_sim_subsys_val(sub_system);
+	clock_ip_name_t clock_ip_name;
 
-	CLOCK_DisableClock(clock_ip_name);
+	ARG_UNUSED(dev);
 
+	if (mcux_sim_subsys_is_encoded(subsys)) {
+		clock_ip_name = mcux_sim_subsys_decode_gate(subsys);
+		CLOCK_DisableClock(clock_ip_name);
+		return 0;
+	}
+
+	if (mcux_sim_subsys_is_gate_token(subsys)) {
+		clock_ip_name = (clock_ip_name_t)subsys;
+		CLOCK_DisableClock(clock_ip_name);
+		return 0;
+	}
+
+	/* Name-only token: nothing to gate here. */
 	return 0;
 }
 
@@ -67,19 +104,25 @@ static int mcux_sim_get_subsys_rate(const struct device *dev,
 				    uint32_t *rate)
 {
 	clock_name_t clock_name;
+	uint32_t subsys = mcux_sim_subsys_val(sub_system);
 
-	switch ((uint32_t) sub_system) {
+	ARG_UNUSED(dev);
+
+	if (mcux_sim_subsys_is_encoded(subsys)) {
+		subsys = mcux_sim_subsys_decode_name(subsys);
+	}
+
+	/* Gate tokens do not carry rate information. */
+	if (mcux_sim_subsys_is_gate_token(subsys)) {
+		return -ENOTSUP;
+	}
+
+	switch (subsys) {
 	case KINETIS_SIM_LPO_CLK:
 		clock_name = kCLOCK_LpoClk;
 		break;
-	case KINETIS_SIM_ENET_CLK:
-		clock_name = kCLOCK_CoreSysClk;
-		break;
-	case KINETIS_SIM_ENET_1588_CLK:
-		clock_name = kCLOCK_Osc0ErClk;
-		break;
 	default:
-		clock_name = (clock_name_t) sub_system;
+		clock_name = (clock_name_t)subsys;
 		break;
 	}
 
