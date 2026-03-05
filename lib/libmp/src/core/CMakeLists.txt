@@ -8,6 +8,7 @@ file(GLOB MP_CORE_SOURCE_FILES *.c)
 
 set(BUILTIN_ELEMENTS
     "mp_capsfilter.c:CONFIG_MP_CAPSFILTER"
+    "mp_transform_client.c:CONFIG_MP_RPC"
 )
 
 foreach(ELEMENT_CONFIG ${BUILTIN_ELEMENTS})

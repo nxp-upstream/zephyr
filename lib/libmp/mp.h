@@ -19,6 +19,9 @@
 #include <src/core/mp_caps.h>
 #include <src/core/mp_element.h>
 #include <src/core/mp_pipeline.h>
+#if CONFIG_MP_RPC
+#include <src/core/mp_transform_client.h>
+#endif
 
 #if CONFIG_MP_PLUGIN_ZVID
 #include <src/plugins/zvid/mp_zvid_property.h>
