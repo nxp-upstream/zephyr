@@ -39,8 +39,10 @@ static int gpiomux_init_gpio(const struct device *dev, const struct gpio_dt_spec
 
 out:
 	if (ret) {
+		const char *port_name = spec->port ? spec->port->name : "<null>";
+
 		LOG_ERR("ERR %d Could not configure select line %s:%d", ret,
-								spec->port->name, spec->pin);
+								port_name, spec->pin);
 	}
 	return ret;
 }
@@ -100,7 +102,9 @@ static int gpiomux_state_get(const struct device *dev,
 {
 	struct gpiomux_data *data = dev->data;
 
-	return data->state;
+	*state = data->state;
+
+	return 0;
 }
 
 static int gpiomux_init(const struct device *dev)
@@ -123,14 +127,15 @@ static DEVICE_API(mux_control, gpiomux_api) = {
 	const struct gpio_dt_spec gpiomux##n##_specs[] = {					\
 		DT_INST_FOREACH_PROP_ELEM_SEP(n, mux_gpios, GPIO_DT_SPEC_GET_BY_IDX, (,))	\
 	};											\
+	static struct gpiomux_data gpiomux_data_##n;						\
 	const struct gpiomux_config gpiomux_cfg_##n = {						\
 		.num_bits = DT_INST_PROP_LEN(n, mux_gpios),					\
 		.specs = gpiomux##n##_specs,							\
 	};											\
 												\
-	DEVICE_DT_INST_DEFINE(n, &gpiomux_init, NULL, NULL,					\
+	DEVICE_DT_INST_DEFINE(n, &gpiomux_init, NULL, &gpiomux_data_##n,			\
 				&gpiomux_cfg_##n,						\
-				PRE_KERNEL_2,							\
+				POST_KERNEL,							\
 				CONFIG_MUX_CONTROL_INIT_PRIORITY,				\
 				&gpiomux_api);
 
