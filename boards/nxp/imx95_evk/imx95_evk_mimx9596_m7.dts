@@ -32,6 +32,7 @@
 	phy0: phy@1 {
 		compatible = "realtek,rtl8211f";
 		reg = <0x1>;
+		power-domains = <&netc_mix>;
 		status = "okay";
 	};
 };
