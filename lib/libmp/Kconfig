@@ -15,8 +15,36 @@ module = LIBMP
 module-str = libmp
 source "subsys/logging/Kconfig.template.log_config"
 
+config MP_CPP
+    bool "C++ support"
+    select CPP
+    select REQUIRES_FULL_LIBC
+    select REQUIRES_FULL_LIBCPP
+
 config MP_RPC
     bool "RPC support"
+    imply MP_RPC_BACKEND_ERPC
+
+config MP_RPC_BACKEND_ERPC
+    bool "ERPC backend for RPC"
+    depends on MP_RPC
+    select ERPC
+    select MP_CPP
+    imply MP_ERPC_TRANSPORT_RPMSGLITE
+
+config MP_ERPC_TRANSPORT_RPMSGLITE
+    bool "RPMSG-LITE transport layer for ERPC"
+    depends on MP_RPC_BACKEND_ERPC
+    select ERPC_TRANSPORT_RPMSG_LITE
+    select IPM
+    select EVENTS
+    select PRINTK
+    select RPMSGLITE
+    imply RPMSGLITE_NS
+    imply RPMSGLITE_QUEUE
+
+config TIMESLICE_SIZE
+    default 1 if RPMSGLITE
 
 # Load core configurations
 source "lib/libmp/src/core/Kconfig"

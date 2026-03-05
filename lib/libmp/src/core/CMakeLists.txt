@@ -21,4 +21,9 @@ foreach(ELEMENT_CONFIG ${BUILTIN_ELEMENTS})
     endif()
 endforeach()
 
+if(CONFIG_MP_RPC_BACKEND_ERPC)
+    file(GLOB ERPC_SOURCE_FILES rpc/erpc/*.c)
+    list(APPEND MP_CORE_SOURCE_FILES ${ERPC_SOURCE_FILES})
+endif()
+
 zephyr_library_sources(${MP_CORE_SOURCE_FILES})
