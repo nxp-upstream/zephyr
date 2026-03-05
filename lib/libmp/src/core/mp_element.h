@@ -23,10 +23,10 @@
 #include "mp_object.h"
 #include "mp_query.h"
 
-#define MP_ELEMENT_INIT(elem, type, id)                                                            \
+#define MP_ELEMENT_INIT(elem, initfn, id)                                                          \
 	({                                                                                         \
 		mp_element_init(MP_ELEMENT(elem), id);                                             \
-		mp_##type##_init(MP_ELEMENT(elem));                                                \
+		initfn(MP_ELEMENT(elem));                                                          \
 	})
 
 /**

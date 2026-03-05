@@ -131,6 +131,10 @@ static inline bool mp_transform_query_caps(struct mp_transform *self,
 	mp_caps_unref(queried_pad_caps);
 	mp_caps_unref(query_back_caps);
 
+	if (res_caps == NULL) {
+		return false;
+	}
+
 	/* Answer the upstream query */
 	ret = mp_query_set_caps(query, res_caps);
 	mp_caps_unref(res_caps);
