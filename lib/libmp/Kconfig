@@ -11,6 +11,10 @@ menuconfig MP
 
 if MP
 
+module = LIBMP
+module-str = libmp
+source "subsys/logging/Kconfig.template.log_config"
+
 # Load core configurations
 source "lib/libmp/src/core/Kconfig"
 

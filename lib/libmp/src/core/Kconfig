@@ -20,7 +20,3 @@ config MP_THREAD_DEFAULT_PRIORITY
 
 config MP_CAPSFILTER
     bool "Capsfilter support"
-
-module = LIBMP
-module-str = libmp
-source "subsys/logging/Kconfig.template.log_config"
