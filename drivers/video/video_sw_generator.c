@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019, Linaro Limited
+ * Copyright 2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -30,9 +31,31 @@ LOG_MODULE_REGISTER(video_sw_generator, CONFIG_VIDEO_LOG_LEVEL);
 #define MAX_FRAME_RATE          60
 #define MIN_FRAME_RATE          1
 
+/* Default frame configuration */
+#define DEFAULT_FRAME_WIDTH  320
+#define DEFAULT_FRAME_HEIGHT 160
+
 struct sw_ctrls {
 	struct video_ctrl hflip;
 	struct video_ctrl test_pattern;
+};
+
+/* Static JPEG frame buffers. 2 320x160 color-bar pattern frames, h-flipped. */
+static uint8_t jpeg_frame_buffer[] = {
+#include "jpeg_frame_buffer.h"
+};
+
+static uint8_t jpeg_frame_buffer_hflip[] = {
+#include "jpeg_frame_buffer_hflip.h"
+};
+
+/* Static PNG frame buffers. 2 320x160 color-bar pattern frames, h-flipped. */
+static uint8_t png_frame_buffer[] = {
+#include "png_frame_buffer.h"
+};
+
+static uint8_t png_frame_buffer_hflip[] = {
+#include "png_frame_buffer_hflip.h"
 };
 
 struct video_sw_generator_data {
@@ -47,15 +70,31 @@ struct video_sw_generator_data {
 	uint32_t frame_rate;
 };
 
-#define VIDEO_SW_GENERATOR_FORMAT_CAP(pixfmt)                                                      \
-	{                                                                                          \
-		.pixelformat = pixfmt,                                                             \
-		.width_min = 64,                                                                   \
-		.width_max = 1920,                                                                 \
-		.height_min = 64,                                                                  \
-		.height_max = 1080,                                                                \
-		.width_step = 1,                                                                   \
-		.height_step = 1,                                                                  \
+#define VIDEO_SW_GENERATOR_FORMAT_CAP(pixfmt)				\
+	{								\
+		.pixelformat = pixfmt,					\
+		.width_min =						\
+			((pixfmt) == VIDEO_PIX_FMT_JPEG ?		\
+			CONFIG_VIDEO_SW_GENERATOR_JPEG_WIDTH :		\
+			((pixfmt) == VIDEO_PIX_FMT_PNG) ?		\
+			CONFIG_VIDEO_SW_GENERATOR_PNG_WIDTH : 64),	\
+		.width_max =						\
+			((pixfmt) == VIDEO_PIX_FMT_JPEG ?		\
+			CONFIG_VIDEO_SW_GENERATOR_JPEG_WIDTH :		\
+			((pixfmt) == VIDEO_PIX_FMT_PNG) ?		\
+			CONFIG_VIDEO_SW_GENERATOR_PNG_WIDTH : 64),	\
+		.height_min =						\
+			((pixfmt) == VIDEO_PIX_FMT_JPEG ?		\
+			CONFIG_VIDEO_SW_GENERATOR_JPEG_HEIGHT :		\
+			((pixfmt) == VIDEO_PIX_FMT_PNG) ?		\
+			CONFIG_VIDEO_SW_GENERATOR_PNG_HEIGHT : 64),	\
+		.height_max =						\
+			((pixfmt) == VIDEO_PIX_FMT_JPEG ?		\
+			CONFIG_VIDEO_SW_GENERATOR_JPEG_HEIGHT :		\
+			((pixfmt) == VIDEO_PIX_FMT_PNG) ?		\
+			CONFIG_VIDEO_SW_GENERATOR_PNG_HEIGHT : 64),	\
+		.width_step = 1,					\
+		.height_step = 1,					\
 	}
 
 static const struct video_format_cap fmts[] = {
@@ -67,6 +106,8 @@ static const struct video_format_cap fmts[] = {
 	VIDEO_SW_GENERATOR_FORMAT_CAP(VIDEO_PIX_FMT_SGRBG8),
 	VIDEO_SW_GENERATOR_FORMAT_CAP(VIDEO_PIX_FMT_SBGGR8),
 	VIDEO_SW_GENERATOR_FORMAT_CAP(VIDEO_PIX_FMT_SGBRG8),
+	VIDEO_SW_GENERATOR_FORMAT_CAP(VIDEO_PIX_FMT_JPEG),
+	VIDEO_SW_GENERATOR_FORMAT_CAP(VIDEO_PIX_FMT_PNG),
 	{0},
 };
 
@@ -90,6 +131,13 @@ static int video_sw_generator_set_fmt(const struct device *dev, struct video_for
 	ret = video_estimate_fmt_size(fmt);
 	if (ret < 0) {
 		return ret;
+	}
+
+	/* Special handling for JPEG and PNG file size */
+	if (fmt->pixelformat == VIDEO_PIX_FMT_JPEG) {
+		fmt->size = MAX(sizeof(jpeg_frame_buffer), sizeof(jpeg_frame_buffer_hflip));
+	} else if (fmt->pixelformat == VIDEO_PIX_FMT_PNG) {
+		fmt->size = MAX(sizeof(png_frame_buffer), sizeof(png_frame_buffer_hflip));
 	}
 
 	data->fmt = *fmt;
@@ -224,6 +272,51 @@ static uint16_t video_sw_generator_fill_bayer8(uint8_t *buffer, uint16_t width, 
 	return 2;
 }
 
+static int video_sw_generator_fill_compressed(struct video_buffer *vbuf, bool hflip,
+					      uint32_t pix_format)
+{
+	uint8_t *frame;
+	uint32_t frame_size;
+
+	switch (pix_format) {
+	case VIDEO_PIX_FMT_JPEG:
+		if (hflip) {
+			frame = jpeg_frame_buffer_hflip;
+			frame_size = sizeof(jpeg_frame_buffer_hflip);
+		} else {
+			frame = jpeg_frame_buffer;
+			frame_size = sizeof(jpeg_frame_buffer);
+		}
+		break;
+	case VIDEO_PIX_FMT_PNG:
+		if (hflip) {
+			frame = png_frame_buffer_hflip;
+			frame_size = sizeof(png_frame_buffer_hflip);
+		} else {
+			frame = png_frame_buffer;
+			frame_size = sizeof(png_frame_buffer);
+		}
+		break;
+	default:
+		LOG_ERR("Unsupported compressed format: %u", pix_format);
+		return -EINVAL;
+	}
+
+	/* Check if buffer is large enough */
+	if (vbuf->size < frame_size) {
+		LOG_ERR("Buffer too small (need %u, have %zu)", frame_size, vbuf->size);
+		return -ENOMEM;
+	}
+
+	/* Copy the compressed frame data to the video buffer */
+	memcpy(vbuf->buffer, frame, frame_size);
+	vbuf->bytesused = frame_size;
+	vbuf->timestamp = k_uptime_get_32();
+	vbuf->line_offset = 0;
+
+	return 0;
+}
+
 static int video_sw_generator_fill(const struct device *const dev, struct video_buffer *vbuf)
 {
 	struct video_sw_generator_data *data = dev->data;
@@ -231,6 +324,12 @@ static int video_sw_generator_fill(const struct device *const dev, struct video_
 	size_t pitch = fmt->width * video_bits_per_pixel(fmt->pixelformat) / BITS_PER_BYTE;
 	bool hflip = data->ctrls.hflip.val;
 	uint16_t lines = 0;
+
+	/* Handle JPEG and PNG formats specially */
+	if ((data->fmt.pixelformat == VIDEO_PIX_FMT_JPEG) ||
+	    (data->fmt.pixelformat == VIDEO_PIX_FMT_PNG)) {
+		return video_sw_generator_fill_compressed(vbuf, hflip, data->fmt.pixelformat);
+	}
 
 	if (vbuf->size < pitch * 2) {
 		LOG_ERR("At least 2 lines needed for bayer formats support");
@@ -486,11 +585,11 @@ static int video_sw_generator_init(const struct device *dev)
 
 #define VIDEO_SW_GENERATOR_DEFINE(n)                                                               \
 	static struct video_sw_generator_data video_sw_generator_data_##n = {                      \
-		.fmt.width = 320,                                                                  \
-		.fmt.height = 160,                                                                 \
-		.fmt.pitch = 320 * 2,                                                              \
+		.fmt.width = DEFAULT_FRAME_WIDTH,                                                  \
+		.fmt.height = DEFAULT_FRAME_HEIGHT,                                                \
+		.fmt.pitch = DEFAULT_FRAME_WIDTH * 2,                                              \
 		.fmt.pixelformat = VIDEO_PIX_FMT_RGB565,                                           \
-		.fmt.size = 320 * 2 * 160,                                                         \
+		.fmt.size = DEFAULT_FRAME_WIDTH * 2 * DEFAULT_FRAME_HEIGHT,                        \
 		.frame_rate = DEFAULT_FRAME_RATE,                                                  \
 	};                                                                                         \
                                                                                                    \

@@ -36,4 +36,53 @@ zephyr_library_sources_ifdef(CONFIG_VIDEO_ST_MIPID02 video_st_mipid02.c)
 zephyr_library_sources_ifdef(CONFIG_VIDEO_SW_GENERATOR video_sw_generator.c)
 # zephyr-keep-sorted-stop
 
+if(CONFIG_VIDEO_SW_GENERATOR)
+set(VIDEO_DIR ${CMAKE_CURRENT_LIST_DIR})
+
+add_custom_command(
+        OUTPUT
+                ${VIDEO_DIR}/jpeg_frame_buffer.h
+                ${VIDEO_DIR}/jpeg_frame_buffer_hflip.h
+                ${VIDEO_DIR}/png_frame_buffer.h
+                ${VIDEO_DIR}/png_frame_buffer_hflip.h
+        COMMAND xxd -i ${VIDEO_DIR}/color_bar.jpg
+                | tail -n +2
+                | head -n -2
+                > ${VIDEO_DIR}/jpeg_frame_buffer.h
+        COMMAND xxd -i ${VIDEO_DIR}/color_bar_hflip.jpg
+                | tail -n +2
+                | head -n -2
+                > ${VIDEO_DIR}/jpeg_frame_buffer_hflip.h
+        COMMAND xxd -i ${VIDEO_DIR}/color_bar.png
+                | tail -n +2
+                | head -n -2
+                > ${VIDEO_DIR}/png_frame_buffer.h
+        COMMAND xxd -i ${VIDEO_DIR}/color_bar_hflip.png
+                | tail -n +2
+                | head -n -2
+                > ${VIDEO_DIR}/png_frame_buffer_hflip.h
+        DEPENDS
+                ${VIDEO_DIR}/color_bar.jpg
+                ${VIDEO_DIR}/color_bar_hflip.jpg
+                ${VIDEO_DIR}/color_bar.png
+                ${VIDEO_DIR}/color_bar_hflip.png
+)
+
+add_custom_target(generate_video_frame_buffers DEPENDS
+        ${VIDEO_DIR}/jpeg_frame_buffer.h
+        ${VIDEO_DIR}/jpeg_frame_buffer_hflip.h
+        ${VIDEO_DIR}/png_frame_buffer.h
+        ${VIDEO_DIR}/png_frame_buffer_hflip.h
+)
+
+zephyr_library_sources(
+        ${VIDEO_DIR}/jpeg_frame_buffer.h
+        ${VIDEO_DIR}/jpeg_frame_buffer_hflip.h
+        ${VIDEO_DIR}/png_frame_buffer.h
+        ${VIDEO_DIR}/png_frame_buffer_hflip.h
+)
+
+add_dependencies(${ZEPHYR_CURRENT_LIBRARY} generate_video_frame_buffers)
+endif()
+
 zephyr_linker_sources(DATA_SECTIONS video.ld)
