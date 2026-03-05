@@ -27,6 +27,9 @@
 #include <src/plugins/zvid/mp_zvid_property.h>
 #include <src/plugins/zvid/mp_zvid_src.h>
 #include <src/plugins/zvid/mp_zvid_transform.h>
+#if CONFIG_MP_RPC
+#include <src/plugins/zvid/mp_zvid_transform_client.h>
+#endif
 #endif
 
 #if CONFIG_MP_PLUGIN_ZDISP
