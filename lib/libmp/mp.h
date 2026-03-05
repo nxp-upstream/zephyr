@@ -30,6 +30,9 @@
 #if CONFIG_MP_RPC
 #include <src/plugins/zvid/mp_zvid_transform_client.h>
 #endif
+#if CONFIG_MP_RPC_BACKEND_ERPC
+#include <src/plugins/zvid/mp_zvid_transform_client_erpc.h>
+#endif
 #endif
 
 #if CONFIG_MP_PLUGIN_ZDISP
