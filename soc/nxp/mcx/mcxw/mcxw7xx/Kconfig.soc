@@ -5,6 +5,7 @@
 config SOC_SERIES_MCXW7XX
 	bool
 	select SOC_FAMILY_MCXW
+	select NXP_MCXW7X_BLE_CTRL if BT
 
 config SOC_SERIES
 	default "mcxw7xx" if SOC_SERIES_MCXW7XX
