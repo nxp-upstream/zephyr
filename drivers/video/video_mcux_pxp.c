@@ -7,15 +7,14 @@
 #include <errno.h>
 
 #include <zephyr/drivers/video.h>
-#include <zephyr/drivers/video-controls.h>
+#include <zephyr/video/controls.h>
 #include <zephyr/dt-bindings/video/video-interfaces.h>
 #include <zephyr/irq.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/util.h>
 
-#include "video_ctrls.h"
-#include "video_device.h"
+#include "video_common.h"
 
 #include <fsl_pxp.h>
 #ifdef CONFIG_HAS_MCUX_CACHE
