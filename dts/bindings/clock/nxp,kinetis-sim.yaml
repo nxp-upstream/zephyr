@@ -33,6 +33,13 @@ properties:
     type: int
     const: 3
 
+# Notes:
+# - Some consumers historically pass only the `name` clock-cell to the
+#   clock_control API.
+# - Devicetrees encode gate+rate information into the `name` cell using
+#   helpers from <zephyr/dt-bindings/clock/kinetis_sim.h> (for example
+#   `KINETIS_SIM_SUBSYS_ENCODE`/`KINETIS_SIM_CLOCK_SPEC`), while still
+#   providing the required `offset` and `bits` cells.
 clock-cells:
   - name
   - offset
