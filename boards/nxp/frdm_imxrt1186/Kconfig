@@ -1,6 +1,9 @@
 # Copyright 2026 NXP
 # SPDX-License-Identifier: Apache-2.0
 
+config BOARD_FRDM_IMXRT1186
+	select BOARD_EARLY_INIT_HOOK
+
 config BOARD_NXP_SPECIFIC_MPU_SETTINGS
 	bool "Use default MPU settings for NXP boards"
 	default y if CPU_HAS_CUSTOM_FIXED_SOC_MPU_REGIONS

@@ -18,4 +18,5 @@ supported:
   - adc
   - gpio
   - uart
+  - netif:eth
 vendor: nxp
