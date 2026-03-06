@@ -1,0 +1,56 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  NXP Low Power Timer (LPTMR) used as the Zephyr system tick / tickless timer.
+
+  This binding is dedicated to the system-timer role. For counter (alarm/capture)
+  usage, see dts/bindings/counter/nxp,lptmr.yaml (compatible "nxp,lptmr").
+
+compatible: "nxp,lptmr-timer"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  clock-frequency:
+    type: int
+    required: true
+    description: |
+      Timer input clock frequency in Hz. Used by the SoC Kconfig.defconfig to
+      set SYS_CLOCK_HW_CYCLES_PER_SEC when this driver is selected.
+
+  clk-source:
+    type: int
+    required: true
+    enum: [0, 1, 2, 3]
+    description: |
+      Selects the clock to be used by the LPTMR prescaler/glitch filter.
+      In Time Counter mode this field selects the input clock to the prescaler.
+      The clock connections vary by device; see the device reference manual for
+      details.
+
+  resolution:
+    type: int
+    required: true
+    description: Counter width in bits (typically 16 or 32).
+
+  prescale-glitch-filter-bypass:
+    type: boolean
+    description: |
+      When present, the prescaler/glitch filter is bypassed and the selected
+      clk-source directly clocks the counter register (CNR).
+
+  prescale-glitch-filter:
+    type: int
+    default: 0
+    enum: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    description: |
+      Prescaler divisor selection. The counter is clocked at
+      clk-source / 2^(prescale-glitch-filter + 1).
+      Ignored when prescale-glitch-filter-bypass is set.
