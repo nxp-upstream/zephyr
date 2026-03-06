@@ -371,6 +371,11 @@ Counter
            resolution = <16>;
        };
 
+* The :dtcompatible:`nxp,lptmr` compatible is now dedicated to the counter (alarm /
+  capture) driver role. Nodes intended for use as the Zephyr system timer must use
+  the :dtcompatible:`nxp,lptmr-timer` compatible instead. See the Timer section
+  for migration details. (:github:`104445`)
+
 * The NXP i.MX GPT counter driver (:dtcompatible:`nxp,imx-gpt`) now
   defaults to ``run-mode = "restart"`` instead of the previous hardcoded free-run behavior.
 
@@ -842,6 +847,57 @@ Timer
 * :dtcompatible:`renesas,rza2m-ostm` name has been replaced by :dtcompatible:`renesas,rza2m-ostm-timer`.
   The choice :kconfig:option:`DT_HAS_RENESAS_RZA2M_OSTM_ENABLED` has been replaced with
   :kconfig:option:`DT_HAS_RENESAS_RZA2M_OSTM_TIMER_ENABLED` (:github:`100934`)
+
+* The NXP LPTMR system timer driver now uses a dedicated devicetree compatible
+  ``nxp,lptmr-timer`` (binding: :dtcompatible:`nxp,lptmr-timer`) instead of the
+  shared ``nxp,lptmr`` compatible. :kconfig:option:`CONFIG_MCUX_LPTMR_TIMER` now
+  depends on :kconfig:option:`DT_HAS_NXP_LPTMR_TIMER_ENABLED` and no longer conflicts
+  with :kconfig:option:`CONFIG_COUNTER_MCUX_LPTMR` when separate hardware instances
+  are used.
+
+  Out-of-tree boards must update any node intended as the system timer:
+
+  * **Multi-instance SoC** (node permanently dedicated to the timer role): rename the
+    compatible from ``"nxp,lptmr"`` to ``"nxp,lptmr-timer"`` directly in the DTS:
+
+    .. code-block:: devicetree
+
+       /* Old */
+       lptmr0: lptmr@40040000 {
+           compatible = "nxp,lptmr";
+       };
+
+       /* New */
+       lptmr0: lptmr@40040000 {
+           compatible = "nxp,lptmr-timer";
+       };
+
+  * **Single-instance SoC** (node may also serve as a counter): keep the SoC DTSI
+    node as ``"nxp,lptmr"`` and override the compatible in a board overlay when the
+    timer role is needed:
+
+    .. code-block:: devicetree
+
+       /* board overlay */
+       &lptmr0 {
+           compatible = "nxp,lptmr-timer";
+       };
+
+  In-tree SoC DTSI changes:
+
+  * **i.MX95, MCX-W** (mcxw7x/mcxw70): the timer-dedicated LPTMR instance
+    compatible has been changed to ``"nxp,lptmr-timer"``; the counter instance
+    remains ``"nxp,lptmr"``.
+
+  * **All other in-tree SoCs** (Kinetis ke1xf/ke1xz, MCX-C, MCX-E24x, MCX-A,
+    i.MX RT118x, MCX-N): DTSI nodes are unchanged (``"nxp,lptmr"``). Boards that
+    need an LPTMR instance as the system timer must provide a board overlay as
+    shown above.
+
+  For Kinetis KE1xF SoCs, :kconfig:option:`CONFIG_MCUX_LPTMR_TIMER` was
+  previously auto-selected when :kconfig:option:`CONFIG_PM` was enabled. It now
+  also requires an ``nxp,lptmr-timer`` DT node to be present; the board overlay
+  above is therefore required for PM-based LPTMR timer use.
 
 USB
 ===
