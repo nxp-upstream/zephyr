@@ -203,6 +203,8 @@ static int mc_cgm_clock_control_on(const struct device *dev, clock_control_subsy
 		CLOCK_EnableClock(kCLOCK_Pit2Clk);
 		break;
 #endif
+	case MCUX_SIRC_CLK:
+		break;
 	default:
 		return -ENOTSUP;
 	}
