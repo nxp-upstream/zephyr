@@ -614,7 +614,7 @@
 		};
 
 		lptmr1: timer@44300000 {
-			compatible = "nxp,lptmr";
+			compatible = "nxp,lptmr-timer";
 			reg = <0x44300000 DT_SIZE_K(4)>;
 			interrupts = <18 0>;
 			clocks = <&scmi_clk IMX95_CLK_LPTMR1>;
