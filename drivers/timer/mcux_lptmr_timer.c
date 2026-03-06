@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#define DT_DRV_COMPAT nxp_lptmr
+#define DT_DRV_COMPAT nxp_lptmr_timer
 
 #include <zephyr/init.h>
 #include <zephyr/drivers/timer/system_timer.h>
@@ -16,7 +16,7 @@
 #include <zephyr/irq.h>
 
 BUILD_ASSERT(DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT) == 1,
-	     "No LPTMR instance enabled in devicetree");
+	     "Exactly one nxp,lptmr-timer node must be enabled in devicetree");
 
 /* Prescaler clock mapping */
 #define TO_LPTMR_CLK_SEL(val) _DO_CONCAT(kLPTMR_PrescalerClock_, val)
