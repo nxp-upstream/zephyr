@@ -12,8 +12,14 @@
 /* -------------------------------------------------------------------------- */
 /*                                  Includes                                  */
 /* -------------------------------------------------------------------------- */
+#include <zephyr/bluetooth/hci_vs.h>
 #include <zephyr/irq.h>
 #include <soc.h>
+#if defined(CONFIG_SOC_SERIES_MCXW2XX)
+#include "ble_controller.h"
+#elif defined(CONFIG_SOC_SERIES_MCXW7XX)
+#include "controller_api.h"
+#endif
 
 /* -------------------------------------------------------------------------- */
 /*                                  Definitions                               */
@@ -96,4 +102,39 @@ void nxp_nbu_init(void)
 #if (DT_INST_PROP(0, wakeup_source)) && CONFIG_PM
 	NXP_ENABLE_WAKEUP_SIGNAL(NBU_RX_IRQ_N);
 #endif
+}
+
+int nxp_nbu_set_tx_power(int8_t level_dbm, uint8_t handle_type)
+{
+	int status = 0;
+#if defined(CONFIG_SOC_SERIES_MCXW2XX)
+	/* TODO: ADD runtime check of tx-power */
+	if (handle_type == BT_HCI_VS_LL_HANDLE_TYPE_CONN) {
+		if (kBLEC_Success != BLEController_SetConnectionInitialTxPowerDbm(level_dbm))
+		{
+			status = -EIO;
+		}
+	} else {
+		if (kBLEC_Success != BLEController_SetTxPowerDbm(level_dbm))
+		{
+			status = -EIO;
+		}
+	}
+#elif defined(CONFIG_SOC_SERIES_MCXW7XX)
+	if (handle_type == BT_HCI_VS_LL_HANDLE_TYPE_CONN)
+	{
+		if (Controller_SetTxPowerLevelDbm(level_dbm, gConnTxChannel_c) != KOSA_StatusSuccess)
+		{
+			status = -EIO;
+		}
+	} else {
+		if (Controller_SetTxPowerLevelDbm(level_dbm, gAdvTxChannel_c) != KOSA_StatusSuccess)
+		{
+			status = -EIO;
+		}
+	}
+#else
+	status = -ENOENT;
+#endif
+	return status;
 }
