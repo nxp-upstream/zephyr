@@ -339,7 +339,7 @@
 	};
 
 	lptmr0: timer@2d000 {
-		compatible = "nxp,lptmr";
+		compatible = "nxp,lptmr-timer";
 		reg = <0x2d000 0x10>;
 		interrupts = <34 0>;
 		clock-frequency = <32768>;

@@ -440,7 +440,7 @@
 	};
 
 	lptmr_0: timer@5000 {
-		compatible = "nxp,lptmr";
+		compatible = "nxp,lptmr-timer";
 		reg = <0x5000 0x10>;
 		interrupts = <37 0>;
 		clock-frequency = <32768>;
