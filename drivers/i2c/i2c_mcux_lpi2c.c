@@ -458,7 +458,7 @@ static int mcux_lpi2c_target_register(const struct device *dev,
 					kLPI2C_SlaveTransmitAckFlag));
 	return 0;
 }
-
+#if 0
 static int mcux_lpi2c_target_unregister(const struct device *dev,
 					struct i2c_target_config *target_config)
 {
@@ -476,6 +476,49 @@ static int mcux_lpi2c_target_unregister(const struct device *dev,
 
 	return 0;
 }
+#else
+static int mcux_lpi2c_target_unregister(const struct device *dev,
+					struct i2c_target_config *target_config)
+{
+	const struct mcux_lpi2c_config *config = dev->config;
+	struct mcux_lpi2c_data *data = dev->data;
+	LPI2C_Type *base = (LPI2C_Type *)DEVICE_MMIO_NAMED_GET(dev, reg_base);
+	lpi2c_master_config_t master_config;
+	uint32_t clock_freq;
+	uint32_t bitrate_cfg;
+	int ret;
+
+	if (!data->target_attached) {
+		return -EINVAL;
+	}
+
+	data->target_cfg = NULL;
+	data->target_attached = false;
+
+	LPI2C_SlaveDeinit(base);
+
+	if (clock_control_get_rate(config->clock_dev, config->clock_subsys,
+				   &clock_freq)) {
+		return -EINVAL;
+	}
+
+	LPI2C_MasterGetDefaultConfig(&master_config);
+	master_config.busIdleTimeout_ns = config->bus_idle_timeout_ns;
+
+	LPI2C_MasterInit(base, &master_config, clock_freq);
+	LPI2C_MasterTransferCreateHandle(base, &data->handle,
+					 mcux_lpi2c_master_transfer_callback,
+					 data);
+
+	bitrate_cfg = i2c_map_dt_bitrate(config->bitrate);
+	ret = mcux_lpi2c_configure(dev, I2C_MODE_CONTROLLER | bitrate_cfg);
+	if (ret) {
+		return ret;
+	}
+
+	return 0;
+}
+#endif
 #endif /* CONFIG_I2C_TARGET */
 
 #if DT_HAS_COMPAT_STATUS_OKAY(nxp_lp_flexcomm)
