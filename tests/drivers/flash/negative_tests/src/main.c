@@ -29,14 +29,16 @@
 #if defined(CONFIG_SOC_SERIES_NRF54L) || defined(CONFIG_SOC_FAMILY_MICROCHIP_SAM_D5X_E5X)
 #define TEST_FLASH_START (DT_REG_ADDR(DT_MEM_FROM_FIXED_PARTITION(DT_NODELABEL(TEST_AREA))))
 #define TEST_FLASH_SIZE  (DT_REG_SIZE(DT_MEM_FROM_FIXED_PARTITION(DT_NODELABEL(TEST_AREA))))
-#elif defined(CONFIG_SOC_NRF54H20)
+#elif defined(CONFIG_SOC_NRF54H20) || defined(CONFIG_SOC_FAMILY_INFINEON_PSOC4)
+/* For these SoCs, storage_partition is a child of partitions, which is a child of flash device */
+/* We need to go up two levels: storage_partition -> partitions -> flash device */
 #define TEST_FLASH_START (DT_REG_ADDR(DT_PARENT(DT_PARENT(DT_NODELABEL(TEST_AREA)))))
 #define TEST_FLASH_SIZE  (DT_REG_SIZE(DT_PARENT(DT_PARENT(DT_NODELABEL(TEST_AREA)))))
-#elif defined(CONFIG_SOC_FAMILY_INFINEON_PSOC4)
-/* For PSoC4, storage_partition is a child of partitions, which is a child of flash0 */
-/* We need to go up two levels: storage_partition -> partitions -> flash0 */
-#define TEST_FLASH_START (DT_REG_ADDR(DT_PARENT(DT_PARENT(DT_NODELABEL(TEST_AREA)))))
-#define TEST_FLASH_SIZE  (DT_REG_SIZE(DT_PARENT(DT_PARENT(DT_NODELABEL(TEST_AREA)))))
+#elif defined(CONFIG_SOC_SERIES_IMXRT118X)
+/* For i.MX RT118x, storage_partition -> partitions -> w25q128jw (FlexSPI NOR) */
+/* Flash operations use offsets from 0, not physical addresses */
+#define TEST_FLASH_START 0
+#define TEST_FLASH_SIZE  DT_PROP(DT_PARENT(DT_PARENT(DT_NODELABEL(TEST_AREA))), size)
 #else
 #error "Missing definition of TEST_FLASH_START and TEST_FLASH_SIZE for this target"
 #endif
