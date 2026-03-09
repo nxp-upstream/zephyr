@@ -8,13 +8,74 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/net/mcp/mcp_server.h>
 #include <zephyr/net/mcp/mcp_server_http.h>
+#include <zephyr/drivers/gpio.h>
 
 LOG_MODULE_REGISTER(mcp_sample_hello, LOG_LEVEL_INF);
 
+#define LED0_NODE DT_ALIAS(led0)
+
 mcp_server_ctx_t server;
 
+static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
+static bool led_initialized = false;
+
+/* Tool helper function */
+static const char *extract_json_string_value(const char *json, const char *key)
+{
+	static char value_buffer[32];
+	const char *key_pos;
+	const char *value_start;
+	const char *value_end;
+	size_t key_len = strlen(key);
+	size_t value_len;
+
+	if (!json || !key) {
+		return NULL;
+	}
+
+	key_pos = strstr(json, key);
+	if (!key_pos) {
+		printk("didn't find key in json\n");
+		return NULL;
+	}
+
+	value_start = strchr(key_pos + key_len, ':');
+	if (!value_start) {
+		printk("didn't find : where expected\n");
+		return NULL;
+	}
+	value_start++;
+
+	while (*value_start == ' ' || *value_start == '\t' || *value_start == '\n') {
+		value_start++;
+	}
+
+	if (*value_start != '"') {
+		printk("didn't find expected value start\n");
+		return NULL;
+	}
+	value_start++;
+
+	value_end = strchr(value_start, '"');
+	if (!value_end) {
+		printk("didn't find expected value end\n");
+		return NULL;
+	}
+
+	value_len = value_end - value_start;
+	if (value_len >= sizeof(value_buffer)) {
+		printk("value len > buffer size\n");
+		return NULL;
+	}
+
+	memcpy(value_buffer, value_start, value_len);
+	value_buffer[value_len] = '\0';
+
+	return value_buffer;
+}
+
 /* Tool callback functions */
-static int hello_world_tool_callback(enum mcp_tool_event_type event, const char *params, const char *execution_token)
+static int hello_world_tool_callback(enum mcp_tool_event_type event, const char *arguments, const char *execution_token)
 {
 	if (event == MCP_TOOL_CANCEL_REQUEST) {
 		struct mcp_tool_message cancel_ack = {
@@ -44,13 +105,13 @@ static int hello_world_tool_callback(enum mcp_tool_event_type event, const char 
 	 */
 	k_msleep(5000);
 
-	printk("Hello World tool executed with params: %s, token: %s\n", params ? params : "none",
+	printk("Hello World tool executed with arguments: %s, token: %s\n", arguments ? arguments : "none",
 	       execution_token);
 	mcp_server_submit_tool_message(server, &response, execution_token);
 	return 0;
 }
 
-static int goodbye_world_tool_callback(enum mcp_tool_event_type event, const char *params, const char *execution_token)
+static int goodbye_world_tool_callback(enum mcp_tool_event_type event, const char *arguments, const char *execution_token)
 {
 	if (event == MCP_TOOL_CANCEL_REQUEST) {
 		struct mcp_tool_message cancel_ack = {
@@ -71,10 +132,66 @@ static int goodbye_world_tool_callback(enum mcp_tool_event_type event, const cha
 		.length = strlen("Goodbye World from tool!")
 	};
 
-	printk("Goodbye World tool executed with params: %s, token: %s\n", params ? params : "none",
+	printk("Goodbye World tool executed with arguments: %s, token: %s\n", arguments ? arguments : "none",
 	       execution_token);
 	mcp_server_submit_tool_message(server, &response, execution_token);
 	return 0;
+}
+	
+static int led_control_tool_callback(enum mcp_tool_event_type event, const char *arguments, const char *execution_token)
+{
+	if (event == MCP_TOOL_CANCEL_REQUEST) {
+		struct mcp_tool_message cancel_ack = {
+			.type = MCP_USR_TOOL_CANCEL_ACK,
+			.data = NULL,
+			.length = 0
+		};
+
+		mcp_server_submit_tool_message(server, &cancel_ack, execution_token);
+
+		return 0;
+	}
+
+	if (!led_initialized) {
+		struct mcp_tool_message error_response = {
+			.type = MCP_USR_TOOL_RESPONSE,
+			.data = "LED not initialized",
+			.length = strlen("LED not initialized")
+		};
+		mcp_server_submit_tool_message(server, &error_response, execution_token);
+		return -ENODEV;
+	}
+
+	char response_buffer[64];
+	int ret = 0;
+
+	printk("received arguments: %s\n", arguments ? arguments : "none");
+	
+	const char *action = extract_json_string_value(arguments, "\"action\"");
+
+	if (action && strcmp(action, "on") == 0) {
+		ret = gpio_pin_set_dt(&led, 1);
+		snprintf(response_buffer, sizeof(response_buffer), "LED turned ON (ret=%d)", ret);
+	} else if (action && strcmp(action, "off") == 0) {
+		ret = gpio_pin_set_dt(&led, 0);
+		snprintf(response_buffer, sizeof(response_buffer), "LED turned OFF (ret=%d)", ret);
+	} else if (action && strcmp(action, "toggle") == 0) {
+		ret = gpio_pin_toggle_dt(&led);
+		snprintf(response_buffer, sizeof(response_buffer), "LED toggled (ret=%d)", ret);
+	} else {
+		snprintf(response_buffer, sizeof(response_buffer), "Invalid action. Use: on, off, or toggle");
+	}
+
+	struct mcp_tool_message response = {
+		.type = MCP_USR_TOOL_RESPONSE,
+		.data = response_buffer,
+		.length = strlen(response_buffer)
+	};
+
+	printk("LED control tool executed with arguments: %s, token: %s\n", arguments ? arguments : "none",
+								execution_token);
+	mcp_server_submit_tool_message(server, &response, execution_token);
+	return ret;
 }
 
 /* Tool definitions */
@@ -134,12 +251,53 @@ static const struct mcp_tool_record goodbye_world_tool = {
 	.callback = goodbye_world_tool_callback
 };
 
+static const struct mcp_tool_record led_control_tool = {
+	.metadata = {
+			.name = "led_control",
+			.input_schema =
+			"{"
+			"\"type\":\"object\","
+			"\"properties\":{"
+				"\"action\":{"
+					"\"type\":\"string\","
+					"\"enum\":[\"on\",\"off\",\"toggle\"],"
+					"\"description\":\"The LED action to perform\""
+				"}"
+			"},"
+			"\"required\":[\"action\"]"
+			"}",
+#ifdef CONFIG_MCP_TOOL_DESC
+			.description = "Control the board LED (on/off/toggle)",
+#endif
+#ifdef CONFIG_MCP_TOOL_TITLE
+			.title = "LED Control Tool",
+#endif
+#ifdef CONFIG_MCP_TOOL_OUTPUT_SCHEMA
+			.output_schema = "{\"type\":\"object\",\"properties\":{\"response\":{"
+					 "\"type\":\"string\"}}}",
+#endif
+		},
+	.callback = led_control_tool_callback
+};
+
 int main(void)
 {
 	int ret;
 
 	printk("Hello World\n\r");
 	printk("Initializing...\n\r");
+
+	if (gpio_is_ready_dt(&led)) {
+		ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
+		if (ret < 0) {
+			printk("LED GPIO configuration failed: %d\n\r", ret);
+		} else {
+			led_initialized = true;
+			printk("LED initialized successfully\n\r");
+		}
+	} else {
+		printk("LED GPIO not ready\n\r");
+	}
 
 	server = mcp_server_init();
 	if (server == NULL) {
@@ -168,6 +326,14 @@ int main(void)
 		return ret;
 	}
 	printk("Tool #2 registered.\n\r");
+
+	printk("Registering Tool #3: LED Control...\n\r");
+	ret = mcp_server_add_tool(server, &led_control_tool);
+	if (ret != 0) {
+		printk("Tool #3 registration failed.\n\r");
+		return ret;
+	}
+	printk("Tool #3 registered.\n\r");
 
 	printk("Starting...\n\r");
 	ret = mcp_server_start(server);
