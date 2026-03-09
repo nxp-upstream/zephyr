@@ -20,7 +20,7 @@ extern "C" {
 #define MCP_MAX_TEXT_LEN       256 /* text content block */
 #define MCP_MAX_PROTO_VER_LEN  32  /* "2025-11-25"  */
 #define MCP_MAX_VERSION_LEN    32
-#define MCP_MAX_JSON_CHUNK_LEN 512 /* for small opaque JSON blobs */
+#define MCP_MAX_JSON_CHUNK_LEN 1024 /* for small opaque JSON blobs */
 #define MCP_MAX_CONTENT_ITEMS  2
 #define MCP_MAX_ID_LEN         64 /* for string IDs */
 

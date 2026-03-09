@@ -16,7 +16,7 @@
 
 /* Tool execution test callbacks with different behaviors */
 static int tool_execution_count;
-static char last_execution_params[CONFIG_MCP_TOOL_INPUT_ARGS_MAX_LEN];
+static char last_execution_arguments[CONFIG_MCP_TOOL_INPUT_ARGS_MAX_LEN];
 static char last_execution_token[UUID_STR_LEN];
 static char last_cancelled_token[UUID_STR_LEN];
 static struct mcp_transport_binding *valid_client_binding;
@@ -56,7 +56,7 @@ static void reset_tool_execution_tracking(void)
 	tool_execution_count = 0;
 	memset(last_execution_token, 0, sizeof(last_execution_token));
 	memset(last_cancelled_token, 0, sizeof(last_cancelled_token));
-	memset(last_execution_params, 0, sizeof(last_execution_params));
+	memset(last_execution_arguments, 0, sizeof(last_execution_arguments));
 }
 
 /* Helper to send JSON requests through the server */
@@ -86,7 +86,7 @@ static void send_tools_call_request(struct mcp_transport_binding *binding, uint3
 			"\"jsonrpc\":\"2.0\","
 			"\"id\":%u,"
 			"\"method\":\"tools/call\","
-			"\"params\":{"
+			"\"arguments\":{"
 			"\"name\":\"%s\","
 			"\"arguments\":%s"
 			"}"
@@ -112,7 +112,7 @@ static struct mcp_transport_binding *send_initialize_request(uint32_t request_id
 			"\"jsonrpc\":\"2.0\","
 			"\"id\":%u,"
 			"\"method\":\"initialize\","
-			"\"params\":{"
+			"\"arguments\":{"
 			"\"protocolVersion\":\"2025-11-25\","
 			"\"capabilities\":{}"
 			"}"
@@ -155,7 +155,7 @@ static void send_tools_list_request(struct mcp_transport_binding *binding, uint3
 	k_msleep(50);
 }
 
-static int stub_tool_callback_1(enum mcp_tool_event_type event, const char *params, const char *execution_token)
+static int stub_tool_callback_1(enum mcp_tool_event_type event, const char *arguments, const char *execution_token)
 {
 	int ret;
 	bool is_canceled;
@@ -176,7 +176,7 @@ static int stub_tool_callback_1(enum mcp_tool_event_type event, const char *para
 	}
 
 	printk("Stub tool 1 executed - Token: %s, Args: %s\n", execution_token,
-								params ? params : "(null)");
+								arguments ? arguments : "(null)");
 
 	ret = mcp_server_is_execution_canceled(server, execution_token, &is_canceled);
 
@@ -207,7 +207,7 @@ static int stub_tool_callback_1(enum mcp_tool_event_type event, const char *para
 	return 0;
 }
 
-static int stub_tool_callback_2(enum mcp_tool_event_type event, const char *params, const char *execution_token)
+static int stub_tool_callback_2(enum mcp_tool_event_type event, const char *arguments, const char *execution_token)
 {
 	int ret;
 	bool is_canceled;
@@ -228,7 +228,7 @@ static int stub_tool_callback_2(enum mcp_tool_event_type event, const char *para
 	}
 
 	printk("Stub tool 2 executed - Token: %s, Args: %s\n", execution_token,
-								params ? params : "(null)");
+								arguments ? arguments : "(null)");
 
 	ret = mcp_server_is_execution_canceled(server, execution_token, &is_canceled);
 
@@ -259,7 +259,7 @@ static int stub_tool_callback_2(enum mcp_tool_event_type event, const char *para
 	return 0;
 }
 
-static int stub_tool_callback_3(enum mcp_tool_event_type event, const char *params, const char *execution_token)
+static int stub_tool_callback_3(enum mcp_tool_event_type event, const char *arguments, const char *execution_token)
 {
 	int ret;
 	bool is_canceled;
@@ -280,7 +280,7 @@ static int stub_tool_callback_3(enum mcp_tool_event_type event, const char *para
 	}
 
 	printk("Stub tool 3 executed - Token: %s, Args: %s\n", execution_token,
-								params ? params : "(null)");
+								arguments ? arguments : "(null)");
 
 	ret = mcp_server_is_execution_canceled(server, execution_token, &is_canceled);
 
@@ -311,7 +311,7 @@ static int stub_tool_callback_3(enum mcp_tool_event_type event, const char *para
 	return 0;
 }
 
-static int test_tool_success_callback(enum mcp_tool_event_type event, const char *params, const char *execution_token)
+static int test_tool_success_callback(enum mcp_tool_event_type event, const char *arguments, const char *execution_token)
 {
 	int ret;
 	bool is_canceled;
@@ -328,14 +328,14 @@ static int test_tool_success_callback(enum mcp_tool_event_type event, const char
 		return 0;
 	}
 
-	if (params) {
-		strncpy(last_execution_params, params, sizeof(last_execution_params) - 1);
-		last_execution_params[sizeof(last_execution_params) - 1] = '\0';
+	if (arguments) {
+		strncpy(last_execution_arguments, arguments, sizeof(last_execution_arguments) - 1);
+		last_execution_arguments[sizeof(last_execution_arguments) - 1] = '\0';
 	}
 
 	snprintk(text_content, sizeof(text_content),
 			"Success tool executed successfully. Execution count: %d. Input parameters: %s",
-			tool_execution_count, params ? params : "none");
+			tool_execution_count, arguments ? arguments : "none");
 
 	snprintk(result_data, sizeof(result_data),
 			"{"
@@ -345,7 +345,7 @@ static int test_tool_success_callback(enum mcp_tool_event_type event, const char
 			text_content);
 
 	printk("SUCCESS tool executed! Count: %d, Token: %s, Args: %s\n", tool_execution_count,
-								execution_token, params ? params : "(null)");
+								execution_token, arguments ? arguments : "(null)");
 
 	ret = mcp_server_is_execution_canceled(server, execution_token, &is_canceled);
 
@@ -376,7 +376,7 @@ static int test_tool_success_callback(enum mcp_tool_event_type event, const char
 	return 0;
 }
 
-static int test_tool_error_callback(enum mcp_tool_event_type event, const char *params, const char *execution_token)
+static int test_tool_error_callback(enum mcp_tool_event_type event, const char *arguments, const char *execution_token)
 {
 	int ret;
 	bool is_canceled;
@@ -397,7 +397,7 @@ static int test_tool_error_callback(enum mcp_tool_event_type event, const char *
 	}
 
 	printk("ERROR tool executed! Count: %d, Token: %s, Args: %s (submitting error response)\n",
-								tool_execution_count, execution_token, params ? params : "(null)");
+								tool_execution_count, execution_token, arguments ? arguments : "(null)");
 
 	ret = mcp_server_is_execution_canceled(server, execution_token, &is_canceled);
 
@@ -428,7 +428,7 @@ static int test_tool_error_callback(enum mcp_tool_event_type event, const char *
 	return 0;
 }
 
-static int test_tool_slow_callback(enum mcp_tool_event_type event, const char *params, const char *execution_token)
+static int test_tool_slow_callback(enum mcp_tool_event_type event, const char *arguments, const char *execution_token)
 {
 	int ret;
 	bool is_canceled;
@@ -483,7 +483,7 @@ static int test_tool_slow_callback(enum mcp_tool_event_type event, const char *p
 	return 0;
 }
 
-static int test_tool_execution_timeout_callback(enum mcp_tool_event_type event, const char *params, const char *execution_token)
+static int test_tool_execution_timeout_callback(enum mcp_tool_event_type event, const char *arguments, const char *execution_token)
 {
 	int ret;
 	bool is_canceled;
@@ -563,7 +563,7 @@ static int test_tool_execution_timeout_callback(enum mcp_tool_event_type event, 
 	return 0;
 }
 
-static int test_tool_idle_timeout_callback(enum mcp_tool_event_type event, const char *params, const char *execution_token)
+static int test_tool_idle_timeout_callback(enum mcp_tool_event_type event, const char *arguments, const char *execution_token)
 {
 	int ret;
 	bool is_canceled;
@@ -625,7 +625,7 @@ static int test_tool_idle_timeout_callback(enum mcp_tool_event_type event, const
 	return 0;
 }
 
-static int test_tool_cancel_timeout_callback(enum mcp_tool_event_type event, const char *params, const char *execution_token)
+static int test_tool_cancel_timeout_callback(enum mcp_tool_event_type event, const char *arguments, const char *execution_token)
 {
 	int ret;
 	bool is_canceled;

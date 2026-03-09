@@ -425,24 +425,85 @@ static int parse_tools_list_request(const char *buf, size_t len, struct mcp_mess
 	return 0;
 }
 
-/* Not supported for now. Requires manual parsing of nested JSON object. */
 static bool extract_arguments_json(const char *buf, size_t len, char *dst, size_t dst_sz)
 {
-	return false;
+	const char *args_key;
+	const char *args_start;
+	const char *args_end;
+	size_t args_len;
+	int brace_count = 0;
+
+	if (!buf || !dst || dst_sz == 0) {
+		return false;
+	}
+
+	args_key = strstr(buf, "\"arguments\"");
+	if (!args_key) {
+		return false;
+	}
+
+	args_start = strchr(args_key, ':');
+	if (!args_start) {
+		return false;
+	}
+	args_start++;
+
+	while (*args_start == ' ' || *args_start == '\t' || *args_start == '\n' || *args_start == '\r') {
+		args_start++;
+	}
+
+	if (*args_start != '{') {
+		return false;
+	}
+
+	args_end = args_start;
+	brace_count = 0;
+
+	do {
+		if (*args_end == '{') {
+			brace_count++;
+		} else if (*args_end == '}') {
+			brace_count--;
+		}
+		args_end++;
+
+		if (args_end >= buf + len) {
+			return false;
+		}
+	} while (brace_count > 0);
+
+	args_len = args_end - args_start;
+	if (args_len >= dst_sz) {
+		return false;
+	}
+
+	memcpy(dst, args_start, args_len);
+	dst[args_len] = '\0';
+
+	return true;
 }
 
 static int parse_tools_call_request(const char *buf, size_t len, struct mcp_message *msg)
 {
 	struct mcp_json_tools_call_req tmp = {0};
+	struct mcp_params_tools_call *p = &msg->req.u.tools_call;
+	
+	memset(p, 0, sizeof(*p));
 
+	/* Extract arguments BEFORE json_obj_parse modifies the buffer */
+	if (extract_arguments_json(buf, len, p->arguments_json, sizeof(p->arguments_json))) {
+		p->has_arguments = true;
+	} else {
+		p->has_arguments = false;
+	}
+
+	/* Now parse the rest (this will modify the buffer) */
 	int ret = json_obj_parse((char *)buf, len, mcp_tools_call_req_descr,
 					ARRAY_SIZE(mcp_tools_call_req_descr), &tmp);
 	if (ret < 0) {
+		LOG_ERR("Failed to parse tools_call_req: %d", ret);
 		return -EINVAL;
 	}
-
-	struct mcp_params_tools_call *p = &msg->req.u.tools_call;
-	memset(p, 0, sizeof(*p));
 
 	if (tmp.params.protocolVersion) {
 		mcp_safe_strcpy(msg->protocol_version, sizeof(msg->protocol_version),
@@ -451,12 +512,6 @@ static int parse_tools_call_request(const char *buf, size_t len, struct mcp_mess
 
 	if (tmp.params.name) {
 		mcp_safe_strcpy(p->name, sizeof(p->name), tmp.params.name);
-	}
-
-	if (extract_arguments_json(buf, len, p->arguments_json, sizeof(p->arguments_json))) {
-		p->has_arguments = true;
-	} else {
-		p->has_arguments = false;
 	}
 
 	return 0;

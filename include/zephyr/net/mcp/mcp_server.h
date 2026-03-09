@@ -69,7 +69,7 @@ typedef void *mcp_server_ctx_t;
  * @brief Tool callback function
  *
  * @param event Type of tool event (call or cancel request)
- * @param params JSON string with tool parameters
+ * @param arguments JSON string with tool parameters
  * @param execution_token Unique execution identifier (UUID string)
  *
  * @note This callback is executed in the context of an MCP request worker thread.
@@ -88,7 +88,7 @@ typedef void *mcp_server_ctx_t;
  *
  * @return 0 on success, negative errno on failure
  */
-typedef int (*mcp_tool_callback_t)(enum mcp_tool_event_type event, const char *params,
+typedef int (*mcp_tool_callback_t)(enum mcp_tool_event_type event, const char *arguments,
 				   const char *execution_token);
 
 /**
