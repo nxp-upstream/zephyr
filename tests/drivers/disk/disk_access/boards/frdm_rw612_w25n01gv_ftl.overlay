@@ -1,0 +1,63 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * FRDM-RW612 rework: U12 APS6404L pSRAM replaced with Winbond W25N01GVZEIG NAND.
+ * This overlay configures the NAND flash with a fixed partition for the
+ * Dhara FTL disk driver (zephyr,ftl-dhara).
+ */
+
+&flexspi {
+	/delete-node/ aps6404l@2;
+
+	pinctrl-0 = <&pinmux_flexspi_psram>;
+	pinctrl-names = "default";
+
+	w25n01gv: w25n01gv@2 {
+		compatible = "nxp,imx-flexspi-nand";
+		reg = <2>; /* PortB1 */
+		status = "okay";
+
+		/* W25N01GVZEIG: 1 Gbit = 128 MiB; size in bits per Zephyr convention */
+		size = <DT_SIZE_M(128 * 8)>;
+
+		spi-max-frequency = <DT_FREQ_M(104)>;
+
+		cs-interval-unit = <1>;
+		cs-interval = <2>;
+		cs-hold-time = <3>;
+		cs-setup-time = <3>;
+		data-valid-time = <6>;
+		column-space = <11>;
+		ahb-write-wait-unit = <2>;
+		ahb-write-wait-interval = <0>;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			nand_ftl_partition: partition@0 {
+				label = "nand-ftl";
+				/* Full 128 MiB NAND for FTL use */
+				reg = <0x0 DT_SIZE_M(128)>;
+			};
+		};
+	};
+};
+
+/ {
+	ftl_nand {
+		compatible = "zephyr,ftl-dhara";
+		partition = <&nand_ftl_partition>;
+		/* disk-name must match DISK_NAME_PHYS "NAND" in the disk_access test */
+		disk-name = "NAND";
+		/* buffer-size >= write_block_size (2048 bytes for W25N01GV) */
+		buffer-size = <2048>;
+		/* gc-ratio: lower = more GC overhead but better write performance */
+		gc-ratio = <4>;
+	};
+};

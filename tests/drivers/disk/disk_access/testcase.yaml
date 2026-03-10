@@ -33,6 +33,14 @@ tests:
     platform_allow:
       - native_sim/native/64
       - native_sim
+  drivers.disk.ftl.frdm_rw612_w25n01gv:
+    extra_args:
+      - DTC_OVERLAY_FILE=boards/frdm_rw612_w25n01gv_ftl.overlay
+      - CONF_FILE="prj.conf boards/frdm_rw612_w25n01gv_ftl.conf"
+    harness_config:
+      fixture: fixture_nand_w25n01gv
+    platform_allow:
+      - frdm_rw612
   drivers.disk.loopback:
     extra_configs:
       - CONFIG_DISK_DRIVER_LOOPBACK=y
