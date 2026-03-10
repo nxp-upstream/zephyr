@@ -1,0 +1,28 @@
+sample:
+  name: MCP Server Hello World
+  description: |
+    A simple Model Context Protocol (MCP) server that demonstrates
+    basic MCP functionality including tool registration and handling.
+    The server exposes a "hello_world" tool that can be called by
+    MCP clients (AI agents).
+
+common:
+  tags:
+    - net
+    - mcp
+    - sample
+    - http
+  integration_platforms:
+    - qemu_x86
+  depends_on: netif
+
+tests:
+  sample.net.mcp_server.hello_world:
+    tags:
+      - net
+      - mcp
+      - sample
+    platform_allow:
+      - qemu_x86
+    min_ram: 32
+    depends_on: netif
