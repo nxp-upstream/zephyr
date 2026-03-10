@@ -135,9 +135,9 @@ static void i2s_purge_stream_buffers(struct stream *strm, struct k_mem_slab *mem
 	void *buffer;
 
 	/*
-		* mem_slab may be NULL when cleaning up NOT_READY or failed configuration
-		* paths. Drain queues but do not free buffers in that case.
-		*/
+	 * mem_slab may be NULL when cleaning up NOT_READY or failed configuration
+	 * paths. Drain queues but do not free buffers in that case.
+	 */
 	if (mem_slab == NULL) {
 		if (in_drop) {
 			while (k_msgq_get(&strm->in_queue, &buffer, K_NO_WAIT) == 0) {
@@ -368,10 +368,8 @@ static void i2s_dma_tx_callback(const struct device *dma_dev, void *arg, uint32_
 		} else {
 			LOG_WRN("TX underrun (BCLK continuous).");
 		}
-
 	}
 	goto enabled_exit;
-
 
 disabled_exit_no_drop:
 	i2s_tx_stream_disable(dev, false);
@@ -434,9 +432,8 @@ static void i2s_dma_rx_callback(const struct device *dma_dev, void *arg, uint32_
 
 	uint32_t data_path = strm->start_channel;
 
-	ret = dma_reload(dev_data->dev_dma, strm->dma_channel,
-			 (uint32_t)&base->RDR[data_path], (uint32_t)buffer,
-			 strm->cfg.block_size);
+	ret = dma_reload(dev_data->dev_dma, strm->dma_channel, (uint32_t)&base->RDR[data_path],
+			 (uint32_t)buffer, strm->cfg.block_size);
 	if (ret != 0) {
 		LOG_ERR("dma_reload() failed with error 0x%x", ret);
 		goto error;
@@ -499,8 +496,7 @@ static void set_mclk_rate(const struct device *dev, uint32_t rate)
 	clock_control_subsys_t clk_sub_sys = dev_cfg->clk_sub_sys;
 
 	if (device_is_ready(ccm_dev)) {
-		clock_control_set_rate(ccm_dev, clk_sub_sys,
-					(clock_control_subsys_rate_t)rate);
+		clock_control_set_rate(ccm_dev, clk_sub_sys, (clock_control_subsys_rate_t)rate);
 		clock_control_on(ccm_dev, clk_sub_sys);
 	} else {
 		LOG_ERR("CCM driver is not installed");
@@ -528,17 +524,14 @@ static int i2s_mcux_config(const struct device *dev, enum i2s_dir dir,
 		return -ENOSYS;
 	}
 
-
 	bool tx_invalid = (dev_data->tx.state != I2S_STATE_NOT_READY) &&
-					(dev_data->tx.state != I2S_STATE_READY);
+			  (dev_data->tx.state != I2S_STATE_READY);
 
 	bool rx_invalid = (dev_data->rx.state != I2S_STATE_NOT_READY) &&
-					(dev_data->rx.state != I2S_STATE_READY);
+			  (dev_data->rx.state != I2S_STATE_READY);
 
-	if ((dir == I2S_DIR_TX && tx_invalid) || (dir == I2S_DIR_RX && rx_invalid))
-	{
-		LOG_ERR("invalid state tx(%u) rx(%u)",
-				dev_data->tx.state, dev_data->rx.state);
+	if ((dir == I2S_DIR_TX && tx_invalid) || (dir == I2S_DIR_RX && rx_invalid)) {
+		LOG_ERR("invalid state tx(%u) rx(%u)", dev_data->tx.state, dev_data->rx.state);
 		return -EINVAL;
 	}
 
@@ -599,25 +592,34 @@ static int i2s_mcux_config(const struct device *dev, enum i2s_dir dir,
 	uint32_t format = i2s_cfg->format & I2S_FMT_DATA_FORMAT_MASK;
 	uint32_t data_order = i2s_cfg->format & I2S_FMT_DATA_ORDER_LSB;
 
-	const uint32_t allowed_bits = I2S_FMT_DATA_FORMAT_MASK | I2S_FMT_DATA_ORDER_LSB | I2S_FMT_CLK_FORMAT_MASK;
-    if ((i2s_cfg->format & ~allowed_bits) != 0u) {
-        return -EINVAL;
-    }
+	const uint32_t allowed_bits =
+		I2S_FMT_DATA_FORMAT_MASK | I2S_FMT_DATA_ORDER_LSB | I2S_FMT_CLK_FORMAT_MASK;
+	if ((i2s_cfg->format & ~allowed_bits) != 0u) {
+		return -EINVAL;
+	}
 
 	/* format */
 	switch (format) {
 	case I2S_FMT_DATA_FORMAT_I2S:
-		if (data_order != 0U) return -EINVAL;
-		if (i2s_cfg->channels > 2) return -EINVAL;
+		if (data_order != 0U) {
+			return -EINVAL;
+		}
+		if (i2s_cfg->channels > 2) {
+			return -EINVAL;
+		}
 		SAI_GetClassicI2SConfig(&config, word_size_bits, kSAI_Stereo, dev_cfg->tx_channel);
 		break;
 	case I2S_FMT_DATA_FORMAT_LEFT_JUSTIFIED:
-		if (data_order != 0U) return -EINVAL;
+		if (data_order != 0U) {
+			return -EINVAL;
+		}
 		SAI_GetLeftJustifiedConfig(&config, word_size_bits, kSAI_Stereo,
 					   dev_cfg->tx_channel);
 		break;
 	case I2S_FMT_DATA_FORMAT_PCM_SHORT:
-		if (data_order != 0U) return -EINVAL;
+		if (data_order != 0U) {
+			return -EINVAL;
+		}
 		SAI_GetDSPConfig(&config, kSAI_FrameSyncLenOneBitClk, word_size_bits, kSAI_Stereo,
 				 dev_cfg->tx_channel);
 		/* We need to set the data word count manually, since the HAL
@@ -628,7 +630,9 @@ static int i2s_mcux_config(const struct device *dev, enum i2s_dir dir,
 		config.bitClock.bclkPolarity = kSAI_SampleOnFallingEdge;
 		break;
 	case I2S_FMT_DATA_FORMAT_PCM_LONG:
-		if (data_order != 0U) return -EINVAL;
+		if (data_order != 0U) {
+			return -EINVAL;
+		}
 		SAI_GetTDMConfig(&config, kSAI_FrameSyncLenPerWordWidth, word_size_bits, num_words,
 				 dev_cfg->tx_channel);
 		config.bitClock.bclkPolarity = kSAI_SampleOnFallingEdge;
@@ -829,6 +833,7 @@ static int i2s_tx_stream_start(const struct device *dev)
 	/* 5) Rebuild out_queue in the exact order we will free buffers */
 	for (size_t i = 0; i < pending_cnt; i++) {
 		void *p = pending[i];
+
 		ret = k_msgq_put(&strm->out_queue, &p, K_NO_WAIT);
 		if (ret != 0) {
 			LOG_ERR("failed to rebuild out_queue (%d)", ret);
@@ -838,10 +843,8 @@ static int i2s_tx_stream_start(const struct device *dev)
 
 	/* 6) Reload remaining pending buffers (pending[1..]) into DMA first */
 	for (size_t i = 1; i < pending_cnt && strm->free_tx_dma_blocks; i++) {
-		ret = dma_reload(dev_dma, strm->dma_channel,
-							(uint32_t)pending[i],
-							(uint32_t)&base->TDR[data_path],
-							strm->cfg.block_size);
+		ret = dma_reload(dev_dma, strm->dma_channel, (uint32_t)pending[i],
+				 (uint32_t)&base->TDR[data_path], strm->cfg.block_size);
 		if (ret != 0) {
 			LOG_ERR("dma_reload(pending) failed (0x%x)", ret);
 			return ret;
@@ -1007,7 +1010,6 @@ static int i2s_mcux_trigger(const struct device *dev, enum i2s_dir dir, enum i2s
 			/* Ensure no partial DMA or buffers survive */
 			if (dir == I2S_DIR_TX) {
 				i2s_tx_stream_disable(dev, true);
-				// strm->free_tx_dma_blocks = MAX_TX_DMA_BLOCKS;
 			} else {
 				i2s_rx_stream_disable(dev, true, true);
 			}
@@ -1079,9 +1081,11 @@ static int i2s_mcux_trigger(const struct device *dev, enum i2s_dir dir, enum i2s
 		/* Roll back queued buffers if nothing is running */
 		if (strm->state == I2S_STATE_READY) {
 			if (dir == I2S_DIR_TX) {
-				i2s_purge_stream_buffers(strm, dev_data->tx.cfg.mem_slab, true, true);
+				i2s_purge_stream_buffers(strm, dev_data->tx.cfg.mem_slab, true,
+							 true);
 			} else {
-				i2s_purge_stream_buffers(strm, dev_data->rx.cfg.mem_slab, true, true);
+				i2s_purge_stream_buffers(strm, dev_data->rx.cfg.mem_slab, true,
+							 true);
 			}
 		}
 
@@ -1107,24 +1111,24 @@ static int i2s_mcux_read(const struct device *dev, void **mem_block, size_t *siz
 
 	status = k_msgq_get(&strm->out_queue, &buffer, SYS_TIMEOUT_MS(strm->cfg.timeout));
 	if (status != 0) {
-        /*
-         * Map k_msgq_get() results to I2S API:
-         *  -EBUSY : returned immediately without waiting (K_NO_WAIT/timeout==0)
-         *  -EAGAIN: waited and timed out
-         *  -EIO   : in ERROR state and no more blocks are available
-         */
-        if (status == -ENOMSG) {
-            /* No message and did not wait */
-            return (strm->state == I2S_STATE_ERROR) ? -EIO : -EBUSY;
-        }
+		/*
+		 * Map k_msgq_get() results to I2S API:
+		 *  -EBUSY : returned immediately without waiting (K_NO_WAIT/timeout==0)
+		 *  -EAGAIN: waited and timed out
+		 *  -EIO   : in ERROR state and no more blocks are available
+		 */
+		if (status == -ENOMSG) {
+			/* No message and did not wait */
+			return (strm->state == I2S_STATE_ERROR) ? -EIO : -EBUSY;
+		}
 
-        if (status == -EAGAIN) {
-            /* Timed out while waiting */
-            return (strm->state == I2S_STATE_ERROR) ? -EIO : -EAGAIN;
-        }
+		if (status == -EAGAIN) {
+			/* Timed out while waiting */
+			return (strm->state == I2S_STATE_ERROR) ? -EIO : -EAGAIN;
+		}
 
-        /* Propagate unexpected errors */
-        return status;
+		/* Propagate unexpected errors */
+		return status;
 	}
 
 	*mem_block = buffer;
@@ -1176,21 +1180,24 @@ static void sai_driver_irq(const struct device *dev)
 
 	if ((base->TCSR & I2S_TCSR_FEF_MASK) == I2S_TCSR_FEF_MASK) {
 		struct stream *strm = &dev_data->tx;
-		if (strm->state == I2S_STATE_RUNNING)
+
+		if (strm->state == I2S_STATE_RUNNING) {
 			strm->state = I2S_STATE_ERROR;
+		}
 		/* Clear FIFO error flag to continue transfer */
 		SAI_TxClearStatusFlags(base, I2S_TCSR_FEF_MASK);
 		/* Reset FIFO for safety */
 		SAI_TxSoftwareReset(base, kSAI_ResetTypeFIFO);
-
 
 		LOG_DBG("sai tx error occurred");
 	}
 
 	if ((base->RCSR & I2S_RCSR_FEF_MASK) == I2S_RCSR_FEF_MASK) {
 		struct stream *strm = &dev_data->rx;
-		if (strm->state == I2S_STATE_RUNNING)
+
+		if (strm->state == I2S_STATE_RUNNING) {
 			strm->state = I2S_STATE_ERROR;
+		}
 		/* Clear FIFO error flag to continue transfer */
 		SAI_RxClearStatusFlags(base, I2S_RCSR_FEF_MASK);
 
@@ -1320,7 +1327,7 @@ static int i2s_mcux_initialize(const struct device *dev)
 /* master clock configurations */
 #if (defined(FSL_FEATURE_SAI_HAS_MCR) && (FSL_FEATURE_SAI_HAS_MCR)) ||                             \
 	(defined(FSL_FEATURE_SAI_HAS_MCLKDIV_REGISTER) && (FSL_FEATURE_SAI_HAS_MCLKDIV_REGISTER))
-#if ((defined(FSL_FEATURE_SAI_HAS_MCLKDIV_REGISTER) && (FSL_FEATURE_SAI_HAS_MCLKDIV_REGISTER)) || \
+#if ((defined(FSL_FEATURE_SAI_HAS_MCLKDIV_REGISTER) && (FSL_FEATURE_SAI_HAS_MCLKDIV_REGISTER)) ||  \
 	(defined(FSL_FEATURE_SAI_HAS_MCR_MCLK_POST_DIV) && (FSL_FEATURE_SAI_HAS_MCR_MCLK_POST_DIV)))
 	mclkConfig.mclkHz = mclk;
 	mclkConfig.mclkSourceClkHz = mclk;
@@ -1365,8 +1372,8 @@ static DEVICE_API(i2s, i2s_mcux_driver_api) = {
 		.pll_pd = DT_PHA_BY_NAME_OR(DT_DRV_INST(i2s_id), pll_clocks, pd, value, 0),        \
 		.pll_num = DT_PHA_BY_NAME_OR(DT_DRV_INST(i2s_id), pll_clocks, num, value, 0),      \
 		.pll_den = DT_PHA_BY_NAME_OR(DT_DRV_INST(i2s_id), pll_clocks, den, value, 0),      \
-		I2S_MCUX_PINMUX_INIT(i2s_id)                                                       \
-		.mclk_output = DT_INST_PROP_OR(i2s_id, mclk_output, 0),                            \
+		I2S_MCUX_PINMUX_INIT(i2s_id).mclk_output =                                         \
+			DT_INST_PROP_OR(i2s_id, mclk_output, 0),                                   \
 		.clk_sub_sys =                                                                     \
 			(clock_control_subsys_t)DT_INST_CLOCKS_CELL_BY_IDX(i2s_id, 0, name),       \
 		.ccm_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(i2s_id)),                             \
