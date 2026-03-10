@@ -107,29 +107,31 @@ static void apply_audio_gain(struct mp_buffer *buffer, int32_t gain_fixed, uint8
 	}
 }
 
-static bool mp_zaud_gain_chainfn(struct mp_pad *pad, struct mp_buffer *buffer)
+static bool mp_zaud_gain_chainfn(struct mp_pad *pad, struct mp_buffer *in_buf,
+                                  struct mp_buffer **out_buf)
 {
 	struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
 	struct mp_zaud_gain *zaud_gain = MP_ZAUD_GAIN(pad->object.container);
 
 	/* Validate buffer */
-	if (!buffer || !buffer->data || buffer->pool->config.size == 0) {
+	if (!in_buf || !in_buf->data || in_buf->pool->config.size == 0) {
 		LOG_ERR("Invalid buffer received");
+		*out_buf = NULL;
 		return false;
 	}
 
 	/* Apply mute if enabled or gain is 0% */
 	if (zaud_gain->mute == true || zaud_gain->gain_percent == 0) {
-		memset(buffer->data, 0, buffer->pool->config.size);
+		memset(in_buf->data, 0, in_buf->pool->config.size);
 	} else if (zaud_gain->gain_percent != GAIN_PERCENT_UNITY) {
 		/* Apply gain only if not unity (100%) */
 		/* TODO: bitWidth hardcoded */
-		apply_audio_gain(buffer, zaud_gain->gain_fixed, 16);
+		apply_audio_gain(in_buf, zaud_gain->gain_fixed, 16);
 	}
 	/* If gain is exactly 100%, pass through without modification */
 
-	/* Push buffer to src pad */
-	mp_pad_push(&transform->srcpad, buffer);
+	/* In-place processing, return same buffer */
+	*out_buf = in_buf;
 
 	return true;
 }
