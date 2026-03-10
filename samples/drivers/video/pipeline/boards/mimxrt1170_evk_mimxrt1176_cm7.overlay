@@ -1,0 +1,25 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/memory-attr/memory-attr-arm.h>
+
+/ {
+    chosen {
+		zephyr,ipc_shm = &ipc_shm;
+	};
+
+	/* OpenAMP fails with full 512K OCRAM2 memory region as shared memory */
+	ipc_shm: memory@202c0000{
+		compatible = "zephyr,memory-region", "mmio-sram";
+		reg = <0x202c0000 DT_SIZE_K(16)>;
+		zephyr,memory-region="IPC_SHM";
+		zephyr,memory-attr = <DT_MEM_ARM_MPU_IO>;
+	};
+};
+
+&ocram1 {
+    zephyr,memory-attr = <DT_MEM_ARM_MPU_RAM_NOCACHE>;
+};

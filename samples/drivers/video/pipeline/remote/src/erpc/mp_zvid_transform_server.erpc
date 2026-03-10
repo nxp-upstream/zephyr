@@ -1,0 +1,40 @@
+/*!
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+program mp_zvid_transform
+
+struct video_format {
+    uint8 queue_type @name("type"); /* IDL uses queue_type, C uses type */
+    uint32 pixelformat;
+    uint32 width;
+    uint32 height;
+    uint32 pitch;
+    uint32 size;
+}
+
+struct video_format_cap {
+    uint32 pixelformat;
+    uint32 width_min;
+    uint32 width_max;
+    uint32 height_min;
+    uint32 height_max;
+    uint16 width_step;
+    uint16 height_step;
+}
+
+enum mp_pad_direction {
+	MP_PAD_UNKNOWN = 0,
+	MP_PAD_SRC = 1,
+	MP_PAD_SINK = 2
+}
+
+interface MPService {
+    get_buf_caps_rpc(in mp_pad_direction direction, out uint8 min_buffers, out uint16 buf_align) -> int32
+    get_format_caps_rpc(in mp_pad_direction direction, in uint8 ind, out video_format_cap vfc) -> int32
+    set_format_rpc(inout video_format fmt) -> int32
+    transform_cap_rpc(in mp_pad_direction direction, in uint16 ind, in video_format_cap vfc, out video_format_cap other_vfc) -> int32
+    chainfn_rpc(in uint32 in_buf, in uint32 in_sz, in uint32 out_buf, out uint32 out_sz) -> bool
+}

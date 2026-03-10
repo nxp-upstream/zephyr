@@ -16,18 +16,21 @@ LOG_MODULE_REGISTER(main, CONFIG_LOG_DEFAULT_LEVEL);
 #define PIPE_ID             0
 #define VID_SRC_ID          1
 #define CAPS_FILTER_ID      2
-#define VID_TRANS_ID        3
-#define DISP_SINK_ID        4
+#define VID_TRANS_CLIENT_ID 3
+#define VID_TRANS_ID        4
+#define DISP_SINK_ID        5
 
 int main(void)
 {
 	int ret;
 	struct mp_pipeline pipe = {0};
 	struct mp_zvid_src vid_src = {0};
+	struct mp_zvid_transform_client vid_trans_client = {0};
 	struct mp_zdisp_sink disp_sink = {0};
 
 	MP_ELEMENT_INIT(&pipe, mp_pipeline_init, PIPE_ID);
 	MP_ELEMENT_INIT(&vid_src, mp_zvid_src_init, VID_SRC_ID);
+	MP_ELEMENT_INIT(&vid_trans_client, mp_zvid_transform_client_erpc_init, VID_TRANS_CLIENT_ID);
 	MP_ELEMENT_INIT(&disp_sink, mp_zdisp_sink_init, DISP_SINK_ID);
 
 	struct video_rect __maybe_unused crop = {
@@ -101,6 +104,7 @@ int main(void)
 	if (!mp_bin_add(MP_BIN(&pipe),
 			MP_ELEMENT(&vid_src),
 			IF_ENABLED(CONFIG_MP_CAPSFILTER, (MP_ELEMENT(&caps_filter),))
+			MP_ELEMENT(&vid_trans_client),
 			IF_ENABLED(DT_HAS_CHOSEN(zephyr_videotrans), (MP_ELEMENT(&vid_trans),))
 		 	MP_ELEMENT(&disp_sink), NULL)) {
 		LOG_ERR("Failed to add elements");
@@ -109,6 +113,7 @@ int main(void)
 	/* Link elements together - order does matter */
 	if (!mp_element_link(MP_ELEMENT(&vid_src),
 			IF_ENABLED(CONFIG_MP_CAPSFILTER, (MP_ELEMENT(&caps_filter),))
+			MP_ELEMENT(&vid_trans_client),
 			IF_ENABLED(DT_HAS_CHOSEN(zephyr_videotrans), (MP_ELEMENT(&vid_trans),))
 			MP_ELEMENT(&disp_sink), NULL)) {
 		LOG_ERR("Failed to link elements");

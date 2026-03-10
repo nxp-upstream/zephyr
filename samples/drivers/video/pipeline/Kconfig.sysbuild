@@ -1,0 +1,13 @@
+
+#
+# Copyright 2026 NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+source "share/sysbuild/Kconfig"
+
+config REMOTE_BOARD
+	string "The Zephyr board name of the remote core"
+	default "mimxrt1170_evk/mimxrt1176/cm4" if $(BOARD) = "mimxrt1170_evk"
+	default "mimxrt1170_evkb/mimxrt1176/cm4" if $(BOARD) = "mimxrt1170_evkb"
