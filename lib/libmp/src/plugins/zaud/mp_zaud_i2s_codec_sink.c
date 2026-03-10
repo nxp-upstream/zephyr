@@ -209,15 +209,17 @@ static bool mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps
 	return true;
 }
 
-bool mp_zaud_i2s_codec_sink_chainfn(struct mp_pad *pad, struct mp_buffer *buffer)
+bool mp_zaud_i2s_codec_sink_chainfn(struct mp_pad *pad, struct mp_buffer *in_buf,
+                                     struct mp_buffer **out_buf)
 {
 	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink =
 		MP_ZAUD_I2S_CODEC_SINK(pad->object.container);
 	int ret = -1;
 
-	ret = i2s_write(zaud_i2s_codec_sink->i2s_dev, buffer->data, buffer->pool->config.size);
+	ret = i2s_write(zaud_i2s_codec_sink->i2s_dev, in_buf->data, in_buf->pool->config.size);
 	if (ret < 0) {
 		LOG_DBG("Failed to write data: %d\n", ret);
+		*out_buf = NULL;
 		return false;
 	}
 
@@ -228,6 +230,13 @@ bool mp_zaud_i2s_codec_sink_chainfn(struct mp_pad *pad, struct mp_buffer *buffer
 			zaud_i2s_codec_sink->started = true;
 		}
 	}
+
+	/* Done with the buffer */
+	mp_buffer_unref(in_buf);
+
+	/* Sink returns NULL - end of chain */
+	*out_buf = NULL;
+
 	return true;
 }
 
