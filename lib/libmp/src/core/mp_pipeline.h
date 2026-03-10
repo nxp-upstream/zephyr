@@ -17,6 +17,7 @@
 #include "mp_bin.h"
 #include "mp_bus.h"
 #include "mp_element.h"
+#include "mp_task.h"
 
 /**
  * @{
@@ -33,6 +34,8 @@
 struct mp_pipeline {
 	/** Base bin container */
 	struct mp_bin bin;
+	/** Task associated with the pipeline */
+	struct mp_task task;
 	/** The running time - total time spent in PLAYING state without being flushed */
 	uint64_t stream_time;
 	/**

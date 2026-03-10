@@ -22,15 +22,6 @@
  */
 
 /**
- * mp_task_function
- *
- * @param user_data: user data passed to function
- *
- * Function repeatedly called in thread created by @ref struct mp_task.
- */
-typedef void (*mp_task_function)(void *user_data, void *, void *);
-
-/**
  * @struct mp_task
  * @brief Structure that represents a task in the system
  */
@@ -48,11 +39,14 @@ struct mp_task {
  *
  * @param task: pointer to task structure
  * @param func: entry function for the task
- * @param user_data: Additional data from user
+ * @param p1: first additional parameter to pass to the task entry function
+ * @param p2: second additional parameter to pass to the task entry function
+ * @param p3: third additional parameter to pass to the task entry function
  * @param priority: priority of the task
  * @return k_tid_t which is the pointer to the k_thread structure
  */
-k_tid_t mp_task_create(struct mp_task *task, k_thread_entry_t func, void *user_data, int priority);
+k_tid_t mp_task_create(struct mp_task *task, k_thread_entry_t func, void *p1, void *p2,
+		       void *p3, int priority);
 
 /**
  * Destroy a task

@@ -23,12 +23,12 @@ int mp_transform_get_property(struct mp_object *obj, uint32_t key, void *val)
 	return 0;
 }
 
-static bool mp_transform_chainfn(struct mp_pad *pad, struct mp_buffer *buffer)
+static bool mp_transform_chainfn(struct mp_pad *pad, struct mp_buffer *in_buf, 
+                                  struct mp_buffer **out_buf)
 {
-	struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
-
-	/* Default implementation for MP_MODE_PASSTHROUGH */
-	return mp_pad_push(&transform->srcpad, buffer);
+	/* Default implementation for MP_MODE_PASSTHROUGH - return same buffer */
+	*out_buf = in_buf;
+	return true;
 }
 
 static struct mp_caps *mp_transform_get_caps(struct mp_transform *transform,
