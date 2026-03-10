@@ -57,7 +57,7 @@ bool mp_pad_link(struct mp_pad *srcpad, struct mp_pad *sinkpad)
 	return true;
 }
 
-bool mp_pad_start_task(struct mp_pad *pad, mp_task_function func, int priority, void *user_data)
+bool mp_pad_start_task(struct mp_pad *pad, k_thread_entry_t func, int priority)
 {
 	k_tid_t thread = NULL;
 
@@ -65,19 +65,9 @@ bool mp_pad_start_task(struct mp_pad *pad, mp_task_function func, int priority, 
 		return false;
 	}
 
-	thread = mp_task_create(&pad->task, func, user_data, priority);
+	thread = mp_task_create(&pad->task, func, pad, NULL, NULL, priority);
 
 	return thread != NULL;
-}
-
-bool mp_pad_chain(struct mp_pad *pad, struct mp_buffer *buffer)
-{
-	return pad->chainfn(pad, buffer);
-}
-
-bool mp_pad_push(struct mp_pad *pad, struct mp_buffer *buffer)
-{
-	return mp_pad_chain(pad->peer, buffer);
 }
 
 bool mp_pad_query(struct mp_pad *pad, struct mp_query *query)

@@ -99,7 +99,6 @@ static enum mp_state_change_return mp_element_set_state_func(struct mp_element *
 	enum mp_state next;
 	enum mp_state *current = &element->current_state;
 
-	/* Currently, implement this in an iterative way, not recursive. */
 	while (*current != state) {
 		next = MP_STATE_GET_NEXT(*current, state);
 		transition = MP_STATE_TRANSITION(*current, next);
@@ -109,7 +108,6 @@ static enum mp_state_change_return mp_element_set_state_func(struct mp_element *
 			return ret;
 		}
 
-		/* No need if change_state() already set it ? */
 		*current = next;
 	}
 

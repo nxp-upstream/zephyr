@@ -29,7 +29,10 @@ struct mp_src {
 	struct mp_element element;
 	/** Source pad for output data */
 	struct mp_pad srcpad;
-	/** Number of buffers that the source outputs before sending EOS */
+	/**
+	 * Number of buffers that the source outputs before sending EOS
+	 * 0 means will run forever
+	 */
 	uint32_t num_buffers;
 	/** Buffer pool for managing output buffers */
 	struct mp_buffer_pool *pool;

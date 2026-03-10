@@ -53,15 +53,12 @@ enum mp_state_change_return mp_bin_change_state_func(struct mp_element *self,
 	struct mp_element *element = NULL;
 	enum mp_state_change_return ret = MP_STATE_CHANGE_FAILURE;
 	struct mp_bin *bin = MP_BIN(self);
-	enum mp_state next = MP_STATE_TRANSITION_NEXT(transition);
 	struct mp_pad *first_sinkpad;
 	sys_dnode_t *first_sinkpad_node;
 
-	/* TODO: Activate bin's own src pads */
-
 	/*
 	 * TODO: Implement topology ordering: https://en.wikipedia.org/wiki/Topological_sorting
-	 * For simplicity, support only simple pipelines without branched for now.
+	 * For simplicity, support only simple pipelines without branches for now.
 	 */
 
 	/* Find the 1st sink element */
@@ -72,7 +69,7 @@ enum mp_state_change_return mp_bin_change_state_func(struct mp_element *self,
 		}
 	}
 
-	/* Change state of each element in the pipeline */
+	/* Change state of each element in the pipeline from sink to src */
 	while (element != NULL) {
 		ret = element->change_state(element, transition);
 		if (ret != MP_STATE_CHANGE_SUCCESS) {
@@ -90,8 +87,6 @@ enum mp_state_change_return mp_bin_change_state_func(struct mp_element *self,
 		/* Get next element */
 		element = MP_ELEMENT(first_sinkpad->peer->object.container);
 	}
-
-	LOG_DBG("State changed to %d", next);
 
 	return MP_STATE_CHANGE_SUCCESS;
 }

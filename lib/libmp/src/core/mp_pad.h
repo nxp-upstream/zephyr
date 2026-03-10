@@ -98,7 +98,7 @@ struct mp_pad {
 	/** Task associated with this pad */
 	struct mp_task task;
 	/** Chain function for handling buffers */
-	bool (*chainfn)(struct mp_pad *pad, struct mp_buffer *buffer);
+	bool (*chainfn)(struct mp_pad *pad, struct mp_buffer *in_buf, struct mp_buffer **out_buf);
 	/** Query function for handling queries */
 	bool (*queryfn)(struct mp_pad *pad, struct mp_query *query);
 	/** Event function for handling events */
@@ -154,12 +154,11 @@ bool mp_pad_link(struct mp_pad *srcpad, struct mp_pad *sinkpad);
  * is mostly used to start the dataflow.
  *
  * @param pad Pointer to the @ref struct mp_pad to start the task on
- * @param func The task function to call (@ref mp_task_function)
+ * @param func The task function to call
  * @param priority The priority of the task
- * @param user_data User data passed to the task function
  * @return true if the task could be started, false otherwise
  */
-bool mp_pad_start_task(struct mp_pad *pad, mp_task_function func, int priority, void *user_data);
+bool mp_pad_start_task(struct mp_pad *pad, k_thread_entry_t func, int priority);
 
 /**
  * @brief Send an event to a pad
@@ -195,29 +194,6 @@ bool mp_pad_send_event_default(struct mp_pad *pad, struct mp_event *event);
  * @return true if the query is handled, false otherwise
  */
 bool mp_pad_query(struct mp_pad *pad, struct mp_query *query);
-
-/**
- * @brief Push a buffer to the peer pad
- *
- * Pushes a buffer to the peer of the specified pad. The pad should be a
- * source pad and must be linked to a sink pad.
- *
- * @param pad Pointer to a source @ref struct mp_pad
- * @param buffer Pointer to the @ref struct mp_buffer to push
- * @return true if the buffer was successfully pushed, false otherwise
- */
-bool mp_pad_push(struct mp_pad *pad, struct mp_buffer *buffer);
-
-/**
- * @brief Chain a buffer through a pad
- *
- * Calls the pad's chain function to process the buffer.
- *
- * @param pad Pointer to the @ref struct mp_pad
- * @param buffer Pointer to the @ref struct mp_buffer to chain
- * @return true if the buffer was successfully chained, false otherwise
- */
-bool mp_pad_chain(struct mp_pad *pad, struct mp_buffer *buffer);
 
 /**
  * @}

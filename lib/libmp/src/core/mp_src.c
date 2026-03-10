@@ -9,7 +9,6 @@
 #include "mp_pad.h"
 #include "mp_property.h"
 #include "mp_src.h"
-#include "mp_task.h"
 
 LOG_MODULE_REGISTER(mp_src, CONFIG_LIBMP_LOG_LEVEL);
 
@@ -126,64 +125,41 @@ static bool mp_src_negotiate(struct mp_src *src)
 	return ret;
 }
 
-static void mp_src_loop(void *pad, void *userdata)
+static enum mp_state_change_return mp_src_change_state(struct mp_element *self,
+						       enum mp_state_change transition)
 {
-	struct mp_src *src = MP_SRC(MP_PAD(pad)->object.container);
-	struct mp_buffer *buffer = NULL;
-	struct mp_message *eos_message = NULL;
-	uint32_t count = 0;
+	struct mp_src *src = MP_SRC(self);
+	enum mp_state_change_return ret = MP_STATE_CHANGE_SUCCESS;
 
-	MP_PAD(pad)->task.running = true;
-	while (MP_PAD(pad)->task.running && count++ <= src->num_buffers) {
-		if (MP_OBJECT(pad)->flags & MP_PAD_FLAG_NEGOTIATE) {
+	switch (transition) {
+	case MP_STATE_CHANGE_READY_TO_PAUSED:
+		/* Perform negotiation */
+		if (MP_OBJECT(&src->srcpad)->flags & MP_PAD_FLAG_NEGOTIATE) {
 			if (!mp_src_negotiate(src)) {
 				LOG_ERR("Negotiation failed");
-				break;
+				return MP_STATE_CHANGE_FAILURE;
 			}
 
 			/* Config buffer pool */
-			if (!MP_PAD(pad)->caps) {
-				LOG_ERR("No source pad capabilities configured");
-				break;
+			if (src->srcpad.caps == NULL) {
+				LOG_ERR("No source pad caps to configure buffer pool");
+				return MP_STATE_CHANGE_FAILURE;
 			}
 
 			if (!src->pool->configure(src->pool,
-						  mp_caps_get_structure(MP_PAD(pad)->caps, 0))) {
+						  mp_caps_get_structure(src->srcpad.caps, 0))) {
 				LOG_ERR("Failed to configure buffer pool");
-				break;
+				return MP_STATE_CHANGE_FAILURE;
 			}
 
 			/* Start buffer pool */
 			src->pool->start(src->pool);
 
 			/* Clear MP_PAD_FLAG_NEGOTIATE flag */
-			MP_OBJECT(pad)->flags &= ~MP_PAD_FLAG_NEGOTIATE;
+			MP_OBJECT(&src->srcpad)->flags &= ~MP_PAD_FLAG_NEGOTIATE;
 		}
-
-		src->pool->acquire_buffer(src->pool, &buffer);
-		mp_pad_push(pad, buffer);
-	}
-
-	if (count > src->num_buffers) {
-		/* Stop the thread and post EOS message to the pipeline's bus */
-		MP_PAD(pad)->task.running = false;
-		eos_message = mp_message_new(MP_MESSAGE_EOS, MP_OBJECT(src), NULL);
-		mp_bus_post(mp_element_get_bus(MP_ELEMENT(src)), eos_message);
-	}
-}
-
-static enum mp_state_change_return mp_src_change_state(struct mp_element *self,
-						       enum mp_state_change transition)
-{
-	enum mp_state_change_return ret = MP_STATE_CHANGE_SUCCESS;
-
-	switch (transition) {
-	case MP_STATE_CHANGE_READY_TO_PAUSED:
-		/* TODO */
 		break;
 	case MP_STATE_CHANGE_PAUSED_TO_PLAYING:
-		mp_pad_start_task(&MP_SRC(self)->srcpad, (mp_task_function)mp_src_loop,
-				  CONFIG_MP_THREAD_DEFAULT_PRIORITY, NULL);
 		break;
 	default:
 		break;
@@ -204,9 +180,6 @@ void mp_src_init(struct mp_element *self)
 	/* Add pad */
 	mp_pad_init(&src->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS, NULL);
 	mp_element_add_pad(self, &src->srcpad);
-
-	/* Initialize property values */
-	src->num_buffers = UINT32_MAX;
 
 	self->object.set_property = mp_src_set_property;
 	self->object.get_property = mp_src_get_property;
