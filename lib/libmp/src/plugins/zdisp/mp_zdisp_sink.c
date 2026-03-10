@@ -150,7 +150,8 @@ static int mp_zdisp_sink_get_property(struct mp_object *obj, uint32_t key, void 
 	}
 }
 
-bool mp_zdisp_sink_chainfn(struct mp_pad *pad, struct mp_buffer *buffer)
+bool mp_zdisp_sink_chainfn(struct mp_pad *pad, struct mp_buffer *in_buf, 
+                            struct mp_buffer **out_buf)
 {
 	struct mp_zdisp_sink *zdisp_sink = MP_ZDISP_SINK(pad->object.container);
 
@@ -158,7 +159,7 @@ bool mp_zdisp_sink_chainfn(struct mp_pad *pad, struct mp_buffer *buffer)
 	struct mp_structure *first_structure = mp_caps_get_structure(pad->caps, 0);
 	struct mp_value *value = mp_structure_get_value(first_structure, MP_CAPS_PIXEL_FORMAT);
 	struct display_buffer_descriptor buf_desc = {
-		.buf_size = buffer->bytes_used,
+		.buf_size = in_buf->bytes_used,
 	};
 	enum display_pixel_format disp_fmt = 0;
 
@@ -176,10 +177,13 @@ bool mp_zdisp_sink_chainfn(struct mp_pad *pad, struct mp_buffer *buffer)
 	buf_desc.height = buf_desc.buf_size /
 			  (buf_desc.width * DISPLAY_BITS_PER_PIXEL(disp_fmt) / BITS_PER_BYTE);
 
-	display_write(zdisp_sink->display_dev, 0, buffer->line_offset, &buf_desc, buffer->data);
+	display_write(zdisp_sink->display_dev, 0, in_buf->line_offset, &buf_desc, in_buf->data);
 
 	/* Done with the buffer, unref it */
-	mp_buffer_unref(buffer);
+	mp_buffer_unref(in_buf);
+
+	/* Sink returns NULL - end of chain */
+	*out_buf = NULL;
 
 	return true;
 }
