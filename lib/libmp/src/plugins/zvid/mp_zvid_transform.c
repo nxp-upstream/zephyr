@@ -15,14 +15,14 @@ LOG_MODULE_REGISTER(mp_zvid_transform, CONFIG_LIBMP_LOG_LEVEL);
 
 #define DEFAULT_PROP_DEVICE DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_videotrans))
 
-static bool mp_zvid_transform_chainfn(struct mp_pad *pad, struct mp_buffer *buffer)
+static bool mp_zvid_transform_chainfn(struct mp_pad *pad, struct mp_buffer *in_buf,
+				      struct mp_buffer **out_buf)
 {
 	int ret;
 	struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
 	struct mp_zvid_transform *zvid_transform = MP_ZVID_TRANSFORM(transform);
 	struct mp_buffer_pool *outpool = MP_BUFFER_POOL(&zvid_transform->zvid_obj_out.pool);
-	struct mp_buffer *out_buf = NULL;
-	struct video_buffer in_vbuf = {.type = VIDEO_BUF_TYPE_INPUT, .index = buffer->index};
+	struct video_buffer in_vbuf = {.type = VIDEO_BUF_TYPE_INPUT, .index = in_buf->index};
 
 	/* Enqueue input buffer */
 	if (video_enqueue(zvid_transform->zvid_obj_in.vdev, &in_vbuf)) {
@@ -39,14 +39,14 @@ static bool mp_zvid_transform_chainfn(struct mp_pad *pad, struct mp_buffer *buff
 		return false;
 	}
 
-	/* Done with the input buffer, the pool will re-enqueue it to the device they belongs to */
-	mp_buffer_unref(buffer);
+	/* Done with the input buffer */
+	mp_buffer_unref(in_buf);
 
 	/* Dequeue an output buffer, blocking */
-	outpool->acquire_buffer(outpool, &out_buf);
-
-	/* Push processed buffer to src pad */
-	mp_pad_push(&transform->srcpad, out_buf);
+	if (!outpool->acquire_buffer(outpool, out_buf)) {
+		LOG_ERR("Failed to acquire output buffer");
+		return false;
+	}
 
 	return true;
 }
