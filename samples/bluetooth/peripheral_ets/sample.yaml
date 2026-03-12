@@ -7,17 +7,29 @@ tests:
     platform_allow:
       - qemu_cortex_m3
       - qemu_x86
-      - frdm_rw612
     tags: bluetooth
     integration_platforms:
       - qemu_cortex_m3
+  sample.bluetooth.peripheral_ets.rw612:
+    harness: bluetooth
+    platform_allow:
+      - frdm_rw612
+    tags: bluetooth
+    extra_args: CONFIG_BUILD_ONLY_NO_BLOBS=y
   sample.bluetooth.peripheral_ets.local_time:
     harness: bluetooth
     platform_allow:
       - qemu_cortex_m3
       - qemu_x86
-      - frdm_rw612
     integration_platforms:
       - qemu_cortex_m3
     extra_args: EXTRA_CONF_FILE=overlay-local-time.conf
+    tags: bluetooth
+  sample.bluetooth.peripheral_ets.local_time.rw612:
+    harness: bluetooth
+    platform_allow:
+      - frdm_rw612
+    extra_args:
+      - EXTRA_CONF_FILE=overlay-local-time.conf
+      - CONFIG_BUILD_ONLY_NO_BLOBS=y
     tags: bluetooth
