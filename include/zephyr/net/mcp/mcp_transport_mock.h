@@ -7,6 +7,11 @@
 #ifndef ZEPHYR_INCLUDE_NET_MCP_TRANSPORT_MOCK_H_
 #define ZEPHYR_INCLUDE_NET_MCP_TRANSPORT_MOCK_H_
 
+/**
+ * @file
+ * @brief Model Context Protocol (MCP) Server MOCK Transport API for unit tests
+ */
+
 #ifdef CONFIG_MCP_TRANSPORT_MOCK
 
 #include <zephyr/kernel.h>

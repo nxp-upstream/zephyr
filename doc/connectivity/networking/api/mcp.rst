@@ -523,6 +523,7 @@ struct mcp_tool_message ping = {
     .data = NULL,
     .length = 0
 };
+
 mcp_server_submit_tool_message(server, &ping, execution_token);
 
 .. note::
@@ -979,7 +980,6 @@ API Reference
 
 .. doxygengroup:: mcp_server
     :project: Zephyr
-    :content-only:
 
 Usage Guide
 ***********
@@ -1344,11 +1344,10 @@ Sample Application
 
 For application examples see:
 
-:zephyr_file:`samples/net/mcp_server`
+:zephyr_file:`samples/net/mcp/mcp_server_hello_world/src/main.c`
 
 See Also
 ********
 
 - :ref:`networking_api` - Zephyr networking APIs
 - https://modelcontextprotocol.io - MCP specification
-- :zephyr_file:`samples/net/mcp_server` - Complete examples

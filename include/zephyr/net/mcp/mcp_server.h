@@ -47,16 +47,16 @@ enum mcp_tool_event_type {
  * @brief Tool metadata structure
  */
 struct mcp_tool_metadata {
-	char name[CONFIG_MCP_TOOL_NAME_MAX_LEN];
-	char input_schema[CONFIG_MCP_TOOL_SCHEMA_MAX_LEN];
+	char name[CONFIG_MCP_TOOL_NAME_MAX_LEN];			/**< Tool name */
+	char input_schema[CONFIG_MCP_TOOL_SCHEMA_MAX_LEN];	/**< Tool input schema (JSON) */
 #ifdef CONFIG_MCP_TOOL_DESC
-	char description[CONFIG_MCP_TOOL_DESC_MAX_LEN];
+	char description[CONFIG_MCP_TOOL_DESC_MAX_LEN];		/**< Tool description */
 #endif
 #ifdef CONFIG_MCP_TOOL_TITLE
-	char title[CONFIG_MCP_TOOL_NAME_MAX_LEN];
+	char title[CONFIG_MCP_TOOL_NAME_MAX_LEN];			/**< Tool title */
 #endif
 #ifdef CONFIG_MCP_TOOL_OUTPUT_SCHEMA
-	char output_schema[CONFIG_MCP_TOOL_SCHEMA_MAX_LEN];
+	char output_schema[CONFIG_MCP_TOOL_SCHEMA_MAX_LEN];	/**< Tool output schema (JSON) */
 #endif
 };
 
@@ -99,9 +99,9 @@ typedef int (*mcp_tool_callback_t)(enum mcp_tool_event_type event, const char *a
  *
  */
 struct mcp_tool_record {
-	struct mcp_tool_metadata metadata;
-	atomic_t refcount;
-	mcp_tool_callback_t callback;
+	struct mcp_tool_metadata metadata;	/**< Tool metadata with name, schema, etc. */
+	atomic_t refcount;					/**< Tool refcount to prevent removal of active tools */
+	mcp_tool_callback_t callback;		/**< Tool callback function (tools/call) */
 };
 
 /**
@@ -119,15 +119,16 @@ struct mcp_tool_record {
  *
  */
 struct mcp_tool_message {
-	enum mcp_tool_msg_type type;
-	int length;
-	void *data;
-	bool is_error;
+	enum mcp_tool_msg_type type;	/**< Type of message (response/notification/cancel_ack/ping) */
+	int length;						/**< Message length */
+	void *data;						/**< Message data pointer */
+	bool is_error;					/**< Whether the message is an error response */
 };
 
 /**
  * @brief Initialize the MCP Server
  *
+ * @param server_ctx Server context handle
  * @return 0 on success, negative errno on failure
  */
 mcp_server_ctx_t mcp_server_init(void);
@@ -135,6 +136,7 @@ mcp_server_ctx_t mcp_server_init(void);
 /**
  * @brief Start the MCP Server
  *
+ * @param server_ctx Server context handle
  * @return 0 on success, negative errno on failure
  */
 int mcp_server_start(mcp_server_ctx_t server_ctx);
@@ -142,6 +144,7 @@ int mcp_server_start(mcp_server_ctx_t server_ctx);
 /**
  * @brief Submit a message from a tool (response/notification)
  *
+ * @param server_ctx Server context handle
  * @param user_msg Application message to submit
  * @param execution_token Execution token for tracking (UUID string)
  * @return 0 on success, negative errno on failure
@@ -153,6 +156,7 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t server_ctx,
 /**
  * @brief Add a tool to the server
  *
+ * @param server_ctx Server context handle
  * @param tool_record Tool definition with metadata and callback
  * @return 0 on success, negative errno on failure
  * @retval -EINVAL Invalid tool_record
@@ -167,6 +171,7 @@ int mcp_server_add_tool(mcp_server_ctx_t server_ctx, const struct mcp_tool_recor
  * @note Should be called again if it returns -EBUSY, which signifies that the
  * tool is currently being executed.
  *
+ * @param server_ctx Server context handle
  * @param tool_name Name of tool to remove
  * @return 0 on success, negative errno on failure
  * @retval -EINVAL Invalid tool name
@@ -182,6 +187,7 @@ int mcp_server_remove_tool(mcp_server_ctx_t server_ctx, const char *tool_name);
  * tool call event (struct mcp_tool_event_type). This checker needs to use mutexes
  * and linear search to locate the required execution context.
  *
+ * @param server_ctx Server context handle
  * @param execution_token Token representing the execution (UUID string)
  * @param is_canceled Pointer to store cancellation state
  * @return 0 on success, negative errno on failure
