@@ -1583,6 +1583,8 @@ Documentation Infrastructure:
   status: maintained
   maintainers:
     - teburd
+  collaborators:
+    - mcuxted
   files:
     - drivers/dma/
     - tests/drivers/dma/
@@ -3005,6 +3007,8 @@ Input:
   status: maintained
   maintainers:
     - fabiobaltieri
+  collaborators:
+    - mcuxted
   files:
     - doc/services/input/
     - drivers/input/
