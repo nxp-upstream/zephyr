@@ -61,10 +61,10 @@ static void reset_tool_execution_tracking(void)
 
 /* Helper to send JSON requests through the server */
 static int send_json_request(struct mcp_transport_binding *binding, uint32_t msg_id,
-			     const char *json_data)
+			     char *json_data)
 {
 	struct mcp_transport_message request_data = {
-		.json_data = (char *)json_data,
+		.json_data = json_data,
 		.json_len = strlen(json_data),
 		.protocol_version = "2025-11-25",
 		.msg_id = msg_id,
