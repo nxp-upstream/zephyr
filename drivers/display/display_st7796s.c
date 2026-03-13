@@ -365,13 +365,54 @@ static int st7796s_init(const struct device *dev)
 	return 0;
 }
 
+static int st7796s_sleep_in(const struct device *dev)
+{
+	int ret;
+
+	ret = st7796s_send_cmd(dev, ST7796S_CMD_DISPOFF, NULL, 0);
+	if (ret < 0) {
+		return ret;
+	}
+
+	k_msleep(10);
+
+	ret = st7796s_send_cmd(dev, ST7796S_CMD_SLPIN, NULL, 0);
+	if (ret < 0) {
+		return ret;
+	}
+
+	k_msleep(120);
+
+	return 0;
+}
+
+static int st7796s_sleep_out(const struct device *dev)
+{
+	int ret;
+
+	ret = st7796s_send_cmd(dev, ST7796S_CMD_SLPOUT, NULL, 0);
+	if (ret < 0) {
+		return ret;
+	}
+
+	k_msleep(120);
+
+	ret = st7796s_send_cmd(dev, ST7796S_CMD_DISPON, NULL, 0);
+	if (ret < 0) {
+		return ret;
+	}
+
+	return 0;
+}
+
 static DEVICE_API(display, st7796s_api) = {
 	.blanking_on = st7796s_blanking_on,
 	.blanking_off = st7796s_blanking_off,
+	.sleep_in = st7796s_sleep_in,
+	.sleep_out = st7796s_sleep_out,
 	.write = st7796s_write,
 	.get_capabilities = st7796s_get_capabilities,
 };
-
 
 #define ST7796S_INIT(n)								\
 	static const struct st7796s_config st7796s_config_##n = {		\

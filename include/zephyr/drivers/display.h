@@ -252,6 +252,20 @@ typedef int (*display_blanking_on_api)(const struct device *dev);
 typedef int (*display_blanking_off_api)(const struct device *dev);
 
 /**
+ * @typedef display_sleep_in_api
+ * @brief Callback API to enter display sleep mode
+ * See display_sleep_in() for argument description
+ */
+typedef int (*display_sleep_in_api)(const struct device *dev);
+
+/**
+ * @typedef display_sleep_out_api
+ * @brief Callback API to exit display sleep mode
+ * See display_sleep_out() for argument description
+ */
+typedef int (*display_sleep_out_api)(const struct device *dev);
+
+/**
  * @typedef display_write_api
  * @brief Callback API for writing data to the display
  * See display_write() for argument description
@@ -335,6 +349,10 @@ typedef int (*display_set_orientation_api)(const struct device *dev,
 __subsystem struct display_driver_api {
 	display_blanking_on_api blanking_on;
 	display_blanking_off_api blanking_off;
+	/** Callback to enter display sleep mode */
+	display_sleep_in_api sleep_in;
+	/** Callback to exit display sleep mode */
+	display_sleep_out_api sleep_out;
 	display_write_api write;
 	display_read_api read;
 	display_clear_api clear;
@@ -489,6 +507,50 @@ static inline int display_blanking_off(const struct device *dev)
 	}
 
 	return api->blanking_off(dev);
+}
+
+/**
+ * @brief Enter display sleep mode
+ *
+ * Put the display controller into low-power sleep mode.
+ * The frame buffer contents may not be retained depending on the controller.
+ * Use display_sleep_out() to wake the display and restore operation.
+ *
+ * @param dev Pointer to device structure
+ *
+ * @return 0 on success else negative errno code.
+ * @retval -ENOSYS if not implemented.
+ */
+static inline int display_sleep_in(const struct device *dev)
+{
+	struct display_driver_api *api = (struct display_driver_api *)dev->api;
+
+	if (api->sleep_in == NULL) {
+		return -ENOSYS;
+	}
+
+	return api->sleep_in(dev);
+}
+
+/**
+ * @brief Exit display sleep mode
+ *
+ * Wake the display controller from sleep mode and restore normal operation.
+ *
+ * @param dev Pointer to device structure
+ *
+ * @return 0 on success else negative errno code.
+ * @retval -ENOSYS if not implemented.
+ */
+static inline int display_sleep_out(const struct device *dev)
+{
+	struct display_driver_api *api = (struct display_driver_api *)dev->api;
+
+	if (api->sleep_out == NULL) {
+		return -ENOSYS;
+	}
+
+	return api->sleep_out(dev);
 }
 
 /**
