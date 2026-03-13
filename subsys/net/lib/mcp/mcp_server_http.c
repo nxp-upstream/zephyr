@@ -66,7 +66,7 @@ struct mcp_http_client_ctx {
 };
 
 /* HTTP transport state */
-struct http_transport_state {
+struct mcp_http_transport_state {
 	struct mcp_http_request_accumulator accumulators[CONFIG_HTTP_SERVER_MAX_CLIENTS];
 	struct k_mutex accumulators_mutex;
 	struct mcp_http_client_ctx clients[CONFIG_HTTP_SERVER_MAX_CLIENTS];
@@ -122,7 +122,7 @@ const struct mcp_transport_ops mcp_http_transport_ops = {
 	.disconnect = mcp_server_http_disconnect,
 };
 
-static struct http_transport_state http_transport_state;
+static struct mcp_http_transport_state http_transport_state;
 static struct http_resource_detail_dynamic mcp_resource_detail = {
 	.common = {
 			.type = HTTP_RESOURCE_TYPE_DYNAMIC,
