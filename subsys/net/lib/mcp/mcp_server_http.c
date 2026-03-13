@@ -240,12 +240,52 @@ static int release_accumulator(struct mcp_http_request_accumulator *accumulator)
 	return 0;
 }
 
+static int accumulate_header(struct mcp_http_request_accumulator *accumulator,
+			     const struct http_header *header)
+{
+	if (!header->name || !header->value) {
+		return 0;
+	}
+
+	if (strcmp(header->name, "Mcp-Session-Id") == 0) {
+		strncpy(accumulator->session_id_hdr, header->value,
+			sizeof(accumulator->session_id_hdr) - 1);
+		accumulator->session_id_hdr[sizeof(accumulator->session_id_hdr) - 1] = '\0';
+	} else if (strcmp(header->name, "Mcp-Protocol-Version") == 0) {
+		strncpy(accumulator->protocol_version_hdr, header->value,
+			sizeof(accumulator->protocol_version_hdr) - 1);
+		accumulator->protocol_version_hdr[sizeof(accumulator->protocol_version_hdr) - 1] =
+			'\0';
+	} else if (strcmp(header->name, "Last-Event-Id") == 0) {
+		char *endptr;
+
+		accumulator->last_event_id_hdr = strtoul(header->value, &endptr, 10);
+		if (*endptr != '\0') {
+			LOG_ERR("Invalid Last-Event-Id format: %s", header->value);
+			return -EINVAL;
+		}
+	} else if (strcmp(header->name, "Origin") == 0) {
+		strncpy(accumulator->origin_hdr, header->value,
+			sizeof(accumulator->origin_hdr) - 1);
+		accumulator->origin_hdr[sizeof(accumulator->origin_hdr) - 1] = '\0';
+	} else if (strcmp(header->name, "Content-Type") == 0) {
+		strncpy(accumulator->content_type_hdr, header->value,
+			sizeof(accumulator->content_type_hdr) - 1);
+		accumulator->content_type_hdr[sizeof(accumulator->content_type_hdr) - 1] = '\0';
+	} else {
+		LOG_DBG("Unhandled header: %s", header->name);
+	}
+
+	return 0;
+}
+
 static int accumulate_request(struct http_client_ctx *client,
 			      struct mcp_http_request_accumulator *accumulator,
 			      const struct http_request_ctx *request_ctx,
 			      enum http_transaction_status status)
 {
-	/* Accumulate request data */
+	int ret;
+
 	if (request_ctx->data_len > 0) {
 		if ((accumulator->data_len + request_ctx->data_len) > CONFIG_MCP_MAX_MESSAGE_SIZE) {
 			LOG_WRN("Accumulator full. Dropping current chunk");
@@ -257,52 +297,13 @@ static int accumulate_request(struct http_client_ctx *client,
 		accumulator->data_len += request_ctx->data_len;
 	}
 
-	/* Parse headers whenever they are available */
-	if (request_ctx->header_count > 0) {
-		for (uint32_t i = 0; i < request_ctx->header_count; i++) {
-			const struct http_header *header = &request_ctx->headers[i];
-
-			if (!header->name || !header->value) {
-				continue;
-			}
-
-			if (strcmp(header->name, "Mcp-Session-Id") == 0) {
-				strncpy(accumulator->session_id_hdr, header->value,
-					sizeof(accumulator->session_id_hdr) - 1);
-				accumulator
-					->session_id_hdr[sizeof(accumulator->session_id_hdr) - 1] =
-					'\0';
-			} else if (strcmp(header->name, "Mcp-Protocol-Version") == 0) {
-				strncpy(accumulator->protocol_version_hdr, header->value,
-					sizeof(accumulator->protocol_version_hdr) - 1);
-				accumulator->protocol_version_hdr
-					[sizeof(accumulator->protocol_version_hdr) - 1] = '\0';
-			} else if (strcmp(header->name, "Last-Event-Id") == 0) {
-				char *endptr;
-
-				accumulator->last_event_id_hdr =
-					strtoul(header->value, &endptr, 10);
-				if (*endptr != '\0') {
-					LOG_ERR("Invalid Last-Event-Id format: %s", header->value);
-					return -EINVAL;
-				}
-			} else if (strcmp(header->name, "Origin") == 0) {
-				strncpy(accumulator->origin_hdr, header->value,
-					sizeof(accumulator->origin_hdr) - 1);
-				accumulator->origin_hdr[sizeof(accumulator->origin_hdr) - 1] = '\0';
-			} else if (strcmp(header->name, "Content-Type") == 0) {
-				strncpy(accumulator->content_type_hdr, header->value,
-					sizeof(accumulator->content_type_hdr) - 1);
-				accumulator
-					->content_type_hdr[sizeof(accumulator->content_type_hdr) -
-							   1] = '\0';
-			} else {
-				LOG_DBG("Unhandled header: %s", header->name);
-			}
+	for (uint32_t i = 0; i < request_ctx->header_count; i++) {
+		ret = accumulate_header(accumulator, &request_ctx->headers[i]);
+		if (ret < 0) {
+			return ret;
 		}
 	}
 
-	/* Null-terminate data on final status */
 	if (status == HTTP_SERVER_REQUEST_DATA_FINAL) {
 		if (accumulator->data_len < CONFIG_MCP_MAX_MESSAGE_SIZE) {
 			accumulator->data[accumulator->data_len] = '\0';
@@ -760,7 +761,8 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 			min_heap_pop(&mcp_client->responses, &response_data);
 			ret = format_sse_response(mcp_client->response_body,
 						  sizeof(mcp_client->response_body),
-						  mcp_client->next_event_id++, response_data.data);
+						  mcp_client->next_event_id, response_data.data);
+			mcp_client->next_event_id++;
 
 			if (ret < 0) {
 				LOG_ERR("Failed to format SSE response: %d", ret);
