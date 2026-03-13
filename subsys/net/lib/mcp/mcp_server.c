@@ -44,6 +44,12 @@ enum mcp_execution_state {
 	MCP_EXEC_FINISHED  /**< Execution completed */
 };
 
+enum mcp_canceled_state {
+	MCP_NOT_CANCELED,			/**< Execution is not canceled */
+	MCP_CANCELED,				/**< Canceled, doesn't need cleanup */
+	MCP_CANCELED_WITH_CLEANUP	/**< Canceled, needs cleanup */
+};
+
 /**
  * @brief Client context
  * @note Used to hold lifecycle and request tracking information
@@ -311,15 +317,13 @@ static struct mcp_execution_context *get_execution_context(struct mcp_server_ctx
 {
 	struct mcp_execution_registry *execution_registry = &server->execution_registry;
 
-	if (execution_token == NULL) {
-		return NULL;
-	}
-
-	for (int i = 0; i < ARRAY_SIZE(execution_registry->executions); i++) {
-		if ((execution_registry->executions[i].execution_state != MCP_EXEC_FREE) &&
-		    (strcmp(execution_registry->executions[i].execution_token, execution_token) ==
-		     0)) {
-			return &execution_registry->executions[i];
+	if (execution_token != NULL) {
+		for (int i = 0; i < ARRAY_SIZE(execution_registry->executions); i++) {
+			if ((execution_registry->executions[i].execution_state != MCP_EXEC_FREE) &&
+				(strcmp(execution_registry->executions[i].execution_token, execution_token) ==
+				0)) {
+				return &execution_registry->executions[i];
+			}
 		}
 	}
 
@@ -373,6 +377,254 @@ static void remove_execution_context(struct mcp_server_ctx *server,
 				     struct mcp_execution_context *execution_context)
 {
 	memset(execution_context, 0, sizeof(struct mcp_execution_context));
+}
+
+
+/**
+ * @brief Check if execution is canceled and determine action
+ * @note Must be called with execution_registry.mutex held
+ * @return MCP_NOT_CANCELED, MCP_CANCELED_WITH_CLEANUP, or MCP_CANCELED
+ */
+static int check_canceled_execution(struct mcp_execution_context *execution_ctx,
+					   enum mcp_tool_msg_type msg_type)
+{
+	if (execution_ctx->execution_state != MCP_EXEC_CANCELED) {
+		return MCP_NOT_CANCELED;
+	}
+
+	if (msg_type == MCP_USR_TOOL_CANCEL_ACK) {
+		execution_ctx->execution_state = MCP_EXEC_FINISHED;
+		return MCP_CANCELED_WITH_CLEANUP;
+	}
+
+	if (msg_type == MCP_USR_TOOL_RESPONSE) {
+		execution_ctx->execution_state = MCP_EXEC_FINISHED;
+		LOG_WRN("Execution canceled, tool message will be dropped.");
+		return MCP_CANCELED_WITH_CLEANUP;
+	}
+
+	LOG_DBG("Execution canceled, ignoring tool message type: %d", msg_type);
+	return MCP_CANCELED;
+}
+
+/*******************************************************************************
+ * Tool response processing helper functions
+ ******************************************************************************/
+
+/**
+ * @brief Validate tool message parameters
+ * @return 0 on success, negative error code on failure
+ */
+static int validate_tool_message_params(struct mcp_server_ctx *server,
+					const struct mcp_tool_message *tool_msg,
+					const char *execution_token)
+{
+	if (server == NULL) {
+		LOG_ERR("Invalid server context");
+		return -EINVAL;
+	}
+
+	if (tool_msg == NULL) {
+		LOG_ERR("Invalid user message");
+		return -EINVAL;
+	}
+
+	bool data_required = (tool_msg->type != MCP_USR_TOOL_CANCEL_ACK) &&
+			     (tool_msg->type != MCP_USR_TOOL_PING);
+
+	if ((tool_msg->data == NULL) && data_required) {
+		LOG_ERR("Invalid user message");
+		return -EINVAL;
+	}
+
+	if ((execution_token == NULL) || (execution_token[0] == '\0')) {
+		LOG_ERR("Invalid execution token");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+/**
+ * @brief Send tool call response to client
+ * @return 0 on success, negative error code on failure
+ */
+static int send_tool_response(struct mcp_client_context *client,
+			      struct mcp_execution_context *execution_ctx,
+			      const struct mcp_tool_message *tool_msg,
+			      struct mcp_execution_registry *execution_registry,
+			      struct mcp_result_tools_call **response_out,
+			      uint8_t **json_buffer_out)
+{
+	int ret;
+	struct mcp_result_tools_call *response_data;
+	uint8_t *json_buffer;
+
+	if (client == NULL) {
+		LOG_ERR("Client context not found for client: %p", client);
+		return -ENOENT;
+	}
+
+	response_data = (struct mcp_result_tools_call *)mcp_alloc(
+		sizeof(struct mcp_result_tools_call));
+	if (response_data == NULL) {
+		LOG_ERR("Failed to allocate memory for response");
+		return -ENOMEM;
+	}
+
+	*response_out = response_data;
+
+	mcp_safe_strcpy((char *)response_data->content.items[0].text,
+			sizeof(response_data->content.items[0].text),
+			(char *)tool_msg->data);
+	response_data->content.count = 1;
+	response_data->content.items[0].type = MCP_CONTENT_TEXT;
+	response_data->is_error = tool_msg->is_error;
+
+	ret = k_mutex_lock(&execution_registry->mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock execution registry: %d", ret);
+		return ret;
+	}
+	execution_ctx->execution_state = MCP_EXEC_FINISHED;
+	k_mutex_unlock(&execution_registry->mutex);
+
+	json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
+	if (json_buffer == NULL) {
+		LOG_ERR("Failed to allocate buffer, dropping message");
+		return -ENOMEM;
+	}
+
+	*json_buffer_out = json_buffer;
+
+	ret = mcp_json_serialize_tools_call_result((char *)json_buffer,
+						   CONFIG_MCP_MAX_MESSAGE_SIZE,
+						   &execution_ctx->request_id,
+						   response_data);
+	if (ret <= 0) {
+		LOG_ERR("Failed to serialize response: %d", ret);
+		return ret;
+	}
+
+	struct mcp_transport_message tx_msg = {
+		.binding = client->binding,
+		.msg_id = execution_ctx->transport_msg_id,
+		.json_data = json_buffer,
+		.json_len = ret
+	};
+
+	ret = client->binding->ops->send(&tx_msg);
+	if (ret) {
+		LOG_ERR("Failed to send tool response");
+		return ret;
+	}
+
+	return 0;
+}
+
+/**
+ * @brief Free allocated response resources
+ */
+static void free_response_resources(struct mcp_result_tools_call *response_data,
+				    uint8_t *json_buffer,
+				    bool free_json_buffer)
+{
+	if (response_data) {
+		mcp_free(response_data);
+	}
+
+	if (free_json_buffer && json_buffer) {
+		mcp_free(json_buffer);
+	}
+}
+
+/**
+ * @brief Clean up client active request tracking
+ */
+static void cleanup_client_request(struct mcp_client_registry *client_registry,
+				   struct mcp_client_context *client,
+				   uint32_t msg_id,
+				   bool is_execution_canceled)
+{
+	int ret;
+
+	ret = k_mutex_lock(&client_registry->mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock client registry mutex: %d. Client registry is broken.",
+			ret);
+		return;
+	}
+
+	if (client == NULL) {
+		if (is_execution_canceled) {
+			LOG_DBG("Execution canceled, client was already cleaned up.");
+		} else {
+			LOG_ERR("Failed to find client in the client registry. "
+				"Client registry is broken.");
+		}
+		k_mutex_unlock(&client_registry->mutex);
+		return;
+	}
+
+	client->active_request_count--;
+
+	for (int i = 0; i < CONFIG_MCP_MAX_CLIENT_REQUESTS; i++) {
+		if ((client->active_requests[i] != NULL) &&
+		    (client->active_requests[i]->transport_msg_id == msg_id)) {
+			client->active_requests[i] = 0;
+			break;
+		}
+	}
+
+	k_mutex_unlock(&client_registry->mutex);
+}
+
+/**
+ * @brief Clean up execution context from registry
+ * @return 0 on success, negative error code on failure
+ */
+static int cleanup_execution(struct mcp_server_ctx *server,
+			     struct mcp_execution_context *execution_ctx)
+{
+	int ret;
+	struct mcp_execution_registry *execution_registry = &server->execution_registry;
+
+	ret = k_mutex_lock(&execution_registry->mutex, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to lock execution registry: %d. Execution registry is broken.",
+			ret);
+		return ret;
+	}
+
+	if (execution_ctx != NULL) {
+		remove_execution_context(server, execution_ctx);
+	}
+
+	k_mutex_unlock(&execution_registry->mutex);
+	return 0;
+}
+
+/**
+ * @brief Perform final cleanup of client, execution context, and tool
+ */
+static int perform_final_cleanup(struct mcp_server_ctx *server,
+				 struct mcp_client_context *client,
+				 struct mcp_execution_context *execution_ctx,
+				 struct mcp_tool_record *tool,
+				 uint32_t msg_id,
+				 bool is_execution_canceled)
+{
+	int ret;
+
+	cleanup_client_request(&server->client_registry, client, msg_id, is_execution_canceled);
+
+	ret = cleanup_execution(server, execution_ctx);
+
+	if (tool != NULL) {
+		atomic_dec(&tool->refcount);
+	}
+
+	return ret;
 }
 
 /*******************************************************************************
@@ -880,11 +1132,9 @@ cleanup_active_request:
 	}
 
 cleanup_execution:
-	if (exec_ctx != NULL) {
-		if (k_mutex_lock(&execution_registry->mutex, K_FOREVER) == 0) {
+	if ((exec_ctx != NULL) && (k_mutex_lock(&execution_registry->mutex, K_FOREVER) == 0)) {
 			remove_execution_context(server, exec_ctx);
 			k_mutex_unlock(&execution_registry->mutex);
-		}
 	}
 
 cleanup_tool:
@@ -1652,38 +1902,24 @@ int mcp_server_start(mcp_server_ctx_t ctx)
 int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_message *tool_msg,
 				   const char *execution_token)
 {
-	int ret = 0;
-	uint32_t msg_id;
-	struct mcp_request_id *request_id;
+	int ret;
+	int canceled_state;
 	struct mcp_result_tools_call *response_data = NULL;
 	uint8_t *json_buffer = NULL;
 	struct mcp_server_ctx *server = (struct mcp_server_ctx *)ctx;
 	struct mcp_execution_context *execution_ctx = NULL;
 	struct mcp_client_context *client = NULL;
 	struct mcp_tool_record *temp_tool_ptr = NULL;
+	uint32_t msg_id = 0;
 	bool is_execution_canceled = false;
 
-	if (server == NULL) {
-		LOG_ERR("Invalid server context");
-		return -EINVAL;
+	ret = validate_tool_message_params(server, tool_msg, execution_token);
+	if (ret != 0) {
+		return ret;
 	}
 
 	struct mcp_execution_registry *execution_registry = &server->execution_registry;
-	struct mcp_client_registry *client_registry = &server->client_registry;
 
-	if ((tool_msg == NULL) ||
-	    ((tool_msg->data == NULL) && (tool_msg->type != MCP_USR_TOOL_CANCEL_ACK) &&
-	     (tool_msg->type != MCP_USR_TOOL_PING))) {
-		LOG_ERR("Invalid user message");
-		return -EINVAL;
-	}
-
-	if ((execution_token == NULL) || (execution_token[0] == '\0')) {
-		LOG_ERR("Invalid execution token");
-		return -EINVAL;
-	}
-
-	/* Look up execution context and check state */
 	ret = k_mutex_lock(&execution_registry->mutex, K_FOREVER);
 	if (ret != 0) {
 		LOG_ERR("Failed to lock execution registry: %d", ret);
@@ -1697,175 +1933,54 @@ int mcp_server_submit_tool_message(mcp_server_ctx_t ctx, const struct mcp_tool_m
 		return -ENOENT;
 	}
 
-	request_id = &execution_ctx->request_id;
 	msg_id = execution_ctx->transport_msg_id;
 	client = execution_ctx->client;
 	temp_tool_ptr = execution_ctx->tool;
-
 	is_execution_canceled = (execution_ctx->execution_state == MCP_EXEC_CANCELED);
 
-	if (is_execution_canceled) {
-		if (tool_msg->type == MCP_USR_TOOL_CANCEL_ACK) {
-			execution_ctx->execution_state = MCP_EXEC_FINISHED;
-			k_mutex_unlock(&execution_registry->mutex);
-			goto cleanup;
-		} else if (tool_msg->type == MCP_USR_TOOL_RESPONSE) {
-			execution_ctx->execution_state = MCP_EXEC_FINISHED;
-			k_mutex_unlock(&execution_registry->mutex);
-			LOG_WRN("Execution canceled, tool message will be dropped.");
-			goto cleanup;
-		} else {
-			LOG_DBG("Execution canceled, ignoring tool message type: %d",
-				tool_msg->type);
-			k_mutex_unlock(&execution_registry->mutex);
-			return 0;
-		}
-	}
+	canceled_state = check_canceled_execution(execution_ctx, tool_msg->type);
 
-	execution_ctx->last_message_timestamp = k_uptime_get();
+	if (canceled_state == MCP_NOT_CANCELED) {
+		execution_ctx->last_message_timestamp = k_uptime_get();
+	}
 	k_mutex_unlock(&execution_registry->mutex);
 
-	switch (tool_msg->type) {
-	case MCP_USR_TOOL_PING:
+	if (canceled_state == MCP_CANCELED) {
 		return 0;
+	}
 
-	case MCP_USR_TOOL_RESPONSE:
-		if (client == NULL) {
-			LOG_ERR("Client context not found for client: %p", client);
-			ret = -ENOENT;
-			goto cleanup;
+	if (canceled_state == MCP_CANCELED_WITH_CLEANUP) {
+		perform_final_cleanup(server, client, execution_ctx, temp_tool_ptr,
+				      msg_id, is_execution_canceled);
+		return 0;
+	}
+
+	if (tool_msg->type == MCP_USR_TOOL_PING) {
+		return 0;
+	}
+
+	if (tool_msg->type == MCP_USR_TOOL_RESPONSE) {
+		ret = send_tool_response(client, execution_ctx, tool_msg,
+					 execution_registry, &response_data, &json_buffer);
+		free_response_resources(response_data, json_buffer, ret != 0);
+
+		int cleanup_ret = perform_final_cleanup(server, client, execution_ctx,
+							temp_tool_ptr, msg_id, is_execution_canceled);
+		if (ret == 0) {
+			ret = cleanup_ret;
 		}
+		return ret;
+	}
 
-		response_data = (struct mcp_result_tools_call *)mcp_alloc(
-			sizeof(struct mcp_result_tools_call));
-		if (response_data == NULL) {
-			LOG_ERR("Failed to allocate memory for response");
-			ret = -ENOMEM;
-			goto cleanup;
-		}
-
-		mcp_safe_strcpy((char *)response_data->content.items[0].text,
-				sizeof(response_data->content.items[0].text),
-				(char *)tool_msg->data);
-		response_data->content.count = 1;
-		response_data->content.items[0].type = MCP_CONTENT_TEXT;
-		response_data->is_error = tool_msg->is_error;
-
-		ret = k_mutex_lock(&execution_registry->mutex, K_FOREVER);
-		if (ret != 0) {
-			LOG_ERR("Failed to lock execution registry: %d", ret);
-			goto cleanup;
-		}
-		execution_ctx->execution_state = MCP_EXEC_FINISHED;
-		k_mutex_unlock(&execution_registry->mutex);
-
-		/* Allocate buffer for serialization */
-		json_buffer = (uint8_t *)mcp_alloc(CONFIG_MCP_MAX_MESSAGE_SIZE);
-		if (json_buffer == NULL) {
-			LOG_ERR("Failed to allocate buffer, dropping message");
-			ret = -ENOMEM;
-			goto cleanup;
-		}
-
-		/* Serialize response to JSON */
-		ret = mcp_json_serialize_tools_call_result((char *)json_buffer,
-							   CONFIG_MCP_MAX_MESSAGE_SIZE, request_id,
-							   response_data);
-		if (ret <= 0) {
-			LOG_ERR("Failed to serialize response: %d", ret);
-			goto cleanup;
-		}
-
-		struct mcp_transport_message tx_msg = {.binding = client->binding,
-						       .msg_id = msg_id,
-						       .json_data = json_buffer,
-						       .json_len = ret};
-
-		ret = client->binding->ops->send(&tx_msg);
-		if (ret) {
-			LOG_ERR("Failed to send tool response");
-			goto cleanup;
-		}
-
-		ret = 0;
-		break;
-
-	default:
+	if (tool_msg->type == MCP_USR_TOOL_CANCEL_ACK) {
 		LOG_ERR("Unsupported application message type: %u", tool_msg->type);
-		ret = -EINVAL;
-		goto cleanup;
+		perform_final_cleanup(server, client, execution_ctx,
+				      temp_tool_ptr, msg_id, is_execution_canceled);
+		return -EINVAL;
 	}
 
-cleanup:
-	if (response_data) {
-		mcp_free(response_data);
-	}
-
-	/* Clean up json_buffer in case of error */
-	if ((ret != 0) && (json_buffer)) {
-		mcp_free(json_buffer);
-	}
-
-	/* Clean up if this is a final message */
-	if ((tool_msg->type == MCP_USR_TOOL_RESPONSE) ||
-	    (tool_msg->type == MCP_USR_TOOL_CANCEL_ACK)) {
-		int cleanup_ret;
-
-		cleanup_ret = k_mutex_lock(&client_registry->mutex, K_FOREVER);
-		if (cleanup_ret != 0) {
-			LOG_ERR("Failed to lock client registry mutex: %d. Client registry is "
-				"broken.",
-				cleanup_ret);
-			goto skip_client_cleanup;
-		}
-
-		if (client == NULL) {
-			if (is_execution_canceled) {
-				LOG_DBG("Execution canceled, client was already cleaned up.");
-			} else {
-				LOG_ERR("Failed to find client in the client registry. "
-					"Client registry is broken.");
-			}
-			k_mutex_unlock(&client_registry->mutex);
-			goto skip_client_cleanup;
-		}
-
-		client->active_request_count--;
-
-		for (int i = 0; i < CONFIG_MCP_MAX_CLIENT_REQUESTS; i++) {
-			if ((client->active_requests[i] != NULL) &&
-			    (client->active_requests[i]->transport_msg_id == msg_id)) {
-				client->active_requests[i] = 0;
-				break;
-			}
-		}
-
-		k_mutex_unlock(&client_registry->mutex);
-
-skip_client_cleanup:
-		cleanup_ret = k_mutex_lock(&execution_registry->mutex, K_FOREVER);
-		if (cleanup_ret != 0) {
-			LOG_ERR("Failed to lock execution registry: %d. Execution registry is "
-				"broken. Message was submitted successfully.",
-				cleanup_ret);
-			if (ret == 0) {
-				ret = cleanup_ret;
-			}
-			goto skip_execution_cleanup;
-		}
-
-		if (execution_ctx != NULL) {
-			remove_execution_context(server, execution_ctx);
-		}
-		k_mutex_unlock(&execution_registry->mutex);
-
-skip_execution_cleanup:
-		if (temp_tool_ptr != NULL) {
-			atomic_dec(&temp_tool_ptr->refcount);
-		}
-	}
-
-	return ret;
+	LOG_ERR("Unsupported application message type: %u", tool_msg->type);
+	return -EINVAL;
 }
 
 int mcp_server_add_tool(mcp_server_ctx_t ctx, const struct mcp_tool_record *tool_record)
