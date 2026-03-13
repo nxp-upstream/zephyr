@@ -490,6 +490,9 @@ device.
    * - zephyr,sram
      - A node whose ``reg`` sets the base address and size of SRAM memory
        available to the Zephyr image, used during linking
+   * - zephyr,system-timer-companion
+     - Selects the device used to keep time while the primary system timer is
+       inactive in low-power states
    * - zephyr,tracing-uart
      - Sets UART device used by tracing subsystem
    * - zephyr,uart-mcumgr
