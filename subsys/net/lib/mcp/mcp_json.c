@@ -328,7 +328,7 @@ static void extract_token_string(char *dst, size_t dst_sz, const struct json_obj
 	dst[len] = '\0';
 }
 
-static enum mcp_method mcp_method_from_string(const char *m, size_t len)
+static enum mcp_method mcp_method_from_string(char *m, size_t len)
 {
 	if (!m || len == 0) {
 		return MCP_METHOD_UNKNOWN;
@@ -362,10 +362,10 @@ static enum mcp_method mcp_method_from_string(const char *m, size_t len)
 	return MCP_METHOD_UNKNOWN;
 }
 
-static int parse_initialize_request(const char *buf, size_t len, struct mcp_message *msg)
+static int parse_initialize_request(char *buf, size_t len, struct mcp_message *msg)
 {
 	struct mcp_json_init_req tmp = {0};
-	int ret = json_obj_parse((char *)buf, len, mcp_init_req_descr,
+	int ret = json_obj_parse(buf, len, mcp_init_req_descr,
 				 ARRAY_SIZE(mcp_init_req_descr), &tmp);
 
 	if (ret < 0) {
@@ -386,10 +386,10 @@ static int parse_initialize_request(const char *buf, size_t len, struct mcp_mess
 }
 
 /* ping request: we ignore params for now */
-static int parse_ping_request(const char *buf, size_t len, struct mcp_message *msg)
+static int parse_ping_request(char *buf, size_t len, struct mcp_message *msg)
 {
 	struct mcp_json_ping_req tmp = {0};
-	int ret = json_obj_parse((char *)buf, len, mcp_ping_req_descr,
+	int ret = json_obj_parse(buf, len, mcp_ping_req_descr,
 				 ARRAY_SIZE(mcp_ping_req_descr), &tmp);
 
 	if (ret < 0) {
@@ -410,10 +410,10 @@ static int parse_ping_request(const char *buf, size_t len, struct mcp_message *m
 }
 
 /* tools/list request: no params for now */
-static int parse_tools_list_request(const char *buf, size_t len, struct mcp_message *msg)
+static int parse_tools_list_request(char *buf, size_t len, struct mcp_message *msg)
 {
 	struct mcp_json_tools_list_req tmp = {0};
-	int ret = json_obj_parse((char *)buf, len, mcp_tools_list_req_descr,
+	int ret = json_obj_parse(buf, len, mcp_tools_list_req_descr,
 				 ARRAY_SIZE(mcp_tools_list_req_descr), &tmp);
 
 	if (ret < 0) {
@@ -433,7 +433,7 @@ static int parse_tools_list_request(const char *buf, size_t len, struct mcp_mess
 	return 0;
 }
 
-static bool extract_arguments_json(const char *buf, size_t len, char *dst, size_t dst_sz)
+static bool extract_arguments_json(char *buf, size_t len, char *dst, size_t dst_sz)
 {
 	const char *args_key;
 	const char *args_start;
@@ -474,6 +474,10 @@ static bool extract_arguments_json(const char *buf, size_t len, char *dst, size_
 		} else if (*args_end == '}') {
 			brace_count--;
 		}
+		else
+		{
+			;
+		}
 		args_end++;
 
 		if (args_end >= buf + len) {
@@ -492,7 +496,7 @@ static bool extract_arguments_json(const char *buf, size_t len, char *dst, size_
 	return true;
 }
 
-static int parse_tools_call_request(const char *buf, size_t len, struct mcp_message *msg)
+static int parse_tools_call_request(char *buf, size_t len, struct mcp_message *msg)
 {
 	struct mcp_json_tools_call_req tmp = {0};
 	struct mcp_params_tools_call *p = &msg->req.u.tools_call;
@@ -507,7 +511,7 @@ static int parse_tools_call_request(const char *buf, size_t len, struct mcp_mess
 	}
 
 	/* Now parse the rest (this will modify the buffer) */
-	int ret = json_obj_parse((char *)buf, len, mcp_tools_call_req_descr,
+	int ret = json_obj_parse(buf, len, mcp_tools_call_req_descr,
 				 ARRAY_SIZE(mcp_tools_call_req_descr), &tmp);
 	if (ret < 0) {
 		LOG_ERR("Failed to parse tools_call_req: %d", ret);
@@ -526,7 +530,7 @@ static int parse_tools_call_request(const char *buf, size_t len, struct mcp_mess
 	return 0;
 }
 
-static int parse_notif_initialized(const char *buf, size_t len, struct mcp_message *msg)
+static int parse_notif_initialized(char *buf, size_t len, struct mcp_message *msg)
 {
 	(void)buf;
 	(void)len;
@@ -538,11 +542,11 @@ static int parse_notif_initialized(const char *buf, size_t len, struct mcp_messa
 	return 0;
 }
 
-static int parse_notif_cancelled(const char *buf, size_t len, struct mcp_message *msg)
+static int parse_notif_cancelled(char *buf, size_t len, struct mcp_message *msg)
 {
 	struct mcp_json_cancelled_notif_in tmp = {0};
 
-	int ret = json_obj_parse((char *)buf, len, mcp_cancelled_notif_in_descr,
+	int ret = json_obj_parse(buf, len, mcp_cancelled_notif_in_descr,
 				 ARRAY_SIZE(mcp_cancelled_notif_in_descr), &tmp);
 
 	if (ret < 0) {
