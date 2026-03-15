@@ -417,6 +417,7 @@ New Drivers
   * Added SiFli SF32LB eFuse OTP driver (:dtcompatible:`sifli,sf32lb-efuse`).
     (:github:`101926`)
   * :dtcompatible:`nxp,ocotp` (:github:`102567` & :github:`103089`)
+  * :dtcompatible:`nxp,rt7xx-ocotp` (:github:`xxx`)
 
 New Samples
 ***********
