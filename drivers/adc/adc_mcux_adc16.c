@@ -11,6 +11,7 @@
 #include <zephyr/drivers/pinctrl.h>
 #ifdef CONFIG_ADC_MCUX_ADC16_ENABLE_EDMA
 #include <zephyr/drivers/dma.h>
+#include "adc_dma.h"
 #endif
 
 #include <fsl_adc16.h>
@@ -290,7 +291,7 @@ static int start_read(const struct device *dev,
 
 	error = adc_context_wait_for_completion(&data->ctx);
 #ifdef CONFIG_ADC_MCUX_ADC16_ENABLE_EDMA
-	dma_stop(data->dev_dma, data->adc_dma_config.dma_channel);
+	adc_dma_stop(data->dev_dma, data->adc_dma_config.dma_channel);
 #endif
 	return error;
 }
@@ -348,7 +349,10 @@ static void mcux_adc16_start_channel(const struct device *dev)
 	ADC16_SetChannelConfig(config->base, channel_group, &channel_config);
 #ifdef CONFIG_ADC_MCUX_ADC16_ENABLE_EDMA
 	LOG_DBG("Starting EDMA");
-	dma_start(data->dev_dma, data->adc_dma_config.dma_channel);
+	if (adc_dma_configure_start(data->dev_dma, data->adc_dma_config.dma_channel,
+				    &data->adc_dma_config.dma_cfg) != 0) {
+		LOG_ERR("Failed to configure/start ADC16 DMA");
+	}
 #endif
 	LOG_DBG("Starting channel done");
 }
@@ -363,12 +367,19 @@ static void adc_context_start_sampling(struct adc_context *ctx)
 
 #ifdef CONFIG_ADC_MCUX_ADC16_ENABLE_EDMA
 	LOG_DBG("config dma");
-	data->adc_dma_config.dma_block.block_size = 2;
-	data->adc_dma_config.dma_block.dest_address = (uint32_t)data->buffer;
-	data->adc_dma_config.dma_cfg.head_block =
-		&(data->adc_dma_config.dma_block);
-	dma_config(data->dev_dma, data->adc_dma_config.dma_channel,
-		   &data->adc_dma_config.dma_cfg);
+	adc_dma_block_setup(&data->adc_dma_config.dma_block,
+				    data->adc_dma_config.dma_block.source_address,
+				    (uint32_t)data->buffer,
+				    sizeof(uint16_t),
+				    DMA_ADDR_ADJ_NO_CHANGE,
+				    DMA_ADDR_ADJ_INCREMENT);
+	adc_dma_config_setup(&data->adc_dma_config.dma_cfg,
+			     data->adc_dma_config.dma_cfg.dma_slot,
+			     sizeof(uint16_t), sizeof(uint16_t),
+			     sizeof(uint16_t), sizeof(uint16_t),
+			     &data->adc_dma_config.dma_block,
+			     data->adc_dma_config.dma_cfg.dma_callback,
+			     data->adc_dma_config.dma_cfg.user_data);
 #endif
 
 	mcux_adc16_start_channel(data->dev);

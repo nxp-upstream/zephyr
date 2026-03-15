@@ -36,6 +36,7 @@
 #include <zephyr/drivers/dma/dma_stm32.h>
 #include <zephyr/drivers/dma.h>
 #include <stm32_ll_dma.h>
+#include "adc_dma.h"
 #endif
 
 #define ADC_CONTEXT_USES_KERNEL_TIMER
@@ -274,16 +275,13 @@ static int adc_stm32_dma_start(const struct device *dev,
 	blk_cfg = &dma->dma_blk_cfg;
 
 	/* prepare the block */
-	blk_cfg->block_size = channel_count * sizeof(adc_data_size_t);
-
-	/* Source and destination */
-	blk_cfg->source_address = (uint32_t)LL_ADC_DMA_GetRegAddr(adc, LL_ADC_DMA_REG_REGULAR_DATA);
-	blk_cfg->source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
-	blk_cfg->source_reload_en = 0;
-
-	blk_cfg->dest_address = (uint32_t)buffer;
-	blk_cfg->dest_addr_adj = DMA_ADDR_ADJ_INCREMENT;
-	blk_cfg->dest_reload_en = 0;
+	adc_dma_block_setup(blk_cfg,
+				    (uint32_t)LL_ADC_DMA_GetRegAddr(adc,
+							       LL_ADC_DMA_REG_REGULAR_DATA),
+				    (uint32_t)buffer,
+				    channel_count * sizeof(adc_data_size_t),
+				    DMA_ADDR_ADJ_NO_CHANGE,
+				    DMA_ADDR_ADJ_INCREMENT);
 
 	/* Manually set the FIFO threshold to 1/4 because the
 	 * dmamux DTS entry does not contain fifo threshold
@@ -291,11 +289,15 @@ static int adc_stm32_dma_start(const struct device *dev,
 	blk_cfg->fifo_mode_control = 0;
 
 	/* direction is given by the DT */
-	dma->dma_cfg.head_block = blk_cfg;
-	dma->dma_cfg.user_data = data;
+	adc_dma_config_setup(&dma->dma_cfg, dma->dma_cfg.dma_slot,
+			     dma->dma_cfg.source_data_size,
+			     dma->dma_cfg.dest_data_size,
+			     dma->dma_cfg.source_burst_length,
+			     dma->dma_cfg.dest_burst_length,
+			     blk_cfg, dma->dma_cfg.dma_callback, data);
 
-	ret = dma_config(data->dma.dma_dev, data->dma.channel,
-			 &dma->dma_cfg);
+	ret = adc_dma_configure(data->dma.dma_dev, data->dma.channel,
+				&dma->dma_cfg);
 	if (ret != 0) {
 		LOG_ERR("Problem setting up DMA: %d", ret);
 		return ret;
@@ -304,7 +306,7 @@ static int adc_stm32_dma_start(const struct device *dev,
 	adc_stm32_enable_dma_support(adc);
 
 	data->dma_error = 0;
-	ret = dma_start(data->dma.dma_dev, data->dma.channel);
+	ret = adc_dma_start(data->dma.dma_dev, data->dma.channel);
 	if (ret != 0) {
 		LOG_ERR("Problem starting DMA: %d", ret);
 		return ret;
@@ -830,7 +832,7 @@ static void dma_callback(const struct device *dev, void *user_data,
 			 * haven't been reached Starting the DMA engine is done
 			 * within adc_context_start_sampling
 			 */
-			dma_stop(data->dma.dma_dev, data->dma.channel);
+			adc_dma_stop(data->dma.dma_dev, data->dma.channel);
 			/* No need to invalidate the cache because it's assumed that
 			 * the address is in a non-cacheable SRAM region.
 			 */
@@ -847,7 +849,7 @@ static void dma_callback(const struct device *dev, void *user_data,
 #if !DT_HAS_COMPAT_STATUS_OKAY(st_stm32f1_adc) && !DT_HAS_COMPAT_STATUS_OKAY(st_stm32f4_adc)
 			LL_ADC_REG_StopConversion(adc);
 #endif
-			dma_stop(data->dma.dma_dev, data->dma.channel);
+			adc_dma_stop(data->dma.dma_dev, data->dma.channel);
 			if (data->ctx.options.interval_us != 0U) {
 				adc_context_disable_timer(&data->ctx);
 			}

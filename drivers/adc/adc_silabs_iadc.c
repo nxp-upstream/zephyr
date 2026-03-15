@@ -17,6 +17,10 @@
 
 #include <sl_hal_iadc.h>
 
+#ifdef CONFIG_ADC_SILABS_IADC_DMA
+#include "adc_dma.h"
+#endif
+
 LOG_MODULE_REGISTER(iadc, CONFIG_ADC_LOG_LEVEL);
 
 #define ADC_CONTEXT_USES_KERNEL_TIMER
@@ -179,20 +183,13 @@ static int iadc_dma_start(const struct device *dev)
 		return -EBUSY;
 	}
 
-	ret = dma_config(dma->dma_dev, dma->dma_channel, &dma->dma_cfg);
+	ret = adc_dma_configure_start(dma->dma_dev, dma->dma_channel, &dma->dma_cfg);
 	if (ret) {
-		LOG_ERR("DMA config error: %d", ret);
+		LOG_ERR("DMA start error: %d", ret);
 		return ret;
 	}
 
 	dma->enabled = true;
-
-	ret = dma_start(dma->dma_dev, dma->dma_channel);
-	if (ret) {
-		LOG_ERR("DMA start error: %d", ret);
-		dma->enabled = false;
-		return ret;
-	}
 
 	return 0;
 }
@@ -206,7 +203,7 @@ static void iadc_dma_stop(const struct device *dev)
 		return;
 	}
 
-	dma_stop(dma->dma_dev, dma->dma_channel);
+	adc_dma_stop(dma->dma_dev, dma->dma_channel);
 
 	dma->enabled = false;
 }

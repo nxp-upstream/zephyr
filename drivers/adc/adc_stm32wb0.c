@@ -55,6 +55,7 @@
 #include <zephyr/drivers/dma.h>
 #include <zephyr/toolchain.h>
 #include <stm32_ll_dma.h>
+#include "adc_dma.h"
 #endif
 
 #define ADC_CONTEXT_USES_KERNEL_TIMER
@@ -731,20 +732,16 @@ static void schedule_and_start_adc_sequence(ADC_TypeDef *adc, struct adc_stm32wb
 	data->sequence_length = sequence_length;
 
 	/* Prepare the DMA controller for ADC->memory transfers */
-	data->dma_block_config.source_address = (uint32_t)&adc->DS_DATAOUT;
-	data->dma_block_config.dest_address = (uint32_t)data->next_sample_ptr;
-	data->dma_block_config.block_size = data->sequence_length * sizeof(uint16_t);
+	adc_dma_block_setup(&data->dma_block_config,
+				    (uint32_t)&adc->DS_DATAOUT,
+				    (uint32_t)data->next_sample_ptr,
+				    data->sequence_length * sizeof(uint16_t),
+				    DMA_ADDR_ADJ_NO_CHANGE,
+				    DMA_ADDR_ADJ_INCREMENT);
 
-	err = dma_config(config->dmac, config->dma_channel, &data->dmac_config);
+	err = adc_dma_configure_start(config->dmac, config->dma_channel, &data->dmac_config);
 	if (err < 0) {
-		LOG_ERR("%s: FAIL - dma_config returns %d", __func__, err);
-		adc_context_complete(&data->ctx, err);
-		return;
-	}
-
-	err = dma_start(config->dmac, config->dma_channel);
-	if (err < 0) {
-		LOG_ERR("%s: FAIL - dma_start returns %d", __func__, err);
+		LOG_ERR("%s: FAIL - adc_dma_configure_start returns %d", __func__, err);
 		adc_context_complete(&data->ctx, err);
 		return;
 	}
@@ -858,7 +855,7 @@ static void adc_stm32wb0_dma_callback(const struct device *dma, void *user_data,
 			data->next_sample_ptr += data->sequence_length;
 
 			/* Stop the DMA controller */
-			err = dma_stop(config->dmac, config->dma_channel);
+			err = adc_dma_stop(config->dmac, config->dma_channel);
 			LOG_DBG("%s: dma_stop returns %d", __func__, err);
 
 			LL_ADC_ClearFlag_OVRDS(adc);
@@ -869,7 +866,7 @@ static void adc_stm32wb0_dma_callback(const struct device *dma, void *user_data,
 			LOG_ERR("%s: dma error %d", __func__, dma_status);
 			LL_ADC_StopConversion(adc);
 
-			err = dma_stop(config->dmac, config->dma_channel);
+			err = adc_dma_stop(config->dmac, config->dma_channel);
 
 			LOG_DBG("dma_stop returns %d", err);
 
