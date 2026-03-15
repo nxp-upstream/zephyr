@@ -5,6 +5,7 @@ config NXP_PMC_TMPSNS
 	bool "NXP PMC Temperature Sensor (TMPSNS)"
 	default y
 	depends on DT_HAS_NXP_PMC_TMPSNS_ENABLED
+	select OTP
 	select FPU if CPU_HAS_FPU
 	help
 	  Enable driver for the NXP PMC temperature sensor.

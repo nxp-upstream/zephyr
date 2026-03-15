@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "fsl_romapi_otp.h"
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
+#include <zephyr/drivers/otp.h>
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/adc.h>
 #include <zephyr/logging/log.h>
@@ -31,6 +31,7 @@ LOG_MODULE_REGISTER(nxp_pmc_tmpsns, CONFIG_SENSOR_LOG_LEVEL);
 
 struct nxp_pmc_tmpsns_config {
 	const struct device *adc;
+	const struct device *otp;
 	struct adc_sequence adc_seq;
 	struct adc_channel_cfg ch_cfg;
 };
@@ -172,10 +173,16 @@ static int nxp_pmc_tmpsns_init(const struct device *dev)
 {
 	const struct nxp_pmc_tmpsns_config *config = dev->config;
 	struct nxp_pmc_tmpsns_data *data = dev->data;
+	off_t fuse_offset;
 	int ret;
 
 	if (!device_is_ready(config->adc)) {
 		LOG_ERR("ADC device not ready");
+		return -ENODEV;
+	}
+
+	if (!device_is_ready(config->otp)) {
+		LOG_ERR("OTP device not ready");
 		return -ENODEV;
 	}
 
@@ -185,11 +192,12 @@ static int nxp_pmc_tmpsns_init(const struct device *dev)
 		return ret;
 	}
 
-	ret = otp_fuse_read(CONFIG_NXP_PMC_TMPSNS_CALIBRATION_OTP_FUSE_INDEX,
-			&data->pmc_tmpsns_calibration);
+	/* Read calibration fuse: convert word index to byte offset */
+	fuse_offset = (off_t)CONFIG_NXP_PMC_TMPSNS_CALIBRATION_OTP_FUSE_INDEX * sizeof(uint32_t);
+	ret = otp_read(config->otp, fuse_offset, &data->pmc_tmpsns_calibration, sizeof(uint32_t));
 	if (ret) {
-		LOG_ERR("Failed to get calibration value form FUSE.");
-		return -ENOTSUP;
+		LOG_ERR("Failed to get calibration value from OTP fuse");
+		return ret;
 	}
 
 	return 0;
@@ -205,6 +213,7 @@ static DEVICE_API(sensor, nxp_pmc_tmpsns_api) = {
 												\
 	static const struct nxp_pmc_tmpsns_config _CONCAT(nxp_pmc_tmpsns_config, inst) = {	\
 		.adc = DEVICE_DT_GET(DT_INST_IO_CHANNELS_CTLR(inst)),				\
+		.otp = DEVICE_DT_GET(DT_INST_PHANDLE(inst, nxp_otp)),				\
 		.adc_seq = {									\
 			.channels = BIT(DT_INST_IO_CHANNELS_INPUT(inst)),			\
 			.buffer = &_CONCAT(nxp_pmc_tmpsns_data, inst).buffer,			\
