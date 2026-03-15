@@ -1126,6 +1126,7 @@
 
 	pmc_tmpsns: pmc-tmpsns {
 		compatible = "nxp,pmc-tmpsns";
+		nxp,otp = <&ocotp>;
 		status = "disabled";
 	};
 
