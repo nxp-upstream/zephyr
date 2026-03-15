@@ -1118,6 +1118,12 @@
 		status = "disabled";
 	};
 
+	ocotp: ocotp@18000 {
+		compatible = "nxp,rt7xx-ocotp";
+		reg = <0x18000 0x7a0>;
+		status = "okay";
+	};
+
 	pmc_tmpsns: pmc-tmpsns {
 		compatible = "nxp,pmc-tmpsns";
 		status = "disabled";
