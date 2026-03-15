@@ -23,6 +23,9 @@ LOG_MODULE_REGISTER(adc_mcux_adc16);
 
 #define ADC_CONTEXT_USES_KERNEL_TIMER
 #include "adc_context.h"
+#ifdef CONFIG_ADC_MCUX_ADC16_ENABLE_EDMA
+#include "adc_dma.h"
+#endif
 
 struct mcux_adc16_config {
 	ADC_Type *base;
@@ -33,9 +36,6 @@ struct mcux_adc16_config {
 	uint32_t long_sample;	/* ADC long sample mode selection */
 	uint32_t hw_trigger_src;  /* ADC hardware trigger source */
 				/* defined in SIM module SOPT7 */
-#ifdef CONFIG_ADC_MCUX_ADC16_ENABLE_EDMA
-	uint32_t dma_slot;	/* ADC DMA MUX slot */
-#endif
 	uint32_t trg_offset;
 	uint32_t trg_bits;
 	uint32_t alt_offset;
@@ -52,10 +52,9 @@ struct mcux_adc16_config {
 #ifdef CONFIG_ADC_MCUX_ADC16_ENABLE_EDMA
 struct adc_edma_config {
 	int32_t state;
-	uint32_t dma_channel;
 	void (*irq_call_back)(void);
-	struct dma_config dma_cfg;
-	struct dma_block_config dma_block;
+	struct adc_dma_config dma_cfg;
+	struct adc_dma_data dma_data;
 };
 #endif
 
@@ -63,7 +62,6 @@ struct mcux_adc16_data {
 	const struct device *dev;
 	struct adc_context ctx;
 #ifdef CONFIG_ADC_MCUX_ADC16_ENABLE_EDMA
-	const struct device *dev_dma;
 	struct adc_edma_config adc_dma_config;
 #endif
 	uint16_t *buffer;
@@ -290,7 +288,7 @@ static int start_read(const struct device *dev,
 
 	error = adc_context_wait_for_completion(&data->ctx);
 #ifdef CONFIG_ADC_MCUX_ADC16_ENABLE_EDMA
-	dma_stop(data->dev_dma, data->adc_dma_config.dma_channel);
+	adc_dma_stop(&data->adc_dma_config.dma_cfg);
 #endif
 	return error;
 }
@@ -348,7 +346,8 @@ static void mcux_adc16_start_channel(const struct device *dev)
 	ADC16_SetChannelConfig(config->base, channel_group, &channel_config);
 #ifdef CONFIG_ADC_MCUX_ADC16_ENABLE_EDMA
 	LOG_DBG("Starting EDMA");
-	dma_start(data->dev_dma, data->adc_dma_config.dma_channel);
+	dma_start(data->adc_dma_config.dma_cfg.dma_dev,
+		  data->adc_dma_config.dma_cfg.dma_channel);
 #endif
 	LOG_DBG("Starting channel done");
 }
@@ -363,12 +362,13 @@ static void adc_context_start_sampling(struct adc_context *ctx)
 
 #ifdef CONFIG_ADC_MCUX_ADC16_ENABLE_EDMA
 	LOG_DBG("config dma");
-	data->adc_dma_config.dma_block.block_size = 2;
-	data->adc_dma_config.dma_block.dest_address = (uint32_t)data->buffer;
-	data->adc_dma_config.dma_cfg.head_block =
-		&(data->adc_dma_config.dma_block);
-	dma_config(data->dev_dma, data->adc_dma_config.dma_channel,
-		   &data->adc_dma_config.dma_cfg);
+	data->adc_dma_config.dma_data.dma_blk_cfg.block_size = 2;
+	data->adc_dma_config.dma_data.dma_blk_cfg.dest_address = (uint32_t)data->buffer;
+	data->adc_dma_config.dma_data.dma_cfg.head_block =
+		&(data->adc_dma_config.dma_data.dma_blk_cfg);
+	dma_config(data->adc_dma_config.dma_cfg.dma_dev,
+		   data->adc_dma_config.dma_cfg.dma_channel,
+		   &data->adc_dma_config.dma_data.dma_cfg);
 #endif
 
 	mcux_adc16_start_channel(data->dev);
@@ -471,20 +471,16 @@ static int mcux_adc16_init(const struct device *dev)
 #ifdef CONFIG_ADC_MCUX_ADC16_ENABLE_EDMA
 	/* Enable DMA. */
 	ADC16_EnableDMA(base, true);
-	data->adc_dma_config.dma_cfg.block_count = 1U;
-	data->adc_dma_config.dma_cfg.dma_slot = config->dma_slot;
-	data->adc_dma_config.dma_cfg.channel_direction = PERIPHERAL_TO_MEMORY;
-	data->adc_dma_config.dma_cfg.source_burst_length = 2U;
-	data->adc_dma_config.dma_cfg.dest_burst_length = 2U;
-	data->adc_dma_config.dma_cfg.channel_priority = 0U;
-	data->adc_dma_config.dma_cfg.dma_callback = adc_dma_callback;
-	data->adc_dma_config.dma_cfg.user_data = (void *)dev;
 
-	data->adc_dma_config.dma_cfg.source_data_size = 2U;
-	data->adc_dma_config.dma_cfg.dest_data_size = 2U;
-	data->adc_dma_config.dma_block.source_address = (uint32_t)&base->R[0];
+	adc_dma_configure_block(&data->adc_dma_config.dma_data.dma_blk_cfg,
+				(uint32_t)&base->R[0], 0, 0);
 
-	if (data->dev_dma == NULL || !device_is_ready(data->dev_dma)) {
+	adc_dma_configure(&data->adc_dma_config.dma_data,
+			  &data->adc_dma_config.dma_cfg,
+			  2U, adc_dma_callback, (void *)dev);
+	data->adc_dma_config.dma_data.dma_cfg.channel_priority = 0U;
+
+	if (!adc_dma_is_ready(&data->adc_dma_config.dma_cfg)) {
 		LOG_ERR("dma binding fail");
 		return -EINVAL;
 	}
@@ -492,19 +488,21 @@ static int mcux_adc16_init(const struct device *dev)
 	if (config->periodic_trigger) {
 		enum dma_channel_filter adc_filter = DMA_CHANNEL_PERIODIC;
 
-		data->adc_dma_config.dma_channel =
-			dma_request_channel(data->dev_dma, (void *)&adc_filter);
+		data->adc_dma_config.dma_cfg.dma_channel =
+			dma_request_channel(data->adc_dma_config.dma_cfg.dma_dev,
+					    (void *)&adc_filter);
 	} else {
 		enum dma_channel_filter adc_filter = DMA_CHANNEL_NORMAL;
 
-		data->adc_dma_config.dma_channel =
-			dma_request_channel(data->dev_dma, (void *)&adc_filter);
+		data->adc_dma_config.dma_cfg.dma_channel =
+			dma_request_channel(data->adc_dma_config.dma_cfg.dma_dev,
+					    (void *)&adc_filter);
 	}
-	if (data->adc_dma_config.dma_channel == -EINVAL) {
+	if (data->adc_dma_config.dma_cfg.dma_channel == -EINVAL) {
 		LOG_ERR("can not allocate dma channel");
 		return -EINVAL;
 	}
-	LOG_DBG("dma allocated channel %d", data->adc_dma_config.dma_channel);
+	LOG_DBG("dma allocated channel %d", data->adc_dma_config.dma_cfg.dma_channel);
 #else
 	config->irq_config_func(dev);
 #endif
@@ -527,13 +525,15 @@ static DEVICE_API(adc, mcux_adc16_driver_api) = {
 #define ADC16_MCUX_EDMA_INIT(n)					\
 	.hw_trigger_src =					\
 		DT_INST_PROP_OR(n, hw_trigger_src, 0),		\
-	.dma_slot = DT_INST_DMAS_CELL_BY_IDX(n, 0, source),	\
 	.trg_offset = DT_INST_CLOCKS_CELL_BY_IDX(n, 0, offset),	\
 	.trg_bits = DT_INST_CLOCKS_CELL_BY_IDX(n, 0, bits),	\
 	.alt_offset = DT_INST_CLOCKS_CELL_BY_IDX(n, 1, offset),	\
 	.alt_bits = DT_INST_CLOCKS_CELL_BY_IDX(n, 1, bits),
 #define ADC16_MCUX_EDMA_DATA(n)					\
-	.dev_dma = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(n, adc##n))
+	.adc_dma_config.dma_cfg.dma_dev =			\
+		DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(n, adc##n)),	\
+	.adc_dma_config.dma_cfg.dma_slot =			\
+		DT_INST_DMAS_CELL_BY_IDX(n, 0, source),
 #define ADC16_MCUX_IRQ_INIT(n)
 #define ADC16_MCUX_IRQ_DECLARE(n)
 #else

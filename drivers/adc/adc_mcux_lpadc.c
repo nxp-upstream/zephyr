@@ -22,9 +22,6 @@
 #if CONFIG_PM_DEVICE
 #include <zephyr/pm/device.h>
 #endif
-#ifdef CONFIG_ADC_MCUX_LPADC_DMA_DRIVEN
-#include <zephyr/drivers/dma.h>
-#endif
 #include <string.h>
 
 #define LOG_LEVEL CONFIG_ADC_LOG_LEVEL
@@ -46,6 +43,9 @@ LOG_MODULE_REGISTER(nxp_mcux_lpadc);
 #endif
 #define ADC_CONTEXT_USES_KERNEL_TIMER
 #include "adc_context.h"
+#ifdef CONFIG_ADC_MCUX_LPADC_DMA_DRIVEN
+#include "adc_dma.h"
+#endif
 
 struct mcux_lpadc_config {
 	ADC_Type *base;
@@ -75,9 +75,7 @@ struct mcux_lpadc_config {
 	bool pm_device_constraints;
 #endif
 #ifdef CONFIG_ADC_MCUX_LPADC_DMA_DRIVEN
-	const struct device *dma_dev;
-	uint32_t dma_channel;
-	uint32_t dma_slot;
+	struct adc_dma_config dma;
 #endif
 };
 
@@ -102,8 +100,7 @@ struct mcux_lpadc_data {
 	bool pm_lock_active;
 #endif
 #ifdef CONFIG_ADC_MCUX_LPADC_DMA_DRIVEN
-	struct dma_config dma_cfg;
-	struct dma_block_config dma_block;
+	struct adc_dma_data dma;
 	/* Staging buffer for 32-bit RESFIFO words (max channels per round) */
 	uint32_t dma_results[CONFIG_LPADC_CHANNEL_COUNT];
 #endif
@@ -547,7 +544,7 @@ static void mcux_lpadc_dma_callback(const struct device *dma_dev, void *user_dat
 		return;
 	}
 
-	int ret = dma_stop(config->dma_dev, config->dma_channel);
+	int ret = adc_dma_stop(&config->dma);
 
 	if (ret != 0) {
 		LOG_ERR("DMA stop failed: %d", ret);
@@ -638,32 +635,22 @@ static void mcux_lpadc_dma_configure(struct mcux_lpadc_data *data)
 	}
 
 	/* Setup one DMA block from RESFIFO to staging buffer */
-	memset(&data->dma_block, 0, sizeof(data->dma_block));
 #if (defined(FSL_FEATURE_LPADC_FIFO_COUNT) && (FSL_FEATURE_LPADC_FIFO_COUNT == 2U))
-	data->dma_block.source_address = (uint32_t)&(config->base->RESFIFO[0]);
+	adc_dma_configure_block(&data->dma.dma_blk_cfg,
+				(uint32_t)&(config->base->RESFIFO[0]),
+				(uint32_t)data->dma_results,
+				data->channels_count * sizeof(uint32_t));
 #else
-	data->dma_block.source_address = (uint32_t)&(config->base->RESFIFO);
+	adc_dma_configure_block(&data->dma.dma_blk_cfg,
+				(uint32_t)&(config->base->RESFIFO),
+				(uint32_t)data->dma_results,
+				data->channels_count * sizeof(uint32_t));
 #endif
-	data->dma_block.dest_address = (uint32_t)data->dma_results;
-	data->dma_block.block_size = data->channels_count * sizeof(uint32_t);
-	data->dma_block.source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
-	data->dma_block.dest_addr_adj = DMA_ADDR_ADJ_INCREMENT;
-	data->dma_block.source_reload_en = 0;
-	data->dma_block.dest_reload_en = 0;
 
-	/* DMA configuration */
-	memset(&data->dma_cfg, 0, sizeof(data->dma_cfg));
-	data->dma_cfg.dma_slot = config->dma_slot;
-	data->dma_cfg.channel_direction = PERIPHERAL_TO_MEMORY;
-	data->dma_cfg.source_data_size = sizeof(uint32_t);
-	data->dma_cfg.dest_data_size = sizeof(uint32_t);
-	/* Use 32-bit per request to match LPADC RESFIFO register width */
-	data->dma_cfg.source_burst_length = sizeof(uint32_t);
-	data->dma_cfg.dest_burst_length = sizeof(uint32_t);
-	data->dma_cfg.block_count = 1;
-	data->dma_cfg.head_block = &data->dma_block;
-	data->dma_cfg.user_data = (void *)data;
-	data->dma_cfg.dma_callback = mcux_lpadc_dma_callback;
+	/* DMA configuration: 32-bit per request to match LPADC RESFIFO width */
+	adc_dma_configure(&data->dma, &config->dma,
+			  sizeof(uint32_t),
+			  mcux_lpadc_dma_callback, (void *)data);
 
 	/* Enable LPADC DMA request on FIFO watermark */
 #if (defined(FSL_FEATURE_LPADC_FIFO_COUNT) && (FSL_FEATURE_LPADC_FIFO_COUNT == 2U))
@@ -673,9 +660,7 @@ static void mcux_lpadc_dma_configure(struct mcux_lpadc_data *data)
 #endif
 
 	/* Configure and start DMA */
-	if (dma_config(config->dma_dev, config->dma_channel, &data->dma_cfg) == 0) {
-		(void)dma_start(config->dma_dev, config->dma_channel);
-	}
+	adc_dma_start(&config->dma, &data->dma);
 }
 #endif /* CONFIG_ADC_MCUX_LPADC_DMA_DRIVEN */
 
@@ -933,7 +918,7 @@ static int mcux_lpadc_init(const struct device *dev)
 
 #if defined(CONFIG_ADC_MCUX_LPADC_DMA_DRIVEN)
 	/* If DMA is present in DT and device is ready, use DMA and skip IRQs */
-	if (config->dma_dev && device_is_ready(config->dma_dev)) {
+	if (adc_dma_is_ready(&config->dma)) {
 		data->use_dma = true;
 	} else {
 		LOG_WRN("DMA device not ready, falling back to IRQ mode");
@@ -1005,12 +990,9 @@ static DEVICE_API(adc, mcux_lpadc_driver_api) = {
 
 #if defined(CONFIG_ADC_MCUX_LPADC_DMA_DRIVEN)
 #define DMA_INIT(n)									\
-	.dma_dev = COND_CODE_1(DT_INST_DMAS_HAS_NAME(n, fifoa),				\
-			(DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(n, fifoa))), (NULL)),	\
-	.dma_channel = COND_CODE_1(DT_INST_DMAS_HAS_NAME(n, fifoa),			\
-			(DT_INST_DMAS_CELL_BY_NAME(n, fifoa, mux)), (0)),		\
-	.dma_slot = COND_CODE_1(DT_INST_DMAS_HAS_NAME(n, fifoa),			\
-			(DT_INST_DMAS_CELL_BY_NAME(n, fifoa, source)), (0)),
+	.dma = COND_CODE_1(DT_INST_DMAS_HAS_NAME(n, fifoa),				\
+		(ADC_DMA_CONFIG_DT_INST_INIT_BY_NAME(n, fifoa, mux, source)),		\
+		({ .dma_dev = NULL })),
 #else
 #define DMA_INIT(n)
 #endif

@@ -21,6 +21,9 @@ LOG_MODULE_REGISTER(iadc, CONFIG_ADC_LOG_LEVEL);
 
 #define ADC_CONTEXT_USES_KERNEL_TIMER
 #include "adc_context.h"
+#ifdef CONFIG_ADC_SILABS_IADC_DMA
+#include "adc_dma.h"
+#endif
 
 /* Comptibility section for IADC IP version*/
 #if (_IADC_IPVERSION_RESETVALUE == 0x00000000UL)
@@ -48,9 +51,8 @@ LOG_MODULE_REGISTER(iadc, CONFIG_ADC_LOG_LEVEL);
 #define IADC_PIN_MASK  0x0F
 
 struct iadc_dma_channel {
-	const struct device *dma_dev;
-	struct dma_block_config blk_cfg;
-	struct dma_config dma_cfg;
+	struct adc_dma_config cfg;
+	struct adc_dma_data data;
 	int dma_channel;
 	bool enabled;
 };
@@ -131,36 +133,41 @@ static void iadc_configure_scan_table_entry(sl_hal_iadc_scan_table_entry_t *entr
 }
 
 #ifdef CONFIG_ADC_SILABS_IADC_DMA
+static void iadc_dma_cb(const struct device *dma_dev, void *user_data,
+			uint32_t channel, int status);
+
 static int iadc_dma_init(const struct device *dev)
 {
 	const struct iadc_config *config = dev->config;
 	struct iadc_data *data = dev->data;
 	struct iadc_dma_channel *dma = &data->dma;
 
-	if (!dma->dma_dev) {
+	if (!dma->cfg.dma_dev) {
 		return 0;
 	}
 
-	if (!device_is_ready(dma->dma_dev)) {
+	if (!adc_dma_is_ready(&dma->cfg)) {
 		LOG_ERR("DMA device not ready");
 		return -ENODEV;
 	}
 
-	dma->dma_channel = dma_request_channel(dma->dma_dev, NULL);
+	dma->dma_channel = dma_request_channel(dma->cfg.dma_dev, NULL);
 	if (dma->dma_channel < 0) {
 		LOG_ERR("Failed to request DMA channel");
 		return -ENODEV;
 	}
 
-	memset(&dma->blk_cfg, 0, sizeof(dma->blk_cfg));
-	dma->blk_cfg.source_address = (uintptr_t)&(config->base)->SCANFIFODATA;
-	dma->blk_cfg.source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
-	dma->blk_cfg.dest_addr_adj = DMA_ADDR_ADJ_INCREMENT;
-	dma->dma_cfg.complete_callback_en = 1;
-	dma->dma_cfg.channel_priority = 3;
-	dma->dma_cfg.channel_direction = PERIPHERAL_TO_MEMORY;
-	dma->dma_cfg.head_block = &dma->blk_cfg;
-	dma->dma_cfg.user_data = data;
+	/* Store the runtime channel in the config for use with adc_dma helpers */
+	dma->cfg.dma_channel = dma->dma_channel;
+
+	adc_dma_configure_block(&dma->data.dma_blk_cfg,
+				(uintptr_t)&(config->base)->SCANFIFODATA,
+				0, 0);
+
+	adc_dma_configure(&dma->data, &dma->cfg, 0,
+			  iadc_dma_cb, data);
+	dma->data.dma_cfg.complete_callback_en = 1;
+	dma->data.dma_cfg.channel_priority = 3;
 
 	return 0;
 }
@@ -171,7 +178,7 @@ static int iadc_dma_start(const struct device *dev)
 	struct iadc_dma_channel *dma = &data->dma;
 	int ret;
 
-	if (!dma->dma_dev) {
+	if (!dma->cfg.dma_dev) {
 		return -ENODEV;
 	}
 
@@ -179,21 +186,13 @@ static int iadc_dma_start(const struct device *dev)
 		return -EBUSY;
 	}
 
-	ret = dma_config(dma->dma_dev, dma->dma_channel, &dma->dma_cfg);
+	ret = adc_dma_start(&dma->cfg, &dma->data);
 	if (ret) {
-		LOG_ERR("DMA config error: %d", ret);
+		LOG_ERR("DMA start error: %d", ret);
 		return ret;
 	}
 
 	dma->enabled = true;
-
-	ret = dma_start(dma->dma_dev, dma->dma_channel);
-	if (ret) {
-		LOG_ERR("DMA start error: %d", ret);
-		dma->enabled = false;
-		return ret;
-	}
-
 	return 0;
 }
 
@@ -206,7 +205,7 @@ static void iadc_dma_stop(const struct device *dev)
 		return;
 	}
 
-	dma_stop(dma->dma_dev, dma->dma_channel);
+	adc_dma_stop(&dma->cfg);
 
 	dma->enabled = false;
 }
@@ -258,7 +257,7 @@ static int iadc_set_config(const struct device *dev)
 	uint32_t channels;
 	int res;
 
-	if (data->dma.dma_dev) {
+	if (data->dma.cfg.dma_dev) {
 		scan_init.data_valid_level = _IADC_SCANFIFOCFG_DVL_VALID1;
 		/* Only needed to wake up DMA if EM is 2/3 */
 		scan_init.fifo_dma_wakeup = true;
@@ -266,17 +265,17 @@ static int iadc_set_config(const struct device *dev)
 
 	data->adc_config_count = 0;
 
-	if (data->dma.dma_dev) {
+	if (data->dma.cfg.dma_dev) {
 		if (data->alignment == _IADC_SCANFIFOCFG_ALIGNMENT_RIGHT20) {
-			data->dma.dma_cfg.source_data_size = 4;
-			data->dma.dma_cfg.dest_data_size = 4;
-			data->dma.dma_cfg.source_burst_length = 4;
-			data->dma.dma_cfg.dest_burst_length = 4;
+			data->dma.data.dma_cfg.source_data_size = 4;
+			data->dma.data.dma_cfg.dest_data_size = 4;
+			data->dma.data.dma_cfg.source_burst_length = 4;
+			data->dma.data.dma_cfg.dest_burst_length = 4;
 		} else {
-			data->dma.dma_cfg.source_data_size = 2;
-			data->dma.dma_cfg.dest_data_size = 2;
-			data->dma.dma_cfg.source_burst_length = 2;
-			data->dma.dma_cfg.dest_burst_length = 2;
+			data->dma.data.dma_cfg.source_data_size = 2;
+			data->dma.data.dma_cfg.dest_data_size = 2;
+			data->dma.data.dma_cfg.source_burst_length = 2;
+			data->dma.data.dma_cfg.dest_burst_length = 2;
 		}
 	}
 
@@ -469,9 +468,9 @@ static int start_read(const struct device *dev, const struct adc_sequence *seque
 	data->buffer = sequence->buffer;
 	data->active_channels = channel_count;
 
-	if (data->dma.dma_dev) {
-		data->dma.blk_cfg.dest_address = (uintptr_t)data->buffer;
-		data->dma.blk_cfg.block_size = channel_count * data->data_size;
+	if (data->dma.cfg.dma_dev) {
+		data->dma.data.dma_blk_cfg.dest_address = (uintptr_t)data->buffer;
+		data->dma.data.dma_blk_cfg.block_size = channel_count * data->data_size;
 	}
 
 	data->channels = sequence->channels;
@@ -495,8 +494,8 @@ static void iadc_start_scan(const struct device *dev)
 	IADC_TypeDef *iadc = (IADC_TypeDef *)config->base;
 
 #ifdef CONFIG_ADC_SILABS_IADC_DMA
-	if (data->dma.dma_dev) {
-		data->dma.blk_cfg.dest_address = (uintptr_t)data->buffer;
+	if (data->dma.cfg.dma_dev) {
+		data->dma.data.dma_blk_cfg.dest_address = (uintptr_t)data->buffer;
 		iadc_dma_start(dev);
 	} else {
 		sl_hal_iadc_enable_interrupts(iadc, IADC_IEN_SCANTABLEDONE);
@@ -716,7 +715,7 @@ static int iadc_init(const struct device *dev)
 #ifdef CONFIG_ADC_SILABS_IADC_DMA
 	ret = iadc_dma_init(dev);
 	if (ret < 0) {
-		data->dma.dma_dev = NULL;
+		data->dma.cfg.dma_dev = NULL;
 	}
 #endif
 
@@ -738,9 +737,8 @@ static DEVICE_API(adc, iadc_api) = {
 
 #ifdef CONFIG_ADC_SILABS_IADC_DMA
 #define IADC_DMA_CHANNEL_INIT(n)                                                                   \
-	.dma.dma_dev = DEVICE_DT_GET(DT_INST_DMAS_CTLR(n)),                                        \
-	.dma.dma_cfg.dma_slot = SILABS_LDMA_REQSEL_TO_SLOT(DT_INST_DMAS_CELL_BY_IDX(n, 0, slot)),  \
-	.dma.dma_cfg.dma_callback = iadc_dma_cb,
+	.dma.cfg.dma_dev = DEVICE_DT_GET(DT_INST_DMAS_CTLR(n)),                                   \
+	.dma.cfg.dma_slot = SILABS_LDMA_REQSEL_TO_SLOT(DT_INST_DMAS_CELL_BY_IDX(n, 0, slot)),
 #define IADC_DMA_CHANNEL(n)                                                                        \
 	COND_CODE_1(DT_INST_NODE_HAS_PROP(n, dmas), (IADC_DMA_CHANNEL_INIT(n)), ())
 #else
