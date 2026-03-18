@@ -11,6 +11,7 @@
 #include <zephyr/drivers/firmware/scmi/clk.h>
 #include <zephyr/drivers/firmware/scmi/power.h>
 #include <zephyr/drivers/firmware/scmi/nxp/cpu.h>
+#include <zephyr/drivers/firmware/scmi/nxp/bbm.h>
 #include <zephyr/dt-bindings/clock/imx943_clock.h>
 #include <zephyr/dt-bindings/power/imx943_power.h>
 #include <soc.h>
@@ -193,6 +194,10 @@ static int soc_init(void)
 		return ret;
 	}
 #endif /* CONFIG_NXP_SCMI_CPU_DOMAIN_HELPERS */
+
+#if defined(CONFIG_NXP_SCMI_BBM)
+	scmi_bbm_button_notify(SCMI_BBM_NOTIFY_BUTTON_DETECT(1));
+#endif
 	return ret;
 }
 
