@@ -7,7 +7,7 @@
 menuconfig MP
     bool "Media Pipe library"
     help
-      Enable Media Pipe library.
+        Enable Media Pipe library.
 
 if MP
 

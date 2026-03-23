@@ -5,4 +5,4 @@
 #
 
 config MP_PLUGIN_ZVID
-       bool "Zvid plugin support"
+    bool "Zvid plugin support"

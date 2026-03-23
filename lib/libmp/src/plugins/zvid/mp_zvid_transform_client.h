@@ -52,7 +52,8 @@ struct mp_zvid_transform_client {
 	 * @param vfc Output video format caps (@ref struct video_format_cap)
 	 * @return 0 on success, errno on failure
 	 */
-	int32_t (*get_format_caps_rpc)(enum mp_pad_direction direction, uint8_t ind, struct video_format_cap *vfc);
+	int32_t (*get_format_caps_rpc)(enum mp_pad_direction direction, uint8_t ind,
+				       struct video_format_cap *vfc);
 	/**
 	 * @brief RPC function to set video format
 	 * @param fmt The video format to set (@ref struct video_format). Format size and pitch may
@@ -69,7 +70,8 @@ struct mp_zvid_transform_client {
 	 * @return 0 on success, errno on failure
 	 */
 	int32_t (*transform_cap_rpc)(enum mp_pad_direction direction, uint16_t ind,
-				  const struct video_format_cap *vfc, struct video_format_cap *other_vfc);
+				     const struct video_format_cap *vfc,
+				     struct video_format_cap *other_vfc);
 };
 
 /**

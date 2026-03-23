@@ -23,8 +23,8 @@ int mp_transform_get_property(struct mp_object *obj, uint32_t key, void *val)
 	return 0;
 }
 
-static bool mp_transform_chainfn(struct mp_pad *pad, struct mp_buffer *in_buf, 
-                                  struct mp_buffer **out_buf)
+static bool mp_transform_chainfn(struct mp_pad *pad, struct mp_buffer *in_buf,
+				 struct mp_buffer **out_buf)
 {
 	/* Default implementation for MP_MODE_PASSTHROUGH - return same buffer */
 	*out_buf = in_buf;

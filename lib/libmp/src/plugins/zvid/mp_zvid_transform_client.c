@@ -13,7 +13,7 @@
 LOG_MODULE_REGISTER(mp_zvid_transform_client, CONFIG_LIBMP_LOG_LEVEL);
 
 static struct mp_caps *mp_zvid_transform_client_get_caps(struct mp_transform *transform,
-						       enum mp_pad_direction direction)
+							 enum mp_pad_direction direction)
 {
 	struct mp_zvid_transform_client *vtc = MP_ZVID_TRANSFORM_CLIENT(transform);
 	struct mp_caps *caps = mp_caps_new(MP_MEDIA_END);
@@ -65,7 +65,7 @@ static bool mp_zvid_transform_client_set_caps(struct mp_transform *transform,
 
 	if (direction == MP_PAD_SINK) {
 		fmt.type = VIDEO_BUF_TYPE_INPUT;
-        pool = transform->inpool;
+		pool = transform->inpool;
 	} else if (direction == MP_PAD_SRC) {
 		fmt.type = VIDEO_BUF_TYPE_OUTPUT;
 		pool = transform->outpool;

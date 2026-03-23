@@ -210,7 +210,7 @@ static bool mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps
 }
 
 bool mp_zaud_i2s_codec_sink_chainfn(struct mp_pad *pad, struct mp_buffer *in_buf,
-                                     struct mp_buffer **out_buf)
+				    struct mp_buffer **out_buf)
 {
 	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink =
 		MP_ZAUD_I2S_CODEC_SINK(pad->object.container);
