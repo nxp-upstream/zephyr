@@ -108,7 +108,7 @@ static void apply_audio_gain(struct mp_buffer *buffer, int32_t gain_fixed, uint8
 }
 
 static bool mp_zaud_gain_chainfn(struct mp_pad *pad, struct mp_buffer *in_buf,
-                                  struct mp_buffer **out_buf)
+				 struct mp_buffer **out_buf)
 {
 	struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
 	struct mp_zaud_gain *zaud_gain = MP_ZAUD_GAIN(pad->object.container);

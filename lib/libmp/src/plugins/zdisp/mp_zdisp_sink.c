@@ -150,8 +150,7 @@ static int mp_zdisp_sink_get_property(struct mp_object *obj, uint32_t key, void 
 	}
 }
 
-bool mp_zdisp_sink_chainfn(struct mp_pad *pad, struct mp_buffer *in_buf, 
-                            struct mp_buffer **out_buf)
+bool mp_zdisp_sink_chainfn(struct mp_pad *pad, struct mp_buffer *in_buf, struct mp_buffer **out_buf)
 {
 	struct mp_zdisp_sink *zdisp_sink = MP_ZDISP_SINK(pad->object.container);
 

@@ -11,35 +11,35 @@
 LOG_MODULE_REGISTER(mp_transform_client, CONFIG_LIBMP_LOG_LEVEL);
 
 static bool mp_transform_client_chainfn(struct mp_pad *pad, struct mp_buffer *in_buf,
-                                         struct mp_buffer **out_buf)
+					struct mp_buffer **out_buf)
 {
-    struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
-    struct mp_transform_client *transform_client = MP_TRANSFORM_CLIENT(transform);
+	struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
+	struct mp_transform_client *transform_client = MP_TRANSFORM_CLIENT(transform);
 
-    /* Support only normal mode for now */
-    if (transform->mode != MP_MODE_NORMAL) {
-        return false;
-    }
+	/* Support only normal mode for now */
+	if (transform->mode != MP_MODE_NORMAL) {
+		return false;
+	}
 
-    if (!transform->outpool->acquire_buffer(transform->outpool, out_buf)) {
-        LOG_ERR("Failed to acquire an output buffer");
-        return false;
-    }
+	if (!transform->outpool->acquire_buffer(transform->outpool, out_buf)) {
+		LOG_ERR("Failed to acquire an output buffer");
+		return false;
+	}
 
-    if (!transform_client->chainfn_rpc((uint32_t)in_buf->data, in_buf->bytes_used,
-                       (uint32_t)(*out_buf)->data, &(*out_buf)->bytes_used)) {
-        LOG_ERR("Failed to process buffer via RPC");
-        mp_buffer_unref(*out_buf);
-        *out_buf = NULL;
-        return false;
-    }
-    (*out_buf)->timestamp = k_uptime_get_32();
+	if (!transform_client->chainfn_rpc((uint32_t)in_buf->data, in_buf->bytes_used,
+					   (uint32_t)(*out_buf)->data, &(*out_buf)->bytes_used)) {
+		LOG_ERR("Failed to process buffer via RPC");
+		mp_buffer_unref(*out_buf);
+		*out_buf = NULL;
+		return false;
+	}
+	(*out_buf)->timestamp = k_uptime_get_32();
 
-    mp_buffer_unref(in_buf);
+	mp_buffer_unref(in_buf);
 
-    LOG_DBG("output buffer's timestamp: %u", (*out_buf)->timestamp);
+	LOG_DBG("output buffer's timestamp: %u", (*out_buf)->timestamp);
 
-    return true;
+	return true;
 }
 
 static bool mp_transform_client_propose_allocation(struct mp_transform *self,

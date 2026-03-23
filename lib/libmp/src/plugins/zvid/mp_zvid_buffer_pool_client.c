@@ -11,7 +11,8 @@
 
 LOG_MODULE_REGISTER(mp_zvid_buffer_pool_client, CONFIG_LIBMP_LOG_LEVEL);
 
-static bool mp_zvid_buffer_pool_client_configure(struct mp_buffer_pool *pool, struct mp_structure *config)
+static bool mp_zvid_buffer_pool_client_configure(struct mp_buffer_pool *pool,
+						 struct mp_structure *config)
 {
 	/* Allocate just the pool's buffers structure */
 	pool->buffers = k_calloc(pool->config.min_buffers, sizeof(struct mp_buffer));
