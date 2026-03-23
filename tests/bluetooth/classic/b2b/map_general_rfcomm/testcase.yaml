@@ -1,0 +1,24 @@
+tests:
+  bluetooth.classic.map.general_rfcomm:
+    platform_allow:
+    - native_sim
+    integration_platforms:
+    - native_sim
+    tags:
+    - bluetooth
+    - map
+    harness: pytest
+    harness_config:
+      pytest_dut_scope: session
+      fixture: usb_hci
+    timeout: 300
+  bluetooth.classic.map.general_rfcomm.no_blobs:
+    platform_allow:
+    - mimxrt1170_evk@B/mimxrt1176/cm7
+    tags:
+    - bluetooth
+    - map
+    extra_args:
+    - CONFIG_BUILD_ONLY_NO_BLOBS=y
+    timeout: 300
+    build_only: true
