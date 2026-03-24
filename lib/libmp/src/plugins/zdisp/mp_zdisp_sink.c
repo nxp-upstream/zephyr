@@ -30,12 +30,12 @@ struct mp_disp_vid_pix_fmt {
 
 /* Pixel formats mapping betwen video and display */
 static const struct mp_disp_vid_pix_fmt mp_disp_vid_pix_fmt_map[] = {
-	{PIXEL_FORMAT_RGB_888, VIDEO_PIX_FMT_RGB24},
-	{PIXEL_FORMAT_ARGB_8888, VIDEO_PIX_FMT_ARGB32},
 	{PIXEL_FORMAT_RGB_565, VIDEO_PIX_FMT_RGB565},
 	{PIXEL_FORMAT_RGB_565X, VIDEO_PIX_FMT_RGB565X},
+	{PIXEL_FORMAT_RGB_888, VIDEO_PIX_FMT_BGR24},
+	{PIXEL_FORMAT_ARGB_8888, VIDEO_PIX_FMT_BGRA32},
+	{PIXEL_FORMAT_XRGB_8888, VIDEO_PIX_FMT_BGRX32},
 	{PIXEL_FORMAT_L_8, VIDEO_PIX_FMT_GREY},
-	{PIXEL_FORMAT_XRGB_8888, VIDEO_PIX_FMT_XRGB32},
 };
 
 static const uint32_t disp_to_vid_pix_fmt(enum display_pixel_format disp_fmt)
@@ -93,6 +93,7 @@ static struct mp_caps *mp_zdisp_sink_get_caps(struct mp_sink *sink)
 		vid_fmt = disp_to_vid_pix_fmt(display_caps.supported_pixel_formats &
 					      mp_disp_vid_pix_fmt_map[i].disp_fmt);
 		if (vid_fmt != 0) {
+			/* Use video formats as reference formats for caps */
 			mp_value_list_append(supported_fmt, mp_value_new(MP_TYPE_UINT, vid_fmt));
 		}
 	}
