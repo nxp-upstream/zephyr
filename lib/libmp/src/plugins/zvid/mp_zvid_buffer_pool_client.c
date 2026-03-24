@@ -18,6 +18,7 @@ static bool mp_zvid_buffer_pool_client_configure(struct mp_buffer_pool *pool,
 	pool->buffers = k_calloc(pool->config.min_buffers, sizeof(struct mp_buffer));
 
 	for (uint8_t i = 0; i < pool->config.min_buffers; i++) {
+		pool->buffers[i].pool = pool;
 		pool->buffers[i].object.release = mp_buffer_release;
 	}
 
@@ -28,24 +29,17 @@ static bool mp_zvid_buffer_pool_client_start(struct mp_buffer_pool *pool)
 {
 	struct mp_zvid_buffer_pool_client *zbpc = MP_ZVID_BUFFERPOOL_CLIENT(pool);
 
-	struct video_buffer_request vbr = {
-		.memory = VIDEO_MEMORY_INTERNAL,
-		.count = pool->config.min_buffers,
-		.size = pool->config.size,
-		.align = pool->config.align,
-		.timeout = K_NO_WAIT,
-	};
-	int ret = video_request_buffers(&vbr);
+	for (uint8_t i = 0; i < pool->config.min_buffers; i++) {
+		struct video_buffer *vbuf = video_buffer_aligned_alloc(
+			pool->config.size, pool->config.align, K_NO_WAIT);
 
-	if (ret) {
-		LOG_ERR("Failed to request buffers, errno %d", ret);
-		return false;
-	}
+		if (vbuf == NULL) {
+			LOG_ERR("Unable to alloc video buffer");
+			return false;
+		}
 
-	for (uint8_t i = 0; i < vbr.count; i++) {
-		pool->buffers[i].pool = pool;
-		pool->buffers[i].index = vbr.start_index + i;
-		pool->buffers[i].data = vbr.start_addr + i * vbr.size;
+		pool->buffers[i].index = vbuf->index;
+		pool->buffers[i].data = vbuf->buffer;
 
 		k_fifo_put(&zbpc->fifo, &pool->buffers[i]);
 	}
