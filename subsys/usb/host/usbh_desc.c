@@ -64,7 +64,8 @@ bool usbh_desc_is_valid_endpoint(const void *const desc)
 
 bool usbh_desc_is_valid_string(const void *const desc)
 {
-	return usbh_desc_is_valid(desc, sizeof(struct usb_string_descriptor), USB_DESC_STRING);
+	return usbh_desc_is_valid(desc, sizeof(struct usb_string_descriptor),
+				  USB_DESC_STRING);
 }
 
 const void *usbh_desc_get_next(const void *const desc)
@@ -227,107 +228,76 @@ const void *usbh_desc_get_next_function(const void *const desc)
 	return NULL;
 }
 
-int usbh_desc_get_supported_langs(struct usb_device *const udev, uint16_t *const lang_ids,
-				  size_t max_langs, uint8_t *const supported_langs)
+int usbh_desc_get_supported_langs(struct usb_device *const udev,
+				  uint16_t *const lang_ids, const uint8_t lang_ids_len)
 {
-	struct net_buf *desc_buf;
-	size_t desc_buf_len;
-	const struct usb_string_descriptor *str_desc;
-	const uint8_t *lang_id;
-	uint8_t langs;
+	struct net_buf *buf;
+	uint16_t len;
 	int ret;
 
-	if (lang_ids == NULL) {
-		desc_buf_len = sizeof(struct usb_string_descriptor);
-		max_langs = 0;
-	} else {
-		desc_buf_len = max_langs * sizeof(uint16_t) + 2;
-	}
-
-	desc_buf = usbh_xfer_buf_alloc(udev, desc_buf_len);
-	if (desc_buf == NULL) {
+	buf = usbh_xfer_buf_alloc(udev, lang_ids_len * sizeof(uint16_t) + 2);
+	if (buf == NULL) {
 		return -ENOMEM;
 	}
 
-	ret = usbh_req_desc_str(udev, 0, 0, desc_buf);
+	ret = usbh_req_desc_str(udev, 0, 0, buf);
 	if (ret != 0) {
 		goto done;
 	}
 
-	if (!usbh_desc_is_valid_string(desc_buf->data)) {
+	if (!usbh_desc_is_valid_string(buf->data)) {
 		ret = -EBADMSG;
 		goto done;
 	}
 
-	str_desc = (struct usb_string_descriptor *)desc_buf->data;
-	langs = (str_desc->bLength - 2) / 2;
-	lang_id = (const uint8_t *)&str_desc->bString;
-	for (unsigned int i = 0; i < MIN(langs, max_langs); i++) {
-		lang_ids[i] = sys_get_le16(&lang_id[i * 2]);
-	}
+	/* Pull bLength */
+	len = net_buf_pull_u8(buf) - 2;
+	/* Drop bDescriptorType */
+	(void)net_buf_pull_u8(buf);
 
-	if (supported_langs != NULL) {
-		*supported_langs = langs;
+	len = MIN(len, buf->len) / 2;
+	for (ret = 0; ret < len; ret++) {
+		lang_ids[ret] = net_buf_pull_le16(buf);
 	}
-
-	ret = 0;
 
 done:
-	if (desc_buf != NULL) {
-		usbh_xfer_buf_free(udev, desc_buf);
+	if (buf != NULL) {
+		usbh_xfer_buf_free(udev, buf);
 	}
 
 	return ret;
 }
 
-int usbh_desc_str_utfle16_to_ascii(const struct net_buf *const desc_buf, char *const str,
-				   size_t len)
+int usbh_desc_str_utf16le_to_ascii(struct net_buf *const buf,
+				   char *const ascii_buf, const uint16_t ascii_buf_len)
 {
-	const struct usb_string_descriptor *str_desc;
-	const uint8_t *utf16le_byte;
-	unsigned int copy_idx;
-	uint8_t utf16le_str_len;
-	uint16_t utf16le_code;
-	bool has_non_ascii;
+	uint16_t len;
 
-	if (desc_buf == NULL || str == NULL || len == 0) {
+	if (!usbh_desc_is_valid_string(buf->data)) {
 		return -EINVAL;
 	}
 
-	if (desc_buf->frags != NULL) {
-		return -EINVAL;
-	}
+	/* Pull bLength */
+	len = net_buf_pull_u8(buf) - 2;
+	/* Drop bDescriptorType */
+	(void)net_buf_pull_u8(buf);
 
-	if (!usbh_desc_is_valid_string(desc_buf->data)) {
-		return -EINVAL;
-	}
+	memset(ascii_buf, '\0', ascii_buf_len);
+	len = min3(buf->len / 2, len / 2, ascii_buf_len - 1);
 
-	str_desc = (struct usb_string_descriptor *)desc_buf->data;
-	utf16le_str_len = (str_desc->bLength - 2) / 2;
-	if (utf16le_str_len == 0) {
-		str[0] = '\0';
-		return 0;
-	}
+	for (int i = 0; i < len; i++) {
+		uint16_t utf16le = net_buf_pull_le16(buf);
 
-	has_non_ascii = false;
-	utf16le_byte = (const uint8_t *)&str_desc->bString;
-	for (copy_idx = 0; copy_idx < MIN(utf16le_str_len, len - 1); copy_idx++) {
-		utf16le_code = sys_get_le16(&utf16le_byte[copy_idx * 2]);
-		if (utf16le_code == 0) {
-			break;
-		} else if (utf16le_code > 0x7F) {
-			LOG_WRN("Non-ASCII character 0x%04X at index %u", utf16le_code, copy_idx);
-			str[copy_idx] = '?';
-			has_non_ascii = true;
-		} else {
-			str[copy_idx] = (char)utf16le_code;
+		if (utf16le > 0x007FU) {
+			return -EINVAL;
 		}
-	}
-	str[copy_idx] = '\0';
 
-	if (copy_idx == len - 1 && utf16le_str_len > copy_idx) {
-		LOG_WRN("String truncated: %u/%u characters copied", copy_idx, utf16le_str_len);
+		if (utf16le == 0x0000U) {
+			return 0;
+		}
+
+		ascii_buf[i] = (char)utf16le;
 	}
 
-	return has_non_ascii ? -ENOTSUP : 0;
+	return 0;
 }

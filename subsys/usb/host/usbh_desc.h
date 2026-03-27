@@ -163,43 +163,35 @@ const void *usbh_desc_get_next_function(const void *const desc);
 const void *usbh_desc_get_next_alt_setting(const void *const desc);
 
 /**
- * @brief Get the supported LANGIDs from the device's string descriptor zero.
+ * @brief Get supported USB LANGIDs
  *
- * Retrieves the list of language IDs supported by the USB device by reading string descriptor index
- * 0, and it only stores the maximum number of LANGIDs supported by the buffer.
+ * Retrieves the list of language IDs supported by the USB device
  *
- * If only need get the supported languages number, the @p lang_ids can be set to NULL.
- * If only need get the supported languages content, the @p supported_langs can be set to NULL.
+ * @param[in] udev Pointer to the USB device
+ * @param[out] lang_ids Array to store the supported LANGIDs
+ * @param[in] lang_ids_len Length of the LANGIDs array
  *
- * @param[in] udev Pointer to the USB device.
- * @param[out] lang_ids Array to store the supported LANGIDs.
- * @param[in] max_langs Maximum number of LANGIDs that can be stored in the array.
- * @param[out] supported_langs Pointer to store the number of LANGIDs.
- *
- * @retval 0 on success.
- * @retval Negative error code resulting from failure to get USB string descriptor.
+ * @return Negative error code or number of supported IDs.
  * @retval -ENOMEM if memory allocation failed.
  * @retval -EBADMSG if the descriptor is invalid.
  */
-int usbh_desc_get_supported_langs(struct usb_device *const udev, uint16_t *const lang_ids,
-				  size_t max_langs, uint8_t *const supported_langs);
+int usbh_desc_get_supported_langs(struct usb_device *const udev,
+				  uint16_t *const lang_ids, const uint8_t lang_ids_len);
 
 /**
- * @brief Convert UTF-16LE encoded string in USB string descriptor to ASCII string.
+ * @brief Convert UTF16LE encoded string descriptor to ASCII
  *
- * Converts the UTF-16LE encoded string from a USB string descriptor to an ASCII
- * string. Non-ASCII characters (code points > 0x7F) are replaced with '?'.
- * The output string is always null-terminated.
+ * Converts the UTF16LE encoded string descriptor descriptor to an ASCII
+ * string. The ASCII string is always null-terminated.
  *
- * @param[in] desc_buf Pointer to the buffer containing the string descriptor.
+ * @param[in] buf Buffer containing the string descriptor.
  * @param[out] str Buffer to store the converted ASCII string.
- * @param[in] len Maximum length of the output buffer (including null terminator).
+ * @param[in] len Maximum length of the ASCII buffer (including null terminator).
  *
- * @retval 0 on success.
- * @retval -EINVAL if parameters are invalid or descriptor is malformed.
- * @retval -ENOTSUP if the string contains non-ASCII characters (conversion still performed).
+ * @return 0 on success, other values on error.
+ * @retval -EINVAL if descriptor is malformed or conversion is not possilbe
  */
-int usbh_desc_str_utfle16_to_ascii(const struct net_buf *const desc_buf, char *const str,
-				   size_t len);
+int usbh_desc_str_utf16le_to_ascii(struct net_buf *const buf,
+				   char *const ascii_buf, const uint16_t ascii_buf_len);
 
 #endif /* ZEPHYR_INCLUDE_USBH_DESC_H */
