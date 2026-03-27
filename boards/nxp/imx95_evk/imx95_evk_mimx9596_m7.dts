@@ -246,6 +246,7 @@
 
 &mipi_csi {
 	data-lanes = <2>;
+	sensor = <&ap1302>;
 	status = "okay";
 };
 
