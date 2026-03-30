@@ -4,45 +4,32 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr/sys/atomic.h>
-
 #include "mp_buffer.h"
 
-void mp_buffer_release(struct mp_object *obj)
+static void mp_buffer_destroy(struct net_buf *buf)
 {
-	MP_BUFFER(obj)->pool->release_buffer(MP_BUFFER(obj)->pool, MP_BUFFER(obj));
+	struct mp_buffer_meta *bm;
+
+	if (buf == NULL) {
+		return;
+	}
+
+	bm = mp_buffer_get_meta(buf);
+	if (bm != NULL && bm->pool != NULL && bm->pool->release_buffer != NULL) {
+		bm->pool->release_buffer(bm->pool, buf);
+	}
+
+	net_buf_destroy(buf);
 }
 
-static bool mp_buffer_pool_configure(struct mp_buffer_pool *pool, struct mp_structure *config)
-{
-	return true;
-}
-
-static bool mp_buffer_pool_start(struct mp_buffer_pool *pool)
-{
-	return true;
-}
-
-static bool mp_buffer_pool_stop(struct mp_buffer_pool *pool)
-{
-	return true;
-}
-
-static bool mp_buffer_pool_acquire_buffer(struct mp_buffer_pool *pool, struct mp_buffer **buffer)
-{
-	return true;
-}
-
-static void mp_buffer_pool_release_buffer(struct mp_buffer_pool *pool, struct mp_buffer *buffer)
-{
-	/* TODO */
-}
+NET_BUF_POOL_FIXED_DEFINE(mp_buf_pool, CONFIG_MP_BUF_POOL_NUM_BUFS, 1,
+			  sizeof(struct mp_buffer_meta), mp_buffer_destroy);
 
 void mp_buffer_pool_init(struct mp_buffer_pool *pool)
 {
-	pool->configure = mp_buffer_pool_configure;
-	pool->start = mp_buffer_pool_start;
-	pool->stop = mp_buffer_pool_stop;
-	pool->acquire_buffer = mp_buffer_pool_acquire_buffer;
-	pool->release_buffer = mp_buffer_pool_release_buffer;
+	if (pool == NULL) {
+		return;
+	}
+
+	pool->nb_pool = &mp_buf_pool;
 }

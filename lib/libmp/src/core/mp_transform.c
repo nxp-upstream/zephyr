@@ -23,8 +23,8 @@ int mp_transform_get_property(struct mp_object *obj, uint32_t key, void *val)
 	return 0;
 }
 
-static bool mp_transform_chainfn(struct mp_pad *pad, struct mp_buffer *in_buf,
-				 struct mp_buffer **out_buf)
+static bool mp_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
+				 struct net_buf **out_buf)
 {
 	/* Default implementation for MP_MODE_PASSTHROUGH - return same buffer */
 	*out_buf = in_buf;
@@ -182,13 +182,18 @@ static bool mp_transform_query(struct mp_pad *pad, struct mp_query *query)
 			}
 
 			/* Configure the output buffer pool with negotiated configs */
-			if (!self->outpool->configure(
-				    self->outpool, mp_caps_get_structure(self->srcpad.caps, 0))) {
+			if (self->outpool->configure != NULL &&
+			    self->outpool->configure(self->outpool,
+						     mp_caps_get_structure(self->srcpad.caps, 0)) !=
+				    0) {
+				LOG_ERR("Failed to configure output transform buffer pool");
 				return false;
 			}
 
 			/* Start the output buffer pool */
-			if (!self->outpool->start(self->outpool)) {
+			if (self->outpool->start != NULL &&
+			    self->outpool->start(self->outpool) != 0) {
+				LOG_ERR("Failed to start output transform buffer pool");
 				return false;
 			}
 		}
