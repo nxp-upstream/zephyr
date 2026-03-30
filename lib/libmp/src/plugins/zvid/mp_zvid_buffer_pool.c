@@ -12,99 +12,130 @@
 
 LOG_MODULE_REGISTER(mp_zvid_buffer_pool, CONFIG_LIBMP_LOG_LEVEL);
 
-static bool mp_zvid_buffer_pool_configure(struct mp_buffer_pool *pool, struct mp_structure *config)
+static int mp_zvid_buffer_pool_start(struct mp_buffer_pool *pool)
 {
-	pool->buffers = k_calloc(pool->config.min_buffers, sizeof(struct mp_buffer));
-
-	for (uint8_t i = 0; i < pool->config.min_buffers; i++) {
-		pool->buffers[i].pool = pool;
-		pool->buffers[i].object.release = mp_buffer_release;
-	}
-
-	return true;
-}
-
-static bool mp_zvid_buffer_pool_start(struct mp_buffer_pool *pool)
-{
+	int ret = 0;
 	struct mp_zvid_buffer_pool *zvid_pool = MP_ZVID_BUFFERPOOL(pool);
 
-	for (uint8_t i = 0; i < pool->config.min_buffers; i++) {
+	if (pool == NULL) {
+		return -EINVAL;
+	}
+
+	if (pool->config.min_buffers > CONFIG_VIDEO_BUFFER_POOL_NUM_MAX) {
+		LOG_ERR("min_buffers=%u exceeds CONFIG_VIDEO_BUFFER_POOL_NUM_MAX=%u",
+			pool->config.min_buffers, CONFIG_VIDEO_BUFFER_POOL_NUM_MAX);
+		return -EINVAL;
+	}
+
+	/* Use the minimum number of buffers if not specified else */
+	zvid_pool->vbuf_count = pool->config.min_buffers;
+
+	for (uint8_t i = 0; i < zvid_pool->vbuf_count; i++) {
 		struct video_buffer *vbuf = video_buffer_aligned_alloc(
 			pool->config.size, pool->config.align, K_NO_WAIT);
-
 		if (vbuf == NULL) {
-			LOG_ERR("Unable to alloc video buffer");
-			return false;
+			LOG_ERR("Failed to alloc video buffer %u", i);
+			return -ENOBUFS;
 		}
 
-		/* Map video_buffer to mp_buffer */
-		pool->buffers[i].index = vbuf->index;
+		zvid_pool->vbufs[i] = vbuf;
 
-		/* Enqueue the buffer */
 		vbuf->type = zvid_pool->zvid_obj->type;
-		if (video_enqueue(zvid_pool->zvid_obj->vdev, vbuf) != 0) {
-			LOG_ERR("Failed to enqueue buffer %u", vbuf->index);
-			return false;
+		ret = video_enqueue(zvid_pool->zvid_obj->vdev, vbuf);
+		if (ret != 0) {
+			LOG_ERR("Failed to enqueue video buffer %u", i);
+			(void)video_buffer_release(vbuf);
+			return ret;
 		}
 	}
 
-	if (video_stream_start(zvid_pool->zvid_obj->vdev, zvid_pool->zvid_obj->type) != 0) {
-		LOG_ERR("Unable to start buffer pool");
-		return false;
+	ret = video_stream_start(zvid_pool->zvid_obj->vdev, zvid_pool->zvid_obj->type);
+	if (ret != 0) {
+		LOG_ERR("Failed to start video streaming");
 	}
 
-	LOG_INF("Started buffer pool");
+	LOG_INF("Started video buffer pool");
 
-	return true;
+	return ret;
 }
 
-static bool mp_zvid_buffer_pool_stop(struct mp_buffer_pool *pool)
+static int mp_zvid_buffer_pool_stop(struct mp_buffer_pool *pool)
 {
-	return true;
-}
-
-static bool mp_zvid_buffer_pool_acquire_buffer(struct mp_buffer_pool *pool,
-					       struct mp_buffer **buffer)
-{
-	struct video_buffer *vbuf = &(struct video_buffer){};
+	int ret = 0;
 	struct mp_zvid_buffer_pool *zvid_pool = MP_ZVID_BUFFERPOOL(pool);
-	int err;
+
+	if (zvid_pool == NULL || zvid_pool->zvid_obj == NULL || zvid_pool->zvid_obj->vdev == NULL) {
+		return -EINVAL;
+	}
+
+	ret = video_stream_stop(zvid_pool->zvid_obj->vdev, zvid_pool->zvid_obj->type);
+	if (ret != 0) {
+		LOG_ERR("Failed to stop video streaming");
+		return ret;
+	}
+
+	for (uint8_t i = 0; i < zvid_pool->vbuf_count; i++) {
+		ret = video_buffer_release(zvid_pool->vbufs[i]);
+		if (ret != 0) {
+			LOG_ERR("Failed to release video buffer %u", i);
+			return ret;
+		}
+
+		zvid_pool->vbufs[i] = NULL;
+	}
+
+	zvid_pool->vbuf_count = 0;
+
+	return ret;
+}
+
+static int mp_zvid_buffer_pool_acquire_buffer(struct mp_buffer_pool *pool, struct net_buf **buf)
+{
+	struct mp_zvid_buffer_pool *zvid_pool = MP_ZVID_BUFFERPOOL(pool);
+	struct video_buffer *vbuf = &(struct video_buffer){0};
+	struct mp_buffer_meta *bm;
+	int ret = 0;
 
 	vbuf->type = zvid_pool->zvid_obj->type;
-	err = video_dequeue(zvid_pool->zvid_obj->vdev, &vbuf, K_FOREVER);
-	if (err) {
-		LOG_ERR("Unable to dequeue video buffer");
-		return false;
+	ret = video_dequeue(zvid_pool->zvid_obj->vdev, &vbuf, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to dequeue video buffer");
+		return ret;
 	}
 
-	for (uint8_t i = 0; i < pool->config.min_buffers; i++) {
-		if (pool->buffers[i].index == vbuf->index) {
-			pool->buffers[i].data = vbuf->buffer;
-			pool->buffers[i].bytes_used = vbuf->bytesused;
-			pool->buffers[i].timestamp = vbuf->timestamp;
-			pool->buffers[i].line_offset = vbuf->line_offset;
-
-			*buffer = mp_buffer_ref(&pool->buffers[i]);
-
-			return true;
-		}
+	*buf = net_buf_alloc_with_data(pool->nb_pool, vbuf->buffer, vbuf->size, K_NO_WAIT);
+	if (*buf == NULL) {
+		LOG_ERR("Failed to allocate net_buf wrapper vode video buffer");
+		return -ENOBUFS;
 	}
 
-	return false;
+	/* Set buffer metadata */
+	bm = mp_buffer_get_meta(*buf);
+	bm->pool = pool;
+	bm->priv = vbuf;
+	bm->bytes_used = vbuf->bytesused;
+	bm->timestamp = vbuf->timestamp;
+
+	return ret;
 }
 
-static void mp_zvid_buffer_pool_release_buffer(struct mp_buffer_pool *pool,
-					       struct mp_buffer *buffer)
+static int mp_zvid_buffer_pool_release_buffer(struct mp_buffer_pool *pool, struct net_buf *buf)
 {
-	int err;
 	struct mp_zvid_buffer_pool *zvid_pool = MP_ZVID_BUFFERPOOL(pool);
-	struct video_buffer vbuf = {.type = zvid_pool->zvid_obj->type, .index = buffer->index};
+	struct video_buffer *vbuf = mp_buffer_get_meta(buf)->priv;
+	int ret = 0;
 
-	err = video_enqueue(zvid_pool->zvid_obj->vdev, &vbuf);
-	if (err) {
-		LOG_ERR("Unable to re-enqueue video buffer");
-		return;
+	if (pool == NULL || buf == NULL || vbuf == NULL) {
+		return -EINVAL;
 	}
+
+	vbuf->type = zvid_pool->zvid_obj->type;
+	ret = video_enqueue(zvid_pool->zvid_obj->vdev, vbuf);
+	if (ret) {
+		LOG_ERR("Failed to re-enqueue the video buffer");
+	}
+
+	return ret;
 }
 
 void mp_zvid_buffer_pool_init(struct mp_buffer_pool *pool, struct mp_zvid_object *obj)
@@ -113,7 +144,8 @@ void mp_zvid_buffer_pool_init(struct mp_buffer_pool *pool, struct mp_zvid_object
 
 	zvid_pool->zvid_obj = obj;
 
-	pool->configure = mp_zvid_buffer_pool_configure;
+	mp_buffer_pool_init(pool);
+
 	pool->start = mp_zvid_buffer_pool_start;
 	pool->stop = mp_zvid_buffer_pool_stop;
 	pool->acquire_buffer = mp_zvid_buffer_pool_acquire_buffer;

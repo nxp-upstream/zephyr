@@ -15,18 +15,19 @@ LOG_MODULE_REGISTER(mp_zvid_transform, CONFIG_LIBMP_LOG_LEVEL);
 
 #define DEFAULT_PROP_DEVICE DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_videotrans))
 
-static bool mp_zvid_transform_chainfn(struct mp_pad *pad, struct mp_buffer *in_buf,
-				      struct mp_buffer **out_buf)
+static bool mp_zvid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
+				      struct net_buf **out_buf)
 {
 	int ret;
 	struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
 	struct mp_zvid_transform *zvid_transform = MP_ZVID_TRANSFORM(transform);
 	struct mp_buffer_pool *outpool = MP_BUFFER_POOL(&zvid_transform->zvid_obj_out.pool);
-	struct video_buffer in_vbuf = {.type = VIDEO_BUF_TYPE_INPUT, .index = in_buf->index};
+	struct video_buffer *in_vbuf = mp_buffer_get_meta(in_buf)->priv;
 
 	/* Enqueue input buffer */
-	if (video_enqueue(zvid_transform->zvid_obj_in.vdev, &in_vbuf)) {
-		LOG_ERR("Unable to enqueue input buffer");
+	in_vbuf->type = VIDEO_BUF_TYPE_INPUT;
+	if (video_enqueue(zvid_transform->zvid_obj_in.vdev, in_vbuf) != 0) {
+		LOG_ERR("Failed to enqueue input buffer");
 		return false;
 	}
 
@@ -35,15 +36,15 @@ static bool mp_zvid_transform_chainfn(struct mp_pad *pad, struct mp_buffer *in_b
 		&(struct video_buffer){.type = zvid_transform->zvid_obj_in.type};
 	ret = video_dequeue(zvid_transform->zvid_obj_in.vdev, &vbuf, K_FOREVER);
 	if (ret) {
-		LOG_ERR("Unable to dequeue input buffer");
+		LOG_ERR("Failed to dequeue input buffer");
 		return false;
 	}
 
 	/* Done with the input buffer */
-	mp_buffer_unref(in_buf);
+	net_buf_unref(in_buf);
 
 	/* Dequeue an output buffer, blocking */
-	if (!outpool->acquire_buffer(outpool, out_buf)) {
+	if (outpool->acquire_buffer(outpool, out_buf) != 0) {
 		LOG_ERR("Failed to acquire output buffer");
 		return false;
 	}

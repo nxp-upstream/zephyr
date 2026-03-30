@@ -12,6 +12,8 @@
 #ifndef __MP_ZVID_BUFFER_POOL_H__
 #define __MP_ZVID_BUFFER_POOL_H__
 
+#include <zephyr/drivers/video.h>
+
 #include <src/core/mp_buffer.h>
 
 #define MP_ZVID_BUFFERPOOL(self) ((struct mp_zvid_buffer_pool *)self)
@@ -32,6 +34,10 @@ struct mp_zvid_buffer_pool {
 	struct mp_buffer_pool pool;
 	/** Associated video object */
 	struct mp_zvid_object *zvid_obj;
+	/** Array of video buffer pointers managed by the pool */
+	struct video_buffer **vbufs;
+	/** Number of video buffers in the pool */
+	uint8_t vbuf_count;
 };
 
 /**
