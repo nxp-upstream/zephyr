@@ -6,6 +6,7 @@
 
 menuconfig MP
     bool "Media Pipe library"
+    select NET_BUF
     help
         Enable Media Pipe library.
 

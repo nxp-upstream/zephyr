@@ -146,14 +146,18 @@ static enum mp_state_change_return mp_src_change_state(struct mp_element *self,
 				return MP_STATE_CHANGE_FAILURE;
 			}
 
-			if (!src->pool->configure(src->pool,
-						  mp_caps_get_structure(src->srcpad.caps, 0))) {
-				LOG_ERR("Failed to configure buffer pool");
+			if (src->pool->configure != NULL &&
+			    src->pool->configure(src->pool,
+						 mp_caps_get_structure(src->srcpad.caps, 0)) != 0) {
+				LOG_ERR("Failed to configure source buffer pool");
 				return MP_STATE_CHANGE_FAILURE;
 			}
 
 			/* Start buffer pool */
-			src->pool->start(src->pool);
+			if (src->pool->start != NULL && src->pool->start(src->pool) != 0) {
+				LOG_ERR("Failed to start source buffer pool");
+				return MP_STATE_CHANGE_FAILURE;
+			}
 
 			/* Clear MP_PAD_FLAG_NEGOTIATE flag */
 			MP_OBJECT(&src->srcpad)->flags &= ~MP_PAD_FLAG_NEGOTIATE;

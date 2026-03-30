@@ -33,8 +33,8 @@ static void mp_pipeline_thread(void *p1, void *p2, void *p3)
 	struct mp_object *obj;
 	struct mp_element *element;
 	struct mp_src *src = NULL;
-	struct mp_buffer *buffer = NULL;
-	struct mp_buffer *out_buf = NULL;
+	struct net_buf *buffer = NULL;
+	struct net_buf *out_buf = NULL;
 	struct mp_message *eos_message = NULL;
 	struct mp_element *cur_elem;
 	struct mp_pad *cur_srcpad;
@@ -63,7 +63,8 @@ static void mp_pipeline_thread(void *p1, void *p2, void *p3)
 	/* Main loop - in push mode, driven by source producing buffers */
 	while (pipeline->task.running) {
 		/* Get buffer from source element's pool */
-		if (!src->pool->acquire_buffer(src->pool, &buffer)) {
+		if (src->pool->acquire_buffer != NULL &&
+		    src->pool->acquire_buffer(src->pool, &buffer) != 0) {
 			LOG_ERR("Failed to acquire buffer from source");
 			break;
 		}
@@ -97,7 +98,7 @@ static void mp_pipeline_thread(void *p1, void *p2, void *p3)
 						MP_OBJECT(next_sinkpad->object.container)->id);
 					/* Clean up buffer on error */
 					if (buffer != NULL) {
-						mp_buffer_unref(buffer);
+						net_buf_unref(buffer);
 					}
 					buffer = NULL;
 					break;

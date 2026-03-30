@@ -15,6 +15,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <zephyr/net_buf.h>
 #include <zephyr/sys/util.h>
 
 #include "mp_buffer.h"
@@ -98,7 +99,7 @@ struct mp_pad {
 	/** Task associated with this pad */
 	struct mp_task task;
 	/** Chain function for handling buffers */
-	bool (*chainfn)(struct mp_pad *pad, struct mp_buffer *in_buf, struct mp_buffer **out_buf);
+	bool (*chainfn)(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf);
 	/** Query function for handling queries */
 	bool (*queryfn)(struct mp_pad *pad, struct mp_query *query);
 	/** Event function for handling events */
