@@ -126,12 +126,13 @@ static int mp_zdisp_sink_set_property(struct mp_object *obj, uint32_t key, const
 
 	switch (key) {
 	case PROP_ZDISP_SINK_DEVICE:
-		zdisp_sink->display_dev = val;
 		/* Device has been set or changed. Get caps from HW and update pad caps */
 		struct mp_caps *new_caps = mp_zdisp_sink_get_caps(sink);
 
+		zdisp_sink->display_dev = val;
 		mp_caps_replace(&sink->sinkpad.caps, new_caps);
 		mp_caps_unref(new_caps);
+
 		return 0;
 	default:
 		return mp_sink_set_property(obj, key, val);
@@ -145,23 +146,25 @@ static int mp_zdisp_sink_get_property(struct mp_object *obj, uint32_t key, void 
 	switch (key) {
 	case PROP_ZDISP_SINK_DEVICE:
 		*(const struct device **)val = zdisp_sink->display_dev;
+
 		return 0;
 	default:
 		return mp_sink_get_property(obj, key, val);
 	}
 }
 
-bool mp_zdisp_sink_chainfn(struct mp_pad *pad, struct mp_buffer *in_buf, struct mp_buffer **out_buf)
+bool mp_zdisp_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf)
 {
 	struct mp_zdisp_sink *zdisp_sink = MP_ZDISP_SINK(pad->object.container);
-
 	/* Get width / height from pad's caps */
 	struct mp_structure *first_structure = mp_caps_get_structure(pad->caps, 0);
 	struct mp_value *value = mp_structure_get_value(first_structure, MP_CAPS_PIXEL_FORMAT);
+	struct video_buffer *vbuf = NULL;
 	struct display_buffer_descriptor buf_desc = {
-		.buf_size = in_buf->bytes_used,
+		.buf_size = mp_buffer_get_meta(in_buf)->bytes_used,
 	};
 	enum display_pixel_format disp_fmt = 0;
+	uint16_t line_offset = 0;
 
 	if (value != NULL) {
 		disp_fmt = vid_to_disp_pix_fmt(mp_value_get_uint(value));
@@ -177,12 +180,18 @@ bool mp_zdisp_sink_chainfn(struct mp_pad *pad, struct mp_buffer *in_buf, struct 
 	buf_desc.height = buf_desc.buf_size /
 			  (buf_desc.width * DISPLAY_BITS_PER_PIXEL(disp_fmt) / BITS_PER_BYTE);
 
-	display_write(zdisp_sink->display_dev, 0, in_buf->line_offset, &buf_desc, in_buf->data);
+	/* line_offset is only used to support partial video frame */
+	/* TODO: How to know if the priv is not a video_buffer metadata type ? */
+	vbuf = (struct video_buffer *)mp_buffer_get_meta(in_buf)->priv;
+	if (vbuf != NULL) {
+		line_offset = vbuf->line_offset;
+	}
 
-	/* Done with the buffer, unref it */
-	mp_buffer_unref(in_buf);
+	display_write(zdisp_sink->display_dev, 0, line_offset, &buf_desc, vbuf->buffer);
 
-	/* Sink returns NULL - end of chain */
+	net_buf_unref(in_buf);
+
+	/* Sink returns NULL for output buffer as it is at the end of the chain */
 	*out_buf = NULL;
 
 	return true;
