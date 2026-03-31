@@ -37,11 +37,10 @@
  *
  * @param mem Pointer to the external memory
  * @param sz Size of the external memory
- * @param idx Returned index of the imported video buffer in the video buffer pool
  *
- * @retval 0 on success or a negative errno code on failure.
+ * @retval Address of the imported @ref video_buffer in the video buffer pool
  */
-int video_import_buffer(uint8_t *mem, size_t sz, uint16_t *idx);
+struct video_buffer *video_import_buffer(uint8_t *mem, size_t sz);
 
 /**
  * @}
