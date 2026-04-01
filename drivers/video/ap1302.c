@@ -12,6 +12,7 @@
 #include <zephyr/drivers/i2c.h>
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/drivers/video.h>
+#include <zephyr/drivers/video-controls.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
@@ -20,6 +21,8 @@
 #include <zephyr/sys/util.h>
 
 #include "video_common.h"
+#include "video_ctrls.h"
+#include "video_device.h"
 
 LOG_MODULE_REGISTER(ap1302, CONFIG_VIDEO_LOG_LEVEL);
 
@@ -31,30 +34,28 @@ LOG_MODULE_REGISTER(ap1302, CONFIG_VIDEO_LOG_LEVEL);
 /* Preview Context Registers */
 #define AP1302_PREVIEW_WIDTH			0x2000
 #define AP1302_PREVIEW_HEIGHT			0x2002
+#define AP1302_PREVIEW_MAX_FPS			0x2020
 #define AP1302_PREVIEW_OUT_FMT			0x2012
 #define AP1302_PREVIEW_HINF_CTRL		0x2030
 
-/* PREVIEW_OUT_FMT bits */
+#define AP1302_FPS_Q8_8(fps) ((uint16_t)((fps) << 8))
+
 #define AP1302_PREVIEW_OUT_FMT_FT_YUV		(3U << 4)
 #define AP1302_PREVIEW_OUT_FMT_FST_YUV_422	(0U << 0)
-
-/* PREVIEW_HINF_CTRL bits */
 #define AP1302_PREVIEW_HINF_CTRL_SPOOF		BIT(4)
 #define AP1302_PREVIEW_HINF_CTRL_MIPI_LANES(n)	((n) << 0)
 
-/* System Registers */
 #define AP1302_BOOTDATA_STAGE			0x6002
 #define AP1302_SYS_START			0x601A
 #define AP1302_BOOTDATA_CHECKSUM		0x6134
 
-/* SYS_START bits */
 #define AP1302_SYS_START_PLL_LOCK		BIT(15)
 #define AP1302_SYS_START_STALL_STATUS		BIT(9)
 #define AP1302_SYS_START_STALL_EN		BIT(8)
 #define AP1302_SYS_START_STALL_MODE_DISABLED	(1U << 6)
 
-/* Misc Registers */
 #define AP1302_SIP_CRC				0xF052
+#define AP1302_HINF_MIPI_FREQ			0x0068
 
 /* Firmware load window */
 #define AP1302_FW_WINDOW_OFFSET			0x8000
@@ -84,10 +85,8 @@ struct ap1302_config {
 	struct gpio_dt_spec standby_gpio;
 	struct gpio_dt_spec isp_en_gpio;
 
-	/* Firmware storage partition / memory region (required). */
 	uintptr_t firmware_partition_addr;
 	size_t firmware_partition_size;
-
 
 	const struct device *clock_dev;
 	clock_control_subsys_t clock_subsys;
@@ -100,13 +99,22 @@ struct ap1302_config {
 	uint8_t mipi_data_lanes;
 };
 
+struct ap1302_ctrls {
+	struct video_ctrl linkfreq;
+};
+
 struct ap1302_data {
+	struct ap1302_ctrls ctrls;
 	struct video_format fmt;
+	struct video_frmival frmival;
 	const struct ap1302_format_info *info;
 	bool streaming;
 };
 
-/* Supported video formats */
+static const int64_t ap1302_link_frequencies[] = {
+	445000000,
+};
+
 static const struct ap1302_format_info supported_formats[] = {
 	{
 		.code = VIDEO_PIX_FMT_YUYV,
@@ -138,43 +146,31 @@ static const struct ap1302_format_info *ap1302_find_format(uint32_t pixelformat)
 	return NULL;
 }
 
-#define AP1302_REG16(addr) ((uint32_t)(addr) | VIDEO_REG_ADDR16_DATA16_BE)
-
 /* Register access functions */
+#define AP1302_REG16_WORD(addr) ((uint32_t)(addr) | VIDEO_REG_ADDR16_DATA16_BE	\
+		| VIDEO_REG_NO_ADDR_INC)
+#define AP1302_REG32_WORD(addr) ((uint32_t)(addr) | VIDEO_REG_ADDR16_DATA32_BE	\
+		| VIDEO_REG_NO_ADDR_INC)
+
 static int ap1302_write_reg16(const struct device *dev, uint16_t reg, uint16_t val)
 {
 	const struct ap1302_config *cfg = dev->config;
-	uint8_t buf[4];
-	int ret;
 
-	sys_put_be16(reg, &buf[0]);
-	sys_put_be16(val, &buf[2]);
-
-	ret = i2c_write_dt(&cfg->i2c, buf, sizeof(buf));
-	if (ret < 0) {
-		LOG_ERR("Failed to write reg 0x%04x: %d", reg, ret);
-	}
-
-	return ret;
+	return video_write_cci_reg(&cfg->i2c, AP1302_REG16_WORD(reg), val);
 }
 
 static int ap1302_read_reg16(const struct device *dev, uint16_t reg, uint16_t *val)
 {
 	const struct ap1302_config *cfg = dev->config;
-	uint8_t reg_buf[2];
-	uint8_t val_buf[2];
+	uint32_t tmp;
 	int ret;
 
-	sys_put_be16(reg, reg_buf);
-
-	ret = i2c_write_read_dt(&cfg->i2c, reg_buf, sizeof(reg_buf),
-				val_buf, sizeof(val_buf));
+	ret = video_read_cci_reg(&cfg->i2c, AP1302_REG16_WORD(reg), &tmp);
 	if (ret < 0) {
-		LOG_ERR("Failed to read reg 0x%04x: %d", reg, ret);
 		return ret;
 	}
 
-	*val = sys_get_be16(val_buf);
+	*val = (uint16_t)tmp;
 
 	return 0;
 }
@@ -402,14 +398,6 @@ static int ap1302_load_firmware(const struct device *dev)
 	if (ret < 0) {
 		return ret;
 	}
-/*
-	if (checksum != (uint16_t)fw_hdr->checksum) {
-		LOG_ERR("Firmware checksum mismatch: expected 0x%04x, got 0x%04x",
-			(uint16_t)fw_hdr->checksum, checksum);
-		return -EIO;
-	}
-*/
-	LOG_INF("Firmware loaded successfully, checksum verified");
 
 	return 0;
 }
@@ -464,18 +452,32 @@ static void ap1302_sanitize_format(struct video_format *fmt)
 	}
 }
 
+static int ap1302_program_max_fps(const struct device *dev, uint32_t fps)
+{
+	uint16_t v = AP1302_FPS_Q8_8(fps);
+	int ret;
+
+	ret = ap1302_write_reg16(dev, AP1302_PREVIEW_MAX_FPS, v);
+	if (ret < 0) {
+		return ret;
+	}
+
+	return 0;
+}
+
 static int ap1302_configure(const struct device *dev)
 {
 	const struct ap1302_config *cfg = dev->config;
 	struct ap1302_data *data = dev->data;
 	const struct video_format *fmt = &data->fmt;
 	const struct ap1302_format_info *info = data->info;
+	uint16_t hinf_ctrl;
 	int ret;
 
-	/* Configure MIPI interface */
-	ret = ap1302_write_reg16(dev, AP1302_PREVIEW_HINF_CTRL,
-				 AP1302_PREVIEW_HINF_CTRL_SPOOF |
-				 AP1302_PREVIEW_HINF_CTRL_MIPI_LANES(cfg->mipi_data_lanes));
+	hinf_ctrl = AP1302_PREVIEW_HINF_CTRL_SPOOF |
+			AP1302_PREVIEW_HINF_CTRL_MIPI_LANES(cfg->mipi_data_lanes);
+
+	ret = ap1302_write_reg16(dev, AP1302_PREVIEW_HINF_CTRL, hinf_ctrl);
 	if (ret < 0) {
 		return ret;
 	}
@@ -492,7 +494,7 @@ static int ap1302_configure(const struct device *dev)
 
 	ret = ap1302_write_reg16(dev, AP1302_PREVIEW_HEIGHT, (uint16_t)fmt->height);
 	if (ret < 0) {
-		LOG_ERR("Failed to configure format: %d", ret);
+		LOG_ERR("Failed to configure preview format: %d", ret);
 		return ret;
 	}
 
@@ -541,7 +543,6 @@ static int ap1302_set_format(const struct device *dev, struct video_format *fmt)
 	size_t idx;
 	int ret;
 
-	/* Per Zephyr convention, caller validates pointers. */
 	ap1302_sanitize_format(fmt);
 
 	ret = video_format_caps_index(ap1302_fmts, fmt, &idx);
@@ -567,9 +568,6 @@ static int ap1302_set_format(const struct device *dev, struct video_format *fmt)
 	data->fmt = *fmt;
 	data->info = info;
 
-	LOG_DBG("Format set: %ux%u, pixfmt 0x%08x, pitch %u, size %u", fmt->width, fmt->height,
-		fmt->pixelformat, fmt->pitch, fmt->size);
-
 	return 0;
 }
 
@@ -581,6 +579,52 @@ static int ap1302_get_format(const struct device *dev, struct video_format *fmt)
 
 	return 0;
 }
+
+static int ap1302_set_frmival(const struct device *dev, struct video_frmival *frmival)
+{
+	struct ap1302_data *data = dev->data;
+	uint32_t fps;
+	int ret;
+
+	if ((frmival->numerator == 0U) || (frmival->denominator == 0U)) {
+		return -EINVAL;
+	}
+
+	fps = DIV_ROUND_CLOSEST(frmival->denominator, frmival->numerator);
+	fps = CLAMP(fps, 1U, 240U);
+
+	data->frmival.numerator = 1U;
+	data->frmival.denominator = fps;
+
+	if (data->streaming) {
+		ret = ap1302_stall(dev, true);
+		if (ret < 0) {
+			return ret;
+		}
+	}
+
+	ret = ap1302_program_max_fps(dev, fps);
+	if (ret < 0) {
+		LOG_WRN("Failed to program max_fps=%u: %d", fps, ret);
+	}
+
+	if (data->streaming) {
+		(void)ap1302_stall(dev, false);
+	}
+
+	LOG_INF("frmival applied: 1/%u s (%u fps)", fps, fps);
+
+	return 0;
+}
+
+static int ap1302_get_frmival(const struct device *dev, struct video_frmival *frmival)
+{
+	struct ap1302_data *data = dev->data;
+
+	*frmival = data->frmival;
+	return 0;
+}
+
 
 static int ap1302_set_stream(const struct device *dev, bool enable, enum video_buf_type type)
 {
@@ -635,11 +679,39 @@ static int ap1302_get_caps(const struct device *dev, struct video_caps *caps)
 	return 0;
 }
 
+static int ap1302_init_ctrls(const struct device *dev)
+{
+	struct ap1302_data *data = dev->data;
+	int ret;
+
+	ret = video_init_int_menu_ctrl(&data->ctrls.linkfreq, dev, VIDEO_CID_LINK_FREQ,
+				       0, ap1302_link_frequencies,
+				       ARRAY_SIZE(ap1302_link_frequencies));
+	if (ret < 0) {
+		return ret;
+	}
+
+	data->ctrls.linkfreq.flags |= VIDEO_CTRL_FLAG_READ_ONLY;
+
+	return 0;
+}
+
+static int ap1302_set_ctrl(const struct device *dev, unsigned int cid)
+{
+	ARG_UNUSED(dev);
+	ARG_UNUSED(cid);
+
+	return -ENOTSUP;
+}
+
 static DEVICE_API(video, ap1302_driver_api) = {
 	.set_format = ap1302_set_format,
 	.get_format = ap1302_get_format,
 	.set_stream = ap1302_set_stream,
 	.get_caps = ap1302_get_caps,
+	.set_ctrl = ap1302_set_ctrl,
+	.set_frmival = ap1302_set_frmival,
+	.get_frmival = ap1302_get_frmival,
 };
 
 int p = 1;
@@ -722,17 +794,27 @@ static int ap1302_init(const struct device *dev)
 		goto err_power;
 	}
 
+	ret = ap1302_init_ctrls(dev);
+	if (ret < 0) {
+		LOG_ERR("Failed to init ctrls: %d", ret);
+		goto err_power;
+	}
+
 	data->fmt.type = VIDEO_BUF_TYPE_OUTPUT;
 	data->fmt.pixelformat = VIDEO_PIX_FMT_YUYV;
 	data->fmt.width = 1920;
 	data->fmt.height = 1080;
+
 	ret = video_estimate_fmt_size(&data->fmt);
 	if (ret < 0) {
 		LOG_ERR("Failed to estimate format size: %d", ret);
 		goto err_power;
 	}
+
 	data->info = ap1302_find_format(data->fmt.pixelformat);
 	data->streaming = false;
+	data->frmival.numerator = 1U;
+	data->frmival.denominator = 60U;
 
 	LOG_INF("AP1302 initialized: %ux%u YUYV", data->fmt.width, data->fmt.height);
 
@@ -791,7 +873,8 @@ PINCTRL_DT_INST_DEFINE(0);
 			      &ap1302_config_##n,						\
 			      POST_KERNEL,							\
 			      CONFIG_VIDEO_AP1302_INIT_PRIORITY,				\
-			      &ap1302_driver_api);
+			      &ap1302_driver_api);\
+	VIDEO_DEVICE_DEFINE(ap1302_##n, DEVICE_DT_INST_GET(n), NULL);
 
 DT_INST_FOREACH_STATUS_OKAY(AP1302_INIT)
 
