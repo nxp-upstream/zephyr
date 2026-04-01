@@ -29,7 +29,7 @@ LOG_MODULE_REGISTER(imx_mipi_csi, CONFIG_VIDEO_LOG_LEVEL);
 #define CSI_RESET_DELAY_US			10
 #define CSI_STOPSTATE_TIMEOUT_US		50000
 #define CSI_STOPSTATE_POLL_DELAY_US		50
-#define CSI_DEFAULT_FPS				30
+#define CSI_DEFAULT_FPS				60
 
 struct csi_pix_format {
 	uint32_t pixelformat;
@@ -146,39 +146,23 @@ static const struct csi_pix_format *csi_find_format(uint32_t pixelformat)
 			return &csi_formats[i];
 		}
 	}
+
 	return NULL;
 }
 
 static int64_t csi_calc_link_freq(struct csi_data *csi)
 {
-	uint64_t pixel_rate;
 	uint64_t link_freq;
-	uint32_t fps;
 
 	if (!csi->format_set) {
 		LOG_ERR("Format not configured");
 		return -EINVAL;
 	}
 
-	/* Calculate FPS from frame interval */
-	if (csi->frmival_set && csi->frmival.numerator != 0) {
-		fps = csi->frmival.denominator / csi->frmival.numerator;
-		LOG_DBG("Using configured frame interval: %u/%u (%u fps)",
-			csi->frmival.numerator, csi->frmival.denominator, fps);
-	} else {
-		/* Use default if not configured */
-		fps = CSI_DEFAULT_FPS;
-		LOG_WRN("Frame interval not set, using default %u fps", fps);
+	link_freq = (uint64_t)video_get_csi_link_freq(csi->sensor, csi->csi_fmt.bpp, csi->num_lanes);
+	if (link_freq < 0) {
+		return -EINVAL;
 	}
-
-	/* Calculate pixel rate: width * height * fps */
-	pixel_rate = (uint64_t)csi->fmt.width * csi->fmt.height * fps;
-
-	/* Calculate link frequency: pixel_rate * bpp / (2 * lanes) */
-	link_freq = (pixel_rate * csi->csi_fmt.bpp) / (2 * csi->num_lanes);
-
-	LOG_DBG("Link freq: %llu Hz (pixel_rate=%llu, fps=%u, bpp=%u, lanes=%u)",
-		link_freq, pixel_rate, fps, csi->csi_fmt.bpp, csi->num_lanes);
 
 	return (int64_t)link_freq;
 }
