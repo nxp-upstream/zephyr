@@ -188,7 +188,7 @@
 		pinctrl-0 = <&cmmclk1_default>;
 		pinctrl-names = "default";
 		firmware-partition = <&ap1302_fw_ddr>;
-		mipi-data-lanes = <2>;
+		mipi-data-lanes = <4>;
 		status = "okay";
 	};
 };
@@ -245,7 +245,7 @@
 };
 
 &mipi_csi {
-	data-lanes = <2>;
+	data-lanes = <4>;
 	sensor = <&ap1302>;
 	status = "okay";
 };
