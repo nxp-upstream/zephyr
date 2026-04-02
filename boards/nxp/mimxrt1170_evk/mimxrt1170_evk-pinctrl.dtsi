@@ -87,6 +87,16 @@
 		};
 	};
 
+	pinmux_spdif: pinmux_spdif {
+		group0 {
+			pinmux = <&iomuxc_gpio_ad_15_spdif_in>,
+				 <&iomuxc_gpio_ad_16_spdif_out>;
+			drive-strength = "high";
+			bias-pull-down;
+			slew-rate = "fast";
+		};
+	};
+
 	pinmux_ptp: pinmux_ptp {};
 
 	pinmux_enet1g: pinmux_enet1g {

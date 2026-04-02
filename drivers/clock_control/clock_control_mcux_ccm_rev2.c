@@ -50,6 +50,11 @@ static int mcux_ccm_on(const struct device *dev,
 		return 0;
 #endif
 #endif
+#ifdef CONFIG_AUDIO_SPDIF_MCUX
+	case IMX_CCM_SPDIF_CLK:
+		CLOCK_EnableClock(kCLOCK_Spdif);
+		return 0;
+#endif
 #ifdef CONFIG_MEMC_MCUX_FLEXSPI
 #ifdef CONFIG_SOC_MIMX9352
 	case IMX_CCM_FLEXSPI_CLK:
@@ -66,6 +71,18 @@ static int mcux_ccm_on(const struct device *dev,
 static int mcux_ccm_off(const struct device *dev,
 				   clock_control_subsys_t sub_system)
 {
+	uint32_t clock_name = (size_t)sub_system;
+
+	switch (clock_name & IMX_CCM_PERIPHERAL_MASK) {
+#ifdef CONFIG_AUDIO_SPDIF_MCUX
+	case IMX_CCM_SPDIF_CLK:
+		CLOCK_DisableClock(kCLOCK_Spdif);
+		return 0;
+#endif
+	default:
+		return 0;
+	}
+
 	return 0;
 }
 
@@ -194,6 +211,12 @@ static int mcux_ccm_get_subsys_rate(const struct device *dev,
 		clock_root = kCLOCK_Root_Sai4;
 		break;
 #endif
+#endif
+
+#ifdef CONFIG_AUDIO_SPDIF_MCUX
+	case IMX_CCM_SPDIF_CLK:
+		clock_root = kCLOCK_Root_Spdif;
+		break;
 #endif
 
 #ifdef CONFIG_ETH_NXP_ENET

@@ -1,0 +1,8 @@
+sample:
+  name: SPDIF sample
+tests:
+  sample.drivers.audio.spdif:
+    tags: audio spdif
+    build_only: true
+    platform_allow:
+      - mimxrt1170_evk/mimxrt1176/cm7

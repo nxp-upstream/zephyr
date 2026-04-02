@@ -1,0 +1,28 @@
+# Copyright (c) 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig AUDIO_SPDIF_MCUX
+	bool "NXP MCUX SPDIF controller driver"
+	default y
+	depends on DT_HAS_NXP_MCUX_SPDIF_ENABLED
+	select PINCTRL
+	select CLOCK_CONTROL
+	select DMA
+	help
+	  Enable support for the NXP MCUX SPDIF transceiver block.
+
+if AUDIO_SPDIF_MCUX
+
+config AUDIO_SPDIF_TX_BLOCK_COUNT
+	int "SPDIF TX queue length"
+	default 4
+
+config AUDIO_SPDIF_RX_BLOCK_COUNT
+	int "SPDIF RX queue length"
+	default 4
+
+config AUDIO_SPDIF_HAS_PLL_SETTING
+	bool "Program the audio PLL/root clock in the driver"
+	default y
+
+endif # AUDIO_SPDIF_MCUX

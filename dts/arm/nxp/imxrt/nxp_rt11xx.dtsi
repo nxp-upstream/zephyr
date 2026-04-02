@@ -1113,6 +1113,23 @@
 			#pinmux-cells = <2>;
 		};
 
+		spdif: spdif@40400000 {
+			compatible = "nxp,mcux-spdif";
+			reg = <0x40400000 0x4000>;
+			clocks = <&ccm IMX_CCM_SPDIF_CLK 0x1f84 4>;
+			clock-mux = <4>;
+			pre-div = <0>;
+			podf = <0>;
+			pll-clocks = <&anatop 0 0 0>,
+				     <&anatop 0 0 32>,
+				     <&anatop 0 0 1>,
+				     <&anatop 0 0 768>,
+				     <&anatop 0 0 1000>;
+			pll-clock-names = "src", "lp", "pd", "num", "den";
+			interrupts = <82 0>;
+			status = "disabled";
+		};
+
 		sai1: sai@40404000 {
 			compatible = "nxp,mcux-i2s";
 			#address-cells = <1>;

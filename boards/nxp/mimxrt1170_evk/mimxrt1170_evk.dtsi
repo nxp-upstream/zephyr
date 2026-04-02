@@ -246,6 +246,14 @@ arduino_spi: &lpspi1 {
 	pinctrl-names = "default";
 };
 
+&spdif {
+	pinctrl-0 = <&pinmux_spdif>;
+	pinctrl-names = "default";
+	dmas = <&edma0 2 63>, <&edma0 0 62>;
+	dma-names = "tx", "rx";
+	status = "disabled";
+};
+
 &lpadc1 {
 	pinctrl-0 = <&pinmux_lpadc1>;
 	pinctrl-names = "default";

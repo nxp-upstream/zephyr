@@ -1,0 +1,7 @@
+&edma0 {
+	status = "okay";
+};
+
+&spdif {
+	status = "okay";
+};

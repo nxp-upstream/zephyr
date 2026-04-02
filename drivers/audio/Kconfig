@@ -79,4 +79,25 @@ source "drivers/audio/Kconfig.mpxxdtyy"
 
 endif # AUDIO_DMIC
 
+menuconfig AUDIO_SPDIF
+	bool "SPDIF controller drivers"
+	help
+	  Enable Sony/Philips Digital Interface controller drivers.
+
+if AUDIO_SPDIF
+
+config AUDIO_SPDIF_INIT_PRIORITY
+	int "SPDIF init priority"
+	default 80
+	help
+	  SPDIF controller device driver initialization priority.
+
+module = AUDIO_SPDIF
+module-str = audio_spdif
+source "subsys/logging/Kconfig.template.log_config"
+
+source "drivers/audio/spdif/Kconfig"
+
+endif # AUDIO_SPDIF
+
 endif # AUDIO

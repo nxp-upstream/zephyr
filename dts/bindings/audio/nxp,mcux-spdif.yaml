@@ -1,0 +1,53 @@
+# Copyright (c) 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: NXP MCUX SPDIF controller
+
+compatible: "nxp,mcux-spdif"
+
+include:
+  - base.yaml
+  - dma-controller.yaml
+  - pinctrl-device.yaml
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  clocks:
+    required: true
+
+  dmas:
+    required: true
+
+  dma-names:
+    required: true
+    type: string-array
+    description: DMA channels for the SPDIF transmitter and receiver.
+    enum:
+      - tx
+      - rx
+
+  clock-mux:
+    type: int
+    description: Root clock source selector used for the SPDIF root clock.
+
+  pre-div:
+    type: int
+    description: Root clock pre-divider passed to the SoC audio clock helper.
+
+  podf:
+    type: int
+    description: Root clock post-divider passed to the SoC audio clock helper.
+
+  pll-clocks:
+    type: phandle-array
+    description: Optional audio PLL settings.
+    specifier-space: pll-clock
+
+  pll-clock-names:
+    type: string-array
+    description: Names for pll-clock specifiers.
