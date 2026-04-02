@@ -187,6 +187,11 @@ static inline int _cache_all_checks(NRF_CACHE_Type *cache, enum k_nrf_cache_op o
 
 #if defined(NRF_DCACHE) && NRF_CACHE_HAS_TASKS
 
+int cache_data_is_enabled(void)
+{
+	return nrf_cache_enable_check(NRF_DCACHE) ? 1 : 0;
+}
+
 void cache_data_enable(void)
 {
 	nrf_cache_enable(NRF_DCACHE);
@@ -249,6 +254,11 @@ int cache_data_flush_and_invd_range(void *addr, size_t size)
 
 #else
 
+int cache_data_is_enabled(void)
+{
+	return -ENOTSUP;
+}
+
 void cache_data_enable(void)
 {
 	/* Nothing */
@@ -292,6 +302,11 @@ int cache_data_flush_and_invd_range(void *addr, size_t size)
 #endif /* NRF_DCACHE */
 
 #if defined(NRF_ICACHE) && NRF_CACHE_HAS_TASKS
+
+int cache_instr_is_enabled(void)
+{
+	return nrf_cache_enable_check(NRF_ICACHE) ? 1 : 0;
+}
 
 void cache_instr_enable(void)
 {
@@ -366,6 +381,11 @@ int cache_instr_flush_and_invd_range(void *addr, size_t size)
 }
 
 #else
+
+int cache_instr_is_enabled(void)
+{
+	return -ENOTSUP;
+}
 
 void cache_instr_enable(void)
 {

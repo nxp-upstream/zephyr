@@ -4,6 +4,8 @@
 menuconfig CACHE_STM32
 	bool "STM32 cache driver"
 	select CACHE_HAS_DRIVER
+	select DCACHE_STATE_QUERY if DCACHE
+	select ICACHE_STATE_QUERY if ICACHE
 	depends on SOC_FAMILY_STM32
 	depends on CACHE_MANAGEMENT
 	help

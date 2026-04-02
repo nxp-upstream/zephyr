@@ -4,6 +4,8 @@
 config CACHE_NRF_CACHE
 	bool "nRF cache driver"
 	select CACHE_HAS_DRIVER
+	select DCACHE_STATE_QUERY if DCACHE
+	select ICACHE_STATE_QUERY if ICACHE
 	depends on HAS_NRFX && CACHE_MANAGEMENT
 	help
 	  Enable support for the nRF cache driver.

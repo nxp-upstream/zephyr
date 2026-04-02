@@ -5,6 +5,8 @@ config CACHE_NXP_LMEM_CACHE
 	bool "NXP LMEM cache driver"
 	default y
 	select CACHE_HAS_DRIVER
+	select DCACHE_STATE_QUERY if DCACHE
+	select ICACHE_STATE_QUERY if ICACHE
 	depends on HAS_MCUX_LMEM_CACHE
 	help
 	  This option enables the LMEM cache driver for NXP SOCs.

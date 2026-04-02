@@ -10,14 +10,14 @@
 #include <fsl_cache.h>
 
 #if defined(CONFIG_DCACHE)
-static inline bool cache_data_is_enabled(void)
+static inline bool cache_data_is_enabled_local(void)
 {
 	return (LMEM->PSCCR & LMEM_PSCCR_ENCACHE_MASK) != 0U;
 }
 
 static inline int cache_data_require_enabled(void)
 {
-	return cache_data_is_enabled() ? 0 : -EAGAIN;
+	return cache_data_is_enabled_local() ? 0 : -EAGAIN;
 }
 
 static int cache_data_manage_range(void *addr, size_t size,
@@ -34,6 +34,11 @@ static int cache_data_manage_range(void *addr, size_t size,
 	return 0;
 }
 
+int cache_data_is_enabled(void)
+{
+	return cache_data_is_enabled_local() ? 1 : 0;
+}
+
 void cache_data_enable(void)
 {
 	L1CACHE_EnableSystemCache();
@@ -41,7 +46,7 @@ void cache_data_enable(void)
 
 void cache_data_disable(void)
 {
-	if (!cache_data_is_enabled()) {
+	if (!cache_data_is_enabled_local()) {
 		return;
 	}
 
@@ -108,14 +113,14 @@ int cache_data_flush_and_invd_range(void *addr, size_t size)
 
 #if defined(CONFIG_ICACHE)
 
-static inline bool cache_instr_is_enabled(void)
+static inline bool cache_instr_is_enabled_local(void)
 {
 	return (LMEM->PCCCR & LMEM_PCCCR_ENCACHE_MASK) != 0U;
 }
 
 static inline int cache_instr_require_enabled(void)
 {
-	return cache_instr_is_enabled() ? 0 : -EAGAIN;
+	return cache_instr_is_enabled_local() ? 0 : -EAGAIN;
 }
 
 static int cache_instr_manage_range(void *addr, size_t size,
@@ -132,6 +137,11 @@ static int cache_instr_manage_range(void *addr, size_t size,
 	return 0;
 }
 
+int cache_instr_is_enabled(void)
+{
+	return cache_instr_is_enabled_local() ? 1 : 0;
+}
+
 void cache_instr_enable(void)
 {
 	L1CACHE_EnableCodeCache();
@@ -139,7 +149,7 @@ void cache_instr_enable(void)
 
 void cache_instr_disable(void)
 {
-	if (!cache_instr_is_enabled()) {
+	if (!cache_instr_is_enabled_local()) {
 		return;
 	}
 

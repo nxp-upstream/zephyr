@@ -20,6 +20,16 @@ LOG_MODULE_REGISTER(cache_nxp_xcache, CONFIG_CACHE_LOG_LEVEL);
 #define NXP_XCACHE_DATA XCACHE_PS
 #endif
 
+static inline int cache_enabled_from_xcache(XCACHE_Type *cache)
+{
+	return (cache->CCR & XCACHE_CCR_ENCACHE_MASK) != 0U ? 1 : 0;
+}
+
+int cache_data_is_enabled(void)
+{
+	return cache_enabled_from_xcache(NXP_XCACHE_DATA);
+}
+
 void cache_data_enable(void)
 {
 	XCACHE_EnableCache(NXP_XCACHE_DATA);
@@ -70,6 +80,11 @@ int cache_data_flush_and_invd_range(void *addr, size_t size)
 	XCACHE_CleanInvalidateCacheByRange((uint32_t)addr, size);
 
 	return 0;
+}
+
+int cache_instr_is_enabled(void)
+{
+	return cache_enabled_from_xcache(NXP_XCACHE_INSTR);
 }
 
 void cache_instr_enable(void)

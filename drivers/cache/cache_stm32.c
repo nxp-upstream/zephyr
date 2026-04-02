@@ -23,6 +23,17 @@ LOG_MODULE_REGISTER(cache_stm32, CONFIG_CACHE_LOG_LEVEL);
 
 #ifdef CONFIG_DCACHE
 
+int cache_data_is_enabled(void)
+{
+	return (LL_DCACHE_IsEnabled(DCACHE1) != 0U) ||
+#if defined(DCACHE2)
+		(LL_DCACHE_IsEnabled(DCACHE2) != 0U)
+#else
+		false
+#endif
+		? 1 : 0;
+}
+
 void cache_data_enable(void)
 {
 	LL_DCACHE_Enable(DCACHE1);
@@ -120,6 +131,11 @@ static inline void wait_for_icache(void)
 
 	/* Clear BSYEND to avoid an extra interrupt if somebody enables them. */
 	LL_ICACHE_ClearFlag_BSYEND(STM32_ARG(ICACHE));
+}
+
+int cache_instr_is_enabled(void)
+{
+	return LL_ICACHE_IsEnabled(STM32_ARG(ICACHE)) != 0U ? 1 : 0;
 }
 
 void cache_instr_enable(void)
