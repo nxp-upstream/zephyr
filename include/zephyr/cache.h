@@ -65,6 +65,23 @@ static ALWAYS_INLINE void sys_cache_data_disable(void)
 }
 
 /**
+ * @brief Query whether the d-cache is enabled
+ *
+ * Report the current runtime enabled state of the data cache.
+ *
+ * @retval 1 If the d-cache is enabled.
+ * @retval 0 If the d-cache is disabled.
+ * @retval -ENOTSUP If runtime state query is not supported.
+ */
+static ALWAYS_INLINE int sys_cache_data_is_enabled(void)
+{
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE) && defined(CONFIG_DCACHE_STATE_QUERY)
+	return cache_data_is_enabled();
+#endif
+	return -ENOTSUP;
+}
+
+/**
  * @brief Enable the i-cache
  *
  * Enable the instruction cache
@@ -88,6 +105,23 @@ static ALWAYS_INLINE void sys_cache_instr_disable(void)
 #if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_ICACHE)
 	cache_instr_disable();
 #endif
+}
+
+/**
+ * @brief Query whether the i-cache is enabled
+ *
+ * Report the current runtime enabled state of the instruction cache.
+ *
+ * @retval 1 If the i-cache is enabled.
+ * @retval 0 If the i-cache is disabled.
+ * @retval -ENOTSUP If runtime state query is not supported.
+ */
+static ALWAYS_INLINE int sys_cache_instr_is_enabled(void)
+{
+#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_ICACHE) && defined(CONFIG_ICACHE_STATE_QUERY)
+	return cache_instr_is_enabled();
+#endif
+	return -ENOTSUP;
 }
 
 /**

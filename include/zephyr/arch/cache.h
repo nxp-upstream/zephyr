@@ -47,6 +47,23 @@ void arch_dcache_disable(void);
 
 #define cache_data_disable arch_dcache_disable
 
+#if defined(CONFIG_DCACHE_STATE_QUERY) || defined(__DOXYGEN__)
+
+/**
+ * @brief Query whether the d-cache is enabled
+ *
+ * Report the current runtime enabled state of the data cache.
+ *
+ * @retval 1 If the d-cache is enabled.
+ * @retval 0 If the d-cache is disabled.
+ * @retval -ENOTSUP If runtime state query is not supported.
+ */
+int arch_dcache_is_enabled(void);
+
+#define cache_data_is_enabled arch_dcache_is_enabled
+
+#endif /* CONFIG_DCACHE_STATE_QUERY || __DOXYGEN__ */
+
 /**
  * @brief Flush the d-cache
  *
@@ -201,6 +218,23 @@ void arch_icache_enable(void);
 void arch_icache_disable(void);
 
 #define cache_instr_disable arch_icache_disable
+
+#if defined(CONFIG_ICACHE_STATE_QUERY) || defined(__DOXYGEN__)
+
+/**
+ * @brief Query whether the i-cache is enabled
+ *
+ * Report the current runtime enabled state of the instruction cache.
+ *
+ * @retval 1 If the i-cache is enabled.
+ * @retval 0 If the i-cache is disabled.
+ * @retval -ENOTSUP If runtime state query is not supported.
+ */
+int arch_icache_is_enabled(void);
+
+#define cache_instr_is_enabled arch_icache_is_enabled
+
+#endif /* CONFIG_ICACHE_STATE_QUERY || __DOXYGEN__ */
 
 /**
  * @brief Flush the i-cache

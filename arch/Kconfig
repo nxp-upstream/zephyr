@@ -1160,6 +1160,12 @@ config DCACHE_LINE_SIZE
 
 	  Detect automatically at runtime by selecting DCACHE_LINE_SIZE_DETECT.
 
+config DCACHE_STATE_QUERY
+	bool
+	help
+	  Internal option indicating that runtime data-cache state query support
+	  is available through sys_cache_data_is_enabled().
+
 endif # DCACHE
 
 if ICACHE
@@ -1185,6 +1191,12 @@ config ICACHE_LINE_SIZE
 	  Size in bytes of a CPU i-cache line.
 
 	  Detect automatically at runtime by selecting ICACHE_LINE_SIZE_DETECT.
+
+config ICACHE_STATE_QUERY
+	bool
+	help
+	  Internal option indicating that runtime instruction-cache state query
+	  support is available through sys_cache_instr_is_enabled().
 
 endif # ICACHE
 

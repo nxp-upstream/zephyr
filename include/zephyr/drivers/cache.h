@@ -42,6 +42,20 @@ void cache_data_enable(void);
  */
 void cache_data_disable(void);
 
+#if defined(CONFIG_DCACHE_STATE_QUERY) || defined(__DOXYGEN__)
+/**
+ * @brief Query whether the d-cache is enabled
+ *
+ * Report the current runtime enabled state of the data cache.
+ *
+ * @retval 1 If the d-cache is enabled.
+ * @retval 0 If the d-cache is disabled.
+ * @retval -ENOTSUP If runtime state query is not supported.
+ */
+int cache_data_is_enabled(void);
+
+#endif /* CONFIG_DCACHE_STATE_QUERY || __DOXYGEN__ */
+
 /**
  * @brief Flush the d-cache
  *
@@ -175,6 +189,20 @@ void cache_instr_enable(void);
  * Disable the instruction cache.
  */
 void cache_instr_disable(void);
+
+#if defined(CONFIG_ICACHE_STATE_QUERY) || defined(__DOXYGEN__)
+/**
+ * @brief Query whether the i-cache is enabled
+ *
+ * Report the current runtime enabled state of the instruction cache.
+ *
+ * @retval 1 If the i-cache is enabled.
+ * @retval 0 If the i-cache is disabled.
+ * @retval -ENOTSUP If runtime state query is not supported.
+ */
+int cache_instr_is_enabled(void);
+
+#endif /* CONFIG_ICACHE_STATE_QUERY || __DOXYGEN__ */
 
 /**
  * @brief Flush the i-cache

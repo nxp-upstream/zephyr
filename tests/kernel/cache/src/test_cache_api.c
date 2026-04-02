@@ -11,6 +11,11 @@
 
 static ZTEST_BMEM uint8_t user_buffer[SIZE];
 
+static void assert_cache_query_result(int ret)
+{
+	zassert_true((ret == 0) || (ret == 1) || (ret == -ENOTSUP));
+}
+
 ZTEST(cache_api, test_instr_cache_api)
 {
 	int ret;
@@ -44,6 +49,24 @@ ZTEST(cache_api, test_instr_cache_api)
 	zassert_true((ret == 0) || (ret == -ENOTSUP));
 }
 
+ZTEST(cache_api, test_instr_cache_state_query_api)
+{
+	int ret;
+
+	ret = sys_cache_instr_is_enabled();
+	assert_cache_query_result(ret);
+
+	if (ret == -ENOTSUP) {
+		return;
+	}
+
+	sys_cache_instr_disable();
+	zassert_equal(sys_cache_instr_is_enabled(), 0);
+
+	sys_cache_instr_enable();
+	zassert_equal(sys_cache_instr_is_enabled(), 1);
+}
+
 ZTEST(cache_api, test_data_cache_api)
 {
 	int ret;
@@ -63,6 +86,24 @@ ZTEST(cache_api, test_data_cache_api)
 	ret = sys_cache_data_flush_and_invd_range(user_buffer, SIZE);
 	zassert_true((ret == 0) || (ret == -ENOTSUP));
 
+}
+
+ZTEST(cache_api, test_data_cache_state_query_api)
+{
+	int ret;
+
+	ret = sys_cache_data_is_enabled();
+	assert_cache_query_result(ret);
+
+	if (ret == -ENOTSUP) {
+		return;
+	}
+
+	sys_cache_data_disable();
+	zassert_equal(sys_cache_data_is_enabled(), 0);
+
+	sys_cache_data_enable();
+	zassert_equal(sys_cache_data_is_enabled(), 1);
 }
 
 ZTEST_USER(cache_api, test_data_cache_api_user)

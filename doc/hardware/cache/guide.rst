@@ -55,6 +55,27 @@ Requirements:
 
 * Call :c:func:`sys_cache_data_disable()` to globally disable the data cache.
 
+Querying Cache State
+--------------------
+
+Some applications and subsystems need to know whether a cache is currently
+enabled before deciding whether to apply cache-specific logic.
+
+Requirements:
+
+* :kconfig:option:`CONFIG_CACHE_MANAGEMENT`: cache API enabled.
+
+* Call :c:func:`sys_cache_data_is_enabled()` to query the runtime data-cache
+  state.
+
+* Call :c:func:`sys_cache_instr_is_enabled()` to query the runtime
+  instruction-cache state.
+
+These APIs return ``1`` when the cache is enabled, ``0`` when it is disabled,
+and ``-ENOTSUP`` when the active cache backend does not implement runtime state
+query. This keeps the API backward compatible with existing cache backends that
+do not yet provide runtime state reporting.
+
 Disabling Caching for a Memory Region
 -------------------------------------
 
