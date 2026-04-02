@@ -27,17 +27,14 @@ examples:
   - |
     #include <zephyr/dt-bindings/gpio/gpio.h>
 
-    /* Example of storing the firmware in a fixed flash partition */
-    &flash0 {
-        partitions {
-            compatible = "fixed-partitions";
-            #address-cells = <1>;
-            #size-cells = <1>;
+    reserved-memory {
+        #address-cells = <1>;
+        #size-cells = <1>;
+        ranges;
 
-            ap1302_fw_part: partition@100000 {
-                label = "ap1302_fw";
-                reg = <0x00100000 0x00040000>;
-            };
+        ap1302_fw_part: ap1302-fw@87000000 {
+                reg = <0x87000000 0x00040000>;
+                status = "okay";
         };
     };
 
@@ -50,14 +47,6 @@ examples:
         power-supplies = <&vddio &vdda>;
         mipi-data-lanes = <2>;
         firmware-partition = <&ap1302_fw_part>;
-
-        port {
-            ap1302_ep_out: endpoint {
-                remote-endpoint-label = "csi2rx_ep_in";
-                bus-type = <4>; /* MIPI CSI-2 D-PHY */
-                data-lanes = <1 2>;
-            };
-        };
     };
 
 properties:
@@ -95,7 +84,6 @@ properties:
     type: int
     required: true
     description: Number of MIPI CSI-2 data lanes (1-4)
-
 
   clocks:
     type: phandle-array

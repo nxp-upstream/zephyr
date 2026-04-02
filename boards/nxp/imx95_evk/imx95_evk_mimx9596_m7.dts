@@ -18,7 +18,6 @@
 		#size-cells = <1>;
 		ranges;
 
-		/* AP1302 firmware blob preloaded in DDR by the bootloader */
 		ap1302_fw_ddr: ap1302-fw@87000000 {
 			reg = <0x87000000 0x00040000>;
 			status = "okay";

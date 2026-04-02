@@ -31,4 +31,11 @@ config VIDEO_AP1302_INIT_PRIORITY
 	help
 	  Initialization priority for AP1302 driver.
 
+config VIDEO_AP1302_BUILTIN_FIRMWARE
+	bool "Embed AP1302 firmware binary into the Zephyr image"
+	default n
+	help
+	  If enabled, the AP1302 firmware binary is embedded into the final Zephyr
+	  image at build time and loaded from memory at runtime.
+
 endif # VIDEO_AP1302

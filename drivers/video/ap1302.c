@@ -16,6 +16,11 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
+#if CONFIG_VIDEO_AP1302_BUILTIN_FIRMWARE
+extern const uint8_t _binary_ap1302_fw_bin_start[];
+extern const uint8_t _binary_ap1302_fw_bin_end[];
+#endif
+
 #include <zephyr/drivers/regulator.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/util.h>
@@ -317,6 +322,24 @@ static int ap1302_load_firmware(const struct device *dev)
 	uint16_t checksum;
 	int ret;
 
+#if defined(CONFIG_VIDEO_AP1302_BUILTIN_FIRMWARE)
+	size_t fw_blob_size = (size_t)(_binary_ap1302_fw_bin_end - _binary_ap1302_fw_bin_start);
+
+	if (fw_blob_size < sizeof(*fw_hdr)) {
+		LOG_ERR("Built-in firmware blob too small: %zu", fw_blob_size);
+		return -EINVAL;
+	}
+
+	fw_hdr = (const struct ap1302_firmware_header *)_binary_ap1302_fw_bin_start;
+	fw_data = _binary_ap1302_fw_bin_start + sizeof(*fw_hdr);
+	fw_size = fw_hdr->total_size;
+
+	if ((sizeof(*fw_hdr) + (size_t)fw_size) > fw_blob_size) {
+		LOG_ERR("Built-in firmware size %zu exceeds blob size %zu",
+				sizeof(*fw_hdr) + (size_t)fw_size, fw_blob_size);
+		return -EINVAL;
+	}
+#else
 	if (cfg->firmware_partition_addr == 0U) {
 		LOG_ERR("No firmware-partition provided");
 		return -EINVAL;
@@ -326,33 +349,12 @@ static int ap1302_load_firmware(const struct device *dev)
 
 	fw_data = (const uint8_t *)&fw_hdr[1];
 	fw_size = fw_hdr->total_size;
+#endif
 
 	if ((fw_size == 0U) || (fw_hdr->pll_init_size > fw_size)) {
 		LOG_ERR("Invalid firmware header: pll_init_size %u total_size %u",
 			fw_hdr->pll_init_size, fw_size);
 		return -EINVAL;
-	}
-
-	if (cfg->firmware_partition_size != 0U) {
-		size_t required_size = sizeof(*fw_hdr) + (size_t)fw_size;
-
-		if (required_size < sizeof(*fw_hdr)) {
-			LOG_ERR("Firmware size overflow");
-			return -EINVAL;
-		}
-
-		if (required_size > cfg->firmware_partition_size) {
-			LOG_ERR("Firmware size %zu exceeds partition size %zu",
-				required_size, cfg->firmware_partition_size);
-			return -EINVAL;
-		}
-
-		if ((sizeof(*fw_hdr) + (size_t)fw_hdr->pll_init_size) >
-				cfg->firmware_partition_size) {
-			LOG_ERR("PLL init size %u exceeds partition size %zu",
-				fw_hdr->pll_init_size, cfg->firmware_partition_size);
-			return -EINVAL;
-		}
 	}
 
 	LOG_INF("Loading firmware: PLL init size %u, total size %u",
@@ -714,13 +716,8 @@ static DEVICE_API(video, ap1302_driver_api) = {
 	.get_frmival = ap1302_get_frmival,
 };
 
-int p = 1;
 static int ap1302_init(const struct device *dev)
 {
-	while (p == 1)
-	{
-		;
-	}
 	const struct ap1302_config *cfg = dev->config;
 	struct ap1302_data *data = dev->data;
 	int ret;
