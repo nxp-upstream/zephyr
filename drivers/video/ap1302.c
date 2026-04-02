@@ -31,17 +31,20 @@ extern const uint8_t _binary_ap1302_fw_bin_end[];
 
 LOG_MODULE_REGISTER(ap1302, CONFIG_VIDEO_LOG_LEVEL);
 
+#define AP1302_REG16(addr) ((addr) | VIDEO_REG_ADDR16_DATA16_BE)
+
 /* AP1302 Register Definitions */
-#define AP1302_CHIP_VERSION			0x0000
+
 #define AP1302_CHIP_ID				0x0265
-#define AP1302_CHIP_REV				0x0050
+#define AP1302_CHIP_VERSION			AP1302_REG16(0x0000)
+#define AP1302_CHIP_REV				AP1302_REG16(0x0050)
 
 /* Preview Context Registers */
-#define AP1302_PREVIEW_WIDTH			0x2000
-#define AP1302_PREVIEW_HEIGHT			0x2002
-#define AP1302_PREVIEW_MAX_FPS			0x2020
-#define AP1302_PREVIEW_OUT_FMT			0x2012
-#define AP1302_PREVIEW_HINF_CTRL		0x2030
+#define AP1302_PREVIEW_WIDTH			AP1302_REG16(0x2000)
+#define AP1302_PREVIEW_HEIGHT			AP1302_REG16(0x2002)
+#define AP1302_PREVIEW_MAX_FPS			AP1302_REG16(0x2020)
+#define AP1302_PREVIEW_OUT_FMT			AP1302_REG16(0x2012)
+#define AP1302_PREVIEW_HINF_CTRL		AP1302_REG16(0x2030)
 
 #define AP1302_FPS_Q8_8(fps) ((uint16_t)((fps) << 8))
 
@@ -50,17 +53,17 @@ LOG_MODULE_REGISTER(ap1302, CONFIG_VIDEO_LOG_LEVEL);
 #define AP1302_PREVIEW_HINF_CTRL_SPOOF		BIT(4)
 #define AP1302_PREVIEW_HINF_CTRL_MIPI_LANES(n)	((n) << 0)
 
-#define AP1302_BOOTDATA_STAGE			0x6002
-#define AP1302_SYS_START			0x601A
-#define AP1302_BOOTDATA_CHECKSUM		0x6134
+#define AP1302_BOOTDATA_STAGE			AP1302_REG16(0x6002)
+#define AP1302_SYS_START			AP1302_REG16(0x601A)
+#define AP1302_BOOTDATA_CHECKSUM		AP1302_REG16(0x6134)
 
 #define AP1302_SYS_START_PLL_LOCK		BIT(15)
 #define AP1302_SYS_START_STALL_STATUS		BIT(9)
 #define AP1302_SYS_START_STALL_EN		BIT(8)
 #define AP1302_SYS_START_STALL_MODE_DISABLED	(1U << 6)
 
-#define AP1302_SIP_CRC				0xF052
-#define AP1302_HINF_MIPI_FREQ			0x0068
+#define AP1302_SIP_CRC				AP1302_REG16(0xF052)
+#define AP1302_HINF_MIPI_FREQ			AP1302_REG16(0x0068)
 
 /* Firmware load window */
 #define AP1302_FW_WINDOW_OFFSET			0x8000
@@ -149,35 +152,6 @@ static const struct ap1302_format_info *ap1302_find_format(uint32_t pixelformat)
 	}
 
 	return NULL;
-}
-
-/* Register access functions */
-#define AP1302_REG16_WORD(addr) ((uint32_t)(addr) | VIDEO_REG_ADDR16_DATA16_BE	\
-		| VIDEO_REG_NO_ADDR_INC)
-#define AP1302_REG32_WORD(addr) ((uint32_t)(addr) | VIDEO_REG_ADDR16_DATA32_BE	\
-		| VIDEO_REG_NO_ADDR_INC)
-
-static int ap1302_write_reg16(const struct device *dev, uint16_t reg, uint16_t val)
-{
-	const struct ap1302_config *cfg = dev->config;
-
-	return video_write_cci_reg(&cfg->i2c, AP1302_REG16_WORD(reg), val);
-}
-
-static int ap1302_read_reg16(const struct device *dev, uint16_t reg, uint16_t *val)
-{
-	const struct ap1302_config *cfg = dev->config;
-	uint32_t tmp;
-	int ret;
-
-	ret = video_read_cci_reg(&cfg->i2c, AP1302_REG16_WORD(reg), &tmp);
-	if (ret < 0) {
-		return ret;
-	}
-
-	*val = (uint16_t)tmp;
-
-	return 0;
 }
 
 static int ap1302_power_on(const struct device *dev)
@@ -319,7 +293,7 @@ static int ap1302_load_firmware(const struct device *dev)
 	const uint8_t *fw_data;
 	uint32_t fw_size;
 	unsigned int win_pos = 0;
-	uint16_t checksum;
+	uint32_t checksum;
 	int ret;
 
 #if defined(CONFIG_VIDEO_AP1302_BUILTIN_FIRMWARE)
@@ -360,7 +334,7 @@ static int ap1302_load_firmware(const struct device *dev)
 	LOG_INF("Loading firmware: PLL init size %u, total size %u",
 		fw_hdr->pll_init_size, fw_size);
 
-	ret = ap1302_write_reg16(dev, AP1302_SIP_CRC, 0xFFFF);
+	ret = video_write_cci_reg(&cfg->i2c, AP1302_SIP_CRC, 0xFFFF);
 	if (ret < 0) {
 		return ret;
 	}
@@ -372,7 +346,8 @@ static int ap1302_load_firmware(const struct device *dev)
 	}
 
 	/* Set bootdata stage to apply PLL settings */
-	ret = ap1302_write_reg16(dev, AP1302_BOOTDATA_STAGE, 0x0002);
+	ret = video_write_cci_reg(&cfg->i2c, AP1302_BOOTDATA_STAGE, 0x0002);
+
 	if (ret < 0) {
 		return ret;
 	}
@@ -389,14 +364,14 @@ static int ap1302_load_firmware(const struct device *dev)
 	k_msleep(40);
 
 	/* Finalize firmware load */
-	ret = ap1302_write_reg16(dev, AP1302_BOOTDATA_STAGE, 0xFFFF);
+	ret = video_write_cci_reg(&cfg->i2c, AP1302_BOOTDATA_STAGE, 0xFFFF);
 	if (ret < 0) {
 		return ret;
 	}
 
 	k_msleep(10);
 
-	ret = ap1302_read_reg16(dev, AP1302_BOOTDATA_CHECKSUM, &checksum);
+	ret = video_read_cci_reg(&cfg->i2c, AP1302_BOOTDATA_CHECKSUM, &checksum);
 	if (ret < 0) {
 		return ret;
 	}
@@ -406,11 +381,12 @@ static int ap1302_load_firmware(const struct device *dev)
 
 static int ap1302_detect_chip(const struct device *dev)
 {
-	uint16_t chip_version;
-	uint16_t chip_rev;
+	const struct ap1302_config *cfg = dev->config;
+	uint32_t chip_version;
+	uint32_t chip_rev;
 	int ret;
 
-	ret = ap1302_read_reg16(dev, AP1302_CHIP_VERSION, &chip_version);
+	ret = video_read_cci_reg(&cfg->i2c, AP1302_CHIP_VERSION, &chip_version);
 	if (ret < 0) {
 		LOG_ERR("Failed to read chip version: %d", ret);
 		return ret;
@@ -422,7 +398,7 @@ static int ap1302_detect_chip(const struct device *dev)
 		return -ENODEV;
 	}
 
-	ret = ap1302_read_reg16(dev, AP1302_CHIP_REV, &chip_rev);
+	ret = video_read_cci_reg(&cfg->i2c, AP1302_CHIP_REV, &chip_rev);
 	if (ret < 0) {
 		LOG_ERR("Failed to read chip revision: %d", ret);
 		return ret;
@@ -456,10 +432,11 @@ static void ap1302_sanitize_format(struct video_format *fmt)
 
 static int ap1302_program_max_fps(const struct device *dev, uint32_t fps)
 {
+	const struct ap1302_config *cfg = dev->config;
 	uint16_t v = AP1302_FPS_Q8_8(fps);
 	int ret;
 
-	ret = ap1302_write_reg16(dev, AP1302_PREVIEW_MAX_FPS, v);
+	ret = video_write_cci_reg(&cfg->i2c, AP1302_PREVIEW_MAX_FPS, v);
 	if (ret < 0) {
 		return ret;
 	}
@@ -479,22 +456,22 @@ static int ap1302_configure(const struct device *dev)
 	hinf_ctrl = AP1302_PREVIEW_HINF_CTRL_SPOOF |
 			AP1302_PREVIEW_HINF_CTRL_MIPI_LANES(cfg->mipi_data_lanes);
 
-	ret = ap1302_write_reg16(dev, AP1302_PREVIEW_HINF_CTRL, hinf_ctrl);
+	ret = video_write_cci_reg(&cfg->i2c, AP1302_PREVIEW_HINF_CTRL, hinf_ctrl);
 	if (ret < 0) {
 		return ret;
 	}
 
-	ret = ap1302_write_reg16(dev, AP1302_PREVIEW_OUT_FMT, info->out_fmt);
+	ret = video_write_cci_reg(&cfg->i2c, AP1302_PREVIEW_OUT_FMT, info->out_fmt);
 	if (ret < 0) {
 		return ret;
 	}
 
-	ret = ap1302_write_reg16(dev, AP1302_PREVIEW_WIDTH, (uint16_t)fmt->width);
+	ret = video_write_cci_reg(&cfg->i2c, AP1302_PREVIEW_WIDTH, (uint16_t)fmt->width);
 	if (ret < 0) {
 		return ret;
 	}
 
-	ret = ap1302_write_reg16(dev, AP1302_PREVIEW_HEIGHT, (uint16_t)fmt->height);
+	ret = video_write_cci_reg(&cfg->i2c, AP1302_PREVIEW_HEIGHT, (uint16_t)fmt->height);
 	if (ret < 0) {
 		LOG_ERR("Failed to configure preview format: %d", ret);
 		return ret;
@@ -505,17 +482,18 @@ static int ap1302_configure(const struct device *dev)
 
 static int ap1302_stall(const struct device *dev, bool stall)
 {
+	const struct ap1302_config *cfg = dev->config;
 	int ret;
 
 	if (stall) {
-		ret = ap1302_write_reg16(dev, AP1302_SYS_START,
+		ret = video_write_cci_reg(&cfg->i2c, AP1302_SYS_START,
 					 AP1302_SYS_START_PLL_LOCK |
 					 AP1302_SYS_START_STALL_MODE_DISABLED);
 		if (ret < 0) {
 			return ret;
 		}
 
-		ret = ap1302_write_reg16(dev, AP1302_SYS_START,
+		ret = video_write_cci_reg(&cfg->i2c, AP1302_SYS_START,
 					 AP1302_SYS_START_PLL_LOCK |
 					 AP1302_SYS_START_STALL_EN |
 					 AP1302_SYS_START_STALL_MODE_DISABLED);
@@ -525,7 +503,7 @@ static int ap1302_stall(const struct device *dev, bool stall)
 
 		k_msleep(200);
 	} else {
-		ret = ap1302_write_reg16(dev, AP1302_SYS_START,
+		ret = video_write_cci_reg(&cfg->i2c, AP1302_SYS_START,
 					 AP1302_SYS_START_PLL_LOCK |
 					 AP1302_SYS_START_STALL_STATUS |
 					 AP1302_SYS_START_STALL_EN |
@@ -716,8 +694,13 @@ static DEVICE_API(video, ap1302_driver_api) = {
 	.get_frmival = ap1302_get_frmival,
 };
 
+int p = 1;
 static int ap1302_init(const struct device *dev)
 {
+	while (p == 1)
+	{
+		;
+	}
 	const struct ap1302_config *cfg = dev->config;
 	struct ap1302_data *data = dev->data;
 	int ret;
