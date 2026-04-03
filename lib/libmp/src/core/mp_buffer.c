@@ -4,9 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <errno.h>
+
 #include "mp_buffer.h"
 
-static void mp_buffer_destroy(struct net_buf *buf)
+NET_BUF_POOL_FIXED_DEFINE(mp_buf_pool, CONFIG_MP_NET_BUF_POOL_COUNT, 1,
+			  sizeof(struct mp_buffer_meta), mp_buffer_destroy);
+
+void mp_buffer_destroy(struct net_buf *buf)
 {
 	struct mp_buffer_meta *bm;
 
@@ -22,8 +27,66 @@ static void mp_buffer_destroy(struct net_buf *buf)
 	net_buf_destroy(buf);
 }
 
-NET_BUF_POOL_FIXED_DEFINE(mp_buf_pool, CONFIG_MP_BUF_POOL_NUM_BUFS, 1,
-			  sizeof(struct mp_buffer_meta), mp_buffer_destroy);
+int mp_buffer_pool_configure(struct mp_buffer_pool *pool, struct mp_structure *config)
+{
+	if (pool == NULL) {
+		return -EINVAL;
+	}
+
+	if (pool->configure == NULL) {
+		return -ENOSYS;
+	}
+
+	return pool->configure(pool, NULL);
+}
+
+int mp_buffer_pool_start(struct mp_buffer_pool *pool)
+{
+	int ret;
+
+	if (pool == NULL) {
+		return -EINVAL;
+	}
+
+	if (pool->started) {
+		return 0;
+	}
+
+	if (pool->start == NULL) {
+		return -ENOSYS;
+	}
+
+	ret = pool->start(pool);
+	if (ret == 0) {
+		pool->started = true;
+	}
+
+	return ret;
+}
+
+int mp_buffer_pool_stop(struct mp_buffer_pool *pool)
+{
+	int ret;
+
+	if (pool == NULL) {
+		return -EINVAL;
+	}
+
+	if (!pool->started) {
+		return 0;
+	}
+
+	if (pool->stop == NULL) {
+		return -ENOSYS;
+	}
+
+	ret = pool->stop(pool);
+	if (ret == 0) {
+		pool->started = false;
+	}
+
+	return ret;
+}
 
 void mp_buffer_pool_init(struct mp_buffer_pool *pool)
 {
@@ -32,4 +95,5 @@ void mp_buffer_pool_init(struct mp_buffer_pool *pool)
 	}
 
 	pool->nb_pool = &mp_buf_pool;
+	pool->started = false;
 }

@@ -15,7 +15,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <zephyr/net_buf.h>
 #include <zephyr/sys/util.h>
 
 #include "mp_buffer.h"

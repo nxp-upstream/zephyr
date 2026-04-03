@@ -6,6 +6,7 @@
 
 #include <zephyr/logging/log.h>
 
+#include "mp_buffer.h"
 #include "mp_pad.h"
 #include "mp_property.h"
 #include "mp_src.h"
@@ -130,6 +131,7 @@ static enum mp_state_change_return mp_src_change_state(struct mp_element *self,
 {
 	struct mp_src *src = MP_SRC(self);
 	enum mp_state_change_return ret = MP_STATE_CHANGE_SUCCESS;
+	int pool_ret;
 
 	switch (transition) {
 	case MP_STATE_CHANGE_READY_TO_PAUSED:
@@ -141,20 +143,16 @@ static enum mp_state_change_return mp_src_change_state(struct mp_element *self,
 			}
 
 			/* Config buffer pool */
-			if (src->srcpad.caps == NULL) {
-				LOG_ERR("No source pad caps to configure buffer pool");
-				return MP_STATE_CHANGE_FAILURE;
-			}
-
-			if (src->pool->configure != NULL &&
-			    src->pool->configure(src->pool,
-						 mp_caps_get_structure(src->srcpad.caps, 0)) != 0) {
+			pool_ret = mp_buffer_pool_configure(
+				src->pool, mp_caps_get_structure(src->srcpad.caps, 0));
+			if (pool_ret != 0 && pool_ret != -ENOSYS) {
 				LOG_ERR("Failed to configure source buffer pool");
 				return MP_STATE_CHANGE_FAILURE;
 			}
 
 			/* Start buffer pool */
-			if (src->pool->start != NULL && src->pool->start(src->pool) != 0) {
+			pool_ret = mp_buffer_pool_start(src->pool);
+			if (pool_ret != 0 && pool_ret != -ENOSYS) {
 				LOG_ERR("Failed to start source buffer pool");
 				return MP_STATE_CHANGE_FAILURE;
 			}

@@ -177,22 +177,17 @@ static bool mp_transform_query(struct mp_pad *pad, struct mp_query *query)
 		}
 
 		if (self->mode == MP_MODE_NORMAL) {
-			if (self->outpool == NULL) {
-				return false;
-			}
-
 			/* Configure the output buffer pool with negotiated configs */
-			if (self->outpool->configure != NULL &&
-			    self->outpool->configure(self->outpool,
-						     mp_caps_get_structure(self->srcpad.caps, 0)) !=
-				    0) {
+			ret = mp_buffer_pool_configure(self->outpool,
+						       mp_caps_get_structure(self->srcpad.caps, 0));
+			if (ret != 0 && ret != -ENOSYS) {
 				LOG_ERR("Failed to configure output transform buffer pool");
 				return false;
 			}
 
 			/* Start the output buffer pool */
-			if (self->outpool->start != NULL &&
-			    self->outpool->start(self->outpool) != 0) {
+			ret = mp_buffer_pool_start(self->outpool);
+			if (ret != 0 && ret != -ENOSYS) {
 				LOG_ERR("Failed to start output transform buffer pool");
 				return false;
 			}
