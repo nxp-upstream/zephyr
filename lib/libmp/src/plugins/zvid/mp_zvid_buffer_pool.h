@@ -34,9 +34,9 @@ struct mp_zvid_buffer_pool {
 	struct mp_buffer_pool pool;
 	/** Associated video object */
 	struct mp_zvid_object *zvid_obj;
-	/** Array of video buffer pointers managed by the pool */
-	struct video_buffer **vbufs;
-	/** Number of video buffers in the pool */
+	/** Array of maximum video buffer pointers managed by the pool */
+	struct video_buffer *vbufs[CONFIG_VIDEO_BUFFER_POOL_NUM_MAX];
+	/** Number of actual video buffers in this pool */
 	uint8_t vbuf_count;
 };
 
