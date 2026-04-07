@@ -42,6 +42,20 @@ LOG_MODULE_REGISTER(soc, CONFIG_SOC_LOG_LEVEL);
 #include <cmsis_core.h>
 
 #define DUAL_CORE_MU_ENABLED (CONFIG_SECOND_CORE_MCUX && CONFIG_IPM && CONFIG_IPM_IMX)
+#define ARM_PLL_NODE           DT_NODELABEL(arm_pll)
+#define ARM_PLL_HAS_LOOP_DIV   DT_NODE_HAS_PROP(ARM_PLL_NODE, loop_div)
+#define ARM_PLL_HAS_POST_DIV   DT_NODE_HAS_PROP(ARM_PLL_NODE, post_div)
+#define ARM_PLL_HAS_CLOCK_DIV  DT_NODE_HAS_PROP(ARM_PLL_NODE, clock_div)
+#define ARM_PLL_HAS_CLOCK_MULT DT_NODE_HAS_PROP(ARM_PLL_NODE, clock_mult)
+
+/* Legacy properties take precedence so existing overlays still override SoC defaults. */
+#if DT_NODE_HAS_PROP(ARM_PLL_NODE, clock_mult)
+#define ARM_PLL_LOOP_DIV (DT_PROP_OR(ARM_PLL_NODE, clock_mult, 52) * 2)
+#define ARM_PLL_POST_DIV DT_PROP_OR(ARM_PLL_NODE, clock_div, 1)
+#else
+#define ARM_PLL_LOOP_DIV DT_PROP_OR(ARM_PLL_NODE, loop_div, 104)
+#define ARM_PLL_POST_DIV DT_PROP_OR(ARM_PLL_NODE, post_div, 1)
+#endif
 
 #if DUAL_CORE_MU_ENABLED
 /* Dual core mode is enabled, and messaging unit is present */
@@ -201,9 +215,21 @@ __weak void clock_init(void)
 	 * changed in the following PLL/PFD configuration code.
 	 */
 
+	BUILD_ASSERT(ARM_PLL_HAS_LOOP_DIV == ARM_PLL_HAS_POST_DIV,
+		     "ARM PLL loop-div and post-div must be configured together");
+	BUILD_ASSERT(ARM_PLL_HAS_CLOCK_MULT == ARM_PLL_HAS_CLOCK_DIV,
+		     "ARM PLL clock-mult and clock-div must be configured together");
+	BUILD_ASSERT(ARM_PLL_HAS_LOOP_DIV || ARM_PLL_HAS_CLOCK_MULT,
+		     "ARM PLL requires loop-div/post-div or deprecated clock-mult/clock-div");
+	BUILD_ASSERT((ARM_PLL_POST_DIV == 1) || (ARM_PLL_POST_DIV == 2) ||
+		     (ARM_PLL_POST_DIV == 4) || (ARM_PLL_POST_DIV == 8),
+		     "ARM PLL post divider must be 1, 2, 4, or 8");
+	BUILD_ASSERT(ARM_PLL_LOOP_DIV >= 104 && ARM_PLL_LOOP_DIV <= 208,
+		     "ARM PLL loop divider must be in range 104-208");
+
 	static const clock_arm_pll_config_t armPllConfig = {
-		.postDivider = CONCAT(kCLOCK_PllPostDiv, DT_PROP(DT_NODELABEL(arm_pll), clock_div)),
-		.loopDivider = DT_PROP(DT_NODELABEL(arm_pll), clock_mult) * 2,
+		.postDivider = CONCAT(kCLOCK_PllPostDiv, ARM_PLL_POST_DIV),
+		.loopDivider = ARM_PLL_LOOP_DIV,
 	};
 
 	if (IS_ENABLED(CONFIG_INIT_ARM_PLL)) {
