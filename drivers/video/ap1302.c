@@ -25,6 +25,7 @@ extern const uint8_t _binary_ap1302_fw_bin_end[];
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/util.h>
 
+#include "ap1302_dt.h"
 #include "video_common.h"
 #include "video_ctrls.h"
 #include "video_device.h"
@@ -843,7 +844,7 @@ PINCTRL_DT_INST_DEFINE(0);
 		.clock_subsys = (clock_control_subsys_t)DT_INST_CLOCKS_CELL_BY_IDX(n, 0, name), \
 		.pincfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),					\
 		AP1302_CONFIG_POWER_SUPPLIES(n)							\
-		.mipi_data_lanes = DT_INST_PROP(n, mipi_data_lanes),				\
+		.mipi_data_lanes = AP1302_DT_NUM_LANES(n),					\
 	};											\
 	static struct ap1302_data ap1302_data_##n;						\
 	DEVICE_DT_INST_DEFINE(n,								\

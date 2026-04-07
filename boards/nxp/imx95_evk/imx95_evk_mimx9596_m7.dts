@@ -187,8 +187,15 @@
 		pinctrl-0 = <&cmmclk1_default>;
 		pinctrl-names = "default";
 		firmware-partition = <&ap1302_fw_ddr>;
-		mipi-data-lanes = <4>;
 		status = "okay";
+
+		port {
+			ap1302_ep_out: endpoint {
+				remote-endpoint-label = "csi2rx_ep_in";
+				bus-type = <4>; /* MIPI CSI-2 D-PHY */
+				data-lanes = <1 2 3 4>;
+			};
+		};
 	};
 };
 

@@ -4,6 +4,12 @@
 description: |
   ONNN AP1302 Camera ISP.
 
+  This device is an upstream video subdevice (similar to a V4L2 subdevice in
+  Linux). It does not provide a capture queue itself; instead it is controlled
+  by the application and streams video to a downstream MIPI CSI-2 receiver.
+  The connection is described via port/endpoint nodes using
+  remote-endpoint-label.
+
   Note: This device requires a firmware binary blob provided by ON Semiconductor.
   The firmware is NOT distributed as part of Zephyr. Users must download it
   separately from https://github.com/ONSemiconductor/ap1302_binaries and ensure
@@ -14,14 +20,15 @@ compatible: "onnn,ap1302"
 include: [i2c-device.yaml, pinctrl-device.yaml]
 
 child-binding:
-  include: video-interfaces.yaml
+  child-binding:
+    include: video-interfaces.yaml
 
-  properties:
-    bus-type:
-      required: true
+    properties:
+      bus-type:
+        required: true
 
-    data-lanes:
-      required: true
+      data-lanes:
+        required: true
 
 examples:
   - |
@@ -45,8 +52,15 @@ examples:
         isp-en-gpios = <&gpio1 11 GPIO_ACTIVE_HIGH>;
         standby-gpios = <&gpio1 12 GPIO_ACTIVE_HIGH>;
         power-supplies = <&vddio &vdda>;
-        mipi-data-lanes = <2>;
         firmware-partition = <&ap1302_fw_part>;
+
+        port {
+            ap1302_ep_out: endpoint {
+                remote-endpoint-label = "csi2rx_ep_in";
+                bus-type = <4>; /* MIPI CSI-2 D-PHY */
+                data-lanes = <1 2>;
+            };
+        };
     };
 
 properties:
@@ -80,10 +94,6 @@ properties:
       This can point to a `fixed-partitions` partition node (flash storage) or a
       `reserved-memory` region (e.g. firmware preloaded in DDR).
 
-  mipi-data-lanes:
-    type: int
-    required: true
-    description: Number of MIPI CSI-2 data lanes (1-4)
 
   clocks:
     type: phandle-array

@@ -397,7 +397,7 @@ static int video_mcux_isi_get_caps(const struct device *dev, struct video_caps *
 
 	/* Also get capabilities from source device if available */
 	if (config->source_dev) {
-		struct video_caps source_caps;
+		struct video_caps source_caps = {0};
 
 		if (!video_get_caps(config->source_dev, &source_caps)) {
 			/* Use higher minimum buffer count if source requires more */
