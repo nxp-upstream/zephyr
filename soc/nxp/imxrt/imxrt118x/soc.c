@@ -163,11 +163,11 @@ const __imx_boot_container_section container boot_header = {
 #endif /* (defined(CONFIG_SECOND_CORE_MCUX) && defined(CONFIG_CPU_CORTEX_M33)) */
 
 #ifdef CONFIG_INIT_ARM_PLL
+#define ARM_PLL_NODE DT_NODELABEL(arm_pll)
+
 static const clock_arm_pll_config_t armPllConfig_BOARD_BootClockRUN = {
-	/* Post divider, 0 - DIV by 2, 1 - DIV by 4, 2 - DIV by 8, 3 - DIV by 1 */
-	.postDivider = kCLOCK_PllPostDiv2,
-	/* PLL Loop divider, Fout = Fin * ( loopDivider / ( 2 * postDivider ) ) */
-	.loopDivider = 132,
+	.postDivider = CONCAT(kCLOCK_PllPostDiv, DT_PROP(ARM_PLL_NODE, post_div)),
+	.loopDivider = DT_PROP(ARM_PLL_NODE, loop_div),
 };
 #endif
 
@@ -264,6 +264,10 @@ __weak void clock_init(void)
 	board_flexspi_clock_safe_config();
 
 #ifdef CONFIG_INIT_ARM_PLL
+	BUILD_ASSERT(DT_PROP(ARM_PLL_NODE, loop_div) >= 104 &&
+		     DT_PROP(ARM_PLL_NODE, loop_div) <= 208,
+		     "ARM PLL loop-div must be in range 104-208");
+
 	/* Init Arm Pll. */
 	CLOCK_InitArmPll(&armPllConfig_BOARD_BootClockRUN);
 #endif
