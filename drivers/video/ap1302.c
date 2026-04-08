@@ -17,8 +17,8 @@
 #include <zephyr/logging/log.h>
 
 #if CONFIG_VIDEO_AP1302_BUILTIN_FIRMWARE
-extern const uint8_t _binary_ap1302_fw_bin_start[];
-extern const uint8_t _binary_ap1302_fw_bin_end[];
+extern const uint8_t ap1302_fw_blob[];
+extern const size_t ap1302_fw_blob_len;
 #endif
 
 #include <zephyr/drivers/regulator.h>
@@ -298,15 +298,15 @@ static int ap1302_load_firmware(const struct device *dev)
 	int ret;
 
 #if defined(CONFIG_VIDEO_AP1302_BUILTIN_FIRMWARE)
-	size_t fw_blob_size = (size_t)(_binary_ap1302_fw_bin_end - _binary_ap1302_fw_bin_start);
+	size_t fw_blob_size = ap1302_fw_blob_len;
 
 	if (fw_blob_size < sizeof(*fw_hdr)) {
 		LOG_ERR("Built-in firmware blob too small: %zu", fw_blob_size);
 		return -EINVAL;
 	}
 
-	fw_hdr = (const struct ap1302_firmware_header *)_binary_ap1302_fw_bin_start;
-	fw_data = _binary_ap1302_fw_bin_start + sizeof(*fw_hdr);
+	fw_hdr = (const struct ap1302_firmware_header *)ap1302_fw_blob;
+	fw_data = ap1302_fw_blob + sizeof(*fw_hdr);
 	fw_size = fw_hdr->total_size;
 
 	if ((sizeof(*fw_hdr) + (size_t)fw_size) > fw_blob_size) {

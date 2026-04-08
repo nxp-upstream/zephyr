@@ -10,11 +10,9 @@ zephyr_library_sources(${CMAKE_CURRENT_LIST_DIR}/../ap1302.c)
 #   - Provide the blob path at build time:
 #       west build ... -- -DAP1302_FIRMWARE_FILE=/abs/path/to/ap1302_fw.bin
 #
-# Notes:
-# - The objcopy-generated _binary_* symbols are derived from the input filename.
-#   We copy the firmware into the build directory with a stable basename to keep
-#   symbols predictable:
-#     _binary_ap1302_fw_bin_start/_end
+# Implementation:
+#   The blob is converted to a generated .c file at build time, which avoids
+#   depending on objcopy or target-specific object formats.
 if(CONFIG_VIDEO_AP1302_BUILTIN_FIRMWARE)
   set(AP1302_FIRMWARE_FILE "" CACHE FILEPATH "Path to the AP1302 firmware binary blob")
 
@@ -30,29 +28,23 @@ if(CONFIG_VIDEO_AP1302_BUILTIN_FIRMWARE)
       "AP1302_FIRMWARE_FILE does not exist: ${AP1302_FIRMWARE_FILE}")
   endif()
 
-  # Keep the file name stable so the objcopy-generated symbols are predictable.
-  set(AP1302_FW_BIN "${CMAKE_CURRENT_BINARY_DIR}/ap1302_fw.bin")
-  set(AP1302_FW_OBJ "${CMAKE_CURRENT_BINARY_DIR}/ap1302_fw.o")
+  include(${ZEPHYR_BASE}/cmake/modules/python.cmake)
 
-  add_custom_target(ap1302_fw_bin ALL
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${AP1302_FIRMWARE_FILE} ${AP1302_FW_BIN}
-    BYPRODUCTS ${AP1302_FW_BIN}
-    DEPENDS ${AP1302_FIRMWARE_FILE}
+  set(AP1302_FW_C "${CMAKE_CURRENT_BINARY_DIR}/ap1302_fw.c")
+
+  add_custom_command(
+    OUTPUT ${AP1302_FW_C}
+    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/bin2c.py
+            --input ${AP1302_FIRMWARE_FILE}
+            --output ${AP1302_FW_C}
+            --symbol ap1302_fw_blob
+    DEPENDS ${AP1302_FIRMWARE_FILE} ${CMAKE_CURRENT_LIST_DIR}/bin2c.py
     VERBATIM
   )
 
-  # NOTE: objcopy generates the _binary_* symbols from the *input filename*.
-  # Use a stable basename by running in the build dir and passing a relative path.
-  add_custom_target(ap1302_fw_obj ALL
-    COMMAND ${CMAKE_OBJCOPY} -I binary -O elf32-littlearm -B arm ap1302_fw.bin ap1302_fw.o
-    BYPRODUCTS ${AP1302_FW_OBJ}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    DEPENDS ap1302_fw_bin
-    VERBATIM
-  )
+  # Ensure generation happens before compiling the library.
+  add_custom_target(ap1302_fw_c ALL DEPENDS ${AP1302_FW_C})
+  add_dependencies(drivers__video ap1302_fw_c)
 
-  # Ensure the firmware object is created before linking the library.
-  add_dependencies(drivers__video ap1302_fw_obj)
-
-  zephyr_library_sources(${AP1302_FW_OBJ})
+  zephyr_library_sources(${AP1302_FW_C})
 endif()
