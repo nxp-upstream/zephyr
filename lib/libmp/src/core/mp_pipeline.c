@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <errno.h>
 #include <stdio.h>
 
 #include <zephyr/logging/log.h>
@@ -63,10 +64,21 @@ static void mp_pipeline_thread(void *p1, void *p2, void *p3)
 	/* Main loop - in push mode, driven by source producing buffers */
 	while (pipeline->task.running) {
 		/* Get buffer from source element's pool */
-		if (src->pool->acquire_buffer != NULL &&
-		    src->pool->acquire_buffer(src->pool, &buffer) != 0) {
-			LOG_ERR("Failed to acquire buffer from source");
-			break;
+		if (src->pool->acquire_buffer != NULL) {
+			int ret = src->pool->acquire_buffer(src->pool, &buffer);
+
+			if (ret == -ENODATA) {
+				/* End of stream */
+				pipeline->task.running = false;
+				eos_message = mp_message_new(MP_MESSAGE_EOS, MP_OBJECT(src), NULL);
+				mp_bus_post(&bin->bus, eos_message);
+				break;
+			}
+
+			if (ret != 0) {
+				LOG_ERR("Failed to acquire buffer from source (%d)", ret);
+				break;
+			}
 		}
 
 		/* Process buffer through the pipeline by calling each element's chainfn */
