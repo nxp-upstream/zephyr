@@ -695,13 +695,8 @@ static DEVICE_API(video, ap1302_driver_api) = {
 	.get_frmival = ap1302_get_frmival,
 };
 
-int p = 1;
 static int ap1302_init(const struct device *dev)
 {
-	while (p == 1)
-	{
-		;
-	}
 	const struct ap1302_config *cfg = dev->config;
 	struct ap1302_data *data = dev->data;
 	int ret;
