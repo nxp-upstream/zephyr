@@ -98,6 +98,7 @@ static uint32_t rf_adjust_tstamp_from_app(uint32_t time);
 
 static void rf_rx_on_idle(uint32_t newValue);
 static void rf_set_rx_time_poll(uint32_t time_poll);
+static void set_rx_state(void);
 
 static uint8_t ot_phy_ctx = (uint8_t)(-1);
 static struct mcxw_context mcxw_ctx;
@@ -1240,7 +1241,7 @@ phyStatus_t pd_mac_sap_handler(void *msg, instanceId_t instance)
 
 		mcxw_ctx.tx_frame.length = 0;
 		mcxw_ctx.tx_status = 0;
-		mcxw_ctx.state = RADIO_STATE_RECEIVE;
+		set_rx_state();
 
 		mcxw_ctx.rx_ack_frame.channel = mcxw_ctx.channel;
 		mcxw_ctx.rx_ack_frame.length = data_msg->msgData.dataCnf.ackLength;
@@ -1324,7 +1325,7 @@ phyStatus_t plme_mac_sap_handler(void *msg, instanceId_t instance)
 		} else {
 			mcxw_ctx.tx_status = 0;
 		}
-		mcxw_ctx.state = RADIO_STATE_RECEIVE;
+		set_rx_state();
 
 		k_sem_give(&mcxw_ctx.cca_wait);
 		break;
@@ -1351,7 +1352,7 @@ phyStatus_t plme_mac_sap_handler(void *msg, instanceId_t instance)
 			}
 #endif
 
-			mcxw_ctx.state = RADIO_STATE_RECEIVE;
+			set_rx_state();
 			/* No ack */
 			mcxw_ctx.tx_status = ENOMSG;
 
@@ -1374,7 +1375,7 @@ phyStatus_t plme_mac_sap_handler(void *msg, instanceId_t instance)
 		}
 #endif
 
-		mcxw_ctx.state = RADIO_STATE_RECEIVE;
+		set_rx_state();
 		mcxw_ctx.tx_status = EIO;
 
 		k_sem_give(&mcxw_ctx.tx_wait);
@@ -1479,6 +1480,7 @@ static int mcxw_configure(const struct device *dev, enum ieee802154_config_type 
 		} else {
 			rf_rx_on_idle(RX_ON_IDLE_STOP);
 		}
+		set_rx_state();
 		break;
 
 	case IEEE802154_CONFIG_EVENT_HANDLER:
@@ -1627,6 +1629,16 @@ static void rf_set_rx_time_poll(uint32_t time_poll)
 	msg.msgData.setReq.PibAttributeValue = time_poll;
 
 	MAC_PLME_SapHandler(&msg, ot_phy_ctx);
+}
+
+static void set_rx_state(void)
+{
+	if (rx_on_when_idle) {
+		mcxw_ctx.state = RADIO_STATE_RECEIVE;
+	}
+	else {
+		mcxw_ctx.state = RADIO_STATE_DISABLED;
+	}
 }
 
 static const struct ieee802154_radio_api mcxw71_radio_api = {
