@@ -93,10 +93,12 @@ static bool mp_src_decide_allocation(struct mp_src *self, struct mp_query *query
 
 static bool mp_src_negotiate(struct mp_src *src)
 {
-	bool ret = false;
+	struct mp_caps *common_caps;
 	struct mp_caps *fixated_caps;
-	struct mp_query *caps_query, *alloc_query;
+	struct mp_query *caps_query;
+	struct mp_query *alloc_query;
 	struct mp_event *caps_event;
+	bool ret = false;
 
 	/* Caps negotiation */
 	if (src->src_caps == NULL || mp_caps_is_empty(src->src_caps)) {
@@ -110,23 +112,32 @@ static bool mp_src_negotiate(struct mp_src *src)
 		return false;
 	}
 
-	/* Fixate the common caps */
-	fixated_caps = mp_caps_fixate(mp_query_get_caps(caps_query));
+	common_caps = mp_caps_ref(mp_query_get_caps(caps_query));
 	mp_query_destroy(caps_query);
-	if (fixated_caps == NULL) {
+	if (common_caps == NULL || mp_caps_is_empty(common_caps)) {
+		mp_caps_unref(common_caps);
 		return false;
 	}
 
-	/* Send caps event to configure downstream */
-	caps_event = mp_event_new_caps(fixated_caps);
-	ret = mp_pad_send_event(src->srcpad.peer, caps_event);
-	if (ret && !src->set_caps(src, fixated_caps)) {
-		mp_caps_unref(fixated_caps);
+	/* Store negotiated (possibly unfixed) caps on the src pad */
+	mp_caps_replace(&src->srcpad.caps, common_caps);
+
+	/* Try to fixate if possible, then push a CAPS event downstream */
+	fixated_caps = mp_caps_fixate(common_caps);
+	if (fixated_caps != NULL) {
+		caps_event = mp_event_new_caps(fixated_caps);
+		ret = mp_pad_send_event(src->srcpad.peer, caps_event);
+		if (ret != 0 && !src->set_caps(src, fixated_caps)) {
+			mp_caps_unref(common_caps);
+			mp_caps_unref(fixated_caps);
+			mp_event_destroy(caps_event);
+			return false;
+		}
 		mp_event_destroy(caps_event);
-		return false;
+		mp_caps_unref(fixated_caps);
 	}
-	mp_caps_unref(fixated_caps);
-	mp_event_destroy(caps_event);
+
+	mp_caps_unref(common_caps);
 
 	/* Query the peer's allocation proposal */
 	alloc_query = mp_query_new_allocation(src->srcpad.caps);
