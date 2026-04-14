@@ -153,8 +153,8 @@ static bool mp_src_negotiate(struct mp_src *src)
 	return ret;
 }
 
-static enum mp_state_change_return mp_src_change_state(struct mp_element *self,
-						       enum mp_state_change transition)
+enum mp_state_change_return mp_src_change_state(struct mp_element *self,
+						enum mp_state_change transition)
 {
 	struct mp_src *src = MP_SRC(self);
 	enum mp_state_change_return ret = MP_STATE_CHANGE_SUCCESS;
