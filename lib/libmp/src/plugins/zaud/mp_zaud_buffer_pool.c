@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <errno.h>
+
 #include <zephyr/logging/log.h>
 
 #include <src/core/mp_caps.h>
@@ -23,9 +25,29 @@ static bool zaud_buffer_pool_heap_initialized;
 	k_heap_aligned_alloc(&zaud_buffer_pool_heap, align, size, K_NO_WAIT)
 #define ZAUD_BUFFER_FREE(block) k_heap_free(&zaud_buffer_pool_heap, block)
 
-static bool mp_zaud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_structure *config)
+static void mp_zaud_buffer_pool_release_allocations(struct mp_zaud_buffer_pool *zaud_pool,
+							     bool clear_mem_slab)
+{
+	if (zaud_pool->blocks != NULL) {
+		k_free(zaud_pool->blocks);
+		zaud_pool->blocks = NULL;
+	}
+
+	if (zaud_pool->buffer != NULL) {
+		ZAUD_BUFFER_FREE(zaud_pool->buffer);
+		zaud_pool->buffer = NULL;
+	}
+
+	if ((zaud_pool->mem_slab != NULL) && clear_mem_slab) {
+		zaud_pool->mem_slab->buffer = NULL;
+		zaud_pool->mem_slab = NULL;
+	}
+}
+
+static int mp_zaud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_structure *config)
 {
 	struct mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
+	uint8_t *base;
 
 	int sample_rate = mp_value_get_int(mp_structure_get_value(config, MP_CAPS_SAMPLE_RATE));
 	int bit_width = mp_value_get_int(mp_structure_get_value(config, MP_CAPS_BITWIDTH));
@@ -53,11 +75,17 @@ static bool mp_zaud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_st
 	/* The address needs to be aligned to the size of the DMA transfer */
 	pool->config.align = bit_width >> 3;
 
-	/* Allocate just the pool's buffers structure */
-	pool->buffers = k_calloc(pool->config.min_buffers, sizeof(struct mp_buffer));
-	if (pool->buffers == NULL) {
-		LOG_ERR("Unable to allocate pool buffer");
-		return false;
+	if (zaud_pool->mem_slab == NULL) {
+		LOG_ERR("Memory slab not configured");
+		return -EINVAL;
+	}
+
+	mp_zaud_buffer_pool_release_allocations(zaud_pool, false);
+
+	zaud_pool->blocks = k_calloc(pool->config.min_buffers, sizeof(*zaud_pool->blocks));
+	if (zaud_pool->blocks == NULL) {
+		LOG_ERR("Unable to allocate pool block table");
+		return -ENOMEM;
 	}
 
 	zaud_pool->buffer = (void *)ZAUD_BUFFER_HEAP_ALLOC(
@@ -65,40 +93,30 @@ static bool mp_zaud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_st
 
 	if (zaud_pool->buffer == NULL) {
 		LOG_ERR("Unable to allocate mem_slab buffer");
-		return false;
+		k_free(zaud_pool->blocks);
+		zaud_pool->blocks = NULL;
+		return -ENOMEM;
 	}
 
 	k_mem_slab_init(zaud_pool->mem_slab, zaud_pool->buffer, pool->config.size,
 			pool->config.min_buffers);
+	base = (uint8_t *)zaud_pool->mem_slab->buffer;
 
 	for (uint8_t i = 0; i < pool->config.min_buffers; i++) {
-		/* Wrap mem_slab buffer to generic libMP buffer */
-		pool->buffers[i].pool = pool;
-		pool->buffers[i].data = &(zaud_pool->mem_slab->buffer[pool->config.size * i]);
-		pool->buffers[i].index = i;
+		/* Keep the mem_slab chunk mapping used by the audio drivers */
+		zaud_pool->blocks[i] = &base[pool->config.size * i];
 	}
 
-	return true;
+	return 0;
 }
 
-static bool mp_zaud_buffer_pool_stop(struct mp_buffer_pool *pool)
+static int mp_zaud_buffer_pool_stop(struct mp_buffer_pool *pool)
 {
 	struct mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
 
-	if (pool->buffers != NULL) {
-		k_free(pool->buffers);
-		pool->buffers = NULL;
-	}
+	mp_zaud_buffer_pool_release_allocations(zaud_pool, true);
 
-	if (zaud_pool->mem_slab->buffer != NULL) {
-		ZAUD_BUFFER_FREE(zaud_pool->buffer);
-		zaud_pool->buffer = NULL;
-		zaud_pool->mem_slab->buffer = NULL;
-	}
-
-	zaud_pool->mem_slab = NULL;
-
-	return true;
+	return 0;
 }
 
 void mp_zaud_buffer_pool_init(struct mp_buffer_pool *pool)
@@ -107,6 +125,7 @@ void mp_zaud_buffer_pool_init(struct mp_buffer_pool *pool)
 
 	zaud_pool->zaud_dev = NULL;
 	zaud_pool->mem_slab = NULL;
+	zaud_pool->blocks = NULL;
 	zaud_pool->buffer = NULL;
 
 	mp_buffer_pool_init(pool);

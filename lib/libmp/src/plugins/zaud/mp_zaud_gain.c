@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <string.h>
+
 #include <zephyr/logging/log.h>
 
 #include "mp_zaud.h"
@@ -74,10 +76,10 @@ static int mp_zaud_gain_get_property(struct mp_object *obj, uint32_t key, void *
 	return 0;
 }
 
-static void apply_gain_16bit(struct mp_buffer *buffer, int32_t gain_fixed)
+static void apply_gain_16bit(struct net_buf *buffer, int32_t gain_fixed)
 {
 	int16_t *samples = (int16_t *)buffer->data;
-	size_t num_samples = buffer->pool->config.size / sizeof(int16_t);
+	size_t num_samples = mp_buffer_get_meta(buffer)->bytes_used / sizeof(int16_t);
 
 	for (size_t i = 0; i < num_samples; i++) {
 		/* Apply gain using fixed-point arithmetic */
@@ -94,7 +96,7 @@ static void apply_gain_16bit(struct mp_buffer *buffer, int32_t gain_fixed)
 	}
 }
 
-static void apply_audio_gain(struct mp_buffer *buffer, int32_t gain_fixed, uint8_t bit_width)
+static void apply_audio_gain(struct net_buf *buffer, int32_t gain_fixed, uint8_t bit_width)
 {
 	/* Handle other bit widths */
 	switch (bit_width) {
@@ -107,14 +109,20 @@ static void apply_audio_gain(struct mp_buffer *buffer, int32_t gain_fixed, uint8
 	}
 }
 
-static bool mp_zaud_gain_chainfn(struct mp_pad *pad, struct mp_buffer *in_buf,
-				 struct mp_buffer **out_buf)
+static bool mp_zaud_gain_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
+				 struct net_buf **out_buf)
 {
-	struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
 	struct mp_zaud_gain *zaud_gain = MP_ZAUD_GAIN(pad->object.container);
+	uint32_t bytes_used = 0U;
+
+	ARG_UNUSED(pad);
+
+	if (in_buf != NULL) {
+		bytes_used = mp_buffer_get_meta(in_buf)->bytes_used;
+	}
 
 	/* Validate buffer */
-	if (!in_buf || !in_buf->data || in_buf->pool->config.size == 0) {
+	if (!in_buf || !in_buf->data || bytes_used == 0U) {
 		LOG_ERR("Invalid buffer received");
 		*out_buf = NULL;
 		return false;
@@ -122,7 +130,7 @@ static bool mp_zaud_gain_chainfn(struct mp_pad *pad, struct mp_buffer *in_buf,
 
 	/* Apply mute if enabled or gain is 0% */
 	if (zaud_gain->mute == true || zaud_gain->gain_percent == 0) {
-		memset(in_buf->data, 0, in_buf->pool->config.size);
+		memset(in_buf->data, 0, bytes_used);
 	} else if (zaud_gain->gain_percent != GAIN_PERCENT_UNITY) {
 		/* Apply gain only if not unity (100%) */
 		/* TODO: bitWidth hardcoded */
