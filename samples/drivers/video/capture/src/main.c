@@ -33,6 +33,7 @@ int __weak app_setup_video_transform(const struct device *const transform_dev,
 				     struct video_buffer **out_buf)
 {
 	*out_fmt = *in_fmt;
+	out_fmt->pixelformat = VIDEO_PIX_FMT_RGB565;
 
 	return 0;
 }
@@ -306,12 +307,12 @@ static int app_setup_video_buffers(const struct device *const camera_dev,
 	int ret;
 
 	/* Alloc video buffers and enqueue for capture */
-	if (caps->min_vbuf_count > CONFIG_VIDEO_CAM_NUM_BUFS) {
+	if (caps->min_vbuf_count > 3) {
 		LOG_ERR("Not enough buffers to start streaming");
 		return -EINVAL;
 	}
 
-	for (uint8_t i = 0; i < CONFIG_VIDEO_CAM_NUM_BUFS; i++) {
+	for (uint8_t i = 0; i < 3; i++) {
 		struct video_buffer *vbuf;
 
 		/*
@@ -337,8 +338,13 @@ static int app_setup_video_buffers(const struct device *const camera_dev,
 	return 0;
 }
 
+int l = 1;
 int main(void)
 {
+	//while (l == 1)
+	{
+		;
+	}
 	const struct device *const camera_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_camera));
 	const struct device *const display_dev = DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_display));
 	const struct device *transform_dev = NULL;
@@ -428,9 +434,15 @@ int main(void)
 			goto err;
 		}
 
+		if ((frame % 60U) == 0U) {
 		LOG_INF("Got frame %u! size: %u; timestamp %u ms (delta %u ms)", frame++,
 			camera_vbuf->bytesused, camera_vbuf->timestamp,
 			camera_vbuf->timestamp - last_ts);
+		}
+		else
+		{
+			frame++;
+		}
 		last_ts = camera_vbuf->timestamp;
 
 		ret = app_transform_frame(transform_dev, camera_vbuf, &transformed_vbuf);

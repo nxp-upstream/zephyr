@@ -364,9 +364,9 @@ int video_read_cci_reg(const struct i2c_dt_spec *i2c, uint32_t reg_addr, uint32_
 			LOG_HEXDUMP_DBG(buf_w, addr_size, "Data written to the I2C device...");
 			LOG_HEXDUMP_DBG(&data_ptr[i], 1, "... data read back from the I2C device");
 		}
-	}
 
-	*reg_data = big_endian ? sys_be32_to_cpu(*reg_data) : sys_le32_to_cpu(*reg_data);
+		*reg_data = big_endian ? sys_be32_to_cpu(*reg_data) : sys_le32_to_cpu(*reg_data);
+	}
 
 	return 0;
 }

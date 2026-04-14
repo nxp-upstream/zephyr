@@ -8,6 +8,7 @@
 
 #include <nxp/imx/nxp_imx95_m7.dtsi>
 #include "imx95_evk-pinctrl.dtsi"
+#include <dt-bindings/mipi_dsi/mipi_dsi.h>
 
 / {
 	model = "NXP i.MX95 EVK board";
@@ -32,7 +33,8 @@
 		zephyr,flash-controller = &mt35xu01gbba;
 		zephyr,console = &lpuart3;
 		zephyr,shell-uart = &lpuart3;
-		zephyr,camera = &ap1302;
+		zephyr,camera = &isi;
+		zephyr,display = &dpu;
 	};
 
 	/* ADP5585_PWREN2 */
@@ -199,6 +201,12 @@
 	};
 };
 
+&lpi2c2 {
+	pinctrl-0 = <&lpi2c2_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
 &lpi2c5 {
 	pinctrl-0 = <&lpi2c5_default>;
 	pinctrl-names = "default";
@@ -254,6 +262,27 @@
 	data-lanes = <4>;
 	sensor = <&ap1302>;
 	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			csi2rx_ep_in: endpoint {
+				remote-endpoint-label = "ap1302_ep_out";
+				bus-type = <4>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			csi2rx_ep_out: endpoint {
+				remote-endpoint-label = "isi_ep_in";
+			};
+		};
+	};
 };
 
 &mipi_dphy {
@@ -262,4 +291,17 @@
 
 &isi {
 	status = "okay";
+	source = <&mipi_csi>;
+
+	port {
+		isi_ep_in: endpoint {
+			remote-endpoint-label = "csi2rx_ep_out";
+		};
+	};
 };
+
+zephyr_dpu: &dpu {};
+
+zephyr_mipi_dsi: &mipi_dsi {};
+
+display_i2c: &lpi2c2 {};

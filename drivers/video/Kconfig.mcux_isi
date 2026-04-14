@@ -12,7 +12,7 @@ if VIDEO_MCUX_ISI
 
 config VIDEO_MCUX_ISI_INIT_PRIORITY
 	int "ISI driver initialization priority"
-	default 80
+	default 90
 	help
 	  ISI device driver initialization priority.
 

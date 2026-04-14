@@ -19,6 +19,11 @@ properties:
     default: 0
     description: ISI input port number
 
+  source:
+    type: phandle
+    required: false
+    description: Upstream video source device (e.g. CSI receiver)
+
   ports:
     type: compound
     description: Video port connections

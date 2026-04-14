@@ -1,5 +1,5 @@
-/*
- * Copyright 2026 NXP
+
+/* Copyright 2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -25,14 +25,13 @@ extern const size_t ap1302_fw_blob_len;
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/util.h>
 
-#include "ap1302_dt.h"
 #include "video_common.h"
 #include "video_ctrls.h"
 #include "video_device.h"
 
 LOG_MODULE_REGISTER(ap1302, CONFIG_VIDEO_LOG_LEVEL);
 
-#define AP1302_REG16(addr) ((addr) | VIDEO_REG_ADDR16_DATA16_BE)
+#define AP1302_REG16(addr) ((addr) | VIDEO_REG_ADDR16_DATA16_BE | VIDEO_REG_SINGLE_XFER)
 
 /* AP1302 Register Definitions */
 
@@ -123,17 +122,31 @@ struct ap1302_data {
 static const int64_t ap1302_link_frequencies[] = {
 	445000000,
 };
-
+#define AP1302_PREVIEW_OUT_FMT_FST_RGB_565      (1U << 0)
+#define AP1302_PREVIEW_OUT_FMT_FT_RGB           (4U << 4)
 static const struct ap1302_format_info supported_formats[] = {
 	{
 		.code = VIDEO_PIX_FMT_YUYV,
 		.out_fmt = AP1302_PREVIEW_OUT_FMT_FT_YUV | AP1302_PREVIEW_OUT_FMT_FST_YUV_422,
+	},
+	{
+		.code = VIDEO_PIX_FMT_RGB565,
+		.out_fmt = AP1302_PREVIEW_OUT_FMT_FT_RGB | AP1302_PREVIEW_OUT_FMT_FST_RGB_565,
 	},
 };
 
 static const struct video_format_cap ap1302_fmts[] = {
 	{
 		.pixelformat = VIDEO_PIX_FMT_YUYV,
+		.width_min = AP1302_MIN_WIDTH,
+		.width_max = AP1302_MAX_WIDTH,
+		.height_min = AP1302_MIN_HEIGHT,
+		.height_max = AP1302_MAX_HEIGHT,
+		.width_step = 4,
+		.height_step = 2,
+	},
+	{
+		.pixelformat = VIDEO_PIX_FMT_RGB565,
 		.width_min = AP1302_MIN_WIDTH,
 		.width_max = AP1302_MAX_WIDTH,
 		.height_min = AP1302_MIN_HEIGHT,
@@ -484,6 +497,7 @@ static int ap1302_configure(const struct device *dev)
 static int ap1302_stall(const struct device *dev, bool stall)
 {
 	const struct ap1302_config *cfg = dev->config;
+	struct ap1302_data *data = dev->data;
 	int ret;
 
 	if (stall) {
@@ -523,6 +537,13 @@ static int ap1302_set_format(const struct device *dev, struct video_format *fmt)
 	const struct ap1302_format_info *info;
 	size_t idx;
 	int ret;
+
+	data->frmival.numerator = 1U;
+	data->frmival.denominator = 60;
+
+	printk("will set ap1302 max fps into 60\r\n");
+	ret = ap1302_program_max_fps(dev, 60);
+	printk("will set ap1302 max fps into 60 done!!!!!!!!!!!\r\n");
 
 	ap1302_sanitize_format(fmt);
 
@@ -582,11 +603,6 @@ static int ap1302_set_frmival(const struct device *dev, struct video_frmival *fr
 		if (ret < 0) {
 			return ret;
 		}
-	}
-
-	ret = ap1302_program_max_fps(dev, fps);
-	if (ret < 0) {
-		LOG_WRN("Failed to program max_fps=%u: %d", fps, ret);
 	}
 
 	if (data->streaming) {
@@ -777,7 +793,7 @@ static int ap1302_init(const struct device *dev)
 	}
 
 	data->fmt.type = VIDEO_BUF_TYPE_OUTPUT;
-	data->fmt.pixelformat = VIDEO_PIX_FMT_YUYV;
+	data->fmt.pixelformat = VIDEO_PIX_FMT_RGB565;
 	data->fmt.width = 1920;
 	data->fmt.height = 1080;
 
@@ -825,6 +841,12 @@ err_clock:
 	.num_power_supplies = AP1302_NUM_POWER_SUPPLIES(n),
 
 PINCTRL_DT_INST_DEFINE(0);
+
+/* Output endpoint (AP1302 -> CSI receiver) */
+#define AP1302_DT_ENDPOINT(inst) DT_INST_ENDPOINT_BY_ID(inst, 0, 0)				\
+
+/* Number of CSI-2 data lanes derived from the endpoint's data-lanes property */
+#define AP1302_DT_NUM_LANES(inst) DT_PROP_LEN(AP1302_DT_ENDPOINT(inst), data_lanes)		\
 
 #define AP1302_INIT(n)										\
 	AP1302_INIT_POWER_SUPPLIES(n)								\

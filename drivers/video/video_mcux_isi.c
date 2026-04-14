@@ -49,6 +49,11 @@ struct video_mcux_isi_data {
 
 	/* Transfer state */
 	volatile bool is_transfer_started;
+
+	/* ISR frame rate stats */
+	uint32_t fps_last_ms;
+	uint32_t fps_frame_cnt;
+	uint32_t fps_drop_cnt;
 };
 
 /* Map for the fourcc pixelformat to ISI format */
@@ -136,6 +141,24 @@ static int isi_channel_config(const struct device *dev)
 	const struct video_mcux_isi_config *config = dev->config;
 	ISI_Type *base = config->base;
 
+
+	    static const isi_csc_config_t cscConfigYUV2RGB = {
+        .mode = kISI_CscYCbCr2RGB,
+        .A1   = 1.164f,
+        .A2   = 0.0f,
+        .A3   = 1.596f,
+        .B1   = 1.164f,
+        .B2   = -0.392f,
+        .B3   = -0.813f,
+        .C1   = 1.164f,
+        .C2   = 2.017f,
+        .C3   = 0.0f,
+        .D1   = -16,
+        .D2   = -128,
+        .D3   = -128,
+    };
+
+
 	if (!data->format_set) {
 		LOG_ERR("Video format not configured");
 		return -EPIPE;
@@ -144,7 +167,7 @@ static int isi_channel_config(const struct device *dev)
 	/* Configure ISI with output format dimensions */
 	data->isi_config.inputWidth = data->fmt.width;
 	data->isi_config.inputHeight = data->fmt.height;
-	data->isi_config.outputFormat = data->isi_format;
+	data->isi_config.outputFormat = kISI_OutputRGB565;
 	data->isi_config.outputLinePitchBytes = data->fmt.width *
 		video_bits_per_pixel(data->fmt.pixelformat) / 8;
 
@@ -156,7 +179,8 @@ static int isi_channel_config(const struct device *dev)
 			    data->fmt.width, data->fmt.height);
 
 	/* Disable color space conversion */
-	ISI_EnableColorSpaceConversion(base, false);
+	ISI_SetColorSpaceConversionConfig(base, &cscConfigYUV2RGB);
+	ISI_EnableColorSpaceConversion(base, true);
 
 	LOG_DBG("ISI configured: %dx%d, pitch=%u",
 		data->fmt.width, data->fmt.height,
@@ -209,13 +233,14 @@ static int video_mcux_isi_get_fmt(const struct device *dev, struct video_format 
 {
 	struct video_mcux_isi_data *data = dev->data;
 
-	if (!data->format_set) {
-		memset(fmt, 0, sizeof(*fmt));
-		LOG_DBG("Video format not configured, returning empty format");
-		return 0;
-	}
+	//if (!data->format_set) {
+	//	memset(fmt, 0, sizeof(*fmt));
+	//	LOG_DBG("Video format not configured, returning empty format");
+	//	return 0;
+	//}
 
 	memcpy(fmt, &data->fmt, sizeof(*fmt));
+	
 	return 0;
 }
 
@@ -392,9 +417,8 @@ static int video_mcux_isi_get_caps(const struct device *dev, struct video_caps *
 	const struct video_mcux_isi_config *config = dev->config;
 
 	caps->format_caps = isi_fmts;
-	/* ISI requires at least 3 buffers (2 active + 1 drop frame) */
-	caps->min_vbuf_count = 3;
 
+#if 0
 	/* Also get capabilities from source device if available */
 	if (config->source_dev) {
 		struct video_caps source_caps = {0};
@@ -406,6 +430,9 @@ static int video_mcux_isi_get_caps(const struct device *dev, struct video_caps *
 			}
 		}
 	}
+#endif
+	/* ISI requires at least 3 buffers (2 active + 1 drop frame) */
+	caps->min_vbuf_count = 3;
 
 	return 0;
 }
@@ -426,6 +453,8 @@ static int video_mcux_isi_get_frmival(const struct device *dev, struct video_frm
 {
 	const struct video_mcux_isi_config *config = dev->config;
 
+	printk("enter video_mcux_isi_get_frmival\r\n");
+
 	/* Forward to source device */
 	if (config->source_dev) {
 		return video_get_frmival(config->source_dev, frmival);
@@ -437,6 +466,8 @@ static int video_mcux_isi_get_frmival(const struct device *dev, struct video_frm
 static int video_mcux_isi_enum_frmival(const struct device *dev, struct video_frmival_enum *fie)
 {
 	const struct video_mcux_isi_config *config = dev->config;
+
+	printk("enter video_mcux_isi_enum_frmival\r\n");
 
 	/* Forward to source device */
 	if (config->source_dev) {
@@ -476,6 +507,8 @@ static void video_mcux_isi_isr(const struct device *dev)
 		return;
 	}
 
+	data->fps_frame_cnt++;
+
 	buffer_addr = data->active_buffer[data->buffer_index];
 
 	/* If current finished frame is not drop frame, submit to output queue */
@@ -492,7 +525,8 @@ static void video_mcux_isi_isr(const struct device *dev)
 	/* If no available input buffer, use drop frame buffer */
 	if (vbuf == NULL) {
 		buffer_addr = data->drop_frame;
-		LOG_WRN("No available input buffer, drop frame");
+		data->fps_drop_cnt++;
+		//LOG_WRN("No available input buffer, drop frame");
 	} else {
 		buffer_addr = POINTER_TO_UINT(vbuf->buffer);
 		data->active_vbuf[data->buffer_index] = vbuf;
@@ -503,10 +537,27 @@ static void video_mcux_isi_isr(const struct device *dev)
 
 	/* Toggle buffer index */
 	data->buffer_index ^= 1U;
+
+	/* Print once per second to avoid ISR overhead */
+	uint32_t now = k_uptime_get_32();
+	uint32_t elapsed = now - data->fps_last_ms;
+	if (elapsed >= 1000U) {
+		uint32_t fps = (data->fps_frame_cnt * 1000U) / (elapsed ? elapsed : 1U);
+		//LOG_INF("ISI ISR: %u fps, drops=%u, elapsed=%ums",
+		//	fps, data->fps_drop_cnt, elapsed);
+		data->fps_last_ms = now;
+		data->fps_frame_cnt = 0U;
+		data->fps_drop_cnt = 0U;
+	}
 }
 
+int p = 1;
 static int video_mcux_isi_init(const struct device *dev)
 {
+	//while (p == 1)
+	{
+		;
+	}
 	const struct video_mcux_isi_config *config = dev->config;
 	struct video_mcux_isi_data *data = dev->data;
 
@@ -519,6 +570,10 @@ static int video_mcux_isi_init(const struct device *dev)
 	data->drop_frame = 0;
 	data->active_buf_cnt = 0;
 	data->format_set = false;
+
+	data->fps_last_ms = k_uptime_get_32();
+	data->fps_frame_cnt = 0U;
+	data->fps_drop_cnt = 0U;
 
 	/* Initialize format structure */
 	memset(&data->fmt, 0, sizeof(data->fmt));
@@ -542,6 +597,11 @@ static int video_mcux_isi_init(const struct device *dev)
 	data->isi_config.isSourceMemory = false;
 	data->isi_config.sourcePort = config->input_port;
 	data->isi_config.mipiChannel = 0;
+        
+	data->fmt.type = VIDEO_BUF_TYPE_OUTPUT;
+        data->fmt.pixelformat = VIDEO_PIX_FMT_YUYV;
+        data->fmt.width = 1080;
+        data->fmt.height = 2340;
 
 	/* Configure clock if available */
 	if (config->clock_dev != NULL) {
@@ -566,9 +626,8 @@ static int video_mcux_isi_init(const struct device *dev)
 											\
 	static const struct video_mcux_isi_config video_mcux_isi_config_##n = {		\
 		.base = (ISI_Type *)DT_INST_REG_ADDR(n),				\
-		.source_dev = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, remote_endpoint),	\
-			(DEVICE_DT_GET(DT_NODE_REMOTE_DEVICE(				\
-				DT_INST_ENDPOINT_BY_ID(n, 0, 0)))), (NULL)),		\
+.source_dev = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, source),				\
+     (DEVICE_DT_GET(DT_INST_PHANDLE(n, source))), (NULL)),				\
 		.input_port = DT_INST_PROP_OR(n, input_port, 0),			\
 		.clock_dev = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, clocks),		\
 			(DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n))), (NULL)),		\
@@ -590,7 +649,7 @@ static int video_mcux_isi_init(const struct device *dev)
 	DEVICE_DT_INST_DEFINE(n, &video_mcux_isi_init_##n, NULL,			\
 			      &video_mcux_isi_data_##n,					\
 			      &video_mcux_isi_config_##n,				\
-			      POST_KERNEL, CONFIG_VIDEO_INIT_PRIORITY,			\
+			      POST_KERNEL, CONFIG_VIDEO_MCUX_ISI_INIT_PRIORITY,		\
 			      &video_mcux_isi_driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(VIDEO_MCUX_ISI_DEVICE)
