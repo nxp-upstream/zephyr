@@ -62,6 +62,17 @@ struct mp_src {
 void mp_src_init(struct mp_element *self);
 
 /**
+ * @brief Change state function for base source element
+ *
+ * @param self Pointer to the @ref mp_element struct
+ * @param transition Transition state, see @ref mp_state_change enum
+ *
+ * @retval One of @ref mp_state_change enum
+ */
+enum mp_state_change_return mp_src_change_state(struct mp_element *self,
+						enum mp_state_change transition);
+
+/**
  * @brief Set property on source element
  *
  * @param obj Pointer to the @ref struct mp_object (source element)
