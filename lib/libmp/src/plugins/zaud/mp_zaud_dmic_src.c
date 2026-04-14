@@ -88,40 +88,59 @@ static bool mp_zaud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 	return true;
 }
 
-static bool mp_zaud_dmic_src_acquire_buffer(struct mp_buffer_pool *pool, struct mp_buffer **buffer)
+static int mp_zaud_dmic_src_acquire_buffer(struct mp_buffer_pool *pool, struct net_buf **buffer)
 {
 	struct mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
+	struct mp_buffer_meta *meta;
 	void *mem_block = NULL;
+	size_t bytes_used = pool->config.size;
 	int err = -1;
 
-	err = dmic_read(zaud_pool->zaud_dev, 0, &mem_block, &pool->config.size, INT32_MAX);
+	err = dmic_read(zaud_pool->zaud_dev, 0, &mem_block, &bytes_used, INT32_MAX);
 	if (err < 0) {
 		LOG_ERR("Unable to read a DMIC buffer: %d", err);
-		return false;
+		return err;
 	}
 
 	for (uint8_t i = 0; i < pool->config.min_buffers; i++) {
-		if (mem_block == pool->buffers[i].data) {
-			*buffer = &pool->buffers[i];
-			break;
+		if (mem_block == zaud_pool->blocks[i]) {
+			*buffer = net_buf_alloc_with_data(pool->nb_pool, zaud_pool->blocks[i],
+						      pool->config.size, K_NO_WAIT);
+			if (*buffer == NULL) {
+				LOG_ERR("Unable to allocate net_buf wrapper for DMIC buffer");
+				k_mem_slab_free(zaud_pool->mem_slab, mem_block);
+				return -ENOBUFS;
+			}
+
+			(*buffer)->len = bytes_used;
+
+			meta = mp_buffer_get_meta(*buffer);
+			meta->pool = pool;
+			meta->bytes_used = bytes_used;
+			meta->timestamp = 0U;
+			meta->priv = mem_block;
+
+			return 0;
 		}
 	}
 
-	return true;
+	LOG_ERR("Unable to match DMIC buffer %p with mem_slab backing store", mem_block);
+	k_mem_slab_free(zaud_pool->mem_slab, mem_block);
+	return -ENOENT;
 }
 
-static bool mp_zaud_dmic_src_start(struct mp_buffer_pool *pool)
+static int mp_zaud_dmic_src_start(struct mp_buffer_pool *pool)
 {
 	struct mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
 
 	/* Stream on */
 	if (dmic_trigger(zaud_pool->zaud_dev, DMIC_TRIGGER_START) < 0) {
 		LOG_ERR("Unable to start capture (interface)");
-		return false;
+		return -EIO;
 	}
 
-	LOG_INF("Capture started");
-	return true;
+	LOG_INF("Capture started now");
+	return 0;
 }
 
 void mp_zaud_dmic_src_init(struct mp_element *self)

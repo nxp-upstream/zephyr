@@ -152,6 +152,7 @@ static bool mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps
 	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = MP_ZAUD_I2S_CODEC_SINK(sink);
 	struct i2s_config config;
 	struct audio_codec_cfg audio_cfg;
+	int ret;
 
 	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
 
@@ -174,24 +175,30 @@ static bool mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps
 	audio_cfg.dai_cfg.i2s.channels = num_of_channel;
 	audio_cfg.dai_cfg.i2s.format = I2S_FMT_DATA_FORMAT_I2S;
 #ifdef CONFIG_ZAUD_I2S_CODEC_SINK_CODEC_MASTER
-	audio_cfg.dai_cfg.i2s.options = I2S_OPT_FRAME_CLK_MASTER | I2S_OPT_BIT_CLK_MASTER;
+	audio_cfg.dai_cfg.i2s.options = I2S_OPT_FRAME_CLK_CONTROLLER |
+					 I2S_OPT_BIT_CLK_CONTROLLER;
 #else
-	audio_cfg.dai_cfg.i2s.options = I2S_OPT_FRAME_CLK_SLAVE | I2S_OPT_BIT_CLK_SLAVE;
+	audio_cfg.dai_cfg.i2s.options = I2S_OPT_FRAME_CLK_TARGET |
+					 I2S_OPT_BIT_CLK_TARGET;
 #endif
 	audio_cfg.dai_cfg.i2s.frame_clk_freq = sample_rate;
 	audio_cfg.dai_cfg.i2s.mem_slab = zaud_i2s_codec_sink->mem_slab;
 	audio_cfg.dai_cfg.i2s.block_size =
 		(bit_width >> 3) * ((sample_rate * frame_interval / 1000000) * num_of_channel);
-	audio_codec_configure(zaud_i2s_codec_sink->codec_dev, &audio_cfg);
+	ret = audio_codec_configure(zaud_i2s_codec_sink->codec_dev, &audio_cfg);
+	if (ret < 0) {
+		LOG_ERR("Failed to configure codec: %d", ret);
+		return false;
+	}
 	k_msleep(1000);
 
 	config.word_size = bit_width;
 	config.channels = num_of_channel;
 	config.format = I2S_FMT_DATA_FORMAT_I2S;
 #ifdef CONFIG_ZAUD_I2S_CODEC_SINK_I2S_MASTER
-	config.options = I2S_OPT_BIT_CLK_MASTER | I2S_OPT_FRAME_CLK_MASTER;
+	config.options = I2S_OPT_BIT_CLK_CONTROLLER | I2S_OPT_FRAME_CLK_CONTROLLER;
 #else
-	config.options = I2S_OPT_BIT_CLK_SLAVE | I2S_OPT_FRAME_CLK_SLAVE;
+	config.options = I2S_OPT_BIT_CLK_TARGET | I2S_OPT_FRAME_CLK_TARGET;
 #endif
 	config.frame_clk_freq = sample_rate;
 	config.mem_slab = zaud_i2s_codec_sink->mem_slab;
@@ -199,8 +206,9 @@ static bool mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps
 		(bit_width >> 3) * ((sample_rate * frame_interval / 1000000) * num_of_channel);
 	config.timeout = frame_interval * 10;
 
-	if (i2s_configure(zaud_i2s_codec_sink->i2s_dev, I2S_DIR_TX, &config) < 0) {
-		LOG_DBG("Failed to configure codec stream\n");
+	ret = i2s_configure(zaud_i2s_codec_sink->i2s_dev, I2S_DIR_TX, &config);
+	if (ret < 0) {
+		LOG_ERR("Failed to configure I2S stream: %d", ret);
 		return false;
 	}
 
@@ -209,14 +217,15 @@ static bool mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps
 	return true;
 }
 
-bool mp_zaud_i2s_codec_sink_chainfn(struct mp_pad *pad, struct mp_buffer *in_buf,
-				    struct mp_buffer **out_buf)
+bool mp_zaud_i2s_codec_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
+				    struct net_buf **out_buf)
 {
 	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink =
 		MP_ZAUD_I2S_CODEC_SINK(pad->object.container);
+	uint32_t bytes_used = mp_buffer_get_meta(in_buf)->bytes_used;
 	int ret = -1;
 
-	ret = i2s_write(zaud_i2s_codec_sink->i2s_dev, in_buf->data, in_buf->pool->config.size);
+	ret = i2s_write(zaud_i2s_codec_sink->i2s_dev, in_buf->data, bytes_used);
 	if (ret < 0) {
 		LOG_DBG("Failed to write data: %d\n", ret);
 		*out_buf = NULL;
@@ -226,13 +235,19 @@ bool mp_zaud_i2s_codec_sink_chainfn(struct mp_pad *pad, struct mp_buffer *in_buf
 	if (!zaud_i2s_codec_sink->started) {
 		zaud_i2s_codec_sink->count++;
 		if (zaud_i2s_codec_sink->count == 2) {
-			i2s_trigger(zaud_i2s_codec_sink->i2s_dev, I2S_DIR_TX, I2S_TRIGGER_START);
+			ret = i2s_trigger(zaud_i2s_codec_sink->i2s_dev, I2S_DIR_TX,
+					  I2S_TRIGGER_START);
+			if (ret < 0) {
+				LOG_ERR("Failed to start I2S stream: %d", ret);
+				*out_buf = NULL;
+				return false;
+			}
 			zaud_i2s_codec_sink->started = true;
 		}
 	}
 
 	/* Done with the buffer */
-	mp_buffer_unref(in_buf);
+	net_buf_unref(in_buf);
 
 	/* Sink returns NULL - end of chain */
 	*out_buf = NULL;

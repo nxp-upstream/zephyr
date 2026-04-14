@@ -35,6 +35,8 @@ struct mp_zaud_buffer_pool {
 	const struct device *zaud_dev;
 	/** Memory slab for efficient buffer allocation */
 	struct k_mem_slab *mem_slab;
+	/** Per-chunk pointers into the mem_slab backing buffer */
+	void **blocks;
 	/** Pointer to buffer memory */
 	void *buffer;
 };
