@@ -35,6 +35,8 @@ struct mp_zaud_gain {
 	int32_t gain_fixed;
 	/** Mute flag - when true, optimizes processing by bypassing gain calculations */
 	bool mute;
+	/** Bit width of audio samples (e.g., 16, 24, 32 bits) */
+	int bit_width;
 };
 
 /**

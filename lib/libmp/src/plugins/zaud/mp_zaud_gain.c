@@ -4,9 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <string.h>
-
 #include <zephyr/logging/log.h>
+
+#include <limits.h>
+#include <stdint.h>
+#include <string.h>
 
 #include "mp_zaud.h"
 #include "mp_zaud_gain.h"
@@ -96,12 +98,100 @@ static void apply_gain_16bit(struct net_buf *buffer, int32_t gain_fixed)
 	}
 }
 
+static void apply_gain_32bit(struct net_buf *buffer, int32_t gain_fixed)
+{
+	int32_t *samples = (int32_t *)buffer->data;
+	size_t num_samples = mp_buffer_get_meta(buffer)->bytes_used / sizeof(int32_t);
+
+	for (size_t i = 0; i < num_samples; i++) {
+		/* Apply gain using fixed-point arithmetic with 64-bit intermediate */
+		int64_t temp = ((int64_t)samples[i] * gain_fixed) >> 16;
+
+		/* Clamp to 32-bit range */
+		if (temp > INT32_MAX) {
+			samples[i] = INT32_MAX;
+		} else if (temp < INT32_MIN) {
+			samples[i] = INT32_MIN;
+		} else {
+			samples[i] = (int32_t)temp;
+		}
+	}
+}
+
+/*
+ * 24-bit PCM handling
+ *
+ * In this plugin chain, buffers are typically sized using (bit_width / 8).
+ * For 24-bit that implies 3 bytes/sample (packed little-endian).
+ *
+ * Some backends may still deliver 24-bit samples in a 32-bit container.
+ * We support both:
+ * - packed 24-bit LE:  [b0, b1, b2] per sample
+ * - 32-bit container: signed 24-bit in bits [31:8] (left-justified)
+ */
+static void apply_gain_24bit(struct net_buf *buffer, int32_t gain_fixed)
+{
+	const size_t sz = mp_buffer_get_meta(buffer)->bytes_used;
+
+	/* Prefer packed 3-byte samples when buffer size is divisible by 3 */
+	if ((sz % 3U) == 0U) {
+		uint8_t *p = (uint8_t *)buffer->data;
+		size_t num_samples = sz / 3U;
+
+		for (size_t i = 0; i < num_samples; i++) {
+			uint32_t u =
+				(uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16);
+			/* sign-extend 24-bit */
+			int32_t s24 = (u & 0x800000U) ? (int32_t)(u | 0xFF000000U) : (int32_t)u;
+
+			int64_t temp = ((int64_t)s24 * gain_fixed) >> 16;
+			if (temp > 0x7FFFFF) {
+				temp = 0x7FFFFF;
+			} else if (temp < -0x800000) {
+				temp = -0x800000;
+			}
+
+			uint32_t out = (uint32_t)((int32_t)temp) & 0xFFFFFFU;
+			p[0] = (uint8_t)(out & 0xFFU);
+			p[1] = (uint8_t)((out >> 8) & 0xFFU);
+			p[2] = (uint8_t)((out >> 16) & 0xFFU);
+			p += 3;
+		}
+		return;
+	}
+
+	/* Fallback: treat as 32-bit container */
+	if ((sz % sizeof(int32_t)) == 0U) {
+		int32_t *samples = (int32_t *)buffer->data;
+		size_t num_samples = sz / sizeof(int32_t);
+
+		for (size_t i = 0; i < num_samples; i++) {
+			int32_t s24 = samples[i] >> 8;
+			int64_t temp = ((int64_t)s24 * gain_fixed) >> 16;
+			if (temp > 0x7FFFFF) {
+				temp = 0x7FFFFF;
+			} else if (temp < -0x800000) {
+				temp = -0x800000;
+			}
+			samples[i] = ((int32_t)temp) << 8;
+		}
+		return;
+	}
+
+	LOG_ERR("24-bit buffer size not aligned (size=%u)", (unsigned)sz);
+}
+
 static void apply_audio_gain(struct net_buf *buffer, int32_t gain_fixed, uint8_t bit_width)
 {
-	/* Handle other bit widths */
 	switch (bit_width) {
 	case 16:
 		apply_gain_16bit(buffer, gain_fixed);
+		break;
+	case 24:
+		apply_gain_24bit(buffer, gain_fixed);
+		break;
+	case 32:
+		apply_gain_32bit(buffer, gain_fixed);
 		break;
 	default:
 		LOG_ERR("Unsupported bit width: %d", bit_width);
@@ -117,12 +207,9 @@ static bool mp_zaud_gain_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 
 	ARG_UNUSED(pad);
 
-	if (in_buf != NULL) {
-		bytes_used = mp_buffer_get_meta(in_buf)->bytes_used;
-	}
-
 	/* Validate buffer */
-	if (!in_buf || !in_buf->data || bytes_used == 0U) {
+	if (in_buf == NULL || in_buf->data == NULL ||
+	    (bytes_used = mp_buffer_get_meta(in_buf)->bytes_used) == 0U) {
 		LOG_ERR("Invalid buffer received");
 		*out_buf = NULL;
 		return false;
@@ -134,7 +221,7 @@ static bool mp_zaud_gain_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	} else if (zaud_gain->gain_percent != GAIN_PERCENT_UNITY) {
 		/* Apply gain only if not unity (100%) */
 		/* TODO: bitWidth hardcoded */
-		apply_audio_gain(in_buf, zaud_gain->gain_fixed, 16);
+		apply_audio_gain(in_buf, zaud_gain->gain_fixed, zaud_gain->bit_width);
 	}
 	/* If gain is exactly 100%, pass through without modification */
 
@@ -149,6 +236,8 @@ static struct mp_caps *mp_zaud_gain_get_caps(struct mp_transform *transform,
 {
 	struct mp_value *supported_bit_width = mp_value_new(MP_TYPE_LIST, NULL);
 
+	mp_value_list_append(supported_bit_width, mp_value_new(MP_TYPE_UINT, MP_ZAUD_BIT_WIDTH_32));
+	mp_value_list_append(supported_bit_width, mp_value_new(MP_TYPE_UINT, MP_ZAUD_BIT_WIDTH_24));
 	mp_value_list_append(supported_bit_width, mp_value_new(MP_TYPE_UINT, MP_ZAUD_BIT_WIDTH_16));
 
 	if ((direction == MP_PAD_SRC) || (direction == MP_PAD_SINK)) {
@@ -158,6 +247,21 @@ static struct mp_caps *mp_zaud_gain_get_caps(struct mp_transform *transform,
 	} else {
 		return NULL;
 	}
+}
+
+static bool mp_zaud_gain_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
+				  struct mp_caps *caps)
+{
+	struct mp_zaud_gain *zaud_gain = MP_ZAUD_GAIN(transform);
+	/* Get the first structure from caps */
+	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
+	/* Extract bit_width from the structure */
+	int bit_width = mp_value_get_int(mp_structure_get_value(first_structure, MP_CAPS_BITWIDTH));
+	/* Store bit_width in the zaud_gain structure */
+	zaud_gain->bit_width = bit_width;
+	LOG_DBG("Bit width set to %d", bit_width);
+
+	return true;
 }
 
 void mp_zaud_gain_init(struct mp_element *self)
@@ -171,7 +275,8 @@ void mp_zaud_gain_init(struct mp_element *self)
 	/* Initialize with 100% gain (unity) */
 	zaud_gain->gain_percent = GAIN_PERCENT_UNITY;
 	zaud_gain->gain_fixed = GAIN_UNITY_FIXED;
-	zaud_gain->mute = false; /* Default mute */
+	zaud_gain->mute = false;  /* Default mute */
+	zaud_gain->bit_width = 0; /* Default */
 
 	self->object.set_property = mp_zaud_gain_set_property;
 	self->object.get_property = mp_zaud_gain_get_property;
@@ -181,4 +286,5 @@ void mp_zaud_gain_init(struct mp_element *self)
 	transform->sinkpad.caps = mp_zaud_gain_get_caps(transform, MP_PAD_SINK);
 	transform->srcpad.caps = mp_zaud_gain_get_caps(transform, MP_PAD_SRC);
 	transform->get_caps = mp_zaud_gain_get_caps;
+	transform->set_caps = mp_zaud_gain_set_caps;
 }
