@@ -72,14 +72,14 @@ BT_PBAP_PULL_VCARD_LISTING_TYPE = "x-bt/vcard-listing"
 BT_PBAP_PULL_VCARD_ENTRY_TYPE = "x-bt/vcard"
 
 
-def pbap_br_clear(pbap_pce, pbap_pse):
+def pbap_br_clear(pbap_pse, pbap_pce):
     pbap_pse.exec_command("br clear all")
     global PROMOT
-    PROMOT = pbap_pse.shell.prompt
+    PROMOT = pbap_pce.shell.prompt
     pbap_pce.exec_command("br clear all")
 
 
-def pbap_br_connect(pbap_pce, pbap_pse):
+def pbap_br_connect(pbap_pse, pbap_pce):
     retry = 3
     logger.info(f'acl connect {pbap_pse.addr}')
     while retry > 0:
@@ -91,13 +91,14 @@ def pbap_br_connect(pbap_pce, pbap_pse):
             retry -= 1
             if retry > 0:
                 logger.info('Retry BR connection')
-            continue
+            noerror
 
 
-def pbap_pce_get_l2cap_psm(pbap_pce):
+def pbap_pse_get_l2cap_psm(pbap_pse):
+    """Get L2CAP PSM from PSE SDP discovery."""
     pattern = r'PSE l2cap psm param\s+(0x[\da-fA-F]+)'
-    pbap_pce.exec_command('pbap pce sdp_disvocer')
-    _, data = pbap_pce._wait_for_shell_response(r'PSE l2cap psm param.*', timeout=35)
+    pbap_pse.exec_command('pbap pce sdp_discover')
+    _, data = pbap_pse._wait_for_shell_response(r'PSE l2cap psm param.*', timeout=35)
     for line in data:
         match = re.search(pattern, line)
         if match:
@@ -107,7 +108,8 @@ def pbap_pce_get_l2cap_psm(pbap_pce):
 
 
 def pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse):
-    psm = pbap_pce_get_l2cap_psm(pbap_pce)
+    """Establish L2CAP transport connection from PCE to PSE."""
+    psm = pbap_pse_get_l2cap_psm(pbap_pce)
     if psm is None:
         logger.error('Failed to get PSE L2CAP PSM')
         return
@@ -116,7 +118,7 @@ def pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse):
     pbap_pse._wait_for_shell_response(r'PBAP PSE.*l2cap transport connected on.*')
 
 
-def pbap_pce_crete_obex_connection(pbap_pce, pbap_pse):
+def pbap_pce_create_obex_connection(pbap_pce, pbap_pse):
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect(f'pbap pce connect {mopl}', PROMOT)
 
@@ -128,64 +130,61 @@ def pbap_pce_crete_obex_connection(pbap_pce, pbap_pse):
         r'Connection established successfully \(no auth required\)', timeout=5
     )
 
+def test_BR_PBAP_PSE_L2CAP_ACCEPT_SUCCESS(pbap_pse, pbap_pce):
+    """Test BR PBAP PSE L2CAP accept success."""
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
 
-def test_BR_PBAP_PCE_L2CAP_CONNECT_SUCCESS(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE L2CAP connection success."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+    # PCE initiates L2CAP connection
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
+    
+    # Disconnect
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_L2CAP_CONNECT_FAILURE(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE L2CAP connection fail."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
-    psm = pbap_pce_get_l2cap_psm(pbap_pce)
+def test_BR_PBAP_PSE_L2CAP_ACCEPT_REJECT(pbap_pse, pbap_pce):
+    """Test BR PBAP PSE L2CAP accept reject."""
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
+
+    psm = pbap_pse_get_l2cap_psm(pbap_pce)
     if psm is None:
         logger.error('Failed to get PSE L2CAP PSM')
+        pbap_pce.iexpect('bt disconnect', 'Disconnected')
         return
-    err_psm = hex(int(psm, 16) - 1)
-    pbap_pce.iexpect(f'pbap pce connect_l2cap {err_psm}', r'Fail to create L2CAP connection')
+
+    err_psm = hex(int(psm, 16) + 1)
+    pbap_pce.iexpect(f'pbap pce connect_l2cap {err_psm}', r'Fail to create L2CAP connection', timeout=35)
+
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_L2CAP_DISCONNECT_SUCCESS(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE L2CAP disconnection success."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
-    pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_L2CAP_DISCONNECT_SUCCESS(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
 
+    pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
+    
     pbap_pce.iexpect('pbap pce disconnect_l2cap', r'PBAP PCE.*l2cap transport disconnected')
+    
+    pbap_pse._wait_for_shell_response(r'PBAP PSE.*l2cap transport disconnected')
+    
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_OBEX_CONNECT_SUCCESS(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE OBEX connection success."""
-    # Clear and establish BR connection
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_OBEX_CONNECT_SUCCESS(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
 
-    pbap_pce.iexpect('pbap alloc_buf', PROMOT)
-
-    pbap_pce.iexpect(f'pbap pce connect {mopl}', PROMOT)
-
-    pbap_pse._wait_for_shell_response(r'pbap connect version.*mopl.*', timeout=10)
-    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect(f'pbap pse connect_rsp {mopl} success', PROMOT)
-
-    pbap_pce._wait_for_shell_response(
-        r'Connection established successfully \(no auth required\)', timeout=5
-    )
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_OBEX_CONNECT_ERROR(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE OBEX connection error."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_OBEX_CONNECT_ERROR(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
@@ -200,34 +199,9 @@ def test_BR_PBAP_PCE_OBEX_CONNECT_ERROR(pbap_pce, pbap_pse):
 
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
-
-def test_BR_PBAP_PCE_OBEX_CONNECT_AUTH_CLIENT(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE OBEX connection with client authentication."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
-    pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-
-    pbap_pce.iexpect('pbap alloc_buf', PROMOT)
-    password = 'test1234'
-    pbap_pce.iexpect(f'pbap add_header_auth_chanllenage {password}', PROMOT)
-    pbap_pce.iexpect(f'pbap pce connect {mopl}', PROMOT)
-
-    pbap_pse._wait_for_shell_response(
-        r'PCE authentication required - add auth_response to connect_rsp tx_buf', timeout=5
-    )
-    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect(f'pbap add_header_auth_response {password}', PROMOT)
-    pbap_pse.iexpect(f'pbap pse connect_rsp {mopl} success', PROMOT)
-
-    pbap_pce._wait_for_shell_response(r'Connection established with authentication', timeout=5)
-
-    pbap_pce.iexpect('bt disconnect', 'Disconnected')
-
-
-def test_BR_PBAP_PCE_OBEX_CONNECT_AUTH_SERVER(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE OBEX connection with server authentication."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_OBEX_CONNECT_AUTH_SERVER(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
@@ -236,7 +210,7 @@ def test_BR_PBAP_PCE_OBEX_CONNECT_AUTH_SERVER(pbap_pce, pbap_pse):
 
     pbap_pse._wait_for_shell_response(r'pbap connect version.*mopl.*', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect(f'pbap add_header_auth_chanllenage {password}', PROMOT)
+    pbap_pse.iexpect(f'pbap add_header_auth_challenge {password}', PROMOT)
     pbap_pse.iexpect(f'pbap pse connect_rsp {mopl} unauth', PROMOT)
 
     pbap_pce._wait_for_shell_response(r'PSE requires authentication', timeout=5)
@@ -253,29 +227,50 @@ def test_BR_PBAP_PCE_OBEX_CONNECT_AUTH_SERVER(pbap_pce, pbap_pse):
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_OBEX_CONNECT_AUTH_MUTUAL(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE OBEX connection with mutual authentication."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_OBEX_CONNECT_AUTH_CLIENT(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     password = 'test1234'
-    pbap_pce.iexpect(f'pbap add_header_auth_chanllenage {password}', PROMOT)
+    pbap_pce.iexpect(f'pbap add_header_auth_challenge {password}', PROMOT)
     pbap_pce.iexpect(f'pbap pce connect {mopl}', PROMOT)
 
     pbap_pse._wait_for_shell_response(
         r'PCE authentication required - add auth_response to connect_rsp tx_buf', timeout=5
     )
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect(f'pbap add_header_auth_chanllenage {password}', PROMOT)
+    pbap_pse.iexpect(f'pbap add_header_auth_response {password}', PROMOT)
+    pbap_pse.iexpect(f'pbap pse connect_rsp {mopl} success', PROMOT)
+
+    pbap_pce._wait_for_shell_response(r'Connection established with authentication', timeout=5)
+
+    pbap_pce.iexpect('bt disconnect', 'Disconnected')
+
+
+def test_BR_PBAP_PSE_OBEX_CONNECT_AUTH_MUTUAL(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
+    pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
+
+    pbap_pce.iexpect('pbap alloc_buf', PROMOT)
+    password = 'test1234'
+    pbap_pce.iexpect(f'pbap add_header_auth_challenge {password}', PROMOT)
+    pbap_pce.iexpect(f'pbap pce connect {mopl}', PROMOT)
+
+    pbap_pse._wait_for_shell_response(
+        r'PCE authentication required - add auth_response to connect_rsp tx_buf', timeout=5
+    )
+    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
+    pbap_pse.iexpect(f'pbap add_header_auth_challenge {password}', PROMOT)
     pbap_pse.iexpect(f'pbap pse connect_rsp {mopl} unauth', PROMOT)
 
     pbap_pce._wait_for_shell_response(r'PSE requires authentication', timeout=5)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect(f'pbap add_header_auth_response {password}', PROMOT)
-    pbap_pce.iexpect(f'pbap add_header_auth_chanllenage {password}', PROMOT)
+    pbap_pce.iexpect(f'pbap add_header_auth_challenge {password}', PROMOT)
     pbap_pce.iexpect(f'pbap pce connect {mopl}', PROMOT)
 
     pbap_pse._wait_for_shell_response(r'auth success', timeout=5)
@@ -288,17 +283,15 @@ def test_BR_PBAP_PCE_OBEX_CONNECT_AUTH_MUTUAL(pbap_pce, pbap_pse):
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_OBEX_CONNECT_AUTH_FAILURE(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE OBEX connection with authentication failure."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_OBEX_CONNECT_AUTH_FAILURE(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
-    mopl = '48000'
     password_pce = 'test1234'
     password_pse = 'wrong5678'
-    pbap_pce.iexpect(f'pbap add_header_auth_chanllenage {password_pce}', PROMOT)
+    pbap_pce.iexpect(f'pbap add_header_auth_challenge {password_pce}', PROMOT)
     pbap_pce.iexpect(f'pbap pce connect {mopl}', PROMOT)
 
     pbap_pse._wait_for_shell_response(
@@ -313,13 +306,12 @@ def test_BR_PBAP_PCE_OBEX_CONNECT_AUTH_FAILURE(pbap_pce, pbap_pse):
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_OBEX_DISCONNECT_SUCCESS(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE OBEX disconnect success."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_OBEX_DISCONNECT_SUCCESS(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
 
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap pce disconnect', PROMOT)
     pbap_pse._wait_for_shell_response(r'pbap disconnect requested by pce', timeout=10)
@@ -331,12 +323,11 @@ def test_BR_PBAP_PCE_OBEX_DISCONNECT_SUCCESS(pbap_pce, pbap_pse):
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_OBEX_DISCONNECT_ERROR(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE OBEX disconnect error."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_OBEX_DISCONNECT_ERROR(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap pce disconnect', PROMOT)
     pbap_pse._wait_for_shell_response(r'pbap disconnect requested by pce', timeout=10)
@@ -348,112 +339,42 @@ def test_BR_PBAP_PCE_OBEX_DISCONNECT_ERROR(pbap_pce, pbap_pse):
         f'pbap disconnect result {bt_obex_rsp_code_to_str(error_code)}', timeout=5
     )
 
-    pbap_pce.iexpect('pbap pce disconnect_l2cap', r'PBAP PCE.*l2cap transport disconnected')
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_ABORT_SUCCESS(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE abort success."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_PULL_PHONEBOOK_SUCCESS(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-
-    pbap_pce.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pce.iexpect(f'pbap pce connect {mopl}', PROMOT)
-
-    pbap_pse._wait_for_shell_response(r'pbap connect version.*mopl.*', timeout=10)
-    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect(f'pbap pse connect_rsp {mopl} success', PROMOT)
-
-    pbap_pce._wait_for_shell_response(r'Connection established successfully', timeout=5)
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce pull_pb telecom/pb.vcf', PROMOT)
 
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_phone_book request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_phone_book_rsp 1 continue', PROMOT)
+    pbap_pse.iexpect('pbap pse pull_phone_book_rsp noerror', PROMOT)
 
-    pbap_pce._wait_for_shell_response(r'please send pull cmd again')
-
-    pbap_pce.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pce.iexpect('pbap pce abort', PROMOT)
-
-    pbap_pse._wait_for_shell_response(r'receive abort req')
-    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse abort_rsp success', PROMOT)
-
-    pbap_pce._wait_for_shell_response(r'abort success')
-
-    pbap_pce.iexpect('bt disconnect', 'Disconnected')
-
-
-def test_BR_PBAP_PCE_ABORT_ERROR(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE abort error."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
-    pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-
-    pbap_pce.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pce.iexpect(f'pbap pce connect {mopl}', PROMOT)
-
-    pbap_pse._wait_for_shell_response(r'pbap connect version.*mopl.*', timeout=10)
-    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect(f'pbap pse connect_rsp {mopl} success', PROMOT)
-
-    pbap_pce._wait_for_shell_response(r'Connection established successfully', timeout=5)
-
-    pbap_pce.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pce.iexpect('pbap pce pull_pb telecom/pb.vcf', PROMOT)
-
-    pbap_pse._wait_for_shell_response(r'pbap_pse get pull_phone_book request', timeout=10)
-    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_phone_book_rsp 1 continue', PROMOT)
-
-    pbap_pce._wait_for_shell_response(r'please send pull cmd again', timeout=5)
-
-    pbap_pce.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pce.iexpect('pbap pce abort', PROMOT)
-
-    pbap_pse._wait_for_shell_response(r'receive abort req', timeout=10)
-    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    error_code = 0xC4
-    pbap_pse.iexpect(
-        f'pbap pse abort_rsp error {hex(error_code)}', r'PBAP.*l2cap transport disconnected'
+    pbap_pce._wait_for_shell_response(
+        f'pbap pull {BT_PBAP_PULL_PHONEBOOK_TYPE} result Continue', timeout=5
     )
 
-    pbap_pce.iexpect('bt disconnect', 'Disconnected')
-
-
-def test_BR_PBAP_PCE_PULL_PHONEBOOK_SUCCESS(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull phonebook success."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
-    pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
-
-    pbap_pce.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pce.iexpect('pbap pce pull_pb telecom/pb.vcf', PROMOT)
-
-    pbap_pse._wait_for_shell_response(r'pbap_pse get pull_phone_book request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_phone_book_rsp 0 success', PROMOT)
+    pbap_pse.iexpect('pbap pse pull_phone_book_rsp noerror', PROMOT)
 
     pbap_pce._wait_for_shell_response(
         f'pbap pull {BT_PBAP_PULL_PHONEBOOK_TYPE} result Success', timeout=5
     )
 
+
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_PULL_PHONEBOOK_ERROR(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull phonebook error."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_PULL_PHONEBOOK_ERROR(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce pull_pb telecom/pb.vcf', PROMOT)
@@ -461,7 +382,7 @@ def test_BR_PBAP_PCE_PULL_PHONEBOOK_ERROR(pbap_pce, pbap_pse):
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_phone_book request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
     error_code = 0xC4
-    pbap_pse.iexpect(f'pbap pse pull_phone_book_rsp 0 error {hex(error_code)}', PROMOT)
+    pbap_pse.iexpect(f'pbap pse pull_phone_book_rsp error {hex(error_code)}', PROMOT)
 
     pbap_pce._wait_for_shell_response(
         f'pbap pull {BT_PBAP_PULL_PHONEBOOK_TYPE} result {bt_obex_rsp_code_to_str(error_code)}',
@@ -472,13 +393,11 @@ def test_BR_PBAP_PCE_PULL_PHONEBOOK_ERROR(pbap_pce, pbap_pse):
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_PULL_PHONEBOOK_CONTINUE(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull phonebook continue."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_PULL_PHONEBOOK_CONTINUE(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce pull_pb telecom/pb.vcf', PROMOT)
@@ -486,34 +405,7 @@ def test_BR_PBAP_PCE_PULL_PHONEBOOK_CONTINUE(pbap_pce, pbap_pse):
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_phone_book request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
     pbap_pse.iexpect(
-        'pbap pse pull_phone_book_rsp 0 continue',
-        'Keep sending responses continuously until rsp_code is success',
-    )
-
-    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_phone_book_rsp 0 success', PROMOT)
-
-    pbap_pce._wait_for_shell_response(
-        f'pbap pull {BT_PBAP_PULL_PHONEBOOK_TYPE} result Success', timeout=5
-    )
-
-    pbap_pce.iexpect('bt disconnect', 'Disconnected')
-
-def test_BR_PBAP_PCE_PULL_PHONEBOOK_SRM(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull phonebook with SRM."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
-    pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
-
-    pbap_pce.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pce.iexpect('pbap pce pull_pb telecom/pb.vcf', PROMOT)
-
-    pbap_pse._wait_for_shell_response(r'pbap_pse get pull_phone_book request', timeout=10)
-    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect(
-        'pbap pse pull_phone_book_rsp 0 continue',
+        'pbap pse pull_phone_book_rsp noerror',
         'Keep sending responses continuously until rsp_code is success',
     )
 
@@ -522,17 +414,7 @@ def test_BR_PBAP_PCE_PULL_PHONEBOOK_SRM(pbap_pce, pbap_pse):
     )
 
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect(
-        'pbap pse pull_phone_book_rsp 0 continue',
-        'Keep sending responses continuously until rsp_code is success',
-    )
-
-    pbap_pce._wait_for_shell_response(
-        f'pbap pull {BT_PBAP_PULL_PHONEBOOK_TYPE} result Continue', timeout=5
-    )
-
-    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_phone_book_rsp 0 success', PROMOT)
+    pbap_pse.iexpect('pbap pse pull_phone_book_rsp noerror', PROMOT)
 
     pbap_pce._wait_for_shell_response(
         f'pbap pull {BT_PBAP_PULL_PHONEBOOK_TYPE} result Success', timeout=5
@@ -540,21 +422,18 @@ def test_BR_PBAP_PCE_PULL_PHONEBOOK_SRM(pbap_pce, pbap_pse):
 
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
-
-def test_BR_PBAP_PCE_PULL_PHONEBOOK_SRMP_SERVER_INIT(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull phonebook with SRMP."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_PULL_PHONEBOOK_SRMP_SERVER(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce pull_pb telecom/pb.vcf', PROMOT)
 
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_phone_book request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_phone_book_rsp 1 continue', PROMOT)
+    pbap_pse.iexpect('pbap pse pull_phone_book_rsp noerror srmp', PROMOT)
 
     pbap_pce._wait_for_shell_response(r'get header srmp success', timeout=5)
 
@@ -563,7 +442,7 @@ def test_BR_PBAP_PCE_PULL_PHONEBOOK_SRMP_SERVER_INIT(pbap_pce, pbap_pse):
 
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_phone_book request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_phone_book_rsp 0 success', PROMOT)
+    pbap_pse.iexpect('pbap pse pull_phone_book_rsp noerror', PROMOT)
 
     pbap_pce._wait_for_shell_response(
         f'pbap pull {BT_PBAP_PULL_PHONEBOOK_TYPE} result Success', timeout=5
@@ -572,20 +451,18 @@ def test_BR_PBAP_PCE_PULL_PHONEBOOK_SRMP_SERVER_INIT(pbap_pce, pbap_pse):
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_PULL_PHONEBOOK_SRMP_CLIENT(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull phonebook with client SRMP."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_PULL_PHONEBOOK_SRMP_CLIENT(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pce.iexpect('pbap pce pull_pb telecom/pb.vcf 1', PROMOT)
+    pbap_pce.iexpect('pbap pce pull_pb telecom/pb.vcf srmp', PROMOT)
 
     pbap_pse._wait_for_shell_response(r'get header srmp success', timeout=5)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_phone_book_rsp 0 continue', PROMOT)
+    pbap_pse.iexpect('pbap pse pull_phone_book_rsp noerror', PROMOT)
 
     pbap_pce._wait_for_shell_response(r'please send pull cmd again', timeout=5)
 
@@ -594,7 +471,7 @@ def test_BR_PBAP_PCE_PULL_PHONEBOOK_SRMP_CLIENT(pbap_pce, pbap_pse):
 
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_phone_book request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_phone_book_rsp 0 success', PROMOT)
+    pbap_pse.iexpect('pbap pse pull_phone_book_rsp noerror', PROMOT)
 
     pbap_pce._wait_for_shell_response(
         f'pbap pull {BT_PBAP_PULL_PHONEBOOK_TYPE} result Success', timeout=5
@@ -603,20 +480,18 @@ def test_BR_PBAP_PCE_PULL_PHONEBOOK_SRMP_CLIENT(pbap_pce, pbap_pse):
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_PULL_PHONEBOOK_ABORT(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull phonebook abort."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_PULL_PHONEBOOK_ABORT(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce pull_pb telecom/pb.vcf', PROMOT)
 
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_phone_book request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_phone_book_rsp 0 continue', PROMOT)
+    pbap_pse.iexpect('pbap pse pull_phone_book_rsp noerror', PROMOT)
 
     pbap_pce._wait_for_shell_response(
         f'pbap pull {BT_PBAP_PULL_PHONEBOOK_TYPE} result Continue', timeout=5
@@ -633,33 +508,33 @@ def test_BR_PBAP_PCE_PULL_PHONEBOOK_ABORT(pbap_pce, pbap_pse):
 
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
-def test_BR_PBAP_PCE_PULL_PHONEBOOK_PARAM_ALL(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull phonebook with all application parameters."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+
+def test_BR_PBAP_PSE_PULL_PHONEBOOK_PARAM_ALL(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
-    
-    # Add all application parameters
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
+
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pce.iexpect('pbap add_appl_param MaxListCount 0x000A', PROMOT)
-    pbap_pce.iexpect('pbap add_appl_param ListStartOffset 0x0000', PROMOT)
-    pbap_pce.iexpect('pbap add_appl_param PropertySelector 0x000000000000000F', PROMOT)
-    pbap_pce.iexpect('pbap add_appl_param Format 0x00', PROMOT)
-    pbap_pce.iexpect('pbap add_appl_param vCardSelector 0x0000000000000001', PROMOT)
-    pbap_pce.iexpect('pbap add_appl_param vCardSelectorOperator 0x00', PROMOT)
-    pbap_pce.iexpect('pbap add_appl_param ResetNewMissedCalls 0x01', PROMOT)
     pbap_pce.iexpect('pbap pce pull_pb telecom/pb.vcf', PROMOT)
+
+    pbap_pse._wait_for_shell_response(r'pbap_pse get pull_phone_book request', timeout=10)
+    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
+    pbap_pse.iexpect('pbap add_ap PhonebookSize 0x0032', PROMOT)
+    pbap_pse.iexpect('pbap add_ap NewMissedCalls 0x03', PROMOT)
+    pbap_pse.iexpect('pbap add_ap PrimaryFolderVersion 00112233445566778899AABBCCDDEE11', PROMOT)
+    pbap_pse.iexpect('pbap add_ap SecondaryFolderVersion 00EEDDCCBBAA99887766554433221111', PROMOT)
+    pbap_pse.iexpect('pbap add_ap DatabaseIdentifier 0123456789ABCDEF0123456789ABCDEF', PROMOT)
+    pbap_pse.iexpect('pbap pse pull_phone_book_rsp noerror', PROMOT)
+
+    _, lines = pbap_pce._wait_for_shell_response(r'DatabaseIdentifier', timeout=5)
     
-    _ , lines = pbap_pse._wait_for_shell_response(r'ResetNewMissedCalls', timeout=10)
     expected_patterns = [
-        r'MaxListCount: 0x000a \(10\)',
-        r'ListStartOffset: 0x0000 \(0\)',
-        r'PropertySelector: 0x000000000000000f',
-        r'Format: 0x00 \(vCard 2\.1\)',
-        r'vCardSelector: 0x0000000000000001',
-        r'vCardSelectorOperator: 0x00 \(OR\)',
-        r'ResetNewMissedCalls: 0x01'
+        r'PhonebookSize: 0x0032 \(50\)',
+        r'NewMissedCalls: 0x03 \(3\)',
+        r'PrimaryFolderVersion: 00112233445566778899AABBCCDDEE11',
+        r'SecondaryFolderVersion: 00EEDDCCBBAA99887766554433221111',
+        r'DatabaseIdentifier: 0123456789ABCDEF0123456789ABCDEF'
     ]
 
     matched_patterns = []
@@ -677,19 +552,14 @@ def test_BR_PBAP_PCE_PULL_PHONEBOOK_PARAM_ALL(pbap_pce, pbap_pse):
     assert len(matched_patterns) == len(expected_patterns), \
         f'Only {len(matched_patterns)}/{len(expected_patterns)} patterns matched'
 
-    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_phone_book_rsp 0 success', PROMOT)
-
-    pbap_pce._wait_for_shell_response(f'pbap pull {BT_PBAP_PULL_PHONEBOOK_TYPE} result Success', timeout=5)
-
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
-def test_BR_PBAP_PCE_SETPATH_ROOT_SUCCESS(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE setpath to root success."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+
+def test_BR_PBAP_PSE_SETPATH_ROOT_SUCCESS(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce set_phone_book 0x02', PROMOT)
@@ -703,12 +573,11 @@ def test_BR_PBAP_PCE_SETPATH_ROOT_SUCCESS(pbap_pce, pbap_pse):
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_SETPATH_DOWN_SUCCESS(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE setpath down success."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_SETPATH_DOWN_SUCCESS(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce set_phone_book 0x02 telecom', PROMOT)
@@ -722,12 +591,11 @@ def test_BR_PBAP_PCE_SETPATH_DOWN_SUCCESS(pbap_pce, pbap_pse):
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_SETPATH_UP_SUCCESS(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE setpath up success."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_SETPATH_UP_SUCCESS(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce set_phone_book 0x02 telecom', PROMOT)
@@ -750,12 +618,11 @@ def test_BR_PBAP_PCE_SETPATH_UP_SUCCESS(pbap_pce, pbap_pse):
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_SETPATH_ERROR(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE setpath error."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_SETPATH_ERROR(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce set_phone_book 0x02 tele', PROMOT)
@@ -770,19 +637,25 @@ def test_BR_PBAP_PCE_SETPATH_ERROR(pbap_pce, pbap_pse):
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_PULL_VCARDLISTING_SUCCESS(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull vcard listing success."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_PULL_VCARDLISTING_SUCCESS(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce pull_vcard_listing pb', PROMOT)
 
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_vcard_listing request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_vcard_listing_rsp 0 success', PROMOT)
+    pbap_pse.iexpect('pbap pse pull_vcard_listing_rsp noerror', PROMOT)
+
+    pbap_pce._wait_for_shell_response(
+        f'pbap pull {BT_PBAP_PULL_VCARD_LISTING_TYPE} result Continue', timeout=5
+    )
+
+    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
+    pbap_pse.iexpect('pbap pse pull_vcard_listing_rsp noerror', PROMOT)
 
     pbap_pce._wait_for_shell_response(
         f'pbap pull {BT_PBAP_PULL_VCARD_LISTING_TYPE} result Success', timeout=5
@@ -791,12 +664,11 @@ def test_BR_PBAP_PCE_PULL_VCARDLISTING_SUCCESS(pbap_pce, pbap_pse):
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_PULL_VCARDLISTING_ERROR(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull vcard listing error."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_PULL_VCARDLISTING_ERROR(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce pull_vcard_listing pb', PROMOT)
@@ -804,7 +676,7 @@ def test_BR_PBAP_PCE_PULL_VCARDLISTING_ERROR(pbap_pce, pbap_pse):
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_vcard_listing request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
     err_code = 0xC4
-    pbap_pse.iexpect(f'pbap pse pull_vcard_listing_rsp 0 error {hex(err_code)}', PROMOT)
+    pbap_pse.iexpect(f'pbap pse pull_vcard_listing_rsp error {hex(err_code)}', PROMOT)
 
     pbap_pce._wait_for_shell_response(
         f'pbap pull {BT_PBAP_PULL_VCARD_LISTING_TYPE} result {bt_obex_rsp_code_to_str(err_code)}',
@@ -814,12 +686,11 @@ def test_BR_PBAP_PCE_PULL_VCARDLISTING_ERROR(pbap_pce, pbap_pse):
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_PULL_VCARDLISTING_CONTINUE(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull vcard listing continue."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_PULL_VCARDLISTING_CONTINUE(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce pull_vcard_listing pb', PROMOT)
@@ -827,7 +698,7 @@ def test_BR_PBAP_PCE_PULL_VCARDLISTING_CONTINUE(pbap_pce, pbap_pse):
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_vcard_listing request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
     pbap_pse.iexpect(
-        'pbap pse pull_vcard_listing_rsp 0 continue',
+        'pbap pse pull_vcard_listing_rsp noerror',
         'Keep sending responses continuously until rsp_code is success',
     )
 
@@ -836,7 +707,7 @@ def test_BR_PBAP_PCE_PULL_VCARDLISTING_CONTINUE(pbap_pce, pbap_pse):
     )
 
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_vcard_listing_rsp 0 success', PROMOT)
+    pbap_pse.iexpect('pbap pse pull_vcard_listing_rsp noerror', PROMOT)
 
     pbap_pce._wait_for_shell_response(
         f'pbap pull {BT_PBAP_PULL_VCARD_LISTING_TYPE} result Success', timeout=5
@@ -845,12 +716,11 @@ def test_BR_PBAP_PCE_PULL_VCARDLISTING_CONTINUE(pbap_pce, pbap_pse):
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_PULL_VCARDLISTING_SRM(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull vcard listing with SRM."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_PULL_VCARDLISTING_SRMP_SERVER(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce pull_vcard_listing pb', PROMOT)
@@ -858,48 +728,7 @@ def test_BR_PBAP_PCE_PULL_VCARDLISTING_SRM(pbap_pce, pbap_pse):
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_vcard_listing request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
     pbap_pse.iexpect(
-        'pbap pse pull_vcard_listing_rsp 0 continue',
-        'Keep sending responses continuously until rsp_code is success',
-    )
-
-    pbap_pce._wait_for_shell_response(
-        f'pbap pull {BT_PBAP_PULL_VCARD_LISTING_TYPE} result Continue', timeout=5
-    )
-
-    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect(
-        'pbap pse pull_vcard_listing_rsp 0 continue',
-        'Keep sending responses continuously until rsp_code is success',
-    )
-
-    pbap_pce._wait_for_shell_response(
-        f'pbap pull {BT_PBAP_PULL_VCARD_LISTING_TYPE} result Continue', timeout=5
-    )
-
-    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_vcard_listing_rsp 0 success', PROMOT)
-
-    pbap_pce._wait_for_shell_response(
-        f'pbap pull {BT_PBAP_PULL_VCARD_LISTING_TYPE} result Success', timeout=5
-    )
-
-    pbap_pce.iexpect('bt disconnect', 'Disconnected')
-
-
-def test_BR_PBAP_PCE_PULL_VCARDLISTING_SRMP_SERVER_INIT(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull vcard listing with server SRMP."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
-    pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
-
-    pbap_pce.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pce.iexpect('pbap pce pull_vcard_listing pb', PROMOT)
-
-    pbap_pse._wait_for_shell_response(r'pbap_pse get pull_vcard_listing request', timeout=10)
-    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect(
-        'pbap pse pull_vcard_listing_rsp 1 continue',
+        'pbap pse pull_vcard_listing_rsp noerror srmp',
         'Suspend after sending a single response and await the PCE request',
     )
 
@@ -909,7 +738,7 @@ def test_BR_PBAP_PCE_PULL_VCARDLISTING_SRMP_SERVER_INIT(pbap_pce, pbap_pse):
 
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_vcard_listing request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_vcard_listing_rsp 0 success', PROMOT)
+    pbap_pse.iexpect('pbap pse pull_vcard_listing_rsp noerror', PROMOT)
 
     pbap_pce._wait_for_shell_response(
         f'pbap pull {BT_PBAP_PULL_VCARD_LISTING_TYPE} result Success', timeout=5
@@ -918,20 +747,19 @@ def test_BR_PBAP_PCE_PULL_VCARDLISTING_SRMP_SERVER_INIT(pbap_pce, pbap_pse):
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_PULL_VCARDLISTING_SRMP_CLIENT_INIT(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull vcard listing with client SRMP."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_PULL_VCARDLISTING_SRMP_CLIENT(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pce.iexpect('pbap pce pull_vcard_listing pb 1', PROMOT)
+    pbap_pce.iexpect('pbap pce pull_vcard_listing pb srmp', PROMOT)
 
     pbap_pse._wait_for_shell_response(r'get header srmp success', timeout=5)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
     pbap_pse.iexpect(
-        'pbap pse pull_vcard_listing_rsp 0 continue',
+        'pbap pse pull_vcard_listing_rsp noerror',
         'Suspend after sending a single response and await the PCE request',
     )
 
@@ -941,27 +769,28 @@ def test_BR_PBAP_PCE_PULL_VCARDLISTING_SRMP_CLIENT_INIT(pbap_pce, pbap_pse):
 
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_vcard_listing request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_vcard_listing_rsp 0 success', PROMOT)
+    pbap_pse.iexpect('pbap pse pull_vcard_listing_rsp noerror', PROMOT)
 
     pbap_pce._wait_for_shell_response(
         f'pbap pull {BT_PBAP_PULL_VCARD_LISTING_TYPE} result Success', timeout=5
     )
+
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_PULL_VCARDLISTING_ABORT(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull vcard listing abort."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+
+def test_BR_PBAP_PSE_PULL_VCARDLISTING_ABORT(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce pull_vcard_listing pb', PROMOT)
 
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_vcard_listing request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_vcard_listing_rsp 1 continue', PROMOT)
+    pbap_pse.iexpect('pbap pse pull_vcard_listing_rsp noerror srmp', PROMOT)
 
     pbap_pce._wait_for_shell_response(
         f'pbap pull {BT_PBAP_PULL_VCARD_LISTING_TYPE} result Continue', timeout=5
@@ -979,33 +808,32 @@ def test_BR_PBAP_PCE_PULL_VCARDLISTING_ABORT(pbap_pce, pbap_pse):
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_PULL_VCARDLISTING_PARAM_ALL(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull vcard listing with all application parameters."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_PULL_VCARDLISTING_PARAM_ALL(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
-    
-    # Add all application parameters for PullvCardListing
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
+
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pce.iexpect('pbap add_appl_param Order 0x01', PROMOT)
-    pbap_pce.iexpect('pbap add_appl_param SearchValue John', PROMOT)
-    pbap_pce.iexpect('pbap add_appl_param SearchAttribute 0x00', PROMOT)
-    pbap_pce.iexpect('pbap add_appl_param MaxListCount 0x0014', PROMOT)
-    pbap_pce.iexpect('pbap add_appl_param ListStartOffset 0x0000', PROMOT)
-    pbap_pce.iexpect('pbap add_appl_param vCardSelector 0x0000000000000003', PROMOT)
-    pbap_pce.iexpect('pbap add_appl_param vCardSelectorOperator 0x00', PROMOT)
     pbap_pce.iexpect('pbap pce pull_vcard_listing pb', PROMOT)
+
+    pbap_pse._wait_for_shell_response(r'pbap_pse get pull_vcard_listing request', timeout=10)
+    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
+    pbap_pse.iexpect('pbap add_ap PhonebookSize 0x0032', PROMOT)
+    pbap_pse.iexpect('pbap add_ap NewMissedCalls 0x03', PROMOT)
+    pbap_pse.iexpect('pbap add_ap PrimaryFolderVersion 00112233445566778899AABBCCDDEEFF', PROMOT)
+    pbap_pse.iexpect('pbap add_ap SecondaryFolderVersion FFEEDDCCBBAA99887766554433221100', PROMOT)
+    pbap_pse.iexpect('pbap add_ap DatabaseIdentifier 0123456789ABCDEF0123456789ABCDEF', PROMOT)
+    pbap_pse.iexpect('pbap pse pull_vcard_listing_rsp noerror', PROMOT)
+
+    _, lines = pbap_pce._wait_for_shell_response(r'DatabaseIdentifier', timeout=5)
     
-    _, lines = pbap_pse._wait_for_shell_response(r'vCardSelectorOperator', timeout=10)
     expected_patterns = [
-        r'Order: 0x01 \(Alphanumeric\)',
-        r'SearchValue: John',
-        r'SearchAttribute: 0x00 \(Name\)',
-        r'MaxListCount: 0x0014 \(20\)',
-        r'ListStartOffset: 0x0000 \(0\)',
-        r'vCardSelector: 0x0000000000000003',
-        r'vCardSelectorOperator: 0x00 \(OR\)'
+        r'PhonebookSize: 0x0032 \(50\)',
+        r'NewMissedCalls: 0x03 \(3\)',
+        r'PrimaryFolderVersion: 00112233445566778899AABBCCDDEEFF',
+        r'SecondaryFolderVersion: FFEEDDCCBBAA99887766554433221100',
+        r'DatabaseIdentifier: 0123456789ABCDEF0123456789ABCDEF'
     ]
 
     matched_patterns = []
@@ -1019,189 +847,250 @@ def test_BR_PBAP_PCE_PULL_VCARDLISTING_PARAM_ALL(pbap_pce, pbap_pse):
                 break
         if not pattern_matched:
             logger.warning(f'Pattern NOT matched: {pattern}')
-    
+
     assert len(matched_patterns) == len(expected_patterns), \
         f'Only {len(matched_patterns)}/{len(expected_patterns)} patterns matched'
-    
-    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_vcard_listing_rsp 0 success', PROMOT)
-    
-    pbap_pce._wait_for_shell_response(f'pbap pull {BT_PBAP_PULL_VCARD_LISTING_TYPE} result Success', timeout=5)
-    
+
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_PULL_VCARDENTRY_SUCCESS(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull vcard entry success."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_PULL_VCARDENTRY_SUCCESS(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
-    
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
+
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce pull_vcard_entry 1.vcf', PROMOT)
-    
+
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_vcard_entry request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_vcard_entry_rsp 0 success', PROMOT)
-    
-    pbap_pce._wait_for_shell_response(f'pbap pull {BT_PBAP_PULL_VCARD_ENTRY_TYPE} result Success', timeout=5)
-    
+    pbap_pse.iexpect('pbap pse pull_vcard_entry_rsp noerror', PROMOT)
+
+    pbap_pce._wait_for_shell_response(
+        f'pbap pull {BT_PBAP_PULL_VCARD_ENTRY_TYPE} result Continue', timeout=5
+    )
+
+    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
+    pbap_pse.iexpect('pbap pse pull_vcard_entry_rsp noerror', PROMOT)
+
+    pbap_pce._wait_for_shell_response(
+        f'pbap pull {BT_PBAP_PULL_VCARD_ENTRY_TYPE} result Success', timeout=5
+    )
+
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_PULL_VCARDENTRY_ERROR(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull vcard entry error."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+
+def test_BR_PBAP_PSE_PULL_VCARDENTRY_ERROR(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
-    
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
+
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce pull_vcard_entry 1.vcf', PROMOT)
-    
+
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_vcard_entry request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
     err_code = 0xC4
-    pbap_pse.iexpect(f'pbap pse pull_vcard_entry_rsp 0 error {hex(err_code)}', PROMOT)
-    
-    pbap_pce._wait_for_shell_response(f'pbap pull {BT_PBAP_PULL_VCARD_ENTRY_TYPE} result {bt_obex_rsp_code_to_str(err_code)}', timeout=5)
-    
+    pbap_pse.iexpect(f'pbap pse pull_vcard_entry_rsp error {hex(err_code)}', PROMOT)
+
+    pbap_pce._wait_for_shell_response(
+        f'pbap pull {BT_PBAP_PULL_VCARD_ENTRY_TYPE} result {bt_obex_rsp_code_to_str(err_code)}',
+        timeout=5,
+    )
+
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_PULL_VCARDENTRY_CONTINUE(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull vcard entry continue."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_PULL_VCARDENTRY_CONTINUE(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
-    
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
+
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce pull_vcard_entry 1.vcf', PROMOT)
-    
+
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_vcard_entry request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_vcard_entry_rsp 0 continue', 'Keep sending responses continuously until rsp_code is success')
-    
-    pbap_pce._wait_for_shell_response(f'pbap pull {BT_PBAP_PULL_VCARD_ENTRY_TYPE} result Continue', timeout=5)
+    pbap_pse.iexpect(
+        'pbap pse pull_vcard_entry_rsp noerror',
+        'Keep sending responses continuously until rsp_code is success',
+    )
+
+    pbap_pce._wait_for_shell_response(
+        f'pbap pull {BT_PBAP_PULL_VCARD_ENTRY_TYPE} result Continue', timeout=5
+    )
 
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_vcard_entry_rsp 0 success', PROMOT)
-    
-    pbap_pce._wait_for_shell_response(f'pbap pull {BT_PBAP_PULL_VCARD_ENTRY_TYPE} result Success', timeout=5)
-    
+    pbap_pse.iexpect('pbap pse pull_vcard_entry_rsp noerror', PROMOT)
+
+    pbap_pce._wait_for_shell_response(
+        f'pbap pull {BT_PBAP_PULL_VCARD_ENTRY_TYPE} result Success', timeout=5
+    )
+
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_PULL_VCARDENTRY_SRM(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull vcard entry with SRM."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+def test_BR_PBAP_PSE_PULL_VCARDENTRY_SRMP_SERVER(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
-    
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
+
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce pull_vcard_entry 1.vcf', PROMOT)
-    
+
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_vcard_entry request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_vcard_entry_rsp 0 continue', PROMOT)
-    
-    pbap_pce._wait_for_shell_response(f'pbap pull {BT_PBAP_PULL_VCARD_ENTRY_TYPE} result Continue', timeout=5)
-    
-    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_vcard_entry_rsp 0 continue', PROMOT)
-    
-    pbap_pce._wait_for_shell_response(f'pbap pull {BT_PBAP_PULL_VCARD_ENTRY_TYPE} result Continue', timeout=5)
-    
-    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_vcard_entry_rsp 0 success', PROMOT)
-    
-    pbap_pce._wait_for_shell_response(f'pbap pull {BT_PBAP_PULL_VCARD_ENTRY_TYPE} result Success', timeout=5)
-    
-    pbap_pce.iexpect('bt disconnect', 'Disconnected')
+    pbap_pse.iexpect(
+        'pbap pse pull_vcard_entry_rsp noerror srmp',
+        'Suspend after sending a single response and await the PCE request',
+    )
 
-
-def test_BR_PBAP_PCE_PULL_VCARDENTRY_SRMP_SERVER_INIT(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull vcard entry with server SRMP."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
-    pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
-    
-    pbap_pce.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pce.iexpect('pbap pce pull_vcard_entry 1.vcf', PROMOT)
-    
-    pbap_pse._wait_for_shell_response(r'pbap_pse get pull_vcard_entry request', timeout=10)
-    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_vcard_entry_rsp 1 continue', 'Suspend after sending a single response and await the PCE request')
-    
     pbap_pce._wait_for_shell_response(r'please send pull cmd again', timeout=5)
 
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce pull_vcard_entry 1.vcf', PROMOT)
-    
+
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_vcard_entry request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_vcard_entry_rsp 0 success', PROMOT)
-    
-    pbap_pce._wait_for_shell_response(f'pbap pull {BT_PBAP_PULL_VCARD_ENTRY_TYPE} result Success', timeout=5)
-    
+    pbap_pse.iexpect('pbap pse pull_vcard_entry_rsp noerror', PROMOT)
+
+    pbap_pce._wait_for_shell_response(
+        f'pbap pull {BT_PBAP_PULL_VCARD_ENTRY_TYPE} result Success', timeout=5
+    )
+
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
-def test_BR_PBAP_PCE_PULL_VCARDENTRY_SRMP_CLIENT_INIT(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull vcard entry with client SRMP."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+
+
+def test_BR_PBAP_PSE_PULL_VCARDENTRY_SRMP_CLIENT(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
-    
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
+
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pce.iexpect('pbap pce pull_vcard_entry 1.vcf 1', PROMOT)
-    
-    pbap_pse._wait_for_shell_response(r'pbap_pse get pull_vcard_entry request', timeout=10)
+    pbap_pce.iexpect('pbap pce pull_vcard_entry 1.vcf srmp', PROMOT)
+
+    pbap_pse._wait_for_shell_response(r'get header srmp success', timeout=5)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_vcard_entry_rsp 0 continue', 'Suspend after sending a single response and await the PCE request')
-    
+    pbap_pse.iexpect(
+        'pbap pse pull_vcard_entry_rsp noerror',
+        'Suspend after sending a single response and await the PCE request',
+    )
+
     pbap_pce._wait_for_shell_response(r'please send pull cmd again', timeout=5)
-    
+
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce pull_vcard_entry 1.vcf', PROMOT)
-    
+
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_vcard_entry request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_vcard_entry_rsp 0 success', PROMOT)
-    
-    pbap_pce._wait_for_shell_response(f'pbap pull {BT_PBAP_PULL_VCARD_ENTRY_TYPE} result Success', timeout=5)
-    
+    pbap_pse.iexpect('pbap pse pull_vcard_entry_rsp noerror', PROMOT)
+
+    pbap_pce._wait_for_shell_response(
+        f'pbap pull {BT_PBAP_PULL_VCARD_ENTRY_TYPE} result Success', timeout=5
+    )
+
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
 
-def test_BR_PBAP_PCE_PULL_VCARDENTRY_ABORT(pbap_pce, pbap_pse):
-    """Test BR PBAP PCE pull vcard entry abort."""
-    pbap_br_clear(pbap_pce, pbap_pse)
-    pbap_br_connect(pbap_pce, pbap_pse)
+
+def test_BR_PBAP_PSE_PULL_VCARDENTRY_ABORT(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
     pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
-    pbap_pce_crete_obex_connection(pbap_pce, pbap_pse)
-    
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
+
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce pull_vcard_entry 1.vcf', PROMOT)
-    
+
     pbap_pse._wait_for_shell_response(r'pbap_pse get pull_vcard_entry request', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
-    pbap_pse.iexpect('pbap pse pull_vcard_entry_rsp 0 continue', PROMOT)
-    
-    pbap_pce._wait_for_shell_response(f'pbap pull {BT_PBAP_PULL_VCARD_ENTRY_TYPE} result Continue', timeout=5)
-    
+    pbap_pse.iexpect('pbap pse pull_vcard_entry_rsp noerror', PROMOT)
+
+    pbap_pce._wait_for_shell_response(
+        f'pbap pull {BT_PBAP_PULL_VCARD_ENTRY_TYPE} result Continue', timeout=5
+    )
+
     pbap_pce.iexpect('pbap alloc_buf', PROMOT)
     pbap_pce.iexpect('pbap pce abort', PROMOT)
-    
+
     pbap_pse._wait_for_shell_response(r'receive abort req', timeout=10)
     pbap_pse.iexpect('pbap alloc_buf', PROMOT)
     pbap_pse.iexpect('pbap pse abort_rsp success', PROMOT)
-    
+
     pbap_pce._wait_for_shell_response(r'abort success', timeout=5)
-    
+
     pbap_pce.iexpect('bt disconnect', 'Disconnected')
 
+
+
+def test_BR_PBAP_PSE_PULL_VCARDENTRY_PARAM_ALL(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
+    pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
+
+    pbap_pce.iexpect('pbap alloc_buf', PROMOT)
+    pbap_pce.iexpect('pbap pce pull_vcard_entry 1.vcf', PROMOT)
+
+    pbap_pse._wait_for_shell_response(r'pbap_pse get pull_vcard_entry request', timeout=10)
+    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
+    pbap_pse.iexpect('pbap add_ap DatabaseIdentifier 0123456789ABCDEF0123456789ABCDEF', PROMOT)
+    pbap_pse.iexpect('pbap pse pull_vcard_entry_rsp noerror', PROMOT)
+
+    _, lines = pbap_pce._wait_for_shell_response(r'DatabaseIdentifier', timeout=5)
+    
+    expected_patterns = [
+        r'DatabaseIdentifier: 0123456789ABCDEF0123456789ABCDEF'
+    ]
+
+    matched_patterns = []
+    for pattern in expected_patterns:
+        pattern_matched = False
+        for line in lines:
+            if re.search(pattern, line):
+                matched_patterns.append(pattern)
+                pattern_matched = True
+                logger.info(f'Pattern matched: {pattern} in line: {line}')
+                break
+        if not pattern_matched:
+            logger.warning(f'Pattern NOT matched: {pattern}')
+
+    assert len(matched_patterns) == len(expected_patterns), \
+        f'Only {len(matched_patterns)}/{len(expected_patterns)} patterns matched'
+
+    pbap_pce.iexpect('bt disconnect', 'Disconnected')
+
+
+def test_BR_PBAP_PSE_ABORT_ERROR(pbap_pse, pbap_pce):
+    pbap_br_clear(pbap_pse, pbap_pce)
+    pbap_br_connect(pbap_pse, pbap_pce)
+    pbap_pce_l2cap_transport_connection(pbap_pce, pbap_pse)
+    pbap_pce_create_obex_connection(pbap_pce, pbap_pse)
+
+    pbap_pce.iexpect('pbap alloc_buf', PROMOT)
+    pbap_pce.iexpect('pbap pce pull_pb telecom/pb.vcf', PROMOT)
+
+    pbap_pse._wait_for_shell_response(r'pbap_pse get pull_phone_book request', timeout=10)
+    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
+    pbap_pse.iexpect('pbap pse pull_phone_book_rsp noerror srmp', PROMOT)
+
+    pbap_pce._wait_for_shell_response(r'please send pull cmd again', timeout=5)
+
+    pbap_pce.iexpect('pbap alloc_buf', PROMOT)
+    pbap_pce.iexpect('pbap pce abort', PROMOT)
+
+    pbap_pse._wait_for_shell_response(r'receive abort req', timeout=10)
+    pbap_pse.iexpect('pbap alloc_buf', PROMOT)
+    error_code = 0xC4
+    pbap_pse.iexpect(
+        f'pbap pse abort_rsp error {hex(error_code)}', r'PBAP.*l2cap transport disconnected'
+    )
+
+    pbap_pce.iexpect('bt disconnect', 'Disconnected')

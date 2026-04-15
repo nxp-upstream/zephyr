@@ -1,10 +1,12 @@
-# Copyright 2025 NXP
+# Copyright 2026 NXP
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Test fixtures and utilities for Bluetooth Classic L2CAP testing."""
+"""Test fixtures and utilities for Bluetooth Classic MAP testing."""
 
+import contextlib
 import copy
+import inspect
 import logging
 import os
 import re
@@ -14,14 +16,14 @@ import time
 from pathlib import Path
 
 import pytest
-from twister_harness import DeviceAdapter, Shell
+from twister_harness import DeviceAdapter, Shell, zephyr_base
 from twister_harness.device.factory import DeviceFactory
-from twister_harness.helpers.domains_helper import ZEPHYR_BASE
 from twister_harness.helpers.utils import find_in_config
 from twister_harness.twister_harness_config import DeviceConfig
 
-sys.path.insert(0, os.path.join(ZEPHYR_BASE, 'scripts'))  # import zephyr_module in environment.py
-sys.path.insert(0, os.path.join(ZEPHYR_BASE, 'scripts', 'pylib', 'twister'))
+sys.path.insert(0, os.path.join(zephyr_base, 'scripts'))  # import zephyr_module in environment.py
+sys.path.insert(0, os.path.join(zephyr_base, 'scripts', 'pylib', 'twister'))
+
 logger = logging.getLogger(__name__)
 
 
@@ -44,17 +46,11 @@ def harness_devices(request, twister_harness_config):
             self.options = options
 
     user_home = os.path.expanduser("~")
-    harness_device_yml = os.path.join(user_home, request.config.getoption('--device-id') + '.yaml')
+    harness_device_yml = os.path.join(user_home, twister_harness_config.devices[0].id + '.yaml')
     logger.info(f'harness_device_yml:{harness_device_yml}')
 
-    dut_build_dir = request.config.getoption('--build-dir')
-    # get harness_apps from pytest args, but to keep the same command line iwth bumble test
-    # harness_apps = request.config.getoption('--harness_apps')
-    # logger.info(f'harness_apps:{harness_apps}')
-    # harness_app_list = harness_apps.split(' ')
+    dut_build_dir=twister_harness_config.devices[0].build_dir
 
-    # we use the default list in conftest.py for each test app
-    # harness_app_list = ['samples/bluetooth/peripheral_ht']
     harness_app_list = []
     logger.info('harness_app:%s', harness_app_list)
 
@@ -76,7 +72,7 @@ def harness_devices(request, twister_harness_config):
             harness_app = harness_app.split('-')
             appname, extra_config = harness_app[0], harness_app[1:]
             extra_config = ['-- -' + config for config in extra_config]
-            appname = os.path.join(ZEPHYR_BASE, appname)
+            appname = os.path.join(zephyr_base, appname)
             # build harness_app image for harness device
             platform_in_dir = harness_hw.platform.replace('@', '_').replace('/', '_')
             build_dir = f'./harness_{platform_in_dir}_{os.path.basename(appname)}'
@@ -112,8 +108,6 @@ def harness_devices(request, twister_harness_config):
     finally:  # to make sure we close all running processes execution
         for device_object in harness_devices:
             device_object.close()
-
-
 class BaseBoard:
     """Base class for board-level test functionality."""
 
@@ -242,8 +236,7 @@ def pbap_pse(harness_devices):
     board.get_address()
     board.iexpect("br pscan on", "connectable done")
     board.iexpect("br iscan on", "discoverable done")
-    board.exec_command("pbap pse sdp_reg")
+    board.exec_command("pbap pse register")
     board.iexpect("pbap pse l2cap_register", r"L2cap server.*is registered")
     board.iexpect("pbap pse rfcomm_register", r"RFCOMM server.*is registered")
-    board.exec_command("pbap pse register")
     yield board
