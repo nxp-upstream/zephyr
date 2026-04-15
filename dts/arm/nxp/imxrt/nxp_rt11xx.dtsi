@@ -8,6 +8,7 @@
 #include <freq.h>
 #include <arm/armv7-m.dtsi>
 #include <zephyr/dt-bindings/adc/adc.h>
+#include <zephyr/dt-bindings/clock/imx_ccm.h>
 #include <zephyr/dt-bindings/clock/imx_ccm_rev2.h>
 #include <zephyr/dt-bindings/gpio/gpio.h>
 #include <zephyr/dt-bindings/i2c/i2c.h>
@@ -1115,6 +1116,7 @@
 
 		spdif: spdif@40400000 {
 			compatible = "nxp,mcux-spdif";
+			#dma-cells = <0>;
 			reg = <0x40400000 0x4000>;
 			clocks = <&ccm IMX_CCM_SPDIF_CLK 0x1f84 4>;
 			clock-mux = <4>;

@@ -7,24 +7,14 @@
 #ifndef ZEPHYR_DRIVERS_AUDIO_SPDIF_MCUX_HAL_H_
 #define ZEPHYR_DRIVERS_AUDIO_SPDIF_MCUX_HAL_H_
 
+#include <fsl_common.h>
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
-typedef int32_t status_t;
-
 enum {
-	kStatusGroup_Generic = 0,
-	kStatusGroup_SPDIF = 75,
-};
-
-#define MAKE_STATUS(group, code) ((((group) * 100L) + (code)))
-
-enum {
-	kStatus_Success = MAKE_STATUS(kStatusGroup_Generic, 0),
-	kStatus_InvalidArgument = MAKE_STATUS(kStatusGroup_Generic, 4),
-	kStatus_NoTransferInProgress = MAKE_STATUS(kStatusGroup_Generic, 6),
 	kStatus_SPDIF_RxDPLLLocked = MAKE_STATUS(kStatusGroup_SPDIF, 0),
 	kStatus_SPDIF_TxFIFOError = MAKE_STATUS(kStatusGroup_SPDIF, 1),
 	kStatus_SPDIF_TxFIFOResync = MAKE_STATUS(kStatusGroup_SPDIF, 2),
@@ -43,100 +33,6 @@ enum {
 	kStatus_SPDIF_RxIdle = MAKE_STATUS(kStatusGroup_SPDIF, 15),
 	kStatus_SPDIF_QueueFull = MAKE_STATUS(kStatusGroup_SPDIF, 16),
 };
-
-typedef struct {
-	volatile uint32_t SCR;
-	volatile uint32_t SRCD;
-	volatile uint32_t SRPC;
-	volatile uint32_t SIE;
-	union {
-		volatile uint32_t SIC;
-		volatile uint32_t SIS;
-	};
-	volatile const uint32_t SRL;
-	volatile const uint32_t SRR;
-	volatile const uint32_t SRCSH;
-	volatile const uint32_t SRCSL;
-	volatile const uint32_t SRU;
-	volatile const uint32_t SRQ;
-	volatile uint32_t STL;
-	volatile uint32_t STR;
-	volatile uint32_t STCSCH;
-	volatile uint32_t STCSCL;
-	uint8_t reserved_0[8];
-	volatile const uint32_t SRFM;
-	uint8_t reserved_1[8];
-	volatile uint32_t STC;
-} SPDIF_Type;
-
-#define SPDIF_SCR_USRC_SEL_MASK 0x3U
-#define SPDIF_SCR_USRC_SEL_SHIFT 0U
-#define SPDIF_SCR_USRC_SEL(x) ((((uint32_t)(x)) << SPDIF_SCR_USRC_SEL_SHIFT) & SPDIF_SCR_USRC_SEL_MASK)
-#define SPDIF_SCR_TXSEL_MASK 0x1CU
-#define SPDIF_SCR_TXSEL_SHIFT 2U
-#define SPDIF_SCR_TXSEL(x) ((((uint32_t)(x)) << SPDIF_SCR_TXSEL_SHIFT) & SPDIF_SCR_TXSEL_MASK)
-#define SPDIF_SCR_VALCTRL_MASK 0x20U
-#define SPDIF_SCR_VALCTRL_SHIFT 5U
-#define SPDIF_SCR_VALCTRL(x) ((((uint32_t)(x)) << SPDIF_SCR_VALCTRL_SHIFT) & SPDIF_SCR_VALCTRL_MASK)
-#define SPDIF_SCR_DMA_TX_EN_MASK 0x100U
-#define SPDIF_SCR_DMA_RX_EN_MASK 0x200U
-#define SPDIF_SCR_TXFIFO_CTRL_MASK 0xC00U
-#define SPDIF_SCR_TXFIFO_CTRL_SHIFT 10U
-#define SPDIF_SCR_TXFIFO_CTRL(x) ((((uint32_t)(x)) << SPDIF_SCR_TXFIFO_CTRL_SHIFT) & SPDIF_SCR_TXFIFO_CTRL_MASK)
-#define SPDIF_SCR_SOFT_RESET_MASK 0x1000U
-#define SPDIF_SCR_TXFIFOEMPTY_SEL_MASK 0x18000U
-#define SPDIF_SCR_TXFIFOEMPTY_SEL_SHIFT 15U
-#define SPDIF_SCR_TXFIFOEMPTY_SEL(x) ((((uint32_t)(x)) << SPDIF_SCR_TXFIFOEMPTY_SEL_SHIFT) & SPDIF_SCR_TXFIFOEMPTY_SEL_MASK)
-#define SPDIF_SCR_TXAUTOSYNC_MASK 0x20000U
-#define SPDIF_SCR_TXAUTOSYNC_SHIFT 17U
-#define SPDIF_SCR_TXAUTOSYNC(x) ((((uint32_t)(x)) << SPDIF_SCR_TXAUTOSYNC_SHIFT) & SPDIF_SCR_TXAUTOSYNC_MASK)
-#define SPDIF_SCR_RXAUTOSYNC_MASK 0x40000U
-#define SPDIF_SCR_RXAUTOSYNC_SHIFT 18U
-#define SPDIF_SCR_RXAUTOSYNC(x) ((((uint32_t)(x)) << SPDIF_SCR_RXAUTOSYNC_SHIFT) & SPDIF_SCR_RXAUTOSYNC_MASK)
-#define SPDIF_SCR_RXFIFOFULL_SEL_MASK 0x180000U
-#define SPDIF_SCR_RXFIFOFULL_SEL_SHIFT 19U
-#define SPDIF_SCR_RXFIFOFULL_SEL(x) ((((uint32_t)(x)) << SPDIF_SCR_RXFIFOFULL_SEL_SHIFT) & SPDIF_SCR_RXFIFOFULL_SEL_MASK)
-#define SPDIF_SCR_RXFIFO_RST_MASK 0x200000U
-#define SPDIF_SCR_RXFIFO_OFF_ON_MASK 0x400000U
-#define SPDIF_SCR_RXFIFO_CTRL_MASK 0x800000U
-
-#define SPDIF_SRPC_GAINSEL_MASK 0x38U
-#define SPDIF_SRPC_GAINSEL_SHIFT 3U
-#define SPDIF_SRPC_GAINSEL(x) ((((uint32_t)(x)) << SPDIF_SRPC_GAINSEL_SHIFT) & SPDIF_SRPC_GAINSEL_MASK)
-#define SPDIF_SRPC_LOCK_MASK 0x40U
-#define SPDIF_SRPC_CLKSRC_SEL_MASK 0x780U
-#define SPDIF_SRPC_CLKSRC_SEL_SHIFT 7U
-#define SPDIF_SRPC_CLKSRC_SEL(x) ((((uint32_t)(x)) << SPDIF_SRPC_CLKSRC_SEL_SHIFT) & SPDIF_SRPC_CLKSRC_SEL_MASK)
-
-#define SPDIF_SIE_RXFIFOFUL_MASK 0x1U
-#define SPDIF_SIE_TXEM_MASK 0x2U
-#define SPDIF_SIE_LOCKLOSS_MASK 0x4U
-#define SPDIF_SIE_RXFIFORESYN_MASK 0x8U
-#define SPDIF_SIE_RXFIFOUNOV_MASK 0x10U
-#define SPDIF_SIE_UQERR_MASK 0x20U
-#define SPDIF_SIE_UQSYNC_MASK 0x40U
-#define SPDIF_SIE_QRXOV_MASK 0x80U
-#define SPDIF_SIE_QRXFUL_MASK 0x100U
-#define SPDIF_SIE_URXOV_MASK 0x200U
-#define SPDIF_SIE_URXFUL_MASK 0x400U
-#define SPDIF_SIE_BITERR_MASK 0x4000U
-#define SPDIF_SIE_SYMERR_MASK 0x8000U
-#define SPDIF_SIE_VALNOGOOD_MASK 0x10000U
-#define SPDIF_SIE_CNEW_MASK 0x20000U
-#define SPDIF_SIE_TXRESYN_MASK 0x40000U
-#define SPDIF_SIE_TXUNOV_MASK 0x80000U
-#define SPDIF_SIE_LOCK_MASK 0x100000U
-
-#define SPDIF_STC_TXCLK_DF_MASK 0x7FU
-#define SPDIF_STC_TXCLK_DF_SHIFT 0U
-#define SPDIF_STC_TXCLK_DF(x) ((((uint32_t)(x)) << SPDIF_STC_TXCLK_DF_SHIFT) & SPDIF_STC_TXCLK_DF_MASK)
-#define SPDIF_STC_TX_ALL_CLK_EN_MASK 0x80U
-#define SPDIF_STC_TXCLK_SOURCE_MASK 0x700U
-#define SPDIF_STC_TXCLK_SOURCE_SHIFT 8U
-#define SPDIF_STC_TXCLK_SOURCE(x) ((((uint32_t)(x)) << SPDIF_STC_TXCLK_SOURCE_SHIFT) & SPDIF_STC_TXCLK_SOURCE_MASK)
-#define SPDIF_STC_SYSCLK_DF_MASK 0xFF800U
-#define SPDIF_STC_SYSCLK_DF_SHIFT 11U
-#define SPDIF_STC_SYSCLK_DF(x) ((((uint32_t)(x)) << SPDIF_STC_SYSCLK_DF_SHIFT) & SPDIF_STC_SYSCLK_DF_MASK)
 
 typedef enum {
 	kSPDIF_RxFull1Sample = 0x0u,

@@ -7,6 +7,7 @@
 #define DT_DRV_COMPAT nxp_imx_ccm_rev2
 #include <errno.h>
 #include <zephyr/drivers/clock_control.h>
+#include <zephyr/dt-bindings/clock/imx_ccm.h>
 #include <zephyr/dt-bindings/clock/imx_ccm_rev2.h>
 #include <fsl_clock.h>
 #if defined(CONFIG_SOC_MIMX9352)

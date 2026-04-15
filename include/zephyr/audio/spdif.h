@@ -168,7 +168,7 @@ struct spdif_status {
 };
 
 /** Driver API for SPDIF controllers. */
-struct spdif_driver_api {
+__subsystem struct spdif_driver_api {
 	int (*configure)(const struct device *dev, enum spdif_dir dir,
 			 const struct spdif_config *cfg);
 	const struct spdif_config *(*config_get)(const struct device *dev,
