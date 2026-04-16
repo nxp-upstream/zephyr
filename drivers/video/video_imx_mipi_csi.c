@@ -9,6 +9,7 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/video.h>
 #include <zephyr/drivers/video/mipi_dphy.h>
+#include <zephyr/devicetree/port-endpoint.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/util.h>
@@ -624,32 +625,28 @@ static int csi_init(const struct device *dev)
 	return 0;
 }
 
-#define CSI_SENSOR_DEV(inst)					\
-	COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, sensor),		\
-		    (DEVICE_DT_GET(DT_INST_PHANDLE(inst, sensor))),	\
-		    (NULL))						\
-
-#define CSI_DEVICE_INIT(inst)					\
-	static struct csi_data csi_data_##inst = {		\
-		.streaming = false,					\
-		.format_set = false,					\
-		.frmival_set = false,					\
-	};								\
-									\
-	static const struct csi_config csi_config_##inst = {	\
-		.base = DT_INST_REG_ADDR(inst),				\
-		.phy_dev = DEVICE_DT_GET(DT_INST_PHANDLE(inst, phys)),	\
-		.sensor_dev = CSI_SENSOR_DEV(inst),			\
-		.num_lanes = DT_INST_PROP(inst, data_lanes),		\
-	};								\
-									\
-	DEVICE_DT_INST_DEFINE(inst,					\
-			      csi_init,				\
-			      NULL,					\
-			      &csi_data_##inst,			\
-			      &csi_config_##inst,			\
-			      POST_KERNEL,				\
-			      CONFIG_VIDEO_IMX_MIPI_CSI_INIT_PRIORITY,	\
+#define CSI_DEVICE_INIT(inst)									\
+	static struct csi_data csi_data_##inst = {						\
+		.streaming = false,								\
+		.format_set = false,								\
+		.frmival_set = false,								\
+	};											\
+												\
+	static const struct csi_config csi_config_##inst = {					\
+		.base = DT_INST_REG_ADDR(inst),							\
+		.phy_dev = DEVICE_DT_GET(DT_INST_PHANDLE(inst, phys)),				\
+		.sensor_dev = DEVICE_DT_GET(DT_NODE_REMOTE_DEVICE(				\
+					DT_INST_ENDPOINT_BY_ID(inst, 0, 0))),			\
+		.num_lanes = DT_PROP_LEN(DT_INST_ENDPOINT_BY_ID(inst, 0, 0), data_lanes),	\
+	};											\
+												\
+	DEVICE_DT_INST_DEFINE(inst,								\
+			      csi_init,								\
+			      NULL,								\
+			      &csi_data_##inst,							\
+			      &csi_config_##inst,						\
+			      POST_KERNEL,							\
+			      CONFIG_VIDEO_IMX_MIPI_CSI_INIT_PRIORITY,				\
 			      &csi_driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(CSI_DEVICE_INIT)

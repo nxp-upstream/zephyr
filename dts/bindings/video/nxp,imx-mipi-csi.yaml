@@ -16,11 +16,6 @@ properties:
     required: true
     description: PHY device phandle
 
-  sensor:
-    type: phandle
-    description: |
-      Sensor device phandle. If specified, the CSI controller will
-      control the sensor's streaming state and format configuration.
 
   data-lanes:
     type: int
@@ -32,6 +27,7 @@ properties:
       - 3
       - 4
 
-  ports:
-    type: compound
-    description: Video port connections
+child-binding:
+  child-binding:
+    child-binding:
+      include: video-interfaces.yaml

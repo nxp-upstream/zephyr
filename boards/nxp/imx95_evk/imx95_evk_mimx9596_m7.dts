@@ -260,7 +260,6 @@
 
 &mipi_csi {
 	data-lanes = <4>;
-	sensor = <&ap1302>;
 	status = "okay";
 
 	ports {
@@ -291,11 +290,17 @@
 
 &isi {
 	status = "okay";
-	source = <&mipi_csi>;
 
-	port {
-		isi_ep_in: endpoint {
-			remote-endpoint-label = "csi2rx_ep_out";
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+
+			isi_ep_in: endpoint {
+				remote-endpoint-label = "csi2rx_ep_out";
+			};
 		};
 	};
 };

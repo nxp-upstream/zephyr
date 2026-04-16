@@ -8,6 +8,7 @@
 
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/drivers/video.h>
+#include <zephyr/devicetree/port-endpoint.h>
 #include <zephyr/irq.h>
 #include <zephyr/kernel.h>
 #include <fsl_isi.h>
@@ -626,8 +627,8 @@ static int video_mcux_isi_init(const struct device *dev)
 											\
 	static const struct video_mcux_isi_config video_mcux_isi_config_##n = {		\
 		.base = (ISI_Type *)DT_INST_REG_ADDR(n),				\
-.source_dev = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, source),				\
-     (DEVICE_DT_GET(DT_INST_PHANDLE(n, source))), (NULL)),				\
+		.source_dev = DEVICE_DT_GET(DT_NODE_REMOTE_DEVICE			\
+				(DT_INST_ENDPOINT_BY_ID(n, 0, 0))),			\
 		.input_port = DT_INST_PROP_OR(n, input_port, 0),			\
 		.clock_dev = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, clocks),		\
 			(DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n))), (NULL)),		\
