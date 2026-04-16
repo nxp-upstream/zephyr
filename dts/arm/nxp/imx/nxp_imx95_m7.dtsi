@@ -853,7 +853,7 @@
 		};
 
 		mipi_csi: csi@4ad30000 {
-			compatible = "imx,mipi-csi";
+			compatible = "nxp,imx-mipi-csi";
 			reg = <0x4ad30000 0x10000>;
 			phys = <&mipi_dphy>;
 			clocks = <&scmi_clk IMX95_CLK_CAMAPB>;

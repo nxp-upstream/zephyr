@@ -3,7 +3,7 @@
 
 description: NXP iMX MIPI CSI Host Controller
 
-compatible: "imx,mipi-csi"
+compatible: "nxp,imx-mipi-csi"
 
 include: [base.yaml]
 
