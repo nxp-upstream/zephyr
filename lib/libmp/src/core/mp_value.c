@@ -185,16 +185,19 @@ static void mp_value_set_fraction(struct mp_value *value, int type, va_list *arg
 	MP_VALUE_FRACTION(value)->num.v_uint = va_arg(*args, uint32_t);
 	MP_VALUE_FRACTION(value)->denom.v_uint = va_arg(*args, uint32_t);
 	__ASSERT_NO_MSG(MP_VALUE_FRACTION(value)->denom.v_uint != 0);
-	if (type == MP_TYPE_UINT_FRACTION) {
+	if (type == MP_TYPE_INT_FRACTION) {
 		gcd = sys_gcd(MP_VALUE_FRACTION(value)->num.v_int,
 			      MP_VALUE_FRACTION(value)->denom.v_int);
-	} else {
+		MP_VALUE_FRACTION(value)->num.v_int /= gcd;
+		MP_VALUE_FRACTION(value)->denom.v_int /= gcd;
+	} else if (type == MP_TYPE_UINT_FRACTION) {
 		gcd = sys_gcd(MP_VALUE_FRACTION(value)->num.v_uint,
 			      MP_VALUE_FRACTION(value)->denom.v_uint);
+		MP_VALUE_FRACTION(value)->num.v_uint /= gcd;
+		MP_VALUE_FRACTION(value)->denom.v_uint /= gcd;
+	} else {
+		LOG_ERR("Invalid fraction type");
 	}
-
-	MP_VALUE_FRACTION(value)->num.v_uint /= gcd;
-	MP_VALUE_FRACTION(value)->denom.v_uint /= gcd;
 }
 
 static void mp_value_set_fraction_range(struct mp_value *value, int type, va_list *args)
@@ -251,8 +254,6 @@ static void mp_value_set_va_list(struct mp_value *value, int type, va_list *args
 	case MP_TYPE_UINT_RANGE:
 		mp_value_set_range(value, type, args);
 		break;
-		break;
-
 	case MP_TYPE_UINT_FRACTION_RANGE:
 	case MP_TYPE_INT_FRACTION_RANGE:
 		mp_value_set_fraction_range(value, type, args);
@@ -437,7 +438,7 @@ struct mp_value *mp_value_list_get(const struct mp_value *list, int index)
 	struct mp_value_node *value_node = NULL;
 	int count = 0;
 
-	SYS_SLIST_FOR_EACH_NODE(&MP_VALUE_LIST_CONST(list)->v_list, node) {
+	SYS_SLIST_FOR_EACH_NODE((sys_slist_t *)&MP_VALUE_LIST(list)->v_list, node) {
 		if (count++ == index) {
 			value_node = CONTAINER_OF(node, struct mp_value_node, node);
 			break;
@@ -588,8 +589,9 @@ static int mp_value_list_compare(const struct mp_value *list1, const struct mp_v
 		return MP_VALUE_UNORDERED;
 	}
 
-	SYS_SLIST_FOR_EACH_CONTAINER(&MP_VALUE_LIST(list1)->v_list, v_node1, node) {
-		SYS_SLIST_FOR_EACH_CONTAINER(&MP_VALUE_LIST(list2)->v_list, v_node2, node) {
+	SYS_SLIST_FOR_EACH_CONTAINER((sys_slist_t *)&MP_VALUE_LIST(list1)->v_list, v_node1, node) {
+		SYS_SLIST_FOR_EACH_CONTAINER((sys_slist_t *)&MP_VALUE_LIST(list2)->v_list, v_node2,
+					     node) {
 			if (mp_value_compare(v_node1->value, v_node2->value) == MP_VALUE_EQUAL) {
 				count_matched++;
 			}
@@ -735,7 +737,7 @@ struct mp_value *mp_value_intersect_list(const struct mp_value *list,
 		return NULL;
 	}
 
-	SYS_SLIST_FOR_EACH_CONTAINER(&MP_VALUE_LIST_CONST(list)->v_list, v_node1, node) {
+	SYS_SLIST_FOR_EACH_CONTAINER((sys_slist_t *)&MP_VALUE_LIST(list)->v_list, v_node1, node) {
 		intersect_value = NULL;
 		switch (compare_val->type) {
 		case MP_TYPE_BOOLEAN:
@@ -759,8 +761,8 @@ struct mp_value *mp_value_intersect_list(const struct mp_value *list,
 				mp_value_intersect_fraction_range(compare_val, v_node1->value);
 			break;
 		case MP_TYPE_LIST:
-			SYS_SLIST_FOR_EACH_CONTAINER(&MP_VALUE_LIST_CONST(compare_val)->v_list,
-						     v_node2, node) {
+			SYS_SLIST_FOR_EACH_CONTAINER(
+				(sys_slist_t *)&MP_VALUE_LIST(compare_val)->v_list, v_node2, node) {
 				if (mp_value_compare(v_node1->value, v_node2->value) ==
 				    MP_VALUE_EQUAL) {
 					intersect_value = mp_value_duplicate(v_node2->value);
@@ -881,7 +883,8 @@ static inline void mp_value_print_list(const struct mp_value *value)
 	struct mp_value_node *value_node;
 
 	printk("{");
-	SYS_SLIST_FOR_EACH_CONTAINER(&MP_VALUE_LIST_CONST(value)->v_list, value_node, node) {
+	SYS_SLIST_FOR_EACH_CONTAINER((sys_slist_t *)&MP_VALUE_LIST(value)->v_list, value_node,
+				     node) {
 		mp_value_print(value_node->value, false);
 		if (sys_slist_peek_next(&value_node->node) != NULL) {
 
