@@ -538,7 +538,7 @@ static inline int gpio_pca_series_reg_cache_read(const struct device *dev,
 	}
 
 	if (offset == PCA_REG_INVALID) {
-		LOG_ERR("can not get noncacheable reg %d");
+		LOG_ERR("can not get noncacheable reg %d", reg_type);
 		return -EFAULT;
 	}
 #endif /* GPIO_NXP_PCA_SERIES_DEBUG */
@@ -612,7 +612,7 @@ static inline struct gpio_pca_series_reg_cache_mini *gpio_pca_series_reg_cache_m
 {
 	struct gpio_pca_series_data *data = dev->data;
 	struct gpio_pca_series_reg_cache_mini *cache =
-		(struct gpio_pca_series_reg_cache_mini *)(&data->cache);
+		(struct gpio_pca_series_reg_cache_mini *)data->cache;
 	LOG_DBG("mini cache addr 0x%p", (void *)cache);
 	return cache;
 }
@@ -863,10 +863,10 @@ void gpio_pca_series_debug_dump(const struct device *dev)
 		/** do_print */
 #ifdef CONFIG_GPIO_PCA_SERIES_CACHE_ALL
 		if (reg != PCA_REG_INVALID && cache != PCA_REG_INVALID) {
-			LOG_WRN("%.2d\t%-24s\t0x%2.2x\t0x%16.16x\t0x%2.2x\t0x%16.16x\t"
+			LOG_WRN("%.2d\t%-24s\t0x%2.2x\t0x%16.16llx\t0x%2.2x\t0x%16.16llx\t"
 				, reg_type, gpio_pca_series_reg_name[reg_type]
-				, reg, *reg_val_p
-				, cache, *cache_val_p
+				, reg, (unsigned long long)*reg_val_p
+				, cache, (unsigned long long)*cache_val_p
 			);
 			if (memcmp(reg_val, cache_val, reg_size)) {
 				LOG_ERR("reg %d cache mismatch", reg_type);
@@ -877,18 +877,18 @@ void gpio_pca_series_debug_dump(const struct device *dev)
 			 * PCA_REG_TYPE_2B_INTERRUPT_EDGE caches mask of rising and falling pins,
 			 * while the actual register is not present. Account for that here:
 			 */
-			LOG_WRN("%.2d\t%-24s\tNone\tNone\t\t\t0x%2.2x\t0x%16.16x\t"
+			LOG_WRN("%.2d\t%-24s\tNone\tNone\t\t\t0x%2.2x\t0x%16.16llx\t"
 				, reg_type, gpio_pca_series_reg_name[reg_type]
-				, cache, *cache_val_p
+				, cache, (unsigned long long)*cache_val_p
 			);
 		} else {
 #endif /* CONFIG_GPIO_PCA_SERIES_CACHE_ALL */
-			LOG_WRN("%.2d\t%-24s\t0x%2.2x\t0x%16.16x\t"
+			LOG_WRN("%.2d\t%-24s\t0x%2.2x\t0x%16.16llx\t"
 #ifdef CONFIG_GPIO_PCA_SERIES_CACHE_ALL
 				"None\tNone\t\t\t"
 #endif /* CONFIG_GPIO_PCA_SERIES_CACHE_ALL */
 				, reg_type, gpio_pca_series_reg_name[reg_type]
-				, reg, *reg_val_p
+				, reg, (unsigned long long)*reg_val_p
 			);
 #ifdef CONFIG_GPIO_PCA_SERIES_CACHE_ALL
 		}
@@ -904,7 +904,6 @@ void gpio_pca_series_debug_dump(const struct device *dev)
  */
 void gpio_pca_series_cache_test(const struct device *dev)
 {
-	const struct gpio_pca_series_config *cfg = dev->config;
 	const uint8_t reset_value_0[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 	const uint8_t reset_value_1[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 	uint8_t buffer[8];
@@ -935,11 +934,11 @@ void gpio_pca_series_cache_test(const struct device *dev)
 		(void)gpio_pca_series_reg_cache_update(dev, reg_type, reset_value_0);
 		*buffer_p = 0;
 		gpio_pca_series_reg_cache_read(dev, reg_type, buffer);
-		LOG_WRN("fill 00, result: 0x%16.16x", *buffer_p);
+		LOG_WRN("fill 00, result: 0x%16.16llx", (unsigned long long)*buffer_p);
 		(void)gpio_pca_series_reg_cache_update(dev, reg_type, reset_value_1);
 		*buffer_p = 0;
 		gpio_pca_series_reg_cache_read(dev, reg_type, buffer);
-		LOG_WRN("fill ff, result: 0x%16.16x", *buffer_p);
+		LOG_WRN("fill ff, result: 0x%16.16llx", (unsigned long long)*buffer_p);
 	}
 	LOG_WRN("**** test finish ****");
 }
@@ -1024,6 +1023,13 @@ static int gpio_pca_series_pin_configure(const struct device *dev,
 		return -ENOTSUP;
 	}
 
+	if ((flags & (GPIO_INPUT | GPIO_OUTPUT)) == GPIO_DISCONNECTED) {
+		return -ENOTSUP;
+	}
+
+	if ((flags & GPIO_SINGLE_ENDED) && ((flags & GPIO_LINE_OPEN_DRAIN) == 0U)) {
+		return -ENOTSUP;
+	}
 	if ((flags & GPIO_SINGLE_ENDED) &&
 		(cfg->part_cfg->flags & PCA_HAS_OUT_CONFIG) == 0U) {
 		return -ENOTSUP;
@@ -1315,7 +1321,8 @@ static int gpio_pca_series_port_write(const struct device *dev,
 	ret = gpio_pca_series_reg_cache_read(dev, PCA_REG_TYPE_1B_OUTPUT_PORT,
 						 (uint8_t *)&out_old);
 	if (ret) {
-		return -EINVAL; /** should never fail */
+		ret = -EINVAL; /** should never fail */
+		goto out;
 	}
 	out_old = sys_le32_to_cpu(out_old);
 #else  /* CONFIG_GPIO_PCA_SERIES_CACHE_ALL */
@@ -1334,6 +1341,9 @@ static int gpio_pca_series_port_write(const struct device *dev,
 #endif /* CONFIG_GPIO_PCA_SERIES_CACHE_ALL */
 	}
 
+#ifdef CONFIG_GPIO_PCA_SERIES_CACHE_ALL
+out:
+#endif
 	k_sem_give(&data->lock);
 
 	LOG_DBG("dev %s write return %d result 0x%8.8x", dev->name, ret, out);

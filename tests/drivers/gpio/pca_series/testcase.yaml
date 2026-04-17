@@ -1,0 +1,28 @@
+# Copyright 2026
+# SPDX-License-Identifier: Apache-2.0
+
+tests:
+  drivers.gpio.pca_series.mini_cache:
+    tags:
+      - drivers
+      - gpio
+      - i2c
+      - emul
+    integration_platforms:
+      - qemu_cortex_m3
+    platform_allow:
+      - native_sim
+      - qemu_cortex_m3
+  drivers.gpio.pca_series.full_cache:
+    tags:
+      - drivers
+      - gpio
+      - i2c
+      - emul
+    integration_platforms:
+      - qemu_cortex_m3
+    platform_allow:
+      - native_sim
+      - qemu_cortex_m3
+    extra_args:
+      - EXTRA_CONF_FILE=cache_all.conf

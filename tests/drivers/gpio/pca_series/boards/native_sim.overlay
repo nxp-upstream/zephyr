@@ -1,0 +1,25 @@
+#include <zephyr/dt-bindings/i2c/i2c.h>
+
+/ {
+	aliases {
+		gpio-expander = &pcal6524_test;
+	};
+
+	fake_i2c_bus: i2c@100 {
+		status = "okay";
+		compatible = "zephyr,i2c-emul-controller";
+		clock-frequency = <I2C_BITRATE_STANDARD>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0x100 0x4>;
+
+		pcal6524_test: pcal6524@22 {
+			compatible = "nxp,pcal6524";
+			reg = <0x22>;
+			status = "okay";
+			gpio-controller;
+			#gpio-cells = <2>;
+			ngpios = <24>;
+		};
+	};
+};
