@@ -10,10 +10,6 @@ config VIDEO_IMX_MIPI_CSI
 	  The CSI-2 receiver controls the associated DPHY as an implementation detail
 	  (DPHY is still represented as a separate devicetree node for clarity).
 
-# Compatibility alias for older symbol names used in downstream branches/PRs
-config VIDEO_NXP_IMX95_MIPI_CSI
-	def_bool VIDEO_IMX_MIPI_CSI
-
 if VIDEO_IMX_MIPI_CSI
 
 config VIDEO_IMX_MIPI_CSI_INIT_PRIORITY
