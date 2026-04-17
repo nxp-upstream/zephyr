@@ -11,6 +11,7 @@
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/drivers/video.h>
 #include <zephyr/kernel.h>
+#include <zephyr/sys/sys_io.h>
 #include <zephyr/sys/util.h>
 
 /* CSIS (Synopsys) registers (subset) */
@@ -110,15 +111,27 @@ struct nxp_imx_mipi_csi_data {
 	bool streaming;
 };
 
-static inline void csis_write(struct nxp_imx_mipi_csi_data *d, uint32_t reg, uint32_t val)
-{
-	sys_write32(val, d->csis_regs + reg);
-}
+struct nxp_imx_dphy_config_ops {
+	/**
+	 * SoC/PHY-specific DPHY CSR configuration after common freqrange setup.
+	 */
+	int (*config)(struct nxp_imx_mipi_csi_data *d, const struct nxp_imx_mipi_csi_config *cfg);
+};
 
-static inline uint32_t csis_read(struct nxp_imx_mipi_csi_data *d, uint32_t reg)
-{
-	return sys_read32(d->csis_regs + reg);
-}
+struct nxp_imx_dphy_drv_data {
+	const struct dw_dphy_reg *regs;
+	uint32_t regs_size;
+	const struct dphy_mbps_hsfreqrange_map *hsfreq_tbl;
+	uint8_t max_lanes;
+	uint32_t max_data_rate_mbps;
+	const struct nxp_imx_dphy_config_ops *ops;
+};
+
+int nxp_imx_dphy_write(struct nxp_imx_mipi_csi_data *d, const struct nxp_imx_dphy_drv_data *drv,
+			unsigned int index, uint32_t val);
+
+/* i.MX95 DPHY backend */
+extern const struct nxp_imx_dphy_drv_data nxp_imx95_dphy_drv_data;
 
 int nxp_imx_dphy_enable(struct nxp_imx_mipi_csi_data *d, const struct nxp_imx_mipi_csi_config *cfg);
 int nxp_imx_dphy_disable(struct nxp_imx_mipi_csi_data *d, const struct nxp_imx_mipi_csi_config *cfg);

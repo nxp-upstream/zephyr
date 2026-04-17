@@ -11,7 +11,6 @@
 
 #include "video_device.h"
 #include "nxp_imx_mipi_csi_priv.h"
-#include "phy_select.h"
 
 LOG_MODULE_REGISTER(nxp_imx_mipi_csi, CONFIG_VIDEO_LOG_LEVEL);
 
@@ -69,6 +68,10 @@ static int nxp_imx_csi_set_fmt(const struct device *dev, struct video_format *fm
 		goto out;
 	}
 
+	data->fmt = *fmt;
+	data->csi_fmt = *csi_fmt;
+	data->format_set = true;
+
 out:
 	k_mutex_unlock(&data->lock);
 	return ret;
@@ -78,8 +81,11 @@ static int nxp_imx_csi_get_fmt(const struct device *dev, struct video_format *fm
 {
 	const struct nxp_imx_mipi_csi_config *cfg = dev->config;
 
-	if (video_get_format(cfg->sensor_dev, fmt)) {
-		return -EIO;
+	int ret;
+
+	ret = video_get_format(cfg->sensor_dev, fmt);
+	if (ret) {
+		return ret;
 	}
 
 	return 0;
@@ -87,11 +93,9 @@ static int nxp_imx_csi_get_fmt(const struct device *dev, struct video_format *fm
 
 void nxp_imx_csis_host_reset(struct nxp_imx_mipi_csi_data *data)
 {
-	csis_write(data, MIPI_CSI2RX_HOST_RESETN, 0);
-
+	sys_write32(0, data->csis_regs + MIPI_CSI2RX_HOST_RESETN);
 	k_usleep(CSI_RESET_DELAY_US);
-
-	csis_write(data, MIPI_CSI2RX_HOST_RESETN, MIPI_CSI2RX_HOST_RESETN_ENABLE);
+	sys_write32(MIPI_CSI2RX_HOST_RESETN_ENABLE, data->csis_regs + MIPI_CSI2RX_HOST_RESETN);
 }
 
 int nxp_imx_csis_wait_stopstate(struct nxp_imx_mipi_csi_data *data, uint8_t lanes)
@@ -100,9 +104,9 @@ int nxp_imx_csis_wait_stopstate(struct nxp_imx_mipi_csi_data *data, uint8_t lane
 	uint32_t timeout_us = CSI_STOPSTATE_TIMEOUT_US;
 
 	while (timeout_us > 0) {
-		uint32_t val = csis_read(data, MIPI_CSI2RX_DPHY_STOPSTATE);
+		uint32_t val = sys_read32(data->csis_regs + MIPI_CSI2RX_DPHY_STOPSTATE);
 		if ((val & mask) == mask) {
-			LOG_INF("data into stop states pass");
+			LOG_DBG("DPHY lanes in stop state (0x%08x)", val);
 			return 0;
 		}
 
@@ -248,7 +252,7 @@ static int nxp_imx_mipi_csi_init(const struct device *dev)
 
 	nxp_imx_csis_host_reset(d);
 	LOG_INF("i.MX CSI-2 version: 0x%08x, lanes=%u",
-		csis_read(d, MIPI_CSI2RX_VERSION), cfg->num_lanes);
+		sys_read32(d->csis_regs + MIPI_CSI2RX_VERSION), cfg->num_lanes);
 
 	return 0;
 }
@@ -257,6 +261,10 @@ static int nxp_imx_mipi_csi_init(const struct device *dev)
 	DEVICE_DT_GET(DT_NODE_REMOTE_DEVICE(DT_INST_ENDPOINT_BY_ID(inst, 0, 0)))		\
 
 #define DPHY_NODE(inst) DT_INST_PHANDLE(inst, phys)
+
+#define NXP_IMX_DPHY_DRV_DATA(node_id)								\
+	COND_CODE_1(DT_NODE_HAS_COMPAT(node_id, nxp_imx95_dphy_rx), 				\
+			(&nxp_imx95_dphy_drv_data), (NULL))					\
 
 #define NXP_IMX_MIPI_CSI_INIT(inst)								\
 	static struct nxp_imx_mipi_csi_data nxp_imx_mipi_csi_data_##inst;			\

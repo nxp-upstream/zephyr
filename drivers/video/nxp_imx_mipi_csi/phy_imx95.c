@@ -7,7 +7,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
-#include "phy_soc.h"
+#include "nxp_imx_mipi_csi_priv.h"
 
 LOG_MODULE_DECLARE(nxp_imx_mipi_csi, CONFIG_VIDEO_LOG_LEVEL);
 
@@ -93,22 +93,21 @@ static const struct dphy_mbps_hsfreqrange_map imx9_hsfreqrange_table[] = {
 	{ /* sentinel */ },
 };
 
-static int imx95_dphy_soc_config(struct nxp_imx_mipi_csi_data *d,
+static int imx95_dphy_soc_config(struct nxp_imx_mipi_csi_data *data,
 				const struct nxp_imx_mipi_csi_config *cfg)
 {
-	/* Configure data lanes (i.MX95 specific sequence) */
 	uint8_t active_lanes = BIT(cfg->num_lanes) - 1;
 
-	nxp_imx_dphy_write(d, &nxp_imx95_dphy_drv_data, DPHY_RX_DATA_LANE_BASEDIR, 1);
+	nxp_imx_dphy_write(data, &nxp_imx95_dphy_drv_data, DPHY_RX_DATA_LANE_BASEDIR, 1);
 	k_busy_wait(1);
 
-	nxp_imx_dphy_write(d, &nxp_imx95_dphy_drv_data, DPHY_RX_DATA_LANE_FORCERXMODE, active_lanes);
+	nxp_imx_dphy_write(data, &nxp_imx95_dphy_drv_data, DPHY_RX_DATA_LANE_FORCERXMODE, active_lanes);
 	k_busy_wait(1);
 
-	nxp_imx_dphy_write(d, &nxp_imx95_dphy_drv_data, DPHY_RX_DATA_LANE_EN, active_lanes);
-	nxp_imx_dphy_write(d, &nxp_imx95_dphy_drv_data, DPHY_RX_DATA_LANE_FORCERXMODE, 0);
-	nxp_imx_dphy_write(d, &nxp_imx95_dphy_drv_data, DPHY_RX_ENABLE_CLK_EXT, 1);
-	nxp_imx_dphy_write(d, &nxp_imx95_dphy_drv_data, DPHY_RX_PHY_ENABLE_BYP, 1);
+	nxp_imx_dphy_write(data, &nxp_imx95_dphy_drv_data, DPHY_RX_DATA_LANE_EN, active_lanes);
+	nxp_imx_dphy_write(data, &nxp_imx95_dphy_drv_data, DPHY_RX_DATA_LANE_FORCERXMODE, 0);
+	nxp_imx_dphy_write(data, &nxp_imx95_dphy_drv_data, DPHY_RX_ENABLE_CLK_EXT, 1);
+	nxp_imx_dphy_write(data, &nxp_imx95_dphy_drv_data, DPHY_RX_PHY_ENABLE_BYP, 1);
 
 	return 0;
 }
