@@ -8,3 +8,4 @@ zephyr_library_include_directories(..)
 
 zephyr_library_sources(csi.c)
 zephyr_library_sources(phy.c)
+zephyr_library_sources(phy_imx95.c)

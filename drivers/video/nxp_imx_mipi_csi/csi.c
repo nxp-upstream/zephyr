@@ -11,6 +11,7 @@
 
 #include "video_device.h"
 #include "nxp_imx_mipi_csi_priv.h"
+#include "phy_select.h"
 
 LOG_MODULE_REGISTER(nxp_imx_mipi_csi, CONFIG_VIDEO_LOG_LEVEL);
 
@@ -240,6 +241,10 @@ static int nxp_imx_mipi_csi_init(const struct device *dev)
 	if (!device_is_ready(cfg->sensor_dev)) {
 		return -ENODEV;
 	}
+	if (cfg->dphy_drv_data == NULL) {
+		LOG_ERR("No supported DPHY backend for this SoC");
+		return -ENODEV;
+	}
 
 	nxp_imx_csis_host_reset(d);
 	LOG_INF("i.MX CSI-2 version: 0x%08x, lanes=%u",
@@ -250,7 +255,8 @@ static int nxp_imx_mipi_csi_init(const struct device *dev)
 
 #define CSI_SENSOR_DEV(inst)									\
 	DEVICE_DT_GET(DT_NODE_REMOTE_DEVICE(DT_INST_ENDPOINT_BY_ID(inst, 0, 0)))		\
-#define DPHY_NODE(inst) DT_INST_PHANDLE(inst, phys)						\
+
+#define DPHY_NODE(inst) DT_INST_PHANDLE(inst, phys)
 
 #define NXP_IMX_MIPI_CSI_INIT(inst)								\
 	static struct nxp_imx_mipi_csi_data nxp_imx_mipi_csi_data_##inst;			\
@@ -264,6 +270,7 @@ static int nxp_imx_mipi_csi_init(const struct device *dev)
 			 (DPHY_NODE(inst), name)), (NULL)),					\
 		.sensor_dev = CSI_SENSOR_DEV(inst),						\
 		.num_lanes = DT_PROP_LEN(DT_INST_ENDPOINT_BY_ID(inst, 0, 0), data_lanes),	\
+		.dphy_drv_data = NXP_IMX_DPHY_DRV_DATA(DPHY_NODE(inst)),			\
 	};											\
 	DEVICE_DT_INST_DEFINE(inst, nxp_imx_mipi_csi_init, NULL,				\
 			      &nxp_imx_mipi_csi_data_##inst, &nxp_imx_mipi_csi_config_##inst,	\

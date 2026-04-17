@@ -65,14 +65,10 @@ struct dw_dphy_reg {
 
 #define PHY_REG(_offset, _width, _shift) { .offset = _offset, .mask = BIT(_width) - 1, .shift = _shift }
 
-extern const struct dw_dphy_reg imx95_dphy_regs[];
-
 struct dphy_mbps_hsfreqrange_map {
 	uint16_t mbps;
 	uint16_t hsfreqrange;
 };
-
-extern const struct dphy_mbps_hsfreqrange_map hsfreqrange_table[];
 
 struct csi_pix_format {
 	uint32_t pixelformat;
@@ -82,6 +78,8 @@ struct csi_pix_format {
 
 extern const struct csi_pix_format csi_formats[];
 
+struct nxp_imx_dphy_drv_data;
+
 struct nxp_imx_mipi_csi_config {
 	mem_addr_t csis_base;
 	mem_addr_t dphy_base;
@@ -89,6 +87,9 @@ struct nxp_imx_mipi_csi_config {
 	clock_control_subsys_t dphy_clock_subsys;
 	const struct device *sensor_dev;
 	uint8_t num_lanes;
+
+	/* Selected PHY backend (based on phys node compatible) */
+	const struct nxp_imx_dphy_drv_data *dphy_drv_data;
 };
 
 struct nxp_imx_mipi_csi_data {
@@ -98,10 +99,13 @@ struct nxp_imx_mipi_csi_data {
 	struct k_mutex lock;
 
 	struct video_format fmt;
+	struct video_frmival frmival;
 	struct csi_pix_format csi_fmt;
 
 	uint16_t hsfreqrange;
 	uint16_t cfgclkfreqrange;
+	bool frmival_set;
+	bool format_set;
 
 	bool streaming;
 };
