@@ -21,17 +21,22 @@ static int usbh_hub_class_request_common(struct usbh_hub_instance *hub_instance,
 					 uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue,
 					 uint16_t wIndex, struct net_buf *buf)
 {
+	uint8_t buf_size = 0;
 	int ret;
 
-	if (!hub_instance || !hub_instance->hub_udev || !buf) {
+	if (!hub_instance || !hub_instance->hub_udev) {
 		return -EINVAL;
 	}
 
 	k_mutex_lock(&hub_instance->ctrl_lock, K_FOREVER);
 
+	if (buf != NULL) {
+		buf_size = buf->size;
+	}
+
 	/* Execute synchronous control transfer */
 	ret = usbh_req_setup(hub_instance->hub_udev, bmRequestType, bRequest, wValue, wIndex,
-			     buf->size, buf);
+			     buf_size, buf);
 
 	if (ret < 0) {
 		LOG_ERR("Hub control request failed: %d", ret);
@@ -77,52 +82,36 @@ int usbh_hub_get_descriptor(struct usbh_hub_instance *hub_instance, uint8_t *buf
 int usbh_hub_set_port_feature(struct usbh_hub_instance *hub_instance, uint8_t port_number,
 			      uint8_t feature)
 {
-	struct net_buf *buf;
 	int ret;
 
 	if (!hub_instance) {
 		return -EINVAL;
 	}
 
-	buf = usbh_xfer_buf_alloc(hub_instance->hub_udev, 0);
-	if (buf == NULL) {
-		LOG_ERR("Failed to allocate buffer for set port feature");
-		return -ENOMEM;
-	}
-
 	ret = usbh_hub_class_request_common(hub_instance,
 					    (USB_REQTYPE_DIR_TO_DEVICE << 7) |
 						    (USB_REQTYPE_TYPE_CLASS << 5) |
 						    (USB_REQTYPE_RECIPIENT_OTHER << 0),
-					    USB_HUB_REQ_SET_FEATURE, feature, port_number, buf);
+					    USB_HUB_REQ_SET_FEATURE, feature, port_number, NULL);
 
-	usbh_xfer_buf_free(hub_instance->hub_udev, buf);
 	return ret;
 }
 
 int usbh_hub_clear_port_feature(struct usbh_hub_instance *hub_instance, uint8_t port_number,
 				uint8_t feature)
 {
-	struct net_buf *buf;
 	int ret;
 
 	if (!hub_instance) {
 		return -EINVAL;
 	}
 
-	buf = usbh_xfer_buf_alloc(hub_instance->hub_udev, 0);
-	if (buf == NULL) {
-		LOG_ERR("Failed to allocate buffer for clear port feature");
-		return -ENOMEM;
-	}
-
 	ret = usbh_hub_class_request_common(hub_instance,
 					    (USB_REQTYPE_DIR_TO_DEVICE << 7) |
 						    (USB_REQTYPE_TYPE_CLASS << 5) |
 						    (USB_REQTYPE_RECIPIENT_OTHER << 0),
-					    USB_HUB_REQ_CLEAR_FEATURE, feature, port_number, buf);
+					    USB_HUB_REQ_CLEAR_FEATURE, feature, port_number, NULL);
 
-	usbh_xfer_buf_free(hub_instance->hub_udev, buf);
 	return ret;
 }
 
@@ -207,26 +196,18 @@ int usbh_hub_get_hub_status(struct usbh_hub_instance *hub_instance, uint16_t *co
 
 int usbh_hub_clear_hub_feature(struct usbh_hub_instance *hub_instance, uint8_t feature)
 {
-	struct net_buf *buf;
 	int ret;
 
 	if (!hub_instance) {
 		return -EINVAL;
 	}
 
-	buf = usbh_xfer_buf_alloc(hub_instance->hub_udev, 0);
-	if (buf == NULL) {
-		LOG_ERR("Failed to allocate buffer for clear hub feature");
-		return -ENOMEM;
-	}
-
 	ret = usbh_hub_class_request_common(hub_instance,
 					    (USB_REQTYPE_DIR_TO_DEVICE << 7) |
 						    (USB_REQTYPE_TYPE_CLASS << 5) |
 						    (USB_REQTYPE_RECIPIENT_DEVICE << 0),
-					    USB_HUB_REQ_CLEAR_FEATURE, feature, 0, buf);
+					    USB_HUB_REQ_CLEAR_FEATURE, feature, 0, NULL);
 
-	usbh_xfer_buf_free(hub_instance->hub_udev, buf);
 	return ret;
 }
 
