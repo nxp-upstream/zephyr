@@ -6,17 +6,26 @@
 
 #define DT_DRV_COMPAT nxp_imx_isi
 
+#include <zephyr/devicetree/port-endpoint.h>
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/drivers/video.h>
-#include <zephyr/devicetree/port-endpoint.h>
+#include <zephyr/drivers/video-controls.h>
 #include <zephyr/irq.h>
 #include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
+#include <zephyr/sys/sys_io.h>
+#include <zephyr/sys/__assert.h>
+
 #include <fsl_isi.h>
 
-#include <zephyr/logging/log.h>
+#include "video_ctrls.h"
+#include "video_device.h"
+
 LOG_MODULE_REGISTER(video_mcux_isi, CONFIG_VIDEO_LOG_LEVEL);
 
 #define ISI_MAX_ACTIVE_BUF 2U
+
+isi_flip_mode_t flip = kISI_FlipDisable;
 
 struct video_mcux_isi_config {
 	ISI_Type *base;
@@ -26,90 +35,76 @@ struct video_mcux_isi_config {
 	clock_control_subsys_t clock_subsys;
 };
 
+struct video_mcux_isi_ctrls {
+	struct video_ctrl hflip;
+	struct video_ctrl vflip;
+	struct video_ctrl alpha;
+};
+
+
 struct video_mcux_isi_data {
 	const struct device *dev;
 	struct k_fifo fifo_in;
 	struct k_fifo fifo_out;
 
-	/* ISI configuration */
 	isi_config_t isi_config;
 
-	/* Format information */
+	/* Output format (this device endpoint) */
 	struct video_format fmt;
 	isi_output_format_t isi_format;
-	bool format_set;
 
-	/* Active buffers being used by ISI hardware */
-	uint32_t active_buffer[ISI_MAX_ACTIVE_BUF];
+	/* Cached upstream/source format (used when CSC is enabled). */
+	struct video_format in_fmt; /* upstream/source format */
+
+	/* Optional crop/compose selections (applied when (re)configuring the channel) */
+	struct video_rect crop;
+	bool crop_en;
+	struct video_rect compose;
+	bool compose_en;
+
+	uintptr_t active_addr[ISI_MAX_ACTIVE_BUF];
 	struct video_buffer *active_vbuf[ISI_MAX_ACTIVE_BUF];
-	volatile uint8_t buffer_index;
+	uint8_t buffer_index;
 	uint8_t active_buf_cnt;
 
-	/* Drop frame buffer */
-	uint32_t drop_frame;
+	uintptr_t drop_frame_addr;
 
-	/* Transfer state */
-	volatile bool is_transfer_started;
+	bool streaming;
 
-	/* ISR frame rate stats */
-	uint32_t fps_last_ms;
-	uint32_t fps_frame_cnt;
-	uint32_t fps_drop_cnt;
+	struct video_mcux_isi_ctrls ctrls;
+
+	/* Statistics (updated in ISR) */
+	uint32_t drop_cnt;
+	uint32_t last_stat_ms;
 };
 
-/* Map for the fourcc pixelformat to ISI format */
 struct isi_format_map {
 	uint32_t pixelformat;
 	isi_output_format_t isi_format;
 };
 
 static const struct isi_format_map isi_formats[] = {
-	{
-		.pixelformat = VIDEO_PIX_FMT_RGB565,
-		.isi_format = kISI_OutputRGB565,
-	},
-	{
-		.pixelformat = VIDEO_PIX_FMT_XRGB32,
-		.isi_format = kISI_OutputXRGB8888,
-	},
-	{
-		.pixelformat = VIDEO_PIX_FMT_ABGR32,
-		.isi_format = kISI_OutputARGB8888,
-	},
-	{
-		.pixelformat = VIDEO_PIX_FMT_YUYV,
-		.isi_format = kISI_OutputYUV422_1P8P,
-	},
-	{
-		.pixelformat = VIDEO_PIX_FMT_XYUV32,
-		.isi_format = kISI_OutputYUV444_1P8P,
-	},
-	{
-		.pixelformat = VIDEO_PIX_FMT_SRGGB8,
-		.isi_format = kISI_OutputRaw8,
-	},
-	{
-		.pixelformat = VIDEO_PIX_FMT_SRGGB10,
-		.isi_format = kISI_OutputRaw16P,
-	},
-	{
-		.pixelformat = VIDEO_PIX_FMT_SRGGB12,
-		.isi_format = kISI_OutputRaw16P,
-	},
-	{
-		.pixelformat = VIDEO_PIX_FMT_GREY,
-		.isi_format = kISI_OutputRaw8,
-	},
+	{ .pixelformat = VIDEO_PIX_FMT_RGB565, .isi_format = kISI_OutputRGB565 },
+	{ .pixelformat = VIDEO_PIX_FMT_XRGB32, .isi_format = kISI_OutputXRGB8888 },
+	{ .pixelformat = VIDEO_PIX_FMT_ABGR32, .isi_format = kISI_OutputARGB8888 },
+	{ .pixelformat = VIDEO_PIX_FMT_YUYV, .isi_format = kISI_OutputYUV422_1P8P },
+	{ .pixelformat = VIDEO_PIX_FMT_XYUV32, .isi_format = kISI_OutputYUV444_1P8P },
+	{ .pixelformat = VIDEO_PIX_FMT_SRGGB8, .isi_format = kISI_OutputRaw8 },
+	{ .pixelformat = VIDEO_PIX_FMT_SRGGB10, .isi_format = kISI_OutputRaw16P },
+	{ .pixelformat = VIDEO_PIX_FMT_SRGGB12, .isi_format = kISI_OutputRaw16P },
+	{ .pixelformat = VIDEO_PIX_FMT_GREY, .isi_format = kISI_OutputRaw8 },
 };
 
-#define ISI_VIDEO_FORMAT_CAP(width, height, format)			\
-	{.pixelformat = (format),					\
-	 .width_min = 1,						\
-	 .width_max = (width),						\
-	 .height_min = 1,						\
-	 .height_max = (height),					\
-	 .width_step = 1,						\
-	 .height_step = 1}
+#define ISI_VIDEO_FORMAT_CAP(width, height, format) \
+	{ \
+		.pixelformat = (format), \
+		.width_min = 1, \
+		.width_max = (width), \
+		.height_min = 1, \
+		.height_max = (height), \
+		.width_step = 1, \
+		.height_step = 1 \
+	}
 
 /* Limit maximum width to 2K for CSC/resize, 8K for raw passthrough */
 static const struct video_format_cap isi_fmts[] = {
@@ -122,68 +117,155 @@ static const struct video_format_cap isi_fmts[] = {
 	ISI_VIDEO_FORMAT_CAP(8191, 8191, VIDEO_PIX_FMT_SRGGB10),
 	ISI_VIDEO_FORMAT_CAP(8191, 8191, VIDEO_PIX_FMT_SRGGB12),
 	ISI_VIDEO_FORMAT_CAP(8191, 8191, VIDEO_PIX_FMT_GREY),
-	{0},
+	{ 0 },
 };
 
-static int find_isi_format(uint32_t pixelformat)
+static const struct isi_format_map *isi_find_format(uint32_t pixelformat)
 {
-	for (uint32_t i = 0; i < ARRAY_SIZE(isi_formats); i++) {
+	for (size_t i = 0; i < ARRAY_SIZE(isi_formats); i++) {
 		if (isi_formats[i].pixelformat == pixelformat) {
-			return i;
+			return &isi_formats[i];
 		}
 	}
 
-	return -EPIPE;
+	return NULL;
 }
 
-static int isi_channel_config(const struct device *dev)
+static inline bool isi_pixfmt_is_yuv(uint32_t pixelformat)
+{
+	switch (pixelformat) {
+	case VIDEO_PIX_FMT_YUYV:
+	case VIDEO_PIX_FMT_UYVY:
+	case VIDEO_PIX_FMT_XYUV32:
+		return true;
+	default:
+		return false;
+	}
+}
+
+static int isi_configure_csc(const struct device *dev)
+{
+	struct video_mcux_isi_data *data = dev->data;
+	const struct video_mcux_isi_config *config = dev->config;
+	const bool in_is_yuv = isi_pixfmt_is_yuv(data->in_fmt.pixelformat);
+	const bool out_is_yuv = isi_pixfmt_is_yuv(data->fmt.pixelformat);
+
+	/*
+	 * Mirror the SDK camera adapter behavior: enable CSC only when converting
+	 * between YUV and RGB.
+	 */
+	static const isi_csc_config_t csc_yuv2rgb = {
+		.mode = kISI_CscYCbCr2RGB,
+		.A1 = 1.164f, .A2 = 0.0f,   .A3 = 1.596f,
+		.B1 = 1.164f, .B2 = -0.392f, .B3 = -0.813f,
+		.C1 = 1.164f, .C2 = 2.017f, .C3 = 0.0f,
+		.D1 = -16, .D2 = -128, .D3 = -128,
+	};
+
+	static const isi_csc_config_t csc_rgb2yuv = {
+		.mode = kISI_CscRGB2YCbCr,
+		.A1 = 0.257f, .A2 = 0.504f, .A3 = 0.098f,
+		.B1 = -0.148f, .B2 = -0.291f, .B3 = 0.439f,
+		.C1 = 0.439f, .C2 = -0.368f, .C3 = -0.071f,
+		.D1 = 16, .D2 = 128, .D3 = 128,
+	};
+
+	if (data->in_fmt.pixelformat == 0U || data->fmt.pixelformat == 0U) {
+		return -EPIPE;
+	}
+
+	/* Tell ISI whether the input is YCbCr (YUV) or RGB. */
+	data->isi_config.isYCbCr = in_is_yuv;
+
+	if (in_is_yuv == out_is_yuv) {
+		ISI_EnableColorSpaceConversion(config->base, false);
+		return 0;
+	}
+
+	if (out_is_yuv) {
+		ISI_SetColorSpaceConversionConfig(config->base, &csc_rgb2yuv);
+		ISI_EnableColorSpaceConversion(config->base, true);
+		return 0;
+	}
+
+	/* out is RGB */
+	ISI_SetColorSpaceConversionConfig(config->base, &csc_yuv2rgb);
+	ISI_EnableColorSpaceConversion(config->base, true);
+
+	return 0;
+}
+
+static void isi_apply_ctrls(const struct device *dev)
+{
+	struct video_mcux_isi_data *data = dev->data;
+
+	if (data->ctrls.hflip.val) {
+		flip |= kISI_FlipHorizontal;
+	} else {
+		flip &= ~kISI_FlipHorizontal;
+	}
+
+	if (data->ctrls.vflip.val) {
+		flip |= kISI_FlipVertical;
+	} else {
+		flip &= ~kISI_FlipVertical;
+	}
+}
+
+static int isi_channel_configure(const struct device *dev)
 {
 	struct video_mcux_isi_data *data = dev->data;
 	const struct video_mcux_isi_config *config = dev->config;
 	ISI_Type *base = config->base;
+	int ret;
 
-
-	    static const isi_csc_config_t cscConfigYUV2RGB = {
-        .mode = kISI_CscYCbCr2RGB,
-        .A1   = 1.164f,
-        .A2   = 0.0f,
-        .A3   = 1.596f,
-        .B1   = 1.164f,
-        .B2   = -0.392f,
-        .B3   = -0.813f,
-        .C1   = 1.164f,
-        .C2   = 2.017f,
-        .C3   = 0.0f,
-        .D1   = -16,
-        .D2   = -128,
-        .D3   = -128,
-    };
-
-
-	if (!data->format_set) {
+	if (data->fmt.pixelformat == 0U) {
 		LOG_ERR("Video format not configured");
 		return -EPIPE;
 	}
 
-	/* Configure ISI with output format dimensions */
-	data->isi_config.inputWidth = data->fmt.width;
-	data->isi_config.inputHeight = data->fmt.height;
-	data->isi_config.outputFormat = kISI_OutputRGB565;
-	data->isi_config.outputLinePitchBytes = data->fmt.width *
-		video_bits_per_pixel(data->fmt.pixelformat) / 8;
+	/* Derive input color space from upstream format. */
+	if (data->in_fmt.pixelformat == 0U) {
+		return -EPIPE;
+	}
+	data->isi_config.isYCbCr = isi_pixfmt_is_yuv(data->in_fmt.pixelformat);
+
+	data->isi_config.inputWidth = data->in_fmt.width;
+	data->isi_config.inputHeight = data->in_fmt.height;
+	data->isi_config.outputFormat = data->isi_format;
+
+	data->isi_config.outputLinePitchBytes = data->fmt.pitch;
 
 	ISI_Init(base);
 	ISI_SetConfig(base, &data->isi_config);
 
-	/* Disable scaling - passthrough mode */
-	ISI_SetScalerConfig(base, data->fmt.width, data->fmt.height,
+	/* Scale to output size (compose defines output). */
+	ISI_SetScalerConfig(base,
+			    data->in_fmt.width, data->in_fmt.height,
 			    data->fmt.width, data->fmt.height);
 
-	/* Disable color space conversion */
-	ISI_SetColorSpaceConversionConfig(base, &cscConfigYUV2RGB);
-	ISI_EnableColorSpaceConversion(base, true);
+	/* Crop is applied after scaling. If enabled, it changes output size. */
+	if (data->crop_en) {
+		const isi_crop_config_t crop_cfg = {
+			.upperLeftX = data->crop.left,
+			.upperLeftY = data->crop.top,
+			.lowerRightX = data->crop.left + data->crop.width,
+			.lowerRightY = data->crop.top + data->crop.height,
+		};
 
-	LOG_DBG("ISI configured: %dx%d, pitch=%u",
+		ISI_SetCropConfig(base, &crop_cfg);
+		ISI_EnableCrop(base, true);
+	} else {
+		ISI_EnableCrop(base, false);
+	}
+
+	ret = isi_configure_csc(dev);
+	if (ret) {
+		return ret;
+	}
+
+	LOG_DBG("ISI configured: in=%ux%u out=%ux%u pitch=%u",
+		data->in_fmt.width, data->in_fmt.height,
 		data->fmt.width, data->fmt.height,
 		data->isi_config.outputLinePitchBytes);
 
@@ -194,38 +276,40 @@ static int video_mcux_isi_set_fmt(const struct device *dev, struct video_format 
 {
 	const struct video_mcux_isi_config *config = dev->config;
 	struct video_mcux_isi_data *data = dev->data;
-	int i;
+	const struct isi_format_map *map;
+	int ret;
 
-	/* Find and validate format */
-	i = find_isi_format(fmt->pixelformat);
-	if (i < 0) {
+	map = isi_find_format(fmt->pixelformat);
+	if (map == NULL) {
 		return -ENOTSUP;
 	}
 
-	/* Save format information */
-	memcpy(&data->fmt, fmt, sizeof(*fmt));
-	data->isi_format = isi_formats[i].isi_format;
-	data->format_set = true;
-
-	/* Update pitch and size */
-	fmt->pitch = fmt->width * video_bits_per_pixel(fmt->pixelformat) / 8;
-	fmt->size = fmt->pitch * fmt->height;
-
-	LOG_INF("ISI format set: %c%c%c%c, %dx%d, pitch=%u, size=%u",
-		(char)fmt->pixelformat,
-		(char)(fmt->pixelformat >> 8),
-		(char)(fmt->pixelformat >> 16),
-		(char)(fmt->pixelformat >> 24),
-		fmt->width, fmt->height, fmt->pitch, fmt->size);
-
-	/* Configure source device with same format if available */
-	if (config->source_dev) {
-		if (video_set_format(config->source_dev, fmt)) {
-			LOG_ERR("Failed to set source device format");
-			data->format_set = false;
-			return -EIO;
-		}
+	ret = video_estimate_fmt_size(fmt);
+	if (ret) {
+		return ret;
 	}
+
+	if (!device_is_ready(config->source_dev)) {
+		return -ENODEV;
+	}
+
+	ret = video_set_format(config->source_dev, fmt);
+	if (ret) {
+		return ret;
+	}
+
+	ret = video_get_format(config->source_dev, &data->in_fmt);
+	if (ret) {
+		return ret;
+	}
+
+	data->fmt = *fmt;
+	data->isi_format = map->isi_format;
+
+	LOG_INF("ISI format set: %c%c%c%c, %ux%u, pitch=%u, size=%u",
+		(char)fmt->pixelformat, (char)(fmt->pixelformat >> 8),
+		(char)(fmt->pixelformat >> 16), (char)(fmt->pixelformat >> 24),
+		fmt->width, fmt->height, fmt->pitch, fmt->size);
 
 	return 0;
 }
@@ -234,14 +318,11 @@ static int video_mcux_isi_get_fmt(const struct device *dev, struct video_format 
 {
 	struct video_mcux_isi_data *data = dev->data;
 
-	//if (!data->format_set) {
-	//	memset(fmt, 0, sizeof(*fmt));
-	//	LOG_DBG("Video format not configured, returning empty format");
-	//	return 0;
-	//}
+	if (data->fmt.pixelformat == 0U) {
+		return -EPIPE;
+	}
 
-	memcpy(fmt, &data->fmt, sizeof(*fmt));
-	
+	*fmt = data->fmt;
 	return 0;
 }
 
@@ -250,47 +331,41 @@ static int video_mcux_isi_stream_start(const struct device *dev)
 	const struct video_mcux_isi_config *config = dev->config;
 	struct video_mcux_isi_data *data = dev->data;
 	ISI_Type *base = config->base;
-	uint8_t i;
-	uint32_t buffer_addr;
-	struct video_buffer *vbuf;
 	int ret;
 
-	ret = isi_channel_config(dev);
-	if (ret < 0) {
+	if (!device_is_ready(config->source_dev)) {
+		LOG_ERR("%s: source device not ready", dev->name);
+		return -ENODEV;
+	}
+
+	ret = isi_channel_configure(dev);
+	if (ret) {
 		return ret;
 	}
 
-	if (data->active_buf_cnt != ISI_MAX_ACTIVE_BUF) {
-		LOG_ERR("ISI requires at least %d active frame buffers", ISI_MAX_ACTIVE_BUF);
+	if (data->drop_frame_addr == 0U || data->active_buf_cnt != ISI_MAX_ACTIVE_BUF) {
+		LOG_ERR("ISI requires 1 drop buffer + %u active buffers", ISI_MAX_ACTIVE_BUF);
 		return -ENOMEM;
 	}
 
-	/* Set initial buffers */
-	for (i = 0; i < ISI_MAX_ACTIVE_BUF; i++) {
-		buffer_addr = data->active_buffer[i];
-		ISI_SetOutputBufferAddr(base, i, buffer_addr, 0, 0);
-		/* Remove buffers from input queue */
-		vbuf = k_fifo_get(&data->fifo_in, K_NO_WAIT);
+	for (uint8_t i = 0; i < ISI_MAX_ACTIVE_BUF; i++) {
+		uint32_t addr = (uint32_t)data->active_addr[i];
+		ISI_SetOutputBufferAddr(base, i, addr, 0, 0);
 	}
 
-	data->buffer_index = 0;
-	data->is_transfer_started = true;
+	data->buffer_index = 0U;
+	data->streaming = true;
 
-	/* Enable interrupt and start ISI */
 	ISI_ClearInterruptStatus(base, (uint32_t)kISI_FrameReceivedInterrupt);
 	ISI_EnableInterrupts(base, (uint32_t)kISI_FrameReceivedInterrupt);
 	ISI_Start(base);
 
-	/* Start source device */
-	if (config->source_dev) {
-		ret = video_stream_start(config->source_dev, VIDEO_BUF_TYPE_OUTPUT);
-		if (ret) {
-			LOG_ERR("ISI source device start stream failed");
-			ISI_Stop(base);
-			ISI_DisableInterrupts(base, (uint32_t)kISI_FrameReceivedInterrupt);
-			data->is_transfer_started = false;
-			return -EIO;
-		}
+	ret = video_stream_start(config->source_dev, VIDEO_BUF_TYPE_OUTPUT);
+	if (ret) {
+		ISI_Stop(base);
+		ISI_DisableInterrupts(base, (uint32_t)kISI_FrameReceivedInterrupt);
+		data->streaming = false;
+		return ret;
 	}
 
 	LOG_INF("ISI stream started");
@@ -302,86 +377,76 @@ static int video_mcux_isi_stream_stop(const struct device *dev)
 	const struct video_mcux_isi_config *config = dev->config;
 	struct video_mcux_isi_data *data = dev->data;
 	ISI_Type *base = config->base;
+	int ret;
 
-	/* Stop source device first */
-	if (config->source_dev) {
-		if (video_stream_stop(config->source_dev, VIDEO_BUF_TYPE_OUTPUT)) {
-			LOG_ERR("ISI source device stop stream failed");
-			return -EIO;
-		}
+	ret = video_stream_stop(config->source_dev, VIDEO_BUF_TYPE_OUTPUT);
+	if (ret) {
+		return ret;
 	}
 
-	/* Stop ISI */
 	ISI_Stop(base);
 	ISI_DisableInterrupts(base, (uint32_t)kISI_FrameReceivedInterrupt);
 	ISI_ClearInterruptStatus(base, (uint32_t)kISI_FrameReceivedInterrupt);
 
-	data->is_transfer_started = false;
-	data->active_buf_cnt = 0;
+	data->streaming = false;
+	data->active_buf_cnt = 0U;
+	data->drop_frame_addr = 0U;
+	data->active_addr[0] = 0U;
+	data->active_addr[1] = 0U;
+	data->active_vbuf[0] = NULL;
+	data->active_vbuf[1] = NULL;
 
 	LOG_INF("ISI stream stopped");
 	return 0;
 }
 
-static int video_mcux_isi_set_stream(const struct device *dev, bool enable,
-				     enum video_buf_type type)
+static int video_mcux_isi_set_stream(const struct device *dev, bool enable, enum video_buf_type type)
 {
+	ARG_UNUSED(type);
+
 	if (enable) {
 		return video_mcux_isi_stream_start(dev);
-	} else {
-		return video_mcux_isi_stream_stop(dev);
 	}
+
+	return video_mcux_isi_stream_stop(dev);
 }
 
 static int video_mcux_isi_enqueue(const struct device *dev, struct video_buffer *vbuf)
 {
 	struct video_mcux_isi_data *data = dev->data;
-	const struct video_mcux_isi_config *config = dev->config;
-	ISI_Type *base = config->base;
-	uint32_t interrupts;
 
-	if (!data->format_set) {
-		LOG_ERR("Cannot enqueue buffer: format not set");
+	if (data->fmt.pixelformat == 0U) {
 		return -EPIPE;
 	}
 
-	vbuf->bytesused = data->fmt.pitch * data->fmt.height;
+	vbuf->bytesused = data->fmt.size;
+	if (vbuf->size < vbuf->bytesused) {
+		return -ENOMEM;
+	}
 
-	if (!data->is_transfer_started) {
-		/* Before streaming starts, collect buffers */
-		if (data->drop_frame == 0U) {
-			/* First buffer is drop frame buffer */
-			data->drop_frame = POINTER_TO_UINT(vbuf->buffer);
-			LOG_DBG("Drop frame buffer set: 0x%08x", data->drop_frame);
-		} else {
-			if (data->active_buf_cnt < ISI_MAX_ACTIVE_BUF) {
-				data->active_buffer[data->active_buf_cnt] =
-					POINTER_TO_UINT(vbuf->buffer);
-				data->active_vbuf[data->active_buf_cnt] = vbuf;
-				LOG_DBG("Active buffer[%d] set: 0x%08x",
-					data->active_buf_cnt,
-					data->active_buffer[data->active_buf_cnt]);
-				data->active_buf_cnt++;
-			}
-			k_fifo_put(&data->fifo_in, vbuf);
+	if (!data->streaming) {
+		if (data->drop_frame_addr == 0U) {
+			data->drop_frame_addr = (uintptr_t)vbuf->buffer;
+			LOG_DBG("Drop frame buffer set: 0x%lx", (unsigned long)data->drop_frame_addr);
+			return 0;
 		}
-	} else {
-		/* During streaming, add to input queue */
-		/* Disable interrupt to protect buffer management */
-		interrupts = ISI_DisableInterrupts(base, (uint32_t)kISI_FrameReceivedInterrupt);
 
-		k_fifo_put(&data->fifo_in, vbuf);
-
-		if (interrupts & (uint32_t)kISI_FrameReceivedInterrupt) {
-			ISI_EnableInterrupts(base, (uint32_t)kISI_FrameReceivedInterrupt);
+		if (data->active_buf_cnt < ISI_MAX_ACTIVE_BUF) {
+			data->active_vbuf[data->active_buf_cnt] = vbuf;
+			data->active_addr[data->active_buf_cnt] = (uintptr_t)vbuf->buffer;
+			LOG_DBG("Active buffer[%u] set: 0x%lx", data->active_buf_cnt,
+				(unsigned long)data->active_addr[data->active_buf_cnt]);
+			data->active_buf_cnt++;
+			return 0;
 		}
 	}
 
+	k_fifo_put(&data->fifo_in, vbuf);
 	return 0;
 }
 
 static int video_mcux_isi_dequeue(const struct device *dev, struct video_buffer **vbuf,
-				  k_timeout_t timeout)
+				 k_timeout_t timeout)
 {
 	struct video_mcux_isi_data *data = dev->data;
 
@@ -399,15 +464,14 @@ static int video_mcux_isi_flush(const struct device *dev, bool cancel)
 	struct video_buffer *vbuf;
 
 	if (!cancel) {
-		/* Wait for all buffers to be processed */
-		do {
+		while (!k_fifo_is_empty(&data->fifo_in)) {
 			k_sleep(K_MSEC(1));
-		} while (!k_fifo_is_empty(&data->fifo_in));
-	} else {
-		/* Move all buffers from input to output queue */
-		while ((vbuf = k_fifo_get(&data->fifo_in, K_NO_WAIT))) {
-			k_fifo_put(&data->fifo_out, vbuf);
 		}
+		return 0;
+	}
+
+	while ((vbuf = k_fifo_get(&data->fifo_in, K_NO_WAIT))) {
+		k_fifo_put(&data->fifo_out, vbuf);
 	}
 
 	return 0;
@@ -415,67 +479,151 @@ static int video_mcux_isi_flush(const struct device *dev, bool cancel)
 
 static int video_mcux_isi_get_caps(const struct device *dev, struct video_caps *caps)
 {
-	const struct video_mcux_isi_config *config = dev->config;
+	ARG_UNUSED(dev);
+
+	if (caps == NULL) {
+		return -EINVAL;
+	}
 
 	caps->format_caps = isi_fmts;
-
-#if 0
-	/* Also get capabilities from source device if available */
-	if (config->source_dev) {
-		struct video_caps source_caps = {0};
-
-		if (!video_get_caps(config->source_dev, &source_caps)) {
-			/* Use higher minimum buffer count if source requires more */
-			if (source_caps.min_vbuf_count > caps->min_vbuf_count) {
-				caps->min_vbuf_count = source_caps.min_vbuf_count;
-			}
-		}
-	}
-#endif
-	/* ISI requires at least 3 buffers (2 active + 1 drop frame) */
+	/* ISI requires at least 3 buffers (2 active + 1 drop frame). */
 	caps->min_vbuf_count = 3;
 
 	return 0;
+}
+
+static int video_mcux_isi_set_ctrl(const struct device *dev, uint32_t id)
+{
+	struct video_mcux_isi_data *data = dev->data;
+
+	switch (id) {
+	case VIDEO_CID_HFLIP:
+	case VIDEO_CID_VFLIP:
+	case VIDEO_CID_ALPHA_COMPONENT:
+		if (data->streaming) {
+			return -EBUSY;
+		}
+
+		isi_apply_ctrls(dev);
+		return 0;
+	default:
+		return -ENOTSUP;
+	}
 }
 
 static int video_mcux_isi_set_frmival(const struct device *dev, struct video_frmival *frmival)
 {
 	const struct video_mcux_isi_config *config = dev->config;
 
-	/* Forward to source device */
-	if (config->source_dev) {
-		return video_set_frmival(config->source_dev, frmival);
-	}
-
-	return 0;
+	return video_set_frmival(config->source_dev, frmival);
 }
 
 static int video_mcux_isi_get_frmival(const struct device *dev, struct video_frmival *frmival)
 {
 	const struct video_mcux_isi_config *config = dev->config;
 
-	printk("enter video_mcux_isi_get_frmival\r\n");
-
-	/* Forward to source device */
-	if (config->source_dev) {
-		return video_get_frmival(config->source_dev, frmival);
-	}
-
-	return 0;
+	return video_get_frmival(config->source_dev, frmival);
 }
 
 static int video_mcux_isi_enum_frmival(const struct device *dev, struct video_frmival_enum *fie)
 {
 	const struct video_mcux_isi_config *config = dev->config;
 
-	printk("enter video_mcux_isi_enum_frmival\r\n");
+	return video_enum_frmival(config->source_dev, fie);
+}
 
-	/* Forward to source device */
-	if (config->source_dev) {
-		return video_enum_frmival(config->source_dev, fie);
+static int video_mcux_isi_set_selection(const struct device *dev, struct video_selection *sel)
+{
+	struct video_mcux_isi_data *data = dev->data;
+
+	if (sel == NULL) {
+		return -EINVAL;
 	}
 
-	return 0;
+	if (data->streaming) {
+		return -EBUSY;
+	}
+
+	if (sel->type != VIDEO_BUF_TYPE_OUTPUT) {
+		return -ENOTSUP;
+	}
+
+	switch (sel->target) {
+	case VIDEO_SEL_TGT_CROP:
+		data->crop = sel->rect;
+		data->crop_en = (sel->rect.width != 0U) && (sel->rect.height != 0U);
+		if (data->crop_en) {
+			/* Crop changes output frame size in this driver. */
+			data->fmt.width = data->crop.width;
+			data->fmt.height = data->crop.height;
+			(void)video_estimate_fmt_size(&data->fmt);
+		}
+		return 0;
+	case VIDEO_SEL_TGT_COMPOSE:
+		data->compose = sel->rect;
+		data->compose_en = (sel->rect.width != 0U) && (sel->rect.height != 0U);
+		if (data->compose_en) {
+			/* Compose defines output size. */
+			data->fmt.width = data->compose.width;
+			data->fmt.height = data->compose.height;
+			(void)video_estimate_fmt_size(&data->fmt);
+		}
+		return 0;
+	default:
+		return -ENOTSUP;
+	}
+}
+
+static int video_mcux_isi_get_selection(const struct device *dev, struct video_selection *sel)
+{
+	struct video_mcux_isi_data *data = dev->data;
+
+	if (sel == NULL) {
+		return -EINVAL;
+	}
+
+	if (sel->type != VIDEO_BUF_TYPE_OUTPUT) {
+		return -ENOTSUP;
+	}
+
+	switch (sel->target) {
+	case VIDEO_SEL_TGT_CROP:
+		if (data->crop_en) {
+			sel->rect = data->crop;
+		} else {
+			sel->rect = (struct video_rect){0};
+		}
+		return 0;
+	case VIDEO_SEL_TGT_COMPOSE:
+		if (data->compose_en) {
+			sel->rect = data->compose;
+		} else {
+			sel->rect = (struct video_rect){0};
+		}
+		return 0;
+	case VIDEO_SEL_TGT_NATIVE_SIZE:
+		if (data->fmt.pixelformat == 0U) {
+			return -EPIPE;
+		}
+		sel->rect.left = 0;
+		sel->rect.top = 0;
+		sel->rect.width = data->fmt.width;
+		sel->rect.height = data->fmt.height;
+		return 0;
+	case VIDEO_SEL_TGT_CROP_BOUND:
+	case VIDEO_SEL_TGT_COMPOSE_BOUND:
+		/* Provide best-effort bounds based on current format (if configured). */
+		if (data->fmt.pixelformat == 0U) {
+			return -EPIPE;
+		}
+		sel->rect.left = 0;
+		sel->rect.top = 0;
+		sel->rect.width = data->fmt.width;
+		sel->rect.height = data->fmt.height;
+		return 0;
+	default:
+		return -ENOTSUP;
+	}
 }
 
 static DEVICE_API(video, video_mcux_isi_driver_api) = {
@@ -486,6 +634,9 @@ static DEVICE_API(video, video_mcux_isi_driver_api) = {
 	.dequeue = video_mcux_isi_dequeue,
 	.flush = video_mcux_isi_flush,
 	.get_caps = video_mcux_isi_get_caps,
+	.set_ctrl = video_mcux_isi_set_ctrl,
+	.set_selection = video_mcux_isi_set_selection,
+	.get_selection = video_mcux_isi_get_selection,
 	.set_frmival = video_mcux_isi_set_frmival,
 	.get_frmival = video_mcux_isi_get_frmival,
 	.enum_frmival = video_mcux_isi_enum_frmival,
@@ -497,160 +648,180 @@ static void video_mcux_isi_isr(const struct device *dev)
 	struct video_mcux_isi_data *data = dev->data;
 	ISI_Type *base = config->base;
 	uint32_t int_status;
+	struct video_buffer *vbuf;
 	uint32_t buffer_addr;
-	struct video_buffer *vbuf = NULL;
+	uint32_t now_ms;
 
 	int_status = ISI_GetInterruptStatus(base);
 	ISI_ClearInterruptStatus(base, int_status);
 
-	/* Check if frame received interrupt */
-	if (!(int_status & (uint32_t)kISI_FrameReceivedInterrupt)) {
+	if ((int_status & (uint32_t)kISI_FrameReceivedInterrupt) == 0U) {
 		return;
 	}
 
-	data->fps_frame_cnt++;
+	/* If this triggers, streaming started without required drop buffer. */
+	__ASSERT_NO_MSG(data->drop_frame_addr != 0U);
+	if (data->drop_frame_addr == 0U) {
+		return;
+	}
 
-	buffer_addr = data->active_buffer[data->buffer_index];
+	buffer_addr = (uint32_t)data->active_addr[data->buffer_index];
 
-	/* If current finished frame is not drop frame, submit to output queue */
-	if (buffer_addr != data->drop_frame) {
+	if ((uintptr_t)buffer_addr != data->drop_frame_addr) {
 		vbuf = data->active_vbuf[data->buffer_index];
-		vbuf->timestamp = k_uptime_get_32();
-		vbuf->bytesused = data->isi_config.outputLinePitchBytes * data->fmt.height;
-		k_fifo_put(&data->fifo_out, vbuf);
+		if (vbuf != NULL) {
+			vbuf->timestamp = k_uptime_get_32();
+			vbuf->bytesused = data->fmt.size;
+			k_fifo_put(&data->fifo_out, vbuf);
+		}
 	}
 
-	/* Get next buffer from input queue */
 	vbuf = k_fifo_get(&data->fifo_in, K_NO_WAIT);
-
-	/* If no available input buffer, use drop frame buffer */
 	if (vbuf == NULL) {
-		buffer_addr = data->drop_frame;
-		data->fps_drop_cnt++;
-		//LOG_WRN("No available input buffer, drop frame");
+		buffer_addr = (uint32_t)data->drop_frame_addr;
+		data->active_vbuf[data->buffer_index] = NULL;
+		data->active_addr[data->buffer_index] = data->drop_frame_addr;
+		data->drop_cnt++;
 	} else {
-		buffer_addr = POINTER_TO_UINT(vbuf->buffer);
+		buffer_addr = (uint32_t)(uintptr_t)vbuf->buffer;
 		data->active_vbuf[data->buffer_index] = vbuf;
+		data->active_addr[data->buffer_index] = (uintptr_t)vbuf->buffer;
 	}
 
-	data->active_buffer[data->buffer_index] = buffer_addr;
 	ISI_SetOutputBufferAddr(base, data->buffer_index, buffer_addr, 0, 0);
-
-	/* Toggle buffer index */
 	data->buffer_index ^= 1U;
 
-	/* Print once per second to avoid ISR overhead */
-	uint32_t now = k_uptime_get_32();
-	uint32_t elapsed = now - data->fps_last_ms;
-	if (elapsed >= 1000U) {
-		uint32_t fps = (data->fps_frame_cnt * 1000U) / (elapsed ? elapsed : 1U);
-		//LOG_INF("ISI ISR: %u fps, drops=%u, elapsed=%ums",
-		//	fps, data->fps_drop_cnt, elapsed);
-		data->fps_last_ms = now;
-		data->fps_frame_cnt = 0U;
-		data->fps_drop_cnt = 0U;
+	/* Print at most once per second (avoid log spam / ISR overhead). */
+	now_ms = k_uptime_get_32();
+	if ((now_ms - data->last_stat_ms) >= 1000U) {
+		if (data->drop_cnt) {
+			LOG_DBG("ISI dropped %u frame(s) (no input buffer)", data->drop_cnt);
+			data->drop_cnt = 0U;
+		}
+		data->last_stat_ms = now_ms;
 	}
 }
 
-int p = 1;
+static int video_mcux_isi_init_ctrls(const struct device *dev)
+{
+	struct video_mcux_isi_data *data = dev->data;
+	int ret;
+
+	ret = video_init_ctrl(&data->ctrls.hflip, dev, VIDEO_CID_HFLIP,
+			      (struct video_ctrl_range){ .min = 0, .max = 1, .step = 1, .def = 0 });
+	if (ret) {
+		return ret;
+	}
+
+	ret = video_init_ctrl(&data->ctrls.vflip, dev, VIDEO_CID_VFLIP,
+			      (struct video_ctrl_range){ .min = 0, .max = 1, .step = 1, .def = 0 });
+	if (ret) {
+		return ret;
+	}
+
+	return video_init_ctrl(&data->ctrls.alpha, dev, VIDEO_CID_ALPHA_COMPONENT,
+			       (struct video_ctrl_range){ .min = 0, .max = 255, .step = 1, .def = 0 });
+}
+
 static int video_mcux_isi_init(const struct device *dev)
 {
-	//while (p == 1)
-	{
-		;
-	}
 	const struct video_mcux_isi_config *config = dev->config;
 	struct video_mcux_isi_data *data = dev->data;
+	int ret;
 
 	k_fifo_init(&data->fifo_in);
 	k_fifo_init(&data->fifo_out);
 
 	data->dev = dev;
-	data->buffer_index = 0;
-	data->is_transfer_started = false;
-	data->drop_frame = 0;
-	data->active_buf_cnt = 0;
-	data->format_set = false;
-
-	data->fps_last_ms = k_uptime_get_32();
-	data->fps_frame_cnt = 0U;
-	data->fps_drop_cnt = 0U;
-
-	/* Initialize format structure */
+	data->buffer_index = 0U;
+	data->streaming = false;
+	data->drop_frame_addr = 0U;
+	data->active_buf_cnt = 0U;
+	data->active_addr[0] = 0U;
+	data->active_addr[1] = 0U;
+	data->active_vbuf[0] = NULL;
+	data->active_vbuf[1] = NULL;
+	data->drop_cnt = 0U;
+	data->last_stat_ms = k_uptime_get_32();
 	memset(&data->fmt, 0, sizeof(data->fmt));
+	memset(&data->in_fmt, 0, sizeof(data->in_fmt));
+	memset(&data->ctrls, 0, sizeof(data->ctrls));
+	memset(&data->crop, 0, sizeof(data->crop));
+	data->crop_en = false;
+	memset(&data->compose, 0, sizeof(data->compose));
+	data->compose_en = false;
 
-	/* Check if source device is ready */
-	if (config->source_dev != NULL) {
-		if (!device_is_ready(config->source_dev)) {
-			LOG_ERR("%s: source device %s not ready",
-				dev->name, config->source_dev->name);
-			return -ENODEV;
-		}
-		LOG_INF("%s: source device %s ready",
-			dev->name, config->source_dev->name);
-	} else {
-		LOG_WRN("%s: no source device configured", dev->name);
-	}
+	/*
+	 * The upstream source device might not be initialized yet (e.g. sensor loads
+	 * firmware at boot). Don't fail probe here: validate readiness when the
+	 * pipeline is actually used.
+	 */
 
-	/* Initialize ISI default configuration */
 	ISI_GetDefaultConfig(&data->isi_config);
 	data->isi_config.isChannelBypassed = false;
 	data->isi_config.isSourceMemory = false;
 	data->isi_config.sourcePort = config->input_port;
 	data->isi_config.mipiChannel = 0;
-        
-	data->fmt.type = VIDEO_BUF_TYPE_OUTPUT;
-        data->fmt.pixelformat = VIDEO_PIX_FMT_YUYV;
-        data->fmt.width = 1080;
-        data->fmt.height = 2340;
 
-	/* Configure clock if available */
-	if (config->clock_dev != NULL) {
+	/* Default format (can be changed by video_set_format()) */
+	data->fmt.type = VIDEO_BUF_TYPE_OUTPUT;
+	data->fmt.pixelformat = VIDEO_PIX_FMT_RGB565;
+	data->fmt.width = 1080;
+	data->fmt.height = 2340;
+	(void)video_estimate_fmt_size(&data->fmt);
+
+	data->in_fmt = data->fmt;
+	data->isi_format = kISI_OutputRGB565;
+
+	ret = video_mcux_isi_init_ctrls(dev);
+	if (ret) {
+		return ret;
+	}
+
+	isi_apply_ctrls(dev);
+
+	if (config->clock_dev) {
 		if (!device_is_ready(config->clock_dev)) {
 			LOG_ERR("%s: clock device not ready", dev->name);
 			return -ENODEV;
 		}
 
-		if (clock_control_on(config->clock_dev, config->clock_subsys)) {
+		ret = clock_control_on(config->clock_dev, config->clock_subsys);
+		if (ret) {
 			LOG_ERR("%s: failed to enable clock", dev->name);
-			return -EIO;
+			return ret;
 		}
-		LOG_DBG("%s: clock enabled", dev->name);
 	}
 
-	LOG_INF("%s: initialized successfully", dev->name);
 	return 0;
 }
 
-/* Device instantiation macro */
-#define VIDEO_MCUX_ISI_DEVICE(n)							\
-											\
-	static const struct video_mcux_isi_config video_mcux_isi_config_##n = {		\
-		.base = (ISI_Type *)DT_INST_REG_ADDR(n),				\
-		.source_dev = DEVICE_DT_GET(DT_NODE_REMOTE_DEVICE			\
-				(DT_INST_ENDPOINT_BY_ID(n, 0, 0))),			\
-		.input_port = DT_INST_PROP_OR(n, input_port, 0),			\
-		.clock_dev = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, clocks),		\
-			(DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n))), (NULL)),		\
-		.clock_subsys = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, clocks),		\
-			((clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, name)),		\
-			(NULL)),							\
-	};										\
-											\
-	static struct video_mcux_isi_data video_mcux_isi_data_##n;			\
-											\
-	static int video_mcux_isi_init_##n(const struct device *dev)			\
-	{										\
-		IRQ_CONNECT(DT_INST_IRQN(n), DT_INST_IRQ(n, priority),			\
-			    video_mcux_isi_isr, DEVICE_DT_INST_GET(n), 0);		\
-		irq_enable(DT_INST_IRQN(n));						\
-		return video_mcux_isi_init(dev);					\
-	}										\
-											\
-	DEVICE_DT_INST_DEFINE(n, &video_mcux_isi_init_##n, NULL,			\
-			      &video_mcux_isi_data_##n,					\
-			      &video_mcux_isi_config_##n,				\
-			      POST_KERNEL, CONFIG_VIDEO_MCUX_ISI_INIT_PRIORITY,		\
-			      &video_mcux_isi_driver_api);
+#define ISI_SOURCE_DEV(inst) \
+	DEVICE_DT_GET(DT_NODE_REMOTE_DEVICE(DT_INST_ENDPOINT_BY_ID(inst, 0, 0)))
+
+#define VIDEO_MCUX_ISI_DEVICE(inst) \
+	static const struct video_mcux_isi_config video_mcux_isi_config_##inst = { \
+		.base = (ISI_Type *)DT_INST_REG_ADDR(inst), \
+		.source_dev = ISI_SOURCE_DEV(inst), \
+		.input_port = DT_INST_PROP_OR(inst, input_port, 0), \
+		.clock_dev = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, clocks), \
+			(DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(inst))), (NULL)), \
+		.clock_subsys = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, clocks), \
+			((clock_control_subsys_t)DT_INST_CLOCKS_CELL(inst, name)), (NULL)), \
+	}; \
+	static struct video_mcux_isi_data video_mcux_isi_data_##inst; \
+	static int video_mcux_isi_init_##inst(const struct device *dev) \
+	{ \
+		IRQ_CONNECT(DT_INST_IRQN(inst), DT_INST_IRQ(inst, priority), \
+			    video_mcux_isi_isr, DEVICE_DT_INST_GET(inst), 0); \
+		irq_enable(DT_INST_IRQN(inst)); \
+		return video_mcux_isi_init(dev); \
+	} \
+	DEVICE_DT_INST_DEFINE(inst, &video_mcux_isi_init_##inst, NULL, \
+			      &video_mcux_isi_data_##inst, \
+			      &video_mcux_isi_config_##inst, \
+			      POST_KERNEL, CONFIG_VIDEO_INIT_PRIORITY, \
+			      &video_mcux_isi_driver_api); \
+	VIDEO_DEVICE_DEFINE(video_mcux_isi_##inst, DEVICE_DT_INST_GET(inst), ISI_SOURCE_DEV(inst));
 
 DT_INST_FOREACH_STATUS_OKAY(VIDEO_MCUX_ISI_DEVICE)
