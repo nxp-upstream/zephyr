@@ -215,7 +215,10 @@ static int nxp_imx_csi_enum_frmival(const struct device *dev, struct video_frmiv
 
 	ret = video_enum_frmival(cfg->sensor_dev, fie);
 	if (ret) {
-		LOG_ERR("Cannot enum sensor_dev frmival");
+		/* -EINVAL / -ENOTSUP are normal end-of-enumeration conditions. */
+		if (ret != -EINVAL && ret != -ENOTSUP) {
+			LOG_ERR("Cannot enum sensor_dev frmival: %d", ret);
+		}
 		return ret;
 	}
 
