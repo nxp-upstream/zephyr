@@ -49,7 +49,10 @@ LOG_MODULE_REGISTER(ap1302, CONFIG_VIDEO_LOG_LEVEL);
 #define AP1302_FPS_Q8_8(fps) ((uint16_t)((fps) << 8))
 
 #define AP1302_PREVIEW_OUT_FMT_FT_YUV		(3U << 4)
+#define AP1302_PREVIEW_OUT_FMT_FT_YUV_JFIF	(5U << 4)
 #define AP1302_PREVIEW_OUT_FMT_FST_YUV_422	(0U << 0)
+#define AP1302_PREVIEW_OUT_FMT_FST_RGB_565      (1U << 0)
+#define AP1302_PREVIEW_OUT_FMT_FT_RGB           (4U << 4)
 #define AP1302_PREVIEW_HINF_CTRL_SPOOF		BIT(4)
 #define AP1302_PREVIEW_HINF_CTRL_MIPI_LANES(n)	((n) << 0)
 
@@ -115,6 +118,7 @@ struct ap1302_data {
 	struct ap1302_ctrls ctrls;
 	struct video_format fmt;
 	struct video_frmival frmival;
+	uint32_t max_fps;
 	const struct ap1302_format_info *info;
 	bool streaming;
 };
@@ -122,18 +126,32 @@ struct ap1302_data {
 static const int64_t ap1302_link_frequencies[] = {
 	445000000,
 };
-#define AP1302_PREVIEW_OUT_FMT_FST_RGB_565      (1U << 0)
-#define AP1302_PREVIEW_OUT_FMT_FT_RGB           (4U << 4)
+
 static const struct ap1302_format_info supported_formats[] = {
 	{
 		.code = VIDEO_PIX_FMT_YUYV,
-		.out_fmt = AP1302_PREVIEW_OUT_FMT_FT_YUV | AP1302_PREVIEW_OUT_FMT_FST_YUV_422,
+		.out_fmt = AP1302_PREVIEW_OUT_FMT_FT_YUV_JFIF | AP1302_PREVIEW_OUT_FMT_FST_YUV_422,
 	},
 	{
 		.code = VIDEO_PIX_FMT_RGB565,
 		.out_fmt = AP1302_PREVIEW_OUT_FMT_FT_RGB | AP1302_PREVIEW_OUT_FMT_FST_RGB_565,
 	},
 };
+
+#define AP1302_PREVIEW_OUT_FMT_FORMAT_MASK GENMASK(7, 0)
+
+static const struct ap1302_format_info *ap1302_find_format_by_outfmt(uint16_t out_fmt)
+{
+	uint16_t key = out_fmt & AP1302_PREVIEW_OUT_FMT_FORMAT_MASK;
+
+	for (size_t i = 0; i < ARRAY_SIZE(supported_formats); i++) {
+		if ((supported_formats[i].out_fmt & AP1302_PREVIEW_OUT_FMT_FORMAT_MASK) == key) {
+			return &supported_formats[i];
+		}
+	}
+
+	return NULL;
+}
 
 static const struct video_format_cap ap1302_fmts[] = {
 	{
@@ -458,6 +476,30 @@ static int ap1302_program_max_fps(const struct device *dev, uint32_t fps)
 	return 0;
 }
 
+static int ap1302_read_max_fps(const struct device *dev, uint32_t *fps)
+{
+	const struct ap1302_config *cfg = dev->config;
+	uint32_t v;
+	int ret;
+
+	if (fps == NULL) {
+		return -EINVAL;
+	}
+
+	ret = video_read_cci_reg(&cfg->i2c, AP1302_PREVIEW_MAX_FPS, &v);
+	if (ret < 0) {
+		return ret;
+	}
+
+	/* Q8.8 FPS, ignore fractional part. */
+	*fps = (uint32_t)(v >> 8);
+	if (*fps == 0U) {
+		*fps = 1U;
+	}
+
+	return 0;
+}
+
 static int ap1302_configure(const struct device *dev)
 {
 	const struct ap1302_config *cfg = dev->config;
@@ -497,7 +539,6 @@ static int ap1302_configure(const struct device *dev)
 static int ap1302_stall(const struct device *dev, bool stall)
 {
 	const struct ap1302_config *cfg = dev->config;
-	struct ap1302_data *data = dev->data;
 	int ret;
 
 	if (stall) {
@@ -538,12 +579,6 @@ static int ap1302_set_format(const struct device *dev, struct video_format *fmt)
 	size_t idx;
 	int ret;
 
-	data->frmival.numerator = 1U;
-	data->frmival.denominator = 60;
-
-	printk("will set ap1302 max fps into 60\r\n");
-	ret = ap1302_program_max_fps(dev, 60);
-	printk("will set ap1302 max fps into 60 done!!!!!!!!!!!\r\n");
 
 	ap1302_sanitize_format(fmt);
 
@@ -593,7 +628,7 @@ static int ap1302_set_frmival(const struct device *dev, struct video_frmival *fr
 	}
 
 	fps = DIV_ROUND_CLOSEST(frmival->denominator, frmival->numerator);
-	fps = CLAMP(fps, 1U, 240U);
+	fps = CLAMP(fps, 1U, data->max_fps ? data->max_fps : 240U);
 
 	data->frmival.numerator = 1U;
 	data->frmival.denominator = fps;
@@ -605,9 +640,17 @@ static int ap1302_set_frmival(const struct device *dev, struct video_frmival *fr
 		}
 	}
 
+	ret = ap1302_program_max_fps(dev, fps);
+	if (ret < 0) {
+		return ret;
+	}
+
 	if (data->streaming) {
 		(void)ap1302_stall(dev, false);
 	}
+
+	frmival->numerator = 1U;
+	frmival->denominator = fps;
 
 	LOG_INF("frmival applied: 1/%u s (%u fps)", fps, fps);
 
@@ -622,6 +665,29 @@ static int ap1302_get_frmival(const struct device *dev, struct video_frmival *fr
 	return 0;
 }
 
+static int ap1302_enum_frmival(const struct device *dev, struct video_frmival_enum *fie)
+{
+	struct ap1302_data *data = dev->data;
+
+	if (fie == NULL || fie->format == NULL) {
+		return -EINVAL;
+	}
+
+	/* Single stepwise range [1/max_fps] under the active firmware constraints. */
+	if (fie->index != 0U) {
+		return -EINVAL;
+	}
+
+	fie->type = VIDEO_FRMIVAL_TYPE_STEPWISE;
+	fie->stepwise.min.numerator = 1U;
+	fie->stepwise.min.denominator = 1U;
+	fie->stepwise.max.numerator = 1U;
+	fie->stepwise.max.denominator = data->max_fps ? data->max_fps : 1U;
+	fie->stepwise.step.numerator = 1U;
+	fie->stepwise.step.denominator = 1U;
+
+	return 0;
+}
 
 static int ap1302_set_stream(const struct device *dev, bool enable, enum video_buf_type type)
 {
@@ -709,7 +775,60 @@ static DEVICE_API(video, ap1302_driver_api) = {
 	.set_ctrl = ap1302_set_ctrl,
 	.set_frmival = ap1302_set_frmival,
 	.get_frmival = ap1302_get_frmival,
+	.enum_frmival = ap1302_enum_frmival,
 };
+
+static int ap1302_init_preview_format(const struct device *dev)
+{
+	const struct ap1302_config *cfg = dev->config;
+	struct ap1302_data *data = dev->data;
+	uint32_t w, h;
+	uint32_t out_fmt;
+	const struct ap1302_format_info *fw_info;
+	int ret;
+
+	ret = video_read_cci_reg(&cfg->i2c, AP1302_PREVIEW_WIDTH, &w);
+	if (ret == 0 && w != 0U) {
+		data->fmt.width = w;
+	}
+	ret = video_read_cci_reg(&cfg->i2c, AP1302_PREVIEW_HEIGHT, &h);
+	if (ret == 0 && h != 0U) {
+		data->fmt.height = h;
+	}
+
+	ret = video_read_cci_reg(&cfg->i2c, AP1302_PREVIEW_OUT_FMT, &out_fmt);
+	if (ret == 0) {
+		fw_info = ap1302_find_format_by_outfmt((uint16_t)out_fmt);
+		if (fw_info != NULL) {
+			data->fmt.pixelformat = fw_info->code;
+			data->info = fw_info;
+		}
+	}
+
+	ap1302_sanitize_format(&data->fmt);
+
+	ret = video_estimate_fmt_size(&data->fmt);
+	if (ret < 0) {
+		LOG_ERR("Failed to estimate format size: %d", ret);
+		return ret;
+	}
+
+	if (data->info == NULL) {
+		data->info = ap1302_find_format(data->fmt.pixelformat);
+	}
+
+	ret = ap1302_read_max_fps(dev, &data->max_fps);
+	if (ret < 0) {
+		LOG_ERR("Failed to read max fps from firmware: %d", ret);
+		return ret;
+	}
+
+	data->frmival.numerator = 1U;
+	data->frmival.denominator = data->max_fps;
+	data->fmt.type = VIDEO_BUF_TYPE_OUTPUT;
+
+	return 0;
+}
 
 static int ap1302_init(const struct device *dev)
 {
@@ -792,23 +911,12 @@ static int ap1302_init(const struct device *dev)
 		goto err_power;
 	}
 
-	data->fmt.type = VIDEO_BUF_TYPE_OUTPUT;
-	data->fmt.pixelformat = VIDEO_PIX_FMT_RGB565;
-	data->fmt.width = 1920;
-	data->fmt.height = 1080;
+	ap1302_init_preview_format(dev);
 
-	ret = video_estimate_fmt_size(&data->fmt);
-	if (ret < 0) {
-		LOG_ERR("Failed to estimate format size: %d", ret);
-		goto err_power;
-	}
-
-	data->info = ap1302_find_format(data->fmt.pixelformat);
 	data->streaming = false;
-	data->frmival.numerator = 1U;
-	data->frmival.denominator = 60U;
 
-	LOG_INF("AP1302 initialized: %ux%u YUYV", data->fmt.width, data->fmt.height);
+	LOG_INF("AP1302 initialized: %ux%u %s (max_fps=%u)", data->fmt.width, data->fmt.height,
+		VIDEO_FOURCC_TO_STR(data->fmt.pixelformat), data->max_fps);
 
 	return 0;
 
