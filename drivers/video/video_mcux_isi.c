@@ -183,19 +183,19 @@ static int isi_configure_csc(const struct device *dev)
 	data->isi_config.isYCbCr = in_is_yuv;
 
 	if (in_is_yuv == out_is_yuv) {
-		ISI_EnableColorSpaceConversion(config->base, false);
+		ISI_EnableColorSpaceConversion(config->base, 0, false);
 		return 0;
 	}
 
 	if (out_is_yuv) {
-		ISI_SetColorSpaceConversionConfig(config->base, &csc_rgb2yuv);
-		ISI_EnableColorSpaceConversion(config->base, true);
+		ISI_SetColorSpaceConversionConfig(config->base, 0, &csc_rgb2yuv);
+		ISI_EnableColorSpaceConversion(config->base, 0, true);
 		return 0;
 	}
 
 	/* out is RGB */
-	ISI_SetColorSpaceConversionConfig(config->base, &csc_yuv2rgb);
-	ISI_EnableColorSpaceConversion(config->base, true);
+	ISI_SetColorSpaceConversionConfig(config->base, 0, &csc_yuv2rgb);
+	ISI_EnableColorSpaceConversion(config->base, 0, true);
 
 	return 0;
 }
@@ -279,10 +279,10 @@ static int isi_channel_configure(const struct device *dev)
 
 	data->isi_config.outputLinePitchBytes = data->fmt.pitch;
 
-	ISI_Init(base);
-	ISI_SetConfig(base, &data->isi_config);
+	ISI_Init(base, 0);
+	ISI_SetConfig(base, 0, &data->isi_config);
 
-	ISI_SetScalerConfig(base, data->in_fmt.width, data->in_fmt.height, scale_w, scale_h);
+	ISI_SetScalerConfig(base, 0, data->in_fmt.width, data->in_fmt.height, scale_w, scale_h);
 
 	if (hw_crop_en) {
 		const isi_crop_config_t crop_cfg = {
@@ -291,10 +291,10 @@ static int isi_channel_configure(const struct device *dev)
 			.lowerRightX = data->crop.left + data->crop.width,
 			.lowerRightY = data->crop.top + data->crop.height,
 		};
-		ISI_SetCropConfig(base, &crop_cfg);
-		ISI_EnableCrop(base, true);
+		ISI_SetCropConfig(base, 0, &crop_cfg);
+		ISI_EnableCrop(base, 0, true);
 	} else {
-		ISI_EnableCrop(base, false);
+		ISI_EnableCrop(base, 0, false);
 	}
 
 	ret = isi_configure_csc(dev);
@@ -423,25 +423,83 @@ static int video_mcux_isi_stream_start(const struct device *dev)
 	data->active_vbuf[0] = vb0;
 	data->active_vbuf[1] = vb1;
 
-	ISI_SetOutputBufferAddr(base, 0, (uint32_t)(uintptr_t)vb0->buffer, 0, 0);
-	ISI_SetOutputBufferAddr(base, 1, (uint32_t)(uintptr_t)vb1->buffer, 0, 0);
+	ISI_SetOutputBufferAddr(base, 0, 0, (uint32_t)(uintptr_t)vb0->buffer, 0, 0);
+	ISI_SetOutputBufferAddr(base, 0, 1, (uint32_t)(uintptr_t)vb1->buffer, 0, 0);
 
 	data->buffer_index = 0U;
 	data->streaming = true;
 
-	ISI_ClearInterruptStatus(base, (uint32_t)kISI_FrameReceivedInterrupt);
-	ISI_EnableInterrupts(base, (uint32_t)kISI_FrameReceivedInterrupt);
-	ISI_Start(base);
+	ISI_ClearInterruptStatus(base, 0, (uint32_t)kISI_FrameReceivedInterrupt);
+	ISI_EnableInterrupts(base, 0, (uint32_t)kISI_FrameReceivedInterrupt);
+	ISI_Start(base, 0);
 
 	ret = video_stream_start(config->source_dev, VIDEO_BUF_TYPE_OUTPUT);
 	if (ret) {
-		ISI_Stop(base);
-		ISI_DisableInterrupts(base, (uint32_t)kISI_FrameReceivedInterrupt);
+		ISI_Stop(base, 0);
+		ISI_DisableInterrupts(base, 0, (uint32_t)kISI_FrameReceivedInterrupt);
 		data->streaming = false;
 		return ret;
 	}
 
 	return 0;
+}
+
+static void isi_return_buffer(struct video_mcux_isi_data *data, struct video_buffer *vbuf)
+{
+	if (vbuf == NULL) {
+		return;
+	}
+
+	/* Mark as not containing a valid frame when returning to user. */
+	vbuf->bytesused = 0U;
+
+	k_fifo_put(&data->fifo_out, vbuf);
+}
+
+static void isi_return_all_buffers(struct video_mcux_isi_data *data)
+{
+	struct video_buffer *vbuf;
+	struct video_buffer *drop;
+	struct video_buffer *active0;
+	struct video_buffer *active1;
+
+	/*
+	 * Take local copies first and clear state, so that we don't accidentally
+	 * re-return buffers due to aliasing (active buffer can be drop buffer).
+	 */
+	drop = data->drop_vbuf;
+	active0 = data->active_vbuf[0];
+	active1 = data->active_vbuf[1];
+
+	data->drop_vbuf = NULL;
+	data->active_vbuf[0] = NULL;
+	data->active_vbuf[1] = NULL;
+	data->active_primed_cnt = 0U;
+
+	/* Return special drop buffer first. */
+	isi_return_buffer(data, drop);
+
+	/* Return HW active buffers if distinct from drop. */
+	if (active0 != drop) {
+		isi_return_buffer(data, active0);
+	}
+	if (active1 != drop && active1 != active0) {
+		isi_return_buffer(data, active1);
+	}
+
+	/* Return primed buffers (pre-stream). */
+	while ((vbuf = k_fifo_get(&data->fifo_active, K_NO_WAIT)) != NULL) {
+		if (vbuf != drop && vbuf != active0 && vbuf != active1) {
+			isi_return_buffer(data, vbuf);
+		}
+	}
+
+	/* Return queued input buffers. */
+	while ((vbuf = k_fifo_get(&data->fifo_in, K_NO_WAIT)) != NULL) {
+		if (vbuf != drop && vbuf != active0 && vbuf != active1) {
+			isi_return_buffer(data, vbuf);
+		}
+	}
 }
 
 static int video_mcux_isi_stream_stop(const struct device *dev)
@@ -456,18 +514,12 @@ static int video_mcux_isi_stream_stop(const struct device *dev)
 		return ret;
 	}
 
-	ISI_Stop(base);
-	ISI_DisableInterrupts(base, (uint32_t)kISI_FrameReceivedInterrupt);
-	ISI_ClearInterruptStatus(base, (uint32_t)kISI_FrameReceivedInterrupt);
+	ISI_Stop(base, 0);
+	ISI_DisableInterrupts(base, 0, (uint32_t)kISI_FrameReceivedInterrupt);
+	ISI_ClearInterruptStatus(base, 0, (uint32_t)kISI_FrameReceivedInterrupt);
 
 	data->streaming = false;
-	data->drop_vbuf = NULL;
-	data->active_primed_cnt = 0U;
-	data->active_vbuf[0] = NULL;
-	data->active_vbuf[1] = NULL;
-	while (k_fifo_get(&data->fifo_active, K_NO_WAIT) != NULL) {
-		/* drain */
-	}
+	isi_return_all_buffers(data);
 
 	return 0;
 }
@@ -543,8 +595,19 @@ static int video_mcux_isi_flush(const struct device *dev, bool cancel)
 		return 0;
 	}
 
+	/*
+	 * Cancel all queued buffers.
+	 *
+	 * If streaming, do not touch active HW buffers here. Users should stop the
+	 * stream first to reclaim those buffers.
+	 */
 	while ((vbuf = k_fifo_get(&data->fifo_in, K_NO_WAIT))) {
 		k_fifo_put(&data->fifo_out, vbuf);
+	}
+
+	if (!data->streaming) {
+		/* Also return drop + primed buffers when not streaming. */
+		isi_return_all_buffers(data);
 	}
 
 	return 0;
@@ -707,8 +770,8 @@ static void video_mcux_isi_isr(const struct device *dev)
 	uint32_t buffer_addr;
 	uint32_t now_ms;
 
-	int_status = ISI_GetInterruptStatus(base);
-	ISI_ClearInterruptStatus(base, int_status);
+	int_status = ISI_GetInterruptStatus(base, 0);
+	ISI_ClearInterruptStatus(base, 0, int_status);
 
 	if ((int_status & (uint32_t)kISI_FrameReceivedInterrupt) == 0U) {
 		return;
@@ -736,7 +799,7 @@ static void video_mcux_isi_isr(const struct device *dev)
 	buffer_addr = (uint32_t)(uintptr_t)vbuf->buffer;
 	data->active_vbuf[data->buffer_index] = vbuf;
 
-	ISI_SetOutputBufferAddr(base, data->buffer_index, buffer_addr, 0, 0);
+	ISI_SetOutputBufferAddr(base, 0, data->buffer_index, buffer_addr, 0, 0);
 	data->buffer_index ^= 1U;
 
 	/* Print at most once per second (avoid log spam / ISR overhead). */
