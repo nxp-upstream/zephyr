@@ -46,6 +46,13 @@ struct video_mcux_isi_data {
 	struct k_fifo fifo_in;
 	struct k_fifo fifo_out;
 
+	/*
+	 * Buffers primed before streaming starts.
+	 * We take the first two from here to program the HW double-buffer.
+	 */
+	struct k_fifo fifo_active;
+	uint8_t active_primed_cnt;
+
 	isi_config_t isi_config;
 
 	/* Output format (this device endpoint) */
@@ -64,12 +71,12 @@ struct video_mcux_isi_data {
 	uint32_t scale_width;
 	uint32_t scale_height;
 
-	uintptr_t active_addr[ISI_MAX_ACTIVE_BUF];
+	/* Drop buffer used when no queued buffer is available at frame done. */
+	struct video_buffer *drop_vbuf;
+
+	/* Currently programmed HW output buffers (double-buffering). */
 	struct video_buffer *active_vbuf[ISI_MAX_ACTIVE_BUF];
 	uint8_t buffer_index;
-	uint8_t active_buf_cnt;
-
-	uintptr_t drop_frame_addr;
 
 	bool streaming;
 
@@ -398,15 +405,26 @@ static int video_mcux_isi_stream_start(const struct device *dev)
 		return ret;
 	}
 
-	if (data->drop_frame_addr == 0U || data->active_buf_cnt != ISI_MAX_ACTIVE_BUF) {
+	struct video_buffer *vb0;
+	struct video_buffer *vb1;
+
+	if (data->drop_vbuf == NULL || data->active_primed_cnt != ISI_MAX_ACTIVE_BUF) {
 		LOG_ERR("ISI requires 1 drop buffer + %u active buffers", ISI_MAX_ACTIVE_BUF);
 		return -ENOMEM;
 	}
 
-	for (uint8_t i = 0; i < ISI_MAX_ACTIVE_BUF; i++) {
-		uint32_t addr = (uint32_t)data->active_addr[i];
-		ISI_SetOutputBufferAddr(base, i, addr, 0, 0);
+	vb0 = k_fifo_get(&data->fifo_active, K_NO_WAIT);
+	vb1 = k_fifo_get(&data->fifo_active, K_NO_WAIT);
+	if (vb0 == NULL || vb1 == NULL) {
+		LOG_ERR("ISI requires %u active buffers", ISI_MAX_ACTIVE_BUF);
+		return -ENOMEM;
 	}
+
+	data->active_vbuf[0] = vb0;
+	data->active_vbuf[1] = vb1;
+
+	ISI_SetOutputBufferAddr(base, 0, (uint32_t)(uintptr_t)vb0->buffer, 0, 0);
+	ISI_SetOutputBufferAddr(base, 1, (uint32_t)(uintptr_t)vb1->buffer, 0, 0);
 
 	data->buffer_index = 0U;
 	data->streaming = true;
@@ -443,12 +461,13 @@ static int video_mcux_isi_stream_stop(const struct device *dev)
 	ISI_ClearInterruptStatus(base, (uint32_t)kISI_FrameReceivedInterrupt);
 
 	data->streaming = false;
-	data->active_buf_cnt = 0U;
-	data->drop_frame_addr = 0U;
-	data->active_addr[0] = 0U;
-	data->active_addr[1] = 0U;
+	data->drop_vbuf = NULL;
+	data->active_primed_cnt = 0U;
 	data->active_vbuf[0] = NULL;
 	data->active_vbuf[1] = NULL;
+	while (k_fifo_get(&data->fifo_active, K_NO_WAIT) != NULL) {
+		/* drain */
+	}
 
 	return 0;
 }
@@ -478,18 +497,18 @@ static int video_mcux_isi_enqueue(const struct device *dev, struct video_buffer 
 	}
 
 	if (!data->streaming) {
-		if (data->drop_frame_addr == 0U) {
-			data->drop_frame_addr = (uintptr_t)vbuf->buffer;
-			LOG_DBG("Drop frame buffer set: 0x%lx", (unsigned long)data->drop_frame_addr);
+		if (data->drop_vbuf == NULL) {
+			data->drop_vbuf = vbuf;
+			LOG_DBG("Drop frame buffer set: %p", vbuf->buffer);
 			return 0;
 		}
 
-		if (data->active_buf_cnt < ISI_MAX_ACTIVE_BUF) {
-			data->active_vbuf[data->active_buf_cnt] = vbuf;
-			data->active_addr[data->active_buf_cnt] = (uintptr_t)vbuf->buffer;
-			LOG_DBG("Active buffer[%u] set: 0x%lx", data->active_buf_cnt,
-				(unsigned long)data->active_addr[data->active_buf_cnt]);
-			data->active_buf_cnt++;
+		/* Prime the two active HW buffers before streaming starts. */
+		if (data->active_primed_cnt < ISI_MAX_ACTIVE_BUF) {
+			k_fifo_put(&data->fifo_active, vbuf);
+			data->active_primed_cnt++;
+			LOG_DBG("Active buffer primed (%u/%u): %p", data->active_primed_cnt,
+				ISI_MAX_ACTIVE_BUF, vbuf->buffer);
 			return 0;
 		}
 	}
@@ -696,33 +715,26 @@ static void video_mcux_isi_isr(const struct device *dev)
 	}
 
 	/* If this triggers, streaming started without required drop buffer. */
-	__ASSERT_NO_MSG(data->drop_frame_addr != 0U);
-	if (data->drop_frame_addr == 0U) {
+	__ASSERT_NO_MSG(data->drop_vbuf != NULL);
+	if (data->drop_vbuf == NULL) {
 		return;
 	}
 
-	buffer_addr = (uint32_t)data->active_addr[data->buffer_index];
-
-	if ((uintptr_t)buffer_addr != data->drop_frame_addr) {
-		vbuf = data->active_vbuf[data->buffer_index];
-		if (vbuf != NULL) {
-			vbuf->timestamp = k_uptime_get_32();
-			vbuf->bytesused = data->fmt.size;
-			k_fifo_put(&data->fifo_out, vbuf);
-		}
+	vbuf = data->active_vbuf[data->buffer_index];
+	if (vbuf != NULL && vbuf != data->drop_vbuf) {
+		vbuf->timestamp = k_uptime_get_32();
+		vbuf->bytesused = data->fmt.size;
+		k_fifo_put(&data->fifo_out, vbuf);
 	}
 
 	vbuf = k_fifo_get(&data->fifo_in, K_NO_WAIT);
 	if (vbuf == NULL) {
-		buffer_addr = (uint32_t)data->drop_frame_addr;
-		data->active_vbuf[data->buffer_index] = NULL;
-		data->active_addr[data->buffer_index] = data->drop_frame_addr;
+		vbuf = data->drop_vbuf;
 		data->drop_cnt++;
-	} else {
-		buffer_addr = (uint32_t)(uintptr_t)vbuf->buffer;
-		data->active_vbuf[data->buffer_index] = vbuf;
-		data->active_addr[data->buffer_index] = (uintptr_t)vbuf->buffer;
 	}
+
+	buffer_addr = (uint32_t)(uintptr_t)vbuf->buffer;
+	data->active_vbuf[data->buffer_index] = vbuf;
 
 	ISI_SetOutputBufferAddr(base, data->buffer_index, buffer_addr, 0, 0);
 	data->buffer_index ^= 1U;
@@ -767,16 +779,14 @@ static int video_mcux_isi_init(const struct device *dev)
 
 	k_fifo_init(&data->fifo_in);
 	k_fifo_init(&data->fifo_out);
+	k_fifo_init(&data->fifo_active);
 
 	data->dev = dev;
 	data->buffer_index = 0U;
 	data->streaming = false;
-	data->drop_frame_addr = 0U;
-	data->active_buf_cnt = 0U;
-	data->active_addr[0] = 0U;
-	data->active_addr[1] = 0U;
-	data->active_vbuf[0] = NULL;
-	data->active_vbuf[1] = NULL;
+	data->drop_vbuf = NULL;
+	data->active_primed_cnt = 0U;
+	data->buffer_index = 0U;
 	data->drop_cnt = 0U;
 	data->last_stat_ms = k_uptime_get_32();
 	memset(&data->fmt, 0, sizeof(data->fmt));
@@ -804,6 +814,9 @@ static int video_mcux_isi_init(const struct device *dev)
 
 	data->scale_width = data->fmt.width;
 	data->scale_height = data->fmt.height;
+
+	data->active_vbuf[0] = NULL;
+	data->active_vbuf[1] = NULL;
 
 	ret = video_mcux_isi_init_ctrls(dev);
 	if (ret) {
