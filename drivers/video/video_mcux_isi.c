@@ -41,7 +41,6 @@ struct video_mcux_isi_ctrls {
 	struct video_ctrl alpha;
 };
 
-
 struct video_mcux_isi_data {
 	const struct device *dev;
 	struct k_fifo fifo_in;
@@ -56,11 +55,14 @@ struct video_mcux_isi_data {
 	/* Cached upstream/source format (used when CSC is enabled). */
 	struct video_format in_fmt; /* upstream/source format */
 
-	/* Optional crop/compose selections (applied when (re)configuring the channel) */
 	struct video_rect crop;
 	bool crop_en;
 	struct video_rect compose;
 	bool compose_en;
+
+	/* Scaler output size before crop (derived from compose or requested format) */
+	uint32_t scale_width;
+	uint32_t scale_height;
 
 	uintptr_t active_addr[ISI_MAX_ACTIVE_BUF];
 	struct video_buffer *active_vbuf[ISI_MAX_ACTIVE_BUF];
@@ -150,10 +152,6 @@ static int isi_configure_csc(const struct device *dev)
 	const bool in_is_yuv = isi_pixfmt_is_yuv(data->in_fmt.pixelformat);
 	const bool out_is_yuv = isi_pixfmt_is_yuv(data->fmt.pixelformat);
 
-	/*
-	 * Mirror the SDK camera adapter behavior: enable CSC only when converting
-	 * between YUV and RGB.
-	 */
 	static const isi_csc_config_t csc_yuv2rgb = {
 		.mode = kISI_CscYCbCr2RGB,
 		.A1 = 1.164f, .A2 = 0.0f,   .A3 = 1.596f,
@@ -217,6 +215,11 @@ static int isi_channel_configure(const struct device *dev)
 	struct video_mcux_isi_data *data = dev->data;
 	const struct video_mcux_isi_config *config = dev->config;
 	ISI_Type *base = config->base;
+	uint32_t scale_w;
+	uint32_t scale_h;
+	uint32_t out_w;
+	uint32_t out_h;
+	bool hw_crop_en = false;
 	int ret;
 
 	if (data->fmt.pixelformat == 0U) {
@@ -234,25 +237,53 @@ static int isi_channel_configure(const struct device *dev)
 	data->isi_config.inputHeight = data->in_fmt.height;
 	data->isi_config.outputFormat = data->isi_format;
 
+	/* Default: no scaling unless crop/compose requires it. */
+	scale_w = data->in_fmt.width;
+	scale_h = data->in_fmt.height;
+
+	if (data->compose_en) {
+		scale_w = data->scale_width;
+		scale_h = data->scale_height;
+	}
+
+	out_w = scale_w;
+	out_h = scale_h;
+
+	if (data->crop_en) {
+		if ((data->crop.left + data->crop.width) > scale_w ||
+		    (data->crop.top + data->crop.height) > scale_h) {
+			return -EINVAL;
+		}
+
+		/* Enable crop only when it actually crops. */
+		hw_crop_en = !((data->crop.left == 0U) && (data->crop.top == 0U) &&
+			      (data->crop.width == scale_w) && (data->crop.height == scale_h));
+
+		out_w = hw_crop_en ? data->crop.width : scale_w;
+		out_h = hw_crop_en ? data->crop.height : scale_h;
+	}
+
+	data->fmt.width = out_w;
+	data->fmt.height = out_h;
+	ret = video_estimate_fmt_size(&data->fmt);
+	if (ret) {
+		return ret;
+	}
+
 	data->isi_config.outputLinePitchBytes = data->fmt.pitch;
 
 	ISI_Init(base);
 	ISI_SetConfig(base, &data->isi_config);
 
-	/* Scale to output size (compose defines output). */
-	ISI_SetScalerConfig(base,
-			    data->in_fmt.width, data->in_fmt.height,
-			    data->fmt.width, data->fmt.height);
+	ISI_SetScalerConfig(base, data->in_fmt.width, data->in_fmt.height, scale_w, scale_h);
 
-	/* Crop is applied after scaling. If enabled, it changes output size. */
-	if (data->crop_en) {
+	if (hw_crop_en) {
 		const isi_crop_config_t crop_cfg = {
 			.upperLeftX = data->crop.left,
 			.upperLeftY = data->crop.top,
 			.lowerRightX = data->crop.left + data->crop.width,
 			.lowerRightY = data->crop.top + data->crop.height,
 		};
-
 		ISI_SetCropConfig(base, &crop_cfg);
 		ISI_EnableCrop(base, true);
 	} else {
@@ -277,6 +308,8 @@ static int video_mcux_isi_set_fmt(const struct device *dev, struct video_format 
 	const struct video_mcux_isi_config *config = dev->config;
 	struct video_mcux_isi_data *data = dev->data;
 	const struct isi_format_map *map;
+	struct video_format in_fmt;
+	struct video_format out_fmt;
 	int ret;
 
 	map = isi_find_format(fmt->pixelformat);
@@ -284,16 +317,18 @@ static int video_mcux_isi_set_fmt(const struct device *dev, struct video_format 
 		return -ENOTSUP;
 	}
 
-	ret = video_estimate_fmt_size(fmt);
-	if (ret) {
-		return ret;
-	}
-
 	if (!device_is_ready(config->source_dev)) {
 		return -ENODEV;
 	}
 
-	ret = video_set_format(config->source_dev, fmt);
+	in_fmt = *fmt;
+
+	ret = video_estimate_fmt_size(&in_fmt);
+	if (ret) {
+		return ret;
+	}
+
+	ret = video_set_format(config->source_dev, &in_fmt);
 	if (ret) {
 		return ret;
 	}
@@ -303,8 +338,27 @@ static int video_mcux_isi_set_fmt(const struct device *dev, struct video_format 
 		return ret;
 	}
 
-	data->fmt = *fmt;
+	out_fmt = in_fmt;
+
+	if (data->compose_en) {
+		out_fmt.width = data->scale_width;
+		out_fmt.height = data->scale_height;
+	}
+
+	if (data->crop_en) {
+		out_fmt.width = data->crop.width;
+		out_fmt.height = data->crop.height;
+	}
+
+	ret = video_estimate_fmt_size(&out_fmt);
+	if (ret) {
+		return ret;
+	}
+
+	data->fmt = out_fmt;
 	data->isi_format = map->isi_format;
+
+	*fmt = out_fmt;
 
 	LOG_INF("ISI format set: %c%c%c%c, %ux%u, pitch=%u, size=%u",
 		(char)fmt->pixelformat, (char)(fmt->pixelformat >> 8),
@@ -323,6 +377,7 @@ static int video_mcux_isi_get_fmt(const struct device *dev, struct video_format 
 	}
 
 	*fmt = data->fmt;
+
 	return 0;
 }
 
@@ -368,7 +423,6 @@ static int video_mcux_isi_stream_start(const struct device *dev)
 		return ret;
 	}
 
-	LOG_INF("ISI stream started");
 	return 0;
 }
 
@@ -396,7 +450,6 @@ static int video_mcux_isi_stream_stop(const struct device *dev)
 	data->active_vbuf[0] = NULL;
 	data->active_vbuf[1] = NULL;
 
-	LOG_INF("ISI stream stopped");
 	return 0;
 }
 
@@ -442,6 +495,7 @@ static int video_mcux_isi_enqueue(const struct device *dev, struct video_buffer 
 	}
 
 	k_fifo_put(&data->fifo_in, vbuf);
+
 	return 0;
 }
 
@@ -552,21 +606,14 @@ static int video_mcux_isi_set_selection(const struct device *dev, struct video_s
 	case VIDEO_SEL_TGT_CROP:
 		data->crop = sel->rect;
 		data->crop_en = (sel->rect.width != 0U) && (sel->rect.height != 0U);
-		if (data->crop_en) {
-			/* Crop changes output frame size in this driver. */
-			data->fmt.width = data->crop.width;
-			data->fmt.height = data->crop.height;
-			(void)video_estimate_fmt_size(&data->fmt);
-		}
 		return 0;
 	case VIDEO_SEL_TGT_COMPOSE:
 		data->compose = sel->rect;
 		data->compose_en = (sel->rect.width != 0U) && (sel->rect.height != 0U);
 		if (data->compose_en) {
-			/* Compose defines output size. */
-			data->fmt.width = data->compose.width;
-			data->fmt.height = data->compose.height;
-			(void)video_estimate_fmt_size(&data->fmt);
+			/* Compose defines scaler output size (pre-crop). */
+			data->scale_width = data->compose.width;
+			data->scale_height = data->compose.height;
 		}
 		return 0;
 	default:
@@ -602,17 +649,6 @@ static int video_mcux_isi_get_selection(const struct device *dev, struct video_s
 		}
 		return 0;
 	case VIDEO_SEL_TGT_NATIVE_SIZE:
-		if (data->fmt.pixelformat == 0U) {
-			return -EPIPE;
-		}
-		sel->rect.left = 0;
-		sel->rect.top = 0;
-		sel->rect.width = data->fmt.width;
-		sel->rect.height = data->fmt.height;
-		return 0;
-	case VIDEO_SEL_TGT_CROP_BOUND:
-	case VIDEO_SEL_TGT_COMPOSE_BOUND:
-		/* Provide best-effort bounds based on current format (if configured). */
 		if (data->fmt.pixelformat == 0U) {
 			return -EPIPE;
 		}
@@ -695,7 +731,7 @@ static void video_mcux_isi_isr(const struct device *dev)
 	now_ms = k_uptime_get_32();
 	if ((now_ms - data->last_stat_ms) >= 1000U) {
 		if (data->drop_cnt) {
-			LOG_DBG("ISI dropped %u frame(s) (no input buffer)", data->drop_cnt);
+			LOG_INF("ISI dropped %u frame(s) (no input buffer)", data->drop_cnt);
 			data->drop_cnt = 0U;
 		}
 		data->last_stat_ms = now_ms;
@@ -751,19 +787,12 @@ static int video_mcux_isi_init(const struct device *dev)
 	memset(&data->compose, 0, sizeof(data->compose));
 	data->compose_en = false;
 
-	/*
-	 * The upstream source device might not be initialized yet (e.g. sensor loads
-	 * firmware at boot). Don't fail probe here: validate readiness when the
-	 * pipeline is actually used.
-	 */
-
 	ISI_GetDefaultConfig(&data->isi_config);
 	data->isi_config.isChannelBypassed = false;
 	data->isi_config.isSourceMemory = false;
 	data->isi_config.sourcePort = config->input_port;
 	data->isi_config.mipiChannel = 0;
 
-	/* Default format (can be changed by video_set_format()) */
 	data->fmt.type = VIDEO_BUF_TYPE_OUTPUT;
 	data->fmt.pixelformat = VIDEO_PIX_FMT_RGB565;
 	data->fmt.width = 1080;
@@ -772,6 +801,9 @@ static int video_mcux_isi_init(const struct device *dev)
 
 	data->in_fmt = data->fmt;
 	data->isi_format = kISI_OutputRGB565;
+
+	data->scale_width = data->fmt.width;
+	data->scale_height = data->fmt.height;
 
 	ret = video_mcux_isi_init_ctrls(dev);
 	if (ret) {
