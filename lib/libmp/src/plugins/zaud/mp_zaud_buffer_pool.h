@@ -37,8 +37,6 @@ struct mp_zaud_buffer_pool {
 	struct k_mem_slab *mem_slab;
 	/** Per-chunk pointers into the mem_slab backing buffer */
 	void **blocks;
-	/** Pointer to buffer memory */
-	void *buffer;
 };
 
 /**
