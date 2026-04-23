@@ -45,6 +45,7 @@ enum prop_zaud_src {
 enum prop_zaud_sink {
 	/** Pointer to sink memory slab for audio buffer management */
 	PROP_ZAUD_SINK_SLAB_PTR = PROP_SINK_LAST + 1,
+	PROP_ZAUD_SINK_CLK_ROLE,
 };
 
 #endif /* __MP_ZAUD_PROPS_H__ */
