@@ -289,42 +289,43 @@
 };
 
 &isi {
-	status = "okay";
+        status = "okay";
+
+        isi_ch0: channel@0 {
+                /* status = "okay"; */
+
+                ports {
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+
+                        port@0 {
+                                reg = <0>;
+
+                                isi_0_ep_in: endpoint {
+                                        remote-endpoint-label = "csi2rx_ep_out";
+                                };
+                        };
+                };
+        };
+
+        isi_ch1: channel@1 {
+                status = "okay";
+
+                ports {
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+
+                        port@0 {
+                                reg = <0>;
+
+                                isi_1_ep_in: endpoint {
+                                        remote-endpoint-label = "csi2rx_ep_out";
+                                };
+                        };
+                };
+        };
 };
 
-&isi_ch0 {
-	//status = "okay";
-
-	ports {
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		port@0 {
-			reg = <0>;
-
-			isi_0_ep_in: endpoint {
-				remote-endpoint-label = "csi2rx_ep_out";
-			};
-		};
-	};
-};
-
-&isi_ch1 {
-	status = "okay";
-
-	ports {
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		port@0 {
-			reg = <0>;
-
-			isi_1_ep_in: endpoint {
-				remote-endpoint-label = "csi2rx_ep_out";
-			};
-		};
-	};
-};
 
 zephyr_dpu: &dpu {};
 
