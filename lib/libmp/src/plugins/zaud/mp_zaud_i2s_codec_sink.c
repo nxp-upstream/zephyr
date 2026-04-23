@@ -27,6 +27,16 @@ static int mp_zaud_i2s_codec_sink_set_property(struct mp_object *obj, uint32_t k
 	case PROP_ZAUD_SINK_SLAB_PTR:
 		zaud_i2s_codec_sink->mem_slab = (struct k_mem_slab *)val;
 		break;
+	case PROP_ZAUD_SINK_CLK_ROLE:
+		if ((enum mp_zaud_i2s_codec_clk_role)(uintptr_t)val !=
+			    MP_ZAUD_I2S_CONTROLLER_CODEC_TARGET &&
+		    (enum mp_zaud_i2s_codec_clk_role)(uintptr_t)val !=
+			    MP_ZAUD_I2S_TARGET_CODEC_CONTROLLER) {
+			LOG_ERR("Invalid clock role value");
+			return -EINVAL;
+		}
+		zaud_i2s_codec_sink->clk_role = (enum mp_zaud_i2s_codec_clk_role)(uintptr_t)val;
+		break;
 	default:
 		return mp_sink_set_property(obj, key, val);
 	}
@@ -43,12 +53,15 @@ static int mp_zaud_i2s_codec_sink_get_property(struct mp_object *obj, uint32_t k
 	}
 
 	switch (key) {
-	case PROP_ZAUD_SRC_SLAB_PTR:
+	case PROP_ZAUD_SINK_SLAB_PTR:
 		if (zaud_i2s_codec_sink->mem_slab != NULL) {
 			*(void **)val = (void *)zaud_i2s_codec_sink->mem_slab;
 		} else {
 			*(void **)val = NULL;
 		}
+		break;
+	case PROP_ZAUD_SINK_CLK_ROLE:
+		*(enum mp_zaud_i2s_codec_clk_role *)val = zaud_i2s_codec_sink->clk_role;
 		break;
 	default:
 		return mp_sink_get_property(obj, key, val);
@@ -174,13 +187,14 @@ static bool mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps
 	audio_cfg.dai_cfg.i2s.word_size = bit_width;
 	audio_cfg.dai_cfg.i2s.channels = num_of_channel;
 	audio_cfg.dai_cfg.i2s.format = I2S_FMT_DATA_FORMAT_I2S;
-#ifdef CONFIG_ZAUD_I2S_CODEC_SINK_CODEC_MASTER
-	audio_cfg.dai_cfg.i2s.options = I2S_OPT_FRAME_CLK_CONTROLLER |
-					 I2S_OPT_BIT_CLK_CONTROLLER;
-#else
-	audio_cfg.dai_cfg.i2s.options = I2S_OPT_FRAME_CLK_TARGET |
-					 I2S_OPT_BIT_CLK_TARGET;
-#endif
+
+	if (zaud_i2s_codec_sink->clk_role == MP_ZAUD_I2S_TARGET_CODEC_CONTROLLER) {
+		audio_cfg.dai_cfg.i2s.options =
+			I2S_OPT_FRAME_CLK_CONTROLLER | I2S_OPT_BIT_CLK_CONTROLLER;
+	} else {
+		audio_cfg.dai_cfg.i2s.options = I2S_OPT_FRAME_CLK_TARGET | I2S_OPT_BIT_CLK_TARGET;
+	}
+
 	audio_cfg.dai_cfg.i2s.frame_clk_freq = sample_rate;
 	audio_cfg.dai_cfg.i2s.mem_slab = zaud_i2s_codec_sink->mem_slab;
 	audio_cfg.dai_cfg.i2s.block_size =
@@ -195,11 +209,13 @@ static bool mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps
 	config.word_size = bit_width;
 	config.channels = num_of_channel;
 	config.format = I2S_FMT_DATA_FORMAT_I2S;
-#ifdef CONFIG_ZAUD_I2S_CODEC_SINK_I2S_MASTER
-	config.options = I2S_OPT_BIT_CLK_CONTROLLER | I2S_OPT_FRAME_CLK_CONTROLLER;
-#else
-	config.options = I2S_OPT_BIT_CLK_TARGET | I2S_OPT_FRAME_CLK_TARGET;
-#endif
+
+	if (zaud_i2s_codec_sink->clk_role == MP_ZAUD_I2S_CONTROLLER_CODEC_TARGET) {
+		config.options = I2S_OPT_BIT_CLK_CONTROLLER | I2S_OPT_FRAME_CLK_CONTROLLER;
+	} else {
+		config.options = I2S_OPT_BIT_CLK_TARGET | I2S_OPT_FRAME_CLK_TARGET;
+	}
+
 	config.frame_clk_freq = sample_rate;
 	config.mem_slab = zaud_i2s_codec_sink->mem_slab;
 	config.block_size =
@@ -283,6 +299,8 @@ void mp_zaud_i2s_codec_sink_init(struct mp_element *self)
 		LOG_ERR("%s is not ready", zaud_i2s_codec_sink->codec_dev->name);
 		return;
 	}
+
+	zaud_i2s_codec_sink->clk_role = MP_ZAUD_I2S_CONTROLLER_CODEC_TARGET;
 
 	self->object.get_property = mp_zaud_i2s_codec_sink_get_property;
 	self->object.set_property = mp_zaud_i2s_codec_sink_set_property;

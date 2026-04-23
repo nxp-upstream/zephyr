@@ -20,6 +20,20 @@
 #define MP_ZAUD_I2S_CODEC_SINK(self) ((struct mp_zaud_i2s_codec_sink *)self)
 
 /**
+ * @enum mp_zaud_i2s_codec_clk_role
+ * @brief Clock role configuration for I2S and codec devices.
+ *
+ * Defines whether the I2S (SAI) or codec device acts as the clock
+ * controller or target for frame and bit clocks.
+ */
+enum mp_zaud_i2s_codec_clk_role {
+	/** I2S (SAI) is controller, codec is target */
+	MP_ZAUD_I2S_CONTROLLER_CODEC_TARGET,
+	/** I2S (SAI) is target. codec is controller */
+	MP_ZAUD_I2S_TARGET_CODEC_CONTROLLER,
+};
+
+/**
  * @struct mp_zaud_i2s_codec_sink
  * @brief Audio I2S codec sink element structure.
  *
@@ -40,6 +54,8 @@ struct mp_zaud_i2s_codec_sink {
 	uint8_t count;
 	/** Flag indicating if the sink has been started */
 	bool started;
+	/** Clock role configuration for I2S and codec */
+	enum mp_zaud_i2s_codec_clk_role clk_role;
 };
 
 /**
