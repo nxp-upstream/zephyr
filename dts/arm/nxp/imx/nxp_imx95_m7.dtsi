@@ -704,6 +704,14 @@
 				interrupts = <221 0>;
 				status = "disabled";
 			};
+
+			isi_ch1: channel@1 {
+				compatible = "nxp,imx-isi-channel";
+				reg = <1>;
+				interrupt-parent = <&irqsteer_master7>;
+				interrupts = <8 0>;
+				status = "disabled";
+			};
 		};
 
 		irqsteer: interrupt-controller@44680000 {

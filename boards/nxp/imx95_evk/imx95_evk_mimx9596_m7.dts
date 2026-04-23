@@ -33,7 +33,7 @@
 		zephyr,flash-controller = &mt35xu01gbba;
 		zephyr,console = &lpuart3;
 		zephyr,shell-uart = &lpuart3;
-		zephyr,camera = &isi_ch0;
+		zephyr,camera = &isi_ch1;
 		zephyr,display = &dpu;
 	};
 
@@ -278,7 +278,7 @@
 		port@1 {
 			reg = <1>;
 			csi2rx_ep_out: endpoint {
-				remote-endpoint-label = "isi_ep_in";
+				remote-endpoint-label = "isi_1_ep_in";
 			};
 		};
 	};
@@ -293,6 +293,23 @@
 };
 
 &isi_ch0 {
+	//status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+
+			isi_0_ep_in: endpoint {
+				remote-endpoint-label = "csi2rx_ep_out";
+			};
+		};
+	};
+};
+
+&isi_ch1 {
 	status = "okay";
 
 	ports {
@@ -302,7 +319,7 @@
 		port@0 {
 			reg = <0>;
 
-			isi_ep_in: endpoint {
+			isi_1_ep_in: endpoint {
 				remote-endpoint-label = "csi2rx_ep_out";
 			};
 		};
