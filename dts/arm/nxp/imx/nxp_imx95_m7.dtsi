@@ -692,10 +692,18 @@
 		isi: isi@4ad50000 {
 			compatible = "nxp,imx-isi";
 			reg = <0x4ad50000 0x10000>;
-			interrupts = <221 0>;
 			power-domains = <&camera_mix>;
 			input-port = <2>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 			status = "disabled";
+
+			isi_ch0: channel@0 {
+				compatible = "nxp,imx-isi-channel";
+				reg = <0>;
+				interrupts = <221 0>;
+				status = "disabled";
+			};
 		};
 
 		irqsteer: interrupt-controller@44680000 {

@@ -33,7 +33,7 @@
 		zephyr,flash-controller = &mt35xu01gbba;
 		zephyr,console = &lpuart3;
 		zephyr,shell-uart = &lpuart3;
-		zephyr,camera = &isi;
+		zephyr,camera = &isi_ch0;
 		zephyr,display = &dpu;
 	};
 
@@ -289,6 +289,10 @@
 };
 
 &isi {
+	status = "okay";
+};
+
+&isi_ch0 {
 	status = "okay";
 
 	ports {

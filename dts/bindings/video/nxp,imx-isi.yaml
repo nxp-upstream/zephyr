@@ -1,7 +1,7 @@
 # Copyright 2026 NXP
 # SPDX-License-Identifier: Apache-2.0
 
-description: NXP i.MX Image Sensing Interface (ISI)
+description: NXP i.MX Image Sensing Interface (ISI) core
 
 compatible: "nxp,imx-isi"
 
@@ -11,15 +11,7 @@ properties:
   reg:
     required: true
 
-  interrupts:
-    required: true
-
   input-port:
     type: int
     default: 0
-    description: ISI input port number
-
-child-binding:
-  child-binding:
-    child-binding:
-      include: video-interfaces.yaml
+    description: Default ISI input port number for channels.
