@@ -29,18 +29,25 @@ struct mp_src {
 	struct mp_element element;
 	/** Source pad for output data */
 	struct mp_pad srcpad;
+	/** @cond INTERNAL_HIDDEN */
+	/** Pointer to the supported caps */
+	struct mp_caps *src_caps;
+	/** @endcond */
+	/** Buffer pool for managing output buffers */
+	struct mp_buffer_pool *pool;
 	/**
-	 * Number of buffers that the source outputs before sending EOS
+	 * Number of buffers that the source outputs before sending EOS;
 	 * 0 means will run forever
 	 */
 	uint32_t num_buffers;
-	/** Buffer pool for managing output buffers */
-	struct mp_buffer_pool *pool;
-	/** Callback to set capabilities on the source pad */
-	bool (*set_caps)(struct mp_src *src, struct mp_caps *caps);
-	/** Callback to get capabilities from the source pad */
+	/** 
+	 * Get the supported caps of the element.
+	 * To get the current caps, use srcpad->caps instead
+	 */
 	struct mp_caps *(*get_caps)(struct mp_src *src);
-	/** Callback to decide buffer allocation strategy */
+	/** Set a given caps to the source pad */
+	bool (*set_caps)(struct mp_src *src, struct mp_caps *caps);
+	/** Decide buffer allocation strategy for the downstream peer */
 	bool (*decide_allocation)(struct mp_src *self, struct mp_query *query);
 };
 
@@ -73,5 +80,15 @@ int mp_src_set_property(struct mp_object *obj, uint32_t key, const void *val);
  * @return 0 on success, negative error code on failure
  */
 int mp_src_get_property(struct mp_object *obj, uint32_t key, void *val);
+
+/**
+ * @brief Update the capabilities of a source element
+ *
+ * Updates the source element's supported caps
+ *
+ * @param src Pointer to the source element
+ * @param caps Supported caps for the src pad
+ */
+void mp_src_update_caps(struct mp_src *src, struct mp_caps *caps);
 
 #endif /* __MP_SRC_H__ */

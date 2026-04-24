@@ -45,6 +45,22 @@ int mp_src_get_property(struct mp_object *obj, uint32_t key, void *val)
 	return 0;
 }
 
+void mp_src_update_caps(struct mp_src *src, struct mp_caps *caps)
+{
+	mp_caps_replace(&src->src_caps, caps);
+	mp_caps_replace(&src->srcpad.caps, src->src_caps);
+}
+
+static struct mp_caps *mp_src_get_caps(struct mp_src *src)
+{
+	return src ? mp_caps_ref(src->src_caps) : NULL;
+}
+
+static bool mp_src_set_caps(struct mp_src *src, struct mp_caps *caps)
+{
+	return true;
+}
+
 static bool mp_src_query(struct mp_pad *pad, struct mp_query *query)
 {
 	bool ret = false;
@@ -55,19 +71,19 @@ static bool mp_src_query(struct mp_pad *pad, struct mp_query *query)
 	case MP_QUERY_CAPS:
 		query_caps = mp_query_get_caps(query);
 		if (query_caps != NULL) {
-			intersect_caps = mp_caps_intersect(src->srcpad.caps, query_caps);
+			intersect_caps = mp_caps_intersect(src->src_caps, query_caps);
+			if (intersect_caps == NULL || mp_caps_is_empty(intersect_caps)) {
+				return false;
+			}
 			ret = mp_query_set_caps(query, intersect_caps);
 			mp_caps_unref(intersect_caps);
 		} else {
-			ret = mp_query_set_caps(query, src->srcpad.caps);
+			ret = mp_query_set_caps(query, src->src_caps);
 		}
-		break;
+		return ret;
 	default:
-		ret = mp_pad_query(pad->peer, query);
-		break;
+		return false;
 	}
-
-	return ret;
 }
 
 static bool mp_src_decide_allocation(struct mp_src *self, struct mp_query *query)
@@ -83,12 +99,12 @@ static bool mp_src_negotiate(struct mp_src *src)
 	struct mp_event *caps_event;
 
 	/* Caps negotiation */
-	if (src->srcpad.caps == NULL) {
+	if (src->src_caps == NULL || mp_caps_is_empty(src->src_caps)) {
 		return false;
 	}
 
 	/* Query the peer's capabilities */
-	caps_query = mp_query_new_caps(src->srcpad.caps);
+	caps_query = mp_query_new_caps(src->src_caps);
 	if (!mp_pad_query(src->srcpad.peer, caps_query)) {
 		mp_query_destroy(caps_query);
 		return false;
@@ -170,23 +186,21 @@ static enum mp_state_change_return mp_src_change_state(struct mp_element *self,
 	return ret;
 }
 
-static bool mp_src_set_caps(struct mp_src *src, struct mp_caps *caps)
-{
-	return true;
-}
-
 void mp_src_init(struct mp_element *self)
 {
 	struct mp_src *src = MP_SRC(self);
 
-	/* Add pad */
-	mp_pad_init(&src->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS, NULL);
+	/* Default supported caps */
+	src->src_caps = mp_caps_new_any();
+
+	mp_pad_init(&src->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS, mp_src_get_caps(src));
 	mp_element_add_pad(self, &src->srcpad);
 
 	self->object.set_property = mp_src_set_property;
 	self->object.get_property = mp_src_get_property;
 	self->change_state = mp_src_change_state;
 
+	src->get_caps = mp_src_get_caps;
 	src->set_caps = mp_src_set_caps;
 	src->srcpad.queryfn = mp_src_query;
 	src->decide_allocation = mp_src_decide_allocation;

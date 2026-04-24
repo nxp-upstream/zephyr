@@ -22,6 +22,17 @@ int mp_sink_get_property(struct mp_object *obj, uint32_t key, void *val)
 	return 0;
 }
 
+void mp_sink_update_caps(struct mp_sink *sink, struct mp_caps *caps)
+{
+	mp_caps_replace(&sink->sink_caps, caps);
+	mp_caps_replace(&sink->sinkpad.caps, sink->sink_caps);
+}
+
+static struct mp_caps *mp_sink_get_caps(struct mp_sink *sink)
+{
+	return sink ? mp_caps_ref(sink->sink_caps) : NULL;
+}
+
 static bool mp_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
 {
 	if (sink == NULL || caps == NULL || sink->set_caps == NULL) {
@@ -63,13 +74,16 @@ static bool mp_sink_query(struct mp_pad *pad, struct mp_query *query)
 	switch (query->type) {
 	case MP_QUERY_CAPS:
 		query_caps = mp_query_get_caps(query);
-		if (query_caps) {
-			caps_intersect = mp_caps_intersect(self->sinkpad.caps, query_caps);
+		if (query_caps != NULL) {
+			caps_intersect = mp_caps_intersect(self->sink_caps, query_caps);
+			if (caps_intersect == NULL || mp_caps_is_empty(caps_intersect)) {
+				return false;
+			}
 			ret = mp_query_set_caps(query, caps_intersect);
 			mp_caps_unref(caps_intersect);
 			return ret;
 		} else {
-			return mp_query_set_caps(query, self->sinkpad.caps);
+			return mp_query_set_caps(query, self->sink_caps);
 		}
 	case MP_QUERY_ALLOCATION:
 		return self->propose_allocation(self, query);
@@ -98,8 +112,11 @@ void mp_sink_init(struct mp_element *self)
 {
 	struct mp_sink *sink = MP_SINK(self);
 
-	/* Add pad */
-	mp_pad_init(&sink->sinkpad, MP_PAD_SINK_ID, MP_PAD_SINK, MP_PAD_ALWAYS, NULL);
+	/* Default supported caps */
+	sink->sink_caps = mp_caps_new_any();
+
+	mp_pad_init(&sink->sinkpad, MP_PAD_SINK_ID, MP_PAD_SINK, MP_PAD_ALWAYS,
+		    mp_sink_get_caps(sink));
 	mp_element_add_pad(self, &sink->sinkpad);
 
 	sink->sinkpad.queryfn = mp_sink_query;
@@ -109,6 +126,7 @@ void mp_sink_init(struct mp_element *self)
 	self->object.get_property = mp_sink_get_property;
 	self->change_state = mp_sink_change_state;
 
+	sink->get_caps = mp_sink_get_caps;
 	sink->set_caps = mp_sink_set_caps;
 	sink->propose_allocation = mp_sink_propose_allocation;
 }

@@ -23,6 +23,15 @@ int mp_transform_get_property(struct mp_object *obj, uint32_t key, void *val)
 	return 0;
 }
 
+void mp_transform_update_caps(struct mp_transform *transform, struct mp_caps *sink_caps,
+			     struct mp_caps *src_caps)
+{
+	mp_caps_replace(&transform->sink_caps, sink_caps);
+	mp_caps_replace(&transform->sinkpad.caps, transform->sink_caps);
+	mp_caps_replace(&transform->src_caps, src_caps);
+	mp_caps_replace(&transform->srcpad.caps, transform->src_caps);
+}
+
 static bool mp_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 				 struct net_buf **out_buf)
 {
@@ -34,15 +43,11 @@ static bool mp_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 static struct mp_caps *mp_transform_get_caps(struct mp_transform *transform,
 					     enum mp_pad_direction direction)
 {
-	/*
-	 * Default implementation simply returns the pad's caps. However, subclasses
-	 * should return the real caps of the element.
-	 */
 	if (direction == MP_PAD_SRC) {
-		return mp_caps_ref(transform->srcpad.caps);
+		return mp_caps_ref(transform->src_caps);
 	}
 	if (direction == MP_PAD_SINK) {
-		return mp_caps_ref(transform->sinkpad.caps);
+		return mp_caps_ref(transform->sink_caps);
 	}
 
 	return NULL;
@@ -271,9 +276,14 @@ void mp_transform_init(struct mp_element *self)
 {
 	struct mp_transform *transform = MP_TRANSFORM(self);
 
-	/* Add pads */
-	mp_pad_init(&transform->sinkpad, MP_PAD_SINK_ID, MP_PAD_SINK, MP_PAD_ALWAYS, NULL);
-	mp_pad_init(&transform->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS, NULL);
+	/* Default supported caps */
+	transform->sink_caps = mp_caps_new_any();
+	transform->src_caps = mp_caps_new_any();
+
+	mp_pad_init(&transform->sinkpad, MP_PAD_SINK_ID, MP_PAD_SINK, MP_PAD_ALWAYS,
+		    mp_caps_ref(transform->sink_caps));
+	mp_pad_init(&transform->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS,
+		    mp_caps_ref(transform->src_caps));
 	mp_element_add_pad(self, &transform->sinkpad);
 	mp_element_add_pad(self, &transform->srcpad);
 
