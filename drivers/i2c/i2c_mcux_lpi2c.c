@@ -22,10 +22,10 @@
 
 #include <zephyr/drivers/pinctrl.h>
 
-#ifdef CONFIG_I2C_MCUX_LPI2C_BUS_RECOVERY
+#ifdef CONFIG_I2C_MCUX_LPI2C_GPIO_BUS_RECOVERY
 #include "i2c_bitbang.h"
 #include <zephyr/drivers/gpio.h>
-#endif /* CONFIG_I2C_MCUX_LPI2C_BUS_RECOVERY */
+#endif /* CONFIG_I2C_MCUX_LPI2C_GPIO_BUS_RECOVERY */
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(mcux_lpi2c);
@@ -42,6 +42,13 @@ LOG_MODULE_REGISTER(mcux_lpi2c);
 	((const struct mcux_lpi2c_config *)(_dev)->config)
 #define DEV_DATA(_dev) ((struct mcux_lpi2c_data *)(_dev)->data)
 
+enum mcux_lpi2c_mode_state {
+	MCUX_LPI2C_STATE_MASTER_IDLE = 0,
+	MCUX_LPI2C_STATE_TARGET_READY,
+	MCUX_LPI2C_STATE_MASTER_ACTIVE,
+	MCUX_LPI2C_STATE_RECOVERING,
+};
+
 struct mcux_lpi2c_config {
 	DEVICE_MMIO_NAMED_ROM(reg_base);
 	const struct device *clock_dev;
@@ -50,10 +57,10 @@ struct mcux_lpi2c_config {
 	uint32_t bitrate;
 	uint32_t bus_idle_timeout_ns;
 	const struct pinctrl_dev_config *pincfg;
-#ifdef CONFIG_I2C_MCUX_LPI2C_BUS_RECOVERY
+#ifdef CONFIG_I2C_MCUX_LPI2C_GPIO_BUS_RECOVERY
 	struct gpio_dt_spec scl;
 	struct gpio_dt_spec sda;
-#endif /* CONFIG_I2C_MCUX_LPI2C_BUS_RECOVERY */
+#endif /* CONFIG_I2C_MCUX_LPI2C_GPIO_BUS_RECOVERY */
 };
 
 struct mcux_lpi2c_data {
@@ -62,6 +69,10 @@ struct mcux_lpi2c_data {
 	struct k_sem lock;
 	struct k_sem device_sync_sem;
 	status_t callback_status;
+
+	uint32_t runtime_bitrate;
+	enum mcux_lpi2c_mode_state mode_state;
+
 	bool master_ready;
 	bool master_xfer_in_progress;
 #ifdef CONFIG_I2C_TARGET
@@ -78,10 +89,7 @@ struct mcux_lpi2c_data {
 static int mcux_lpi2c_configure(const struct device *dev,
 				uint32_t dev_config_raw)
 {
-	const struct mcux_lpi2c_config *config = dev->config;
 	struct mcux_lpi2c_data *data = dev->data;
-	LPI2C_Type *base = (LPI2C_Type *)DEVICE_MMIO_NAMED_GET(dev, reg_base);
-	uint32_t clock_freq;
 	uint32_t baudrate;
 	int ret;
 
@@ -107,19 +115,18 @@ static int mcux_lpi2c_configure(const struct device *dev,
 		return -EINVAL;
 	}
 
-	if (clock_control_get_rate(config->clock_dev, config->clock_subsys,
-				   &clock_freq)) {
-		return -EINVAL;
-	}
-
 	ret = k_sem_take(&data->lock, K_FOREVER);
 	if (ret) {
 		return ret;
 	}
 
-	LPI2C_MasterSetBaudRate(base, clock_freq, baudrate);
-	k_sem_give(&data->lock);
+	/*
+	 * Lazy programming of bitrate: store desired value here, apply it
+	 * only when master hardware is actually initialized.
+	 */
+	data->runtime_bitrate = baudrate;
 
+	k_sem_give(&data->lock);
 	return 0;
 }
 
@@ -218,6 +225,7 @@ static int mcux_lpi2c_master_hw_init(const struct device *dev)
 
 	LPI2C_MasterGetDefaultConfig(&master_config);
 	master_config.busIdleTimeout_ns = config->bus_idle_timeout_ns;
+	master_config.baudRate_Hz = data->runtime_bitrate;
 
 	LPI2C_MasterInit(base, &master_config, clock_freq);
 	LPI2C_MasterTransferCreateHandle(base, &data->handle,
@@ -228,8 +236,155 @@ static int mcux_lpi2c_master_hw_init(const struct device *dev)
 	return 0;
 }
 
+#ifdef CONFIG_I2C_TARGET
+static void mcux_lpi2c_target_hw_deinit(const struct device *dev)
+{
+	struct mcux_lpi2c_data *data = dev->data;
+	LPI2C_Type *base = (LPI2C_Type *)DEVICE_MMIO_NAMED_GET(dev, reg_base);
+
+	if (!data->target_enabled) {
+		return;
+	}
+
+	LPI2C_SlaveDisableInterrupts(base,
+				     kLPI2C_SlaveTxReadyFlag |
+				     kLPI2C_SlaveRxReadyFlag |
+				     kLPI2C_SlaveStopDetectFlag |
+				     kLPI2C_SlaveAddressValidFlag |
+				     kLPI2C_SlaveTransmitAckFlag);
+	LPI2C_SlaveClearStatusFlags(base, (uint32_t)kLPI2C_SlaveClearFlags);
+	LPI2C_SlaveDeinit(base);
+
+	data->target_enabled = false;
+}
+#endif
+
+static void mcux_lpi2c_master_hw_deinit(const struct device *dev)
+{
+	struct mcux_lpi2c_data *data = dev->data;
+	LPI2C_Type *base = (LPI2C_Type *)DEVICE_MMIO_NAMED_GET(dev, reg_base);
+
+	if (!data->master_ready) {
+		return;
+	}
+
+	LPI2C_MasterClearStatusFlags(base, kLPI2C_MasterClearFlags);
+	LPI2C_MasterDeinit(base);
+	data->master_ready = false;
+}
+
+static int mcux_lpi2c_restore_steady_state_locked(const struct device *dev)
+{
+	struct mcux_lpi2c_data *data = dev->data;
+
+#ifdef CONFIG_I2C_TARGET
+	if (data->target_attached && data->target_cfg) {
+		int ret = mcux_lpi2c_target_hw_init(dev);
+		if (ret) {
+			data->mode_state = MCUX_LPI2C_STATE_RECOVERING;
+			return ret;
+		}
+
+		data->mode_state = MCUX_LPI2C_STATE_TARGET_READY;
+		return 0;
+	}
+#endif
+
+	data->mode_state = MCUX_LPI2C_STATE_MASTER_IDLE;
+	return 0;
+}
+
+static int mcux_lpi2c_enter_master_session_locked(const struct device *dev)
+{
+	struct mcux_lpi2c_data *data = dev->data;
+	int ret;
+
+#ifdef CONFIG_I2C_TARGET
+	if (data->target_attached && data->target_enabled) {
+		mcux_lpi2c_target_hw_deinit(dev);
+	}
+#endif
+
+	if (!data->master_ready) {
+		ret = mcux_lpi2c_master_hw_init(dev);
+		if (ret) {
+			data->mode_state = MCUX_LPI2C_STATE_RECOVERING;
+			return ret;
+		}
+	}
+
+	data->mode_state = MCUX_LPI2C_STATE_MASTER_ACTIVE;
+	return 0;
+}
+
+static int mcux_lpi2c_leave_master_session_locked(const struct device *dev)
+{
+	struct mcux_lpi2c_data *data = dev->data;
+
+	mcux_lpi2c_master_hw_deinit(dev);
+	return mcux_lpi2c_restore_steady_state_locked(dev);
+}
+
+static int mcux_lpi2c_recover_locked(const struct device *dev, bool restore_target)
+{
+	const struct mcux_lpi2c_config *config = dev->config;
+	struct mcux_lpi2c_data *data = dev->data;
+	LPI2C_Type *base = (LPI2C_Type *)DEVICE_MMIO_NAMED_GET(dev, reg_base);
+	int ret;
+
+	data->mode_state = MCUX_LPI2C_STATE_RECOVERING;
+
+	if (data->master_xfer_in_progress) {
+		LPI2C_MasterTransferAbort(base, &data->handle);
+		data->master_xfer_in_progress = false;
+	}
+
+#ifdef CONFIG_I2C_TARGET
+	if (data->target_enabled) {
+		mcux_lpi2c_target_hw_deinit(dev);
+	}
+#endif
+
+	if (data->master_ready) {
+		mcux_lpi2c_master_hw_deinit(dev);
+	}
+
+#if CONFIG_I2C_MCUX_LPI2C_GPIO_BUS_RECOVERY
+	/* Optional physical bus recovery; disabled by default */
+	(void)mcux_lpi2c_recover_bus_locked(dev);
+#endif
+
+	ret = pinctrl_apply_state(config->pincfg, PINCTRL_STATE_DEFAULT);
+	if (ret) {
+		return ret;
+	}
+
+	data->callback_status = kStatus_Success;
+#ifdef CONFIG_I2C_TARGET
+	data->first_tx = false;
+	data->read_active = false;
+	data->send_ack = true;
+#endif
+
+#ifdef CONFIG_I2C_TARGET
+	if (restore_target && data->target_attached && data->target_cfg) {
+		ret = mcux_lpi2c_target_hw_init(dev);
+		if (!ret) {
+			data->mode_state = MCUX_LPI2C_STATE_TARGET_READY;
+		}
+		return ret;
+	}
+#endif
+
+	ret = mcux_lpi2c_master_hw_init(dev);
+	if (!ret) {
+		data->mode_state = MCUX_LPI2C_STATE_MASTER_IDLE;
+	}
+	return ret;
+}
+
 static int mcux_lpi2c_transfer(const struct device *dev, struct i2c_msg *msgs,
-				   uint8_t num_msgs, uint16_t addr)
+			       uint8_t num_msgs, uint16_t addr)
 {
 	const struct mcux_lpi2c_config *config = dev->config;
 	struct mcux_lpi2c_data *data = dev->data;
@@ -237,107 +392,163 @@ static int mcux_lpi2c_transfer(const struct device *dev, struct i2c_msg *msgs,
 	lpi2c_master_transfer_t transfer;
 	status_t status;
 	int ret = 0;
+	int ret2;
+	bool pm_acquired = false;
+	k_timeout_t xfer_timeout = K_MSEC(2000);
 
 	ret = k_sem_take(&data->lock, K_FOREVER);
 	if (ret) {
 		return ret;
 	}
 
-	data->master_xfer_in_progress = true;
+	ret = mcux_lpi2c_enter_master_session_locked(dev);
+	if (ret) {
+		k_sem_give(&data->lock);
+		return ret;
+	}
 
-	if (!data->master_ready) {
-		ret = mcux_lpi2c_master_hw_init(dev);
+	/* Pre-flight recovery if controller already looks stuck */
+	if (LPI2C_MasterGetStatusFlags(base) & kLPI2C_MasterBusBusyFlag) {
+		bool restore_target = false;
+#ifdef CONFIG_I2C_TARGET
+		restore_target = data->target_attached;
+#endif
+		ret = mcux_lpi2c_recover_locked(dev, restore_target);
 		if (ret) {
-			data->master_xfer_in_progress = false;
+			k_sem_give(&data->lock);
+			return ret;
+		}
+
+		ret = mcux_lpi2c_enter_master_session_locked(dev);
+		if (ret) {
 			k_sem_give(&data->lock);
 			return ret;
 		}
 	}
 
-	(void)pm_device_runtime_get(dev);
+	ret = pm_device_runtime_get(dev);
+	if (ret < 0) {
+		(void)mcux_lpi2c_leave_master_session_locked(dev);
+		k_sem_give(&data->lock);
+		return ret;
+	}
+	pm_acquired = true;
 
-	/* Iterate over all the messages */
 	for (int i = 0; i < num_msgs; i++) {
-		if (I2C_MSG_ADDR_10_BITS & msgs->flags) {
+		struct i2c_msg *msg = &msgs[i];
+		bool retry_once = true;
+
+		if (msg->flags & I2C_MSG_ADDR_10_BITS) {
 			ret = -ENOTSUP;
 			break;
 		}
 
-		/* Initialize the transfer descriptor */
-		transfer.flags = mcux_lpi2c_convert_flags(msgs->flags);
+retry_submit:
+		memset(&transfer, 0, sizeof(transfer));
 
-		/* Prevent the controller to send a start condition between
-		 * messages, except if explicitly requested.
-		 */
-		if (i != 0 && !(msgs->flags & I2C_MSG_RESTART)) {
+		while (k_sem_take(&data->device_sync_sem, K_NO_WAIT) == 0) {
+			;
+		}
+
+		data->callback_status = kStatus_Success;
+
+		transfer.flags = mcux_lpi2c_convert_flags(msg->flags);
+		if (i != 0 && !(msg->flags & I2C_MSG_RESTART)) {
 			transfer.flags |= kLPI2C_TransferNoStartFlag;
 		}
 
 		transfer.slaveAddress = addr;
-		transfer.direction = (msgs->flags & I2C_MSG_READ)
-			? kLPI2C_Read : kLPI2C_Write;
+		transfer.direction = (msg->flags & I2C_MSG_READ) ?
+			kLPI2C_Read : kLPI2C_Write;
 		transfer.subaddress = 0;
 		transfer.subaddressSize = 0;
-		transfer.data = msgs->buf;
-		transfer.dataSize = msgs->len;
+		transfer.data = msg->buf;
+		transfer.dataSize = msg->len;
 
-		/* Clear stale master status before submit */
-		LPI2C_MasterClearStatusFlags(base,
-			kLPI2C_MasterClearFlags);
+		LPI2C_MasterClearStatusFlags(base, kLPI2C_MasterClearFlags);
 
-		/* Start the transfer */
-		status = LPI2C_MasterTransferNonBlocking(base,
-				&data->handle, &transfer);
-
-		/* Return an error if the transfer didn't start successfully
-		 * e.g., if the bus was busy
-		 */
+		data->master_xfer_in_progress = true;
+		status = LPI2C_MasterTransferNonBlocking(base, &data->handle, &transfer);
 		if (status != kStatus_Success) {
+			bool restore_target = false;
+#ifdef CONFIG_I2C_TARGET
+			restore_target = data->target_attached;
+#endif
 			LPI2C_MasterTransferAbort(base, &data->handle);
+			data->master_xfer_in_progress = false;
+
+			if (retry_once) {
+				retry_once = false;
+				ret = mcux_lpi2c_recover_locked(dev, restore_target);
+				if (ret) {
+					break;
+				}
+				ret = mcux_lpi2c_enter_master_session_locked(dev);
+				if (ret) {
+					break;
+				}
+				goto retry_submit;
+			}
+
 			ret = -EIO;
 			break;
 		}
 
-		/* Wait for the transfer to complete */
-		k_sem_take(&data->device_sync_sem, K_FOREVER);
+		ret = k_sem_take(&data->device_sync_sem, xfer_timeout);
+		data->master_xfer_in_progress = false;
+		if (ret) {
+			bool restore_target = false;
+#ifdef CONFIG_I2C_TARGET
+			restore_target = data->target_attached;
+#endif
+			LPI2C_MasterTransferAbort(base, &data->handle);
+			ret2 = mcux_lpi2c_recover_locked(dev, restore_target);
+			ret = ret2 ? ret2 : -ETIMEDOUT;
+			break;
+		}
 
-		/* Return an error if the transfer didn't complete
-		 * successfully. e.g., nak, timeout, lost arbitration
-		 */
 		if (data->callback_status != kStatus_Success) {
+			bool restore_target = false;
+#ifdef CONFIG_I2C_TARGET
+			restore_target = data->target_attached;
+#endif
 			LPI2C_MasterTransferAbort(base, &data->handle);
-			ret = -EIO;
+			ret2 = mcux_lpi2c_recover_locked(dev, restore_target);
+			ret = ret2 ? ret2 : -EIO;
 			break;
 		}
-		if (msgs->len == 0) {
-			k_busy_wait(SCAN_DELAY_US(config->bitrate));
-			if (0 != (base->MSR & LPI2C_MSR_NDF_MASK)) {
+
+		if (msg->len == 0U) {
+			k_busy_wait(SCAN_DELAY_US(data->runtime_bitrate));
+			if ((base->MSR & LPI2C_MSR_NDF_MASK) != 0U) {
+				bool restore_target = false;
+#ifdef CONFIG_I2C_TARGET
+				restore_target = data->target_attached;
+#endif
 				LPI2C_MasterTransferAbort(base, &data->handle);
-				ret = -EIO;
+				ret2 = mcux_lpi2c_recover_locked(dev, restore_target);
+				ret = ret2 ? ret2 : -EIO;
 				break;
 			}
 		}
-		/* Move to the next message */
-		msgs++;
 	}
 
-	(void)pm_device_runtime_put(dev);
+	if (pm_acquired) {
+		(void)pm_device_runtime_put(dev);
+	}
 
 	data->master_xfer_in_progress = false;
 
-#ifdef CONFIG_I2C_TARGET
-	if (data->target_attached) {
-		(void)mcux_lpi2c_target_hw_init(dev);
-		data->master_ready = false;
+	ret2 = mcux_lpi2c_leave_master_session_locked(dev);
+	if (ret == 0 && ret2) {
+		ret = ret2;
 	}
-#endif
 
 	k_sem_give(&data->lock);
-
 	return ret;
 }
 
-#if CONFIG_I2C_MCUX_LPI2C_BUS_RECOVERY
+#if CONFIG_I2C_MCUX_LPI2C_GPIO_BUS_RECOVERY
 static void mcux_lpi2c_bitbang_set_scl(void *io_context, int state)
 {
 	const struct mcux_lpi2c_config *config = io_context;
@@ -359,10 +570,9 @@ static int mcux_lpi2c_bitbang_get_sda(void *io_context)
 	return gpio_pin_get_dt(&config->sda) == 0 ? 0 : 1;
 }
 
-static int mcux_lpi2c_recover_bus(const struct device *dev)
+static int mcux_lpi2c_recover_bus_locked(const struct device *dev)
 {
 	const struct mcux_lpi2c_config *config = dev->config;
-	struct mcux_lpi2c_data *data = dev->data;
 	struct i2c_bitbang bitbang_ctx;
 	struct i2c_bitbang_io bitbang_io = {
 		.set_scl = mcux_lpi2c_bitbang_set_scl,
@@ -382,8 +592,6 @@ static int mcux_lpi2c_recover_bus(const struct device *dev)
 		return -EIO;
 	}
 
-	k_sem_take(&data->lock, K_FOREVER);
-
 	error = gpio_pin_configure_dt(&config->scl, GPIO_OUTPUT_HIGH);
 	if (error != 0) {
 		LOG_ERR("failed to configure SCL GPIO (err %d)", error);
@@ -398,7 +606,8 @@ static int mcux_lpi2c_recover_bus(const struct device *dev)
 
 	i2c_bitbang_init(&bitbang_ctx, &bitbang_io, (void *)config);
 
-	bitrate_cfg = i2c_map_dt_bitrate(config->bitrate) | I2C_MODE_CONTROLLER;
+	bitrate_cfg = i2c_map_dt_bitrate(data->runtime_bitrate) | I2C_MODE_CONTROLLER;
+
 	error = i2c_bitbang_configure(&bitbang_ctx, bitrate_cfg);
 	if (error != 0) {
 		LOG_ERR("failed to configure I2C bitbang (err %d)", error);
@@ -413,10 +622,30 @@ static int mcux_lpi2c_recover_bus(const struct device *dev)
 
 restore:
 	(void)pinctrl_apply_state(config->pincfg, PINCTRL_STATE_DEFAULT);
+	return error;
+}
+#endif
+
+#if CONFIG_I2C_MCUX_LPI2C_BUS_RECOVERY
+static int mcux_lpi2c_recover_bus(const struct device *dev)
+{
+	struct mcux_lpi2c_data *data = dev->data;
+	bool restore_target = false;
+	int ret;
+
+#ifdef CONFIG_I2C_TARGET
+	restore_target = data->target_attached;
+#endif
+
+	ret = k_sem_take(&data->lock, K_FOREVER);
+	if (ret) {
+		return ret;
+	}
+
+	ret = mcux_lpi2c_recover_locked(dev, restore_target);
 
 	k_sem_give(&data->lock);
-
-	return error;
+	return ret;
 }
 #endif /* CONFIG_I2C_MCUX_LPI2C_BUS_RECOVERY */
 
@@ -517,12 +746,12 @@ static void mcux_lpi2c_slave_irq_handler(const struct device *dev)
 }
 
 static int mcux_lpi2c_target_register(const struct device *dev,
-					  struct i2c_target_config *target_config)
+				      struct i2c_target_config *cfg)
 {
 	struct mcux_lpi2c_data *data = dev->data;
 	int ret;
 
-	if (!target_config) {
+	if (!cfg) {
 		return -EINVAL;
 	}
 
@@ -536,31 +765,31 @@ static int mcux_lpi2c_target_register(const struct device *dev,
 		return -EBUSY;
 	}
 
+	data->target_cfg = cfg;
 	data->target_attached = true;
-	data->target_cfg = target_config;
 
 	ret = mcux_lpi2c_target_hw_init(dev);
 	if (ret) {
 		data->target_cfg = NULL;
 		data->target_attached = false;
+		data->mode_state = MCUX_LPI2C_STATE_MASTER_IDLE;
 		k_sem_give(&data->lock);
 		return ret;
 	}
 
-	data->master_ready = false;
+	data->mode_state = MCUX_LPI2C_STATE_TARGET_READY;
 
 	k_sem_give(&data->lock);
 	return 0;
 }
 
 static int mcux_lpi2c_target_unregister(const struct device *dev,
-					struct i2c_target_config *target_config)
+					struct i2c_target_config *cfg)
 {
 	struct mcux_lpi2c_data *data = dev->data;
-	LPI2C_Type *base = (LPI2C_Type *)DEVICE_MMIO_NAMED_GET(dev, reg_base);
 	int ret;
 
-	ARG_UNUSED(target_config);
+	ARG_UNUSED(cfg);
 
 	ret = k_sem_take(&data->lock, K_FOREVER);
 	if (ret) {
@@ -572,14 +801,9 @@ static int mcux_lpi2c_target_unregister(const struct device *dev,
 		return -EINVAL;
 	}
 
-	LPI2C_SlaveDisableInterrupts(base,
-				     kLPI2C_SlaveTxReadyFlag |
-				     kLPI2C_SlaveRxReadyFlag |
-				     kLPI2C_SlaveStopDetectFlag |
-				     kLPI2C_SlaveAddressValidFlag |
-				     kLPI2C_SlaveTransmitAckFlag);
-
-	LPI2C_SlaveDeinit(base);
+	if (data->target_enabled) {
+		mcux_lpi2c_target_hw_deinit(dev);
+	}
 
 	data->target_cfg = NULL;
 	data->target_attached = false;
@@ -588,10 +812,11 @@ static int mcux_lpi2c_target_unregister(const struct device *dev,
 	data->read_active = false;
 	data->send_ack = true;
 
+	data->mode_state = MCUX_LPI2C_STATE_MASTER_IDLE;
+
 	k_sem_give(&data->lock);
 	return 0;
 }
-
 #endif /* CONFIG_I2C_TARGET */
 
 #if DT_HAS_COMPAT_STATUS_OKAY(nxp_lp_flexcomm)
@@ -699,6 +924,8 @@ static int mcux_lpi2c_init(const struct device *dev)
 	k_sem_init(&data->device_sync_sem, 0, 1);
 
 	data->callback_status = kStatus_Success;
+	data->runtime_bitrate = config->bitrate;
+	data->mode_state = MCUX_LPI2C_STATE_MASTER_IDLE;
 	data->master_ready = false;
 	data->master_xfer_in_progress = false;
 
@@ -727,13 +954,13 @@ static DEVICE_API(i2c, mcux_lpi2c_driver_api) = {
 #endif /* CONFIG_I2C_TARGET */
 };
 
-#if CONFIG_I2C_MCUX_LPI2C_BUS_RECOVERY
+#if CONFIG_I2C_MCUX_LPI2C_GPIO_BUS_RECOVERY
 #define I2C_MCUX_LPI2C_SCL_INIT(n) .scl = GPIO_DT_SPEC_INST_GET_OR(n, scl_gpios, {0}),
 #define I2C_MCUX_LPI2C_SDA_INIT(n) .sda = GPIO_DT_SPEC_INST_GET_OR(n, sda_gpios, {0}),
 #else
 #define I2C_MCUX_LPI2C_SCL_INIT(n)
 #define I2C_MCUX_LPI2C_SDA_INIT(n)
-#endif /* CONFIG_I2C_MCUX_LPI2C_BUS_RECOVERY */
+#endif /* CONFIG_I2C_MCUX_LPI2C_GPIO_BUS_RECOVERY */
 
 #define I2C_MCUX_LPI2C_CONFIGURE_IRQ(idx, inst)					\
 	IF_ENABLED(DT_INST_IRQ_HAS_IDX(inst, idx), (				\
