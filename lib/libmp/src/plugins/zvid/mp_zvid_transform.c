@@ -16,7 +16,7 @@ LOG_MODULE_REGISTER(mp_zvid_transform, CONFIG_LIBMP_LOG_LEVEL);
 #define DEFAULT_PROP_DEVICE DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_videotrans))
 
 static bool mp_zvid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
-				      struct net_buf **out_buf)
+			      struct net_buf **out_buf)
 {
 	int ret;
 	struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
@@ -52,22 +52,33 @@ static bool mp_zvid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf
 	return true;
 }
 
-static struct mp_caps *mp_zvid_transform_get_caps(struct mp_transform *transform,
-						  enum mp_pad_direction direction)
+static struct mp_caps *mp_zvid_transform_supported_caps(struct mp_transform *transform,
+							enum mp_pad_direction direction)
 {
 	struct mp_zvid_transform *zvid_transform = MP_ZVID_TRANSFORM(transform);
-
 	if (direction == MP_PAD_SINK) {
 		return mp_zvid_object_get_caps(&zvid_transform->zvid_obj_in);
-	} else if (direction == MP_PAD_SRC) {
+	}
+
+	if (direction == MP_PAD_SRC) {
 		return mp_zvid_object_get_caps(&zvid_transform->zvid_obj_out);
 	}
 
 	return NULL;
 }
 
+static void mp_zvid_transform_update_caps(struct mp_transform *transform)
+{
+	struct mp_caps *sink_caps = mp_zvid_transform_supported_caps(transform, MP_PAD_SINK);
+	struct mp_caps *src_caps = mp_zvid_transform_supported_caps(transform, MP_PAD_SRC);
+
+	mp_transform_update_caps(transform, sink_caps, src_caps);
+	mp_caps_unref(sink_caps);
+	mp_caps_unref(src_caps);
+}
+
 static bool mp_zvid_transform_set_caps(struct mp_transform *transform,
-				       enum mp_pad_direction direction, struct mp_caps *caps)
+			       enum mp_pad_direction direction, struct mp_caps *caps)
 {
 	struct mp_zvid_transform *zvid_transform = MP_ZVID_TRANSFORM(transform);
 	struct mp_zvid_object *zvid_obj = NULL;
@@ -92,8 +103,8 @@ static bool mp_zvid_transform_set_caps(struct mp_transform *transform,
 }
 
 static struct mp_caps *mp_zvid_transform_transform_caps(struct mp_transform *self,
-							enum mp_pad_direction direction,
-							struct mp_caps *caps)
+					      enum mp_pad_direction direction,
+					      struct mp_caps *caps)
 {
 	struct mp_zvid_transform *zvid_transform = MP_ZVID_TRANSFORM(self);
 	const struct device *dev = zvid_transform->zvid_obj_in.vdev;
@@ -139,19 +150,19 @@ static int mp_zvid_transform_set_property(struct mp_object *obj, uint32_t key, c
 
 	switch (key) {
 	case PROP_ZVID_DEVICE:
-		mp_zvid_object_set_property(&zvid_transform->zvid_obj_in, key, val,
-					    &transform->sinkpad.caps);
-		mp_zvid_object_set_property(&zvid_transform->zvid_obj_out, key, val,
-					    &transform->srcpad.caps);
-		break;
+		mp_zvid_object_set_property(&zvid_transform->zvid_obj_in, key, val);
+		mp_zvid_object_set_property(&zvid_transform->zvid_obj_out, key, val);
+		/* Device set, update caps */
+		mp_zvid_transform_update_caps(transform);
+
+		return 0;
 	default:
-		ret = mp_zvid_object_set_property(&zvid_transform->zvid_obj_in, key, val, NULL);
+		ret = mp_zvid_object_set_property(&zvid_transform->zvid_obj_in, key, val);
 		if (ret == -ENOTSUP) {
 			return mp_transform_set_property(obj, key, val);
 		}
+		return ret;
 	}
-
-	return ret;
 }
 
 static int mp_zvid_transform_get_property(struct mp_object *obj, uint32_t key, void *val)
@@ -201,22 +212,20 @@ void mp_zvid_transform_init(struct mp_element *self)
 	transform->mode = MP_MODE_NORMAL;
 
 	/*
-	 * pools needs to be set before calling get_caps() as
-	 * some pool's configs will be set during get_caps()
+	 * pools needs to be set before retrieving supported caps as
+	 * some pool's configs will be set during caps probing.
 	 */
 	transform->inpool = MP_BUFFER_POOL(&zvid_transform->zvid_obj_in.pool);
 	transform->outpool = MP_BUFFER_POOL(&zvid_transform->zvid_obj_out.pool);
-
-	transform->sinkpad.caps = mp_zvid_transform_get_caps(transform, MP_PAD_SINK);
-	transform->srcpad.caps = mp_zvid_transform_get_caps(transform, MP_PAD_SRC);
-	transform->transform_caps = mp_zvid_transform_transform_caps;
-	transform->get_caps = mp_zvid_transform_get_caps;
-	transform->set_caps = mp_zvid_transform_set_caps;
-	transform->sinkpad.chainfn = mp_zvid_transform_chainfn;
-	transform->decide_allocation = mp_zvid_transform_decide_allocation;
-	transform->propose_allocation = mp_zvid_transform_propose_allocation;
-
 	/* Initialize buffer pools */
 	mp_zvid_buffer_pool_init(transform->inpool, &(zvid_transform->zvid_obj_in));
 	mp_zvid_buffer_pool_init(transform->outpool, &(zvid_transform->zvid_obj_out));
+
+	mp_zvid_transform_update_caps(transform);
+
+	transform->set_caps = mp_zvid_transform_set_caps;
+	transform->transform_caps = mp_zvid_transform_transform_caps;
+	transform->sinkpad.chainfn = mp_zvid_transform_chainfn;
+	transform->decide_allocation = mp_zvid_transform_decide_allocation;
+	transform->propose_allocation = mp_zvid_transform_propose_allocation;
 }

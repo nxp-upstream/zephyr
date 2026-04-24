@@ -64,8 +64,7 @@ int mp_structure_to_vfc(struct mp_structure *structure, struct video_format_cap 
  *
  * @return 0 on success or a negative errno code on failure
  */
-int mp_zvid_object_set_property(struct mp_zvid_object *zvid_obj, uint32_t key, const void *val,
-				struct mp_caps **pad_caps);
+int mp_zvid_object_set_property(struct mp_zvid_object *zvid_obj, uint32_t key, const void *val);
 
 /**
  * @brief Get a property from the video object

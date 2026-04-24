@@ -244,8 +244,7 @@ bool mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *ca
 	return true;
 }
 
-int mp_zvid_object_set_property(struct mp_zvid_object *zvid_obj, uint32_t key, const void *val,
-				struct mp_caps **pad_caps)
+int mp_zvid_object_set_property(struct mp_zvid_object *zvid_obj, uint32_t key, const void *val)
 {
 	switch (key) {
 	case PROP_ZVID_DEVICE:
@@ -263,14 +262,6 @@ int mp_zvid_object_set_property(struct mp_zvid_object *zvid_obj, uint32_t key, c
 			};
 
 			video_set_selection(zvid_obj->vdev, &sel);
-		}
-
-		/* Get caps from driver and update the pad's caps */
-		if (pad_caps != NULL) {
-			struct mp_caps *new_caps = mp_zvid_object_get_caps(zvid_obj);
-
-			mp_caps_replace(pad_caps, new_caps);
-			mp_caps_unref(new_caps);
 		}
 
 		return 0;
