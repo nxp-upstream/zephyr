@@ -45,15 +45,32 @@ struct mp_transform {
 	struct mp_pad sinkpad;
 	/** Source pad for sending output data */
 	struct mp_pad srcpad;
-	/** Input buffer pool for allocating input buffers */
+	/** @cond INTERNAL_HIDDEN */
+	/** Pointer to the supported caps at sink */
+	struct mp_caps *sink_caps;
+	/** Pointer to the supported caps at source */
+	struct mp_caps *src_caps;
+	/** @endcond */
+	/** Pointer to the input buffer pool for allocating input buffers */
 	struct mp_buffer_pool *inpool;
-	/** Output buffer pool for allocating output buffers */
+	/** Pointer to the output buffer pool for allocating output buffers */
 	struct mp_buffer_pool *outpool;
 	/** Operating mode determining buffer handling strategy */
 	enum mp_transform_mode mode;
 
 	/**
-	 * @brief Set capabilities on a pad
+	 * @brief Get the supported caps from an element's pad
+	 *
+	 * To get the current caps, use sinkpad->caps or srcpad->caps instead
+	 *
+	 * @param transform Pointer to the transform element
+	 * @param direction Direction of the pad (@ref enum mp_pad_direction)
+	 * @return Pointer to @ref struct mp_caps or NULL on failure
+	 */
+	struct mp_caps *(*get_caps)(struct mp_transform *transform,
+				    enum mp_pad_direction direction);
+	/**
+	 * @brief Set a given caps to an element's pad
 	 * @param transform Pointer to the transform element
 	 * @param direction Direction of the pad (@ref enum mp_pad_direction)
 	 * @param caps Capabilities to set (@ref struct mp_caps)
@@ -61,14 +78,6 @@ struct mp_transform {
 	 */
 	bool (*set_caps)(struct mp_transform *transform, enum mp_pad_direction direction,
 			 struct mp_caps *caps);
-	/**
-	 * @brief Get capabilities from a pad
-	 * @param transform Pointer to the transform element
-	 * @param direction Direction of the pad (@ref enum mp_pad_direction)
-	 * @return Pointer to @ref struct mp_caps or NULL on failure
-	 */
-	struct mp_caps *(*get_caps)(struct mp_transform *transform,
-				    enum mp_pad_direction direction);
 	/**
 	 * @brief Transform capabilities from one pad to another
 	 * @param self Pointer to the transform element
@@ -128,5 +137,18 @@ int mp_transform_get_property(struct mp_object *obj, uint32_t key, void *val);
 
 bool mp_transform_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
 			   struct mp_caps *caps);
+
+/**
+ * @brief Update the capabilities of a transform element
+ *
+ * Updates the transform element's supported caps on sink/src and resets the negotiated
+ * caps on both pads.
+ *
+ * @param transform Pointer to the transform element
+ * @param sink_caps Supported caps for the sink pad
+ * @param src_caps Supported caps for the src pad
+ */
+void mp_transform_update_caps(struct mp_transform *transform, struct mp_caps *sink_caps,
+			     struct mp_caps *src_caps);
 
 #endif /* __MP_TRANSFORM_H__ */
