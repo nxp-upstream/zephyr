@@ -81,7 +81,7 @@ static int mp_zdisp_sink_setup(struct mp_zdisp_sink *zdisp_sink,
 	return ret;
 }
 
-static struct mp_caps *mp_zdisp_sink_get_caps(struct mp_sink *sink)
+static struct mp_caps *mp_zdisp_sink_supported_caps(struct mp_sink *sink)
 {
 	uint32_t vid_fmt;
 	struct display_capabilities display_caps;
@@ -102,6 +102,14 @@ static struct mp_caps *mp_zdisp_sink_get_caps(struct mp_sink *sink)
 			   MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE, DEFAULT_WIDTH_MIN,
 			   display_caps.x_resolution, 1, MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE,
 			   DEFAULT_HEIGHT_MIN, display_caps.y_resolution, 1, MP_CAPS_END);
+}
+
+static void mp_zdisp_sink_update_caps(struct mp_sink *sink)
+{
+	struct mp_caps *caps = mp_zdisp_sink_supported_caps(sink);
+
+	mp_sink_update_caps(sink, caps);
+	mp_caps_unref(caps);
 }
 
 static bool mp_zdisp_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
@@ -126,12 +134,9 @@ static int mp_zdisp_sink_set_property(struct mp_object *obj, uint32_t key, const
 
 	switch (key) {
 	case PROP_ZDISP_SINK_DEVICE:
-		/* Device has been set or changed. Get caps from HW and update pad caps */
-		struct mp_caps *new_caps = mp_zdisp_sink_get_caps(sink);
-
 		zdisp_sink->display_dev = val;
-		mp_caps_replace(&sink->sinkpad.caps, new_caps);
-		mp_caps_unref(new_caps);
+		/* Device set, update caps */
+		mp_zdisp_sink_update_caps(sink);
 
 		return 0;
 	default:
@@ -212,6 +217,6 @@ void mp_zdisp_sink_init(struct mp_element *self)
 
 	sink->sinkpad.chainfn = mp_zdisp_sink_chainfn;
 	sink->set_caps = mp_zdisp_sink_set_caps;
-	sink->get_caps = mp_zdisp_sink_get_caps;
-	sink->sinkpad.caps = mp_zdisp_sink_get_caps(sink);
+
+	mp_zdisp_sink_update_caps(sink);
 }
