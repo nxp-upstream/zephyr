@@ -5,7 +5,7 @@
 
 / {
 	aliases {
-		role_switch_i2c = &flexcomm9_lpi2c9;
+		role-switch-i2c = &flexcomm9_lpi2c9;
 	};
 };
 
