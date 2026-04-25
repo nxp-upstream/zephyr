@@ -14,6 +14,7 @@
 
 #include "usbh_device.h"
 #include "usbh_ch9.h"
+#include "usbh_ch11.h"
 #include "usbh_desc.h"
 
 #include <zephyr/logging/log.h>
