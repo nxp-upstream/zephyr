@@ -60,7 +60,7 @@ struct video_mcux_isi_channel_data {
 	struct video_format fmt;
 	isi_output_format_t isi_format;
 
-	/* Cached upstream/source format (used when CSC is enabled). */
+	/* Cached upstream/source format */
 	struct video_format in_fmt;
 
 	struct video_rect crop;
@@ -68,14 +68,12 @@ struct video_mcux_isi_channel_data {
 	struct video_rect compose;
 	bool compose_en;
 
-	/* Scaler output size before crop (derived from compose or requested format) */
 	uint32_t scale_width;
 	uint32_t scale_height;
 
 	/* Drop buffer used when no queued buffer is available at frame done. */
 	struct video_buffer *drop_vbuf;
 
-	/* Currently programmed HW output buffers (double-buffering). */
 	struct video_buffer *active_vbuf[ISI_MAX_ACTIVE_BUF];
 	uint8_t buffer_index;
 
@@ -105,18 +103,17 @@ static const struct isi_format_map isi_formats[] = {
 	{ .pixelformat = VIDEO_PIX_FMT_GREY, .isi_format = kISI_OutputRaw8 },
 };
 
-#define ISI_VIDEO_FORMAT_CAP(width, height, format) \
-	{ \
-		.pixelformat = (format), \
-		.width_min = 1, \
-		.width_max = (width), \
-		.height_min = 1, \
-		.height_max = (height), \
-		.width_step = 1, \
-		.height_step = 1 \
+#define ISI_VIDEO_FORMAT_CAP(width, height, format)	\
+	{						\
+		.pixelformat = (format),		\
+		.width_min = 1,				\
+		.width_max = (width),			\
+		.height_min = 1,			\
+		.height_max = (height),			\
+		.width_step = 1,			\
+		.height_step = 1			\
 	}
 
-/* Limit maximum width to 2K for CSC/resize, 8K for raw passthrough */
 static const struct video_format_cap isi_fmts[] = {
 	ISI_VIDEO_FORMAT_CAP(2048, 8191, VIDEO_PIX_FMT_RGB565),
 	ISI_VIDEO_FORMAT_CAP(2048, 8191, VIDEO_PIX_FMT_XRGB32),
@@ -882,35 +879,36 @@ static int video_mcux_isi_init(const struct device *dev)
 
 #define ISI_PARENT_INPUT_PORT(inst) DT_PROP_OR(DT_INST_PARENT(inst), input_port, 0)
 
-#define ISI_INPUT_PORT(inst) \
-	COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, input_port), \
+#define ISI_INPUT_PORT(inst)								\
+	COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, input_port),				\
 		(DT_INST_PROP(inst, input_port)), (ISI_PARENT_INPUT_PORT(inst)))
 
-#define ISI_SOURCE_DEV(inst) \
+#define ISI_SOURCE_DEV(inst)								\
 	DEVICE_DT_GET(DT_NODE_REMOTE_DEVICE(DT_INST_ENDPOINT_BY_ID(inst, 0, 0)))
 
-#define VIDEO_MCUX_ISI_CHANNEL_DEVICE(inst) \
-	static const struct video_mcux_isi_channel_config video_mcux_isi_channel_config_##inst = { \
-		.core_dev = ISI_CORE_DEV(inst), \
-		.source_dev = ISI_SOURCE_DEV(inst), \
-		.channel = (uint8_t)DT_INST_REG_ADDR(inst), \
-		.input_port = ISI_INPUT_PORT(inst), \
-		.irq = DT_INST_IRQN(inst), \
-	}; \
-	static struct video_mcux_isi_channel_data video_mcux_isi_channel_data_##inst; \
-	static int video_mcux_isi_channel_init_##inst(const struct device *dev) \
-	{ \
-		IRQ_CONNECT(DT_INST_IRQN(inst), DT_INST_IRQ(inst, priority), \
-			video_mcux_isi_isr, DEVICE_DT_INST_GET(inst), 0); \
-		/* Keep NVIC IRQ disabled until stream_start() to avoid early IRQs. */ \
-		irq_disable(video_mcux_isi_channel_config_##inst.irq); \
-		return video_mcux_isi_init(dev); \
-	} \
-	DEVICE_DT_INST_DEFINE(inst, &video_mcux_isi_channel_init_##inst, NULL, \
-		&video_mcux_isi_channel_data_##inst, \
-		&video_mcux_isi_channel_config_##inst, \
-		POST_KERNEL, CONFIG_VIDEO_INIT_PRIORITY, \
-		&video_mcux_isi_driver_api); \
-	VIDEO_DEVICE_DEFINE(video_mcux_isi_##inst, DEVICE_DT_INST_GET(inst), ISI_SOURCE_DEV(inst));
+#define VIDEO_MCUX_ISI_CHANNEL_DEVICE(inst)						\
+	static const struct video_mcux_isi_channel_config				\
+	video_mcux_isi_channel_config_##inst = {					\
+		.core_dev = ISI_CORE_DEV(inst),						\
+		.source_dev = ISI_SOURCE_DEV(inst),					\
+		.channel = (uint8_t)DT_INST_REG_ADDR(inst),				\
+		.input_port = ISI_INPUT_PORT(inst),					\
+		.irq = DT_INST_IRQN(inst),						\
+	};										\
+	static struct video_mcux_isi_channel_data video_mcux_isi_channel_data_##inst;	\
+	static int video_mcux_isi_channel_init_##inst(const struct device *dev)		\
+	{										\
+		IRQ_CONNECT(DT_INST_IRQN(inst), DT_INST_IRQ(inst, priority),		\
+			video_mcux_isi_isr, DEVICE_DT_INST_GET(inst), 0);		\
+		irq_disable(video_mcux_isi_channel_config_##inst.irq);			\
+		return video_mcux_isi_init(dev);					\
+	}										\
+	DEVICE_DT_INST_DEFINE(inst, &video_mcux_isi_channel_init_##inst, NULL,		\
+		&video_mcux_isi_channel_data_##inst,					\
+		&video_mcux_isi_channel_config_##inst,					\
+		POST_KERNEL, CONFIG_VIDEO_INIT_PRIORITY,				\
+		&video_mcux_isi_driver_api);						\
+	VIDEO_DEVICE_DEFINE(video_mcux_isi_##inst, DEVICE_DT_INST_GET(inst),		\
+			ISI_SOURCE_DEV(inst));
 
 DT_INST_FOREACH_STATUS_OKAY(VIDEO_MCUX_ISI_CHANNEL_DEVICE)

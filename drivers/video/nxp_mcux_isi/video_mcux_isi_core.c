@@ -44,23 +44,18 @@ static int video_mcux_isi_core_init(const struct device *dev)
 	return 0;
 }
 
-#define VIDEO_MCUX_ISI_CORE_DEVICE(inst) \
-	static const struct video_mcux_isi_core_config video_mcux_isi_core_config_##inst = { \
-		.base = (ISI_Type *)DT_INST_REG_ADDR(inst), \
-		.clock_dev = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, clocks), \
-			(DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(inst))), (NULL)), \
-		.clock_subsys = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, clocks), \
-			((clock_control_subsys_t)DT_INST_CLOCKS_CELL(inst, name)), (NULL)), \
-	}; \
-	static struct video_mcux_isi_core_data video_mcux_isi_core_data_##inst; \
-	/*
-	 * Core must init before any channel devices that reference it.
-	 * This is enforced via devicetree dependency ordering (core is the parent
-	 * node of each channel), so we can use the common video init priority.
-	 */ \
-	DEVICE_DT_INST_DEFINE(inst, video_mcux_isi_core_init, NULL, \
-		&video_mcux_isi_core_data_##inst, \
-		&video_mcux_isi_core_config_##inst, \
+#define VIDEO_MCUX_ISI_CORE_DEVICE(inst)							\
+	static const struct video_mcux_isi_core_config video_mcux_isi_core_config_##inst = {	\
+		.base = (ISI_Type *)DT_INST_REG_ADDR(inst),					\
+		.clock_dev = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, clocks),			\
+			(DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(inst))), (NULL)),			\
+		.clock_subsys = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, clocks),		\
+			((clock_control_subsys_t)DT_INST_CLOCKS_CELL(inst, name)), (NULL)),	\
+	};											\
+	static struct video_mcux_isi_core_data video_mcux_isi_core_data_##inst;			\
+	DEVICE_DT_INST_DEFINE(inst, video_mcux_isi_core_init, NULL,				\
+		&video_mcux_isi_core_data_##inst,						\
+		&video_mcux_isi_core_config_##inst,						\
 		POST_KERNEL, 59, NULL);
 
 DT_INST_FOREACH_STATUS_OKAY(VIDEO_MCUX_ISI_CORE_DEVICE)
