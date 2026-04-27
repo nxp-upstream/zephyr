@@ -5,6 +5,7 @@
  */
 
 #include <zephyr/logging/log.h>
+#include <zephyr/video/video.h>
 
 #include <src/core/mp_caps.h>
 
@@ -22,7 +23,15 @@ static bool mp_zvid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf
 	struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
 	struct mp_zvid_transform *zvid_transform = MP_ZVID_TRANSFORM(transform);
 	struct mp_buffer_pool *outpool = MP_BUFFER_POOL(&zvid_transform->zvid_obj_out.pool);
-	struct video_buffer *in_vbuf = mp_buffer_get_meta(in_buf)->priv;
+	struct video_buffer *in_vbuf;
+
+	/* TODO: Ensure net_buf meta's priv is always a video buffer */
+	if (mp_buffer_get_meta(in_buf)->priv == NULL) {
+		in_vbuf = video_import_buffer(in_buf->data, in_buf->size);
+	} else {
+		in_vbuf = mp_buffer_get_meta(in_buf)->priv;
+	}
+	in_vbuf->bytesused = mp_buffer_get_meta(in_buf)->bytes_used;
 
 	/* Enqueue input buffer */
 	in_vbuf->type = VIDEO_BUF_TYPE_INPUT;

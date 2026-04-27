@@ -11,6 +11,11 @@ zephyr_library_sources(
     mp_zvid_transform.c
 )
 
+zephyr_library_sources_ifdef(CONFIG_MP_PLUGIN_ZVID_CONVERT
+    mp_zvid_convert.c
+    mp_zvid_convert_table.c
+)
+
 if(CONFIG_MP_RPC)
     zephyr_library_sources(
         mp_zvid_buffer_pool_client.c
