@@ -23,7 +23,6 @@ static int mp_zvid_buffer_pool_start(struct mp_buffer_pool *pool)
 		return -EINVAL;
 	}
 
-	/* Use the minimum number of buffers if not specified else */
 	zvid_pool->vbuf_count = pool->config.min_buffers;
 
 	for (uint8_t i = 0; i < zvid_pool->vbuf_count; i++) {
@@ -122,6 +121,13 @@ static int mp_zvid_buffer_pool_acquire_buffer(struct mp_buffer_pool *pool, struc
 	*buf = net_buf_alloc_with_data(pool->nb_pool, vbuf->buffer, vbuf->size, K_NO_WAIT);
 	if (*buf == NULL) {
 		LOG_ERR("Failed to allocate a net_buf wrapper for the video buffer");
+		/* Re-enqueue the video buffer */
+		if (zvid_pool->zvid_obj->type == VIDEO_BUF_TYPE_INPUT) {
+			k_fifo_put(&zvid_pool->free_fifo, vbuf);
+		} else {
+			(void)video_enqueue(zvid_pool->zvid_obj->vdev, vbuf);
+		}
+
 		return -ENOBUFS;
 	}
 
