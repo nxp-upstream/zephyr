@@ -5,7 +5,7 @@
 #
 
 config MP_PLUGIN_ZAUD
-	bool "Zaud plugin support"
+	bool "Audio plugin support"
 
 if MP_PLUGIN_ZAUD
 

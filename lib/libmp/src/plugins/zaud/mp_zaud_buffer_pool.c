@@ -83,7 +83,6 @@ static int mp_zaud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_str
 		pool->config.align = ZAUD_BUFFER_POOL_BASE_ALIGN;
 	}
 
-	/* Decide min buffers - take the maximum */
 	if (pool->config.size * pool->config.min_buffers > ZAUD_BUFFER_POOL_SIZE) {
 		LOG_ERR("zaud_buffer_pool_buf hos not enough space for requested buffers");
 		return -EINVAL;
