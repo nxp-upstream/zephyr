@@ -58,6 +58,12 @@ static struct mp_caps *mp_src_get_caps(struct mp_src *src)
 
 static bool mp_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 {
+	if (src == NULL) {
+		return false;
+	}
+
+	mp_caps_replace(&src->srcpad.caps, caps);
+
 	return true;
 }
 
@@ -65,7 +71,8 @@ static bool mp_src_query(struct mp_pad *pad, struct mp_query *query)
 {
 	bool ret = false;
 	struct mp_src *src = MP_SRC(pad->object.container);
-	struct mp_caps *intersect_caps, *query_caps;
+	struct mp_caps *intersect_caps;
+	struct mp_caps *query_caps;
 
 	switch (query->type) {
 	case MP_QUERY_CAPS:
@@ -114,30 +121,39 @@ static bool mp_src_negotiate(struct mp_src *src)
 
 	common_caps = mp_caps_ref(mp_query_get_caps(caps_query));
 	mp_query_destroy(caps_query);
-	if (common_caps == NULL || mp_caps_is_empty(common_caps)) {
+	if (common_caps == NULL) {
+		return false;
+	}
+
+	if (mp_caps_is_empty(common_caps)) {
 		mp_caps_unref(common_caps);
 		return false;
 	}
 
 	/* Store negotiated (possibly unfixed) caps on the src pad */
 	mp_caps_replace(&src->srcpad.caps, common_caps);
+	mp_caps_unref(common_caps);
 
-	/* Try to fixate if possible, then push a CAPS event downstream */
-	fixated_caps = mp_caps_fixate(common_caps);
-	if (fixated_caps != NULL) {
-		caps_event = mp_event_new_caps(fixated_caps);
-		ret = mp_pad_send_event(src->srcpad.peer, caps_event);
-		if (ret != 0 && !src->set_caps(src, fixated_caps)) {
-			mp_caps_unref(common_caps);
-			mp_caps_unref(fixated_caps);
-			mp_event_destroy(caps_event);
-			return false;
-		}
-		mp_event_destroy(caps_event);
+	fixated_caps = mp_caps_fixate(src->srcpad.caps);
+
+	/* Push a caps event downstream */
+	caps_event = mp_event_new_caps(fixated_caps);
+
+	ret = mp_pad_send_event(src->srcpad.peer, caps_event);
+	mp_event_destroy(caps_event);
+
+	if (!ret) {
 		mp_caps_unref(fixated_caps);
+		return false;
 	}
 
-	mp_caps_unref(common_caps);
+	if (fixated_caps != NULL) {
+		if (!src->set_caps(src, fixated_caps)) {
+			mp_caps_unref(fixated_caps);
+			return false;
+		}
+		mp_caps_unref(fixated_caps);
+	}
 
 	/* Query the peer's allocation proposal */
 	alloc_query = mp_query_new_allocation(src->srcpad.caps);
@@ -163,30 +179,26 @@ enum mp_state_change_return mp_src_change_state(struct mp_element *self,
 	switch (transition) {
 	case MP_STATE_CHANGE_READY_TO_PAUSED:
 		/* Perform negotiation */
-		if (MP_OBJECT(&src->srcpad)->flags & MP_PAD_FLAG_NEGOTIATE) {
-			if (!mp_src_negotiate(src)) {
-				LOG_ERR("Negotiation failed");
-				return MP_STATE_CHANGE_FAILURE;
-			}
-
-			/* Config buffer pool */
-			pool_ret = mp_buffer_pool_configure(
-				src->pool, mp_caps_get_structure(src->srcpad.caps, 0));
-			if (pool_ret != 0 && pool_ret != -ENOSYS) {
-				LOG_ERR("Failed to configure source buffer pool");
-				return MP_STATE_CHANGE_FAILURE;
-			}
-
-			/* Start buffer pool */
-			pool_ret = mp_buffer_pool_start(src->pool);
-			if (pool_ret != 0 && pool_ret != -ENOSYS) {
-				LOG_ERR("Failed to start source buffer pool");
-				return MP_STATE_CHANGE_FAILURE;
-			}
-
-			/* Clear MP_PAD_FLAG_NEGOTIATE flag */
-			MP_OBJECT(&src->srcpad)->flags &= ~MP_PAD_FLAG_NEGOTIATE;
+		if (!mp_src_negotiate(src)) {
+			LOG_ERR("Negotiation failed");
+			return MP_STATE_CHANGE_FAILURE;
 		}
+
+		/* Config buffer pool */
+		pool_ret = mp_buffer_pool_configure(
+			src->pool, mp_caps_get_structure(src->srcpad.caps, 0));
+		if (pool_ret != 0 && pool_ret != -ENOSYS) {
+			LOG_ERR("Failed to configure source buffer pool");
+			return MP_STATE_CHANGE_FAILURE;
+		}
+
+		/* Start buffer pool */
+		pool_ret = mp_buffer_pool_start(src->pool);
+		if (pool_ret != 0 && pool_ret != -ENOSYS) {
+			LOG_ERR("Failed to start source buffer pool");
+			return MP_STATE_CHANGE_FAILURE;
+		}
+
 		break;
 	case MP_STATE_CHANGE_PAUSED_TO_PLAYING:
 		break;
@@ -215,7 +227,4 @@ void mp_src_init(struct mp_element *self)
 	src->set_caps = mp_src_set_caps;
 	src->srcpad.queryfn = mp_src_query;
 	src->decide_allocation = mp_src_decide_allocation;
-
-	/* Set MP_PAD_FLAG_NEGOTIATE flag */
-	MP_OBJECT(&src->srcpad)->flags |= MP_PAD_FLAG_NEGOTIATE;
 }

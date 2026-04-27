@@ -90,6 +90,15 @@ struct mp_transform {
 
 	/**
 	 * @brief Propose allocation parameters to upstream
+	 *
+	 * The transform element may propose its input buffer pool to its upstream peer.
+	 * All the proposed pool's ops are then intended to be called by the upstream element.
+	 *
+	 * For in-place transform, the same pool may be used for both input and output. If the
+	 * pool is proposed to upstream, the element has to use @ref mp_transform::inpool to
+	 * point to the pool and leave @ref mp_transform::outpool as NULL so that the pool is
+	 * configured / started only by the upstream and not by the transform element itself.
+	 *
 	 * @param self Pointer to the transform element
 	 * @param query Allocation query (@ref struct mp_query)
 	 * @return true on success, false on failure

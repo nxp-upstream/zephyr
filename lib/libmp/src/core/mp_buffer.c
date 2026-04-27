@@ -37,7 +37,7 @@ int mp_buffer_pool_configure(struct mp_buffer_pool *pool, struct mp_structure *c
 		return -ENOSYS;
 	}
 
-	return pool->configure(pool, NULL);
+	return pool->configure(pool, config);
 }
 
 int mp_buffer_pool_start(struct mp_buffer_pool *pool)
@@ -53,6 +53,7 @@ int mp_buffer_pool_start(struct mp_buffer_pool *pool)
 	}
 
 	if (pool->start == NULL) {
+		pool->started = true;
 		return -ENOSYS;
 	}
 

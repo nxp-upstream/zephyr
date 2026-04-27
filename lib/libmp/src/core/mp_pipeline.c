@@ -63,12 +63,14 @@ static void mp_pipeline_thread(void *p1, void *p2, void *p3)
 
 	/* Main loop - in push mode, driven by source producing buffers */
 	while (pipeline->task.running) {
-		/* Get buffer from source element's pool */
 		if (src->pool->acquire_buffer != NULL) {
 			int ret = src->pool->acquire_buffer(src->pool, &buffer);
 
+			/* End of stream */
 			if (ret == -ENODATA) {
-				/* End of stream */
+				/* Send EOS event downstream */
+
+				/* Send EOS message to application */
 				pipeline->task.running = false;
 				eos_message = mp_message_new(MP_MESSAGE_EOS, MP_OBJECT(src), NULL);
 				mp_bus_post(&bin->bus, eos_message);

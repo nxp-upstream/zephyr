@@ -35,11 +35,13 @@ static struct mp_caps *mp_sink_get_caps(struct mp_sink *sink)
 
 static bool mp_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
 {
-	if (sink == NULL || caps == NULL || sink->set_caps == NULL) {
+	if (sink == NULL) {
 		return false;
 	}
 
-	return sink->set_caps(sink, caps);
+	mp_caps_replace(&sink->sinkpad.caps, caps);
+
+	return true;
 }
 
 /* TODO */
