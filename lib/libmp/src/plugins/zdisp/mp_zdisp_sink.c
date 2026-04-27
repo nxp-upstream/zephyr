@@ -164,40 +164,58 @@ bool mp_zdisp_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct ne
 	/* Get width / height from pad's caps */
 	struct mp_structure *first_structure = mp_caps_get_structure(pad->caps, 0);
 	struct mp_value *value = mp_structure_get_value(first_structure, MP_CAPS_PIXEL_FORMAT);
-	struct video_buffer *vbuf = NULL;
-	struct display_buffer_descriptor buf_desc = {
-		.buf_size = mp_buffer_get_meta(in_buf)->bytes_used,
-	};
 	enum display_pixel_format disp_fmt = 0;
-	uint16_t line_offset = 0;
+	struct net_buf *cur;
+	struct net_buf *next;
 
 	if (value != NULL) {
 		disp_fmt = vid_to_disp_pix_fmt(mp_value_get_uint(value));
 	}
 
-	value = mp_structure_get_value(first_structure, MP_CAPS_IMAGE_WIDTH);
-	if (value != NULL) {
-		buf_desc.width = mp_value_get_int(value);
-	}
-
-	buf_desc.pitch = buf_desc.width;
-	/* Do not get height from caps as sometimes buffer is just a partial frame */
-	buf_desc.height = buf_desc.buf_size /
-			  (buf_desc.width * DISPLAY_BITS_PER_PIXEL(disp_fmt) / BITS_PER_BYTE);
-
-	/* line_offset is only used to support partial video frame */
-	/* TODO: How to know if the priv is not a video_buffer metadata type ? */
-	vbuf = (struct video_buffer *)mp_buffer_get_meta(in_buf)->priv;
-	if (vbuf != NULL) {
-		line_offset = vbuf->line_offset;
-	}
-
-	display_write(zdisp_sink->display_dev, 0, line_offset, &buf_desc, vbuf->buffer);
-
-	net_buf_unref(in_buf);
-
 	/* Sink returns NULL for output buffer as it is at the end of the chain */
 	*out_buf = NULL;
+
+	if (in_buf == NULL) {
+		return true;
+	}
+
+	/*
+	 * Input may be a fragment chain (e.g. zvid_transform output for multiple frames).
+	 * Display each fragment then unref it.
+	 */
+	cur = in_buf;
+	while (cur != NULL) {
+		/* TODO: How to know if the priv is not a video_buffer metadata type ? */
+		struct video_buffer *vbuf = (struct video_buffer *)mp_buffer_get_meta(cur)->priv;
+		struct display_buffer_descriptor buf_desc = {
+			.buf_size = mp_buffer_get_meta(cur)->bytes_used,
+		};
+
+		next = cur->frags;
+		cur->frags = NULL;
+
+		value = mp_structure_get_value(first_structure, MP_CAPS_IMAGE_WIDTH);
+		if (value != NULL) {
+			buf_desc.width = mp_value_get_int(value);
+		}
+
+		buf_desc.pitch = buf_desc.width;
+		/* Do not get height from caps as sometimes buffer is just a partial frame */
+		buf_desc.height = buf_desc.buf_size /
+				  (buf_desc.width * DISPLAY_BITS_PER_PIXEL(disp_fmt) / BITS_PER_BYTE);
+
+		/* line_offset is only used to support partial video frame */
+		if (vbuf != NULL) {
+			display_write(zdisp_sink->display_dev, 0, vbuf->line_offset, &buf_desc,
+				      vbuf->buffer);
+		} else {
+			/* Fallback to net_buf data if no video_buffer metadata */
+			display_write(zdisp_sink->display_dev, 0, 0, &buf_desc, cur->data);
+		}
+
+		net_buf_unref(cur);
+		cur = next;
+	}
 
 	return true;
 }

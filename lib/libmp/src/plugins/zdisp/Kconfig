@@ -6,5 +6,4 @@
 
 config MP_PLUGIN_ZDISP
     bool "Display plugin support"
-    depends on MP
     select DISPLAY
