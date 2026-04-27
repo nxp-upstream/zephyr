@@ -880,9 +880,7 @@
 
 		mipi_dphy: dphy@4ad20000 {
 			compatible = "nxp,imx95-dphy-rx";
-			reg = <0x4ad20000 0x1000>,
-			      <0x4ad30000 0x10000>;
-			reg-names = "dphy", "csis";
+			reg = <0x4ad20000 0x10000>;
 			clocks = <&scmi_clk IMX95_CLK_MIPIPHYCFG>;
 			clock-names = "phy_cfg";
 			power-domains = <&camera_mix>;

@@ -8,16 +8,6 @@ compatible: "nxp,imx95-dphy-rx"
 include: [base.yaml]
 
 properties:
-  reg:
-    required: true
-    description: |
-      Register regions for DPHY CSR and CSI-2 interface registers.
-      First region is the D-PHY CSR registers.
-      Second region is the CSI-2 host registers used for PHY control.
-
-  reg-names:
-    required: true
-
   clocks:
     type: phandle-array
     description: |
