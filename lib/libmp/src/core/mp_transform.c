@@ -97,12 +97,12 @@ static inline bool mp_transform_query_caps(struct mp_transform *self,
 
 	/* Intersect the query caps with the pad's caps */
 	queried_pad_caps = mp_caps_intersect(mp_query_get_caps(query), this_pad->caps);
-	if (queried_pad_caps == NULL) {
+	if (queried_pad_caps == NULL || mp_caps_is_empty(queried_pad_caps)) {
 		return false;
 	}
 
 	transformed_caps = self->transform_caps(self, other_pad->direction, queried_pad_caps);
-	if (transformed_caps == NULL) {
+	if (transformed_caps == NULL || mp_caps_is_empty(transformed_caps)) {
 		return false;
 	}
 
@@ -114,11 +114,16 @@ static inline bool mp_transform_query_caps(struct mp_transform *self,
 	}
 
 	if (!mp_pad_query(other_pad->peer, query)) {
+		LOG_ERR("error element id = %u", self->element.object.id);
 		mp_caps_unref(queried_pad_caps);
 		return false;
 	}
 
 	query_caps = mp_query_get_caps(query);
+	if (query_caps == NULL || mp_caps_is_empty(query_caps)) {
+		mp_caps_unref(queried_pad_caps);
+		return false;
+	}
 
 	/*
 	 * Keep query_caps result at other_pad to use later at caps event.
@@ -130,13 +135,16 @@ static inline bool mp_transform_query_caps(struct mp_transform *self,
 
 	/* Transform back the query_caps */
 	query_back_caps = self->transform_caps(self, this_pad->direction, query_caps);
+	if (query_back_caps == NULL || mp_caps_is_empty(query_back_caps)) {
+		return false;
+	}
 
 	/* Intersect with the original queried_pad_caps */
 	res_caps = mp_caps_intersect(query_back_caps, queried_pad_caps);
 	mp_caps_unref(queried_pad_caps);
 	mp_caps_unref(query_back_caps);
 
-	if (res_caps == NULL) {
+	if (res_caps == NULL || mp_caps_is_empty(res_caps)) {
 		return false;
 	}
 
@@ -160,7 +168,7 @@ static bool mp_transform_propose_allocation(struct mp_transform *self, struct mp
 static bool mp_transform_query(struct mp_pad *pad, struct mp_query *query)
 {
 	struct mp_transform *self = MP_TRANSFORM(pad->object.container);
-	int ret = false;
+	int ret;
 
 	switch (query->type) {
 	case MP_QUERY_CAPS:
@@ -175,14 +183,13 @@ static bool mp_transform_query(struct mp_pad *pad, struct mp_query *query)
 		}
 
 		/* Decide allocation for downstream */
-		ret = self->decide_allocation(self, peer_query);
-		mp_query_destroy(peer_query);
-		if (!ret) {
+		if (!self->decide_allocation(self, peer_query)) {
+			mp_query_destroy(peer_query);
 			return false;
 		}
 
+		/* Configure/start the output buffer pool */
 		if (self->mode == MP_MODE_NORMAL) {
-			/* Configure the output buffer pool with negotiated configs */
 			ret = mp_buffer_pool_configure(self->outpool,
 						       mp_caps_get_structure(self->srcpad.caps, 0));
 			if (ret != 0 && ret != -ENOSYS) {
@@ -190,7 +197,6 @@ static bool mp_transform_query(struct mp_pad *pad, struct mp_query *query)
 				return false;
 			}
 
-			/* Start the output buffer pool */
 			ret = mp_buffer_pool_start(self->outpool);
 			if (ret != 0 && ret != -ENOSYS) {
 				LOG_ERR("Failed to start output transform buffer pool");

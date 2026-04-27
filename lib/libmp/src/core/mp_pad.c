@@ -76,7 +76,20 @@ bool mp_pad_query(struct mp_pad *pad, struct mp_query *query)
 		return false;
 	}
 
-	return pad->queryfn(pad, query);
+	if (!pad->queryfn(pad, query)) {
+		return false;
+	}
+
+	/* Caps query is considered successful only if the query's caps is valid */
+	if (query->type == MP_QUERY_CAPS) {
+		struct mp_caps *query_caps = mp_query_get_caps(query);
+
+		if (query_caps == NULL || mp_caps_is_empty(query_caps)) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 bool mp_pad_send_event_default(struct mp_pad *pad, struct mp_event *event)
