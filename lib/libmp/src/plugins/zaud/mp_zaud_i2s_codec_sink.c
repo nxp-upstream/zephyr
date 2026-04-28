@@ -8,11 +8,11 @@
 #include <zephyr/drivers/i2s.h>
 #include <zephyr/logging/log.h>
 
-#include <src/core/mp_buffer.h>
+#include <zephyr/mp/core/mp_buffer.h>
 
-#include "mp_zaud.h"
-#include "mp_zaud_i2s_codec_sink.h"
-#include "mp_zaud_property.h"
+#include <zephyr/mp/zaud/mp_zaud.h>
+#include <zephyr/mp/zaud/mp_zaud_i2s_codec_sink.h>
+#include <zephyr/mp/zaud/mp_zaud_property.h>
 
 LOG_MODULE_REGISTER(mp_zaud_i2s_codec_sink, CONFIG_LIBMP_LOG_LEVEL);
 

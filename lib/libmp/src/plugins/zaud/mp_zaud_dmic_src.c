@@ -9,10 +9,10 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/audio/dmic.h>
 
-#include "mp_zaud.h"
-#include "mp_zaud_buffer_pool.h"
-#include "mp_zaud_property.h"
-#include "mp_zaud_dmic_src.h"
+#include <zephyr/mp/zaud/mp_zaud.h>
+#include <zephyr/mp/zaud/mp_zaud_buffer_pool.h>
+#include <zephyr/mp/zaud/mp_zaud_property.h>
+#include <zephyr/mp/zaud/mp_zaud_dmic_src.h>
 
 LOG_MODULE_REGISTER(mp_zaud_dmic_src, CONFIG_LIBMP_LOG_LEVEL);
 
