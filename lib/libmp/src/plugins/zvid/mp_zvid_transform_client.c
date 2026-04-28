@@ -6,9 +6,9 @@
 
 #include <zephyr/logging/log.h>
 
-#include "mp_zvid_buffer_pool_client.h"
-#include "mp_zvid_object.h"
-#include "mp_zvid_transform_client.h"
+#include <zephyr/mp/zvid/mp_zvid_buffer_pool_client.h>
+#include <zephyr/mp/zvid/mp_zvid_object.h>
+#include <zephyr/mp/zvid/mp_zvid_transform_client.h>
 
 LOG_MODULE_REGISTER(mp_zvid_transform_client, CONFIG_LIBMP_LOG_LEVEL);
 

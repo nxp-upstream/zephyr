@@ -7,8 +7,8 @@
 #include <zephyr/drivers/video.h>
 #include <zephyr/logging/log.h>
 
-#include "mp_zvid_buffer_pool.h"
-#include "mp_zvid_object.h"
+#include <zephyr/mp/zvid/mp_zvid_buffer_pool.h>
+#include <zephyr/mp/zvid/mp_zvid_object.h>
 
 LOG_MODULE_REGISTER(mp_zvid_buffer_pool, CONFIG_LIBMP_LOG_LEVEL);
 
