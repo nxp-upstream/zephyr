@@ -1,0 +1,190 @@
+/*
+ * Copyright 2025 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/drivers/video.h>
+#include <zephyr/drivers/video-controls.h>
+#include <zephyr/logging/log.h>
+#include <zephyr/mp/mp.h>
+#include <zephyr/mp/zdisp/mp_zdisp_sink.h>
+#include <zephyr/mp/zvid/mp_zvid_src.h>
+#include <zephyr/mp/zvid/mp_zvid_property.h>
+#if DT_HAS_CHOSEN(zephyr_jpegdec) || DT_HAS_CHOSEN(zephyr_videotrans)
+#include <zephyr/mp/zvid/mp_zvid_transform.h>
+#endif
+#if DT_HAS_CHOSEN(zephyr_jpegdec)
+#include <zephyr/mp/zvid/mp_zvid_convert.h>
+#endif
+#if defined(CONFIG_MP_CAPSFILTER)
+#include <zephyr/mp/core/mp_capsfilter.h>
+#endif
+#include <zephyr/sys/util_macro.h>
+
+LOG_MODULE_REGISTER(main, CONFIG_LOG_DEFAULT_LEVEL);
+
+#define PIPE_ID        0
+#define VID_SRC_ID     1
+#define CAPS_FILTER_ID 2
+#define JPEG_DEC_ID    3
+#define VID_CONV_ID    4
+#define VID_TRANS_ID   5
+#define DISP_SINK_ID   6
+
+static struct mp_pipeline pipe;
+static struct mp_zvid_src vid_src;
+static struct mp_zdisp_sink disp_sink;
+#if defined(CONFIG_MP_CAPSFILTER)
+static struct mp_caps_filter caps_filter;
+#endif
+#if (DT_HAS_CHOSEN(zephyr_jpegdec))
+static struct mp_zvid_transform jpeg_dec;
+static struct mp_zvid_convert vid_conv;
+#endif
+#if (DT_HAS_CHOSEN(zephyr_videotrans))
+static struct mp_zvid_transform vid_trans;
+#endif
+
+int main(void)
+{
+	int ret;
+
+	MP_ELEMENT_INIT(&pipe, mp_pipeline_init, PIPE_ID);
+	MP_ELEMENT_INIT(&vid_src, mp_zvid_src_init, VID_SRC_ID);
+	MP_ELEMENT_INIT(&disp_sink, mp_zdisp_sink_init, DISP_SINK_ID);
+
+	struct video_rect __maybe_unused crop = {
+		CONFIG_VIDEO_SOURCE_CROP_LEFT, CONFIG_VIDEO_SOURCE_CROP_TOP,
+		CONFIG_VIDEO_SOURCE_CROP_WIDTH, CONFIG_VIDEO_SOURCE_CROP_HEIGHT};
+
+	/* clang-format off */
+	ret = mp_object_set_properties(MP_OBJECT(&vid_src),
+		COND_CODE_0(CONFIG_PROP_NUM_BUFS, (), (PROP_NUM_BUFS, CONFIG_PROP_NUM_BUFS,))
+		COND_CODE_0(CONFIG_VIDEO_SOURCE_CROP_WIDTH, (), (PROP_ZVID_CROP, &crop,))
+		IF_ENABLED(CONFIG_VIDEO_CTRL_HFLIP, (VIDEO_CID_HFLIP, CONFIG_VIDEO_CTRL_HFLIP,))
+		IF_ENABLED(CONFIG_VIDEO_CTRL_VFLIP, (VIDEO_CID_VFLIP, CONFIG_VIDEO_CTRL_VFLIP,))
+		PROP_LIST_END);
+	/* clang-format on */
+	if (ret < 0) {
+		goto err;
+	}
+
+	/* Caps filter element */
+#if defined(CONFIG_MP_CAPSFILTER)
+	MP_ELEMENT_INIT(&caps_filter, mp_caps_filter_init, CAPS_FILTER_ID);
+
+	/* clang-format off */
+	struct mp_caps *caps = mp_caps_new(MP_MEDIA_VIDEO,
+		COND_CODE_0(CONFIG_VIDEO_FRAME_WIDTH,
+			(), (MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT, CONFIG_VIDEO_FRAME_WIDTH,))
+		COND_CODE_0(CONFIG_VIDEO_FRAME_HEIGHT,
+			(), (MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT, CONFIG_VIDEO_FRAME_HEIGHT,))
+		COND_CODE_0(CONFIG_VIDEO_FRAME_RATE,
+			(), (MP_CAPS_FRAME_RATE, MP_TYPE_UINT_FRACTION, CONFIG_VIDEO_FRAME_RATE, 1,))
+		MP_CAPS_END);
+	/* clang-format on */
+
+	if (caps == NULL) {
+		goto err;
+	}
+
+	if (strcmp(CONFIG_VIDEO_PIXEL_FORMAT, "") != 0) {
+		mp_structure_append(mp_caps_get_structure(caps, 0), MP_CAPS_PIXEL_FORMAT,
+				    mp_value_new(MP_TYPE_UINT,
+						 VIDEO_FOURCC_FROM_STR(CONFIG_VIDEO_PIXEL_FORMAT)));
+	}
+
+	ret = mp_object_set_properties(MP_OBJECT(&caps_filter), PROP_CAPS, caps, PROP_LIST_END);
+	mp_caps_unref(caps);
+	if (ret < 0) {
+		goto err;
+	}
+#endif
+
+	/* JPEG decoder element */
+#if (DT_HAS_CHOSEN(zephyr_jpegdec))
+	MP_ELEMENT_INIT(&jpeg_dec, mp_zvid_transform_init, JPEG_DEC_ID);
+	MP_ELEMENT_INIT(&vid_conv, mp_zvid_convert_init, VID_CONV_ID);
+
+	ret = mp_object_set_properties(MP_OBJECT(&jpeg_dec), PROP_ZVID_DEVICE,
+				       DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_jpegdec)),
+				       PROP_LIST_END);
+	if (ret < 0) {
+		goto err;
+	}
+#endif
+
+	/* Video transform element */
+#if (DT_HAS_CHOSEN(zephyr_videotrans))
+	MP_ELEMENT_INIT(&vid_trans, mp_zvid_transform_init, VID_TRANS_ID);
+
+	/* clang-format off */
+	ret = mp_object_set_properties(MP_OBJECT(&vid_trans),
+		COND_CODE_0(CONFIG_VIDEO_ROTATION_ANGLE,
+			(), (VIDEO_CID_ROTATE, CONFIG_VIDEO_ROTATION_ANGLE,)) PROP_LIST_END);
+	/* clang-format on */
+	if (ret < 0) {
+		goto err;
+	}
+#endif
+
+	/* clang-format off */
+	/* Add elements to the pipeline - order does not matter */
+	if (!mp_bin_add(MP_BIN(&pipe),
+			MP_ELEMENT(&vid_src),
+			IF_ENABLED(CONFIG_MP_CAPSFILTER, (MP_ELEMENT(&caps_filter),))
+			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec), (MP_ELEMENT(&jpeg_dec),))
+			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec), (MP_ELEMENT(&vid_conv),))
+			IF_ENABLED(DT_HAS_CHOSEN(zephyr_videotrans), (MP_ELEMENT(&vid_trans),))
+		 	MP_ELEMENT(&disp_sink), NULL)) {
+		LOG_ERR("Failed to add elements");
+		goto err;
+	}
+	/* Link elements together - order does matter */
+	if (!mp_element_link(MP_ELEMENT(&vid_src),
+			IF_ENABLED(CONFIG_MP_CAPSFILTER, (MP_ELEMENT(&caps_filter),))
+			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec), (MP_ELEMENT(&jpeg_dec),))
+			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec), (MP_ELEMENT(&vid_conv),))
+			IF_ENABLED(DT_HAS_CHOSEN(zephyr_videotrans), (MP_ELEMENT(&vid_trans),))
+			MP_ELEMENT(&disp_sink), NULL)) {
+		LOG_ERR("Failed to link elements");
+		goto err;
+	}
+	/* clang-format on */
+
+	/* Start playing */
+	if (mp_element_set_state(MP_ELEMENT(&pipe), MP_STATE_PLAYING) != MP_STATE_CHANGE_SUCCESS) {
+		LOG_ERR("Failed to start pipeline");
+		goto err;
+	}
+
+	/* Handle message from the pipeline */
+	struct mp_bus *bus = mp_element_get_bus(MP_ELEMENT(&pipe));
+	/* Wait until an Error or an EOS - blocking */
+	struct mp_message *msg = mp_bus_pop_msg(bus, MP_MESSAGE_ERROR | MP_MESSAGE_EOS);
+
+	if (msg != NULL) {
+		switch (msg->type) {
+		case MP_MESSAGE_ERROR:
+			LOG_INF("ERROR message from element %d", msg->src->id);
+			break;
+		case MP_MESSAGE_EOS:
+			LOG_INF("EOS message from element %d", msg->src->id);
+			break;
+		default:
+			LOG_ERR("Unexpected message from element %d", msg->src->id);
+			break;
+		}
+	}
+	mp_message_destroy(msg);
+
+	/* Stop/Deinit the pipeline */
+	(void)mp_element_set_state(MP_ELEMENT(&pipe), MP_STATE_READY);
+
+	return 0;
+
+err:
+	LOG_ERR("Aborting sample");
+	return 0;
+}
