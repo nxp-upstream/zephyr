@@ -14,8 +14,8 @@
 
 #include <stdint.h>
 
-#include "mp_object.h"
-#include "mp_structure.h"
+struct mp_object;
+struct mp_structure;
 
 /**
  * @defgroup mp_message

@@ -7,9 +7,9 @@
 #ifndef __MP_PARSER_H__
 #define __MP_PARSER_H__
 
-#include "mp_buffer.h"
-#include "mp_element.h"
-#include "mp_pad.h"
+#include <zephyr/mp/core/mp_buffer.h>
+#include <zephyr/mp/core/mp_element.h>
+#include <zephyr/mp/core/mp_pad.h>
 
 #define MP_PARSER(self) ((struct mp_parser *)self)
 

@@ -8,8 +8,8 @@
 
 #include <zephyr/kernel.h>
 
-#include "mp_object.h"
-#include "mp_property.h"
+#include <zephyr/mp/core/mp_object.h>
+#include <zephyr/mp/core/mp_property.h>
 
 int mp_object_set_properties(struct mp_object *obj, ...)
 {

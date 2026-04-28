@@ -1,7 +1,9 @@
 #include <zephyr/logging/log.h>
 
-#include "mp_buffer.h"
-#include "mp_parser.h"
+#include <zephyr/mp/core/mp_buffer.h>
+#include <zephyr/mp/core/mp_event.h>
+#include <zephyr/mp/core/mp_query.h>
+#include <zephyr/mp/core/mp_parser.h>
 
 LOG_MODULE_REGISTER(mp_parser, CONFIG_LIBMP_LOG_LEVEL);
 

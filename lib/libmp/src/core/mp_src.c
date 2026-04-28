@@ -6,10 +6,12 @@
 
 #include <zephyr/logging/log.h>
 
-#include "mp_buffer.h"
-#include "mp_pad.h"
-#include "mp_property.h"
-#include "mp_src.h"
+#include <zephyr/mp/core/mp_buffer.h>
+#include <zephyr/mp/core/mp_event.h>
+#include <zephyr/mp/core/mp_pad.h>
+#include <zephyr/mp/core/mp_property.h>
+#include <zephyr/mp/core/mp_query.h>
+#include <zephyr/mp/core/mp_src.h>
 
 LOG_MODULE_REGISTER(mp_src, CONFIG_LIBMP_LOG_LEVEL);
 

@@ -12,8 +12,8 @@
 #ifndef __MP_TRANSFORM_CLIENT_H__
 #define __MP_TRANSFORM_CLIENT_H__
 
-#include "mp_buffer.h"
-#include "mp_transform.h"
+#include <zephyr/mp/core/mp_buffer.h>
+#include <zephyr/mp/core/mp_transform.h>
 
 #define MP_TRANSFORM_CLIENT(self) ((struct mp_transform_client *)self)
 

@@ -6,7 +6,7 @@
 
 #include <errno.h>
 
-#include "mp_buffer.h"
+#include <zephyr/mp/core/mp_buffer.h>
 
 NET_BUF_POOL_FIXED_DEFINE(mp_buf_pool, CONFIG_MP_NET_BUF_POOL_COUNT, 1,
 			  sizeof(struct mp_buffer_meta), mp_buffer_destroy);

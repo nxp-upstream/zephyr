@@ -8,7 +8,8 @@
 
 #include <zephyr/kernel.h>
 
-#include "mp_messages.h"
+#include <zephyr/mp/core/mp_messages.h>
+#include <zephyr/mp/core/mp_structure.h>
 
 static uint32_t seq_id = 1;
 

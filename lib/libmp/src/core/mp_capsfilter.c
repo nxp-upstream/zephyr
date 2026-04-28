@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "mp_capsfilter.h"
+#include <zephyr/mp/core/mp_capsfilter.h>
 
 int mp_caps_filter_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {

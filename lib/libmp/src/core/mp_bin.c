@@ -9,8 +9,8 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/util.h>
 
-#include "mp_bin.h"
-#include "mp_pad.h"
+#include <zephyr/mp/core/mp_bin.h>
+#include <zephyr/mp/core/mp_pad.h>
 
 LOG_MODULE_REGISTER(mp_bin, CONFIG_LIBMP_LOG_LEVEL);
 

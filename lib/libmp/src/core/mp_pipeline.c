@@ -9,11 +9,11 @@
 
 #include <zephyr/logging/log.h>
 
-#include "mp_bus.h"
-#include "mp_element.h"
-#include "mp_pad.h"
-#include "mp_pipeline.h"
-#include "mp_src.h"
+#include <zephyr/mp/core/mp_bus.h>
+#include <zephyr/mp/core/mp_element.h>
+#include <zephyr/mp/core/mp_pad.h>
+#include <zephyr/mp/core/mp_pipeline.h>
+#include <zephyr/mp/core/mp_src.h>
 
 LOG_MODULE_REGISTER(mp_pipeline, CONFIG_LIBMP_LOG_LEVEL);
 

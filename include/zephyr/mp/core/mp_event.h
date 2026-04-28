@@ -12,9 +12,9 @@
 #ifndef __MP_EVENT_H__
 #define __MP_EVENT_H__
 
-#include "mp_caps.h"
-#include "mp_object.h"
-#include "mp_structure.h"
+#include <zephyr/mp/core/mp_caps.h>
+#include <zephyr/mp/core/mp_object.h>
+#include <zephyr/mp/core/mp_structure.h>
 
 /**
  * @defgroup mp_event

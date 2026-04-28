@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "mp_bus.h"
+#include <zephyr/mp/core/mp_bus.h>
 
 enum mp_bus_sync_reply {
 	MP_BUS_DROP = 0,

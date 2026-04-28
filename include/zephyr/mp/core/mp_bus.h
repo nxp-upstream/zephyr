@@ -16,7 +16,7 @@
 
 #include <zephyr/kernel.h>
 
-#include "mp_messages.h"
+#include <zephyr/mp/core/mp_messages.h>
 
 /**
  * @defgroup mp_bus

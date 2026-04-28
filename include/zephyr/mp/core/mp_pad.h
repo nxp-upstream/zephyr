@@ -17,12 +17,15 @@
 
 #include <zephyr/sys/util.h>
 
-#include "mp_buffer.h"
-#include "mp_caps.h"
-#include "mp_event.h"
-#include "mp_object.h"
-#include "mp_query.h"
-#include "mp_task.h"
+#include <zephyr/kernel.h>
+
+#include <zephyr/mp/core/mp_buffer.h>
+#include <zephyr/mp/core/mp_caps.h>
+#include <zephyr/mp/core/mp_object.h>
+#include <zephyr/mp/core/mp_task.h>
+
+struct mp_event;
+struct mp_query;
 
 /**
  * @{

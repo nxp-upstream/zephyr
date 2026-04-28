@@ -6,7 +6,9 @@
 
 #include <zephyr/logging/log.h>
 
-#include "mp_sink.h"
+#include <zephyr/mp/core/mp_event.h>
+#include <zephyr/mp/core/mp_query.h>
+#include <zephyr/mp/core/mp_sink.h>
 
 LOG_MODULE_REGISTER(mp_sink, CONFIG_LIBMP_LOG_LEVEL);
 
