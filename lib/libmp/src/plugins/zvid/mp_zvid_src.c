@@ -9,9 +9,9 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/util.h>
 
-#include "mp_zvid_buffer_pool.h"
-#include "mp_zvid_property.h"
-#include "mp_zvid_src.h"
+#include <zephyr/mp/zvid/mp_zvid_buffer_pool.h>
+#include <zephyr/mp/zvid/mp_zvid_property.h>
+#include <zephyr/mp/zvid/mp_zvid_src.h>
 
 LOG_MODULE_REGISTER(mp_zvid_src, CONFIG_LIBMP_LOG_LEVEL);
 

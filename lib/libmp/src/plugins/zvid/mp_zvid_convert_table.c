@@ -9,10 +9,10 @@
 #include <zephyr/drivers/video.h>
 #include <zephyr/sys/util.h>
 
-#include <src/core/mp_buffer.h>
+#include <zephyr/mp/core/mp_buffer.h>
 
-#include "mp_zvid_convert.h"
-#include "mp_zvid_convert_table.h"
+#include <zephyr/mp/zvid/mp_zvid_convert.h>
+#include <zephyr/mp/zvid/mp_zvid_convert_table.h>
 
 static int convert_nv12_to_rgb565(struct mp_zvid_convert *conv, const struct net_buf *in,
 				  struct net_buf *out)

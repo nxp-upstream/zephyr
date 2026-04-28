@@ -7,10 +7,13 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/video/video.h>
 
-#include <src/core/mp_caps.h>
+#include <zephyr/mp/core/mp_caps.h>
+#include <zephyr/mp/core/mp_query.h>
+#include <zephyr/mp/core/mp_structure.h>
+#include <zephyr/mp/core/mp_value.h>
 
-#include "mp_zvid_property.h"
-#include "mp_zvid_transform.h"
+#include <zephyr/mp/zvid/mp_zvid_property.h>
+#include <zephyr/mp/zvid/mp_zvid_transform.h>
 
 LOG_MODULE_REGISTER(mp_zvid_transform, CONFIG_LIBMP_LOG_LEVEL);
 

@@ -11,11 +11,14 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/util.h>
 
-#include <src/core/mp_buffer.h>
-#include <src/core/mp_caps.h>
+#include <zephyr/mp/core/mp_buffer.h>
+#include <zephyr/mp/core/mp_caps.h>
+#include <zephyr/mp/core/mp_query.h>
+#include <zephyr/mp/core/mp_structure.h>
+#include <zephyr/mp/core/mp_value.h>
 
-#include "mp_zvid_convert.h"
-#include "mp_zvid_convert_table.h"
+#include <zephyr/mp/zvid/mp_zvid_convert.h>
+#include <zephyr/mp/zvid/mp_zvid_convert_table.h>
 
 LOG_MODULE_REGISTER(mp_zvid_convert, CONFIG_LIBMP_LOG_LEVEL);
 

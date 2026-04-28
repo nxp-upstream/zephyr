@@ -6,70 +6,95 @@
 
 #include <zephyr/drivers/video.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/net_buf.h>
 
-#include "mp_zvid_buffer_pool_client.h"
+#include <zephyr/mp/core/mp_buffer.h>
+#include <zephyr/mp/zvid/mp_zvid_buffer_pool_client.h>
 
 LOG_MODULE_REGISTER(mp_zvid_buffer_pool_client, CONFIG_LIBMP_LOG_LEVEL);
 
-static bool mp_zvid_buffer_pool_client_configure(struct mp_buffer_pool *pool,
-						 struct mp_structure *config)
-{
-	/* Allocate just the pool's buffers structure */
-	pool->buffers = k_calloc(pool->config.min_buffers, sizeof(struct mp_buffer));
-
-	for (uint8_t i = 0; i < pool->config.min_buffers; i++) {
-		pool->buffers[i].pool = pool;
-		pool->buffers[i].object.release = mp_buffer_release;
-	}
-
-	return true;
-}
-
-static bool mp_zvid_buffer_pool_client_start(struct mp_buffer_pool *pool)
+static int mp_zvid_buffer_pool_client_start(struct mp_buffer_pool *pool)
 {
 	struct mp_zvid_buffer_pool_client *zbpc = MP_ZVID_BUFFERPOOL_CLIENT(pool);
 
 	for (uint8_t i = 0; i < pool->config.min_buffers; i++) {
-		struct video_buffer *vbuf = video_buffer_aligned_alloc(
-			pool->config.size, pool->config.align, K_NO_WAIT);
+		struct video_buffer *vbuf = video_buffer_aligned_alloc(pool->config.size,
+						       pool->config.align, K_NO_WAIT);
 
 		if (vbuf == NULL) {
 			LOG_ERR("Unable to alloc video buffer");
-			return false;
+			return -ENOBUFS;
 		}
 
-		pool->buffers[i].index = vbuf->index;
-		pool->buffers[i].data = vbuf->buffer;
+		/*
+		 * Wrap the externally allocated payload (video_buffer->buffer) into a
+		 * net_buf allocated from mp's net_buf pool.
+		 */
+		struct net_buf *nb = net_buf_alloc_with_data(pool->nb_pool, vbuf->buffer, vbuf->size,
+						     K_NO_WAIT);
+		if (nb == NULL) {
+			(void)video_buffer_release(vbuf);
+			return -ENOBUFS;
+		}
 
-		k_fifo_put(&zbpc->fifo, &pool->buffers[i]);
+		struct mp_buffer_meta *m = mp_buffer_get_meta(nb);
+		m->pool = pool;
+		m->priv = vbuf;
+		m->bytes_used = vbuf->bytesused;
+		m->timestamp = vbuf->timestamp;
+		nb->len = m->bytes_used;
+
+		k_fifo_put(&zbpc->fifo, nb);
 	}
 
 	LOG_INF("Started buffer pool");
-
-	return true;
+	return 0;
 }
 
-static bool mp_zvid_buffer_pool_client_stop(struct mp_buffer_pool *pool)
+static int mp_zvid_buffer_pool_client_stop(struct mp_buffer_pool *pool)
 {
-	return true;
+	ARG_UNUSED(pool);
+	return 0;
 }
 
-static bool mp_zvid_buffer_pool_client_acquire_buffer(struct mp_buffer_pool *pool,
-					       struct mp_buffer **buffer)
-{
-	struct mp_zvid_buffer_pool_client *zbpc = MP_ZVID_BUFFERPOOL_CLIENT(pool);
-
-	*buffer = mp_buffer_ref(k_fifo_get(&zbpc->fifo, K_FOREVER));
-
-	return true;
-}
-
-static void mp_zvid_buffer_pool_client_release_buffer(struct mp_buffer_pool *pool,
-					       struct mp_buffer *buffer)
+static int mp_zvid_buffer_pool_client_acquire_buffer(struct mp_buffer_pool *pool, struct net_buf **buf)
 {
 	struct mp_zvid_buffer_pool_client *zbpc = MP_ZVID_BUFFERPOOL_CLIENT(pool);
+	struct net_buf *nb;
 
-	k_fifo_put(&zbpc->fifo, buffer);
+	if (buf == NULL) {
+		return -EINVAL;
+	}
+
+	nb = k_fifo_get(&zbpc->fifo, K_FOREVER);
+	if (nb == NULL) {
+		return -ENOBUFS;
+	}
+
+	*buf = nb;
+	return 0;
+}
+
+static int mp_zvid_buffer_pool_client_release_buffer(struct mp_buffer_pool *pool, struct net_buf *buf)
+{
+	struct mp_zvid_buffer_pool_client *zbpc = MP_ZVID_BUFFERPOOL_CLIENT(pool);
+	struct mp_buffer_meta *m;
+	struct video_buffer *vbuf;
+
+	if (pool == NULL || buf == NULL) {
+		return -EINVAL;
+	}
+
+	m = mp_buffer_get_meta(buf);
+	vbuf = m ? (struct video_buffer *)m->priv : NULL;
+	if (vbuf != NULL) {
+		m->bytes_used = vbuf->bytesused;
+		m->timestamp = vbuf->timestamp;
+		buf->len = m->bytes_used;
+	}
+
+	k_fifo_put(&zbpc->fifo, buf);
+	return 0;
 }
 
 void mp_zvid_buffer_pool_client_init(struct mp_buffer_pool *pool)
@@ -78,7 +103,8 @@ void mp_zvid_buffer_pool_client_init(struct mp_buffer_pool *pool)
 
 	k_fifo_init(&vbpc->fifo);
 
-	pool->configure = mp_zvid_buffer_pool_client_configure;
+	mp_buffer_pool_init(pool);
+
 	pool->start = mp_zvid_buffer_pool_client_start;
 	pool->stop = mp_zvid_buffer_pool_client_stop;
 	pool->acquire_buffer = mp_zvid_buffer_pool_client_acquire_buffer;
