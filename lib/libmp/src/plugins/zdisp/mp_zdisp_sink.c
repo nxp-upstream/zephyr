@@ -8,12 +8,14 @@
 #include <zephyr/drivers/video.h>
 #include <zephyr/logging/log.h>
 
-#include <src/core/mp_buffer.h>
-#include <src/core/mp_caps.h>
-#include <src/core/mp_element.h>
+#include <zephyr/mp/core/mp_buffer.h>
+#include <zephyr/mp/core/mp_caps.h>
+#include <zephyr/mp/core/mp_element.h>
+#include <zephyr/mp/core/mp_structure.h>
+#include <zephyr/mp/core/mp_value.h>
 
-#include "mp_zdisp_property.h"
-#include "mp_zdisp_sink.h"
+#include <zephyr/mp/zdisp/mp_zdisp_property.h>
+#include <zephyr/mp/zdisp/mp_zdisp_sink.h>
 
 LOG_MODULE_REGISTER(mp_zdisp_sink, CONFIG_LIBMP_LOG_LEVEL);
 
