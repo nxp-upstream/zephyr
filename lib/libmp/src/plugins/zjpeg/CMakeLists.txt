@@ -7,5 +7,5 @@
 zephyr_library_sources(
     mp_zjpeg_parser.c
     mp_zjpeg_decoder.c
-    jpeg.c
+    jpeg_dec.c
 )

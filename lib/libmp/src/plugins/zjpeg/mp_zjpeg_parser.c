@@ -12,10 +12,12 @@
 #include <zephyr/net_buf.h>
 #include <zephyr/sys/util.h>
 
-#include <src/core/mp_caps.h>
-#include <src/core/mp_buffer.h>
+#include <zephyr/mp/core/mp_caps.h>
+#include <zephyr/mp/core/mp_buffer.h>
+#include <zephyr/mp/core/mp_query.h>
+#include <zephyr/mp/core/mp_value.h>
 
-#include "mp_zjpeg_parser.h"
+#include <zephyr/mp/zjpeg/mp_zjpeg_parser.h>
 
 LOG_MODULE_REGISTER(mp_zjpeg_parser, CONFIG_LIBMP_LOG_LEVEL);
 
