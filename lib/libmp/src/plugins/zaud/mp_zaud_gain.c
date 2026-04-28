@@ -231,8 +231,8 @@ static bool mp_zaud_gain_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	return true;
 }
 
-static struct mp_caps *mp_zaud_gain_get_caps(struct mp_transform *transform,
-					     enum mp_pad_direction direction)
+static struct mp_caps *mp_zaud_gain_supported_caps(struct mp_transform *transform,
+						   enum mp_pad_direction direction)
 {
 	struct mp_value *supported_bit_width = mp_value_new(MP_TYPE_LIST, NULL);
 
@@ -264,6 +264,16 @@ static bool mp_zaud_gain_set_caps(struct mp_transform *transform, enum mp_pad_di
 	return true;
 }
 
+static void mp_zaud_gain_update_caps(struct mp_transform *transform)
+{
+	struct mp_caps *sink_caps = mp_zaud_gain_supported_caps(transform, MP_PAD_SINK);
+	struct mp_caps *src_caps = mp_zaud_gain_supported_caps(transform, MP_PAD_SRC);
+
+	mp_transform_update_caps(transform, sink_caps, src_caps);
+	mp_caps_unref(sink_caps);
+	mp_caps_unref(src_caps);
+}
+
 void mp_zaud_gain_init(struct mp_element *self)
 {
 	struct mp_transform *transform = MP_TRANSFORM(self);
@@ -283,8 +293,7 @@ void mp_zaud_gain_init(struct mp_element *self)
 
 	transform->mode = MP_MODE_INPLACE;
 	transform->sinkpad.chainfn = mp_zaud_gain_chainfn;
-	transform->sinkpad.caps = mp_zaud_gain_get_caps(transform, MP_PAD_SINK);
-	transform->srcpad.caps = mp_zaud_gain_get_caps(transform, MP_PAD_SRC);
-	transform->get_caps = mp_zaud_gain_get_caps;
 	transform->set_caps = mp_zaud_gain_set_caps;
+
+	mp_zaud_gain_update_caps(transform);
 }
