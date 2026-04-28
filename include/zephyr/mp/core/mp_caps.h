@@ -14,8 +14,11 @@
 
 #include <stddef.h>
 
-#include "mp_object.h"
-#include "mp_structure.h"
+#include <zephyr/sys/slist.h>
+
+#include <zephyr/mp/core/mp_object.h>
+
+struct mp_structure;
 
 /**
  * @defgroup mp_caps

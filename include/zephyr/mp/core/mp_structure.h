@@ -14,7 +14,7 @@
 
 #include <zephyr/sys/slist.h>
 
-#include "mp_value.h"
+#include <zephyr/mp/core/mp_value.h>
 
 /**
  * @defgroup mp_structure

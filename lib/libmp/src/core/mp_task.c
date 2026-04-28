@@ -6,7 +6,7 @@
 
 #include <zephyr/kernel.h>
 
-#include "mp_task.h"
+#include <zephyr/mp/core/mp_task.h>
 
 K_THREAD_STACK_ARRAY_DEFINE(thread_stack, CONFIG_MP_THREADS_NUM, CONFIG_MP_THREAD_STACK_SIZE);
 

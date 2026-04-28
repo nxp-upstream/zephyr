@@ -17,7 +17,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "mp_object.h"
+#include <zephyr/mp/core/mp_object.h>
 
 /**
  * @defgroup mp_value

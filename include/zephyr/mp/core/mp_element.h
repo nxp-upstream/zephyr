@@ -18,10 +18,11 @@
 #include <zephyr/sys/dlist.h>
 #include <zephyr/sys/util.h>
 
-#include "mp_bus.h"
-#include "mp_event.h"
-#include "mp_object.h"
-#include "mp_query.h"
+#include <zephyr/mp/core/mp_object.h>
+
+struct mp_bus;
+struct mp_event;
+struct mp_query;
 
 #define MP_ELEMENT_INIT(elem, initfn, id)                                                          \
 	({                                                                                         \

@@ -12,8 +12,9 @@
 #ifndef __MP_QUERY_H__
 #define __MP_QUERY_H__
 
-#include "mp_buffer.h"
-#include "mp_caps.h"
+#include <zephyr/mp/core/mp_buffer.h>
+#include <zephyr/mp/core/mp_caps.h>
+#include <zephyr/mp/core/mp_structure.h>
 
 /**
  * @defgroup mp_query

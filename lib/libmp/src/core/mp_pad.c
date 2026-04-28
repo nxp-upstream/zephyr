@@ -7,10 +7,12 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
-#include "mp_element.h"
-#include "mp_buffer.h"
-#include "mp_pad.h"
-#include "mp_task.h"
+#include <zephyr/mp/core/mp_element.h>
+#include <zephyr/mp/core/mp_buffer.h>
+#include <zephyr/mp/core/mp_event.h>
+#include <zephyr/mp/core/mp_pad.h>
+#include <zephyr/mp/core/mp_query.h>
+#include <zephyr/mp/core/mp_task.h>
 
 LOG_MODULE_REGISTER(mp_pad, CONFIG_LIBMP_LOG_LEVEL);
 

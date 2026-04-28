@@ -14,10 +14,8 @@
 
 #include <stdint.h>
 
-#include "mp_bin.h"
-#include "mp_bus.h"
-#include "mp_element.h"
-#include "mp_task.h"
+#include <zephyr/mp/core/mp_bin.h>
+#include <zephyr/mp/core/mp_task.h>
 
 /**
  * @{

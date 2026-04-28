@@ -5,7 +5,7 @@
  */
 
 #include <zephyr/kernel.h>
-#include "mp_query.h"
+#include <zephyr/mp/core/mp_query.h>
 
 enum {
 	MP_QUERY_POOL = 0,

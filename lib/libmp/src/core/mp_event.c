@@ -10,7 +10,7 @@
 
 #include <zephyr/kernel.h>
 
-#include "mp_event.h"
+#include <zephyr/mp/core/mp_event.h>
 
 struct mp_event *mp_event_new_custom(enum mp_event_type type, struct mp_structure *structure)
 {

@@ -8,7 +8,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/util.h>
 
-#include "mp_value.h"
+#include <zephyr/mp/core/mp_value.h>
 
 LOG_MODULE_REGISTER(mp_value, CONFIG_LIBMP_LOG_LEVEL);
 

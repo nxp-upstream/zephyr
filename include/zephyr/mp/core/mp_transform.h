@@ -12,8 +12,8 @@
 #ifndef __MP_TRANSFORM_H__
 #define __MP_TRANSFORM_H__
 
-#include "mp_element.h"
-#include "mp_pad.h"
+#include <zephyr/mp/core/mp_element.h>
+#include <zephyr/mp/core/mp_pad.h>
 
 #define MP_TRANSFORM(self) ((struct mp_transform *)self)
 

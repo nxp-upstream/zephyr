@@ -8,9 +8,9 @@
 
 #include <zephyr/kernel.h>
 
-#include "mp_caps.h"
-#include "mp_structure.h"
-#include "mp_value.h"
+#include <zephyr/mp/core/mp_caps.h>
+#include <zephyr/mp/core/mp_structure.h>
+#include <zephyr/mp/core/mp_value.h>
 
 #define MP_STRUCTURE_END UINT8_MAX
 

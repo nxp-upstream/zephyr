@@ -15,9 +15,9 @@
 #ifndef __MP_CAPSFILTER_H__
 #define __MP_CAPSFILTER_H__
 
-#include "mp_element.h"
-#include "mp_property.h"
-#include "mp_transform.h"
+#include <zephyr/mp/core/mp_element.h>
+#include <zephyr/mp/core/mp_property.h>
+#include <zephyr/mp/core/mp_transform.h>
 
 /**
  * @brief Caps filter Property Identifiers

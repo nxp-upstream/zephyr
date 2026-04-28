@@ -16,7 +16,8 @@
 
 #include <zephyr/sys/dlist.h>
 
-#include "mp_element.h"
+#include <zephyr/mp/core/mp_bus.h>
+#include <zephyr/mp/core/mp_element.h>
 
 #define MP_BIN(self) ((struct mp_bin *)self)
 

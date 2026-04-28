@@ -6,7 +6,9 @@
 
 #include <zephyr/logging/log.h>
 
-#include "mp_transform.h"
+#include <zephyr/mp/core/mp_event.h>
+#include <zephyr/mp/core/mp_query.h>
+#include <zephyr/mp/core/mp_transform.h>
 
 LOG_MODULE_REGISTER(mp_transform, CONFIG_LIBMP_LOG_LEVEL);
 

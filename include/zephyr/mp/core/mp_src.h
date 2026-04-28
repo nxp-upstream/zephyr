@@ -12,9 +12,9 @@
 #ifndef __MP_SRC_H__
 #define __MP_SRC_H__
 
-#include "mp_buffer.h"
-#include "mp_element.h"
-#include "mp_pad.h"
+#include <zephyr/mp/core/mp_buffer.h>
+#include <zephyr/mp/core/mp_element.h>
+#include <zephyr/mp/core/mp_pad.h>
 
 #define MP_SRC(self) ((struct mp_src *)self)
 

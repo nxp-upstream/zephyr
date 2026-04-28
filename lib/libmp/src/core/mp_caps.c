@@ -9,9 +9,9 @@
 
 #include <zephyr/kernel.h>
 
-#include "mp_caps.h"
-#include "mp_structure.h"
-#include "mp_object.h"
+#include <zephyr/mp/core/mp_caps.h>
+#include <zephyr/mp/core/mp_structure.h>
+#include <zephyr/mp/core/mp_object.h>
 
 static void mp_caps_destroy(struct mp_object *obj)
 {

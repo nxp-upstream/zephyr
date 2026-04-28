@@ -12,11 +12,12 @@
 #ifndef __MP_SINK_H__
 #define __MP_SINK_H__
 
-#include "mp_buffer.h"
-#include "mp_caps.h"
-#include "mp_element.h"
-#include "mp_pad.h"
-#include "mp_query.h"
+#include <zephyr/mp/core/mp_buffer.h>
+#include <zephyr/mp/core/mp_caps.h>
+#include <zephyr/mp/core/mp_element.h>
+#include <zephyr/mp/core/mp_pad.h>
+
+struct mp_query;
 
 #define MP_SINK(self) ((struct mp_sink *)self)
 
