@@ -6,7 +6,7 @@
 
 #include <zephyr/audio/audio_caps.h>
 
-#include "mp_zaud.h"
+#include <zephyr/mp/zaud/mp_zaud.h>
 
 struct mp_zaud_desc {
 	uint32_t value;

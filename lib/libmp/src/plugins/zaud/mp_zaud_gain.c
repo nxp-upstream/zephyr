@@ -10,9 +10,9 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "mp_zaud.h"
-#include "mp_zaud_gain.h"
-#include "mp_zaud_property.h"
+#include <zephyr/mp/zaud/mp_zaud.h>
+#include <zephyr/mp/zaud/mp_zaud_gain.h>
+#include <zephyr/mp/zaud/mp_zaud_property.h>
 
 LOG_MODULE_REGISTER(mp_zaud_gain, CONFIG_LIBMP_LOG_LEVEL);
 

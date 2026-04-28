@@ -8,10 +8,10 @@
 
 #include <zephyr/logging/log.h>
 
-#include <src/core/mp_caps.h>
+#include <zephyr/mp/core/mp_caps.h>
 
-#include "mp_zaud.h"
-#include "mp_zaud_buffer_pool.h"
+#include <zephyr/mp/zaud/mp_zaud.h>
+#include <zephyr/mp/zaud/mp_zaud_buffer_pool.h>
 
 LOG_MODULE_REGISTER(mp_zaud_buffer_pool, CONFIG_LIBMP_LOG_LEVEL);
 

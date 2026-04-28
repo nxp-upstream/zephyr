@@ -8,8 +8,8 @@
 
 #include <zephyr/logging/log.h>
 
-#include "mp_zaud_property.h"
-#include "mp_zaud_src.h"
+#include <zephyr/mp/zaud/mp_zaud_property.h>
+#include <zephyr/mp/zaud/mp_zaud_src.h>
 
 LOG_MODULE_REGISTER(mp_zaud_src, CONFIG_LIBMP_LOG_LEVEL);
 
