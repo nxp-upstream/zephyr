@@ -172,5 +172,5 @@ void mp_zaud_dmic_src_init(struct mp_element *self)
 	src->pool->acquire_buffer = mp_zaud_dmic_src_acquire_buffer;
 	src->pool->start = mp_zaud_dmic_src_start;
 
-	src->srcpad.caps = src->get_caps(src);
+	mp_zaud_src_update_caps(src);
 }

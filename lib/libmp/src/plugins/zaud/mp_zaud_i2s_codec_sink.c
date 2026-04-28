@@ -19,8 +19,10 @@ LOG_MODULE_REGISTER(mp_zaud_i2s_codec_sink, CONFIG_LIBMP_LOG_LEVEL);
 #define DEFAULT_PROP_I2S_DEVICE   DEVICE_DT_GET(DT_ALIAS(i2s_codec_tx))
 #define DEFAULT_PROP_CODEC_DEVICE DEVICE_DT_GET(DT_NODELABEL(audio_codec));
 
-static int mp_zaud_i2s_codec_sink_set_property(struct mp_object *obj, uint32_t key, const void *val)
+static int mp_zaud_i2s_codec_sink_set_property(struct mp_object *obj, uint32_t key,
+					       const void *val)
 {
+	struct mp_sink *sink = MP_SINK(obj);
 	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = MP_ZAUD_I2S_CODEC_SINK(obj);
 
 	switch (key) {
@@ -40,6 +42,8 @@ static int mp_zaud_i2s_codec_sink_set_property(struct mp_object *obj, uint32_t k
 	default:
 		return mp_sink_set_property(obj, key, val);
 	}
+
+	ARG_UNUSED(sink);
 
 	return 0;
 }
@@ -69,7 +73,7 @@ static int mp_zaud_i2s_codec_sink_get_property(struct mp_object *obj, uint32_t k
 	return 0;
 }
 
-static struct mp_caps *mp_zaud_i2s_codec_sink_get_caps(struct mp_sink *sink)
+static struct mp_caps *mp_zaud_i2s_codec_sink_supported_caps(struct mp_sink *sink)
 {
 	int ret = 0;
 	uint8_t i = 0;
@@ -160,6 +164,14 @@ static struct mp_caps *mp_zaud_i2s_codec_sink_get_caps(struct mp_sink *sink)
 	return caps;
 }
 
+static void mp_zaud_i2s_codec_sink_update_caps(struct mp_sink *sink)
+{
+	struct mp_caps *caps = mp_zaud_i2s_codec_sink_supported_caps(sink);
+
+	mp_sink_update_caps(sink, caps);
+	mp_caps_unref(caps);
+}
+
 static bool mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
 {
 	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = MP_ZAUD_I2S_CODEC_SINK(sink);
@@ -227,8 +239,6 @@ static bool mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps
 		LOG_ERR("Failed to configure I2S stream: %d", ret);
 		return false;
 	}
-
-	mp_caps_replace(&(sink->sinkpad.caps), caps);
 
 	return true;
 }
@@ -306,9 +316,9 @@ void mp_zaud_i2s_codec_sink_init(struct mp_element *self)
 	self->object.set_property = mp_zaud_i2s_codec_sink_set_property;
 
 	sink->sinkpad.chainfn = mp_zaud_i2s_codec_sink_chainfn;
-	sink->sinkpad.caps = mp_zaud_i2s_codec_sink_get_caps(sink);
 	sink->set_caps = mp_zaud_i2s_codec_sink_set_caps;
-	sink->get_caps = mp_zaud_i2s_codec_sink_get_caps;
+
+	mp_zaud_i2s_codec_sink_update_caps(sink);
 
 	zaud_i2s_codec_sink->started = false;
 	zaud_i2s_codec_sink->count = 0;

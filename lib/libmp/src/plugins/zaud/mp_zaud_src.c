@@ -53,7 +53,7 @@ static int mp_zaud_src_get_property(struct mp_object *obj, uint32_t key, void *v
 	return 0;
 }
 
-static struct mp_caps *mp_zaud_src_get_caps(struct mp_src *src)
+struct mp_caps *mp_zaud_src_supported_caps(struct mp_src *src)
 {
 	struct mp_zaud_src *zaud_src = MP_ZAUD_SRC(src);
 	struct mp_zaud_buffer_pool *pool = MP_ZAUD_BUFFER_POOL(src->pool);
@@ -121,9 +121,16 @@ static struct mp_caps *mp_zaud_src_get_caps(struct mp_src *src)
 	return caps;
 }
 
+void mp_zaud_src_update_caps(struct mp_src *src)
+{
+	struct mp_caps *caps = mp_zaud_src_supported_caps(src);
+
+	mp_src_update_caps(src, caps);
+	mp_caps_unref(caps);
+}
+
 void mp_zaud_src_init(struct mp_element *self)
 {
-	struct mp_src *src = MP_SRC(self);
 	struct mp_zaud_src *zaud_src = MP_ZAUD_SRC(self);
 
 	/* Init base class */
@@ -131,8 +138,6 @@ void mp_zaud_src_init(struct mp_element *self)
 
 	self->object.get_property = mp_zaud_src_get_property;
 	self->object.set_property = mp_zaud_src_set_property;
-
-	src->get_caps = mp_zaud_src_get_caps;
 
 	zaud_src->get_audio_caps = NULL;
 }
