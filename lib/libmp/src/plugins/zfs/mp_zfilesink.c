@@ -9,10 +9,10 @@
 #include <zephyr/fs/fs.h>
 #include <zephyr/logging/log.h>
 
-#include <src/core/mp_buffer.h>
-#include <src/core/mp_caps.h>
+#include <zephyr/mp/core/mp_buffer.h>
+#include <zephyr/mp/core/mp_caps.h>
 
-#include "mp_zfilesink.h"
+#include <zephyr/mp/zfs/mp_zfilesink.h>
 
 LOG_MODULE_REGISTER(mp_zfilesink, CONFIG_LIBMP_LOG_LEVEL);
 
