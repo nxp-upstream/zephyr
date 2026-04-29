@@ -9,6 +9,8 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mp/core/mp_buffer.h>
+#include <zephyr/mp/core/mp_structure.h>
+#include <zephyr/mp/core/mp_value.h>
 
 #include <zephyr/mp/zaud/mp_zaud.h>
 #include <zephyr/mp/zaud/mp_zaud_i2s_codec_sink.h>
@@ -78,7 +80,7 @@ static struct mp_caps *mp_zaud_i2s_codec_sink_supported_caps(struct mp_sink *sin
 	uint32_t sr = 0;
 	uint32_t bw = 0;
 
-	ret = i2s_get_caps(MP_ZAUD_I2S_CODEC_SINK(sink)->i2s_dev, &i2s_caps);
+	ret = i2s_get_caps(MP_ZAUD_I2S_CODEC_SINK(sink)->i2s_dev, &i2s_caps, I2S_DIR_TX);
 
 	if (ret != 0) {
 		LOG_ERR("Failed to get I2S capabilities");
