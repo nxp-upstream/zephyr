@@ -8,6 +8,10 @@
 
 #include <zephyr/logging/log.h>
 
+#include <zephyr/mp/core/mp_structure.h>
+#include <zephyr/mp/core/mp_value.h>
+
+#include <zephyr/mp/zaud/mp_zaud_buffer_pool.h>
 #include <zephyr/mp/zaud/mp_zaud_property.h>
 #include <zephyr/mp/zaud/mp_zaud_src.h>
 

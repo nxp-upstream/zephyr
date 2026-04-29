@@ -12,6 +12,8 @@
 #ifndef __MP_ZAUD_DMIC_SRC_H__
 #define __MP_ZAUD_DMIC_SRC_H__
 
+#include <zephyr/device.h>
+
 #include <zephyr/mp/zaud/mp_zaud_buffer_pool.h>
 #include <zephyr/mp/zaud/mp_zaud_src.h>
 

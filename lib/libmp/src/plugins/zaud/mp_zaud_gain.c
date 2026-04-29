@@ -10,6 +10,9 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <zephyr/mp/core/mp_structure.h>
+#include <zephyr/mp/core/mp_value.h>
+
 #include <zephyr/mp/zaud/mp_zaud.h>
 #include <zephyr/mp/zaud/mp_zaud_gain.h>
 #include <zephyr/mp/zaud/mp_zaud_property.h>

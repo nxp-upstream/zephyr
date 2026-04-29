@@ -16,8 +16,6 @@
 
 #include <zephyr/mp/core/mp_src.h>
 
-#include <zephyr/audio/audio_caps.h>
-
 #include <zephyr/mp/zaud/mp_zaud.h>
 
 /** @brief Cast object pointer to mp_zaud_src pointer */
@@ -33,6 +31,9 @@ struct mp_zaud_src {
 	struct mp_src src;
 	int (*get_audio_caps)(const struct device *dev, struct audio_caps *caps);
 };
+
+struct mp_caps *mp_zaud_src_supported_caps(struct mp_src *src);
+void mp_zaud_src_update_caps(struct mp_src *src);
 
 /**
  * @brief Initialize an audio source element
