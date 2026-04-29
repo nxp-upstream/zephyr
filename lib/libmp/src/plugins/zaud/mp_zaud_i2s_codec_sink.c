@@ -19,10 +19,8 @@ LOG_MODULE_REGISTER(mp_zaud_i2s_codec_sink, CONFIG_LIBMP_LOG_LEVEL);
 #define DEFAULT_PROP_I2S_DEVICE   DEVICE_DT_GET(DT_ALIAS(i2s_codec_tx))
 #define DEFAULT_PROP_CODEC_DEVICE DEVICE_DT_GET(DT_NODELABEL(audio_codec));
 
-static int mp_zaud_i2s_codec_sink_set_property(struct mp_object *obj, uint32_t key,
-					       const void *val)
+static int mp_zaud_i2s_codec_sink_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
-	struct mp_sink *sink = MP_SINK(obj);
 	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = MP_ZAUD_I2S_CODEC_SINK(obj);
 
 	switch (key) {
@@ -42,8 +40,6 @@ static int mp_zaud_i2s_codec_sink_set_property(struct mp_object *obj, uint32_t k
 	default:
 		return mp_sink_set_property(obj, key, val);
 	}
-
-	ARG_UNUSED(sink);
 
 	return 0;
 }
