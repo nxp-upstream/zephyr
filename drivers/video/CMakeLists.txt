@@ -6,6 +6,8 @@ zephyr_library_sources(video_common.c)
 zephyr_library_sources(video_ctrls.c)
 zephyr_library_sources(video_device.c)
 
+add_subdirectory_ifdef(CONFIG_VIDEO_IMX_MIPI_CSI nxp_imx_mipi_csi)
+
 # zephyr-keep-sorted-start
 zephyr_library_sources_ifdef(CONFIG_VIDEO_ARDUCAM_MEGA video_arducam_mega.c)
 zephyr_library_sources_ifdef(CONFIG_VIDEO_EMUL_IMAGER video_emul_imager.c)
