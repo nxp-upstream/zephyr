@@ -1,0 +1,232 @@
+/*
+ * Copyright 2025 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/logging/log.h>
+
+#include <zephyr/mp/core/mp_buffer.h>
+#include <zephyr/mp/core/mp_event.h>
+#include <zephyr/mp/core/mp_pad.h>
+#include <zephyr/mp/core/mp_property.h>
+#include <zephyr/mp/core/mp_query.h>
+#include <zephyr/mp/core/mp_src.h>
+
+LOG_MODULE_REGISTER(mp_src, CONFIG_MP_LOG_LEVEL);
+
+#define MP_PAD_SRC_ID 0
+
+int mp_src_set_property(struct mp_object *obj, uint32_t key, const void *val)
+{
+	struct mp_src *src = MP_SRC(obj);
+
+	switch (key) {
+	case PROP_NUM_BUFS:
+		src->num_buffers = (uint32_t)(uintptr_t)val;
+		return 0;
+	default:
+		LOG_ERR("Property %d is unknown", key);
+		return -ENOTSUP;
+	}
+}
+
+int mp_src_get_property(struct mp_object *obj, uint32_t key, void *val)
+{
+	struct mp_src *src = MP_SRC(obj);
+
+	switch (key) {
+	case PROP_NUM_BUFS:
+		*(uint32_t *)val = src->num_buffers;
+		break;
+	default:
+		LOG_ERR("Property %d is unknown", key);
+		return -ENOTSUP;
+	}
+
+	return 0;
+}
+
+void mp_src_update_caps(struct mp_src *src, struct mp_caps *caps)
+{
+	mp_caps_replace(&src->src_caps, caps);
+	mp_caps_replace(&src->srcpad.caps, src->src_caps);
+}
+
+static struct mp_caps *mp_src_get_caps(struct mp_src *src)
+{
+	return src ? mp_caps_ref(src->src_caps) : NULL;
+}
+
+static bool mp_src_set_caps(struct mp_src *src, struct mp_caps *caps)
+{
+	if (src == NULL) {
+		return false;
+	}
+
+	mp_caps_replace(&src->srcpad.caps, caps);
+
+	return true;
+}
+
+static bool mp_src_query(struct mp_pad *pad, struct mp_query *query)
+{
+	bool ret = false;
+	struct mp_src *src = MP_SRC(pad->object.container);
+	struct mp_caps *intersect_caps;
+	struct mp_caps *query_caps;
+
+	switch (query->type) {
+	case MP_QUERY_CAPS:
+		query_caps = mp_query_get_caps(query);
+		if (query_caps != NULL) {
+			intersect_caps = mp_caps_intersect(src->src_caps, query_caps);
+			if (intersect_caps == NULL || mp_caps_is_empty(intersect_caps)) {
+				return false;
+			}
+			ret = mp_query_set_caps(query, intersect_caps);
+			mp_caps_unref(intersect_caps);
+		} else {
+			ret = mp_query_set_caps(query, src->src_caps);
+		}
+		return ret;
+	default:
+		return false;
+	}
+}
+
+static bool mp_src_decide_allocation(struct mp_src *self, struct mp_query *query)
+{
+	return true;
+}
+
+static bool mp_src_negotiate(struct mp_src *src)
+{
+	struct mp_caps *common_caps;
+	struct mp_caps *fixated_caps;
+	struct mp_query *caps_query;
+	struct mp_query *alloc_query;
+	struct mp_event *caps_event;
+	bool ret = false;
+
+	/* Caps negotiation */
+	if (src->src_caps == NULL || mp_caps_is_empty(src->src_caps)) {
+		return false;
+	}
+
+	/* Query the peer's capabilities */
+	caps_query = mp_query_new_caps(src->src_caps);
+	if (!mp_pad_query(src->srcpad.peer, caps_query)) {
+		mp_query_destroy(caps_query);
+		return false;
+	}
+
+	common_caps = mp_caps_ref(mp_query_get_caps(caps_query));
+	mp_query_destroy(caps_query);
+	if (common_caps == NULL) {
+		return false;
+	}
+
+	if (mp_caps_is_empty(common_caps)) {
+		mp_caps_unref(common_caps);
+		return false;
+	}
+
+	/* Store negotiated (possibly unfixed) caps on the src pad */
+	mp_caps_replace(&src->srcpad.caps, common_caps);
+	mp_caps_unref(common_caps);
+
+	fixated_caps = mp_caps_fixate(src->srcpad.caps);
+
+	/* Push a caps event downstream */
+	caps_event = mp_event_new_caps(fixated_caps);
+
+	ret = mp_pad_send_event(src->srcpad.peer, caps_event);
+	mp_event_destroy(caps_event);
+
+	if (!ret) {
+		mp_caps_unref(fixated_caps);
+		return false;
+	}
+
+	if (fixated_caps != NULL) {
+		if (!src->set_caps(src, fixated_caps)) {
+			mp_caps_unref(fixated_caps);
+			return false;
+		}
+		mp_caps_unref(fixated_caps);
+	}
+
+	/* Query the peer's allocation proposal */
+	alloc_query = mp_query_new_allocation(src->srcpad.caps);
+	if (!mp_pad_query(src->srcpad.peer, alloc_query)) {
+		mp_query_destroy(alloc_query);
+		return false;
+	}
+
+	/* Decide the allocation */
+	ret = src->decide_allocation(src, alloc_query);
+	mp_query_destroy(alloc_query);
+
+	return ret;
+}
+
+enum mp_state_change_return mp_src_change_state(struct mp_element *self,
+						enum mp_state_change transition)
+{
+	struct mp_src *src = MP_SRC(self);
+	enum mp_state_change_return ret = MP_STATE_CHANGE_SUCCESS;
+	int pool_ret;
+
+	switch (transition) {
+	case MP_STATE_CHANGE_READY_TO_PAUSED:
+		/* Perform negotiation */
+		if (!mp_src_negotiate(src)) {
+			LOG_ERR("Negotiation failed");
+			return MP_STATE_CHANGE_FAILURE;
+		}
+
+		/* Config buffer pool */
+		pool_ret = mp_buffer_pool_configure(
+			src->pool, mp_caps_get_structure(src->srcpad.caps, 0));
+		if (pool_ret != 0 && pool_ret != -ENOSYS) {
+			LOG_ERR("Failed to configure source buffer pool");
+			return MP_STATE_CHANGE_FAILURE;
+		}
+
+		/* Start buffer pool */
+		pool_ret = mp_buffer_pool_start(src->pool);
+		if (pool_ret != 0 && pool_ret != -ENOSYS) {
+			LOG_ERR("Failed to start source buffer pool");
+			return MP_STATE_CHANGE_FAILURE;
+		}
+
+		break;
+	case MP_STATE_CHANGE_PAUSED_TO_PLAYING:
+		break;
+	default:
+		break;
+	}
+
+	return ret;
+}
+
+void mp_src_init(struct mp_element *self)
+{
+	struct mp_src *src = MP_SRC(self);
+
+	/* Default supported caps */
+	src->src_caps = mp_caps_new_any();
+
+	mp_pad_init(&src->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS, mp_src_get_caps(src));
+	mp_element_add_pad(self, &src->srcpad);
+
+	self->object.set_property = mp_src_set_property;
+	self->object.get_property = mp_src_get_property;
+	self->change_state = mp_src_change_state;
+
+	src->get_caps = mp_src_get_caps;
+	src->set_caps = mp_src_set_caps;
+	src->srcpad.queryfn = mp_src_query;
+	src->decide_allocation = mp_src_decide_allocation;
+}
