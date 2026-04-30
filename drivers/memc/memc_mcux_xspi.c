@@ -10,6 +10,7 @@
 #include <zephyr/sys/util.h>
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/drivers/clock_control.h>
+#include <zephyr/pm/device_runtime.h>
 #include <soc.h>
 #include "memc_mcux_xspi.h"
 
@@ -25,6 +26,8 @@ struct memc_mcux_xspi_config {
 	bool mdad_valid;
 	xspi_sfp_frad_config_t frad_configs;
 	bool frad_valid;
+	const struct device * const *power_domains;
+	uint8_t power_domain_count;
 };
 
 struct memc_mcux_xspi_data {
@@ -104,6 +107,15 @@ static int memc_mcux_xspi_init(const struct device *dev)
 	xspi_config_t config = memc_xspi_config->xspi_config;
 	XSPI_Type *base = ((struct memc_mcux_xspi_data *)dev->data)->base;
 	int ret;
+
+	/* Power up any rails that gate the XSPI IP block. */
+	for (uint8_t i = 0; i < memc_xspi_config->power_domain_count; i++) {
+		ret = pm_device_runtime_get(memc_xspi_config->power_domains[i]);
+		if (ret < 0) {
+			LOG_ERR("power-domain %u get failed: %d", i, ret);
+			return ret;
+		}
+	}
 
 	if ((memc_xspi_is_running_xip(dev)) && (!IS_ENABLED(CONFIG_MEMC_MCUX_XSPI_INIT_XIP))) {
 		LOG_DBG("XIP active on %s, skipping init\n", dev->name);
@@ -198,8 +210,14 @@ static int memc_mcux_xspi_init(const struct device *dev)
 			0	\
 		}))
 
+#define MCUX_XSPI_PD_GET(node_id, prop, idx) \
+	DEVICE_DT_GET(DT_PHANDLE_BY_IDX(node_id, prop, idx)),
+
 #define MCUX_XSPI_INIT(n)	\
 	PINCTRL_DT_INST_DEFINE(n);	\
+	static const struct device * const memc_mcux_xspi_pds_##n[] = {	\
+		DT_INST_FOREACH_PROP_ELEM(n, power_domains, MCUX_XSPI_PD_GET)	\
+	};	\
 	static const struct memc_mcux_xspi_config memc_mcux_xspi_config_##n = {	\
 		.pincfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),	\
 		.xspi_config = {	\
@@ -242,6 +260,8 @@ static int memc_mcux_xspi_init(const struct device *dev)
 			},	\
 		},	\
 		.frad_valid = DT_NODE_EXISTS(DT_CHILD(DT_DRV_INST(n), frad_region0)),	\
+		.power_domains = memc_mcux_xspi_pds_##n,	\
+		.power_domain_count = ARRAY_SIZE(memc_mcux_xspi_pds_##n),	\
 	};	\
 	static struct memc_mcux_xspi_data memc_mcux_xspi_data_##n = {	\
 		.base = (XSPI_Type *)DT_INST_REG_ADDR(n),	\

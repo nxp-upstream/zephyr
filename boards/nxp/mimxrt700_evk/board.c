@@ -423,14 +423,13 @@ void board_early_init_hook(void)
 #endif
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(usb0)) && CONFIG_UDC_NXP_EHCI
-	/* Power on COM VDDN domain for USB */
+	/* Power on COM VDDN domain for USB (board-level; not USB-specific). */
 	POWER_DisablePD(kPDRUNCFG_DSR_VDDN_COM);
-
-	/* Power on usb ram array as need, powered USB0RAM array*/
-	POWER_DisablePD(kPDRUNCFG_APD_USB0_SRAM);
-	POWER_DisablePD(kPDRUNCFG_PPD_USB0_SRAM);
-	/* Apply the config */
 	POWER_ApplyPD();
+
+	/* USB SRAM rails are managed by the PMC power-domain framework
+	 * via the usb0 node's `power-domains` property.
+	 */
 	/* disable the read and write gate */
 	SYSCON4->USB0_MEM_CTRL |= (SYSCON4_USB0_MEM_CTRL_MEM_WIG_MASK |
 				   SYSCON4_USB0_MEM_CTRL_MEM_RIG_MASK |
@@ -450,9 +449,9 @@ void board_early_init_hook(void)
 #endif
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(usdhc0)) && CONFIG_IMX_USDHC
-	/*Make sure USDHC ram buffer has power up*/
-	POWER_DisablePD(kPDRUNCFG_APD_SDHC0_SRAM);
-	POWER_DisablePD(kPDRUNCFG_PPD_SDHC0_SRAM);
+	/* USDHC SRAM rails managed via DT power-domains.
+	 * LPOSC is a board-level dependency (32K wake clock).
+	 */
 	POWER_DisablePD(kPDRUNCFG_PD_LPOSC);
 	POWER_ApplyPD();
 
@@ -511,10 +510,8 @@ void board_early_init_hook(void)
 	/* Assert LCDIF reset. */
 	RESET_SetPeripheralReset(kLCDIF_RST_SHIFT_RSTn);
 
-	/* Disable media main and LCDIF power down. */
+	/* Disable media main power down. LCDIF rails via DT power-domains. */
 	POWER_DisablePD(kPDRUNCFG_SHUT_MEDIA_MAINCLK);
-	POWER_DisablePD(kPDRUNCFG_APD_LCDIF);
-	POWER_DisablePD(kPDRUNCFG_PPD_LCDIF);
 
 	/* Apply power down configuration. */
 	POWER_ApplyPD();
@@ -542,10 +539,8 @@ void board_early_init_hook(void)
 	/* Assert LCDIF reset. */
 	RESET_SetPeripheralReset(kLCDIF_RST_SHIFT_RSTn);
 
-	/* Disable media main and LCDIF power down. */
+	/* Disable media main power down. LCDIF rails via DT power-domains. */
 	POWER_DisablePD(kPDRUNCFG_SHUT_MEDIA_MAINCLK);
-	POWER_DisablePD(kPDRUNCFG_APD_LCDIF);
-	POWER_DisablePD(kPDRUNCFG_PPD_LCDIF);
 
 	/* Apply power down configuration. */
 	POWER_ApplyPD();
@@ -574,15 +569,12 @@ void board_early_init_hook(void)
 #endif
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(pmc_tmpsns))
-	POWER_DisablePD(kPDRUNCFG_PD_PMC_TEMPSNS);
-	POWER_ApplyPD();
+	/* PD_PMC_TEMPSNS rail is owned by the pmc_tmpsns node via power-domains. */
 	otp_init(SystemCoreClock);
 #endif
 
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(co5300_zc143ac72mipi), okay)
 	POWER_DisablePD(kPDRUNCFG_SHUT_MEDIA_MAINCLK);
-	POWER_DisablePD(kPDRUNCFG_APD_LCDIF);
-	POWER_DisablePD(kPDRUNCFG_PPD_LCDIF);
 	POWER_ApplyPD();
 
 	CLOCK_EnableClock(kCLOCK_Lcdif);
@@ -595,17 +587,12 @@ void board_early_init_hook(void)
 #endif
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(xspi0))
-	POWER_DisablePD(kPDRUNCFG_APD_XSPI0);
-	POWER_DisablePD(kPDRUNCFG_PPD_XSPI0);
-	POWER_ApplyPD();
+	/* APD/PPD_XSPI0 rails owned by xspi0 node via power-domains. */
 #endif
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(xspi1))
 	xspi_setup_clock(XSPI1, 1U, 1U); /* Audio PLL PDF1 DIV1. */
-
-	POWER_DisablePD(kPDRUNCFG_APD_XSPI1);
-	POWER_DisablePD(kPDRUNCFG_PPD_XSPI1);
-	POWER_ApplyPD();
+	/* APD/PPD_XSPI1 rails owned by xspi1 node via power-domains. */
 #endif
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(xspi2))
@@ -616,10 +603,7 @@ void board_early_init_hook(void)
 	CLOCK_AttachClk(kCOMMON_BASE_to_XSPI2);
 #endif
 	CLOCK_SetClkDiv(kCLOCK_DivXspi2Clk, 1U);
-
-	POWER_DisablePD(kPDRUNCFG_APD_XSPI2);
-	POWER_DisablePD(kPDRUNCFG_PPD_XSPI2);
-	POWER_ApplyPD();
+	/* APD/PPD_XSPI2 rails owned by xspi2 node via power-domains. */
 #endif
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(sema420))

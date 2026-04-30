@@ -919,6 +919,7 @@
 		interrupt-names = "usb_otg";
 		clocks = <&usbclk>;
 		num-bidir-endpoints = <8>;
+		power-domains = <&pmc_apd_usb0_sram>, <&pmc_ppd_usb0_sram>;
 		status = "disabled";
 	};
 
@@ -948,6 +949,7 @@
 		max-current-180 = <1020>;
 		max-bus-freq = <DT_FREQ_M(208)>;
 		min-bus-freq = <DT_FREQ_K(400)>;
+		power-domains = <&pmc_apd_sdhc0_sram>, <&pmc_ppd_sdhc0_sram>;
 	};
 
 	usdhc1: memory-controller@413000 {
@@ -1099,6 +1101,7 @@
 		status = "disabled";
 		#address-cells = <1>;
 		#size-cells = <0>;
+		power-domains = <&pmc_apd_lcdif>, <&pmc_ppd_lcdif>;
 	};
 
 	mipi_dsi: dsi@417000 {
@@ -1124,7 +1127,69 @@
 
 	pmc_tmpsns: pmc-tmpsns {
 		compatible = "nxp,pmc-tmpsns";
+		power-domains = <&pmc_pd_pmc_tempsns>;
 		status = "disabled";
+	};
+
+	pmc0: pmc@20f000 {
+		compatible = "nxp,pmc-power-rail-controller";
+		reg = <0x20f000 0x1000>;
+
+		/* PDRUNCFG4 / PDRUNCFG5: peripheral active / periphery domains. */
+		pmc_apd_sdhc0_sram: apd-sdhc0-sram {
+			#power-domain-cells = <0>;
+			nxp,pdruncfg-bit = <4 0>;
+		};
+		pmc_ppd_sdhc0_sram: ppd-sdhc0-sram {
+			#power-domain-cells = <0>;
+			nxp,pdruncfg-bit = <5 0>;
+		};
+		pmc_apd_usb0_sram: apd-usb0-sram {
+			#power-domain-cells = <0>;
+			nxp,pdruncfg-bit = <4 2>;
+		};
+		pmc_ppd_usb0_sram: ppd-usb0-sram {
+			#power-domain-cells = <0>;
+			nxp,pdruncfg-bit = <5 2>;
+		};
+		pmc_apd_xspi0: apd-xspi0 {
+			#power-domain-cells = <0>;
+			nxp,pdruncfg-bit = <4 18>;
+		};
+		pmc_ppd_xspi0: ppd-xspi0 {
+			#power-domain-cells = <0>;
+			nxp,pdruncfg-bit = <5 18>;
+		};
+		pmc_apd_xspi1: apd-xspi1 {
+			#power-domain-cells = <0>;
+			nxp,pdruncfg-bit = <4 19>;
+		};
+		pmc_ppd_xspi1: ppd-xspi1 {
+			#power-domain-cells = <0>;
+			nxp,pdruncfg-bit = <5 19>;
+		};
+		pmc_apd_xspi2: apd-xspi2 {
+			#power-domain-cells = <0>;
+			nxp,pdruncfg-bit = <4 20>;
+		};
+		pmc_ppd_xspi2: ppd-xspi2 {
+			#power-domain-cells = <0>;
+			nxp,pdruncfg-bit = <5 20>;
+		};
+		pmc_apd_lcdif: apd-lcdif {
+			#power-domain-cells = <0>;
+			nxp,pdruncfg-bit = <4 21>;
+		};
+		pmc_ppd_lcdif: ppd-lcdif {
+			#power-domain-cells = <0>;
+			nxp,pdruncfg-bit = <5 21>;
+		};
+
+		/* PDRUNCFG1: misc analog/IP power. */
+		pmc_pd_pmc_tempsns: pd-pmc-tempsns {
+			#power-domain-cells = <0>;
+			nxp,pdruncfg-bit = <1 0>;
+		};
 	};
 
 	uuid: uuid@2bc0 {
@@ -1149,6 +1214,7 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	clocks = <&clkctl0 MCUX_XSPI0_CLK>;
+	power-domains = <&pmc_apd_xspi0>, <&pmc_ppd_xspi0>;
 };
 
 &xspi1 {
@@ -1158,6 +1224,7 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	clocks = <&clkctl0 MCUX_XSPI1_CLK>;
+	power-domains = <&pmc_apd_xspi1>, <&pmc_ppd_xspi1>;
 };
 
 &xspi2 {
@@ -1167,4 +1234,5 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	clocks = <&clkctl4 MCUX_XSPI2_CLK>;
+	power-domains = <&pmc_apd_xspi2>, <&pmc_ppd_xspi2>;
 };
