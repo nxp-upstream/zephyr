@@ -73,6 +73,28 @@ config POWER_DOMAIN_GPIO_MONITOR_INIT_PRIORITY
 
 endif #POWER_DOMAIN_GPIO_MONITOR
 
+config POWER_DOMAIN_NXP_PMC
+	bool "NXP PMC power-rail controller"
+	default y
+	depends on DT_HAS_NXP_PMC_POWER_RAIL_CONTROLLER_ENABLED
+	depends on PM_DEVICE
+	help
+	  Enable the NXP PMC power-rail controller driver. Each child node
+	  of the controller is exposed as a Zephyr power-domain that
+	  peripherals consume via the standard "power-domains" property.
+
+if POWER_DOMAIN_NXP_PMC
+
+config POWER_DOMAIN_NXP_PMC_INIT_PRIORITY
+	int "NXP PMC power-rail driver init priority"
+	default 10
+	help
+	  NXP PMC power-rail driver initialization priority. Must be
+	  earlier than any peripheral that references a PMC rail in its
+	  "power-domains" property.
+
+endif # POWER_DOMAIN_NXP_PMC
+
 config POWER_DOMAIN_NXP_SCU
 	bool "NXP SCU-managed PD driver"
 	default y

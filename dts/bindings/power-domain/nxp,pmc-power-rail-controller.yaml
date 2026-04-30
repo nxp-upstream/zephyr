@@ -1,0 +1,55 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  NXP PMC (Power Management Controller) power-rail controller.
+
+  The controller owns an array of PDRUNCFG registers that gate
+  individual peripheral / SRAM power rails. Each child node represents
+  one rail and is exposed as an upstream "power-domain"; consumer
+  peripherals reference rails via the standard "power-domains" property.
+
+compatible: "nxp,pmc-power-rail-controller"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
+
+child-binding:
+  description: |
+    A single PMC-controlled power rail (one bit in PDRUNCFG[idx]).
+
+  properties:
+    "#power-domain-cells":
+      type: int
+      const: 0
+
+    nxp,pdruncfg-bit:
+      type: array
+      required: true
+      description: |
+        Two-cell descriptor of the PDRUNCFG bit owned by this rail:
+        <pdruncfg-register-index bit-position>.
+
+examples:
+  - |
+    pmc0: pmc@20f000 {
+      compatible = "nxp,pmc-power-rail-controller";
+      reg = <0x20f000 0x1000>;
+
+      pmc_apd_xspi0: apd-xspi0 {
+        #power-domain-cells = <0>;
+        nxp,pdruncfg-bit = <4 18>;
+      };
+      pmc_ppd_xspi0: ppd-xspi0 {
+        #power-domain-cells = <0>;
+        nxp,pdruncfg-bit = <5 18>;
+      };
+    };
+
+    &xspi0 {
+      power-domains = <&pmc_apd_xspi0>, <&pmc_ppd_xspi0>;
+      zephyr,pm-device-runtime-auto;
+    };
