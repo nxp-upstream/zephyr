@@ -6,6 +6,8 @@
 
 #include <zephyr/logging/log.h>
 
+#include <zephyr/mp/core/mp_structure.h>
+#include <zephyr/mp/core/mp_value.h>
 #include <zephyr/mp/zvid/mp_zvid_buffer_pool_client.h>
 #include <zephyr/mp/zvid/mp_zvid_object.h>
 #include <zephyr/mp/zvid/mp_zvid_transform_client.h>
