@@ -63,6 +63,7 @@ int main(void)
 		}
 
 		ssize_t wr = fs_write(&fh, data, sizeof(data) - 1);
+
 		if (wr <= 0) {
 			LOG_ERR("fs_write returned %u", wr);
 			(void)fs_close(&fh);

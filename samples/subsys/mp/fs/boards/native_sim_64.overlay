@@ -10,7 +10,7 @@
 
 &flash0 {
 	/* Overwrite the base flash size to 8 MB */
-    reg = < 0x0 DT_SIZE_M(8) >;
+	reg = < 0x0 DT_SIZE_M(8) >;
 
 	partitions {
 		compatible = "fixed-partitions";
