@@ -93,7 +93,7 @@ ZFS_PATHS=(
 # Commit messages (following Zephyr convention: area: Short description)
 # ===========================================================================
 
-CORE_COMMIT_MSG="subsys: mp: Introduce Media Pipe (MP) subsystem
+CORE_COMMIT_MSG="mp: Introduce Media Pipe (MP) subsystem
 
 MP (Media Pipe) is a lightweight GStreamer-like multimedia framework
 for Zephyr. MP reuses many concepts from GStreamer, such as elements,
@@ -119,7 +119,7 @@ allowing seamless extension without altering the core framework.
 
 ${SOB}"
 
-ZVID_COMMIT_MSG="subsys: mp: Add zvid video plugin
+ZVID_COMMIT_MSG="mp: Add zvid video plugin
 
 Add the zvid (Zephyr Video) plugin for the MP subsystem. This plugin
 provides video-specific elements that interface with Zephyr's video
@@ -136,7 +136,7 @@ sources).
 
 ${SOB}"
 
-ZAUD_COMMIT_MSG="subsys: mp: Add zaud audio plugin
+ZAUD_COMMIT_MSG="mp: Add zaud audio plugin
 
 Add the zaud (Zephyr Audio) plugin for the MP subsystem. This plugin
 provides audio-specific elements that interface with Zephyr's audio
@@ -149,7 +149,7 @@ per-sample amplitude scaling, and audio buffer pool management.
 
 ${SOB}"
 
-ZDISP_COMMIT_MSG="subsys: mp: Add zdisp display plugin
+ZDISP_COMMIT_MSG="mp: Add zdisp display plugin
 
 Add the zdisp (Zephyr Display) plugin for the MP subsystem. This
 plugin provides display output elements that interface with Zephyr's
@@ -162,7 +162,7 @@ configurable display regions.
 
 ${SOB}"
 
-ZFS_COMMIT_MSG="subsys: mp: Add zfs filesystem plugin
+ZFS_COMMIT_MSG="mp: Add zfs filesystem plugin
 
 Add the zfs (Zephyr Filesystem) plugin for the MP subsystem. This
 plugin provides filesystem I/O elements that interface with Zephyr's
