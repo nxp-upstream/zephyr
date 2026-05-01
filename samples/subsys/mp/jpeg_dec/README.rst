@@ -5,7 +5,7 @@ Description
 ***********
 
 This sample demonstrates decoding Motion-JPEG (MJPEG) from a file and displaying the decoded frames
-using libMP.
+using the MP subsystem.
 
 Pipeline topology
 =================
@@ -16,18 +16,21 @@ hardware JPEG decoder is available (``zephyr,jpegdec`` chosen node).
 Common front-end
 ----------------
 
-::
+.. graphviz::
 
-    +----------+   +-------------+
-    | filesrc  |-->| jpeg_parser |
-    | (zfs)    |   | (zjpeg)     |
-    +----------+   +-------------+
+   digraph frontend {
+     rankdir=LR;
+     node [shape=box, style=filled, fillcolor="#e8e8e8"];
+     filesrc      [label="filesrc\n(zfs)"];
+     jpeg_parser  [label="jpeg_parser\n(zjpeg)"];
+     filesrc -> jpeg_parser;
+   }
 
 - ``mp_zfilesrc`` reads chunks from the file specified by :kconfig:option:`CONFIG_FILE_INPUT_PATH`.
 - ``mp_zjpeg_parser`` splits MJPEG into individual JPEG frames.
 
 Pipeline A: HW JPEG decode (typical NV12 output)
------------------------------------------------
+-------------------------------------------------
 
 When ``zephyr,jpegdec`` is present, decoding is performed by a hardware-backed
 ``mp_zvid_transform``. On many SoCs, the decoded output is typically NV12 (or
@@ -37,12 +40,20 @@ Therefore the pipeline usually includes both a capsfilter (to force a fixed
 decoded format) and a software ``videoconvert`` stage to convert NV12 to RGB565
 for the display.
 
-::
+.. graphviz::
 
-    +----------+   +-------------+   +----------------------------+   +------------+   +--------------+   +--------------------+   +-----------+
-    | filesrc  |-->| jpeg_parser |-->| HW jpegdec (zvid_transform)|-->| capsfilter |-->| videoconvert |-->| optional transform |-->| display   |
-    | (zfs)    |   | (zjpeg)     |   |  (zephyr,jpegdec)          |   | (libmp)    |   | (zvid)       |   | (zvid_transform)   |   | (zdisp)   |
-    +----------+   +-------------+   +----------------------------+   +------------+   +--------------+   +--------------------+   +-----------+
+   digraph pipeline_a {
+     rankdir=LR;
+     node [shape=box, style=filled, fillcolor="#e8e8e8"];
+     filesrc      [label="filesrc\n(zfs)"];
+     jpeg_parser  [label="jpeg_parser\n(zjpeg)"];
+     hw_jpegdec   [label="HW jpegdec\n(zvid_transform)"];
+     capsfilter   [label="capsfilter\n(core)"];
+     videoconvert [label="videoconvert\n(zvid)"];
+     opt_transform [label="optional\ntransform"];
+     display      [label="display\n(zdisp)"];
+     filesrc -> jpeg_parser -> hw_jpegdec -> capsfilter -> videoconvert -> opt_transform -> display;
+   }
 
 - ``mp_caps_filter`` forces decoded caps (width/height/pixel format) from Kconfig:
   :kconfig:option:`CONFIG_JPEG_IMAGE_WIDTH`, :kconfig:option:`CONFIG_JPEG_IMAGE_HEIGHT`,
@@ -50,22 +61,29 @@ for the display.
 - ``mp_zvid_convert`` performs software pixel-format conversion.
   Currently supported conversions include:
 
-  - NV12 -> RGB565
-  - XRGB32 <-> ARGB32 (alpha/padding handled explicitly)
+  - NV12 → RGB565
+  - XRGB32 ↔ ARGB32 (alpha/padding handled explicitly)
 
 Pipeline B: SW JPEG decode (RGB565 output)
------------------------------------------
+------------------------------------------
 
 When no ``zephyr,jpegdec`` is present, decoding falls back to the software
 ``mp_zjpeg_decoder``. The SW decoder currently outputs RGB565, so no
 ``mp_zvid_convert`` stage is needed.
 
-::
+.. graphviz::
 
-    +----------+   +-------------+   +------------------------+   +------------+   +--------------------+   +-----------+
-    | filesrc  |-->| jpeg_parser |-->| SW jpegdec (zjpeg_dec) |-->| capsfilter |-->| optional transform |-->| display   |
-    | (zfs)    |   | (zjpeg)     |   | (RGB565)               |   | (libmp)    |   | (zvid_transform)   |   | (zdisp)   |
-    +----------+   +-------------+   +------------------------+   +------------+   +--------------------+   +-----------+
+   digraph pipeline_b {
+     rankdir=LR;
+     node [shape=box, style=filled, fillcolor="#e8e8e8"];
+     filesrc      [label="filesrc\n(zfs)"];
+     jpeg_parser  [label="jpeg_parser\n(zjpeg)"];
+     sw_jpegdec   [label="SW jpegdec\n(zjpeg, RGB565)"];
+     capsfilter   [label="capsfilter\n(core)"];
+     opt_transform [label="optional\ntransform"];
+     display      [label="display\n(zdisp)"];
+     filesrc -> jpeg_parser -> sw_jpegdec -> capsfilter -> opt_transform -> display;
+   }
 
 Notes
 -----
@@ -78,12 +96,18 @@ Notes
 Input
 *****
 
-The sample expects an MJPEG file at::
+The sample expects an MJPEG file at the path specified by
+:kconfig:option:`CONFIG_FILE_INPUT_PATH` (default ``/SD:/test.mjpeg``).
 
-  /SD:/test.mjpeg
+A small test file is **embedded into the binary** at build time (via ``mjpeg.inc``).
+On first boot the sample checks whether the file already exists on the filesystem;
+if not, it writes the embedded data automatically.  No manual file preparation is
+required.
 
-On ``native_sim/native/64``, the sample uses a flash-backed FAT volume stored in ``flash.bin`` file
-as a emulated SDCard and embed an MJPEG test file into it.
+On ``native_sim/native/64``, the SD card is emulated by a flash-backed FAT volume
+stored in the ``flash.bin`` file.  The embedded test file is written into this
+volume on startup, so the user does not need to populate or erase ``flash.bin``
+manually.
 
 Building and Running
 ********************
@@ -91,21 +115,27 @@ Building and Running
 Native simulator
 ================
 
-Build::
-
-  west build -b native_sim/native/64 samples/subsys/mp/jpeg_dec
+.. zephyr-app-commands::
+   :zephyr-app: samples/subsys/mp/jpeg_dec
+   :board: native_sim/native/64
+   :goals: build
+   :compact:
 
 Run::
 
-  ./build/zephyr/zephyr.exe --flash=flash.bin --flash_erase
+  ./build/zephyr/zephyr.exe --flash=flash.bin
 
-Then populate ``flash.bin`` with ``/SD:/test.mjpeg``.
+The embedded ``test.mjpeg`` is written to the simulated SD card on first run.
+Subsequent runs reuse the same ``flash.bin`` without any extra steps.
 
 NXP RT EVK platforms
 ====================
 
-Build example (RT700 CPU0)::
+.. zephyr-app-commands::
+   :zephyr-app: samples/subsys/mp/jpeg_dec
+   :board: mimxrt700_evk/mimxrt798s/cm33/cpu0
+   :goals: build
+   :compact:
 
-  west build -b mimxrt700_evk/mimxrt798s/cm33/cpu0 samples/subsys/mp/jpeg_dec
-
-Make sure the SD card is FAT formatted, writable, and contains ``test.mjpeg`` at the root.
+The embedded ``test.mjpeg`` is written to the SD card on first boot.
+Make sure the SD card is FAT formatted and writable.
