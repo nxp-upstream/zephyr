@@ -127,6 +127,7 @@ struct mp_caps *mp_zvid_object_get_caps(struct mp_zvid_object *zvid_obj)
 	uint32_t comp_min_h = UINT32_MAX;
 	uint32_t comp_max_w = 0;
 	uint32_t comp_max_h = 0;
+
 	struct video_selection sel = {
 		.type = zvid_obj->type,
 		.target = VIDEO_SEL_TGT_CROP,

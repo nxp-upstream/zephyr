@@ -18,8 +18,8 @@ static int mp_zvid_buffer_pool_client_start(struct mp_buffer_pool *pool)
 	struct mp_zvid_buffer_pool_client *zbpc = MP_ZVID_BUFFERPOOL_CLIENT(pool);
 
 	for (uint8_t i = 0; i < pool->config.min_buffers; i++) {
-		struct video_buffer *vbuf = video_buffer_aligned_alloc(pool->config.size,
-						       pool->config.align, K_NO_WAIT);
+		struct video_buffer *vbuf = video_buffer_aligned_alloc(
+			pool->config.size, pool->config.align, K_NO_WAIT);
 
 		if (vbuf == NULL) {
 			LOG_ERR("Unable to alloc video buffer");
@@ -30,14 +30,15 @@ static int mp_zvid_buffer_pool_client_start(struct mp_buffer_pool *pool)
 		 * Wrap the externally allocated payload (video_buffer->buffer) into a
 		 * net_buf allocated from mp's net_buf pool.
 		 */
-		struct net_buf *nb = net_buf_alloc_with_data(pool->nb_pool, vbuf->buffer, vbuf->size,
-						     K_NO_WAIT);
+		struct net_buf *nb =
+			net_buf_alloc_with_data(pool->nb_pool, vbuf->buffer, vbuf->size, K_NO_WAIT);
 		if (nb == NULL) {
 			(void)video_buffer_release(vbuf);
 			return -ENOBUFS;
 		}
 
 		struct mp_buffer_meta *m = mp_buffer_get_meta(nb);
+
 		m->pool = pool;
 		m->priv = vbuf;
 		m->bytes_used = vbuf->bytesused;
@@ -57,7 +58,8 @@ static int mp_zvid_buffer_pool_client_stop(struct mp_buffer_pool *pool)
 	return 0;
 }
 
-static int mp_zvid_buffer_pool_client_acquire_buffer(struct mp_buffer_pool *pool, struct net_buf **buf)
+static int mp_zvid_buffer_pool_client_acquire_buffer(struct mp_buffer_pool *pool,
+						     struct net_buf **buf)
 {
 	struct mp_zvid_buffer_pool_client *zbpc = MP_ZVID_BUFFERPOOL_CLIENT(pool);
 	struct net_buf *nb;
@@ -75,7 +77,8 @@ static int mp_zvid_buffer_pool_client_acquire_buffer(struct mp_buffer_pool *pool
 	return 0;
 }
 
-static int mp_zvid_buffer_pool_client_release_buffer(struct mp_buffer_pool *pool, struct net_buf *buf)
+static int mp_zvid_buffer_pool_client_release_buffer(struct mp_buffer_pool *pool,
+						     struct net_buf *buf)
 {
 	struct mp_zvid_buffer_pool_client *zbpc = MP_ZVID_BUFFERPOOL_CLIENT(pool);
 	struct mp_buffer_meta *m;

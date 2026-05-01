@@ -33,29 +33,29 @@ extern "C" {
 /** @name Internal sizing constants
  * @{
  */
-#define FILE_HIGHWATER 1536
-#define JPEG_FILE_BUF_SIZE 2048
-#define HUFF_TABLEN  273
-#define HUFF11SIZE (1 << 11)
-#define DC_TABLE_SIZE 1024
-#define DCTSIZE 64
-#define MAX_MCU_COUNT 6
-#define MAX_COMPS_IN_SCAN 4
+#define FILE_HIGHWATER      1536
+#define JPEG_FILE_BUF_SIZE  2048
+#define HUFF_TABLEN         273
+#define HUFF11SIZE          (1 << 11)
+#define DC_TABLE_SIZE       1024
+#define DCTSIZE             64
+#define MAX_MCU_COUNT       6
+#define MAX_COMPS_IN_SCAN   4
 #define MAX_BUFFERED_PIXELS 2048
-#define MCU_SKIP (-8)
+#define MCU_SKIP            (-8)
 /** @} */
 
 /** @name Decoder options bitmask for JPEG_decode() iOptions parameter
  * @{
  */
-#define JPEG_AUTO_ROTATE     1
-#define JPEG_SCALE_HALF      2
-#define JPEG_SCALE_QUARTER   4
-#define JPEG_SCALE_EIGHTH    8
-#define JPEG_LE_PIXELS       16
-#define JPEG_EXIF_THUMBNAIL  32
-#define JPEG_LUMA_ONLY       64
-#define JPEG_USES_DMA        128
+#define JPEG_AUTO_ROTATE    1
+#define JPEG_SCALE_HALF     2
+#define JPEG_SCALE_QUARTER  4
+#define JPEG_SCALE_EIGHTH   8
+#define JPEG_LE_PIXELS      16
+#define JPEG_EXIF_THUMBNAIL 32
+#define JPEG_LUMA_ONLY      64
+#define JPEG_USES_DMA       128
 /** @} */
 
 #define MCU0 (DCTSIZE * 0)
@@ -158,15 +158,15 @@ typedef struct jpeg_draw_tag {
 } JPEGDRAW;
 
 /** Read callback prototype. */
-typedef int32_t (JPEG_READ_CALLBACK)(JPEGFILE *pFile, uint8_t *pBuf, int32_t iLen);
+typedef int32_t JPEG_READ_CALLBACK(JPEGFILE *pFile, uint8_t *pBuf, int32_t iLen);
 /** Seek callback prototype. */
-typedef int32_t (JPEG_SEEK_CALLBACK)(JPEGFILE *pFile, int32_t iPosition);
+typedef int32_t JPEG_SEEK_CALLBACK(JPEGFILE *pFile, int32_t iPosition);
 /** Draw callback prototype. */
-typedef int (JPEG_DRAW_CALLBACK)(JPEGDRAW *pDraw);
+typedef int JPEG_DRAW_CALLBACK(JPEGDRAW *pDraw);
 /** Open callback prototype. */
-typedef void * (JPEG_OPEN_CALLBACK)(const char *szFilename, int32_t *pFileSize);
+typedef void *JPEG_OPEN_CALLBACK(const char *szFilename, int32_t *pFileSize);
 /** Close callback prototype. */
-typedef void (JPEG_CLOSE_CALLBACK)(void *pHandle);
+typedef void JPEG_CLOSE_CALLBACK(void *pHandle);
 
 /**
  * @brief JPEG color component metadata.
@@ -296,9 +296,9 @@ typedef struct jpeg_image_tag {
 #define INTELLONG(p)  sys_get_le32((const uint8_t *)(p))
 #define MOTOSHORT(p)  sys_get_be16((const uint8_t *)(p))
 #if REGISTER_WIDTH == 64
-#define MOTOLONG(p)   sys_get_be64((const uint8_t *)(p))
+#define MOTOLONG(p) sys_get_be64((const uint8_t *)(p))
 #else
-#define MOTOLONG(p)   sys_get_be32((const uint8_t *)(p))
+#define MOTOLONG(p) sys_get_be32((const uint8_t *)(p))
 #endif
 /** @} */
 
