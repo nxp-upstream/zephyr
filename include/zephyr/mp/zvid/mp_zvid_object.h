@@ -1,16 +1,20 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
- * @brief Main header for zvid object.
+ * @ingroup mp
+ * @brief Video object shared by zvid source and transform elements.
+ *
+ * Provides common video device interaction (capabilities, format negotiation,
+ * buffer pool management) used by @ref mp_zvid_src and @ref mp_zvid_transform.
  */
 
-#ifndef __MP_ZVID_OBJECT_H__
-#define __MP_ZVID_OBJECT_H__
+#ifndef ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_OBJECT_H_
+#define ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_OBJECT_H_
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -25,15 +29,15 @@ struct mp_query;
 #define MP_ZVID_OBJECT(self) ((struct mp_zvid_object *)self)
 
 /**
- * @brief Video Object structure
+ * @brief Video object structure.
  *
- * This structure represents a video object that provides common video
- * functionalities for the video source and transform elements.
+ * Wraps a Zephyr video device with its associated buffer pool and
+ * crop region, providing helpers for capability and format negotiation.
  */
 struct mp_zvid_object {
 	/** Pointer to the video device */
 	const struct device *vdev;
-	/** Video buffer type */
+	/** Video buffer type (input or output) */
 	enum video_buf_type type;
 	/** Associated buffer pool */
 	struct mp_zvid_buffer_pool pool;
@@ -42,77 +46,76 @@ struct mp_zvid_object {
 };
 
 /**
- * @brief Convert a @ref mp_structure to a @ref video_format_cap
+ * @brief Convert an @ref mp_structure to a @ref video_format_cap.
  *
- * Populates a @ref video_format_cap with information from a @ref mp_structure.
+ * @param structure Pointer to the @ref mp_structure containing video format information.
+ * @param vfc       Pointer to @ref video_format_cap to populate.
  *
- * @param structure Pointer to @ref mp_structure containing video format information
- * @param vfc Pointer to video_format_cap structure to be populated
- *
- * @return 0 on success or a negative errno code on failure
+ * @return 0 on success or a negative errno code on failure.
  */
 int mp_structure_to_vfc(struct mp_structure *structure, struct video_format_cap *vfc);
 
 /**
- * @brief Set a property on the video object
+ * @brief Set a property on the video object.
  *
- * @param zvid_obj Pointer to the @ref struct mp_zvid_object
- * @param key Property key/control ID
- * @param val Property value to set
- * @param pad_caps set
+ * @param zvid_obj Pointer to the @ref mp_zvid_object.
+ * @param key      Property key / control ID.
+ * @param val      Property value to set.
  *
- * @return 0 on success or a negative errno code on failure
+ * @return 0 on success or a negative errno code on failure.
  */
 int mp_zvid_object_set_property(struct mp_zvid_object *zvid_obj, uint32_t key, const void *val);
 
 /**
- * @brief Get a property from the video object
+ * @brief Get a property from the video object.
  *
- * @param zvid_obj Pointer to the @ref struct mp_zvid_object
- * @param key Property key/control ID to retrieve
- * @param val Pointer to store the retrieved property value
+ * @param zvid_obj Pointer to the @ref mp_zvid_object.
+ * @param key      Property key / control ID to retrieve.
+ * @param val      Pointer to store the retrieved property value.
  *
- * @return 0 on success or a negative errno code on failure
+ * @return 0 on success or a negative errno code on failure.
  */
 int mp_zvid_object_get_property(struct mp_zvid_object *zvid_obj, uint32_t key, void *val);
 
 /**
- * @brief Get capabilities of the video object
+ * @brief Get capabilities of the video object.
  *
- * Queries the underlying video device for its capabilities including pixel formats,
+ * Queries the underlying video device for its supported pixel formats,
  * resolutions, and frame rates.
  *
- * @param zvid_obj Pointer to the @ref struct mp_zvid_object
+ * @param zvid_obj Pointer to the @ref mp_zvid_object.
  *
- * @return Pointer to @ref struct mp_caps containing device capabilities, or NULL on error
+ * @return Pointer to an @ref mp_caps on success, or NULL on error.
  */
 struct mp_caps *mp_zvid_object_get_caps(struct mp_zvid_object *zvid_obj);
 
 /**
- * @brief Set capabilities on the video object
+ * @brief Set capabilities on the video object.
  *
- * Configures the video device with the specified capabilities (video format
- * and frame rate). The capabilities must be fixed (not ranges).
+ * Configures the video device with the specified fixed capabilities
+ * (video format and frame rate).
  *
- * @param zvid_obj Pointer to the @ref struct mp_zvid_object
- * @param caps Pointer to @ref struct mp_caps with fixed capabilities to set
+ * @param zvid_obj Pointer to the @ref mp_zvid_object.
+ * @param caps     Pointer to @ref mp_caps with fixed capabilities to set.
  *
- * @return true on success and false on failure
+ * @retval true  on success.
+ * @retval false on failure.
  */
 bool mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *caps);
 
 /**
- * @brief Decide buffer allocation parameters
+ * @brief Decide buffer allocation parameters.
  *
- * Decide buffer allocation parameters between the video object's buffer pool
- * and the query requirements. The video object always uses its own buffer
- * pool and just negotiates the configuration parameters.
+ * Negotiates buffer allocation between the video object's own pool and
+ * the requirements carried by @p query. The video object always uses
+ * its own pool and only negotiates configuration parameters.
  *
- * @param zvid_obj Pointer to the @ref struct mp_zvid_object
- * @param query Pointer to @ref struct mp_query containing allocation requirements
+ * @param zvid_obj Pointer to the @ref mp_zvid_object.
+ * @param query    Pointer to @ref mp_query containing allocation requirements.
  *
- * @return true on success and false on failure
+ * @retval true  on success.
+ * @retval false on failure.
  */
 bool mp_zvid_object_decide_allocation(struct mp_zvid_object *zvid_obj, struct mp_query *query);
 
-#endif /* __MP_ZVID_OBJECT_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_OBJECT_H_ */
