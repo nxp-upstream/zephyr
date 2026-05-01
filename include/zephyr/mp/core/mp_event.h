@@ -1,16 +1,17 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
+ * @ingroup mp
  * @brief Event header file.
  */
 
-#ifndef __MP_EVENT_H__
-#define __MP_EVENT_H__
+#ifndef ZEPHYR_INCLUDE_MP_CORE_MP_EVENT_H_
+#define ZEPHYR_INCLUDE_MP_CORE_MP_EVENT_H_
 
 #include <zephyr/mp/core/mp_caps.h>
 #include <zephyr/mp/core/mp_object.h>
@@ -122,4 +123,4 @@ void mp_event_destroy(struct mp_event *event);
 
 /** @} */
 
-#endif /* __MP_EVENT_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_CORE_MP_EVENT_H_ */

@@ -1,16 +1,17 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
+ * @ingroup mp
  * @brief Structure header file.
  */
 
-#ifndef __MP_STRUCTURE_H__
-#define __MP_STRUCTURE_H__
+#ifndef ZEPHYR_INCLUDE_MP_CORE_MP_STRUCTURE_H_
+#define ZEPHYR_INCLUDE_MP_CORE_MP_STRUCTURE_H_
 
 #include <zephyr/sys/slist.h>
 
@@ -223,4 +224,4 @@ void mp_structure_print(struct mp_structure *structure);
 
 /** @} */
 
-#endif /*__MP_STRUCTURE_H__*/
+#endif /*ZEPHYR_INCLUDE_MP_CORE_MP_STRUCTURE_H_*/

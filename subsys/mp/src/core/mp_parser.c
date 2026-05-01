@@ -1,3 +1,9 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mp/core/mp_buffer.h>

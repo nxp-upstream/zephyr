@@ -1,16 +1,17 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
+ * @ingroup mp
  * @brief Buffer and buffer pool APIs.
  */
 
-#ifndef __MP_BUFFER_H__
-#define __MP_BUFFER_H__
+#ifndef ZEPHYR_INCLUDE_MP_CORE_MP_BUFFER_H_
+#define ZEPHYR_INCLUDE_MP_CORE_MP_BUFFER_H_
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -79,7 +80,13 @@ static inline struct mp_buffer_meta *mp_buffer_get_meta(struct net_buf *buf)
 	return (struct mp_buffer_meta *)net_buf_user_data(buf);
 }
 
-/** net_buf destroy callback, automatically called when buffer refcount reaches 0 */
+/**
+ * @brief Destroy callback for net_buf.
+ *
+ * Automatically called when buffer reference count reaches zero.
+ *
+ * @param buf Pointer to the net_buf to destroy.
+ */
 void mp_buffer_destroy(struct net_buf *buf);
 
 /**
@@ -117,4 +124,4 @@ int mp_buffer_pool_stop(struct mp_buffer_pool *pool);
  */
 void mp_buffer_pool_init(struct mp_buffer_pool *pool);
 
-#endif /* __MP_BUFFER_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_CORE_MP_BUFFER_H_ */

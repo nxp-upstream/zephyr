@@ -1,19 +1,20 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
+ * @ingroup mp
  * @brief Capsfilter element.
  *
  * This element does not modify data, but used to enforce limitations on the data format.
  *
  */
 
-#ifndef __MP_CAPSFILTER_H__
-#define __MP_CAPSFILTER_H__
+#ifndef ZEPHYR_INCLUDE_MP_CORE_MP_CAPSFILTER_H_
+#define ZEPHYR_INCLUDE_MP_CORE_MP_CAPSFILTER_H_
 
 #include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_property.h>
@@ -49,4 +50,4 @@ struct mp_caps_filter {
  */
 void mp_caps_filter_init(struct mp_element *self);
 
-#endif /* __MP_CAPSFILTER_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_CORE_MP_CAPSFILTER_H_ */

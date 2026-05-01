@@ -6,11 +6,12 @@
 
 /**
  * @file
+ * @ingroup mp
  * @brief Main header for mp_transform_client.
  */
 
-#ifndef __MP_TRANSFORM_CLIENT_H__
-#define __MP_TRANSFORM_CLIENT_H__
+#ifndef ZEPHYR_INCLUDE_MP_CORE_MP_TRANSFORM_CLIENT_H_
+#define ZEPHYR_INCLUDE_MP_CORE_MP_TRANSFORM_CLIENT_H_
 
 #include <zephyr/mp/core/mp_buffer.h>
 #include <zephyr/mp/core/mp_transform.h>
@@ -53,4 +54,4 @@ struct mp_transform_client {
  */
 void mp_transform_client_init(struct mp_element *self);
 
-#endif /* __MP_TRANSFORM_CLIENT_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_CORE_MP_TRANSFORM_CLIENT_H_ */

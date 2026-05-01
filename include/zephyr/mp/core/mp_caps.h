@@ -1,16 +1,17 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
+ * @ingroup mp
  * @brief Capabilities header file.
  */
 
-#ifndef __MP_CAPS_H__
-#define __MP_CAPS_H__
+#ifndef ZEPHYR_INCLUDE_MP_CORE_MP_CAPS_H_
+#define ZEPHYR_INCLUDE_MP_CORE_MP_CAPS_H_
 
 #include <stddef.h>
 
@@ -275,4 +276,4 @@ void mp_caps_replace(struct mp_caps **target_caps, struct mp_caps *new_caps);
 
 /** @} */
 
-#endif /* __MP_CAPS_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_CORE_MP_CAPS_H_ */

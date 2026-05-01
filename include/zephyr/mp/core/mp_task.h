@@ -1,16 +1,17 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
+ * @ingroup mp
  * @brief Task Management header file.
  */
 
-#ifndef __MP_TASK_H__
-#define __MP_TASK_H__
+#ifndef ZEPHYR_INCLUDE_MP_CORE_MP_TASK_H_
+#define ZEPHYR_INCLUDE_MP_CORE_MP_TASK_H_
 
 #include <stdbool.h>
 
@@ -57,4 +58,4 @@ void mp_task_destroy(struct mp_task *task);
 
 /** @} */
 
-#endif /* __MP_TASK_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_CORE_MP_TASK_H_ */
