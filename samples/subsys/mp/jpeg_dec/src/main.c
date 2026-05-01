@@ -53,7 +53,7 @@ static struct fs_mount_t mp = {
 };
 
 static const uint8_t mjpeg[] = {
-	#include "mjpeg.inc"
+#include "mjpeg.inc"
 };
 static const size_t mjpeg_sz = sizeof(mjpeg);
 
@@ -77,6 +77,7 @@ static int embed_test_file(void)
 	}
 
 	struct fs_file_t f;
+
 	fs_file_t_init(&f);
 
 	ret = fs_open(&f, CONFIG_FILE_INPUT_PATH, FS_O_CREATE | FS_O_WRITE);
@@ -86,6 +87,7 @@ static int embed_test_file(void)
 	}
 
 	ssize_t w = fs_write(&f, mjpeg, mjpeg_sz);
+
 	if (w < 0 || (size_t)w != mjpeg_sz) {
 		LOG_ERR("fs_write failed (%d)", (int)w);
 		(void)fs_close(&f);
@@ -181,11 +183,10 @@ int main(void)
 	}
 
 	{
-		struct mp_caps *caps =
-			mp_caps_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
-				    VIDEO_PIX_FMT_JPEG, MP_CAPS_IMAGE_WIDTH,
-				    MP_TYPE_UINT, CONFIG_JPEG_IMAGE_WIDTH, MP_CAPS_IMAGE_HEIGHT,
-				    MP_TYPE_UINT, CONFIG_JPEG_IMAGE_HEIGHT, MP_CAPS_END);
+		struct mp_caps *caps = mp_caps_new(
+			MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT, VIDEO_PIX_FMT_JPEG,
+			MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT, CONFIG_JPEG_IMAGE_WIDTH,
+			MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT, CONFIG_JPEG_IMAGE_HEIGHT, MP_CAPS_END);
 
 		if (caps == NULL) {
 			goto err;
