@@ -43,7 +43,7 @@ SOB_NAME="$(git config user.name)"
 SOB_EMAIL="$(git config user.email)"
 SOB="Signed-off-by: ${SOB_NAME} <${SOB_EMAIL}>"
 
-# Date for tagging
+# Date for display
 TODAY="$(date +%Y-%m-%d)"
 
 # ===========================================================================
@@ -318,10 +318,10 @@ check_compliance() {
         return 0
     fi
 
+    # With pipefail set, $? captures the first failing command's exit code
     local result=0
-    python3 "${compliance_script}" -c "${base_branch}..HEAD" 2>&1 | while IFS= read -r line; do
-        echo "  ${line}"
-    done || result=$?
+    python3 "${compliance_script}" -c "${base_branch}..HEAD" 2>&1 | \
+        sed 's/^/  /' || result=$?
 
     git checkout "${current_branch}" --quiet
 
@@ -333,35 +333,6 @@ check_compliance() {
 
     log_ok "  Compliance check passed for '${branch}'"
     return 0
-}
-
-# Tag the source branch
-tag_export() {
-    local tag_name="upstream-export/${TODAY}"
-
-    if git rev-parse --verify "refs/tags/${tag_name}" >/dev/null 2>&1; then
-        # Tag already exists for today, add a sequence number
-        local seq=1
-        while git rev-parse --verify "refs/tags/${tag_name}-${seq}" >/dev/null 2>&1; do
-            seq=$((seq + 1))
-        done
-        tag_name="${tag_name}-${seq}"
-    fi
-
-    if ${DRY_RUN}; then
-        log_info "[DRY RUN] Would create tag '${tag_name}' on '${SOURCE_BRANCH}'"
-        return 0
-    fi
-
-    git tag -a "${tag_name}" "${SOURCE_BRANCH}" -m "Upstream export on ${TODAY}
-
-Exported the following upstream PR branches:
-$(for t in "${TARGETS[@]}"; do echo "  - ${UPSTREAM_PREFIX}-${t}"; done)
-
-Source: ${SOURCE_BRANCH} ($(git rev-parse --short "${SOURCE_BRANCH}"))
-Base: ${BASE_REF} ($(git rev-parse --short "${BASE_REF}"))"
-
-    log_ok "Created tag '${tag_name}' on '${SOURCE_BRANCH}'"
 }
 
 # ===========================================================================
@@ -433,7 +404,6 @@ export_all() {
     echo ""
     if [ ${#failed_targets[@]} -eq 0 ]; then
         log_info "=== All compliance checks passed ==="
-        tag_export
     else
         log_warn "=== Compliance check summary ==="
         log_warn "FAILED targets: ${failed_targets[*]}"
@@ -442,9 +412,6 @@ export_all() {
         log_warn "  1. Fix compliance issues in '${SOURCE_BRANCH}' and commit"
         log_warn "  2. Push '${SOURCE_BRANCH}' to mmiot: git push mmiot ${SOURCE_BRANCH}"
         log_warn "  3. Re-run: ./scripts/export_mp_upstream.sh"
-        echo ""
-        log_info "Tagging anyway so you can track this export attempt..."
-        tag_export
     fi
 
     echo ""
@@ -620,9 +587,6 @@ main() {
             log_warn "  3. Re-run: ./scripts/export_mp_upstream.sh"
         fi
     fi
-
-    # Tag always
-    tag_export
 
     echo ""
     log_info "=== Export complete ==="
