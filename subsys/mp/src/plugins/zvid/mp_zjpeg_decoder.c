@@ -55,6 +55,7 @@ static int mp_zjpeg_decoder_outpool_release(struct mp_buffer_pool *pool, struct 
 
 	if (buf != NULL) {
 		struct mp_buffer_meta *m = mp_buffer_get_meta(buf);
+
 		if (m != NULL) {
 			m->bytes_used = 0;
 			m->timestamp = 0;
@@ -80,7 +81,7 @@ static void mp_zjpeg_decoder_outpool_init(struct mp_zjpeg_decoder *dec)
 }
 
 static bool mp_zjpeg_decoder_decode_one(struct mp_zjpeg_decoder *dec, struct net_buf *in_buf,
-				       struct net_buf *out_buf)
+					struct net_buf *out_buf)
 {
 	JPEGIMAGE *jpg = &dec->jpg;
 	uint32_t in_sz = mp_buffer_get_meta(in_buf)->bytes_used;
@@ -178,10 +179,12 @@ static bool mp_zjpeg_decoder_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 				net_buf_unref(*out_buf);
 				*out_buf = NULL;
 			}
-			/* remaining input chain (next) will be freed by net_buf_unref(cur) only if we didn't detach;
-			 * we detached, so free it explicitly. */
+			/* remaining input chain (next) will be freed by net_buf_unref(cur) only if
+			 * we didn't detach; we detached, so free it explicitly.
+			 */
 			while (next != NULL) {
 				struct net_buf *tmp = next->frags;
+
 				next->frags = NULL;
 				net_buf_unref(next);
 				next = tmp;
@@ -229,8 +232,8 @@ static struct mp_caps *mp_zjpeg_decoder_supported_caps(struct mp_transform *tran
 }
 
 static struct mp_caps *mp_zjpeg_decoder_transform_caps(struct mp_transform *transform,
-					      enum mp_pad_direction direction,
-					      struct mp_caps *incaps)
+						       enum mp_pad_direction direction,
+						       struct mp_caps *incaps)
 {
 	ARG_UNUSED(transform);
 
@@ -254,20 +257,24 @@ static struct mp_caps *mp_zjpeg_decoder_transform_caps(struct mp_transform *tran
 		if (direction == MP_PAD_SRC) {
 			/* JPEG -> RGB565{,X} */
 			struct mp_value *fmts = mp_value_new(MP_TYPE_LIST, NULL);
+
 			if (fmts == NULL) {
 				continue;
 			}
-			mp_value_list_append(fmts, mp_value_new(MP_TYPE_UINT, VIDEO_PIX_FMT_RGB565));
-			mp_value_list_append(fmts, mp_value_new(MP_TYPE_UINT, VIDEO_PIX_FMT_RGB565X));
+			mp_value_list_append(fmts,
+					     mp_value_new(MP_TYPE_UINT, VIDEO_PIX_FMT_RGB565));
+			mp_value_list_append(fmts,
+					     mp_value_new(MP_TYPE_UINT, VIDEO_PIX_FMT_RGB565X));
 
-			struct mp_structure *ns = mp_structure_new(MP_MEDIA_VIDEO,
-							  MP_CAPS_PIXEL_FORMAT, MP_TYPE_LIST, fmts,
-							  MP_CAPS_END);
+			struct mp_structure *ns =
+				mp_structure_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_LIST,
+						 fmts, MP_CAPS_END);
 			if (w != NULL) {
 				mp_structure_append(ns, MP_CAPS_IMAGE_WIDTH, mp_value_duplicate(w));
 			}
 			if (h != NULL) {
-				mp_structure_append(ns, MP_CAPS_IMAGE_HEIGHT, mp_value_duplicate(h));
+				mp_structure_append(ns, MP_CAPS_IMAGE_HEIGHT,
+						    mp_value_duplicate(h));
 			}
 			if (fr != NULL) {
 				mp_structure_append(ns, MP_CAPS_FRAME_RATE, mp_value_duplicate(fr));
@@ -275,14 +282,15 @@ static struct mp_caps *mp_zjpeg_decoder_transform_caps(struct mp_transform *tran
 			mp_caps_append(out, ns);
 		} else if (direction == MP_PAD_SINK) {
 			/* RGB565{,X} -> JPEG */
-			struct mp_structure *ns = mp_structure_new(MP_MEDIA_VIDEO,
-							  MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT, VIDEO_PIX_FMT_JPEG,
-							  MP_CAPS_END);
+			struct mp_structure *ns =
+				mp_structure_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
+						 VIDEO_PIX_FMT_JPEG, MP_CAPS_END);
 			if (w != NULL) {
 				mp_structure_append(ns, MP_CAPS_IMAGE_WIDTH, mp_value_duplicate(w));
 			}
 			if (h != NULL) {
-				mp_structure_append(ns, MP_CAPS_IMAGE_HEIGHT, mp_value_duplicate(h));
+				mp_structure_append(ns, MP_CAPS_IMAGE_HEIGHT,
+						    mp_value_duplicate(h));
 			}
 			if (fr != NULL) {
 				mp_structure_append(ns, MP_CAPS_FRAME_RATE, mp_value_duplicate(fr));
@@ -295,8 +303,7 @@ static struct mp_caps *mp_zjpeg_decoder_transform_caps(struct mp_transform *tran
 }
 
 static bool mp_zjpeg_decoder_set_caps(struct mp_transform *transform,
-				     enum mp_pad_direction direction,
-				     struct mp_caps *caps)
+				      enum mp_pad_direction direction, struct mp_caps *caps)
 {
 	struct mp_zjpeg_decoder *dec = MP_ZJPEG_DECODER(transform);
 	struct mp_structure *s;

@@ -53,7 +53,7 @@ static struct mp_caps *mp_zvid_transform_client_get_caps(struct mp_transform *tr
 }
 
 static bool mp_zvid_transform_client_set_caps(struct mp_transform *transform,
-					    enum mp_pad_direction direction, struct mp_caps *caps)
+					      enum mp_pad_direction direction, struct mp_caps *caps)
 {
 	struct mp_zvid_transform_client *vtc = MP_ZVID_TRANSFORM_CLIENT(transform);
 	struct mp_buffer_pool *pool = NULL;
@@ -103,8 +103,8 @@ static bool mp_zvid_transform_client_set_caps(struct mp_transform *transform,
 }
 
 static struct mp_caps *mp_zvid_transform_client_transform_caps(struct mp_transform *self,
-							     enum mp_pad_direction direction,
-							     struct mp_caps *caps)
+							       enum mp_pad_direction direction,
+							       struct mp_caps *caps)
 {
 	struct mp_zvid_transform_client *vtc = MP_ZVID_TRANSFORM_CLIENT(self);
 	struct mp_caps *other_caps = mp_caps_new(MP_MEDIA_END);

@@ -20,7 +20,7 @@ LOG_MODULE_REGISTER(mp_zvid_transform, CONFIG_MP_LOG_LEVEL);
 #define DEFAULT_PROP_DEVICE DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_videotrans))
 
 static bool mp_zvid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
-			      struct net_buf **out_buf)
+				      struct net_buf **out_buf)
 {
 	int ret;
 	struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
@@ -68,6 +68,7 @@ static struct mp_caps *mp_zvid_transform_supported_caps(struct mp_transform *tra
 							enum mp_pad_direction direction)
 {
 	struct mp_zvid_transform *zvid_transform = MP_ZVID_TRANSFORM(transform);
+
 	if (direction == MP_PAD_SINK) {
 		return mp_zvid_object_get_caps(&zvid_transform->zvid_obj_in);
 	}
@@ -90,7 +91,7 @@ static void mp_zvid_transform_update_caps(struct mp_transform *transform)
 }
 
 static bool mp_zvid_transform_set_caps(struct mp_transform *transform,
-			       enum mp_pad_direction direction, struct mp_caps *caps)
+				       enum mp_pad_direction direction, struct mp_caps *caps)
 {
 	struct mp_zvid_transform *zvid_transform = MP_ZVID_TRANSFORM(transform);
 	struct mp_zvid_object *zvid_obj = NULL;
@@ -115,8 +116,8 @@ static bool mp_zvid_transform_set_caps(struct mp_transform *transform,
 }
 
 static struct mp_caps *mp_zvid_transform_transform_caps(struct mp_transform *self,
-					      enum mp_pad_direction direction,
-					      struct mp_caps *caps)
+							enum mp_pad_direction direction,
+							struct mp_caps *caps)
 {
 	struct mp_zvid_transform *zvid_transform = MP_ZVID_TRANSFORM(self);
 	const struct device *dev = zvid_transform->zvid_obj_in.vdev;

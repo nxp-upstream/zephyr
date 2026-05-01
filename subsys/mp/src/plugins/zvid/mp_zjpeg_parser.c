@@ -32,7 +32,6 @@ NET_BUF_POOL_FIXED_DEFINE(mp_zjpeg_parser_pool, CONFIG_MP_ZJPEG_PARSER_POOL_NUM,
 #define JPEG_EOI_BYTE0 0xFFU
 #define JPEG_EOI_BYTE1 0xD9U
 
-
 static bool mp_zjpeg_parser_decide_allocation(struct mp_parser *parser, struct mp_query *query)
 {
 	struct mp_zjpeg_parser *jpeg_parser = MP_ZJPEG_PARSER(parser);
@@ -202,14 +201,20 @@ static bool mp_zjpeg_parser_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 		/* First, look for EOI within partial itself */
 		partial_eoi = find_jpeg_eoi(partial->data, partial_used);
 		if (partial_eoi == NULL) {
-			/* Look for EOI in in_buf, but account for possible 0xFF at end of partial */
-			bool boundary_ff =
-				(partial_used > 0 && partial->data[partial_used - 1] == JPEG_EOI_BYTE0);
+			/*
+			 * Look for EOI in the in_buf, but account for possible 0xFF at the end
+			 * of partial
+			 */
+			bool boundary_ff = (partial_used > 0 &&
+					    partial->data[partial_used - 1] == JPEG_EOI_BYTE0);
 			boundary_eoi = (boundary_ff && in_used > 0 && data[0] == JPEG_EOI_BYTE1);
 
 			eoi_ptr = find_jpeg_eoi(data, in_used);
 			if (boundary_eoi) {
-				/* EOI spans boundary: partial ends with 0xFF, in_buf starts with 0xD9 */
+				/*
+				 * EOI spans boundary: partial ends with 0xFF, in_buf starts with
+				 * 0xD9
+				 */
 				eoi_ptr = data;
 			}
 		} else {
@@ -229,6 +234,7 @@ static bool mp_zjpeg_parser_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 
 		/* We have EOI; copy bytes up to and including EOI into partial */
 		size_t to_copy;
+
 		if (eoi_ptr == partial_eoi) {
 			to_copy = 0;
 		} else {
@@ -254,8 +260,8 @@ static bool mp_zjpeg_parser_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	while (parse_offset < in_used &&
 	       (eoi_ptr = find_jpeg_eoi(data + parse_offset, in_used - parse_offset)) != NULL) {
 		struct net_buf *out = NULL;
-		size_t upto_eoi = (size_t)(eoi_ptr - data) + 2U;
-		size_t len = upto_eoi - parse_offset;
+		size_t up_to_eoi = (size_t)(eoi_ptr - data) + 2U;
+		size_t len = up_to_eoi - parse_offset;
 
 		if (outpool->acquire_buffer(outpool, &out) != 0 || out == NULL) {
 			LOG_ERR("Failed to acquire output buffer");
@@ -284,10 +290,10 @@ static bool mp_zjpeg_parser_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 			net_buf_frag_add(*out_buf, out);
 		}
 
-		parse_offset = upto_eoi;
+		parse_offset = up_to_eoi;
 	}
 
-	/* Any remaining bytes are a partial frame start: accumulate into partial_frame for next frame */
+	/* Any remaining bytes are a partial frame start: accumulate into partial_frame */
 	if (parse_offset < in_used) {
 		struct net_buf *partial = NULL;
 		size_t remain = in_used - parse_offset;
@@ -331,6 +337,7 @@ void mp_zjpeg_parser_init(struct mp_element *self)
 
 	/* Get supported caps */
 	struct mp_caps *sink_caps = mp_caps_new_any();
+
 	struct mp_caps *src_caps = mp_caps_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
 					       VIDEO_PIX_FMT_JPEG, MP_CAPS_END);
 	mp_parser_update_caps(parser, sink_caps, src_caps);
