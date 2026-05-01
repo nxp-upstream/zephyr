@@ -5,5 +5,5 @@
 #
 
 config MP_PLUGIN_ZDISP
-    bool "Display plugin support"
-    select DISPLAY
+	bool "Display plugin support"
+	select DISPLAY

@@ -203,8 +203,9 @@ bool mp_zdisp_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct ne
 
 		buf_desc.pitch = buf_desc.width;
 		/* Do not get height from caps as sometimes buffer is just a partial frame */
-		buf_desc.height = buf_desc.buf_size /
-				  (buf_desc.width * DISPLAY_BITS_PER_PIXEL(disp_fmt) / BITS_PER_BYTE);
+		buf_desc.height =
+			buf_desc.buf_size /
+			(buf_desc.width * DISPLAY_BITS_PER_PIXEL(disp_fmt) / BITS_PER_BYTE);
 
 		/* line_offset is only used to support partial video frame */
 		if (vbuf != NULL) {
