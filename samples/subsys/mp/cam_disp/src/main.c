@@ -137,7 +137,7 @@ int main(void)
 			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec), (MP_ELEMENT(&jpeg_dec),))
 			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec), (MP_ELEMENT(&vid_conv),))
 			IF_ENABLED(DT_HAS_CHOSEN(zephyr_videotrans), (MP_ELEMENT(&vid_trans),))
-		 	MP_ELEMENT(&disp_sink), NULL)) {
+			MP_ELEMENT(&disp_sink), NULL)) {
 		LOG_ERR("Failed to add elements");
 		goto err;
 	}
