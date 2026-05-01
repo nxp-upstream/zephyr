@@ -53,7 +53,10 @@ struct mp_buffer_pool {
 	int (*stop)(struct mp_buffer_pool *pool);
 	/** Acquire a buffer from the pool */
 	int (*acquire_buffer)(struct mp_buffer_pool *pool, struct net_buf **buf);
-	/** Release a buffer back to the pool, automatically called when buffer refcount reaches 0 */
+	/**
+	 * Release a buffer back to the pool, automatically called when
+	 * buffer refcount reaches 0.
+	 */
 	int (*release_buffer)(struct mp_buffer_pool *pool, struct net_buf *buf);
 
 	/** Flag indicating if the pool has been started */

@@ -5,21 +5,21 @@
 #
 
 config MP_THREADS_NUM
-    int "Maximum number of threads"
-    range 0 255
-    default 3
+	int "Maximum number of threads"
+	range 0 255
+	default 3
 
 config MP_THREAD_STACK_SIZE
-    int "Stack size of a thread"
-    default 1024
+	int "Stack size of a thread"
+	default 1024
 
 config MP_THREAD_DEFAULT_PRIORITY
-    int "Priority of a thread"
-    default 5
+	int "Priority of a thread"
+	default 5
 
 config MP_CAPSFILTER
-    bool "Capsfilter support"
+	bool "Capsfilter support"
 
 config MP_NET_BUF_POOL_COUNT
-    int "Number of buffers can be handled at the same time for the whole pipeline"
-    default 1
+	int "Number of buffers can be handled at the same time for the whole pipeline"
+	default 1

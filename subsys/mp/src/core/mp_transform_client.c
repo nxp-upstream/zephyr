@@ -48,7 +48,7 @@ static bool mp_transform_client_chainfn(struct mp_pad *pad, struct net_buf *in_b
 	 * Cast through uintptr_t to avoid pointer truncation warnings.
 	 */
 	if (!transform_client->chainfn_rpc((uint32_t)(uintptr_t)in_buf->data, in_used,
-				   (uint32_t)(uintptr_t)(*out_buf)->data, &out_used)) {
+					   (uint32_t)(uintptr_t)(*out_buf)->data, &out_used)) {
 		LOG_ERR("Failed to process buffer via RPC");
 		net_buf_unref(*out_buf);
 		*out_buf = NULL;
@@ -67,7 +67,8 @@ static bool mp_transform_client_chainfn(struct mp_pad *pad, struct net_buf *in_b
 	return true;
 }
 
-static bool mp_transform_client_propose_allocation(struct mp_transform *self, struct mp_query *query)
+static bool mp_transform_client_propose_allocation(struct mp_transform *self,
+						   struct mp_query *query)
 {
 	return mp_query_set_pool(query, self->inpool);
 }

@@ -187,8 +187,8 @@ enum mp_state_change_return mp_src_change_state(struct mp_element *self,
 		}
 
 		/* Config buffer pool */
-		pool_ret = mp_buffer_pool_configure(
-			src->pool, mp_caps_get_structure(src->srcpad.caps, 0));
+		pool_ret = mp_buffer_pool_configure(src->pool,
+						    mp_caps_get_structure(src->srcpad.caps, 0));
 		if (pool_ret != 0 && pool_ret != -ENOSYS) {
 			LOG_ERR("Failed to configure source buffer pool");
 			return MP_STATE_CHANGE_FAILURE;

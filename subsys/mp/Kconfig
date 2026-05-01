@@ -5,10 +5,10 @@
 #
 
 menuconfig MP
-    bool "Media Pipe subsystem"
-    select NET_BUF
-    help
-        Enable Media Pipe subsystem.
+	bool "Media Pipe subsystem"
+	select NET_BUF
+	help
+	  Enable Media Pipe subsystem.
 
 if MP
 
@@ -17,7 +17,7 @@ module-str = mp
 source "subsys/logging/Kconfig.template.log_config"
 
 config MP_RPC
-    bool "RPC support"
+	bool "RPC support"
 
 # Load core configurations
 source "subsys/mp/src/core/Kconfig"

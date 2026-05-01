@@ -46,8 +46,8 @@ struct mp_task {
  * @param priority: priority of the task
  * @return k_tid_t which is the pointer to the k_thread structure
  */
-k_tid_t mp_task_create(struct mp_task *task, k_thread_entry_t func, void *p1, void *p2,
-		       void *p3, int priority);
+k_tid_t mp_task_create(struct mp_task *task, k_thread_entry_t func, void *p1, void *p2, void *p3,
+		       int priority);
 
 /**
  * Destroy a task

@@ -26,7 +26,7 @@ int mp_transform_get_property(struct mp_object *obj, uint32_t key, void *val)
 }
 
 void mp_transform_update_caps(struct mp_transform *transform, struct mp_caps *sink_caps,
-			     struct mp_caps *src_caps)
+			      struct mp_caps *src_caps)
 {
 	mp_caps_replace(&transform->sink_caps, sink_caps);
 	mp_caps_replace(&transform->sinkpad.caps, transform->sink_caps);
