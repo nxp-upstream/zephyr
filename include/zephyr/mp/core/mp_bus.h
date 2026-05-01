@@ -1,16 +1,17 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
+ * @ingroup mp
  * @brief Message Bus header file.
  */
 
-#ifndef __MP_BUS_H__
-#define __MP_BUS_H__
+#ifndef ZEPHYR_INCLUDE_MP_CORE_MP_BUS_H_
+#define ZEPHYR_INCLUDE_MP_CORE_MP_BUS_H_
 
 #include <stdint.h>
 
@@ -134,4 +135,4 @@ void mp_bus_remove_sync_listener(struct mp_bus *bus, struct mp_bus_sync_listener
 
 /** @} */
 
-#endif /* __MP_BUS_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_CORE_MP_BUS_H_ */

@@ -1,16 +1,17 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
+ * @ingroup mp
  * @brief Main header for mp_property.
  */
 
-#ifndef __MP_PROPS_H__
-#define __MP_PROPS_H__
+#ifndef ZEPHYR_INCLUDE_MP_CORE_MP_PROPERTY_H_
+#define ZEPHYR_INCLUDE_MP_CORE_MP_PROPERTY_H_
 
 /**
  * @{
@@ -55,4 +56,4 @@ enum prop_sink {
  * @}
  */
 
-#endif /* __MP_PROPS_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_CORE_MP_PROPERTY_H_ */

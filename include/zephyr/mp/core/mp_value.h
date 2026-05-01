@@ -1,16 +1,17 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
+ * @ingroup mp
  * @brief Main header for mp_value.
  */
 
-#ifndef __MP_VALUE_H__
-#define __MP_VALUE_H__
+#ifndef ZEPHYR_INCLUDE_MP_CORE_MP_VALUE_H_
+#define ZEPHYR_INCLUDE_MP_CORE_MP_VALUE_H_
 
 #include <stdarg.h>
 #include <stdbool.h>
@@ -303,4 +304,4 @@ bool mp_value_is_primitive(const struct mp_value *value);
  */
 void mp_value_print(const struct mp_value *value, bool new_line);
 
-#endif /*__MP_VALUE_H__*/
+#endif /*ZEPHYR_INCLUDE_MP_CORE_MP_VALUE_H_*/

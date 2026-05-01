@@ -1,16 +1,17 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
+ * @ingroup mp
  * @brief Main header for mp_src.
  */
 
-#ifndef __MP_SRC_H__
-#define __MP_SRC_H__
+#ifndef ZEPHYR_INCLUDE_MP_CORE_MP_SRC_H_
+#define ZEPHYR_INCLUDE_MP_CORE_MP_SRC_H_
 
 #include <zephyr/mp/core/mp_buffer.h>
 #include <zephyr/mp/core/mp_element.h>
@@ -102,4 +103,4 @@ int mp_src_get_property(struct mp_object *obj, uint32_t key, void *val);
  */
 void mp_src_update_caps(struct mp_src *src, struct mp_caps *caps);
 
-#endif /* __MP_SRC_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_CORE_MP_SRC_H_ */

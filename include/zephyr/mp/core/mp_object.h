@@ -1,16 +1,17 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
+ * @ingroup mp
  * @brief Main header for mp_object.
  */
 
-#ifndef __MP_OBJECT_H__
-#define __MP_OBJECT_H__
+#ifndef ZEPHYR_INCLUDE_MP_CORE_MP_OBJECT_H_
+#define ZEPHYR_INCLUDE_MP_CORE_MP_OBJECT_H_
 
 #include <stdint.h>
 
@@ -112,4 +113,4 @@ int mp_object_set_properties(struct mp_object *obj, ...);
  */
 int mp_object_get_properties(struct mp_object *obj, ...);
 
-#endif /* __MP_OBJECT_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_CORE_MP_OBJECT_H_ */

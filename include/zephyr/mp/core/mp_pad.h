@@ -1,16 +1,17 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
+ * @ingroup mp
  * @brief Main header for mp_pad.
  */
 
-#ifndef __MP_PAD_H__
-#define __MP_PAD_H__
+#ifndef ZEPHYR_INCLUDE_MP_CORE_MP_PAD_H_
+#define ZEPHYR_INCLUDE_MP_CORE_MP_PAD_H_
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -202,4 +203,4 @@ bool mp_pad_query(struct mp_pad *pad, struct mp_query *query);
  * @}
  */
 
-#endif /* __MP_PAD_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_CORE_MP_PAD_H_ */

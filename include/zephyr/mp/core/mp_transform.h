@@ -1,16 +1,17 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
+ * @ingroup mp
  * @brief Main header for mp_transform.
  */
 
-#ifndef __MP_TRANSFORM_H__
-#define __MP_TRANSFORM_H__
+#ifndef ZEPHYR_INCLUDE_MP_CORE_MP_TRANSFORM_H_
+#define ZEPHYR_INCLUDE_MP_CORE_MP_TRANSFORM_H_
 
 #include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_pad.h>
@@ -160,4 +161,4 @@ bool mp_transform_set_caps(struct mp_transform *transform, enum mp_pad_direction
 void mp_transform_update_caps(struct mp_transform *transform, struct mp_caps *sink_caps,
 			     struct mp_caps *src_caps);
 
-#endif /* __MP_TRANSFORM_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_CORE_MP_TRANSFORM_H_ */

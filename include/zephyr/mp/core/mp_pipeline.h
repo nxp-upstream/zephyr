@@ -1,16 +1,17 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
+ * @ingroup mp
  * @brief Main header for mp_pipeline.
  */
 
-#ifndef __MP_PIPELINE_H__
-#define __MP_PIPELINE_H__
+#ifndef ZEPHYR_INCLUDE_MP_CORE_MP_PIPELINE_H_
+#define ZEPHYR_INCLUDE_MP_CORE_MP_PIPELINE_H_
 
 #include <stdint.h>
 
@@ -56,4 +57,4 @@ void mp_pipeline_init(struct mp_element *self);
  * @}
  */
 
-#endif /* __MP_PIPELINE_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_CORE_MP_PIPELINE_H_ */

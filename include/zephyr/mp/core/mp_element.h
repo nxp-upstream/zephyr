@@ -1,16 +1,17 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
+ * @ingroup mp
  * @brief Main header for mp_element.
  */
 
-#ifndef __MP_ELEMENT_H__
-#define __MP_ELEMENT_H__
+#ifndef ZEPHYR_INCLUDE_MP_CORE_MP_ELEMENT_H_
+#define ZEPHYR_INCLUDE_MP_CORE_MP_ELEMENT_H_
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -169,7 +170,8 @@ struct mp_element {
  *
  * Initializes the base @ref struct mp_element structure.
  *
- * @param self The element to initialize
+ * @param self Pointer to the @ref mp_element to initialize.
+ * @param id   Unique element identifier.
  */
 void mp_element_init(struct mp_element *self, uint8_t id);
 
@@ -218,9 +220,10 @@ enum mp_state_change_return mp_element_set_state(struct mp_element *element, enu
  *
  * Retrieves the @ref struct mp_bus associated with the element.
  *
- * @param element The element to get the bus from
- * @return The @ref struct mp_bus of the element or NULL if no bus is found
+ * @param self Pointer to the @ref mp_element to get the bus from.
+ *
+ * @return Pointer to the @ref mp_bus, or NULL if no bus is found.
  */
 struct mp_bus *mp_element_get_bus(struct mp_element *self);
 
-#endif /* __MP_ELEMENT_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_CORE_MP_ELEMENT_H_ */

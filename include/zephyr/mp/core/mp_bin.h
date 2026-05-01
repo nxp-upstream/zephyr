@@ -1,16 +1,17 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
+ * @ingroup mp
  * @brief Main header for mp_bin.
  */
 
-#ifndef __MP_BIN_H__
-#define __MP_BIN_H__
+#ifndef ZEPHYR_INCLUDE_MP_CORE_MP_BIN_H_
+#define ZEPHYR_INCLUDE_MP_CORE_MP_BIN_H_
 
 #include <stdint.h>
 
@@ -86,4 +87,4 @@ bool mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...);
 enum mp_state_change_return mp_bin_change_state_func(struct mp_element *element,
 						     enum mp_state_change transition);
 
-#endif /* __MP_BIN_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_CORE_MP_BIN_H_ */
