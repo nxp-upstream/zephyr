@@ -1,31 +1,29 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
- * @brief Main header for zdisp plugin properties.
+ * @ingroup mp
+ * @brief Property identifiers for the MP zdisp plugin.
  */
 
-#ifndef __MP_ZDISP_PROPS_H__
-#define __MP_ZDISP_PROPS_H__
+#ifndef ZEPHYR_INCLUDE_MP_ZDISP_MP_ZDISP_PROPERTY_H_
+#define ZEPHYR_INCLUDE_MP_ZDISP_MP_ZDISP_PROPERTY_H_
 
 #include <zephyr/mp/core/mp_property.h>
 
 /**
- * @brief Zdisp Sink Property Identifiers
+ * @brief Display sink property identifiers.
  *
- * Defined property identifiers specific to the zdisp sink element. These
- * properties extend the base sink properties defined in @ref prop_sink.
- *
- * The enumeration starts from @ref PROP_SINK_LAST + 1 to ensure no
- * conflicts with base sink properties.
+ * Extends the base sink properties defined in @ref mp_property.h.
+ * Enumeration starts from @ref PROP_SINK_LAST + 1 to avoid conflicts.
  */
 enum {
-	/** Display device property identifier */
+	/** Display device property (const struct device *). */
 	PROP_ZDISP_SINK_DEVICE = PROP_SINK_LAST + 1,
 };
 
-#endif /* __MP_ZDISP_PROPS_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_ZDISP_MP_ZDISP_PROPERTY_H_ */
