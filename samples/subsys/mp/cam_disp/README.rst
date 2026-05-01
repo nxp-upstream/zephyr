@@ -1,23 +1,38 @@
 .. zephyr:code-sample:: camera-display-sample
    :name: camera-display pipeline
 
-        A video pipeline built with MediaPipe to capture camera frames, do some necessary processing
-        e.g., rotation before displaying them on a screen
+        A video pipeline built with the MP subsystem to capture camera frames,
+        apply optional processing (e.g. rotation), and display them on a screen.
 
 Description
 ***********
 
-::
+This sample replaces and extends the basic :zephyr:code-sample:`video-capture` sample
+(``samples/drivers/video/capture``) by rebuilding the same camera-to-display workflow
+on top of the MP pipeline framework.  The pipeline approach makes it easy to insert
+additional processing stages (format conversion, rotation, scaling …) without
+modifying the application logic.
 
-    +-----------------+     +--------------+     +-------------------+     +----------------+
-    |  Camera Source  | --> |  Caps filter | --> |  Video Transform  | --> |  Display Sink  |
-    +-----------------+     +--------------+     +-------------------+     +----------------+
+.. graphviz::
 
-This example demonstrates a video pipeline consisting of maximum 4 elements. The camera source
-element generates video frames. The capsfilter is used to enforce a video format and/or resolution
-and/or framerate. This element is optional, without it, the pipeline is still working but with the
-default negotiated format. The video frames are then processed (e.g. rotated 90 degree) by an
-(optional) video transformer and rendered by a display sink element.
+   digraph pipeline {
+     rankdir=LR;
+     node [shape=box, style=filled, fillcolor="#e8e8e8"];
+     camera  [label="Camera\nSource"];
+     caps    [label="Caps\nFilter"];
+     transform [label="Video\nTransform"];
+     display [label="Display\nSink"];
+     camera -> caps -> transform -> display;
+   }
+
+The pipeline consists of up to four elements:
+
+- **Camera source** – generates video frames from a hardware capture device.
+- **Capsfilter** *(optional)* – enforces a specific video format, resolution, and/or
+  frame rate.  Without it the pipeline still works but uses the default negotiated
+  format.
+- **Video transform** *(optional)* – applies processing such as 90° rotation.
+- **Display sink** – renders the resulting frames on a display panel.
 
 Requirements
 ************
@@ -123,10 +138,10 @@ Sample Output
 
 .. code-block:: console
 
-*** Booting Zephyr OS build v4.3.0-rc2-1649-gef3755ee080b ***
-[00:00:00.366,000] <inf> mp_zvid_buffer_pool: Started buffer pool
-[00:00:00.367,000] <inf> mp_zvid_buffer_pool: Started buffer pool
-[00:00:07.128,000] <inf> main: EOS message from element 1
+   *** Booting Zephyr OS build v4.3.0-rc2-1649-gef3755ee080b ***
+   [00:00:00.366,000] <inf> mp_zvid_buffer_pool: Started buffer pool
+   [00:00:00.367,000] <inf> mp_zvid_buffer_pool: Started buffer pool
+   [00:00:07.128,000] <inf> main: EOS message from element 1
 
 References
 **********
