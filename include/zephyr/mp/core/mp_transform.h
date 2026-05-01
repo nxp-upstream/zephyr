@@ -159,6 +159,6 @@ bool mp_transform_set_caps(struct mp_transform *transform, enum mp_pad_direction
  * @param src_caps Supported caps for the src pad
  */
 void mp_transform_update_caps(struct mp_transform *transform, struct mp_caps *sink_caps,
-			     struct mp_caps *src_caps);
+			      struct mp_caps *src_caps);
 
 #endif /* ZEPHYR_INCLUDE_MP_CORE_MP_TRANSFORM_H_ */

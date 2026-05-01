@@ -41,7 +41,7 @@ struct mp_src {
 	 * 0 means will run forever
 	 */
 	uint32_t num_buffers;
-	/** 
+	/**
 	 * Get the supported caps of the element.
 	 * To get the current caps, use srcpad->caps instead
 	 */
