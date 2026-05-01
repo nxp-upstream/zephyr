@@ -17,8 +17,8 @@
 #include <zephyr/mp/mp.h>
 #include <zephyr/mp/zdisp/mp_zdisp_sink.h>
 #include <zephyr/mp/zfs/mp_zfilesrc.h>
-#include <zephyr/mp/zjpeg/mp_zjpeg_decoder.h>
-#include <zephyr/mp/zjpeg/mp_zjpeg_parser.h>
+#include <zephyr/mp/zvid/mp_zjpeg_decoder.h>
+#include <zephyr/mp/zvid/mp_zjpeg_parser.h>
 #if DT_HAS_CHOSEN(zephyr_jpegdec) || DT_HAS_CHOSEN(zephyr_videotrans)
 #include <zephyr/mp/zvid/mp_zvid_transform.h>
 #endif
