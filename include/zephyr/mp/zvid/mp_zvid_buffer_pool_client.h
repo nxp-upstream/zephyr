@@ -6,11 +6,15 @@
 
 /**
  * @file
- * @brief Main header for zvid buffer pool on the client side.
+ * @ingroup mp
+ * @brief Client-side video buffer pool for multi-core pipelines.
+ *
+ * Provides a lightweight buffer pool on the client (application) core
+ * that pairs with a server-side pool over an RPC transport.
  */
 
-#ifndef __MP_ZVID_BUFFER_POOL_CLIENT_H__
-#define __MP_ZVID_BUFFER_POOL_CLIENT_H__
+#ifndef ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_BUFFER_POOL_CLIENT_H_
+#define ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_BUFFER_POOL_CLIENT_H_
 
 #include <zephyr/kernel.h>
 
@@ -18,6 +22,12 @@
 
 #define MP_ZVID_BUFFERPOOL_CLIENT(self) ((struct mp_zvid_buffer_pool_client *)self)
 
+/**
+ * @brief Client-side video buffer pool structure.
+ *
+ * Extends @ref mp_buffer_pool with a FIFO for buffer recycling on
+ * the client core of a multi-core pipeline.
+ */
 struct mp_zvid_buffer_pool_client {
 	/** Base buffer pool structure */
 	struct mp_buffer_pool pool;
@@ -26,11 +36,10 @@ struct mp_zvid_buffer_pool_client {
 };
 
 /**
- * @brief Initialize a Zephyr video buffer pool on the client side
+ * @brief Initialize a client-side video buffer pool.
  *
- * @param pool Pointer to the @ref struct mp_buffer_pool structure to initialize
- *
+ * @param pool Pointer to the @ref mp_buffer_pool to initialize.
  */
 void mp_zvid_buffer_pool_client_init(struct mp_buffer_pool *pool);
 
-#endif /* __MP_ZVID_BUFFER_POOL_CLIENT_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_BUFFER_POOL_CLIENT_H_ */

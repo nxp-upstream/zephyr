@@ -1,16 +1,20 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
- * @brief Main header for zvide source element.
+ * @ingroup mp
+ * @brief Video source element backed by a Zephyr video device.
+ *
+ * Captures video frames from a hardware video device and pushes them
+ * into the pipeline as a source element.
  */
 
-#ifndef __MP_ZVID_SRC_H__
-#define __MP_ZVID_SRC_H__
+#ifndef ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_SRC_H_
+#define ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_SRC_H_
 
 #include <zephyr/mp/core/mp_src.h>
 
@@ -19,11 +23,10 @@
 #define MP_ZVID_SRC(self) ((struct mp_zvid_src *)self)
 
 /**
- * @brief Video Source Element Structure
+ * @brief Video source element structure.
  *
- * This structure represents a video source element that captures video data
- * from a video device and provides. It extends the base @ref struct mp_src functionality
- * with specific video handling.
+ * Extends @ref mp_src with a @ref mp_zvid_object to capture video data
+ * from a Zephyr video device.
  */
 struct mp_zvid_src {
 	/** Base source element */
@@ -33,10 +36,10 @@ struct mp_zvid_src {
 };
 
 /**
- * @brief Initialize a video source element
+ * @brief Initialize a video source element.
  *
- * @param self Pointer to the @ref struct mp_element to initialize
+ * @param self Pointer to the @ref mp_element to initialize.
  */
 void mp_zvid_src_init(struct mp_element *self);
 
-#endif /* __MP_ZVID_SRC_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_SRC_H_ */

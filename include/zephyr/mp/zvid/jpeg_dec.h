@@ -1,23 +1,25 @@
 /*
  * Copyright 2020 BitBank Software, Inc. All Rights Reserved.
  * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
- * @brief Software JPEG decoder API
+ * @ingroup mp
+ * @brief Software JPEG decoder API.
  *
- * This header exposes the C API and state structures for the JPEG decoder library
- * integrated into Zephyr under MediaPipe's zjpeg plugin.
+ * Exposes the C API and state structures for the software JPEG decoder
+ * integrated into the MP zvid plugin.
  *
- * The upstream project supports a wide range of environments (Arduino, file I/O,
- * platform-specific SIMD backends, etc). For Zephyr, we keep a minimal API:
- * - memory (RAM) input via JPEG_openRAM()
- * - decode to a caller-provided framebuffer via JPEG_setFramebuffer()
+ * Supported input mode:
+ * - Memory (RAM) input via JPEG_openRAM()
+ * - Decode to a caller-provided framebuffer via JPEG_setFramebuffer()
  */
 
-#ifndef __MP_ZJPEG_JPEG_DEC_H__
-#define __MP_ZJPEG_JPEG_DEC_H__
+#ifndef ZEPHYR_INCLUDE_MP_ZVID_JPEG_DEC_H_
+#define ZEPHYR_INCLUDE_MP_ZVID_JPEG_DEC_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -28,8 +30,9 @@
 extern "C" {
 #endif
 
-/** @name Internal sizing constants (kept from upstream)
- * @{ */
+/** @name Internal sizing constants
+ * @{
+ */
 #define FILE_HIGHWATER 1536
 #define JPEG_FILE_BUF_SIZE 2048
 #define HUFF_TABLEN  273
@@ -42,8 +45,9 @@ extern "C" {
 #define MCU_SKIP (-8)
 /** @} */
 
-/** @name Decoder options bitmask (JPEG_decode() iOptions)
- * @{ */
+/** @name Decoder options bitmask for JPEG_decode() iOptions parameter
+ * @{
+ */
 #define JPEG_AUTO_ROTATE     1
 #define JPEG_SCALE_HALF      2
 #define JPEG_SCALE_QUARTER   4
@@ -71,14 +75,14 @@ typedef uint32_t my_ulong;
 typedef int32_t my_long;
 #endif
 
-/** Supported decode modes (informational). */
+/** Supported JPEG decode modes. */
 enum {
 	JPEG_MODE_BASELINE = 0,
 	JPEG_MODE_PROGRESSIVE,
 	JPEG_MODE_INVALID,
 };
 
-/** Output pixel type selector (JPEG_setPixelType()). */
+/** Output pixel type selector for JPEG_setPixelType(). */
 enum {
 	RGB565_LITTLE_ENDIAN = 0,
 	RGB565_BIG_ENDIAN,
@@ -90,7 +94,7 @@ enum {
 	INVALID_PIXEL_TYPE,
 };
 
-/** Memory type selector */
+/** Memory type selector. */
 enum {
 	JPEG_MEM_RAM = 0,
 };
@@ -127,7 +131,7 @@ typedef struct jpeg_file_tag {
 	int32_t iSize;
 	/** Pointer to input data in RAM. */
 	uint8_t *pData;
-	/** Optional handle for non-RAM backends (unused in Zephyr/libMP). */
+	/** Optional handle for non-RAM backends (unused in Zephyr). */
 	void *fHandle;
 } JPEGFILE;
 
@@ -135,9 +139,9 @@ typedef struct jpeg_file_tag {
  * @brief Draw callback argument.
  */
 typedef struct jpeg_draw_tag {
-	/** Upper-left corner of the current MCU (pixels). */
+	/** Upper-left X corner of the current MCU (pixels). */
 	int x;
-	/** Upper-left corner of the current MCU (pixels). */
+	/** Upper-left Y corner of the current MCU (pixels). */
 	int y;
 	/** Width of the pixel block in @ref pPixels (pixels). */
 	int iWidth;
@@ -149,15 +153,19 @@ typedef struct jpeg_draw_tag {
 	int iBpp;
 	/** Pointer to pixel buffer (format depends on pixel type). */
 	uint16_t *pPixels;
-	/** User pointer forwarded from @ref JPEGIMAGE::pUser. */
+	/** User pointer forwarded from @ref JPEGIMAGE.pUser. */
 	void *pUser;
 } JPEGDRAW;
 
-/** Callback function prototypes (kept for API compatibility). */
+/** Read callback prototype. */
 typedef int32_t (JPEG_READ_CALLBACK)(JPEGFILE *pFile, uint8_t *pBuf, int32_t iLen);
+/** Seek callback prototype. */
 typedef int32_t (JPEG_SEEK_CALLBACK)(JPEGFILE *pFile, int32_t iPosition);
+/** Draw callback prototype. */
 typedef int (JPEG_DRAW_CALLBACK)(JPEGDRAW *pDraw);
+/** Open callback prototype. */
 typedef void * (JPEG_OPEN_CALLBACK)(const char *szFilename, int32_t *pFileSize);
+/** Close callback prototype. */
 typedef void (JPEG_CLOSE_CALLBACK)(void *pHandle);
 
 /**
@@ -173,28 +181,25 @@ typedef struct _jpegcompinfo {
 } JPEGCOMPINFO;
 
 /**
- * @brief JPEG decode state.
+ * @brief JPEG decoder state.
  *
- * This structure is part of the public API because callers allocate it.
+ * Callers allocate this structure and pass it to the JPEG API functions.
  */
 typedef struct jpeg_image_tag {
 	/** Image width in pixels. */
 	int iWidth;
 	/** Image height in pixels. */
 	int iHeight;
-
 	/** Thumbnail width in pixels (if present). */
 	int iThumbWidth;
 	/** Thumbnail height in pixels (if present). */
 	int iThumbHeight;
 	/** Offset to thumbnail data. */
 	int iThumbData;
-
 	/** X offset for decode output placement (pixels). */
 	int iXOffset;
 	/** Y offset for decode output placement (pixels). */
 	int iYOffset;
-
 	/** Crop origin X (pixels). */
 	int iCropX;
 	/** Crop origin Y (pixels). */
@@ -203,21 +208,18 @@ typedef struct jpeg_image_tag {
 	int iCropCX;
 	/** Crop height (pixels). */
 	int iCropCY;
-
 	/** Bits-per-pixel of decoded output. */
 	uint8_t ucBpp;
 	/** JPEG subsampling mode. */
 	uint8_t ucSubSample;
 	/** Bitmask of Huffman tables used/defined. */
 	uint8_t ucHuffTableUsed;
-
 	uint8_t ucMode;
 	/** EXIF orientation. */
 	uint8_t ucOrientation;
 	/** Whether a thumbnail is present. */
 	uint8_t ucHasThumb;
 	uint8_t b11Bit;
-
 	uint8_t ucComponentsInScan;
 	uint8_t cApproxBitsLow;
 	uint8_t cApproxBitsHigh;
@@ -227,18 +229,16 @@ typedef struct jpeg_image_tag {
 	uint8_t ucFF;
 	/** Number of components in the image. */
 	uint8_t ucNumComponents;
-	
 	uint8_t ucACTable;
 	uint8_t ucDCTable;
 	/** Input memory type. */
 	uint8_t ucMemType;
 	/** Output pixel type. */
 	uint8_t ucPixelType;
-
 	uint16_t u16MCUFlags;
 	/** Offset to EXIF TIFF. */
 	int iEXIF;
-	/** Last error code (JPEG_* enum). */
+	/** Last error code. */
 	int iError;
 	/** Decoder options bitmask. */
 	int iOptions;
@@ -246,10 +246,11 @@ typedef struct jpeg_image_tag {
 	int iVLCOff;
 	/** Current VLC data size. */
 	int iVLCSize;
-	/** Restart interval and counter. */
+	/** Restart interval. */
 	int iResInterval;
+	/** Restart counter. */
 	int iResCount;
-	/** Max MCUs of pixels per JPEGDraw call. */
+	/** Max MCUs of pixels per draw callback invocation. */
 	int iMaxMCUs;
 
 	JPEG_READ_CALLBACK *pfnRead;
@@ -266,20 +267,16 @@ typedef struct jpeg_image_tag {
 	void *pUser;
 	/** Optional dithering buffer. */
 	uint8_t *pDitherBuffer;
-
 	/** Pixel buffer pointer (aligned). */
 	uint16_t *usPixels;
 	/** Unaligned storage backing @ref usPixels. */
 	uint16_t usUnalignedPixels[MAX_BUFFERED_PIXELS + 8];
-
 	/** MCU buffer pointer (aligned). */
 	int16_t *sMCUs;
 	/** Unaligned storage backing @ref sMCUs. */
 	int16_t sUnalignedMCUs[8 + (DCTSIZE * MAX_MCU_COUNT)];
-
 	/** Output framebuffer base pointer. */
 	void *pFramebuffer;
-
 	/** Quantization tables. */
 	int16_t sQuantTable[DCTSIZE * 4];
 	/** Input/VLC buffer. */
@@ -290,12 +287,11 @@ typedef struct jpeg_image_tag {
 	uint16_t usHuffAC[HUFF11SIZE * 2];
 } JPEGIMAGE;
 
-/**
- * @name Endianness/unaligned helpers
+/** @name Endianness/unaligned helpers
  *
- * The upstream implementation uses pointer casts when unaligned access is
- * allowed. In Zephyr, use sys_get_*() which is safe for unaligned buffers.
- * @{ */
+ * Use Zephyr sys_get_*() for safe unaligned access.
+ * @{
+ */
 #define INTELSHORT(p) sys_get_le16((const uint8_t *)(p))
 #define INTELLONG(p)  sys_get_le32((const uint8_t *)(p))
 #define MOTOSHORT(p)  sys_get_be16((const uint8_t *)(p))
@@ -308,65 +304,179 @@ typedef struct jpeg_image_tag {
 
 /**
  * @brief Initialize the decoder to read JPEG data from RAM.
+ *
+ * @param pJPEG   Pointer to caller-allocated decoder state.
+ * @param pData   Pointer to JPEG data in RAM.
+ * @param iDataSize Size of the JPEG data in bytes.
+ * @param pfnDraw Draw callback invoked for each decoded MCU row.
+ *
+ * @retval 1 on success.
+ * @retval 0 on failure.
  */
 int JPEG_openRAM(JPEGIMAGE *pJPEG, uint8_t *pData, int iDataSize, JPEG_DRAW_CALLBACK *pfnDraw);
 
-/** @brief Set the output framebuffer pointer. */
+/**
+ * @brief Set the output framebuffer pointer.
+ *
+ * @param pJPEG        Pointer to decoder state.
+ * @param pFramebuffer Pointer to the output framebuffer.
+ */
 void JPEG_setFramebuffer(JPEGIMAGE *pJPEG, void *pFramebuffer);
 
-/** @brief Set the crop area in pixels. */
+/**
+ * @brief Set the crop area in pixels.
+ *
+ * @param pJPEG Pointer to decoder state.
+ * @param x     Crop origin X.
+ * @param y     Crop origin Y.
+ * @param w     Crop width.
+ * @param h     Crop height.
+ */
 void JPEG_setCropArea(JPEGIMAGE *pJPEG, int x, int y, int w, int h);
 
-/** @brief Get the current crop area in pixels. */
+/**
+ * @brief Get the current crop area in pixels.
+ *
+ * @param pJPEG Pointer to decoder state.
+ * @param[out] x Crop origin X.
+ * @param[out] y Crop origin Y.
+ * @param[out] w Crop width.
+ * @param[out] h Crop height.
+ */
 void JPEG_getCropArea(JPEGIMAGE *pJPEG, int *x, int *y, int *w, int *h);
 
-/** @brief Decode the JPEG into the configured framebuffer. */
+/**
+ * @brief Decode the JPEG into the configured framebuffer.
+ *
+ * @param pJPEG    Pointer to decoder state.
+ * @param x        X offset for output placement.
+ * @param y        Y offset for output placement.
+ * @param iOptions Bitmask of JPEG_* decode options.
+ *
+ * @retval 1 on success.
+ * @retval 0 on failure.
+ */
 int JPEG_decode(JPEGIMAGE *pJPEG, int x, int y, int iOptions);
 
-/** @brief Decode with dithering enabled. */
+/**
+ * @brief Decode with dithering enabled.
+ *
+ * @param pJPEG    Pointer to decoder state.
+ * @param pDither  Pointer to dithering buffer.
+ * @param iOptions Bitmask of JPEG_* decode options.
+ *
+ * @retval 1 on success.
+ * @retval 0 on failure.
+ */
 int JPEG_decodeDither(JPEGIMAGE *pJPEG, uint8_t *pDither, int iOptions);
 
-/** @brief Close the decoder (no-op for RAM input). */
+/**
+ * @brief Close the decoder and release resources.
+ *
+ * @param pJPEG Pointer to decoder state.
+ */
 void JPEG_close(JPEGIMAGE *pJPEG);
 
-/** @brief Get decoded image width in pixels. */
+/**
+ * @brief Get decoded image width.
+ *
+ * @param pJPEG Pointer to decoder state.
+ *
+ * @return Image width in pixels.
+ */
 int JPEG_getWidth(JPEGIMAGE *pJPEG);
 
-/** @brief Get decoded image height in pixels. */
+/**
+ * @brief Get decoded image height.
+ *
+ * @param pJPEG Pointer to decoder state.
+ *
+ * @return Image height in pixels.
+ */
 int JPEG_getHeight(JPEGIMAGE *pJPEG);
 
-/** @brief Get bits-per-pixel of decoded output. */
+/**
+ * @brief Get bits-per-pixel of decoded output.
+ *
+ * @param pJPEG Pointer to decoder state.
+ *
+ * @return Bits per pixel.
+ */
 int JPEG_getBpp(JPEGIMAGE *pJPEG);
 
-/** @brief Get JPEG subsampling mode. */
+/**
+ * @brief Get JPEG subsampling mode.
+ *
+ * @param pJPEG Pointer to decoder state.
+ *
+ * @return Subsampling mode value.
+ */
 int JPEG_getSubSample(JPEGIMAGE *pJPEG);
 
-/** @brief Get EXIF orientation. */
+/**
+ * @brief Get EXIF orientation.
+ *
+ * @param pJPEG Pointer to decoder state.
+ *
+ * @return Orientation value (1-8).
+ */
 int JPEG_getOrientation(JPEGIMAGE *pJPEG);
 
-/** @brief Get last error code. */
+/**
+ * @brief Get last error code.
+ *
+ * @param pJPEG Pointer to decoder state.
+ *
+ * @return Error code (JPEG_SUCCESS on no error).
+ */
 int JPEG_getLastError(JPEGIMAGE *pJPEG);
 
-/** @brief Return whether the JPEG contains an embedded thumbnail. */
+/**
+ * @brief Check whether the JPEG contains an embedded thumbnail.
+ *
+ * @param pJPEG Pointer to decoder state.
+ *
+ * @retval 1 if thumbnail is present.
+ * @retval 0 if no thumbnail.
+ */
 int JPEG_hasThumb(JPEGIMAGE *pJPEG);
 
-/** @brief Get embedded thumbnail width in pixels. */
+/**
+ * @brief Get embedded thumbnail width.
+ *
+ * @param pJPEG Pointer to decoder state.
+ *
+ * @return Thumbnail width in pixels.
+ */
 int JPEG_getThumbWidth(JPEGIMAGE *pJPEG);
 
-/** @brief Get embedded thumbnail height in pixels. */
+/**
+ * @brief Get embedded thumbnail height.
+ *
+ * @param pJPEG Pointer to decoder state.
+ *
+ * @return Thumbnail height in pixels.
+ */
 int JPEG_getThumbHeight(JPEGIMAGE *pJPEG);
 
-/** @brief Select the output pixel type. */
+/**
+ * @brief Select the output pixel type.
+ *
+ * @param pJPEG Pointer to decoder state.
+ * @param iType Pixel type (one of the pixel type enum values).
+ */
 void JPEG_setPixelType(JPEGIMAGE *pJPEG, int iType);
 
-/** @brief Limit the number of MCUs output per draw call (upstream feature). */
+/**
+ * @brief Limit the number of MCUs output per draw call.
+ *
+ * @param pJPEG   Pointer to decoder state.
+ * @param iMaxMCUs Maximum MCU count per callback invocation.
+ */
 void JPEG_setMaxOutputSize(JPEGIMAGE *pJPEG, int iMaxMCUs);
 
 #ifdef __cplusplus
 }
 #endif
 
-
-/** @endcond */
-
-#endif /* __MP_ZJPEG_JPEG_DEC_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_ZVID_JPEG_DEC_H_ */

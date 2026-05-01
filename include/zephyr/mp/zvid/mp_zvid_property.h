@@ -1,29 +1,30 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
  * @file
- * @brief Main header for zvid plugin properties.
+ * @ingroup mp
+ * @brief Property identifiers for the zvid plugin.
+ *
+ * Extends the base source and transform property enumerations with
+ * video-specific property keys.
  */
 
-#ifndef __MP_ZVID_PROPS_H__
-#define __MP_ZVID_PROPS_H__
+#ifndef ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_PROPERTY_H_
+#define ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_PROPERTY_H_
 
 #include <zephyr/sys/util.h>
 
 #include <zephyr/mp/core/mp_property.h>
 
 /**
- * @brief Zvid Property Identifiers
+ * @brief Zvid property identifiers.
  *
- * This extends the base source and transform properties defined in @ref prop_src and @ref
- * prop_transform
- *
- * The enumeration starts from @ref PROP_TRANSFORM_LAST + 1 to ensure no
- * conflicts with base source or transform properties.
+ * Starts from MAX(@ref PROP_SRC_LAST, @ref PROP_TRANSFORM_LAST) + 1 to
+ * avoid conflicts with base source and transform properties.
  */
 enum prop_zvid {
 	/** Video device property */
@@ -32,4 +33,4 @@ enum prop_zvid {
 	PROP_ZVID_CROP,
 };
 
-#endif /* __MP_ZVID_PROPS_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_PROPERTY_H_ */

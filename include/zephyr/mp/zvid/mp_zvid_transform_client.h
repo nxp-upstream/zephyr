@@ -6,11 +6,15 @@
 
 /**
  * @file
- * @brief Main header for zvid transform client element.
+ * @ingroup mp
+ * @brief Client-side video transform element for multi-core pipelines.
+ *
+ * Extends the generic transform client with video-specific RPC callbacks
+ * to offload video processing to a remote core.
  */
 
-#ifndef __MP_ZVID_TRANSFORM_CLIENT_H__
-#define __MP_ZVID_TRANSFORM_CLIENT_H__
+#ifndef ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_TRANSFORM_CLIENT_H_
+#define ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_TRANSFORM_CLIENT_H_
 
 #include <zephyr/drivers/video.h>
 
@@ -24,50 +28,58 @@ struct mp_element;
 #define MP_ZVID_TRANSFORM_CLIENT(self) ((struct mp_zvid_transform_client *)self)
 
 /**
- * @brief Transform client element structure
+ * @brief Client-side video transform element structure.
  *
- * Base structure for all transform elements on the client side of multi-core pipeline.
- * These elements call RPC to the server side to off-load the processing work.
+ * Extends @ref mp_transform_client with video buffer pools and RPC
+ * function pointers for capability query, format negotiation, and
+ * cap transformation across cores.
  */
 struct mp_zvid_transform_client {
 	/** Base transform client structure */
 	struct mp_transform_client transform;
-	/** Input buffer pool*/
+	/** Input buffer pool */
 	struct mp_zvid_buffer_pool_client inpool;
-	/** Output buffer pool*/
+	/** Output buffer pool */
 	struct mp_zvid_buffer_pool_client outpool;
 	/**
-	 * @brief RPC function to get buffer pool capabilities
-	 * @param direction Pad direction (@ref enum mp_pad_direction)
-	 * @param min_buffers Minimum number of buffers required for the pool
-	 * @param buf_align Alignment of buffers in the pool
-	 * @return 0 on success, errno on failure
+	 * @brief RPC callback to query buffer pool capabilities.
+	 *
+	 * @param direction    Pad direction (see @ref mp_pad_direction).
+	 * @param min_buffers  Output: minimum number of buffers required.
+	 * @param buf_align    Output: required buffer alignment.
+	 *
+	 * @return 0 on success or a negative errno code on failure.
 	 */
 	int32_t (*get_buf_caps_rpc)(enum mp_pad_direction direction, uint8_t *min_buffers,
-				 uint16_t *buf_align);
+				    uint16_t *buf_align);
 	/**
-	 * @brief RPC function to get video format capabilities
-	 * @param direction Pad direction (@ref enum mp_pad_direction)
-	 * @param ind Index to iterate through available format capabilities
-	 * @param vfc Output video format caps (@ref struct video_format_cap)
-	 * @return 0 on success, errno on failure
+	 * @brief RPC callback to enumerate video format capabilities.
+	 *
+	 * @param direction Pad direction (see @ref mp_pad_direction).
+	 * @param ind       Index to iterate through available capabilities.
+	 * @param vfc       Output: video format capability at @p ind.
+	 *
+	 * @return 0 on success or a negative errno code on failure.
 	 */
 	int32_t (*get_format_caps_rpc)(enum mp_pad_direction direction, uint8_t ind,
 				       struct video_format_cap *vfc);
 	/**
-	 * @brief RPC function to set video format
-	 * @param fmt The video format to set (@ref struct video_format). Format size and pitch may
-	 * be returned by the server.
-	 * @return 0 on success, errno on failure
+	 * @brief RPC callback to set the video format.
+	 *
+	 * @param fmt Video format to apply; the server may update size and pitch.
+	 *
+	 * @return 0 on success or a negative errno code on failure.
 	 */
 	int32_t (*set_format_rpc)(struct video_format *fmt);
 	/**
-	 * @brief RPC function to transform video format caps from one end to the other end
-	 * @param direction Pad direction to transform (@ref enum mp_pad_direction)
-	 * @param ind Index to iterate through available video format capabilities
-	 * @param vfc Input video format caps to be transformed (@ref struct video_format_cap)
-	 * @param other_vfc Output transformed video format caps (@ref struct video_format_cap)
-	 * @return 0 on success, errno on failure
+	 * @brief RPC callback to transform a capability to the opposite pad.
+	 *
+	 * @param direction Pad direction to transform from (see @ref mp_pad_direction).
+	 * @param ind       Index to iterate through transformed capabilities.
+	 * @param vfc       Input video format capability.
+	 * @param other_vfc Output: transformed video format capability.
+	 *
+	 * @return 0 on success or a negative errno code on failure.
 	 */
 	int32_t (*transform_cap_rpc)(enum mp_pad_direction direction, uint16_t ind,
 				     const struct video_format_cap *vfc,
@@ -75,10 +87,10 @@ struct mp_zvid_transform_client {
 };
 
 /**
- * @brief Initialize a video transform element on the client side
+ * @brief Initialize a client-side video transform element.
  *
- * @param self Pointer to the @ref struct mp_element to initialize as a video transform
+ * @param self Pointer to the @ref mp_element to initialize.
  */
 void mp_zvid_transform_client_init(struct mp_element *self);
 
-#endif /* __MP_ZVID_TRANSFORM_CLIENT_H__ */
+#endif /* ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_TRANSFORM_CLIENT_H_ */
