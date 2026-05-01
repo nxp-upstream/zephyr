@@ -10,10 +10,18 @@
 # by extracting the final state of relevant files from libmp_dev using git diff.
 # All fixup commits are implicitly squashed since only the final diff is used.
 #
+# Each generated branch starts from BASE_REF (mmiot/main) and includes:
+#   1. Cherry-picked dependency commits (from previously generated branches)
+#   2. The target's own commit (new files from libmp_dev)
+#
+# Compliance checks only verify the target's own commit (HEAD~1..HEAD),
+# not the cherry-picked dependencies (which are checked when their own
+# branch is generated).
+#
 # Usage:
 #   ./scripts/export_mp_upstream.sh              # Export all PRs
 #   ./scripts/export_mp_upstream.sh core          # Export core only
-#   ./scripts/export_mp_upstream.sh zvid          # Export zvid only (includes core)
+#   ./scripts/export_mp_upstream.sh zvid          # Export zvid only (core must exist)
 #   ./scripts/export_mp_upstream.sh --dry-run     # Show what would be done
 #   ./scripts/export_mp_upstream.sh --list        # List available targets
 #
@@ -32,7 +40,6 @@ set -euo pipefail
 SOURCE_BRANCH="libmp_dev"
 
 # The base commit where libmp_dev diverged from mmiot/main
-# This is mmiot/main's "console: use zephyr ring buffer" commit
 BASE_REF="mmiot/main"
 
 # Branch name prefix for generated upstream branches
@@ -87,6 +94,21 @@ ZDISP_PATHS=(
 ZFS_PATHS=(
     "subsys/mp/src/plugins/zfs/"
     "include/zephyr/mp/zfs/"
+)
+
+# Sample: cam_disp (camera to display pipeline)
+SAMPLE_CAM_DISP_PATHS=(
+    "samples/subsys/mp/cam_disp/"
+)
+
+# Sample: jpeg_dec (JPEG decoding pipeline)
+SAMPLE_JPEG_DEC_PATHS=(
+    "samples/subsys/mp/jpeg_dec/"
+)
+
+# Sample: fs (filesystem read/write pipeline)
+SAMPLE_FS_PATHS=(
+    "samples/subsys/mp/fs/"
 )
 
 # ===========================================================================
@@ -176,11 +198,57 @@ filesystem API.
 
 ${SOB}"
 
+SAMPLE_CAM_DISP_COMMIT_MSG="mp: samples: Add camera to display sample
+
+Add the cam_disp sample application demonstrating how to build a
+camera-to-display pipeline using the MP subsystem. This sample
+captures video frames from a camera device using the zvid plugin and
+renders them on a display using the zdisp plugin, showcasing
+real-time video preview functionality.
+
+${SOB}"
+
+SAMPLE_JPEG_DEC_COMMIT_MSG="mp: samples: Add JPEG decoding sample
+
+Add the jpeg_dec sample application demonstrating how to decode JPEG
+images using the MP subsystem. This sample reads JPEG-compressed
+data, decodes it using the zvid plugin's JPEG decoder elements, and
+outputs the resulting video frames, showcasing the JPEG decoding
+pipeline.
+
+${SOB}"
+
+SAMPLE_FS_COMMIT_MSG="mp: samples: Add filesystem sample
+
+Add the fs sample application demonstrating how to read from and
+write to files using the MP subsystem. This sample uses the zfs
+plugin's file source and file sink elements to build a pipeline
+that performs filesystem I/O on any Zephyr-supported filesystem.
+
+${SOB}"
+
+# ===========================================================================
+# Dependency map: target -> dependency branches (in cherry-pick order)
+# ===========================================================================
+
+declare -A TARGET_DEPS
+TARGET_DEPS=(
+    [core]=""
+    [zvid]="${UPSTREAM_PREFIX}-core"
+    [zaud]="${UPSTREAM_PREFIX}-core"
+    [zdisp]="${UPSTREAM_PREFIX}-core"
+    [zfs]="${UPSTREAM_PREFIX}-core"
+    [sample-cam_disp]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zdisp"
+    [sample-jpeg_dec]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zdisp ${UPSTREAM_PREFIX}-zfs"
+    [sample-fs]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zfs"
+)
+
 # ===========================================================================
 # Helpers
 # ===========================================================================
 
 DRY_RUN=false
+SKIP_COMPLIANCE=false
 TARGETS=()
 
 log_info() {
@@ -226,33 +294,75 @@ check_prerequisites() {
     fi
 }
 
-# Generate a single upstream branch for a target
-# Args: $1=target_name, $2=branch_name, $3=base_branch, $4=commit_msg, $5+=paths
+# Check that all dependency branches exist for a target
+# Args: $1=target_name
+check_deps() {
+    local target="$1"
+    local deps="${TARGET_DEPS[${target}]}"
+
+    if [ -z "${deps}" ]; then
+        return 0
+    fi
+
+    for dep in ${deps}; do
+        if ! git rev-parse --verify "${dep}" >/dev/null 2>&1; then
+            log_error "Dependency branch '${dep}' not found for target '${target}'."
+            log_error "Generate it first: ./scripts/export_mp_upstream.sh $(echo "${dep}" | sed "s|${UPSTREAM_PREFIX}-||")"
+            return 1
+        fi
+    done
+    return 0
+}
+
+# Generate a single upstream branch for a target.
+# The branch starts from BASE_REF, cherry-picks dependency commits, then
+# adds the target's own commit on top.
+#
+# Args: $1=target_name, $2=branch_name, $3=commit_msg, $4+=paths
 generate_branch() {
     local target="$1"
     local branch="$2"
-    local base_branch="$3"
-    local commit_msg="$4"
-    shift 4
+    local commit_msg="$3"
+    shift 3
     local paths=("$@")
+    local deps="${TARGET_DEPS[${target}]}"
 
     log_info "Generating branch: ${branch}"
-    log_info "  Base: ${base_branch}"
+    log_info "  Base: ${BASE_REF}"
+    if [ -n "${deps}" ]; then
+        log_info "  Dependencies: ${deps}"
+    fi
     log_info "  Paths: ${paths[*]}"
 
     if ${DRY_RUN}; then
-        log_info "  [DRY RUN] Would create branch '${branch}' from '${base_branch}'"
+        log_info "  [DRY RUN] Would create branch '${branch}' from '${BASE_REF}'"
+        if [ -n "${deps}" ]; then
+            log_info "  [DRY RUN] Would cherry-pick from: ${deps}"
+        fi
         log_info "  [DRY RUN] With files from ${SOURCE_BRANCH} -- ${paths[*]}"
         echo ""
         return 0
+    fi
+
+    # Check dependencies exist
+    if ! check_deps "${target}"; then
+        return 1
     fi
 
     # Remember current branch to return to it
     local current_branch
     current_branch="$(git branch --show-current)"
 
-    # Create the branch from the base
-    git checkout -B "${branch}" "${base_branch}" --quiet
+    # Create the branch from BASE_REF
+    git checkout -B "${branch}" "${BASE_REF}" --quiet
+
+    # Cherry-pick dependency commits (tip of each dependency branch)
+    if [ -n "${deps}" ]; then
+        for dep in ${deps}; do
+            log_info "  Cherry-picking from ${dep}..."
+            git -c core.hooksPath=/dev/null cherry-pick "$(git rev-parse "${dep}")" --quiet
+        done
+    fi
 
     # Checkout the exact file state from the source branch for each path.
     # This handles both new files and modified files correctly.
@@ -279,8 +389,8 @@ generate_branch() {
         return 1
     fi
 
-    # Commit with the proper message
-    git commit -m "${commit_msg}" --quiet
+    # Commit with the proper message (--no-verify to skip git hooks)
+    git commit --no-verify -m "${commit_msg}" --quiet
 
     log_ok "  Branch '${branch}' created successfully"
     log_info "  Commit: $(git --no-pager log --oneline -1)"
@@ -293,12 +403,12 @@ generate_branch() {
     echo ""
 }
 
-# Run compliance check on a branch
+# Run compliance check on a branch (only the target's own commit).
+# Uses HEAD~1..HEAD to check only the last commit, not dependencies.
 check_compliance() {
     local branch="$1"
-    local base_branch="$2"
 
-    log_info "Running compliance check on '${branch}'..."
+    log_info "Running compliance check on '${branch}' (HEAD~1..HEAD)..."
 
     if ${DRY_RUN}; then
         log_info "  [DRY RUN] Would run compliance check"
@@ -318,9 +428,9 @@ check_compliance() {
         return 0
     fi
 
-    # With pipefail set, $? captures the first failing command's exit code
+    # Check only the target's own commit (the last one), not dependencies
     local result=0
-    python3 "${compliance_script}" -c "${base_branch}..HEAD" 2>&1 | \
+    python3 "${compliance_script}" -c "HEAD~1..HEAD" 2>&1 | \
         sed 's/^/  /' || result=$?
 
     git checkout "${current_branch}" --quiet
@@ -340,32 +450,51 @@ check_compliance() {
 # ===========================================================================
 
 export_core() {
-    generate_branch "core" "${UPSTREAM_PREFIX}-core" "${BASE_REF}" \
+    generate_branch "core" "${UPSTREAM_PREFIX}-core" \
         "${CORE_COMMIT_MSG}" "${CORE_PATHS[@]}"
 }
 
 export_zvid() {
-    generate_branch "zvid" "${UPSTREAM_PREFIX}-zvid" "${UPSTREAM_PREFIX}-core" \
+    generate_branch "zvid" "${UPSTREAM_PREFIX}-zvid" \
         "${ZVID_COMMIT_MSG}" "${ZVID_PATHS[@]}"
 }
 
 export_zaud() {
-    generate_branch "zaud" "${UPSTREAM_PREFIX}-zaud" "${UPSTREAM_PREFIX}-core" \
+    generate_branch "zaud" "${UPSTREAM_PREFIX}-zaud" \
         "${ZAUD_COMMIT_MSG}" "${ZAUD_PATHS[@]}"
 }
 
 export_zdisp() {
-    generate_branch "zdisp" "${UPSTREAM_PREFIX}-zdisp" "${UPSTREAM_PREFIX}-core" \
+    generate_branch "zdisp" "${UPSTREAM_PREFIX}-zdisp" \
         "${ZDISP_COMMIT_MSG}" "${ZDISP_PATHS[@]}"
 }
 
 export_zfs() {
-    generate_branch "zfs" "${UPSTREAM_PREFIX}-zfs" "${UPSTREAM_PREFIX}-core" \
+    generate_branch "zfs" "${UPSTREAM_PREFIX}-zfs" \
         "${ZFS_COMMIT_MSG}" "${ZFS_PATHS[@]}"
 }
 
+export_sample_cam_disp() {
+    generate_branch "sample-cam_disp" "${UPSTREAM_PREFIX}-sample-cam_disp" \
+        "${SAMPLE_CAM_DISP_COMMIT_MSG}" "${SAMPLE_CAM_DISP_PATHS[@]}"
+}
+
+export_sample_jpeg_dec() {
+    generate_branch "sample-jpeg_dec" "${UPSTREAM_PREFIX}-sample-jpeg_dec" \
+        "${SAMPLE_JPEG_DEC_COMMIT_MSG}" "${SAMPLE_JPEG_DEC_PATHS[@]}"
+}
+
+export_sample_fs() {
+    generate_branch "sample-fs" "${UPSTREAM_PREFIX}-sample-fs" \
+        "${SAMPLE_FS_COMMIT_MSG}" "${SAMPLE_FS_PATHS[@]}"
+}
+
+# ===========================================================================
+# Export all targets
+# ===========================================================================
+
 export_all() {
-    TARGETS=(core zvid zaud zdisp zfs)
+    TARGETS=(core zvid zaud zdisp zfs sample-cam_disp sample-jpeg_dec sample-fs)
 
     log_info "=== Exporting all MP upstream PR branches ==="
     log_info "Source: ${SOURCE_BRANCH}"
@@ -382,36 +511,36 @@ export_all() {
     export_zdisp
     export_zfs
 
-    echo ""
-    log_info "=== Running compliance checks ==="
-    echo ""
+    # Samples (depend on core + relevant plugin)
+    export_sample_cam_disp
+    export_sample_jpeg_dec
+    export_sample_fs
 
-    local failed_targets=()
-    for target in "${TARGETS[@]}"; do
-        local branch="${UPSTREAM_PREFIX}-${target}"
-        local base
-        if [ "${target}" = "core" ]; then
-            base="${BASE_REF}"
+    if ! ${SKIP_COMPLIANCE}; then
+        echo ""
+        log_info "=== Running compliance checks ==="
+        echo ""
+
+        local failed_targets=()
+        for target in "${TARGETS[@]}"; do
+            local branch="${UPSTREAM_PREFIX}-${target}"
+            if ! check_compliance "${branch}"; then
+                failed_targets+=("${target}")
+            fi
+        done
+
+        echo ""
+        if [ ${#failed_targets[@]} -eq 0 ]; then
+            log_info "=== All compliance checks passed ==="
         else
-            base="${UPSTREAM_PREFIX}-core"
+            log_warn "=== Compliance check summary ==="
+            log_warn "FAILED targets: ${failed_targets[*]}"
+            log_warn ""
+            log_warn "To fix:"
+            log_warn "  1. Fix compliance issues in '${SOURCE_BRANCH}' and commit"
+            log_warn "  2. Push '${SOURCE_BRANCH}' to mmiot: git push mmiot ${SOURCE_BRANCH}"
+            log_warn "  3. Re-run: ./scripts/export_mp_upstream.sh"
         fi
-
-        if ! check_compliance "${branch}" "${base}"; then
-            failed_targets+=("${target}")
-        fi
-    done
-
-    echo ""
-    if [ ${#failed_targets[@]} -eq 0 ]; then
-        log_info "=== All compliance checks passed ==="
-    else
-        log_warn "=== Compliance check summary ==="
-        log_warn "FAILED targets: ${failed_targets[*]}"
-        log_warn ""
-        log_warn "To fix:"
-        log_warn "  1. Fix compliance issues in '${SOURCE_BRANCH}' and commit"
-        log_warn "  2. Push '${SOURCE_BRANCH}' to mmiot: git push mmiot ${SOURCE_BRANCH}"
-        log_warn "  3. Re-run: ./scripts/export_mp_upstream.sh"
     fi
 
     echo ""
@@ -442,13 +571,20 @@ Usage: $(basename "$0") [OPTIONS] [TARGET...]
 
 Export MP subsystem from libmp_dev to upstream PR branches.
 
+Each branch is built from ${BASE_REF}, with dependency commits cherry-picked
+first, then the target's own commit added on top. Compliance checks only
+verify the target's own commit (HEAD~1..HEAD).
+
 Targets:
-  core      Core MP framework
-  zvid      Video plugin (includes JPEG support and core as dependency)
-  zaud      Audio plugin (includes core as dependency)
-  zdisp     Display plugin (includes core as dependency)
-  zfs       Filesystem plugin (includes core as dependency)
-  all       All of the above (default)
+  core             Core MP framework (no dependencies)
+  zvid             Video plugin (depends on core)
+  zaud             Audio plugin (depends on core)
+  zdisp            Display plugin (depends on core)
+  zfs              Filesystem plugin (depends on core)
+  sample-cam_disp  Camera-to-display sample (depends on core, zvid, zdisp)
+  sample-jpeg_dec  JPEG decoding sample (depends on core, zvid, zdisp, zfs)
+  sample-fs        Filesystem sample (depends on core, zfs)
+  all              All of the above (default)
 
 Options:
   --dry-run     Show what would be done without making changes
@@ -457,14 +593,13 @@ Options:
   --help        Show this help
 
 Examples:
-  $(basename "$0")                  # Export all
-  $(basename "$0") core             # Export core only
-  $(basename "$0") zvid             # Export core + zvid
-  $(basename "$0") --dry-run        # Preview all exports
+  $(basename "$0")                      # Export all
+  $(basename "$0") core                 # Export core only
+  $(basename "$0") core zvid            # Export core then zvid
+  $(basename "$0") sample-cam_disp      # Export sample (core+zvid must exist)
+  $(basename "$0") --dry-run            # Preview all exports
 EOF
 }
-
-SKIP_COMPLIANCE=false
 
 main() {
     local targets=()
@@ -476,7 +611,7 @@ main() {
                 shift
                 ;;
             --list)
-                echo "Available targets: core zvid zaud zdisp zfs"
+                echo "Available targets: core zvid zaud zdisp zfs sample-cam_disp sample-jpeg_dec sample-fs"
                 exit 0
                 ;;
             --no-comply)
@@ -487,7 +622,7 @@ main() {
                 usage
                 exit 0
                 ;;
-            core|zvid|zaud|zdisp|zfs|all)
+            core|zvid|zaud|zdisp|zfs|sample-cam_disp|sample-jpeg_dec|sample-fs|all)
                 targets+=("$1")
                 shift
                 ;;
@@ -515,41 +650,32 @@ main() {
                 export_core
                 ;;
             zvid)
-                # Ensure core is exported first (zvid depends on it)
-                if ! git rev-parse --verify "${UPSTREAM_PREFIX}-core" >/dev/null 2>&1; then
-                    log_info "Exporting core first (zvid depends on it)..."
-                    TARGETS+=(core)
-                    export_core
-                fi
                 TARGETS+=(zvid)
                 export_zvid
                 ;;
             zaud)
-                if ! git rev-parse --verify "${UPSTREAM_PREFIX}-core" >/dev/null 2>&1; then
-                    log_info "Exporting core first (zaud depends on it)..."
-                    TARGETS+=(core)
-                    export_core
-                fi
                 TARGETS+=(zaud)
                 export_zaud
                 ;;
             zdisp)
-                if ! git rev-parse --verify "${UPSTREAM_PREFIX}-core" >/dev/null 2>&1; then
-                    log_info "Exporting core first (zdisp depends on it)..."
-                    TARGETS+=(core)
-                    export_core
-                fi
                 TARGETS+=(zdisp)
                 export_zdisp
                 ;;
             zfs)
-                if ! git rev-parse --verify "${UPSTREAM_PREFIX}-core" >/dev/null 2>&1; then
-                    log_info "Exporting core first (zfs depends on it)..."
-                    TARGETS+=(core)
-                    export_core
-                fi
                 TARGETS+=(zfs)
                 export_zfs
+                ;;
+            sample-cam_disp)
+                TARGETS+=(sample-cam_disp)
+                export_sample_cam_disp
+                ;;
+            sample-jpeg_dec)
+                TARGETS+=(sample-jpeg_dec)
+                export_sample_jpeg_dec
+                ;;
+            sample-fs)
+                TARGETS+=(sample-fs)
+                export_sample_fs
                 ;;
         esac
     done
@@ -562,14 +688,7 @@ main() {
         local failed_targets_single=()
         for target in "${TARGETS[@]}"; do
             local branch="${UPSTREAM_PREFIX}-${target}"
-            local base
-            if [ "${target}" = "core" ]; then
-                base="${BASE_REF}"
-            else
-                base="${UPSTREAM_PREFIX}-core"
-            fi
-
-            if ! check_compliance "${branch}" "${base}"; then
+            if ! check_compliance "${branch}"; then
                 failed_targets_single+=("${target}")
             fi
         done
