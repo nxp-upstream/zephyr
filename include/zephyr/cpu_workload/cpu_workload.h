@@ -11,6 +11,8 @@
 
 #include <zephyr/sys/util.h>
 
+struct k_work;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,6 +44,9 @@ enum cpu_workload_source {
 
 	/** Arrival was caused by an explicit thread wakeup. */
 	CPU_WORKLOAD_SOURCE_ARRIVAL_EXPLICIT = BIT(5),
+
+	/** CPU workload signal came from a k_work handler profile. */
+	CPU_WORKLOAD_SOURCE_WORK_PROFILE = BIT(6),
 };
 
 /**
@@ -93,6 +98,26 @@ struct cpu_workload_arrival {
 };
 
 /**
+ * @brief Work item handler workload profile.
+ *
+ * The profile reports the exponentially weighted moving average (EWMA) of one
+ * work item's handler execution cost.
+ */
+struct cpu_workload_work_profile {
+	/** Estimated cycles for the work item's handler. */
+	uint32_t handler_cycles;
+
+	/** Bitmask describing which sources contributed to the profile. */
+	uint32_t source_mask;
+
+	/** Number of profiled handler executions. */
+	uint16_t sample_count;
+
+	/** Confidence in the profile, from 0 to 100. */
+	uint8_t confidence;
+};
+
+/**
  * @brief Get CPU ready-backlog workload.
  *
  * @param cpu_id The ID of the CPU for which to get the ready backlog.
@@ -115,6 +140,18 @@ int cpu_workload_ready_backlog_get(int cpu_id, struct cpu_workload_ready_backlog
  * @retval -ENOTSUP If arrival attribution is not enabled.
  */
 int cpu_workload_arrival_get(int cpu_id, struct cpu_workload_arrival *arrival);
+
+/**
+ * @brief Get a work item handler workload profile.
+ *
+ * @param work Work item.
+ * @param profile Pointer to the output profile.
+ *
+ * @retval 0 If a profile was written.
+ * @retval -EINVAL If @p work or @p profile is invalid.
+ * @retval -ENOTSUP If work handler profiling is not enabled.
+ */
+int cpu_workload_work_get(struct k_work *work, struct cpu_workload_work_profile *profile);
 
 /**
  * @}
