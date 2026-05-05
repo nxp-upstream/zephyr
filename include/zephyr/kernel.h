@@ -3942,6 +3942,32 @@ typedef void (*k_work_handler_t)(struct k_work *work);
 void k_work_init(struct k_work *work,
 		  k_work_handler_t handler);
 
+typedef struct k_work_handler_runtime_stats {
+#if defined(CONFIG_WORKQUEUE_HANDLER_RUNTIME_STATS) || defined(__DOXYGEN__)
+	uint64_t total_cycles;
+	uint32_t last_cycles;
+	uint16_t count;
+#endif /* CONFIG_WORKQUEUE_HANDLER_RUNTIME_STATS */
+
+#if defined(__cplusplus) && !defined(CONFIG_WORKQUEUE_HANDLER_RUNTIME_STATS)
+	/** Avoid a zero-sized struct in C++ when the feature is disabled. */
+	uint8_t dummy;
+#endif
+} k_work_handler_runtime_stats_t;
+
+/**
+ * @brief Get runtime statistics for a work item handler.
+ *
+ * @param work Work item.
+ * @param stats Pointer to struct to copy statistics into.
+ *
+ * @retval 0 On success.
+ * @retval -EINVAL If @p work or @p stats is NULL.
+ * @retval -ENOTSUP If work handler runtime statistics are not enabled.
+ */
+int k_work_handler_runtime_stats_get(struct k_work *work,
+				     k_work_handler_runtime_stats_t *stats);
+
 /** @brief Busy state flags from the work item.
  *
  * A zero return value indicates the work item appears to be idle.
@@ -4580,6 +4606,17 @@ struct k_work {
 	 * It can be RUNNING and CANCELING simultaneously.
 	 */
 	uint32_t flags;
+
+#ifdef CONFIG_WORKQUEUE_HANDLER_RUNTIME_STATS
+	/* Total cycles spent executing this work item's handler. */
+	uint64_t handler_total_cycles;
+
+	/* Cycles spent by the most recent handler execution. */
+	uint32_t handler_last_cycles;
+
+	/* Number of handler executions recorded. */
+	uint16_t handler_count;
+#endif /* CONFIG_WORKQUEUE_HANDLER_RUNTIME_STATS */
 /**
  * INTERNAL_HIDDEN @endcond
  */

@@ -502,6 +502,13 @@ config WORKQUEUE_WORK_TIMEOUT
 	  execute, the work queue thread will be aborted, and an error will be
 	  logged.
 
+config WORKQUEUE_HANDLER_RUNTIME_STATS
+	bool "Track k_work handler runtime statistics"
+	help
+	  Track raw per-work-item handler runtime statistics from workqueue
+	  dispatch. The statistics record handler execution cycles and invocation
+	  counts.
+
 menu "System Work Queue Options"
 config SYSTEM_WORKQUEUE_STACK_SIZE
 	int "System workqueue stack size"
