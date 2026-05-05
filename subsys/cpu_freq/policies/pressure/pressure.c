@@ -11,6 +11,8 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/cpu_freq/policy.h>
 #include <zephyr/cpu_freq/cpu_freq.h>
+#include <zephyr/sys/cpu_load.h>
+#include <zephyr/sys/util.h>
 
 #define CPU_FREQ_POLICY_PRESSURE_THRESHOLD                                                         \
 	((CONFIG_CPU_FREQ_POLICY_PRESSURE_LOWEST_PRIO <= K_LOWEST_THREAD_PRIO)                     \
@@ -104,6 +106,34 @@ static int get_normalized_sys_pressure(void)
 	return normalized_pressure;
 }
 
+#ifdef CONFIG_CPU_FREQ_POLICY_PRESSURE_WORKLOAD_DAMPING
+static int apply_workload_damping(int pressure)
+{
+	struct cpu_load_window window;
+	int ret;
+
+	ret = cpu_load_window_get(current_cpu_id(), &window);
+	if (ret != 0) {
+		return pressure;
+	}
+
+	if ((window.confidence < CONFIG_CPU_FREQ_POLICY_PRESSURE_WORKLOAD_MIN_CONFIDENCE) ||
+	    (window.load > CONFIG_CPU_FREQ_POLICY_PRESSURE_WORKLOAD_LOW_UTILIZATION) ||
+	    (pressure <= window.load)) {
+		return pressure;
+	}
+
+	int damped = (pressure * (100 - CONFIG_CPU_FREQ_POLICY_PRESSURE_WORKLOAD_DAMPING_PERCENT)) /
+		100;
+
+	damped = MAX(damped, (int)window.load);
+	LOG_DBG("Apply workload damping: pressure=%d%% util=%u%% confidence=%u -> %d%%",
+		pressure, window.load, window.confidence, damped);
+
+	return damped;
+}
+#endif /* CONFIG_CPU_FREQ_POLICY_PRESSURE_WORKLOAD_DAMPING */
+
 /*
  * The pressure policy iterates through the threads currently sitting in the ready queue at the time
  * of evaluation and accumulates the sum of their priorities, normalizing them around
@@ -124,6 +154,9 @@ int cpu_freq_policy_select_pstate(const struct pstate **pstate_out)
 
 	/* The caller has already ensured that the CPU is fixed */
 	sys_pressure = get_normalized_sys_pressure();
+#ifdef CONFIG_CPU_FREQ_POLICY_PRESSURE_WORKLOAD_DAMPING
+	sys_pressure = apply_workload_damping(sys_pressure);
+#endif /* CONFIG_CPU_FREQ_POLICY_PRESSURE_WORKLOAD_DAMPING */
 
 	if (sys_pressure < 0) {
 		LOG_ERR("Unable to retrieve system pressure");
