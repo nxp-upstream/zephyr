@@ -9,11 +9,13 @@ This provides parsing of domains yaml file and creation of objects of the
 Domain class.
 '''
 
+import copy
+import logging
+import os
 from dataclasses import dataclass
 
-import yaml
 import pykwalify.core
-import logging
+import yaml
 
 DOMAINS_SCHEMA = '''
 ## A pykwalify schema for basic validation of the structure of a
@@ -59,6 +61,12 @@ logger.addHandler(handler)
 
 class Domains:
 
+    @staticmethod
+    def _resolve_build_dir(build_dir: str, base_dir: str) -> str:
+        if os.path.isabs(build_dir):
+            return build_dir
+        return os.path.normpath(os.path.join(base_dir, build_dir))
+
     def __init__(self, data: dict):
         try:
             pykwalify.core.Core(source_data=data,
@@ -86,12 +94,25 @@ class Domains:
         '''
         try:
             with open(domains_file, 'r') as f:
-                domains_yaml = f.read()
+                data = yaml.safe_load(f.read())
         except FileNotFoundError:
             logger.critical(f'domains.yaml file not found: {domains_file}')
             exit(1)
+        except yaml.YAMLError as e:
+            logger.critical(f'Invalid domains.yaml: {e}')
+            exit(1)
 
-        return Domains.from_yaml(domains_yaml)
+        base_dir = os.path.dirname(os.path.abspath(domains_file))
+
+        data['build_dir'] = Domains._resolve_build_dir(
+            data['build_dir'], base_dir
+        )
+        for domain in data['domains']:
+            domain['build_dir'] = Domains._resolve_build_dir(
+                domain['build_dir'], base_dir
+            )
+
+        return Domains(data)
 
     @staticmethod
     def from_yaml(domains_yaml):
@@ -110,6 +131,21 @@ class Domains:
                 return self._flash_order
             return list(self._domains.values())
         return list(map(self.get_domain, names))
+
+    def get_domains_with_build_dirs_relative_to(self, base_dir: str):
+        """Return a copy with build_dirs relative to base_dir."""
+        resolved = copy.deepcopy(self)
+
+        if os.path.isabs(resolved._build_dir):
+            resolved._build_dir = os.path.relpath(
+                resolved._build_dir, base_dir
+            )
+
+        for domain in resolved._domains.values():
+            if os.path.isabs(domain.build_dir):
+                domain.build_dir = os.path.relpath(domain.build_dir, base_dir)
+
+        return resolved
 
     def get_domain(self, name):
         found = self._domains.get(name)
