@@ -1,0 +1,50 @@
+# Copyright 2026 NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig CPU_WORKLOAD
+	bool "CPU Workload"
+	select EXPERIMENTAL
+	help
+	  CPU workload signals and aggregation helpers. This subsystem collects
+	  runtime and scheduling information and exposes workload estimates that
+	  describe recent, queued, or expected CPU work.
+
+if CPU_WORKLOAD
+
+module = CPU_WORKLOAD
+module-str = CPU Workload
+source "subsys/logging/Kconfig.template.log_config"
+
+config CPU_WORKLOAD_THREAD_PROFILE
+	bool "CPU per-thread workload profile"
+	select THREAD_RUNTIME_STATS
+	select SCHED_THREAD_USAGE
+	select SCHED_THREAD_USAGE_ANALYSIS
+	select SCHED_THREAD_USAGE_AUTO_ENABLE
+	help
+	  Build a workload-oriented per-thread profile from scheduler runtime
+	  usage windows. The profile maintains the EWMA and confidence heuristics
+	  used to turn completed runtime windows into predicted cycles.
+
+config CPU_WORKLOAD_THREAD_PROFILE_EWMA_SHIFT
+	int "Per-thread workload EWMA shift"
+	default 3
+	range 1 8
+	depends on CPU_WORKLOAD_THREAD_PROFILE
+	help
+	  Shift used by the per-thread workload EWMA. A value of 3 gives alpha =
+	  1/8, using avg = ((7 * avg) + burst) / 8. Smaller values react faster;
+	  larger values smooth more aggressively.
+
+config CPU_WORKLOAD_THREAD_PROFILE_CACHE_SIZE
+	int "Per-thread workload profile cache size"
+	default 16
+	range 1 256
+	depends on CPU_WORKLOAD_THREAD_PROFILE
+	help
+	  Maximum number of thread burst profiles cached by the subsystem. Threads
+	  that cannot be cached are treated as unprofiled by ready-backlog and
+	  arrival signals.
+
+endif # CPU_WORKLOAD
