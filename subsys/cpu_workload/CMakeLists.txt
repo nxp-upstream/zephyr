@@ -4,3 +4,4 @@
 
 zephyr_library()
 zephyr_library_sources_ifdef(CONFIG_CPU_WORKLOAD_THREAD_PROFILE thread.c)
+zephyr_library_sources_ifdef(CONFIG_CPU_WORKLOAD_READY_BACKLOG backlog.c)
