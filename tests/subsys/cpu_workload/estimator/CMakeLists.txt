@@ -7,3 +7,4 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(cpu_workload_estimator_test)
 
 target_sources(app PRIVATE src/main.c)
+target_include_directories(app PRIVATE ${ZEPHYR_BASE}/subsys/cpu_workload)

@@ -79,7 +79,7 @@ static void cpu_workload_arrival_cb(const struct k_thread *thread, void *user_da
 	 * stats.count recent arrivals * predicted_cycles per arrival.
 	 */
 	ctx->arrival->expected_arrival_cycles +=
-		(uint64_t)burst_profile.burst_avg_cycles * stats.count;
+		(uint64_t)burst_profile.predicted_cycles * stats.count;
 	ctx->arrival->profiled_arrivals += stats.count;
 
 	/**

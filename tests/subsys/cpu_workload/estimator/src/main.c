@@ -8,6 +8,8 @@
 #include <zephyr/kernel.h>
 #include <zephyr/ztest.h>
 
+#include "cpu_workload_internal.h"
+
 #define PROFILE_THREAD_STACK_SIZE 1024
 #define PROFILE_THREAD_PRIORITY K_PRIO_PREEMPT(0)
 #define BURN_ITERATIONS 20000U
@@ -19,11 +21,12 @@ K_SEM_DEFINE(work_done_sem, 0, 1);
 K_THREAD_STACK_DEFINE(profile_thread_stack, PROFILE_THREAD_STACK_SIZE);
 static struct k_thread profile_thread;
 static bool profile_thread_started;
+static volatile uint32_t burn_iterations = BURN_ITERATIONS;
 static volatile uint32_t burn_sink;
 
 static void burn_cycles(void)
 {
-	for (uint32_t i = 0U; i < BURN_ITERATIONS; i++) {
+	for (uint32_t i = 0U; i < burn_iterations; i++) {
 		burn_sink += i;
 	}
 }
@@ -46,6 +49,7 @@ static void prime_thread_profile(void)
 	k_thread_runtime_stats_t stats;
 	int ret;
 
+	burn_iterations = BURN_ITERATIONS;
 	k_sem_give(&profile_start_sem);
 	zassert_ok(k_sem_take(&profile_done_sem, K_SECONDS(1)));
 	k_sleep(K_MSEC(10));
@@ -54,6 +58,41 @@ static void prime_thread_profile(void)
 	zassert_ok(ret);
 	zassert_true(stats.window_count > 0U, "thread stats did not collect windows");
 	zassert_true(stats.total_cycles > 0U, "thread stats has no total cycles");
+}
+
+ZTEST(cpu_workload_estimator, test_thread_burst_profile_tracks_completed_samples)
+{
+	struct cpu_workload_thread_burst_profile first;
+	struct cpu_workload_thread_burst_profile second;
+	int ret;
+
+	prime_thread_profile();
+
+	ret = cpu_workload_thread_burst_profile_get(&profile_thread, &first);
+	zassert_ok(ret);
+	zassert_true(first.sample_count > 0U, "thread profile did not collect samples");
+	zassert_true(first.burst_last_cycles > 0U, "thread profile has no last burst");
+	zassert_true(first.burst_avg_cycles > 0U, "thread profile has no average burst");
+	zassert_true(first.predicted_cycles >= first.burst_last_cycles,
+		     "prediction should include last burst");
+	zassert_true(first.predicted_cycles >= first.burst_avg_cycles,
+		     "prediction should include average burst");
+
+	burn_iterations = BURN_ITERATIONS / 2U;
+	k_sem_give(&profile_start_sem);
+	zassert_ok(k_sem_take(&profile_done_sem, K_SECONDS(1)));
+	k_sleep(K_MSEC(10));
+
+	ret = cpu_workload_thread_burst_profile_get(&profile_thread, &second);
+	zassert_ok(ret);
+	zassert_true(second.sample_count > first.sample_count,
+		     "thread profile did not count a completed sample");
+	zassert_true(second.burst_last_cycles > 0U, "thread profile lost last burst");
+	zassert_true(second.burst_avg_cycles > 0U, "thread profile lost average burst");
+	zassert_true(second.predicted_cycles >= second.burst_last_cycles,
+		     "prediction should include updated last burst");
+	zassert_true(second.predicted_cycles >= second.burst_avg_cycles,
+		     "prediction should include updated average burst");
 }
 
 static void *workload_test_setup(void)

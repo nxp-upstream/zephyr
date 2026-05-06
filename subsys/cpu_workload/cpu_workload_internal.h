@@ -12,7 +12,9 @@
 #include <zephyr/kernel.h>
 
 struct cpu_workload_thread_burst_profile {
+	uint32_t burst_last_cycles;
 	uint32_t burst_avg_cycles;
+	uint32_t predicted_cycles;
 	uint32_t sample_count;
 	uint8_t confidence;
 };

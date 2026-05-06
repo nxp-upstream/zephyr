@@ -24,8 +24,9 @@ config CPU_WORKLOAD_THREAD_PROFILE
 	select SCHED_THREAD_USAGE_AUTO_ENABLE
 	help
 	  Build a workload-oriented per-thread profile from scheduler runtime
-	  usage windows. The profile maintains the EWMA and confidence heuristics
-	  used to turn completed runtime windows into predicted cycles.
+	  usage windows. The profile maintains the last completed burst, an EWMA
+	  of completed bursts, a completed-sample count, and confidence heuristics
+	  used to turn runtime history into predicted cycles.
 
 config CPU_WORKLOAD_THREAD_PROFILE_EWMA_SHIFT
 	int "Per-thread workload EWMA shift"

@@ -20,6 +20,8 @@ struct cpu_workload_thread_profile_slot {
 	k_tid_t thread;
 	uint64_t observed_total_cycles;
 	uint32_t observed_windows;
+	uint32_t sample_count;
+	uint32_t burst_last_cycles;
 	uint32_t burst_avg_cycles;
 };
 
@@ -48,15 +50,13 @@ static struct cpu_workload_thread_profile_slot *thread_profile_slot_get(k_tid_t 
 	return free_slot;
 }
 
-/**
- * Calculate the average CPU cycles consumed per scheduling window for a thread since the
- * last sampling, used to characterize the thread's burst execution behavior.
+/*
+ * Calculate completed scheduling windows since the last sample.
  */
-static uint32_t thread_profile_window_delta(const k_thread_runtime_stats_t *stats,
-					    struct cpu_workload_thread_profile_slot *slot)
+static uint32_t thread_profile_completed_delta(const k_thread_runtime_stats_t *stats,
+					       struct cpu_workload_thread_profile_slot *slot)
 {
 	uint32_t window_delta;
-	uint64_t cycle_delta;
 
 	/* If the new window_count/total_cycles is less than the old ledger, then the
 	 * old portrait can no longer be used and must be cleared and re-learned.
@@ -65,6 +65,8 @@ static uint32_t thread_profile_window_delta(const k_thread_runtime_stats_t *stat
 	    (stats->total_cycles < slot->observed_total_cycles)) {
 		slot->observed_windows = 0U;
 		slot->observed_total_cycles = 0U;
+		slot->sample_count = 0U;
+		slot->burst_last_cycles = 0U;
 		slot->burst_avg_cycles = 0U;
 	}
 
@@ -72,13 +74,20 @@ static uint32_t thread_profile_window_delta(const k_thread_runtime_stats_t *stat
 	 * this newly added observation period — (single burst length).
 	 */
 	window_delta = stats->window_count - slot->observed_windows;
-	cycle_delta = stats->total_cycles - slot->observed_total_cycles;
 
-	if (window_delta == 0U) {
+	if (stats->total_cycles == slot->observed_total_cycles) {
 		return 0U;
 	}
 
-	return (uint32_t)MIN(cycle_delta / window_delta, (uint64_t)UINT32_MAX);
+	if (slot->sample_count == 0U) {
+		if (stats->window_count <= 1U) {
+			return 1U;
+		}
+
+		return stats->window_count - 1U;
+	}
+
+	return MAX(window_delta, 1U);
 }
 
 /**
@@ -114,6 +123,15 @@ static void thread_profile_update_avg(struct cpu_workload_thread_profile_slot *s
 		slot->burst_avg_cycles = avg -
 			((avg - burst_cycles) >> CONFIG_CPU_WORKLOAD_THREAD_PROFILE_EWMA_SHIFT);
 	}
+}
+
+static uint32_t thread_profile_predict_cycles(const struct cpu_workload_thread_profile_slot *slot)
+{
+	if (slot->sample_count == 0U) {
+		return 0U;
+	}
+
+	return MAX(slot->burst_last_cycles, slot->burst_avg_cycles);
 }
 
 /**
@@ -167,9 +185,11 @@ int cpu_workload_thread_burst_profile_get(k_tid_t thread,
 					  struct cpu_workload_thread_burst_profile *profile)
 {
 	struct cpu_workload_thread_profile_slot *slot;
-	k_thread_runtime_stats_t stats;
-	uint32_t window_cycles;
 	k_spinlock_key_t key;
+	uint32_t completed_delta;
+	uint32_t burst_cycles;
+	uint64_t cycle_delta;
+	k_thread_runtime_stats_t stats;
 	int ret;
 
 	if ((thread == NULL) || (profile == NULL)) {
@@ -188,17 +208,28 @@ int cpu_workload_thread_burst_profile_get(k_tid_t thread,
 		return -ENOMEM;
 	}
 
-	window_cycles = thread_profile_window_delta(&stats, slot);
-	if (window_cycles != 0U) {
-		thread_profile_update_avg(slot, window_cycles);
+	completed_delta = thread_profile_completed_delta(&stats, slot);
+	cycle_delta = stats.total_cycles - slot->observed_total_cycles;
+	if ((completed_delta != 0U) && (cycle_delta != 0U)) {
+		burst_cycles = (uint32_t)MIN(cycle_delta / completed_delta, (uint64_t)UINT32_MAX);
+		slot->burst_last_cycles = (stats.current_cycles == 0U) ? burst_cycles :
+			(uint32_t)MIN(stats.current_cycles, (uint64_t)UINT32_MAX);
+		thread_profile_update_avg(slot, burst_cycles);
+		if ((UINT32_MAX - slot->sample_count) < completed_delta) {
+			slot->sample_count = UINT32_MAX;
+		} else {
+			slot->sample_count += completed_delta;
+		}
 	}
 
 	slot->observed_windows = stats.window_count;
 	slot->observed_total_cycles = stats.total_cycles;
 
+	profile->burst_last_cycles = slot->burst_last_cycles;
 	profile->burst_avg_cycles = slot->burst_avg_cycles;
-	profile->sample_count = stats.window_count;
-	profile->confidence = thread_profile_confidence(stats.window_count);
+	profile->predicted_cycles = thread_profile_predict_cycles(slot);
+	profile->sample_count = slot->sample_count;
+	profile->confidence = thread_profile_confidence(slot->sample_count);
 
 	k_spin_unlock(&thread_profile_lock, key);
 
