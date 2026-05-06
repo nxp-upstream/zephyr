@@ -258,6 +258,12 @@ static ALWAYS_INLINE struct k_thread *z_unpend_first_thread(_wait_q_t *wait_q)
 		if (unlikely(thread != NULL)) {
 			unpend_thread_no_timeout(thread);
 			z_abort_thread_timeout(thread);
+#ifdef CONFIG_SCHED_THREAD_USAGE_ARRIVAL_STATS
+			/* Ensure that all threads awakened through the wait queue
+			 * are captured by arrival profiling and attributed as SYNC.
+			 */
+			z_sched_thread_arrival_stats_update(thread, K_THREAD_ARRIVAL_SOURCE_SYNC);
+#endif /* CONFIG_SCHED_THREAD_USAGE_ARRIVAL_STATS */
 		}
 	}
 
