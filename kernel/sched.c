@@ -494,6 +494,10 @@ void z_thread_timeout(struct _timeout *timeout)
 
 	z_sched_wake_thread_locked(thread);
 	k_spin_unlock(&_sched_spinlock, key);
+	/* Make 'timeout wake-up' be attributed as TIMEOUT. */
+	K_SPINLOCK(&_sched_spinlock) {
+		z_sched_wake_thread_locked_source(thread, K_THREAD_ARRIVAL_SOURCE_TIMEOUT);
+	}
 }
 #endif /* CONFIG_SYS_CLOCK_EXISTS */
 
