@@ -24,9 +24,10 @@ config CPU_WORKLOAD_THREAD_PROFILE
 	select SCHED_THREAD_USAGE_AUTO_ENABLE
 	help
 	  Build a workload-oriented per-thread profile from scheduler runtime
-	  usage windows. The profile maintains the last completed burst, an EWMA
-	  of completed bursts, a completed-sample count, and confidence heuristics
-	  used to turn runtime history into predicted cycles.
+	  usage windows. The profile maintains the last completed burst, an
+	  exponentially weighted moving average (EWMA) of completed bursts, a
+	  completed-sample count, and confidence heuristics used to turn runtime
+	  history into predicted cycles.
 
 config CPU_WORKLOAD_THREAD_PROFILE_EWMA_SHIFT
 	int "Per-thread workload EWMA shift"
@@ -34,9 +35,10 @@ config CPU_WORKLOAD_THREAD_PROFILE_EWMA_SHIFT
 	range 1 8
 	depends on CPU_WORKLOAD_THREAD_PROFILE
 	help
-	  Shift used by the per-thread workload EWMA. A value of 3 gives alpha =
-	  1/8, using avg = ((7 * avg) + burst) / 8. Smaller values react faster;
-	  larger values smooth more aggressively.
+	  Shift used by the per-thread workload exponentially weighted moving
+	  average (EWMA). A value of 3 gives alpha = 1/8, using avg =
+	  ((7 * avg) + burst) / 8. Smaller values react faster; larger values
+	  smooth more aggressively.
 
 config CPU_WORKLOAD_THREAD_PROFILE_CACHE_SIZE
 	int "Per-thread workload profile cache size"
