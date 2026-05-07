@@ -145,7 +145,8 @@ by extending existing elements, without requiring modifications to the
 core components. Plugins are decentralized from the core structures,
 allowing seamless extension without altering the core framework.
 
-${SOB}"
+${SOB}
+Signed-off-by: Trung Hieu Le <trunghieu.le@nxp.com>"
 
 ZVID_COMMIT_MSG="mp: Add zvid video plugin
 
