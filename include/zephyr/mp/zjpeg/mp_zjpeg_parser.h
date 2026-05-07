@@ -30,8 +30,8 @@ struct mp_zjpeg_parser {
 	struct mp_parser base;
 	/** Partial frame buffer, accumulated with memcpy until EOI */
 	struct net_buf *partial_frame;
-	/** Staging pool used when downstream pool is not available (e.g. preroll/discovery) */
-	struct mp_buffer_pool staging_pool;
+	/** Output pool used when downstream pool is not available */
+	struct mp_buffer_pool out_pool;
 };
 
 /**

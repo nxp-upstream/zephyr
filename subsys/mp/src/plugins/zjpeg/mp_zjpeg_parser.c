@@ -39,7 +39,7 @@ static bool mp_zjpeg_parser_decide_allocation(struct mp_parser *parser, struct m
 
 	/* Use the internal pool by default */
 	if (CONFIG_MP_ZJPEG_PARSER_MAX_FRAME_SIZE > 0) {
-		parser->outpool = &jpeg_parser->staging_pool;
+		parser->outpool = &jpeg_parser->out_pool;
 	}
 
 	/* Use the proposed pool from downstream when available */
@@ -348,13 +348,13 @@ void mp_zjpeg_parser_init(struct mp_element *self)
 	parser->decide_allocation = mp_zjpeg_parser_decide_allocation;
 
 	if (CONFIG_MP_ZJPEG_PARSER_MAX_FRAME_SIZE > 0) {
-		mp_buffer_pool_init(&jpeg_parser->staging_pool);
-		jpeg_parser->staging_pool.nb_pool = &mp_zjpeg_parser_pool;
-		jpeg_parser->staging_pool.config.size = CONFIG_MP_ZJPEG_PARSER_MAX_FRAME_SIZE;
-		jpeg_parser->staging_pool.acquire_buffer = mp_zjpeg_parser_staging_acquire;
-		jpeg_parser->staging_pool.release_buffer = mp_zjpeg_parser_staging_release;
+		mp_buffer_pool_init(&jpeg_parser->out_pool);
+		jpeg_parser->out_pool.nb_pool = &mp_zjpeg_parser_pool;
+		jpeg_parser->out_pool.config.size = CONFIG_MP_ZJPEG_PARSER_MAX_FRAME_SIZE;
+		jpeg_parser->out_pool.acquire_buffer = mp_zjpeg_parser_staging_acquire;
+		jpeg_parser->out_pool.release_buffer = mp_zjpeg_parser_staging_release;
 		/* net_buf pool is static; no explicit start */
-		jpeg_parser->staging_pool.started = true;
-		parser->outpool = &jpeg_parser->staging_pool;
+		jpeg_parser->out_pool.started = true;
+		parser->outpool = &jpeg_parser->out_pool;
 	}
 }
