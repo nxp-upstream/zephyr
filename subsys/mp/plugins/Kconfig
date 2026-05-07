@@ -6,6 +6,6 @@
 
 menu "Media Pipe plugins"
 
-osource "subsys/mp/src/plugins/*/Kconfig"
+osource "subsys/mp/plugins/*/Kconfig"
 
 endmenu
