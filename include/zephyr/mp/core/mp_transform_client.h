@@ -50,7 +50,7 @@ struct mp_transform_client {
  * sets up sink and source pads, and configures default function
  * pointers for element operations.
  *
- * @param self Pointer to the element to initialize (@ref struct mp_element)
+ * @param self Pointer to the element to initialize (@ref mp_element)
  */
 void mp_transform_client_init(struct mp_element *self);
 

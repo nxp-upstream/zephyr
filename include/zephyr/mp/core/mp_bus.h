@@ -20,7 +20,7 @@
 #include <zephyr/mp/core/mp_messages.h>
 
 /**
- * @defgroup mp_bus
+ * @defgroup mp_bus Message Bus
  * @brief Message bus for the communication between elements to application
  *
  * @{

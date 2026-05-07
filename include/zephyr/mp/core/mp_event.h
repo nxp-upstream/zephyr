@@ -18,7 +18,7 @@
 #include <zephyr/mp/core/mp_structure.h>
 
 /**
- * @defgroup mp_event
+ * @defgroup mp_event Pipeline Event
  * @brief Pipeline event
  *
  * @{
@@ -37,7 +37,7 @@
  *
  * @param event Pointer to struct mp_event
  *
- * @retval direction of event @ref enum mp_event_direction
+ * @return Direction of event, see @ref mp_event_direction
  */
 #define MP_EVENT_DIRECTION(event) (event->type & 0b11)
 
@@ -76,40 +76,40 @@ struct mp_event {
 /**
  * Create a new custom event.
  *
- * @param type Event type to assign to new event (See @ref enum mp_event_type)
+ * @param type Event type to assign to new event (See @ref mp_event_type)
  * @param structure Pointer to a structure to associate with the event.
- * @return Pointer to new @ref struct mp_event, or NULL if allcation fails.
+ * @return Pointer to new @ref mp_event, or NULL if allcation fails.
  */
 struct mp_event *mp_event_new_custom(enum mp_event_type type, struct mp_structure *structure);
 
 /**
  * Create a new CAPS event.
  *
- * @param caps @ref struct mp_caps to include
- * @return Pointer to new @ref struct mp_event
+ * @param caps @ref mp_caps to include
+ * @return Pointer to new @ref mp_event
  */
 struct mp_event *mp_event_new_caps(struct mp_caps *caps);
 
 /**
  * Create a new EOS (End-of-Stream) event.
  *
- * @return Pointer to new @ref struct mp_event
+ * @return Pointer to new @ref mp_event
  */
 struct mp_event *mp_event_new_eos(void);
 
 /**
- * Get @ref struct mp_caps from a MP_EVENT_CAPS event.
+ * Get @ref mp_caps from a MP_EVENT_CAPS event.
  *
  * @param event Pointer to a struct mp_event
- * @return Pointer to event @ref struct mp_caps
+ * @return Pointer to event @ref mp_caps
  */
 struct mp_caps *mp_event_get_caps(struct mp_event *event);
 
 /**
  * Set caps to a @ref MP_EVENT_CAPS event.
  *
- * @param event Pointer to a @ref struct mp_event
- * @param caps Pointer to a @ref struct mp_caps
+ * @param event Pointer to a @ref mp_event
+ * @param caps Pointer to a @ref mp_caps
  * @return true if successful, false otherwise
  */
 bool mp_event_set_caps(struct mp_event *event, struct mp_caps *caps);
@@ -117,7 +117,7 @@ bool mp_event_set_caps(struct mp_event *event, struct mp_caps *caps);
 /**
  * Destroy an event and its free its associated resources.
  *
- * @param event Pointer to @ref struct mp_event to destroy
+ * @param event Pointer to @ref mp_event to destroy
  */
 void mp_event_destroy(struct mp_event *event);
 

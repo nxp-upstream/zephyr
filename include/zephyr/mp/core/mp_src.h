@@ -58,7 +58,7 @@ struct mp_src {
  * This function initializes the base source element structure, including
  * the source pad and default callbacks.
  *
- * @param self Pointer to the @ref struct mp_element to initialize as a source
+ * @param self Pointer to the @ref mp_element to initialize as a source
  */
 void mp_src_init(struct mp_element *self);
 
@@ -66,9 +66,9 @@ void mp_src_init(struct mp_element *self);
  * @brief Change state function for base source element
  *
  * @param self Pointer to the @ref mp_element struct
- * @param transition Transition state, see @ref mp_state_change enum
+ * @param transition Transition state, see @ref mp_state_change
  *
- * @retval One of @ref mp_state_change enum
+ * @retval One of @ref mp_state_change_return
  */
 enum mp_state_change_return mp_src_change_state(struct mp_element *self,
 						enum mp_state_change transition);
@@ -76,7 +76,7 @@ enum mp_state_change_return mp_src_change_state(struct mp_element *self,
 /**
  * @brief Set property on source element
  *
- * @param obj Pointer to the @ref struct mp_object (source element)
+ * @param obj Pointer to the @ref mp_object (source element)
  * @param key Property key identifier
  * @param val Pointer to the property value to set
  * @return 0 on success, negative error code on failure
@@ -86,7 +86,7 @@ int mp_src_set_property(struct mp_object *obj, uint32_t key, const void *val);
 /**
  * @brief Get property from source element
  *
- * @param obj Pointer to the @ref struct mp_object (source element)
+ * @param obj Pointer to the @ref mp_object (source element)
  * @param key Property key identifier
  * @param val Pointer to store the retrieved property value
  * @return 0 on success, negative error code on failure

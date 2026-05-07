@@ -18,12 +18,12 @@
 #include <zephyr/mp/core/mp_value.h>
 
 /**
- * @defgroup mp_structure
+ * @defgroup mp_structure Dynamic Structure
  * @brief Dynamic structure for holding named fields and values.
  *
  *
  * mp_structure is a flexible container used to represent a set of named fields,
- * which is associated with a @ref struct mp_value.
+ * which is associated with a @ref mp_value.
  *
  * Each field must have an unique ID, each field is stored in single linked list.
  * The structure can be modified at runtime by appending, removing fields.
@@ -63,7 +63,7 @@
  * @endcode
  *
  * Intersection rules for structures:
- * Two @ref struct mp_structure instances can intersect if all common fields between them
+ * Two @ref mp_structure instances can intersect if all common fields between them
  * have intersecting values. The intersection operation produces a new structure
  * containing only the compatible fields and values.
  *
@@ -97,13 +97,13 @@ struct mp_structure {
  * @param media_type_id Media type ID of the structure.
  * @param ... Variadic list of field definitions, terminated by 0.
  *
- * @return Pointer to the newly created @ref struct mp_structure.
+ * @return Pointer to the newly created @ref mp_structure.
  * @retval NULL If memory allocation fails or the argument list is invalid.
  */
 struct mp_structure *mp_structure_new(uint8_t media_type_id, ...);
 
 /**
- * @brief Initialize an @ref struct mp_structure.
+ * @brief Initialize an @ref mp_structure.
  *
  * @param structure Structure to initialize.
  * @param media_type_id Media type ID of the structure.
@@ -111,7 +111,7 @@ struct mp_structure *mp_structure_new(uint8_t media_type_id, ...);
 void mp_structure_init(struct mp_structure *structure, uint8_t media_type_id);
 
 /**
- * @brief Append a field to an @ref struct mp_structure
+ * @brief Append a field to an @ref mp_structure
  *
  * @param structure Structure to append the field to.
  * @param field_id Field ID (field ID must be unique)
@@ -120,14 +120,14 @@ void mp_structure_init(struct mp_structure *structure, uint8_t media_type_id);
 void mp_structure_append(struct mp_structure *structure, uint8_t field_id, struct mp_value *value);
 
 /**
- * @brief Clear all fields from an @ref struct mp_structure.
+ * @brief Clear all fields from an @ref mp_structure.
  *
  * @param structure Structure to clear.
  */
 void mp_structure_clear(struct mp_structure *structure);
 
 /**
- * @brief Destroy an @ref struct mp_structure.
+ * @brief Destroy an @ref mp_structure.
  *
  * Clears all fields and releases resources associated with the structure.
  *
@@ -136,7 +136,7 @@ void mp_structure_clear(struct mp_structure *structure);
 void mp_structure_destroy(struct mp_structure *structure);
 
 /**
- * @brief Check if an @ref struct mp_structure is fixed.
+ * @brief Check if an @ref mp_structure is fixed.
  *
  * A structure is considered fixed if all its fields contain single values.
  *
@@ -147,7 +147,7 @@ void mp_structure_destroy(struct mp_structure *structure);
 bool mp_structure_is_fixed(struct mp_structure *structure);
 
 /**
- * @brief Get the value of a field in an @ref struct mp_structure.
+ * @brief Get the value of a field in an @ref mp_structure.
  *
  * Retrieves the value associated with the specified field ID.
  *
@@ -159,7 +159,7 @@ bool mp_structure_is_fixed(struct mp_structure *structure);
 struct mp_value *mp_structure_get_value(struct mp_structure *structure, uint8_t field_id);
 
 /**
- * @brief Remove a field from an @ref struct mp_structure.
+ * @brief Remove a field from an @ref mp_structure.
  *
  * Deletes the field with the specified ID from the structure.
  *
@@ -171,7 +171,7 @@ struct mp_value *mp_structure_get_value(struct mp_structure *structure, uint8_t 
 bool mp_structure_remove_field(struct mp_structure *structure, uint8_t field_id);
 
 /**
- * @brief Check if two @ref struct mp_structure can intersect.
+ * @brief Check if two @ref mp_structure can intersect.
  *
  * Two structures can intersect if all common fields have intersecting values.
  *
@@ -183,7 +183,7 @@ bool mp_structure_remove_field(struct mp_structure *structure, uint8_t field_id)
 bool mp_structure_can_intersect(struct mp_structure *struct1, struct mp_structure *struct2);
 
 /**
- * @brief Create a new intersected @ref struct mp_structure.
+ * @brief Create a new intersected @ref mp_structure.
  *
  * @param structure1 First structure.
  * @param structure2 Second structure.
@@ -194,7 +194,7 @@ struct mp_structure *mp_structure_intersect(struct mp_structure *structure1,
 					    struct mp_structure *structure2);
 
 /**
- * @brief Create a new fixated @ref struct mp_structure.
+ * @brief Create a new fixated @ref mp_structure.
  *
  * Generates a new structure containing only single values from the input structure.
  *
@@ -205,7 +205,7 @@ struct mp_structure *mp_structure_intersect(struct mp_structure *structure1,
 struct mp_structure *mp_structure_fixate(struct mp_structure *src);
 
 /**
- * @brief Duplicate an @ref struct mp_structure.
+ * @brief Duplicate an @ref mp_structure.
  *
  * @param src Structure to duplicate.
  *
@@ -214,7 +214,7 @@ struct mp_structure *mp_structure_fixate(struct mp_structure *src);
 struct mp_structure *mp_structure_duplicate(struct mp_structure *src);
 
 /**
- * @brief Print an @ref struct mp_structure.
+ * @brief Print an @ref mp_structure.
  *
  * Outputs the contents of the structure for debugging or inspection.
  *

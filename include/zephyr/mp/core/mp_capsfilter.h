@@ -46,7 +46,7 @@ struct mp_caps_filter {
 /**
  * @brief Initialize a caps filter element
  *
- * @param self Pointer to the @ref struct mp_element to initialize as a caps filter
+ * @param self Pointer to the @ref mp_element to initialize as a caps filter
  */
 void mp_caps_filter_init(struct mp_element *self);
 

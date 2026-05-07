@@ -65,16 +65,16 @@ struct mp_transform {
 	 * To get the current caps, use sinkpad->caps or srcpad->caps instead
 	 *
 	 * @param transform Pointer to the transform element
-	 * @param direction Direction of the pad (@ref enum mp_pad_direction)
-	 * @return Pointer to @ref struct mp_caps or NULL on failure
+	 * @param direction Direction of the pad (@ref mp_pad_direction)
+	 * @return Pointer to @ref mp_caps or NULL on failure
 	 */
 	struct mp_caps *(*get_caps)(struct mp_transform *transform,
 				    enum mp_pad_direction direction);
 	/**
 	 * @brief Set a given caps to an element's pad
 	 * @param transform Pointer to the transform element
-	 * @param direction Direction of the pad (@ref enum mp_pad_direction)
-	 * @param caps Capabilities to set (@ref struct mp_caps)
+	 * @param direction Direction of the pad (@ref mp_pad_direction)
+	 * @param caps Capabilities to set (@ref mp_caps)
 	 * @return true on success, false on failure
 	 */
 	bool (*set_caps)(struct mp_transform *transform, enum mp_pad_direction direction,
@@ -82,9 +82,9 @@ struct mp_transform {
 	/**
 	 * @brief Transform capabilities from one pad to another
 	 * @param self Pointer to the transform element
-	 * @param direction Direction to transform capabilities to (@ref enum mp_pad_direction)
-	 * @param incaps Input capabilities (@ref struct mp_caps)
-	 * @return Transformed capabilities (@ref struct mp_caps) or NULL on failure
+	 * @param direction Direction to transform capabilities to (@ref mp_pad_direction)
+	 * @param incaps Input capabilities (@ref mp_caps)
+	 * @return Transformed capabilities (@ref mp_caps) or NULL on failure
 	 */
 	struct mp_caps *(*transform_caps)(struct mp_transform *self,
 					  enum mp_pad_direction direction, struct mp_caps *incaps);
@@ -101,14 +101,14 @@ struct mp_transform {
 	 * configured / started only by the upstream and not by the transform element itself.
 	 *
 	 * @param self Pointer to the transform element
-	 * @param query Allocation query (@ref struct mp_query)
+	 * @param query Allocation query (@ref mp_query)
 	 * @return true on success, false on failure
 	 */
 	bool (*propose_allocation)(struct mp_transform *self, struct mp_query *query);
 	/**
 	 * @brief Decide allocation parameters for downstream
 	 * @param self Pointer to the transform element
-	 * @param query Allocation query (@ref struct mp_query)
+	 * @param query Allocation query (@ref mp_query)
 	 * @return true on success, false on failure
 	 */
 	bool (*decide_allocation)(struct mp_transform *self, struct mp_query *query);
@@ -121,14 +121,14 @@ struct mp_transform {
  * sets up sink and source pads, and configures default function
  * pointers for element operations.
  *
- * @param self Pointer to the element to initialize (@ref struct mp_element)
+ * @param self Pointer to the element to initialize (@ref mp_element)
  */
 void mp_transform_init(struct mp_element *self);
 
 /**
  * @brief Set a property on a transform element
  *
- * @param obj Pointer to the object (@ref struct mp_object)
+ * @param obj Pointer to the object (@ref mp_object)
  * @param key Property key identifier
  * @param val Pointer to the property value
  * @return 0 on success, negative error code on failure
@@ -138,7 +138,7 @@ int mp_transform_set_property(struct mp_object *obj, uint32_t key, const void *v
 /**
  * @brief Get a property from a transform element
  *
- * @param obj Pointer to the object (@ref struct mp_object)
+ * @param obj Pointer to the object (@ref mp_object)
  * @param key Property key identifier
  * @param val Pointer to store the property value
  * @return 0 on success, negative error code on failure

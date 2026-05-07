@@ -19,7 +19,7 @@ struct mp_object;
 struct mp_structure;
 
 /**
- * @defgroup mp_message
+ * @defgroup mp_message Messages
  * @brief Message used to notify application
  *
  * @{

@@ -18,7 +18,7 @@
 #include <zephyr/mp/core/mp_structure.h>
 
 /**
- * @defgroup mp_query
+ * @defgroup mp_query Pipeline Query
  * @brief Pipeline query
  *
  * @{
@@ -68,7 +68,7 @@ struct mp_query {
 /**
  * Destroy a query and its associated resources.
  *
- * @param query Pointer to the @ref struct mp_query to destroy
+ * @param query Pointer to the @ref mp_query to destroy
  */
 void mp_query_destroy(struct mp_query *query);
 
@@ -77,19 +77,19 @@ void mp_query_destroy(struct mp_query *query);
  *
  * Creates a query for negotiating media capabilities between elements.
  *
- * @param caps Pointer to @ref struct mp_caps to include in the query
- * @return Pointer to newly created @ref struct mp_query, or NULL on allocation failure
+ * @param caps Pointer to @ref mp_caps to include in the query
+ * @return Pointer to newly created @ref mp_query, or NULL on allocation failure
  */
 struct mp_query *mp_query_new_caps(struct mp_caps *caps);
 
 /**
  * @brief Set capabilities in a capabilities query
  *
- * Updates or sets the @ref struct mp_caps in a @ref MP_QUERY_CAPS type query.
+ * Updates or sets the @ref mp_caps in a @ref MP_QUERY_CAPS type query.
  * If capabilities are already present, they will be replaced.
  *
- * @param query Pointer to a @ref struct mp_query of type @ref MP_QUERY_CAPS
- * @param caps Pointer to @ref struct mp_caps to set in the query
+ * @param query Pointer to a @ref mp_query of type @ref MP_QUERY_CAPS
+ * @param caps Pointer to @ref mp_caps to set in the query
  * @return true if successful, false if query is NULL or wrong type
  */
 bool mp_query_set_caps(struct mp_query *query, struct mp_caps *caps);
@@ -97,10 +97,10 @@ bool mp_query_set_caps(struct mp_query *query, struct mp_caps *caps);
 /**
  * @brief Get capabilities from a capabilities query
  *
- * Retrieves the @ref struct mp_caps from a @ref MP_QUERY_CAPS type query.
+ * Retrieves the @ref mp_caps from a @ref MP_QUERY_CAPS type query.
  *
- * @param query Pointer to the @ref struct mp_query of type @ref MP_QUERY_CAPS
- * @return Pointer to @ref struct mp_caps if available, or NULL if not found or wrong type
+ * @param query Pointer to the @ref mp_query of type @ref MP_QUERY_CAPS
+ * @return Pointer to @ref mp_caps if available, or NULL if not found or wrong type
  */
 struct mp_caps *mp_query_get_caps(struct mp_query *query);
 
@@ -111,8 +111,8 @@ struct mp_caps *mp_query_get_caps(struct mp_query *query);
  * is used to establish buffer pools, memory requirements, and allocation
  * strategies between pipeline elements.
  *
- * @param caps Pointer to @ref struct mp_caps describing the media format for allocation
- * @return Pointer to newly created @ref struct mp_query, or NULL on allocation failure
+ * @param caps Pointer to @ref mp_caps describing the media format for allocation
+ * @return Pointer to newly created @ref mp_query, or NULL on allocation failure
  */
 struct mp_query *mp_query_new_allocation(struct mp_caps *caps);
 
@@ -122,8 +122,8 @@ struct mp_query *mp_query_new_allocation(struct mp_caps *caps);
  * Sets the buffer pool parameter in a @ref MP_QUERY_ALLOCATION type query.
  * This is used to propose a specific buffer pool for allocation.
  *
- * @param query Pointer to @ref struct mp_query of type @ref MP_QUERY_ALLOCATION
- * @param pool Pointer to @ref struct mp_buffer_pool to set in the query
+ * @param query Pointer to @ref mp_query of type @ref MP_QUERY_ALLOCATION
+ * @param pool Pointer to @ref mp_buffer_pool to set in the query
  * @return true if successful, false if query is NULL or wrong type
  */
 bool mp_query_set_pool(struct mp_query *query, struct mp_buffer_pool *pool);
@@ -136,8 +136,8 @@ bool mp_query_set_pool(struct mp_query *query, struct mp_buffer_pool *pool);
  * for allocation. If a pool is proposed, the configs should be set via the
  * config field of the proposed pool instead.
  *
- * @param query Pointer to @ref struct mp_query of type @ref MP_QUERY_ALLOCATION
- * @param config Pointer to @ref struct mp_buffer_pool_config to set in the query
+ * @param query Pointer to @ref mp_query of type @ref MP_QUERY_ALLOCATION
+ * @param config Pointer to @ref mp_buffer_pool_config to set in the query
  * @return true if successful, false if query is NULL or wrong type
  */
 bool mp_query_set_pool_config(struct mp_query *query, struct mp_buffer_pool_config *config);
@@ -147,8 +147,8 @@ bool mp_query_set_pool_config(struct mp_query *query, struct mp_buffer_pool_conf
  *
  * Retrieves the buffer pool from a @ref MP_QUERY_ALLOCATION type query.
  *
- * @param query Pointer to @ref struct mp_query of type @ref MP_QUERY_ALLOCATION
- * @return Pointer to @ref struct mp_buffer_pool if available, or NULL if not found or wrong type
+ * @param query Pointer to @ref mp_query of type @ref MP_QUERY_ALLOCATION
+ * @return Pointer to @ref mp_buffer_pool if available, or NULL if not found or wrong type
  */
 struct mp_buffer_pool *mp_query_get_pool(struct mp_query *query);
 
@@ -158,8 +158,8 @@ struct mp_buffer_pool *mp_query_get_pool(struct mp_query *query);
  * Retrieves the buffer pool configuration from a @ref MP_QUERY_ALLOCATION
  * type query.
  *
- * @param query Pointer to @ref struct mp_query of type @ref MP_QUERY_ALLOCATION
- * @return Pointer to @ref struct mp_buffer_pool_config if available, or NULL if not found or wrong
+ * @param query Pointer to @ref mp_query of type @ref MP_QUERY_ALLOCATION
+ * @return Pointer to @ref mp_buffer_pool_config if available, or NULL if not found or wrong
  * type
  */
 struct mp_buffer_pool_config *mp_query_get_pool_config(struct mp_query *query);
