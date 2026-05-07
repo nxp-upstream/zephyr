@@ -72,10 +72,16 @@ CORE_PATHS=(
     "lib/CMakeLists.txt"
 )
 
-# zvid plugin (includes zjpeg - JPEG support is part of zvid)
+# zvid plugin
 ZVID_PATHS=(
     "subsys/mp/src/plugins/zvid/"
     "include/zephyr/mp/zvid/"
+)
+
+# zjpeg plugin (JPEG support)
+ZJPEG_PATHS=(
+    "subsys/mp/plugins/zjpeg/"
+    "include/zephyr/mp/zjpeg/"
 )
 
 # zaud plugin
@@ -146,15 +152,18 @@ ZVID_COMMIT_MSG="mp: Add zvid video plugin
 Add the zvid (Zephyr Video) plugin for the MP subsystem. This plugin
 provides video-specific elements that interface with Zephyr's video
 subsystem, enabling building video capture and processing pipelines
-using Zephyr video devices.
+using Zephyr video devices, e.g. camera, m2m devices
 
-The plugin includes video source, transform, and buffer pool elements
-for capturing, processing, and managing video buffers. It also
-provides multi-core support via RPC-based remote video transform for
-offloading video processing to secondary cores, pixel format
-conversion utilities, and JPEG decoding support (parser and decoder
-elements for processing compressed image data from cameras or file
-sources).
+${SOB}"
+
+ZJPEG_COMMIT_MSG="mp: Add zjpeg JPEG plugin
+
+Add the zjpeg (Zephyr JPEG) plugin for the MP subsystem.
+
+The plugin currently includes a JPEG parser element for extracting
+JPEG frames from a byte stream, a SW-based JPEG decoder element for
+decompressing JPEG data into raw video frames. JPEG encoder will be
+supported in the future.
 
 ${SOB}"
 
@@ -235,11 +244,12 @@ declare -A TARGET_DEPS
 TARGET_DEPS=(
     [core]=""
     [zvid]="${UPSTREAM_PREFIX}-core"
+    [zjpeg]="${UPSTREAM_PREFIX}-core"
     [zaud]="${UPSTREAM_PREFIX}-core"
     [zdisp]="${UPSTREAM_PREFIX}-core"
     [zfs]="${UPSTREAM_PREFIX}-core"
     [sample-cam_disp]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zdisp"
-    [sample-jpeg_dec]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zdisp ${UPSTREAM_PREFIX}-zfs"
+    [sample-jpeg_dec]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zjpeg ${UPSTREAM_PREFIX}-zdisp ${UPSTREAM_PREFIX}-zfs"
     [sample-fs]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zfs"
 )
 
@@ -459,6 +469,11 @@ export_zvid() {
         "${ZVID_COMMIT_MSG}" "${ZVID_PATHS[@]}"
 }
 
+export_zjpeg() {
+    generate_branch "zjpeg" "${UPSTREAM_PREFIX}-zjpeg" \
+        "${ZJPEG_COMMIT_MSG}" "${ZJPEG_PATHS[@]}"
+}
+
 export_zaud() {
     generate_branch "zaud" "${UPSTREAM_PREFIX}-zaud" \
         "${ZAUD_COMMIT_MSG}" "${ZAUD_PATHS[@]}"
@@ -494,7 +509,7 @@ export_sample_fs() {
 # ===========================================================================
 
 export_all() {
-    TARGETS=(core zvid zaud zdisp zfs sample-cam_disp sample-jpeg_dec sample-fs)
+    TARGETS=(core zvid zjpeg zaud zdisp zfs sample-cam_disp sample-jpeg_dec sample-fs)
 
     log_info "=== Exporting all MP upstream PR branches ==="
     log_info "Source: ${SOURCE_BRANCH}"
@@ -507,6 +522,7 @@ export_all() {
 
     # Plugins (independent of each other, all depend on core)
     export_zvid
+    export_zjpeg
     export_zaud
     export_zdisp
     export_zfs
@@ -578,11 +594,12 @@ verify the target's own commit (HEAD~1..HEAD).
 Targets:
   core             Core MP framework (no dependencies)
   zvid             Video plugin (depends on core)
+  zjpeg            JPEG plugin (depends on core)
   zaud             Audio plugin (depends on core)
   zdisp            Display plugin (depends on core)
   zfs              Filesystem plugin (depends on core)
   sample-cam_disp  Camera-to-display sample (depends on core, zvid, zdisp)
-  sample-jpeg_dec  JPEG decoding sample (depends on core, zvid, zdisp, zfs)
+  sample-jpeg_dec  JPEG decoding sample (depends on core, zvid, zjpeg, zdisp, zfs)
   sample-fs        Filesystem sample (depends on core, zfs)
   all              All of the above (default)
 
@@ -611,7 +628,7 @@ main() {
                 shift
                 ;;
             --list)
-                echo "Available targets: core zvid zaud zdisp zfs sample-cam_disp sample-jpeg_dec sample-fs"
+                echo "Available targets: core zvid zjpeg zaud zdisp zfs sample-cam_disp sample-jpeg_dec sample-fs"
                 exit 0
                 ;;
             --no-comply)
@@ -622,7 +639,7 @@ main() {
                 usage
                 exit 0
                 ;;
-            core|zvid|zaud|zdisp|zfs|sample-cam_disp|sample-jpeg_dec|sample-fs|all)
+            core|zvid|zjpeg|zaud|zdisp|zfs|sample-cam_disp|sample-jpeg_dec|sample-fs|all)
                 targets+=("$1")
                 shift
                 ;;
@@ -652,6 +669,10 @@ main() {
             zvid)
                 TARGETS+=(zvid)
                 export_zvid
+                ;;
+            zjpeg)
+                TARGETS+=(zjpeg)
+                export_zjpeg
                 ;;
             zaud)
                 TARGETS+=(zaud)
