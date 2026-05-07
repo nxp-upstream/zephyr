@@ -84,6 +84,10 @@ enum mp_state_change_return mp_bin_change_state_func(struct mp_element *self,
 		}
 
 		first_sinkpad = CONTAINER_OF(first_sinkpad_node, struct mp_pad, object.node);
+		if (first_sinkpad->peer == NULL) {
+			LOG_ERR("Pad '%u' not linked", first_sinkpad->object.id);
+			return MP_STATE_CHANGE_FAILURE;
+		}
 		/* Get next element */
 		element = MP_ELEMENT(first_sinkpad->peer->object.container);
 	}
