@@ -14,7 +14,7 @@
 #include <zephyr/fs/fs.h>
 #include <zephyr/logging/log.h>
 
-#include <zephyr/mp/mp.h>
+#include <zephyr/mp/core/mp.h>
 #include <zephyr/mp/zdisp/mp_zdisp_sink.h>
 #include <zephyr/mp/zfs/mp_zfilesrc.h>
 #include <zephyr/mp/zjpeg/mp_zjpeg_decoder.h>

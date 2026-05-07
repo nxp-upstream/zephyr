@@ -10,7 +10,7 @@
 #include <zephyr/fs/fs.h>
 #include <zephyr/logging/log.h>
 
-#include <zephyr/mp/mp.h>
+#include <zephyr/mp/core/mp.h>
 #include <zephyr/mp/zfs/mp_zfilesink.h>
 #include <zephyr/mp/zfs/mp_zfilesrc.h>
 
