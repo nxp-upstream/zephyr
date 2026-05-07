@@ -257,7 +257,6 @@ int main(void)
 	const struct device *const i2s_dev_rx = DEVICE_DT_GET(I2S_RX_NODE);
 	const struct device *const i2s_dev_tx = DEVICE_DT_GET(I2S_TX_NODE);
 	struct i2s_config config;
-	int ret;
 
 	printk("I2S echo sample\n");
 
