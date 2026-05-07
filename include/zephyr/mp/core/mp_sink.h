@@ -45,7 +45,7 @@ struct mp_sink {
 	 * To get the current caps, use sinkpad->caps instead
 	 *
 	 * @param sink Pointer to the sink element
-	 * @return Pointer to @ref struct mp_caps or NULL if not available
+	 * @return Pointer to @ref mp_caps or NULL if not available
 	 */
 	struct mp_caps *(*get_caps)(struct mp_sink *sink);
 	/**
@@ -70,14 +70,14 @@ struct mp_sink {
  * Initializes the base sink element structure, sets up the sink pad,
  * and configures default callbacks for query and event handling.
  *
- * @param self Pointer to the @ref struct mp_element to initialize as a sink
+ * @param self Pointer to the @ref mp_element to initialize as a sink
  */
 void mp_sink_init(struct mp_element *self);
 
 /**
  * @brief Set property on sink element
  *
- * @param obj Pointer to the @ref struct mp_object
+ * @param obj Pointer to the @ref mp_object
  * @param key Property key identifier
  * @param val Pointer to the property value
  * @return 0 on success, negative error code on failure
@@ -87,7 +87,7 @@ int mp_sink_set_property(struct mp_object *obj, uint32_t key, const void *val);
 /**
  * @brief Get property from sink element
  *
- * @param obj Pointer to the @ref struct mp_object
+ * @param obj Pointer to the @ref mp_object
  * @param key Property key identifier
  * @param val Pointer to store the retrieved property value
  * @return 0 on success, negative error code on failure

@@ -29,6 +29,8 @@ struct mp_event;
 struct mp_query;
 
 /**
+ * @defgroup mp_pad Pad
+ * @brief Connection point for data flow between elements
  * @{
  */
 
@@ -47,7 +49,7 @@ enum mp_pad_direction {
 };
 
 /**
- * @brief The operating mode of a @ref struct mp_pad
+ * @brief The operating mode of a @ref mp_pad
  *
  * Defines if the pad operates in push or pull mode or none of them.
  */
@@ -114,13 +116,13 @@ struct mp_pad {
 /**
  * @brief Create a new pad dynamically
  *
- * Creates a new @ref struct mp_pad with the specified parameters.
+ * Creates a new @ref mp_pad with the specified parameters.
  *
  * @param id Unique ID of the pad instance in the element
- * @param direction Direction of the pad (@ref enum mp_pad_direction)
- * @param presence Presence of the pad (@ref enum mp_pad_presence)
- * @param caps Capabilities of the pad (@ref struct mp_caps)
- * @return Pointer to the newly created @ref struct mp_pad, or NULL on failure
+ * @param direction Direction of the pad (@ref mp_pad_direction)
+ * @param presence Presence of the pad (@ref mp_pad_presence)
+ * @param caps Capabilities of the pad (@ref mp_caps)
+ * @return Pointer to the newly created @ref mp_pad, or NULL on failure
  */
 struct mp_pad *mp_pad_new(uint8_t id, enum mp_pad_direction direction,
 			  enum mp_pad_presence presence, struct mp_caps *caps);
@@ -128,13 +130,13 @@ struct mp_pad *mp_pad_new(uint8_t id, enum mp_pad_direction direction,
 /**
  * @brief Initialize a pad
  *
- * Initializes an existing @ref struct mp_pad structure with the specified parameters.
+ * Initializes an existing @ref mp_pad structure with the specified parameters.
  *
- * @param pad Pointer to the @ref struct mp_pad to initialize
+ * @param pad Pointer to the @ref mp_pad to initialize
  * @param id Unique ID of the pad instance in the element
- * @param direction Direction of the pad (@ref enum mp_pad_direction)
- * @param presence Presence of the pad (@ref enum mp_pad_presence)
- * @param caps Capabilities of the pad (@ref struct mp_caps)
+ * @param direction Direction of the pad (@ref mp_pad_direction)
+ * @param presence Presence of the pad (@ref mp_pad_presence)
+ * @param caps Capabilities of the pad (@ref mp_caps)
  */
 void mp_pad_init(struct mp_pad *pad, uint8_t id, enum mp_pad_direction direction,
 		 enum mp_pad_presence presence, struct mp_caps *caps);
@@ -157,7 +159,7 @@ bool mp_pad_link(struct mp_pad *srcpad, struct mp_pad *sinkpad);
  * Starts a task that repeatedly calls @p func with @p user_data. This function
  * is mostly used to start the dataflow.
  *
- * @param pad Pointer to the @ref struct mp_pad to start the task on
+ * @param pad Pointer to the @ref mp_pad to start the task on
  * @param func The task function to call
  * @param priority The priority of the task
  * @return true if the task could be started, false otherwise
@@ -169,8 +171,8 @@ bool mp_pad_start_task(struct mp_pad *pad, k_thread_entry_t func, int priority);
  *
  * Sends an event to the specified pad using the pad's event function.
  *
- * @param pad Pointer to the @ref struct mp_pad where the event should be sent
- * @param event Pointer to the @ref struct mp_event to send
+ * @param pad Pointer to the @ref mp_pad where the event should be sent
+ * @param event Pointer to the @ref mp_event to send
  * @return true if the event was successfully sent and handled, false otherwise
  */
 bool mp_pad_send_event(struct mp_pad *pad, struct mp_event *event);
@@ -182,8 +184,8 @@ bool mp_pad_send_event(struct mp_pad *pad, struct mp_event *event);
  * peer pad if the event direction matches the pad direction, otherwise it will
  * forward the event to other pads in the same element.
  *
- * @param pad Pointer to the @ref struct mp_pad to send event to
- * @param event Pointer to the @ref struct mp_event to send
+ * @param pad Pointer to the @ref mp_pad to send event to
+ * @param event Pointer to the @ref mp_event to send
  * @return true if the event is handled, false otherwise
  */
 bool mp_pad_send_event_default(struct mp_pad *pad, struct mp_event *event);
@@ -193,8 +195,8 @@ bool mp_pad_send_event_default(struct mp_pad *pad, struct mp_event *event);
  *
  * Sends a query to the pad using the pad's query function.
  *
- * @param pad Pointer to the @ref struct mp_pad to send query to
- * @param query Pointer to the @ref struct mp_query to send
+ * @param pad Pointer to the @ref mp_pad to send query to
+ * @param query Pointer to the @ref mp_query to send
  * @return true if the query is handled, false otherwise
  */
 bool mp_pad_query(struct mp_pad *pad, struct mp_query *query);

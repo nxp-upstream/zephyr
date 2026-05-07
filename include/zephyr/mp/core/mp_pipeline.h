@@ -49,7 +49,7 @@ struct mp_pipeline {
  *
  * Initializes the pipeline structure, including the base bin and message bus.
  *
- * @param self Pointer to the @ref struct mp_element to initialize as a pipeline
+ * @param self Pointer to the @ref mp_element to initialize as a pipeline
  */
 void mp_pipeline_init(struct mp_element *self);
 

@@ -47,7 +47,7 @@ struct mp_bin {
  * Initializes the bin structure and sets up the necessary function pointers
  * and data structures.
  *
- * @param self Pointer to the @ref struct mp_element to initialize as a bin
+ * @param self Pointer to the @ref mp_element to initialize as a bin
  */
 void mp_bin_init(struct mp_element *self);
 
@@ -63,8 +63,8 @@ void mp_bin_init(struct mp_element *self);
  * If the element's pads are linked to other pads, the pads will be unlinked
  * before the element is added to the bin.
  *
- * @param bin Pointer to the @ref struct mp_bin to add elements to
- * @param element First @ref struct mp_element to add
+ * @param bin Pointer to the @ref mp_bin to add elements to
+ * @param element First @ref mp_element to add
  * @param ... Additional mp_element pointers, terminated by NULL
  *
  * @retval true All elements were successfully added to the bin
@@ -79,7 +79,7 @@ bool mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...);
  * child elements in the appropriate order. The bin manages the topology
  * and ensures proper sequencing of state changes.
  *
- * @param element Pointer to the @ref struct mp_element (bin) changing state
+ * @param element Pointer to the @ref mp_element (bin) changing state
  * @param transition The state transition being performed
  *
  * @return State change return value indicating success, failure, or async operation

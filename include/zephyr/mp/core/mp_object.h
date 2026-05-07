@@ -89,7 +89,7 @@ void mp_object_replace(struct mp_object **ptr, struct mp_object *new_obj);
  * mp_object_set_properties(obj, "key1", val1, "key2", val2, NULL);
  * @endcode
  *
- * @param obj Pointer to a @ref struct mp_object.
+ * @param obj Pointer to a @ref mp_object.
  * @param ... A variable list of {uint32_t key, const void *val} pairs, terminated by NULL.
  *
  */
@@ -107,7 +107,7 @@ int mp_object_set_properties(struct mp_object *obj, ...);
  * mp_object_get_properties(obj, "key1", val1, "key2", val2, NULL);
  * @endcode
  *
- * @param obj Pointer to a @ref struct mp_object.
+ * @param obj Pointer to a @ref mp_object.
  * @param ... A variable list of {uint32_t key, void *val} pairs, terminated by NULL.
  *
  */

@@ -36,8 +36,8 @@ struct mp_query;
  *
  * Given a current state and a target state, calculate the next intermediate state
  *
- * @param cur Current state, see @ref enum mp_state
- * @param target Target state, see @ref enum mp_state
+ * @param cur Current state, see @ref mp_state
+ * @param target Target state, see @ref mp_state
  * @return Next intermediate state
  *
  */
@@ -58,7 +58,7 @@ struct mp_query;
  *
  * Given a state transition, extract the current state.
  *
- * @param trans A transition state, see @ref enum mp_state_change
+ * @param trans A transition state, see @ref mp_state_change
  * @return The current state
  *
  */
@@ -69,7 +69,7 @@ struct mp_query;
  *
  * Given a state transition, extract the next state.
  *
- * @param trans A transition state, see @ref enum mp_state_change
+ * @param trans A transition state, see @ref mp_state_change
  * @return The next state
  *
  */
@@ -168,7 +168,7 @@ struct mp_element {
 /**
  * @brief Initialize an element
  *
- * Initializes the base @ref struct mp_element structure.
+ * Initializes the base @ref mp_element structure.
  *
  * @param self Pointer to the @ref mp_element to initialize.
  * @param id   Unique element identifier.
@@ -182,8 +182,8 @@ struct mp_pad;
  *
  * Adds a pad to the element. The pad's container will be set to the element.
  *
- * @param element The @struct mp_element to add the pad to
- * @param pad The @ref struct mp_pad to add to the element
+ * @param element The @ref mp_element to add the pad to
+ * @param pad The @ref mp_pad to add to the element
  */
 void mp_element_add_pad(struct mp_element *element, struct mp_pad *pad);
 
@@ -210,15 +210,15 @@ bool mp_element_link(struct mp_element *element_1, struct mp_element *element_2,
  * the element's state change function for each.
  *
  * @param element The element to change state of
- * @param state The element's new @ref enum mp_state
- * @return Result of the state change, one of @ref enum mp_state_change_return
+ * @param state The element's new @ref mp_state
+ * @return Result of the state change, one of @ref mp_state_change_return
  */
 enum mp_state_change_return mp_element_set_state(struct mp_element *element, enum mp_state state);
 
 /**
  * @brief Get the bus of an element
  *
- * Retrieves the @ref struct mp_bus associated with the element.
+ * Retrieves the @ref mp_bus associated with the element.
  *
  * @param self Pointer to the @ref mp_element to get the bus from.
  *

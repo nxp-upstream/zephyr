@@ -96,7 +96,7 @@ void mp_buffer_destroy(struct net_buf *buf);
  * @brief Helper to configure a buffer pool
  *
  * @param pool Pointer to the buffer pool to configure
- * @param pool Caps structure to configure the buffer pool
+ * @param config Caps structure to configure the buffer pool
  *
  * @retval 0 on success, negative error code on failure
  */

@@ -22,7 +22,7 @@
 struct mp_structure;
 
 /**
- * @defgroup mp_caps
+ * @defgroup mp_caps Media Capabilities
  * @brief Media Capabilities
  *
  * CAPS is an object represents the supported media formats (e.g., audio, video) and
@@ -119,7 +119,7 @@ struct mp_cap_structure {
 #define MP_CAPS(obj) ((struct mp_caps *)(obj))
 
 /**
- * @brief Create a new @ref struct mp_caps of one caps structure with a media type ID and fields in
+ * @brief Create a new @ref mp_caps of one caps structure with a media type ID and fields in
  * the same way as the @ref mp_structure_new
  *
  * @param media_type_id Media type ID
@@ -127,129 +127,129 @@ struct mp_cap_structure {
  *            (uint8_t field_id, int field_type, void *field_value),
  *            terminated by 0
  *
- * @return Pointer to newly created @ref struct mp_caps, or NULL on failure
+ * @return Pointer to newly created @ref mp_caps, or NULL on failure
  */
 struct mp_caps *mp_caps_new(uint8_t media_type_id, ...);
 /**
- * @brief Create new @ref struct mp_caps of type ANY.
+ * @brief Create new @ref mp_caps of type ANY.
  *
- * @return Pointer to newly created @ref struct mp_caps
+ * @return Pointer to newly created @ref mp_caps
  */
 struct mp_caps *mp_caps_new_any(void);
 
 /**
- * @brief Initialize a @ref struct mp_caps.
+ * @brief Initialize a @ref mp_caps.
  *
- * @param caps Pointer to @ref struct mp_caps to initialize
+ * @param caps Pointer to @ref mp_caps to initialize
  * @param flag Initialization flags (i.e., 0 if no flag or MP_CAPS_FLAG_ANY)
  */
 void mp_caps_init(struct mp_caps *caps, uint8_t flag);
 
 /**
- * @brief Append a structure to the @ref struct mp_caps.
+ * @brief Append a structure to the @ref mp_caps.
  *
- * @param caps Pointer to @ref struct mp_caps
- * @param structure Pointer to @ref struct mp_structure to append
+ * @param caps Pointer to @ref mp_caps
+ * @param structure Pointer to @ref mp_structure to append
  *
  * @return true if the structure was successfully appended, false otherwise
  */
 bool mp_caps_append(struct mp_caps *caps, struct mp_structure *structure);
 
 /**
- * @brief Retrieve a @ref struct mp_structure from @ref struct mp_caps by index.
+ * @brief Retrieve a @ref mp_structure from @ref mp_caps by index.
  *
- * @param caps Pointer to @ref struct mp_caps
+ * @param caps Pointer to @ref mp_caps
  * @param index Index of the structure to retrieve
  *
- * @return Pointer to @ref struct mp_structure if found, NULL otherwise
+ * @return Pointer to @ref mp_structure if found, NULL otherwise
  */
 struct mp_structure *mp_caps_get_structure(struct mp_caps *caps, int index);
 
 /**
- * @brief Check if the @ref struct mp_caps is ANY.
+ * @brief Check if the @ref mp_caps is ANY.
  *
- * @param caps Pointer to @ref struct mp_caps
+ * @param caps Pointer to @ref mp_caps
  *
- * @return true if @ref struct mp_caps type is ANY, false otherwise
+ * @return true if @ref mp_caps type is ANY, false otherwise
  */
 bool mp_caps_is_any(struct mp_caps *caps);
 
 /**
- * @brief Check if the @ref struct mp_caps are empty
+ * @brief Check if the @ref mp_caps are empty
  *
- * @param caps Pointer to @ref struct mp_caps
+ * @param caps Pointer to @ref mp_caps
  *
  * @return true if caps is empty, false otherwise
  */
 bool mp_caps_is_empty(struct mp_caps *caps);
 
 /**
- * @brief Check if the @ref struct mp_caps are fixed
+ * @brief Check if the @ref mp_caps are fixed
  *
- * @param caps Pointer to @ref struct mp_caps
+ * @param caps Pointer to @ref mp_caps
  *
  * @return true if caps is fixed, false otherwise
  */
 bool mp_caps_is_fixed(struct mp_caps *caps);
 
 /**
- * @brief Check if two @ref struct mp_caps can intersect.
+ * @brief Check if two @ref mp_caps can intersect.
  *
  * Two caps can intersect if there exists at least one capability structure
  * in the first caps that can be intersected with a structure in the second caps.
  *
- * @param caps1 Pointer to first @ref struct mp_caps
- * @param caps2 Pointer to second @ref struct mp_caps
+ * @param caps1 Pointer to first @ref mp_caps
+ * @param caps2 Pointer to second @ref mp_caps
  *
  * @return true if the two caps can intersect, false otherwise
  */
 bool mp_caps_can_intersect(struct mp_caps *caps1, struct mp_caps *caps2);
 
 /**
- * @brief Perform intersection of two @ref struct mp_caps
+ * @brief Perform intersection of two @ref mp_caps
  *
  * The intersection is performed by comparing each caps structure in
  * @p caps1 with those in @p caps2. Only structures with compatible fields
  * will be included in the resulting caps.
  *
- * @param caps1 Pointer to first @ref struct mp_caps
- * @param caps2 Pointer to second @ref struct mp_caps
+ * @param caps1 Pointer to first @ref mp_caps
+ * @param caps2 Pointer to second @ref mp_caps
  *
- * @return Pointer to intersected @ref struct mp_caps, or NULL if no intersection
+ * @return Pointer to intersected @ref mp_caps, or NULL if no intersection
  */
 struct mp_caps *mp_caps_intersect(struct mp_caps *caps1, struct mp_caps *caps2);
 
 /**
- * @brief Fixate @ref struct mp_caps.
+ * @brief Fixate @ref mp_caps.
  *
- * @param caps Pointer to @ref struct mp_caps to fixate
+ * @param caps Pointer to @ref mp_caps to fixate
  *
- * @return Pointer to new fixated @ref struct mp_caps, or NULL if caps is ANY or EMPTY
+ * @return Pointer to new fixated @ref mp_caps, or NULL if caps is ANY or EMPTY
  */
 struct mp_caps *mp_caps_fixate(struct mp_caps *caps);
 
 /**
- * @brief Duplicate a @ref struct mp_caps object.
+ * @brief Duplicate a @ref mp_caps object.
  *
- * @param caps Pointer to @ref struct mp_caps to duplicate
+ * @param caps Pointer to @ref mp_caps to duplicate
  *
- * @return Pointer to new duplicated @ref struct mp_caps
+ * @return Pointer to new duplicated @ref mp_caps
  */
 struct mp_caps *mp_caps_duplicate(struct mp_caps *caps);
 
 /**
- * @brief Print @ref struct mp_caps to the console.
+ * @brief Print @ref mp_caps to the console.
  *
- * @param caps Pointer to @ref struct mp_caps to print
+ * @param caps Pointer to @ref mp_caps to print
  */
 void mp_caps_print(struct mp_caps *caps);
 
 /**
- * @brief Create a new reference to a @ref struct mp_caps object.
+ * @brief Create a new reference to a @ref mp_caps object.
  *
- * @param caps Pointer to @ref struct mp_caps
+ * @param caps Pointer to @ref mp_caps
  *
- * @return Pointer to the same @ref struct mp_caps with increased reference count
+ * @return Pointer to the same @ref mp_caps with increased reference count
  */
 static inline struct mp_caps *mp_caps_ref(struct mp_caps *caps)
 {
@@ -257,9 +257,9 @@ static inline struct mp_caps *mp_caps_ref(struct mp_caps *caps)
 }
 
 /**
- * @brief Release a reference to a @ref struct mp_caps object.
+ * @brief Release a reference to a @ref mp_caps object.
  *
- * @param caps Pointer to @ref struct mp_caps
+ * @param caps Pointer to @ref mp_caps
  */
 static inline void mp_caps_unref(struct mp_caps *caps)
 {
@@ -267,10 +267,10 @@ static inline void mp_caps_unref(struct mp_caps *caps)
 }
 
 /**
- * @brief Replace a @ref struct mp_caps pointer with a new one.
+ * @brief Replace a @ref mp_caps pointer with a new one.
  *
- * @param target_caps Pointer to the target @ref struct mp_caps pointer
- * @param new_caps Pointer to the new @ref struct mp_caps object
+ * @param target_caps Pointer to the target @ref mp_caps pointer
+ * @param new_caps Pointer to the new @ref mp_caps object
  */
 void mp_caps_replace(struct mp_caps **target_caps, struct mp_caps *new_caps);
 

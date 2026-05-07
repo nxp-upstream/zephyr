@@ -21,8 +21,8 @@
 #include <zephyr/mp/core/mp_object.h>
 
 /**
- * @defgroup mp_value
- * @brief A generic container for values for different @ref enum mp_value_type
+ * @defgroup mp_value Value Container
+ * @brief A generic container for values for different @ref mp_value_type
  *
  * @{
  */
@@ -64,7 +64,7 @@ enum mp_value_type {
  * @brief Base mp_value structure
  */
 struct mp_value {
-	/** Type of value, see @ref enum mp_value_type */
+	/** Type of value, see @ref mp_value_type */
 	enum mp_value_type type;
 };
 
@@ -163,28 +163,28 @@ const char *mp_value_get_string(const struct mp_value *value);
 /** Get pointer value of MP_TYPE_PTR */
 void *mp_value_get_ptr(const struct mp_value *value);
 
-/** Get numerator of @ref struct mp_value with MP_TYPE_FRACTION*/
+/** Get numerator of @ref mp_value with MP_TYPE_FRACTION*/
 int mp_value_get_fraction_numerator(const struct mp_value *frac);
 
-/** Get denominator of @ref struct mp_value with MP_TYPE_FRACTION */
+/** Get denominator of @ref mp_value with MP_TYPE_FRACTION */
 int mp_value_get_fraction_denominator(const struct mp_value *frac);
 
-/** Get minimum value of @ref struct mp_value with MP_TYPE_INT_RANGE */
+/** Get minimum value of @ref mp_value with MP_TYPE_INT_RANGE */
 int mp_value_get_int_range_min(const struct mp_value *range);
 
-/** Get maximum value of @ref struct mp_value with MP_TYPE_INT_RANGE */
+/** Get maximum value of @ref mp_value with MP_TYPE_INT_RANGE */
 int mp_value_get_int_range_max(const struct mp_value *range);
 
-/** Get step value of @ref struct mp_value with MP_TYPE_INT_RANGE */
+/** Get step value of @ref mp_value with MP_TYPE_INT_RANGE */
 int mp_value_get_int_range_step(const struct mp_value *range);
 
-/** Get minimum value of @ref struct mp_value with MP_TYPE_UINT_RANGE */
+/** Get minimum value of @ref mp_value with MP_TYPE_UINT_RANGE */
 uint32_t mp_value_get_uint_range_min(const struct mp_value *range);
 
-/** Get maximum value of @ref struct mp_value with MP_TYPE_UINT_RANGE */
+/** Get maximum value of @ref mp_value with MP_TYPE_UINT_RANGE */
 uint32_t mp_value_get_uint_range_max(const struct mp_value *range);
 
-/** Get step value of @ref struct mp_value with MP_TYPE_UINT_RANGE */
+/** Get step value of @ref mp_value with MP_TYPE_UINT_RANGE */
 uint32_t mp_value_get_uint_range_step(const struct mp_value *range);
 
 /** Get the min value of a mp_value with type MP_TYPE_FRACTION_RANGE, returning a mp_value with
@@ -303,5 +303,7 @@ bool mp_value_is_primitive(const struct mp_value *value);
  * @param new_line Add newline after printing
  */
 void mp_value_print(const struct mp_value *value, bool new_line);
+
+/** @} */
 
 #endif /*ZEPHYR_INCLUDE_MP_CORE_MP_VALUE_H_*/
