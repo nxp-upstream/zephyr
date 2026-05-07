@@ -20,9 +20,9 @@ config MP_RPC
 	bool "RPC support"
 
 # Load core configurations
-source "subsys/mp/src/core/Kconfig"
+source "subsys/mp/core/Kconfig"
 
 # Load all plugin configurations
-source "subsys/mp/src/plugins/Kconfig"
+source "subsys/mp/plugins/Kconfig"
 
 endif # MP

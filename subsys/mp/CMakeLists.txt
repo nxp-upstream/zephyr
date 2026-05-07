@@ -9,6 +9,6 @@ cmake_minimum_required(VERSION 3.20.0)
 if(CONFIG_MP)
     zephyr_library_named(mp)
 
-    add_subdirectory(src/core)
-    add_subdirectory(src/plugins)
+    add_subdirectory(core)
+    add_subdirectory(plugins)
 endif()
