@@ -11,8 +11,8 @@
  * Applications should include this header for the core MP APIs.
  */
 
-#ifndef ZEPHYR_INCLUDE_MP_MP_H_
-#define ZEPHYR_INCLUDE_MP_MP_H_
+#ifndef ZEPHYR_INCLUDE_MP_CORE_MP_H_
+#define ZEPHYR_INCLUDE_MP_CORE_MP_H_
 
 /**
  * @brief Media Pipeline (MP) subsystem.
@@ -37,4 +37,4 @@
 
 /** @} */
 
-#endif /* ZEPHYR_INCLUDE_MP_MP_H_ */
+#endif /* ZEPHYR_INCLUDE_MP_CORE_MP_H_ */
