@@ -47,8 +47,18 @@ config HCI_NXP_CONFIG_IR
 	  If enabled, the Host will send iR configuration vendor command to the Bluetooth Controller
 	  during HCI init.
 
+config BT_HCI_NXP_IR_ENABLE_PDN_TOGGLE
+	bool "PDN toggle for Independent Reset"
+	depends on HCI_NXP_CONFIG_IR
+	depends on BT_HCI_HOST
+	default y
+	help
+	  If enabled, PDN pin is toggled during Independent Reset (IR).If disabled, IR would be performed
+	  without toggling the PDN pin which will be useful to avoid resetting non BT CPU in case of COEX
+	  scenarios.
+
 config HCI_NXP_TRIGGER_IR_ON_BT_INIT
-	bool "IR triggerred on BT Init"
+	bool "IR triggered on BT Init"
 	depends on BT_H4_NXP_CTLR
 	depends on BT_HCI_HOST
 	depends on HCI_NXP_CONFIG_IR

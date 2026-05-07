@@ -40,6 +40,10 @@ LOG_MODULE_REGISTER(bt_nxp_ctlr);
 #define HCI_CMD_BT_CONFIG_IR_MODE                       0x02
 #define HCI_CMD_BT_CONFIG_IR_PARAM                      0xFF
 #define HCI_CMD_BT_CONFIG_IR_OPCODE                     BT_OP(BT_OGF_VS, HCI_CMD_BT_CONFIG_IR_OCF)
+#define IR_TRIGGER_EVENT_SIZE                           7U
+#define IR_TRIGGER_BYTE5_EXPECTED                       0xfcU
+#define IR_TRIGGER_BYTE6_EXPECTED                       0x00U
+
 extern const unsigned char *bt_fw_bin;
 extern const unsigned int bt_fw_bin_len;
 
@@ -254,6 +258,8 @@ struct nxp_ctlr_fw_upload_state {
 	bool is_cmd7_req;
 	bool is_entry_point_req;
 	bool is_setup_done;
+	bool is_ir_request;
+	bool is_hci_interface_up;
 
 	uint8_t last_5bytes_buffer[6];
 };
@@ -1129,7 +1135,85 @@ static void bt_nxp_ctlr_uart_isr(const struct device *unused, void *user_data)
 	}
 }
 
-static int bt_nxp_ctlr_init(void)
+#if DT_NODE_HAS_PROP(DT_DRV_INST(0), sdio_reset_gpios) ||                                          \
+	DT_NODE_HAS_PROP(DT_DRV_INST(0), w_disable_gpios)
+/**
+ * @brief Initialize power control GPIOs for Bluetooth controller
+ *
+ * Configures and toggles sdio_reset and w_disable GPIOs to power up
+ * the Bluetooth controller. This performs a power-on-reset sequence.
+ *
+ * @return 0 on success, negative errno on failure
+ */
+static int bt_nxp_init_power_gpios(void)
+{
+	int err;
+
+#if DT_NODE_HAS_PROP(DT_DRV_INST(0), sdio_reset_gpios)
+	/* Check BT REG_ON gpio instance */
+	if (!gpio_is_ready_dt(&sdio_reset)) {
+		LOG_ERR("Error: failed to configure sdio_reset %s pin %d", sdio_reset.port->name,
+			sdio_reset.pin);
+		return -EIO;
+	}
+
+	/* Configure sdio_reset as output */
+	err = gpio_pin_configure_dt(&sdio_reset, GPIO_OUTPUT);
+	if (err) {
+		LOG_ERR("Error: failed to configure sdio_reset %s pin %d", sdio_reset.port->name,
+			sdio_reset.pin);
+		return err;
+	}
+
+	err = gpio_pin_set_dt(&sdio_reset, 0);
+	if (err) {
+		return err;
+	}
+#endif /* DT_NODE_HAS_PROP(DT_DRV_INST(0), sdio_reset_gpios) */
+
+#if DT_NODE_HAS_PROP(DT_DRV_INST(0), w_disable_gpios)
+	/* Check BT REG_ON gpio instance */
+	if (!gpio_is_ready_dt(&w_disable)) {
+		LOG_ERR("Error: failed to configure w_disable %s pin %d", w_disable.port->name,
+			w_disable.pin);
+		return -EIO;
+	}
+
+	/* Configure w_disable as output */
+	err = gpio_pin_configure_dt(&w_disable, GPIO_OUTPUT);
+	if (err) {
+		LOG_ERR("Error: failed to configure w_disable %s pin %d", w_disable.port->name,
+			w_disable.pin);
+		return err;
+	}
+
+	err = gpio_pin_set_dt(&w_disable, 0);
+	if (err) {
+		return err;
+	}
+#endif /* DT_NODE_HAS_PROP(DT_DRV_INST(0), w_disable_gpios) */
+
+	/* Wait for reset done */
+	k_sleep(K_MSEC(100));
+
+#if DT_NODE_HAS_PROP(DT_DRV_INST(0), sdio_reset_gpios)
+	err = gpio_pin_set_dt(&sdio_reset, 1);
+	if (err) {
+		return err;
+	}
+#endif /* DT_NODE_HAS_PROP(DT_DRV_INST(0), sdio_reset_gpios) */
+
+#if DT_NODE_HAS_PROP(DT_DRV_INST(0), w_disable_gpios)
+	err = gpio_pin_set_dt(&w_disable, 1);
+	if (err) {
+		return err;
+	}
+#endif /* DT_NODE_HAS_PROP(DT_DRV_INST(0), w_disable_gpios) */
+	return 0;
+}
+#endif /* DT_NODE_HAS_PROP sdio_reset_gpios || w_disable_gpios */
+
+static int bt_nxp_ctlr_init(bool is_ir_req)
 {
 	int err;
 	uint32_t speed;
@@ -1152,65 +1236,19 @@ static int bt_nxp_ctlr_init(void)
 
 #if DT_NODE_HAS_PROP(DT_DRV_INST(0), sdio_reset_gpios) ||                                          \
 	DT_NODE_HAS_PROP(DT_DRV_INST(0), w_disable_gpios)
-#if DT_NODE_HAS_PROP(DT_DRV_INST(0), sdio_reset_gpios)
-	/* Check BT REG_ON gpio instance */
-	if (!gpio_is_ready_dt(&sdio_reset)) {
-		LOG_ERR("Error: failed to configure sdio_reset %s pin %d", sdio_reset.port->name,
-			sdio_reset.pin);
-		return -EIO;
+	bool power_reset = !is_ir_req;
+
+	if (IS_ENABLED(CONFIG_BT_HCI_NXP_IR_ENABLE_PDN_TOGGLE)) {
+		power_reset = true;
 	}
 
-	/* Configure sdio_reset as output  */
-	err = gpio_pin_configure_dt(&sdio_reset, GPIO_OUTPUT);
-	if (err) {
-		LOG_ERR("Error %d: failed to configure sdio_reset %s pin %d", err,
-			sdio_reset.port->name, sdio_reset.pin);
-		return err;
+	if (power_reset) {
+		err = bt_nxp_init_power_gpios();
+		if (err) {
+			return err;
+		}
 	}
-	err = gpio_pin_set_dt(&sdio_reset, 0);
-	if (err) {
-		return err;
-	}
-#endif /* DT_NODE_HAS_PROP(DT_DRV_INST(0), sdio_reset_gpios) */
-
-#if DT_NODE_HAS_PROP(DT_DRV_INST(0), w_disable_gpios)
-	/* Check BT REG_ON gpio instance */
-	if (!gpio_is_ready_dt(&w_disable)) {
-		LOG_ERR("Error: failed to configure w_disable %s pin %d", w_disable.port->name,
-			w_disable.pin);
-		return -EIO;
-	}
-
-	/* Configure w_disable as output  */
-	err = gpio_pin_configure_dt(&w_disable, GPIO_OUTPUT);
-	if (err) {
-		LOG_ERR("Error %d: failed to configure w_disable %s pin %d", err,
-			w_disable.port->name, w_disable.pin);
-		return err;
-	}
-	err = gpio_pin_set_dt(&w_disable, 0);
-	if (err) {
-		return err;
-	}
-#endif /* DT_NODE_HAS_PROP(DT_DRV_INST(0), w_disable_gpios) */
-
-	/* wait for reset done */
-	k_sleep(K_MSEC(100));
-
-#if DT_NODE_HAS_PROP(DT_DRV_INST(0), sdio_reset_gpios)
-	err = gpio_pin_set_dt(&sdio_reset, 1);
-	if (err) {
-		return err;
-	}
-#endif /* DT_NODE_HAS_PROP(DT_DRV_INST(0), sdio_reset_gpios) */
-
-#if DT_NODE_HAS_PROP(DT_DRV_INST(0), w_disable_gpios)
-	err = gpio_pin_set_dt(&w_disable, 1);
-	if (err) {
-		return err;
-	}
-#endif /* DT_NODE_HAS_PROP(DT_DRV_INST(0), w_disable_gpios) */
-#endif
+#endif /* DT_NODE_HAS_PROP sdio_reset_gpios || w_disable_gpios */
 
 	uart_irq_rx_disable(uart_dev);
 	uart_irq_tx_disable(uart_dev);
@@ -1462,25 +1500,76 @@ static int bt_nxp_configure_ir(void)
 	return 0;
 }
 
+static int fw_check_ir_trigger_event(void)
+{
+	int err = 0;
+	uint8_t ir_event_ack[IR_TRIGGER_EVENT_SIZE];
+
+	/* Read the entire IR trigger event data at once */
+	err = fw_upload_read_data(ir_event_ack, IR_TRIGGER_EVENT_SIZE);
+	if (err < 0) {
+		LOG_ERR("Failed to read IR trigger event data");
+	} else {
+		LOG_HEXDUMP_DBG(ir_event_ack, sizeof(ir_event_ack), "IR Evt data");
+
+		/* Verify the last 2 bytes are 0xfc and 0x00 which confirms IR is successful */
+		if (ir_event_ack[5] == IR_TRIGGER_BYTE5_EXPECTED &&
+		    ir_event_ack[6] == IR_TRIGGER_BYTE6_EXPECTED) {
+			LOG_DBG("IR trigger event received successfully");
+		} else {
+			LOG_ERR("IR trigger failed, status bytes: %02x %02x", ir_event_ack[5],
+				ir_event_ack[6]);
+			err = -EINVAL;
+		}
+	}
+
+	return err;
+}
+
 int bt_nxp_trigger_ir(const struct device *dev)
 {
 	int err;
-	uint8_t ir_trigger_buf[] = {0x01, 0xfc, 0xfc, 0x00}; /*IR trigger sequence*/
+	uint8_t ir_trigger_buf[] = {0x01, 0xfc, 0xfc, 0x00}; /* IR trigger sequence */
+
+	/*
+	 * The caller must disable the BT host stack before calling this API.
+	 * Return an error if the host stack is still active before initiating IR.
+	 */
+	if (fw_upload.is_hci_interface_up) {
+		LOG_ERR("BT host stack is still active. Disable it before triggering IR.");
+		return -EAGAIN;
+	}
+
+	/*
+	 * Flush RX buffer to discard stale data from previous FW download
+	 * session as we are going to use buffer to check for IR trigger ack
+	 */
+	fw_upload_read_to_clear();
+
+	/*
+	 * Enable RX interrupts to receive IR trigger response and set the
+	 * callback handler
+	 */
+	uart_irq_rx_enable(uart_dev);
+	uart_irq_callback_set(uart_dev, bt_nxp_ctlr_uart_isr);
 
 	LOG_DBG("Triggering IR.");
 	ARRAY_FOR_EACH(ir_trigger_buf, i) {
 		uart_poll_out(dev, ir_trigger_buf[i]);
 	}
 
-	LOG_DBG("Downloading FW.");
-	err = bt_nxp_ctlr_init();
-	if (err == 0) {
-		LOG_DBG("IR Successful, Perform BT Init again to activate interface.");
-	} else {
-		LOG_ERR("IR Failed: %d", err);
+	LOG_DBG("Downloading FW after IR.");
+	err = fw_check_ir_trigger_event();
+	if (err) {
+		LOG_ERR("IR trigger event wait failed (err %d)", err);
+		return err;
 	}
 
-	return err;
+	fw_upload.is_ir_request = true;
+	fw_upload.is_setup_done = false;
+
+	LOG_DBG("IR trigger successful. Do bt init to initialize stack");
+	return 0;
 }
 #else
 int bt_nxp_trigger_ir(const struct device *dev)
@@ -1498,12 +1587,20 @@ int bt_hci_transport_setup(const struct device *dev)
 	}
 
 	if (!fw_upload.is_setup_done) {
-		LOG_DBG("HCI Transport Initial Setup\n");
-		ret = bt_nxp_ctlr_init();
+		LOG_DBG("HCI Transport Setup (IR request: %d)", fw_upload.is_ir_request);
+		ret = bt_nxp_ctlr_init(fw_upload.is_ir_request);
+
+		/* If IR request is initiated, we do clear the is_ir_request flag
+		 * irrespective of ret status to ensure application can re-initiate
+		 * the request if needed
+		 */
+		if (fw_upload.is_ir_request) {
+			fw_upload.is_ir_request = false;
+		}
 	}
 #ifdef	CONFIG_HCI_NXP_TRIGGER_IR_ON_BT_INIT
 	else {
-		LOG_DBG("HCI transport setup after bt disable\n");
+		LOG_DBG("HCI transport setup after bt disable");
 
 		/* If setup is already done earlier, for subsequent bt disable
 		 * and bt enable, trigger IR to reload controller FW
@@ -1511,7 +1608,16 @@ int bt_hci_transport_setup(const struct device *dev)
 		ret = bt_nxp_trigger_ir(dev);
 	}
 #endif /* defined(CONFIG_HCI_NXP_TRIGGER_IR_ON_BT_INIT) */
+	fw_upload.is_hci_interface_up = true;
 	return ret;
+}
+
+int bt_hci_transport_teardown(const struct device *dev)
+{
+	ARG_UNUSED(dev);
+	LOG_DBG("HCI interface shutdown\n");
+	fw_upload.is_hci_interface_up = false;
+	return 0;
 }
 
 #define BT_HCI_VSC_BAUDRATE_UPDATE_LENGTH 4
@@ -1607,7 +1713,7 @@ int bt_h4_vnd_setup(const struct device *dev, const struct bt_hci_setup_params *
 #if DT_NODE_HAS_PROP(DT_DRV_INST(0), wakeup_bt_gpios)
 	struct gpio_dt_spec wakeup = GPIO_DT_SPEC_GET(DT_DRV_INST(0), wakeup_bt_gpios);
 
-	LOG_DBG("Configuring Wakeup IOs\n");
+	LOG_DBG("Configuring Wakeup IOs");
 	if (!gpio_is_ready_dt(&wakeup)) {
 		LOG_ERR("Error: failed to configure wakeup %s pin %d", wakeup.port->name,
 			wakeup.pin);
@@ -1642,7 +1748,7 @@ int bt_h4_vnd_setup(const struct device *dev, const struct bt_hci_setup_params *
 #endif
 
 #if (defined(CONFIG_BT_NXP_CTRL_WAKE_ON_BT_LED_BLINK))
-	LOG_DBG("Configuring LED0 for BT Activity\n");
+	LOG_DBG("Configuring LED0 for BT Activity");
 	if (!gpio_is_ready_dt(&led_gpio)) {
 		return 0;
 	}
