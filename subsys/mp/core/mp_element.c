@@ -55,6 +55,13 @@ bool mp_element_link_pads(struct mp_element *src, uint8_t src_pad_id, struct mp_
 	struct mp_pad *srcpad = mp_element_get_unlinked_pad(src, src_pad_id, MP_PAD_SRC);
 	struct mp_pad *sinkpad = mp_element_get_unlinked_pad(sink, sink_pad_id, MP_PAD_SINK);
 
+	if (srcpad == NULL || sinkpad == NULL) {
+		LOG_ERR("Link failed: no free %s pad on element %u",
+			srcpad == NULL ? "src" : "sink",
+			srcpad == NULL ? src->object.id : sink->object.id);
+		return false;
+	}
+
 	if (mp_caps_can_intersect(srcpad->caps, sinkpad->caps)) {
 		return mp_pad_link(srcpad, sinkpad);
 	}
