@@ -17,7 +17,7 @@
 #include <zephyr/mp/core/mp_query.h>
 #include <zephyr/mp/core/mp_value.h>
 
-#include <zephyr/mp/zvid/mp_zjpeg_parser.h>
+#include <zephyr/mp/zjpeg/mp_zjpeg_parser.h>
 
 LOG_MODULE_REGISTER(mp_zjpeg_parser, CONFIG_MP_LOG_LEVEL);
 
