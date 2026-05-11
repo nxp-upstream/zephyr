@@ -91,6 +91,17 @@ struct mp_value {
  * or argument list is provided.
  */
 struct mp_value *mp_value_new(enum mp_value_type type, ...);
+
+/**
+ * @brief Create a new mp_value from a va_list.
+ *
+ * Same as @ref mp_value_new but accepts a va_list pointer instead of variadic arguments.
+ *
+ * @param type The type of the value to create.
+ * @param args Pointer to a va_list containing the initialization arguments.
+ *
+ * @return Pointer to the newly created mp_value, or NULL on failure.
+ */
 struct mp_value *mp_value_new_va_list(enum mp_value_type type, va_list *args);
 
 /**

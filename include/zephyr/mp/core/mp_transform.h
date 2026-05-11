@@ -16,6 +16,7 @@
 #include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_pad.h>
 
+/** @brief Cast a pointer to a @ref mp_transform pointer. */
 #define MP_TRANSFORM(self) ((struct mp_transform *)self)
 
 /**
@@ -145,6 +146,16 @@ int mp_transform_set_property(struct mp_object *obj, uint32_t key, const void *v
  */
 int mp_transform_get_property(struct mp_object *obj, uint32_t key, void *val);
 
+/**
+ * @brief Set capabilities on a transform element's pad.
+ *
+ * @param transform Pointer to the transform element.
+ * @param direction Direction of the pad to set caps on (@ref mp_pad_direction).
+ * @param caps Pointer to the capabilities to set.
+ *
+ * @retval true  Caps were set successfully.
+ * @retval false Failed to set caps.
+ */
 bool mp_transform_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
 			   struct mp_caps *caps);
 

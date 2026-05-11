@@ -16,6 +16,7 @@
 #include <zephyr/mp/core/mp_buffer.h>
 #include <zephyr/mp/core/mp_transform.h>
 
+/** @brief Cast a pointer to a @ref mp_transform_client pointer. */
 #define MP_TRANSFORM_CLIENT(self) ((struct mp_transform_client *)self)
 
 /**

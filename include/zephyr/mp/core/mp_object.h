@@ -18,6 +18,7 @@
 #include <zephyr/sys/atomic_types.h>
 #include <zephyr/sys/dlist.h>
 
+/** @brief Cast a pointer to a @ref mp_object pointer. */
 #define MP_OBJECT(object) ((struct mp_object *)object)
 
 /** Base flag of the object */

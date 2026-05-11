@@ -25,6 +25,15 @@ struct mp_bus;
 struct mp_event;
 struct mp_query;
 
+/**
+ * @brief Initialize and configure an element in one step.
+ *
+ * Calls @ref mp_element_init followed by the element-specific init function.
+ *
+ * @param elem   Pointer to the element to initialize.
+ * @param initfn Element-specific initialization function.
+ * @param id     Unique element identifier.
+ */
 #define MP_ELEMENT_INIT(elem, initfn, id)                                                          \
 	({                                                                                         \
 		mp_element_init(MP_ELEMENT(elem), id);                                             \
@@ -111,16 +120,17 @@ enum mp_state_change {
  * Possible returned values from a state change function
  */
 enum mp_state_change_return {
-	/* The state change has failed */
+	/** The state change has failed */
 	MP_STATE_CHANGE_FAILURE = 0,
-	/* The state change has succeeded */
+	/** The state change has succeeded */
 	MP_STATE_CHANGE_SUCCESS = 1,
-	/* The state change will happen asynchronously */
+	/** The state change will happen asynchronously */
 	MP_STATE_CHANGE_ASYNC = 2,
 };
 
 struct mp_element;
 
+/** @brief Cast a pointer to a @ref mp_element pointer. */
 #define MP_ELEMENT(self) ((struct mp_element *)self)
 
 /**

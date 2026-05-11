@@ -43,6 +43,15 @@ struct mp_bus {
 	sys_slist_t sync_listeners;
 };
 
+/**
+ * @brief Callback function type for bus message listeners.
+ *
+ * @param message Pointer to the received message.
+ * @param data    User-defined data passed during listener registration.
+ *
+ * @retval true  Message was handled.
+ * @retval false Message was not handled.
+ */
 typedef bool (*callback_fn)(struct mp_message *message, void *data);
 
 /**

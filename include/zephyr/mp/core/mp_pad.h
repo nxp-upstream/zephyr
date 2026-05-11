@@ -34,6 +34,7 @@ struct mp_query;
  * @{
  */
 
+/** @brief Cast a pointer to a @ref mp_pad pointer. */
 #define MP_PAD(self) ((struct mp_pad *)self)
 
 /**
