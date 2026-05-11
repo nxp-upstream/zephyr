@@ -414,11 +414,14 @@ generate_branch() {
 }
 
 # Run compliance check on a branch (only the target's own commit).
-# Uses HEAD~1..HEAD to check only the last commit, not dependencies.
+# Aligned with Zephyr CI workflow:
+#   - Excludes KconfigBasic, SysbuildKconfigBasic, ClangFormat
+#   - Uses --annotate for detailed output
+#   - Increases diff.renameLimit for large PRs
 check_compliance() {
     local branch="$1"
 
-    log_info "Running compliance check on '${branch}' (HEAD~1..HEAD)..."
+    log_info "Running compliance check on '${branch}' (HEAD~1..)..."
 
     if ${DRY_RUN}; then
         log_info "  [DRY RUN] Would run compliance check"
@@ -438,9 +441,15 @@ check_compliance() {
         return 0
     fi
 
+    # Match Zephyr CI: increase rename limit for large PRs
+    git config diff.renameLimit 10000
+
+    # Match Zephyr CI: exclude KconfigBasic, SysbuildKconfigBasic, ClangFormat
+    local excludes="-e KconfigBasic -e SysbuildKconfigBasic -e ClangFormat"
+
     # Check only the target's own commit (the last one), not dependencies
     local result=0
-    python3 "${compliance_script}" -c "HEAD~1..HEAD" 2>&1 | \
+    python3 "${compliance_script}" --annotate ${excludes} -c "HEAD~1.." 2>&1 | \
         sed 's/^/  /' || result=$?
 
     git checkout "${current_branch}" --quiet
