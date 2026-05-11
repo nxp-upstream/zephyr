@@ -464,6 +464,105 @@ check_compliance() {
     return 0
 }
 
+# Run doxygen coverage delta check on a branch.
+# Adapted from Zephyr CI workflow: .github/workflows/doxygen-coverage-delta.yml
+# Ensures that any newly introduced public API symbols are properly documented.
+#
+# The check generates doxygen coverage JSON for both the target branch and the
+# base branch, then uses scripts/ci/doxygen_coverage_diff.py to compare them.
+#
+# Args: $1=branch_name
+check_doxygen_coverage() {
+    local branch="$1"
+
+    log_info "Running doxygen coverage delta check on '${branch}'..."
+
+    if ${DRY_RUN}; then
+        log_info "  [DRY RUN] Would run doxygen coverage delta check"
+        return 0
+    fi
+
+    local current_branch
+    current_branch="$(git branch --show-current)"
+
+    # Check required tools
+    local diff_script="scripts/ci/doxygen_coverage_diff.py"
+    if [ ! -f "${diff_script}" ]; then
+        log_warn "  Doxygen coverage diff script not found at ${diff_script}. Skipping."
+        return 0
+    fi
+
+    if ! command -v doxygen >/dev/null 2>&1; then
+        log_warn "  'doxygen' not found in PATH. Skipping coverage check."
+        return 0
+    fi
+
+    local pr_root
+    pr_root="$(pwd)"
+
+    # --- Generate PR branch coverage JSON ---
+    git checkout "${branch}" --quiet
+
+    log_info "  Generating PR branch coverage JSON..."
+    make -C doc doxygen-coverage-json 2>&1 | tail -3 | sed 's/^/  /' || true
+
+    if [ ! -f "doc/_build/doc-coverage.json" ]; then
+        log_warn "  Failed to generate PR coverage JSON. Skipping."
+        git checkout "${current_branch}" --quiet
+        return 0
+    fi
+    cp doc/_build/doc-coverage.json /tmp/mp-pr-coverage.json
+
+    # --- Generate Base branch coverage JSON ---
+    log_info "  Generating base (${BASE_REF}) coverage JSON..."
+
+    local base_worktree="/tmp/mp-base-worktree-$$"
+    git worktree add --detach "${base_worktree}" "${BASE_REF}" --quiet 2>/dev/null || true
+
+    if [ -d "${base_worktree}" ]; then
+        # Use PR branch doc build config for consistency (as CI does)
+        cp doc/CMakeLists.txt doc/Makefile "${base_worktree}/doc/" 2>/dev/null || true
+        make -C "${base_worktree}/doc" doxygen-coverage-json 2>&1 | tail -3 | sed 's/^/  /' || true
+
+        if [ -f "${base_worktree}/doc/_build/doc-coverage.json" ]; then
+            cp "${base_worktree}/doc/_build/doc-coverage.json" /tmp/mp-base-coverage.json
+        fi
+
+        # Cleanup worktree
+        git worktree remove "${base_worktree}" --force 2>/dev/null || rm -rf "${base_worktree}"
+    fi
+
+    git checkout "${current_branch}" --quiet
+
+    if [ ! -f "/tmp/mp-base-coverage.json" ]; then
+        log_warn "  Failed to generate base coverage JSON. Skipping."
+        rm -f /tmp/mp-pr-coverage.json
+        return 0
+    fi
+
+    # --- Compare coverage ---
+    log_info "  Checking for undocumented new API..."
+    local result=0
+    python3 "${diff_script}" \
+        --reference /tmp/mp-base-coverage.json \
+        --comparison /tmp/mp-pr-coverage.json \
+        --strip-reference-prefix "${base_worktree}" \
+        --strip-comparison-prefix "${pr_root}" 2>&1 | sed 's/^/  /' || result=$?
+
+    # Cleanup temp files
+    rm -f /tmp/mp-pr-coverage.json /tmp/mp-base-coverage.json
+
+    if [ ${result} -ne 0 ]; then
+        log_error "  Doxygen coverage delta check FAILED for '${branch}'"
+        log_error "  New API symbols are missing documentation."
+        log_error "  Fix by adding /** @brief ... */ comments to undocumented symbols."
+        return 1
+    fi
+
+    log_ok "  Doxygen coverage delta check passed for '${branch}'"
+    return 0
+}
+
 # ===========================================================================
 # Target dispatch
 # ===========================================================================
@@ -555,14 +654,32 @@ export_all() {
         done
 
         echo ""
-        if [ ${#failed_targets[@]} -eq 0 ]; then
-            log_info "=== All compliance checks passed ==="
+        log_info "=== Running doxygen coverage delta checks ==="
+        echo ""
+
+        local failed_doxygen=()
+        for target in "${TARGETS[@]}"; do
+            local branch="${UPSTREAM_PREFIX}-${target}"
+            if ! check_doxygen_coverage "${branch}"; then
+                failed_doxygen+=("${target}")
+            fi
+        done
+
+        echo ""
+        if [ ${#failed_targets[@]} -eq 0 ] && [ ${#failed_doxygen[@]} -eq 0 ]; then
+            log_info "=== All checks passed ==="
         else
-            log_warn "=== Compliance check summary ==="
-            log_warn "FAILED targets: ${failed_targets[*]}"
+            if [ ${#failed_targets[@]} -gt 0 ]; then
+                log_warn "=== Compliance check summary ==="
+                log_warn "FAILED targets: ${failed_targets[*]}"
+            fi
+            if [ ${#failed_doxygen[@]} -gt 0 ]; then
+                log_warn "=== Doxygen coverage summary ==="
+                log_warn "FAILED targets: ${failed_doxygen[*]}"
+            fi
             log_warn ""
             log_warn "To fix:"
-            log_warn "  1. Fix compliance issues in '${SOURCE_BRANCH}' and commit"
+            log_warn "  1. Fix issues in '${SOURCE_BRANCH}' and commit"
             log_warn "  2. Push '${SOURCE_BRANCH}' to mmiot: git push mmiot ${SOURCE_BRANCH}"
             log_warn "  3. Re-run: ./scripts/export_mp_upstream.sh"
         fi
@@ -724,14 +841,32 @@ main() {
         done
 
         echo ""
-        if [ ${#failed_targets_single[@]} -eq 0 ]; then
-            log_info "=== All compliance checks passed ==="
+        log_info "=== Running doxygen coverage delta checks ==="
+        echo ""
+
+        local failed_doxygen_single=()
+        for target in "${TARGETS[@]}"; do
+            local branch="${UPSTREAM_PREFIX}-${target}"
+            if ! check_doxygen_coverage "${branch}"; then
+                failed_doxygen_single+=("${target}")
+            fi
+        done
+
+        echo ""
+        if [ ${#failed_targets_single[@]} -eq 0 ] && [ ${#failed_doxygen_single[@]} -eq 0 ]; then
+            log_info "=== All checks passed ==="
         else
-            log_warn "=== Compliance check summary ==="
-            log_warn "FAILED targets: ${failed_targets_single[*]}"
+            if [ ${#failed_targets_single[@]} -gt 0 ]; then
+                log_warn "=== Compliance check summary ==="
+                log_warn "FAILED targets: ${failed_targets_single[*]}"
+            fi
+            if [ ${#failed_doxygen_single[@]} -gt 0 ]; then
+                log_warn "=== Doxygen coverage summary ==="
+                log_warn "FAILED targets: ${failed_doxygen_single[*]}"
+            fi
             log_warn ""
             log_warn "To fix:"
-            log_warn "  1. Fix compliance issues in '${SOURCE_BRANCH}' and commit"
+            log_warn "  1. Fix issues in '${SOURCE_BRANCH}' and commit"
             log_warn "  2. Push '${SOURCE_BRANCH}' to mmiot: git push mmiot ${SOURCE_BRANCH}"
             log_warn "  3. Re-run: ./scripts/export_mp_upstream.sh"
         fi
