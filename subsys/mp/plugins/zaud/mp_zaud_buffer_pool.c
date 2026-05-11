@@ -18,7 +18,8 @@
 LOG_MODULE_REGISTER(mp_zaud_buffer_pool, CONFIG_MP_LOG_LEVEL);
 
 #define ZAUD_BUFFER_POOL_BASE_ALIGN 4
-#define ZAUD_BUFFER_POOL_SIZE (CONFIG_ZAUD_BUFFER_POOL_SZ_MAX * CONFIG_ZAUD_BUFFER_POOL_NUM_MAX)
+#define ZAUD_BUFFER_POOL_SIZE                                                                     \
+	(CONFIG_MP_ZAUD_BUFFER_POOL_SZ_MAX * CONFIG_MP_ZAUD_BUFFER_POOL_NUM_MAX)
 
 static __nocache __aligned(ZAUD_BUFFER_POOL_BASE_ALIGN)
 uint8_t zaud_buffer_pool_buf[ZAUD_BUFFER_POOL_SIZE];

@@ -6,14 +6,15 @@
 
 config MP_PLUGIN_ZAUD
 	bool "Audio plugin support"
+	select AUDIO
 
 if MP_PLUGIN_ZAUD
 
-config ZAUD_BUFFER_POOL_SZ_MAX
+config MP_ZAUD_BUFFER_POOL_SZ_MAX
 	int "Size of the largest buffer in the buffer pool"
 	default 98304
 
-config ZAUD_BUFFER_POOL_NUM_MAX
+config MP_ZAUD_BUFFER_POOL_NUM_MAX
 	int "Number of maximum sized buffers in the buffer pool"
 	default 10
 
