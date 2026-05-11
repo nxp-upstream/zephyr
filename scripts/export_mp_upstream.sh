@@ -61,10 +61,9 @@ TODAY="$(date +%Y-%m-%d)"
 CORE_PATHS=(
     "subsys/mp/Kconfig"
     "subsys/mp/CMakeLists.txt"
-    "subsys/mp/src/core/"
-    "subsys/mp/src/plugins/Kconfig"
-    "subsys/mp/src/plugins/CMakeLists.txt"
-    "include/zephyr/mp/mp.h"
+    "subsys/mp/core/"
+    "subsys/mp/plugins/Kconfig"
+    "subsys/mp/plugins/CMakeLists.txt"
     "include/zephyr/mp/core/"
     "subsys/Kconfig"
     "subsys/CMakeLists.txt"
@@ -74,7 +73,7 @@ CORE_PATHS=(
 
 # zvid plugin
 ZVID_PATHS=(
-    "subsys/mp/src/plugins/zvid/"
+    "subsys/mp/plugins/zvid/"
     "include/zephyr/mp/zvid/"
 )
 
@@ -86,19 +85,19 @@ ZJPEG_PATHS=(
 
 # zaud plugin
 ZAUD_PATHS=(
-    "subsys/mp/src/plugins/zaud/"
+    "subsys/mp/plugins/zaud/"
     "include/zephyr/mp/zaud/"
 )
 
 # zdisp plugin
 ZDISP_PATHS=(
-    "subsys/mp/src/plugins/zdisp/"
+    "subsys/mp/plugins/zdisp/"
     "include/zephyr/mp/zdisp/"
 )
 
 # zfs plugin
 ZFS_PATHS=(
-    "subsys/mp/src/plugins/zfs/"
+    "subsys/mp/plugins/zfs/"
     "include/zephyr/mp/zfs/"
 )
 
