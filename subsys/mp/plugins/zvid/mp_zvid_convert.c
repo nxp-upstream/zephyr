@@ -274,6 +274,19 @@ static bool zvid_convert_set_caps(struct mp_transform *transform, enum mp_pad_di
 	return true;
 }
 
+static bool out_fmts_contains(struct mp_value *out_fmts, uint32_t pixfmt)
+{
+	for (size_t k = 0; k < mp_value_list_get_size(out_fmts); k++) {
+		struct mp_value *ov = mp_value_list_get(out_fmts, (int)k);
+
+		if (ov != NULL && ov->type == MP_TYPE_UINT &&
+		    mp_value_get_uint(ov) == pixfmt) {
+			return true;
+		}
+	}
+	return false;
+}
+
 static struct mp_caps *zvid_convert_transform_caps(struct mp_transform *self,
 						   enum mp_pad_direction direction,
 						   struct mp_caps *incaps)
@@ -294,7 +307,6 @@ static struct mp_caps *zvid_convert_transform_caps(struct mp_transform *self,
 		struct mp_value *pix = mp_structure_get_value(s, MP_CAPS_PIXEL_FORMAT);
 		struct mp_value *w = mp_structure_get_value(s, MP_CAPS_IMAGE_WIDTH);
 		struct mp_value *h = mp_structure_get_value(s, MP_CAPS_IMAGE_HEIGHT);
-
 		struct mp_value *out_fmts = mp_value_new(MP_TYPE_LIST, NULL);
 
 		if (out_fmts == NULL) {
@@ -344,21 +356,7 @@ static struct mp_caps *zvid_convert_transform_caps(struct mp_transform *self,
 						continue;
 					}
 
-					/* Avoid duplicates in out_fmts */
-					bool found = false;
-
-					for (size_t k = 0; k < mp_value_list_get_size(out_fmts);
-					     k++) {
-						struct mp_value *ov =
-							mp_value_list_get(out_fmts, (int)k);
-
-						if (ov != NULL && ov->type == MP_TYPE_UINT &&
-						    mp_value_get_uint(ov) == dst_pf) {
-							found = true;
-							break;
-						}
-					}
-					if (!found) {
+					if (!out_fmts_contains(out_fmts, dst_pf)) {
 						mp_value_list_append(
 							out_fmts,
 							mp_value_new(MP_TYPE_UINT, dst_pf));
@@ -374,6 +372,7 @@ static struct mp_caps *zvid_convert_transform_caps(struct mp_transform *self,
 
 		struct mp_structure *ns = mp_structure_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT,
 							   MP_TYPE_LIST, out_fmts, MP_CAPS_END);
+
 		if (w != NULL) {
 			mp_structure_append(ns, MP_CAPS_IMAGE_WIDTH, mp_value_duplicate(w));
 		}
