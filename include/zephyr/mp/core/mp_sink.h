@@ -20,6 +20,7 @@
 
 struct mp_query;
 
+/** @brief Cast a pointer to a @ref mp_sink pointer. */
 #define MP_SINK(self) ((struct mp_sink *)self)
 
 /**
