@@ -13,32 +13,13 @@ Pipeline topology
 The sample builds one of two slightly different pipelines depending on whether a
 hardware JPEG decoder is available (``zephyr,jpegdec`` chosen node).
 
-Common front-end
-----------------
-
-.. graphviz::
-
-   digraph frontend {
-     rankdir=LR;
-     node [shape=box, style=filled, fillcolor="#e8e8e8"];
-     filesrc      [label="filesrc\n(zfs)"];
-     jpeg_parser  [label="jpeg_parser\n(zjpeg)"];
-     filesrc -> jpeg_parser;
-   }
-
-- ``mp_zfilesrc`` reads chunks from the file specified by :kconfig:option:`CONFIG_FILE_INPUT_PATH`.
-- ``mp_zjpeg_parser`` splits MJPEG into individual JPEG frames.
-
-Pipeline A: HW JPEG decode (typical NV12 output)
--------------------------------------------------
+Pipeline A: HW JPEG decode
+---------------------------
 
 When ``zephyr,jpegdec`` is present, decoding is performed by a hardware-backed
-``mp_zvid_transform``. On many SoCs, the decoded output is typically NV12 (or
-another YUV format) while many display controllers expect an RGB format.
-
-Therefore the pipeline usually includes both a capsfilter (to force a fixed
-decoded format) and a software ``videoconvert`` stage to convert NV12 to RGB565
-for the display.
+``mp_zvid_transform``. The HW decoder typically outputs NV12 (or another YUV
+format), so a software ``mp_zvid_convert`` stage converts the output to RGB565
+for the display controller.
 
 .. graphviz::
 
@@ -47,25 +28,15 @@ for the display.
      node [shape=box, style=filled, fillcolor="#e8e8e8"];
      filesrc      [label="filesrc\n(zfs)"];
      jpeg_parser  [label="jpeg_parser\n(zjpeg)"];
-     hw_jpegdec   [label="HW jpegdec\n(zvid_transform)"];
      capsfilter   [label="capsfilter\n(core)"];
+     hw_jpegdec   [label="HW jpegdec\n(zvid_transform)"];
      videoconvert [label="videoconvert\n(zvid)"];
-     opt_transform [label="optional\ntransform"];
      display      [label="display\n(zdisp)"];
-     filesrc -> jpeg_parser -> hw_jpegdec -> capsfilter -> videoconvert -> opt_transform -> display;
+     filesrc -> jpeg_parser -> capsfilter -> hw_jpegdec -> videoconvert -> display;
    }
 
-- ``mp_caps_filter`` forces decoded caps (width/height/pixel format) from Kconfig:
-  :kconfig:option:`CONFIG_JPEG_IMAGE_WIDTH`, :kconfig:option:`CONFIG_JPEG_IMAGE_HEIGHT`,
-  :kconfig:option:`CONFIG_JPEG_PIX_FMT` (default: ``NV12``).
-- ``mp_zvid_convert`` performs software pixel-format conversion.
-  Currently supported conversions include:
-
-  - NV12 → RGB565
-  - XRGB32 ↔ ARGB32 (alpha/padding handled explicitly)
-
-Pipeline B: SW JPEG decode (RGB565 output)
-------------------------------------------
+Pipeline B: SW JPEG decode
+---------------------------
 
 When no ``zephyr,jpegdec`` is present, decoding falls back to the software
 ``mp_zjpeg_decoder``. The SW decoder currently outputs RGB565, so no
@@ -78,20 +49,31 @@ When no ``zephyr,jpegdec`` is present, decoding falls back to the software
      node [shape=box, style=filled, fillcolor="#e8e8e8"];
      filesrc      [label="filesrc\n(zfs)"];
      jpeg_parser  [label="jpeg_parser\n(zjpeg)"];
-     sw_jpegdec   [label="SW jpegdec\n(zjpeg, RGB565)"];
      capsfilter   [label="capsfilter\n(core)"];
-     opt_transform [label="optional\ntransform"];
+     sw_jpegdec   [label="SW jpegdec\n(zjpeg)"];
      display      [label="display\n(zdisp)"];
-     filesrc -> jpeg_parser -> sw_jpegdec -> capsfilter -> opt_transform -> display;
+     filesrc -> jpeg_parser -> capsfilter -> sw_jpegdec -> display;
    }
+
+Elements
+--------
+
+- ``mp_zfilesrc`` reads chunks from the file specified by :kconfig:option:`CONFIG_FILE_INPUT_PATH`.
+- ``mp_zjpeg_parser`` splits the MJPEG byte stream into individual JPEG frames.
+- ``mp_caps_filter`` constrains the JPEG format (width/height from Kconfig:
+  :kconfig:option:`CONFIG_JPEG_IMAGE_WIDTH`, :kconfig:option:`CONFIG_JPEG_IMAGE_HEIGHT`).
+- ``mp_zjpeg_decoder`` (SW) or ``mp_zvid_transform`` (HW) decodes JPEG frames.
+- ``mp_zvid_convert`` performs pixel-format conversion (NV12 → RGB565) when using HW decode.
+- ``mp_zdisp_sink`` renders decoded frames to the display.
 
 Notes
 -----
 
-- If ``zephyr,videotrans`` is available, an additional ``mp_zvid_transform`` may be inserted
-  after conversion (e.g. for rotation).
-- The capsfilter is used to keep the pipeline simple on embedded targets by forcing a fixed
-  output format (instead of relying on preroll-based discovery).
+- If ``zephyr,videotrans`` is also available, an additional ``mp_zvid_transform``
+  is inserted before the display sink (e.g. for rotation via
+  :kconfig:option:`CONFIG_VIDEO_ROTATION_ANGLE`).
+- The capsfilter is placed between the parser and decoder to enforce a fixed
+  JPEG frame format before decoding begins.
 
 Input
 *****
@@ -99,15 +81,33 @@ Input
 The sample expects an MJPEG file at the path specified by
 :kconfig:option:`CONFIG_FILE_INPUT_PATH` (default ``/SD:/test.mjpeg``).
 
-A small test file is **embedded into the binary** at build time (via ``mjpeg.inc``).
-On first boot the sample checks whether the file already exists on the filesystem;
-if not, it writes the embedded data automatically.  No manual file preparation is
-required.
+A test MJPEG file is **generated at build time** using GStreamer CLI.
+The resolution matches :kconfig:option:`CONFIG_JPEG_IMAGE_WIDTH` and
+:kconfig:option:`CONFIG_JPEG_IMAGE_HEIGHT`, and the number of frames
+is controlled by :kconfig:option:`CONFIG_MJPEG_NUM_FRAMES`.
 
-On ``native_sim/native/64``, the SD card is emulated by a flash-backed FAT volume
-stored in the ``flash.bin`` file.  The embedded test file is written into this
-volume on startup, so the user does not need to populate or erase ``flash.bin``
-manually.
+The generated file is placed in the build directory and embedded into the binary
+via ``mjpeg.inc``. On first boot the sample checks whether the file already exists
+on the filesystem; if not, it writes the embedded data automatically. No manual
+file preparation is required.
+
+Requirements
+============
+
+The build host must have GStreamer installed (specifically the ``gst-launch-1.0``
+tool and the ``good`` plugins which include ``videotestsrc`` and ``jpegenc``).
+
+On Debian/Ubuntu::
+
+  sudo apt install gstreamer1.0-tools gstreamer1.0-plugins-good
+
+On Fedora::
+
+  sudo dnf install gstreamer1-plugins-good
+
+On macOS (Homebrew)::
+
+  brew install gstreamer
 
 Building and Running
 ********************
@@ -123,10 +123,10 @@ Native simulator
 
 Run::
 
-  ./build/zephyr/zephyr.exe --flash=flash.bin
+  ./build/zephyr/zephyr.exe
 
-The embedded ``test.mjpeg`` is written to the simulated SD card on first run.
-Subsequent runs reuse the same ``flash.bin`` without any extra steps.
+The test MJPEG file is generated during build and embedded into the binary.
+On first run it is written to the simulated SD card (``flash.bin``).
 
 NXP RT EVK platforms
 ====================
@@ -137,5 +137,6 @@ NXP RT EVK platforms
    :goals: build
    :compact:
 
-The embedded ``test.mjpeg`` is written to the SD card on first boot.
+The test MJPEG file is generated during build and embedded into the binary.
+On first boot it is written to the SD card automatically.
 Make sure the SD card is FAT formatted and writable.

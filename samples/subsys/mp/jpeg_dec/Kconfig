@@ -11,17 +11,20 @@ config FILE_INPUT_PATH
 	help
 	  Absolute path to the MJPEG input file.
 
-config JPEG_PIX_FMT
-	string "Pixel format of the decoded image"
-	default "NV12"
-
 config JPEG_IMAGE_WIDTH
-	int "Width of the decoded image"
+	int "Width of the decoded JPEG image"
 	default 320
 
 config JPEG_IMAGE_HEIGHT
-	int "Height of the decoded image"
+	int "Height of the decoded JPEG image"
 	default 240
+
+config MJPEG_NUM_FRAMES
+	int "Number of frames in the generated test MJPEG file"
+	default 150
+	help
+	  Number of video frames to generate in the test MJPEG file.
+	  The file is produced at build time using GStreamer CLI.
 
 config VIDEO_ROTATION_ANGLE
 	int "Rotate the decoded frame by a specified angle"
