@@ -116,7 +116,7 @@ int mp_structure_init(struct mp_structure *structure, uint8_t media_type_id);
  * @param field_id Field ID (field ID must be unique)
  * @param value Field value (the value will be copied)
  */
-void mp_structure_append(struct mp_structure *structure, uint8_t field_id, struct mp_value *value);
+int mp_structure_append(struct mp_structure *structure, uint8_t field_id, struct mp_value *value);
 
 /**
  * @brief Clear all fields from an @ref mp_structure.

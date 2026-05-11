@@ -52,8 +52,10 @@ int mp_bus_post(struct mp_bus *bus, struct mp_message *message)
 	}
 
 	/* Step 2: Put message to FIFO if not dropped */
-	if (reply != MP_BUS_DROP) {
+	if (reply == MP_BUS_PASS) {
 		k_fifo_put(&bus->fifo, message);
+	} else {
+		mp_message_destroy(message);
 	}
 
 	return 0;

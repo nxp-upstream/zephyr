@@ -63,18 +63,30 @@ void mp_structure_destroy(struct mp_structure *structure)
 	k_free(structure);
 }
 
-void mp_structure_append(struct mp_structure *structure, uint8_t field_id, struct mp_value *value)
+int mp_structure_append(struct mp_structure *structure, uint8_t field_id, struct mp_value *value)
 {
 	struct mp_structure_field *field;
 
 	if (structure == NULL || value == NULL) {
-		return;
+		return -EINVAL;
+	}
+
+	SYS_SLIST_FOR_EACH_CONTAINER(&structure->fields, field, node) {
+		if (field->field_id == field_id) {
+			return -EEXIST;
+		}
 	}
 
 	field = k_malloc(sizeof(struct mp_structure_field));
+	if (field == NULL) {
+		return -ENOMEM;
+	}
+
 	field->field_id = field_id;
 	field->value = value;
 	sys_slist_append(&structure->fields, &field->node);
+
+	return 0;
 }
 
 struct mp_structure *mp_structure_new(uint8_t media_type_id, ...)

@@ -106,7 +106,7 @@ struct mp_event *mp_event_new_eos(void);
 struct mp_caps *mp_event_get_caps(struct mp_event *event);
 
 /**
- * Set caps to a @ref MP_EVENT_CAPS event.
+ * @brief Set caps to a @ref MP_EVENT_CAPS event.
  *
  * @param event Pointer to a @ref mp_event
  * @param caps Pointer to a @ref mp_caps

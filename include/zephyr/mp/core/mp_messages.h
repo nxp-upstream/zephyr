@@ -43,6 +43,7 @@ enum mp_message_type {
  * Message structure used to notify application
  */
 struct mp_message {
+	void *fifo_reserved;       /**< 1st word reserved for use by k_fifo */
 	enum mp_message_type type; /**< type of message */
 	struct mp_object *src;     /**< (nullable) object originating message */
 	uint32_t timestamp;        /**< Creation time of message */
