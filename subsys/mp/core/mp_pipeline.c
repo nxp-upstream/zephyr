@@ -27,7 +27,7 @@ static int mp_pipeline_get_property(struct mp_object *obj, uint32_t id, void *va
 	return 0;
 }
 
-static void mp_pipeline_thread(void *p1, void *p2, void *p3)
+static void mp_pipeline_thread_func(void *p1, void *p2, void *p3)
 {
 	struct mp_bin *bin = p1;
 	struct mp_pipeline *pipeline = p1;
@@ -155,7 +155,7 @@ static enum mp_state_change_return mp_pipeline_change_state(struct mp_element *e
 
 	/* Start the pipeline processing thread */
 	if (transition == MP_STATE_CHANGE_PAUSED_TO_PLAYING) {
-		mp_thread_create(&pipeline->thread, mp_pipeline_thread, element, NULL, NULL,
+		mp_thread_create(&pipeline->thread, mp_pipeline_thread_func, element, NULL, NULL,
 				 CONFIG_MP_THREAD_DEFAULT_PRIORITY);
 	}
 
