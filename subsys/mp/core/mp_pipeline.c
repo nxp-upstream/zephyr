@@ -27,6 +27,54 @@ static int mp_pipeline_get_property(struct mp_object *obj, uint32_t id, void *va
 	return 0;
 }
 
+bool mp_pipeline_push_buffer(struct mp_element *start_elem, struct net_buf *buffer)
+{
+	struct mp_element *cur_elem = start_elem;
+	struct mp_pad *cur_srcpad;
+	struct mp_pad *next_sinkpad;
+	struct net_buf *out_buf;
+	sys_dnode_t *srcpad_node;
+
+	while (cur_elem != NULL && buffer != NULL) {
+		srcpad_node = sys_dlist_peek_head(&cur_elem->srcpads);
+		if (srcpad_node == NULL) {
+			/* Sink element reached - done */
+			break;
+		}
+		cur_srcpad = CONTAINER_OF(srcpad_node, struct mp_pad, object.node);
+
+		if (cur_srcpad->peer == NULL) {
+			LOG_ERR("srcpad has no peer");
+			return false;
+		}
+
+		next_sinkpad = cur_srcpad->peer;
+		if (next_sinkpad->chainfn != NULL) {
+			out_buf = NULL;
+
+			if (!next_sinkpad->chainfn(next_sinkpad, buffer, &out_buf)) {
+				LOG_ERR("chainfn failed for element %d",
+					MP_OBJECT(next_sinkpad->object.container)->id);
+				if (buffer != NULL) {
+					net_buf_unref(buffer);
+				}
+				return false;
+			}
+
+			if (out_buf == NULL) {
+				/* Buffer consumed (e.g. by a queue element) */
+				break;
+			}
+
+			buffer = out_buf;
+		}
+
+		cur_elem = MP_ELEMENT(next_sinkpad->object.container);
+	}
+
+	return true;
+}
+
 static void mp_pipeline_thread_func(void *p1, void *p2, void *p3)
 {
 	struct mp_bin *bin = p1;
@@ -35,12 +83,7 @@ static void mp_pipeline_thread_func(void *p1, void *p2, void *p3)
 	struct mp_element *element;
 	struct mp_src *src = NULL;
 	struct net_buf *buffer = NULL;
-	struct net_buf *out_buf = NULL;
 	struct mp_message *eos_message = NULL;
-	struct mp_element *cur_elem;
-	struct mp_pad *cur_srcpad;
-	struct mp_pad *next_sinkpad;
-	sys_dnode_t *srcpad_node;
 	uint32_t count = 0;
 
 	/* Currently, only pipelines without branches and push mode are supported */
@@ -63,14 +106,12 @@ static void mp_pipeline_thread_func(void *p1, void *p2, void *p3)
 
 	/* Main loop - in push mode, driven by source producing buffers */
 	while (pipeline->thread.running) {
+		/* Acquire a buffer from source */
 		if (src->pool->acquire_buffer != NULL) {
 			int ret = src->pool->acquire_buffer(src->pool, &buffer);
 
 			/* End of stream */
 			if (ret == -ENODATA) {
-				/* Send EOS event downstream */
-
-				/* Send EOS message to application */
 				pipeline->thread.running = false;
 				eos_message = mp_message_new(MP_MESSAGE_EOS, MP_OBJECT(src), NULL);
 				mp_bus_post(&bin->bus, eos_message);
@@ -83,56 +124,11 @@ static void mp_pipeline_thread_func(void *p1, void *p2, void *p3)
 			}
 		}
 
-		/* Process buffer through the pipeline by calling each element's chainfn */
-		cur_elem = MP_ELEMENT(src);
-		while (cur_elem != NULL && buffer != NULL) {
-			/* Only elements having a single srcpad is supported for now */
-
-			/* Get the 1st srcpad of the current element */
-			srcpad_node = sys_dlist_peek_head(&cur_elem->srcpads);
-			if (srcpad_node == NULL) {
-				/* This is the sink element (no srcpad), we're done */
-				break;
-			}
-			cur_srcpad = CONTAINER_OF(srcpad_node, struct mp_pad, object.node);
-
-			/* Check if there's a peer (next element) */
-			if (cur_srcpad->peer == NULL) {
-				LOG_ERR("srcpad has no peer");
-				break;
-			}
-
-			/* Call the next element's chainfn to process the buffer */
-			next_sinkpad = cur_srcpad->peer;
-			if (next_sinkpad->chainfn != NULL) {
-				out_buf = NULL;
-
-				if (!next_sinkpad->chainfn(next_sinkpad, buffer, &out_buf)) {
-					LOG_ERR("chainfn failed for element %d",
-						MP_OBJECT(next_sinkpad->object.container)->id);
-					/* Clean up buffer on error */
-					if (buffer != NULL) {
-						net_buf_unref(buffer);
-					}
-					buffer = NULL;
-					break;
-				}
-
-				if (out_buf == NULL) {
-					break;
-				}
-
-				/* Use output buffer as input for next element */
-				buffer = out_buf;
-			}
-
-			/* Move to next element */
-			cur_elem = MP_ELEMENT(next_sinkpad->object.container);
-		}
+		/* Push the buffer downstream through the pipeline */
+		mp_pipeline_push_buffer(MP_ELEMENT(src), buffer);
 
 		/* Stop the pipeline when reaching the src's num_buffers */
 		if (src->num_buffers != 0 && ++count == src->num_buffers) {
-			/* Post EOS message to the pipeline's bus */
 			pipeline->thread.running = false;
 			eos_message = mp_message_new(MP_MESSAGE_EOS, MP_OBJECT(src), NULL);
 			mp_bus_post(&bin->bus, eos_message);
