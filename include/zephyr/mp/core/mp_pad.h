@@ -23,7 +23,6 @@
 #include <zephyr/mp/core/mp_buffer.h>
 #include <zephyr/mp/core/mp_caps.h>
 #include <zephyr/mp/core/mp_object.h>
-#include <zephyr/mp/core/mp_thread.h>
 
 struct mp_event;
 struct mp_query;
@@ -102,8 +101,6 @@ struct mp_pad {
 	struct mp_pad *peer;
 	/** Capabilities of the pad */
 	struct mp_caps *caps;
-	/** Thread associated with this pad */
-	struct mp_thread thread;
 	/** Chain function for handling buffers */
 	bool (*chainfn)(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf);
 	/** Query function for handling queries */
@@ -153,19 +150,6 @@ void mp_pad_init(struct mp_pad *pad, uint8_t id, enum mp_pad_direction direction
  * @return true if the pads were successfully linked, false otherwise
  */
 bool mp_pad_link(struct mp_pad *srcpad, struct mp_pad *sinkpad);
-
-/**
- * @brief Start a task on a pad
- *
- * Starts a task that repeatedly calls @p func with @p user_data. This function
- * is mostly used to start the dataflow.
- *
- * @param pad Pointer to the @ref mp_pad to start the task on
- * @param func The task function to call
- * @param priority The priority of the task
- * @return true if the task could be started, false otherwise
- */
-bool mp_pad_start_task(struct mp_pad *pad, k_thread_entry_t func, int priority);
 
 /**
  * @brief Send an event to a pad
