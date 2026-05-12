@@ -9,6 +9,7 @@ file(GLOB MP_CORE_SOURCE_FILES *.c)
 set(BUILTIN_ELEMENTS
     "mp_capsfilter.c:CONFIG_MP_CAPSFILTER"
     "mp_queue.c:CONFIG_MP_QUEUE"
+    "mp_workqueue.c:CONFIG_MP_WORKQUEUE"
     "mp_transform_client.c:CONFIG_MP_RPC"
 )
 
