@@ -134,7 +134,7 @@ static bool append_to_partial(struct net_buf *partial, const uint8_t *src, size_
 	return true;
 }
 
-static int mp_zjpeg_parser_staging_acquire(struct mp_buffer_pool *pool, struct net_buf **buf)
+static int mp_zjpeg_parser_acquire_buffer(struct mp_buffer_pool *pool, struct net_buf **buf)
 {
 	struct net_buf *out;
 	struct mp_buffer_meta *m;
@@ -159,7 +159,7 @@ static int mp_zjpeg_parser_staging_acquire(struct mp_buffer_pool *pool, struct n
 	return 0;
 }
 
-static int mp_zjpeg_parser_staging_release(struct mp_buffer_pool *pool, struct net_buf *buf)
+static int mp_zjpeg_parser_release_buffer(struct mp_buffer_pool *pool, struct net_buf *buf)
 {
 	ARG_UNUSED(pool);
 
@@ -351,8 +351,8 @@ void mp_zjpeg_parser_init(struct mp_element *self)
 		mp_buffer_pool_init(&jpeg_parser->out_pool);
 		jpeg_parser->out_pool.nb_pool = &mp_zjpeg_parser_pool;
 		jpeg_parser->out_pool.config.size = CONFIG_MP_ZJPEG_PARSER_MAX_FRAME_SIZE;
-		jpeg_parser->out_pool.acquire_buffer = mp_zjpeg_parser_staging_acquire;
-		jpeg_parser->out_pool.release_buffer = mp_zjpeg_parser_staging_release;
+		jpeg_parser->out_pool.acquire_buffer = mp_zjpeg_parser_acquire_buffer;
+		jpeg_parser->out_pool.release_buffer = mp_zjpeg_parser_release_buffer;
 		/* net_buf pool is static; no explicit start */
 		jpeg_parser->out_pool.started = true;
 		parser->outpool = &jpeg_parser->out_pool;
