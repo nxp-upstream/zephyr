@@ -12,7 +12,6 @@
 #include <zephyr/mp/core/mp_event.h>
 #include <zephyr/mp/core/mp_pad.h>
 #include <zephyr/mp/core/mp_query.h>
-#include <zephyr/mp/core/mp_thread.h>
 
 LOG_MODULE_REGISTER(mp_pad, CONFIG_MP_LOG_LEVEL);
 
@@ -57,19 +56,6 @@ bool mp_pad_link(struct mp_pad *srcpad, struct mp_pad *sinkpad)
 	}
 
 	return true;
-}
-
-bool mp_pad_start_task(struct mp_pad *pad, k_thread_entry_t func, int priority)
-{
-	k_tid_t thread = NULL;
-
-	if (pad == NULL || pad->thread.running) {
-		return false;
-	}
-
-	thread = mp_thread_create(&pad->thread, func, pad, NULL, NULL, priority);
-
-	return thread != NULL;
 }
 
 bool mp_pad_query(struct mp_pad *pad, struct mp_query *query)
