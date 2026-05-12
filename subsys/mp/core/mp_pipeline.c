@@ -59,10 +59,10 @@ static void mp_pipeline_thread(void *p1, void *p2, void *p3)
 		return;
 	}
 
-	pipeline->task.running = true;
+	pipeline->thread.running = true;
 
 	/* Main loop - in push mode, driven by source producing buffers */
-	while (pipeline->task.running) {
+	while (pipeline->thread.running) {
 		if (src->pool->acquire_buffer != NULL) {
 			int ret = src->pool->acquire_buffer(src->pool, &buffer);
 
@@ -71,7 +71,7 @@ static void mp_pipeline_thread(void *p1, void *p2, void *p3)
 				/* Send EOS event downstream */
 
 				/* Send EOS message to application */
-				pipeline->task.running = false;
+				pipeline->thread.running = false;
 				eos_message = mp_message_new(MP_MESSAGE_EOS, MP_OBJECT(src), NULL);
 				mp_bus_post(&bin->bus, eos_message);
 				break;
@@ -133,7 +133,7 @@ static void mp_pipeline_thread(void *p1, void *p2, void *p3)
 		/* Stop the pipeline when reaching the src's num_buffers */
 		if (src->num_buffers != 0 && ++count == src->num_buffers) {
 			/* Post EOS message to the pipeline's bus */
-			pipeline->task.running = false;
+			pipeline->thread.running = false;
 			eos_message = mp_message_new(MP_MESSAGE_EOS, MP_OBJECT(src), NULL);
 			mp_bus_post(&bin->bus, eos_message);
 		}
@@ -155,13 +155,13 @@ static enum mp_state_change_return mp_pipeline_change_state(struct mp_element *e
 
 	/* Start the pipeline processing thread */
 	if (transition == MP_STATE_CHANGE_PAUSED_TO_PLAYING) {
-		mp_task_create(&pipeline->task, mp_pipeline_thread, element, NULL, NULL,
-			       CONFIG_MP_THREAD_DEFAULT_PRIORITY);
+		mp_thread_create(&pipeline->thread, mp_pipeline_thread, element, NULL, NULL,
+				 CONFIG_MP_THREAD_DEFAULT_PRIORITY);
 	}
 
 	/* Paused the pipeline processing thread */
 	if (transition == MP_STATE_CHANGE_PLAYING_TO_PAUSED) {
-		pipeline->task.running = false;
+		pipeline->thread.running = false;
 		/* TODO: Wait for thread to finish */
 	}
 

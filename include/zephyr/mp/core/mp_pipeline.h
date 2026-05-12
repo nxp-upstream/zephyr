@@ -16,7 +16,7 @@
 #include <stdint.h>
 
 #include <zephyr/mp/core/mp_bin.h>
-#include <zephyr/mp/core/mp_task.h>
+#include <zephyr/mp/core/mp_thread.h>
 
 /**
  * @{
@@ -34,8 +34,8 @@
 struct mp_pipeline {
 	/** Base bin container */
 	struct mp_bin bin;
-	/** Task associated with the pipeline */
-	struct mp_task task;
+	/** Thread associated with the pipeline */
+	struct mp_thread thread;
 	/** The running time - total time spent in PLAYING state without being flushed */
 	uint64_t stream_time;
 	/**

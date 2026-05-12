@@ -23,7 +23,7 @@
 #include <zephyr/mp/core/mp_buffer.h>
 #include <zephyr/mp/core/mp_caps.h>
 #include <zephyr/mp/core/mp_object.h>
-#include <zephyr/mp/core/mp_task.h>
+#include <zephyr/mp/core/mp_thread.h>
 
 struct mp_event;
 struct mp_query;
@@ -102,8 +102,8 @@ struct mp_pad {
 	struct mp_pad *peer;
 	/** Capabilities of the pad */
 	struct mp_caps *caps;
-	/** Task associated with this pad */
-	struct mp_task task;
+	/** Thread associated with this pad */
+	struct mp_thread thread;
 	/** Chain function for handling buffers */
 	bool (*chainfn)(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf);
 	/** Query function for handling queries */
