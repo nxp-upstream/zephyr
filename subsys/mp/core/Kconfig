@@ -25,6 +25,31 @@ config MP_QUEUE
 	  deposits buffers into a FIFO and spawns a dedicated thread
 	  to drive the downstream segment.
 
+config MP_WORKQUEUE
+	bool "Element-level work offload (P4WQ)"
+	select SCHED_DEADLINE
+	help
+	  Enable element-level work offloading via a shared P4WQ
+	  (Pooled Parallel Preemptible Priority-based Work Queue)
+	  thread pool. Elements can submit finite work items (e.g.,
+	  decode, inference) to be processed on pool threads with
+	  configurable priority.
+
+config MP_WORKQUEUE_THREADS_NUM
+	int "Number of threads in MP workqueue pool"
+	default 1
+	depends on MP_WORKQUEUE
+	help
+	  Number of threads in the shared P4WQ pool used for
+	  element-level work offload.
+
+config MP_WORKQUEUE_STACK_SIZE
+	int "Stack size for MP workqueue pool threads"
+	default 4096
+	depends on MP_WORKQUEUE
+	help
+	  Stack size in bytes for each thread in the MP workqueue pool.
+
 config MP_CAPSFILTER
 	bool "Capsfilter support"
 
