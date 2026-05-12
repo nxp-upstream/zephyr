@@ -17,6 +17,14 @@ config MP_THREAD_DEFAULT_PRIORITY
 	int "Priority of a thread"
 	default 5
 
+config MP_QUEUE
+	bool "Queue element (pipeline-level threading)"
+	help
+	  Enable the queue element which decouples pipeline segments
+	  into separate threads for parallel processing. The queue
+	  deposits buffers into a FIFO and spawns a dedicated thread
+	  to drive the downstream segment.
+
 config MP_CAPSFILTER
 	bool "Capsfilter support"
 
