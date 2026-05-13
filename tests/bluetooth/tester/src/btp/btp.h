@@ -46,6 +46,7 @@
 #include "btp_hfp_hf.h"
 #include "btp_hfp_ag.h"
 #include "btp_a2dp.h"
+#include "btp_avdtp.h"
 
 #define BTP_MTU 1024
 #define BTP_DATA_MAX_SIZE (BTP_MTU - sizeof(struct btp_hdr))
@@ -91,8 +92,9 @@
 #define BTP_SERVICE_ID_HFP_HF   0x21
 #define BTP_SERVICE_ID_HFP_AG   0x22
 #define BTP_SERVICE_ID_A2DP     0x23
+#define BTP_SERVICE_ID_AVDTP     0x24
 
-#define BTP_SERVICE_ID_MAX	BTP_SERVICE_ID_A2DP
+#define BTP_SERVICE_ID_MAX	BTP_SERVICE_ID_AVDTP
 
 /* Service ID starts from index 0.
  * BTP_SERVICE_ID_MAX is the last service ID.
