@@ -143,7 +143,7 @@ static int mp_zjpeg_parser_acquire_buffer(struct mp_buffer_pool *pool, struct ne
 		return -EINVAL;
 	}
 
-	out = net_buf_alloc_len(pool->nb_pool, pool->config.size, K_NO_WAIT);
+	out = net_buf_alloc_len(pool->nb_pool, pool->config.size, K_FOREVER);
 	if (out == NULL) {
 		return -ENOBUFS;
 	}
