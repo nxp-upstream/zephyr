@@ -116,6 +116,11 @@ SAMPLE_FS_PATHS=(
     "samples/subsys/mp/fs/"
 )
 
+# Sample: dmic_i2s (DMIC to I2S audio pipeline)
+SAMPLE_DMIC_I2S_PATHS=(
+    "samples/subsys/mp/dmic_i2s/"
+)
+
 # ===========================================================================
 # Commit messages (following Zephyr convention: area: Short description)
 # ===========================================================================
@@ -236,6 +241,16 @@ that performs filesystem I/O on any Zephyr-supported filesystem.
 
 ${SOB}"
 
+SAMPLE_DMIC_I2S_COMMIT_MSG="mp: samples: Add DMIC to I2S audio sample
+
+Add the dmic_i2s sample application demonstrating how to build an
+audio pipeline using the MP subsystem. This sample provides a simple
+pipeline that captures audio from a digital microphone (DMIC), applies
+gain control using the zaud plugin's gain element, and outputs the
+processed audio through an I2S codec to a speaker.
+
+${SOB}"
+
 # ===========================================================================
 # Dependency map: target -> dependency branches (in cherry-pick order)
 # ===========================================================================
@@ -251,6 +266,7 @@ TARGET_DEPS=(
     [sample-cam_disp]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zdisp"
     [sample-jpeg_dec]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zjpeg ${UPSTREAM_PREFIX}-zdisp ${UPSTREAM_PREFIX}-zfs"
     [sample-fs]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zfs"
+    [sample-dmic_i2s]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zaud"
 )
 
 # ===========================================================================
@@ -612,12 +628,17 @@ export_sample_fs() {
         "${SAMPLE_FS_COMMIT_MSG}" "${SAMPLE_FS_PATHS[@]}"
 }
 
+export_sample_dmic_i2s() {
+    generate_branch "sample-dmic_i2s" "${UPSTREAM_PREFIX}-sample-dmic_i2s" \
+        "${SAMPLE_DMIC_I2S_COMMIT_MSG}" "${SAMPLE_DMIC_I2S_PATHS[@]}"
+}
+
 # ===========================================================================
 # Export all targets
 # ===========================================================================
 
 export_all() {
-    TARGETS=(core zvid zjpeg zaud zdisp zfs sample-cam_disp sample-jpeg_dec sample-fs)
+    TARGETS=(core zvid zaud zdisp zjpeg zfs sample-cam_disp sample-jpeg_dec sample-fs sample-dmic_i2s)
 
     log_info "=== Exporting all MP upstream PR branches ==="
     log_info "Source: ${SOURCE_BRANCH}"
@@ -639,6 +660,7 @@ export_all() {
     export_sample_cam_disp
     export_sample_jpeg_dec
     export_sample_fs
+    export_sample_dmic_i2s
 
     if ! ${SKIP_COMPLIANCE}; then
         echo ""
@@ -727,6 +749,7 @@ Targets:
   sample-cam_disp  Camera-to-display sample (depends on core, zvid, zdisp)
   sample-jpeg_dec  JPEG decoding sample (depends on core, zvid, zjpeg, zdisp, zfs)
   sample-fs        Filesystem sample (depends on core, zfs)
+  sample-dmic_i2s  DMIC to I2S sample (depends on core, zaud)
   all              All of the above (default)
 
 Options:
@@ -754,7 +777,7 @@ main() {
                 shift
                 ;;
             --list)
-                echo "Available targets: core zvid zjpeg zaud zdisp zfs sample-cam_disp sample-jpeg_dec sample-fs"
+                echo "Available targets: core zvid zaud zdisp zjpeg zfs sample-cam_disp sample-jpeg_dec sample-fs sample-dmic_i2s"
                 exit 0
                 ;;
             --no-comply)
@@ -765,7 +788,7 @@ main() {
                 usage
                 exit 0
                 ;;
-            core|zvid|zjpeg|zaud|zdisp|zfs|sample-cam_disp|sample-jpeg_dec|sample-fs|all)
+            core|zvid|zaud|zdisp|zjpeg|zfs|sample-cam_disp|sample-jpeg_dec|sample-fs|sample-dmic_i2s|all)
                 targets+=("$1")
                 shift
                 ;;
@@ -823,6 +846,10 @@ main() {
             sample-fs)
                 TARGETS+=(sample-fs)
                 export_sample_fs
+                ;;
+            sample-dmic_i2s)
+                TARGETS+=(sample-dmic_i2s)
+                export_sample_dmic_i2s
                 ;;
         esac
     done
