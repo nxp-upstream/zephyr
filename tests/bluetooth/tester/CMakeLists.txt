@@ -68,3 +68,7 @@ endif()
 if(CONFIG_BT_HFP_AG)
     target_sources(app PRIVATE src/btp_hfp_ag.c)
 endif()
+
+if(CONFIG_BT_PBAP)
+    target_sources(app PRIVATE src/btp_pbap.c)
+endif()
