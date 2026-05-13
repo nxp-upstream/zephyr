@@ -17,7 +17,7 @@
  * with the shared @ref mp_p4wq instance, without wrapping the API.
  *
  * Example usage in an element with parallel tile processing:
- * 
+ *
  * @code
  * #include <zephyr/mp/core/mp_workqueue.h>
  *
