@@ -1,0 +1,10 @@
+tests:
+  subsys.mp.core.pipeline:
+    platform_allow:
+      - native_sim/native/64
+      - qemu_x86
+    tags:
+      - mp
+      - pipeline
+    integration_platforms:
+      - native_sim/native/64

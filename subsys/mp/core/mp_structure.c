@@ -12,8 +12,6 @@
 #include <zephyr/mp/core/mp_structure.h>
 #include <zephyr/mp/core/mp_value.h>
 
-#define MP_STRUCTURE_END UINT8_MAX
-
 struct mp_structure_field {
 	uint8_t field_id;
 	struct mp_value *value;

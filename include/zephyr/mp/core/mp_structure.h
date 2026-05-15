@@ -17,6 +17,9 @@
 
 #include <zephyr/mp/core/mp_value.h>
 
+/** Sentinel value to terminate mp_structure_new() variadic argument list */
+#define MP_STRUCTURE_END UINT8_MAX
+
 /**
  * @defgroup mp_structure Dynamic Structure
  * @brief Dynamic structure for holding named fields and values.

@@ -1,0 +1,11 @@
+tests:
+  subsys.mp.core.unit:
+    platform_allow:
+      - native_sim/native/64
+      - qemu_x86
+    tags:
+      - mp
+      - unit
+    integration_platforms:
+      - native_sim/native/64
+    timeout: 60 # Maximum execution time for a test
