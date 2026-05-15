@@ -58,3 +58,28 @@ config MP_BIN_MAX_CHILDREN
 	  Maximum number of child elements that can be added to a single
 	  bin or pipeline. This is used to size the bin's internal arrays for
 	  topological sort during state changes.
+
+config MP_FAKE_SRC
+	bool "Fake source element"
+	help
+	  Synthetic data-source element for pipeline testing and benchmarking.
+	  Produces net_buf buffers filled with a fixed pattern or random data
+	  at a configurable rate, then emits EOS when the requested buffer
+	  count is reached.
+
+config MP_FAKE_SRC_BUF_SIZE
+	int "Static data buffer size for mp_fake_src (bytes)"
+	default 1024
+	depends on MP_FAKE_SRC
+	help
+	  Size of the per-element static payload buffer embedded in
+	  struct mp_fake_src. Every acquire_buffer call fills at most
+	  this many bytes and passes a pointer into this buffer to the
+	  downstream net_buf. Must be >= sizemax configured at runtime.
+
+config MP_FAKE_SINK
+	bool "Fake sink element"
+	help
+	  Synthetic terminal sink element for pipeline testing and benchmarking.
+	  Counts consumed buffers and bytes, and provides an optional per-buffer
+	  callback (invoked when on_buffer != NULL).
