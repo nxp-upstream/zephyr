@@ -21,6 +21,11 @@
 #include "fsl_clock.h"
 #include <fsl_cache.h>
 
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(xtal32))
+#include "fsl_rtc.h"
+#include "fsl_usart.h"
+#endif
+
 LOG_MODULE_REGISTER(soc, CONFIG_SOC_LOG_LEVEL);
 
 #ifdef CONFIG_FLASH_MCUX_FLEXSPI_XIP
@@ -528,6 +533,16 @@ void __weak imxrt_deinit_display_interface(void)
 
 extern void rt5xx_power_init(void);
 
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(xtal32))
+#define RT5XX_USART_ENGAGE_MODE32K(node_id)                                                        \
+	IF_ENABLED(DT_PROP(node_id, wakeup_source),                                                \
+		   (BUILD_ASSERT((9600 % DT_PROP_OR(node_id, current_speed, 9600)) == 0,           \
+				 "wakeup-source on RT5xx USART requires current-speed to be a "    \
+				 "divisor of 9600 (MODE32K hardware constraint)");                 \
+		    USART_Enable32kMode((USART_Type *)DT_REG_ADDR(node_id),                        \
+					DT_PROP_OR(node_id, current_speed, 9600), true, 32768U);))
+#endif
+
 /**
  *
  * @brief Perform basic hardware initialization
@@ -551,6 +566,14 @@ void soc_early_init_hook(void)
 	IOPCTL->PIO[1][15] = 0;
 	IOPCTL->PIO[3][28] = 0;
 	IOPCTL->PIO[3][29] = 0;
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(xtal32))
+	CLOCK_EnableOsc32K(true);
+	RTC_Init(RTC);
+	CLOCK_AttachClk(kOSC32K_to_32KHZWAKE_CLK);
+	DT_FOREACH_STATUS_OKAY(nxp_lpc_usart, RT5XX_USART_ENGAGE_MODE32K)
+#endif
+
 #ifdef CONFIG_PM
 	rt5xx_power_init();
 #endif

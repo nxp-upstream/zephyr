@@ -419,6 +419,14 @@ static int mcux_lpc_syscon_clock_control_get_subsys_rate(const struct device *de
 	case MCUX_HS_SPI1_CLK:
 		*rate = CLOCK_GetFlexCommClkFreq(16);
 		break;
+#if defined(CONFIG_SOC_SERIES_IMXRT5XX)
+	case MCUX_FLEXCOMM0_LP_CLK:
+	case MCUX_FLEXCOMM1_LP_CLK:
+	case MCUX_FLEXCOMM2_LP_CLK:
+	case MCUX_FLEXCOMM3_LP_CLK:
+		*rate = 32768U;
+		break;
+#endif
 #elif defined(CONFIG_NXP_LP_FLEXCOMM)
 	case MCUX_FLEXCOMM0_CLK:
 		*rate = CLOCK_GetLPFlexCommClkFreq(0);
@@ -915,6 +923,18 @@ static int SYSCON_SET_FUNC_ATTR mcux_lpc_syscon_clock_control_set_subsys_rate(
 static int mcux_lpc_syscon_clock_control_configure(const struct device *dev,
 						   clock_control_subsys_t sub_system, void *data)
 {
+#if defined(CONFIG_SOC_SERIES_IMXRT5XX)
+	/* MODE32K is engaged at SoC init; this hook is a no-op on RT5xx. */
+	switch ((uint32_t)sub_system) {
+	case MCUX_FLEXCOMM0_LP_CLK:
+	case MCUX_FLEXCOMM1_LP_CLK:
+	case MCUX_FLEXCOMM2_LP_CLK:
+	case MCUX_FLEXCOMM3_LP_CLK:
+		return 0;
+	default:
+		break;
+	}
+#endif
 #ifdef CONFIG_SOC_SERIES_RW6XX
 #define FLEXCOMM_LP_CLK_DECODE(n) (n & 0x80)
 	uint32_t clock_name = (uint32_t)sub_system;

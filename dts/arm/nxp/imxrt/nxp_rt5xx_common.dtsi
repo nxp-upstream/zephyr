@@ -67,6 +67,13 @@
 			};
 		};
 	};
+
+	xtal32: xtal32 {
+		compatible = "fixed-clock";
+		clock-frequency = <32768>;
+		#clock-cells = <0>;
+		status = "disabled";
+	};
 };
 
 &sram {
@@ -243,7 +250,8 @@
 		compatible = "nxp,lpc-flexcomm";
 		reg = <0x106000 0x1000>;
 		interrupts = <14 0>;
-		clocks = <&clkctl1 MCUX_FLEXCOMM0_CLK>;
+		clocks = <&clkctl1 MCUX_FLEXCOMM0_CLK>, <&clkctl1 MCUX_FLEXCOMM0_LP_CLK>;
+		clock-names = "default", "sleep";
 		resets = <&rstctl1 NXP_SYSCON_RESET(0, 8)>;
 		status = "disabled";
 	};
@@ -252,7 +260,8 @@
 		compatible = "nxp,lpc-flexcomm";
 		reg = <0x107000 0x1000>;
 		interrupts = <15 0>;
-		clocks = <&clkctl1 MCUX_FLEXCOMM1_CLK>;
+		clocks = <&clkctl1 MCUX_FLEXCOMM1_CLK>, <&clkctl1 MCUX_FLEXCOMM1_LP_CLK>;
+		clock-names = "default", "sleep";
 		resets = <&rstctl1 NXP_SYSCON_RESET(0, 9)>;
 		status = "disabled";
 	};
@@ -261,7 +270,8 @@
 		compatible = "nxp,lpc-flexcomm";
 		reg = <0x108000 0x1000>;
 		interrupts = <16 0>;
-		clocks = <&clkctl1 MCUX_FLEXCOMM2_CLK>;
+		clocks = <&clkctl1 MCUX_FLEXCOMM2_CLK>, <&clkctl1 MCUX_FLEXCOMM2_LP_CLK>;
+		clock-names = "default", "sleep";
 		resets = <&rstctl1 NXP_SYSCON_RESET(0, 10)>;
 		status = "disabled";
 	};
@@ -270,7 +280,8 @@
 		compatible = "nxp,lpc-flexcomm";
 		reg = <0x109000 0x1000>;
 		interrupts = <17 0>;
-		clocks = <&clkctl1 MCUX_FLEXCOMM3_CLK>;
+		clocks = <&clkctl1 MCUX_FLEXCOMM3_CLK>, <&clkctl1 MCUX_FLEXCOMM3_LP_CLK>;
+		clock-names = "default", "sleep";
 		resets = <&rstctl1 NXP_SYSCON_RESET(0, 11)>;
 		status = "disabled";
 	};
