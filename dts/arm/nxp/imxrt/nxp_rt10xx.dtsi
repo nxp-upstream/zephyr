@@ -1094,7 +1094,7 @@
 			interrupts = <57 0>;
 			dmas = <&edma0 0 21>, <&edma0 0 22>;
 			dma-names = "rx", "tx";
-			nxp,tx-channel = <0>;
+			nxp,tx-channel = <1>;
 			nxp,tx-dma-channel = <3>;
 			nxp,rx-dma-channel = <4>;
 			status = "disabled";
