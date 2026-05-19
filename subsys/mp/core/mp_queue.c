@@ -66,7 +66,7 @@ static void mp_queue_thread_func(void *p1, void *p2, void *p3)
 
 	queue->thread.running = true;
 
-	while (true) {
+	while (queue->thread.running) {
 		buffer = k_fifo_get(&queue->fifo, K_FOREVER);
 		if (buffer == NULL) {
 			/* k_fifo_cancel_wait() was called — time to exit */
@@ -80,8 +80,6 @@ static void mp_queue_thread_func(void *p1, void *p2, void *p3)
 
 		mp_pipeline_push_buffer(MP_ELEMENT(queue), buffer);
 	}
-
-	queue->thread.running = false;
 }
 
 static enum mp_state_change_return mp_queue_change_state(struct mp_element *element,
@@ -98,9 +96,8 @@ static enum mp_state_change_return mp_queue_change_state(struct mp_element *elem
 		/* Unblock the thread if waiting on an empty FIFO */
 		k_fifo_cancel_wait(&queue->fifo);
 		/* Wait for the thread to exit */
+		queue->thread.running = false;
 		k_thread_join(&queue->thread.thread_data, K_FOREVER);
-		/* Return the thread stack to the pool */
-		mp_thread_release(&queue->thread);
 		/* Buffers remain in the FIFO — processed on resume */
 		break;
 	case MP_STATE_CHANGE_PAUSED_TO_READY: {
