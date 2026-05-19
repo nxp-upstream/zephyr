@@ -97,8 +97,7 @@ struct mp_structure {
  * @param media_type_id Media type ID of the structure.
  * @param ... Variadic list of field definitions, terminated by 0.
  *
- * @return Pointer to the newly created @ref mp_structure.
- * @retval NULL If memory allocation fails or the argument list is invalid.
+ * @return Pointer to the newly created @ref mp_structure, or NULL on failure
  */
 struct mp_structure *mp_structure_new(uint8_t media_type_id, ...);
 
@@ -166,9 +165,9 @@ struct mp_value *mp_structure_get_value(struct mp_structure *structure, uint8_t 
  * @param structure Structure containing the field to remove.
  * @param field_id ID of the field to remove.
  *
- * @return True if the field was found and removed, false otherwise.
+ * @return 0 on success, negative errno on failure
  */
-bool mp_structure_remove_field(struct mp_structure *structure, uint8_t field_id);
+int mp_structure_remove_field(struct mp_structure *structure, uint8_t field_id);
 
 /**
  * @brief Check if two @ref mp_structure can intersect.

@@ -42,7 +42,7 @@ static int mp_zfilesink_get_property(struct mp_object *obj, uint32_t key, void *
 	}
 }
 
-static bool mp_zfilesink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out)
+static int mp_zfilesink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out)
 {
 	struct mp_zfilesink *fsink = MP_ZFILESINK(pad->object.container);
 	uint32_t to_write;
@@ -53,20 +53,20 @@ static bool mp_zfilesink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, str
 	if (!fsink->file_open) {
 		LOG_ERR("File not opened");
 		net_buf_unref(in_buf);
-		return false;
+		return -ENOTCONN;
 	}
 
 	to_write = mp_buffer_get_meta(in_buf)->bytes_used;
 	if (to_write == 0) {
 		net_buf_unref(in_buf);
-		return true;
+		return 0;
 	}
 
 	wr = fs_write(&fsink->file, in_buf->data, to_write);
 	if (wr <= 0) {
 		LOG_ERR("fs_write failed (%u)", (int)wr);
 		net_buf_unref(in_buf);
-		return false;
+		return -EIO;
 	}
 
 	LOG_DBG("filesink: wrote %d bytes", (int)wr);
@@ -74,7 +74,7 @@ static bool mp_zfilesink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, str
 	/* Ignore short writes for now; could loop later */
 	net_buf_unref(in_buf);
 
-	return true;
+	return 0;
 }
 
 static enum mp_state_change_return mp_zfilesink_change_state(struct mp_element *self,

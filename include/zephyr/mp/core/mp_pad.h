@@ -102,13 +102,13 @@ struct mp_pad {
 	/** Capabilities of the pad */
 	struct mp_caps *caps;
 	/** Chain function for handling buffers */
-	bool (*chainfn)(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf);
+	int (*chainfn)(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf);
 	/** Query function for handling queries */
-	bool (*queryfn)(struct mp_pad *pad, struct mp_query *query);
+	int (*queryfn)(struct mp_pad *pad, struct mp_query *query);
 	/** Event function for handling events */
-	bool (*eventfn)(struct mp_pad *pad, struct mp_event *event);
+	int (*eventfn)(struct mp_pad *pad, struct mp_event *event);
 	/** Link function for link validation and doing some pad's specific stuffs */
-	bool (*linkfn)(struct mp_pad *pad);
+	int (*linkfn)(struct mp_pad *pad);
 };
 
 /**
@@ -147,9 +147,10 @@ void mp_pad_init(struct mp_pad *pad, uint8_t id, enum mp_pad_direction direction
  *
  * @param srcpad Source pad to link
  * @param sinkpad Sink pad to link
- * @return true if the pads were successfully linked, false otherwise
+ *
+ * @return 0 on success, negative errno on failure
  */
-bool mp_pad_link(struct mp_pad *srcpad, struct mp_pad *sinkpad);
+int mp_pad_link(struct mp_pad *srcpad, struct mp_pad *sinkpad);
 
 /**
  * @brief Send an event to a pad
@@ -158,9 +159,10 @@ bool mp_pad_link(struct mp_pad *srcpad, struct mp_pad *sinkpad);
  *
  * @param pad Pointer to the @ref mp_pad where the event should be sent
  * @param event Pointer to the @ref mp_event to send
- * @return true if the event was successfully sent and handled, false otherwise
+ *
+ * @return 0 on success, negative errno on failure
  */
-bool mp_pad_send_event(struct mp_pad *pad, struct mp_event *event);
+int mp_pad_send_event(struct mp_pad *pad, struct mp_event *event);
 
 /**
  * @brief Default event handler for pads
@@ -171,9 +173,10 @@ bool mp_pad_send_event(struct mp_pad *pad, struct mp_event *event);
  *
  * @param pad Pointer to the @ref mp_pad to send event to
  * @param event Pointer to the @ref mp_event to send
- * @return true if the event is handled, false otherwise
+ *
+ * @return 0 on success, negative errno on failure
  */
-bool mp_pad_send_event_default(struct mp_pad *pad, struct mp_event *event);
+int mp_pad_send_event_default(struct mp_pad *pad, struct mp_event *event);
 
 /**
  * @brief Send a query to a pad
@@ -182,9 +185,10 @@ bool mp_pad_send_event_default(struct mp_pad *pad, struct mp_event *event);
  *
  * @param pad Pointer to the @ref mp_pad to send query to
  * @param query Pointer to the @ref mp_query to send
- * @return true if the query is handled, false otherwise
+ *
+ * @return 0 on success, negative errno on failure
  */
-bool mp_pad_query(struct mp_pad *pad, struct mp_query *query);
+int mp_pad_query(struct mp_pad *pad, struct mp_query *query);
 
 /**
  * @}

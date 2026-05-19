@@ -114,19 +114,19 @@ static void mp_zdisp_sink_update_caps(struct mp_sink *sink)
 	mp_caps_unref(caps);
 }
 
-static bool mp_zdisp_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
+static int mp_zdisp_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
 {
 	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
 	struct mp_value *value = mp_structure_get_value(first_structure, MP_CAPS_PIXEL_FORMAT);
 	enum display_pixel_format disp_fmt = vid_to_disp_pix_fmt(mp_value_get_uint(value));
 
 	if (disp_fmt == 0 || mp_zdisp_sink_setup(MP_ZDISP_SINK(sink), disp_fmt) != 0) {
-		return false;
+		return -EINVAL;
 	}
 
 	mp_caps_replace(&sink->sinkpad.caps, caps);
 
-	return true;
+	return 0;
 }
 
 static int mp_zdisp_sink_set_property(struct mp_object *obj, uint32_t key, const void *val)
@@ -160,7 +160,7 @@ static int mp_zdisp_sink_get_property(struct mp_object *obj, uint32_t key, void 
 	}
 }
 
-bool mp_zdisp_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf)
+int mp_zdisp_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf)
 {
 	struct mp_zdisp_sink *zdisp_sink = MP_ZDISP_SINK(pad->object.container);
 	/* Get width / height from pad's caps */
@@ -178,7 +178,7 @@ bool mp_zdisp_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct ne
 	*out_buf = NULL;
 
 	if (in_buf == NULL) {
-		return true;
+		return 0;
 	}
 
 	/*
@@ -220,7 +220,7 @@ bool mp_zdisp_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct ne
 		cur = next;
 	}
 
-	return true;
+	return 0;
 }
 
 void mp_zdisp_sink_init(struct mp_element *self)

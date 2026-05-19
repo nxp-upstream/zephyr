@@ -35,15 +35,15 @@ static struct mp_caps *mp_sink_get_caps(struct mp_sink *sink)
 	return sink ? mp_caps_ref(sink->sink_caps) : NULL;
 }
 
-static bool mp_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
+static int mp_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
 {
 	if (sink == NULL) {
-		return false;
+		return -EINVAL;
 	}
 
 	mp_caps_replace(&sink->sinkpad.caps, caps);
 
-	return true;
+	return 0;
 }
 
 /* TODO */
@@ -64,12 +64,12 @@ static enum mp_state_change_return mp_sink_change_state(struct mp_element *self,
 	return ret;
 }
 
-static bool mp_sink_propose_allocation(struct mp_sink *self, struct mp_query *query)
+static int mp_sink_propose_allocation(struct mp_sink *self, struct mp_query *query)
 {
-	return true;
+	return 0;
 }
 
-static bool mp_sink_query(struct mp_pad *pad, struct mp_query *query)
+static int mp_sink_query(struct mp_pad *pad, struct mp_query *query)
 {
 	struct mp_sink *self = MP_SINK(pad->object.container);
 	struct mp_caps *caps_intersect, *query_caps;
@@ -81,7 +81,7 @@ static bool mp_sink_query(struct mp_pad *pad, struct mp_query *query)
 		if (query_caps != NULL) {
 			caps_intersect = mp_caps_intersect(self->sink_caps, query_caps);
 			if (caps_intersect == NULL || mp_caps_is_empty(caps_intersect)) {
-				return false;
+				return -ENODATA;
 			}
 			ret = mp_query_set_caps(query, caps_intersect);
 			mp_caps_unref(caps_intersect);
@@ -92,23 +92,23 @@ static bool mp_sink_query(struct mp_pad *pad, struct mp_query *query)
 	case MP_QUERY_ALLOCATION:
 		return self->propose_allocation(self, query);
 	default:
-		return false;
+		return -ENOTSUP;
 	}
 }
 
-bool mp_sink_event(struct mp_pad *pad, struct mp_event *event)
+int mp_sink_event(struct mp_pad *pad, struct mp_event *event)
 {
 	struct mp_sink *sink = MP_SINK(pad->object.container);
 
 	switch (event->type) {
 	case MP_EVENT_EOS:
 		LOG_DBG("MP_EVENT_EOS");
-		return true;
+		return 0;
 	case MP_EVENT_CAPS:
 		LOG_DBG("MP_EVENT_CAPS");
 		return sink->set_caps(sink, mp_event_get_caps(event));
 	default:
-		return true;
+		return 0;
 	}
 }
 

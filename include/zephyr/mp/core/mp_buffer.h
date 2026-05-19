@@ -99,7 +99,7 @@ void mp_buffer_destroy(struct net_buf *buf);
  * @param pool Pointer to the buffer pool to configure
  * @param config Caps structure to configure the buffer pool
  *
- * @retval 0 on success, negative error code on failure
+ * @return 0 on success, negative errno on failure
  */
 int mp_buffer_pool_configure(struct mp_buffer_pool *pool, struct mp_structure *config);
 
@@ -108,7 +108,7 @@ int mp_buffer_pool_configure(struct mp_buffer_pool *pool, struct mp_structure *c
  *
  * @param pool Pointer to the buffer pool to start
  *
- * @retval 0 on success, negative error code on failure
+ * @return 0 on success, negative errno on failure
  */
 int mp_buffer_pool_start(struct mp_buffer_pool *pool);
 
@@ -117,7 +117,7 @@ int mp_buffer_pool_start(struct mp_buffer_pool *pool);
  *
  * @param pool Pointer to the buffer pool to stop
  *
- * @retval 0 on success, negative error code on failure
+ * @return 0 on success, negative errno on failure
  */
 int mp_buffer_pool_stop(struct mp_buffer_pool *pool);
 

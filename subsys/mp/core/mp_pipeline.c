@@ -27,13 +27,18 @@ static int mp_pipeline_get_property(struct mp_object *obj, uint32_t id, void *va
 	return 0;
 }
 
-bool mp_pipeline_push_buffer(struct mp_element *start_elem, struct net_buf *buffer)
+int mp_pipeline_push_buffer(struct mp_element *start_elem, struct net_buf *buffer)
 {
 	struct mp_element *cur_elem = start_elem;
 	struct mp_pad *cur_srcpad;
 	struct mp_pad *next_sinkpad;
 	struct net_buf *out_buf;
 	sys_dnode_t *srcpad_node;
+	int ret;
+
+	if (start_elem == NULL || buffer == NULL) {
+		return -EINVAL;
+	}
 
 	while (cur_elem != NULL && buffer != NULL) {
 		srcpad_node = sys_dlist_peek_head(&cur_elem->srcpads);
@@ -45,20 +50,21 @@ bool mp_pipeline_push_buffer(struct mp_element *start_elem, struct net_buf *buff
 
 		if (cur_srcpad->peer == NULL) {
 			LOG_ERR("srcpad has no peer");
-			return false;
+			return -ENOTCONN;
 		}
 
 		next_sinkpad = cur_srcpad->peer;
 		if (next_sinkpad->chainfn != NULL) {
 			out_buf = NULL;
 
-			if (!next_sinkpad->chainfn(next_sinkpad, buffer, &out_buf)) {
-				LOG_ERR("chainfn failed for element %d",
-					MP_OBJECT(next_sinkpad->object.container)->id);
+			ret = next_sinkpad->chainfn(next_sinkpad, buffer, &out_buf);
+			if (ret != 0) {
+				LOG_ERR("chainfn failed for element %d (%d)",
+					MP_OBJECT(next_sinkpad->object.container)->id, ret);
 				if (buffer != NULL) {
 					net_buf_unref(buffer);
 				}
-				return false;
+				return ret;
 			}
 
 			if (out_buf == NULL) {
@@ -72,7 +78,7 @@ bool mp_pipeline_push_buffer(struct mp_element *start_elem, struct net_buf *buff
 		cur_elem = MP_ELEMENT(next_sinkpad->object.container);
 	}
 
-	return true;
+	return 0;
 }
 
 static void mp_pipeline_thread_func(void *p1, void *p2, void *p3)

@@ -63,31 +63,28 @@ struct mp_parser {
 	 * @param direction Pad direction (see @ref mp_pad_direction).
 	 * @param caps Pointer to the caps to set.
 	 *
-	 * @retval true  on success.
-	 * @retval false on failure.
+	 * @return 0 on success, negative errno on failure
 	 */
-	bool (*set_caps)(struct mp_parser *parser, enum mp_pad_direction direction,
-			 struct mp_caps *caps);
+	int (*set_caps)(struct mp_parser *parser, enum mp_pad_direction direction,
+			struct mp_caps *caps);
 	/**
 	 * @brief Propose allocation parameters to upstream.
 	 *
 	 * @param parser Pointer to the parser element.
 	 * @param query Allocation query (see @ref mp_query).
 	 *
-	 * @retval true  on success.
-	 * @retval false on failure.
+	 * @return 0 on success, negative errno on failure
 	 */
-	bool (*propose_allocation)(struct mp_parser *parser, struct mp_query *query);
+	int (*propose_allocation)(struct mp_parser *parser, struct mp_query *query);
 	/**
 	 * @brief Decide allocation parameters for downstream.
 	 *
 	 * @param parser Pointer to the parser element.
 	 * @param query Allocation query (see @ref mp_query).
 	 *
-	 * @retval true  on success.
-	 * @retval false on failure.
+	 * @return 0 on success, negative errno on failure
 	 */
-	bool (*decide_allocation)(struct mp_parser *parser, struct mp_query *query);
+	int (*decide_allocation)(struct mp_parser *parser, struct mp_query *query);
 };
 
 /**

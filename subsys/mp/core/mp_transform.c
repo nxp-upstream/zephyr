@@ -34,12 +34,12 @@ void mp_transform_update_caps(struct mp_transform *transform, struct mp_caps *si
 	mp_caps_replace(&transform->srcpad.caps, transform->src_caps);
 }
 
-static bool mp_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
-				 struct net_buf **out_buf)
+static int mp_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
+				struct net_buf **out_buf)
 {
 	/* Default implementation for MP_MODE_PASSTHROUGH - return same buffer */
 	*out_buf = in_buf;
-	return true;
+	return 0;
 }
 
 static struct mp_caps *mp_transform_get_caps(struct mp_transform *transform,
@@ -55,18 +55,18 @@ static struct mp_caps *mp_transform_get_caps(struct mp_transform *transform,
 	return NULL;
 }
 
-bool mp_transform_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
-			   struct mp_caps *caps)
+int mp_transform_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
+			  struct mp_caps *caps)
 {
 	if (direction == MP_PAD_SINK) {
 		mp_caps_replace(&(transform->sinkpad.caps), caps);
 	} else if (direction == MP_PAD_SRC) {
 		mp_caps_replace(&(transform->srcpad.caps), caps);
 	} else {
-		return false;
+		return -EINVAL;
 	}
 
-	return true;
+	return 0;
 }
 
 static struct mp_caps *mp_transform_transform_caps(struct mp_transform *self,
@@ -76,10 +76,10 @@ static struct mp_caps *mp_transform_transform_caps(struct mp_transform *self,
 	return mp_caps_ref(incaps);
 }
 
-static inline bool mp_transform_query_caps(struct mp_transform *self,
-					   enum mp_pad_direction direction, struct mp_query *query)
+static inline int mp_transform_query_caps(struct mp_transform *self,
+					  enum mp_pad_direction direction, struct mp_query *query)
 {
-	int ret = false;
+	int ret;
 	struct mp_pad *this_pad, *other_pad;
 	struct mp_caps *queried_pad_caps, *transformed_caps, *query_caps, *query_back_caps,
 		*res_caps;
@@ -94,37 +94,40 @@ static inline bool mp_transform_query_caps(struct mp_transform *self,
 		other_pad = &self->sinkpad;
 		break;
 	default:
-		return false;
+		return -EINVAL;
 	}
 
 	/* Intersect the query caps with the pad's caps */
 	queried_pad_caps = mp_caps_intersect(mp_query_get_caps(query), this_pad->caps);
 	if (queried_pad_caps == NULL || mp_caps_is_empty(queried_pad_caps)) {
-		return false;
+		return -ENODATA;
 	}
 
 	transformed_caps = self->transform_caps(self, other_pad->direction, queried_pad_caps);
 	if (transformed_caps == NULL || mp_caps_is_empty(transformed_caps)) {
-		return false;
+		mp_caps_unref(queried_pad_caps);
+		return -ENODATA;
 	}
 
 	/* Query the peer pad with the transformed caps */
 	ret = mp_query_set_caps(query, transformed_caps);
 	mp_caps_unref(transformed_caps);
-	if (!ret) {
-		return false;
+	if (ret < 0) {
+		mp_caps_unref(queried_pad_caps);
+		return ret;
 	}
 
-	if (!mp_pad_query(other_pad->peer, query)) {
+	ret = mp_pad_query(other_pad->peer, query);
+	if (ret < 0) {
 		LOG_ERR("error element id = %u", self->element.object.id);
 		mp_caps_unref(queried_pad_caps);
-		return false;
+		return ret;
 	}
 
 	query_caps = mp_query_get_caps(query);
 	if (query_caps == NULL || mp_caps_is_empty(query_caps)) {
 		mp_caps_unref(queried_pad_caps);
-		return false;
+		return -ENODATA;
 	}
 
 	/*
@@ -138,7 +141,8 @@ static inline bool mp_transform_query_caps(struct mp_transform *self,
 	/* Transform back the query_caps */
 	query_back_caps = self->transform_caps(self, this_pad->direction, query_caps);
 	if (query_back_caps == NULL || mp_caps_is_empty(query_back_caps)) {
-		return false;
+		mp_caps_unref(queried_pad_caps);
+		return -ENODATA;
 	}
 
 	/* Intersect with the original queried_pad_caps */
@@ -147,7 +151,7 @@ static inline bool mp_transform_query_caps(struct mp_transform *self,
 	mp_caps_unref(query_back_caps);
 
 	if (res_caps == NULL || mp_caps_is_empty(res_caps)) {
-		return false;
+		return -ENODATA;
 	}
 
 	/* Answer the upstream query */
@@ -157,17 +161,17 @@ static inline bool mp_transform_query_caps(struct mp_transform *self,
 	return ret;
 }
 
-static bool mp_transform_decide_allocation(struct mp_transform *self, struct mp_query *query)
+static int mp_transform_decide_allocation(struct mp_transform *self, struct mp_query *query)
 {
-	return true;
+	return 0;
 }
 
-static bool mp_transform_propose_allocation(struct mp_transform *self, struct mp_query *query)
+static int mp_transform_propose_allocation(struct mp_transform *self, struct mp_query *query)
 {
-	return true;
+	return 0;
 }
 
-static bool mp_transform_query(struct mp_pad *pad, struct mp_query *query)
+static int mp_transform_query(struct mp_pad *pad, struct mp_query *query)
 {
 	struct mp_transform *self = MP_TRANSFORM(pad->object.container);
 	int ret;
@@ -179,15 +183,17 @@ static bool mp_transform_query(struct mp_pad *pad, struct mp_query *query)
 		struct mp_query *peer_query = mp_query_new_allocation(self->srcpad.caps);
 
 		/* Query the downstream */
-		if (!mp_pad_query(self->srcpad.peer, peer_query)) {
+		ret = mp_pad_query(self->srcpad.peer, peer_query);
+		if (ret < 0) {
 			mp_query_destroy(peer_query);
-			return false;
+			return ret;
 		}
 
 		/* Decide allocation for downstream */
-		if (!self->decide_allocation(self, peer_query)) {
+		ret = self->decide_allocation(self, peer_query);
+		if (ret < 0) {
 			mp_query_destroy(peer_query);
-			return false;
+			return ret;
 		}
 
 		/* Configure/start the output buffer pool */
@@ -196,26 +202,26 @@ static bool mp_transform_query(struct mp_pad *pad, struct mp_query *query)
 						       mp_caps_get_structure(self->srcpad.caps, 0));
 			if (ret != 0 && ret != -ENOSYS) {
 				LOG_ERR("Failed to configure output transform buffer pool");
-				return false;
+				return ret;
 			}
 
 			ret = mp_buffer_pool_start(self->outpool);
 			if (ret != 0 && ret != -ENOSYS) {
 				LOG_ERR("Failed to start output transform buffer pool");
-				return false;
+				return ret;
 			}
 		}
 
 		/* Propose allocation to upstream */
 		return self->propose_allocation(self, query);
 	default:
-		return false;
+		return -ENOTSUP;
 	}
 }
 
-static bool mp_transform_event(struct mp_pad *pad, struct mp_event *event)
+static int mp_transform_event(struct mp_pad *pad, struct mp_event *event)
 {
-	bool ret = false;
+	int ret;
 
 	switch (event->type) {
 	case MP_EVENT_EOS:
@@ -232,13 +238,13 @@ static bool mp_transform_event(struct mp_pad *pad, struct mp_event *event)
 
 		event_caps = mp_event_get_caps(event);
 		if (event_caps == NULL) {
-			return false;
+			return -EINVAL;
 		}
 
 		transformed_caps =
 			transform->transform_caps(transform, other_pad->direction, event_caps);
 		if (transformed_caps == NULL) {
-			return false;
+			return -ENODATA;
 		}
 
 		/*
@@ -248,35 +254,39 @@ static bool mp_transform_event(struct mp_pad *pad, struct mp_event *event)
 		intersect_caps = mp_caps_intersect(transformed_caps, other_pad->caps);
 		mp_caps_unref(transformed_caps);
 		if (intersect_caps == NULL) {
-			return false;
+			return -ENODATA;
 		}
 
 		/* Fixate the result */
 		fixated_caps = mp_caps_fixate(intersect_caps);
 		mp_caps_unref(intersect_caps);
 		if (fixated_caps == NULL) {
-			return false;
+			return -ENODATA;
 		}
 
-		if (!mp_event_set_caps(event, fixated_caps)) {
+		ret = mp_event_set_caps(event, fixated_caps);
+		if (ret < 0) {
 			mp_caps_unref(fixated_caps);
-			return false;
+			return ret;
 		}
 
-		if (!mp_pad_send_event(other_pad->peer, event)) {
+		ret = mp_pad_send_event(other_pad->peer, event);
+		if (ret < 0) {
 			mp_caps_unref(fixated_caps);
-			return false;
+			return ret;
 		}
 
-		if (!transform->set_caps(transform, pad->direction, event_caps)) {
-			return false;
+		ret = transform->set_caps(transform, pad->direction, event_caps);
+		if (ret < 0) {
+			mp_caps_unref(fixated_caps);
+			return ret;
 		}
 
 		ret = transform->set_caps(transform, other_pad->direction, fixated_caps);
 		mp_caps_unref(fixated_caps);
 		return ret;
 	default:
-		return ret;
+		return -ENOTSUP;
 	}
 }
 

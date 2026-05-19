@@ -85,9 +85,9 @@ static inline void mp_bus_init(struct mp_bus *bus)
  *
  * @param bus Pointer to the struct mp_bus
  * @param message Pointer to the message to post
- * @return true if the message was posted successfully, false otherwise
+ * @return 0 on success, negative errno on failure
  */
-bool mp_bus_post(struct mp_bus *bus, struct mp_message *message);
+int mp_bus_post(struct mp_bus *bus, struct mp_message *message);
 
 /**
  * Flush all messages from the bus.

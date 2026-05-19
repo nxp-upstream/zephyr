@@ -142,12 +142,12 @@ struct mp_value *mp_structure_get_value(struct mp_structure *structure, uint8_t 
 	return NULL;
 }
 
-bool mp_structure_remove_field(struct mp_structure *structure, uint8_t field_id)
+int mp_structure_remove_field(struct mp_structure *structure, uint8_t field_id)
 {
 	struct mp_structure_field *field, *prev_field = NULL;
 
 	if (structure == NULL) {
-		return false;
+		return -EINVAL;
 	}
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&structure->fields, field, node) {
@@ -156,12 +156,12 @@ bool mp_structure_remove_field(struct mp_structure *structure, uint8_t field_id)
 					 &field->node);
 			mp_value_destroy(field->value);
 			k_free(field);
-			return true;
+			return 0;
 		}
 		prev_field = field;
 	}
 
-	return false;
+	return -ENOENT;
 }
 
 int mp_structure_len(struct mp_structure *structure)

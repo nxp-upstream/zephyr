@@ -76,10 +76,10 @@ struct mp_transform {
 	 * @param transform Pointer to the transform element
 	 * @param direction Direction of the pad (@ref mp_pad_direction)
 	 * @param caps Capabilities to set (@ref mp_caps)
-	 * @return true on success, false on failure
+	 * @return 0 on success, negative errno on failure
 	 */
-	bool (*set_caps)(struct mp_transform *transform, enum mp_pad_direction direction,
-			 struct mp_caps *caps);
+	int (*set_caps)(struct mp_transform *transform, enum mp_pad_direction direction,
+			struct mp_caps *caps);
 	/**
 	 * @brief Transform capabilities from one pad to another
 	 * @param self Pointer to the transform element
@@ -103,16 +103,16 @@ struct mp_transform {
 	 *
 	 * @param self Pointer to the transform element
 	 * @param query Allocation query (@ref mp_query)
-	 * @return true on success, false on failure
+	 * @return 0 on success, negative errno on failure
 	 */
-	bool (*propose_allocation)(struct mp_transform *self, struct mp_query *query);
+	int (*propose_allocation)(struct mp_transform *self, struct mp_query *query);
 	/**
 	 * @brief Decide allocation parameters for downstream
 	 * @param self Pointer to the transform element
 	 * @param query Allocation query (@ref mp_query)
-	 * @return true on success, false on failure
+	 * @return 0 on success, negative errno on failure
 	 */
-	bool (*decide_allocation)(struct mp_transform *self, struct mp_query *query);
+	int (*decide_allocation)(struct mp_transform *self, struct mp_query *query);
 };
 
 /**
@@ -153,11 +153,10 @@ int mp_transform_get_property(struct mp_object *obj, uint32_t key, void *val);
  * @param direction Direction of the pad to set caps on (@ref mp_pad_direction).
  * @param caps Pointer to the capabilities to set.
  *
- * @retval true  Caps were set successfully.
- * @retval false Failed to set caps.
+ * @return 0 on success, negative errno on failure
  */
-bool mp_transform_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
-			   struct mp_caps *caps);
+int mp_transform_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
+			  struct mp_caps *caps);
 
 /**
  * @brief Update the capabilities of a transform element

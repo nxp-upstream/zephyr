@@ -112,23 +112,23 @@ void mp_caps_replace(struct mp_caps **target_caps, struct mp_caps *new_caps)
 	mp_caps_unref(old_caps);
 }
 
-bool mp_caps_append(struct mp_caps *caps, struct mp_structure *structure)
+int mp_caps_append(struct mp_caps *caps, struct mp_structure *structure)
 {
 	struct mp_cap_structure *cs;
 
 	if (caps == NULL || caps->object.flags == MP_CAPS_FLAG_ANY || !structure) {
-		return false;
+		return -EINVAL;
 	}
 
 	cs = k_malloc(sizeof(struct mp_cap_structure));
 	if (cs == NULL) {
-		return false;
+		return -ENOMEM;
 	}
 
 	cs->structure = structure;
 	sys_slist_append(&caps->caps_structures, &cs->node);
 
-	return true;
+	return 0;
 }
 
 void mp_caps_print(struct mp_caps *caps)

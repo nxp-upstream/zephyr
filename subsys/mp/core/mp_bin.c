@@ -14,9 +14,13 @@
 
 LOG_MODULE_REGISTER(mp_bin, CONFIG_MP_LOG_LEVEL);
 
-bool mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...)
+int mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...)
 {
 	va_list args;
+
+	if (bin == NULL) {
+		return -EINVAL;
+	}
 
 	va_start(args, element);
 	while (element) {
@@ -28,7 +32,8 @@ bool mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...)
 
 		SYS_DLIST_FOR_EACH_CONTAINER(&bin->children, obj, node) {
 			if (MP_OBJECT(element)->id == obj->id) {
-				return false;
+				va_end(args);
+				return -EEXIST;
 			}
 		}
 
@@ -43,7 +48,7 @@ bool mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...)
 
 	va_end(args);
 
-	return true;
+	return 0;
 }
 
 enum mp_state_change_return mp_bin_change_state_func(struct mp_element *self,

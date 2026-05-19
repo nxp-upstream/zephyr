@@ -68,10 +68,9 @@ void mp_bin_init(struct mp_element *self);
  * @param element First @ref mp_element to add
  * @param ... Additional mp_element pointers, terminated by NULL
  *
- * @retval true All elements were successfully added to the bin
- * @retval false One or more elements could not be added
+ * @return 0 on success, negative errno on failure
  */
-bool mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...);
+int mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...);
 
 /**
  * @brief Bin state change function

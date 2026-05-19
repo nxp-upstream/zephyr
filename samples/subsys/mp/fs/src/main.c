@@ -97,14 +97,16 @@ int main(void)
 	}
 
 	/* Add elements to the pipeline - order does not matter */
-	if (!mp_bin_add(MP_BIN(&pipe), MP_ELEMENT(&filesrc), MP_ELEMENT(&filesink), NULL)) {
-		LOG_ERR("Failed to add elements");
+	ret = mp_bin_add(MP_BIN(&pipe), MP_ELEMENT(&filesrc), MP_ELEMENT(&filesink), NULL);
+	if (ret < 0) {
+		LOG_ERR("Failed to add elements (%d)", ret);
 		goto err;
 	}
 
 	/* Link elements together - order does matter */
-	if (!mp_element_link(MP_ELEMENT(&filesrc), MP_ELEMENT(&filesink), NULL)) {
-		LOG_ERR("Failed to link elements");
+	ret = mp_element_link(MP_ELEMENT(&filesrc), MP_ELEMENT(&filesink), NULL);
+	if (ret < 0) {
+		LOG_ERR("Failed to link elements (%d)", ret);
 		goto err;
 	}
 

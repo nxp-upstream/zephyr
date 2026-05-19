@@ -53,16 +53,16 @@ struct mp_sink {
 	 * @brief Set a given caps to the element
 	 * @param sink Pointer to the sink element
 	 * @param caps Capabilities to set
-	 * @return True on success, false on failure
+	 * @return 0 on success, negative errno on failure
 	 */
-	bool (*set_caps)(struct mp_sink *sink, struct mp_caps *caps);
+	int (*set_caps)(struct mp_sink *sink, struct mp_caps *caps);
 	/**
 	 * @brief Propose allocation strategy to the upstream peer
 	 * @param self Pointer to the sink element
 	 * @param query Allocation query to process
-	 * @return True on success, false on failure
+	 * @return 0 on success, negative errno on failure
 	 */
-	bool (*propose_allocation)(struct mp_sink *self, struct mp_query *query);
+	int (*propose_allocation)(struct mp_sink *self, struct mp_query *query);
 };
 
 /**

@@ -52,17 +52,18 @@ static struct mp_caps *mp_zvid_transform_client_get_caps(struct mp_transform *tr
 	return caps;
 }
 
-static bool mp_zvid_transform_client_set_caps(struct mp_transform *transform,
-					      enum mp_pad_direction direction, struct mp_caps *caps)
+static int mp_zvid_transform_client_set_caps(struct mp_transform *transform,
+					     enum mp_pad_direction direction, struct mp_caps *caps)
 {
 	struct mp_zvid_transform_client *vtc = MP_ZVID_TRANSFORM_CLIENT(transform);
 	struct mp_buffer_pool *pool = NULL;
 	struct video_format_cap vfc = {0};
 	struct video_format fmt;
 	struct mp_structure *first_structure;
+	int ret;
 
 	if (!mp_caps_is_fixed(caps)) {
-		return false;
+		return -EINVAL;
 	}
 
 	if (direction == MP_PAD_SINK) {
@@ -73,23 +74,25 @@ static bool mp_zvid_transform_client_set_caps(struct mp_transform *transform,
 		pool = transform->outpool;
 	} else {
 		LOG_ERR("Pad direction is invalid");
-		return NULL;
+		return -EINVAL;
 	}
 
 	first_structure = mp_caps_get_structure(caps, 0);
 
-	if (mp_structure_to_vfc(first_structure, &vfc) < 0) {
-		return false;
+	ret = mp_structure_to_vfc(first_structure, &vfc);
+	if (ret < 0) {
+		return ret;
 	}
 
 	fmt.pixelformat = vfc.pixelformat;
 	fmt.width = vfc.width_min;
 	fmt.height = vfc.height_min;
 
-	if (vtc->set_format_rpc(&fmt) < 0) {
+	ret = vtc->set_format_rpc(&fmt);
+	if (ret < 0) {
 		LOG_ERR("Unable to set format: type=%u pixfmt=%u w=%u h=%u", fmt.type,
 			fmt.pixelformat, fmt.width, fmt.height);
-		return false;
+		return ret;
 	}
 
 	/* Set buffer pool size */
@@ -99,7 +102,7 @@ static bool mp_zvid_transform_client_set_caps(struct mp_transform *transform,
 	mp_caps_replace(
 		direction == MP_PAD_SRC ? &transform->srcpad.caps : &transform->sinkpad.caps, caps);
 
-	return true;
+	return 0;
 }
 
 static struct mp_caps *mp_zvid_transform_client_transform_caps(struct mp_transform *self,

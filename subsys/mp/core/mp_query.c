@@ -48,10 +48,10 @@ struct mp_caps *mp_query_get_caps(struct mp_query *query)
 		mp_value_get_object(mp_structure_get_value(&query->structure, MP_QUERY_CAPS)));
 }
 
-bool mp_query_set_caps(struct mp_query *query, struct mp_caps *caps)
+int mp_query_set_caps(struct mp_query *query, struct mp_caps *caps)
 {
 	if (query == NULL || query->type != MP_QUERY_CAPS) {
-		return false;
+		return -EINVAL;
 	}
 
 	struct mp_value *value = mp_structure_get_value(&query->structure, MP_QUERY_CAPS);
@@ -63,7 +63,7 @@ bool mp_query_set_caps(struct mp_query *query, struct mp_caps *caps)
 				    mp_value_new(MP_TYPE_OBJECT, caps));
 	}
 
-	return true;
+	return 0;
 }
 
 struct mp_query *mp_query_new_allocation(struct mp_caps *caps)
@@ -71,12 +71,12 @@ struct mp_query *mp_query_new_allocation(struct mp_caps *caps)
 	return mp_query_new(MP_QUERY_ALLOCATION, MP_TYPE_OBJECT, caps);
 }
 
-static bool mp_query_set_ptr(struct mp_query *query, void *ptr, uint8_t field)
+static int mp_query_set_ptr(struct mp_query *query, void *ptr, uint8_t field)
 {
 	struct mp_value *value;
 
 	if (query == NULL || query->type != MP_QUERY_ALLOCATION) {
-		return false;
+		return -EINVAL;
 	}
 
 	value = mp_structure_get_value(&query->structure, field);
@@ -86,7 +86,7 @@ static bool mp_query_set_ptr(struct mp_query *query, void *ptr, uint8_t field)
 		mp_structure_append(&query->structure, field, mp_value_new(MP_TYPE_PTR, ptr));
 	}
 
-	return true;
+	return 0;
 }
 
 static void *mp_query_get_ptr(struct mp_query *query, uint8_t field)
@@ -98,12 +98,12 @@ static void *mp_query_get_ptr(struct mp_query *query, uint8_t field)
 	return mp_value_get_ptr(mp_structure_get_value(&query->structure, field));
 }
 
-bool mp_query_set_pool(struct mp_query *query, struct mp_buffer_pool *pool)
+int mp_query_set_pool(struct mp_query *query, struct mp_buffer_pool *pool)
 {
 	return mp_query_set_ptr(query, pool, MP_QUERY_POOL);
 }
 
-bool mp_query_set_pool_config(struct mp_query *query, struct mp_buffer_pool_config *config)
+int mp_query_set_pool_config(struct mp_query *query, struct mp_buffer_pool_config *config)
 {
 	return mp_query_set_ptr(query, config, MP_QUERY_POOL_CONFIG);
 }

@@ -201,7 +201,7 @@ struct mp_caps *mp_zvid_object_get_caps(struct mp_zvid_object *zvid_obj)
 	return caps;
 }
 
-bool mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *caps)
+int mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *caps)
 {
 	struct video_format_cap vfc = {0};
 	struct video_format fmt;
@@ -210,12 +210,14 @@ bool mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *ca
 	struct mp_value *frmrate = mp_structure_get_value(first_structure, MP_CAPS_FRAME_RATE);
 
 	if (!mp_caps_is_fixed(caps)) {
-		return false;
+		return -EINVAL;
 	}
 
 	/* Set format */
-	if (mp_structure_to_vfc(first_structure, &vfc) < 0) {
-		return false;
+	int ret = mp_structure_to_vfc(first_structure, &vfc);
+
+	if (ret < 0) {
+		return ret;
 	}
 
 	fmt.type = zvid_obj->type;
@@ -224,7 +226,7 @@ bool mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *ca
 	fmt.height = vfc.height_min;
 	if (video_set_compose_format(zvid_obj->vdev, &fmt)) {
 		LOG_ERR("Unable to set format");
-		return false;
+		return -EIO;
 	}
 
 	/* Set buffer pool size */
@@ -241,11 +243,11 @@ bool mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *ca
 		frmival.denominator = mp_value_get_fraction_numerator(frmrate);
 		if (video_set_frmival(zvid_obj->vdev, &frmival)) {
 			LOG_ERR("Unable to set frame interval");
-			return false;
+			return -EIO;
 		}
 	}
 
-	return true;
+	return 0;
 }
 
 int mp_zvid_object_set_property(struct mp_zvid_object *zvid_obj, uint32_t key, const void *val)
@@ -313,7 +315,7 @@ int mp_zvid_object_get_property(struct mp_zvid_object *zvid_obj, uint32_t key, v
 	}
 }
 
-bool mp_zvid_object_decide_allocation(struct mp_zvid_object *zvid_obj, struct mp_query *query)
+int mp_zvid_object_decide_allocation(struct mp_zvid_object *zvid_obj, struct mp_query *query)
 {
 	struct mp_buffer_pool *query_pool = mp_query_get_pool(query);
 	struct mp_buffer_pool_config *pool_config = &MP_BUFFER_POOL(&zvid_obj->pool)->config;
@@ -325,7 +327,7 @@ bool mp_zvid_object_decide_allocation(struct mp_zvid_object *zvid_obj, struct mp
 		qpc = &query_pool->config;
 	}
 
-	/* Always use its own pool, just negotiatie the configs */
+	/* Always use its own pool, just negotiate the configs */
 	if (qpc != NULL) {
 		/* Decide min buffers */
 		if (qpc->min_buffers > pool_config->min_buffers) {
@@ -336,15 +338,13 @@ bool mp_zvid_object_decide_allocation(struct mp_zvid_object *zvid_obj, struct mp
 		int align = sys_lcm(qpc->align, pool_config->align);
 
 		if (align == -1) {
-			return false;
+			return -EINVAL;
 		} else if (align == 0 && qpc->align != 0) {
 			pool_config->align = qpc->align;
 		} else if (align != 0) {
 			pool_config->align = align;
-		} else {
-			return true;
 		}
 	}
 
-	return true;
+	return 0;
 }

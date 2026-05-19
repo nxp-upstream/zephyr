@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <errno.h>
+
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
@@ -37,35 +39,50 @@ struct mp_pad *mp_pad_new(uint8_t id, enum mp_pad_direction direction,
 	return pad;
 }
 
-bool mp_pad_link(struct mp_pad *srcpad, struct mp_pad *sinkpad)
+int mp_pad_link(struct mp_pad *srcpad, struct mp_pad *sinkpad)
 {
 	if (srcpad == NULL || sinkpad == NULL) {
-		return false;
+		return -EINVAL;
 	}
 
 	/* Set peer pad */
 	srcpad->peer = sinkpad;
 	sinkpad->peer = srcpad;
 
-	if (srcpad->linkfn != NULL && !srcpad->linkfn(srcpad)) {
-		return false;
+	if (srcpad->linkfn != NULL) {
+		int ret = srcpad->linkfn(srcpad);
+
+		if (ret != 0) {
+			return ret;
+		}
 	}
 
-	if (sinkpad->linkfn != NULL && !sinkpad->linkfn(sinkpad)) {
-		return false;
+	if (sinkpad->linkfn != NULL) {
+		int ret = sinkpad->linkfn(sinkpad);
+
+		if (ret != 0) {
+			return ret;
+		}
 	}
 
-	return true;
+	return 0;
 }
 
-bool mp_pad_query(struct mp_pad *pad, struct mp_query *query)
+int mp_pad_query(struct mp_pad *pad, struct mp_query *query)
 {
-	if (pad == NULL || query == NULL || pad->queryfn == NULL) {
-		return false;
+	int ret;
+
+	if (pad == NULL || query == NULL) {
+		return -EINVAL;
 	}
 
-	if (!pad->queryfn(pad, query)) {
-		return false;
+	if (pad->queryfn == NULL) {
+		return -ENOTSUP;
+	}
+
+	ret = pad->queryfn(pad, query);
+	if (ret != 0) {
+		return ret;
 	}
 
 	/* Caps query is considered successful only if the query's caps is valid */
@@ -73,19 +90,19 @@ bool mp_pad_query(struct mp_pad *pad, struct mp_query *query)
 		struct mp_caps *query_caps = mp_query_get_caps(query);
 
 		if (query_caps == NULL || mp_caps_is_empty(query_caps)) {
-			return false;
+			return -ENODATA;
 		}
 	}
 
-	return true;
+	return 0;
 }
 
-bool mp_pad_send_event_default(struct mp_pad *pad, struct mp_event *event)
+int mp_pad_send_event_default(struct mp_pad *pad, struct mp_event *event)
 {
-	bool ret = false;
+	int ret = -ENOTSUP;
 
 	if (pad == NULL || event == NULL) {
-		return false;
+		return -EINVAL;
 	}
 
 	bool is_sink = (pad->direction == MP_PAD_SINK);
@@ -112,16 +129,26 @@ bool mp_pad_send_event_default(struct mp_pad *pad, struct mp_event *event)
 	}
 
 	SYS_DLIST_FOR_EACH_CONTAINER(otherpad_list, obj, node) {
-		ret |= mp_pad_send_event(MP_PAD(obj), event);
+		int r = mp_pad_send_event(MP_PAD(obj), event);
+
+		if (r == 0) {
+			ret = 0;
+		} else {
+			LOG_DBG("pad %u: event send failed: %d", obj->id, r);
+		}
 	}
 
 	return ret;
 }
 
-bool mp_pad_send_event(struct mp_pad *pad, struct mp_event *event)
+int mp_pad_send_event(struct mp_pad *pad, struct mp_event *event)
 {
-	if (pad == NULL || event == NULL || pad->eventfn == NULL) {
-		return false;
+	if (pad == NULL || event == NULL) {
+		return -EINVAL;
+	}
+
+	if (pad->eventfn == NULL) {
+		return -ENOTSUP;
 	}
 
 	return pad->eventfn(pad, event);

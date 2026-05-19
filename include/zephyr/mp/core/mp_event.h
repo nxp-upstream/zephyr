@@ -110,9 +110,9 @@ struct mp_caps *mp_event_get_caps(struct mp_event *event);
  *
  * @param event Pointer to a @ref mp_event
  * @param caps Pointer to a @ref mp_caps
- * @return true if successful, false otherwise
+ * @return 0 on success, negative errno on failure
  */
-bool mp_event_set_caps(struct mp_event *event, struct mp_caps *caps);
+int mp_event_set_caps(struct mp_event *event, struct mp_caps *caps);
 
 /**
  * Destroy an event and its free its associated resources.

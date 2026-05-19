@@ -49,8 +49,8 @@ static struct mp_pad *mp_element_get_unlinked_pad(struct mp_element *element, ui
 	return NULL;
 }
 
-bool mp_element_link_pads(struct mp_element *src, uint8_t src_pad_id, struct mp_element *sink,
-			  uint8_t sink_pad_id)
+static int mp_element_link_pads(struct mp_element *src, uint8_t src_pad_id,
+				struct mp_element *sink, uint8_t sink_pad_id)
 {
 	struct mp_pad *srcpad = mp_element_get_unlinked_pad(src, src_pad_id, MP_PAD_SRC);
 	struct mp_pad *sinkpad = mp_element_get_unlinked_pad(sink, sink_pad_id, MP_PAD_SINK);
@@ -59,27 +59,28 @@ bool mp_element_link_pads(struct mp_element *src, uint8_t src_pad_id, struct mp_
 		LOG_ERR("Link failed: no free %s pad on element %u",
 			srcpad == NULL ? "src" : "sink",
 			srcpad == NULL ? src->object.id : sink->object.id);
-		return false;
+		return -EINVAL;
 	}
 
-	if (mp_caps_can_intersect(srcpad->caps, sinkpad->caps)) {
-		return mp_pad_link(srcpad, sinkpad);
+	if (!mp_caps_can_intersect(srcpad->caps, sinkpad->caps)) {
+		return -ENOTSUP;
 	}
 
-	return false;
+	return mp_pad_link(srcpad, sinkpad);
 }
 
-bool mp_element_link(struct mp_element *element, struct mp_element *next_element, ...)
+int mp_element_link(struct mp_element *element, struct mp_element *next_element, ...)
 {
-	bool ret = false;
+	int ret;
 	va_list args;
 
 	va_start(args, next_element);
 	while (next_element != NULL) {
 		/* Connect the 1st unlinked pad of each element together */
 		ret = mp_element_link_pads(element, UINT8_MAX, next_element, UINT8_MAX);
-		if (!ret) {
-			break;
+		if (ret != 0) {
+			va_end(args);
+			return ret;
 		}
 
 		element = next_element;
@@ -87,7 +88,7 @@ bool mp_element_link(struct mp_element *element, struct mp_element *next_element
 	}
 	va_end(args);
 
-	return ret;
+	return 0;
 }
 
 enum mp_state_change_return mp_element_set_state(struct mp_element *element, enum mp_state state)
@@ -143,14 +144,14 @@ static enum mp_state_change_return mp_element_change_state_func(struct mp_elemen
 	return result;
 }
 
-bool mp_element_send_event_default(struct mp_element *element, struct mp_event *event)
+static int mp_element_send_event_default(struct mp_element *element, struct mp_event *event)
 {
 	struct mp_object *obj;
-	bool ret = false;
+	int ret = -ENOTSUP;
 	sys_dlist_t *pad_list = NULL;
 
 	if (element == NULL || event == NULL) {
-		return false;
+		return -EINVAL;
 	}
 
 	if (MP_EVENT_DIRECTION(event) & MP_EVENT_DIRECTION_UPSTREAM) {
@@ -162,7 +163,13 @@ bool mp_element_send_event_default(struct mp_element *element, struct mp_event *
 	}
 
 	SYS_DLIST_FOR_EACH_CONTAINER(pad_list, obj, node) {
-		ret |= mp_pad_send_event(MP_PAD(obj), event);
+		int r = mp_pad_send_event(MP_PAD(obj), event);
+
+		if (r == 0) {
+			ret = 0;
+		} else {
+			LOG_DBG("pad %u: event send failed: %d", obj->id, r);
+		}
 	}
 
 	return ret;

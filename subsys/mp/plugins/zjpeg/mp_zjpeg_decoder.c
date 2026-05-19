@@ -80,8 +80,8 @@ static void mp_zjpeg_decoder_outpool_init(struct mp_zjpeg_decoder *dec)
 	dec->out_pool.started = true; /* net_buf pool is static; no explicit start */
 }
 
-static bool mp_zjpeg_decoder_decode_one(struct mp_zjpeg_decoder *dec, struct net_buf *in_buf,
-					struct net_buf *out_buf)
+static int mp_zjpeg_decoder_decode_one(struct mp_zjpeg_decoder *dec, struct net_buf *in_buf,
+				       struct net_buf *out_buf)
 {
 	JPEGIMAGE *jpg = &dec->jpg;
 	uint32_t in_sz = mp_buffer_get_meta(in_buf)->bytes_used;
@@ -90,12 +90,12 @@ static bool mp_zjpeg_decoder_decode_one(struct mp_zjpeg_decoder *dec, struct net
 	if (in_sz == 0) {
 		mp_buffer_get_meta(out_buf)->bytes_used = 0;
 		out_buf->len = 0;
-		return false;
+		return -ENODATA;
 	}
 
 	if (JPEG_openRAM(jpg, in_buf->data, (int)in_sz, NULL) == 0) {
 		LOG_ERR("JPEG open failed");
-		return false;
+		return -EINVAL;
 	}
 
 	JPEG_setFramebuffer(jpg, (void *)out_buf->data);
@@ -110,13 +110,13 @@ static bool mp_zjpeg_decoder_decode_one(struct mp_zjpeg_decoder *dec, struct net
 	default:
 		LOG_ERR("Unsupported output pixfmt %u", dec->out_pixfmt);
 		JPEG_close(jpg);
-		return false;
+		return -ENOTSUP;
 	}
 
 	if (JPEG_decode(jpg, 0, 0, 0) == 0) {
 		LOG_ERR("JPEG decode failed");
 		JPEG_close(jpg);
-		return false;
+		return -EIO;
 	}
 
 	/*
@@ -130,11 +130,11 @@ static bool mp_zjpeg_decoder_decode_one(struct mp_zjpeg_decoder *dec, struct net
 
 	JPEG_close(jpg);
 
-	return true;
+	return 0;
 }
 
-static bool mp_zjpeg_decoder_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
-				     struct net_buf **out_buf)
+static int mp_zjpeg_decoder_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
+				    struct net_buf **out_buf)
 {
 	struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
 	struct mp_zjpeg_decoder *dec = MP_ZJPEG_DECODER(transform);
@@ -149,7 +149,7 @@ static bool mp_zjpeg_decoder_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	}
 
 	if (in_buf == NULL || outpool->acquire_buffer == NULL) {
-		return false;
+		return -EINVAL;
 	}
 
 	cur = in_buf;
@@ -166,13 +166,13 @@ static bool mp_zjpeg_decoder_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 				net_buf_unref(*out_buf);
 				*out_buf = NULL;
 			}
-			return false;
+			return -ENOMEM;
 		}
 
 		next = cur->frags;
 		cur->frags = NULL;
 
-		if (!mp_zjpeg_decoder_decode_one(dec, cur, out)) {
+		if (mp_zjpeg_decoder_decode_one(dec, cur, out) < 0) {
 			net_buf_unref(out);
 			net_buf_unref(cur);
 			if (*out_buf != NULL) {
@@ -189,7 +189,7 @@ static bool mp_zjpeg_decoder_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 				net_buf_unref(next);
 				next = tmp;
 			}
-			return false;
+			return -EIO;
 		}
 
 		if (*out_buf == NULL) {
@@ -202,7 +202,7 @@ static bool mp_zjpeg_decoder_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 		cur = next;
 	}
 
-	return true;
+	return 0;
 }
 
 static struct mp_caps *mp_zjpeg_decoder_supported_caps(struct mp_transform *transform,
@@ -302,21 +302,21 @@ static struct mp_caps *mp_zjpeg_decoder_transform_caps(struct mp_transform *tran
 	return out;
 }
 
-static bool mp_zjpeg_decoder_set_caps(struct mp_transform *transform,
-				      enum mp_pad_direction direction, struct mp_caps *caps)
+static int mp_zjpeg_decoder_set_caps(struct mp_transform *transform,
+				     enum mp_pad_direction direction, struct mp_caps *caps)
 {
 	struct mp_zjpeg_decoder *dec = MP_ZJPEG_DECODER(transform);
 	struct mp_structure *s;
 	struct mp_value *v;
 
 	if (caps == NULL) {
-		return false;
+		return -EINVAL;
 	}
 
 	if (direction == MP_PAD_SINK) {
 		mp_caps_replace(&transform->sinkpad.caps, caps);
 
-		return true;
+		return 0;
 	}
 
 	if (direction == MP_PAD_SRC) {
@@ -327,13 +327,13 @@ static bool mp_zjpeg_decoder_set_caps(struct mp_transform *transform,
 		}
 		mp_caps_replace(&transform->srcpad.caps, caps);
 
-		return true;
+		return 0;
 	}
 
-	return false;
+	return -EINVAL;
 }
 
-static bool mp_zjpeg_decoder_decide_allocation(struct mp_transform *self, struct mp_query *query)
+static int mp_zjpeg_decoder_decide_allocation(struct mp_transform *self, struct mp_query *query)
 {
 	struct mp_zjpeg_decoder *dec = MP_ZJPEG_DECODER(self);
 	struct mp_buffer_pool *down_pool = mp_query_get_pool(query);
@@ -345,7 +345,7 @@ static bool mp_zjpeg_decoder_decide_allocation(struct mp_transform *self, struct
 		self->outpool = down_pool;
 	}
 
-	return true;
+	return 0;
 }
 
 void mp_zjpeg_decoder_init(struct mp_element *self)

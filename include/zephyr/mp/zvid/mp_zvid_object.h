@@ -98,10 +98,9 @@ struct mp_caps *mp_zvid_object_get_caps(struct mp_zvid_object *zvid_obj);
  * @param zvid_obj Pointer to the @ref mp_zvid_object.
  * @param caps     Pointer to @ref mp_caps with fixed capabilities to set.
  *
- * @retval true  on success.
- * @retval false on failure.
+ * @return 0 on success or a negative errno code on failure.
  */
-bool mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *caps);
+int mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *caps);
 
 /**
  * @brief Decide buffer allocation parameters.
@@ -113,9 +112,8 @@ bool mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *ca
  * @param zvid_obj Pointer to the @ref mp_zvid_object.
  * @param query    Pointer to @ref mp_query containing allocation requirements.
  *
- * @retval true  on success.
- * @retval false on failure.
+ * @return 0 on success or a negative errno code on failure.
  */
-bool mp_zvid_object_decide_allocation(struct mp_zvid_object *zvid_obj, struct mp_query *query);
+int mp_zvid_object_decide_allocation(struct mp_zvid_object *zvid_obj, struct mp_query *query);
 
 #endif /* ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_OBJECT_H_ */

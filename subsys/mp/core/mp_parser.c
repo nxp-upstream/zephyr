@@ -38,30 +38,30 @@ static struct mp_caps *mp_parser_get_caps(struct mp_parser *parser, enum mp_pad_
 	return NULL;
 }
 
-static bool mp_parser_set_caps(struct mp_parser *parser, enum mp_pad_direction direction,
-			       struct mp_caps *caps)
+static int mp_parser_set_caps(struct mp_parser *parser, enum mp_pad_direction direction,
+			      struct mp_caps *caps)
 {
 	if (caps == NULL) {
-		return false;
+		return -EINVAL;
 	}
 
 	if (direction == MP_PAD_SINK) {
 		mp_caps_replace(&parser->sinkpad.caps, caps);
-		return true;
+		return 0;
 	}
 
 	if (direction == MP_PAD_SRC) {
 		mp_caps_replace(&parser->srcpad.caps, caps);
-		return true;
+		return 0;
 	}
 
-	return false;
+	return -EINVAL;
 }
 
-static inline bool mp_parser_query_caps(struct mp_parser *self, enum mp_pad_direction direction,
-					struct mp_query *query)
+static inline int mp_parser_query_caps(struct mp_parser *self, enum mp_pad_direction direction,
+				       struct mp_query *query)
 {
-	int ret = false;
+	int ret;
 	struct mp_pad *this_pad, *other_pad;
 	struct mp_caps *queried_pad_caps;
 	struct mp_caps *this_caps = (direction == MP_PAD_SINK) ? self->sink_caps : self->src_caps;
@@ -77,19 +77,25 @@ static inline bool mp_parser_query_caps(struct mp_parser *self, enum mp_pad_dire
 		other_pad = &self->sinkpad;
 		break;
 	default:
-		return false;
+		return -EINVAL;
 	}
 
 	queried_pad_caps = mp_caps_intersect(mp_query_get_caps(query), this_caps);
 	if (queried_pad_caps == NULL || mp_caps_is_empty(queried_pad_caps)) {
-		return false;
+		return -ENODATA;
 	}
 
 	/* Query the peer using the other side supported caps */
 	ret = mp_query_set_caps(query, other_caps);
-	if (!ret || !mp_pad_query(other_pad->peer, query)) {
+	if (ret < 0) {
 		mp_caps_unref(queried_pad_caps);
-		return false;
+		return ret;
+	}
+
+	ret = mp_pad_query(other_pad->peer, query);
+	if (ret < 0) {
+		mp_caps_unref(queried_pad_caps);
+		return ret;
 	}
 
 	/* Keep query_caps result at other_pad to use later at caps event */
@@ -102,11 +108,12 @@ static inline bool mp_parser_query_caps(struct mp_parser *self, enum mp_pad_dire
 	return ret;
 }
 
-static bool mp_parser_event(struct mp_pad *pad, struct mp_event *event)
+static int mp_parser_event(struct mp_pad *pad, struct mp_event *event)
 {
 	struct mp_parser *parser = MP_PARSER(pad->object.container);
 	struct mp_pad *other_pad =
 		(pad->direction == MP_PAD_SINK) ? &parser->srcpad : &parser->sinkpad;
+	int ret;
 
 	switch (event->type) {
 	case MP_EVENT_EOS:
@@ -116,21 +123,22 @@ static bool mp_parser_event(struct mp_pad *pad, struct mp_event *event)
 	case MP_EVENT_CAPS:
 		mp_caps_replace(&pad->caps, mp_event_get_caps(event));
 
-		if (!mp_event_set_caps(event, other_pad->caps)) {
-			return false;
+		ret = mp_event_set_caps(event, other_pad->caps);
+		if (ret < 0) {
+			return ret;
 		}
 
 		return mp_pad_send_event_default(other_pad, event);
 	default:
-		return false;
+		return -ENOTSUP;
 	}
 }
 
 /* TODO: Make a helper to refactor this together with mp_transform */
-static bool mp_parser_query(struct mp_pad *pad, struct mp_query *query)
+static int mp_parser_query(struct mp_pad *pad, struct mp_query *query)
 {
 	if (pad == NULL || query == NULL) {
-		return false;
+		return -EINVAL;
 	}
 
 	int ret;
@@ -143,14 +151,16 @@ static bool mp_parser_query(struct mp_pad *pad, struct mp_query *query)
 		struct mp_query *peer_query = mp_query_new_allocation(parser->srcpad.caps);
 
 		/* Query the downstream */
-		if (!mp_pad_query(parser->srcpad.peer, peer_query)) {
+		ret = mp_pad_query(parser->srcpad.peer, peer_query);
+		if (ret < 0) {
 			mp_query_destroy(peer_query);
-			return false;
+			return ret;
 		}
 
-		if (!parser->decide_allocation(parser, peer_query)) {
+		ret = parser->decide_allocation(parser, peer_query);
+		if (ret < 0) {
 			mp_query_destroy(peer_query);
-			return false;
+			return ret;
 		}
 
 		/* Configure/start the output buffer pool */
@@ -159,20 +169,20 @@ static bool mp_parser_query(struct mp_pad *pad, struct mp_query *query)
 				parser->outpool, mp_caps_get_structure(parser->srcpad.caps, 0));
 			if (ret != 0 && ret != -ENOSYS) {
 				LOG_ERR("Failed to configure output parser buffer pool");
-				return false;
+				return ret;
 			}
 
 			ret = mp_buffer_pool_start(parser->outpool);
 			if (ret != 0 && ret != -ENOSYS) {
 				LOG_ERR("Failed to start output parser buffer pool");
-				return false;
+				return ret;
 			}
 		}
 
 		/* Propose allocation to upstream */
 		return parser->propose_allocation(parser, query);
 	default:
-		return false;
+		return -ENOTSUP;
 	}
 }
 
@@ -193,14 +203,14 @@ static enum mp_state_change_return mp_parser_change_state(struct mp_element *ele
 	return ret;
 }
 
-static bool mp_parser_decide_allocation(struct mp_parser *self, struct mp_query *query)
+static int mp_parser_decide_allocation(struct mp_parser *self, struct mp_query *query)
 {
-	return true;
+	return 0;
 }
 
-static bool mp_parser_propose_allocation(struct mp_parser *self, struct mp_query *query)
+static int mp_parser_propose_allocation(struct mp_parser *self, struct mp_query *query)
 {
-	return true;
+	return 0;
 }
 
 void mp_parser_init(struct mp_element *self)

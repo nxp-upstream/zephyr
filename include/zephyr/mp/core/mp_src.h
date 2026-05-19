@@ -48,9 +48,9 @@ struct mp_src {
 	 */
 	struct mp_caps *(*get_caps)(struct mp_src *src);
 	/** Set a given caps to the source pad */
-	bool (*set_caps)(struct mp_src *src, struct mp_caps *caps);
+	int (*set_caps)(struct mp_src *src, struct mp_caps *caps);
 	/** Decide buffer allocation strategy for the downstream peer */
-	bool (*decide_allocation)(struct mp_src *self, struct mp_query *query);
+	int (*decide_allocation)(struct mp_src *self, struct mp_query *query);
 };
 
 /**
@@ -69,7 +69,7 @@ void mp_src_init(struct mp_element *self);
  * @param self Pointer to the @ref mp_element struct
  * @param transition Transition state, see @ref mp_state_change
  *
- * @retval One of @ref mp_state_change_return
+ * @return One of @ref mp_state_change_return
  */
 enum mp_state_change_return mp_src_change_state(struct mp_element *self,
 						enum mp_state_change transition);
@@ -80,7 +80,7 @@ enum mp_state_change_return mp_src_change_state(struct mp_element *self,
  * @param obj Pointer to the @ref mp_object (source element)
  * @param key Property key identifier
  * @param val Pointer to the property value to set
- * @return 0 on success, negative error code on failure
+ * @return 0 on success, negative errno on failure
  */
 int mp_src_set_property(struct mp_object *obj, uint32_t key, const void *val);
 
@@ -90,7 +90,7 @@ int mp_src_set_property(struct mp_object *obj, uint32_t key, const void *val);
  * @param obj Pointer to the @ref mp_object (source element)
  * @param key Property key identifier
  * @param val Pointer to store the retrieved property value
- * @return 0 on success, negative error code on failure
+ * @return 0 on success, negative errno on failure
  */
 int mp_src_get_property(struct mp_object *obj, uint32_t key, void *val);
 

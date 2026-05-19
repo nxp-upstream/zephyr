@@ -162,9 +162,9 @@ struct mp_element {
 	enum mp_state target_state;
 
 	/** Event handler function */
-	bool (*eventfn)(struct mp_element *element, struct mp_event *event);
+	int (*eventfn)(struct mp_element *element, struct mp_event *event);
 	/** Query handler function */
-	bool (*queryfn)(struct mp_element *element, struct mp_query *query);
+	int (*queryfn)(struct mp_element *element, struct mp_query *query);
 
 	/** Get current state function */
 	enum mp_state_change_return (*get_state)(struct mp_element *element, enum mp_state *state);
@@ -207,10 +207,10 @@ void mp_element_add_pad(struct mp_element *element, struct mp_pad *pad);
  * @param element_1 First element in the chain
  * @param element_2 Second element in the chain
  * @param ... Additional elements to link (terminated by NULL)
- * @retval true If all elements were successfully linked
- * @retval false If any link operation failed
+ *
+ * @return 0 on success, negative errno on failure
  */
-bool mp_element_link(struct mp_element *element_1, struct mp_element *element_2, ...);
+int mp_element_link(struct mp_element *element_1, struct mp_element *element_2, ...);
 
 /**
  * @brief Set the state of an element
