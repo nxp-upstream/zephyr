@@ -19,8 +19,8 @@ LOG_MODULE_REGISTER(mp_zvid_transform, CONFIG_MP_LOG_LEVEL);
 
 #define DEFAULT_PROP_DEVICE DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_videotrans))
 
-static bool mp_zvid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
-				      struct net_buf **out_buf)
+static int mp_zvid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
+				     struct net_buf **out_buf)
 {
 	int ret;
 	struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
@@ -40,7 +40,7 @@ static bool mp_zvid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf
 	in_vbuf->type = VIDEO_BUF_TYPE_INPUT;
 	if (video_enqueue(zvid_transform->zvid_obj_in.vdev, in_vbuf) != 0) {
 		LOG_ERR("Failed to enqueue input buffer");
-		return false;
+		return -EIO;
 	}
 
 	/* Dequeue an input buffer, blocking */
@@ -49,19 +49,20 @@ static bool mp_zvid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf
 	ret = video_dequeue(zvid_transform->zvid_obj_in.vdev, &vbuf, K_FOREVER);
 	if (ret) {
 		LOG_ERR("Failed to dequeue input buffer");
-		return false;
+		return -EIO;
 	}
 
 	/* Done with the input buffer */
 	net_buf_unref(in_buf);
 
 	/* Dequeue an output buffer, blocking */
-	if (outpool->acquire_buffer(outpool, out_buf) != 0) {
+	ret = outpool->acquire_buffer(outpool, out_buf);
+	if (ret != 0) {
 		LOG_ERR("Failed to acquire output buffer");
-		return false;
+		return -ENOMEM;
 	}
 
-	return true;
+	return 0;
 }
 
 static struct mp_caps *mp_zvid_transform_supported_caps(struct mp_transform *transform,
@@ -90,8 +91,8 @@ static void mp_zvid_transform_update_caps(struct mp_transform *transform)
 	mp_caps_unref(src_caps);
 }
 
-static bool mp_zvid_transform_set_caps(struct mp_transform *transform,
-				       enum mp_pad_direction direction, struct mp_caps *caps)
+static int mp_zvid_transform_set_caps(struct mp_transform *transform,
+				      enum mp_pad_direction direction, struct mp_caps *caps)
 {
 	struct mp_zvid_transform *zvid_transform = MP_ZVID_TRANSFORM(transform);
 	struct mp_zvid_object *zvid_obj = NULL;
@@ -104,15 +105,15 @@ static bool mp_zvid_transform_set_caps(struct mp_transform *transform,
 		zvid_obj = &zvid_transform->zvid_obj_out;
 	}
 
-	if (zvid_obj == NULL || !mp_zvid_object_set_caps(zvid_obj, caps)) {
-		return false;
+	if (zvid_obj == NULL || mp_zvid_object_set_caps(zvid_obj, caps) < 0) {
+		return -EINVAL;
 	}
 
 	/* Set pad's caps only when everything is OK */
 	mp_caps_replace(
 		direction == MP_PAD_SRC ? &transform->srcpad.caps : &transform->sinkpad.caps, caps);
 
-	return true;
+	return 0;
 }
 
 static struct mp_caps *mp_zvid_transform_transform_caps(struct mp_transform *self,
@@ -191,12 +192,12 @@ static int mp_zvid_transform_get_property(struct mp_object *obj, uint32_t key, v
 	return ret;
 }
 
-static bool mp_zvid_transform_decide_allocation(struct mp_transform *self, struct mp_query *query)
+static int mp_zvid_transform_decide_allocation(struct mp_transform *self, struct mp_query *query)
 {
 	return mp_zvid_object_decide_allocation(&MP_ZVID_TRANSFORM(self)->zvid_obj_out, query);
 }
 
-static bool mp_zvid_transform_propose_allocation(struct mp_transform *self, struct mp_query *query)
+static int mp_zvid_transform_propose_allocation(struct mp_transform *self, struct mp_query *query)
 {
 	return mp_query_set_pool(query, self->inpool);
 }

@@ -13,8 +13,8 @@
 
 LOG_MODULE_REGISTER(mp_transform_client, CONFIG_MP_LOG_LEVEL);
 
-static bool mp_transform_client_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
-					struct net_buf **out_buf)
+static int mp_transform_client_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
+				       struct net_buf **out_buf)
 {
 	struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
 	struct mp_transform_client *transform_client = MP_TRANSFORM_CLIENT(transform);
@@ -25,11 +25,11 @@ static bool mp_transform_client_chainfn(struct mp_pad *pad, struct net_buf *in_b
 
 	/* Support only normal mode for now */
 	if (transform->mode != MP_MODE_NORMAL) {
-		return false;
+		return -ENOTSUP;
 	}
 
 	if (transform->outpool == NULL || transform->outpool->acquire_buffer == NULL) {
-		return false;
+		return -EINVAL;
 	}
 
 	in_meta = mp_buffer_get_meta(in_buf);
@@ -37,7 +37,7 @@ static bool mp_transform_client_chainfn(struct mp_pad *pad, struct net_buf *in_b
 
 	if (transform->outpool->acquire_buffer(transform->outpool, out_buf) != 0) {
 		LOG_ERR("Failed to acquire an output buffer");
-		return false;
+		return -ENOMEM;
 	}
 
 	out_meta = mp_buffer_get_meta(*out_buf);
@@ -53,7 +53,7 @@ static bool mp_transform_client_chainfn(struct mp_pad *pad, struct net_buf *in_b
 		net_buf_unref(*out_buf);
 		*out_buf = NULL;
 		net_buf_unref(in_buf);
-		return false;
+		return -EIO;
 	}
 
 	if (out_meta != NULL) {
@@ -64,16 +64,16 @@ static bool mp_transform_client_chainfn(struct mp_pad *pad, struct net_buf *in_b
 
 	net_buf_unref(in_buf);
 
-	return true;
+	return 0;
 }
 
-static bool mp_transform_client_propose_allocation(struct mp_transform *self,
-						   struct mp_query *query)
+static int mp_transform_client_propose_allocation(struct mp_transform *self,
+						  struct mp_query *query)
 {
 	return mp_query_set_pool(query, self->inpool);
 }
 
-static bool mp_transform_client_decide_allocation(struct mp_transform *self, struct mp_query *query)
+static int mp_transform_client_decide_allocation(struct mp_transform *self, struct mp_query *query)
 {
 	struct mp_buffer_pool *query_pool = mp_query_get_pool(query);
 	struct mp_buffer_pool_config *pool_config = &self->outpool->config;
@@ -96,17 +96,15 @@ static bool mp_transform_client_decide_allocation(struct mp_transform *self, str
 		int align = sys_lcm(qpc->align, pool_config->align);
 
 		if (align == -1) {
-			return false;
+			return -EINVAL;
 		} else if (align == 0 && qpc->align != 0) {
 			pool_config->align = qpc->align;
 		} else if (align != 0) {
 			pool_config->align = align;
-		} else {
-			return true;
 		}
 	}
 
-	return true;
+	return 0;
 }
 
 void mp_transform_client_init(struct mp_element *self)

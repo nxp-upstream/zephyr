@@ -201,7 +201,7 @@ int main(void)
 	}
 
 	/* clang-format off */
-	if (!mp_bin_add(MP_BIN(&pipe),
+	ret = mp_bin_add(MP_BIN(&pipe),
 			MP_ELEMENT(&filesrc),
 			MP_ELEMENT(&jpeg_parser),
 			MP_ELEMENT(&caps_filter),
@@ -209,20 +209,22 @@ int main(void)
 			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec), (MP_ELEMENT(&vid_conv),))
 			IF_ENABLED(DT_HAS_CHOSEN(zephyr_videotrans), (MP_ELEMENT(&vid_trans),))
 			MP_ELEMENT(&disp_sink),
-			NULL)) {
-		LOG_ERR("Failed to add elements");
+			NULL);
+	if (ret < 0) {
+		LOG_ERR("Failed to add elements (%d)", ret);
 		goto err;
 	}
 
-	if (!mp_element_link(MP_ELEMENT(&filesrc),
+	ret = mp_element_link(MP_ELEMENT(&filesrc),
 			MP_ELEMENT(&jpeg_parser),
 			MP_ELEMENT(&caps_filter),
 			MP_ELEMENT(&jpeg_dec),
 			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec), (MP_ELEMENT(&vid_conv),))
 			IF_ENABLED(DT_HAS_CHOSEN(zephyr_videotrans), (MP_ELEMENT(&vid_trans),))
 			MP_ELEMENT(&disp_sink),
-			NULL)) {
-		LOG_ERR("Failed to link elements");
+			NULL);
+	if (ret < 0) {
+		LOG_ERR("Failed to link elements (%d)", ret);
 		goto err;
 	}
 	/* clang-format on */

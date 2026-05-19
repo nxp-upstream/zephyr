@@ -58,20 +58,20 @@ static struct mp_caps *mp_src_get_caps(struct mp_src *src)
 	return src ? mp_caps_ref(src->src_caps) : NULL;
 }
 
-static bool mp_src_set_caps(struct mp_src *src, struct mp_caps *caps)
+static int mp_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 {
 	if (src == NULL) {
-		return false;
+		return -EINVAL;
 	}
 
 	mp_caps_replace(&src->srcpad.caps, caps);
 
-	return true;
+	return 0;
 }
 
-static bool mp_src_query(struct mp_pad *pad, struct mp_query *query)
+static int mp_src_query(struct mp_pad *pad, struct mp_query *query)
 {
-	bool ret = false;
+	int ret;
 	struct mp_src *src = MP_SRC(pad->object.container);
 	struct mp_caps *intersect_caps;
 	struct mp_caps *query_caps;
@@ -82,7 +82,7 @@ static bool mp_src_query(struct mp_pad *pad, struct mp_query *query)
 		if (query_caps != NULL) {
 			intersect_caps = mp_caps_intersect(src->src_caps, query_caps);
 			if (intersect_caps == NULL || mp_caps_is_empty(intersect_caps)) {
-				return false;
+				return -ENODATA;
 			}
 			ret = mp_query_set_caps(query, intersect_caps);
 			mp_caps_unref(intersect_caps);
@@ -91,45 +91,46 @@ static bool mp_src_query(struct mp_pad *pad, struct mp_query *query)
 		}
 		return ret;
 	default:
-		return false;
+		return -ENOTSUP;
 	}
 }
 
-static bool mp_src_decide_allocation(struct mp_src *self, struct mp_query *query)
+static int mp_src_decide_allocation(struct mp_src *self, struct mp_query *query)
 {
-	return true;
+	return 0;
 }
 
-static bool mp_src_negotiate(struct mp_src *src)
+static int mp_src_negotiate(struct mp_src *src)
 {
 	struct mp_caps *common_caps;
 	struct mp_caps *fixated_caps;
 	struct mp_query *caps_query;
 	struct mp_query *alloc_query;
 	struct mp_event *caps_event;
-	bool ret = false;
+	int ret;
 
 	/* Caps negotiation */
 	if (src->src_caps == NULL || mp_caps_is_empty(src->src_caps)) {
-		return false;
+		return -EINVAL;
 	}
 
 	/* Query the peer's capabilities */
 	caps_query = mp_query_new_caps(src->src_caps);
-	if (!mp_pad_query(src->srcpad.peer, caps_query)) {
+	ret = mp_pad_query(src->srcpad.peer, caps_query);
+	if (ret < 0) {
 		mp_query_destroy(caps_query);
-		return false;
+		return ret;
 	}
 
 	common_caps = mp_caps_ref(mp_query_get_caps(caps_query));
 	mp_query_destroy(caps_query);
 	if (common_caps == NULL) {
-		return false;
+		return -ENODATA;
 	}
 
 	if (mp_caps_is_empty(common_caps)) {
 		mp_caps_unref(common_caps);
-		return false;
+		return -ENODATA;
 	}
 
 	/* Store negotiated (possibly unfixed) caps on the src pad */
@@ -144,24 +145,26 @@ static bool mp_src_negotiate(struct mp_src *src)
 	ret = mp_pad_send_event(src->srcpad.peer, caps_event);
 	mp_event_destroy(caps_event);
 
-	if (!ret) {
+	if (ret < 0) {
 		mp_caps_unref(fixated_caps);
-		return false;
+		return ret;
 	}
 
 	if (fixated_caps != NULL) {
-		if (!src->set_caps(src, fixated_caps)) {
+		ret = src->set_caps(src, fixated_caps);
+		if (ret < 0) {
 			mp_caps_unref(fixated_caps);
-			return false;
+			return ret;
 		}
 		mp_caps_unref(fixated_caps);
 	}
 
 	/* Query the peer's allocation proposal */
 	alloc_query = mp_query_new_allocation(src->srcpad.caps);
-	if (!mp_pad_query(src->srcpad.peer, alloc_query)) {
+	ret = mp_pad_query(src->srcpad.peer, alloc_query);
+	if (ret < 0) {
 		mp_query_destroy(alloc_query);
-		return false;
+		return ret;
 	}
 
 	/* Decide the allocation */
@@ -181,7 +184,7 @@ enum mp_state_change_return mp_src_change_state(struct mp_element *self,
 	switch (transition) {
 	case MP_STATE_CHANGE_READY_TO_PAUSED:
 		/* Perform negotiation */
-		if (!mp_src_negotiate(src)) {
+		if (mp_src_negotiate(src) < 0) {
 			LOG_ERR("Negotiation failed");
 			return MP_STATE_CHANGE_FAILURE;
 		}

@@ -97,21 +97,23 @@ int main(void)
 
 	/* clang-format off */
 	/* Add elements to the pipeline - order does not matter */
-	if (!mp_bin_add(MP_BIN(&pipe),
+	ret = mp_bin_add(MP_BIN(&pipe),
 			MP_ELEMENT(&source),
 			IF_ENABLED(CONFIG_MP_CAPSFILTER, (MP_ELEMENT(&caps_filter),))
 			MP_ELEMENT(&gain),
-			MP_ELEMENT(&sink), NULL)) {
-		LOG_ERR("Failed to add elements");
+			MP_ELEMENT(&sink), NULL);
+	if (ret < 0) {
+		LOG_ERR("Failed to add elements (%d)", ret);
 		goto err;
 	}
 
 	/* Link elements together - order does matter */
-	if (!mp_element_link(MP_ELEMENT(&source),
+	ret = mp_element_link(MP_ELEMENT(&source),
 			IF_ENABLED(CONFIG_MP_CAPSFILTER, (MP_ELEMENT(&caps_filter),))
 			MP_ELEMENT(&gain),
-			MP_ELEMENT(&sink), NULL)) {
-		LOG_ERR("Failed to link elements");
+			MP_ELEMENT(&sink), NULL);
+	if (ret < 0) {
+		LOG_ERR("Failed to link elements (%d)", ret);
 		goto err;
 	}
 	/* clang-format on */

@@ -170,7 +170,7 @@ static void mp_zaud_i2s_codec_sink_update_caps(struct mp_sink *sink)
 	mp_caps_unref(caps);
 }
 
-static bool mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
+static int mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
 {
 	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = MP_ZAUD_I2S_CODEC_SINK(sink);
 	struct i2s_config config;
@@ -189,7 +189,7 @@ static bool mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps
 
 	if (zaud_i2s_codec_sink->mem_slab == NULL) {
 		LOG_ERR("Memory slab not configured");
-		return false;
+		return -EINVAL;
 	}
 
 	audio_cfg.dai_route = AUDIO_ROUTE_PLAYBACK;
@@ -212,7 +212,7 @@ static bool mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps
 	ret = audio_codec_configure(zaud_i2s_codec_sink->codec_dev, &audio_cfg);
 	if (ret < 0) {
 		LOG_ERR("Failed to configure codec: %d", ret);
-		return false;
+		return ret;
 	}
 	k_msleep(1000);
 
@@ -235,14 +235,14 @@ static bool mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps
 	ret = i2s_configure(zaud_i2s_codec_sink->i2s_dev, I2S_DIR_TX, &config);
 	if (ret < 0) {
 		LOG_ERR("Failed to configure I2S stream: %d", ret);
-		return false;
+		return ret;
 	}
 
-	return true;
+	return 0;
 }
 
-bool mp_zaud_i2s_codec_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
-				    struct net_buf **out_buf)
+int mp_zaud_i2s_codec_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
+				   struct net_buf **out_buf)
 {
 	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink =
 		MP_ZAUD_I2S_CODEC_SINK(pad->object.container);
@@ -253,7 +253,7 @@ bool mp_zaud_i2s_codec_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	if (ret < 0) {
 		LOG_DBG("Failed to write data: %d\n", ret);
 		*out_buf = NULL;
-		return false;
+		return -EIO;
 	}
 
 	if (!zaud_i2s_codec_sink->started) {
@@ -264,7 +264,7 @@ bool mp_zaud_i2s_codec_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 			if (ret < 0) {
 				LOG_ERR("Failed to start I2S stream: %d", ret);
 				*out_buf = NULL;
-				return false;
+				return -EIO;
 			}
 			zaud_i2s_codec_sink->started = true;
 		}
@@ -276,7 +276,7 @@ bool mp_zaud_i2s_codec_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	/* Sink returns NULL - end of chain */
 	*out_buf = NULL;
 
-	return true;
+	return 0;
 }
 
 void mp_zaud_i2s_codec_sink_init(struct mp_element *self)

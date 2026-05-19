@@ -62,13 +62,13 @@ static int mp_zfilesrc_get_property(struct mp_object *obj, uint32_t key, void *v
 	}
 }
 
-static bool mp_zfilesrc_decide_allocation(struct mp_src *src, struct mp_query *query)
+static int mp_zfilesrc_decide_allocation(struct mp_src *src, struct mp_query *query)
 {
 	struct mp_zfilesrc *fsrc = MP_ZFILESRC(src);
 
 	fsrc->downstream_pool = mp_query_get_pool(query);
 
-	return true;
+	return 0;
 }
 
 static int mp_zfilesrc_read_chunk(struct mp_zfilesrc *fsrc, struct net_buf *buf)

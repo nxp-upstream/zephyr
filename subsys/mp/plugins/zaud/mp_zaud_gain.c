@@ -202,8 +202,8 @@ static void apply_audio_gain(struct net_buf *buffer, int32_t gain_fixed, uint8_t
 	}
 }
 
-static bool mp_zaud_gain_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
-				 struct net_buf **out_buf)
+static int mp_zaud_gain_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
+				struct net_buf **out_buf)
 {
 	struct mp_zaud_gain *zaud_gain = MP_ZAUD_GAIN(pad->object.container);
 	uint32_t bytes_used = 0U;
@@ -215,7 +215,7 @@ static bool mp_zaud_gain_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	    (bytes_used = mp_buffer_get_meta(in_buf)->bytes_used) == 0U) {
 		LOG_ERR("Invalid buffer received");
 		*out_buf = NULL;
-		return false;
+		return -EINVAL;
 	}
 
 	/* Apply mute if enabled or gain is 0% */
@@ -231,7 +231,7 @@ static bool mp_zaud_gain_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	/* In-place processing, return same buffer */
 	*out_buf = in_buf;
 
-	return true;
+	return 0;
 }
 
 static struct mp_caps *mp_zaud_gain_supported_caps(struct mp_transform *transform,
@@ -252,8 +252,8 @@ static struct mp_caps *mp_zaud_gain_supported_caps(struct mp_transform *transfor
 	}
 }
 
-static bool mp_zaud_gain_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
-				  struct mp_caps *caps)
+static int mp_zaud_gain_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
+				 struct mp_caps *caps)
 {
 	struct mp_zaud_gain *zaud_gain = MP_ZAUD_GAIN(transform);
 	/* Get the first structure from caps */
@@ -264,7 +264,7 @@ static bool mp_zaud_gain_set_caps(struct mp_transform *transform, enum mp_pad_di
 	zaud_gain->bit_width = bit_width;
 	LOG_DBG("Bit width set to %d", bit_width);
 
-	return true;
+	return 0;
 }
 
 static void mp_zaud_gain_update_caps(struct mp_transform *transform)

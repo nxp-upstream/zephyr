@@ -151,9 +151,9 @@ void mp_caps_init(struct mp_caps *caps, uint8_t flag);
  * @param caps Pointer to @ref mp_caps
  * @param structure Pointer to @ref mp_structure to append
  *
- * @return true if the structure was successfully appended, false otherwise
+ * @return 0 on success, negative errno on failure
  */
-bool mp_caps_append(struct mp_caps *caps, struct mp_structure *structure);
+int mp_caps_append(struct mp_caps *caps, struct mp_structure *structure);
 
 /**
  * @brief Retrieve a @ref mp_structure from @ref mp_caps by index.

@@ -43,7 +43,7 @@ static int mp_queue_get_property(struct mp_object *obj, uint32_t id, void *val)
 	}
 }
 
-static bool mp_queue_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf)
+static int mp_queue_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf)
 {
 	struct mp_queue *queue = CONTAINER_OF(pad, struct mp_queue, transform.sinkpad);
 
@@ -56,7 +56,7 @@ static bool mp_queue_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct 
 
 	*out_buf = NULL;
 
-	return true;
+	return 0;
 }
 
 static void mp_queue_thread_func(void *p1, void *p2, void *p3)

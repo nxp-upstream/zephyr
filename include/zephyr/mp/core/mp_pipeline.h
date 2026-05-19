@@ -65,9 +65,10 @@ void mp_pipeline_init(struct mp_element *self);
  *
  * @param start_elem Element to start pushing from (its srcpad's peer is first called)
  * @param buffer Buffer to push (ownership transferred)
- * @return true if fully processed or consumed, false on chainfn error
+ *
+ * @return 0 on success, negative errno on failure
  */
-bool mp_pipeline_push_buffer(struct mp_element *start_elem, struct net_buf *buffer);
+int mp_pipeline_push_buffer(struct mp_element *start_elem, struct net_buf *buffer);
 
 /**
  * @}

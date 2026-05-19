@@ -38,13 +38,12 @@ static enum mp_bus_sync_reply mp_bus_sync_handler(struct mp_bus *bus, struct mp_
 	return ret ? MP_BUS_DROP : MP_BUS_PASS;
 }
 
-bool mp_bus_post(struct mp_bus *bus, struct mp_message *message)
+int mp_bus_post(struct mp_bus *bus, struct mp_message *message)
 {
-
 	enum mp_bus_sync_reply reply = MP_BUS_PASS;
 
 	if (bus == NULL || message == NULL) {
-		return false;
+		return -EINVAL;
 	}
 
 	/* Step 1: Notify the sync handler first if any */
@@ -57,7 +56,7 @@ bool mp_bus_post(struct mp_bus *bus, struct mp_message *message)
 		k_fifo_put(&bus->fifo, message);
 	}
 
-	return true;
+	return 0;
 }
 
 struct mp_message *mp_bus_pop_msg(struct mp_bus *bus, enum mp_message_type type)

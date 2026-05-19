@@ -19,7 +19,7 @@
 
 LOG_MODULE_REGISTER(mp_zaud_dmic_src, CONFIG_MP_LOG_LEVEL);
 
-static bool mp_zaud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
+static int mp_zaud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 {
 	struct mp_zaud_dmic_src *zaud_dmic_src = MP_ZAUD_DMIC_SRC(src);
 
@@ -56,7 +56,7 @@ static bool mp_zaud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 
 	if (zaud_dmic_src->pool.mem_slab == NULL) {
 		LOG_ERR("Memory slab not configured");
-		return false;
+		return -EINVAL;
 	}
 
 	cfg.channel.req_num_chan = num_of_channel;
@@ -83,12 +83,12 @@ static bool mp_zaud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 
 	if (dmic_configure(zaud_dmic_src->pool.zaud_dev, &cfg) < 0) {
 		LOG_DBG("Failed to configure the driver");
-		return false;
+		return -EIO;
 	}
 
 	mp_caps_replace(&(src->srcpad.caps), caps);
 
-	return true;
+	return 0;
 }
 
 static int mp_zaud_dmic_src_acquire_buffer(struct mp_buffer_pool *pool, struct net_buf **buffer)

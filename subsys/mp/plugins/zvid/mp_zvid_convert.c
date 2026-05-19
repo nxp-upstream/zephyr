@@ -214,19 +214,21 @@ static void zvid_convert_update_caps(struct mp_transform *transform)
 	mp_caps_unref(src_caps);
 }
 
-static bool zvid_convert_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
-				  struct mp_caps *caps)
+static int zvid_convert_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
+				 struct mp_caps *caps)
 {
 	struct mp_zvid_convert *conv = MP_ZVID_CONVERT(transform);
 	struct mp_structure *s;
 	struct mp_value *v;
+	int ret;
 
 	if (caps == NULL) {
-		return false;
+		return -EINVAL;
 	}
 
-	if (!mp_transform_set_caps(transform, direction, caps)) {
-		return false;
+	ret = mp_transform_set_caps(transform, direction, caps);
+	if (ret < 0) {
+		return ret;
 	}
 
 	s = mp_caps_get_structure(caps, 0);
@@ -262,7 +264,7 @@ static bool zvid_convert_set_caps(struct mp_transform *transform, enum mp_pad_di
 		if (conv->desc == NULL) {
 			LOG_ERR("Unsupported conversion 0x%08x -> 0x%08x", conv->in_pixfmt,
 				conv->out_pixfmt);
-			return false;
+			return -ENOTSUP;
 		}
 	}
 
@@ -271,7 +273,7 @@ static bool zvid_convert_set_caps(struct mp_transform *transform, enum mp_pad_di
 			zvid_convert_frame_size(conv->out_pixfmt, conv->width, conv->height);
 	}
 
-	return true;
+	return 0;
 }
 
 static bool out_fmts_contains(struct mp_value *out_fmts, uint32_t pixfmt)
@@ -386,7 +388,7 @@ static struct mp_caps *zvid_convert_transform_caps(struct mp_transform *self,
 	return out;
 }
 
-static bool zvid_convert_decide_allocation(struct mp_transform *self, struct mp_query *query)
+static int zvid_convert_decide_allocation(struct mp_transform *self, struct mp_query *query)
 {
 	struct mp_zvid_convert *conv = MP_ZVID_CONVERT(self);
 	struct mp_buffer_pool *down_pool = mp_query_get_pool(query);
@@ -401,18 +403,18 @@ static bool zvid_convert_decide_allocation(struct mp_transform *self, struct mp_
 
 	/* TODO: Do negotiation when downstream only propose pool config */
 
-	return true;
+	return 0;
 }
 
-static bool zvid_convert_propose_allocation(struct mp_transform *self, struct mp_query *query)
+static int zvid_convert_propose_allocation(struct mp_transform *self, struct mp_query *query)
 {
 	ARG_UNUSED(self);
 	ARG_UNUSED(query);
-	return true;
+	return 0;
 }
 
-static bool zvid_convert_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
-				 struct net_buf **out_buf)
+static int zvid_convert_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
+				struct net_buf **out_buf)
 {
 	struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
 	struct mp_zvid_convert *conv = MP_ZVID_CONVERT(transform);
@@ -425,7 +427,7 @@ static bool zvid_convert_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	    conv->out_pixfmt == 0U || conv->desc == NULL || conv->desc->fn == NULL) {
 		LOG_ERR("Missing negotiated caps / conversion");
 		net_buf_unref(in_buf);
-		return false;
+		return -EINVAL;
 	}
 
 	/* Process all input net_buf fragments */
@@ -468,7 +470,7 @@ static bool zvid_convert_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 		cur = next;
 	}
 
-	return true;
+	return 0;
 err:
 	net_buf_unref(cur);
 	if (*out_buf != NULL) {
@@ -476,7 +478,7 @@ err:
 		*out_buf = NULL;
 	}
 
-	return false;
+	return -EIO;
 }
 
 void mp_zvid_convert_init(struct mp_element *self)

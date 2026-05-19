@@ -38,11 +38,14 @@ int mp_caps_filter_get_property(struct mp_object *obj, uint32_t key, void *val)
 	}
 }
 
-static bool mp_caps_filter_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
-				    struct mp_caps *caps)
+static int mp_caps_filter_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
+				   struct mp_caps *caps)
 {
-	if (!mp_transform_set_caps(transform, direction, caps)) {
-		return false;
+	int ret;
+
+	ret = mp_transform_set_caps(transform, direction, caps);
+	if (ret < 0) {
+		return ret;
 	}
 
 	/*
@@ -55,7 +58,7 @@ static bool mp_caps_filter_set_caps(struct mp_transform *transform, enum mp_pad_
 	 */
 	transform->sinkpad.peer->peer = transform->srcpad.peer;
 
-	return true;
+	return 0;
 }
 
 void mp_caps_filter_init(struct mp_element *self)

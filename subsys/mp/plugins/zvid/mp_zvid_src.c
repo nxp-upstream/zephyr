@@ -32,18 +32,18 @@ static void mp_zvid_src_update_caps(struct mp_src *src)
 	mp_caps_unref(caps);
 }
 
-static bool mp_zvid_src_set_caps(struct mp_src *src, struct mp_caps *caps)
+static int mp_zvid_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 {
 	struct mp_zvid_src *zvid_src = MP_ZVID_SRC(src);
 
-	if (!mp_zvid_object_set_caps(&zvid_src->zvid_obj, caps)) {
-		return false;
+	if (mp_zvid_object_set_caps(&zvid_src->zvid_obj, caps) < 0) {
+		return -EINVAL;
 	}
 
 	/* Set pad's caps only when everything is OK */
 	mp_caps_replace(&src->srcpad.caps, caps);
 
-	return true;
+	return 0;
 }
 
 static int mp_zvid_src_set_property(struct mp_object *obj, uint32_t key, const void *val)
@@ -76,7 +76,7 @@ static int mp_zvid_src_get_property(struct mp_object *obj, uint32_t key, void *v
 	return ret;
 }
 
-static bool mp_zvid_src_decide_allocation(struct mp_src *self, struct mp_query *query)
+static int mp_zvid_src_decide_allocation(struct mp_src *self, struct mp_query *query)
 {
 	return mp_zvid_object_decide_allocation(&MP_ZVID_SRC(self)->zvid_obj, query);
 }

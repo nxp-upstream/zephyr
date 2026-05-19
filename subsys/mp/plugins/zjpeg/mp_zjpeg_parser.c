@@ -32,7 +32,7 @@ NET_BUF_POOL_FIXED_DEFINE(mp_zjpeg_parser_pool, CONFIG_MP_ZJPEG_PARSER_POOL_NUM,
 #define JPEG_EOI_BYTE0 0xFFU
 #define JPEG_EOI_BYTE1 0xD9U
 
-static bool mp_zjpeg_parser_decide_allocation(struct mp_parser *parser, struct mp_query *query)
+static int mp_zjpeg_parser_decide_allocation(struct mp_parser *parser, struct mp_query *query)
 {
 	struct mp_zjpeg_parser *jpeg_parser = MP_ZJPEG_PARSER(parser);
 	struct mp_buffer_pool *query_pool = mp_query_get_pool(query);
@@ -50,12 +50,12 @@ static bool mp_zjpeg_parser_decide_allocation(struct mp_parser *parser, struct m
 	}
 
 	if (parser->outpool == NULL) {
-		return false;
+		return -ENOMEM;
 	}
 
 	/* TODO: Do negotiation when downstream only propose pool config */
 
-	return true;
+	return 0;
 }
 
 static uint8_t *find_jpeg_eoi(const uint8_t *data, size_t len)
@@ -87,36 +87,36 @@ static inline void set_bytes_used(struct net_buf *buf, uint32_t used)
 	}
 }
 
-static bool copy_jpeg_frame(struct net_buf *dst, const uint8_t *src, size_t len)
+static int copy_jpeg_frame(struct net_buf *dst, const uint8_t *src, size_t len)
 {
 	struct mp_buffer_meta *bm;
 	uint32_t cap;
 
 	if (dst == NULL || src == NULL) {
-		return false;
+		return -EINVAL;
 	}
 
 	bm = mp_buffer_get_meta(dst);
 	cap = bm && bm->pool ? bm->pool->config.size : 0;
 	if (cap < len) {
-		return false;
+		return -ENOBUFS;
 	}
 
 	memcpy(dst->data, src, len);
 
 	set_bytes_used(dst, (uint32_t)len);
 
-	return true;
+	return 0;
 }
 
-static bool append_to_partial(struct net_buf *partial, const uint8_t *src, size_t len)
+static int append_to_partial(struct net_buf *partial, const uint8_t *src, size_t len)
 {
 	struct mp_buffer_meta *m;
 	uint32_t used;
 	uint32_t cap;
 
 	if (partial == NULL || src == NULL) {
-		return false;
+		return -EINVAL;
 	}
 
 	m = mp_buffer_get_meta(partial);
@@ -124,14 +124,14 @@ static bool append_to_partial(struct net_buf *partial, const uint8_t *src, size_
 	cap = m->pool ? m->pool->config.size : 0;
 
 	if (cap < used || (cap - used) < len) {
-		return false;
+		return -ENOBUFS;
 	}
 
 	memcpy(partial->data + used, src, len);
 
 	set_bytes_used(partial, used + (uint32_t)len);
 
-	return true;
+	return 0;
 }
 
 static int mp_zjpeg_parser_acquire_buffer(struct mp_buffer_pool *pool, struct net_buf **buf)
@@ -177,8 +177,8 @@ static int mp_zjpeg_parser_release_buffer(struct mp_buffer_pool *pool, struct ne
 	return 0;
 }
 
-static bool mp_zjpeg_parser_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
-				    struct net_buf **out_buf)
+static int mp_zjpeg_parser_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
+				   struct net_buf **out_buf)
 {
 	struct mp_parser *parser = MP_PARSER(pad->object.container);
 	struct mp_zjpeg_parser *jpeg_parser = MP_ZJPEG_PARSER(parser);
@@ -223,13 +223,13 @@ static bool mp_zjpeg_parser_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 
 		if (eoi_ptr == NULL) {
 			/* Still partial: append everything */
-			if (!append_to_partial(partial, data, in_used)) {
+			if (append_to_partial(partial, data, in_used) < 0) {
 				LOG_ERR("Partial buffer overflow");
 				net_buf_unref(in_buf);
-				return false;
+				return -ENOBUFS;
 			}
 			net_buf_unref(in_buf);
-			return true;
+			return 0;
 		}
 
 		/* We have EOI; copy bytes up to and including EOI into partial */
@@ -243,10 +243,10 @@ static bool mp_zjpeg_parser_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 		}
 
 		if (to_copy > 0) {
-			if (!append_to_partial(partial, data, to_copy)) {
+			if (append_to_partial(partial, data, to_copy) < 0) {
 				LOG_ERR("Partial buffer overflow");
 				net_buf_unref(in_buf);
-				return false;
+				return -ENOBUFS;
 			}
 		}
 
@@ -270,10 +270,10 @@ static bool mp_zjpeg_parser_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 				net_buf_unref(*out_buf);
 				*out_buf = NULL;
 			}
-			return false;
+			return -ENOMEM;
 		}
 
-		if (!copy_jpeg_frame(out, data + parse_offset, len)) {
+		if (copy_jpeg_frame(out, data + parse_offset, len) < 0) {
 			LOG_ERR("Failed to copy JPEG frame");
 			net_buf_unref(out);
 			net_buf_unref(in_buf);
@@ -281,7 +281,7 @@ static bool mp_zjpeg_parser_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 				net_buf_unref(*out_buf);
 				*out_buf = NULL;
 			}
-			return false;
+			return -ENOBUFS;
 		}
 
 		if (*out_buf == NULL) {
@@ -305,10 +305,10 @@ static bool mp_zjpeg_parser_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 				net_buf_unref(*out_buf);
 				*out_buf = NULL;
 			}
-			return false;
+			return -ENOMEM;
 		}
 
-		if (!copy_jpeg_frame(partial, data + parse_offset, remain)) {
+		if (copy_jpeg_frame(partial, data + parse_offset, remain) < 0) {
 			LOG_ERR("Failed to init partial buffer");
 			net_buf_unref(partial);
 			net_buf_unref(in_buf);
@@ -316,14 +316,14 @@ static bool mp_zjpeg_parser_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 				net_buf_unref(*out_buf);
 				*out_buf = NULL;
 			}
-			return false;
+			return -ENOBUFS;
 		}
 
 		jpeg_parser->partial_frame = partial;
 	}
 
 	net_buf_unref(in_buf);
-	return true;
+	return 0;
 }
 
 void mp_zjpeg_parser_init(struct mp_element *self)
