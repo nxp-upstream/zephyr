@@ -49,22 +49,6 @@ int mp_pad_link(struct mp_pad *srcpad, struct mp_pad *sinkpad)
 	srcpad->peer = sinkpad;
 	sinkpad->peer = srcpad;
 
-	if (srcpad->linkfn != NULL) {
-		int ret = srcpad->linkfn(srcpad);
-
-		if (ret != 0) {
-			return ret;
-		}
-	}
-
-	if (sinkpad->linkfn != NULL) {
-		int ret = sinkpad->linkfn(sinkpad);
-
-		if (ret != 0) {
-			return ret;
-		}
-	}
-
 	return 0;
 }
 

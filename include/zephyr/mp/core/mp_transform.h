@@ -127,26 +127,6 @@ struct mp_transform {
 void mp_transform_init(struct mp_element *self);
 
 /**
- * @brief Set a property on a transform element
- *
- * @param obj Pointer to the object (@ref mp_object)
- * @param key Property key identifier
- * @param val Pointer to the property value
- * @return 0 on success, negative error code on failure
- */
-int mp_transform_set_property(struct mp_object *obj, uint32_t key, const void *val);
-
-/**
- * @brief Get a property from a transform element
- *
- * @param obj Pointer to the object (@ref mp_object)
- * @param key Property key identifier
- * @param val Pointer to store the property value
- * @return 0 on success, negative error code on failure
- */
-int mp_transform_get_property(struct mp_object *obj, uint32_t key, void *val);
-
-/**
  * @brief Set capabilities on a transform element's pad.
  *
  * @param transform Pointer to the transform element.

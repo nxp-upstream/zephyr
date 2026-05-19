@@ -158,7 +158,6 @@ static struct mp_caps *mp_zvid_transform_transform_caps(struct mp_transform *sel
 
 static int mp_zvid_transform_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
-	int ret = 0;
 	struct mp_transform *transform = MP_TRANSFORM(obj);
 	struct mp_zvid_transform *zvid_transform = MP_ZVID_TRANSFORM(obj);
 
@@ -171,25 +170,15 @@ static int mp_zvid_transform_set_property(struct mp_object *obj, uint32_t key, c
 
 		return 0;
 	default:
-		ret = mp_zvid_object_set_property(&zvid_transform->zvid_obj_in, key, val);
-		if (ret == -ENOTSUP) {
-			return mp_transform_set_property(obj, key, val);
-		}
-		return ret;
+		return mp_zvid_object_set_property(&zvid_transform->zvid_obj_in, key, val);
 	}
 }
 
 static int mp_zvid_transform_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
-	int ret = 0;
 	struct mp_zvid_transform *self = MP_ZVID_TRANSFORM(obj);
 
-	ret = mp_zvid_object_get_property(&self->zvid_obj_in, key, val);
-	if (ret == -ENOTSUP) {
-		return mp_transform_get_property(obj, key, val);
-	}
-
-	return ret;
+	return mp_zvid_object_get_property(&self->zvid_obj_in, key, val);
 }
 
 static int mp_zvid_transform_decide_allocation(struct mp_transform *self, struct mp_query *query)

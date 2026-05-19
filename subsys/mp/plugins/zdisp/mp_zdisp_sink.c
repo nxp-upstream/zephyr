@@ -142,7 +142,7 @@ static int mp_zdisp_sink_set_property(struct mp_object *obj, uint32_t key, const
 
 		return 0;
 	default:
-		return mp_sink_set_property(obj, key, val);
+		return -ENOTSUP;
 	}
 }
 
@@ -156,7 +156,7 @@ static int mp_zdisp_sink_get_property(struct mp_object *obj, uint32_t key, void 
 
 		return 0;
 	default:
-		return mp_sink_get_property(obj, key, val);
+		return -ENOTSUP;
 	}
 }
 

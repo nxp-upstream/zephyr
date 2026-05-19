@@ -59,10 +59,8 @@ static int mp_zaud_gain_set_property(struct mp_object *obj, uint32_t key, const 
 			self->gain_fixed);
 		return 0;
 	default:
-		return mp_transform_set_property(obj, key, val);
+		return -ENOTSUP;
 	}
-
-	return 0;
 }
 
 static int mp_zaud_gain_get_property(struct mp_object *obj, uint32_t key, void *val)
@@ -75,10 +73,8 @@ static int mp_zaud_gain_get_property(struct mp_object *obj, uint32_t key, void *
 		*(int *)val = self->gain_percent;
 		return 0;
 	default:
-		return mp_transform_get_property(obj, key, val);
+		return -ENOTSUP;
 	}
-
-	return 0;
 }
 
 static void apply_gain_16bit(struct net_buf *buffer, int32_t gain_fixed)

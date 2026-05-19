@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <errno.h>
+
 #include <zephyr/mp/core/mp_capsfilter.h>
 
 int mp_caps_filter_set_property(struct mp_object *obj, uint32_t key, const void *val)
@@ -16,7 +18,7 @@ int mp_caps_filter_set_property(struct mp_object *obj, uint32_t key, const void 
 		mp_caps_replace(&transform->srcpad.caps, (struct mp_caps *)val);
 		return 0;
 	default:
-		return mp_transform_set_property(obj, key, val);
+		return -ENOTSUP;
 	}
 }
 
@@ -34,7 +36,7 @@ int mp_caps_filter_get_property(struct mp_object *obj, uint32_t key, void *val)
 		val = transform->sinkpad.caps;
 		return 0;
 	default:
-		return mp_transform_get_property(obj, key, val);
+		return -ENOTSUP;
 	}
 }
 

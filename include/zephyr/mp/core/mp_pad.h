@@ -107,8 +107,6 @@ struct mp_pad {
 	int (*queryfn)(struct mp_pad *pad, struct mp_query *query);
 	/** Event function for handling events */
 	int (*eventfn)(struct mp_pad *pad, struct mp_event *event);
-	/** Link function for link validation and doing some pad's specific stuffs */
-	int (*linkfn)(struct mp_pad *pad);
 };
 
 /**

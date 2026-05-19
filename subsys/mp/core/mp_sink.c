@@ -14,16 +14,6 @@ LOG_MODULE_REGISTER(mp_sink, CONFIG_MP_LOG_LEVEL);
 
 #define MP_PAD_SINK_ID 0
 
-int mp_sink_set_property(struct mp_object *obj, uint32_t key, const void *val)
-{
-	return 0;
-}
-
-int mp_sink_get_property(struct mp_object *obj, uint32_t key, void *val)
-{
-	return 0;
-}
-
 void mp_sink_update_caps(struct mp_sink *sink, struct mp_caps *caps)
 {
 	mp_caps_replace(&sink->sink_caps, caps);
@@ -43,29 +33,6 @@ static int mp_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
 
 	mp_caps_replace(&sink->sinkpad.caps, caps);
 
-	return 0;
-}
-
-/* TODO */
-static enum mp_state_change_return mp_sink_change_state(struct mp_element *self,
-							enum mp_state_change transition)
-{
-	enum mp_state_change_return ret = MP_STATE_CHANGE_SUCCESS;
-
-	switch (transition) {
-	case MP_STATE_CHANGE_READY_TO_PAUSED:
-		break;
-	case MP_STATE_CHANGE_PAUSED_TO_PLAYING:
-		break;
-	default:
-		break;
-	}
-
-	return ret;
-}
-
-static int mp_sink_propose_allocation(struct mp_sink *self, struct mp_query *query)
-{
 	return 0;
 }
 
@@ -90,7 +57,11 @@ static int mp_sink_query(struct mp_pad *pad, struct mp_query *query)
 			return mp_query_set_caps(query, self->sink_caps);
 		}
 	case MP_QUERY_ALLOCATION:
-		return self->propose_allocation(self, query);
+		if (self->propose_allocation != NULL) {
+			return self->propose_allocation(self, query);
+		}
+
+		return 0;
 	default:
 		return -ENOTSUP;
 	}
@@ -126,11 +97,7 @@ void mp_sink_init(struct mp_element *self)
 	sink->sinkpad.queryfn = mp_sink_query;
 	sink->sinkpad.eventfn = mp_sink_event;
 
-	self->object.set_property = mp_sink_set_property;
-	self->object.get_property = mp_sink_get_property;
-	self->change_state = mp_sink_change_state;
-
 	sink->get_caps = mp_sink_get_caps;
 	sink->set_caps = mp_sink_set_caps;
-	sink->propose_allocation = mp_sink_propose_allocation;
+	sink->propose_allocation = NULL;
 }

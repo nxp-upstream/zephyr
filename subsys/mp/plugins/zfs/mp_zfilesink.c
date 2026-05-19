@@ -25,7 +25,7 @@ static int mp_zfilesink_set_property(struct mp_object *obj, uint32_t key, const 
 		fsink->path = (const char *)val;
 		return 0;
 	default:
-		return mp_sink_set_property(obj, key, val);
+		return -ENOTSUP;
 	}
 }
 
@@ -38,7 +38,7 @@ static int mp_zfilesink_get_property(struct mp_object *obj, uint32_t key, void *
 		*(const char **)val = fsink->path;
 		return 0;
 	default:
-		return mp_sink_get_property(obj, key, val);
+		return -ENOTSUP;
 	}
 }
 
