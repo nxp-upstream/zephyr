@@ -406,13 +406,6 @@ static int zvid_convert_decide_allocation(struct mp_transform *self, struct mp_q
 	return 0;
 }
 
-static int zvid_convert_propose_allocation(struct mp_transform *self, struct mp_query *query)
-{
-	ARG_UNUSED(self);
-	ARG_UNUSED(query);
-	return 0;
-}
-
 static int zvid_convert_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 				struct net_buf **out_buf)
 {
@@ -516,7 +509,7 @@ void mp_zvid_convert_init(struct mp_element *self)
 	transform->outpool = &conv->out_pool;
 	transform->set_caps = zvid_convert_set_caps;
 	transform->transform_caps = zvid_convert_transform_caps;
-	transform->propose_allocation = zvid_convert_propose_allocation;
+	transform->propose_allocation = NULL;
 	transform->decide_allocation = zvid_convert_decide_allocation;
 	transform->sinkpad.chainfn = zvid_convert_chainfn;
 }

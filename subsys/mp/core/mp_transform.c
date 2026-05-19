@@ -15,16 +15,6 @@ LOG_MODULE_REGISTER(mp_transform, CONFIG_MP_LOG_LEVEL);
 #define MP_PAD_SINK_ID 0
 #define MP_PAD_SRC_ID  1
 
-int mp_transform_set_property(struct mp_object *obj, uint32_t key, const void *val)
-{
-	return 0;
-}
-
-int mp_transform_get_property(struct mp_object *obj, uint32_t key, void *val)
-{
-	return 0;
-}
-
 void mp_transform_update_caps(struct mp_transform *transform, struct mp_caps *sink_caps,
 			      struct mp_caps *src_caps)
 {
@@ -161,16 +151,6 @@ static inline int mp_transform_query_caps(struct mp_transform *self,
 	return ret;
 }
 
-static int mp_transform_decide_allocation(struct mp_transform *self, struct mp_query *query)
-{
-	return 0;
-}
-
-static int mp_transform_propose_allocation(struct mp_transform *self, struct mp_query *query)
-{
-	return 0;
-}
-
 static int mp_transform_query(struct mp_pad *pad, struct mp_query *query)
 {
 	struct mp_transform *self = MP_TRANSFORM(pad->object.container);
@@ -190,10 +170,12 @@ static int mp_transform_query(struct mp_pad *pad, struct mp_query *query)
 		}
 
 		/* Decide allocation for downstream */
-		ret = self->decide_allocation(self, peer_query);
-		if (ret < 0) {
-			mp_query_destroy(peer_query);
-			return ret;
+		if (self->decide_allocation != NULL) {
+			ret = self->decide_allocation(self, peer_query);
+			if (ret < 0) {
+				mp_query_destroy(peer_query);
+				return ret;
+			}
 		}
 
 		/* Configure/start the output buffer pool */
@@ -213,7 +195,11 @@ static int mp_transform_query(struct mp_pad *pad, struct mp_query *query)
 		}
 
 		/* Propose allocation to upstream */
-		return self->propose_allocation(self, query);
+		if (self->propose_allocation != NULL) {
+			return self->propose_allocation(self, query);
+		}
+
+		return 0;
 	default:
 		return -ENOTSUP;
 	}
@@ -305,9 +291,6 @@ void mp_transform_init(struct mp_element *self)
 	mp_element_add_pad(self, &transform->sinkpad);
 	mp_element_add_pad(self, &transform->srcpad);
 
-	self->object.set_property = mp_transform_set_property;
-	self->object.get_property = mp_transform_get_property;
-
 	transform->mode = MP_MODE_PASSTHROUGH;
 	transform->get_caps = mp_transform_get_caps;
 	transform->set_caps = mp_transform_set_caps;
@@ -317,6 +300,6 @@ void mp_transform_init(struct mp_element *self)
 	transform->srcpad.queryfn = mp_transform_query;
 	transform->sinkpad.eventfn = mp_transform_event;
 	transform->srcpad.eventfn = mp_transform_event;
-	transform->decide_allocation = mp_transform_decide_allocation;
-	transform->propose_allocation = mp_transform_propose_allocation;
+	transform->decide_allocation = NULL;
+	transform->propose_allocation = NULL;
 }

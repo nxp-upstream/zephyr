@@ -40,7 +40,7 @@ static int mp_zaud_i2s_codec_sink_set_property(struct mp_object *obj, uint32_t k
 		zaud_i2s_codec_sink->clk_role = (enum mp_zaud_i2s_codec_clk_role)(uintptr_t)val;
 		break;
 	default:
-		return mp_sink_set_property(obj, key, val);
+		return -ENOTSUP;
 	}
 
 	return 0;
@@ -66,8 +66,9 @@ static int mp_zaud_i2s_codec_sink_get_property(struct mp_object *obj, uint32_t k
 		*(enum mp_zaud_i2s_codec_clk_role *)val = zaud_i2s_codec_sink->clk_role;
 		break;
 	default:
-		return mp_sink_get_property(obj, key, val);
+		return -ENOTSUP;
 	}
+
 	return 0;
 }
 

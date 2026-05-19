@@ -85,8 +85,3 @@ k_tid_t mp_thread_create(struct mp_thread *thread, k_thread_entry_t func, void *
 			       &thread_wrapper_args_pool[thread->stack_id], NULL, NULL, priority, 0,
 			       K_NO_WAIT);
 }
-
-void mp_thread_release(struct mp_thread *thread)
-{
-	thread->running = false;
-}

@@ -95,11 +95,6 @@ static int mp_src_query(struct mp_pad *pad, struct mp_query *query)
 	}
 }
 
-static int mp_src_decide_allocation(struct mp_src *self, struct mp_query *query)
-{
-	return 0;
-}
-
 static int mp_src_negotiate(struct mp_src *src)
 {
 	struct mp_caps *common_caps;
@@ -168,10 +163,14 @@ static int mp_src_negotiate(struct mp_src *src)
 	}
 
 	/* Decide the allocation */
-	ret = src->decide_allocation(src, alloc_query);
-	mp_query_destroy(alloc_query);
+	if (src->decide_allocation != NULL) {
+		ret = src->decide_allocation(src, alloc_query);
+		mp_query_destroy(alloc_query);
+		return ret;
+	}
 
-	return ret;
+	mp_query_destroy(alloc_query);
+	return 0;
 }
 
 enum mp_state_change_return mp_src_change_state(struct mp_element *self,
@@ -231,5 +230,5 @@ void mp_src_init(struct mp_element *self)
 	src->get_caps = mp_src_get_caps;
 	src->set_caps = mp_src_set_caps;
 	src->srcpad.queryfn = mp_src_query;
-	src->decide_allocation = mp_src_decide_allocation;
+	src->decide_allocation = NULL;
 }

@@ -76,26 +76,6 @@ struct mp_sink {
 void mp_sink_init(struct mp_element *self);
 
 /**
- * @brief Set property on sink element
- *
- * @param obj Pointer to the @ref mp_object
- * @param key Property key identifier
- * @param val Pointer to the property value
- * @return 0 on success, negative error code on failure
- */
-int mp_sink_set_property(struct mp_object *obj, uint32_t key, const void *val);
-
-/**
- * @brief Get property from sink element
- *
- * @param obj Pointer to the @ref mp_object
- * @param key Property key identifier
- * @param val Pointer to store the retrieved property value
- * @return 0 on success, negative error code on failure
- */
-int mp_sink_get_property(struct mp_object *obj, uint32_t key, void *val);
-
-/**
  * @brief Update the capabilities of a sink element
  *
  * Updates the sink element's capabilities with the provided caps structure.

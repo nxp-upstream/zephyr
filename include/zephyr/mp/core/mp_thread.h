@@ -49,13 +49,6 @@ struct mp_thread {
 k_tid_t mp_thread_create(struct mp_thread *thread, k_thread_entry_t func, void *p1, void *p2,
 			 void *p3, int priority);
 
-/**
- * Release a thread
- *
- * @param thread: pointer to thread structure
- */
-void mp_thread_release(struct mp_thread *thread);
-
 /** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_CORE_MP_THREAD_H_ */

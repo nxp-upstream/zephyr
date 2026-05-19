@@ -157,10 +157,12 @@ static int mp_parser_query(struct mp_pad *pad, struct mp_query *query)
 			return ret;
 		}
 
-		ret = parser->decide_allocation(parser, peer_query);
-		if (ret < 0) {
-			mp_query_destroy(peer_query);
-			return ret;
+		if (parser->decide_allocation != NULL) {
+			ret = parser->decide_allocation(parser, peer_query);
+			if (ret < 0) {
+				mp_query_destroy(peer_query);
+				return ret;
+			}
 		}
 
 		/* Configure/start the output buffer pool */
@@ -180,38 +182,16 @@ static int mp_parser_query(struct mp_pad *pad, struct mp_query *query)
 		}
 
 		/* Propose allocation to upstream */
-		return parser->propose_allocation(parser, query);
+		if (parser->propose_allocation != NULL) {
+			return parser->propose_allocation(parser, query);
+		}
+
+		return 0;
 	default:
 		return -ENOTSUP;
 	}
 }
 
-static enum mp_state_change_return mp_parser_change_state(struct mp_element *element,
-							  enum mp_state_change transition)
-{
-	enum mp_state_change_return ret = MP_STATE_CHANGE_SUCCESS;
-
-	switch (transition) {
-	case MP_STATE_CHANGE_READY_TO_PAUSED:
-		break;
-	case MP_STATE_CHANGE_PAUSED_TO_PLAYING:
-		break;
-	default:
-		break;
-	}
-
-	return ret;
-}
-
-static int mp_parser_decide_allocation(struct mp_parser *self, struct mp_query *query)
-{
-	return 0;
-}
-
-static int mp_parser_propose_allocation(struct mp_parser *self, struct mp_query *query)
-{
-	return 0;
-}
 
 void mp_parser_init(struct mp_element *self)
 {
@@ -229,8 +209,6 @@ void mp_parser_init(struct mp_element *self)
 		    mp_caps_ref(parser->src_caps));
 	mp_element_add_pad(self, &parser->srcpad);
 
-	self->change_state = mp_parser_change_state;
-
 	parser->outpool = NULL;
 	parser->get_caps = mp_parser_get_caps;
 	parser->set_caps = mp_parser_set_caps;
@@ -238,6 +216,6 @@ void mp_parser_init(struct mp_element *self)
 	parser->sinkpad.queryfn = mp_parser_query;
 	parser->srcpad.eventfn = mp_parser_event;
 	parser->sinkpad.eventfn = mp_parser_event;
-	parser->decide_allocation = mp_parser_decide_allocation;
-	parser->propose_allocation = mp_parser_propose_allocation;
+	parser->decide_allocation = NULL;
+	parser->propose_allocation = NULL;
 }

@@ -20,6 +20,10 @@ int mp_object_set_properties(struct mp_object *obj, ...)
 
 	__ASSERT_NO_MSG(obj != NULL);
 
+	if (obj->set_property == NULL) {
+		return -ENOTSUP;
+	}
+
 	va_start(args, obj);
 
 	while (1) {
@@ -32,6 +36,7 @@ int mp_object_set_properties(struct mp_object *obj, ...)
 
 		ret = obj->set_property(obj, key, val);
 		if (ret < 0) {
+			va_end(args);
 			return ret;
 		}
 	}
@@ -50,6 +55,10 @@ int mp_object_get_properties(struct mp_object *obj, ...)
 
 	__ASSERT_NO_MSG(obj != NULL);
 
+	if (obj->get_property == NULL) {
+		return -ENOTSUP;
+	}
+
 	va_start(args, obj);
 
 	while (1) {
@@ -62,6 +71,7 @@ int mp_object_get_properties(struct mp_object *obj, ...)
 
 		ret = obj->get_property(obj, key, val);
 		if (ret < 0) {
+			va_end(args);
 			return ret;
 		}
 	}
