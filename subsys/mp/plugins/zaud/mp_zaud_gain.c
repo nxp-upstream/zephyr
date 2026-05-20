@@ -36,6 +36,8 @@ static int32_t percent_to_fixed_gain(int gain_percent)
 		gain_percent = GAIN_PERCENT_MIN;
 	} else if (gain_percent > GAIN_PERCENT_MAX) {
 		gain_percent = GAIN_PERCENT_MAX;
+	} else {
+		/* gain_percent is within valid range, no clamping needed */
 	}
 
 	/* Convert: gain_percent% → Q16.16 fixed point */
@@ -148,6 +150,8 @@ static void apply_gain_24bit(struct net_buf *buffer, int32_t gain_fixed)
 				temp = 0x7FFFFF;
 			} else if (temp < -0x800000) {
 				temp = -0x800000;
+			} else {
+				/* value within 24-bit range */
 			}
 
 			uint32_t out = (uint32_t)((int32_t)temp) & 0xFFFFFFU;
@@ -171,6 +175,8 @@ static void apply_gain_24bit(struct net_buf *buffer, int32_t gain_fixed)
 				temp = 0x7FFFFF;
 			} else if (temp < -0x800000) {
 				temp = -0x800000;
+			} else {
+				/* value within 24-bit range */
 			}
 			samples[i] = ((int32_t)temp) << 8;
 		}
@@ -221,8 +227,9 @@ static int mp_zaud_gain_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 		/* Apply gain only if not unity (100%) */
 		/* TODO: bitWidth hardcoded */
 		apply_audio_gain(in_buf, zaud_gain->gain_fixed, zaud_gain->bit_width);
+	} else {
+		/* Gain is exactly 100%, pass through without modification */
 	}
-	/* If gain is exactly 100%, pass through without modification */
 
 	/* In-place processing, return same buffer */
 	*out_buf = in_buf;

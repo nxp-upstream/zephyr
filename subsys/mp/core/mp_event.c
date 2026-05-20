@@ -42,7 +42,7 @@ struct mp_event *mp_event_new_caps(struct mp_caps *caps)
 
 void mp_event_destroy(struct mp_event *event)
 {
-	if (event) {
+	if (event != NULL) {
 		mp_structure_destroy(event->structure);
 		k_free(event);
 	}
@@ -66,7 +66,7 @@ int mp_event_set_caps(struct mp_event *event, struct mp_caps *caps)
 
 	struct mp_value *value = mp_structure_get_value(event->structure, MP_EVENT_CAPS);
 
-	if (value) {
+	if (value != NULL) {
 		mp_value_set(value, MP_TYPE_OBJECT, caps);
 	} else {
 		mp_structure_append(event->structure, MP_EVENT_CAPS,

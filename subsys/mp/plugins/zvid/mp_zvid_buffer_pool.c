@@ -158,7 +158,7 @@ static int mp_zvid_buffer_pool_release_buffer(struct mp_buffer_pool *pool, struc
 
 	vbuf->type = zvid_pool->zvid_obj->type;
 	ret = video_enqueue(zvid_pool->zvid_obj->vdev, vbuf);
-	if (ret) {
+	if (ret != 0) {
 		LOG_ERR("Failed to re-enqueue the video buffer");
 	}
 
