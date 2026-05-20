@@ -47,7 +47,11 @@ static int mp_sink_query(struct mp_pad *pad, struct mp_query *query)
 		query_caps = mp_query_get_caps(query);
 		if (query_caps != NULL) {
 			caps_intersect = mp_caps_intersect(self->sink_caps, query_caps);
-			if (caps_intersect == NULL || mp_caps_is_empty(caps_intersect)) {
+			if (caps_intersect == NULL) {
+				return -ENODATA;
+			}
+			if (mp_caps_is_empty(caps_intersect)) {
+				mp_caps_unref(caps_intersect);
 				return -ENODATA;
 			}
 			ret = mp_query_set_caps(query, caps_intersect);

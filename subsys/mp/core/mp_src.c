@@ -81,7 +81,11 @@ static int mp_src_query(struct mp_pad *pad, struct mp_query *query)
 		query_caps = mp_query_get_caps(query);
 		if (query_caps != NULL) {
 			intersect_caps = mp_caps_intersect(src->src_caps, query_caps);
-			if (intersect_caps == NULL || mp_caps_is_empty(intersect_caps)) {
+			if (intersect_caps == NULL) {
+				return -ENODATA;
+			}
+			if (mp_caps_is_empty(intersect_caps)) {
+				mp_caps_unref(intersect_caps);
 				return -ENODATA;
 			}
 			ret = mp_query_set_caps(query, intersect_caps);

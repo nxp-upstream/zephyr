@@ -89,12 +89,21 @@ static inline int mp_transform_query_caps(struct mp_transform *self,
 
 	/* Intersect the query caps with the pad's caps */
 	queried_pad_caps = mp_caps_intersect(mp_query_get_caps(query), this_pad->caps);
-	if (queried_pad_caps == NULL || mp_caps_is_empty(queried_pad_caps)) {
+	if (queried_pad_caps == NULL) {
+		return -ENODATA;
+	}
+	if (mp_caps_is_empty(queried_pad_caps)) {
+		mp_caps_unref(queried_pad_caps);
 		return -ENODATA;
 	}
 
 	transformed_caps = self->transform_caps(self, other_pad->direction, queried_pad_caps);
-	if (transformed_caps == NULL || mp_caps_is_empty(transformed_caps)) {
+	if (transformed_caps == NULL) {
+		mp_caps_unref(queried_pad_caps);
+		return -ENODATA;
+	}
+	if (mp_caps_is_empty(transformed_caps)) {
+		mp_caps_unref(transformed_caps);
 		mp_caps_unref(queried_pad_caps);
 		return -ENODATA;
 	}
@@ -130,7 +139,12 @@ static inline int mp_transform_query_caps(struct mp_transform *self,
 
 	/* Transform back the query_caps */
 	query_back_caps = self->transform_caps(self, this_pad->direction, query_caps);
-	if (query_back_caps == NULL || mp_caps_is_empty(query_back_caps)) {
+	if (query_back_caps == NULL) {
+		mp_caps_unref(queried_pad_caps);
+		return -ENODATA;
+	}
+	if (mp_caps_is_empty(query_back_caps)) {
+		mp_caps_unref(query_back_caps);
 		mp_caps_unref(queried_pad_caps);
 		return -ENODATA;
 	}
@@ -140,7 +154,11 @@ static inline int mp_transform_query_caps(struct mp_transform *self,
 	mp_caps_unref(queried_pad_caps);
 	mp_caps_unref(query_back_caps);
 
-	if (res_caps == NULL || mp_caps_is_empty(res_caps)) {
+	if (res_caps == NULL) {
+		return -ENODATA;
+	}
+	if (mp_caps_is_empty(res_caps)) {
+		mp_caps_unref(res_caps);
 		return -ENODATA;
 	}
 

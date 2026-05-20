@@ -81,7 +81,11 @@ static inline int mp_parser_query_caps(struct mp_parser *self, enum mp_pad_direc
 	}
 
 	queried_pad_caps = mp_caps_intersect(mp_query_get_caps(query), this_caps);
-	if (queried_pad_caps == NULL || mp_caps_is_empty(queried_pad_caps)) {
+	if (queried_pad_caps == NULL) {
+		return -ENODATA;
+	}
+	if (mp_caps_is_empty(queried_pad_caps)) {
+		mp_caps_unref(queried_pad_caps);
 		return -ENODATA;
 	}
 
