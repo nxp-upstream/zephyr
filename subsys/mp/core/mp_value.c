@@ -317,7 +317,7 @@ uint32_t mp_value_get_uint(const struct mp_value *value)
 
 void *mp_value_get_ptr(const struct mp_value *value)
 {
-	return value ? MP_VALUE_SIMPLE_CONST(value)->v_ptr : NULL;
+	return (value != NULL) ? MP_VALUE_SIMPLE_CONST(value)->v_ptr : NULL;
 }
 
 bool mp_value_get_boolean(const struct mp_value *value)
@@ -445,7 +445,7 @@ struct mp_value *mp_value_list_get(const struct mp_value *list, int index)
 		}
 	}
 
-	return value_node ? value_node->value : NULL;
+	return (value_node != NULL) ? value_node->value : NULL;
 }
 
 bool mp_value_list_is_empty(const struct mp_value *list)
@@ -490,7 +490,7 @@ uint32_t mp_value_get_uint_range_step(const struct mp_value *range)
 
 struct mp_object *mp_value_get_object(struct mp_value *value)
 {
-	return value ? MP_VALUE_SIMPLE_CONST(value)->v_obj : NULL;
+	return (value != NULL) ? MP_VALUE_SIMPLE_CONST(value)->v_obj : NULL;
 }
 
 int mp_value_compare_fraction(const struct mp_value *frac1, const struct mp_value *frac2)
@@ -923,7 +923,7 @@ void mp_value_print(const struct mp_value *value, bool new_line)
 
 	mp_value_print_fn print_fn = mp_value_print_table[value->type];
 
-	if (print_fn) {
+	if (print_fn != NULL) {
 		print_fn(value);
 	}
 

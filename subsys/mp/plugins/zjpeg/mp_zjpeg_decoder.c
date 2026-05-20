@@ -296,6 +296,8 @@ static struct mp_caps *mp_zjpeg_decoder_transform_caps(struct mp_transform *tran
 				mp_structure_append(ns, MP_CAPS_FRAME_RATE, mp_value_duplicate(fr));
 			}
 			mp_caps_append(out, ns);
+		} else {
+			/* Unknown direction: skip this structure */
 		}
 	}
 

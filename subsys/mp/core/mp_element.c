@@ -93,7 +93,7 @@ int mp_element_link(struct mp_element *element, struct mp_element *next_element,
 
 enum mp_state_change_return mp_element_set_state(struct mp_element *element, enum mp_state state)
 {
-	if (element->set_state) {
+	if (element->set_state != NULL) {
 		return element->set_state(element, state);
 	}
 

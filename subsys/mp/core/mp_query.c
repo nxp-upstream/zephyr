@@ -56,7 +56,7 @@ int mp_query_set_caps(struct mp_query *query, struct mp_caps *caps)
 
 	struct mp_value *value = mp_structure_get_value(&query->structure, MP_QUERY_CAPS);
 
-	if (value) {
+	if (value != NULL) {
 		mp_value_set(value, MP_TYPE_OBJECT, caps);
 	} else {
 		mp_structure_append(&query->structure, MP_QUERY_CAPS,

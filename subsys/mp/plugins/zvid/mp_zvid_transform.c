@@ -47,7 +47,7 @@ static int mp_zvid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	struct video_buffer *vbuf =
 		&(struct video_buffer){.type = zvid_transform->zvid_obj_in.type};
 	ret = video_dequeue(zvid_transform->zvid_obj_in.vdev, &vbuf, K_FOREVER);
-	if (ret) {
+	if (ret != 0) {
 		LOG_ERR("Failed to dequeue input buffer");
 		return -EIO;
 	}

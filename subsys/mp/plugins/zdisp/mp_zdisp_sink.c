@@ -68,7 +68,7 @@ static int mp_zdisp_sink_setup(struct mp_zdisp_sink *zdisp_sink,
 	int ret = 0;
 
 	ret = display_set_pixel_format(zdisp_sink->display_dev, pixfmt);
-	if (ret) {
+	if (ret != 0) {
 		LOG_ERR("Unable to set display format");
 		return ret;
 	}

@@ -365,6 +365,8 @@ static struct mp_caps *zvid_convert_transform_caps(struct mp_transform *self,
 					}
 				}
 			}
+		} else {
+			/* pix is NULL or unsupported type: skip */
 		}
 
 		if (mp_value_list_is_empty(out_fmts)) {

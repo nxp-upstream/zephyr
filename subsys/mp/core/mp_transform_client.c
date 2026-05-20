@@ -101,6 +101,8 @@ static int mp_transform_client_decide_allocation(struct mp_transform *self, stru
 			pool_config->align = qpc->align;
 		} else if (align != 0) {
 			pool_config->align = align;
+		} else {
+			/* align == 0 && qpc->align == 0: no change needed */
 		}
 	}
 

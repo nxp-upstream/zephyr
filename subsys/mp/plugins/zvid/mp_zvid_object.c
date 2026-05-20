@@ -343,6 +343,8 @@ int mp_zvid_object_decide_allocation(struct mp_zvid_object *zvid_obj, struct mp_
 			pool_config->align = qpc->align;
 		} else if (align != 0) {
 			pool_config->align = align;
+		} else {
+			/* align == 0 && qpc->align == 0: no change needed */
 		}
 	}
 
