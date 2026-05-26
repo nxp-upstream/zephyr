@@ -1,0 +1,28 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * RT5xx wake from deep sleep requires the USART to be clocked from the
+ * 32KHZWAKE rail via MODE32K. MODE32K is engaged at SoC init for any
+ * flexcomm USART with wakeup-source set, which caps baud to divisors of
+ * 9600 (1200, 2400, 4800, 9600) for the life of the peripheral. The
+ * remote terminal must be configured to match.
+ */
+&flexcomm0 {
+	wakeup-source;
+	low-power-states = <&suspend>;
+	current-speed = <9600>;
+};
+
+/*
+ * flexcomm12 is configured as USART on the board DTS but does not yet
+ * have a "sleep" clock-name entry in the SoC dtsi. Disable it so the
+ * driver's wake-related macro expansion does not fail to compile when
+ * wakeup-source is set on any flexcomm.
+ */
+&flexcomm12 {
+	status = "disabled";
+};
