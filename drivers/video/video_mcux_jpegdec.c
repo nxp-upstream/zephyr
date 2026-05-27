@@ -10,7 +10,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <fsl_jpegdec.h>
-#include "video_device.h"
+#include "video_common.h"
 
 #define DT_DRV_COMPAT nxp_jpegdec
 
