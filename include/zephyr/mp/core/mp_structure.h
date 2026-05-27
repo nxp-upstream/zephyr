@@ -107,7 +107,7 @@ struct mp_structure *mp_structure_new(uint8_t media_type_id, ...);
  * @param structure Structure to initialize.
  * @param media_type_id Media type ID of the structure.
  */
-void mp_structure_init(struct mp_structure *structure, uint8_t media_type_id);
+int mp_structure_init(struct mp_structure *structure, uint8_t media_type_id);
 
 /**
  * @brief Append a field to an @ref mp_structure

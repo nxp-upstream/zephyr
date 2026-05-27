@@ -30,13 +30,18 @@ static void mp_caps_destroy(struct mp_object *obj)
 	k_free(obj);
 }
 
-void mp_caps_init(struct mp_caps *caps, uint8_t flag)
+int mp_caps_init(struct mp_caps *caps, uint8_t flag)
 {
-	__ASSERT_NO_MSG(caps != NULL);
+	if (caps == NULL) {
+		return -EINVAL;
+	}
+
 	sys_slist_init(&caps->caps_structures);
 	caps->object.release = mp_caps_destroy;
 	caps->object.ref = ATOMIC_INIT(0);
 	caps->object.flags = flag;
+
+	return 0;
 }
 
 static struct mp_caps *mp_caps_new_empty_with_flag(uint8_t flags)
@@ -101,17 +106,23 @@ struct mp_caps *mp_caps_new(uint8_t media_type_id, ...)
 	return caps;
 }
 
-void mp_caps_replace(struct mp_caps **target_caps, struct mp_caps *new_caps)
+int mp_caps_replace(struct mp_caps **target_caps, struct mp_caps *new_caps)
 {
-	__ASSERT_NO_MSG(target_caps != NULL);
+	struct mp_caps *old_caps;
 
-	struct mp_caps *old_caps = *target_caps;
+	if (target_caps == NULL || new_caps == NULL) {
+		return -EINVAL;
+	}
+
+	old_caps = *target_caps;
 
 	/* Update the target with a new reference */
 	*target_caps = mp_caps_ref(new_caps);
 
 	/* Release the old reference */
 	mp_caps_unref(old_caps);
+
+	return 0;
 }
 
 int mp_caps_append(struct mp_caps *caps, struct mp_structure *structure)

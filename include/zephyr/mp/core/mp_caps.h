@@ -140,7 +140,7 @@ struct mp_caps *mp_caps_new_any(void);
  * @param caps Pointer to @ref mp_caps to initialize
  * @param flag Initialization flags (i.e., 0 if no flag or MP_CAPS_FLAG_ANY)
  */
-void mp_caps_init(struct mp_caps *caps, uint8_t flag);
+int mp_caps_init(struct mp_caps *caps, uint8_t flag);
 
 /**
  * @brief Append a structure to the @ref mp_caps.
@@ -250,6 +250,10 @@ void mp_caps_print(struct mp_caps *caps);
  */
 static inline struct mp_caps *mp_caps_ref(struct mp_caps *caps)
 {
+	if (caps == NULL) {
+		return NULL;
+	}
+
 	return (struct mp_caps *)mp_object_ref(&caps->object);
 }
 
@@ -260,6 +264,10 @@ static inline struct mp_caps *mp_caps_ref(struct mp_caps *caps)
  */
 static inline void mp_caps_unref(struct mp_caps *caps)
 {
+	if (caps == NULL) {
+		return;
+	}
+
 	mp_object_unref(&caps->object);
 }
 
@@ -269,7 +277,7 @@ static inline void mp_caps_unref(struct mp_caps *caps)
  * @param target_caps Pointer to the target @ref mp_caps pointer
  * @param new_caps Pointer to the new @ref mp_caps object
  */
-void mp_caps_replace(struct mp_caps **target_caps, struct mp_caps *new_caps);
+int mp_caps_replace(struct mp_caps **target_caps, struct mp_caps *new_caps);
 
 /** @} */
 

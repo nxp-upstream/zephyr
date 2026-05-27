@@ -20,12 +20,16 @@ struct mp_structure_field {
 	sys_snode_t node;
 };
 
-void mp_structure_init(struct mp_structure *structure, uint8_t media_type_id)
+int mp_structure_init(struct mp_structure *structure, uint8_t media_type_id)
 {
-	if (structure != NULL) {
-		structure->media_type_id = media_type_id;
-		sys_slist_init(&structure->fields);
+	if (structure == NULL) {
+		return -EINVAL;
 	}
+
+	structure->media_type_id = media_type_id;
+	sys_slist_init(&structure->fields);
+
+	return 0;
 }
 
 struct mp_structure *mp_structure_new_empty(uint8_t media_type_id)
@@ -281,8 +285,14 @@ bool mp_structure_is_fixed(struct mp_structure *structure)
 struct mp_structure *mp_structure_fixate(struct mp_structure *src)
 {
 	struct mp_structure_field *field;
-	struct mp_structure *fixated_structure = mp_structure_new_empty(src->media_type_id);
+	struct mp_structure *fixated_structure;
 	struct mp_value *fixated_value;
+
+	if (src == NULL) {
+		return NULL;
+	}
+
+	fixated_structure = mp_structure_new_empty(src->media_type_id);
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&src->fields, field, node) {
 		switch (field->value->type) {

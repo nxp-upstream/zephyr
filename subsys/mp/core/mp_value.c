@@ -168,23 +168,38 @@ bool mp_value_is_primitive(const struct mp_value *value)
 		BIT(value->type)) != 0;
 }
 
-static void mp_value_set_range(struct mp_value *value, int type, va_list *args)
+static int mp_value_set_range(struct mp_value *value, int type, va_list *args)
 {
+	if (value == NULL) {
+		return -EINVAL;
+	}
+
 	value->type = type;
 	MP_VALUE_RANGE(value)->min.v_uint = va_arg(*args, uint32_t);
 	MP_VALUE_RANGE(value)->max.v_uint = va_arg(*args, uint32_t);
 	MP_VALUE_RANGE(value)->step.v_uint = va_arg(*args, uint32_t);
+
+	return 0;
 }
 
-static void mp_value_set_fraction(struct mp_value *value, int type, va_list *args)
+static int mp_value_set_fraction(struct mp_value *value, int type, va_list *args)
 {
 	uint32_t gcd = 1;
+
+	if (value == NULL) {
+		return -EINVAL;
+	}
 
 	value->type = type;
 
 	MP_VALUE_FRACTION(value)->num.v_uint = va_arg(*args, uint32_t);
 	MP_VALUE_FRACTION(value)->denom.v_uint = va_arg(*args, uint32_t);
-	__ASSERT_NO_MSG(MP_VALUE_FRACTION(value)->denom.v_uint != 0);
+
+	if (MP_VALUE_FRACTION(value)->denom.v_uint == 0) {
+		LOG_ERR("Fraction denominator cannot be zero");
+		return -EINVAL;
+	}
+
 	if (type == MP_TYPE_INT_FRACTION) {
 		gcd = sys_gcd(MP_VALUE_FRACTION(value)->num.v_int,
 			      MP_VALUE_FRACTION(value)->denom.v_int);
@@ -196,34 +211,65 @@ static void mp_value_set_fraction(struct mp_value *value, int type, va_list *arg
 		MP_VALUE_FRACTION(value)->num.v_uint /= gcd;
 		MP_VALUE_FRACTION(value)->denom.v_uint /= gcd;
 	} else {
-		LOG_ERR("Invalid fraction type");
+		LOG_ERR("Invalid fraction type: %d", type);
+		return -EINVAL;
 	}
+
+	return 0;
 }
 
-static void mp_value_set_fraction_range(struct mp_value *value, int type, va_list *args)
+static int mp_value_set_fraction_range(struct mp_value *value, int type, va_list *args)
 {
+	int ret;
 	int base_type = (type == MP_TYPE_UINT_FRACTION_RANGE) ? MP_TYPE_UINT_FRACTION
 							      : MP_TYPE_INT_FRACTION;
 
+	if (value == NULL) {
+		return -EINVAL;
+	}
+
 	value->type = type;
-	mp_value_set_fraction(MP_VALUE(&MP_VALUE_FRACTION_RANGE(value)->min), base_type, args);
-	mp_value_set_fraction(MP_VALUE(&MP_VALUE_FRACTION_RANGE(value)->max), base_type, args);
-	mp_value_set_fraction(MP_VALUE(&MP_VALUE_FRACTION_RANGE(value)->step), base_type, args);
+
+	ret = mp_value_set_fraction(MP_VALUE(&MP_VALUE_FRACTION_RANGE(value)->min), base_type,
+				    args);
+	if (ret < 0) {
+		return ret;
+	}
+
+	ret = mp_value_set_fraction(MP_VALUE(&MP_VALUE_FRACTION_RANGE(value)->max), base_type,
+				    args);
+	if (ret < 0) {
+		return ret;
+	}
+
+	ret = mp_value_set_fraction(MP_VALUE(&MP_VALUE_FRACTION_RANGE(value)->step), base_type,
+				    args);
+	if (ret < 0) {
+		return ret;
+	}
+
+	return 0;
 }
 
-static void mp_value_set_list(struct mp_value *value, va_list *args)
+static int mp_value_set_list(struct mp_value *value, va_list *args)
 {
 	struct mp_value *list_item;
+	int ret;
 
 	while ((list_item = va_arg(*args, struct mp_value *)) != NULL) {
-		mp_value_list_append(value, list_item);
+		ret = mp_value_list_append(value, list_item);
+		if (ret < 0) {
+			return ret;
+		}
 	}
+
+	return 0;
 }
 
-static void mp_value_set_va_list(struct mp_value *value, int type, va_list *args)
+static int mp_value_set_va_list(struct mp_value *value, int type, va_list *args)
 {
 	if (value == NULL) {
-		return;
+		return -EINVAL;
 	}
 
 	value->type = type;
@@ -248,31 +294,33 @@ static void mp_value_set_va_list(struct mp_value *value, int type, va_list *args
 		break;
 	case MP_TYPE_UINT_FRACTION:
 	case MP_TYPE_INT_FRACTION:
-		mp_value_set_fraction(value, type, args);
-		break;
+		return mp_value_set_fraction(value, type, args);
 	case MP_TYPE_INT_RANGE:
 	case MP_TYPE_UINT_RANGE:
-		mp_value_set_range(value, type, args);
-		break;
+		return mp_value_set_range(value, type, args);
 	case MP_TYPE_UINT_FRACTION_RANGE:
 	case MP_TYPE_INT_FRACTION_RANGE:
-		mp_value_set_fraction_range(value, type, args);
-		break;
+		return mp_value_set_fraction_range(value, type, args);
 	case MP_TYPE_LIST:
-		mp_value_set_list(value, args);
-		break;
+		return mp_value_set_list(value, args);
 	default:
-		break;
+		LOG_ERR("Unknown mp_value type: %d", type);
+		return -EINVAL;
 	}
+
+	return 0;
 }
 
-void mp_value_set(struct mp_value *value, int type, ...)
+int mp_value_set(struct mp_value *value, int type, ...)
 {
 	va_list args;
+	int ret;
 
 	va_start(args, type);
-	mp_value_set_va_list(value, type, &args);
+	ret = mp_value_set_va_list(value, type, &args);
 	va_end(args);
+
+	return ret;
 }
 
 int mp_value_get_fraction_numerator(const struct mp_value *frac)
@@ -348,14 +396,24 @@ struct mp_value *mp_value_new_empty(enum mp_value_type type)
 	return value;
 }
 
-void mp_value_destroy(struct mp_value *value)
+int mp_value_destroy(struct mp_value *value)
 {
 	struct mp_value_node *value_node;
+	sys_snode_t *node;
+
+	if (value == NULL) {
+		return -EINVAL;
+	}
 
 	if (value->type == MP_TYPE_LIST) {
 		while (!sys_slist_is_empty(&MP_VALUE_LIST(value)->v_list)) {
-			value_node = CONTAINER_OF(sys_slist_get(&MP_VALUE_LIST(value)->v_list),
-						  struct mp_value_node, node);
+			node = sys_slist_get(&MP_VALUE_LIST(value)->v_list);
+			if (node == NULL) {
+				k_free(value);
+				return -EIO;
+			}
+
+			value_node = CONTAINER_OF(node, struct mp_value_node, node);
 			mp_value_destroy(value_node->value);
 			k_free(value_node);
 		}
@@ -366,6 +424,8 @@ void mp_value_destroy(struct mp_value *value)
 	}
 
 	k_free(value);
+
+	return 0;
 }
 
 struct mp_value *mp_value_new(enum mp_value_type type, ...)
@@ -385,20 +445,46 @@ struct mp_value *mp_value_new(enum mp_value_type type, ...)
 
 struct mp_value *mp_value_new_va_list(enum mp_value_type type, va_list *args)
 {
+	int ret;
 	struct mp_value *value = mp_value_new_empty(type);
 
-	mp_value_set_va_list(value, type, args);
+	if (value == NULL) {
+		return NULL;
+	}
+
+	ret = mp_value_set_va_list(value, type, args);
+	if (ret < 0) {
+		LOG_ERR("Failed to set mp_value type %d: %d", type, ret);
+		mp_value_destroy(value);
+		return NULL;
+	}
 
 	return value;
 }
 
-static void mp_value_copy(struct mp_value *dst, const struct mp_value *src)
+static int mp_value_copy(struct mp_value *dst, const struct mp_value *src)
 {
+	int ret;
+
+	if (dst == NULL || src == NULL) {
+		return -EINVAL;
+	}
+
 	if (src->type == MP_TYPE_LIST) {
 		struct mp_value_node *v_node;
 
 		SYS_SLIST_FOR_EACH_CONTAINER(&MP_VALUE_LIST(src)->v_list, v_node, node) {
-			mp_value_list_append(dst, mp_value_duplicate(v_node->value));
+			struct mp_value *dup = mp_value_duplicate(v_node->value);
+
+			if (dup == NULL) {
+				return -ENOMEM;
+			}
+
+			ret = mp_value_list_append(dst, dup);
+			if (ret < 0) {
+				mp_value_destroy(dup);
+				return ret;
+			}
 		}
 	} else if (src->type == MP_TYPE_OBJECT) {
 		MP_VALUE_SIMPLE(dst)->v_obj = MP_VALUE_SIMPLE(src)->v_obj;
@@ -406,30 +492,51 @@ static void mp_value_copy(struct mp_value *dst, const struct mp_value *src)
 	} else {
 		memcpy(dst, src, mp_value_type_sizes[src->type]);
 	}
+
+	return 0;
 }
 
 struct mp_value *mp_value_duplicate(const struct mp_value *value)
 {
-	struct mp_value *dup_value = mp_value_new_empty(value->type);
+	struct mp_value *dup_value;
+	int ret;
 
+	if (value == NULL) {
+		return NULL;
+	}
+
+	dup_value = mp_value_new_empty(value->type);
 	if (dup_value == NULL) {
 		return NULL;
 	}
 
-	mp_value_copy(dup_value, value);
+	ret = mp_value_copy(dup_value, value);
+	if (ret < 0) {
+		LOG_ERR("Failed to copy mp_value: %d", ret);
+		mp_value_destroy(dup_value);
+		return NULL;
+	}
 
 	return dup_value;
 }
 
-void mp_value_list_append(struct mp_value *list, struct mp_value *append_value)
+int mp_value_list_append(struct mp_value *list, struct mp_value *append_value)
 {
 	struct mp_value_node *node;
 
-	__ASSERT_NO_MSG(append_value != NULL && list != NULL);
+	if (list == NULL || append_value == NULL) {
+		return -EINVAL;
+	}
+
 	node = k_malloc(sizeof(struct mp_value_node));
-	__ASSERT_NO_MSG(node != NULL);
+	if (node == NULL) {
+		return -ENOMEM;
+	}
+
 	node->value = append_value;
 	sys_slist_append(&MP_VALUE_LIST(list)->v_list, &node->node);
+
+	return 0;
 }
 
 struct mp_value *mp_value_list_get(const struct mp_value *list, int index)
@@ -517,6 +624,10 @@ int mp_value_compare(const struct mp_value *val1, const struct mp_value *val2)
 {
 	bool is_equal;
 
+	if (val1 == NULL || val2 == NULL) {
+		return MP_VALUE_COMPARE_FAILED;
+	}
+
 	if (val1->type != val2->type) {
 		return MP_VALUE_COMPARE_FAILED;
 	}
@@ -577,7 +688,7 @@ int mp_value_compare(const struct mp_value *val1, const struct mp_value *val2)
 static int mp_value_list_compare(const struct mp_value *list1, const struct mp_value *list2)
 {
 	int size1 = mp_value_list_get_size(list1);
-	int size2 = mp_value_list_get_size(list1);
+	int size2 = mp_value_list_get_size(list2);
 	int count_matched = 0;
 	struct mp_value_node *v_node1, *v_node2;
 

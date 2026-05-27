@@ -86,9 +86,8 @@ struct mp_value {
  * @param type The type of the value to create.
  * @param ... Variadic arguments used to initialize the value, depending on the specified type.
  *
- * @return Pointer to the newly created mp_value,  NULL if memory allocation fails or an invalid
- type
- * or argument list is provided.
+ * @return Pointer to the newly created mp_value, NULL if memory allocation fails or an invalid
+ *         type or argument list is provided.
  */
 struct mp_value *mp_value_new(enum mp_value_type type, ...);
 
@@ -105,57 +104,70 @@ struct mp_value *mp_value_new(enum mp_value_type type, ...);
 struct mp_value *mp_value_new_va_list(enum mp_value_type type, va_list *args);
 
 /**
- * Create an empty value with given type
+ * @brief Create an empty value with given type.
  *
  * @param type type of value
- * @return empty value with given type
+ *
+ * @return Pointer to the newly created mp_value, or NULL on failure.
  */
 struct mp_value *mp_value_new_empty(enum mp_value_type type);
 
 /**
- * Destroy value
+ * @brief Destroy a value and release its resources.
  *
  * @param value value to destroy
+ *
+ * @return 0 on success, -EINVAL if value is NULL
  */
-void mp_value_destroy(struct mp_value *value);
+int mp_value_destroy(struct mp_value *value);
 
 /**
- * Get list size
+ * @brief Get list size.
  *
  * @param list list of values
+ *
  * @return size of list
  */
 size_t mp_value_list_get_size(const struct mp_value *list);
 
 /**
- * Return true if list is empty
+ * @brief Return true if list is empty.
  *
- * @param list: list of values
+ * @param list list of values
+ *
+ * @return true if list is empty, false otherwise
  */
 bool mp_value_list_is_empty(const struct mp_value *list);
 
 /**
- * Append value to list
+ * @brief Append value to list.
  *
  * @param list list to append to
  * @param append_value value to append
+ *
+ * @return 0 on success, -EINVAL if arguments are invalid, -ENOMEM on allocation failure
  */
-void mp_value_list_append(struct mp_value *list, struct mp_value *append_value);
+int mp_value_list_append(struct mp_value *list, struct mp_value *append_value);
 
 /**
- * Set values to type
+ * @brief Set values to type.
+ *
  * @param value value to set
  * @param type type of value
  * @param ... Variadic arguments used to initialize the value,
- * same rule as @ref mp_value_new()
+ *            same rule as @ref mp_value_new()
+ *
+ * @return 0 on success, -EINVAL if value is NULL or type/arguments are invalid
  */
-void mp_value_set(struct mp_value *value, int type, ...);
+int mp_value_set(struct mp_value *value, int type, ...);
 
 /**
- * Get value at index in list
+ * @brief Get value at index in list.
+ *
  * @param list list of value
  * @param index index of value to get from list
- * @return (nullable) value at given index in list
+ *
+ * @return value at given index in list, or NULL if not found
  */
 struct mp_value *mp_value_list_get(const struct mp_value *list, int index);
 
@@ -293,7 +305,7 @@ bool mp_value_can_intersect(const struct mp_value *val1, const struct mp_value *
  * Duplicate value
  *
  * @param value value to duplicate
- * @return new value with same type and data as original value
+ * @return new value with same type and data as original value, or NULL on failure
  * @note For string only pointer is copied, not string itself.
  */
 struct mp_value *mp_value_duplicate(const struct mp_value *value);
