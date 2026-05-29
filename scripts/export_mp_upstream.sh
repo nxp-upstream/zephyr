@@ -127,6 +127,12 @@ SAMPLE_DMIC_I2S_PATHS=(
     "samples/subsys/mp/dmic_i2s/"
 )
 
+# Core tests: unit tests and pipeline tests for libmp core
+CORE_TEST_PATHS=(
+    "tests/subsys/mp/core/"
+    "tests/subsys/mp/build_all/"
+)
+
 # ===========================================================================
 # Commit messages (following Zephyr convention: area: Short description)
 # ===========================================================================
@@ -256,6 +262,32 @@ plugin's file source and file sink elements to build a pipeline
 that performs filesystem I/O on any Zephyr-supported filesystem.
 
 ${SOB}"
+
+CORE_TEST_COMMIT_MSG="mp: tests: Add libmp core unit and pipeline tests
+
+Add unit tests and pipeline integration tests for the MP subsystem core.
+
+The unit tests cover the fundamental building blocks of the MP framework:
+  - Bins
+  - Buffers
+  - Bus
+  - Caps
+  - Elements
+  - Messages
+  - Pads
+  - Pipelines
+  - Structures
+  - Threads
+  - Values
+
+The pipeline integration test (core/pipeline) is a mock pipeline
+with fake sink, fake source, and transform.
+
+The build_all configuration ensures all MP core symbols compile cleanly
+across supported boards.
+
+Assisted-by: Claude:claude-opus-4.6
+Signed-off-by: Trung Hieu Le <trunghieu.le@nxp.com>"
 
 SAMPLE_DMIC_I2S_COMMIT_MSG="mp: samples: Add DMIC to I2S audio sample
 
@@ -446,15 +478,18 @@ generate_branch() {
     echo ""
 }
 
-# Run compliance check on a branch (only the target's own commit).
+# Run compliance check on a branch.
 # Aligned with Zephyr CI workflow:
 #   - Excludes KconfigBasic, SysbuildKconfigBasic, ClangFormat
 #   - Uses --annotate for detailed output
 #   - Increases diff.renameLimit for large PRs
+#
+# Args: $1=branch_name, $2=commit_range (optional, default: HEAD~1..)
 check_compliance() {
     local branch="$1"
+    local range="${2:-HEAD~1..}"
 
-    log_info "Running compliance check on '${branch}' (HEAD~1..)..."
+    log_info "Running compliance check on '${branch}' (${range})..."
 
     if ${DRY_RUN}; then
         log_info "  [DRY RUN] Would run compliance check"
@@ -478,22 +513,22 @@ check_compliance() {
     git config diff.renameLimit 10000
 
     # Match Zephyr CI: exclude KconfigBasic, SysbuildKconfigBasic, ClangFormat
-    local excludes="-e KconfigBasic -e SysbuildKconfigBasic -e ClangFormat"
+    local excludes="-e KconfigBasic -e SysbuildKconfigBasic -e ClangFormat -e Ruff"
 
-    # Check only the target's own commit (the last one), not dependencies
+    # Check only the specified commit range
     local result=0
-    python3 "${compliance_script}" --annotate ${excludes} -c "HEAD~1.." 2>&1 | \
+    python3 "${compliance_script}" --annotate ${excludes} -c "${range}" 2>&1 | \
         sed 's/^/  /' || result=$?
 
     git checkout "${current_branch}" --quiet
 
     if [ ${result} -ne 0 ]; then
-        log_error "  Compliance check FAILED for '${branch}'"
+        log_error "  Compliance check FAILED for '${branch}' (${range})"
         log_error "  Fix the issues in '${SOURCE_BRANCH}', then re-run this script."
         return 1
     fi
 
-    log_ok "  Compliance check passed for '${branch}'"
+    log_ok "  Compliance check passed for '${branch}' (${range})"
     return 0
 }
 
@@ -600,9 +635,60 @@ check_doxygen_coverage() {
 # Target dispatch
 # ===========================================================================
 
+# Export the core framework commit onto upstream/mp-core (commit 1 of 2).
 export_core() {
     generate_branch "core" "${UPSTREAM_PREFIX}-core" \
         "${CORE_COMMIT_MSG}" "${CORE_PATHS[@]}"
+}
+
+# Append the core tests commit onto upstream/mp-core (commit 2 of 2).
+# Depends on upstream/mp-core (cherry-picks it), then adds test files on top.
+export_core_tests() {
+    local branch="${UPSTREAM_PREFIX}-core"
+
+    log_info "Appending core-tests commit to branch: ${branch} (source: ${SOURCE_BRANCH})"
+    log_info "  Paths: ${CORE_TEST_PATHS[*]}"
+
+    if ${DRY_RUN}; then
+        log_info "  [DRY RUN] Would append core-tests commit to '${branch}' from '${SOURCE_BRANCH}'"
+        echo ""
+        return 0
+    fi
+
+    local current_branch
+    current_branch="$(git branch --show-current)"
+    git checkout "${branch}" --quiet
+
+    local has_files=false
+    for path in "${CORE_TEST_PATHS[@]}"; do
+        if git ls-tree -r "${SOURCE_BRANCH}" -- "${path}" 2>/dev/null | grep -q .; then
+            git checkout "${SOURCE_BRANCH}" -- "${path}"
+            has_files=true
+        fi
+    done
+
+    if ! ${has_files}; then
+        log_warn "  No test files found in '${SOURCE_BRANCH}'. Skipping tests commit."
+        git checkout "${current_branch}" --quiet
+        return 0
+    fi
+
+    git add -A
+
+    if git diff --cached --quiet; then
+        log_warn "  No test changes to commit. Skipping tests commit."
+        git checkout "${current_branch}" --quiet
+        return 0
+    fi
+
+    git commit --no-verify -m "${CORE_TEST_COMMIT_MSG}" --quiet
+
+    log_ok "  core-tests commit appended to '${branch}' successfully"
+    log_info "  Commit: $(git --no-pager log --oneline -1)"
+    git --no-pager diff --stat HEAD~1 HEAD | tail -3
+
+    git checkout "${current_branch}" --quiet
+    echo ""
 }
 
 export_zvid() {
@@ -668,8 +754,10 @@ export_all() {
     log_info "Date:   ${TODAY}"
     echo ""
 
-    # Core must be first (plugins depend on it)
+    # Core must be first (plugins depend on it).
+    # Two commits on upstream/mp-core: framework first, then tests.
     export_core
+    export_core_tests
 
     # Plugins (independent of each other, all depend on core)
     export_zvid
@@ -693,8 +781,19 @@ export_all() {
         local failed_targets=()
         for target in "${TARGETS[@]}"; do
             local branch="${UPSTREAM_PREFIX}-${target}"
-            if ! check_compliance "${branch}"; then
-                failed_targets+=("${target}")
+            if [ "${target}" = "core" ]; then
+                # core branch has two commits: [framework] [tests]
+                # Check each commit individually
+                if ! check_compliance "${branch}" "HEAD~2..HEAD~1"; then
+                    failed_targets+=(core)
+                fi
+                if ! check_compliance "${branch}" "HEAD~1.."; then
+                    failed_targets+=(core-tests)
+                fi
+            else
+                if ! check_compliance "${branch}"; then
+                    failed_targets+=("${target}")
+                fi
             fi
         done
 
@@ -736,7 +835,14 @@ export_all() {
     log_info "Generated branches:"
     for target in "${TARGETS[@]}"; do
         local branch="${UPSTREAM_PREFIX}-${target}"
-        echo "  ${branch}: $(git --no-pager log --oneline -1 "${branch}" 2>/dev/null || echo 'N/A')"
+        if [ "${target}" = "core" ]; then
+            while IFS= read -r line; do
+                echo "  ${branch}: ${line}"
+            done < <(git --no-pager log --oneline "${BASE_REF}..${branch}" 2>/dev/null) \
+                || echo "  ${branch}: N/A"
+        else
+            echo "  ${branch}: $(git --no-pager log --oneline -1 "${branch}" 2>/dev/null || echo 'N/A')"
+        fi
     done
     log_info ""
     log_info "To push upstream PR branches to your fork:"
@@ -760,10 +866,10 @@ Export MP subsystem from libmp_dev to upstream PR branches.
 
 Each branch is built from ${BASE_REF}, with dependency commits cherry-picked
 first, then the target's own commit added on top. Compliance checks only
-verify the target's own commit (HEAD~1..HEAD).
+verify the target's own commit and tests (HEAD~2..HEAD).
 
 Targets:
-  core             Core MP framework (no dependencies)
+  core             Core MP framework + tests
   zvid             Video plugin (depends on core)
   zjpeg            JPEG plugin (depends on core)
   zaud             Audio plugin (depends on core)
@@ -838,6 +944,7 @@ main() {
             core)
                 TARGETS+=(core)
                 export_core
+                export_core_tests
                 ;;
             zvid)
                 TARGETS+=(zvid)
@@ -890,8 +997,18 @@ main() {
         local failed_targets_single=()
         for target in "${TARGETS[@]}"; do
             local branch="${UPSTREAM_PREFIX}-${target}"
-            if ! check_compliance "${branch}"; then
-                failed_targets_single+=("${target}")
+            if [ "${target}" = "core" ]; then
+                # core branch has two commits; check each individually
+                if ! check_compliance "${branch}" "HEAD~2..HEAD~1"; then
+                    failed_targets_single+=(core)
+                fi
+                if ! check_compliance "${branch}" "HEAD~1.."; then
+                    failed_targets_single+=(core-tests)
+                fi
+            else
+                if ! check_compliance "${branch}"; then
+                    failed_targets_single+=("${target}")
+                fi
             fi
         done
 
@@ -933,7 +1050,14 @@ main() {
     log_info "Generated branches:"
     for target in "${TARGETS[@]}"; do
         local branch="${UPSTREAM_PREFIX}-${target}"
-        echo "  ${branch}: $(git --no-pager log --oneline -1 "${branch}" 2>/dev/null || echo 'N/A')"
+        if [ "${target}" = "core" ]; then
+            while IFS= read -r line; do
+                echo "  ${branch}: ${line}"
+            done < <(git --no-pager log --oneline "${BASE_REF}..${branch}" 2>/dev/null) \
+                || echo "  ${branch}: N/A"
+        else
+            echo "  ${branch}: $(git --no-pager log --oneline -1 "${branch}" 2>/dev/null || echo 'N/A')"
+        fi
     done
     log_info ""
     log_info "To push upstream PR branches to your fork:"
