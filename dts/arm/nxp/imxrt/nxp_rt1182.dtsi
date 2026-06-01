@@ -132,3 +132,43 @@
 &gpio6 {
 	status = "disabled";
 };
+
+/* RT1182 only has 8 LPUART blocks */
+/delete-node/ &lpuart9;
+/delete-node/ &lpuart10;
+/delete-node/ &lpuart11;
+/delete-node/ &lpuart12;
+
+/* RT1182 only has 3 LPI2C blocks */
+/delete-node/ &lpi2c4;
+/delete-node/ &lpi2c5;
+/delete-node/ &lpi2c6;
+
+/* RT1182 only has 2 FLEXCAN blocks */
+/delete-node/ &flexcan3;
+
+/* RT1182 only has 3 TPM blocks */
+/delete-node/ &tpm4;
+/delete-node/ &tpm5;
+/delete-node/ &tpm6;
+
+/* RT1182 only has 1 LPTMR block */
+/delete-node/ &lptmr2;
+/delete-node/ &lptmr3;
+
+/* RT1182 only has 1 SAI block */
+/delete-node/ &sai2;
+/delete-node/ &sai3;
+/delete-node/ &sai4;
+
+/* RT1182 only has 1 ACMP block */
+/delete-node/ &acmp2;
+/delete-node/ &acmp3;
+/delete-node/ &acmp4;
+
+/* RT1182 only has 1 USDHC block */
+/delete-node/ &usdhc2;
+
+/* RT1182 has no USBPHY block */
+/delete-node/ &usbphy1;
+/delete-node/ &usbphy2;

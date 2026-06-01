@@ -171,3 +171,34 @@
 		 <&iomuxc_gpio_b2_12_gpio6_io26>,
 		 <&iomuxc_gpio_b2_13_gpio6_io27>;
 };
+
+/* RT1186 only has 8 LPUART blocks */
+/delete-node/ &lpuart9;
+/delete-node/ &lpuart10;
+/delete-node/ &lpuart11;
+/delete-node/ &lpuart12;
+
+/* RT1186 only has 4 LPI2C blocks */
+/delete-node/ &lpi2c5;
+/delete-node/ &lpi2c6;
+
+/* RT1186 only has 2 FLEXCAN blocks */
+/delete-node/ &flexcan3;
+
+/* RT1186 only has 4 TPM blocks */
+/delete-node/ &tpm5;
+/delete-node/ &tpm6;
+
+/* RT1186 only has 3 SAI blocks */
+/delete-node/ &sai4;
+
+/* RT1186 only has 1 ACMP block */
+/delete-node/ &acmp2;
+/delete-node/ &acmp3;
+/delete-node/ &acmp4;
+
+/* RT1186 only has 1 USDHC block */
+/delete-node/ &usdhc2;
+
+/* RT1186 only has 1 USBPHY block */
+/delete-node/ &usbphy2;
