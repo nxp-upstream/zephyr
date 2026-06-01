@@ -47,7 +47,7 @@ struct mp_src {
 	/** Set a given caps to the source pad */
 	int (*set_caps)(struct mp_src *src, struct mp_caps *caps);
 	/** Decide buffer allocation strategy for the downstream peer */
-	int (*decide_allocation)(struct mp_src *self, struct mp_query *query);
+	int (*decide_allocation)(struct mp_src *self, struct mp_dispatch *query);
 };
 
 /**

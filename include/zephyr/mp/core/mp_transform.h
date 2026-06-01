@@ -99,17 +99,17 @@ struct mp_transform {
 	 * configured / started only by the upstream and not by the transform element itself.
 	 *
 	 * @param self Pointer to the transform element
-	 * @param query Allocation query (@ref mp_query)
+	 * @param query Allocation query (@ref mp_dispatch)
 	 * @return 0 on success, negative errno on failure
 	 */
-	int (*propose_allocation)(struct mp_transform *self, struct mp_query *query);
+	int (*propose_allocation)(struct mp_transform *self, struct mp_dispatch *query);
 	/**
 	 * @brief Decide allocation parameters for downstream
 	 * @param self Pointer to the transform element
-	 * @param query Allocation query (@ref mp_query)
+	 * @param query Allocation query (@ref mp_dispatch)
 	 * @return 0 on success, negative errno on failure
 	 */
-	int (*decide_allocation)(struct mp_transform *self, struct mp_query *query);
+	int (*decide_allocation)(struct mp_transform *self, struct mp_dispatch *query);
 };
 
 /**

@@ -12,7 +12,9 @@
 
 #include <zephyr/mp/core/mp_buffer.h>
 #include <zephyr/mp/core/mp_caps.h>
-#include <zephyr/mp/core/mp_query.h>
+#include <zephyr/mp/core/mp_dispatch.h>
+#include <zephyr/mp/core/mp_structure.h>
+#include <zephyr/mp/core/mp_value.h>
 
 #include <zephyr/mp/zjpeg/mp_zjpeg_decoder.h>
 
@@ -335,10 +337,10 @@ static int mp_zjpeg_decoder_set_caps(struct mp_transform *transform,
 	return -EINVAL;
 }
 
-static int mp_zjpeg_decoder_decide_allocation(struct mp_transform *self, struct mp_query *query)
+static int mp_zjpeg_decoder_decide_allocation(struct mp_transform *self, struct mp_dispatch *query)
 {
 	struct mp_zjpeg_decoder *dec = (struct mp_zjpeg_decoder *)self;
-	struct mp_buffer_pool *down_pool = mp_query_get_pool(query);
+	struct mp_buffer_pool *down_pool = mp_dispatch_get_pool(query);
 
 	/* Default to our internal pool */
 	self->outpool = &dec->out_pool;

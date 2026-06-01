@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "zephyr/mp/core/mp_caps.h"
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mp/core/mp_buffer.h>
-#include <zephyr/mp/core/mp_event.h>
-#include <zephyr/mp/core/mp_query.h>
+#include <zephyr/mp/core/mp_dispatch.h>
 #include <zephyr/mp/core/mp_parser.h>
 
 LOG_MODULE_REGISTER(mp_parser, CONFIG_MP_LOG_LEVEL);
@@ -59,7 +59,7 @@ static int mp_parser_set_caps(struct mp_parser *parser, enum mp_pad_direction di
 }
 
 static inline int mp_parser_query_caps(struct mp_parser *self, enum mp_pad_direction direction,
-				       struct mp_query *query)
+				       struct mp_dispatch *query)
 {
 	int ret;
 	struct mp_pad *this_pad, *other_pad;
@@ -80,7 +80,10 @@ static inline int mp_parser_query_caps(struct mp_parser *self, enum mp_pad_direc
 		return -EINVAL;
 	}
 
-	queried_pad_caps = mp_caps_intersect(mp_query_get_caps(query), this_caps);
+	struct mp_caps *query_caps = mp_dispatch_get_caps(query);
+
+	queried_pad_caps = mp_caps_intersect(query_caps, this_caps);
+	mp_caps_unref(query_caps);
 	if (queried_pad_caps == NULL) {
 		return -ENODATA;
 	}
@@ -90,7 +93,7 @@ static inline int mp_parser_query_caps(struct mp_parser *self, enum mp_pad_direc
 	}
 
 	/* Query the peer using the other side supported caps */
-	ret = mp_query_set_caps(query, other_caps);
+	ret = mp_dispatch_set_caps(query, other_caps);
 	if (ret < 0) {
 		mp_caps_unref(queried_pad_caps);
 		return ret;
@@ -102,17 +105,19 @@ static inline int mp_parser_query_caps(struct mp_parser *self, enum mp_pad_direc
 		return ret;
 	}
 
+	query_caps = mp_dispatch_get_caps(query);
 	/* Keep query_caps result at other_pad to use later at caps event */
-	mp_caps_replace(&other_pad->caps, mp_query_get_caps(query));
+	mp_caps_replace(&other_pad->caps, query_caps);
+	mp_caps_unref(query_caps);
 
 	/* Answer the query */
-	ret = mp_query_set_caps(query, queried_pad_caps);
+	ret = mp_dispatch_set_caps(query, queried_pad_caps);
 	mp_caps_unref(queried_pad_caps);
 
 	return ret;
 }
 
-static int mp_parser_event(struct mp_pad *pad, struct mp_event *event)
+static int mp_parser_event(struct mp_pad *pad, struct mp_dispatch *event)
 {
 	struct mp_parser *parser = (struct mp_parser *)pad->object.container;
 	struct mp_pad *other_pad =
@@ -120,24 +125,27 @@ static int mp_parser_event(struct mp_pad *pad, struct mp_event *event)
 	int ret;
 
 	switch (event->type) {
-	case MP_EVENT_EOS:
+	case MP_DISPATCH_EOS:
 		return mp_pad_send_event_default(pad, event);
-	case MP_EVENT_CAPS:
-		mp_caps_replace(&pad->caps, mp_event_get_caps(event));
+	case MP_DISPATCH_CAPS:
+		struct mp_caps *evt_caps = mp_dispatch_get_caps(event);
 
-		ret = mp_event_set_caps(event, other_pad->caps);
+		mp_caps_replace(&pad->caps, evt_caps);
+		ret = mp_dispatch_set_caps(event, other_pad->caps);
 		if (ret < 0) {
 			return ret;
 		}
 
-		return mp_pad_send_event_default(other_pad, event);
+		mp_caps_unref(evt_caps);
+
+		return mp_pad_send_event_default(pad, event);
 	default:
 		return -ENOTSUP;
 	}
 }
 
 /* TODO: Make a helper to refactor this together with mp_transform */
-static int mp_parser_query(struct mp_pad *pad, struct mp_query *query)
+static int mp_parser_query(struct mp_pad *pad, struct mp_dispatch *query)
 {
 	if (pad == NULL || query == NULL) {
 		return -EINVAL;
@@ -147,24 +155,28 @@ static int mp_parser_query(struct mp_pad *pad, struct mp_query *query)
 	struct mp_parser *parser = (struct mp_parser *)pad->object.container;
 
 	switch (query->type) {
-	case MP_QUERY_CAPS:
+	case MP_DISPATCH_CAPS:
 		return mp_parser_query_caps(parser, pad->direction, query);
-	case MP_QUERY_ALLOCATION:
-		struct mp_query *peer_query = mp_query_new_allocation(parser->srcpad.caps);
+	case MP_DISPATCH_BUFFER_CONFIG:
+		struct mp_dispatch peer_query;
+
+		mp_dispatch_buffer_config_init(&peer_query, parser->srcpad.caps);
 
 		/* Query the downstream */
-		ret = mp_pad_query(parser->srcpad.peer, peer_query);
+		ret = mp_pad_query(parser->srcpad.peer, &peer_query);
 		if (ret < 0) {
-			mp_query_destroy(peer_query);
+			mp_dispatch_clear(&peer_query);
 			return ret;
 		}
 
 		if (parser->decide_allocation != NULL) {
-			ret = parser->decide_allocation(parser, peer_query);
+			ret = parser->decide_allocation(parser, &peer_query);
 			if (ret < 0) {
-				mp_query_destroy(peer_query);
+				mp_dispatch_clear(&peer_query);
 				return ret;
 			}
+
+			mp_dispatch_clear(&peer_query);
 		}
 
 		/* Configure/start the output buffer pool */

@@ -9,7 +9,7 @@
 
 #include <zephyr/mp/core/mp_bin.h>
 #include <zephyr/mp/core/mp_element.h>
-#include <zephyr/mp/core/mp_event.h>
+#include <zephyr/mp/core/mp_dispatch.h>
 #include <zephyr/mp/core/mp_pad.h>
 
 LOG_MODULE_REGISTER(mp_element, CONFIG_MP_LOG_LEVEL);
@@ -49,8 +49,8 @@ static struct mp_pad *mp_element_get_unlinked_pad(struct mp_element *element, ui
 	return NULL;
 }
 
-static int mp_element_link_pads(struct mp_element *src, uint8_t src_pad_id,
-				struct mp_element *sink, uint8_t sink_pad_id)
+static int mp_element_link_pads(struct mp_element *src, uint8_t src_pad_id, struct mp_element *sink,
+				uint8_t sink_pad_id)
 {
 	struct mp_pad *srcpad = mp_element_get_unlinked_pad(src, src_pad_id, MP_PAD_SRC);
 	struct mp_pad *sinkpad = mp_element_get_unlinked_pad(sink, sink_pad_id, MP_PAD_SINK);
@@ -144,37 +144,6 @@ static enum mp_state_change_return mp_element_change_state_func(struct mp_elemen
 	return result;
 }
 
-static int mp_element_send_event_default(struct mp_element *element, struct mp_event *event)
-{
-	struct mp_object *obj;
-	int ret = -ENOTSUP;
-	sys_dlist_t *pad_list = NULL;
-
-	if (element == NULL || event == NULL) {
-		return -EINVAL;
-	}
-
-	if (MP_EVENT_DIRECTION(event) & MP_EVENT_DIRECTION_UPSTREAM) {
-		pad_list = &element->sinkpads;
-	}
-
-	if (MP_EVENT_DIRECTION(event) & MP_EVENT_DIRECTION_DOWNSTREAM) {
-		pad_list = &element->srcpads;
-	}
-
-	SYS_DLIST_FOR_EACH_CONTAINER(pad_list, obj, node) {
-		int r = mp_pad_send_event((struct mp_pad *)obj, event);
-
-		if (r == 0) {
-			ret = 0;
-		} else {
-			LOG_DBG("pad %u: event send failed: %d", obj->id, r);
-		}
-	}
-
-	return ret;
-}
-
 struct mp_bus *mp_element_get_bus(struct mp_element *element)
 {
 	if (element == NULL) {
@@ -202,5 +171,5 @@ void mp_element_init(struct mp_element *self, uint8_t id)
 	self->current_state = MP_STATE_READY;
 	self->set_state = mp_element_set_state_func;
 	self->change_state = mp_element_change_state_func;
-	self->eventfn = mp_element_send_event_default;
+	self->eventfn = NULL;
 }

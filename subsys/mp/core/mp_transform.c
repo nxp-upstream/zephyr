@@ -6,8 +6,7 @@
 
 #include <zephyr/logging/log.h>
 
-#include <zephyr/mp/core/mp_event.h>
-#include <zephyr/mp/core/mp_query.h>
+#include <zephyr/mp/core/mp_dispatch.h>
 #include <zephyr/mp/core/mp_transform.h>
 
 LOG_MODULE_REGISTER(mp_transform, CONFIG_MP_LOG_LEVEL);
@@ -67,7 +66,8 @@ static struct mp_caps *mp_transform_transform_caps(struct mp_transform *self,
 }
 
 static inline int mp_transform_query_caps(struct mp_transform *self,
-					  enum mp_pad_direction direction, struct mp_query *query)
+					  enum mp_pad_direction direction,
+					  struct mp_dispatch *query)
 {
 	int ret;
 	struct mp_pad *this_pad, *other_pad;
@@ -88,7 +88,9 @@ static inline int mp_transform_query_caps(struct mp_transform *self,
 	}
 
 	/* Intersect the query caps with the pad's caps */
-	queried_pad_caps = mp_caps_intersect(mp_query_get_caps(query), this_pad->caps);
+	query_caps = mp_dispatch_get_caps(query);
+	queried_pad_caps = mp_caps_intersect(query_caps, this_pad->caps);
+	mp_caps_unref(query_caps);
 	if (queried_pad_caps == NULL) {
 		return -ENODATA;
 	}
@@ -109,7 +111,7 @@ static inline int mp_transform_query_caps(struct mp_transform *self,
 	}
 
 	/* Query the peer pad with the transformed caps */
-	ret = mp_query_set_caps(query, transformed_caps);
+	ret = mp_dispatch_set_caps(query, transformed_caps);
 	mp_caps_unref(transformed_caps);
 	if (ret < 0) {
 		mp_caps_unref(queried_pad_caps);
@@ -123,7 +125,7 @@ static inline int mp_transform_query_caps(struct mp_transform *self,
 		return ret;
 	}
 
-	query_caps = mp_query_get_caps(query);
+	query_caps = mp_dispatch_get_caps(query);
 	if (query_caps == NULL || mp_caps_is_empty(query_caps)) {
 		mp_caps_unref(queried_pad_caps);
 		return -ENODATA;
@@ -136,6 +138,7 @@ static inline int mp_transform_query_caps(struct mp_transform *self,
 	 * fixated caps will become unfixated.
 	 */
 	mp_caps_replace(&other_pad->caps, query_caps);
+	mp_caps_unref(query_caps);
 
 	/* Transform back the query_caps */
 	query_back_caps = self->transform_caps(self, this_pad->direction, query_caps);
@@ -163,38 +166,42 @@ static inline int mp_transform_query_caps(struct mp_transform *self,
 	}
 
 	/* Answer the upstream query */
-	ret = mp_query_set_caps(query, res_caps);
+	ret = mp_dispatch_set_caps(query, res_caps);
 	mp_caps_unref(res_caps);
 
 	return ret;
 }
 
-static int mp_transform_query(struct mp_pad *pad, struct mp_query *query)
+static int mp_transform_query(struct mp_pad *pad, struct mp_dispatch *query)
 {
 	struct mp_transform *self = (struct mp_transform *)pad->object.container;
 	int ret;
 
 	switch (query->type) {
-	case MP_QUERY_CAPS:
+	case MP_DISPATCH_CAPS:
 		return mp_transform_query_caps(self, pad->direction, query);
-	case MP_QUERY_ALLOCATION:
-		struct mp_query *peer_query = mp_query_new_allocation(self->srcpad.caps);
+	case MP_DISPATCH_BUFFER_CONFIG:
+		struct mp_dispatch peer_query;
+
+		mp_dispatch_buffer_config_init(&peer_query, self->srcpad.caps);
 
 		/* Query the downstream */
-		ret = mp_pad_query(self->srcpad.peer, peer_query);
+		ret = mp_pad_query(self->srcpad.peer, &peer_query);
 		if (ret < 0) {
-			mp_query_destroy(peer_query);
+			mp_dispatch_clear(&peer_query);
 			return ret;
 		}
 
 		/* Decide allocation for downstream */
 		if (self->decide_allocation != NULL) {
-			ret = self->decide_allocation(self, peer_query);
+			ret = self->decide_allocation(self, &peer_query);
 			if (ret < 0) {
-				mp_query_destroy(peer_query);
+				mp_dispatch_clear(&peer_query);
 				return ret;
 			}
 		}
+
+		mp_dispatch_clear(&peer_query);
 
 		/* Configure/start the output buffer pool */
 		if (self->mode == MP_MODE_NORMAL) {
@@ -223,16 +230,16 @@ static int mp_transform_query(struct mp_pad *pad, struct mp_query *query)
 	}
 }
 
-static int mp_transform_event(struct mp_pad *pad, struct mp_event *event)
+static int mp_transform_event(struct mp_pad *pad, struct mp_dispatch *event)
 {
 	int ret;
 
 	switch (event->type) {
-	case MP_EVENT_EOS:
-		LOG_DBG("MP_EVENT_EOS");
+	case MP_DISPATCH_EOS:
+		LOG_DBG("MP_DISPATCH_EOS");
 		return mp_pad_send_event_default(pad, event);
-	case MP_EVENT_CAPS:
-		LOG_DBG("MP_EVENT_CAPS");
+	case MP_DISPATCH_CAPS:
+		LOG_DBG("MP_DISPATCH_CAPS");
 		struct mp_transform *transform = (struct mp_transform *)pad->object.container;
 		struct mp_pad *other_pad;
 		struct mp_caps *event_caps, *transformed_caps, *intersect_caps, *fixated_caps;
@@ -240,13 +247,14 @@ static int mp_transform_event(struct mp_pad *pad, struct mp_event *event)
 		other_pad =
 			(pad->direction == MP_PAD_SINK) ? &transform->srcpad : &transform->sinkpad;
 
-		event_caps = mp_event_get_caps(event);
+		event_caps = mp_dispatch_get_caps(event);
 		if (event_caps == NULL) {
 			return -EINVAL;
 		}
 
 		transformed_caps =
 			transform->transform_caps(transform, other_pad->direction, event_caps);
+		mp_caps_unref(event_caps);
 		if (transformed_caps == NULL) {
 			return -ENODATA;
 		}
@@ -268,7 +276,7 @@ static int mp_transform_event(struct mp_pad *pad, struct mp_event *event)
 			return -ENODATA;
 		}
 
-		ret = mp_event_set_caps(event, fixated_caps);
+		ret = mp_dispatch_set_caps(event, fixated_caps);
 		if (ret < 0) {
 			mp_caps_unref(fixated_caps);
 			return ret;
@@ -288,6 +296,8 @@ static int mp_transform_event(struct mp_pad *pad, struct mp_event *event)
 
 		ret = transform->set_caps(transform, other_pad->direction, fixated_caps);
 		mp_caps_unref(fixated_caps);
+		mp_caps_unref(event_caps);
+
 		return ret;
 	default:
 		return -ENOTSUP;

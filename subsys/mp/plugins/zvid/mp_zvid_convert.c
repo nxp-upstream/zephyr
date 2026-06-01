@@ -13,7 +13,7 @@
 
 #include <zephyr/mp/core/mp_buffer.h>
 #include <zephyr/mp/core/mp_caps.h>
-#include <zephyr/mp/core/mp_query.h>
+#include <zephyr/mp/core/mp_dispatch.h>
 #include <zephyr/mp/core/mp_structure.h>
 #include <zephyr/mp/core/mp_value.h>
 
@@ -384,10 +384,10 @@ static struct mp_caps *zvid_convert_transform_caps(struct mp_transform *self,
 	return out;
 }
 
-static int zvid_convert_decide_allocation(struct mp_transform *self, struct mp_query *query)
+static int zvid_convert_decide_allocation(struct mp_transform *self, struct mp_dispatch *query)
 {
 	struct mp_zvid_convert *conv = (struct mp_zvid_convert *)self;
-	struct mp_buffer_pool *down_pool = mp_query_get_pool(query);
+	struct mp_buffer_pool *down_pool = mp_dispatch_get_pool(query);
 
 	/* Use the internal pool by default */
 	self->outpool = &conv->out_pool;

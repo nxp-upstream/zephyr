@@ -9,8 +9,8 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mp/core/mp_bus.h>
+#include <zephyr/mp/core/mp_dispatch.h>
 #include <zephyr/mp/core/mp_element.h>
-#include <zephyr/mp/core/mp_event.h>
 #include <zephyr/mp/core/mp_pad.h>
 #include <zephyr/mp/core/mp_pipeline.h>
 #include <zephyr/mp/core/mp_src.h>
@@ -78,6 +78,7 @@ static void mp_pipeline_thread_func(void *p1, void *p2, void *p3)
 	struct mp_element *element;
 	struct mp_src *src = NULL;
 	struct net_buf *buffer = NULL;
+	struct mp_dispatch eos_event;
 	uint32_t count = 0;
 
 	ARG_UNUSED(p2);
@@ -99,9 +100,8 @@ static void mp_pipeline_thread_func(void *p1, void *p2, void *p3)
 	while (mp_thread_wait(&pipeline->thread) == 0) {
 		if ((src->num_buffers != 0 && count == src->num_buffers) ||
 		    src->pool->acquire_buffer(src->pool, &buffer) != 0) {
-			struct mp_event *eos_event = mp_event_new_eos();
-
-			if (mp_pad_send_event(src->srcpad.peer, eos_event) != 0) {
+			mp_dispatch_eos_init(&eos_event);
+			if (mp_pad_send_event(src->srcpad.peer, &eos_event) != 0) {
 				LOG_ERR("Failed to send EOS event downstream");
 			}
 			count = 0;

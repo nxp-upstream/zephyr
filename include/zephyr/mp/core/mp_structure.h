@@ -106,33 +106,52 @@ struct mp_structure *mp_structure_new(uint8_t media_type_id, ...);
  *
  * @param structure Structure to initialize.
  * @param media_type_id Media type ID of the structure.
+ *
+ * @return 0 on success, negative errno on failure
  */
 int mp_structure_init(struct mp_structure *structure, uint8_t media_type_id);
 
 /**
- * @brief Append a field to an @ref mp_structure
+ * @brief Append a field to an @ref mp_structure.
  *
  * @param structure Structure to append the field to.
  * @param field_id Field ID (field ID must be unique)
- * @param value Field value (the value will be copied)
+ * @param value Field value
+ *
+ * @return 0 on success, -EINVAL if arguments are invalid,
+ *         -EEXIST if field_id already exists, -ENOMEM on allocation failure
  */
 int mp_structure_append(struct mp_structure *structure, uint8_t field_id, struct mp_value *value);
 
 /**
  * @brief Clear all fields from an @ref mp_structure.
  *
+ * Releases all field values and frees field nodes. The structure itself
+ * is not freed and may be reused.
+ *
  * @param structure Structure to clear.
+ *
+ * @return 0 on success, -EINVAL if structure is NULL, -EIO on internal error
  */
-void mp_structure_clear(struct mp_structure *structure);
+int mp_structure_clear(struct mp_structure *structure);
 
 /**
  * @brief Destroy an @ref mp_structure.
  *
- * Clears all fields and releases resources associated with the structure.
+ * Clears all fields and frees the structure itself.
  *
  * @param structure Pointer to the structure to destroy.
  */
 void mp_structure_destroy(struct mp_structure *structure);
+
+/**
+ * @brief Get the number of fields in an @ref mp_structure.
+ *
+ * @param structure Structure to query.
+ *
+ * @return Number of fields in the structure.
+ */
+int mp_structure_len(struct mp_structure *structure);
 
 /**
  * @brief Check if an @ref mp_structure is fixed.
@@ -165,14 +184,15 @@ struct mp_value *mp_structure_get_value(struct mp_structure *structure, uint8_t 
  * @param structure Structure containing the field to remove.
  * @param field_id ID of the field to remove.
  *
- * @return 0 on success, negative errno on failure
+ * @return 0 on success, -EINVAL if structure is NULL, -ENOENT if field not found
  */
 int mp_structure_remove_field(struct mp_structure *structure, uint8_t field_id);
 
 /**
  * @brief Check if two @ref mp_structure can intersect.
  *
- * Two structures can intersect if all common fields have intersecting values.
+ * Two structures can intersect if they share the same media type ID and
+ * all common fields have intersecting values.
  *
  * @param struct1 First structure.
  * @param struct2 Second structure.
@@ -187,7 +207,8 @@ bool mp_structure_can_intersect(struct mp_structure *struct1, struct mp_structur
  * @param structure1 First structure.
  * @param structure2 Second structure.
  *
- * @return Pointer to the new intersected structure.
+ * @return Pointer to the new intersected structure, or NULL if the
+ *         structures cannot intersect.
  */
 struct mp_structure *mp_structure_intersect(struct mp_structure *structure1,
 					    struct mp_structure *structure2);
@@ -195,11 +216,12 @@ struct mp_structure *mp_structure_intersect(struct mp_structure *structure1,
 /**
  * @brief Create a new fixated @ref mp_structure.
  *
- * Generates a new structure containing only single values from the input structure.
+ * Generates a new structure where each field is reduced to a single
+ * fixed value (e.g. ranges are resolved to their minimum).
  *
  * @param src Structure to fixate.
  *
- * @return Pointer to the new fixated structure.
+ * @return Pointer to the new fixated structure, or NULL if src is NULL.
  */
 struct mp_structure *mp_structure_fixate(struct mp_structure *src);
 
@@ -208,7 +230,7 @@ struct mp_structure *mp_structure_fixate(struct mp_structure *src);
  *
  * @param src Structure to duplicate.
  *
- * @return Pointer to the duplicated structure.
+ * @return Pointer to the duplicated structure, or NULL if src is NULL.
  */
 struct mp_structure *mp_structure_duplicate(struct mp_structure *src);
 

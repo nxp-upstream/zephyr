@@ -32,7 +32,7 @@ int mp_structure_init(struct mp_structure *structure, uint8_t media_type_id)
 	return 0;
 }
 
-struct mp_structure *mp_structure_new_empty(uint8_t media_type_id)
+static struct mp_structure *mp_structure_new_empty(uint8_t media_type_id)
 {
 	struct mp_structure *structure = k_malloc(sizeof(struct mp_structure));
 
@@ -41,25 +41,38 @@ struct mp_structure *mp_structure_new_empty(uint8_t media_type_id)
 	return structure;
 }
 
-void mp_structure_clear(struct mp_structure *structure)
+int mp_structure_clear(struct mp_structure *structure)
 {
 	struct mp_structure_field *field;
+	sys_snode_t *node;
 
 	if (structure == NULL) {
-		return;
+		return -EINVAL;
 	}
 
 	while (!sys_slist_is_empty(&structure->fields)) {
-		field = CONTAINER_OF(sys_slist_get(&structure->fields), struct mp_structure_field,
-				     node);
+		node = sys_slist_get(&structure->fields);
+		if (node == NULL) {
+			return -EIO;
+		}
+
+		field = CONTAINER_OF(node, struct mp_structure_field, node);
 		mp_value_destroy(field->value);
 		k_free(field);
 	}
+
+	return 0;
 }
 
 void mp_structure_destroy(struct mp_structure *structure)
 {
-	mp_structure_clear(structure);
+	int ret;
+
+	ret = mp_structure_clear(structure);
+	if (ret < 0) {
+		return;
+	}
+
 	k_free(structure);
 }
 

@@ -14,41 +14,45 @@
 #include <zephyr/mp/core/mp_buffer.h>
 #include <zephyr/mp/core/mp_caps.h>
 #include <zephyr/mp/core/mp_element.h>
-#include <zephyr/mp/core/mp_event.h>
+#include <zephyr/mp/core/mp_dispatch.h>
 #include <zephyr/mp/core/mp_object.h>
 #include <zephyr/mp/core/mp_pad.h>
-#include <zephyr/mp/core/mp_query.h>
 #include <zephyr/mp/core/mp_sink.h>
 
 #include <zephyr/mp/core/mp_fake_sink.h>
 
 LOG_MODULE_REGISTER(mp_fake_sink, CONFIG_MP_LOG_LEVEL);
 
-static int fake_sink_query(struct mp_pad *pad, struct mp_query *query)
+static int fake_sink_query(struct mp_pad *pad, struct mp_dispatch *query)
 {
 	LOG_DBG("[fake_sink] query type=%u on pad id=%u", query->type, pad->object.id);
 
-	if (query->type == MP_QUERY_CAPS) {
-		mp_query_set_caps(query, pad->caps);
+	if (query->type == MP_DISPATCH_CAPS) {
+		mp_dispatch_set_caps(query, pad->caps);
 		LOG_DBG("[fake_sink] CAPS query answered with pad caps=%p", (void *)pad->caps);
 	}
 
 	return 0;
 }
 
-static int fake_sink_event(struct mp_pad *pad, struct mp_event *event)
+static int fake_sink_event(struct mp_pad *pad, struct mp_dispatch *event)
 {
 	struct mp_fake_sink *fsink = MP_FAKE_SINK(pad->object.container);
 	struct mp_sink *sink = MP_SINK(fsink);
 
 	switch (event->type) {
-	case MP_EVENT_EOS:
-		LOG_DBG("[fake_sink] MP_EVENT_EOS received");
+	case MP_DISPATCH_EOS:
+		LOG_DBG("[fake_sink] MP_DISPATCH_EOS received");
 		return 0;
 
-	case MP_EVENT_CAPS:
-		LOG_DBG("[fake_sink] MP_EVENT_CAPS received");
-		return sink->set_caps(sink, mp_event_get_caps(event));
+	case MP_DISPATCH_CAPS:
+		LOG_DBG("[fake_sink] MP_DISPATCH_CAPS received");
+		struct mp_caps *caps = mp_dispatch_get_caps(event);
+		int ret = sink->set_caps(sink, caps);
+
+		mp_caps_unref(caps);
+
+		return ret;
 
 	default:
 		return 0;

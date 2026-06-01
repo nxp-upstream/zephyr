@@ -13,7 +13,7 @@
 
 #include <zephyr/mp/core/mp_buffer.h>
 #include <zephyr/mp/core/mp_caps.h>
-#include <zephyr/mp/core/mp_query.h>
+#include <zephyr/mp/core/mp_dispatch.h>
 
 #include <zephyr/mp/zfs/mp_zfilesrc.h>
 
@@ -62,11 +62,11 @@ static int mp_zfilesrc_get_property(struct mp_object *obj, uint32_t key, void *v
 	}
 }
 
-static int mp_zfilesrc_decide_allocation(struct mp_src *src, struct mp_query *query)
+static int mp_zfilesrc_decide_allocation(struct mp_src *src, struct mp_dispatch *query)
 {
 	struct mp_zfilesrc *fsrc = (struct mp_zfilesrc *)src;
 
-	fsrc->downstream_pool = mp_query_get_pool(query);
+	fsrc->downstream_pool = mp_dispatch_get_pool(query);
 
 	return 0;
 }

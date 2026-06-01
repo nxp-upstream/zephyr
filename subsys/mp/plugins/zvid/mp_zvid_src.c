@@ -76,7 +76,7 @@ static int mp_zvid_src_get_property(struct mp_object *obj, uint32_t key, void *v
 	return ret;
 }
 
-static int mp_zvid_src_decide_allocation(struct mp_src *self, struct mp_query *query)
+static int mp_zvid_src_decide_allocation(struct mp_src *self, struct mp_dispatch *query)
 {
 	struct mp_zvid_src *zvid_src = (struct mp_zvid_src *)self;
 

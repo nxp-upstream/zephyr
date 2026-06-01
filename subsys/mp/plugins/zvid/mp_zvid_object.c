@@ -10,7 +10,7 @@
 #include <zephyr/sys/util.h>
 
 #include <zephyr/mp/core/mp_caps.h>
-#include <zephyr/mp/core/mp_query.h>
+#include <zephyr/mp/core/mp_dispatch.h>
 #include <zephyr/mp/core/mp_structure.h>
 #include <zephyr/mp/core/mp_value.h>
 
@@ -315,14 +315,14 @@ int mp_zvid_object_get_property(struct mp_zvid_object *zvid_obj, uint32_t key, v
 	}
 }
 
-int mp_zvid_object_decide_allocation(struct mp_zvid_object *zvid_obj, struct mp_query *query)
+int mp_zvid_object_decide_allocation(struct mp_zvid_object *zvid_obj, struct mp_dispatch *query)
 {
-	struct mp_buffer_pool *query_pool = mp_query_get_pool(query);
+	struct mp_buffer_pool *query_pool = mp_dispatch_get_pool(query);
 	struct mp_buffer_pool_config *pool_config = &zvid_obj->pool.pool.config;
 	struct mp_buffer_pool_config *qpc = NULL;
 
 	if (query_pool == NULL) {
-		qpc = mp_query_get_pool_config(query);
+		qpc = mp_dispatch_get_pool_config(query);
 	} else {
 		qpc = &query_pool->config;
 	}

@@ -24,8 +24,7 @@
 #include <zephyr/mp/core/mp_caps.h>
 #include <zephyr/mp/core/mp_object.h>
 
-struct mp_event;
-struct mp_query;
+struct mp_dispatch;
 
 /**
  * @defgroup mp_pad Pad
@@ -101,9 +100,9 @@ struct mp_pad {
 	/** Chain function for handling buffers */
 	int (*chainfn)(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf);
 	/** Query function for handling queries */
-	int (*queryfn)(struct mp_pad *pad, struct mp_query *query);
+	int (*queryfn)(struct mp_pad *pad, struct mp_dispatch *query);
 	/** Event function for handling events */
-	int (*eventfn)(struct mp_pad *pad, struct mp_event *event);
+	int (*eventfn)(struct mp_pad *pad, struct mp_dispatch *event);
 };
 
 /**
@@ -153,11 +152,11 @@ int mp_pad_link(struct mp_pad *srcpad, struct mp_pad *sinkpad);
  * Sends an event to the specified pad using the pad's event function.
  *
  * @param pad Pointer to the @ref mp_pad where the event should be sent
- * @param event Pointer to the @ref mp_event to send
+ * @param event Pointer to the @ref mp_dispatch to send
  *
  * @return 0 on success, negative errno on failure
  */
-int mp_pad_send_event(struct mp_pad *pad, struct mp_event *event);
+int mp_pad_send_event(struct mp_pad *pad, struct mp_dispatch *event);
 
 /**
  * @brief Default event handler for pads
@@ -167,11 +166,11 @@ int mp_pad_send_event(struct mp_pad *pad, struct mp_event *event);
  * forward the event to other pads in the same element.
  *
  * @param pad Pointer to the @ref mp_pad to send event to
- * @param event Pointer to the @ref mp_event to send
+ * @param event Pointer to the @ref mp_dispatch to send
  *
  * @return 0 on success, negative errno on failure
  */
-int mp_pad_send_event_default(struct mp_pad *pad, struct mp_event *event);
+int mp_pad_send_event_default(struct mp_pad *pad, struct mp_dispatch *event);
 
 /**
  * @brief Send a query to a pad
@@ -179,11 +178,11 @@ int mp_pad_send_event_default(struct mp_pad *pad, struct mp_event *event);
  * Sends a query to the pad using the pad's query function.
  *
  * @param pad Pointer to the @ref mp_pad to send query to
- * @param query Pointer to the @ref mp_query to send
+ * @param query Pointer to the @ref mp_dispatch to send
  *
  * @return 0 on success, negative errno on failure
  */
-int mp_pad_query(struct mp_pad *pad, struct mp_query *query);
+int mp_pad_query(struct mp_pad *pad, struct mp_dispatch *query);
 
 /**
  * @}

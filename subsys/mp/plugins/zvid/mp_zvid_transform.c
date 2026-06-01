@@ -8,7 +8,7 @@
 #include <zephyr/video/video.h>
 
 #include <zephyr/mp/core/mp_caps.h>
-#include <zephyr/mp/core/mp_query.h>
+#include <zephyr/mp/core/mp_dispatch.h>
 #include <zephyr/mp/core/mp_structure.h>
 #include <zephyr/mp/core/mp_value.h>
 
@@ -182,16 +182,16 @@ static int mp_zvid_transform_get_property(struct mp_object *obj, uint32_t key, v
 	return mp_zvid_object_get_property(&zvid_transform->zvid_obj_in, key, val);
 }
 
-static int mp_zvid_transform_decide_allocation(struct mp_transform *self, struct mp_query *query)
+static int mp_zvid_transform_decide_allocation(struct mp_transform *self, struct mp_dispatch *query)
 {
 	struct mp_zvid_transform *zvid_transform = (struct mp_zvid_transform *)self;
 
 	return mp_zvid_object_decide_allocation(&zvid_transform->zvid_obj_out, query);
 }
 
-static int mp_zvid_transform_propose_allocation(struct mp_transform *self, struct mp_query *query)
+static int mp_zvid_transform_propose_allocation(struct mp_transform *self, struct mp_dispatch *query)
 {
-	return mp_query_set_pool(query, self->inpool);
+	return mp_dispatch_set_pool(query, self->inpool);
 }
 
 void mp_zvid_transform_init(struct mp_element *self)

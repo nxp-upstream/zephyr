@@ -24,7 +24,7 @@
 #include <zephyr/mp/core/mp_caps.h>
 #include <zephyr/mp/zvid/mp_zvid_buffer_pool.h>
 
-struct mp_query;
+struct mp_dispatch;
 
 /**
  * @brief Video object structure.
@@ -108,10 +108,10 @@ int mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *cap
  * its own pool and only negotiates configuration parameters.
  *
  * @param zvid_obj Pointer to the @ref mp_zvid_object.
- * @param query    Pointer to @ref mp_query containing allocation requirements.
+ * @param query    Pointer to @ref mp_dispatch containing allocation requirements.
  *
  * @return 0 on success or a negative errno code on failure.
  */
-int mp_zvid_object_decide_allocation(struct mp_zvid_object *zvid_obj, struct mp_query *query);
+int mp_zvid_object_decide_allocation(struct mp_zvid_object *zvid_obj, struct mp_dispatch *query);
 
 #endif /* ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_OBJECT_H_ */

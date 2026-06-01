@@ -22,8 +22,7 @@
 #include <zephyr/mp/core/mp_object.h>
 
 struct mp_bus;
-struct mp_event;
-struct mp_query;
+struct mp_dispatch;
 
 /**
  * @brief Initialize and configure an element in one step.
@@ -160,9 +159,9 @@ struct mp_element {
 	enum mp_state target_state;
 
 	/** Event handler function */
-	int (*eventfn)(struct mp_element *element, struct mp_event *event);
+	int (*eventfn)(struct mp_element *element, struct mp_dispatch *event);
 	/** Query handler function */
-	int (*queryfn)(struct mp_element *element, struct mp_query *query);
+	int (*queryfn)(struct mp_element *element, struct mp_dispatch *query);
 
 	/** Get current state function */
 	enum mp_state_change_return (*get_state)(struct mp_element *element, enum mp_state *state);

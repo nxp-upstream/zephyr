@@ -7,8 +7,9 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
+#include <zephyr/mp/core/mp_caps.h>
+#include <zephyr/mp/core/mp_dispatch.h>
 #include <zephyr/mp/core/mp_element.h>
-#include <zephyr/mp/core/mp_event.h>
 #include <zephyr/mp/core/mp_pad.h>
 #include <zephyr/mp/core/mp_pipeline.h>
 #include <zephyr/mp/zbase/mp_queue.h>
@@ -79,28 +80,28 @@ static int mp_queue_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct n
 	return 0;
 }
 
-static int mp_queue_sink_eventfn(struct mp_pad *pad, struct mp_event *event)
+static int mp_queue_sink_eventfn(struct mp_pad *pad, struct mp_dispatch *event)
 {
 	struct mp_queue *queue = (struct mp_queue *)pad->object.container;
 	int ret;
 
 	switch (event->type) {
-	case MP_EVENT_EOS:
+	case MP_DISPATCH_EOS:
 		ret = k_msgq_put(&queue->msgq, &eos_sentinel, K_FOREVER);
 		if (ret != 0) {
 			LOG_ERR("Failed to put EOS sentinel to the msgq (%d)", ret);
-			return ret;
 		}
 
-		return 0;
-	case MP_EVENT_CAPS:
-		struct mp_caps *caps = mp_event_get_caps(event);
+		return ret;
+	case MP_DISPATCH_CAPS:
+		struct mp_caps *caps = mp_dispatch_get_caps(event);
 
 		if (caps == NULL || mp_caps_is_empty(caps)) {
 			return -EINVAL;
 		}
 		queue->transform.set_caps(&queue->transform, MP_PAD_SINK, caps);
 		queue->transform.set_caps(&queue->transform, MP_PAD_SRC, caps);
+		mp_caps_unref(caps);
 
 		return mp_pad_send_event(queue->transform.srcpad.peer, event);
 	default:
@@ -130,10 +131,11 @@ static void mp_queue_thread_func(void *p1, void *p2, void *p3)
 		}
 
 		if (buffer == (void *)&eos_sentinel) {
-			LOG_DBG("EOS sentinel dequeued, sending EOS downstream");
-			struct mp_event *eos = mp_event_new_eos();
+			struct mp_dispatch eos;
 
-			ret = mp_pad_send_event(queue->transform.srcpad.peer, eos);
+			LOG_DBG("EOS sentinel dequeued, sending EOS downstream");
+			mp_dispatch_eos_init(&eos);
+			ret = mp_pad_send_event(queue->transform.srcpad.peer, &eos);
 			if (ret != 0) {
 				LOG_ERR("Failed to send EOS event downstream (%d)", ret);
 			}

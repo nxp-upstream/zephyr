@@ -7,23 +7,22 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mp/core/mp_caps.h>
+#include <zephyr/mp/core/mp_dispatch.h>
 #include <zephyr/mp/core/mp_element.h>
-#include <zephyr/mp/core/mp_event.h>
 #include <zephyr/mp/core/mp_pad.h>
 #include <zephyr/mp/core/mp_pipeline.h>
-#include <zephyr/mp/core/mp_query.h>
 #include <zephyr/mp/zbase/mp_tee.h>
 
 LOG_MODULE_REGISTER(mp_tee, CONFIG_MP_LOG_LEVEL);
 
 #define DEFAULT_SRCPADS_NUM 2
 
-static int mp_tee_sink_queryfn(struct mp_pad *pad, struct mp_query *query)
+static int mp_tee_sink_queryfn(struct mp_pad *pad, struct mp_dispatch *query)
 {
 	struct mp_tee *tee = (struct mp_tee *)pad->object.container;
 
 	switch (query->type) {
-	case MP_QUERY_CAPS:
+	case MP_DISPATCH_CAPS:
 		for (uint8_t i = 0; i < tee->srcpads_num; i++) {
 			if (tee->srcpads[i].peer == NULL) {
 				continue;
@@ -37,7 +36,7 @@ static int mp_tee_sink_queryfn(struct mp_pad *pad, struct mp_query *query)
 		}
 
 		return 0;
-	case MP_QUERY_ALLOCATION: {
+	case MP_DISPATCH_BUFFER_CONFIG: {
 		/* TODO: Remove static when set pool config set by value instead of pointer */
 		static struct mp_buffer_pool_config merged = {0};
 
@@ -53,10 +52,9 @@ static int mp_tee_sink_queryfn(struct mp_pad *pad, struct mp_query *query)
 			}
 
 			/* Get pool configs from pool or standalone config */
-			struct mp_buffer_pool *pool = mp_query_get_pool(query);
+			struct mp_buffer_pool *pool = mp_dispatch_get_pool(query);
 			struct mp_buffer_pool_config *cfg =
-				(pool != NULL) ? &pool->config
-					       : mp_query_get_pool_config(query);
+				(pool != NULL) ? &pool->config : mp_dispatch_get_pool_config(query);
 
 			/* Combine all downstream branch's pool config proposals */
 			if (cfg != NULL) {
@@ -64,19 +62,19 @@ static int mp_tee_sink_queryfn(struct mp_pad *pad, struct mp_query *query)
 				merged.min_buffers = MAX(merged.min_buffers, cfg->min_buffers);
 				int align = sys_lcm(merged.align, cfg->align);
 
-				if (align == 0 && cfg->align !=  0) {
+				if (align == 0 && cfg->align != 0) {
 					merged.align = cfg->align;
 				} else {
 					merged.align = align;
 				}
 			}
 		}
-		/* 
+		/*
 		 * Discard all downstream pool proposals.
 		 * Upstream will use its own pool; if a downstream branch cannot
 		 * use the buffer, it will need to copy into its own pool.
 		 */
-		mp_query_set_pool_config(query, &merged);
+		mp_dispatch_set_pool_config(query, &merged);
 
 		return 0;
 	}
@@ -85,15 +83,15 @@ static int mp_tee_sink_queryfn(struct mp_pad *pad, struct mp_query *query)
 	}
 }
 
-static int mp_tee_sink_eventfn(struct mp_pad *pad, struct mp_event *event)
+static int mp_tee_sink_eventfn(struct mp_pad *pad, struct mp_dispatch *event)
 {
 	struct mp_tee *tee = (struct mp_tee *)pad->object.container;
 	int ret = 0;
 	int first_err = 0;
 
 	switch (event->type) {
-	case MP_EVENT_CAPS:
-	case MP_EVENT_EOS:
+	case MP_DISPATCH_CAPS:
+	case MP_DISPATCH_EOS:
 		for (uint8_t i = 0; i < tee->srcpads_num; i++) {
 			if (tee->srcpads[i].peer == NULL) {
 				continue;
@@ -104,10 +102,11 @@ static int mp_tee_sink_eventfn(struct mp_pad *pad, struct mp_event *event)
 				first_err = ret;
 			}
 
-			if (event->type == MP_EVENT_CAPS && ret == 0) {
-				struct mp_caps *caps = mp_event_get_caps(event);
+			if (event->type == MP_DISPATCH_CAPS && ret == 0) {
+				struct mp_caps *caps = mp_dispatch_get_caps(event);
 
 				mp_caps_replace(&pad->caps, caps);
+				mp_caps_unref(caps);
 			}
 		}
 

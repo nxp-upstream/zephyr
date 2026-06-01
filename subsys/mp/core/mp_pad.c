@@ -4,16 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "zephyr/mp/core/mp_caps.h"
 #include <errno.h>
+#include <stdlib.h>
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_buffer.h>
-#include <zephyr/mp/core/mp_event.h>
+#include <zephyr/mp/core/mp_dispatch.h>
 #include <zephyr/mp/core/mp_pad.h>
-#include <zephyr/mp/core/mp_query.h>
 
 LOG_MODULE_REGISTER(mp_pad, CONFIG_MP_LOG_LEVEL);
 
@@ -26,7 +27,6 @@ void mp_pad_init(struct mp_pad *pad, uint8_t id, enum mp_pad_direction direction
 	pad->direction = direction;
 	pad->presence = presence;
 	pad->caps = caps;
-	pad->eventfn = mp_pad_send_event_default;
 }
 
 struct mp_pad *mp_pad_new(uint8_t id, enum mp_pad_direction direction,
@@ -52,7 +52,7 @@ int mp_pad_link(struct mp_pad *srcpad, struct mp_pad *sinkpad)
 	return 0;
 }
 
-int mp_pad_query(struct mp_pad *pad, struct mp_query *query)
+int mp_pad_query(struct mp_pad *pad, struct mp_dispatch *query)
 {
 	int ret;
 
@@ -70,18 +70,25 @@ int mp_pad_query(struct mp_pad *pad, struct mp_query *query)
 	}
 
 	/* Caps query is considered successful only if the query's caps is valid */
-	if (query->type == MP_QUERY_CAPS) {
-		struct mp_caps *query_caps = mp_query_get_caps(query);
+	if (query->type == MP_DISPATCH_CAPS) {
+		struct mp_caps *query_caps = mp_dispatch_get_caps(query);
 
-		if (query_caps == NULL || mp_caps_is_empty(query_caps)) {
+		if (query_caps == NULL) {
 			return -ENODATA;
 		}
+
+		if (mp_caps_is_empty(query_caps)) {
+			mp_caps_unref(query_caps);
+			return -ENODATA;
+		}
+
+		mp_caps_unref(query_caps);
 	}
 
 	return 0;
 }
 
-int mp_pad_send_event_default(struct mp_pad *pad, struct mp_event *event)
+int mp_pad_send_event_default(struct mp_pad *pad, struct mp_dispatch *event)
 {
 	int ret = -ENOTSUP;
 
@@ -89,43 +96,37 @@ int mp_pad_send_event_default(struct mp_pad *pad, struct mp_event *event)
 		return -EINVAL;
 	}
 
-	bool is_sink = (pad->direction == MP_PAD_SINK);
-	bool is_src = (pad->direction == MP_PAD_SRC);
-	bool is_upstream = (MP_EVENT_DIRECTION(event) & MP_EVENT_DIRECTION_UPSTREAM);
-	bool is_downstream = (MP_EVENT_DIRECTION(event) & MP_EVENT_DIRECTION_DOWNSTREAM);
-
-	/* Forward the event to the peer pad */
-	if ((is_sink && is_upstream) || (is_src && is_downstream)) {
-		return mp_pad_send_event(pad->peer, event);
-	}
-
-	/* Forward the event to other pads within the same element */
 	struct mp_element *element = (struct mp_element *)pad->object.container;
 	struct mp_object *obj;
-	sys_dlist_t *otherpad_list = NULL;
+	sys_dlist_t *otherpad_list;
 
-	if (is_sink && is_downstream) {
+	if (pad->direction == MP_PAD_SINK) {
 		otherpad_list = &element->srcpads;
-	}
-
-	if (is_src && is_upstream) {
+	} else {
 		otherpad_list = &element->sinkpads;
 	}
 
 	SYS_DLIST_FOR_EACH_CONTAINER(otherpad_list, obj, node) {
-		int r = mp_pad_send_event((struct mp_pad *)obj, event);
+		struct mp_pad *otherpad = (struct mp_pad *)obj;
+
+		if (otherpad->peer == NULL) {
+			LOG_DBG("pad %u: no peer, skipping", obj->id);
+			continue;
+		}
+
+		int r = mp_pad_send_event(otherpad->peer, event);
 
 		if (r == 0) {
 			ret = 0;
 		} else {
-			LOG_DBG("pad %u: event send failed: %d", obj->id, r);
+			LOG_DBG("pad %u: event send to peer failed: %d", obj->id, r);
 		}
 	}
 
 	return ret;
 }
 
-int mp_pad_send_event(struct mp_pad *pad, struct mp_event *event)
+int mp_pad_send_event(struct mp_pad *pad, struct mp_dispatch *event)
 {
 	if (pad == NULL || event == NULL) {
 		return -EINVAL;

@@ -17,7 +17,7 @@
 #include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_messages.h>
 #include <zephyr/mp/core/mp_pad.h>
-#include <zephyr/mp/core/mp_query.h>
+#include <zephyr/mp/core/mp_dispatch.h>
 #include <zephyr/mp/core/mp_src.h>
 
 #include <zephyr/mp/core/mp_fake_src.h>
@@ -326,12 +326,12 @@ static enum mp_state_change_return fake_src_change_state(struct mp_element *self
 	return ret;
 }
 
-static int fake_src_query(struct mp_pad *pad, struct mp_query *query)
+static int fake_src_query(struct mp_pad *pad, struct mp_dispatch *query)
 {
 	LOG_DBG("[fake_src] query type=%u on pad id=%u", query->type, pad->object.id);
 
-	if (query->type == MP_QUERY_CAPS) {
-		mp_query_set_caps(query, pad->caps);
+	if (query->type == MP_DISPATCH_CAPS) {
+		mp_dispatch_set_caps(query, pad->caps);
 		LOG_DBG("[fake_src] CAPS query answered with pad caps=%p", (void *)pad->caps);
 	}
 

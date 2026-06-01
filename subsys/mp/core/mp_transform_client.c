@@ -8,7 +8,7 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mp/core/mp_buffer.h>
-#include <zephyr/mp/core/mp_query.h>
+#include <zephyr/mp/core/mp_dispatch.h>
 #include <zephyr/mp/core/mp_transform_client.h>
 
 LOG_MODULE_REGISTER(mp_transform_client, CONFIG_MP_LOG_LEVEL);
@@ -68,19 +68,19 @@ static int mp_transform_client_chainfn(struct mp_pad *pad, struct net_buf *in_bu
 }
 
 static int mp_transform_client_propose_allocation(struct mp_transform *self,
-						  struct mp_query *query)
+						  struct mp_dispatch *query)
 {
-	return mp_query_set_pool(query, self->inpool);
+	return mp_dispatch_set_pool(query, self->inpool);
 }
 
-static int mp_transform_client_decide_allocation(struct mp_transform *self, struct mp_query *query)
+static int mp_transform_client_decide_allocation(struct mp_transform *self, struct mp_dispatch *query)
 {
-	struct mp_buffer_pool *query_pool = mp_query_get_pool(query);
+	struct mp_buffer_pool *query_pool = mp_dispatch_get_pool(query);
 	struct mp_buffer_pool_config *pool_config = &self->outpool->config;
 	struct mp_buffer_pool_config *qpc = NULL;
 
 	if (query_pool == NULL) {
-		qpc = mp_query_get_pool_config(query);
+		qpc = mp_dispatch_get_pool_config(query);
 	} else {
 		qpc = &query_pool->config;
 	}

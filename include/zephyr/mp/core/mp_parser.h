@@ -68,20 +68,20 @@ struct mp_parser {
 	 * @brief Propose allocation parameters to upstream.
 	 *
 	 * @param parser Pointer to the parser element.
-	 * @param query Allocation query (see @ref mp_query).
+	 * @param query Allocation query (see @ref mp_dispatch).
 	 *
 	 * @return 0 on success, negative errno on failure
 	 */
-	int (*propose_allocation)(struct mp_parser *parser, struct mp_query *query);
+	int (*propose_allocation)(struct mp_parser *parser, struct mp_dispatch *query);
 	/**
 	 * @brief Decide allocation parameters for downstream.
 	 *
 	 * @param parser Pointer to the parser element.
-	 * @param query Allocation query (see @ref mp_query).
+	 * @param query Allocation query (see @ref mp_dispatch).
 	 *
 	 * @return 0 on success, negative errno on failure
 	 */
-	int (*decide_allocation)(struct mp_parser *parser, struct mp_query *query);
+	int (*decide_allocation)(struct mp_parser *parser, struct mp_dispatch *query);
 };
 
 /**

@@ -18,7 +18,7 @@
 #include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_pad.h>
 
-struct mp_query;
+struct mp_dispatch;
 
 /**
  * @brief Sink Element Structure
@@ -59,7 +59,7 @@ struct mp_sink {
 	 * @param query Allocation query to process
 	 * @return 0 on success, negative errno on failure
 	 */
-	int (*propose_allocation)(struct mp_sink *self, struct mp_query *query);
+	int (*propose_allocation)(struct mp_sink *self, struct mp_dispatch *query);
 };
 
 /**

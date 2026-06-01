@@ -7,10 +7,10 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mp/core/mp_buffer.h>
-#include <zephyr/mp/core/mp_event.h>
+#include <zephyr/mp/core/mp_caps.h>
+#include <zephyr/mp/core/mp_dispatch.h>
 #include <zephyr/mp/core/mp_pad.h>
 #include <zephyr/mp/core/mp_property.h>
-#include <zephyr/mp/core/mp_query.h>
 #include <zephyr/mp/core/mp_src.h>
 
 LOG_MODULE_REGISTER(mp_src, CONFIG_MP_LOG_LEVEL);
@@ -69,7 +69,7 @@ static int mp_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 	return 0;
 }
 
-static int mp_src_query(struct mp_pad *pad, struct mp_query *query)
+static int mp_src_query(struct mp_pad *pad, struct mp_dispatch *query)
 {
 	int ret;
 	struct mp_src *src = (struct mp_src *)pad->object.container;
@@ -77,8 +77,8 @@ static int mp_src_query(struct mp_pad *pad, struct mp_query *query)
 	struct mp_caps *query_caps;
 
 	switch (query->type) {
-	case MP_QUERY_CAPS:
-		query_caps = mp_query_get_caps(query);
+	case MP_DISPATCH_CAPS:
+		query_caps = mp_dispatch_get_caps(query);
 		if (query_caps != NULL) {
 			intersect_caps = mp_caps_intersect(src->src_caps, query_caps);
 			if (intersect_caps == NULL) {
@@ -88,11 +88,13 @@ static int mp_src_query(struct mp_pad *pad, struct mp_query *query)
 				mp_caps_unref(intersect_caps);
 				return -ENODATA;
 			}
-			ret = mp_query_set_caps(query, intersect_caps);
+			ret = mp_dispatch_set_caps(query, intersect_caps);
 			mp_caps_unref(intersect_caps);
+			mp_caps_unref(query_caps);
 		} else {
-			ret = mp_query_set_caps(query, src->src_caps);
+			ret = mp_dispatch_set_caps(query, src->src_caps);
 		}
+
 		return ret;
 	default:
 		return -ENOTSUP;
@@ -103,9 +105,9 @@ static int mp_src_negotiate(struct mp_src *src)
 {
 	struct mp_caps *common_caps;
 	struct mp_caps *fixated_caps;
-	struct mp_query *caps_query;
-	struct mp_query *alloc_query;
-	struct mp_event *caps_event;
+	struct mp_dispatch caps_query;
+	struct mp_dispatch alloc_query;
+	struct mp_dispatch caps_event;
 	int ret;
 
 	/* Caps negotiation */
@@ -114,15 +116,15 @@ static int mp_src_negotiate(struct mp_src *src)
 	}
 
 	/* Query the peer's capabilities */
-	caps_query = mp_query_new_caps(src->src_caps);
-	ret = mp_pad_query(src->srcpad.peer, caps_query);
+	mp_dispatch_caps_init(&caps_query, src->src_caps);
+	ret = mp_pad_query(src->srcpad.peer, &caps_query);
 	if (ret < 0) {
-		mp_query_destroy(caps_query);
+		mp_dispatch_clear(&caps_query);
 		return ret;
 	}
 
-	common_caps = mp_caps_ref(mp_query_get_caps(caps_query));
-	mp_query_destroy(caps_query);
+	common_caps = mp_dispatch_get_caps(&caps_query);
+	mp_dispatch_clear(&caps_query);
 	if (common_caps == NULL) {
 		return -ENODATA;
 	}
@@ -139,10 +141,10 @@ static int mp_src_negotiate(struct mp_src *src)
 	fixated_caps = mp_caps_fixate(src->srcpad.caps);
 
 	/* Push a caps event downstream */
-	caps_event = mp_event_new_caps(fixated_caps);
+	mp_dispatch_caps_init(&caps_event, fixated_caps);
 
-	ret = mp_pad_send_event(src->srcpad.peer, caps_event);
-	mp_event_destroy(caps_event);
+	ret = mp_pad_send_event(src->srcpad.peer, &caps_event);
+	mp_dispatch_clear(&caps_event);
 
 	if (ret < 0) {
 		mp_caps_unref(fixated_caps);
@@ -159,21 +161,21 @@ static int mp_src_negotiate(struct mp_src *src)
 	}
 
 	/* Query the peer's allocation proposal */
-	alloc_query = mp_query_new_allocation(src->srcpad.caps);
-	ret = mp_pad_query(src->srcpad.peer, alloc_query);
+	mp_dispatch_buffer_config_init(&alloc_query, src->srcpad.caps);
+	ret = mp_pad_query(src->srcpad.peer, &alloc_query);
 	if (ret < 0) {
-		mp_query_destroy(alloc_query);
+		mp_dispatch_clear(&alloc_query);
 		return ret;
 	}
 
 	/* Decide the allocation */
 	if (src->decide_allocation != NULL) {
-		ret = src->decide_allocation(src, alloc_query);
-		mp_query_destroy(alloc_query);
+		ret = src->decide_allocation(src, &alloc_query);
+		mp_dispatch_clear(&alloc_query);
 		return ret;
 	}
 
-	mp_query_destroy(alloc_query);
+	mp_dispatch_clear(&alloc_query);
 	return 0;
 }
 
