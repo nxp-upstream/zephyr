@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+
+description: LVDS panel sequencer for LDB setups (enable/reset sequencing during boot)
+
+compatible: "nxp,lvds-panel-sequencer"
+
+include: [base.yaml]
+
+properties:
+  enable-gpios:
+    type: phandle-array
+    required: false
+    description: Panel enable GPIO.
+
+  reset-gpios:
+    type: phandle-array
+    required: false
+    description: Panel reset GPIO.
+
+  prepare-delay-ms:
+    type: int
+    default: 0
+    description: Delay after enabling panel (before reset sequence).
+
+  reset-assert-us:
+    type: int
+    default: 0
+    description: Reset assert pulse width in microseconds.
+
+  reset-deassert-ms:
+    type: int
+    default: 0
+    description: Delay after reset deassert in milliseconds.
+
+  ldb:
+    type: phandle
+    required: false
+    description: Optional LDB bridge device to enable after GPIO sequencing.

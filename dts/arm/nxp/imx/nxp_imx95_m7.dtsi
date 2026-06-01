@@ -862,6 +862,17 @@
 			status = "disabled";
 		};
 
+		ldb: ldb@4b0c0000 {
+			compatible = "nxp,imx-ldb";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x4b0c0000 0x1000>;
+			interrupt-parent = <&disp_irqsteer_master0>;
+			interrupts = <48 0>;
+			clocks = <&scmi_clk 0>;
+			status = "disabled";
+		};
+	
 		mipi_dsi: mipi-dsi@4acf0000 {
 			compatible = "nxp,mipi-dsi-dwc";
 			nxp,dc = <&dpu>;

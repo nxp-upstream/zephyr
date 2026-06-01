@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config DISPLAY_LDB
+	bool "LDB (LVDS Display Bridge) driver"
+	default y
+	depends on DT_HAS_NXP_IMX_LDB_ENABLED
+	help
+	  Enable LDB bridge driver.
+
+config DISPLAY_LDB_INIT_PRIORITY
+	int "LDB init priority"
+	default 70

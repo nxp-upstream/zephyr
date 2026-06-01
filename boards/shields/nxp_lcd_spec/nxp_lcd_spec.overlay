@@ -1,0 +1,74 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/display/panel.h>
+
+/ {
+	chosen {
+		zephyr,display = &dpu;
+	};
+
+	aliases {
+		ldb = &ldb;
+	};
+};
+
+&zephyr_dpu {
+	width = <1280>;
+	height = <800>;
+	pixel-format = <PANEL_PIXEL_FORMAT_ARGB_8888>;
+	status = "okay";
+
+	display-timings {
+		compatible = "zephyr,panel-timing";
+		hsync-len = <32>;
+		hfront-porch = <48>;
+		hback-porch = <80>;
+		vsync-len = <6>;
+		vfront-porch = <2>;
+		vback-porch = <15>;
+		de-active = <0>;
+		pixelclk-active = <0>;
+		hsync-active = <1>;
+		vsync-active = <1>;
+		clock-frequency = <72400000>;
+	};
+};
+
+&ldb {
+    status = "okay";
+    display-index = <0>;
+    bit-mapping = "jeida";
+
+    lcd_spec_seq: lvds-panel-sequencer {
+        compatible = "nxp,lvds-panel-sequencer";
+        status = "okay";
+
+        enable-gpios = <&gpio_exp0 2 GPIO_ACTIVE_HIGH>;
+        reset-gpios  = <&gpio_exp0 1  GPIO_ACTIVE_LOW>;
+
+        ldb = <&ldb>; /* 仍然建议显式写 */
+    };
+};
+
+&display_i2c {
+	status = "okay";
+
+	mfd0: adp5585@34 {
+		compatible = "adi,adp5585";
+		reg = <0x34>;
+		status = "okay";
+
+		gpio_exp0: adp5585_gpio {
+			compatible = "adi,adp5585-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+			ngpios = <13>;
+			gpio-reserved-ranges = <5 3>;
+			status = "okay";
+		};
+	};
+};

@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+
+description: LVDS connector wrapper display device (sequences panel GPIOs and enables LDB)
+
+compatible: "nxp,lvds-connector"
+
+include: [base.yaml]
+
+properties:
+  display:
+    type: phandle
+    required: true
+    description: Upstream display device (DPU/LCDIF/etc) implementing Zephyr display API.
+
+  ldb:
+    type: phandle
+    required: true
+    description: LDB bridge device implementing Zephyr LDB API.
+
+  enable-gpios:
+    type: phandle-array
+    required: false
+    description: Panel enable GPIO (set active in blanking_off).
+
+  reset-gpios:
+    type: phandle-array
+    required: false
+    description: Panel reset GPIO (assert/deassert in blanking_off).
+
+  prepare-delay-ms:
+    type: int
+    default: 0
+    description: Delay after enabling panel (before reset sequence).
+
+  reset-assert-us:
+    type: int
+    default: 0
+    description: Reset assert pulse width in microseconds.
+
+  reset-deassert-ms:
+    type: int
+    default: 0
+    description: Delay after reset deassert in milliseconds.
+
+  disable-on-blanking-on:
+    type: boolean
+    description: If present, disable enable-gpios when blanking_on is called.
