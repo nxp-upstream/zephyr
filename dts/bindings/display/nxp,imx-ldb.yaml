@@ -1,0 +1,36 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: NXP i.MX LDB (LVDS Display Bridge)
+
+compatible: "nxp,imx-ldb"
+
+include: [base.yaml]
+
+properties:
+  reg:
+    required: true
+
+  display-index:
+    type: int
+    required: true
+    enum: [0, 1]
+    description: |
+      Input selection index (typically 0 or 1). This maps to ldb_link_cfg input.
+
+  dual-panel:
+    type: boolean
+    description: |
+      Enable dual-panel / split mode. Driver maps this to LDB_MODE_DUAL_PANEL flag.
+
+  bit-mapping:
+    type: string
+    required: true
+    enum: ["spwg", "jeida"]
+    description: |
+      LVDS bit mapping selection. Maps to enum ldb_bit_mapping.
+
+  enable-on-boot:
+    type: boolean
+    description: |
+      If present, driver will configure and enable the bridge during init.

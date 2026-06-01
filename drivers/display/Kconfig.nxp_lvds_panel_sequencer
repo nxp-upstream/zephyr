@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config NXP_LVDS_PANEL_SEQUENCER
+	bool "NXP LVDS panel sequencer (enable/reset at boot)"
+	default y
+	depends on GPIO
+	depends on DT_HAS_NXP_LVDS_PANEL_SEQUENCER_ENABLED
+	help
+	  LVDS panel helper for LDB setups.
+	  Performs enable/reset GPIO sequencing during boot.
+	  Optionally enables an LDB bridge device.
+
+if NXP_LVDS_PANEL_SEQUENCER
+
+config NXP_LVDS_PANEL_SEQUENCER_INIT_PRIORITY
+	int "NXP LVDS panel sequencer init priority"
+	default DISPLAY_INIT_PRIORITY
+	help
+	  Initialization priority for the LVDS panel sequencer driver.
+	  Must be higher than all devices it depends on (LDB bridge,
+	  GPIO expanders, etc.).
+
+endif

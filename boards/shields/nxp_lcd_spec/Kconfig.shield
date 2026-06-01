@@ -1,0 +1,8 @@
+#
+# Copyright 2026 NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+config SHIELD_NXP_LCD_SPEC
+	def_bool $(shields_list_contains,nxp_lcd_spec)

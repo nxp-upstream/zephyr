@@ -1,0 +1,6 @@
+shield:
+  name: nxp_lcd_spec
+  full_name: NXP LCD-SPEC
+  vendor: nxp
+  supported_features:
+    - display
