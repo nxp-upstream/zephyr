@@ -30,7 +30,10 @@ struct mp_disp_vid_pix_fmt {
 	uint32_t vid_fmt;
 };
 
-/* Pixel formats mapping betwen video and display */
+/*
+ * Pixel formats mapping betwen video and display
+ * Note: video fourcc pixel format is the standard used for caps
+ */
 static const struct mp_disp_vid_pix_fmt mp_disp_vid_pix_fmt_map[] = {
 	{PIXEL_FORMAT_RGB_565, VIDEO_PIX_FMT_RGB565},
 	{PIXEL_FORMAT_RGB_565X, VIDEO_PIX_FMT_RGB565X},
@@ -181,13 +184,13 @@ int mp_zdisp_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net
 		return 0;
 	}
 
-	/*
-	 * Input may be a fragment chain (e.g. zvid_transform output for multiple frames).
-	 * Display each fragment then unref it.
-	 */
+	/* Input may be a fragment chain. Display each fragment then unref it */
 	cur = in_buf;
 	while (cur != NULL) {
-		/* TODO: How to know if the priv is not a video_buffer metadata type ? */
+		/*
+		 * Currently, we assumme that in_buf is always a video buffer.
+		 * TODO: Add support for other buffer types
+		 */
 		struct video_buffer *vbuf = (struct video_buffer *)mp_buffer_get_meta(cur)->priv;
 		struct display_buffer_descriptor buf_desc = {
 			.buf_size = mp_buffer_get_meta(cur)->bytes_used,
