@@ -75,7 +75,4 @@ void mp_caps_filter_init(struct mp_element *self)
 
 	transform->mode = MP_MODE_PASSTHROUGH;
 	transform->set_caps = mp_caps_filter_set_caps;
-	/* All-pass filter is set by default */
-	transform->sinkpad.caps = mp_caps_new_any();
-	transform->srcpad.caps = mp_caps_new_any();
 }
