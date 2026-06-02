@@ -91,3 +91,9 @@ tests:
     extra_args:
       - EXTRA_CONF_FILE=boards/frdm_rw612_nand.conf
       - DTC_OVERLAY_FILE=boards/frdm_rw612_nand.overlay
+  sample.filesystem.littlefs.frdm_mcxn947_nand:
+    build_only: true
+    platform_allow: frdm_mcxn947/mcxn947/cpu0
+    extra_args:
+      - EXTRA_CONF_FILE=boards/frdm_mcxn947_nand.conf
+      - DTC_OVERLAY_FILE=boards/frdm_mcxn947_nand.overlay
