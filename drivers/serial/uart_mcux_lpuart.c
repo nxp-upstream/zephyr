@@ -79,11 +79,6 @@ struct mcux_lpuart_config {
 #if LPUART_ASYNC_ENABLE
 	const struct lpuart_dma_config rx_dma_config;
 	const struct lpuart_dma_config tx_dma_config;
-	/*
-	 * When using asynchronous UART API, some DMA controllers (e.g. nxp,4ch-dma)
-	 * do not support live reload while the channel is busy.
-	 */
-	bool rx_dma_live_reload;
 #endif /* LPUART_ASYNC_ENABLE */
 };
 
@@ -657,7 +652,7 @@ static void prepare_rx_dma_block_config(const struct device *dev)
 	head_block_config->dest_addr_adj = DMA_ADDR_ADJ_INCREMENT;
 	head_block_config->source_addr_adj = DMA_ADDR_ADJ_NO_CHANGE;
 	head_block_config->block_size = rx_dma_params->buf_len;
-	head_block_config->dest_scatter_en = true;
+	head_block_config->dest_scatter_en = false;
 }
 
 static int configure_and_start_rx_dma(
@@ -681,29 +676,6 @@ static int configure_and_start_rx_dma(
 	}
 	LPUART_EnableRxDMA(lpuart, true);
 	return ret;
-}
-
-static int uart_mcux_lpuart_dma_replace_rx_buffer(const struct device *dev)
-{
-	struct mcux_lpuart_data *data = (struct mcux_lpuart_data *)dev->data;
-	const struct mcux_lpuart_config *config = dev->config;
-	LPUART_Type *lpuart = get_base(dev);
-
-	LOG_DBG("Replacing RX buffer, new length: %d", data->async.next_rx_buffer_len);
-	/* There must be a buffer to replace this one with */
-	assert(data->async.next_rx_buffer != NULL);
-	assert(data->async.next_rx_buffer_len != 0U);
-
-	const int success =
-		dma_reload(config->rx_dma_config.dma_dev, config->rx_dma_config.dma_channel,
-			   LPUART_GetDataRegisterAddress(lpuart),
-			   (uint32_t)data->async.next_rx_buffer, data->async.next_rx_buffer_len);
-
-	if (success != 0) {
-		LOG_ERR("Error %d reloading DMA with next RX buffer", success);
-	}
-
-	return success;
 }
 
 static int mcux_lpuart_tx_abort(const struct device *dev);
@@ -768,32 +740,26 @@ static void dma_callback(const struct device *dma_dev, void *callback_arg, uint3
 		/* Remember the buf so it can be released after it is done. */
 		rx_dma_params->buf = data->async.next_rx_buffer;
 		rx_dma_params->buf_len = data->async.next_rx_buffer_len;
+		rx_dma_params->offset = 0U;
+		rx_dma_params->counter = 0U;
 		data->async.next_rx_buffer = NULL;
 		data->async.next_rx_buffer_len = 0U;
 
-		/* A new buffer was available (and already loaded into the DMA engine on device
-		 * with eDMA)
-		 */
+		/* Re-arm DMA here after the completed transfer has released the channel. */
 		if (rx_dma_params->buf != NULL && rx_dma_params->buf_len > 0) {
-			/*
-			 * For MCXC 4-channel DMA we cannot preload the next buffer while busy.
-			 * Re-arm DMA here (DMA driver has cleared busy before invoking callback).
-			 */
-			if (config->rx_dma_live_reload == false) {
-				ret = dma_reload(config->rx_dma_config.dma_dev,
-						 config->rx_dma_config.dma_channel,
-						 LPUART_GetDataRegisterAddress(lpuart),
-						 (uint32_t)rx_dma_params->buf,
-						 rx_dma_params->buf_len);
-				if (ret != 0) {
-					LOG_ERR("Failed to reload RX DMA (4ch) (%d)", ret);
-				}
+			ret = dma_reload(config->rx_dma_config.dma_dev,
+					 config->rx_dma_config.dma_channel,
+					 LPUART_GetDataRegisterAddress(lpuart),
+					 (uint32_t)rx_dma_params->buf,
+					 rx_dma_params->buf_len);
+			if (ret != 0) {
+				LOG_ERR("Failed to reload RX DMA (%d)", ret);
+			}
 
-				ret = dma_start(config->rx_dma_config.dma_dev,
-						config->rx_dma_config.dma_channel);
-				if (ret != 0) {
-					LOG_ERR("Failed to start RX DMA (4ch) (%d)", ret);
-				}
+			ret = dma_start(config->rx_dma_config.dma_dev,
+					config->rx_dma_config.dma_channel);
+			if (ret != 0) {
+				LOG_ERR("Failed to start RX DMA (%d)", ret);
 			}
 
 			/* Request the next buffer */
@@ -992,7 +958,6 @@ static int mcux_lpuart_rx_enable(const struct device *dev, uint8_t *buf, const s
 static int mcux_lpuart_rx_buf_rsp(const struct device *dev, uint8_t *buf, size_t len)
 {
 	struct mcux_lpuart_data *data = dev->data;
-	const struct mcux_lpuart_config *config = dev->config;
 	unsigned int key;
 	int ret = 0;
 
@@ -1003,14 +968,9 @@ static int mcux_lpuart_rx_buf_rsp(const struct device *dev, uint8_t *buf, size_t
 	data->async.next_rx_buffer_len = len;
 
 	/*
-	 * eDMA supports live reload/linked RX, so attempt to preload the next buffer.
-	 *
-	 * NXP MCXC 4-channel DMA (nxp,4ch-dma) rejects dma_reload() while busy.
-	 * For that controller, defer buffer programming to the DMA completion callback.
+	 * The next buffer is programmed from the DMA completion callback after the
+	 * current transfer finishes and the channel becomes available again.
 	 */
-	if (config->rx_dma_live_reload == true) {
-		ret = uart_mcux_lpuart_dma_replace_rx_buffer(dev);
-	}
 
 	irq_unlock(key);
 	return ret;
@@ -1716,13 +1676,9 @@ static DEVICE_API(uart, mcux_lpuart_driver_api) = {
 		},										\
 	), ())
 
-#define RX_DMA_LIVE_RELOAD_CFG(n) \
-	.rx_dma_live_reload = COND_CODE_1(MCUX_LPUART_HAS_DMA(n), \
-		(!MCUX_LPUART_DMA_IS_4CH(n, rx)), (false))
 #else
 #define RX_DMA_CONFIG(n)
 #define TX_DMA_CONFIG(n)
-#define RX_DMA_LIVE_RELOAD_CFG(n)
 #endif /* LPUART_ASYNC_ENABLE */
 
 #define FLOW_CONTROL(n) \
@@ -1751,7 +1707,6 @@ static const struct mcux_lpuart_config mcux_lpuart_##n##_config = {     \
 	MCUX_LPUART_IRQ_INIT(n) \
 	RX_DMA_CONFIG(n)        \
 	TX_DMA_CONFIG(n)        \
-	RX_DMA_LIVE_RELOAD_CFG(n) \
 };
 
 #define LPUART_MCUX_INIT(n)						\
