@@ -6,7 +6,6 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Hardware-backed video transform element.
  *
  * Wraps a Zephyr memory-to-memory video device to perform
@@ -15,6 +14,13 @@
 
 #ifndef ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_TRANSFORM_H_
 #define ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_TRANSFORM_H_
+
+/**
+ * @defgroup mp_zvid_transforms Transforms
+ * @ingroup mp_zvid
+ * @brief Hardware-backed video transform elements.
+ * @{
+ */
 
 #include <zephyr/mp/core/mp_transform.h>
 #include <zephyr/mp/zvid/mp_zvid_object.h>
@@ -41,5 +47,7 @@ struct mp_zvid_transform {
  * @param self Pointer to the @ref mp_element to initialize.
  */
 void mp_zvid_transform_init(struct mp_element *self);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_TRANSFORM_H_ */

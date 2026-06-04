@@ -4,18 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @file
+ * @brief Dispatch for event and query handler
+ */
+
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_DISPATCH_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_DISPATCH_H_
+
+/**
+ * @defgroup mp_dispatch Dispatches
+ * @ingroup mp_core
+ * @brief Dispatch objects exchanged between elements.
+ * @{
+ */
 
 #include <zephyr/mp/core/mp_buffer.h>
 #include <zephyr/mp/core/mp_caps.h>
 #include <zephyr/mp/core/mp_object.h>
-
-/**
- * @file
- * @ingroup mp
- * @brief Dispatch for event and query handler
- */
 
 /**
  * @enum mp_dispatch_type
@@ -138,5 +144,7 @@ struct mp_buffer_pool *mp_dispatch_get_pool(struct mp_dispatch *dispatch);
  * @return Pointer to @ref mp_buffer_pool_config, or NULL.
  */
 struct mp_buffer_pool_config *mp_dispatch_get_pool_config(struct mp_dispatch *dispatch);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_CORE_MP_DISPATCH_H_ */

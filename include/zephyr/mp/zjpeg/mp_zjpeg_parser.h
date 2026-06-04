@@ -6,7 +6,7 @@
 
 /**
  * @file
- * @ingroup mp
+ * @ingroup mp_zjpeg_parsers
  * @brief JPEG stream parser element.
  *
  * Accumulates incoming data until a complete JPEG frame (SOI … EOI)
@@ -15,6 +15,19 @@
 
 #ifndef ZEPHYR_INCLUDE_MP_ZVID_MP_ZJPEG_PARSER_H_
 #define ZEPHYR_INCLUDE_MP_ZVID_MP_ZJPEG_PARSER_H_
+
+/**
+ * @defgroup mp_zjpeg zjpeg
+ * @ingroup mp_plugins
+ * @brief JPEG parser, decoder, and helper APIs.
+ */
+
+/**
+ * @defgroup mp_zjpeg_parsers Parsers
+ * @ingroup mp_zjpeg
+ * @brief JPEG parser elements.
+ * @{
+ */
 
 #include <zephyr/mp/core/mp_parser.h>
 
@@ -38,5 +51,7 @@ struct mp_zjpeg_parser {
  * @param self Pointer to the @ref mp_element to initialize.
  */
 void mp_zjpeg_parser_init(struct mp_element *self);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_ZVID_MP_ZJPEG_PARSER_H_ */

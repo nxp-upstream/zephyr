@@ -6,12 +6,18 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Main header for mp_pipeline.
  */
 
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_PIPELINE_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_PIPELINE_H_
+
+/**
+ * @defgroup mp_pipeline Pipelines
+ * @ingroup mp_core
+ * @brief Top-level pipeline container and runtime control.
+ * @{
+ */
 
 #include <stdint.h>
 
@@ -71,5 +77,7 @@ int mp_pipeline_push_buffer(struct mp_pad *srcpad, struct net_buf *buffer);
 /**
  * @}
  */
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_CORE_MP_PIPELINE_H_ */

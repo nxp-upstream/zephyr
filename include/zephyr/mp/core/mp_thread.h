@@ -6,20 +6,22 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Simple wrapper of k_thread to reuse a thread's stack after its termination
  */
 
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_THREAD_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_THREAD_H_
 
-#include <zephyr/kernel/thread.h>
-#include <zephyr/sys/atomic.h>
-
 /**
+ * @defgroup mp_thread Threads
+ * @ingroup mp_core
+ * @brief Thread helpers used by runtime components.
  *
  * @{
  */
+
+#include <zephyr/kernel/thread.h>
+#include <zephyr/sys/atomic.h>
 
 /**
  * @brief Thread state

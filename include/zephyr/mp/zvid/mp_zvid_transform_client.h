@@ -6,7 +6,6 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Client-side video transform element for multi-core pipelines.
  *
  * Extends the generic transform client with video-specific RPC callbacks
@@ -15,6 +14,13 @@
 
 #ifndef ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_TRANSFORM_CLIENT_H_
 #define ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_TRANSFORM_CLIENT_H_
+
+/**
+ * @defgroup mp_zvid_transform_clients Transform Clients
+ * @ingroup mp_zvid
+ * @brief Client-side video transform elements.
+ * @{
+ */
 
 #include <zephyr/drivers/video.h>
 
@@ -90,5 +96,7 @@ struct mp_zvid_transform_client {
  * @param self Pointer to the @ref mp_element to initialize.
  */
 void mp_zvid_transform_client_init(struct mp_element *self);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_TRANSFORM_CLIENT_H_ */

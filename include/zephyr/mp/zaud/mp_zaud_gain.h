@@ -12,6 +12,13 @@
 #ifndef __MP_ZAUD_GAIN_H__
 #define __MP_ZAUD_GAIN_H__
 
+/**
+ * @defgroup mp_zaud_gain_elements Gain
+ * @ingroup mp_zaud
+ * @brief Audio gain transform elements.
+ * @{
+ */
+
 #include <zephyr/mp/core/mp_transform.h>
 
 /**
@@ -46,5 +53,7 @@ struct mp_zaud_gain {
  *             gain element.
  */
 void mp_zaud_gain_init(struct mp_element *self);
+
+/** @} */
 
 #endif /* __MP_ZAUD_GAIN_H__ */

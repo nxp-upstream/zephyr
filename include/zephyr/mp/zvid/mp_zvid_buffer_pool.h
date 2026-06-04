@@ -6,7 +6,6 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Video buffer pool backed by the Zephyr video subsystem.
  *
  * Manages video buffer allocation and queuing through a Zephyr video
@@ -15,6 +14,19 @@
 
 #ifndef ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_BUFFER_POOL_H_
 #define ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_BUFFER_POOL_H_
+
+/**
+ * @defgroup mp_zvid zvid
+ * @ingroup mp_plugins
+ * @brief Video device-backed elements, transforms, and helper APIs.
+ */
+
+/**
+ * @defgroup mp_zvid_buffer_pools Buffer Pools
+ * @ingroup mp_zvid
+ * @brief Video buffer pools backed by the Zephyr video subsystem.
+ * @{
+ */
 
 #include <zephyr/drivers/video.h>
 #include <zephyr/kernel.h>
@@ -53,5 +65,7 @@ struct mp_zvid_buffer_pool {
  * @param obj  Pointer to the @ref mp_zvid_object to associate with this pool.
  */
 void mp_zvid_buffer_pool_init(struct mp_buffer_pool *pool, struct mp_zvid_object *obj);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_BUFFER_POOL_H_ */

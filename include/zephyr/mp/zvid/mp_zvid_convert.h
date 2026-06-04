@@ -6,7 +6,7 @@
 
 /**
  * @file
- * @ingroup mp
+ * @ingroup mp_zvid_converters
  * @brief Software pixel format conversion transform element.
  *
  * Performs pixel format and colorspace conversions (no scaling or rotation).
@@ -19,6 +19,13 @@
 
 #ifndef ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_CONVERT_H_
 #define ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_CONVERT_H_
+
+/**
+ * @defgroup mp_zvid_converters Converters
+ * @ingroup mp_zvid
+ * @brief Software pixel format conversion elements.
+ * @{
+ */
 
 #include <zephyr/drivers/video.h>
 #include <zephyr/kernel.h>
@@ -69,5 +76,7 @@ struct mp_zvid_convert {
  * @param self Pointer to the @ref mp_element to initialize.
  */
 void mp_zvid_convert_init(struct mp_element *self);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_CONVERT_H_ */

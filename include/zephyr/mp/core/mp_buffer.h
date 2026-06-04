@@ -6,12 +6,18 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Buffer and buffer pool APIs.
  */
 
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_BUFFER_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_BUFFER_H_
+
+/**
+ * @defgroup mp_buffer Buffers
+ * @ingroup mp_core
+ * @brief Buffer metadata and buffer-pool APIs.
+ * @{
+ */
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -124,5 +130,7 @@ int mp_buffer_pool_stop(struct mp_buffer_pool *pool);
  * @param pool Pointer to the buffer pool to initialize
  */
 void mp_buffer_pool_init(struct mp_buffer_pool *pool);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_CORE_MP_BUFFER_H_ */

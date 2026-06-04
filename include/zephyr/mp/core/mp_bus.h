@@ -6,25 +6,27 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Message Bus header file.
  */
 
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_BUS_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_BUS_H_
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <zephyr/kernel.h>
-#include <zephyr/sys/slist.h>
-#include <zephyr/mp/core/mp_message.h>
-
 /**
  * @defgroup mp_bus Message Bus
+ * @ingroup mp_core
  * @brief Message bus for the communication between elements to application
  *
  * @{
  */
+
+#include <stdbool.h>
+#include <stdint.h>
+
+#include <zephyr/kernel.h>
+#include <zephyr/sys/slist.h>
+
+#include <zephyr/mp/core/mp_message.h>
 
 /**
  * @brief Message type filter mask matching any message type.
@@ -89,8 +91,8 @@ static inline void mp_bus_init(struct mp_bus *bus)
 /**
  * @brief Post a message to the bus.
  *
- * @param bus Pointer to the bus
- * @param message Pointer to the message to post
+ * @param bus Pointer to the bus.
+ * @param message Pointer to the message to post.
  * @retval 0 on success (message queued or consumed by a listener)
  * @retval -EINVAL if @p bus or @p message is NULL
  * @retval -ENOMSG if the queue is full
@@ -99,7 +101,6 @@ int mp_bus_post(struct mp_bus *bus, struct mp_message *message);
 
 /**
  * @brief Pop a message from the bus matching a given type filter
- *
  *
  * @param bus Pointer to the bus
  * @param filter_mask Message type filter mask
@@ -152,10 +153,10 @@ int mp_bus_flush(struct mp_bus *bus);
 int mp_bus_add_sync_listener(struct mp_bus *bus, struct mp_bus_sync_listener *listener);
 
 /**
- * @brief Remove a synchronous listener from the bus
+ * @brief Remove a synchronous listener from the bus.
  *
- * @param bus Pointer to the struct mp_bus
- * @param listener Pointer to the listener to remove
+ * @param bus Pointer to the bus.
+ * @param listener Pointer to the listener to remove.
  * @retval 0 on success
  * @retval -EINVAL if @p bus or @p listener is NULL
  * @retval -ENOENT if the listener was not registered on this bus

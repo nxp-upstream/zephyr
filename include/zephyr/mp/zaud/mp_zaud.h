@@ -12,6 +12,19 @@
 #ifndef __MP_ZAUD_H__
 #define __MP_ZAUD_H__
 
+/**
+ * @defgroup mp_zaud zaud
+ * @ingroup mp_plugins
+ * @brief Audio plugin elements, properties, and utility APIs.
+ */
+
+/**
+ * @defgroup mp_zaud_utils Utilities
+ * @ingroup mp_zaud
+ * @brief Audio definitions and utility helpers.
+ * @{
+ */
+
 #include <zephyr/audio/audio_caps.h>
 
 /**
@@ -59,5 +72,7 @@ const uint32_t audio2mp_sample_rate(uint32_t sample_rate_mask);
  * @return Corresponding MediaPipe bit width value
  */
 const uint32_t audio2mp_bit_width(uint32_t bit_width_mask);
+
+/** @} */
 
 #endif /* __MP_ZAUD_H__ */

@@ -7,7 +7,6 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Software JPEG decoder API.
  *
  * Exposes the C API and state structures for the software JPEG decoder
@@ -20,6 +19,13 @@
 
 #ifndef ZEPHYR_INCLUDE_MP_ZVID_JPEG_DEC_H_
 #define ZEPHYR_INCLUDE_MP_ZVID_JPEG_DEC_H_
+
+/**
+ * @defgroup mp_zjpeg_decoder_api Decoder API
+ * @ingroup mp_zjpeg
+ * @brief Software JPEG decoder helper APIs.
+ * @{
+ */
 
 #include <stddef.h>
 #include <stdint.h>
@@ -478,5 +484,7 @@ void JPEG_setMaxOutputSize(JPEGIMAGE *pJPEG, int iMaxMCUs);
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_ZVID_JPEG_DEC_H_ */

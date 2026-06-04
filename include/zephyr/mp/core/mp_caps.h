@@ -6,23 +6,15 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Capabilities header file.
  */
 
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_CAPS_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_CAPS_H_
 
-#include <stddef.h>
-
-#include <zephyr/sys/slist.h>
-
-#include <zephyr/mp/core/mp_object.h>
-
-struct mp_structure;
-
 /**
  * @defgroup mp_caps Media Capabilities
+ * @ingroup mp_core
  * @brief Media Capabilities
  *
  * CAPS is an object represents the supported media formats (e.g., audio, video) and
@@ -32,6 +24,14 @@ struct mp_structure;
  *
  * @{
  */
+
+#include <stddef.h>
+
+#include <zephyr/sys/slist.h>
+
+#include <zephyr/mp/core/mp_object.h>
+
+struct mp_structure;
 
 /**
  * @brief Media type identifiers

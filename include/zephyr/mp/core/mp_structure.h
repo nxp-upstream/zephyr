@@ -6,7 +6,6 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Structure header file.
  */
 
@@ -22,6 +21,7 @@
 
 /**
  * @defgroup mp_structure Dynamic Structure
+ * @ingroup mp_core
  * @brief Dynamic structure for holding named fields and values.
  *
  *

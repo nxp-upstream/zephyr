@@ -6,7 +6,6 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Stream parser base element.
  *
  * Provides a base class for elements that accumulate incoming data
@@ -15,6 +14,14 @@
 
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_PARSER_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_PARSER_H_
+
+/**
+ * @defgroup mp_parser Parsers
+ * @ingroup mp_core
+ * @brief Base parser element that parses encoded streams into frames.
+ *
+ * @{
+ */
 
 #include <zephyr/mp/core/mp_buffer.h>
 #include <zephyr/mp/core/mp_element.h>
@@ -100,5 +107,7 @@ void mp_parser_update_caps(struct mp_parser *parser, struct mp_caps *sink_caps,
  * @param self Pointer to the @ref mp_element to initialize.
  */
 void mp_parser_init(struct mp_element *self);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_CORE_MP_PARSER_H_ */

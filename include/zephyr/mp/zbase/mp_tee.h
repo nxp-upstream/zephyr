@@ -6,7 +6,6 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Tee element for pipeline branching.
  *
  * The tee element splits a single input branch into multiple output branches.
@@ -15,14 +14,15 @@
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_TEE_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_TEE_H_
 
-#include <zephyr/mp/core/mp_element.h>
-#include <zephyr/mp/core/mp_pad.h>
-
 /**
  * @defgroup mp_tee Tee
+ * @ingroup mp_zbase
  * @brief Pipeline branching element (1 sink pad , N source pad)
  * @{
  */
+
+#include <zephyr/mp/core/mp_element.h>
+#include <zephyr/mp/core/mp_pad.h>
 
 /**
  * @brief Tee property identifiers

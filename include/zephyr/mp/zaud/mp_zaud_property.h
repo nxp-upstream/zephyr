@@ -12,6 +12,13 @@
 #ifndef __MP_ZAUD_PROPS_H__
 #define __MP_ZAUD_PROPS_H__
 
+/**
+ * @defgroup mp_zaud_properties Properties
+ * @ingroup mp_zaud
+ * @brief Audio property identifiers for zaud elements.
+ * @{
+ */
+
 #include <zephyr/mp/core/mp_property.h>
 
 /**
@@ -48,5 +55,7 @@ enum prop_zaud_sink {
 	/** Clock role configuration for audio sink (controller/target) */
 	PROP_ZAUD_SINK_CLK_ROLE,
 };
+
+/** @} */
 
 #endif /* __MP_ZAUD_PROPS_H__ */

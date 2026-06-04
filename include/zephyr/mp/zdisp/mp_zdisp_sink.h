@@ -6,7 +6,7 @@
 
 /**
  * @file
- * @ingroup mp
+ * @ingroup mp_zdisp_sinks
  * @brief Display sink element for the MP zdisp plugin.
  *
  * Provides a sink element that renders video frames to a Zephyr display
@@ -15,6 +15,19 @@
 
 #ifndef ZEPHYR_INCLUDE_MP_ZDISP_MP_ZDISP_SINK_H_
 #define ZEPHYR_INCLUDE_MP_ZDISP_MP_ZDISP_SINK_H_
+
+/**
+ * @defgroup mp_zdisp zdisp
+ * @ingroup mp_plugins
+ * @brief Display sink elements and related properties.
+ */
+
+/**
+ * @defgroup mp_zdisp_sinks Sinks
+ * @ingroup mp_zdisp
+ * @brief Display sink elements.
+ * @{
+ */
 
 #include <zephyr/device.h>
 
@@ -39,5 +52,7 @@ struct mp_zdisp_sink {
  * @param self Pointer to the element to initialize.
  */
 void mp_zdisp_sink_init(struct mp_element *self);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_ZDISP_MP_ZDISP_SINK_H_ */

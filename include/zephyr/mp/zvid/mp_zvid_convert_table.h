@@ -6,7 +6,6 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Pixel format conversion lookup table for @ref mp_zvid_convert.
  *
  * Provides a table of conversion descriptors that map input/output pixel
@@ -15,6 +14,13 @@
 
 #ifndef ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_CONVERT_TABLE_H_
 #define ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_CONVERT_TABLE_H_
+
+/**
+ * @defgroup mp_zvid_conversion_tables Conversion Tables
+ * @ingroup mp_zvid
+ * @brief Pixel format conversion table definitions.
+ * @{
+ */
 
 #include <stddef.h>
 #include <stdint.h>
@@ -58,5 +64,7 @@ extern const struct mp_zvid_convert_desc mp_zvid_convert_descs[];
 
 /** Number of entries in @ref mp_zvid_convert_descs. */
 extern const size_t mp_zvid_convert_descs_len;
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_CONVERT_TABLE_H_ */

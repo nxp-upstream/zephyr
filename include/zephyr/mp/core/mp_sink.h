@@ -6,12 +6,19 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Main header for mp_sink.
  */
 
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_SINK_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_SINK_H_
+
+/**
+ * @defgroup mp_sink Sinks
+ * @ingroup mp_core
+ * @brief Terminal elements that consume data from a pipeline.
+ *
+ * @{
+ */
 
 #include <zephyr/mp/core/mp_buffer.h>
 #include <zephyr/mp/core/mp_caps.h>
@@ -83,5 +90,7 @@ void mp_sink_init(struct mp_element *self);
  * @param caps Pointer to the new capabilities to apply
  */
 void mp_sink_update_caps(struct mp_sink *sink, struct mp_caps *caps);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_CORE_MP_SINK_H_ */

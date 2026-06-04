@@ -6,7 +6,6 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Main header for mp_property.
  */
 
@@ -14,6 +13,9 @@
 #define ZEPHYR_INCLUDE_MP_CORE_MP_PROPERTY_H_
 
 /**
+ * @defgroup mp_property Properties
+ * @ingroup mp_core
+ * @brief Property identifiers of base elements.
  * @{
  */
 
@@ -52,8 +54,6 @@ enum prop_sink {
 	PROP_SINK_LAST,
 };
 
-/**
- * @}
- */
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_CORE_MP_PROPERTY_H_ */

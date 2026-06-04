@@ -6,7 +6,6 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Capsfilter element.
  *
  * This element does not modify data, but used to enforce limitations on the data format.
@@ -15,6 +14,19 @@
 
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_CAPSFILTER_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_CAPSFILTER_H_
+
+/**
+ * @defgroup mp_zbase zbase
+ * @ingroup mp_plugins
+ * @brief Base plugin elements shared across MultimediaPipe graphs.
+ */
+
+/**
+ * @defgroup mp_capsfilter Caps Filters
+ * @ingroup mp_zbase
+ * @brief Transform elements that constrain negotiated capabilities.
+ * @{
+ */
 
 #include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_property.h>
@@ -49,5 +61,7 @@ struct mp_caps_filter {
  * @param self Pointer to the @ref mp_element to initialize as a caps filter
  */
 void mp_caps_filter_init(struct mp_element *self);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_CORE_MP_CAPSFILTER_H_ */

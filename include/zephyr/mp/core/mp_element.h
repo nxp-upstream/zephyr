@@ -6,12 +6,18 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Main header for mp_element.
  */
 
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_ELEMENT_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_ELEMENT_H_
+
+/**
+ * @defgroup mp_element Elements
+ * @ingroup mp_core
+ * @brief Common element lifecycle, state, and pad-linking APIs.
+ * @{
+ */
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -232,5 +238,7 @@ enum mp_state_change_return mp_element_set_state(struct mp_element *element, enu
  * @return Pointer to the @ref mp_bus, or NULL if no bus is found.
  */
 struct mp_bus *mp_element_get_bus(struct mp_element *self);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_CORE_MP_ELEMENT_H_ */

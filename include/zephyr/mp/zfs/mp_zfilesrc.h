@@ -6,7 +6,6 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief File source element for the MP zfs plugin.
  *
  * Reads data from a file using Zephyr's filesystem API and produces
@@ -15,6 +14,19 @@
 
 #ifndef ZEPHYR_INCLUDE_MP_ZFS_MP_ZFILESRC_H_
 #define ZEPHYR_INCLUDE_MP_ZFS_MP_ZFILESRC_H_
+
+/**
+ * @defgroup mp_zfs zfs
+ * @ingroup mp_plugins
+ * @brief File-based source and sink elements.
+ */
+
+/**
+ * @defgroup mp_zfs_sources Sources
+ * @ingroup mp_zfs
+ * @brief File-backed source elements.
+ * @{
+ */
 
 #include <zephyr/fs/fs.h>
 
@@ -62,5 +74,7 @@ struct mp_zfilesrc {
  * @param self Pointer to the element to initialize.
  */
 void mp_zfilesrc_init(struct mp_element *self);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_ZFS_MP_ZFILESRC_H_ */

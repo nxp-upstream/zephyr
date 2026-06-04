@@ -4,18 +4,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @file
+ * @brief Bus message
+ */
+
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_MESSAGE_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_MESSAGE_H_
 
-#include <stdint.h>
-#include <zephyr/kernel.h>
-#include <zephyr/mp/core/mp_element.h>
-
 /**
- * @file
- * @ingroup mp
- * @brief Bus message
+ * @defgroup mp_message Messages
+ * @ingroup mp_core
+ * @brief Messages exchanged through the bus.
+ * @{
  */
+
+#include <stdint.h>
+
+#include <zephyr/kernel.h>
+
+#include <zephyr/mp/core/mp_element.h>
 
 /** @brief Filter mask matching any message type. */
 #define MP_MESSAGE_ANY UINT32_MAX
@@ -48,5 +56,7 @@ struct mp_message {
 		(_msg)->origin = (_origin);                                                        \
 		(_msg)->type = (_type);                                                            \
 	}
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_CORE_MP_MESSAGE_H_ */

@@ -6,7 +6,7 @@
 
 /**
  * @file
- * @ingroup mp
+ * @ingroup mp_zvid_properties
  * @brief Property identifiers for the zvid plugin.
  *
  * Extends the base source and transform property enumerations with
@@ -15,6 +15,13 @@
 
 #ifndef ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_PROPERTY_H_
 #define ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_PROPERTY_H_
+
+/**
+ * @defgroup mp_zvid_properties Properties
+ * @ingroup mp_zvid
+ * @brief Property identifiers for zvid elements.
+ * @{
+ */
 
 #include <zephyr/sys/util.h>
 
@@ -32,5 +39,7 @@ enum prop_zvid {
 	/** Crop selection target property */
 	PROP_ZVID_CROP,
 };
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_PROPERTY_H_ */

@@ -6,12 +6,18 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Main header for mp_bin.
  */
 
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_BIN_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_BIN_H_
+
+/**
+ * @defgroup mp_bin Bins
+ * @ingroup mp_core
+ * @brief Container elements that hold and manage child elements.
+ * @{
+ */
 
 #include <stdint.h>
 
@@ -83,5 +89,7 @@ int mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...);
  */
 enum mp_state_change_return mp_bin_change_state_func(struct mp_element *element,
 						     enum mp_state_change transition);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_CORE_MP_BIN_H_ */

@@ -6,12 +6,19 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Main header for mp_transform.
  */
 
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_TRANSFORM_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_TRANSFORM_H_
+
+/**
+ * @defgroup mp_transform Transforms
+ * @ingroup mp_core
+ * @brief Elements that process data between sink and source pads.
+ *
+ * @{
+ */
 
 #include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_pad.h>
@@ -147,5 +154,7 @@ int mp_transform_set_caps(struct mp_transform *transform, enum mp_pad_direction 
  */
 void mp_transform_update_caps(struct mp_transform *transform, struct mp_caps *sink_caps,
 			      struct mp_caps *src_caps);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_CORE_MP_TRANSFORM_H_ */

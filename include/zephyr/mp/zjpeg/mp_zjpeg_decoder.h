@@ -6,7 +6,7 @@
 
 /**
  * @file
- * @ingroup mp
+ * @ingroup mp_zjpeg_decoders
  * @brief Software JPEG decoder transform element.
  *
  * Decodes JPEG-compressed frames into raw pixel data using a software
@@ -15,6 +15,13 @@
 
 #ifndef ZEPHYR_INCLUDE_MP_ZVID_MP_ZJPEG_DECODER_H_
 #define ZEPHYR_INCLUDE_MP_ZVID_MP_ZJPEG_DECODER_H_
+
+/**
+ * @defgroup mp_zjpeg_decoders Decoders
+ * @ingroup mp_zjpeg
+ * @brief JPEG decoder elements.
+ * @{
+ */
 
 #include <zephyr/mp/core/mp_transform.h>
 #include <zephyr/mp/zjpeg/jpeg_dec.h>
@@ -42,5 +49,7 @@ struct mp_zjpeg_decoder {
  * @param self Pointer to the @ref mp_element to initialize.
  */
 void mp_zjpeg_decoder_init(struct mp_element *self);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_ZVID_MP_ZJPEG_DECODER_H_ */

@@ -6,7 +6,6 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Queue element for pipeline-level threading.
  *
  * The queue element decouples a pipeline into two segments running on two different threads.
@@ -17,18 +16,19 @@
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_QUEUE_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_QUEUE_H_
 
+/**
+ * @defgroup mp_queue Queues
+ * @ingroup mp_zbase
+ * @brief Pipeline-level threading element
+ * @{
+ */
+
 #include <zephyr/kernel.h>
 
 #include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_property.h>
 #include <zephyr/mp/core/mp_thread.h>
 #include <zephyr/mp/core/mp_transform.h>
-
-/**
- * @defgroup mp_queue Queue
- * @brief Pipeline-level threading element
- * @{
- */
 
 /**
  * @brief Queue Property Identifiers

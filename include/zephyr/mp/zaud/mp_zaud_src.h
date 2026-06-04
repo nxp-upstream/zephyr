@@ -12,6 +12,13 @@
 #ifndef __MP_ZAUD_SRC_H__
 #define __MP_ZAUD_SRC_H__
 
+/**
+ * @defgroup mp_zaud_sources Sources
+ * @ingroup mp_zaud
+ * @brief Audio source elements backed by audio devices.
+ * @{
+ */
+
 #include <zephyr/device.h>
 
 #include <zephyr/mp/core/mp_src.h>
@@ -43,5 +50,7 @@ void mp_zaud_src_update_caps(struct mp_src *src);
  *             audio source element.
  */
 void mp_zaud_src_init(struct mp_element *self);
+
+/** @} */
 
 #endif /* __MP_ZAUD_SRC_H__ */

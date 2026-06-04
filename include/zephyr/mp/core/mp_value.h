@@ -6,12 +6,19 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Main header for mp_value.
  */
 
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_VALUE_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_VALUE_H_
+
+/**
+ * @defgroup mp_value Value Container
+ * @ingroup mp_core
+ * @brief A generic container for values for different @ref mp_value_type
+ *
+ * @{
+ */
 
 #include <stdarg.h>
 #include <stdbool.h>
@@ -19,13 +26,6 @@
 #include <stdlib.h>
 
 #include <zephyr/mp/core/mp_object.h>
-
-/**
- * @defgroup mp_value Value Container
- * @brief A generic container for values for different @ref mp_value_type
- *
- * @{
- */
 
 /** @brief Value comparison result: first value is less than second */
 #define MP_VALUE_LESS_THAN      -1

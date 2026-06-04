@@ -12,6 +12,13 @@
 #ifndef __MP_ZAUD_I2S_CODEC_SINK_H__
 #define __MP_ZAUD_I2S_CODEC_SINK_H__
 
+/**
+ * @defgroup mp_zaud_i2s_codec_sinks I2S Codec Sinks
+ * @ingroup mp_zaud
+ * @brief Audio sink elements backed by I2S and codec devices.
+ * @{
+ */
+
 #include <zephyr/device.h>
 
 #include <zephyr/mp/core/mp_sink.h>
@@ -49,6 +56,8 @@ struct mp_zaud_i2s_codec_sink {
 	struct k_mem_slab *mem_slab;
 	/** Number of buffers written at the beginning of the stream */
 	uint8_t count;
+	/** Number of queued buffers required before starting the stream */
+	uint8_t start_threshold;
 	/** Flag indicating if the sink has been started */
 	bool started;
 	/** Clock role configuration for I2S and codec */
@@ -72,5 +81,7 @@ struct mp_zaud_i2s_codec_sink {
  *       are not ready or not found in device tree.
  */
 void mp_zaud_i2s_codec_sink_init(struct mp_element *self);
+
+/** @} */
 
 #endif /* __MP_ZAUD_I2S_CODEC_SINK_H__ */

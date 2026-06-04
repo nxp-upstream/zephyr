@@ -6,7 +6,6 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Video object shared by zvid source and transform elements.
  *
  * Provides common video device interaction (capabilities, format negotiation,
@@ -15,6 +14,13 @@
 
 #ifndef ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_OBJECT_H_
 #define ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_OBJECT_H_
+
+/**
+ * @defgroup mp_zvid_objects Objects
+ * @ingroup mp_zvid
+ * @brief Shared video device objects.
+ * @{
+ */
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -113,5 +119,7 @@ int mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *cap
  * @return 0 on success or a negative errno code on failure.
  */
 int mp_zvid_object_decide_allocation(struct mp_zvid_object *zvid_obj, struct mp_dispatch *query);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_OBJECT_H_ */

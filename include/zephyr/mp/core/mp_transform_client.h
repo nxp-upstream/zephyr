@@ -6,12 +6,17 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Main header for mp_transform_client.
  */
 
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_TRANSFORM_CLIENT_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_TRANSFORM_CLIENT_H_
+
+/**
+ * @ingroup mp_transform
+ * @brief Client-side transform elements that offload processing over RPC.
+ * @{
+ */
 
 #include <zephyr/mp/core/mp_buffer.h>
 #include <zephyr/mp/core/mp_transform.h>
@@ -51,5 +56,7 @@ struct mp_transform_client {
  * @param self Pointer to the element to initialize (@ref mp_element)
  */
 void mp_transform_client_init(struct mp_element *self);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_CORE_MP_TRANSFORM_CLIENT_H_ */

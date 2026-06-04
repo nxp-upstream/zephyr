@@ -12,6 +12,13 @@
 #ifndef __MP_ZAUD_BUFFER_POOL_H__
 #define __MP_ZAUD_BUFFER_POOL_H__
 
+/**
+ * @defgroup mp_zaud_buffer_pools Buffer Pools
+ * @ingroup mp_zaud
+ * @brief Audio buffer pool helpers.
+ * @{
+ */
+
 #include <zephyr/device.h>
 
 #include <zephyr/mp/core/mp_buffer.h>
@@ -44,5 +51,7 @@ struct mp_zaud_buffer_pool {
  * @param pool Pointer to the buffer pool structure to initialize.
  */
 void mp_zaud_buffer_pool_init(struct mp_buffer_pool *pool);
+
+/** @} */
 
 #endif /* __MP_ZAUD_BUFFER_POOL_H__ */

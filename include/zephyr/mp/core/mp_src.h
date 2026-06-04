@@ -6,12 +6,19 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Main header for mp_src.
  */
 
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_SRC_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_SRC_H_
+
+/**
+ * @defgroup mp_src Sources
+ * @ingroup mp_core
+ * @brief Elements that generate data.
+ *
+ * @{
+ */
 
 #include <zephyr/mp/core/mp_buffer.h>
 #include <zephyr/mp/core/mp_element.h>
@@ -100,5 +107,7 @@ int mp_src_get_property(struct mp_object *obj, uint32_t key, void *val);
  * @param caps Supported caps for the src pad
  */
 void mp_src_update_caps(struct mp_src *src, struct mp_caps *caps);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_CORE_MP_SRC_H_ */

@@ -6,7 +6,6 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Shared P4WQ pool for element-level work parallelism.
  *
  * Provides a shared P4WQ (Pooled Parallel Preemptible Priority-based Work Queue)
@@ -50,13 +49,14 @@
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_WORKQUEUE_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_WORKQUEUE_H_
 
-#include <zephyr/sys/p4wq.h>
-
 /**
- * @defgroup mp_workqueue Workqueue
+ * @defgroup mp_workqueue Workqueues
+ * @ingroup mp_core
  * @brief Shared P4WQ pool for element-level work parallelism
  * @{
  */
+
+#include <zephyr/sys/p4wq.h>
 
 /**
  * @brief Shared MP P4WQ pool instance

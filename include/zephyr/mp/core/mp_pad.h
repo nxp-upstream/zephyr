@@ -6,12 +6,18 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Main header for mp_pad.
  */
 
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_PAD_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_PAD_H_
+
+/**
+ * @defgroup mp_pad Pad
+ * @ingroup mp_core
+ * @brief Connection point for data flow between elements
+ * @{
+ */
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -25,12 +31,6 @@
 #include <zephyr/mp/core/mp_object.h>
 
 struct mp_dispatch;
-
-/**
- * @defgroup mp_pad Pad
- * @brief Connection point for data flow between elements
- * @{
- */
 
 /**
  * @brief The direction of a pad
@@ -184,8 +184,6 @@ int mp_pad_send_event_default(struct mp_pad *pad, struct mp_dispatch *event);
  */
 int mp_pad_query(struct mp_pad *pad, struct mp_dispatch *query);
 
-/**
- * @}
- */
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_CORE_MP_PAD_H_ */

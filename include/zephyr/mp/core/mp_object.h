@@ -6,12 +6,18 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Main header for mp_object.
  */
 
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_OBJECT_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_OBJECT_H_
+
+/**
+ * @defgroup mp_object Objects
+ * @brief Reference-counted base object APIs.
+ * @ingroup mp_core
+ * @{
+ */
 
 #include <stdint.h>
 
@@ -111,5 +117,7 @@ int mp_object_set_properties(struct mp_object *obj, ...);
  *
  */
 int mp_object_get_properties(struct mp_object *obj, ...);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_CORE_MP_OBJECT_H_ */

@@ -6,7 +6,6 @@
 
 /**
  * @file
- * @ingroup mp
  * @brief Video source element backed by a Zephyr video device.
  *
  * Captures video frames from a hardware video device and pushes them
@@ -15,6 +14,13 @@
 
 #ifndef ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_SRC_H_
 #define ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_SRC_H_
+
+/**
+ * @defgroup mp_zvid_sources Sources
+ * @ingroup mp_zvid
+ * @brief Video source elements backed by Zephyr video devices.
+ * @{
+ */
 
 #include <zephyr/mp/core/mp_src.h>
 
@@ -39,5 +45,7 @@ struct mp_zvid_src {
  * @param self Pointer to the @ref mp_element to initialize.
  */
 void mp_zvid_src_init(struct mp_element *self);
+
+/** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_SRC_H_ */
