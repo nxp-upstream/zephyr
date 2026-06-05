@@ -5,7 +5,6 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/arch/cpu.h>
-#include <zephyr/kernel_structs.h>
 #include <inttypes.h>
 #include <xtensa/config/specreg.h>
 #include <xtensa_backtrace.h>
@@ -42,6 +41,8 @@ char *xtensa_exccause(unsigned int cause_code)
 		return "privileged";
 	case 9:
 		return "load/store alignment";
+	case 11:
+		return "exclusive error";
 	case 12:
 		return "instr PIF data error";
 	case 13:

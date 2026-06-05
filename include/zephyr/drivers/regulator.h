@@ -23,6 +23,12 @@
  * @version 0.1.0
  * @ingroup io_interfaces
  * @{
+ *
+ * @defgroup devicetree-regulator Devicetree Regulator API
+ * @ingroup devicetree
+ * @ingroup regulator_interface
+ * @{
+ * @}
  */
 
 #include <errno.h>
@@ -80,7 +86,6 @@ struct regulator_event {
 };
 
 /**
- * @typedef regulator_callback_t
  * @brief Regulator callback function signature
  *
  * @param dev Regulator device instance

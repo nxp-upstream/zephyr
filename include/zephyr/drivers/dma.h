@@ -24,7 +24,7 @@ extern "C" {
  * @brief Interfaces for DMA (Direct Memory Access) controllers.
  * @defgroup dma_interface DMA
  * @since 1.5
- * @version 1.0.0
+ * @version 1.1.0
  * @ingroup io_interfaces
  * @{
  */
@@ -171,7 +171,6 @@ struct dma_block_config {
 #define DMA_STATUS_HALF_COMPLETE	2
 
 /**
- * @typedef dma_callback_t
  * @brief Callback function for DMA transfer completion
  *
  *  If enabled, callback function will be invoked at transfer or block completion,
@@ -340,7 +339,6 @@ typedef int (*dma_api_get_status)(const struct device *dev, uint32_t channel,
 typedef int (*dma_api_get_attribute)(const struct device *dev, uint32_t type, uint32_t *value);
 
 /**
- * @typedef dma_chan_filter
  * @brief channel filter function call
  *
  * filter function that is used to find the matched internal dma channel
@@ -356,7 +354,6 @@ typedef bool (*dma_api_chan_filter)(const struct device *dev,
 				int channel, void *filter_param);
 
 /**
- * @typedef dma_chan_release
  * @brief channel release function call
  *
  * used to release channel resources "allocated" during the
@@ -393,8 +390,7 @@ __subsystem struct dma_driver_api {
  * @param config  Data structure containing the intended configuration for the
  *                selected channel
  *
- * @retval 0 if successful.
- * @retval <0 Negative errno code if failure.
+ * @return 0 on success, negative errno value on failure.
  */
 static inline int dma_config(const struct device *dev, uint32_t channel,
 			     struct dma_config *config)
@@ -412,8 +408,7 @@ static inline int dma_config(const struct device *dev, uint32_t channel,
  * @param dst     destination address for the DMA transfer
  * @param size    size of DMA transfer
  *
- * @retval 0 if successful.
- * @retval <0 Negative errno code if failure.
+ * @return 0 on success, negative errno value on failure.
  */
 #ifdef CONFIG_DMA_64BIT
 static inline int dma_reload(const struct device *dev, uint32_t channel,
@@ -448,8 +443,7 @@ static inline int dma_reload(const struct device *dev, uint32_t channel,
  * @param channel Numeric identification of the channel where the transfer will
  *                be processed
  *
- * @retval 0 if successful.
- * @retval <0 Negative errno code if failure.
+ * @return 0 on success, negative errno value on failure.
  */
 static inline int dma_start(const struct device *dev, uint32_t channel)
 {
@@ -471,12 +465,18 @@ static inline int dma_start(const struct device *dev, uint32_t channel)
  * @param channel Numeric identification of the channel where the transfer was
  *                being processed
  *
- * @retval 0 if successful.
- * @retval <0 Negative errno code if failure.
+ * @return 0 on success, negative errno value on failure.
+ * @retval -ENOSYS Not implemented.
+ * @retval -EINVAL Invalid channel id.
  */
 static inline int dma_stop(const struct device *dev, uint32_t channel)
 {
-	return DEVICE_API_GET(dma, dev)->stop(dev, channel);
+	const struct dma_driver_api *api = DEVICE_API_GET(dma, dev);
+
+	if (api->stop == NULL) {
+		return -ENOSYS;
+	}
+	return api->stop(dev, channel);
 }
 
 /**
@@ -490,10 +490,9 @@ static inline int dma_stop(const struct device *dev, uint32_t channel)
  * @param dev Pointer to the device structure for the driver instance.
  * @param channel Numeric identification of the channel to suspend
  *
- * @retval 0 If successful.
- * @retval -ENOSYS If not implemented.
- * @retval -EINVAL If invalid channel id or state.
- * @retval -errno Other negative errno code failure.
+ * @return 0 on success, negative errno value on failure.
+ * @retval -ENOSYS Not implemented.
+ * @retval -EINVAL Invalid channel id or state.
  */
 static inline int dma_suspend(const struct device *dev, uint32_t channel)
 {
@@ -516,10 +515,9 @@ static inline int dma_suspend(const struct device *dev, uint32_t channel)
  * @param dev Pointer to the device structure for the driver instance.
  * @param channel Numeric identification of the channel to resume
  *
- * @retval 0 If successful.
- * @retval -ENOSYS If not implemented
- * @retval -EINVAL If invalid channel id or state.
- * @retval -errno Other negative errno code failure.
+ * @return 0 on success, negative errno value on failure.
+ * @retval -ENOSYS Not implemented.
+ * @retval -EINVAL Invalid channel id or state.
  */
 static inline int dma_resume(const struct device *dev, uint32_t channel)
 {
@@ -544,8 +542,7 @@ static inline int dma_resume(const struct device *dev, uint32_t channel)
  * @param dev Pointer to the device structure for the driver instance.
  * @param filter_param filter function parameter
  *
- * @return dma channel if successful.
- * @retval <0 Negative errno code if failure.
+ * @return DMA channel on success, negative errno value on failure.
  */
 static inline int dma_request_channel(const struct device *dev, void *filter_param)
 {
@@ -615,8 +612,7 @@ static inline void dma_release_channel(const struct device *dev, uint32_t channe
  * @param channel  channel number
  * @param filter_param filter attribute
  *
- * @retval <0 Negative errno code if not support
- *
+ * @return Non-negative value on success, negative errno value on failure.
  */
 static inline int dma_chan_filter(const struct device *dev, int channel, void *filter_param)
 {
@@ -642,8 +638,7 @@ static inline int dma_chan_filter(const struct device *dev, int channel, void *f
  *                being processed
  * @param stat   a non-NULL dma_status object for storing DMA status
  *
- * @retval >=0 non-negative if successful.
- * @retval <0 Negative errno code if failure.
+ * @return Non-negative value on success, negative errno value on failure.
  */
 static inline int dma_get_status(const struct device *dev, uint32_t channel,
 				 struct dma_status *stat)
@@ -671,8 +666,7 @@ static inline int dma_get_status(const struct device *dev, uint32_t channel,
  * @param type    Numeric identification of the attribute
  * @param value   A non-NULL pointer to the variable where the read value is to be placed
  *
- * @retval >=0 non-negative if successful.
- * @retval <0 Negative errno code if failure.
+ * @return Non-negative value on success, negative errno value on failure.
  */
 static inline int dma_get_attribute(const struct device *dev, uint32_t type, uint32_t *value)
 {

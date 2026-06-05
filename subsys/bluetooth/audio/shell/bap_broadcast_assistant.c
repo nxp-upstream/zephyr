@@ -14,12 +14,13 @@
 #include <string.h>
 
 #include <zephyr/autoconf.h>
+#include <zephyr/bluetooth/addr.h>
 #include <zephyr/bluetooth/assigned_numbers.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
-#include <zephyr/bluetooth/addr.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
+#include <zephyr/bluetooth/data.h>
 #include <zephyr/bluetooth/gap.h>
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/bluetooth/hci.h>
@@ -33,12 +34,13 @@
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
 #include <zephyr/sys/util_utf8.h>
+#include <zephyr/toolchain.h>
 #include <zephyr/types.h>
 
-#include "common/bt_shell_private.h"
-#include "host/shell/bt.h"
-#include "host/hci_core.h"
 #include "audio.h"
+#include "common/bt_shell_private.h"
+#include "host/hci_core.h"
+#include "host/shell/bt.h"
 
 static uint8_t received_base[UINT8_MAX];
 static size_t received_base_size;
@@ -61,6 +63,8 @@ struct broadcast_assistant_recv_state broadcast_assistant_recv_states[CONFIG_BT_
 
 static void disconnected_cb(struct bt_conn *conn, uint8_t reason)
 {
+	ARG_UNUSED(reason);
+
 	(void)memset(&broadcast_assistant_recv_states[bt_conn_index(conn)], 0,
 		     sizeof(broadcast_assistant_recv_states[0]));
 }
@@ -73,6 +77,8 @@ static bool pa_decode_base(struct bt_data *data, void *user_data)
 {
 	const struct bt_bap_base *base = bt_bap_base_get_base_from_ad(data);
 	int base_size;
+
+	ARG_UNUSED(user_data);
 
 	/* Base is NULL if the data does not contain a valid BASE */
 	if (base == NULL) {
@@ -102,6 +108,9 @@ static void pa_recv(struct bt_le_per_adv_sync *sync,
 		    const struct bt_le_per_adv_sync_recv_info *info,
 		    struct net_buf_simple *buf)
 {
+	ARG_UNUSED(sync);
+	ARG_UNUSED(info);
+
 	bt_data_parse(buf, pa_decode_base, NULL);
 }
 
@@ -130,6 +139,8 @@ static void bap_broadcast_assistant_scan_cb(const struct bt_le_scan_recv_info *i
 static bool metadata_entry(struct bt_data *data, void *user_data)
 {
 	char metadata[512];
+
+	ARG_UNUSED(user_data);
 
 	bin2hex(data->data, data->data_len, metadata, sizeof(metadata));
 
@@ -308,11 +319,15 @@ static void bap_broadcast_assistant_recv_state_cb(
 
 static void bap_broadcast_assistant_recv_state_removed_cb(struct bt_conn *conn, uint8_t src_id)
 {
+	ARG_UNUSED(conn);
+
 	bt_shell_print("BASS recv state %u removed", src_id);
 }
 
 static void bap_broadcast_assistant_scan_start_cb(struct bt_conn *conn, int err)
 {
+	ARG_UNUSED(conn);
+
 	if (err != 0) {
 		bt_shell_error("BASS scan start failed (%d)", err);
 	} else {
@@ -322,6 +337,8 @@ static void bap_broadcast_assistant_scan_start_cb(struct bt_conn *conn, int err)
 
 static void bap_broadcast_assistant_scan_stop_cb(struct bt_conn *conn, int err)
 {
+	ARG_UNUSED(conn);
+
 	if (err != 0) {
 		bt_shell_error("BASS scan stop failed (%d)", err);
 	} else {
@@ -331,6 +348,8 @@ static void bap_broadcast_assistant_scan_stop_cb(struct bt_conn *conn, int err)
 
 static void bap_broadcast_assistant_add_src_cb(struct bt_conn *conn, int err)
 {
+	ARG_UNUSED(conn);
+
 	if (err != 0) {
 		bt_shell_error("BASS add source failed (%d)", err);
 	} else {
@@ -340,6 +359,8 @@ static void bap_broadcast_assistant_add_src_cb(struct bt_conn *conn, int err)
 
 static void bap_broadcast_assistant_mod_src_cb(struct bt_conn *conn, int err)
 {
+	ARG_UNUSED(conn);
+
 	if (err != 0) {
 		bt_shell_error("BASS modify source failed (%d)", err);
 	} else {
@@ -350,6 +371,8 @@ static void bap_broadcast_assistant_mod_src_cb(struct bt_conn *conn, int err)
 static void bap_broadcast_assistant_broadcast_code_cb(struct bt_conn *conn,
 						      int err)
 {
+	ARG_UNUSED(conn);
+
 	if (err != 0) {
 		bt_shell_error("BASS broadcast code failed (%d)", err);
 	} else {
@@ -359,6 +382,8 @@ static void bap_broadcast_assistant_broadcast_code_cb(struct bt_conn *conn,
 
 static void bap_broadcast_assistant_rem_src_cb(struct bt_conn *conn, int err)
 {
+	ARG_UNUSED(conn);
+
 	if (err != 0) {
 		bt_shell_error("BASS remove source failed (%d)", err);
 	} else {
@@ -410,6 +435,9 @@ static int cmd_bap_broadcast_assistant_scan_stop(const struct shell *sh,
 						 size_t argc, char **argv)
 {
 	int result;
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
 
 	result = bt_bap_broadcast_assistant_scan_stop(default_conn);
 	if (result) {
@@ -629,7 +657,7 @@ static void scan_recv_cb(const struct bt_le_scan_recv_info *info,
 				bt_addr_le_str(info->addr), sr_info.broadcast_id);
 
 			err = bt_le_scan_stop();
-			if (err) {
+			if (err != 0) {
 				bt_shell_error("Failed to stop scan: %d", err);
 			}
 
@@ -642,7 +670,7 @@ static void scan_recv_cb(const struct bt_le_scan_recv_info *info,
 			param.subgroups = &auto_scan.subgroup;
 
 			err = bt_bap_broadcast_assistant_add_src(default_conn, &param);
-			if (err) {
+			if (err != 0) {
 				bt_shell_print("Failed to add source: %d", err);
 			}
 
@@ -670,6 +698,9 @@ static int cmd_bap_broadcast_assistant_discover(const struct shell *sh,
 {
 	static bool registered;
 	int result;
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
 
 	if (!registered) {
 		static struct bt_le_per_adv_sync_cb cb = {
@@ -754,7 +785,7 @@ static int cmd_bap_broadcast_assistant_add_broadcast_id(const struct shell *sh,
 	}
 
 	err = bt_le_scan_start(BT_LE_SCAN_PASSIVE, NULL);
-	if (err) {
+	if (err != 0) {
 		shell_print(sh, "Fail to start scanning: %d", err);
 
 		return -ENOEXEC;
@@ -822,7 +853,7 @@ static int cmd_bap_broadcast_assistant_add_broadcast_name(const struct shell *sh
 	}
 
 	err = bt_le_scan_start(BT_LE_SCAN_PASSIVE, NULL);
-	if (err) {
+	if (err != 0) {
 		shell_print(sh, "Fail to start scanning: %d", err);
 
 		return -ENOEXEC;
@@ -1111,6 +1142,9 @@ static int cmd_bap_broadcast_assistant_broadcast_code(const struct shell *sh,
 {
 	uint8_t broadcast_code[BT_ISO_BROADCAST_CODE_SIZE] = {0};
 	size_t broadcast_code_len;
+
+	ARG_UNUSED(argc);
+
 	unsigned long src_id;
 	int result = 0;
 
@@ -1152,6 +1186,8 @@ static int cmd_bap_broadcast_assistant_broadcast_code(const struct shell *sh,
 static int cmd_bap_broadcast_assistant_rem_src(const struct shell *sh,
 					       size_t argc, char **argv)
 {
+	ARG_UNUSED(argc);
+
 	unsigned long src_id;
 	int result = 0;
 
@@ -1179,6 +1215,8 @@ static int cmd_bap_broadcast_assistant_rem_src(const struct shell *sh,
 static int cmd_bap_broadcast_assistant_read_recv_state(const struct shell *sh,
 						       size_t argc, char **argv)
 {
+	ARG_UNUSED(argc);
+
 	unsigned long idx;
 	int result = 0;
 

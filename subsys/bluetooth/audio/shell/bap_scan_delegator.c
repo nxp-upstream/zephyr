@@ -14,12 +14,13 @@
 #include <string.h>
 
 #include <zephyr/autoconf.h>
+#include <zephyr/bluetooth/addr.h>
 #include <zephyr/bluetooth/assigned_numbers.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
-#include <zephyr/bluetooth/addr.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
+#include <zephyr/bluetooth/data.h>
 #include <zephyr/bluetooth/gap.h>
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/bluetooth/iso.h>
@@ -28,14 +29,14 @@
 #include <zephyr/shell/shell.h>
 #include <zephyr/shell/shell_string_conv.h>
 #include <zephyr/sys/__assert.h>
-#include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
+#include <zephyr/toolchain.h>
 #include <zephyr/types.h>
 
 #include <audio/bap_internal.h>
 #include "audio.h"
-#include "host/shell/bt.h"
 #include "common/bt_shell_private.h"
+#include "host/shell/bt.h"
 
 #define PA_SYNC_INTERVAL_TO_TIMEOUT_RATIO 20 /* Set the timeout relative to interval */
 #define PA_SYNC_SKIP              5
@@ -368,6 +369,8 @@ static int pa_sync_term_req_cb(struct bt_conn *conn,
 {
 	struct scan_delegator_sync_state *state;
 
+	ARG_UNUSED(conn);
+
 	bt_shell_info("PA Sync term request for %p", recv_state);
 
 	state = sync_state_get(recv_state);
@@ -386,6 +389,8 @@ static void broadcast_code_cb(struct bt_conn *conn,
 {
 	struct scan_delegator_sync_state *state;
 
+	ARG_UNUSED(conn);
+
 	bt_shell_info("Broadcast code received for %p", recv_state);
 	bt_shell_hexdump(broadcast_code, BT_ISO_BROADCAST_CODE_SIZE);
 
@@ -403,10 +408,12 @@ static int bis_sync_req_cb(struct bt_conn *conn,
 			   const struct bt_bap_scan_delegator_recv_state *recv_state,
 			   const uint32_t bis_sync_req[CONFIG_BT_BAP_BASS_MAX_SUBGROUPS])
 {
-	printk("BIS sync request received for %p\n", recv_state);
+	ARG_UNUSED(conn);
+
+	bt_shell_print("BIS sync request received for %p", recv_state);
 
 	for (int i = 0; i < CONFIG_BT_BAP_BASS_MAX_SUBGROUPS; i++) {
-		printk("  [%d]: 0x%08x\n", i, bis_sync_req[i]);
+		bt_shell_print("  [%d]: 0x%08x", i, bis_sync_req[i]);
 	}
 
 	return 0;
@@ -461,6 +468,8 @@ static void pa_term_cb(struct bt_le_per_adv_sync *sync,
 {
 	struct scan_delegator_sync_state *state;
 
+	ARG_UNUSED(info);
+
 	bt_shell_info("PA %p sync terminated", sync);
 
 	state = scan_delegator_sync_state_get_by_pa(sync);
@@ -489,17 +498,20 @@ static int cmd_bap_scan_delegator_init(const struct shell *sh, size_t argc,
 {
 	static bool registered;
 
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
 	if (!registered) {
 		int err;
 
 		err = bt_bap_scan_delegator_register(&scan_delegator_cb);
-		if (err) {
+		if (err != 0) {
 			shell_error(sh, "Failed to register scan delegator (err: %d)", err);
 			return -ENOEXEC;
 		}
 
 		err = bt_le_per_adv_sync_cb_register(&pa_sync_cb);
-		if (err) {
+		if (err != 0) {
 			shell_error(sh, "Failed to register PA sync callbacks (err: %d)", err);
 			return -ENOEXEC;
 		}
@@ -514,6 +526,8 @@ static int cmd_bap_scan_delegator_set_past_pref(const struct shell *sh,
 {
 	bool past_pref;
 	int err;
+
+	ARG_UNUSED(argc);
 
 	err = 0;
 
@@ -533,6 +547,9 @@ static int cmd_bap_scan_delegator_sync_pa(const struct shell *sh, size_t argc,
 {
 	struct bt_le_per_adv_sync *pa_sync = per_adv_syncs[selected_per_adv_sync];
 	struct scan_delegator_sync_state *state;
+
+	ARG_UNUSED(argc);
+
 	unsigned long src_id;
 	int err;
 
@@ -606,6 +623,9 @@ static int cmd_bap_scan_delegator_term_pa(const struct shell *sh, size_t argc,
 					  char **argv)
 {
 	struct scan_delegator_sync_state *state;
+
+	ARG_UNUSED(argc);
+
 	unsigned long src_id;
 	int err;
 
@@ -966,6 +986,8 @@ static int cmd_bap_scan_delegator_mod_src(const struct shell *sh, size_t argc,
 static int cmd_bap_scan_delegator_rem_src(const struct shell *sh, size_t argc,
 					  char **argv)
 {
+	ARG_UNUSED(argc);
+
 	unsigned long src_id;
 	int err;
 
@@ -998,6 +1020,9 @@ static int cmd_bap_scan_delegator_bis_synced(const struct shell *sh, size_t argc
 					 char **argv)
 {
 	uint32_t bis_syncs[CONFIG_BT_BAP_BASS_MAX_SUBGROUPS];
+
+	ARG_UNUSED(argc);
+
 	unsigned long pa_sync_state;
 	unsigned long bis_synced;
 	unsigned long src_id;

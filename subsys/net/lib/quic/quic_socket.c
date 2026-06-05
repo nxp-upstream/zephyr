@@ -10,6 +10,7 @@ static int quic_connection_init(struct quic_context *ctx,
 {
 	struct quic_endpoint *ep;
 	int ret;
+	size_t token_len;
 
 	k_mutex_lock(&endpoints_lock, K_FOREVER);
 
@@ -54,6 +55,15 @@ static int quic_connection_init(struct quic_context *ctx,
 
 			ep->my_cid_len = 8;
 			sys_rand_get(ep->my_cid, ep->my_cid_len);
+			ep->token.client_initial_dcid_len = ep->peer_cid_len;
+			memcpy(ep->token.client_initial_dcid, ep->peer_cid, ep->peer_cid_len);
+
+			token_len = quic_token_cache_take(remote_addr, ep->token.initial,
+							  sizeof(ep->token.initial));
+			if (token_len > 0U) {
+				ep->token.initial_len = token_len;
+				ep->token.initial_type = QUIC_TOKEN_NEW;
+			}
 
 			NET_DBG("[EP:%p/%d] Created new endpoint from %s to %s", ep,
 				quic_get_by_ep(ep), local_addr == NULL ? "ANY" :
@@ -66,6 +76,15 @@ static int quic_connection_init(struct quic_context *ctx,
 
 	ctx->stream_id_counter = 0ULL;
 	ctx->id = connection_ids++;
+
+#if defined(CONFIG_NET_STATISTICS_QUIC)
+	if (!ctx->is_listening) {
+		ctx->stats_is_server = ep->is_server;
+		memcpy(&ctx->stats_local_addr, &ep->local_addr, sizeof(ctx->stats_local_addr));
+		memcpy(&ctx->stats_remote_addr, &ep->remote_addr, sizeof(ctx->stats_remote_addr));
+		ctx->stats_metadata_valid = true;
+	}
+#endif /* CONFIG_NET_STATISTICS_QUIC */
 
 	/* Create the actual UDP socket here and do the QUIC handshake.
 	 */
@@ -1354,6 +1373,8 @@ static int quic_connection_accept(struct quic_context *listen_ctx,
 	child_ctx->sock = fd;
 	*new_ctx_out = child_ctx;
 
+	quic_stats_update_connection_opened();
+
 	NET_DBG("[CO:%p/%d] Accepted connection context %p/%d on fd %d",
 		listen_ctx, quic_get_by_conn(listen_ctx),
 		child_ctx, quic_get_by_conn(child_ctx), fd);
@@ -2080,6 +2101,10 @@ have_endpoint:
 	stream->type = initiator | direction;
 	stream->priority = priority;
 	stream->id = quic_stream_id_get(stream);
+	stream->local_max_data = quic_stream_local_rx_limit(ep, stream->type);
+	stream->local_max_data_sent = stream->local_max_data;
+	stream->fc_bytes_received = 0;
+	stream->highest_offset_received = 0;
 
 	/* Initialize TX flow control from peer transport parameters */
 	if (ep->peer_params.parsed) {

@@ -270,7 +270,12 @@ struct sbs_gauge_device_chemistry {
 } __packed;
 
 /**
- * @typedef fuel_gauge_get_property_t
+ * @def_driverbackendgroup{Fuel Gauge,fuel_gauge_interface}
+ * @ingroup fuel_gauge_interface
+ * @{
+ */
+
+/**
  * @brief Callback API for getting a fuel_gauge property.
  *
  * See fuel_gauge_get_property() for argument description
@@ -279,7 +284,6 @@ typedef int (*fuel_gauge_get_property_t)(const struct device *dev, fuel_gauge_pr
 					 union fuel_gauge_prop_val *val);
 
 /**
- * @typedef fuel_gauge_set_property_t
  * @brief Callback API for setting a fuel_gauge property.
  *
  * See fuel_gauge_set_property() for argument description
@@ -288,7 +292,6 @@ typedef int (*fuel_gauge_set_property_t)(const struct device *dev, fuel_gauge_pr
 					 union fuel_gauge_prop_val val);
 
 /**
- * @typedef fuel_gauge_get_buffer_property_t
  * @brief Callback API for getting a fuel_gauge buffer property.
  *
  * See fuel_gauge_get_buffer_property() for argument description
@@ -298,7 +301,6 @@ typedef int (*fuel_gauge_get_buffer_property_t)(const struct device *dev,
 						size_t dst_len);
 
 /**
- * @typedef fuel_gauge_battery_cutoff_t
  * @brief Callback API for doing a battery cutoff.
  *
  * See fuel_gauge_battery_cutoff() for argument description
@@ -307,18 +309,27 @@ typedef int (*fuel_gauge_battery_cutoff_t)(const struct device *dev);
 
 /* Caching is entirely on the onus of the client */
 
+/**
+ * @driver_ops{Fuel Gauge}
+ */
 __subsystem struct fuel_gauge_driver_api {
-	/**
+	/*
 	 * Note: Historically this API allowed drivers to implement a custom multi-get/set property
 	 * function, this was added so drivers could potentially optimize batch read with their
 	 * specific chip. However, it was removed because of no existing concrete case upstream.
 	 * If this need is demonstrated, we can add this back in as an API field.
 	 */
+	/** @driver_ops_optional @copybrief fuel_gauge_get_prop */
 	fuel_gauge_get_property_t get_property;
+	/** @driver_ops_optional @copybrief fuel_gauge_set_prop */
 	fuel_gauge_set_property_t set_property;
+	/** @driver_ops_optional @copybrief fuel_gauge_get_buffer_prop */
 	fuel_gauge_get_buffer_property_t get_buffer_property;
+	/** @driver_ops_optional @copybrief fuel_gauge_battery_cutoff */
 	fuel_gauge_battery_cutoff_t battery_cutoff;
 };
+
+/** @} */
 
 /**
  * @brief Fetch a battery fuel-gauge property

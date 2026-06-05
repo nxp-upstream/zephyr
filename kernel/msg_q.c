@@ -11,7 +11,6 @@
 
 
 #include <zephyr/kernel.h>
-#include <zephyr/kernel_structs.h>
 
 #include <zephyr/toolchain.h>
 #include <zephyr/linker/sections.h>
@@ -107,11 +106,9 @@ int z_vrfy_k_msgq_alloc_init(struct k_msgq *msgq, size_t msg_size,
 #include <zephyr/syscalls/k_msgq_alloc_init_mrsh.c>
 #endif /* CONFIG_USERSPACE */
 
-static int msgq_cleanup(struct k_msgq *msgq, void **mem)
+int k_msgq_cleanup(struct k_msgq *msgq)
 {
 	int ret = 0;
-
-	*mem = NULL;
 	SYS_PORT_TRACING_OBJ_FUNC_ENTER(k_msgq, cleanup, msgq);
 
 	CHECKIF(z_waitq_head(&msgq->wait_q) != NULL) {
@@ -120,30 +117,12 @@ static int msgq_cleanup(struct k_msgq *msgq, void **mem)
 	}
 
 	if ((msgq->flags & K_MSGQ_FLAG_ALLOC) != 0U) {
-		*mem = msgq->buffer_start;
+		k_free(msgq->buffer_start);
 		msgq->flags &= ~K_MSGQ_FLAG_ALLOC;
 	}
 
 exit:
 	SYS_PORT_TRACING_OBJ_FUNC_EXIT(k_msgq, cleanup, msgq, ret);
-	return ret;
-}
-
-int k_msgq_cleanup(struct k_msgq *msgq)
-{
-	void *mem;
-	int ret = msgq_cleanup(msgq, &mem);
-
-	k_free(mem);
-	return ret;
-}
-
-int z_msgq_cleanup_sched_locked(struct k_msgq *msgq)
-{
-	void *mem;
-	int ret = msgq_cleanup(msgq, &mem);
-
-	k_free_sched_locked(mem);
 	return ret;
 }
 

@@ -7,7 +7,9 @@ import contextlib
 import os
 import pathlib
 import shlex
+import struct
 import sys
+import sysconfig
 
 import yaml
 from west.commands import Verbosity
@@ -15,7 +17,14 @@ from west.configuration import config
 from west.util import WestNotFound, west_topdir
 from west.version import __version__
 
-from build_helpers import FIND_BUILD_DIR_DESCRIPTION, find_build_dir, is_zephyr_build, load_domains
+from build_helpers import (
+    BUILD_HELPERS_LOGGER,
+    FIND_BUILD_DIR_DESCRIPTION,
+    find_build_dir,
+    forward_logging_to_west,
+    is_zephyr_build,
+    load_domains,
+)
 from zcmake import DEFAULT_CMAKE_GENERATOR, CMakeCache, run_build, run_cmake
 from zephyr_ext_common import Forceable
 
@@ -60,6 +69,27 @@ def config_get(option, fallback):
 
 def config_getboolean(option, fallback):
     return config.getboolean('build', option, fallback=fallback)
+
+def python_properties():
+    python_properties = {}
+    if sys.implementation.name == "cpython" and "CONDA_PREFIX" not in os.environ:
+        python_properties["id"] = "Python"
+    else:
+        return None
+
+    python_properties["major"] = str(sys.version_info.major)
+    python_properties["minor"] = str(sys.version_info.minor)
+    python_properties["patch"] = str(sys.version_info.micro)
+    python_properties["arch"] = str(struct.calcsize("P") * 8)
+    python_properties["abiflags"] = getattr(sys, "abiflags", "")
+    python_properties["soabi"] = sysconfig.get_config_var("EXT_SUFFIX").lstrip(".")
+    python_properties["sosabi"] = "" if sys.platform == "win32" else f"abi{sys.version_info.major}"
+    python_properties["stdlib"] = sysconfig.get_path('stdlib')
+    python_properties["stdarch"] = sysconfig.get_path('platstdlib')
+    python_properties["sitelib"] = sysconfig.get_path('purelib')
+    python_properties["sitearch"] = sysconfig.get_path('platlib')
+
+    return python_properties
 
 class AlwaysIfMissing(argparse.Action):
 
@@ -135,13 +165,12 @@ class Build(Forceable):
                            help='''run build system target TARGET
                            (try "-t usage")''')
         group.add_argument('-T', '--test-item',
-                           help='''Build based on test data in testcase.yaml
-                           or sample.yaml. If source directory is not used
-                           an argument has to be defined as
-                           SOURCE_PATH/TEST_NAME.
-                           E.g. samples/hello_world/sample.basic.helloworld.
-                           If source directory is passed
-                           then "TEST_NAME" is enough.''')
+                           help='''Build based on test data in test definition
+                           file. If source directory is not used an argument
+                           has to be defined as SOURCE_PATH/TEST_NAME.  E.g.
+                           samples/hello_world/sample.basic.helloworld.  If
+                           source directory is passed then "TEST_NAME" is
+                           enough.''')
         group.add_argument('-o', '--build-opt', default=[], action='append',
                            help='''options to pass to the build tool
                            (make or ninja); may be given more than once''')
@@ -191,6 +220,9 @@ class Build(Forceable):
     def do_run(self, args, remainder):
         self.args = args        # Avoid having to pass them around
         self.config_board = config_get('board', None)
+        # Forward debug output from the build_helpers/zcmake module
+        # loggers so it is visible under "west -v" / "west -vv".
+        forward_logging_to_west(self, [BUILD_HELPERS_LOGGER, 'zcmake'])
         self.dbg(f'args: {args} remainder: {remainder}',
                 level=Verbosity.DBG_EXTREME)
         # Store legacy -s option locally
@@ -254,20 +286,9 @@ class Build(Forceable):
 
         board, origin = self._find_board()
 
-        # Parse testcase.yaml or sample.yaml files for additional options.
+        # Parse test definition file for additional options.
         if self.args.test_item:
-            # we get path + testitem
-            item = os.path.basename(self.args.test_item)
-            if self.args.source_dir:
-                test_path = self.args.source_dir
-            else:
-                test_path = os.path.dirname(self.args.test_item)
-            if test_path and os.path.exists(test_path):
-                self.args.source_dir = test_path
-                if not self._parse_test_item(item, board):
-                    self.die("No test metadata found")
-            else:
-                self.die("test item path does not exist")
+            self._resolve_test_item(board)
 
         self._run_cmake(board, origin)
         if args.cmake_only:
@@ -333,9 +354,27 @@ class Build(Forceable):
         else:
             return arg
 
+    def _resolve_test_item(self, board):
+        """Resolve --test-item: derive source_dir from the test path and
+        parse sample/testcase YAML metadata for additional build options.
+        """
+        item = os.path.basename(self.args.test_item)
+        if self.args.source_dir:
+            test_path = self.args.source_dir
+        else:
+            test_path = os.path.dirname(self.args.test_item)
+        if test_path and os.path.exists(test_path):
+            self.args.source_dir = test_path
+            self.source_dir = os.path.abspath(test_path)
+            if not self._parse_test_item(item, board):
+                self.die("No test metadata found")
+        else:
+            self.die("test item path does not exist")
+
     def _parse_test_item(self, test_item, board):
         found_test_metadata = False
-        for yp in ['sample.yaml', 'testcase.yaml']:
+        # keep sample.yaml and testcase.yaml until we completely switch to tests.yaml
+        for yp in ['tests.yaml', 'sample.yaml', 'testcase.yaml']:
             yf = os.path.join(self.args.source_dir, yp)
             if not os.path.exists(yf):
                 continue
@@ -679,8 +718,15 @@ class Build(Forceable):
         #
         # west build -- -DOVERLAY_CONFIG=relative-path.conf
         final_cmake_args = [f'-DWEST_PYTHON={pathlib.Path(sys.executable).as_posix()}',
+                            f'-DWEST_TOPDIR={pathlib.Path(str(west_topdir(self.source_dir))).as_posix()}',
+                            f'-DWEST_VERSION={str(__version__)}',
                             f'-B{self.build_dir}',
                             f'-G{config_get("generator", DEFAULT_CMAKE_GENERATOR)}']
+
+        properties = python_properties()
+        if properties:
+            cmake_list = ';'.join(properties.values())
+            final_cmake_args.extend([f'-DWEST_PYTHON_PROPERTIES="{cmake_list}"'])
         if cmake_opts:
             final_cmake_args.extend(cmake_opts)
         run_cmake(final_cmake_args, dry_run=self.args.dry_run, env=cmake_env)
@@ -710,7 +756,7 @@ class Build(Forceable):
         if self.args.build_opt:
             extra_args.append('--')
             extra_args.extend(self.args.build_opt)
-        if self.args.verbose:
+        if self.verbosity >= Verbosity.DBG:
             self._append_verbose_args(extra_args,
                                       not bool(self.args.build_opt))
 

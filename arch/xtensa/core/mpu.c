@@ -15,6 +15,7 @@
 #include <zephyr/arch/xtensa/mpu.h>
 #include <zephyr/linker/linker-defs.h>
 #include <zephyr/sys/__assert.h>
+#include <zephyr/sys/math_extras.h>
 #include <zephyr/sys/util_macro.h>
 
 #include <xtensa/corebits.h>
@@ -72,7 +73,7 @@ static struct k_spinlock xtensa_mpu_lock;
  *   XCHAL_MPU_ALIGN_BITS provided by the toolchain indicates
  *   that only bits of and left of this value are valid. This
  *   corresponds to the minimum segment size (MINSEGMENTSIZE)
- *   definied in the processor configuration.
+ *   defined in the processor configuration.
  */
 
 #ifndef CONFIG_XTENSA_MPU_ONLY_SOC_RANGES
@@ -514,7 +515,7 @@ static int mpu_map_region_add(struct xtensa_mpu_map *map,
 	/*
 	 * Need to keep track of the attributes of the memory region before
 	 * we start adding entries, as we will need to apply the same
-	 * attributes to the "ending address" entry to preseve the attributes
+	 * attributes to the "ending address" entry to preserve the attributes
 	 * of existing map.
 	 */
 	prev_entry = *entry_slot_e;
@@ -1011,11 +1012,16 @@ int arch_buffer_validate(const void *addr, size_t size, int write)
 {
 	uintptr_t aligned_addr;
 	size_t aligned_size, addr_offset;
-	int ret = 0;
+	int ret = -EINVAL;
 
 	/* addr/size arbitrary, fix this up into an aligned region */
 	aligned_addr = ROUND_DOWN((uintptr_t)addr, XCHAL_MPU_ALIGN);
 	addr_offset = (uintptr_t)addr - aligned_addr;
+
+	if (size_add_overflow(size, addr_offset, &aligned_size)) {
+		goto out;
+	}
+
 	aligned_size = ROUND_UP(size + addr_offset, XCHAL_MPU_ALIGN);
 
 	for (size_t offset = 0; offset < aligned_size;
@@ -1073,6 +1079,8 @@ int arch_buffer_validate(const void *addr, size_t size, int write)
 			}
 		}
 	}
+
+	ret = 0;
 
 out:
 	return ret;

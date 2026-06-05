@@ -242,6 +242,7 @@ static uint32_t eth_esp32_receive_frame(struct eth_esp32_dev_data *dev_data, uin
 	return copy_len;
 }
 
+#if !DT_INST_NODE_HAS_PROP(0, ref_clk_output_gpios)
 static void eth_esp32_iomux_rmii_clk_input(void)
 {
 	const emac_iomux_info_t *pin = emac_rmii_iomux_pins.clki;
@@ -252,6 +253,7 @@ static void eth_esp32_iomux_rmii_clk_input(void)
 		PIN_FUNC_SELECT(GPIO_PIN_MUX_REG[pin->gpio_num], pin->func);
 	}
 }
+#endif
 
 static void eth_esp32_iomux_init_mii(void)
 {
@@ -336,13 +338,14 @@ static void eth_esp32_iomux_init_mii(void)
 	}
 }
 
-static enum ethernet_hw_caps eth_esp32_caps(const struct device *dev)
+static enum ethernet_hw_caps eth_esp32_caps(const struct device *dev __unused,
+					    struct net_if *iface __unused)
 {
-	ARG_UNUSED(dev);
 	return ETHERNET_LINK_10BASE | ETHERNET_LINK_100BASE;
 }
 
 static int eth_esp32_set_config(const struct device *dev,
+				struct net_if *iface __unused,
 				enum ethernet_config_type type,
 				const struct ethernet_config *config)
 {
@@ -586,9 +589,9 @@ err:
 	return res;
 }
 
-static const struct device *eth_esp32_phy_get(const struct device *dev)
+static const struct device *eth_esp32_phy_get(const struct device *dev __unused,
+					      struct net_if *iface __unused)
 {
-	ARG_UNUSED(dev);
 	return eth_esp32_phy_dev;
 }
 

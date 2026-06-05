@@ -12,6 +12,7 @@
 #include <stddef.h>
 
 #include <zephyr/autoconf.h>
+#include <zephyr/bluetooth/audio/ascs.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
 #include <zephyr/bluetooth/bluetooth.h>
@@ -39,7 +40,6 @@
 /* Temp struct declarations to handle circular dependencies */
 struct bt_bap_unicast_group;
 struct bt_bap_broadcast_source;
-struct bt_bap_broadcast_sink;
 
 struct bt_bap_ep {
 	uint8_t dir;
@@ -62,7 +62,6 @@ struct bt_bap_ep {
 	/* TODO: Create a union to reduce memory usage */
 	struct bt_bap_unicast_group *unicast_group;
 	struct bt_bap_broadcast_source *broadcast_source;
-	struct bt_bap_broadcast_sink *broadcast_sink;
 };
 
 struct bt_bap_unicast_group_cig_param {
@@ -116,7 +115,6 @@ struct bt_bap_broadcast_source {
 	bool encryption;
 
 	struct bt_iso_big *big;
-	struct bt_bap_qos_cfg *qos;
 #if defined(CONFIG_BT_ISO_TEST_PARAMS)
 	/* Stored advanced parameters */
 	uint8_t irc;
@@ -172,12 +170,10 @@ struct bt_bap_broadcast_sink {
 	uint8_t stream_count;
 	uint8_t bass_src_id;
 	uint8_t subgroup_count;
-	uint16_t iso_interval;
-	uint16_t biginfo_num_bis;
 	uint32_t broadcast_id; /* 24 bit */
 	uint32_t indexes_bitfield;
 	uint32_t valid_indexes_bitfield; /* based on codec support */
-	struct bt_bap_qos_cfg qos_cfg;
+	struct bt_iso_biginfo biginfo;
 	struct bt_le_per_adv_sync *pa_sync;
 	struct bt_iso_big *big;
 	uint8_t base_size;
