@@ -56,3 +56,14 @@ config MP_CAPSFILTER
 config MP_NET_BUF_POOL_COUNT
 	int "Number of buffers can be handled at the same time for the whole pipeline"
 	default 1
+
+config MP_TEE
+	bool "Tee element for pipeline branching"
+	help
+	  Enable the tee element which splits a single input branch
+	  into multiple output branches.
+
+config MP_TEE_MAX_SRCPADS_NUM
+	int "Maximum number of source pads a tee element can have"
+	range 2 8
+	default 2
