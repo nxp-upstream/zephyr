@@ -23,7 +23,7 @@ int mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...)
 	}
 
 	va_start(args, element);
-	while (element) {
+	while (element != NULL) {
 		/*
 		 * Check element ID uniqueness in the nearest bin
 		 * TODO: Should check in the whole pipeline
@@ -35,6 +35,11 @@ int mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...)
 				va_end(args);
 				return -EEXIST;
 			}
+		}
+
+		if (bin->children_num >= CONFIG_MP_BIN_MAX_CHILDREN) {
+			va_end(args);
+			return -ENOSPC;
 		}
 
 		/* Set the element's parent */
@@ -51,50 +56,149 @@ int mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...)
 	return 0;
 }
 
-enum mp_state_change_return mp_bin_change_state_func(struct mp_element *self,
-						     enum mp_state_change transition)
+/*
+ * Count the number of linked pads in a given direction for an element.
+ *
+ * For UP transitions (sink-first), degree = number of linked srcpads.
+ * For DOWN transitions (src-first), degree = number of linked sinkpads.
+ */
+static int mp_bin_count_linked_pads(struct mp_element *element, sys_dlist_t *pad_list)
 {
 	struct mp_object *obj;
-	struct mp_element *element = NULL;
-	enum mp_state_change_return ret = MP_STATE_CHANGE_FAILURE;
-	struct mp_bin *bin = MP_BIN(self);
-	struct mp_pad *first_sinkpad;
-	sys_dnode_t *first_sinkpad_node;
+	int count = 0;
 
-	/*
-	 * TODO: Implement topology ordering: https://en.wikipedia.org/wiki/Topological_sorting
-	 * For simplicity, support only simple pipelines without branches for now.
-	 */
+	SYS_DLIST_FOR_EACH_CONTAINER(pad_list, obj, node) {
+		struct mp_pad *pad = MP_PAD(obj);
 
-	/* Find the 1st sink element */
-	SYS_DLIST_FOR_EACH_CONTAINER(&bin->children, obj, node) {
-		element = MP_ELEMENT(obj);
-		if (sys_dlist_is_empty(&element->srcpads)) {
-			break;
+		if (pad->peer != NULL) {
+			count++;
 		}
 	}
 
-	/* Change state of each element in the pipeline from sink to src */
-	while (element != NULL) {
-		ret = element->change_state(element, transition);
-		if (ret != MP_STATE_CHANGE_SUCCESS) {
-			return ret;
-		}
+	return count;
+}
 
-		/* Get the 1st sinkpad of the element */
-		first_sinkpad_node = sys_dlist_peek_head(&element->sinkpads);
-		if (first_sinkpad_node == NULL) {
-			LOG_DBG("We reached the source\n");
-			break;
+/* Find element index in the elements array */
+static int mp_bin_find_element_index(struct mp_element *elements[], int num,
+				     struct mp_element *target)
+{
+	for (int i = 0; i < num; i++) {
+		if (elements[i] == target) {
+			return i;
 		}
+	}
 
-		first_sinkpad = CONTAINER_OF(first_sinkpad_node, struct mp_pad, object.node);
-		if (first_sinkpad->peer == NULL) {
-			LOG_ERR("Pad '%u' not linked", first_sinkpad->object.id);
+	return -1;
+}
+
+enum mp_state_change_return mp_bin_change_state_func(struct mp_element *self,
+						     enum mp_state_change transition)
+{
+	struct mp_bin *bin = MP_BIN(self);
+	struct mp_object *obj;
+	struct mp_element *elements[CONFIG_MP_BIN_MAX_CHILDREN];
+	int degree[CONFIG_MP_BIN_MAX_CHILDREN];
+	int num_elements = 0;
+	int processed = 0;
+	bool is_up_transition;
+
+	/*
+	 * Topological sort using BFS.
+	 *
+	 * For UP transitions (READY→PAUSED, PAUSED→PLAYING):
+	 *   - Sinks first (elements with no srcpad links have degree 0)
+	 *   - degree = number of linked srcpads
+	 *   - After processing element E, for each sinkpad of E, find the
+	 *     peer srcpad's container element and decrement its degree.
+	 *
+	 * For DOWN transitions (PLAYING→PAUSED, PAUSED→READY):
+	 *   - Sources first (elements with no sinkpad links have degree 0)
+	 *   - degree = number of linked sinkpads
+	 *   - After processing element E, for each srcpad of E, find the
+	 *     peer sinkpad's container element and decrement its degree.
+	 */
+
+	is_up_transition = (transition == MP_STATE_CHANGE_READY_TO_PAUSED ||
+			    transition == MP_STATE_CHANGE_PAUSED_TO_PLAYING);
+
+	/* Build elements array and compute initial degrees */
+	SYS_DLIST_FOR_EACH_CONTAINER(&bin->children, obj, node) {
+		if (num_elements >= CONFIG_MP_BIN_MAX_CHILDREN) {
+			LOG_ERR("Too many elements in bin (max %d)", CONFIG_MP_BIN_MAX_CHILDREN);
 			return MP_STATE_CHANGE_FAILURE;
 		}
-		/* Get next element */
-		element = MP_ELEMENT(first_sinkpad->peer->object.container);
+
+		struct mp_element *elem = MP_ELEMENT(obj);
+
+		elements[num_elements] = elem;
+
+		if (is_up_transition) {
+			/* UP: degree = number of linked srcpads */
+			degree[num_elements] = mp_bin_count_linked_pads(elem, &elem->srcpads);
+		} else {
+			/* DOWN: degree = number of linked sinkpads */
+			degree[num_elements] = mp_bin_count_linked_pads(elem, &elem->sinkpads);
+		}
+
+		num_elements++;
+	}
+
+	/* Process elements in topological order */
+	while (processed < num_elements) {
+		bool found = false;
+
+		for (int i = 0; i < num_elements; i++) {
+			if (degree[i] != 0) {
+				continue;
+			}
+
+			/* Mark as processed by setting degree to -1 */
+			degree[i] = -1;
+			found = true;
+			processed++;
+
+			/* Change state of this element */
+			enum mp_state_change_return ret;
+
+			ret = elements[i]->change_state(elements[i], transition);
+			if (ret != MP_STATE_CHANGE_SUCCESS) {
+				return ret;
+			}
+
+			/*
+			 * Decrement degree of peer elements.
+			 *
+			 * For UP: iterate sinkpads of this element, find
+			 *         peer srcpad's container, decrement its degree.
+			 * For DOWN: iterate srcpads of this element, find
+			 *           peer sinkpad's container, decrement its degree.
+			 */
+			sys_dlist_t *pad_list =
+				is_up_transition ? &elements[i]->sinkpads : &elements[i]->srcpads;
+			struct mp_object *pad_obj;
+
+			SYS_DLIST_FOR_EACH_CONTAINER(pad_list, pad_obj, node) {
+				struct mp_pad *pad = MP_PAD(pad_obj);
+
+				if (pad->peer == NULL) {
+					continue;
+				}
+
+				struct mp_element *peer_elem =
+					MP_ELEMENT(pad->peer->object.container);
+				int idx = mp_bin_find_element_index(elements, num_elements,
+								    peer_elem);
+
+				if (idx >= 0 && degree[idx] > 0) {
+					degree[idx]--;
+				}
+			}
+		}
+
+		if (!found) {
+			LOG_ERR("Cycle detected in pipeline topology or unlinked element");
+			return MP_STATE_CHANGE_FAILURE;
+		}
 	}
 
 	return MP_STATE_CHANGE_SUCCESS;

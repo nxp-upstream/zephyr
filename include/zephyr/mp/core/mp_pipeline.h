@@ -55,20 +55,19 @@ struct mp_pipeline {
 void mp_pipeline_init(struct mp_element *self);
 
 /**
- * @brief Push a buffer downstream through linked elements
+ * @brief Push a buffer downstream starting from a given source pad
  *
- * Walks downstream from @p start_elem's srcpad, calling each next element's
- * chainfn until a sink is reached, a chainfn fails, or out_buf is NULL
- * (buffer consumed by e.g. a queue element).
+ * Walks downstream from an element's @p srcpad, calling each next element's chainfn
+ * until a sink is reached, a chainfn fails, or out_buf is NULL
  *
  * On chainfn error the buffer is unreffed internally.
  *
- * @param start_elem Element to start pushing from (its srcpad's peer is first called)
+ * @param srcpad Source pad to start pushing from (its peer's chainfn is first called)
  * @param buffer Buffer to push (ownership transferred)
  *
  * @return 0 on success, negative errno on failure
  */
-int mp_pipeline_push_buffer(struct mp_element *start_elem, struct net_buf *buffer);
+int mp_pipeline_push_buffer(struct mp_pad *srcpad, struct net_buf *buffer);
 
 /**
  * @}

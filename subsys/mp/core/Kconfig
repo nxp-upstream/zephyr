@@ -66,6 +66,15 @@ config MP_NET_BUF_POOL_COUNT
 	  This is sum of the maximum number of in-flight net_buf buffers of each
 	  pipeline at any given time
 
+config MP_BIN_MAX_CHILDREN
+	int "Maximum number of elements in a bin/pipeline"
+	range 2 64
+	default 10
+	help
+	  Maximum number of child elements that can be added to a single
+	  bin or pipeline. This is used to size the bin's internal arrays for
+	  topological sort during state changes.
+
 config MP_TEE
 	bool "Tee element"
 	help
