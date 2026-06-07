@@ -7,13 +7,11 @@
 /**
  * @file
  * @ingroup mp
- * @brief Thread Management header file.
+ * @brief Simple wrapper of k_thread to reuse a thread's stack after its termination
  */
 
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_THREAD_H_
 #define ZEPHYR_INCLUDE_MP_CORE_MP_THREAD_H_
-
-#include <stdbool.h>
 
 #include <zephyr/kernel/thread.h>
 
@@ -23,31 +21,39 @@
  */
 
 /**
- * @struct mp_thread
- * @brief Structure that represents a thread in the system
+ * @brief Simple wrapper around k_thread
  */
 struct mp_thread {
-	/** Thread data */
-	struct k_thread thread_data;
-	/** Flag to indicate thread status */
-	bool running;
+	/** k_thread struct */
+	struct k_thread thread;
 	/** Thread stack ID */
-	int8_t stack_id;
+	uint8_t stack_id;
+	/** Flag to get the thread status or to exit the thread's function loop */
+	bool running;
 };
 
 /**
- * Create a new thread
+ * @brief Create a new thread reusing the stack from the thread pool
  *
- * @param thread: pointer to thread structure
- * @param func: entry function for the thread
- * @param p1: first additional parameter to pass to the thread entry function
- * @param p2: second additional parameter to pass to the thread entry function
- * @param p3: third additional parameter to pass to the thread entry function
- * @param priority: priority of the thread
- * @return k_tid_t which is the pointer to the k_thread structure
+ * @param thread Pointer to an uninitialized struct @ref mp_thread
+ * @param func Entry function of the thread
+ * @param p1 First parameter to pass to the thread entry function
+ * @param p2 Second parameter to pass to the thread entry function
+ * @param p3 Third parameter to pass to the thread entry function
+ * @param priority Priority of the thread
+ * @return ID of the newly created thread on success or NULL on failure
  */
 k_tid_t mp_thread_create(struct mp_thread *thread, k_thread_entry_t func, void *p1, void *p2,
 			 void *p3, int priority);
+
+/**
+ * @brief Join a thread and release its stack back to the thread stack pool
+ *
+ * @param thread Pointer to a struct @ref mp_thread to join
+ * @param timeout Maximum time to wait for the thread to join
+ * @return 0 on success or a negative errno on failure
+ */
+int mp_thread_join(struct mp_thread *thread, k_timeout_t timeout);
 
 /** @} */
 
