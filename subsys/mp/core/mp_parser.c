@@ -121,8 +121,6 @@ static int mp_parser_event(struct mp_pad *pad, struct mp_event *event)
 
 	switch (event->type) {
 	case MP_EVENT_EOS:
-		LOG_DBG("MP_EVENT_EOS");
-
 		return mp_pad_send_event_default(pad, event);
 	case MP_EVENT_CAPS:
 		mp_caps_replace(&pad->caps, mp_event_get_caps(event));
