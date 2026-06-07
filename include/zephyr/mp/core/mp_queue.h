@@ -9,10 +9,9 @@
  * @ingroup mp
  * @brief Queue element for pipeline-level threading.
  *
- * The queue element decouples a pipeline into two segments running on
- * separate threads. Upstream deposits buffers into the queue's FIFO;
- * a dedicated downstream thread pulls buffers and drives the rest of
- * the pipeline.
+ * The queue element decouples a pipeline into two segments running on two different threads.
+ * Upstream deposits buffers into the queue's an internal buffer queue; then a dedicated
+ * downstream thread pulls buffers from that queue and push to the rest of the pipeline.
  */
 
 #ifndef ZEPHYR_INCLUDE_MP_CORE_MP_QUEUE_H_
@@ -38,29 +37,32 @@
  * @brief Queue Property Identifiers
  */
 enum {
-	/** Maximum number of buffers the queue can hold (0 = unlimited) */
-	PROP_QUEUE_MAX_SIZE = PROP_TRANSFORM_LAST + 1,
+	/** Nmber of buffers the queue can hold */
+	PROP_QUEUE_SIZE = PROP_TRANSFORM_LAST + 1,
 };
 
 /**
  * @brief Queue Element Structure
  *
- * The queue element acts as a thread boundary in a pipeline. Its chainfn
- * deposits incoming buffers into a k_fifo and returns NULL to break the
- * upstream pipeline loop. A dedicated thread pulls buffers from the FIFO
- * and drives downstream elements via pad linkage.
+ * The queue element acts as a thread boundary in a pipeline. Its chainfn enqueues
+ * buffers into an internal buffer queue. A dedicated thread then dequeues buffers
+ * and drives downstream elements.
  */
 struct mp_queue {
 	/** Base transform element */
 	struct mp_transform transform;
-	/** FIFO for buffering between upstream and downstream threads */
-	struct k_fifo fifo;
 	/** Dedicated thread for downstream processing */
 	struct mp_thread thread;
-	/** Counting semaphore for backpressure (only used when max_size > 0) */
+	/** Counting semaphore for backpressure */
 	struct k_sem sem;
-	/** Maximum number of buffers the queue can hold (0 = unlimited / no backpressure) */
-	uint16_t max_size;
+	/** Message queue for storing incoming buffer pointers */
+	struct k_msgq msgq;
+	/** Backing storage for the message queue, its size equals to queue's max size + 1
+	 * (for EOS sentinel)
+	 */
+	char msgq_buffer[(CONFIG_MP_QUEUE_MAX_SIZE + 1) * sizeof(void *)];
+	/** Number of buffers the queue can hold bounded by CONFIG_MP_QUEUE_MAX_SIZE */
+	uint8_t size;
 };
 
 /**

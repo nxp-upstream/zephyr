@@ -33,6 +33,14 @@ config MP_QUEUE
 	  deposits buffers into a FIFO and spawns a dedicated thread
 	  to drive the downstream segment.
 
+config MP_QUEUE_MAX_SIZE
+	int "Max size of a queue element"
+	range 1 255
+	default 2
+	depends on MP_QUEUE
+	help
+	  Maximum number of buffers that can be queued into a queue element
+
 config MP_WORKQUEUE
 	bool "Element-level work offload (P4WQ)"
 	select SCHED_DEADLINE
