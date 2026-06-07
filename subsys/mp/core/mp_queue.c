@@ -106,7 +106,8 @@ static int mp_queue_sink_eventfn(struct mp_pad *pad, struct mp_event *event)
 			LOG_ERR("Failed to put EOS sentinel to the msgq (%d)", ret);
 			return ret;
 		}
-		break;
+
+		return 0;
 	case MP_EVENT_CAPS:
 		struct mp_caps *caps = mp_event_get_caps(event);
 
@@ -115,12 +116,11 @@ static int mp_queue_sink_eventfn(struct mp_pad *pad, struct mp_event *event)
 		}
 		queue->transform.set_caps(&queue->transform, MP_PAD_SINK, caps);
 		queue->transform.set_caps(&queue->transform, MP_PAD_SRC, caps);
-		break;
+
+		return mp_pad_send_event(queue->transform.srcpad.peer, event);
 	default:
 		return -ENOTSUP;
 	}
-
-	return mp_pad_send_event(queue->transform.srcpad.peer, event);
 }
 
 static void mp_queue_thread_func(void *p1, void *p2, void *p3)
