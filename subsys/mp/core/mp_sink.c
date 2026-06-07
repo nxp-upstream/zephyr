@@ -6,6 +6,8 @@
 
 #include <zephyr/logging/log.h>
 
+#include <zephyr/mp/core/mp_bus.h>
+#include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_event.h>
 #include <zephyr/mp/core/mp_query.h>
 #include <zephyr/mp/core/mp_sink.h>
@@ -77,10 +79,22 @@ int mp_sink_event(struct mp_pad *pad, struct mp_event *event)
 
 	switch (event->type) {
 	case MP_EVENT_EOS:
-		LOG_DBG("MP_EVENT_EOS");
+		/*
+		 * EOS event reached the end of the pipeline, post an EOS message to the bus so that
+		 * applications know that this sink has finished processing all upstream data.
+		 */
+		struct mp_bus *bus = mp_element_get_bus(MP_ELEMENT(sink));
+
+		if (bus != NULL) {
+			struct mp_message *msg;
+
+			msg = mp_message_new(MP_MESSAGE_EOS, MP_OBJECT(sink), NULL);
+			if (msg != NULL) {
+				mp_bus_post(bus, msg);
+			}
+		}
 		return 0;
 	case MP_EVENT_CAPS:
-		LOG_DBG("MP_EVENT_CAPS");
 		return sink->set_caps(sink, mp_event_get_caps(event));
 	default:
 		return 0;
@@ -93,7 +107,6 @@ void mp_sink_init(struct mp_element *self)
 
 	/* Default supported caps */
 	sink->sink_caps = mp_caps_new_any();
-
 	mp_pad_init(&sink->sinkpad, MP_PAD_SINK_ID, MP_PAD_SINK, MP_PAD_ALWAYS,
 		    mp_sink_get_caps(sink));
 	mp_element_add_pad(self, &sink->sinkpad);

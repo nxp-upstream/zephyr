@@ -32,7 +32,7 @@
  * and lifecycle management functionality.
  */
 struct mp_object {
-	/** Object that contains this object */
+	/** Parent element that contains this object */
 	struct mp_object *container;
 	/** Reference counter */
 	atomic_t ref;
