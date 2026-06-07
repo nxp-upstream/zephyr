@@ -44,6 +44,8 @@ static int mp_caps_filter_set_caps(struct mp_transform *transform, enum mp_pad_d
 				   struct mp_caps *caps)
 {
 	int ret;
+	struct mp_pad *upstream_srcpad = transform->sinkpad.peer;
+	struct mp_pad *downstream_sinkpad = transform->srcpad.peer;
 
 	ret = mp_transform_set_caps(transform, direction, caps);
 	if (ret < 0) {
@@ -51,14 +53,25 @@ static int mp_caps_filter_set_caps(struct mp_transform *transform, enum mp_pad_d
 	}
 
 	/*
-	 * After caps negotiation, capsfilter is bypassed in the pipeline for two reasons:
+	 * After caps negotiation, capsfilter is removed from the pipeline for two reasons:
 	 *  - Gain some small overhead during buffer flow
-	 *  - More importanly, allow allocation negotiation can take place between the elements
+	 *  - More importantly, allow allocation negotiation can take place between the elements
 	 *    before and after the capsfilter.
 	 *
-	 * TODO: Remember to remove this shortcut whenever caps negotiation is re-triggered.
+	 * Remember to re-insert it to the pipeline whenever caps negotiation is re-triggered.
 	 */
-	transform->sinkpad.peer->peer = transform->srcpad.peer;
+	if (upstream_srcpad != NULL && downstream_sinkpad != NULL) {
+		upstream_srcpad->peer = downstream_sinkpad;
+		downstream_sinkpad->peer = upstream_srcpad;
+	}
+
+	/*
+	 * Drop the peer links to avoid cycling graph error when walking through the pipeline graph
+	 * TODO: Store the peer links somewhere to be able to re-insert the capsfilter when caps
+	 * negotiation re-triggered
+	 */
+	transform->sinkpad.peer = NULL;
+	transform->srcpad.peer = NULL;
 
 	return 0;
 }
