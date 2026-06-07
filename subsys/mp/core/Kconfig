@@ -1,13 +1,13 @@
 #
-# Copyright 2025 NXP
+# Copyright 2025-2026 NXP
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 config MP_THREADS_NUM
-	int "Maximum number of threads"
+	int "Number of mp_thread wrappers used by the whole application"
 	range 0 255
-	default 3
+	default 1
 
 config MP_THREAD_STACK_SIZE
 	int "Stack size of a thread"
@@ -17,8 +17,16 @@ config MP_THREAD_DEFAULT_PRIORITY
 	int "Priority of a thread"
 	default 5
 
+config MP_CAPSFILTER
+	bool "Capsfilter element"
+	help
+	  Enable the capsfilter element. Capsfilter restricts the media
+	  format flowing between two elements by filtering on capabilities
+	  such as sample rate, pixel format, etc. This allows forcing a
+	  specific format at a given point in the pipeline.
+
 config MP_QUEUE
-	bool "Queue element (pipeline-level threading)"
+	bool "Queue element (for pipeline-level threading)"
 	help
 	  Enable the queue element which decouples pipeline segments
 	  into separate threads for parallel processing. The queue
@@ -50,20 +58,21 @@ config MP_WORKQUEUE_STACK_SIZE
 	help
 	  Stack size in bytes for each thread in the MP workqueue pool.
 
-config MP_CAPSFILTER
-	bool "Capsfilter support"
-
 config MP_NET_BUF_POOL_COUNT
-	int "Number of buffers can be handled at the same time for the whole pipeline"
+	int "Number of buffers in the MP shared net_buf pool"
 	default 1
+	help
+	  Number of buffers needed in the shared MP net_buf pool across pipelines.
+	  This is sum of the maximum number of in-flight net_buf buffers of each
+	  pipeline at any given time
 
 config MP_TEE
-	bool "Tee element for pipeline branching"
+	bool "Tee element"
 	help
 	  Enable the tee element which splits a single input branch
 	  into multiple output branches.
 
 config MP_TEE_MAX_SRCPADS_NUM
-	int "Maximum number of source pads a tee element can have"
+	int "Maximum number of source pads of a tee element"
 	range 2 8
 	default 2
