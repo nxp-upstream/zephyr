@@ -231,4 +231,7 @@
 /** SYSTEM clock identifier. */
 #define MCUX_SYSTEM_CLK MCUX_LPC_CLK_ID(0x36, 0x00)
 
+/** PowerQuad DSP coprocessor clock identifier. */
+#define MCUX_POWERQUAD_CLK MCUX_LPC_CLK_ID(0x37, 0x00)
+
 #endif /* ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_MCUX_LPC_SYSCON_H_ */
