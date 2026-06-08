@@ -237,3 +237,7 @@ zephyr_udc0: &usbfs {
 &wwdt0 {
 	status = "okay";
 };
+
+&powerquad {
+	status = "okay";
+};
