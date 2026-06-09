@@ -13,7 +13,7 @@ K_THREAD_STACK_ARRAY_DEFINE(thread_stack, CONFIG_MP_THREADS_NUM, CONFIG_MP_THREA
 static bool mp_thread_stack_pool[CONFIG_MP_THREADS_NUM];
 
 k_tid_t mp_thread_create(struct mp_thread *thread, k_thread_entry_t func, void *p1, void *p2,
-			 void *p3, int priority)
+			 void *p3, int priority, k_timeout_t delay)
 {
 	int id;
 
@@ -29,12 +29,42 @@ k_tid_t mp_thread_create(struct mp_thread *thread, k_thread_entry_t func, void *
 	}
 
 	thread->stack_id = id;
-	thread->running = true;
+	thread->state = MP_THREAD_PAUSED;
 	mp_thread_stack_pool[id] = true;
+
+	/* Semaphore starts at 0 to be able to block the thread with mp_thread_wait() */
+	k_sem_init(&thread->sem, 0, 1);
 
 	return k_thread_create(&thread->thread, thread_stack[thread->stack_id],
 			       K_THREAD_STACK_SIZEOF(thread_stack[thread->stack_id]), func, p1, p2,
-			       p3, priority, 0, K_NO_WAIT);
+			       p3, priority, 0, delay);
+}
+
+int mp_thread_wait(struct mp_thread *thread)
+{
+	while (thread->state == MP_THREAD_PAUSED) {
+		k_sem_take(&thread->sem, K_FOREVER);
+	}
+
+	if (thread->state == MP_THREAD_TERMINATED) {
+		return -ECANCELED;
+	}
+
+	return 0;
+}
+
+void mp_thread_resume(struct mp_thread *thread)
+{
+	thread->state = MP_THREAD_RUNNING;
+	/* Wake from initial K_FOREVER sleep (no-op if already awake) */
+	k_wakeup(&thread->thread);
+	/* Unblock from wait_running() if blocked on the semaphore */
+	k_sem_give(&thread->sem);
+}
+
+void mp_thread_pause(struct mp_thread *thread)
+{
+	thread->state = MP_THREAD_PAUSED;
 }
 
 int mp_thread_join(struct mp_thread *thread, k_timeout_t timeout)
@@ -45,10 +75,17 @@ int mp_thread_join(struct mp_thread *thread, k_timeout_t timeout)
 		return -EINVAL;
 	}
 
+	/* Signal the thread to exit */
+	thread->state = MP_THREAD_TERMINATED;
+
+	/* Wake from initial sleep in case the thread was never resumed */
+	k_wakeup(&thread->thread);
+	/* Unblock from wait() in case it is blocked on the semaphore */
+	k_sem_give(&thread->sem);
+
 	ret = k_thread_join(&thread->thread, timeout);
 	if (ret == 0) {
 		mp_thread_stack_pool[thread->stack_id] = false;
-		thread->running = false;
 	}
 
 	return ret;
