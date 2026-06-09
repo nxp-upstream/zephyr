@@ -25,4 +25,15 @@ config CPU_WORKLOAD_HISTORY
 	  The history workload reports non-idle cycles, elapsed runtime-stat cycles,
 	  load percentage, and confidence since the previous cpu_workload query.
 
+config CPU_WORKLOAD_THREAD_PROFILE
+	bool "Per-thread workload profile"
+	select THREAD_RUNTIME_STATS
+	select SCHED_THREAD_USAGE
+	select SCHED_THREAD_USAGE_ACTIVATION_STATS
+	select SCHED_THREAD_USAGE_AUTO_ENABLE
+	help
+	  Build a per-thread workload profile from complete thread activations.
+	  Threads without completed activation samples remain unprofiled and report
+	  zero confidence.
+
 endif # CPU_WORKLOAD
