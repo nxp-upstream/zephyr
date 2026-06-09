@@ -53,14 +53,12 @@ struct mp_queue {
 	struct mp_transform transform;
 	/** Dedicated thread for downstream processing */
 	struct mp_thread thread;
-	/** Counting semaphore for backpressure */
-	struct k_sem sem;
 	/** Message queue for storing incoming buffer pointers */
 	struct k_msgq msgq;
-	/** Backing storage for the message queue, its size equals to queue's max size + 1
-	 * (for EOS sentinel)
+	/** Backing storage for the message queue, its size equals to queue's max size + 2
+	 * (for eos and pause sentinels)
 	 */
-	char msgq_buffer[(CONFIG_MP_QUEUE_MAX_SIZE + 1) * sizeof(void *)];
+	char msgq_buffer[(CONFIG_MP_QUEUE_MAX_SIZE + 2) * sizeof(void *)];
 	/** Number of buffers the queue can hold bounded by CONFIG_MP_QUEUE_MAX_SIZE */
 	uint8_t size;
 };
