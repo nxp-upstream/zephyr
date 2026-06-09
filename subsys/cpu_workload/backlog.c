@@ -51,6 +51,9 @@ static void cpu_workload_ready_backlog_cb(const struct k_thread *thread, void *u
 		ctx->backlog->ready_backlog_cycles += profile.burst_avg_cycles;
 		ctx->backlog->profiled_threads++;
 		ctx->backlog->source_mask |= CPU_WORKLOAD_SOURCE_THREAD_BURST_PROFILE;
+		if (profile.activation_based) {
+			ctx->backlog->source_mask |= CPU_WORKLOAD_SOURCE_THREAD_ACTIVATION_PROFILE;
+		}
 		ctx->confidence = MIN(ctx->confidence, profile.confidence);
 		return;
 	}

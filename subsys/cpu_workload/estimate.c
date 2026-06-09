@@ -8,6 +8,7 @@
 
 #include <zephyr/cpu_workload/cpu_workload.h>
 #include <zephyr/kernel.h>
+#include <zephyr/kernel_structs.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/check.h>
 #include <zephyr/sys/util.h>
@@ -15,6 +16,14 @@
 #include "cpu_workload.h"
 
 LOG_MODULE_REGISTER(cpu_workload_estimate, CONFIG_CPU_WORKLOAD_LOG_LEVEL);
+
+#define CPU_WORKLOAD_BACKLOG_EMPTY_CONFIDENCE 100U
+
+struct estimate_forward_context {
+	struct cpu_workload_estimate *estimate;
+	uint8_t backlog_confidence;
+	uint8_t arrival_confidence;
+};
 
 /* Merge the confidence of multiple workloads, where the overall confidence
  * equals to the minimum value of all participating workloads' confidence.
@@ -32,12 +41,119 @@ static void confidence_merge(uint8_t *confidence, uint8_t next_confidence)
 	*confidence = MIN(*confidence, next_confidence);
 }
 
+static uint32_t estimate_arrival_source_mask(uint32_t source_mask)
+{
+	uint32_t workload_mask = 0U;
+
+	if ((source_mask & K_THREAD_ARRIVAL_SOURCE_TIMEOUT) != 0U) {
+		workload_mask |= CPU_WORKLOAD_SOURCE_ARRIVAL_TIMEOUT;
+	}
+
+	if ((source_mask & K_THREAD_ARRIVAL_SOURCE_SYNC) != 0U) {
+		workload_mask |= CPU_WORKLOAD_SOURCE_ARRIVAL_SYNC;
+	}
+
+	if ((source_mask & K_THREAD_ARRIVAL_SOURCE_EXPLICIT) != 0U) {
+		workload_mask |= CPU_WORKLOAD_SOURCE_ARRIVAL_EXPLICIT;
+	}
+
+	return workload_mask;
+}
+
+static void estimate_forward_cb(const struct k_thread *thread, void *user_data)
+{
+	struct estimate_forward_context *ctx = user_data;
+	struct cpu_workload_thread_burst_profile profile;
+	struct cpu_workload_estimate *estimate = ctx->estimate;
+	k_thread_arrival_stats_t stats;
+	uint64_t backlog_cycles = 0U;
+	uint64_t arrival_cycles = 0U;
+	bool has_profile = false;
+	bool runnable;
+	int ret;
+
+	runnable = (thread->base.thread_state & _THREAD_QUEUED) != 0;
+	if (runnable) {
+		estimate->runnable_threads++;
+	}
+
+	ret = cpu_workload_thread_burst_profile_get((k_tid_t)thread, &profile);
+	if ((ret == 0) && (profile.sample_count > 0U)) {
+		has_profile = true;
+	}
+
+	ret = k_thread_arrival_stats_get((k_tid_t)thread, &stats, true);
+	if ((ret == 0) && (stats.count > 0U)) {
+		estimate->source_mask |= CPU_WORKLOAD_SOURCE_ARRIVAL |
+			estimate_arrival_source_mask(stats.source_mask);
+		estimate->arrivals += stats.count;
+
+		if (has_profile) {
+			arrival_cycles = (uint64_t)profile.burst_avg_cycles * stats.count;
+			estimate->expected_arrival_cycles += arrival_cycles;
+			estimate->profiled_arrivals += stats.count;
+			estimate->source_mask |= CPU_WORKLOAD_SOURCE_THREAD_BURST_PROFILE;
+			if (profile.activation_based) {
+				estimate->source_mask |= CPU_WORKLOAD_SOURCE_THREAD_ACTIVATION_PROFILE;
+			}
+			confidence_merge(&ctx->arrival_confidence, profile.confidence);
+		} else {
+			ctx->arrival_confidence = 0U;
+		}
+	}
+
+	if (!runnable) {
+		estimate->forward_cycles += arrival_cycles;
+		return;
+	}
+
+	if (has_profile &&
+	    (profile.confidence >= CONFIG_CPU_WORKLOAD_READY_BACKLOG_MIN_CONFIDENCE)) {
+		backlog_cycles = profile.burst_avg_cycles;
+		estimate->ready_backlog_cycles += backlog_cycles;
+		estimate->profiled_runnable_threads++;
+		estimate->source_mask |= CPU_WORKLOAD_SOURCE_THREAD_BURST_PROFILE;
+		if (profile.activation_based) {
+			estimate->source_mask |= CPU_WORKLOAD_SOURCE_THREAD_ACTIVATION_PROFILE;
+		}
+		confidence_merge(&ctx->backlog_confidence, profile.confidence);
+	} else {
+		ctx->backlog_confidence = 0U;
+	}
+
+	estimate->forward_cycles += MAX(backlog_cycles, arrival_cycles);
+}
+
+static void estimate_forward_get(int cpu_id, struct cpu_workload_estimate *estimate,
+				 uint8_t *confidence)
+{
+	struct estimate_forward_context ctx = {
+		.estimate = estimate,
+		.backlog_confidence = UINT8_MAX,
+		.arrival_confidence = UINT8_MAX,
+	};
+
+	estimate->source_mask |= CPU_WORKLOAD_SOURCE_READY_BACKLOG;
+	k_thread_foreach_filter_by_cpu((unsigned int)cpu_id, estimate_forward_cb, &ctx);
+
+	if (estimate->runnable_threads == 0U) {
+		confidence_merge(confidence, CPU_WORKLOAD_BACKLOG_EMPTY_CONFIDENCE);
+	} else if (ctx.backlog_confidence != UINT8_MAX) {
+		confidence_merge(confidence, ctx.backlog_confidence);
+	}
+
+	if (estimate->arrivals > 0U) {
+		if (ctx.arrival_confidence != UINT8_MAX) {
+			confidence_merge(confidence, ctx.arrival_confidence);
+		} else {
+			confidence_merge(confidence, 0U);
+		}
+	}
+}
+
 int cpu_workload_estimate_get(int cpu_id, struct cpu_workload_estimate *estimate)
 {
-	struct cpu_workload_ready_backlog backlog;
-	struct cpu_workload_arrival arrival;
 	struct cpu_workload_history history;
-	uint64_t forward_cycles;
 	uint8_t confidence = UINT8_MAX;
 	int ret;
 
@@ -48,43 +164,18 @@ int cpu_workload_estimate_get(int cpu_id, struct cpu_workload_estimate *estimate
 	estimate->estimated_cycles = 0U;
 	estimate->ready_backlog_cycles = 0U;
 	estimate->expected_arrival_cycles = 0U;
+	estimate->forward_cycles = 0U;
 	estimate->history_cycles = 0U;
 	estimate->history_window_us = 0U;
+	estimate->runnable_threads = 0U;
+	estimate->profiled_runnable_threads = 0U;
+	estimate->arrivals = 0U;
+	estimate->profiled_arrivals = 0U;
 	estimate->source_mask = 0U;
 	estimate->history_load = 0U;
 	estimate->confidence = 0U;
 
-	/* Get the estimated remaining cycles for runnable threads on this CPU. */
-	ret = cpu_workload_ready_backlog_get(cpu_id, &backlog);
-	if (ret != 0) {
-		return ret;
-	}
-
-	estimate->ready_backlog_cycles = backlog.ready_backlog_cycles;
-	estimate->source_mask |= backlog.source_mask;
-	confidence_merge(&confidence, backlog.confidence);
-
-	/* Get which threads have just been woken up since the last query, and how many
-	 * cycles are these new arrivals expected to bring.
-	 *
-	 * Ready backlog is required for unified estimate, not optional.
-	 */
-	ret = cpu_workload_arrival_get(cpu_id, &arrival);
-	if (ret != 0) {
-		return ret;
-	}
-
-	estimate->expected_arrival_cycles = arrival.expected_arrival_cycles;
-	estimate->source_mask |= arrival.source_mask;
-
-	/* Only merge arrival confidence when there is actually an arrival.
-	 *
-	 * No arrival does not mean unreliable, but rather this source did not
-	 * contribute this time.
-	 */
-	if (arrival.arrivals > 0U) {
-		confidence_merge(&confidence, arrival.confidence);
-	}
+	estimate_forward_get(cpu_id, estimate, &confidence);
 
 	/* Get how many non-idle cycles this CPU actually ran in the most recent runtime window.
 	 *
@@ -103,18 +194,14 @@ int cpu_workload_estimate_get(int cpu_id, struct cpu_workload_estimate *estimate
 		LOG_DBG("CPU%d runtime-history window unavailable: %d", cpu_id, ret);
 	}
 
-	/* Synthesize forward_cycles = ready backlog + arrival. */
-	forward_cycles = estimate->ready_backlog_cycles + estimate->expected_arrival_cycles;
-
-	/* estimated_cycles takes MAX(forward_cycles, history_cycles),
-	 * where ready backlog + arrival represents the currently visible future workload,
+	/* estimated_cycles takes MAX(forward_cycles, history_cycles), where
+	 * forward_cycles represents the currently visible future workload,
 	 * while runtime history serves as a conservative lower bound for sustained load.
 	 *
-	 * Taking the maximum value avoids underestimating background load when only looking
-	 * forward, and also prevents double-counting that would occur from directly adding
-	 * history.
+	 * Ready backlog and arrival are merged per thread before summing so a just-woken
+	 * runnable thread does not contribute the same burst to both components.
 	 */
-	estimate->estimated_cycles = MAX(forward_cycles, estimate->history_cycles);
+	estimate->estimated_cycles = MAX(estimate->forward_cycles, estimate->history_cycles);
 
 	if (confidence != UINT8_MAX) {
 		estimate->confidence = confidence;
@@ -122,8 +209,9 @@ int cpu_workload_estimate_get(int cpu_id, struct cpu_workload_estimate *estimate
 
 	LOG_DBG("CPU%d estimate: cycles=%llu forward=%llu history=%llu source=0x%x confidence=%u",
 		cpu_id, (unsigned long long)estimate->estimated_cycles,
-		(unsigned long long)forward_cycles, (unsigned long long)estimate->history_cycles,
-		estimate->source_mask, estimate->confidence);
+		(unsigned long long)estimate->forward_cycles,
+		(unsigned long long)estimate->history_cycles, estimate->source_mask,
+		estimate->confidence);
 
 	return 0;
 }

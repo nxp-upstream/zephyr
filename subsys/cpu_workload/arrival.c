@@ -79,6 +79,10 @@ static void cpu_workload_arrival_cb(const struct k_thread *thread, void *user_da
 	ctx->arrival->expected_arrival_cycles +=
 		(uint64_t)burst_profile.burst_avg_cycles * stats.count;
 	ctx->arrival->profiled_arrivals += stats.count;
+	ctx->arrival->source_mask |= CPU_WORKLOAD_SOURCE_THREAD_BURST_PROFILE;
+	if (burst_profile.activation_based) {
+		ctx->arrival->source_mask |= CPU_WORKLOAD_SOURCE_THREAD_ACTIVATION_PROFILE;
+	}
 
 	/* Using a conservative strategy (weakest link in the chain), among the estimates
 	 * for this batch of arrival workload, the least reliable one determines the overall

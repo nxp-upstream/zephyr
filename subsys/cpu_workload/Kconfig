@@ -81,4 +81,13 @@ config CPU_WORKLOAD_ESTIMATE
 	  a conservative floor and adds the forward-looking ready backlog and arrival
 	  workloads.
 
+config CPU_WORKLOAD_DIAGNOSTIC
+	bool "CPU workload contributor diagnostics"
+	select CPU_WORKLOAD_READY_BACKLOG
+	select CPU_WORKLOAD_ARRIVAL
+	help
+	  Expose per-thread diagnostic contributors for evaluation and debugging.
+	  This lets samples explain which threads contributed to ready-backlog and
+	  arrival workload before the unified estimate consumes the arrival window.
+
 endif # CPU_WORKLOAD
