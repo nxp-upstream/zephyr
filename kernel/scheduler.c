@@ -139,6 +139,10 @@ bool z_sched_wake(_wait_q_t *wait_q, int swap_retval, void *swap_data)
 							    swap_data);
 			unpend_thread_no_timeout(thread);
 			z_abort_thread_timeout(thread);
+#if defined(CONFIG_SCHED_THREAD_USAGE_ARRIVAL_STATS) || \
+	defined(CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS)
+			z_sched_thread_arrival_stats_update(thread, K_THREAD_ARRIVAL_SOURCE_SYNC);
+#endif /* CONFIG_SCHED_THREAD_USAGE_ARRIVAL_STATS || CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS */
 			z_sched_ready_locked(thread);
 			ret = true;
 		}

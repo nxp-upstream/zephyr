@@ -467,6 +467,15 @@ config SCHED_THREAD_USAGE_ARRIVAL_STATS
 	  Track raw scheduler wakeup arrival source bits and arrival counts in
 	  each thread's runtime usage statistics.
 
+config SCHED_THREAD_USAGE_ACTIVATION_STATS
+	bool "Track thread activation statistics"
+	depends on SCHED_THREAD_USAGE
+	select SCHED_THREAD_USAGE_ARRIVAL_STATS
+	help
+	  Track CPU cycles consumed by complete thread activations. An activation
+	  starts when a blocked thread is made runnable and ends when that thread
+	  blocks again. This captures event-level work across preemptions.
+
 endif # THREAD_RUNTIME_STATS
 
 menuconfig THREAD_RUNTIME_STACK_SAFETY

@@ -258,6 +258,24 @@ typedef struct k_thread_arrival_stats {
 	uint8_t dummy;
 #endif
 } k_thread_arrival_stats_t;
+
+typedef struct k_thread_activation_stats {
+#if defined(CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS) || defined(__DOXYGEN__)
+	uint64_t completed_cycles;
+	uint64_t active_cycles;
+	uint32_t completed_count;
+	uint32_t completed_events;
+	uint32_t source_mask;
+	uint32_t active_source_mask;
+	uint16_t active_events;
+	bool active;
+#endif /* CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS */
+
+#if !defined(CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS) && defined(__cplusplus)
+	/** Avoid a zero-sized struct in C++ when the feature is disabled. */
+	uint8_t dummy;
+#endif
+} k_thread_activation_stats_t;
 struct z_poller {
 	bool is_polling;
 	uint8_t mode;

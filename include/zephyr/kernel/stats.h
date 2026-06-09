@@ -43,6 +43,16 @@ struct k_cycle_stats {
 	uint32_t  arrival_source_mask;	/**< attributed arrival source bits */
 	uint16_t  arrival_count;	/**< number of attributed arrivals */
 #endif /* CONFIG_SCHED_THREAD_USAGE_ARRIVAL_STATS */
+#if defined(CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS) || defined(__DOXYGEN__)
+	uint64_t  activation_cycles;	/**< cycles in the active activation */
+	uint64_t  activation_completed_cycles;	/**< cycles in completed activations */
+	uint32_t  activation_source_mask;	/**< completed activation source bits */
+	uint32_t  activation_current_source_mask;	/**< active activation source bits */
+	uint32_t  activation_count;	/**< number of completed activations */
+	uint32_t  activation_events;	/**< arrivals in completed activations */
+	uint16_t  activation_current_events;	/**< arrivals in the active activation */
+	bool      activation_active;	/**< true if an activation is open */
+#endif /* CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS */
 #if defined(CONFIG_SCHED_THREAD_USAGE_ANALYSIS) || defined(__DOXYGEN__)
 	/**
 	 * @name Fields available when CONFIG_SCHED_THREAD_USAGE_ANALYSIS is selected.

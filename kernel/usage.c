@@ -62,6 +62,12 @@ static void sched_thread_update_usage(struct k_thread *thread, uint32_t cycles)
 {
 	thread->base.usage.total += cycles;
 
+#ifdef CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS
+	if (thread->base.usage.activation_active) {
+		thread->base.usage.activation_cycles += cycles;
+	}
+#endif /* CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS */
+
 #ifdef CONFIG_SCHED_THREAD_USAGE_ANALYSIS
 	thread->base.usage.current += cycles;
 
@@ -109,6 +115,21 @@ void z_sched_usage_stop(void)
 
 		if (cpu->current->base.usage.track_usage) {
 			sched_thread_update_usage(cpu->current, cycles);
+#ifdef CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS
+			if (!z_is_thread_ready(cpu->current) &&
+			    cpu->current->base.usage.activation_active) {
+				struct k_cycle_stats *usage = &cpu->current->base.usage;
+
+				usage->activation_completed_cycles += usage->activation_cycles;
+				usage->activation_count++;
+				usage->activation_events += usage->activation_current_events;
+				usage->activation_source_mask |= usage->activation_current_source_mask;
+				usage->activation_cycles = 0U;
+				usage->activation_current_events = 0U;
+				usage->activation_current_source_mask = 0U;
+				usage->activation_active = false;
+			}
+#endif /* CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS */
 		}
 
 		sched_cpu_update_usage(cpu, cycles);
@@ -229,7 +250,36 @@ static void sched_thread_reset_arrival_stats(struct k_cycle_stats *usage)
 	usage->arrival_source_mask = 0U;
 	usage->arrival_count = 0U;
 }
+#endif /* CONFIG_SCHED_THREAD_USAGE_ARRIVAL_STATS */
 
+#ifdef CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS
+static void sched_thread_reset_activation_stats(struct k_cycle_stats *usage)
+{
+	usage->activation_completed_cycles = 0U;
+	usage->activation_count = 0U;
+	usage->activation_events = 0U;
+	usage->activation_source_mask = 0U;
+}
+
+static void sched_thread_activation_start(struct k_cycle_stats *usage, uint32_t source)
+{
+	if (!usage->activation_active) {
+		usage->activation_cycles = 0U;
+		usage->activation_current_events = 0U;
+		usage->activation_current_source_mask = 0U;
+		usage->activation_active = true;
+	}
+
+	if (usage->activation_current_events < UINT16_MAX) {
+		usage->activation_current_events++;
+	}
+
+	usage->activation_current_source_mask |= source;
+}
+#endif /* CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS */
+
+#if defined(CONFIG_SCHED_THREAD_USAGE_ARRIVAL_STATS) || \
+	defined(CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS)
 void z_sched_thread_arrival_stats_update(struct k_thread *thread, uint32_t source)
 {
 	struct k_cycle_stats *usage = &thread->base.usage;
@@ -242,15 +292,24 @@ void z_sched_thread_arrival_stats_update(struct k_thread *thread, uint32_t sourc
 		return;
 	}
 
+#ifdef CONFIG_SCHED_THREAD_USAGE_ARRIVAL_STATS
 	if (usage->arrival_count < UINT16_MAX) {
 		usage->arrival_count++;
 	}
 
 	usage->arrival_source_mask |= source;
+#endif /* CONFIG_SCHED_THREAD_USAGE_ARRIVAL_STATS */
+
+#ifdef CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS
+	if ((source & K_THREAD_ARRIVAL_SOURCE_EXPLICIT) == 0U) {
+		sched_thread_activation_start(usage, source);
+	}
+#endif /* CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS */
 
 	k_spin_unlock(&usage_lock, key);
 }
-#endif /* CONFIG_SCHED_THREAD_USAGE_ARRIVAL_STATS */
+
+#endif /* CONFIG_SCHED_THREAD_USAGE_ARRIVAL_STATS || CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS */
 
 #ifdef CONFIG_SCHED_THREAD_USAGE_ANALYSIS
 int k_thread_runtime_stats_enable(k_tid_t  thread)
@@ -268,6 +327,13 @@ int k_thread_runtime_stats_enable(k_tid_t  thread)
 #ifdef CONFIG_SCHED_THREAD_USAGE_ARRIVAL_STATS
 		sched_thread_reset_arrival_stats(&thread->base.usage);
 #endif /* CONFIG_SCHED_THREAD_USAGE_ARRIVAL_STATS */
+#ifdef CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS
+		sched_thread_reset_activation_stats(&thread->base.usage);
+		thread->base.usage.activation_cycles = 0U;
+		thread->base.usage.activation_current_events = 0U;
+		thread->base.usage.activation_current_source_mask = 0U;
+		thread->base.usage.activation_active = false;
+#endif /* CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS */
 		thread->base.usage.num_windows++;
 		thread->base.usage.current = 0;
 	}
@@ -331,6 +397,41 @@ int k_thread_arrival_stats_get(k_tid_t thread, k_thread_arrival_stats_t *stats,
 
 	return -ENOTSUP;
 #endif /* CONFIG_SCHED_THREAD_USAGE_ARRIVAL_STATS */
+}
+
+int k_thread_activation_stats_get(k_tid_t thread, k_thread_activation_stats_t *stats,
+				  bool reset)
+{
+	CHECKIF((thread == NULL) || (stats == NULL)) {
+		return -EINVAL;
+	}
+
+#ifdef CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS
+	k_spinlock_key_t key;
+	struct k_cycle_stats *usage = &thread->base.usage;
+
+	key = k_spin_lock(&usage_lock);
+	stats->completed_cycles = usage->activation_completed_cycles;
+	stats->active_cycles = usage->activation_cycles;
+	stats->completed_count = usage->activation_count;
+	stats->completed_events = usage->activation_events;
+	stats->source_mask = usage->activation_source_mask;
+	stats->active_source_mask = usage->activation_current_source_mask;
+	stats->active_events = usage->activation_current_events;
+	stats->active = usage->activation_active;
+
+	if (reset) {
+		sched_thread_reset_activation_stats(usage);
+	}
+
+	k_spin_unlock(&usage_lock, key);
+
+	return 0;
+#else
+	ARG_UNUSED(reset);
+
+	return -ENOTSUP;
+#endif /* CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS */
 }
 #ifdef CONFIG_SCHED_THREAD_USAGE_ALL
 void k_sys_runtime_stats_enable(void)

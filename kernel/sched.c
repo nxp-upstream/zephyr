@@ -211,6 +211,13 @@ void z_ready_thread(struct k_thread *thread)
 {
 	K_SPINLOCK(&_sched_spinlock) {
 		if (thread_active_elsewhere(thread) == NULL) {
+#if defined(CONFIG_SCHED_THREAD_USAGE_ARRIVAL_STATS) || \
+	defined(CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS)
+			if (!z_is_thread_queued(thread) && z_is_thread_ready(thread)) {
+				z_sched_thread_arrival_stats_update(thread,
+								    K_THREAD_ARRIVAL_SOURCE_SYNC);
+			}
+#endif /* CONFIG_SCHED_THREAD_USAGE_ARRIVAL_STATS || CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS */
 			ready_thread(thread);
 		}
 	}
@@ -453,12 +460,13 @@ void z_sched_wake_thread_locked_source(struct k_thread *thread, uint32_t source)
 			unpend_thread_no_timeout(thread);
 		}
 		z_mark_thread_as_not_sleeping(thread);
-#ifdef CONFIG_SCHED_THREAD_USAGE_ARRIVAL_STATS
+#if defined(CONFIG_SCHED_THREAD_USAGE_ARRIVAL_STATS) || \
+	defined(CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS)
 		/* Record the source of this wake-up for statistics and attribution purposes. */
 		z_sched_thread_arrival_stats_update(thread, source);
 #else
 		ARG_UNUSED(source);
-#endif /* CONFIG_SCHED_THREAD_USAGE_ARRIVAL_STATS */
+#endif /* CONFIG_SCHED_THREAD_USAGE_ARRIVAL_STATS || CONFIG_SCHED_THREAD_USAGE_ACTIVATION_STATS */
 		ready_thread(thread);
 	}
 }

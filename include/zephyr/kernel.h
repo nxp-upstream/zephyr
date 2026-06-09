@@ -7067,6 +7067,20 @@ int k_thread_runtime_stats_cpu_get(int cpu, k_thread_runtime_stats_t *stats);
  */
 int k_thread_arrival_stats_get(k_tid_t thread, k_thread_arrival_stats_t *stats,
 			       bool reset);
+
+/**
+ * @brief Get and optionally reset the activation statistics of a thread.
+ *
+ * @param thread ID of thread.
+ * @param stats Pointer to struct to copy statistics into.
+ * @param reset Reset completed activation counters after copying statistics.
+ *
+ * @retval 0 On success.
+ * @retval -EINVAL If @p thread or @p stats is NULL.
+ * @retval -ENOTSUP If activation statistics are not enabled.
+ */
+int k_thread_activation_stats_get(k_tid_t thread, k_thread_activation_stats_t *stats,
+				  bool reset);
 #endif /* CONFIG_SCHED_THREAD_USAGE */
 /**
  * @brief Enable gathering of runtime statistics for specified thread
