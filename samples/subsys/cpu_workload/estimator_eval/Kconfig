@@ -1,0 +1,11 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config CPU_WORKLOAD_ESTIMATOR_EVAL_VERBOSE
+	bool "Print verbose CPU workload estimator diagnostics"
+	help
+	  Print per-case estimate components, contributor diagnostics, and record
+	  lines. Leave this disabled for the concise summary output intended for
+	  serial inspection.
+
+source "Kconfig.zephyr"

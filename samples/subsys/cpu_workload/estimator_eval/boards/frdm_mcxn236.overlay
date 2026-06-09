@@ -1,0 +1,36 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/gpio/gpio.h>
+
+/ {
+	aliases {
+		workload-irq-out = &workload_irq_out;
+		workload-irq-in = &workload_irq_in;
+	};
+
+	workload_irq_loopback {
+		compatible = "gpio-leds";
+
+		workload_irq_out: irq-out {
+			gpios = <&gpio5 2 GPIO_ACTIVE_HIGH>; /* GPIO5_2 */
+			label = "CPU workload IRQ generator";
+		};
+	};
+
+	workload_irq_inputs {
+		compatible = "gpio-keys";
+
+		workload_irq_in: irq-in {
+			gpios = <&gpio5 3 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>; /* GPIO5_3 */
+			label = "CPU workload IRQ input";
+		};
+	};
+};
+
+&gpio5 {
+	status = "okay";
+};
