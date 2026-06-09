@@ -27,14 +27,16 @@ static struct {
 #define MP_QUEUE_EOS_SENTINEL ((void *)&mp_queue_eos_sentinel)
 
 /*
- * Static quit sentinel enqueued into the buffer queue to signal the
- * thread to exit. Used for forced stops when no EOS was sent.
+ * Static pause sentinel enqueued into the buffer queue to unblock the
+ * thread from k_msgq_get() when transitioning to paused.  The thread
+ * does not process this value — it simply exits the inner loop and
+ * returns to mp_thread_wait().
  */
 static struct {
 	uint8_t dummy;
-} mp_queue_quit_sentinel;
+} mp_queue_pause_sentinel;
 
-#define MP_QUEUE_QUIT_SENTINEL ((void *)&mp_queue_quit_sentinel)
+#define MP_QUEUE_PAUSE_SENTINEL ((void *)&mp_queue_pause_sentinel)
 
 static int mp_queue_get_property(struct mp_object *obj, uint32_t id, void *val)
 {
@@ -57,8 +59,8 @@ static int mp_queue_set_property(struct mp_object *obj, uint32_t id, const void 
 	case PROP_QUEUE_SIZE:
 		queue->size = *(const uint8_t *)val;
 		if (!IN_RANGE(queue->size, 1, CONFIG_MP_QUEUE_MAX_SIZE)) {
-			LOG_WRN("Requested size %u is out of range [1 %u]",
-				queue->size, CONFIG_MP_QUEUE_MAX_SIZE);
+			LOG_WRN("Requested size %u is out of range [1 %u]", queue->size,
+				CONFIG_MP_QUEUE_MAX_SIZE);
 			queue->size = CONFIG_MP_QUEUE_MAX_SIZE;
 			return -EINVAL;
 		}
@@ -132,39 +134,39 @@ static void mp_queue_thread_func(void *p1, void *p2, void *p3)
 	ARG_UNUSED(p2);
 	ARG_UNUSED(p3);
 
-	while (true) {
+	while (mp_thread_wait(&queue->thread) == 0) {
 		ret = k_msgq_get(&queue->msgq, &buffer, K_FOREVER);
 		if (ret != 0) {
 			LOG_DBG("Failed to get buffer from queue (%d)", ret);
 			break;
 		}
 
-		if (buffer == MP_QUEUE_QUIT_SENTINEL) {
-			LOG_DBG("Quit sentinel dequeued, exiting thread");
-			break;
+		if (buffer == MP_QUEUE_PAUSE_SENTINEL) {
+			LOG_DBG("Pause sentinel dequeued");
+			/* running already set to false by external mp_thread_pause(),
+			 * loop back to wait_running() which blocks.
+			 */
+			continue;
 		}
 
 		if (buffer == MP_QUEUE_EOS_SENTINEL) {
-			/* All preceding buffers have been drained; propagate EOS downstream */
-			LOG_DBG("Got EOS sentinel from the buffer queue, propagating EOS event downstream");
+			LOG_DBG("EOS sentinel dequeued, propagating EOS downstream");
 			struct mp_event *eos = mp_event_new_eos();
 
 			ret = mp_pad_send_event(queue->transform.srcpad.peer, eos);
 			if (ret != 0) {
 				LOG_ERR("Failed to send EOS event downstream (%d)", ret);
 			}
-
-			break;
+			/* Self-pause: block in wait_running() until next resume */
+			mp_thread_pause(&queue->thread);
+			continue;
 		}
 
-		/* Release backpressure: allow upstream to enqueue another buffer */
 		k_sem_give(&queue->sem);
-
-		/* Push buffer downstream */
 		mp_pipeline_push_buffer(&queue->transform.srcpad, buffer);
 	}
 
-	LOG_DBG("Thread exiting");
+	LOG_DBG("Queue thread exiting");
 }
 
 static enum mp_state_change_return mp_queue_change_state(struct mp_element *element,
@@ -173,35 +175,41 @@ static enum mp_state_change_return mp_queue_change_state(struct mp_element *elem
 	struct mp_queue *queue = MP_QUEUE(element);
 
 	switch (transition) {
-	case MP_STATE_CHANGE_PAUSED_TO_PLAYING:
-		LOG_DBG("Starting thread");
+	case MP_STATE_CHANGE_READY_TO_PAUSED:
+		LOG_DBG("Creating thread (not started)");
 		if (mp_thread_create(&queue->thread, mp_queue_thread_func, queue, NULL, NULL,
-				     CONFIG_MP_THREAD_DEFAULT_PRIORITY) == NULL) {
+				     CONFIG_MP_THREAD_DEFAULT_PRIORITY, K_FOREVER) == NULL) {
 			LOG_ERR("Failed to create a new queue thread");
 			return MP_STATE_CHANGE_FAILURE;
 		}
 		break;
+	case MP_STATE_CHANGE_PAUSED_TO_PLAYING:
+		LOG_DBG("Resuming thread");
+		mp_thread_resume(&queue->thread);
+		break;
 	case MP_STATE_CHANGE_PLAYING_TO_PAUSED:
-		LOG_DBG("Stopping thread");
+		LOG_DBG("Pausing thread");
 		/*
-		 * In the normal flow, the thread has already exited due to EOS
-		 * and mp_thread_join() returns immediately. For forced stops (no EOS),
-		 * purge the queue and inject a quit sentinel to unblock the k_msgq_get().
+		 * Mark the thread as paused, then inject a pause sentinel to
+		 * unblock k_msgq_get().  The thread will see the sentinel,
+		 * break out of the inner loop, and block in wait_running().
 		 */
-		void *sentinel = MP_QUEUE_QUIT_SENTINEL;
+		mp_thread_pause(&queue->thread);
 
-		k_msgq_purge(&queue->msgq);
+		void *sentinel = MP_QUEUE_PAUSE_SENTINEL;
+
 		k_msgq_put(&queue->msgq, &sentinel, K_NO_WAIT);
-		mp_thread_join(&queue->thread, K_FOREVER);
 		break;
 	case MP_STATE_CHANGE_PAUSED_TO_READY:
 		struct net_buf *buffer;
 
+		LOG_DBG("Stopping and joining thread");
+		mp_thread_join(&queue->thread, K_FOREVER);
+
 		LOG_DBG("Draining remaining buffers");
 		/* Drain any remaining buffers from the message queue */
 		while (k_msgq_get(&queue->msgq, &buffer, K_NO_WAIT) == 0) {
-			if (buffer != MP_QUEUE_EOS_SENTINEL &&
-			    buffer != MP_QUEUE_QUIT_SENTINEL) {
+			if (buffer != MP_QUEUE_EOS_SENTINEL && buffer != MP_QUEUE_PAUSE_SENTINEL) {
 				net_buf_unref(buffer);
 			}
 		}
@@ -229,7 +237,7 @@ void mp_queue_init(struct mp_element *self)
 	queue->transform.sinkpad.eventfn = mp_queue_sink_eventfn;
 	queue->size = CONFIG_MP_QUEUE_MAX_SIZE;
 
-	/* Size of the msgq = queue's max size + 1 (for EOS sentinel) */
-	k_msgq_init(&queue->msgq, queue->msgq_buffer, sizeof(void *), CONFIG_MP_QUEUE_MAX_SIZE + 1);
+	/* Size of the msgq = queue's max size + 2 (for EOS sentinel + pause sentinel) */
+	k_msgq_init(&queue->msgq, queue->msgq_buffer, sizeof(void *), CONFIG_MP_QUEUE_MAX_SIZE + 2);
 	k_sem_init(&queue->sem, queue->size, queue->size);
 }

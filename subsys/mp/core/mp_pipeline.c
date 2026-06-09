@@ -78,9 +78,10 @@ static void mp_pipeline_thread_func(void *p1, void *p2, void *p3)
 	struct mp_element *element;
 	struct mp_src *src = NULL;
 	struct net_buf *buffer = NULL;
-	struct mp_event *eos_event;
 	uint32_t count = 0;
-	bool eos = false;
+
+	ARG_UNUSED(p2);
+	ARG_UNUSED(p3);
 
 	/* Find the 1st source element */
 	SYS_DLIST_FOR_EACH_CONTAINER(&bin->children, obj, node) {
@@ -95,31 +96,26 @@ static void mp_pipeline_thread_func(void *p1, void *p2, void *p3)
 		return;
 	}
 
-	/* Only support push mode for now */
-	while (pipeline->thread.running) {
-		/*
-		 * Stop as EOS, i.e. reaches num_buffers or could not acquire buffer
-		 * (due to either error or eos)
-		 */
+	while (mp_thread_wait(&pipeline->thread) == 0) {
 		if ((src->num_buffers != 0 && count == src->num_buffers) ||
 		    src->pool->acquire_buffer(src->pool, &buffer) != 0) {
-			eos = true;
-			break;
+			struct mp_event *eos_event = mp_event_new_eos();
+
+			if (mp_pad_send_event(src->srcpad.peer, eos_event) != 0) {
+				LOG_ERR("Failed to send EOS event downstream");
+			}
+			count = 0;
+			/* Self-pause: block in wait_running() until next resume */
+			mp_thread_pause(&pipeline->thread);
+			continue;
 		}
 		count++;
-		/* Push the buffer to the rest of the pipeline */
 		if (mp_pipeline_push_buffer(&src->srcpad, buffer) != 0) {
 			LOG_ERR("Failed to push buffer downstream");
 		}
 	}
 
-	/* Source has stopped producing buffers, send an EOS event downstream */
-	if (eos) {
-		eos_event = mp_event_new_eos();
-		if (mp_pad_send_event(src->srcpad.peer, eos_event) != 0) {
-			LOG_ERR("Failed to send EOS event downstream");
-		}
-	}
+	LOG_DBG("Pipeline thread exiting");
 }
 
 static enum mp_state_change_return mp_pipeline_change_state(struct mp_element *element,
@@ -128,13 +124,25 @@ static enum mp_state_change_return mp_pipeline_change_state(struct mp_element *e
 	struct mp_pipeline *pipeline = MP_PIPELINE(element);
 	enum mp_state_change_return ret;
 
-	/*
-	 * For DOWN transitions, signal the pipeline thread's function loop to exit BEFORE
-	 * changing children state. This allows the thread to finish its current iteration
-	 * and exit. The actual stop will happen after all children have been transitioned.
-	 */
-	if (transition == MP_STATE_CHANGE_PLAYING_TO_PAUSED) {
-		pipeline->thread.running = false;
+	switch (transition) {
+	case MP_STATE_CHANGE_READY_TO_PAUSED:
+		/* Create the thread but do not start it (K_FOREVER) */
+		if (mp_thread_create(&pipeline->thread, mp_pipeline_thread_func, element, NULL,
+				     NULL, CONFIG_MP_THREAD_DEFAULT_PRIORITY, K_FOREVER) == NULL) {
+			LOG_ERR("Failed to create a new pipeline thread");
+			return MP_STATE_CHANGE_FAILURE;
+		}
+		break;
+	case MP_STATE_CHANGE_PLAYING_TO_PAUSED:
+		/*
+		 * Signal the pipeline thread to stop its processing loop
+		 * BEFORE transitioning children, so it finishes the current
+		 * buffer and blocks.
+		 */
+		mp_thread_pause(&pipeline->thread);
+		break;
+	default:
+		break;
 	}
 
 	ret = mp_bin_change_state_func(element, transition);
@@ -142,17 +150,17 @@ static enum mp_state_change_return mp_pipeline_change_state(struct mp_element *e
 		return ret;
 	}
 
-	/* Start the pipeline processing thread after all children are PLAYING */
-	if (transition == MP_STATE_CHANGE_PAUSED_TO_PLAYING &&
-	    mp_thread_create(&pipeline->thread, mp_pipeline_thread_func, element, NULL, NULL,
-			     CONFIG_MP_THREAD_DEFAULT_PRIORITY) == NULL) {
-		LOG_ERR("Failed to create a new pipeline thread");
-		return MP_STATE_CHANGE_FAILURE;
-	}
-
-	/* Join the pipeline thread after all children have transitioned to PAUSED */
-	if (transition == MP_STATE_CHANGE_PLAYING_TO_PAUSED) {
+	switch (transition) {
+	case MP_STATE_CHANGE_PAUSED_TO_PLAYING:
+		/* All children are PLAYING, start or unblock the pipeline thread */
+		mp_thread_resume(&pipeline->thread);
+		break;
+	case MP_STATE_CHANGE_PAUSED_TO_READY:
+		/* Destroy the thread and release the stack */
 		mp_thread_join(&pipeline->thread, K_FOREVER);
+		break;
+	default:
+		break;
 	}
 
 	LOG_DBG("Pipeline id %u has changed state to %u", MP_OBJECT(element)->id,
