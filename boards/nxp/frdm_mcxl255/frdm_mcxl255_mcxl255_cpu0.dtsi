@@ -26,6 +26,8 @@
 		sw0 = &user_button_2;
 		sw1 = &user_button_3;
 		rtc = &rtc;
+		i2c-0 = &lpi2c0;
+		i2c-1 = &lpi2c1;
 	};
 
 	leds {
@@ -104,4 +106,16 @@
 
 &systick {
 	status = "okay";
+};
+
+&lpi2c0 {
+	status = "okay";
+	pinctrl-0 = <&pinmux_lpi2c0>;
+	pinctrl-names = "default";
+};
+
+&lpi2c1 {
+	status = "okay";
+	pinctrl-0 = <&pinmux_lpi2c1>;
+	pinctrl-names = "default";
 };
