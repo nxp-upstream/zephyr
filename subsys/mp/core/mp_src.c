@@ -208,8 +208,6 @@ enum mp_state_change_return mp_src_change_state(struct mp_element *self,
 		}
 
 		break;
-	case MP_STATE_CHANGE_PAUSED_TO_PLAYING:
-		break;
 	default:
 		break;
 	}
