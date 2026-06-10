@@ -105,7 +105,7 @@ static void mp_pipeline_thread_func(void *p1, void *p2, void *p3)
 				LOG_ERR("Failed to send EOS event downstream");
 			}
 			count = 0;
-			/* Self-pause: block in wait_running() until next resume */
+			/* Self-pause: block in wait() until next resume */
 			mp_thread_pause(&pipeline->thread);
 			continue;
 		}
@@ -124,6 +124,31 @@ static enum mp_state_change_return mp_pipeline_change_state(struct mp_element *e
 	struct mp_pipeline *pipeline = MP_PIPELINE(element);
 	enum mp_state_change_return ret;
 
+	/*
+	 * DOWN: Pipeline thread should be handled before children state change, i.e. source need to
+	 * stop producing buffers first
+	 */
+	switch (transition) {
+	case MP_STATE_CHANGE_PLAYING_TO_PAUSED:
+		mp_thread_pause(&pipeline->thread);
+		break;
+	case MP_STATE_CHANGE_PAUSED_TO_READY:
+		mp_thread_join(&pipeline->thread, K_FOREVER);
+		break;
+	default:
+		break;
+	}
+
+	/* Children state change: UP = sink-to-source, DOWN=source-to-sink*/
+	ret = mp_bin_change_state_func(element, transition);
+	if (ret != MP_STATE_CHANGE_SUCCESS) {
+		return ret;
+	}
+
+	/*
+	 * UP: Pipeline thread should be handled after children state change, i.e., children need to
+	 * be prepared before receiving buffers from source)
+	 */
 	switch (transition) {
 	case MP_STATE_CHANGE_READY_TO_PAUSED:
 		/* Create the thread but do not start it (K_FOREVER) */
@@ -133,31 +158,8 @@ static enum mp_state_change_return mp_pipeline_change_state(struct mp_element *e
 			return MP_STATE_CHANGE_FAILURE;
 		}
 		break;
-	case MP_STATE_CHANGE_PLAYING_TO_PAUSED:
-		/*
-		 * Signal the pipeline thread to stop its processing loop
-		 * BEFORE transitioning children, so it finishes the current
-		 * buffer and blocks.
-		 */
-		mp_thread_pause(&pipeline->thread);
-		break;
-	default:
-		break;
-	}
-
-	ret = mp_bin_change_state_func(element, transition);
-	if (ret != MP_STATE_CHANGE_SUCCESS) {
-		return ret;
-	}
-
-	switch (transition) {
 	case MP_STATE_CHANGE_PAUSED_TO_PLAYING:
-		/* All children are PLAYING, start or unblock the pipeline thread */
 		mp_thread_resume(&pipeline->thread);
-		break;
-	case MP_STATE_CHANGE_PAUSED_TO_READY:
-		/* Destroy the thread and release the stack */
-		mp_thread_join(&pipeline->thread, K_FOREVER);
 		break;
 	default:
 		break;
