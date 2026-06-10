@@ -8,6 +8,7 @@
 #include <zephyr/drivers/video-controls.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/mp/core/mp.h>
+#include <zephyr/mp/zbase/mp_capsfilter.h>
 #include <zephyr/mp/zdisp/mp_zdisp_sink.h>
 #include <zephyr/mp/zvid/mp_zvid_src.h>
 #include <zephyr/mp/zvid/mp_zvid_property.h>
@@ -18,7 +19,7 @@
 #include <zephyr/mp/zvid/mp_zvid_convert.h>
 #endif
 #if defined(CONFIG_MP_CAPSFILTER)
-#include <zephyr/mp/core/mp_capsfilter.h>
+#include <zephyr/mp/zbase/mp_capsfilter.h>
 #endif
 #include <zephyr/sys/util_macro.h>
 

@@ -15,6 +15,7 @@
 #include <zephyr/mp/zaud/mp_zaud_gain.h>
 #include <zephyr/mp/zaud/mp_zaud_dmic_src.h>
 #include <zephyr/mp/zaud/mp_zaud_buffer_pool.h>
+#include <zephyr/mp/zbase/mp_capsfilter.h>
 
 LOG_MODULE_REGISTER(main);
 

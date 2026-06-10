@@ -15,6 +15,7 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mp/core/mp.h>
+#include <zephyr/mp/zbase/mp_capsfilter.h>
 #include <zephyr/mp/zdisp/mp_zdisp_sink.h>
 #include <zephyr/mp/zfs/mp_zfilesrc.h>
 #include <zephyr/mp/zjpeg/mp_zjpeg_decoder.h>

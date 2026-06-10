@@ -24,9 +24,6 @@
 
 #include <zephyr/mp/core/mp_bus.h>
 #include <zephyr/mp/core/mp_caps.h>
-#if CONFIG_MP_CAPSFILTER
-#include <zephyr/mp/core/mp_capsfilter.h>
-#endif
 #include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_pipeline.h>
 #include <zephyr/mp/core/mp_structure.h>

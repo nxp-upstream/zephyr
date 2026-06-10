@@ -10,7 +10,7 @@
  * @brief Queue element for pipeline-level threading.
  *
  * The queue element decouples a pipeline into two segments running on two different threads.
- * Upstream deposits buffers into the queue's an internal buffer queue; then a dedicated
+ * Upstream deposits buffers into the queue's internal buffer queue; then a dedicated
  * downstream thread pulls buffers from that queue and push to the rest of the pipeline.
  */
 

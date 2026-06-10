@@ -15,6 +15,8 @@
 
 #include <stdint.h>
 
+#include <zephyr/net_buf.h>
+
 #include <zephyr/mp/core/mp_bin.h>
 #include <zephyr/mp/core/mp_thread.h>
 
@@ -58,7 +60,7 @@ void mp_pipeline_init(struct mp_element *self);
  * @brief Push a buffer downstream starting from a given source pad
  *
  * Walks downstream from an element's @p srcpad, calling each next element's chainfn
- * until a sink is reached, a chainfn fails, or out_buf is NULL
+ * until a sink is reached, a chainfn fails, or output buffer is NULL
  *
  * On chainfn error the buffer is unreffed internally.
  *

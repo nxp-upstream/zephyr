@@ -12,7 +12,7 @@
 #include <zephyr/mp/core/mp_pad.h>
 #include <zephyr/mp/core/mp_pipeline.h>
 #include <zephyr/mp/core/mp_query.h>
-#include <zephyr/mp/core/mp_tee.h>
+#include <zephyr/mp/zbase/mp_tee.h>
 
 LOG_MODULE_REGISTER(mp_tee, CONFIG_MP_LOG_LEVEL);
 

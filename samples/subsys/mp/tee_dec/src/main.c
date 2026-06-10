@@ -19,8 +19,9 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mp/core/mp.h>
-#include <zephyr/mp/core/mp_queue.h>
-#include <zephyr/mp/core/mp_tee.h>
+#include <zephyr/mp/zbase/mp_capsfilter.h>
+#include <zephyr/mp/zbase/mp_queue.h>
+#include <zephyr/mp/zbase/mp_tee.h>
 #include <zephyr/mp/zdisp/mp_zdisp_sink.h>
 #include <zephyr/mp/zfs/mp_zfilesink.h>
 #include <zephyr/mp/zfs/mp_zfilesrc.h>

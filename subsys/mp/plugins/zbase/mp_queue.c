@@ -11,7 +11,7 @@
 #include <zephyr/mp/core/mp_event.h>
 #include <zephyr/mp/core/mp_pad.h>
 #include <zephyr/mp/core/mp_pipeline.h>
-#include <zephyr/mp/core/mp_queue.h>
+#include <zephyr/mp/zbase/mp_queue.h>
 
 LOG_MODULE_REGISTER(mp_queue, CONFIG_MP_LOG_LEVEL);
 
