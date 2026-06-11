@@ -186,10 +186,11 @@ int main(void)
 	}
 
 	/* Add all elements to the pipeline bin */
-	ret = mp_bin_add((struct mp_bin *)&pipe,
-			 (struct mp_element *)&filesrc, (struct mp_element *)&jpeg_parser, (struct mp_element *)&caps_filter,
-			 (struct mp_element *)&tee, (struct mp_element *)&queue1, (struct mp_element *)&jpeg_dec,
-			 (struct mp_element *)&disp_sink, (struct mp_element *)&queue2, (struct mp_element *)&filesink, NULL);
+	ret = mp_bin_add((struct mp_bin *)&pipe, (struct mp_element *)&filesrc,
+			 (struct mp_element *)&jpeg_parser, (struct mp_element *)&caps_filter,
+			 (struct mp_element *)&tee, (struct mp_element *)&queue1,
+			 (struct mp_element *)&jpeg_dec, (struct mp_element *)&disp_sink,
+			 (struct mp_element *)&queue2, (struct mp_element *)&filesink, NULL);
 	if (ret < 0) {
 		LOG_ERR("Failed to add elements (%d)", ret);
 		goto err;
@@ -206,8 +207,8 @@ int main(void)
 	}
 
 	/* Branch 2: tee (2nd srcpad) → queue2 → filesink */
-	ret = mp_element_link((struct mp_element *)&tee, (struct mp_element *)&queue2, (struct mp_element *)&filesink,
-			      NULL);
+	ret = mp_element_link((struct mp_element *)&tee, (struct mp_element *)&queue2,
+			      (struct mp_element *)&filesink, NULL);
 	if (ret < 0) {
 		LOG_ERR("Failed to link branch 2 (%d)", ret);
 		goto err;
@@ -216,28 +217,28 @@ int main(void)
 	LOG_INF("Pipeline linked. Starting playback...");
 
 	/* Start the pipeline */
-	if (mp_element_set_state((struct mp_element *)&pipe, MP_STATE_PLAYING) != MP_STATE_CHANGE_SUCCESS) {
+	if (mp_element_set_state((struct mp_element *)&pipe, MP_STATE_PLAYING) !=
+	    MP_STATE_CHANGE_SUCCESS) {
 		LOG_ERR("Failed to start pipeline");
 		goto err;
 	}
 
 	/* Wait for EOS or ERROR on the bus */
 	struct mp_bus *bus = mp_element_get_bus((struct mp_element *)&pipe);
-	struct mp_message *msg = mp_bus_pop_msg(bus, MP_MESSAGE_ERROR | MP_MESSAGE_EOS);
+	struct mp_message msg;
 
-	if (msg != NULL) {
-		switch (msg->type) {
-		case MP_MESSAGE_ERROR:
-			LOG_INF("ERROR message from element %d", msg->src->id);
-			break;
-		case MP_MESSAGE_EOS:
-			LOG_INF("EOS message from element %d", msg->src->id);
-			break;
-		default:
-			LOG_ERR("Unexpected message from element %d", msg->src->id);
-			break;
-		}
-		mp_message_destroy(msg);
+	mp_bus_pop_msg(bus, MP_MESSAGE_ERROR | MP_MESSAGE_EOS, &msg);
+
+	switch (msg.type) {
+	case MP_MESSAGE_ERROR:
+		LOG_ERR("ERROR message from element %d", msg.origin->object.id);
+		break;
+	case MP_MESSAGE_EOS:
+		LOG_INF("EOS message from element %d", msg.origin->object.id);
+		break;
+	default:
+		LOG_ERR("Unexpected message from element %d", msg.origin->object.id);
+		break;
 	}
 
 	/* Stop the pipeline */

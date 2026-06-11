@@ -69,3 +69,9 @@ config MP_FAKE_SRC_BUF_SZ
 	range 1 1024
 	default 1
 	depends on MP_FAKE_SRC
+
+config MP_BUS_QUEUE_DEPTH
+	int "Message bus queue depth"
+	default 2
+	help
+	  Bus queue depth

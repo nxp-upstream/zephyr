@@ -55,8 +55,7 @@ int main(void)
 	MP_ELEMENT_INIT(&sink, mp_zaud_i2s_codec_sink_init, I2S_SINK_ID);
 
 	ret = mp_object_set_properties((struct mp_object *)&source, PROP_ZAUD_SRC_SLAB_PTR,
-				       &mem_slab,
-				       PROP_LIST_END);
+				       &mem_slab, PROP_LIST_END);
 	if (ret < 0) {
 		LOG_ERR("Failed to set properties for source element");
 		goto err;
@@ -124,31 +123,30 @@ int main(void)
 	/* clang-format on */
 
 	/* Start playing */
-	if (mp_element_set_state((struct mp_element *)&pipe, MP_STATE_PLAYING) != MP_STATE_CHANGE_SUCCESS) {
+	if (mp_element_set_state((struct mp_element *)&pipe, MP_STATE_PLAYING) !=
+	    MP_STATE_CHANGE_SUCCESS) {
 		LOG_ERR("Failed to start pipeline");
 		goto err;
 	}
 
 	/* Handle message from the pipeline */
 	struct mp_bus *bus = mp_element_get_bus((struct mp_element *)&pipe);
+	struct mp_message msg;
+
 	/* Wait until an Error or an EOS - blocking */
-	struct mp_message *msg = mp_bus_pop_msg(bus, MP_MESSAGE_ERROR | MP_MESSAGE_EOS);
+	mp_bus_pop_msg(bus, MP_MESSAGE_ERROR | MP_MESSAGE_EOS, &msg);
 
-	if (msg != NULL) {
-		switch (msg->type) {
-		case MP_MESSAGE_ERROR:
-			LOG_INF("ERROR message from element %d", msg->src->id);
-			break;
-		case MP_MESSAGE_EOS:
-			LOG_INF("EOS message from element %d", msg->src->id);
-			break;
-		default:
-			LOG_ERR("Unexpected message from element %d", msg->src->id);
-			break;
-		}
+	switch (msg.type) {
+	case MP_MESSAGE_ERROR:
+		LOG_ERR("ERROR message from element %d", msg.origin->object.id);
+		break;
+	case MP_MESSAGE_EOS:
+		LOG_INF("EOS message from element %d", msg.origin->object.id);
+		break;
+	default:
+		LOG_ERR("Unexpected message from element %d", msg.origin->object.id);
+		break;
 	}
-
-	mp_message_destroy(msg);
 
 	/* Stop/Deinit the pipeline */
 	(void)mp_element_set_state((struct mp_element *)&pipe, MP_STATE_READY);

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <zephyr/kernel.h>
 #include <zephyr/mp/core/mp_bus.h>
 
 enum mp_bus_sync_reply {
@@ -30,7 +31,7 @@ static enum mp_bus_sync_reply mp_bus_sync_handler(struct mp_bus *bus, struct mp_
 
 	/* Deliver the message to the correct listener */
 	SYS_SLIST_FOR_EACH_CONTAINER(&bus->sync_listeners, listener, node) {
-		if (message->type & listener->filter_type) {
+		if (message->type & listener->filter_mask) {
 			ret |= listener->cb(message, listener->user_data);
 		}
 	}
@@ -46,76 +47,84 @@ int mp_bus_post(struct mp_bus *bus, struct mp_message *message)
 		return -EINVAL;
 	}
 
-	/* Step 1: Notify the sync handler first if any */
-	if (!sys_slist_is_empty(&bus->sync_listeners)) {
-		reply = mp_bus_sync_handler(bus, message);
-	}
+	/* Step 1: Notify sync listeners first */
+	reply = mp_bus_sync_handler(bus, message);
 
-	/* Step 2: Put message to FIFO if not dropped */
+	/* Step 2: Queue message if not consumed */
 	if (reply == MP_BUS_PASS) {
-		k_fifo_put(&bus->fifo, message);
-	} else {
-		mp_message_destroy(message);
+		return k_msgq_put(&bus->msgq, message, K_NO_WAIT);
 	}
 
 	return 0;
 }
 
-struct mp_message *mp_bus_pop_msg(struct mp_bus *bus, enum mp_message_type type)
+int mp_bus_pop_msg(struct mp_bus *bus, uint32_t filter_mask, struct mp_message *out)
 {
-	__ASSERT_NO_MSG(bus != NULL);
+	struct mp_message tmp;
+	int ret;
 
-	struct mp_message *message = NULL;
+	if (bus == NULL || out == NULL) {
+		return -EINVAL;
+	}
 
-	while ((message = k_fifo_get(&bus->fifo, K_FOREVER)) != NULL) {
-		if (message->type & type) {
-			break;
+	while (1) {
+		ret = k_msgq_get(&bus->msgq, &tmp, K_FOREVER);
+		if (ret != 0) {
+			return ret;
 		}
 
-		/* Discard unmatched message */
-		mp_message_destroy(message);
-	}
-
-	return message;
-}
-
-struct mp_message *mp_bus_pop(struct mp_bus *bus)
-{
-	return mp_bus_pop_msg(bus, MP_MESSAGE_ANY);
-}
-
-struct mp_message *mp_bus_peek(struct mp_bus *bus)
-{
-	return bus != NULL ? k_fifo_peek_head(&bus->fifo) : NULL;
-}
-void mp_bus_flush(struct mp_bus *bus)
-{
-	struct mp_message *message;
-
-	__ASSERT_NO_MSG(bus != NULL);
-
-	/** Drain the FIFO and free all messages */
-	while ((message = k_fifo_get(&bus->fifo, K_NO_WAIT)) != NULL) {
-		mp_message_destroy(message);
+		if ((uint32_t)tmp.type & filter_mask) {
+			*out = tmp;
+			return 0;
+		}
 	}
 }
 
-void mp_bus_add_sync_listener(struct mp_bus *bus, callback_fn cb, enum mp_message_type type,
-			      void *user_data)
+int mp_bus_pop(struct mp_bus *bus, struct mp_message *out)
 {
+	return mp_bus_pop_msg(bus, MP_MESSAGE_ANY, out);
+}
 
-	struct mp_bus_sync_listener *listener = k_malloc(sizeof(struct mp_bus_sync_listener));
+int mp_bus_peek(struct mp_bus *bus, struct mp_message *out)
+{
+	if (bus == NULL || out == NULL) {
+		return -EINVAL;
+	}
 
-	__ASSERT_NO_MSG(listener != NULL);
-	listener->cb = cb;
-	listener->filter_type = type;
-	listener->user_data = user_data;
+	return k_msgq_peek(&bus->msgq, out);
+}
+
+int mp_bus_flush(struct mp_bus *bus)
+{
+	if (bus == NULL) {
+		return -EINVAL;
+	}
+
+	k_msgq_purge(&bus->msgq);
+
+	return 0;
+}
+
+int mp_bus_add_sync_listener(struct mp_bus *bus, struct mp_bus_sync_listener *listener)
+{
+	if (bus == NULL || listener == NULL || listener->cb == NULL) {
+		return -EINVAL;
+	}
+
 	sys_slist_append(&bus->sync_listeners, &listener->node);
+
+	return 0;
 }
 
-void mp_bus_remove_sync_listener(struct mp_bus *bus, struct mp_bus_sync_listener *listener)
+int mp_bus_remove_sync_listener(struct mp_bus *bus, struct mp_bus_sync_listener *listener)
 {
-	__ASSERT_NO_MSG(bus != NULL && listener != NULL);
-	sys_slist_find_and_remove(&bus->sync_listeners, &listener->node);
-	k_free(listener);
+	bool found;
+
+	if (bus == NULL || listener == NULL) {
+		return -EINVAL;
+	}
+
+	found = sys_slist_find_and_remove(&bus->sync_listeners, &listener->node);
+
+	return found ? 0 : -ENOENT;
 }

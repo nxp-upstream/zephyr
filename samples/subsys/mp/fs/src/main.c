@@ -97,7 +97,8 @@ int main(void)
 	}
 
 	/* Add elements to the pipeline - order does not matter */
-	ret = mp_bin_add((struct mp_bin *)&pipe, (struct mp_element *)&filesrc, (struct mp_element *)&filesink, NULL);
+	ret = mp_bin_add((struct mp_bin *)&pipe, (struct mp_element *)&filesrc,
+			 (struct mp_element *)&filesink, NULL);
 	if (ret < 0) {
 		LOG_ERR("Failed to add elements (%d)", ret);
 		goto err;
@@ -111,29 +112,29 @@ int main(void)
 	}
 
 	/* Start the pipeline */
-	if (mp_element_set_state((struct mp_element *)&pipe, MP_STATE_PLAYING) != MP_STATE_CHANGE_SUCCESS) {
+	if (mp_element_set_state((struct mp_element *)&pipe, MP_STATE_PLAYING) !=
+	    MP_STATE_CHANGE_SUCCESS) {
 		LOG_ERR("Failed to start pipeline");
 		goto err;
 	}
 
 	/* Handle message from the pipeline */
 	struct mp_bus *bus = mp_element_get_bus((struct mp_element *)&pipe);
-	struct mp_message *msg = mp_bus_pop_msg(bus, MP_MESSAGE_ERROR | MP_MESSAGE_EOS);
+	struct mp_message msg;
 
-	if (msg != NULL) {
-		switch (msg->type) {
-		case MP_MESSAGE_ERROR:
-			LOG_INF("ERROR message from element %d", msg->src->id);
-			break;
-		case MP_MESSAGE_EOS:
-			LOG_INF("EOS message from element %d", msg->src->id);
-			break;
-		default:
-			LOG_ERR("Unexpected message from element %d", msg->src->id);
-			break;
-		}
+	mp_bus_pop_msg(bus, MP_MESSAGE_ERROR | MP_MESSAGE_EOS, &msg);
+
+	switch (msg.type) {
+	case MP_MESSAGE_ERROR:
+		LOG_ERR("ERROR message from element %d", msg.origin->object.id);
+		break;
+	case MP_MESSAGE_EOS:
+		LOG_INF("EOS message from element %d", msg.origin->object.id);
+		break;
+	default:
+		LOG_ERR("Unexpected message from element %d", msg.origin->object.id);
+		break;
 	}
-	mp_message_destroy(msg);
 
 	/* Stop/Deinit the pipeline */
 	(void)mp_element_set_state((struct mp_element *)&pipe, MP_STATE_READY);

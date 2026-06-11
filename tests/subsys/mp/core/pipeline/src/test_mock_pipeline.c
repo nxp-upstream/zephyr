@@ -61,7 +61,7 @@ ZTEST_SUITE(test_mock_pipeline, NULL, pipeline_suite_setup, pipeline_before, NUL
 ZTEST_F(test_mock_pipeline, test_pipeline_fakesrc_transform_sink)
 {
 	struct mp_bus *bus;
-	struct mp_message *msg;
+	struct mp_message msg;
 	struct sys_memory_stats mem_after;
 
 	/* Add all elements to the pipeline */
@@ -84,11 +84,8 @@ ZTEST_F(test_mock_pipeline, test_pipeline_fakesrc_transform_sink)
 
 	/* Wait for EOS posted by the sink */
 	bus = mp_element_get_bus((struct mp_element *)&fixture->pipeline);
-	zassert_not_null(bus, "Bus does not exist");
-	msg = mp_bus_pop_msg(bus, MP_MESSAGE_EOS | MP_MESSAGE_ERROR);
-	zassert_not_null(msg, "Failed to get message from the bus");
-	zassert_equal(msg->type, MP_MESSAGE_EOS, "Message should be EOS, got %d", msg->type);
-	mp_message_destroy(msg);
+	mp_bus_pop_msg(bus, MP_MESSAGE_EOS | MP_MESSAGE_ERROR, &msg);
+	zassert_equal(msg.type, MP_MESSAGE_EOS, "Expected EOS Message,  got %d", msg.type);
 
 	/* Bring pipeline back to READY and join the thread */
 	zassert_equal(mp_element_set_state((struct mp_element *)&fixture->pipeline, MP_STATE_READY),

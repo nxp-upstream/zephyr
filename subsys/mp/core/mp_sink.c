@@ -9,7 +9,7 @@
 #include <zephyr/mp/core/mp_bus.h>
 #include <zephyr/mp/core/mp_dispatch.h>
 #include <zephyr/mp/core/mp_sink.h>
-#include <zephyr/mp/core/mp_messages.h>
+#include <zephyr/mp/core/mp_message.h>
 
 LOG_MODULE_REGISTER(mp_sink, CONFIG_MP_LOG_LEVEL);
 
@@ -87,13 +87,12 @@ int mp_sink_event(struct mp_pad *pad, struct mp_dispatch *event)
 		struct mp_bus *bus = mp_element_get_bus(&sink->element);
 
 		if (bus != NULL) {
-			struct mp_message *msg;
+			struct mp_message msg;
 
-			msg = mp_message_new(MP_MESSAGE_EOS, &sink->element.object, NULL);
-			if (msg != NULL) {
-				mp_bus_post(bus, msg);
-			}
+			MP_MESSAGE_INIT(&msg, &sink->element, MP_MESSAGE_EOS);
+			mp_bus_post(bus, &msg);
 		}
+
 		return 0;
 	case MP_DISPATCH_CAPS:
 		struct mp_caps *caps = mp_dispatch_get_caps(event);
