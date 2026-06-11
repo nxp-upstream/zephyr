@@ -60,7 +60,7 @@ int main(void)
 		CONFIG_VIDEO_SOURCE_CROP_WIDTH, CONFIG_VIDEO_SOURCE_CROP_HEIGHT};
 
 	/* clang-format off */
-	ret = mp_object_set_properties(MP_OBJECT(&vid_src),
+	ret = mp_object_set_properties((struct mp_object *)&vid_src,
 		COND_CODE_0(CONFIG_PROP_NUM_BUFS, (), (PROP_NUM_BUFS, CONFIG_PROP_NUM_BUFS,))
 		COND_CODE_0(CONFIG_VIDEO_SOURCE_CROP_WIDTH, (), (PROP_ZVID_CROP, &crop,))
 		IF_ENABLED(CONFIG_VIDEO_CTRL_HFLIP, (VIDEO_CID_HFLIP, CONFIG_VIDEO_CTRL_HFLIP,))
@@ -97,7 +97,8 @@ int main(void)
 						 VIDEO_FOURCC_FROM_STR(CONFIG_VIDEO_PIXEL_FORMAT)));
 	}
 
-	ret = mp_object_set_properties(MP_OBJECT(&caps_filter), PROP_CAPS, caps, PROP_LIST_END);
+	ret = mp_object_set_properties((struct mp_object *)&caps_filter, PROP_CAPS, caps,
+				       PROP_LIST_END);
 	mp_caps_unref(caps);
 	if (ret < 0) {
 		goto err;
@@ -109,7 +110,7 @@ int main(void)
 	MP_ELEMENT_INIT(&jpeg_dec, mp_zvid_transform_init, JPEG_DEC_ID);
 	MP_ELEMENT_INIT(&vid_conv, mp_zvid_convert_init, VID_CONV_ID);
 
-	ret = mp_object_set_properties(MP_OBJECT(&jpeg_dec), PROP_ZVID_DEVICE,
+	ret = mp_object_set_properties((struct mp_object *)&jpeg_dec, PROP_ZVID_DEVICE,
 				       DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_jpegdec)),
 				       PROP_LIST_END);
 	if (ret < 0) {
@@ -122,7 +123,7 @@ int main(void)
 	MP_ELEMENT_INIT(&vid_trans, mp_zvid_transform_init, VID_TRANS_ID);
 
 	/* clang-format off */
-	ret = mp_object_set_properties(MP_OBJECT(&vid_trans),
+	ret = mp_object_set_properties((struct mp_object *)&vid_trans,
 		COND_CODE_0(CONFIG_VIDEO_ROTATION_ANGLE,
 			(), (VIDEO_CID_ROTATE, CONFIG_VIDEO_ROTATION_ANGLE,)) PROP_LIST_END);
 	/* clang-format on */
@@ -133,24 +134,24 @@ int main(void)
 
 	/* clang-format off */
 	/* Add elements to the pipeline - order does not matter */
-	ret = mp_bin_add(MP_BIN(&pipe),
-			MP_ELEMENT(&vid_src),
-			IF_ENABLED(CONFIG_MP_CAPSFILTER, (MP_ELEMENT(&caps_filter),))
-			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec), (MP_ELEMENT(&jpeg_dec),))
-			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec), (MP_ELEMENT(&vid_conv),))
-			IF_ENABLED(DT_HAS_CHOSEN(zephyr_videotrans), (MP_ELEMENT(&vid_trans),))
-			MP_ELEMENT(&disp_sink), NULL);
+	ret = mp_bin_add((struct mp_bin *)&pipe,
+			(struct mp_element *)&vid_src,
+			IF_ENABLED(CONFIG_MP_CAPSFILTER, ((struct mp_element *)&caps_filter,))
+			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec), ((struct mp_element *)&jpeg_dec,))
+			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec), ((struct mp_element *)&vid_conv,))
+			IF_ENABLED(DT_HAS_CHOSEN(zephyr_videotrans), ((struct mp_element *)&vid_trans,))
+			(struct mp_element *)&disp_sink, NULL);
 	if (ret < 0) {
 		LOG_ERR("Failed to add elements (%d)", ret);
 		goto err;
 	}
 	/* Link elements together - order does matter */
-	ret = mp_element_link(MP_ELEMENT(&vid_src),
-			IF_ENABLED(CONFIG_MP_CAPSFILTER, (MP_ELEMENT(&caps_filter),))
-			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec), (MP_ELEMENT(&jpeg_dec),))
-			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec), (MP_ELEMENT(&vid_conv),))
-			IF_ENABLED(DT_HAS_CHOSEN(zephyr_videotrans), (MP_ELEMENT(&vid_trans),))
-			MP_ELEMENT(&disp_sink), NULL);
+	ret = mp_element_link((struct mp_element *)&vid_src,
+			IF_ENABLED(CONFIG_MP_CAPSFILTER, ((struct mp_element *)&caps_filter,))
+			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec), ((struct mp_element *)&jpeg_dec,))
+			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec), ((struct mp_element *)&vid_conv,))
+			IF_ENABLED(DT_HAS_CHOSEN(zephyr_videotrans), ((struct mp_element *)&vid_trans,))
+			(struct mp_element *)&disp_sink, NULL);
 	if (ret < 0) {
 		LOG_ERR("Failed to link elements (%d)", ret);
 		goto err;
@@ -158,13 +159,13 @@ int main(void)
 	/* clang-format on */
 
 	/* Start playing */
-	if (mp_element_set_state(MP_ELEMENT(&pipe), MP_STATE_PLAYING) != MP_STATE_CHANGE_SUCCESS) {
+	if (mp_element_set_state((struct mp_element *)&pipe, MP_STATE_PLAYING) != MP_STATE_CHANGE_SUCCESS) {
 		LOG_ERR("Failed to start pipeline");
 		goto err;
 	}
 
 	/* Handle message from the pipeline */
-	struct mp_bus *bus = mp_element_get_bus(MP_ELEMENT(&pipe));
+	struct mp_bus *bus = mp_element_get_bus((struct mp_element *)&pipe);
 	/* Wait until an Error or an EOS - blocking */
 	struct mp_message *msg = mp_bus_pop_msg(bus, MP_MESSAGE_ERROR | MP_MESSAGE_EOS);
 
@@ -184,7 +185,7 @@ int main(void)
 	mp_message_destroy(msg);
 
 	/* Stop/Deinit the pipeline */
-	(void)mp_element_set_state(MP_ELEMENT(&pipe), MP_STATE_READY);
+	(void)mp_element_set_state((struct mp_element *)&pipe, MP_STATE_READY);
 
 	return 0;
 

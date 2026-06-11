@@ -31,7 +31,7 @@ static uint8_t pause_sentinel;
 
 static int mp_queue_get_property(struct mp_object *obj, uint32_t id, void *val)
 {
-	struct mp_queue *queue = MP_QUEUE(obj);
+	struct mp_queue *queue = (struct mp_queue *)obj;
 
 	switch (id) {
 	case PROP_QUEUE_SIZE:
@@ -44,7 +44,7 @@ static int mp_queue_get_property(struct mp_object *obj, uint32_t id, void *val)
 
 static int mp_queue_set_property(struct mp_object *obj, uint32_t id, const void *val)
 {
-	struct mp_queue *queue = MP_QUEUE(obj);
+	struct mp_queue *queue = (struct mp_queue *)obj;
 
 	switch (id) {
 	case PROP_QUEUE_SIZE:
@@ -64,7 +64,7 @@ static int mp_queue_set_property(struct mp_object *obj, uint32_t id, const void 
 
 static int mp_queue_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf)
 {
-	struct mp_queue *queue = CONTAINER_OF(pad, struct mp_queue, transform.sinkpad);
+	struct mp_queue *queue = (struct mp_queue *)pad->object.container;
 	int ret;
 
 	ret = k_msgq_put(&queue->msgq, &in_buf, K_FOREVER);
@@ -81,7 +81,7 @@ static int mp_queue_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct n
 
 static int mp_queue_sink_eventfn(struct mp_pad *pad, struct mp_event *event)
 {
-	struct mp_queue *queue = CONTAINER_OF(pad, struct mp_queue, transform.sinkpad);
+	struct mp_queue *queue = (struct mp_queue *)pad->object.container;
 	int ret;
 
 	switch (event->type) {
@@ -149,7 +149,7 @@ static void mp_queue_thread_func(void *p1, void *p2, void *p3)
 static enum mp_state_change_return mp_queue_change_state(struct mp_element *element,
 							 enum mp_state_change transition)
 {
-	struct mp_queue *queue = MP_QUEUE(element);
+	struct mp_queue *queue = (struct mp_queue *)element;
 
 	switch (transition) {
 	case MP_STATE_CHANGE_READY_TO_PAUSED:
@@ -192,7 +192,7 @@ static enum mp_state_change_return mp_queue_change_state(struct mp_element *elem
 
 void mp_queue_init(struct mp_element *self)
 {
-	struct mp_queue *queue = MP_QUEUE(self);
+	struct mp_queue *queue = (struct mp_queue *)self;
 
 	mp_transform_init(self);
 

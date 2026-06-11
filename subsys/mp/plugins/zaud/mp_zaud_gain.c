@@ -46,7 +46,7 @@ static int32_t percent_to_fixed_gain(int gain_percent)
 
 static int mp_zaud_gain_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
-	struct mp_zaud_gain *self = MP_ZAUD_GAIN(obj);
+	struct mp_zaud_gain *self = (struct mp_zaud_gain *)obj;
 
 	switch (key) {
 	case PROP_GAIN:
@@ -67,7 +67,7 @@ static int mp_zaud_gain_set_property(struct mp_object *obj, uint32_t key, const 
 
 static int mp_zaud_gain_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
-	struct mp_zaud_gain *self = MP_ZAUD_GAIN(obj);
+	struct mp_zaud_gain *self = (struct mp_zaud_gain *)obj;
 
 	switch (key) {
 	case PROP_GAIN:
@@ -207,7 +207,8 @@ static void apply_audio_gain(struct net_buf *buffer, int32_t gain_fixed, uint8_t
 static int mp_zaud_gain_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 				struct net_buf **out_buf)
 {
-	struct mp_zaud_gain *zaud_gain = MP_ZAUD_GAIN(pad->object.container);
+	struct mp_zaud_gain *zaud_gain =
+		CONTAINER_OF(pad->object.container, struct mp_zaud_gain, transform.element.object);
 	uint32_t bytes_used = 0U;
 
 	ARG_UNUSED(pad);
@@ -258,7 +259,7 @@ static struct mp_caps *mp_zaud_gain_supported_caps(struct mp_transform *transfor
 static int mp_zaud_gain_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
 				 struct mp_caps *caps)
 {
-	struct mp_zaud_gain *zaud_gain = MP_ZAUD_GAIN(transform);
+	struct mp_zaud_gain *zaud_gain = (struct mp_zaud_gain *)transform;
 	/* Get the first structure from caps */
 	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
 	/* Extract bit_width from the structure */
@@ -282,8 +283,8 @@ static void mp_zaud_gain_update_caps(struct mp_transform *transform)
 
 void mp_zaud_gain_init(struct mp_element *self)
 {
-	struct mp_transform *transform = MP_TRANSFORM(self);
-	struct mp_zaud_gain *zaud_gain = MP_ZAUD_GAIN(self);
+	struct mp_transform *transform = (struct mp_transform *)self;
+	struct mp_zaud_gain *zaud_gain = (struct mp_zaud_gain *)transform;
 
 	/* Init base class */
 	mp_transform_init(self);

@@ -636,7 +636,6 @@ void JPEG_close(JPEGIMAGE *pJPEG)
 	}
 } /* JPEG_close() */
 
-
 /*
  * Validate/adjust the requested crop area to land on MCU boundaries
  * (expand in all directions if needed)

@@ -115,9 +115,6 @@ struct mp_cap_structure {
 /** @brief Flag indicating ANY caps type */
 #define MP_CAPS_FLAG_ANY 0x1
 
-/** @brief Cast a generic object to mp_caps */
-#define MP_CAPS(obj) ((struct mp_caps *)(obj))
-
 /**
  * @brief Create a new @ref mp_caps of one caps structure with a media type ID and fields in
  * the same way as the @ref mp_structure_new

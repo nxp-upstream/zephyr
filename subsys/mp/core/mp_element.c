@@ -20,7 +20,7 @@ void mp_element_add_pad(struct mp_element *element, struct mp_pad *pad)
 	__ASSERT_NO_MSG(pad != NULL);
 
 	/* Set element that contains this pad */
-	MP_OBJECT(pad)->container = MP_OBJECT(element);
+	pad->object.container = &element->object;
 
 	if (pad->direction == MP_PAD_SRC) {
 		sys_dlist_append(&element->srcpads, &pad->object.node);
@@ -40,7 +40,7 @@ static struct mp_pad *mp_element_get_unlinked_pad(struct mp_element *element, ui
 	sys_dlist_t *pads = direction == MP_PAD_SRC ? &element->srcpads : &element->sinkpads;
 
 	SYS_DLIST_FOR_EACH_CONTAINER(pads, obj, node) {
-		pad = MP_PAD(obj);
+		pad = (struct mp_pad *)obj;
 		if (pad->peer == NULL && (pad_id == UINT8_MAX || pad_id == obj->id)) {
 			return pad;
 		}
@@ -163,7 +163,7 @@ static int mp_element_send_event_default(struct mp_element *element, struct mp_e
 	}
 
 	SYS_DLIST_FOR_EACH_CONTAINER(pad_list, obj, node) {
-		int r = mp_pad_send_event(MP_PAD(obj), event);
+		int r = mp_pad_send_event((struct mp_pad *)obj, event);
 
 		if (r == 0) {
 			ret = 0;
@@ -185,11 +185,11 @@ struct mp_bus *mp_element_get_bus(struct mp_element *element)
 	 * be passed hierachically from the nearest bin to the pipeline if they need to be filtered
 	 * or modified at each level.
 	 */
-	while (MP_OBJECT(element)->container != NULL) {
-		element = MP_ELEMENT(MP_OBJECT(element)->container);
+	while (element->object.container != NULL) {
+		element = (struct mp_element *)element->object.container;
 	}
 
-	return &MP_BIN(element)->bus;
+	return &((struct mp_bin *)element)->bus;
 }
 
 void mp_element_init(struct mp_element *self, uint8_t id)

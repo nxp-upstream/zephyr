@@ -54,13 +54,11 @@ static inline uint32_t zvid_convert_frame_size(uint32_t pixfmt, uint16_t width, 
 
 static int zvid_convert_pool_start(struct mp_buffer_pool *pool)
 {
-	struct mp_zvid_convert *conv;
+	struct mp_zvid_convert *conv = CONTAINER_OF(pool, struct mp_zvid_convert, out_pool);
 
 	if (pool == NULL) {
 		return -EINVAL;
 	}
-
-	conv = CONTAINER_OF(pool, struct mp_zvid_convert, out_pool);
 
 	if (pool->config.min_buffers == 0U) {
 		pool->config.min_buffers = 1U;
@@ -90,13 +88,11 @@ static int zvid_convert_pool_start(struct mp_buffer_pool *pool)
 
 static int zvid_convert_pool_stop(struct mp_buffer_pool *pool)
 {
-	struct mp_zvid_convert *conv;
+	struct mp_zvid_convert *conv = CONTAINER_OF(pool, struct mp_zvid_convert, out_pool);
 
 	if (pool == NULL) {
 		return -EINVAL;
 	}
-
-	conv = CONTAINER_OF(pool, struct mp_zvid_convert, out_pool);
 
 	for (uint8_t i = 0; i < conv->vbuf_count; i++) {
 		if (conv->vbufs[i] != NULL) {
@@ -106,20 +102,19 @@ static int zvid_convert_pool_stop(struct mp_buffer_pool *pool)
 	}
 
 	conv->vbuf_count = 0;
+
 	return 0;
 }
 
 static int zvid_convert_pool_acquire(struct mp_buffer_pool *pool, struct net_buf **out)
 {
-	struct mp_zvid_convert *conv;
 	struct video_buffer *vbuf;
 	struct mp_buffer_meta *meta;
+	struct mp_zvid_convert *conv = CONTAINER_OF(pool, struct mp_zvid_convert, out_pool);
 
 	if (pool == NULL || out == NULL) {
 		return -EINVAL;
 	}
-
-	conv = CONTAINER_OF(pool, struct mp_zvid_convert, out_pool);
 
 	vbuf = k_fifo_get(&conv->free_fifo, K_FOREVER);
 	if (vbuf == NULL) {
@@ -143,14 +138,13 @@ static int zvid_convert_pool_acquire(struct mp_buffer_pool *pool, struct net_buf
 
 static int zvid_convert_pool_release(struct mp_buffer_pool *pool, struct net_buf *buf)
 {
-	struct mp_zvid_convert *conv;
 	struct video_buffer *vbuf;
+	struct mp_zvid_convert *conv = CONTAINER_OF(pool, struct mp_zvid_convert, out_pool);
 
 	if (pool == NULL || buf == NULL) {
 		return -EINVAL;
 	}
 
-	conv = CONTAINER_OF(pool, struct mp_zvid_convert, out_pool);
 	vbuf = (struct video_buffer *)mp_buffer_get_meta(buf)->priv;
 	if (vbuf != NULL) {
 		k_fifo_put(&conv->free_fifo, vbuf);
@@ -217,7 +211,7 @@ static void zvid_convert_update_caps(struct mp_transform *transform)
 static int zvid_convert_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
 				 struct mp_caps *caps)
 {
-	struct mp_zvid_convert *conv = MP_ZVID_CONVERT(transform);
+	struct mp_zvid_convert *conv = (struct mp_zvid_convert *)transform;
 	struct mp_structure *s;
 	struct mp_value *v;
 	int ret;
@@ -392,7 +386,7 @@ static struct mp_caps *zvid_convert_transform_caps(struct mp_transform *self,
 
 static int zvid_convert_decide_allocation(struct mp_transform *self, struct mp_query *query)
 {
-	struct mp_zvid_convert *conv = MP_ZVID_CONVERT(self);
+	struct mp_zvid_convert *conv = (struct mp_zvid_convert *)self;
 	struct mp_buffer_pool *down_pool = mp_query_get_pool(query);
 
 	/* Use the internal pool by default */
@@ -411,12 +405,12 @@ static int zvid_convert_decide_allocation(struct mp_transform *self, struct mp_q
 static int zvid_convert_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 				struct net_buf **out_buf)
 {
-	struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
-	struct mp_zvid_convert *conv = MP_ZVID_CONVERT(transform);
-	struct mp_buffer_pool *outpool = transform->outpool;
 	struct net_buf *cur;
 	struct net_buf *next;
 	uint32_t out_sz = zvid_convert_frame_size(conv->out_pixfmt, conv->width, conv->height);
+	struct mp_transform *transform = (struct mp_transform *)pad->object.container;
+	struct mp_zvid_convert *conv = (struct mp_zvid_convert *)transform;
+	struct mp_buffer_pool *outpool = transform->outpool;
 
 	if (conv->width == 0U || conv->height == 0U || conv->in_pixfmt == 0U ||
 	    conv->out_pixfmt == 0U || conv->desc == NULL || conv->desc->fn == NULL) {
@@ -478,8 +472,8 @@ err:
 
 void mp_zvid_convert_init(struct mp_element *self)
 {
-	struct mp_transform *transform = MP_TRANSFORM(self);
-	struct mp_zvid_convert *conv = MP_ZVID_CONVERT(self);
+	struct mp_transform *transform = (struct mp_transform *)self;
+	struct mp_zvid_convert *conv = (struct mp_zvid_convert *)transform;
 
 	mp_transform_init(self);
 

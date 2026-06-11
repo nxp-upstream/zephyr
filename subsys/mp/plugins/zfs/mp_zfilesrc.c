@@ -25,7 +25,7 @@ NET_BUF_POOL_FIXED_DEFINE(mp_zfs_nb_pool, CONFIG_MP_PLUGIN_ZFS_NUM_BUFS,
 
 static int mp_zfilesrc_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
-	struct mp_zfilesrc *fsrc = MP_ZFILESRC(obj);
+	struct mp_zfilesrc *fsrc = (struct mp_zfilesrc *)obj;
 	int ret;
 
 	switch (key) {
@@ -46,7 +46,7 @@ static int mp_zfilesrc_set_property(struct mp_object *obj, uint32_t key, const v
 
 static int mp_zfilesrc_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
-	struct mp_zfilesrc *fsrc = MP_ZFILESRC(obj);
+	struct mp_zfilesrc *fsrc = (struct mp_zfilesrc *)obj;
 	int ret;
 
 	switch (key) {
@@ -64,7 +64,7 @@ static int mp_zfilesrc_get_property(struct mp_object *obj, uint32_t key, void *v
 
 static int mp_zfilesrc_decide_allocation(struct mp_src *src, struct mp_query *query)
 {
-	struct mp_zfilesrc *fsrc = MP_ZFILESRC(src);
+	struct mp_zfilesrc *fsrc = (struct mp_zfilesrc *)src;
 
 	fsrc->downstream_pool = mp_query_get_pool(query);
 
@@ -173,7 +173,7 @@ static int mp_zfilesrc_pool_release_buffer(struct mp_buffer_pool *pool, struct n
 static enum mp_state_change_return mp_zfilesrc_change_state(struct mp_element *self,
 							    enum mp_state_change transition)
 {
-	struct mp_zfilesrc *fsrc = MP_ZFILESRC(self);
+	struct mp_zfilesrc *fsrc = (struct mp_zfilesrc *)self;
 	enum mp_state_change_return ret;
 
 	/* Reuse base mp_src negotiation/pool start behavior */
@@ -211,8 +211,8 @@ static enum mp_state_change_return mp_zfilesrc_change_state(struct mp_element *s
 
 void mp_zfilesrc_init(struct mp_element *self)
 {
-	struct mp_src *src = MP_SRC(self);
-	struct mp_zfilesrc *fsrc = MP_ZFILESRC(self);
+	struct mp_zfilesrc *fsrc = (struct mp_zfilesrc *)self;
+	struct mp_src *src = &fsrc->src;
 	struct mp_caps *src_caps;
 
 	mp_src_init(self);

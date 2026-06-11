@@ -54,14 +54,16 @@ int main(void)
 	MP_ELEMENT_INIT(&gain, mp_zaud_gain_init, AUD_GAIN_ID);
 	MP_ELEMENT_INIT(&sink, mp_zaud_i2s_codec_sink_init, I2S_SINK_ID);
 
-	ret = mp_object_set_properties(MP_OBJECT(&source), PROP_ZAUD_SRC_SLAB_PTR, &mem_slab,
+	ret = mp_object_set_properties((struct mp_object *)&source, PROP_ZAUD_SRC_SLAB_PTR,
+				       &mem_slab,
 				       PROP_LIST_END);
 	if (ret < 0) {
 		LOG_ERR("Failed to set properties for source element");
 		goto err;
 	}
 
-	ret = mp_object_set_properties(MP_OBJECT(&sink), PROP_ZAUD_SINK_SLAB_PTR, &mem_slab,
+	ret = mp_object_set_properties((struct mp_object *)&sink, PROP_ZAUD_SINK_SLAB_PTR,
+				       &mem_slab,
 #if (defined(CONFIG_USE_I2S_TARGET_CODEC_CONTROLLER) && CONFIG_USE_I2S_TARGET_CODEC_CONTROLLER == 1)
 				       PROP_ZAUD_SINK_CLK_ROLE, MP_ZAUD_I2S_TARGET_CODEC_CONTROLLER,
 #endif
@@ -71,7 +73,8 @@ int main(void)
 		goto err;
 	}
 
-	ret = mp_object_set_properties(MP_OBJECT(&gain), PROP_GAIN, &gain_val, PROP_LIST_END);
+	ret = mp_object_set_properties((struct mp_object *)&gain, PROP_GAIN, &gain_val,
+				       PROP_LIST_END);
 	if (ret < 0) {
 		LOG_ERR("Failed to set properties for gain element");
 		goto err;
@@ -89,7 +92,8 @@ int main(void)
 		goto err;
 	}
 
-	ret = mp_object_set_properties(MP_OBJECT(&caps_filter), PROP_CAPS, caps, PROP_LIST_END);
+	ret = mp_object_set_properties((struct mp_object *)&caps_filter, PROP_CAPS, caps,
+				       PROP_LIST_END);
 	mp_caps_unref(caps);
 	if (ret < 0) {
 		LOG_ERR("Failed to set properties for caps filter element");
@@ -98,21 +102,21 @@ int main(void)
 
 	/* clang-format off */
 	/* Add elements to the pipeline - order does not matter */
-	ret = mp_bin_add(MP_BIN(&pipe),
-			MP_ELEMENT(&source),
-			IF_ENABLED(CONFIG_MP_CAPSFILTER, (MP_ELEMENT(&caps_filter),))
-			MP_ELEMENT(&gain),
-			MP_ELEMENT(&sink), NULL);
+	ret = mp_bin_add((struct mp_bin *)&pipe,
+			(struct mp_element *)&source,
+			IF_ENABLED(CONFIG_MP_CAPSFILTER, ((struct mp_element *)&caps_filter,))
+			(struct mp_element *)&gain,
+			(struct mp_element *)&sink, NULL);
 	if (ret < 0) {
 		LOG_ERR("Failed to add elements (%d)", ret);
 		goto err;
 	}
 
 	/* Link elements together - order does matter */
-	ret = mp_element_link(MP_ELEMENT(&source),
-			IF_ENABLED(CONFIG_MP_CAPSFILTER, (MP_ELEMENT(&caps_filter),))
-			MP_ELEMENT(&gain),
-			MP_ELEMENT(&sink), NULL);
+	ret = mp_element_link((struct mp_element *)&source,
+			IF_ENABLED(CONFIG_MP_CAPSFILTER, ((struct mp_element *)&caps_filter,))
+			(struct mp_element *)&gain,
+			(struct mp_element *)&sink, NULL);
 	if (ret < 0) {
 		LOG_ERR("Failed to link elements (%d)", ret);
 		goto err;
@@ -120,13 +124,13 @@ int main(void)
 	/* clang-format on */
 
 	/* Start playing */
-	if (mp_element_set_state(MP_ELEMENT(&pipe), MP_STATE_PLAYING) != MP_STATE_CHANGE_SUCCESS) {
+	if (mp_element_set_state((struct mp_element *)&pipe, MP_STATE_PLAYING) != MP_STATE_CHANGE_SUCCESS) {
 		LOG_ERR("Failed to start pipeline");
 		goto err;
 	}
 
 	/* Handle message from the pipeline */
-	struct mp_bus *bus = mp_element_get_bus(MP_ELEMENT(&pipe));
+	struct mp_bus *bus = mp_element_get_bus((struct mp_element *)&pipe);
 	/* Wait until an Error or an EOS - blocking */
 	struct mp_message *msg = mp_bus_pop_msg(bus, MP_MESSAGE_ERROR | MP_MESSAGE_EOS);
 
@@ -147,7 +151,7 @@ int main(void)
 	mp_message_destroy(msg);
 
 	/* Stop/Deinit the pipeline */
-	(void)mp_element_set_state(MP_ELEMENT(&pipe), MP_STATE_READY);
+	(void)mp_element_set_state((struct mp_element *)&pipe, MP_STATE_READY);
 
 	return 0;
 

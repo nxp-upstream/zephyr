@@ -19,7 +19,7 @@ LOG_MODULE_REGISTER(mp_zvid_src, CONFIG_MP_LOG_LEVEL);
 
 static struct mp_caps *mp_zvid_src_supported_caps(struct mp_src *src)
 {
-	struct mp_zvid_src *zvid_src = MP_ZVID_SRC(src);
+	struct mp_zvid_src *zvid_src = (struct mp_zvid_src *)src;
 
 	return mp_zvid_object_get_caps(&zvid_src->zvid_obj);
 }
@@ -34,7 +34,7 @@ static void mp_zvid_src_update_caps(struct mp_src *src)
 
 static int mp_zvid_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 {
-	struct mp_zvid_src *zvid_src = MP_ZVID_SRC(src);
+	struct mp_zvid_src *zvid_src = (struct mp_zvid_src *)src;
 
 	if (mp_zvid_object_set_caps(&zvid_src->zvid_obj, caps) < 0) {
 		return -EINVAL;
@@ -48,8 +48,8 @@ static int mp_zvid_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 
 static int mp_zvid_src_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
-	struct mp_src *src = MP_SRC(obj);
-	struct mp_zvid_src *zvid_src = MP_ZVID_SRC(obj);
+	struct mp_zvid_src *zvid_src = (struct mp_zvid_src *)obj;
+	struct mp_src *src = &zvid_src->src;
 	int ret = mp_zvid_object_set_property(&zvid_src->zvid_obj, key, val);
 
 	if (ret == 0 && (key == PROP_ZVID_DEVICE || key == PROP_ZVID_CROP)) {
@@ -66,7 +66,7 @@ static int mp_zvid_src_set_property(struct mp_object *obj, uint32_t key, const v
 
 static int mp_zvid_src_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
-	struct mp_zvid_src *zvid_src = MP_ZVID_SRC(obj);
+	struct mp_zvid_src *zvid_src = (struct mp_zvid_src *)obj;
 	int ret = mp_zvid_object_get_property(&zvid_src->zvid_obj, key, val);
 
 	if (ret == -ENOTSUP) {
@@ -78,13 +78,15 @@ static int mp_zvid_src_get_property(struct mp_object *obj, uint32_t key, void *v
 
 static int mp_zvid_src_decide_allocation(struct mp_src *self, struct mp_query *query)
 {
-	return mp_zvid_object_decide_allocation(&MP_ZVID_SRC(self)->zvid_obj, query);
+	struct mp_zvid_src *zvid_src = (struct mp_zvid_src *)self;
+
+	return mp_zvid_object_decide_allocation(&zvid_src->zvid_obj, query);
 }
 
 void mp_zvid_src_init(struct mp_element *self)
 {
-	struct mp_src *src = MP_SRC(self);
-	struct mp_zvid_src *zvid_src = MP_ZVID_SRC(self);
+	struct mp_src *src = (struct mp_src *)self;
+	struct mp_zvid_src *zvid_src = (struct mp_zvid_src *)src;
 
 	/* Init base class */
 	mp_src_init(self);
@@ -100,7 +102,7 @@ void mp_zvid_src_init(struct mp_element *self)
 	 * pool needs to be set before retrieving supported caps as
 	 * some pool's configs will be set during caps probing.
 	 */
-	src->pool = MP_BUFFER_POOL(&zvid_src->zvid_obj.pool);
+	src->pool = &zvid_src->zvid_obj.pool.pool;
 	mp_zvid_buffer_pool_init(src->pool, &zvid_src->zvid_obj);
 
 	/* Retrieve supported caps */

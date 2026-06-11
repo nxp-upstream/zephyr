@@ -20,9 +20,6 @@
 
 #include <zephyr/mp/core/mp_sink.h>
 
-/** Cast a generic element pointer to @ref mp_zdisp_sink. */
-#define MP_ZDISP_SINK(self) ((struct mp_zdisp_sink *)self)
-
 /**
  * @brief Display sink element.
  *

@@ -21,7 +21,7 @@ LOG_MODULE_REGISTER(mp_zaud_dmic_src, CONFIG_MP_LOG_LEVEL);
 
 static int mp_zaud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 {
-	struct mp_zaud_dmic_src *zaud_dmic_src = MP_ZAUD_DMIC_SRC(src);
+	struct mp_zaud_dmic_src *zaud_dmic_src = (struct mp_zaud_dmic_src *)src;
 
 	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
 
@@ -93,7 +93,7 @@ static int mp_zaud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 
 static int mp_zaud_dmic_src_acquire_buffer(struct mp_buffer_pool *pool, struct net_buf **buffer)
 {
-	struct mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
+	struct mp_zaud_buffer_pool *zaud_pool = CONTAINER_OF(pool, struct mp_zaud_buffer_pool, pool);
 	struct mp_buffer_meta *meta;
 	void *mem_block = NULL;
 	size_t bytes_used = pool->config.size;
@@ -134,7 +134,7 @@ static int mp_zaud_dmic_src_acquire_buffer(struct mp_buffer_pool *pool, struct n
 
 static int mp_zaud_dmic_src_start(struct mp_buffer_pool *pool)
 {
-	struct mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
+	struct mp_zaud_buffer_pool *zaud_pool = CONTAINER_OF(pool, struct mp_zaud_buffer_pool, pool);
 
 	/* Stream on */
 	if (dmic_trigger(zaud_pool->zaud_dev, DMIC_TRIGGER_START) < 0) {
@@ -148,11 +148,11 @@ static int mp_zaud_dmic_src_start(struct mp_buffer_pool *pool)
 
 void mp_zaud_dmic_src_init(struct mp_element *self)
 {
-	struct mp_src *src = MP_SRC(self);
-	struct mp_zaud_dmic_src *zaud_dmic_src = MP_ZAUD_DMIC_SRC(self);
+	struct mp_src *src = (struct mp_src *)self;
+	struct mp_zaud_dmic_src *zaud_dmic_src = (struct mp_zaud_dmic_src *)src;
 
 	/* Init base class */
-	mp_zaud_src_init(MP_ELEMENT(&(zaud_dmic_src->zaud_src)));
+	mp_zaud_src_init(&zaud_dmic_src->zaud_src.src.element);
 
 	/* Initialize buffer pool */
 	src->pool = &(zaud_dmic_src->pool.pool);

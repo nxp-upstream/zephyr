@@ -16,9 +16,6 @@
 
 #include <zephyr/mp/core/mp_sink.h>
 
-/** @brief Cast object pointer to mp_zaud_i2s_codec_sink pointer */
-#define MP_ZAUD_I2S_CODEC_SINK(self) ((struct mp_zaud_i2s_codec_sink *)self)
-
 /**
  * @enum mp_zaud_i2s_codec_clk_role
  * @brief Clock role configuration for I2S and codec devices.

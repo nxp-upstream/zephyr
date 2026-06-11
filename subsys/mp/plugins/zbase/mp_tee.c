@@ -20,7 +20,7 @@ LOG_MODULE_REGISTER(mp_tee, CONFIG_MP_LOG_LEVEL);
 
 static int mp_tee_sink_queryfn(struct mp_pad *pad, struct mp_query *query)
 {
-	struct mp_tee *tee = CONTAINER_OF(pad, struct mp_tee, sinkpad);
+	struct mp_tee *tee = (struct mp_tee *)pad->object.container;
 
 	switch (query->type) {
 	case MP_QUERY_CAPS:
@@ -87,7 +87,7 @@ static int mp_tee_sink_queryfn(struct mp_pad *pad, struct mp_query *query)
 
 static int mp_tee_sink_eventfn(struct mp_pad *pad, struct mp_event *event)
 {
-	struct mp_tee *tee = CONTAINER_OF(pad, struct mp_tee, sinkpad);
+	struct mp_tee *tee = (struct mp_tee *)pad->object.container;
 	int ret = 0;
 	int first_err = 0;
 
@@ -119,7 +119,7 @@ static int mp_tee_sink_eventfn(struct mp_pad *pad, struct mp_event *event)
 
 static int mp_tee_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf)
 {
-	struct mp_tee *tee = CONTAINER_OF(pad, struct mp_tee, sinkpad);
+	struct mp_tee *tee = (struct mp_tee *)pad->object.container;
 	uint8_t i = 0;
 	int first_err = 0;
 	int ret;
@@ -158,7 +158,7 @@ static int mp_tee_add_srcpad(struct mp_tee *tee)
 
 static int mp_tee_get_property(struct mp_object *obj, uint32_t id, void *val)
 {
-	struct mp_tee *tee = MP_TEE(obj);
+	struct mp_tee *tee = (struct mp_tee *)obj;
 
 	switch (id) {
 	case PROP_TEE_SRCPADS_NUM:
@@ -172,7 +172,7 @@ static int mp_tee_get_property(struct mp_object *obj, uint32_t id, void *val)
 
 static int mp_tee_set_property(struct mp_object *obj, uint32_t id, const void *val)
 {
-	struct mp_tee *tee = MP_TEE(obj);
+	struct mp_tee *tee = (struct mp_tee *)obj;
 
 	switch (id) {
 	case PROP_TEE_SRCPADS_NUM: {
@@ -195,7 +195,7 @@ static int mp_tee_set_property(struct mp_object *obj, uint32_t id, const void *v
 
 void mp_tee_init(struct mp_element *self)
 {
-	struct mp_tee *tee = MP_TEE(self);
+	struct mp_tee *tee = (struct mp_tee *)self;
 
 	self->object.get_property = mp_tee_get_property;
 	self->object.set_property = mp_tee_set_property;

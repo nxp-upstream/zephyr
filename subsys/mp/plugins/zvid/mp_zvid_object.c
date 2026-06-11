@@ -175,8 +175,8 @@ struct mp_caps *mp_zvid_object_get_caps(struct mp_zvid_object *zvid_obj)
 	video_set_selection(zvid_obj->vdev, &sel);
 
 	/* Set buffer pool's min_buffers and alignment */
-	MP_BUFFER_POOL(&zvid_obj->pool)->config.min_buffers = vcaps.min_vbuf_count;
-	MP_BUFFER_POOL(&zvid_obj->pool)->config.align = vcaps.buf_align;
+	zvid_obj->pool.pool.config.min_buffers = vcaps.min_vbuf_count;
+	zvid_obj->pool.pool.config.align = vcaps.buf_align;
 
 	for (uint8_t i = 0; vcaps.format_caps[i].pixelformat != 0; i++) {
 		caps_item = mp_structure_new(
@@ -230,7 +230,7 @@ int mp_zvid_object_set_caps(struct mp_zvid_object *zvid_obj, struct mp_caps *cap
 	}
 
 	/* Set buffer pool size */
-	MP_BUFFER_POOL(&zvid_obj->pool)->config.size = fmt.size;
+	zvid_obj->pool.pool.config.size = fmt.size;
 
 	/* Set frame rate only if the element's caps support it */
 	struct mp_caps *objcaps = mp_zvid_object_get_caps(zvid_obj);
@@ -318,7 +318,7 @@ int mp_zvid_object_get_property(struct mp_zvid_object *zvid_obj, uint32_t key, v
 int mp_zvid_object_decide_allocation(struct mp_zvid_object *zvid_obj, struct mp_query *query)
 {
 	struct mp_buffer_pool *query_pool = mp_query_get_pool(query);
-	struct mp_buffer_pool_config *pool_config = &MP_BUFFER_POOL(&zvid_obj->pool)->config;
+	struct mp_buffer_pool_config *pool_config = &zvid_obj->pool.pool.config;
 	struct mp_buffer_pool_config *qpc = NULL;
 
 	if (query_pool == NULL) {

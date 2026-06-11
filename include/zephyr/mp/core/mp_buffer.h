@@ -18,9 +18,6 @@
 
 #include <zephyr/net_buf.h>
 
-/** @brief Cast a pointer to a @ref mp_buffer_pool pointer. */
-#define MP_BUFFER_POOL(pool) ((struct mp_buffer_pool *)(pool))
-
 /**
  * @brief Buffer pool config structure
  */

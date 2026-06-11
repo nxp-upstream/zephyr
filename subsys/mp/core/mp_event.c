@@ -54,8 +54,8 @@ struct mp_caps *mp_event_get_caps(struct mp_event *event)
 		return NULL;
 	}
 
-	return MP_CAPS(
-		mp_value_get_object(mp_structure_get_value(event->structure, MP_EVENT_CAPS)));
+	return (struct mp_caps *)
+		mp_value_get_object(mp_structure_get_value(event->structure, MP_EVENT_CAPS));
 }
 
 int mp_event_set_caps(struct mp_event *event, struct mp_caps *caps)

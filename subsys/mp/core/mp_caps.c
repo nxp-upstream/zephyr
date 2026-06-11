@@ -16,10 +16,12 @@
 static void mp_caps_destroy(struct mp_object *obj)
 {
 	struct mp_cap_structure *caps_structure;
+	struct mp_caps *caps;
 
 	__ASSERT_NO_MSG(obj != NULL);
-	while (!sys_slist_is_empty(&MP_CAPS(obj)->caps_structures)) {
-		caps_structure = CONTAINER_OF(sys_slist_get(&MP_CAPS(obj)->caps_structures),
+	caps = (struct mp_caps *)obj;
+	while (!sys_slist_is_empty(&caps->caps_structures)) {
+		caps_structure = CONTAINER_OF(sys_slist_get(&caps->caps_structures),
 					      struct mp_cap_structure, node);
 
 		mp_structure_destroy(caps_structure->structure);

@@ -20,8 +20,6 @@
 
 #include <zephyr/mp/zvid/mp_zvid_object.h>
 
-#define MP_ZVID_SRC(self) ((struct mp_zvid_src *)self)
-
 /**
  * @brief Video source element structure.
  *

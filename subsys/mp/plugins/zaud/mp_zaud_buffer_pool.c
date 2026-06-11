@@ -40,7 +40,7 @@ static void mp_zaud_buffer_pool_release_allocations(struct mp_zaud_buffer_pool *
 
 static int mp_zaud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_structure *config)
 {
-	struct mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
+	struct mp_zaud_buffer_pool *zaud_pool = (struct mp_zaud_buffer_pool *)pool;
 	int align = 0;
 	uint32_t required_align = 0;
 	uint8_t *base;
@@ -118,7 +118,7 @@ static int mp_zaud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_str
 
 static int mp_zaud_buffer_pool_stop(struct mp_buffer_pool *pool)
 {
-	struct mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
+	struct mp_zaud_buffer_pool *zaud_pool = (struct mp_zaud_buffer_pool *)pool;
 
 	mp_zaud_buffer_pool_release_allocations(zaud_pool, true);
 
@@ -127,7 +127,7 @@ static int mp_zaud_buffer_pool_stop(struct mp_buffer_pool *pool)
 
 void mp_zaud_buffer_pool_init(struct mp_buffer_pool *pool)
 {
-	struct mp_zaud_buffer_pool *zaud_pool = MP_ZAUD_BUFFER_POOL(pool);
+	struct mp_zaud_buffer_pool *zaud_pool = (struct mp_zaud_buffer_pool *)pool;
 
 	zaud_pool->zaud_dev = NULL;
 	zaud_pool->mem_slab = NULL;

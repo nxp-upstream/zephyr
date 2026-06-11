@@ -34,7 +34,7 @@ NET_BUF_POOL_FIXED_DEFINE(mp_zjpeg_parser_pool, CONFIG_MP_ZJPEG_PARSER_POOL_NUM,
 
 static int mp_zjpeg_parser_decide_allocation(struct mp_parser *parser, struct mp_query *query)
 {
-	struct mp_zjpeg_parser *jpeg_parser = MP_ZJPEG_PARSER(parser);
+	struct mp_zjpeg_parser *jpeg_parser = (struct mp_zjpeg_parser *)parser;
 	struct mp_buffer_pool *query_pool = mp_query_get_pool(query);
 
 	/* Use the internal pool by default */
@@ -180,8 +180,8 @@ static int mp_zjpeg_parser_release_buffer(struct mp_buffer_pool *pool, struct ne
 static int mp_zjpeg_parser_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 				   struct net_buf **out_buf)
 {
-	struct mp_parser *parser = MP_PARSER(pad->object.container);
-	struct mp_zjpeg_parser *jpeg_parser = MP_ZJPEG_PARSER(parser);
+	struct mp_parser *parser = (struct mp_parser *)pad->object.container;
+	struct mp_zjpeg_parser *jpeg_parser = (struct mp_zjpeg_parser *)parser;
 	struct mp_buffer_pool *outpool = parser->outpool;
 	const uint8_t *data = in_buf->data;
 	uint32_t in_used = mp_buffer_get_meta(in_buf)->bytes_used;
@@ -328,8 +328,8 @@ static int mp_zjpeg_parser_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 
 void mp_zjpeg_parser_init(struct mp_element *self)
 {
-	struct mp_parser *parser = MP_PARSER(self);
-	struct mp_zjpeg_parser *jpeg_parser = MP_ZJPEG_PARSER(self);
+	struct mp_parser *parser = (struct mp_parser *)self;
+	struct mp_zjpeg_parser *jpeg_parser = (struct mp_zjpeg_parser *)parser;
 
 	mp_parser_init(self);
 

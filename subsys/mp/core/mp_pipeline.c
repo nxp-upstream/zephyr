@@ -45,7 +45,7 @@ int mp_pipeline_push_buffer(struct mp_pad *srcpad, struct net_buf *buffer)
 			ret = next_sinkpad->chainfn(next_sinkpad, buffer, &out_buf);
 			if (ret != 0) {
 				LOG_ERR("chainfn failed for element %u (%d)",
-					MP_OBJECT(next_sinkpad->object.container)->id, ret);
+					next_sinkpad->object.container->id, ret);
 				return ret;
 			}
 
@@ -58,7 +58,7 @@ int mp_pipeline_push_buffer(struct mp_pad *srcpad, struct net_buf *buffer)
 		}
 
 		/* Move to the next element's first srcpad */
-		next_elem = MP_ELEMENT(next_sinkpad->object.container);
+		next_elem = (struct mp_element *)next_sinkpad->object.container;
 		srcpad_node = sys_dlist_peek_head(&next_elem->srcpads);
 		if (srcpad_node == NULL) {
 			/* Sink element reached - done */
@@ -85,9 +85,9 @@ static void mp_pipeline_thread_func(void *p1, void *p2, void *p3)
 
 	/* Find the 1st source element */
 	SYS_DLIST_FOR_EACH_CONTAINER(&bin->children, obj, node) {
-		element = MP_ELEMENT(obj);
+		element = (struct mp_element *)obj;
 		if (sys_dlist_is_empty(&element->sinkpads)) {
-			src = MP_SRC(element);
+			src = (struct mp_src *)element;
 			break;
 		}
 	}
@@ -121,7 +121,7 @@ static void mp_pipeline_thread_func(void *p1, void *p2, void *p3)
 static enum mp_state_change_return mp_pipeline_change_state(struct mp_element *element,
 							    enum mp_state_change transition)
 {
-	struct mp_pipeline *pipeline = MP_PIPELINE(element);
+	struct mp_pipeline *pipeline = (struct mp_pipeline *)element;
 	enum mp_state_change_return ret;
 
 	/*
@@ -165,7 +165,7 @@ static enum mp_state_change_return mp_pipeline_change_state(struct mp_element *e
 		break;
 	}
 
-	LOG_DBG("Pipeline id %u has changed state to %u", MP_OBJECT(element)->id,
+	LOG_DBG("Pipeline id %u has changed state to %u", element->object.id,
 		MP_STATE_TRANSITION_NEXT(transition));
 
 	return MP_STATE_CHANGE_SUCCESS;

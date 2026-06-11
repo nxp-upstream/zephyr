@@ -17,9 +17,6 @@
 #include <zephyr/mp/core/mp_buffer.h>
 #include <zephyr/mp/zaud/mp_zaud.h>
 
-/** @brief Cast object pointer to mp_zaud_buffer_pool pointer */
-#define MP_ZAUD_BUFFER_POOL(self) ((struct mp_zaud_buffer_pool *)self)
-
 /**
  * @struct mp_zaud_buffer_pool
  * @brief Audio buffer pool structure

@@ -18,8 +18,6 @@
 
 #include <zephyr/mp/core/mp_parser.h>
 
-#define MP_ZJPEG_PARSER(self) ((struct mp_zjpeg_parser *)self)
-
 /**
  * @brief JPEG stream parser element.
  *

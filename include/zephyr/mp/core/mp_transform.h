@@ -16,9 +16,6 @@
 #include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_pad.h>
 
-/** @brief Cast a pointer to a @ref mp_transform pointer. */
-#define MP_TRANSFORM(self) ((struct mp_transform *)self)
-
 /**
  * @brief Operating modes of a transform element
  *

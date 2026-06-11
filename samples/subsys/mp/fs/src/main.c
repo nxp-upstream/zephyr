@@ -84,40 +84,40 @@ int main(void)
 	MP_ELEMENT_INIT(&filesrc, mp_zfilesrc_init, FILE_SRC_ID);
 	MP_ELEMENT_INIT(&filesink, mp_zfilesink_init, FILE_SINK_ID);
 
-	ret = mp_object_set_properties(MP_OBJECT(&filesrc), PROP_ZFILESRC_PATH,
+	ret = mp_object_set_properties((struct mp_object *)&filesrc, PROP_ZFILESRC_PATH,
 				       MNT_POINT "/" INPUT_FILE, PROP_LIST_END);
 	if (ret < 0) {
 		goto err;
 	}
 
-	ret = mp_object_set_properties(MP_OBJECT(&filesink), PROP_ZFILESINK_PATH,
+	ret = mp_object_set_properties((struct mp_object *)&filesink, PROP_ZFILESINK_PATH,
 				       MNT_POINT "/" OUTPUT_FILE, PROP_LIST_END);
 	if (ret < 0) {
 		goto err;
 	}
 
 	/* Add elements to the pipeline - order does not matter */
-	ret = mp_bin_add(MP_BIN(&pipe), MP_ELEMENT(&filesrc), MP_ELEMENT(&filesink), NULL);
+	ret = mp_bin_add((struct mp_bin *)&pipe, (struct mp_element *)&filesrc, (struct mp_element *)&filesink, NULL);
 	if (ret < 0) {
 		LOG_ERR("Failed to add elements (%d)", ret);
 		goto err;
 	}
 
 	/* Link elements together - order does matter */
-	ret = mp_element_link(MP_ELEMENT(&filesrc), MP_ELEMENT(&filesink), NULL);
+	ret = mp_element_link((struct mp_element *)&filesrc, (struct mp_element *)&filesink, NULL);
 	if (ret < 0) {
 		LOG_ERR("Failed to link elements (%d)", ret);
 		goto err;
 	}
 
 	/* Start the pipeline */
-	if (mp_element_set_state(MP_ELEMENT(&pipe), MP_STATE_PLAYING) != MP_STATE_CHANGE_SUCCESS) {
+	if (mp_element_set_state((struct mp_element *)&pipe, MP_STATE_PLAYING) != MP_STATE_CHANGE_SUCCESS) {
 		LOG_ERR("Failed to start pipeline");
 		goto err;
 	}
 
 	/* Handle message from the pipeline */
-	struct mp_bus *bus = mp_element_get_bus(MP_ELEMENT(&pipe));
+	struct mp_bus *bus = mp_element_get_bus((struct mp_element *)&pipe);
 	struct mp_message *msg = mp_bus_pop_msg(bus, MP_MESSAGE_ERROR | MP_MESSAGE_EOS);
 
 	if (msg != NULL) {
@@ -136,7 +136,7 @@ int main(void)
 	mp_message_destroy(msg);
 
 	/* Stop/Deinit the pipeline */
-	(void)mp_element_set_state(MP_ELEMENT(&pipe), MP_STATE_READY);
+	(void)mp_element_set_state((struct mp_element *)&pipe, MP_STATE_READY);
 
 	/* Unmount the disk */
 	ret = fs_unmount(&mp);

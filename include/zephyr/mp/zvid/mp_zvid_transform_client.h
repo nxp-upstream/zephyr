@@ -25,8 +25,6 @@
 
 struct mp_element;
 
-#define MP_ZVID_TRANSFORM_CLIENT(self) ((struct mp_zvid_transform_client *)self)
-
 /**
  * @brief Client-side video transform element structure.
  *

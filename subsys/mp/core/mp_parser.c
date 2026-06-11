@@ -114,7 +114,7 @@ static inline int mp_parser_query_caps(struct mp_parser *self, enum mp_pad_direc
 
 static int mp_parser_event(struct mp_pad *pad, struct mp_event *event)
 {
-	struct mp_parser *parser = MP_PARSER(pad->object.container);
+	struct mp_parser *parser = (struct mp_parser *)pad->object.container;
 	struct mp_pad *other_pad =
 		(pad->direction == MP_PAD_SINK) ? &parser->srcpad : &parser->sinkpad;
 	int ret;
@@ -144,7 +144,7 @@ static int mp_parser_query(struct mp_pad *pad, struct mp_query *query)
 	}
 
 	int ret;
-	struct mp_parser *parser = MP_PARSER(pad->object.container);
+	struct mp_parser *parser = (struct mp_parser *)pad->object.container;
 
 	switch (query->type) {
 	case MP_QUERY_CAPS:
@@ -194,10 +194,9 @@ static int mp_parser_query(struct mp_pad *pad, struct mp_query *query)
 	}
 }
 
-
 void mp_parser_init(struct mp_element *self)
 {
-	struct mp_parser *parser = MP_PARSER(self);
+	struct mp_parser *parser = (struct mp_parser *)self;
 
 	/* Default supported caps */
 	parser->sink_caps = mp_caps_new_any();

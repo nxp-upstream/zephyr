@@ -20,9 +20,6 @@
 #include <zephyr/mp/core/mp_property.h>
 #include <zephyr/mp/core/mp_sink.h>
 
-/** Cast a generic element pointer to @ref mp_zfilesink. */
-#define MP_ZFILESINK(self) ((struct mp_zfilesink *)self)
-
 /**
  * @brief File sink property identifiers.
  *

@@ -171,7 +171,7 @@ static inline int mp_transform_query_caps(struct mp_transform *self,
 
 static int mp_transform_query(struct mp_pad *pad, struct mp_query *query)
 {
-	struct mp_transform *self = MP_TRANSFORM(pad->object.container);
+	struct mp_transform *self = (struct mp_transform *)pad->object.container;
 	int ret;
 
 	switch (query->type) {
@@ -233,7 +233,7 @@ static int mp_transform_event(struct mp_pad *pad, struct mp_event *event)
 		return mp_pad_send_event_default(pad, event);
 	case MP_EVENT_CAPS:
 		LOG_DBG("MP_EVENT_CAPS");
-		struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
+		struct mp_transform *transform = (struct mp_transform *)pad->object.container;
 		struct mp_pad *other_pad;
 		struct mp_caps *event_caps, *transformed_caps, *intersect_caps, *fixated_caps;
 
@@ -296,7 +296,7 @@ static int mp_transform_event(struct mp_pad *pad, struct mp_event *event)
 
 void mp_transform_init(struct mp_element *self)
 {
-	struct mp_transform *transform = MP_TRANSFORM(self);
+	struct mp_transform *transform = (struct mp_transform *)self;
 
 	/* Default supported caps */
 	transform->sink_caps = mp_caps_new_any();

@@ -17,10 +17,7 @@
 #define ZEPHYR_INCLUDE_MP_ZVID_MP_ZVID_TRANSFORM_H_
 
 #include <zephyr/mp/core/mp_transform.h>
-
 #include <zephyr/mp/zvid/mp_zvid_object.h>
-
-#define MP_ZVID_TRANSFORM(self) ((struct mp_zvid_transform *)self)
 
 /**
  * @brief Hardware video transform element structure.

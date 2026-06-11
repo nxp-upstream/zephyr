@@ -23,7 +23,7 @@ LOG_MODULE_REGISTER(mp_zaud_i2s_codec_sink, CONFIG_MP_LOG_LEVEL);
 
 static int mp_zaud_i2s_codec_sink_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
-	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = MP_ZAUD_I2S_CODEC_SINK(obj);
+	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = (struct mp_zaud_i2s_codec_sink *)obj;
 
 	switch (key) {
 	case PROP_ZAUD_SINK_SLAB_PTR:
@@ -48,7 +48,7 @@ static int mp_zaud_i2s_codec_sink_set_property(struct mp_object *obj, uint32_t k
 
 static int mp_zaud_i2s_codec_sink_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
-	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = MP_ZAUD_I2S_CODEC_SINK(obj);
+	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = (struct mp_zaud_i2s_codec_sink *)obj;
 
 	if (val == NULL) {
 		return -1;
@@ -80,15 +80,16 @@ static struct mp_caps *mp_zaud_i2s_codec_sink_supported_caps(struct mp_sink *sin
 	struct audio_caps codec_caps;
 	uint32_t sr = 0;
 	uint32_t bw = 0;
+	struct mp_zaud_i2s_codec_sink *zaud = (struct mp_zaud_i2s_codec_sink *)sink;
 
-	ret = i2s_get_caps(MP_ZAUD_I2S_CODEC_SINK(sink)->i2s_dev, &i2s_caps, I2S_DIR_TX);
+	ret = i2s_get_caps(zaud->i2s_dev, &i2s_caps, I2S_DIR_TX);
 
 	if (ret != 0) {
 		LOG_ERR("Failed to get I2S capabilities");
 		return NULL;
 	}
 
-	ret = audio_codec_get_caps(MP_ZAUD_I2S_CODEC_SINK(sink)->codec_dev, &codec_caps);
+	ret = audio_codec_get_caps(zaud->codec_dev, &codec_caps);
 
 	if (ret != 0) {
 		LOG_ERR("Failed to get codec capabilities");
@@ -173,7 +174,7 @@ static void mp_zaud_i2s_codec_sink_update_caps(struct mp_sink *sink)
 
 static int mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
 {
-	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = MP_ZAUD_I2S_CODEC_SINK(sink);
+	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = (struct mp_zaud_i2s_codec_sink *)sink;
 	struct i2s_config config;
 	struct audio_codec_cfg audio_cfg;
 	int ret;
@@ -246,7 +247,7 @@ int mp_zaud_i2s_codec_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 				   struct net_buf **out_buf)
 {
 	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink =
-		MP_ZAUD_I2S_CODEC_SINK(pad->object.container);
+		CONTAINER_OF(pad->object.container, struct mp_zaud_i2s_codec_sink, sink.element.object);
 	uint32_t bytes_used = mp_buffer_get_meta(in_buf)->bytes_used;
 	int ret = -1;
 
@@ -282,8 +283,8 @@ int mp_zaud_i2s_codec_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 
 void mp_zaud_i2s_codec_sink_init(struct mp_element *self)
 {
-	struct mp_sink *sink = MP_SINK(self);
-	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = MP_ZAUD_I2S_CODEC_SINK(self);
+	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = (struct mp_zaud_i2s_codec_sink *)self;
+	struct mp_sink *sink = &zaud_i2s_codec_sink->sink;
 
 	/* Init base class */
 	mp_sink_init(self);

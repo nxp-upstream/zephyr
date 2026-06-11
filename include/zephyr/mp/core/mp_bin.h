@@ -20,9 +20,6 @@
 #include <zephyr/mp/core/mp_bus.h>
 #include <zephyr/mp/core/mp_element.h>
 
-/** @brief Cast a pointer to a @ref mp_bin pointer. */
-#define MP_BIN(self) ((struct mp_bin *)self)
-
 /**
  * @brief Bin structure
  *

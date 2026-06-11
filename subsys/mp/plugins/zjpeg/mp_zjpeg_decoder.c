@@ -136,8 +136,8 @@ static int mp_zjpeg_decoder_decode_one(struct mp_zjpeg_decoder *dec, struct net_
 static int mp_zjpeg_decoder_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 				    struct net_buf **out_buf)
 {
-	struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
-	struct mp_zjpeg_decoder *dec = MP_ZJPEG_DECODER(transform);
+	struct mp_transform *transform = (struct mp_transform *)pad->object.container;
+	struct mp_zjpeg_decoder *dec = (struct mp_zjpeg_decoder *)transform;
 	struct mp_buffer_pool *outpool = transform->outpool;
 	struct net_buf *cur;
 	struct net_buf *next;
@@ -307,7 +307,7 @@ static struct mp_caps *mp_zjpeg_decoder_transform_caps(struct mp_transform *tran
 static int mp_zjpeg_decoder_set_caps(struct mp_transform *transform,
 				     enum mp_pad_direction direction, struct mp_caps *caps)
 {
-	struct mp_zjpeg_decoder *dec = MP_ZJPEG_DECODER(transform);
+	struct mp_zjpeg_decoder *dec = (struct mp_zjpeg_decoder *)transform;
 	struct mp_structure *s;
 	struct mp_value *v;
 
@@ -337,7 +337,7 @@ static int mp_zjpeg_decoder_set_caps(struct mp_transform *transform,
 
 static int mp_zjpeg_decoder_decide_allocation(struct mp_transform *self, struct mp_query *query)
 {
-	struct mp_zjpeg_decoder *dec = MP_ZJPEG_DECODER(self);
+	struct mp_zjpeg_decoder *dec = (struct mp_zjpeg_decoder *)self;
 	struct mp_buffer_pool *down_pool = mp_query_get_pool(query);
 
 	/* Default to our internal pool */
@@ -352,8 +352,8 @@ static int mp_zjpeg_decoder_decide_allocation(struct mp_transform *self, struct 
 
 void mp_zjpeg_decoder_init(struct mp_element *self)
 {
-	struct mp_transform *transform = MP_TRANSFORM(self);
-	struct mp_zjpeg_decoder *dec = MP_ZJPEG_DECODER(self);
+	struct mp_transform *transform = (struct mp_transform *)self;
+	struct mp_zjpeg_decoder *dec = (struct mp_zjpeg_decoder *)transform;
 	struct mp_caps *sink_caps;
 	struct mp_caps *src_caps;
 

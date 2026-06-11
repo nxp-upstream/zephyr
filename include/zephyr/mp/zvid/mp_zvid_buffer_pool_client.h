@@ -20,8 +20,6 @@
 
 #include <zephyr/mp/core/mp_buffer.h>
 
-#define MP_ZVID_BUFFERPOOL_CLIENT(self) ((struct mp_zvid_buffer_pool_client *)self)
-
 /**
  * @brief Client-side video buffer pool structure.
  *

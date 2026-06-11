@@ -26,8 +26,6 @@
 
 struct mp_query;
 
-#define MP_ZVID_OBJECT(self) ((struct mp_zvid_object *)self)
-
 /**
  * @brief Video object structure.
  *

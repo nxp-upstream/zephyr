@@ -21,9 +21,6 @@
 #include <zephyr/mp/core/mp_property.h>
 #include <zephyr/mp/core/mp_src.h>
 
-/** Cast a generic element pointer to @ref mp_zfilesrc. */
-#define MP_ZFILESRC(self) ((struct mp_zfilesrc *)self)
-
 /**
  * @brief File source property identifiers.
  *

@@ -17,10 +17,7 @@
 #define ZEPHYR_INCLUDE_MP_ZVID_MP_ZJPEG_DECODER_H_
 
 #include <zephyr/mp/core/mp_transform.h>
-
 #include <zephyr/mp/zjpeg/jpeg_dec.h>
-
-#define MP_ZJPEG_DECODER(self) ((struct mp_zjpeg_decoder *)self)
 
 /**
  * @brief Software JPEG decoder element.

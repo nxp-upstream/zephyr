@@ -17,9 +17,6 @@
 #include <zephyr/mp/zaud/mp_zaud_buffer_pool.h>
 #include <zephyr/mp/zaud/mp_zaud_src.h>
 
-/** @brief Cast object pointer to mp_zaud_dmic_src pointer */
-#define MP_ZAUD_DMIC_SRC(self) ((struct mp_zaud_dmic_src *)self)
-
 /**
  * @struct mp_zaud_dmic_src
  * @brief Audio DMIC source element structure

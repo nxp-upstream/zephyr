@@ -150,14 +150,14 @@ int main(void)
 	MP_ELEMENT_INIT(&filesink, mp_zfilesink_init, FILE_SINK_ID);
 
 	/* Set properties */
-	ret = mp_object_set_properties(MP_OBJECT(&filesrc), PROP_ZFILESRC_PATH,
+	ret = mp_object_set_properties((struct mp_object *)&filesrc, PROP_ZFILESRC_PATH,
 				       CONFIG_FILE_INPUT_PATH, PROP_LIST_END);
 	if (ret < 0) {
 		LOG_ERR("Failed to set filesrc properties (%d)", ret);
 		goto err;
 	}
 
-	ret = mp_object_set_properties(MP_OBJECT(&filesink), PROP_ZFILESINK_PATH,
+	ret = mp_object_set_properties((struct mp_object *)&filesink, PROP_ZFILESINK_PATH,
 				       CONFIG_FILE_OUTPUT_PATH, PROP_LIST_END);
 	if (ret < 0) {
 		LOG_ERR("Failed to set filesink properties (%d)", ret);
@@ -176,7 +176,7 @@ int main(void)
 			goto err;
 		}
 
-		ret = mp_object_set_properties(MP_OBJECT(&caps_filter), PROP_CAPS, caps,
+		ret = mp_object_set_properties((struct mp_object *)&caps_filter, PROP_CAPS, caps,
 					       PROP_LIST_END);
 		mp_caps_unref(caps);
 		if (ret < 0) {
@@ -186,26 +186,28 @@ int main(void)
 	}
 
 	/* Add all elements to the pipeline bin */
-	ret = mp_bin_add(MP_BIN(&pipe), MP_ELEMENT(&filesrc), MP_ELEMENT(&jpeg_parser),
-			 MP_ELEMENT(&caps_filter), MP_ELEMENT(&tee), MP_ELEMENT(&queue1),
-			 MP_ELEMENT(&jpeg_dec), MP_ELEMENT(&disp_sink), MP_ELEMENT(&queue2),
-			 MP_ELEMENT(&filesink), NULL);
+	ret = mp_bin_add((struct mp_bin *)&pipe,
+			 (struct mp_element *)&filesrc, (struct mp_element *)&jpeg_parser, (struct mp_element *)&caps_filter,
+			 (struct mp_element *)&tee, (struct mp_element *)&queue1, (struct mp_element *)&jpeg_dec,
+			 (struct mp_element *)&disp_sink, (struct mp_element *)&queue2, (struct mp_element *)&filesink, NULL);
 	if (ret < 0) {
 		LOG_ERR("Failed to add elements (%d)", ret);
 		goto err;
 	}
 
 	/* Branch 1: filesrc → jpeg_parser → caps_filter → tee → queue1 → jpeg_dec → disp_sink */
-	ret = mp_element_link(MP_ELEMENT(&filesrc), MP_ELEMENT(&jpeg_parser),
-			      MP_ELEMENT(&caps_filter), MP_ELEMENT(&tee), MP_ELEMENT(&queue1),
-			      MP_ELEMENT(&jpeg_dec), MP_ELEMENT(&disp_sink), NULL);
+	ret = mp_element_link((struct mp_element *)&filesrc, (struct mp_element *)&jpeg_parser,
+			      (struct mp_element *)&caps_filter, (struct mp_element *)&tee,
+			      (struct mp_element *)&queue1, (struct mp_element *)&jpeg_dec,
+			      (struct mp_element *)&disp_sink, NULL);
 	if (ret < 0) {
 		LOG_ERR("Failed to link branch 1 (%d)", ret);
 		goto err;
 	}
 
 	/* Branch 2: tee (2nd srcpad) → queue2 → filesink */
-	ret = mp_element_link(MP_ELEMENT(&tee), MP_ELEMENT(&queue2), MP_ELEMENT(&filesink), NULL);
+	ret = mp_element_link((struct mp_element *)&tee, (struct mp_element *)&queue2, (struct mp_element *)&filesink,
+			      NULL);
 	if (ret < 0) {
 		LOG_ERR("Failed to link branch 2 (%d)", ret);
 		goto err;
@@ -214,13 +216,13 @@ int main(void)
 	LOG_INF("Pipeline linked. Starting playback...");
 
 	/* Start the pipeline */
-	if (mp_element_set_state(MP_ELEMENT(&pipe), MP_STATE_PLAYING) != MP_STATE_CHANGE_SUCCESS) {
+	if (mp_element_set_state((struct mp_element *)&pipe, MP_STATE_PLAYING) != MP_STATE_CHANGE_SUCCESS) {
 		LOG_ERR("Failed to start pipeline");
 		goto err;
 	}
 
 	/* Wait for EOS or ERROR on the bus */
-	struct mp_bus *bus = mp_element_get_bus(MP_ELEMENT(&pipe));
+	struct mp_bus *bus = mp_element_get_bus((struct mp_element *)&pipe);
 	struct mp_message *msg = mp_bus_pop_msg(bus, MP_MESSAGE_ERROR | MP_MESSAGE_EOS);
 
 	if (msg != NULL) {
@@ -239,7 +241,7 @@ int main(void)
 	}
 
 	/* Stop the pipeline */
-	(void)mp_element_set_state(MP_ELEMENT(&pipe), MP_STATE_READY);
+	(void)mp_element_set_state((struct mp_element *)&pipe, MP_STATE_READY);
 
 	ret = fs_unmount(&mnt);
 	if (ret != 0) {

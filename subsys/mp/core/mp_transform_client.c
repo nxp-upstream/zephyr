@@ -16,8 +16,8 @@ LOG_MODULE_REGISTER(mp_transform_client, CONFIG_MP_LOG_LEVEL);
 static int mp_transform_client_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 				       struct net_buf **out_buf)
 {
-	struct mp_transform *transform = MP_TRANSFORM(pad->object.container);
-	struct mp_transform_client *transform_client = MP_TRANSFORM_CLIENT(transform);
+	struct mp_transform *transform = (struct mp_transform *)pad->object.container;
+	struct mp_transform_client *transform_client = (struct mp_transform_client *)transform;
 	struct mp_buffer_meta *in_meta;
 	struct mp_buffer_meta *out_meta;
 	uint32_t in_used;
@@ -111,8 +111,8 @@ static int mp_transform_client_decide_allocation(struct mp_transform *self, stru
 
 void mp_transform_client_init(struct mp_element *self)
 {
-	struct mp_transform *transform = MP_TRANSFORM(self);
-	struct mp_transform_client *transform_client = MP_TRANSFORM_CLIENT(self);
+	struct mp_transform *transform = (struct mp_transform *)self;
+	struct mp_transform_client *transform_client = (struct mp_transform_client *)transform;
 
 	/* Wait a little bit here to give the opportunity to the remote core to reset */
 	k_msleep(300);

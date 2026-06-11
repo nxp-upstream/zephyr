@@ -31,7 +31,7 @@ int mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...)
 		struct mp_object *obj;
 
 		SYS_DLIST_FOR_EACH_CONTAINER(&bin->children, obj, node) {
-			if (MP_OBJECT(element)->id == obj->id) {
+			if (element->object.id == obj->id) {
 				va_end(args);
 				return -EEXIST;
 			}
@@ -43,7 +43,7 @@ int mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...)
 		}
 
 		/* Set the element's parent */
-		MP_OBJECT(element)->container = MP_OBJECT(bin);
+		element->object.container = &bin->element.object;
 
 		/* Add the element to the bin's list of children */
 		sys_dlist_append(&bin->children, &element->object.node);
@@ -68,7 +68,7 @@ static int mp_bin_count_linked_pads(struct mp_element *element, sys_dlist_t *pad
 	int count = 0;
 
 	SYS_DLIST_FOR_EACH_CONTAINER(pad_list, obj, node) {
-		struct mp_pad *pad = MP_PAD(obj);
+		struct mp_pad *pad = (struct mp_pad *)obj;
 
 		if (pad->peer != NULL) {
 			count++;
@@ -94,7 +94,7 @@ static int mp_bin_find_element_index(struct mp_element *elements[], int num,
 enum mp_state_change_return mp_bin_change_state_func(struct mp_element *self,
 						     enum mp_state_change transition)
 {
-	struct mp_bin *bin = MP_BIN(self);
+	struct mp_bin *bin = (struct mp_bin *)self;
 	struct mp_object *obj;
 	struct mp_element *elements[CONFIG_MP_BIN_MAX_CHILDREN];
 	int degree[CONFIG_MP_BIN_MAX_CHILDREN];
@@ -128,7 +128,7 @@ enum mp_state_change_return mp_bin_change_state_func(struct mp_element *self,
 			return MP_STATE_CHANGE_FAILURE;
 		}
 
-		struct mp_element *elem = MP_ELEMENT(obj);
+		struct mp_element *elem = (struct mp_element *)obj;
 
 		elements[num_elements] = elem;
 
@@ -178,14 +178,14 @@ enum mp_state_change_return mp_bin_change_state_func(struct mp_element *self,
 			struct mp_object *pad_obj;
 
 			SYS_DLIST_FOR_EACH_CONTAINER(pad_list, pad_obj, node) {
-				struct mp_pad *pad = MP_PAD(pad_obj);
+				struct mp_pad *pad = (struct mp_pad *)pad_obj;
 
 				if (pad->peer == NULL) {
 					continue;
 				}
 
 				struct mp_element *peer_elem =
-					MP_ELEMENT(pad->peer->object.container);
+					(struct mp_element *)pad->peer->object.container;
 				int idx = mp_bin_find_element_index(elements, num_elements,
 								    peer_elem);
 
@@ -206,7 +206,7 @@ enum mp_state_change_return mp_bin_change_state_func(struct mp_element *self,
 
 void mp_bin_init(struct mp_element *self)
 {
-	struct mp_bin *bin = MP_BIN(self);
+	struct mp_bin *bin = (struct mp_bin *)self;
 
 	self->change_state = mp_bin_change_state_func;
 

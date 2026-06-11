@@ -18,9 +18,6 @@
 
 #include <zephyr/mp/zaud/mp_zaud.h>
 
-/** @brief Cast object pointer to mp_zaud_src pointer */
-#define MP_ZAUD_SRC(self) ((struct mp_zaud_src *)self)
-
 /**
  * @struct mp_zaud_src
  * @brief Audio source element structure

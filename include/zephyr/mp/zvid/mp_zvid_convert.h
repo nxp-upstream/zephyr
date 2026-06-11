@@ -26,8 +26,6 @@
 #include <zephyr/mp/core/mp_buffer.h>
 #include <zephyr/mp/core/mp_transform.h>
 
-#define MP_ZVID_CONVERT(self) ((struct mp_zvid_convert *)self)
-
 struct mp_zvid_convert_desc;
 
 /**

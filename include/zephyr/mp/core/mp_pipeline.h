@@ -24,9 +24,6 @@
  * @{
  */
 
-/** @brief Cast a pointer to a @ref mp_pipeline pointer. */
-#define MP_PIPELINE(self) ((struct mp_pipeline *)self)
-
 /**
  * @brief struct mp_pipeline structure
  *

@@ -15,7 +15,7 @@ LOG_MODULE_REGISTER(mp_zvid_buffer_pool_client, CONFIG_MP_LOG_LEVEL);
 
 static int mp_zvid_buffer_pool_client_start(struct mp_buffer_pool *pool)
 {
-	struct mp_zvid_buffer_pool_client *zbpc = MP_ZVID_BUFFERPOOL_CLIENT(pool);
+	struct mp_zvid_buffer_pool_client *zbpc = (struct mp_zvid_buffer_pool_client *)pool;
 
 	for (uint8_t i = 0; i < pool->config.min_buffers; i++) {
 		struct video_buffer *vbuf = video_buffer_aligned_alloc(
@@ -61,7 +61,7 @@ static int mp_zvid_buffer_pool_client_stop(struct mp_buffer_pool *pool)
 static int mp_zvid_buffer_pool_client_acquire_buffer(struct mp_buffer_pool *pool,
 						     struct net_buf **buf)
 {
-	struct mp_zvid_buffer_pool_client *zbpc = MP_ZVID_BUFFERPOOL_CLIENT(pool);
+	struct mp_zvid_buffer_pool_client *zbpc = (struct mp_zvid_buffer_pool_client *)pool;
 	struct net_buf *nb;
 
 	if (buf == NULL) {
@@ -80,7 +80,7 @@ static int mp_zvid_buffer_pool_client_acquire_buffer(struct mp_buffer_pool *pool
 static int mp_zvid_buffer_pool_client_release_buffer(struct mp_buffer_pool *pool,
 						     struct net_buf *buf)
 {
-	struct mp_zvid_buffer_pool_client *zbpc = MP_ZVID_BUFFERPOOL_CLIENT(pool);
+	struct mp_zvid_buffer_pool_client *zbpc = (struct mp_zvid_buffer_pool_client *)pool;
 	struct mp_buffer_meta *m;
 	struct video_buffer *vbuf;
 
@@ -102,7 +102,7 @@ static int mp_zvid_buffer_pool_client_release_buffer(struct mp_buffer_pool *pool
 
 void mp_zvid_buffer_pool_client_init(struct mp_buffer_pool *pool)
 {
-	struct mp_zvid_buffer_pool_client *vbpc = MP_ZVID_BUFFERPOOL_CLIENT(pool);
+	struct mp_zvid_buffer_pool_client *vbpc = (struct mp_zvid_buffer_pool_client *)pool;
 
 	k_fifo_init(&vbpc->fifo);
 

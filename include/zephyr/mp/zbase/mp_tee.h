@@ -24,9 +24,6 @@
  * @{
  */
 
-/** @brief Cast a pointer to a @ref mp_tee pointer. */
-#define MP_TEE(self) ((struct mp_tee *)(self))
-
 /**
  * @brief Tee property identifiers
  *

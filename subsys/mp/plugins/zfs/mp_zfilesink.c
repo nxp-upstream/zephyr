@@ -18,7 +18,7 @@ LOG_MODULE_REGISTER(mp_zfilesink, CONFIG_MP_LOG_LEVEL);
 
 static int mp_zfilesink_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
-	struct mp_zfilesink *fsink = MP_ZFILESINK(obj);
+	struct mp_zfilesink *fsink = (struct mp_zfilesink *)obj;
 
 	switch (key) {
 	case PROP_ZFILESINK_PATH:
@@ -31,7 +31,7 @@ static int mp_zfilesink_set_property(struct mp_object *obj, uint32_t key, const 
 
 static int mp_zfilesink_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
-	struct mp_zfilesink *fsink = MP_ZFILESINK(obj);
+	struct mp_zfilesink *fsink = (struct mp_zfilesink *)obj;
 
 	switch (key) {
 	case PROP_ZFILESINK_PATH:
@@ -44,7 +44,8 @@ static int mp_zfilesink_get_property(struct mp_object *obj, uint32_t key, void *
 
 static int mp_zfilesink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out)
 {
-	struct mp_zfilesink *fsink = MP_ZFILESINK(pad->object.container);
+	struct mp_zfilesink *fsink =
+		CONTAINER_OF(pad->object.container, struct mp_zfilesink, sink.element.object);
 	uint32_t to_write;
 	ssize_t wr;
 
@@ -80,7 +81,7 @@ static int mp_zfilesink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, stru
 static enum mp_state_change_return mp_zfilesink_change_state(struct mp_element *self,
 							     enum mp_state_change transition)
 {
-	struct mp_zfilesink *fsink = MP_ZFILESINK(self);
+	struct mp_zfilesink *fsink = (struct mp_zfilesink *)self;
 	int ret;
 
 	switch (transition) {
@@ -115,8 +116,8 @@ static enum mp_state_change_return mp_zfilesink_change_state(struct mp_element *
 
 void mp_zfilesink_init(struct mp_element *self)
 {
-	struct mp_sink *sink = MP_SINK(self);
-	struct mp_zfilesink *fsink = MP_ZFILESINK(self);
+	struct mp_zfilesink *fsink = (struct mp_zfilesink *)self;
+	struct mp_sink *sink = &fsink->sink;
 	struct mp_caps *sink_caps;
 
 	mp_sink_init(self);

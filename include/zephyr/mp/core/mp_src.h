@@ -17,9 +17,6 @@
 #include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_pad.h>
 
-/** @brief Cast a pointer to a @ref mp_src pointer. */
-#define MP_SRC(self) ((struct mp_src *)self)
-
 /**
  * @brief Base Source Element Structure
  *

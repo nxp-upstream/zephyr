@@ -14,9 +14,6 @@
 
 #include <zephyr/mp/core/mp_transform.h>
 
-/** @brief Cast object pointer to mp_zaud_gain pointer */
-#define MP_ZAUD_GAIN(self) ((struct mp_zaud_gain *)self)
-
 /**
  * @struct mp_zaud_gain
  * @brief Audio gain element structure

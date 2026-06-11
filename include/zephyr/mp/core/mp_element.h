@@ -35,10 +35,11 @@ struct mp_query;
  * @param id     Unique element identifier.
  */
 #define MP_ELEMENT_INIT(elem, initfn, id)                                                          \
-	({                                                                                         \
-		mp_element_init(MP_ELEMENT(elem), id);                                             \
-		initfn(MP_ELEMENT(elem));                                                          \
-	})
+	do {                                                                                       \
+		struct mp_element *e = (struct mp_element *)(elem);                                \
+		mp_element_init(e, (id));                                                          \
+		initfn(e);                                                                         \
+	} while (0)
 
 /**
  * @brief Calculate the next state
@@ -129,9 +130,6 @@ enum mp_state_change_return {
 };
 
 struct mp_element;
-
-/** @brief Cast a pointer to a @ref mp_element pointer. */
-#define MP_ELEMENT(self) ((struct mp_element *)self)
 
 /**
  * @brief Element base class

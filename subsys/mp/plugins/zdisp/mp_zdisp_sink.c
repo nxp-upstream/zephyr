@@ -91,8 +91,9 @@ static struct mp_caps *mp_zdisp_sink_supported_caps(struct mp_sink *sink)
 	uint32_t vid_fmt;
 	struct display_capabilities display_caps;
 	struct mp_value *supported_fmt = mp_value_new(MP_TYPE_LIST, NULL);
+	struct mp_zdisp_sink *zdisp = (struct mp_zdisp_sink *)sink;
 
-	display_get_capabilities(MP_ZDISP_SINK(sink)->display_dev, &display_caps);
+	display_get_capabilities(zdisp->display_dev, &display_caps);
 
 	for (uint8_t i = 0; i < ARRAY_SIZE(mp_disp_vid_pix_fmt_map); i++) {
 		vid_fmt = disp_to_vid_pix_fmt(display_caps.supported_pixel_formats &
@@ -119,11 +120,12 @@ static void mp_zdisp_sink_update_caps(struct mp_sink *sink)
 
 static int mp_zdisp_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
 {
+	struct mp_zdisp_sink *zdisp_sink = (struct mp_zdisp_sink *)sink;
 	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
 	struct mp_value *value = mp_structure_get_value(first_structure, MP_CAPS_PIXEL_FORMAT);
 	enum display_pixel_format disp_fmt = vid_to_disp_pix_fmt(mp_value_get_uint(value));
 
-	if (disp_fmt == 0 || mp_zdisp_sink_setup(MP_ZDISP_SINK(sink), disp_fmt) != 0) {
+	if (disp_fmt == 0 || mp_zdisp_sink_setup(zdisp_sink, disp_fmt) != 0) {
 		return -EINVAL;
 	}
 
@@ -134,8 +136,8 @@ static int mp_zdisp_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
 
 static int mp_zdisp_sink_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
-	struct mp_sink *sink = MP_SINK(obj);
-	struct mp_zdisp_sink *zdisp_sink = MP_ZDISP_SINK(obj);
+	struct mp_zdisp_sink *zdisp_sink = (struct mp_zdisp_sink *)obj;
+	struct mp_sink *sink = &zdisp_sink->sink;
 
 	switch (key) {
 	case PROP_ZDISP_SINK_DEVICE:
@@ -151,7 +153,7 @@ static int mp_zdisp_sink_set_property(struct mp_object *obj, uint32_t key, const
 
 static int mp_zdisp_sink_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
-	struct mp_zdisp_sink *zdisp_sink = MP_ZDISP_SINK(obj);
+	struct mp_zdisp_sink *zdisp_sink = (struct mp_zdisp_sink *)obj;
 
 	switch (key) {
 	case PROP_ZDISP_SINK_DEVICE:
@@ -165,7 +167,8 @@ static int mp_zdisp_sink_get_property(struct mp_object *obj, uint32_t key, void 
 
 int mp_zdisp_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf)
 {
-	struct mp_zdisp_sink *zdisp_sink = MP_ZDISP_SINK(pad->object.container);
+	struct mp_zdisp_sink *zdisp_sink =
+		CONTAINER_OF(pad->object.container, struct mp_zdisp_sink, sink.element.object);
 	/* Get width / height from pad's caps */
 	struct mp_structure *first_structure = mp_caps_get_structure(pad->caps, 0);
 	struct mp_value *value = mp_structure_get_value(first_structure, MP_CAPS_PIXEL_FORMAT);
@@ -228,8 +231,8 @@ int mp_zdisp_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net
 
 void mp_zdisp_sink_init(struct mp_element *self)
 {
-	struct mp_sink *sink = MP_SINK(self);
-	struct mp_zdisp_sink *zdisp_sink = MP_ZDISP_SINK(self);
+	struct mp_zdisp_sink *zdisp_sink = (struct mp_zdisp_sink *)self;
+	struct mp_sink *sink = &zdisp_sink->sink;
 
 	/* Init base class */
 	mp_sink_init(self);

@@ -15,7 +15,7 @@ LOG_MODULE_REGISTER(mp_zvid_buffer_pool, CONFIG_MP_LOG_LEVEL);
 static int mp_zvid_buffer_pool_start(struct mp_buffer_pool *pool)
 {
 	int ret = 0;
-	struct mp_zvid_buffer_pool *zvid_pool = MP_ZVID_BUFFERPOOL(pool);
+	struct mp_zvid_buffer_pool *zvid_pool = (struct mp_zvid_buffer_pool *)pool;
 
 	if (pool->config.min_buffers > CONFIG_VIDEO_BUFFER_POOL_NUM_MAX) {
 		LOG_ERR("min_buffers=%u exceeds CONFIG_VIDEO_BUFFER_POOL_NUM_MAX=%u",
@@ -67,7 +67,7 @@ static int mp_zvid_buffer_pool_start(struct mp_buffer_pool *pool)
 static int mp_zvid_buffer_pool_stop(struct mp_buffer_pool *pool)
 {
 	int ret = 0;
-	struct mp_zvid_buffer_pool *zvid_pool = MP_ZVID_BUFFERPOOL(pool);
+	struct mp_zvid_buffer_pool *zvid_pool = (struct mp_zvid_buffer_pool *)pool;
 
 	if (zvid_pool == NULL || zvid_pool->zvid_obj == NULL || zvid_pool->zvid_obj->vdev == NULL) {
 		return -EINVAL;
@@ -98,7 +98,7 @@ static int mp_zvid_buffer_pool_stop(struct mp_buffer_pool *pool)
 
 static int mp_zvid_buffer_pool_acquire_buffer(struct mp_buffer_pool *pool, struct net_buf **buf)
 {
-	struct mp_zvid_buffer_pool *zvid_pool = MP_ZVID_BUFFERPOOL(pool);
+	struct mp_zvid_buffer_pool *zvid_pool = (struct mp_zvid_buffer_pool *)pool;
 	struct video_buffer *vbuf = &(struct video_buffer){0};
 	struct mp_buffer_meta *bm;
 	int ret = 0;
@@ -143,7 +143,7 @@ static int mp_zvid_buffer_pool_acquire_buffer(struct mp_buffer_pool *pool, struc
 
 static int mp_zvid_buffer_pool_release_buffer(struct mp_buffer_pool *pool, struct net_buf *buf)
 {
-	struct mp_zvid_buffer_pool *zvid_pool = MP_ZVID_BUFFERPOOL(pool);
+	struct mp_zvid_buffer_pool *zvid_pool = (struct mp_zvid_buffer_pool *)pool;
 	struct video_buffer *vbuf = mp_buffer_get_meta(buf)->priv;
 	int ret = 0;
 
@@ -167,7 +167,7 @@ static int mp_zvid_buffer_pool_release_buffer(struct mp_buffer_pool *pool, struc
 
 void mp_zvid_buffer_pool_init(struct mp_buffer_pool *pool, struct mp_zvid_object *obj)
 {
-	struct mp_zvid_buffer_pool *zvid_pool = MP_ZVID_BUFFERPOOL(pool);
+	struct mp_zvid_buffer_pool *zvid_pool = (struct mp_zvid_buffer_pool *)pool;
 
 	k_fifo_init(&zvid_pool->free_fifo);
 	zvid_pool->zvid_obj = obj;

@@ -40,7 +40,7 @@ static int mp_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
 
 static int mp_sink_query(struct mp_pad *pad, struct mp_query *query)
 {
-	struct mp_sink *self = MP_SINK(pad->object.container);
+	struct mp_sink *self = (struct mp_sink *)pad->object.container;
 	struct mp_caps *caps_intersect, *query_caps;
 	int ret;
 
@@ -75,7 +75,7 @@ static int mp_sink_query(struct mp_pad *pad, struct mp_query *query)
 
 int mp_sink_event(struct mp_pad *pad, struct mp_event *event)
 {
-	struct mp_sink *sink = MP_SINK(pad->object.container);
+	struct mp_sink *sink = (struct mp_sink *)pad->object.container;
 
 	switch (event->type) {
 	case MP_EVENT_EOS:
@@ -83,12 +83,12 @@ int mp_sink_event(struct mp_pad *pad, struct mp_event *event)
 		 * EOS event reached the end of the pipeline, post an EOS message to the bus so that
 		 * applications know that this sink has finished processing all upstream data.
 		 */
-		struct mp_bus *bus = mp_element_get_bus(MP_ELEMENT(sink));
+		struct mp_bus *bus = mp_element_get_bus(&sink->element);
 
 		if (bus != NULL) {
 			struct mp_message *msg;
 
-			msg = mp_message_new(MP_MESSAGE_EOS, MP_OBJECT(sink), NULL);
+			msg = mp_message_new(MP_MESSAGE_EOS, &sink->element.object, NULL);
 			if (msg != NULL) {
 				mp_bus_post(bus, msg);
 			}
@@ -103,7 +103,7 @@ int mp_sink_event(struct mp_pad *pad, struct mp_event *event)
 
 void mp_sink_init(struct mp_element *self)
 {
-	struct mp_sink *sink = MP_SINK(self);
+	struct mp_sink *sink = (struct mp_sink *)self;
 
 	/* Default supported caps */
 	sink->sink_caps = mp_caps_new_any();

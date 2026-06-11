@@ -10,7 +10,7 @@
 
 int mp_caps_filter_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
-	struct mp_transform *transform = MP_TRANSFORM(obj);
+	struct mp_transform *transform = (struct mp_transform *)obj;
 
 	switch (key) {
 	case PROP_CAPS:
@@ -24,7 +24,7 @@ int mp_caps_filter_set_property(struct mp_object *obj, uint32_t key, const void 
 
 int mp_caps_filter_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
-	struct mp_transform *transform = MP_TRANSFORM(obj);
+	struct mp_transform *transform = (struct mp_transform *)obj;
 
 	switch (key) {
 	case PROP_CAPS:
@@ -78,7 +78,7 @@ static int mp_caps_filter_set_caps(struct mp_transform *transform, enum mp_pad_d
 
 void mp_caps_filter_init(struct mp_element *self)
 {
-	struct mp_transform *transform = MP_TRANSFORM(self);
+	struct mp_transform *transform = (struct mp_transform *)self;
 
 	/* Init base class */
 	mp_transform_init(self);

@@ -100,7 +100,7 @@ int mp_pad_send_event_default(struct mp_pad *pad, struct mp_event *event)
 	}
 
 	/* Forward the event to other pads within the same element */
-	struct mp_element *element = MP_ELEMENT(pad->object.container);
+	struct mp_element *element = (struct mp_element *)pad->object.container;
 	struct mp_object *obj;
 	sys_dlist_t *otherpad_list = NULL;
 
@@ -113,7 +113,7 @@ int mp_pad_send_event_default(struct mp_pad *pad, struct mp_event *event)
 	}
 
 	SYS_DLIST_FOR_EACH_CONTAINER(otherpad_list, obj, node) {
-		int r = mp_pad_send_event(MP_PAD(obj), event);
+		int r = mp_pad_send_event((struct mp_pad *)obj, event);
 
 		if (r == 0) {
 			ret = 0;

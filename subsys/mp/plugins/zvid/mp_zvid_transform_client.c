@@ -17,7 +17,7 @@ LOG_MODULE_REGISTER(mp_zvid_transform_client, CONFIG_MP_LOG_LEVEL);
 static struct mp_caps *mp_zvid_transform_client_get_caps(struct mp_transform *transform,
 							 enum mp_pad_direction direction)
 {
-	struct mp_zvid_transform_client *vtc = MP_ZVID_TRANSFORM_CLIENT(transform);
+	struct mp_zvid_transform_client *vtc = (struct mp_zvid_transform_client *)transform;
 	struct mp_caps *caps = mp_caps_new(MP_MEDIA_END);
 	struct mp_structure *caps_item = NULL;
 	struct mp_buffer_pool *pool = NULL;
@@ -55,7 +55,7 @@ static struct mp_caps *mp_zvid_transform_client_get_caps(struct mp_transform *tr
 static int mp_zvid_transform_client_set_caps(struct mp_transform *transform,
 					     enum mp_pad_direction direction, struct mp_caps *caps)
 {
-	struct mp_zvid_transform_client *vtc = MP_ZVID_TRANSFORM_CLIENT(transform);
+	struct mp_zvid_transform_client *vtc = (struct mp_zvid_transform_client *)transform;
 	struct mp_buffer_pool *pool = NULL;
 	struct video_format_cap vfc = {0};
 	struct video_format fmt;
@@ -109,7 +109,7 @@ static struct mp_caps *mp_zvid_transform_client_transform_caps(struct mp_transfo
 							       enum mp_pad_direction direction,
 							       struct mp_caps *caps)
 {
-	struct mp_zvid_transform_client *vtc = MP_ZVID_TRANSFORM_CLIENT(self);
+	struct mp_zvid_transform_client *vtc = (struct mp_zvid_transform_client *)self;
 	struct mp_caps *other_caps = mp_caps_new(MP_MEDIA_END);
 	struct mp_structure *caps_item = NULL;
 	struct mp_cap_structure *cs;
@@ -144,8 +144,8 @@ static struct mp_caps *mp_zvid_transform_client_transform_caps(struct mp_transfo
 
 void mp_zvid_transform_client_init(struct mp_element *self)
 {
-	struct mp_transform *transform = MP_TRANSFORM(self);
-	struct mp_zvid_transform_client *vtc = MP_ZVID_TRANSFORM_CLIENT(self);
+	struct mp_transform *transform = (struct mp_transform *)self;
+	struct mp_zvid_transform_client *vtc = (struct mp_zvid_transform_client *)transform;
 
 	/* Init base class */
 	mp_transform_client_init(self);
@@ -154,8 +154,8 @@ void mp_zvid_transform_client_init(struct mp_element *self)
 	 * pools needs to be set before calling get_caps() as
 	 * some pool's configs will be set during get_caps()
 	 */
-	transform->inpool = MP_BUFFER_POOL(&vtc->inpool);
-	transform->outpool = MP_BUFFER_POOL(&vtc->outpool);
+	transform->inpool = &vtc->inpool.pool;
+	transform->outpool = &vtc->outpool.pool;
 
 	transform->sinkpad.caps = mp_zvid_transform_client_get_caps(transform, MP_PAD_SINK);
 	transform->srcpad.caps = mp_zvid_transform_client_get_caps(transform, MP_PAD_SRC);

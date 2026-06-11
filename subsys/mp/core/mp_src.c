@@ -19,7 +19,7 @@ LOG_MODULE_REGISTER(mp_src, CONFIG_MP_LOG_LEVEL);
 
 int mp_src_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
-	struct mp_src *src = MP_SRC(obj);
+	struct mp_src *src = (struct mp_src *)obj;
 
 	switch (key) {
 	case PROP_NUM_BUFS:
@@ -33,7 +33,7 @@ int mp_src_set_property(struct mp_object *obj, uint32_t key, const void *val)
 
 int mp_src_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
-	struct mp_src *src = MP_SRC(obj);
+	struct mp_src *src = (struct mp_src *)obj;
 
 	switch (key) {
 	case PROP_NUM_BUFS:
@@ -72,7 +72,7 @@ static int mp_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 static int mp_src_query(struct mp_pad *pad, struct mp_query *query)
 {
 	int ret;
-	struct mp_src *src = MP_SRC(pad->object.container);
+	struct mp_src *src = (struct mp_src *)pad->object.container;
 	struct mp_caps *intersect_caps;
 	struct mp_caps *query_caps;
 
@@ -180,7 +180,7 @@ static int mp_src_negotiate(struct mp_src *src)
 enum mp_state_change_return mp_src_change_state(struct mp_element *self,
 						enum mp_state_change transition)
 {
-	struct mp_src *src = MP_SRC(self);
+	struct mp_src *src = (struct mp_src *)self;
 	enum mp_state_change_return ret = MP_STATE_CHANGE_SUCCESS;
 	int pool_ret;
 
@@ -217,7 +217,7 @@ enum mp_state_change_return mp_src_change_state(struct mp_element *self,
 
 void mp_src_init(struct mp_element *self)
 {
-	struct mp_src *src = MP_SRC(self);
+	struct mp_src *src = (struct mp_src *)self;
 
 	/* Default supported caps */
 	src->src_caps = mp_caps_new_any();

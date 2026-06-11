@@ -21,8 +21,6 @@
 
 #include <zephyr/mp/core/mp_buffer.h>
 
-#define MP_ZVID_BUFFERPOOL(self) ((struct mp_zvid_buffer_pool *)self)
-
 struct mp_zvid_object;
 
 /**

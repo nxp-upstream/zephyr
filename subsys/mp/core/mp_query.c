@@ -44,8 +44,8 @@ struct mp_caps *mp_query_get_caps(struct mp_query *query)
 		return NULL;
 	}
 
-	return MP_CAPS(
-		mp_value_get_object(mp_structure_get_value(&query->structure, MP_QUERY_CAPS)));
+	return (struct mp_caps *)
+		mp_value_get_object(mp_structure_get_value(&query->structure, MP_QUERY_CAPS));
 }
 
 int mp_query_set_caps(struct mp_query *query, struct mp_caps *caps)

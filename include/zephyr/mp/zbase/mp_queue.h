@@ -30,9 +30,6 @@
  * @{
  */
 
-/** @brief Cast a pointer to a @ref mp_queue pointer. */
-#define MP_QUEUE(self) ((struct mp_queue *)(self))
-
 /**
  * @brief Queue Property Identifiers
  */
