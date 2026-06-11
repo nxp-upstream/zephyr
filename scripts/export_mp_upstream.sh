@@ -101,6 +101,12 @@ ZFS_PATHS=(
     "include/zephyr/mp/zfs/"
 )
 
+# zbase plugin
+ZBASE_PATHS=(
+    "subsys/mp/plugins/zbase/"
+    "include/zephyr/mp/zbase/"
+)
+
 # Sample: cam_disp (camera to display pipeline)
 SAMPLE_CAM_DISP_PATHS=(
     "samples/subsys/mp/cam_disp/"
@@ -212,6 +218,16 @@ filesystem API.
 
 ${SOB}"
 
+ZBASE_COMMIT_MSG="mp: Add zbase base plugin
+
+Add the zbase plugin for the MP subsystem. This plugin provides
+generic, reusable elements like:
+- queue: pipeline-level threading element
+- tee: pipeline branching element
+- capsfilter: caps enforcement element
+
+${SOB}"
+
 SAMPLE_CAM_DISP_COMMIT_MSG="mp: samples: Add camera to display sample
 
 Add the cam_disp sample application demonstrating how to build a
@@ -263,10 +279,11 @@ TARGET_DEPS=(
     [zaud]="${UPSTREAM_PREFIX}-core"
     [zdisp]="${UPSTREAM_PREFIX}-core"
     [zfs]="${UPSTREAM_PREFIX}-core"
-    [sample-cam_disp]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zdisp"
-    [sample-jpeg_dec]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zjpeg ${UPSTREAM_PREFIX}-zdisp ${UPSTREAM_PREFIX}-zfs"
+    [zbase]="${UPSTREAM_PREFIX}-core"
+    [sample-cam_disp]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zbase ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zdisp"
+    [sample-jpeg_dec]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zbase ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zjpeg ${UPSTREAM_PREFIX}-zdisp ${UPSTREAM_PREFIX}-zfs"
     [sample-fs]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zfs"
-    [sample-dmic_i2s]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zaud"
+    [sample-dmic_i2s]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zbase ${UPSTREAM_PREFIX}-zaud"
 )
 
 # ===========================================================================
@@ -613,6 +630,11 @@ export_zfs() {
         "${ZFS_COMMIT_MSG}" "${ZFS_PATHS[@]}"
 }
 
+export_zbase() {
+    generate_branch "zbase" "${UPSTREAM_PREFIX}-zbase" \
+        "${ZBASE_COMMIT_MSG}" "${ZBASE_PATHS[@]}"
+}
+
 export_sample_cam_disp() {
     generate_branch "sample-cam_disp" "${UPSTREAM_PREFIX}-sample-cam_disp" \
         "${SAMPLE_CAM_DISP_COMMIT_MSG}" "${SAMPLE_CAM_DISP_PATHS[@]}"
@@ -638,7 +660,7 @@ export_sample_dmic_i2s() {
 # ===========================================================================
 
 export_all() {
-    TARGETS=(core zvid zaud zdisp zjpeg zfs sample-cam_disp sample-jpeg_dec sample-fs sample-dmic_i2s)
+    TARGETS=(core zvid zjpeg zaud zdisp zfs zbase sample-cam_disp sample-jpeg_dec sample-fs sample-dmic_i2s)
 
     log_info "=== Exporting all MP upstream PR branches ==="
     log_info "Source: ${SOURCE_BRANCH}"
@@ -655,6 +677,7 @@ export_all() {
     export_zaud
     export_zdisp
     export_zfs
+    export_zbase
 
     # Samples (depend on core + relevant plugin)
     export_sample_cam_disp
@@ -746,10 +769,11 @@ Targets:
   zaud             Audio plugin (depends on core)
   zdisp            Display plugin (depends on core)
   zfs              Filesystem plugin (depends on core)
-  sample-cam_disp  Camera-to-display sample (depends on core, zvid, zdisp)
-  sample-jpeg_dec  JPEG decoding sample (depends on core, zvid, zjpeg, zdisp, zfs)
+  zbase            Base plugin (depends on core)
+  sample-cam_disp  Camera-to-display sample (depends on core, zbase, zvid, zdisp)
+  sample-jpeg_dec  JPEG decoding sample (depends on core, zbase, zvid, zjpeg, zdisp, zfs)
   sample-fs        Filesystem sample (depends on core, zfs)
-  sample-dmic_i2s  DMIC to I2S sample (depends on core, zaud)
+  sample-dmic_i2s  DMIC to I2S sample (depends on core, zbase, zaud)
   all              All of the above (default)
 
 Options:
@@ -777,7 +801,7 @@ main() {
                 shift
                 ;;
             --list)
-                echo "Available targets: core zvid zaud zdisp zjpeg zfs sample-cam_disp sample-jpeg_dec sample-fs sample-dmic_i2s"
+                echo "Available targets: core zvid zjpeg zaud zdisp zfs zbase sample-cam_disp sample-jpeg_dec sample-fs sample-dmic_i2s"
                 exit 0
                 ;;
             --no-comply)
@@ -788,7 +812,7 @@ main() {
                 usage
                 exit 0
                 ;;
-            core|zvid|zaud|zdisp|zjpeg|zfs|sample-cam_disp|sample-jpeg_dec|sample-fs|sample-dmic_i2s|all)
+            core|zvid|zjpeg|zaud|zdisp|zfs|zbase|sample-cam_disp|sample-jpeg_dec|sample-fs|sample-dmic_i2s|all)
                 targets+=("$1")
                 shift
                 ;;
@@ -834,6 +858,10 @@ main() {
             zfs)
                 TARGETS+=(zfs)
                 export_zfs
+                ;;
+            zbase)
+                TARGETS+=(zbase)
+                export_zbase
                 ;;
             sample-cam_disp)
                 TARGETS+=(sample-cam_disp)
