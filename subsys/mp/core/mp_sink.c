@@ -106,6 +106,17 @@ int mp_sink_event(struct mp_pad *pad, struct mp_dispatch *event)
 	}
 }
 
+static int mp_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf)
+{
+	/* By default, do nothing, just absorb the buffer */
+	ARG_UNUSED(pad);
+
+	net_buf_unref(in_buf);
+	*out_buf = NULL;
+
+	return 0;
+}
+
 void mp_sink_init(struct mp_element *self)
 {
 	struct mp_sink *sink = (struct mp_sink *)self;
@@ -118,7 +129,7 @@ void mp_sink_init(struct mp_element *self)
 
 	sink->sinkpad.queryfn = mp_sink_query;
 	sink->sinkpad.eventfn = mp_sink_event;
-
+	sink->sinkpad.chainfn = mp_sink_chainfn;
 	sink->get_caps = mp_sink_get_caps;
 	sink->set_caps = mp_sink_set_caps;
 	sink->propose_allocation = NULL;
