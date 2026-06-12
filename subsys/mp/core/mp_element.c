@@ -126,22 +126,25 @@ static enum mp_state_change_return mp_element_set_state_func(struct mp_element *
 static enum mp_state_change_return mp_element_change_state_func(struct mp_element *element,
 								enum mp_state_change transition)
 {
-	enum mp_state_change_return result = MP_STATE_CHANGE_SUCCESS;
-
 	switch (transition) {
 	case MP_STATE_CHANGE_READY_TO_PAUSED:
+		LOG_DBG("State changed READY -> PAUSED");
 		break;
 	case MP_STATE_CHANGE_PAUSED_TO_PLAYING:
+		LOG_DBG("State changed PAUSED -> PLAYING");
 		break;
 	case MP_STATE_CHANGE_PLAYING_TO_PAUSED:
+		LOG_DBG("State changed PLAYING -> PAUSED");
 		break;
 	case MP_STATE_CHANGE_PAUSED_TO_READY:
+		LOG_DBG("State changed PAUSED -> READY");
 		break;
 	default:
+		LOG_ERR("State changed UNKNOWN");
 		break;
 	}
 
-	return result;
+	return MP_STATE_CHANGE_SUCCESS;
 }
 
 struct mp_bus *mp_element_get_bus(struct mp_element *element)
