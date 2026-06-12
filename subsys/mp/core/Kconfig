@@ -62,24 +62,10 @@ config MP_BIN_MAX_CHILDREN
 config MP_FAKE_SRC
 	bool "Fake source element"
 	help
-	  Synthetic data-source element for pipeline testing and benchmarking.
-	  Produces net_buf buffers filled with a fixed pattern or random data
-	  at a configurable rate, then emits EOS when the requested buffer
-	  count is reached.
+	  Emulated source element for pipeline testing.
 
 config MP_FAKE_SRC_BUF_SIZE
-	int "Static data buffer size for mp_fake_src (bytes)"
-	default 1024
+	int "Buffer size of the fake source element (in bytes)"
+	range 1 1024
+	default 1
 	depends on MP_FAKE_SRC
-	help
-	  Size of the per-element static payload buffer embedded in
-	  struct mp_fake_src. Every acquire_buffer call fills at most
-	  this many bytes and passes a pointer into this buffer to the
-	  downstream net_buf. Must be >= sizemax configured at runtime.
-
-config MP_FAKE_SINK
-	bool "Fake sink element"
-	help
-	  Synthetic terminal sink element for pipeline testing and benchmarking.
-	  Counts consumed buffers and bytes, and provides an optional per-buffer
-	  callback (invoked when on_buffer != NULL).

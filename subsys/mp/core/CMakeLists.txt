@@ -9,7 +9,6 @@ file(GLOB MP_CORE_SOURCE_FILES *.c)
 set(BUILTIN_ELEMENTS
     "mp_workqueue.c:CONFIG_MP_WORKQUEUE"
     "mp_transform_client.c:CONFIG_MP_RPC"
-    "mp_fake_sink.c:CONFIG_MP_FAKE_SINK"
     "mp_fake_src.c:CONFIG_MP_FAKE_SRC"
 )
 
