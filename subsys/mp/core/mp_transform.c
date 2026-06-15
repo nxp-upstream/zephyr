@@ -128,6 +128,7 @@ static inline int mp_transform_query_caps(struct mp_transform *self,
 	query_caps = mp_dispatch_get_caps(query);
 	if (query_caps == NULL || mp_caps_is_empty(query_caps)) {
 		mp_caps_unref(queried_pad_caps);
+		mp_caps_unref(query_caps);
 		return -ENODATA;
 	}
 
@@ -138,10 +139,10 @@ static inline int mp_transform_query_caps(struct mp_transform *self,
 	 * fixated caps will become unfixated.
 	 */
 	mp_caps_replace(&other_pad->caps, query_caps);
-	mp_caps_unref(query_caps);
 
 	/* Transform back the query_caps */
 	query_back_caps = self->transform_caps(self, this_pad->direction, query_caps);
+	mp_caps_unref(query_caps);
 	if (query_back_caps == NULL) {
 		mp_caps_unref(queried_pad_caps);
 		return -ENODATA;
@@ -254,8 +255,8 @@ static int mp_transform_event(struct mp_pad *pad, struct mp_dispatch *event)
 
 		transformed_caps =
 			transform->transform_caps(transform, other_pad->direction, event_caps);
-		mp_caps_unref(event_caps);
 		if (transformed_caps == NULL) {
+			mp_caps_unref(event_caps);
 			return -ENODATA;
 		}
 
@@ -279,18 +280,21 @@ static int mp_transform_event(struct mp_pad *pad, struct mp_dispatch *event)
 		ret = mp_dispatch_set_caps(event, fixated_caps);
 		if (ret < 0) {
 			mp_caps_unref(fixated_caps);
+			mp_caps_unref(event_caps);
 			return ret;
 		}
 
 		ret = mp_pad_send_event(other_pad->peer, event);
 		if (ret < 0) {
 			mp_caps_unref(fixated_caps);
+			mp_caps_unref(event_caps);
 			return ret;
 		}
 
 		ret = transform->set_caps(transform, pad->direction, event_caps);
 		if (ret < 0) {
 			mp_caps_unref(fixated_caps);
+			mp_caps_unref(event_caps);
 			return ret;
 		}
 
