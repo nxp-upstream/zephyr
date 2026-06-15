@@ -118,7 +118,7 @@ static int mp_src_negotiate(struct mp_src *src)
 	/* Query the peer's capabilities */
 	mp_dispatch_caps_init(&caps_query, src->src_caps);
 	ret = mp_pad_query(src->srcpad.peer, &caps_query);
-	if (ret < 0) {
+	if (ret != 0) {
 		mp_dispatch_clear(&caps_query);
 		return ret;
 	}
@@ -140,30 +140,28 @@ static int mp_src_negotiate(struct mp_src *src)
 
 	fixated_caps = mp_caps_fixate(src->srcpad.caps);
 
-	/* Push a caps event downstream */
+	/*
+	 * Push a caps event downstream. Don't check the returned value of
+	 * mp_pad_send_event() when caps is not fixatted (ANY) as we want to continue.
+	 */
 	mp_dispatch_caps_init(&caps_event, fixated_caps);
-
 	ret = mp_pad_send_event(src->srcpad.peer, &caps_event);
 	mp_dispatch_clear(&caps_event);
 
-	if (ret < 0) {
-		mp_caps_unref(fixated_caps);
-		return ret;
-	}
-
+	/* Set caps if it can be fixated */
 	if (fixated_caps != NULL) {
-		ret = src->set_caps(src, fixated_caps);
-		if (ret < 0) {
+		if (ret != 0 || src->set_caps(src, fixated_caps) != 0) {
 			mp_caps_unref(fixated_caps);
 			return ret;
 		}
+
 		mp_caps_unref(fixated_caps);
 	}
 
 	/* Query the peer's allocation proposal */
 	mp_dispatch_buffer_config_init(&alloc_query, src->srcpad.caps);
 	ret = mp_pad_query(src->srcpad.peer, &alloc_query);
-	if (ret < 0) {
+	if (ret != 0) {
 		mp_dispatch_clear(&alloc_query);
 		return ret;
 	}
@@ -176,6 +174,7 @@ static int mp_src_negotiate(struct mp_src *src)
 	}
 
 	mp_dispatch_clear(&alloc_query);
+
 	return 0;
 }
 
