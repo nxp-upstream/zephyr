@@ -64,7 +64,7 @@ config MP_FAKE_SRC
 	help
 	  Emulated source element for pipeline testing.
 
-config MP_FAKE_SRC_BUF_SIZE
+config MP_FAKE_SRC_BUF_SZ
 	int "Buffer size of the fake source element (in bytes)"
 	range 1 1024
 	default 1
