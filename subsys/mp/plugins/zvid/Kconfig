@@ -10,7 +10,7 @@ config MP_PLUGIN_ZVID
 
 if MP_PLUGIN_ZVID
 
-config MP_PLUGIN_ZVID_CONVERT
+config MP_ZVID_CONVERT
 	bool "Software-based pixel format converter"
 	help
 	  Convert video frame between different pixel formats based on SW
