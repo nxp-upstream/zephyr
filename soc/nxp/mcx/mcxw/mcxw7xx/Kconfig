@@ -35,3 +35,6 @@ config NXP_MCXW7XX_BOOT_HEADER
 	help
 	  Create data structures required by the boot ROM to boot the
 	  application from flash.
+
+config TRDC_MCUX_TRDC
+	bool "Use TRDC MCUX Driver"
