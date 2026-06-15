@@ -407,10 +407,10 @@ static int zvid_convert_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 {
 	struct net_buf *cur;
 	struct net_buf *next;
-	uint32_t out_sz = zvid_convert_frame_size(conv->out_pixfmt, conv->width, conv->height);
 	struct mp_transform *transform = (struct mp_transform *)pad->object.container;
 	struct mp_zvid_convert *conv = (struct mp_zvid_convert *)transform;
 	struct mp_buffer_pool *outpool = transform->outpool;
+	uint32_t out_sz = zvid_convert_frame_size(conv->out_pixfmt, conv->width, conv->height);
 
 	if (conv->width == 0U || conv->height == 0U || conv->in_pixfmt == 0U ||
 	    conv->out_pixfmt == 0U || conv->desc == NULL || conv->desc->fn == NULL) {
