@@ -26,6 +26,7 @@
 #include <zephyr/mp/core/mp_caps.h>
 #include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_pipeline.h>
+#include <zephyr/mp/core/mp_property.h>
 #include <zephyr/mp/core/mp_structure.h>
 #include <zephyr/mp/core/mp_value.h>
 #if CONFIG_MP_RPC

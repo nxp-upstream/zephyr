@@ -147,7 +147,7 @@ static enum mp_state_change_return mp_pipeline_change_state(struct mp_element *e
 
 	/*
 	 * UP: Pipeline thread should be handled after children state change, i.e., children need to
-	 * be prepared before receiving buffers from source)
+	 * be prepared before receiving buffers from source
 	 */
 	switch (transition) {
 	case MP_STATE_CHANGE_READY_TO_PAUSED:

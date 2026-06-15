@@ -2,7 +2,7 @@
 
 cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
-project(mp_core_pipeline_integration)
+project(mp_core_pipeline)
 
 target_sources(app PRIVATE
   src/test_mock_pipeline.c
