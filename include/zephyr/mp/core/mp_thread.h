@@ -14,6 +14,7 @@
 #define ZEPHYR_INCLUDE_MP_CORE_MP_THREAD_H_
 
 #include <zephyr/kernel/thread.h>
+#include <zephyr/sys/atomic.h>
 
 /**
  *
@@ -42,8 +43,8 @@ struct mp_thread {
 	struct k_sem sem;
 	/** Thread stack ID */
 	uint8_t stack_id;
-	/** Current thread state */
-	uint8_t state;
+	/** Current thread state (atomic to avoid caching/reordering issues across threads) */
+	atomic_t state;
 };
 
 /**

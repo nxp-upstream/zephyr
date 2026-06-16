@@ -6,6 +6,8 @@
 
 #include <zephyr/kernel.h>
 
+#include <zephyr/sys/atomic.h>
+
 #include <zephyr/mp/core/mp_thread.h>
 
 K_THREAD_STACK_ARRAY_DEFINE(thread_stack, CONFIG_MP_THREADS_NUM, CONFIG_MP_THREAD_STACK_SIZE);
@@ -29,7 +31,7 @@ k_tid_t mp_thread_create(struct mp_thread *thread, k_thread_entry_t func, void *
 	}
 
 	thread->stack_id = id;
-	thread->state = MP_THREAD_PAUSED;
+	atomic_set(&thread->state, MP_THREAD_PAUSED);
 	mp_thread_stack_pool[id] = true;
 
 	/* Semaphore starts at 0 to be able to block the thread with mp_thread_wait() */
@@ -42,29 +44,55 @@ k_tid_t mp_thread_create(struct mp_thread *thread, k_thread_entry_t func, void *
 
 int mp_thread_wait(struct mp_thread *thread)
 {
-	while (thread->state == MP_THREAD_PAUSED) {
+	for (;;) {
+		int state = atomic_get(&thread->state);
+
+		if (state == MP_THREAD_RUNNING) {
+			return 0;
+		}
+
+		if (state == MP_THREAD_TERMINATED) {
+			return -ECANCELED;
+		}
+
+		/* Block until someone resumes or terminates us. */
 		k_sem_take(&thread->sem, K_FOREVER);
 	}
-
-	if (thread->state == MP_THREAD_TERMINATED) {
-		return -ECANCELED;
-	}
-
-	return 0;
 }
 
 void mp_thread_resume(struct mp_thread *thread)
 {
-	thread->state = MP_THREAD_RUNNING;
+	/* Resume must not override a concurrent join(). Only transition PAUSED -> RUNNING */
+	for (;;) {
+		int state = atomic_get(&thread->state);
+
+		if (state == MP_THREAD_TERMINATED) {
+			return;
+		}
+
+		if (state == MP_THREAD_RUNNING ||
+		    atomic_cas(&thread->state, MP_THREAD_PAUSED, MP_THREAD_RUNNING)) {
+			break;
+		}
+	}
+
 	/* Wake from initial K_FOREVER sleep (no-op if already awake) */
 	k_wakeup(&thread->thread);
-	/* Unblock from wait_running() if blocked on the semaphore */
+	/* Unblock from wait() if blocked on the semaphore */
 	k_sem_give(&thread->sem);
 }
 
 void mp_thread_pause(struct mp_thread *thread)
 {
-	thread->state = MP_THREAD_PAUSED;
+	/* Pause must not override a concurrent join(). Only transition RUNNING -> PAUSED */
+	for (;;) {
+		int state = atomic_get(&thread->state);
+
+		if (state == MP_THREAD_TERMINATED || state == MP_THREAD_PAUSED ||
+		    atomic_cas(&thread->state, MP_THREAD_RUNNING, MP_THREAD_PAUSED)) {
+			return;
+		}
+	}
 }
 
 int mp_thread_join(struct mp_thread *thread, k_timeout_t timeout)
@@ -76,10 +104,11 @@ int mp_thread_join(struct mp_thread *thread, k_timeout_t timeout)
 	}
 
 	/* Signal the thread to exit */
-	thread->state = MP_THREAD_TERMINATED;
+	atomic_set(&thread->state, MP_THREAD_TERMINATED);
 
 	/* Wake from initial sleep in case the thread was never resumed */
 	k_wakeup(&thread->thread);
+
 	/* Unblock from wait() in case it is blocked on the semaphore */
 	k_sem_give(&thread->sem);
 

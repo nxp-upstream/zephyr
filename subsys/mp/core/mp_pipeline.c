@@ -125,7 +125,7 @@ static enum mp_state_change_return mp_pipeline_change_state(struct mp_element *e
 	enum mp_state_change_return ret;
 
 	/*
-	 * DOWN: Pipeline thread should be handled before children state change, i.e. source need to
+	 * DOWN: Pipeline thread should be handled before children state change, i.e. source needs to
 	 * stop producing buffers first
 	 */
 	switch (transition) {
