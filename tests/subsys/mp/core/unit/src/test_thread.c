@@ -11,10 +11,7 @@
 
 #include <zephyr/mp/core/mp_thread.h>
 
-/** Semaphore used to signal that the thread entry function was executed. */
 static struct k_sem thread_ran_sem;
-
-/** Counter incremented by each thread entry to verify parallel execution. */
 static atomic_t thread_run_count;
 
 static void simple_thread_func(void *p1, void *p2, void *p3)
@@ -68,21 +65,17 @@ ZTEST_SUITE(mp_thread_api, NULL, thread_suite_setup, thread_before, thread_after
 
 ZTEST_F(mp_thread_api, test_create)
 {
-	/* Returns a valid tid */
 	k_tid_t tid = mp_thread_create(&fixture->thread, simple_thread_func, &thread_ran_sem, NULL,
 				       NULL, CONFIG_MP_THREAD_DEFAULT_PRIORITY, K_NO_WAIT);
 
-	zassert_not_null(tid, "mp_thread_create shall return a valid tid");
+	zassert_not_null(tid, "mp_thread_create returned NULL");
+	zassert_true(fixture->thread.stack_id >= 0 &&
+			     fixture->thread.stack_id < CONFIG_MP_THREADS_NUM,
+		     "stack_id %d out of range [0, %d)", fixture->thread.stack_id,
+		     CONFIG_MP_THREADS_NUM);
 
-	/* stack_id is in valid range */
-	zassert_true(
-		fixture->thread.stack_id >= 0 && fixture->thread.stack_id < CONFIG_MP_THREADS_NUM,
-		"stack_id %d shall be in [0, %d)", fixture->thread.stack_id, CONFIG_MP_THREADS_NUM);
-
-	/* Entry function is actually called and p1 is passed correctly */
 	int ret = k_sem_take(&thread_ran_sem, K_MSEC(1000));
 
-	zassert_equal(ret, 0, "Entry function shall be called within 1 s");
-	zassert_equal(atomic_get(&thread_run_count), 1,
-		      "Entry function shall be called exactly once");
+	zassert_equal(ret, 0, "entry function not called within 1s");
+	zassert_equal(atomic_get(&thread_run_count), 1, "entry function call count != 1");
 }

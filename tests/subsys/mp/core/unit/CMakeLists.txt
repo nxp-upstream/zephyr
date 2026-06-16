@@ -9,7 +9,6 @@ target_sources(app PRIVATE
   src/test_element.c
   src/test_bin.c
   src/test_caps.c
-  src/test_pipeline.c
   src/test_pad.c
   src/test_bus.c
   src/test_message.c

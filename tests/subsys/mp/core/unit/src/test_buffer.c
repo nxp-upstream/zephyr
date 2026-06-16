@@ -52,23 +52,23 @@ ZTEST(mp_buffer_api, test_sanity)
 	struct mp_structure *config = mp_structure_new(MP_MEDIA_AUDIO_PCM, MP_STRUCTURE_END);
 
 	mp_buffer_pool_init(&pool);
-	zassert_false(pool.started, "Pool shall not be started after init");
+	zassert_false(pool.started, "pool.started != false after init");
 
 	zassert_true(mp_buffer_pool_configure(NULL, config) < 0,
-		     "Configure with NULL pool shall return error");
+		     "configure NULL pool did not fail");
 
 	zassert_true(mp_buffer_pool_configure(&pool, config) < 0,
-		     "Configure without callback shall return error");
+		     "configure(no callback) did not fail");
 
 	mp_structure_destroy(config);
 
-	zassert_true(mp_buffer_pool_start(NULL) < 0, "Start with NULL pool shall return error");
+	zassert_true(mp_buffer_pool_start(NULL) < 0, "start NULL pool did not fail");
 
 	pool.start = NULL;
-	zassert_true(mp_buffer_pool_start(&pool) < 0, "Start without callback shall return error");
+	zassert_true(mp_buffer_pool_start(&pool) < 0, "start no callback did not fail");
 
-	zassert_true(mp_buffer_pool_stop(NULL) < 0, "Stop with NULL pool shall return error");
+	zassert_true(mp_buffer_pool_stop(NULL) < 0, "stop NULL pool did not fail");
 
 	pool.stop = NULL;
-	zassert_true(mp_buffer_pool_stop(&pool) < 0, "Stop without callback shall return error");
+	zassert_true(mp_buffer_pool_stop(&pool) < 0, "stop no callback did not fail");
 }

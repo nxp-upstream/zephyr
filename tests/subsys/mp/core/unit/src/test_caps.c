@@ -197,8 +197,6 @@ ZTEST_F(caps, test_caps_intersection_primitive)
 
 ZTEST_F(caps, test_caps_int_with_int_range)
 {
-
-	/* Prepare test cases: INT values and expected results */
 	struct {
 		int value;
 		int expected;
@@ -208,19 +206,17 @@ ZTEST_F(caps, test_caps_int_with_int_range)
 		{(INT_MIN + INT_MAX) / 2, (INT_MIN + INT_MAX) / 2},
 	};
 
-	/* Create caps for INT_RANGE */
 	fixture->caps[0] = mp_caps_new(MP_MEDIA_AUDIO_PCM, TEST_RANGE_INT, MP_TYPE_INT_RANGE,
 				       INT_MIN, INT_MAX, 1, MP_CAPS_END);
-	zassert_not_null(fixture->caps[0], "Failed to create INT_RANGE caps");
+	zassert_not_null(fixture->caps[0], "caps[0] alloc failed");
 
-	/* Loop through test cases */
 	for (int i = 0; i < ARRAY_SIZE(test_cases); i++) {
 		fixture->caps[1] = mp_caps_new(MP_MEDIA_AUDIO_PCM, TEST_RANGE_INT, MP_TYPE_INT,
 					       test_cases[i].value, MP_CAPS_END);
-		zassert_not_null(fixture->caps[1], "Failed to create INT caps");
+		zassert_not_null(fixture->caps[1], "caps[1] alloc failed");
 
 		fixture->caps_intersect = mp_caps_intersect(fixture->caps[0], fixture->caps[1]);
-		zassert_not_null(fixture->caps_intersect, "Intersection should not be null");
+		zassert_not_null(fixture->caps_intersect, "intersection returned NULL");
 
 		fixture->structure = mp_caps_get_structure(fixture->caps_intersect, 0);
 		fixture->value = mp_structure_get_value(fixture->structure, TEST_RANGE_INT);
@@ -230,15 +226,11 @@ ZTEST_F(caps, test_caps_int_with_int_range)
 		mp_caps_unref(fixture->caps_intersect);
 	}
 
-	/* Cleanup */
 	mp_caps_unref(fixture->caps[0]);
 }
 
-/* Test UINT value intersecting with UINT_RANGE */
 ZTEST_F(caps, test_caps_uint_with_uint_range)
 {
-
-	/* Prepare test cases: UINT values and expected results */
 	struct {
 		unsigned int expected;
 		bool should_succeed;
@@ -251,18 +243,16 @@ ZTEST_F(caps, test_caps_uint_with_uint_range)
 
 	fixture->caps[0] = mp_caps_new(MP_MEDIA_AUDIO_PCM, TEST_RANGE_UINT, MP_TYPE_UINT_RANGE, 0,
 				       UINT32_MAX, 1, MP_CAPS_END);
-	zassert_not_null(fixture->caps[0], "Failed to create UINT_RANGE caps");
+	zassert_not_null(fixture->caps[0], "caps[0] alloc failed");
 
-	/* Create caps for UINT_RANGE that will be reused */
 	for (int i = 0; i < ARRAY_SIZE(test_cases); i++) {
 		fixture->caps[1] = mp_caps_new(MP_MEDIA_AUDIO_PCM, TEST_RANGE_UINT, MP_TYPE_UINT,
 					       test_cases[i].expected, MP_CAPS_END);
-		zassert_not_null(fixture->caps[1], "Failed to create UINT caps for case: %s",
+		zassert_not_null(fixture->caps[1], "caps[1] alloc failed for: %s",
 				 test_cases[i].description);
 
 		fixture->caps_intersect = mp_caps_intersect(fixture->caps[0], fixture->caps[1]);
-		zassert_not_null(fixture->caps_intersect,
-				 "Intersection should succeed for case: %s",
+		zassert_not_null(fixture->caps_intersect, "intersection returned NULL for: %s",
 				 test_cases[i].description);
 
 		fixture->structure = mp_caps_get_structure(fixture->caps_intersect, 0);
@@ -276,10 +266,8 @@ ZTEST_F(caps, test_caps_uint_with_uint_range)
 	mp_caps_unref(fixture->caps[0]);
 }
 
-/* Test INT_FRACTION_RANGE intersecting with INT_FRACTION_RANGE */
 ZTEST_F(caps, test_caps_int_fraction_range_intersection)
 {
-
 	fixture->caps[0] = mp_caps_new(MP_MEDIA_AUDIO_PCM, TEST_INT_FRACTION_RANGE,
 				       MP_TYPE_INT_FRACTION, 1, INT_MIN, MP_CAPS_END);
 	fixture->caps[1] =
@@ -287,14 +275,14 @@ ZTEST_F(caps, test_caps_int_fraction_range_intersection)
 			    1, INT_MIN, INT_MAX, 1, 1, 1, MP_CAPS_END);
 
 	fixture->caps_intersect = mp_caps_intersect(fixture->caps[1], fixture->caps[1]);
-	zassert_not_null(fixture->caps_intersect, "Intersection should not be null");
+	zassert_not_null(fixture->caps_intersect, "intersection returned NULL");
 	fixture->structure = mp_caps_get_structure(fixture->caps_intersect, 0);
 	fixture->value = mp_structure_get_value(fixture->structure, TEST_INT_FRACTION_RANGE);
 	validate_fraction_int_range(fixture->value, 1, INT_MIN, INT_MAX, 1, 1, 1);
 	mp_caps_unref(fixture->caps_intersect);
 
 	fixture->caps_intersect = mp_caps_intersect(fixture->caps[0], fixture->caps[1]);
-	zassert_not_null(fixture->caps_intersect, "Intersection should not be null");
+	zassert_not_null(fixture->caps_intersect, "intersection returned NULL");
 	fixture->structure = mp_caps_get_structure(fixture->caps_intersect, 0);
 	fixture->value = mp_structure_get_value(fixture->structure, TEST_INT_FRACTION_RANGE);
 	validate_int_fraction_value(fixture->value, 1, INT_MIN);
@@ -304,10 +292,8 @@ ZTEST_F(caps, test_caps_int_fraction_range_intersection)
 	mp_caps_unref(fixture->caps[1]);
 }
 
-/* Test UINT_FRACTION_RANGE intersecting with UINT_FRACTION_RANGE */
 ZTEST_F(caps, test_caps_uint_fraction_range_intersection)
 {
-
 	fixture->caps[0] = mp_caps_new(MP_MEDIA_AUDIO_PCM, TEST_UINT_FRACTION_RANGE,
 				       MP_TYPE_UINT_FRACTION, 1, UINT32_MAX, MP_CAPS_END);
 	fixture->caps[1] = mp_caps_new(MP_MEDIA_AUDIO_PCM, TEST_UINT_FRACTION_RANGE,
@@ -315,14 +301,14 @@ ZTEST_F(caps, test_caps_uint_fraction_range_intersection)
 				       1, MP_CAPS_END);
 
 	fixture->caps_intersect = mp_caps_intersect(fixture->caps[1], fixture->caps[1]);
-	zassert_not_null(fixture->caps_intersect, "Intersection should not be null");
+	zassert_not_null(fixture->caps_intersect, "intersection returned NULL");
 	fixture->structure = mp_caps_get_structure(fixture->caps_intersect, 0);
 	fixture->value = mp_structure_get_value(fixture->structure, TEST_UINT_FRACTION_RANGE);
 	validate_uint_fraction_range(fixture->value, 1, UINT32_MAX, UINT32_MAX, 1, 1, 1);
 	mp_caps_unref(fixture->caps_intersect);
 
 	fixture->caps_intersect = mp_caps_intersect(fixture->caps[0], fixture->caps[1]);
-	zassert_not_null(fixture->caps_intersect, "Intersection should not be null");
+	zassert_not_null(fixture->caps_intersect, "intersection returned NULL");
 	fixture->structure = mp_caps_get_structure(fixture->caps_intersect, 0);
 	fixture->value = mp_structure_get_value(fixture->structure, TEST_UINT_FRACTION_RANGE);
 	validate_uint_fraction_value(fixture->value, 1, UINT32_MAX);
@@ -332,10 +318,8 @@ ZTEST_F(caps, test_caps_uint_fraction_range_intersection)
 	mp_caps_unref(fixture->caps[1]);
 }
 
-/* Test INT_FRACTION intersecting with INT_FRACTION_RANGE */
 ZTEST_F(caps, test_caps_int_fraction_range)
 {
-
 	fixture->caps[0] = mp_caps_new(MP_MEDIA_AUDIO_PCM, TEST_FRACTION, MP_TYPE_INT_FRACTION, 1,
 				       INT32_MIN, MP_CAPS_END);
 	fixture->caps[1] =
@@ -344,8 +328,9 @@ ZTEST_F(caps, test_caps_int_fraction_range)
 	fixture->caps[2] =
 		mp_caps_new(MP_MEDIA_AUDIO_PCM, TEST_FRACTION, MP_TYPE_INT_FRACTION_RANGE, 1,
 			    INT32_MIN, INT32_MAX, 1, 1, 1, MP_CAPS_END);
+
 	fixture->caps_intersect = mp_caps_intersect(fixture->caps[0], fixture->caps[1]);
-	zassert_not_null(fixture->caps_intersect, "Intersection should not be null");
+	zassert_not_null(fixture->caps_intersect, "intersection returned NULL");
 
 	fixture->structure = mp_caps_get_structure(fixture->caps_intersect, 0);
 	fixture->value = mp_structure_get_value(fixture->structure, TEST_FRACTION);
@@ -353,7 +338,7 @@ ZTEST_F(caps, test_caps_int_fraction_range)
 	mp_caps_unref(fixture->caps_intersect);
 
 	fixture->caps_intersect = mp_caps_intersect(fixture->caps[1], fixture->caps[2]);
-	zassert_not_null(fixture->caps_intersect, "Intersection should not be null");
+	zassert_not_null(fixture->caps_intersect, "intersection returned NULL");
 
 	fixture->structure = mp_caps_get_structure(fixture->caps_intersect, 0);
 	fixture->value = mp_structure_get_value(fixture->structure, TEST_FRACTION);
@@ -367,7 +352,6 @@ ZTEST_F(caps, test_caps_int_fraction_range)
 
 ZTEST_F(caps, test_caps_intersection_list)
 {
-
 	fixture->caps[0] = mp_caps_new(
 		MP_MEDIA_AUDIO_PCM, TEST_LIST, MP_TYPE_LIST,
 		mp_value_new(MP_TYPE_LIST, mp_value_new(MP_TYPE_INT, 15),
@@ -388,6 +372,7 @@ ZTEST_F(caps, test_caps_intersection_list)
 			     mp_value_new(MP_TYPE_INT_FRACTION_RANGE, 100, 1, 60, 1, 1, 1),
 			     mp_value_new(MP_TYPE_INT, 15), NULL),
 		MP_CAPS_END);
+
 	fixture->caps_intersect = mp_caps_intersect(fixture->caps[0], fixture->caps[1]);
 	fixture->structure = mp_caps_get_structure(fixture->caps_intersect, 0);
 	struct mp_value *list = mp_structure_get_value(fixture->structure, TEST_LIST);
@@ -411,28 +396,20 @@ ZTEST_F(caps, test_caps_intersection_list)
 
 ZTEST_F(caps, test_caps_video_sample)
 {
-
 	struct mp_value *frmrates1 = mp_value_new(MP_TYPE_LIST, NULL);
 
-	/* Generate different framerates */
 	for (int i = 15; i <= 60; i += 15) {
 		zassert_ok(
 			mp_value_list_append(frmrates1, mp_value_new(MP_TYPE_INT_FRACTION, i, 1)),
-			"Appending framerate shall succeed");
+			"mp_value_list_append failed");
 	}
 
-	/* caps[0]: video/x-raw, format(string)=xRGB, width(int_range)=[1280, 1280 ,0],
-	 * height(int_range)=[720, 720, 0], framerate={15/1,30/1,45/1,60/1}
-	 */
 	fixture->caps[0] = mp_caps_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_STRING, "xRGB",
 				       MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE, 1280, 1280, 0,
 				       MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE, 720, 720, 0,
 				       MP_CAPS_FRAME_RATE, MP_TYPE_LIST, frmrates1, MP_CAPS_END);
-	zassert_not_null(fixture->caps[0], "caps[0] allocation failed");
+	zassert_not_null(fixture->caps[0], "caps[0] alloc failed");
 
-	/* caps[1]: video/x-raw, format(string)={RGB565, xRGB, YUV}, width(int_range)=[1280, 1280
-	 * ,0], height(int_range)=[720, 720, 0]
-	 */
 	fixture->caps[1] =
 		mp_caps_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_LIST,
 			    mp_value_new(MP_TYPE_LIST, mp_value_new(MP_TYPE_STRING, "RGB565"),
@@ -440,15 +417,13 @@ ZTEST_F(caps, test_caps_video_sample)
 					 mp_value_new(MP_TYPE_STRING, "YUV"), NULL),
 			    MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE, 1280, 1280, 0,
 			    MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE, 720, 720, 0, MP_CAPS_END);
-	zassert_not_null(fixture->caps[1], "caps[1] allocation failed");
+	zassert_not_null(fixture->caps[1], "caps[1] alloc failed");
 
 	fixture->caps_intersect = mp_caps_intersect(fixture->caps[0], fixture->caps[1]);
-
-	zassert_not_null(fixture->caps_intersect, "Intersection failed");
+	zassert_not_null(fixture->caps_intersect, "intersection returned NULL");
 	zassert_false(mp_caps_is_any(fixture->caps_intersect), "caps is any");
 	zassert_false(mp_caps_is_empty(fixture->caps_intersect), "caps is empty");
 
-	/* Check intersection result */
 	fixture->structure = mp_caps_get_structure(fixture->caps_intersect, 0);
 	fixture->value = mp_structure_get_value(fixture->structure, MP_CAPS_PIXEL_FORMAT);
 
@@ -473,11 +448,10 @@ ZTEST_F(caps, test_caps_video_sample)
 	mp_caps_unref(fixture->caps[0]);
 	mp_caps_unref(fixture->caps[1]);
 
-	/* check fixate */
 	fixture->caps_fixate = mp_caps_fixate(fixture->caps_intersect);
 	mp_caps_unref(fixture->caps_intersect);
 
-	zassert_not_null(fixture->caps_fixate);
+	zassert_not_null(fixture->caps_fixate, "caps_fixate returned NULL");
 	fixture->structure = mp_caps_get_structure(fixture->caps_fixate, 0);
 
 	fixture->value = mp_structure_get_value(fixture->structure, MP_CAPS_PIXEL_FORMAT);
@@ -500,16 +474,10 @@ ZTEST_F(caps, test_caps_error_paths)
 	struct mp_caps caps_stack;
 	struct mp_caps *ptr = NULL;
 
-	/* mp_caps_init: NULL caps shall return -EINVAL */
-	zassert_equal(mp_caps_init(NULL, 0), -EINVAL, "NULL caps shall return -EINVAL");
+	zassert_equal(mp_caps_init(NULL, 0), -EINVAL, "mp_caps_init(NULL) != -EINVAL");
+	zassert_ok(mp_caps_init(&caps_stack, 0), "mp_caps_init failed");
 
-	/* mp_caps_init: valid caps shall succeed */
-	zassert_ok(mp_caps_init(&caps_stack, 0), "Valid mp_caps_init shall succeed");
-
-	/* mp_caps_replace: NULL target shall return -EINVAL */
 	zassert_equal(mp_caps_replace(NULL, fixture->caps[0]), -EINVAL,
-		      "NULL target_caps shall return -EINVAL");
-
-	/* mp_caps_replace: NULL new_caps shall return -EINVAL */
-	zassert_equal(mp_caps_replace(&ptr, NULL), -EINVAL, "NULL new_caps shall return -EINVAL");
+		      "mp_caps_replace(NULL target) != -EINVAL");
+	zassert_equal(mp_caps_replace(&ptr, NULL), -EINVAL, "mp_caps_replace(NULL new) != -EINVAL");
 }

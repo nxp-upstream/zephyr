@@ -55,17 +55,17 @@ ZTEST(mp_message_api, test_new_messages)
 
 	struct mp_message *eos = mp_message_new(MP_MESSAGE_EOS, NULL, NULL);
 
-	zassert_not_null(eos, "mp_message_new(EOS) shall return non-NULL");
-	zassert_equal(eos->type, MP_MESSAGE_EOS, "Message type shall be EOS");
-	zassert_is_null(eos->src, "Source shall be NULL when passed NULL");
-	zassert_is_null(eos->data, "Data shall be NULL when passed NULL");
+	zassert_not_null(eos, "mp_message_new(EOS) returned NULL");
+	zassert_equal(eos->type, MP_MESSAGE_EOS, "type != EOS");
+	zassert_is_null(eos->src, "src != NULL");
+	zassert_is_null(eos->data, "data != NULL");
 	mp_message_destroy(eos);
 
 	struct mp_message *err = mp_message_new(MP_MESSAGE_ERROR, (struct mp_object *)&elem, NULL);
 
-	zassert_not_null(err, "mp_message_new(ERROR) shall return non-NULL");
-	zassert_equal(err->type, MP_MESSAGE_ERROR, "Message type shall be ERROR");
-	zassert_equal(err->src, (struct mp_object *)&elem, "Message source shall reference the element");
+	zassert_not_null(err, "mp_message_new(ERROR) returned NULL");
+	zassert_equal(err->type, MP_MESSAGE_ERROR, "type != ERROR");
+	zassert_equal(err->src, (struct mp_object *)&elem, "src mismatch");
 	mp_message_destroy(err);
 
 	struct mp_structure *data = mp_structure_new(MP_MEDIA_AUDIO_PCM, MP_STRUCTURE_END);
@@ -75,7 +75,7 @@ ZTEST(mp_message_api, test_new_messages)
 	struct mp_message *with_data = mp_message_new(MP_MESSAGE_EOS, NULL, data);
 
 	zassert_not_null(with_data);
-	zassert_equal(with_data->data, data, "Message data shall reference the structure");
+	zassert_equal(with_data->data, data, "data mismatch");
 	mp_message_destroy(with_data);
 
 	struct mp_message *m1 = mp_message_new(MP_MESSAGE_EOS, NULL, NULL);
@@ -83,8 +83,7 @@ ZTEST(mp_message_api, test_new_messages)
 
 	zassert_not_null(m1);
 	zassert_not_null(m2);
-	zassert_true(m2->seq_id >= m1->seq_id,
-		     "Sequential messages shall have non-decreasing seq_id");
+	zassert_true(m2->seq_id >= m1->seq_id, "seq_id not monotonically increasing");
 	mp_message_destroy(m1);
 	mp_message_destroy(m2);
 }
@@ -94,7 +93,7 @@ ZTEST(mp_message_api, test_sanity)
 	struct mp_message *msg = mp_message_new(MP_MESSAGE_UNKNOWN, NULL, NULL);
 
 	if (msg != NULL) {
-		zassert_equal(msg->type, MP_MESSAGE_UNKNOWN, "Message type shall be UNKNOWN");
+		zassert_equal(msg->type, MP_MESSAGE_UNKNOWN, "type != UNKNOWN");
 		mp_message_destroy(msg);
 	}
 }

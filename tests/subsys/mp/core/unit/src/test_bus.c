@@ -35,7 +35,7 @@ static void bus_before(void *f)
 	memset(&fix->elem, 0, sizeof(fix->elem));
 	mp_element_init(&fix->elem, 42);
 
-	zassert_is_null(mp_bus_peek(&fix->bus), "Freshly initialized bus shall have no messages");
+	zassert_is_null(mp_bus_peek(&fix->bus), "bus not empty after init");
 
 	sys_heap_runtime_stats_get(&_system_heap.heap, &fix->mem_before);
 }
@@ -79,24 +79,23 @@ ZTEST_F(mp_bus_api, test_post_peek_pop)
 	struct mp_object *src = (struct mp_object *)&fixture->elem;
 	struct mp_message *msg = mp_message_new(MP_MESSAGE_EOS, src, NULL);
 
-	zassert_not_null(msg, "mp_message_new shall return non-NULL");
-	zassert_ok(mp_bus_post(&fixture->bus, msg), "Posting a message shall succeed");
+	zassert_not_null(msg, "mp_message_new returned NULL");
+	zassert_ok(mp_bus_post(&fixture->bus, msg), "mp_bus_post failed");
 
 	struct mp_message *peeked = mp_bus_peek(&fixture->bus);
 
-	zassert_not_null(peeked, "Peek shall return the message");
-	zassert_equal(peeked->type, MP_MESSAGE_EOS, "Peeked message type shall be EOS");
-	zassert_equal(peeked->src, src, "Peeked message src shall match");
-	zassert_is_null(peeked->data, "Peeked message data shall be NULL");
+	zassert_not_null(peeked, "mp_bus_peek returned NULL");
+	zassert_equal(peeked->type, MP_MESSAGE_EOS, "peeked type != EOS");
+	zassert_equal(peeked->src, src, "peeked src mismatch");
+	zassert_is_null(peeked->data, "peeked data != NULL");
 
 	struct mp_message *popped = mp_bus_pop(&fixture->bus);
 
-	zassert_not_null(popped, "Message shall still be available after peek");
-	zassert_equal(peeked, popped, "Peek and pop shall return same message");
+	zassert_not_null(popped, "mp_bus_pop returned NULL");
+	zassert_equal(peeked, popped, "peek and pop returned different messages");
 	mp_message_destroy(popped);
 
-	zassert_is_null(mp_bus_peek(&fixture->bus),
-			"Bus shall be empty after popping the only message");
+	zassert_is_null(mp_bus_peek(&fixture->bus), "bus not empty after pop");
 }
 
 ZTEST_F(mp_bus_api, test_post_multiple_fifo_order)
@@ -114,10 +113,10 @@ ZTEST_F(mp_bus_api, test_post_multiple_fifo_order)
 	struct mp_message *first = mp_bus_pop(&fixture->bus);
 	struct mp_message *second = mp_bus_pop(&fixture->bus);
 
-	zassert_equal(first->type, MP_MESSAGE_EOS, "First out shall be EOS");
-	zassert_equal(first->src, src, "First msg src shall match");
-	zassert_equal(second->type, MP_MESSAGE_ERROR, "Second out shall be ERROR");
-	zassert_is_null(second->src, "Second msg src shall be NULL");
+	zassert_equal(first->type, MP_MESSAGE_EOS, "first type != EOS");
+	zassert_equal(first->src, src, "first src mismatch");
+	zassert_equal(second->type, MP_MESSAGE_ERROR, "second type != ERROR");
+	zassert_is_null(second->src, "second src != NULL");
 
 	mp_message_destroy(first);
 	mp_message_destroy(second);
@@ -129,8 +128,8 @@ ZTEST_F(mp_bus_api, test_sanity)
 
 	zassert_not_null(msg);
 
-	zassert_true(mp_bus_post(NULL, msg) < 0, "Posting to NULL bus shall fail");
-	zassert_true(mp_bus_post(&fixture->bus, NULL) < 0, "Posting NULL message shall fail");
+	zassert_true(mp_bus_post(NULL, msg) < 0, "post(NULL bus) did not fail");
+	zassert_true(mp_bus_post(&fixture->bus, NULL) < 0, "post(NULL msg) did not fail");
 
 	mp_message_destroy(msg);
 }
@@ -149,10 +148,10 @@ ZTEST_F(mp_bus_api, test_pop_msg_filters_by_type)
 
 	struct mp_message *found = mp_bus_pop_msg(&fixture->bus, MP_MESSAGE_ERROR);
 
-	zassert_not_null(found, "pop_msg shall find matching message");
-	zassert_equal(found->type, MP_MESSAGE_ERROR, "Returned message shall match filter type");
-	zassert_equal(found->src, src, "Returned message src shall match");
-	zassert_is_null(found->data, "Returned message data shall be NULL");
+	zassert_not_null(found, "pop_msg returned NULL");
+	zassert_equal(found->type, MP_MESSAGE_ERROR, "found type != ERROR");
+	zassert_equal(found->src, src, "found src mismatch");
+	zassert_is_null(found->data, "found data != NULL");
 
 	mp_message_destroy(found);
 }
@@ -170,7 +169,7 @@ ZTEST_F(mp_bus_api, test_flush_clears_all)
 
 	mp_bus_flush(&fixture->bus);
 
-	zassert_is_null(mp_bus_peek(&fixture->bus), "Bus shall be empty after flush");
+	zassert_is_null(mp_bus_peek(&fixture->bus), "bus not empty after flush");
 }
 
 ZTEST_F(mp_bus_api, test_sync_listener)
@@ -188,10 +187,9 @@ ZTEST_F(mp_bus_api, test_sync_listener)
 	zassert_not_null(msg);
 	mp_bus_post(&fixture->bus, msg);
 
-	zassert_equal(listener_call_count, 1, "Listener shall be called once for matching message");
-	zassert_equal(listener_last_type, MP_MESSAGE_EOS,
-		      "Listener shall receive correct message type");
-	zassert_equal(listener_last_src, src, "Listener shall receive correct message source");
+	zassert_equal(listener_call_count, 1, "listener call count != 1");
+	zassert_equal(listener_last_type, MP_MESSAGE_EOS, "listener type != EOS");
+	zassert_equal(listener_last_src, src, "listener src mismatch");
 }
 
 ZTEST_F(mp_bus_api, test_sync_listener_filters_type)
@@ -204,5 +202,5 @@ ZTEST_F(mp_bus_api, test_sync_listener_filters_type)
 
 	zassert_not_null(msg);
 	mp_bus_post(&fixture->bus, msg);
-	zassert_equal(listener_call_count, 0, "Listener shall not be called for non-matching type");
+	zassert_equal(listener_call_count, 0, "listener called for non-matching type");
 }

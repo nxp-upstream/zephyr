@@ -36,59 +36,51 @@ static void bin_before(void *f)
 	MP_ELEMENT_INIT((struct mp_element *)&fix->src, mp_src_init, 1);
 	MP_ELEMENT_INIT((struct mp_element *)&fix->sink, mp_sink_init, 2);
 
-	zassert_equal(fix->bin.children_num, 0, "Bin shall have zero children after init");
-	zassert_true(sys_dlist_is_empty(&fix->bin.children),
-		     "Bin children list shall be empty after init");
+	zassert_equal(fix->bin.children_num, 0, "children_num != 0 after init");
+	zassert_true(sys_dlist_is_empty(&fix->bin.children), "children list not empty after init");
 	zassert_equal(((struct mp_element *)&fix->bin)->current_state, MP_STATE_READY,
-		      "Bin element state shall be READY after init");
+		      "state != READY after init");
 }
 
 ZTEST_SUITE(mp_bin_api, NULL, bin_suite_setup, bin_before, NULL, NULL);
 
 ZTEST_F(mp_bin_api, test_add_elements)
 {
-	/* Passing only NULL should add zero elements and succeed */
-	zassert_ok(mp_bin_add(&fixture->bin, NULL), "Adding NULL does nothing and shall succeed");
-	zassert_equal(fixture->bin.children_num, 0,
-		      "No children shall be added when first arg is NULL");
+	zassert_ok(mp_bin_add(&fixture->bin, NULL), "mp_bin_add(NULL) failed");
+	zassert_equal(fixture->bin.children_num, 0, "children_num != 0");
 
-	/* Add single element and verify count and container */
 	zassert_ok(mp_bin_add(&fixture->bin, (struct mp_element *)&fixture->src, NULL),
-		   "Adding a valid element shall succeed");
-	zassert_equal(fixture->bin.children_num, 1, "Bin shall have one child");
+		   "mp_bin_add(src) failed");
+	zassert_equal(fixture->bin.children_num, 1, "children_num != 1");
 	zassert_equal(fixture->src.element.object.container, (struct mp_object *)&fixture->bin,
-		      "Child container shall reference the bin");
+		      "src container != bin");
 
-	/* Add a second element and verify order is preserved */
 	zassert_ok(mp_bin_add(&fixture->bin, (struct mp_element *)&fixture->sink, NULL),
-		   "Adding sink element shall succeed");
-	zassert_equal(fixture->bin.children_num, 2, "Bin shall have two children");
+		   "mp_bin_add(sink) failed");
+	zassert_equal(fixture->bin.children_num, 2, "children_num != 2");
 
 	sys_dnode_t *first = sys_dlist_peek_head(&fixture->bin.children);
 
-	zassert_not_null(first, "Children list shall not be empty");
+	zassert_not_null(first, "children list is empty");
 
 	struct mp_element *first_elem = CONTAINER_OF(first, struct mp_element, object.node);
 
-	zassert_equal(first_elem->object.id, 1, "First child shall be src element with id=1");
+	zassert_equal(first_elem->object.id, 1, "first child id != 1");
 
-	/* Duplicate ID shall fail */
 	struct mp_src dup_src;
 
 	memset(&dup_src, 0, sizeof(dup_src));
-	MP_ELEMENT_INIT((struct mp_element *)&dup_src, mp_src_init, 1); /* Same ID as fixture->src */
+	MP_ELEMENT_INIT((struct mp_element *)&dup_src, mp_src_init, 1);
 
 	zassert_true(mp_bin_add(&fixture->bin, (struct mp_element *)&dup_src, NULL) < 0,
-		     "Adding element with duplicate ID shall fail");
-	zassert_equal(fixture->bin.children_num, 2,
-		      "Children count shall not increase on failed add");
+		     "duplicate id add did not fail");
+	zassert_equal(fixture->bin.children_num, 2, "children_num changed on failed add");
 }
 
 ZTEST_F(mp_bin_api, test_add_varargs)
 {
-	zassert_ok(mp_bin_add(&fixture->bin, (struct mp_element *)&fixture->src, (struct mp_element *)&fixture->sink,
-			      NULL),
-		   "Adding multiple elements in one call shall succeed");
-	zassert_equal(fixture->bin.children_num, 2,
-		      "Bin shall have two children after variadic add");
+	zassert_ok(mp_bin_add(&fixture->bin, (struct mp_element *)&fixture->src,
+			      (struct mp_element *)&fixture->sink, NULL),
+		   "mp_bin_add(src, sink) failed");
+	zassert_equal(fixture->bin.children_num, 2, "children_num != 2");
 }
