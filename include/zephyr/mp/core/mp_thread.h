@@ -43,7 +43,7 @@ struct mp_thread {
 	struct k_sem sem;
 	/** Thread stack ID */
 	uint8_t stack_id;
-	/** Current thread state (atomic to avoid caching/reordering issues across threads) */
+	/** Current thread state */
 	atomic_t state;
 };
 
