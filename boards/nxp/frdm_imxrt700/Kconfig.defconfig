@@ -1,0 +1,23 @@
+# FRDM-IMXRT700 board
+
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_FRDM_IMXRT700
+
+if SOC_MIMXRT798S_CM33_CPU0
+
+# The XIP boot flash (W25Q25PW quad SPI NOR on XSPI0) is described as a
+# bare soc-nv-flash node because the nxp,xspi-nor driver does not support
+# this part yet. The automatic XIP detection in
+# soc/nxp/common/Kconfig.xspi_xip keys off the flash node sitting under a
+# controller under the nxp,xspi node, so it does not trigger here. Enable
+# it explicitly: it compiles the XSPI clock setup code and relocates it to
+# SRAM, so that the PLL/XSPI clock reconfiguration in
+# board_early_init_hook() never executes from the flash it reclocks.
+config FLASH_MCUX_XSPI_XIP
+	default y
+
+endif
+
+endif
