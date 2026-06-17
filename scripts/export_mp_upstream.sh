@@ -871,7 +871,7 @@ Targets:
 Options:
   --dry-run     Show what would be done without making changes
   --list        List available targets
-  --no-comply   Skip compliance checks
+  --no-check   Skip compliance checks
   --help        Show this help
 
 Examples:
@@ -896,7 +896,7 @@ main() {
                 echo "Available targets: core zvid zjpeg zaud zdisp zfs zbase sample-cam_disp sample-jpeg_dec sample-fs sample-dmic_i2s"
                 exit 0
                 ;;
-            --no-comply)
+            --no-check)
                 SKIP_COMPLIANCE=true
                 shift
                 ;;
