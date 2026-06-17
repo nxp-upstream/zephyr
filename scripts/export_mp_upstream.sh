@@ -263,30 +263,16 @@ that performs filesystem I/O on any Zephyr-supported filesystem.
 
 ${SOB}"
 
-CORE_TEST_COMMIT_MSG="mp: tests: Add libmp core unit and pipeline tests
+CORE_TEST_COMMIT_MSG="mp: Add core tests
 
-Add unit tests and pipeline integration tests for the MP subsystem core.
+Add build-only, unit and mock pipeline tests for the MP core.
 
-The unit tests cover the fundamental building blocks of the MP framework:
-  - Bins
-  - Buffers
-  - Bus
-  - Caps
-  - Elements
-  - Messages
-  - Pads
-  - Pipelines
-  - Structures
-  - Threads
-  - Values
-
-The pipeline integration test (core/pipeline) is a mock pipeline
-with fake sink, fake source, and transform.
-
-The build_all configuration ensures all MP core symbols compile cleanly
-across supported boards.
+The mock pipeline is composed of a fake source, a transform and
+a sink to verify the whole core framework behavior such as
+pipeline creation, caps negotiation and data flow.
 
 Assisted-by: Claude:claude-opus-4.6
+${SOB}
 Signed-off-by: Trung Hieu Le <trunghieu.le@nxp.com>"
 
 SAMPLE_DMIC_I2S_COMMIT_MSG="mp: samples: Add DMIC to I2S audio sample
