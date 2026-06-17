@@ -1,8 +1,7 @@
 tests:
-  subsys.mp.core.unit:
+  mp.core.unit:
     platform_allow:
       - native_sim/native/64
-      - qemu_x86
     tags:
       - mp
       - unit

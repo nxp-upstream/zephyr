@@ -20,7 +20,7 @@ extern struct k_heap _system_heap;
 #define SINK_ID      3
 
 /* Number of buffers the source shall produce before EOS */
-#define TEST_BUFS_NUM 2
+#define TEST_BUFS_NUM 10
 
 struct test_mock_pipeline_fixture {
 	struct mp_pipeline pipeline;
@@ -48,6 +48,11 @@ static void pipeline_before(void *f)
 	MP_ELEMENT_INIT(&fix->transform, mp_transform_init, TRANSFORM_ID);
 	MP_ELEMENT_INIT(&fix->sink, mp_sink_init, SINK_ID);
 
+	/* Set number of buffers to produce before EOS */
+	zassert_ok(mp_object_set_properties((struct mp_object *)&fix->fake_src, PROP_NUM_BUFS,
+					    TEST_BUFS_NUM, PROP_LIST_END),
+		   "Failed to set fake_src PROP_NUM_BUFS");
+
 	sys_heap_runtime_stats_get(&_system_heap.heap, &fix->mem_before);
 }
 
@@ -58,11 +63,6 @@ ZTEST_F(test_mock_pipeline, test_pipeline_fakesrc_transform_sink)
 	struct mp_bus *bus;
 	struct mp_message *msg;
 	struct sys_memory_stats mem_after;
-
-	/* Set number of buffers to produce before EOS */
-	zassert_ok(mp_object_set_properties((struct mp_object *)&fixture->fake_src, PROP_NUM_BUFS,
-					    TEST_BUFS_NUM, PROP_LIST_END),
-		   "Failed to set fake_src PROP_NUM_BUFS");
 
 	/* Add all elements to the pipeline */
 	zassert_ok(mp_bin_add((struct mp_bin *)&fixture->pipeline,
@@ -94,9 +94,10 @@ ZTEST_F(test_mock_pipeline, test_pipeline_fakesrc_transform_sink)
 	zassert_equal(mp_element_set_state((struct mp_element *)&fixture->pipeline, MP_STATE_READY),
 		      MP_STATE_CHANGE_SUCCESS, "Pipeline failed to return to READY");
 
-	/* TODO: The pad's caps holds the negotiated caps from the RUNNING pipeline. They was not
-	 * automatically released on state change, so we unref them here to avoid memory leak
-	 * detection. */
+	/*
+	 * The pad's caps hold the negotiated caps which are not automatically released upon
+	 * state change to READY, unref them here to avoid the memory leak false detection.
+	 */
 	mp_caps_unref(fixture->fake_src.src.srcpad.caps);
 	mp_caps_unref(fixture->transform.srcpad.caps);
 	mp_caps_unref(fixture->transform.sinkpad.caps);
