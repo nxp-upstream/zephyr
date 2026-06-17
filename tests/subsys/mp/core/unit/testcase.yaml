@@ -7,4 +7,4 @@ tests:
       - unit
     integration_platforms:
       - native_sim/native/64
-    timeout: 60 # Maximum execution time for a test
+    timeout: 60
