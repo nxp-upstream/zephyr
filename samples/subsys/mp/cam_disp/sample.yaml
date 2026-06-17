@@ -23,7 +23,6 @@ tests:
     - mimxrt1064_evk/mimxrt1064
     - mimxrt1170_evk/mimxrt1176/cm7
     extra_args:
-    - platform:native_sim/native/64:DTC_OVERLAY_FILE="dummy_dc.overlay"
     - platform:native_sim/native/64:SNIPPET="video-sw-generator"
     - platform:mimxrt1064_evk/mimxrt1064:SHIELD="dvp_fpc24_mt9m114;rk043fn66hs_ctg"
     - platform:mimxrt1170_evk/mimxrt1176/cm7:SHIELD="nxp_btb44_ov5640;rk055hdmipi4ma0"
@@ -35,7 +34,6 @@ tests:
     extra_configs:
     - CONFIG_TEST=y
     - CONFIG_PROP_NUM_BUFS=100
-    - platform:native_sim/native/64:CONFIG_SDL_DISPLAY=n
     harness: console
     harness_config:
       type: one_line
