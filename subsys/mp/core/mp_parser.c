@@ -215,11 +215,10 @@ void mp_parser_init(struct mp_element *self)
 	parser->src_caps = mp_caps_new_any();
 
 	mp_pad_init(&parser->sinkpad, MP_PAD_SINK_ID, MP_PAD_SINK, MP_PAD_ALWAYS,
-		    mp_caps_ref(parser->sink_caps));
+		    parser->sink_caps);
 	mp_element_add_pad(self, &parser->sinkpad);
 
-	mp_pad_init(&parser->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS,
-		    mp_caps_ref(parser->src_caps));
+	mp_pad_init(&parser->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS, parser->src_caps);
 	mp_element_add_pad(self, &parser->srcpad);
 
 	parser->outpool = NULL;

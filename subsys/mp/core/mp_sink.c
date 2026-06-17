@@ -123,8 +123,7 @@ void mp_sink_init(struct mp_element *self)
 
 	/* Default supported caps */
 	sink->sink_caps = mp_caps_new_any();
-	mp_pad_init(&sink->sinkpad, MP_PAD_SINK_ID, MP_PAD_SINK, MP_PAD_ALWAYS,
-		    mp_sink_get_caps(sink));
+	mp_pad_init(&sink->sinkpad, MP_PAD_SINK_ID, MP_PAD_SINK, MP_PAD_ALWAYS, sink->sink_caps);
 	mp_element_add_pad(self, &sink->sinkpad);
 
 	sink->sinkpad.queryfn = mp_sink_query;

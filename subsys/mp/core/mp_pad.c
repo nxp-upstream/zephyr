@@ -4,16 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "zephyr/mp/core/mp_caps.h"
 #include <errno.h>
-#include <stdlib.h>
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
-#include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_buffer.h>
+#include "zephyr/mp/core/mp_caps.h"
 #include <zephyr/mp/core/mp_dispatch.h>
+#include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_pad.h>
 
 LOG_MODULE_REGISTER(mp_pad, CONFIG_MP_LOG_LEVEL);
@@ -26,13 +25,17 @@ void mp_pad_init(struct mp_pad *pad, uint8_t id, enum mp_pad_direction direction
 	pad->object.id = id;
 	pad->direction = direction;
 	pad->presence = presence;
-	pad->caps = caps;
+	mp_caps_replace(&pad->caps, caps);
 }
 
 struct mp_pad *mp_pad_new(uint8_t id, enum mp_pad_direction direction,
 			  enum mp_pad_presence presence, struct mp_caps *caps)
 {
-	struct mp_pad *pad = k_malloc(sizeof(struct mp_pad));
+	struct mp_pad *pad = k_calloc(1, sizeof(struct mp_pad));
+
+	if (pad == NULL) {
+		return NULL;
+	}
 
 	mp_pad_init(pad, id, direction, presence, caps);
 

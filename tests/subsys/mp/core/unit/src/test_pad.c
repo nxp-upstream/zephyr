@@ -50,8 +50,9 @@ static void pad_after(void *f)
 	struct mp_pad_api_fixture *fix = f;
 
 	if (fix->any_caps) {
+		mp_caps_unref(fix->src_pad.caps);
+		mp_caps_unref(fix->sink_pad.caps);
 		mp_caps_unref(fix->any_caps);
-		fix->any_caps = NULL;
 	}
 }
 
@@ -66,6 +67,7 @@ ZTEST_F(mp_pad_api, test_new)
 	zassert_equal(pad->direction, MP_PAD_SINK, "direction != SINK");
 	zassert_equal(pad->presence, MP_PAD_SOMETIMES, "presence != SOMETIMES");
 	zassert_equal(pad->caps, fixture->any_caps, "caps mismatch");
+	mp_caps_unref(pad->caps);
 	k_free(pad);
 
 	struct mp_pad *pad_null_caps = mp_pad_new(0, MP_PAD_SRC, MP_PAD_ALWAYS, NULL);

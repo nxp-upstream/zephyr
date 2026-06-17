@@ -148,7 +148,7 @@ static int mp_tee_add_srcpad(struct mp_tee *tee)
 	}
 
 	mp_pad_init(&tee->srcpads[tee->srcpads_num], tee->srcpads_num, MP_PAD_SRC, MP_PAD_ALWAYS,
-		    mp_caps_ref(tee->caps));
+		    tee->caps);
 	mp_element_add_pad(&tee->element, &tee->srcpads[tee->srcpads_num]);
 	tee->srcpads_num++;
 
@@ -205,7 +205,7 @@ void mp_tee_init(struct mp_element *self)
 	tee->caps = mp_caps_new_any();
 
 	/* Initialize the sink pad */
-	mp_pad_init(&tee->sinkpad, 0, MP_PAD_SINK, MP_PAD_ALWAYS, mp_caps_ref(tee->caps));
+	mp_pad_init(&tee->sinkpad, 0, MP_PAD_SINK, MP_PAD_ALWAYS, tee->caps);
 	mp_element_add_pad(self, &tee->sinkpad);
 
 	/* Initialize the default source pads */

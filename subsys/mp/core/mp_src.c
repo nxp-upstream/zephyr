@@ -223,7 +223,7 @@ void mp_src_init(struct mp_element *self)
 	/* Default supported caps */
 	src->src_caps = mp_caps_new_any();
 
-	mp_pad_init(&src->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS, mp_src_get_caps(src));
+	mp_pad_init(&src->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS, src->src_caps);
 	mp_element_add_pad(self, &src->srcpad);
 
 	self->object.set_property = mp_src_set_property;

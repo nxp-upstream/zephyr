@@ -317,9 +317,9 @@ void mp_transform_init(struct mp_element *self)
 	transform->src_caps = mp_caps_new_any();
 
 	mp_pad_init(&transform->sinkpad, MP_PAD_SINK_ID, MP_PAD_SINK, MP_PAD_ALWAYS,
-		    mp_caps_ref(transform->sink_caps));
+		    transform->sink_caps);
 	mp_pad_init(&transform->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS,
-		    mp_caps_ref(transform->src_caps));
+		    transform->src_caps);
 	mp_element_add_pad(self, &transform->sinkpad);
 	mp_element_add_pad(self, &transform->srcpad);
 
