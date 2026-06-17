@@ -94,6 +94,14 @@ ZTEST_F(test_mock_pipeline, test_pipeline_fakesrc_transform_sink)
 	zassert_equal(mp_element_set_state((struct mp_element *)&fixture->pipeline, MP_STATE_READY),
 		      MP_STATE_CHANGE_SUCCESS, "Pipeline failed to return to READY");
 
+	/* TODO: The pad's caps holds the negotiated caps from the RUNNING pipeline. They was not
+	 * automatically released on state change, so we unref them here to avoid memory leak
+	 * detection. */
+	mp_caps_unref(fixture->fake_src.src.srcpad.caps);
+	mp_caps_unref(fixture->transform.srcpad.caps);
+	mp_caps_unref(fixture->transform.sinkpad.caps);
+	mp_caps_unref(fixture->sink.sinkpad.caps);
+
 	/* Check if heap memory was properly cleaned up */
 	sys_heap_runtime_stats_get(&_system_heap.heap, &mem_after);
 	zassert_equal(fixture->mem_before.allocated_bytes, mem_after.allocated_bytes,
