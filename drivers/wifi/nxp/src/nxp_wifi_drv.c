@@ -418,6 +418,41 @@ static int nxp_wifi_cpu_reset(uint8_t enable)
 	struct gpio_dt_spec sdio_reset = GPIO_DT_SPEC_GET(DT_DRV_INST(0), sd_gpios);
 	struct gpio_dt_spec pwr_gpios = GPIO_DT_SPEC_GET(DT_DRV_INST(0), pwr_gpios);
 
+#if DT_NODE_HAS_PROP(DT_DRV_INST(0), ext1_pwren_gpios)
+	struct gpio_dt_spec ext1_pwren = GPIO_DT_SPEC_GET(DT_DRV_INST(0), ext1_pwren_gpios);
+
+	if (!gpio_is_ready_dt(&ext1_pwren)) {
+		LOG_ERR("Error: failed to configure ext1_pwren %s pin %d",
+			ext1_pwren.port->name, ext1_pwren.pin);
+		return -EIO;
+	}
+
+	err = gpio_pin_configure_dt(&ext1_pwren, GPIO_OUTPUT);
+	if (err) {
+		LOG_ERR("Error %d: failed to configure ext1_pwren %s pin %d", err,
+			ext1_pwren.port->name, ext1_pwren.pin);
+		return err;
+	}
+
+	if (enable) {
+		/* Enable VPCIe_3V3 power to M.2 module before PD_N */
+		err = gpio_pin_set_dt(&ext1_pwren, 1);
+		if (err) {
+			LOG_ERR("Error %d: failed to set ext1_pwren %s pin %d", err,
+				ext1_pwren.port->name, ext1_pwren.pin);
+			return err;
+		}
+		k_sleep(K_MSEC(100));
+	} else {
+		err = gpio_pin_set_dt(&ext1_pwren, 0);
+		if (err) {
+			LOG_ERR("Error %d: failed to clear ext1_pwren %s pin %d", err,
+				ext1_pwren.port->name, ext1_pwren.pin);
+			return err;
+		}
+	}
+#endif
+
 	if (!gpio_is_ready_dt(&sdio_reset)) {
 		LOG_ERR("Error: failed to configure sdio_reset %s pin %d", sdio_reset.port->name,
 				sdio_reset.pin);

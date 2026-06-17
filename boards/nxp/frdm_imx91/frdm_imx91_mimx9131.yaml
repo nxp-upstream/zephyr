@@ -18,6 +18,9 @@ supported:
   - net
   - uart
   - watchdog
+  - wifi
+  - bluetooth
+  - sdhc
 testing:
   binaries:
     - flash.bin
