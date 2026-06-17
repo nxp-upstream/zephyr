@@ -98,6 +98,7 @@ int mp_sink_event(struct mp_pad *pad, struct mp_dispatch *event)
 	case MP_DISPATCH_CAPS:
 		struct mp_caps *caps = mp_dispatch_get_caps(event);
 		int ret = sink->set_caps(sink, caps);
+
 		mp_caps_unref(caps);
 
 		return ret;

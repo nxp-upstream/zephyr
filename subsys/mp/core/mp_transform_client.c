@@ -73,7 +73,8 @@ static int mp_transform_client_propose_allocation(struct mp_transform *self,
 	return mp_dispatch_set_pool(query, self->inpool);
 }
 
-static int mp_transform_client_decide_allocation(struct mp_transform *self, struct mp_dispatch *query)
+static int mp_transform_client_decide_allocation(struct mp_transform *self,
+						 struct mp_dispatch *query)
 {
 	struct mp_buffer_pool *query_pool = mp_dispatch_get_pool(query);
 	struct mp_buffer_pool_config *pool_config = &self->outpool->config;
