@@ -22,8 +22,12 @@ struct nxp_irtc_counter_config {
 	struct counter_config_info info;
 	RTC_Type *base;
 	void (*irq_config_func)(const struct device *dev);
+	/* Wake timer interrupt line, used to arm the deep-sleep wakeup signal. */
+	unsigned int irqn;
 	/* Enable the OSC_DIV_ENA /32 prescaler (1024 Hz vs raw 32768 Hz). */
 	bool osc_div;
+	/* Device defined as a wake-up source */
+	bool wakeup_source;
 };
 
 struct nxp_irtc_counter_data {
@@ -311,6 +315,10 @@ static int nxp_irtc_counter_init(const struct device *dev)
 
 	config->irq_config_func(dev);
 
+	if (IS_ENABLED(CONFIG_PM) && config->wakeup_source) {
+		NXP_ENABLE_WAKEUP_SIGNAL(config->irqn);
+	}
+
 	return 0;
 }
 
@@ -331,7 +339,9 @@ static DEVICE_API(counter, nxp_irtc_counter_driver_api) = {
 	static const struct nxp_irtc_counter_config nxp_irtc_counter_config_##n = {                \
 		.base = (RTC_Type *)DT_REG_ADDR(DT_INST_PARENT(n)),                                \
 		.irq_config_func = nxp_irtc_counter_irq_config_##n,                                \
+		.irqn = DT_INST_IRQN(n),                                                           \
 		.osc_div = DT_INST_PROP(n, osc_div),                                               \
+		.wakeup_source = DT_INST_PROP(n, wakeup_source),                                   \
 		.info =                                                                            \
 			{                                                                          \
 				.max_top_value = UINT32_MAX,                                       \
