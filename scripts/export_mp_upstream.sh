@@ -117,6 +117,11 @@ SAMPLE_JPEG_DEC_PATHS=(
     "samples/subsys/mp/jpeg_dec/"
 )
 
+# Sample: tee_dec (tee JPEG decoding pipeline)
+SAMPLE_TEE_DEC_PATHS=(
+    "samples/subsys/mp/tee_dec/"
+)
+
 # Sample: fs (filesystem read/write pipeline)
 SAMPLE_FS_PATHS=(
     "samples/subsys/mp/fs/"
@@ -254,6 +259,14 @@ pipeline.
 
 ${SOB}"
 
+SAMPLE_TEE_DEC_COMMIT_MSG="mp: samples: Add TEE JPEG decoding sample
+
+Add the tee_dec sample application demonstrating how to decode JPEG
+images, display them and write the decoded data to a file at the same
+time, showcasing pipeline branching feature of the MP subsystem.
+
+${SOB}"
+
 SAMPLE_FS_COMMIT_MSG="mp: samples: Add filesystem sample
 
 Add the fs sample application demonstrating how to read from and
@@ -300,6 +313,7 @@ TARGET_DEPS=(
     [zbase]="${UPSTREAM_PREFIX}-core"
     [sample-cam_disp]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zbase ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zdisp"
     [sample-jpeg_dec]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zbase ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zjpeg ${UPSTREAM_PREFIX}-zdisp ${UPSTREAM_PREFIX}-zfs"
+    [sample-tee_dec]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zbase ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zjpeg ${UPSTREAM_PREFIX}-zdisp ${UPSTREAM_PREFIX}-zfs"
     [sample-fs]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zfs"
     [sample-dmic_i2s]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zbase ${UPSTREAM_PREFIX}-zaud"
 )
@@ -570,7 +584,7 @@ check_doxygen_coverage() {
     # --- Generate Base branch coverage JSON ---
     log_info "  Generating base (${BASE_REF}) coverage JSON..."
 
-    local base_worktree="/tmp/mp-base-worktree-$$"
+    local base_worktree="/tmp/mp-base-worktree-$"
     git worktree add --detach "${base_worktree}" "${BASE_REF}" --quiet 2>/dev/null || true
 
     if [ -d "${base_worktree}" ]; then
@@ -717,6 +731,11 @@ export_sample_jpeg_dec() {
         "${SAMPLE_JPEG_DEC_COMMIT_MSG}" "${SAMPLE_JPEG_DEC_PATHS[@]}"
 }
 
+export_sample_tee_dec() {
+    generate_branch "sample-tee_dec" "${UPSTREAM_PREFIX}-sample-tee_dec" \
+        "${SAMPLE_TEE_DEC_COMMIT_MSG}" "${SAMPLE_TEE_DEC_PATHS[@]}"
+}
+
 export_sample_fs() {
     generate_branch "sample-fs" "${UPSTREAM_PREFIX}-sample-fs" \
         "${SAMPLE_FS_COMMIT_MSG}" "${SAMPLE_FS_PATHS[@]}"
@@ -732,7 +751,7 @@ export_sample_dmic_i2s() {
 # ===========================================================================
 
 export_all() {
-    TARGETS=(core zvid zjpeg zaud zdisp zfs zbase sample-cam_disp sample-jpeg_dec sample-fs sample-dmic_i2s)
+    TARGETS=(core zvid zjpeg zaud zdisp zfs zbase sample-cam_disp sample-jpeg_dec sample-tee_dec sample-fs sample-dmic_i2s)
 
     log_info "=== Exporting all MP upstream PR branches ==="
     log_info "Source: ${SOURCE_BRANCH}"
@@ -756,6 +775,7 @@ export_all() {
     # Samples (depend on core + relevant plugin)
     export_sample_cam_disp
     export_sample_jpeg_dec
+    export_sample_tee_dec
     export_sample_fs
     export_sample_dmic_i2s
 
@@ -864,6 +884,7 @@ Targets:
   zbase            Base plugin (depends on core)
   sample-cam_disp  Camera-to-display sample (depends on core, zbase, zvid, zdisp)
   sample-jpeg_dec  JPEG decoding sample (depends on core, zbase, zvid, zjpeg, zdisp, zfs)
+  sample-tee_dec   Multi-branch jpeg decoding sample (depends on core, zbase, zvid, zjpeg, zdisp, zfs)
   sample-fs        Filesystem sample (depends on core, zfs)
   sample-dmic_i2s  DMIC to I2S sample (depends on core, zbase, zaud)
   all              All of the above (default)
@@ -893,7 +914,7 @@ main() {
                 shift
                 ;;
             --list)
-                echo "Available targets: core zvid zjpeg zaud zdisp zfs zbase sample-cam_disp sample-jpeg_dec sample-fs sample-dmic_i2s"
+                echo "Available targets: core zvid zjpeg zaud zdisp zfs zbase sample-cam_disp sample-jpeg_dec sample-tee_dec sample-fs sample-dmic_i2s"
                 exit 0
                 ;;
             --no-check)
@@ -904,7 +925,7 @@ main() {
                 usage
                 exit 0
                 ;;
-            core|zvid|zjpeg|zaud|zdisp|zfs|zbase|sample-cam_disp|sample-jpeg_dec|sample-fs|sample-dmic_i2s|all)
+            core|zvid|zjpeg|zaud|zdisp|zfs|zbase|sample-cam_disp|sample-jpeg_dec|sample-tee_dec|sample-fs|sample-dmic_i2s|all)
                 targets+=("$1")
                 shift
                 ;;
@@ -963,6 +984,10 @@ main() {
             sample-jpeg_dec)
                 TARGETS+=(sample-jpeg_dec)
                 export_sample_jpeg_dec
+                ;;
+            sample-tee_dec)
+                TARGETS+=(sample-tee_dec)
+                export_sample_tee_dec
                 ;;
             sample-fs)
                 TARGETS+=(sample-fs)
