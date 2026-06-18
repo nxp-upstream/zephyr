@@ -50,6 +50,7 @@ struct mcp_http_request_accumulator {
 	char content_type_hdr[CONFIG_HTTP_SERVER_MAX_HEADER_LEN];
 	char origin_hdr[CONFIG_HTTP_SERVER_MAX_HEADER_LEN];
 	char protocol_version_hdr[CONFIG_HTTP_SERVER_MAX_HEADER_LEN];
+	char authorization_hdr[CONFIG_HTTP_SERVER_MAX_HEADER_LEN];
 	bool in_use;
 };
 
@@ -160,6 +161,8 @@ HTTP_SERVER_REGISTER_HEADER_CAPTURE(content_type_hdr, "Content-Type");
 HTTP_SERVER_REGISTER_HEADER_CAPTURE(mcp_session_id_hdr, "Mcp-Session-Id");
 HTTP_SERVER_REGISTER_HEADER_CAPTURE(last_event_id_hdr, "Last-Event-Id");
 HTTP_SERVER_REGISTER_HEADER_CAPTURE(mcp_protocol_version_hdr, "Mcp-Protocol-Version");
+HTTP_SERVER_REGISTER_HEADER_CAPTURE(authorization_hdr, "Authorization");
+
 
 /*******************************************************************************
  * Min Heap Helpers
@@ -274,8 +277,13 @@ static int accumulate_header(struct mcp_http_request_accumulator *accumulator,
 		accumulator->origin_hdr[sizeof(accumulator->origin_hdr) - 1] = '\0';
 	} else if (strcmp(header->name, "Content-Type") == 0) {
 		strncpy(accumulator->content_type_hdr, header->value,
-			sizeof(accumulator->content_type_hdr) - 1);
+		    sizeof(accumulator->content_type_hdr) - 1);
 		accumulator->content_type_hdr[sizeof(accumulator->content_type_hdr) - 1] = '\0';
+	} else if (strcmp(header->name, "Authorization") == 0) {
+	    strncpy(accumulator->authorization_hdr, header->value,
+	        sizeof(accumulator->authorization_hdr) - 1);
+		accumulator->authorization_hdr[sizeof(accumulator->authorization_hdr) - 1] = '\0';
+		LOG_DBG("Authorization header captured: %s", accumulator->authorization_hdr);
 	} else {
 		LOG_DBG("Unhandled header: %s", header->name);
 	}
@@ -651,6 +659,26 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 	} else {
 		mcp_safe_strcpy(request_data.protocol_version,
 				sizeof(request_data.protocol_version), DEFAULT_PROTOCOL_VERSION);
+	}
+
+	if (accumulator->authorization_hdr[0] != '\0') {
+		LOG_INF("Request has authorization: %s", accumulator->authorization_hdr);
+		// extract auth header and validate
+		// token = extract_token(accumulator->authorization_hdr) -> implement this in mcp_server_auth.c
+		// if (token) {
+		// if (!validate_token(token)) { -> implement this in mcp_server_auth.c
+		//     response_ctx->status = HTTP_401_UNAUTHORIZED;
+		//     response_ctx->final_chunk = true;
+		//     return 0;
+		// }
+		// }
+	} else {
+		// if auth is mandatory then send back an error response
+		LOG_DBG("No authorization header provided");
+		// todo: any other cleanup needed at this point ? 
+		response_ctx->status = HTTP_401_UNAUTHORIZED;
+		response_ctx->final_chunk = true;
+		return 0;
 	}
 
 	ret = mcp_server_handle_request(http_transport_state.server_core, &request_data,
