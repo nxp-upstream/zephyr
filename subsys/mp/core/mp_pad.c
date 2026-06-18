@@ -10,7 +10,7 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mp/core/mp_buffer.h>
-#include "zephyr/mp/core/mp_caps.h"
+#include <zephyr/mp/core/mp_caps.h>
 #include <zephyr/mp/core/mp_dispatch.h>
 #include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_pad.h>
