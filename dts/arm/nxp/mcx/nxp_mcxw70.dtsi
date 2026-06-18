@@ -424,6 +424,7 @@
 		compatible = "nxp,spc";
 		reg = <0x0 0x504>;
 		interrupts = <23 0>;
+		active-dcdc-output-microvolt = <2500000>;
 	};
 
 	wuu_0: system-modules@14000 {
@@ -569,6 +570,8 @@
 		status = "okay";
 		interrupts = <92 2>;
 		interrupt-names = "nbu_rx_int";
+		max-tx-power-support = <0 7 10>;
+		max-tx-power-dbm = <10>;
 	};
 
 	hci: hci_ble {
