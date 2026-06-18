@@ -87,7 +87,9 @@ static int mp_queue_sink_eventfn(struct mp_pad *pad, struct mp_dispatch *event)
 
 	switch (event->type) {
 	case MP_DISPATCH_EOS:
-		ret = k_msgq_put(&queue->msgq, &eos_sentinel, K_FOREVER);
+		void *eos_ptr = &eos_sentinel;
+
+		ret = k_msgq_put(&queue->msgq, &eos_ptr, K_FOREVER);
 		if (ret != 0) {
 			LOG_ERR("Failed to put EOS sentinel to the msgq (%d)", ret);
 		}
@@ -152,6 +154,7 @@ static enum mp_state_change_return mp_queue_change_state(struct mp_element *elem
 							 enum mp_state_change transition)
 {
 	struct mp_queue *queue = (struct mp_queue *)element;
+	void *pause_ptr = &pause_sentinel;
 
 	switch (transition) {
 	case MP_STATE_CHANGE_READY_TO_PAUSED:
@@ -171,7 +174,7 @@ static enum mp_state_change_return mp_queue_change_state(struct mp_element *elem
 		 * will continue the loop to block in wait().
 		 */
 		mp_thread_pause(&queue->thread);
-		k_msgq_put(&queue->msgq, &pause_sentinel, K_NO_WAIT);
+		k_msgq_put(&queue->msgq, &pause_ptr, K_NO_WAIT);
 		break;
 	case MP_STATE_CHANGE_PAUSED_TO_READY:
 		struct net_buf *buffer;
