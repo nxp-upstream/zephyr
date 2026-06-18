@@ -6,6 +6,11 @@
 #include <zephyr/device.h>
 #include "fsl_power.h"
 #include "fsl_clock.h"
+#include "fsl_lpuart.h"
+#include "fsl_lpflexcomm.h"
+#if defined(CONFIG_SECOND_CORE_MCUX)
+#include "fsl_mu.h"
+#endif
 #include <soc.h>
 #include <fsl_glikey.h>
 
@@ -13,6 +18,10 @@
 #define SYSOSC_SETTLING_US 220U
 /*!< xtal frequency in Hz */
 #define XTAL_SYS_CLK_HZ    24000000U
+
+#if defined(CONFIG_SECOND_CORE_MCUX)
+#define IMXRT7XX_CPU1_BOOT_FLAG 0x1U
+#endif
 
 #if CONFIG_SOC_MIMXRT798S_CM33_CPU0
 #define SYSCON_BASE DT_REG_ADDR(DT_NODELABEL(syscon0))
@@ -63,6 +72,45 @@ const clock_audio_pll_config_t g_audioPllConfig_clock_init = {
 static void BOARD_InitAHBSC(void);
 #if CONFIG_DT_HAS_NXP_MCUX_EDMA_ENABLED
 static void edma_enable_all_request(uint8_t instance);
+#endif
+
+#if CONFIG_SOC_MIMXRT798S_CM33_CPU0 && DT_HAS_CHOSEN(zephyr_console) &&                            \
+	DT_SAME_NODE(DT_CHOSEN(zephyr_console), DT_NODELABEL(flexcomm0_lpuart0))
+#define DSR_CONSOLE_NODE DT_CHOSEN(zephyr_console)
+
+void board_rt700_dsr_restore(void)
+{
+	lpuart_config_t config;
+
+	BOARD_InitAHBSC();
+
+	/*
+	 * Deep-sleep retention powers the system oscillator down (SLEEPCON0
+	 * XTAL_PD). The cold-boot console sources FCCLK0 from OSC_CLK, but OSC is
+	 * not available immediately after resume. Clock the console FlexComm from
+	 * FRO0 (which survives DSR) instead of the oscillator.
+	 */
+	CLOCK_AttachClk(kFRO0_DIV1_to_FCCLK0);
+	CLOCK_SetClkDiv(kCLOCK_DivFcclk0Clk, 10U);
+	SET_UP_FLEXCOMM_CLOCK(0);
+
+	/*
+	 * Deep-sleep retention resets the LP_FLEXCOMM0 wrapper, clearing its
+	 * PSELID peripheral-select register. Until PSELID selects the LPUART, the
+	 * LPUART register bank is not mapped and any access bus-faults. Re-run
+	 * LP_FLEXCOMM_Init to clear the wrapper reset and re-select LPUART before
+	 * the LPUART driver touches its registers.
+	 */
+	LP_FLEXCOMM_Init(0U, LP_FLEXCOMM_PERIPH_LPUART);
+
+	LPUART_GetDefaultConfig(&config);
+	config.baudRate_Bps = DT_PROP(DSR_CONSOLE_NODE, current_speed);
+	config.enableRx = true;
+	config.enableTx = true;
+
+	LPUART_Init((LPUART_Type *)DT_REG_ADDR(DSR_CONSOLE_NODE), &config,
+		    CLOCK_GetLPFlexCommClkFreq(0));
+}
 #endif
 
 void board_early_init_hook(void)
@@ -179,11 +227,6 @@ void board_early_init_hook(void)
 #endif /* CONFIG_SOC_MIMXRT798S_CM33_CPU0 */
 
 	BOARD_InitAHBSC();
-
-#if defined(CONFIG_SECOND_CORE_MCUX)
-	POWER_DisablePD(kPDRUNCFG_SHUT_SENSEP_MAINCLK);
-	POWER_ApplyPD();
-#endif
 
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(edma0))
 	edma_enable_all_request(0);
@@ -349,6 +392,26 @@ void board_early_init_hook(void)
 		DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(os_timer_cpu1)))
 	CLOCK_AttachClk(kLPOSC_to_OSTIMER);
 	CLOCK_SetClkDiv(kCLOCK_DivOstimerClk, 1U);
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(irtc_wake))
+	/*
+	 * The IRTC calendar/alarm runs on the always-on 32 kHz oscillator
+	 * (OSC32KNP). Bring it up in self-charge (low-power) mode and enable the
+	 * IRTC functional clock so the alarm keeps running across deep sleep
+	 * retention and can wake the compute domain.
+	 */
+	{
+		clock_osc32k_config_t osc32k_cfg = {
+			.bypass = false,
+			.monitorEnable = false,
+			.lowPowerMode = true,
+			.cap = kCLOCK_Osc32kCapPf16,
+		};
+
+		CLOCK_EnableOsc32K(&osc32k_cfg);
+		CLOCK_EnableClock(kCLOCK_Rtc);
+	}
 #endif
 
 #if ((DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(usb0)) && CONFIG_UDC_NXP_EHCI) || \
@@ -625,8 +688,13 @@ static int second_core_boot(void)
 	/* Get the boot address for the second core */
 	uint32_t boot_address = (uint32_t)(DT_REG_ADDR(DT_NODELABEL(sram_code)));
 
+	/* Power up SRAM */
 	PMC0->PDRUNCFG2 &= ~0x3FFC0000;
 	PMC0->PDRUNCFG3 &= ~0x3FFC0000;
+
+	/* Power up SENSE domain MAIN clock */
+	POWER_DisablePD(kPDRUNCFG_SHUT_SENSEP_MAINCLK);
+	POWER_ApplyPD();
 
 	/* RT700 specific CPU1 boot sequence */
 	/* Glikey write enable, GLIKEY4 */
@@ -647,8 +715,32 @@ static int second_core_boot(void)
 	/* Release cpu wait*/
 	SYSCON3->CPU_STATUS &= ~SYSCON3_CPU_STATUS_CPU_WAIT_MASK;
 
+	/* Wait CPU1 booted */
+	RESET_ClearPeripheralReset(kMU1_RST_SHIFT_RSTn);
+	MU_Init(MU1_MUA);
+
+	while (MU_GetFlags(MU1_MUA) != IMXRT7XX_CPU1_BOOT_FLAG) {
+	}
+
+#if defined(CONFIG_PM)
+	POWER_DisableLPRequestMask(kPower_MaskAll);
+#endif
+
 	return 0;
 }
 
 SYS_INIT(second_core_boot, PRE_KERNEL_2, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
+#endif
+
+#if defined(CONFIG_SECOND_CORE_MCUX) && defined(CONFIG_SOC_MIMXRT798S_CM33_CPU1)
+static int second_core_notify_boot(void)
+{
+	RESET_ClearPeripheralReset(kMU1_RST_SHIFT_RSTn);
+	MU_Init(MU1_MUB);
+	MU_SetFlags(MU1_MUB, IMXRT7XX_CPU1_BOOT_FLAG);
+
+	return 0;
+}
+
+SYS_INIT(second_core_notify_boot, PRE_KERNEL_2, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
 #endif

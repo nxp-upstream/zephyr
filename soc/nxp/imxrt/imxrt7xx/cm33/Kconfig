@@ -20,6 +20,9 @@ config SOC_MIMXRT798S_CM33_CPU0
 	select INIT_ARCH_HW_AT_BOOT
 	select SOC_RESET_HOOK
 	select SOC_EARLY_INIT_HOOK
+	select HAS_PM
+	select PM_STATE_SET_IRQ_LOCKED
+	select SOC_IMXRT7XX_POWER_DOMAIN_COMPUTE
 
 config SOC_MIMXRT798S_CM33_CPU1
 	select CPU_CORTEX_M33
@@ -33,6 +36,33 @@ config SOC_MIMXRT798S_CM33_CPU1
 	select ARM_TRUSTZONE_M
 	select CPU_CORTEX_M_HAS_SYSTICK
 	select HAS_MCUX
+	select HAS_PM
+	select PM_STATE_SET_IRQ_LOCKED
+	select SOC_IMXRT7XX_POWER_DOMAIN_SENSE
+
+config SOC_IMXRT7XX_POWER_DOMAIN_COMPUTE
+	bool
+	help
+	  Selected when building for a core residing in the RT7xx Compute
+	  power domain. This domain is controlled by PMC0/SLEEPCON0 and
+	  covers the Common, Compute and Media rails.
+
+config SOC_IMXRT7XX_POWER_DOMAIN_SENSE
+	bool
+	help
+	  Selected when building for a core residing in the RT7xx Sense
+	  power domain. This domain is controlled by PMC1/SLEEPCON1.
+
+config SOC_MIMXRT7XX_PM_XIP_HANDOVER
+	bool "XIP handover (XSPI deinit/reinit and XCACHE flush) during PM entry"
+	default y if FLASH_MCUX_XSPI_XIP
+	depends on PM
+	help
+	  When entering deep sleep / DSR while executing XIP, the XSPI
+	  controller and its caches must be quiesced before the relevant
+	  power domain is removed and brought back up afterwards. Enable
+	  this option to compile in the XIP suspend/resume helpers and
+	  invoke them from the low-power entry path.
 
 config MCUX_CORE_SUFFIX
 	default "_cm33_core0" if SOC_MIMXRT798S_CM33_CPU0
