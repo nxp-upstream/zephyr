@@ -195,10 +195,9 @@
 	};
 
 	wuu: system-modules@19000 {
-		compatible = "nxp,wuc-wuu", "nxp,wuu";
+		compatible = "nxp,wuu";
 		reg = <0x19000 0x1000>;
 		interrupts = <22 0>;
-		#wakeup-ctrl-cells = <1>;
 	};
 
 	clk_ctrl: clock-controller {
@@ -429,8 +428,6 @@
 		prescale-glitch-filter-bypass;
 		resolution = <32>;
 		status = "disabled";
-		wakeup-source;
-		wakeup-ctrls = <&wuu NXP_WUU_MODULE_0_INT>;
 	};
 
 	lptmr1: timer@2e000 {
@@ -452,7 +449,6 @@
 		/* Max TX power can be overridden by the board */
 		max-tx-power-dbm = <7>;
 		wakeup-source;
-		wakeup-ctrls = <&wuu NXP_WUU_MODULE_2_DMA>;
 	};
 
 	hci: hci_ble {
