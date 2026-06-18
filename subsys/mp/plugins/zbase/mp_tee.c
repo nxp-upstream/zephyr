@@ -37,8 +37,7 @@ static int mp_tee_sink_queryfn(struct mp_pad *pad, struct mp_dispatch *query)
 
 		return 0;
 	case MP_DISPATCH_BUFFER_CONFIG: {
-		/* TODO: Remove static when set pool config set by value instead of pointer */
-		static struct mp_buffer_pool_config merged = {0};
+		struct mp_buffer_pool_config merged = {0};
 
 		for (uint8_t i = 0; i < tee->srcpads_num; i++) {
 			if (tee->srcpads[i].peer == NULL) {
