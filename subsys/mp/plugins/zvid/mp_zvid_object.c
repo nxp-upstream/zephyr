@@ -7,6 +7,7 @@
 #include <zephyr/drivers/video.h>
 #include <zephyr/drivers/video-controls.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/minmax.h>
 #include <zephyr/sys/util.h>
 
 #include <zephyr/mp/core/mp_caps.h>
