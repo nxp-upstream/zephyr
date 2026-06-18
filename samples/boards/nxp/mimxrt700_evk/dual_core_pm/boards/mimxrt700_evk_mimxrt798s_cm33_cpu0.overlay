@@ -1,0 +1,99 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * The dual-core PM sample does not use I2C or the on-board PCA9422 PMIC.
+ *
+ * On CPU0 the LPI2C15 functional clock is sourced from the SENSE domain base
+ * clock, which is configured by CPU1 (not CPU0). When the PMIC MFD driver is
+ * pulled in it initializes LPI2C15 while its clock rate is still 0, which makes
+ * the MCUX LPI2C driver divide by zero during baud-rate setup. Disabling the
+ * unused bus (and the PMIC node on it) keeps the sample focused on dual-core
+ * power-management coordination over the MU.
+ */
+
+&lpi2c15 {
+	status = "disabled";
+};
+
+&pca9422 {
+	status = "disabled";
+};
+
+/*
+ * In the dual-core PM matrix CPU0 enters deep sleep while CPU1 keeps running
+ * (cases 5-7). The default SLEEPCON0 deep-sleep mask gates the SENSE-domain and
+ * common main clocks and powers down every oscillator (XTAL, FRO0-2, LPOSC),
+ * and the default PDSLEEPCFG2/3 masks power down the SRAM partitions that hold
+ * CPU1's code and data (0x5C0000-0x67FFFF). Either one freezes CPU1's core.
+ * Override the deep-sleep config so CPU0 deep sleep keeps the clocks and RAM
+ * CPU1 depends on alive.
+ *
+ * deep-sleep-config words map to the SoC power code's excl[] mask (bits to
+ * NOT gate / NOT power down):
+ *   word0 = SLEEPCON0 SLEEPCFG keep-alive (clocks/oscillators)
+ *   word1 = PDSLEEPCFG0 keep-powered      (voltage domains)
+ *   word2 = PDSLEEPCFG1 keep-powered
+ *   word3 = PDSLEEPCFG2 keep-powered      (SRAM partitions 0-31)
+ *   word4 = PDSLEEPCFG3 keep-powered      (SRAM partitions 32-63)
+ *   word5 = PDSLEEPCFG4 keep-powered      (caches / OTP / peripherals)
+ *   word6 = PDSLEEPCFG5 keep-powered
+ *
+ * word0 = 0xA000FFA6 keeps: SENSEP/SENSES/COMN main clocks (bits 1,2,5),
+ * XTAL/FRO0-2/LPOSC (bits 7-11), all PLLs (bits 12-15) and the FRO0/FRO2
+ * output gates (bits 29,31). word1 = 0x140 keeps VDDN_COM fully powered
+ * (VNCOM_DSR bit8 + V2NMED_DSR bit6) so CPU0 resumes in place instead of
+ * warm-resetting into ROM. word3/word4 = 0xFFFFFFFF keep all SRAM partitions
+ * powered so CPU1's image survives CPU0 deep sleep.
+ */
+&deepsleep {
+	deep-sleep-config = <0xa000ffa6 0x140 0x0
+			     0xffffffff 0xffffffff 0x400c00 0x0>;
+};
+
+/*
+ * Deep sleep retention reuses the same dual-core keep-alive mask as deep sleep
+ * (case 8: CPU0 DSR while CPU1 is parked in deep sleep). Full deep-sleep
+ * retention (FDSR) is a dual-domain mode: it only engages when both the compute
+ * and sense domains request deep sleep. Keeping the SENSE / COMN clocks and all
+ * SRAM partitions alive lets both cores resume in place afterwards.
+ *
+ * word1 = 0x1C0 excludes V2COM_DSR (bit7) in addition to VNCOM_DSR (bit8) and
+ * V2NMED_DSR (bit6). PCFG0_DSR requests all three, but V2COM_DSR (the shared
+ * VDD2 common rail) must only be retained when *every* VDD2/VDDN companion is
+ * also retained (PMC rule: "when V2COM_DSR, other VDD2 and VDDN switches should
+ * be off"). Since not every VDD2/VDDN companion enters retention here, V2COM_DSR
+ * must be excluded - otherwise the PMC enters an inconsistent retention state,
+ * the common VDD2/VDDN rail collapses, and CPU0 warm-resets into the boot ROM
+ * instead of resuming in place. Excluding it leaves only V2COMP_DSR (CPU0's own
+ * compute logic), which together with the FDSR domain bits is exactly what
+ * case 8 needs.
+ */
+&dsr {
+	deep-sleep-retention-config = <0xa000ffa6 0x1c0 0x0
+				       0xffffffff 0xffffffff 0x400c00 0x0>;
+};
+
+/*
+ * In DSR (case 8) the OS Timer that drives the system tick loses power because
+ * it sits in the VDD2_COMP rail that DSR collapses. Enable the always-on IRTC
+ * wake timer as the companion counter so the OS Timer can program a wakeup and
+ * resume in place. rtc0 must be okay for its wake-timer child to be usable.
+ */
+/ {
+	chosen {
+		zephyr,system-timer-companion = &irtc_wake;
+	};
+};
+
+&rtc0 {
+	status = "okay";
+};
+
+&irtc_wake {
+	status = "okay";
+	wakeup-source;
+};

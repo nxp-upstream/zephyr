@@ -1,0 +1,17 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+source "Kconfig.zephyr"
+
+config INCLUDE_REMOTE_DIR
+	bool "Include remote core header directory"
+	help
+	  Include remote build header files. The RT700 CPU0 image needs the
+	  CPU1 image information header when CONFIG_SECOND_CORE_MCUX is enabled.
+
+config RT700_DUAL_CORE_PM_SLEEP_SECONDS
+	int "Power-mode measurement window in seconds"
+	default 10
+	range 1 3600
+	help
+	  Number of seconds each active, sleep, or deep-sleep test case runs.
