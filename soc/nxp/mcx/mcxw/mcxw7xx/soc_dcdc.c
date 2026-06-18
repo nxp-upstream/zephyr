@@ -35,9 +35,25 @@
  * The DCDC voltage level register selects one of four nominal levels. The
  * 2.5V output is not a register level on its own: it is a custom mode that
  * selects the NormalVoltage (1.5V) level and additionally sets the
- * DCDC_CFG VOUT2P5_SEL bit. It is only useful to reach the 10 dBm BLE TX
- * power and is therefore enabled only for that case.
+ * VOUT2P5_SEL bit. It is only useful to reach the 10 dBm BLE TX power and is
+ * therefore enabled only for that case.
+ *
+ * The SPC register that holds VOUT2P5_SEL differs between the MCXW7x
+ * variants: on MCXW70 it lives in ACTIVE_CFG, while on MCXW71/MCXW72 it lives
+ * in DCDC_CFG. There is no HAL FSL_FEATURE flag for the 2.5V mode, so the
+ * register and mask are selected at build time from the SoC Kconfig. This is
+ * a temporary arrangement: once the SPC HAL driver gains support for this
+ * feature, the register accesses below can be replaced by the driver API and
+ * this guard dropped.
  */
+#if defined(CONFIG_SOC_MCXW70AC)
+#define VOUT2P5_REG  ACTIVE_CFG
+#define VOUT2P5_MASK SPC_ACTIVE_CFG_DCDC_VOUT2P5_SEL_MASK
+#else
+#define VOUT2P5_REG  DCDC_CFG
+#define VOUT2P5_MASK SPC_DCDC_CFG_VOUT2P5_SEL_MASK
+#endif
+
 #define DCDC_UV_LOW_UNDER 1250000 /* kSPC_DCDC_LowUnderVoltage */
 #define DCDC_UV_MID       1350000 /* kSPC_DCDC_MidVoltage */
 #define DCDC_UV_NORMAL    1500000 /* kSPC_DCDC_NormalVoltage */
@@ -98,15 +114,25 @@ void nxp_mcxw7x_dcdc_init(void)
 	uint32_t vd_status = SPC_GetActiveModeVoltageDetectStatus(base);
 	bool core_hvd = (vd_status & SPC_ACTIVE_CFG_CORE_HVDE_MASK) != 0U;
 	bool core_lvd = (vd_status & SPC_ACTIVE_CFG_CORE_LVDE_MASK) != 0U;
+#if (defined(FSL_FEATURE_SPC_HAS_SYS_LDO) && FSL_FEATURE_SPC_HAS_SYS_LDO)
 	bool sys_hvd = (vd_status & SPC_ACTIVE_CFG_SYS_HVDE_MASK) != 0U;
 	bool sys_lvd = (vd_status & SPC_ACTIVE_CFG_SYS_LVDE_MASK) != 0U;
+#endif
+#if (defined(FSL_FEATURE_SPC_HAS_VDD1P8_LVD) && FSL_FEATURE_SPC_HAS_VDD1P8_LVD)
+	bool vdd1p8_lvd = (vd_status & SPC_ACTIVE_CFG_VDD1P8_LVDE_MASK) != 0U;
+#endif
 	bool io_hvd = (vd_status & SPC_ACTIVE_CFG_IO_HVDE_MASK) != 0U;
 	bool io_lvd = (vd_status & SPC_ACTIVE_CFG_IO_LVDE_MASK) != 0U;
 
 	SPC_EnableActiveModeCoreHighVoltageDetect(base, false);
 	SPC_EnableActiveModeCoreLowVoltageDetect(base, false);
+#if (defined(FSL_FEATURE_SPC_HAS_SYS_LDO) && FSL_FEATURE_SPC_HAS_SYS_LDO)
 	SPC_EnableActiveModeSystemHighVoltageDetect(base, false);
 	SPC_EnableActiveModeSystemLowVoltageDetect(base, false);
+#endif
+#if (defined(FSL_FEATURE_SPC_HAS_VDD1P8_LVD) && FSL_FEATURE_SPC_HAS_VDD1P8_LVD)
+	SPC_EnableActiveModeVDD1P8LowVoltageDetect(base, false);
+#endif
 	SPC_EnableActiveModeIOHighVoltageDetect(base, false);
 	SPC_EnableActiveModeIOLowVoltageDetect(base, false);
 	while (SPC_GetBusyStatusFlag(base)) {
@@ -117,9 +143,9 @@ void nxp_mcxw7x_dcdc_init(void)
 	 * output. It is set only for the 2.5V mode and cleared otherwise.
 	 */
 	if (DCDC_OUTPUT_UV == DCDC_UV_2P5) {
-		base->DCDC_CFG |= SPC_DCDC_CFG_VOUT2P5_SEL_MASK;
+		base->VOUT2P5_REG |= VOUT2P5_MASK;
 	} else {
-		base->DCDC_CFG &= ~SPC_DCDC_CFG_VOUT2P5_SEL_MASK;
+		base->VOUT2P5_REG &= ~VOUT2P5_MASK;
 	}
 
 	dcdc_option.DCDCVoltage = mcxw7x_dcdc_level();
@@ -131,8 +157,13 @@ void nxp_mcxw7x_dcdc_init(void)
 	/* Restore the voltage detectors to their previous state. */
 	SPC_EnableActiveModeCoreHighVoltageDetect(base, core_hvd);
 	SPC_EnableActiveModeCoreLowVoltageDetect(base, core_lvd);
+#if (defined(FSL_FEATURE_SPC_HAS_SYS_LDO) && FSL_FEATURE_SPC_HAS_SYS_LDO)
 	SPC_EnableActiveModeSystemHighVoltageDetect(base, sys_hvd);
 	SPC_EnableActiveModeSystemLowVoltageDetect(base, sys_lvd);
+#endif
+#if (defined(FSL_FEATURE_SPC_HAS_VDD1P8_LVD) && FSL_FEATURE_SPC_HAS_VDD1P8_LVD)
+	SPC_EnableActiveModeVDD1P8LowVoltageDetect(base, vdd1p8_lvd);
+#endif
 	SPC_EnableActiveModeIOHighVoltageDetect(base, io_hvd);
 	SPC_EnableActiveModeIOLowVoltageDetect(base, io_lvd);
 	while (SPC_GetBusyStatusFlag(base)) {
