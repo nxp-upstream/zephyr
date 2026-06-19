@@ -10,6 +10,14 @@
 #include <fsl_cmc.h>
 #include <fsl_spc.h>
 #include <fsl_wuu.h>
+#include <zephyr/platform/hooks.h>
+#include <soc.h>
+
+#if defined(CONFIG_PM_S2RAM)
+#include <errno.h>
+#include <cmsis_core.h>
+#include <zephyr/arch/common/pm_s2ram.h>
+#endif
 
 #define WUU_WAKEUP_LPTMR0_IDX	6U
 #define MCXA_WAKEUP_DELAY	DT_PROP_OR(DT_NODELABEL(spc), wakeup_delay, 0)
@@ -37,6 +45,93 @@ static void enter_low_power(void)
 	arch_pm_state_set_finish(key);
 }
 
+#if defined(CONFIG_PM_S2RAM)
+/* 0xF keeps every RAM array powered by the SPC SRAM retention LDO. */
+#define MCXA_SRAM_RETAIN_ALL	0xFU
+
+/*
+ * Deep Power Down (mapped to PM_STATE_SUSPEND_TO_RAM) power gates the whole
+ * CORE domain, including the ARM System Control Space (NVIC, SCB). The chip
+ * wakes through the reset routine; arch_pm_s2ram_resume() then returns directly
+ * to the suspend call site without re-running kernel/CPU initialization, so the
+ * SCS state is saved here before entry and restored on resume.
+ */
+static struct {
+	uint32_t iser[ARRAY_SIZE(((NVIC_Type *)NVIC_BASE)->ISER)];
+	uint32_t ipr[(sizeof(((NVIC_Type *)NVIC_BASE)->IPR)) / sizeof(uint32_t)];
+	uint32_t vtor;
+	uint32_t scr;
+	uint32_t ccr;
+	uint32_t shpr[ARRAY_SIZE(((SCB_Type *)SCB_BASE)->SHPR)];
+	uint32_t shcsr;
+	uint32_t cpacr;
+} mcxa_scs_context;
+
+static void mcxa_scs_save(void)
+{
+	for (size_t i = 0; i < ARRAY_SIZE(mcxa_scs_context.iser); i++) {
+		mcxa_scs_context.iser[i] = NVIC->ISER[i];
+	}
+
+	for (size_t i = 0; i < ARRAY_SIZE(mcxa_scs_context.ipr); i++) {
+		mcxa_scs_context.ipr[i] = ((volatile uint32_t *)NVIC->IPR)[i];
+	}
+
+	mcxa_scs_context.vtor = SCB->VTOR;
+	mcxa_scs_context.scr = SCB->SCR;
+	mcxa_scs_context.ccr = SCB->CCR;
+
+	for (size_t i = 0; i < ARRAY_SIZE(mcxa_scs_context.shpr); i++) {
+		mcxa_scs_context.shpr[i] = SCB->SHPR[i];
+	}
+
+	mcxa_scs_context.shcsr = SCB->SHCSR;
+	mcxa_scs_context.cpacr = SCB->CPACR;
+}
+
+static void mcxa_scs_restore(void)
+{
+	SCB->VTOR = mcxa_scs_context.vtor;
+	SCB->CCR = mcxa_scs_context.ccr;
+	SCB->CPACR = mcxa_scs_context.cpacr;
+
+	for (size_t i = 0; i < ARRAY_SIZE(mcxa_scs_context.shpr); i++) {
+		SCB->SHPR[i] = mcxa_scs_context.shpr[i];
+	}
+
+	SCB->SHCSR = mcxa_scs_context.shcsr;
+	SCB->SCR = mcxa_scs_context.scr;
+	__DSB();
+	__ISB();
+
+	for (size_t i = 0; i < ARRAY_SIZE(mcxa_scs_context.ipr); i++) {
+		((volatile uint32_t *)NVIC->IPR)[i] = mcxa_scs_context.ipr[i];
+	}
+
+	for (size_t i = 0; i < ARRAY_SIZE(mcxa_scs_context.iser); i++) {
+		NVIC->ISER[i] = mcxa_scs_context.iser[i];
+	}
+}
+
+static void mcxa_s2ram_retain_sram(void)
+{
+	SPC_EnableSRAMLdo(MCXA_SPC_ADDR, true);
+	SPC_RetainSRAMArray(MCXA_SPC_ADDR, MCXA_SRAM_RETAIN_ALL);
+}
+
+static int mcxa_enter_deep_power_down(void)
+{
+	const cmc_power_domain_config_t cmc_config = {
+		.clock_mode = kCMC_GateAllSystemClocksEnterLowPowerMode,
+		.main_domain = kCMC_DeepPowerDown,
+	};
+
+	CMC_EnterLowPowerMode(MCXA_CMC_ADDR, &cmc_config);
+
+	return -EBUSY;
+}
+#endif /* CONFIG_PM_S2RAM */
+
 __weak void pm_state_set(enum pm_state state, uint8_t substate_id)
 {
 	pm_enter_hook();
@@ -57,11 +152,33 @@ __weak void pm_state_set(enum pm_state state, uint8_t substate_id)
 		break;
 
 	case PM_STATE_STANDBY:
-		SPC_SetLowPowerWakeUpDelay(SPC0, MCXA_WAKEUP_DELAY);
+		SPC_SetLowPowerWakeUpDelay(MCXA_SPC_ADDR, MCXA_WAKEUP_DELAY);
 		CMC_SetClockMode(MCXA_CMC_ADDR, kCMC_GateAllSystemClocksEnterLowPowerMode);
 		CMC_SetMAINPowerMode(MCXA_CMC_ADDR, kCMC_PowerDownMode);
 		enter_low_power();
 		break;
+
+#if defined(CONFIG_PM_S2RAM)
+	case PM_STATE_SUSPEND_TO_RAM:
+		SPC_SetLowPowerWakeUpDelay(MCXA_SPC_ADDR, MCXA_WAKEUP_DELAY);
+		mcxa_s2ram_retain_sram();
+		mcxa_scs_save();
+		(void)arch_pm_s2ram_suspend(mcxa_enter_deep_power_down);
+
+		SystemInit();
+
+		/* re-build clock tree */
+		board_early_init_hook();
+
+		/* idle-thread stack is nearly full, it is easy to reach the
+		 * PSPLIM limit on resume. Drop the limit here, the next context
+		 * switch re-establishes the per-thread PSPLIM.
+		 */
+		__set_PSPLIM(0U);
+
+		mcxa_scs_restore();
+		break;
+#endif
 
 	default:
 		break;
@@ -70,12 +187,20 @@ __weak void pm_state_set(enum pm_state state, uint8_t substate_id)
 
 __weak void pm_state_exit_post_ops(enum pm_state state, uint8_t substate_id)
 {
-	ARG_UNUSED(state);
 	ARG_UNUSED(substate_id);
+#if !defined(CONFIG_PM_S2RAM)
+	ARG_UNUSED(state);
+#endif
 
 	if ((SCB->SCR & SCB_SCR_SLEEPDEEP_Msk) == SCB_SCR_SLEEPDEEP_Msk) {
 		SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk;
 	}
+
+#if defined(CONFIG_PM_S2RAM)
+	if (state == PM_STATE_SUSPEND_TO_RAM) {
+		SPC_ClearPeriphIOIsolationFlag(MCXA_SPC_ADDR);
+	}
+#endif
 
 	SPC_ClearPowerDomainLowPowerRequestFlag(MCXA_SPC_ADDR, kSPC_PowerDomain0);
 	SPC_ClearLowPowerRequest(MCXA_SPC_ADDR);
