@@ -12,6 +12,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/min_heap.h>
+#include <zephyr/sys/base64.h>
 #include <string.h>
 #include <inttypes.h>
 
@@ -618,6 +619,100 @@ static int poll_for_response(struct mcp_http_client_ctx *mcp_client, uint32_t ms
 	return ret;
 }
 
+
+/**
+ * Extract token from Authorization header
+ * Supports formats: "Bearer <token>" or just "<token>"
+ * 
+ * @param auth_header The full Authorization header value
+ * @param token_out Buffer to store extracted token
+ * @param token_out_size Size of token_out buffer
+ * @return 0 on success, negative error code on failure
+ */
+static int extract_auth_token(const char *auth_header, char *token_out, size_t token_out_size)
+{
+const char *token_start;
+	size_t token_len;
+
+	if ((auth_header == NULL) || (token_out == NULL) || (token_out_size == 0)) {
+		return -EINVAL;
+	}
+
+	while (*auth_header == ' ' || *auth_header == '\t') {
+		auth_header++;
+	}
+
+	/* Check for "Bearer " prefix (case-insensitive) */
+	if (strncasecmp(auth_header, "Bearer ", 7) == 0) {
+		token_start = auth_header + 7;
+		
+		while (*token_start == ' ' || *token_start == '\t') {
+			token_start++;
+		}
+	} else {
+		/* No "Bearer" prefix, treat entire value as token */
+		token_start = auth_header;
+	}
+
+	token_len = 0;
+	while (token_start[token_len] != '\0' && 
+	       token_start[token_len] != ' ' && 
+	       token_start[token_len] != '\t' &&
+	       token_start[token_len] != '\r' &&
+	       token_start[token_len] != '\n') {
+		token_len++;
+	}
+
+	if (token_len == 0) {
+		LOG_ERR("Empty token in Authorization header");
+		return -EINVAL;
+	}
+
+	if (token_len >= token_out_size) {
+		LOG_ERR("Token too long: %zu bytes (max: %zu)", token_len, token_out_size - 1);
+		return -ENOSPC;
+	}
+
+	memcpy(token_out, token_start, token_len);
+	token_out[token_len] = '\0';
+
+	LOG_DBG("Extracted token (length: %zu)", token_len);
+	return 0;
+}
+
+/**
+ * Decode base64 encoded token
+ * 
+ * @param encoded Base64 encoded string
+ * @param decoded Buffer for decoded output
+ * @param decoded_size Size of decoded buffer
+ * @return Length of decoded data on success, negative error code on failure
+ */
+static int decode_base64_token(const char *encoded, uint8_t *decoded, size_t decoded_size)
+{
+	size_t encoded_len;
+	size_t decoded_len;
+	int ret;
+
+	if ((encoded == NULL) || (decoded == NULL) || (decoded_size == 0)) {
+		return -EINVAL;
+	}
+
+	encoded_len = strlen(encoded);
+	if (encoded_len == 0) {
+		return -EINVAL;
+	}
+
+	ret = base64_decode(decoded, decoded_size, &decoded_len, encoded, encoded_len);
+	if (ret != 0) {
+		LOG_ERR("Base64 decode failed: %d", ret);
+		return ret;
+	}
+
+	LOG_DBG("Decoded %zu bytes from %zu base64 chars", decoded_len, encoded_len);
+	return (int)decoded_len;
+}
+
 /*******************************************************************************
  * POST Handler
  ******************************************************************************/
@@ -663,15 +758,43 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 
 	if (accumulator->authorization_hdr[0] != '\0') {
 		LOG_INF("Request has authorization: %s", accumulator->authorization_hdr);
-		// extract auth header and validate
-		// token = extract_token(accumulator->authorization_hdr) -> implement this in mcp_server_auth.c
-		// if (token) {
-		// if (!validate_token(token)) { -> implement this in mcp_server_auth.c
+		int ret;
+        char auth_token[CONFIG_HTTP_SERVER_MAX_HEADER_LEN]; //need more space here 
+		uint8_t decoded_token[CONFIG_HTTP_SERVER_MAX_HEADER_LEN];
+		int token_size = sizeof(auth_token);
+		int decoded_len;
+		
+		ret = extract_auth_token(accumulator->authorization_hdr, auth_token, token_size);
+		if ((ret != 0) || (token_size <=0)) {
+			LOG_ERR("Failed to extract authorization token");
+			response_ctx->status = HTTP_401_UNAUTHORIZED;
+			response_ctx->final_chunk = true;
+			return 0;
+		}
+
+        LOG_INF("Extracted token: %s", auth_token);
+
+        decoded_len = decode_base64_token(auth_token, decoded_token, sizeof(decoded_token));
+		if (decoded_len < 0) {
+			LOG_ERR("Failed to decode base64 token: %d", decoded_len);
+			response_ctx->status = HTTP_401_UNAUTHORIZED;
+			response_ctx->final_chunk = true;
+			return 0;
+		}
+		
+		/* Null-terminate if it's a string */
+		if (decoded_len < sizeof(decoded_token)) {
+			decoded_token[decoded_len] = '\0';
+		}
+		
+		LOG_INF("Decoded token: %s (length: %d)", decoded_token, decoded_len);
+
+		// if (!validate_token(token)) { 
 		//     response_ctx->status = HTTP_401_UNAUTHORIZED;
 		//     response_ctx->final_chunk = true;
 		//     return 0;
 		// }
-		// }
+
 	} else {
 		// if auth is mandatory then send back an error response
 		LOG_DBG("No authorization header provided");
