@@ -1007,7 +1007,7 @@ static inline void mp_value_print_list(const struct mp_value *value)
 
 void mp_value_print(const struct mp_value *value, bool new_line)
 {
-	typedef void (*mp_value_print_fn)(const struct mp_value *value);
+	typedef void (*mp_value_print_fn)(const struct mp_value *);
 	static const mp_value_print_fn mp_value_print_table[MP_TYPE_COUNT] = {
 		[MP_TYPE_NONE] = NULL,
 		[MP_TYPE_BOOLEAN] = mp_value_print_int,

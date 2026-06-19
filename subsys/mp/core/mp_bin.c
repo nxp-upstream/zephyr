@@ -56,12 +56,6 @@ int mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...)
 	return 0;
 }
 
-/*
- * Count the number of linked pads in a given direction for an element.
- *
- * For UP transitions (sink-first), degree = number of linked srcpads.
- * For DOWN transitions (src-first), degree = number of linked sinkpads.
- */
 static int mp_bin_count_linked_pads(struct mp_element *element, sys_dlist_t *pad_list)
 {
 	struct mp_object *obj;
@@ -78,7 +72,6 @@ static int mp_bin_count_linked_pads(struct mp_element *element, sys_dlist_t *pad
 	return count;
 }
 
-/* Find element index in the elements array */
 static int mp_bin_find_element_index(struct mp_element *elements[], int num,
 				     struct mp_element *target)
 {
@@ -89,6 +82,27 @@ static int mp_bin_find_element_index(struct mp_element *elements[], int num,
 	}
 
 	return -1;
+}
+
+static void mp_bin_decrement_peer_degrees(sys_dlist_t *pad_list, struct mp_element *elements[],
+					  int degree[], int num_elements)
+{
+	struct mp_object *pad_obj;
+
+	SYS_DLIST_FOR_EACH_CONTAINER(pad_list, pad_obj, node) {
+		struct mp_pad *pad = (struct mp_pad *)pad_obj;
+
+		if (pad->peer == NULL) {
+			continue;
+		}
+
+		struct mp_element *peer_elem = (struct mp_element *)pad->peer->object.container;
+		int idx = mp_bin_find_element_index(elements, num_elements, peer_elem);
+
+		if (idx >= 0 && degree[idx] > 0) {
+			degree[idx]--;
+		}
+	}
 }
 
 enum mp_state_change_return mp_bin_change_state_func(struct mp_element *self,
@@ -105,17 +119,11 @@ enum mp_state_change_return mp_bin_change_state_func(struct mp_element *self,
 	/*
 	 * Topological sort using BFS.
 	 *
-	 * For UP transitions (READY→PAUSED, PAUSED→PLAYING):
-	 *   - Sinks first (elements with no srcpad links have degree 0)
-	 *   - degree = number of linked srcpads
-	 *   - After processing element E, for each sinkpad of E, find the
-	 *     peer srcpad's container element and decrement its degree.
-	 *
-	 * For DOWN transitions (PLAYING→PAUSED, PAUSED→READY):
-	 *   - Sources first (elements with no sinkpad links have degree 0)
-	 *   - degree = number of linked sinkpads
-	 *   - After processing element E, for each srcpad of E, find the
-	 *     peer sinkpad's container element and decrement its degree.
+	 * For UP/DOWN transitions:
+	 *   - Sinks/Sources first (elements with no srcpad/sinkpad links have degree 0)
+	 *   - degree = number of linked srcpads/sinkpads
+	 *   - After processing element E, for each sinkpad/srcpad of E, find the
+	 *     peer srcpad/sinkpad's container element and decrement its degree.
 	 */
 
 	is_up_transition = (transition == MP_STATE_CHANGE_READY_TO_PAUSED ||
@@ -168,31 +176,14 @@ enum mp_state_change_return mp_bin_change_state_func(struct mp_element *self,
 			/*
 			 * Decrement degree of peer elements.
 			 *
-			 * For UP: iterate sinkpads of this element, find
-			 *         peer srcpad's container, decrement its degree.
-			 * For DOWN: iterate srcpads of this element, find
-			 *           peer sinkpad's container, decrement its degree.
+			 * For UP/DOWN transitions:
+			 *   - Iterate sinkpads/srcpads of this element to find the peer
+			 *     sinkpad/srcpad'scontainer element and decrement its degree.
 			 */
 			sys_dlist_t *pad_list =
 				is_up_transition ? &elements[i]->sinkpads : &elements[i]->srcpads;
-			struct mp_object *pad_obj;
 
-			SYS_DLIST_FOR_EACH_CONTAINER(pad_list, pad_obj, node) {
-				struct mp_pad *pad = (struct mp_pad *)pad_obj;
-
-				if (pad->peer == NULL) {
-					continue;
-				}
-
-				struct mp_element *peer_elem =
-					(struct mp_element *)pad->peer->object.container;
-				int idx = mp_bin_find_element_index(elements, num_elements,
-								    peer_elem);
-
-				if (idx >= 0 && degree[idx] > 0) {
-					degree[idx]--;
-				}
-			}
+			mp_bin_decrement_peer_degrees(pad_list, elements, degree, num_elements);
 		}
 
 		if (!found) {

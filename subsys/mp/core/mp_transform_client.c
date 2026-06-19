@@ -28,14 +28,16 @@ static int mp_transform_client_chainfn(struct mp_pad *pad, struct net_buf *in_bu
 		return -ENOTSUP;
 	}
 
-	if (transform->outpool == NULL || transform->outpool->acquire_buffer == NULL) {
+	if (in_buf == NULL || out_buf == NULL || transform->outpool == NULL ||
+	    transform->outpool->acquire_buffer == NULL) {
 		return -EINVAL;
 	}
 
 	in_meta = mp_buffer_get_meta(in_buf);
 	in_used = in_meta ? in_meta->bytes_used : in_buf->len;
 
-	if (transform->outpool->acquire_buffer(transform->outpool, out_buf) != 0) {
+	if (transform->outpool->acquire_buffer(transform->outpool, out_buf) != 0 ||
+	    *out_buf == NULL) {
 		LOG_ERR("Failed to acquire an output buffer");
 		return -ENOMEM;
 	}

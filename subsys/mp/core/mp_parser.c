@@ -62,18 +62,16 @@ static inline int mp_parser_query_caps(struct mp_parser *self, enum mp_pad_direc
 				       struct mp_dispatch *query)
 {
 	int ret;
-	struct mp_pad *this_pad, *other_pad;
+	struct mp_pad *other_pad;
 	struct mp_caps *queried_pad_caps;
 	struct mp_caps *this_caps = (direction == MP_PAD_SINK) ? self->sink_caps : self->src_caps;
 	struct mp_caps *other_caps = (direction == MP_PAD_SINK) ? self->src_caps : self->sink_caps;
 
 	switch (direction) {
 	case MP_PAD_SINK:
-		this_pad = &self->sinkpad;
 		other_pad = &self->srcpad;
 		break;
 	case MP_PAD_SRC:
-		this_pad = &self->srcpad;
 		other_pad = &self->sinkpad;
 		break;
 	default:
