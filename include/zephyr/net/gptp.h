@@ -254,6 +254,11 @@ struct gptp_clk_src_time_invoke_params {
 };
 
 /**
+ * @brief gPTP initialization.
+ */
+void net_gptp_init(void);
+
+/**
  * @brief Register a phase discontinuity callback.
  *
  * @param phase_dis Caller specified handler for the callback.

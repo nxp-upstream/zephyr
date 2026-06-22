@@ -31,7 +31,9 @@ LOG_MODULE_REGISTER(net_core, CONFIG_NET_CORE_LOG_LEVEL);
 #include <zephyr/net/net_pkt.h>
 #include <zephyr/net/net_core.h>
 #include <zephyr/net/dns_resolve.h>
+#if defined(CONFIG_NET_GPTP)
 #include <zephyr/net/gptp.h>
+#endif
 #include <zephyr/net/websocket.h>
 #include <zephyr/net/ethernet.h>
 #if defined(CONFIG_NET_DSA)
