@@ -19,6 +19,7 @@
 #include "mcp_common.h"
 #include "mcp_json.h"
 #include "mcp_server_internal.h"
+#include "mcp_server_auth.h"
 
 #if defined(CONFIG_MCP_HTTP_LOG_ADDRESS)
 #include <zephyr/net/net_mgmt.h>
@@ -643,7 +644,7 @@ const char *token_start;
 	}
 
 	/* Check for "Bearer " prefix (case-insensitive) */
-	if (strncasecmp(auth_header, "Bearer ", 7) == 0) {
+	if (strncmp(auth_header, "Bearer ", 7) == 0) {
 		token_start = auth_header + 7;
 		
 		while (*token_start == ' ' || *token_start == '\t') {
@@ -758,14 +759,14 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 
 	if (accumulator->authorization_hdr[0] != '\0') {
 		LOG_INF("Request has authorization: %s", accumulator->authorization_hdr);
-		int ret;
+		int err;
         char auth_token[CONFIG_HTTP_SERVER_MAX_HEADER_LEN]; //need more space here 
 		uint8_t decoded_token[CONFIG_HTTP_SERVER_MAX_HEADER_LEN];
 		int token_size = sizeof(auth_token);
 		int decoded_len;
 		
-		ret = extract_auth_token(accumulator->authorization_hdr, auth_token, token_size);
-		if ((ret != 0) || (token_size <=0)) {
+		err = extract_auth_token(accumulator->authorization_hdr, auth_token, token_size);
+		if ((err != 0) || (token_size <=0)) {
 			LOG_ERR("Failed to extract authorization token");
 			response_ctx->status = HTTP_401_UNAUTHORIZED;
 			response_ctx->final_chunk = true;
@@ -789,11 +790,15 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 		
 		LOG_INF("Decoded token: %s (length: %d)", decoded_token, decoded_len);
 
-		// if (!validate_token(token)) { 
-		//     response_ctx->status = HTTP_401_UNAUTHORIZED;
-		//     response_ctx->final_chunk = true;
-		//     return 0;
-		// }
+		/* Validate the decoded token */
+		if (validate_token(decoded_token, decoded_len) != 0) {
+			LOG_ERR("Token validation failed");
+			response_ctx->status = HTTP_401_UNAUTHORIZED; 
+			response_ctx->final_chunk = true;
+			return 0;
+		}
+	
+		LOG_INF("Token validated successfully");
 
 	} else {
 		// if auth is mandatory then send back an error response
