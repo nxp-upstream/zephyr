@@ -40,7 +40,7 @@ static int mp_zvid_buffer_pool_client_start(struct mp_buffer_pool *pool)
 		struct mp_buffer_meta *m = mp_buffer_get_meta(nb);
 
 		m->pool = pool;
-		m->priv = vbuf;
+		m->driver_buf = vbuf;
 		m->bytes_used = vbuf->bytesused;
 		m->timestamp = vbuf->timestamp;
 		nb->len = m->bytes_used;
@@ -89,7 +89,7 @@ static int mp_zvid_buffer_pool_client_release_buffer(struct mp_buffer_pool *pool
 	}
 
 	m = mp_buffer_get_meta(buf);
-	vbuf = m ? (struct video_buffer *)m->priv : NULL;
+	vbuf = m ? (struct video_buffer *)m->driver_buf : NULL;
 	if (vbuf != NULL) {
 		m->bytes_used = vbuf->bytesused;
 		m->timestamp = vbuf->timestamp;

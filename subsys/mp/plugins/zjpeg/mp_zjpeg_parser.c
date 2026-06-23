@@ -81,9 +81,9 @@ static inline void set_bytes_used(struct net_buf *buf, uint32_t used)
 	buf->len = used;
 
 	/* Keep Zephyr video_buffer (if any) in sync for zvid_transform/video_enqueue */
-	/* TODO: Ensure priv is a video_buffer */
-	if (bm->priv != NULL) {
-		((struct video_buffer *)bm->priv)->bytesused = used;
+	/* TODO: Ensure driver_buf is a video_buffer */
+	if (bm->driver_buf != NULL) {
+		((struct video_buffer *)bm->driver_buf)->bytesused = used;
 	}
 }
 
@@ -152,6 +152,7 @@ static int mp_zjpeg_parser_acquire_buffer(struct mp_buffer_pool *pool, struct ne
 	m->pool = pool;
 	m->bytes_used = 0;
 	m->timestamp = 0;
+	m->driver_buf = NULL;
 	m->priv = NULL;
 	out->len = 0;
 
@@ -169,6 +170,7 @@ static int mp_zjpeg_parser_release_buffer(struct mp_buffer_pool *pool, struct ne
 		if (m != NULL) {
 			m->bytes_used = 0;
 			m->timestamp = 0;
+			m->driver_buf = NULL;
 			m->priv = NULL;
 		}
 		buf->len = 0;

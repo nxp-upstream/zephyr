@@ -136,6 +136,7 @@ static int mp_zfilesrc_pool_acquire_buffer(struct mp_buffer_pool *pool, struct n
 		m->pool = &fsrc->pool;
 		m->bytes_used = 0;
 		m->timestamp = 0;
+		m->driver_buf = NULL;
 		m->priv = NULL;
 	}
 
@@ -161,6 +162,7 @@ static int mp_zfilesrc_pool_release_buffer(struct mp_buffer_pool *pool, struct n
 		if (m != NULL) {
 			m->bytes_used = 0;
 			m->timestamp = 0;
+			m->driver_buf = NULL;
 			m->priv = NULL;
 		}
 

@@ -43,6 +43,7 @@ static int mp_zjpeg_decoder_outpool_acquire(struct mp_buffer_pool *pool, struct 
 	m->pool = pool;
 	m->bytes_used = 0;
 	m->timestamp = 0;
+	m->driver_buf = NULL;
 	m->priv = NULL;
 	out->len = 0;
 
@@ -61,6 +62,7 @@ static int mp_zjpeg_decoder_outpool_release(struct mp_buffer_pool *pool, struct 
 		if (m != NULL) {
 			m->bytes_used = 0;
 			m->timestamp = 0;
+			m->driver_buf = NULL;
 			m->priv = NULL;
 		}
 		buf->len = 0;

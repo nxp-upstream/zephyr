@@ -194,7 +194,8 @@ int mp_zdisp_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net
 		 * Currently, we assumme that in_buf is always a video buffer.
 		 * TODO: Add support for other buffer types
 		 */
-		struct video_buffer *vbuf = (struct video_buffer *)mp_buffer_get_meta(cur)->priv;
+		struct video_buffer *vbuf =
+			(struct video_buffer *)mp_buffer_get_meta(cur)->driver_buf;
 		struct display_buffer_descriptor buf_desc = {
 			.buf_size = mp_buffer_get_meta(cur)->bytes_used,
 		};

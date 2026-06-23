@@ -29,11 +29,11 @@ static int mp_zvid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	struct mp_buffer_pool *outpool = &zvid_transform->zvid_obj_out.pool.pool;
 	struct video_buffer *in_vbuf;
 
-	/* TODO: Ensure net_buf meta's priv is always a video buffer */
-	if (mp_buffer_get_meta(in_buf)->priv == NULL) {
+	/* TODO: Ensure net_buf meta's driver_buf is always a video buffer */
+	if (mp_buffer_get_meta(in_buf)->driver_buf == NULL) {
 		in_vbuf = video_import_buffer(in_buf->data, in_buf->size);
 	} else {
-		in_vbuf = mp_buffer_get_meta(in_buf)->priv;
+		in_vbuf = mp_buffer_get_meta(in_buf)->driver_buf;
 	}
 	in_vbuf->bytesused = mp_buffer_get_meta(in_buf)->bytes_used;
 
@@ -189,7 +189,8 @@ static int mp_zvid_transform_decide_allocation(struct mp_transform *self, struct
 	return mp_zvid_object_decide_allocation(&zvid_transform->zvid_obj_out, query);
 }
 
-static int mp_zvid_transform_propose_allocation(struct mp_transform *self, struct mp_dispatch *query)
+static int mp_zvid_transform_propose_allocation(struct mp_transform *self,
+						struct mp_dispatch *query)
 {
 	return mp_dispatch_set_pool(query, self->inpool);
 }

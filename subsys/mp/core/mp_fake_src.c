@@ -54,6 +54,7 @@ static int mp_fake_src_pool_release(struct mp_buffer_pool *pool, struct net_buf 
 	if (meta != NULL) {
 		meta->bytes_used = 0;
 		meta->timestamp = 0;
+		meta->driver_buf = NULL;
 		meta->priv = NULL;
 	}
 

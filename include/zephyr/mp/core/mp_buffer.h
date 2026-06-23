@@ -77,6 +77,8 @@ struct mp_buffer_meta {
 	uint32_t bytes_used;
 	/** Timestamp in milliseconds. */
 	uint32_t timestamp;
+	/* Pointer to the real driver-own buffer. */
+	void *driver_buf;
 	/** Opaque pointer for plugin-specific usage. */
 	void *priv;
 };

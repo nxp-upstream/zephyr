@@ -93,7 +93,8 @@ static int mp_zaud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 
 static int mp_zaud_dmic_src_acquire_buffer(struct mp_buffer_pool *pool, struct net_buf **buffer)
 {
-	struct mp_zaud_buffer_pool *zaud_pool = CONTAINER_OF(pool, struct mp_zaud_buffer_pool, pool);
+	struct mp_zaud_buffer_pool *zaud_pool =
+		CONTAINER_OF(pool, struct mp_zaud_buffer_pool, pool);
 	struct mp_buffer_meta *meta;
 	void *mem_block = NULL;
 	size_t bytes_used = pool->config.size;
@@ -108,7 +109,7 @@ static int mp_zaud_dmic_src_acquire_buffer(struct mp_buffer_pool *pool, struct n
 	for (uint8_t i = 0; i < pool->config.min_buffers; i++) {
 		if (mem_block == zaud_pool->blocks[i]) {
 			*buffer = net_buf_alloc_with_data(pool->nb_pool, zaud_pool->blocks[i],
-						      pool->config.size, K_NO_WAIT);
+							  pool->config.size, K_NO_WAIT);
 			if (*buffer == NULL) {
 				LOG_ERR("Unable to allocate net_buf wrapper for DMIC buffer");
 				k_mem_slab_free(zaud_pool->mem_slab, mem_block);
@@ -121,7 +122,8 @@ static int mp_zaud_dmic_src_acquire_buffer(struct mp_buffer_pool *pool, struct n
 			meta->pool = pool;
 			meta->bytes_used = bytes_used;
 			meta->timestamp = 0U;
-			meta->priv = mem_block;
+			meta->driver_buf = NULL;
+			meta->priv = NULL;
 
 			return 0;
 		}
@@ -134,7 +136,8 @@ static int mp_zaud_dmic_src_acquire_buffer(struct mp_buffer_pool *pool, struct n
 
 static int mp_zaud_dmic_src_start(struct mp_buffer_pool *pool)
 {
-	struct mp_zaud_buffer_pool *zaud_pool = CONTAINER_OF(pool, struct mp_zaud_buffer_pool, pool);
+	struct mp_zaud_buffer_pool *zaud_pool =
+		CONTAINER_OF(pool, struct mp_zaud_buffer_pool, pool);
 
 	/* Stream on */
 	if (dmic_trigger(zaud_pool->zaud_dev, DMIC_TRIGGER_START) < 0) {

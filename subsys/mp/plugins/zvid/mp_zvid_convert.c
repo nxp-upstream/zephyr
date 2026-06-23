@@ -129,7 +129,8 @@ static int zvid_convert_pool_acquire(struct mp_buffer_pool *pool, struct net_buf
 
 	meta = mp_buffer_get_meta(*out);
 	meta->pool = pool;
-	meta->priv = vbuf;
+	meta->driver_buf = vbuf;
+	meta->priv = NULL;
 	meta->bytes_used = 0;
 	meta->timestamp = 0;
 
@@ -145,7 +146,7 @@ static int zvid_convert_pool_release(struct mp_buffer_pool *pool, struct net_buf
 		return -EINVAL;
 	}
 
-	vbuf = (struct video_buffer *)mp_buffer_get_meta(buf)->priv;
+	vbuf = (struct video_buffer *)mp_buffer_get_meta(buf)->driver_buf;
 	if (vbuf != NULL) {
 		k_fifo_put(&conv->free_fifo, vbuf);
 	}
@@ -275,8 +276,7 @@ static bool out_fmts_contains(struct mp_value *out_fmts, uint32_t pixfmt)
 	for (size_t k = 0; k < mp_value_list_get_size(out_fmts); k++) {
 		struct mp_value *ov = mp_value_list_get(out_fmts, (int)k);
 
-		if (ov != NULL && ov->type == MP_TYPE_UINT &&
-		    mp_value_get_uint(ov) == pixfmt) {
+		if (ov != NULL && ov->type == MP_TYPE_UINT && mp_value_get_uint(ov) == pixfmt) {
 			return true;
 		}
 	}
@@ -443,8 +443,9 @@ static int zvid_convert_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 		mp_buffer_get_meta(out)->bytes_used = out_sz;
 		out->len = out_sz;
 
-		if (mp_buffer_get_meta(out)->priv != NULL) {
-			((struct video_buffer *)mp_buffer_get_meta(out)->priv)->bytesused = out_sz;
+		if (mp_buffer_get_meta(out)->driver_buf != NULL) {
+			((struct video_buffer *)mp_buffer_get_meta(out)->driver_buf)->bytesused =
+				out_sz;
 		}
 
 		if (*out_buf == NULL) {

@@ -134,7 +134,7 @@ static int mp_zvid_buffer_pool_acquire_buffer(struct mp_buffer_pool *pool, struc
 	/* Set buffer metadata */
 	bm = mp_buffer_get_meta(*buf);
 	bm->pool = pool;
-	bm->priv = vbuf;
+	bm->driver_buf = vbuf;
 	bm->bytes_used = vbuf->bytesused;
 	bm->timestamp = vbuf->timestamp;
 
@@ -144,7 +144,7 @@ static int mp_zvid_buffer_pool_acquire_buffer(struct mp_buffer_pool *pool, struc
 static int mp_zvid_buffer_pool_release_buffer(struct mp_buffer_pool *pool, struct net_buf *buf)
 {
 	struct mp_zvid_buffer_pool *zvid_pool = (struct mp_zvid_buffer_pool *)pool;
-	struct video_buffer *vbuf = mp_buffer_get_meta(buf)->priv;
+	struct video_buffer *vbuf = mp_buffer_get_meta(buf)->driver_buf;
 	int ret = 0;
 
 	if (vbuf == NULL) {
