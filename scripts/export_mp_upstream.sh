@@ -430,12 +430,44 @@ generate_branch() {
 
     # Create the branch from BASE_REF
     git checkout -B "${branch}" "${BASE_REF}" --quiet
+    # Cherry-pick a range of commits, silently dropping any that become empty
+    # (i.e., already applied). Compatible with all Git versions.
+    # Args: $1=from_ref, $2=to_ref
+    cherry_pick_range() {
+        local from_ref="$1"
+        local to_ref="$2"
+        local commits
 
-    # Cherry-pick dependency commits (tip of each dependency branch)
+        mapfile -t commits < <(git log --reverse --pretty=format:"%H" "${from_ref}..${to_ref}")
+
+        for commit in "${commits[@]}"; do
+            if ! git -c core.hooksPath=/dev/null cherry-pick "${commit}" --quiet 2>/dev/null; then
+                # CHERRY_PICK_HEAD exists while a cherry-pick is paused
+                if git rev-parse CHERRY_PICK_HEAD >/dev/null 2>&1; then
+                    if git diff --cached --quiet && git diff --quiet; then
+                        # Nothing staged and nothing modified = commit already applied.
+                        # Use --abort (not --skip) for compatibility with Git < 2.32.
+                        # Since we pick one commit at a time, abort just clears the
+                        # cherry-pick state and leaves HEAD unchanged, which is correct.
+                        git cherry-pick --abort 2>/dev/null || true
+                    else
+                        log_error "Cherry-pick conflict on commit ${commit}"
+                        git cherry-pick --abort 2>/dev/null || true
+                        return 1
+                    fi
+                else
+                    log_error "Cherry-pick failed on commit ${commit}"
+                    return 1
+                fi
+            fi
+        done
+    }
+
+    # Cherry-pick dependency commits (all commits from each dependency branch)
     if [ -n "${deps}" ]; then
         for dep in ${deps}; do
-            log_info "  Cherry-picking from ${dep}..."
-            git -c core.hooksPath=/dev/null cherry-pick "$(git rev-parse "${dep}")" --quiet
+            log_info "  Cherry-picking all commits from ${dep}..."
+            cherry_pick_range "${BASE_REF}" "${dep}"
         done
     fi
 
