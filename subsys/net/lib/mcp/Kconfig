@@ -368,6 +368,37 @@ config MCP_HTTP_LOG_ADDRESS
 	  Log the HTTP server's accessible address when an IP is assigned.
 	  Useful for DHCP configurations where the address is not known in advance.
 
+config MCP_HTTP_AUTH_EXPECTED_ISSUER
+	string "Expected JWT token issuer"
+	default ""
+	help
+	  Expected issuer (iss) claim value for JWT token validation.
+	  If set, tokens must have this exact issuer to be accepted.
+	  Example: "https://auth.example.com"
+	  Leave empty to skip issuer validation.
+
+config MCP_HTTP_AUTH_EXPECTED_AUDIENCE
+	string "Expected JWT token audience"
+	default "mcp-server"
+	help
+	  Expected audience (aud) claim value for JWT token validation.
+	  If set, tokens must have this exact audience to be accepted.
+
+config MCP_HTTP_AUTH_REQUIRED_SCOPE
+	string "Required JWT token scope"
+	default ""
+	help
+	  Required scope value that must be present in the token.
+	  Example: "mcp:invoke"
+	  Leave empty to skip scope validation.
+
+config MCP_HTTP_AUTH_CHECK_EXPIRATION
+	bool "Check JWT token expiration"
+	default y
+	help
+	  Enable checking of token expiration time (exp claim).
+	  Requires accurate system time for proper validation.
+
 endif # MCP_TRANSPORT_HTTP
 
 if MCP_TRANSPORT_MOCK
