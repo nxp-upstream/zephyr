@@ -161,11 +161,7 @@ void mp_zaud_dmic_src_init(struct mp_element *self)
 	src->pool = &(zaud_dmic_src->pool.pool);
 	mp_zaud_buffer_pool_init(src->pool);
 
-#if DT_NODE_EXISTS(DT_NODELABEL(dmic_dev))
-	zaud_dmic_src->pool.zaud_dev = DEVICE_DT_GET(DT_NODELABEL(dmic_dev));
-#else
-#error "dmic_dev node label not found in device tree."
-#endif
+	zaud_dmic_src->pool.zaud_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(dmic_dev));
 
 	if (!device_is_ready(zaud_dmic_src->pool.zaud_dev)) {
 		LOG_ERR("%s is not ready", zaud_dmic_src->pool.zaud_dev->name);

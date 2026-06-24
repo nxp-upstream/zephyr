@@ -289,16 +289,8 @@ void mp_zaud_i2s_codec_sink_init(struct mp_element *self)
 	/* Init base class */
 	mp_sink_init(self);
 
-#if DT_NODE_EXISTS(DT_ALIAS(i2s_codec_tx))
-	zaud_i2s_codec_sink->i2s_dev = DEVICE_DT_GET(DT_ALIAS(i2s_codec_tx));
-#else
-#error "i2s_codec_tx node alias not found in device tree."
-#endif
-#if DT_NODE_EXISTS(DT_NODELABEL(audio_codec))
-	zaud_i2s_codec_sink->codec_dev = DEVICE_DT_GET(DT_NODELABEL(audio_codec));
-#else
-#error "audio_codec node label not found in device tree."
-#endif
+	zaud_i2s_codec_sink->i2s_dev = DEVICE_DT_GET_OR_NULL(DT_ALIAS(i2s_codec_tx));
+	zaud_i2s_codec_sink->codec_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(audio_codec));
 
 	if (!device_is_ready(zaud_i2s_codec_sink->i2s_dev)) {
 		LOG_ERR("%s is not ready\n", zaud_i2s_codec_sink->i2s_dev->name);
