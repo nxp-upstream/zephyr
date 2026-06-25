@@ -393,7 +393,13 @@ static const char *get_public_key_pem(const char *kid)
 	/* Example hardcoded public key (replace with your actual key) */
 	static const char *default_public_key = 
 		"-----BEGIN PUBLIC KEY-----\n"
-		"MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...\n"
+		"MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAo3V7GNGO4sT8RCiUVjM0\n"
+		"nQtvHhdZnB0xH4wI6D7o7ITyJ0QP0yQyDrUAHUPMbjhDzAXkbdChcXOtyDHDYhpY\n"
+		"T6C+4OFtRtqDAWl6F2OGVYarIorrxq94gbbhaauXGiQORFevgx9BJT0KYXq6ubPy\n"
+		"jV0OHymS0JK+j5NE3Kg3Ierk1blKK/fx4hsYr/krRifs22XJ8x/q/PnxbEHQsV1x\n"
+		"ymCm25OoCp/PfN3l/2t6d7zA/86hxBbAtrVJKvRHHh8I797A97X7eBLRcUaBiFGE\n"
+		"HpOsqdSOWbqT0e3M6lKwuFhjAyThfJkxqAkqPZ8/QMEVelJSNIwPNFNVXErnI+QL\n"
+		"gwIDAQAB\n"
 		"-----END PUBLIC KEY-----\n";
 	
 	LOG_DBG("Looking up public key for kid: %s", kid ? kid : "(default)");
