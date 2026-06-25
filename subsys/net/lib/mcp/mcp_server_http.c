@@ -12,14 +12,15 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/min_heap.h>
-#include <zephyr/sys/base64.h>
 #include <string.h>
 #include <inttypes.h>
 
 #include "mcp_common.h"
 #include "mcp_json.h"
 #include "mcp_server_internal.h"
+#if defined(CONFIG_MCP_HTTP_AUTH_ENABLED)
 #include "mcp_server_auth.h"
+#endif /* CONFIG_MCP_HTTP_AUTH_ENABLED */
 
 #if defined(CONFIG_MCP_HTTP_LOG_ADDRESS)
 #include <zephyr/net/net_mgmt.h>
@@ -52,7 +53,9 @@ struct mcp_http_request_accumulator {
 	char content_type_hdr[CONFIG_HTTP_SERVER_MAX_HEADER_LEN];
 	char origin_hdr[CONFIG_HTTP_SERVER_MAX_HEADER_LEN];
 	char protocol_version_hdr[CONFIG_HTTP_SERVER_MAX_HEADER_LEN];
-	char authorization_hdr[CONFIG_HTTP_SERVER_MAX_HEADER_LEN];
+#if defined(CONFIG_MCP_HTTP_AUTH_ENABLED)
+	char authorization_hdr[CONFIG_MCP_HTTP_AUTH_HEADER_MAX_LEN];
+#endif
 	bool in_use;
 };
 
@@ -163,7 +166,9 @@ HTTP_SERVER_REGISTER_HEADER_CAPTURE(content_type_hdr, "Content-Type");
 HTTP_SERVER_REGISTER_HEADER_CAPTURE(mcp_session_id_hdr, "Mcp-Session-Id");
 HTTP_SERVER_REGISTER_HEADER_CAPTURE(last_event_id_hdr, "Last-Event-Id");
 HTTP_SERVER_REGISTER_HEADER_CAPTURE(mcp_protocol_version_hdr, "Mcp-Protocol-Version");
+#if defined(CONFIG_MCP_HTTP_AUTH_ENABLED)
 HTTP_SERVER_REGISTER_HEADER_CAPTURE(authorization_hdr, "Authorization");
+#endif
 
 
 /*******************************************************************************
@@ -281,11 +286,13 @@ static int accumulate_header(struct mcp_http_request_accumulator *accumulator,
 		strncpy(accumulator->content_type_hdr, header->value,
 		    sizeof(accumulator->content_type_hdr) - 1);
 		accumulator->content_type_hdr[sizeof(accumulator->content_type_hdr) - 1] = '\0';
+#if defined(CONFIG_MCP_HTTP_AUTH_ENABLED)
 	} else if (strcmp(header->name, "Authorization") == 0) {
 	    strncpy(accumulator->authorization_hdr, header->value,
 	        sizeof(accumulator->authorization_hdr) - 1);
 		accumulator->authorization_hdr[sizeof(accumulator->authorization_hdr) - 1] = '\0';
 		LOG_DBG("Authorization header captured: %s", accumulator->authorization_hdr);
+#endif /* CONFIG_MCP_HTTP_AUTH_ENABLED */
 	} else {
 		LOG_DBG("Unhandled header: %s", header->name);
 	}
@@ -620,7 +627,7 @@ static int poll_for_response(struct mcp_http_client_ctx *mcp_client, uint32_t ms
 	return ret;
 }
 
-
+#if defined(CONFIG_MCP_HTTP_AUTH_ENABLED)
 /**
  * Extract token from Authorization header
  * Supports formats: "Bearer <token>" or just "<token>"
@@ -680,40 +687,7 @@ const char *token_start;
 	LOG_DBG("Extracted token (length: %zu)", token_len);
 	return 0;
 }
-
-/**
- * Decode base64 encoded token
- * 
- * @param encoded Base64 encoded string
- * @param decoded Buffer for decoded output
- * @param decoded_size Size of decoded buffer
- * @return Length of decoded data on success, negative error code on failure
- */
-static int decode_base64_token(const char *encoded, uint8_t *decoded, size_t decoded_size)
-{
-	size_t encoded_len;
-	size_t decoded_len;
-	int ret;
-
-	if ((encoded == NULL) || (decoded == NULL) || (decoded_size == 0)) {
-		return -EINVAL;
-	}
-
-	encoded_len = strlen(encoded);
-	if (encoded_len == 0) {
-		return -EINVAL;
-	}
-
-	ret = base64_decode(decoded, decoded_size, &decoded_len, encoded, encoded_len);
-	if (ret != 0) {
-		LOG_ERR("Base64 decode failed: %d", ret);
-		return ret;
-	}
-
-	LOG_DBG("Decoded %zu bytes from %zu base64 chars", decoded_len, encoded_len);
-	return (int)decoded_len;
-}
-
+#endif /* CONFIG_MCP_HTTP_AUTH_ENABLED */
 /*******************************************************************************
  * POST Handler
  ******************************************************************************/
@@ -756,14 +730,12 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 		mcp_safe_strcpy(request_data.protocol_version,
 				sizeof(request_data.protocol_version), DEFAULT_PROTOCOL_VERSION);
 	}
-
+#if defined(CONFIG_MCP_HTTP_AUTH_ENABLED)
 	if (accumulator->authorization_hdr[0] != '\0') {
 		LOG_INF("Request has authorization: %s", accumulator->authorization_hdr);
 		int err;
-        char auth_token[CONFIG_HTTP_SERVER_MAX_HEADER_LEN]; //need more space here 
-		uint8_t decoded_token[CONFIG_HTTP_SERVER_MAX_HEADER_LEN];
+        char auth_token[CONFIG_MCP_HTTP_AUTH_HEADER_MAX_LEN];
 		int token_size = sizeof(auth_token);
-		int decoded_len;
 		
 		err = extract_auth_token(accumulator->authorization_hdr, auth_token, token_size);
 		if ((err != 0) || (token_size <=0)) {
@@ -775,26 +747,13 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 
         LOG_INF("Extracted token: %s", auth_token);
 
-        decoded_len = decode_base64_token(auth_token, decoded_token, sizeof(decoded_token));
-		if (decoded_len < 0) {
-			LOG_ERR("Failed to decode base64 token: %d", decoded_len);
+		/* Preprocess (split and decode) and validate the JWT token */
+		err = preprocess_and_validate_token(auth_token);
+		if (err != 0) {
+			LOG_ERR("Token validation failed: %d", err);
 			response_ctx->status = HTTP_401_UNAUTHORIZED;
 			response_ctx->final_chunk = true;
-			return 0;
-		}
-		
-		/* Null-terminate if it's a string */
-		if (decoded_len < sizeof(decoded_token)) {
-			decoded_token[decoded_len] = '\0';
-		}
-		
-		LOG_INF("Decoded token: %s (length: %d)", decoded_token, decoded_len);
-
-		/* Validate the decoded token */
-		if (validate_token(decoded_token, decoded_len) != 0) {
-			LOG_ERR("Token validation failed");
-			response_ctx->status = HTTP_401_UNAUTHORIZED; 
-			response_ctx->final_chunk = true;
+			client_ref_put(mcp_client);
 			return 0;
 		}
 	
@@ -808,6 +767,7 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 		response_ctx->final_chunk = true;
 		return 0;
 	}
+	#endif /* CONFIG_MCP_HTTP_AUTH_ENABLED */
 
 	ret = mcp_server_handle_request(http_transport_state.server_core, &request_data,
 					&request_type);

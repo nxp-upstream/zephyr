@@ -4,15 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#ifndef MCP_SERVER_AUTH_H_
+#define MCP_SERVER_AUTH_H_
+
 #include <string.h>
 #include <inttypes.h>
 #include <zephyr/kernel.h>
 
+#if defined(CONFIG_MCP_HTTP_AUTH_ENABLED)
+
 /**
- * Validate authentication token
+ * Preprocess and validate JWT authentication token
  * 
- * @param token Decoded token bytes
- * @param token_len Length of token in bytes
+ * @param jwt_token Full JWT token string (header.payload.signature)
  * @return 0 if token is valid, negative error code otherwise
  */
-int validate_token(const uint8_t *token, int token_len);
+int preprocess_and_validate_token(const char *jwt_token);
+
+#endif /* CONFIG_MCP_HTTP_AUTH_ENABLED */
+
+#endif /* MCP_SERVER_AUTH_H_ */

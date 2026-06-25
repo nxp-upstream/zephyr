@@ -368,6 +368,25 @@ config MCP_HTTP_LOG_ADDRESS
 	  Log the HTTP server's accessible address when an IP is assigned.
 	  Useful for DHCP configurations where the address is not known in advance.
 
+config MCP_HTTP_AUTH_ENABLED
+	bool "Enable HTTP authentication for MCP server"
+	default n
+	help
+	  Enable JWT-based authentication for MCP HTTP server.
+	  When enabled, all requests must include a valid Authorization header
+	  with a JWT token. Requests without valid authentication will be
+	  rejected with HTTP 401 Unauthorized.
+
+if MCP_HTTP_AUTH_ENABLED
+
+config MCP_HTTP_AUTH_HEADER_MAX_LEN
+	int "Maximum length of authorization header"
+	default 1024
+	help
+	  Maximum length of the Authorization header to accommodate JWT tokens.
+	  JWT tokens can be quite long (typically 500-1000+ bytes).
+	  Default is 1024 bytes to handle most JWT tokens safely.
+	
 config MCP_HTTP_AUTH_EXPECTED_ISSUER
 	string "Expected JWT token issuer"
 	default ""
@@ -399,6 +418,7 @@ config MCP_HTTP_AUTH_CHECK_EXPIRATION
 	  Enable checking of token expiration time (exp claim).
 	  Requires accurate system time for proper validation.
 
+endif # MCP_HTTP_AUTH_ENABLED
 endif # MCP_TRANSPORT_HTTP
 
 if MCP_TRANSPORT_MOCK
