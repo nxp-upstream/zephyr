@@ -20,6 +20,13 @@ LOG_MODULE_REGISTER(mcp_server_auth, CONFIG_MCP_LOG_LEVEL);
 
 #if defined(CONFIG_MCP_HTTP_AUTH_ENABLED)
 
+#if defined(CONFIG_MCP_HTTP_AUTH_VERIFY_SIGNATURE)
+#include <mbedtls/pk.h>
+#include <mbedtls/md.h>
+#include <mbedtls/rsa.h>
+#include <mbedtls/error.h>
+#endif
+
 /**The token contains 3 parts: header.payload.signature 
  * header: 
 {
@@ -364,6 +371,227 @@ static int validate_token(const uint8_t *token, int token_len)
 	return 0;
 }
 
+#if defined(CONFIG_MCP_HTTP_AUTH_VERIFY_SIGNATURE)
+
+/**
+ * Get RSA public key for verification
+ * This is a placeholder - you need to implement key storage/retrieval
+ * 
+ * @param kid Key ID (can be NULL)
+ * @return PEM-encoded public key string, or NULL if not found
+ */
+static const char *get_public_key_pem(const char *kid)
+{
+	/* TODO: Implement key storage and retrieval
+	 * Options:
+	 * 1. Hardcode key in flash (for single key scenarios)
+	 * 2. Store multiple keys indexed by kid
+	 * 3. Fetch from secure storage
+	 * 4. Use device-specific key
+	 */
+	
+	/* Example hardcoded public key (replace with your actual key) */
+	static const char *default_public_key = 
+		"-----BEGIN PUBLIC KEY-----\n"
+		"MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...\n"
+		"-----END PUBLIC KEY-----\n";
+	
+	LOG_DBG("Looking up public key for kid: %s", kid ? kid : "(default)");
+	
+	/* For now, return default key regardless of kid */
+	return default_public_key;
+}
+
+/**
+ * Verify RS256 (RSA with SHA-256) signature using mbedTLS
+ */
+static int verify_rs256_signature(const char *data, size_t data_len,
+                                 const uint8_t *signature, size_t signature_len,
+                                 const char *kid)
+{
+	mbedtls_pk_context pk;
+	mbedtls_md_context_t md_ctx;
+	const mbedtls_md_info_t *md_info;
+	unsigned char hash[32]; /* SHA-256 produces 32 bytes */
+	const char *public_key_pem;
+	int ret;
+	char error_buf[100];
+
+	LOG_DBG("Verifying RS256 signature (kid: %s)", kid ? kid : "(none)");
+
+	/* Get the public key */
+	public_key_pem = get_public_key_pem(kid);
+	if (public_key_pem == NULL) {
+		LOG_ERR("Public key not found for kid: %s", kid ? kid : "(default)");
+		return -ENOENT;
+	}
+
+	/* Initialize mbedTLS contexts */
+	mbedtls_pk_init(&pk);
+	mbedtls_md_init(&md_ctx);
+
+	/* Parse the public key */
+	ret = mbedtls_pk_parse_public_key(&pk, 
+	                                  (const unsigned char *)public_key_pem,
+	                                  strlen(public_key_pem) + 1);
+	if (ret != 0) {
+		mbedtls_strerror(ret, error_buf, sizeof(error_buf));
+		LOG_ERR("Failed to parse public key: -0x%04x (%s)", -ret, error_buf);
+		ret = -EINVAL;
+		goto cleanup;
+	}
+
+	/* Verify it's an RSA key */
+	if (mbedtls_pk_get_type(&pk) != MBEDTLS_PK_RSA) {
+		LOG_ERR("Key is not an RSA key");
+		ret = -EINVAL;
+		goto cleanup;
+	}
+
+	/* Get SHA-256 message digest info */
+	md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+	if (md_info == NULL) {
+		LOG_ERR("Failed to get SHA-256 info");
+		ret = -ENOTSUP;
+		goto cleanup;
+	}
+
+	/* Compute SHA-256 hash of the data */
+	ret = mbedtls_md_setup(&md_ctx, md_info, 0);
+	if (ret != 0) {
+		mbedtls_strerror(ret, error_buf, sizeof(error_buf));
+		LOG_ERR("Failed to setup MD context: -0x%04x (%s)", -ret, error_buf);
+		ret = -EINVAL;
+		goto cleanup;
+	}
+
+	ret = mbedtls_md_starts(&md_ctx);
+	if (ret != 0) {
+		mbedtls_strerror(ret, error_buf, sizeof(error_buf));
+		LOG_ERR("Failed to start MD: -0x%04x (%s)", -ret, error_buf);
+		ret = -EINVAL;
+		goto cleanup;
+	}
+
+	ret = mbedtls_md_update(&md_ctx, (const unsigned char *)data, data_len);
+	if (ret != 0) {
+		mbedtls_strerror(ret, error_buf, sizeof(error_buf));
+		LOG_ERR("Failed to update MD: -0x%04x (%s)", -ret, error_buf);
+		ret = -EINVAL;
+		goto cleanup;
+	}
+
+	ret = mbedtls_md_finish(&md_ctx, hash);
+	if (ret != 0) {
+		mbedtls_strerror(ret, error_buf, sizeof(error_buf));
+		LOG_ERR("Failed to finish MD: -0x%04x (%s)", -ret, error_buf);
+		ret = -EINVAL;
+		goto cleanup;
+	}
+
+	LOG_DBG("Computed SHA-256 hash of signing input");
+
+	/* Verify the signature */
+	ret = mbedtls_pk_verify(&pk, MBEDTLS_MD_SHA256,
+	                       hash, sizeof(hash),
+	                       signature, signature_len);
+	if (ret != 0) {
+		mbedtls_strerror(ret, error_buf, sizeof(error_buf));
+		LOG_ERR("Signature verification failed: -0x%04x (%s)", -ret, error_buf);
+		ret = -EACCES;
+		goto cleanup;
+	}
+
+	LOG_INF("RS256 signature verified successfully");
+	ret = 0;
+
+cleanup:
+	mbedtls_md_free(&md_ctx);
+	mbedtls_pk_free(&pk);
+	return ret;
+}
+
+/**
+ * Verify JWT signature
+ * 
+ * @param header_b64 Base64-encoded header (not null-terminated)
+ * @param header_b64_len Length of header
+ * @param payload_b64 Base64-encoded payload (not null-terminated)
+ * @param payload_b64_len Length of payload
+ * @param signature_b64 Base64-encoded signature (not null-terminated)
+ * @param signature_b64_len Length of signature
+ * @param algorithm Algorithm from header (e.g., "RS256", "HS256")
+ * @param kid Key ID from header (can be NULL)
+ * @return 0 if signature is valid, negative error code otherwise
+ */
+static int verify_jwt_signature(const char *header_b64, size_t header_b64_len,
+                                const char *payload_b64, size_t payload_b64_len,
+                                const char *signature_b64, size_t signature_b64_len,
+                                const char *algorithm, const char *kid)
+{
+	uint8_t signature_decoded[512];
+	int signature_len;
+	char signing_input[2048];
+	int signing_input_len;
+
+	if ((header_b64 == NULL) || (payload_b64 == NULL) || (signature_b64 == NULL)) {
+		LOG_ERR("Invalid signature verification parameters");
+		return -EINVAL;
+	}
+
+	if (algorithm == NULL || strlen(algorithm) == 0) {
+		LOG_ERR("Missing algorithm for signature verification");
+		return -EINVAL;
+	}
+
+	LOG_DBG("Verifying signature with algorithm: %s, kid: %s", 
+	        algorithm, kid ? kid : "(none)");
+
+	/* Decode the signature */
+	signature_len = decode_jwt_component(signature_b64, signature_b64_len,
+	                                     signature_decoded, sizeof(signature_decoded));
+	if (signature_len < 0) {
+		LOG_ERR("Failed to decode signature: %d", signature_len);
+		return signature_len;
+	}
+
+	LOG_DBG("Decoded signature: %d bytes", signature_len);
+
+	/* Construct the signing input: base64(header).base64(payload) */
+	if ((header_b64_len + 1 + payload_b64_len) >= sizeof(signing_input)) {
+		LOG_ERR("Signing input too large");
+		return -ENOSPC;
+	}
+
+	memcpy(signing_input, header_b64, header_b64_len);
+	signing_input[header_b64_len] = '.';
+	memcpy(signing_input + header_b64_len + 1, payload_b64, payload_b64_len);
+	signing_input_len = header_b64_len + 1 + payload_b64_len;
+
+	LOG_DBG("Signing input length: %d bytes", signing_input_len);
+
+	/* Verify signature based on algorithm */
+	if (strcmp(algorithm, "RS256") == 0) {
+		return verify_rs256_signature(signing_input, signing_input_len,
+		                              signature_decoded, signature_len, kid);
+	} else if (strcmp(algorithm, "HS256") == 0) {
+		//return verify_hs256_signature(signing_input, signing_input_len,
+		//                              signature_decoded, signature_len, kid);
+		return -EACCES;
+	} else if (strcmp(algorithm, "ES256") == 0) {
+		//return verify_es256_signature(signing_input, signing_input_len,
+		//                              signature_decoded, signature_len, kid);
+		return -EACCES;
+	} else if (strcmp(algorithm, "none") == 0) {
+		LOG_WRN("Algorithm 'none' is not allowed for security reasons");
+		return -EACCES;
+	} else {
+		LOG_ERR("Unsupported algorithm: %s", algorithm);
+		return -ENOTSUP;
+	}
+}
+
+#endif /* CONFIG_MCP_HTTP_AUTH_VERIFY_SIGNATURE */
 /**
  * Preprocess and validate JWT authentication token
  * 
@@ -435,11 +663,21 @@ int preprocess_and_validate_token(const char *jwt_token)
 		return -ENOSPC;
 	}
 
+#if defined(MCP_HTTP_AUTH_VERIFY_SIGNATURE)
 	/* Note: Signature verification would go here in a production system */
 	/* The signature would be verified using the algorithm from header.alg */
 	/* and the key identified by header.kid */
 	LOG_DBG("JWT Signature (base64): %.*s", (int)signature_b64_len, signature_b64);
-	//todo: verify_signature
+	/* Verify signature */
+	ret = verify_jwt_signature(header_b64, header_b64_len,
+	                          payload_b64, payload_b64_len,
+	                          signature_b64, signature_b64_len,
+	                          header.alg, header.kid);
+	if (ret != 0) {
+		LOG_ERR("Signature verification failed: %d", ret);
+		return ret;
+	}
+#endif /* MCP_HTTP_AUTH_VERIFY_SIGNATURE */
 
 	/* Validate the decoded payload (claims) */
 	ret = validate_token(payload_decoded, payload_len);

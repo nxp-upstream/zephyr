@@ -395,6 +395,18 @@ config MCP_HTTP_AUTH_EXPECTED_ALGORITHM
 	  Common values: RS256, HS256, ES256
 	  If set, tokens must use this exact algorithm.
 	  Leave empty to accept any algorithm.
+
+config MCP_HTTP_AUTH_VERIFY_SIGNATURE
+	bool "Verify JWT signature cryptographically"
+	default n
+	depends on MBEDTLS
+	#select MBEDTLS_RSA_C
+	#select MBEDTLS_PKCS1_V21
+	#select MBEDTLS_SHA256_C
+	#select MBEDTLS_MD_C
+	help
+	  Enable cryptographic verification of JWT signatures using mbedTLS.
+	  Requires mbedTLS to be properly configured in prj.conf.
 	
 config MCP_HTTP_AUTH_EXPECTED_ISSUER
 	string "Expected JWT token issuer"
