@@ -386,6 +386,15 @@ config MCP_HTTP_AUTH_HEADER_MAX_LEN
 	  Maximum length of the Authorization header to accommodate JWT tokens.
 	  JWT tokens can be quite long (typically 500-1000+ bytes).
 	  Default is 1024 bytes to handle most JWT tokens safely.
+
+config MCP_HTTP_AUTH_EXPECTED_ALGORITHM
+	string "Expected JWT signing algorithm"
+	default "RS256"
+	help
+	  Expected algorithm (alg) claim value in JWT header.
+	  Common values: RS256, HS256, ES256
+	  If set, tokens must use this exact algorithm.
+	  Leave empty to accept any algorithm.
 	
 config MCP_HTTP_AUTH_EXPECTED_ISSUER
 	string "Expected JWT token issuer"

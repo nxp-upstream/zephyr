@@ -39,6 +39,15 @@ signature is computed over: base64(header) + "." + base64(payload)
 */
 
 /**
+ * JWT header structure
+ */
+struct jwt_header {
+	const char *alg;    /* Algorithm: "RS256", "HS256", etc. */
+	const char *typ;    /* Type: "JWT" */
+	const char *kid;    /* Key ID: "abc123" */
+};
+
+/**
  * Token claims structure matching the payload in the JWT format authorization header
  */
 struct token_claims {
@@ -138,6 +147,84 @@ static int decode_jwt_component(const char *encoded, size_t encoded_len,
 
 	LOG_DBG("Decoded %zu bytes from %zu base64 chars", decoded_len, encoded_len);
 	return (int)decoded_len;
+}
+
+/**
+ * Parse and validate JWT header
+ * 
+ * @param header_json Decoded header JSON string
+ * @param header_len Length of header JSON
+ * @param header_out Output structure for parsed header
+ * @return 0 on success, negative error code on failure
+ */
+static int parse_jwt_header(const uint8_t *header_json, int header_len, 
+                           struct jwt_header *header_out)
+{
+	static const struct json_obj_descr header_descr[] = {
+		JSON_OBJ_DESCR_PRIM(struct jwt_header, alg, JSON_TOK_STRING),
+		JSON_OBJ_DESCR_PRIM(struct jwt_header, typ, JSON_TOK_STRING),
+		JSON_OBJ_DESCR_PRIM(struct jwt_header, kid, JSON_TOK_STRING),
+	};
+	
+	char header_str[256];
+	int ret;
+
+	if ((header_json == NULL) || (header_len <= 0) || (header_out == NULL)) {
+		LOG_ERR("Invalid header parameters");
+		return -EINVAL;
+	}
+
+	/* Ensure header is null-terminated string */
+	if (header_len >= sizeof(header_str)) {
+		LOG_ERR("Header too large: %d bytes (max: %zu)", header_len, sizeof(header_str) - 1);
+		return -ENOSPC;
+	}
+	
+	memcpy(header_str, header_json, header_len);
+	header_str[header_len] = '\0';
+
+	LOG_DBG("Parsing JWT header: %s", header_str);
+
+	/* Parse JSON header */
+	memset(header_out, 0, sizeof(*header_out));
+	ret = json_obj_parse(header_str, header_len, header_descr, 
+	                    ARRAY_SIZE(header_descr), header_out);
+	if (ret < 0) {
+		LOG_ERR("Failed to parse header JSON: %d", ret);
+		return -EINVAL;
+	}
+
+	/* Validate required fields */
+	if (header_out->alg == NULL || strlen(header_out->alg) == 0) {
+		LOG_ERR("Missing or empty 'alg' field in header");
+		return -EINVAL;
+	}
+	
+	if (header_out->typ == NULL || strlen(header_out->typ) == 0) {
+		LOG_ERR("Missing or empty 'typ' field in header");
+		return -EINVAL;
+	}
+
+	/* Validate type is JWT */
+	if (strcmp(header_out->typ, "JWT") != 0) {
+		LOG_ERR("Invalid token type: '%s' (expected: 'JWT')", header_out->typ);
+		return -EINVAL;
+	}
+
+#if defined(CONFIG_MCP_HTTP_AUTH_EXPECTED_ALGORITHM)
+	/* Validate algorithm if configured */
+	if (strcmp(header_out->alg, CONFIG_MCP_HTTP_AUTH_EXPECTED_ALGORITHM) != 0) {
+		LOG_ERR("Unsupported algorithm: '%s' (expected: '%s')", 
+		        header_out->alg, CONFIG_MCP_HTTP_AUTH_EXPECTED_ALGORITHM);
+		return -EINVAL;
+	}
+#endif
+
+	LOG_INF("JWT Header - alg: %s, typ: %s, kid: %s",
+	        header_out->alg, header_out->typ, 
+	        header_out->kid ? header_out->kid : "(none)");
+
+	return 0;
 }
 
 /**
@@ -289,6 +376,7 @@ int preprocess_and_validate_token(const char *jwt_token)
 	size_t header_b64_len, payload_b64_len, signature_b64_len;
 	uint8_t header_decoded[256];
 	uint8_t payload_decoded[512];
+	struct jwt_header header;
 	int header_len, payload_len;
 	int ret;
 
@@ -317,10 +405,17 @@ int preprocess_and_validate_token(const char *jwt_token)
 		return header_len;
 	}
 
-	/* Null-terminate header for logging */
+	/* Null-terminate header*/
 	if (header_len < sizeof(header_decoded)) {
 		header_decoded[header_len] = '\0';
 		LOG_DBG("JWT Header: %s", header_decoded);
+	}
+
+	/* Parse and validate header */
+	ret = parse_jwt_header(header_decoded, header_len, &header);
+	if (ret != 0) {
+		LOG_ERR("Failed to parse JWT header: %d", ret);
+		return ret;
 	}
 
 	/* Decode payload (this contains the claims we need to validate) */
@@ -341,7 +436,10 @@ int preprocess_and_validate_token(const char *jwt_token)
 	}
 
 	/* Note: Signature verification would go here in a production system */
+	/* The signature would be verified using the algorithm from header.alg */
+	/* and the key identified by header.kid */
 	LOG_DBG("JWT Signature (base64): %.*s", (int)signature_b64_len, signature_b64);
+	//todo: verify_signature
 
 	/* Validate the decoded payload (claims) */
 	ret = validate_token(payload_decoded, payload_len);
