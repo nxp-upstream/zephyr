@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "NXP MCX system off sample"
+
+choice
+	prompt "Deep Power Down wakeup source"
+	default SYSTEM_OFF_WAKEUP_TIMER
+	help
+	  Select how the SoC is woken from Deep Power Down (system off).
+
+config SYSTEM_OFF_WAKEUP_TIMER
+	bool "Timed wakeup"
+	help
+	  Wake after a fixed delay using a low-power timer.
+
+config SYSTEM_OFF_WAKEUP_BUTTON
+	bool "Button wakeup"
+	help
+	  Wake on a user button press.
+
+endchoice
+
+source "Kconfig.zephyr"
