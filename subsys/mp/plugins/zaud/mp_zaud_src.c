@@ -26,6 +26,12 @@ static int mp_zaud_src_set_property(struct mp_object *obj, uint32_t key, const v
 	case PROP_ZAUD_SRC_SLAB_PTR:
 		pool->mem_slab = (struct k_mem_slab *)val;
 		break;
+	case PROP_ZAUD_SRC_DEVICE:
+		pool->zaud_dev = (const struct device *)val;
+
+		/* Device set, update supported caps */
+		mp_zaud_src_update_caps(src);
+		break;
 	default:
 		return mp_src_set_property(obj, key, val);
 	}
@@ -49,6 +55,9 @@ static int mp_zaud_src_get_property(struct mp_object *obj, uint32_t key, void *v
 		} else {
 			*(void **)val = NULL;
 		}
+		break;
+	case PROP_ZAUD_SRC_DEVICE:
+		*(const struct device **)val = pool->zaud_dev;
 		break;
 	default:
 		return mp_src_get_property(obj, key, val);

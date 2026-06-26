@@ -41,6 +41,8 @@ enum prop_zaud_transform {
 enum prop_zaud_src {
 	/** Pointer to source memory slab for audio buffer management */
 	PROP_ZAUD_SRC_SLAB_PTR = PROP_SRC_LAST + 1,
+	/** Audio source device */
+	PROP_ZAUD_SRC_DEVICE,
 };
 
 /**
@@ -54,6 +56,10 @@ enum prop_zaud_sink {
 	PROP_ZAUD_SINK_SLAB_PTR = PROP_SINK_LAST + 1,
 	/** Clock role configuration for audio sink (controller/target) */
 	PROP_ZAUD_SINK_CLK_ROLE,
+	/** I2S (SAI) sink device */
+	PROP_ZAUD_SINK_I2S_DEVICE,
+	/** Codec sink device */
+	PROP_ZAUD_SINK_CODEC_DEVICE,
 };
 
 /** @} */

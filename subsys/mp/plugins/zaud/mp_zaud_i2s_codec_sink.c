@@ -21,57 +21,6 @@ LOG_MODULE_REGISTER(mp_zaud_i2s_codec_sink, CONFIG_MP_LOG_LEVEL);
 #define DEFAULT_PROP_I2S_DEVICE   DEVICE_DT_GET(DT_ALIAS(i2s_codec_tx))
 #define DEFAULT_PROP_CODEC_DEVICE DEVICE_DT_GET(DT_NODELABEL(audio_codec));
 
-static int mp_zaud_i2s_codec_sink_set_property(struct mp_object *obj, uint32_t key, const void *val)
-{
-	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = (struct mp_zaud_i2s_codec_sink *)obj;
-
-	switch (key) {
-	case PROP_ZAUD_SINK_SLAB_PTR:
-		zaud_i2s_codec_sink->mem_slab = (struct k_mem_slab *)val;
-		break;
-	case PROP_ZAUD_SINK_CLK_ROLE:
-		if ((enum mp_zaud_i2s_codec_clk_role)(uintptr_t)val !=
-			    MP_ZAUD_I2S_CONTROLLER_CODEC_TARGET &&
-		    (enum mp_zaud_i2s_codec_clk_role)(uintptr_t)val !=
-			    MP_ZAUD_I2S_TARGET_CODEC_CONTROLLER) {
-			LOG_ERR("Invalid clock role value");
-			return -EINVAL;
-		}
-		zaud_i2s_codec_sink->clk_role = (enum mp_zaud_i2s_codec_clk_role)(uintptr_t)val;
-		break;
-	default:
-		return -ENOTSUP;
-	}
-
-	return 0;
-}
-
-static int mp_zaud_i2s_codec_sink_get_property(struct mp_object *obj, uint32_t key, void *val)
-{
-	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = (struct mp_zaud_i2s_codec_sink *)obj;
-
-	if (val == NULL) {
-		return -1;
-	}
-
-	switch (key) {
-	case PROP_ZAUD_SINK_SLAB_PTR:
-		if (zaud_i2s_codec_sink->mem_slab != NULL) {
-			*(void **)val = (void *)zaud_i2s_codec_sink->mem_slab;
-		} else {
-			*(void **)val = NULL;
-		}
-		break;
-	case PROP_ZAUD_SINK_CLK_ROLE:
-		*(enum mp_zaud_i2s_codec_clk_role *)val = zaud_i2s_codec_sink->clk_role;
-		break;
-	default:
-		return -ENOTSUP;
-	}
-
-	return 0;
-}
-
 static struct mp_caps *mp_zaud_i2s_codec_sink_supported_caps(struct mp_sink *sink)
 {
 	int ret = 0;
@@ -170,6 +119,75 @@ static void mp_zaud_i2s_codec_sink_update_caps(struct mp_sink *sink)
 
 	mp_sink_update_caps(sink, caps);
 	mp_caps_unref(caps);
+}
+
+static int mp_zaud_i2s_codec_sink_set_property(struct mp_object *obj, uint32_t key, const void *val)
+{
+	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = (struct mp_zaud_i2s_codec_sink *)obj;
+
+	switch (key) {
+	case PROP_ZAUD_SINK_SLAB_PTR:
+		zaud_i2s_codec_sink->mem_slab = (struct k_mem_slab *)val;
+		break;
+	case PROP_ZAUD_SINK_CLK_ROLE:
+		if ((enum mp_zaud_i2s_codec_clk_role)(uintptr_t)val !=
+			    MP_ZAUD_I2S_CONTROLLER_CODEC_TARGET &&
+		    (enum mp_zaud_i2s_codec_clk_role)(uintptr_t)val !=
+			    MP_ZAUD_I2S_TARGET_CODEC_CONTROLLER) {
+			LOG_ERR("Invalid clock role value");
+			return -EINVAL;
+		}
+		zaud_i2s_codec_sink->clk_role = (enum mp_zaud_i2s_codec_clk_role)(uintptr_t)val;
+		break;
+	case PROP_ZAUD_SINK_I2S_DEVICE:
+		zaud_i2s_codec_sink->i2s_dev = (const struct device *)val;
+
+		/* Device set, update supported caps */
+		mp_zaud_i2s_codec_sink_update_caps(&zaud_i2s_codec_sink->sink);
+		break;
+	case PROP_ZAUD_SINK_CODEC_DEVICE:
+		zaud_i2s_codec_sink->codec_dev = (const struct device *)val;
+
+		/* Device set, update supported caps */
+		mp_zaud_i2s_codec_sink_update_caps(&zaud_i2s_codec_sink->sink);
+		break;
+	default:
+		return -ENOTSUP;
+	}
+
+	return 0;
+}
+
+static int mp_zaud_i2s_codec_sink_get_property(struct mp_object *obj, uint32_t key, void *val)
+{
+	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink = (struct mp_zaud_i2s_codec_sink *)obj;
+
+	if (val == NULL) {
+		return -1;
+	}
+
+	switch (key) {
+	case PROP_ZAUD_SINK_SLAB_PTR:
+		if (zaud_i2s_codec_sink->mem_slab != NULL) {
+			*(void **)val = (void *)zaud_i2s_codec_sink->mem_slab;
+		} else {
+			*(void **)val = NULL;
+		}
+		break;
+	case PROP_ZAUD_SINK_CLK_ROLE:
+		*(enum mp_zaud_i2s_codec_clk_role *)val = zaud_i2s_codec_sink->clk_role;
+		break;
+	case PROP_ZAUD_SINK_I2S_DEVICE:
+		*(const struct device **)val = zaud_i2s_codec_sink->i2s_dev;
+		break;
+	case PROP_ZAUD_SINK_CODEC_DEVICE:
+		*(const struct device **)val = zaud_i2s_codec_sink->codec_dev;
+		break;
+	default:
+		return -ENOTSUP;
+	}
+
+	return 0;
 }
 
 static int mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
@@ -291,16 +309,6 @@ void mp_zaud_i2s_codec_sink_init(struct mp_element *self)
 
 	zaud_i2s_codec_sink->i2s_dev = DEVICE_DT_GET_OR_NULL(DT_ALIAS(i2s_codec_tx));
 	zaud_i2s_codec_sink->codec_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(audio_codec));
-
-	if (!device_is_ready(zaud_i2s_codec_sink->i2s_dev)) {
-		LOG_ERR("%s is not ready\n", zaud_i2s_codec_sink->i2s_dev->name);
-		return;
-	}
-
-	if (!device_is_ready(zaud_i2s_codec_sink->codec_dev)) {
-		LOG_ERR("%s is not ready", zaud_i2s_codec_sink->codec_dev->name);
-		return;
-	}
 
 	zaud_i2s_codec_sink->clk_role = MP_ZAUD_I2S_CONTROLLER_CODEC_TARGET;
 

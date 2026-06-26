@@ -163,11 +163,6 @@ void mp_zaud_dmic_src_init(struct mp_element *self)
 
 	zaud_dmic_src->pool.zaud_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(dmic_dev));
 
-	if (!device_is_ready(zaud_dmic_src->pool.zaud_dev)) {
-		LOG_ERR("%s is not ready", zaud_dmic_src->pool.zaud_dev->name);
-		return;
-	}
-
 	zaud_dmic_src->zaud_src.get_audio_caps = dmic_get_caps;
 
 	src->set_caps = mp_zaud_dmic_src_set_caps;
