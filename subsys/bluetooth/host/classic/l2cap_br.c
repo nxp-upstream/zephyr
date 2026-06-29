@@ -6288,7 +6288,8 @@ int bt_l2cap_br_chan_recv_complete(struct bt_l2cap_chan *chan)
 
 static int l2cap_br_accept(struct bt_conn *conn, struct bt_l2cap_chan **chan)
 {
-	int i;
+	struct bt_l2cap_br *l2cap;
+	uint8_t index;
 	static const struct bt_l2cap_chan_ops ops = {
 		.connected = l2cap_br_connected,
 		.disconnected = l2cap_br_disconnected,
@@ -6298,23 +6299,21 @@ static int l2cap_br_accept(struct bt_conn *conn, struct bt_l2cap_chan **chan)
 
 	LOG_DBG("conn %p handle %u", conn, conn->handle);
 
-	for (i = 0; i < ARRAY_SIZE(bt_l2cap_br_pool); i++) {
-		struct bt_l2cap_br *l2cap = &bt_l2cap_br_pool[i];
+	index = bt_conn_index(conn);
+	__ASSERT(index < ARRAY_SIZE(bt_l2cap_br_pool), "Invalid ACL conn index");
 
-		if (l2cap->chan.state != BT_L2CAP_DISCONNECTED) {
-			continue;
-		}
+	l2cap = &bt_l2cap_br_pool[index];
 
-		bt_l2cap_br_chan_set_state(&l2cap->chan.chan, BT_L2CAP_CONNECTING);
-		l2cap->chan.chan.ops = &ops;
-		*chan = &l2cap->chan.chan;
-		atomic_set(l2cap->chan.flags, 0);
-		return 0;
+	if (l2cap->chan.state != BT_L2CAP_DISCONNECTED) {
+		LOG_ERR("Signal chan %p is not idle (state %u)", &l2cap->chan, l2cap->chan.state);
+		return -EBUSY;
 	}
 
-	LOG_ERR("No available L2CAP context for conn %p", conn);
-
-	return -ENOMEM;
+	bt_l2cap_br_chan_set_state(&l2cap->chan.chan, BT_L2CAP_CONNECTING);
+	l2cap->chan.chan.ops = &ops;
+	*chan = &l2cap->chan.chan;
+	atomic_set(l2cap->chan.flags, 0);
+	return 0;
 }
 
 BT_L2CAP_BR_CHANNEL_DEFINE(br_fixed_chan, BT_L2CAP_CID_BR_SIG, l2cap_br_accept);
