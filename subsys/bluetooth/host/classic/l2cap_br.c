@@ -6599,12 +6599,20 @@ static struct bt_l2cap_br_chan bt_l2cap_br_connless_pool[CONFIG_BT_MAX_CONN];
 
 static void l2cap_br_connless_connected(struct bt_l2cap_chan *chan)
 {
+	bt_l2cap_br_chan_set_state(chan, BT_L2CAP_CONNECTED);
 	LOG_DBG("ch %p cid 0x%04x", BR_CHAN(chan), BR_CHAN(chan)->rx.cid);
 }
 
 static void l2cap_br_connless_disconnected(struct bt_l2cap_chan *chan)
 {
+	bt_l2cap_br_chan_set_state(chan, BT_L2CAP_DISCONNECTING);
 	LOG_DBG("ch %p cid 0x%04x", BR_CHAN(chan), BR_CHAN(chan)->rx.cid);
+}
+
+static void l2cap_br_connless_released(struct bt_l2cap_chan *chan)
+{
+	LOG_DBG("ch %p", BR_CHAN(chan));
+	bt_l2cap_br_chan_set_state(chan, BT_L2CAP_DISCONNECTED);
 }
 
 static int l2cap_br_conless_recv(struct bt_l2cap_chan *chan, struct net_buf *buf)
@@ -6645,6 +6653,7 @@ static int l2cap_br_connless_accept(struct bt_conn *conn, struct bt_l2cap_chan *
 	static const struct bt_l2cap_chan_ops ops = {
 		.connected = l2cap_br_connless_connected,
 		.disconnected = l2cap_br_connless_disconnected,
+		.released = l2cap_br_connless_released,
 		.recv = l2cap_br_conless_recv,
 	};
 
@@ -6655,6 +6664,12 @@ static int l2cap_br_connless_accept(struct bt_conn *conn, struct bt_l2cap_chan *
 
 	br_chan = &bt_l2cap_br_connless_pool[index];
 
+	if (br_chan->state != BT_L2CAP_DISCONNECTED) {
+		LOG_ERR("Connectless chan %p is not idle (state %u)", br_chan, br_chan->state);
+		return -EBUSY;
+	}
+
+	bt_l2cap_br_chan_set_state(&br_chan->chan, BT_L2CAP_CONNECTING);
 	br_chan->chan.ops = &ops;
 	br_chan->rx.mtu = BT_L2CAP_RX_MTU - BT_L2CAP_CONNLESS_SDU_HDR_SIZE;
 	br_chan->tx.mtu = L2CAP_BR_MIN_MTU;
