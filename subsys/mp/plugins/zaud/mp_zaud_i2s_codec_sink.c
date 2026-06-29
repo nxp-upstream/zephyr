@@ -21,6 +21,17 @@ LOG_MODULE_REGISTER(mp_zaud_i2s_codec_sink, CONFIG_MP_LOG_LEVEL);
 #define DEFAULT_PROP_I2S_DEVICE   DEVICE_DT_GET(DT_ALIAS(i2s_codec_tx))
 #define DEFAULT_PROP_CODEC_DEVICE DEVICE_DT_GET(DT_NODELABEL(audio_codec));
 
+/*
+ * Number of buffers to queue into the I2S TX FIFO before issuing the START
+ * trigger. The source and sink are clocked at the same rate, so the I2S
+ * consumer can momentarily get one buffer ahead of the source right after
+ * start. Priming more than one buffer keeps the TX queue from draining to
+ * empty on a scheduling tie, which would otherwise raise a TX underrun.
+ * This needs the negotiated buffer count to be at least 2 (true for any
+ * double-buffered codec).
+ */
+#define ZAUD_I2S_SINK_START_PRIME 3
+
 static struct mp_caps *mp_zaud_i2s_codec_sink_supported_caps(struct mp_sink *sink)
 {
 	int ret = 0;
@@ -278,7 +289,7 @@ int mp_zaud_i2s_codec_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 
 	if (!zaud_i2s_codec_sink->started) {
 		zaud_i2s_codec_sink->count++;
-		if (zaud_i2s_codec_sink->count == 2) {
+		if (zaud_i2s_codec_sink->count == ZAUD_I2S_SINK_START_PRIME) {
 			ret = i2s_trigger(zaud_i2s_codec_sink->i2s_dev, I2S_DIR_TX,
 					  I2S_TRIGGER_START);
 			if (ret < 0) {

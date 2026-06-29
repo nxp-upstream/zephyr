@@ -17,7 +17,7 @@
 
 LOG_MODULE_REGISTER(mp_zaud_buffer_pool, CONFIG_MP_LOG_LEVEL);
 
-#define ZAUD_BUFFER_POOL_BASE_ALIGN 4
+#define ZAUD_BUFFER_POOL_BASE_ALIGN sizeof(void *)
 #define ZAUD_BUFFER_POOL_SIZE                                                                     \
 	(CONFIG_MP_ZAUD_BUFFER_POOL_SZ_MAX * CONFIG_MP_ZAUD_BUFFER_POOL_NUM_MAX)
 
@@ -44,6 +44,7 @@ static int mp_zaud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_str
 	int align = 0;
 	uint32_t required_align = 0;
 	uint8_t *base;
+	int ret;
 
 	int sample_rate = mp_value_get_int(mp_structure_get_value(config, MP_CAPS_SAMPLE_RATE));
 	int bit_width = mp_value_get_int(mp_structure_get_value(config, MP_CAPS_BITWIDTH));
@@ -104,8 +105,15 @@ static int mp_zaud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_str
 		return -ENOMEM;
 	}
 
-	k_mem_slab_init(zaud_pool->mem_slab, (void *)zaud_buffer_pool_buf, pool->config.size,
-			pool->config.min_buffers);
+	ret = k_mem_slab_init(zaud_pool->mem_slab, (void *)zaud_buffer_pool_buf, pool->config.size,
+			      pool->config.min_buffers);
+	if (ret != 0) {
+		LOG_ERR("Unable to initialize memory slab (%d)", ret);
+		k_free(zaud_pool->blocks);
+		zaud_pool->blocks = NULL;
+		return ret;
+	}
+
 	base = (uint8_t *)zaud_pool->mem_slab->buffer;
 
 	for (uint8_t i = 0; i < pool->config.min_buffers; i++) {
