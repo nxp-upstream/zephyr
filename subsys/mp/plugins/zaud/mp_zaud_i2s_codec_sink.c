@@ -95,29 +95,42 @@ static struct mp_caps *mp_zaud_i2s_codec_sink_supported_caps(struct mp_sink *sin
 	}
 
 	struct mp_caps *caps = mp_caps_new(MP_MEDIA_END);
-	struct mp_structure *structure =
-		mp_structure_new(MP_MEDIA_AUDIO_PCM, MP_CAPS_SAMPLE_RATE, MP_TYPE_LIST,
-				 supported_sample_rate, MP_CAPS_BITWIDTH, MP_TYPE_LIST,
-				 supported_bit_width, MP_CAPS_NUM_OF_CHANNEL, MP_TYPE_INT_RANGE,
-				 (i2s_caps.min_total_channels > codec_caps.min_total_channels)
-					 ? i2s_caps.min_total_channels
-					 : codec_caps.min_total_channels,
-				 (i2s_caps.max_total_channels < codec_caps.max_total_channels)
-					 ? i2s_caps.max_total_channels
-					 : codec_caps.max_total_channels,
-				 1, MP_CAPS_FRAME_INTERVAL, MP_TYPE_UINT_RANGE,
-				 (i2s_caps.min_frame_interval > codec_caps.min_frame_interval)
-					 ? i2s_caps.min_frame_interval
-					 : codec_caps.min_frame_interval,
-				 (i2s_caps.max_frame_interval < codec_caps.max_frame_interval)
-					 ? i2s_caps.max_frame_interval
-					 : codec_caps.max_frame_interval,
-				 1, MP_CAPS_BUFFER_COUNT, MP_TYPE_INT_RANGE,
-				 (i2s_caps.min_num_buffers > codec_caps.min_num_buffers)
-					 ? i2s_caps.min_num_buffers
-					 : codec_caps.min_num_buffers,
-				 UINT8_MAX, 1, MP_CAPS_INTERLEAVED, MP_TYPE_BOOLEAN,
-				 codec_caps.interleaved, MP_CAPS_END);
+	uint8_t min_num_buffers = i2s_caps.min_num_buffers;
+
+	if (codec_caps.min_num_buffers > min_num_buffers) {
+		min_num_buffers = codec_caps.min_num_buffers;
+	}
+
+	/*
+	 * The sink primes ZAUD_I2S_SINK_START_PRIME buffers into the I2S TX
+	 * queue before issuing the START trigger, holding that many buffers
+	 * from the shared pool before any are transmitted and returned. Make
+	 * sure the negotiated pool can satisfy this, otherwise the source
+	 * starves before the sink ever starts.
+	 */
+	if (min_num_buffers < ZAUD_I2S_SINK_START_PRIME) {
+		min_num_buffers = ZAUD_I2S_SINK_START_PRIME;
+	}
+
+	struct mp_structure *structure = mp_structure_new(
+		MP_MEDIA_AUDIO_PCM, MP_CAPS_SAMPLE_RATE, MP_TYPE_LIST, supported_sample_rate,
+		MP_CAPS_BITWIDTH, MP_TYPE_LIST, supported_bit_width, MP_CAPS_NUM_OF_CHANNEL,
+		MP_TYPE_INT_RANGE,
+		(i2s_caps.min_total_channels > codec_caps.min_total_channels)
+			? i2s_caps.min_total_channels
+			: codec_caps.min_total_channels,
+		(i2s_caps.max_total_channels < codec_caps.max_total_channels)
+			? i2s_caps.max_total_channels
+			: codec_caps.max_total_channels,
+		1, MP_CAPS_FRAME_INTERVAL, MP_TYPE_UINT_RANGE,
+		(i2s_caps.min_frame_interval > codec_caps.min_frame_interval)
+			? i2s_caps.min_frame_interval
+			: codec_caps.min_frame_interval,
+		(i2s_caps.max_frame_interval < codec_caps.max_frame_interval)
+			? i2s_caps.max_frame_interval
+			: codec_caps.max_frame_interval,
+		1, MP_CAPS_BUFFER_COUNT, MP_TYPE_INT_RANGE, min_num_buffers, UINT8_MAX, 1,
+		MP_CAPS_INTERLEAVED, MP_TYPE_BOOLEAN, codec_caps.interleaved, MP_CAPS_END);
 
 	mp_caps_append(caps, structure);
 
