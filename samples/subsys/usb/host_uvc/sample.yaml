@@ -12,3 +12,5 @@ tests:
       - rd_rw612_bga/rw612
     integration_platforms:
       - rd_rw612_bga/rw612
+    extra_conf_files:
+      - "camera_320_240_yuv.conf"  # Camera Model: A4TECH PK-910H
