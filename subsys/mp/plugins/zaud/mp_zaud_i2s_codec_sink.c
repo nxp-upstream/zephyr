@@ -245,6 +245,21 @@ static int mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps 
 		LOG_ERR("Failed to configure codec: %d", ret);
 		return ret;
 	}
+
+#ifdef CONFIG_MP_ZAUD_I2S_CODEC_SINK_SET_OUTPUT_VOLUME
+	ret = audio_codec_set_property(
+		zaud_i2s_codec_sink->codec_dev, AUDIO_PROPERTY_OUTPUT_VOLUME, AUDIO_CHANNEL_ALL,
+		(audio_property_value_t){.vol = CONFIG_MP_ZAUD_I2S_CODEC_SINK_OUTPUT_VOLUME});
+	if (ret < 0) {
+		LOG_WRN("Failed to set codec output volume: %d", ret);
+	} else {
+		ret = audio_codec_apply_properties(zaud_i2s_codec_sink->codec_dev);
+		if (ret < 0) {
+			LOG_WRN("Failed to apply codec properties: %d", ret);
+		}
+	}
+#endif
+
 	k_msleep(1000);
 
 	config.word_size = bit_width;

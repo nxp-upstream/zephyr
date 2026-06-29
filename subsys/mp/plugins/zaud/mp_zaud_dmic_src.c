@@ -66,11 +66,11 @@ static int mp_zaud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 		if (i < 8) {
 			/* TODO: i%2 is hardcodded */
 			cfg.channel.req_chan_map_lo |= dmic_build_channel_map(
-				i, i / 2, (i % 2 ? PDM_CHAN_LEFT : PDM_CHAN_RIGHT));
+				i, i / 2, (i % 2 ? PDM_CHAN_RIGHT : PDM_CHAN_LEFT));
 		} else {
 			/* TODO: i%2 is hardcodded */
 			cfg.channel.req_chan_map_hi |= dmic_build_channel_map(
-				i, i / 2, (i % 2 ? PDM_CHAN_LEFT : PDM_CHAN_RIGHT));
+				i, i / 2, (i % 2 ? PDM_CHAN_RIGHT : PDM_CHAN_LEFT));
 		}
 	}
 

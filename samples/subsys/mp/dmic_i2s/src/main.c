@@ -83,8 +83,9 @@ int main(void)
 	MP_ELEMENT_INIT(&caps_filter, mp_caps_filter_init, CAPS_FILTER_ID);
 
 	uint32_t frame_interval = 10000; /* 10ms */
-	struct mp_caps *caps = mp_caps_new(MP_MEDIA_AUDIO_PCM, MP_CAPS_FRAME_INTERVAL, MP_TYPE_UINT,
-					   frame_interval, MP_CAPS_END);
+	struct mp_caps *caps =
+		mp_caps_new(MP_MEDIA_AUDIO_PCM, MP_CAPS_FRAME_INTERVAL, MP_TYPE_UINT,
+			    frame_interval, MP_CAPS_NUM_OF_CHANNEL, MP_TYPE_INT, 2, MP_CAPS_END);
 
 	if (caps == NULL) {
 		LOG_ERR("Failed to create a caps");
