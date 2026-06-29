@@ -4768,6 +4768,7 @@ static void l2cap_br_disconn_req(struct bt_l2cap_br *l2cap, uint8_t ident, struc
 
 static void l2cap_br_connected(struct bt_l2cap_chan *chan)
 {
+	bt_l2cap_br_chan_set_state(chan, BT_L2CAP_CONNECTED);
 	LOG_DBG("ch %p cid 0x%04x", BR_CHAN(chan), BR_CHAN(chan)->rx.cid);
 }
 
@@ -4775,6 +4776,7 @@ static void l2cap_br_disconnected(struct bt_l2cap_chan *chan)
 {
 	struct bt_l2cap_br_chan *br_chan = BR_CHAN(chan);
 
+	bt_l2cap_br_chan_set_state(chan, BT_L2CAP_DISCONNECTING);
 	LOG_DBG("ch %p cid 0x%04x", br_chan, br_chan->rx.cid);
 
 	if (atomic_test_and_clear_bit(br_chan->flags, L2CAP_FLAG_SIG_INFO_PENDING)) {
@@ -4785,6 +4787,15 @@ static void l2cap_br_disconnected(struct bt_l2cap_chan *chan)
 		(void)k_work_cancel_delayable(&br_chan->rtx_work);
 		br_chan->ident = 0;
 	}
+}
+
+static void l2cap_br_released(struct bt_l2cap_chan *chan)
+{
+	struct bt_l2cap_br_chan *br_chan = BR_CHAN(chan);
+
+	LOG_DBG("ch %p", br_chan);
+
+	bt_l2cap_br_chan_set_state(chan, BT_L2CAP_DISCONNECTED);
 }
 
 int bt_l2cap_br_chan_disconnect(struct bt_l2cap_chan *chan)
@@ -6281,6 +6292,7 @@ static int l2cap_br_accept(struct bt_conn *conn, struct bt_l2cap_chan **chan)
 	static const struct bt_l2cap_chan_ops ops = {
 		.connected = l2cap_br_connected,
 		.disconnected = l2cap_br_disconnected,
+		.released = l2cap_br_released,
 		.recv = l2cap_br_recv,
 	};
 
@@ -6289,10 +6301,11 @@ static int l2cap_br_accept(struct bt_conn *conn, struct bt_l2cap_chan **chan)
 	for (i = 0; i < ARRAY_SIZE(bt_l2cap_br_pool); i++) {
 		struct bt_l2cap_br *l2cap = &bt_l2cap_br_pool[i];
 
-		if (l2cap->chan.chan.conn) {
+		if (l2cap->chan.state != BT_L2CAP_DISCONNECTED) {
 			continue;
 		}
 
+		bt_l2cap_br_chan_set_state(&l2cap->chan.chan, BT_L2CAP_CONNECTING);
 		l2cap->chan.chan.ops = &ops;
 		*chan = &l2cap->chan.chan;
 		atomic_set(l2cap->chan.flags, 0);
