@@ -75,3 +75,6 @@ config MP_BUS_QUEUE_DEPTH
 	default 2
 	help
 	  Bus queue depth
+
+config MP_RPC
+	bool "RPC support"
