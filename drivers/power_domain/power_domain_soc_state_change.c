@@ -36,8 +36,17 @@ static int pd_domain_visitor(const struct device *dev, void *context)
 	if ((visitor_context->action == PM_DEVICE_ACTION_TURN_OFF) &&
 	    (dev->pm_base->state == PM_DEVICE_STATE_ACTIVE)) {
 		(void)pm_device_action_run(dev, PM_DEVICE_ACTION_SUSPEND);
+		atomic_set_bit(&dev->pm_base->flags, PM_DEVICE_FLAG_PD_FORCE_SUSPENDED);
 	}
 	(void)pm_device_action_run(dev, visitor_context->action);
+
+	/* Resume devices the domain force-suspended above; the system sweep that
+	 * normally pairs SUSPEND with RESUME never tracked them.
+	 */
+	if ((visitor_context->action == PM_DEVICE_ACTION_TURN_ON) &&
+	    atomic_test_and_clear_bit(&dev->pm_base->flags, PM_DEVICE_FLAG_PD_FORCE_SUSPENDED)) {
+		(void)pm_device_action_run(dev, PM_DEVICE_ACTION_RESUME);
+	}
 	return 0;
 }
 
