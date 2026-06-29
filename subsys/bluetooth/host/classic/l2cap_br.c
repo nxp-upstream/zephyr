@@ -6223,6 +6223,11 @@ void bt_l2cap_br_recv(struct bt_conn *conn, struct net_buf *buf)
 	 */
 	check_fixed_channel(chan);
 
+	if (BR_CHAN(chan)->state < BT_L2CAP_CONNECTED) {
+		LOG_ERR("Chan %p invalid state %u, ignoring data", chan, BR_CHAN(chan)->state);
+		return;
+	}
+
 #if defined(CONFIG_BT_L2CAP_RET_FC)
 	if (BR_CHAN(chan)->rx.mode != BT_L2CAP_BR_LINK_MODE_BASIC) {
 		/* Add back HDR for FCS check */
