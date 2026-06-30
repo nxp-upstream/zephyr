@@ -231,4 +231,22 @@
 /** SYSTEM clock identifier. */
 #define MCUX_SYSTEM_CLK MCUX_LPC_CLK_ID(0x36, 0x00)
 
+/** FRO high-frequency clock (FRO_HF) rate identifier. */
+#define MCUX_FRO_HF_CLK MCUX_LPC_CLK_ID(0x37, 0x00)
+
+/** FRO_HF divided output (FRO_HF_DIV) rate identifier. */
+#define MCUX_FRO_HF_DIV_CLK MCUX_LPC_CLK_ID(0x37, 0x01)
+
+/** FRO 12 MHz clock (FRO_12M) rate identifier. */
+#define MCUX_FRO_12M_CLK MCUX_LPC_CLK_ID(0x37, 0x02)
+
+/** FREQME peripheral gate clock identifier. */
+#define MCUX_FREQME_CLK MCUX_LPC_CLK_ID(0x37, 0x03)
+
+/** CPU / AHB (core system) clock rate identifier. */
+#define MCUX_CPU_AHB_CLK MCUX_LPC_CLK_ID(0x37, 0x04)
+
+/** External (system oscillator / CLK_IN) clock rate identifier. */
+#define MCUX_EXT_CLK MCUX_LPC_CLK_ID(0x37, 0x05)
+
 #endif /* ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_MCUX_LPC_SYSCON_H_ */

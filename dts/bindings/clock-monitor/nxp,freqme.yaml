@@ -1,0 +1,62 @@
+# SPDX-FileCopyrightText: 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  NXP Frequency Measurement (FREQME) module.
+
+  Measures a target clock against a reference clock and returns the result
+  in Hz. The reference and target inputs are routed through the INPUTMUX
+  peripheral (see inputmux-connections). Exposed through the Zephyr
+  clock_monitor API: MEASURE (one-shot) and WINDOW (continuous MIN/MAX
+  threshold) modes are both supported, built on the FREQME frequency
+  measurement operate mode.
+
+compatible: "nxp,freqme"
+
+include: [base.yaml]
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+    description: |
+      NVIC interrupt for measurement-ready, over-range, and under-range events.
+
+  clocks:
+    required: true
+
+  clock-names:
+    required: true
+    min-len: 2
+    max-len: 3
+    description: |
+      In order:
+        - "ipg"        : FREQME peripheral gate clock, enabled by the driver
+                         via clock_control_on().
+        - "reference"  : the reference timebase clock, queried by the driver
+                         to size the measurement window (REF_SCALE) and to
+                         convert the raw result into Hz.
+        - "monitored"  : optional. The measured clock; only used in WINDOW
+                         mode to auto-derive the expected frequency when
+                         expected_hz is 0.
+
+  inputmux-connections:
+    type: phandle-array
+    specifier-space: inputmux
+    required: true
+    min-len: 2
+    max-len: 2
+    description: |
+      INPUTMUX routing for the reference and target clock inputs. Each
+      phandle-array entry is <&inputmuxN channel connection> where:
+        - &inputmuxN is the INPUTMUX node providing the route
+        - channel is the destination index (0 for FREQME)
+        - connection is an inputmux_connection_t cookie from
+          fsl_inputmux_connections.h. Use the NXP_FREQME_REF_* /
+          NXP_FREQME_TAR_* macros in
+          <zephyr/dt-bindings/clock-monitor/nxp-freqme.h>.
+
+      Provide two entries: one reference route (...ToFreqmeasRef) and one
+      target route (...ToFreqmeasTar).
