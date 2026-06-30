@@ -597,7 +597,6 @@ static struct mcp_http_client_ctx *allocate_client(void)
 		}
 	}
 
-unlock:
 	k_mutex_unlock(&http_transport_state.clients_mutex);
 
 	if (client == NULL) {
@@ -699,7 +698,6 @@ static int poll_for_response(struct mcp_http_client_ctx *mcp_client, uint32_t ms
 {
 	int ret;
 	int times_polled = 0;
-	size_t index;
 	struct mcp_http_response_item response_data;
 
 	while (times_polled < MCP_MAX_POLLS) {
@@ -863,7 +861,6 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 	int ret;
 	struct mcp_http_client_ctx *mcp_client;
 	struct mcp_http_response_item response_data;
-	struct mcp_http_response_item *temp;
 	uint16_t request_id, event_count;
 	uint8_t idx;
 
