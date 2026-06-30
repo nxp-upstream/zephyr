@@ -25,11 +25,12 @@ static int mp_zaud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 
 	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
 
-	int sample_rate =
-		mp_value_get_int(mp_structure_get_value(first_structure, MP_CAPS_SAMPLE_RATE));
-	int bit_width = mp_value_get_int(mp_structure_get_value(first_structure, MP_CAPS_BITWIDTH));
-	int num_of_channel =
-		mp_value_get_int(mp_structure_get_value(first_structure, MP_CAPS_NUM_OF_CHANNEL));
+	uint32_t sample_rate =
+		mp_value_get_uint(mp_structure_get_value(first_structure, MP_CAPS_SAMPLE_RATE));
+	uint32_t bit_width =
+		mp_value_get_uint(mp_structure_get_value(first_structure, MP_CAPS_BITWIDTH));
+	uint32_t num_of_channel =
+		mp_value_get_uint(mp_structure_get_value(first_structure, MP_CAPS_NUM_OF_CHANNEL));
 	uint32_t frame_interval =
 		mp_value_get_uint(mp_structure_get_value(first_structure, MP_CAPS_FRAME_INTERVAL));
 
@@ -62,7 +63,7 @@ static int mp_zaud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 	cfg.channel.req_num_chan = num_of_channel;
 	cfg.channel.req_chan_map_lo = 0;
 	cfg.channel.req_chan_map_hi = 0;
-	for (int i = 0; i < num_of_channel; i++) {
+	for (uint32_t i = 0; i < num_of_channel; i++) {
 		if (i < 8) {
 			/* TODO: i%2 is hardcodded */
 			cfg.channel.req_chan_map_lo |= dmic_build_channel_map(

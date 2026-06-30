@@ -263,10 +263,11 @@ static int mp_zaud_gain_set_caps(struct mp_transform *transform, enum mp_pad_dir
 	/* Get the first structure from caps */
 	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
 	/* Extract bit_width from the structure */
-	int bit_width = mp_value_get_int(mp_structure_get_value(first_structure, MP_CAPS_BITWIDTH));
+	uint32_t bit_width =
+		mp_value_get_uint(mp_structure_get_value(first_structure, MP_CAPS_BITWIDTH));
 	/* Store bit_width in the zaud_gain structure */
 	zaud_gain->bit_width = bit_width;
-	LOG_DBG("Bit width set to %d", bit_width);
+	LOG_DBG("Bit width set to %u", bit_width);
 
 	return 0;
 }

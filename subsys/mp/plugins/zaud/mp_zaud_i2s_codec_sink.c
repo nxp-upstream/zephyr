@@ -115,7 +115,7 @@ static struct mp_caps *mp_zaud_i2s_codec_sink_supported_caps(struct mp_sink *sin
 	struct mp_structure *structure = mp_structure_new(
 		MP_MEDIA_AUDIO_PCM, MP_CAPS_SAMPLE_RATE, MP_TYPE_LIST, supported_sample_rate,
 		MP_CAPS_BITWIDTH, MP_TYPE_LIST, supported_bit_width, MP_CAPS_NUM_OF_CHANNEL,
-		MP_TYPE_INT_RANGE,
+		MP_TYPE_UINT_RANGE,
 		(i2s_caps.min_total_channels > codec_caps.min_total_channels)
 			? i2s_caps.min_total_channels
 			: codec_caps.min_total_channels,
@@ -129,7 +129,7 @@ static struct mp_caps *mp_zaud_i2s_codec_sink_supported_caps(struct mp_sink *sin
 		(i2s_caps.max_frame_interval < codec_caps.max_frame_interval)
 			? i2s_caps.max_frame_interval
 			: codec_caps.max_frame_interval,
-		1, MP_CAPS_BUFFER_COUNT, MP_TYPE_INT_RANGE, min_num_buffers, UINT8_MAX, 1,
+		1, MP_CAPS_BUFFER_COUNT, MP_TYPE_UINT_RANGE, min_num_buffers, UINT8_MAX, 1,
 		MP_CAPS_INTERLEAVED, MP_TYPE_BOOLEAN, codec_caps.interleaved, MP_CAPS_END);
 
 	mp_caps_append(caps, structure);
@@ -223,13 +223,14 @@ static int mp_zaud_i2s_codec_sink_set_caps(struct mp_sink *sink, struct mp_caps 
 
 	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
 
-	int sample_rate =
-		mp_value_get_int(mp_structure_get_value(first_structure, MP_CAPS_SAMPLE_RATE));
-	int bit_width = mp_value_get_int(mp_structure_get_value(first_structure, MP_CAPS_BITWIDTH));
-	int num_of_channel =
-		mp_value_get_int(mp_structure_get_value(first_structure, MP_CAPS_NUM_OF_CHANNEL));
+	uint32_t sample_rate =
+		mp_value_get_uint(mp_structure_get_value(first_structure, MP_CAPS_SAMPLE_RATE));
+	uint32_t bit_width =
+		mp_value_get_uint(mp_structure_get_value(first_structure, MP_CAPS_BITWIDTH));
+	uint32_t num_of_channel =
+		mp_value_get_uint(mp_structure_get_value(first_structure, MP_CAPS_NUM_OF_CHANNEL));
 	uint32_t frame_interval =
-		mp_value_get_int(mp_structure_get_value(first_structure, MP_CAPS_FRAME_INTERVAL));
+		mp_value_get_uint(mp_structure_get_value(first_structure, MP_CAPS_FRAME_INTERVAL));
 
 	if (zaud_i2s_codec_sink->mem_slab == NULL) {
 		LOG_ERR("Memory slab not configured");

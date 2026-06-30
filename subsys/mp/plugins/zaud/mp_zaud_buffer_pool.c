@@ -46,13 +46,15 @@ static int mp_zaud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_str
 	uint8_t *base;
 	int ret;
 
-	int sample_rate = mp_value_get_int(mp_structure_get_value(config, MP_CAPS_SAMPLE_RATE));
-	int bit_width = mp_value_get_int(mp_structure_get_value(config, MP_CAPS_BITWIDTH));
-	int num_of_channel =
-		mp_value_get_int(mp_structure_get_value(config, MP_CAPS_NUM_OF_CHANNEL));
+	uint32_t sample_rate =
+		mp_value_get_uint(mp_structure_get_value(config, MP_CAPS_SAMPLE_RATE));
+	uint32_t bit_width = mp_value_get_uint(mp_structure_get_value(config, MP_CAPS_BITWIDTH));
+	uint32_t num_of_channel =
+		mp_value_get_uint(mp_structure_get_value(config, MP_CAPS_NUM_OF_CHANNEL));
 	uint32_t frame_interval =
 		mp_value_get_uint(mp_structure_get_value(config, MP_CAPS_FRAME_INTERVAL));
-	int buffer_count = mp_value_get_int(mp_structure_get_value(config, MP_CAPS_BUFFER_COUNT));
+	uint32_t buffer_count =
+		mp_value_get_uint(mp_structure_get_value(config, MP_CAPS_BUFFER_COUNT));
 
 	/*
 	 * TEMPORARY WORKAROUND: Adding 2 extra buffers to the minimum count
