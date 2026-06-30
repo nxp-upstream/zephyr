@@ -104,6 +104,7 @@ struct mcp_tool_record {
 	struct mcp_tool_metadata metadata;	/**< Tool metadata */
 	atomic_t refcount;					/**< Internal refcount */
 	mcp_tool_callback_t callback;		/**< Tool callback (tools/call) */
+	bool is_event_stream;				/**< Tells the transport layer how to process the response/events */
 };
 
 /**

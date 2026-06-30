@@ -11,7 +11,6 @@
 #include <zephyr/net/socket.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/util.h>
-#include <zephyr/sys/min_heap.h>
 #include <string.h>
 #include <inttypes.h>
 
@@ -40,6 +39,25 @@ LOG_MODULE_REGISTER(mcp_http_transport, CONFIG_MCP_LOG_LEVEL);
 #define MCP_MAX_POLLS ((CONFIG_MCP_HTTP_TIMEOUT_MS / CONFIG_MCP_HTTP_POLL_INTERVAL_MS)\
 			+ (CONFIG_MCP_HTTP_TIMEOUT_MS % CONFIG_MCP_HTTP_POLL_INTERVAL_MS != 0))
 
+struct mcp_http_sse_event{
+	uint16_t event_id;
+	char* event_data;
+};
+
+struct mcp_http_circular_event_buffer{
+    uint16_t head;
+    uint16_t tail;
+	struct mcp_http_sse_event * const buffer;
+	const uint16_t maxlen;
+};
+
+struct mcp_http_buffer_record{
+	uint16_t request_id; // equivalent to stream_id
+	uint32_t event_counter; // how many events were submitted in relation to request_id request
+	bool is_event_stream;
+	void* buffer;
+};
+
 /* Request accumulation buffer for each client */
 struct mcp_http_request_accumulator {
 	size_t data_len;
@@ -60,18 +78,15 @@ struct mcp_http_response_item {
 	uint32_t event_id;
 };
 
+
 /* HTTP Client context management */
 struct mcp_http_client_ctx {
 	struct mcp_transport_binding binding;
-	struct http_header response_headers[MAX_RESPONSE_HEADERS];
-	struct min_heap responses;
-	struct k_mutex responses_mutex;
+	struct mcp_http_buffer_record event_buffer[CONFIG_MCP_MAX_CLIENT_REQUESTS];
 	atomic_t ref_count;
-	uint32_t next_event_id;
 	char session_uuid_str[UUID_STR_LEN];
+	struct http_header response_headers[MAX_RESPONSE_HEADERS];
 	char response_body[CONFIG_MCP_MAX_MESSAGE_SIZE];
-	uint8_t responses_storage[CONFIG_MCP_MAX_CLIENT_REQUESTS *
-				  sizeof(struct mcp_http_response_item)];
 	bool in_use;
 };
 
@@ -106,6 +121,13 @@ static int format_response(char *buffer, size_t buffer_size, const char *json_da
 static int format_sse_response(char *buffer, size_t buffer_size, uint32_t event_id,
 			       const char *data);
 static int format_sse_retry_response(char *buffer, size_t buffer_size, uint32_t retry_ms);
+
+static int8_t mcp_server_get_request_idx(struct mcp_http_client_ctx *client, uint32_t req_id);
+static int mcp_server_remove_response(struct mcp_http_client_ctx *mcp_client, uint8_t idx, void *out_buf);
+static int mcp_get_empty_event_buffer_record(struct mcp_http_client_ctx *mcp_client);
+static uint16_t mcp_server_get_events_per_request(struct mcp_http_client_ctx *client, uint32_t msg_id);
+static uint8_t mcp_server_register_client_response(struct mcp_http_client_ctx *client, uint8_t buffer_index, void *response);
+static int mcp_server_parse_event_id(uint32_t event_id, uint16_t *request_id, uint16_t *event_count);
 
 static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 				     const struct http_request_ctx *request_ctx,
@@ -162,22 +184,133 @@ HTTP_SERVER_REGISTER_HEADER_CAPTURE(last_event_id_hdr, "Last-Event-Id");
 HTTP_SERVER_REGISTER_HEADER_CAPTURE(mcp_protocol_version_hdr, "Mcp-Protocol-Version");
 
 /*******************************************************************************
- * Min Heap Helpers
+ * Get index in event_buffer for a specific request
  ******************************************************************************/
-static int mcp_http_response_compare(const void *a, const void *b)
+static int8_t mcp_server_get_request_idx(struct mcp_http_client_ctx *client, uint32_t req_id)
 {
-	const struct mcp_http_response_item *da = a;
-	const struct mcp_http_response_item *db = b;
+	if (client == NULL)
+	{
+		return -EINVAL;
+	}
 
-	return da->event_id - db->event_id;
+	int8_t idx;
+	for (idx = 0; idx < CONFIG_MCP_MAX_CLIENT_REQUESTS; idx++)
+	{
+		if (client->event_buffer[idx].request_id == req_id)
+		{
+			return idx;
+		}
+	}
+
+	return -ENODATA;
 }
 
-static bool mcp_http_response_match(const void *a, const void *b)
+/** 
+ * Remove response from the client's response buffer
+ */
+static int mcp_server_remove_response(struct mcp_http_client_ctx *mcp_client, uint8_t idx, void *out_buf)
 {
-	const struct mcp_http_response_item *da = a;
-	const uint32_t *event_id = b;
+	if (mcp_client == NULL || idx >= CONFIG_MCP_MAX_CLIENT_REQUESTS || out_buf == NULL) {
+		return -EINVAL;
+	}
+	
+	if(!mcp_client->event_buffer[idx].is_event_stream)
+	{
+		memcpy(out_buf, mcp_client->event_buffer[idx].buffer, sizeof(struct mcp_http_response_item));
+		mcp_client->event_buffer[idx].buffer = NULL;
+		mcp_client->event_buffer[idx].event_counter--;
+		mcp_client->event_buffer[idx].request_id = 0;
+	}
 
-	return da->event_id == *event_id;
+	return 0;
+}
+
+/*******************************************************************************
+ * Get the first empty buffer record in client event_buffer
+ ******************************************************************************/
+static int mcp_get_empty_event_buffer_record(struct mcp_http_client_ctx *mcp_client)
+{
+	if(mcp_client == NULL)
+	{
+		return -EINVAL;
+	}
+
+	uint8_t event_buffer_idx;
+	for(event_buffer_idx = 0; event_buffer_idx < CONFIG_MCP_MAX_CLIENT_REQUESTS; event_buffer_idx++)
+	{
+		if (mcp_client->event_buffer[event_buffer_idx].request_id == 0) // this means the slot is empty
+		{
+			return event_buffer_idx;
+		}
+	}
+	
+	return -ENODATA;
+}
+
+/*******************************************************************************
+ * Get event count for a specific request
+ ******************************************************************************/
+static uint16_t mcp_server_get_events_per_request(struct mcp_http_client_ctx *client, uint32_t msg_id)
+{
+	if (client == NULL)
+	{
+		return -EINVAL;
+	}
+
+	for(uint8_t i = 0; i < CONFIG_MCP_MAX_CLIENT_REQUESTS; i++)
+	{
+		if(client->event_buffer[i].request_id == msg_id)
+		{
+			return client->event_buffer[i].event_counter;
+		}
+	}
+
+	return 0;
+}
+
+/*******************************************************************************
+ * Register response into a client's context
+ ******************************************************************************/
+static uint8_t mcp_server_register_client_response(struct mcp_http_client_ctx *client, uint8_t buffer_index, void *response)
+{
+	if(client == NULL || response == NULL)
+	{
+		return -EINVAL;
+	}
+
+	if(client->event_buffer[buffer_index].is_event_stream && client->event_buffer[buffer_index].buffer == NULL)
+	{
+		// allocate circular buffer and fill in first event
+
+		client->event_buffer[buffer_index].event_counter++;
+
+	}
+	else if(client->event_buffer[buffer_index].is_event_stream && client->event_buffer[buffer_index].buffer)
+	{
+		// add event to already existing circular buffer
+
+		client->event_buffer[buffer_index].event_counter++;
+
+	}
+	else if (!client->event_buffer[buffer_index].is_event_stream) // if it's only a response
+	{
+		struct mcp_http_response_item *item = (struct mcp_http_response_item *)response;
+		memcpy(client->event_buffer[buffer_index].buffer, item, sizeof(struct mcp_http_response_item));
+	}
+
+	return 0;
+}
+
+static int mcp_server_parse_event_id(uint32_t event_id, uint16_t *request_id, uint16_t *event_count)
+{
+	if (request_id == NULL || event_count == NULL) {
+		return -EINVAL;
+	}
+
+	*event_count = event_id & 0xFFFF;
+	*request_id = (event_id >> 16) & 0xFFFF;
+
+	return 0;
 }
 
 /*******************************************************************************
@@ -388,19 +521,21 @@ static void client_ref_put(struct mcp_http_client_ctx *client)
 		return;
 	}
 
-	/* Last reference cleanup */
-	ret = k_mutex_lock(&client->responses_mutex, K_FOREVER);
-	if (ret != 0) {
-		LOG_ERR("Failed to lock responses mutex during cleanup: %d", ret);
-	} else {
-		/* Clean up any pending responses in the queue */
-		MIN_HEAP_FOREACH(&client->responses, response_item) {
-			if (response_item->data) {
-				mcp_free(response_item->data);
-				atomic_dec(&available_responses);
-			}
+	/* Clean up any pending responses in the queue */
+	for(uint8_t i = 0; i < CONFIG_MCP_MAX_CLIENT_REQUESTS; i++)
+	{
+		struct mcp_http_buffer_record *record = &client->event_buffer[i];
+		
+		if (record->buffer == NULL) {
+			continue;
 		}
-		k_mutex_unlock(&client->responses_mutex);
+		
+		response_item = (struct mcp_http_response_item *)record->buffer;
+		if (response_item->data)
+		{
+			mcp_free(response_item->data);
+			atomic_dec(&available_responses);
+		}
 	}
 
 	ret = k_mutex_lock(&http_transport_state.clients_mutex, K_FOREVER);
@@ -414,12 +549,13 @@ static void client_ref_put(struct mcp_http_client_ctx *client)
 		/* Mark as not in use first to prevent new references */
 		client->in_use = false;
 		k_mutex_unlock(&http_transport_state.clients_mutex);
-
+	
 		/* Now safe to destroy the mutex as no one can acquire new references */
 		memset(client, 0, sizeof(*client));
 	} else {
 		k_mutex_unlock(&http_transport_state.clients_mutex);
 	}
+	
 }
 
 /*******************************************************************************
@@ -440,16 +576,15 @@ static struct mcp_http_client_ctx *allocate_client(void)
 	for (int i = 0; i < CONFIG_HTTP_SERVER_MAX_CLIENTS; i++) {
 		if (!http_transport_state.clients[i].in_use) {
 			client = &http_transport_state.clients[i];
-
-			ret = k_mutex_init(&client->responses_mutex);
-			if (ret != 0) {
-				LOG_ERR("Failed to initialize client mutex: %d", ret);
-				client = NULL;
-				goto unlock;
-			}
-
 			client->in_use = true;
-			client->next_event_id = 0;
+			for (uint8_t j = 0; j < CONFIG_MCP_MAX_CLIENT_REQUESTS; j++)
+			{
+				client->event_buffer[j].request_id = 0;
+				client->event_buffer[j].event_counter = 0; // we start with 0 events per request at client allocation
+				client->event_buffer[j].buffer = NULL;
+				client->event_buffer[j].is_event_stream = false; // to begin with
+			}
+			
 			client->binding.ops = &mcp_http_transport_ops;
 			client->binding.context = (void *)client;
 
@@ -457,11 +592,6 @@ static struct mcp_http_client_ctx *allocate_client(void)
 
 			uuid_generate_v4(&session_uuid);
 			uuid_to_string(&session_uuid, client->session_uuid_str);
-
-			min_heap_init(&client->responses, client->responses_storage,
-				      CONFIG_MCP_MAX_CLIENT_REQUESTS,
-				      sizeof(struct mcp_http_response_item),
-				      mcp_http_response_compare);
 
 			break;
 		}
@@ -577,22 +707,19 @@ static int poll_for_response(struct mcp_http_client_ctx *mcp_client, uint32_t ms
 
 		if (any_responses > 0) {
 			LOG_DBG("Responses available, checking if any matches request.");
-			k_mutex_lock(&mcp_client->responses_mutex, K_FOREVER);
 
-			if (min_heap_find(&mcp_client->responses, mcp_http_response_match, &msg_id,
-					  &index)) {
+			int8_t response_idx = mcp_server_get_request_idx(mcp_client, msg_id);
+			if(response_idx >= 0)
+			{
 				LOG_DBG("Matching response found.");
-				min_heap_remove(&mcp_client->responses, index, &response_data);
+				mcp_server_remove_response(mcp_client, response_idx, &response_data);
 				ret = format_response(mcp_client->response_body,
 						      sizeof(mcp_client->response_body),
 						      response_data.data);
 				mcp_free(response_data.data);
 				atomic_dec(&available_responses);
-				k_mutex_unlock(&mcp_client->responses_mutex);
 				return ret;
 			}
-
-			k_mutex_unlock(&mcp_client->responses_mutex);
 		}
 
 		LOG_DBG("Response not yet available, will poll again");
@@ -601,11 +728,9 @@ static int poll_for_response(struct mcp_http_client_ctx *mcp_client, uint32_t ms
 	}
 
 	LOG_DBG("Request is taking too long to process, switching to SSE");
-	k_mutex_lock(&mcp_client->responses_mutex, K_FOREVER);
 	mcp_client->response_headers[0].value = "text/event-stream";
 	ret = format_sse_response(mcp_client->response_body, sizeof(mcp_client->response_body),
 				  msg_id, NULL);
-	k_mutex_unlock(&mcp_client->responses_mutex);
 
 	return ret;
 }
@@ -623,6 +748,8 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 	enum mcp_method request_type;
 	struct mcp_transport_message request_data;
 	struct mcp_http_client_ctx *mcp_client = NULL;
+	static uint16_t s_request_id = 1;
+	uint8_t event_buffer_idx;
 
 	if (is_initialize_request) {
 		mcp_client = allocate_client();
@@ -636,11 +763,16 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 		response_ctx->final_chunk = true;
 		return 0;
 	}
+	
+	event_buffer_idx = mcp_get_empty_event_buffer_record(mcp_client);
 
+	// Assign request ID to reserve the slot
+	mcp_client->event_buffer[event_buffer_idx].request_id = s_request_id;
+	
 	request_data = (struct mcp_transport_message){
 		.json_data = accumulator->data,
 		.json_len = accumulator->data_len,
-		.msg_id = mcp_client->next_event_id++,
+		.msg_id = s_request_id++,
 		.binding = &mcp_client->binding
 	};
 
@@ -653,8 +785,7 @@ static int mcp_endpoint_post_handler(struct http_client_ctx *client,
 				sizeof(request_data.protocol_version), DEFAULT_PROTOCOL_VERSION);
 	}
 
-	ret = mcp_server_handle_request(http_transport_state.server_core, &request_data,
-					&request_type);
+	ret = mcp_server_handle_request(http_transport_state.server_core, &request_data, &request_type);
 	if (ret < 0) {
 		if (is_initialize_request) {
 			release_client(mcp_client);
@@ -733,6 +864,8 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 	struct mcp_http_client_ctx *mcp_client;
 	struct mcp_http_response_item response_data;
 	struct mcp_http_response_item *temp;
+	uint16_t request_id, event_count;
+	uint8_t idx;
 
 	/* Find client by UUID string and increment ref count) */
 	mcp_client = get_client_by_uuid_str(accumulator->session_id_hdr);
@@ -757,9 +890,11 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 	response_ctx->status = HTTP_200_OK;
 	response_ctx->final_chunk = true;
 
-	k_mutex_lock(&mcp_client->responses_mutex, K_FOREVER);
-	if ((mcp_client->next_event_id <= accumulator->last_event_id_hdr) ||
-	    min_heap_is_empty(&mcp_client->responses)) {
+	mcp_server_parse_event_id(accumulator->last_event_id_hdr, &request_id, &event_count);
+	idx = mcp_server_get_request_idx(mcp_client, request_id);
+
+	if(event_count == 0 || mcp_client->event_buffer[idx].buffer == NULL)
+	{
 		/* Send retry interval when there are no events to stream */
 		ret = format_sse_retry_response(mcp_client->response_body,
 						sizeof(mcp_client->response_body),
@@ -774,16 +909,22 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 		response_ctx->body_len = ret;
 
 		LOG_DBG("Sending retry event: %s", response_ctx->body);
-	} else {
+	}
+	else if(event_count && mcp_client->event_buffer[idx].buffer)
+	{
 		/* Format SSE response with data */
-		temp = min_heap_peek(&mcp_client->responses);
-		if (temp && (temp->event_id >= accumulator->last_event_id_hdr)) {
-			min_heap_pop(&mcp_client->responses, &response_data);
+		if(!mcp_client->event_buffer[idx].is_event_stream)
+		{
+			ret = mcp_server_remove_response(mcp_client, idx, &response_data);
+			if(ret < 0)
+			{
+				LOG_ERR("Failed to get response: %d", ret);
+				goto get_handler_done;
+			}
 			atomic_dec(&available_responses);
 			ret = format_sse_response(mcp_client->response_body,
 						  sizeof(mcp_client->response_body),
-						  mcp_client->next_event_id, response_data.data);
-			mcp_client->next_event_id++;
+						  request_id, response_data.data);
 
 			if (ret < 0) {
 				LOG_ERR("Failed to format SSE response: %d", ret);
@@ -792,18 +933,15 @@ static int mcp_endpoint_get_handler(struct http_client_ctx *client,
 				goto get_handler_done;
 			}
 
-			temp = min_heap_peek(&mcp_client->responses);
 			response_ctx->body = mcp_client->response_body;
 			response_ctx->body_len = ret;
-			response_ctx->final_chunk =
-				!(temp && (temp->event_id >= accumulator->last_event_id_hdr));
-
+			response_ctx->final_chunk = true; //!(mcp_server_get_events_per_request(mcp_client, request_id) && mcp_client->event_buffer[idx].buffer);
+				
 			mcp_free(response_data.data);
 			LOG_DBG("Sending SSE response: %s", response_ctx->body);
 		}
 	}
 get_handler_done:
-	k_mutex_unlock(&mcp_client->responses_mutex);
 	client_ref_put(mcp_client);
 
 	return 0;
@@ -998,6 +1136,8 @@ static int mcp_server_http_send(struct mcp_transport_message *response)
 	struct mcp_http_response_item item;
 	struct mcp_http_client_ctx *client;
 	int ret;
+	uint16_t event_count;
+	uint8_t buffer_idx;
 
 	if (!http_transport_state.initialized) {
 		LOG_WRN("HTTP transport not initialized");
@@ -1025,28 +1165,23 @@ static int mcp_server_http_send(struct mcp_transport_message *response)
 	client_ref_get(client);
 	k_mutex_unlock(&http_transport_state.clients_mutex);
 
+	event_count = mcp_server_get_events_per_request(client, response->msg_id);
+
 	/* Take ownership of the data pointer */
 	item.data = response->json_data;
 	item.length = response->json_len;
-	item.event_id = response->msg_id;
+	item.event_id = ((response->msg_id << 16) + event_count);
+	
+	buffer_idx = mcp_server_get_request_idx(client, response->msg_id);
+	ret = mcp_server_register_client_response(client, buffer_idx, &item);
 
-	ret = k_mutex_lock(&client->responses_mutex, K_FOREVER);
 	if (ret != 0) {
-		LOG_ERR("Failed to lock responses mutex: %d", ret);
-		client_ref_put(client);
-		return ret;
-	}
-
-	/* POST/GET handlers are responsible for freeing response data from core */
-	ret = min_heap_push(&client->responses, &item);
-	if (ret != 0) {
-		LOG_ERR("Failed to push response to heap for client %s: %d",
+		LOG_ERR("Failed to register response for client %s: %d",
 			client->session_uuid_str, ret);
 	}
 
 	atomic_inc(&available_responses);
-
-	k_mutex_unlock(&client->responses_mutex);
+	
 	client_ref_put(client);
 
 	return ret;

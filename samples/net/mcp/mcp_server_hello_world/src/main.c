@@ -229,7 +229,8 @@ static const struct mcp_tool_record delayed_response_tool = {
 					 "\"type\":\"string\"}}}",
 #endif
 		},
-	.callback = delayed_response_tool_callback
+	.callback = delayed_response_tool_callback,
+	.is_event_stream = false
 };
 
 static const struct mcp_tool_record led_control_tool = {
@@ -258,7 +259,8 @@ static const struct mcp_tool_record led_control_tool = {
 					 "\"type\":\"string\"}}}",
 #endif
 		},
-	.callback = led_control_tool_callback
+	.callback = led_control_tool_callback,
+	.is_event_stream = false
 };
 
 int main(void)
