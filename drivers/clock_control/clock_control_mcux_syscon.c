@@ -126,6 +126,35 @@ static int mcux_lpc_syscon_clock_control_on(const struct device *dev,
 	}
 #endif
 
+#if defined(CONFIG_CLOCK_MONITOR_NXP_FREQME) &&                                                   \
+	(defined(CONFIG_SOC_FAMILY_MCXA) || defined(CONFIG_SOC_FAMILY_MCXN) ||                     \
+	 defined(CONFIG_SOC_FAMILY_MCXL) || defined(CONFIG_SOC_SERIES_IMXRT7XX))
+	if ((uint32_t)sub_system == MCUX_FREQME_CLK) {
+#if defined(CONFIG_SOC_FAMILY_MCXA) || defined(CONFIG_SOC_FAMILY_MCXL)
+		CLOCK_EnableClock(kCLOCK_GateFREQME);
+#elif defined(CONFIG_SOC_FAMILY_MCXN)
+		CLOCK_EnableClock(kCLOCK_Freqme);
+#else /* CONFIG_SOC_SERIES_IMXRT7XX */
+		CLOCK_EnableClock(kCLOCK_Freqme0);
+#endif
+	}
+#endif
+
+#if defined(CONFIG_CLOCK_MONITOR_NXP_FREQME) && defined(CONFIG_SOC_FAMILY_MCXN)
+	/* Route the FREQME reference/target source clocks to the Frequency
+	 * Measure mux via SYSCON CLOCK_CTRL (the board clock init does not).
+	 */
+	if ((uint32_t)sub_system == MCUX_FRO_HF_CLK) {
+		CLOCK_SetupClockCtrl(kCLOCK_FRO_HF_ENA);
+	}
+	if ((uint32_t)sub_system == MCUX_FRO_12M_CLK) {
+		CLOCK_SetupClockCtrl(kCLOCK_FRO12MHZ_ENA);
+	}
+	if ((uint32_t)sub_system == MCUX_EXT_CLK) {
+		CLOCK_SetupClockCtrl(kCLOCK_CLKIN_ENA_FM_USBH_LPT);
+	}
+#endif
+
 #if defined(CONFIG_PINCTRL_NXP_PORT)
 	switch ((uint32_t)sub_system) {
 #if defined(CONFIG_SOC_FAMILY_MCXA) || defined(CONFIG_SOC_FAMILY_MCXL)
@@ -423,6 +452,40 @@ static int mcux_lpc_syscon_clock_control_get_subsys_rate(const struct device *de
 	uint32_t clock_name = (uint32_t)sub_system;
 
 	switch (clock_name) {
+
+#if defined(CONFIG_SOC_FAMILY_MCXA) || defined(CONFIG_SOC_FAMILY_MCXN) ||                          \
+	defined(CONFIG_SOC_FAMILY_MCXL)
+	case MCUX_FRO_HF_CLK:
+		*rate = CLOCK_GetFreq(kCLOCK_FroHf);
+		break;
+	case MCUX_FRO_12M_CLK:
+		*rate = CLOCK_GetFreq(kCLOCK_Fro12M);
+		break;
+#endif
+#if defined(CONFIG_SOC_FAMILY_MCXA) || defined(CONFIG_SOC_FAMILY_MCXL)
+	case MCUX_FRO_HF_DIV_CLK:
+		*rate = CLOCK_GetFreq(kCLOCK_FroHfDiv);
+		break;
+#endif
+#if defined(CONFIG_SOC_FAMILY_MCXN)
+	case MCUX_CPU_AHB_CLK:
+		*rate = CLOCK_GetFreq(kCLOCK_BusClk);
+		break;
+	case MCUX_EXT_CLK:
+		*rate = CLOCK_GetFreq(kCLOCK_ExtClk);
+		break;
+#endif
+#if defined(CONFIG_CLOCK_MONITOR_NXP_FREQME) && defined(CONFIG_SOC_SERIES_IMXRT7XX)
+	/* FREQME source clocks on RT700: FRO1 (192 MHz) as the measured target
+	 * and the system OSC (24 MHz crystal) as the reference timebase.
+	 */
+	case MCUX_FRO_HF_CLK:
+		*rate = CLOCK_GetFroClkFreq(1U);
+		break;
+	case MCUX_EXT_CLK:
+		*rate = CLOCK_GetSysOscFreq();
+		break;
+#endif
 
 #if defined(CONFIG_I2C_MCUX_FLEXCOMM) || defined(CONFIG_SPI_MCUX_FLEXCOMM) ||                      \
 	defined(CONFIG_UART_MCUX_FLEXCOMM) || defined(CONFIG_I2S_MCUX_FLEXCOMM)
