@@ -10,7 +10,7 @@ target_sources(app PRIVATE ${app_sources})
 # Generate MJPEG file to test using GStreamer CLI
 find_program(GST_LAUNCH gst-launch-1.0 REQUIRED)
 
-set(TEST_MJPEG_FILE ${CMAKE_CURRENT_BINARY_DIR}/test.mjpeg)
+set(TEST_MJPEG_FILE ${ZEPHYR_BINARY_DIR}/include/generated/test.mjpeg)
 
 add_custom_command(
     OUTPUT ${TEST_MJPEG_FILE}
@@ -25,9 +25,8 @@ add_custom_command(
 add_custom_target(gen_test_mjpeg DEPENDS ${TEST_MJPEG_FILE})
 
 generate_inc_file_for_target(app
-  ${TEST_MJPEG_FILE}
-  ${CMAKE_CURRENT_BINARY_DIR}/mjpeg.inc
+    ${TEST_MJPEG_FILE}
+    ${ZEPHYR_BINARY_DIR}/include/generated/mjpeg.inc
 )
 
 add_dependencies(app gen_test_mjpeg)
-target_include_directories(app PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
