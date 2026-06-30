@@ -1,0 +1,15 @@
+/*
+ * SPDX-FileCopyrightText: 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* freqme0 is enabled and fully configured (clocks, INPUTMUX routing) at the
+ * SoC / board devicetree level; the sample only needs the alias.
+ */
+
+/ {
+	aliases {
+		clock-meter = &freqme0;
+	};
+};

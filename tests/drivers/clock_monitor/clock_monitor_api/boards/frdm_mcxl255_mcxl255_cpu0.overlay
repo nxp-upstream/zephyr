@@ -1,0 +1,25 @@
+/*
+ * SPDX-FileCopyrightText: 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* freqme0 is enabled and fully configured (clocks, INPUTMUX routing) at the
+ * SoC / board devicetree level; the test only supplies the fixture node.
+ * freqme0 supports both WINDOW and MEASURE, so it is listed once.
+ */
+
+/ {
+	clock-monitor-test {
+		compatible = "test-clock-monitor";
+
+		/*
+		 * Reference = 96 MHz FRO_HF_DIV, target = FRO_12M, so the
+		 * measured value is ~12 MHz.
+		 */
+		freqme {
+			monitor = <&freqme0>;
+			measure-expected-hz = <12000000>;
+		};
+	};
+};
