@@ -7,6 +7,7 @@
 #include <mem.h>
 #include <freq.h>
 #include <zephyr/dt-bindings/clock/mcux_lpc_syscon_clock.h>
+#include <zephyr/dt-bindings/clock-monitor/nxp-freqme.h>
 #include <zephyr/dt-bindings/reset/nxp_syscon_reset_common.h>
 #include <zephyr/dt-bindings/gpio/gpio.h>
 #include <arm/armv8-m.dtsi>
@@ -112,6 +113,25 @@
 			compatible = "nxp,lpc-syscon-reset";
 			#reset-cells = <1>;
 		};
+	};
+
+	inputmux0: inputmux@6000 {
+		compatible = "nxp,inputmux";
+		reg = <0x6000 0x1000>;
+		#inputmux-cells = <2>;
+	};
+
+	freqme0: freqme@11000 {
+		compatible = "nxp,freqme";
+		reg = <0x11000 0x10>;
+		interrupts = <71 0>;
+		clocks = <&syscon MCUX_FREQME_CLK>,
+			 <&syscon MCUX_CPU_AHB_CLK>,
+			 <&syscon MCUX_FRO_12M_CLK>;
+		clock-names = "ipg", "reference", "monitored";
+		inputmux-connections = <&inputmux0 0 NXP_FREQME_MCXN_REF_CPU_AHB_CLK>,
+				       <&inputmux0 0 NXP_FREQME_MCXN_TAR_FRO_12M>;
+		status = "disabled";
 	};
 
 	porta: pinmux@116000 {

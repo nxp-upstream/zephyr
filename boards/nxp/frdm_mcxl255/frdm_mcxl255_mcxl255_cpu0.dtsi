@@ -99,6 +99,10 @@
 	pinctrl-names = "default";
 };
 
+&freqme0 {
+	status = "okay";
+};
+
 &rtc {
 	status = "okay";
 };

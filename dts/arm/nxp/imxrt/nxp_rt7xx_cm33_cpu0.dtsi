@@ -5,6 +5,7 @@
  */
 
 #include "nxp_rt7xx_common.dtsi"
+#include <zephyr/dt-bindings/clock-monitor/nxp-freqme.h>
 #include <zephyr/dt-bindings/mipi_dsi/mipi_dsi.h>
 #include <zephyr/dt-bindings/misc/nxp_rtxxx_dsp_ctrl.h>
 
@@ -107,6 +108,25 @@
 		compatible = "nxp,lpc-syscon";
 		reg = <0x1000 0x1000>;
 		#clock-cells = <1>;
+	};
+
+	inputmux0: inputmux@26000 {
+		compatible = "nxp,inputmux";
+		reg = <0x26000 0x1000>;
+		#inputmux-cells = <2>;
+	};
+
+	freqme0: freqme@23000 {
+		compatible = "nxp,freqme";
+		reg = <0x23000 0x10>;
+		interrupts = <124 0>;
+		clocks = <&clkctl0 MCUX_FREQME_CLK>,
+			 <&clkctl0 MCUX_EXT_CLK>,
+			 <&clkctl0 MCUX_FRO_HF_CLK>;
+		clock-names = "ipg", "reference", "monitored";
+		inputmux-connections = <&inputmux0 0 NXP_FREQME_RT7XX_REF_OSC_CLK>,
+				       <&inputmux0 0 NXP_FREQME_RT7XX_TAR_FRO1>;
+		status = "disabled";
 	};
 
 	ctimer0: timer@28000 {
