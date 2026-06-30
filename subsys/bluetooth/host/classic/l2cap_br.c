@@ -270,6 +270,8 @@ l2cap_br_chan_alloc_cid(struct bt_conn *conn, struct bt_l2cap_chan *chan)
 	struct bt_l2cap_br_chan *br_chan = BR_CHAN(chan);
 	uint16_t cid;
 
+	static uint16_t cid_last = L2CAP_BR_CID_DYN_START;
+
 	/*
 	 * No action needed if there's already a CID allocated, e.g. in
 	 * the case of a fixed channel.
@@ -278,13 +280,26 @@ l2cap_br_chan_alloc_cid(struct bt_conn *conn, struct bt_l2cap_chan *chan)
 		return br_chan;
 	}
 
-	/*
+	cid = cid_last;
+
+	/* Check range [cid_last, 0xffff]
+	 *
 	 * L2CAP_BR_CID_DYN_END is 0xffff so we don't check against it since
 	 * cid is uint16_t, just check against uint16_t overflow
 	 */
-	for (cid = L2CAP_BR_CID_DYN_START; cid; cid++) {
-		if (!bt_l2cap_br_lookup_rx_cid(conn, cid)) {
-			br_chan->rx.cid = cid;
+	for (; cid_last > 0; cid_last++) {
+		if (bt_l2cap_br_lookup_rx_cid(conn, cid_last) == NULL) {
+			br_chan->rx.cid = cid_last;
+			return br_chan;
+		}
+	}
+
+	/* Wrap around to the beginning of the range.
+	 * Check range [L2CAP_BR_CID_DYN_START, last CID)
+	 */
+	for (cid_last = L2CAP_BR_CID_DYN_START; cid_last < cid; cid_last++) {
+		if (bt_l2cap_br_lookup_rx_cid(conn, cid_last) == NULL) {
+			br_chan->rx.cid = cid_last;
 			return br_chan;
 		}
 	}
