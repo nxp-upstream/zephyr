@@ -9,25 +9,25 @@
 #include <zephyr/device.h>
 #include <fsl_cmc.h>
 #include <fsl_spc.h>
-#include <fsl_wuu.h>
+#include <zephyr/drivers/wuc.h>
 
 #if defined(CONFIG_PM_S2RAM)
 void mcxn_pm_suspend_to_ram(void);
 #endif
 
-#define WUU_WAKEUP_LPTMR0_IDX	6U
 #define MCXN_WAKEUP_DELAY	DT_PROP_OR(DT_NODELABEL(spc), wakeup_delay, 0)
-#define MCXN_WUU_ADDR		(WUU_Type *)DT_REG_ADDR(DT_INST(0, nxp_wuu))
 #define MCXN_CMC_ADDR		(CMC_Type *)DT_REG_ADDR(DT_INST(0, nxp_cmc))
 #define MCXN_SPC_ADDR		(SPC_Type *)DT_REG_ADDR(DT_INST(0, nxp_spc))
+
+/* LPTMR0 wakes the SoC from the CMC low-power modes through the WUU. */
+static const struct wuc_dt_spec mcxn_lptmr_wakeup = WUC_DT_SPEC_GET(DT_NODELABEL(lptmr0));
 
 static void pm_enter_hook(void)
 {
 	CMC_SetPowerModeProtection(MCXN_CMC_ADDR, kCMC_AllowAllLowPowerModes);
 	CMC_EnableDebugOperation(MCXN_CMC_ADDR, false);
 	CMC_ConfigFlashMode(MCXN_CMC_ADDR, true, false);
-	WUU_SetInternalWakeUpModulesConfig(MCXN_WUU_ADDR, WUU_WAKEUP_LPTMR0_IDX,
-					   kWUU_InternalModuleInterrupt);
+	(void)wuc_enable_wakeup_source_dt(&mcxn_lptmr_wakeup);
 }
 
 static void enter_low_power(void)
