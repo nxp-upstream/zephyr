@@ -85,7 +85,7 @@ static const struct arm_mpu_region mpu_regions[] = {
 #endif
 
 	MPU_REGION_ENTRY("PERIPHERAL", REGION_PERIPHERAL_BASE_ADDRESS,
-			 REGION_PPB_ATTR(REGION_PERIPHERAL_SIZE)),
+			 REGION_PERIPHERAL_ATTR(REGION_PERIPHERAL_SIZE)),
 };
 
 const struct arm_mpu_config mpu_config = {

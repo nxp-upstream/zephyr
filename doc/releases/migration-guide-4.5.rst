@@ -1044,3 +1044,13 @@ Architectures
 
 * ``CONFIG_XTENSA_BACKTRACE_EXCEPTION_DUMP_HOOK`` is removed, since backtrace is now always
   using :c:macro:`EXCEPTION_DUMP` for output.
+
+* On Arm Cortex-M7, peripheral/device MPU regions must be mapped Execute-Never
+  (``XN=1``) to prevent speculative instruction fetches into peripheral space
+  (see the Arm Cortex-M7 TRM, "Speculative accesses - Considerations for system
+  design"). A new :c:macro:`REGION_PERIPHERAL_ATTR` helper (Strongly-ordered and
+  Execute Never) was added to ``arm_mpu_v7m.h`` for this. The in-tree
+  ``mimxrt1180_evk`` and ``frdm_imxrt1186`` boards now use it, so their peripheral
+  region changes from executable to Execute-Never. Out-of-tree Cortex-M7 boards
+  that map a peripheral region should switch to :c:macro:`REGION_PERIPHERAL_ATTR`;
+  previously they may have used ``REGION_PPB_ATTR``, which does not set ``XN``.
