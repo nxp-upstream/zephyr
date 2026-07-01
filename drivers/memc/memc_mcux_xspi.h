@@ -48,6 +48,18 @@ void memc_xspi_wait_bus_idle(const struct device *dev);
 bool memc_xspi_is_running_xip(const struct device *dev);
 
 /**
+ * @brief Reset the XSPI flash-memory and AHB domains.
+ *
+ * Invalidates the controller's AHB read/prefetch buffer (and flash-memory
+ * domain state) while preserving the LUT and device configuration. Call this
+ * after a program/erase so a subsequent memory-mapped read cannot return stale
+ * pre-write data left in the AHB prefetch buffer.
+ *
+ * @param dev: XSPI device
+ */
+void memc_xspi_reset(const struct device *dev);
+
+/**
  * @brief XSPI transfer function.
  *
  * Configures new device on the XSPI bus.
