@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config NXP_EVTG
+	bool "NXP EVTG (Event Generator) driver"
+	default y
+	depends on DT_HAS_NXP_EVTG_ENABLED
+	help
+	  Enable the NXP HAL driver for the EVTG (Event Generator) peripheral
+	  found on select NXP microcontrollers. The EVTG is configured through
+	  the fsl_evtg HAL API; this option pulls the HAL driver into the build
+	  when an evtg node is enabled in devicetree.

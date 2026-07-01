@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  NXP EVTG (Event Generator) peripheral.
+
+  The EVTG combines up to four inputs (A, B, C, D) through two
+  AND/OR/INVERT (AOI) blocks and an optional flip-flop to produce a single
+  event-generator output. The inputs are routed from the on-chip INPUTMUX
+  and the output drives the interconnect (for example PWM faults, timer or
+  ADC triggers) or a device pin.
+
+  The peripheral is configured through the NXP HAL driver fsl_evtg and has
+  no Zephyr runtime API of its own; enabling an evtg node only makes the HAL
+  driver available to consumers and tests.
+
+compatible: "nxp,evtg"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
