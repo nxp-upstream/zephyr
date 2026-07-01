@@ -231,4 +231,7 @@
 /** SYSTEM clock identifier. */
 #define MCUX_SYSTEM_CLK MCUX_LPC_CLK_ID(0x36, 0x00)
 
+/** FREQME (frequency measurement) peripheral gate clock identifier. */
+#define MCUX_FREQME_CLK MCUX_LPC_CLK_ID(0x37, 0x00)
+
 #endif /* ZEPHYR_INCLUDE_DT_BINDINGS_CLOCK_MCUX_LPC_SYSCON_H_ */
