@@ -33,6 +33,12 @@ We are pleased to announce the release of Zephyr version 4.5.0.
 
 Major enhancements with this release include:
 
+**New driver classes**
+
+  Zephyr 4.5 adds several new driver APIs, including:
+
+  - :ref:`Clock Monitor <clock_monitor_api>` for runtime observation of clock frequency
+
 An overview of the changes required or recommended when migrating your application from Zephyr
 v4.4.0 to Zephyr v4.5.0 can be found in the separate :ref:`migration guide<migration_4.5>`.
 
@@ -56,6 +62,16 @@ API Changes
 Removed APIs and options
 ========================
 
+* Architectures
+
+   * Xtensa
+
+      * ``CONFIG_XTENSA_BACKTRACE_EXCEPTION_DUMP_HOOK``
+
+* Counter
+
+    * ``CONFIG_COUNTER_MAXIM_DS3231``
+
 * Networking
 
     * ``CONFIG_NET_TC_SKIP_FOR_HIGH_PRIO``
@@ -72,6 +88,7 @@ Removed APIs and options
     * ``openthread_api_mutex_unlock()``
     * ``struct openthread_state_changed_cb``
     * ``TLS_CREDENTIAL_SERVER_CERTIFICATE``
+    * ``start_11r_roaming``
 
 * Random
 
@@ -83,10 +100,20 @@ Removed APIs and options
 Deprecated APIs and options
 ===========================
 
+* Audio Codec
+
+  * The :c:struct:`audio_codec_api` struct has been deprecated. Audio codec drivers are now
+    expected to use the :c:macro:`DEVICE_API` macro to declare their driver API.
+
 * :abbr:`DMIC (Digital Microphone Interface)`
 
   * The :c:struct:`_dmic_ops` struct has been deprecated. DMIC drivers are now expected to use the
     :c:macro:`DEVICE_API` macro to declare their driver API.
+
+* Fuel Gauge
+
+  * Deprecated various fuel gauge property enums and union fields in favor of
+    new versions with explicit unit suffixes.
 
 * LoRa
 
@@ -110,6 +137,15 @@ Deprecated APIs and options
     :c:func:`ring_buf_item_get`, :c:func:`ring_buf_item_space_get`) has been deprecated in favor of
     :c:struct:`sys_ringq` (see :ref:`fixed_size_ringq_api`).
 
+* Networking Link layer
+
+  * Deprecated :kconfig:option:`CONFIG_NET_L2_PTP`.
+    Used :kconfig:option:`CONFIG_NET_L2_PTP_TIMESTAMPING` instead.
+
+* Work queue
+
+  * :c:member:`k_work_q.thread` has been deprecated. Use :c:member:`k_work_q.thread_id` instead.
+
 New APIs and options
 ====================
 ..
@@ -130,6 +166,13 @@ New APIs and options
 
     * :c:func:`bt_ascs_register`
     * :c:func:`bt_ascs_unregister`
+    * :c:func:`bt_bap_unicast_client_qos_from_group`
+    * :c:func:`bt_bap_qos_cfg_eq`
+
+  * Host
+
+    * :c:func:`bt_conn_take`
+    * :c:func:`bt_conn_drop`
 
   * Mesh
 
@@ -155,16 +198,23 @@ New APIs and options
   * :c:func:`haptics_set_level`
   * :c:func:`haptics_stream_samples`
 
+* Kernel
+
+  * :c:func:`k_thread_runtime_stats_is_enabled`
+  * :c:func:`atomic_test_and_set_bit_to`
+
 * LoRa
 
   * :c:func:`lora_recv_duty_cycle`
   * :c:func:`lora_recv_duty_cycle_async`
 
-* :c:struct:`sys_ringq` (see :ref:`fixed_size_ringq_api`)
-
 * Network
 
   * Add :c:func:`net_eth_set_if_type_wifi` to set the ethernet interface type to Wi-Fi.
+
+* Ring buffer
+
+  * :c:struct:`sys_ringq` (see :ref:`fixed_size_ringq_api`)
 
 .. zephyr-keep-sorted-stop
 
@@ -204,6 +254,17 @@ New Drivers
   * Diodes/Pericom PI4IOE5V6408 8-bit I2C-bus I/O expander
     (:dtcompatible:`diodes,pi4ioe5v6408`).
 
+* Input
+
+  * VIRTIO input device (:dtcompatible:`virtio,input`).
+
+* Clock Monitor
+
+  * :dtcompatible:`nxp,cmu-fc` — NXP Clock Monitoring Unit (Frequency Check)
+    back-end for the new :ref:`clock_monitor_api` subsystem.
+  * :dtcompatible:`nxp,cmu-fm` — NXP Clock Monitoring Unit (Frequency Meter)
+    back-end for the new :ref:`clock_monitor_api` subsystem.
+
 New Samples
 ***********
 
@@ -213,6 +274,10 @@ New Samples
 
 * :zephyr:code-sample:`mctp_i2c_bus_host` (renamed from ``mctp_i2c_bus_owner``)
 * :zephyr:code-sample:`mctp_i3c_bus_host` (renamed from ``mctp_i3c_bus_owner``)
+* ``samples/drivers/clock_monitor/check_freq`` — demonstrates WINDOW-mode
+  out-of-window frequency checking on the new :ref:`clock_monitor_api`.
+* ``samples/drivers/clock_monitor/measure_freq`` — demonstrates MEASURE-mode
+  one-shot frequency measurement on the new :ref:`clock_monitor_api`.
 
 Libraries / Subsystems
 **********************
@@ -245,6 +310,23 @@ Devicetree
 
 Other notable changes
 *********************
+
+* Kernel
+
+  * :kconfig:option:`CONFIG_SCHED_CPU_MASK` no longer depends on
+    :kconfig:option:`CONFIG_SCHED_SIMPLE`.  CPU affinity masks are now
+    supported on all three scheduler backends: ``SCHED_SIMPLE`` (O(N) list
+    scan), ``SCHED_SCALABLE`` (O(N) red/black tree walk), and ``SCHED_MULTIQ``
+    (O(P·N) per-priority bucket scan).  See the updated
+    :ref:`SMP documentation<smp_cpu_mask>` for per-backend performance notes.
+
+  * :kconfig:option:`CONFIG_SCHED_CPU_MASK_PIN_ONLY` now enforces the
+    one-CPU-bit invariant at both the API boundary (``cpu_mask_mod()``) and at
+    queue time (``thread_runq()``).  Calling :c:func:`k_thread_cpu_mask_clear`,
+    :c:func:`k_thread_cpu_mask_enable_all`, or
+    :c:func:`k_thread_cpu_mask_disable` in PIN_ONLY mode triggers an assertion
+    failure.  Use :c:func:`k_thread_cpu_pin` to reassign a thread to a
+    different CPU.
 
 * Wi-Fi
 

@@ -15,4 +15,5 @@ supported:
   - gpio
   - rtc
   - counter
+  - crc
 vendor: nxp

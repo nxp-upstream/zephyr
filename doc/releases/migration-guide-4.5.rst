@@ -32,6 +32,18 @@ Kernel
 * ``_k_neg_eagain`` has been renamed to ``_errno_neg_egain`` as ``errno`` has been migrated out of
   kernel into ``lib/libc/common``.
 
+* When :kconfig:option:`CONFIG_SCHED_CPU_MASK_PIN_ONLY` is enabled, calling
+  :c:func:`k_thread_cpu_mask_clear`, :c:func:`k_thread_cpu_mask_enable_all`,
+  or :c:func:`k_thread_cpu_mask_disable` now triggers an assertion instead of
+  silently producing an invalid state.  Applications using these functions
+  in PIN_ONLY mode must be updated to use :c:func:`k_thread_cpu_pin` instead.
+
+* :kconfig:option:`CONFIG_SCHED_CPU_MASK` is no longer restricted to
+  :kconfig:option:`CONFIG_SCHED_SIMPLE`.  Projects that previously selected
+  ``SCHED_SCALABLE`` or ``SCHED_MULTIQ`` and worked around the limitation by
+  keeping ``SCHED_SIMPLE`` for affinity purposes can now use their preferred
+  backend directly.
+
 Boards
 ******
 
@@ -83,6 +95,25 @@ Boards
   Applications that relied on ``CONFIG_GPIO=y`` being the default will need to enable
   the option explicitly. (:github:`109468`)
 
+* Boards that use UF2 images that migrate to :dtcompatible:`zephyr,mapped-partition` should enable
+  HEX output in their defconfig (:kconfig:option:`CONFIG_BUILD_OUTPUT_HEX`), as the UF2 image
+  generation can no longer rely on :kconfig:option:`CONFIG_FLASH_LOAD_OFFSET` to determine the code
+  address from a BIN output. HEX to UF2 is now the default (instead of BIN). (:github:`107944`)
+
+* Ezurio bl54l15u_dvk has been removed. The bl54l15_dvk remains available and supports
+  both the bl54l15 and bl54l15u variants of the module, with the same features.
+  Boards using the bl54l15u_dvk should migrate to bl54l15_dvk/nrf54l15/cpuapp or
+  bl54l15_dvk/nrf54l15/cpuflpr as appropriate.
+
+* The default MCUboot signature type for the boards stm32h573i_dk and b_u585i_iot02a has
+  been changed from RSA-3072 to EC-P256. This affects builds that have MCUboot enabled in
+  TF-M (:kconfig:option:`CONFIG_TFM_BL2`). If you wish to keep using RSA-3072, you need
+  to set :kconfig:option:`CONFIG_TFM_MCUBOOT_SIGNATURE_TYPE` to ``"RSA-3072"``.
+  Otherwise, make sure to have your own signing keys of the signature type in use.
+
+* All Kconfigs under modules/hal_silabs/gecko were renamed from ``SOC_GECKO_*``
+  to ``SILABS_GECKO_*``. Adapt your board accordingly.
+
 Device Drivers and Devicetree
 *****************************
 
@@ -112,6 +143,22 @@ ADC
 * The ``girqs`` and ``pcrs`` properties (array type) of :dtcompatible:`microchip,xec-adc` have been
   replaced by encoded ``girqs`` (using ``MCHP_XEC_ECIA_GIRQ_ENC`` macros) and ``pcr-scr`` (int type)
   for encoded PCR register index and bit position (:github:`105658`).
+
+* The :kconfig:option:`CONFIG_LPADC_DO_OFFSET_CALIBRATION` option is now only meaningful when
+  :kconfig:option:`CONFIG_ADC_MCUX_LPADC` is enabled, and its ``default y`` is now scoped to that
+  condition. In-tree boards no longer enable it explicitly in their defconfigs since
+  the default already covers them.
+
+Audio Codec
+===========
+
+* The audio codec driver backend API now uses :c:struct:`audio_codec_driver_api` instead of
+  ``struct audio_codec_api``.
+
+  Out-of-tree audio codec drivers must rename their backend API struct definitions and switch
+  their API instances to ``DEVICE_API(audio_codec, ...)``. See :github:`110631` for examples of how
+  in-tree drivers have been updated. Application code using the ``audio_codec_...`` APIs is not
+  impacted.
 
 Clock Control
 =============
@@ -167,6 +214,9 @@ Display
   :c:enumerator:`PIXEL_FORMAT_BGR_888`, for which the LVGL glue performs the red/blue channel swap
   automatically.
 
+* The Kconfig options ``CONFIG_ST730X_POWERMODE_LOW`` for ST7305 and ST7306 displays has been
+  removed in favour of toggling the low-power-mode property on the device node.
+
 DMA
 ===
 
@@ -214,11 +264,43 @@ Ethernet
   :kconfig:option:`CONFIG_PTP_CLOCK_NATIVE` is enabled by default when the
   :dtcompatible:`zephyr,native-ptp-clock` compatible is present.
 
+* ``port_phylink_change`` of the :c:struct:`dsa_api` is now optional.
+  The DSA driver no longer needs to call :c:func:`net_eth_carrier_on` or
+  :c:func:`net_eth_carrier_off` on PHY link change, this is now handled by the DSA core.
+  The ``void *user_data`` argument of ``port_phylink_change`` has been changed to
+  ``const struct device *dev``, so it no longer needs to be cast to obtain the device pointer.
+  Out-of-tree DSA drivers must update their ``port_phylink_change`` callback to match the new API and
+  can remove any calls to :c:func:`net_eth_carrier_on` or :c:func:`net_eth_carrier_off` from it.
+  (:github:`109671`)
+
+* The MAC address of ethernet interfaces is now checked for validity, when bringing the interface up
+  with :c:func:`net_if_up`. If the MAC address is invalid, the interface will fail to come up and an
+  error will be logged. This check is done before the ``start`` function of the
+  :c:struct:`ethernet_api` is called. This also applies to native wifi drivers. (:github:`110435`)
+
+* The Xilinx GEM Ethernet driver (:dtcompatible:`xlnx,gem`) has been switched over to use the
+  current MDIO and PHY facilities, splitting up the driver's implementation into separate
+  MDIO and Ethernet MAC drivers. The driver's custom PHY management code has been removed.
+  The types of Ethernet PHYs supported by the removed custom code, the Marvell Alaska GBit
+  PHY family and the TI TLK105/DP83822 100 MBit PHYs are both covered by the standard
+  (:dtcompatible:`ethernet-phy`) driver. The QEMU targets which emulate the Xilinx GEM have
+  been updated accordingly, as have been the device trees of the Zynq-7000 and ZynqMP /
+  UltraScale+ SoC families. (:github:`87313`)
+
 Flash
 =====
 * :dtcompatible:`jedec,spi-nand` now requires a ``plane-bytes`` property, which indicates the size
   of each plane in the flash device. For devices with a single plane, this should be set to the
   same value as ``size-bytes``.
+
+Fuel Gauge
+==========
+
+* Various fuel gauge property enums and union fields have been deprecated in
+  favor of new versions with explicit unit suffixes. Applications and drivers
+  should migrate to the unit-suffixed names. For example,
+  ``FUEL_GAUGE_CURRENT`` (``val.current``) is replaced by
+  ``FUEL_GAUGE_CURRENT_UA`` (``val.current_ua``).
 
 GPIO
 ====
@@ -291,14 +373,16 @@ Interrupt Controllers
   ``DT_INST_IRQ(n, sense)`` or ``DT_IRQ(node, sense)`` should be updated to use ``flags`` instead
   of ``sense``.
 
+* Deprecate ``GIC_NUM_CPU_IF`` from GIC header file :file:`gic.h`. One shall use
+  instead.:kconfig:option:`CONFIG_MP_MAX_NUM_CPUS` instead.
+
 NXP
 ===
 
-* :kconfig:option:`CONFIG_MCUX_LPTMR_TIMER` no longer defaults to ``y`` based on the
-  ``/chosen/zephyr,system-timer`` chosen node being compatible with
-  :dtcompatible:`nxp,lptmr`. Out-of-tree SoCs and boards that rely on the LPTMR
-  as the system timer must now explicitly default the symbol in their
-  ``Kconfig.defconfig`` (for example ``default y if PM``).
+* :kconfig:option:`CONFIG_MCUX_LPTMR_TIMER` now defaults to ``y`` when the
+  ``/chosen/zephyr,system-timer`` chosen node is enabled and compatible with
+  :dtcompatible:`nxp,lptmr`. Boards that do not use LPTMR as the system timer
+  must not select an LPTMR node in ``/chosen/zephyr,system-timer``.
 
 * Kinetis KE1xF no longer requires a board overlay to designate the system
   timer when :kconfig:option:`CONFIG_PM` is enabled. The SoC DTSI now sets the
@@ -314,6 +398,23 @@ PWM
 
 * STM32 PWM DT bindings macro ``PWM_STM32_COMPLEMENTARY`` that is deprecated since
   Zephyr v3.3.0 is no more defined. One shall use ``STM32_PWM_COMPLEMENTARY`` instead.
+
+RTC
+===
+
+* The legacy counter-based DS3231 driver has been removed, completing the deprecation introduced in
+  :github:`95221`. Applications using :dtcompatible:`maxim,ds3231`, ``CONFIG_COUNTER_MAXIM_DS3231``,
+  or :file:`<zephyr/drivers/rtc/maxim_ds3231.h>` must migrate to the RTC subsystem driver.
+
+  Replace the single legacy I2C node with a :dtcompatible:`maxim,ds3231-mfd` parent and a
+  :dtcompatible:`maxim,ds3231-rtc` child. Move ``isw-gpios`` to the RTC child, rename old
+  ``32k-gpios`` usage to ``freq-32khz-gpios``, and replace ``maxim_ds3231_*`` helper API usage with
+  generic RTC subsystem APIs.
+
+* :dtcompatible:`microcrystal,rv3032` properties ``trickle-resistor-ohms`` and
+  ``trickle-charger-mode`` have moved to the parent
+  :dtcompatible:`microcrystal,rv3032-mfd` device. The parent MFD device now
+  handles configuring the backup supply mode for all child devices.
 
 SD Host Controller
 ==================
@@ -371,6 +472,10 @@ SPI
   They are replaced by ``SPI_SILABS_SIWX91X_GSPI_DMA_DESCR_COUNT`` which allow to enable DMA and
   configure the descriptor count.
 
+* The ``fifo-enable`` property of :dtcompatible:`st,stm32h7-spi` has been removed.
+  FIFO is now always used in polling and interrupt mode to enhance performance. A new property
+  ``st,fifo-threshold`` can be used to configure the FIFO threshold (default = 1). (:github:`110265`)
+
 Stepper
 =======
 
@@ -401,6 +506,25 @@ STM32
   ``pinctrl-names``, ``mclk-enable``, ``mclk-divider``, ``synchronous``, and
   ``fifo-threshold``. (:github:`104423`)
 
+* :dtcompatible:`st,hci-stm32wba` and :dtcompatible:`st,stm32wba-ieee802154` nodes
+  (with nodelabels ``bt_hci_wba`` and ``ieee802154`` respectively) are now
+  children of a top-level :dtcompatible:`st,stm32wba-radio` node with nodelabel
+  ``radio``. The ``interrupts`` property is now set on the ``&radio`` node instead
+  of being duplicated on both ``&bt_hci_wba`` and ``&ieee802154`` nodes. Out-of-tree
+  boards which modified the ``interrupts`` property on either node must be updated
+  to set the property on the top-level ``&radio`` node instead. (:github:`110546`)
+
+* Renamed ST gpio-nexus for camera and display connectors as follow:
+  ``st,dsi-lcd-qsh-030`` is renamed into :dtcompatible:`st,dsi-lcd-qsh-030-connector`
+  ``st,stm32-dcmi-camera-fpu-330zh`` is renamed into :dtcompatible:`st,dvp-cam-zif-30-connector`
+
+* :dtcompatible:`st,stm32-xspim` is now also used on STM32H5 and STM32H7RS series
+  to declare and configure XSPI Manager. Boards making use of XSPI must now enable
+  ``&xspim`` node in addition to the desired XSPI controller to use XSPI. (:github:`109903`)
+
+* STM32MP13 SoC DTSI ethernet: rename labels from ``mac:`` and ``mdio:`` to ``mac0:`` and
+  ``mdio0:``. The goal is to distinguish the 2 Ethernet controllers available. (:github:`108574`)
+
 Syscon
 ======
 
@@ -416,6 +540,22 @@ USB
   from :samp:`usbotg_hs{N}` to :samp:`usbphyc{N}` nodes at SoC DTSI level. Boards which
   use an STM32N6 SoC with custom clock mux configuration must now set the ``clocks``
   property on :samp:`usbphyc{N}` instead of :samp:`usbotg_hs{N}`. (:github:`107813`)
+* When host issues control transfer with data stage from host to device, the USB control transfer
+  callbacks ``control_to_dev`` in :c:struct:`usbd_class_api` and ``to_dev`` in
+  :c:struct:`usbd_vreq_node` are now called with NULL ``buf`` before data stage is received.
+  This allows the stack to return STALL during data stage. Out-of-tree class and vendor handlers
+  need to be updated. (:github:`108840`)
+
+Video
+=====
+
+* The :dtcompatible:`ovti,ov7670` and :dtcompatible:`ovti,ov7675` camera drivers now assume a
+  24 MHz XCLK input instead of the previous 6 MHz, matching the typical XCLK frequency listed in
+  the OV7670 datasheet. Boards driving an OV7670 or OV7675 sensor must update their board-level
+  XCLK clock configuration accordingly. For example, ``frdm_mcxn236`` has been switched from
+  ``kFRO12M_to_CLKOUT`` (divided by 2 to yield 6 MHz) to ``kFRO_HF_to_CLKOUT`` (divided by 2 to
+  yield 24 MHz), and ``frdm_mcxn947`` keeps ``kMAIN_CLK_to_CLKOUT`` but changes the CLKOUT
+  divider from 25 to 6 to yield 24 MHz. (:github:`109393`)
 
 WiFi
 ====
@@ -471,6 +611,21 @@ Bluetooth Audio
     :c:struct:`bt_bap_broadcast_source_subgroup_param`, then the parameter's pointer cannot be used
     to modify the ``codec_cfg``, and the actual definition of the struct should be modified instead.
     (:github:`104219`)
+  * All BAP roles now require :kconfig:option:`CONFIG_BT_AUDIO_CODEC_CFG_MAX_DATA_SIZE` to be at least
+    19 octets, as mandated by the BAP spec.
+    If :kconfig:option:`CONFIG_BT_AUDIO_CODEC_CFG_MAX_DATA_SIZE` is set to a lower value when used
+    with BAP, then applications need to set it to at least 19 octets. The following Kconfig options
+    are affected:
+
+    * :kconfig:option:`CONFIG_BT_ASCS`
+    * :kconfig:option:`CONFIG_BT_BAP_UNICAST_SERVER`
+    * :kconfig:option:`CONFIG_BT_BAP_UNICAST_CLIENT`
+    * :kconfig:option:`CONFIG_BT_BAP_BROADCAST_SOURCE`
+    * :kconfig:option:`CONFIG_BT_BAP_BROADCAST_SINK`
+    * :kconfig:option:`CONFIG_BT_BAP_SCAN_DELEGATOR`
+    * :kconfig:option:`CONFIG_BT_BAP_BROADCAST_ASSISTANT`
+
+    (:github:`107989`)
 
 * CAP
 
@@ -548,6 +703,13 @@ Bluetooth HCI
   (most don't) there's also a new :c:func:`bt_hci_recv_err` API that leaves the responsibility
   of unrefing the buffer to the caller in case of error situations.
 
+Bluetooth Services
+==================
+
+* :kconfig:option:`CONFIG_BT_OTS_MAX_OBJ_CNT` has been changed from ``hex`` to ``int`` for a
+  more intuitive type.
+  Simply modify any hex values like ``0x30`` to their decimal values like ``48``.
+
 Networking
 **********
 
@@ -588,6 +750,28 @@ Networking
   keys. Use ``samples/net/wifi/test_certs/rsa2k_no_des`` instead, or set
   :envvar:`WIFI_TEST_CERTS_DIR` to another AES-encrypted certificate directory.
 
+* ``net_if_config_get`` was removed as it was a duplicate of :c:func:`net_if_get_config`.
+  (:github:`110930`)
+
+* The number of ZVFS eventfd's is now determined by a ``ZVFS_EVENTFD_SIZE`` define
+  instead of using the :kconfig:option:`CONFIG_ZVFS_EVENTFD_MAX` Kconfig option directly.
+  Subsystems can specify their own eventfd count requirements by specifying Kconfig
+  options with the prefix ``CONFIG_ZVFS_EVENTFD_ADD_SIZE_``. These are summed together
+  and the result is compared against :kconfig:option:`CONFIG_ZVFS_EVENTFD_MAX`; the larger
+  of the two values is used. To force :kconfig:option:`CONFIG_ZVFS_EVENTFD_MAX` to be used,
+  even when its value is less than the sum of the custom requirements, a new
+  :kconfig:option:`CONFIG_ZVFS_EVENTFD_IGNORE_MIN` option has been introduced (which
+  defaults to being disabled). As a result, networking subsystems that allocate eventfds
+  (e.g. HTTP server, CoAP server, LwM2M, PTP, SSH, the socket service and the WPA
+  supplicant) no longer require the application to manually bump
+  :kconfig:option:`CONFIG_ZVFS_EVENTFD_MAX` to account for them. (:github:`111201`)
+
+* :kconfig:option:`CONFIG_NET_L2_PTP` has been deprecated and replaced by
+  :kconfig:option:`CONFIG_NET_L2_PTP_TIMESTAMPING`. The new option more accurately describes the
+  feature it enables. Applications or board configurations that explicitly enable
+  :kconfig:option:`CONFIG_NET_L2_PTP` should be updated to use
+  :kconfig:option:`CONFIG_NET_L2_PTP_TIMESTAMPING` instead.
+
 
 Ethernet
 ========
@@ -624,6 +808,21 @@ gPTP
 * Removed ``net_eth_get_ptp_port`` and ``net_eth_set_ptp_port``.
   New :c:func:`gptp_get_port_number` and :c:func:`gptp_set_port_number`
   can be used instead.
+
+Modem
+*****
+
+SIMCOM SIM7080
+==============
+
+* The Kconfig option :kconfig:option:`CONFIG_MODEM_SIMCOM_SIM7080_LTE_BANDS` has been split
+  into :kconfig:option:`CONFIG_MODEM_SIMCOM_SIM7080_LTE_BANDS_M1` and
+  :kconfig:option:`CONFIG_MODEM_SIMCOM_SIM7080_LTE_BANDS_NB1` since NB-IoT and CAT-M have
+  slightly different usable bands. The type of the newly introduced configuration values
+  is a hex bitmap of selected bands. By default bands 8, 20 and 28 are selected.
+
+  Applications configuring the :kconfig:option:`CONFIG_MODEM_SIMCOM_SIM7080_LTE_BANDS`
+  must update their configuration.
 
 LoRaWAN
 *******
@@ -694,6 +893,15 @@ Random
 
 * ``CONFIG_CS_CTR_DRBG_PERSONALIZATION`` has been removed. It did not have any effect.
 
+Tools
+*****
+
+* The ``openocd`` runner now selects a debug adapter by serial number through the
+  canonical ``-i``/``--dev-id`` option, like the other runners. The previous
+  ``--serial`` option is deprecated and kept as an alias; it maps onto the same
+  mechanism (the value is still passed to the OpenOCD config as
+  ``_ZEPHYR_BOARD_SERIAL``). Update any scripts to use ``west flash -i <serial>``.
+
 Modules
 *******
 
@@ -724,6 +932,11 @@ Mbed TLS
   as an alias to the latter for backward compatibility, but it will be removed in future
   releases.
 
+Snippets
+********
+
+* Rename ``xen_dom0`` to ``xen-dom0``.
+
 Architectures
 *************
 
@@ -737,3 +950,9 @@ Architectures
 
 * ``xtensa_soc_mpu_ranges[]`` and ``xtensa_soc_mpu_ranges_num`` are removed. If SoC or board
   needs its own memory regions at boot, override :c:var:`xtensa_mpu_ranges` instead.
+
+* ``CONFIG_XTENSA_MPU_DEFAULT_MEM_TYPE`` is removed since memory types are now defined via
+  ``xtensa_mpu_mem_type_ranges[]``.
+
+* ``CONFIG_XTENSA_BACKTRACE_EXCEPTION_DUMP_HOOK`` is removed, since backtrace is now always
+  using :c:macro:`EXCEPTION_DUMP` for output.

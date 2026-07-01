@@ -23,6 +23,17 @@
 		zephyr,code-partition = &slot0_partition;
 	};
 
+	/*
+	 * Reserve a fixed retained RAM window for the S2RAM CPU context so both
+	 * the application and MCUboot place `_cpu_context` at the same physical
+	 * address.
+	 */
+	pm_s2ram: memory@2000ffe0 {
+		compatible = "zephyr,memory-region", "mmio-sram";
+		reg = <0x2000ffe0 0x20>;
+		zephyr,memory-region = "PM_S2RAM";
+	};
+
 	leds: leds {
 		compatible = "gpio-leds";
 
@@ -86,6 +97,11 @@
 	};
 };
 
+&sram0 {
+	/* Exclude the final 0x20 bytes reserved for the PM_S2RAM marker. */
+	reg = <0x20000000 (DT_SIZE_K(64) - 0x20)>;
+};
+
 &clk_lse {
 	status = "okay";
 };
@@ -142,6 +158,8 @@
 &i2c3 {
 	pinctrl-0 = <&i2c3_scl_pb2 &i2c3_sda_pa11>;
 	pinctrl-names = "default";
+	scl-gpios = <&gpiob 2 GPIO_ACTIVE_HIGH>;
+	sda-gpios = <&gpioa 11 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 	clock-frequency = <I2C_BITRATE_FAST>;
 };
@@ -184,10 +202,14 @@ stm32_lp_tick_source: &lptim1 {
 	status = "okay";
 };
 
-&bt_hci_wba {
-	/* Use HASH IRQ to allocate Radio SW Low Process (Warning HASH is not used) */
+&radio {
+	/* Use HASH IRQn as Radio SW IRQ (HASH peripheral must not be enabled!) */
 	interrupts = <60 0>, <55 14>;
 	interrupt-names = "radio", "radio-sw-low";
+
+	bt_hci_wba: bluetooth {
+		status = "okay";
+	};
 };
 
 &flash0 {
