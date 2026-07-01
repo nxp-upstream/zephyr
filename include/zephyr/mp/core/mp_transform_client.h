@@ -33,17 +33,20 @@ struct mp_transform_client {
 
 	/**
 	 * @brief Initialize RPC communication on the client side
+	 *
+	 * @return 0 on success, an errno on failure
 	 */
-	void (*init_rpc)(void);
+	int (*init_rpc)(void);
 	/**
 	 * @brief RPC chain function for processing buffers on the server side
+	 *
 	 * @param in_buf Address of the input buffer to be processed
 	 * @param in_sz Input buffer size
 	 * @param out_buf Address of the processed output buffer
 	 * @param out_sz Output buffer size
-	 * @return true on success, false on failure
+	 * @return 0 on success, an errno on failure
 	 */
-	bool (*chainfn_rpc)(uint32_t in_buf, uint32_t in_sz, uint32_t out_buf, uint32_t *out_sz);
+	int (*chainfn_rpc)(uint32_t in_buf, uint32_t in_sz, uint32_t out_buf, uint32_t *out_sz);
 };
 
 /**

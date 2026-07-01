@@ -23,11 +23,6 @@ static int mp_transform_client_chainfn(struct mp_pad *pad, struct net_buf *in_bu
 	uint32_t in_used;
 	uint32_t out_used;
 
-	/* Support only normal mode for now */
-	if (transform->mode != MP_MODE_NORMAL) {
-		return -ENOTSUP;
-	}
-
 	if (in_buf == NULL || out_buf == NULL || transform->outpool == NULL ||
 	    transform->outpool->acquire_buffer == NULL) {
 		return -EINVAL;
@@ -49,12 +44,13 @@ static int mp_transform_client_chainfn(struct mp_pad *pad, struct net_buf *in_bu
 	 * RPC interface uses 32-bit addresses (remote MCU).
 	 * Cast through uintptr_t to avoid pointer truncation warnings.
 	 */
-	if (!transform_client->chainfn_rpc((uint32_t)(uintptr_t)in_buf->data, in_used,
-					   (uint32_t)(uintptr_t)(*out_buf)->data, &out_used)) {
+	if (transform_client->chainfn_rpc((uint32_t)(uintptr_t)in_buf->data, in_used,
+					  (uint32_t)(uintptr_t)(*out_buf)->data, &out_used) != 0) {
 		LOG_ERR("Failed to process buffer via RPC");
 		net_buf_unref(*out_buf);
 		*out_buf = NULL;
 		net_buf_unref(in_buf);
+
 		return -EIO;
 	}
 
@@ -117,9 +113,7 @@ void mp_transform_client_init(struct mp_element *self)
 	struct mp_transform *transform = (struct mp_transform *)self;
 	struct mp_transform_client *transform_client = (struct mp_transform_client *)transform;
 
-	/* Wait a little bit here to give the opportunity to the remote core to reset */
-	k_msleep(300);
-	transform_client->init_rpc();
+	(void)transform_client->init_rpc();
 
 	/* Init base class */
 	mp_transform_init(self);
