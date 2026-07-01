@@ -5,3 +5,12 @@ config BOARD_MIMXRT700_EVK
 	select BOARD_EARLY_INIT_HOOK if \
 		BOARD_MIMXRT700_EVK_MIMXRT798S_CM33_CPU0 || \
 		BOARD_MIMXRT700_EVK_MIMXRT798S_CM33_CPU1
+
+config MIMXRT700_EVK_QSPI_FLASH
+	bool
+	help
+	  Selected automatically by the "w25q512nw" board revision (mimxrt700_evk@w25q512nw).
+	  Installs the W25Q512NWEIQ quad SPI NOR flash-configuration block (FCB) for
+	  XSPI0 instead of the default octal MX25UM51345G, so the boot ROM brings up
+	  XSPI0 for quad XIP from the on-board QSPI flash. Requires board rework to
+	  populate the QSPI flash path.

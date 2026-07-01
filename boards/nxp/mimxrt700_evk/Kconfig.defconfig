@@ -5,6 +5,11 @@
 
 if BOARD_MIMXRT700_EVK
 
+# The "w25q512nw" board revision is the EVK reworked to the on-board W25Q512NW quad
+# SPI NOR on XSPI0; install its flash-configuration block instead of the octal.
+config MIMXRT700_EVK_QSPI_FLASH
+	default y if BOARD_REVISION = "w25q512nw"
+
 if SECOND_CORE_MCUX && SOC_MIMXRT798S_CM33_CPU1
 
 config BUILD_OUTPUT_INFO_HEADER
