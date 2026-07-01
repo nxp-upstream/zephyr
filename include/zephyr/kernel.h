@@ -1196,6 +1196,10 @@ __syscall void k_reschedule(void);
  * @note You should enable @kconfig{CONFIG_SCHED_CPU_MASK} in your project
  * configuration.
  *
+ * @note Not permitted when @kconfig{CONFIG_SCHED_CPU_MASK_PIN_ONLY} is
+ * enabled.  PIN_ONLY requires every thread to carry exactly one CPU bit;
+ * clearing all bits violates that invariant and will trigger an assertion.
+ *
  * @param thread Thread to operate upon
  * @return Zero on success, otherwise error code
  */
@@ -1209,6 +1213,11 @@ int k_thread_cpu_mask_clear(k_tid_t thread);
  *
  * @note You should enable @kconfig{CONFIG_SCHED_CPU_MASK} in your project
  * configuration.
+ *
+ * @note Not permitted when @kconfig{CONFIG_SCHED_CPU_MASK_PIN_ONLY} is
+ * enabled.  PIN_ONLY requires every thread to carry exactly one CPU bit;
+ * setting all bits violates that invariant and will trigger an assertion.
+ * Use :c:func:`k_thread_cpu_pin` instead.
  *
  * @param thread Thread to operate upon
  * @return Zero on success, otherwise error code
@@ -1236,6 +1245,11 @@ int k_thread_cpu_mask_enable(k_tid_t thread, int cpu);
  *
  * @note You should enable @kconfig{CONFIG_SCHED_CPU_MASK} in your project
  * configuration.
+ *
+ * @note Not permitted when @kconfig{CONFIG_SCHED_CPU_MASK_PIN_ONLY} is
+ * enabled.  PIN_ONLY requires exactly one CPU bit to remain set; removing
+ * that bit would leave an empty mask and will trigger an assertion.
+ * Use :c:func:`k_thread_cpu_pin` to move a thread to a different CPU.
  *
  * @param thread Thread to operate upon
  * @param cpu CPU index
@@ -2115,6 +2129,28 @@ static inline void *z_impl_k_timer_user_data_get(const struct k_timer *timer)
 {
 	return timer->user_data;
 }
+
+/**
+ * @brief Clean up a dynamically allocated timer before freeing it.
+ *
+ * If a k_timer object is dynamically allocated, its timeout must be
+ * cancelled and any in-flight expiration handler must complete before
+ * the storage may be freed -- otherwise the handler dereferences freed
+ * memory. This function performs both: it removes the timer from the
+ * timeout queue and waits for any in-flight handler on another CPU to
+ * finish.
+ *
+ * Unlike k_timer_stop(), this function does not invoke the user
+ * stop_fn callback and does not touch the wait queue: if the
+ * function returns 0 the caller assumes responsibility for the
+ * storage and there is no other consumer of the timer left.
+ *
+ * @param timer Address of the timer.
+ * @retval 0 on success.
+ * @retval -EAGAIN when threads are still pending on the timer's
+ *         wait queue (e.g. via k_timer_status_sync()).
+ */
+int k_timer_cleanup(struct k_timer *timer);
 
 /** @} */
 
@@ -4765,7 +4801,7 @@ struct k_work_q {
  * @cond INTERNAL_HIDDEN
  */
 	/* The thread that animates the work. */
-	struct k_thread thread;
+	__deprecated struct k_thread thread;
 
 	/* The thread ID that animates the work. This may be an external thread
 	 * if k_work_queue_run() is used.
@@ -7074,6 +7110,16 @@ int k_thread_runtime_stats_enable(k_tid_t thread);
  * @return -EINVAL if invalid thread ID, otherwise 0
  */
 int k_thread_runtime_stats_disable(k_tid_t thread);
+
+/**
+ * @brief Check if runtime statistics gathering is enabled for a thread
+ *
+ * This routine checks whether the specified thread has enabled runtime statistics.
+ *
+ * @param thread ID of thread
+ * @return true if usage statistics are enabled for the given thread, otherwise false
+ */
+bool k_thread_runtime_stats_is_enabled(k_tid_t thread);
 
 /**
  * @brief Enable gathering of system runtime statistics
