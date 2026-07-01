@@ -156,6 +156,10 @@ New APIs and options
 
 .. zephyr-keep-sorted-start re(^\* \w) ignorecase
 
+* Architectures
+
+  * :c:macro:`REGION_PERIPHERAL_ATTR` (Arm Cortex-M7 MPU peripheral region, Execute-Never)
+
 * Audio
 
   * :c:member:`pcm_stream_cfg.gain_db`

@@ -136,6 +136,22 @@
 #define REGION_PPB_ATTR(size)    {(STRONGLY_ORDERED_SHAREABLE | size | P_RW_U_NA_Msk)}
 #define REGION_IO_ATTR(size)     {(DEVICE_NON_SHAREABLE | size | P_RW_U_NA_Msk)}
 #define REGION_EXTMEM_ATTR(size) {(STRONGLY_ORDERED_SHAREABLE | size | NO_ACCESS_Msk)}
+#if defined(CONFIG_CPU_CORTEX_M7) || defined(__DOXYGEN__)
+/**
+ * @def REGION_PERIPHERAL_ATTR
+ * @brief MPU attributes for a Cortex-M7 peripheral region (Execute-Never).
+ *
+ * Cortex-M7 can issue speculative instruction fetches to any region that is not
+ * marked Execute Never. To prevent such fetches into peripheral space, Arm
+ * requires the region to be Strongly-ordered/Device @b and Execute Never (XN);
+ * the memory type alone is not sufficient. See the Arm Cortex-M7 TRM (DDI0489),
+ * "Memory system - Speculative accesses - Considerations for system design".
+ *
+ * @param size Encoded MPU region size (for example ``REGION_1G``).
+ */
+#define REGION_PERIPHERAL_ATTR(size)                                                               \
+	{(STRONGLY_ORDERED_SHAREABLE | MPU_RASR_XN_Msk | size | P_RW_U_NA_Msk)}
+#endif /* CONFIG_CPU_CORTEX_M7 || __DOXYGEN__ */
 
 struct arm_mpu_region_attr {
 	/* Attributes belonging to RASR (including the encoded region size) */
