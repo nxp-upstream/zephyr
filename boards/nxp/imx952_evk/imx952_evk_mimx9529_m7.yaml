@@ -15,6 +15,7 @@ toolchain:
   - gnuarmemb
 supported:
   - uart
+  - adc
 testing:
   binaries:
     - flash.bin
