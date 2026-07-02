@@ -7,6 +7,13 @@ project(openthread_border_router)
 
 FILE(GLOB app_sources src/main.c)
 
+target_sources_ifdef(CONFIG_HDLC_RCP_IF_SPI_NO_AUTO_START app PRIVATE
+    boards/mimxrt1060_evk_mimxrt1062_qspi_C/src/iw61x_init.c
+)
+target_include_directories_ifdef(CONFIG_HDLC_RCP_IF_SPI_NO_AUTO_START app PRIVATE
+    boards/mimxrt1060_evk_mimxrt1062_qspi_C/src
+)
+
 # add Web Server source files
 if(CONFIG_OTBR_WEB_SERVER)
   set(gen_dir ${ZEPHYR_BINARY_DIR}/include/generated/)
