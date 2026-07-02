@@ -45,10 +45,22 @@ BASE_REF="mmiot/main"
 # Branch name prefix for generated upstream branches
 UPSTREAM_PREFIX="upstream/mp"
 
-# Signed-off-by (from git config)
-SOB_NAME="$(git config user.name)"
-SOB_EMAIL="$(git config user.email)"
-SOB="Signed-off-by: ${SOB_NAME} <${SOB_EMAIL}>"
+# Explicit commit authorship.
+#
+# The author and Signed-off-by trailers are hardcoded (NOT taken from the
+# git config of whoever runs this script) so that the generated commits
+# always carry the correct authorship regardless of who runs the export.
+#
+# Authors (used with `git commit --author=...`)
+AUTHOR_PHIBANG="Phi Bang Nguyen <phibang.nguyen@nxp.com>"
+AUTHOR_MICHAL="Michal Chvatal <michal.chvatal@nxp.com>"
+
+# Signed-off-by trailers
+SOB_PHIBANG="Signed-off-by: Phi Bang Nguyen <phibang.nguyen@nxp.com>"
+SOB_TRUNGHIEU="Signed-off-by: Trung Hieu Le <trunghieu.le@nxp.com>"
+SOB_MICHAL="Signed-off-by: Michal Chvatal <michal.chvatal@nxp.com>"
+SOB_TOMAS="Signed-off-by: Tomas Barak <tomas.barak@nxp.com>"
+
 
 # Date for display
 TODAY="$(date +%Y-%m-%d)"
@@ -166,8 +178,9 @@ by extending existing elements, without requiring modifications to the
 core components. Plugins are decentralized from the core structures,
 allowing seamless extension without altering the core framework.
 
-${SOB}
-Signed-off-by: Trung Hieu Le <trunghieu.le@nxp.com>"
+${SOB_PHIBANG}
+${SOB_TRUNGHIEU}"
+
 
 ZVID_COMMIT_MSG="mp: Add zvid video plugin
 
@@ -176,7 +189,8 @@ provides video-specific elements that interface with Zephyr's video
 subsystem, enabling building video capture and processing pipelines
 using Zephyr video devices, e.g. camera, m2m devices
 
-${SOB}"
+${SOB_PHIBANG}"
+
 
 ZJPEG_COMMIT_MSG="mp: Add zjpeg JPEG plugin
 
@@ -187,7 +201,7 @@ JPEG frames from a byte stream, a SW-based JPEG decoder element for
 decompressing JPEG data into raw video frames. JPEG encoder will be
 supported in the future.
 
-${SOB}"
+${SOB_PHIBANG}"
 
 ZAUD_COMMIT_MSG="mp: Add zaud audio plugin
 
@@ -200,7 +214,9 @@ The plugin includes audio source elements for PCM and DMIC capture,
 an I2S codec sink for audio output, a gain control transform for
 per-sample amplitude scaling, and audio buffer pool management.
 
-${SOB}"
+${SOB_MICHAL}
+${SOB_TOMAS}"
+
 
 ZDISP_COMMIT_MSG="mp: Add zdisp display plugin
 
@@ -213,7 +229,8 @@ The plugin includes a display sink element that renders video frames
 to a Zephyr display device, supporting partial frame updates and
 configurable display regions.
 
-${SOB}"
+${SOB_PHIBANG}"
+
 
 ZFS_COMMIT_MSG="mp: Add zfs filesystem plugin
 
@@ -227,7 +244,7 @@ The plugin includes a file source element for reading data and a
 file sink element for writing pipeline data using Zephyr's
 filesystem API.
 
-${SOB}"
+${SOB_PHIBANG}"
 
 ZBASE_COMMIT_MSG="mp: Add zbase base plugin
 
@@ -237,7 +254,7 @@ generic, reusable elements like:
 - tee: pipeline branching element
 - capsfilter: caps enforcement element
 
-${SOB}"
+${SOB_PHIBANG}"
 
 SAMPLE_CAM_DISP_COMMIT_MSG="mp: samples: Add camera to display sample
 
@@ -247,7 +264,7 @@ captures video frames from a camera device using the zvid plugin and
 renders them on a display using the zdisp plugin, showcasing
 real-time video preview functionality.
 
-${SOB}"
+${SOB_PHIBANG}"
 
 SAMPLE_JPEG_DEC_COMMIT_MSG="mp: samples: Add JPEG decoding sample
 
@@ -257,7 +274,7 @@ data, decodes it using the zvid plugin's JPEG decoder elements, and
 outputs the resulting video frames, showcasing the JPEG decoding
 pipeline.
 
-${SOB}"
+${SOB_PHIBANG}"
 
 SAMPLE_TEE_DEC_COMMIT_MSG="mp: samples: Add TEE JPEG decoding sample
 
@@ -265,7 +282,7 @@ Add the tee_dec sample application demonstrating how to decode JPEG
 images, display them and write the decoded data to a file at the same
 time, showcasing pipeline branching feature of the MP subsystem.
 
-${SOB}"
+${SOB_PHIBANG}"
 
 SAMPLE_FS_COMMIT_MSG="mp: samples: Add filesystem sample
 
@@ -274,7 +291,7 @@ write to files using the MP subsystem. This sample uses the zfs
 plugin's file source and file sink elements to build a pipeline
 that performs filesystem I/O on any Zephyr-supported filesystem.
 
-${SOB}"
+${SOB_PHIBANG}"
 
 CORE_TEST_COMMIT_MSG="mp: Add core tests
 
@@ -285,8 +302,8 @@ a sink to verify the whole core framework behavior such as
 pipeline creation, caps negotiation and data flow.
 
 Assisted-by: Claude:claude-opus-4.6
-${SOB}
-Signed-off-by: Trung Hieu Le <trunghieu.le@nxp.com>"
+${SOB_PHIBANG}
+${SOB_TRUNGHIEU}"
 
 SAMPLE_DMIC_I2S_COMMIT_MSG="mp: samples: Add DMIC to I2S audio sample
 
@@ -296,7 +313,8 @@ pipeline that captures audio from a digital microphone (DMIC), applies
 gain control using the zaud plugin's gain element, and outputs the
 processed audio through an I2S codec to a speaker.
 
-${SOB}"
+${SOB_MICHAL}
+${SOB_TOMAS}"
 
 # ===========================================================================
 # Dependency map: target -> dependency branches (in cherry-pick order)
@@ -317,6 +335,32 @@ TARGET_DEPS=(
     [sample-fs]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zfs"
     [sample-dmic_i2s]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zbase ${UPSTREAM_PREFIX}-zaud"
 )
+
+# ===========================================================================
+# Author map: target -> commit author (passed to `git commit --author=...`)
+#
+# This is the primary/main author of each commit. It is decoupled from the
+# git config of the person running the script so that authorship is always
+# correct regardless of who runs the export. The full list of contributors
+# is captured by the Signed-off-by trailers in the commit messages above.
+# ===========================================================================
+
+declare -A TARGET_AUTHOR
+TARGET_AUTHOR=(
+    [core]="${AUTHOR_PHIBANG}"
+    [zvid]="${AUTHOR_PHIBANG}"
+    [zjpeg]="${AUTHOR_PHIBANG}"
+    [zaud]="${AUTHOR_MICHAL}"
+    [zdisp]="${AUTHOR_PHIBANG}"
+    [zfs]="${AUTHOR_PHIBANG}"
+    [zbase]="${AUTHOR_PHIBANG}"
+    [sample-cam_disp]="${AUTHOR_PHIBANG}"
+    [sample-jpeg_dec]="${AUTHOR_PHIBANG}"
+    [sample-tee_dec]="${AUTHOR_PHIBANG}"
+    [sample-fs]="${AUTHOR_PHIBANG}"
+    [sample-dmic_i2s]="${AUTHOR_MICHAL}"
+)
+
 
 # ===========================================================================
 # Helpers
@@ -496,8 +540,12 @@ generate_branch() {
         return 1
     fi
 
-    # Commit with the proper message (--no-verify to skip git hooks)
-    git commit --no-verify -m "${commit_msg}" --quiet
+    # Commit with the proper message and explicit author (--no-verify to
+    # skip git hooks). The author is looked up from TARGET_AUTHOR so it does
+    # not depend on the git config of whoever runs the script.
+    local author="${TARGET_AUTHOR[${target}]}"
+    git commit --no-verify --author="${author}" -m "${commit_msg}" --quiet
+
 
     log_ok "  Branch '${branch}' created successfully"
     log_info "  Commit: $(git --no-pager log --oneline -1)"
@@ -713,7 +761,11 @@ export_core_tests() {
         return 0
     fi
 
-    git commit --no-verify -m "${CORE_TEST_COMMIT_MSG}" --quiet
+    # core-tests commit is authored by Phi Bang (see Signed-off-by trailers
+    # in CORE_TEST_COMMIT_MSG for the full contributor list).
+    git commit --no-verify --author="${AUTHOR_PHIBANG}" \
+        -m "${CORE_TEST_COMMIT_MSG}" --quiet
+
 
     log_ok "  core-tests commit appended to '${branch}' successfully"
     log_info "  Commit: $(git --no-pager log --oneline -1)"
