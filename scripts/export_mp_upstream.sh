@@ -361,10 +361,36 @@ TARGET_AUTHOR=(
     [sample-dmic_i2s]="${AUTHOR_MICHAL}"
 )
 
+# ===========================================================================
+# Build-all test map: target -> testcase name in build_all/testcase.yaml
+#
+# tests/subsys/mp/build_all/testcase.yaml in the source branch is a single
+# file that contains one build_only entry per plugin (plus the core entry).
+# When exporting, each commit must only carry the entries relevant to it:
+#   - the core-tests commit keeps only 'mp.core.build'
+#   - each plugin commit appends only its own entry
+# Samples have no build_all entry (empty / unset).
+# ===========================================================================
+
+declare -A TARGET_BUILD_TEST
+TARGET_BUILD_TEST=(
+    [core]="mp.core.build"
+    [zbase]="mp.base.build"
+    [zaud]="mp.audio.build"
+    [zvid]="mp.video.build"
+    [zdisp]="mp.display.build"
+    [zjpeg]="mp.jpeg.build"
+    [zfs]="mp.fs.build"
+)
+
+# Path to the shared build_all testcase file (relative to repo root).
+BUILD_ALL_TESTCASE="tests/subsys/mp/build_all/testcase.yaml"
+
 
 # ===========================================================================
 # Helpers
 # ===========================================================================
+
 
 DRY_RUN=false
 SKIP_COMPLIANCE=false
@@ -390,6 +416,171 @@ die() {
     log_error "$@"
     exit 1
 }
+
+# Pause the run so the human operator can resolve a cherry-pick conflict by
+# hand, then continue the same run once done. This is intentionally generic:
+# it triggers on ANY cherry-pick conflict (not just testcase.yaml), so future
+# code changes that introduce new conflicts are handled without special-casing.
+#
+# The caller is expected to run `git cherry-pick --continue` after this returns
+# 0. If stdin is not a TTY (e.g. CI / piped input), we cannot prompt, so we
+# return non-zero to let the caller abort and fail loudly.
+#
+# Args: $1=commit (sha being picked), $2=subject (commit subject, for display)
+# Returns: 0 if resolved and ready to continue, 1 if unable to prompt.
+pause_for_manual_resolution() {
+    local commit="$1"
+    local subject="$2"
+
+    log_warn "Cherry-pick paused on ${commit} (${subject})"
+    log_warn "  Conflicted files:"
+    git diff --name-only --diff-filter=U | sed 's/^/    /'
+
+    # Non-interactive: cannot pause for manual resolution.
+    if [ ! -t 0 ]; then
+        log_error "  stdin is not a TTY; cannot pause for manual resolution."
+        return 1
+    fi
+
+    log_warn "  Repository: $(pwd)"
+    log_warn "  You will now be dropped into an interactive sub-shell in the"
+    log_warn "  repository so you can resolve the conflict in THIS terminal:"
+    log_warn "    1. Edit the conflicted file(s) to fix the '<<<<<<<' markers."
+    log_warn "    2. Stage them:  git add <file>..."
+    log_warn "    3. Type 'exit' (or press Ctrl-D) to resume the export."
+    log_warn "  Do NOT run 'git cherry-pick --continue' yourself; the script"
+    log_warn "  will do that for you once you leave the sub-shell."
+
+    # Drop into an interactive sub-shell for resolution, then re-check. We only
+    # loop while conflict markers (unmerged files) remain, so the operator can
+    # always leave once the conflicts are resolved. We intentionally do NOT
+    # loop on "nothing staged": a resolution can legitimately be empty (e.g. the
+    # incoming change is already present), and trapping on that would make it
+    # impossible to leave the sub-shell. The caller handles the empty case.
+    while true; do
+        # Run an interactive shell bound to the terminal so editing, git add,
+        # git status, etc. all work in this same terminal. The shell inherits
+        # the current working directory (the repo).
+        "${SHELL:-/bin/bash}" </dev/tty >/dev/tty 2>&1 || true
+
+        local unmerged
+        unmerged="$(git diff --name-only --diff-filter=U)"
+        if [ -n "${unmerged}" ]; then
+            log_warn "  There are still unresolved (unmerged) files:"
+            echo "${unmerged}" | sed 's/^/    /'
+            log_warn "  Fix them and 'git add' them, then 'exit' the sub-shell"
+            log_warn "  again (or 'git cherry-pick --abort' then 'exit' to skip)."
+            continue
+        fi
+
+        break
+    done
+
+    return 0
+}
+
+
+
+# Extract a single named test block from the source build_all/testcase.yaml.
+# A block starts at a line "  <name>:" (two-space indent) and runs until the
+# next top-level test entry ("  mp.*.build:") or end of file. Trailing blank
+# lines are stripped. The extracted text is printed to stdout.
+#
+# Args: $1=test_name (e.g. "mp.base.build")
+
+extract_build_test_block() {
+    local test_name="$1"
+
+    git show "${SOURCE_BRANCH}:${BUILD_ALL_TESTCASE}" 2>/dev/null | awk -v name="${test_name}" '
+        # Detect the start of any top-level test entry (two-space indent).
+        /^  mp\.[a-zA-Z0-9_.]+\.build:[[:space:]]*$/ {
+            if ($0 == "  " name ":") {
+                capturing = 1
+            } else {
+                capturing = 0
+            }
+        }
+        capturing { print }
+    ' | sed -e :a -e '/^[[:space:]]*$/{$d;N;ba}'
+}
+
+# Rewrite build_all/testcase.yaml in the working tree so it contains only the
+# "tests:" header plus the named test blocks passed as arguments (in order).
+#
+# Args: $1+=test_name(s)
+write_build_test_file() {
+    local names=("$@")
+    local tmp
+    tmp="$(mktemp)"
+
+    echo "tests:" > "${tmp}"
+    for name in "${names[@]}"; do
+        echo "" >> "${tmp}"
+        extract_build_test_block "${name}" >> "${tmp}"
+    done
+
+    mv "${tmp}" "${BUILD_ALL_TESTCASE}"
+}
+
+# Append the named test block to the existing build_all/testcase.yaml in the
+# working tree (used by plugin commits, which already inherit the file with
+# only the core entry from the cherry-picked core-tests commit).
+#
+# Args: $1=test_name
+append_build_test_block() {
+    local test_name="$1"
+
+    # Ensure exactly one blank line separates entries.
+    printf '\n' >> "${BUILD_ALL_TESTCASE}"
+    extract_build_test_block "${test_name}" >> "${BUILD_ALL_TESTCASE}"
+}
+
+# Print, one name per line, every top-level test block found on stdin (a
+# build_all/testcase.yaml stream). For example, "mp.core.build".
+list_build_test_names() {
+    awk '/^  mp\.[a-zA-Z0-9_.]+\.build:[[:space:]]*$/ { gsub(/[ :]/, ""); print }'
+}
+
+# Auto-resolve a conflict on build_all/testcase.yaml during a cherry-pick.
+#
+# Every plugin commit appends its own test block right after the core block.
+# When a sample cherry-picks several plugins, those appends collide. The
+# correct resolution is the UNION of:
+#   - the blocks already present on HEAD  (stage :2, "ours"), and
+#   - the blocks from the incoming commit (stage :3, "theirs").
+# This keeps every plugin already applied and adds the incoming plugin's block.
+# Crucially, it does NOT pull in blocks from plugins that have not been
+# cherry-picked yet: the resolution reflects only what actually exists at this
+# point in the sequence, so the file grows one plugin at a time.
+#
+# The kept blocks are emitted in the canonical order in which they appear in the
+# libmp_dev source file, and each block's content is regenerated verbatim from
+# libmp_dev, so the result is always well-formed and deterministic.
+resolve_build_test_conflict() {
+    local ours theirs present ordered=()
+    local name
+
+    ours="$(git show ":2:${BUILD_ALL_TESTCASE}" 2>/dev/null | list_build_test_names)"
+    theirs="$(git show ":3:${BUILD_ALL_TESTCASE}" 2>/dev/null | list_build_test_names)"
+
+    # Space-padded haystack for whole-word membership tests. The command
+    # substitutions collapse the newline-separated lists into spaces.
+    present=" $(echo ${ours}) $(echo ${theirs}) "
+
+    # Walk the source file in its natural order and keep the blocks that are
+    # present on either side of the conflict.
+    while IFS= read -r name; do
+        [ -z "${name}" ] && continue
+        if [[ "${present}" == *" ${name} "* ]]; then
+            ordered+=("${name}")
+        fi
+    done < <(git show "${SOURCE_BRANCH}:${BUILD_ALL_TESTCASE}" | list_build_test_names)
+
+    write_build_test_file "${ordered[@]}"
+}
+
+
+
 
 # Check that we're in the zephyr repo root
 check_prerequisites() {
@@ -476,13 +667,21 @@ generate_branch() {
     git checkout -B "${branch}" "${BASE_REF}" --quiet
     # Cherry-pick a range of commits, silently dropping any that become empty
     # (i.e., already applied). Compatible with all Git versions.
-    # Args: $1=from_ref, $2=to_ref
+    # Args: $1=to_ref
     cherry_pick_range() {
-        local from_ref="$1"
-        local to_ref="$2"
+        local to_ref="$1"
         local commits
 
-        mapfile -t commits < <(git log --reverse --pretty=format:"%H" "${from_ref}..${to_ref}")
+        # Use --cherry-pick to skip commits that are already applied
+        # (patch-equivalent) on the current HEAD. This is essential: every
+        # plugin branch carries its own copy of the core framework and the
+        # "mp: Add core tests" commits, so when a sample cherry-picks several
+        # plugin ranges those duplicates would otherwise be re-applied and
+        # conflict (notably the core-tests commit trying to reset
+        # build_all/testcase.yaml back to core-only). --right-only keeps only
+        # commits reachable from the dependency branch, not from HEAD.
+        mapfile -t commits < <(git rev-list --reverse --cherry-pick --right-only "HEAD...${to_ref}")
+
 
         for commit in "${commits[@]}"; do
             if ! git -c core.hooksPath=/dev/null cherry-pick "${commit}" --quiet 2>/dev/null; then
@@ -495,9 +694,76 @@ generate_branch() {
                         # cherry-pick state and leaves HEAD unchanged, which is correct.
                         git cherry-pick --abort 2>/dev/null || true
                     else
-                        log_error "Cherry-pick conflict on commit ${commit}"
-                        git cherry-pick --abort 2>/dev/null || true
-                        return 1
+                        # Real conflict. Two cases:
+                        #   1. The ONLY conflicted file is build_all/testcase.yaml.
+                        #      This is expected when a sample cherry-picks several
+                        #      plugins that each append their own test block to the
+                        #      same file. We resolve it deterministically as the union
+                        #      of the blocks already on HEAD ("ours") and the incoming
+                        #      commit's blocks ("theirs"), keeping only what actually
+                        #      exists at this point in the sequence (see
+                        #      resolve_build_test_conflict). No human interaction
+                        #      required.
+                        #   2. Anything else: pause and let the operator resolve it by
+                        #      hand, then continue the same run.
+                        local subject conflicted
+                        subject="$(git log -1 --pretty=format:%s "${commit}")"
+                        conflicted="$(git diff --name-only --diff-filter=U)"
+                        if [ "${conflicted}" = "${BUILD_ALL_TESTCASE}" ]; then
+                            log_info "  Auto-resolving ${BUILD_ALL_TESTCASE} conflict on ${commit} (${subject})"
+                            resolve_build_test_conflict
+                            # Force-add: the build_all directory is matched by a
+                            # .gitignore pattern, so a plain 'git add' of the freshly
+                            # written file is refused and returns non-zero, which (under
+                            # 'set -e') would abort the whole script right here and leave
+                            # the operator to run 'git cherry-pick --continue' by hand.
+                            # '-f' stages the resolved file regardless of the ignore rule.
+                            git add -f "${BUILD_ALL_TESTCASE}"
+
+                            # The resolved index may be identical to HEAD (the incoming
+                            # commit adds no new block, e.g. it was already present). In
+                            # that case the cherry-pick would be empty: skip it. Compare
+                            # the tree, not the staged diff, since after resolution the
+                            # index is fully merged.
+                            if git diff --cached --quiet HEAD; then
+                                log_warn "  Resolution of ${commit} is empty; skipping commit."
+                                git cherry-pick --abort 2>/dev/null || true
+                            elif ! GIT_EDITOR=true git -c core.hooksPath=/dev/null \
+                                    cherry-pick --continue --no-edit >/dev/null 2>&1; then
+                                log_error "Cherry-pick --continue failed on ${commit}"
+                                git status --short | sed 's/^/    /'
+                                git cherry-pick --abort 2>/dev/null || true
+                                return 1
+                            else
+                                log_ok "  Auto-resolved and continued past ${commit}"
+                            fi
+                        elif pause_for_manual_resolution "${commit}" "${subject}"; then
+
+
+                            # The operator may have run 'git cherry-pick --abort'
+                            # inside the sub-shell to skip this commit; in that
+                            # case there is no cherry-pick in progress anymore,
+                            # so there is nothing to continue.
+                            if ! git rev-parse CHERRY_PICK_HEAD >/dev/null 2>&1; then
+                                log_warn "  Cherry-pick of ${commit} was aborted/skipped; continuing."
+                            elif git diff --cached --quiet; then
+                                # Conflicts resolved but nothing staged to commit
+                                # (resolution was empty, e.g. incoming change is
+                                # already present). Skip this commit.
+                                log_warn "  Resolution of ${commit} is empty; skipping commit."
+                                git cherry-pick --abort 2>/dev/null || true
+                            elif ! GIT_EDITOR=true git -c core.hooksPath=/dev/null \
+                                    cherry-pick --continue --no-edit >/dev/null 2>&1; then
+                                log_error "Cherry-pick --continue failed on ${commit}"
+                                git cherry-pick --abort 2>/dev/null || true
+                                return 1
+                            fi
+                        else
+                            log_error "Cherry-pick conflict on commit ${commit}"
+                            git cherry-pick --abort 2>/dev/null || true
+                            return 1
+                        fi
+
                     fi
                 else
                     log_error "Cherry-pick failed on commit ${commit}"
@@ -507,11 +773,12 @@ generate_branch() {
         done
     }
 
+
     # Cherry-pick dependency commits (all commits from each dependency branch)
     if [ -n "${deps}" ]; then
         for dep in ${deps}; do
             log_info "  Cherry-picking all commits from ${dep}..."
-            cherry_pick_range "${BASE_REF}" "${dep}"
+            cherry_pick_range "${dep}"
         done
     fi
 
@@ -531,7 +798,18 @@ generate_branch() {
         return 1
     fi
 
+    # Append this plugin's own build_all entry. The core-tests commit (cherry-
+    # picked as a dependency) provides build_all/testcase.yaml with only the
+    # core entry; each plugin adds exactly its own build test here. Targets
+    # without a build test (e.g. samples) are left untouched.
+    local build_test="${TARGET_BUILD_TEST[${target}]:-}"
+    if [ -n "${build_test}" ] && [ -f "${BUILD_ALL_TESTCASE}" ]; then
+        log_info "  Adding build test '${build_test}' to ${BUILD_ALL_TESTCASE}"
+        append_build_test_block "${build_test}"
+    fi
+
     git add -A
+
 
     # Check if there are changes to commit
     if git diff --cached --quiet; then
@@ -753,7 +1031,16 @@ export_core_tests() {
         return 0
     fi
 
+    # The shared build_all/testcase.yaml contains one entry per plugin. The
+    # core-tests commit must only carry the core build test; each plugin's
+    # entry is added by its own plugin commit.
+    if [ -f "${BUILD_ALL_TESTCASE}" ]; then
+        log_info "  Reducing ${BUILD_ALL_TESTCASE} to '${TARGET_BUILD_TEST[core]}' only"
+        write_build_test_file "${TARGET_BUILD_TEST[core]}"
+    fi
+
     git add -A
+
 
     if git diff --cached --quiet; then
         log_warn "  No test changes to commit. Skipping tests commit."
