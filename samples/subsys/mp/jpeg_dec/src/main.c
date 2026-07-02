@@ -18,8 +18,8 @@
 #include <zephyr/mp/zbase/mp_capsfilter.h>
 #include <zephyr/mp/zdisp/mp_zdisp_sink.h>
 #include <zephyr/mp/zfs/mp_zfilesrc.h>
-#include <zephyr/mp/zjpeg/mp_zjpeg_decoder.h>
-#include <zephyr/mp/zjpeg/mp_zjpeg_parser.h>
+#include <zephyr/mp/zimg/mp_zimg_jpeg_decoder.h>
+#include <zephyr/mp/zimg/mp_zimg_jpeg_parser.h>
 #if DT_HAS_CHOSEN(zephyr_jpegdec) || DT_HAS_CHOSEN(zephyr_videotrans)
 #include <zephyr/mp/zvid/mp_zvid_transform.h>
 #endif
@@ -125,7 +125,7 @@ static int mount_sd(void)
 
 static struct mp_pipeline pipe;
 static struct mp_zfilesrc filesrc;
-static struct mp_zjpeg_parser jpeg_parser;
+static struct mp_zimg_jpeg_parser jpeg_parser;
 static struct mp_caps_filter caps_filter;
 static struct mp_zdisp_sink disp_sink;
 
@@ -133,7 +133,7 @@ static struct mp_zdisp_sink disp_sink;
 static struct mp_zvid_transform jpeg_dec;
 static struct mp_zvid_convert vid_conv;
 #else
-static struct mp_zjpeg_decoder jpeg_dec;
+static struct mp_zimg_jpeg_decoder jpeg_dec;
 #endif
 #if DT_HAS_CHOSEN(zephyr_videotrans)
 static struct mp_zvid_transform vid_trans;
@@ -149,7 +149,7 @@ int main(void)
 
 	MP_ELEMENT_INIT(&pipe, mp_pipeline_init, PIPE_ID);
 	MP_ELEMENT_INIT(&filesrc, mp_zfilesrc_init, FILE_SRC_ID);
-	MP_ELEMENT_INIT(&jpeg_parser, mp_zjpeg_parser_init, JPEG_PARSER_ID);
+	MP_ELEMENT_INIT(&jpeg_parser, mp_zimg_jpeg_parser_init, JPEG_PARSER_ID);
 	MP_ELEMENT_INIT(&caps_filter, mp_caps_filter_init, CAPS_FILTER_ID);
 	MP_ELEMENT_INIT(&disp_sink, mp_zdisp_sink_init, DISP_SINK_ID);
 
@@ -164,7 +164,7 @@ int main(void)
 		goto err;
 	}
 #else
-	MP_ELEMENT_INIT(&jpeg_dec, mp_zjpeg_decoder_init, JPEG_DEC_ID);
+	MP_ELEMENT_INIT(&jpeg_dec, mp_zimg_jpeg_decoder_init, JPEG_DEC_ID);
 #endif
 #if DT_HAS_CHOSEN(zephyr_videotrans)
 	MP_ELEMENT_INIT(&vid_trans, mp_zvid_transform_init, VID_TRANS_ID);

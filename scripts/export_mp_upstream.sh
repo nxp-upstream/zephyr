@@ -89,10 +89,10 @@ ZVID_PATHS=(
     "include/zephyr/mp/zvid/"
 )
 
-# zjpeg plugin (JPEG support)
-ZJPEG_PATHS=(
-    "subsys/mp/plugins/zjpeg/"
-    "include/zephyr/mp/zjpeg/"
+# zimg plugin (image codec support)
+ZIMG_PATHS=(
+    "subsys/mp/plugins/zimg/"
+    "include/zephyr/mp/zimg/"
 )
 
 # zaud plugin
@@ -192,14 +192,14 @@ using Zephyr video devices, e.g. camera, m2m devices
 ${SOB_PHIBANG}"
 
 
-ZJPEG_COMMIT_MSG="mp: Add zjpeg JPEG plugin
+ZIMG_COMMIT_MSG="mp: Add zimg image codec plugin
 
-Add the zjpeg (Zephyr JPEG) plugin for the MP subsystem.
+Add the zimg (Zephyr Image Codec) plugin for the MP subsystem.
 
 The plugin currently includes a JPEG parser element for extracting
 JPEG frames from a byte stream, a SW-based JPEG decoder element for
-decompressing JPEG data into raw video frames. JPEG encoder will be
-supported in the future.
+decompressing JPEG data into raw video frames. Other elements like
+jpegenc, y4mdec, etc. will be added in the future.
 
 ${SOB_PHIBANG}"
 
@@ -324,14 +324,14 @@ declare -A TARGET_DEPS
 TARGET_DEPS=(
     [core]=""
     [zvid]="${UPSTREAM_PREFIX}-core"
-    [zjpeg]="${UPSTREAM_PREFIX}-core"
+    [zimg]="${UPSTREAM_PREFIX}-core"
     [zaud]="${UPSTREAM_PREFIX}-core"
     [zdisp]="${UPSTREAM_PREFIX}-core"
     [zfs]="${UPSTREAM_PREFIX}-core"
     [zbase]="${UPSTREAM_PREFIX}-core"
     [sample-cam_disp]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zbase ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zdisp"
-    [sample-jpeg_dec]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zbase ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zjpeg ${UPSTREAM_PREFIX}-zdisp ${UPSTREAM_PREFIX}-zfs"
-    [sample-tee_dec]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zbase ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zjpeg ${UPSTREAM_PREFIX}-zdisp ${UPSTREAM_PREFIX}-zfs"
+    [sample-jpeg_dec]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zbase ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zimg ${UPSTREAM_PREFIX}-zdisp ${UPSTREAM_PREFIX}-zfs"
+    [sample-tee_dec]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zbase ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zimg ${UPSTREAM_PREFIX}-zdisp ${UPSTREAM_PREFIX}-zfs"
     [sample-fs]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zfs"
     [sample-dmic_i2s]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zbase ${UPSTREAM_PREFIX}-zaud"
 )
@@ -349,7 +349,7 @@ declare -A TARGET_AUTHOR
 TARGET_AUTHOR=(
     [core]="${AUTHOR_PHIBANG}"
     [zvid]="${AUTHOR_PHIBANG}"
-    [zjpeg]="${AUTHOR_PHIBANG}"
+    [zimg]="${AUTHOR_PHIBANG}"
     [zaud]="${AUTHOR_MICHAL}"
     [zdisp]="${AUTHOR_PHIBANG}"
     [zfs]="${AUTHOR_PHIBANG}"
@@ -379,7 +379,7 @@ TARGET_BUILD_TEST=(
     [zaud]="mp.audio.build"
     [zvid]="mp.video.build"
     [zdisp]="mp.display.build"
-    [zjpeg]="mp.jpeg.build"
+    [zimg]="mp.img.build"
     [zfs]="mp.fs.build"
 )
 
@@ -1067,9 +1067,9 @@ export_zvid() {
         "${ZVID_COMMIT_MSG}" "${ZVID_PATHS[@]}"
 }
 
-export_zjpeg() {
-    generate_branch "zjpeg" "${UPSTREAM_PREFIX}-zjpeg" \
-        "${ZJPEG_COMMIT_MSG}" "${ZJPEG_PATHS[@]}"
+export_zimg() {
+    generate_branch "zimg" "${UPSTREAM_PREFIX}-zimg" \
+        "${ZIMG_COMMIT_MSG}" "${ZIMG_PATHS[@]}"
 }
 
 export_zaud() {
@@ -1122,7 +1122,7 @@ export_sample_dmic_i2s() {
 # ===========================================================================
 
 export_all() {
-    TARGETS=(core zvid zjpeg zaud zdisp zfs zbase sample-cam_disp sample-jpeg_dec sample-tee_dec sample-fs sample-dmic_i2s)
+    TARGETS=(core zvid zimg zaud zdisp zfs zbase sample-cam_disp sample-jpeg_dec sample-tee_dec sample-fs sample-dmic_i2s)
 
     log_info "=== Exporting all MP upstream PR branches ==="
     log_info "Source: ${SOURCE_BRANCH}"
@@ -1137,7 +1137,7 @@ export_all() {
 
     # Plugins (independent of each other, all depend on core)
     export_zvid
-    export_zjpeg
+    export_zimg
     export_zaud
     export_zdisp
     export_zfs
@@ -1248,14 +1248,14 @@ verify the target's own commit and tests (HEAD~2..HEAD).
 Targets:
   core             Core MP framework + tests
   zvid             Video plugin (depends on core)
-  zjpeg            JPEG plugin (depends on core)
+  zimg             Image codec plugin (depends on core)
   zaud             Audio plugin (depends on core)
   zdisp            Display plugin (depends on core)
   zfs              Filesystem plugin (depends on core)
   zbase            Base plugin (depends on core)
   sample-cam_disp  Camera-to-display sample (depends on core, zbase, zvid, zdisp)
-  sample-jpeg_dec  JPEG decoding sample (depends on core, zbase, zvid, zjpeg, zdisp, zfs)
-  sample-tee_dec   Multi-branch jpeg decoding sample (depends on core, zbase, zvid, zjpeg, zdisp, zfs)
+  sample-jpeg_dec  JPEG decoding sample (depends on core, zbase, zvid, zimg, zdisp, zfs)
+  sample-tee_dec   Multi-branch jpeg decoding sample (depends on core, zbase, zvid, zimg, zdisp, zfs)
   sample-fs        Filesystem sample (depends on core, zfs)
   sample-dmic_i2s  DMIC to I2S sample (depends on core, zbase, zaud)
   all              All of the above (default)
@@ -1285,7 +1285,7 @@ main() {
                 shift
                 ;;
             --list)
-                echo "Available targets: core zvid zjpeg zaud zdisp zfs zbase sample-cam_disp sample-jpeg_dec sample-tee_dec sample-fs sample-dmic_i2s"
+                echo "Available targets: core zvid zimg zaud zdisp zfs zbase sample-cam_disp sample-jpeg_dec sample-tee_dec sample-fs sample-dmic_i2s"
                 exit 0
                 ;;
             --no-check)
@@ -1296,7 +1296,7 @@ main() {
                 usage
                 exit 0
                 ;;
-            core|zvid|zjpeg|zaud|zdisp|zfs|zbase|sample-cam_disp|sample-jpeg_dec|sample-tee_dec|sample-fs|sample-dmic_i2s|all)
+            core|zvid|zimg|zaud|zdisp|zfs|zbase|sample-cam_disp|sample-jpeg_dec|sample-tee_dec|sample-fs|sample-dmic_i2s|all)
                 targets+=("$1")
                 shift
                 ;;
@@ -1328,9 +1328,9 @@ main() {
                 TARGETS+=(zvid)
                 export_zvid
                 ;;
-            zjpeg)
-                TARGETS+=(zjpeg)
-                export_zjpeg
+            zimg)
+                TARGETS+=(zimg)
+                export_zimg
                 ;;
             zaud)
                 TARGETS+=(zaud)

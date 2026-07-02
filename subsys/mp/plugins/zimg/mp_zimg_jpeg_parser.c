@@ -17,28 +17,28 @@
 #include <zephyr/mp/core/mp_dispatch.h>
 #include <zephyr/mp/core/mp_value.h>
 
-#include <zephyr/mp/zjpeg/mp_zjpeg_parser.h>
+#include <zephyr/mp/zimg/mp_zimg_jpeg_parser.h>
 
-LOG_MODULE_REGISTER(mp_zjpeg_parser, CONFIG_MP_LOG_LEVEL);
+LOG_MODULE_REGISTER(mp_zimg_jpeg_parser, CONFIG_MP_LOG_LEVEL);
 
 /*
  * Internal output pool which is static and simple. For specific requirements, e.g. alignment,
  * the proposed downstream pool will be used
  */
-NET_BUF_POOL_FIXED_DEFINE(mp_zjpeg_parser_pool, CONFIG_MP_ZJPEG_PARSER_POOL_NUM,
-			  CONFIG_MP_ZJPEG_PARSER_MAX_FRAME_SIZE, sizeof(struct mp_buffer_meta),
+NET_BUF_POOL_FIXED_DEFINE(mp_zimg_jpeg_parser_pool, CONFIG_MP_ZIMG_JPEG_PARSER_POOL_NUM,
+			  CONFIG_MP_ZIMG_JPEG_PARSER_MAX_FRAME_SIZE, sizeof(struct mp_buffer_meta),
 			  mp_buffer_destroy);
 
 #define JPEG_EOI_BYTE0 0xFFU
 #define JPEG_EOI_BYTE1 0xD9U
 
-static int mp_zjpeg_parser_decide_allocation(struct mp_parser *parser, struct mp_dispatch *query)
+static int mp_zimg_jpeg_parser_decide_allocation(struct mp_parser *parser, struct mp_dispatch *query)
 {
-	struct mp_zjpeg_parser *jpeg_parser = (struct mp_zjpeg_parser *)parser;
+	struct mp_zimg_jpeg_parser *jpeg_parser = (struct mp_zimg_jpeg_parser *)parser;
 	struct mp_buffer_pool *query_pool = mp_dispatch_get_pool(query);
 
 	/* Use the internal pool by default */
-	if (CONFIG_MP_ZJPEG_PARSER_MAX_FRAME_SIZE > 0) {
+	if (CONFIG_MP_ZIMG_JPEG_PARSER_MAX_FRAME_SIZE > 0) {
 		parser->outpool = &jpeg_parser->out_pool;
 	}
 
@@ -134,7 +134,7 @@ static int append_to_partial(struct net_buf *partial, const uint8_t *src, size_t
 	return 0;
 }
 
-static int mp_zjpeg_parser_acquire_buffer(struct mp_buffer_pool *pool, struct net_buf **buf)
+static int mp_zimg_jpeg_parser_acquire_buffer(struct mp_buffer_pool *pool, struct net_buf **buf)
 {
 	struct net_buf *out;
 	struct mp_buffer_meta *m;
@@ -160,7 +160,7 @@ static int mp_zjpeg_parser_acquire_buffer(struct mp_buffer_pool *pool, struct ne
 	return 0;
 }
 
-static int mp_zjpeg_parser_release_buffer(struct mp_buffer_pool *pool, struct net_buf *buf)
+static int mp_zimg_jpeg_parser_release_buffer(struct mp_buffer_pool *pool, struct net_buf *buf)
 {
 	ARG_UNUSED(pool);
 
@@ -179,11 +179,11 @@ static int mp_zjpeg_parser_release_buffer(struct mp_buffer_pool *pool, struct ne
 	return 0;
 }
 
-static int mp_zjpeg_parser_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
+static int mp_zimg_jpeg_parser_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 				   struct net_buf **out_buf)
 {
 	struct mp_parser *parser = (struct mp_parser *)pad->object.container;
-	struct mp_zjpeg_parser *jpeg_parser = (struct mp_zjpeg_parser *)parser;
+	struct mp_zimg_jpeg_parser *jpeg_parser = (struct mp_zimg_jpeg_parser *)parser;
 	struct mp_buffer_pool *outpool = parser->outpool;
 	const uint8_t *data = in_buf->data;
 	uint32_t in_used = mp_buffer_get_meta(in_buf)->bytes_used;
@@ -328,10 +328,10 @@ static int mp_zjpeg_parser_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	return 0;
 }
 
-void mp_zjpeg_parser_init(struct mp_element *self)
+void mp_zimg_jpeg_parser_init(struct mp_element *self)
 {
 	struct mp_parser *parser = (struct mp_parser *)self;
-	struct mp_zjpeg_parser *jpeg_parser = (struct mp_zjpeg_parser *)parser;
+	struct mp_zimg_jpeg_parser *jpeg_parser = (struct mp_zimg_jpeg_parser *)parser;
 
 	mp_parser_init(self);
 
@@ -346,15 +346,15 @@ void mp_zjpeg_parser_init(struct mp_element *self)
 	mp_caps_unref(sink_caps);
 	mp_caps_unref(src_caps);
 
-	parser->sinkpad.chainfn = mp_zjpeg_parser_chainfn;
-	parser->decide_allocation = mp_zjpeg_parser_decide_allocation;
+	parser->sinkpad.chainfn = mp_zimg_jpeg_parser_chainfn;
+	parser->decide_allocation = mp_zimg_jpeg_parser_decide_allocation;
 
-	if (CONFIG_MP_ZJPEG_PARSER_MAX_FRAME_SIZE > 0) {
+	if (CONFIG_MP_ZIMG_JPEG_PARSER_MAX_FRAME_SIZE > 0) {
 		mp_buffer_pool_init(&jpeg_parser->out_pool);
-		jpeg_parser->out_pool.nb_pool = &mp_zjpeg_parser_pool;
-		jpeg_parser->out_pool.config.size = CONFIG_MP_ZJPEG_PARSER_MAX_FRAME_SIZE;
-		jpeg_parser->out_pool.acquire_buffer = mp_zjpeg_parser_acquire_buffer;
-		jpeg_parser->out_pool.release_buffer = mp_zjpeg_parser_release_buffer;
+		jpeg_parser->out_pool.nb_pool = &mp_zimg_jpeg_parser_pool;
+		jpeg_parser->out_pool.config.size = CONFIG_MP_ZIMG_JPEG_PARSER_MAX_FRAME_SIZE;
+		jpeg_parser->out_pool.acquire_buffer = mp_zimg_jpeg_parser_acquire_buffer;
+		jpeg_parser->out_pool.release_buffer = mp_zimg_jpeg_parser_release_buffer;
 		/* net_buf pool is static; no explicit start */
 		jpeg_parser->out_pool.started = true;
 		parser->outpool = &jpeg_parser->out_pool;

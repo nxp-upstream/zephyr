@@ -54,7 +54,7 @@ tests:
     extra_args:
       - CONFIG_MP_PLUGIN_ZDISP=y
 
-  mp.jpeg.build:
+  mp.img.build:
     tags:
       - subsys
       - mp
@@ -62,7 +62,7 @@ tests:
     platform_allow:
       - native_sim/native/64
     extra_args:
-      - CONFIG_MP_PLUGIN_ZJPEG=y
+      - CONFIG_MP_PLUGIN_ZIMG=y
 
   mp.fs.build:
     tags:

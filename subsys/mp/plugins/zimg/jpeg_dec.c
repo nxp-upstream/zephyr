@@ -18,7 +18,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <zephyr/mp/zjpeg/jpeg_dec.h>
+#include <zephyr/mp/zimg/jpeg_dec.h>
 
 /* Forward references */
 static int JPEGInit(JPEGIMAGE *pJPEG);

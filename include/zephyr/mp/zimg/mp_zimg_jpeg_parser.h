@@ -6,25 +6,25 @@
 
 /**
  * @file
- * @ingroup mp_zjpeg_parsers
+ * @ingroup mp_zimg_jpeg_parsers
  * @brief JPEG stream parser element.
  *
  * Accumulates incoming data until a complete JPEG frame (SOI … EOI)
  * is assembled, then pushes it downstream as a single buffer.
  */
 
-#ifndef ZEPHYR_INCLUDE_MP_ZVID_MP_ZJPEG_PARSER_H_
-#define ZEPHYR_INCLUDE_MP_ZVID_MP_ZJPEG_PARSER_H_
+#ifndef ZEPHYR_INCLUDE_MP_ZIMG_MP_ZIMG_JPEG_PARSER_H_
+#define ZEPHYR_INCLUDE_MP_ZIMG_MP_ZIMG_JPEG_PARSER_H_
 
 /**
- * @defgroup mp_zjpeg zjpeg
+ * @defgroup mp_zimg zimg
  * @ingroup mp_plugins
  * @brief JPEG parser, decoder, and helper APIs.
  */
 
 /**
- * @defgroup mp_zjpeg_parsers Parsers
- * @ingroup mp_zjpeg
+ * @defgroup mp_zimg_jpeg_parsers Parsers
+ * @ingroup mp_zimg
  * @brief JPEG parser elements.
  * @{
  */
@@ -36,7 +36,7 @@
  *
  * Extends @ref mp_parser to reassemble JPEG frames from a byte stream.
  */
-struct mp_zjpeg_parser {
+struct mp_zimg_jpeg_parser {
 	/** Base parser element */
 	struct mp_parser base;
 	/** Partial frame buffer, accumulated with memcpy until EOI */
@@ -50,8 +50,8 @@ struct mp_zjpeg_parser {
  *
  * @param self Pointer to the @ref mp_element to initialize.
  */
-void mp_zjpeg_parser_init(struct mp_element *self);
+void mp_zimg_jpeg_parser_init(struct mp_element *self);
 
 /** @} */
 
-#endif /* ZEPHYR_INCLUDE_MP_ZVID_MP_ZJPEG_PARSER_H_ */
+#endif /* ZEPHYR_INCLUDE_MP_ZIMG_MP_ZIMG_JPEG_PARSER_H_ */

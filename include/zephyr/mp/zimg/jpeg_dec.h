@@ -10,7 +10,7 @@
  * @brief Software JPEG decoder API.
  *
  * Exposes the C API and state structures for the software JPEG decoder
- * integrated into the MP zvid plugin.
+ * integrated into the MP zimg plugin.
  *
  * Supported input mode:
  * - Memory (RAM) input via JPEG_openRAM()
@@ -21,8 +21,8 @@
 #define ZEPHYR_INCLUDE_MP_ZVID_JPEG_DEC_H_
 
 /**
- * @defgroup mp_zjpeg_decoder_api Decoder API
- * @ingroup mp_zjpeg
+ * @defgroup JPEG_decoder_api Decoder API
+ * @ingroup mp_zimg
  * @brief Software JPEG decoder helper APIs.
  * @{
  */

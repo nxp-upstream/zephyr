@@ -6,25 +6,25 @@
 
 /**
  * @file
- * @ingroup mp_zjpeg_decoders
+ * @ingroup mp_zimg_jpeg_decoders
  * @brief Software JPEG decoder transform element.
  *
  * Decodes JPEG-compressed frames into raw pixel data using a software
  * decoder. Operates as a transform element within a media pipeline.
  */
 
-#ifndef ZEPHYR_INCLUDE_MP_ZVID_MP_ZJPEG_DECODER_H_
-#define ZEPHYR_INCLUDE_MP_ZVID_MP_ZJPEG_DECODER_H_
+#ifndef ZEPHYR_INCLUDE_MP_ZIMG_MP_ZIMG_JPEG_DECODER_H_
+#define ZEPHYR_INCLUDE_MP_ZIMG_MP_ZIMG_JPEG_DECODER_H_
 
 /**
- * @defgroup mp_zjpeg_decoders Decoders
- * @ingroup mp_zjpeg
+ * @defgroup mp_zimg_jpeg_decoders Decoders
+ * @ingroup mp_zimg
  * @brief JPEG decoder elements.
  * @{
  */
 
 #include <zephyr/mp/core/mp_transform.h>
-#include <zephyr/mp/zjpeg/jpeg_dec.h>
+#include <zephyr/mp/zimg/jpeg_dec.h>
 
 /**
  * @brief Software JPEG decoder element.
@@ -32,7 +32,7 @@
  * Wraps a @ref JPEGIMAGE state and an output buffer pool to decode
  * JPEG frames received on the sink pad into raw video on the source pad.
  */
-struct mp_zjpeg_decoder {
+struct mp_zimg_jpeg_decoder {
 	/** Base transform element */
 	struct mp_transform transform;
 	/** JPEG decoder state */
@@ -48,8 +48,8 @@ struct mp_zjpeg_decoder {
  *
  * @param self Pointer to the @ref mp_element to initialize.
  */
-void mp_zjpeg_decoder_init(struct mp_element *self);
+void mp_zimg_jpeg_decoder_init(struct mp_element *self);
 
 /** @} */
 
-#endif /* ZEPHYR_INCLUDE_MP_ZVID_MP_ZJPEG_DECODER_H_ */
+#endif /* ZEPHYR_INCLUDE_MP_ZIMG_MP_ZIMG_JPEG_DECODER_H_ */

@@ -27,7 +27,7 @@ for the display controller.
      rankdir=LR;
      node [shape=box, style=filled, fillcolor="#e8e8e8"];
      filesrc      [label="filesrc\n(zfs)"];
-     jpeg_parser  [label="jpeg_parser\n(zjpeg)"];
+     jpeg_parser  [label="jpeg_parser\n(zimg)"];
      capsfilter   [label="capsfilter\n(core)"];
      hw_jpegdec   [label="HW jpegdec\n(zvid_transform)"];
      videoconvert [label="videoconvert\n(zvid)"];
@@ -39,7 +39,7 @@ Pipeline B: SW JPEG decode
 ---------------------------
 
 When no ``zephyr,jpegdec`` is present, decoding falls back to the software
-``mp_zjpeg_decoder``. The SW decoder currently outputs RGB565, so no
+``mp_zimg_jpeg_decoder``. The SW decoder currently outputs RGB565, so no
 ``mp_zvid_convert`` stage is needed.
 
 .. graphviz::
@@ -48,9 +48,9 @@ When no ``zephyr,jpegdec`` is present, decoding falls back to the software
      rankdir=LR;
      node [shape=box, style=filled, fillcolor="#e8e8e8"];
      filesrc      [label="filesrc\n(zfs)"];
-     jpeg_parser  [label="jpeg_parser\n(zjpeg)"];
+     jpeg_parser  [label="jpeg_parser\n(zimg)"];
      capsfilter   [label="capsfilter\n(core)"];
-     sw_jpegdec   [label="SW jpegdec\n(zjpeg)"];
+     sw_jpegdec   [label="SW jpegdec\n(zimg)"];
      display      [label="display\n(zdisp)"];
      filesrc -> jpeg_parser -> capsfilter -> sw_jpegdec -> display;
    }
@@ -59,10 +59,10 @@ Elements
 --------
 
 - ``mp_zfilesrc`` reads chunks from the file specified by :kconfig:option:`CONFIG_FILE_INPUT_PATH`.
-- ``mp_zjpeg_parser`` splits the MJPEG byte stream into individual JPEG frames.
+- ``mp_zimg_jpeg_parser`` splits the MJPEG byte stream into individual JPEG frames.
 - ``mp_caps_filter`` constrains the JPEG format (width/height from Kconfig:
   :kconfig:option:`CONFIG_JPEG_IMAGE_WIDTH`, :kconfig:option:`CONFIG_JPEG_IMAGE_HEIGHT`).
-- ``mp_zjpeg_decoder`` (SW) or ``mp_zvid_transform`` (HW) decodes JPEG frames.
+- ``mp_zimg_jpeg_decoder`` (SW) or ``mp_zvid_transform`` (HW) decodes JPEG frames.
 - ``mp_zvid_convert`` performs pixel-format conversion (NV12 → RGB565) when using HW decode.
 - ``mp_zdisp_sink`` renders decoded frames to the display.
 

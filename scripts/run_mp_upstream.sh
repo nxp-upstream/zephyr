@@ -16,7 +16,7 @@ TARGETS=(
     zbase
     zfs
     zvid
-    zjpeg
+    zimg
     zdisp
     zaud
     sample-fs
@@ -39,8 +39,10 @@ done
 # git push --force nxp-upstream upstream/mp-zfs:mp-zfs
 # git push --force nxp-upstream upstream/mp-zdisp:mp-zdisp
 # git push --force nxp-upstream upstream/mp-zvid:mp-zvid
-# git push --force nxp-upstream upstream/mp-zjpeg:mp-zjpeg
+# git push --force nxp-upstream upstream/mp-zimg:mp-zimg
+# git push --force nxp-upstream upstream/mp-zaud:mp-zaud
 # git push --force nxp-upstream upstream/mp-sample-fs:mp-sample-fs
 # git push --force nxp-upstream upstream/mp-sample-cam_disp:libmp_video_sample
 # git push --force nxp-upstream upstream/mp-sample-jpeg_dec:mp-sample-jpeg_dec
 # git push --force nxp-upstream upstream/mp-sample-tee_dec:mp-sample-tee_dec
+# git push --force nxp-upstream upstream/mp-sample-dmic_i2s:libmp_audio_sample

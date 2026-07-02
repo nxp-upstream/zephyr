@@ -1,12 +1,12 @@
 # Copyright 2026 NXP
 # SPDX-License-Identifier: Apache-2.0
 
-config MP_PLUGIN_ZJPEG
-	bool "JPEG plugin support"
+config MP_PLUGIN_ZIMG
+	bool "Image codec plugin support"
 
-if MP_PLUGIN_ZJPEG
+if MP_PLUGIN_ZIMG
 
-config MP_ZJPEG_PARSER_MAX_FRAME_SIZE
+config MP_ZIMG_JPEG_PARSER_MAX_FRAME_SIZE
 	int "Maximum JPEG frame size in bytes"
 	default 0
 	help
@@ -15,7 +15,7 @@ config MP_ZJPEG_PARSER_MAX_FRAME_SIZE
 	  Default value is set to 0 to disable the internal staging pool entirely
 	  (no memory reserved).
 
-config MP_ZJPEG_PARSER_POOL_NUM
+config MP_ZIMG_JPEG_PARSER_POOL_NUM
 	int "Staging pool buffer count"
 	range 1 255
 	default 2
@@ -23,16 +23,16 @@ config MP_ZJPEG_PARSER_POOL_NUM
 	  Number of buffers in the parser's internal staging pool.
 	  2 is usually enough (one partial, one output).
 
-config MP_ZJPEG_DECODER_POOL_NUM
+config MP_ZIMG_JPEG_DECODER_POOL_NUM
 	int "Number of buffers in the jpeg decoder's output pool"
 	range 1 255
 	default 1
 
-config MP_ZJPEG_DECODER_MAX_OUT_FRAME_SIZE
+config MP_ZIMG_JPEG_DECODER_MAX_OUT_FRAME_SIZE
 	int "Maximum decoded output frame size in bytes"
 	default 153600
 	help
 	  Maximum decoded output frame size in bytes for the SW JPEG decoder internal pool.
 	  Default value is set for 320x240 RGB565 format.
 
-endif # MP_PLUGIN_ZJPEG
+endif # MP_PLUGIN_ZIMG
