@@ -1054,3 +1054,14 @@ Architectures
   region changes from executable to Execute-Never. Out-of-tree Cortex-M7 boards
   that map a peripheral region should switch to :c:macro:`REGION_PERIPHERAL_ATTR`;
   previously they may have used ``REGION_PPB_ATTR``, which does not set ``XN``.
+
+* The new :kconfig:option:`CONFIG_ARM_MPU_CM7_UNMAPPED_REGION` option makes the
+  Arm MPU driver program the lowest-priority MPU region (region 0) as a 4GB
+  Strongly-ordered, no-access, Execute-Never catch-all, implementing the
+  workaround for Arm Cortex-M7 erratum 1013783 (SDEN-1068427) and preventing
+  Cortex-M7 speculative accesses to unmapped addresses. Cortex-M7 boards or
+  SoCs whose static MPU region table explicitly covers all memory the firmware
+  uses can enable it; the board static regions are then programmed starting
+  from MPU region 1. The ``mimxrt1180_evk`` and ``frdm_imxrt1186`` cm7 targets
+  enable it by default, replacing their previous hand-rolled ``UNMAPPED`` MPU
+  region table entry with identical runtime behavior.

@@ -159,6 +159,8 @@ New APIs and options
 * Architectures
 
   * :c:macro:`REGION_PERIPHERAL_ATTR` (Arm Cortex-M7 MPU peripheral region, Execute-Never)
+  * :kconfig:option:`CONFIG_ARM_MPU_CM7_UNMAPPED_REGION` (Arm Cortex-M7 catch-all MPU region
+    for unmapped addresses, erratum 1013783 workaround)
 
 * Audio
 
