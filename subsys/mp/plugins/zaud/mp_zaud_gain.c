@@ -144,8 +144,8 @@ static void apply_gain_24bit(struct net_buf *buffer, int32_t gain_fixed)
 				(uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16);
 			/* sign-extend 24-bit */
 			int32_t s24 = (u & 0x800000U) ? (int32_t)(u | 0xFF000000U) : (int32_t)u;
-
 			int64_t temp = ((int64_t)s24 * gain_fixed) >> 16;
+
 			if (temp > 0x7FFFFF) {
 				temp = 0x7FFFFF;
 			} else if (temp < -0x800000) {
@@ -155,6 +155,7 @@ static void apply_gain_24bit(struct net_buf *buffer, int32_t gain_fixed)
 			}
 
 			uint32_t out = (uint32_t)((int32_t)temp) & 0xFFFFFFU;
+
 			p[0] = (uint8_t)(out & 0xFFU);
 			p[1] = (uint8_t)((out >> 8) & 0xFFU);
 			p[2] = (uint8_t)((out >> 16) & 0xFFU);
@@ -171,6 +172,7 @@ static void apply_gain_24bit(struct net_buf *buffer, int32_t gain_fixed)
 		for (size_t i = 0; i < num_samples; i++) {
 			int32_t s24 = samples[i] >> 8;
 			int64_t temp = ((int64_t)s24 * gain_fixed) >> 16;
+
 			if (temp > 0x7FFFFF) {
 				temp = 0x7FFFFF;
 			} else if (temp < -0x800000) {
@@ -183,7 +185,7 @@ static void apply_gain_24bit(struct net_buf *buffer, int32_t gain_fixed)
 		return;
 	}
 
-	LOG_ERR("24-bit buffer size not aligned (size=%u)", (unsigned)sz);
+	LOG_ERR("24-bit buffer size not aligned (size=%u)", (unsigned int)sz);
 }
 
 static void apply_audio_gain(struct net_buf *buffer, int32_t gain_fixed, uint8_t bit_width)
@@ -214,8 +216,11 @@ static int mp_zaud_gain_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	ARG_UNUSED(pad);
 
 	/* Validate buffer */
-	if (in_buf == NULL || in_buf->data == NULL ||
-	    (bytes_used = mp_buffer_get_meta(in_buf)->bytes_used) == 0U) {
+	if (in_buf != NULL && in_buf->data != NULL) {
+		bytes_used = mp_buffer_get_meta(in_buf)->bytes_used;
+	}
+
+	if (in_buf == NULL || in_buf->data == NULL || bytes_used == 0U) {
 		LOG_ERR("Invalid buffer received");
 		*out_buf = NULL;
 		return -EINVAL;

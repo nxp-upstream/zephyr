@@ -20,7 +20,8 @@ LOG_MODULE_REGISTER(mp_zaud_src, CONFIG_MP_LOG_LEVEL);
 static int mp_zaud_src_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
 	struct mp_src *src = (struct mp_src *)obj;
-	struct mp_zaud_buffer_pool *pool = CONTAINER_OF(src->pool, struct mp_zaud_buffer_pool, pool);
+	struct mp_zaud_buffer_pool *pool =
+		CONTAINER_OF(src->pool, struct mp_zaud_buffer_pool, pool);
 
 	switch (key) {
 	case PROP_ZAUD_SRC_SLAB_PTR:
@@ -42,7 +43,8 @@ static int mp_zaud_src_set_property(struct mp_object *obj, uint32_t key, const v
 static int mp_zaud_src_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
 	struct mp_src *src = (struct mp_src *)obj;
-	struct mp_zaud_buffer_pool *pool = CONTAINER_OF(src->pool, struct mp_zaud_buffer_pool, pool);
+	struct mp_zaud_buffer_pool *pool =
+		CONTAINER_OF(src->pool, struct mp_zaud_buffer_pool, pool);
 
 	if (val == NULL) {
 		return -1;
@@ -69,7 +71,8 @@ static int mp_zaud_src_get_property(struct mp_object *obj, uint32_t key, void *v
 struct mp_caps *mp_zaud_src_supported_caps(struct mp_src *src)
 {
 	struct mp_zaud_src *zaud_src = (struct mp_zaud_src *)src;
-	struct mp_zaud_buffer_pool *pool = CONTAINER_OF(src->pool, struct mp_zaud_buffer_pool, pool);
+	struct mp_zaud_buffer_pool *pool =
+		CONTAINER_OF(src->pool, struct mp_zaud_buffer_pool, pool);
 	struct audio_caps src_caps;
 	int i = 0;
 	uint32_t sr = 0;

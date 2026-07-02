@@ -305,7 +305,8 @@ int mp_zaud_i2s_codec_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 				   struct net_buf **out_buf)
 {
 	struct mp_zaud_i2s_codec_sink *zaud_i2s_codec_sink =
-		CONTAINER_OF(pad->object.container, struct mp_zaud_i2s_codec_sink, sink.element.object);
+		CONTAINER_OF(pad->object.container, struct mp_zaud_i2s_codec_sink,
+			     sink.element.object);
 	uint32_t bytes_used = mp_buffer_get_meta(in_buf)->bytes_used;
 	int ret = -1;
 
