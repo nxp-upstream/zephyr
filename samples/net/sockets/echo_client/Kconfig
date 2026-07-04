@@ -58,5 +58,12 @@ config NET_SAMPLE_SEND_ITERATIONS
 	  Send sample data this many times before exiting. A value of
 	  zero means that the sample application is run forever.
 
+config NET_SAMPLE_PRINT_PROGRESS
+	bool "Print per-exchange progress"
+	help
+	  Log every sent packet and every received-and-compared reply. This is
+	  off by default so the shell stays usable, but it is useful when the
+	  sample is driven by a test that needs a per-exchange success marker.
+
 source "samples/net/common/Kconfig"
 source "Kconfig.zephyr"

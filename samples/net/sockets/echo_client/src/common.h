@@ -14,10 +14,10 @@
 
 #define PEER_PORT 4242
 
-/* Turn off the progress printing so that shell can be used.
- * Set to true if you want to see progress output.
+/* Progress printing is off by default so the shell can be used; enable
+ * CONFIG_NET_SAMPLE_PRINT_PROGRESS (e.g. from a test) to log each exchange.
  */
-#define PRINT_PROGRESS false
+#define PRINT_PROGRESS IS_ENABLED(CONFIG_NET_SAMPLE_PRINT_PROGRESS)
 
 #if defined(CONFIG_USERSPACE)
 #include <zephyr/app_memory/app_memdomain.h>
