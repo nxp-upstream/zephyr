@@ -389,9 +389,17 @@ endif()
 
 if(CONFIG_IVSHMEM)
   if(CONFIG_IVSHMEM_DOORBELL)
+    # The ivshmem-server socket path can be overridden from the environment so
+    # that tools running many emulator instances in parallel (e.g. the twister
+    # ivshmem-server sidecar) can give each one a private server socket.
+    if(DEFINED ENV{QEMU_IVSHMEM_DOORBELL_SOCKET_PATH})
+      set(ivshmem_socket_path $ENV{QEMU_IVSHMEM_DOORBELL_SOCKET_PATH})
+    else()
+      set(ivshmem_socket_path "/tmp/ivshmem_socket")
+    endif()
     list(APPEND QEMU_FLAGS
       -device ivshmem-doorbell,vectors=${CONFIG_IVSHMEM_MSI_X_VECTORS},chardev=ivshmem
-      -chardev socket,path=/tmp/ivshmem_socket,id=ivshmem
+      -chardev socket,path=${ivshmem_socket_path},id=ivshmem
     )
   else()
     # The backing file path can be overridden from the environment so that
