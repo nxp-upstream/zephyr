@@ -13,3 +13,24 @@ tests:
   sample.net.sockets.http_client: {}
   sample.net.sockets.http_client.tls:
     extra_args: EXTRA_CONF_FILE="overlay-tls.conf"
+  # Actually runs (not build-only): the net harness brings up the net-tools
+  # sidecar, which creates a host tap and a companion HTTP server on port 8000.
+  # The guest GETs/POSTs against this instance's host address and logs each
+  # response status.
+  sample.net.sockets.http_client.nettools:
+    harness: net
+    extra_configs:
+      - CONFIG_ETH_E1000=y
+      - CONFIG_NET_QEMU_ETHERNET=y
+      - CONFIG_NET_CONFIG_NEED_IPV6=n
+      - CONFIG_NET_IPV6=n
+    harness_config:
+      type: one_line
+      net_tools_apps:
+        - http-server
+      regex:
+        - "All the data received"
+    platform_allow:
+      - qemu_x86
+    integration_platforms:
+      - qemu_x86
