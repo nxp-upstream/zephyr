@@ -1,0 +1,24 @@
+common:
+  tags:
+    - coverage
+    - ivshmem
+  harness: ztest
+  sidecar: ivshmem
+  filter: CONFIG_DT_HAS_QEMU_IVSHMEM_ENABLED
+tests:
+  testsuite.coverage.ivshmem:
+    platform_allow:
+      - qemu_x86
+      - qemu_x86_64
+    integration_platforms:
+      - qemu_x86_64
+  # Same suite, but with per-test coverage: each test appends a tagged dump to
+  # the ivshmem region, extracted on the host as "<gcda>@@<suite>.<test>".
+  testsuite.coverage.ivshmem.per_test:
+    extra_configs:
+      - CONFIG_ZTEST_COVERAGE_PER_TEST=y
+    platform_allow:
+      - qemu_x86
+      - qemu_x86_64
+    integration_platforms:
+      - qemu_x86_64
