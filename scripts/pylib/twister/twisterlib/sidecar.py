@@ -15,6 +15,7 @@ over ivshmem) without the test having to opt in.
 """
 from __future__ import annotations
 
+import glob
 import hashlib
 import logging
 import os
@@ -23,6 +24,7 @@ import shutil
 import struct
 import subprocess
 import tempfile
+import time
 
 from twisterlib.environment import ZEPHYR_BASE
 from twisterlib.handlers import terminate_process
@@ -91,6 +93,21 @@ def get_ivshmem_backing_path(build_dir: str) -> str:
     """
     digest = hashlib.sha1(os.path.abspath(build_dir).encode()).hexdigest()[:16]
     return os.path.join('/dev/shm', f'twister-ivshmem-{digest}')
+
+
+def get_ivshmem_socket_path(build_dir: str) -> str:
+    """Return a short, unique ivshmem-server socket path for a build directory.
+
+    The ivshmem-doorbell device connects to an ``ivshmem-server`` over a UNIX
+    socket (QEMU ``-chardev socket``). AF_UNIX paths are limited to roughly 108
+    bytes, so the socket lives in the system temporary directory with a name
+    derived from a hash of ``build_dir`` so parallel instances do not collide.
+    Both the CMake configure step (which bakes the path into QEMU's flags via
+    the environment) and the sidecar (which launches the server) compute this
+    independently from ``build_dir``.
+    """
+    digest = hashlib.sha1(os.path.abspath(build_dir).encode()).hexdigest()[:16]
+    return os.path.join(tempfile.gettempdir(), f'twister-ivshmem-server-{digest}.sock')
 
 
 class Sidecar:
@@ -345,6 +362,135 @@ class IvshmemSidecar(Sidecar):
                      f" file(s) from {self.ivshmem_backing}")
 
 
+class IvshmemServerSidecar(Sidecar):
+    """Run an ``ivshmem-server`` for a guest using the ivshmem-doorbell device.
+
+    Unlike ivshmem-plain (a shared memory file), the doorbell variant connects
+    QEMU to an ``ivshmem-server`` over a UNIX socket; the server owns the shared
+    memory and relays inter-peer interrupts (doorbells). The server must be
+    running before QEMU boots. The sidecar starts it in :meth:`setup` and stops
+    it in :meth:`teardown`.
+
+    The socket path is derived from the build directory (see
+    :func:`get_ivshmem_socket_path`) and injected into QEMU's flags by the runner
+    at CMake configure time, so many tests can run in parallel without colliding.
+
+    Supported ``harness_config`` keys:
+
+    - ``ivshmem_server_bin``: explicit path to ``ivshmem-server``. Defaults to
+      the first one found on ``PATH`` or in the Zephyr SDK host tools.
+    - ``ivshmem_server_size``: shared memory size in bytes (default 4194304).
+      qemu_x86_64 has little RAM, so tests there pass a smaller value.
+    - ``ivshmem_server_vectors``: number of interrupt vectors (default 2, to
+      match the CONFIG_IVSHMEM_MSI_X_VECTORS default).
+    """
+
+    # Known Zephyr SDK host-tools layouts, newest first: SDK >= 0.16 nests them
+    # under hosttools/, older ones put sysroots/ at the top. The sysroot
+    # directory name (e.g. x86_64-pokysdk-linux) is globbed.
+    SDK_IVSHMEM_SERVER_GLOBS = (
+        os.path.join('hosttools', 'sysroots', '*', 'usr', 'bin', 'ivshmem-server'),
+        os.path.join('sysroots', '*', 'usr', 'bin', 'ivshmem-server'),
+    )
+
+    @classmethod
+    def find_ivshmem_server(cls):
+        found = shutil.which('ivshmem-server')
+        if found:
+            return found
+        # The binary ships with the Zephyr SDK host tools but is usually not on
+        # PATH; look under the configured SDK at its known, fixed locations
+        # (a full os.walk of the SDK would be needlessly slow).
+        sdk = os.environ.get('ZEPHYR_SDK_INSTALL_DIR')
+        if sdk:
+            for pattern in cls.SDK_IVSHMEM_SERVER_GLOBS:
+                for candidate in glob.glob(os.path.join(sdk, pattern)):
+                    if os.access(candidate, os.X_OK):
+                        return candidate
+        return None
+
+    def configure(self, instance: TestInstance):
+        super().configure(instance)
+        config = instance.testsuite.harness_config or {}
+        self.server_bin = config.get('ivshmem_server_bin') or self.find_ivshmem_server()
+        self.size = int(config.get('ivshmem_server_size', 4194304))
+        self.vectors = int(config.get('ivshmem_server_vectors', 2))
+        self.socket_path = get_ivshmem_socket_path(instance.build_dir)
+        # ivshmem-server -M names a POSIX shared memory object under /dev/shm.
+        digest = hashlib.sha1(os.path.abspath(instance.build_dir).encode()).hexdigest()[:16]
+        self.shm_name = f'twister-ivshmem-server-{digest}'
+        self.shm_path = os.path.join('/dev/shm', self.shm_name)
+        self._proc = None
+        self._log = None
+
+    def setup(self) -> bool:
+        if not self.server_bin:
+            self.instance.status = TwisterStatus.SKIP
+            self.instance.reason = "ivshmem-server not found on host"
+            self.instance.add_missing_case_status(TwisterStatus.SKIP, self.instance.reason)
+            logger.warning(f"SIDECAR:{self.__class__.__name__}: ivshmem-server not found,"
+                           f" skipping {self.instance.name}")
+            return False
+
+        # Clear any stale socket/shm left by a previous, crashed run.
+        for stale in (self.socket_path, self.shm_path):
+            if os.path.exists(stale):
+                os.unlink(stale)
+
+        command = [
+            self.server_bin,
+            '-F',  # foreground, so the sidecar owns the process
+            '-S', self.socket_path,
+            '-M', self.shm_name,
+            '-l', str(self.size),
+            '-n', str(self.vectors),
+        ]
+
+        log_path = os.path.join(self.instance.build_dir, 'ivshmem-server.log')
+        try:
+            # The server outlives setup(); the handle is closed in teardown().
+            self._log = open(log_path, 'w')  # noqa: SIM115
+            self._proc = subprocess.Popen(command, stdout=self._log, stderr=subprocess.STDOUT)
+        except OSError as err:
+            self.instance.status = TwisterStatus.ERROR
+            self.instance.reason = f"could not launch ivshmem-server: {err}"
+            self.instance.add_missing_case_status(TwisterStatus.ERROR, self.instance.reason)
+            logger.error(f"SIDECAR:{self.__class__.__name__}: {self.instance.reason}")
+            return False
+
+        # QEMU refuses to start if the server socket is not yet listening, so
+        # wait briefly for it to appear.
+        for _ in range(50):
+            if os.path.exists(self.socket_path):
+                break
+            if self._proc.poll() is not None:
+                self.instance.status = TwisterStatus.ERROR
+                self.instance.reason = "ivshmem-server exited during startup"
+                self.instance.add_missing_case_status(TwisterStatus.ERROR, self.instance.reason)
+                logger.error(f"SIDECAR:{self.__class__.__name__}: {self.instance.reason}")
+                return False
+            time.sleep(0.1)
+
+        logger.debug(f"SIDECAR:{self.__class__.__name__}: started ivshmem-server"
+                     f" (pid {self._proc.pid}) on {self.socket_path}")
+        return True
+
+    def teardown(self) -> None:
+        if self._proc is not None:
+            terminate_process(self._proc)
+            try:
+                self._proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                self._proc.kill()
+            self._proc = None
+        if self._log is not None:
+            self._log.close()
+            self._log = None
+        for path in (self.socket_path, self.shm_path):
+            if os.path.exists(path):
+                os.unlink(path)
+
+
 class NetToolsSidecar(Sidecar):
     """Bring up the host network environment a QEMU net test needs.
 
@@ -548,6 +694,7 @@ class SidecarImporter:
     _SIDECARS = {
         'virtiofs': VirtiofsSidecar,
         'ivshmem': IvshmemSidecar,
+        'ivshmem-server': IvshmemServerSidecar,
         'net-tools': NetToolsSidecar,
     }
 

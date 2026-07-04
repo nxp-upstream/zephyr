@@ -190,6 +190,12 @@ $defs:
               type: string
           net_shared_subnet:
             type: boolean
+          ivshmem_server_bin:
+            type: string
+          ivshmem_server_size:
+            type: integer
+          ivshmem_server_vectors:
+            type: integer
           tests_scripts:
             type: array
             items:

@@ -59,6 +59,9 @@ class HarnessConfig:
     net_setup_script: str | None = None
     net_tools_apps: list[str] = field(default_factory=list)
     net_shared_subnet: bool = False
+    ivshmem_server_bin: str | None = None
+    ivshmem_server_size: int | None = None
+    ivshmem_server_vectors: int | None = None
     tests_scripts: list[str] = field(default_factory=list)
     ztest_suite_repeat: int | None = None
     ztest_test_repeat: int | None = None

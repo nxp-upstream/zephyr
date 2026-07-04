@@ -59,6 +59,7 @@ from twisterlib.platform import Platform
 from twisterlib.sidecar import (
     SidecarImporter,
     get_ivshmem_backing_path,
+    get_ivshmem_socket_path,
     get_net_addresses,
     get_net_iface_name,
     get_virtiofs_socket_path,
@@ -768,6 +769,14 @@ class CMake:
         if self.instance.sidecar == 'ivshmem':
             env = kwargs.get('env') or os.environ.copy()
             env['QEMU_IVSHMEM_PLAIN_MEM_PATH'] = get_ivshmem_backing_path(self.build_dir)
+            kwargs['env'] = env
+
+        # The ivshmem-server sidecar runs an ivshmem-server the guest's
+        # ivshmem-doorbell device connects to; cmake/emu/qemu.cmake reads this
+        # socket path from the environment when building the -chardev flag.
+        if self.instance.sidecar == 'ivshmem-server':
+            env = kwargs.get('env') or os.environ.copy()
+            env['QEMU_IVSHMEM_DOORBELL_SOCKET_PATH'] = get_ivshmem_socket_path(self.build_dir)
             kwargs['env'] = env
 
         log_command(logger, "Calling cmake", cmd)

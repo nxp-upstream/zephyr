@@ -62,5 +62,6 @@ SUPPORTED_HARNESSES = [
 SUPPORTED_SIDECARS = [
     'virtiofs',
     'ivshmem',
+    'ivshmem-server',
     'net-tools',
 ]

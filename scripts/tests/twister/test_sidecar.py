@@ -9,11 +9,13 @@ from unittest import mock
 
 from twisterlib.sidecar import (
     IVSHMEM_COV_MAGIC,
+    IvshmemServerSidecar,
     IvshmemSidecar,
     NetToolsSidecar,
     SidecarImporter,
     VirtiofsSidecar,
     get_ivshmem_backing_path,
+    get_ivshmem_socket_path,
     get_virtiofs_socket_path,
 )
 from twisterlib.statuses import TwisterStatus
@@ -42,6 +44,7 @@ def _make_instance(tmp_path, harness_config=None):
 def test_sidecar_importer_resolves_names():
     assert isinstance(SidecarImporter.get_sidecar('virtiofs'), VirtiofsSidecar)
     assert isinstance(SidecarImporter.get_sidecar('ivshmem'), IvshmemSidecar)
+    assert isinstance(SidecarImporter.get_sidecar('ivshmem-server'), IvshmemServerSidecar)
     assert isinstance(SidecarImporter.get_sidecar('net-tools'), NetToolsSidecar)
     assert SidecarImporter.get_sidecar(None) is None
     assert SidecarImporter.get_sidecar('') is None
@@ -177,6 +180,60 @@ def test_ivshmem_teardown_ignores_missing_magic(tmp_path):
 
     assert not os.path.exists(gcda_path)
     assert not os.path.exists(str(backing))
+
+
+# --- ivshmem-server ---------------------------------------------------------
+
+def test_get_ivshmem_socket_path_is_short_and_unique():
+    path = get_ivshmem_socket_path("/some/long/build/dir")
+    assert path.endswith(".sock")
+    assert len(path) < 108
+    assert path == get_ivshmem_socket_path("/some/long/build/dir")
+    assert get_ivshmem_socket_path("/other/build") != path
+
+
+def test_ivshmem_server_setup_skips_when_binary_missing(tmp_path):
+    instance = _make_instance(tmp_path)
+    sidecar = IvshmemServerSidecar()
+    sidecar.configure(instance)
+    sidecar.server_bin = None
+
+    with mock.patch("subprocess.Popen") as popen_mock:
+        proceed = sidecar.setup()
+
+    assert proceed is False
+    popen_mock.assert_not_called()
+    assert instance.status == TwisterStatus.SKIP
+
+
+def test_ivshmem_server_launches_and_stops(tmp_path):
+    instance = _make_instance(tmp_path, {"ivshmem_server_size": 4096,
+                                         "ivshmem_server_vectors": 2})
+    os.makedirs(instance.build_dir, exist_ok=True)
+    sidecar = IvshmemServerSidecar()
+    sidecar.configure(instance)
+    sidecar.server_bin = "/usr/bin/ivshmem-server"
+
+    proc = mock.Mock()
+    proc.poll.return_value = None
+
+    with mock.patch("subprocess.Popen", return_value=proc) as popen_mock, \
+         mock.patch("os.path.exists", return_value=True), \
+         mock.patch("os.unlink"):
+        assert sidecar.setup() is True
+
+    args = popen_mock.call_args.args[0]
+    assert args[0] == "/usr/bin/ivshmem-server"
+    assert "-S" in args and sidecar.socket_path in args
+    assert "-l" in args and "4096" in args
+    assert "-n" in args and "2" in args
+
+    with mock.patch("twisterlib.sidecar.terminate_process") as term_mock, \
+         mock.patch("os.path.exists", return_value=False):
+        sidecar.teardown()
+
+    term_mock.assert_called_once_with(proc)
+    proc.wait.assert_called_once()
 
 
 # --- net-tools --------------------------------------------------------------
