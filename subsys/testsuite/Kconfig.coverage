@@ -78,6 +78,17 @@ config COVERAGE_SEMIHOST
 	help
 	  Use semihosting to write coverage data to a file on the host.
 
+config COVERAGE_IVSHMEM
+	bool "Write coverage data through an ivshmem shared memory region"
+	depends on IVSHMEM && !IVSHMEM_DOORBELL
+	help
+	  Write the coverage data into an ivshmem-plain shared memory region
+	  backed by a file on the host. Unlike semihosting this works on
+	  architectures without semihosting support (such as x86), and unlike
+	  the console dump it does not have to be parsed out of the serial log.
+	  The twister ivshmem harness extracts the gcov data from the backing
+	  file after the run.
+
 endchoice
 
 endif # COVERAGE_GCOV

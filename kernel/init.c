@@ -355,6 +355,8 @@ static void bg_thread_main(void *unused1, void *unused2, void *unused3)
 	gcov_coverage_dump();
 #elif defined(CONFIG_COVERAGE_SEMIHOST)
 	gcov_coverage_semihost();
+#elif defined(CONFIG_COVERAGE_IVSHMEM)
+	gcov_coverage_ivshmem();
 #endif /* CONFIG_COVERAGE_DUMP */
 } /* LCOV_EXCL_LINE ... because we just dumped final coverage data */
 

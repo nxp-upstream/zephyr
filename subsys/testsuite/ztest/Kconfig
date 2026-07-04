@@ -151,9 +151,10 @@ config ZTEST_COVERAGE_PER_TEST
 	  Reset the gcov counters before each test and dump a separate,
 	  test-tagged coverage artifact after each test. This enables building a
 	  per-test to source-code coverage matrix. The dump uses whichever
-	  coverage transport is configured (console or semihosting); with
-	  semihosting each artifact is written to "<gcda-path>@@<suite>.<test>"
-	  on the host so the per-test dumps do not overwrite each other.
+	  coverage transport is configured (console, semihosting or ivshmem);
+	  with semihosting and ivshmem each artifact is written to
+	  "<gcda-path>@@<suite>.<test>" on the host so the per-test dumps do not
+	  overwrite each other.
 
 config ZTEST_COVERAGE_PER_TEST_TAG_SIZE
 	int "Maximum length of a per-test coverage tag"

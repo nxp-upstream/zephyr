@@ -13,6 +13,9 @@
 #include "coverage.h"
 #include <zephyr/arch/common/semihost.h>
 #include <sys/types.h>
+#if defined(CONFIG_COVERAGE_IVSHMEM)
+#include <zephyr/drivers/virtualization/ivshmem.h>
+#endif
 
 K_HEAP_DEFINE(gcov_heap, CONFIG_COVERAGE_GCOV_HEAP_SIZE);
 
@@ -533,6 +536,153 @@ coverage_dump_end:
 }
 
 void gcov_coverage_semihost(void)
+{
+	gcov_coverage_dump_tagged(NULL);
+}
+
+#elif defined(CONFIG_COVERAGE_IVSHMEM)
+
+/*
+ * Layout written into the ivshmem-plain shared memory region. The host side
+ * (twister ivshmem harness) must match these definitions.
+ *
+ * At offset 0 an ivshmem_cov_header, then a sequence of `count` records, each
+ * an ivshmem_cov_record followed by name_len filename bytes (NUL terminated)
+ * and data_len .gcda bytes, padded to a 4 byte boundary. The magic is written
+ * last so a partially written or absent dump is not mistaken for a valid one.
+ *
+ * Dumps append to the region: a whole-program dump at exit writes one block,
+ * and per-test dumps (see gcov_coverage_dump_tagged) each append their records,
+ * with the filename suffixed by "@@<tag>" so the host writes them to distinct
+ * paths without overwriting the canonical .gcda.
+ */
+#define IVSHMEM_COV_MAGIC   0x564f435aU /* "ZCOV" */
+#define IVSHMEM_COV_VERSION 1U
+
+struct ivshmem_cov_header {
+	uint32_t magic;
+	uint32_t version;
+	uint32_t count;
+	uint32_t used;
+};
+
+struct ivshmem_cov_record {
+	uint32_t name_len;
+	uint32_t data_len;
+};
+
+void gcov_coverage_dump_tagged(const char *tag)
+{
+	const struct device *ivshmem = DEVICE_DT_GET_ONE(qemu_ivshmem);
+	struct gcov_info *gcov_list_first = gcov_info_head;
+	struct gcov_info *gcov_list = gcov_info_head;
+	/* "@@" plus the tag, or nothing for an untagged whole-program dump. */
+	size_t suffix_len = (tag != NULL) ? (strlen("@@") + strlen(tag)) : 0;
+	struct ivshmem_cov_header header;
+	uintptr_t base = 0;
+	size_t region;
+	size_t off;
+	uint32_t count;
+	uint8_t *mem;
+
+	if (!device_is_ready(ivshmem)) {
+		printk("ivshmem device not ready, cannot dump coverage\n");
+		return;
+	}
+
+	region = ivshmem_get_mem(ivshmem, &base);
+	if (region < sizeof(struct ivshmem_cov_header) || base == 0) {
+		printk("no ivshmem region available for coverage\n");
+		return;
+	}
+	mem = (uint8_t *)base;
+
+#ifdef CONFIG_MULTITHREADING
+	if (!k_is_in_isr()) {
+		k_sched_lock();
+	}
+#endif
+
+	/* Continue appending if a previous dump already initialised the region. */
+	memcpy(&header, mem, sizeof(header));
+	if (header.magic == IVSHMEM_COV_MAGIC && header.used >= sizeof(header) &&
+	    header.used <= region) {
+		off = header.used;
+		count = header.count;
+	} else {
+		off = sizeof(header);
+		count = 0;
+	}
+
+	while (gcov_list) {
+		/* For per-test (tagged) dumps skip objects with no coverage. */
+		if ((tag != NULL) && !gcov_info_has_data(gcov_list)) {
+			goto next;
+		}
+
+		if ((strlen(CONFIG_COVERAGE_DUMP_PATH_EXCLUDE) > 0) &&
+		    (fnmatch(CONFIG_COVERAGE_DUMP_PATH_EXCLUDE, gcov_list->filename, 0) == 0)) {
+			goto next;
+		}
+
+		size_t name_len = strlen(gcov_list->filename) + suffix_len + 1;
+		size_t data_size = gcov_calculate_buff_size(gcov_list);
+		size_t record = ROUND_UP(sizeof(struct ivshmem_cov_record) + name_len + data_size,
+					 sizeof(uint32_t));
+
+		if (off + record > region) {
+			printk("ivshmem coverage region full (%zu bytes), dropping %s\n",
+			       region, gcov_list->filename);
+			break;
+		}
+
+		struct ivshmem_cov_record hdr = {
+			.name_len = (uint32_t)name_len,
+			.data_len = (uint32_t)data_size,
+		};
+		char *name_dst = (char *)(mem + off + sizeof(hdr));
+
+		memcpy(mem + off, &hdr, sizeof(hdr));
+		if (tag != NULL) {
+			snprintk(name_dst, name_len, "%s@@%s", gcov_list->filename, tag);
+		} else {
+			memcpy(name_dst, gcov_list->filename, name_len);
+		}
+
+		if (gcov_populate_buffer(mem + off + sizeof(hdr) + name_len, gcov_list)
+		    != data_size) {
+			printk("coverage buffer write error for %s\n", gcov_list->filename);
+			break;
+		}
+
+		off += record;
+		count++;
+next:
+		gcov_list = gcov_list->next;
+		if (gcov_list_first == gcov_list) {
+			break;
+		}
+	}
+
+	header.magic = IVSHMEM_COV_MAGIC;
+	header.version = IVSHMEM_COV_VERSION;
+	header.count = count;
+	header.used = (uint32_t)off;
+
+	/* Written last: a valid magic marks a complete dump for the host. */
+	memcpy(mem, &header, sizeof(header));
+
+#ifdef CONFIG_MULTITHREADING
+	if (!k_is_in_isr()) {
+		k_sched_unlock();
+	}
+#endif
+
+	printk("\nGCOV_COVERAGE_DUMP_IVSHMEM%s%s (%u total file(s))\n",
+	       (tag != NULL) ? " " : "", (tag != NULL) ? tag : "", count);
+}
+
+void gcov_coverage_ivshmem(void)
 {
 	gcov_coverage_dump_tagged(NULL);
 }

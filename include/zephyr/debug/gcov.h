@@ -61,6 +61,16 @@ void gcov_coverage_dump_tagged(const char *tag);
 void gcov_coverage_semihost(void);
 
 /**
+ * @brief Dump all collected gcov coverage data over ivshmem.
+ *
+ * Write the gcov coverage data for every registered object into an
+ * ivshmem-plain shared memory region that a host tool reads back after the
+ * run. Available only when the ivshmem dump method
+ * (@kconfig{CONFIG_COVERAGE_IVSHMEM}) is selected. This is the untagged form.
+ */
+void gcov_coverage_ivshmem(void);
+
+/**
  * @brief Initialize the gcov runtime.
  *
  * Invoke the gcov constructors so that each instrumented object registers its

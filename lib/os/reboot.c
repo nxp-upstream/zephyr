@@ -19,6 +19,8 @@ FUNC_NORETURN void sys_reboot(int type)
 	gcov_coverage_dump();
 #elif defined(CONFIG_COVERAGE_SEMIHOST)
 	gcov_coverage_semihost();
+#elif defined(CONFIG_COVERAGE_IVSHMEM)
+	gcov_coverage_ivshmem();
 #endif /* CONFIG_COVERAGE_DUMP */
 
 	(void)irq_lock();
