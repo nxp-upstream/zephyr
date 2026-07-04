@@ -394,9 +394,17 @@ if(CONFIG_IVSHMEM)
       -chardev socket,path=/tmp/ivshmem_socket,id=ivshmem
     )
   else()
+    # The backing file path can be overridden from the environment so that
+    # tools running many emulator instances in parallel (e.g. the twister
+    # ivshmem harness) can give each one a private shared memory file.
+    if(DEFINED ENV{QEMU_IVSHMEM_PLAIN_MEM_PATH})
+      set(ivshmem_mem_path $ENV{QEMU_IVSHMEM_PLAIN_MEM_PATH})
+    else()
+      set(ivshmem_mem_path "/dev/shm/ivshmem")
+    endif()
     list(APPEND QEMU_FLAGS
       -device ivshmem-plain,memdev=hostmem
-      -object memory-backend-file,size=${CONFIG_QEMU_IVSHMEM_PLAIN_MEM_SIZE}M,share,mem-path=/dev/shm/ivshmem,id=hostmem
+      -object memory-backend-file,size=${CONFIG_QEMU_IVSHMEM_PLAIN_MEM_SIZE}M,share,mem-path=${ivshmem_mem_path},id=hostmem
     )
   endif()
 endif()
