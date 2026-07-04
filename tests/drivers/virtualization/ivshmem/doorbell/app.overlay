@@ -1,0 +1,18 @@
+/*
+ * SPDX-FileCopyrightText: Copyright The Zephyr Project Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+#include <zephyr/dt-bindings/pcie/pcie.h>
+
+/ {
+	ivshmem {
+		ivshmem0: ivshmem {
+			compatible = "qemu,ivshmem";
+
+			vendor-id = <0x1af4>;
+			device-id = <0x1110>;
+
+			status = "okay";
+		};
+	};
+};

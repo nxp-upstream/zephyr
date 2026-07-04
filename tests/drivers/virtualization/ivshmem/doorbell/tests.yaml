@@ -1,0 +1,16 @@
+tests:
+  # Actually runs (not build-only): the ivshmem-server sidecar starts an
+  # ivshmem-server on a per-instance socket that the guest's ivshmem-doorbell
+  # device connects to, so the doorbell interrupt path can be exercised.
+  drivers.virtualization.ivshmem.doorbell:
+    harness: ztest
+    sidecar: ivshmem-server
+    harness_config:
+      ivshmem_server_size: 4096
+      ivshmem_server_vectors: 2
+    platform_allow:
+      - qemu_x86_64
+    integration_platforms:
+      - qemu_x86_64
+    tags:
+      - ivshmem
