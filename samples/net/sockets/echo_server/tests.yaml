@@ -21,6 +21,32 @@ tests:
       - native_sim
     integration_platforms:
       - qemu_x86
+  # Actually runs (not build-only): the net harness brings up the net-tools
+  # sidecar, which creates a host tap and a companion echo-client that drives
+  # this echo server over the tap. The server logs each reply it sends.
+  sample.net.sockets.echo_server.nettools:
+    harness: net
+    extra_args: EXTRA_CONF_FILE="overlay-e1000.conf"
+    extra_configs:
+      - CONFIG_ETH_E1000=y
+      - CONFIG_NET_CONFIG_NEED_IPV6=n
+      - CONFIG_NET_IPV6=n
+      # The server is passive, so announce its address (RFC 5227 gratuitous ARP)
+      # on boot; otherwise the host client cannot resolve the guest's MAC.
+      - CONFIG_NET_MGMT_EVENT=y
+      - CONFIG_NET_MGMT_EVENT_INFO=y
+      - CONFIG_NET_ARP_GRATUITOUS_TRANSMISSION=y
+    harness_config:
+      type: one_line
+      net_tools_apps:
+        - echo-client
+      regex:
+        # The companion floods the server, which logs this every 1000 packets.
+        - "UDP: Sent"
+    platform_allow:
+      - qemu_x86
+    integration_platforms:
+      - qemu_x86
   sample.net.sockets.echo_server.802154:
     extra_args: EXTRA_CONF_FILE="overlay-qemu_802154.conf"
     platform_allow: qemu_x86
