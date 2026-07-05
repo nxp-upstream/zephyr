@@ -278,6 +278,10 @@ IVSHMEM_COV_MAGIC = 0x564F435A  # "ZCOV"
 _IVSHMEM_COV_HEADER = struct.Struct('<4I')  # magic, version, count, used
 _IVSHMEM_COV_RECORD = struct.Struct('<2I')  # name_len, data_len
 
+# Layout written by subsys/tracing/tracing_backend_ivshmem.c. Keep in sync.
+IVSHMEM_TRACE_MAGIC = 0x4352545A  # "ZTRC"
+_IVSHMEM_TRACE_HEADER = struct.Struct('<4I')  # magic, version, used, overflow
+
 
 class IvshmemSidecar(Sidecar):
     """Gives the guest a host-backed ivshmem shared memory region.
@@ -288,12 +292,18 @@ class IvshmemSidecar(Sidecar):
     runner at CMake configure time, so instances run in parallel without sharing
     a region.
 
-    Its primary use is fast coverage capture on platforms without semihosting:
-    with ``CONFIG_COVERAGE_IVSHMEM`` the guest writes the gcov data into the
-    region on exit, and :meth:`teardown` extracts the ``.gcda`` files from the
-    backing file into the build directory where gcovr expects them (mirroring
-    the semihosting flow, so no serial-log parsing is needed). Per-test dumps
-    are carried as ``<gcda>@@<suite>.<test>`` records.
+    :meth:`teardown` reads the region back and dispatches on the magic in its
+    first word, so one sidecar serves several "guest writes a blob, host reads
+    it" uses without the test picking a different sidecar:
+
+    - Coverage (``CONFIG_COVERAGE_IVSHMEM``): the guest writes gcov data into the
+      region on exit and the sidecar extracts the ``.gcda`` files into the build
+      directory where gcovr expects them (mirroring the semihosting flow, so no
+      serial-log parsing is needed). Per-test dumps are carried as
+      ``<gcda>@@<suite>.<test>`` records.
+    - Tracing (``CONFIG_TRACING_BACKEND_IVSHMEM``): the guest streams its CTF
+      trace into the region and the sidecar writes it out as a CTF trace
+      directory (stream plus metadata) under ``ctf/`` in the build directory.
     """
 
     def configure(self, instance: TestInstance):
@@ -308,18 +318,30 @@ class IvshmemSidecar(Sidecar):
 
     def teardown(self) -> None:
         try:
-            self._extract_coverage()
+            self._extract()
         finally:
             if os.path.exists(self.ivshmem_backing):
                 os.unlink(self.ivshmem_backing)
 
-    def _extract_coverage(self) -> None:
+    def _extract(self) -> None:
+        # The region carries whatever the guest wrote; dispatch on the magic in
+        # its first word so the same sidecar serves coverage and tracing.
         if not os.path.exists(self.ivshmem_backing):
             return
 
         with open(self.ivshmem_backing, 'rb') as fp:
             blob = fp.read()
 
+        if len(blob) < 4:
+            return
+
+        magic = struct.unpack_from('<I', blob, 0)[0]
+        if magic == IVSHMEM_COV_MAGIC:
+            self._extract_coverage(blob)
+        elif magic == IVSHMEM_TRACE_MAGIC:
+            self._extract_trace(blob)
+
+    def _extract_coverage(self, blob) -> None:
         if len(blob) < _IVSHMEM_COV_HEADER.size:
             return
 
@@ -360,6 +382,37 @@ class IvshmemSidecar(Sidecar):
 
         logger.debug(f"SIDECAR:{self.__class__.__name__}: extracted {extracted} gcda"
                      f" file(s) from {self.ivshmem_backing}")
+
+    def _extract_trace(self, blob) -> None:
+        if len(blob) < _IVSHMEM_TRACE_HEADER.size:
+            return
+
+        magic, version, used, overflow = _IVSHMEM_TRACE_HEADER.unpack_from(blob, 0)
+        if magic != IVSHMEM_TRACE_MAGIC:
+            return
+        if version != 1:
+            logger.warning(f"SIDECAR:{self.__class__.__name__}: unsupported ivshmem"
+                           f" trace version {version}")
+            return
+
+        used = min(used, len(blob))
+        stream = blob[_IVSHMEM_TRACE_HEADER.size:used]
+
+        # Lay out a CTF trace directory (stream + metadata) that babeltrace2 or
+        # scripts/tracing/parse_ctf.py can decode directly.
+        ctf_dir = os.path.join(self.instance.build_dir, 'ctf')
+        os.makedirs(ctf_dir, exist_ok=True)
+        with open(os.path.join(ctf_dir, 'channel0_0'), 'wb') as out:
+            out.write(stream)
+        metadata = os.path.join(ZEPHYR_BASE, 'subsys', 'tracing', 'ctf', 'tsdl', 'metadata')
+        if os.path.exists(metadata):
+            shutil.copyfile(metadata, os.path.join(ctf_dir, 'metadata'))
+
+        if overflow:
+            logger.warning(f"SIDECAR:{self.__class__.__name__}: ivshmem trace region"
+                           f" filled up, trailing trace data was dropped")
+        logger.debug(f"SIDECAR:{self.__class__.__name__}: extracted {len(stream)} byte(s)"
+                     f" of CTF trace into {ctf_dir}")
 
 
 class IvshmemServerSidecar(Sidecar):

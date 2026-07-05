@@ -9,6 +9,7 @@ from unittest import mock
 
 from twisterlib.sidecar import (
     IVSHMEM_COV_MAGIC,
+    IVSHMEM_TRACE_MAGIC,
     IvshmemServerSidecar,
     IvshmemSidecar,
     NetToolsSidecar,
@@ -162,6 +163,30 @@ def test_ivshmem_teardown_extracts_gcda(tmp_path):
     with open(tagged_path, "rb") as fp:
         assert fp.read() == b"TAGGED-DATA"
     assert not os.path.exists(outside)
+    assert not os.path.exists(str(backing))
+
+
+def _build_ivshmem_trace_blob(stream, magic=IVSHMEM_TRACE_MAGIC, version=1, overflow=0):
+    return struct.pack("<4I", magic, version, 16 + len(stream), overflow) + stream
+
+
+def test_ivshmem_teardown_extracts_ctf_trace(tmp_path):
+    instance = _make_instance(tmp_path)
+    sidecar = IvshmemSidecar()
+    sidecar.configure(instance)
+
+    blob = _build_ivshmem_trace_blob(b"CTF-STREAM-BYTES")
+    backing = tmp_path / "backing"
+    backing.write_bytes(blob)
+    sidecar.ivshmem_backing = str(backing)
+
+    sidecar.teardown()
+
+    ctf_dir = os.path.join(instance.build_dir, "ctf")
+    with open(os.path.join(ctf_dir, "channel0_0"), "rb") as fp:
+        assert fp.read() == b"CTF-STREAM-BYTES"
+    # The TSDL metadata is copied from the tree so babeltrace can decode it.
+    assert os.path.exists(os.path.join(ctf_dir, "metadata"))
     assert not os.path.exists(str(backing))
 
 
