@@ -54,6 +54,18 @@ tests:
       - qemu_x86
     extra_args: EXTRA_CONF_FILE="prj_uart_ctf.conf"
     filter: dt_chosen_enabled("zephyr,tracing-uart")
+  # Actually captures a trace: the ivshmem sidecar reads the CTF stream the
+  # guest writes into the shared memory region back into a ctf/ trace directory
+  # on the host, so no semihosting or dedicated transport is needed.
+  sample.tracing.transport.ivshmem.ctf:
+    platform_allow:
+      - qemu_x86_64
+    integration_platforms:
+      - qemu_x86_64
+    sidecar: ivshmem
+    extra_args:
+      - EXTRA_CONF_FILE="prj_ivshmem.conf"
+      - EXTRA_DTC_OVERLAY_FILE="ivshmem.overlay"
   sample.tracing.transport.usb.ctf:
     integration_platforms:
       - frdm_k64f
