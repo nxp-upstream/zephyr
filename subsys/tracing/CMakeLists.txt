@@ -48,6 +48,11 @@ if(CONFIG_TRACING_CORE)
     )
 
   zephyr_sources_ifdef(
+    CONFIG_TRACING_BACKEND_IVSHMEM
+    tracing_backend_ivshmem.c
+    )
+
+  zephyr_sources_ifdef(
     CONFIG_TRACING_SHELL
     tracing_shell.c
     )
