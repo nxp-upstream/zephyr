@@ -23,18 +23,18 @@ LOG_MODULE_REGISTER(mp_vid_object, CONFIG_MP_LOG_LEVEL);
 static int set_dimension_fields(struct mp_structure *structure, uint8_t key, uint32_t *min,
 				uint32_t *max, uint16_t *step)
 {
-	const struct mp_value *value = mp_structure_get_value(structure, key);
+	const mp_value_t value = mp_structure_get_value(structure, key);
 
 	if (value == NULL) {
 		return -EINVAL;
 	}
 
-	if (value->type == MP_TYPE_UINT_RANGE) {
-		*min = mp_value_get_uint_range_min(value);
-		*max = mp_value_get_uint_range_max(value);
-		*step = (uint16_t)mp_value_get_uint_range_step(value);
-	} else if (value->type == MP_TYPE_UINT) {
-		*min = mp_value_get_uint(value);
+	if (mp_value_get_type(value) == MP_TYPE_RANGE) {
+		*min = mp_value_get_range_min(value);
+		*max = mp_value_get_range_max(value);
+		*step = (uint16_t)mp_value_get_range_step(value);
+	} else if (mp_value_get_type(value) == MP_TYPE_INT) {
+		*min = mp_value_get_int(value);
 		*max = *min;
 		*step = 0;
 	} else {
@@ -47,20 +47,20 @@ static int set_dimension_fields(struct mp_structure *structure, uint8_t key, uin
 int mp_structure_to_vfc(struct mp_structure *structure, struct video_format_cap *vfc)
 {
 	int ret;
-	struct mp_value *value;
+	mp_value_t value;
 
 	/* Get pixel format field */
 	value = mp_structure_get_value(structure, MP_CAPS_PIXEL_FORMAT);
 	if (value == NULL) {
 		return -EINVAL;
 	}
-	if (value->type == MP_TYPE_UINT) {
-		vfc->pixelformat = mp_value_get_uint(value);
-	} else if (value->type == MP_TYPE_LIST) {
+	if (mp_value_get_type(value) == MP_TYPE_INT) {
+		vfc->pixelformat = mp_value_get_int(value);
+	} else if (mp_value_get_type(value) == MP_TYPE_LIST) {
 		/* Format may be of MP_TYPE_LIST due to the intersection with a list type but it is
 		 * actually a single-value list, so take the 1st item in the list
 		 */
-		vfc->pixelformat = mp_value_get_uint(mp_value_list_get(value, 0));
+		vfc->pixelformat = mp_value_get_int(mp_value_list_get(value, 0));
 	} else {
 		return -EINVAL;
 	}
@@ -77,41 +77,60 @@ int mp_structure_to_vfc(struct mp_structure *structure, struct video_format_cap 
 				    &vfc->height_max, &vfc->height_step);
 }
 
-static void append_frmrates_to_structure(const struct device *vdev, struct video_format *fmt,
-					 struct mp_structure *caps_item)
+static int append_frmrates_to_structure(const struct device *vdev, struct video_format *fmt,
+					struct mp_structure *caps_item)
 {
-	struct mp_value *frmrates = mp_value_new(MP_TYPE_LIST, NULL);
-	struct mp_value *frmrate = NULL;
-	struct video_frmival_enum fie = {0};
+	mp_value_t frmrates;
+	mp_value_t frmrate = NULL;
 
-	fie.format = fmt;
-	while (video_enum_frmival(vdev, &fie) == 0) {
+	size_t length = 0;
+	for (struct video_frmival_enum fie = {.format = fmt};
+	     video_enum_frmival(vdev, &fie) == 0;
+	     fie.index++) {
+		length++;
+	}
+
+	frmrates = mp_value_new_list(length);
+	if (frmrates == NULL) {
+		goto nomem;
+	}
+
+	for (struct video_frmival_enum fie = {.format = fmt};
+	     video_enum_frmival(vdev, &fie) == 0;
+	     fie.index++) {
 		switch (fie.type) {
 		case VIDEO_FRMIVAL_TYPE_DISCRETE:
-			frmrate = mp_value_new(MP_TYPE_UINT_FRACTION, fie.discrete.denominator,
-					       fie.discrete.numerator);
+			frmrate = mp_value_new_int(video_frmival_nsec(&fie.discrete));
+			if (frmrate == NULL) {
+				goto nomem;
+			}
 
-			mp_value_list_append(frmrates, frmrate);
+			mp_value_list_set(frmrates, fie.index, frmrate);
 			break;
 		case VIDEO_FRMIVAL_TYPE_STEPWISE:
-			frmrate = mp_value_new(
-				MP_TYPE_UINT_FRACTION_RANGE, fie.stepwise.max.denominator,
-				fie.stepwise.max.numerator, fie.stepwise.min.denominator,
-				fie.stepwise.min.numerator, fie.stepwise.step.denominator,
-				fie.stepwise.step.numerator);
+			frmrate = mp_value_new_range(video_frmival_nsec(&fie.stepwise.min),
+						     video_frmival_nsec(&fie.stepwise.max),
+						     video_frmival_nsec(&fie.stepwise.step));
+			if (frmrate == NULL) {
+				goto nomem;
+			}
 
-			mp_structure_append(caps_item, MP_CAPS_FRAME_RATE, frmrate);
-
+			mp_value_list_set(frmrates, fie.index, frmrate);
 			break;
 		default:
 			break;
 		}
-		fie.index++;
 	}
 
 	if (!mp_value_list_is_empty(frmrates)) {
 		mp_structure_append(caps_item, MP_CAPS_FRAME_RATE, frmrates);
 	}
+
+	return 0;
+nomem:
+	mp_value_destroy(frmrate);
+	mp_value_destroy(frmrates);
+	return -ENOMEM;
 }
 
 struct mp_caps *mp_vid_object_get_caps(struct mp_vid_object *vid_obj)
@@ -181,14 +200,11 @@ struct mp_caps *mp_vid_object_get_caps(struct mp_vid_object *vid_obj)
 
 	for (uint8_t i = 0; vcaps.format_caps[i].pixelformat != 0; i++) {
 		caps_item = mp_structure_new(
-			MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
-			vcaps.format_caps[i].pixelformat, MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE,
-			min3(vcaps.format_caps[i].width_min, crop_w, comp_min_w),
-			max(vcaps.format_caps[i].width_max, comp_max_w),
-			vcaps.format_caps[i].width_step, MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE,
-			min3(vcaps.format_caps[i].height_min, crop_h, comp_min_h),
-			max(vcaps.format_caps[i].height_max, comp_max_h),
-			vcaps.format_caps[i].height_step, MP_CAPS_END);
+			MP_MEDIA_VIDEO,
+			MP_CAPS_PIXEL_FORMAT, MP_INT(vcaps.format_caps[i].pixelformat),
+			MP_CAPS_PIXEL_FORMAT, MP_INT(vcaps.format_caps[i].pixelformat),
+			MP_CAPS_PIXEL_FORMAT, MP_INT(vcaps.format_caps[i].pixelformat),
+			MP_CAPS_END, MP_CAPS_END, MP_CAPS_END, MP_CAPS_END, MP_CAPS_END);
 
 		/* Get frame rate */
 		fmt.pixelformat = vcaps.format_caps[i].pixelformat;
@@ -208,7 +224,7 @@ int mp_vid_object_set_caps(struct mp_vid_object *vid_obj, struct mp_caps *caps)
 	struct video_format fmt;
 	struct video_frmival frmival;
 	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
-	struct mp_value *frmrate = mp_structure_get_value(first_structure, MP_CAPS_FRAME_RATE);
+	mp_value_t frmrate = mp_structure_get_value(first_structure, MP_CAPS_FRAME_RATE);
 
 	if (!mp_caps_is_fixed(caps)) {
 		return -EINVAL;
@@ -239,16 +255,16 @@ int mp_vid_object_set_caps(struct mp_vid_object *vid_obj, struct mp_caps *caps)
 	first_structure = mp_caps_get_structure(objcaps, 0);
 	if (frmrate != NULL &&
 	    mp_structure_get_value(first_structure, MP_CAPS_FRAME_RATE) != NULL) {
-		mp_caps_unref(objcaps);
-		frmival.numerator = mp_value_get_fraction_denominator(frmrate);
-		frmival.denominator = mp_value_get_fraction_numerator(frmrate);
-		if (video_set_frmival(vid_obj->vdev, &frmival)) {
+		frmival.numerator = NSEC_PER_SEC;
+		frmival.denominator = mp_value_get_int(frmrate);
+		ret = video_set_frmival(zvid_obj->vdev, &frmival);
+		if (ret) {
 			LOG_ERR("Unable to set frame interval");
-			return -EIO;
 		}
 	}
 
-	return 0;
+	mp_caps_unref(objcaps);
+	return ret;
 }
 
 int mp_vid_object_set_property(struct mp_vid_object *vid_obj, uint32_t key, const void *val)

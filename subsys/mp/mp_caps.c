@@ -13,6 +13,10 @@
 #include <zephyr/mp/mp_structure.h>
 #include <zephyr/mp/mp_object.h>
 
+#include <zephyr/logging/log.h>
+
+LOG_MODULE_REGISTER(mp_caps, LOG_LEVEL_DBG);
+
 static void mp_caps_destroy(struct mp_object *obj)
 {
 	struct mp_cap_structure *caps_structure;
@@ -40,6 +44,7 @@ int mp_caps_init(struct mp_caps *caps, uint8_t flag)
 	caps->object.release = mp_caps_destroy;
 	caps->object.ref = ATOMIC_INIT(0);
 	caps->object.flags = flag;
+	caps->object.id = MP_OBJECT_ID_NONE;
 
 	return 0;
 }
@@ -72,8 +77,7 @@ struct mp_caps *mp_caps_new(uint8_t media_type_id, ...)
 	va_list var_args;
 	struct mp_structure *structure;
 	uint8_t field_id;
-	enum mp_value_type type;
-	struct mp_value *value;
+	mp_value_t value;
 
 	if (media_type_id == MP_MEDIA_END) {
 		return caps;
@@ -87,13 +91,7 @@ struct mp_caps *mp_caps_new(uint8_t media_type_id, ...)
 			break;
 		}
 
-		type = va_arg(var_args, int);
-		if (type != MP_TYPE_LIST) {
-			value = mp_value_new_va_list(type, &var_args);
-		} else {
-			value = va_arg(var_args, struct mp_value *);
-		}
-
+		value = mp_value_new_va(&var_args);
 		if (value == NULL) {
 			break;
 		}

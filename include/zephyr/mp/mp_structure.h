@@ -37,7 +37,7 @@
  * @code{.c}
  *
  *  struct mp_structure *structure = mp_structure_new(MEDIA_TYPE_VIDEO_RAW,
- * MP_CAPS_FORMAT, MP_TYPE_UINT, MP_PIXEL_FORMAT_RGB565,
+ * MP_CAPS_FORMAT, MP_TYPE_INT, MP_PIXEL_FORMAT_RGB565,
  * MP_CAPS_WIDTH, MP_TYPE_INT, 1280,
  * MP_CAPS_HEIGHT, MP_TYPE_INT, 720,
  * MP_CAPS_FRAMERATE, 30, 1, MP_CAPS_END);
@@ -47,21 +47,22 @@
  * Structure supports also int range, fraction range and list
  *
  * Example of structure with range and list:
- * video/x-dummy, format={MP_PIXEL_FORMAT_RGB565, MP_PIXEL_FORMAT_XRGB}, width=[720, 1080,
- * 720], height=[960, 1920, 960], framerate=[30/1, 60,1, 15/1]
+ * video/x-dummy, format={MP_PIXEL_FORMAT_RGB565, MP_PIXEL_FORMAT_XRGB}, width=[720, 1080, 720],
+ *     height=[960, 1920, 960], framerate=[33333333, 16666666, 1, 66666666]
  *
  * To create a new structure this one structure structure:
  * @code{.c}
  *
- * struct mp_value *list = mp_value_new(MP_TYPE_LIST, NULL);
- * mp_value_list_append(list, mp_value_new(MP_TYPE_UINT, MP_PIXEL_FORMAT_RGB565, NULL));
- * mp_value_list_append(list, mp_value_new(MP_TYPE_UINT, MP_PIXEL_FORMAT_XRGB32, NULL));
+ * mp_value_t list = mp_value_new_empty_list(2);
+ * mp_value_list_set(list, 0, mp_value_new_int(MP_PIXEL_FORMAT_RGB565), NULL));
+ * mp_value_list_set(list, 1, mp_value_new_int(MP_PIXEL_FORMAT_XRGB32), NULL));
  *
  * struct mp_structure *structure = mp_structure_new(MEDIA_TYPE_VIDEO_RAW,
  *     MP_CAPS_FORMAT, MP_TYPE_LIST, list,
- *     MP_CAPS_WIDTH, MP_TYPE_RANGE_INT, 720, 1080, 720,
- *     MP_CAPS_HEIGHT, MP_TYPE_RANGE_INT, 960, 1920, 960,
- *     MP_CAPS_FRAMERATE, MP_TYPE_FRACTION_RANGE, 30, 1, 60, 1, 15, 1, MP_CAPS_END);
+ *     MP_CAPS_WIDTH, MP_TYPE_RANGE, 720, 1080, 720,
+ *     MP_CAPS_HEIGHT, MP_TYPE_RANGE, 960, 1920, 960,
+ *     MP_CAPS_FRAMERATE, MP_TYPE_RANGE, NSEC_PER_SEC / 30, NSEC_PER_SEC / 60, NSEC_PER_SEC / 15,
+ *     MP_CAPS_END);
  *
  * @endcode
  *
@@ -94,8 +95,8 @@ struct mp_structure {
  * - One or more values depending on the type
  *
  * The list must be terminated by a `0` field ID. The number and type of
- * arguments for each field depend on the field's type with the same rule as @ref mp_value_new()),
- * except for the MP_TYPE_LIST which requires one argument which is a pre-created mp_value list.
+ * arguments for each field depend on the field's type with the same rule as
+ * @ref mp_value_new_va_list().
  *
  * @param media_type_id Media type ID of the structure.
  * @param ... Variadic list of field definitions, terminated by 0.
@@ -124,7 +125,7 @@ int mp_structure_init(struct mp_structure *structure, uint8_t media_type_id);
  * @return 0 on success, -EINVAL if arguments are invalid,
  *         -EEXIST if field_id already exists, -ENOMEM on allocation failure
  */
-int mp_structure_append(struct mp_structure *structure, uint8_t field_id, struct mp_value *value);
+int mp_structure_append(struct mp_structure *structure, uint8_t field_id, mp_value_t value);
 
 /**
  * @brief Clear all fields from an @ref mp_structure.
@@ -177,7 +178,7 @@ bool mp_structure_is_fixed(struct mp_structure *structure);
  *
  * @return Pointer to the value of the field, NULL if the field was not found.
  */
-struct mp_value *mp_structure_get_value(struct mp_structure *structure, uint8_t field_id);
+mp_value_t mp_structure_get_value(struct mp_structure *structure, uint8_t field_id);
 
 /**
  * @brief Remove a field from an @ref mp_structure.

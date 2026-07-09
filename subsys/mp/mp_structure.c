@@ -14,7 +14,7 @@
 
 struct mp_structure_field {
 	uint8_t field_id;
-	struct mp_value *value;
+	mp_value_t value;
 	sys_snode_t node;
 };
 
@@ -74,7 +74,7 @@ void mp_structure_destroy(struct mp_structure *structure)
 	k_free(structure);
 }
 
-int mp_structure_append(struct mp_structure *structure, uint8_t field_id, struct mp_value *value)
+int mp_structure_append(struct mp_structure *structure, uint8_t field_id, mp_value_t value)
 {
 	struct mp_structure_field *field;
 
@@ -104,8 +104,7 @@ struct mp_structure *mp_structure_new(uint8_t media_type_id, ...)
 {
 	va_list args;
 	struct mp_structure *structure;
-	enum mp_value_type type;
-	struct mp_value *value;
+	mp_value_t value;
 	uint8_t field_id;
 
 	if (media_type_id == MP_MEDIA_END) {
@@ -126,14 +125,14 @@ struct mp_structure *mp_structure_new(uint8_t media_type_id, ...)
 			break;
 		}
 
-		type = va_arg(args, int);
-		if (type != MP_TYPE_LIST) {
-			value = mp_value_new_va_list(type, &args);
-		} else {
-			value = va_arg(args, struct mp_value *);
+		value = mp_value_new_va(&args);
+		if (value == NULL) {
+			mp_structure_destroy(structure);
+			return NULL;
 		}
 
 		mp_structure_append(structure, field_id, value);
+		break;
 	}
 	va_end(args);
 
@@ -147,12 +146,12 @@ void mp_structure_print(struct mp_structure *structure)
 	printk("\n");
 	printk("Media Type ID: %u\n", structure->media_type_id);
 	SYS_SLIST_FOR_EACH_CONTAINER(&structure->fields, field, node) {
-		printk("Field ID: %u\n", field->field_id);
+		printk("Field ID %u (type %u): ", field->field_id, mp_value_get_type(field->value));
 		mp_value_print(field->value, true);
 	}
 }
 
-struct mp_value *mp_structure_get_value(struct mp_structure *structure, uint8_t field_id)
+mp_value_t mp_structure_get_value(struct mp_structure *structure, uint8_t field_id)
 {
 	struct mp_structure_field *field;
 
@@ -178,7 +177,11 @@ int mp_structure_remove_field(struct mp_structure *structure, uint8_t field_id)
 	}
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&structure->fields, field, node) {
+		printk("mp_structure_remove_field %p field %p\n",
+			(void *)structure, (void *)field);
 		if (field->field_id == field_id) {
+			printk("mp_structure_remove_field %p field %p id %u\n",
+				(void *)structure, (void *)field, field_id);
 			sys_slist_remove(&structure->fields, prev_field ? &prev_field->node : NULL,
 					 &field->node);
 			mp_value_destroy(field->value);
@@ -199,7 +202,7 @@ int mp_structure_len(struct mp_structure *structure)
 bool mp_structure_can_intersect(struct mp_structure *struct1, struct mp_structure *struct2)
 {
 	struct mp_structure_field *field;
-	struct mp_value *compared_value, *intersect_value;
+	mp_value_t compared_value, intersect_value;
 	bool can_intersect = false;
 
 	if (struct1 == NULL || struct2 == NULL) {
@@ -234,7 +237,7 @@ struct mp_structure *mp_structure_intersect(struct mp_structure *struct1,
 {
 	struct mp_structure_field *field;
 	struct mp_structure *intersect_structure;
-	struct mp_value *compared_value, *intersect_value;
+	mp_value_t compared_value, intersect_value;
 
 	if (!mp_structure_can_intersect(struct1, struct2)) {
 		return NULL;
@@ -244,10 +247,11 @@ struct mp_structure *mp_structure_intersect(struct mp_structure *struct1,
 	SYS_SLIST_FOR_EACH_CONTAINER(&struct1->fields, field, node) {
 		compared_value = mp_structure_get_value(struct2, field->field_id);
 		if (compared_value == NULL) {
-			mp_structure_append(intersect_structure, field->field_id,
-					    mp_value_duplicate(field->value));
-		} else {
-			intersect_value = mp_value_intersect(field->value, compared_value);
+			continue;
+		}
+
+		intersect_value = mp_value_intersect(field->value, compared_value);
+		if (intersect_value != NULL) {
 			mp_structure_append(intersect_structure, field->field_id, intersect_value);
 		}
 	}
@@ -266,7 +270,7 @@ struct mp_structure *mp_structure_duplicate(struct mp_structure *src)
 {
 	struct mp_structure_field *field;
 	struct mp_structure *dup;
-	struct mp_value *copy_value;
+	mp_value_t copy_value;
 
 	if (src == NULL) {
 		return NULL;
@@ -298,7 +302,7 @@ struct mp_structure *mp_structure_fixate(struct mp_structure *src)
 {
 	struct mp_structure_field *field;
 	struct mp_structure *fixated_structure;
-	struct mp_value *fixated_value;
+	mp_value_t fixated_value;
 
 	if (src == NULL) {
 		return NULL;
@@ -307,19 +311,9 @@ struct mp_structure *mp_structure_fixate(struct mp_structure *src)
 	fixated_structure = mp_structure_new_empty(src->media_type_id);
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&src->fields, field, node) {
-		switch (field->value->type) {
-		case MP_TYPE_INT_RANGE:
-			fixated_value =
-				mp_value_new(MP_TYPE_INT, mp_value_get_int_range_min(field->value));
-			break;
-		case MP_TYPE_UINT_RANGE:
-			fixated_value = mp_value_new(MP_TYPE_UINT,
-						     mp_value_get_int_range_min(field->value));
-			break;
-		case MP_TYPE_INT_FRACTION_RANGE:
-		case MP_TYPE_UINT_FRACTION_RANGE:
-			fixated_value =
-				mp_value_duplicate(mp_value_get_fraction_range_min(field->value));
+		switch (mp_value_get_type(field->value)) {
+		case MP_TYPE_RANGE:
+			fixated_value = mp_value_new_int(mp_value_get_range_min(field->value));
 			break;
 		case MP_TYPE_LIST:
 			fixated_value = mp_value_duplicate(mp_value_list_get(field->value, 0));

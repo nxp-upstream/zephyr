@@ -240,4 +240,5 @@ void mp_element_init(struct mp_element *self, uint8_t id)
 	self->set_state = mp_element_set_state_func;
 	self->change_state = mp_element_change_state_func;
 	self->eventfn = NULL;
+	self->object.release = mp_element_release;
 }

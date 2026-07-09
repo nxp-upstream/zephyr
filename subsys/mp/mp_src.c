@@ -70,7 +70,7 @@ int mp_src_get_property(struct mp_object *obj, uint32_t key, void *val)
 void mp_src_update_caps(struct mp_src *src, struct mp_caps *caps)
 {
 	mp_caps_replace(&src->src_caps, caps);
-	mp_caps_replace(&src->srcpad.caps, src->src_caps);
+	mp_caps_replace(&src->srcpad.caps, caps);
 }
 
 static struct mp_caps *mp_src_get_caps(struct mp_src *src)
@@ -162,7 +162,7 @@ static int mp_src_negotiate(struct mp_src *src)
 
 	/*
 	 * Push a caps event downstream. Don't check the returned value of
-	 * mp_pad_send_event() when caps is not fixatted (ANY) as we want to continue.
+	 * mp_pad_send_event() when caps is not fixated (ANY) as we want to continue.
 	 */
 	mp_dispatch_caps_init(&caps_event, fixated_caps);
 	ret = mp_pad_send_event(src->srcpad.peer, &caps_event);
@@ -270,6 +270,7 @@ void mp_src_init(struct mp_element *self)
 	mp_pad_init(&src->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS, src->src_caps);
 	mp_element_add_pad(self, &src->srcpad);
 
+	self->object.release = mp_src_release;
 	self->object.set_property = mp_src_set_property;
 	self->object.get_property = mp_src_get_property;
 	self->change_state = mp_src_change_state;

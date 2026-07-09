@@ -73,6 +73,7 @@ int mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...)
 
 		/* Add the element to the bin's list of children */
 		sys_dlist_append(&bin->children, &element->object.node);
+		mp_object_ref(&element->object);
 		bin->children_num++;
 		element = va_arg(args, struct mp_element *);
 	}
@@ -226,6 +227,7 @@ void mp_bin_init(struct mp_element *self)
 	struct mp_bin *bin = (struct mp_bin *)self;
 
 	self->change_state = mp_bin_change_state_func;
+	self->object.release = mp_bin_release;
 
 	/*
 	 * Opt-in destructor. See mp_bin_release above: it is only invoked when

@@ -44,6 +44,8 @@ int mp_buffer_pool_start(struct mp_buffer_pool *pool)
 {
 	int ret;
 
+	printk("Trying to start pool %p\n", pool);
+
 	if (pool == NULL) {
 		return -EINVAL;
 	}
@@ -56,6 +58,8 @@ int mp_buffer_pool_start(struct mp_buffer_pool *pool)
 		pool->started = true;
 		return -ENOSYS;
 	}
+
+	printk("Starting pool %p\n", pool);
 
 	ret = pool->start(pool);
 	if (ret == 0) {

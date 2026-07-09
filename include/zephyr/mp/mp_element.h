@@ -274,6 +274,13 @@ struct mp_bus *mp_element_get_bus(struct mp_element *self);
  */
 int mp_element_post_message(struct mp_element *element, uint32_t type);
 
+/**
+ * @brief Release all resources of an element object
+ *
+ * @param obj Pointer to the @ref mp_object (element)
+ */
+void mp_element_release(struct mp_object *obj);
+
 /** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_MP_ELEMENT_H_ */

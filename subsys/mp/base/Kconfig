@@ -19,6 +19,12 @@ config MP_BASE_CAPSFILTER
 	  such as sample rate, pixel format, etc. This allows forcing a
 	  specific format at a given point in the pipeline.
 
+config MP_BASE_APPSINK
+	bool "Application sink element"
+	help
+	  Enable the appsink element which calls an user-provided callback
+	  upon completion of any frame, for the application to process it.
+
 config MP_BASE_QUEUE
 	bool "Queue element (for pipeline-level threading)"
 	help

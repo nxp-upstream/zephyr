@@ -73,6 +73,9 @@ ZTEST_F(test_mock_pipeline, test_pipeline_fakesrc_transform_sink)
 	struct mp_message msg;
 	struct sys_memory_stats mem_after;
 
+	/* Reference count mp_bin so it can be freed later */
+	mp_object_ref(&fixture->pipeline.bin.element.object);
+
 	/* Add all elements to the pipeline */
 	zassert_ok(mp_bin_add((struct mp_bin *)&fixture->pipeline,
 			      (struct mp_element *)&fixture->fake_src,

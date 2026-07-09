@@ -31,6 +31,9 @@
 /** Sentinel value to mark the end of property lists */
 #define MP_PROP_LIST_END -1
 
+/** Placeholder value for un-managed object IDs */
+#define MP_OBJECT_ID_NONE 0xFF
+
 /**
  * @brief Base object structure
  *
