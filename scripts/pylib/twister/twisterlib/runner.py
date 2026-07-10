@@ -58,6 +58,7 @@ from twisterlib.log_helper import log_command
 from twisterlib.platform import Platform
 from twisterlib.sidecar import (
     SidecarImporter,
+    get_ivshmem_backing_path,
     get_virtiofs_socket_path,
 )
 from twisterlib.testinstance import TestInstance
@@ -715,6 +716,12 @@ class CMake:
             ]
             cmake_args.extend(cmake_opts)
 
+        # A DT overlay attached by twister itself (e.g. the ivshmem node for
+        # coverage). EXTRA_DTC_OVERLAY_FILE is additive, so it does not disturb a
+        # test's own overlays.
+        if self.instance.dtc_overlay:
+            cmake_args.append(f'-DEXTRA_DTC_OVERLAY_FILE={self.instance.dtc_overlay}')
+
         cmake = shutil.which('cmake')
         cmd = [cmake] + cmake_args
 
@@ -735,6 +742,14 @@ class CMake:
             env = os.environ.copy()
             existing = env.get('QEMU_EXTRA_FLAGS', '')
             env['QEMU_EXTRA_FLAGS'] = f"{chardev} {existing}".strip()
+            kwargs['env'] = env
+
+        # The ivshmem sidecar reads a per-build-dir file that backs QEMU's
+        # ivshmem-plain shared memory; cmake/emu/qemu.cmake reads this path from
+        # the environment when building the memory-backend-file flag.
+        if self.instance.sidecar == 'ivshmem':
+            env = kwargs.get('env') or os.environ.copy()
+            env['QEMU_IVSHMEM_PLAIN_MEM_PATH'] = get_ivshmem_backing_path(self.build_dir)
             kwargs['env'] = env
 
         log_command(logger, "Calling cmake", cmd)

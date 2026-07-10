@@ -818,7 +818,8 @@ class TestPlan:
                                             self.options.enable_ubsan,
                                             self.options.enable_coverage,
                                             self.options.coverage_platform,
-                                            self.options.coverage_per_test
+                                            self.options.coverage_per_test,
+                                            self.options.coverage_transport
                                             )
                     instance_list.append(instance)
                 self.add_instances(instance_list)
@@ -1308,7 +1309,8 @@ class TestPlan:
                                 self.options.enable_ubsan,
                                 self.options.enable_coverage,
                                 self.options.coverage_platform,
-                                self.options.coverage_per_test)
+                                self.options.coverage_per_test,
+                                self.options.coverage_transport)
 
         self.selected_platforms = set(p.platform.name for p in self.instances.values())
 

@@ -4,11 +4,15 @@
 """Tests for the Sidecar classes of twister."""
 
 import os
+import struct
 from unittest import mock
 
 from twisterlib.sidecar import (
+    IVSHMEM_COV_MAGIC,
+    IvshmemSidecar,
     SidecarImporter,
     VirtiofsSidecar,
+    get_ivshmem_backing_path,
     get_virtiofs_socket_path,
 )
 from twisterlib.statuses import TwisterStatus
@@ -36,6 +40,7 @@ def _make_instance(tmp_path, harness_config=None):
 
 def test_sidecar_importer_resolves_names():
     assert isinstance(SidecarImporter.get_sidecar('virtiofs'), VirtiofsSidecar)
+    assert isinstance(SidecarImporter.get_sidecar('ivshmem'), IvshmemSidecar)
     assert SidecarImporter.get_sidecar(None) is None
     assert SidecarImporter.get_sidecar('') is None
     assert SidecarImporter.get_sidecar('nope') is None
@@ -105,5 +110,70 @@ def test_virtiofs_teardown_terminates_daemon(tmp_path):
     proc.wait.assert_called_once()
     assert sidecar._virtiofsd_proc is None
     assert not os.path.exists(sidecar.socket_path)
+
+
+# --- ivshmem ----------------------------------------------------------------
+
+def test_get_ivshmem_backing_path_is_unique_and_in_shm():
+    path = get_ivshmem_backing_path("/some/long/build/dir")
+    assert path.startswith("/dev/shm/")
+    assert path == get_ivshmem_backing_path("/some/long/build/dir")
+    assert get_ivshmem_backing_path("/other/build") != path
+
+
+def _build_ivshmem_blob(files, magic=IVSHMEM_COV_MAGIC, version=1):
+    body = b""
+    for name, data in files:
+        name_b = name.encode() + b"\x00"
+        body += struct.pack("<2I", len(name_b), len(data)) + name_b + data
+        while len(body) % 4:
+            body += b"\x00"
+    header = struct.pack("<4I", magic, version, len(files), 16 + len(body))
+    return header + body
+
+
+def test_ivshmem_teardown_extracts_gcda(tmp_path):
+    instance = _make_instance(tmp_path)
+    sidecar = IvshmemSidecar()
+    sidecar.configure(instance)
+
+    gcda_path = os.path.join(instance.build_dir, "sub", "foo.c.gcda")
+    tagged_path = os.path.join(instance.build_dir, "sub", "foo.c.gcda@@suite.test")
+    outside = os.path.join(str(tmp_path), "escape.gcda")
+    blob = _build_ivshmem_blob([
+        (gcda_path, b"GCDA-DATA"),
+        (tagged_path, b"TAGGED-DATA"),
+        (outside, b"NOPE"),
+    ])
+
+    backing = tmp_path / "backing"
+    backing.write_bytes(blob)
+    sidecar.ivshmem_backing = str(backing)
+
+    sidecar.teardown()
+
+    with open(gcda_path, "rb") as fp:
+        assert fp.read() == b"GCDA-DATA"
+    with open(tagged_path, "rb") as fp:
+        assert fp.read() == b"TAGGED-DATA"
+    assert not os.path.exists(outside)
+    assert not os.path.exists(str(backing))
+
+
+def test_ivshmem_teardown_ignores_missing_magic(tmp_path):
+    instance = _make_instance(tmp_path)
+    sidecar = IvshmemSidecar()
+    sidecar.configure(instance)
+
+    gcda_path = os.path.join(instance.build_dir, "foo.c.gcda")
+    blob = _build_ivshmem_blob([(gcda_path, b"DATA")], magic=0xDEADBEEF)
+    backing = tmp_path / "backing"
+    backing.write_bytes(blob)
+    sidecar.ivshmem_backing = str(backing)
+
+    sidecar.teardown()
+
+    assert not os.path.exists(gcda_path)
+    assert not os.path.exists(str(backing))
 
 

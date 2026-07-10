@@ -353,6 +353,30 @@ class TestInstance:
             and platform.simulation == "qemu"
         )
 
+    @staticmethod
+    def platform_supports_ivshmem(platform):
+        """Whether the platform can carry coverage data through ivshmem.
+
+        The ivshmem-plain device is wired up by QEMU on x86 targets, which have
+        no semihosting, so use it as the file-based coverage transport there.
+        """
+        return platform.arch == "x86" and platform.simulation == "qemu"
+
+    # Devicetree node that exposes QEMU's ivshmem-plain device to the guest,
+    # injected when routing coverage through ivshmem (see create_overlay).
+    IVSHMEM_COVERAGE_OVERLAY = (
+        "/ {\n"
+        "\tpcie0 {\n"
+        "\t\tivshmem0: ivshmem0 {\n"
+        "\t\t\tcompatible = \"qemu,ivshmem\";\n"
+        "\t\t\tvendor-id = <0x1af4>;\n"
+        "\t\t\tdevice-id = <0x1110>;\n"
+        "\t\t\tstatus = \"okay\";\n"
+        "\t\t};\n"
+        "\t};\n"
+        "};\n"
+    )
+
     def create_overlay(
         self,
         platform,
@@ -360,7 +384,8 @@ class TestInstance:
         enable_ubsan=False,
         enable_coverage=False,
         coverage_platform=None,
-        coverage_per_test=False
+        coverage_per_test=False,
+        coverage_transport="auto"
     ):
         if coverage_platform is None:
             coverage_platform = []
@@ -413,11 +438,36 @@ class TestInstance:
                     content = content + "\nCONFIG_COVERAGE=y"
                     if coverage_per_test:
                         content = content + "\nCONFIG_ZTEST_COVERAGE_PER_TEST=y"
-                        if self.platform_supports_semihost(platform):
-                            # Route the per-test dumps to the host filesystem via
-                            # semihosting instead of the serial console.
-                            content = content + "\nCONFIG_SEMIHOST=y"
-                            content = content + "\nCONFIG_COVERAGE_SEMIHOST=y"
+                    use_ivshmem = (
+                        coverage_transport == "ivshmem"
+                        and self.platform_supports_ivshmem(platform)
+                    )
+                    if use_ivshmem:
+                        # Route the coverage dump through an ivshmem region; inject
+                        # the build options, a DT node and attach the ivshmem
+                        # sidecar so existing suites need no yaml change. The whole
+                        # region is mapped into the guest's limited kernel virtual
+                        # address space, so keep it small enough to fit alongside
+                        # the image; the gcov data is far smaller and the guest
+                        # truncates if the region fills.
+                        content = content + (
+                            "\nCONFIG_IVSHMEM=y"
+                            "\nCONFIG_PCIE=y"
+                            "\nCONFIG_VIRTUALIZATION=y"
+                            "\nCONFIG_COVERAGE_IVSHMEM=y"
+                            "\nCONFIG_QEMU_IVSHMEM_PLAIN_MEM_SIZE=4"
+                        )
+                        os.makedirs(subdir, exist_ok=True)
+                        overlay = os.path.join(subdir, "ivshmem_coverage.overlay")
+                        with open(overlay, "w", encoding="utf-8") as f:
+                            f.write(self.IVSHMEM_COVERAGE_OVERLAY)
+                        self.dtc_overlay = overlay
+                        self.sidecar = "ivshmem"
+                    elif coverage_per_test and self.platform_supports_semihost(platform):
+                        # Route the per-test dumps to the host filesystem via
+                        # semihosting instead of the serial console.
+                        content = content + "\nCONFIG_SEMIHOST=y"
+                        content = content + "\nCONFIG_COVERAGE_SEMIHOST=y"
 
         if platform.type == "native":
             if enable_asan:

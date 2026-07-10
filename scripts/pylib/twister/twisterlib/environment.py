@@ -525,6 +525,17 @@ structure in the main Zephyr tree: boards/<vendor>/<board_name>/""")
                         straight to the host filesystem, avoiding console traffic.
                         Default: %(default)s""")
 
+    coverage_group.add_argument("--coverage-transport",
+                choices=['auto', 'ivshmem'], default='auto',
+                help="""How the guest hands coverage data to the host. 'auto' keeps
+                        the per-platform default (console, or semihosting for
+                        --coverage-per-test where supported). 'ivshmem' routes the
+                        coverage data through an ivshmem shared memory region on
+                        platforms that support it (x86 QEMU, which has no
+                        semihosting): twister injects the required build options, a
+                        DT node and the ivshmem sidecar, so existing Ztest suites do
+                        not need to change their yaml. Default: %(default)s""")
+
     parser.add_argument(
         "--test-config",
         action="store",

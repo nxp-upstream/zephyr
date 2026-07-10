@@ -60,4 +60,5 @@ SUPPORTED_HARNESSES = [
 # around the run independently of the harness (see twisterlib/sidecar.py).
 SUPPORTED_SIDECARS = [
     'virtiofs',
+    'ivshmem',
 ]
