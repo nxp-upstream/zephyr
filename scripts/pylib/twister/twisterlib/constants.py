@@ -64,4 +64,5 @@ SUPPORTED_SIDECARS = [
     'ivshmem',
     'ivshmem-server',
     'net-tools',
+    'can',
 ]

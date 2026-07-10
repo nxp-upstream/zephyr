@@ -196,6 +196,12 @@ $defs:
             type: integer
           ivshmem_server_vectors:
             type: integer
+          can_iface:
+            type: string
+          can_tools_apps:
+            type: array
+            items:
+              type: string
           tests_scripts:
             type: array
             items:

@@ -58,6 +58,7 @@ from twisterlib.log_helper import log_command
 from twisterlib.platform import Platform
 from twisterlib.sidecar import (
     SidecarImporter,
+    get_can_iface_name,
     get_ivshmem_backing_path,
     get_ivshmem_socket_path,
     get_net_addresses,
@@ -740,6 +741,13 @@ class CMake:
                 host_ip, guest_ip, _ = get_net_addresses(self.build_dir)
                 cmake_args.append(f'-DCONFIG_NET_CONFIG_MY_IPV4_ADDR="{guest_ip}"')
                 cmake_args.append(f'-DCONFIG_NET_CONFIG_PEER_IPV4_ADDR="{host_ip}"')
+
+        # The CAN sidecar creates a per-instance vcan interface; bake its name so
+        # cmake/emu/qemu.cmake connects QEMU's CAN bus to it (can-host-socketcan).
+        if self.instance.sidecar == 'can':
+            harness_config = self.instance.testsuite.harness_config or {}
+            iface = harness_config.get('can_iface') or get_can_iface_name(self.build_dir)
+            cmake_args.append(f'-DCONFIG_CAN_QEMU_IFACE_NAME="{iface}"')
 
         cmake = shutil.which('cmake')
         cmd = [cmake] + cmake_args
@@ -1973,6 +1981,12 @@ class ProjectBuilder(FilterBuilder):
             sidecar = SidecarImporter.get_sidecar(instance.sidecar)
             if sidecar is not None:
                 sidecar.configure(instance)
+                # On native platforms the SocketCAN driver takes the host CAN
+                # interface at run time (not via CONFIG_CAN_QEMU_IFACE_NAME baked
+                # for QEMU), so pass the vcan the sidecar created via --can-if.
+                if instance.sidecar == 'can' and instance.platform.arch == 'posix':
+                    args = list(instance.handler.extra_test_args or [])
+                    instance.handler.extra_test_args = args + [f'--can-if={sidecar.iface}']
 
             # If the harness does not handle execution itself, delegate to the
             # handler, wrapping it with the sidecar's setup/teardown.

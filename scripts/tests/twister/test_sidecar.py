@@ -10,11 +10,13 @@ from unittest import mock
 from twisterlib.sidecar import (
     IVSHMEM_COV_MAGIC,
     IVSHMEM_TRACE_MAGIC,
+    CanSidecar,
     IvshmemServerSidecar,
     IvshmemSidecar,
     NetToolsSidecar,
     SidecarImporter,
     VirtiofsSidecar,
+    get_can_iface_name,
     get_ivshmem_backing_path,
     get_ivshmem_socket_path,
     get_virtiofs_socket_path,
@@ -47,6 +49,7 @@ def test_sidecar_importer_resolves_names():
     assert isinstance(SidecarImporter.get_sidecar('ivshmem'), IvshmemSidecar)
     assert isinstance(SidecarImporter.get_sidecar('ivshmem-server'), IvshmemServerSidecar)
     assert isinstance(SidecarImporter.get_sidecar('net-tools'), NetToolsSidecar)
+    assert isinstance(SidecarImporter.get_sidecar('can'), CanSidecar)
     assert SidecarImporter.get_sidecar(None) is None
     assert SidecarImporter.get_sidecar('') is None
     assert SidecarImporter.get_sidecar('nope') is None
@@ -409,3 +412,62 @@ def test_net_harness_implies_net_tools_sidecar(tmp_path):
         toolchain="zephyr", outdir=tmp_path / "out3",
     )
     assert reloaded.sidecar == "virtiofs"
+
+
+# --- can --------------------------------------------------------------------
+
+def test_get_can_iface_name_is_short_and_unique():
+    iface = get_can_iface_name("/some/long/build/dir")
+    assert iface.startswith("zcan") and len(iface) <= 15
+    assert iface == get_can_iface_name("/some/long/build/dir")
+    assert get_can_iface_name("/other") != iface
+
+
+def test_can_setup_skips_without_root(tmp_path):
+    instance = _make_instance(tmp_path)
+    sidecar = CanSidecar()
+    sidecar.configure(instance)
+
+    with mock.patch("os.geteuid", return_value=1000), \
+         mock.patch("subprocess.run",
+                    return_value=mock.Mock(returncode=1)) as run_mock:
+        proceed = sidecar.setup()
+
+    assert proceed is False
+    # Only the "sudo -n true" probe runs; no interface is created.
+    assert run_mock.call_count == 1
+    assert instance.status == TwisterStatus.SKIP
+
+
+def test_can_creates_iface_starts_app_and_cleans_up(tmp_path):
+    instance = _make_instance(tmp_path, {"can_iface": "zcan7",
+                                         "can_tools_apps": ["echo {iface}"]})
+    os.makedirs(instance.build_dir, exist_ok=True)
+    sidecar = CanSidecar()
+    sidecar.configure(instance)
+
+    calls = []
+
+    def _fake_run(cmd, **_kwargs):
+        calls.append(cmd)
+        return mock.Mock(returncode=0, stderr="", stdout="")
+
+    app_proc = mock.Mock()
+
+    with mock.patch("os.geteuid", return_value=0), \
+         mock.patch("subprocess.run", side_effect=_fake_run), \
+         mock.patch("subprocess.Popen", return_value=app_proc) as popen_mock:
+        assert sidecar.setup() is True
+        # The vcan interface is created and brought up.
+        assert ["ip", "link", "add", "dev", "zcan7", "type", "vcan"] in calls
+        assert ["ip", "link", "set", "up", "zcan7"] in calls
+        # The companion command has {iface} substituted.
+        assert popen_mock.call_args.args[0] == ["echo", "zcan7"]
+
+    with mock.patch("os.geteuid", return_value=0), \
+         mock.patch("subprocess.run", side_effect=_fake_run), \
+         mock.patch("twisterlib.sidecar.terminate_process") as term_mock:
+        sidecar.teardown()
+
+    term_mock.assert_called_once_with(app_proc)
+    assert ["ip", "link", "del", "zcan7"] in calls

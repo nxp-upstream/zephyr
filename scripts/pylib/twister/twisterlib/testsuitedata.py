@@ -62,6 +62,8 @@ class HarnessConfig:
     ivshmem_server_bin: str | None = None
     ivshmem_server_size: int | None = None
     ivshmem_server_vectors: int | None = None
+    can_iface: str | None = None
+    can_tools_apps: list[str] = field(default_factory=list)
     tests_scripts: list[str] = field(default_factory=list)
     ztest_suite_repeat: int | None = None
     ztest_test_repeat: int | None = None
