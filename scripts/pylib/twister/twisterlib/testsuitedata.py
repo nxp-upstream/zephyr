@@ -51,6 +51,9 @@ class HarnessConfig:
     robot_option: Any | None = None  # schema has no type defined
     record: Record | None = None
     bsim_exe_name: str | None = None
+    virtiofs_shared: str | None = None
+    virtiofsd_bin: str | None = None
+    virtiofs_extra_args: list[str] = field(default_factory=list)
     tests_scripts: list[str] = field(default_factory=list)
     ztest_suite_repeat: int | None = None
     ztest_test_repeat: int | None = None

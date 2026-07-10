@@ -56,7 +56,10 @@ from twisterlib.environment import TwisterEnv
 from twisterlib.harness import Harness, HarnessImporter
 from twisterlib.log_helper import log_command
 from twisterlib.platform import Platform
-from twisterlib.sidecar import SidecarImporter
+from twisterlib.sidecar import (
+    SidecarImporter,
+    get_virtiofs_socket_path,
+)
 from twisterlib.testinstance import TestInstance
 from twisterlib.testplan import change_skip_to_error_if_integration
 from twisterlib.testsuite import TestSuite
@@ -719,6 +722,20 @@ class CMake:
             cmd += cmake_filter_args
 
         kwargs = dict()
+
+        # The virtiofs sidecar starts a virtiofsd daemon on a per-build-dir
+        # UNIX socket that QEMU connects to. The static vhost-user-fs device
+        # lives in the test's CONFIG_QEMU_EXTRA_FLAGS; inject only the dynamic
+        # -chardev socket path here via the QEMU_EXTRA_FLAGS environment
+        # variable, which cmake/emu/qemu.cmake appends before the config flags
+        # so the chardev is defined before the device that references it.
+        if self.instance.sidecar == 'virtiofs':
+            socket_path = get_virtiofs_socket_path(self.build_dir)
+            chardev = f"-chardev socket,id=char0,path={socket_path}"
+            env = os.environ.copy()
+            existing = env.get('QEMU_EXTRA_FLAGS', '')
+            env['QEMU_EXTRA_FLAGS'] = f"{chardev} {existing}".strip()
+            kwargs['env'] = env
 
         log_command(logger, "Calling cmake", cmd)
 

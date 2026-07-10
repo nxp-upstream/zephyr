@@ -170,6 +170,14 @@ $defs:
             additionalProperties: false
           bsim_exe_name:
             type: string
+          virtiofs_shared:
+            type: string
+          virtiofsd_bin:
+            type: string
+          virtiofs_extra_args:
+            type: array
+            items:
+              type: string
           tests_scripts:
             type: array
             items:
