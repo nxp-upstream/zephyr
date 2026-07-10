@@ -1,0 +1,32 @@
+common:
+  tags:
+    - drivers
+    - can
+  depends_on: can
+tests:
+  # Actually runs (not build-only): the "can" sidecar creates a host vcan
+  # interface that QEMU connects its CAN bus to, plus a companion that echoes
+  # frames back, so the guest can exchange CAN frames in normal mode.
+  # qemu_x86: QEMU connects its Kvaser PCIcan bus to the host vcan.
+  drivers.can.host_socketcan:
+    harness: ztest
+    sidecar: can
+    harness_config:
+      can_tools_apps:
+        - "python3 {source_dir}/can_echo.py {iface}"
+    platform_allow:
+      - qemu_x86
+    integration_platforms:
+      - qemu_x86
+  # native_sim: the native SocketCAN driver binds to the host vcan directly
+  # (no QEMU); the sidecar passes the interface via --can-if at run time.
+  drivers.can.host_socketcan.native:
+    harness: ztest
+    sidecar: can
+    harness_config:
+      can_tools_apps:
+        - "python3 {source_dir}/can_echo.py {iface}"
+    platform_allow:
+      - native_sim
+    integration_platforms:
+      - native_sim
