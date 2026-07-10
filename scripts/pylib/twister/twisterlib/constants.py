@@ -55,3 +55,7 @@ SUPPORTED_HARNESSES = [
     'bsim',
     'script',
 ] + PYTEST_HARNESSES
+
+# Host-side sidecars selectable with the `sidecar:` testsuite field, provisioned
+# around the run independently of the harness (see twisterlib/sidecar.py).
+SUPPORTED_SIDECARS: list[str] = []

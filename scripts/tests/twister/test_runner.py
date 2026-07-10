@@ -452,6 +452,8 @@ def test_cmake_run_cmake(
     instance_mock.testsuite = mock.Mock()
     instance_mock.testsuite.name = 'testcase'
     instance_mock.testsuite.required_snippets = ['dummy snippet 1', 'ds2']
+    instance_mock.sidecar = None
+    instance_mock.dtc_overlay = None
     instance_mock.testcases = [mock.Mock(), mock.Mock()]
     instance_mock.testcases[0].status = TwisterStatus.NONE
     instance_mock.testcases[1].status = TwisterStatus.NONE

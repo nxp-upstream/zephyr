@@ -56,6 +56,7 @@ from twisterlib.environment import TwisterEnv
 from twisterlib.harness import Harness, HarnessImporter
 from twisterlib.log_helper import log_command
 from twisterlib.platform import Platform
+from twisterlib.sidecar import SidecarImporter
 from twisterlib.testinstance import TestInstance
 from twisterlib.testplan import change_skip_to_error_if_integration
 from twisterlib.testsuite import TestSuite
@@ -1907,9 +1908,23 @@ class ProjectBuilder(FilterBuilder):
                 logger.error(instance.reason)
                 return
 
-            # If the harness does not handle execution itself, delegate to the handler.
-            if not harness.run(instance.handler.get_test_timeout()):
-                instance.handler.handle(harness)
+            # A sidecar (selected with the `sidecar:` field, or attached by
+            # twister e.g. for ivshmem coverage) provisions a host-side resource
+            # around the run, e.g. a virtiofsd daemon or an ivshmem backing file.
+            sidecar = SidecarImporter.get_sidecar(instance.sidecar)
+            if sidecar is not None:
+                sidecar.configure(instance)
+
+            # If the harness does not handle execution itself, delegate to the
+            # handler, wrapping it with the sidecar's setup/teardown.
+            if not harness.run(instance.handler.get_test_timeout()) and (
+                sidecar is None or sidecar.setup()
+            ):
+                try:
+                    instance.handler.handle(harness)
+                finally:
+                    if sidecar is not None:
+                        sidecar.teardown()
 
         sys.stdout.flush()
 

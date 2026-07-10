@@ -463,6 +463,7 @@ class TestSuite:
         self._status = TwisterStatus.NONE
 
         self.harness_config: HarnessConfig | None = None
+        self.sidecar: str | None = None
         self.required_applications: list[RequiredApplication] = []
 
         if data:

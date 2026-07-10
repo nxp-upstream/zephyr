@@ -1133,6 +1133,49 @@ The following is an example yaml file with a few harness_config options.
    harness/shell
 
 
+.. _twister_sidecars:
+
+Sidecars
+********
+
+Some tests need a host-side resource to exist for the duration of a run: a
+daemon the emulated guest talks to, a shared memory region the host reads back
+afterwards, or a network interface the guest attaches to. A *sidecar* models
+this. It is selected with the ``sidecar:`` entry in a test scenario's
+:file:`testcase.yaml`/:file:`sample.yaml` and is orthogonal to the harness: the
+harness interprets the guest's output while the sidecar provisions the host side
+around the run. Any harness (``console`` for a sample, ``ztest`` for a test,
+...) can therefore be paired with any sidecar.
+
+.. code-block:: yaml
+
+   tests:
+     some.test:
+       harness: ztest
+       sidecar: <name>
+
+A sidecar has a small lifecycle, driven by Twister for each test instance:
+
+#. **configure** -- the sidecar reads what it needs from the instance and its
+   ``harness_config`` before anything is provisioned.
+#. **setup** -- called just before the handler runs the test image; it brings
+   the host resource up (starts a daemon, creates an interface, ...). If the
+   host side is unavailable -- a required tool is not installed, or bringing the
+   resource up needs privileges that are not present -- setup reports this and
+   Twister *skips* execution instead of failing the test.
+#. **teardown** -- called after the handler returns, in a ``finally`` block, so
+   it always runs even if the test failed or timed out. It releases the resource
+   and may also collect data the guest left behind (for example reading a shared
+   memory region back into the build directory).
+
+Because provisioning is decoupled from output processing, Twister can also
+attach a sidecar to an instance itself, without the test opting in -- for
+example to route coverage data off a guest that has no other host transport.
+
+Each sidecar defines its own ``harness_config`` keys for the resource it
+manages.
+
+
 Selecting platform scope
 ************************
 

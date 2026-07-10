@@ -106,6 +106,10 @@ class TestInstance:
         self.required_applications = []
         self.required_build_dirs = []
         self.reserved_duts: list[CompoundHardwareData] = []
+        # Sidecar and DT overlay attached to this instance by twister (e.g. for
+        # ivshmem coverage); take precedence over the testsuite `sidecar:` field.
+        self.sidecar = testsuite.sidecar
+        self.dtc_overlay = None
 
     def setup_run_id(self):
         self.run_id = self._get_run_id()
