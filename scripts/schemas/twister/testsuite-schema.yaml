@@ -178,6 +178,18 @@ $defs:
             type: array
             items:
               type: string
+          net_iface:
+            type: string
+          net_config:
+            type: string
+          net_setup_script:
+            type: string
+          net_tools_apps:
+            type: array
+            items:
+              type: string
+          net_shared_subnet:
+            type: boolean
           tests_scripts:
             type: array
             items:

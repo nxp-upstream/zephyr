@@ -59,6 +59,8 @@ from twisterlib.platform import Platform
 from twisterlib.sidecar import (
     SidecarImporter,
     get_ivshmem_backing_path,
+    get_net_addresses,
+    get_net_iface_name,
     get_virtiofs_socket_path,
 )
 from twisterlib.testinstance import TestInstance
@@ -721,6 +723,22 @@ class CMake:
         # test's own overlays.
         if self.instance.dtc_overlay:
             cmake_args.append(f'-DEXTRA_DTC_OVERLAY_FILE={self.instance.dtc_overlay}')
+
+        # The net-tools sidecar creates a per-instance host tap on its own subnet;
+        # bake the matching interface name (so QEMU attaches to it) and, unless the
+        # test supplies its own net config, the guest/peer IPv4 addresses so both
+        # ends agree and parallel runs do not collide.
+        if self.instance.sidecar == 'net-tools':
+            harness_config = self.instance.testsuite.harness_config or {}
+            iface = harness_config.get('net_iface') or get_net_iface_name(self.build_dir)
+            cmake_args.append(f'-DCONFIG_ETH_QEMU_IFACE_NAME="{iface}"')
+            # A shared subnet (or an explicit net config) means the test keeps its
+            # own addresses; only the private per-instance subnet is baked in.
+            if not harness_config.get('net_config') \
+                    and not harness_config.get('net_shared_subnet'):
+                host_ip, guest_ip, _ = get_net_addresses(self.build_dir)
+                cmake_args.append(f'-DCONFIG_NET_CONFIG_MY_IPV4_ADDR="{guest_ip}"')
+                cmake_args.append(f'-DCONFIG_NET_CONFIG_PEER_IPV4_ADDR="{host_ip}"')
 
         cmake = shutil.which('cmake')
         cmd = [cmake] + cmake_args

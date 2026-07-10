@@ -108,7 +108,10 @@ class TestInstance:
         self.reserved_duts: list[CompoundHardwareData] = []
         # Sidecar and DT overlay attached to this instance by twister (e.g. for
         # ivshmem coverage); take precedence over the testsuite `sidecar:` field.
+        # The net harness implies the net-tools sidecar unless one is set.
         self.sidecar = testsuite.sidecar
+        if self.sidecar is None and testsuite.harness == 'net':
+            self.sidecar = 'net-tools'
         self.dtc_overlay = None
 
     def setup_run_id(self):
@@ -315,6 +318,11 @@ class TestInstance:
                 simulator.name in SUPPORTED_SIMS_WITH_EXEC and \
                 not simulator.is_runnable():
             target_ready = False
+
+        # The net harness only runs once a test defines a pass condition (regex);
+        # otherwise it stays build-only, as it was as a plain build marker.
+        if self.testsuite.harness == 'net' and not self.testsuite.harness_config.regex:
+            return False
 
         if testsuite_runnable := self.testsuite.harness in SUPPORTED_HARNESSES:
             if device_testing:

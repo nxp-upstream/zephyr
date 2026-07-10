@@ -395,6 +395,25 @@ class Console(Harness):
             tc.status = TwisterStatus.FAIL
 
 
+class Net(Console):
+    """Console harness for QEMU network tests, backed by the net-tools sidecar.
+
+    ``harness: net`` has historically been a build-only marker for tests that
+    need a host network environment (a tap interface, companion daemons) that
+    twister could not set up. This makes it a real, runnable harness: it parses
+    the guest's console output with the usual ``regex`` patterns, and twister
+    attaches the ``net-tools`` sidecar to the instance (unless it already sets a
+    ``sidecar``) so the host side is brought up automatically. See
+    :class:`~twisterlib.sidecar.NetToolsSidecar` for the ``net_tools_apps`` and
+    related ``harness_config`` keys.
+
+    A ``harness: net`` test only becomes runnable once it configures ``regex``
+    (i.e. it has been given a pass condition); without it the test still only
+    builds, preserving the previous behaviour for the many not-yet-migrated
+    network samples.
+    """
+
+
 class Script(Harness):
 
     def __init__(self):

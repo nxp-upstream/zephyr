@@ -54,6 +54,11 @@ class HarnessConfig:
     virtiofs_shared: str | None = None
     virtiofsd_bin: str | None = None
     virtiofs_extra_args: list[str] = field(default_factory=list)
+    net_iface: str | None = None
+    net_config: str | None = None
+    net_setup_script: str | None = None
+    net_tools_apps: list[str] = field(default_factory=list)
+    net_shared_subnet: bool = False
     tests_scripts: list[str] = field(default_factory=list)
     ztest_suite_repeat: int | None = None
     ztest_test_repeat: int | None = None

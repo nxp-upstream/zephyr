@@ -54,6 +54,7 @@ SUPPORTED_HARNESSES = [
     'ctest',
     'bsim',
     'script',
+    'net',
 ] + PYTEST_HARNESSES
 
 # Host-side sidecars selectable with the `sidecar:` testsuite field, provisioned
@@ -61,4 +62,5 @@ SUPPORTED_HARNESSES = [
 SUPPORTED_SIDECARS = [
     'virtiofs',
     'ivshmem',
+    'net-tools',
 ]
