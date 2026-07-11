@@ -64,6 +64,9 @@ class HarnessConfig:
     ivshmem_server_vectors: int | None = None
     can_iface: str | None = None
     can_tools_apps: list[str] = field(default_factory=list)
+    bumble_addresses: list[str] = field(default_factory=list)
+    bumble_devices: list[str] = field(default_factory=list)
+    bumble_controllers_script: str | None = None
     tests_scripts: list[str] = field(default_factory=list)
     ztest_suite_repeat: int | None = None
     ztest_test_repeat: int | None = None

@@ -10,6 +10,7 @@ from unittest import mock
 from twisterlib.sidecar import (
     IVSHMEM_COV_MAGIC,
     IVSHMEM_TRACE_MAGIC,
+    BumbleSidecar,
     CanSidecar,
     IvshmemServerSidecar,
     IvshmemSidecar,
@@ -50,6 +51,7 @@ def test_sidecar_importer_resolves_names():
     assert isinstance(SidecarImporter.get_sidecar('ivshmem-server'), IvshmemServerSidecar)
     assert isinstance(SidecarImporter.get_sidecar('net-tools'), NetToolsSidecar)
     assert isinstance(SidecarImporter.get_sidecar('can'), CanSidecar)
+    assert isinstance(SidecarImporter.get_sidecar('bumble'), BumbleSidecar)
     assert SidecarImporter.get_sidecar(None) is None
     assert SidecarImporter.get_sidecar('') is None
     assert SidecarImporter.get_sidecar('nope') is None
@@ -471,3 +473,77 @@ def test_can_creates_iface_starts_app_and_cleans_up(tmp_path):
 
     term_mock.assert_called_once_with(app_proc)
     assert ["ip", "link", "del", "zcan7"] in calls
+
+
+# --- bumble -----------------------------------------------------------------
+
+def test_bumble_setup_skips_when_controllers_script_missing(tmp_path):
+    instance = _make_instance(tmp_path)
+    sidecar = BumbleSidecar()
+    sidecar.configure(instance)
+    sidecar.script = None
+
+    with mock.patch("subprocess.Popen") as popen_mock:
+        proceed = sidecar.setup()
+
+    assert proceed is False
+    popen_mock.assert_not_called()
+    assert instance.status == TwisterStatus.SKIP
+
+
+def test_bumble_setup_starts_controllers_injects_bt_dev_and_launches_peers(tmp_path):
+    instance = _make_instance(tmp_path, {
+        "bumble_addresses": ["AA", "BB"],
+        "bumble_devices": [
+            "--peer_bd_address={addr1} -test=central",
+            "--peer_bd_address={addr0} -test=peripheral",
+        ],
+    })
+    os.makedirs(os.path.join(instance.build_dir, "zephyr"), exist_ok=True)
+    instance.handler = mock.Mock(extra_test_args=None)
+    sidecar = BumbleSidecar()
+    sidecar.configure(instance)
+    sidecar.script = "/framework/controllers.py"
+
+    ports = iter([5000, 5001])
+
+    with mock.patch("twisterlib.sidecar.allocate_tcp_port", lambda: next(ports)), \
+         mock.patch.object(BumbleSidecar, "_wait_for_ports", return_value=True), \
+         mock.patch("subprocess.Popen") as popen_mock:
+        assert sidecar.setup() is True
+
+    # First Popen starts the linked controllers as port@addr pairs.
+    controllers_cmd = popen_mock.call_args_list[0].args[0]
+    assert controllers_cmd[:2] == ["python3", "/framework/controllers.py"]
+    assert controllers_cmd[2:] == ["tcp-server:_:5000@AA", "tcp-server:_:5001@BB"]
+
+    # This guest (device 0) gets --bt-dev for controller 0 with {addr1} resolved.
+    assert instance.handler.extra_test_args == [
+        "--bt-dev=127.0.0.1:5000", "--peer_bd_address=BB", "-test=central"
+    ]
+
+    # Device 1 is launched as a peer on controller 1 with {addr0} resolved.
+    peer_cmd = popen_mock.call_args_list[1].args[0]
+    assert peer_cmd[0].endswith("zephyr.exe")
+    assert peer_cmd[1:] == [
+        "--bt-dev=127.0.0.1:5001", "--peer_bd_address=AA", "-test=peripheral"
+    ]
+
+
+def test_bumble_teardown_fails_instance_when_peer_fails(tmp_path):
+    instance = _make_instance(tmp_path)
+    instance.status = TwisterStatus.PASS
+    sidecar = BumbleSidecar()
+    sidecar.configure(instance)
+
+    peer = mock.Mock()
+    peer.wait.return_value = 1  # peer exited non-zero
+    sidecar._peers = [(peer, mock.Mock())]
+    sidecar._proc = mock.Mock()
+    sidecar._log = mock.Mock()
+
+    with mock.patch("twisterlib.sidecar.terminate_process"):
+        sidecar.teardown()
+
+    assert instance.status == TwisterStatus.FAIL
+    assert "peer" in instance.reason.lower()

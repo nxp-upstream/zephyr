@@ -65,4 +65,5 @@ SUPPORTED_SIDECARS = [
     'ivshmem-server',
     'net-tools',
     'can',
+    'bumble',
 ]
