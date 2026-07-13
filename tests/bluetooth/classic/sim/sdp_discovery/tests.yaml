@@ -3,31 +3,51 @@ common:
     - bluetooth
   platform_allow:
     - native_sim
-  harness: script
-
+  harness: ztest
+  sidecar: bumble
 tests:
   bluetooth.classic.sim.sdp.discover.no_records:
     timeout: 30
     harness_config:
-      tests_scripts:
-        - tests_scripts/no_sdp_records.sh
+      bumble_addresses:
+        - 00:00:01:00:00:01
+        - 00:00:01:00:00:02
+      bumble_devices:
+        - --peer_bd_address=00:00:01:00:00:02 -test=sdp_client::test_01_no_sdp_records
+        - --peer_bd_address=00:00:01:00:00:01 -test=sdp_server::test_01_no_sdp_records
   bluetooth.classic.sim.sdp.discover.one_record:
     timeout: 60
     harness_config:
-      tests_scripts:
-        - tests_scripts/one_sdp_record.sh
+      bumble_addresses:
+        - 00:00:01:00:00:01
+        - 00:00:01:00:00:02
+      bumble_devices:
+        - --peer_bd_address=00:00:01:00:00:02 -test=sdp_client::test_02_one_sdp_record
+        - --peer_bd_address=00:00:01:00:00:01 -test=sdp_server::test_02_one_sdp_record
   bluetooth.classic.sim.sdp.discover.one_record_with_range:
     timeout: 90
     harness_config:
-      tests_scripts:
-        - tests_scripts/one_sdp_record_with_range.sh
+      bumble_addresses:
+        - 00:00:01:00:00:01
+        - 00:00:01:00:00:02
+      bumble_devices:
+        - --peer_bd_address=00:00:01:00:00:02 -test=sdp_client::test_03_one_sdp_record_with_range
+        - --peer_bd_address=00:00:01:00:00:01 -test=sdp_server::test_03_one_sdp_record_with_range
   bluetooth.classic.sim.sdp.discover.multiple_records:
     timeout: 60
     harness_config:
-      tests_scripts:
-        - tests_scripts/multiple_sdp_records.sh
+      bumble_addresses:
+        - 00:00:01:00:00:01
+        - 00:00:01:00:00:02
+      bumble_devices:
+        - --peer_bd_address=00:00:01:00:00:02 -test=sdp_client::test_04_multiple_sdp_records
+        - --peer_bd_address=00:00:01:00:00:01 -test=sdp_server::test_04_multiple_sdp_records
   bluetooth.classic.sim.sdp.discover.multiple_records_with_range:
     timeout: 120
     harness_config:
-      tests_scripts:
-        - tests_scripts/multiple_sdp_records_with_range.sh
+      bumble_addresses:
+        - 00:00:01:00:00:01
+        - 00:00:01:00:00:02
+      bumble_devices:
+        - --peer_bd_address=00:00:01:00:00:02 -test=sdp_client::test_05_multiple_sdp_records_with_range
+        - --peer_bd_address=00:00:01:00:00:01 -test=sdp_server::test_05_multiple_sdp_records_with_range
