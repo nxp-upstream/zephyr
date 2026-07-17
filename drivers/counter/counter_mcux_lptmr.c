@@ -16,6 +16,7 @@
 #endif /* CONFIG_GIC */
 #include <fsl_lptmr.h>
 #include <zephyr/spinlock.h>
+#include <zephyr/pm/device.h>
 
 /*
  * Skip the instance reserved as the system timer via zephyr,system-timer.
@@ -456,6 +457,20 @@ static int mcux_lptmr_reset(const struct device *dev)
 	return 0;
 }
 
+static int mcux_lptmr_pm_action(const struct device *dev, enum pm_device_action action)
+{
+	ARG_UNUSED(dev);
+	ARG_UNUSED(action);
+
+	/*
+	 * No device-managed power state: the LPTMR keeps running across the SoC
+	 * low-power states so it can serve as the system-timer wakeup companion.
+	 * The action callback exists only so the device can be registered as a
+	 * wakeup source via pm_device_wakeup_enable().
+	 */
+	return 0;
+}
+
 static int mcux_lptmr_init(const struct device *dev)
 {
 	const struct mcux_lptmr_config *config = dev->config;
@@ -479,7 +494,7 @@ static int mcux_lptmr_init(const struct device *dev)
 
 	config->irq_config_func(dev);
 
-	return 0;
+	return pm_device_driver_init(dev, mcux_lptmr_pm_action);
 }
 
 static DEVICE_API(counter, mcux_lptmr_driver_api) = {
@@ -568,7 +583,9 @@ static DEVICE_API(counter, mcux_lptmr_driver_api) = {
 		.irq_config_func = mcux_lptmr_irq_config_##n,			\
 	};									\
 										\
-	DEVICE_DT_INST_DEFINE(n, &mcux_lptmr_init, NULL,			\
+	PM_DEVICE_DT_INST_DEFINE(n, mcux_lptmr_pm_action);			\
+										\
+	DEVICE_DT_INST_DEFINE(n, &mcux_lptmr_init, PM_DEVICE_DT_INST_GET(n),	\
 		&mcux_lptmr_data_##n,						\
 		&mcux_lptmr_config_##n,						\
 		POST_KERNEL, CONFIG_COUNTER_INIT_PRIORITY,			\
