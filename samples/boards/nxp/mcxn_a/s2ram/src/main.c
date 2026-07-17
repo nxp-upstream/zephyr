@@ -87,21 +87,19 @@ static void on_pm_state_exit(enum pm_state state)
 static struct pm_notifier button_pm_notifier = {
 	.state_exit = on_pm_state_exit,
 };
-#else
-/* LPTMR0 (the system-timer companion) reaches the core as a WUU internal-module
- * wakeup source.
- */
-static const struct wuc_dt_spec timer_wakeup = WUC_DT_SPEC_GET(DT_NODELABEL(lptmr0));
-#endif /* CONFIG_SAMPLE_S2RAM_WAKEUP_BUTTON */
 
 static void arm_wakeup_source(void)
 {
-#if defined(CONFIG_SAMPLE_S2RAM_WAKEUP_BUTTON)
 	(void)wuc_enable_wakeup_source_dt(&button);
-#else
-	(void)wuc_enable_wakeup_source_dt(&timer_wakeup);
-#endif
 }
+#else
+/*
+ * LPTMR0 is the system-timer low-power companion. It is declared wakeup-capable
+ * in devicetree and enabled as a wakeup source by the system-timer LPM layer, so
+ * the counter driver arms the WUU automatically whenever the tickless idle path
+ * schedules the wakeup alarm - the application does not touch the WUU here.
+ */
+#endif /* CONFIG_SAMPLE_S2RAM_WAKEUP_BUTTON */
 
 static void app_thread(void *p1, void *p2, void *p3)
 {
@@ -123,10 +121,12 @@ static void app_thread(void *p1, void *p2, void *p3)
 		/* Let the UART finish shifting out the line above before DPD cuts its clock. */
 		k_busy_wait(2000);
 
-#if defined(CONFIG_SOC_SERIES_MCXAXX6) || defined(CONFIG_SOC_SERIES_MCXAXX7)
+#if defined(CONFIG_SAMPLE_S2RAM_WAKEUP_BUTTON) &&				\
+	(defined(CONFIG_SOC_SERIES_MCXAXX6) || defined(CONFIG_SOC_SERIES_MCXAXX7))
 		/* On MCXAxx6 / MCXAxx7 the Deep Power Down wakeup reset clears the
-		 * WUU wakeup-source configuration, so the source has to be re-armed
-		 * before every entry.
+		 * WUU wakeup-source configuration, so the button source has to be
+		 * re-armed before every entry. The timer companion re-arms itself
+		 * through the counter driver on each scheduled alarm.
 		 */
 		arm_wakeup_source();
 #endif
@@ -162,13 +162,14 @@ int main(void)
 	pm_policy_state_lock_get(PM_STATE_STANDBY, PM_ALL_SUBSTATES);
 	pm_policy_state_lock_get(PM_STATE_SUSPEND_TO_RAM, PM_ALL_SUBSTATES);
 
-	/* The application selects and enables its own wakeup source through the
-	 * WUC subsystem; the SoC power code does not hard-code one.
+	/* The button variant arms its own WUU external-pin source here; the timer
+	 * variant relies on the system-timer companion (LPTMR0), which the counter
+	 * driver arms as a WUU wakeup source on its own.
 	 */
 #if defined(CONFIG_SAMPLE_S2RAM_WAKEUP_BUTTON)
 	pm_notifier_register(&button_pm_notifier);
-#endif
 	arm_wakeup_source();
+#endif
 
 	k_thread_create(&app_thread_data, app_stack, APP_STACK_SIZE, app_thread,
 			NULL, NULL, NULL, APP_PRIORITY, 0, K_NO_WAIT);

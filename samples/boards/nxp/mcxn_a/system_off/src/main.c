@@ -13,11 +13,10 @@
 
 #if defined(CONFIG_SAMPLE_SYSTEM_OFF_WAKEUP_TIMER)
 #include <zephyr/drivers/counter.h>
+#include <zephyr/pm/device.h>
 
 #define WAKEUP_DELAY_S 5U
 static const struct device *const lptmr = DEVICE_DT_GET(DT_NODELABEL(lptmr0));
-/* LPTMR0 reaches the core as a WUU internal-module wakeup source. */
-static const struct wuc_dt_spec wakeup = WUC_DT_SPEC_GET(DT_NODELABEL(lptmr0));
 #else
 /* The wakeup button (a WUU external pin) is described per board and aliased as
  * "wakeup-button".
@@ -97,6 +96,11 @@ static int arm_timer_wakeup(void)
 		.flags = 0,
 	};
 
+	/* Mark LPTMR0 as an enabled wakeup source so the counter driver arms the
+	 * WUU when the alarm is set below; the driver owns the WUU routing.
+	 */
+	(void)pm_device_wakeup_enable(lptmr, true);
+
 	(void)counter_start(lptmr);
 
 	return counter_set_channel_alarm(lptmr, 0, &cfg);
@@ -129,11 +133,6 @@ int main(void)
 		return 0;
 	}
 
-	if (!device_is_ready(wakeup.dev)) {
-		printk("WUC device %s not ready\n", wakeup.dev->name);
-		return 0;
-	}
-
 #if defined(CONFIG_SAMPLE_SYSTEM_OFF_WAKEUP_TIMER)
 	if (!device_is_ready(lptmr)) {
 		printk("LPTMR counter device not ready\n");
@@ -145,13 +144,18 @@ int main(void)
 		printk("Failed to arm LPTMR wakeup (%d)\n", ret);
 		return 0;
 	}
-#endif
+#else
+	if (!device_is_ready(wakeup.dev)) {
+		printk("WUC device %s not ready\n", wakeup.dev->name);
+		return 0;
+	}
 
 	ret = wuc_enable_wakeup_source_dt(&wakeup);
 	if (ret < 0) {
 		printk("Failed to enable wakeup source (%d)\n", ret);
 		return 0;
 	}
+#endif
 
 	cycles++;
 	retain_counter_ram();
