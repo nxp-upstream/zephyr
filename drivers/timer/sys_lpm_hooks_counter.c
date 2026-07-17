@@ -7,8 +7,10 @@
  */
 
 #include <zephyr/device.h>
+#include <zephyr/init.h>
 #include <zephyr/drivers/counter.h>
 #include <zephyr/drivers/timer/system_timer_lpm.h>
+#include <zephyr/pm/device.h>
 
 #if defined(CONFIG_CORTEX_M_SYSTICK) && !DT_HAS_CHOSEN(zephyr_system_timer_companion)
 /*
@@ -46,6 +48,25 @@ static void stub_alarm_callback(const struct device *dev, uint8_t chan_id,
 	ARG_UNUSED(ticks);
 	ARG_UNUSED(user_data);
 }
+
+/*
+ * Some SoCs keep the companion counter behind a wakeup controller (e.g. the NXP
+ * WUU): its alarm only wakes the core when the counter is armed as a wakeup
+ * source. Mark it enabled here, but only when the platform declared the counter
+ * wakeup-capable in devicetree (wakeup-source). A companion whose interrupt
+ * reaches the core directly is not wakeup-capable, stays unenabled, and its
+ * driver leaves any wakeup controller untouched.
+ */
+static int lpm_counter_wakeup_source_init(void)
+{
+	if (pm_device_wakeup_is_capable(lpm_counter)) {
+		(void)pm_device_wakeup_enable(lpm_counter, true);
+	}
+
+	return 0;
+}
+
+SYS_INIT(lpm_counter_wakeup_source_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
 
 void z_sys_clock_lpm_enter(uint64_t max_lpm_time_us)
 {
