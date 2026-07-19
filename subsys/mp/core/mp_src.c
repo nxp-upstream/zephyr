@@ -209,6 +209,22 @@ enum mp_state_change_return mp_src_change_state(struct mp_element *self,
 		}
 
 		break;
+	case MP_STATE_CHANGE_PAUSED_TO_READY:
+		/*
+		 * Stop the buffer pool on teardown. This is the counterpart of
+		 * the READY_TO_PAUSED start above and is what makes stop/replay
+		 * symmetric: e.g. the video pool issues video_stream_stop() and
+		 * releases its driver buffers here so a subsequent replay can
+		 * start streaming cleanly. A pool without a stop hook returns
+		 * -ENOSYS, which is not an error.
+		 */
+		pool_ret = mp_buffer_pool_stop(src->pool);
+		if (pool_ret != 0 && pool_ret != -ENOSYS) {
+			LOG_ERR("Failed to stop source buffer pool");
+			return MP_STATE_CHANGE_FAILURE;
+		}
+
+		break;
 	default:
 		break;
 	}
