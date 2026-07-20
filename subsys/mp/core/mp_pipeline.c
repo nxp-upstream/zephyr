@@ -155,11 +155,31 @@ static void mp_pipeline_thread_func(void *p1, void *p2, void *p3)
 	}
 
 	while (mp_thread_wait(&pipeline->thread) == 0) {
-		if ((src->num_buffers != 0 && count == src->num_buffers) ||
-		    src->pool->acquire_buffer(src->pool, &buffer) != 0) {
-			mp_dispatch_eos_init(&eos_event);
-			if (mp_pad_send_event(src->srcpad.peer, &eos_event) != 0) {
-				LOG_ERR("Failed to send EOS event downstream");
+		int acq_ret = 0;
+		bool reached_limit = (src->num_buffers != 0 && count == src->num_buffers);
+
+		if (!reached_limit) {
+			acq_ret = src->pool->acquire_buffer(src->pool, &buffer);
+		}
+
+		/*
+		 * EOS: playback sources reach the end of the file or
+		 * live sources reache the limit number of buffers (-ENODATA)
+		 */
+		bool is_eos = reached_limit || acq_ret == -ENODATA;
+
+		if (reached_limit || acq_ret != 0) {
+			if (is_eos) {
+				mp_dispatch_eos_init(&eos_event);
+				if (mp_pad_send_event(src->srcpad.peer, &eos_event) != 0) {
+					LOG_ERR("Failed to send EOS event downstream");
+				}
+			} else if (acq_ret != -EPIPE) {
+				/*
+				 * Not an EOS neither a forced-stop flush: a real error.
+				 * TODO: Ideally, post an ERROR message to the bus here.
+				 */
+				LOG_ERR("Source failed to acquire a buffer (%d)", acq_ret);
 			}
 			count = 0;
 			/* Self-pause: block in wait() until next resume */
