@@ -49,8 +49,27 @@ struct mp_zvid_buffer_pool {
 	struct mp_zvid_object *zvid_obj;
 	/** Array of video buffer pointers managed by the pool */
 	struct video_buffer *vbufs[CONFIG_VIDEO_BUFFER_POOL_NUM_MAX];
+	/**
+	 * Per-buffer in-flight markers, parallel to @ref vbufs. A buffer is
+	 * in-flight between acquire_buffer() (handed to the pipeline) and
+	 * release_buffer() (returned to its pool).
+	 */
+	bool in_flight[CONFIG_VIDEO_BUFFER_POOL_NUM_MAX];
 	/** Number of video buffers currently in this pool */
 	uint8_t vbuf_count;
+	/**
+	 * Flushing flag. Set at the start of stop() so that a buffer returned
+	 * after the stream has stopped is freed instead of re-enqueued into the
+	 * (now stopped) video device, and so a late acquire is refused.
+	 */
+	atomic_t flushing;
+	/**
+	 * Protects concurrent access to @ref vbufs and @ref in_flight between
+	 * stop() (control thread) and release_buffer()/acquire_buffer() (the
+	 * pipeline thread, which may still be running during teardown), so a
+	 * buffer is freed exactly once.
+	 */
+	struct k_spinlock lock;
 	/**
 	 * FIFO queue of available buffers for acquisition by the upstream element.
 	 * Only used by the input pool (VIDEO_BUF_TYPE_INPUT).
