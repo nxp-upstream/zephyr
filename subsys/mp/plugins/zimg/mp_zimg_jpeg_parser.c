@@ -15,6 +15,7 @@
 #include <zephyr/mp/core/mp_caps.h>
 #include <zephyr/mp/core/mp_buffer.h>
 #include <zephyr/mp/core/mp_dispatch.h>
+#include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_value.h>
 
 #include <zephyr/mp/zimg/mp_zimg_jpeg_parser.h>
@@ -328,13 +329,32 @@ static int mp_zimg_jpeg_parser_chainfn(struct mp_pad *pad, struct net_buf *in_bu
 	return 0;
 }
 
+static enum mp_state_change_return mp_zimg_jpeg_parser_change_state(struct mp_element *self,
+								    enum mp_state_change transition)
+{
+	struct mp_zimg_jpeg_parser *jpeg_parser = (struct mp_zimg_jpeg_parser *)self;
+
+	/*
+	 * On teardown (PAUSED -> READY), drop any leftover bytes in partial frame.
+	 * Otherwise, next stream's opening bytes get spliced onto these stale bytes,
+	 * producing a corrupt JPEG between replays.
+	 */
+	if (transition == MP_STATE_CHANGE_PAUSED_TO_READY &&
+	    jpeg_parser->partial_frame != NULL) {
+		net_buf_unref(jpeg_parser->partial_frame);
+		jpeg_parser->partial_frame = NULL;
+	}
+
+	return MP_STATE_CHANGE_SUCCESS;
+}
+
 void mp_zimg_jpeg_parser_init(struct mp_element *self)
 {
 	struct mp_parser *parser = (struct mp_parser *)self;
 	struct mp_zimg_jpeg_parser *jpeg_parser = (struct mp_zimg_jpeg_parser *)parser;
 
 	mp_parser_init(self);
-
+	self->change_state = mp_zimg_jpeg_parser_change_state;
 	jpeg_parser->partial_frame = NULL;
 
 	/* Get supported caps */
