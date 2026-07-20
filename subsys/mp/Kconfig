@@ -22,4 +22,7 @@ source "subsys/mp/core/Kconfig"
 # Load plugin configurations
 source "subsys/mp/plugins/Kconfig"
 
+# Load utility configurations
+source "subsys/mp/utils/Kconfig"
+
 endif # MP
