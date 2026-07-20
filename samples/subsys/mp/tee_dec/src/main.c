@@ -27,6 +27,7 @@
 #include <zephyr/mp/zfs/mp_zfilesrc.h>
 #include <zephyr/mp/zimg/mp_zimg_jpeg_decoder.h>
 #include <zephyr/mp/zimg/mp_zimg_jpeg_parser.h>
+#include <zephyr/mp/utils/mp_player.h>
 
 LOG_MODULE_REGISTER(main, CONFIG_LOG_DEFAULT_LEVEL);
 
@@ -116,7 +117,6 @@ static int mount_sd(void)
 	return embed_test_file();
 }
 
-/* Pipeline elements */
 static struct mp_pipeline pipe;
 static struct mp_zfilesrc filesrc;
 static struct mp_zimg_jpeg_parser jpeg_parser;
@@ -127,6 +127,7 @@ static struct mp_zimg_jpeg_decoder jpeg_dec;
 static struct mp_zdisp_sink disp_sink;
 static struct mp_queue queue2;
 static struct mp_zfilesink filesink;
+static struct mp_player player;
 
 int main(void)
 {
@@ -214,35 +215,17 @@ int main(void)
 		goto err;
 	}
 
-	LOG_INF("Pipeline linked. Starting playback...");
+	LOG_INF("Pipeline linked.");
 
-	/* Start the pipeline */
-	if (mp_element_set_state((struct mp_element *)&pipe, MP_STATE_PLAYING) !=
-	    MP_STATE_CHANGE_SUCCESS) {
-		LOG_ERR("Failed to start pipeline");
+	ret = mp_player_init(&player, &pipe);
+	if (ret != 0) {
+		LOG_ERR("Failed to init player (%d)", ret);
 		goto err;
 	}
 
-	/* Wait for EOS or ERROR on the bus */
-	struct mp_bus *bus = mp_element_get_bus((struct mp_element *)&pipe);
-	struct mp_message msg;
-
-	mp_bus_pop_msg(bus, MP_MESSAGE_ERROR | MP_MESSAGE_EOS, &msg);
-
-	switch (msg.type) {
-	case MP_MESSAGE_ERROR:
-		LOG_ERR("ERROR message from element %d", msg.origin->object.id);
-		break;
-	case MP_MESSAGE_EOS:
-		LOG_INF("EOS message from element %d", msg.origin->object.id);
-		break;
-	default:
-		LOG_ERR("Unexpected message from element %d", msg.origin->object.id);
-		break;
-	}
-
-	/* Stop the pipeline */
-	(void)mp_element_set_state((struct mp_element *)&pipe, MP_STATE_READY);
+	(void)mp_player_play(&player);
+	(void)mp_player_wait_quit(&player);
+	(void)mp_player_deinit(&player);
 
 	ret = fs_unmount(&mnt);
 	if (ret != 0) {
@@ -252,6 +235,7 @@ int main(void)
 	LOG_INF("Done.");
 
 	return 0;
+
 
 err:
 	LOG_ERR("Aborting sample");

@@ -12,6 +12,7 @@
 #include <zephyr/mp/zdisp/mp_zdisp_sink.h>
 #include <zephyr/mp/zvid/mp_zvid_src.h>
 #include <zephyr/mp/zvid/mp_zvid_property.h>
+#include <zephyr/mp/utils/mp_player.h>
 #if DT_HAS_CHOSEN(zephyr_jpegdec) || DT_HAS_CHOSEN(zephyr_videotrans)
 #include <zephyr/mp/zvid/mp_zvid_transform.h>
 #endif
@@ -46,6 +47,7 @@ static struct mp_zvid_convert vid_conv;
 #if (DT_HAS_CHOSEN(zephyr_videotrans))
 static struct mp_zvid_transform vid_trans;
 #endif
+static struct mp_player player;
 
 int main(void)
 {
@@ -158,34 +160,19 @@ int main(void)
 	}
 	/* clang-format on */
 
-	/* Start playing */
-	if (mp_element_set_state((struct mp_element *)&pipe, MP_STATE_PLAYING) !=
-	    MP_STATE_CHANGE_SUCCESS) {
-		LOG_ERR("Failed to start pipeline");
+	LOG_INF("Pipeline linked.");
+
+	ret = mp_player_init(&player, &pipe);
+	if (ret != 0) {
+		LOG_ERR("Failed to init player (%d)", ret);
 		goto err;
 	}
 
-	/* Handle message from the pipeline */
-	struct mp_bus *bus = mp_element_get_bus((struct mp_element *)&pipe);
-	/* Wait until an Error or an EOS - blocking */
-	struct mp_message msg;
+	(void)mp_player_play(&player);
+	(void)mp_player_wait_quit(&player);
+	(void)mp_player_deinit(&player);
 
-	mp_bus_pop_msg(bus, MP_MESSAGE_ERROR | MP_MESSAGE_EOS, &msg);
-
-	switch (msg.type) {
-	case MP_MESSAGE_ERROR:
-		LOG_ERR("ERROR message from element %d", msg.origin->object.id);
-		break;
-	case MP_MESSAGE_EOS:
-		LOG_INF("EOS message from element %d", msg.origin->object.id);
-		break;
-	default:
-		LOG_ERR("Unexpected message from element %d", msg.origin->object.id);
-		break;
-	}
-
-	/* Stop/Deinit the pipeline */
-	(void)mp_element_set_state((struct mp_element *)&pipe, MP_STATE_READY);
+	LOG_INF("Done.");
 
 	return 0;
 

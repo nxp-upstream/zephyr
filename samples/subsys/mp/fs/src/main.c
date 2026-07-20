@@ -111,6 +111,8 @@ int main(void)
 		goto err;
 	}
 
+	LOG_INF("Pipeline linked.");
+
 	/* Start the pipeline */
 	if (mp_element_set_state((struct mp_element *)&pipe, MP_STATE_PLAYING) !=
 	    MP_STATE_CHANGE_SUCCESS) {
@@ -144,6 +146,8 @@ int main(void)
 	if (ret != 0) {
 		LOG_ERR("Failed to unmount disk (%d)", ret);
 	}
+
+	LOG_INF("Done.");
 
 	return 0;
 
