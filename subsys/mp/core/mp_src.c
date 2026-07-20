@@ -9,6 +9,8 @@
 #include <zephyr/mp/core/mp_buffer.h>
 #include <zephyr/mp/core/mp_caps.h>
 #include <zephyr/mp/core/mp_dispatch.h>
+#include <zephyr/mp/core/mp_element.h>
+#include <zephyr/mp/core/mp_object.h>
 #include <zephyr/mp/core/mp_pad.h>
 #include <zephyr/mp/core/mp_property.h>
 #include <zephyr/mp/core/mp_src.h>
@@ -16,6 +18,25 @@
 LOG_MODULE_REGISTER(mp_src, CONFIG_MP_LOG_LEVEL);
 
 #define MP_PAD_SRC_ID 0
+
+/*
+ * Optional, opt-in destructor for a source element. It is NOT called
+ * automatically during the play/pause/stop/replay lifecycle; it only runs when
+ * the caller explicitly drops the element's last reference via
+ * mp_object_unref(). It frees the internal template caps owned by the source
+ * and then chains to mp_element_release() to free the pad caps.
+ */
+static void mp_src_release(struct mp_object *obj)
+{
+	struct mp_src *src = (struct mp_src *)obj;
+
+	if (src->src_caps != NULL) {
+		mp_caps_unref(src->src_caps);
+		src->src_caps = NULL;
+	}
+
+	mp_element_release(obj);
+}
 
 int mp_src_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
@@ -245,6 +266,13 @@ void mp_src_init(struct mp_element *self)
 	self->object.set_property = mp_src_set_property;
 	self->object.get_property = mp_src_get_property;
 	self->change_state = mp_src_change_state;
+
+	/*
+	 * Opt-in destructor overriding the base one. See mp_src_release above:
+	 * it is only invoked when the caller explicitly drops the element's last
+	 * reference and is never called by the play/pause/stop/replay lifecycle.
+	 */
+	self->object.release = mp_src_release;
 
 	src->get_caps = mp_src_get_caps;
 	src->set_caps = mp_src_set_caps;

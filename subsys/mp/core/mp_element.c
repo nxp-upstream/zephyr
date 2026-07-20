@@ -8,11 +8,45 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mp/core/mp_bin.h>
+#include <zephyr/mp/core/mp_caps.h>
 #include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_dispatch.h>
+#include <zephyr/mp/core/mp_object.h>
 #include <zephyr/mp/core/mp_pad.h>
 
 LOG_MODULE_REGISTER(mp_element, CONFIG_MP_LOG_LEVEL);
+
+/*
+ * Optional, opt-in destructor for an element's base resources. It is NOT
+ * called automatically during the play/pause/stop/replay lifecycle; it only
+ * runs when the caller explicitly drops the element's last reference via
+ * mp_object_unref(). It releases the caps stored on the element's pads (both
+ * the template caps set at init time and any negotiated caps stored later via
+ * mp_caps_replace). Derived element types that own extra caps chain to this
+ * from their own release callback.
+ */
+void mp_element_release(struct mp_object *obj)
+{
+	struct mp_element *element = (struct mp_element *)obj;
+	struct mp_object *pad_obj;
+	struct mp_pad *pad;
+
+	SYS_DLIST_FOR_EACH_CONTAINER(&element->srcpads, pad_obj, node) {
+		pad = (struct mp_pad *)pad_obj;
+		if (pad->caps != NULL) {
+			mp_caps_unref(pad->caps);
+			pad->caps = NULL;
+		}
+	}
+
+	SYS_DLIST_FOR_EACH_CONTAINER(&element->sinkpads, pad_obj, node) {
+		pad = (struct mp_pad *)pad_obj;
+		if (pad->caps != NULL) {
+			mp_caps_unref(pad->caps);
+			pad->caps = NULL;
+		}
+	}
+}
 
 void mp_element_add_pad(struct mp_element *element, struct mp_pad *pad)
 {
@@ -167,6 +201,16 @@ struct mp_bus *mp_element_get_bus(struct mp_element *element)
 void mp_element_init(struct mp_element *self, uint8_t id)
 {
 	self->object.id = id;
+
+	/*
+	 * The element is born with one reference held by its creator. Adding it
+	 * to a bin transfers this reference to the bin, so a bin's teardown
+	 * (mp_bin_release) drops it and triggers this optional release callback.
+	 * The release callback is opt-in: nothing in the play/pause/stop/replay
+	 * lifecycle calls mp_object_unref() on an element.
+	 */
+	self->object.ref = ATOMIC_INIT(1);
+	self->object.release = mp_element_release;
 
 	sys_dlist_init(&self->srcpads);
 	sys_dlist_init(&self->sinkpads);

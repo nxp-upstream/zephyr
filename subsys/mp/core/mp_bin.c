@@ -10,9 +10,35 @@
 #include <zephyr/sys/util.h>
 
 #include <zephyr/mp/core/mp_bin.h>
+#include <zephyr/mp/core/mp_element.h>
+#include <zephyr/mp/core/mp_object.h>
 #include <zephyr/mp/core/mp_pad.h>
 
 LOG_MODULE_REGISTER(mp_bin, CONFIG_MP_LOG_LEVEL);
+
+/*
+ * Optional, opt-in destructor for a bin. It is NOT called automatically during
+ * the play/pause/stop/replay lifecycle; it only runs when the caller explicitly
+ * drops the bin's last reference via mp_object_unref(). Each child was added
+ * with mp_bin_add(), which transfers the child's init reference to the bin, so
+ * dropping that reference here triggers each child's own release() callback and
+ * cascades the teardown. Finally it chains to mp_element_release() to free the
+ * bin's own pad caps.
+ */
+static void mp_bin_release(struct mp_object *obj)
+{
+	struct mp_bin *bin = (struct mp_bin *)obj;
+	struct mp_object *child_obj;
+	struct mp_object *tmp;
+
+	SYS_DLIST_FOR_EACH_CONTAINER_SAFE(&bin->children, child_obj, tmp, node) {
+		sys_dlist_remove(&child_obj->node);
+		bin->children_num--;
+		mp_object_unref(child_obj);
+	}
+
+	mp_element_release(obj);
+}
 
 int mp_bin_add(struct mp_bin *bin, struct mp_element *element, ...)
 {
@@ -200,6 +226,13 @@ void mp_bin_init(struct mp_element *self)
 	struct mp_bin *bin = (struct mp_bin *)self;
 
 	self->change_state = mp_bin_change_state_func;
+
+	/*
+	 * Opt-in destructor. See mp_bin_release above: it is only invoked when
+	 * the caller explicitly drops the bin's last reference and is never
+	 * called by the play/pause/stop/replay lifecycle.
+	 */
+	self->object.release = mp_bin_release;
 
 	sys_dlist_init(&bin->children);
 

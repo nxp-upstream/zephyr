@@ -43,6 +43,14 @@ static void pipeline_before(void *f)
 
 	memset(fix, 0, sizeof(*fix));
 
+	/*
+	 * Snapshot the heap usage before any element is initialized so that the
+	 * post-test comparison covers all allocations made from init through
+	 * teardown (the elements' template caps are allocated by the init calls
+	 * below).
+	 */
+	sys_heap_runtime_stats_get(&_system_heap.heap, &fix->mem_before);
+
 	MP_ELEMENT_INIT(&fix->pipeline, mp_pipeline_init, PIPE_ID);
 	MP_ELEMENT_INIT(&fix->fake_src, mp_fake_src_init, SRC_ID);
 	MP_ELEMENT_INIT(&fix->transform, mp_transform_init, TRANSFORM_ID);
@@ -52,8 +60,6 @@ static void pipeline_before(void *f)
 	zassert_ok(mp_object_set_properties((struct mp_object *)&fix->fake_src, PROP_NUM_BUFS,
 					    TEST_BUFS_NUM, PROP_LIST_END),
 		   "Failed to set fake_src PROP_NUM_BUFS");
-
-	sys_heap_runtime_stats_get(&_system_heap.heap, &fix->mem_before);
 }
 
 ZTEST_SUITE(test_mock_pipeline, NULL, pipeline_suite_setup, pipeline_before, NULL, NULL);
@@ -92,13 +98,15 @@ ZTEST_F(test_mock_pipeline, test_pipeline_fakesrc_transform_sink)
 		      MP_STATE_CHANGE_SUCCESS, "Pipeline failed to return to READY");
 
 	/*
-	 * The pad's caps hold the negotiated caps which are not automatically released upon
-	 * state change to READY, unref them here to avoid the memory leak false detection.
+	 * Fully tear down the pipeline via a single unref. The elements were
+	 * added with mp_bin_add(), which transfers each child's init reference
+	 * to the pipeline, so dropping the pipeline's last reference invokes the
+	 * bin's opt-in release() callback, which cascades to each child's
+	 * release() and frees both the internal template caps and the negotiated
+	 * pad caps that are not automatically released on the state change to
+	 * READY.
 	 */
-	mp_caps_unref(fixture->fake_src.src.srcpad.caps);
-	mp_caps_unref(fixture->transform.srcpad.caps);
-	mp_caps_unref(fixture->transform.sinkpad.caps);
-	mp_caps_unref(fixture->sink.sinkpad.caps);
+	mp_object_unref((struct mp_object *)&fixture->pipeline);
 
 	/* Check if heap memory was properly cleaned up */
 	sys_heap_runtime_stats_get(&_system_heap.heap, &mem_after);

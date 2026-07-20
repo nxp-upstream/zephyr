@@ -7,12 +7,38 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mp/core/mp_dispatch.h>
+#include <zephyr/mp/core/mp_element.h>
+#include <zephyr/mp/core/mp_object.h>
 #include <zephyr/mp/core/mp_transform.h>
 
 LOG_MODULE_REGISTER(mp_transform, CONFIG_MP_LOG_LEVEL);
 
 #define MP_PAD_SINK_ID 0
 #define MP_PAD_SRC_ID  1
+
+/*
+ * Optional, opt-in destructor for a transform element. It is NOT called
+ * automatically during the play/pause/stop/replay lifecycle; it only runs when
+ * the caller explicitly drops the element's last reference via
+ * mp_object_unref(). It frees the internal template caps owned by the transform
+ * and then chains to mp_element_release() to free the pad caps.
+ */
+static void mp_transform_release(struct mp_object *obj)
+{
+	struct mp_transform *transform = (struct mp_transform *)obj;
+
+	if (transform->sink_caps != NULL) {
+		mp_caps_unref(transform->sink_caps);
+		transform->sink_caps = NULL;
+	}
+
+	if (transform->src_caps != NULL) {
+		mp_caps_unref(transform->src_caps);
+		transform->src_caps = NULL;
+	}
+
+	mp_element_release(obj);
+}
 
 void mp_transform_update_caps(struct mp_transform *transform, struct mp_caps *sink_caps,
 			      struct mp_caps *src_caps)
@@ -322,6 +348,14 @@ void mp_transform_init(struct mp_element *self)
 		    transform->src_caps);
 	mp_element_add_pad(self, &transform->sinkpad);
 	mp_element_add_pad(self, &transform->srcpad);
+
+	/*
+	 * Opt-in destructor overriding the base one. See mp_transform_release
+	 * above: it is only invoked when the caller explicitly drops the
+	 * element's last reference and is never called by the
+	 * play/pause/stop/replay lifecycle.
+	 */
+	self->object.release = mp_transform_release;
 
 	transform->mode = MP_MODE_PASSTHROUGH;
 	transform->get_caps = mp_transform_get_caps;

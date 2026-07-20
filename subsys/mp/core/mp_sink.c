@@ -8,12 +8,33 @@
 
 #include <zephyr/mp/core/mp_bus.h>
 #include <zephyr/mp/core/mp_dispatch.h>
+#include <zephyr/mp/core/mp_element.h>
+#include <zephyr/mp/core/mp_object.h>
 #include <zephyr/mp/core/mp_sink.h>
 #include <zephyr/mp/core/mp_message.h>
 
 LOG_MODULE_REGISTER(mp_sink, CONFIG_MP_LOG_LEVEL);
 
 #define MP_PAD_SINK_ID 0
+
+/*
+ * Optional, opt-in destructor for a sink element. It is NOT called
+ * automatically during the play/pause/stop/replay lifecycle; it only runs when
+ * the caller explicitly drops the element's last reference via
+ * mp_object_unref(). It frees the internal template caps owned by the sink and
+ * then chains to mp_element_release() to free the pad caps.
+ */
+static void mp_sink_release(struct mp_object *obj)
+{
+	struct mp_sink *sink = (struct mp_sink *)obj;
+
+	if (sink->sink_caps != NULL) {
+		mp_caps_unref(sink->sink_caps);
+		sink->sink_caps = NULL;
+	}
+
+	mp_element_release(obj);
+}
 
 void mp_sink_update_caps(struct mp_sink *sink, struct mp_caps *caps)
 {
@@ -125,6 +146,13 @@ void mp_sink_init(struct mp_element *self)
 	sink->sink_caps = mp_caps_new_any();
 	mp_pad_init(&sink->sinkpad, MP_PAD_SINK_ID, MP_PAD_SINK, MP_PAD_ALWAYS, sink->sink_caps);
 	mp_element_add_pad(self, &sink->sinkpad);
+
+	/*
+	 * Opt-in destructor overriding the base one. See mp_sink_release above:
+	 * it is only invoked when the caller explicitly drops the element's last
+	 * reference and is never called by the play/pause/stop/replay lifecycle.
+	 */
+	self->object.release = mp_sink_release;
 
 	sink->sinkpad.queryfn = mp_sink_query;
 	sink->sinkpad.eventfn = mp_sink_event;
