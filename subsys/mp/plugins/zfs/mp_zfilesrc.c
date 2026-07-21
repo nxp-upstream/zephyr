@@ -197,11 +197,13 @@ static enum mp_state_change_return mp_zfilesrc_change_state(struct mp_element *s
 			return MP_STATE_CHANGE_FAILURE;
 		}
 		fsrc->file_open = true;
+		LOG_DBG("File is open");
 		break;
 	case MP_STATE_CHANGE_PAUSED_TO_READY:
 		if (fsrc->file_open) {
 			(void)fs_close(&fsrc->file);
 			fsrc->file_open = false;
+			LOG_DBG("File is closed");
 		}
 		break;
 	default:

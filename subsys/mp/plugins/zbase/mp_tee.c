@@ -52,6 +52,7 @@ static int mp_tee_sink_queryfn(struct mp_pad *pad, struct mp_dispatch *query)
 
 			/* Get pool configs from pool or standalone config */
 			struct mp_buffer_pool *pool = mp_dispatch_get_pool(query);
+
 			struct mp_buffer_pool_config *cfg =
 				(pool != NULL) ? &pool->config : mp_dispatch_get_pool_config(query);
 
