@@ -198,9 +198,9 @@ int mp_structure_len(struct mp_structure *structure)
 
 bool mp_structure_can_intersect(struct mp_structure *struct1, struct mp_structure *struct2)
 {
-	struct mp_structure *big_structure, *small_structure;
 	struct mp_structure_field *field;
 	struct mp_value *compared_value, *intersect_value;
+	bool can_intersect = false;
 
 	if (struct1 == NULL || struct2 == NULL) {
 		return false;
@@ -211,30 +211,22 @@ bool mp_structure_can_intersect(struct mp_structure *struct1, struct mp_structur
 		return false;
 	}
 
-	/* Check which one has more field than other */
-	if (mp_structure_len(struct1) >= mp_structure_len(struct2)) {
-		big_structure = struct1;
-		small_structure = struct2;
-	} else {
-		big_structure = struct2;
-		small_structure = struct1;
-	}
-
 	/* Check fields in struct1 against struct2 */
-	SYS_SLIST_FOR_EACH_CONTAINER(&big_structure->fields, field, node) {
-		compared_value = mp_structure_get_value(small_structure, field->field_id);
+	SYS_SLIST_FOR_EACH_CONTAINER(&struct1->fields, field, node) {
+		compared_value = mp_structure_get_value(struct2, field->field_id);
 		if (compared_value != NULL) {
-			/* Check if there is a full intersection */
 			intersect_value = mp_value_intersect(field->value, compared_value);
 			if (intersect_value != NULL) {
+				can_intersect = true;
 				mp_value_destroy(intersect_value);
 			} else {
-				return false;
+				can_intersect = false;
+				break;
 			}
 		}
 	}
 
-	return true;
+	return can_intersect;
 }
 
 struct mp_structure *mp_structure_intersect(struct mp_structure *struct1,
