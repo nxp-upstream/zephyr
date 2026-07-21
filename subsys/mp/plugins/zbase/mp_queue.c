@@ -68,11 +68,28 @@ static int mp_queue_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct n
 	struct mp_queue *queue = (struct mp_queue *)pad->object.container;
 	int ret;
 
+	/*
+	 * If the queue is flushing (teardown to READY), drop the buffer instead
+	 * of enqueueing it. This keeps a producer that was just released from a
+	 * blocking k_msgq_put() from re-blocking, and prevents a late buffer from
+	 * leaking into an already-drained queue (e.g. behind a tee).
+	 */
+	if (atomic_get(&queue->flushing)) {
+		net_buf_unref(in_buf);
+		*out_buf = NULL;
+		return 0;
+	}
+
 	ret = k_msgq_put(&queue->msgq, &in_buf, K_FOREVER);
 	if (ret != 0) {
-		LOG_ERR("Failed to put buffer into the buffer queue (%d)", ret);
-
-		return ret;
+		/*
+		 * A non-zero return here means the put was interrupted (e.g. the
+		 * queue was purged/started flushing). Drop the buffer and report
+		 * success so the release path unwinds cleanly without error spam.
+		 */
+		net_buf_unref(in_buf);
+		*out_buf = NULL;
+		return 0;
 	}
 
 	*out_buf = NULL;
@@ -89,9 +106,15 @@ static int mp_queue_sink_eventfn(struct mp_pad *pad, struct mp_dispatch *event)
 	case MP_DISPATCH_EOS:
 		void *eos_ptr = &eos_sentinel;
 
+		/* Drop EOS if flushing (teardown); nothing downstream needs it. */
+		if (atomic_get(&queue->flushing)) {
+			return 0;
+		}
+
 		ret = k_msgq_put(&queue->msgq, &eos_ptr, K_FOREVER);
 		if (ret != 0) {
-			LOG_ERR("Failed to put EOS sentinel to the msgq (%d)", ret);
+			/* Interrupted by a flush; treat as consumed. */
+			return 0;
 		}
 
 		return ret;
@@ -158,6 +181,8 @@ static enum mp_state_change_return mp_queue_change_state(struct mp_element *elem
 
 	switch (transition) {
 	case MP_STATE_CHANGE_READY_TO_PAUSED:
+		/* Not flushing while active: accept incoming buffers. */
+		atomic_set(&queue->flushing, 0);
 		if (mp_thread_create(&queue->thread, mp_queue_thread_func, queue, NULL, NULL,
 				     CONFIG_MP_THREAD_DEFAULT_PRIORITY, K_FOREVER) == NULL) {
 			LOG_ERR("Failed to create a new queue thread");
@@ -165,6 +190,7 @@ static enum mp_state_change_return mp_queue_change_state(struct mp_element *elem
 		}
 		break;
 	case MP_STATE_CHANGE_PAUSED_TO_PLAYING:
+		atomic_set(&queue->flushing, 0);
 		mp_thread_resume(&queue->thread);
 		break;
 	case MP_STATE_CHANGE_PLAYING_TO_PAUSED:
@@ -179,7 +205,15 @@ static enum mp_state_change_return mp_queue_change_state(struct mp_element *elem
 	case MP_STATE_CHANGE_PAUSED_TO_READY:
 		struct net_buf *buffer;
 
+		/*
+		 * Enter flushing before joining. Any producer blocked in this
+		 * queue's k_msgq_put() is released once the drain below frees a
+		 * slot; the flushing flag then makes its (and any subsequent)
+		 * chainfn drop the buffer instead of re-enqueueing or leaking it.
+		 */
+		atomic_set(&queue->flushing, 1);
 		mp_thread_join(&queue->thread, K_FOREVER);
+
 		/* Drain any remaining buffers from the message queue */
 		LOG_DBG("Draining remaining buffers");
 		while (k_msgq_get(&queue->msgq, &buffer, K_NO_WAIT) == 0) {

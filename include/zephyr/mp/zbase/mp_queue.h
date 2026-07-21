@@ -24,6 +24,7 @@
  */
 
 #include <zephyr/kernel.h>
+#include <zephyr/sys/atomic.h>
 
 #include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_property.h>
@@ -58,6 +59,13 @@ struct mp_queue {
 	char msgq_buffer[(CONFIG_MP_QUEUE_MAX_SIZE + 2) * sizeof(void *)];
 	/** Number of buffers the queue can hold bounded by CONFIG_MP_QUEUE_MAX_SIZE */
 	uint8_t size;
+	/**
+	 * Flushing flag. When set (on PAUSED -> READY), the chainfn drops incoming
+	 * buffers instead of enqueueing them. This releases any upstream producer
+	 * blocked in k_msgq_put() during teardown and prevents a late buffer from
+	 * leaking into an already-drained queue (e.g. behind a tee).
+	 */
+	atomic_t flushing;
 };
 
 /**
