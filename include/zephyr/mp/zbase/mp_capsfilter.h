@@ -53,6 +53,10 @@ enum {
 struct mp_caps_filter {
 	/** Base transform element */
 	struct mp_transform transform;
+	/** Upstream source pad that the sink pad was linked to */
+	struct mp_pad *saved_sink_peer;
+	/** Downstream sink pad that the source pad was linked to */
+	struct mp_pad *saved_src_peer;
 };
 
 /**

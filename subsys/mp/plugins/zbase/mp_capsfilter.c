@@ -43,6 +43,7 @@ int mp_caps_filter_get_property(struct mp_object *obj, uint32_t key, void *val)
 static int mp_caps_filter_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
 				   struct mp_caps *caps)
 {
+	struct mp_caps_filter *filter = (struct mp_caps_filter *)transform;
 	int ret;
 	struct mp_pad *upstream_srcpad = transform->sinkpad.peer;
 	struct mp_pad *downstream_sinkpad = transform->srcpad.peer;
@@ -55,25 +56,56 @@ static int mp_caps_filter_set_caps(struct mp_transform *transform, enum mp_pad_d
 	/*
 	 * After caps negotiation, capsfilter is removed from the pipeline for two reasons:
 	 *  - Gain some small overhead during buffer flow
-	 *  - More importantly, allow allocation negotiation can take place between the elements
-	 *    before and after the capsfilter.
+	 *  - More importantly, allow allocation negotiation can take place between the
+	 *    elements before and after the capsfilter.
 	 *
-	 * Remember to re-insert it to the pipeline whenever caps negotiation is re-triggered.
+	 * The bypassed peers are saved so the capsfilter can re-insert itself into the graph
+	 * when needed, e.g. on teardown (PAUSED -> READY) or on caps re-negotiation
 	 */
 	if (upstream_srcpad != NULL && downstream_sinkpad != NULL) {
+		filter->saved_sink_peer = upstream_srcpad;
+		filter->saved_src_peer = downstream_sinkpad;
+
 		upstream_srcpad->peer = downstream_sinkpad;
 		downstream_sinkpad->peer = upstream_srcpad;
 	}
 
-	/*
-	 * Drop the peer links to avoid cycling graph error when walking through the pipeline graph
-	 * TODO: Store the peer links somewhere to be able to re-insert the capsfilter when caps
-	 * negotiation re-triggered
-	 */
+	/* Drop the peer links to avoid cycling graph error */
 	transform->sinkpad.peer = NULL;
 	transform->srcpad.peer = NULL;
 
 	return 0;
+}
+
+static enum mp_state_change_return mp_caps_filter_change_state(struct mp_element *self,
+							       enum mp_state_change transition)
+{
+	struct mp_transform *transform = (struct mp_transform *)self;
+	struct mp_caps_filter *filter = (struct mp_caps_filter *)self;
+
+	switch (transition) {
+	case MP_STATE_CHANGE_PAUSED_TO_READY:
+		/*
+		 * Re-insert the capsfilter into the graph so that a subsequent caps
+		 * negotiation (e.g. on replay) can walk through it again. This undoes
+		 * the self-removal performed in mp_caps_filter_set_caps() by relinking
+		 * the upstream/downstream peers back to this element's pads.
+		 */
+		if (filter->saved_sink_peer != NULL && filter->saved_src_peer != NULL) {
+			transform->sinkpad.peer = filter->saved_sink_peer;
+			transform->srcpad.peer = filter->saved_src_peer;
+			filter->saved_sink_peer->peer = &transform->sinkpad;
+			filter->saved_src_peer->peer = &transform->srcpad;
+
+			filter->saved_sink_peer = NULL;
+			filter->saved_src_peer = NULL;
+		}
+		break;
+	default:
+		break;
+	}
+
+	return MP_STATE_CHANGE_SUCCESS;
 }
 
 void mp_caps_filter_init(struct mp_element *self)
@@ -85,6 +117,7 @@ void mp_caps_filter_init(struct mp_element *self)
 
 	self->object.set_property = mp_caps_filter_set_property;
 	self->object.get_property = mp_caps_filter_get_property;
+	self->change_state = mp_caps_filter_change_state;
 
 	transform->mode = MP_MODE_PASSTHROUGH;
 	transform->set_caps = mp_caps_filter_set_caps;
