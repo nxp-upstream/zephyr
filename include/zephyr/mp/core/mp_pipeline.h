@@ -22,9 +22,12 @@
 #include <stdint.h>
 
 #include <zephyr/net_buf.h>
+#include <zephyr/sys/atomic.h>
 
 #include <zephyr/mp/core/mp_bin.h>
+#include <zephyr/mp/core/mp_bus.h>
 #include <zephyr/mp/core/mp_thread.h>
+
 
 /**
  * @{
@@ -48,7 +51,14 @@ struct mp_pipeline {
 	 * elements to PLAYING
 	 */
 	uint64_t delay;
+	/** Bus sync listener used to aggregate EOS messages from all sinks */
+	struct mp_bus_sync_listener eos_listener;
+	/** Number of sink elements in the pipeline (computed on READY->PAUSED) */
+	uint32_t num_sinks;
+	/** Number of EOS messages seen so far during the current run */
+	atomic_t eos_count;
 };
+
 
 /**
  * @brief Initialize a pipeline

@@ -7,15 +7,72 @@
 #include <errno.h>
 
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/atomic.h>
 
 #include <zephyr/mp/core/mp_bus.h>
 #include <zephyr/mp/core/mp_dispatch.h>
 #include <zephyr/mp/core/mp_element.h>
+#include <zephyr/mp/core/mp_message.h>
 #include <zephyr/mp/core/mp_pad.h>
 #include <zephyr/mp/core/mp_pipeline.h>
 #include <zephyr/mp/core/mp_src.h>
 
 LOG_MODULE_REGISTER(mp_pipeline, CONFIG_MP_LOG_LEVEL);
+
+/*
+ * Count the number of sink elements in the pipeline.
+ *
+ * A sink is a child element whose srcpads list is empty (it has no source pad,
+ * hence nothing downstream). This is the inverse of the source-finding logic
+ * used by mp_pipeline_thread_func(), which looks for an element with no sinkpad.
+ */
+static uint32_t mp_pipeline_count_sinks(struct mp_bin *bin)
+{
+	struct mp_object *obj;
+	struct mp_element *element;
+	uint32_t count = 0;
+
+	SYS_DLIST_FOR_EACH_CONTAINER(&bin->children, obj, node) {
+		element = (struct mp_element *)obj;
+		if (sys_dlist_is_empty(&element->srcpads)) {
+			count++;
+		}
+	}
+
+	return count;
+}
+
+/*
+ * Bus sync listener callback that aggregates EOS messages from all sinks.
+ *
+ * A pipeline with N sinks receives N EOS messages (one per sink). The
+ * application must only be notified once every sink has finished, otherwise it
+ * could tear down the pipeline while another branch is still processing. This
+ * callback swallows (drops) the first N-1 EOS messages and passes only the last
+ * one to the application.
+ *
+ * @return true to drop the message (not all sinks done yet), false to pass it
+ *         through to the application (last sink, or no sinks tracked).
+ */
+static bool mp_pipeline_eos_handler(struct mp_message *message, void *user_data)
+{
+	struct mp_pipeline *pipeline = user_data;
+	uint32_t seen;
+
+	ARG_UNUSED(message);
+
+	/* atomic_inc() returns the value prior to the increment */
+	seen = (uint32_t)atomic_inc(&pipeline->eos_count) + 1;
+
+	/* Pass through once all sinks have signaled EOS (or if none are tracked) */
+	if (pipeline->num_sinks == 0 || seen >= pipeline->num_sinks) {
+		return false;
+	}
+
+	/* Not all sinks are done yet: swallow this intermediate EOS */
+	return true;
+}
+
 
 int mp_pipeline_push_buffer(struct mp_pad *srcpad, struct net_buf *buffer)
 {
@@ -126,23 +183,42 @@ static enum mp_state_change_return mp_pipeline_change_state(struct mp_element *e
 
 	/*
 	 * DOWN: Pipeline thread should be handled before children state change, i.e. source needs
-	 * to stop producing buffers first
+	 * to stop producing buffers first.
 	 */
 	switch (transition) {
 	case MP_STATE_CHANGE_PLAYING_TO_PAUSED:
+		/*
+		 * Only pause the source thread here (no join). Buffers already
+		 * queued downstream are preserved so a subsequent resume to
+		 * PLAYING continues without data loss. The source is guaranteed
+		 * to be paused before this returns, so it stops producing.
+		 */
 		mp_thread_pause(&pipeline->thread);
-		break;
-	case MP_STATE_CHANGE_PAUSED_TO_READY:
-		mp_thread_join(&pipeline->thread, K_FOREVER);
 		break;
 	default:
 		break;
 	}
 
-	/* Children state change: UP = sink-to-source, DOWN=source-to-sink*/
+	/* Children state change: UP = sink-to-source, DOWN = source-to-sink */
 	ret = mp_bin_change_state_func(element, transition);
+
 	if (ret != MP_STATE_CHANGE_SUCCESS) {
 		return ret;
+	}
+
+	/*
+	 * DOWN (PAUSED -> READY): join the pipeline thread AFTER the children have
+	 * transitioned. The source is already paused (from PLAYING -> PAUSED), so it
+	 * is not producing new buffers. Draining the children first (each queue drains
+	 * and unrefs its buffers on PAUSED -> READY) frees msgq slots and releases the
+	 * pipeline thread if it was blocked in a full queue's k_msgq_put(K_FOREVER).
+	 * Only then can the join complete, avoiding a teardown deadlock.
+	 */
+	if (transition == MP_STATE_CHANGE_PAUSED_TO_READY) {
+		mp_thread_join(&pipeline->thread, K_FOREVER);
+		/* Stop aggregating EOS and reset for a clean re-run */
+		mp_bus_remove_sync_listener(&pipeline->bin.bus, &pipeline->eos_listener);
+		atomic_set(&pipeline->eos_count, 0);
 	}
 
 	/*
@@ -157,7 +233,21 @@ static enum mp_state_change_return mp_pipeline_change_state(struct mp_element *e
 			LOG_ERR("Failed to create a new pipeline thread");
 			return MP_STATE_CHANGE_FAILURE;
 		}
+
+		/*
+		 * Arm EOS aggregation now that the topology is fully built and
+		 * before the source thread is resumed (i.e. before any EOS can be
+		 * produced). Only the last of the per-sink EOS messages is passed
+		 * to the application.
+		 */
+		pipeline->num_sinks = mp_pipeline_count_sinks(&pipeline->bin);
+		atomic_set(&pipeline->eos_count, 0);
+		pipeline->eos_listener.cb = mp_pipeline_eos_handler;
+		pipeline->eos_listener.filter_mask = MP_MESSAGE_EOS;
+		pipeline->eos_listener.user_data = pipeline;
+		mp_bus_add_sync_listener(&pipeline->bin.bus, &pipeline->eos_listener);
 		break;
+
 	case MP_STATE_CHANGE_PAUSED_TO_PLAYING:
 		mp_thread_resume(&pipeline->thread);
 		break;
