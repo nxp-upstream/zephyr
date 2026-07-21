@@ -31,17 +31,19 @@
 
 LOG_MODULE_REGISTER(main, CONFIG_LOG_DEFAULT_LEVEL);
 
-/* Element IDs */
-#define PIPE_ID        0
-#define FILE_SRC_ID    1
-#define JPEG_PARSER_ID 2
-#define CAPS_FILTER_ID 3
-#define TEE_ID         4
-#define QUEUE1_ID      5
-#define JPEG_DEC_ID    6
-#define DISP_SINK_ID   7
-#define QUEUE2_ID      8
-#define FILE_SINK_ID   9
+/* Element IDs (values are arbitrary; only uniqueness within the pipeline matters) */
+enum {
+	PIPE_ID,
+	FILE_SRC_ID,
+	JPEG_PARSER_ID,
+	CAPS_FILTER_ID,
+	TEE_ID,
+	QUEUE1_ID,
+	JPEG_DEC_ID,
+	DISP_SINK_ID,
+	QUEUE2_ID,
+	FILE_SINK_ID,
+};
 
 #define MNT_POINT "/SD:"
 

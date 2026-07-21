@@ -21,11 +21,14 @@ LOG_MODULE_REGISTER(main);
 
 #define LOG_LEVEL LOG_LEVEL_DBG
 
-#define PIPE_ID        0
-#define DMIC_SRC_ID    1
-#define CAPS_FILTER_ID 2
-#define AUD_GAIN_ID    3
-#define I2S_SINK_ID    4
+/* Element IDs (values are arbitrary; only uniqueness within the pipeline matters) */
+enum {
+	PIPE_ID,
+	DMIC_SRC_ID,
+	CAPS_FILTER_ID,
+	AUD_GAIN_ID,
+	I2S_SINK_ID,
+};
 
 /*
  * WORKAROUND: Direct memory slab management in application code

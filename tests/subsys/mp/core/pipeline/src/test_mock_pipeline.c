@@ -14,10 +14,13 @@
 
 extern struct k_heap _system_heap;
 
-#define PIPE_ID      0
-#define SRC_ID       1
-#define TRANSFORM_ID 2
-#define SINK_ID      3
+/* Element IDs (values are arbitrary; only uniqueness within the pipeline matters) */
+enum {
+	PIPE_ID,
+	SRC_ID,
+	TRANSFORM_ID,
+	SINK_ID,
+};
 
 /* Number of buffers the source shall produce before EOS */
 #define TEST_BUFS_NUM 10

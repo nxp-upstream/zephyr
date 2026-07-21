@@ -16,9 +16,12 @@
 
 LOG_MODULE_REGISTER(main, CONFIG_LOG_DEFAULT_LEVEL);
 
-#define PIPE_ID      0
-#define FILE_SRC_ID  1
-#define FILE_SINK_ID 2
+/* Element IDs (values are arbitrary; only uniqueness within the pipeline matters) */
+enum {
+	PIPE_ID,
+	FILE_SRC_ID,
+	FILE_SINK_ID,
+};
 
 #define MNT_POINT "/SD:"
 
