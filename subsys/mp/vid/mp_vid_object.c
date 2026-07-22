@@ -66,8 +66,8 @@ int mp_structure_to_vfc(struct mp_structure *structure, struct video_format_cap 
 	}
 
 	/* Get width fields */
-	ret = set_dimension_fields(structure, MP_CAPS_IMAGE_WIDTH, &vfc->width_min, &vfc->width_max,
-				   &vfc->width_step);
+	ret = set_dimension_fields(structure, MP_CAPS_IMAGE_WIDTH,
+				   &vfc->width_min, &vfc->width_max, &vfc->width_step);
 	if (ret < 0) {
 		return ret;
 	}
@@ -202,9 +202,15 @@ struct mp_caps *mp_vid_object_get_caps(struct mp_vid_object *vid_obj)
 		caps_item = mp_structure_new(
 			MP_MEDIA_VIDEO,
 			MP_CAPS_PIXEL_FORMAT, MP_INT(vcaps.format_caps[i].pixelformat),
-			MP_CAPS_PIXEL_FORMAT, MP_INT(vcaps.format_caps[i].pixelformat),
-			MP_CAPS_PIXEL_FORMAT, MP_INT(vcaps.format_caps[i].pixelformat),
-			MP_CAPS_END, MP_CAPS_END, MP_CAPS_END, MP_CAPS_END, MP_CAPS_END);
+			MP_CAPS_IMAGE_WIDTH, MP_RANGE(
+				min3(vcaps.format_caps[i].width_min, crop_w, comp_min_w),
+				max3(vcaps.format_caps[i].width_max, crop_w, comp_max_w),
+				vcaps.format_caps[i].width_step),
+			MP_CAPS_IMAGE_HEIGHT, MP_RANGE(
+				min3(vcaps.format_caps[i].height_min, crop_h, comp_min_h),
+				max3(vcaps.format_caps[i].height_max, crop_h, comp_max_h),
+				vcaps.format_caps[i].height_step),
+			MP_CAPS_END);
 
 		/* Get frame rate */
 		fmt.pixelformat = vcaps.format_caps[i].pixelformat;

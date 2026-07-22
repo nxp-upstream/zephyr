@@ -127,7 +127,7 @@ static struct mp_caps *mp_zvid_transform_transform_caps(struct mp_transform *sel
 	const struct device *dev = zvid_transform->zvid_obj_in.vdev;
 	struct mp_caps *other_caps = mp_caps_new(MP_MEDIA_END);
 	struct mp_structure *caps_item = NULL;
-	struct mp_cap_structure *cs;
+	struct mp_structure *structure;
 	struct video_format_cap vfc, other_vfc;
 	uint16_t ind;
 
@@ -135,8 +135,8 @@ static struct mp_caps *mp_zvid_transform_transform_caps(struct mp_transform *sel
 		return NULL;
 	}
 
-	SYS_SLIST_FOR_EACH_CONTAINER(&caps->caps_structures, cs, node) {
-		if (mp_structure_to_vfc(cs->structure, &vfc) < 0) {
+	SYS_SLIST_FOR_EACH_CONTAINER(&caps->structures, structure, node) {
+		if (mp_structure_to_vfc(structure, &vfc) < 0) {
 			continue;
 		}
 		ind = 0;

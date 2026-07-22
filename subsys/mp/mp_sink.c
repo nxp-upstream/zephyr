@@ -72,6 +72,7 @@ static int mp_sink_query(struct mp_pad *pad, struct mp_dispatch *query)
 			if (caps_intersect == NULL) {
 				return -ENODATA;
 			}
+
 			if (mp_caps_is_empty(caps_intersect)) {
 				mp_caps_unref(caps_intersect);
 				return -ENODATA;

@@ -225,6 +225,7 @@ struct mp_structure *mp_structure_intersect(struct mp_structure *struct1,
 
 struct mp_structure *mp_structure_duplicate(struct mp_structure *src)
 {
+	int ret;
 	struct mp_structure *dup;
 
 	if (src == NULL) {
@@ -233,17 +234,17 @@ struct mp_structure *mp_structure_duplicate(struct mp_structure *src)
 
 	dup = mp_structure_new_empty(src->media_type_id, src->num_values);
 	for (size_t i = 0; i < src->num_values; i++) {
-		dup->fields[i].id = src->fields[i].id;
-		dup->fields[i].value = mp_value_duplicate(src->fields[i].value);
-
-		if (dup->fields[i].value == NULL) {
-			mp_structure_destroy(dup);
-			return NULL;
+		ret = mp_structure_append(dup, src->fields[i].id,
+					  mp_value_duplicate(src->fields[i].value));
+		if (ret != 0) {
+			goto error;
 		}
 	}
 
 	return dup;
-}
+error:
+	mp_structure_destroy(dup);
+	return NULL;}
 
 bool mp_structure_is_fixed(struct mp_structure *structure)
 {

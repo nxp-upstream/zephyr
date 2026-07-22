@@ -19,17 +19,16 @@ LOG_MODULE_REGISTER(mp_caps, LOG_LEVEL_DBG);
 
 static void mp_caps_destroy(struct mp_object *obj)
 {
-	struct mp_cap_structure *caps_structure;
 	struct mp_caps *caps;
+	struct mp_structure *structure;
 
 	__ASSERT_NO_MSG(obj != NULL);
 	caps = (struct mp_caps *)obj;
-	while (!sys_slist_is_empty(&caps->caps_structures)) {
-		caps_structure = CONTAINER_OF(sys_slist_get(&caps->caps_structures),
-					      struct mp_cap_structure, node);
+	while (!sys_slist_is_empty(&caps->structures)) {
+		structure = CONTAINER_OF(sys_slist_get(&caps->structures),
+					      struct mp_structure, node);
 
-		mp_structure_destroy(caps_structure->structure);
-		k_free(caps_structure);
+		mp_structure_destroy(structure);
 	}
 	k_free(obj);
 }
@@ -40,7 +39,7 @@ int mp_caps_init(struct mp_caps *caps, uint8_t flag)
 		return -EINVAL;
 	}
 
-	sys_slist_init(&caps->caps_structures);
+	sys_slist_init(&caps->structures);
 	caps->object.release = mp_caps_destroy;
 	caps->object.ref = ATOMIC_INIT(0);
 	caps->object.flags = flag;
@@ -119,26 +118,18 @@ int mp_caps_replace(struct mp_caps **target_caps, struct mp_caps *new_caps)
 
 int mp_caps_append(struct mp_caps *caps, struct mp_structure *structure)
 {
-	struct mp_cap_structure *cs;
-
 	if (caps == NULL || caps->object.flags == MP_CAPS_FLAG_ANY || structure == NULL) {
 		return -EINVAL;
 	}
 
-	cs = k_malloc(sizeof(struct mp_cap_structure));
-	if (cs == NULL) {
-		return -ENOMEM;
-	}
-
-	cs->structure = structure;
-	sys_slist_append(&caps->caps_structures, &cs->node);
+	sys_slist_append(&caps->structures, &structure->node);
 
 	return 0;
 }
 
 void mp_caps_print(struct mp_caps *caps)
 {
-	struct mp_cap_structure *cs;
+	struct mp_structure *structure;
 
 	if (caps == NULL) {
 		printk("Caps NULL\n");
@@ -155,15 +146,15 @@ void mp_caps_print(struct mp_caps *caps)
 		return;
 	}
 
-	SYS_SLIST_FOR_EACH_CONTAINER(&caps->caps_structures, cs, node) {
-		mp_structure_print(cs->structure);
+	SYS_SLIST_FOR_EACH_CONTAINER(&caps->structures, structure, node) {
+		mp_structure_print(structure);
 	}
 }
 
 bool mp_caps_is_empty(struct mp_caps *caps)
 {
 	return caps != NULL && caps->object.flags != MP_CAPS_FLAG_ANY &&
-	       sys_slist_is_empty(&caps->caps_structures);
+	       sys_slist_is_empty(&caps->structures);
 }
 
 bool mp_caps_is_any(struct mp_caps *caps)
@@ -180,7 +171,7 @@ bool mp_caps_is_fixed(struct mp_caps *caps)
 		return false;
 	}
 
-	structure_count = sys_slist_len(&caps->caps_structures);
+	structure_count = sys_slist_len(&caps->structures);
 	if (structure_count == 0 || structure_count > 1) {
 		return false;
 	}
@@ -193,7 +184,7 @@ bool mp_caps_is_fixed(struct mp_caps *caps)
 struct mp_caps *mp_caps_intersect(struct mp_caps *caps1, struct mp_caps *caps2)
 {
 	struct mp_caps *intersect_caps;
-	struct mp_cap_structure *cs1, *cs2;
+	struct mp_structure *s1, *s2;
 
 	if (caps1 == NULL || caps2 == NULL || mp_caps_is_empty(caps1) || mp_caps_is_empty(caps2)) {
 		return NULL;
@@ -208,10 +199,9 @@ struct mp_caps *mp_caps_intersect(struct mp_caps *caps1, struct mp_caps *caps2)
 	}
 
 	intersect_caps = mp_caps_new_empty();
-	SYS_SLIST_FOR_EACH_CONTAINER(&caps1->caps_structures, cs1, node) {
-		SYS_SLIST_FOR_EACH_CONTAINER(&caps2->caps_structures, cs2, node) {
-			struct mp_structure *struct_intersect =
-				mp_structure_intersect(cs1->structure, cs2->structure);
+	SYS_SLIST_FOR_EACH_CONTAINER(&caps1->structures, s1, node) {
+		SYS_SLIST_FOR_EACH_CONTAINER(&caps2->structures, s2, node) {
+			struct mp_structure *struct_intersect = mp_structure_intersect(s1, s2);
 
 			if (struct_intersect != NULL) {
 				mp_caps_append(intersect_caps, struct_intersect);
@@ -225,7 +215,7 @@ struct mp_caps *mp_caps_intersect(struct mp_caps *caps1, struct mp_caps *caps2)
 bool mp_caps_can_intersect(struct mp_caps *caps1, struct mp_caps *caps2)
 {
 
-	struct mp_cap_structure *cs1, *cs2;
+	struct mp_structure *s1, *s2;
 
 	if (caps1 == NULL || caps2 == NULL || mp_caps_is_empty(caps1) || mp_caps_is_empty(caps2)) {
 		return false;
@@ -235,9 +225,9 @@ bool mp_caps_can_intersect(struct mp_caps *caps1, struct mp_caps *caps2)
 		return true;
 	}
 
-	SYS_SLIST_FOR_EACH_CONTAINER(&caps1->caps_structures, cs1, node) {
-		SYS_SLIST_FOR_EACH_CONTAINER(&caps2->caps_structures, cs2, node) {
-			if (mp_structure_can_intersect(cs1->structure, cs2->structure)) {
+	SYS_SLIST_FOR_EACH_CONTAINER(&caps1->structures, s1, node) {
+		SYS_SLIST_FOR_EACH_CONTAINER(&caps2->structures, s2, node) {
+			if (mp_structure_can_intersect(s1, s2)) {
 				return true;
 			}
 		}
@@ -248,7 +238,6 @@ bool mp_caps_can_intersect(struct mp_caps *caps1, struct mp_caps *caps2)
 
 struct mp_caps *mp_caps_duplicate(struct mp_caps *caps)
 {
-	struct mp_cap_structure *cs;
 	struct mp_structure *structure;
 	struct mp_caps *caps_copy;
 
@@ -261,11 +250,8 @@ struct mp_caps *mp_caps_duplicate(struct mp_caps *caps)
 	}
 
 	caps_copy = mp_caps_new_empty();
-	SYS_SLIST_FOR_EACH_CONTAINER(&caps->caps_structures, cs, node) {
-		structure = mp_structure_duplicate(cs->structure);
-		if (structure != NULL) {
-			mp_caps_append(caps_copy, structure);
-		}
+	SYS_SLIST_FOR_EACH_CONTAINER(&caps->structures, structure, node) {
+		mp_caps_append(caps_copy, mp_structure_duplicate(structure));
 	}
 
 	return caps_copy;
@@ -274,11 +260,11 @@ struct mp_caps *mp_caps_duplicate(struct mp_caps *caps)
 struct mp_structure *mp_caps_get_structure(struct mp_caps *caps, int index)
 {
 	int i = 0;
-	struct mp_cap_structure *cs;
+	struct mp_structure *structure;
 
-	SYS_SLIST_FOR_EACH_CONTAINER(&caps->caps_structures, cs, node) {
+	SYS_SLIST_FOR_EACH_CONTAINER(&caps->structures, structure, node) {
 		if (i++ == index) {
-			return cs->structure;
+			return structure;
 		}
 	}
 
@@ -290,20 +276,20 @@ struct mp_caps *mp_caps_fixate(struct mp_caps *caps)
 	sys_snode_t *node;
 	struct mp_caps *fixed_caps;
 	struct mp_structure *fixated_structure;
-	struct mp_cap_structure *cs;
+	struct mp_structure *structure;
 
 	if (caps == NULL || mp_caps_is_any(caps) || mp_caps_is_empty(caps)) {
 		return NULL;
 	}
 
 	fixed_caps = mp_caps_new_empty();
-	node = sys_slist_peek_head(&caps->caps_structures);
+	node = sys_slist_peek_head(&caps->structures);
 	if (node == NULL) {
 		return NULL;
 	}
 
-	cs = CONTAINER_OF(node, struct mp_cap_structure, node);
-	fixated_structure = mp_structure_fixate(cs->structure);
+	structure = CONTAINER_OF(node, struct mp_structure, node);
+	fixated_structure = mp_structure_fixate(structure);
 	if (fixated_structure == NULL) {
 		return NULL;
 	}
