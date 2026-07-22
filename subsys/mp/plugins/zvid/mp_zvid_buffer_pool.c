@@ -119,6 +119,15 @@ static int mp_zvid_buffer_pool_stop(struct mp_buffer_pool *pool)
 		if (ret != 0) {
 			LOG_ERR("Failed to stop video streaming");
 		}
+	} else {
+		/*
+		 * The INPUT acquire path parks in k_fifo_get(K_FOREVER). Unlike
+		 * the OUTPUT path there is no device-side flush to wake it, so
+		 * cancel the wait here. flushing is already set above, so the
+		 * woken thread observes it and bails out of acquire instead of
+		 * consuming a buffer.
+		 */
+		k_fifo_cancel_wait(&zvid_pool->free_fifo);
 	}
 
 	/*
@@ -170,8 +179,12 @@ static int mp_zvid_buffer_pool_acquire_buffer(struct mp_buffer_pool *pool, struc
 	if (zvid_pool->zvid_obj->type == VIDEO_BUF_TYPE_INPUT) {
 		vbuf = k_fifo_get(&zvid_pool->free_fifo, K_FOREVER);
 		if (vbuf == NULL) {
-			LOG_ERR("Failed to get a free input buffer");
-			return -ENOBUFS;
+			/*
+			 * Woken by k_fifo_cancel_wait() in stop(): teardown is in
+			 * progress, so bail out rather than treating this as an
+			 * allocation error.
+			 */
+			return -EPIPE;
 		}
 	} else {
 		vbuf->type = zvid_pool->zvid_obj->type;
