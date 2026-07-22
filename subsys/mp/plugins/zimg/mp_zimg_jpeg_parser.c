@@ -345,7 +345,12 @@ static enum mp_state_change_return mp_zimg_jpeg_parser_change_state(struct mp_el
 		jpeg_parser->partial_frame = NULL;
 	}
 
-	return MP_STATE_CHANGE_SUCCESS;
+	/*
+	 * Chain to the base parser change_state, which resets the negotiated pad
+	 * caps back to the template caps on PAUSED_TO_READY so a subsequent
+	 * re-negotiation starts fresh.
+	 */
+	return mp_parser_change_state(self, transition);
 }
 
 void mp_zimg_jpeg_parser_init(struct mp_element *self)
@@ -354,6 +359,7 @@ void mp_zimg_jpeg_parser_init(struct mp_element *self)
 	struct mp_zimg_jpeg_parser *jpeg_parser = (struct mp_zimg_jpeg_parser *)parser;
 
 	mp_parser_init(self);
+
 	self->change_state = mp_zimg_jpeg_parser_change_state;
 	jpeg_parser->partial_frame = NULL;
 

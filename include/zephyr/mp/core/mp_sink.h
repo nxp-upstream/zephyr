@@ -91,6 +91,22 @@ void mp_sink_init(struct mp_element *self);
  */
 void mp_sink_update_caps(struct mp_sink *sink, struct mp_caps *caps);
 
+/**
+ * @brief Change state function for the base sink element
+ *
+ * On the PAUSED to READY transition this resets the negotiated pad caps back to
+ * the supported template caps so a subsequent re-negotiation starts fresh.
+ * Derived sinks that override change_state must chain to this base function to
+ * inherit that behavior.
+ *
+ * @param self Pointer to the @ref mp_element
+ * @param transition Transition state, see @ref mp_state_change
+ *
+ * @return One of @ref mp_state_change_return
+ */
+enum mp_state_change_return mp_sink_change_state(struct mp_element *self,
+						 enum mp_state_change transition);
+
 /** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_CORE_MP_SINK_H_ */

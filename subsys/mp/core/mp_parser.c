@@ -204,6 +204,29 @@ static int mp_parser_query(struct mp_pad *pad, struct mp_dispatch *query)
 	}
 }
 
+enum mp_state_change_return mp_parser_change_state(struct mp_element *self,
+						   enum mp_state_change transition)
+{
+	struct mp_parser *parser = (struct mp_parser *)self;
+
+	switch (transition) {
+	case MP_STATE_CHANGE_PAUSED_TO_READY:
+		/*
+		 * Reset the negotiated pad caps back to the supported template
+		 * caps so a subsequent re-negotiation (on replay) starts fresh.
+		 * Derived parsers that override change_state must chain to this
+		 * base function to inherit the reset.
+		 */
+		mp_caps_replace(&parser->sinkpad.caps, parser->sink_caps);
+		mp_caps_replace(&parser->srcpad.caps, parser->src_caps);
+		break;
+	default:
+		break;
+	}
+
+	return MP_STATE_CHANGE_SUCCESS;
+}
+
 void mp_parser_init(struct mp_element *self)
 {
 	struct mp_parser *parser = (struct mp_parser *)self;
@@ -220,6 +243,7 @@ void mp_parser_init(struct mp_element *self)
 	mp_element_add_pad(self, &parser->srcpad);
 
 	parser->outpool = NULL;
+	self->change_state = mp_parser_change_state;
 	parser->get_caps = mp_parser_get_caps;
 	parser->set_caps = mp_parser_set_caps;
 	parser->srcpad.queryfn = mp_parser_query;

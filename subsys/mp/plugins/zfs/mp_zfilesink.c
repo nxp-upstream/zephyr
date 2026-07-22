@@ -111,7 +111,12 @@ static enum mp_state_change_return mp_zfilesink_change_state(struct mp_element *
 		break;
 	}
 
-	return MP_STATE_CHANGE_SUCCESS;
+	/*
+	 * Chain to the base sink change_state, which resets the negotiated pad
+	 * caps back to the template caps on PAUSED_TO_READY so a subsequent
+	 * re-negotiation starts fresh.
+	 */
+	return mp_sink_change_state(self, transition);
 }
 
 void mp_zfilesink_init(struct mp_element *self)

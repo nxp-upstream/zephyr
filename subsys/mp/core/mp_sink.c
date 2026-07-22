@@ -138,6 +138,28 @@ static int mp_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct ne
 	return 0;
 }
 
+enum mp_state_change_return mp_sink_change_state(struct mp_element *self,
+						 enum mp_state_change transition)
+{
+	struct mp_sink *sink = (struct mp_sink *)self;
+
+	switch (transition) {
+	case MP_STATE_CHANGE_PAUSED_TO_READY:
+		/*
+		 * Reset the negotiated pad caps back to the supported template
+		 * caps so a subsequent re-negotiation (on replay) starts fresh.
+		 * Derived sinks that override change_state must chain to this
+		 * base function to inherit the reset.
+		 */
+		mp_caps_replace(&sink->sinkpad.caps, sink->sink_caps);
+		break;
+	default:
+		break;
+	}
+
+	return MP_STATE_CHANGE_SUCCESS;
+}
+
 void mp_sink_init(struct mp_element *self)
 {
 	struct mp_sink *sink = (struct mp_sink *)self;
@@ -153,6 +175,7 @@ void mp_sink_init(struct mp_element *self)
 	 * reference and is never called by the play/pause/stop/replay lifecycle.
 	 */
 	self->object.release = mp_sink_release;
+	self->change_state = mp_sink_change_state;
 
 	sink->sinkpad.queryfn = mp_sink_query;
 	sink->sinkpad.eventfn = mp_sink_event;

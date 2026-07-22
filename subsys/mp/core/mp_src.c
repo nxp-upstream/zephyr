@@ -245,6 +245,14 @@ enum mp_state_change_return mp_src_change_state(struct mp_element *self,
 			return MP_STATE_CHANGE_FAILURE;
 		}
 
+		/*
+		 * Reset the negotiated pad caps back to the supported template
+		 * caps so a subsequent re-negotiation (on replay) starts fresh.
+		 * Derived sources that override change_state must chain to this
+		 * base function to inherit the reset.
+		 */
+		mp_caps_replace(&src->srcpad.caps, src->src_caps);
+
 		break;
 	default:
 		break;

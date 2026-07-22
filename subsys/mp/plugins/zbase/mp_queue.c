@@ -26,7 +26,7 @@ static uint8_t eos_sentinel;
 /*
  * Static pause sentinel enqueued into the buffer queue to unblock the thread
  * from k_msgq_get() when transitioning to paused. The thread does not process
- * this value — it simply exits from k_msgq_get() to return to mp_thread_wait().
+ * this value - it simply exits from k_msgq_get() to return to mp_thread_wait().
  */
 static uint8_t pause_sentinel;
 
@@ -226,7 +226,12 @@ static enum mp_state_change_return mp_queue_change_state(struct mp_element *elem
 		break;
 	}
 
-	return MP_STATE_CHANGE_SUCCESS;
+	/*
+	 * Chain to the base transform change_state. Among other things it resets
+	 * the negotiated pad caps back to the template caps on PAUSED_TO_READY so
+	 * a subsequent re-negotiation starts fresh.
+	 */
+	return mp_transform_change_state(element, transition);
 }
 
 void mp_queue_init(struct mp_element *self)

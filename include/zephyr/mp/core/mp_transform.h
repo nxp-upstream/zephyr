@@ -155,6 +155,22 @@ int mp_transform_set_caps(struct mp_transform *transform, enum mp_pad_direction 
 void mp_transform_update_caps(struct mp_transform *transform, struct mp_caps *sink_caps,
 			      struct mp_caps *src_caps);
 
+/**
+ * @brief Change state function for the base transform element
+ *
+ * On the PAUSED to READY transition this resets the negotiated pad caps back to
+ * the supported template caps so a subsequent re-negotiation starts fresh.
+ * Derived transforms that override change_state must chain to this base
+ * function to inherit that behavior.
+ *
+ * @param self Pointer to the @ref mp_element
+ * @param transition Transition state, see @ref mp_state_change
+ *
+ * @return One of @ref mp_state_change_return
+ */
+enum mp_state_change_return mp_transform_change_state(struct mp_element *self,
+						      enum mp_state_change transition);
+
 /** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_CORE_MP_TRANSFORM_H_ */
