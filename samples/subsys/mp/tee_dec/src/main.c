@@ -238,7 +238,6 @@ int main(void)
 
 	return 0;
 
-
 err:
 	LOG_ERR("Aborting sample");
 	return 0;

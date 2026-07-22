@@ -65,8 +65,8 @@ struct mp_player {
 	struct mp_bus_sync_listener listener;
 	/** Command queue feeding the worker thread. */
 	struct k_msgq cmd_q;
-	/** Backing buffer for the command queue. */
-	char cmd_buf[CONFIG_MP_PLAYER_CMD_QUEUE_DEPTH];
+	/** Backing buffer for the command queue. Each cmd is a char (keystroke). */
+	char cmd_buf[CONFIG_MP_PLAYER_CMD_QUEUE_DEPTH * sizeof(uint8_t)];
 	/** Worker thread control block. */
 	struct k_thread worker;
 	/** Worker thread id. */

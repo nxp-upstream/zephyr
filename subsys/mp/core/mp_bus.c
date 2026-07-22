@@ -19,7 +19,6 @@ enum mp_bus_sync_reply {
  * If a listener consumes the message, it returns MP_BUS_DROP,
  * otherwise it returns MP_BUS_PASS.
  *
-
  * @param bus: a struct mp_bus to handle the message
  * @param message: the message to handle
  */
