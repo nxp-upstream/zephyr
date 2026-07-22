@@ -18,7 +18,6 @@ struct mp_bus_api_fixture {
 	struct mp_bus bus;
 	struct mp_element elem;
 	struct sys_memory_stats mem_before;
-	struct mp_bus_sync_listener listener;
 };
 
 static void *bus_suite_setup(void)
@@ -55,17 +54,36 @@ static void bus_after(void *f)
 
 ZTEST_SUITE(mp_bus_api, NULL, bus_suite_setup, bus_before, bus_after, NULL);
 
-static int listener_call_count;
-static enum mp_message_type listener_last_type;
-static struct mp_element *listener_last_src;
+static int handler_call_count;
+static enum mp_message_type handler_last_type;
+static struct mp_element *handler_last_src;
 
-static bool test_listener_cb(struct mp_message *message, void *user_data)
+/* Sync handler that records what it saw and drops every message it is given. */
+static enum mp_bus_sync_reply test_drop_handler(struct mp_bus *bus, struct mp_message *message,
+						void *user_data)
 {
-	listener_call_count++;
-	listener_last_type = message->type;
-	listener_last_src = message->origin;
+	ARG_UNUSED(bus);
+	ARG_UNUSED(user_data);
 
-	return true;
+	handler_call_count++;
+	handler_last_type = message->type;
+	handler_last_src = message->origin;
+
+	return MP_BUS_DROP;
+}
+
+/* Sync handler that records what it saw and passes every message through. */
+static enum mp_bus_sync_reply test_pass_handler(struct mp_bus *bus, struct mp_message *message,
+						void *user_data)
+{
+	ARG_UNUSED(bus);
+	ARG_UNUSED(user_data);
+
+	handler_call_count++;
+	handler_last_type = message->type;
+	handler_last_src = message->origin;
+
+	return MP_BUS_PASS;
 }
 
 ZTEST_F(mp_bus_api, test_post_peek_pop)
@@ -162,43 +180,69 @@ ZTEST_F(mp_bus_api, test_flush_clears_all)
 	zassert_equal(mp_bus_peek(&fixture->bus, &out), -ENOMSG, "bus not empty after flush");
 }
 
-ZTEST_F(mp_bus_api, test_sync_listener)
+ZTEST_F(mp_bus_api, test_sync_handler_pass_enqueues)
 {
 	struct mp_element *src = &fixture->elem;
 	struct mp_message msg;
+	struct mp_message out;
 
-	listener_call_count = 0;
-	listener_last_type = MP_MESSAGE_UNKNOWN;
-	listener_last_src = NULL;
+	handler_call_count = 0;
+	handler_last_type = MP_MESSAGE_UNKNOWN;
+	handler_last_src = NULL;
 
-	fixture->listener.cb = test_listener_cb;
-	fixture->listener.filter_mask = MP_MESSAGE_EOS;
-	fixture->listener.user_data = NULL;
-
-	zassert_ok(mp_bus_add_sync_listener(&fixture->bus, &fixture->listener),
-		   "adding sync listener failed");
+	zassert_ok(mp_bus_set_sync_handler(&fixture->bus, test_pass_handler, NULL),
+		   "installing sync handler failed");
 
 	MP_MESSAGE_INIT(&msg, src, MP_MESSAGE_EOS);
 	mp_bus_post(&fixture->bus, &msg);
 
-	zassert_equal(listener_call_count, 1, "listener call count != 1");
-	zassert_equal(listener_last_type, MP_MESSAGE_EOS, "listener type != EOS");
-	zassert_equal(listener_last_src, src, "listener src mismatch");
+	/* Handler ran once and saw the message. */
+	zassert_equal(handler_call_count, 1, "handler call count != 1");
+	zassert_equal(handler_last_type, MP_MESSAGE_EOS, "handler type != EOS");
+	zassert_equal(handler_last_src, src, "handler src mismatch");
+
+	/* MP_BUS_PASS means the message must be enqueued for the consumer. */
+	zassert_ok(mp_bus_peek(&fixture->bus, &out), "PASS did not enqueue the message");
+	zassert_equal(out.type, MP_MESSAGE_EOS, "enqueued type != EOS");
 }
 
-ZTEST_F(mp_bus_api, test_sync_listener_filters_type)
+ZTEST_F(mp_bus_api, test_sync_handler_drop_discards)
 {
+	struct mp_element *src = &fixture->elem;
 	struct mp_message msg;
+	struct mp_message out;
 
-	listener_call_count = 0;
-	fixture->listener.cb = test_listener_cb;
-	fixture->listener.filter_mask = MP_MESSAGE_ERROR;
-	fixture->listener.user_data = NULL;
+	handler_call_count = 0;
 
-	zassert_ok(mp_bus_add_sync_listener(&fixture->bus, &fixture->listener));
+	zassert_ok(mp_bus_set_sync_handler(&fixture->bus, test_drop_handler, NULL),
+		   "installing sync handler failed");
 
-	MP_MESSAGE_INIT(&msg, NULL, MP_MESSAGE_EOS);
+	MP_MESSAGE_INIT(&msg, src, MP_MESSAGE_EOS);
+	zassert_ok(mp_bus_post(&fixture->bus, &msg), "post with dropping handler failed");
+
+	/* Handler ran, but MP_BUS_DROP means nothing is enqueued. */
+	zassert_equal(handler_call_count, 1, "handler call count != 1");
+	zassert_equal(mp_bus_peek(&fixture->bus, &out), -ENOMSG,
+		      "DROP still enqueued the message");
+}
+
+ZTEST_F(mp_bus_api, test_sync_handler_clear)
+{
+	struct mp_element *src = &fixture->elem;
+	struct mp_message msg;
+	struct mp_message out;
+
+	handler_call_count = 0;
+
+	/* Install then clear: posting must no longer invoke the handler and the
+	 * message must be enqueued (default PASS behavior).
+	 */
+	zassert_ok(mp_bus_set_sync_handler(&fixture->bus, test_drop_handler, NULL));
+	zassert_ok(mp_bus_set_sync_handler(&fixture->bus, NULL, NULL), "clearing handler failed");
+
+	MP_MESSAGE_INIT(&msg, src, MP_MESSAGE_EOS);
 	mp_bus_post(&fixture->bus, &msg);
 
-	zassert_equal(listener_call_count, 0, "listener called for non-matching type");
+	zassert_equal(handler_call_count, 0, "cleared handler was still called");
+	zassert_ok(mp_bus_peek(&fixture->bus, &out), "message not enqueued after clearing handler");
 }

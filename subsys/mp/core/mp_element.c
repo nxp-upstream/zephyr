@@ -8,9 +8,11 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mp/core/mp_bin.h>
+#include <zephyr/mp/core/mp_bus.h>
 #include <zephyr/mp/core/mp_caps.h>
 #include <zephyr/mp/core/mp_element.h>
 #include <zephyr/mp/core/mp_dispatch.h>
+#include <zephyr/mp/core/mp_message.h>
 #include <zephyr/mp/core/mp_object.h>
 #include <zephyr/mp/core/mp_pad.h>
 
@@ -196,6 +198,25 @@ struct mp_bus *mp_element_get_bus(struct mp_element *element)
 	}
 
 	return &((struct mp_bin *)element)->bus;
+}
+
+int mp_element_post_message(struct mp_element *element, uint32_t type)
+{
+	struct mp_bus *bus;
+	struct mp_message msg;
+
+	if (element == NULL) {
+		return -EINVAL;
+	}
+
+	bus = mp_element_get_bus(element);
+	if (bus == NULL) {
+		return -ENODEV;
+	}
+
+	MP_MESSAGE_INIT(&msg, element, type);
+
+	return mp_bus_post(bus, &msg);
 }
 
 void mp_element_init(struct mp_element *self, uint8_t id)

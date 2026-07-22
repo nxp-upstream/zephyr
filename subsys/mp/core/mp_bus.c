@@ -7,50 +7,42 @@
 #include <zephyr/kernel.h>
 #include <zephyr/mp/core/mp_bus.h>
 
-enum mp_bus_sync_reply {
-	MP_BUS_DROP = 0,
-	MP_BUS_PASS = 1,
-};
-
 /**
- * Sync handler for the bus.
- * This function is called when a message is posted to the bus.
- * It delivers the message to the correct listener based on the filter type.
- * If a listener consumes the message, it returns MP_BUS_DROP,
- * otherwise it returns MP_BUS_PASS.
+ * Run the sync handler for a posted message and decide its fate.
  *
- * @param bus: a struct mp_bus to handle the message
+ * The handler (if any) runs inline in the posting thread. Its reply decides
+ * whether the message is enqueued for the asynchronous consumer. With no
+ * handler installed the default is MP_BUS_PASS (enqueue).
+ *
+ * @param bus: the bus the message was posted to
  * @param message: the message to handle
+ * @return the sync reply, one of enum mp_bus_sync_reply
  */
 static enum mp_bus_sync_reply mp_bus_sync_handler(struct mp_bus *bus, struct mp_message *message)
 {
-
-	struct mp_bus_sync_listener *listener;
-	bool ret = false;
-
-	/* Deliver the message to the correct listener */
-	SYS_SLIST_FOR_EACH_CONTAINER(&bus->sync_listeners, listener, node) {
-		if (message->type & listener->filter_mask) {
-			ret |= listener->cb(message, listener->user_data);
-		}
+	if (bus->sync_handler == NULL) {
+		return MP_BUS_PASS;
 	}
 
-	return ret ? MP_BUS_DROP : MP_BUS_PASS;
+	return bus->sync_handler(bus, message, bus->sync_handler_user_data);
 }
 
 int mp_bus_post(struct mp_bus *bus, struct mp_message *message)
 {
-	enum mp_bus_sync_reply reply = MP_BUS_PASS;
+	enum mp_bus_sync_reply reply;
 
 	if (bus == NULL || message == NULL) {
 		return -EINVAL;
 	}
 
-	/* Step 1: Notify sync listeners first */
+	/* Step 1: run the sync handler in the caller's thread */
 	reply = mp_bus_sync_handler(bus, message);
 
-	/* Step 2: Queue message if not consumed */
-	if (reply == MP_BUS_PASS) {
+	/*
+	 * Step 2: enqueue unless the handler dropped the message. MP_BUS_ASYNC
+	 * is reserved for future use and is currently treated like MP_BUS_PASS.
+	 */
+	if (reply != MP_BUS_DROP) {
 		return k_msgq_put(&bus->msgq, message, K_NO_WAIT);
 	}
 
@@ -104,26 +96,14 @@ int mp_bus_flush(struct mp_bus *bus)
 	return 0;
 }
 
-int mp_bus_add_sync_listener(struct mp_bus *bus, struct mp_bus_sync_listener *listener)
+int mp_bus_set_sync_handler(struct mp_bus *bus, mp_bus_sync_handler_fn handler, void *user_data)
 {
-	if (bus == NULL || listener == NULL || listener->cb == NULL) {
+	if (bus == NULL) {
 		return -EINVAL;
 	}
 
-	sys_slist_append(&bus->sync_listeners, &listener->node);
+	bus->sync_handler = handler;
+	bus->sync_handler_user_data = user_data;
 
 	return 0;
-}
-
-int mp_bus_remove_sync_listener(struct mp_bus *bus, struct mp_bus_sync_listener *listener)
-{
-	bool found;
-
-	if (bus == NULL || listener == NULL) {
-		return -EINVAL;
-	}
-
-	found = sys_slist_find_and_remove(&bus->sync_listeners, &listener->node);
-
-	return found ? 0 : -ENOENT;
 }

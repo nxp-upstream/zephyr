@@ -43,34 +43,44 @@ static uint32_t mp_pipeline_count_sinks(struct mp_bin *bin)
 }
 
 /*
- * Bus sync listener callback that aggregates EOS messages from all sinks.
+ * Bus sync handler that aggregates EOS messages from all sinks.
  *
  * A pipeline with N sinks receives N EOS messages (one per sink). The
  * application must only be notified once every sink has finished, otherwise it
  * could tear down the pipeline while another branch is still processing. This
- * callback swallows (drops) the first N-1 EOS messages and passes only the last
- * one to the application.
+ * handler drops the first N-1 EOS messages and passes only the last one to the
+ * application. Non-EOS messages are always passed through unchanged.
  *
- * @return true to drop the message (not all sinks done yet), false to pass it
- *         through to the application (last sink, or no sinks tracked).
+ * Runs inline in the posting (pipeline/queue) thread, so it stays short and
+ * never triggers a state change.
+ *
+ * @return MP_BUS_DROP to swallow an intermediate EOS (not all sinks done yet),
+ *         MP_BUS_PASS to deliver the message to the application (non-EOS, last
+ *         sink, or no sinks tracked).
  */
-static bool mp_pipeline_eos_handler(struct mp_message *message, void *user_data)
+static enum mp_bus_sync_reply mp_pipeline_eos_handler(struct mp_bus *bus,
+						      struct mp_message *message, void *user_data)
 {
 	struct mp_pipeline *pipeline = user_data;
 	uint32_t seen;
 
-	ARG_UNUSED(message);
+	ARG_UNUSED(bus);
+
+	/* Only EOS is aggregated; everything else reaches the application. */
+	if (message->type != MP_MESSAGE_EOS) {
+		return MP_BUS_PASS;
+	}
 
 	/* atomic_inc() returns the value prior to the increment */
 	seen = (uint32_t)atomic_inc(&pipeline->eos_count) + 1;
 
 	/* Pass through once all sinks have signaled EOS (or if none are tracked) */
 	if (pipeline->num_sinks == 0 || seen >= pipeline->num_sinks) {
-		return false;
+		return MP_BUS_PASS;
 	}
 
 	/* Not all sinks are done yet: swallow this intermediate EOS */
-	return true;
+	return MP_BUS_DROP;
 }
 
 
@@ -237,7 +247,7 @@ static enum mp_state_change_return mp_pipeline_change_state(struct mp_element *e
 	if (transition == MP_STATE_CHANGE_PAUSED_TO_READY) {
 		mp_thread_join(&pipeline->thread, K_FOREVER);
 		/* Stop aggregating EOS and reset for a clean re-run */
-		mp_bus_remove_sync_listener(&pipeline->bin.bus, &pipeline->eos_listener);
+		mp_bus_set_sync_handler(&pipeline->bin.bus, NULL, NULL);
 		atomic_set(&pipeline->eos_count, 0);
 	}
 
@@ -262,10 +272,7 @@ static enum mp_state_change_return mp_pipeline_change_state(struct mp_element *e
 		 */
 		pipeline->num_sinks = mp_pipeline_count_sinks(&pipeline->bin);
 		atomic_set(&pipeline->eos_count, 0);
-		pipeline->eos_listener.cb = mp_pipeline_eos_handler;
-		pipeline->eos_listener.filter_mask = MP_MESSAGE_EOS;
-		pipeline->eos_listener.user_data = pipeline;
-		mp_bus_add_sync_listener(&pipeline->bin.bus, &pipeline->eos_listener);
+		mp_bus_set_sync_handler(&pipeline->bin.bus, mp_pipeline_eos_handler, pipeline);
 		break;
 
 	case MP_STATE_CHANGE_PAUSED_TO_PLAYING:

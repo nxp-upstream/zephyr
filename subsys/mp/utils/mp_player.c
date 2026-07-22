@@ -29,8 +29,6 @@ enum mp_player_cmd {
 	MP_PLAYER_CMD_STOP,
 	MP_PLAYER_CMD_REPLAY,
 	MP_PLAYER_CMD_QUIT,
-	/* Internal: posted by the bus listener on EOS / ERROR. */
-	MP_PLAYER_CMD_EOS,
 };
 
 /* Only a single player instance is supported at a time. */
@@ -50,25 +48,6 @@ static const char *mp_player_state_str(enum mp_player_state state)
 	default:
 		return "?";
 	}
-}
-
-/*
- * Bus listener callback. Runs in the context of the thread that posted the
- * message (a pipeline/queue thread). It must NOT change pipeline state here;
- * it only forwards an EOS command to the worker, which owns all transitions.
- * Returns false so the message still reaches any application-level bus reader.
- */
-static bool mp_player_bus_cb(struct mp_message *message, void *user_data)
-{
-	struct mp_player *player = user_data;
-	uint8_t cmd = MP_PLAYER_CMD_EOS;
-
-	ARG_UNUSED(message);
-
-	/* Best-effort: if the queue is full a pending command already covers it. */
-	(void)k_msgq_put(&player->cmd_q, &cmd, K_NO_WAIT);
-
-	return false;
 }
 
 /* Drive the pipeline to a target mp_state and update the observable state. */
@@ -124,54 +103,116 @@ static void mp_player_do_replay(struct mp_player *player)
 	mp_player_do_play(player);
 }
 
+/*
+ * Apply a single command. Returns true when the worker should exit (QUIT).
+ */
+static bool mp_player_handle_cmd(struct mp_player *player, uint8_t cmd)
+{
+	switch (cmd) {
+	case MP_PLAYER_CMD_PLAY:
+		mp_player_do_play(player);
+		break;
+	case MP_PLAYER_CMD_PAUSE:
+		mp_player_do_pause(player);
+		break;
+	case MP_PLAYER_CMD_TOGGLE:
+		if (player->state == MP_PLAYER_PLAYING) {
+			mp_player_do_pause(player);
+		} else {
+			mp_player_do_play(player);
+		}
+		break;
+	case MP_PLAYER_CMD_STOP:
+		mp_player_do_stop(player);
+		break;
+	case MP_PLAYER_CMD_REPLAY:
+		mp_player_do_replay(player);
+		break;
+	case MP_PLAYER_CMD_QUIT:
+		mp_player_do_stop(player);
+		LOG_DBG("Player worker exiting");
+		k_sem_give(&player->exited);
+		return true;
+	default:
+		break;
+	}
+
+	return false;
+}
+
+/*
+ * Player worker thread. This is the pipeline's sole bus consumer AND the sole
+ * owner of every state transition, so nothing here ever runs in a pipeline
+ * thread's context (which would risk a thread joining itself on teardown).
+ *
+ * It waits on two sources at once with k_poll():
+ *  - the command queue, fed by the mp_player_*() API (play/pause/stop/quit...),
+ *  - the pipeline bus, on which the pipeline posts an EOS (or an ERROR) once
+ *   every sink has finished.
+ */
 static void mp_player_worker(void *p1, void *p2, void *p3)
 {
 	struct mp_player *player = p1;
 	uint8_t cmd;
+	struct mp_message msg;
 
 	ARG_UNUSED(p2);
 	ARG_UNUSED(p3);
 
+	/*
+	 * Without a bus we can only observe commands. This keeps the worker
+	 * usable in minimal setups (e.g. unit tests) where no bus is wired up.
+	 */
+	if (player->bus == NULL) {
+		for (;;) {
+			if (k_msgq_get(&player->cmd_q, &cmd, K_FOREVER) != 0) {
+				continue;
+			}
+			if (mp_player_handle_cmd(player, cmd)) {
+				return;
+			}
+		}
+	}
+
+	struct k_poll_event events[2];
+
+	k_poll_event_init(&events[0], K_POLL_TYPE_MSGQ_DATA_AVAILABLE, K_POLL_MODE_NOTIFY_ONLY,
+			  &player->cmd_q);
+	k_poll_event_init(&events[1], K_POLL_TYPE_MSGQ_DATA_AVAILABLE, K_POLL_MODE_NOTIFY_ONLY,
+			  &player->bus->msgq);
+
 	for (;;) {
-		if (k_msgq_get(&player->cmd_q, &cmd, K_FOREVER) != 0) {
+		if (k_poll(events, ARRAY_SIZE(events), K_FOREVER) != 0) {
 			continue;
 		}
 
-		switch (cmd) {
-		case MP_PLAYER_CMD_PLAY:
-			mp_player_do_play(player);
-			break;
-		case MP_PLAYER_CMD_PAUSE:
-			mp_player_do_pause(player);
-			break;
-		case MP_PLAYER_CMD_TOGGLE:
-			if (player->state == MP_PLAYER_PLAYING) {
-				mp_player_do_pause(player);
-			} else {
-				mp_player_do_play(player);
+		/* Drain all pending commands first so a QUIT is honored promptly. */
+		if (events[0].state == K_POLL_STATE_MSGQ_DATA_AVAILABLE) {
+			while (k_msgq_get(&player->cmd_q, &cmd, K_NO_WAIT) == 0) {
+				if (mp_player_handle_cmd(player, cmd)) {
+					return;
+				}
 			}
-			break;
-		case MP_PLAYER_CMD_STOP:
-			mp_player_do_stop(player);
-			break;
-		case MP_PLAYER_CMD_REPLAY:
-			mp_player_do_replay(player);
-			break;
-		case MP_PLAYER_CMD_EOS:
-			/* Stream finished (or errored): return to STOPPED so a
-			 * subsequent play/replay starts cleanly.
-			 */
-			LOG_INF("End of stream");
-			mp_player_do_stop(player);
-			break;
-		case MP_PLAYER_CMD_QUIT:
-			mp_player_do_stop(player);
-			LOG_DBG("Player worker exiting");
-			k_sem_give(&player->exited);
-			return;
-		default:
-			break;
 		}
+
+		/*
+		 * Bus messages: the pipeline delivers a single aggregated EOS (or
+		 * an ERROR) once every sink has finished. Return to STOPPED so a
+		 * subsequent play/replay starts cleanly.
+		 */
+		if (events[1].state == K_POLL_STATE_MSGQ_DATA_AVAILABLE) {
+			while (mp_bus_pop_msg(player->bus, MP_MESSAGE_EOS | MP_MESSAGE_ERROR,
+					      &msg) == 0) {
+				LOG_INF("End of stream");
+				mp_player_do_stop(player);
+				if (k_msgq_num_used_get(&player->bus->msgq) == 0) {
+					break;
+				}
+			}
+		}
+
+		events[0].state = K_POLL_STATE_NOT_READY;
+		events[1].state = K_POLL_STATE_NOT_READY;
 	}
 }
 
@@ -203,14 +244,6 @@ int mp_player_init(struct mp_player *player, struct mp_pipeline *pipeline)
 	k_msgq_init(&player->cmd_q, player->cmd_buf, sizeof(uint8_t),
 		    CONFIG_MP_PLAYER_CMD_QUEUE_DEPTH);
 	k_sem_init(&player->exited, 0, 1);
-
-	/* Watch for EOS / ERROR to auto-stop the pipeline. */
-	player->listener.cb = mp_player_bus_cb;
-	player->listener.filter_mask = MP_MESSAGE_EOS | MP_MESSAGE_ERROR;
-	player->listener.user_data = player;
-	if (player->bus != NULL) {
-		mp_bus_add_sync_listener(player->bus, &player->listener);
-	}
 
 	active_player = player;
 
@@ -290,10 +323,6 @@ int mp_player_deinit(struct mp_player *player)
 	 * worker function has returned, regardless of who consumed the semaphore.
 	 */
 	(void)k_thread_join(&player->worker, K_FOREVER);
-
-	if (player->bus != NULL) {
-		mp_bus_remove_sync_listener(player->bus, &player->listener);
-	}
 
 	active_player = NULL;
 

@@ -59,10 +59,8 @@ enum mp_player_state {
 struct mp_player {
 	/** Controlled pipeline. */
 	struct mp_pipeline *pipeline;
-	/** Cached pipeline bus. */
+	/** Cached pipeline bus (read by the worker to observe EOS / ERROR). */
 	struct mp_bus *bus;
-	/** Bus listener used to observe EOS / ERROR messages. */
-	struct mp_bus_sync_listener listener;
 	/** Command queue feeding the worker thread. */
 	struct k_msgq cmd_q;
 	/** Backing buffer for the command queue. Each cmd is a char (keystroke). */

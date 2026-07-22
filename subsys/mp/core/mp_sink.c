@@ -105,14 +105,7 @@ int mp_sink_event(struct mp_pad *pad, struct mp_dispatch *event)
 		 * EOS event reached the end of the pipeline, post an EOS message to the bus so that
 		 * applications know that this sink has finished processing all upstream data.
 		 */
-		struct mp_bus *bus = mp_element_get_bus(&sink->element);
-
-		if (bus != NULL) {
-			struct mp_message msg;
-
-			MP_MESSAGE_INIT(&msg, &sink->element, MP_MESSAGE_EOS);
-			mp_bus_post(bus, &msg);
-		}
+		mp_element_post_message(&sink->element, MP_MESSAGE_EOS);
 
 		return 0;
 	case MP_DISPATCH_CAPS:

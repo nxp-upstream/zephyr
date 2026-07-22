@@ -7,6 +7,7 @@
 config MP_PLAYER
 	bool "MultimediaPipe player helper"
 	depends on MP
+	select POLL
 	imply SHELL
 	imply SERIAL
 	imply UART_CONSOLE
