@@ -22,4 +22,4 @@ tests:
     harness_config:
       type: one_line
       regex:
-        - "EOS message from element"
+        - "End of stream"
