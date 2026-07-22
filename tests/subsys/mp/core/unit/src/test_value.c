@@ -94,7 +94,7 @@ ZTEST(mp_value_api, test_new_values)
 	zassert_equal(mp_value_get_int(ez), 0, "value != 0");
 	mp_value_destroy(ez);
 
-	mp_value_t el = mp_value_new_list(0);
+	mp_value_t el = mp_value_new_list(0, NULL);
 
 	zassert_not_null(el, "mp_value_new(LIST, NULL) returned NULL");
 	zassert_equal(mp_value_get_type(el), MP_TYPE_LIST, "type != LIST");
@@ -105,12 +105,11 @@ ZTEST(mp_value_api, test_new_values)
 
 ZTEST(mp_value_api, test_list)
 {
-	mp_value_t list = mp_value_new_list(2);
+	mp_value_t list = mp_value_new_list(2, NULL);
 	mp_value_t item1 = mp_value_new_int(10);
 	mp_value_t item2 = mp_value_new_int(20);
 
 	zassert_not_null(list, "list allocation failed");
-	printk("list %d\n", mp_value_list_get_size(list));
 	mp_value_list_set(list, 0, item1); /* should not trigger assertion error */
 	mp_value_list_set(list, 1, item2); /* should not trigger assertion error */
 
@@ -202,7 +201,7 @@ ZTEST(mp_value_api, test_duplicate_and_is_primitive)
 	zassert_true(mp_value_is_primitive(bv), "BOOLEAN not primitive");
 	mp_value_destroy(bv);
 
-	mp_value_t lv = mp_value_new_list(0);
+	mp_value_t lv = mp_value_new_list(0, NULL);
 
 	zassert_false(mp_value_is_primitive(lv), "LIST is primitive");
 	mp_value_destroy(lv);

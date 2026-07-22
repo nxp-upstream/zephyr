@@ -101,7 +101,7 @@ struct mp_value_simple {
 
 struct mp_value_list {
 	struct mp_value base;
-	size_t length;
+	size_t size;
 	mp_value_t v_list[];
 };
 
@@ -136,6 +136,7 @@ static const uint32_t mp_value_intersect_mask[MP_TYPE_COUNT] = {
 	[MP_TYPE_OBJECT] = 0,
 	[MP_TYPE_PTR] = 0,
 };
+
 
 enum mp_value_type mp_value_get_type(const mp_value_t value)
 {
@@ -270,107 +271,26 @@ mp_value_t mp_value_new_string(const char *s)
 	return value;
 }
 
-/*
- * Return the number of parameters from `va_list *argp` that are consumed, so that.
- */
-static size_t mp_value_list_get_size_va(va_list *argp)
-{
-	for (size_t length = 0;; length++) {
-		switch (va_arg(*argp, enum mp_value_type)) {
-		case MP_TYPE_BOOLEAN:
-		case MP_TYPE_ENUM:
-		case MP_TYPE_INT:
-			va_arg(*argp, int64_t);
-			break;
-		case MP_TYPE_RANGE:
-			va_arg(*argp, int64_t);
-			va_arg(*argp, int64_t);
-			va_arg(*argp, int64_t);
-			break;
-		case MP_TYPE_STRING:
-		case MP_TYPE_PTR:
-		case MP_TYPE_OBJECT:
-			va_arg(*argp, void *);
-			break;
-		case MP_TYPE_LIST:
-			mp_value_list_get_size_va(argp);
-			break;
-		case MP_TYPE_NONE:
-			return length;
-		default:
-			CODE_UNREACHABLE;
-		}
-	}
-}
-
-mp_value_t mp_value_new_list(size_t length)
+mp_value_t mp_value_new_list(size_t size, mp_value_t *values)
 {
 	mp_value_t list;
 
-	list = k_calloc(1, sizeof(struct mp_value_list) + length * sizeof(mp_value_t));
+	list = k_malloc(sizeof(struct mp_value_list) + size * sizeof(mp_value_t));
 	if (list == NULL) {
 		return NULL;
 	}
 
 	mp_value_set_type(&list, MP_TYPE_LIST);
-	MP_VALUE_LIST(list)->length = length;
 
-	return list;
-}
+	MP_VALUE_LIST(list)->size = size;
 
-mp_value_t mp_value_new_list_va(va_list *argp)
-{
-	mp_value_t list;
-
-	va_list tmp;
-	va_copy(tmp, argp);
-
-	list = mp_value_new_list(mp_value_list_get_size_va(&tmp));
-	if (list == NULL) {
-		LOG_ERR("Failed to allocate list");
-	}
-
-	for (size_t i = 0; i < mp_value_list_get_size(list); i++) {
-		mp_value_list_set(list, i, mp_value_new_va(argp));
-	}
-
-	if (va_arg(*argp, enum mp_value_type) != MP_TYPE_NONE) {
-		LOG_ERR("Invalid list terminator");
-		mp_value_destroy(list);
-		return NULL;
+	if (values != NULL) {
+		memcpy(MP_VALUE_LIST(list)->v_list, values, sizeof(mp_value_t) * size);
+	} else {
+		memset(MP_VALUE_LIST(list)->v_list, 0, sizeof(mp_value_t) * size);
 	}
 
 	return list;
-}
-
-mp_value_t mp_value_new_va(va_list *argp)
-{
-	enum mp_value_type type = va_arg(*argp, uint32_t);
-
-	switch (type) {
-	case MP_TYPE_BOOLEAN:
-		return mp_value_new_boolean(va_arg(*argp, int64_t));
-	case MP_TYPE_ENUM:
-		return mp_value_new_enum(va_arg(*argp, int64_t));
-	case MP_TYPE_INT:
-		return mp_value_new_int(va_arg(*argp, int64_t));
-	case MP_TYPE_RANGE:
-		int64_t min = va_arg(*argp, int64_t);
-		int64_t max = va_arg(*argp, int64_t);
-		int64_t step = va_arg(*argp, int64_t);
-		return mp_value_new_range(min, max, step);
-	case MP_TYPE_STRING:
-		return mp_value_new_string(va_arg(*argp, const char *));
-	case MP_TYPE_PTR:
-		return MP_VALUE_NEW_OTHER_PTR(va_arg(*argp, void *));
-	case MP_TYPE_OBJECT:
-		return MP_VALUE_NEW_OBJECT_PTR(va_arg(*argp, struct mp_object *));
-	case MP_TYPE_LIST:
-		return mp_value_new_list_va(argp);
-	default:
-		LOG_ERR("Unknown mp_value type: %d", type);
-		return NULL;
-	}
 }
 
 const char *mp_value_get_string(const mp_value_t value)
@@ -405,7 +325,7 @@ int mp_value_destroy(mp_value_t value)
 	}
 
 	if (mp_value_get_type(value) == MP_TYPE_LIST) {
-		for (size_t i = 0; i < MP_VALUE_LIST(value)->length; i++) {
+		for (size_t i = 0; i < MP_VALUE_LIST(value)->size; i++) {
 			mp_value_destroy(mp_value_list_get(value, i));
 		}
 	}
@@ -430,12 +350,12 @@ mp_value_t mp_value_duplicate(const mp_value_t src)
 	}
 
 	if (mp_value_get_type(src) == MP_TYPE_LIST) {
-		dst = mp_value_new_list(MP_VALUE_LIST(src)->length);
+		dst = mp_value_new_list(MP_VALUE_LIST(src)->size, NULL);
 		if (dst == NULL) {
 			return NULL;
 		}
 
-		for (int i = 0; i < MP_VALUE_LIST(src)->length; i++) {
+		for (int i = 0; i < MP_VALUE_LIST(src)->size; i++) {
 			mp_value_t dup = mp_value_duplicate(mp_value_list_get(src, i));
 			if (dup == NULL) {
 				mp_value_destroy(dst);
@@ -476,13 +396,13 @@ mp_value_t mp_value_duplicate(const mp_value_t src)
 
 void mp_value_list_set(mp_value_t list, int index, mp_value_t value)
 {
-	__ASSERT_NO_MSG(index < MP_VALUE_LIST(list)->length);
+	__ASSERT_NO_MSG(index < MP_VALUE_LIST(list)->size);
 	MP_VALUE_LIST(list)->v_list[index] = value;
 }
 
 mp_value_t mp_value_list_get(const mp_value_t list, int index)
 {
-	if (index >= MP_VALUE_LIST(list)->length) {
+	if (index >= MP_VALUE_LIST(list)->size) {
 		return NULL;
 	}
 	return MP_VALUE_LIST_CONST(list)->v_list[index];
@@ -490,18 +410,18 @@ mp_value_t mp_value_list_get(const mp_value_t list, int index)
 
 bool mp_value_list_is_empty(const mp_value_t list)
 {
-	return MP_VALUE_LIST_CONST(list)->length == 0;
+	return MP_VALUE_LIST_CONST(list)->size == 0;
 }
 
 size_t mp_value_list_get_size(const mp_value_t list)
 {
-	return MP_VALUE_LIST_CONST(list)->length;
+	return MP_VALUE_LIST_CONST(list)->size;
 }
 
 void mp_value_list_set_size(mp_value_t list, size_t size)
 {
-	if (size < MP_VALUE_LIST(list)->length) {
-		MP_VALUE_LIST(list)->length = size;
+	if (size < MP_VALUE_LIST(list)->size) {
+		MP_VALUE_LIST(list)->size = size;
 	}
 }
 
@@ -586,8 +506,8 @@ static int mp_value_list_compare(const mp_value_t list1, const mp_value_t list2)
 		return MP_VALUE_UNORDERED;
 	}
 
-	for (size_t i1 = 0; i1 < MP_VALUE_LIST(list1)->length; i1++) {
-		for (size_t i2 = 0; i2 < MP_VALUE_LIST(list2)->length; i2++) {
+	for (size_t i1 = 0; i1 < MP_VALUE_LIST(list1)->size; i1++) {
+		for (size_t i2 = 0; i2 < MP_VALUE_LIST(list2)->size; i2++) {
 			if (mp_value_compare(MP_VALUE_LIST(list1)->v_list[i1],
 					     MP_VALUE_LIST(list2)->v_list[i2]) == MP_VALUE_EQUAL) {
 				count_matched++;
@@ -640,14 +560,14 @@ mp_value_t mp_value_intersect_list(const mp_value_t list,
 	}
 
 	intersect_list = mp_value_new_list(min(mp_value_list_get_size(list),
-					       mp_value_list_get_size(compare_val)));
+					       mp_value_list_get_size(compare_val)), NULL);
 	if (intersect_list == NULL) {
 		LOG_ERR("Failed to allocate result list");
 		return NULL;
 	}
 
 	size_t o = 0;
-	for (size_t i1 = 0; i1 < MP_VALUE_LIST(list)->length; i1++) {
+	for (size_t i1 = 0; i1 < MP_VALUE_LIST(list)->size; i1++) {
 		intersect_value = NULL;
 		value1 = MP_VALUE_LIST(list)->v_list[i1];
 
@@ -664,7 +584,7 @@ mp_value_t mp_value_intersect_list(const mp_value_t list,
 			intersect_value = mp_value_intersect_range(compare_val, value1);
 			break;
 		case MP_TYPE_LIST:
-			for (size_t i2 = 0; i2 < MP_VALUE_LIST(compare_val)->length; i2++) {
+			for (size_t i2 = 0; i2 < MP_VALUE_LIST(compare_val)->size; i2++) {
 				value2 = MP_VALUE_LIST(compare_val)->v_list[i2];
 
 				if (mp_value_compare(value1, value2) == MP_VALUE_EQUAL) {
@@ -772,7 +692,7 @@ void mp_value_print(const mp_value_t value, bool new_line);
 static inline void mp_value_print_list(const mp_value_t value)
 {
 	printk("{");
-	for (size_t i = 0; i < MP_VALUE_LIST_CONST(value)->length; i++) {
+	for (size_t i = 0; i < MP_VALUE_LIST_CONST(value)->size; i++) {
 		if (i > 0) {
 			printk(", ");
 		}

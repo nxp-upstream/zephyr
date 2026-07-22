@@ -90,7 +90,7 @@ static int append_frmrates_to_structure(const struct device *vdev, struct video_
 		length++;
 	}
 
-	frmrates = mp_value_new_list(length);
+	frmrates = mp_value_new_list(length, NULL);
 	if (frmrates == NULL) {
 		goto nomem;
 	}

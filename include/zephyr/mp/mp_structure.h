@@ -79,10 +79,21 @@
  * @brief Dynamic structure for holding named fields and values.
  */
 struct mp_structure {
-	/** List of fields in the structure */
-	sys_slist_t fields;
+	/** Internal use, for bundling multiple structures together */
+	sys_snode_t node;
 	/** Media type ID of the structure */
 	uint8_t media_type_id;
+	/** Number of fields currently present in the structure, one field is key + value */
+	size_t num_values;
+	/** Maximum number of fields the structure can hold */
+	size_t capacity;
+	/** Values of the struct, key-value pairs */
+	struct {
+		/** Key of the field */
+		uint8_t id;
+		/** Value of the field */
+		mp_value_t value;
+	} fields[];
 };
 
 /**
@@ -90,30 +101,63 @@ struct mp_structure {
  *
  * This function creates a new structure with the specified media type ID and a variadic
  * list of field definitions. Each field is defined by a sequence of arguments:
- * - `uint8_t field_id`
- * - `int type`
- * - One or more values depending on the type
+ *
+ * - @c uint8_t @c field_id
+ * - @c mp_value_t @c value
  *
  * The list must be terminated by a `0` field ID. The number and type of
  * arguments for each field depend on the field's type with the same rule as
  * @ref mp_value_new_va_list().
  *
  * @param media_type_id Media type ID of the structure.
- * @param ... Variadic list of field definitions, terminated by 0.
+ * @param ... Variadic list of field definitions, terminated by @ref MP_STRUCTURE_END.
  *
  * @return Pointer to the newly created @ref mp_structure, or NULL on failure
  */
 struct mp_structure *mp_structure_new(uint8_t media_type_id, ...);
 
 /**
+ * @brief Create a new mp_structure out of a variadic argument list.
+ *
+ * See @ref mp_structure_new for usage details.
+ *
+ * @param media_type_id Media type ID of the structure.
+ * @param argp Pointer to a variadic list of field definitions.
+ *
+ * @return Pointer to the newly created @ref mp_structure, or NULL on failure
+ */
+struct mp_structure *mp_structure_new_va(uint8_t media_type_id, va_list *argp);
+
+/**
+ * @brief Create a new empty mp_structure from variadic argument list.
+ *
+ * @param media_type_id Media type ID of the structure.
+ * @param args Variadic list expecting the same syntax as @ref mp_structure_new.
+ *
+ * @return Pointer to the newly created @ref mp_structure, or NULL on failure
+ */
+struct mp_structure *p_structure_new_empty_va(uint8_t media_type_id, va_list args);
+
+/**
+ * @brief Create a new empty mp_structure to be filled with values.
+ *
+ * @param media_type_id Media type ID of the structure.
+ * @param capacity Maximum number of fields in the structure.
+ *
+ * @return Pointer to the newly created @ref mp_structure, or NULL on failure
+ */
+struct mp_structure *mp_structure_new_empty(uint8_t media_type_id, size_t capacity);
+
+/**
  * @brief Initialize an @ref mp_structure.
  *
  * @param structure Structure to initialize.
  * @param media_type_id Media type ID of the structure.
+ * @param capacity Maximum number of fields in the structure.
  *
  * @return 0 on success, negative errno on failure
  */
-int mp_structure_init(struct mp_structure *structure, uint8_t media_type_id);
+int mp_structure_init(struct mp_structure *structure, uint8_t media_type_id, size_t capacity);
 
 /**
  * @brief Append a field to an @ref mp_structure.

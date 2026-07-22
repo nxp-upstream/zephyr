@@ -26,6 +26,7 @@
 #include <stdlib.h>
 
 #include <zephyr/mp/mp_object.h>
+#include <zephyr/sys/util.h>
 
 /** @brief Value comparison result: first value is less than second */
 #define MP_VALUE_LESS_THAN      -1
@@ -60,31 +61,33 @@ enum mp_value_type {
 };
 
 /** @brief Helper for passing a boolean to va_arg functions */
-#define MP_BOOLEAN(value)	MP_TYPE_BOOLEAN, (int64_t)(value)
+#define MP_BOOLEAN(value)	mp_value_new_boolean(value)
 
 /** @brief Helper for passing an enum to va_arg functions */
-#define MP_ENUM(value)		MP_TYPE_ENUM, (int64_t)(value)
+#define MP_ENUM(value)		mp_value_new_enum(value)
 
 /** @brief Helper for passing an integer to va_arg functions */
-#define MP_INT(value)		MP_TYPE_INT, (int64_t)(value)
+#define MP_INT(value)		mp_value_new_int(value)
 
 /** @biref Helper for passing an FPS number to va_arg functions */
 #define MP_FPS(value)		MP_INT(NSEC_PER_SEC / (value))
 
 /** @brief Helper for passing a string to va_arg functions */
-#define MP_STRING(value)	MP_TYPE_STRING, (char *)(value)
+#define MP_STRING(value)	mp_value_new_string(value)
 
 /** @brief Helper for passing a range to va_arg functions */
-#define MP_RANGE(min, max, step) MP_TYPE_RANGE, (int64_t)(min), (int64_t)(max), (int64_t)(step)
+#define MP_RANGE(min, max, step) mp_value_new_range(min, max, step)
 
 /** @brief Helper for passing a list to va_arg functions */
-#define MP_LIST(...)		MP_TYPE_LIST, __VA_ARGS__, MP_TYPE_NONE
+#define MP_LIST(...)                                                                               \
+	mp_value_new_list(sizeof((mp_value_t []){__VA_ARGS__}) / sizeof(mp_value_t),               \
+			  (mp_value_t []){__VA_ARGS__})
 
 /** @brief Helper for passing an mp_object to va_arg functions */
-#define MP_OBJECT(value)	MP_TYPE_OBJECT, (struct mp_object *)(value)
+#define MP_OBJECT(value)	MP_VALUE_NEW_OBJECT_PTR(value)
 
 /** @brief Helper for passing a pointer to va_arg functions */
-#define MP_PTR(value)		MP_TYPE_PTR, (void *)(value)
+#define MP_PTR(value)		MP_VALUE_NEW_OTHER_PTR(value)
 
 /**
  * @brief Base mp_value structure
@@ -93,31 +96,6 @@ struct mp_value {
 	/** For internal use, see @ref mp_value_get_type */
 	enum mp_value_type _type;
 };
-
-/**
- * @brief Create a new mp_value with the specified types and initialization arguments.
- *
- * This function creates a new mp_value instance based on the provided type.
- *
- * The number and type of variadic arguments depend on the specified enum mp_value_type:
- *
- * The first argument is expected to be the type, and the ones following to be the values.
- *
- * - MP_TYPE_BOOLEAN, MP_TYPE_ENUM, MP_TYPE_INT, MP_TYPE_STRING, MP_TYPE_OBJECT, MP_TYPE_PTR:
- *   Require one initialization value.
- *
- * - MP_TYPE_RANGE: Requires three integer values (min, max, and step).
- *
- * - MP_TYPE_LIST: Requires a sequence of mp_value elements, terminated with NULL
- *   to indicate the end of the list.
- *
- * @param type The type of the value to create.
- * @param argp Pointer to a va_list containing the initialization arguments.
- *
- * @retval The newly created value
- * @retval NULL if memory allocation failed or on invalid arguments
- */
-mp_value_t mp_value_new_va(va_list *argp);
 
 /**
  * @brief Create a new range value
@@ -176,25 +154,15 @@ mp_value_t mp_value_new_string(const char *s);
  *
  * The length cannot be modified. A new list needs to be created and elements transferred.
  *
+ * If @values is not provided, the list will have all values set to NULL.
+ *
  * @param size Number of elements the list contains
+ * @param values Array of @p size number of values, or NULL.
  *
  * @retval The newly created value
  * @retval NULL if memory allocation failed or on invalid arguments
  */
-mp_value_t mp_value_new_list(size_t size);
-
-/**
- * @brief Create a new list from a va_list.
- *
- * Accepts a va_list pointer that will be iterated until NULL is encountered,
- * marking the end of the list.
- *
- * @param argp Pointer to a va_list containing the elements of the list.
- *
- * @retval The newly created value
- * @retval NULL if memory allocation failed or on invalid arguments
- */
-mp_value_t mp_value_new_list_va(va_list *argp);
+mp_value_t mp_value_new_list(size_t size, mp_value_t *values);
 
 /**
  * @brief Destroy a value and release its resources.

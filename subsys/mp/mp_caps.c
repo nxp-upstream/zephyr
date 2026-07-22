@@ -74,34 +74,28 @@ struct mp_caps *mp_caps_new_any(void)
 struct mp_caps *mp_caps_new(uint8_t media_type_id, ...)
 {
 	struct mp_caps *caps = mp_caps_new_empty();
-	va_list var_args;
 	struct mp_structure *structure;
-	uint8_t field_id;
-	mp_value_t value;
+	va_list args;
 
 	if (media_type_id == MP_MEDIA_END) {
 		return caps;
 	}
 
-	va_start(var_args, media_type_id);
-	structure = mp_structure_new(media_type_id, MP_CAPS_END);
-	while (1) {
-		field_id = (uint8_t)va_arg(var_args, uint32_t);
-		if (field_id == MP_CAPS_END) {
-			break;
-		}
+	va_start(args, media_type_id);
 
-		value = mp_value_new_va(&var_args);
-		if (value == NULL) {
-			break;
-		}
-
-		mp_structure_append(structure, field_id, value);
+	structure = mp_structure_new_va(media_type_id, &args);
+	if (structure == NULL) {
+		goto error;
 	}
+
+	va_end(args);
+
 	mp_caps_append(caps, structure);
-	va_end(var_args);
 
 	return caps;
+error:
+	mp_caps_destroy((struct mp_object *)caps);
+	return NULL;
 }
 
 int mp_caps_replace(struct mp_caps **target_caps, struct mp_caps *new_caps)

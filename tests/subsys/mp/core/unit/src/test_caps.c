@@ -89,6 +89,13 @@ ZTEST_F(caps, test_caps_intersection_primitive)
 	mp_caps_unref(fixture->caps_intersect);
 }
 
+void printh(char const *s) {
+	struct sys_memory_stats stats;
+	static int32_t prev_allocated_bytes = 0;
+	sys_heap_runtime_stats_get(&_system_heap.heap, &stats);
+	prev_allocated_bytes = stats.allocated_bytes;
+}
+
 ZTEST_F(caps, test_caps_int_with_range)
 {
 	struct {
@@ -106,9 +113,11 @@ ZTEST_F(caps, test_caps_int_with_range)
 	zassert_not_null(fixture->caps[0], "caps[0] alloc failed");
 
 	for (int i = 0; i < ARRAY_SIZE(test_cases); i++) {
-		fixture->caps[1] = mp_caps_new(MP_MEDIA_AUDIO_PCM,
-					       TEST_RANGE, MP_INT(test_cases[i].value),
-					       MP_CAPS_END);
+		fixture->caps[1] = mp_caps_new(
+			MP_MEDIA_AUDIO_PCM,
+			TEST_RANGE, MP_INT(test_cases[i].value),
+			MP_CAPS_END
+		);
 		zassert_not_null(fixture->caps[1], "caps[1] alloc failed");
 
 		fixture->caps_intersect = mp_caps_intersect(fixture->caps[0], fixture->caps[1]);
@@ -148,9 +157,6 @@ ZTEST_F(caps, test_caps_intersection_list)
 		),
 		MP_CAPS_END
 	);
-
-	mp_caps_print(fixture->caps[0]);
-	mp_caps_print(fixture->caps[1]);
 
 	fixture->caps_intersect = mp_caps_intersect(fixture->caps[0], fixture->caps[1]);
 	fixture->structure = mp_caps_get_structure(fixture->caps_intersect, 0);
@@ -203,7 +209,6 @@ ZTEST_F(caps, test_caps_video_sample)
 	fixture->structure = mp_caps_get_structure(fixture->caps_intersect, 0);
 	fixture->value = mp_structure_get_value(fixture->structure, MP_CAPS_PIXEL_FORMAT);
 
-	printk("size %d\n", mp_value_list_get_size(fixture->value));
 	validate_list_value_type_and_size(fixture->value, 1);
 	zassert_str_equal(mp_value_get_string(mp_value_list_get(fixture->value, 0)), "xRGB");
 
