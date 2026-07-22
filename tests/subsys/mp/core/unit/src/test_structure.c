@@ -153,24 +153,78 @@ ZTEST(mp_structure_api, test_is_fixed_fixate_duplicate)
 	mp_structure_destroy(fixated);
 }
 
-ZTEST(mp_structure_api, test_intersect)
+ZTEST(mp_structure_api, test_intersect_asymmetric_fields)
 {
-	struct mp_structure *s1 =
-		mp_structure_new(MP_MEDIA_AUDIO_PCM, MP_CAPS_SAMPLE_RATE, MP_TYPE_INT_RANGE, 8000,
-				 48000, 8000, MP_STRUCTURE_END);
-	struct mp_structure *s2 = mp_structure_new(MP_MEDIA_AUDIO_PCM, MP_CAPS_SAMPLE_RATE,
-						   MP_TYPE_INT, 16000, MP_STRUCTURE_END);
+	/* s1: fields TEST_INT and TEST_UINT */
+	struct mp_structure *s1 = mp_structure_new(MP_MEDIA_AUDIO_PCM, TEST_INT, MP_TYPE_INT, -42,
+						   TEST_UINT, MP_TYPE_UINT, 100U, MP_STRUCTURE_END);
+	/* s2: fields TEST_UINT (common) and TEST_STRING (only in s2) */
+	struct mp_structure *s2 =
+		mp_structure_new(MP_MEDIA_AUDIO_PCM, TEST_UINT, MP_TYPE_UINT, 100U, TEST_STRING,
+				 MP_TYPE_STRING, "hello", MP_STRUCTURE_END);
 
-	zassert_true(mp_structure_can_intersect(s1, s2), "structures cannot intersect");
+	zassert_true(mp_structure_can_intersect(s1, s2), "asymmetric structures cannot intersect");
 
 	struct mp_structure *result = mp_structure_intersect(s1, s2);
 
 	zassert_not_null(result, "intersection returned NULL");
-	zassert_true(mp_structure_is_fixed(result), "intersection result not fixed");
+
+	/* s1 has 2 fields, s2 has 2 fields, 1 common: result must have 3 fields total */
+	zassert_equal(mp_structure_len(result), 3, "result field count != 3");
+
+	/* TEST_INT: only in s1 - must be present as-is */
+	struct mp_value *v = mp_structure_get_value(result, TEST_INT);
+
+	validate_int_value(v, -42);
+
+	/* TEST_UINT: common - must be the intersected value */
+	v = mp_structure_get_value(result, TEST_UINT);
+	validate_uint_value(v, 100U);
+
+	/* TEST_STRING: only in s2 - must be present as-is */
+	v = mp_structure_get_value(result, TEST_STRING);
+	validate_string_value(v, "hello");
 
 	mp_structure_destroy(s1);
 	mp_structure_destroy(s2);
 	mp_structure_destroy(result);
+}
+
+ZTEST(mp_structure_api, test_cannot_intersect)
+{
+	struct mp_structure *s_sample_int = mp_structure_new(
+		MP_MEDIA_AUDIO_PCM, MP_CAPS_SAMPLE_RATE, MP_TYPE_INT, 48000, MP_STRUCTURE_END);
+	struct mp_structure *s_bw = mp_structure_new(MP_MEDIA_AUDIO_PCM, MP_CAPS_BITWIDTH,
+						     MP_TYPE_INT, 16, MP_STRUCTURE_END);
+	struct mp_structure *s_low =
+		mp_structure_new(MP_MEDIA_AUDIO_PCM, MP_CAPS_SAMPLE_RATE, MP_TYPE_INT_RANGE, 8000,
+				 16000, 8000, MP_STRUCTURE_END);
+
+	/* Case 1: NULL operand - can_intersect must return false, intersect must return NULL */
+	zassert_false(mp_structure_can_intersect(s_sample_int, NULL),
+		      "can_intersect(s, NULL) should return false");
+	zassert_false(mp_structure_can_intersect(NULL, NULL),
+		      "can_intersect(NULL, NULL) should return false");
+	zassert_is_null(mp_structure_intersect(s_sample_int, NULL),
+			"intersect(s, NULL) should return NULL");
+	zassert_is_null(mp_structure_intersect(NULL, NULL),
+			"intersect(NULL, NULL) should return NULL");
+
+	/* Case 2: no common field - different field IDs, same media type */
+	zassert_false(mp_structure_can_intersect(s_sample_int, s_bw),
+		      "structures with no common field should not intersect");
+	zassert_is_null(mp_structure_intersect(s_sample_int, s_bw),
+			"intersect with no common field should return NULL");
+
+	/* Case 3: common field with non-overlapping values */
+	zassert_false(mp_structure_can_intersect(s_low, s_sample_int),
+		      "out-of-range value should not intersect");
+	zassert_is_null(mp_structure_intersect(s_low, s_sample_int),
+			"intersect with incompatible field value should return NULL");
+
+	mp_structure_destroy(s_sample_int);
+	mp_structure_destroy(s_bw);
+	mp_structure_destroy(s_low);
 }
 
 ZTEST(mp_structure_api, test_sanity)

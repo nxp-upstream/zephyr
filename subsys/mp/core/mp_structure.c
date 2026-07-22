@@ -233,7 +233,6 @@ struct mp_structure *mp_structure_intersect(struct mp_structure *struct1,
 					    struct mp_structure *struct2)
 {
 	struct mp_structure_field *field;
-	struct mp_structure *big_structure, *small_structure;
 	struct mp_structure *intersect_structure;
 	struct mp_value *compared_value, *intersect_value;
 
@@ -242,23 +241,21 @@ struct mp_structure *mp_structure_intersect(struct mp_structure *struct1,
 	}
 
 	intersect_structure = mp_structure_new_empty(struct1->media_type_id);
-	/* Check which one has more field than other */
-	if (mp_structure_len(struct1) >= mp_structure_len(struct2)) {
-		big_structure = struct1;
-		small_structure = struct2;
-	} else {
-		big_structure = struct2;
-		small_structure = struct1;
-	}
-
-	SYS_SLIST_FOR_EACH_CONTAINER(&big_structure->fields, field, node) {
-		compared_value = mp_structure_get_value(small_structure, field->field_id);
+	SYS_SLIST_FOR_EACH_CONTAINER(&struct1->fields, field, node) {
+		compared_value = mp_structure_get_value(struct2, field->field_id);
 		if (compared_value == NULL) {
 			mp_structure_append(intersect_structure, field->field_id,
 					    mp_value_duplicate(field->value));
 		} else {
 			intersect_value = mp_value_intersect(field->value, compared_value);
 			mp_structure_append(intersect_structure, field->field_id, intersect_value);
+		}
+	}
+
+	SYS_SLIST_FOR_EACH_CONTAINER(&struct2->fields, field, node) {
+		if (mp_structure_get_value(struct1, field->field_id) == NULL) {
+			mp_structure_append(intersect_structure, field->field_id,
+					    mp_value_duplicate(field->value));
 		}
 	}
 
