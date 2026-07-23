@@ -33,7 +33,7 @@
  */
 enum prop_fs_sink {
 	/** Path to the output file (const char *). */
-	PROP_FS_SINK_PATH = PROP_SINK_LAST + 1,
+	PROP_FS_SINK_PATH = PROP_SINK_LAST,
 };
 
 /**

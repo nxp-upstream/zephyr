@@ -29,7 +29,7 @@
  */
 enum prop_aud_transform {
 	/** Gain control property for audio level adjustment */
-	PROP_AUD_TRANSFORM_GAIN = PROP_TRANSFORM_LAST + 1,
+	PROP_AUD_TRANSFORM_GAIN = PROP_TRANSFORM_LAST,
 };
 
 /**
@@ -40,7 +40,7 @@ enum prop_aud_transform {
  */
 enum prop_aud_src {
 	/** Pointer to source memory slab for audio buffer management */
-	PROP_AUD_SRC_SLAB_PTR = PROP_SRC_LAST + 1,
+	PROP_AUD_SRC_SLAB_PTR = PROP_SRC_LAST,
 	/** Audio source device */
 	PROP_AUD_SRC_DEVICE,
 };
@@ -53,7 +53,7 @@ enum prop_aud_src {
  */
 enum prop_aud_sink {
 	/** Pointer to sink memory slab for audio buffer management */
-	PROP_AUD_SINK_SLAB_PTR = PROP_SINK_LAST + 1,
+	PROP_AUD_SINK_SLAB_PTR = PROP_SINK_LAST,
 	/** Clock role configuration for audio sink (controller/target) */
 	PROP_AUD_SINK_CLK_ROLE,
 	/** I2S (SAI) sink device */

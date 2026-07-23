@@ -35,7 +35,7 @@
  */
 enum prop_vid {
 	/** Video device property */
-	PROP_VID_DEVICE = MAX((int)PROP_SRC_LAST, (int)PROP_TRANSFORM_LAST) + 1,
+	PROP_VID_DEVICE = MAX((int)MP_PROP_SRC_LAST, (int)MP_PROP_TRANSFORM_LAST),
 	/** Crop selection target property */
 	PROP_VID_CROP,
 };

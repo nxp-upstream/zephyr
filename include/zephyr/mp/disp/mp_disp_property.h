@@ -25,11 +25,11 @@
  * @brief Display sink property identifiers.
  *
  * Extends the base sink properties defined in @ref mp_property.h.
- * Enumeration starts from @ref PROP_SINK_LAST + 1 to avoid conflicts.
+ * Enumeration starts from @ref PROP_SINK_LAST to avoid conflicts.
  */
 enum {
 	/** Display device property (const struct device *). */
-	PROP_DISP_SINK_DEVICE = PROP_SINK_LAST + 1,
+	PROP_DISP_SINK_DEVICE = PROP_SINK_LAST,
 };
 
 /** @} */

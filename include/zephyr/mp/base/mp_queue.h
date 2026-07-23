@@ -36,7 +36,7 @@
  */
 enum {
 	/** Nmber of buffers the queue can hold */
-	PROP_BASE_QUEUE_SIZE = PROP_TRANSFORM_LAST + 1,
+	PROP_BASE_QUEUE_SIZE = PROP_TRANSFORM_LAST,
 };
 
 /**
