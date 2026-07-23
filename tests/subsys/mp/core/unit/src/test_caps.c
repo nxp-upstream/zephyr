@@ -7,7 +7,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/ztest.h>
 
-#include <zephyr/mp/core/mp.h>
+#include <zephyr/mp/mp.h>
 
 #include "mp_test_helpers.h"
 

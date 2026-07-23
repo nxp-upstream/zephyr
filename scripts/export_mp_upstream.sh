@@ -70,54 +70,98 @@ TODAY="$(date +%Y-%m-%d)"
 # ===========================================================================
 
 # Core: framework files + integration into subsys/Kconfig and subsys/CMakeLists.txt
+#
+# Core sources now live flattened directly under subsys/mp/*.c and their
+# public headers under include/zephyr/mp/*.h (no more core/ or plugins/
+# subdirectories). Because plugins share the subsys/mp/ directory as
+# subdirectories, the core paths are listed explicitly (a bare
+# "subsys/mp/" pathspec would also drag in the plugin subdirectories).
 CORE_PATHS=(
     "subsys/mp/Kconfig"
     "subsys/mp/CMakeLists.txt"
-    "subsys/mp/core/"
-    "subsys/mp/plugins/Kconfig"
-    "subsys/mp/plugins/CMakeLists.txt"
-    "include/zephyr/mp/core/"
+    "subsys/mp/mp_bin.c"
+    "subsys/mp/mp_buffer.c"
+    "subsys/mp/mp_bus.c"
+    "subsys/mp/mp_caps.c"
+    "subsys/mp/mp_dispatch.c"
+    "subsys/mp/mp_element.c"
+    "subsys/mp/mp_fake_src.c"
+    "subsys/mp/mp_object.c"
+    "subsys/mp/mp_pad.c"
+    "subsys/mp/mp_parser.c"
+    "subsys/mp/mp_pipeline.c"
+    "subsys/mp/mp_sink.c"
+    "subsys/mp/mp_src.c"
+    "subsys/mp/mp_structure.c"
+    "subsys/mp/mp_thread.c"
+    "subsys/mp/mp_transform.c"
+    "subsys/mp/mp_transform_client.c"
+    "subsys/mp/mp_value.c"
+    "subsys/mp/mp_workqueue.c"
+    "include/zephyr/mp/mp.h"
+    "include/zephyr/mp/mp_bin.h"
+    "include/zephyr/mp/mp_buffer.h"
+    "include/zephyr/mp/mp_bus.h"
+    "include/zephyr/mp/mp_caps.h"
+    "include/zephyr/mp/mp_dispatch.h"
+    "include/zephyr/mp/mp_element.h"
+    "include/zephyr/mp/mp_fake_src.h"
+    "include/zephyr/mp/mp_message.h"
+    "include/zephyr/mp/mp_object.h"
+    "include/zephyr/mp/mp_pad.h"
+    "include/zephyr/mp/mp_parser.h"
+    "include/zephyr/mp/mp_pipeline.h"
+    "include/zephyr/mp/mp_property.h"
+    "include/zephyr/mp/mp_sink.h"
+    "include/zephyr/mp/mp_src.h"
+    "include/zephyr/mp/mp_structure.h"
+    "include/zephyr/mp/mp_thread.h"
+    "include/zephyr/mp/mp_transform.h"
+    "include/zephyr/mp/mp_transform_client.h"
+    "include/zephyr/mp/mp_value.h"
+    "include/zephyr/mp/mp_workqueue.h"
     "subsys/Kconfig"
     "subsys/CMakeLists.txt"
     "lib/Kconfig"
     "lib/CMakeLists.txt"
 )
 
-# zvid plugin
+# vid plugin
 ZVID_PATHS=(
-    "subsys/mp/plugins/zvid/"
-    "include/zephyr/mp/zvid/"
+    "subsys/mp/vid/"
+    "include/zephyr/mp/vid/"
 )
 
-# zimg plugin (image codec support)
+# img plugin (image codec support)
 ZIMG_PATHS=(
-    "subsys/mp/plugins/zimg/"
-    "include/zephyr/mp/zimg/"
+    "subsys/mp/img/"
+    "include/zephyr/mp/img/"
 )
 
-# zaud plugin
+# aud plugin
 ZAUD_PATHS=(
-    "subsys/mp/plugins/zaud/"
-    "include/zephyr/mp/zaud/"
+    "subsys/mp/aud/"
+    "include/zephyr/mp/aud/"
 )
 
-# zdisp plugin
+# disp plugin
 ZDISP_PATHS=(
-    "subsys/mp/plugins/zdisp/"
-    "include/zephyr/mp/zdisp/"
+    "subsys/mp/disp/"
+    "include/zephyr/mp/disp/"
 )
 
-# zfs plugin
+# fs plugin
 ZFS_PATHS=(
-    "subsys/mp/plugins/zfs/"
-    "include/zephyr/mp/zfs/"
+    "subsys/mp/fs/"
+    "include/zephyr/mp/fs/"
 )
 
-# zbase plugin
+# base plugin
 ZBASE_PATHS=(
-    "subsys/mp/plugins/zbase/"
-    "include/zephyr/mp/zbase/"
+    "subsys/mp/base/"
+    "include/zephyr/mp/base/"
 )
+
 
 # Sample: cam_disp (camera to display pipeline)
 SAMPLE_CAM_DISP_PATHS=(

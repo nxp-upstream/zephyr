@@ -10,9 +10,9 @@
 #include <zephyr/fs/fs.h>
 #include <zephyr/logging/log.h>
 
-#include <zephyr/mp/core/mp.h>
-#include <zephyr/mp/zfs/mp_zfilesink.h>
-#include <zephyr/mp/zfs/mp_zfilesrc.h>
+#include <zephyr/mp/mp.h>
+#include <zephyr/mp/fs/mp_filesink.h>
+#include <zephyr/mp/fs/mp_filesrc.h>
 
 LOG_MODULE_REGISTER(main, CONFIG_LOG_DEFAULT_LEVEL);
 
@@ -37,8 +37,8 @@ static struct fs_mount_t mp = {
 };
 
 static struct mp_pipeline pipe;
-static struct mp_zfilesrc filesrc;
-static struct mp_zfilesink filesink;
+static struct mp_filesrc filesrc;
+static struct mp_filesink filesink;
 
 int main(void)
 {
@@ -84,16 +84,16 @@ int main(void)
 
 	/* Build the pipeline */
 	MP_ELEMENT_INIT(&pipe, mp_pipeline_init, PIPE_ID);
-	MP_ELEMENT_INIT(&filesrc, mp_zfilesrc_init, FILE_SRC_ID);
-	MP_ELEMENT_INIT(&filesink, mp_zfilesink_init, FILE_SINK_ID);
+	MP_ELEMENT_INIT(&filesrc, mp_filesrc_init, FILE_SRC_ID);
+	MP_ELEMENT_INIT(&filesink, mp_filesink_init, FILE_SINK_ID);
 
-	ret = mp_object_set_properties((struct mp_object *)&filesrc, PROP_ZFILESRC_PATH,
+	ret = mp_object_set_properties((struct mp_object *)&filesrc, PROP_FS_SRC_PATH,
 				       MNT_POINT "/" INPUT_FILE, PROP_LIST_END);
 	if (ret < 0) {
 		goto err;
 	}
 
-	ret = mp_object_set_properties((struct mp_object *)&filesink, PROP_ZFILESINK_PATH,
+	ret = mp_object_set_properties((struct mp_object *)&filesink, PROP_FS_SINK_PATH,
 				       MNT_POINT "/" OUTPUT_FILE, PROP_LIST_END);
 	if (ret < 0) {
 		goto err;

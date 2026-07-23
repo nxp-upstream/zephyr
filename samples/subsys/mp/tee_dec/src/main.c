@@ -18,15 +18,15 @@
 #include <zephyr/fs/fs.h>
 #include <zephyr/logging/log.h>
 
-#include <zephyr/mp/core/mp.h>
-#include <zephyr/mp/zbase/mp_capsfilter.h>
-#include <zephyr/mp/zbase/mp_queue.h>
-#include <zephyr/mp/zbase/mp_tee.h>
-#include <zephyr/mp/zdisp/mp_zdisp_sink.h>
-#include <zephyr/mp/zfs/mp_zfilesink.h>
-#include <zephyr/mp/zfs/mp_zfilesrc.h>
-#include <zephyr/mp/zimg/mp_zimg_jpeg_decoder.h>
-#include <zephyr/mp/zimg/mp_zimg_jpeg_parser.h>
+#include <zephyr/mp/mp.h>
+#include <zephyr/mp/base/mp_capsfilter.h>
+#include <zephyr/mp/base/mp_queue.h>
+#include <zephyr/mp/base/mp_tee.h>
+#include <zephyr/mp/disp/mp_disp_sink.h>
+#include <zephyr/mp/fs/mp_filesink.h>
+#include <zephyr/mp/fs/mp_filesrc.h>
+#include <zephyr/mp/img/mp_img_jpeg_decoder.h>
+#include <zephyr/mp/img/mp_img_jpeg_parser.h>
 #include <zephyr/mp/utils/mp_player.h>
 
 LOG_MODULE_REGISTER(main, CONFIG_LOG_DEFAULT_LEVEL);
@@ -120,15 +120,15 @@ static int mount_sd(void)
 }
 
 static struct mp_pipeline pipe;
-static struct mp_zfilesrc filesrc;
-static struct mp_zimg_jpeg_parser jpeg_parser;
+static struct mp_filesrc filesrc;
+static struct mp_img_jpeg_parser jpeg_parser;
 static struct mp_caps_filter caps_filter;
 static struct mp_tee tee;
 static struct mp_queue queue1;
-static struct mp_zimg_jpeg_decoder jpeg_dec;
-static struct mp_zdisp_sink disp_sink;
+static struct mp_img_jpeg_decoder jpeg_dec;
+static struct mp_disp_sink disp_sink;
 static struct mp_queue queue2;
-static struct mp_zfilesink filesink;
+static struct mp_filesink filesink;
 static struct mp_player player;
 
 int main(void)
@@ -142,25 +142,25 @@ int main(void)
 
 	/* Initialize all elements */
 	MP_ELEMENT_INIT(&pipe, mp_pipeline_init, PIPE_ID);
-	MP_ELEMENT_INIT(&filesrc, mp_zfilesrc_init, FILE_SRC_ID);
-	MP_ELEMENT_INIT(&jpeg_parser, mp_zimg_jpeg_parser_init, JPEG_PARSER_ID);
+	MP_ELEMENT_INIT(&filesrc, mp_filesrc_init, FILE_SRC_ID);
+	MP_ELEMENT_INIT(&jpeg_parser, mp_img_jpeg_parser_init, JPEG_PARSER_ID);
 	MP_ELEMENT_INIT(&caps_filter, mp_caps_filter_init, CAPS_FILTER_ID);
 	MP_ELEMENT_INIT(&tee, mp_tee_init, TEE_ID);
 	MP_ELEMENT_INIT(&queue1, mp_queue_init, QUEUE1_ID);
-	MP_ELEMENT_INIT(&jpeg_dec, mp_zimg_jpeg_decoder_init, JPEG_DEC_ID);
-	MP_ELEMENT_INIT(&disp_sink, mp_zdisp_sink_init, DISP_SINK_ID);
+	MP_ELEMENT_INIT(&jpeg_dec, mp_img_jpeg_decoder_init, JPEG_DEC_ID);
+	MP_ELEMENT_INIT(&disp_sink, mp_disp_sink_init, DISP_SINK_ID);
 	MP_ELEMENT_INIT(&queue2, mp_queue_init, QUEUE2_ID);
-	MP_ELEMENT_INIT(&filesink, mp_zfilesink_init, FILE_SINK_ID);
+	MP_ELEMENT_INIT(&filesink, mp_filesink_init, FILE_SINK_ID);
 
 	/* Set properties */
-	ret = mp_object_set_properties((struct mp_object *)&filesrc, PROP_ZFILESRC_PATH,
+	ret = mp_object_set_properties((struct mp_object *)&filesrc, PROP_FS_SRC_PATH,
 				       CONFIG_FILE_INPUT_PATH, PROP_LIST_END);
 	if (ret < 0) {
 		LOG_ERR("Failed to set filesrc properties (%d)", ret);
 		goto err;
 	}
 
-	ret = mp_object_set_properties((struct mp_object *)&filesink, PROP_ZFILESINK_PATH,
+	ret = mp_object_set_properties((struct mp_object *)&filesink, PROP_FS_SINK_PATH,
 				       CONFIG_FILE_OUTPUT_PATH, PROP_LIST_END);
 	if (ret < 0) {
 		LOG_ERR("Failed to set filesink properties (%d)", ret);
@@ -179,7 +179,7 @@ int main(void)
 			goto err;
 		}
 
-		ret = mp_object_set_properties((struct mp_object *)&caps_filter, PROP_CAPS, caps,
+		ret = mp_object_set_properties((struct mp_object *)&caps_filter, PROP_BASE_CAPSFILTER_CAPS, caps,
 					       PROP_LIST_END);
 		mp_caps_unref(caps);
 		if (ret < 0) {

@@ -7,10 +7,10 @@
 #include <zephyr/sys/sys_heap.h>
 #include <zephyr/ztest.h>
 
-#include <zephyr/mp/core/mp.h>
-#include <zephyr/mp/core/mp_fake_src.h>
-#include <zephyr/mp/core/mp_sink.h>
-#include <zephyr/mp/core/mp_transform.h>
+#include <zephyr/mp/mp.h>
+#include <zephyr/mp/mp_fake_src.h>
+#include <zephyr/mp/mp_sink.h>
+#include <zephyr/mp/mp_transform.h>
 
 extern struct k_heap _system_heap;
 
@@ -60,9 +60,9 @@ static void pipeline_before(void *f)
 	MP_ELEMENT_INIT(&fix->sink, mp_sink_init, SINK_ID);
 
 	/* Set number of buffers to produce before EOS */
-	zassert_ok(mp_object_set_properties((struct mp_object *)&fix->fake_src, PROP_NUM_BUFS,
+	zassert_ok(mp_object_set_properties((struct mp_object *)&fix->fake_src, PROP_SRC_NUM_BUFS,
 					    TEST_BUFS_NUM, PROP_LIST_END),
-		   "Failed to set fake_src PROP_NUM_BUFS");
+		   "Failed to set fake_src PROP_SRC_NUM_BUFS");
 }
 
 ZTEST_SUITE(test_mock_pipeline, NULL, pipeline_suite_setup, pipeline_before, NULL, NULL);

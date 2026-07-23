@@ -14,19 +14,19 @@
 #include <zephyr/fs/fs.h>
 #include <zephyr/logging/log.h>
 
-#include <zephyr/mp/core/mp.h>
-#include <zephyr/mp/zbase/mp_capsfilter.h>
-#include <zephyr/mp/zdisp/mp_zdisp_sink.h>
-#include <zephyr/mp/zfs/mp_zfilesrc.h>
-#include <zephyr/mp/zimg/mp_zimg_jpeg_decoder.h>
-#include <zephyr/mp/zimg/mp_zimg_jpeg_parser.h>
+#include <zephyr/mp/mp.h>
+#include <zephyr/mp/base/mp_capsfilter.h>
+#include <zephyr/mp/disp/mp_disp_sink.h>
+#include <zephyr/mp/fs/mp_filesrc.h>
+#include <zephyr/mp/img/mp_img_jpeg_decoder.h>
+#include <zephyr/mp/img/mp_img_jpeg_parser.h>
 #include <zephyr/mp/utils/mp_player.h>
 #if DT_HAS_CHOSEN(zephyr_jpegdec) || DT_HAS_CHOSEN(zephyr_videotrans)
-#include <zephyr/mp/zvid/mp_zvid_transform.h>
+#include <zephyr/mp/vid/mp_vid_transform.h>
 #endif
 #if DT_HAS_CHOSEN(zephyr_jpegdec)
-#include <zephyr/mp/zvid/mp_zvid_convert.h>
-#include <zephyr/mp/zvid/mp_zvid_property.h>
+#include <zephyr/mp/vid/mp_vid_convert.h>
+#include <zephyr/mp/vid/mp_vid_property.h>
 #endif
 
 LOG_MODULE_REGISTER(main, CONFIG_LOG_DEFAULT_LEVEL);
@@ -128,18 +128,18 @@ static int mount_sd(void)
 }
 
 static struct mp_pipeline pipe;
-static struct mp_zfilesrc filesrc;
-static struct mp_zimg_jpeg_parser jpeg_parser;
+static struct mp_filesrc filesrc;
+static struct mp_img_jpeg_parser jpeg_parser;
 static struct mp_caps_filter caps_filter;
-static struct mp_zdisp_sink disp_sink;
+static struct mp_disp_sink disp_sink;
 #if DT_HAS_CHOSEN(zephyr_jpegdec)
-static struct mp_zvid_transform jpeg_dec;
-static struct mp_zvid_convert vid_conv;
+static struct mp_vid_transform jpeg_dec;
+static struct mp_vid_convert vid_conv;
 #else
-static struct mp_zimg_jpeg_decoder jpeg_dec;
+static struct mp_img_jpeg_decoder jpeg_dec;
 #endif
 #if DT_HAS_CHOSEN(zephyr_videotrans)
-static struct mp_zvid_transform vid_trans;
+static struct mp_vid_transform vid_trans;
 #endif
 static struct mp_player player;
 
@@ -152,26 +152,26 @@ int main(void)
 	}
 
 	MP_ELEMENT_INIT(&pipe, mp_pipeline_init, PIPE_ID);
-	MP_ELEMENT_INIT(&filesrc, mp_zfilesrc_init, FILE_SRC_ID);
-	MP_ELEMENT_INIT(&jpeg_parser, mp_zimg_jpeg_parser_init, JPEG_PARSER_ID);
+	MP_ELEMENT_INIT(&filesrc, mp_filesrc_init, FILE_SRC_ID);
+	MP_ELEMENT_INIT(&jpeg_parser, mp_img_jpeg_parser_init, JPEG_PARSER_ID);
 	MP_ELEMENT_INIT(&caps_filter, mp_caps_filter_init, CAPS_FILTER_ID);
-	MP_ELEMENT_INIT(&disp_sink, mp_zdisp_sink_init, DISP_SINK_ID);
+	MP_ELEMENT_INIT(&disp_sink, mp_disp_sink_init, DISP_SINK_ID);
 
 #if DT_HAS_CHOSEN(zephyr_jpegdec)
-	MP_ELEMENT_INIT(&jpeg_dec, mp_zvid_transform_init, JPEG_DEC_ID);
-	MP_ELEMENT_INIT(&vid_conv, mp_zvid_convert_init, VID_CONV_ID);
+	MP_ELEMENT_INIT(&jpeg_dec, mp_vid_transform_init, JPEG_DEC_ID);
+	MP_ELEMENT_INIT(&vid_conv, mp_vid_convert_init, VID_CONV_ID);
 
-	ret = mp_object_set_properties((struct mp_object *)&jpeg_dec, PROP_ZVID_DEVICE,
+	ret = mp_object_set_properties((struct mp_object *)&jpeg_dec, PROP_VID_DEVICE,
 				       DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_jpegdec)),
 				       PROP_LIST_END);
 	if (ret < 0) {
 		goto err;
 	}
 #else
-	MP_ELEMENT_INIT(&jpeg_dec, mp_zimg_jpeg_decoder_init, JPEG_DEC_ID);
+	MP_ELEMENT_INIT(&jpeg_dec, mp_img_jpeg_decoder_init, JPEG_DEC_ID);
 #endif
 #if DT_HAS_CHOSEN(zephyr_videotrans)
-	MP_ELEMENT_INIT(&vid_trans, mp_zvid_transform_init, VID_TRANS_ID);
+	MP_ELEMENT_INIT(&vid_trans, mp_vid_transform_init, VID_TRANS_ID);
 	ret = mp_object_set_properties(
 		(struct mp_object *)&vid_trans,
 		COND_CODE_0(CONFIG_VIDEO_ROTATION_ANGLE,
@@ -181,7 +181,7 @@ int main(void)
 	}
 #endif
 
-	ret = mp_object_set_properties((struct mp_object *)&filesrc, PROP_ZFILESRC_PATH,
+	ret = mp_object_set_properties((struct mp_object *)&filesrc, PROP_FS_SRC_PATH,
 				       CONFIG_FILE_INPUT_PATH, PROP_LIST_END);
 	if (ret < 0) {
 		goto err;
@@ -197,7 +197,7 @@ int main(void)
 			goto err;
 		}
 
-		ret = mp_object_set_properties((struct mp_object *)&caps_filter, PROP_CAPS, caps,
+		ret = mp_object_set_properties((struct mp_object *)&caps_filter, PROP_BASE_CAPSFILTER_CAPS, caps,
 					       PROP_LIST_END);
 		mp_caps_unref(caps);
 		if (ret < 0) {

@@ -7,20 +7,20 @@
 #include <zephyr/drivers/video.h>
 #include <zephyr/drivers/video-controls.h>
 #include <zephyr/logging/log.h>
-#include <zephyr/mp/core/mp.h>
-#include <zephyr/mp/zbase/mp_capsfilter.h>
-#include <zephyr/mp/zdisp/mp_zdisp_sink.h>
-#include <zephyr/mp/zvid/mp_zvid_src.h>
-#include <zephyr/mp/zvid/mp_zvid_property.h>
+#include <zephyr/mp/mp.h>
+#include <zephyr/mp/base/mp_capsfilter.h>
+#include <zephyr/mp/disp/mp_disp_sink.h>
+#include <zephyr/mp/vid/mp_vid_src.h>
+#include <zephyr/mp/vid/mp_vid_property.h>
 #include <zephyr/mp/utils/mp_player.h>
 #if DT_HAS_CHOSEN(zephyr_jpegdec) || DT_HAS_CHOSEN(zephyr_videotrans)
-#include <zephyr/mp/zvid/mp_zvid_transform.h>
+#include <zephyr/mp/vid/mp_vid_transform.h>
 #endif
 #if DT_HAS_CHOSEN(zephyr_jpegdec)
-#include <zephyr/mp/zvid/mp_zvid_convert.h>
+#include <zephyr/mp/vid/mp_vid_convert.h>
 #endif
-#if defined(CONFIG_MP_CAPSFILTER)
-#include <zephyr/mp/zbase/mp_capsfilter.h>
+#if defined(CONFIG_MP_BASE_CAPSFILTER)
+#include <zephyr/mp/base/mp_capsfilter.h>
 #endif
 #include <zephyr/sys/util_macro.h>
 
@@ -38,17 +38,17 @@ enum {
 };
 
 static struct mp_pipeline pipe;
-static struct mp_zvid_src vid_src;
-static struct mp_zdisp_sink disp_sink;
-#if defined(CONFIG_MP_CAPSFILTER)
+static struct mp_vid_src vid_src;
+static struct mp_disp_sink disp_sink;
+#if defined(CONFIG_MP_BASE_CAPSFILTER)
 static struct mp_caps_filter caps_filter;
 #endif
 #if (DT_HAS_CHOSEN(zephyr_jpegdec))
-static struct mp_zvid_transform jpeg_dec;
-static struct mp_zvid_convert vid_conv;
+static struct mp_vid_transform jpeg_dec;
+static struct mp_vid_convert vid_conv;
 #endif
 #if (DT_HAS_CHOSEN(zephyr_videotrans))
-static struct mp_zvid_transform vid_trans;
+static struct mp_vid_transform vid_trans;
 #endif
 static struct mp_player player;
 
@@ -57,8 +57,8 @@ int main(void)
 	int ret;
 
 	MP_ELEMENT_INIT(&pipe, mp_pipeline_init, PIPE_ID);
-	MP_ELEMENT_INIT(&vid_src, mp_zvid_src_init, VID_SRC_ID);
-	MP_ELEMENT_INIT(&disp_sink, mp_zdisp_sink_init, DISP_SINK_ID);
+	MP_ELEMENT_INIT(&vid_src, mp_vid_src_init, VID_SRC_ID);
+	MP_ELEMENT_INIT(&disp_sink, mp_disp_sink_init, DISP_SINK_ID);
 
 	struct video_rect __maybe_unused crop = {
 		CONFIG_VIDEO_SOURCE_CROP_LEFT, CONFIG_VIDEO_SOURCE_CROP_TOP,
@@ -66,8 +66,8 @@ int main(void)
 
 	/* clang-format off */
 	ret = mp_object_set_properties((struct mp_object *)&vid_src,
-		COND_CODE_0(CONFIG_PROP_NUM_BUFS, (), (PROP_NUM_BUFS, CONFIG_PROP_NUM_BUFS,))
-		COND_CODE_0(CONFIG_VIDEO_SOURCE_CROP_WIDTH, (), (PROP_ZVID_CROP, &crop,))
+		COND_CODE_0(CONFIG_PROP_NUM_BUFS, (), (PROP_SRC_NUM_BUFS, CONFIG_PROP_NUM_BUFS,))
+		COND_CODE_0(CONFIG_VIDEO_SOURCE_CROP_WIDTH, (), (PROP_VID_CROP, &crop,))
 		IF_ENABLED(CONFIG_VIDEO_CTRL_HFLIP, (VIDEO_CID_HFLIP, CONFIG_VIDEO_CTRL_HFLIP,))
 		IF_ENABLED(CONFIG_VIDEO_CTRL_VFLIP, (VIDEO_CID_VFLIP, CONFIG_VIDEO_CTRL_VFLIP,))
 		PROP_LIST_END);
@@ -77,7 +77,7 @@ int main(void)
 	}
 
 	/* Caps filter element */
-#if defined(CONFIG_MP_CAPSFILTER)
+#if defined(CONFIG_MP_BASE_CAPSFILTER)
 	MP_ELEMENT_INIT(&caps_filter, mp_caps_filter_init, CAPS_FILTER_ID);
 
 	/* clang-format off */
@@ -102,7 +102,7 @@ int main(void)
 						 VIDEO_FOURCC_FROM_STR(CONFIG_VIDEO_PIXEL_FORMAT)));
 	}
 
-	ret = mp_object_set_properties((struct mp_object *)&caps_filter, PROP_CAPS, caps,
+	ret = mp_object_set_properties((struct mp_object *)&caps_filter, PROP_BASE_CAPSFILTER_CAPS, caps,
 				       PROP_LIST_END);
 	mp_caps_unref(caps);
 	if (ret < 0) {
@@ -112,10 +112,10 @@ int main(void)
 
 	/* JPEG decoder element */
 #if (DT_HAS_CHOSEN(zephyr_jpegdec))
-	MP_ELEMENT_INIT(&jpeg_dec, mp_zvid_transform_init, JPEG_DEC_ID);
-	MP_ELEMENT_INIT(&vid_conv, mp_zvid_convert_init, VID_CONV_ID);
+	MP_ELEMENT_INIT(&jpeg_dec, mp_vid_transform_init, JPEG_DEC_ID);
+	MP_ELEMENT_INIT(&vid_conv, mp_vid_convert_init, VID_CONV_ID);
 
-	ret = mp_object_set_properties((struct mp_object *)&jpeg_dec, PROP_ZVID_DEVICE,
+	ret = mp_object_set_properties((struct mp_object *)&jpeg_dec, PROP_VID_DEVICE,
 				       DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_jpegdec)),
 				       PROP_LIST_END);
 	if (ret < 0) {
@@ -125,7 +125,7 @@ int main(void)
 
 	/* Video transform element */
 #if (DT_HAS_CHOSEN(zephyr_videotrans))
-	MP_ELEMENT_INIT(&vid_trans, mp_zvid_transform_init, VID_TRANS_ID);
+	MP_ELEMENT_INIT(&vid_trans, mp_vid_transform_init, VID_TRANS_ID);
 
 	/* clang-format off */
 	ret = mp_object_set_properties((struct mp_object *)&vid_trans,
@@ -141,7 +141,7 @@ int main(void)
 	/* Add elements to the pipeline - order does not matter */
 	ret = mp_bin_add((struct mp_bin *)&pipe,
 			(struct mp_element *)&vid_src,
-			IF_ENABLED(CONFIG_MP_CAPSFILTER, ((struct mp_element *)&caps_filter,))
+			IF_ENABLED(CONFIG_MP_BASE_CAPSFILTER, ((struct mp_element *)&caps_filter,))
 			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec), ((struct mp_element *)&jpeg_dec,))
 			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec), ((struct mp_element *)&vid_conv,))
 			IF_ENABLED(DT_HAS_CHOSEN(zephyr_videotrans), ((struct mp_element *)&vid_trans,))
@@ -152,7 +152,7 @@ int main(void)
 	}
 	/* Link elements together - order does matter */
 	ret = mp_element_link((struct mp_element *)&vid_src,
-			IF_ENABLED(CONFIG_MP_CAPSFILTER, ((struct mp_element *)&caps_filter,))
+			IF_ENABLED(CONFIG_MP_BASE_CAPSFILTER, ((struct mp_element *)&caps_filter,))
 			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec), ((struct mp_element *)&jpeg_dec,))
 			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec), ((struct mp_element *)&vid_conv,))
 			IF_ENABLED(DT_HAS_CHOSEN(zephyr_videotrans), ((struct mp_element *)&vid_trans,))

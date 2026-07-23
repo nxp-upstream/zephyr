@@ -9,7 +9,7 @@
 #include <zephyr/ztest.h>
 #include <zephyr/ztest_assert.h>
 
-#include <zephyr/mp/core/mp_thread.h>
+#include <zephyr/mp/mp_thread.h>
 
 static struct k_sem thread_ran_sem;
 static atomic_t thread_run_count;

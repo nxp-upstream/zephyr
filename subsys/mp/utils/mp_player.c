@@ -10,8 +10,8 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/shell/shell.h>
 
-#include <zephyr/mp/core/mp_element.h>
-#include <zephyr/mp/core/mp_message.h>
+#include <zephyr/mp/mp_element.h>
+#include <zephyr/mp/mp_message.h>
 #include <zephyr/mp/utils/mp_player.h>
 
 LOG_MODULE_REGISTER(mp_player, CONFIG_MP_LOG_LEVEL);

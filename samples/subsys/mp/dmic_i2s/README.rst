@@ -79,7 +79,7 @@ Check for any error messages during initialization:
 
    *** Booting Zephyr OS build ***
    [00:01:56.811,938] <inf> wolfson_wm8904: blk 512000
-   [00:01:57.816,263] <inf> mp_zaud_dmic_src: Capture started
+   [00:01:57.816,263] <inf> mp_aud_dmic_src: Capture started
 
 Configuration Options
 *********************

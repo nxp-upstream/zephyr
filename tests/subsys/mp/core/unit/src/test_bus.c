@@ -8,9 +8,9 @@
 #include <zephyr/sys/sys_heap.h>
 #include <zephyr/ztest.h>
 
-#include <zephyr/mp/core/mp_bus.h>
-#include <zephyr/mp/core/mp_element.h>
-#include <zephyr/mp/core/mp_message.h>
+#include <zephyr/mp/mp_bus.h>
+#include <zephyr/mp/mp_element.h>
+#include <zephyr/mp/mp_message.h>
 
 extern struct k_heap _system_heap;
 

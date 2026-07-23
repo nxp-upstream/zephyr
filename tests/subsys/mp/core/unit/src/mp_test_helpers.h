@@ -7,7 +7,7 @@
 #ifndef TESTS_SUBSYS_MP_CORE_UNIT_SRC_MP_TEST_HELPERS_H_
 #define TESTS_SUBSYS_MP_CORE_UNIT_SRC_MP_TEST_HELPERS_H_
 
-#include <zephyr/mp/core/mp_value.h>
+#include <zephyr/mp/mp_value.h>
 #include <zephyr/ztest.h>
 
 #define validate_boolean_value(value, expected)                                                    \

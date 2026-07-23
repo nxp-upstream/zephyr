@@ -7,10 +7,10 @@
 #include <zephyr/kernel.h>
 #include <zephyr/ztest.h>
 
-#include <zephyr/mp/core/mp_caps.h>
-#include <zephyr/mp/core/mp_dispatch.h>
-#include <zephyr/mp/core/mp_element.h>
-#include <zephyr/mp/core/mp_pad.h>
+#include <zephyr/mp/mp_caps.h>
+#include <zephyr/mp/mp_dispatch.h>
+#include <zephyr/mp/mp_element.h>
+#include <zephyr/mp/mp_pad.h>
 
 struct mp_pad_api_fixture {
 	struct mp_pad src_pad;

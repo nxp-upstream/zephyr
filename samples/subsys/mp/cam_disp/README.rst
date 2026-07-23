@@ -139,8 +139,8 @@ Sample Output
 .. code-block:: console
 
    *** Booting Zephyr OS build v4.3.0-rc2-1649-gef3755ee080b ***
-   [00:00:00.366,000] <inf> mp_zvid_buffer_pool: Started buffer pool
-   [00:00:00.367,000] <inf> mp_zvid_buffer_pool: Started buffer pool
+   [00:00:00.366,000] <inf> mp_vid_buffer_pool: Started buffer pool
+   [00:00:00.367,000] <inf> mp_vid_buffer_pool: Started buffer pool
    [00:00:07.128,000] <inf> main: EOS message from element 1
 
 References

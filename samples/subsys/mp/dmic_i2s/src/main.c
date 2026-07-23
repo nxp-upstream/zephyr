@@ -7,15 +7,15 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
-#include <zephyr/mp/core/mp.h>
-#include <zephyr/mp/zaud/mp_zaud.h>
-#include <zephyr/mp/zaud/mp_zaud_src.h>
-#include <zephyr/mp/zaud/mp_zaud_property.h>
-#include <zephyr/mp/zaud/mp_zaud_i2s_codec_sink.h>
-#include <zephyr/mp/zaud/mp_zaud_gain.h>
-#include <zephyr/mp/zaud/mp_zaud_dmic_src.h>
-#include <zephyr/mp/zaud/mp_zaud_buffer_pool.h>
-#include <zephyr/mp/zbase/mp_capsfilter.h>
+#include <zephyr/mp/mp.h>
+#include <zephyr/mp/aud/mp_aud.h>
+#include <zephyr/mp/aud/mp_aud_src.h>
+#include <zephyr/mp/aud/mp_aud_property.h>
+#include <zephyr/mp/aud/mp_aud_i2s_codec_sink.h>
+#include <zephyr/mp/aud/mp_aud_gain.h>
+#include <zephyr/mp/aud/mp_aud_dmic_src.h>
+#include <zephyr/mp/aud/mp_aud_buffer_pool.h>
+#include <zephyr/mp/base/mp_capsfilter.h>
 
 LOG_MODULE_REGISTER(main);
 
@@ -42,9 +42,9 @@ enum {
 __nocache struct k_mem_slab mem_slab;
 
 static struct mp_pipeline pipe;
-static struct mp_zaud_dmic_src source;
-static struct mp_zaud_gain gain;
-static struct mp_zaud_i2s_codec_sink sink;
+static struct mp_aud_dmic_src source;
+static struct mp_aud_gain gain;
+static struct mp_aud_i2s_codec_sink sink;
 static struct mp_caps_filter caps_filter;
 
 int main(void)
@@ -53,21 +53,21 @@ int main(void)
 	int ret = 0;
 
 	MP_ELEMENT_INIT(&pipe, mp_pipeline_init, PIPE_ID);
-	MP_ELEMENT_INIT(&source, mp_zaud_dmic_src_init, DMIC_SRC_ID);
-	MP_ELEMENT_INIT(&gain, mp_zaud_gain_init, AUD_GAIN_ID);
-	MP_ELEMENT_INIT(&sink, mp_zaud_i2s_codec_sink_init, I2S_SINK_ID);
+	MP_ELEMENT_INIT(&source, mp_aud_dmic_src_init, DMIC_SRC_ID);
+	MP_ELEMENT_INIT(&gain, mp_aud_gain_init, AUD_GAIN_ID);
+	MP_ELEMENT_INIT(&sink, mp_aud_i2s_codec_sink_init, I2S_SINK_ID);
 
-	ret = mp_object_set_properties((struct mp_object *)&source, PROP_ZAUD_SRC_SLAB_PTR,
+	ret = mp_object_set_properties((struct mp_object *)&source, PROP_AUD_SRC_SLAB_PTR,
 				       &mem_slab, PROP_LIST_END);
 	if (ret < 0) {
 		LOG_ERR("Failed to set properties for source element");
 		goto err;
 	}
 
-	ret = mp_object_set_properties((struct mp_object *)&sink, PROP_ZAUD_SINK_SLAB_PTR,
+	ret = mp_object_set_properties((struct mp_object *)&sink, PROP_AUD_SINK_SLAB_PTR,
 				       &mem_slab,
 #if (defined(CONFIG_USE_I2S_TARGET_CODEC_CONTROLLER) && CONFIG_USE_I2S_TARGET_CODEC_CONTROLLER == 1)
-				       PROP_ZAUD_SINK_CLK_ROLE, MP_ZAUD_I2S_TARGET_CODEC_CONTROLLER,
+				       PROP_AUD_SINK_CLK_ROLE, MP_AUD_I2S_TARGET_CODEC_CONTROLLER,
 #endif
 				       PROP_LIST_END);
 	if (ret < 0) {
@@ -75,7 +75,7 @@ int main(void)
 		goto err;
 	}
 
-	ret = mp_object_set_properties((struct mp_object *)&gain, PROP_GAIN, &gain_val,
+	ret = mp_object_set_properties((struct mp_object *)&gain, PROP_AUD_TRANSFORM_GAIN, &gain_val,
 				       PROP_LIST_END);
 	if (ret < 0) {
 		LOG_ERR("Failed to set properties for gain element");
@@ -95,7 +95,7 @@ int main(void)
 		goto err;
 	}
 
-	ret = mp_object_set_properties((struct mp_object *)&caps_filter, PROP_CAPS, caps,
+	ret = mp_object_set_properties((struct mp_object *)&caps_filter, PROP_BASE_CAPSFILTER_CAPS, caps,
 				       PROP_LIST_END);
 	mp_caps_unref(caps);
 	if (ret < 0) {
@@ -107,7 +107,7 @@ int main(void)
 	/* Add elements to the pipeline - order does not matter */
 	ret = mp_bin_add((struct mp_bin *)&pipe,
 			(struct mp_element *)&source,
-			IF_ENABLED(CONFIG_MP_CAPSFILTER, ((struct mp_element *)&caps_filter,))
+			IF_ENABLED(CONFIG_MP_BASE_CAPSFILTER, ((struct mp_element *)&caps_filter,))
 			(struct mp_element *)&gain,
 			(struct mp_element *)&sink, NULL);
 	if (ret < 0) {
@@ -117,7 +117,7 @@ int main(void)
 
 	/* Link elements together - order does matter */
 	ret = mp_element_link((struct mp_element *)&source,
-			IF_ENABLED(CONFIG_MP_CAPSFILTER, ((struct mp_element *)&caps_filter,))
+			IF_ENABLED(CONFIG_MP_BASE_CAPSFILTER, ((struct mp_element *)&caps_filter,))
 			(struct mp_element *)&gain,
 			(struct mp_element *)&sink, NULL);
 	if (ret < 0) {

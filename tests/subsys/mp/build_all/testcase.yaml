@@ -15,10 +15,10 @@ tests:
     platform_allow:
       - native_sim/native/64
     extra_args:
-      - CONFIG_MP_PLUGIN_ZBASE=y
-      - CONFIG_MP_CAPSFILTER=y
-      - CONFIG_MP_QUEUE=y
-      - CONFIG_MP_TEE=y
+      - CONFIG_MP_BASE=y
+      - CONFIG_MP_BASE_CAPSFILTER=y
+      - CONFIG_MP_BASE_QUEUE=y
+      - CONFIG_MP_BASE_TEE=y
 
   mp.audio.build:
     tags:
@@ -31,7 +31,7 @@ tests:
       - CONFIG_I2S=y
       - CONFIG_AUDIO_DMIC=y
       - CONFIG_AUDIO_CODEC=y
-      - CONFIG_MP_PLUGIN_ZAUD=y
+      - CONFIG_MP_AUD=y
 
   mp.video.build:
     tags:
@@ -41,8 +41,8 @@ tests:
     platform_allow:
       - native_sim/native/64
     extra_args:
-      - CONFIG_MP_PLUGIN_ZVID=y
-      - CONFIG_MP_ZVID_CONVERT=y
+      - CONFIG_MP_VID=y
+      - CONFIG_MP_VID_CONVERT=y
 
   mp.display.build:
     tags:
@@ -52,7 +52,7 @@ tests:
     platform_allow:
       - native_sim/native/64
     extra_args:
-      - CONFIG_MP_PLUGIN_ZDISP=y
+      - CONFIG_MP_DISP=y
 
   mp.img.build:
     tags:
@@ -62,7 +62,7 @@ tests:
     platform_allow:
       - native_sim/native/64
     extra_args:
-      - CONFIG_MP_PLUGIN_ZIMG=y
+      - CONFIG_MP_IMG=y
 
   mp.fs.build:
     tags:
@@ -72,4 +72,4 @@ tests:
     platform_allow:
       - native_sim/native/64
     extra_args:
-      - CONFIG_MP_PLUGIN_ZFS=y
+      - CONFIG_MP_FS=y

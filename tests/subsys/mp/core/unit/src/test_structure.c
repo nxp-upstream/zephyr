@@ -8,9 +8,9 @@
 #include <zephyr/sys/sys_heap.h>
 #include <zephyr/ztest.h>
 
-#include <zephyr/mp/core/mp_caps.h>
-#include <zephyr/mp/core/mp_structure.h>
-#include <zephyr/mp/core/mp_value.h>
+#include <zephyr/mp/mp_caps.h>
+#include <zephyr/mp/mp_structure.h>
+#include <zephyr/mp/mp_value.h>
 
 #include "mp_test_helpers.h"
 

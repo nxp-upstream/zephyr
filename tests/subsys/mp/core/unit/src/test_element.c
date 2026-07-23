@@ -9,13 +9,13 @@
 #include <zephyr/ztest.h>
 #include <zephyr/ztest_assert.h>
 
-#include <zephyr/mp/core/mp_bin.h>
-#include <zephyr/mp/core/mp_caps.h>
-#include <zephyr/mp/core/mp_element.h>
-#include <zephyr/mp/core/mp_pad.h>
-#include <zephyr/mp/core/mp_pipeline.h>
-#include <zephyr/mp/core/mp_sink.h>
-#include <zephyr/mp/core/mp_src.h>
+#include <zephyr/mp/mp_bin.h>
+#include <zephyr/mp/mp_caps.h>
+#include <zephyr/mp/mp_element.h>
+#include <zephyr/mp/mp_pad.h>
+#include <zephyr/mp/mp_pipeline.h>
+#include <zephyr/mp/mp_sink.h>
+#include <zephyr/mp/mp_src.h>
 
 extern struct k_heap _system_heap;
 

@@ -35,8 +35,8 @@
 
 #include <zephyr/kernel.h>
 
-#include <zephyr/mp/core/mp_bus.h>
-#include <zephyr/mp/core/mp_pipeline.h>
+#include <zephyr/mp/mp_bus.h>
+#include <zephyr/mp/mp_pipeline.h>
 
 /**
  * @brief Observable player state.
