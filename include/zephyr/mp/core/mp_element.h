@@ -276,5 +276,4 @@ int mp_element_post_message(struct mp_element *element, uint32_t type);
 
 /** @} */
 
-
 #endif /* ZEPHYR_INCLUDE_MP_CORE_MP_ELEMENT_H_ */

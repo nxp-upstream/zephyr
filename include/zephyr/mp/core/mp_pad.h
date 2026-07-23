@@ -22,6 +22,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <zephyr/sys/atomic.h>
 #include <zephyr/sys/util.h>
 
 #include <zephyr/kernel.h>
@@ -97,6 +98,9 @@ struct mp_pad {
 	struct mp_pad *peer;
 	/** Capabilities of the pad */
 	struct mp_caps *caps;
+	/** Flushing gate. If set, buffer dropped instead of being handed to chainfn */
+	atomic_t flushing;
+
 	/** Chain function for handling buffers */
 	int (*chainfn)(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf);
 	/** Query function for handling queries */

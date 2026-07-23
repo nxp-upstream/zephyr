@@ -25,6 +25,7 @@ void mp_pad_init(struct mp_pad *pad, uint8_t id, enum mp_pad_direction direction
 	pad->object.id = id;
 	pad->direction = direction;
 	pad->presence = presence;
+	atomic_set(&pad->flushing, 0);
 	mp_caps_replace(&pad->caps, caps);
 }
 

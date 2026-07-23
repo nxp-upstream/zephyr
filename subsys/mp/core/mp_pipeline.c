@@ -19,13 +19,6 @@
 
 LOG_MODULE_REGISTER(mp_pipeline, CONFIG_MP_LOG_LEVEL);
 
-/*
- * Count the number of sink elements in the pipeline.
- *
- * A sink is a child element whose srcpads list is empty (it has no source pad,
- * hence nothing downstream). This is the inverse of the source-finding logic
- * used by mp_pipeline_thread_func(), which looks for an element with no sinkpad.
- */
 static uint32_t mp_pipeline_count_sinks(struct mp_bin *bin)
 {
 	struct mp_object *obj;
@@ -42,6 +35,25 @@ static uint32_t mp_pipeline_count_sinks(struct mp_bin *bin)
 	return count;
 }
 
+static void mp_pipeline_set_flushing(struct mp_bin *bin, bool flush)
+{
+	struct mp_object *obj;
+	struct mp_element *element;
+	struct mp_object *pad_obj;
+
+	SYS_DLIST_FOR_EACH_CONTAINER(&bin->children, obj, node) {
+		element = (struct mp_element *)obj;
+
+		SYS_DLIST_FOR_EACH_CONTAINER(&element->sinkpads, pad_obj, node) {
+			atomic_set(&((struct mp_pad *)pad_obj)->flushing, flush ? 1 : 0);
+		}
+
+		SYS_DLIST_FOR_EACH_CONTAINER(&element->srcpads, pad_obj, node) {
+			atomic_set(&((struct mp_pad *)pad_obj)->flushing, flush ? 1 : 0);
+		}
+	}
+}
+
 /*
  * Bus sync handler that aggregates EOS messages from all sinks.
  *
@@ -51,12 +63,8 @@ static uint32_t mp_pipeline_count_sinks(struct mp_bin *bin)
  * handler drops the first N-1 EOS messages and passes only the last one to the
  * application. Non-EOS messages are always passed through unchanged.
  *
- * Runs inline in the posting (pipeline/queue) thread, so it stays short and
- * never triggers a state change.
- *
- * @return MP_BUS_DROP to swallow an intermediate EOS (not all sinks done yet),
- *         MP_BUS_PASS to deliver the message to the application (non-EOS, last
- *         sink, or no sinks tracked).
+ * It runs in the posting (pipeline/queue) thread, so it should stays short and
+ * must never triggers a state change.
  */
 static enum mp_bus_sync_reply mp_pipeline_eos_handler(struct mp_bus *bus,
 						      struct mp_message *message, void *user_data)
@@ -83,7 +91,6 @@ static enum mp_bus_sync_reply mp_pipeline_eos_handler(struct mp_bus *bus,
 	return MP_BUS_DROP;
 }
 
-
 int mp_pipeline_push_buffer(struct mp_pad *srcpad, struct net_buf *buffer)
 {
 	struct mp_pad *cur_srcpad = srcpad;
@@ -104,6 +111,15 @@ int mp_pipeline_push_buffer(struct mp_pad *srcpad, struct net_buf *buffer)
 			LOG_ERR("srcpad has no peer");
 			net_buf_unref(buffer);
 			return -ENOTCONN;
+		}
+
+		/*
+		 * Flushing: drop the buffer rather than pushing it into an element
+		 * whose caps have been reset or whose buffer pool has been freed.
+		 */
+		if (atomic_get(&next_sinkpad->flushing)) {
+			net_buf_unref(buffer);
+			return 0;
 		}
 
 		if (next_sinkpad->chainfn != NULL) {
@@ -222,8 +238,22 @@ static enum mp_state_change_return mp_pipeline_change_state(struct mp_element *e
 		 * queued downstream are preserved so a subsequent resume to
 		 * PLAYING continues without data loss. The source is guaranteed
 		 * to be paused before this returns, so it stops producing.
+		 *
+		 * Do not set the flushing flag here: this is a pause, not a teardown, so in-flight
+		 * and queued buffers must be kept intact for a subsequent resume.
 		 */
 		mp_thread_pause(&pipeline->thread);
+		break;
+	case MP_STATE_CHANGE_PAUSED_TO_READY:
+		/*
+		 * Teardown: raise the per-pad flushing gate BEFORE the children dismantle their
+		 * caps and buffer pools. The source thread was paused on PLAYING -> PAUSED but may
+		 * still be parked mid-chain holding a buffer. Once that buffer resumes (e.g.
+		 * threads woke up to extit), the flushing gate in mp_pipeline_push_buffer() drops
+		 * it instead of pushing it through an element whose caps have been reset or whose
+		 * pool has been freed.
+		 */
+		mp_pipeline_set_flushing(&pipeline->bin, true);
 		break;
 	default:
 		break;
@@ -252,11 +282,14 @@ static enum mp_state_change_return mp_pipeline_change_state(struct mp_element *e
 	}
 
 	/*
-	 * UP: Pipeline thread should be handled after children state change, i.e., children need to
-	 * be prepared before receiving buffers from source
+	 * UP: Pipeline thread should be handled after children state change, i.e., children
+	 * need to be prepared before receiving buffers from source
 	 */
 	switch (transition) {
 	case MP_STATE_CHANGE_READY_TO_PAUSED:
+		/* Clear the flushing gate so buffers can flow again */
+		mp_pipeline_set_flushing(&pipeline->bin, false);
+
 		/* Create the thread but do not start it (K_FOREVER) */
 		if (mp_thread_create(&pipeline->thread, mp_pipeline_thread_func, element, NULL,
 				     NULL, CONFIG_MP_THREAD_DEFAULT_PRIORITY, K_FOREVER) == NULL) {
@@ -265,10 +298,8 @@ static enum mp_state_change_return mp_pipeline_change_state(struct mp_element *e
 		}
 
 		/*
-		 * Arm EOS aggregation now that the topology is fully built and
-		 * before the source thread is resumed (i.e. before any EOS can be
-		 * produced). Only the last of the per-sink EOS messages is passed
-		 * to the application.
+		 * Arm EOS aggregation now that the topology is fully built and before the source
+		 * thread is resumed (i.e. before any EOS can be produced).
 		 */
 		pipeline->num_sinks = mp_pipeline_count_sinks(&pipeline->bin);
 		atomic_set(&pipeline->eos_count, 0);
