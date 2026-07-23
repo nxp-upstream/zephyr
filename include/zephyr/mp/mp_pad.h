@@ -165,14 +165,21 @@ int mp_pad_send_event(struct mp_pad *pad, struct mp_dispatch *event);
 /**
  * @brief Default event handler for pads
  *
- * Default event handler for pads. This function will forward the event to the
- * peer pad if the event direction matches the pad direction, otherwise it will
- * forward the event to other pads in the same element.
+ * Forwards an event received on @p pad to the peers of all opposite-side pads
+ * in the same element. If @p pad is a sink pad, the event is forwarded to the
+ * peer of each source pad; if @p pad is a source pad, it is forwarded to the
+ * peer of each sink pad.
  *
- * @param pad Pointer to the @ref mp_pad to send event to
+ * If the element has only source pads or only sink pads, there are no
+ * opposite-side pads to send the event to, so the function returns
+ * -ENOTSUP.
+ *
+ * @param pad Pointer to the @ref mp_pad that received the event
  * @param event Pointer to the @ref mp_dispatch to send
  *
- * @return 0 on success, negative errno on failure
+ * @return 0 if the event was successfully forwarded to at least one peer,
+ *         -ENOTSUP if there are no opposite-side pads or none have a peer,
+ *         negative errno on other failures
  */
 int mp_pad_send_event_default(struct mp_pad *pad, struct mp_dispatch *event);
 

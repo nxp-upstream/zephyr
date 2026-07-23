@@ -122,7 +122,7 @@ struct mp_cap_structure {
  * @param media_type_id Media type ID
  * @param ... Variadic list of field definitions:
  *            (uint8_t field_id, int field_type, void *field_value),
- *            terminated by 0
+ *            terminated by MP_CAPS_END.
  *
  * @return Pointer to newly created @ref mp_caps, or NULL on failure
  */
