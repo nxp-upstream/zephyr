@@ -15,10 +15,12 @@ set(TEST_MJPEG_FILE ${ZEPHYR_BINARY_DIR}/include/generated/test.mjpeg)
 add_custom_command(
     OUTPUT ${TEST_MJPEG_FILE}
     COMMAND ${GST_LAUNCH}
-        videotestsrc num-buffers=${CONFIG_MJPEG_NUM_FRAMES}
-        ! "video/x-raw,width=${CONFIG_JPEG_IMAGE_WIDTH},height=${CONFIG_JPEG_IMAGE_HEIGHT}"
-        ! jpegenc
-        ! filesink location=${TEST_MJPEG_FILE}
+    videotestsrc num-buffers=${CONFIG_MJPEG_NUM_FRAMES}
+    ! videoconvert
+    ! "video/x-raw,width=${CONFIG_JPEG_IMAGE_WIDTH},height=${CONFIG_JPEG_IMAGE_HEIGHT}"
+    ! timeoverlay font-desc="Sans 32"
+    ! jpegenc
+    ! filesink location=${TEST_MJPEG_FILE}
     COMMENT "Generating test.mjpeg (${CONFIG_JPEG_IMAGE_WIDTH}x${CONFIG_JPEG_IMAGE_HEIGHT}, ${CONFIG_MJPEG_NUM_FRAMES} frames) using GStreamer"
 )
 
