@@ -94,8 +94,14 @@ enum {
  *
  */
 struct mp_caps {
-	struct mp_object object;     /**< Base object */
-	sys_slist_t structures;      /**< List of capability structures */
+	/** Base object */
+	struct mp_object object;
+	/** Fill a structure corresponding to the given index */
+	struct mp_structure *(*get_structure)(struct mp_caps *c, int index, void *arg);
+	/** Custom argument provided to @c .get_structure() */
+	void *arg;
+	/** For internal use */
+	sys_slist_t _slist;
 };
 
 /** @brief Flag indicating ANY caps type */
