@@ -81,7 +81,7 @@ static inline void set_bytes_used(struct net_buf *buf, uint32_t used)
 	bm->bytes_used = used;
 	buf->len = used;
 
-	/* Keep Zephyr video_buffer (if any) in sync for zvid_transform/video_enqueue */
+	/* Keep Zephyr video_buffer (if any) in sync for vid_transform/video_enqueue */
 	/* TODO: Ensure driver_buf is a video_buffer */
 	if (bm->driver_buf != NULL) {
 		((struct video_buffer *)bm->driver_buf)->bytesused = used;

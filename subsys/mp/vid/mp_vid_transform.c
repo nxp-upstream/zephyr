@@ -25,8 +25,8 @@ static int mp_vid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	int ret;
 	struct mp_transform *transform =
 		CONTAINER_OF(pad->object.container, struct mp_transform, element.object);
-	struct mp_vid_transform *zvid_transform = (struct mp_vid_transform *)transform;
-	struct mp_buffer_pool *outpool = &zvid_transform->zvid_obj_out.pool.pool;
+	struct mp_vid_transform *vid_transform = (struct mp_vid_transform *)transform;
+	struct mp_buffer_pool *outpool = &vid_transform->vid_obj_out.pool.pool;
 	struct video_buffer *in_vbuf;
 
 	/* TODO: Ensure net_buf meta's driver_buf is always a video buffer */
@@ -39,15 +39,15 @@ static int mp_vid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 
 	/* Enqueue input buffer */
 	in_vbuf->type = VIDEO_BUF_TYPE_INPUT;
-	if (video_enqueue(zvid_transform->zvid_obj_in.vdev, in_vbuf) != 0) {
+	if (video_enqueue(vid_transform->vid_obj_in.vdev, in_vbuf) != 0) {
 		LOG_ERR("Failed to enqueue input buffer");
 		return -EIO;
 	}
 
 	/* Dequeue an input buffer, blocking */
 	struct video_buffer *vbuf =
-		&(struct video_buffer){.type = zvid_transform->zvid_obj_in.type};
-	ret = video_dequeue(zvid_transform->zvid_obj_in.vdev, &vbuf, K_FOREVER);
+		&(struct video_buffer){.type = vid_transform->vid_obj_in.type};
+	ret = video_dequeue(vid_transform->vid_obj_in.vdev, &vbuf, K_FOREVER);
 	if (ret != 0) {
 		LOG_ERR("Failed to dequeue input buffer");
 		return -EIO;
@@ -69,14 +69,14 @@ static int mp_vid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 static struct mp_caps *mp_vid_transform_supported_caps(struct mp_transform *transform,
 							enum mp_pad_direction direction)
 {
-	struct mp_vid_transform *zvid_transform = (struct mp_vid_transform *)transform;
+	struct mp_vid_transform *vid_transform = (struct mp_vid_transform *)transform;
 
 	if (direction == MP_PAD_SINK) {
-		return mp_vid_object_get_caps(&zvid_transform->zvid_obj_in);
+		return mp_vid_object_get_caps(&vid_transform->vid_obj_in);
 	}
 
 	if (direction == MP_PAD_SRC) {
-		return mp_vid_object_get_caps(&zvid_transform->zvid_obj_out);
+		return mp_vid_object_get_caps(&vid_transform->vid_obj_out);
 	}
 
 	return NULL;
@@ -95,18 +95,18 @@ static void mp_vid_transform_update_caps(struct mp_transform *transform)
 static int mp_vid_transform_set_caps(struct mp_transform *transform,
 				      enum mp_pad_direction direction, struct mp_caps *caps)
 {
-	struct mp_vid_transform *zvid_transform = (struct mp_vid_transform *)transform;
-	struct mp_vid_object *zvid_obj = NULL;
+	struct mp_vid_transform *vid_transform = (struct mp_vid_transform *)transform;
+	struct mp_vid_object *vid_obj = NULL;
 
 	if (direction == MP_PAD_SINK) {
-		zvid_obj = &zvid_transform->zvid_obj_in;
+		vid_obj = &vid_transform->vid_obj_in;
 	}
 
 	if (direction == MP_PAD_SRC) {
-		zvid_obj = &zvid_transform->zvid_obj_out;
+		vid_obj = &vid_transform->vid_obj_out;
 	}
 
-	if (zvid_obj == NULL || mp_vid_object_set_caps(zvid_obj, caps) < 0) {
+	if (vid_obj == NULL || mp_vid_object_set_caps(vid_obj, caps) < 0) {
 		return -EINVAL;
 	}
 
@@ -121,8 +121,8 @@ static struct mp_caps *mp_vid_transform_transform_caps(struct mp_transform *self
 							enum mp_pad_direction direction,
 							struct mp_caps *caps)
 {
-	struct mp_vid_transform *zvid_transform = (struct mp_vid_transform *)self;
-	const struct device *dev = zvid_transform->zvid_obj_in.vdev;
+	struct mp_vid_transform *vid_transform = (struct mp_vid_transform *)self;
+	const struct device *dev = vid_transform->vid_obj_in.vdev;
 	struct mp_caps *other_caps = mp_caps_new(MP_MEDIA_END);
 	struct mp_structure *caps_item = NULL;
 	struct mp_cap_structure *cs;
@@ -160,33 +160,33 @@ static struct mp_caps *mp_vid_transform_transform_caps(struct mp_transform *self
 static int mp_vid_transform_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
 	struct mp_transform *transform = (struct mp_transform *)obj;
-	struct mp_vid_transform *zvid_transform = (struct mp_vid_transform *)obj;
+	struct mp_vid_transform *vid_transform = (struct mp_vid_transform *)obj;
 
 	switch (key) {
 	case PROP_VID_DEVICE:
-		mp_vid_object_set_property(&zvid_transform->zvid_obj_in, key, val);
-		mp_vid_object_set_property(&zvid_transform->zvid_obj_out, key, val);
+		mp_vid_object_set_property(&vid_transform->vid_obj_in, key, val);
+		mp_vid_object_set_property(&vid_transform->vid_obj_out, key, val);
 		/* Device set, update caps */
 		mp_vid_transform_update_caps(transform);
 
 		return 0;
 	default:
-		return mp_vid_object_set_property(&zvid_transform->zvid_obj_in, key, val);
+		return mp_vid_object_set_property(&vid_transform->vid_obj_in, key, val);
 	}
 }
 
 static int mp_vid_transform_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
-	struct mp_vid_transform *zvid_transform = (struct mp_vid_transform *)obj;
+	struct mp_vid_transform *vid_transform = (struct mp_vid_transform *)obj;
 
-	return mp_vid_object_get_property(&zvid_transform->zvid_obj_in, key, val);
+	return mp_vid_object_get_property(&vid_transform->vid_obj_in, key, val);
 }
 
 static int mp_vid_transform_decide_allocation(struct mp_transform *self, struct mp_dispatch *query)
 {
-	struct mp_vid_transform *zvid_transform = (struct mp_vid_transform *)self;
+	struct mp_vid_transform *vid_transform = (struct mp_vid_transform *)self;
 
-	return mp_vid_object_decide_allocation(&zvid_transform->zvid_obj_out, query);
+	return mp_vid_object_decide_allocation(&vid_transform->vid_obj_out, query);
 }
 
 static int mp_vid_transform_propose_allocation(struct mp_transform *self,
@@ -198,16 +198,16 @@ static int mp_vid_transform_propose_allocation(struct mp_transform *self,
 void mp_vid_transform_init(struct mp_element *self)
 {
 	struct mp_transform *transform = (struct mp_transform *)self;
-	struct mp_vid_transform *zvid_transform = (struct mp_vid_transform *)transform;
+	struct mp_vid_transform *vid_transform = (struct mp_vid_transform *)transform;
 
 	/* Init base class */
 	mp_transform_init(self);
 
-	/* Initialize zvid objects */
-	zvid_transform->zvid_obj_in.vdev = DEFAULT_PROP_DEVICE;
-	zvid_transform->zvid_obj_out.vdev = DEFAULT_PROP_DEVICE;
-	zvid_transform->zvid_obj_in.type = VIDEO_BUF_TYPE_INPUT;
-	zvid_transform->zvid_obj_out.type = VIDEO_BUF_TYPE_OUTPUT;
+	/* Initialize vid objects */
+	vid_transform->vid_obj_in.vdev = DEFAULT_PROP_DEVICE;
+	vid_transform->vid_obj_out.vdev = DEFAULT_PROP_DEVICE;
+	vid_transform->vid_obj_in.type = VIDEO_BUF_TYPE_INPUT;
+	vid_transform->vid_obj_out.type = VIDEO_BUF_TYPE_OUTPUT;
 
 	self->object.set_property = mp_vid_transform_set_property;
 	self->object.get_property = mp_vid_transform_get_property;
@@ -222,11 +222,11 @@ void mp_vid_transform_init(struct mp_element *self)
 	 * pools needs to be set before retrieving supported caps as
 	 * some pool's configs will be set during caps probing.
 	 */
-	transform->inpool = &zvid_transform->zvid_obj_in.pool.pool;
-	transform->outpool = &zvid_transform->zvid_obj_out.pool.pool;
+	transform->inpool = &vid_transform->vid_obj_in.pool.pool;
+	transform->outpool = &vid_transform->vid_obj_out.pool.pool;
 	/* Initialize buffer pools */
-	mp_vid_buffer_pool_init(transform->inpool, &(zvid_transform->zvid_obj_in));
-	mp_vid_buffer_pool_init(transform->outpool, &(zvid_transform->zvid_obj_out));
+	mp_vid_buffer_pool_init(transform->inpool, &(vid_transform->vid_obj_in));
+	mp_vid_buffer_pool_init(transform->outpool, &(vid_transform->vid_obj_out));
 
 	mp_vid_transform_update_caps(transform);
 

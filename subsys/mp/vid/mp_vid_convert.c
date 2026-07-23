@@ -47,12 +47,12 @@ static void nv12_to_rgb565_impl(uint16_t width, uint16_t height, const uint8_t *
 	}
 }
 
-static inline uint32_t zvid_convert_frame_size(uint32_t pixfmt, uint16_t width, uint16_t height)
+static inline uint32_t vid_convert_frame_size(uint32_t pixfmt, uint16_t width, uint16_t height)
 {
 	return (uint32_t)width * (uint32_t)height * video_bits_per_pixel(pixfmt) / BITS_PER_BYTE;
 }
 
-static int zvid_convert_pool_start(struct mp_buffer_pool *pool)
+static int vid_convert_pool_start(struct mp_buffer_pool *pool)
 {
 	struct mp_vid_convert *conv = CONTAINER_OF(pool, struct mp_vid_convert, out_pool);
 
@@ -86,7 +86,7 @@ static int zvid_convert_pool_start(struct mp_buffer_pool *pool)
 	return 0;
 }
 
-static int zvid_convert_pool_stop(struct mp_buffer_pool *pool)
+static int vid_convert_pool_stop(struct mp_buffer_pool *pool)
 {
 	struct mp_vid_convert *conv = CONTAINER_OF(pool, struct mp_vid_convert, out_pool);
 
@@ -106,7 +106,7 @@ static int zvid_convert_pool_stop(struct mp_buffer_pool *pool)
 	return 0;
 }
 
-static int zvid_convert_pool_acquire(struct mp_buffer_pool *pool, struct net_buf **out)
+static int vid_convert_pool_acquire(struct mp_buffer_pool *pool, struct net_buf **out)
 {
 	struct video_buffer *vbuf;
 	struct mp_buffer_meta *meta;
@@ -137,7 +137,7 @@ static int zvid_convert_pool_acquire(struct mp_buffer_pool *pool, struct net_buf
 	return 0;
 }
 
-static int zvid_convert_pool_release(struct mp_buffer_pool *pool, struct net_buf *buf)
+static int vid_convert_pool_release(struct mp_buffer_pool *pool, struct net_buf *buf)
 {
 	struct video_buffer *vbuf;
 	struct mp_vid_convert *conv = CONTAINER_OF(pool, struct mp_vid_convert, out_pool);
@@ -154,7 +154,7 @@ static int zvid_convert_pool_release(struct mp_buffer_pool *pool, struct net_buf
 	return 0;
 }
 
-static struct mp_value *zvid_convert_pixfmt_list(enum mp_pad_direction direction)
+static struct mp_value *vid_convert_pixfmt_list(enum mp_pad_direction direction)
 {
 	struct mp_value *list = mp_value_new(MP_TYPE_LIST, NULL);
 
@@ -185,12 +185,12 @@ static struct mp_value *zvid_convert_pixfmt_list(enum mp_pad_direction direction
 	return list;
 }
 
-static struct mp_caps *zvid_convert_supported_caps(struct mp_transform *transform,
+static struct mp_caps *vid_convert_supported_caps(struct mp_transform *transform,
 						   enum mp_pad_direction direction)
 {
 	ARG_UNUSED(transform);
 
-	struct mp_value *fmts = zvid_convert_pixfmt_list(direction);
+	struct mp_value *fmts = vid_convert_pixfmt_list(direction);
 
 	if (fmts == NULL) {
 		return NULL;
@@ -199,17 +199,17 @@ static struct mp_caps *zvid_convert_supported_caps(struct mp_transform *transfor
 	return mp_caps_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_LIST, fmts, MP_CAPS_END);
 }
 
-static void zvid_convert_update_caps(struct mp_transform *transform)
+static void vid_convert_update_caps(struct mp_transform *transform)
 {
-	struct mp_caps *sink_caps = zvid_convert_supported_caps(transform, MP_PAD_SINK);
-	struct mp_caps *src_caps = zvid_convert_supported_caps(transform, MP_PAD_SRC);
+	struct mp_caps *sink_caps = vid_convert_supported_caps(transform, MP_PAD_SINK);
+	struct mp_caps *src_caps = vid_convert_supported_caps(transform, MP_PAD_SRC);
 
 	mp_transform_update_caps(transform, sink_caps, src_caps);
 	mp_caps_unref(sink_caps);
 	mp_caps_unref(src_caps);
 }
 
-static int zvid_convert_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
+static int vid_convert_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
 				 struct mp_caps *caps)
 {
 	struct mp_vid_convert *conv = (struct mp_vid_convert *)transform;
@@ -265,7 +265,7 @@ static int zvid_convert_set_caps(struct mp_transform *transform, enum mp_pad_dir
 
 	if (conv->width != 0U && conv->height != 0U && conv->out_pixfmt != 0U) {
 		conv->out_pool.config.size =
-			zvid_convert_frame_size(conv->out_pixfmt, conv->width, conv->height);
+			vid_convert_frame_size(conv->out_pixfmt, conv->width, conv->height);
 	}
 
 	return 0;
@@ -283,7 +283,7 @@ static bool out_fmts_contains(struct mp_value *out_fmts, uint32_t pixfmt)
 	return false;
 }
 
-static struct mp_caps *zvid_convert_transform_caps(struct mp_transform *self,
+static struct mp_caps *vid_convert_transform_caps(struct mp_transform *self,
 						   enum mp_pad_direction direction,
 						   struct mp_caps *incaps)
 {
@@ -292,7 +292,7 @@ static struct mp_caps *zvid_convert_transform_caps(struct mp_transform *self,
 	}
 
 	if (mp_caps_is_any(incaps)) {
-		return zvid_convert_supported_caps(self, direction);
+		return vid_convert_supported_caps(self, direction);
 	}
 
 	struct mp_caps *out = mp_caps_new(MP_MEDIA_END);
@@ -384,7 +384,7 @@ static struct mp_caps *zvid_convert_transform_caps(struct mp_transform *self,
 	return out;
 }
 
-static int zvid_convert_decide_allocation(struct mp_transform *self, struct mp_dispatch *query)
+static int vid_convert_decide_allocation(struct mp_transform *self, struct mp_dispatch *query)
 {
 	struct mp_vid_convert *conv = (struct mp_vid_convert *)self;
 	struct mp_buffer_pool *down_pool = mp_dispatch_get_pool(query);
@@ -402,7 +402,7 @@ static int zvid_convert_decide_allocation(struct mp_transform *self, struct mp_d
 	return 0;
 }
 
-static int zvid_convert_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
+static int vid_convert_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 				struct net_buf **out_buf)
 {
 	struct net_buf *cur;
@@ -410,7 +410,7 @@ static int zvid_convert_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	struct mp_transform *transform = (struct mp_transform *)pad->object.container;
 	struct mp_vid_convert *conv = (struct mp_vid_convert *)transform;
 	struct mp_buffer_pool *outpool = transform->outpool;
-	uint32_t out_sz = zvid_convert_frame_size(conv->out_pixfmt, conv->width, conv->height);
+	uint32_t out_sz = vid_convert_frame_size(conv->out_pixfmt, conv->width, conv->height);
 
 	if (conv->width == 0U || conv->height == 0U || conv->in_pixfmt == 0U ||
 	    conv->out_pixfmt == 0U || conv->desc == NULL || conv->desc->fn == NULL) {
@@ -478,7 +478,7 @@ void mp_vid_convert_init(struct mp_element *self)
 
 	mp_transform_init(self);
 
-	zvid_convert_update_caps(transform);
+	vid_convert_update_caps(transform);
 
 	conv->width = 0;
 	conv->height = 0;
@@ -493,10 +493,10 @@ void mp_vid_convert_init(struct mp_element *self)
 
 	mp_buffer_pool_init(&conv->out_pool);
 
-	conv->out_pool.start = zvid_convert_pool_start;
-	conv->out_pool.stop = zvid_convert_pool_stop;
-	conv->out_pool.acquire_buffer = zvid_convert_pool_acquire;
-	conv->out_pool.release_buffer = zvid_convert_pool_release;
+	conv->out_pool.start = vid_convert_pool_start;
+	conv->out_pool.stop = vid_convert_pool_stop;
+	conv->out_pool.acquire_buffer = vid_convert_pool_acquire;
+	conv->out_pool.release_buffer = vid_convert_pool_release;
 	conv->out_pool.config.size = 0;
 	conv->out_pool.config.align = 1;
 	conv->out_pool.config.min_buffers = 1;
@@ -504,9 +504,9 @@ void mp_vid_convert_init(struct mp_element *self)
 
 	transform->mode = MP_MODE_NORMAL;
 	transform->outpool = &conv->out_pool;
-	transform->set_caps = zvid_convert_set_caps;
-	transform->transform_caps = zvid_convert_transform_caps;
+	transform->set_caps = vid_convert_set_caps;
+	transform->transform_caps = vid_convert_transform_caps;
 	transform->propose_allocation = NULL;
-	transform->decide_allocation = zvid_convert_decide_allocation;
-	transform->sinkpad.chainfn = zvid_convert_chainfn;
+	transform->decide_allocation = vid_convert_decide_allocation;
+	transform->sinkpad.chainfn = vid_convert_chainfn;
 }

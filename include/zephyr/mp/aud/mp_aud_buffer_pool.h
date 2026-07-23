@@ -35,7 +35,7 @@ struct mp_aud_buffer_pool {
 	/** Base buffer pool structure */
 	struct mp_buffer_pool pool;
 	/** Pointer to the associated audio device */
-	const struct device *zaud_dev;
+	const struct device *aud_dev;
 	/** Memory slab for efficient buffer allocation */
 	struct k_mem_slab *mem_slab;
 	/** Per-chunk pointers into the mem_slab backing buffer */

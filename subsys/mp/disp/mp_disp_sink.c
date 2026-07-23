@@ -65,19 +65,19 @@ static const enum display_pixel_format vid_to_disp_pix_fmt(uint32_t vid_fmt)
 	return 0;
 }
 
-static int mp_disp_sink_setup(struct mp_disp_sink *zdisp_sink,
+static int mp_disp_sink_setup(struct mp_disp_sink *disp_sink,
 			       const enum display_pixel_format pixfmt)
 {
 	int ret = 0;
 
-	ret = display_set_pixel_format(zdisp_sink->display_dev, pixfmt);
+	ret = display_set_pixel_format(disp_sink->display_dev, pixfmt);
 	if (ret != 0) {
 		LOG_ERR("Unable to set display format");
 		return ret;
 	}
 
 	/* Turn off blanking if driver supports it */
-	ret = display_blanking_off(zdisp_sink->display_dev);
+	ret = display_blanking_off(disp_sink->display_dev);
 	if (ret == -ENOSYS) {
 		LOG_WRN("Display blanking off not available");
 		ret = 0;
@@ -91,9 +91,9 @@ static struct mp_caps *mp_disp_sink_supported_caps(struct mp_sink *sink)
 	uint32_t vid_fmt;
 	struct display_capabilities display_caps;
 	struct mp_value *supported_fmt = mp_value_new(MP_TYPE_LIST, NULL);
-	struct mp_disp_sink *zdisp = (struct mp_disp_sink *)sink;
+	struct mp_disp_sink *disp = (struct mp_disp_sink *)sink;
 
-	display_get_capabilities(zdisp->display_dev, &display_caps);
+	display_get_capabilities(disp->display_dev, &display_caps);
 
 	for (uint8_t i = 0; i < ARRAY_SIZE(mp_disp_vid_pix_fmt_map); i++) {
 		vid_fmt = disp_to_vid_pix_fmt(display_caps.supported_pixel_formats &
@@ -120,12 +120,12 @@ static void mp_disp_sink_update_caps(struct mp_sink *sink)
 
 static int mp_disp_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
 {
-	struct mp_disp_sink *zdisp_sink = (struct mp_disp_sink *)sink;
+	struct mp_disp_sink *disp_sink = (struct mp_disp_sink *)sink;
 	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
 	struct mp_value *value = mp_structure_get_value(first_structure, MP_CAPS_PIXEL_FORMAT);
 	enum display_pixel_format disp_fmt = vid_to_disp_pix_fmt(mp_value_get_uint(value));
 
-	if (disp_fmt == 0 || mp_disp_sink_setup(zdisp_sink, disp_fmt) != 0) {
+	if (disp_fmt == 0 || mp_disp_sink_setup(disp_sink, disp_fmt) != 0) {
 		return -EINVAL;
 	}
 
@@ -136,12 +136,12 @@ static int mp_disp_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
 
 static int mp_disp_sink_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
-	struct mp_disp_sink *zdisp_sink = (struct mp_disp_sink *)obj;
-	struct mp_sink *sink = &zdisp_sink->sink;
+	struct mp_disp_sink *disp_sink = (struct mp_disp_sink *)obj;
+	struct mp_sink *sink = &disp_sink->sink;
 
 	switch (key) {
 	case PROP_DISP_SINK_DEVICE:
-		zdisp_sink->display_dev = val;
+		disp_sink->display_dev = val;
 		/* Device set, update caps */
 		mp_disp_sink_update_caps(sink);
 
@@ -153,11 +153,11 @@ static int mp_disp_sink_set_property(struct mp_object *obj, uint32_t key, const 
 
 static int mp_disp_sink_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
-	struct mp_disp_sink *zdisp_sink = (struct mp_disp_sink *)obj;
+	struct mp_disp_sink *disp_sink = (struct mp_disp_sink *)obj;
 
 	switch (key) {
 	case PROP_DISP_SINK_DEVICE:
-		*(const struct device **)val = zdisp_sink->display_dev;
+		*(const struct device **)val = disp_sink->display_dev;
 
 		return 0;
 	default:
@@ -167,7 +167,7 @@ static int mp_disp_sink_get_property(struct mp_object *obj, uint32_t key, void *
 
 int mp_disp_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf)
 {
-	struct mp_disp_sink *zdisp_sink =
+	struct mp_disp_sink *disp_sink =
 		CONTAINER_OF(pad->object.container, struct mp_disp_sink, sink.element.object);
 	/* Get width / height from pad's caps */
 	struct mp_structure *first_structure = mp_caps_get_structure(pad->caps, 0);
@@ -216,11 +216,11 @@ int mp_disp_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net_
 
 		/* line_offset is only used to support partial video frame */
 		if (vbuf != NULL) {
-			display_write(zdisp_sink->display_dev, 0, vbuf->line_offset, &buf_desc,
+			display_write(disp_sink->display_dev, 0, vbuf->line_offset, &buf_desc,
 				      vbuf->buffer);
 		} else {
 			/* Fallback to net_buf data if no video_buffer metadata */
-			display_write(zdisp_sink->display_dev, 0, 0, &buf_desc, cur->data);
+			display_write(disp_sink->display_dev, 0, 0, &buf_desc, cur->data);
 		}
 
 		net_buf_unref(cur);
@@ -232,13 +232,13 @@ int mp_disp_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net_
 
 void mp_disp_sink_init(struct mp_element *self)
 {
-	struct mp_disp_sink *zdisp_sink = (struct mp_disp_sink *)self;
-	struct mp_sink *sink = &zdisp_sink->sink;
+	struct mp_disp_sink *disp_sink = (struct mp_disp_sink *)self;
+	struct mp_sink *sink = &disp_sink->sink;
 
 	/* Init base class */
 	mp_sink_init(self);
 
-	zdisp_sink->display_dev = DEFAULT_PROP_DEVICE;
+	disp_sink->display_dev = DEFAULT_PROP_DEVICE;
 
 	self->object.get_property = mp_disp_sink_get_property;
 	self->object.set_property = mp_disp_sink_set_property;

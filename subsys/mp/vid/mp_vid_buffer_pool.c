@@ -19,11 +19,11 @@ LOG_MODULE_REGISTER(mp_vid_buffer_pool, CONFIG_MP_LOG_LEVEL);
  *
  * Returns the index, or -1 if the buffer is not tracked by this pool.
  */
-static int mp_vid_buffer_pool_find(struct mp_vid_buffer_pool *zvid_pool,
+static int mp_vid_buffer_pool_find(struct mp_vid_buffer_pool *vid_pool,
 				    struct video_buffer *vbuf)
 {
 	for (uint8_t i = 0; i < CONFIG_VIDEO_BUFFER_POOL_NUM_MAX; i++) {
-		if (zvid_pool->vbufs[i] == vbuf) {
+		if (vid_pool->vbufs[i] == vbuf) {
 			return i;
 		}
 	}
@@ -34,7 +34,7 @@ static int mp_vid_buffer_pool_find(struct mp_vid_buffer_pool *zvid_pool,
 static int mp_vid_buffer_pool_start(struct mp_buffer_pool *pool)
 {
 	int ret = 0;
-	struct mp_vid_buffer_pool *zvid_pool = (struct mp_vid_buffer_pool *)pool;
+	struct mp_vid_buffer_pool *vid_pool = (struct mp_vid_buffer_pool *)pool;
 
 	if (pool->config.min_buffers > CONFIG_VIDEO_BUFFER_POOL_NUM_MAX) {
 		LOG_ERR("min_buffers=%u exceeds CONFIG_VIDEO_BUFFER_POOL_NUM_MAX=%u",
@@ -43,15 +43,15 @@ static int mp_vid_buffer_pool_start(struct mp_buffer_pool *pool)
 	}
 
 	/* Start fresh: not flushing, no buffers tracked or in-flight yet. */
-	atomic_set(&zvid_pool->flushing, 0);
+	atomic_set(&vid_pool->flushing, 0);
 	for (uint8_t i = 0; i < CONFIG_VIDEO_BUFFER_POOL_NUM_MAX; i++) {
-		zvid_pool->vbufs[i] = NULL;
-		zvid_pool->in_flight[i] = false;
+		vid_pool->vbufs[i] = NULL;
+		vid_pool->in_flight[i] = false;
 	}
 
-	zvid_pool->vbuf_count = pool->config.min_buffers;
+	vid_pool->vbuf_count = pool->config.min_buffers;
 
-	for (uint8_t i = 0; i < zvid_pool->vbuf_count; i++) {
+	for (uint8_t i = 0; i < vid_pool->vbuf_count; i++) {
 		struct video_buffer *vbuf = video_buffer_aligned_alloc(
 			pool->config.size, pool->config.align, K_NO_WAIT);
 
@@ -60,15 +60,15 @@ static int mp_vid_buffer_pool_start(struct mp_buffer_pool *pool)
 			return -ENOBUFS;
 		}
 
-		zvid_pool->vbufs[i] = vbuf;
+		vid_pool->vbufs[i] = vbuf;
 
-		if (zvid_pool->zvid_obj->type == VIDEO_BUF_TYPE_INPUT) {
-			k_fifo_put(&zvid_pool->free_fifo, vbuf);
+		if (vid_pool->vid_obj->type == VIDEO_BUF_TYPE_INPUT) {
+			k_fifo_put(&vid_pool->free_fifo, vbuf);
 			continue;
 		}
 
-		vbuf->type = zvid_pool->zvid_obj->type;
-		ret = video_enqueue(zvid_pool->zvid_obj->vdev, vbuf);
+		vbuf->type = vid_pool->vid_obj->type;
+		ret = video_enqueue(vid_pool->vid_obj->vdev, vbuf);
 		if (ret != 0) {
 			LOG_ERR("Failed to enqueue video buffer %u", i);
 			(void)video_buffer_release(vbuf);
@@ -76,8 +76,8 @@ static int mp_vid_buffer_pool_start(struct mp_buffer_pool *pool)
 		}
 	}
 
-	if (zvid_pool->zvid_obj->type == VIDEO_BUF_TYPE_OUTPUT) {
-		ret = video_stream_start(zvid_pool->zvid_obj->vdev, zvid_pool->zvid_obj->type);
+	if (vid_pool->vid_obj->type == VIDEO_BUF_TYPE_OUTPUT) {
+		ret = video_stream_start(vid_pool->vid_obj->vdev, vid_pool->vid_obj->type);
 		if (ret != 0) {
 			LOG_ERR("Failed to start video streaming");
 			return ret;
@@ -85,7 +85,7 @@ static int mp_vid_buffer_pool_start(struct mp_buffer_pool *pool)
 	}
 
 	LOG_INF("Started video %s buffer pool",
-		zvid_pool->zvid_obj->type == VIDEO_BUF_TYPE_OUTPUT ? "output" : "input");
+		vid_pool->vid_obj->type == VIDEO_BUF_TYPE_OUTPUT ? "output" : "input");
 
 	return ret;
 }
@@ -93,12 +93,12 @@ static int mp_vid_buffer_pool_start(struct mp_buffer_pool *pool)
 static int mp_vid_buffer_pool_stop(struct mp_buffer_pool *pool)
 {
 	int ret = 0;
-	struct mp_vid_buffer_pool *zvid_pool = (struct mp_vid_buffer_pool *)pool;
+	struct mp_vid_buffer_pool *vid_pool = (struct mp_vid_buffer_pool *)pool;
 	struct video_buffer *to_free[CONFIG_VIDEO_BUFFER_POOL_NUM_MAX];
 	uint8_t free_count = 0;
 	k_spinlock_key_t key;
 
-	if (zvid_pool == NULL || zvid_pool->zvid_obj == NULL || zvid_pool->zvid_obj->vdev == NULL) {
+	if (vid_pool == NULL || vid_pool->vid_obj == NULL || vid_pool->vid_obj->vdev == NULL) {
 		return -EINVAL;
 	}
 
@@ -107,15 +107,15 @@ static int mp_vid_buffer_pool_stop(struct mp_buffer_pool *pool)
 	 * release_buffer() is freed instead of re-enqueued into the (about to be
 	 * stopped) video device, and a late acquire is refused.
 	 */
-	atomic_set(&zvid_pool->flushing, 1);
+	atomic_set(&vid_pool->flushing, 1);
 
-	if (zvid_pool->zvid_obj->type == VIDEO_BUF_TYPE_OUTPUT) {
+	if (vid_pool->vid_obj->type == VIDEO_BUF_TYPE_OUTPUT) {
 		/*
 		 * video_stream_stop() also flushes the device (cancels pending
 		 * buffers), which unblocks a pipeline thread waiting in
 		 * video_dequeue(). Log on failure but still free our buffers.
 		 */
-		ret = video_stream_stop(zvid_pool->zvid_obj->vdev, zvid_pool->zvid_obj->type);
+		ret = video_stream_stop(vid_pool->vid_obj->vdev, vid_pool->vid_obj->type);
 		if (ret != 0) {
 			LOG_ERR("Failed to stop video streaming");
 		}
@@ -127,7 +127,7 @@ static int mp_vid_buffer_pool_stop(struct mp_buffer_pool *pool)
 		 * woken thread observes it and bails out of acquire instead of
 		 * consuming a buffer.
 		 */
-		k_fifo_cancel_wait(&zvid_pool->free_fifo);
+		k_fifo_cancel_wait(&vid_pool->free_fifo);
 	}
 
 	/*
@@ -138,15 +138,15 @@ static int mp_vid_buffer_pool_stop(struct mp_buffer_pool *pool)
 	 * to stay consistent with a concurrent release_buffer()/acquire_buffer();
 	 * the actual free is done after unlocking.
 	 */
-	key = k_spin_lock(&zvid_pool->lock);
+	key = k_spin_lock(&vid_pool->lock);
 	for (uint8_t i = 0; i < CONFIG_VIDEO_BUFFER_POOL_NUM_MAX; i++) {
-		if (zvid_pool->vbufs[i] != NULL && !zvid_pool->in_flight[i]) {
-			to_free[free_count++] = zvid_pool->vbufs[i];
-			zvid_pool->vbufs[i] = NULL;
+		if (vid_pool->vbufs[i] != NULL && !vid_pool->in_flight[i]) {
+			to_free[free_count++] = vid_pool->vbufs[i];
+			vid_pool->vbufs[i] = NULL;
 		}
 	}
-	zvid_pool->vbuf_count = 0;
-	k_spin_unlock(&zvid_pool->lock, key);
+	vid_pool->vbuf_count = 0;
+	k_spin_unlock(&vid_pool->lock, key);
 
 	for (uint8_t i = 0; i < free_count; i++) {
 		int rel = video_buffer_release(to_free[i]);
@@ -164,7 +164,7 @@ static int mp_vid_buffer_pool_stop(struct mp_buffer_pool *pool)
 
 static int mp_vid_buffer_pool_acquire_buffer(struct mp_buffer_pool *pool, struct net_buf **buf)
 {
-	struct mp_vid_buffer_pool *zvid_pool = (struct mp_vid_buffer_pool *)pool;
+	struct mp_vid_buffer_pool *vid_pool = (struct mp_vid_buffer_pool *)pool;
 	struct video_buffer *vbuf = &(struct video_buffer){0};
 	struct mp_buffer_meta *bm;
 	k_spinlock_key_t key;
@@ -172,12 +172,12 @@ static int mp_vid_buffer_pool_acquire_buffer(struct mp_buffer_pool *pool, struct
 	int ret = 0;
 
 	/* Refuse to hand out a buffer while flushing (teardown in progress). */
-	if (atomic_get(&zvid_pool->flushing)) {
+	if (atomic_get(&vid_pool->flushing)) {
 		return -EPIPE;
 	}
 
-	if (zvid_pool->zvid_obj->type == VIDEO_BUF_TYPE_INPUT) {
-		vbuf = k_fifo_get(&zvid_pool->free_fifo, K_FOREVER);
+	if (vid_pool->vid_obj->type == VIDEO_BUF_TYPE_INPUT) {
+		vbuf = k_fifo_get(&vid_pool->free_fifo, K_FOREVER);
 		if (vbuf == NULL) {
 			/*
 			 * Woken by k_fifo_cancel_wait() in stop(): teardown is in
@@ -187,8 +187,8 @@ static int mp_vid_buffer_pool_acquire_buffer(struct mp_buffer_pool *pool, struct
 			return -EPIPE;
 		}
 	} else {
-		vbuf->type = zvid_pool->zvid_obj->type;
-		ret = video_dequeue(zvid_pool->zvid_obj->vdev, &vbuf, K_FOREVER);
+		vbuf->type = vid_pool->vid_obj->type;
+		ret = video_dequeue(vid_pool->vid_obj->vdev, &vbuf, K_FOREVER);
 		if (ret != 0) {
 			LOG_ERR("Failed to dequeue a video buffer");
 			return ret;
@@ -205,34 +205,34 @@ static int mp_vid_buffer_pool_acquire_buffer(struct mp_buffer_pool *pool, struct
 	 * it exactly once. This closes the window where stop() could free the
 	 * just-dequeued buffer while we are about to read vbuf->buffer.
 	 */
-	key = k_spin_lock(&zvid_pool->lock);
-	if (atomic_get(&zvid_pool->flushing)) {
-		k_spin_unlock(&zvid_pool->lock, key);
+	key = k_spin_lock(&vid_pool->lock);
+	if (atomic_get(&vid_pool->flushing)) {
+		k_spin_unlock(&vid_pool->lock, key);
 		return -EPIPE;
 	}
-	idx = mp_vid_buffer_pool_find(zvid_pool, vbuf);
+	idx = mp_vid_buffer_pool_find(vid_pool, vbuf);
 	if (idx >= 0) {
-		zvid_pool->in_flight[idx] = true;
+		vid_pool->in_flight[idx] = true;
 	}
-	k_spin_unlock(&zvid_pool->lock, key);
+	k_spin_unlock(&vid_pool->lock, key);
 
 	*buf = net_buf_alloc_with_data(pool->nb_pool, vbuf->buffer, vbuf->size, K_NO_WAIT);
 	if (*buf == NULL) {
 		LOG_ERR("Failed to allocate a net_buf wrapper for the video buffer");
 
 		/* Undo the in-flight marker before returning the buffer. */
-		key = k_spin_lock(&zvid_pool->lock);
-		idx = mp_vid_buffer_pool_find(zvid_pool, vbuf);
+		key = k_spin_lock(&vid_pool->lock);
+		idx = mp_vid_buffer_pool_find(vid_pool, vbuf);
 		if (idx >= 0) {
-			zvid_pool->in_flight[idx] = false;
+			vid_pool->in_flight[idx] = false;
 		}
-		k_spin_unlock(&zvid_pool->lock, key);
+		k_spin_unlock(&vid_pool->lock, key);
 
 		/* Re-enqueue the video buffer */
-		if (zvid_pool->zvid_obj->type == VIDEO_BUF_TYPE_INPUT) {
-			k_fifo_put(&zvid_pool->free_fifo, vbuf);
+		if (vid_pool->vid_obj->type == VIDEO_BUF_TYPE_INPUT) {
+			k_fifo_put(&vid_pool->free_fifo, vbuf);
 		} else {
-			(void)video_enqueue(zvid_pool->zvid_obj->vdev, vbuf);
+			(void)video_enqueue(vid_pool->vid_obj->vdev, vbuf);
 		}
 
 		return -ENOBUFS;
@@ -250,7 +250,7 @@ static int mp_vid_buffer_pool_acquire_buffer(struct mp_buffer_pool *pool, struct
 
 static int mp_vid_buffer_pool_release_buffer(struct mp_buffer_pool *pool, struct net_buf *buf)
 {
-	struct mp_vid_buffer_pool *zvid_pool = (struct mp_vid_buffer_pool *)pool;
+	struct mp_vid_buffer_pool *vid_pool = (struct mp_vid_buffer_pool *)pool;
 	struct video_buffer *vbuf = mp_buffer_get_meta(buf)->driver_buf;
 	k_spinlock_key_t key;
 	bool flushing;
@@ -266,16 +266,16 @@ static int mp_vid_buffer_pool_release_buffer(struct mp_buffer_pool *pool, struct
 	 * respect to stop(). If the pool is flushing, claim ownership of the slot
 	 * (NULL it out) so stop() will not also free this buffer.
 	 */
-	key = k_spin_lock(&zvid_pool->lock);
-	idx = mp_vid_buffer_pool_find(zvid_pool, vbuf);
+	key = k_spin_lock(&vid_pool->lock);
+	idx = mp_vid_buffer_pool_find(vid_pool, vbuf);
 	if (idx >= 0) {
-		zvid_pool->in_flight[idx] = false;
+		vid_pool->in_flight[idx] = false;
 	}
-	flushing = (atomic_get(&zvid_pool->flushing) != 0);
+	flushing = (atomic_get(&vid_pool->flushing) != 0);
 	if (flushing && idx >= 0) {
-		zvid_pool->vbufs[idx] = NULL;
+		vid_pool->vbufs[idx] = NULL;
 	}
-	k_spin_unlock(&zvid_pool->lock, key);
+	k_spin_unlock(&vid_pool->lock, key);
 
 	/*
 	 * Flushing: the pool has stopped, so this is the last reference to the
@@ -291,13 +291,13 @@ static int mp_vid_buffer_pool_release_buffer(struct mp_buffer_pool *pool, struct
 		return ret;
 	}
 
-	if (zvid_pool->zvid_obj->type == VIDEO_BUF_TYPE_INPUT) {
-		k_fifo_put(&zvid_pool->free_fifo, vbuf);
+	if (vid_pool->vid_obj->type == VIDEO_BUF_TYPE_INPUT) {
+		k_fifo_put(&vid_pool->free_fifo, vbuf);
 		return 0;
 	}
 
-	vbuf->type = zvid_pool->zvid_obj->type;
-	ret = video_enqueue(zvid_pool->zvid_obj->vdev, vbuf);
+	vbuf->type = vid_pool->vid_obj->type;
+	ret = video_enqueue(vid_pool->vid_obj->vdev, vbuf);
 	if (ret != 0) {
 		LOG_ERR("Failed to re-enqueue the video buffer");
 	}
@@ -307,11 +307,11 @@ static int mp_vid_buffer_pool_release_buffer(struct mp_buffer_pool *pool, struct
 
 void mp_vid_buffer_pool_init(struct mp_buffer_pool *pool, struct mp_vid_object *obj)
 {
-	struct mp_vid_buffer_pool *zvid_pool = (struct mp_vid_buffer_pool *)pool;
+	struct mp_vid_buffer_pool *vid_pool = (struct mp_vid_buffer_pool *)pool;
 
-	k_fifo_init(&zvid_pool->free_fifo);
-	zvid_pool->zvid_obj = obj;
-	atomic_set(&zvid_pool->flushing, 0);
+	k_fifo_init(&vid_pool->free_fifo);
+	vid_pool->vid_obj = obj;
+	atomic_set(&vid_pool->flushing, 0);
 
 	mp_buffer_pool_init(pool);
 

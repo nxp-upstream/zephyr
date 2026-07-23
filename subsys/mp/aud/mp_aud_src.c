@@ -28,7 +28,7 @@ static int mp_aud_src_set_property(struct mp_object *obj, uint32_t key, const vo
 		pool->mem_slab = (struct k_mem_slab *)val;
 		break;
 	case PROP_AUD_SRC_DEVICE:
-		pool->zaud_dev = (const struct device *)val;
+		pool->aud_dev = (const struct device *)val;
 
 		/* Device set, update supported caps */
 		mp_aud_src_update_caps(src);
@@ -59,7 +59,7 @@ static int mp_aud_src_get_property(struct mp_object *obj, uint32_t key, void *va
 		}
 		break;
 	case PROP_AUD_SRC_DEVICE:
-		*(const struct device **)val = pool->zaud_dev;
+		*(const struct device **)val = pool->aud_dev;
 		break;
 	default:
 		return mp_src_get_property(obj, key, val);
@@ -70,7 +70,7 @@ static int mp_aud_src_get_property(struct mp_object *obj, uint32_t key, void *va
 
 struct mp_caps *mp_aud_src_supported_caps(struct mp_src *src)
 {
-	struct mp_aud_src *zaud_src = (struct mp_aud_src *)src;
+	struct mp_aud_src *aud_src = (struct mp_aud_src *)src;
 	struct mp_aud_buffer_pool *pool =
 		CONTAINER_OF(src->pool, struct mp_aud_buffer_pool, pool);
 	struct audio_caps src_caps;
@@ -78,12 +78,12 @@ struct mp_caps *mp_aud_src_supported_caps(struct mp_src *src)
 	uint32_t sr = 0;
 	uint32_t bw = 0;
 
-	if (zaud_src->get_audio_caps == NULL || pool->zaud_dev == NULL) {
+	if (aud_src->get_audio_caps == NULL || pool->aud_dev == NULL) {
 		LOG_ERR("Audio capabilities and device not configured");
 		return NULL;
 	}
 
-	if (zaud_src->get_audio_caps(pool->zaud_dev, &src_caps) != 0) {
+	if (aud_src->get_audio_caps(pool->aud_dev, &src_caps) != 0) {
 		LOG_ERR("Failed to get audio capabilities");
 		return NULL;
 	}
@@ -147,13 +147,13 @@ void mp_aud_src_update_caps(struct mp_src *src)
 
 void mp_aud_src_init(struct mp_element *self)
 {
-	struct mp_aud_src *zaud_src = (struct mp_aud_src *)self;
+	struct mp_aud_src *aud_src = (struct mp_aud_src *)self;
 
 	/* Init base class */
-	mp_src_init(&zaud_src->src.element);
+	mp_src_init(&aud_src->src.element);
 
 	self->object.get_property = mp_aud_src_get_property;
 	self->object.set_property = mp_aud_src_set_property;
 
-	zaud_src->get_audio_caps = NULL;
+	aud_src->get_audio_caps = NULL;
 }

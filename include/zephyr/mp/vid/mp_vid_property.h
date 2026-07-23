@@ -28,7 +28,7 @@
 #include <zephyr/mp/mp_property.h>
 
 /**
- * @brief Zvid property identifiers.
+ * @brief Video property identifiers.
  *
  * Starts from MAX(@ref PROP_SRC_LAST, @ref PROP_TRANSFORM_LAST) + 1 to
  * avoid conflicts with base source and transform properties.

@@ -46,7 +46,7 @@ struct mp_vid_buffer_pool {
 	/** Base buffer pool structure */
 	struct mp_buffer_pool pool;
 	/** Associated video object */
-	struct mp_vid_object *zvid_obj;
+	struct mp_vid_object *vid_obj;
 	/** Array of video buffer pointers managed by the pool */
 	struct video_buffer *vbufs[CONFIG_VIDEO_BUFFER_POOL_NUM_MAX];
 	/**

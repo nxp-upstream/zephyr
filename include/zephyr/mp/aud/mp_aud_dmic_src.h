@@ -32,7 +32,7 @@
  */
 struct mp_aud_dmic_src {
 	/** Base audio source structure */
-	struct mp_aud_src zaud_src;
+	struct mp_aud_src aud_src;
 	/** Buffer pool for managing audio data buffers */
 	struct mp_aud_buffer_pool pool;
 };

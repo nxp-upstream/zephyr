@@ -36,7 +36,7 @@ struct mp_vid_src {
 	/** Base source element */
 	struct mp_src src;
 	/** Zephyr video object */
-	struct mp_vid_object zvid_obj;
+	struct mp_vid_object vid_obj;
 };
 
 /**

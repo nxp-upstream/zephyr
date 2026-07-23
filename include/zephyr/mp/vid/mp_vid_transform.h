@@ -36,9 +36,9 @@ struct mp_vid_transform {
 	/** Base transform element */
 	struct mp_transform transform;
 	/** Input video object for receiving video data */
-	struct mp_vid_object zvid_obj_in;
+	struct mp_vid_object vid_obj_in;
 	/** Output video object for producing transformed video data */
-	struct mp_vid_object zvid_obj_out;
+	struct mp_vid_object vid_obj_out;
 };
 
 /**

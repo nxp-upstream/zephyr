@@ -57,7 +57,7 @@ static int mp_aud_gain_set_property(struct mp_object *obj, uint32_t key, const v
 		/* Update mute flag for optimization */
 		self->mute = (self->gain_percent == 0);
 
-		LOG_DBG("Zaud gain set to %d%% (fixed: %d)\n", self->gain_percent,
+		LOG_DBG("Audio gain set to %d%% (fixed: %d)\n", self->gain_percent,
 			self->gain_fixed);
 		return 0;
 	default:
@@ -209,7 +209,7 @@ static void apply_audio_gain(struct net_buf *buffer, int32_t gain_fixed, uint8_t
 static int mp_aud_gain_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 				struct net_buf **out_buf)
 {
-	struct mp_aud_gain *zaud_gain =
+	struct mp_aud_gain *aud_gain =
 		CONTAINER_OF(pad->object.container, struct mp_aud_gain, transform.element.object);
 	uint32_t bytes_used = 0U;
 
@@ -227,12 +227,12 @@ static int mp_aud_gain_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	}
 
 	/* Apply mute if enabled or gain is 0% */
-	if (zaud_gain->mute == true || zaud_gain->gain_percent == 0) {
+	if (aud_gain->mute == true || aud_gain->gain_percent == 0) {
 		memset(in_buf->data, 0, bytes_used);
-	} else if (zaud_gain->gain_percent != GAIN_PERCENT_UNITY) {
+	} else if (aud_gain->gain_percent != GAIN_PERCENT_UNITY) {
 		/* Apply gain only if not unity (100%) */
 		/* TODO: bitWidth hardcoded */
-		apply_audio_gain(in_buf, zaud_gain->gain_fixed, zaud_gain->bit_width);
+		apply_audio_gain(in_buf, aud_gain->gain_fixed, aud_gain->bit_width);
 	} else {
 		/* Gain is exactly 100%, pass through without modification */
 	}
@@ -264,14 +264,14 @@ static struct mp_caps *mp_aud_gain_supported_caps(struct mp_transform *transform
 static int mp_aud_gain_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
 				 struct mp_caps *caps)
 {
-	struct mp_aud_gain *zaud_gain = (struct mp_aud_gain *)transform;
+	struct mp_aud_gain *aud_gain = (struct mp_aud_gain *)transform;
 	/* Get the first structure from caps */
 	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
 	/* Extract bit_width from the structure */
 	uint32_t bit_width =
 		mp_value_get_uint(mp_structure_get_value(first_structure, MP_CAPS_BITWIDTH));
-	/* Store bit_width in the zaud_gain structure */
-	zaud_gain->bit_width = bit_width;
+	/* Store bit_width in the aud_gain structure */
+	aud_gain->bit_width = bit_width;
 	LOG_DBG("Bit width set to %u", bit_width);
 
 	return 0;
@@ -290,16 +290,16 @@ static void mp_aud_gain_update_caps(struct mp_transform *transform)
 void mp_aud_gain_init(struct mp_element *self)
 {
 	struct mp_transform *transform = (struct mp_transform *)self;
-	struct mp_aud_gain *zaud_gain = (struct mp_aud_gain *)transform;
+	struct mp_aud_gain *aud_gain = (struct mp_aud_gain *)transform;
 
 	/* Init base class */
 	mp_transform_init(self);
 
 	/* Initialize with 100% gain (unity) */
-	zaud_gain->gain_percent = GAIN_PERCENT_UNITY;
-	zaud_gain->gain_fixed = GAIN_UNITY_FIXED;
-	zaud_gain->mute = false;  /* Default mute */
-	zaud_gain->bit_width = 0; /* Default */
+	aud_gain->gain_percent = GAIN_PERCENT_UNITY;
+	aud_gain->gain_fixed = GAIN_UNITY_FIXED;
+	aud_gain->mute = false;  /* Default mute */
+	aud_gain->bit_width = 0; /* Default */
 
 	self->object.set_property = mp_aud_gain_set_property;
 	self->object.get_property = mp_aud_gain_get_property;

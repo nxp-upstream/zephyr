@@ -17,30 +17,30 @@
 
 LOG_MODULE_REGISTER(mp_aud_buffer_pool, CONFIG_MP_LOG_LEVEL);
 
-#define ZAUD_BUFFER_POOL_BASE_ALIGN sizeof(void *)
-#define ZAUD_BUFFER_POOL_SIZE                                                                     \
+#define AUD_BUFFER_POOL_BASE_ALIGN sizeof(void *)
+#define AUD_BUFFER_POOL_SIZE                                                                     \
 	(CONFIG_MP_AUD_BUFFER_POOL_SZ_MAX * CONFIG_MP_AUD_BUFFER_POOL_NUM_MAX)
 
-static __nocache __aligned(ZAUD_BUFFER_POOL_BASE_ALIGN)
-uint8_t aud_buffer_pool_buf[ZAUD_BUFFER_POOL_SIZE];
+static __nocache __aligned(AUD_BUFFER_POOL_BASE_ALIGN)
+uint8_t aud_buffer_pool_buf[AUD_BUFFER_POOL_SIZE];
 
-static void mp_aud_buffer_pool_release_allocations(struct mp_aud_buffer_pool *zaud_pool,
+static void mp_aud_buffer_pool_release_allocations(struct mp_aud_buffer_pool *aud_pool,
 						    bool clear_mem_slab)
 {
-	if (zaud_pool->blocks != NULL) {
-		k_free(zaud_pool->blocks);
-		zaud_pool->blocks = NULL;
+	if (aud_pool->blocks != NULL) {
+		k_free(aud_pool->blocks);
+		aud_pool->blocks = NULL;
 	}
 
-	if ((zaud_pool->mem_slab != NULL) && clear_mem_slab) {
-		zaud_pool->mem_slab->buffer = NULL;
-		zaud_pool->mem_slab = NULL;
+	if ((aud_pool->mem_slab != NULL) && clear_mem_slab) {
+		aud_pool->mem_slab->buffer = NULL;
+		aud_pool->mem_slab = NULL;
 	}
 }
 
 static int mp_aud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_structure *config)
 {
-	struct mp_aud_buffer_pool *zaud_pool = (struct mp_aud_buffer_pool *)pool;
+	struct mp_aud_buffer_pool *aud_pool = (struct mp_aud_buffer_pool *)pool;
 	int align = 0;
 	uint32_t required_align = 0;
 	uint8_t *base;
@@ -75,7 +75,7 @@ static int mp_aud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_stru
 	required_align = bit_width >> 3;
 
 	/* Decide alignment using LCM */
-	align = sys_lcm(ZAUD_BUFFER_POOL_BASE_ALIGN, required_align);
+	align = sys_lcm(AUD_BUFFER_POOL_BASE_ALIGN, required_align);
 
 	if (align == -1) {
 		LOG_ERR("Incompatible alignment requirements");
@@ -86,41 +86,41 @@ static int mp_aud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_stru
 		pool->config.align = align;
 	} else {
 		/* Both are 0, use base alignment */
-		pool->config.align = ZAUD_BUFFER_POOL_BASE_ALIGN;
+		pool->config.align = AUD_BUFFER_POOL_BASE_ALIGN;
 	}
 
-	if (pool->config.size * pool->config.min_buffers > ZAUD_BUFFER_POOL_SIZE) {
+	if (pool->config.size * pool->config.min_buffers > AUD_BUFFER_POOL_SIZE) {
 		LOG_ERR("aud_buffer_pool_buf hos not enough space for requested buffers");
 		return -EINVAL;
 	}
 
-	if (zaud_pool->mem_slab == NULL) {
+	if (aud_pool->mem_slab == NULL) {
 		LOG_ERR("Memory slab not configured");
 		return -EINVAL;
 	}
 
-	mp_aud_buffer_pool_release_allocations(zaud_pool, false);
+	mp_aud_buffer_pool_release_allocations(aud_pool, false);
 
-	zaud_pool->blocks = k_calloc(pool->config.min_buffers, sizeof(*zaud_pool->blocks));
-	if (zaud_pool->blocks == NULL) {
+	aud_pool->blocks = k_calloc(pool->config.min_buffers, sizeof(*aud_pool->blocks));
+	if (aud_pool->blocks == NULL) {
 		LOG_ERR("Unable to allocate pool block table");
 		return -ENOMEM;
 	}
 
-	ret = k_mem_slab_init(zaud_pool->mem_slab, (void *)aud_buffer_pool_buf, pool->config.size,
+	ret = k_mem_slab_init(aud_pool->mem_slab, (void *)aud_buffer_pool_buf, pool->config.size,
 			      pool->config.min_buffers);
 	if (ret != 0) {
 		LOG_ERR("Unable to initialize memory slab (%d)", ret);
-		k_free(zaud_pool->blocks);
-		zaud_pool->blocks = NULL;
+		k_free(aud_pool->blocks);
+		aud_pool->blocks = NULL;
 		return ret;
 	}
 
-	base = (uint8_t *)zaud_pool->mem_slab->buffer;
+	base = (uint8_t *)aud_pool->mem_slab->buffer;
 
 	for (uint8_t i = 0; i < pool->config.min_buffers; i++) {
 		/* Keep the mem_slab chunk mapping used by the audio drivers */
-		zaud_pool->blocks[i] = &base[pool->config.size * i];
+		aud_pool->blocks[i] = &base[pool->config.size * i];
 	}
 
 	return 0;
@@ -128,20 +128,20 @@ static int mp_aud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_stru
 
 static int mp_aud_buffer_pool_stop(struct mp_buffer_pool *pool)
 {
-	struct mp_aud_buffer_pool *zaud_pool = (struct mp_aud_buffer_pool *)pool;
+	struct mp_aud_buffer_pool *aud_pool = (struct mp_aud_buffer_pool *)pool;
 
-	mp_aud_buffer_pool_release_allocations(zaud_pool, true);
+	mp_aud_buffer_pool_release_allocations(aud_pool, true);
 
 	return 0;
 }
 
 void mp_aud_buffer_pool_init(struct mp_buffer_pool *pool)
 {
-	struct mp_aud_buffer_pool *zaud_pool = (struct mp_aud_buffer_pool *)pool;
+	struct mp_aud_buffer_pool *aud_pool = (struct mp_aud_buffer_pool *)pool;
 
-	zaud_pool->zaud_dev = NULL;
-	zaud_pool->mem_slab = NULL;
-	zaud_pool->blocks = NULL;
+	aud_pool->aud_dev = NULL;
+	aud_pool->mem_slab = NULL;
+	aud_pool->blocks = NULL;
 
 	mp_buffer_pool_init(pool);
 

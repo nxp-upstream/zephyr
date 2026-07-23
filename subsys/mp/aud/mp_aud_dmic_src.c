@@ -21,7 +21,7 @@ LOG_MODULE_REGISTER(mp_aud_dmic_src, CONFIG_MP_LOG_LEVEL);
 
 static int mp_aud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 {
-	struct mp_aud_dmic_src *zaud_dmic_src = (struct mp_aud_dmic_src *)src;
+	struct mp_aud_dmic_src *aud_dmic_src = (struct mp_aud_dmic_src *)src;
 
 	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
 
@@ -36,7 +36,7 @@ static int mp_aud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 
 	struct pcm_stream_cfg stream = {
 		.pcm_width = bit_width,
-		.mem_slab = zaud_dmic_src->pool.mem_slab,
+		.mem_slab = aud_dmic_src->pool.mem_slab,
 	};
 
 	struct dmic_cfg cfg = {0};
@@ -55,7 +55,7 @@ static int mp_aud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 
 	cfg.channel.req_num_streams = 1;
 
-	if (zaud_dmic_src->pool.mem_slab == NULL) {
+	if (aud_dmic_src->pool.mem_slab == NULL) {
 		LOG_ERR("Memory slab not configured");
 		return -EINVAL;
 	}
@@ -82,7 +82,7 @@ static int mp_aud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 	LOG_DBG("PCM output rate: %u, channels: %u\n", cfg.streams[0].pcm_rate,
 		cfg.channel.req_num_chan);
 
-	if (dmic_configure(zaud_dmic_src->pool.zaud_dev, &cfg) < 0) {
+	if (dmic_configure(aud_dmic_src->pool.aud_dev, &cfg) < 0) {
 		LOG_DBG("Failed to configure the driver");
 		return -EIO;
 	}
@@ -94,26 +94,26 @@ static int mp_aud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 
 static int mp_aud_dmic_src_acquire_buffer(struct mp_buffer_pool *pool, struct net_buf **buffer)
 {
-	struct mp_aud_buffer_pool *zaud_pool =
+	struct mp_aud_buffer_pool *aud_pool =
 		CONTAINER_OF(pool, struct mp_aud_buffer_pool, pool);
 	struct mp_buffer_meta *meta;
 	void *mem_block = NULL;
 	size_t bytes_used = pool->config.size;
 	int err = -1;
 
-	err = dmic_read(zaud_pool->zaud_dev, 0, &mem_block, &bytes_used, INT32_MAX);
+	err = dmic_read(aud_pool->aud_dev, 0, &mem_block, &bytes_used, INT32_MAX);
 	if (err < 0) {
 		LOG_ERR("Unable to read a DMIC buffer: %d", err);
 		return err;
 	}
 
 	for (uint8_t i = 0; i < pool->config.min_buffers; i++) {
-		if (mem_block == zaud_pool->blocks[i]) {
-			*buffer = net_buf_alloc_with_data(pool->nb_pool, zaud_pool->blocks[i],
+		if (mem_block == aud_pool->blocks[i]) {
+			*buffer = net_buf_alloc_with_data(pool->nb_pool, aud_pool->blocks[i],
 							  pool->config.size, K_NO_WAIT);
 			if (*buffer == NULL) {
 				LOG_ERR("Unable to allocate net_buf wrapper for DMIC buffer");
-				k_mem_slab_free(zaud_pool->mem_slab, mem_block);
+				k_mem_slab_free(aud_pool->mem_slab, mem_block);
 				return -ENOBUFS;
 			}
 
@@ -131,17 +131,17 @@ static int mp_aud_dmic_src_acquire_buffer(struct mp_buffer_pool *pool, struct ne
 	}
 
 	LOG_ERR("Unable to match DMIC buffer %p with mem_slab backing store", mem_block);
-	k_mem_slab_free(zaud_pool->mem_slab, mem_block);
+	k_mem_slab_free(aud_pool->mem_slab, mem_block);
 	return -ENOENT;
 }
 
 static int mp_aud_dmic_src_start(struct mp_buffer_pool *pool)
 {
-	struct mp_aud_buffer_pool *zaud_pool =
+	struct mp_aud_buffer_pool *aud_pool =
 		CONTAINER_OF(pool, struct mp_aud_buffer_pool, pool);
 
 	/* Stream on */
-	if (dmic_trigger(zaud_pool->zaud_dev, DMIC_TRIGGER_START) < 0) {
+	if (dmic_trigger(aud_pool->aud_dev, DMIC_TRIGGER_START) < 0) {
 		LOG_ERR("Unable to start capture (interface)");
 		return -EIO;
 	}
@@ -153,18 +153,18 @@ static int mp_aud_dmic_src_start(struct mp_buffer_pool *pool)
 void mp_aud_dmic_src_init(struct mp_element *self)
 {
 	struct mp_src *src = (struct mp_src *)self;
-	struct mp_aud_dmic_src *zaud_dmic_src = (struct mp_aud_dmic_src *)src;
+	struct mp_aud_dmic_src *aud_dmic_src = (struct mp_aud_dmic_src *)src;
 
 	/* Init base class */
-	mp_aud_src_init(&zaud_dmic_src->zaud_src.src.element);
+	mp_aud_src_init(&aud_dmic_src->aud_src.src.element);
 
 	/* Initialize buffer pool */
-	src->pool = &(zaud_dmic_src->pool.pool);
+	src->pool = &(aud_dmic_src->pool.pool);
 	mp_aud_buffer_pool_init(src->pool);
 
-	zaud_dmic_src->pool.zaud_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(dmic_dev));
+	aud_dmic_src->pool.aud_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(dmic_dev));
 
-	zaud_dmic_src->zaud_src.get_audio_caps = dmic_get_caps;
+	aud_dmic_src->aud_src.get_audio_caps = dmic_get_caps;
 
 	src->set_caps = mp_aud_dmic_src_set_caps;
 	src->pool->acquire_buffer = mp_aud_dmic_src_acquire_buffer;

@@ -6,7 +6,7 @@
 
 /**
  * @file
- * @brief Video object shared by zvid source and transform elements.
+ * @brief Video object shared by vid source and transform elements.
  *
  * Provides common video device interaction (capabilities, format negotiation,
  * buffer pool management) used by @ref mp_vid_src and @ref mp_vid_transform.
@@ -62,24 +62,24 @@ int mp_structure_to_vfc(struct mp_structure *structure, struct video_format_cap 
 /**
  * @brief Set a property on the video object.
  *
- * @param zvid_obj Pointer to the @ref mp_vid_object.
+ * @param vid_obj Pointer to the @ref mp_vid_object.
  * @param key      Property key / control ID.
  * @param val      Property value to set.
  *
  * @return 0 on success or a negative errno code on failure.
  */
-int mp_vid_object_set_property(struct mp_vid_object *zvid_obj, uint32_t key, const void *val);
+int mp_vid_object_set_property(struct mp_vid_object *vid_obj, uint32_t key, const void *val);
 
 /**
  * @brief Get a property from the video object.
  *
- * @param zvid_obj Pointer to the @ref mp_vid_object.
+ * @param vid_obj Pointer to the @ref mp_vid_object.
  * @param key      Property key / control ID to retrieve.
  * @param val      Pointer to store the retrieved property value.
  *
  * @return 0 on success or a negative errno code on failure.
  */
-int mp_vid_object_get_property(struct mp_vid_object *zvid_obj, uint32_t key, void *val);
+int mp_vid_object_get_property(struct mp_vid_object *vid_obj, uint32_t key, void *val);
 
 /**
  * @brief Get capabilities of the video object.
@@ -87,11 +87,11 @@ int mp_vid_object_get_property(struct mp_vid_object *zvid_obj, uint32_t key, voi
  * Queries the underlying video device for its supported pixel formats,
  * resolutions, and frame rates.
  *
- * @param zvid_obj Pointer to the @ref mp_vid_object.
+ * @param vid_obj Pointer to the @ref mp_vid_object.
  *
  * @return Pointer to an @ref mp_caps on success, or NULL on error.
  */
-struct mp_caps *mp_vid_object_get_caps(struct mp_vid_object *zvid_obj);
+struct mp_caps *mp_vid_object_get_caps(struct mp_vid_object *vid_obj);
 
 /**
  * @brief Set capabilities on the video object.
@@ -99,12 +99,12 @@ struct mp_caps *mp_vid_object_get_caps(struct mp_vid_object *zvid_obj);
  * Configures the video device with the specified fixed capabilities
  * (video format and frame rate).
  *
- * @param zvid_obj Pointer to the @ref mp_vid_object.
+ * @param vid_obj Pointer to the @ref mp_vid_object.
  * @param caps     Pointer to @ref mp_caps with fixed capabilities to set.
  *
  * @return 0 on success or a negative errno code on failure.
  */
-int mp_vid_object_set_caps(struct mp_vid_object *zvid_obj, struct mp_caps *caps);
+int mp_vid_object_set_caps(struct mp_vid_object *vid_obj, struct mp_caps *caps);
 
 /**
  * @brief Decide buffer allocation parameters.
@@ -113,12 +113,12 @@ int mp_vid_object_set_caps(struct mp_vid_object *zvid_obj, struct mp_caps *caps)
  * the requirements carried by @p query. The video object always uses
  * its own pool and only negotiates configuration parameters.
  *
- * @param zvid_obj Pointer to the @ref mp_vid_object.
+ * @param vid_obj Pointer to the @ref mp_vid_object.
  * @param query    Pointer to @ref mp_dispatch containing allocation requirements.
  *
  * @return 0 on success or a negative errno code on failure.
  */
-int mp_vid_object_decide_allocation(struct mp_vid_object *zvid_obj, struct mp_dispatch *query);
+int mp_vid_object_decide_allocation(struct mp_vid_object *vid_obj, struct mp_dispatch *query);
 
 /** @} */
 
