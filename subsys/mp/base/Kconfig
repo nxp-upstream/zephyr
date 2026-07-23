@@ -5,8 +5,7 @@
 #
 
 config MP_BASE
-	bool "Base elements (capsfilter, queue, tee)"
-	default y
+	bool "Base optional elements (e.g. capsfilter, queue, tee. etc.)"
 	help
 	  Enable the base elements plugin.
 
