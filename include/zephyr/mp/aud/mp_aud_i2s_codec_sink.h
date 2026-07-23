@@ -24,6 +24,23 @@
 #include <zephyr/mp/mp_sink.h>
 
 /**
+ * @brief Audio sink property identifiers
+ *
+ * Enumeration defining property IDs specific to sink elements.
+ * These properties extend the base sink properties.
+ */
+enum mp_prop_aud_sink {
+	/** Pointer to sink memory slab for audio buffer management */
+	MP_PROP_AUD_SINK_SLAB_PTR = MP_PROP_SINK_LAST,
+	/** Clock role configuration for audio sink (controller/target) */
+	MP_PROP_AUD_SINK_CLK_ROLE,
+	/** I2S (SAI) sink device */
+	MP_PROP_AUD_SINK_I2S_DEVICE,
+	/** Codec sink device */
+	MP_PROP_AUD_SINK_CODEC_DEVICE,
+};
+
+/**
  * @enum mp_aud_i2s_codec_clk_role
  * @brief Clock role configuration for I2S and codec devices.
  *

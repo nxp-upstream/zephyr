@@ -12,7 +12,6 @@
 #include <zephyr/mp/mp_element.h>
 #include <zephyr/mp/mp_object.h>
 #include <zephyr/mp/mp_pad.h>
-#include <zephyr/mp/mp_property.h>
 #include <zephyr/mp/mp_src.h>
 
 LOG_MODULE_REGISTER(mp_src, CONFIG_MP_LOG_LEVEL);

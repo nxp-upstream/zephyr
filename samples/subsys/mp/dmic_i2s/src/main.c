@@ -10,7 +10,6 @@
 #include <zephyr/mp/mp.h>
 #include <zephyr/mp/aud/mp_aud.h>
 #include <zephyr/mp/aud/mp_aud_src.h>
-#include <zephyr/mp/aud/mp_aud_property.h>
 #include <zephyr/mp/aud/mp_aud_i2s_codec_sink.h>
 #include <zephyr/mp/aud/mp_aud_gain.h>
 #include <zephyr/mp/aud/mp_aud_dmic_src.h>

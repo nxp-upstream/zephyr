@@ -23,13 +23,12 @@
 
 #include <zephyr/fs/fs.h>
 
-#include <zephyr/mp/mp_property.h>
 #include <zephyr/mp/mp_sink.h>
 
 /**
  * @brief File sink property identifiers.
  *
- * Extends the base sink properties defined in @ref mp_property.h.
+ * Extends the base sink properties defined in @ref mp_prop_sink.
  */
 enum mp_prop_fs_sink {
 	/** Path to the output file (const char *). */

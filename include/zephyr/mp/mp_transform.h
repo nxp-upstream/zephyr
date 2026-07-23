@@ -24,6 +24,16 @@
 #include <zephyr/mp/mp_pad.h>
 
 /**
+ * @brief Properties for a transform element
+ *
+ * Enumeration of properties that can be configured for base transform
+ */
+enum mp_prop_transform {
+	/** Last transform property marker (for validation/iteration) */
+	MP_PROP_TRANSFORM_LAST,
+};
+
+/**
  * @brief Operating modes of a transform element
  *
  * The modes specifies how input and output buffers are handled.

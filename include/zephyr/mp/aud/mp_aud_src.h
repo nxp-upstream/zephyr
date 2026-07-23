@@ -26,6 +26,19 @@
 #include <zephyr/mp/aud/mp_aud.h>
 
 /**
+ * @brief Audio source property identifiers
+ *
+ * Enumeration defining property IDs specific to source elements.
+ * These properties extend the base source properties.
+ */
+enum mp_prop_aud_src {
+	/** Pointer to source memory slab for audio buffer management */
+	MP_PROP_AUD_SRC_SLAB_PTR = MP_PROP_SRC_LAST,
+	/** Audio source device */
+	MP_PROP_AUD_SRC_DEVICE,
+};
+
+/**
  * @struct mp_aud_src
  * @brief Audio source element structure
  *

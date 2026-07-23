@@ -9,7 +9,6 @@
 #include <zephyr/kernel.h>
 
 #include <zephyr/mp/mp_object.h>
-#include <zephyr/mp/mp_property.h>
 
 int mp_object_set_properties(struct mp_object *obj, ...)
 {

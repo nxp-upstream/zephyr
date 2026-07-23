@@ -34,6 +34,17 @@
 #include <zephyr/mp/mp_sink.h>
 
 /**
+ * @brief Display sink property identifiers.
+ *
+ * Extends the base sink properties defined in @ref mp_prop_sink.
+ * Enumeration starts from @ref MP_PROP_SINK_LAST to avoid conflicts.
+ */
+enum {
+	/** Display device property (const struct device *). */
+	MP_PROP_DISP_SINK_DEVICE = MP_PROP_SINK_LAST,
+};
+
+/**
  * @brief Display sink element.
  *
  * Extends the base @ref mp_sink with display-specific capabilities.

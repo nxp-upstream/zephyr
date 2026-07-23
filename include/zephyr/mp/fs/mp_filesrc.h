@@ -30,13 +30,12 @@
 
 #include <zephyr/fs/fs.h>
 
-#include <zephyr/mp/mp_property.h>
 #include <zephyr/mp/mp_src.h>
 
 /**
  * @brief File source property identifiers.
  *
- * Extends the base source properties defined in @ref mp_property.h.
+ * Extends the base source properties defined in @ref mp_prop_src.
  */
 enum mp_prop_fs_src {
 	/** Path to the input file (const char *). */

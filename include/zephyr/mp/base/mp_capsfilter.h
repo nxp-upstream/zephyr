@@ -29,7 +29,6 @@
  */
 
 #include <zephyr/mp/mp_element.h>
-#include <zephyr/mp/mp_property.h>
 #include <zephyr/mp/mp_transform.h>
 
 /**

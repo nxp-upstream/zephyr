@@ -14,7 +14,6 @@
 #include <zephyr/mp/mp_structure.h>
 #include <zephyr/mp/mp_value.h>
 
-#include <zephyr/mp/disp/mp_disp_property.h>
 #include <zephyr/mp/disp/mp_disp_sink.h>
 
 LOG_MODULE_REGISTER(mp_disp_sink, CONFIG_MP_LOG_LEVEL);

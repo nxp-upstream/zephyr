@@ -25,6 +25,18 @@
 #include <zephyr/mp/mp_pad.h>
 
 /**
+ * @brief Properties for a base source element
+ *
+ * Enumeration of properties that can be configured for base source
+ */
+enum mp_prop_src {
+	/** Number of buffers that the source outputs before sending EOS */
+	MP_PROP_SRC_NUM_BUFS,
+	/** Last source property marker (for validation/iteration) */
+	MP_PROP_SRC_LAST,
+};
+
+/**
  * @brief Base Source Element Structure
  *
  * The source element is responsible for generating data and pushing it downstream.

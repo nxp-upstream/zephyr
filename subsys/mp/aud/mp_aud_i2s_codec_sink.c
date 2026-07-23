@@ -14,7 +14,6 @@
 
 #include <zephyr/mp/aud/mp_aud.h>
 #include <zephyr/mp/aud/mp_aud_i2s_codec_sink.h>
-#include <zephyr/mp/aud/mp_aud_property.h>
 
 LOG_MODULE_REGISTER(mp_aud_i2s_codec_sink, CONFIG_MP_LOG_LEVEL);
 

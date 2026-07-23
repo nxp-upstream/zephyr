@@ -22,6 +22,17 @@
 #include <zephyr/mp/mp_transform.h>
 
 /**
+ * @brief Audio transform property identifiers
+ *
+ * Enumeration defining property IDs specific to transform elements.
+ * These properties extend the base transform properties.
+ */
+enum mp_prop_aud_transform {
+	/** Gain control property for audio level adjustment */
+	MP_PROP_AUD_TRANSFORM_GAIN = MP_PROP_TRANSFORM_LAST,
+};
+
+/**
  * @struct mp_aud_gain
  * @brief Audio gain element structure
  *

@@ -28,6 +28,16 @@
 struct mp_dispatch;
 
 /**
+ * @brief Properties for a sink element
+ *
+ * Enumeration of properties that can be configured for base sink
+ */
+enum mp_prop_sink {
+	/** Last sink property marker (for validation/iteration) */
+	MP_PROP_SINK_LAST,
+};
+
+/**
  * @brief Sink Element Structure
  *
  * Represents a sink element in the media pipeline. Sink elements are terminal

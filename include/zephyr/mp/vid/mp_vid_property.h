@@ -25,7 +25,8 @@
 
 #include <zephyr/sys/util.h>
 
-#include <zephyr/mp/mp_property.h>
+#include <zephyr/mp/mp_src.h>
+#include <zephyr/mp/mp_transform.h>
 
 /**
  * @brief Video property identifiers.

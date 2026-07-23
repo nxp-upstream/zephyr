@@ -28,6 +28,9 @@
 /** Base flag of the object */
 #define OBJECT_FLAG_BASE BIT(0)
 
+/** Sentinel value to mark the end of property lists */
+#define MP_PROP_LIST_END -1
+
 /**
  * @brief Base object structure
  *
