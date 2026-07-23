@@ -14,7 +14,7 @@
 
 /**
  * @defgroup mp_buffer Buffers
- * @ingroup mp_core
+ * @ingroup mp_framework
  * @brief Buffer metadata and buffer-pool APIs.
  * @{
  */

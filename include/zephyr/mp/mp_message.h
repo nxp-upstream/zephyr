@@ -14,7 +14,7 @@
 
 /**
  * @defgroup mp_message Messages
- * @ingroup mp_core
+ * @ingroup mp_framework
  * @brief Messages exchanged through the bus.
  * @{
  */

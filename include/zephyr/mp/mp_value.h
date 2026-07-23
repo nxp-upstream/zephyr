@@ -14,7 +14,7 @@
 
 /**
  * @defgroup mp_value Value Container
- * @ingroup mp_core
+ * @ingroup mp_framework
  * @brief A generic container for values for different @ref mp_value_type
  *
  * @{

@@ -14,7 +14,7 @@
 
 /**
  * @defgroup mp_thread Threads
- * @ingroup mp_core
+ * @ingroup mp_framework
  * @brief Thread helpers used by runtime components.
  *
  * @{

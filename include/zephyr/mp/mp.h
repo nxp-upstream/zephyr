@@ -22,7 +22,7 @@
  */
 
 /**
- * @defgroup mp_core Core
+ * @defgroup mp_framework Framework
  * @ingroup mp
  * @brief Core MultimediaPipe APIs.
  */

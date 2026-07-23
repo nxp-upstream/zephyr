@@ -14,7 +14,7 @@
 
 /**
  * @defgroup mp_property Properties
- * @ingroup mp_core
+ * @ingroup mp_framework
  * @brief Property identifiers of base elements.
  * @{
  */

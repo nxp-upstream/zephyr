@@ -14,7 +14,7 @@
 
 /**
  * @defgroup mp_bin Bins
- * @ingroup mp_core
+ * @ingroup mp_framework
  * @brief Container elements that hold and manage child elements.
  * @{
  */

@@ -14,7 +14,7 @@
 
 /**
  * @defgroup mp_pad Pad
- * @ingroup mp_core
+ * @ingroup mp_framework
  * @brief Connection point for data flow between elements
  * @{
  */

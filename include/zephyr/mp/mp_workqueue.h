@@ -51,7 +51,7 @@
 
 /**
  * @defgroup mp_workqueue Workqueues
- * @ingroup mp_core
+ * @ingroup mp_framework
  * @brief Shared P4WQ pool for element-level work parallelism
  * @{
  */

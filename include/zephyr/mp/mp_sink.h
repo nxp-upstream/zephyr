@@ -14,7 +14,7 @@
 
 /**
  * @defgroup mp_sink Sinks
- * @ingroup mp_core
+ * @ingroup mp_framework
  * @brief Terminal elements that consume data from a pipeline.
  *
  * @{

@@ -14,7 +14,7 @@
 
 /**
  * @defgroup mp_transform Transforms
- * @ingroup mp_core
+ * @ingroup mp_framework
  * @brief Elements that process data between sink and source pads.
  *
  * @{

@@ -6,7 +6,7 @@
 
 /**
  * @file
- * @brief File source element for the MP zfs plugin.
+ * @brief File source element for the MP fs plugin.
  *
  * Reads data from a file using Zephyr's filesystem API and produces
  * buffers for downstream processing.

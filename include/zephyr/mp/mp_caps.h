@@ -14,7 +14,7 @@
 
 /**
  * @defgroup mp_caps Media Capabilities
- * @ingroup mp_core
+ * @ingroup mp_framework
  * @brief Media Capabilities
  *
  * CAPS is an object represents the supported media formats (e.g., audio, video) and

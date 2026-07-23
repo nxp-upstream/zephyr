@@ -6,7 +6,7 @@
 
 /**
  * @file
- * @brief File sink element for the MP zfs plugin.
+ * @brief File sink element for the MP fs plugin.
  *
  * Writes pipeline data to a file using Zephyr's filesystem API.
  */

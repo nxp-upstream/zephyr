@@ -15,7 +15,7 @@
 /**
  * @defgroup mp_aud_properties Properties
  * @ingroup mp_aud
- * @brief Audio property identifiers for zaud elements.
+ * @brief Audio property identifiers for aud elements.
  * @{
  */
 

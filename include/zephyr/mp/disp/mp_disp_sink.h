@@ -7,7 +7,7 @@
 /**
  * @file
  * @ingroup mp_disp_sinks
- * @brief Display sink element for the MP zdisp plugin.
+ * @brief Display sink element for the MP disp plugin.
  *
  * Provides a sink element that renders video frames to a Zephyr display
  * device, supporting partial frame updates and configurable display regions.

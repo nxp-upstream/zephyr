@@ -10,7 +10,7 @@
  * @brief Software JPEG decoder API.
  *
  * Exposes the C API and state structures for the software JPEG decoder
- * integrated into the MP zimg plugin.
+ * integrated into the MP img plugin.
  *
  * Supported input mode:
  * - Memory (RAM) input via JPEG_openRAM()

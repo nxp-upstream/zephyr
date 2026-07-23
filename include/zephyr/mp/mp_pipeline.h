@@ -14,7 +14,7 @@
 
 /**
  * @defgroup mp_pipeline Pipelines
- * @ingroup mp_core
+ * @ingroup mp_framework
  * @brief Top-level pipeline container and runtime control.
  * @{
  */

@@ -13,7 +13,7 @@
 #define __MP_AUD_H__
 
 /**
- * @defgroup mp_aud zaud
+ * @defgroup mp_aud aud
  * @ingroup mp_plugins
  * @brief Audio plugin elements, properties, and utility APIs.
  */

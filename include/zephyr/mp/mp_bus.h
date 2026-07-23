@@ -14,7 +14,7 @@
 
 /**
  * @defgroup mp_bus Message Bus
- * @ingroup mp_core
+ * @ingroup mp_framework
  * @brief Asynchronous element-to-application message channel.
  *
  * The bus is the one-way communication channel that carries out-of-band

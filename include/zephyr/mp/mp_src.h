@@ -14,7 +14,7 @@
 
 /**
  * @defgroup mp_src Sources
- * @ingroup mp_core
+ * @ingroup mp_framework
  * @brief Elements that generate data.
  *
  * @{

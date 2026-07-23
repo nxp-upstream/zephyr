@@ -14,7 +14,7 @@
 
 /**
  * @defgroup mp_dispatch Dispatches
- * @ingroup mp_core
+ * @ingroup mp_framework
  * @brief Dispatch objects exchanged between elements.
  * @{
  */

@@ -21,7 +21,7 @@
 
 /**
  * @defgroup mp_structure Dynamic Structure
- * @ingroup mp_core
+ * @ingroup mp_framework
  * @brief Dynamic structure for holding named fields and values.
  *
  *

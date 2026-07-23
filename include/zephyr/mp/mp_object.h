@@ -15,7 +15,7 @@
 /**
  * @defgroup mp_object Objects
  * @brief Reference-counted base object APIs.
- * @ingroup mp_core
+ * @ingroup mp_framework
  * @{
  */
 

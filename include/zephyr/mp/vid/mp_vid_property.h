@@ -7,7 +7,7 @@
 /**
  * @file
  * @ingroup mp_vid_properties
- * @brief Property identifiers for the zvid plugin.
+ * @brief Property identifiers for the vid plugin.
  *
  * Extends the base source and transform property enumerations with
  * video-specific property keys.
@@ -19,7 +19,7 @@
 /**
  * @defgroup mp_vid_properties Properties
  * @ingroup mp_vid
- * @brief Property identifiers for zvid elements.
+ * @brief Property identifiers for vid elements.
  * @{
  */
 

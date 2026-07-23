@@ -6,7 +6,7 @@
 
 /**
  * @file
- * @brief Property identifiers for the MP zdisp plugin.
+ * @brief Property identifiers for the MP disp plugin.
  */
 
 #ifndef ZEPHYR_INCLUDE_MP_DISP_MP_DISP_PROPERTY_H_

@@ -16,7 +16,7 @@
 #define ZEPHYR_INCLUDE_MP_BASE_MP_BASE_CAPSFILTER_H_
 
 /**
- * @defgroup mp_base zbase
+ * @defgroup mp_base base
  * @ingroup mp_plugins
  * @brief Base plugin elements shared across MultimediaPipe graphs.
  */

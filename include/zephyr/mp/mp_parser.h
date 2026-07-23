@@ -17,7 +17,7 @@
 
 /**
  * @defgroup mp_parser Parsers
- * @ingroup mp_core
+ * @ingroup mp_framework
  * @brief Base parser element that parses encoded streams into frames.
  *
  * @{

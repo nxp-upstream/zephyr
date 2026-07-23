@@ -14,7 +14,7 @@
 
 /**
  * @defgroup mp_element Elements
- * @ingroup mp_core
+ * @ingroup mp_framework
  * @brief Common element lifecycle, state, and pad-linking APIs.
  * @{
  */
