@@ -21,7 +21,7 @@
 # Usage:
 #   ./scripts/export_mp_upstream.sh              # Export all PRs
 #   ./scripts/export_mp_upstream.sh core          # Export core only
-#   ./scripts/export_mp_upstream.sh zvid          # Export zvid only (core must exist)
+#   ./scripts/export_mp_upstream.sh vid           # Export vid only (core must exist)
 #   ./scripts/export_mp_upstream.sh --dry-run     # Show what would be done
 #   ./scripts/export_mp_upstream.sh --list        # List available targets
 #
@@ -111,7 +111,6 @@ CORE_PATHS=(
     "include/zephyr/mp/mp_pad.h"
     "include/zephyr/mp/mp_parser.h"
     "include/zephyr/mp/mp_pipeline.h"
-    "include/zephyr/mp/mp_property.h"
     "include/zephyr/mp/mp_sink.h"
     "include/zephyr/mp/mp_src.h"
     "include/zephyr/mp/mp_structure.h"
@@ -127,39 +126,47 @@ CORE_PATHS=(
 )
 
 # vid plugin
-ZVID_PATHS=(
+VID_PATHS=(
     "subsys/mp/vid/"
     "include/zephyr/mp/vid/"
 )
 
 # img plugin (image codec support)
-ZIMG_PATHS=(
+IMG_PATHS=(
     "subsys/mp/img/"
     "include/zephyr/mp/img/"
 )
 
 # aud plugin
-ZAUD_PATHS=(
+AUD_PATHS=(
     "subsys/mp/aud/"
     "include/zephyr/mp/aud/"
 )
 
 # disp plugin
-ZDISP_PATHS=(
+DISP_PATHS=(
     "subsys/mp/disp/"
     "include/zephyr/mp/disp/"
 )
 
 # fs plugin
-ZFS_PATHS=(
+FS_PATHS=(
     "subsys/mp/fs/"
     "include/zephyr/mp/fs/"
 )
 
 # base plugin
-ZBASE_PATHS=(
+BASE_PATHS=(
     "subsys/mp/base/"
     "include/zephyr/mp/base/"
+)
+
+# utils (helper utilities built on top of the core, e.g. the mp_player
+# pipeline controller). Directory globs so future files under utils/ are
+# picked up automatically.
+UTILS_PATHS=(
+    "subsys/mp/utils/"
+    "include/zephyr/mp/utils/"
 )
 
 
@@ -226,9 +233,9 @@ ${SOB_PHIBANG}
 ${SOB_TRUNGHIEU}"
 
 
-ZVID_COMMIT_MSG="mp: Add zvid video plugin
+VID_COMMIT_MSG="mp: Add video plugin
 
-Add the zvid (Zephyr Video) plugin for the MP subsystem. This plugin
+Add the vid (Zephyr Video) plugin for the MP subsystem. This plugin
 provides video-specific elements that interface with Zephyr's video
 subsystem, enabling building video capture and processing pipelines
 using Zephyr video devices, e.g. camera, m2m devices
@@ -236,9 +243,9 @@ using Zephyr video devices, e.g. camera, m2m devices
 ${SOB_PHIBANG}"
 
 
-ZIMG_COMMIT_MSG="mp: Add zimg image codec plugin
+IMG_COMMIT_MSG="mp: Add image codec plugin
 
-Add the zimg (Zephyr Image Codec) plugin for the MP subsystem.
+Add the img (Zephyr Image Codec) plugin for the MP subsystem.
 
 The plugin currently includes a JPEG parser element for extracting
 JPEG frames from a byte stream, a SW-based JPEG decoder element for
@@ -247,9 +254,9 @@ jpegenc, y4mdec, etc. will be added in the future.
 
 ${SOB_PHIBANG}"
 
-ZAUD_COMMIT_MSG="mp: Add zaud audio plugin
+AUD_COMMIT_MSG="mp: Add audio plugin
 
-Add the zaud (Zephyr Audio) plugin for the MP subsystem. This plugin
+Add the aud (Zephyr Audio) plugin for the MP subsystem. This plugin
 provides audio-specific elements that interface with Zephyr's audio
 subsystems, enabling building audio capture, processing, and playback
 pipelines using Zephyr audio devices.
@@ -262,9 +269,9 @@ ${SOB_MICHAL}
 ${SOB_TOMAS}"
 
 
-ZDISP_COMMIT_MSG="mp: Add zdisp display plugin
+DISP_COMMIT_MSG="mp: Add display plugin
 
-Add the zdisp (Zephyr Display) plugin for the MP subsystem. This
+Add the disp (Zephyr Display) plugin for the MP subsystem. This
 plugin provides display output elements that interface with Zephyr's
 display subsystem, enabling building video display pipelines that
 output processed frames to physical displays.
@@ -276,9 +283,9 @@ configurable display regions.
 ${SOB_PHIBANG}"
 
 
-ZFS_COMMIT_MSG="mp: Add zfs filesystem plugin
+FS_COMMIT_MSG="mp: Add filesystem plugin
 
-Add the zfs (Zephyr Filesystem) plugin for the MP subsystem. This
+Add the fs (Zephyr Filesystem) plugin for the MP subsystem. This
 plugin provides filesystem I/O elements that interface with Zephyr's
 filesystem subsystem, enabling building pipelines that read from or
 write to files on any Zephyr-supported filesystem (FAT, LittleFS,
@@ -290,9 +297,9 @@ filesystem API.
 
 ${SOB_PHIBANG}"
 
-ZBASE_COMMIT_MSG="mp: Add zbase base plugin
+BASE_COMMIT_MSG="mp: Add base plugin
 
-Add the zbase plugin for the MP subsystem. This plugin provides
+Add the base plugin for the MP subsystem. This plugin provides
 generic, reusable elements like:
 - queue: pipeline-level threading element
 - tee: pipeline branching element
@@ -300,12 +307,24 @@ generic, reusable elements like:
 
 ${SOB_PHIBANG}"
 
+UTILS_COMMIT_MSG="mp: Add utils
+
+Add the utils helper. These are optional, reusable utilities built on
+top of the subsys to simplify application development.
+
+The utils currently includes mp_player, a small pipeline controller
+that drives a pipeline through its states and exposes simple
+play/pause/stop/replay/quit controls (usable from a shell). More
+utilities may be added in the future.
+
+${SOB_PHIBANG}"
+
 SAMPLE_CAM_DISP_COMMIT_MSG="mp: samples: Add camera to display sample
 
 Add the cam_disp sample application demonstrating how to build a
 camera-to-display pipeline using the MP subsystem. This sample
-captures video frames from a camera device using the zvid plugin and
-renders them on a display using the zdisp plugin, showcasing
+captures video frames from a camera device using the vid plugin and
+renders them on a display using the disp plugin, showcasing
 real-time video preview functionality.
 
 ${SOB_PHIBANG}"
@@ -314,7 +333,7 @@ SAMPLE_JPEG_DEC_COMMIT_MSG="mp: samples: Add JPEG decoding sample
 
 Add the jpeg_dec sample application demonstrating how to decode JPEG
 images using the MP subsystem. This sample reads JPEG-compressed
-data, decodes it using the zvid plugin's JPEG decoder elements, and
+data, decodes it using the vid plugin's JPEG decoder elements, and
 outputs the resulting video frames, showcasing the JPEG decoding
 pipeline.
 
@@ -331,7 +350,7 @@ ${SOB_PHIBANG}"
 SAMPLE_FS_COMMIT_MSG="mp: samples: Add filesystem sample
 
 Add the fs sample application demonstrating how to read from and
-write to files using the MP subsystem. This sample uses the zfs
+write to files using the MP subsystem. This sample uses the fs
 plugin's file source and file sink elements to build a pipeline
 that performs filesystem I/O on any Zephyr-supported filesystem.
 
@@ -354,7 +373,7 @@ SAMPLE_DMIC_I2S_COMMIT_MSG="mp: samples: Add DMIC to I2S audio sample
 Add the dmic_i2s sample application demonstrating how to build an
 audio pipeline using the MP subsystem. This sample provides a simple
 pipeline that captures audio from a digital microphone (DMIC), applies
-gain control using the zaud plugin's gain element, and outputs the
+gain control using the aud plugin's gain element, and outputs the
 processed audio through an I2S codec to a speaker.
 
 ${SOB_MICHAL}
@@ -367,17 +386,18 @@ ${SOB_TOMAS}"
 declare -A TARGET_DEPS
 TARGET_DEPS=(
     [core]=""
-    [zvid]="${UPSTREAM_PREFIX}-core"
-    [zimg]="${UPSTREAM_PREFIX}-core"
-    [zaud]="${UPSTREAM_PREFIX}-core"
-    [zdisp]="${UPSTREAM_PREFIX}-core"
-    [zfs]="${UPSTREAM_PREFIX}-core"
-    [zbase]="${UPSTREAM_PREFIX}-core"
-    [sample-cam_disp]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zbase ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zdisp"
-    [sample-jpeg_dec]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zbase ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zimg ${UPSTREAM_PREFIX}-zdisp ${UPSTREAM_PREFIX}-zfs"
-    [sample-tee_dec]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zbase ${UPSTREAM_PREFIX}-zvid ${UPSTREAM_PREFIX}-zimg ${UPSTREAM_PREFIX}-zdisp ${UPSTREAM_PREFIX}-zfs"
-    [sample-fs]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zfs"
-    [sample-dmic_i2s]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-zbase ${UPSTREAM_PREFIX}-zaud"
+    [vid]="${UPSTREAM_PREFIX}-core"
+    [img]="${UPSTREAM_PREFIX}-core"
+    [aud]="${UPSTREAM_PREFIX}-core"
+    [disp]="${UPSTREAM_PREFIX}-core"
+    [fs]="${UPSTREAM_PREFIX}-core"
+    [base]="${UPSTREAM_PREFIX}-core"
+    [utils]="${UPSTREAM_PREFIX}-core"
+    [sample-cam_disp]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-base ${UPSTREAM_PREFIX}-vid ${UPSTREAM_PREFIX}-disp ${UPSTREAM_PREFIX}-utils"
+    [sample-jpeg_dec]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-base ${UPSTREAM_PREFIX}-vid ${UPSTREAM_PREFIX}-img ${UPSTREAM_PREFIX}-disp ${UPSTREAM_PREFIX}-fs ${UPSTREAM_PREFIX}-utils"
+    [sample-tee_dec]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-base ${UPSTREAM_PREFIX}-vid ${UPSTREAM_PREFIX}-img ${UPSTREAM_PREFIX}-disp ${UPSTREAM_PREFIX}-fs ${UPSTREAM_PREFIX}-utils"
+    [sample-fs]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-fs"
+    [sample-dmic_i2s]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-base ${UPSTREAM_PREFIX}-aud"
 )
 
 # ===========================================================================
@@ -392,12 +412,13 @@ TARGET_DEPS=(
 declare -A TARGET_AUTHOR
 TARGET_AUTHOR=(
     [core]="${AUTHOR_PHIBANG}"
-    [zvid]="${AUTHOR_PHIBANG}"
-    [zimg]="${AUTHOR_PHIBANG}"
-    [zaud]="${AUTHOR_MICHAL}"
-    [zdisp]="${AUTHOR_PHIBANG}"
-    [zfs]="${AUTHOR_PHIBANG}"
-    [zbase]="${AUTHOR_PHIBANG}"
+    [vid]="${AUTHOR_PHIBANG}"
+    [img]="${AUTHOR_PHIBANG}"
+    [aud]="${AUTHOR_MICHAL}"
+    [disp]="${AUTHOR_PHIBANG}"
+    [fs]="${AUTHOR_PHIBANG}"
+    [base]="${AUTHOR_PHIBANG}"
+    [utils]="${AUTHOR_PHIBANG}"
     [sample-cam_disp]="${AUTHOR_PHIBANG}"
     [sample-jpeg_dec]="${AUTHOR_PHIBANG}"
     [sample-tee_dec]="${AUTHOR_PHIBANG}"
@@ -419,12 +440,12 @@ TARGET_AUTHOR=(
 declare -A TARGET_BUILD_TEST
 TARGET_BUILD_TEST=(
     [core]="mp.core.build"
-    [zbase]="mp.base.build"
-    [zaud]="mp.audio.build"
-    [zvid]="mp.video.build"
-    [zdisp]="mp.display.build"
-    [zimg]="mp.img.build"
-    [zfs]="mp.fs.build"
+    [base]="mp.base.build"
+    [aud]="mp.audio.build"
+    [vid]="mp.video.build"
+    [disp]="mp.display.build"
+    [img]="mp.img.build"
+    [fs]="mp.fs.build"
 )
 
 # Path to the shared build_all testcase file (relative to repo root).
@@ -1106,34 +1127,39 @@ export_core_tests() {
     echo ""
 }
 
-export_zvid() {
-    generate_branch "zvid" "${UPSTREAM_PREFIX}-zvid" \
-        "${ZVID_COMMIT_MSG}" "${ZVID_PATHS[@]}"
+export_vid() {
+    generate_branch "vid" "${UPSTREAM_PREFIX}-vid" \
+        "${VID_COMMIT_MSG}" "${VID_PATHS[@]}"
 }
 
-export_zimg() {
-    generate_branch "zimg" "${UPSTREAM_PREFIX}-zimg" \
-        "${ZIMG_COMMIT_MSG}" "${ZIMG_PATHS[@]}"
+export_img() {
+    generate_branch "img" "${UPSTREAM_PREFIX}-img" \
+        "${IMG_COMMIT_MSG}" "${IMG_PATHS[@]}"
 }
 
-export_zaud() {
-    generate_branch "zaud" "${UPSTREAM_PREFIX}-zaud" \
-        "${ZAUD_COMMIT_MSG}" "${ZAUD_PATHS[@]}"
+export_aud() {
+    generate_branch "aud" "${UPSTREAM_PREFIX}-aud" \
+        "${AUD_COMMIT_MSG}" "${AUD_PATHS[@]}"
 }
 
-export_zdisp() {
-    generate_branch "zdisp" "${UPSTREAM_PREFIX}-zdisp" \
-        "${ZDISP_COMMIT_MSG}" "${ZDISP_PATHS[@]}"
+export_disp() {
+    generate_branch "disp" "${UPSTREAM_PREFIX}-disp" \
+        "${DISP_COMMIT_MSG}" "${DISP_PATHS[@]}"
 }
 
-export_zfs() {
-    generate_branch "zfs" "${UPSTREAM_PREFIX}-zfs" \
-        "${ZFS_COMMIT_MSG}" "${ZFS_PATHS[@]}"
+export_fs() {
+    generate_branch "fs" "${UPSTREAM_PREFIX}-fs" \
+        "${FS_COMMIT_MSG}" "${FS_PATHS[@]}"
 }
 
-export_zbase() {
-    generate_branch "zbase" "${UPSTREAM_PREFIX}-zbase" \
-        "${ZBASE_COMMIT_MSG}" "${ZBASE_PATHS[@]}"
+export_base() {
+    generate_branch "base" "${UPSTREAM_PREFIX}-base" \
+        "${BASE_COMMIT_MSG}" "${BASE_PATHS[@]}"
+}
+
+export_utils() {
+    generate_branch "utils" "${UPSTREAM_PREFIX}-utils" \
+        "${UTILS_COMMIT_MSG}" "${UTILS_PATHS[@]}"
 }
 
 export_sample_cam_disp() {
@@ -1166,7 +1192,7 @@ export_sample_dmic_i2s() {
 # ===========================================================================
 
 export_all() {
-    TARGETS=(core zvid zimg zaud zdisp zfs zbase sample-cam_disp sample-jpeg_dec sample-tee_dec sample-fs sample-dmic_i2s)
+    TARGETS=(core vid img aud disp fs base utils sample-cam_disp sample-jpeg_dec sample-tee_dec sample-fs sample-dmic_i2s)
 
     log_info "=== Exporting all MP upstream PR branches ==="
     log_info "Source: ${SOURCE_BRANCH}"
@@ -1180,14 +1206,17 @@ export_all() {
     export_core_tests
 
     # Plugins (independent of each other, all depend on core)
-    export_zvid
-    export_zimg
-    export_zaud
-    export_zdisp
-    export_zfs
-    export_zbase
+    export_vid
+    export_img
+    export_aud
+    export_disp
+    export_fs
+    export_base
 
-    # Samples (depend on core + relevant plugin)
+    # Utils (depend on core; exported before samples that cherry-pick it)
+    export_utils
+
+    # Samples (depend on core + relevant plugin + utils)
     export_sample_cam_disp
     export_sample_jpeg_dec
     export_sample_tee_dec
@@ -1291,17 +1320,18 @@ verify the target's own commit and tests (HEAD~2..HEAD).
 
 Targets:
   core             Core MP framework + tests
-  zvid             Video plugin (depends on core)
-  zimg             Image codec plugin (depends on core)
-  zaud             Audio plugin (depends on core)
-  zdisp            Display plugin (depends on core)
-  zfs              Filesystem plugin (depends on core)
-  zbase            Base plugin (depends on core)
-  sample-cam_disp  Camera-to-display sample (depends on core, zbase, zvid, zdisp)
-  sample-jpeg_dec  JPEG decoding sample (depends on core, zbase, zvid, zimg, zdisp, zfs)
-  sample-tee_dec   Multi-branch jpeg decoding sample (depends on core, zbase, zvid, zimg, zdisp, zfs)
-  sample-fs        Filesystem sample (depends on core, zfs)
-  sample-dmic_i2s  DMIC to I2S sample (depends on core, zbase, zaud)
+  vid             Video plugin (depends on core)
+  img             Image codec plugin (depends on core)
+  aud             Audio plugin (depends on core)
+  disp            Display plugin (depends on core)
+  fs              Filesystem plugin (depends on core)
+  base            Base plugin (depends on core)
+  utils            Utils helper library (depends on core)
+  sample-cam_disp  Camera-to-display sample (depends on core, base, vid, disp, utils)
+  sample-jpeg_dec  JPEG decoding sample (depends on core, base, vid, img, disp, fs, utils)
+  sample-tee_dec   Multi-branch jpeg decoding sample (depends on core, base, vid, img, disp, fs, utils)
+  sample-fs        Filesystem sample (depends on core, fs)
+  sample-dmic_i2s  DMIC to I2S sample (depends on core, base, aud)
   all              All of the above (default)
 
 Options:
@@ -1313,8 +1343,8 @@ Options:
 Examples:
   $(basename "$0")                      # Export all
   $(basename "$0") core                 # Export core only
-  $(basename "$0") core zvid            # Export core then zvid
-  $(basename "$0") sample-cam_disp      # Export sample (core+zvid must exist)
+  $(basename "$0") core vid            # Export core then vid
+  $(basename "$0") sample-cam_disp      # Export sample (core+vid must exist)
   $(basename "$0") --dry-run            # Preview all exports
 EOF
 }
@@ -1329,7 +1359,7 @@ main() {
                 shift
                 ;;
             --list)
-                echo "Available targets: core zvid zimg zaud zdisp zfs zbase sample-cam_disp sample-jpeg_dec sample-tee_dec sample-fs sample-dmic_i2s"
+                echo "Available targets: core vid img aud disp fs base utils sample-cam_disp sample-jpeg_dec sample-tee_dec sample-fs sample-dmic_i2s"
                 exit 0
                 ;;
             --no-check)
@@ -1340,7 +1370,7 @@ main() {
                 usage
                 exit 0
                 ;;
-            core|zvid|zimg|zaud|zdisp|zfs|zbase|sample-cam_disp|sample-jpeg_dec|sample-tee_dec|sample-fs|sample-dmic_i2s|all)
+            core|vid|img|aud|disp|fs|base|utils|sample-cam_disp|sample-jpeg_dec|sample-tee_dec|sample-fs|sample-dmic_i2s|all)
                 targets+=("$1")
                 shift
                 ;;
@@ -1368,29 +1398,33 @@ main() {
                 export_core
                 export_core_tests
                 ;;
-            zvid)
-                TARGETS+=(zvid)
-                export_zvid
+            vid)
+                TARGETS+=(vid)
+                export_vid
                 ;;
-            zimg)
-                TARGETS+=(zimg)
-                export_zimg
+            img)
+                TARGETS+=(img)
+                export_img
                 ;;
-            zaud)
-                TARGETS+=(zaud)
-                export_zaud
+            aud)
+                TARGETS+=(aud)
+                export_aud
                 ;;
-            zdisp)
-                TARGETS+=(zdisp)
-                export_zdisp
+            disp)
+                TARGETS+=(disp)
+                export_disp
                 ;;
-            zfs)
-                TARGETS+=(zfs)
-                export_zfs
+            fs)
+                TARGETS+=(fs)
+                export_fs
                 ;;
-            zbase)
-                TARGETS+=(zbase)
-                export_zbase
+            base)
+                TARGETS+=(base)
+                export_base
+                ;;
+            utils)
+                TARGETS+=(utils)
+                export_utils
                 ;;
             sample-cam_disp)
                 TARGETS+=(sample-cam_disp)
