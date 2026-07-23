@@ -265,7 +265,7 @@ void mp_src_init(struct mp_element *self)
 	struct mp_src *src = (struct mp_src *)self;
 
 	/* Default supported caps */
-	src->src_caps = mp_caps_new_any();
+	src->src_caps = mp_caps_any_new();
 
 	mp_pad_init(&src->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS, src->src_caps);
 	mp_element_add_pad(self, &src->srcpad);

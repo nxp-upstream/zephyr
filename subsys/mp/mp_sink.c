@@ -159,7 +159,7 @@ void mp_sink_init(struct mp_element *self)
 	struct mp_sink *sink = (struct mp_sink *)self;
 
 	/* Default supported caps */
-	sink->sink_caps = mp_caps_new_any();
+	sink->sink_caps = mp_caps_any_new();
 	mp_pad_init(&sink->sinkpad, MP_PAD_SINK_ID, MP_PAD_SINK, MP_PAD_ALWAYS, sink->sink_caps);
 	mp_element_add_pad(self, &sink->sinkpad);
 

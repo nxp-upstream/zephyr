@@ -135,10 +135,13 @@ static struct mp_caps *mp_zvid_transform_transform_caps(struct mp_transform *sel
 		return NULL;
 	}
 
-	SYS_SLIST_FOR_EACH_CONTAINER(&caps->structures, structure, node) {
+	for (int i = 0; (structure = mp_caps_get_structure(caps, i)) != NULL; i++) {
 		if (mp_structure_to_vfc(structure, &vfc) < 0) {
+			mp_structure_unref(structure);
 			continue;
 		}
+		mp_structure_unref(structure);
+
 		ind = 0;
 		while (video_transform_cap(dev, &vfc, &other_vfc, direction, ind) == 0) {
 			caps_item = mp_structure_new(

@@ -32,7 +32,7 @@ static void pad_before(void *f)
 	memset(&fix->src_pad, 0, sizeof(fix->src_pad));
 	memset(&fix->sink_pad, 0, sizeof(fix->sink_pad));
 
-	fix->any_caps = mp_caps_new_any();
+	fix->any_caps = mp_caps_any_new();
 	mp_pad_init(&fix->src_pad, 0, MP_PAD_SRC, MP_PAD_ALWAYS, fix->any_caps);
 	mp_pad_init(&fix->sink_pad, 1, MP_PAD_SINK, MP_PAD_ALWAYS, fix->any_caps);
 

@@ -87,6 +87,7 @@ ZTEST_F(caps, test_caps_intersection_primitive)
 	mp_caps_unref(fixture->caps[1]);
 	mp_caps_unref(fixture->caps[2]);
 	mp_caps_unref(fixture->caps_intersect);
+	mp_structure_unref(fixture->structure);
 }
 
 void printh(char const *s) {
@@ -131,6 +132,7 @@ ZTEST_F(caps, test_caps_int_with_range)
 
 		mp_caps_unref(fixture->caps[1]);
 		mp_caps_unref(fixture->caps_intersect);
+		mp_structure_unref(fixture->structure);
 	}
 
 	mp_caps_unref(fixture->caps[0]);
@@ -180,6 +182,7 @@ ZTEST_F(caps, test_caps_intersection_list)
 	mp_caps_unref(fixture->caps[0]);
 	mp_caps_unref(fixture->caps[1]);
 	mp_caps_unref(fixture->caps_intersect);
+	mp_structure_unref(fixture->structure);
 }
 
 ZTEST_F(caps, test_caps_video_sample)
@@ -230,6 +233,7 @@ ZTEST_F(caps, test_caps_video_sample)
 
 	mp_caps_unref(fixture->caps[0]);
 	mp_caps_unref(fixture->caps[1]);
+	mp_structure_unref(fixture->structure);
 
 	fixture->caps_fixate = mp_caps_fixate(fixture->caps_intersect);
 	mp_caps_unref(fixture->caps_intersect);
@@ -250,6 +254,7 @@ ZTEST_F(caps, test_caps_video_sample)
 	validate_int_value(fixture->value, NSEC_PER_SEC / 15);
 
 	mp_caps_unref(fixture->caps_fixate);
+	mp_structure_unref(fixture->structure);
 }
 
 ZTEST_F(caps, test_caps_error_paths)

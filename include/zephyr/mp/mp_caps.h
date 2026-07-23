@@ -97,11 +97,7 @@ struct mp_caps {
 	/** Base object */
 	struct mp_object object;
 	/** Fill a structure corresponding to the given index */
-	struct mp_structure *(*get_structure)(struct mp_caps *c, int index, void *arg);
-	/** Custom argument provided to @c .get_structure() */
-	void *arg;
-	/** For internal use */
-	sys_slist_t _slist;
+	struct mp_structure *(*get_structure)(struct mp_caps *c, int index);
 };
 
 /** @brief Flag indicating ANY caps type */
@@ -119,12 +115,13 @@ struct mp_caps {
  * @return Pointer to newly created @ref mp_caps, or NULL on failure
  */
 struct mp_caps *mp_caps_new(uint8_t media_type_id, ...);
+
 /**
  * @brief Create new @ref mp_caps of type ANY.
  *
  * @return Pointer to newly created @ref mp_caps
  */
-struct mp_caps *mp_caps_new_any(void);
+struct mp_caps *mp_caps_any_new(void);
 
 /**
  * @brief Initialize a @ref mp_caps.

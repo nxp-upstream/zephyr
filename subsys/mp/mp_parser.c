@@ -232,8 +232,8 @@ void mp_parser_init(struct mp_element *self)
 	struct mp_parser *parser = (struct mp_parser *)self;
 
 	/* Default supported caps */
-	parser->sink_caps = mp_caps_new_any();
-	parser->src_caps = mp_caps_new_any();
+	parser->sink_caps = mp_caps_any_new();
+	parser->src_caps = mp_caps_any_new();
 
 	mp_pad_init(&parser->sinkpad, MP_PAD_SINK_ID, MP_PAD_SINK, MP_PAD_ALWAYS,
 		    parser->sink_caps);

@@ -47,8 +47,8 @@ static void element_before(void *f)
 
 	sys_heap_runtime_stats_get(&_system_heap.heap, &fix->mem_before);
 
-	fix->src_pad.caps = mp_caps_new_any();
-	fix->sink_pad.caps = mp_caps_new_any();
+	fix->src_pad.caps = mp_caps_any_new();
+	fix->sink_pad.caps = mp_caps_any_new();
 
 	zassert_equal(fix->src.object.id, 1, "Element ID shall be set by init");
 	zassert_equal(fix->src.current_state, MP_STATE_READY,

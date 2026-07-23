@@ -362,8 +362,8 @@ void mp_transform_init(struct mp_element *self)
 	struct mp_transform *transform = (struct mp_transform *)self;
 
 	/* Default supported caps */
-	transform->sink_caps = mp_caps_new_any();
-	transform->src_caps = mp_caps_new_any();
+	transform->sink_caps = mp_caps_any_new();
+	transform->src_caps = mp_caps_any_new();
 
 	mp_pad_init(&transform->sinkpad, MP_PAD_SINK_ID, MP_PAD_SINK, MP_PAD_ALWAYS,
 		    transform->sink_caps);

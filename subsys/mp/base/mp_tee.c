@@ -202,7 +202,7 @@ void mp_tee_init(struct mp_element *self)
 	tee->sinkpad.chainfn = mp_tee_chainfn;
 	tee->sinkpad.queryfn = mp_tee_sink_queryfn;
 	tee->sinkpad.eventfn = mp_tee_sink_eventfn;
-	tee->caps = mp_caps_new_any();
+	tee->caps = mp_caps_any_new();
 
 	/* Initialize the sink pad */
 	mp_pad_init(&tee->sinkpad, 0, MP_PAD_SINK, MP_PAD_ALWAYS, tee->caps);

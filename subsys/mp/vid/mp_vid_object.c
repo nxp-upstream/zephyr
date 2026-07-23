@@ -133,10 +133,43 @@ nomem:
 	return -ENOMEM;
 }
 
+struct mp_vid_object_caps {
+	struct mp_caps base;
+	struct mp_vid_object *vid_obj;
+};
+
+struct mp_caps *mp_vid_object_caps_destroy(struct mp_object *obj)
+{
+	struct mp_vid_object_caps *caps = (struct mp_vid_object_caps *)obj;
+
+	mp_object_unref((struct mp_object *)caps->vid_obj);
+	k_free(obj);
+}
+
+struct mp_caps *mp_vid_object_caps_get_structure(struct mp_caps *caps_in)
+{
+	struct mp_vid_object_caps *caps = caps_in;
+}
+
+struct mp_caps *mp_vid_object_caps_new(struct mp_vid_object *vid_obj)
+{
+	struct mp_vid_object_caps *caps = k_calloc(1, sizeof(*caps));
+	if (caps == NULL) {
+		return NULL;
+	}
+
+	mp_caps_init(&caps->base, 0);
+	caps->base.object.release = mp_vid_object_caps_destroy;
+	caps->base.get_structure = mp_vid_object_caps_get_structure;
+	caps->vid_obj = vid_obj;
+
+	return mp_object_ref((struct mp_object *)obj);
+}
+
 struct mp_caps *mp_vid_object_get_caps(struct mp_vid_object *vid_obj)
 {
 	int ret;
-	struct mp_caps *caps = mp_caps_new(MP_MEDIA_END);
+	struct mp_caps *caps = mp_vid_object_caps_new(vid_obj);
 	struct mp_structure *caps_item = NULL;
 	struct video_caps vcaps = {.type = vid_obj->type};
 	struct video_format fmt = {.type = vid_obj->type};
@@ -263,7 +296,7 @@ int mp_vid_object_set_caps(struct mp_vid_object *vid_obj, struct mp_caps *caps)
 	    mp_structure_get_value(first_structure, MP_CAPS_FRAME_RATE) != NULL) {
 		frmival.numerator = NSEC_PER_SEC;
 		frmival.denominator = mp_value_get_int(frmrate);
-		ret = video_set_frmival(zvid_obj->vdev, &frmival);
+		ret = video_set_frmival(vid_obj->vdev, &frmival);
 		if (ret) {
 			LOG_ERR("Unable to set frame interval");
 		}
