@@ -12,6 +12,8 @@
 #include <zephyr/mp/core/mp_structure.h>
 #include <zephyr/mp/core/mp_value.h>
 
+#include "mp_test_helpers.h"
+
 extern struct k_heap _system_heap;
 
 struct mp_structure_api_fixture {
@@ -44,6 +46,20 @@ static void structure_after(void *f)
 }
 
 ZTEST_SUITE(mp_structure_api, NULL, structure_suite_setup, structure_before, structure_after, NULL);
+
+/* Field IDs used by intersection tests */
+enum test_field {
+	TEST_BOOL = 0,
+	TEST_INT,
+	TEST_UINT,
+	TEST_STRING,
+	TEST_FRACTION,
+	TEST_RANGE_INT,
+	TEST_RANGE_UINT,
+	TEST_INT_FRACTION_RANGE,
+	TEST_UINT_FRACTION_RANGE,
+	TEST_LIST,
+};
 
 ZTEST(mp_structure_api, test_new)
 {
