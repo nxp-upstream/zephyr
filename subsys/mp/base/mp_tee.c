@@ -160,7 +160,7 @@ static int mp_tee_get_property(struct mp_object *obj, uint32_t id, void *val)
 	struct mp_tee *tee = (struct mp_tee *)obj;
 
 	switch (id) {
-	case PROP_BASE_TEE_SRCPADS_NUM:
+	case MP_PROP_BASE_TEE_SRCPADS_NUM:
 		*(uint8_t *)val = tee->srcpads_num;
 
 		return 0;
@@ -174,7 +174,7 @@ static int mp_tee_set_property(struct mp_object *obj, uint32_t id, const void *v
 	struct mp_tee *tee = (struct mp_tee *)obj;
 
 	switch (id) {
-	case PROP_BASE_TEE_SRCPADS_NUM: {
+	case MP_PROP_BASE_TEE_SRCPADS_NUM: {
 		uint8_t requested = *(const uint8_t *)val;
 
 		if (!IN_RANGE(requested, DEFAULT_SRCPADS_NUM, CONFIG_MP_BASE_TEE_MAX_SRCPADS_NUM)) {

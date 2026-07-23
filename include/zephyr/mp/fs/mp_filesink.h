@@ -31,9 +31,9 @@
  *
  * Extends the base sink properties defined in @ref mp_property.h.
  */
-enum prop_fs_sink {
+enum mp_prop_fs_sink {
 	/** Path to the output file (const char *). */
-	PROP_FS_SINK_PATH = PROP_SINK_LAST,
+	MP_PROP_FS_SINK_PATH = MP_PROP_SINK_LAST,
 };
 
 /**

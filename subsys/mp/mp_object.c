@@ -30,7 +30,7 @@ int mp_object_set_properties(struct mp_object *obj, ...)
 		key = va_arg(args, uint32_t);
 		val = va_arg(args, const void *);
 
-		if (key == PROP_LIST_END) {
+		if (key == MP_PROP_LIST_END) {
 			break;
 		}
 
@@ -65,7 +65,7 @@ int mp_object_get_properties(struct mp_object *obj, ...)
 		key = va_arg(args, uint32_t);
 		val = va_arg(args, void *);
 
-		if (key == PROP_LIST_END) {
+		if (key == MP_PROP_LIST_END) {
 			break;
 		}
 

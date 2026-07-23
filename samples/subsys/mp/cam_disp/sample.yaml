@@ -33,7 +33,7 @@ tests:
     - platform:ek_ra8d1/r7fa8d1bhecbd:SHIELD="dvp_20pin_ov7670;rtkmipilcdb00000be"
     extra_configs:
     - CONFIG_TEST=y
-    - CONFIG_PROP_NUM_BUFS=100
+    - CONFIG_MP_PROP_NUM_BUFS=100
     harness: console
     harness_config:
       type: one_line

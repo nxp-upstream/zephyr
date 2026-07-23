@@ -254,9 +254,9 @@ int mp_vid_object_set_caps(struct mp_vid_object *vid_obj, struct mp_caps *caps)
 int mp_vid_object_set_property(struct mp_vid_object *vid_obj, uint32_t key, const void *val)
 {
 	switch (key) {
-	case PROP_VID_DEVICE:
-	case PROP_VID_CROP:
-		if (key == PROP_VID_DEVICE) {
+	case MP_PROP_VID_DEVICE:
+	case MP_PROP_VID_CROP:
+		if (key == MP_PROP_VID_DEVICE) {
 			vid_obj->vdev = val;
 		} else {
 			vid_obj->crop = *(struct video_rect *)val;
@@ -290,10 +290,10 @@ int mp_vid_object_get_property(struct mp_vid_object *vid_obj, uint32_t key, void
 	int ret;
 
 	switch (key) {
-	case PROP_VID_DEVICE:
+	case MP_PROP_VID_DEVICE:
 		*(const struct device **)val = vid_obj->vdev;
 		return 0;
-	case PROP_VID_CROP:
+	case MP_PROP_VID_CROP:
 		*(struct video_rect *)val = vid_obj->crop;
 		return 0;
 	default:

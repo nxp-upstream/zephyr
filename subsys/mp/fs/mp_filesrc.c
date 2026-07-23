@@ -29,10 +29,10 @@ static int mp_filesrc_set_property(struct mp_object *obj, uint32_t key, const vo
 	int ret;
 
 	switch (key) {
-	case PROP_FS_SRC_PATH:
+	case MP_PROP_FS_SRC_PATH:
 		fsrc->path = (const char *)val;
 		return 0;
-	case PROP_FS_SRC_BLOCKSIZE:
+	case MP_PROP_FS_SRC_BLOCKSIZE:
 		if (val == NULL) {
 			return -EINVAL;
 		}
@@ -50,10 +50,10 @@ static int mp_filesrc_get_property(struct mp_object *obj, uint32_t key, void *va
 	int ret;
 
 	switch (key) {
-	case PROP_FS_SRC_PATH:
+	case MP_PROP_FS_SRC_PATH:
 		*(const char **)val = fsrc->path;
 		return 0;
-	case PROP_FS_SRC_BLOCKSIZE:
+	case MP_PROP_FS_SRC_BLOCKSIZE:
 		*(uint32_t *)val = fsrc->blocksize;
 		return 0;
 	default:

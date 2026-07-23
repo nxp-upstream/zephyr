@@ -49,7 +49,7 @@ static int mp_aud_gain_set_property(struct mp_object *obj, uint32_t key, const v
 	struct mp_aud_gain *self = (struct mp_aud_gain *)obj;
 
 	switch (key) {
-	case PROP_AUD_TRANSFORM_GAIN:
+	case MP_PROP_AUD_TRANSFORM_GAIN:
 		/* Expect percentage value (0-1000) */
 		self->gain_percent = *(const int *)val;
 		self->gain_fixed = percent_to_fixed_gain(self->gain_percent);
@@ -70,7 +70,7 @@ static int mp_aud_gain_get_property(struct mp_object *obj, uint32_t key, void *v
 	struct mp_aud_gain *self = (struct mp_aud_gain *)obj;
 
 	switch (key) {
-	case PROP_AUD_TRANSFORM_GAIN:
+	case MP_PROP_AUD_TRANSFORM_GAIN:
 		/* Return percentage value */
 		*(int *)val = self->gain_percent;
 		return 0;

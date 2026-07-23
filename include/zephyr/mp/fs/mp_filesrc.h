@@ -38,11 +38,11 @@
  *
  * Extends the base source properties defined in @ref mp_property.h.
  */
-enum prop_fs_src {
+enum mp_prop_fs_src {
 	/** Path to the input file (const char *). */
-	PROP_FS_SRC_PATH = PROP_SRC_LAST,
+	MP_PROP_FS_SRC_PATH = MP_PROP_SRC_LAST,
 	/** Read block size in bytes (uint32_t). */
-	PROP_FS_SRC_BLOCKSIZE,
+	MP_PROP_FS_SRC_BLOCKSIZE,
 };
 
 /**

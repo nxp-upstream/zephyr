@@ -66,11 +66,11 @@ int main(void)
 
 	/* clang-format off */
 	ret = mp_object_set_properties((struct mp_object *)&vid_src,
-		COND_CODE_0(CONFIG_PROP_NUM_BUFS, (), (PROP_SRC_NUM_BUFS, CONFIG_PROP_NUM_BUFS,))
-		COND_CODE_0(CONFIG_VIDEO_SOURCE_CROP_WIDTH, (), (PROP_VID_CROP, &crop,))
+		COND_CODE_0(CONFIG_MP_PROP_NUM_BUFS, (), (MP_PROP_SRC_NUM_BUFS, CONFIG_MP_PROP_NUM_BUFS,))
+		COND_CODE_0(CONFIG_VIDEO_SOURCE_CROP_WIDTH, (), (MP_PROP_VID_CROP, &crop,))
 		IF_ENABLED(CONFIG_VIDEO_CTRL_HFLIP, (VIDEO_CID_HFLIP, CONFIG_VIDEO_CTRL_HFLIP,))
 		IF_ENABLED(CONFIG_VIDEO_CTRL_VFLIP, (VIDEO_CID_VFLIP, CONFIG_VIDEO_CTRL_VFLIP,))
-		PROP_LIST_END);
+		MP_PROP_LIST_END);
 	/* clang-format on */
 	if (ret < 0) {
 		goto err;
@@ -102,8 +102,8 @@ int main(void)
 						 VIDEO_FOURCC_FROM_STR(CONFIG_VIDEO_PIXEL_FORMAT)));
 	}
 
-	ret = mp_object_set_properties((struct mp_object *)&caps_filter, PROP_BASE_CAPSFILTER_CAPS, caps,
-				       PROP_LIST_END);
+	ret = mp_object_set_properties((struct mp_object *)&caps_filter, MP_PROP_BASE_CAPSFILTER_CAPS, caps,
+				       MP_PROP_LIST_END);
 	mp_caps_unref(caps);
 	if (ret < 0) {
 		goto err;
@@ -115,9 +115,9 @@ int main(void)
 	MP_ELEMENT_INIT(&jpeg_dec, mp_vid_transform_init, JPEG_DEC_ID);
 	MP_ELEMENT_INIT(&vid_conv, mp_vid_convert_init, VID_CONV_ID);
 
-	ret = mp_object_set_properties((struct mp_object *)&jpeg_dec, PROP_VID_DEVICE,
+	ret = mp_object_set_properties((struct mp_object *)&jpeg_dec, MP_PROP_VID_DEVICE,
 				       DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_jpegdec)),
-				       PROP_LIST_END);
+				       MP_PROP_LIST_END);
 	if (ret < 0) {
 		goto err;
 	}
@@ -130,7 +130,7 @@ int main(void)
 	/* clang-format off */
 	ret = mp_object_set_properties((struct mp_object *)&vid_trans,
 		COND_CODE_0(CONFIG_VIDEO_ROTATION_ANGLE,
-			(), (VIDEO_CID_ROTATE, CONFIG_VIDEO_ROTATION_ANGLE,)) PROP_LIST_END);
+			(), (VIDEO_CID_ROTATE, CONFIG_VIDEO_ROTATION_ANGLE,)) MP_PROP_LIST_END);
 	/* clang-format on */
 	if (ret < 0) {
 		goto err;

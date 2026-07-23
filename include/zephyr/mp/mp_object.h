@@ -86,16 +86,16 @@ void mp_object_replace(struct mp_object **ptr, struct mp_object *new_obj);
  * @brief Set multiple properties of an mp_object.
  *
  * This function sets one or more properties on the given object.
- * The arguments must be provided as a sequence of {key, value} pairs, terminated by PROP_LIST_END.
+ * The arguments must be provided as a sequence of {key, value} pairs, terminated by MP_PROP_LIST_END.
  *
  * Example usage:
  *
  * @code
- * mp_object_set_properties(obj, "key1", val1, "key2", val2, PROP_LIST_END);
+ * mp_object_set_properties(obj, "key1", val1, "key2", val2, MP_PROP_LIST_END);
  * @endcode
  *
  * @param obj Pointer to a @ref mp_object.
- * @param ... A variable list of {uint32_t key, const void *val} pairs, terminated by PROP_LIST_END.
+ * @param ... A variable list of {uint32_t key, const void *val} pairs, terminated by MP_PROP_LIST_END.
  *
  */
 int mp_object_set_properties(struct mp_object *obj, ...);
@@ -104,16 +104,16 @@ int mp_object_set_properties(struct mp_object *obj, ...);
  * @brief Get multiple properties' values of an mp_object.
  *
  * This function gets one or more properties' values of the given object.
- * The arguments must be provided as a sequence of {key, value} pairs, terminated by PROP_LIST_END.
+ * The arguments must be provided as a sequence of {key, value} pairs, terminated by MP_PROP_LIST_END.
  *
  * Example usage:
  *
  * @code
- * mp_object_get_properties(obj, "key1", val1, "key2", val2, PROP_LIST_END);
+ * mp_object_get_properties(obj, "key1", val1, "key2", val2, MP_PROP_LIST_END);
  * @endcode
  *
  * @param obj Pointer to a @ref mp_object.
- * @param ... A variable list of {uint32_t key, void *val} pairs, terminated by PROP_LIST_END.
+ * @param ... A variable list of {uint32_t key, void *val} pairs, terminated by MP_PROP_LIST_END.
  *
  */
 int mp_object_get_properties(struct mp_object *obj, ...);

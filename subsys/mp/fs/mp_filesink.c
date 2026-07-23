@@ -21,7 +21,7 @@ static int mp_filesink_set_property(struct mp_object *obj, uint32_t key, const v
 	struct mp_filesink *fsink = (struct mp_filesink *)obj;
 
 	switch (key) {
-	case PROP_FS_SINK_PATH:
+	case MP_PROP_FS_SINK_PATH:
 		fsink->path = (const char *)val;
 		return 0;
 	default:
@@ -34,7 +34,7 @@ static int mp_filesink_get_property(struct mp_object *obj, uint32_t key, void *v
 	struct mp_filesink *fsink = (struct mp_filesink *)obj;
 
 	switch (key) {
-	case PROP_FS_SINK_PATH:
+	case MP_PROP_FS_SINK_PATH:
 		*(const char **)val = fsink->path;
 		return 0;
 	default:

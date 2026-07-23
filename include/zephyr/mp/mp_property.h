@@ -20,18 +20,18 @@
  */
 
 /** Sentinel value to mark the end of property lists */
-#define PROP_LIST_END -1
+#define MP_PROP_LIST_END -1
 
 /**
  * @brief Properties for a base source element
  *
  * Enumeration of properties that can be configured for base source
  */
-enum prop_src {
+enum mp_prop_src {
 	/** Number of buffers that the source outputs before sending EOS */
-	PROP_SRC_NUM_BUFS,
+	MP_PROP_SRC_NUM_BUFS,
 	/** Last source property marker (for validation/iteration) */
-	PROP_SRC_LAST,
+	MP_PROP_SRC_LAST,
 };
 
 /**
@@ -39,9 +39,9 @@ enum prop_src {
  *
  * Enumeration of properties that can be configured for base transform
  */
-enum prop_transform {
+enum mp_prop_transform {
 	/** Last transform property marker (for validation/iteration) */
-	PROP_TRANSFORM_LAST,
+	MP_PROP_TRANSFORM_LAST,
 };
 
 /**
@@ -49,9 +49,9 @@ enum prop_transform {
  *
  * Enumeration of properties that can be configured for base sink
  */
-enum prop_sink {
+enum mp_prop_sink {
 	/** Last sink property marker (for validation/iteration) */
-	PROP_SINK_LAST,
+	MP_PROP_SINK_LAST,
 };
 
 /** @} */

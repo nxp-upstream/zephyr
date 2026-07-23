@@ -35,7 +35,7 @@ static int mp_queue_get_property(struct mp_object *obj, uint32_t id, void *val)
 	struct mp_queue *queue = (struct mp_queue *)obj;
 
 	switch (id) {
-	case PROP_BASE_QUEUE_SIZE:
+	case MP_PROP_BASE_QUEUE_SIZE:
 		*(uint8_t *)val = queue->size;
 		return 0;
 	default:
@@ -48,7 +48,7 @@ static int mp_queue_set_property(struct mp_object *obj, uint32_t id, const void 
 	struct mp_queue *queue = (struct mp_queue *)obj;
 
 	switch (id) {
-	case PROP_BASE_QUEUE_SIZE:
+	case MP_PROP_BASE_QUEUE_SIZE:
 		queue->size = *(const uint8_t *)val;
 		if (!IN_RANGE(queue->size, 1, CONFIG_MP_BASE_QUEUE_MAX_SIZE)) {
 			LOG_WRN("Requested size %u is out of range [1 %u]", queue->size,

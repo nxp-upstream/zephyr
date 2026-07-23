@@ -24,10 +24,10 @@ static int mp_aud_src_set_property(struct mp_object *obj, uint32_t key, const vo
 		CONTAINER_OF(src->pool, struct mp_aud_buffer_pool, pool);
 
 	switch (key) {
-	case PROP_AUD_SRC_SLAB_PTR:
+	case MP_PROP_AUD_SRC_SLAB_PTR:
 		pool->mem_slab = (struct k_mem_slab *)val;
 		break;
-	case PROP_AUD_SRC_DEVICE:
+	case MP_PROP_AUD_SRC_DEVICE:
 		pool->aud_dev = (const struct device *)val;
 
 		/* Device set, update supported caps */
@@ -51,14 +51,14 @@ static int mp_aud_src_get_property(struct mp_object *obj, uint32_t key, void *va
 	}
 
 	switch (key) {
-	case PROP_AUD_SRC_SLAB_PTR:
+	case MP_PROP_AUD_SRC_SLAB_PTR:
 		if (pool->mem_slab != NULL) {
 			*(void **)val = (void *)pool->mem_slab;
 		} else {
 			*(void **)val = NULL;
 		}
 		break;
-	case PROP_AUD_SRC_DEVICE:
+	case MP_PROP_AUD_SRC_DEVICE:
 		*(const struct device **)val = pool->aud_dev;
 		break;
 	default:

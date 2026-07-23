@@ -29,9 +29,9 @@
  *
  * Enumeration of properties that can be configured for a tee element
  */
-enum prop_base_tee {
+enum mp_prop_base_tee {
 	/** Number of source pads */
-	PROP_BASE_TEE_SRCPADS_NUM,
+	MP_PROP_BASE_TEE_SRCPADS_NUM,
 };
 
 /**

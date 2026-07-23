@@ -30,14 +30,14 @@
 /**
  * @brief Video property identifiers.
  *
- * Starts from MAX(@ref PROP_SRC_LAST, @ref PROP_TRANSFORM_LAST) + 1 to
+ * Starts from MAX(@ref MP_PROP_SRC_LAST, @ref MP_PROP_TRANSFORM_LAST) + 1 to
  * avoid conflicts with base source and transform properties.
  */
-enum prop_vid {
+enum mp_prop_vid {
 	/** Video device property */
-	PROP_VID_DEVICE = MAX((int)MP_PROP_SRC_LAST, (int)MP_PROP_TRANSFORM_LAST),
+	MP_PROP_VID_DEVICE = MAX((int)MP_PROP_SRC_LAST, (int)MP_PROP_TRANSFORM_LAST),
 	/** Crop selection target property */
-	PROP_VID_CROP,
+	MP_PROP_VID_CROP,
 };
 
 /** @} */

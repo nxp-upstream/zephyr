@@ -77,7 +77,7 @@ config VIDEO_ROTATION_ANGLE
 	help
 	   Specify one of these values {0, 90, 180, 270} in degree to rotate the video frame
 
-config PROP_NUM_BUFS
+config MP_PROP_NUM_BUFS
 	int "Number of buffers the source provides before stopping"
 	default 0
 	help

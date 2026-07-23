@@ -27,9 +27,9 @@
  * Enumeration defining property IDs specific to transform elements.
  * These properties extend the base transform properties.
  */
-enum prop_aud_transform {
+enum mp_prop_aud_transform {
 	/** Gain control property for audio level adjustment */
-	PROP_AUD_TRANSFORM_GAIN = PROP_TRANSFORM_LAST,
+	MP_PROP_AUD_TRANSFORM_GAIN = MP_PROP_TRANSFORM_LAST,
 };
 
 /**
@@ -38,11 +38,11 @@ enum prop_aud_transform {
  * Enumeration defining property IDs specific to source elements.
  * These properties extend the base source properties.
  */
-enum prop_aud_src {
+enum mp_prop_aud_src {
 	/** Pointer to source memory slab for audio buffer management */
-	PROP_AUD_SRC_SLAB_PTR = PROP_SRC_LAST,
+	MP_PROP_AUD_SRC_SLAB_PTR = MP_PROP_SRC_LAST,
 	/** Audio source device */
-	PROP_AUD_SRC_DEVICE,
+	MP_PROP_AUD_SRC_DEVICE,
 };
 
 /**
@@ -51,15 +51,15 @@ enum prop_aud_src {
  * Enumeration defining property IDs specific to sink elements.
  * These properties extend the base sink properties.
  */
-enum prop_aud_sink {
+enum mp_prop_aud_sink {
 	/** Pointer to sink memory slab for audio buffer management */
-	PROP_AUD_SINK_SLAB_PTR = PROP_SINK_LAST,
+	MP_PROP_AUD_SINK_SLAB_PTR = MP_PROP_SINK_LAST,
 	/** Clock role configuration for audio sink (controller/target) */
-	PROP_AUD_SINK_CLK_ROLE,
+	MP_PROP_AUD_SINK_CLK_ROLE,
 	/** I2S (SAI) sink device */
-	PROP_AUD_SINK_I2S_DEVICE,
+	MP_PROP_AUD_SINK_I2S_DEVICE,
 	/** Codec sink device */
-	PROP_AUD_SINK_CODEC_DEVICE,
+	MP_PROP_AUD_SINK_CODEC_DEVICE,
 };
 
 /** @} */

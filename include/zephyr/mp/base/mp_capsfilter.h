@@ -36,14 +36,14 @@
  * @brief Caps filter Property Identifiers
  *
  * Defined property identifiers specific to the capsfilter element. These
- * properties extend the base transform properties defined in @ref prop_transform.
+ * properties extend the base transform properties defined in @ref mp_prop_transform.
  *
- * The enumeration starts from PROP_TRANSFORM_LAST to ensure no
+ * The enumeration starts from MP_PROP_TRANSFORM_LAST to ensure no
  * conflicts with base transform properties.
  */
 enum {
 	/** Caps ID property */
-	PROP_BASE_CAPSFILTER_CAPS = PROP_TRANSFORM_LAST,
+	MP_PROP_BASE_CAPSFILTER_CAPS = MP_PROP_TRANSFORM_LAST,
 };
 
 /**

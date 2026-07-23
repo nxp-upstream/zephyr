@@ -161,9 +161,9 @@ int main(void)
 	MP_ELEMENT_INIT(&jpeg_dec, mp_vid_transform_init, JPEG_DEC_ID);
 	MP_ELEMENT_INIT(&vid_conv, mp_vid_convert_init, VID_CONV_ID);
 
-	ret = mp_object_set_properties((struct mp_object *)&jpeg_dec, PROP_VID_DEVICE,
+	ret = mp_object_set_properties((struct mp_object *)&jpeg_dec, MP_PROP_VID_DEVICE,
 				       DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_jpegdec)),
-				       PROP_LIST_END);
+				       MP_PROP_LIST_END);
 	if (ret < 0) {
 		goto err;
 	}
@@ -175,14 +175,14 @@ int main(void)
 	ret = mp_object_set_properties(
 		(struct mp_object *)&vid_trans,
 		COND_CODE_0(CONFIG_VIDEO_ROTATION_ANGLE,
-			(), (VIDEO_CID_ROTATE, CONFIG_VIDEO_ROTATION_ANGLE,)) PROP_LIST_END);
+			(), (VIDEO_CID_ROTATE, CONFIG_VIDEO_ROTATION_ANGLE,)) MP_PROP_LIST_END);
 	if (ret < 0) {
 		goto err;
 	}
 #endif
 
-	ret = mp_object_set_properties((struct mp_object *)&filesrc, PROP_FS_SRC_PATH,
-				       CONFIG_FILE_INPUT_PATH, PROP_LIST_END);
+	ret = mp_object_set_properties((struct mp_object *)&filesrc, MP_PROP_FS_SRC_PATH,
+				       CONFIG_FILE_INPUT_PATH, MP_PROP_LIST_END);
 	if (ret < 0) {
 		goto err;
 	}
@@ -197,8 +197,8 @@ int main(void)
 			goto err;
 		}
 
-		ret = mp_object_set_properties((struct mp_object *)&caps_filter, PROP_BASE_CAPSFILTER_CAPS, caps,
-					       PROP_LIST_END);
+		ret = mp_object_set_properties((struct mp_object *)&caps_filter, MP_PROP_BASE_CAPSFILTER_CAPS, caps,
+					       MP_PROP_LIST_END);
 		mp_caps_unref(caps);
 		if (ret < 0) {
 			goto err;

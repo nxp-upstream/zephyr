@@ -52,7 +52,7 @@ static int mp_vid_src_set_property(struct mp_object *obj, uint32_t key, const vo
 	struct mp_src *src = &vid_src->src;
 	int ret = mp_vid_object_set_property(&vid_src->vid_obj, key, val);
 
-	if (ret == 0 && (key == PROP_VID_DEVICE || key == PROP_VID_CROP)) {
+	if (ret == 0 && (key == MP_PROP_VID_DEVICE || key == MP_PROP_VID_CROP)) {
 		/* Device set, update caps */
 		mp_vid_src_update_caps(src);
 	}

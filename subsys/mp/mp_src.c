@@ -43,7 +43,7 @@ int mp_src_set_property(struct mp_object *obj, uint32_t key, const void *val)
 	struct mp_src *src = (struct mp_src *)obj;
 
 	switch (key) {
-	case PROP_SRC_NUM_BUFS:
+	case MP_PROP_SRC_NUM_BUFS:
 		src->num_buffers = (uint32_t)(uintptr_t)val;
 		return 0;
 	default:
@@ -57,7 +57,7 @@ int mp_src_get_property(struct mp_object *obj, uint32_t key, void *val)
 	struct mp_src *src = (struct mp_src *)obj;
 
 	switch (key) {
-	case PROP_SRC_NUM_BUFS:
+	case MP_PROP_SRC_NUM_BUFS:
 		*(uint32_t *)val = src->num_buffers;
 		break;
 	default:

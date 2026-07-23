@@ -140,7 +140,7 @@ static int mp_disp_sink_set_property(struct mp_object *obj, uint32_t key, const 
 	struct mp_sink *sink = &disp_sink->sink;
 
 	switch (key) {
-	case PROP_DISP_SINK_DEVICE:
+	case MP_PROP_DISP_SINK_DEVICE:
 		disp_sink->display_dev = val;
 		/* Device set, update caps */
 		mp_disp_sink_update_caps(sink);
@@ -156,7 +156,7 @@ static int mp_disp_sink_get_property(struct mp_object *obj, uint32_t key, void *
 	struct mp_disp_sink *disp_sink = (struct mp_disp_sink *)obj;
 
 	switch (key) {
-	case PROP_DISP_SINK_DEVICE:
+	case MP_PROP_DISP_SINK_DEVICE:
 		*(const struct device **)val = disp_sink->display_dev;
 
 		return 0;

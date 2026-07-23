@@ -87,14 +87,14 @@ int main(void)
 	MP_ELEMENT_INIT(&filesrc, mp_filesrc_init, FILE_SRC_ID);
 	MP_ELEMENT_INIT(&filesink, mp_filesink_init, FILE_SINK_ID);
 
-	ret = mp_object_set_properties((struct mp_object *)&filesrc, PROP_FS_SRC_PATH,
-				       MNT_POINT "/" INPUT_FILE, PROP_LIST_END);
+	ret = mp_object_set_properties((struct mp_object *)&filesrc, MP_PROP_FS_SRC_PATH,
+				       MNT_POINT "/" INPUT_FILE, MP_PROP_LIST_END);
 	if (ret < 0) {
 		goto err;
 	}
 
-	ret = mp_object_set_properties((struct mp_object *)&filesink, PROP_FS_SINK_PATH,
-				       MNT_POINT "/" OUTPUT_FILE, PROP_LIST_END);
+	ret = mp_object_set_properties((struct mp_object *)&filesink, MP_PROP_FS_SINK_PATH,
+				       MNT_POINT "/" OUTPUT_FILE, MP_PROP_LIST_END);
 	if (ret < 0) {
 		goto err;
 	}

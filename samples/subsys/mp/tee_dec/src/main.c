@@ -153,15 +153,15 @@ int main(void)
 	MP_ELEMENT_INIT(&filesink, mp_filesink_init, FILE_SINK_ID);
 
 	/* Set properties */
-	ret = mp_object_set_properties((struct mp_object *)&filesrc, PROP_FS_SRC_PATH,
-				       CONFIG_FILE_INPUT_PATH, PROP_LIST_END);
+	ret = mp_object_set_properties((struct mp_object *)&filesrc, MP_PROP_FS_SRC_PATH,
+				       CONFIG_FILE_INPUT_PATH, MP_PROP_LIST_END);
 	if (ret < 0) {
 		LOG_ERR("Failed to set filesrc properties (%d)", ret);
 		goto err;
 	}
 
-	ret = mp_object_set_properties((struct mp_object *)&filesink, PROP_FS_SINK_PATH,
-				       CONFIG_FILE_OUTPUT_PATH, PROP_LIST_END);
+	ret = mp_object_set_properties((struct mp_object *)&filesink, MP_PROP_FS_SINK_PATH,
+				       CONFIG_FILE_OUTPUT_PATH, MP_PROP_LIST_END);
 	if (ret < 0) {
 		LOG_ERR("Failed to set filesink properties (%d)", ret);
 		goto err;
@@ -179,8 +179,8 @@ int main(void)
 			goto err;
 		}
 
-		ret = mp_object_set_properties((struct mp_object *)&caps_filter, PROP_BASE_CAPSFILTER_CAPS, caps,
-					       PROP_LIST_END);
+		ret = mp_object_set_properties((struct mp_object *)&caps_filter, MP_PROP_BASE_CAPSFILTER_CAPS, caps,
+					       MP_PROP_LIST_END);
 		mp_caps_unref(caps);
 		if (ret < 0) {
 			LOG_ERR("Failed to set caps_filter properties (%d)", ret);

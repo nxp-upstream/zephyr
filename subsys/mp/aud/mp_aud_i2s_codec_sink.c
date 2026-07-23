@@ -150,10 +150,10 @@ static int mp_aud_i2s_codec_sink_set_property(struct mp_object *obj, uint32_t ke
 	struct mp_aud_i2s_codec_sink *aud_i2s_codec_sink = (struct mp_aud_i2s_codec_sink *)obj;
 
 	switch (key) {
-	case PROP_AUD_SINK_SLAB_PTR:
+	case MP_PROP_AUD_SINK_SLAB_PTR:
 		aud_i2s_codec_sink->mem_slab = (struct k_mem_slab *)val;
 		break;
-	case PROP_AUD_SINK_CLK_ROLE:
+	case MP_PROP_AUD_SINK_CLK_ROLE:
 		if ((enum mp_aud_i2s_codec_clk_role)(uintptr_t)val !=
 			    MP_AUD_I2S_CONTROLLER_CODEC_TARGET &&
 		    (enum mp_aud_i2s_codec_clk_role)(uintptr_t)val !=
@@ -163,13 +163,13 @@ static int mp_aud_i2s_codec_sink_set_property(struct mp_object *obj, uint32_t ke
 		}
 		aud_i2s_codec_sink->clk_role = (enum mp_aud_i2s_codec_clk_role)(uintptr_t)val;
 		break;
-	case PROP_AUD_SINK_I2S_DEVICE:
+	case MP_PROP_AUD_SINK_I2S_DEVICE:
 		aud_i2s_codec_sink->i2s_dev = (const struct device *)val;
 
 		/* Device set, update supported caps */
 		mp_aud_i2s_codec_sink_update_caps(&aud_i2s_codec_sink->sink);
 		break;
-	case PROP_AUD_SINK_CODEC_DEVICE:
+	case MP_PROP_AUD_SINK_CODEC_DEVICE:
 		aud_i2s_codec_sink->codec_dev = (const struct device *)val;
 
 		/* Device set, update supported caps */
@@ -191,20 +191,20 @@ static int mp_aud_i2s_codec_sink_get_property(struct mp_object *obj, uint32_t ke
 	}
 
 	switch (key) {
-	case PROP_AUD_SINK_SLAB_PTR:
+	case MP_PROP_AUD_SINK_SLAB_PTR:
 		if (aud_i2s_codec_sink->mem_slab != NULL) {
 			*(void **)val = (void *)aud_i2s_codec_sink->mem_slab;
 		} else {
 			*(void **)val = NULL;
 		}
 		break;
-	case PROP_AUD_SINK_CLK_ROLE:
+	case MP_PROP_AUD_SINK_CLK_ROLE:
 		*(enum mp_aud_i2s_codec_clk_role *)val = aud_i2s_codec_sink->clk_role;
 		break;
-	case PROP_AUD_SINK_I2S_DEVICE:
+	case MP_PROP_AUD_SINK_I2S_DEVICE:
 		*(const struct device **)val = aud_i2s_codec_sink->i2s_dev;
 		break;
-	case PROP_AUD_SINK_CODEC_DEVICE:
+	case MP_PROP_AUD_SINK_CODEC_DEVICE:
 		*(const struct device **)val = aud_i2s_codec_sink->codec_dev;
 		break;
 	default:

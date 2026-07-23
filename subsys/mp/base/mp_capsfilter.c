@@ -13,7 +13,7 @@ int mp_caps_filter_set_property(struct mp_object *obj, uint32_t key, const void 
 	struct mp_transform *transform = (struct mp_transform *)obj;
 
 	switch (key) {
-	case PROP_BASE_CAPSFILTER_CAPS:
+	case MP_PROP_BASE_CAPSFILTER_CAPS:
 		mp_caps_replace(&transform->sinkpad.caps, (struct mp_caps *)val);
 		mp_caps_replace(&transform->srcpad.caps, (struct mp_caps *)val);
 		return 0;
@@ -27,7 +27,7 @@ int mp_caps_filter_get_property(struct mp_object *obj, uint32_t key, void *val)
 	struct mp_transform *transform = (struct mp_transform *)obj;
 
 	switch (key) {
-	case PROP_BASE_CAPSFILTER_CAPS:
+	case MP_PROP_BASE_CAPSFILTER_CAPS:
 		/*
 		 * The pad's caps may change during and after caps negotiation but the function is
 		 * generally called before any pipeline process, so it's OK to get the filter caps

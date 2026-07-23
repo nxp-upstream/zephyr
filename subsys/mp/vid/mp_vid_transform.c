@@ -163,7 +163,7 @@ static int mp_vid_transform_set_property(struct mp_object *obj, uint32_t key, co
 	struct mp_vid_transform *vid_transform = (struct mp_vid_transform *)obj;
 
 	switch (key) {
-	case PROP_VID_DEVICE:
+	case MP_PROP_VID_DEVICE:
 		mp_vid_object_set_property(&vid_transform->vid_obj_in, key, val);
 		mp_vid_object_set_property(&vid_transform->vid_obj_out, key, val);
 		/* Device set, update caps */
