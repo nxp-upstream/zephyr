@@ -128,8 +128,8 @@ static int append_frmrates_to_structure(const struct device *vdev, struct video_
 
 	return 0;
 nomem:
-	mp_value_destroy(frmrate);
-	mp_value_destroy(frmrates);
+	mp_value_unref(frmrate);
+	mp_value_unref(frmrates);
 	return -ENOMEM;
 }
 

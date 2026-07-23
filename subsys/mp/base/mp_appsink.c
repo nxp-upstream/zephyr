@@ -5,7 +5,7 @@
  */
 
 #include <zephyr/logging/log.h>
-#include <zephyr/mp/zbase/mp_appsink.h>
+#include <zephyr/mp/base/mp_appsink.h>
 
 LOG_MODULE_REGISTER(mp_appsink, CONFIG_MP_LOG_LEVEL);
 

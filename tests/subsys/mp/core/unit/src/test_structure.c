@@ -79,15 +79,13 @@ ZTEST(mp_structure_api, test_new)
 	zassert_not_null(bw, "BITWIDTH field not found");
 	zassert_equal(mp_value_get_int(bw), 16, "bitwidth != 16");
 
-	mp_structure_clear(s);
-	zassert_is_null(mp_structure_get_value(s, MP_CAPS_BITWIDTH), "field found after clear");
-	mp_structure_destroy(s);
+	mp_structure_unref(s);
 
 	struct mp_structure *sv = mp_structure_new(MP_MEDIA_VIDEO, MP_STRUCTURE_END);
 
 	zassert_not_null(sv, "mp_structure_new(no fields) returned NULL");
 	zassert_equal(sv->media_type_id, MP_MEDIA_VIDEO, "media_type_id != VIDEO");
-	mp_structure_destroy(sv);
+	mp_structure_unref(sv);
 
 	struct mp_structure *sr = mp_structure_new(
 		MP_MEDIA_AUDIO_PCM,
@@ -102,7 +100,7 @@ ZTEST(mp_structure_api, test_new)
 	zassert_equal(mp_value_get_type(val), MP_TYPE_RANGE, "type != INT_RANGE");
 	zassert_equal(mp_value_get_range_min(val), 8000, "min != 8000");
 	zassert_equal(mp_value_get_range_max(val), 48000, "max != 48000");
-	mp_structure_destroy(sr);
+	mp_structure_unref(sr);
 
 	struct mp_structure *si = mp_structure_new_empty(MP_MEDIA_AUDIO_PCM, 3);
 
@@ -117,7 +115,7 @@ ZTEST(mp_structure_api, test_new)
 
 	zassert_equal(mp_structure_append(si, MP_CAPS_SAMPLE_RATE, dup_val), -EEXIST,
 		      "duplicate field != -EEXIST");
-	mp_value_destroy(dup_val);
+	mp_value_unref(dup_val);
 
 	zassert_equal(mp_structure_init(NULL, MP_MEDIA_AUDIO_PCM, 0), -EINVAL,
 		      "init(NULL) != -EINVAL");
@@ -130,7 +128,7 @@ ZTEST(mp_structure_api, test_new)
 
 	zassert_not_null(retrieved, "appended field not found");
 	zassert_equal(mp_value_get_int(retrieved), 44100, "retrieved value != 44100");
-	mp_structure_destroy(si);
+	mp_structure_unref(si);
 }
 
 ZTEST(mp_structure_api, test_is_fixed_fixate_duplicate)
@@ -144,16 +142,7 @@ ZTEST(mp_structure_api, test_is_fixed_fixate_duplicate)
 	);
 
 	zassert_true(mp_structure_is_fixed(fixed_s), "structure not fixed");
-
-	struct mp_structure *dup = mp_structure_duplicate(fixed_s);
-
-	zassert_not_null(dup, "duplicate returned NULL");
-	zassert_true(dup != fixed_s, "duplicate == original");
-	zassert_equal(dup->media_type_id, fixed_s->media_type_id, "media_type_id mismatch");
-	zassert_equal(mp_value_get_int(mp_structure_get_value(dup, MP_CAPS_SAMPLE_RATE)), 48000,
-		      "duplicated value != 48000");
-	mp_structure_destroy(dup);
-	mp_structure_destroy(fixed_s);
+	mp_structure_unref(fixed_s);
 
 	struct mp_structure *range_s = mp_structure_new(
 		MP_MEDIA_AUDIO_PCM,
@@ -167,22 +156,24 @@ ZTEST(mp_structure_api, test_is_fixed_fixate_duplicate)
 
 	zassert_not_null(fixated, "fixate returned NULL");
 	zassert_true(mp_structure_is_fixed(fixated), "fixated structure not fixed");
-	mp_structure_destroy(range_s);
-	mp_structure_destroy(fixated);
+	mp_structure_unref(range_s);
+	mp_structure_unref(fixated);
 }
 
 ZTEST(mp_structure_api, test_intersect_asymmetric_fields)
 {
-	/* s1: fields TEST_INT and TEST_UINT */
+	/* s1: fields TEST_INT and TEST_INT2 */
 	struct mp_structure *s1 = mp_structure_new(
 		MP_MEDIA_AUDIO_PCM,
 		TEST_INT, MP_INT(100U),
 		TEST_INT2, MP_INT(-42),
 		MP_STRUCTURE_END);
-	/* s2: fields TEST_UINT (common) and TEST_STRING (only in s2) */
-	struct mp_structure *s2 =
-		mp_structure_new(MP_MEDIA_AUDIO_PCM, TEST_UINT, MP_TYPE_UINT, 100U, TEST_STRING,
-				 MP_TYPE_STRING, "hello", MP_STRUCTURE_END);
+	/* s2: fields TEST_INT (common) and TEST_STRING (only in s2) */
+	struct mp_structure *s2 = mp_structure_new(
+		MP_MEDIA_AUDIO_PCM,
+		TEST_INT, MP_INT(100U),
+		TEST_STRING, MP_STRING("hello"),
+		MP_STRUCTURE_END);
 
 	zassert_true(mp_structure_can_intersect(s1, s2), "asymmetric structures cannot intersect");
 
@@ -205,20 +196,25 @@ ZTEST(mp_structure_api, test_intersect_asymmetric_fields)
 	v = mp_structure_get_value(result, TEST_STRING);
 	validate_string_value(v, "hello");
 
-	mp_structure_destroy(s1);
-	mp_structure_destroy(s2);
-	mp_structure_destroy(result);
+	mp_structure_unref(s1);
+	mp_structure_unref(s2);
+	mp_structure_unref(result);
 }
 
 ZTEST(mp_structure_api, test_cannot_intersect)
 {
 	struct mp_structure *s_sample_int = mp_structure_new(
-		MP_MEDIA_AUDIO_PCM, MP_CAPS_SAMPLE_RATE, MP_TYPE_INT, 48000, MP_STRUCTURE_END);
-	struct mp_structure *s_bw = mp_structure_new(MP_MEDIA_AUDIO_PCM, MP_CAPS_BITWIDTH,
-						     MP_TYPE_INT, 16, MP_STRUCTURE_END);
-	struct mp_structure *s_low =
-		mp_structure_new(MP_MEDIA_AUDIO_PCM, MP_CAPS_SAMPLE_RATE, MP_TYPE_INT_RANGE, 8000,
-				 16000, 8000, MP_STRUCTURE_END);
+		MP_MEDIA_AUDIO_PCM,
+		MP_CAPS_SAMPLE_RATE, MP_INT(48000),
+		MP_STRUCTURE_END);
+	struct mp_structure *s_bw = mp_structure_new(
+		MP_MEDIA_AUDIO_PCM,
+		MP_CAPS_BITWIDTH, MP_INT(16),
+		MP_STRUCTURE_END);
+	struct mp_structure *s_low = mp_structure_new(
+		MP_MEDIA_AUDIO_PCM,
+		MP_CAPS_SAMPLE_RATE, MP_RANGE(8000, 16000, 8000),
+		MP_STRUCTURE_END);
 
 	/* Case 1: NULL operand - can_intersect must return false, intersect must return NULL */
 	zassert_false(mp_structure_can_intersect(s_sample_int, NULL),
@@ -242,9 +238,9 @@ ZTEST(mp_structure_api, test_cannot_intersect)
 	zassert_is_null(mp_structure_intersect(s_low, s_sample_int),
 			"intersect with incompatible field value should return NULL");
 
-	mp_structure_destroy(s_sample_int);
-	mp_structure_destroy(s_bw);
-	mp_structure_destroy(s_low);
+	mp_structure_unref(s_sample_int);
+	mp_structure_unref(s_bw);
+	mp_structure_unref(s_low);
 }
 
 ZTEST(mp_structure_api, test_sanity)
@@ -258,7 +254,7 @@ ZTEST(mp_structure_api, test_sanity)
 	zassert_is_null(mp_structure_get_value(s, MP_CAPS_IMAGE_WIDTH),
 			"non-existent field != NULL");
 
-	mp_structure_destroy(s);
+	mp_structure_unref(s);
 
 	struct mp_structure *audio = mp_structure_new(
 		MP_MEDIA_AUDIO_PCM,
@@ -274,6 +270,6 @@ ZTEST(mp_structure_api, test_sanity)
 	zassert_false(mp_structure_can_intersect(audio, video),
 		      "different media types can intersect");
 
-	mp_structure_destroy(audio);
-	mp_structure_destroy(video);
+	mp_structure_unref(audio);
+	mp_structure_unref(video);
 }

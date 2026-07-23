@@ -27,8 +27,7 @@ static void mp_caps_destroy(struct mp_object *obj)
 	while (!sys_slist_is_empty(&caps->structures)) {
 		structure = CONTAINER_OF(sys_slist_get(&caps->structures),
 					      struct mp_structure, node);
-
-		mp_structure_destroy(structure);
+		mp_structure_unref(structure);
 	}
 	k_free(obj);
 }
@@ -93,7 +92,7 @@ struct mp_caps *mp_caps_new(uint8_t media_type_id, ...)
 
 	return caps;
 error:
-	mp_caps_destroy((struct mp_object *)caps);
+	mp_caps_unref(caps);
 	return NULL;
 }
 
@@ -191,11 +190,11 @@ struct mp_caps *mp_caps_intersect(struct mp_caps *caps1, struct mp_caps *caps2)
 	}
 
 	if (mp_caps_is_any(caps1)) {
-		return mp_caps_duplicate(caps2);
+		return mp_caps_ref(caps2);
 	}
 
 	if (mp_caps_is_any(caps2)) {
-		return mp_caps_duplicate(caps1);
+		return mp_caps_ref(caps1);
 	}
 
 	intersect_caps = mp_caps_new_empty();
@@ -234,27 +233,6 @@ bool mp_caps_can_intersect(struct mp_caps *caps1, struct mp_caps *caps2)
 	}
 
 	return false;
-}
-
-struct mp_caps *mp_caps_duplicate(struct mp_caps *caps)
-{
-	struct mp_structure *structure;
-	struct mp_caps *caps_copy;
-
-	if (caps == NULL) {
-		return NULL;
-	}
-
-	if (mp_caps_is_any(caps)) {
-		return mp_caps_new_any();
-	}
-
-	caps_copy = mp_caps_new_empty();
-	SYS_SLIST_FOR_EACH_CONTAINER(&caps->structures, structure, node) {
-		mp_caps_append(caps_copy, mp_structure_duplicate(structure));
-	}
-
-	return caps_copy;
 }
 
 struct mp_structure *mp_caps_get_structure(struct mp_caps *caps, int index)

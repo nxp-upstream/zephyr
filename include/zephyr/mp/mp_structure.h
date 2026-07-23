@@ -81,6 +81,8 @@
 struct mp_structure {
 	/** Internal use, for bundling multiple structures together */
 	sys_snode_t node;
+	/** Reference counter */
+	atomic_t ref;
 	/** Media type ID of the structure */
 	uint8_t media_type_id;
 	/** Number of fields currently present in the structure, one field is key + value */
@@ -172,25 +174,21 @@ int mp_structure_init(struct mp_structure *structure, uint8_t media_type_id, siz
 int mp_structure_append(struct mp_structure *structure, uint8_t field_id, mp_value_t value);
 
 /**
- * @brief Clear all fields from an @ref mp_structure.
+ * @brief Add a new reference to a structure
  *
- * Releases all field values and frees field nodes. The structure itself
- * is not freed and may be reused.
- *
- * @param structure Structure to clear.
- *
- * @return 0 on success, -EINVAL if structure is NULL, -EIO on internal error
+ * @param structure input structure
+ * @return same structure with the reference increased
  */
-int mp_structure_clear(struct mp_structure *structure);
+struct mp_structure *mp_structure_ref(struct mp_structure *structure);
 
 /**
- * @brief Destroy an @ref mp_structure.
+ * @brief Remove a reference from a structure
  *
- * Clears all fields and frees the structure itself.
+ * If the structure reference count is reaching zero, the structure is deallocated.
  *
- * @param structure Pointer to the structure to destroy.
+ * @param structure input structure
  */
-void mp_structure_destroy(struct mp_structure *structure);
+void mp_structure_unref(struct mp_structure *structure);
 
 /**
  * @brief Get the number of fields in an @ref mp_structure.
@@ -252,11 +250,19 @@ bool mp_structure_can_intersect(struct mp_structure *struct1, struct mp_structur
 /**
  * @brief Create a new intersected @ref mp_structure.
  *
+ * Intersection are used to check if a stream source and sink are compatible.
+ * Each struct field represent a constraint over what a stream can receive/send.
+ *
+ * At the level of fields, union is applied: fields present on only one struct are imported as-is,
+ *
+ * At the level of values, intersection is applied: the @ref mp_value_intersect is used to merge.
+ *
+ * One edge-case: when structs are not having any common field, NULL is returned.
+ *
  * @param structure1 First structure.
  * @param structure2 Second structure.
  *
- * @return Pointer to the new intersected structure, or NULL if the
- *         structures cannot intersect.
+ * @return Pointer to the new intersected structure, or NULL if the structures cannot intersect.
  */
 struct mp_structure *mp_structure_intersect(struct mp_structure *structure1,
 					    struct mp_structure *structure2);

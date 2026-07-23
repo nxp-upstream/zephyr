@@ -20,9 +20,10 @@ int mp_structure_init(struct mp_structure *structure, uint8_t media_type_id, siz
 	}
 
 	memset(structure, 0x00, sizeof(*structure));
+	memset(&structure->fields, 0x00, capacity * sizeof(*structure->fields));
 	structure->media_type_id = media_type_id;
 	structure->capacity = capacity;
-	memset(&structure->fields, 0x00, capacity * sizeof(*structure->fields));
+	structure->ref = ATOMIC_INIT(0);
 
 	return 0;
 }
@@ -38,31 +39,17 @@ struct mp_structure *mp_structure_new_empty(uint8_t media_type_id, size_t capaci
 
 	mp_structure_init(structure, media_type_id, capacity);
 
-	return structure;
+	return mp_structure_ref(structure);
 }
 
-int mp_structure_clear(struct mp_structure *structure)
+static void mp_structure_destroy(struct mp_structure *structure)
 {
 	if (structure == NULL) {
-		return -EINVAL;
+		return;
 	}
 
 	for (size_t i = 0; i < structure->num_values; i++) {
-		mp_value_destroy(structure->fields[i].value);
-	}
-
-	mp_structure_init(structure, 0, 0);
-
-	return 0;
-}
-
-void mp_structure_destroy(struct mp_structure *structure)
-{
-	int ret;
-
-	ret = mp_structure_clear(structure);
-	if (ret < 0) {
-		return;
+		mp_value_unref(structure->fields[i].value);
 	}
 
 	k_free(structure);
@@ -75,12 +62,14 @@ int mp_structure_append(struct mp_structure *structure, uint8_t field_id, mp_val
 	}
 
 	if (structure->num_values >= structure->capacity) {
+		mp_value_unref(value);
 		/* User should allocate enough room ahead of time */
 		return -ENOBUFS;
 	}
 
 	for (size_t i = 0; i < structure->num_values; i++) {
 		if (structure->fields[i].id == field_id) {
+			mp_value_unref(value);
 			return -EEXIST;
 		}
 	}
@@ -167,51 +156,36 @@ mp_value_t mp_structure_get_value(struct mp_structure *structure, uint8_t field_
 	return NULL;
 }
 
-bool mp_structure_can_intersect(struct mp_structure *struct1, struct mp_structure *struct2)
+int mp_structure_len(struct mp_structure *structure)
 {
-	mp_value_t intersect_value;
-	bool can_intersect = false;
-
-	if (struct1 == NULL || struct2 == NULL) {
-		return false;
-	}
-
-	/* Check media type ID */
-	if (struct1->media_type_id != struct2->media_type_id) {
-		return false;
-	}
-
-	/* Check fields in struct1 against struct2 */
-	for (size_t i = 0; i < struct1->num_values; i++) {
-		uint8_t id1 = struct1->fields[i].id;
-		mp_value_t value1 = struct1->fields[i].value;
-		mp_value_t value2 = mp_structure_get_value(struct2, id1);
-		if (value2 != NULL) {
-			intersect_value = mp_value_intersect(value1, value2);
-			if (intersect_value != NULL) {
-				can_intersect = true;
-				mp_value_destroy(intersect_value);
-			} else {
-				can_intersect = false;
-				break;
-			}
-		}
-	}
-
-	return can_intersect;
+	return structure->num_values;
 }
 
 struct mp_structure *mp_structure_intersect(struct mp_structure *struct1,
 					    struct mp_structure *struct2)
 {
 	struct mp_structure *intersect_structure;
+	bool has_common_field = false;
 
-	if (!mp_structure_can_intersect(struct1, struct2)) {
+	if (struct1 == NULL || struct2 == NULL) {
+		return NULL;
+	}
+
+	for (size_t i = 0; i < struct1->num_values; i++) {
+		uint8_t id = struct1->fields[i].id;
+		if (mp_structure_get_value(struct2, id) != NULL) {
+			has_common_field = true;
+			break;
+		}
+	}
+
+	if (!has_common_field) {
+		printk("no common field between %p and %p\n", struct1, struct2);
 		return NULL;
 	}
 
 	intersect_structure = mp_structure_new_empty(
-		struct1->media_type_id, min(struct1->num_values, struct2->num_values));
+		struct1->media_type_id, struct1->num_values + struct2->num_values);
 
 	for (size_t i = 0; i < struct1->num_values; i++) {
 		uint8_t id = struct1->fields[i].id;
@@ -220,31 +194,54 @@ struct mp_structure *mp_structure_intersect(struct mp_structure *struct1,
 		mp_structure_append(intersect_structure, id, mp_value_intersect(value1, value2));
 	}
 
-	return intersect_structure;
-}
+	for (size_t i = 0; i < struct2->num_values; i++) {
+		uint8_t id = struct2->fields[i].id;
+		mp_value_t value2 = mp_structure_get_value(struct2, id);
+		mp_value_t value1 = mp_structure_get_value(struct1, id);
+		mp_structure_append(intersect_structure, id, mp_value_intersect(value2, value1));
+	}
 
-struct mp_structure *mp_structure_duplicate(struct mp_structure *src)
-{
-	int ret;
-	struct mp_structure *dup;
-
-	if (src == NULL) {
+	if (intersect_structure->num_values == 0) {
+		mp_structure_unref(intersect_structure);
 		return NULL;
 	}
 
-	dup = mp_structure_new_empty(src->media_type_id, src->num_values);
-	for (size_t i = 0; i < src->num_values; i++) {
-		ret = mp_structure_append(dup, src->fields[i].id,
-					  mp_value_duplicate(src->fields[i].value));
-		if (ret != 0) {
-			goto error;
-		}
+	return intersect_structure;
+}
+
+bool mp_structure_can_intersect(struct mp_structure *struct1, struct mp_structure *struct2)
+{
+	struct mp_structure *structure = mp_structure_intersect(struct1, struct2);
+	if (structure == NULL) {
+		return false;
 	}
 
-	return dup;
-error:
-	mp_structure_destroy(dup);
-	return NULL;}
+	mp_structure_unref(structure);
+
+	return true;
+}
+
+void mp_structure_unref(struct mp_structure *structure)
+{
+	if (structure == NULL) {
+		return;
+	}
+
+	__ASSERT_NO_MSG(atomic_get(&structure->ref) > 0);
+	if (atomic_dec(&structure->ref) == 1) {
+		mp_structure_destroy(structure);
+	}
+}
+
+struct mp_structure *mp_structure_ref(struct mp_structure *structure)
+{
+	if (structure == NULL) {
+		return NULL;
+	}
+
+	atomic_inc(&structure->ref);
+	return structure;
+}
 
 bool mp_structure_is_fixed(struct mp_structure *structure)
 {
@@ -277,10 +274,10 @@ struct mp_structure *mp_structure_fixate(struct mp_structure *src)
 			fixated_value = mp_value_new_int(mp_value_get_range_min(value));
 			break;
 		case MP_TYPE_LIST:
-			fixated_value = mp_value_duplicate(mp_value_list_get(value, 0));
+			fixated_value = mp_value_ref(mp_value_list_get(value, 0));
 			break;
 		default:
-			fixated_value = mp_value_duplicate(value);
+			fixated_value = mp_value_ref(value);
 			break;
 		}
 

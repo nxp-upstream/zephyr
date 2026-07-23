@@ -215,7 +215,7 @@ mp_value_t mp_value_new_range(int64_t min, int64_t max, int64_t step)
 	MP_VALUE_RANGE(value)->max = max;
 	MP_VALUE_RANGE(value)->step = step;
 
-	return value;
+	return mp_value_ref(value);
 }
 
 static mp_value_t mp_value_new_simple(enum mp_value_type type, int64_t i)
@@ -236,7 +236,7 @@ static mp_value_t mp_value_new_simple(enum mp_value_type type, int64_t i)
 
 	MP_VALUE_SIMPLE(value)->v_int = i;
 
-	return value;
+	return mp_value_ref(value);
 }
 
 mp_value_t mp_value_new_int(int64_t i)
@@ -268,14 +268,14 @@ mp_value_t mp_value_new_string(const char *s)
 
 	MP_VALUE_SIMPLE(value)->v_cstring = s;
 
-	return value;
+	return mp_value_ref(value);
 }
 
 mp_value_t mp_value_new_list(size_t size, mp_value_t *values)
 {
 	mp_value_t list;
 
-	list = k_malloc(sizeof(struct mp_value_list) + size * sizeof(mp_value_t));
+	list = k_calloc(1, sizeof(struct mp_value_list) + size * sizeof(mp_value_t));
 	if (list == NULL) {
 		return NULL;
 	}
@@ -284,13 +284,11 @@ mp_value_t mp_value_new_list(size_t size, mp_value_t *values)
 
 	MP_VALUE_LIST(list)->size = size;
 
-	if (values != NULL) {
-		memcpy(MP_VALUE_LIST(list)->v_list, values, sizeof(mp_value_t) * size);
-	} else {
-		memset(MP_VALUE_LIST(list)->v_list, 0, sizeof(mp_value_t) * size);
+	for (size_t i = 0; i < size; i++) {
+		MP_VALUE_LIST(list)->v_list[i] = (values == NULL) ? NULL : values[i];
 	}
 
-	return list;
+	return mp_value_ref(list);
 }
 
 const char *mp_value_get_string(const mp_value_t value)
@@ -316,17 +314,15 @@ bool mp_value_get_boolean(const mp_value_t value)
 	return MP_VALUE_GET_IMMEDIATE(value);
 }
 
-int mp_value_destroy(mp_value_t value)
+static void mp_value_destroy(mp_value_t value)
 {
-	int ret = 0;
-
 	if (MP_VALUE_IS_NULL(value) || MP_VALUE_IS_IMMEDIATE(value)) {
-		return 0;
+		return;
 	}
 
 	if (mp_value_get_type(value) == MP_TYPE_LIST) {
-		for (size_t i = 0; i < MP_VALUE_LIST(value)->size; i++) {
-			mp_value_destroy(mp_value_list_get(value, i));
+		for (size_t i = 0; i < mp_value_list_get_size(value); i++) {
+			mp_value_unref(mp_value_list_get(value, i));
 		}
 	}
 
@@ -337,61 +333,41 @@ int mp_value_destroy(mp_value_t value)
 	if (MP_VALUE_IS_OBJECT_PTR(value)) {
 		mp_object_unref(MP_VALUE_GET_PTR(value));
 	}
-
-	return ret;
 }
 
-mp_value_t mp_value_duplicate(const mp_value_t src)
+void mp_value_unref(mp_value_t value)
 {
-	mp_value_t dst;
+	if (value == NULL) {
+		return;
+	}
 
-	if (MP_VALUE_IS_NULL(src)) {
+	if (MP_VALUE_IS_VALUE_PTR(value)) {
+		__ASSERT_NO_MSG(atomic_get(&value->ref) > 0);
+		if (atomic_dec(&value->ref) == 1) {
+			mp_value_destroy(value);
+		}
+	}
+
+	if (MP_VALUE_IS_OBJECT_PTR(value)) {
+		mp_object_unref(MP_VALUE_GET_PTR(value));
+	}
+}
+
+mp_value_t mp_value_ref(mp_value_t value)
+{
+	if (value == NULL) {
 		return NULL;
 	}
 
-	if (mp_value_get_type(src) == MP_TYPE_LIST) {
-		dst = mp_value_new_list(MP_VALUE_LIST(src)->size, NULL);
-		if (dst == NULL) {
-			return NULL;
-		}
-
-		for (int i = 0; i < MP_VALUE_LIST(src)->size; i++) {
-			mp_value_t dup = mp_value_duplicate(mp_value_list_get(src, i));
-			if (dup == NULL) {
-				mp_value_destroy(dst);
-				return NULL;
-			}
-
-			mp_value_list_set(dst, i, dup);
-		}
-
-		return dst;
+	if (MP_VALUE_IS_VALUE_PTR(value)) {
+		atomic_inc(&value->ref);
 	}
 
-	if (MP_VALUE_IS_OBJECT_PTR(src)) {
-		dst = MP_VALUE_NEW_OBJECT_PTR(MP_VALUE_GET_PTR(src));
-		mp_object_ref(MP_VALUE_GET_PTR(dst));
-		return dst;
+	if (MP_VALUE_IS_OBJECT_PTR(value)) {
+		mp_object_ref(MP_VALUE_GET_PTR(value));
 	}
 
-	if (MP_VALUE_IS_VALUE_PTR(src)) {
-		dst = k_calloc(1, mp_value_type_sizes[mp_value_get_type(src)]);
-		if (dst == NULL) {
-			return NULL;
-		}
-		memcpy(dst, src, mp_value_type_sizes[mp_value_get_type(src)]);
-		return dst;
-	}
-
-	if (MP_VALUE_IS_OTHER_PTR(src)) {
-		return MP_VALUE_NEW_OTHER_PTR(MP_VALUE_GET_PTR(src));
-	}
-
-	if (MP_VALUE_IS_IMMEDIATE(src)) {
-		return MP_VALUE_NEW_IMMEDIATE(MP_VALUE_GET_TYPE(src), MP_VALUE_GET_IMMEDIATE(src));
-	}
-
-	return NULL;
+	return value;
 }
 
 void mp_value_list_set(mp_value_t list, int index, mp_value_t value)
@@ -577,7 +553,7 @@ mp_value_t mp_value_intersect_list(const mp_value_t list,
 		case MP_TYPE_INT:
 		case MP_TYPE_STRING:
 			if (mp_value_compare(compare_val, value1) == MP_VALUE_EQUAL) {
-				intersect_value = mp_value_duplicate(compare_val);
+				intersect_value = mp_value_ref(compare_val);
 			}
 			break;
 		case MP_TYPE_RANGE:
@@ -585,16 +561,11 @@ mp_value_t mp_value_intersect_list(const mp_value_t list,
 			break;
 		case MP_TYPE_LIST:
 			for (size_t i2 = 0; i2 < MP_VALUE_LIST(compare_val)->size; i2++) {
-				value2 = MP_VALUE_LIST(compare_val)->v_list[i2];
+				value2 = mp_value_list_get(compare_val, i2);
 
 				if (mp_value_compare(value1, value2) == MP_VALUE_EQUAL) {
-					mp_value_t dup = mp_value_duplicate(value2);
-					if (dup == NULL) {
-						LOG_ERR("Failed to allocate intersection value");
-						goto error;
-					}
-
-					mp_value_list_set(intersect_list, o++, dup);
+					mp_value_list_set(intersect_list, o++,
+							  mp_value_ref(value2));
 					break;
 				}
 			}
@@ -651,7 +622,7 @@ mp_value_t mp_value_intersect(const mp_value_t val1, const mp_value_t val2)
 
 	if (mp_value_is_primitive(ref_val)) {
 		if (mp_value_compare(val1, val2) == MP_VALUE_EQUAL) {
-			intersect_val = mp_value_duplicate(val1);
+			intersect_val = mp_value_ref(val1);
 		}
 	} else {
 		switch (mp_value_get_type(ref_val)) {

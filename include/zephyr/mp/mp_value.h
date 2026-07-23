@@ -95,6 +95,8 @@ enum mp_value_type {
 struct mp_value {
 	/** For internal use, see @ref mp_value_get_type */
 	enum mp_value_type _type;
+	/** Reference counter */
+	atomic_t ref;
 };
 
 /**
@@ -165,15 +167,6 @@ mp_value_t mp_value_new_string(const char *s);
 mp_value_t mp_value_new_list(size_t size, mp_value_t *values);
 
 /**
- * @brief Destroy a value and release its resources.
- *
- * @param value value to destroy
- *
- * @return 0 on success, -EINVAL if value is NULL
- */
-int mp_value_destroy(mp_value_t value);
-
-/**
  * @brief Get list size.
  *
  * @param list list of values
@@ -232,6 +225,8 @@ void mp_value_list_set(const mp_value_t list, int index, mp_value_t value);
 
 /**
  * @brief Get value at index in list.
+ *
+ * This accessor does not increase the reference count.
  *
  * @param list list of value
  * @param index index of value to get from list
@@ -317,13 +312,25 @@ mp_value_t mp_value_intersect_list(const mp_value_t list,
 bool mp_value_can_intersect(const mp_value_t val1, const mp_value_t val2);
 
 /**
- * Duplicate value
+ * @brief Add a new reference to a value
  *
- * @param value value to duplicate
- * @return new value with same type and data as original value, or NULL on failure
- * @note For string only pointer is copied, not string itself.
+ * If the value is immediate or does not support or require reference counting, it is not altered.
+ *
+ * @param value input value
+ * @return same value with the reference increased
  */
-mp_value_t mp_value_duplicate(const mp_value_t value);
+mp_value_t mp_value_ref(mp_value_t value);
+
+/**
+ * @brief Remove a reference from a value
+ *
+ * If the value is immediate or does not support or require reference counting, it is not altered.
+ *
+ * If the value reference count is reaching zero, the value is deallocated.
+ *
+ * @param value input value
+ */
+void mp_value_unref(mp_value_t value);
 
 /**
  * @brief Check if a value is a primitive type

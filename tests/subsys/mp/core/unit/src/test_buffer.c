@@ -60,7 +60,7 @@ ZTEST(mp_buffer_api, test_sanity)
 	zassert_true(mp_buffer_pool_configure(&pool, config) < 0,
 		     "configure(no callback) did not fail");
 
-	mp_structure_destroy(config);
+	mp_structure_unref(config);
 
 	zassert_true(mp_buffer_pool_start(NULL) < 0, "start NULL pool did not fail");
 

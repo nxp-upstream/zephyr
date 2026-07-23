@@ -380,7 +380,7 @@ static struct mp_caps *vid_convert_transform_caps(struct mp_transform *self,
 		}
 
 		if (mp_value_list_is_empty(out_fmts)) {
-			mp_value_destroy(out_fmts);
+			mp_value_unref(out_fmts);
 			continue;
 		}
 
@@ -388,10 +388,10 @@ static struct mp_caps *vid_convert_transform_caps(struct mp_transform *self,
 							   MP_TYPE_LIST, out_fmts, MP_CAPS_END);
 
 		if (w != NULL) {
-			mp_structure_append(ns, MP_CAPS_IMAGE_WIDTH, mp_value_duplicate(w));
+			mp_structure_append(ns, MP_CAPS_IMAGE_WIDTH, mp_value_ref(w));
 		}
 		if (h != NULL) {
-			mp_structure_append(ns, MP_CAPS_IMAGE_HEIGHT, mp_value_duplicate(h));
+			mp_structure_append(ns, MP_CAPS_IMAGE_HEIGHT, mp_value_ref(h));
 		}
 
 		mp_caps_append(out, ns);
