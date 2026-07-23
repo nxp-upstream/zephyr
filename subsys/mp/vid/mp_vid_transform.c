@@ -27,11 +27,14 @@ static int mp_vid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 		CONTAINER_OF(pad->object.container, struct mp_transform, element.object);
 	struct mp_vid_transform *vid_transform = (struct mp_vid_transform *)transform;
 	struct mp_buffer_pool *outpool = &vid_transform->vid_obj_out.pool.pool;
-	struct video_buffer *in_vbuf;
+	struct video_buffer *in_vbuf = &(struct video_buffer){
+		.buffer = in_buf->data,
+		.size = in_buf->size,
+	};
 
 	/* TODO: Ensure net_buf meta's driver_buf is always a video buffer */
 	if (mp_buffer_get_meta(in_buf)->driver_buf == NULL) {
-		in_vbuf = video_import_buffer(in_buf->data, in_buf->size);
+		ret = video_import_buffer(in_buf->data, in_buf->size, &in_vbuf->index);
 	} else {
 		in_vbuf = mp_buffer_get_meta(in_buf)->driver_buf;
 	}
@@ -125,32 +128,37 @@ static struct mp_caps *mp_vid_transform_transform_caps(struct mp_transform *self
 	const struct device *dev = vid_transform->vid_obj_in.vdev;
 	struct mp_caps *other_caps = mp_caps_new(MP_MEDIA_END);
 	struct mp_structure *caps_item = NULL;
-	struct mp_cap_structure *cs;
+	struct mp_structure *structure;
 	struct video_format_cap vfc, other_vfc;
-	uint16_t ind;
 
 	if ((direction != MP_PAD_SINK && direction != MP_PAD_SRC) || caps == NULL) {
 		return NULL;
 	}
 
-	SYS_SLIST_FOR_EACH_CONTAINER(&caps->caps_structures, cs, node) {
-		if (mp_structure_to_vfc(cs->structure, &vfc) < 0) {
+	for (int i = 0; (structure = mp_caps_get_structure(caps, i)) != NULL; i++) {
+		if (mp_structure_to_vfc(structure, &vfc) < 0) {
+			mp_structure_unref(structure);
 			continue;
 		}
-		ind = 0;
-		while (video_transform_cap(dev, &vfc, &other_vfc, direction, ind) == 0) {
+		mp_structure_unref(structure);
+
+		for (int16_t ind = 0;
+		     video_transform_cap(dev, &vfc, &other_vfc, direction, ind) == 0;
+		     ind++) {
 			caps_item = mp_structure_new(
-				MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
-				other_vfc.pixelformat, MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE,
-				other_vfc.width_min, other_vfc.width_max, other_vfc.width_step,
-				MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE, other_vfc.height_min,
-				other_vfc.height_max, other_vfc.height_step, MP_CAPS_END);
+				MP_MEDIA_VIDEO,
+				MP_CAPS_PIXEL_FORMAT, MP_INT(other_vfc.pixelformat),
+				MP_CAPS_IMAGE_WIDTH, MP_RANGE(other_vfc.width_min,
+							      other_vfc.width_max,
+							      other_vfc.width_step),
+				MP_CAPS_IMAGE_HEIGHT, MP_RANGE(other_vfc.height_min,
+							       other_vfc.height_max,
+							       other_vfc.height_step),
+				MP_CAPS_END);
 			/*
 			 * TODO: Avoid duplicated caps items to save memory
 			 */
 			mp_caps_append(other_caps, caps_item);
-
-			ind++;
 		}
 	}
 
