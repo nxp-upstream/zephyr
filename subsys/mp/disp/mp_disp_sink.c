@@ -65,7 +65,7 @@ static const enum display_pixel_format vid_to_disp_pix_fmt(uint32_t vid_fmt)
 }
 
 static int mp_disp_sink_setup(struct mp_disp_sink *disp_sink,
-			       const enum display_pixel_format pixfmt)
+			      const enum display_pixel_format pixfmt)
 {
 	int ret = 0;
 

@@ -5,7 +5,7 @@
 #
 
 if(CONFIG_MP_DISP)
-    zephyr_library_sources(
-        mp_disp_sink.c
-    )
+  zephyr_library_sources(
+    mp_disp_sink.c
+  )
 endif()

@@ -249,5 +249,6 @@ void mp_queue_init(struct mp_element *self)
 	queue->size = CONFIG_MP_BASE_QUEUE_MAX_SIZE;
 
 	/* Size of the msgq = queue's max size + 2 (for eos and pause sentinels) */
-	k_msgq_init(&queue->msgq, queue->msgq_buffer, sizeof(void *), CONFIG_MP_BASE_QUEUE_MAX_SIZE + 2);
+	k_msgq_init(&queue->msgq, queue->msgq_buffer, sizeof(void *),
+		    CONFIG_MP_BASE_QUEUE_MAX_SIZE + 2);
 }

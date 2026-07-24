@@ -393,9 +393,14 @@ TARGET_DEPS=(
     [fs]="${UPSTREAM_PREFIX}-core"
     [base]="${UPSTREAM_PREFIX}-core"
     [utils]="${UPSTREAM_PREFIX}-core"
-    [sample-cam_disp]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-base ${UPSTREAM_PREFIX}-vid ${UPSTREAM_PREFIX}-disp ${UPSTREAM_PREFIX}-utils"
-    [sample-jpeg_dec]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-base ${UPSTREAM_PREFIX}-vid ${UPSTREAM_PREFIX}-img ${UPSTREAM_PREFIX}-disp ${UPSTREAM_PREFIX}-fs ${UPSTREAM_PREFIX}-utils"
-    [sample-tee_dec]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-base ${UPSTREAM_PREFIX}-vid ${UPSTREAM_PREFIX}-img ${UPSTREAM_PREFIX}-disp ${UPSTREAM_PREFIX}-fs ${UPSTREAM_PREFIX}-utils"
+    [sample-cam_disp]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-base \
+        ${UPSTREAM_PREFIX}-vid ${UPSTREAM_PREFIX}-disp ${UPSTREAM_PREFIX}-utils"
+    [sample-jpeg_dec]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-base \
+        ${UPSTREAM_PREFIX}-vid ${UPSTREAM_PREFIX}-img ${UPSTREAM_PREFIX}-disp \
+        ${UPSTREAM_PREFIX}-fs ${UPSTREAM_PREFIX}-utils"
+    [sample-tee_dec]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-base \
+        ${UPSTREAM_PREFIX}-vid ${UPSTREAM_PREFIX}-img ${UPSTREAM_PREFIX}-disp \
+        ${UPSTREAM_PREFIX}-fs ${UPSTREAM_PREFIX}-utils"
     [sample-fs]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-fs"
     [sample-dmic_i2s]="${UPSTREAM_PREFIX}-core ${UPSTREAM_PREFIX}-base ${UPSTREAM_PREFIX}-aud"
 )
@@ -1192,7 +1197,9 @@ export_sample_dmic_i2s() {
 # ===========================================================================
 
 export_all() {
-    TARGETS=(core vid img aud disp fs base utils sample-cam_disp sample-jpeg_dec sample-tee_dec sample-fs sample-dmic_i2s)
+    TARGETS=(core vid img aud disp fs base utils \
+        sample-cam_disp sample-jpeg_dec sample-tee_dec \
+        sample-fs sample-dmic_i2s)
 
     log_info "=== Exporting all MP upstream PR branches ==="
     log_info "Source: ${SOURCE_BRANCH}"
@@ -1329,7 +1336,8 @@ Targets:
   utils            Utils helper library (depends on core)
   sample-cam_disp  Camera-to-display sample (depends on core, base, vid, disp, utils)
   sample-jpeg_dec  JPEG decoding sample (depends on core, base, vid, img, disp, fs, utils)
-  sample-tee_dec   Multi-branch jpeg decoding sample (depends on core, base, vid, img, disp, fs, utils)
+  sample-tee_dec   Multi-branch jpeg decoding sample
+                   (depends on core, base, vid, img, disp, fs, utils)
   sample-fs        Filesystem sample (depends on core, fs)
   sample-dmic_i2s  DMIC to I2S sample (depends on core, base, aud)
   all              All of the above (default)
@@ -1359,7 +1367,10 @@ main() {
                 shift
                 ;;
             --list)
-                echo "Available targets: core vid img aud disp fs base utils sample-cam_disp sample-jpeg_dec sample-tee_dec sample-fs sample-dmic_i2s"
+                echo "Available targets:"
+                echo "  core vid img aud disp fs base utils"
+                echo "  sample-cam_disp sample-jpeg_dec"
+                echo "  sample-tee_dec sample-fs sample-dmic_i2s"
                 exit 0
                 ;;
             --no-check)
@@ -1370,7 +1381,9 @@ main() {
                 usage
                 exit 0
                 ;;
-            core|vid|img|aud|disp|fs|base|utils|sample-cam_disp|sample-jpeg_dec|sample-tee_dec|sample-fs|sample-dmic_i2s|all)
+            core|vid|img|aud|disp|fs|base|utils|\
+            sample-cam_disp|sample-jpeg_dec|\
+            sample-tee_dec|sample-fs|sample-dmic_i2s|all)
                 targets+=("$1")
                 shift
                 ;;

@@ -205,8 +205,7 @@ static void apply_audio_gain(struct net_buf *buffer, int32_t gain_fixed, uint8_t
 	}
 }
 
-static int mp_aud_gain_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
-				struct net_buf **out_buf)
+static int mp_aud_gain_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf)
 {
 	struct mp_aud_gain *aud_gain =
 		CONTAINER_OF(pad->object.container, struct mp_aud_gain, transform.element.object);
@@ -243,7 +242,7 @@ static int mp_aud_gain_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 }
 
 static struct mp_caps *mp_aud_gain_supported_caps(struct mp_transform *transform,
-						   enum mp_pad_direction direction)
+						  enum mp_pad_direction direction)
 {
 	struct mp_value *supported_bit_width = mp_value_new(MP_TYPE_LIST, NULL);
 
@@ -274,7 +273,7 @@ static struct mp_caps *mp_aud_gain_supported_caps(struct mp_transform *transform
 }
 
 static int mp_aud_gain_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
-				 struct mp_caps *caps)
+				struct mp_caps *caps)
 {
 	struct mp_aud_gain *aud_gain = (struct mp_aud_gain *)transform;
 	/* Get the first structure from caps */

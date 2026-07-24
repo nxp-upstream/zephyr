@@ -95,7 +95,7 @@ config MP_RPC
 
 # ---- Plugins and utilities ----
 # Each plugin/utility directory ships its own Kconfig, guarded by its own
-# CONFIG_MP_<DIR> option. Adding a new plugin needs no change to this file.
+# CONFIG_MP_* option. Adding a new plugin needs no change to this file.
 osource "subsys/mp/*/Kconfig"
 
 endif # MP

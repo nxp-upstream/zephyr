@@ -19,8 +19,7 @@ LOG_MODULE_REGISTER(mp_aud_src, CONFIG_MP_LOG_LEVEL);
 static int mp_aud_src_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
 	struct mp_src *src = (struct mp_src *)obj;
-	struct mp_aud_buffer_pool *pool =
-		CONTAINER_OF(src->pool, struct mp_aud_buffer_pool, pool);
+	struct mp_aud_buffer_pool *pool = CONTAINER_OF(src->pool, struct mp_aud_buffer_pool, pool);
 
 	switch (key) {
 	case MP_PROP_AUD_SRC_SLAB_PTR:
@@ -42,8 +41,7 @@ static int mp_aud_src_set_property(struct mp_object *obj, uint32_t key, const vo
 static int mp_aud_src_get_property(struct mp_object *obj, uint32_t key, void *val)
 {
 	struct mp_src *src = (struct mp_src *)obj;
-	struct mp_aud_buffer_pool *pool =
-		CONTAINER_OF(src->pool, struct mp_aud_buffer_pool, pool);
+	struct mp_aud_buffer_pool *pool = CONTAINER_OF(src->pool, struct mp_aud_buffer_pool, pool);
 
 	if (val == NULL) {
 		return -1;
@@ -70,8 +68,7 @@ static int mp_aud_src_get_property(struct mp_object *obj, uint32_t key, void *va
 struct mp_caps *mp_aud_src_supported_caps(struct mp_src *src)
 {
 	struct mp_aud_src *aud_src = (struct mp_aud_src *)src;
-	struct mp_aud_buffer_pool *pool =
-		CONTAINER_OF(src->pool, struct mp_aud_buffer_pool, pool);
+	struct mp_aud_buffer_pool *pool = CONTAINER_OF(src->pool, struct mp_aud_buffer_pool, pool);
 	struct audio_caps src_caps;
 	int i = 0;
 	uint32_t sr = 0;

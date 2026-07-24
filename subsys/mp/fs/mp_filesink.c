@@ -79,7 +79,7 @@ static int mp_filesink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struc
 }
 
 static enum mp_state_change_return mp_filesink_change_state(struct mp_element *self,
-							     enum mp_state_change transition)
+							    enum mp_state_change transition)
 {
 	struct mp_filesink *fsink = (struct mp_filesink *)self;
 	int ret;

@@ -63,19 +63,19 @@ int main(void)
 		goto err;
 	}
 
-	ret = mp_object_set_properties((struct mp_object *)&sink, MP_PROP_AUD_SINK_SLAB_PTR,
-				       &mem_slab,
+	ret = mp_object_set_properties(
+		(struct mp_object *)&sink, MP_PROP_AUD_SINK_SLAB_PTR, &mem_slab,
 #if (defined(CONFIG_USE_I2S_TARGET_CODEC_CONTROLLER) && CONFIG_USE_I2S_TARGET_CODEC_CONTROLLER == 1)
-				       MP_PROP_AUD_SINK_CLK_ROLE, MP_AUD_I2S_TARGET_CODEC_CONTROLLER,
+		MP_PROP_AUD_SINK_CLK_ROLE, MP_AUD_I2S_TARGET_CODEC_CONTROLLER,
 #endif
-				       MP_PROP_LIST_END);
+		MP_PROP_LIST_END);
 	if (ret < 0) {
 		LOG_ERR("Failed to set properties for sink element");
 		goto err;
 	}
 
-	ret = mp_object_set_properties((struct mp_object *)&gain, MP_PROP_AUD_TRANSFORM_GAIN, &gain_val,
-				       MP_PROP_LIST_END);
+	ret = mp_object_set_properties((struct mp_object *)&gain, MP_PROP_AUD_TRANSFORM_GAIN,
+				       &gain_val, MP_PROP_LIST_END);
 	if (ret < 0) {
 		LOG_ERR("Failed to set properties for gain element");
 		goto err;
@@ -94,8 +94,8 @@ int main(void)
 		goto err;
 	}
 
-	ret = mp_object_set_properties((struct mp_object *)&caps_filter, MP_PROP_BASE_CAPSFILTER_CAPS, caps,
-				       MP_PROP_LIST_END);
+	ret = mp_object_set_properties((struct mp_object *)&caps_filter,
+				       MP_PROP_BASE_CAPSFILTER_CAPS, caps, MP_PROP_LIST_END);
 	mp_caps_unref(caps);
 	if (ret < 0) {
 		LOG_ERR("Failed to set properties for caps filter element");

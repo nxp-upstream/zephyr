@@ -186,7 +186,7 @@ static struct mp_value *vid_convert_pixfmt_list(enum mp_pad_direction direction)
 }
 
 static struct mp_caps *vid_convert_supported_caps(struct mp_transform *transform,
-						   enum mp_pad_direction direction)
+						  enum mp_pad_direction direction)
 {
 	ARG_UNUSED(transform);
 
@@ -210,7 +210,7 @@ static void vid_convert_update_caps(struct mp_transform *transform)
 }
 
 static int vid_convert_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
-				 struct mp_caps *caps)
+				struct mp_caps *caps)
 {
 	struct mp_vid_convert *conv = (struct mp_vid_convert *)transform;
 	struct mp_structure *s;
@@ -284,8 +284,8 @@ static bool out_fmts_contains(struct mp_value *out_fmts, uint32_t pixfmt)
 }
 
 static struct mp_caps *vid_convert_transform_caps(struct mp_transform *self,
-						   enum mp_pad_direction direction,
-						   struct mp_caps *incaps)
+						  enum mp_pad_direction direction,
+						  struct mp_caps *incaps)
 {
 	if (incaps == NULL || mp_caps_is_empty(incaps)) {
 		return NULL;
@@ -402,8 +402,7 @@ static int vid_convert_decide_allocation(struct mp_transform *self, struct mp_di
 	return 0;
 }
 
-static int vid_convert_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
-				struct net_buf **out_buf)
+static int vid_convert_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf)
 {
 	struct net_buf *cur;
 	struct net_buf *next;

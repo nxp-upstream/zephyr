@@ -93,8 +93,7 @@ static int mp_aud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 
 static int mp_aud_dmic_src_acquire_buffer(struct mp_buffer_pool *pool, struct net_buf **buffer)
 {
-	struct mp_aud_buffer_pool *aud_pool =
-		CONTAINER_OF(pool, struct mp_aud_buffer_pool, pool);
+	struct mp_aud_buffer_pool *aud_pool = CONTAINER_OF(pool, struct mp_aud_buffer_pool, pool);
 	struct mp_buffer_meta *meta;
 	void *mem_block = NULL;
 	size_t bytes_used = pool->config.size;
@@ -136,8 +135,7 @@ static int mp_aud_dmic_src_acquire_buffer(struct mp_buffer_pool *pool, struct ne
 
 static int mp_aud_dmic_src_start(struct mp_buffer_pool *pool)
 {
-	struct mp_aud_buffer_pool *aud_pool =
-		CONTAINER_OF(pool, struct mp_aud_buffer_pool, pool);
+	struct mp_aud_buffer_pool *aud_pool = CONTAINER_OF(pool, struct mp_aud_buffer_pool, pool);
 
 	/* Stream on */
 	if (dmic_trigger(aud_pool->aud_dev, DMIC_TRIGGER_START) < 0) {

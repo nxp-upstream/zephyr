@@ -43,7 +43,7 @@ struct mp_vid_convert;
  * @return 0 on success or a negative errno code on failure.
  */
 typedef int (*mp_vid_convert_fn_t)(struct mp_vid_convert *conv, const struct net_buf *in,
-				    struct net_buf *out);
+				   struct net_buf *out);
 
 /**
  * @brief Pixel format conversion descriptor.

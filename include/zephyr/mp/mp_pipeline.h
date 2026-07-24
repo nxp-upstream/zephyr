@@ -28,7 +28,6 @@
 #include <zephyr/mp/mp_bus.h>
 #include <zephyr/mp/mp_thread.h>
 
-
 /**
  * @{
  */
@@ -56,7 +55,6 @@ struct mp_pipeline {
 	/** Number of EOS messages seen so far during the current run */
 	atomic_t eos_count;
 };
-
 
 /**
  * @brief Initialize a pipeline

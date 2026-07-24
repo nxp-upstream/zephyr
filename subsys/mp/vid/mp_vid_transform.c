@@ -20,7 +20,7 @@ LOG_MODULE_REGISTER(mp_vid_transform, CONFIG_MP_LOG_LEVEL);
 #define DEFAULT_PROP_DEVICE DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_videotrans))
 
 static int mp_vid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
-				     struct net_buf **out_buf)
+				    struct net_buf **out_buf)
 {
 	int ret;
 	struct mp_transform *transform =
@@ -45,8 +45,8 @@ static int mp_vid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	}
 
 	/* Dequeue an input buffer, blocking */
-	struct video_buffer *vbuf =
-		&(struct video_buffer){.type = vid_transform->vid_obj_in.type};
+	struct video_buffer *vbuf = &(struct video_buffer){.type = vid_transform->vid_obj_in.type};
+
 	ret = video_dequeue(vid_transform->vid_obj_in.vdev, &vbuf, K_FOREVER);
 	if (ret != 0) {
 		LOG_ERR("Failed to dequeue input buffer");
@@ -67,7 +67,7 @@ static int mp_vid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 }
 
 static struct mp_caps *mp_vid_transform_supported_caps(struct mp_transform *transform,
-							enum mp_pad_direction direction)
+						       enum mp_pad_direction direction)
 {
 	struct mp_vid_transform *vid_transform = (struct mp_vid_transform *)transform;
 
@@ -93,7 +93,7 @@ static void mp_vid_transform_update_caps(struct mp_transform *transform)
 }
 
 static int mp_vid_transform_set_caps(struct mp_transform *transform,
-				      enum mp_pad_direction direction, struct mp_caps *caps)
+				     enum mp_pad_direction direction, struct mp_caps *caps)
 {
 	struct mp_vid_transform *vid_transform = (struct mp_vid_transform *)transform;
 	struct mp_vid_object *vid_obj = NULL;
@@ -118,8 +118,8 @@ static int mp_vid_transform_set_caps(struct mp_transform *transform,
 }
 
 static struct mp_caps *mp_vid_transform_transform_caps(struct mp_transform *self,
-							enum mp_pad_direction direction,
-							struct mp_caps *caps)
+						       enum mp_pad_direction direction,
+						       struct mp_caps *caps)
 {
 	struct mp_vid_transform *vid_transform = (struct mp_vid_transform *)self;
 	const struct device *dev = vid_transform->vid_obj_in.vdev;
@@ -189,8 +189,7 @@ static int mp_vid_transform_decide_allocation(struct mp_transform *self, struct 
 	return mp_vid_object_decide_allocation(&vid_transform->vid_obj_out, query);
 }
 
-static int mp_vid_transform_propose_allocation(struct mp_transform *self,
-						struct mp_dispatch *query)
+static int mp_vid_transform_propose_allocation(struct mp_transform *self, struct mp_dispatch *query)
 {
 	return mp_dispatch_set_pool(query, self->inpool);
 }

@@ -1485,7 +1485,8 @@ static int JPEGParseInfo(JPEGIMAGE *pPage, int bExtractThumb)
 			pPage->ucNumComponents = s[iOffset + 7];
 			pPage->ucBpp =
 				pPage->ucBpp * pPage->ucNumComponents; /* Bpp = number of components
-									  * bits per sample */
+									* bits per sample
+									*/
 			{
 				usLen -= 8;
 				iOffset += 8;
@@ -3410,9 +3411,9 @@ static void JPEGPutMCU11(JPEGIMAGE *pJPEG, int x, int iPitch)
 		}
 		return;
 	}
-/*
- * full size
- */
+	/*
+	 * full size
+	 */
 
 #ifdef HAS_SSE
 	/*
@@ -3846,7 +3847,7 @@ static void JPEGPutMCU22(JPEGIMAGE *pJPEG, int x, int iPitch)
 	 * full size
 	 */
 #ifdef HAS_NEON
-		if (x + 8 <= iPitch && (iPitch & 15) == 0) { /* only for non-clipped MCUs */
+	if (x + 8 <= iPitch && (iPitch & 15) == 0) { /* only for non-clipped MCUs */
 		if (pJPEG->ucPixelType == RGB8888) {
 			int8x8_t i88Cr, i88Cb;
 			uint8x16_t u816YL, u816YR;

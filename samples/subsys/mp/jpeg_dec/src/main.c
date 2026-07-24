@@ -197,7 +197,8 @@ int main(void)
 			goto err;
 		}
 
-		ret = mp_object_set_properties((struct mp_object *)&caps_filter, MP_PROP_BASE_CAPSFILTER_CAPS, caps,
+		ret = mp_object_set_properties((struct mp_object *)&caps_filter,
+					       MP_PROP_BASE_CAPSFILTER_CAPS, caps,
 					       MP_PROP_LIST_END);
 		mp_caps_unref(caps);
 		if (ret < 0) {

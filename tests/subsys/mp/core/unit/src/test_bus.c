@@ -222,8 +222,7 @@ ZTEST_F(mp_bus_api, test_sync_handler_drop_discards)
 
 	/* Handler ran, but MP_BUS_DROP means nothing is enqueued. */
 	zassert_equal(handler_call_count, 1, "handler call count != 1");
-	zassert_equal(mp_bus_peek(&fixture->bus, &out), -ENOMSG,
-		      "DROP still enqueued the message");
+	zassert_equal(mp_bus_peek(&fixture->bus, &out), -ENOMSG, "DROP still enqueued the message");
 }
 
 ZTEST_F(mp_bus_api, test_sync_handler_clear)

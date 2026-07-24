@@ -102,8 +102,8 @@ int main(void)
 						 VIDEO_FOURCC_FROM_STR(CONFIG_VIDEO_PIXEL_FORMAT)));
 	}
 
-	ret = mp_object_set_properties((struct mp_object *)&caps_filter, MP_PROP_BASE_CAPSFILTER_CAPS, caps,
-				       MP_PROP_LIST_END);
+	ret = mp_object_set_properties((struct mp_object *)&caps_filter,
+				       MP_PROP_BASE_CAPSFILTER_CAPS, caps, MP_PROP_LIST_END);
 	mp_caps_unref(caps);
 	if (ret < 0) {
 		goto err;

@@ -98,7 +98,8 @@ void mp_object_init(struct mp_object *obj);
  * @brief Set multiple properties of an mp_object.
  *
  * This function sets one or more properties on the given object.
- * The arguments must be provided as a sequence of {key, value} pairs, terminated by MP_PROP_LIST_END.
+ * The arguments must be provided as a sequence of {key, value} pairs, terminated by
+ * MP_PROP_LIST_END.
  *
  * Example usage:
  *
@@ -107,7 +108,8 @@ void mp_object_init(struct mp_object *obj);
  * @endcode
  *
  * @param obj Pointer to a @ref mp_object.
- * @param ... A variable list of {uint32_t key, const void *val} pairs, terminated by MP_PROP_LIST_END.
+ * @param ... A variable list of {uint32_t key, const void *val} pairs, terminated by
+ * MP_PROP_LIST_END.
  *
  */
 int mp_object_set_properties(struct mp_object *obj, ...);
@@ -116,7 +118,8 @@ int mp_object_set_properties(struct mp_object *obj, ...);
  * @brief Get multiple properties' values of an mp_object.
  *
  * This function gets one or more properties' values of the given object.
- * The arguments must be provided as a sequence of {key, value} pairs, terminated by MP_PROP_LIST_END.
+ * The arguments must be provided as a sequence of {key, value} pairs, terminated by
+ * MP_PROP_LIST_END.
  *
  * Example usage:
  *

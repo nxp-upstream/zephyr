@@ -181,7 +181,7 @@ static int mp_img_jpeg_parser_release_buffer(struct mp_buffer_pool *pool, struct
 }
 
 static int mp_img_jpeg_parser_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
-				   struct net_buf **out_buf)
+				      struct net_buf **out_buf)
 {
 	struct mp_parser *parser = (struct mp_parser *)pad->object.container;
 	struct mp_img_jpeg_parser *jpeg_parser = (struct mp_img_jpeg_parser *)parser;
@@ -330,7 +330,7 @@ static int mp_img_jpeg_parser_chainfn(struct mp_pad *pad, struct net_buf *in_buf
 }
 
 static enum mp_state_change_return mp_img_jpeg_parser_change_state(struct mp_element *self,
-								    enum mp_state_change transition)
+								   enum mp_state_change transition)
 {
 	struct mp_img_jpeg_parser *jpeg_parser = (struct mp_img_jpeg_parser *)self;
 
@@ -339,8 +339,7 @@ static enum mp_state_change_return mp_img_jpeg_parser_change_state(struct mp_ele
 	 * Otherwise, next stream's opening bytes get spliced onto these stale bytes,
 	 * producing a corrupt JPEG between replays.
 	 */
-	if (transition == MP_STATE_CHANGE_PAUSED_TO_READY &&
-	    jpeg_parser->partial_frame != NULL) {
+	if (transition == MP_STATE_CHANGE_PAUSED_TO_READY && jpeg_parser->partial_frame != NULL) {
 		net_buf_unref(jpeg_parser->partial_frame);
 		jpeg_parser->partial_frame = NULL;
 	}

@@ -19,8 +19,7 @@ LOG_MODULE_REGISTER(mp_vid_buffer_pool, CONFIG_MP_LOG_LEVEL);
  *
  * Returns the index, or -1 if the buffer is not tracked by this pool.
  */
-static int mp_vid_buffer_pool_find(struct mp_vid_buffer_pool *vid_pool,
-				    struct video_buffer *vbuf)
+static int mp_vid_buffer_pool_find(struct mp_vid_buffer_pool *vid_pool, struct video_buffer *vbuf)
 {
 	for (uint8_t i = 0; i < CONFIG_VIDEO_BUFFER_POOL_NUM_MAX; i++) {
 		if (vid_pool->vbufs[i] == vbuf) {

@@ -59,7 +59,7 @@ static int mp_vid_buffer_pool_client_stop(struct mp_buffer_pool *pool)
 }
 
 static int mp_vid_buffer_pool_client_acquire_buffer(struct mp_buffer_pool *pool,
-						     struct net_buf **buf)
+						    struct net_buf **buf)
 {
 	struct mp_vid_buffer_pool_client *zbpc = (struct mp_vid_buffer_pool_client *)pool;
 	struct net_buf *nb;
@@ -78,7 +78,7 @@ static int mp_vid_buffer_pool_client_acquire_buffer(struct mp_buffer_pool *pool,
 }
 
 static int mp_vid_buffer_pool_client_release_buffer(struct mp_buffer_pool *pool,
-						     struct net_buf *buf)
+						    struct net_buf *buf)
 {
 	struct mp_vid_buffer_pool_client *zbpc = (struct mp_vid_buffer_pool_client *)pool;
 	struct mp_buffer_meta *m;

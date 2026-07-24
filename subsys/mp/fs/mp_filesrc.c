@@ -19,9 +19,8 @@
 
 LOG_MODULE_REGISTER(mp_filesrc, CONFIG_MP_LOG_LEVEL);
 
-NET_BUF_POOL_FIXED_DEFINE(mp_fs_nb_pool, CONFIG_MP_FS_NUM_BUFS,
-			  CONFIG_MP_FS_BLOCK_SIZE, sizeof(struct mp_buffer_meta),
-			  mp_buffer_destroy);
+NET_BUF_POOL_FIXED_DEFINE(mp_fs_nb_pool, CONFIG_MP_FS_NUM_BUFS, CONFIG_MP_FS_BLOCK_SIZE,
+			  sizeof(struct mp_buffer_meta), mp_buffer_destroy);
 
 static int mp_filesrc_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
@@ -126,8 +125,7 @@ static int mp_filesrc_pool_acquire_buffer(struct mp_buffer_pool *pool, struct ne
 		m->bytes_used = 0;
 		m->timestamp = 0;
 	} else {
-		out = net_buf_alloc_len(&mp_fs_nb_pool, CONFIG_MP_FS_BLOCK_SIZE,
-					K_NO_WAIT);
+		out = net_buf_alloc_len(&mp_fs_nb_pool, CONFIG_MP_FS_BLOCK_SIZE, K_NO_WAIT);
 		if (out == NULL) {
 			return -ENOBUFS;
 		}
@@ -173,7 +171,7 @@ static int mp_filesrc_pool_release_buffer(struct mp_buffer_pool *pool, struct ne
 }
 
 static enum mp_state_change_return mp_filesrc_change_state(struct mp_element *self,
-							    enum mp_state_change transition)
+							   enum mp_state_change transition)
 {
 	struct mp_filesrc *fsrc = (struct mp_filesrc *)self;
 	enum mp_state_change_return ret;

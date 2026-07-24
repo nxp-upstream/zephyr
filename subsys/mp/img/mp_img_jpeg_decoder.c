@@ -22,8 +22,8 @@ LOG_MODULE_REGISTER(mp_img_jpeg_decoder, CONFIG_MP_LOG_LEVEL);
 
 /* Internal output pool (used when downstream doesn't propose a pool) */
 NET_BUF_POOL_FIXED_DEFINE(mp_img_dec_pool, CONFIG_MP_IMG_JPEG_DECODER_POOL_NUM,
-			  CONFIG_MP_IMG_JPEG_DECODER_MAX_OUT_FRAME_SIZE, sizeof(struct mp_buffer_meta),
-			  mp_buffer_destroy);
+			  CONFIG_MP_IMG_JPEG_DECODER_MAX_OUT_FRAME_SIZE,
+			  sizeof(struct mp_buffer_meta), mp_buffer_destroy);
 
 static int mp_img_jpeg_decoder_outpool_acquire(struct mp_buffer_pool *pool, struct net_buf **buf)
 {
@@ -85,7 +85,7 @@ static void mp_img_jpeg_decoder_outpool_init(struct mp_img_jpeg_decoder *dec)
 }
 
 static int mp_img_jpeg_decoder_decode_one(struct mp_img_jpeg_decoder *dec, struct net_buf *in_buf,
-				       struct net_buf *out_buf)
+					  struct net_buf *out_buf)
 {
 	JPEGIMAGE *jpg = &dec->jpg;
 	uint32_t in_sz = mp_buffer_get_meta(in_buf)->bytes_used;
@@ -138,7 +138,7 @@ static int mp_img_jpeg_decoder_decode_one(struct mp_img_jpeg_decoder *dec, struc
 }
 
 static int mp_img_jpeg_decoder_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
-				    struct net_buf **out_buf)
+				       struct net_buf **out_buf)
 {
 	struct mp_transform *transform = (struct mp_transform *)pad->object.container;
 	struct mp_img_jpeg_decoder *dec = (struct mp_img_jpeg_decoder *)transform;
@@ -210,7 +210,7 @@ static int mp_img_jpeg_decoder_chainfn(struct mp_pad *pad, struct net_buf *in_bu
 }
 
 static struct mp_caps *mp_img_jpeg_decoder_supported_caps(struct mp_transform *transform,
-						       enum mp_pad_direction direction)
+							  enum mp_pad_direction direction)
 {
 	ARG_UNUSED(transform);
 
@@ -236,8 +236,8 @@ static struct mp_caps *mp_img_jpeg_decoder_supported_caps(struct mp_transform *t
 }
 
 static struct mp_caps *mp_img_jpeg_decoder_transform_caps(struct mp_transform *transform,
-						       enum mp_pad_direction direction,
-						       struct mp_caps *incaps)
+							  enum mp_pad_direction direction,
+							  struct mp_caps *incaps)
 {
 	ARG_UNUSED(transform);
 
@@ -309,7 +309,7 @@ static struct mp_caps *mp_img_jpeg_decoder_transform_caps(struct mp_transform *t
 }
 
 static int mp_img_jpeg_decoder_set_caps(struct mp_transform *transform,
-				     enum mp_pad_direction direction, struct mp_caps *caps)
+					enum mp_pad_direction direction, struct mp_caps *caps)
 {
 	struct mp_img_jpeg_decoder *dec = (struct mp_img_jpeg_decoder *)transform;
 	struct mp_structure *s;
@@ -339,7 +339,8 @@ static int mp_img_jpeg_decoder_set_caps(struct mp_transform *transform,
 	return -EINVAL;
 }
 
-static int mp_img_jpeg_decoder_decide_allocation(struct mp_transform *self, struct mp_dispatch *query)
+static int mp_img_jpeg_decoder_decide_allocation(struct mp_transform *self,
+						 struct mp_dispatch *query)
 {
 	struct mp_img_jpeg_decoder *dec = (struct mp_img_jpeg_decoder *)self;
 	struct mp_buffer_pool *down_pool = mp_dispatch_get_pool(query);

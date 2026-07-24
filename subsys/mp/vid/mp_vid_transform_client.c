@@ -15,7 +15,7 @@
 LOG_MODULE_REGISTER(mp_vid_transform_client, CONFIG_MP_LOG_LEVEL);
 
 static struct mp_caps *mp_vid_transform_client_get_caps(struct mp_transform *transform,
-							 enum mp_pad_direction direction)
+							enum mp_pad_direction direction)
 {
 	struct mp_vid_transform_client *vtc = (struct mp_vid_transform_client *)transform;
 	struct mp_caps *caps = mp_caps_new(MP_MEDIA_END);
@@ -53,7 +53,7 @@ static struct mp_caps *mp_vid_transform_client_get_caps(struct mp_transform *tra
 }
 
 static int mp_vid_transform_client_set_caps(struct mp_transform *transform,
-					     enum mp_pad_direction direction, struct mp_caps *caps)
+					    enum mp_pad_direction direction, struct mp_caps *caps)
 {
 	struct mp_vid_transform_client *vtc = (struct mp_vid_transform_client *)transform;
 	struct mp_buffer_pool *pool = NULL;
@@ -106,8 +106,8 @@ static int mp_vid_transform_client_set_caps(struct mp_transform *transform,
 }
 
 static struct mp_caps *mp_vid_transform_client_transform_caps(struct mp_transform *self,
-							       enum mp_pad_direction direction,
-							       struct mp_caps *caps)
+							      enum mp_pad_direction direction,
+							      struct mp_caps *caps)
 {
 	struct mp_vid_transform_client *vtc = (struct mp_vid_transform_client *)self;
 	struct mp_caps *other_caps = mp_caps_new(MP_MEDIA_END);
