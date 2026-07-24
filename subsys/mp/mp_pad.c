@@ -22,6 +22,7 @@ void mp_pad_init(struct mp_pad *pad, uint8_t id, enum mp_pad_direction direction
 {
 	__ASSERT_NO_MSG(pad != NULL);
 
+	mp_object_init(&pad->object);
 	pad->object.id = id;
 	pad->direction = direction;
 	pad->presence = presence;

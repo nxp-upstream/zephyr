@@ -36,9 +36,9 @@ int mp_caps_init(struct mp_caps *caps, uint8_t flag)
 		return -EINVAL;
 	}
 
+	mp_object_init(&caps->object);
 	sys_slist_init(&caps->caps_structures);
 	caps->object.release = mp_caps_destroy;
-	caps->object.ref = ATOMIC_INIT(0);
 	caps->object.flags = flag;
 
 	return 0;

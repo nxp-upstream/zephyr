@@ -110,3 +110,8 @@ void mp_object_replace(struct mp_object **ptr, struct mp_object *new_obj)
 	*ptr = mp_object_ref(new_obj);
 	mp_object_unref(old_ref);
 }
+
+void mp_object_init(struct mp_object *obj)
+{
+	memset(obj, 0, sizeof(struct mp_object));
+}

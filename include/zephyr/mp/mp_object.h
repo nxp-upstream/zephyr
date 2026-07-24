@@ -86,6 +86,15 @@ void mp_object_unref(struct mp_object *obj);
 void mp_object_replace(struct mp_object **ptr, struct mp_object *new_obj);
 
 /**
+ * @brief Initialize all fields of mp_object to zero.
+ *
+ * Must be called first when initializing any structure that embeds mp_object.
+ *
+ * @param obj Pointer to the mp_object to initialize.
+ */
+void mp_object_init(struct mp_object *obj);
+
+/**
  * @brief Set multiple properties of an mp_object.
  *
  * This function sets one or more properties on the given object.

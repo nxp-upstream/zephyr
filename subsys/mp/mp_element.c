@@ -221,6 +221,7 @@ int mp_element_post_message(struct mp_element *element, uint32_t type)
 
 void mp_element_init(struct mp_element *self, uint8_t id)
 {
+	mp_object_init(&self->object);
 	self->object.id = id;
 
 	/*
