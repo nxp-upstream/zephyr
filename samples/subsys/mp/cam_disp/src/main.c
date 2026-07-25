@@ -5,7 +5,7 @@
  */
 
 #include <zephyr/drivers/video.h>
-#include <zephyr/drivers/video-controls.h>
+#include <zephyr/video/controls.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/mp/mp.h>
 #include <zephyr/mp/base/mp_capsfilter.h>

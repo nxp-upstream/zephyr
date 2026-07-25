@@ -10,7 +10,7 @@
 #endif
 
 #include <zephyr/drivers/video.h>
-#include <zephyr/drivers/video-controls.h>
+#include <zephyr/video/controls.h>
 #include <zephyr/fs/fs.h>
 #include <zephyr/logging/log.h>
 
