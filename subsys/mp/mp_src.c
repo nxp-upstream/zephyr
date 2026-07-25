@@ -145,6 +145,7 @@ static int mp_src_negotiate(struct mp_src *src)
 
 	common_caps = mp_dispatch_get_caps(&caps_query);
 	mp_dispatch_clear(&caps_query);
+
 	if (common_caps == NULL) {
 		return -ENODATA;
 	}

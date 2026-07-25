@@ -131,7 +131,7 @@ void mp_filesink_init(struct mp_element *self)
 	self->object.get_property = mp_filesink_get_property;
 	self->change_state = mp_filesink_change_state;
 
-	sink_caps = mp_caps_new_any();
+	sink_caps = mp_caps_any_new();
 	mp_sink_update_caps(sink, sink_caps);
 	mp_caps_unref(sink_caps);
 

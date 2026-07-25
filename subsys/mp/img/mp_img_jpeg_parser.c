@@ -364,10 +364,11 @@ void mp_img_jpeg_parser_init(struct mp_element *self)
 	jpeg_parser->partial_frame = NULL;
 
 	/* Get supported caps */
-	struct mp_caps *sink_caps = mp_caps_new_any();
+	struct mp_caps *sink_caps = mp_caps_any_new();
 
-	struct mp_caps *src_caps = mp_caps_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
-					       VIDEO_PIX_FMT_JPEG, MP_CAPS_END);
+	struct mp_caps *src_caps = mp_caps_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT,
+					       MP_INT(VIDEO_PIX_FMT_JPEG), MP_CAPS_END);
+
 	mp_parser_update_caps(parser, sink_caps, src_caps);
 	mp_caps_unref(sink_caps);
 	mp_caps_unref(src_caps);

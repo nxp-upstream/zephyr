@@ -215,20 +215,14 @@ static struct mp_caps *mp_img_jpeg_decoder_supported_caps(struct mp_transform *t
 	ARG_UNUSED(transform);
 
 	if (direction == MP_PAD_SINK) {
-		return mp_caps_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
-				   VIDEO_PIX_FMT_JPEG, MP_CAPS_END);
+		return mp_caps_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT,
+				   MP_INT(VIDEO_PIX_FMT_JPEG), MP_CAPS_END);
 	}
 
 	if (direction == MP_PAD_SRC) {
-		struct mp_value *fmts = mp_value_new(MP_TYPE_LIST, NULL);
-
-		if (fmts == NULL) {
-			return NULL;
-		}
-		mp_value_list_append(fmts, mp_value_new(MP_TYPE_UINT, VIDEO_PIX_FMT_RGB565));
-		mp_value_list_append(fmts, mp_value_new(MP_TYPE_UINT, VIDEO_PIX_FMT_RGB565X));
-
-		return mp_caps_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_LIST, fmts,
+		return mp_caps_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT,
+				   MP_LIST(MP_INT(VIDEO_PIX_FMT_RGB565),
+					   MP_INT(VIDEO_PIX_FMT_RGB565X)),
 				   MP_CAPS_END);
 	}
 
@@ -239,6 +233,8 @@ static struct mp_caps *mp_img_jpeg_decoder_transform_caps(struct mp_transform *t
 						       enum mp_pad_direction direction,
 						       struct mp_caps *incaps)
 {
+	struct mp_structure *s;
+
 	ARG_UNUSED(transform);
 
 	if (incaps == NULL) {
@@ -246,67 +242,61 @@ static struct mp_caps *mp_img_jpeg_decoder_transform_caps(struct mp_transform *t
 	}
 
 	if (mp_caps_is_any(incaps)) {
-		return mp_caps_new_any();
+		return mp_caps_any_new();
 	}
 
 	struct mp_caps *out = mp_caps_new(MP_MEDIA_END);
-	struct mp_cap_structure *cs;
 
-	SYS_SLIST_FOR_EACH_CONTAINER(&incaps->caps_structures, cs, node) {
-		struct mp_structure *s = cs->structure;
-		struct mp_value *w = mp_structure_get_value(s, MP_CAPS_IMAGE_WIDTH);
-		struct mp_value *h = mp_structure_get_value(s, MP_CAPS_IMAGE_HEIGHT);
-		struct mp_value *fr = mp_structure_get_value(s, MP_CAPS_FRAME_RATE);
+	if (out == NULL) {
+		return NULL;
+	}
+
+	for (int i = 0; (s = mp_caps_get_structure(incaps, i)) != NULL; i++) {
+		mp_value_t w = mp_structure_get_value(s, MP_CAPS_IMAGE_WIDTH);
+		mp_value_t h = mp_structure_get_value(s, MP_CAPS_IMAGE_HEIGHT);
+		mp_value_t fr = mp_structure_get_value(s, MP_CAPS_FRAME_RATE);
+		struct mp_structure *ns;
+
+		/* Reserve room for pixel format plus optional width/height/framerate */
+		ns = mp_structure_new_empty(MP_MEDIA_VIDEO, 4);
+		if (ns == NULL) {
+			mp_structure_unref(s);
+			continue;
+		}
 
 		if (direction == MP_PAD_SRC) {
 			/* JPEG -> RGB565{,X} */
-			struct mp_value *fmts = mp_value_new(MP_TYPE_LIST, NULL);
-
-			if (fmts == NULL) {
-				continue;
-			}
-			mp_value_list_append(fmts,
-					     mp_value_new(MP_TYPE_UINT, VIDEO_PIX_FMT_RGB565));
-			mp_value_list_append(fmts,
-					     mp_value_new(MP_TYPE_UINT, VIDEO_PIX_FMT_RGB565X));
-
-			struct mp_structure *ns =
-				mp_structure_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_LIST,
-						 fmts, MP_CAPS_END);
-			if (w != NULL) {
-				mp_structure_append(ns, MP_CAPS_IMAGE_WIDTH, mp_value_duplicate(w));
-			}
-			if (h != NULL) {
-				mp_structure_append(ns, MP_CAPS_IMAGE_HEIGHT,
-						    mp_value_duplicate(h));
-			}
-			if (fr != NULL) {
-				mp_structure_append(ns, MP_CAPS_FRAME_RATE, mp_value_duplicate(fr));
-			}
-			mp_caps_append(out, ns);
+			mp_structure_append(ns, MP_CAPS_PIXEL_FORMAT,
+					    MP_LIST(MP_INT(VIDEO_PIX_FMT_RGB565),
+						    MP_INT(VIDEO_PIX_FMT_RGB565X)));
 		} else if (direction == MP_PAD_SINK) {
 			/* RGB565{,X} -> JPEG */
-			struct mp_structure *ns =
-				mp_structure_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
-						 VIDEO_PIX_FMT_JPEG, MP_CAPS_END);
-			if (w != NULL) {
-				mp_structure_append(ns, MP_CAPS_IMAGE_WIDTH, mp_value_duplicate(w));
-			}
-			if (h != NULL) {
-				mp_structure_append(ns, MP_CAPS_IMAGE_HEIGHT,
-						    mp_value_duplicate(h));
-			}
-			if (fr != NULL) {
-				mp_structure_append(ns, MP_CAPS_FRAME_RATE, mp_value_duplicate(fr));
-			}
-			mp_caps_append(out, ns);
+			mp_structure_append(ns, MP_CAPS_PIXEL_FORMAT,
+					    MP_INT(VIDEO_PIX_FMT_JPEG));
 		} else {
 			/* Unknown direction: skip this structure */
+			mp_structure_unref(ns);
+			mp_structure_unref(s);
+			continue;
 		}
+
+		if (w != NULL) {
+			mp_structure_append(ns, MP_CAPS_IMAGE_WIDTH, mp_value_ref(w));
+		}
+		if (h != NULL) {
+			mp_structure_append(ns, MP_CAPS_IMAGE_HEIGHT, mp_value_ref(h));
+		}
+		if (fr != NULL) {
+			mp_structure_append(ns, MP_CAPS_FRAME_RATE, mp_value_ref(fr));
+		}
+
+		mp_caps_append(out, ns);
+		mp_structure_unref(s);
 	}
 
 	return out;
 }
+
 
 static int mp_img_jpeg_decoder_set_caps(struct mp_transform *transform,
 				     enum mp_pad_direction direction, struct mp_caps *caps)
@@ -328,13 +318,14 @@ static int mp_img_jpeg_decoder_set_caps(struct mp_transform *transform,
 	if (direction == MP_PAD_SRC) {
 		s = mp_caps_get_structure(caps, 0);
 		v = mp_structure_get_value(s, MP_CAPS_PIXEL_FORMAT);
-		if (v != NULL && v->type == MP_TYPE_UINT) {
-			dec->out_pixfmt = mp_value_get_uint(v);
+		if (v != NULL && mp_value_get_type(v) == MP_TYPE_INT) {
+			dec->out_pixfmt = mp_value_get_int(v);
 		}
 		mp_caps_replace(&transform->srcpad.caps, caps);
 
 		return 0;
 	}
+
 
 	return -EINVAL;
 }

@@ -27,14 +27,15 @@ static int mp_vid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 		CONTAINER_OF(pad->object.container, struct mp_transform, element.object);
 	struct mp_vid_transform *vid_transform = (struct mp_vid_transform *)transform;
 	struct mp_buffer_pool *outpool = &vid_transform->vid_obj_out.pool.pool;
-	struct video_buffer *in_vbuf = &(struct video_buffer){
-		.buffer = in_buf->data,
-		.size = in_buf->size,
-	};
+	struct video_buffer *in_vbuf;
 
 	/* TODO: Ensure net_buf meta's driver_buf is always a video buffer */
 	if (mp_buffer_get_meta(in_buf)->driver_buf == NULL) {
-		ret = video_import_buffer(in_buf->data, in_buf->size, &in_vbuf->index);
+		in_vbuf = video_import_buffer(in_buf->data, in_buf->size);
+		if (in_vbuf == NULL) {
+			LOG_ERR("Failed to import input buffer");
+			return -ENOMEM;
+		}
 	} else {
 		in_vbuf = mp_buffer_get_meta(in_buf)->driver_buf;
 	}

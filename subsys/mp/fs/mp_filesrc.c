@@ -225,7 +225,8 @@ void mp_filesrc_init(struct mp_element *self)
 	self->object.get_property = mp_filesrc_get_property;
 	self->change_state = mp_filesrc_change_state;
 
-	src_caps = mp_caps_new_any();
+	src_caps = mp_caps_any_new();
+
 	mp_src_update_caps(src, src_caps);
 	mp_caps_unref(src_caps);
 

@@ -42,12 +42,14 @@ static struct mp_caps *mp_vid_transform_client_get_caps(struct mp_transform *tra
 	/* Get format caps */
 	while (vtc->get_format_caps_rpc(direction, ind++, &vfc) == 0) {
 		caps_item = mp_structure_new(
-			MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT, vfc.pixelformat,
-			MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE, vfc.width_min, vfc.width_max,
-			vfc.width_step, MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE, vfc.height_min,
-			vfc.height_max, vfc.height_step, MP_CAPS_END);
+			MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_INT(vfc.pixelformat),
+			MP_CAPS_IMAGE_WIDTH,
+			MP_RANGE(vfc.width_min, vfc.width_max, vfc.width_step),
+			MP_CAPS_IMAGE_HEIGHT,
+			MP_RANGE(vfc.height_min, vfc.height_max, vfc.height_step), MP_CAPS_END);
 		mp_caps_append(caps, caps_item);
 	};
+
 
 	return caps;
 }
@@ -112,7 +114,7 @@ static struct mp_caps *mp_vid_transform_client_transform_caps(struct mp_transfor
 	struct mp_vid_transform_client *vtc = (struct mp_vid_transform_client *)self;
 	struct mp_caps *other_caps = mp_caps_new(MP_MEDIA_END);
 	struct mp_structure *caps_item = NULL;
-	struct mp_cap_structure *cs;
+	struct mp_structure *s;
 	struct video_format_cap vfc, other_vfc;
 	uint16_t ind;
 
@@ -120,27 +122,33 @@ static struct mp_caps *mp_vid_transform_client_transform_caps(struct mp_transfor
 		return NULL;
 	}
 
-	SYS_SLIST_FOR_EACH_CONTAINER(&caps->caps_structures, cs, node) {
-		if (mp_structure_to_vfc(cs->structure, &vfc) < 0) {
+	for (int i = 0; (s = mp_caps_get_structure(caps, i)) != NULL; i++) {
+		if (mp_structure_to_vfc(s, &vfc) < 0) {
+			mp_structure_unref(s);
 			continue;
 		}
 		ind = 0;
 		while (vtc->transform_cap_rpc(direction, ind++, &vfc, &other_vfc) == 0) {
 			caps_item = mp_structure_new(
-				MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
-				other_vfc.pixelformat, MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE,
-				other_vfc.width_min, other_vfc.width_max, other_vfc.width_step,
-				MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE, other_vfc.height_min,
-				other_vfc.height_max, other_vfc.height_step, MP_CAPS_END);
+				MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT,
+				MP_INT(other_vfc.pixelformat), MP_CAPS_IMAGE_WIDTH,
+				MP_RANGE(other_vfc.width_min, other_vfc.width_max,
+					 other_vfc.width_step),
+				MP_CAPS_IMAGE_HEIGHT,
+				MP_RANGE(other_vfc.height_min, other_vfc.height_max,
+					 other_vfc.height_step),
+				MP_CAPS_END);
 			/*
 			 * TODO: Avoid duplicated caps items to save memory
 			 */
 			mp_caps_append(other_caps, caps_item);
 		}
+		mp_structure_unref(s);
 	}
 
 	return other_caps;
 }
+
 
 void mp_vid_transform_client_init(struct mp_element *self)
 {

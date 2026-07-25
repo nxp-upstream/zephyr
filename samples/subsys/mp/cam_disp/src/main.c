@@ -83,13 +83,13 @@ int main(void)
 	/* clang-format off */
 	struct mp_caps *caps = mp_caps_new(MP_MEDIA_VIDEO,
 		COND_CODE_0(CONFIG_VIDEO_FRAME_WIDTH,
-			(), (MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT, CONFIG_VIDEO_FRAME_WIDTH,))
+			(), (MP_CAPS_IMAGE_WIDTH, MP_INT(CONFIG_VIDEO_FRAME_WIDTH),))
 		COND_CODE_0(CONFIG_VIDEO_FRAME_HEIGHT,
-			(), (MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT, CONFIG_VIDEO_FRAME_HEIGHT,))
+			(), (MP_CAPS_IMAGE_HEIGHT, MP_INT(CONFIG_VIDEO_FRAME_HEIGHT),))
 		COND_CODE_0(CONFIG_VIDEO_FRAME_RATE, (),
-			(MP_CAPS_FRAME_RATE, MP_TYPE_UINT_FRACTION,
-			 CONFIG_VIDEO_FRAME_RATE, 1,))
+			(MP_CAPS_FRAME_RATE, MP_FPS(CONFIG_VIDEO_FRAME_RATE),))
 		MP_CAPS_END);
+
 	/* clang-format on */
 
 	if (caps == NULL) {
@@ -97,9 +97,9 @@ int main(void)
 	}
 
 	if (strcmp(CONFIG_VIDEO_PIXEL_FORMAT, "") != 0) {
-		mp_structure_append(mp_caps_get_structure(caps, 0), MP_CAPS_PIXEL_FORMAT,
-				    mp_value_new(MP_TYPE_UINT,
-						 VIDEO_FOURCC_FROM_STR(CONFIG_VIDEO_PIXEL_FORMAT)));
+		mp_structure_append(
+			mp_caps_get_structure(caps, 0), MP_CAPS_PIXEL_FORMAT,
+			mp_value_new_int(VIDEO_FOURCC_FROM_STR(CONFIG_VIDEO_PIXEL_FORMAT)));
 	}
 
 	ret = mp_object_set_properties((struct mp_object *)&caps_filter, MP_PROP_BASE_CAPSFILTER_CAPS, caps,
