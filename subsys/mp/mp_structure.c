@@ -171,6 +171,10 @@ struct mp_structure *mp_structure_intersect(struct mp_structure *struct1,
 		return NULL;
 	}
 
+	if (struct1->media_type_id != struct2->media_type_id) {
+		return NULL;
+	}
+
 	for (size_t i = 0; i < struct1->num_values; i++) {
 		uint8_t id = struct1->fields[i].id;
 		if (mp_structure_get_value(struct2, id) != NULL) {
@@ -180,46 +184,89 @@ struct mp_structure *mp_structure_intersect(struct mp_structure *struct1,
 	}
 
 	if (!has_common_field) {
-		printk("no common field between %p and %p\n", struct1, struct2);
 		return NULL;
 	}
 
 	intersect_structure = mp_structure_new_empty(
 		struct1->media_type_id, struct1->num_values + struct2->num_values);
+	if (intersect_structure == NULL) {
+		return NULL;
+	}
 
+	/*
+	 * Intersect every field of struct1. For a field also present in struct2
+	 * (a common field), mp_value_intersect() returns the intersected value or
+	 * NULL when the two constraints are incompatible. A field present only in
+	 * struct1 intersects against NULL, which "matches anything" and yields a
+	 * reference to struct1's value. An empty intersection on a common field
+	 * makes the whole structure incompatible, so the intersection fails.
+	 */
 	for (size_t i = 0; i < struct1->num_values; i++) {
 		uint8_t id = struct1->fields[i].id;
-		mp_value_t value1 = mp_structure_get_value(struct1, id);
+		mp_value_t value1 = struct1->fields[i].value;
 		mp_value_t value2 = mp_structure_get_value(struct2, id);
-		mp_structure_append(intersect_structure, id, mp_value_intersect(value1, value2));
+		mp_value_t intersect_value = mp_value_intersect(value1, value2);
+
+		if (intersect_value == NULL) {
+			mp_structure_unref(intersect_structure);
+			return NULL;
+		}
+
+		mp_structure_append(intersect_structure, id, intersect_value);
 	}
 
+	/* Add the fields that only exist in struct2 */
 	for (size_t i = 0; i < struct2->num_values; i++) {
 		uint8_t id = struct2->fields[i].id;
-		mp_value_t value2 = mp_structure_get_value(struct2, id);
-		mp_value_t value1 = mp_structure_get_value(struct1, id);
-		mp_structure_append(intersect_structure, id, mp_value_intersect(value2, value1));
-	}
 
-	if (intersect_structure->num_values == 0) {
-		mp_structure_unref(intersect_structure);
-		return NULL;
+		if (mp_structure_get_value(struct1, id) != NULL) {
+			/* Common field, already intersected in the loop above */
+			continue;
+		}
+
+		mp_structure_append(intersect_structure, id,
+				    mp_value_ref(struct2->fields[i].value));
 	}
 
 	return intersect_structure;
 }
 
+
 bool mp_structure_can_intersect(struct mp_structure *struct1, struct mp_structure *struct2)
 {
-	struct mp_structure *structure = mp_structure_intersect(struct1, struct2);
-	if (structure == NULL) {
+	bool has_common_field = false;
+
+	if (struct1 == NULL || struct2 == NULL) {
 		return false;
 	}
 
-	mp_structure_unref(structure);
+	if (struct1->media_type_id != struct2->media_type_id) {
+		return false;
+	}
 
-	return true;
+	/*
+	 * Standalone predicate: check whether the two structures can intersect
+	 * without allocating a result. Every field common to both must have
+	 * intersectable values, and at least one common field must exist.
+	 */
+	for (size_t i = 0; i < struct1->num_values; i++) {
+		mp_value_t value2 =
+			mp_structure_get_value(struct2, struct1->fields[i].id);
+
+		if (value2 == NULL) {
+			continue;
+		}
+
+		has_common_field = true;
+
+		if (!mp_value_can_intersect(struct1->fields[i].value, value2)) {
+			return false;
+		}
+	}
+
+	return has_common_field;
 }
+
 
 void mp_structure_unref(struct mp_structure *structure)
 {
