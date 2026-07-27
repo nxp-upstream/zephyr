@@ -304,7 +304,6 @@ struct mp_caps *mp_caps_fixate(struct mp_caps *caps)
 		return NULL;
 	}
 
-	fixed_caps = mp_caps_new_empty();
 	node = sys_slist_peek_head(&caps->caps_structures);
 	if (node == NULL) {
 		return NULL;
@@ -313,6 +312,12 @@ struct mp_caps *mp_caps_fixate(struct mp_caps *caps)
 	cs = CONTAINER_OF(node, struct mp_cap_structure, node);
 	fixated_structure = mp_structure_fixate(cs->structure);
 	if (fixated_structure == NULL) {
+		return NULL;
+	}
+
+	fixed_caps = mp_caps_new_empty();
+	if (fixed_caps == NULL) {
+		mp_structure_destroy(fixated_structure);
 		return NULL;
 	}
 
