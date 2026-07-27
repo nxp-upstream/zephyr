@@ -60,6 +60,19 @@ struct mp_vid_object {
 int mp_structure_to_vfc(struct mp_structure *structure, struct video_format_cap *vfc);
 
 /**
+ * @brief Check whether caps already describe a given @ref video_format_cap.
+ *
+ * Lets a caller skip building a structure it would only end up discarding as a
+ * duplicate. Allocates nothing.
+ *
+ * @param caps Pointer to the @ref mp_caps to search.
+ * @param vfc  Pointer to the @ref video_format_cap to look for.
+ *
+ * @return true if an equivalent structure is already present.
+ */
+bool mp_vid_caps_has_vfc(struct mp_caps *caps, const struct video_format_cap *vfc);
+
+/**
  * @brief Set a property on the video object.
  *
  * @param vid_obj Pointer to the @ref mp_vid_object.

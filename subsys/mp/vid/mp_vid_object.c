@@ -77,6 +77,33 @@ int mp_structure_to_vfc(struct mp_structure *structure, struct video_format_cap 
 				    &vfc->height_max, &vfc->height_step);
 }
 
+bool mp_vid_caps_has_vfc(struct mp_caps *caps, const struct video_format_cap *vfc)
+{
+	struct mp_cap_structure *cs;
+	struct video_format_cap existing;
+
+	if (caps == NULL || vfc == NULL) {
+		return false;
+	}
+
+	SYS_SLIST_FOR_EACH_CONTAINER(&caps->caps_structures, cs, node) {
+		if (mp_structure_to_vfc(cs->structure, &existing) < 0) {
+			continue;
+		}
+
+		if (existing.pixelformat == vfc->pixelformat &&
+		    existing.width_min == vfc->width_min && existing.width_max == vfc->width_max &&
+		    existing.width_step == vfc->width_step &&
+		    existing.height_min == vfc->height_min &&
+		    existing.height_max == vfc->height_max &&
+		    existing.height_step == vfc->height_step) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 static void append_frmrates_to_structure(const struct device *vdev, struct video_format *fmt,
 					 struct mp_structure *caps_item)
 {

@@ -126,15 +126,22 @@ static struct mp_caps *mp_vid_transform_client_transform_caps(struct mp_transfor
 		}
 		ind = 0;
 		while (vtc->transform_cap_rpc(direction, ind++, &vfc, &other_vfc) == 0) {
+			/*
+			 * Several input structures often transform to the same output
+			 * capability. Skip those before building anything, so a duplicate
+			 * costs a comparison rather than a structure.
+			 */
+			if (mp_vid_caps_has_vfc(other_caps, &other_vfc)) {
+				continue;
+			}
+
 			caps_item = mp_structure_new(
 				MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
 				other_vfc.pixelformat, MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE,
 				other_vfc.width_min, other_vfc.width_max, other_vfc.width_step,
 				MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE, other_vfc.height_min,
 				other_vfc.height_max, other_vfc.height_step, MP_CAPS_END);
-			/*
-			 * TODO: Avoid duplicated caps items to save memory
-			 */
+
 			mp_caps_append(other_caps, caps_item);
 		}
 	}
