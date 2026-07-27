@@ -80,37 +80,55 @@ int mp_structure_to_vfc(struct mp_structure *structure, struct video_format_cap 
 static void append_frmrates_to_structure(const struct device *vdev, struct video_format *fmt,
 					 struct mp_structure *caps_item)
 {
-	struct mp_value *frmrates = mp_value_new(MP_TYPE_LIST, NULL);
-	struct mp_value *frmrate = NULL;
+	struct mp_value *frmrates = NULL;
+	struct mp_value *frmrate;
 	struct video_frmival_enum fie = {0};
 
 	fie.format = fmt;
 	while (video_enum_frmival(vdev, &fie) == 0) {
-		switch (fie.type) {
-		case VIDEO_FRMIVAL_TYPE_DISCRETE:
-			frmrate = mp_value_new(MP_TYPE_UINT_FRACTION, fie.discrete.denominator,
-					       fie.discrete.numerator);
-
-			mp_value_list_append(frmrates, frmrate);
-			break;
-		case VIDEO_FRMIVAL_TYPE_STEPWISE:
+		if (fie.type == VIDEO_FRMIVAL_TYPE_STEPWISE) {
+			/*
+			 * A stepwise device describes all its rates with a single range, so
+			 * it cannot be mixed with discrete rates in the same field. Drop
+			 * anything collected so far and stop enumerating.
+			 */
 			frmrate = mp_value_new(
 				MP_TYPE_UINT_FRACTION_RANGE, fie.stepwise.max.denominator,
 				fie.stepwise.max.numerator, fie.stepwise.min.denominator,
 				fie.stepwise.min.numerator, fie.stepwise.step.denominator,
 				fie.stepwise.step.numerator);
 
-			mp_structure_append(caps_item, MP_CAPS_FRAME_RATE, frmrate);
-
-			break;
-		default:
+			mp_value_destroy(frmrates);
+			frmrates = frmrate;
 			break;
 		}
+
+		if (fie.type == VIDEO_FRMIVAL_TYPE_DISCRETE) {
+			if (frmrates == NULL) {
+				frmrates = mp_value_new(MP_TYPE_LIST, NULL);
+				if (frmrates == NULL) {
+					return;
+				}
+			}
+
+			frmrate = mp_value_new(MP_TYPE_UINT_FRACTION, fie.discrete.denominator,
+					       fie.discrete.numerator);
+
+			if (mp_value_list_append(frmrates, frmrate) < 0) {
+				mp_value_destroy(frmrate);
+			}
+		}
+
 		fie.index++;
 	}
 
-	if (!mp_value_list_is_empty(frmrates)) {
-		mp_structure_append(caps_item, MP_CAPS_FRAME_RATE, frmrates);
+	/* Devices without frame interval support report nothing at all */
+	if (frmrates == NULL) {
+		return;
+	}
+
+	if (mp_structure_append(caps_item, MP_CAPS_FRAME_RATE, frmrates) < 0) {
+		mp_value_destroy(frmrates);
 	}
 }
 
