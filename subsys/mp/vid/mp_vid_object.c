@@ -127,9 +127,7 @@ static void append_frmrates_to_structure(const struct device *vdev, struct video
 		return;
 	}
 
-	if (mp_structure_append(caps_item, MP_CAPS_FRAME_RATE, frmrates) < 0) {
-		mp_value_destroy(frmrates);
-	}
+	(void)mp_structure_append(caps_item, MP_CAPS_FRAME_RATE, frmrates);
 }
 
 struct mp_caps *mp_vid_object_get_caps(struct mp_vid_object *vid_obj)

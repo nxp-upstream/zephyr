@@ -793,13 +793,24 @@ struct mp_value *mp_value_intersect_fraction_range(const struct mp_value *ref_va
 	if ((compare_val->type == MP_TYPE_UINT_FRACTION_RANGE ||
 	     compare_val->type == MP_TYPE_INT_FRACTION_RANGE) &&
 	    MP_VALUE_FRACTION_RANGES_OVERLAP(ref_val, compare_val)) {
-		intersect_value = mp_value_new_empty(ref_val->type);
-		MP_VALUE_FRACTION_RANGE(intersect_value)->min = *MP_VALUE_FRACTION(mp_value_min_max(
+		const struct mp_value *min_val = mp_value_min_max(
 			MP_VALUE(&MP_VALUE_FRACTION_RANGE(ref_val)->min),
-			MP_VALUE(&MP_VALUE_FRACTION_RANGE(compare_val)->min), false));
-		MP_VALUE_FRACTION_RANGE(intersect_value)->max = *MP_VALUE_FRACTION(mp_value_min_max(
+			MP_VALUE(&MP_VALUE_FRACTION_RANGE(compare_val)->min), false);
+		const struct mp_value *max_val = mp_value_min_max(
 			MP_VALUE(&MP_VALUE_FRACTION_RANGE(ref_val)->max),
-			MP_VALUE(&MP_VALUE_FRACTION_RANGE(compare_val)->max), true));
+			MP_VALUE(&MP_VALUE_FRACTION_RANGE(compare_val)->max), true);
+
+		if (min_val == NULL || max_val == NULL) {
+			return NULL;
+		}
+
+		intersect_value = mp_value_new_empty(ref_val->type);
+		if (intersect_value == NULL) {
+			return NULL;
+		}
+
+		MP_VALUE_FRACTION_RANGE(intersect_value)->min = *MP_VALUE_FRACTION(min_val);
+		MP_VALUE_FRACTION_RANGE(intersect_value)->max = *MP_VALUE_FRACTION(max_val);
 		if (f_type == MP_TYPE_INT_FRACTION) {
 			mp_value_set(
 				MP_VALUE(&MP_VALUE_FRACTION_RANGE(intersect_value)->step), f_type,
@@ -821,16 +832,8 @@ struct mp_value *mp_value_intersect_fraction_range(const struct mp_value *ref_va
 		intersect_value = mp_value_new(f_type, MP_VALUE_FRACTION(compare_val)->num.v_uint,
 					       MP_VALUE_FRACTION(compare_val)->denom.v_uint, NULL);
 	} else {
-		printk("%d\n",
-		       mp_value_compare_fraction(
-			       compare_val, MP_VALUE(&MP_VALUE_FRACTION_RANGE(ref_val)->min)) ==
-			       MP_VALUE_LESS_THAN);
-		printk("%d\n",
-		       mp_value_compare_fraction(
-			       compare_val, MP_VALUE(&MP_VALUE_FRACTION_RANGE(ref_val)->max)) ==
-			       MP_VALUE_GREATER_THAN);
-		printk("Failed to intersect fraction ranges %d %d", compare_val->type,
-		       ref_val->type);
+		LOG_DBG("Failed to intersect fraction ranges %d %d", compare_val->type,
+			ref_val->type);
 		intersect_value = NULL;
 	}
 

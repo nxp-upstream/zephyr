@@ -84,12 +84,14 @@ int mp_structure_append(struct mp_structure *structure, uint8_t field_id, struct
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&structure->fields, field, node) {
 		if (field->field_id == field_id) {
+			mp_value_destroy(value);
 			return -EEXIST;
 		}
 	}
 
 	field = k_malloc(sizeof(struct mp_structure_field));
 	if (field == NULL) {
+		mp_value_destroy(value);
 		return -ENOMEM;
 	}
 

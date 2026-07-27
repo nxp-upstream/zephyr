@@ -145,8 +145,13 @@ int mp_caps_init(struct mp_caps *caps, uint8_t flag);
 /**
  * @brief Append a structure to the @ref mp_caps.
  *
+ * The caps take ownership of @p structure: on success it is stored, and on
+ * failure it is destroyed. The caller must not use @p structure after this
+ * call. The only exception is a NULL argument, which reports a caller error
+ * and leaves both arguments untouched.
+ *
  * @param caps Pointer to @ref mp_caps
- * @param structure Pointer to @ref mp_structure to append
+ * @param structure Pointer to @ref mp_structure to append, ownership is transferred
  *
  * @return 0 on success, negative errno on failure
  */

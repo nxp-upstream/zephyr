@@ -117,9 +117,14 @@ int mp_structure_init(struct mp_structure *structure, uint8_t media_type_id);
 /**
  * @brief Append a field to an @ref mp_structure.
  *
+ * The structure takes ownership of @p value: on success it is stored, and on
+ * -EEXIST or -ENOMEM it is destroyed. The caller must not use @p value after
+ * this call. The only exception is -EINVAL, which reports a caller error and
+ * leaves both arguments untouched.
+ *
  * @param structure Structure to append the field to.
  * @param field_id Field ID (field ID must be unique)
- * @param value Field value
+ * @param value Field value, ownership is transferred
  *
  * @return 0 on success, -EINVAL if arguments are invalid,
  *         -EEXIST if field_id already exists, -ENOMEM on allocation failure

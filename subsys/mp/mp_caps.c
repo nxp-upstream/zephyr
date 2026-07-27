@@ -129,12 +129,18 @@ int mp_caps_append(struct mp_caps *caps, struct mp_structure *structure)
 {
 	struct mp_cap_structure *cs;
 
-	if (caps == NULL || caps->object.flags == MP_CAPS_FLAG_ANY || structure == NULL) {
+	if (caps == NULL || structure == NULL) {
+		return -EINVAL;
+	}
+
+	if (caps->object.flags == MP_CAPS_FLAG_ANY) {
+		mp_structure_destroy(structure);
 		return -EINVAL;
 	}
 
 	cs = k_malloc(sizeof(struct mp_cap_structure));
 	if (cs == NULL) {
+		mp_structure_destroy(structure);
 		return -ENOMEM;
 	}
 

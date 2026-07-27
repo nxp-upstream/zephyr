@@ -94,9 +94,9 @@ ZTEST(mp_structure_api, test_new)
 
 	struct mp_value *dup_val = mp_value_new(MP_TYPE_INT, 0);
 
+	/* On -EEXIST the value is consumed by mp_structure_append(), do not destroy it here */
 	zassert_equal(mp_structure_append(&si, MP_CAPS_SAMPLE_RATE, dup_val), -EEXIST,
 		      "duplicate field != -EEXIST");
-	mp_value_destroy(dup_val);
 
 	zassert_equal(mp_structure_init(NULL, MP_MEDIA_AUDIO_PCM), -EINVAL,
 		      "init(NULL) != -EINVAL");
