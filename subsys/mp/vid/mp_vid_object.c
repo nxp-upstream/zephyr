@@ -202,11 +202,18 @@ struct mp_caps *mp_vid_object_get_caps(struct mp_vid_object *vid_obj)
 	return caps;
 }
 
+/* True when the device advertises a frame interval of its own for this format */
+static bool has_frmival(const struct device *vdev, struct video_format *fmt)
+{
+	struct video_frmival_enum fie = {.format = fmt};
+
+	return video_enum_frmival(vdev, &fie) == 0;
+}
+
 int mp_vid_object_set_caps(struct mp_vid_object *vid_obj, struct mp_caps *caps)
 {
 	struct video_format_cap vfc = {0};
 	struct video_format fmt;
-	struct video_frmival frmival;
 	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
 	struct mp_value *frmrate = mp_structure_get_value(first_structure, MP_CAPS_FRAME_RATE);
 
@@ -233,16 +240,23 @@ int mp_vid_object_set_caps(struct mp_vid_object *vid_obj, struct mp_caps *caps)
 	/* Set buffer pool size */
 	vid_obj->pool.pool.config.size = fmt.size;
 
-	/* Set frame rate only if the element's caps support it */
-	struct mp_caps *objcaps = mp_vid_object_get_caps(vid_obj);
+	/*
+	 * Apply the frame rate by asking the video subsystem for the closest interval the
+	 * device actually supports, and only to a device that has one of its own. An m2m
+	 * device such as a decoder advertises none, and the rate it sees in the negotiated
+	 * caps is the camera's, carried down the chain by a field the intersection copies
+	 * from whichever side has it.
+	 */
+	if (frmrate != NULL && has_frmival(vid_obj->vdev, &fmt)) {
+		struct video_frmival_enum fie = {
+			.format = &fmt,
+			.type = VIDEO_FRMIVAL_TYPE_DISCRETE,
+			.discrete.numerator = mp_value_get_fraction_denominator(frmrate),
+			.discrete.denominator = mp_value_get_fraction_numerator(frmrate),
+		};
 
-	first_structure = mp_caps_get_structure(objcaps, 0);
-	if (frmrate != NULL &&
-	    mp_structure_get_value(first_structure, MP_CAPS_FRAME_RATE) != NULL) {
-		mp_caps_unref(objcaps);
-		frmival.numerator = mp_value_get_fraction_denominator(frmrate);
-		frmival.denominator = mp_value_get_fraction_numerator(frmrate);
-		if (video_set_frmival(vid_obj->vdev, &frmival)) {
+		if (video_closest_frmival(vid_obj->vdev, &fie) < 0 ||
+		    video_set_frmival(vid_obj->vdev, &fie.discrete) != 0) {
 			LOG_ERR("Unable to set frame interval");
 			return -EIO;
 		}
