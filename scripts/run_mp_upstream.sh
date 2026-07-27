@@ -42,7 +42,7 @@ done
 # git push --force nxp-upstream upstream/mp-disp:mp-zdisp
 # git push --force nxp-upstream upstream/mp-vid:mp-zvid
 # git push --force nxp-upstream upstream/mp-img:mp-zjpeg
-# git push --force nxp-upstream upstream/mp-aud:mp-zaud
+# git push --force nxp-upstream upstream/mp-aud:libmp_zaud
 # git push --force nxp-upstream upstream/mp-sample-fs:mp-sample-fs
 # git push --force nxp-upstream upstream/mp-sample-cam_disp:libmp_video_sample
 # git push --force nxp-upstream upstream/mp-sample-jpeg_dec:mp-sample-jpeg_dec
@@ -51,4 +51,4 @@ done
 
 # Dependencies branches:
 # git push --force nxp-upstream libmp_video:libmp_video
-# git push --force nxp-upstream libmp_audio_dependencies_rebased:git push --force nxp-upstream
+# git push --force nxp-upstream libmp_audio_dependencies_rebased:mp_aud_dependencies

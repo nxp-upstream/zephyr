@@ -432,9 +432,9 @@ TARGET_AUTHOR=(
 )
 
 # ===========================================================================
-# Build-all test map: target -> testcase name in build_all/testcase.yaml
+# Build-all test map: target -> testcase name in build_all/tests.yaml
 #
-# tests/subsys/mp/build_all/testcase.yaml in the source branch is a single
+# tests/subsys/mp/build_all/tests.yaml in the source branch is a single
 # file that contains one build_only entry per plugin (plus the core entry).
 # When exporting, each commit must only carry the entries relevant to it:
 #   - the core-tests commit keeps only 'mp.core.build'
@@ -454,7 +454,7 @@ TARGET_BUILD_TEST=(
 )
 
 # Path to the shared build_all testcase file (relative to repo root).
-BUILD_ALL_TESTCASE="tests/subsys/mp/build_all/testcase.yaml"
+BUILD_ALL_TESTCASE="tests/subsys/mp/build_all/tests.yaml"
 
 
 # ===========================================================================
@@ -489,7 +489,7 @@ die() {
 
 # Pause the run so the human operator can resolve a cherry-pick conflict by
 # hand, then continue the same run once done. This is intentionally generic:
-# it triggers on ANY cherry-pick conflict (not just testcase.yaml), so future
+# it triggers on ANY cherry-pick conflict (not just tests.yaml), so future
 # code changes that introduce new conflicts are handled without special-casing.
 #
 # The caller is expected to run `git cherry-pick --continue` after this returns
@@ -551,7 +551,7 @@ pause_for_manual_resolution() {
 
 
 
-# Extract a single named test block from the source build_all/testcase.yaml.
+# Extract a single named test block from the source build_all/tests.yaml.
 # A block starts at a line "  <name>:" (two-space indent) and runs until the
 # next top-level test entry ("  mp.*.build:") or end of file. Trailing blank
 # lines are stripped. The extracted text is printed to stdout.
@@ -574,7 +574,7 @@ extract_build_test_block() {
     ' | sed -e :a -e '/^[[:space:]]*$/{$d;N;ba}'
 }
 
-# Rewrite build_all/testcase.yaml in the working tree so it contains only the
+# Rewrite build_all/tests.yaml in the working tree so it contains only the
 # "tests:" header plus the named test blocks passed as arguments (in order).
 #
 # Args: $1+=test_name(s)
@@ -592,7 +592,7 @@ write_build_test_file() {
     mv "${tmp}" "${BUILD_ALL_TESTCASE}"
 }
 
-# Append the named test block to the existing build_all/testcase.yaml in the
+# Append the named test block to the existing build_all/tests.yaml in the
 # working tree (used by plugin commits, which already inherit the file with
 # only the core entry from the cherry-picked core-tests commit).
 #
@@ -606,12 +606,12 @@ append_build_test_block() {
 }
 
 # Print, one name per line, every top-level test block found on stdin (a
-# build_all/testcase.yaml stream). For example, "mp.core.build".
+# build_all/tests.yaml stream). For example, "mp.core.build".
 list_build_test_names() {
     awk '/^  mp\.[a-zA-Z0-9_.]+\.build:[[:space:]]*$/ { gsub(/[ :]/, ""); print }'
 }
 
-# Auto-resolve a conflict on build_all/testcase.yaml during a cherry-pick.
+# Auto-resolve a conflict on build_all/tests.yaml during a cherry-pick.
 #
 # Every plugin commit appends its own test block right after the core block.
 # When a sample cherry-picks several plugins, those appends collide. The
@@ -748,7 +748,7 @@ generate_branch() {
         # "mp: Add core tests" commits, so when a sample cherry-picks several
         # plugin ranges those duplicates would otherwise be re-applied and
         # conflict (notably the core-tests commit trying to reset
-        # build_all/testcase.yaml back to core-only). --right-only keeps only
+        # build_all/tests.yaml back to core-only). --right-only keeps only
         # commits reachable from the dependency branch, not from HEAD.
         mapfile -t commits < <(git rev-list --reverse --cherry-pick --right-only "HEAD...${to_ref}")
 
@@ -765,7 +765,7 @@ generate_branch() {
                         git cherry-pick --abort 2>/dev/null || true
                     else
                         # Real conflict. Two cases:
-                        #   1. The ONLY conflicted file is build_all/testcase.yaml.
+                        #   1. The ONLY conflicted file is build_all/tests.yaml.
                         #      This is expected when a sample cherry-picks several
                         #      plugins that each append their own test block to the
                         #      same file. We resolve it deterministically as the union
@@ -869,7 +869,7 @@ generate_branch() {
     fi
 
     # Append this plugin's own build_all entry. The core-tests commit (cherry-
-    # picked as a dependency) provides build_all/testcase.yaml with only the
+    # picked as a dependency) provides build_all/tests.yaml with only the
     # core entry; each plugin adds exactly its own build test here. Targets
     # without a build test (e.g. samples) are left untouched.
     local build_test="${TARGET_BUILD_TEST[${target}]:-}"
@@ -1101,7 +1101,7 @@ export_core_tests() {
         return 0
     fi
 
-    # The shared build_all/testcase.yaml contains one entry per plugin. The
+    # The shared build_all/tests.yaml contains one entry per plugin. The
     # core-tests commit must only carry the core build test; each plugin's
     # entry is added by its own plugin commit.
     if [ -f "${BUILD_ALL_TESTCASE}" ]; then
