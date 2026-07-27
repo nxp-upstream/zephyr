@@ -13,12 +13,13 @@ EXPORT_SCRIPT="${SCRIPT_DIR}/export_mp_upstream.sh"
 
 TARGETS=(
     core
-    zbase
-    zfs
-    zvid
-    zimg
-    zdisp
-    zaud
+    utils
+    base
+    fs
+    vid
+    img
+    disp
+    aud
     sample-fs
     sample-cam_disp
     sample-jpeg_dec
@@ -35,14 +36,19 @@ done
 
 # Push to upstream
 # git push --force nxp-upstream upstream/mp-core:libMP_RFC
-# git push --force nxp-upstream upstream/mp-zbase:mp_zbase
-# git push --force nxp-upstream upstream/mp-zfs:mp-zfs
-# git push --force nxp-upstream upstream/mp-zdisp:mp-zdisp
-# git push --force nxp-upstream upstream/mp-zvid:mp-zvid
-# git push --force nxp-upstream upstream/mp-zimg:mp-zimg
-# git push --force nxp-upstream upstream/mp-zaud:mp-zaud
+# git push --force nxp-upstream upstream/mp-utils:mp-utils
+# git push --force nxp-upstream upstream/mp-base:mp_zbase
+# git push --force nxp-upstream upstream/mp-fs:mp-zfs
+# git push --force nxp-upstream upstream/mp-disp:mp-zdisp
+# git push --force nxp-upstream upstream/mp-vid:mp-zvid
+# git push --force nxp-upstream upstream/mp-img:mp-zjpeg
+# git push --force nxp-upstream upstream/mp-aud:mp-zaud
 # git push --force nxp-upstream upstream/mp-sample-fs:mp-sample-fs
 # git push --force nxp-upstream upstream/mp-sample-cam_disp:libmp_video_sample
 # git push --force nxp-upstream upstream/mp-sample-jpeg_dec:mp-sample-jpeg_dec
 # git push --force nxp-upstream upstream/mp-sample-tee_dec:mp-sample-tee_dec
 # git push --force nxp-upstream upstream/mp-sample-dmic_i2s:libmp_audio_sample
+
+# Dependencies branches:
+# git push --force nxp-upstream libmp_video:libmp_video
+# git push --force nxp-upstream libmp_audio_dependencies_rebased:git push --force nxp-upstream
