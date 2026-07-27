@@ -170,13 +170,22 @@ static int mp_vid_transform_set_property(struct mp_object *obj, uint32_t key, co
 	struct mp_vid_transform *vid_transform = (struct mp_vid_transform *)obj;
 
 	switch (key) {
-	case MP_PROP_VID_DEVICE:
+	case MP_PROP_VID_DEVICE: {
+		const struct device *prev_vdev = vid_transform->vid_obj_in.vdev;
+
 		mp_vid_object_set_property(&vid_transform->vid_obj_in, key, val);
 		mp_vid_object_set_property(&vid_transform->vid_obj_out, key, val);
-		/* Device set, update caps */
-		mp_vid_transform_update_caps(transform);
+
+		/*
+		 * Rebuilding the caps means re-enumerating every format the device
+		 * supports, twice, so only do it when the device actually changed.
+		 */
+		if (vid_transform->vid_obj_in.vdev != prev_vdev) {
+			mp_vid_transform_update_caps(transform);
+		}
 
 		return 0;
+	}
 	default:
 		return mp_vid_object_set_property(&vid_transform->vid_obj_in, key, val);
 	}

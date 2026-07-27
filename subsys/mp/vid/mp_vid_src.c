@@ -50,10 +50,17 @@ static int mp_vid_src_set_property(struct mp_object *obj, uint32_t key, const vo
 {
 	struct mp_vid_src *vid_src = (struct mp_vid_src *)obj;
 	struct mp_src *src = &vid_src->src;
+	const struct device *prev_vdev = vid_src->vid_obj.vdev;
+	struct video_rect prev_crop = vid_src->vid_obj.crop;
 	int ret = mp_vid_object_set_property(&vid_src->vid_obj, key, val);
 
-	if (ret == 0 && (key == MP_PROP_VID_DEVICE || key == MP_PROP_VID_CROP)) {
-		/* Device set, update caps */
+	/*
+	 * Rebuilding the caps means re-enumerating every format the device supports,
+	 * so only do it when the property actually changed something.
+	 */
+	if (ret == 0 && (key == MP_PROP_VID_DEVICE || key == MP_PROP_VID_CROP) &&
+	    (vid_src->vid_obj.vdev != prev_vdev ||
+	     memcmp(&vid_src->vid_obj.crop, &prev_crop, sizeof(prev_crop)) != 0)) {
 		mp_vid_src_update_caps(src);
 	}
 
