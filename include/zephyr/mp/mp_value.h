@@ -47,13 +47,9 @@ enum mp_value_type {
 	MP_TYPE_ENUM,                /**< Enumeration value */
 	MP_TYPE_INT,                 /**< Signed integer value */
 	MP_TYPE_UINT,                /**< Unsigned integer value */
-	MP_TYPE_UINT_FRACTION,       /**< Unsigned integer fraction value */
-	MP_TYPE_INT_FRACTION,        /**< Fraction value */
 	MP_TYPE_STRING,              /**< String value */
 	MP_TYPE_INT_RANGE,           /**< Integer range value */
-	MP_TYPE_INT_FRACTION_RANGE,  /**< Integer fraction range value */
 	MP_TYPE_UINT_RANGE,          /**< Unsigned integer range value */
-	MP_TYPE_UINT_FRACTION_RANGE, /**< Unsigned integer fraction range value */
 	MP_TYPE_LIST,                /**< List of values */
 	MP_TYPE_OBJECT,              /**< Object reference */
 	MP_TYPE_PTR,                 /**< Pointer type */
@@ -76,10 +72,7 @@ struct mp_value {
  *
  * - MP_TYPE_BOOLEAN, MP_TYPE_ENUM, MP_TYPE_INT, MP_TYPE_UINT, MP_TYPE_STRING,
  *   MP_TYPE_OBJECT, MP_TYPE_PTR: Require one initialization value.
- * - MP_TYPE_INT_RANGE: Requires three integer values (min, max, and step).
- * - MP_TYPE_FRACTION: Requires two values (numerator and denominator).
- * - MP_TYPE_FRACTION_RANGE: Requires six values (min numerator, min denominator,
- *   max numerator, max denominator, step numerator, and step denominator).
+ * - MP_TYPE_INT_RANGE, MP_TYPE_UINT_RANGE: Require three values (min, max, and step).
  * - MP_TYPE_LIST: Requires a sequence of mp_value elements, terminated with NULL
  *   to indicate the end of the list.
  *
@@ -186,12 +179,6 @@ const char *mp_value_get_string(const struct mp_value *value);
 /** Get pointer value of MP_TYPE_PTR */
 void *mp_value_get_ptr(const struct mp_value *value);
 
-/** Get numerator of @ref mp_value with MP_TYPE_FRACTION*/
-int mp_value_get_fraction_numerator(const struct mp_value *frac);
-
-/** Get denominator of @ref mp_value with MP_TYPE_FRACTION */
-int mp_value_get_fraction_denominator(const struct mp_value *frac);
-
 /** Get minimum value of @ref mp_value with MP_TYPE_INT_RANGE */
 int mp_value_get_int_range_min(const struct mp_value *range);
 
@@ -209,21 +196,6 @@ uint32_t mp_value_get_uint_range_max(const struct mp_value *range);
 
 /** Get step value of @ref mp_value with MP_TYPE_UINT_RANGE */
 uint32_t mp_value_get_uint_range_step(const struct mp_value *range);
-
-/** Get the min value of a mp_value with type MP_TYPE_FRACTION_RANGE, returning a mp_value with
- * MP_TYPE_FRACTION
- */
-const struct mp_value *mp_value_get_fraction_range_min(const struct mp_value *fraction_range);
-
-/** Get the max value of a mp_value with type MP_TYPE_FRACTION_RANGE, returning a mp_value with
- * MP_TYPE_FRACTION
- */
-const struct mp_value *mp_value_get_fraction_range_max(const struct mp_value *fraction_range);
-
-/** Get the step value of a mp_value with type MP_TYPE_FRACTION_RANGE, returning a mp_value
- * with MP_TYPE_FRACTION
- */
-const struct mp_value *mp_value_get_fraction_range_step(const struct mp_value *fraction_range);
 
 /** Get the object reference of a mp_value with MP_TYPE_OBJECT */
 struct mp_object *mp_value_get_object(struct mp_value *value);
@@ -251,17 +223,6 @@ int mp_value_compare(const struct mp_value *val1, const struct mp_value *val2);
 struct mp_value *mp_value_intersect(const struct mp_value *val1, const struct mp_value *val2);
 
 /**
- * Comparison between two fractions
- *
- * @param frac1 first fraction
- * @param frac2 second fraction
- * @return MP_VALUE_GREATER_THAN if frac1 > frac2
- * MP_VALUE_LESS_THAN if frac1 < frac2
- * MP_VALUE_EQUAL if frac1 == frac2
- */
-int mp_value_compare_fraction(const struct mp_value *frac1, const struct mp_value *frac2);
-
-/**
  * Intersect between value and range
  *
  * @param ref_val reference value to compare with
@@ -270,17 +231,6 @@ int mp_value_compare_fraction(const struct mp_value *frac1, const struct mp_valu
  */
 struct mp_value *mp_value_intersect_int_range(const struct mp_value *ref_val,
 					      const struct mp_value *compare_val);
-
-/**
- * Intersect between franction range and fraction
- *
- * @param ref_val reference value to compare with, reference value should be
- * fraction range
- * @param compare_val value to compare with
- * @return NULL if intersect is empty
- */
-struct mp_value *mp_value_intersect_fraction_range(const struct mp_value *ref_val,
-						   const struct mp_value *compare_val);
 
 /**
  * Intersect between list with value, range or list

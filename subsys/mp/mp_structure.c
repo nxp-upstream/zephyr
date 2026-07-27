@@ -334,11 +334,6 @@ struct mp_structure *mp_structure_fixate(struct mp_structure *src)
 			fixated_value = mp_value_new(MP_TYPE_UINT,
 						     mp_value_get_int_range_min(field->value));
 			break;
-		case MP_TYPE_INT_FRACTION_RANGE:
-		case MP_TYPE_UINT_FRACTION_RANGE:
-			fixated_value =
-				mp_value_duplicate(mp_value_get_fraction_range_min(field->value));
-			break;
 		case MP_TYPE_LIST:
 			fixated_value = mp_value_duplicate(mp_value_list_get(field->value, 0));
 			break;

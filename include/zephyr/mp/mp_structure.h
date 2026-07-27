@@ -44,7 +44,7 @@
  *
  * @endcode
  *
- * Structure supports also int range, fraction range and list
+ * Structure supports also int range, uint range and list
  *
  * Example of structure with range and list:
  * video/x-dummy, format={MP_PIXEL_FORMAT_RGB565, MP_PIXEL_FORMAT_XRGB}, width=[720, 1080,
@@ -61,7 +61,7 @@
  *     MP_CAPS_FORMAT, MP_TYPE_LIST, list,
  *     MP_CAPS_WIDTH, MP_TYPE_RANGE_INT, 720, 1080, 720,
  *     MP_CAPS_HEIGHT, MP_TYPE_RANGE_INT, 960, 1920, 960,
- *     MP_CAPS_FRAMERATE, MP_TYPE_FRACTION_RANGE, 30, 1, 60, 1, 15, 1, MP_CAPS_END);
+ *     MP_CAPS_FRAME_INTERVAL, MP_TYPE_UINT_RANGE, 16666, 66666, 1, MP_CAPS_END);
  *
  * @endcode
  *

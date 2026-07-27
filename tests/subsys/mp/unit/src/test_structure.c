@@ -53,11 +53,8 @@ enum test_field {
 	TEST_INT,
 	TEST_UINT,
 	TEST_STRING,
-	TEST_FRACTION,
 	TEST_RANGE_INT,
 	TEST_RANGE_UINT,
-	TEST_INT_FRACTION_RANGE,
-	TEST_UINT_FRACTION_RANGE,
 	TEST_LIST,
 };
 
@@ -142,14 +139,14 @@ ZTEST(mp_structure_api, test_is_fixed_fixate_duplicate)
 /* Intersect two structures where all fields are primitive (fixed) values. */
 ZTEST(mp_structure_api, test_intersect_primitive)
 {
-	struct mp_structure *s1 = mp_structure_new(
-		MP_MEDIA_AUDIO_PCM, TEST_BOOL, MP_TYPE_BOOLEAN, true, TEST_INT, MP_TYPE_INT, -123,
-		TEST_UINT, MP_TYPE_UINT, 123, TEST_STRING, MP_TYPE_STRING, "xRGB", TEST_FRACTION,
-		MP_TYPE_INT_FRACTION, 30, 1, MP_STRUCTURE_END);
-	struct mp_structure *s2 = mp_structure_new(
-		MP_MEDIA_AUDIO_PCM, TEST_BOOL, MP_TYPE_BOOLEAN, true, TEST_INT, MP_TYPE_INT, -123,
-		TEST_UINT, MP_TYPE_UINT, 123, TEST_STRING, MP_TYPE_STRING, "xRGB", TEST_FRACTION,
-		MP_TYPE_INT_FRACTION, 30, 1, MP_STRUCTURE_END);
+	struct mp_structure *s1 =
+		mp_structure_new(MP_MEDIA_AUDIO_PCM, TEST_BOOL, MP_TYPE_BOOLEAN, true, TEST_INT,
+				 MP_TYPE_INT, -123, TEST_UINT, MP_TYPE_UINT, 123, TEST_STRING,
+				 MP_TYPE_STRING, "xRGB", MP_STRUCTURE_END);
+	struct mp_structure *s2 =
+		mp_structure_new(MP_MEDIA_AUDIO_PCM, TEST_BOOL, MP_TYPE_BOOLEAN, true, TEST_INT,
+				 MP_TYPE_INT, -123, TEST_UINT, MP_TYPE_UINT, 123, TEST_STRING,
+				 MP_TYPE_STRING, "xRGB", MP_STRUCTURE_END);
 
 	zassert_true(mp_structure_can_intersect(s1, s2), "identical structures cannot intersect");
 
@@ -169,9 +166,6 @@ ZTEST(mp_structure_api, test_intersect_primitive)
 
 	v = mp_structure_get_value(result, TEST_STRING);
 	validate_string_value(v, "xRGB");
-
-	v = mp_structure_get_value(result, TEST_FRACTION);
-	validate_int_fraction_value(v, 30, 1);
 
 	mp_structure_destroy(s1);
 	mp_structure_destroy(s2);
@@ -258,56 +252,6 @@ ZTEST(mp_structure_api, test_intersect_uint_range)
 	mp_structure_destroy(s_range);
 }
 
-/* Intersect structures with fraction and fraction-range fields. */
-ZTEST(mp_structure_api, test_intersect_fraction_range)
-{
-	struct mp_structure *s_frac =
-		mp_structure_new(MP_MEDIA_AUDIO_PCM, TEST_INT_FRACTION_RANGE, MP_TYPE_INT_FRACTION,
-				 1, INT_MIN, MP_STRUCTURE_END);
-	struct mp_structure *s_frac_range = mp_structure_new(
-		MP_MEDIA_AUDIO_PCM, TEST_INT_FRACTION_RANGE, MP_TYPE_INT_FRACTION_RANGE, 1, INT_MIN,
-		INT_MAX, 1, 1, 1, MP_STRUCTURE_END);
-
-	struct mp_structure *result = mp_structure_intersect(s_frac_range, s_frac_range);
-
-	zassert_not_null(result, "range & range intersection returned NULL");
-	struct mp_value *v = mp_structure_get_value(result, TEST_INT_FRACTION_RANGE);
-
-	validate_fraction_int_range(v, 1, INT_MIN, INT_MAX, 1, 1, 1);
-	mp_structure_destroy(result);
-
-	result = mp_structure_intersect(s_frac, s_frac_range);
-	zassert_not_null(result, "fixed & range intersection returned NULL");
-	v = mp_structure_get_value(result, TEST_INT_FRACTION_RANGE);
-	validate_int_fraction_value(v, 1, INT_MIN);
-	mp_structure_destroy(result);
-
-	mp_structure_destroy(s_frac);
-	mp_structure_destroy(s_frac_range);
-
-	struct mp_structure *s_ufrac =
-		mp_structure_new(MP_MEDIA_AUDIO_PCM, TEST_UINT_FRACTION_RANGE,
-				 MP_TYPE_UINT_FRACTION, 1, UINT32_MAX, MP_STRUCTURE_END);
-	struct mp_structure *s_ufrac_range = mp_structure_new(
-		MP_MEDIA_AUDIO_PCM, TEST_UINT_FRACTION_RANGE, MP_TYPE_UINT_FRACTION_RANGE, 1,
-		UINT32_MAX, UINT32_MAX, 1, 1, 1, MP_STRUCTURE_END);
-
-	result = mp_structure_intersect(s_ufrac_range, s_ufrac_range);
-	zassert_not_null(result, "uint frac range & range returned NULL");
-	v = mp_structure_get_value(result, TEST_UINT_FRACTION_RANGE);
-	validate_uint_fraction_range(v, 1, UINT32_MAX, UINT32_MAX, 1, 1, 1);
-	mp_structure_destroy(result);
-
-	result = mp_structure_intersect(s_ufrac, s_ufrac_range);
-	zassert_not_null(result, "uint fixed & range returned NULL");
-	v = mp_structure_get_value(result, TEST_UINT_FRACTION_RANGE);
-	validate_uint_fraction_value(v, 1, UINT32_MAX);
-	mp_structure_destroy(result);
-
-	mp_structure_destroy(s_ufrac);
-	mp_structure_destroy(s_ufrac_range);
-}
-
 /* Intersect structures with LIST fields. */
 ZTEST(mp_structure_api, test_intersect_list)
 {
@@ -315,9 +259,7 @@ ZTEST(mp_structure_api, test_intersect_list)
 		MP_MEDIA_AUDIO_PCM, TEST_LIST, MP_TYPE_LIST,
 		mp_value_new(MP_TYPE_LIST, mp_value_new(MP_TYPE_INT, 15),
 			     mp_value_new(MP_TYPE_UINT, 30),
-			     mp_value_new(MP_TYPE_INT_FRACTION, 15, 1),
 			     mp_value_new(MP_TYPE_INT_RANGE, 1, 100, 1),
-			     mp_value_new(MP_TYPE_INT_FRACTION_RANGE, 100, 1, 60, 1, 1, 1),
 			     mp_value_new(MP_TYPE_STRING, "RGB"),
 			     mp_value_new(MP_TYPE_LIST, mp_value_new(MP_TYPE_INT, 15), NULL), NULL),
 		MP_STRUCTURE_END);
@@ -327,8 +269,6 @@ ZTEST(mp_structure_api, test_intersect_list)
 			     mp_value_new(MP_TYPE_UINT, 30),
 			     mp_value_new(MP_TYPE_LIST, mp_value_new(MP_TYPE_INT, 15), NULL),
 			     mp_value_new(MP_TYPE_INT_RANGE, 1, 100, 1),
-			     mp_value_new(MP_TYPE_INT_FRACTION, 15, 1),
-			     mp_value_new(MP_TYPE_INT_FRACTION_RANGE, 100, 1, 60, 1, 1, 1),
 			     mp_value_new(MP_TYPE_INT, 15), NULL),
 		MP_STRUCTURE_END);
 
@@ -338,7 +278,7 @@ ZTEST(mp_structure_api, test_intersect_list)
 
 	struct mp_value *list = mp_structure_get_value(result, TEST_LIST);
 
-	validate_list_value_type_and_size(list, 7);
+	validate_list_value_type_and_size(list, 5);
 
 	struct mp_value *item = mp_value_list_get(list, 0);
 
@@ -348,18 +288,12 @@ ZTEST(mp_structure_api, test_intersect_list)
 	validate_uint_value(item, 30);
 
 	item = mp_value_list_get(list, 2);
-	validate_int_fraction_value(item, 15, 1);
-
-	item = mp_value_list_get(list, 3);
 	validate_int_range_value(item, 1, 100, 1);
 
-	item = mp_value_list_get(list, 4);
-	validate_fraction_int_range(item, 100, 1, 60, 1, 1, 1);
-
-	item = mp_value_list_get(list, 5);
+	item = mp_value_list_get(list, 3);
 	validate_string_value(item, "RGB");
 
-	item = mp_value_list_get(list, 6);
+	item = mp_value_list_get(list, 4);
 	validate_list_value_type_and_size(item, 1);
 	validate_int_value(mp_value_list_get(item, 0), 15);
 

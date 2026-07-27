@@ -88,14 +88,6 @@ ZTEST(mp_value_api, test_new_values)
 	zassert_equal(mp_value_get_int_range_step(rv), 8000, "step != 8000");
 	mp_value_destroy(rv);
 
-	struct mp_value *fv = mp_value_new(MP_TYPE_INT_FRACTION, 30, 1);
-
-	zassert_not_null(fv);
-	zassert_equal(fv->type, MP_TYPE_INT_FRACTION, "type != INT_FRACTION");
-	zassert_equal(mp_value_get_fraction_numerator(fv), 30, "numerator != 30");
-	zassert_equal(mp_value_get_fraction_denominator(fv), 1, "denominator != 1");
-	mp_value_destroy(fv);
-
 	struct mp_value *ez = mp_value_new(MP_TYPE_INT, 0);
 
 	zassert_not_null(ez);
