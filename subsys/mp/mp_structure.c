@@ -234,21 +234,40 @@ struct mp_structure *mp_structure_intersect(struct mp_structure *struct1,
 	struct mp_structure_field *field;
 	struct mp_structure *intersect_structure;
 	struct mp_value *compared_value, *intersect_value;
+	bool has_common_field = false;
 
-	if (!mp_structure_can_intersect(struct1, struct2)) {
+	if (struct1 == NULL || struct2 == NULL ||
+	    struct1->media_type_id != struct2->media_type_id) {
 		return NULL;
 	}
 
 	intersect_structure = mp_structure_new_empty(struct1->media_type_id);
+	if (intersect_structure == NULL) {
+		return NULL;
+	}
+
 	SYS_SLIST_FOR_EACH_CONTAINER(&struct1->fields, field, node) {
 		compared_value = mp_structure_get_value(struct2, field->field_id);
 		if (compared_value == NULL) {
 			mp_structure_append(intersect_structure, field->field_id,
 					    mp_value_duplicate(field->value));
-		} else {
-			intersect_value = mp_value_intersect(field->value, compared_value);
-			mp_structure_append(intersect_structure, field->field_id, intersect_value);
+			continue;
 		}
+
+		intersect_value = mp_value_intersect(field->value, compared_value);
+		if (intersect_value == NULL) {
+			mp_structure_destroy(intersect_structure);
+			return NULL;
+		}
+
+		has_common_field = true;
+		mp_structure_append(intersect_structure, field->field_id, intersect_value);
+	}
+
+	/* Structures with nothing in common do not intersect */
+	if (!has_common_field) {
+		mp_structure_destroy(intersect_structure);
+		return NULL;
 	}
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&struct2->fields, field, node) {
