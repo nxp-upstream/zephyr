@@ -157,8 +157,13 @@ void mp_vid_transform_client_init(struct mp_element *self)
 	transform->inpool = &vtc->inpool.pool;
 	transform->outpool = &vtc->outpool.pool;
 
-	transform->sinkpad.caps = mp_vid_transform_client_get_caps(transform, MP_PAD_SINK);
-	transform->srcpad.caps = mp_vid_transform_client_get_caps(transform, MP_PAD_SRC);
+	struct mp_caps *sink_caps = mp_vid_transform_client_get_caps(transform, MP_PAD_SINK);
+	struct mp_caps *src_caps = mp_vid_transform_client_get_caps(transform, MP_PAD_SRC);
+
+	mp_transform_update_caps(transform, sink_caps, src_caps);
+	mp_caps_unref(sink_caps);
+	mp_caps_unref(src_caps);
+
 	transform->get_caps = mp_vid_transform_client_get_caps;
 	transform->set_caps = mp_vid_transform_client_set_caps;
 	transform->transform_caps = mp_vid_transform_client_transform_caps;
