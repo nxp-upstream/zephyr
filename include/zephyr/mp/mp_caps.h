@@ -27,7 +27,9 @@
 
 #include <stddef.h>
 
+#include <zephyr/sys/clock.h>
 #include <zephyr/sys/slist.h>
+#include <zephyr/sys/util.h>
 
 #include <zephyr/mp/mp_object.h>
 
@@ -63,8 +65,6 @@ enum {
 	MP_CAPS_IMAGE_WIDTH,
 	/** Image height */
 	MP_CAPS_IMAGE_HEIGHT,
-	/** Frame rate */
-	MP_CAPS_FRAME_RATE,
 
 	/* Common fields used in Audio domain */
 	/** Sample rate */
@@ -73,7 +73,11 @@ enum {
 	MP_CAPS_BITWIDTH,
 	/** Number of channels */
 	MP_CAPS_NUM_OF_CHANNEL,
-	/** Frame interval */
+	/**
+	 * Time covered by one frame, in microseconds. Used by both the audio and the
+	 * video domains: for video it is the frame interval, the reciprocal of the
+	 * frame rate.
+	 */
 	MP_CAPS_FRAME_INTERVAL,
 	/** Data buffer count */
 	MP_CAPS_BUFFER_COUNT,
@@ -114,6 +118,19 @@ struct mp_cap_structure {
 
 /** @brief Flag indicating ANY caps type */
 #define MP_CAPS_FLAG_ANY 0x1
+
+/**
+ * @brief Convert a frame rate in frames per second to a frame interval in microseconds.
+ *
+ * A frame rate that does not divide 1000000 exactly should be rounded the same way so that
+ * its caps representation is consistent across the system. Using DIV_ROUND_CLOSEST() is also
+ * consistent with the video subsystem and drivers.
+ *
+ * @param fps Frame rate in frames per second, must not be zero
+ *
+ * @return Frame interval in microseconds
+ */
+#define MP_FRAME_INTERVAL_FROM_FPS(fps) DIV_ROUND_CLOSEST(USEC_PER_SEC, (fps))
 
 /**
  * @brief Create a new @ref mp_caps of one caps structure with a media type ID and fields in

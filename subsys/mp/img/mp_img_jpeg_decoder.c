@@ -256,7 +256,7 @@ static struct mp_caps *mp_img_jpeg_decoder_transform_caps(struct mp_transform *t
 		struct mp_structure *s = cs->structure;
 		struct mp_value *w = mp_structure_get_value(s, MP_CAPS_IMAGE_WIDTH);
 		struct mp_value *h = mp_structure_get_value(s, MP_CAPS_IMAGE_HEIGHT);
-		struct mp_value *fr = mp_structure_get_value(s, MP_CAPS_FRAME_RATE);
+		struct mp_value *fi = mp_structure_get_value(s, MP_CAPS_FRAME_INTERVAL);
 
 		if (direction == MP_PAD_SRC) {
 			/* JPEG -> RGB565{,X} */
@@ -280,8 +280,9 @@ static struct mp_caps *mp_img_jpeg_decoder_transform_caps(struct mp_transform *t
 				mp_structure_append(ns, MP_CAPS_IMAGE_HEIGHT,
 						    mp_value_duplicate(h));
 			}
-			if (fr != NULL) {
-				mp_structure_append(ns, MP_CAPS_FRAME_RATE, mp_value_duplicate(fr));
+			if (fi != NULL) {
+				mp_structure_append(ns, MP_CAPS_FRAME_INTERVAL,
+						    mp_value_duplicate(fi));
 			}
 			mp_caps_append(out, ns);
 		} else if (direction == MP_PAD_SINK) {
@@ -296,8 +297,9 @@ static struct mp_caps *mp_img_jpeg_decoder_transform_caps(struct mp_transform *t
 				mp_structure_append(ns, MP_CAPS_IMAGE_HEIGHT,
 						    mp_value_duplicate(h));
 			}
-			if (fr != NULL) {
-				mp_structure_append(ns, MP_CAPS_FRAME_RATE, mp_value_duplicate(fr));
+			if (fi != NULL) {
+				mp_structure_append(ns, MP_CAPS_FRAME_INTERVAL,
+						    mp_value_duplicate(fi));
 			}
 			mp_caps_append(out, ns);
 		} else {

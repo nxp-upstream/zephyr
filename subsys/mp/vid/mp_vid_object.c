@@ -104,45 +104,53 @@ bool mp_vid_caps_has_vfc(struct mp_caps *caps, const struct video_format_cap *vf
 	return false;
 }
 
-static void append_frmrates_to_structure(const struct device *vdev, struct video_format *fmt,
+static uint32_t frmival_to_usec(const struct video_frmival *frmival)
+{
+	if (frmival->denominator == 0) {
+		return 0;
+	}
+
+	return (uint32_t)DIV_ROUND_CLOSEST((uint64_t)frmival->numerator * USEC_PER_SEC,
+					   frmival->denominator);
+}
+
+static void append_frmivals_to_structure(const struct device *vdev, struct video_format *fmt,
 					 struct mp_structure *caps_item)
 {
-	struct mp_value *frmrates = NULL;
-	struct mp_value *frmrate;
+	struct mp_value *frmivals = NULL;
+	struct mp_value *frmival;
 	struct video_frmival_enum fie = {0};
 
 	fie.format = fmt;
 	while (video_enum_frmival(vdev, &fie) == 0) {
 		if (fie.type == VIDEO_FRMIVAL_TYPE_STEPWISE) {
 			/*
-			 * A stepwise device describes all its rates with a single range, so
-			 * it cannot be mixed with discrete rates in the same field. Drop
+			 * A stepwise device describes all its intervals with a single range,
+			 * so it cannot be mixed with discrete ones in the same field. Drop
 			 * anything collected so far and stop enumerating.
 			 */
-			frmrate = mp_value_new(
-				MP_TYPE_UINT_FRACTION_RANGE, fie.stepwise.max.denominator,
-				fie.stepwise.max.numerator, fie.stepwise.min.denominator,
-				fie.stepwise.min.numerator, fie.stepwise.step.denominator,
-				fie.stepwise.step.numerator);
+			frmival =
+				mp_value_new(MP_TYPE_UINT_RANGE, frmival_to_usec(&fie.stepwise.min),
+					     frmival_to_usec(&fie.stepwise.max),
+					     frmival_to_usec(&fie.stepwise.step));
 
-			mp_value_destroy(frmrates);
-			frmrates = frmrate;
+			mp_value_destroy(frmivals);
+			frmivals = frmival;
 			break;
 		}
 
 		if (fie.type == VIDEO_FRMIVAL_TYPE_DISCRETE) {
-			if (frmrates == NULL) {
-				frmrates = mp_value_new(MP_TYPE_LIST, NULL);
-				if (frmrates == NULL) {
+			if (frmivals == NULL) {
+				frmivals = mp_value_new(MP_TYPE_LIST, NULL);
+				if (frmivals == NULL) {
 					return;
 				}
 			}
 
-			frmrate = mp_value_new(MP_TYPE_UINT_FRACTION, fie.discrete.denominator,
-					       fie.discrete.numerator);
+			frmival = mp_value_new(MP_TYPE_UINT, frmival_to_usec(&fie.discrete));
 
-			if (mp_value_list_append(frmrates, frmrate) < 0) {
-				mp_value_destroy(frmrate);
+			if (mp_value_list_append(frmivals, frmival) < 0) {
+				mp_value_destroy(frmival);
 			}
 		}
 
@@ -150,11 +158,11 @@ static void append_frmrates_to_structure(const struct device *vdev, struct video
 	}
 
 	/* Devices without frame interval support report nothing at all */
-	if (frmrates == NULL) {
+	if (frmivals == NULL) {
 		return;
 	}
 
-	(void)mp_structure_append(caps_item, MP_CAPS_FRAME_RATE, frmrates);
+	(void)mp_structure_append(caps_item, MP_CAPS_FRAME_INTERVAL, frmivals);
 }
 
 struct mp_caps *mp_vid_object_get_caps(struct mp_vid_object *vid_obj)
@@ -233,11 +241,11 @@ struct mp_caps *mp_vid_object_get_caps(struct mp_vid_object *vid_obj)
 			max(vcaps.format_caps[i].height_max, comp_max_h),
 			vcaps.format_caps[i].height_step, MP_CAPS_END);
 
-		/* Get frame rate */
+		/* Get frame interval */
 		fmt.pixelformat = vcaps.format_caps[i].pixelformat;
 		fmt.width = vcaps.format_caps[i].width_min;
 		fmt.height = vcaps.format_caps[i].height_min;
-		append_frmrates_to_structure(vid_obj->vdev, &fmt, caps_item);
+		append_frmivals_to_structure(vid_obj->vdev, &fmt, caps_item);
 
 		mp_caps_append(caps, caps_item);
 	}
@@ -258,7 +266,8 @@ int mp_vid_object_set_caps(struct mp_vid_object *vid_obj, struct mp_caps *caps)
 	struct video_format_cap vfc = {0};
 	struct video_format fmt;
 	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
-	struct mp_value *frmrate = mp_structure_get_value(first_structure, MP_CAPS_FRAME_RATE);
+	struct mp_value *frmival_us =
+		mp_structure_get_value(first_structure, MP_CAPS_FRAME_INTERVAL);
 
 	if (!mp_caps_is_fixed(caps)) {
 		return -EINVAL;
@@ -284,18 +293,22 @@ int mp_vid_object_set_caps(struct mp_vid_object *vid_obj, struct mp_caps *caps)
 	vid_obj->pool.pool.config.size = fmt.size;
 
 	/*
-	 * Apply the frame rate by asking the video subsystem for the closest interval the
-	 * device actually supports, and only to a device that has one of its own. An m2m
-	 * device such as a decoder advertises none, and the rate it sees in the negotiated
-	 * caps is the camera's, carried down the chain by a field the intersection copies
-	 * from whichever side has it.
+	 * Apply the frame interval by asking the video subsystem for the closest one the
+	 * device actually supports. The closest match is good enough, which also absorbs
+	 * the rounding error from carrying whole microseconds: an interval such as
+	 * 1001/30000 for 29.97 fps does not survive the conversion exactly.
+	 *
+	 * Only a device that has an interval of its own gets one set. An m2m device such
+	 * as a decoder advertises none, and the interval it sees in the negotiated caps is
+	 * the camera's, carried down the chain by a field the intersection copies from
+	 * whichever side has it.
 	 */
-	if (frmrate != NULL && has_frmival(vid_obj->vdev, &fmt)) {
+	if (frmival_us != NULL && has_frmival(vid_obj->vdev, &fmt)) {
 		struct video_frmival_enum fie = {
 			.format = &fmt,
 			.type = VIDEO_FRMIVAL_TYPE_DISCRETE,
-			.discrete.numerator = mp_value_get_fraction_denominator(frmrate),
-			.discrete.denominator = mp_value_get_fraction_numerator(frmrate),
+			.discrete.numerator = mp_value_get_uint(frmival_us),
+			.discrete.denominator = USEC_PER_SEC,
 		};
 
 		if (video_closest_frmival(vid_obj->vdev, &fie) < 0 ||
