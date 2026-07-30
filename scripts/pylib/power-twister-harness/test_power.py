@@ -21,9 +21,10 @@ logger = logging.getLogger(__name__)
 def test_power_harness(
     probe_class: 'PowerMonitor',
     test_data: dict,
-    dut: DeviceAdapter,
+    measurement_duts: tuple[DeviceAdapter, DeviceAdapter | None],
 ):
-    """Measure power on the DUT and validate the results."""
+    """Measure power on the primary DUT and validate the results."""
+    dut, _monitor_dut = measurement_duts
     probe = probe_class
 
     build_dir_path = str(dut.device_config.build_dir)
