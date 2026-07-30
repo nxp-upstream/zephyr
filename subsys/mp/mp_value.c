@@ -712,16 +712,6 @@ static int mp_value_list_compare(const struct mp_value *list1, const struct mp_v
 	return count_matched == size1 ? MP_VALUE_EQUAL : MP_VALUE_UNORDERED;
 }
 
-bool mp_value_can_intersect(const struct mp_value *val1, const struct mp_value *val2)
-{
-	if (val1 == NULL || val2 == NULL ||
-	    !IN_RANGE(val1->type, MP_TYPE_NONE, MP_TYPE_COUNT - 1)) {
-		return false;
-	}
-
-	return (mp_value_intersect_mask[val1->type] & BIT(val2->type)) != 0;
-}
-
 struct mp_value *mp_value_intersect_int_range(const struct mp_value *ref_val,
 					      const struct mp_value *compare_val)
 {
@@ -897,6 +887,109 @@ struct mp_value *mp_value_intersect_list(const struct mp_value *list,
 	}
 
 	return intersect_list;
+}
+
+static bool mp_value_int_range_can_intersect(const struct mp_value *ref_val,
+					  const struct mp_value *compare_val)
+{
+	if (ref_val->type == MP_TYPE_INT_RANGE && compare_val->type == MP_TYPE_INT_RANGE) {
+		return MP_VALUE_RANGES_OVERLAP(ref_val, compare_val, v_int);
+	}
+
+	if (ref_val->type == MP_TYPE_UINT_RANGE && compare_val->type == MP_TYPE_UINT_RANGE) {
+		return MP_VALUE_RANGES_OVERLAP(ref_val, compare_val, v_uint);
+	}
+
+	if (ref_val->type == MP_TYPE_INT_RANGE && compare_val->type == MP_TYPE_INT) {
+		return MP_SINGLE_VALUE_IN_RANGE(ref_val, compare_val, v_int);
+	}
+
+	if (ref_val->type == MP_TYPE_UINT_RANGE && compare_val->type == MP_TYPE_UINT) {
+		return MP_SINGLE_VALUE_IN_RANGE(ref_val, compare_val, v_uint);
+	}
+
+	return false;
+}
+
+static bool mp_value_fraction_range_can_intersect(const struct mp_value *ref_val,
+					       const struct mp_value *compare_val)
+{
+	if (compare_val->type == MP_TYPE_UINT_FRACTION_RANGE ||
+	    compare_val->type == MP_TYPE_INT_FRACTION_RANGE) {
+		return MP_VALUE_FRACTION_RANGES_OVERLAP(ref_val, compare_val);
+	}
+
+	if (compare_val->type == MP_TYPE_UINT_FRACTION ||
+	    compare_val->type == MP_TYPE_INT_FRACTION) {
+		return MP_VALUE_FRACTION_IN_RANGE(compare_val, ref_val);
+	}
+
+	return false;
+}
+
+static bool mp_value_list_can_intersect(const struct mp_value *list,
+				     const struct mp_value *compare_val)
+{
+	struct mp_value_node *v_node1, *v_node2;
+
+	SYS_SLIST_FOR_EACH_CONTAINER((sys_slist_t *)&MP_VALUE_LIST(list)->v_list, v_node1, node) {
+		if (compare_val->type != MP_TYPE_LIST) {
+			if (mp_value_can_intersect(v_node1->value, compare_val)) {
+				return true;
+			}
+			continue;
+		}
+
+		SYS_SLIST_FOR_EACH_CONTAINER((sys_slist_t *)&MP_VALUE_LIST(compare_val)->v_list,
+					     v_node2, node) {
+			if (mp_value_compare(v_node1->value, v_node2->value) == MP_VALUE_EQUAL) {
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+bool mp_value_can_intersect(const struct mp_value *val1, const struct mp_value *val2)
+{
+	const struct mp_value *ref_val, *compare_val;
+
+	if (val1 == NULL || val2 == NULL ||
+	    !IN_RANGE(val1->type, MP_TYPE_NONE, MP_TYPE_COUNT - 1) ||
+	    (mp_value_intersect_mask[val1->type] & BIT(val2->type)) == 0) {
+		return false;
+	}
+
+	/*
+	 * Same ordering rule as mp_value_intersect(): a container type always has a
+	 * higher ordinal than the scalar type it can contain, so the greater of the
+	 * two is the one to dispatch on.
+	 */
+	if (val1->type >= val2->type) {
+		ref_val = val1;
+		compare_val = val2;
+	} else {
+		ref_val = val2;
+		compare_val = val1;
+	}
+
+	if (mp_value_is_primitive(ref_val)) {
+		return mp_value_compare(val1, val2) == MP_VALUE_EQUAL;
+	}
+
+	switch (ref_val->type) {
+	case MP_TYPE_INT_RANGE:
+	case MP_TYPE_UINT_RANGE:
+		return mp_value_int_range_can_intersect(ref_val, compare_val);
+	case MP_TYPE_INT_FRACTION_RANGE:
+	case MP_TYPE_UINT_FRACTION_RANGE:
+		return mp_value_fraction_range_can_intersect(ref_val, compare_val);
+	case MP_TYPE_LIST:
+		return mp_value_list_can_intersect(ref_val, compare_val);
+	default:
+		return false;
+	}
 }
 
 struct mp_value *mp_value_intersect(const struct mp_value *val1, const struct mp_value *val2)

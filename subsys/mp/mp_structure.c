@@ -201,7 +201,7 @@ int mp_structure_len(struct mp_structure *structure)
 bool mp_structure_can_intersect(struct mp_structure *struct1, struct mp_structure *struct2)
 {
 	struct mp_structure_field *field;
-	struct mp_value *compared_value, *intersect_value;
+	struct mp_value *compared_value;
 	bool can_intersect = false;
 
 	if (struct1 == NULL || struct2 == NULL) {
@@ -217,14 +217,11 @@ bool mp_structure_can_intersect(struct mp_structure *struct1, struct mp_structur
 	SYS_SLIST_FOR_EACH_CONTAINER(&struct1->fields, field, node) {
 		compared_value = mp_structure_get_value(struct2, field->field_id);
 		if (compared_value != NULL) {
-			intersect_value = mp_value_intersect(field->value, compared_value);
-			if (intersect_value != NULL) {
-				can_intersect = true;
-				mp_value_destroy(intersect_value);
-			} else {
-				can_intersect = false;
-				break;
+			if (!mp_value_can_intersect(field->value, compared_value)) {
+				return false;
 			}
+
+			can_intersect = true;
 		}
 	}
 

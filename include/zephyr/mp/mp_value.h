@@ -293,11 +293,11 @@ struct mp_value *mp_value_intersect_list(const struct mp_value *list,
 					 const struct mp_value *compare_val);
 
 /**
- * Check if two values can intersect
+ * Check whether two values actually have a non-empty intersection
  *
  * @param val1 first value
  * @param val2 second value
- * @return true if two values can intersect
+ * @return true if the intersection is non-empty, false otherwise
  */
 bool mp_value_can_intersect(const struct mp_value *val1, const struct mp_value *val2);
 
