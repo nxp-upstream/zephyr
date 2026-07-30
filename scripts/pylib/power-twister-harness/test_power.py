@@ -1,102 +1,103 @@
 # Copyright (c) 2024 Intel Corporation
+# Copyright 2025 NXP
 # SPDX-License-Identifier: Apache-2.0
+
+from __future__ import annotations
 
 import logging
 import os
+from typing import TYPE_CHECKING
 
 import pytest
-from abstract.PowerMonitor import PowerMonitor
 from twister_harness import DeviceAdapter
 from utils.UtilityFunctions import current_RMS
+
+if TYPE_CHECKING:
+    from abstract.PowerMonitor import PowerMonitor
 
 logger = logging.getLogger(__name__)
 
 
-@pytest.mark.parametrize("probe_class", ['stm_powershield'], indirect=True)
-def test_power_harness(probe_class: PowerMonitor, test_data, dut: DeviceAdapter):
-    """
-    This test measures and validates the RMS current values from the power monitor
-    and compares them against expected RMS values.
+def test_power_harness(
+    probe_class: 'PowerMonitor',
+    test_data: dict,
+    dut: DeviceAdapter,
+):
+    """Measure power on the DUT and validate the results."""
+    probe = probe_class
 
-    Arguments:
-    probe_class -- The Abstract class of the power monitor.
-    test_data -- Fixture to prepare data.
-    dut -- The Device Under Test (DUT) that the power monitor is measuring.
-    """
+    build_dir_path = str(dut.device_config.build_dir)
+    if os.path.exists(build_dir_path) and hasattr(probe, 'power_shield_conf'):
+        probe.power_shield_conf.output_file = os.path.join(
+            build_dir_path,
+            'power_raw_data.csv',
+        )
 
-    # Initialize the probe with the provided path
-    probe = probe_class  # Instantiate the power monitor probe
-
-    # Set path for raw output data
-    build_dir_path = dut.device_config.build_dir
-    if os.path.exists(build_dir_path):
-        probe.power_shield_conf.output_file = os.path.join(build_dir_path, "power_raw_data.csv")
-
-    # Get test data
-    measurements_dict = test_data
-
-    # Start the measurement process with the provided duration
-    probe.measure(time=measurements_dict['measurement_duration'])
-
-    # Retrieve the measured data
+    probe.measure(test_data['measurement_duration'])
     data = probe.get_data()
 
-    # Calculate the RMS current values using utility functions
-    rms_values_measured = current_RMS(
-        data,
-        trim=measurements_dict['elements_to_trim'],
-        num_peaks=measurements_dict['num_of_transitions'],
-        peak_distance=measurements_dict['min_peak_distance'],
-        peak_height=measurements_dict['min_peak_height'],
-        padding=measurements_dict['peak_padding'],
-    )
+    if hasattr(probe, 'dump_voltage'):
+        assert probe.dump_voltage(dut.device_config.platform)
 
-    # Convert measured values from amps to milliamps for comparison
-    # Measured states: ['idle', 'state 0', 'state 1', 'state 2', 'active']
-    rms_values_in_milliamps = [value * 1e3 for value in rms_values_measured]
+    if hasattr(probe, 'dump_current'):
+        assert probe.dump_current(dut.device_config.platform)
+    else:
+        rms_values_measured = current_RMS(
+            data,
+            trim=test_data['elements_to_trim'],
+            num_peaks=test_data['num_of_transitions'],
+            peak_distance=test_data['min_peak_distance'],
+            peak_height=test_data['min_peak_height'],
+            padding=test_data['peak_padding'],
+        )
 
-    # Log the calculated values in milliamps for debugging purposes
-    logger.debug(f"Measured RMS values in mA: {rms_values_in_milliamps}")
-    logger.debug(f"Expected RMS values in mA: {measurements_dict['expected_rms_values']}")
+        rms_values_in_milliamps = [value * 1e3 for value in rms_values_measured]
+        logger.debug('Measured RMS values in mA: %s', rms_values_in_milliamps)
+        logger.debug(
+            'Expected RMS values in mA: %s',
+            test_data['expected_rms_values'],
+        )
 
-    tuples = zip(measurements_dict['expected_rms_values'], rms_values_in_milliamps, strict=False)
-    if not tuple:
-        pytest.skip('Measured values not provided')
+        if not rms_values_in_milliamps:
+            pytest.skip('Measured values not provided')
 
-    logger.debug("Check if measured values are in tolerance")
-    measure_passed = True
-    for expected_rms_value, measured_rms_value in tuples:
-        if not is_within_tolerance(
-            measured_rms_value, expected_rms_value, measurements_dict['tolerance_percentage']
+        measure_passed = True
+        for expected_rms_value, measured_rms_value in zip(
+            test_data['expected_rms_values'],
+            rms_values_in_milliamps,
+            strict=False,
         ):
-            logger.error(f"Measured RMS value {measured_rms_value} mA is out of tolerance.")
-            measure_passed = False
+            if not is_within_tolerance(
+                measured_rms_value,
+                expected_rms_value,
+                test_data['tolerance_percentage'],
+            ):
+                logger.error(
+                    'Measured RMS value %s mA is out of tolerance.',
+                    measured_rms_value,
+                )
+                measure_passed = False
 
-    assert measure_passed, (
-        f"Measured RMS value in mA is out of tolerance "
-        f"{measurements_dict['tolerance_percentage']} %"
-    )
+        assert measure_passed, (
+            'Measured RMS value in mA is out of tolerance '
+            f"{test_data['tolerance_percentage']} %"
+        )
+
+    if hasattr(probe, 'dump_power'):
+        assert probe.dump_power(dut.device_config.platform)
 
 
-def is_within_tolerance(measured_rms_value, expected_rms_value, tolerance_percentage) -> bool:
-    """
-    Checks if the measured RMS value is within the acceptable tolerance.
-
-    Arguments:
-    measured_rms_value -- The measured RMS current value in milliamps.
-    expected_rms_value -- The expected RMS current value in milliamps.
-    tolerance_percentage -- The allowed tolerance as a percentage of the expected value.
-
-    Returns:
-    bool -- True if the measured value is within the tolerance, False otherwise.
-    """
-    # Calculate tolerance as a percentage of the expected value
+def is_within_tolerance(
+    measured_rms_value: float,
+    expected_rms_value: float,
+    tolerance_percentage: float,
+) -> bool:
+    """Check whether the measured RMS value is within tolerance."""
     tolerance = (tolerance_percentage / 100) * expected_rms_value
 
-    # Log the values for debugging purposes
-    logger.debug(f"Expected RMS: {expected_rms_value:.3f} mA")
-    logger.debug(f"Tolerance: {tolerance:.3f} mA")
-    logger.debug(f"Measured  RMS: {measured_rms_value:.3f} mA")
+    logger.debug('Expected RMS: %.3f mA', expected_rms_value)
+    logger.debug('Tolerance: %.3f mA', tolerance)
+    logger.debug('Measured RMS: %.3f mA', measured_rms_value)
     logger.info(
         'RECORD: ['
         '{'
@@ -110,11 +111,15 @@ def is_within_tolerance(measured_rms_value, expected_rms_value, tolerance_percen
         '}'
         ']'
     )
-    # Check if the measured value is within the range of expected ± tolerance
-    if (expected_rms_value - tolerance) < measured_rms_value < (expected_rms_value + tolerance):
+
+    if (expected_rms_value - tolerance) < measured_rms_value < (
+        expected_rms_value + tolerance
+    ):
         return True
 
     logger.error(
-        f"Measured RMS value: {measured_rms_value:.3f} mA is out of tolerance: {tolerance:.3f} mA"
+        'Measured RMS value: %.3f mA is out of tolerance: %.3f mA',
+        measured_rms_value,
+        tolerance,
     )
     return False
