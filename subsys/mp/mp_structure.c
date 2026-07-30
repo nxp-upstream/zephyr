@@ -249,8 +249,11 @@ struct mp_structure *mp_structure_intersect(struct mp_structure *struct1,
 	SYS_SLIST_FOR_EACH_CONTAINER(&struct1->fields, field, node) {
 		compared_value = mp_structure_get_value(struct2, field->field_id);
 		if (compared_value == NULL) {
-			mp_structure_append(intersect_structure, field->field_id,
-					    mp_value_duplicate(field->value));
+			if (mp_structure_append(intersect_structure, field->field_id,
+						mp_value_duplicate(field->value)) != 0) {
+				mp_structure_destroy(intersect_structure);
+				return NULL;
+			}
 			continue;
 		}
 
@@ -261,7 +264,11 @@ struct mp_structure *mp_structure_intersect(struct mp_structure *struct1,
 		}
 
 		has_common_field = true;
-		mp_structure_append(intersect_structure, field->field_id, intersect_value);
+		if (mp_structure_append(intersect_structure, field->field_id, intersect_value) !=
+		    0) {
+			mp_structure_destroy(intersect_structure);
+			return NULL;
+		}
 	}
 
 	/* Structures with nothing in common do not intersect */
@@ -272,8 +279,11 @@ struct mp_structure *mp_structure_intersect(struct mp_structure *struct1,
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&struct2->fields, field, node) {
 		if (mp_structure_get_value(struct1, field->field_id) == NULL) {
-			mp_structure_append(intersect_structure, field->field_id,
-					    mp_value_duplicate(field->value));
+			if (mp_structure_append(intersect_structure, field->field_id,
+						mp_value_duplicate(field->value)) != 0) {
+				mp_structure_destroy(intersect_structure);
+				return NULL;
+			}
 		}
 	}
 
@@ -291,9 +301,16 @@ struct mp_structure *mp_structure_duplicate(struct mp_structure *src)
 	}
 
 	dup = mp_structure_new_empty(src->media_type_id);
+	if (dup == NULL) {
+		return NULL;
+	}
+
 	SYS_SLIST_FOR_EACH_CONTAINER(&src->fields, field, node) {
 		copy_value = mp_value_duplicate(field->value);
-		mp_structure_append(dup, field->field_id, copy_value);
+		if (mp_structure_append(dup, field->field_id, copy_value) != 0) {
+			mp_structure_destroy(dup);
+			return NULL;
+		}
 	}
 
 	return dup;
@@ -323,6 +340,9 @@ struct mp_structure *mp_structure_fixate(struct mp_structure *src)
 	}
 
 	fixated_structure = mp_structure_new_empty(src->media_type_id);
+	if (fixated_structure == NULL) {
+		return NULL;
+	}
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&src->fields, field, node) {
 		switch (field->value->type) {
@@ -342,7 +362,10 @@ struct mp_structure *mp_structure_fixate(struct mp_structure *src)
 			break;
 		}
 
-		mp_structure_append(fixated_structure, field->field_id, fixated_value);
+		if (mp_structure_append(fixated_structure, field->field_id, fixated_value) != 0) {
+			mp_structure_destroy(fixated_structure);
+			return NULL;
+		}
 	}
 
 	return fixated_structure;
