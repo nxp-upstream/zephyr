@@ -1,5 +1,5 @@
 tests:
-  mp.core.pipeline:
+  mp.pipeline:
     tags:
       - subsys
       - mp
