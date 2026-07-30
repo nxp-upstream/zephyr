@@ -30,20 +30,6 @@ void mp_pad_init(struct mp_pad *pad, uint8_t id, enum mp_pad_direction direction
 	mp_caps_replace(&pad->caps, caps);
 }
 
-struct mp_pad *mp_pad_new(uint8_t id, enum mp_pad_direction direction,
-			  enum mp_pad_presence presence, struct mp_caps *caps)
-{
-	struct mp_pad *pad = k_calloc(1, sizeof(struct mp_pad));
-
-	if (pad == NULL) {
-		return NULL;
-	}
-
-	mp_pad_init(pad, id, direction, presence, caps);
-
-	return pad;
-}
-
 int mp_pad_link(struct mp_pad *srcpad, struct mp_pad *sinkpad)
 {
 	if (srcpad == NULL || sinkpad == NULL) {

@@ -58,25 +58,6 @@ static void pad_after(void *f)
 
 ZTEST_SUITE(mp_pad_api, NULL, pad_suite_setup, pad_before, pad_after, NULL);
 
-ZTEST_F(mp_pad_api, test_new)
-{
-	struct mp_pad *pad = mp_pad_new(5, MP_PAD_SINK, MP_PAD_SOMETIMES, fixture->any_caps);
-
-	zassert_not_null(pad, "mp_pad_new returned NULL");
-	zassert_equal(pad->object.id, 5, "id != 5");
-	zassert_equal(pad->direction, MP_PAD_SINK, "direction != SINK");
-	zassert_equal(pad->presence, MP_PAD_SOMETIMES, "presence != SOMETIMES");
-	zassert_equal(pad->caps, fixture->any_caps, "caps mismatch");
-	mp_caps_unref(pad->caps);
-	k_free(pad);
-
-	struct mp_pad *pad_null_caps = mp_pad_new(0, MP_PAD_SRC, MP_PAD_ALWAYS, NULL);
-
-	zassert_not_null(pad_null_caps, "mp_pad_new(NULL caps) returned NULL");
-	zassert_is_null(pad_null_caps->caps, "caps != NULL");
-	k_free(pad_null_caps);
-}
-
 ZTEST_F(mp_pad_api, test_link_sets_peers)
 {
 	zassert_ok(mp_pad_link(&fixture->src_pad, &fixture->sink_pad), "mp_pad_link failed");
