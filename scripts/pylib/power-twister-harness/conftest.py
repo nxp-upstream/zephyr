@@ -77,9 +77,7 @@ def probe_class(
                 'through required_devices'
             )
 
-        from general_adc_platform.GeneralAdcPowerMonitor import (
-            GeneralPowerShield,
-        )
+        from general_power import GeneralPowerShield
 
         probe = GeneralPowerShield()
         probe.connect(monitor_dut)
