@@ -9,7 +9,6 @@
 
 #include <zephyr/logging/log.h>
 
-#include <zephyr/mp/mp_caps.h>
 #include <zephyr/mp/mp_structure.h>
 #include <zephyr/mp/mp_value.h>
 
@@ -42,15 +41,15 @@ static int mp_aud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_stru
 	uint8_t *base;
 	int ret;
 
-	uint32_t sample_rate =
-		mp_value_get_uint(mp_structure_get_value(config, MP_CAPS_SAMPLE_RATE));
-	uint32_t bit_width = mp_value_get_uint(mp_structure_get_value(config, MP_CAPS_BITWIDTH));
-	uint32_t num_of_channel =
-		mp_value_get_uint(mp_structure_get_value(config, MP_CAPS_NUM_OF_CHANNEL));
-	uint32_t frame_interval =
-		mp_value_get_uint(mp_structure_get_value(config, MP_CAPS_FRAME_INTERVAL));
-	uint32_t buffer_count =
-		mp_value_get_uint(mp_structure_get_value(config, MP_CAPS_BUFFER_COUNT));
+	uint32_t sample_rate, bit_width, num_of_channel, frame_interval, buffer_count;
+
+	if (mp_aud_get_uint(config, MP_CAPS_SAMPLE_RATE, &sample_rate) != 0 ||
+	    mp_aud_get_uint(config, MP_CAPS_BITWIDTH, &bit_width) != 0 ||
+	    mp_aud_get_uint(config, MP_CAPS_NUM_OF_CHANNEL, &num_of_channel) != 0 ||
+	    mp_aud_get_uint(config, MP_CAPS_FRAME_INTERVAL, &frame_interval) != 0 ||
+	    mp_aud_get_uint(config, MP_CAPS_BUFFER_COUNT, &buffer_count) != 0) {
+		return -EINVAL;
+	}
 
 	/*
 	 * TEMPORARY WORKAROUND: Adding 2 extra buffers to the minimum count

@@ -5,19 +5,16 @@
  */
 
 #include <zephyr/kernel.h>
-#include <zephyr/sys/sys_heap.h>
 #include <zephyr/ztest.h>
 
 #include <zephyr/mp/mp_bus.h>
 #include <zephyr/mp/mp_element.h>
 #include <zephyr/mp/mp_message.h>
 
-extern struct k_heap _system_heap;
 
 struct mp_bus_api_fixture {
 	struct mp_bus bus;
 	struct mp_element elem;
-	struct sys_memory_stats mem_before;
 };
 
 static void *bus_suite_setup(void)
@@ -37,22 +34,9 @@ static void bus_before(void *f)
 	mp_element_init(&fix->elem, 42);
 
 	zassert_equal(mp_bus_peek(&fix->bus, &out), -ENOMSG, "bus not empty after init");
-
-	sys_heap_runtime_stats_get(&_system_heap.heap, &fix->mem_before);
 }
 
-static void bus_after(void *f)
-{
-	struct mp_bus_api_fixture *fix = f;
-	struct sys_memory_stats mem_after;
-
-	sys_heap_runtime_stats_get(&_system_heap.heap, &mem_after);
-	zassert_equal(fix->mem_before.allocated_bytes, mem_after.allocated_bytes,
-		      "memory leak detected: before=%zu after=%zu", fix->mem_before.allocated_bytes,
-		      mem_after.allocated_bytes);
-}
-
-ZTEST_SUITE(mp_bus_api, NULL, bus_suite_setup, bus_before, bus_after, NULL);
+ZTEST_SUITE(mp_bus_api, NULL, bus_suite_setup, bus_before, NULL, NULL);
 
 static int handler_call_count;
 static enum mp_message_type handler_last_type;

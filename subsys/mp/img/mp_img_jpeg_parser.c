@@ -12,7 +12,7 @@
 #include <zephyr/net_buf.h>
 #include <zephyr/sys/util.h>
 
-#include <zephyr/mp/mp_caps.h>
+#include <zephyr/mp/mp_structure.h>
 #include <zephyr/mp/mp_buffer.h>
 #include <zephyr/mp/mp_dispatch.h>
 #include <zephyr/mp/mp_element.h>
@@ -21,6 +21,38 @@
 #include <zephyr/mp/img/mp_img_jpeg_parser.h>
 
 LOG_MODULE_REGISTER(mp_img_jpeg_parser, CONFIG_MP_LOG_LEVEL);
+
+/*
+ * The parser only ever emits JPEG, so its source capability is known at build
+ * time and lives in .rodata rather than being allocated at init.
+ */
+#define JPEG_PARSER_SRC_FIELDS(X) X(MP_CAPS_PIXEL_FORMAT, MP_VALUE_UINT(VIDEO_PIX_FMT_JPEG))
+
+MP_STRUCTURE_DEFINE(jpeg_parser_src_caps, MP_MEDIA_VIDEO, JPEG_PARSER_SRC_FIELDS);
+
+static int mp_img_jpeg_parser_enum_caps(struct mp_pad *pad, uint32_t index,
+					const struct mp_structure *filter, struct mp_structure *out)
+{
+	/* The sink accepts anything, so the source is the only side to describe */
+	if (pad->direction == MP_PAD_SINK) {
+		if (index > 0) {
+			return -ENOENT;
+		}
+
+		return (filter != NULL) ? mp_structure_duplicate(filter, out)
+					: mp_structure_init_any(out);
+	}
+
+	if (index > 0) {
+		return -ENOENT;
+	}
+
+	if (filter == NULL) {
+		return mp_structure_duplicate(&jpeg_parser_src_caps, out);
+	}
+
+	return (mp_structure_intersect(&jpeg_parser_src_caps, filter, out) != 0) ? -EAGAIN : 0;
+}
 
 /*
  * Internal output pool which is static and simple. For specific requirements, e.g. alignment,
@@ -362,14 +394,12 @@ void mp_img_jpeg_parser_init(struct mp_element *self)
 	self->change_state = mp_img_jpeg_parser_change_state;
 	jpeg_parser->partial_frame = NULL;
 
-	/* Get supported caps */
-	struct mp_caps *sink_caps = mp_caps_new_any();
-
-	struct mp_caps *src_caps = mp_caps_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
-					       VIDEO_PIX_FMT_JPEG, MP_CAPS_END);
-	mp_parser_update_caps(parser, sink_caps, src_caps);
-	mp_caps_unref(sink_caps);
-	mp_caps_unref(src_caps);
+	/*
+	 * The capabilities are enumerated from .rodata, so the ANY caps that
+	 * mp_parser_init() leaves on both sides are never consulted.
+	 */
+	parser->sinkpad.enum_capsfn = mp_img_jpeg_parser_enum_caps;
+	parser->srcpad.enum_capsfn = mp_img_jpeg_parser_enum_caps;
 
 	parser->sinkpad.chainfn = mp_img_jpeg_parser_chainfn;
 	parser->decide_allocation = mp_img_jpeg_parser_decide_allocation;

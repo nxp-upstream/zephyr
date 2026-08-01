@@ -81,7 +81,10 @@ int main(void)
 	MP_ELEMENT_INIT(&caps_filter, mp_caps_filter_init, CAPS_FILTER_ID);
 
 	/* clang-format off */
-	struct mp_caps *caps = mp_caps_new(MP_MEDIA_VIDEO,
+	struct mp_structure caps;
+	struct mp_value pixfmt;
+
+	ret = mp_structure_init_fields(&caps, MP_MEDIA_VIDEO,
 		COND_CODE_0(CONFIG_VIDEO_FRAME_WIDTH,
 			(), (MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT, CONFIG_VIDEO_FRAME_WIDTH,))
 		COND_CODE_0(CONFIG_VIDEO_FRAME_HEIGHT,
@@ -92,19 +95,18 @@ int main(void)
 		MP_CAPS_END);
 	/* clang-format on */
 
-	if (caps == NULL) {
+	if (ret != 0) {
 		goto err;
 	}
 
 	if (strcmp(CONFIG_VIDEO_PIXEL_FORMAT, "") != 0) {
-		mp_structure_append(mp_caps_get_structure(caps, 0), MP_CAPS_PIXEL_FORMAT,
-				    mp_value_new(MP_TYPE_UINT,
-						 VIDEO_FOURCC_FROM_STR(CONFIG_VIDEO_PIXEL_FORMAT)));
+		mp_value_set(&pixfmt, MP_TYPE_UINT,
+			     VIDEO_FOURCC_FROM_STR(CONFIG_VIDEO_PIXEL_FORMAT));
+		mp_structure_append_value(&caps, MP_CAPS_PIXEL_FORMAT, &pixfmt);
 	}
 
 	ret = mp_object_set_properties((struct mp_object *)&caps_filter,
-				       MP_PROP_BASE_CAPSFILTER_CAPS, caps, MP_PROP_LIST_END);
-	mp_caps_unref(caps);
+				       MP_PROP_BASE_CAPSFILTER_CAPS, &caps, MP_PROP_LIST_END);
 	if (ret < 0) {
 		goto err;
 	}

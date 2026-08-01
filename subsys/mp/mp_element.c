@@ -9,7 +9,6 @@
 
 #include <zephyr/mp/mp_bin.h>
 #include <zephyr/mp/mp_bus.h>
-#include <zephyr/mp/mp_caps.h>
 #include <zephyr/mp/mp_element.h>
 #include <zephyr/mp/mp_dispatch.h>
 #include <zephyr/mp/mp_message.h>
@@ -22,10 +21,9 @@ LOG_MODULE_REGISTER(mp_element, CONFIG_MP_LOG_LEVEL);
  * Optional, opt-in destructor for an element's base resources. It is NOT
  * called automatically during the play/pause/stop/replay lifecycle; it only
  * runs when the caller explicitly drops the element's last reference via
- * mp_object_unref(). It releases the caps stored on the element's pads (both
- * the template caps set at init time and any negotiated caps stored later via
- * mp_caps_replace). Derived element types that own extra caps chain to this
- * from their own release callback.
+ * mp_object_unref(). It resets the caps on the element's pads. Derived
+ * element types that own extra state chain to this from their own release
+ * callback.
  */
 void mp_element_release(struct mp_object *obj)
 {
@@ -35,18 +33,12 @@ void mp_element_release(struct mp_object *obj)
 
 	SYS_DLIST_FOR_EACH_CONTAINER(&element->srcpads, pad_obj, node) {
 		pad = (struct mp_pad *)pad_obj;
-		if (pad->caps != NULL) {
-			mp_caps_unref(pad->caps);
-			pad->caps = NULL;
-		}
+		mp_pad_set_caps(pad, NULL);
 	}
 
 	SYS_DLIST_FOR_EACH_CONTAINER(&element->sinkpads, pad_obj, node) {
 		pad = (struct mp_pad *)pad_obj;
-		if (pad->caps != NULL) {
-			mp_caps_unref(pad->caps);
-			pad->caps = NULL;
-		}
+		mp_pad_set_caps(pad, NULL);
 	}
 }
 
@@ -98,7 +90,7 @@ static int mp_element_link_pads(struct mp_element *src, uint8_t src_pad_id, stru
 		return -EINVAL;
 	}
 
-	if (!mp_caps_can_intersect(srcpad->caps, sinkpad->caps)) {
+	if (!mp_structure_can_intersect(&srcpad->caps, &sinkpad->caps)) {
 		return -ENOTSUP;
 	}
 

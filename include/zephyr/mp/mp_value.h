@@ -15,7 +15,10 @@
 /**
  * @defgroup mp_value Value Container
  * @ingroup mp_framework
- * @brief A generic container for values for different @ref mp_value_type
+ * @brief A generic container for values of different types
+ *
+ * Pointers passed to this API must not be NULL unless the parameter is
+ * documented otherwise.
  *
  * @{
  */
@@ -23,257 +26,260 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdlib.h>
-
-#include <zephyr/mp/mp_object.h>
-
-/** @brief Value comparison result: first value is less than second */
-#define MP_VALUE_LESS_THAN      -1
-/** @brief Value comparison result: values are equal */
-#define MP_VALUE_EQUAL          0
-/** @brief Value comparison result: first value is greater than second */
-#define MP_VALUE_GREATER_THAN   1
-/** @brief Value comparison result: values cannot be ordered */
-#define MP_VALUE_UNORDERED      2
-/** @brief Value comparison failed due to error */
-#define MP_VALUE_COMPARE_FAILED 3
 
 /**
- * @brief mp_value type enumeration
+ * @brief Result of comparing two values
+ *
+ * The first three members order the two values. The last two report that no
+ * ordering exists: the values are comparable but unordered, or the comparison
+ * could not be made at all.
  */
-enum mp_value_type {
-	MP_TYPE_NONE = 0,            /**< No type */
-	MP_TYPE_BOOLEAN,             /**< Boolean value */
-	MP_TYPE_ENUM,                /**< Enumeration value */
-	MP_TYPE_INT,                 /**< Signed integer value */
-	MP_TYPE_UINT,                /**< Unsigned integer value */
-	MP_TYPE_STRING,              /**< String value */
-	MP_TYPE_INT_RANGE,           /**< Integer range value */
-	MP_TYPE_UINT_RANGE,          /**< Unsigned integer range value */
-	MP_TYPE_LIST,                /**< List of values */
-	MP_TYPE_OBJECT,              /**< Object reference */
-	MP_TYPE_PTR,                 /**< Pointer type */
-	MP_TYPE_COUNT                /**< Number of types */
+enum mp_value_compare_result {
+	/** First value is less than the second */
+	MP_VALUE_LESS_THAN = -1,
+	/** Values are equal */
+	MP_VALUE_EQUAL = 0,
+	/** First value is greater than the second */
+	MP_VALUE_GREATER_THAN = 1,
+	/** Values are of the same type but have no ordering */
+	MP_VALUE_UNORDERED = 2,
+	/** Comparison failed: a value is NULL or the two types differ */
+	MP_VALUE_COMPARE_FAILED = 3,
 };
 
 /**
- * @brief Base mp_value structure
+ * @brief Value types
+ */
+enum mp_value_type {
+	MP_TYPE_NONE = 0,   /**< No type */
+	MP_TYPE_BOOLEAN,    /**< Boolean value */
+	MP_TYPE_INT,        /**< Signed integer value */
+	MP_TYPE_UINT,       /**< Unsigned integer value */
+	MP_TYPE_INT_RANGE,  /**< Integer range value */
+	MP_TYPE_UINT_RANGE, /**< Unsigned integer range value */
+	MP_TYPE_COUNT       /**< Number of types */
+};
+
+/**
+ * @brief Value structure
+ *
+ * One fixed-size tagged union so that every value costs the same
+ * and can be stored by value inside the structure that owns it.
  */
 struct mp_value {
 	/** Type of value, see @ref mp_value_type */
 	enum mp_value_type type;
+	union {
+		/** MP_TYPE_BOOLEAN */
+		bool v_boolean;
+		/** MP_TYPE_INT */
+		int32_t v_int;
+		/** MP_TYPE_UINT */
+		uint32_t v_uint;
+		/** MP_TYPE_INT_RANGE, MP_TYPE_UINT_RANGE */
+		struct {
+			union {
+				int32_t v_int;
+				uint32_t v_uint;
+			} min, max, step;
+		} range;
+	};
 };
 
 /**
- * @brief Create a new mp_value with the specified type and initialization arguments.
+ * @name Initializers for a statically defined value
  *
- * This function creates a new mp_value instance based on the provided type.
- * The number and type of variadic arguments depend on the specified enum mp_value_type:
- *
- * - MP_TYPE_BOOLEAN, MP_TYPE_ENUM, MP_TYPE_INT, MP_TYPE_UINT, MP_TYPE_STRING,
- *   MP_TYPE_OBJECT, MP_TYPE_PTR: Require one initialization value.
- * - MP_TYPE_INT_RANGE, MP_TYPE_UINT_RANGE: Require three values (min, max, and step).
- * - MP_TYPE_LIST: Requires a sequence of mp_value elements, terminated with NULL
- *   to indicate the end of the list.
- *
- * @param type The type of the value to create.
- * @param ... Variadic arguments used to initialize the value, depending on the specified type.
- *
- * @return Pointer to the newly created mp_value, NULL if memory allocation fails or an invalid
- *         type or argument list is provided.
+ * Each expands to a braced initializer for one @ref mp_value, so a capability
+ * known at build time can be placed in .rodata rather than built at runtime.
+ * They are what @ref MP_STRUCTURE_DEFINE takes for each of its fields. The
+ * range forms take the bounds and the step between two consecutive values.
+ * @{
  */
-struct mp_value *mp_value_new(enum mp_value_type type, ...);
+/** Initialize an MP_TYPE_BOOLEAN value holding @p v */
+#define MP_VALUE_BOOLEAN(v)                {.type = MP_TYPE_BOOLEAN, .v_boolean = (v)}
+/** Initialize an MP_TYPE_INT value holding @p v */
+#define MP_VALUE_INT(v)                    {.type = MP_TYPE_INT, .v_int = (v)}
+/** Initialize an MP_TYPE_UINT value holding @p v */
+#define MP_VALUE_UINT(v)                   {.type = MP_TYPE_UINT, .v_uint = (v)}
+/** @cond INTERNAL_HIDDEN */
+#define MP_VALUE_RANGE_INIT(m, lo, hi, st) {.min.m = (lo), .max.m = (hi), .step.m = (st)}
+/** @endcond */
+/** Initialize an MP_TYPE_INT_RANGE value spanning @p lo to @p hi by @p st */
+#define MP_VALUE_INT_RANGE(lo, hi, st)                                                             \
+	{.type = MP_TYPE_INT_RANGE, .range = MP_VALUE_RANGE_INIT(v_int, lo, hi, st)}
+/** Initialize an MP_TYPE_UINT_RANGE value spanning @p lo to @p hi by @p st */
+#define MP_VALUE_UINT_RANGE(lo, hi, st)                                                            \
+	{.type = MP_TYPE_UINT_RANGE, .range = MP_VALUE_RANGE_INIT(v_uint, lo, hi, st)}
+/** @} */
 
 /**
- * @brief Create a new mp_value from a va_list.
+ * @brief Set a value's type and contents.
  *
- * Same as @ref mp_value_new but accepts a va_list pointer instead of variadic arguments.
+ * BOOLEAN, INT and UINT take one argument; the range types take min, max
+ * and step.
  *
- * @param type The type of the value to create.
- * @param args Pointer to a va_list containing the initialization arguments.
+ * @param value Pointer to the value to set.
+ * @param type Type of the value, see @ref mp_value_type. It is an int and not
+ *             the enum itself because va_start() starts reading right after
+ *             this parameter, so the parameter cannot be of a type narrower
+ *             than int, which an enum is allowed to be.
+ * @param ... Arguments initializing the value, per the rules above.
  *
- * @return Pointer to the newly created mp_value, or NULL on failure.
- */
-struct mp_value *mp_value_new_va_list(enum mp_value_type type, va_list *args);
-
-/**
- * @brief Create an empty value with given type.
- *
- * @param type type of value
- *
- * @return Pointer to the newly created mp_value, or NULL on failure.
- */
-struct mp_value *mp_value_new_empty(enum mp_value_type type);
-
-/**
- * @brief Destroy a value and release its resources.
- *
- * @param value value to destroy
- *
- * @return 0 on success, -EINVAL if value is NULL
- */
-int mp_value_destroy(struct mp_value *value);
-
-/**
- * @brief Get list size.
- *
- * @param list list of values
- *
- * @return size of list
- */
-size_t mp_value_list_get_size(const struct mp_value *list);
-
-/**
- * @brief Return true if list is empty.
- *
- * @param list list of values
- *
- * @return true if list is empty, false otherwise
- */
-bool mp_value_list_is_empty(const struct mp_value *list);
-
-/**
- * @brief Append value to list.
- *
- * @param list list to append to
- * @param append_value value to append
- *
- * @return 0 on success, -EINVAL if arguments are invalid, -ENOMEM on allocation failure
- */
-int mp_value_list_append(struct mp_value *list, struct mp_value *append_value);
-
-/**
- * @brief Set values to type.
- *
- * @param value value to set
- * @param type type of value
- * @param ... Variadic arguments used to initialize the value,
- *            same rule as @ref mp_value_new()
- *
- * @return 0 on success, -EINVAL if value is NULL or type/arguments are invalid
+ * @return 0 on success, -EINVAL if @p value is NULL or @p type is invalid
  */
 int mp_value_set(struct mp_value *value, int type, ...);
 
 /**
- * @brief Get value at index in list.
+ * @brief Set a value from a va_list.
  *
- * @param list list of value
- * @param index index of value to get from list
+ * Same as @ref mp_value_set but accepts a va_list pointer instead of variadic
+ * arguments, so a caller parsing its own list can build a value in place.
  *
- * @return value at given index in list, or NULL if not found
+ * @param value Pointer to the value to set.
+ * @param type Type of the value, see @ref mp_value_type.
+ * @param args Pointer to a va_list positioned at this value's arguments.
+ *
+ * @return 0 on success, -EINVAL if @p value is NULL or @p type is invalid
  */
-struct mp_value *mp_value_list_get(const struct mp_value *list, int index);
+int mp_value_set_va_list(struct mp_value *value, enum mp_value_type type, va_list *args);
 
-/** Get boolean value of MP_TYPE_BOOLEAN */
+/**
+ * @brief Get boolean value of @ref MP_TYPE_BOOLEAN type
+ *
+ * The getters read the requested member without checking the type, so the
+ * caller is responsible for passing a value of the matching type.
+ *
+ * @param value Pointer to the value.
+ *
+ * @return The boolean the value holds.
+ */
 bool mp_value_get_boolean(const struct mp_value *value);
 
-/** Get int value of MP_TYPE_INT */
-int mp_value_get_int(const struct mp_value *value);
+/**
+ * @brief Get int value of @ref MP_TYPE_INT type
+ *
+ * @param value Pointer to the value.
+ *
+ * @return The integer the value holds.
+ */
+int32_t mp_value_get_int(const struct mp_value *value);
 
-/** Get uint value of MP_TYPE_UINT */
+/**
+ * @brief Get uint value of @ref MP_TYPE_UINT type
+ *
+ * @param value Pointer to the value.
+ *
+ * @return The unsigned integer the value holds.
+ */
 uint32_t mp_value_get_uint(const struct mp_value *value);
 
-/** Get string value of MP_TYPE_STRING */
-const char *mp_value_get_string(const struct mp_value *value);
+/**
+ * @brief Get minimum value of a @ref MP_TYPE_INT_RANGE type
+ *
+ * @param range Pointer to the range value.
+ *
+ * @return The lower bound of the range.
+ */
+int32_t mp_value_get_int_range_min(const struct mp_value *range);
 
-/** Get pointer value of MP_TYPE_PTR */
-void *mp_value_get_ptr(const struct mp_value *value);
+/**
+ * @brief Get maximum value of a @ref MP_TYPE_INT_RANGE type
+ *
+ * @param range Pointer to the range value.
+ *
+ * @return The upper bound of the range.
+ */
+int32_t mp_value_get_int_range_max(const struct mp_value *range);
 
-/** Get minimum value of @ref mp_value with MP_TYPE_INT_RANGE */
-int mp_value_get_int_range_min(const struct mp_value *range);
+/**
+ * @brief Get step value of a @ref MP_TYPE_INT_RANGE type
+ *
+ * @param range Pointer to the range value.
+ *
+ * @return The step between two consecutive values of the range.
+ */
+int32_t mp_value_get_int_range_step(const struct mp_value *range);
 
-/** Get maximum value of @ref mp_value with MP_TYPE_INT_RANGE */
-int mp_value_get_int_range_max(const struct mp_value *range);
-
-/** Get step value of @ref mp_value with MP_TYPE_INT_RANGE */
-int mp_value_get_int_range_step(const struct mp_value *range);
-
-/** Get minimum value of @ref mp_value with MP_TYPE_UINT_RANGE */
+/**
+ * @brief Get minimum value of a @ref MP_TYPE_UINT_RANGE type
+ *
+ * @param range Pointer to the range value.
+ *
+ * @return The lower bound of the range.
+ */
 uint32_t mp_value_get_uint_range_min(const struct mp_value *range);
 
-/** Get maximum value of @ref mp_value with MP_TYPE_UINT_RANGE */
+/**
+ * @brief Get maximum value of a @ref MP_TYPE_UINT_RANGE type
+ *
+ * @param range Pointer to the range value.
+ *
+ * @return The upper bound of the range.
+ */
 uint32_t mp_value_get_uint_range_max(const struct mp_value *range);
 
-/** Get step value of @ref mp_value with MP_TYPE_UINT_RANGE */
+/**
+ * @brief Get step value of a @ref MP_TYPE_UINT_RANGE type
+ *
+ * @param range Pointer to the range value.
+ *
+ * @return The step between two consecutive values of the range.
+ */
 uint32_t mp_value_get_uint_range_step(const struct mp_value *range);
 
-/** Get the object reference of a mp_value with MP_TYPE_OBJECT */
-struct mp_object *mp_value_get_object(struct mp_value *value);
-
 /**
- * Comparison between two primitive values
+ * @brief Compare two values
  *
- * @param val1 first value
- * @param val2 second value
- * @return MP_VALUE_GREATER_THAN if val1 > val2
- *	MP_VALUE_LESS_THAN if val1 < val2
- *	MP_VALUE_EQUAL if val1 == val2
- *	MP_VALUE_UNORDERED if val1 and val2 are not comparable
- *	MP_VALUE_COMPARE_FAILED if val1 and val2 are not same type
+ * @param val1 Pointer to the first value, may be NULL.
+ * @param val2 Pointer to the second value, may be NULL.
+ *
+ * @return The comparison result, see @ref mp_value_compare_result.
  */
-int mp_value_compare(const struct mp_value *val1, const struct mp_value *val2);
+enum mp_value_compare_result mp_value_compare(const struct mp_value *val1,
+					      const struct mp_value *val2);
 
 /**
- * Intersect between two values
+ * @brief Check whether two values actually have a non-empty intersection
  *
- * @param val1 reference value to compare with
- * @param val2 value to compare with
- * @return NULL if intersect is empty
- */
-struct mp_value *mp_value_intersect(const struct mp_value *val1, const struct mp_value *val2);
-
-/**
- * Intersect between value and range
+ * For primitive values, this means the two values are identical.
+ * For range values, this means the ranges overlap.
  *
- * @param ref_val reference value to compare with
- * @param compare_val value to compare with
- * @return NULL if intersect is empty
- */
-struct mp_value *mp_value_intersect_int_range(const struct mp_value *ref_val,
-					      const struct mp_value *compare_val);
-
-/**
- * Intersect between list with value, range or list
+ * @param val1 Pointer to the first value, may be NULL.
+ * @param val2 Pointer to the second value, may be NULL.
  *
- * @param list reference value to compare with
- * @param compare_val value to compare with
- * @return NULL if intersect is empty
- */
-struct mp_value *mp_value_intersect_list(const struct mp_value *list,
-					 const struct mp_value *compare_val);
-
-/**
- * Check whether two values actually have a non-empty intersection
- *
- * @param val1 first value
- * @param val2 second value
- * @return true if the intersection is non-empty, false otherwise
+ * @return true if the intersection is non-empty, false otherwise or if either
+ *         value is NULL
  */
 bool mp_value_can_intersect(const struct mp_value *val1, const struct mp_value *val2);
 
 /**
- * Duplicate value
+ * @brief Intersect two values, put the result into caller-provided storage
  *
- * @param value value to duplicate
- * @return new value with same type and data as original value, or NULL on failure
- * @note For string only pointer is copied, not string itself.
+ * @param val1 Pointer to the first value, may be NULL.
+ * @param val2 Pointer to the second value, may be NULL.
+ * @param out Pointer to storage for the result, untouched unless 0 is returned.
+ *
+ * @retval 0 on success
+ * @retval -ENOENT if the intersection is empty or either input value is NULL
+ * @retval -EINVAL if @p out is NULL
  */
-struct mp_value *mp_value_duplicate(const struct mp_value *value);
+int mp_value_intersect(const struct mp_value *val1, const struct mp_value *val2,
+               struct mp_value *out);
 
 /**
- * @brief Check if a value is a primitive type
+ * @brief Check if a value is of a primitive type
  *
- * @param value Value to check, must not be NULL
+ * @param value Pointer to the value to check, may be NULL.
  *
- * @return true if value is primitive, false otherwise
+ * @return true if the value is primitive, false otherwise or if @p value is NULL
  */
 bool mp_value_is_primitive(const struct mp_value *value);
 
 /**
  * @brief Print a value
  *
- * @param value Value to print, may be NULL
- * @param new_line Add newline after printing
+ * @param value Pointer to the value to print, may be NULL.
+ * @param new_line Add newline after printing.
  */
 void mp_value_print(const struct mp_value *value, bool new_line);
 

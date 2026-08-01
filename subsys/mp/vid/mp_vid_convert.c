@@ -12,7 +12,6 @@
 #include <zephyr/sys/util.h>
 
 #include <zephyr/mp/mp_buffer.h>
-#include <zephyr/mp/mp_caps.h>
 #include <zephyr/mp/mp_dispatch.h>
 #include <zephyr/mp/mp_structure.h>
 #include <zephyr/mp/mp_value.h>
@@ -154,67 +153,81 @@ static int vid_convert_pool_release(struct mp_buffer_pool *pool, struct net_buf 
 	return 0;
 }
 
-static struct mp_value *vid_convert_pixfmt_list(enum mp_pad_direction direction)
+/*
+ * Return the pixel format at @p index among the distinct ones the converter
+ * handles on this side. The same format appears in several descriptors, so
+ * anything already produced by a lower index is skipped.
+ */
+static uint32_t vid_convert_pixfmt_at(enum mp_pad_direction direction, uint32_t index)
 {
-	struct mp_value *list = mp_value_new(MP_TYPE_LIST, NULL);
-
-	if (list == NULL) {
-		return NULL;
-	}
+	uint32_t matched = 0;
 
 	for (size_t i = 0; i < mp_vid_convert_descs_len; i++) {
 		uint32_t pf = (direction == MP_PAD_SINK) ? mp_vid_convert_descs[i].in_pixfmt
 							 : mp_vid_convert_descs[i].out_pixfmt;
+		bool seen = false;
 
-		/* avoid duplicates */
-		bool found = false;
+		for (size_t j = 0; j < i; j++) {
+			uint32_t prev = (direction == MP_PAD_SINK)
+						? mp_vid_convert_descs[j].in_pixfmt
+						: mp_vid_convert_descs[j].out_pixfmt;
 
-		for (size_t j = 0; j < mp_value_list_get_size(list); j++) {
-			struct mp_value *v = mp_value_list_get(list, (int)j);
-
-			if (v != NULL && v->type == MP_TYPE_UINT && mp_value_get_uint(v) == pf) {
-				found = true;
+			if (prev == pf) {
+				seen = true;
 				break;
 			}
 		}
-		if (!found) {
-			mp_value_list_append(list, mp_value_new(MP_TYPE_UINT, pf));
+
+		if (seen) {
+			continue;
 		}
+
+		if (matched == index) {
+			return pf;
+		}
+
+		matched++;
 	}
 
-	return list;
+	return 0;
 }
 
-static struct mp_caps *vid_convert_supported_caps(struct mp_transform *transform,
-						  enum mp_pad_direction direction)
+static int vid_convert_enum_caps(struct mp_pad *pad, uint32_t index,
+				 const struct mp_structure *filter, struct mp_structure *out)
 {
-	ARG_UNUSED(transform);
+	uint32_t pixfmt = vid_convert_pixfmt_at(pad->direction, index);
+	struct mp_structure candidate;
+	struct mp_value fmt;
+	int ret;
 
-	struct mp_value *fmts = vid_convert_pixfmt_list(direction);
-
-	if (fmts == NULL) {
-		return NULL;
+	if (pixfmt == 0) {
+		return -ENOENT;
 	}
 
-	return mp_caps_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_LIST, fmts, MP_CAPS_END);
-}
+	mp_structure_init(&candidate, MP_MEDIA_VIDEO);
+	fmt.type = MP_TYPE_UINT;
+	fmt.v_uint = pixfmt;
+	ret = mp_structure_append_value(&candidate, MP_CAPS_PIXEL_FORMAT, &fmt);
+	if (ret != 0) {
+		return ret;
+	}
 
-static void vid_convert_update_caps(struct mp_transform *transform)
-{
-	struct mp_caps *sink_caps = vid_convert_supported_caps(transform, MP_PAD_SINK);
-	struct mp_caps *src_caps = vid_convert_supported_caps(transform, MP_PAD_SRC);
+	if (filter == NULL) {
+		*out = candidate;
+		return 0;
+	}
 
-	mp_transform_update_caps(transform, sink_caps, src_caps);
-	mp_caps_unref(sink_caps);
-	mp_caps_unref(src_caps);
+	ret = mp_structure_intersect(&candidate, filter, out);
+	mp_structure_clear(&candidate);
+
+	return (ret != 0) ? -EAGAIN : 0;
 }
 
 static int vid_convert_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
-				struct mp_caps *caps)
+				const struct mp_structure *caps)
 {
 	struct mp_vid_convert *conv = (struct mp_vid_convert *)transform;
-	struct mp_structure *s;
-	struct mp_value *v;
+	const struct mp_value *v;
 	int ret;
 
 	if (caps == NULL) {
@@ -226,23 +239,22 @@ static int vid_convert_set_caps(struct mp_transform *transform, enum mp_pad_dire
 		return ret;
 	}
 
-	s = mp_caps_get_structure(caps, 0);
-	if (s != NULL) {
-		v = mp_structure_get_value(s, MP_CAPS_IMAGE_WIDTH);
-		if (v != NULL && v->type == MP_TYPE_UINT) {
-			conv->width = (uint16_t)mp_value_get_uint(v);
-		}
-		v = mp_structure_get_value(s, MP_CAPS_IMAGE_HEIGHT);
-		if (v != NULL && v->type == MP_TYPE_UINT) {
-			conv->height = (uint16_t)mp_value_get_uint(v);
-		}
-		v = mp_structure_get_value(s, MP_CAPS_PIXEL_FORMAT);
-		if (v != NULL && v->type == MP_TYPE_UINT) {
-			if (direction == MP_PAD_SINK) {
-				conv->in_pixfmt = mp_value_get_uint(v);
-			} else {
-				conv->out_pixfmt = mp_value_get_uint(v);
-			}
+	v = mp_structure_get_value(caps, MP_CAPS_IMAGE_WIDTH);
+	if (v != NULL && v->type == MP_TYPE_UINT) {
+		conv->width = (uint16_t)mp_value_get_uint(v);
+	}
+
+	v = mp_structure_get_value(caps, MP_CAPS_IMAGE_HEIGHT);
+	if (v != NULL && v->type == MP_TYPE_UINT) {
+		conv->height = (uint16_t)mp_value_get_uint(v);
+	}
+
+	v = mp_structure_get_value(caps, MP_CAPS_PIXEL_FORMAT);
+	if (v != NULL && v->type == MP_TYPE_UINT) {
+		if (direction == MP_PAD_SINK) {
+			conv->in_pixfmt = mp_value_get_uint(v);
+		} else {
+			conv->out_pixfmt = mp_value_get_uint(v);
 		}
 	}
 
@@ -271,117 +283,87 @@ static int vid_convert_set_caps(struct mp_transform *transform, enum mp_pad_dire
 	return 0;
 }
 
-static bool out_fmts_contains(struct mp_value *out_fmts, uint32_t pixfmt)
+/*
+ * The format reachable from @p in_pf at @p index, taken toward @p direction.
+ * The descriptor table is the list of conversions the element implements, so a
+ * transformation is one entry of it whose input side matches. Returns 0 past
+ * the last reachable format.
+ */
+static uint32_t vid_convert_reachable_at(enum mp_pad_direction direction, uint32_t in_pf,
+					 uint32_t index)
 {
-	for (size_t k = 0; k < mp_value_list_get_size(out_fmts); k++) {
-		struct mp_value *ov = mp_value_list_get(out_fmts, (int)k);
+	uint32_t matched = 0;
 
-		if (ov != NULL && ov->type == MP_TYPE_UINT && mp_value_get_uint(ov) == pixfmt) {
-			return true;
+	for (size_t i = 0; i < mp_vid_convert_descs_len; i++) {
+		uint32_t src_pf = (direction == MP_PAD_SRC) ? mp_vid_convert_descs[i].in_pixfmt
+							    : mp_vid_convert_descs[i].out_pixfmt;
+		uint32_t dst_pf = (direction == MP_PAD_SRC) ? mp_vid_convert_descs[i].out_pixfmt
+							    : mp_vid_convert_descs[i].in_pixfmt;
+
+		if (src_pf != in_pf) {
+			continue;
 		}
+
+		if (matched == index) {
+			return dst_pf;
+		}
+
+		matched++;
 	}
-	return false;
+
+	return 0;
 }
 
-static struct mp_caps *vid_convert_transform_caps(struct mp_transform *self,
-						  enum mp_pad_direction direction,
-						  struct mp_caps *incaps)
+static int vid_convert_transform_caps(struct mp_transform *self, enum mp_pad_direction direction,
+				      const struct mp_structure *in, uint32_t index,
+				      struct mp_structure *out)
 {
-	if (incaps == NULL || mp_caps_is_empty(incaps)) {
-		return NULL;
+	struct mp_value fmt;
+	uint32_t pixfmt;
+	int ret;
+
+	ARG_UNUSED(self);
+
+	if (in == NULL) {
+		return -EINVAL;
 	}
 
-	if (mp_caps_is_any(incaps)) {
-		return vid_convert_supported_caps(self, direction);
+	if (mp_structure_is_any(in)) {
+		/* Constrains nothing, so every format this side handles is reachable */
+		pixfmt = vid_convert_pixfmt_at(direction, index);
+	} else {
+		const struct mp_value *pix = mp_structure_get_value(in, MP_CAPS_PIXEL_FORMAT);
+
+		/* Alternatives live on the enumeration index, so a format is a fixed value */
+		if (pix == NULL || pix->type != MP_TYPE_UINT) {
+			return -ENOENT;
+		}
+
+		pixfmt = vid_convert_reachable_at(direction, mp_value_get_uint(pix), index);
 	}
 
-	struct mp_caps *out = mp_caps_new(MP_MEDIA_END);
-	struct mp_cap_structure *cs;
-
-	SYS_SLIST_FOR_EACH_CONTAINER(&incaps->caps_structures, cs, node) {
-		struct mp_structure *s = cs->structure;
-		struct mp_value *pix = mp_structure_get_value(s, MP_CAPS_PIXEL_FORMAT);
-		struct mp_value *w = mp_structure_get_value(s, MP_CAPS_IMAGE_WIDTH);
-		struct mp_value *h = mp_structure_get_value(s, MP_CAPS_IMAGE_HEIGHT);
-		struct mp_value *out_fmts = mp_value_new(MP_TYPE_LIST, NULL);
-
-		if (out_fmts == NULL) {
-			continue;
-		}
-
-		/*
-		 * Pixel format in caps may be a fixed UINT (after fixate) or a LIST
-		 * (after intersection but before fixate).
-		 */
-		if (pix != NULL && pix->type == MP_TYPE_UINT) {
-			uint32_t in_pf = mp_value_get_uint(pix);
-
-			for (size_t i = 0; i < mp_vid_convert_descs_len; i++) {
-				uint32_t src_pf = (direction == MP_PAD_SRC)
-							  ? mp_vid_convert_descs[i].in_pixfmt
-							  : mp_vid_convert_descs[i].out_pixfmt;
-				uint32_t dst_pf = (direction == MP_PAD_SRC)
-							  ? mp_vid_convert_descs[i].out_pixfmt
-							  : mp_vid_convert_descs[i].in_pixfmt;
-
-				if (in_pf == src_pf) {
-					mp_value_list_append(out_fmts,
-							     mp_value_new(MP_TYPE_UINT, dst_pf));
-				}
-			}
-		} else if (pix != NULL && pix->type == MP_TYPE_LIST) {
-			for (size_t j = 0; j < mp_value_list_get_size(pix); j++) {
-				struct mp_value *pv = mp_value_list_get(pix, (int)j);
-
-				if (pv == NULL || pv->type != MP_TYPE_UINT) {
-					continue;
-				}
-				uint32_t in_pf = mp_value_get_uint(pv);
-
-				for (size_t i = 0; i < mp_vid_convert_descs_len; i++) {
-					uint32_t src_pf =
-						(direction == MP_PAD_SRC)
-							? mp_vid_convert_descs[i].in_pixfmt
-							: mp_vid_convert_descs[i].out_pixfmt;
-					uint32_t dst_pf =
-						(direction == MP_PAD_SRC)
-							? mp_vid_convert_descs[i].out_pixfmt
-							: mp_vid_convert_descs[i].in_pixfmt;
-
-					if (in_pf != src_pf) {
-						continue;
-					}
-
-					if (!out_fmts_contains(out_fmts, dst_pf)) {
-						mp_value_list_append(
-							out_fmts,
-							mp_value_new(MP_TYPE_UINT, dst_pf));
-					}
-				}
-			}
-		} else {
-			/* pix is NULL or unsupported type: skip */
-		}
-
-		if (mp_value_list_is_empty(out_fmts)) {
-			mp_value_destroy(out_fmts);
-			continue;
-		}
-
-		struct mp_structure *ns = mp_structure_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT,
-							   MP_TYPE_LIST, out_fmts, MP_CAPS_END);
-
-		if (w != NULL) {
-			mp_structure_append(ns, MP_CAPS_IMAGE_WIDTH, mp_value_duplicate(w));
-		}
-		if (h != NULL) {
-			mp_structure_append(ns, MP_CAPS_IMAGE_HEIGHT, mp_value_duplicate(h));
-		}
-
-		mp_caps_append(out, ns);
+	if (pixfmt == 0U) {
+		return -ENOENT;
 	}
 
-	return out;
+	ret = mp_structure_init(out, MP_MEDIA_VIDEO);
+	if (ret != 0) {
+		return ret;
+	}
+
+	fmt.type = MP_TYPE_UINT;
+	fmt.v_uint = pixfmt;
+	ret = mp_structure_append_value(out, MP_CAPS_PIXEL_FORMAT, &fmt);
+	if (ret != 0) {
+		mp_structure_clear(out);
+		return ret;
+	}
+
+	/* Converting changes the format, not the geometry */
+	(void)mp_structure_copy_field(in, out, MP_CAPS_IMAGE_WIDTH);
+	(void)mp_structure_copy_field(in, out, MP_CAPS_IMAGE_HEIGHT);
+
+	return 0;
 }
 
 static int vid_convert_decide_allocation(struct mp_transform *self, struct mp_dispatch *query)
@@ -477,7 +459,8 @@ void mp_vid_convert_init(struct mp_element *self)
 
 	mp_transform_init(self);
 
-	vid_convert_update_caps(transform);
+	transform->sinkpad.enum_capsfn = vid_convert_enum_caps;
+	transform->srcpad.enum_capsfn = vid_convert_enum_caps;
 
 	conv->width = 0;
 	conv->height = 0;

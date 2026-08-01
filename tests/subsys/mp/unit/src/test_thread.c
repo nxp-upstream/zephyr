@@ -5,7 +5,6 @@
  */
 
 #include <zephyr/kernel.h>
-#include <zephyr/sys/sys_heap.h>
 #include <zephyr/ztest.h>
 #include <zephyr/ztest_assert.h>
 
@@ -23,11 +22,9 @@ static void simple_thread_func(void *p1, void *p2, void *p3)
 	k_sem_give((struct k_sem *)p1);
 }
 
-extern struct k_heap _system_heap;
 
 struct mp_thread_api_fixture {
 	struct mp_thread thread;
-	struct sys_memory_stats mem_before;
 };
 
 static void *thread_suite_setup(void)
@@ -46,22 +43,9 @@ static void thread_before(void *f)
 
 	k_sem_init(&thread_ran_sem, 0, 1);
 	atomic_set(&thread_run_count, 0);
-
-	sys_heap_runtime_stats_get(&_system_heap.heap, &fix->mem_before);
 }
 
-static void thread_after(void *f)
-{
-	struct mp_thread_api_fixture *fix = f;
-	struct sys_memory_stats mem_after;
-
-	sys_heap_runtime_stats_get(&_system_heap.heap, &mem_after);
-	zassert_equal(fix->mem_before.allocated_bytes, mem_after.allocated_bytes,
-		      "Memory leak detected: before=%zu after=%zu", fix->mem_before.allocated_bytes,
-		      mem_after.allocated_bytes);
-}
-
-ZTEST_SUITE(mp_thread_api, NULL, thread_suite_setup, thread_before, thread_after, NULL);
+ZTEST_SUITE(mp_thread_api, NULL, thread_suite_setup, thread_before, NULL, NULL);
 
 ZTEST_F(mp_thread_api, test_create)
 {

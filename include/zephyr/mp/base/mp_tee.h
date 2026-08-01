@@ -43,10 +43,6 @@ enum mp_prop_base_tee {
 struct mp_tee {
 	/** Base element structure */
 	struct mp_element element;
-	/** @cond INTERNAL_HIDDEN */
-	/** Pointer to the supported caps (ANY) */
-	struct mp_caps *caps;
-	/** @endcond */
 	/** Sink pad for receiving input data */
 	struct mp_pad sinkpad;
 	/** Source pad array for sending data */

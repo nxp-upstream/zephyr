@@ -7,35 +7,16 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mp/mp_buffer.h>
-#include <zephyr/mp/mp_caps.h>
 #include <zephyr/mp/mp_dispatch.h>
 #include <zephyr/mp/mp_element.h>
 #include <zephyr/mp/mp_object.h>
 #include <zephyr/mp/mp_pad.h>
 #include <zephyr/mp/mp_src.h>
+#include <zephyr/mp/mp_structure.h>
 
 LOG_MODULE_REGISTER(mp_src, CONFIG_MP_LOG_LEVEL);
 
 #define MP_PAD_SRC_ID 0
-
-/*
- * Optional, opt-in destructor for a source element. It is NOT called
- * automatically during the play/pause/stop/replay lifecycle; it only runs when
- * the caller explicitly drops the element's last reference via
- * mp_object_unref(). It frees the internal template caps owned by the source
- * and then chains to mp_element_release() to free the pad caps.
- */
-static void mp_src_release(struct mp_object *obj)
-{
-	struct mp_src *src = (struct mp_src *)obj;
-
-	if (src->src_caps != NULL) {
-		mp_caps_unref(src->src_caps);
-		src->src_caps = NULL;
-	}
-
-	mp_element_release(obj);
-}
 
 int mp_src_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
@@ -67,119 +48,144 @@ int mp_src_get_property(struct mp_object *obj, uint32_t key, void *val)
 	return 0;
 }
 
-void mp_src_update_caps(struct mp_src *src, struct mp_caps *caps)
-{
-	mp_caps_replace(&src->src_caps, caps);
-	mp_caps_replace(&src->srcpad.caps, src->src_caps);
-}
-
-static struct mp_caps *mp_src_get_caps(struct mp_src *src)
-{
-	return src ? mp_caps_ref(src->src_caps) : NULL;
-}
-
-static int mp_src_set_caps(struct mp_src *src, struct mp_caps *caps)
+static int mp_src_set_caps(struct mp_src *src, const struct mp_structure *caps)
 {
 	if (src == NULL) {
 		return -EINVAL;
 	}
 
-	mp_caps_replace(&src->srcpad.caps, caps);
+	return mp_pad_set_caps(&src->srcpad, caps);
+}
 
-	return 0;
+/*
+ * Answer a caps query with the first supported capability the filter accepts,
+ * which is the one the negotiation would settle on.
+ */
+static int mp_src_query_caps(struct mp_pad *pad, struct mp_dispatch *query)
+{
+	struct mp_structure candidate;
+	int ret;
+
+	ret = mp_pad_enum_first(pad, mp_dispatch_get_caps(query), &candidate);
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = mp_dispatch_set_caps(query, &candidate);
+	mp_structure_clear(&candidate);
+
+	return ret;
 }
 
 static int mp_src_query(struct mp_pad *pad, struct mp_dispatch *query)
 {
-	int ret;
-	struct mp_src *src = (struct mp_src *)pad->object.container;
-	struct mp_caps *intersect_caps;
-	struct mp_caps *query_caps;
-
 	switch (query->type) {
 	case MP_DISPATCH_CAPS:
-		query_caps = mp_dispatch_get_caps(query);
-		if (query_caps != NULL) {
-			intersect_caps = mp_caps_intersect(src->src_caps, query_caps);
-			if (intersect_caps == NULL) {
-				return -ENODATA;
-			}
-			if (mp_caps_is_empty(intersect_caps)) {
-				mp_caps_unref(intersect_caps);
-				return -ENODATA;
-			}
-			ret = mp_dispatch_set_caps(query, intersect_caps);
-			mp_caps_unref(intersect_caps);
-			mp_caps_unref(query_caps);
-		} else {
-			ret = mp_dispatch_set_caps(query, src->src_caps);
-		}
-
-		return ret;
+		return mp_src_query_caps(pad, query);
 	default:
 		return -ENOTSUP;
 	}
 }
 
-static int mp_src_negotiate(struct mp_src *src)
+/*
+ * Offer one candidate to the downstream peer and, when the peer accepts it,
+ * keep the result on the src pad. Reports -ENODATA when the peer has nothing
+ * in common with this candidate, which is the caller's cue to offer the next.
+ */
+static int mp_src_offer_candidate(struct mp_src *src, const struct mp_structure *candidate)
 {
-	struct mp_caps *common_caps;
-	struct mp_caps *fixated_caps;
 	struct mp_dispatch caps_query;
-	struct mp_dispatch alloc_query;
-	struct mp_dispatch caps_event;
 	int ret;
 
-	/* Caps negotiation */
-	if (src->src_caps == NULL || mp_caps_is_empty(src->src_caps)) {
-		return -EINVAL;
-	}
+	/* The dispatch holds its own copy for as long as the query lasts */
+	mp_dispatch_caps_init(&caps_query, candidate);
 
-	/* Query the peer's capabilities */
-	mp_dispatch_caps_init(&caps_query, src->src_caps);
 	ret = mp_pad_query(src->srcpad.peer, &caps_query);
 	if (ret != 0) {
 		mp_dispatch_clear(&caps_query);
-		return ret;
-	}
-
-	common_caps = mp_dispatch_get_caps(&caps_query);
-	mp_dispatch_clear(&caps_query);
-	if (common_caps == NULL) {
 		return -ENODATA;
 	}
 
-	if (mp_caps_is_empty(common_caps)) {
-		mp_caps_unref(common_caps);
+	if (mp_structure_is_empty(mp_dispatch_get_caps(&caps_query))) {
+		mp_dispatch_clear(&caps_query);
 		return -ENODATA;
 	}
 
 	/* Store negotiated (possibly unfixed) caps on the src pad */
-	mp_caps_replace(&src->srcpad.caps, common_caps);
-	mp_caps_unref(common_caps);
+	ret = mp_pad_set_caps(&src->srcpad, mp_dispatch_get_caps(&caps_query));
+	mp_dispatch_clear(&caps_query);
 
-	fixated_caps = mp_caps_fixate(src->srcpad.caps);
+	return ret;
+}
+
+static int mp_src_negotiate(struct mp_src *src)
+{
+	struct mp_structure candidate;
+	struct mp_structure fixated;
+	struct mp_dispatch alloc_query;
+	struct mp_dispatch caps_event;
+	uint32_t index;
+	bool is_fixated;
+	int ret;
 
 	/*
-	 * Push a caps event downstream. Don't check the returned value of
-	 * mp_pad_send_event() when caps is not fixatted (ANY) as we want to continue.
+	 * Offer the supported capabilities one at a time and keep the first one
+	 * the peer accepts. Offering them individually is what allows a rejected
+	 * candidate to be retried with the next one instead of the whole
+	 * negotiation failing, and it keeps the peer's answer down to what one
+	 * candidate can match.
 	 */
-	mp_dispatch_caps_init(&caps_event, fixated_caps);
-	ret = mp_pad_send_event(src->srcpad.peer, &caps_event);
-	mp_dispatch_clear(&caps_event);
+	for (index = 0;; index++) {
+		ret = mp_pad_enum_caps(&src->srcpad, index, NULL, &candidate);
+		if (ret == -EAGAIN) {
+			continue;
+		}
 
-	/* Set caps if it can be fixated */
-	if (fixated_caps != NULL) {
-		if (ret != 0 || src->set_caps(src, fixated_caps) != 0) {
-			mp_caps_unref(fixated_caps);
+		if (ret == -ENOENT) {
+			/*
+			 * An element with no capability at all cannot negotiate,
+			 * which is a caller error rather than a failed negotiation.
+			 */
+			return (index == 0) ? -EINVAL : -ENODATA;
+		}
+
+		if (ret != 0) {
 			return ret;
 		}
 
-		mp_caps_unref(fixated_caps);
+		ret = mp_src_offer_candidate(src, &candidate);
+		if (ret == 0) {
+			break;
+		}
+
+		if (ret != -ENODATA) {
+			return ret;
+		}
+	}
+
+	is_fixated = (mp_structure_fixate(&src->srcpad.caps, &fixated) == 0);
+
+	/*
+	 * Push a caps event downstream. The result only matters when a fixated
+	 * capability was sent; an ANY event is informational.
+	 */
+	mp_dispatch_caps_init(&caps_event, is_fixated ? &fixated : NULL);
+	ret = mp_pad_send_event(src->srcpad.peer, &caps_event);
+	mp_dispatch_clear(&caps_event);
+
+	/* Apply the fixated capability to the element itself */
+	if (is_fixated) {
+		if (ret == 0) {
+			ret = src->set_caps(src, &fixated);
+		}
+
+		if (ret != 0) {
+			return ret;
+		}
 	}
 
 	/* Query the peer's allocation proposal */
-	mp_dispatch_buffer_config_init(&alloc_query, src->srcpad.caps);
+	mp_dispatch_buffer_config_init(&alloc_query, &src->srcpad.caps);
 	ret = mp_pad_query(src->srcpad.peer, &alloc_query);
 	if (ret != 0) {
 		mp_dispatch_clear(&alloc_query);
@@ -214,8 +220,7 @@ enum mp_state_change_return mp_src_change_state(struct mp_element *self,
 		}
 
 		/* Config buffer pool */
-		pool_ret = mp_buffer_pool_configure(src->pool,
-						    mp_caps_get_structure(src->srcpad.caps, 0));
+		pool_ret = mp_buffer_pool_configure(src->pool, &src->srcpad.caps);
 		if (pool_ret != 0 && pool_ret != -ENOSYS) {
 			LOG_ERR("Failed to configure source buffer pool");
 			return MP_STATE_CHANGE_FAILURE;
@@ -245,12 +250,12 @@ enum mp_state_change_return mp_src_change_state(struct mp_element *self,
 		}
 
 		/*
-		 * Reset the negotiated pad caps back to the supported template
-		 * caps so a subsequent re-negotiation (on replay) starts fresh.
-		 * Derived sources that override change_state must chain to this
-		 * base function to inherit the reset.
+		 * Reset the negotiated pad caps back to ANY so a subsequent
+		 * re-negotiation (on replay) starts fresh. Derived sources that
+		 * override change_state must chain to this base function to
+		 * inherit the reset.
 		 */
-		mp_caps_replace(&src->srcpad.caps, src->src_caps);
+		mp_pad_set_caps(&src->srcpad, NULL);
 
 		break;
 	default:
@@ -264,24 +269,13 @@ void mp_src_init(struct mp_element *self)
 {
 	struct mp_src *src = (struct mp_src *)self;
 
-	/* Default supported caps */
-	src->src_caps = mp_caps_new_any();
-
-	mp_pad_init(&src->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS, src->src_caps);
+	mp_pad_init(&src->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS);
 	mp_element_add_pad(self, &src->srcpad);
 
 	self->object.set_property = mp_src_set_property;
 	self->object.get_property = mp_src_get_property;
 	self->change_state = mp_src_change_state;
 
-	/*
-	 * Opt-in destructor overriding the base one. See mp_src_release above:
-	 * it is only invoked when the caller explicitly drops the element's last
-	 * reference and is never called by the play/pause/stop/replay lifecycle.
-	 */
-	self->object.release = mp_src_release;
-
-	src->get_caps = mp_src_get_caps;
 	src->set_caps = mp_src_set_caps;
 	src->srcpad.queryfn = mp_src_query;
 	src->decide_allocation = NULL;

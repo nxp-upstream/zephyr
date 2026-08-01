@@ -49,7 +49,6 @@ struct mp_aud_src {
 	int (*get_audio_caps)(const struct device *dev, struct audio_caps *caps);
 };
 
-struct mp_caps *mp_aud_src_supported_caps(struct mp_src *src);
 void mp_aud_src_update_caps(struct mp_src *src);
 
 /**

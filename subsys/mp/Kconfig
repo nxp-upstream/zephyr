@@ -16,7 +16,18 @@ module = MP
 module-str = mp
 source "subsys/logging/Kconfig.template.log_config"
 
-# ---- Core framework options ----
+# ---- Framework options ----
+
+config MP_STRUCTURE_MAX_FIELDS
+	int "Maximum fields one caps structure can hold"
+	range 1 255
+	default 8
+	help
+	  Number of capability fields a single caps structure can hold at once.
+	  Size this for the largest union of fields that can meet in one intersection,
+	  not for the number of fields an element sets. An intersection carries through
+	  the fields that only one side constrains, so its result can hold more fields
+	  than either input. Negotiation reports -ENOSPC when a structure runs out of slots.
 
 config MP_THREADS_NUM
 	int "Number of mp_thread wrappers used by the whole application"

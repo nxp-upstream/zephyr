@@ -22,10 +22,16 @@ if MP_PLAYER
 
 config MP_PLAYER_WORKER_STACK_SIZE
 	int "Player worker thread stack size"
-	default 2048
+	default 6144
 	help
 	  Stack size (in bytes) for the player worker thread that serializes
 	  pipeline state changes.
+
+	  Capability negotiation runs on this thread and recurses from the source
+	  down to the sinks. Each element keeps a few capabilities live while it
+	  negotiates, roughly 800 bytes, so budget that much per element. The
+	  default suits chains of up to about seven elements; raise it for longer
+	  pipelines.
 
 config MP_PLAYER_WORKER_PRIORITY
 	int "Player worker thread priority"

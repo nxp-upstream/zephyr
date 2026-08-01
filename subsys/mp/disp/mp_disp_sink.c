@@ -9,7 +9,6 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mp/mp_buffer.h>
-#include <zephyr/mp/mp_caps.h>
 #include <zephyr/mp/mp_element.h>
 #include <zephyr/mp/mp_structure.h>
 #include <zephyr/mp/mp_value.h>
@@ -30,7 +29,7 @@ struct mp_disp_vid_pix_fmt {
 };
 
 /*
- * Pixel formats mapping betwen video and display
+ * Pixel format mapping between video and display
  * Note: video fourcc pixel format is the standard used for caps
  */
 static const struct mp_disp_vid_pix_fmt mp_disp_vid_pix_fmt_map[] = {
@@ -42,7 +41,7 @@ static const struct mp_disp_vid_pix_fmt mp_disp_vid_pix_fmt_map[] = {
 	{PIXEL_FORMAT_L_8, VIDEO_PIX_FMT_GREY},
 };
 
-static const uint32_t disp_to_vid_pix_fmt(enum display_pixel_format disp_fmt)
+static uint32_t disp_to_vid_pix_fmt(enum display_pixel_format disp_fmt)
 {
 	for (uint8_t i = 0; i < ARRAY_SIZE(mp_disp_vid_pix_fmt_map); i++) {
 		if (mp_disp_vid_pix_fmt_map[i].disp_fmt == disp_fmt) {
@@ -53,7 +52,7 @@ static const uint32_t disp_to_vid_pix_fmt(enum display_pixel_format disp_fmt)
 	return 0;
 }
 
-static const enum display_pixel_format vid_to_disp_pix_fmt(uint32_t vid_fmt)
+static enum display_pixel_format vid_to_disp_pix_fmt(uint32_t vid_fmt)
 {
 	for (uint8_t i = 0; i < ARRAY_SIZE(mp_disp_vid_pix_fmt_map); i++) {
 		if (mp_disp_vid_pix_fmt_map[i].vid_fmt == vid_fmt) {
@@ -85,64 +84,89 @@ static int mp_disp_sink_setup(struct mp_disp_sink *disp_sink,
 	return ret;
 }
 
-static struct mp_caps *mp_disp_sink_supported_caps(struct mp_sink *sink)
+/*
+ * The display advertises the formats it accepts as a bitmask, so the caps of
+ * the n-th supported format can be produced directly from it and none of the
+ * others has to exist.
+ */
+static int mp_disp_sink_enum_caps(struct mp_pad *pad, uint32_t index,
+				  const struct mp_structure *filter, struct mp_structure *out)
 {
-	uint32_t vid_fmt;
+	struct mp_disp_sink *disp = (struct mp_disp_sink *)pad->object.container;
 	struct display_capabilities display_caps;
-	struct mp_value *supported_fmt = mp_value_new(MP_TYPE_LIST, NULL);
-	struct mp_disp_sink *disp = (struct mp_disp_sink *)sink;
+	struct mp_structure candidate;
+	uint32_t vid_fmt = 0;
+	uint32_t matched = 0;
+	int ret;
 
 	display_get_capabilities(disp->display_dev, &display_caps);
 
 	for (uint8_t i = 0; i < ARRAY_SIZE(mp_disp_vid_pix_fmt_map); i++) {
-		vid_fmt = disp_to_vid_pix_fmt(display_caps.supported_pixel_formats &
-					      mp_disp_vid_pix_fmt_map[i].disp_fmt);
-		if (vid_fmt != 0) {
-			/* Use video formats as reference formats for caps */
-			mp_value_list_append(supported_fmt, mp_value_new(MP_TYPE_UINT, vid_fmt));
+		/* Use video formats as reference formats for caps */
+		uint32_t fmt = disp_to_vid_pix_fmt(display_caps.supported_pixel_formats &
+						   mp_disp_vid_pix_fmt_map[i].disp_fmt);
+
+		if (fmt == 0) {
+			continue;
 		}
+
+		if (matched == index) {
+			vid_fmt = fmt;
+			break;
+		}
+
+		matched++;
 	}
 
-	return mp_caps_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_LIST, supported_fmt,
-			   MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE, DEFAULT_WIDTH_MIN,
-			   display_caps.x_resolution, 1, MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE,
-			   DEFAULT_HEIGHT_MIN, display_caps.y_resolution, 1, MP_CAPS_END);
+	if (vid_fmt == 0) {
+		return -ENOENT;
+	}
+
+	ret = mp_structure_init_fields(
+		&candidate, MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT, vid_fmt,
+		MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE, DEFAULT_WIDTH_MIN,
+		display_caps.x_resolution, 1, MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE,
+		DEFAULT_HEIGHT_MIN, display_caps.y_resolution, 1, MP_CAPS_END);
+	if (ret != 0) {
+		return ret;
+	}
+
+	if (filter == NULL) {
+		*out = candidate;
+		return 0;
+	}
+
+	ret = mp_structure_intersect(&candidate, filter, out);
+	mp_structure_clear(&candidate);
+
+	return (ret != 0) ? -EAGAIN : 0;
 }
 
-static void mp_disp_sink_update_caps(struct mp_sink *sink)
-{
-	struct mp_caps *caps = mp_disp_sink_supported_caps(sink);
-
-	mp_sink_update_caps(sink, caps);
-	mp_caps_unref(caps);
-}
-
-static int mp_disp_sink_set_caps(struct mp_sink *sink, struct mp_caps *caps)
+static int mp_disp_sink_set_caps(struct mp_sink *sink, const struct mp_structure *caps)
 {
 	struct mp_disp_sink *disp_sink = (struct mp_disp_sink *)sink;
-	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
-	struct mp_value *value = mp_structure_get_value(first_structure, MP_CAPS_PIXEL_FORMAT);
-	enum display_pixel_format disp_fmt = vid_to_disp_pix_fmt(mp_value_get_uint(value));
+	const struct mp_value *value = mp_structure_get_value(caps, MP_CAPS_PIXEL_FORMAT);
+	enum display_pixel_format disp_fmt;
 
+	if (value == NULL) {
+		return -EINVAL;
+	}
+
+	disp_fmt = vid_to_disp_pix_fmt(mp_value_get_uint(value));
 	if (disp_fmt == 0 || mp_disp_sink_setup(disp_sink, disp_fmt) != 0) {
 		return -EINVAL;
 	}
 
-	mp_caps_replace(&sink->sinkpad.caps, caps);
-
-	return 0;
+	return mp_pad_set_caps(&sink->sinkpad, caps);
 }
 
 static int mp_disp_sink_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
 	struct mp_disp_sink *disp_sink = (struct mp_disp_sink *)obj;
-	struct mp_sink *sink = &disp_sink->sink;
 
 	switch (key) {
 	case MP_PROP_DISP_SINK_DEVICE:
 		disp_sink->display_dev = val;
-		/* Device set, update caps */
-		mp_disp_sink_update_caps(sink);
 
 		return 0;
 	default:
@@ -168,15 +192,20 @@ int mp_disp_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net_
 {
 	struct mp_disp_sink *disp_sink =
 		CONTAINER_OF(pad->object.container, struct mp_disp_sink, sink.element.object);
-	/* Get width / height from pad's caps */
-	struct mp_structure *first_structure = mp_caps_get_structure(pad->caps, 0);
-	struct mp_value *value = mp_structure_get_value(first_structure, MP_CAPS_PIXEL_FORMAT);
+	const struct mp_value *value = mp_structure_get_value(&pad->caps, MP_CAPS_PIXEL_FORMAT);
 	enum display_pixel_format disp_fmt = 0;
+	uint32_t bytes_per_line;
+	uint32_t width = 0;
 	struct net_buf *cur;
 	struct net_buf *next;
 
 	if (value != NULL) {
 		disp_fmt = vid_to_disp_pix_fmt(mp_value_get_uint(value));
+	}
+
+	value = mp_structure_get_value(&pad->caps, MP_CAPS_IMAGE_WIDTH);
+	if (value != NULL) {
+		width = mp_value_get_uint(value);
 	}
 
 	/* Sink returns NULL for output buffer as it is at the end of the chain */
@@ -186,11 +215,23 @@ int mp_disp_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net_
 		return 0;
 	}
 
+	/*
+	 * The height of a fragment is derived from its size, the frame width and
+	 * the pixel depth. Caps that never got negotiated leave both the format
+	 * and the width unset, so report that instead of dividing by zero.
+	 */
+	bytes_per_line = width * DISPLAY_BITS_PER_PIXEL(disp_fmt) / BITS_PER_BYTE;
+	if (bytes_per_line == 0) {
+		LOG_ERR("No negotiated pixel format and width to display a buffer with");
+		net_buf_unref(in_buf);
+		return -ENODATA;
+	}
+
 	/* Input may be a fragment chain. Display each fragment then unref it */
 	cur = in_buf;
 	while (cur != NULL) {
 		/*
-		 * Currently, we assumme that in_buf is always a video buffer.
+		 * The buffer is assumed to carry a video buffer.
 		 * TODO: Add support for other buffer types
 		 */
 		struct video_buffer *vbuf =
@@ -202,16 +243,10 @@ int mp_disp_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net_
 		next = cur->frags;
 		cur->frags = NULL;
 
-		value = mp_structure_get_value(first_structure, MP_CAPS_IMAGE_WIDTH);
-		if (value != NULL) {
-			buf_desc.width = mp_value_get_int(value);
-		}
-
+		buf_desc.width = width;
 		buf_desc.pitch = buf_desc.width;
 		/* Do not get height from caps as sometimes buffer is just a partial frame */
-		buf_desc.height =
-			buf_desc.buf_size /
-			(buf_desc.width * DISPLAY_BITS_PER_PIXEL(disp_fmt) / BITS_PER_BYTE);
+		buf_desc.height = buf_desc.buf_size / bytes_per_line;
 
 		/* line_offset is only used to support partial video frame */
 		if (vbuf != NULL) {
@@ -243,7 +278,6 @@ void mp_disp_sink_init(struct mp_element *self)
 	self->object.set_property = mp_disp_sink_set_property;
 
 	sink->sinkpad.chainfn = mp_disp_sink_chainfn;
+	sink->sinkpad.enum_capsfn = mp_disp_sink_enum_caps;
 	sink->set_caps = mp_disp_sink_set_caps;
-
-	mp_disp_sink_update_caps(sink);
 }

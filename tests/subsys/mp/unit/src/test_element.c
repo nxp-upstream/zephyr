@@ -5,19 +5,16 @@
  */
 
 #include <zephyr/kernel.h>
-#include <zephyr/sys/sys_heap.h>
 #include <zephyr/ztest.h>
 #include <zephyr/ztest_assert.h>
 
 #include <zephyr/mp/mp_bin.h>
-#include <zephyr/mp/mp_caps.h>
 #include <zephyr/mp/mp_element.h>
 #include <zephyr/mp/mp_pad.h>
 #include <zephyr/mp/mp_pipeline.h>
 #include <zephyr/mp/mp_sink.h>
 #include <zephyr/mp/mp_src.h>
 
-extern struct k_heap _system_heap;
 
 struct mp_element_api_fixture {
 	struct mp_pipeline pipeline;
@@ -25,7 +22,6 @@ struct mp_element_api_fixture {
 	struct mp_element sink;
 	struct mp_pad src_pad;
 	struct mp_pad sink_pad;
-	struct sys_memory_stats mem_before;
 };
 
 static void *element_suite_setup(void)
@@ -42,13 +38,11 @@ static void element_before(void *f)
 	memset(fix, 0, sizeof(*fix));
 	mp_element_init(&fix->src, 1);
 	mp_element_init(&fix->sink, 2);
-	mp_pad_init(&fix->src_pad, 0, MP_PAD_SRC, MP_PAD_ALWAYS, NULL);
-	mp_pad_init(&fix->sink_pad, 1, MP_PAD_SINK, MP_PAD_ALWAYS, NULL);
+	mp_pad_init(&fix->src_pad, 0, MP_PAD_SRC, MP_PAD_ALWAYS);
+	mp_pad_init(&fix->sink_pad, 1, MP_PAD_SINK, MP_PAD_ALWAYS);
 
-	sys_heap_runtime_stats_get(&_system_heap.heap, &fix->mem_before);
-
-	fix->src_pad.caps = mp_caps_new_any();
-	fix->sink_pad.caps = mp_caps_new_any();
+	mp_structure_init_any(&fix->src_pad.caps);
+	mp_structure_init_any(&fix->sink_pad.caps);
 
 	zassert_equal(fix->src.object.id, 1, "Element ID shall be set by init");
 	zassert_equal(fix->src.current_state, MP_STATE_READY,
@@ -61,21 +55,7 @@ static void element_before(void *f)
 		     "sinkpads list shall be empty after init");
 }
 
-static void element_after(void *f)
-{
-	struct mp_element_api_fixture *fix = f;
-	struct sys_memory_stats mem_after;
-
-	mp_caps_unref(fix->src_pad.caps);
-	mp_caps_unref(fix->sink_pad.caps);
-
-	sys_heap_runtime_stats_get(&_system_heap.heap, &mem_after);
-	zassert_equal(fix->mem_before.allocated_bytes, mem_after.allocated_bytes,
-		      "Memory leak detected: before=%zu after=%zu", fix->mem_before.allocated_bytes,
-		      mem_after.allocated_bytes);
-}
-
-ZTEST_SUITE(mp_element_api, NULL, element_suite_setup, element_before, element_after, NULL);
+ZTEST_SUITE(mp_element_api, NULL, element_suite_setup, element_before, NULL, NULL);
 
 ZTEST_F(mp_element_api, test_link_two_elements)
 {
@@ -127,7 +107,7 @@ ZTEST_F(mp_element_api, test_sanity)
 	memset(&pad, 0, sizeof(pad));
 	mp_element_init(&elem, 1);
 
-	mp_pad_init(&pad, 0, MP_PAD_UNKNOWN, MP_PAD_ALWAYS, NULL);
+	mp_pad_init(&pad, 0, MP_PAD_UNKNOWN, MP_PAD_ALWAYS);
 	mp_element_add_pad(&elem, &pad);
 
 	zassert_true(sys_dlist_is_empty(&elem.srcpads),

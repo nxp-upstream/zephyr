@@ -11,7 +11,6 @@
 #include <zephyr/net_buf.h>
 
 #include <zephyr/mp/mp_buffer.h>
-#include <zephyr/mp/mp_caps.h>
 #include <zephyr/mp/mp_dispatch.h>
 #include <zephyr/mp/mp_structure.h>
 #include <zephyr/mp/mp_value.h>
@@ -183,9 +182,7 @@ static int mp_img_jpeg_decoder_chainfn(struct mp_pad *pad, struct net_buf *in_bu
 				net_buf_unref(*out_buf);
 				*out_buf = NULL;
 			}
-			/* remaining input chain (next) will be freed by net_buf_unref(cur) only if
-			 * we didn't detach; we detached, so free it explicitly.
-			 */
+			/* The remaining fragments were detached, free them explicitly */
 			while (next != NULL) {
 				struct net_buf *tmp = next->frags;
 
@@ -209,133 +206,139 @@ static int mp_img_jpeg_decoder_chainfn(struct mp_pad *pad, struct net_buf *in_bu
 	return 0;
 }
 
-static struct mp_caps *mp_img_jpeg_decoder_supported_caps(struct mp_transform *transform,
-							  enum mp_pad_direction direction)
+/* Output formats the decoder can produce, one enumeration index each */
+static const uint32_t jpeg_decoder_out_pixfmts[] = {
+	VIDEO_PIX_FMT_RGB565,
+	VIDEO_PIX_FMT_RGB565X,
+};
+
+#define JPEG_DECODER_SINK_FIELDS(X) X(MP_CAPS_PIXEL_FORMAT, MP_VALUE_UINT(VIDEO_PIX_FMT_JPEG))
+
+MP_STRUCTURE_DEFINE(jpeg_decoder_sink_caps, MP_MEDIA_VIDEO, JPEG_DECODER_SINK_FIELDS);
+
+static int mp_img_jpeg_decoder_enum_caps(struct mp_pad *pad, uint32_t index,
+					 const struct mp_structure *filter,
+					 struct mp_structure *out)
 {
-	ARG_UNUSED(transform);
+	struct mp_structure candidate;
+	struct mp_value fmt;
+	int ret;
 
-	if (direction == MP_PAD_SINK) {
-		return mp_caps_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
-				   VIDEO_PIX_FMT_JPEG, MP_CAPS_END);
-	}
-
-	if (direction == MP_PAD_SRC) {
-		struct mp_value *fmts = mp_value_new(MP_TYPE_LIST, NULL);
-
-		if (fmts == NULL) {
-			return NULL;
+	if (pad->direction == MP_PAD_SINK) {
+		if (index > 0) {
+			return -ENOENT;
 		}
-		mp_value_list_append(fmts, mp_value_new(MP_TYPE_UINT, VIDEO_PIX_FMT_RGB565));
-		mp_value_list_append(fmts, mp_value_new(MP_TYPE_UINT, VIDEO_PIX_FMT_RGB565X));
 
-		return mp_caps_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_LIST, fmts,
-				   MP_CAPS_END);
+		if (filter == NULL) {
+			return mp_structure_duplicate(&jpeg_decoder_sink_caps, out);
+		}
+
+		return (mp_structure_intersect(&jpeg_decoder_sink_caps, filter, out) != 0) ? -EAGAIN
+											   : 0;
 	}
 
-	return NULL;
+	if (index >= ARRAY_SIZE(jpeg_decoder_out_pixfmts)) {
+		return -ENOENT;
+	}
+
+	mp_structure_init(&candidate, MP_MEDIA_VIDEO);
+	fmt.type = MP_TYPE_UINT;
+	fmt.v_uint = jpeg_decoder_out_pixfmts[index];
+	ret = mp_structure_append_value(&candidate, MP_CAPS_PIXEL_FORMAT, &fmt);
+	if (ret != 0) {
+		return ret;
+	}
+
+	if (filter == NULL) {
+		*out = candidate;
+		return 0;
+	}
+
+	ret = mp_structure_intersect(&candidate, filter, out);
+	mp_structure_clear(&candidate);
+
+	return (ret != 0) ? -EAGAIN : 0;
 }
 
-static struct mp_caps *mp_img_jpeg_decoder_transform_caps(struct mp_transform *transform,
-							  enum mp_pad_direction direction,
-							  struct mp_caps *incaps)
+static int mp_img_jpeg_decoder_transform_caps(struct mp_transform *transform,
+					      enum mp_pad_direction direction,
+					      const struct mp_structure *in, uint32_t index,
+					      struct mp_structure *out)
 {
+	struct mp_value fmt;
+	int ret;
+
 	ARG_UNUSED(transform);
 
-	if (incaps == NULL) {
-		return NULL;
+	if (in == NULL) {
+		return -EINVAL;
 	}
 
-	if (mp_caps_is_any(incaps)) {
-		return mp_caps_new_any();
+	if (mp_structure_is_any(in)) {
+		/* Constrains nothing, so neither does the transformation of it */
+		return (index > 0U) ? -ENOENT : mp_structure_init_any(out);
 	}
 
-	struct mp_caps *out = mp_caps_new(MP_MEDIA_END);
-	struct mp_cap_structure *cs;
+	fmt.type = MP_TYPE_UINT;
 
-	SYS_SLIST_FOR_EACH_CONTAINER(&incaps->caps_structures, cs, node) {
-		struct mp_structure *s = cs->structure;
-		struct mp_value *w = mp_structure_get_value(s, MP_CAPS_IMAGE_WIDTH);
-		struct mp_value *h = mp_structure_get_value(s, MP_CAPS_IMAGE_HEIGHT);
-		struct mp_value *fi = mp_structure_get_value(s, MP_CAPS_FRAME_INTERVAL);
-
-		if (direction == MP_PAD_SRC) {
-			/* JPEG -> RGB565{,X} */
-			struct mp_value *fmts = mp_value_new(MP_TYPE_LIST, NULL);
-
-			if (fmts == NULL) {
-				continue;
-			}
-			mp_value_list_append(fmts,
-					     mp_value_new(MP_TYPE_UINT, VIDEO_PIX_FMT_RGB565));
-			mp_value_list_append(fmts,
-					     mp_value_new(MP_TYPE_UINT, VIDEO_PIX_FMT_RGB565X));
-
-			struct mp_structure *ns =
-				mp_structure_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_LIST,
-						 fmts, MP_CAPS_END);
-			if (w != NULL) {
-				mp_structure_append(ns, MP_CAPS_IMAGE_WIDTH, mp_value_duplicate(w));
-			}
-			if (h != NULL) {
-				mp_structure_append(ns, MP_CAPS_IMAGE_HEIGHT,
-						    mp_value_duplicate(h));
-			}
-			if (fi != NULL) {
-				mp_structure_append(ns, MP_CAPS_FRAME_INTERVAL,
-						    mp_value_duplicate(fi));
-			}
-			mp_caps_append(out, ns);
-		} else if (direction == MP_PAD_SINK) {
-			/* RGB565{,X} -> JPEG */
-			struct mp_structure *ns =
-				mp_structure_new(MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
-						 VIDEO_PIX_FMT_JPEG, MP_CAPS_END);
-			if (w != NULL) {
-				mp_structure_append(ns, MP_CAPS_IMAGE_WIDTH, mp_value_duplicate(w));
-			}
-			if (h != NULL) {
-				mp_structure_append(ns, MP_CAPS_IMAGE_HEIGHT,
-						    mp_value_duplicate(h));
-			}
-			if (fi != NULL) {
-				mp_structure_append(ns, MP_CAPS_FRAME_INTERVAL,
-						    mp_value_duplicate(fi));
-			}
-			mp_caps_append(out, ns);
-		} else {
-			/* Unknown direction: skip this structure */
+	if (direction == MP_PAD_SRC) {
+		/* JPEG -> one transformation per output format */
+		if (index >= ARRAY_SIZE(jpeg_decoder_out_pixfmts)) {
+			return -ENOENT;
 		}
+
+		fmt.v_uint = jpeg_decoder_out_pixfmts[index];
+	} else if (direction == MP_PAD_SINK) {
+		/* RGB565{,X} -> JPEG */
+		if (index > 0U) {
+			return -ENOENT;
+		}
+
+		fmt.v_uint = VIDEO_PIX_FMT_JPEG;
+	} else {
+		return -EINVAL;
 	}
 
-	return out;
+	ret = mp_structure_init(out, MP_MEDIA_VIDEO);
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = mp_structure_append_value(out, MP_CAPS_PIXEL_FORMAT, &fmt);
+	if (ret != 0) {
+		mp_structure_clear(out);
+		return ret;
+	}
+
+	/* Decoding changes the format, not the geometry or the timing */
+	(void)mp_structure_copy_field(in, out, MP_CAPS_IMAGE_WIDTH);
+	(void)mp_structure_copy_field(in, out, MP_CAPS_IMAGE_HEIGHT);
+	(void)mp_structure_copy_field(in, out, MP_CAPS_FRAME_INTERVAL);
+
+	return 0;
 }
 
 static int mp_img_jpeg_decoder_set_caps(struct mp_transform *transform,
-					enum mp_pad_direction direction, struct mp_caps *caps)
+					enum mp_pad_direction direction,
+					const struct mp_structure *caps)
 {
 	struct mp_img_jpeg_decoder *dec = (struct mp_img_jpeg_decoder *)transform;
-	struct mp_structure *s;
-	struct mp_value *v;
+	const struct mp_value *v;
 
 	if (caps == NULL) {
 		return -EINVAL;
 	}
 
 	if (direction == MP_PAD_SINK) {
-		mp_caps_replace(&transform->sinkpad.caps, caps);
-
-		return 0;
+		return mp_pad_set_caps(&transform->sinkpad, caps);
 	}
 
 	if (direction == MP_PAD_SRC) {
-		s = mp_caps_get_structure(caps, 0);
-		v = mp_structure_get_value(s, MP_CAPS_PIXEL_FORMAT);
+		v = mp_structure_get_value(caps, MP_CAPS_PIXEL_FORMAT);
 		if (v != NULL && v->type == MP_TYPE_UINT) {
 			dec->out_pixfmt = mp_value_get_uint(v);
 		}
-		mp_caps_replace(&transform->srcpad.caps, caps);
-
-		return 0;
+		return mp_pad_set_caps(&transform->srcpad, caps);
 	}
 
 	return -EINVAL;
@@ -361,8 +364,6 @@ void mp_img_jpeg_decoder_init(struct mp_element *self)
 {
 	struct mp_transform *transform = (struct mp_transform *)self;
 	struct mp_img_jpeg_decoder *dec = (struct mp_img_jpeg_decoder *)transform;
-	struct mp_caps *sink_caps;
-	struct mp_caps *src_caps;
 
 	mp_transform_init(self);
 
@@ -371,12 +372,8 @@ void mp_img_jpeg_decoder_init(struct mp_element *self)
 	transform->mode = MP_MODE_NORMAL;
 	transform->outpool = &dec->out_pool;
 
-	/* Get supported caps */
-	sink_caps = mp_img_jpeg_decoder_supported_caps(transform, MP_PAD_SINK);
-	src_caps = mp_img_jpeg_decoder_supported_caps(transform, MP_PAD_SRC);
-	mp_transform_update_caps(transform, sink_caps, src_caps);
-	mp_caps_unref(sink_caps);
-	mp_caps_unref(src_caps);
+	transform->sinkpad.enum_capsfn = mp_img_jpeg_decoder_enum_caps;
+	transform->srcpad.enum_capsfn = mp_img_jpeg_decoder_enum_caps;
 
 	mp_img_jpeg_decoder_outpool_init(dec);
 

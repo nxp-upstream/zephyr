@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "zephyr/mp/mp_caps.h"
 #include <string.h>
 
 #include <zephyr/kernel.h>
 #include <zephyr/sys/check.h>
 
 #include <zephyr/mp/mp_dispatch.h>
+#include <zephyr/mp/mp_structure.h>
 
-void mp_dispatch_init(struct mp_dispatch *dispatch, uint8_t type, struct mp_caps *caps)
+void mp_dispatch_init(struct mp_dispatch *dispatch, uint8_t type, const struct mp_structure *caps)
 {
 	if (dispatch == NULL) {
 		return;
@@ -21,8 +21,10 @@ void mp_dispatch_init(struct mp_dispatch *dispatch, uint8_t type, struct mp_caps
 	memset(dispatch, 0, sizeof(*dispatch));
 	dispatch->type = type;
 
-	if (caps != NULL) {
-		dispatch->caps = mp_caps_ref(caps);
+	if (caps == NULL) {
+		mp_structure_init_any(&dispatch->caps);
+	} else {
+		mp_structure_duplicate(caps, &dispatch->caps);
 	}
 }
 
@@ -32,29 +34,36 @@ void mp_dispatch_clear(struct mp_dispatch *dispatch)
 		return;
 	}
 
-	if (dispatch->caps != NULL) {
-		mp_caps_unref(dispatch->caps);
-	}
-
+	mp_structure_clear(&dispatch->caps);
 	memset(dispatch, 0, sizeof(*dispatch));
 }
 
-struct mp_caps *mp_dispatch_get_caps(struct mp_dispatch *dispatch)
+struct mp_structure *mp_dispatch_get_caps(struct mp_dispatch *dispatch)
 {
 	if (dispatch == NULL) {
 		return NULL;
 	}
 
-	return mp_caps_ref(dispatch->caps);
+	return &dispatch->caps;
 }
 
-int mp_dispatch_set_caps(struct mp_dispatch *dispatch, struct mp_caps *caps)
+int mp_dispatch_set_caps(struct mp_dispatch *dispatch, const struct mp_structure *caps)
 {
 	if (dispatch == NULL) {
 		return -EINVAL;
 	}
 
-	return mp_caps_replace(&dispatch->caps, caps);
+	if (caps == &dispatch->caps) {
+		return 0;
+	}
+
+	mp_structure_clear(&dispatch->caps);
+
+	if (caps == NULL) {
+		return mp_structure_init_any(&dispatch->caps);
+	}
+
+	return mp_structure_duplicate(caps, &dispatch->caps);
 }
 
 int mp_dispatch_set_pool(struct mp_dispatch *dispatch, struct mp_buffer_pool *pool)

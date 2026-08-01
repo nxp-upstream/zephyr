@@ -85,18 +85,19 @@ int main(void)
 	MP_ELEMENT_INIT(&caps_filter, mp_caps_filter_init, CAPS_FILTER_ID);
 
 	uint32_t frame_interval = 10000; /* 10ms */
-	struct mp_caps *caps =
-		mp_caps_new(MP_MEDIA_AUDIO_PCM, MP_CAPS_FRAME_INTERVAL, MP_TYPE_UINT,
-			    frame_interval, MP_CAPS_NUM_OF_CHANNEL, MP_TYPE_UINT, 2, MP_CAPS_END);
+	struct mp_structure caps;
 
-	if (caps == NULL) {
+	ret = mp_structure_init_fields(&caps, MP_MEDIA_AUDIO_PCM, MP_CAPS_FRAME_INTERVAL,
+				       MP_TYPE_UINT, frame_interval, MP_CAPS_NUM_OF_CHANNEL,
+				       MP_TYPE_UINT, 2, MP_CAPS_END);
+
+	if (ret != 0) {
 		LOG_ERR("Failed to create a caps");
 		goto err;
 	}
 
 	ret = mp_object_set_properties((struct mp_object *)&caps_filter,
-				       MP_PROP_BASE_CAPSFILTER_CAPS, caps, MP_PROP_LIST_END);
-	mp_caps_unref(caps);
+				       MP_PROP_BASE_CAPSFILTER_CAPS, &caps, MP_PROP_LIST_END);
 	if (ret < 0) {
 		LOG_ERR("Failed to set properties for caps filter element");
 		goto err;

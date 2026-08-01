@@ -171,7 +171,7 @@ static int mp_vid_buffer_pool_acquire_buffer(struct mp_buffer_pool *pool, struct
 	int ret = 0;
 
 	/* Refuse to hand out a buffer while flushing (teardown in progress). */
-	if (atomic_get(&vid_pool->flushing)) {
+	if (atomic_get(&vid_pool->flushing) != 0) {
 		return -EPIPE;
 	}
 
@@ -205,7 +205,7 @@ static int mp_vid_buffer_pool_acquire_buffer(struct mp_buffer_pool *pool, struct
 	 * just-dequeued buffer while we are about to read vbuf->buffer.
 	 */
 	key = k_spin_lock(&vid_pool->lock);
-	if (atomic_get(&vid_pool->flushing)) {
+	if (atomic_get(&vid_pool->flushing) != 0) {
 		k_spin_unlock(&vid_pool->lock, key);
 		return -EPIPE;
 	}

@@ -9,6 +9,7 @@
 #include <zephyr/mp/mp_dispatch.h>
 #include <zephyr/mp/mp_element.h>
 #include <zephyr/mp/mp_object.h>
+#include <zephyr/mp/mp_structure.h>
 #include <zephyr/mp/mp_transform.h>
 
 LOG_MODULE_REGISTER(mp_transform, CONFIG_MP_LOG_LEVEL);
@@ -16,89 +17,184 @@ LOG_MODULE_REGISTER(mp_transform, CONFIG_MP_LOG_LEVEL);
 #define MP_PAD_SINK_ID 0
 #define MP_PAD_SRC_ID  1
 
-/*
- * Optional, opt-in destructor for a transform element. It is NOT called
- * automatically during the play/pause/stop/replay lifecycle; it only runs when
- * the caller explicitly drops the element's last reference via
- * mp_object_unref(). It frees the internal template caps owned by the transform
- * and then chains to mp_element_release() to free the pad caps.
- */
-static void mp_transform_release(struct mp_object *obj)
-{
-	struct mp_transform *transform = (struct mp_transform *)obj;
-
-	if (transform->sink_caps != NULL) {
-		mp_caps_unref(transform->sink_caps);
-		transform->sink_caps = NULL;
-	}
-
-	if (transform->src_caps != NULL) {
-		mp_caps_unref(transform->src_caps);
-		transform->src_caps = NULL;
-	}
-
-	mp_element_release(obj);
-}
-
-void mp_transform_update_caps(struct mp_transform *transform, struct mp_caps *sink_caps,
-			      struct mp_caps *src_caps)
-{
-	mp_caps_replace(&transform->sink_caps, sink_caps);
-	mp_caps_replace(&transform->sinkpad.caps, transform->sink_caps);
-	mp_caps_replace(&transform->src_caps, src_caps);
-	mp_caps_replace(&transform->srcpad.caps, transform->src_caps);
-}
-
 static int mp_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 				struct net_buf **out_buf)
 {
+	ARG_UNUSED(pad);
+
 	/* Default implementation for MP_MODE_PASSTHROUGH - return same buffer */
 	*out_buf = in_buf;
 	return 0;
 }
 
-static struct mp_caps *mp_transform_get_caps(struct mp_transform *transform,
-					     enum mp_pad_direction direction)
-{
-	if (direction == MP_PAD_SRC) {
-		return mp_caps_ref(transform->src_caps);
-	}
-	if (direction == MP_PAD_SINK) {
-		return mp_caps_ref(transform->sink_caps);
-	}
-
-	return NULL;
-}
-
 int mp_transform_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
-			  struct mp_caps *caps)
+			  const struct mp_structure *caps)
 {
 	if (direction == MP_PAD_SINK) {
-		mp_caps_replace(&(transform->sinkpad.caps), caps);
-	} else if (direction == MP_PAD_SRC) {
-		mp_caps_replace(&(transform->srcpad.caps), caps);
-	} else {
-		return -EINVAL;
+		return mp_pad_set_caps(&transform->sinkpad, caps);
 	}
 
-	return 0;
+	if (direction == MP_PAD_SRC) {
+		return mp_pad_set_caps(&transform->srcpad, caps);
+	}
+
+	return -EINVAL;
 }
 
-static struct mp_caps *mp_transform_transform_caps(struct mp_transform *self,
-						   enum mp_pad_direction direction,
-						   struct mp_caps *incaps)
+static int mp_transform_transform_caps(struct mp_transform *self, enum mp_pad_direction direction,
+				       const struct mp_structure *in, uint32_t index,
+				       struct mp_structure *out)
 {
-	return mp_caps_ref(incaps);
+	ARG_UNUSED(self);
+	ARG_UNUSED(direction);
+
+	/* Passthrough by default: the capability crosses the element unchanged */
+	if (index > 0U) {
+		return -ENOENT;
+	}
+
+	return mp_structure_duplicate(in, out);
+}
+
+/*
+ * Produce the transformation at or after *index, skipping the indices that
+ * yield nothing, and report through *index the one it settled on so the caller
+ * can resume past it.
+ */
+static int mp_transform_enum_caps(struct mp_transform *self, enum mp_pad_direction direction,
+				  const struct mp_structure *in, uint32_t *index,
+				  struct mp_structure *out)
+{
+	int ret;
+
+	for (;; (*index)++) {
+		ret = self->transform_caps(self, direction, in, *index, out);
+		if (ret != -EAGAIN) {
+			return ret;
+		}
+	}
+}
+
+/*
+ * Transform the peer's answer back to this pad's side and narrow it by the
+ * candidate the attempt started from. The answer may map back to several
+ * capabilities, so they are walked and the first that still contains the
+ * candidate wins.
+ */
+static int mp_transform_narrow_to_candidate(struct mp_transform *self, struct mp_pad *this_pad,
+					    const struct mp_structure *answer,
+					    const struct mp_structure *candidate,
+					    struct mp_structure *out)
+{
+	struct mp_structure back;
+	int ret;
+
+	for (uint32_t index = 0;; index++) {
+		ret = mp_transform_enum_caps(self, this_pad->direction, answer, &index, &back);
+		if (ret != 0) {
+			return -ENODATA;
+		}
+
+		/* Narrow by the candidate this attempt started from */
+		ret = mp_structure_intersect(&back, candidate, out);
+		if (ret == 0) {
+			return 0;
+		}
+	}
+}
+
+/*
+ * Offer one transformation of a candidate to the peer on the other side and
+ * keep what comes back when the peer accepts it. Reports -ENODATA when the peer
+ * refuses it or its answer does not lead back to the candidate, which is the
+ * caller's cue to offer the next transformation.
+ */
+static int mp_transform_offer(struct mp_transform *self, struct mp_pad *this_pad,
+			      struct mp_pad *other_pad, const struct mp_structure *candidate,
+			      const struct mp_structure *transformed, struct mp_dispatch *query,
+			      struct mp_structure *out)
+{
+	int ret;
+
+	/* Query the peer pad with the transformed caps */
+	ret = mp_dispatch_set_caps(query, transformed);
+	if (ret < 0) {
+		return ret;
+	}
+
+	ret = mp_pad_query(other_pad->peer, query);
+	if (ret < 0) {
+		/*
+		 * Capabilities are offered one at a time, so a peer refusing one
+		 * of them is an ordinary step of the negotiation and not a
+		 * failure. The source reports the error if none is accepted.
+		 */
+		LOG_DBG("element id = %u: peer refused the transformed caps",
+			self->element.object.id);
+		return -ENODATA;
+	}
+
+	if (mp_structure_is_empty(mp_dispatch_get_caps(query))) {
+		return -ENODATA;
+	}
+
+	ret = mp_transform_narrow_to_candidate(self, this_pad, mp_dispatch_get_caps(query),
+					       candidate, out);
+	if (ret != 0) {
+		return ret;
+	}
+
+	/*
+	 * Keep the peer's answer at other_pad: the caps event needs it to narrow
+	 * the transformations of the fixated capability back down. Published only
+	 * now that the attempt has succeeded, so a refused candidate leaves the
+	 * pad as it found it.
+	 */
+	return mp_pad_set_caps(other_pad, mp_dispatch_get_caps(query));
+}
+
+/*
+ * Offer one of this pad's capabilities across the element. The element may map
+ * it to several capabilities on the other side, so those are offered to the
+ * peer one at a time as well. Reports -ENODATA when this candidate leads
+ * nowhere, which is the caller's cue to offer the next one.
+ */
+static int mp_transform_try_candidate(struct mp_transform *self, struct mp_pad *this_pad,
+				      struct mp_pad *other_pad,
+				      const struct mp_structure *candidate,
+				      struct mp_dispatch *query, struct mp_structure *out)
+{
+	struct mp_structure transformed;
+	int ret;
+
+	for (uint32_t index = 0;; index++) {
+		ret = mp_transform_enum_caps(self, other_pad->direction, candidate, &index,
+					     &transformed);
+		if (ret == -ENOENT) {
+			return -ENODATA;
+		}
+
+		if (ret != 0) {
+			return ret;
+		}
+
+		ret = mp_transform_offer(self, this_pad, other_pad, candidate, &transformed, query,
+					 out);
+		if (ret != -ENODATA) {
+			return ret;
+		}
+	}
 }
 
 static inline int mp_transform_query_caps(struct mp_transform *self,
 					  enum mp_pad_direction direction,
 					  struct mp_dispatch *query)
 {
-	int ret;
 	struct mp_pad *this_pad, *other_pad;
-	struct mp_caps *queried_pad_caps, *transformed_caps, *query_caps, *query_back_caps,
-		*res_caps;
+	struct mp_structure candidate;
+	struct mp_structure result;
+	struct mp_structure filter;
+	int ret;
 
 	switch (direction) {
 	case MP_PAD_SINK:
@@ -113,88 +209,39 @@ static inline int mp_transform_query_caps(struct mp_transform *self,
 		return -EINVAL;
 	}
 
-	/* Intersect the query caps with the pad's caps */
-	query_caps = mp_dispatch_get_caps(query);
-	queried_pad_caps = mp_caps_intersect(query_caps, this_pad->caps);
-	mp_caps_unref(query_caps);
-	if (queried_pad_caps == NULL) {
-		return -ENODATA;
-	}
-	if (mp_caps_is_empty(queried_pad_caps)) {
-		mp_caps_unref(queried_pad_caps);
-		return -ENODATA;
-	}
-
-	transformed_caps = self->transform_caps(self, other_pad->direction, queried_pad_caps);
-	if (transformed_caps == NULL) {
-		mp_caps_unref(queried_pad_caps);
-		return -ENODATA;
-	}
-	if (mp_caps_is_empty(transformed_caps)) {
-		mp_caps_unref(transformed_caps);
-		mp_caps_unref(queried_pad_caps);
-		return -ENODATA;
-	}
-
-	/* Query the peer pad with the transformed caps */
-	ret = mp_dispatch_set_caps(query, transformed_caps);
-	mp_caps_unref(transformed_caps);
-	if (ret < 0) {
-		mp_caps_unref(queried_pad_caps);
-		return ret;
-	}
-
-	ret = mp_pad_query(other_pad->peer, query);
-	if (ret < 0) {
-		LOG_ERR("error element id = %u", self->element.object.id);
-		mp_caps_unref(queried_pad_caps);
-		return ret;
-	}
-
-	query_caps = mp_dispatch_get_caps(query);
-	if (query_caps == NULL || mp_caps_is_empty(query_caps)) {
-		mp_caps_unref(queried_pad_caps);
-		mp_caps_unref(query_caps);
-		return -ENODATA;
-	}
-
 	/*
-	 * Keep query_caps result at other_pad to use later at caps event.
-	 * It is needed to intersect with the negotiated / fixated caps in the
-	 * caps event because when passing through the transform_caps() the
-	 * fixated caps will become unfixated.
+	 * Keep a copy of the incoming filter: offering a candidate to the peer
+	 * reuses the query and overwrites its caps.
 	 */
-	mp_caps_replace(&other_pad->caps, query_caps);
-
-	/* Transform back the query_caps */
-	query_back_caps = self->transform_caps(self, this_pad->direction, query_caps);
-	mp_caps_unref(query_caps);
-	if (query_back_caps == NULL) {
-		mp_caps_unref(queried_pad_caps);
-		return -ENODATA;
-	}
-	if (mp_caps_is_empty(query_back_caps)) {
-		mp_caps_unref(query_back_caps);
-		mp_caps_unref(queried_pad_caps);
-		return -ENODATA;
+	ret = mp_structure_duplicate(mp_dispatch_get_caps(query), &filter);
+	if (ret != 0) {
+		return ret;
 	}
 
-	/* Intersect with the original queried_pad_caps */
-	res_caps = mp_caps_intersect(query_back_caps, queried_pad_caps);
-	mp_caps_unref(queried_pad_caps);
-	mp_caps_unref(query_back_caps);
+	for (uint32_t index = 0;; index++) {
+		ret = mp_pad_enum_caps(this_pad, index, &filter, &candidate);
+		if (ret == -EAGAIN) {
+			continue;
+		}
 
-	if (res_caps == NULL) {
-		return -ENODATA;
+		if (ret != 0) {
+			ret = -ENODATA;
+			break;
+		}
+
+		ret = mp_transform_try_candidate(self, this_pad, other_pad, &candidate, query,
+						 &result);
+		if (ret != -ENODATA) {
+			break;
+		}
 	}
-	if (mp_caps_is_empty(res_caps)) {
-		mp_caps_unref(res_caps);
-		return -ENODATA;
+
+	if (ret != 0) {
+		return ret;
 	}
 
 	/* Answer the upstream query */
-	ret = mp_dispatch_set_caps(query, res_caps);
-	mp_caps_unref(res_caps);
+	ret = mp_dispatch_set_caps(query, &result);
 
 	return ret;
 }
@@ -210,7 +257,7 @@ static int mp_transform_query(struct mp_pad *pad, struct mp_dispatch *query)
 	case MP_DISPATCH_BUFFER_CONFIG:
 		struct mp_dispatch peer_query;
 
-		mp_dispatch_buffer_config_init(&peer_query, self->srcpad.caps);
+		mp_dispatch_buffer_config_init(&peer_query, &self->srcpad.caps);
 
 		/* Query the downstream */
 		ret = mp_pad_query(self->srcpad.peer, &peer_query);
@@ -232,8 +279,7 @@ static int mp_transform_query(struct mp_pad *pad, struct mp_dispatch *query)
 
 		/* Configure/start the output buffer pool */
 		if (self->mode == MP_MODE_NORMAL) {
-			ret = mp_buffer_pool_configure(self->outpool,
-						       mp_caps_get_structure(self->srcpad.caps, 0));
+			ret = mp_buffer_pool_configure(self->outpool, &self->srcpad.caps);
 			if (ret != 0 && ret != -ENOSYS) {
 				LOG_ERR("Failed to configure output transform buffer pool");
 				return ret;
@@ -257,6 +303,41 @@ static int mp_transform_query(struct mp_pad *pad, struct mp_dispatch *query)
 	}
 }
 
+/*
+ * Cross a fixed capability over to the other pad at caps event time. A
+ * transformation unfixes it again, so every transformation is narrowed by the
+ * peer's answer kept at other_pad during the caps query and the first that
+ * survives is fixated.
+ */
+static int mp_transform_cross_caps(struct mp_transform *self, struct mp_pad *other_pad,
+				   const struct mp_structure *in, struct mp_structure *out)
+{
+	struct mp_structure transformed;
+	struct mp_structure narrowed;
+	int ret;
+
+	for (uint32_t index = 0;; index++) {
+		ret = mp_transform_enum_caps(self, other_pad->direction, in, &index, &transformed);
+		if (ret == -ENOENT) {
+			return -ENODATA;
+		}
+
+		if (ret != 0) {
+			return ret;
+		}
+
+		ret = mp_structure_intersect(&transformed, &other_pad->caps, &narrowed);
+		if (ret != 0) {
+			continue;
+		}
+
+		ret = mp_structure_fixate(&narrowed, out);
+		if (ret == 0) {
+			return 0;
+		}
+	}
+}
+
 static int mp_transform_event(struct mp_pad *pad, struct mp_dispatch *event)
 {
 	int ret;
@@ -269,64 +350,53 @@ static int mp_transform_event(struct mp_pad *pad, struct mp_dispatch *event)
 		LOG_DBG("MP_DISPATCH_CAPS");
 		struct mp_transform *transform = (struct mp_transform *)pad->object.container;
 		struct mp_pad *other_pad;
-		struct mp_caps *event_caps, *transformed_caps, *intersect_caps, *fixated_caps;
+		struct mp_structure incoming;
+		struct mp_structure fixated;
 
 		other_pad =
 			(pad->direction == MP_PAD_SINK) ? &transform->srcpad : &transform->sinkpad;
 
-		event_caps = mp_dispatch_get_caps(event);
-		if (event_caps == NULL) {
+		/*
+		 * A caps event carries a fixed format. One that constrains
+		 * nothing means the source could not fixate, and there is
+		 * nothing to cross over.
+		 */
+		if (mp_structure_is_any(mp_dispatch_get_caps(event))) {
 			return -EINVAL;
 		}
 
-		transformed_caps =
-			transform->transform_caps(transform, other_pad->direction, event_caps);
-		if (transformed_caps == NULL) {
-			mp_caps_unref(event_caps);
-			return -ENODATA;
+		/*
+		 * Take a copy: the event's own capability is replaced below with
+		 * what crosses to the other side, but this side still has to be
+		 * applied afterwards.
+		 */
+		ret = mp_structure_duplicate(mp_dispatch_get_caps(event), &incoming);
+		if (ret != 0) {
+			return ret;
+		}
+
+		ret = mp_transform_cross_caps(transform, other_pad, &incoming, &fixated);
+		if (ret != 0) {
+			return ret;
+		}
+
+		ret = mp_dispatch_set_caps(event, &fixated);
+		if (ret == 0) {
+			ret = mp_pad_send_event(other_pad->peer, event);
 		}
 
 		/*
-		 * Intersect the transformed caps with the current other_pad's caps which stores the
-		 * downstream query caps result during caps query phase
+		 * Apply this side only once the peer has accepted, and only then
+		 * the other side: a capsfilter drops itself out of the graph from
+		 * set_caps(), so the event must already have been forwarded.
 		 */
-		intersect_caps = mp_caps_intersect(transformed_caps, other_pad->caps);
-		mp_caps_unref(transformed_caps);
-		if (intersect_caps == NULL) {
-			return -ENODATA;
+		if (ret == 0) {
+			ret = transform->set_caps(transform, pad->direction, &incoming);
 		}
 
-		/* Fixate the result */
-		fixated_caps = mp_caps_fixate(intersect_caps);
-		mp_caps_unref(intersect_caps);
-		if (fixated_caps == NULL) {
-			return -ENODATA;
+		if (ret == 0) {
+			ret = transform->set_caps(transform, other_pad->direction, &fixated);
 		}
-
-		ret = mp_dispatch_set_caps(event, fixated_caps);
-		if (ret < 0) {
-			mp_caps_unref(fixated_caps);
-			mp_caps_unref(event_caps);
-			return ret;
-		}
-
-		ret = mp_pad_send_event(other_pad->peer, event);
-		if (ret < 0) {
-			mp_caps_unref(fixated_caps);
-			mp_caps_unref(event_caps);
-			return ret;
-		}
-
-		ret = transform->set_caps(transform, pad->direction, event_caps);
-		if (ret < 0) {
-			mp_caps_unref(fixated_caps);
-			mp_caps_unref(event_caps);
-			return ret;
-		}
-
-		ret = transform->set_caps(transform, other_pad->direction, fixated_caps);
-		mp_caps_unref(fixated_caps);
-		mp_caps_unref(event_caps);
 
 		return ret;
 	default:
@@ -342,13 +412,13 @@ enum mp_state_change_return mp_transform_change_state(struct mp_element *self,
 	switch (transition) {
 	case MP_STATE_CHANGE_PAUSED_TO_READY:
 		/*
-		 * Reset the negotiated pad caps back to the supported template
-		 * caps so a subsequent re-negotiation (on replay) starts fresh.
-		 * Derived transforms that override change_state must chain to
-		 * this base function to inherit the reset.
+		 * Reset the negotiated pad caps back to ANY so a subsequent
+		 * re-negotiation (on replay) starts fresh. Derived transforms
+		 * that override change_state must chain to this base function
+		 * to inherit the reset.
 		 */
-		mp_caps_replace(&transform->sinkpad.caps, transform->sink_caps);
-		mp_caps_replace(&transform->srcpad.caps, transform->src_caps);
+		mp_pad_set_caps(&transform->sinkpad, NULL);
+		mp_pad_set_caps(&transform->srcpad, NULL);
 		break;
 	default:
 		break;
@@ -361,28 +431,14 @@ void mp_transform_init(struct mp_element *self)
 {
 	struct mp_transform *transform = (struct mp_transform *)self;
 
-	/* Default supported caps */
-	transform->sink_caps = mp_caps_new_any();
-	transform->src_caps = mp_caps_new_any();
-
-	mp_pad_init(&transform->sinkpad, MP_PAD_SINK_ID, MP_PAD_SINK, MP_PAD_ALWAYS,
-		    transform->sink_caps);
-	mp_pad_init(&transform->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS,
-		    transform->src_caps);
+	mp_pad_init(&transform->sinkpad, MP_PAD_SINK_ID, MP_PAD_SINK, MP_PAD_ALWAYS);
+	mp_pad_init(&transform->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS);
 	mp_element_add_pad(self, &transform->sinkpad);
 	mp_element_add_pad(self, &transform->srcpad);
 
-	/*
-	 * Opt-in destructor overriding the base one. See mp_transform_release
-	 * above: it is only invoked when the caller explicitly drops the
-	 * element's last reference and is never called by the
-	 * play/pause/stop/replay lifecycle.
-	 */
-	self->object.release = mp_transform_release;
 	self->change_state = mp_transform_change_state;
 
 	transform->mode = MP_MODE_PASSTHROUGH;
-	transform->get_caps = mp_transform_get_caps;
 	transform->set_caps = mp_transform_set_caps;
 	transform->transform_caps = mp_transform_transform_caps;
 	transform->sinkpad.chainfn = mp_transform_chainfn;

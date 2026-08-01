@@ -21,7 +21,7 @@
  */
 
 #include <zephyr/mp/mp_buffer.h>
-#include <zephyr/mp/mp_caps.h>
+#include <zephyr/mp/mp_structure.h>
 #include <zephyr/mp/mp_element.h>
 #include <zephyr/mp/mp_pad.h>
 
@@ -48,28 +48,15 @@ struct mp_sink {
 	struct mp_element element;
 	/** Input pad for receiving data */
 	struct mp_pad sinkpad;
-	/** @cond INTERNAL_HIDDEN */
-	/** Pointer to the supported caps */
-	struct mp_caps *sink_caps;
-	/** @endcond */
 	/** Buffer pool */
 	struct mp_buffer_pool *pool;
 	/**
-	 * @brief Get the supported caps of the element.
-	 *
-	 * To get the current caps, use sinkpad->caps instead
-	 *
-	 * @param sink Pointer to the sink element
-	 * @return Pointer to @ref mp_caps or NULL if not available
-	 */
-	struct mp_caps *(*get_caps)(struct mp_sink *sink);
-	/**
 	 * @brief Set a given caps to the element
 	 * @param sink Pointer to the sink element
-	 * @param caps Capabilities to set
+	 * @param caps Capability to set
 	 * @return 0 on success, negative errno on failure
 	 */
-	int (*set_caps)(struct mp_sink *sink, struct mp_caps *caps);
+	int (*set_caps)(struct mp_sink *sink, const struct mp_structure *caps);
 	/**
 	 * @brief Propose allocation strategy to the upstream peer
 	 * @param self Pointer to the sink element
@@ -90,22 +77,10 @@ struct mp_sink {
 void mp_sink_init(struct mp_element *self);
 
 /**
- * @brief Update the capabilities of a sink element
- *
- * Updates the sink element's capabilities with the provided caps structure.
- * This function is typically called when the capabilities of the sink need
- * to be modified or reconfigured during runtime.
- *
- * @param sink Pointer to the sink element
- * @param caps Pointer to the new capabilities to apply
- */
-void mp_sink_update_caps(struct mp_sink *sink, struct mp_caps *caps);
-
-/**
  * @brief Change state function for the base sink element
  *
  * On the PAUSED to READY transition this resets the negotiated pad caps back to
- * the supported template caps so a subsequent re-negotiation starts fresh.
+ * ANY so a subsequent re-negotiation starts fresh.
  * Derived sinks that override change_state must chain to this base function to
  * inherit that behavior.
  *

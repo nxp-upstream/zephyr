@@ -28,7 +28,7 @@
 #include <zephyr/kernel.h>
 
 #include <zephyr/mp/mp_buffer.h>
-#include <zephyr/mp/mp_caps.h>
+#include <zephyr/mp/mp_structure.h>
 #include <zephyr/mp/mp_object.h>
 
 struct mp_dispatch;
@@ -96,9 +96,13 @@ struct mp_pad {
 	enum mp_pad_mode mode;
 	/** Pointer to the peer pad this pad is linked to */
 	struct mp_pad *peer;
-	/** Capabilities of the pad */
-	struct mp_caps *caps;
-	/** Flushing gate. If set, buffer dropped instead of being handed to chainfn */
+	/**
+	 * The pad's capability. ANY until one is negotiated, and reset back to
+	 * ANY on PAUSED to READY. Held by value, so a pad owns its capability
+	 * outright and nothing has to be allocated to describe one.
+	 */
+	struct mp_structure caps;
+	/** Flushing gate. While set, buffers are dropped instead of chained */
 	atomic_t flushing;
 
 	/** Chain function for handling buffers */
@@ -107,7 +111,42 @@ struct mp_pad {
 	int (*queryfn)(struct mp_pad *pad, struct mp_dispatch *query);
 	/** Event function for handling events */
 	int (*eventfn)(struct mp_pad *pad, struct mp_dispatch *event);
+	/**
+	 * Enumerate the pad's supported caps one structure at a time into caller storage.
+	 *
+	 * Lets an element whose capabilities come from a device produce them on
+	 * demand instead of holding a structure for each. Defaults to producing
+	 * the pad's own capability, and nothing past index 0.
+	 */
+	int (*enum_capsfn)(struct mp_pad *pad, uint32_t index, const struct mp_structure *filter,
+			   struct mp_structure *out);
 };
+
+/**
+ * @brief Produce one of the pad's supported caps.
+ *
+ * @param pad Pad to enumerate.
+ * @param index Zero-based index of the capability.
+ * @param filter Optional structure to narrow the capability by, may be NULL.
+ * @param out Storage for the capability, released with @ref mp_structure_clear.
+ *
+ * @return 0 on success, -EAGAIN if this index cannot satisfy @p filter,
+ *         -ENOENT past the last capability
+ */
+int mp_pad_enum_caps(struct mp_pad *pad, uint32_t index, const struct mp_structure *filter,
+		     struct mp_structure *out);
+
+/**
+ * @brief Produce the pad's first supported capability that a filter accepts.
+ *
+ * @param pad Pad to enumerate.
+ * @param filter Capability to narrow by, may be NULL or ANY.
+ * @param out Storage for the capability, released with @ref mp_structure_clear.
+ *
+ * @return 0 on success, -ENODATA if no capability is accepted
+ */
+int mp_pad_enum_first(struct mp_pad *pad, const struct mp_structure *filter,
+		      struct mp_structure *out);
 
 /**
  * @brief Initialize a pad
@@ -118,10 +157,22 @@ struct mp_pad {
  * @param id Unique ID of the pad instance in the element
  * @param direction Direction of the pad (@ref mp_pad_direction)
  * @param presence Presence of the pad (@ref mp_pad_presence)
- * @param caps Capabilities of the pad (@ref mp_caps)
  */
 void mp_pad_init(struct mp_pad *pad, uint8_t id, enum mp_pad_direction direction,
-		 enum mp_pad_presence presence, struct mp_caps *caps);
+		 enum mp_pad_presence presence);
+
+/**
+ * @brief Set the pad's capability.
+ *
+ * Copies @p caps into the pad. Passing NULL resets the pad to constraining
+ * nothing, which is what a re-negotiation starts from.
+ *
+ * @param pad Pad to set the capability on.
+ * @param caps Capability to copy in, or NULL to reset to ANY.
+ *
+ * @return 0 on success, negative errno on failure
+ */
+int mp_pad_set_caps(struct mp_pad *pad, const struct mp_structure *caps);
 
 /**
  * @brief Link two pads together

@@ -22,6 +22,7 @@
 
 #include <zephyr/mp/mp_element.h>
 #include <zephyr/mp/mp_pad.h>
+#include <zephyr/mp/mp_structure.h>
 
 /**
  * @brief Properties for a transform element
@@ -61,12 +62,6 @@ struct mp_transform {
 	struct mp_pad sinkpad;
 	/** Source pad for sending output data */
 	struct mp_pad srcpad;
-	/** @cond INTERNAL_HIDDEN */
-	/** Pointer to the supported caps at sink */
-	struct mp_caps *sink_caps;
-	/** Pointer to the supported caps at source */
-	struct mp_caps *src_caps;
-	/** @endcond */
 	/** Pointer to the input buffer pool for allocating input buffers */
 	struct mp_buffer_pool *inpool;
 	/** Pointer to the output buffer pool for allocating output buffers */
@@ -75,34 +70,37 @@ struct mp_transform {
 	enum mp_transform_mode mode;
 
 	/**
-	 * @brief Get the supported caps from an element's pad
-	 *
-	 * To get the current caps, use sinkpad->caps or srcpad->caps instead
-	 *
-	 * @param transform Pointer to the transform element
-	 * @param direction Direction of the pad (@ref mp_pad_direction)
-	 * @return Pointer to @ref mp_caps or NULL on failure
-	 */
-	struct mp_caps *(*get_caps)(struct mp_transform *transform,
-				    enum mp_pad_direction direction);
-	/**
 	 * @brief Set a given caps to an element's pad
 	 * @param transform Pointer to the transform element
 	 * @param direction Direction of the pad (@ref mp_pad_direction)
-	 * @param caps Capabilities to set (@ref mp_caps)
+	 * @param caps Capability to set (@ref mp_structure)
 	 * @return 0 on success, negative errno on failure
 	 */
 	int (*set_caps)(struct mp_transform *transform, enum mp_pad_direction direction,
-			struct mp_caps *caps);
+			const struct mp_structure *caps);
 	/**
-	 * @brief Transform capabilities from one pad to another
+	 * @brief Produce one transformation of a capability across the element
+	 *
+	 * An element commonly maps a single input capability to several output
+	 * ones: a decoder that can emit any of N pixel formats, a converter with
+	 * N reachable formats. Those alternatives live on @p index rather than in
+	 * a returned set, so a negotiation walks them one at a time and the fan
+	 * out is never materialized.
+	 *
 	 * @param self Pointer to the transform element
-	 * @param direction Direction to transform capabilities to (@ref mp_pad_direction)
-	 * @param incaps Input capabilities (@ref mp_caps)
-	 * @return Transformed capabilities (@ref mp_caps) or NULL on failure
+	 * @param direction Direction of the pad to transform the capability to
+	 *                  (@ref mp_pad_direction)
+	 * @param in Capability on the opposite pad to transform
+	 * @param index Index of the transformation to produce, starting at 0
+	 * @param out Caller storage receiving the transformation
+	 *
+	 * @return 0 when @p out holds a transformation, -EAGAIN when this index
+	 *         produces none but a later one may, -ENOENT past the last one,
+	 *         or another negative errno on failure
 	 */
-	struct mp_caps *(*transform_caps)(struct mp_transform *self,
-					  enum mp_pad_direction direction, struct mp_caps *incaps);
+	int (*transform_caps)(struct mp_transform *self, enum mp_pad_direction direction,
+			      const struct mp_structure *in, uint32_t index,
+			      struct mp_structure *out);
 
 	/**
 	 * @brief Propose allocation parameters to upstream
@@ -150,26 +148,13 @@ void mp_transform_init(struct mp_element *self);
  * @return 0 on success, negative errno on failure
  */
 int mp_transform_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
-			  struct mp_caps *caps);
-
-/**
- * @brief Update the capabilities of a transform element
- *
- * Updates the transform element's supported caps on sink/src and resets the negotiated
- * caps on both pads.
- *
- * @param transform Pointer to the transform element
- * @param sink_caps Supported caps for the sink pad
- * @param src_caps Supported caps for the src pad
- */
-void mp_transform_update_caps(struct mp_transform *transform, struct mp_caps *sink_caps,
-			      struct mp_caps *src_caps);
+			  const struct mp_structure *caps);
 
 /**
  * @brief Change state function for the base transform element
  *
  * On the PAUSED to READY transition this resets the negotiated pad caps back to
- * the supported template caps so a subsequent re-negotiation starts fresh.
+ * ANY so a subsequent re-negotiation starts fresh.
  * Derived transforms that override change_state must chain to this base
  * function to inherit that behavior.
  *

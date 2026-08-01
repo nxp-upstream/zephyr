@@ -17,22 +17,15 @@ LOG_MODULE_REGISTER(mp_vid_src, CONFIG_MP_LOG_LEVEL);
 
 #define DEFAULT_PROP_DEVICE DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_camera))
 
-static struct mp_caps *mp_vid_src_supported_caps(struct mp_src *src)
+static int mp_vid_src_enum_caps(struct mp_pad *pad, uint32_t index,
+				const struct mp_structure *filter, struct mp_structure *out)
 {
-	struct mp_vid_src *vid_src = (struct mp_vid_src *)src;
+	struct mp_vid_src *vid_src = (struct mp_vid_src *)pad->object.container;
 
-	return mp_vid_object_get_caps(&vid_src->vid_obj);
+	return mp_vid_object_enum_caps(&vid_src->vid_obj, index, filter, out);
 }
 
-static void mp_vid_src_update_caps(struct mp_src *src)
-{
-	struct mp_caps *caps = mp_vid_src_supported_caps(src);
-
-	mp_src_update_caps(src, caps);
-	mp_caps_unref(caps);
-}
-
-static int mp_vid_src_set_caps(struct mp_src *src, struct mp_caps *caps)
+static int mp_vid_src_set_caps(struct mp_src *src, const struct mp_structure *caps)
 {
 	struct mp_vid_src *vid_src = (struct mp_vid_src *)src;
 
@@ -41,28 +34,13 @@ static int mp_vid_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 	}
 
 	/* Set pad's caps only when everything is OK */
-	mp_caps_replace(&src->srcpad.caps, caps);
-
-	return 0;
+	return mp_pad_set_caps(&src->srcpad, caps);
 }
 
 static int mp_vid_src_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
 	struct mp_vid_src *vid_src = (struct mp_vid_src *)obj;
-	struct mp_src *src = &vid_src->src;
-	const struct device *prev_vdev = vid_src->vid_obj.vdev;
-	struct video_rect prev_crop = vid_src->vid_obj.crop;
 	int ret = mp_vid_object_set_property(&vid_src->vid_obj, key, val);
-
-	/*
-	 * Rebuilding the caps means re-enumerating every format the device supports,
-	 * so only do it when the property actually changed something.
-	 */
-	if (ret == 0 && (key == MP_PROP_VID_DEVICE || key == MP_PROP_VID_CROP) &&
-	    (vid_src->vid_obj.vdev != prev_vdev ||
-	     memcmp(&vid_src->vid_obj.crop, &prev_crop, sizeof(prev_crop)) != 0)) {
-		mp_vid_src_update_caps(src);
-	}
 
 	if (ret == -ENOTSUP) {
 		return mp_src_set_property(obj, key, val);
@@ -106,15 +84,13 @@ void mp_vid_src_init(struct mp_element *self)
 	self->object.set_property = mp_vid_src_set_property;
 
 	/*
-	 * pool needs to be set before retrieving supported caps as
-	 * some pool's configs will be set during caps probing.
+	 * The pool has to exist before the first capability is enumerated, as
+	 * probing the device fills in the pool's buffer count and alignment.
 	 */
 	src->pool = &vid_src->vid_obj.pool.pool;
 	mp_vid_buffer_pool_init(src->pool, &vid_src->vid_obj);
 
-	/* Retrieve supported caps */
-	mp_vid_src_update_caps(src);
-
+	src->srcpad.enum_capsfn = mp_vid_src_enum_caps;
 	src->set_caps = mp_vid_src_set_caps;
 	src->decide_allocation = mp_vid_src_decide_allocation;
 }

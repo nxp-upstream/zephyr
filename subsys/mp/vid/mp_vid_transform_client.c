@@ -14,55 +14,64 @@
 
 LOG_MODULE_REGISTER(mp_vid_transform_client, CONFIG_MP_LOG_LEVEL);
 
-static struct mp_caps *mp_vid_transform_client_get_caps(struct mp_transform *transform,
-							enum mp_pad_direction direction)
+/* Ask the remote for the pool parameters of one direction, once at init */
+static int mp_vid_transform_client_probe_pool(struct mp_vid_transform_client *vtc,
+					      enum mp_pad_direction direction,
+					      struct mp_buffer_pool *pool)
 {
-	struct mp_vid_transform_client *vtc = (struct mp_vid_transform_client *)transform;
-	struct mp_caps *caps = mp_caps_new(MP_MEDIA_END);
-	struct mp_structure *caps_item = NULL;
-	struct mp_buffer_pool *pool = NULL;
-	struct video_format_cap vfc;
-	uint8_t ind = 0;
-
-	if (direction == MP_PAD_SINK) {
-		pool = transform->inpool;
-	} else if (direction == MP_PAD_SRC) {
-		pool = transform->outpool;
-	} else {
-		LOG_ERR("Pad direction is invalid");
-		return NULL;
-	}
-
-	/* Get buffer pool caps */
 	if (vtc->get_buf_caps_rpc(direction, &pool->config.min_buffers, &pool->config.align) != 0) {
 		LOG_ERR("Unable to retrieve buffer pool capabilities");
-		return NULL;
+		return -ENODEV;
 	}
 
-	/* Get format caps */
-	while (vtc->get_format_caps_rpc(direction, ind++, &vfc) == 0) {
-		caps_item = mp_structure_new(
-			MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT, vfc.pixelformat,
-			MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE, vfc.width_min, vfc.width_max,
-			vfc.width_step, MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE, vfc.height_min,
-			vfc.height_max, vfc.height_step, MP_CAPS_END);
-		mp_caps_append(caps, caps_item);
-	};
+	return 0;
+}
 
-	return caps;
+static int mp_vid_transform_client_enum_caps(struct mp_pad *pad, uint32_t index,
+					     const struct mp_structure *filter,
+					     struct mp_structure *out)
+{
+	struct mp_vid_transform_client *vtc =
+		(struct mp_vid_transform_client *)pad->object.container;
+	struct mp_structure candidate;
+	struct video_format_cap vfc;
+	int ret;
+
+	if (pad->direction != MP_PAD_SINK && pad->direction != MP_PAD_SRC) {
+		return -EINVAL;
+	}
+
+	if (vtc->get_format_caps_rpc(pad->direction, (uint8_t)index, &vfc) != 0) {
+		return -ENOENT;
+	}
+
+	ret = mp_vfc_to_structure(&vfc, &candidate);
+	if (ret != 0) {
+		return ret;
+	}
+
+	if (filter == NULL) {
+		*out = candidate;
+		return 0;
+	}
+
+	ret = mp_structure_intersect(&candidate, filter, out);
+	mp_structure_clear(&candidate);
+
+	return (ret != 0) ? -EAGAIN : 0;
 }
 
 static int mp_vid_transform_client_set_caps(struct mp_transform *transform,
-					    enum mp_pad_direction direction, struct mp_caps *caps)
+					    enum mp_pad_direction direction,
+					    const struct mp_structure *caps)
 {
 	struct mp_vid_transform_client *vtc = (struct mp_vid_transform_client *)transform;
 	struct mp_buffer_pool *pool = NULL;
 	struct video_format_cap vfc = {0};
 	struct video_format fmt;
-	struct mp_structure *first_structure;
 	int ret;
 
-	if (!mp_caps_is_fixed(caps)) {
+	if (caps == NULL || !mp_structure_is_fixed(caps)) {
 		return -EINVAL;
 	}
 
@@ -77,9 +86,7 @@ static int mp_vid_transform_client_set_caps(struct mp_transform *transform,
 		return -EINVAL;
 	}
 
-	first_structure = mp_caps_get_structure(caps, 0);
-
-	ret = mp_structure_to_vfc(first_structure, &vfc);
+	ret = mp_structure_to_vfc(caps, &vfc);
 	if (ret < 0) {
 		return ret;
 	}
@@ -99,54 +106,31 @@ static int mp_vid_transform_client_set_caps(struct mp_transform *transform,
 	pool->config.size = fmt.size;
 
 	/* Set pad's caps only when everything is OK */
-	mp_caps_replace(
-		direction == MP_PAD_SRC ? &transform->srcpad.caps : &transform->sinkpad.caps, caps);
-
-	return 0;
+	return mp_pad_set_caps(direction == MP_PAD_SRC ? &transform->srcpad : &transform->sinkpad,
+			       caps);
 }
 
-static struct mp_caps *mp_vid_transform_client_transform_caps(struct mp_transform *self,
-							      enum mp_pad_direction direction,
-							      struct mp_caps *caps)
+static int mp_vid_transform_client_transform_caps(struct mp_transform *self,
+						  enum mp_pad_direction direction,
+						  const struct mp_structure *in, uint32_t index,
+						  struct mp_structure *out)
 {
 	struct mp_vid_transform_client *vtc = (struct mp_vid_transform_client *)self;
-	struct mp_caps *other_caps = mp_caps_new(MP_MEDIA_END);
-	struct mp_structure *caps_item = NULL;
-	struct mp_cap_structure *cs;
 	struct video_format_cap vfc, other_vfc;
-	uint16_t ind;
 
-	if ((direction != MP_PAD_SINK && direction != MP_PAD_SRC) || caps == NULL) {
-		return NULL;
+	if (direction != MP_PAD_SINK && direction != MP_PAD_SRC) {
+		return -EINVAL;
 	}
 
-	SYS_SLIST_FOR_EACH_CONTAINER(&caps->caps_structures, cs, node) {
-		if (mp_structure_to_vfc(cs->structure, &vfc) < 0) {
-			continue;
-		}
-		ind = 0;
-		while (vtc->transform_cap_rpc(direction, ind++, &vfc, &other_vfc) == 0) {
-			/*
-			 * Several input structures often transform to the same output
-			 * capability. Skip those before building anything, so a duplicate
-			 * costs a comparison rather than a structure.
-			 */
-			if (mp_vid_caps_has_vfc(other_caps, &other_vfc)) {
-				continue;
-			}
-
-			caps_item = mp_structure_new(
-				MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
-				other_vfc.pixelformat, MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE,
-				other_vfc.width_min, other_vfc.width_max, other_vfc.width_step,
-				MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE, other_vfc.height_min,
-				other_vfc.height_max, other_vfc.height_step, MP_CAPS_END);
-
-			mp_caps_append(other_caps, caps_item);
-		}
+	if (in == NULL || mp_structure_to_vfc(in, &vfc) < 0) {
+		return -ENOENT;
 	}
 
-	return other_caps;
+	if (vtc->transform_cap_rpc(direction, (uint16_t)index, &vfc, &other_vfc) != 0) {
+		return -ENOENT;
+	}
+
+	return mp_vfc_to_structure(&other_vfc, out);
 }
 
 void mp_vid_transform_client_init(struct mp_element *self)
@@ -157,21 +141,20 @@ void mp_vid_transform_client_init(struct mp_element *self)
 	/* Init base class */
 	mp_transform_client_init(self);
 
-	/*
-	 * pools needs to be set before calling get_caps() as
-	 * some pool's configs will be set during get_caps()
-	 */
 	transform->inpool = &vtc->inpool.pool;
 	transform->outpool = &vtc->outpool.pool;
 
-	struct mp_caps *sink_caps = mp_vid_transform_client_get_caps(transform, MP_PAD_SINK);
-	struct mp_caps *src_caps = mp_vid_transform_client_get_caps(transform, MP_PAD_SRC);
+	/*
+	 * The pool parameters are asked for once. The supported formats are not:
+	 * the pads enumerate them from the remote on demand, so the element keeps
+	 * no list of its own and its pad caps stay ANY until one is negotiated.
+	 */
+	(void)mp_vid_transform_client_probe_pool(vtc, MP_PAD_SINK, transform->inpool);
+	(void)mp_vid_transform_client_probe_pool(vtc, MP_PAD_SRC, transform->outpool);
 
-	mp_transform_update_caps(transform, sink_caps, src_caps);
-	mp_caps_unref(sink_caps);
-	mp_caps_unref(src_caps);
+	transform->sinkpad.enum_capsfn = mp_vid_transform_client_enum_caps;
+	transform->srcpad.enum_capsfn = mp_vid_transform_client_enum_caps;
 
-	transform->get_caps = mp_vid_transform_client_get_caps;
 	transform->set_caps = mp_vid_transform_client_set_caps;
 	transform->transform_caps = mp_vid_transform_client_transform_caps;
 	/* Initialize buffer pools */

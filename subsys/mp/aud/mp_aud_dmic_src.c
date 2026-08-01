@@ -18,20 +18,18 @@
 
 LOG_MODULE_REGISTER(mp_aud_dmic_src, CONFIG_MP_LOG_LEVEL);
 
-static int mp_aud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
+static int mp_aud_dmic_src_set_caps(struct mp_src *src, const struct mp_structure *caps)
 {
 	struct mp_aud_dmic_src *aud_dmic_src = (struct mp_aud_dmic_src *)src;
 
-	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
+	uint32_t sample_rate, bit_width, num_of_channel, frame_interval;
 
-	uint32_t sample_rate =
-		mp_value_get_uint(mp_structure_get_value(first_structure, MP_CAPS_SAMPLE_RATE));
-	uint32_t bit_width =
-		mp_value_get_uint(mp_structure_get_value(first_structure, MP_CAPS_BITWIDTH));
-	uint32_t num_of_channel =
-		mp_value_get_uint(mp_structure_get_value(first_structure, MP_CAPS_NUM_OF_CHANNEL));
-	uint32_t frame_interval =
-		mp_value_get_uint(mp_structure_get_value(first_structure, MP_CAPS_FRAME_INTERVAL));
+	if (mp_aud_get_uint(caps, MP_CAPS_SAMPLE_RATE, &sample_rate) != 0 ||
+	    mp_aud_get_uint(caps, MP_CAPS_BITWIDTH, &bit_width) != 0 ||
+	    mp_aud_get_uint(caps, MP_CAPS_NUM_OF_CHANNEL, &num_of_channel) != 0 ||
+	    mp_aud_get_uint(caps, MP_CAPS_FRAME_INTERVAL, &frame_interval) != 0) {
+		return -EINVAL;
+	}
 
 	struct pcm_stream_cfg stream = {
 		.pcm_width = bit_width,
@@ -86,7 +84,7 @@ static int mp_aud_dmic_src_set_caps(struct mp_src *src, struct mp_caps *caps)
 		return -EIO;
 	}
 
-	mp_caps_replace(&(src->srcpad.caps), caps);
+	mp_pad_set_caps(&src->srcpad, caps);
 
 	return 0;
 }

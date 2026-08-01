@@ -117,7 +117,7 @@ int mp_pipeline_push_buffer(struct mp_pad *srcpad, struct net_buf *buffer)
 		 * Flushing: drop the buffer rather than pushing it into an element
 		 * whose caps have been reset or whose buffer pool has been freed.
 		 */
-		if (atomic_get(&next_sinkpad->flushing)) {
+		if (atomic_get(&next_sinkpad->flushing) != 0) {
 			net_buf_unref(buffer);
 			return 0;
 		}

@@ -20,7 +20,7 @@
  */
 
 #include <zephyr/mp/mp_buffer.h>
-#include <zephyr/mp/mp_caps.h>
+#include <zephyr/mp/mp_structure.h>
 #include <zephyr/mp/mp_object.h>
 
 /**
@@ -41,7 +41,7 @@ enum mp_dispatch_type {
  */
 struct mp_dispatch {
 	uint8_t type;                          /**< Dispatch type from @ref mp_dispatch_type */
-	struct mp_caps *caps;                  /**< Pointer to caps */
+	struct mp_structure caps;              /**< The capability carried, ANY when none */
 	struct mp_buffer_pool *pool;           /**< Buffer pool (not owned) */
 	struct mp_buffer_pool_config pool_cfg; /**< Pool config */
 };
@@ -51,9 +51,9 @@ struct mp_dispatch {
  *
  * @param dispatch Pointer to a @ref mp_dispatch to initialize.
  * @param type     Dispatch type from @ref mp_dispatch_type.
- * @param caps     Caps to attach (will be ref'd), or NULL.
+ * @param caps     Capability to copy in, or NULL for one that constrains nothing.
  */
-void mp_dispatch_init(struct mp_dispatch *dispatch, uint8_t type, struct mp_caps *caps);
+void mp_dispatch_init(struct mp_dispatch *dispatch, uint8_t type, const struct mp_structure *caps);
 
 /**
  * @brief Initialize a dispatch with end-of-stream type.
@@ -66,7 +66,7 @@ void mp_dispatch_init(struct mp_dispatch *dispatch, uint8_t type, struct mp_caps
  * @brief Initialize a dispatch with caps type.
  *
  * @param d Pointer to the @ref mp_dispatch structure to initialize.
- * @param c Pointer to the @ref mp_caps to attach, or NULL.
+ * @param c Pointer to the @ref mp_structure to copy in, or NULL.
  */
 #define mp_dispatch_caps_init(d, c) mp_dispatch_init(d, MP_DISPATCH_CAPS, c)
 
@@ -74,7 +74,7 @@ void mp_dispatch_init(struct mp_dispatch *dispatch, uint8_t type, struct mp_caps
  * @brief Initialize a dispatch with buffer-configuration type.
  *
  * @param d Pointer to the @ref mp_dispatch structure to initialize.
- * @param c Pointer to the @ref mp_caps to attach, or NULL.
+ * @param c Pointer to the @ref mp_structure to copy in, or NULL.
  */
 #define mp_dispatch_buffer_config_init(d, c) mp_dispatch_init(d, MP_DISPATCH_BUFFER_CONFIG, c)
 
@@ -86,24 +86,27 @@ void mp_dispatch_init(struct mp_dispatch *dispatch, uint8_t type, struct mp_caps
 void mp_dispatch_clear(struct mp_dispatch *dispatch);
 
 /**
- * @brief Get the caps from a dispatch (borrowed reference).
+ * @brief Get the capability carried by a dispatch.
+ *
+ * The dispatch keeps ownership; the pointer is valid until it is cleared or
+ * its capability replaced.
  *
  * @param dispatch Pointer to a @ref mp_dispatch.
  *
- * @return Pointer to @ref mp_caps, or NULL.
+ * @return Pointer to the @ref mp_structure, or NULL if @p dispatch is NULL.
  */
-struct mp_caps *mp_dispatch_get_caps(struct mp_dispatch *dispatch);
+struct mp_structure *mp_dispatch_get_caps(struct mp_dispatch *dispatch);
 
 /**
  * @brief Set (replace) the caps on a dispatch.
  *
  * @param dispatch Pointer to a @ref mp_dispatch.
- * @param caps     Pointer to @ref mp_caps, or NULL.
+ * @param caps     Capability to copy in, or NULL for one that constrains nothing.
  *
  * @retval 0       Success.
  * @retval -EINVAL @p dispatch is NULL or type does not carry caps.
  */
-int mp_dispatch_set_caps(struct mp_dispatch *dispatch, struct mp_caps *caps);
+int mp_dispatch_set_caps(struct mp_dispatch *dispatch, const struct mp_structure *caps);
 
 /**
  * @brief Set the buffer pool on an allocation dispatch.

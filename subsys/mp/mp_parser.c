@@ -7,52 +7,28 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mp/mp_buffer.h>
-#include <zephyr/mp/mp_caps.h>
 #include <zephyr/mp/mp_dispatch.h>
 #include <zephyr/mp/mp_parser.h>
+#include <zephyr/mp/mp_structure.h>
 
 LOG_MODULE_REGISTER(mp_parser, CONFIG_MP_LOG_LEVEL);
 
 #define MP_PAD_SINK_ID 0
 #define MP_PAD_SRC_ID  1
 
-void mp_parser_update_caps(struct mp_parser *parser, struct mp_caps *sink_caps,
-			   struct mp_caps *src_caps)
-{
-	mp_caps_replace(&parser->sink_caps, sink_caps);
-	mp_caps_replace(&parser->sinkpad.caps, parser->sink_caps);
-	mp_caps_replace(&parser->src_caps, src_caps);
-	mp_caps_replace(&parser->srcpad.caps, parser->src_caps);
-}
-
-static struct mp_caps *mp_parser_get_caps(struct mp_parser *parser, enum mp_pad_direction direction)
-{
-	if (direction == MP_PAD_SINK) {
-		return mp_caps_ref(parser->sink_caps);
-	}
-
-	if (direction == MP_PAD_SRC) {
-		return mp_caps_ref(parser->src_caps);
-	}
-
-	return NULL;
-}
-
 static int mp_parser_set_caps(struct mp_parser *parser, enum mp_pad_direction direction,
-			      struct mp_caps *caps)
+			      const struct mp_structure *caps)
 {
 	if (caps == NULL) {
 		return -EINVAL;
 	}
 
 	if (direction == MP_PAD_SINK) {
-		mp_caps_replace(&parser->sinkpad.caps, caps);
-		return 0;
+		return mp_pad_set_caps(&parser->sinkpad, caps);
 	}
 
 	if (direction == MP_PAD_SRC) {
-		mp_caps_replace(&parser->srcpad.caps, caps);
-		return 0;
+		return mp_pad_set_caps(&parser->srcpad, caps);
 	}
 
 	return -EINVAL;
@@ -62,55 +38,57 @@ static inline int mp_parser_query_caps(struct mp_parser *self, enum mp_pad_direc
 				       struct mp_dispatch *query)
 {
 	int ret;
-	struct mp_pad *other_pad;
-	struct mp_caps *queried_pad_caps;
-	struct mp_caps *this_caps = (direction == MP_PAD_SINK) ? self->sink_caps : self->src_caps;
-	struct mp_caps *other_caps = (direction == MP_PAD_SINK) ? self->src_caps : self->sink_caps;
+	struct mp_pad *this_pad, *other_pad;
+	struct mp_structure other_caps;
+	struct mp_structure candidate;
 
 	switch (direction) {
 	case MP_PAD_SINK:
+		this_pad = &self->sinkpad;
 		other_pad = &self->srcpad;
 		break;
 	case MP_PAD_SRC:
+		this_pad = &self->srcpad;
 		other_pad = &self->sinkpad;
 		break;
 	default:
 		return -EINVAL;
 	}
 
-	struct mp_caps *query_caps = mp_dispatch_get_caps(query);
-
-	queried_pad_caps = mp_caps_intersect(query_caps, this_caps);
-	mp_caps_unref(query_caps);
-	if (queried_pad_caps == NULL) {
-		return -ENODATA;
-	}
-	if (mp_caps_is_empty(queried_pad_caps)) {
-		mp_caps_unref(queried_pad_caps);
-		return -ENODATA;
+	/*
+	 * Keep the first supported capability the query accepts. The peer is
+	 * asked with the caps supported on the other side, which do not depend
+	 * on the candidate, so there is nothing here to backtrack over.
+	 */
+	ret = mp_pad_enum_first(this_pad, mp_dispatch_get_caps(query), &candidate);
+	if (ret != 0) {
+		return ret;
 	}
 
-	/* Query the peer using the other side supported caps */
-	ret = mp_dispatch_set_caps(query, other_caps);
+	/* Query the peer using what the other side supports */
+	ret = mp_pad_enum_caps(other_pad, 0, NULL, &other_caps);
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = mp_dispatch_set_caps(query, &other_caps);
 	if (ret < 0) {
-		mp_caps_unref(queried_pad_caps);
 		return ret;
 	}
 
 	ret = mp_pad_query(other_pad->peer, query);
 	if (ret < 0) {
-		mp_caps_unref(queried_pad_caps);
 		return ret;
 	}
 
-	query_caps = mp_dispatch_get_caps(query);
-	/* Keep query_caps result at other_pad to use later at caps event */
-	mp_caps_replace(&other_pad->caps, query_caps);
-	mp_caps_unref(query_caps);
+	/* Keep the query result at other_pad to use later at caps event */
+	ret = mp_pad_set_caps(other_pad, mp_dispatch_get_caps(query));
+	if (ret != 0) {
+		return ret;
+	}
 
 	/* Answer the query */
-	ret = mp_dispatch_set_caps(query, queried_pad_caps);
-	mp_caps_unref(queried_pad_caps);
+	ret = mp_dispatch_set_caps(query, &candidate);
 
 	return ret;
 }
@@ -126,15 +104,15 @@ static int mp_parser_event(struct mp_pad *pad, struct mp_dispatch *event)
 	case MP_DISPATCH_EOS:
 		return mp_pad_send_event_default(pad, event);
 	case MP_DISPATCH_CAPS:
-		struct mp_caps *evt_caps = mp_dispatch_get_caps(event);
-
-		mp_caps_replace(&pad->caps, evt_caps);
-		ret = mp_dispatch_set_caps(event, other_pad->caps);
-		if (ret < 0) {
+		ret = mp_pad_set_caps(pad, mp_dispatch_get_caps(event));
+		if (ret != 0) {
 			return ret;
 		}
 
-		mp_caps_unref(evt_caps);
+		ret = mp_dispatch_set_caps(event, &other_pad->caps);
+		if (ret < 0) {
+			return ret;
+		}
 
 		return mp_pad_send_event_default(pad, event);
 	default:
@@ -158,7 +136,7 @@ static int mp_parser_query(struct mp_pad *pad, struct mp_dispatch *query)
 	case MP_DISPATCH_BUFFER_CONFIG:
 		struct mp_dispatch peer_query;
 
-		mp_dispatch_buffer_config_init(&peer_query, parser->srcpad.caps);
+		mp_dispatch_buffer_config_init(&peer_query, &parser->srcpad.caps);
 
 		/* Query the downstream */
 		ret = mp_pad_query(parser->srcpad.peer, &peer_query);
@@ -179,8 +157,7 @@ static int mp_parser_query(struct mp_pad *pad, struct mp_dispatch *query)
 
 		/* Configure/start the output buffer pool */
 		if (parser->outpool != NULL && !parser->outpool->started) {
-			ret = mp_buffer_pool_configure(
-				parser->outpool, mp_caps_get_structure(parser->srcpad.caps, 0));
+			ret = mp_buffer_pool_configure(parser->outpool, &parser->srcpad.caps);
 			if (ret != 0 && ret != -ENOSYS) {
 				LOG_ERR("Failed to configure output parser buffer pool");
 				return ret;
@@ -212,13 +189,13 @@ enum mp_state_change_return mp_parser_change_state(struct mp_element *self,
 	switch (transition) {
 	case MP_STATE_CHANGE_PAUSED_TO_READY:
 		/*
-		 * Reset the negotiated pad caps back to the supported template
-		 * caps so a subsequent re-negotiation (on replay) starts fresh.
-		 * Derived parsers that override change_state must chain to this
-		 * base function to inherit the reset.
+		 * Reset the negotiated pad caps back to ANY so a subsequent
+		 * re-negotiation (on replay) starts fresh. Derived parsers that
+		 * override change_state must chain to this base function to
+		 * inherit the reset.
 		 */
-		mp_caps_replace(&parser->sinkpad.caps, parser->sink_caps);
-		mp_caps_replace(&parser->srcpad.caps, parser->src_caps);
+		mp_pad_set_caps(&parser->sinkpad, NULL);
+		mp_pad_set_caps(&parser->srcpad, NULL);
 		break;
 	default:
 		break;
@@ -231,20 +208,14 @@ void mp_parser_init(struct mp_element *self)
 {
 	struct mp_parser *parser = (struct mp_parser *)self;
 
-	/* Default supported caps */
-	parser->sink_caps = mp_caps_new_any();
-	parser->src_caps = mp_caps_new_any();
-
-	mp_pad_init(&parser->sinkpad, MP_PAD_SINK_ID, MP_PAD_SINK, MP_PAD_ALWAYS,
-		    parser->sink_caps);
+	mp_pad_init(&parser->sinkpad, MP_PAD_SINK_ID, MP_PAD_SINK, MP_PAD_ALWAYS);
 	mp_element_add_pad(self, &parser->sinkpad);
 
-	mp_pad_init(&parser->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS, parser->src_caps);
+	mp_pad_init(&parser->srcpad, MP_PAD_SRC_ID, MP_PAD_SRC, MP_PAD_ALWAYS);
 	mp_element_add_pad(self, &parser->srcpad);
 
 	parser->outpool = NULL;
 	self->change_state = mp_parser_change_state;
-	parser->get_caps = mp_parser_get_caps;
 	parser->set_caps = mp_parser_set_caps;
 	parser->srcpad.queryfn = mp_parser_query;
 	parser->sinkpad.queryfn = mp_parser_query;

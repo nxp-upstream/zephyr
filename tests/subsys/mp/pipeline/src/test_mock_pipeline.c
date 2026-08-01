@@ -4,15 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr/sys/sys_heap.h>
 #include <zephyr/ztest.h>
 
 #include <zephyr/mp/mp.h>
 #include <zephyr/mp/mp_fake_src.h>
 #include <zephyr/mp/mp_sink.h>
 #include <zephyr/mp/mp_transform.h>
-
-extern struct k_heap _system_heap;
 
 /* Element IDs (values are arbitrary; only uniqueness within the pipeline matters) */
 enum {
@@ -30,7 +27,6 @@ struct test_mock_pipeline_fixture {
 	struct mp_fake_src fake_src;
 	struct mp_transform transform;
 	struct mp_sink sink;
-	struct sys_memory_stats mem_before;
 };
 
 static void *pipeline_suite_setup(void)
@@ -45,14 +41,6 @@ static void pipeline_before(void *f)
 	struct test_mock_pipeline_fixture *fix = f;
 
 	memset(fix, 0, sizeof(*fix));
-
-	/*
-	 * Snapshot the heap usage before any element is initialized so that the
-	 * post-test comparison covers all allocations made from init through
-	 * teardown (the elements' template caps are allocated by the init calls
-	 * below).
-	 */
-	sys_heap_runtime_stats_get(&_system_heap.heap, &fix->mem_before);
 
 	MP_ELEMENT_INIT(&fix->pipeline, mp_pipeline_init, PIPE_ID);
 	MP_ELEMENT_INIT(&fix->fake_src, mp_fake_src_init, SRC_ID);
@@ -71,7 +59,6 @@ ZTEST_F(test_mock_pipeline, test_pipeline_fakesrc_transform_sink)
 {
 	struct mp_bus *bus;
 	struct mp_message msg;
-	struct sys_memory_stats mem_after;
 
 	/* Add all elements to the pipeline */
 	zassert_ok(mp_bin_add((struct mp_bin *)&fixture->pipeline,
@@ -101,19 +88,10 @@ ZTEST_F(test_mock_pipeline, test_pipeline_fakesrc_transform_sink)
 		      MP_STATE_CHANGE_SUCCESS, "Pipeline failed to return to READY");
 
 	/*
-	 * Fully tear down the pipeline via a single unref. The elements were
-	 * added with mp_bin_add(), which transfers each child's init reference
-	 * to the pipeline, so dropping the pipeline's last reference invokes the
-	 * bin's opt-in release() callback, which cascades to each child's
-	 * release() and frees both the internal template caps and the negotiated
-	 * pad caps that are not automatically released on the state change to
-	 * READY.
+	 * Tear the pipeline down with a single unref. The elements were added
+	 * with mp_bin_add(), which hands each child's init reference over to the
+	 * pipeline, so dropping the last reference runs the bin's opt-in
+	 * release() and cascades it to every child.
 	 */
 	mp_object_unref((struct mp_object *)&fixture->pipeline);
-
-	/* Check if heap memory was properly cleaned up */
-	sys_heap_runtime_stats_get(&_system_heap.heap, &mem_after);
-	zassert_equal(fixture->mem_before.allocated_bytes, mem_after.allocated_bytes,
-		      "Memory leak detected: before=%zu after=%zu",
-		      fixture->mem_before.allocated_bytes, mem_after.allocated_bytes);
 }

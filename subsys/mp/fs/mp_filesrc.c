@@ -12,7 +12,6 @@
 #include <zephyr/net_buf.h>
 
 #include <zephyr/mp/mp_buffer.h>
-#include <zephyr/mp/mp_caps.h>
 #include <zephyr/mp/mp_dispatch.h>
 
 #include <zephyr/mp/fs/mp_filesrc.h>
@@ -215,17 +214,12 @@ void mp_filesrc_init(struct mp_element *self)
 {
 	struct mp_filesrc *fsrc = (struct mp_filesrc *)self;
 	struct mp_src *src = &fsrc->src;
-	struct mp_caps *src_caps;
 
 	mp_src_init(self);
 
 	self->object.set_property = mp_filesrc_set_property;
 	self->object.get_property = mp_filesrc_get_property;
 	self->change_state = mp_filesrc_change_state;
-
-	src_caps = mp_caps_new_any();
-	mp_src_update_caps(src, src_caps);
-	mp_caps_unref(src_caps);
 
 	src->decide_allocation = mp_filesrc_decide_allocation;
 	src->pool = &fsrc->pool;

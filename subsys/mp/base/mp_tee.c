@@ -6,7 +6,6 @@
 
 #include <zephyr/logging/log.h>
 
-#include <zephyr/mp/mp_caps.h>
 #include <zephyr/mp/mp_dispatch.h>
 #include <zephyr/mp/mp_element.h>
 #include <zephyr/mp/mp_pad.h>
@@ -101,16 +100,14 @@ static int mp_tee_sink_eventfn(struct mp_pad *pad, struct mp_dispatch *event)
 			if (ret != 0 && first_err == 0) {
 				first_err = ret;
 			}
-
-			if (event->type == MP_DISPATCH_CAPS && ret == 0) {
-				struct mp_caps *caps = mp_dispatch_get_caps(event);
-
-				mp_caps_replace(&pad->caps, caps);
-				mp_caps_unref(caps);
-			}
 		}
 
-		return 0;
+		/* The caps are the same for every branch, so record them once */
+		if (event->type == MP_DISPATCH_CAPS && first_err == 0) {
+			first_err = mp_pad_set_caps(pad, mp_dispatch_get_caps(event));
+		}
+
+		return first_err;
 	default:
 		return -ENOTSUP;
 	}
@@ -147,8 +144,7 @@ static int mp_tee_add_srcpad(struct mp_tee *tee)
 		return -EINVAL;
 	}
 
-	mp_pad_init(&tee->srcpads[tee->srcpads_num], tee->srcpads_num, MP_PAD_SRC, MP_PAD_ALWAYS,
-		    tee->caps);
+	mp_pad_init(&tee->srcpads[tee->srcpads_num], tee->srcpads_num, MP_PAD_SRC, MP_PAD_ALWAYS);
 	mp_element_add_pad(&tee->element, &tee->srcpads[tee->srcpads_num]);
 	tee->srcpads_num++;
 
@@ -202,10 +198,9 @@ void mp_tee_init(struct mp_element *self)
 	tee->sinkpad.chainfn = mp_tee_chainfn;
 	tee->sinkpad.queryfn = mp_tee_sink_queryfn;
 	tee->sinkpad.eventfn = mp_tee_sink_eventfn;
-	tee->caps = mp_caps_new_any();
 
 	/* Initialize the sink pad */
-	mp_pad_init(&tee->sinkpad, 0, MP_PAD_SINK, MP_PAD_ALWAYS, tee->caps);
+	mp_pad_init(&tee->sinkpad, 0, MP_PAD_SINK, MP_PAD_ALWAYS);
 	mp_element_add_pad(self, &tee->sinkpad);
 
 	/* Initialize the default source pads */

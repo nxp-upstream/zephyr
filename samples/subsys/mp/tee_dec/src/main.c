@@ -169,20 +169,22 @@ int main(void)
 
 	/* Set caps filter to constrain negotiation with JPEG format + resolution */
 	{
-		struct mp_caps *caps = mp_caps_new(
-			MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT, VIDEO_PIX_FMT_JPEG,
-			MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT, CONFIG_JPEG_IMAGE_WIDTH,
-			MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT, CONFIG_JPEG_IMAGE_HEIGHT, MP_CAPS_END);
+		struct mp_structure caps;
 
-		if (caps == NULL) {
+		ret = mp_structure_init_fields(&caps, MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT,
+					       MP_TYPE_UINT, VIDEO_PIX_FMT_JPEG,
+					       MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT,
+					       CONFIG_JPEG_IMAGE_WIDTH, MP_CAPS_IMAGE_HEIGHT,
+					       MP_TYPE_UINT, CONFIG_JPEG_IMAGE_HEIGHT, MP_CAPS_END);
+
+		if (ret != 0) {
 			LOG_ERR("Failed to create caps");
 			goto err;
 		}
 
 		ret = mp_object_set_properties((struct mp_object *)&caps_filter,
-					       MP_PROP_BASE_CAPSFILTER_CAPS, caps,
+					       MP_PROP_BASE_CAPSFILTER_CAPS, &caps,
 					       MP_PROP_LIST_END);
-		mp_caps_unref(caps);
 		if (ret < 0) {
 			LOG_ERR("Failed to set caps_filter properties (%d)", ret);
 			goto err;

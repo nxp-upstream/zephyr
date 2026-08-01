@@ -31,13 +31,6 @@
 		zassert_equal(mp_value_get_uint(value), expected);                                 \
 	})
 
-#define validate_string_value(value, expected)                                                     \
-	({                                                                                         \
-		zassert_not_null(value);                                                           \
-		zassert_equal((value)->type, MP_TYPE_STRING);                                      \
-		zassert_str_equal(mp_value_get_string(value), expected);                           \
-	})
-
 #define validate_int_range_value(value, min, max, step)                                            \
 	({                                                                                         \
 		zassert_not_null(value);                                                           \
@@ -54,13 +47,6 @@
 		zassert_equal(mp_value_get_uint_range_min(value), min);                            \
 		zassert_equal(mp_value_get_uint_range_max(value), max);                            \
 		zassert_equal(mp_value_get_uint_range_step(value), step);                          \
-	})
-
-#define validate_list_value_type_and_size(value, expected_size)                                    \
-	({                                                                                         \
-		zassert_not_null(value);                                                           \
-		zassert_equal((value)->type, MP_TYPE_LIST);                                        \
-		zassert_equal(mp_value_list_get_size(value), expected_size);                       \
 	})
 
 #endif /* TESTS_SUBSYS_MP_CORE_UNIT_SRC_MP_TEST_HELPERS_H_ */

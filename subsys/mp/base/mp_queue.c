@@ -7,7 +7,6 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
-#include <zephyr/mp/mp_caps.h>
 #include <zephyr/mp/mp_dispatch.h>
 #include <zephyr/mp/mp_element.h>
 #include <zephyr/mp/mp_pad.h>
@@ -74,7 +73,7 @@ static int mp_queue_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct n
 	 * blocking k_msgq_put() from re-blocking, and prevents a late buffer from
 	 * leaking into an already-drained queue (e.g. behind a tee).
 	 */
-	if (atomic_get(&queue->flushing)) {
+	if (atomic_get(&queue->flushing) != 0) {
 		net_buf_unref(in_buf);
 		*out_buf = NULL;
 		return 0;
@@ -107,7 +106,7 @@ static int mp_queue_sink_eventfn(struct mp_pad *pad, struct mp_dispatch *event)
 		void *eos_ptr = &eos_sentinel;
 
 		/* Drop EOS if flushing (teardown); nothing downstream needs it. */
-		if (atomic_get(&queue->flushing)) {
+		if (atomic_get(&queue->flushing) != 0) {
 			return 0;
 		}
 
@@ -119,14 +118,13 @@ static int mp_queue_sink_eventfn(struct mp_pad *pad, struct mp_dispatch *event)
 
 		return ret;
 	case MP_DISPATCH_CAPS:
-		struct mp_caps *caps = mp_dispatch_get_caps(event);
+		struct mp_structure *caps = mp_dispatch_get_caps(event);
 
-		if (caps == NULL || mp_caps_is_empty(caps)) {
+		if (caps == NULL || mp_structure_is_empty(caps)) {
 			return -EINVAL;
 		}
 		queue->transform.set_caps(&queue->transform, MP_PAD_SINK, caps);
 		queue->transform.set_caps(&queue->transform, MP_PAD_SRC, caps);
-		mp_caps_unref(caps);
 
 		return mp_pad_send_event(queue->transform.srcpad.peer, event);
 	default:

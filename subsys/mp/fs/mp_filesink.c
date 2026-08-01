@@ -10,7 +10,6 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mp/mp_buffer.h>
-#include <zephyr/mp/mp_caps.h>
 
 #include <zephyr/mp/fs/mp_filesink.h>
 
@@ -123,17 +122,12 @@ void mp_filesink_init(struct mp_element *self)
 {
 	struct mp_filesink *fsink = (struct mp_filesink *)self;
 	struct mp_sink *sink = &fsink->sink;
-	struct mp_caps *sink_caps;
 
 	mp_sink_init(self);
 
 	self->object.set_property = mp_filesink_set_property;
 	self->object.get_property = mp_filesink_get_property;
 	self->change_state = mp_filesink_change_state;
-
-	sink_caps = mp_caps_new_any();
-	mp_sink_update_caps(sink, sink_caps);
-	mp_caps_unref(sink_caps);
 
 	sink->sinkpad.chainfn = mp_filesink_chainfn;
 

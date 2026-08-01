@@ -241,61 +241,74 @@ static int mp_aud_gain_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struc
 	return 0;
 }
 
-static struct mp_caps *mp_aud_gain_supported_caps(struct mp_transform *transform,
-						  enum mp_pad_direction direction)
+/*
+ * The gain element only manipulates sample values, so it constrains the bit
+ * width and the channel layout it can process but is agnostic to the sample
+ * rate, channel count and frame interval, which it passes through unchanged.
+ * Those pass-through fields are advertised as open ranges so the pad caps share
+ * fields with neighbouring elements (e.g. a caps filter fixing frame interval
+ * and channel count). Without them the structures would have no field in common
+ * and caps negotiation would refuse to link the pads.
+ *
+ * The bit widths it does constrain are alternatives, so each gets its own
+ * enumeration index rather than being collected into a list value.
+ */
+static const uint32_t mp_aud_gain_bit_widths[] = {
+	MP_AUD_BIT_WIDTH_32,
+	MP_AUD_BIT_WIDTH_24,
+	MP_AUD_BIT_WIDTH_16,
+};
+
+static int mp_aud_gain_enum_caps(struct mp_pad *pad, uint32_t index,
+				 const struct mp_structure *filter, struct mp_structure *out)
 {
-	struct mp_value *supported_bit_width = mp_value_new(MP_TYPE_LIST, NULL);
+	struct mp_structure candidate;
+	int ret;
 
-	mp_value_list_append(supported_bit_width, mp_value_new(MP_TYPE_UINT, MP_AUD_BIT_WIDTH_32));
-	mp_value_list_append(supported_bit_width, mp_value_new(MP_TYPE_UINT, MP_AUD_BIT_WIDTH_24));
-	mp_value_list_append(supported_bit_width, mp_value_new(MP_TYPE_UINT, MP_AUD_BIT_WIDTH_16));
+	ARG_UNUSED(pad);
 
-	if ((direction == MP_PAD_SRC) || (direction == MP_PAD_SINK)) {
-		/*
-		 * The gain element only manipulates sample values, so it constrains
-		 * the bit width and channel layout it can process but is agnostic to
-		 * the sample rate, channel count and frame interval, which it passes
-		 * through unchanged. Advertise those pass-through fields as open
-		 * ranges so the pad caps share fields with neighbouring elements
-		 * (e.g. a caps filter fixing frame interval and channel count).
-		 * Without them the structures would have no field in common and caps
-		 * negotiation would refuse to link the pads.
-		 */
-		return mp_caps_new(MP_MEDIA_AUDIO_PCM, MP_CAPS_SAMPLE_RATE, MP_TYPE_UINT_RANGE, 1U,
-				   UINT32_MAX, 1U, MP_CAPS_NUM_OF_CHANNEL, MP_TYPE_UINT_RANGE, 1U,
-				   UINT32_MAX, 1U, MP_CAPS_FRAME_INTERVAL, MP_TYPE_UINT_RANGE, 1U,
-				   UINT32_MAX, 1U, MP_CAPS_BITWIDTH, MP_TYPE_LIST,
-				   supported_bit_width, MP_CAPS_INTERLEAVED, MP_TYPE_BOOLEAN, true,
-				   MP_CAPS_END);
-	} else {
-		return NULL;
+	if (index >= ARRAY_SIZE(mp_aud_gain_bit_widths)) {
+		return -ENOENT;
 	}
+
+	ret = mp_structure_init_fields(
+		&candidate, MP_MEDIA_AUDIO_PCM, MP_CAPS_SAMPLE_RATE, MP_TYPE_UINT_RANGE, 1U,
+		UINT32_MAX, 1U, MP_CAPS_NUM_OF_CHANNEL, MP_TYPE_UINT_RANGE, 1U, UINT32_MAX, 1U,
+		MP_CAPS_FRAME_INTERVAL, MP_TYPE_UINT_RANGE, 1U, UINT32_MAX, 1U, MP_CAPS_BITWIDTH,
+		MP_TYPE_UINT, mp_aud_gain_bit_widths[index], MP_CAPS_INTERLEAVED, MP_TYPE_BOOLEAN,
+		true, MP_CAPS_END);
+	if (ret != 0) {
+		return ret;
+	}
+
+	if (filter == NULL) {
+		*out = candidate;
+		return 0;
+	}
+
+	ret = mp_structure_intersect(&candidate, filter, out);
+	mp_structure_clear(&candidate);
+
+	return (ret != 0) ? -EAGAIN : 0;
 }
 
 static int mp_aud_gain_set_caps(struct mp_transform *transform, enum mp_pad_direction direction,
-				struct mp_caps *caps)
+				const struct mp_structure *caps)
 {
 	struct mp_aud_gain *aud_gain = (struct mp_aud_gain *)transform;
-	/* Get the first structure from caps */
-	struct mp_structure *first_structure = mp_caps_get_structure(caps, 0);
-	/* Extract bit_width from the structure */
-	uint32_t bit_width =
-		mp_value_get_uint(mp_structure_get_value(first_structure, MP_CAPS_BITWIDTH));
-	/* Store bit_width in the aud_gain structure */
+	uint32_t bit_width;
+	int ret;
+
+	ret = mp_aud_get_uint(caps, MP_CAPS_BITWIDTH, &bit_width);
+	if (ret != 0) {
+		return ret;
+	}
+
 	aud_gain->bit_width = bit_width;
 	LOG_DBG("Bit width set to %u", bit_width);
 
-	return 0;
-}
-
-static void mp_aud_gain_update_caps(struct mp_transform *transform)
-{
-	struct mp_caps *sink_caps = mp_aud_gain_supported_caps(transform, MP_PAD_SINK);
-	struct mp_caps *src_caps = mp_aud_gain_supported_caps(transform, MP_PAD_SRC);
-
-	mp_transform_update_caps(transform, sink_caps, src_caps);
-	mp_caps_unref(sink_caps);
-	mp_caps_unref(src_caps);
+	/* Record the negotiated caps on the pad, as the base class would */
+	return mp_transform_set_caps(transform, direction, caps);
 }
 
 void mp_aud_gain_init(struct mp_element *self)
@@ -319,5 +332,6 @@ void mp_aud_gain_init(struct mp_element *self)
 	transform->sinkpad.chainfn = mp_aud_gain_chainfn;
 	transform->set_caps = mp_aud_gain_set_caps;
 
-	mp_aud_gain_update_caps(transform);
+	transform->sinkpad.enum_capsfn = mp_aud_gain_enum_caps;
+	transform->srcpad.enum_capsfn = mp_aud_gain_enum_caps;
 }

@@ -7,7 +7,6 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/video/video.h>
 
-#include <zephyr/mp/mp_caps.h>
 #include <zephyr/mp/mp_dispatch.h>
 #include <zephyr/mp/mp_structure.h>
 #include <zephyr/mp/mp_value.h>
@@ -66,34 +65,26 @@ static int mp_vid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	return 0;
 }
 
-static struct mp_caps *mp_vid_transform_supported_caps(struct mp_transform *transform,
-						       enum mp_pad_direction direction)
+static int mp_vid_transform_enum_caps(struct mp_pad *pad, uint32_t index,
+				      const struct mp_structure *filter, struct mp_structure *out)
 {
-	struct mp_vid_transform *vid_transform = (struct mp_vid_transform *)transform;
+	struct mp_vid_transform *vid_transform = (struct mp_vid_transform *)pad->object.container;
+	struct mp_vid_object *vid_obj;
 
-	if (direction == MP_PAD_SINK) {
-		return mp_vid_object_get_caps(&vid_transform->vid_obj_in);
+	if (pad->direction == MP_PAD_SINK) {
+		vid_obj = &vid_transform->vid_obj_in;
+	} else if (pad->direction == MP_PAD_SRC) {
+		vid_obj = &vid_transform->vid_obj_out;
+	} else {
+		return -EINVAL;
 	}
 
-	if (direction == MP_PAD_SRC) {
-		return mp_vid_object_get_caps(&vid_transform->vid_obj_out);
-	}
-
-	return NULL;
-}
-
-static void mp_vid_transform_update_caps(struct mp_transform *transform)
-{
-	struct mp_caps *sink_caps = mp_vid_transform_supported_caps(transform, MP_PAD_SINK);
-	struct mp_caps *src_caps = mp_vid_transform_supported_caps(transform, MP_PAD_SRC);
-
-	mp_transform_update_caps(transform, sink_caps, src_caps);
-	mp_caps_unref(sink_caps);
-	mp_caps_unref(src_caps);
+	return mp_vid_object_enum_caps(vid_obj, index, filter, out);
 }
 
 static int mp_vid_transform_set_caps(struct mp_transform *transform,
-				     enum mp_pad_direction direction, struct mp_caps *caps)
+				     enum mp_pad_direction direction,
+				     const struct mp_structure *caps)
 {
 	struct mp_vid_transform *vid_transform = (struct mp_vid_transform *)transform;
 	struct mp_vid_object *vid_obj = NULL;
@@ -111,62 +102,36 @@ static int mp_vid_transform_set_caps(struct mp_transform *transform,
 	}
 
 	/* Set pad's caps only when everything is OK */
-	mp_caps_replace(
-		direction == MP_PAD_SRC ? &transform->srcpad.caps : &transform->sinkpad.caps, caps);
-
-	return 0;
+	return mp_pad_set_caps(direction == MP_PAD_SRC ? &transform->srcpad : &transform->sinkpad,
+			       caps);
 }
 
-static struct mp_caps *mp_vid_transform_transform_caps(struct mp_transform *self,
-						       enum mp_pad_direction direction,
-						       struct mp_caps *caps)
+static int mp_vid_transform_transform_caps(struct mp_transform *self,
+					   enum mp_pad_direction direction,
+					   const struct mp_structure *in, uint32_t index,
+					   struct mp_structure *out)
 {
 	struct mp_vid_transform *vid_transform = (struct mp_vid_transform *)self;
 	const struct device *dev = vid_transform->vid_obj_in.vdev;
-	struct mp_caps *other_caps = mp_caps_new(MP_MEDIA_END);
-	struct mp_structure *caps_item = NULL;
-	struct mp_cap_structure *cs;
 	struct video_format_cap vfc, other_vfc;
-	uint16_t ind;
 
-	if ((direction != MP_PAD_SINK && direction != MP_PAD_SRC) || caps == NULL) {
-		return NULL;
+	if (direction != MP_PAD_SINK && direction != MP_PAD_SRC) {
+		return -EINVAL;
 	}
 
-	SYS_SLIST_FOR_EACH_CONTAINER(&caps->caps_structures, cs, node) {
-		if (mp_structure_to_vfc(cs->structure, &vfc) < 0) {
-			continue;
-		}
-		ind = 0;
-		while (video_transform_cap(dev, &vfc, &other_vfc, direction, ind) == 0) {
-			ind++;
-
-			/*
-			 * Several input structures often transform to the same output
-			 * capability. Skip those before building anything, so a duplicate
-			 * costs a comparison rather than a structure.
-			 */
-			if (mp_vid_caps_has_vfc(other_caps, &other_vfc)) {
-				continue;
-			}
-
-			caps_item = mp_structure_new(
-				MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
-				other_vfc.pixelformat, MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE,
-				other_vfc.width_min, other_vfc.width_max, other_vfc.width_step,
-				MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE, other_vfc.height_min,
-				other_vfc.height_max, other_vfc.height_step, MP_CAPS_END);
-
-			mp_caps_append(other_caps, caps_item);
-		}
+	if (in == NULL || mp_structure_to_vfc(in, &vfc) < 0) {
+		return -ENOENT;
 	}
 
-	return other_caps;
+	if (video_transform_cap(dev, &vfc, &other_vfc, direction, (uint16_t)index) != 0) {
+		return -ENOENT;
+	}
+
+	return mp_vfc_to_structure(&other_vfc, out);
 }
 
 static int mp_vid_transform_set_property(struct mp_object *obj, uint32_t key, const void *val)
 {
-	struct mp_transform *transform = (struct mp_transform *)obj;
 	struct mp_vid_transform *vid_transform = (struct mp_vid_transform *)obj;
 
 	switch (key) {
@@ -177,11 +142,12 @@ static int mp_vid_transform_set_property(struct mp_object *obj, uint32_t key, co
 		mp_vid_object_set_property(&vid_transform->vid_obj_out, key, val);
 
 		/*
-		 * Rebuilding the caps means re-enumerating every format the device
-		 * supports, twice, so only do it when the device actually changed.
+		 * Re-read the pool parameters from the new device. Probing disturbs
+		 * the compose selection, so skip it when nothing changed.
 		 */
 		if (vid_transform->vid_obj_in.vdev != prev_vdev) {
-			mp_vid_transform_update_caps(transform);
+			(void)mp_vid_object_probe_bounds(&vid_transform->vid_obj_in);
+			(void)mp_vid_object_probe_bounds(&vid_transform->vid_obj_out);
 		}
 
 		return 0;
@@ -233,17 +199,24 @@ void mp_vid_transform_init(struct mp_element *self)
 	 */
 	transform->mode = MP_MODE_NORMAL;
 
-	/*
-	 * pools needs to be set before retrieving supported caps as
-	 * some pool's configs will be set during caps probing.
-	 */
 	transform->inpool = &vid_transform->vid_obj_in.pool.pool;
 	transform->outpool = &vid_transform->vid_obj_out.pool.pool;
 	/* Initialize buffer pools */
 	mp_vid_buffer_pool_init(transform->inpool, &(vid_transform->vid_obj_in));
 	mp_vid_buffer_pool_init(transform->outpool, &(vid_transform->vid_obj_out));
 
-	mp_vid_transform_update_caps(transform);
+	/*
+	 * Probe the pool parameters for both directions here. The formats are
+	 * enumerated from the device on demand instead, so the pad caps stay ANY
+	 * until one is negotiated. The pools cannot wait for that enumeration:
+	 * the src pad's capability comes out of transform_caps(), so vid_obj_out
+	 * is never enumerated.
+	 */
+	(void)mp_vid_object_probe_bounds(&vid_transform->vid_obj_in);
+	(void)mp_vid_object_probe_bounds(&vid_transform->vid_obj_out);
+
+	transform->sinkpad.enum_capsfn = mp_vid_transform_enum_caps;
+	transform->srcpad.enum_capsfn = mp_vid_transform_enum_caps;
 
 	transform->set_caps = mp_vid_transform_set_caps;
 	transform->transform_caps = mp_vid_transform_transform_caps;
