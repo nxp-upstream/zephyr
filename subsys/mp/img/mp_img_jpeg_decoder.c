@@ -241,7 +241,11 @@ static int mp_img_jpeg_decoder_enum_caps(struct mp_pad *pad, uint32_t index,
 		return -ENOENT;
 	}
 
-	mp_structure_init(&candidate, MP_MEDIA_VIDEO);
+	ret = mp_structure_init(&candidate, MP_MEDIA_VIDEO);
+	if (ret != 0) {
+		return ret;
+	}
+
 	fmt.type = MP_TYPE_UINT;
 	fmt.v_uint = jpeg_decoder_out_pixfmts[index];
 	ret = mp_structure_append_value(&candidate, MP_CAPS_PIXEL_FORMAT, &fmt);

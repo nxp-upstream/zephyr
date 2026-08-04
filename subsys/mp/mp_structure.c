@@ -228,7 +228,10 @@ int mp_structure_intersect(const struct mp_structure *struct1, const struct mp_s
 		return -EINVAL;
 	}
 
-	mp_structure_init(out, struct1->media_type_id);
+	ret = mp_structure_init(out, struct1->media_type_id);
+	if (ret != 0) {
+		return ret;
+	}
 
 	for (uint8_t i = 0; i < struct1->num_fields; i++) {
 		const struct mp_value *other = mp_structure_get_value(struct2, struct1->ids[i]);
@@ -276,15 +279,21 @@ int mp_structure_intersect(const struct mp_structure *struct1, const struct mp_s
 
 int mp_structure_duplicate(const struct mp_structure *src, struct mp_structure *out)
 {
+	int ret;
+
 	if (src == NULL || out == NULL) {
 		return -EINVAL;
 	}
 
-	mp_structure_init(out, src->media_type_id);
+	ret = mp_structure_init(out, src->media_type_id);
+	if (ret != 0) {
+		return ret;
+	}
+
 	out->flags = src->flags;
 
 	for (uint8_t i = 0; i < src->num_fields; i++) {
-		int ret = mp_structure_append_value(out, src->ids[i], &src->values[i]);
+		ret = mp_structure_append_value(out, src->ids[i], &src->values[i]);
 
 		if (ret != 0) {
 			mp_structure_clear(out);
@@ -323,7 +332,10 @@ int mp_structure_fixate(const struct mp_structure *src, struct mp_structure *out
 		return -ENOENT;
 	}
 
-	mp_structure_init(out, src->media_type_id);
+	ret = mp_structure_init(out, src->media_type_id);
+	if (ret != 0) {
+		return ret;
+	}
 
 	for (uint8_t i = 0; i < src->num_fields; i++) {
 		const struct mp_value *value = &src->values[i];
