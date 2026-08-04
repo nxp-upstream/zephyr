@@ -31,27 +31,15 @@ LOG_MODULE_REGISTER(mp_aud_i2s_codec_sink, CONFIG_MP_LOG_LEVEL);
  */
 #define AUD_I2S_SINK_START_PRIME 3
 
-/*
- * The I2S link and the codec each report their sample rates and bit widths as
- * masks, and a capability is one combination the two agree on. The enumeration
- * index spans both, so each capability is a plain fixed structure instead of
- * one structure holding two list values.
- */
+/* A capability of this sink is one the I2S link and the codec both support */
 static int mp_aud_i2s_codec_sink_enum_caps(struct mp_pad *pad, uint32_t index,
 					   const struct mp_structure *filter,
 					   struct mp_structure *out)
 {
 	struct mp_aud_i2s_codec_sink *aud = (struct mp_aud_i2s_codec_sink *)pad->object.container;
-	struct mp_structure candidate;
 	struct audio_caps i2s_caps;
 	struct audio_caps codec_caps;
-	uint32_t sample_rates;
-	uint32_t bit_widths;
-	uint32_t num_widths;
-	uint32_t sample_rate;
-	uint32_t bit_width;
-	uint8_t min_num_buffers;
-	int ret;
+	struct audio_caps caps;
 
 	if (i2s_get_caps(aud->i2s_dev, &i2s_caps, I2S_DIR_TX) != 0) {
 		LOG_ERR("Failed to get I2S capabilities");
@@ -68,23 +56,14 @@ static int mp_aud_i2s_codec_sink_enum_caps(struct mp_pad *pad, uint32_t index,
 		return -ENOTSUP;
 	}
 
-	sample_rates = i2s_caps.supported_sample_rates & codec_caps.supported_sample_rates;
-	bit_widths = i2s_caps.supported_bit_widths & codec_caps.supported_bit_widths;
-
-	num_widths = mp_aud_count_bit_widths(bit_widths);
-	if (num_widths == 0U) {
-		return -ENOENT;
-	}
-
-	sample_rate = mp_aud_nth_sample_rate(sample_rates, index / num_widths);
-	if (sample_rate == 0U) {
-		return -ENOENT;
-	}
-
-	bit_width = mp_aud_nth_bit_width(bit_widths, index % num_widths);
-	if (bit_width == 0U) {
-		return -ENOENT;
-	}
+	caps.supported_sample_rates =
+		i2s_caps.supported_sample_rates & codec_caps.supported_sample_rates;
+	caps.supported_bit_widths = i2s_caps.supported_bit_widths & codec_caps.supported_bit_widths;
+	caps.min_total_channels = MAX(i2s_caps.min_total_channels, codec_caps.min_total_channels);
+	caps.max_total_channels = MIN(i2s_caps.max_total_channels, codec_caps.max_total_channels);
+	caps.min_frame_interval = MAX(i2s_caps.min_frame_interval, codec_caps.min_frame_interval);
+	caps.max_frame_interval = MIN(i2s_caps.max_frame_interval, codec_caps.max_frame_interval);
+	caps.interleaved = codec_caps.interleaved;
 
 	/*
 	 * The I2S driver primes its transmit queue before the START trigger,
@@ -92,24 +71,10 @@ static int mp_aud_i2s_codec_sink_enum_caps(struct mp_pad *pad, uint32_t index,
 	 * transmitted and returned. Make sure the negotiated pool can satisfy
 	 * this, otherwise the source starves before the sink ever starts.
 	 */
-	min_num_buffers = MAX(i2s_caps.min_num_buffers, codec_caps.min_num_buffers);
-	min_num_buffers = MAX(min_num_buffers, AUD_I2S_SINK_START_PRIME);
+	caps.min_num_buffers = MAX(MAX(i2s_caps.min_num_buffers, codec_caps.min_num_buffers),
+				   AUD_I2S_SINK_START_PRIME);
 
-	ret = mp_structure_init_fields(
-		&candidate, MP_MEDIA_AUDIO_PCM, MP_CAPS_SAMPLE_RATE, MP_TYPE_UINT, sample_rate,
-		MP_CAPS_BITWIDTH, MP_TYPE_UINT, bit_width, MP_CAPS_NUM_OF_CHANNEL,
-		MP_TYPE_UINT_RANGE, MAX(i2s_caps.min_total_channels, codec_caps.min_total_channels),
-		MIN(i2s_caps.max_total_channels, codec_caps.max_total_channels), 1,
-		MP_CAPS_FRAME_INTERVAL, MP_TYPE_UINT_RANGE,
-		MAX(i2s_caps.min_frame_interval, codec_caps.min_frame_interval),
-		MIN(i2s_caps.max_frame_interval, codec_caps.max_frame_interval), 1,
-		MP_CAPS_BUFFER_COUNT, MP_TYPE_UINT_RANGE, min_num_buffers, UINT8_MAX, 1,
-		MP_CAPS_INTERLEAVED, MP_TYPE_BOOLEAN, codec_caps.interleaved, MP_CAPS_END);
-	if (ret != 0) {
-		return ret;
-	}
-
-	return mp_pad_enum_filter(&candidate, filter, out);
+	return mp_aud_enum_caps(&caps, index, filter, out);
 }
 
 static void mp_aud_i2s_codec_sink_update_caps(struct mp_sink *sink)

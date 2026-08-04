@@ -7,6 +7,8 @@
 #include <zephyr/audio/audio_caps.h>
 #include <zephyr/logging/log.h>
 
+#include <zephyr/mp/mp_pad.h>
+
 #include <zephyr/mp/aud/mp_aud.h>
 
 LOG_MODULE_REGISTER(mp_aud, CONFIG_MP_LOG_LEVEL);
@@ -116,6 +118,49 @@ uint32_t mp_aud_nth_bit_width(uint32_t bit_width_mask, uint32_t n)
 	}
 
 	return 0;
+}
+
+int mp_aud_enum_caps(const struct audio_caps *caps, uint32_t index,
+		     const struct mp_structure *filter, struct mp_structure *out)
+{
+	struct mp_structure candidate;
+	uint32_t num_widths;
+	uint32_t sample_rate;
+	uint32_t bit_width;
+	int ret;
+
+	if (caps == NULL) {
+		return -EINVAL;
+	}
+
+	num_widths = mp_aud_count_bit_widths(caps->supported_bit_widths);
+	if (num_widths == 0U) {
+		return -ENOENT;
+	}
+
+	sample_rate = mp_aud_nth_sample_rate(caps->supported_sample_rates, index / num_widths);
+	if (sample_rate == 0U) {
+		return -ENOENT;
+	}
+
+	bit_width = mp_aud_nth_bit_width(caps->supported_bit_widths, index % num_widths);
+	if (bit_width == 0U) {
+		return -ENOENT;
+	}
+
+	ret = mp_structure_init_fields(
+		&candidate, MP_MEDIA_AUDIO_PCM, MP_CAPS_SAMPLE_RATE, MP_TYPE_UINT, sample_rate,
+		MP_CAPS_BITWIDTH, MP_TYPE_UINT, bit_width, MP_CAPS_NUM_OF_CHANNEL,
+		MP_TYPE_UINT_RANGE, caps->min_total_channels, caps->max_total_channels, 1,
+		MP_CAPS_FRAME_INTERVAL, MP_TYPE_UINT_RANGE, caps->min_frame_interval,
+		caps->max_frame_interval, 1, MP_CAPS_BUFFER_COUNT, MP_TYPE_UINT_RANGE,
+		caps->min_num_buffers, UINT8_MAX, 1, MP_CAPS_INTERLEAVED, MP_TYPE_BOOLEAN,
+		caps->interleaved, MP_CAPS_END);
+	if (ret != 0) {
+		return ret;
+	}
+
+	return mp_pad_enum_filter(&candidate, filter, out);
 }
 
 int mp_aud_get_uint(const struct mp_structure *caps, uint8_t field_id, uint32_t *out)

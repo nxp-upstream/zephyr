@@ -109,6 +109,28 @@ uint32_t mp_aud_nth_sample_rate(uint32_t sample_rate_mask, uint32_t n);
 uint32_t mp_aud_nth_bit_width(uint32_t bit_width_mask, uint32_t n);
 
 /**
+ * @brief Produce the capability a device advertises at an enumeration index.
+ *
+ * A device describes its sample rates and bit widths as two masks, and every
+ * combination of them is a capability of its own. The enumeration index spans
+ * both, so each capability is a plain fixed structure instead of one structure
+ * holding two list values. An element whose capability comes from more than one
+ * device passes what the devices agree on.
+ *
+ * @param caps Audio capabilities to enumerate.
+ * @param index Zero-based enumeration index.
+ * @param filter Capability the result must satisfy, may be NULL.
+ * @param out Pointer to storage for the capability at @p index.
+ *
+ * @retval 0 on success
+ * @retval -EAGAIN if the capability at @p index cannot satisfy @p filter
+ * @retval -ENOENT if @p index is past the last capability
+ * @retval -EINVAL if @p caps or @p out is NULL
+ */
+int mp_aud_enum_caps(const struct audio_caps *caps, uint32_t index,
+		     const struct mp_structure *filter, struct mp_structure *out);
+
+/**
  * @brief Read a fixed unsigned field that a capability is required to carry.
  *
  * Audio elements configure their device from several caps fields at once and
