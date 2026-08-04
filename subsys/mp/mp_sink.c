@@ -99,17 +99,9 @@ static int mp_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct ne
 enum mp_state_change_return mp_sink_change_state(struct mp_element *self,
 						 enum mp_state_change transition)
 {
-	struct mp_sink *sink = (struct mp_sink *)self;
-
 	switch (transition) {
 	case MP_STATE_CHANGE_PAUSED_TO_READY:
-		/*
-		 * Reset the negotiated pad caps back to ANY so a subsequent
-		 * re-negotiation (on replay) starts fresh. Derived sinks that
-		 * override change_state must chain to this base function to
-		 * inherit the reset.
-		 */
-		mp_pad_set_caps(&sink->sinkpad, NULL);
+		mp_element_reset_pad_caps(self);
 		break;
 	default:
 		break;

@@ -17,6 +17,19 @@
 
 LOG_MODULE_REGISTER(mp_element, CONFIG_MP_LOG_LEVEL);
 
+void mp_element_reset_pad_caps(struct mp_element *element)
+{
+	struct mp_object *pad_obj;
+
+	SYS_DLIST_FOR_EACH_CONTAINER(&element->srcpads, pad_obj, node) {
+		mp_pad_set_caps((struct mp_pad *)pad_obj, NULL);
+	}
+
+	SYS_DLIST_FOR_EACH_CONTAINER(&element->sinkpads, pad_obj, node) {
+		mp_pad_set_caps((struct mp_pad *)pad_obj, NULL);
+	}
+}
+
 void mp_element_add_pad(struct mp_element *element, struct mp_pad *pad)
 {
 	__ASSERT_NO_MSG(element != NULL);

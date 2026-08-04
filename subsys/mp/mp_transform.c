@@ -407,18 +407,9 @@ static int mp_transform_event(struct mp_pad *pad, struct mp_dispatch *event)
 enum mp_state_change_return mp_transform_change_state(struct mp_element *self,
 						      enum mp_state_change transition)
 {
-	struct mp_transform *transform = (struct mp_transform *)self;
-
 	switch (transition) {
 	case MP_STATE_CHANGE_PAUSED_TO_READY:
-		/*
-		 * Reset the negotiated pad caps back to ANY so a subsequent
-		 * re-negotiation (on replay) starts fresh. Derived transforms
-		 * that override change_state must chain to this base function
-		 * to inherit the reset.
-		 */
-		mp_pad_set_caps(&transform->sinkpad, NULL);
-		mp_pad_set_caps(&transform->srcpad, NULL);
+		mp_element_reset_pad_caps(self);
 		break;
 	default:
 		break;

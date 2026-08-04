@@ -198,6 +198,18 @@ struct mp_pad;
  * @param element The @ref mp_element to add the pad to
  * @param pad The @ref mp_pad to add to the element
  */
+/**
+ * @brief Reset every pad of an element to constraining nothing.
+ *
+ * Drops the negotiated capability from each of the element's pads so a
+ * subsequent re-negotiation starts fresh. Base classes call this on the
+ * PAUSED to READY transition; a derived element that overrides change_state
+ * must chain to its base function to inherit the reset.
+ *
+ * @param element Pointer to the element whose pads to reset.
+ */
+void mp_element_reset_pad_caps(struct mp_element *element);
+
 void mp_element_add_pad(struct mp_element *element, struct mp_pad *pad);
 
 /**
