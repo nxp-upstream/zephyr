@@ -59,8 +59,8 @@ static int mp_vid_transform_client_set_caps(struct mp_transform *transform,
 {
 	struct mp_vid_transform_client *vtc = (struct mp_vid_transform_client *)transform;
 	struct mp_buffer_pool *pool = NULL;
-	struct video_format_cap vfc = {0};
 	struct video_format fmt;
+	enum video_buf_type type;
 	int ret;
 
 	if (caps == NULL || !mp_structure_is_fixed(caps)) {
@@ -68,24 +68,20 @@ static int mp_vid_transform_client_set_caps(struct mp_transform *transform,
 	}
 
 	if (direction == MP_PAD_SINK) {
-		fmt.type = VIDEO_BUF_TYPE_INPUT;
+		type = VIDEO_BUF_TYPE_INPUT;
 		pool = transform->inpool;
 	} else if (direction == MP_PAD_SRC) {
-		fmt.type = VIDEO_BUF_TYPE_OUTPUT;
+		type = VIDEO_BUF_TYPE_OUTPUT;
 		pool = transform->outpool;
 	} else {
 		LOG_ERR("Pad direction is invalid");
 		return -EINVAL;
 	}
 
-	ret = mp_structure_to_vfc(caps, &vfc);
+	ret = mp_structure_to_format(caps, type, &fmt);
 	if (ret < 0) {
 		return ret;
 	}
-
-	fmt.pixelformat = vfc.pixelformat;
-	fmt.width = vfc.width_min;
-	fmt.height = vfc.height_min;
 
 	ret = vtc->set_format_rpc(&fmt);
 	if (ret < 0) {

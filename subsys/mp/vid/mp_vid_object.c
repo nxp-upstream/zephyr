@@ -71,6 +71,29 @@ int mp_structure_to_vfc(const struct mp_structure *structure, struct video_forma
 				    &vfc->height_max, &vfc->height_step);
 }
 
+int mp_structure_to_format(const struct mp_structure *structure, enum video_buf_type type,
+			   struct video_format *fmt)
+{
+	struct video_format_cap vfc = {0};
+	int ret;
+
+	if (structure == NULL || fmt == NULL) {
+		return -EINVAL;
+	}
+
+	ret = mp_structure_to_vfc(structure, &vfc);
+	if (ret < 0) {
+		return ret;
+	}
+
+	fmt->type = type;
+	fmt->pixelformat = vfc.pixelformat;
+	fmt->width = vfc.width_min;
+	fmt->height = vfc.height_min;
+
+	return 0;
+}
+
 int mp_vfc_to_structure(const struct video_format_cap *vfc, struct mp_structure *out)
 {
 	if (vfc == NULL || out == NULL) {
@@ -348,7 +371,6 @@ static bool has_frmival(const struct device *vdev, struct video_format *fmt)
 
 int mp_vid_object_set_caps(struct mp_vid_object *vid_obj, const struct mp_structure *caps)
 {
-	struct video_format_cap vfc = {0};
 	struct video_format fmt;
 	const struct mp_value *frmival_us;
 
@@ -359,16 +381,12 @@ int mp_vid_object_set_caps(struct mp_vid_object *vid_obj, const struct mp_struct
 	frmival_us = mp_structure_get_value(caps, MP_CAPS_FRAME_INTERVAL);
 
 	/* Set format */
-	int ret = mp_structure_to_vfc(caps, &vfc);
+	int ret = mp_structure_to_format(caps, vid_obj->type, &fmt);
 
 	if (ret < 0) {
 		return ret;
 	}
 
-	fmt.type = vid_obj->type;
-	fmt.pixelformat = vfc.pixelformat;
-	fmt.width = vfc.width_min;
-	fmt.height = vfc.height_min;
 	if (video_set_compose_format(vid_obj->vdev, &fmt) != 0) {
 		LOG_ERR("Unable to set format");
 		return -EIO;

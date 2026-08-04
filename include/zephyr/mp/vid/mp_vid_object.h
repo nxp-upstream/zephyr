@@ -111,6 +111,23 @@ int mp_vid_object_probe_bounds(struct mp_vid_object *vid_obj);
 int mp_structure_to_vfc(const struct mp_structure *structure, struct video_format_cap *vfc);
 
 /**
+ * @brief Convert a fixed @ref mp_structure to a @ref video_format.
+ *
+ * A negotiated capability is fixed, so it holds one width and one height and
+ * the format takes them as they are. Only what the capability describes is
+ * written: the pitch and the size are the device's to fill in when the format
+ * is applied.
+ *
+ * @param structure Pointer to the fixed capability to convert.
+ * @param type      Buffer type of the device the format is meant for.
+ * @param fmt       Pointer to @ref video_format to populate.
+ *
+ * @return 0 on success or a negative errno code on failure.
+ */
+int mp_structure_to_format(const struct mp_structure *structure, enum video_buf_type type,
+			   struct video_format *fmt);
+
+/**
  * @brief Convert a @ref video_format_cap to an @ref mp_structure.
  *
  * Writes into caller storage and allocates nothing, so a capability a device
