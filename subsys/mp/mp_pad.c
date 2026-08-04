@@ -16,6 +16,17 @@
 
 LOG_MODULE_REGISTER(mp_pad, CONFIG_MP_LOG_LEVEL);
 
+int mp_pad_enum_filter(const struct mp_structure *candidate, const struct mp_structure *filter,
+		       struct mp_structure *out)
+{
+	if (filter == NULL) {
+		return mp_structure_duplicate(candidate, out);
+	}
+
+	/* This capability cannot satisfy the filter, but a later one might */
+	return (mp_structure_intersect(candidate, filter, out) != 0) ? -EAGAIN : 0;
+}
+
 static int mp_pad_enum_caps_default(struct mp_pad *pad, uint32_t index,
 				    const struct mp_structure *filter, struct mp_structure *out)
 {
@@ -24,12 +35,7 @@ static int mp_pad_enum_caps_default(struct mp_pad *pad, uint32_t index,
 		return -ENOENT;
 	}
 
-	if (filter == NULL) {
-		return mp_structure_duplicate(&pad->caps, out);
-	}
-
-	/* This capability cannot satisfy the filter, but a later one might */
-	return (mp_structure_intersect(&pad->caps, filter, out) != 0) ? -EAGAIN : 0;
+	return mp_pad_enum_filter(&pad->caps, filter, out);
 }
 
 int mp_pad_enum_caps(struct mp_pad *pad, uint32_t index, const struct mp_structure *filter,

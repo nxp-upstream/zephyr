@@ -315,15 +315,7 @@ static int mp_vid_object_enum_at(struct mp_vid_object *vid_obj, uint32_t index,
 		return ret;
 	}
 
-	if (filter == NULL) {
-		*out = caps_item;
-		return 0;
-	}
-
-	ret = mp_structure_intersect(&caps_item, filter, out);
-	mp_structure_clear(&caps_item);
-
-	return (ret != 0) ? -EAGAIN : 0;
+	return mp_pad_enum_filter(&caps_item, filter, out);
 }
 
 int mp_vid_object_enum_caps(struct mp_vid_object *vid_obj, uint32_t index,

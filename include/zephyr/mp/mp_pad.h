@@ -164,6 +164,24 @@ int mp_pad_enum_first(struct mp_pad *pad, const struct mp_structure *filter,
 int mp_pad_answer_caps_query(struct mp_pad *pad, struct mp_dispatch *query);
 
 /**
+ * @brief Narrow one enumerated capability by an enumeration filter.
+ *
+ * The epilogue every @ref mp_pad enum_capsfn shares: hand back @p candidate
+ * when there is no filter, otherwise narrow it and report that this index
+ * cannot satisfy the filter so the caller moves on to the next one.
+ *
+ * @param candidate Pointer to the capability this index produced.
+ * @param filter Capability to narrow by, may be NULL.
+ * @param out Pointer to storage for the result.
+ *
+ * @retval 0 on success
+ * @retval -EAGAIN if @p candidate cannot satisfy @p filter
+ * @retval -EINVAL if @p candidate or @p out is NULL
+ */
+int mp_pad_enum_filter(const struct mp_structure *candidate, const struct mp_structure *filter,
+		       struct mp_structure *out);
+
+/**
  * @brief Initialize a pad
  *
  * Initializes an existing @ref mp_pad structure with the specified parameters.

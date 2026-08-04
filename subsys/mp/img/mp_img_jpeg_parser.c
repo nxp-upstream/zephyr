@@ -47,11 +47,7 @@ static int mp_img_jpeg_parser_enum_caps(struct mp_pad *pad, uint32_t index,
 		return -ENOENT;
 	}
 
-	if (filter == NULL) {
-		return mp_structure_duplicate(&jpeg_parser_src_caps, out);
-	}
-
-	return (mp_structure_intersect(&jpeg_parser_src_caps, filter, out) != 0) ? -EAGAIN : 0;
+	return mp_pad_enum_filter(&jpeg_parser_src_caps, filter, out);
 }
 
 /*

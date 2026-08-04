@@ -229,12 +229,7 @@ static int mp_img_jpeg_decoder_enum_caps(struct mp_pad *pad, uint32_t index,
 			return -ENOENT;
 		}
 
-		if (filter == NULL) {
-			return mp_structure_duplicate(&jpeg_decoder_sink_caps, out);
-		}
-
-		return (mp_structure_intersect(&jpeg_decoder_sink_caps, filter, out) != 0) ? -EAGAIN
-											   : 0;
+		return mp_pad_enum_filter(&jpeg_decoder_sink_caps, filter, out);
 	}
 
 	if (index >= ARRAY_SIZE(jpeg_decoder_out_pixfmts)) {
@@ -253,15 +248,7 @@ static int mp_img_jpeg_decoder_enum_caps(struct mp_pad *pad, uint32_t index,
 		return ret;
 	}
 
-	if (filter == NULL) {
-		*out = candidate;
-		return 0;
-	}
-
-	ret = mp_structure_intersect(&candidate, filter, out);
-	mp_structure_clear(&candidate);
-
-	return (ret != 0) ? -EAGAIN : 0;
+	return mp_pad_enum_filter(&candidate, filter, out);
 }
 
 static int mp_img_jpeg_decoder_transform_caps(struct mp_transform *transform,

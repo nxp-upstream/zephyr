@@ -121,15 +121,7 @@ static int mp_aud_src_enum_caps(struct mp_pad *pad, uint32_t index,
 		return ret;
 	}
 
-	if (filter == NULL) {
-		*out = candidate;
-		return 0;
-	}
-
-	ret = mp_structure_intersect(&candidate, filter, out);
-	mp_structure_clear(&candidate);
-
-	return (ret != 0) ? -EAGAIN : 0;
+	return mp_pad_enum_filter(&candidate, filter, out);
 }
 
 void mp_aud_src_update_caps(struct mp_src *src)

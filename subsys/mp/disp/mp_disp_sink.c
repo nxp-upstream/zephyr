@@ -131,15 +131,7 @@ static int mp_disp_sink_enum_caps(struct mp_pad *pad, uint32_t index,
 		return ret;
 	}
 
-	if (filter == NULL) {
-		*out = candidate;
-		return 0;
-	}
-
-	ret = mp_structure_intersect(&candidate, filter, out);
-	mp_structure_clear(&candidate);
-
-	return (ret != 0) ? -EAGAIN : 0;
+	return mp_pad_enum_filter(&candidate, filter, out);
 }
 
 static int mp_disp_sink_set_caps(struct mp_sink *sink, const struct mp_structure *caps)
