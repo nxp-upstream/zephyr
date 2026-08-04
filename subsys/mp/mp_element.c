@@ -17,31 +17,6 @@
 
 LOG_MODULE_REGISTER(mp_element, CONFIG_MP_LOG_LEVEL);
 
-/*
- * Optional, opt-in destructor for an element's base resources. It is NOT
- * called automatically during the play/pause/stop/replay lifecycle; it only
- * runs when the caller explicitly drops the element's last reference via
- * mp_object_unref(). It resets the caps on the element's pads. Derived
- * element types that own extra state chain to this from their own release
- * callback.
- */
-void mp_element_release(struct mp_object *obj)
-{
-	struct mp_element *element = (struct mp_element *)obj;
-	struct mp_object *pad_obj;
-	struct mp_pad *pad;
-
-	SYS_DLIST_FOR_EACH_CONTAINER(&element->srcpads, pad_obj, node) {
-		pad = (struct mp_pad *)pad_obj;
-		mp_pad_set_caps(pad, NULL);
-	}
-
-	SYS_DLIST_FOR_EACH_CONTAINER(&element->sinkpads, pad_obj, node) {
-		pad = (struct mp_pad *)pad_obj;
-		mp_pad_set_caps(pad, NULL);
-	}
-}
-
 void mp_element_add_pad(struct mp_element *element, struct mp_pad *pad)
 {
 	__ASSERT_NO_MSG(element != NULL);
@@ -215,16 +190,6 @@ void mp_element_init(struct mp_element *self, uint8_t id)
 {
 	mp_object_init(&self->object);
 	self->object.id = id;
-
-	/*
-	 * The element is born with one reference held by its creator. Adding it
-	 * to a bin transfers this reference to the bin, so a bin's teardown
-	 * (mp_bin_release) drops it and triggers this optional release callback.
-	 * The release callback is opt-in: nothing in the play/pause/stop/replay
-	 * lifecycle calls mp_object_unref() on an element.
-	 */
-	self->object.ref = ATOMIC_INIT(1);
-	self->object.release = mp_element_release;
 
 	sys_dlist_init(&self->srcpads);
 	sys_dlist_init(&self->sinkpads);

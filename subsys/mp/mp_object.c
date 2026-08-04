@@ -80,37 +80,6 @@ int mp_object_get_properties(struct mp_object *obj, ...)
 	return 0;
 }
 
-struct mp_object *mp_object_ref(struct mp_object *obj)
-{
-	if (obj == NULL) {
-		return NULL;
-	}
-
-	atomic_inc(&obj->ref);
-
-	return obj;
-}
-
-void mp_object_unref(struct mp_object *obj)
-{
-	if (obj != NULL) {
-		__ASSERT_NO_MSG(atomic_get(&obj->ref) > 0);
-		if (atomic_dec(&obj->ref) == 1) {
-			obj->release(obj);
-		}
-	}
-}
-
-void mp_object_replace(struct mp_object **ptr, struct mp_object *new_obj)
-{
-	struct mp_object *old_ref;
-
-	__ASSERT_NO_MSG(ptr != NULL);
-	old_ref = *ptr;
-	*ptr = mp_object_ref(new_obj);
-	mp_object_unref(old_ref);
-}
-
 void mp_object_init(struct mp_object *obj)
 {
 	memset(obj, 0, sizeof(struct mp_object));

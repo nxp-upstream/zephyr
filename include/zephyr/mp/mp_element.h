@@ -188,23 +188,6 @@ struct mp_element {
  */
 void mp_element_init(struct mp_element *self, uint8_t id);
 
-/**
- * @brief Optional destructor for an element's base resources.
- *
- * This is an opt-in destructor for callers who want to fully tear down an
- * element and free the caps allocated on its pads. It is NOT called
- * automatically anywhere in the play/pause/stop/replay lifecycle; it only runs
- * when the caller explicitly drops the element's last reference via
- * @ref mp_object_unref (or invokes it directly).
- *
- * Derived element types (source, transform, sink) that own additional caps
- * install their own release callback and chain to this function to release the
- * pad caps.
- *
- * @param obj Pointer to the element's base @ref mp_object.
- */
-void mp_element_release(struct mp_object *obj);
-
 struct mp_pad;
 
 /**

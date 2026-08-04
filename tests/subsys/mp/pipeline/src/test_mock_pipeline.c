@@ -86,12 +86,4 @@ ZTEST_F(test_mock_pipeline, test_pipeline_fakesrc_transform_sink)
 	/* Bring pipeline back to READY and join the thread */
 	zassert_equal(mp_element_set_state((struct mp_element *)&fixture->pipeline, MP_STATE_READY),
 		      MP_STATE_CHANGE_SUCCESS, "Pipeline failed to return to READY");
-
-	/*
-	 * Tear the pipeline down with a single unref. The elements were added
-	 * with mp_bin_add(), which hands each child's init reference over to the
-	 * pipeline, so dropping the last reference runs the bin's opt-in
-	 * release() and cascades it to every child.
-	 */
-	mp_object_unref((struct mp_object *)&fixture->pipeline);
 }

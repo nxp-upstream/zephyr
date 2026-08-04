@@ -14,14 +14,13 @@
 
 /**
  * @defgroup mp_object Objects
- * @brief Reference-counted base object APIs.
+ * @brief Base object APIs.
  * @ingroup mp_framework
  * @{
  */
 
 #include <stdint.h>
 
-#include <zephyr/sys/atomic_types.h>
 #include <zephyr/sys/dlist.h>
 #include <zephyr/sys/util_macro.h>
 
@@ -35,14 +34,11 @@
  * @brief Base object structure
  *
  * This structure defines the common fields and interface for all objects
- * in the MP object system. It provides reference counting, property access,
- * and lifecycle management functionality.
+ * in the MP object system: identity, list membership, and property access.
  */
 struct mp_object {
 	/** Parent element that contains this object */
 	struct mp_object *container;
-	/** Reference counter */
-	atomic_t ref;
 	/** Unique ID given to an object instance. The max value (UINT8_MAX) is reserved and
 	 * should not be used
 	 */
@@ -55,35 +51,7 @@ struct mp_object {
 	int (*set_property)(struct mp_object *self, uint32_t key, const void *val);
 	/** Function to get property */
 	int (*get_property)(struct mp_object *self, uint32_t key, void *val);
-	/** Function to free the resource using by the object */
-	void (*release)(struct mp_object *obj);
 };
-
-/**
- * Increase the reference counter of an object
- *
- * @param obj Pointer to the object.
- * @return A new pointer to the object with its reference count increased.
- */
-struct mp_object *mp_object_ref(struct mp_object *obj);
-
-/**
- * Decrease the reference counter of an object.
- *
- * If the reference count reaches zero, the object will be released.
- *
- * @param obj Pointer to the object to unreference.
- */
-void mp_object_unref(struct mp_object *obj);
-
-/**
- * Replace the pointer to an object with a new object.
- *
- *
- * @param ptr Pointer to the object pointer to be replaced.
- * @param new_obj Pointer to the new object.
- */
-void mp_object_replace(struct mp_object **ptr, struct mp_object *new_obj);
 
 /**
  * @brief Initialize all fields of mp_object to zero.
