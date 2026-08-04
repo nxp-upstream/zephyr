@@ -60,55 +60,6 @@
 /** @} */
 
 /**
- * @brief Convert an audio sample rate mask to a sample rate
- *
- * @param sample_rate_mask Audio driver sample rate mask
- * @return Sample rate in Hz, or 0 if the mask is unknown
- */
-uint32_t audio2mp_sample_rate(uint32_t sample_rate_mask);
-
-/**
- * @brief Convert an audio bit width mask to a bit width
- *
- * @param bit_width_mask Audio driver bit width mask
- * @return Bit width, or 0 if the mask is unknown
- */
-uint32_t audio2mp_bit_width(uint32_t bit_width_mask);
-
-/**
- * @brief Number of bit widths a device mask advertises.
- *
- * A device describes its sample rates and bit widths as two masks, and every
- * combination of them is a capability of its own. Enumeration walks all
- * combinations, splitting a flat index with this count.
- *
- * @param bit_width_mask Bit width mask reported by the device.
- *
- * @return Number of bit widths that map to a known one
- */
-uint32_t mp_aud_count_bit_widths(uint32_t bit_width_mask);
-
-/**
- * @brief Sample rate at @p n among those a device mask advertises.
- *
- * @param sample_rate_mask Sample rate mask reported by the device.
- * @param n Zero-based index among the rates that map to a known one.
- *
- * @return Sample rate, or 0 if there are fewer than @p n + 1 of them
- */
-uint32_t mp_aud_nth_sample_rate(uint32_t sample_rate_mask, uint32_t n);
-
-/**
- * @brief Bit width at @p n among those a device mask advertises.
- *
- * @param bit_width_mask Bit width mask reported by the device.
- * @param n Zero-based index among the widths that map to a known one.
- *
- * @return Bit width, or 0 if there are fewer than @p n + 1 of them
- */
-uint32_t mp_aud_nth_bit_width(uint32_t bit_width_mask, uint32_t n);
-
-/**
  * @brief Produce the capability a device advertises at an enumeration index.
  *
  * A device describes its sample rates and bit widths as two masks, and every

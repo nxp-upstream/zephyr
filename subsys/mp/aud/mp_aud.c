@@ -33,7 +33,8 @@ static const struct mp_aud_desc mp_aud_bit_widths[] = {
 	{MP_AUD_BIT_WIDTH_32, AUDIO_BIT_WIDTH_32},
 };
 
-uint32_t audio2mp_sample_rate(uint32_t sample_rate_mask)
+/* Sample rate a single mask bit stands for, or 0 if that bit is not a known one */
+static uint32_t audio2mp_sample_rate(uint32_t sample_rate_mask)
 {
 	for (uint8_t i = 0; i < ARRAY_SIZE(mp_aud_sample_rates); i++) {
 		if (mp_aud_sample_rates[i].mask == sample_rate_mask) {
@@ -44,7 +45,8 @@ uint32_t audio2mp_sample_rate(uint32_t sample_rate_mask)
 	return 0;
 }
 
-uint32_t audio2mp_bit_width(uint32_t bit_width_mask)
+/* Bit width a single mask bit stands for, or 0 if that bit is not a known one */
+static uint32_t audio2mp_bit_width(uint32_t bit_width_mask)
 {
 	for (uint8_t i = 0; i < ARRAY_SIZE(mp_aud_bit_widths); i++) {
 		if (mp_aud_bit_widths[i].mask == bit_width_mask) {
@@ -55,7 +57,8 @@ uint32_t audio2mp_bit_width(uint32_t bit_width_mask)
 	return 0;
 }
 
-uint32_t mp_aud_count_bit_widths(uint32_t bit_width_mask)
+/* How many known bit widths a mask advertises, the divisor splitting the index */
+static uint32_t mp_aud_count_bit_widths(uint32_t bit_width_mask)
 {
 	uint32_t count = 0;
 
@@ -68,7 +71,8 @@ uint32_t mp_aud_count_bit_widths(uint32_t bit_width_mask)
 	return count;
 }
 
-uint32_t mp_aud_nth_sample_rate(uint32_t sample_rate_mask, uint32_t n)
+/* Sample rate at n among those a mask advertises, or 0 if it has fewer */
+static uint32_t mp_aud_nth_sample_rate(uint32_t sample_rate_mask, uint32_t n)
 {
 	uint32_t matched = 0;
 
@@ -94,7 +98,8 @@ uint32_t mp_aud_nth_sample_rate(uint32_t sample_rate_mask, uint32_t n)
 	return 0;
 }
 
-uint32_t mp_aud_nth_bit_width(uint32_t bit_width_mask, uint32_t n)
+/* Bit width at n among those a mask advertises, or 0 if it has fewer */
+static uint32_t mp_aud_nth_bit_width(uint32_t bit_width_mask, uint32_t n)
 {
 	uint32_t matched = 0;
 
