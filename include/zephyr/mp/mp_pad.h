@@ -149,6 +149,21 @@ int mp_pad_enum_first(struct mp_pad *pad, const struct mp_structure *filter,
 		      struct mp_structure *out);
 
 /**
+ * @brief Answer a caps query with the first capability its filter accepts.
+ *
+ * Enumerates the pad and writes the capability the negotiation would settle on
+ * back into @p query. This is what an element with nothing to transform, a
+ * source or a sink, installs as its query handler.
+ *
+ * @param pad Pad to enumerate.
+ * @param query Caps query to answer, carrying the filter on entry.
+ *
+ * @return 0 on success, -ENODATA if the pad has no capability the filter
+ *         accepts, negative errno on other failures
+ */
+int mp_pad_answer_caps_query(struct mp_pad *pad, struct mp_dispatch *query);
+
+/**
  * @brief Initialize a pad
  *
  * Initializes an existing @ref mp_pad structure with the specified parameters.

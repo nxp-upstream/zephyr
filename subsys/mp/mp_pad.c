@@ -42,6 +42,22 @@ int mp_pad_enum_caps(struct mp_pad *pad, uint32_t index, const struct mp_structu
 	return pad->enum_capsfn(pad, index, filter, out);
 }
 
+int mp_pad_answer_caps_query(struct mp_pad *pad, struct mp_dispatch *query)
+{
+	struct mp_structure candidate;
+	int ret;
+
+	ret = mp_pad_enum_first(pad, mp_dispatch_get_caps(query), &candidate);
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = mp_dispatch_set_caps(query, &candidate);
+	mp_structure_clear(&candidate);
+
+	return ret;
+}
+
 int mp_pad_enum_first(struct mp_pad *pad, const struct mp_structure *filter,
 		      struct mp_structure *out)
 {

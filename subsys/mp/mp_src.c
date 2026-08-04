@@ -57,31 +57,11 @@ static int mp_src_set_caps(struct mp_src *src, const struct mp_structure *caps)
 	return mp_pad_set_caps(&src->srcpad, caps);
 }
 
-/*
- * Answer a caps query with the first supported capability the filter accepts,
- * which is the one the negotiation would settle on.
- */
-static int mp_src_query_caps(struct mp_pad *pad, struct mp_dispatch *query)
-{
-	struct mp_structure candidate;
-	int ret;
-
-	ret = mp_pad_enum_first(pad, mp_dispatch_get_caps(query), &candidate);
-	if (ret != 0) {
-		return ret;
-	}
-
-	ret = mp_dispatch_set_caps(query, &candidate);
-	mp_structure_clear(&candidate);
-
-	return ret;
-}
-
 static int mp_src_query(struct mp_pad *pad, struct mp_dispatch *query)
 {
 	switch (query->type) {
 	case MP_DISPATCH_CAPS:
-		return mp_src_query_caps(pad, query);
+		return mp_pad_answer_caps_query(pad, query);
 	default:
 		return -ENOTSUP;
 	}

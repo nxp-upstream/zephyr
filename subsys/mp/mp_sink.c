@@ -27,33 +27,13 @@ static int mp_sink_set_caps(struct mp_sink *sink, const struct mp_structure *cap
 	return mp_pad_set_caps(&sink->sinkpad, caps);
 }
 
-/*
- * Answer a caps query with the first supported capability the filter accepts,
- * which is the one the negotiation would settle on.
- */
-static int mp_sink_query_caps(struct mp_pad *pad, struct mp_dispatch *query)
-{
-	struct mp_structure candidate;
-	int ret;
-
-	ret = mp_pad_enum_first(pad, mp_dispatch_get_caps(query), &candidate);
-	if (ret != 0) {
-		return ret;
-	}
-
-	ret = mp_dispatch_set_caps(query, &candidate);
-	mp_structure_clear(&candidate);
-
-	return ret;
-}
-
 static int mp_sink_query(struct mp_pad *pad, struct mp_dispatch *query)
 {
 	struct mp_sink *self = (struct mp_sink *)pad->object.container;
 
 	switch (query->type) {
 	case MP_DISPATCH_CAPS:
-		return mp_sink_query_caps(pad, query);
+		return mp_pad_answer_caps_query(pad, query);
 	case MP_DISPATCH_BUFFER_CONFIG:
 		if (self->propose_allocation != NULL) {
 			return self->propose_allocation(self, query);
