@@ -13,14 +13,6 @@
 
 LOG_MODULE_REGISTER(mp_value, CONFIG_MP_LOG_LEVEL);
 
-#define MP_VALUE_COMPARE(a, b)                                                                     \
-	({                                                                                         \
-		__typeof__(a) _a = (a);                                                            \
-		__typeof__(b) _b = (b);                                                            \
-		(_a < _b) ? MP_VALUE_LESS_THAN                                                     \
-			  : ((_a > _b) ? MP_VALUE_GREATER_THAN : MP_VALUE_EQUAL);                  \
-	})
-
 #define MP_VALUE_RANGES_OVERLAP(ref_val, cmp_val, vtype)                                           \
 	!((ref_val)->range.min.vtype > (cmp_val)->range.max.vtype ||                               \
 	  (cmp_val)->range.min.vtype > (ref_val)->range.max.vtype)
@@ -165,36 +157,17 @@ uint32_t mp_value_get_uint_range_step(const struct mp_value *range)
 	return range->range.step.v_uint;
 }
 
-enum mp_value_compare_result mp_value_compare(const struct mp_value *val1,
-					      const struct mp_value *val2)
+static bool mp_value_primitive_equal(const struct mp_value *val1, const struct mp_value *val2)
 {
-	bool is_equal;
-
-	if (val1 == NULL || val2 == NULL || val1->type != val2->type) {
-		return MP_VALUE_COMPARE_FAILED;
-	}
-
 	switch (val1->type) {
 	case MP_TYPE_BOOLEAN:
-		return val1->v_boolean == val2->v_boolean ? MP_VALUE_EQUAL : MP_VALUE_UNORDERED;
+		return val1->v_boolean == val2->v_boolean;
 	case MP_TYPE_INT:
-		return MP_VALUE_COMPARE(val1->v_int, val2->v_int);
+		return val1->v_int == val2->v_int;
 	case MP_TYPE_UINT:
-		return MP_VALUE_COMPARE(val1->v_uint, val2->v_uint);
-	case MP_TYPE_UINT_RANGE:
-	case MP_TYPE_INT_RANGE:
-		/*
-		 * Ranges are only ever tested for equality, and two bounds of the
-		 * same width are equal exactly when their bits are, so both signed
-		 * and unsigned ranges can be compared through the same member.
-		 */
-		is_equal = (val1->range.min.v_uint == val2->range.min.v_uint &&
-			    val1->range.max.v_uint == val2->range.max.v_uint &&
-			    val1->range.step.v_uint == val2->range.step.v_uint);
-
-		return is_equal ? MP_VALUE_EQUAL : MP_VALUE_UNORDERED;
+		return val1->v_uint == val2->v_uint;
 	default:
-		return MP_VALUE_COMPARE_FAILED;
+		return false;
 	}
 }
 
@@ -271,8 +244,8 @@ int mp_value_intersect(const struct mp_value *val1, const struct mp_value *val2,
 	}
 
 	/*
-	 * A container type always has a higher ordinal than the scalar type it can
-	 * contain, so the greater of the two is the one to dispatch on.
+	 * A container type always has a higher ordinal than the scalar type
+	 * it can contain, so the greater of the two is the one to dispatch on.
 	 */
 	if (val1->type >= val2->type) {
 		ref_val = val1;
@@ -283,7 +256,7 @@ int mp_value_intersect(const struct mp_value *val1, const struct mp_value *val2,
 	}
 
 	if (mp_value_is_primitive(ref_val)) {
-		if (mp_value_compare(val1, val2) != MP_VALUE_EQUAL) {
+		if (!mp_value_primitive_equal(val1, val2)) {
 			return -ENOENT;
 		}
 

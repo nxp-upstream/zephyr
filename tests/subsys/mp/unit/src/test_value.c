@@ -56,27 +56,39 @@ ZTEST(mp_value_api, test_new_values)
 	zassert_equal(mp_value_get_int(&ez), 0, "value != 0");
 }
 
-ZTEST(mp_value_api, test_compare)
+/* Two primitive values intersect when they are the same value, and not otherwise */
+ZTEST(mp_value_api, test_primitive_equality)
 {
-	struct mp_value a10;
+	struct mp_value a;
+	struct mp_value b;
+	struct mp_value result;
 
-	mp_value_set(&a10, MP_TYPE_INT, 10);
-	struct mp_value b10;
+	mp_value_set(&a, MP_TYPE_INT, -42);
+	mp_value_set(&b, MP_TYPE_INT, -42);
+	zassert_ok(mp_value_intersect(&a, &b, &result), "equal INT values did not intersect");
+	zassert_equal(mp_value_get_int(&result), -42, "INT result != -42");
 
-	mp_value_set(&b10, MP_TYPE_INT, 10);
-	struct mp_value b20;
+	mp_value_set(&b, MP_TYPE_INT, 42);
+	zassert_equal(mp_value_intersect(&a, &b, &result), -ENOENT,
+		      "different INT values intersected");
 
-	mp_value_set(&b20, MP_TYPE_INT, 20);
-	struct mp_value b100;
+	mp_value_set(&a, MP_TYPE_UINT, 100U);
+	mp_value_set(&b, MP_TYPE_UINT, 100U);
+	zassert_ok(mp_value_intersect(&a, &b, &result), "equal UINT values did not intersect");
+	zassert_equal(mp_value_get_uint(&result), 100U, "UINT result != 100");
 
-	mp_value_set(&b100, MP_TYPE_INT, 100);
-	struct mp_value a100;
+	mp_value_set(&b, MP_TYPE_UINT, 200U);
+	zassert_equal(mp_value_intersect(&a, &b, &result), -ENOENT,
+		      "different UINT values intersected");
 
-	mp_value_set(&a100, MP_TYPE_INT, 100);
+	mp_value_set(&a, MP_TYPE_BOOLEAN, true);
+	mp_value_set(&b, MP_TYPE_BOOLEAN, true);
+	zassert_ok(mp_value_intersect(&a, &b, &result), "equal BOOLEAN values did not intersect");
+	zassert_true(mp_value_get_boolean(&result), "BOOLEAN result != true");
 
-	zassert_equal(mp_value_compare(&a10, &b10), MP_VALUE_EQUAL, "10 == 10 failed");
-	zassert_equal(mp_value_compare(&a10, &b20), MP_VALUE_LESS_THAN, "10 < 20 failed");
-	zassert_equal(mp_value_compare(&a100, &b10), MP_VALUE_GREATER_THAN, "100 > 10 failed");
+	mp_value_set(&b, MP_TYPE_BOOLEAN, false);
+	zassert_equal(mp_value_intersect(&a, &b, &result), -ENOENT,
+		      "different BOOLEAN values intersected");
 }
 
 ZTEST(mp_value_api, test_intersect)
@@ -180,8 +192,11 @@ ZTEST(mp_value_api, test_sanity)
 
 	mp_value_set(&uint_val, MP_TYPE_UINT, 42U);
 
-	zassert_equal(mp_value_compare(&int_val, &uint_val), MP_VALUE_COMPARE_FAILED,
-		      "different types compare != COMPARE_FAILED");
+	struct mp_value result;
+
+	/* The same number under two types is not a common value */
+	zassert_equal(mp_value_intersect(&int_val, &uint_val, &result), -ENOENT,
+		      "values of different types intersect != -ENOENT");
 
 	struct mp_value a;
 
@@ -189,7 +204,6 @@ ZTEST(mp_value_api, test_sanity)
 	struct mp_value b;
 
 	mp_value_set(&b, MP_TYPE_INT, 200);
-	struct mp_value result;
 
 	zassert_equal(mp_value_intersect(&a, &b, &result), -ENOENT,
 		      "disjoint values intersect != -ENOENT");

@@ -28,26 +28,6 @@
 #include <stdint.h>
 
 /**
- * @brief Result of comparing two values
- *
- * The first three members order the two values. The last two report that no
- * ordering exists: the values are comparable but unordered, or the comparison
- * could not be made at all.
- */
-enum mp_value_compare_result {
-	/** First value is less than the second */
-	MP_VALUE_LESS_THAN = -1,
-	/** Values are equal */
-	MP_VALUE_EQUAL = 0,
-	/** First value is greater than the second */
-	MP_VALUE_GREATER_THAN = 1,
-	/** Values are of the same type but have no ordering */
-	MP_VALUE_UNORDERED = 2,
-	/** Comparison failed: a value is NULL or the two types differ */
-	MP_VALUE_COMPARE_FAILED = 3,
-};
-
-/**
  * @brief Value types
  */
 enum mp_value_type {
@@ -228,17 +208,6 @@ uint32_t mp_value_get_uint_range_max(const struct mp_value *range);
 uint32_t mp_value_get_uint_range_step(const struct mp_value *range);
 
 /**
- * @brief Compare two values
- *
- * @param val1 Pointer to the first value, may be NULL.
- * @param val2 Pointer to the second value, may be NULL.
- *
- * @return The comparison result, see @ref mp_value_compare_result.
- */
-enum mp_value_compare_result mp_value_compare(const struct mp_value *val1,
-					      const struct mp_value *val2);
-
-/**
  * @brief Check whether two values actually have a non-empty intersection
  *
  * For primitive values, this means the two values are identical.
@@ -264,7 +233,7 @@ bool mp_value_can_intersect(const struct mp_value *val1, const struct mp_value *
  * @retval -EINVAL if @p out is NULL
  */
 int mp_value_intersect(const struct mp_value *val1, const struct mp_value *val2,
-               struct mp_value *out);
+		       struct mp_value *out);
 
 /**
  * @brief Check if a value is of a primitive type
