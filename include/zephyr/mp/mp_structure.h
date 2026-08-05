@@ -132,8 +132,6 @@ enum mp_caps_field {
 	 * reciprocal of the frame rate.
 	 */
 	MP_CAPS_FRAME_INTERVAL,
-	/** Number of buffers to allocate in the pool, MP_TYPE_UINT */
-	MP_CAPS_BUFFER_COUNT,
 	/**
 	 * One past the last field identifier. Bounds the range of valid
 	 * identifiers, and terminates the field list of
