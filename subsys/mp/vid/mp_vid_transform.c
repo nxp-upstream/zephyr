@@ -119,7 +119,7 @@ static int mp_vid_transform_transform_caps(struct mp_transform *self,
 		return -EINVAL;
 	}
 
-	if (in == NULL || mp_structure_to_vfc(in, &vfc) < 0) {
+	if (in == NULL || mp_vid_caps_to_vfc(in, &vfc) < 0) {
 		return -ENOENT;
 	}
 
@@ -127,7 +127,7 @@ static int mp_vid_transform_transform_caps(struct mp_transform *self,
 		return -ENOENT;
 	}
 
-	return mp_vfc_to_structure(&other_vfc, out);
+	return mp_vid_vfc_to_caps(&other_vfc, out);
 }
 
 static int mp_vid_transform_set_property(struct mp_object *obj, uint32_t key, const void *val)

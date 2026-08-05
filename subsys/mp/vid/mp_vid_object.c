@@ -19,10 +19,10 @@
 
 LOG_MODULE_REGISTER(mp_vid_object, CONFIG_MP_LOG_LEVEL);
 
-static int set_dimension_fields(const struct mp_structure *structure, uint8_t key, uint32_t *min,
-				uint32_t *max, uint16_t *step)
+static int caps_get_dimension(const struct mp_structure *caps, uint8_t key, uint32_t *min,
+			      uint32_t *max, uint16_t *step)
 {
-	const struct mp_value *value = mp_structure_get_value(structure, key);
+	const struct mp_value *value = mp_structure_get_value(caps, key);
 
 	if (value == NULL) {
 		return -EINVAL;
@@ -43,45 +43,42 @@ static int set_dimension_fields(const struct mp_structure *structure, uint8_t ke
 	return 0;
 }
 
-int mp_structure_to_vfc(const struct mp_structure *structure, struct video_format_cap *vfc)
+int mp_vid_caps_to_vfc(const struct mp_structure *caps, struct video_format_cap *vfc)
 {
 	int ret;
 	const struct mp_value *value;
 
 	/* Get pixel format field */
-	value = mp_structure_get_value(structure, MP_CAPS_PIXEL_FORMAT);
-	if (value == NULL) {
-		return -EINVAL;
-	}
-	if (value->type != MP_TYPE_UINT) {
+	value = mp_structure_get_value(caps, MP_CAPS_PIXEL_FORMAT);
+	if (value == NULL || value->type != MP_TYPE_UINT) {
 		return -EINVAL;
 	}
 
 	vfc->pixelformat = mp_value_get_uint(value);
 
 	/* Get width fields */
-	ret = set_dimension_fields(structure, MP_CAPS_IMAGE_WIDTH, &vfc->width_min, &vfc->width_max,
-				   &vfc->width_step);
+	ret = caps_get_dimension(caps, MP_CAPS_IMAGE_WIDTH, &vfc->width_min, &vfc->width_max,
+				 &vfc->width_step);
 	if (ret < 0) {
 		return ret;
 	}
 
 	/* Get height fields */
-	return set_dimension_fields(structure, MP_CAPS_IMAGE_HEIGHT, &vfc->height_min,
-				    &vfc->height_max, &vfc->height_step);
+	return caps_get_dimension(caps, MP_CAPS_IMAGE_HEIGHT, &vfc->height_min, &vfc->height_max,
+				  &vfc->height_step);
 }
 
-int mp_structure_to_format(const struct mp_structure *structure, enum video_buf_type type,
-			   struct video_format *fmt)
+int mp_vid_caps_to_format(const struct mp_structure *caps, enum video_buf_type type,
+			  struct video_format *fmt)
 {
 	struct video_format_cap vfc = {0};
 	int ret;
 
-	if (structure == NULL || fmt == NULL) {
+	if (caps == NULL || fmt == NULL) {
 		return -EINVAL;
 	}
 
-	ret = mp_structure_to_vfc(structure, &vfc);
+	ret = mp_vid_caps_to_vfc(caps, &vfc);
 	if (ret < 0) {
 		return ret;
 	}
@@ -94,7 +91,7 @@ int mp_structure_to_format(const struct mp_structure *structure, enum video_buf_
 	return 0;
 }
 
-int mp_vfc_to_structure(const struct video_format_cap *vfc, struct mp_structure *out)
+int mp_vid_vfc_to_caps(const struct video_format_cap *vfc, struct mp_structure *out)
 {
 	if (vfc == NULL || out == NULL) {
 		return -EINVAL;
@@ -178,8 +175,6 @@ static void append_frmival_at(const struct device *vdev, struct video_format *fm
 
 		fie.index++;
 	}
-
-	/* Devices without frame interval support report nothing at all */
 }
 
 int mp_vid_object_probe_bounds(struct mp_vid_object *vid_obj)
@@ -255,29 +250,29 @@ int mp_vid_object_probe_bounds(struct mp_vid_object *vid_obj)
 }
 
 /* Build the capability describing a single device format entry */
-static int mp_vid_object_build_structure(struct mp_vid_object *vid_obj,
-					 const struct video_format_cap *fc, uint32_t fi_index,
-					 struct mp_structure *out)
+static int mp_vid_object_build_caps(struct mp_vid_object *vid_obj,
+				    const struct video_format_cap *vfc, uint32_t fi_index,
+				    struct mp_structure *out)
 {
 	struct video_format fmt = {.type = vid_obj->type};
 	int ret;
 
 	ret = mp_structure_init_fields(
-		out, MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT, fc->pixelformat,
+		out, MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT, vfc->pixelformat,
 		MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE,
-		min3(fc->width_min, vid_obj->bounds.crop_w, vid_obj->bounds.comp_min_w),
-		max(fc->width_max, vid_obj->bounds.comp_max_w), fc->width_step,
+		min3(vfc->width_min, vid_obj->bounds.crop_w, vid_obj->bounds.comp_min_w),
+		max(vfc->width_max, vid_obj->bounds.comp_max_w), vfc->width_step,
 		MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE,
-		min3(fc->height_min, vid_obj->bounds.crop_h, vid_obj->bounds.comp_min_h),
-		max(fc->height_max, vid_obj->bounds.comp_max_h), fc->height_step, MP_CAPS_END);
+		min3(vfc->height_min, vid_obj->bounds.crop_h, vid_obj->bounds.comp_min_h),
+		max(vfc->height_max, vid_obj->bounds.comp_max_h), vfc->height_step, MP_CAPS_END);
 	if (ret != 0) {
 		return ret;
 	}
 
 	/* Get frame interval */
-	fmt.pixelformat = fc->pixelformat;
-	fmt.width = fc->width_min;
-	fmt.height = fc->height_min;
+	fmt.pixelformat = vfc->pixelformat;
+	fmt.width = vfc->width_min;
+	fmt.height = vfc->height_min;
 	append_frmival_at(vid_obj->vdev, &fmt, out, fi_index);
 
 	return 0;
@@ -289,8 +284,8 @@ static int mp_vid_object_build_structure(struct mp_vid_object *vid_obj,
  * nothing has to be sized in advance; this runs once per negotiation and each
  * step is a driver table lookup.
  */
-static int mp_vid_object_locate(struct mp_vid_object *vid_obj, uint32_t index,
-				const struct video_format_cap **fc, uint32_t *fi_index)
+static int mp_vid_object_locate_format(struct mp_vid_object *vid_obj, uint32_t index,
+				       const struct video_format_cap **fc, uint32_t *fi_index)
 {
 	uint32_t remaining = index;
 
@@ -320,20 +315,20 @@ static int mp_vid_object_locate(struct mp_vid_object *vid_obj, uint32_t index,
 	return -ENOENT;
 }
 
-static int mp_vid_object_enum_at(struct mp_vid_object *vid_obj, uint32_t index,
-				 const struct mp_structure *filter, struct mp_structure *out)
+static int mp_vid_object_enum_caps_at(struct mp_vid_object *vid_obj, uint32_t index,
+				      const struct mp_structure *filter, struct mp_structure *out)
 {
-	const struct video_format_cap *fc;
+	const struct video_format_cap *vfc;
 	struct mp_structure caps_item;
 	uint32_t fi_index;
 	int ret;
 
-	ret = mp_vid_object_locate(vid_obj, index, &fc, &fi_index);
+	ret = mp_vid_object_locate_format(vid_obj, index, &vfc, &fi_index);
 	if (ret != 0) {
 		return ret;
 	}
 
-	ret = mp_vid_object_build_structure(vid_obj, fc, fi_index, &caps_item);
+	ret = mp_vid_object_build_caps(vid_obj, vfc, fi_index, &caps_item);
 	if (ret != 0) {
 		return ret;
 	}
@@ -358,7 +353,7 @@ int mp_vid_object_enum_caps(struct mp_vid_object *vid_obj, uint32_t index,
 		}
 	}
 
-	return mp_vid_object_enum_at(vid_obj, index, filter, out);
+	return mp_vid_object_enum_caps_at(vid_obj, index, filter, out);
 }
 
 /* True when the device advertises a frame interval of its own for this format */
@@ -381,7 +376,7 @@ int mp_vid_object_set_caps(struct mp_vid_object *vid_obj, const struct mp_struct
 	frmival_us = mp_structure_get_value(caps, MP_CAPS_FRAME_INTERVAL);
 
 	/* Set format */
-	int ret = mp_structure_to_format(caps, vid_obj->type, &fmt);
+	int ret = mp_vid_caps_to_format(caps, vid_obj->type, &fmt);
 
 	if (ret < 0) {
 		return ret;
@@ -392,19 +387,14 @@ int mp_vid_object_set_caps(struct mp_vid_object *vid_obj, const struct mp_struct
 		return -EIO;
 	}
 
-	/* Set buffer pool size */
 	vid_obj->pool.pool.config.size = fmt.size;
 
 	/*
 	 * Apply the frame interval by asking the video subsystem for the closest one the
 	 * device actually supports. The closest match is good enough, which also absorbs
-	 * the rounding error from carrying whole microseconds: an interval such as
-	 * 1001/30000 for 29.97 fps does not survive the conversion exactly.
+	 * the rounding error from carrying whole microseconds.
 	 *
-	 * Only a device that has an interval of its own gets one set. An m2m device such
-	 * as a decoder advertises none, and the interval it sees in the negotiated caps is
-	 * the camera's, carried down the chain by a field the intersection copies from
-	 * whichever side has it.
+	 * Only a device that has an interval of its own gets one set.
 	 */
 	if (frmival_us != NULL && has_frmival(vid_obj->vdev, &fmt)) {
 		struct video_frmival_enum fie = {

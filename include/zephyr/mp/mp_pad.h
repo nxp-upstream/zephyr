@@ -88,19 +88,15 @@ enum mp_pad_flags {
 struct mp_pad {
 	/** Base object */
 	struct mp_object object;
-	/** The direction of the pad, cannot change after creating the pad */
+	/** Pad direction, cannot change after creating the pad */
 	enum mp_pad_direction direction;
-	/** The presence of the pad */
+	/** Pad presence */
 	enum mp_pad_presence presence;
-	/** The operating mode of the pad */
+	/** Operating mode */
 	enum mp_pad_mode mode;
 	/** Pointer to the peer pad this pad is linked to */
 	struct mp_pad *peer;
-	/**
-	 * The pad's capability. ANY until one is negotiated, and reset back to
-	 * ANY on PAUSED to READY. Held by value, so a pad owns its capability
-	 * outright and nothing has to be allocated to describe one.
-	 */
+	/** Pad's capability. ANY until one is negotiated, reset back to ANY on PAUSED to READY */
 	struct mp_structure caps;
 	/** Flushing gate. While set, buffers are dropped instead of chained */
 	atomic_t flushing;

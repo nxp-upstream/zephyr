@@ -45,7 +45,7 @@ static int mp_vid_transform_client_enum_caps(struct mp_pad *pad, uint32_t index,
 		return -ENOENT;
 	}
 
-	ret = mp_vfc_to_structure(&vfc, &candidate);
+	ret = mp_vid_vfc_to_caps(&vfc, &candidate);
 	if (ret != 0) {
 		return ret;
 	}
@@ -78,7 +78,7 @@ static int mp_vid_transform_client_set_caps(struct mp_transform *transform,
 		return -EINVAL;
 	}
 
-	ret = mp_structure_to_format(caps, type, &fmt);
+	ret = mp_vid_caps_to_format(caps, type, &fmt);
 	if (ret < 0) {
 		return ret;
 	}
@@ -110,7 +110,7 @@ static int mp_vid_transform_client_transform_caps(struct mp_transform *self,
 		return -EINVAL;
 	}
 
-	if (in == NULL || mp_structure_to_vfc(in, &vfc) < 0) {
+	if (in == NULL || mp_vid_caps_to_vfc(in, &vfc) < 0) {
 		return -ENOENT;
 	}
 
@@ -118,7 +118,7 @@ static int mp_vid_transform_client_transform_caps(struct mp_transform *self,
 		return -ENOENT;
 	}
 
-	return mp_vfc_to_structure(&other_vfc, out);
+	return mp_vid_vfc_to_caps(&other_vfc, out);
 }
 
 void mp_vid_transform_client_init(struct mp_element *self)

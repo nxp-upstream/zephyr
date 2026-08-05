@@ -101,44 +101,44 @@ int mp_vid_object_enum_caps(struct mp_vid_object *vid_obj, uint32_t index,
 int mp_vid_object_probe_bounds(struct mp_vid_object *vid_obj);
 
 /**
- * @brief Convert an @ref mp_structure to a @ref video_format_cap.
+ * @brief Convert a capability to a @ref video_format_cap.
  *
- * @param structure Pointer to the @ref mp_structure containing video format information.
- * @param vfc       Pointer to @ref video_format_cap to populate.
+ * @param caps Pointer to the capability holding the video format information.
+ * @param vfc  Pointer to @ref video_format_cap to populate.
  *
  * @return 0 on success or a negative errno code on failure.
  */
-int mp_structure_to_vfc(const struct mp_structure *structure, struct video_format_cap *vfc);
+int mp_vid_caps_to_vfc(const struct mp_structure *caps, struct video_format_cap *vfc);
 
 /**
- * @brief Convert a fixed @ref mp_structure to a @ref video_format.
+ * @brief Convert a fixed capability to a @ref video_format.
  *
  * A negotiated capability is fixed, so it holds one width and one height and
  * the format takes them as they are. Only what the capability describes is
  * written: the pitch and the size are the device's to fill in when the format
  * is applied.
  *
- * @param structure Pointer to the fixed capability to convert.
- * @param type      Buffer type of the device the format is meant for.
- * @param fmt       Pointer to @ref video_format to populate.
+ * @param caps Pointer to the fixed capability to convert.
+ * @param type Buffer type of the device the format is meant for.
+ * @param fmt  Pointer to @ref video_format to populate.
  *
  * @return 0 on success or a negative errno code on failure.
  */
-int mp_structure_to_format(const struct mp_structure *structure, enum video_buf_type type,
-			   struct video_format *fmt);
+int mp_vid_caps_to_format(const struct mp_structure *caps, enum video_buf_type type,
+			  struct video_format *fmt);
 
 /**
- * @brief Convert a @ref video_format_cap to an @ref mp_structure.
+ * @brief Convert a @ref video_format_cap to a capability.
  *
  * Writes into caller storage and allocates nothing, so a capability a device
  * reports can be described on the stack.
  *
  * @param vfc Pointer to the @ref video_format_cap to describe.
- * @param out Pointer to the @ref mp_structure to populate.
+ * @param out Pointer to the capability to populate.
  *
  * @return 0 on success or a negative errno code on failure.
  */
-int mp_vfc_to_structure(const struct video_format_cap *vfc, struct mp_structure *out);
+int mp_vid_vfc_to_caps(const struct video_format_cap *vfc, struct mp_structure *out);
 
 /**
  * @brief Set a property on the video object.

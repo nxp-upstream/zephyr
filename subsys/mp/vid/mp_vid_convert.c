@@ -285,8 +285,8 @@ static int vid_convert_set_caps(struct mp_transform *transform, enum mp_pad_dire
  * transformation is one entry of it whose input side matches. Returns 0 past
  * the last reachable format.
  */
-static uint32_t vid_convert_reachable_at(enum mp_pad_direction direction, uint32_t in_pf,
-					 uint32_t index)
+static uint32_t vid_convert_reachable_pixfmt_at(enum mp_pad_direction direction, uint32_t in_pf,
+						uint32_t index)
 {
 	uint32_t matched = 0;
 
@@ -335,7 +335,7 @@ static int vid_convert_transform_caps(struct mp_transform *self, enum mp_pad_dir
 			return -ENOENT;
 		}
 
-		pixfmt = vid_convert_reachable_at(direction, mp_value_get_uint(pix), index);
+		pixfmt = vid_convert_reachable_pixfmt_at(direction, mp_value_get_uint(pix), index);
 	}
 
 	if (pixfmt == 0U) {
