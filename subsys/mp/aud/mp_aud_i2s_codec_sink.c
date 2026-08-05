@@ -161,10 +161,10 @@ static int mp_aud_i2s_codec_sink_set_caps(struct mp_sink *sink, const struct mp_
 
 	uint32_t sample_rate, bit_width, num_of_channel, frame_interval;
 
-	if (mp_aud_get_uint(caps, MP_CAPS_SAMPLE_RATE, &sample_rate) != 0 ||
-	    mp_aud_get_uint(caps, MP_CAPS_BITWIDTH, &bit_width) != 0 ||
-	    mp_aud_get_uint(caps, MP_CAPS_NUM_OF_CHANNEL, &num_of_channel) != 0 ||
-	    mp_aud_get_uint(caps, MP_CAPS_FRAME_INTERVAL, &frame_interval) != 0) {
+	if (mp_aud_caps_get_uint(caps, MP_CAPS_SAMPLE_RATE, &sample_rate) != 0 ||
+	    mp_aud_caps_get_uint(caps, MP_CAPS_BITWIDTH, &bit_width) != 0 ||
+	    mp_aud_caps_get_uint(caps, MP_CAPS_NUM_OF_CHANNEL, &num_of_channel) != 0 ||
+	    mp_aud_caps_get_uint(caps, MP_CAPS_FRAME_INTERVAL, &frame_interval) != 0) {
 		return -EINVAL;
 	}
 

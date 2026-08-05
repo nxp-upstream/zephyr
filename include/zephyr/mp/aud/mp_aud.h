@@ -96,7 +96,7 @@ int mp_aud_enum_caps(const struct audio_caps *caps, uint32_t index,
  * @retval -ENOENT if the capability does not carry the field
  * @retval -EINVAL if @p out is NULL or the field is not a fixed unsigned value
  */
-int mp_aud_get_uint(const struct mp_structure *caps, uint8_t field_id, uint32_t *out);
+int mp_aud_caps_get_uint(const struct mp_structure *caps, uint8_t field_id, uint32_t *out);
 
 /** @} */
 

@@ -168,7 +168,7 @@ int mp_aud_enum_caps(const struct audio_caps *caps, uint32_t index,
 	return mp_pad_enum_filter(&candidate, filter, out);
 }
 
-int mp_aud_get_uint(const struct mp_structure *caps, uint8_t field_id, uint32_t *out)
+int mp_aud_caps_get_uint(const struct mp_structure *caps, uint8_t field_id, uint32_t *out)
 {
 	const struct mp_value *value = mp_structure_get_value(caps, field_id);
 

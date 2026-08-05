@@ -291,7 +291,7 @@ static int mp_aud_gain_set_caps(struct mp_transform *transform, enum mp_pad_dire
 	uint32_t bit_width;
 	int ret;
 
-	ret = mp_aud_get_uint(caps, MP_CAPS_BITWIDTH, &bit_width);
+	ret = mp_aud_caps_get_uint(caps, MP_CAPS_BITWIDTH, &bit_width);
 	if (ret != 0) {
 		return ret;
 	}

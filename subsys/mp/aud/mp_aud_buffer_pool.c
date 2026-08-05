@@ -43,11 +43,11 @@ static int mp_aud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_stru
 
 	uint32_t sample_rate, bit_width, num_of_channel, frame_interval, buffer_count;
 
-	if (mp_aud_get_uint(config, MP_CAPS_SAMPLE_RATE, &sample_rate) != 0 ||
-	    mp_aud_get_uint(config, MP_CAPS_BITWIDTH, &bit_width) != 0 ||
-	    mp_aud_get_uint(config, MP_CAPS_NUM_OF_CHANNEL, &num_of_channel) != 0 ||
-	    mp_aud_get_uint(config, MP_CAPS_FRAME_INTERVAL, &frame_interval) != 0 ||
-	    mp_aud_get_uint(config, MP_CAPS_BUFFER_COUNT, &buffer_count) != 0) {
+	if (mp_aud_caps_get_uint(config, MP_CAPS_SAMPLE_RATE, &sample_rate) != 0 ||
+	    mp_aud_caps_get_uint(config, MP_CAPS_BITWIDTH, &bit_width) != 0 ||
+	    mp_aud_caps_get_uint(config, MP_CAPS_NUM_OF_CHANNEL, &num_of_channel) != 0 ||
+	    mp_aud_caps_get_uint(config, MP_CAPS_FRAME_INTERVAL, &frame_interval) != 0 ||
+	    mp_aud_caps_get_uint(config, MP_CAPS_BUFFER_COUNT, &buffer_count) != 0) {
 		return -EINVAL;
 	}
 
