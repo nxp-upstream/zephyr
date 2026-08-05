@@ -28,7 +28,7 @@ static const struct mp_aud_desc mp_aud_bit_widths[] = {
 	{MP_AUD_BIT_WIDTH_32, AUDIO_BIT_WIDTH_32},
 };
 
-const uint32_t audio2mp_sample_rate(uint32_t sample_rate_mask)
+uint32_t audio2mp_sample_rate(uint32_t sample_rate_mask)
 {
 	for (uint8_t i = 0; i < ARRAY_SIZE(mp_aud_sample_rates); i++) {
 		if (mp_aud_sample_rates[i].mask == sample_rate_mask) {
@@ -39,7 +39,7 @@ const uint32_t audio2mp_sample_rate(uint32_t sample_rate_mask)
 	return 0;
 }
 
-const uint32_t audio2mp_bit_width(uint32_t bit_width_mask)
+uint32_t audio2mp_bit_width(uint32_t bit_width_mask)
 {
 	for (uint8_t i = 0; i < ARRAY_SIZE(mp_aud_bit_widths); i++) {
 		if (mp_aud_bit_widths[i].mask == bit_width_mask) {

@@ -28,7 +28,7 @@
 #include <zephyr/audio/audio_caps.h>
 
 /**
- * @brief Supported MediaPipe sample rates (Hz)
+ * @brief Supported sample rates (Hz)
  * @{
  */
 /** @brief 8 kHz sample rate */
@@ -46,7 +46,7 @@
 /** @} */
 
 /**
- * @brief Supported MediaPipe bit widths
+ * @brief Supported bit widths
  * @{
  */
 /** @brief 16 bit width */
@@ -58,20 +58,20 @@
 /** @} */
 
 /**
- * @brief Convert audio sample rate mask to MediaPipe sample rate
+ * @brief Convert an audio sample rate mask to a sample rate
  *
  * @param sample_rate_mask Audio driver sample rate mask
- * @return Corresponding MediaPipe sample rate value
+ * @return Sample rate in Hz, or 0 if the mask is unknown
  */
-const uint32_t audio2mp_sample_rate(uint32_t sample_rate_mask);
+uint32_t audio2mp_sample_rate(uint32_t sample_rate_mask);
 
 /**
- * @brief Convert audio bit width mask to MediaPipe bit width
+ * @brief Convert an audio bit width mask to a bit width
  *
  * @param bit_width_mask Audio driver bit width mask
- * @return Corresponding MediaPipe bit width value
+ * @return Bit width, or 0 if the mask is unknown
  */
-const uint32_t audio2mp_bit_width(uint32_t bit_width_mask);
+uint32_t audio2mp_bit_width(uint32_t bit_width_mask);
 
 /** @} */
 
