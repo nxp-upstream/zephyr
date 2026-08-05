@@ -26,10 +26,10 @@ extern uint32_t dsp_img_text_size;
 extern uint32_t dsp_img_data_start[];
 extern uint32_t dsp_img_data_size;
 
-void dsp_start(void)
+bool dsp_start(void)
 {
 	if (!device_is_ready(dsp)) {
-		return;
+		return false;
 	}
 
 	nxp_rtxxx_dsp_ctrl_load_section(dsp,
@@ -40,4 +40,6 @@ void dsp_start(void)
 		dsp_img_data_start, dsp_img_data_size, NXP_RTXXX_DSP_CTRL_SECTION_DATA);
 
 	nxp_rtxxx_dsp_ctrl_enable(dsp);
+
+	return true;
 }
