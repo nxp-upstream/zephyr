@@ -5,6 +5,7 @@
  */
 
 #include <errno.h>
+#include <string.h>
 
 #include <zephyr/logging/log.h>
 
@@ -23,13 +24,9 @@ LOG_MODULE_REGISTER(mp_aud_buffer_pool, CONFIG_MP_LOG_LEVEL);
 static __nocache __aligned(AUD_BUFFER_POOL_BASE_ALIGN)
 uint8_t aud_buffer_pool_buf[AUD_BUFFER_POOL_SIZE];
 
-static void mp_aud_buffer_pool_release_allocations(struct mp_aud_buffer_pool *aud_pool,
-						   bool clear_mem_slab)
+static void mp_aud_buffer_pool_release(struct mp_aud_buffer_pool *aud_pool, bool clear_mem_slab)
 {
-	if (aud_pool->blocks != NULL) {
-		k_free(aud_pool->blocks);
-		aud_pool->blocks = NULL;
-	}
+	memset(aud_pool->blocks, 0, sizeof(aud_pool->blocks));
 
 	if ((aud_pool->mem_slab != NULL) && clear_mem_slab) {
 		aud_pool->mem_slab->buffer = NULL;
@@ -67,7 +64,7 @@ static int mp_aud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_stru
 	 * - Buffer lifecycle management is properly implemented
 	 * - Proper flow control prevents buffer starvation
 	 */
-	pool->config.min_buffers = buffer_count + 2;
+	pool->config.min_buffers = buffer_count + MP_AUD_BUFFER_POOL_EXTRA_BUFS;
 	pool->config.size = (bit_width / BITS_PER_BYTE) * (sample_rate * frame_interval / 1000000) *
 			    num_of_channel;
 	/* The address needs to be aligned to the size of the DMA transfer */
@@ -93,25 +90,23 @@ static int mp_aud_buffer_pool_config(struct mp_buffer_pool *pool, struct mp_stru
 		return -EINVAL;
 	}
 
+	if (pool->config.min_buffers > MP_AUD_BUFFER_POOL_BLOCKS_MAX) {
+		LOG_ERR("%u blocks needed, MP_AUD_BUFFER_POOL_NUM_MAX allows %d",
+			pool->config.min_buffers, MP_AUD_BUFFER_POOL_BLOCKS_MAX);
+		return -EINVAL;
+	}
+
 	if (aud_pool->mem_slab == NULL) {
 		LOG_ERR("Memory slab not configured");
 		return -EINVAL;
 	}
 
-	mp_aud_buffer_pool_release_allocations(aud_pool, false);
-
-	aud_pool->blocks = k_calloc(pool->config.min_buffers, sizeof(*aud_pool->blocks));
-	if (aud_pool->blocks == NULL) {
-		LOG_ERR("Unable to allocate pool block table");
-		return -ENOMEM;
-	}
+	mp_aud_buffer_pool_release(aud_pool, false);
 
 	ret = k_mem_slab_init(aud_pool->mem_slab, (void *)aud_buffer_pool_buf, pool->config.size,
 			      pool->config.min_buffers);
 	if (ret != 0) {
 		LOG_ERR("Unable to initialize memory slab (%d)", ret);
-		k_free(aud_pool->blocks);
-		aud_pool->blocks = NULL;
 		return ret;
 	}
 
@@ -129,7 +124,7 @@ static int mp_aud_buffer_pool_stop(struct mp_buffer_pool *pool)
 {
 	struct mp_aud_buffer_pool *aud_pool = (struct mp_aud_buffer_pool *)pool;
 
-	mp_aud_buffer_pool_release_allocations(aud_pool, true);
+	mp_aud_buffer_pool_release(aud_pool, true);
 
 	return 0;
 }
@@ -140,7 +135,7 @@ void mp_aud_buffer_pool_init(struct mp_buffer_pool *pool)
 
 	aud_pool->aud_dev = NULL;
 	aud_pool->mem_slab = NULL;
-	aud_pool->blocks = NULL;
+	memset(aud_pool->blocks, 0, sizeof(aud_pool->blocks));
 
 	mp_buffer_pool_init(pool);
 
