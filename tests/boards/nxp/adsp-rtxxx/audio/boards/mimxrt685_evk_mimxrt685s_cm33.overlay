@@ -1,0 +1,20 @@
+/*
+ * Copyright 2025 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <nxp/imxrt/nxp_rt6xx_hifi4memsplit.dtsi>
+
+/ {
+	mailboxes: mbox-consumer {
+		mboxes = <&mbox 0>, <&mbox 1>;
+		mbox-names = "rx", "tx";
+
+		compatible = "vnd,mbox-consumer";
+	};
+};
+
+&dsp {
+	status = "okay";
+};
