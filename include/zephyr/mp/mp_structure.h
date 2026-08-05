@@ -174,7 +174,7 @@ struct mp_structure {
 };
 
 /** @cond INTERNAL_HIDDEN */
-#define MP_STRUCTURE_FIELD_COUNT(field_id, value) +1
+#define MP_STRUCTURE_FIELD_COUNT(field_id, value) 1 +
 #define MP_STRUCTURE_FIELD_ID(field_id, value)    (field_id),
 #define MP_STRUCTURE_FIELD_VALUE(field_id, value) value,
 /** @endcond */
@@ -202,12 +202,12 @@ struct mp_structure {
  * @param fields Macro listing the fields, see above.
  */
 #define MP_STRUCTURE_DEFINE(name, media, fields)                                                   \
-	BUILD_ASSERT((0 fields(MP_STRUCTURE_FIELD_COUNT)) <= CONFIG_MP_STRUCTURE_MAX_FIELDS,       \
+	BUILD_ASSERT((fields(MP_STRUCTURE_FIELD_COUNT) 0) <= CONFIG_MP_STRUCTURE_MAX_FIELDS,       \
 		     #name " has more fields than CONFIG_MP_STRUCTURE_MAX_FIELDS");                \
 	static const struct mp_structure name = {                                                  \
 		.media_type_id = (media),                                                          \
 		.flags = 0,                                                                        \
-		.num_fields = 0 fields(MP_STRUCTURE_FIELD_COUNT),                                  \
+		.num_fields = fields(MP_STRUCTURE_FIELD_COUNT) 0,                                  \
 		.ids = {fields(MP_STRUCTURE_FIELD_ID)},                                            \
 		.values = {fields(MP_STRUCTURE_FIELD_VALUE)},                                      \
 	}
@@ -417,7 +417,10 @@ bool mp_structure_can_intersect(const struct mp_structure *struct1,
  * @retval 0 on success
  * @retval -ENOENT if the structures share no field, or a shared field has no
  *         common value
- * @retval -EINVAL if a pointer is NULL or the media types differ
+ * @p out is written field by field, so it must not be one of the inputs.
+ *
+ * @retval -EINVAL if a pointer is NULL, @p out aliases an input, or the media
+ *         types differ
  * @retval -ENOSPC if the union does not fit CONFIG_MP_STRUCTURE_MAX_FIELDS
  */
 int mp_structure_intersect(const struct mp_structure *struct1, const struct mp_structure *struct2,
@@ -436,7 +439,7 @@ int mp_structure_intersect(const struct mp_structure *struct1, const struct mp_s
  * @retval 0 on success
  * @retval -ENOENT if @p src constrains nothing and so has nothing to fixate,
  *         whether it is flagged ANY or simply holds no field
- * @retval -EINVAL if either pointer is NULL
+ * @retval -EINVAL if either pointer is NULL or @p out is @p src
  */
 int mp_structure_fixate(const struct mp_structure *src, struct mp_structure *out);
 

@@ -53,11 +53,13 @@ static inline uint32_t vid_convert_frame_size(uint32_t pixfmt, uint16_t width, u
 
 static int vid_convert_pool_start(struct mp_buffer_pool *pool)
 {
-	struct mp_vid_convert *conv = CONTAINER_OF(pool, struct mp_vid_convert, out_pool);
+	struct mp_vid_convert *conv;
 
 	if (pool == NULL) {
 		return -EINVAL;
 	}
+
+	conv = CONTAINER_OF(pool, struct mp_vid_convert, out_pool);
 
 	if (pool->config.min_buffers == 0U) {
 		pool->config.min_buffers = 1U;
@@ -87,11 +89,13 @@ static int vid_convert_pool_start(struct mp_buffer_pool *pool)
 
 static int vid_convert_pool_stop(struct mp_buffer_pool *pool)
 {
-	struct mp_vid_convert *conv = CONTAINER_OF(pool, struct mp_vid_convert, out_pool);
+	struct mp_vid_convert *conv;
 
 	if (pool == NULL) {
 		return -EINVAL;
 	}
+
+	conv = CONTAINER_OF(pool, struct mp_vid_convert, out_pool);
 
 	for (uint8_t i = 0; i < conv->vbuf_count; i++) {
 		if (conv->vbufs[i] != NULL) {
@@ -109,11 +113,13 @@ static int vid_convert_pool_acquire(struct mp_buffer_pool *pool, struct net_buf 
 {
 	struct video_buffer *vbuf;
 	struct mp_buffer_meta *meta;
-	struct mp_vid_convert *conv = CONTAINER_OF(pool, struct mp_vid_convert, out_pool);
+	struct mp_vid_convert *conv;
 
 	if (pool == NULL || out == NULL) {
 		return -EINVAL;
 	}
+
+	conv = CONTAINER_OF(pool, struct mp_vid_convert, out_pool);
 
 	vbuf = k_fifo_get(&conv->free_fifo, K_FOREVER);
 	if (vbuf == NULL) {
@@ -139,11 +145,13 @@ static int vid_convert_pool_acquire(struct mp_buffer_pool *pool, struct net_buf 
 static int vid_convert_pool_release(struct mp_buffer_pool *pool, struct net_buf *buf)
 {
 	struct video_buffer *vbuf;
-	struct mp_vid_convert *conv = CONTAINER_OF(pool, struct mp_vid_convert, out_pool);
+	struct mp_vid_convert *conv;
 
 	if (pool == NULL || buf == NULL) {
 		return -EINVAL;
 	}
+
+	conv = CONTAINER_OF(pool, struct mp_vid_convert, out_pool);
 
 	vbuf = (struct video_buffer *)mp_buffer_get_meta(buf)->driver_buf;
 	if (vbuf != NULL) {
@@ -355,9 +363,20 @@ static int vid_convert_transform_caps(struct mp_transform *self, enum mp_pad_dir
 		return ret;
 	}
 
-	/* Converting changes the format, not the geometry */
-	(void)mp_structure_copy_field(in, out, MP_CAPS_IMAGE_WIDTH);
-	(void)mp_structure_copy_field(in, out, MP_CAPS_IMAGE_HEIGHT);
+	/*
+	 * Converting changes the format, not the geometry. An input that does
+	 * not constrain the geometry is not an error - a field travels only
+	 * when one side constrains it - but running out of room for one is.
+	 */
+	static const uint8_t passthrough[] = {MP_CAPS_IMAGE_WIDTH, MP_CAPS_IMAGE_HEIGHT};
+
+	for (uint8_t i = 0; i < ARRAY_SIZE(passthrough); i++) {
+		ret = mp_structure_copy_field(in, out, passthrough[i]);
+		if (ret != 0 && ret != -ENOENT) {
+			mp_structure_clear(out);
+			return ret;
+		}
+	}
 
 	return 0;
 }

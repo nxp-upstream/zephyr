@@ -210,6 +210,17 @@ struct mp_pad;
  */
 void mp_element_reset_pad_caps(struct mp_element *element);
 
+/**
+ * @brief Attach a pad to an element.
+ *
+ * Adds @p pad to the element's pad list and makes the element the pad's
+ * container, which is how a pad callback reaches the element that owns it.
+ * A base class calls this for the pads it declares, so an element only calls
+ * it for a pad of its own.
+ *
+ * @param element Pointer to the element to attach the pad to.
+ * @param pad Pointer to the pad to attach.
+ */
 void mp_element_add_pad(struct mp_element *element, struct mp_pad *pad);
 
 /**

@@ -143,8 +143,8 @@ static uint32_t frmival_count(const struct device *vdev, struct video_format *fm
 }
 
 /* Describe the frame interval at @p fi_index of a format entry */
-static void append_frmival_at(const struct device *vdev, struct video_format *fmt,
-			      struct mp_structure *caps_item, uint32_t fi_index)
+static int append_frmival_at(const struct device *vdev, struct video_format *fmt,
+			     struct mp_structure *caps_item, uint32_t fi_index)
 {
 	struct video_frmival_enum fie = {0};
 	struct mp_value value;
@@ -157,17 +157,15 @@ static void append_frmival_at(const struct device *vdev, struct video_format *fm
 			value.range.min.v_uint = frmival_to_usec(&fie.stepwise.min);
 			value.range.max.v_uint = frmival_to_usec(&fie.stepwise.max);
 			value.range.step.v_uint = frmival_to_usec(&fie.stepwise.step);
-			(void)mp_structure_append_value(caps_item, MP_CAPS_FRAME_INTERVAL, &value);
-			return;
+			return mp_structure_append_value(caps_item, MP_CAPS_FRAME_INTERVAL, &value);
 		}
 
 		if (fie.type == VIDEO_FRMIVAL_TYPE_DISCRETE) {
 			if (count == fi_index) {
 				value.type = MP_TYPE_UINT;
 				value.v_uint = frmival_to_usec(&fie.discrete);
-				(void)mp_structure_append_value(caps_item, MP_CAPS_FRAME_INTERVAL,
-								&value);
-				return;
+				return mp_structure_append_value(caps_item, MP_CAPS_FRAME_INTERVAL,
+								 &value);
 			}
 
 			count++;
@@ -175,6 +173,9 @@ static void append_frmival_at(const struct device *vdev, struct video_format *fm
 
 		fie.index++;
 	}
+
+	/* A device that reports no interval still exposes its format */
+	return 0;
 }
 
 int mp_vid_object_probe_bounds(struct mp_vid_object *vid_obj)
@@ -273,9 +274,7 @@ static int mp_vid_object_build_caps(struct mp_vid_object *vid_obj,
 	fmt.pixelformat = vfc->pixelformat;
 	fmt.width = vfc->width_min;
 	fmt.height = vfc->height_min;
-	append_frmival_at(vid_obj->vdev, &fmt, out, fi_index);
-
-	return 0;
+	return append_frmival_at(vid_obj->vdev, &fmt, out, fi_index);
 }
 
 /*

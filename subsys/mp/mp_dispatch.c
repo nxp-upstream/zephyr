@@ -34,7 +34,6 @@ void mp_dispatch_clear(struct mp_dispatch *dispatch)
 		return;
 	}
 
-	mp_structure_clear(&dispatch->caps);
 	memset(dispatch, 0, sizeof(*dispatch));
 }
 
@@ -56,8 +55,6 @@ int mp_dispatch_set_caps(struct mp_dispatch *dispatch, const struct mp_structure
 	if (caps == &dispatch->caps) {
 		return 0;
 	}
-
-	mp_structure_clear(&dispatch->caps);
 
 	if (caps == NULL) {
 		return mp_structure_init_any(&dispatch->caps);

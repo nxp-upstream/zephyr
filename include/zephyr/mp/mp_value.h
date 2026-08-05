@@ -41,6 +41,16 @@ enum mp_value_type {
 };
 
 /**
+ * @brief One end of a range value, or its step
+ */
+union mp_value_bound {
+	/** MP_TYPE_INT_RANGE */
+	int32_t v_int;
+	/** MP_TYPE_UINT_RANGE */
+	uint32_t v_uint;
+};
+
+/**
  * @brief Value structure
  *
  * One fixed-size tagged union so that every value costs the same
@@ -49,6 +59,7 @@ enum mp_value_type {
 struct mp_value {
 	/** Type of value, see @ref mp_value_type */
 	enum mp_value_type type;
+	/** Contents, read through the arm the type selects */
 	union {
 		/** MP_TYPE_BOOLEAN */
 		bool v_boolean;
@@ -58,10 +69,12 @@ struct mp_value {
 		uint32_t v_uint;
 		/** MP_TYPE_INT_RANGE, MP_TYPE_UINT_RANGE */
 		struct {
-			union {
-				int32_t v_int;
-				uint32_t v_uint;
-			} min, max, step;
+			/** Lower bound of the range */
+			union mp_value_bound min;
+			/** Upper bound of the range */
+			union mp_value_bound max;
+			/** Step between two consecutive values of the range */
+			union mp_value_bound step;
 		} range;
 	};
 };

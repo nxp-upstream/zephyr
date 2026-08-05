@@ -40,11 +40,22 @@ bool mp_value_is_primitive(const struct mp_value *value)
 	return (MP_VALUE_PRIMITIVE_MASK & BIT(value->type)) != 0;
 }
 
-static void mp_value_set_range(struct mp_value *value, va_list *args)
+static void mp_value_set_range(struct mp_value *value, enum mp_value_type type, va_list *args)
 {
-	value->range.min.v_uint = va_arg(*args, uint32_t);
-	value->range.max.v_uint = va_arg(*args, uint32_t);
-	value->range.step.v_uint = va_arg(*args, uint32_t);
+	/*
+	 * Reading an argument as a type it was not passed as is undefined, so
+	 * the two range types are read apart even though the bounds share a
+	 * union: a signed range is passed as int, an unsigned one as uint32_t.
+	 */
+	if (type == MP_TYPE_INT_RANGE) {
+		value->range.min.v_int = va_arg(*args, int);
+		value->range.max.v_int = va_arg(*args, int);
+		value->range.step.v_int = va_arg(*args, int);
+	} else {
+		value->range.min.v_uint = va_arg(*args, uint32_t);
+		value->range.max.v_uint = va_arg(*args, uint32_t);
+		value->range.step.v_uint = va_arg(*args, uint32_t);
+	}
 }
 
 int mp_value_set_va_list(struct mp_value *value, enum mp_value_type type, va_list *args)
@@ -69,7 +80,7 @@ int mp_value_set_va_list(struct mp_value *value, enum mp_value_type type, va_lis
 		break;
 	case MP_TYPE_INT_RANGE:
 	case MP_TYPE_UINT_RANGE:
-		mp_value_set_range(value, args);
+		mp_value_set_range(value, type, args);
 		break;
 	default:
 		LOG_ERR("Unknown mp_value type: %d", type);

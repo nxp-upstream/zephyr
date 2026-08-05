@@ -21,7 +21,7 @@ source "subsys/logging/Kconfig.template.log_config"
 config MP_STRUCTURE_MAX_FIELDS
 	int "Maximum fields one caps structure can hold"
 	range 1 255
-	default 8
+	default 6
 	help
 	  Number of capability fields a single caps structure can hold at once.
 	  Size this for the largest union of fields that can meet in one intersection,

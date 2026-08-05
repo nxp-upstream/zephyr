@@ -67,12 +67,18 @@ static int mp_transform_enum_caps(struct mp_transform *self, enum mp_pad_directi
 {
 	int ret;
 
-	for (;; (*index)++) {
+	for (; *index <= UINT16_MAX; (*index)++) {
 		ret = self->transform_caps(self, direction, in, *index, out);
 		if (ret != -EAGAIN) {
 			return ret;
 		}
 	}
+
+	/* The search ends on -ENOENT, so one that is never reported would run forever */
+	LOG_ERR("element id = %u: transform_caps never reported the end of its transformations",
+		self->element.object.id);
+
+	return -ENOENT;
 }
 
 /*

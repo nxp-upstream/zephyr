@@ -301,10 +301,21 @@ static int mp_img_jpeg_decoder_transform_caps(struct mp_transform *transform,
 		return ret;
 	}
 
-	/* Decoding changes the format, not the geometry or the timing */
-	(void)mp_structure_copy_field(in, out, MP_CAPS_IMAGE_WIDTH);
-	(void)mp_structure_copy_field(in, out, MP_CAPS_IMAGE_HEIGHT);
-	(void)mp_structure_copy_field(in, out, MP_CAPS_FRAME_INTERVAL);
+	/*
+	 * Decoding changes the format, not the geometry or the timing. An input
+	 * that does not constrain one of them is not an error - a field travels
+	 * only when one side constrains it - but running out of room for one is.
+	 */
+	static const uint8_t passthrough[] = {MP_CAPS_IMAGE_WIDTH, MP_CAPS_IMAGE_HEIGHT,
+					      MP_CAPS_FRAME_INTERVAL};
+
+	for (uint8_t i = 0; i < ARRAY_SIZE(passthrough); i++) {
+		ret = mp_structure_copy_field(in, out, passthrough[i]);
+		if (ret != 0 && ret != -ENOENT) {
+			mp_structure_clear(out);
+			return ret;
+		}
+	}
 
 	return 0;
 }

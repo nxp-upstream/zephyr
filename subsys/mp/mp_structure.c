@@ -211,7 +211,12 @@ int mp_structure_intersect(const struct mp_structure *struct1, const struct mp_s
 	struct mp_value intersect_value;
 	bool common = false;
 
-	if (struct1 == NULL || struct2 == NULL || out == NULL) {
+	/*
+	 * The result is built into out field by field, so an out that is also
+	 * an input would be read after it has been reset. Nothing needs it, so
+	 * it is refused rather than paid for with a scratch structure.
+	 */
+	if (struct1 == NULL || struct2 == NULL || out == NULL || out == struct1 || out == struct2) {
 		return -EINVAL;
 	}
 
@@ -279,27 +284,11 @@ int mp_structure_intersect(const struct mp_structure *struct1, const struct mp_s
 
 int mp_structure_duplicate(const struct mp_structure *src, struct mp_structure *out)
 {
-	int ret;
-
 	if (src == NULL || out == NULL) {
 		return -EINVAL;
 	}
 
-	ret = mp_structure_init(out, src->media_type_id);
-	if (ret != 0) {
-		return ret;
-	}
-
-	out->flags = src->flags;
-
-	for (uint8_t i = 0; i < src->num_fields; i++) {
-		ret = mp_structure_append_value(out, src->ids[i], &src->values[i]);
-
-		if (ret != 0) {
-			mp_structure_clear(out);
-			return ret;
-		}
-	}
+	*out = *src;
 
 	return 0;
 }
@@ -324,7 +313,8 @@ int mp_structure_fixate(const struct mp_structure *src, struct mp_structure *out
 	struct mp_value fixated_value;
 	int ret;
 
-	if (src == NULL || out == NULL) {
+	/* Same as the intersection: out is built from src, so it cannot be src */
+	if (src == NULL || out == NULL || out == src) {
 		return -EINVAL;
 	}
 

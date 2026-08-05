@@ -45,6 +45,16 @@ int mp_pad_enum_caps(struct mp_pad *pad, uint32_t index, const struct mp_structu
 		return -EINVAL;
 	}
 
+	/*
+	 * Every search over the indices ends on -ENOENT, so one that is never reported
+	 * would run forever. Report it here rather than trust each element.
+	 */
+	if (index > UINT16_MAX) {
+		LOG_ERR("pad id = %u: enum_capsfn never reported the end of its capabilities",
+			pad->object.id);
+		return -ENOENT;
+	}
+
 	return pad->enum_capsfn(pad, index, filter, out);
 }
 
