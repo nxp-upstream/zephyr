@@ -43,6 +43,26 @@ static int caps_get_dimension(const struct mp_structure *caps, uint8_t key, uint
 	return 0;
 }
 
+static int append_dimension(struct mp_structure *caps, uint8_t field_id, uint32_t min, uint32_t max,
+			    uint32_t step)
+{
+	struct mp_value value;
+	int ret;
+
+	if (min == max) {
+		ret = mp_value_set(&value, MP_TYPE_UINT, min);
+	} else {
+		/* A real span left at step 0 means every size in it is reachable */
+		ret = mp_value_set(&value, MP_TYPE_UINT_RANGE, min, max, (step != 0) ? step : 1);
+	}
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	return mp_structure_append_value(caps, field_id, &value);
+}
+
 int mp_vid_caps_to_vfc(const struct mp_structure *caps, struct video_format_cap *vfc)
 {
 	int ret;
@@ -93,15 +113,32 @@ int mp_vid_caps_to_format(const struct mp_structure *caps, enum video_buf_type t
 
 int mp_vid_vfc_to_caps(const struct video_format_cap *vfc, struct mp_structure *out)
 {
+	int ret;
+
 	if (vfc == NULL || out == NULL) {
 		return -EINVAL;
 	}
 
-	return mp_structure_init_fields(out, MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
-					vfc->pixelformat, MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE,
-					vfc->width_min, vfc->width_max, vfc->width_step,
-					MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE, vfc->height_min,
-					vfc->height_max, vfc->height_step, MP_CAPS_END);
+	ret = mp_structure_init_fields(out, MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
+				       vfc->pixelformat, MP_CAPS_END);
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = append_dimension(out, MP_CAPS_IMAGE_WIDTH, vfc->width_min, vfc->width_max,
+			       vfc->width_step);
+	if (ret != 0) {
+		mp_structure_clear(out);
+		return ret;
+	}
+
+	ret = append_dimension(out, MP_CAPS_IMAGE_HEIGHT, vfc->height_min, vfc->height_max,
+			       vfc->height_step);
+	if (ret != 0) {
+		mp_structure_clear(out);
+	}
+
+	return ret;
 }
 
 static uint32_t frmival_to_usec(const struct video_frmival *frmival)
@@ -255,18 +292,28 @@ static int mp_vid_object_build_caps(struct mp_vid_object *vid_obj,
 				    const struct video_format_cap *vfc, uint32_t fi_index,
 				    struct mp_structure *out)
 {
-	struct video_format fmt = {.type = vid_obj->type};
 	int ret;
+	struct video_format fmt = {.type = vid_obj->type};
+	uint32_t min_w = min3(vfc->width_min, vid_obj->bounds.crop_w, vid_obj->bounds.comp_min_w);
+	uint32_t max_w = max(vfc->width_max, vid_obj->bounds.comp_max_w);
+	uint32_t min_h = min3(vfc->height_min, vid_obj->bounds.crop_h, vid_obj->bounds.comp_min_h);
+	uint32_t max_h = max(vfc->height_max, vid_obj->bounds.comp_max_h);
 
-	ret = mp_structure_init_fields(
-		out, MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT, vfc->pixelformat,
-		MP_CAPS_IMAGE_WIDTH, MP_TYPE_UINT_RANGE,
-		min3(vfc->width_min, vid_obj->bounds.crop_w, vid_obj->bounds.comp_min_w),
-		max(vfc->width_max, vid_obj->bounds.comp_max_w), vfc->width_step,
-		MP_CAPS_IMAGE_HEIGHT, MP_TYPE_UINT_RANGE,
-		min3(vfc->height_min, vid_obj->bounds.crop_h, vid_obj->bounds.comp_min_h),
-		max(vfc->height_max, vid_obj->bounds.comp_max_h), vfc->height_step, MP_CAPS_END);
+	ret = mp_structure_init_fields(out, MP_MEDIA_VIDEO, MP_CAPS_PIXEL_FORMAT, MP_TYPE_UINT,
+				       vfc->pixelformat, MP_CAPS_END);
 	if (ret != 0) {
+		return ret;
+	}
+
+	ret = append_dimension(out, MP_CAPS_IMAGE_WIDTH, min_w, max_w, vfc->width_step);
+	if (ret != 0) {
+		mp_structure_clear(out);
+		return ret;
+	}
+
+	ret = append_dimension(out, MP_CAPS_IMAGE_HEIGHT, min_h, max_h, vfc->height_step);
+	if (ret != 0) {
+		mp_structure_clear(out);
 		return ret;
 	}
 
