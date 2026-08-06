@@ -175,6 +175,8 @@ enum mp_state_change_return mp_bin_change_state_func(struct mp_element *self,
 				return ret;
 			}
 
+			elements[i]->current_state = MP_STATE_TRANSITION_NEXT(transition);
+
 			/*
 			 * Decrement degree of peer elements.
 			 *
