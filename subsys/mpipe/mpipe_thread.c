@@ -17,6 +17,9 @@ k_tid_t mpipe_thread_create(struct mpipe_thread *thread, k_thread_entry_t func, 
 			    void *p3, int priority, k_timeout_t delay)
 {
 	int id;
+#ifdef CONFIG_THREAD_NAME
+	char name[CONFIG_THREAD_MAX_NAME_LEN];
+#endif
 
 	/* Find the 1st available slot in the thread pool */
 	for (id = 0; id < CONFIG_MPIPE_THREADS_NUM; id++) {
@@ -36,9 +39,17 @@ k_tid_t mpipe_thread_create(struct mpipe_thread *thread, k_thread_entry_t func, 
 	/* Semaphore starts at 0 to be able to block the thread with mpipe_thread_wait() */
 	k_sem_init(&thread->sem, 0, 1);
 
-	return k_thread_create(&thread->thread, thread_stack[thread->stack_id],
-			       K_THREAD_STACK_SIZEOF(thread_stack[thread->stack_id]), func, p1, p2,
-			       p3, priority, 0, delay);
+	(void)k_thread_create(&thread->thread, thread_stack[thread->stack_id],
+			      K_THREAD_STACK_SIZEOF(thread_stack[thread->stack_id]), func, p1, p2,
+			      p3, priority, 0, delay);
+
+#ifdef CONFIG_THREAD_NAME
+	(void)snprintk(name, MIN(sizeof(name), CONFIG_THREAD_MAX_NAME_LEN), "mpipe_%d",
+		       thread->stack_id);
+	k_thread_name_set(&thread->thread, name);
+#endif
+
+	return &thread->thread;
 }
 
 int mpipe_thread_wait(struct mpipe_thread *thread)

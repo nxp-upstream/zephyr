@@ -6,12 +6,14 @@
 
 menuconfig MPIPE
 	bool "Multimedia Pipeline framework"
+	imply THREAD_NAME
 	select NET_BUF
 	select ZBUS
 	select ZBUS_RUNTIME_OBSERVERS
 	# For zbus_runtime_channel_init(), which zbus keeps behind this symbol.
 	# mpipe never registers a channel, so the registry code links out.
 	select ZBUS_RUNTIME_CHANNEL_REGISTRATION
+	select EXPERIMENTAL
 	help
 	  Build a media stream out of self-contained processing elements linked
 	  into a graph, instead of wiring the drivers together by hand.
