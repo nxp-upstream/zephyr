@@ -230,8 +230,16 @@ static inline int mp_transform_query_caps(struct mp_transform *self,
 			continue;
 		}
 
+		if (ret == -ENOENT) {
+			/*
+			 * Same distinction as mp_src_negotiate(): an element with no capability
+			 * at all cannot answer any query, which is a caller error.
+			 */
+			ret = (index == 0) ? -EINVAL : -ENODATA;
+			break;
+		}
+
 		if (ret != 0) {
-			ret = -ENODATA;
 			break;
 		}
 
