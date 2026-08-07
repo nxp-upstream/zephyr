@@ -19,6 +19,7 @@
  * @{
  */
 
+#include <zephyr/mp/mp_buffer.h>
 #include <zephyr/mp/mp_transform.h>
 
 /**
@@ -52,6 +53,12 @@ struct mp_aud_gain {
 	bool mute;
 	/** Bit width of audio samples (e.g., 16, 24, 32 bits) */
 	uint32_t bit_width;
+	/**
+	 * Buffer pool config relayed from downstream to upstream. This element
+	 * is in-place, so the same buffers flow through and the upstream pool
+	 * must satisfy the downstream buffering requirement.
+	 */
+	struct mp_buffer_pool_config alloc_cfg;
 };
 
 /**

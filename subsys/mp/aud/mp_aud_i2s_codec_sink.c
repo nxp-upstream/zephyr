@@ -9,6 +9,7 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mp/mp_buffer.h>
+#include <zephyr/mp/mp_dispatch.h>
 #include <zephyr/mp/mp_structure.h>
 #include <zephyr/mp/mp_value.h>
 
@@ -65,16 +66,37 @@ static int mp_aud_i2s_codec_sink_enum_caps(struct mp_pad *pad, uint32_t index,
 	caps.max_frame_interval = MIN(i2s_caps.max_frame_interval, codec_caps.max_frame_interval);
 	caps.interleaved = codec_caps.interleaved;
 
-	/*
-	 * The I2S driver primes its transmit queue before the START trigger,
-	 * holding that many buffers from the shared pool before any are
-	 * transmitted and returned. Make sure the negotiated pool can satisfy
-	 * this, otherwise the source starves before the sink ever starts.
-	 */
-	caps.min_num_buffers = MAX(MAX(i2s_caps.min_num_buffers, codec_caps.min_num_buffers),
-				   AUD_I2S_SINK_START_PRIME);
-
 	return mp_aud_enum_caps(&caps, index, filter, out);
+}
+
+/*
+ * Buffer count is settled through the allocation query rather than caps. The
+ * I2S driver primes its transmit queue before the START trigger, holding that
+ * many buffers from the shared pool before any are transmitted and returned,
+ * so make sure the upstream pool can satisfy it, otherwise the source starves
+ * before the sink ever starts.
+ */
+static int mp_aud_i2s_codec_sink_propose_allocation(struct mp_sink *sink, struct mp_dispatch *query)
+{
+	struct mp_aud_i2s_codec_sink *aud = (struct mp_aud_i2s_codec_sink *)sink;
+	struct mp_buffer_pool_config cfg = {0};
+	struct audio_caps i2s_caps;
+	struct audio_caps codec_caps;
+
+	if (i2s_get_caps(aud->i2s_dev, &i2s_caps, I2S_DIR_TX) != 0) {
+		LOG_ERR("Failed to get I2S capabilities");
+		return -ENODEV;
+	}
+
+	if (audio_codec_get_caps(aud->codec_dev, &codec_caps) != 0) {
+		LOG_ERR("Failed to get codec capabilities");
+		return -ENODEV;
+	}
+
+	cfg.min_buffers = MAX(MAX(i2s_caps.min_num_buffers, codec_caps.min_num_buffers),
+			      AUD_I2S_SINK_START_PRIME);
+
+	return mp_dispatch_set_pool_config(query, &cfg);
 }
 
 static void mp_aud_i2s_codec_sink_update_caps(struct mp_sink *sink)
@@ -293,6 +315,7 @@ void mp_aud_i2s_codec_sink_init(struct mp_element *self)
 
 	sink->sinkpad.chainfn = mp_aud_i2s_codec_sink_chainfn;
 	sink->set_caps = mp_aud_i2s_codec_sink_set_caps;
+	sink->propose_allocation = mp_aud_i2s_codec_sink_propose_allocation;
 
 	mp_aud_i2s_codec_sink_update_caps(sink);
 

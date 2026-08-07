@@ -158,8 +158,7 @@ int mp_aud_enum_caps(const struct audio_caps *caps, uint32_t index,
 		MP_CAPS_BITWIDTH, MP_TYPE_UINT, bit_width, MP_CAPS_NUM_OF_CHANNEL,
 		MP_TYPE_UINT_RANGE, caps->min_total_channels, caps->max_total_channels, 1,
 		MP_CAPS_FRAME_INTERVAL, MP_TYPE_UINT_RANGE, caps->min_frame_interval,
-		caps->max_frame_interval, 1, MP_CAPS_BUFFER_COUNT, MP_TYPE_UINT_RANGE,
-		caps->min_num_buffers, UINT8_MAX, 1, MP_CAPS_INTERLEAVED, MP_TYPE_BOOLEAN,
+		caps->max_frame_interval, 1, MP_CAPS_INTERLEAVED, MP_TYPE_BOOLEAN,
 		caps->interleaved, MP_CAPS_END);
 	if (ret != 0) {
 		return ret;

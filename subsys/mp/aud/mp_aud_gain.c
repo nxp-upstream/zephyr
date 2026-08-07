@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <zephyr/mp/mp_dispatch.h>
 #include <zephyr/mp/mp_structure.h>
 #include <zephyr/mp/mp_value.h>
 
@@ -303,6 +304,32 @@ static int mp_aud_gain_set_caps(struct mp_transform *transform, enum mp_pad_dire
 	return mp_transform_set_caps(transform, direction, caps);
 }
 
+/*
+ * The gain is in-place, so the buffer flows through unchanged and downstream's
+ * buffering requirement is remembered here to be handed to upstream when it
+ * proposes its own allocation.
+ */
+static int mp_aud_gain_decide_allocation(struct mp_transform *self, struct mp_dispatch *query)
+{
+	struct mp_aud_gain *aud_gain = (struct mp_aud_gain *)self;
+	struct mp_buffer_pool *query_pool = mp_dispatch_get_pool(query);
+	struct mp_buffer_pool_config *qpc =
+		(query_pool != NULL) ? &query_pool->config : mp_dispatch_get_pool_config(query);
+
+	if (qpc != NULL) {
+		aud_gain->alloc_cfg = *qpc;
+	}
+
+	return 0;
+}
+
+static int mp_aud_gain_propose_allocation(struct mp_transform *self, struct mp_dispatch *query)
+{
+	struct mp_aud_gain *aud_gain = (struct mp_aud_gain *)self;
+
+	return mp_dispatch_set_pool_config(query, &aud_gain->alloc_cfg);
+}
+
 void mp_aud_gain_init(struct mp_element *self)
 {
 	struct mp_transform *transform = (struct mp_transform *)self;
@@ -316,6 +343,7 @@ void mp_aud_gain_init(struct mp_element *self)
 	aud_gain->gain_fixed = GAIN_UNITY_FIXED;
 	aud_gain->mute = false;  /* Default mute */
 	aud_gain->bit_width = 0; /* Default */
+	memset(&aud_gain->alloc_cfg, 0, sizeof(aud_gain->alloc_cfg));
 
 	self->object.set_property = mp_aud_gain_set_property;
 	self->object.get_property = mp_aud_gain_get_property;
@@ -323,6 +351,8 @@ void mp_aud_gain_init(struct mp_element *self)
 	transform->mode = MP_MODE_INPLACE;
 	transform->sinkpad.chainfn = mp_aud_gain_chainfn;
 	transform->set_caps = mp_aud_gain_set_caps;
+	transform->decide_allocation = mp_aud_gain_decide_allocation;
+	transform->propose_allocation = mp_aud_gain_propose_allocation;
 
 	transform->sinkpad.enum_capsfn = mp_aud_gain_enum_caps;
 	transform->srcpad.enum_capsfn = mp_aud_gain_enum_caps;

@@ -8,6 +8,7 @@
 
 #include <zephyr/logging/log.h>
 
+#include <zephyr/mp/mp_dispatch.h>
 #include <zephyr/mp/mp_structure.h>
 #include <zephyr/mp/mp_value.h>
 
@@ -92,6 +93,38 @@ void mp_aud_src_update_caps(struct mp_src *src)
 	src->srcpad.enum_capsfn = mp_aud_src_enum_caps;
 }
 
+/*
+ * Buffer count is not a media capability, so it is settled through the
+ * allocation query instead of caps: the pool is floored at what the source
+ * device needs to keep streaming and raised to what downstream must hold in
+ * flight, whichever is larger.
+ */
+static int mp_aud_src_decide_allocation(struct mp_src *src, struct mp_dispatch *query)
+{
+	struct mp_aud_src *aud_src = (struct mp_aud_src *)src;
+	struct mp_aud_buffer_pool *pool = CONTAINER_OF(src->pool, struct mp_aud_buffer_pool, pool);
+	struct mp_buffer_pool_config *pool_config = &src->pool->config;
+	struct mp_buffer_pool *query_pool = mp_dispatch_get_pool(query);
+	struct mp_buffer_pool_config *qpc =
+		(query_pool != NULL) ? &query_pool->config : mp_dispatch_get_pool_config(query);
+	struct audio_caps src_caps;
+
+	/* Floor the pool at the source device's own buffering requirement */
+	if (aud_src->get_audio_caps != NULL && pool->aud_dev != NULL &&
+	    aud_src->get_audio_caps(pool->aud_dev, &src_caps) == 0) {
+		pool_config->min_buffers = src_caps.min_num_buffers;
+	} else {
+		pool_config->min_buffers = 0;
+	}
+
+	/* Raise it to what downstream needs held in flight, if higher */
+	if (qpc != NULL && qpc->min_buffers > pool_config->min_buffers) {
+		pool_config->min_buffers = qpc->min_buffers;
+	}
+
+	return 0;
+}
+
 void mp_aud_src_init(struct mp_element *self)
 {
 	struct mp_aud_src *aud_src = (struct mp_aud_src *)self;
@@ -101,6 +134,8 @@ void mp_aud_src_init(struct mp_element *self)
 
 	self->object.get_property = mp_aud_src_get_property;
 	self->object.set_property = mp_aud_src_set_property;
+
+	aud_src->src.decide_allocation = mp_aud_src_decide_allocation;
 
 	aud_src->get_audio_caps = NULL;
 }
