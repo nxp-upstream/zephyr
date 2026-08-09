@@ -5,6 +5,7 @@
  */
 
 #include <errno.h>
+#include <string.h>
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -13,6 +14,9 @@
 #include <zephyr/mp/mp_element.h>
 #include <zephyr/mp/mp_message.h>
 #include <zephyr/mp/utils/mp_player.h>
+#if defined(CONFIG_MP_DUMP)
+#include <zephyr/mp/utils/mp_dump.h>
+#endif
 
 LOG_MODULE_REGISTER(mp_player, CONFIG_MP_LOG_LEVEL);
 
@@ -50,16 +54,60 @@ static const char *mp_player_state_str(enum mp_player_state state)
 	}
 }
 
-/* Drive the pipeline to a target mp_state and update the observable state. */
+#if defined(CONFIG_MP_PLAYER_DUMP_ON_STATE_CHANGE)
+
+/*
+ * Render the graph to the console, headed by the transition that produced it.
+ *
+ * Through printk rather than the shell: no shell instance exists here, and a
+ * dump asked for at the shell goes through that instead. A failed transition is
+ * worth a graph of its own - nothing unwinds one, so what is rendered is the
+ * state the pipeline broke in.
+ */
+static void mp_player_dump_transition(struct mp_player *player, enum mp_state from,
+				      enum mp_state to, bool ok)
+{
+	printk("--- mp_dump: %s%s -> %s ---\n", ok ? "" : "FAILED at ",
+	       mp_dump_state_str(from), mp_dump_state_str(to));
+	(void)mp_dump_bin((struct mp_bin *)player->pipeline, NULL);
+}
+
+static void mp_player_dump(struct mp_player *player, const char *what)
+{
+	printk("--- mp_dump: %s ---\n", what);
+	(void)mp_dump_bin((struct mp_bin *)player->pipeline, NULL);
+}
+
+#else
+#define mp_player_dump_transition(player, from, to, ok) ((void)0)
+#define mp_player_dump(player, what)                    ((void)0)
+#endif /* CONFIG_MP_PLAYER_DUMP_ON_STATE_CHANGE */
+
+/*
+ * Drive the pipeline to a target mp_state and update the observable state.
+ *
+ * One transition at a time rather than asking for the target directly. This is
+ * the same work in the same order - mp_element_set_state_func() runs one
+ * transition per iteration of its own loop either way - and it lets the player
+ * see each step, which is what makes a dump per transition possible and what
+ * names the transition a failure happened in.
+ */
 static void mp_player_set_state(struct mp_player *player, enum mp_state target,
 				enum mp_player_state new_state)
 {
-	enum mp_state_change_return ret;
+	struct mp_element *pipe = (struct mp_element *)player->pipeline;
 
-	ret = mp_element_set_state((struct mp_element *)player->pipeline, target);
-	if (ret == MP_STATE_CHANGE_FAILURE) {
-		LOG_ERR("Failed to set pipeline to %s", mp_player_state_str(new_state));
-		return;
+	while (pipe->current_state != target) {
+		enum mp_state from = pipe->current_state;
+		enum mp_state next = MP_STATE_GET_NEXT(from, target);
+
+		if (mp_element_set_state(pipe, next) == MP_STATE_CHANGE_FAILURE) {
+			LOG_ERR("Failed to set pipeline to %s", mp_player_state_str(new_state));
+			mp_player_dump_transition(player, from, next, false);
+			return;
+		}
+
+		mp_player_dump_transition(player, from, next, true);
 	}
 
 	player->state = new_state;
@@ -101,6 +149,28 @@ static void mp_player_do_replay(struct mp_player *player)
 {
 	mp_player_do_stop(player);
 	mp_player_do_play(player);
+}
+
+/*
+ * Say which element failed and what it was doing. Without both, a failure on
+ * the pipeline thread reads as a stall with an unexplained log line somewhere
+ * above it.
+ */
+static void mp_player_report_error(struct mp_player *player, const struct mp_message *msg)
+{
+	LOG_ERR("Pipeline error: element #%u in %s (%d)",
+		msg->origin != NULL ? msg->origin->object.id : UINT8_MAX,
+		mp_message_domain_str(msg->domain), msg->code);
+
+	/*
+	 * Only worth a graph when the error arrived while streaming: nothing is
+	 * torn down until the stop below, so this is the live graph at the point
+	 * it broke. An error raised during a transition leaves the player's state
+	 * untouched, and the failed transition has already dumped the same graph.
+	 */
+	if (player->state == MP_PLAYER_PLAYING) {
+		mp_player_dump(player, "ERROR");
+	}
 }
 
 /*
@@ -203,7 +273,12 @@ static void mp_player_worker(void *p1, void *p2, void *p3)
 		if (events[1].state == K_POLL_STATE_MSGQ_DATA_AVAILABLE) {
 			while (mp_bus_pop_msg(player->bus, MP_MESSAGE_EOS | MP_MESSAGE_ERROR,
 					      &msg) == 0) {
-				LOG_INF("End of stream");
+				if (msg.type == MP_MESSAGE_ERROR) {
+					mp_player_report_error(player, &msg);
+				} else {
+					LOG_INF("End of stream");
+				}
+
 				mp_player_do_stop(player);
 				if (k_msgq_num_used_get(&player->bus->msgq) == 0) {
 					break;
@@ -259,6 +334,8 @@ int mp_player_init(struct mp_player *player, struct mp_pipeline *pipeline)
 	 */
 	LOG_INF("Player shell ready. Interactive controls:");
 	LOG_INF("  p = play/pause toggle, s = stop, r = replay, q = quit");
+	IF_ENABLED(CONFIG_MP_DUMP,
+		   (LOG_INF("  d = dump the pipeline as a Graphviz graph");))
 	LOG_INF("  or: player play|pause|stop|replay|quit|status");
 #endif
 
@@ -437,6 +514,38 @@ static int cmd_player_status(const struct shell *sh, size_t argc, char **argv)
 	return 0;
 }
 
+#if defined(CONFIG_MP_DUMP)
+
+/*
+ * Write a dump to a shell instance. Going through the shell rather than the log
+ * keeps prefixes and timestamps out of the graph, which is what lets the DOT
+ * rendering be piped straight into dot(1).
+ */
+static void mp_player_dump_vprint(void *ctx, const char *fmt, va_list ap)
+{
+	shell_vfprintf((const struct shell *)ctx, SHELL_NORMAL, fmt, ap);
+}
+
+static int cmd_player_dump(const struct shell *sh, size_t argc, char **argv)
+{
+	struct mp_dump_sink sink = {
+		.vprint = mp_player_dump_vprint,
+		.ctx = (void *)sh,
+	};
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
+	if (mp_shell_check_active(sh) != 0) {
+		return -ENODEV;
+	}
+
+	return mp_dump_bin((struct mp_bin *)active_player->pipeline, &sink);
+}
+
+#endif /* CONFIG_MP_DUMP */
+
+/* clang-format off */
 SHELL_STATIC_SUBCMD_SET_CREATE(
 	mp_player_subcmds, SHELL_CMD(play, NULL, "Start or resume playback", cmd_player_play),
 	SHELL_CMD(pause, NULL, "Pause playback", cmd_player_pause),
@@ -444,7 +553,13 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 	SHELL_CMD(replay, NULL, "Restart playback from the beginning", cmd_player_replay),
 	SHELL_CMD(quit, NULL, "Stop the pipeline and exit the player", cmd_player_quit),
 	SHELL_CMD(status, NULL, "Print the current player state", cmd_player_status),
+	IF_ENABLED(CONFIG_MP_DUMP,
+		   (SHELL_CMD(dump, NULL,
+			      "Print the pipeline topology and negotiated caps as a "
+			      "Graphviz graph",
+			      cmd_player_dump),))
 	SHELL_SUBCMD_SET_END);
+/* clang-format on */
 
 SHELL_CMD_REGISTER(player, &mp_player_subcmds, "MultimediaPipe player control", NULL);
 
@@ -453,5 +568,14 @@ SHELL_CMD_REGISTER(p, NULL, "Player: play/pause toggle", cmd_player_toggle);
 SHELL_CMD_REGISTER(s, NULL, "Player: stop", cmd_player_stop);
 SHELL_CMD_REGISTER(r, NULL, "Player: replay from the beginning", cmd_player_replay);
 SHELL_CMD_REGISTER(q, NULL, "Player: quit", cmd_player_quit);
+
+#if defined(CONFIG_MP_DUMP)
+/*
+ * Worth a shortcut of its own: over a serial line a graph is then one keystroke
+ * rather than a whole command, which matters when the console is the only way
+ * in.
+ */
+SHELL_CMD_REGISTER(d, NULL, "Player: dump the pipeline as a Graphviz graph", cmd_player_dump);
+#endif
 
 #endif /* CONFIG_SHELL */

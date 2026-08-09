@@ -46,4 +46,30 @@ config MP_PLAYER_CMD_QUEUE_DEPTH
 	  Number of pending commands the player can buffer before a caller
 	  blocks while enqueueing a new command.
 
+config MP_PLAYER_DUMP_ON_STATE_CHANGE
+	bool "Dump the pipeline on every state change and every error"
+	depends on MP_DUMP
+	help
+	  Print the pipeline after each state the player drives it to, and
+	  whenever an element reports an error.
+
+	  The dump is taken once the transition has finished, never between
+	  two of them, so it delays nothing: a failure stops the pipeline
+	  where it broke and the graph is still that failure's graph.
+
+	  It goes to the console rather than the shell, since no shell
+	  instance exists at that point. Extract a graph from a capture with:
+
+	    sed -n '/^digraph/,/^}/p' log > pipe.dot
+
 endif # MP_PLAYER
+
+config MP_DUMP_MAX_ELEMENTS
+	int "Maximum number of elements a dump can index"
+	depends on MP_DUMP
+	range 2 256
+	default 32
+	help
+	  A dump flattens nested bins, so it can hold more elements than one
+	  bin's MP_BIN_MAX_CHILDREN. An element past this limit is left out
+	  of the graph and the dump is marked truncated.
