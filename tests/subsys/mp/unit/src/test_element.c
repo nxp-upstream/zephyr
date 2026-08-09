@@ -15,7 +15,6 @@
 #include <zephyr/mp/mp_sink.h>
 #include <zephyr/mp/mp_src.h>
 
-
 struct mp_element_api_fixture {
 	struct mp_pipeline pipeline;
 	struct mp_element src;
@@ -128,4 +127,19 @@ ZTEST_F(mp_element_api, test_sanity)
 
 	/* get_bus on NULL shall return NULL */
 	zassert_is_null(mp_element_get_bus(NULL), "mp_element_get_bus(NULL) shall return NULL");
+
+	/*
+	 * An element that was never added to a bin ends the walk to the root on
+	 * itself, so there is no bus to hand out.
+	 */
+	zassert_is_null(mp_element_get_bus(&src), "An element outside any bin shall have no bus");
+
+	/* One inside a bin shall get its bin's bus */
+	struct mp_pipeline pipe;
+
+	memset(&pipe, 0, sizeof(pipe));
+	MP_ELEMENT_INIT(&pipe, mp_pipeline_init, 0);
+	zassert_ok(mp_bin_add((struct mp_bin *)&pipe, &src, NULL), "Failed to add element");
+	zassert_equal(mp_element_get_bus(&src), &((struct mp_bin *)&pipe)->bus,
+		      "An element in a bin shall get that bin's bus");
 }

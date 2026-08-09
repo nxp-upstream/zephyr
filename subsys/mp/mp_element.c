@@ -165,17 +165,13 @@ static enum mp_state_change_return mp_element_change_state_func(struct mp_elemen
 
 struct mp_bus *mp_element_get_bus(struct mp_element *element)
 {
-	if (element == NULL) {
+	__ASSERT_NO_MSG(element != NULL);
+
+	if ((element->object.flags & MP_OBJECT_FLAG_BIN) == 0) {
 		return NULL;
 	}
 
-	/* Get the top-level bin (i.e. pipeline) bus to send the message for now, but messages may
-	 * be passed hierachically from the nearest bin to the pipeline if they need to be filtered
-	 * or modified at each level.
-	 */
-	while (element->object.container != NULL) {
-		element = (struct mp_element *)element->object.container;
-	}
+	element = (struct mp_element *)element->object.container;
 
 	return &((struct mp_bin *)element)->bus;
 }

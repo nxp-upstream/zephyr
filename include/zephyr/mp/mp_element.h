@@ -271,7 +271,8 @@ enum mp_state_change_return mp_element_set_state(struct mp_element *element, enu
 /**
  * @brief Get the bus of an element
  *
- * Retrieves the @ref mp_bus associated with the element.
+ * Retrieves the @ref mp_bus associated with the element, which is the bus of
+ * the nearest bin that contains the element.
  *
  * @param self Pointer to the @ref mp_element to get the bus from.
  *
