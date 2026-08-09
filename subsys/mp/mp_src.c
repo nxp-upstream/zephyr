@@ -9,6 +9,7 @@
 #include <zephyr/mp/mp_buffer.h>
 #include <zephyr/mp/mp_dispatch.h>
 #include <zephyr/mp/mp_element.h>
+#include <zephyr/mp/mp_message.h>
 #include <zephyr/mp/mp_object.h>
 #include <zephyr/mp/mp_pad.h>
 #include <zephyr/mp/mp_src.h>
@@ -189,27 +190,53 @@ enum mp_state_change_return mp_src_change_state(struct mp_element *self,
 {
 	struct mp_src *src = (struct mp_src *)self;
 	enum mp_state_change_return ret = MP_STATE_CHANGE_SUCCESS;
+	int neg_ret;
 	int pool_ret;
 
 	switch (transition) {
 	case MP_STATE_CHANGE_READY_TO_PAUSED:
 		/* Perform negotiation */
-		if (mp_src_negotiate(src) < 0) {
+		neg_ret = mp_src_negotiate(src);
+		if (neg_ret < 0) {
+			struct mp_message msg = {
+				.origin = self,
+				.type = MP_MESSAGE_ERROR,
+				.domain = MP_ERROR_CAPS,
+				.code = neg_ret,
+			};
+
 			LOG_ERR("Negotiation failed");
+			(void)mp_message_post(&msg);
 			return MP_STATE_CHANGE_FAILURE;
 		}
 
 		/* Config buffer pool */
 		pool_ret = mp_buffer_pool_configure(src->pool, &src->srcpad.caps);
 		if (pool_ret != 0 && pool_ret != -ENOSYS) {
+			struct mp_message msg = {
+				.origin = self,
+				.type = MP_MESSAGE_ERROR,
+				.domain = MP_ERROR_ALLOC,
+				.code = pool_ret,
+			};
+
 			LOG_ERR("Failed to configure source buffer pool");
+			(void)mp_message_post(&msg);
 			return MP_STATE_CHANGE_FAILURE;
 		}
 
 		/* Start buffer pool */
 		pool_ret = mp_buffer_pool_start(src->pool);
 		if (pool_ret != 0 && pool_ret != -ENOSYS) {
+			struct mp_message msg = {
+				.origin = self,
+				.type = MP_MESSAGE_ERROR,
+				.domain = MP_ERROR_ALLOC,
+				.code = pool_ret,
+			};
+
 			LOG_ERR("Failed to start source buffer pool");
+			(void)mp_message_post(&msg);
 			return MP_STATE_CHANGE_FAILURE;
 		}
 

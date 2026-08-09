@@ -9,6 +9,7 @@
 
 #include <zephyr/mp/mp_dispatch.h>
 #include <zephyr/mp/mp_element.h>
+#include <zephyr/mp/mp_message.h>
 #include <zephyr/mp/mp_pad.h>
 #include <zephyr/mp/mp_pipeline.h>
 #include <zephyr/mp/base/mp_queue.h>
@@ -160,7 +161,21 @@ static void mp_queue_thread_func(void *p1, void *p2, void *p3)
 			mp_dispatch_eos_init(&eos);
 			ret = mp_pad_send_event(queue->transform.srcpad.peer, &eos);
 			if (ret != 0) {
+				struct mp_message msg = {
+					.origin = &queue->transform.element,
+					.type = MP_MESSAGE_ERROR,
+					.domain = MP_ERROR_FLOW,
+					.code = ret,
+				};
+
 				LOG_ERR("Failed to send EOS event downstream (%d)", ret);
+
+				/*
+				 * No sink downstream of this queue will post the
+				 * end of stream now, and the application is
+				 * waiting for that or an error.
+				 */
+				(void)mp_message_post(&msg);
 			}
 			continue;
 		}

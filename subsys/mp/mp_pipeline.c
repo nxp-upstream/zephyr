@@ -108,8 +108,16 @@ int mp_pipeline_push_buffer(struct mp_pad *srcpad, struct net_buf *buffer)
 		next_sinkpad = cur_srcpad->peer;
 
 		if (next_sinkpad == NULL) {
+			struct mp_message msg = {
+				.origin = (struct mp_element *)cur_srcpad->object.container,
+				.type = MP_MESSAGE_ERROR,
+				.domain = MP_ERROR_FLOW,
+				.code = -ENOTCONN,
+			};
+
 			LOG_ERR("srcpad has no peer");
 			net_buf_unref(buffer);
+			(void)mp_message_post(&msg);
 			return -ENOTCONN;
 		}
 
@@ -127,8 +135,24 @@ int mp_pipeline_push_buffer(struct mp_pad *srcpad, struct net_buf *buffer)
 
 			ret = next_sinkpad->chainfn(next_sinkpad, buffer, &out_buf);
 			if (ret != 0) {
+				struct mp_element *elem =
+					(struct mp_element *)next_sinkpad->object.container;
+				struct mp_message msg = {
+					.origin = elem,
+					.type = MP_MESSAGE_ERROR,
+					.domain = MP_ERROR_FLOW,
+					.code = ret,
+				};
+
 				LOG_ERR("chainfn failed for element %u (%d)",
 					next_sinkpad->object.container->id, ret);
+
+				/*
+				 * This runs on the pipeline thread, which has no
+				 * caller to return the failure to, so the bus is
+				 * the only way the application hears about it.
+				 */
+				(void)mp_message_post(&msg);
 				return ret;
 			}
 
@@ -153,6 +177,32 @@ int mp_pipeline_push_buffer(struct mp_pad *srcpad, struct net_buf *buffer)
 	return 0;
 }
 
+/*
+ * Send the end of stream downstream, and say so if it does not get there. No
+ * sink will post it now, and the application is waiting for that or an error,
+ * so a failure here has to arrive as the error.
+ */
+static void mp_pipeline_send_eos(struct mp_src *src)
+{
+	struct mp_dispatch eos_event;
+	int ret;
+
+	mp_dispatch_eos_init(&eos_event);
+
+	ret = mp_pad_send_event(src->srcpad.peer, &eos_event);
+	if (ret != 0) {
+		struct mp_message msg = {
+			.origin = &src->element,
+			.type = MP_MESSAGE_ERROR,
+			.domain = MP_ERROR_FLOW,
+			.code = ret,
+		};
+
+		LOG_ERR("Failed to send EOS event downstream (%d)", ret);
+		(void)mp_message_post(&msg);
+	}
+}
+
 static void mp_pipeline_thread_func(void *p1, void *p2, void *p3)
 {
 	struct mp_bin *bin = p1;
@@ -161,7 +211,6 @@ static void mp_pipeline_thread_func(void *p1, void *p2, void *p3)
 	struct mp_element *element;
 	struct mp_src *src = NULL;
 	struct net_buf *buffer = NULL;
-	struct mp_dispatch eos_event;
 	uint32_t count = 0;
 
 	ARG_UNUSED(p2);
@@ -196,16 +245,18 @@ static void mp_pipeline_thread_func(void *p1, void *p2, void *p3)
 
 		if (reached_limit || acq_ret != 0) {
 			if (is_eos) {
-				mp_dispatch_eos_init(&eos_event);
-				if (mp_pad_send_event(src->srcpad.peer, &eos_event) != 0) {
-					LOG_ERR("Failed to send EOS event downstream");
-				}
+				mp_pipeline_send_eos(src);
 			} else if (acq_ret != -EPIPE) {
-				/*
-				 * Not an EOS neither a forced-stop flush: a real error.
-				 * TODO: Ideally, post an ERROR message to the bus here.
-				 */
+				struct mp_message msg = {
+					.origin = &src->element,
+					.type = MP_MESSAGE_ERROR,
+					.domain = MP_ERROR_FLOW,
+					.code = acq_ret,
+				};
+
+				/* Not an EOS neither a forced-stop flush: a real error */
 				LOG_ERR("Source failed to acquire a buffer (%d)", acq_ret);
+				(void)mp_message_post(&msg);
 			}
 			count = 0;
 			/* Self-pause: block in wait() until next resume */
