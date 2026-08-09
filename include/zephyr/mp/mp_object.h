@@ -25,7 +25,14 @@
 #include <zephyr/sys/util_macro.h>
 
 /** Base flag of the object */
-#define OBJECT_FLAG_BASE BIT(0)
+#define MP_OBJECT_FLAG_BASE BIT(0)
+/**
+ * @brief The object is a @ref mp_bin and holds children of its own.
+ *
+ * Set by mp_bin_init(). This is to tell a walker that an element can be
+ * descended into.
+ */
+#define MP_OBJECT_FLAG_BIN BIT(1)
 
 /** Sentinel value to mark the end of property lists */
 #define MP_PROP_LIST_END -1

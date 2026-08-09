@@ -204,6 +204,7 @@ void mp_bin_init(struct mp_element *self)
 	struct mp_bin *bin = (struct mp_bin *)self;
 
 	self->change_state = mp_bin_change_state_func;
+	self->object.flags |= MP_OBJECT_FLAG_BIN;
 
 	sys_dlist_init(&bin->children);
 
