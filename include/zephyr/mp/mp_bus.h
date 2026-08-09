@@ -18,7 +18,7 @@
  * @brief Asynchronous element-to-application message channel.
  *
  * The bus is the one-way communication channel that carries out-of-band
- * notifications (end-of-stream, error, warning, ...) from the elements inside a
+ * notifications (end-of-stream, error, ...) from the elements inside a
  * pipeline up to the controlling application. It follows the producer/consumer contract.
  *
  * @section mp_bus_ownership Ownership and lifetime
@@ -33,9 +33,11 @@
  * @section mp_bus_producers Producers: elements only
  *
  * Only elements post to the bus, through mp_message_post(): the message names
- * its origin element, and the helper locates the bus from it. The generic
- * layer underneath is mp_bus_post(), for a poster that is not an element but
- * already holds the bus: the framework internals and the tests post that way.
+ * its origin element, and the helper locates the bus from it. A failure
+ * carries its domain and code in the message it initializes. The
+ * generic layer underneath is mp_bus_post(), for a poster that is not an
+ * element but already holds the bus: the framework internals and the tests
+ * post that way.
  *
  * The application must NOT post to the bus it also consumes. Doing so runs the
  * sync handler inline in the application's own thread and turns the app into
@@ -80,14 +82,6 @@
 #include <zephyr/sys/slist.h>
 
 #include <zephyr/mp/mp_message.h>
-
-/**
- * @brief Message type filter mask matching any message type.
- *
- * Kept as a macro (not an enumerator) so that the enum below stays
- * within the range of int and filter masks are plain uint32_t.
- */
-#define MP_MESSAGE_ANY UINT32_MAX
 
 /**
  * @brief Return value of a bus sync handler, deciding a message's fate.

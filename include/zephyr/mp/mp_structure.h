@@ -106,7 +106,8 @@ enum mp_media_type {
  * MP_CAPS_FRAME_INTERVAL does for audio and video.
  *
  * Add it before MP_CAPS_END and document its unit and value type the way the
- * entries below do.
+ * entries below do, and give it a name in dump_field_names in mp_dump.c so a
+ * dump can print it.
  */
 enum mp_caps_field {
 	/** Pixel format, as a VIDEO_PIX_FMT_* fourcc, MP_TYPE_UINT */

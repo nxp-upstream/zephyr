@@ -8,6 +8,27 @@
 #include <zephyr/mp/mp_bus.h>
 #include <zephyr/mp/mp_message.h>
 
+/* clang-format off */
+static const char *const mp_message_domain_names[] = {
+	[MP_ERROR_CAPS] = "capability negotiation",
+	[MP_ERROR_ALLOC] = "buffer negotiation",
+	[MP_ERROR_FLOW] = "buffer flow",
+	[MP_ERROR_RESOURCE] = "resource",
+	[MP_ERROR_FAILED] = "failure",
+};
+/* clang-format on */
+BUILD_ASSERT(ARRAY_SIZE(mp_message_domain_names) == MP_ERROR_DOMAIN_END,
+	     "An error domain has no name in mp_message_domain_names");
+
+const char *mp_message_domain_str(uint8_t domain)
+{
+	if (domain >= ARRAY_SIZE(mp_message_domain_names)) {
+		return "?";
+	}
+
+	return mp_message_domain_names[domain];
+}
+
 /**
  * Run the sync handler for a posted message and decide its fate.
  *
@@ -32,7 +53,7 @@ int mp_message_post(struct mp_message *message)
 {
 	struct mp_bus *bus;
 
-	if (message == NULL || message->origin == NULL || message->type == 0U) {
+	if (message == NULL || message->origin == NULL || message->type == MP_MESSAGE_UNKNOWN) {
 		return -EINVAL;
 	}
 
@@ -81,7 +102,7 @@ int mp_bus_pop_msg(struct mp_bus *bus, uint32_t filter_mask, struct mp_message *
 			return ret;
 		}
 
-		if ((uint32_t)tmp.type & filter_mask) {
+		if ((tmp.type & filter_mask) != 0U) {
 			*out = tmp;
 			return 0;
 		}
