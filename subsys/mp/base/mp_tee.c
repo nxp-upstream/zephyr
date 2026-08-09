@@ -10,6 +10,7 @@
 #include <zephyr/mp/mp_element.h>
 #include <zephyr/mp/mp_pad.h>
 #include <zephyr/mp/mp_pipeline.h>
+#include <zephyr/mp/mp_structure.h>
 #include <zephyr/mp/base/mp_tee.h>
 
 LOG_MODULE_REGISTER(mp_tee, CONFIG_MP_LOG_LEVEL);
@@ -21,20 +22,52 @@ static int mp_tee_sink_queryfn(struct mp_pad *pad, struct mp_dispatch *query)
 	struct mp_tee *tee = (struct mp_tee *)pad->object.container;
 
 	switch (query->type) {
-	case MP_DISPATCH_CAPS:
+	case MP_DISPATCH_CAPS: {
+		struct mp_structure filter;
+		struct mp_structure answer;
+		bool answered = false;
+		int ret;
+
+		ret = mp_structure_duplicate(mp_dispatch_get_caps(query), &filter);
+		if (ret != 0) {
+			return ret;
+		}
+
 		for (uint8_t i = 0; i < tee->srcpads_num; i++) {
 			if (tee->srcpads[i].peer == NULL) {
 				continue;
 			}
 
-			int ret = mp_pad_query(tee->srcpads[i].peer, query);
+			ret = mp_dispatch_set_caps(query, &filter);
+			if (ret != 0) {
+				return ret;
+			}
+
+			ret = mp_pad_query(tee->srcpads[i].peer, query);
+			if (ret != 0) {
+				return ret;
+			}
+
+			if (!answered) {
+				ret = mp_structure_duplicate(mp_dispatch_get_caps(query), &answer);
+				answered = true;
+			} else {
+				struct mp_structure intersected;
+
+				ret = mp_structure_intersect(&answer, mp_dispatch_get_caps(query),
+							     &intersected);
+				if (ret == 0) {
+					ret = mp_structure_duplicate(&intersected, &answer);
+				}
+			}
 
 			if (ret != 0) {
 				return ret;
 			}
 		}
 
-		return 0;
+		return answered ? mp_dispatch_set_caps(query, &answer) : 0;
+	}
 	case MP_DISPATCH_BUFFER_CONFIG: {
 		struct mp_buffer_pool_config merged = {0};
 
@@ -90,10 +123,33 @@ static int mp_tee_sink_eventfn(struct mp_pad *pad, struct mp_dispatch *event)
 
 	switch (event->type) {
 	case MP_DISPATCH_CAPS:
-	case MP_DISPATCH_EOS:
+	case MP_DISPATCH_EOS: {
+		struct mp_structure evt_caps;
+		bool is_caps = (event->type == MP_DISPATCH_CAPS);
+
+		if (is_caps) {
+			ret = mp_structure_duplicate(mp_dispatch_get_caps(event), &evt_caps);
+			if (ret != 0) {
+				return ret;
+			}
+		}
+
 		for (uint8_t i = 0; i < tee->srcpads_num; i++) {
 			if (tee->srcpads[i].peer == NULL) {
 				continue;
+			}
+
+			if (is_caps) {
+				ret = mp_dispatch_set_caps(event, &evt_caps);
+				if (ret != 0 && first_err == 0) {
+					first_err = ret;
+					continue;
+				}
+
+				ret = mp_pad_set_caps(&tee->srcpads[i], &evt_caps);
+				if (ret != 0 && first_err == 0) {
+					first_err = ret;
+				}
 			}
 
 			ret = mp_pad_send_event(tee->srcpads[i].peer, event);
@@ -102,12 +158,12 @@ static int mp_tee_sink_eventfn(struct mp_pad *pad, struct mp_dispatch *event)
 			}
 		}
 
-		/* The caps are the same for every branch, so record them once */
-		if (event->type == MP_DISPATCH_CAPS && first_err == 0) {
-			first_err = mp_pad_set_caps(pad, mp_dispatch_get_caps(event));
+		if (is_caps && first_err == 0) {
+			first_err = mp_pad_set_caps(pad, &evt_caps);
 		}
 
 		return first_err;
+	}
 	default:
 		return -ENOTSUP;
 	}
