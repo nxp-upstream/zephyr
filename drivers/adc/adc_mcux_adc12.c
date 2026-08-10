@@ -27,6 +27,7 @@ struct mcux_adc12_config {
 	adc12_clock_divider_t clock_div;
 	adc12_reference_voltage_source_t ref_src;
 	uint32_t sample_clk_count;
+	bool hw_trigger;   /* use hardware trigger instead of software */
 	void (*irq_config_func)(const struct device *dev);
 	const struct pinctrl_dev_config *pincfg;
 };
@@ -241,7 +242,7 @@ static int mcux_adc12_init(const struct device *dev)
 
 	ADC12_Init(base, &adc_config);
 	ADC12_DoAutoCalibration(base);
-	ADC12_EnableHardwareTrigger(base, false);
+	ADC12_EnableHardwareTrigger(base, config->hw_trigger);
 
 	config->irq_config_func(dev);
 	data->dev = dev;
@@ -295,6 +296,7 @@ static int mcux_adc12_init(const struct device *dev)
 			TO_ADC12_CLOCK_DIV(DT_INST_PROP(n, clk_divider)),\
 		.ref_src = ADC12_REF_SRC(n),				\
 		.sample_clk_count = DT_INST_PROP(n, sample_time),	\
+		.hw_trigger = DT_INST_PROP_OR(n, enable_hardware_trigger, false),	\
 		.irq_config_func = mcux_adc12_config_func_##n,		\
 		.pincfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),		\
 	};								\

@@ -89,6 +89,13 @@ properties:
       Ideal ADC sample range for the application. This is used to calculate the opamp gain
       when the opamp output is used as the ADC input.
 
+  enable-hardware-trigger:
+    type: boolean
+    description: |
+      Enable ADC hardware trigger mode. When set, the ADC waits for a hardware
+      trigger (e.g. routed via INPUTMUX or XBAR) to start each conversion
+      instead of issuing a software trigger. Default: false (software trigger).
+
   "#io-channel-cells":
     const: 1
 

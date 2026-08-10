@@ -38,6 +38,13 @@ properties:
     required: true
     description: Indicates the reference voltage of the ADC in mV.
 
+  enable-hardware-trigger:
+    type: boolean
+    description: |
+      Enable ADC hardware trigger mode. When set, the ADC waits for a hardware
+      trigger (e.g. routed via TRGMUX) to start each conversion instead of
+      using a software trigger. Default: false (software trigger).
+
   "#io-channel-cells":
     const: 1
 

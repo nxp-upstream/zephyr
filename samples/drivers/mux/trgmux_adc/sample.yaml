@@ -1,0 +1,22 @@
+sample:
+  name: ADC Hardware Trigger via Signal Router
+  description: >
+    Demonstrates routing a periodic timer output to an ADC trigger input via a
+    signal-routing peripheral (TRGMUX, INPUTMUX, XBAR, …). The C source is
+    platform-agnostic; all per-board wiring lives in the board overlay.
+
+tests:
+  sample.drivers.mux.trgmux_adc:
+    platform_allow:
+      - frdm_mcxe247
+      - frdm_mcxa156
+    tags:
+      - adc
+      - mux
+      - counter
+      - drivers
+    harness: console
+    harness_config:
+      type: one_line
+      regex:
+        - "ADC reading"

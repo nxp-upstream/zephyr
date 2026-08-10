@@ -1,0 +1,56 @@
+/*
+ * SPDX-FileCopyrightText: Copyright 2026 NXP
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * frdm_mcxe247: Route LPIT ch0 periodic trigger to ADC0 via TRGMUX.
+ *
+ * LPIT0 and ADC0 are already enabled in frdm_mcxe247.dts; TRGMUX is
+ * disabled by default in the SoC dtsi and is enabled here.
+ *
+ * TRGMUX cell values (MCXE247 periph0/PERI_TRGMUX.h):
+ *   device 3  = kTRGMUX_Adc0          (ADC0 trigger input)
+ *   input  0  = kTRGMUX_TriggerInput0
+ *   source 17 = kTRGMUX_SourceLpitCh0 (LPIT channel 0 output)
+ *
+ * ADC0 channel 1 = ADC0_SE1 on PTA1 (Arduino A1 / J4 pin 10 on the board).
+ * Connect a 0–3.3 V signal to that pin to observe a non-zero reading.
+ */
+
+&trgmux {
+	status = "okay";
+};
+
+&adc0 {
+	enable-hardware-trigger;
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	/*
+	 * ADC0_SE1 on PTA1 — already covered by pinmux_adc0 in board dts.
+	 * Connect a 0–3.3 V signal here to verify the reading.
+	 */
+	channel@1 {
+		reg = <1>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,vref-mv = <3300>;
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+	};
+};
+
+/ {
+	/*
+	 * Signal routing: LPIT ch0 output (source 17) -> ADC0 trigger input 0
+	 * (device 3).  mux-states cell order: <controller device input source>.
+	 */
+	adc_hw_trigger_route: adc-hw-trigger-route {
+		compatible = "nxp,adc-hw-trigger-route";
+		mux-states = <&trgmux 3 0 17>;
+	};
+
+	zephyr,user {
+		io-channels = <&adc0 1>;
+		trigger-timer = <&lpit0_channel0>;
+	};
+};

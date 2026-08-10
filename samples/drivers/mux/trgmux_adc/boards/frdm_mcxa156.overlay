@@ -1,0 +1,61 @@
+/*
+ * SPDX-FileCopyrightText: Copyright 2026 NXP
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * frdm_mcxa156: Route CTimer0 match-0 output to LPADC0 trigger0 via INPUTMUX.
+ *
+ * CTimer0 and LPADC0 are already enabled in frdm_mcxa156.dts; INPUTMUX is
+ * disabled by default in the SoC dtsi and is enabled here.
+ *
+ * INPUTMUX cell values (MCXA156 fsl_inputmux_connections.h):
+ *   index      0          = kINPUTMUX_INDEX_ADC0_TRIGSEL0 (ADC0 trigger-select 0)
+ *   connection 0x28000009 = kINPUTMUX_Ctimer0M0ToAdc0Trigger
+ *                         = 9U + (ADC0_TRIG0_REG << PMUX_SHIFT)
+ *                         = 9  + (0x280 << 20)
+ *
+ * LPADC0 channel 0 side-A = ADC0_A0 on P2_0 (Arduino A0 / J4 pin 8).
+ * Connect a 0–3.3 V signal to that pin to observe a non-zero reading.
+ */
+
+#include <zephyr/dt-bindings/adc/adc.h>
+#include <zephyr/dt-bindings/adc/mcux-lpadc.h>
+
+&inputmux0 {
+	status = "okay";
+};
+
+&lpadc0 {
+	enable-hardware-trigger;
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	/*
+	 * ADC0_A0 on P2_0 — already covered by pinmux_lpadc0 in board dts.
+	 * Connect a 0–3.3 V signal here to verify the reading.
+	 */
+	channel@0 {
+		reg = <0>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_EXTERNAL0";
+		zephyr,vref-mv = <3300>;
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+		zephyr,input-positive = <MCUX_LPADC_CH0A>;
+	};
+};
+
+/ {
+	/*
+	 * Signal routing: CTimer0 match-0 output -> LPADC0 trigger-select 0.
+	 * mux-states cell order: <controller index connection>.
+	 */
+	adc_hw_trigger_route: adc-hw-trigger-route {
+		compatible = "nxp,adc-hw-trigger-route";
+		mux-states = <&inputmux0 0 0x28000009>;
+	};
+
+	zephyr,user {
+		io-channels = <&lpadc0 0>;
+		trigger-timer = <&ctimer0>;
+	};
+};

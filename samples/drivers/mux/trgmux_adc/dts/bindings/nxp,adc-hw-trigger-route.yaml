@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  ADC hardware trigger route node for the trgmux_adc sample.
+  Holds a mux-states specifier that routes a timer trigger output to
+  an ADC trigger input via a signal-routing peripheral.
+
+compatible: "nxp,adc-hw-trigger-route"
+
+include: [base.yaml, mux-consumer.yaml]

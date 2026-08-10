@@ -74,6 +74,7 @@ struct mcux_lpadc_config {
 	 * (from that channel node's zephyr,vref-mv)
 	 */
 	uint16_t opamp_vref_mv;
+	bool hw_trigger;   /* use hardware trigger instead of software */
 #if defined(CONFIG_PM_POLICY_DEVICE_CONSTRAINTS)
 	bool pm_device_constraints;
 #endif
@@ -540,8 +541,14 @@ static void mcux_lpadc_start_channel(const struct device *dev)
 	/* configures trigger0. */
 	LPADC_SetConvTriggerConfig(config->base, 0, &trigger_config);
 
-	/* 1 is trigger0 mask. */
-	LPADC_DoSoftwareTrigger(config->base, 1);
+	/* In hardware trigger mode the conversion is started by an external
+	 * signal (e.g. routed via INPUTMUX/TRGMUX). Skip the software trigger
+	 * so the ADC waits for the hardware event instead.
+	 */
+	if (!config->hw_trigger) {
+		/* 1 is trigger0 mask. */
+		LPADC_DoSoftwareTrigger(config->base, 1);
+	}
 }
 
 #ifdef CONFIG_ADC_MCUX_LPADC_DMA_DRIVEN
@@ -1092,6 +1099,7 @@ static DEVICE_API(adc, mcux_lpadc_driver_api) = {
 		.sample_max = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, ideal_sample_range),		\
 			(DT_PROP_BY_IDX(DT_DRV_INST(n), ideal_sample_range, 1)), (UINT32_MAX)),	\
 			OPAMP_GAINS_INIT(n)							\
+		.hw_trigger = DT_INST_PROP_OR(n, enable_hardware_trigger, false),		\
 		DMA_INIT(n)									\
 	};											\
 												\
