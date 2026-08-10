@@ -194,6 +194,20 @@ static int mp_tee_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net
 	return first_err;
 }
 
+static enum mp_state_change_return mp_tee_change_state(struct mp_element *self,
+						       enum mp_state_change transition)
+{
+	switch (transition) {
+	case MP_STATE_CHANGE_PAUSED_TO_READY:
+		mp_element_reset_pad_caps(self);
+		break;
+	default:
+		break;
+	}
+
+	return MP_STATE_CHANGE_SUCCESS;
+}
+
 static int mp_tee_add_srcpad(struct mp_tee *tee)
 {
 	if (tee->srcpads_num >= CONFIG_MP_BASE_TEE_MAX_SRCPADS_NUM) {
@@ -250,6 +264,7 @@ void mp_tee_init(struct mp_element *self)
 
 	self->object.get_property = mp_tee_get_property;
 	self->object.set_property = mp_tee_set_property;
+	self->change_state = mp_tee_change_state;
 
 	tee->sinkpad.chainfn = mp_tee_chainfn;
 	tee->sinkpad.queryfn = mp_tee_sink_queryfn;
