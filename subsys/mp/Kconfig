@@ -75,6 +75,15 @@ config MP_NET_BUF_POOL_COUNT
 	  This is sum of the maximum number of in-flight net_buf buffers of each
 	  pipeline at any given time
 
+config MP_DUMP
+	bool "Dump pipeline topology and information"
+	help
+	  If enabled, pipeline topology and other information like state, caps, element's
+	  properties can be dumped for debugging purpose.
+
+	  The dump is written in dot format to the console which can be gotten and rendered
+	  by Graphviz on the host machine.
+
 config MP_BIN_MAX_CHILDREN
 	int "Maximum number of elements in a bin/pipeline"
 	range 2 64

@@ -30,10 +30,21 @@
 struct mp_bus;
 struct mp_dispatch;
 
+/** @cond INTERNAL_HIDDEN */
+#if defined(CONFIG_MP_DUMP)
+#define MP_ELEMENT_SET_NAME(e, initfn) ((e)->name = #initfn)
+#else
+#define MP_ELEMENT_SET_NAME(e, initfn) ((void)0)
+#endif
+/** @endcond */
+
 /**
  * @brief Initialize and configure an element in one step.
  *
  * Calls @ref mp_element_init followed by the element-specific init function.
+ *
+ * When CONFIG_MP_DUMP is enabled, the element is also named after @p initfn so
+ * a dump can identify it.
  *
  * @param elem   Pointer to the element to initialize.
  * @param initfn Element-specific initialization function.
@@ -44,6 +55,7 @@ struct mp_dispatch;
 		struct mp_element *e = (struct mp_element *)(elem);                                \
 		mp_element_init(e, (id));                                                          \
 		initfn(e);                                                                         \
+		MP_ELEMENT_SET_NAME(e, initfn);                                                    \
 	} while (0)
 
 /**
@@ -146,6 +158,14 @@ struct mp_element;
 struct mp_element {
 	/** Base object */
 	struct mp_object object;
+
+#if defined(CONFIG_MP_DUMP)
+	/**
+	 * Name of the element, set by @ref MP_ELEMENT_INIT from the name of the init
+	 * function it is given, used for debugging purposes.
+	 */
+	const char *name;
+#endif
 
 	/** List of source pads */
 	sys_dlist_t srcpads;

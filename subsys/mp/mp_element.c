@@ -204,6 +204,8 @@ void mp_element_init(struct mp_element *self, uint8_t id)
 	mp_object_init(&self->object);
 	self->object.id = id;
 
+	IF_ENABLED(CONFIG_MP_DUMP, (self->name = NULL;))
+
 	sys_dlist_init(&self->srcpads);
 	sys_dlist_init(&self->sinkpads);
 
