@@ -105,7 +105,7 @@ static enum mp_state_change_return mp_caps_filter_change_state(struct mp_element
 		break;
 	}
 
-	return MP_STATE_CHANGE_SUCCESS;
+	return mp_transform_change_state(self, transition);
 }
 
 void mp_caps_filter_init(struct mp_element *self)
