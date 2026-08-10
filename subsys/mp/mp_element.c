@@ -165,15 +165,25 @@ static enum mp_state_change_return mp_element_change_state_func(struct mp_elemen
 
 struct mp_bus *mp_element_get_bus(struct mp_element *element)
 {
+	struct mp_object *bin;
+
 	__ASSERT_NO_MSG(element != NULL);
 
-	if ((element->object.flags & MP_OBJECT_FLAG_BIN) == 0) {
+	/*
+	 * Only a bin owns a bus, so a bin answers with its own and anything
+	 * else with the bin holding it - the nearest one in both cases. A
+	 * container is only ever set by mp_bin_add(), so it is always a bin.
+	 */
+	bin = &element->object;
+	if ((bin->flags & MP_OBJECT_FLAG_BIN) == 0) {
+		bin = bin->container;
+	}
+
+	if (bin == NULL) {
 		return NULL;
 	}
 
-	element = (struct mp_element *)element->object.container;
-
-	return &((struct mp_bin *)element)->bus;
+	return &((struct mp_bin *)bin)->bus;
 }
 
 int mp_element_post_message(struct mp_element *element, uint32_t type)

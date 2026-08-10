@@ -81,23 +81,51 @@ ZTEST_F(mp_element_api, test_link_two_elements)
 		     "src pad peer must be linked to sink pad");
 }
 
-ZTEST_F(mp_element_api, test_sanity)
+/*
+ * A bus lives on a bin, so a bin answers with its own and anything else with
+ * the bin holding it. A nested bin is what makes "nearest" observable: its
+ * children get its bus and stop there, rather than reaching the pipeline.
+ */
+ZTEST_F(mp_element_api, test_get_bus_finds_the_nearest_bin)
 {
-	/* get_bus: child element inside pipeline shall return the pipeline bus */
+	struct mp_bin nested;
 	struct mp_element child;
+	struct mp_element orphan;
+
+	memset(&nested, 0, sizeof(nested));
+	memset(&child, 0, sizeof(child));
+	memset(&orphan, 0, sizeof(orphan));
 
 	MP_ELEMENT_INIT((struct mp_element *)&fixture->pipeline, mp_pipeline_init, 0);
-	mp_element_init(&child, 1);
+	MP_ELEMENT_INIT((struct mp_element *)&nested, mp_bin_init, 1);
+	mp_element_init(&child, 2);
+	mp_element_init(&orphan, 3);
 
-	zassert_ok(
-		mp_bin_add((struct mp_bin *)&fixture->pipeline, (struct mp_element *)&child, NULL),
-		"mp_bin_add shall succeed");
+	/* Held by no bin, so there is nothing to hand out */
+	zassert_is_null(mp_element_get_bus(&orphan), "An element outside any bin shall have no bus");
 
-	struct mp_bus *bus = mp_element_get_bus((struct mp_element *)&fixture->pipeline);
+	/* A pipeline has no container, and answers with its own bus */
+	zassert_equal(mp_element_get_bus((struct mp_element *)&fixture->pipeline),
+		      &fixture->pipeline.bin.bus, "A pipeline shall answer with its own bus");
 
-	zassert_not_null(bus, "Child element shall find the pipeline bus");
-	zassert_equal(bus, &fixture->pipeline.bin.bus, "Bus shall be the pipeline's bus");
+	zassert_ok(mp_bin_add((struct mp_bin *)&fixture->pipeline, (struct mp_element *)&nested,
+			      NULL),
+		   "mp_bin_add shall succeed");
+	zassert_ok(mp_bin_add(&nested, &child, NULL), "mp_bin_add shall succeed");
 
+	/* A bin answers with its own bus whether or not another bin holds it */
+	zassert_equal(mp_element_get_bus((struct mp_element *)&nested), &nested.bus,
+		      "A nested bin shall answer with its own bus, not its parent's");
+
+	/* The whole point of "nearest": the walk stops at the bin holding it */
+	zassert_equal(mp_element_get_bus(&child), &nested.bus,
+		      "A child shall get the bus of the bin holding it");
+	zassert_not_equal(mp_element_get_bus(&child), &fixture->pipeline.bin.bus,
+			  "A child shall not reach past its bin to the pipeline");
+}
+
+ZTEST_F(mp_element_api, test_sanity)
+{
 	/* Unknown direction pad shall not appear in either list */
 	struct mp_element elem;
 	struct mp_pad pad;
@@ -124,22 +152,4 @@ ZTEST_F(mp_element_api, test_sanity)
 
 	zassert_true(mp_element_link(&src, &sink, NULL) < 0,
 		     "Linking elements without pads shall fail");
-
-	/* get_bus on NULL shall return NULL */
-	zassert_is_null(mp_element_get_bus(NULL), "mp_element_get_bus(NULL) shall return NULL");
-
-	/*
-	 * An element that was never added to a bin ends the walk to the root on
-	 * itself, so there is no bus to hand out.
-	 */
-	zassert_is_null(mp_element_get_bus(&src), "An element outside any bin shall have no bus");
-
-	/* One inside a bin shall get its bin's bus */
-	struct mp_pipeline pipe;
-
-	memset(&pipe, 0, sizeof(pipe));
-	MP_ELEMENT_INIT(&pipe, mp_pipeline_init, 0);
-	zassert_ok(mp_bin_add((struct mp_bin *)&pipe, &src, NULL), "Failed to add element");
-	zassert_equal(mp_element_get_bus(&src), &((struct mp_bin *)&pipe)->bus,
-		      "An element in a bin shall get that bin's bus");
 }
