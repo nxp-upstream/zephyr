@@ -147,9 +147,6 @@ struct mp_element {
 	/** Base object */
 	struct mp_object object;
 
-	/** Factory that created this element */
-	struct mp_element_factory *factory;
-
 	/** List of source pads */
 	sys_dlist_t srcpads;
 	/** List of sink pads */
