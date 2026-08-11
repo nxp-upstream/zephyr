@@ -881,6 +881,7 @@ New Boards
   * :zephyr:board:`imx952_evk` (``imx952_evk``)
   * :zephyr:board:`lpc845brk` (``lpc845brk``)
   * :zephyr:board:`lpcxpresso54628` (``lpcxpresso54628``)
+  * :zephyr:board:`mimxrt2660_evk` (``mimxrt2660_evk``)
   * :zephyr:board:`mimxrt685_aud_evk` (``mimxrt685_aud_evk``)
   * :zephyr:board:`mr_navq95b` (``mr_navq95b``)
 
@@ -1168,6 +1169,12 @@ New Drivers
   * :dtcompatible:`nuvoton,m4-pll-clock` (:github:`103668`)
   * :dtcompatible:`nuvoton,numicro-m4-pcc` (:github:`103668`)
   * :dtcompatible:`nuvoton,numicro-m4-scc` (:github:`103668`)
+  * :dtcompatible:`nxp,imx-ccm-rev3` — NXP i.MX clock controller, revision 3.
+    Unlike :dtcompatible:`nxp,imx-ccm-rev2` it carries both the peripheral's
+    gate and its clock root in a single specifier, and takes its configurable
+    clock roots from :dtcompatible:`nxp,imx-ccm-rev3-root` child nodes rather
+    than from per-SoC C code, so it needs no per-peripheral mapping table and no
+    per-driver conditionals.
   * :dtcompatible:`nxp,imxrt118x-arm-pll` (:github:`106881`)
   * :dtcompatible:`nxp,imxrt11xx-arm-pll` (:github:`106881`)
   * :dtcompatible:`nxp,lpc84x-clock` (:github:`105928`)
