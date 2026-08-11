@@ -270,6 +270,7 @@ int mp_aud_i2s_codec_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	ret = i2s_write(aud_i2s_codec_sink->i2s_dev, in_buf->data, bytes_used);
 	if (ret < 0) {
 		LOG_DBG("Failed to write data: %d\n", ret);
+		net_buf_unref(in_buf);
 		*out_buf = NULL;
 		return -EIO;
 	}
@@ -281,6 +282,7 @@ int mp_aud_i2s_codec_sink_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 					  I2S_TRIGGER_START);
 			if (ret < 0) {
 				LOG_ERR("Failed to start I2S stream: %d", ret);
+				net_buf_unref(in_buf);
 				*out_buf = NULL;
 				return -EIO;
 			}

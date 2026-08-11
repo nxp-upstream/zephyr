@@ -40,6 +40,7 @@ static int mp_vid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	in_vbuf->type = VIDEO_BUF_TYPE_INPUT;
 	if (video_enqueue(vid_transform->vid_obj_in.vdev, in_vbuf) != 0) {
 		LOG_ERR("Failed to enqueue input buffer");
+		net_buf_unref(in_buf);
 		return -EIO;
 	}
 
@@ -49,6 +50,7 @@ static int mp_vid_transform_chainfn(struct mp_pad *pad, struct net_buf *in_buf,
 	ret = video_dequeue(vid_transform->vid_obj_in.vdev, &vbuf, K_FOREVER);
 	if (ret != 0) {
 		LOG_ERR("Failed to dequeue input buffer");
+		net_buf_unref(in_buf);
 		return -EIO;
 	}
 

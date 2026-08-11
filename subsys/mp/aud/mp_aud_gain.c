@@ -221,6 +221,9 @@ static int mp_aud_gain_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struc
 
 	if (in_buf == NULL || in_buf->data == NULL || bytes_used == 0U) {
 		LOG_ERR("Invalid buffer received");
+		if (in_buf != NULL) {
+			net_buf_unref(in_buf);
+		}
 		*out_buf = NULL;
 		return -EINVAL;
 	}

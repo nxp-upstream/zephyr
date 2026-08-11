@@ -179,10 +179,10 @@ static int mp_tee_chainfn(struct mp_pad *pad, struct net_buf *in_buf, struct net
 	*out_buf = NULL;
 
 	for (i = 0; i < tee->srcpads_num; i++) {
+		/* The push consumes the branch's reference, success or failure */
 		ret = mp_pipeline_push_buffer(&tee->srcpads[i], net_buf_ref(in_buf));
 		if (ret != 0) {
 			LOG_ERR("Tee pushes to srcpad[%u] failed (%d)", i, ret);
-			net_buf_unref(in_buf);
 			if (first_err == 0) {
 				first_err = ret;
 			}

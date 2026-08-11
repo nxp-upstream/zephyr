@@ -101,7 +101,10 @@ struct mp_pad {
 	/** Flushing gate. While set, buffers are dropped instead of chained */
 	atomic_t flushing;
 
-	/** Chain function for handling buffers */
+	/**
+	 * Chain function for handling buffers. Owns @p in_buf: on failure it
+	 * releases it, and the caller must not touch the buffer afterwards.
+	 */
 	int (*chainfn)(struct mp_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf);
 	/** Query function for handling queries */
 	int (*queryfn)(struct mp_pad *pad, struct mp_dispatch *query);
