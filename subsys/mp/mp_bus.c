@@ -6,6 +6,7 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/mp/mp_bus.h>
+#include <zephyr/mp/mp_message.h>
 
 /**
  * Run the sync handler for a posted message and decide its fate.
@@ -25,6 +26,22 @@ static enum mp_bus_sync_reply mp_bus_sync_handler(struct mp_bus *bus, struct mp_
 	}
 
 	return bus->sync_handler(bus, message, bus->sync_handler_user_data);
+}
+
+int mp_message_post(struct mp_message *message)
+{
+	struct mp_bus *bus;
+
+	if (message == NULL || message->origin == NULL || message->type == 0U) {
+		return -EINVAL;
+	}
+
+	bus = mp_element_get_bus(message->origin);
+	if (bus == NULL) {
+		return -ENODEV;
+	}
+
+	return mp_bus_post(bus, message);
 }
 
 int mp_bus_post(struct mp_bus *bus, struct mp_message *message)

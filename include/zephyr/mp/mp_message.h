@@ -45,17 +45,30 @@ struct mp_message {
 };
 
 /**
- * @brief Initialize a mp_message structure.
+ * @brief Post a message to the bus of the bin holding its origin.
  *
- * @param _msg    Pointer to the mp_message to initialize.
- * @param _origin Pointer to the source mp_element.
- * @param _type   Message type (see @ref mp_message_type).
+ * Locates the bus from the message's origin via @ref mp_element_get_bus and
+ * posts. The bus copies the message by value, so stack storage is fine. This
+ * is the way elements post; a poster that is not an element but holds a bus
+ * uses mp_bus_post() directly.
+ *
+ * @code{.c}
+ * struct mp_message msg = {
+ *	.origin = &sink->element,
+ *	.type = MP_MESSAGE_EOS,
+ * };
+ *
+ * (void)mp_message_post(&msg);
+ * @endcode
+ *
+ * @param message Message to post, with at least its origin and type set.
+ *
+ * @retval 0 on success
+ * @retval -EINVAL if @p message is NULL, its origin is NULL or its type is 0
+ * @retval -ENODEV if the origin has no bus
+ * @retval -ENOMSG if the bus queue is full
  */
-#define MP_MESSAGE_INIT(_msg, _origin, _type)                                                      \
-	{                                                                                          \
-		(_msg)->origin = (_origin);                                                        \
-		(_msg)->type = (_type);                                                            \
-	}
+int mp_message_post(struct mp_message *message);
 
 /** @} */
 

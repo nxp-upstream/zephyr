@@ -73,11 +73,10 @@ static enum mp_bus_sync_reply test_pass_handler(struct mp_bus *bus, struct mp_me
 ZTEST_F(mp_bus_api, test_post_peek_pop)
 {
 	struct mp_element *src = &fixture->elem;
-	struct mp_message msg;
+	struct mp_message msg = {.origin = src, .type = MP_MESSAGE_EOS};
 	struct mp_message peeked;
 	struct mp_message popped;
 
-	MP_MESSAGE_INIT(&msg, src, MP_MESSAGE_EOS);
 	zassert_ok(mp_bus_post(&fixture->bus, &msg), "mp_bus_post failed");
 
 	zassert_ok(mp_bus_peek(&fixture->bus, &peeked), "mp_bus_peek failed");
@@ -94,13 +93,10 @@ ZTEST_F(mp_bus_api, test_post_peek_pop)
 ZTEST_F(mp_bus_api, test_post_multiple_fifo_order)
 {
 	struct mp_element *src = &fixture->elem;
-	struct mp_message msg1;
-	struct mp_message msg2;
+	struct mp_message msg1 = {.origin = src, .type = MP_MESSAGE_EOS};
+	struct mp_message msg2 = {.type = MP_MESSAGE_ERROR};
 	struct mp_message first;
 	struct mp_message second;
-
-	MP_MESSAGE_INIT(&msg1, src, MP_MESSAGE_EOS);
-	MP_MESSAGE_INIT(&msg2, NULL, MP_MESSAGE_ERROR);
 
 	mp_bus_post(&fixture->bus, &msg1);
 	mp_bus_post(&fixture->bus, &msg2);
@@ -116,10 +112,8 @@ ZTEST_F(mp_bus_api, test_post_multiple_fifo_order)
 
 ZTEST_F(mp_bus_api, test_sanity)
 {
-	struct mp_message msg;
+	struct mp_message msg = {.type = MP_MESSAGE_EOS};
 	struct mp_message out;
-
-	MP_MESSAGE_INIT(&msg, NULL, MP_MESSAGE_EOS);
 
 	zassert_true(mp_bus_post(NULL, &msg) < 0, "post to NULL bus did not fail");
 	zassert_true(mp_bus_post(&fixture->bus, NULL) < 0, "post NULL msg did not fail");
@@ -132,12 +126,9 @@ ZTEST_F(mp_bus_api, test_sanity)
 ZTEST_F(mp_bus_api, test_pop_msg_filters_by_type)
 {
 	struct mp_element *src = &fixture->elem;
-	struct mp_message eos;
-	struct mp_message err;
+	struct mp_message eos = {.origin = src, .type = MP_MESSAGE_EOS};
+	struct mp_message err = {.origin = src, .type = MP_MESSAGE_ERROR};
 	struct mp_message found;
-
-	MP_MESSAGE_INIT(&eos, src, MP_MESSAGE_EOS);
-	MP_MESSAGE_INIT(&err, src, MP_MESSAGE_ERROR);
 
 	mp_bus_post(&fixture->bus, &eos);
 	mp_bus_post(&fixture->bus, &err);
@@ -149,12 +140,9 @@ ZTEST_F(mp_bus_api, test_pop_msg_filters_by_type)
 
 ZTEST_F(mp_bus_api, test_flush_clears_all)
 {
-	struct mp_message msg1;
-	struct mp_message msg2;
+	struct mp_message msg1 = {.type = MP_MESSAGE_EOS};
+	struct mp_message msg2 = {.type = MP_MESSAGE_ERROR};
 	struct mp_message out;
-
-	MP_MESSAGE_INIT(&msg1, NULL, MP_MESSAGE_EOS);
-	MP_MESSAGE_INIT(&msg2, NULL, MP_MESSAGE_ERROR);
 
 	mp_bus_post(&fixture->bus, &msg1);
 	mp_bus_post(&fixture->bus, &msg2);
@@ -167,7 +155,7 @@ ZTEST_F(mp_bus_api, test_flush_clears_all)
 ZTEST_F(mp_bus_api, test_sync_handler_pass_enqueues)
 {
 	struct mp_element *src = &fixture->elem;
-	struct mp_message msg;
+	struct mp_message msg = {.origin = src, .type = MP_MESSAGE_EOS};
 	struct mp_message out;
 
 	handler_call_count = 0;
@@ -177,7 +165,6 @@ ZTEST_F(mp_bus_api, test_sync_handler_pass_enqueues)
 	zassert_ok(mp_bus_set_sync_handler(&fixture->bus, test_pass_handler, NULL),
 		   "installing sync handler failed");
 
-	MP_MESSAGE_INIT(&msg, src, MP_MESSAGE_EOS);
 	mp_bus_post(&fixture->bus, &msg);
 
 	/* Handler ran once and saw the message. */
@@ -193,7 +180,7 @@ ZTEST_F(mp_bus_api, test_sync_handler_pass_enqueues)
 ZTEST_F(mp_bus_api, test_sync_handler_drop_discards)
 {
 	struct mp_element *src = &fixture->elem;
-	struct mp_message msg;
+	struct mp_message msg = {.origin = src, .type = MP_MESSAGE_EOS};
 	struct mp_message out;
 
 	handler_call_count = 0;
@@ -201,7 +188,6 @@ ZTEST_F(mp_bus_api, test_sync_handler_drop_discards)
 	zassert_ok(mp_bus_set_sync_handler(&fixture->bus, test_drop_handler, NULL),
 		   "installing sync handler failed");
 
-	MP_MESSAGE_INIT(&msg, src, MP_MESSAGE_EOS);
 	zassert_ok(mp_bus_post(&fixture->bus, &msg), "post with dropping handler failed");
 
 	/* Handler ran, but MP_BUS_DROP means nothing is enqueued. */
@@ -212,7 +198,7 @@ ZTEST_F(mp_bus_api, test_sync_handler_drop_discards)
 ZTEST_F(mp_bus_api, test_sync_handler_clear)
 {
 	struct mp_element *src = &fixture->elem;
-	struct mp_message msg;
+	struct mp_message msg = {.origin = src, .type = MP_MESSAGE_EOS};
 	struct mp_message out;
 
 	handler_call_count = 0;
@@ -223,7 +209,6 @@ ZTEST_F(mp_bus_api, test_sync_handler_clear)
 	zassert_ok(mp_bus_set_sync_handler(&fixture->bus, test_drop_handler, NULL));
 	zassert_ok(mp_bus_set_sync_handler(&fixture->bus, NULL, NULL), "clearing handler failed");
 
-	MP_MESSAGE_INIT(&msg, src, MP_MESSAGE_EOS);
 	mp_bus_post(&fixture->bus, &msg);
 
 	zassert_equal(handler_call_count, 0, "cleared handler was still called");

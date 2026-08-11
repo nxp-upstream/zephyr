@@ -50,14 +50,20 @@ int mp_sink_event(struct mp_pad *pad, struct mp_dispatch *event)
 	struct mp_sink *sink = (struct mp_sink *)pad->object.container;
 
 	switch (event->type) {
-	case MP_DISPATCH_EOS:
+	case MP_DISPATCH_EOS: {
+		struct mp_message msg = {
+			.origin = &sink->element,
+			.type = MP_MESSAGE_EOS,
+		};
+
 		/*
 		 * EOS event reached the end of the pipeline, post an EOS message to the bus so that
 		 * applications know that this sink has finished processing all upstream data.
 		 */
-		mp_element_post_message(&sink->element, MP_MESSAGE_EOS);
+		(void)mp_message_post(&msg);
 
 		return 0;
+	}
 	case MP_DISPATCH_CAPS:
 		return sink->set_caps(sink, mp_dispatch_get_caps(event));
 	default:

@@ -280,24 +280,6 @@ enum mp_state_change_return mp_element_set_state(struct mp_element *element, enu
  */
 struct mp_bus *mp_element_get_bus(struct mp_element *self);
 
-/**
- * @brief Post a message on behalf of an element.
- *
- * Convenience wrapper for elements to notify the application: it builds a
- * message stamped with @p element as its origin, locates the element's bus via
- * @ref mp_element_get_bus, and posts it. This is the preferred way for elements
- * to post, instead of calling mp_bus_post() directly.
- *
- * @param element Pointer to the originating @ref mp_element.
- * @param type    Message type (see @ref mp_message_type).
- *
- * @retval 0 on success
- * @retval -EINVAL if @p element is NULL
- * @retval -ENODEV if the element has no bus
- * @retval -ENOMSG if the bus queue is full
- */
-int mp_element_post_message(struct mp_element *element, uint32_t type);
-
 /** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_MP_ELEMENT_H_ */

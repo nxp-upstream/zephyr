@@ -32,10 +32,10 @@
  *
  * @section mp_bus_producers Producers: elements only
  *
- * Only elements post to the bus, and they should do so through the
- * mp_element_post_message() helper rather than calling mp_bus_post() directly.
- * The helper stamps the originating element and locates the bus. The low-level
- * mp_bus_post() remains available for the framework internals and tests.
+ * Only elements post to the bus, through mp_message_post(): the message names
+ * its origin element, and the helper locates the bus from it. The generic
+ * layer underneath is mp_bus_post(), for a poster that is not an element but
+ * already holds the bus: the framework internals and the tests post that way.
  *
  * The application must NOT post to the bus it also consumes. Doing so runs the
  * sync handler inline in the application's own thread and turns the app into
@@ -164,7 +164,7 @@ static inline void mp_bus_init(struct mp_bus *bus)
  *
  * Runs the sync handler (if any) inline in the caller's thread, then enqueues
  * the message unless the handler returned MP_BUS_DROP. Elements should prefer
- * mp_element_post_message(), which stamps the origin and finds the bus.
+ * mp_message_post(), which finds the bus from the message's origin.
  *
  * @param bus Pointer to the bus.
  * @param message Pointer to the message to post.
