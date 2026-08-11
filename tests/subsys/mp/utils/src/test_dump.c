@@ -10,8 +10,6 @@
 
 #include <zephyr/mp/mp.h>
 #include <zephyr/mp/mp_fake_src.h>
-#include <zephyr/mp/mp_sink.h>
-#include <zephyr/mp/mp_transform.h>
 #include <zephyr/mp/utils/mp_dump.h>
 
 /* Element IDs (values are arbitrary; only uniqueness within the pipeline matters) */
