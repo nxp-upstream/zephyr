@@ -101,7 +101,8 @@ static void mp_player_set_state(struct mp_player *player, enum mp_state target,
 		enum mp_state from = pipe->current_state;
 		enum mp_state next = MP_STATE_GET_NEXT(from, target);
 
-		if (mp_element_set_state(pipe, next) == MP_STATE_CHANGE_FAILURE) {
+		/* Anything but SUCCESS leaves current_state in place: looping on would spin */
+		if (mp_element_set_state(pipe, next) != MP_STATE_CHANGE_SUCCESS) {
 			LOG_ERR("Failed to set pipeline to %s", mp_player_state_str(new_state));
 			mp_player_dump_transition(player, from, next, false);
 			return;
