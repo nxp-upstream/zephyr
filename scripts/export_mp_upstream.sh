@@ -121,6 +121,7 @@ CORE_PATHS=(
     "subsys/CMakeLists.txt"
     "lib/Kconfig"
     "lib/CMakeLists.txt"
+    "MAINTAINERS.yml"
 )
 
 # vid plugin
@@ -165,6 +166,7 @@ BASE_PATHS=(
 UTILS_PATHS=(
     "subsys/mp/utils/"
     "include/zephyr/mp/utils/"
+    "tests/subsys/mp/utils/"
 )
 
 
@@ -195,7 +197,8 @@ SAMPLE_DMIC_I2S_PATHS=(
 
 # Core tests: unit tests and pipeline tests for libmp core
 CORE_TEST_PATHS=(
-    "tests/subsys/mp/core/"
+    "tests/subsys/mp/unit/"
+    "tests/subsys/mp/pipeline/"
     "tests/subsys/mp/build_all/"
 )
 
@@ -307,13 +310,21 @@ ${SOB_PHIBANG}"
 
 UTILS_COMMIT_MSG="mp: Add utils
 
-Add the utils helper. These are optional, reusable utilities built on
+Add the utils helpers. These are optional, reusable utilities built on
 top of the subsys to simplify application development.
 
-The utils currently includes mp_player, a small pipeline controller
-that drives a pipeline through its states and exposes simple
-play/pause/stop/replay/quit controls (usable from a shell). More
-utilities may be added in the future.
+The utils currently includes:
+- mp_player, a small pipeline controller that drives a pipeline
+  through its states and exposes simple play/pause/stop/replay/quit
+  controls (usable from a shell).
+- mp_dump, which renders a pipeline topology, element states and the
+  negotiated caps on each link as a Graphviz graph, on demand from the
+  shell or automatically on every state change and error through the
+  player.
+
+Tests for the dump rendering are included.
+
+Assisted-by: Claude:claude-opus-5
 
 ${SOB_PHIBANG}"
 
@@ -1105,6 +1116,13 @@ export_core_tests() {
     if [ -f "${BUILD_ALL_TESTCASE}" ]; then
         log_info "  Reducing ${BUILD_ALL_TESTCASE} to '${TARGET_BUILD_TEST[core]}' only"
         write_build_test_file "${TARGET_BUILD_TEST[core]}"
+    fi
+
+    # The core build must exercise CONFIG_MP_DUMP (a core option gating the
+    # element name); guarantee it in the shared prj.conf, idempotently.
+    if [ -f "tests/subsys/mp/build_all/prj.conf" ]; then
+        grep -q '^CONFIG_MP_DUMP=y$' tests/subsys/mp/build_all/prj.conf ||
+            echo 'CONFIG_MP_DUMP=y' >> tests/subsys/mp/build_all/prj.conf
     fi
 
     git add -A
