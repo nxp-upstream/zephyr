@@ -4170,6 +4170,21 @@ Modem:
     - modem
     - sample.net.cellular_modem
 
+MultimediaPipe:
+  status: maintained
+  maintainers:
+    - ngphibang
+  files:
+    - include/zephyr/mp/
+    - subsys/mp/
+    - samples/subsys/mp/
+    - tests/subsys/mp/
+  labels:
+    - "area: MultimediaPipe"
+  tests:
+    - mp
+    - sample.mp
+
 NEORV32 platform:
   status: maintained
   maintainers:
