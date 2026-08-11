@@ -272,15 +272,20 @@ static void mp_player_worker(void *p1, void *p2, void *p3)
 		 * subsequent play/replay starts cleanly.
 		 */
 		if (events[1].state == K_POLL_STATE_MSGQ_DATA_AVAILABLE) {
-			while (mp_bus_pop_msg(player->bus, MP_MESSAGE_EOS | MP_MESSAGE_ERROR,
-					      &msg) == 0) {
-				if (msg.type == MP_MESSAGE_ERROR) {
+			while (mp_bus_pop_msg(player->bus, MP_MESSAGE_ANY, &msg) == 0) {
+				switch (msg.type) {
+				case MP_MESSAGE_ERROR:
 					mp_player_report_error(player, &msg);
-				} else {
+					mp_player_do_stop(player);
+					break;
+				case MP_MESSAGE_EOS:
 					LOG_INF("End of stream");
+					mp_player_do_stop(player);
+					break;
+				default:
+					break;
 				}
 
-				mp_player_do_stop(player);
 				if (k_msgq_num_used_get(&player->bus->msgq) == 0) {
 					break;
 				}
