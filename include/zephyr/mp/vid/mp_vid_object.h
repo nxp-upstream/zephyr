@@ -29,6 +29,7 @@
 
 #include <zephyr/mp/mp_structure.h>
 #include <zephyr/mp/vid/mp_vid_buffer_pool.h>
+#include <zephyr/mp/vid/mp_vid_property.h>
 
 struct mp_dispatch;
 

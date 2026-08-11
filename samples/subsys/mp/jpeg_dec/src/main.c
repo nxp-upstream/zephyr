@@ -26,7 +26,6 @@
 #endif
 #if DT_HAS_CHOSEN(zephyr_jpegdec)
 #include <zephyr/mp/vid/mp_vid_convert.h>
-#include <zephyr/mp/vid/mp_vid_property.h>
 #endif
 
 LOG_MODULE_REGISTER(main, CONFIG_LOG_DEFAULT_LEVEL);

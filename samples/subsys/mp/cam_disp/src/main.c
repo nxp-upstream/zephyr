@@ -11,16 +11,12 @@
 #include <zephyr/mp/base/mp_capsfilter.h>
 #include <zephyr/mp/disp/mp_disp_sink.h>
 #include <zephyr/mp/vid/mp_vid_src.h>
-#include <zephyr/mp/vid/mp_vid_property.h>
 #include <zephyr/mp/utils/mp_player.h>
 #if DT_HAS_CHOSEN(zephyr_jpegdec) || DT_HAS_CHOSEN(zephyr_videotrans)
 #include <zephyr/mp/vid/mp_vid_transform.h>
 #endif
 #if DT_HAS_CHOSEN(zephyr_jpegdec)
 #include <zephyr/mp/vid/mp_vid_convert.h>
-#endif
-#if defined(CONFIG_MP_BASE_CAPSFILTER)
-#include <zephyr/mp/base/mp_capsfilter.h>
 #endif
 #include <zephyr/sys/util_macro.h>
 
