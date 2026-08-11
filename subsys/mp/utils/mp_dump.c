@@ -22,8 +22,12 @@
 #include <zephyr/mp/mp_value.h>
 #include <zephyr/mp/utils/mp_dump.h>
 
-/** Longest line held before it is written out; a longer line is split */
-#define DUMP_LINE_MAX 192
+/**
+ * Longest line held before it is written out; a longer line is split, and a
+ * mid-line split lets an active shell inject its prompt into the graph, so
+ * this fits a node line whose ports carry caps.
+ */
+#define DUMP_LINE_MAX 256
 
 /**
  * A sink with one line of output held in front of it. Writing fragment by
@@ -214,11 +218,27 @@ static void dump_value(struct mp_dump_writer *w, uint8_t field_id, const struct 
 	}
 }
 
-/* Render a capability inline: it joins the caller's line, not one of its own */
-static void dump_caps(struct mp_dump_writer *w, const struct mp_structure *caps)
+/* The media name and field list, without the framing the context chooses */
+static void dump_caps_fields(struct mp_dump_writer *w, const struct mp_structure *caps)
 {
 	uint8_t num_fields;
 
+	dump_print(w, "%s", dump_name(dump_media_names, ARRAY_SIZE(dump_media_names),
+				      caps->media_type_id));
+
+	/* Nothing locks the pad against a negotiation running underneath us */
+	num_fields = MIN(caps->num_fields, (uint8_t)CONFIG_MP_STRUCTURE_MAX_FIELDS);
+
+	for (uint8_t i = 0; i < num_fields; i++) {
+		dump_print(w, ", %s=", dump_name(dump_field_names, ARRAY_SIZE(dump_field_names),
+						 caps->ids[i]));
+		dump_value(w, caps->ids[i], &caps->values[i]);
+	}
+}
+
+/* Render a capability inline: it joins the caller's line, not one of its own */
+static void dump_caps(struct mp_dump_writer *w, const struct mp_structure *caps)
+{
 	/* Both constrain nothing, but ANY intersects with anything, empty with nothing */
 	if (mp_structure_is_any(caps)) {
 		dump_print(w, "<any>");
@@ -230,18 +250,8 @@ static void dump_caps(struct mp_dump_writer *w, const struct mp_structure *caps)
 		return;
 	}
 
-	dump_print(w, "<%s", dump_name(dump_media_names, ARRAY_SIZE(dump_media_names),
-				       caps->media_type_id));
-
-	/* Nothing locks the pad against a negotiation running underneath us */
-	num_fields = MIN(caps->num_fields, (uint8_t)CONFIG_MP_STRUCTURE_MAX_FIELDS);
-
-	for (uint8_t i = 0; i < num_fields; i++) {
-		dump_print(w, ", %s=", dump_name(dump_field_names, ARRAY_SIZE(dump_field_names),
-						 caps->ids[i]));
-		dump_value(w, caps->ids[i], &caps->values[i]);
-	}
-
+	dump_print(w, "<");
+	dump_caps_fields(w, caps);
 	dump_print(w, ">");
 }
 
@@ -332,8 +342,25 @@ static void dump_dot_ports(struct mp_dump_ctx *ctx, sys_dlist_t *pads, const cha
 
 	/* The port name is an identifier an edge refers to, the text is the label */
 	SYS_DLIST_FOR_EACH_CONTAINER(pads, obj, node) {
+		struct mp_pad *pad = (struct mp_pad *)obj;
+
 		dump_print(&ctx->writer, "%s<%s%u> %s #%u", first ? "" : "|", side, obj->id, side,
 			   obj->id);
+
+		/*
+		 * A linked pad's caps ride its edge; an unlinked pad has no edge, so
+		 * its caps show here - in parentheses, a record label reserves <>.
+		 */
+		if (pad->peer == NULL && !mp_structure_is_any(&pad->caps)) {
+			if (mp_structure_is_empty(&pad->caps)) {
+				dump_print(&ctx->writer, "\\n(empty)");
+			} else {
+				dump_print(&ctx->writer, "\\n(");
+				dump_caps_fields(&ctx->writer, &pad->caps);
+				dump_print(&ctx->writer, ")");
+			}
+		}
+
 		first = false;
 	}
 
