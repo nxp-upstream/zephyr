@@ -266,6 +266,9 @@ static void mp_pipeline_thread_func(void *p1, void *p2, void *p3)
 		count++;
 		if (mp_pipeline_push_buffer(&src->srcpad, buffer) != 0) {
 			LOG_ERR("Failed to push buffer downstream");
+			/* Fatal to the stream: stop producing so one error, not a flood */
+			count = 0;
+			mp_thread_pause(&pipeline->thread);
 		}
 	}
 
