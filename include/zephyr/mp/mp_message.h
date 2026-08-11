@@ -125,15 +125,6 @@ struct mp_message {
  */
 int mp_message_post(struct mp_message *message);
 
-/**
- * @brief Name the domain a failure happened in.
- *
- * @param domain Domain to name, see @ref mp_error_domain.
- *
- * @return A short human-readable phrase, never NULL.
- */
-const char *mp_message_domain_str(uint8_t domain);
-
 /** @} */
 
 #endif /* ZEPHYR_INCLUDE_MP_MP_MESSAGE_H_ */

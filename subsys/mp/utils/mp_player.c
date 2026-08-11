@@ -40,6 +40,29 @@ static struct mp_player *active_player;
 
 static K_THREAD_STACK_DEFINE(mp_player_worker_stack, CONFIG_MP_PLAYER_WORKER_STACK_SIZE);
 
+/* clang-format off */
+static const char *const mp_player_domain_names[] = {
+	[MP_ERROR_CAPS] = "capability negotiation",
+	[MP_ERROR_ALLOC] = "buffer negotiation",
+	[MP_ERROR_FLOW] = "buffer flow",
+	[MP_ERROR_RESOURCE] = "resource",
+	[MP_ERROR_FAILED] = "failure",
+};
+/* clang-format on */
+BUILD_ASSERT(ARRAY_SIZE(mp_player_domain_names) == MP_ERROR_DOMAIN_END,
+	     "An error domain has no name in mp_player_domain_names");
+
+/* A NULL entry is a mid-enum hole the size assertion cannot see */
+static const char *mp_player_domain_str(uint8_t domain)
+{
+	if (domain >= ARRAY_SIZE(mp_player_domain_names) ||
+	    mp_player_domain_names[domain] == NULL) {
+		return "?";
+	}
+
+	return mp_player_domain_names[domain];
+}
+
 static const char *mp_player_state_str(enum mp_player_state state)
 {
 	switch (state) {
@@ -161,7 +184,7 @@ static void mp_player_report_error(struct mp_player *player, const struct mp_mes
 {
 	LOG_ERR("Pipeline error: element #%u in %s (%d)",
 		msg->origin != NULL ? msg->origin->object.id : UINT8_MAX,
-		mp_message_domain_str(msg->domain), msg->code);
+		mp_player_domain_str(msg->domain), msg->code);
 
 	/*
 	 * Only worth a graph when the error arrived while streaming: nothing is
