@@ -306,14 +306,17 @@ int mpipe_aud_i2s_codec_sink_chain_fn(struct mpipe_pad *pad, struct net_buf *in_
 	return 0;
 }
 
-void mpipe_aud_i2s_codec_sink_init(struct mpipe_element *self)
+int mpipe_aud_i2s_codec_sink_init(struct mpipe_aud_i2s_codec_sink *aud_i2s_codec_sink, uint8_t id)
 {
-	struct mpipe_aud_i2s_codec_sink *aud_i2s_codec_sink =
-		(struct mpipe_aud_i2s_codec_sink *)self;
+	struct mpipe_element *self = &aud_i2s_codec_sink->sink.element;
 	struct mpipe_sink *sink = &aud_i2s_codec_sink->sink;
+	int ret = mpipe_sink_init(sink, id);
 
-	/* Init base class */
-	mpipe_sink_init(self);
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "aud_i2s_codec_sink");
 
 	aud_i2s_codec_sink->i2s_dev = DEVICE_DT_GET_OR_NULL(DT_ALIAS(i2s_codec_tx));
 	aud_i2s_codec_sink->codec_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(audio_codec));
@@ -332,4 +335,5 @@ void mpipe_aud_i2s_codec_sink_init(struct mpipe_element *self)
 	aud_i2s_codec_sink->started = false;
 	aud_i2s_codec_sink->count = 0;
 	aud_i2s_codec_sink->mem_slab = NULL;
+	return 0;
 }

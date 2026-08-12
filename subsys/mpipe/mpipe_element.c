@@ -188,7 +188,7 @@ struct mpipe_bus *mpipe_element_get_bus(struct mpipe_element *element)
 	return &((struct mpipe_bin *)bin)->bus;
 }
 
-void mpipe_element_init(struct mpipe_element *self, uint8_t id)
+int mpipe_element_init(struct mpipe_element *self, uint8_t id)
 {
 	mpipe_object_init(&self->object);
 	self->object.id = id;
@@ -202,4 +202,6 @@ void mpipe_element_init(struct mpipe_element *self, uint8_t id)
 	self->set_state = mpipe_element_set_state_func;
 	self->change_state = mpipe_element_change_state_func;
 	self->event_fn = NULL;
+
+	return 0;
 }

@@ -145,16 +145,21 @@ static int mpipe_aud_dmic_src_start(struct mpipe_buffer_pool *pool)
 	}
 
 	LOG_INF("Capture started now");
+
 	return 0;
 }
 
-void mpipe_aud_dmic_src_init(struct mpipe_element *self)
+int mpipe_aud_dmic_src_init(struct mpipe_aud_dmic_src *aud_dmic_src, uint8_t id)
 {
-	struct mpipe_src *src = (struct mpipe_src *)self;
-	struct mpipe_aud_dmic_src *aud_dmic_src = (struct mpipe_aud_dmic_src *)src;
+	struct mpipe_element *self = &aud_dmic_src->aud_src.src.element;
+	struct mpipe_src *src = &aud_dmic_src->aud_src.src;
+	int ret = mpipe_aud_src_init(&aud_dmic_src->aud_src, id);
 
-	/* Init base class */
-	mpipe_aud_src_init(&aud_dmic_src->aud_src.src.element);
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "aud_dmic_src");
 
 	/* Initialize buffer pool */
 	src->pool = &(aud_dmic_src->pool.pool);
@@ -169,4 +174,6 @@ void mpipe_aud_dmic_src_init(struct mpipe_element *self)
 	src->pool->start = mpipe_aud_dmic_src_start;
 
 	mpipe_aud_src_update_caps(src);
+
+	return 0;
 }

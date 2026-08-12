@@ -22,6 +22,7 @@ static int convert_nv12_to_rgb565(struct mpipe_vid_convert *conv, const struct n
 
 	conv->impl.nv12_to_rgb565(conv->width, conv->height, y_plane, uv_plane,
 				  (uint16_t *)out->data);
+
 	return 0;
 }
 
@@ -40,6 +41,7 @@ static int convert_xrgb_to_argb(struct mpipe_vid_convert *conv, const struct net
 		src += 4;
 		dst += 4;
 	}
+
 	return 0;
 }
 
@@ -58,6 +60,7 @@ static int convert_argb_to_xrgb(struct mpipe_vid_convert *conv, const struct net
 		src += 4;
 		dst += 4;
 	}
+
 	return 0;
 }
 

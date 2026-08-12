@@ -196,9 +196,16 @@ enum mpipe_state_change_return mpipe_parser_change_state(struct mpipe_element *s
 	return MPIPE_STATE_CHANGE_SUCCESS;
 }
 
-void mpipe_parser_init(struct mpipe_element *self)
+int mpipe_parser_init(struct mpipe_parser *parser, uint8_t id)
 {
-	struct mpipe_parser *parser = (struct mpipe_parser *)self;
+	struct mpipe_element *self = &parser->element;
+	int ret = mpipe_element_init(self, id);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "parser");
 
 	mpipe_pad_init(&parser->sink_pad, MPIPE_PAD_SINK_ID, MPIPE_PAD_SINK, MPIPE_PAD_ALWAYS);
 	mpipe_element_add_pad(self, &parser->sink_pad);
@@ -215,4 +222,6 @@ void mpipe_parser_init(struct mpipe_element *self)
 	parser->sink_pad.event_fn = mpipe_parser_event;
 	parser->decide_allocation = NULL;
 	parser->propose_allocation = NULL;
+
+	return 0;
 }

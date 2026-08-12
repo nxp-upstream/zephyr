@@ -63,7 +63,7 @@ struct mpipe {
  *
  * @param self Pointer to the @ref mpipe_element to initialize as a pipeline
  */
-void mpipe_pipeline_init(struct mpipe_element *self);
+int mpipe_pipeline_init(struct mpipe *pipe, uint8_t id);
 
 /**
  * @brief Push a buffer downstream starting from a given source pad

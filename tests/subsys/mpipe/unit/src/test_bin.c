@@ -32,9 +32,9 @@ static void bin_before(void *f)
 	struct mpipe_bin_api_fixture *fix = f;
 
 	memset(fix, 0, sizeof(*fix));
-	MPIPE_ELEMENT_INIT((struct mpipe_element *)&fix->bin, mpipe_bin_init, 0);
-	MPIPE_ELEMENT_INIT((struct mpipe_element *)&fix->src, mpipe_src_init, 1);
-	MPIPE_ELEMENT_INIT((struct mpipe_element *)&fix->sink, mpipe_sink_init, 2);
+	zassert_ok(mpipe_bin_init(&fix->bin, 0));
+	zassert_ok(mpipe_src_init(&fix->src, 1));
+	zassert_ok(mpipe_sink_init(&fix->sink, 2));
 
 	zassert_equal(fix->bin.children_num, 0, "children_num != 0 after init");
 	zassert_true(sys_dlist_is_empty(&fix->bin.children), "children list not empty after init");
@@ -70,7 +70,7 @@ ZTEST_F(mpipe_bin_api, test_add_elements)
 	struct mpipe_src dup_src;
 
 	memset(&dup_src, 0, sizeof(dup_src));
-	MPIPE_ELEMENT_INIT((struct mpipe_element *)&dup_src, mpipe_src_init, 1);
+	zassert_ok(mpipe_src_init(&dup_src, 1));
 
 	zassert_true(mpipe_bin_add(&fixture->bin, (struct mpipe_element *)&dup_src, NULL) < 0,
 		     "duplicate id add did not fail");

@@ -136,7 +136,7 @@ struct mpipe_transform {
  *
  * @param self Pointer to the element to initialize (@ref mpipe_element)
  */
-void mpipe_transform_init(struct mpipe_element *self);
+int mpipe_transform_init(struct mpipe_transform *transform, uint8_t id);
 
 /**
  * @brief Set capabilities on a transform element's pad.

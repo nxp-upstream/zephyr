@@ -109,12 +109,17 @@ mpipe_caps_filter_change_state(struct mpipe_element *self, enum mpipe_state_chan
 	return mpipe_transform_change_state(self, transition);
 }
 
-void mpipe_caps_filter_init(struct mpipe_element *self)
+int mpipe_caps_filter_init(struct mpipe_caps_filter *caps_filter, uint8_t id)
 {
-	struct mpipe_transform *transform = (struct mpipe_transform *)self;
+	struct mpipe_element *self = &caps_filter->transform.element;
+	struct mpipe_transform *transform = &caps_filter->transform;
+	int ret = mpipe_transform_init(transform, id);
 
-	/* Init base class */
-	mpipe_transform_init(self);
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "caps_filter");
 
 	self->object.set_property = mpipe_caps_filter_set_property;
 	self->object.get_property = mpipe_caps_filter_get_property;
@@ -122,4 +127,6 @@ void mpipe_caps_filter_init(struct mpipe_element *self)
 
 	transform->mode = MPIPE_MODE_PASSTHROUGH;
 	transform->set_caps = mpipe_caps_filter_set_caps;
+
+	return 0;
 }

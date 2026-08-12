@@ -72,7 +72,7 @@ struct mpipe_queue {
  *
  * @param self Pointer to the @ref mpipe_element to initialize as a queue
  */
-void mpipe_queue_init(struct mpipe_element *self);
+int mpipe_queue_init(struct mpipe_queue *queue, uint8_t id);
 
 /** @} */
 

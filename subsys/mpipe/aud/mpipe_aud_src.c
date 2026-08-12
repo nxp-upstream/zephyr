@@ -130,12 +130,16 @@ static int mpipe_aud_src_decide_allocation(struct mpipe_src *src, struct mpipe_d
 	return 0;
 }
 
-void mpipe_aud_src_init(struct mpipe_element *self)
+int mpipe_aud_src_init(struct mpipe_aud_src *aud_src, uint8_t id)
 {
-	struct mpipe_aud_src *aud_src = (struct mpipe_aud_src *)self;
+	struct mpipe_element *self = &aud_src->src.element;
+	int ret = mpipe_src_init(&aud_src->src, id);
 
-	/* Init base class */
-	mpipe_src_init(&aud_src->src.element);
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "aud_src");
 
 	self->object.get_property = mpipe_aud_src_get_property;
 	self->object.set_property = mpipe_aud_src_set_property;
@@ -143,4 +147,6 @@ void mpipe_aud_src_init(struct mpipe_element *self)
 	aud_src->src.decide_allocation = mpipe_aud_src_decide_allocation;
 
 	aud_src->get_audio_caps = NULL;
+
+	return 0;
 }

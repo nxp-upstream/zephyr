@@ -61,7 +61,7 @@ void mpipe_aud_src_update_caps(struct mpipe_src *src);
  * @param self Pointer to the mpipe_element structure to be initialized as an
  *             audio source element.
  */
-void mpipe_aud_src_init(struct mpipe_element *self);
+int mpipe_aud_src_init(struct mpipe_aud_src *aud_src, uint8_t id);
 
 /** @} */
 

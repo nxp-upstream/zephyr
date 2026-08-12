@@ -97,9 +97,16 @@ enum mpipe_state_change_return mpipe_sink_change_state(struct mpipe_element *sel
 	return MPIPE_STATE_CHANGE_SUCCESS;
 }
 
-void mpipe_sink_init(struct mpipe_element *self)
+int mpipe_sink_init(struct mpipe_sink *sink, uint8_t id)
 {
-	struct mpipe_sink *sink = (struct mpipe_sink *)self;
+	struct mpipe_element *self = &sink->element;
+	int ret = mpipe_element_init(self, id);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "sink");
 
 	mpipe_pad_init(&sink->sink_pad, MPIPE_PAD_SINK_ID, MPIPE_PAD_SINK, MPIPE_PAD_ALWAYS);
 	mpipe_element_add_pad(self, &sink->sink_pad);
@@ -111,4 +118,6 @@ void mpipe_sink_init(struct mpipe_element *self)
 	sink->sink_pad.chain_fn = mpipe_sink_chain_fn;
 	sink->set_caps = mpipe_sink_set_caps;
 	sink->propose_allocation = NULL;
+
+	return 0;
 }

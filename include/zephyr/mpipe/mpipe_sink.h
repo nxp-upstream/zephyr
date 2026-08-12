@@ -74,7 +74,7 @@ struct mpipe_sink {
  *
  * @param self Pointer to the @ref mpipe_element to initialize as a sink
  */
-void mpipe_sink_init(struct mpipe_element *self);
+int mpipe_sink_init(struct mpipe_sink *sink, uint8_t id);
 
 /**
  * @brief Change state function for the base sink element

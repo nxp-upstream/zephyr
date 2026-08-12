@@ -364,12 +364,17 @@ static int mpipe_img_jpeg_decoder_decide_allocation(struct mpipe_transform *self
 	return 0;
 }
 
-void mpipe_img_jpeg_decoder_init(struct mpipe_element *self)
+int mpipe_img_jpeg_decoder_init(struct mpipe_img_jpeg_decoder *dec, uint8_t id)
 {
-	struct mpipe_transform *transform = (struct mpipe_transform *)self;
-	struct mpipe_img_jpeg_decoder *dec = (struct mpipe_img_jpeg_decoder *)transform;
+	struct mpipe_element *self = &dec->transform.element;
+	struct mpipe_transform *transform = &dec->transform;
+	int ret = mpipe_transform_init(transform, id);
 
-	mpipe_transform_init(self);
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "img_jpeg_decoder");
 
 	dec->out_pixfmt = VIDEO_PIX_FMT_RGB565;
 
@@ -385,4 +390,6 @@ void mpipe_img_jpeg_decoder_init(struct mpipe_element *self)
 	transform->transform_caps = mpipe_img_jpeg_decoder_transform_caps;
 	transform->sink_pad.chain_fn = mpipe_img_jpeg_decoder_chain_fn;
 	transform->decide_allocation = mpipe_img_jpeg_decoder_decide_allocation;
+
+	return 0;
 }

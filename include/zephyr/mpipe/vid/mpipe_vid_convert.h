@@ -75,7 +75,7 @@ struct mpipe_vid_convert {
  *
  * @param self Pointer to the @ref mpipe_element to initialize.
  */
-void mpipe_vid_convert_init(struct mpipe_element *self);
+int mpipe_vid_convert_init(struct mpipe_vid_convert *conv, uint8_t id);
 
 /** @} */
 

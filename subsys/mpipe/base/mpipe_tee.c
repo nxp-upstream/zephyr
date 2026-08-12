@@ -263,9 +263,16 @@ static int mpipe_tee_set_property(struct mpipe_object *obj, uint32_t id, const v
 	}
 }
 
-void mpipe_tee_init(struct mpipe_element *self)
+int mpipe_tee_init(struct mpipe_tee *tee, uint8_t id)
 {
-	struct mpipe_tee *tee = (struct mpipe_tee *)self;
+	struct mpipe_element *self = &tee->element;
+	int ret = mpipe_element_init(self, id);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "tee");
 
 	self->object.get_property = mpipe_tee_get_property;
 	self->object.set_property = mpipe_tee_set_property;
@@ -284,4 +291,6 @@ void mpipe_tee_init(struct mpipe_element *self)
 	while (tee->src_pads_num < DEFAULT_SRC_PADS_NUM) {
 		mpipe_tee_add_src_pad(tee);
 	}
+
+	return 0;
 }

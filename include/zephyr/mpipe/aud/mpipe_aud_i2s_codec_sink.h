@@ -97,7 +97,7 @@ struct mpipe_aud_i2s_codec_sink {
  * @note This function will log errors and return early if required devices
  *       are not ready or not found in device tree.
  */
-void mpipe_aud_i2s_codec_sink_init(struct mpipe_element *self);
+int mpipe_aud_i2s_codec_sink_init(struct mpipe_aud_i2s_codec_sink *aud_i2s_codec_sink, uint8_t id);
 
 /** @} */
 

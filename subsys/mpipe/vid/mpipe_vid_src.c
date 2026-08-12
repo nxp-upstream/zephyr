@@ -69,13 +69,17 @@ static int mpipe_vid_src_decide_allocation(struct mpipe_src *self, struct mpipe_
 	return mpipe_vid_object_decide_allocation(&vid_src->vid_obj, query);
 }
 
-void mpipe_vid_src_init(struct mpipe_element *self)
+int mpipe_vid_src_init(struct mpipe_vid_src *vid_src, uint8_t id)
 {
-	struct mpipe_src *src = (struct mpipe_src *)self;
-	struct mpipe_vid_src *vid_src = (struct mpipe_vid_src *)src;
+	struct mpipe_element *self = &vid_src->src.element;
+	struct mpipe_src *src = &vid_src->src;
+	int ret = mpipe_src_init(src, id);
 
-	/* Init base class */
-	mpipe_src_init(self);
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "vid_src");
 
 	/* Initialize vid object */
 	vid_src->vid_obj.vdev = DEFAULT_PROP_DEVICE;
@@ -94,4 +98,6 @@ void mpipe_vid_src_init(struct mpipe_element *self)
 	src->src_pad.enum_caps_fn = mpipe_vid_src_enum_caps;
 	src->set_caps = mpipe_vid_src_set_caps;
 	src->decide_allocation = mpipe_vid_src_decide_allocation;
+
+	return 0;
 }

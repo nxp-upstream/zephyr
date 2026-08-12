@@ -189,6 +189,7 @@ static int mpipe_img_jpeg_parser_acquire_buffer(struct mpipe_buffer_pool *pool,
 	out->len = 0;
 
 	*buf = out;
+
 	return 0;
 }
 
@@ -357,6 +358,7 @@ static int mpipe_img_jpeg_parser_chain_fn(struct mpipe_pad *pad, struct net_buf 
 	}
 
 	net_buf_unref(in_buf);
+
 	return 0;
 }
 
@@ -384,12 +386,17 @@ mpipe_img_jpeg_parser_change_state(struct mpipe_element *self, enum mpipe_state_
 	return mpipe_parser_change_state(self, transition);
 }
 
-void mpipe_img_jpeg_parser_init(struct mpipe_element *self)
+int mpipe_img_jpeg_parser_init(struct mpipe_img_jpeg_parser *jpeg_parser, uint8_t id)
 {
-	struct mpipe_parser *parser = (struct mpipe_parser *)self;
-	struct mpipe_img_jpeg_parser *jpeg_parser = (struct mpipe_img_jpeg_parser *)parser;
+	struct mpipe_element *self = &jpeg_parser->base.element;
+	struct mpipe_parser *parser = &jpeg_parser->base;
+	int ret = mpipe_parser_init(parser, id);
 
-	mpipe_parser_init(self);
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "img_jpeg_parser");
 
 	self->change_state = mpipe_img_jpeg_parser_change_state;
 	jpeg_parser->partial_frame = NULL;
@@ -414,4 +421,6 @@ void mpipe_img_jpeg_parser_init(struct mpipe_element *self)
 		jpeg_parser->out_pool.started = true;
 		parser->out_pool = &jpeg_parser->out_pool;
 	}
+
+	return 0;
 }

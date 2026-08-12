@@ -72,7 +72,7 @@ ZTEST_F(mpipe_element_api, test_link_two_elements)
 	zassert_equal(fixture->sink_pad.object.container, (struct mpipe_object *)&fixture->sink,
 		      "Pad container shall reference the owning element");
 
-	/* src/sink are already initialised by element_before via MPIPE_ELEMENT_INIT */
+	/* src/sink are already initialised by element_before via their init functions */
 	zassert_ok(mpipe_element_link(&fixture->src, &fixture->sink, NULL),
 		   "Linking src and sink elements shall succeed");
 	zassert_true(fixture->sink_pad.peer == &fixture->src_pad,
@@ -96,8 +96,8 @@ ZTEST_F(mpipe_element_api, test_get_bus_finds_the_nearest_bin)
 	memset(&child, 0, sizeof(child));
 	memset(&orphan, 0, sizeof(orphan));
 
-	MPIPE_ELEMENT_INIT((struct mpipe_element *)&fixture->pipeline, mpipe_pipeline_init, 0);
-	MPIPE_ELEMENT_INIT((struct mpipe_element *)&nested, mpipe_bin_init, 1);
+	zassert_ok(mpipe_pipeline_init(&fixture->pipeline, 0));
+	zassert_ok(mpipe_bin_init(&nested, 1));
 	mpipe_element_init(&child, 2);
 	mpipe_element_init(&orphan, 3);
 

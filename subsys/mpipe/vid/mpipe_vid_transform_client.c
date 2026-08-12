@@ -121,13 +121,17 @@ static int mpipe_vid_transform_client_transform_caps(struct mpipe_transform *sel
 	return mpipe_vid_vfc_to_caps(&other_vfc, out);
 }
 
-void mpipe_vid_transform_client_init(struct mpipe_element *self)
+int mpipe_vid_transform_client_init(struct mpipe_vid_transform_client *vtc, uint8_t id)
 {
-	struct mpipe_transform *transform = (struct mpipe_transform *)self;
-	struct mpipe_vid_transform_client *vtc = (struct mpipe_vid_transform_client *)transform;
+	struct mpipe_element *self = &vtc->transform.transform.element;
+	struct mpipe_transform *transform = &vtc->transform.transform;
+	int ret = mpipe_transform_client_init(&vtc->transform, id);
 
-	/* Init base class */
-	mpipe_transform_client_init(self);
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "vid_transform_client");
 
 	transform->in_pool = &vtc->in_pool.pool;
 	transform->out_pool = &vtc->out_pool.pool;
@@ -148,4 +152,6 @@ void mpipe_vid_transform_client_init(struct mpipe_element *self)
 	/* Initialize buffer pools */
 	mpipe_vid_buffer_pool_client_init(transform->in_pool);
 	mpipe_vid_buffer_pool_client_init(transform->out_pool);
+
+	return 0;
 }

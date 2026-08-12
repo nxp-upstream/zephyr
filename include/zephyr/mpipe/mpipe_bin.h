@@ -53,7 +53,7 @@ struct mpipe_bin {
  *
  * @param self Pointer to the @ref mpipe_element to initialize as a bin
  */
-void mpipe_bin_init(struct mpipe_element *self);
+int mpipe_bin_init(struct mpipe_bin *bin, uint8_t id);
 
 /**
  * @brief Add elements to a bin

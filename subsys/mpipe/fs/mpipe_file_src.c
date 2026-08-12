@@ -210,12 +210,17 @@ mpipe_file_src_change_state(struct mpipe_element *self, enum mpipe_state_change 
 	return MPIPE_STATE_CHANGE_SUCCESS;
 }
 
-void mpipe_file_src_init(struct mpipe_element *self)
+int mpipe_file_src_init(struct mpipe_file_src *fsrc, uint8_t id)
 {
-	struct mpipe_file_src *fsrc = (struct mpipe_file_src *)self;
+	struct mpipe_element *self = &fsrc->src.element;
 	struct mpipe_src *src = &fsrc->src;
+	int ret = mpipe_src_init(src, id);
 
-	mpipe_src_init(self);
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "file_src");
 
 	self->object.set_property = mpipe_file_src_set_property;
 	self->object.get_property = mpipe_file_src_get_property;
@@ -233,4 +238,6 @@ void mpipe_file_src_init(struct mpipe_element *self)
 	fsrc->pool.config.size = CONFIG_MPIPE_FS_BLOCK_SIZE;
 	fsrc->pool.acquire_buffer = mpipe_file_src_pool_acquire_buffer;
 	fsrc->pool.release_buffer = mpipe_file_src_pool_release_buffer;
+
+	return 0;
 }

@@ -48,7 +48,7 @@ struct mpipe_img_jpeg_decoder {
  *
  * @param self Pointer to the @ref mpipe_element to initialize.
  */
-void mpipe_img_jpeg_decoder_init(struct mpipe_element *self);
+int mpipe_img_jpeg_decoder_init(struct mpipe_img_jpeg_decoder *dec, uint8_t id);
 
 /** @} */
 

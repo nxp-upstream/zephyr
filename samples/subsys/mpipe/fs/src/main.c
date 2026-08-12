@@ -83,9 +83,18 @@ int main(void)
 	}
 
 	/* Build the pipeline */
-	MPIPE_ELEMENT_INIT(&pipe, mpipe_pipeline_init, PIPE_ID);
-	MPIPE_ELEMENT_INIT(&file_src, mpipe_file_src_init, FILE_SRC_ID);
-	MPIPE_ELEMENT_INIT(&file_sink, mpipe_file_sink_init, FILE_SINK_ID);
+	ret = mpipe_pipeline_init(&pipe, PIPE_ID);
+	if (ret < 0) {
+		goto err;
+	}
+	ret = mpipe_file_src_init(&file_src, FILE_SRC_ID);
+	if (ret < 0) {
+		goto err;
+	}
+	ret = mpipe_file_sink_init(&file_sink, FILE_SINK_ID);
+	if (ret < 0) {
+		goto err;
+	}
 
 	ret = mpipe_object_set_properties((struct mpipe_object *)&file_src, MPIPE_PROP_FS_SRC_PATH,
 					  MNT_POINT "/" INPUT_FILE, MPIPE_PROP_LIST_END);

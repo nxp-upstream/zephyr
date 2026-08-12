@@ -109,16 +109,20 @@ static int mpipe_transform_client_decide_allocation(struct mpipe_transform *self
 	return 0;
 }
 
-void mpipe_transform_client_init(struct mpipe_element *self)
+int mpipe_transform_client_init(struct mpipe_transform_client *transform_client, uint8_t id)
 {
-	struct mpipe_transform *transform = (struct mpipe_transform *)self;
-	struct mpipe_transform_client *transform_client =
-		(struct mpipe_transform_client *)transform;
+	struct mpipe_element *self = &transform_client->transform.element;
+	struct mpipe_transform *transform = &transform_client->transform;
+	int ret;
 
 	(void)transform_client->init_rpc();
 
-	/* Init base class */
-	mpipe_transform_init(self);
+	ret = mpipe_transform_init(transform, id);
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "transform_client");
 
 	/* Support only normal mode for now */
 	transform->mode = MPIPE_MODE_NORMAL;
@@ -126,4 +130,6 @@ void mpipe_transform_client_init(struct mpipe_element *self)
 	transform->sink_pad.chain_fn = mpipe_transform_client_chain_fn;
 	transform->decide_allocation = mpipe_transform_client_decide_allocation;
 	transform->propose_allocation = mpipe_transform_client_propose_allocation;
+
+	return 0;
 }

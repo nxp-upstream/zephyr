@@ -51,10 +51,22 @@ int main(void)
 	int gain_val = 90; /* Set gain to 90% (0.9x amplification) */
 	int ret = 0;
 
-	MPIPE_ELEMENT_INIT(&pipe, mpipe_pipeline_init, PIPE_ID);
-	MPIPE_ELEMENT_INIT(&source, mpipe_aud_dmic_src_init, DMIC_SRC_ID);
-	MPIPE_ELEMENT_INIT(&gain, mpipe_aud_gain_init, AUD_GAIN_ID);
-	MPIPE_ELEMENT_INIT(&sink, mpipe_aud_i2s_codec_sink_init, I2S_SINK_ID);
+	ret = mpipe_pipeline_init(&pipe, PIPE_ID);
+	if (ret < 0) {
+		goto err;
+	}
+	ret = mpipe_aud_dmic_src_init(&source, DMIC_SRC_ID);
+	if (ret < 0) {
+		goto err;
+	}
+	ret = mpipe_aud_gain_init(&gain, AUD_GAIN_ID);
+	if (ret < 0) {
+		goto err;
+	}
+	ret = mpipe_aud_i2s_codec_sink_init(&sink, I2S_SINK_ID);
+	if (ret < 0) {
+		goto err;
+	}
 
 	ret = mpipe_object_set_properties((struct mpipe_object *)&source,
 					  MPIPE_PROP_AUD_SRC_SLAB_PTR, &mem_slab,
@@ -84,7 +96,10 @@ int main(void)
 	}
 
 	/* Caps filter element */
-	MPIPE_ELEMENT_INIT(&caps_filter, mpipe_caps_filter_init, CAPS_FILTER_ID);
+	ret = mpipe_caps_filter_init(&caps_filter, CAPS_FILTER_ID);
+	if (ret < 0) {
+		goto err;
+	}
 
 	uint32_t frame_interval = 10000; /* 10ms */
 	struct mpipe_structure caps;

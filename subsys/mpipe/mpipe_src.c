@@ -266,9 +266,16 @@ enum mpipe_state_change_return mpipe_src_change_state(struct mpipe_element *self
 	return ret;
 }
 
-void mpipe_src_init(struct mpipe_element *self)
+int mpipe_src_init(struct mpipe_src *src, uint8_t id)
 {
-	struct mpipe_src *src = (struct mpipe_src *)self;
+	struct mpipe_element *self = &src->element;
+	int ret = mpipe_element_init(self, id);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "src");
 
 	mpipe_pad_init(&src->src_pad, MPIPE_PAD_SRC_ID, MPIPE_PAD_SRC, MPIPE_PAD_ALWAYS);
 	mpipe_element_add_pad(self, &src->src_pad);
@@ -280,4 +287,6 @@ void mpipe_src_init(struct mpipe_element *self)
 	src->set_caps = mpipe_src_set_caps;
 	src->src_pad.query_fn = mpipe_src_query;
 	src->decide_allocation = NULL;
+
+	return 0;
 }

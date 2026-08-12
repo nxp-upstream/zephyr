@@ -63,7 +63,7 @@ struct mpipe_caps_filter {
  *
  * @param self Pointer to the @ref mpipe_element to initialize as a caps filter
  */
-void mpipe_caps_filter_init(struct mpipe_element *self);
+int mpipe_caps_filter_init(struct mpipe_caps_filter *caps_filter, uint8_t id);
 
 /** @} */
 

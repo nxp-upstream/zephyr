@@ -32,31 +32,11 @@ struct mpipe_dispatch;
 
 /** @cond INTERNAL_HIDDEN */
 #if defined(CONFIG_MPIPE_DUMP)
-#define MPIPE_ELEMENT_SET_NAME(e, init_fn) ((e)->name = #init_fn)
+#define MPIPE_ELEMENT_SET_NAME(e, n) ((e)->name = (n))
 #else
-#define MPIPE_ELEMENT_SET_NAME(e, init_fn) ((void)0)
+#define MPIPE_ELEMENT_SET_NAME(e, n) ((void)0)
 #endif
 /** @endcond */
-
-/**
- * @brief Initialize and configure an element in one step.
- *
- * Calls @ref mpipe_element_init followed by the element-specific init function.
- *
- * When CONFIG_MPIPE_DUMP is enabled, the element is also named after @p init_fn so
- * a dump can identify it.
- *
- * @param elem    Pointer to the element to initialize.
- * @param init_fn Element-specific initialization function.
- * @param id      Unique element identifier.
- */
-#define MPIPE_ELEMENT_INIT(elem, init_fn, id)                                                      \
-	do {                                                                                       \
-		struct mpipe_element *e = (struct mpipe_element *)(elem);                          \
-		mpipe_element_init(e, (id));                                                       \
-		init_fn(e);                                                                        \
-		MPIPE_ELEMENT_SET_NAME(e, init_fn);                                                \
-	} while (0)
 
 /**
  * @brief Calculate the next state
@@ -165,8 +145,8 @@ struct mpipe_element {
 
 #if defined(CONFIG_MPIPE_DUMP)
 	/**
-	 * Name of the element, set by @ref MPIPE_ELEMENT_INIT from the name of the init
-	 * function it is given, used for debugging purposes.
+	 * Name of the element, set to its type by the element's init function and
+	 * overridable per instance with @ref mpipe_element_set_name. Debugging only.
 	 */
 	const char *name;
 #endif
@@ -208,8 +188,37 @@ struct mpipe_element {
  *
  * @param self Pointer to the @ref mpipe_element to initialize.
  * @param id   Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
-void mpipe_element_init(struct mpipe_element *self, uint8_t id);
+int mpipe_element_init(struct mpipe_element *self, uint8_t id);
+
+/**
+ * @brief Name an element for the pipeline dump.
+ *
+ * Every element init function names its element after its type, so a dump reads
+ * @c vid_transform rather than an address. Call this afterwards to give one
+ * instance a distinct name, which is what tells two elements of the same type
+ * apart in a dump.
+ *
+ * @code
+ * ret = mpipe_vid_transform_init(&jpeg_dec, JPEG_DEC_ID);
+ * mpipe_element_set_name(&jpeg_dec.transform.element, "jpeg_dec");
+ * @endcode
+ *
+ * Compiles to nothing when @kconfig{CONFIG_MPIPE_DUMP} is disabled, so @p name
+ * costs no ROM in a build without the dump.
+ *
+ * @param self Element to name.
+ * @param name Name to report. Must outlive the element; a string literal does.
+ */
+static inline void mpipe_element_set_name(struct mpipe_element *self, const char *name)
+{
+	ARG_UNUSED(self);
+	ARG_UNUSED(name);
+
+	MPIPE_ELEMENT_SET_NAME(self, name);
+}
 
 struct mpipe_pad;
 

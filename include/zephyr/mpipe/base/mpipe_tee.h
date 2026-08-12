@@ -58,7 +58,7 @@ struct mpipe_tee {
  *
  * @param self Pointer to the @ref mpipe_element to initialize as a tee
  */
-void mpipe_tee_init(struct mpipe_element *self);
+int mpipe_tee_init(struct mpipe_tee *tee, uint8_t id);
 
 /** @} */
 

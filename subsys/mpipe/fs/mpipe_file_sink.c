@@ -119,12 +119,17 @@ mpipe_file_sink_change_state(struct mpipe_element *self, enum mpipe_state_change
 	return mpipe_sink_change_state(self, transition);
 }
 
-void mpipe_file_sink_init(struct mpipe_element *self)
+int mpipe_file_sink_init(struct mpipe_file_sink *fsink, uint8_t id)
 {
-	struct mpipe_file_sink *fsink = (struct mpipe_file_sink *)self;
+	struct mpipe_element *self = &fsink->sink.element;
 	struct mpipe_sink *sink = &fsink->sink;
+	int ret = mpipe_sink_init(sink, id);
 
-	mpipe_sink_init(self);
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "file_sink");
 
 	self->object.set_property = mpipe_file_sink_set_property;
 	self->object.get_property = mpipe_file_sink_get_property;
@@ -134,4 +139,6 @@ void mpipe_file_sink_init(struct mpipe_element *self)
 
 	fsink->path = NULL;
 	fsink->file_open = false;
+
+	return 0;
 }

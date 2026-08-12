@@ -37,7 +37,7 @@ struct mpipe_fake_src {
  *
  * @param self Pointer to the @ref mpipe_element to initialize as a fake source
  */
-void mpipe_fake_src_init(struct mpipe_element *self);
+int mpipe_fake_src_init(struct mpipe_fake_src *fsrc, uint8_t id);
 
 /** @} */
 

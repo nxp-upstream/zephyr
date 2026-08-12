@@ -44,7 +44,7 @@ struct mpipe_vid_src {
  *
  * @param self Pointer to the @ref mpipe_element to initialize.
  */
-void mpipe_vid_src_init(struct mpipe_element *self);
+int mpipe_vid_src_init(struct mpipe_vid_src *vid_src, uint8_t id);
 
 /** @} */
 

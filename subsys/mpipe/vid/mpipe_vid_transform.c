@@ -182,13 +182,17 @@ static int mpipe_vid_transform_propose_allocation(struct mpipe_transform *self,
 	return mpipe_dispatch_set_pool(query, self->in_pool);
 }
 
-void mpipe_vid_transform_init(struct mpipe_element *self)
+int mpipe_vid_transform_init(struct mpipe_vid_transform *vid_transform, uint8_t id)
 {
-	struct mpipe_transform *transform = (struct mpipe_transform *)self;
-	struct mpipe_vid_transform *vid_transform = (struct mpipe_vid_transform *)transform;
+	struct mpipe_element *self = &vid_transform->transform.element;
+	struct mpipe_transform *transform = &vid_transform->transform;
+	int ret = mpipe_transform_init(transform, id);
 
-	/* Init base class */
-	mpipe_transform_init(self);
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "vid_transform");
 
 	/* Initialize vid objects */
 	vid_transform->vid_obj_in.vdev = DEFAULT_PROP_DEVICE;
@@ -229,4 +233,6 @@ void mpipe_vid_transform_init(struct mpipe_element *self)
 	transform->sink_pad.chain_fn = mpipe_vid_transform_chain_fn;
 	transform->decide_allocation = mpipe_vid_transform_decide_allocation;
 	transform->propose_allocation = mpipe_vid_transform_propose_allocation;
+
+	return 0;
 }

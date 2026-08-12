@@ -47,7 +47,7 @@ struct mpipe_aud_dmic_src {
  * @param self Pointer to the mpipe_element structure to be initialized as a
  *             DMIC source element.
  */
-void mpipe_aud_dmic_src_init(struct mpipe_element *self);
+int mpipe_aud_dmic_src_init(struct mpipe_aud_dmic_src *aud_dmic_src, uint8_t id);
 
 /** @} */
 

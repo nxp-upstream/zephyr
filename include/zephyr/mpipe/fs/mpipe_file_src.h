@@ -70,9 +70,12 @@ struct mpipe_file_src {
 /**
  * @brief Initialize a file source element.
  *
- * @param self Pointer to the element to initialize.
+ * @param fsrc Element to initialize.
+ * @param id   Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
-void mpipe_file_src_init(struct mpipe_element *self);
+int mpipe_file_src_init(struct mpipe_file_src *fsrc, uint8_t id);
 
 /** @} */
 

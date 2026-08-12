@@ -248,11 +248,16 @@ static enum mpipe_state_change_return mpipe_queue_change_state(struct mpipe_elem
 	return mpipe_transform_change_state(element, transition);
 }
 
-void mpipe_queue_init(struct mpipe_element *self)
+int mpipe_queue_init(struct mpipe_queue *queue, uint8_t id)
 {
-	struct mpipe_queue *queue = (struct mpipe_queue *)self;
+	struct mpipe_element *self = &queue->transform.element;
+	int ret = mpipe_transform_init(&queue->transform, id);
 
-	mpipe_transform_init(self);
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "queue");
 
 	self->object.set_property = mpipe_queue_set_property;
 	self->object.get_property = mpipe_queue_get_property;
@@ -265,4 +270,6 @@ void mpipe_queue_init(struct mpipe_element *self)
 	/* Size of the msgq = queue's max size + 2 (for eos and pause sentinels) */
 	k_msgq_init(&queue->msgq, queue->msgq_buffer, sizeof(void *),
 		    CONFIG_MPIPE_BASE_QUEUE_MAX_SIZE + 2);
+
+	return 0;
 }

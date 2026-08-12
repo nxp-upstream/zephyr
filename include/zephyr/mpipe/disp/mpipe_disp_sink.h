@@ -60,9 +60,12 @@ struct mpipe_disp_sink {
 /**
  * @brief Initialize a display sink element.
  *
- * @param self Pointer to the element to initialize.
+ * @param disp_sink Element to initialize.
+ * @param id        Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
-void mpipe_disp_sink_init(struct mpipe_element *self);
+int mpipe_disp_sink_init(struct mpipe_disp_sink *disp_sink, uint8_t id);
 
 /** @} */
 

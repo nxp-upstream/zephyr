@@ -338,13 +338,17 @@ static int mpipe_aud_gain_propose_allocation(struct mpipe_transform *self,
 	return mpipe_dispatch_set_pool_config(query, &aud_gain->alloc_cfg);
 }
 
-void mpipe_aud_gain_init(struct mpipe_element *self)
+int mpipe_aud_gain_init(struct mpipe_aud_gain *aud_gain, uint8_t id)
 {
-	struct mpipe_transform *transform = (struct mpipe_transform *)self;
-	struct mpipe_aud_gain *aud_gain = (struct mpipe_aud_gain *)transform;
+	struct mpipe_element *self = &aud_gain->transform.element;
+	struct mpipe_transform *transform = &aud_gain->transform;
+	int ret = mpipe_transform_init(transform, id);
 
-	/* Init base class */
-	mpipe_transform_init(self);
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "aud_gain");
 
 	/* Initialize with 100% gain (unity) */
 	aud_gain->gain_percent = GAIN_PERCENT_UNITY;
@@ -364,4 +368,6 @@ void mpipe_aud_gain_init(struct mpipe_element *self)
 
 	transform->sink_pad.enum_caps_fn = mpipe_aud_gain_enum_caps;
 	transform->src_pad.enum_caps_fn = mpipe_aud_gain_enum_caps;
+
+	return 0;
 }

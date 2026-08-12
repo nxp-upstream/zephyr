@@ -81,7 +81,7 @@ struct mpipe_parser {
  *
  * @param self Pointer to the @ref mpipe_element to initialize.
  */
-void mpipe_parser_init(struct mpipe_element *self);
+int mpipe_parser_init(struct mpipe_parser *parser, uint8_t id);
 
 /**
  * @brief Change state function for the base parser element

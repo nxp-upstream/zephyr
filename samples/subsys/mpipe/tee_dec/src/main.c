@@ -141,16 +141,46 @@ int main(void)
 	}
 
 	/* Initialize all elements */
-	MPIPE_ELEMENT_INIT(&pipe, mpipe_pipeline_init, PIPE_ID);
-	MPIPE_ELEMENT_INIT(&file_src, mpipe_file_src_init, FILE_SRC_ID);
-	MPIPE_ELEMENT_INIT(&jpeg_parser, mpipe_img_jpeg_parser_init, JPEG_PARSER_ID);
-	MPIPE_ELEMENT_INIT(&caps_filter, mpipe_caps_filter_init, CAPS_FILTER_ID);
-	MPIPE_ELEMENT_INIT(&tee, mpipe_tee_init, TEE_ID);
-	MPIPE_ELEMENT_INIT(&queue1, mpipe_queue_init, QUEUE1_ID);
-	MPIPE_ELEMENT_INIT(&jpeg_dec, mpipe_img_jpeg_decoder_init, JPEG_DEC_ID);
-	MPIPE_ELEMENT_INIT(&disp_sink, mpipe_disp_sink_init, DISP_SINK_ID);
-	MPIPE_ELEMENT_INIT(&queue2, mpipe_queue_init, QUEUE2_ID);
-	MPIPE_ELEMENT_INIT(&file_sink, mpipe_file_sink_init, FILE_SINK_ID);
+	ret = mpipe_pipeline_init(&pipe, PIPE_ID);
+	if (ret < 0) {
+		goto err;
+	}
+	ret = mpipe_file_src_init(&file_src, FILE_SRC_ID);
+	if (ret < 0) {
+		goto err;
+	}
+	ret = mpipe_img_jpeg_parser_init(&jpeg_parser, JPEG_PARSER_ID);
+	if (ret < 0) {
+		goto err;
+	}
+	ret = mpipe_caps_filter_init(&caps_filter, CAPS_FILTER_ID);
+	if (ret < 0) {
+		goto err;
+	}
+	ret = mpipe_tee_init(&tee, TEE_ID);
+	if (ret < 0) {
+		goto err;
+	}
+	ret = mpipe_queue_init(&queue1, QUEUE1_ID);
+	if (ret < 0) {
+		goto err;
+	}
+	ret = mpipe_img_jpeg_decoder_init(&jpeg_dec, JPEG_DEC_ID);
+	if (ret < 0) {
+		goto err;
+	}
+	ret = mpipe_disp_sink_init(&disp_sink, DISP_SINK_ID);
+	if (ret < 0) {
+		goto err;
+	}
+	ret = mpipe_queue_init(&queue2, QUEUE2_ID);
+	if (ret < 0) {
+		goto err;
+	}
+	ret = mpipe_file_sink_init(&file_sink, FILE_SINK_ID);
+	if (ret < 0) {
+		goto err;
+	}
 
 	/* Set properties */
 	ret = mpipe_object_set_properties((struct mpipe_object *)&file_src, MPIPE_PROP_FS_SRC_PATH,

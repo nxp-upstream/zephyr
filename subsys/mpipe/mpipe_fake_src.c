@@ -63,11 +63,16 @@ static int mpipe_fake_src_pool_release(struct mpipe_buffer_pool *pool, struct ne
 	return 0;
 }
 
-void mpipe_fake_src_init(struct mpipe_element *self)
+int mpipe_fake_src_init(struct mpipe_fake_src *fsrc, uint8_t id)
 {
-	struct mpipe_fake_src *fsrc = (struct mpipe_fake_src *)self;
+	struct mpipe_element *self = &fsrc->src.element;
+	int ret = mpipe_src_init(&fsrc->src, id);
 
-	mpipe_src_init(self);
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "fake_src");
 
 	mpipe_buffer_pool_init(&fsrc->pool);
 	fsrc->pool.nb_pool = &mpipe_fake_src_pool;
@@ -77,4 +82,6 @@ void mpipe_fake_src_init(struct mpipe_element *self)
 	fsrc->pool.release_buffer = mpipe_fake_src_pool_release;
 
 	fsrc->src.pool = &fsrc->pool;
+
+	return 0;
 }

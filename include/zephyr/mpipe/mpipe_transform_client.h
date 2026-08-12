@@ -58,7 +58,7 @@ struct mpipe_transform_client {
  *
  * @param self Pointer to the element to initialize (@ref mpipe_element)
  */
-void mpipe_transform_client_init(struct mpipe_element *self);
+int mpipe_transform_client_init(struct mpipe_transform_client *transform_client, uint8_t id);
 
 /** @} */
 

@@ -70,7 +70,7 @@ struct mpipe_aud_gain {
  * @param self Pointer to the mpipe_element structure to be initialized as a
  *             gain element.
  */
-void mpipe_aud_gain_init(struct mpipe_element *self);
+int mpipe_aud_gain_init(struct mpipe_aud_gain *aud_gain, uint8_t id);
 
 /** @} */
 

@@ -259,13 +259,17 @@ int mpipe_disp_sink_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 	return 0;
 }
 
-void mpipe_disp_sink_init(struct mpipe_element *self)
+int mpipe_disp_sink_init(struct mpipe_disp_sink *disp_sink, uint8_t id)
 {
-	struct mpipe_disp_sink *disp_sink = (struct mpipe_disp_sink *)self;
+	struct mpipe_element *self = &disp_sink->sink.element;
 	struct mpipe_sink *sink = &disp_sink->sink;
+	int ret = mpipe_sink_init(sink, id);
 
-	/* Init base class */
-	mpipe_sink_init(self);
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "disp_sink");
 
 	disp_sink->display_dev = DEFAULT_PROP_DEVICE;
 
@@ -275,4 +279,6 @@ void mpipe_disp_sink_init(struct mpipe_element *self)
 	sink->sink_pad.chain_fn = mpipe_disp_sink_chain_fn;
 	sink->sink_pad.enum_caps_fn = mpipe_disp_sink_enum_caps;
 	sink->set_caps = mpipe_disp_sink_set_caps;
+
+	return 0;
 }

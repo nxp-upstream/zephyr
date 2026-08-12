@@ -474,12 +474,17 @@ err:
 	return -EIO;
 }
 
-void mpipe_vid_convert_init(struct mpipe_element *self)
+int mpipe_vid_convert_init(struct mpipe_vid_convert *conv, uint8_t id)
 {
-	struct mpipe_transform *transform = (struct mpipe_transform *)self;
-	struct mpipe_vid_convert *conv = (struct mpipe_vid_convert *)transform;
+	struct mpipe_element *self = &conv->transform.element;
+	struct mpipe_transform *transform = &conv->transform;
+	int ret = mpipe_transform_init(transform, id);
 
-	mpipe_transform_init(self);
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "vid_convert");
 
 	transform->sink_pad.enum_caps_fn = vid_convert_enum_caps;
 	transform->src_pad.enum_caps_fn = vid_convert_enum_caps;
@@ -513,4 +518,6 @@ void mpipe_vid_convert_init(struct mpipe_element *self)
 	transform->propose_allocation = NULL;
 	transform->decide_allocation = vid_convert_decide_allocation;
 	transform->sink_pad.chain_fn = vid_convert_chain_fn;
+
+	return 0;
 }

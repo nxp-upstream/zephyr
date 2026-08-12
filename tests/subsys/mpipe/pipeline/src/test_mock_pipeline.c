@@ -40,10 +40,10 @@ static void pipeline_before(void *f)
 
 	memset(fix, 0, sizeof(*fix));
 
-	MPIPE_ELEMENT_INIT(&fix->pipeline, mpipe_pipeline_init, PIPE_ID);
-	MPIPE_ELEMENT_INIT(&fix->fake_src, mpipe_fake_src_init, SRC_ID);
-	MPIPE_ELEMENT_INIT(&fix->transform, mpipe_transform_init, TRANSFORM_ID);
-	MPIPE_ELEMENT_INIT(&fix->sink, mpipe_sink_init, SINK_ID);
+	zassert_ok(mpipe_pipeline_init(&fix->pipeline, PIPE_ID));
+	zassert_ok(mpipe_fake_src_init(&fix->fake_src, SRC_ID));
+	zassert_ok(mpipe_transform_init(&fix->transform, TRANSFORM_ID));
+	zassert_ok(mpipe_sink_init(&fix->sink, SINK_ID));
 
 	/* Set number of buffers to produce before EOS */
 	zassert_ok(mpipe_object_set_properties((struct mpipe_object *)&fix->fake_src,

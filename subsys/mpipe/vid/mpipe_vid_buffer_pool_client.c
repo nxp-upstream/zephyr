@@ -49,12 +49,14 @@ static int mpipe_vid_buffer_pool_client_start(struct mpipe_buffer_pool *pool)
 	}
 
 	LOG_INF("Started buffer pool");
+
 	return 0;
 }
 
 static int mpipe_vid_buffer_pool_client_stop(struct mpipe_buffer_pool *pool)
 {
 	ARG_UNUSED(pool);
+
 	return 0;
 }
 
@@ -74,6 +76,7 @@ static int mpipe_vid_buffer_pool_client_acquire_buffer(struct mpipe_buffer_pool 
 	}
 
 	*buf = nb;
+
 	return 0;
 }
 
@@ -97,6 +100,7 @@ static int mpipe_vid_buffer_pool_client_release_buffer(struct mpipe_buffer_pool 
 	}
 
 	k_fifo_put(&zbpc->fifo, buf);
+
 	return 0;
 }
 

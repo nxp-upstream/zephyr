@@ -794,6 +794,7 @@ static int JPEGGetHuffTables(uint8_t *pBuf, int iLen, JPEGIMAGE *pJPEG)
 			iLen -= j;
 		}
 	}
+
 	return 0;
 } /* JPEGGetHuffTables() */
 /*
@@ -1596,6 +1597,7 @@ static int JPEGParseInfo(JPEGIMAGE *pPage, int bExtractThumb)
 		return 1;
 	}
 	pPage->iError = JPEG_DECODE_ERROR;
+
 	return 0;
 } /* JPEGParseInfo() */
 /*
@@ -2179,6 +2181,7 @@ mcu_done:
 	pJPEG->bb.ulBitOff = ulBitOff;
 	pJPEG->bb.ulBits = ulBits;
 	pJPEG->u16MCUFlags = u16MCUFlags;
+
 	return 0;
 } /* JPEGDecodeMCU() */
 /*

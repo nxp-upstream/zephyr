@@ -77,10 +77,10 @@ static void dump_before(void *f)
 
 	memset(fix, 0, sizeof(*fix));
 
-	MPIPE_ELEMENT_INIT(&fix->pipeline, mpipe_pipeline_init, DUMP_PIPE_ID);
-	MPIPE_ELEMENT_INIT(&fix->fake_src, mpipe_fake_src_init, DUMP_SRC_ID);
-	MPIPE_ELEMENT_INIT(&fix->transform, mpipe_transform_init, DUMP_TRANSFORM_ID);
-	MPIPE_ELEMENT_INIT(&fix->sink, mpipe_sink_init, DUMP_SINK_ID);
+	zassert_ok(mpipe_pipeline_init(&fix->pipeline, DUMP_PIPE_ID));
+	zassert_ok(mpipe_fake_src_init(&fix->fake_src, DUMP_SRC_ID));
+	zassert_ok(mpipe_transform_init(&fix->transform, DUMP_TRANSFORM_ID));
+	zassert_ok(mpipe_sink_init(&fix->sink, DUMP_SINK_ID));
 
 	fix->sink_cfg.vprint = test_dump_vprint;
 	fix->sink_cfg.ctx = &fix->capture;

@@ -201,9 +201,16 @@ enum mpipe_state_change_return mpipe_bin_change_state_func(struct mpipe_element 
 	return MPIPE_STATE_CHANGE_SUCCESS;
 }
 
-void mpipe_bin_init(struct mpipe_element *self)
+int mpipe_bin_init(struct mpipe_bin *bin, uint8_t id)
 {
-	struct mpipe_bin *bin = (struct mpipe_bin *)self;
+	struct mpipe_element *self = &bin->element;
+	int ret = mpipe_element_init(self, id);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "bin");
 
 	self->change_state = mpipe_bin_change_state_func;
 	self->object.flags |= MPIPE_OBJECT_FLAG_BIN;
@@ -211,4 +218,6 @@ void mpipe_bin_init(struct mpipe_element *self)
 	sys_dlist_init(&bin->children);
 
 	mpipe_bus_init(&bin->bus);
+
+	return 0;
 }

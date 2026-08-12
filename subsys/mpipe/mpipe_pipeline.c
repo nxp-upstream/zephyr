@@ -375,9 +375,19 @@ mpipe_pipeline_change_state(struct mpipe_element *element, enum mpipe_state_chan
 	return MPIPE_STATE_CHANGE_SUCCESS;
 }
 
-void mpipe_pipeline_init(struct mpipe_element *self)
+int mpipe_pipeline_init(struct mpipe *pipe, uint8_t id)
 {
+	struct mpipe_element *self = &pipe->bin.element;
+	int ret = mpipe_bin_init(&pipe->bin, id);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "pipeline");
+
 	/* Initialize base class */
-	mpipe_bin_init(self);
 	self->change_state = mpipe_pipeline_change_state;
+
+	return 0;
 }

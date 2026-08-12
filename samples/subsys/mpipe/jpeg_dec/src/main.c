@@ -150,15 +150,36 @@ int main(void)
 		goto err;
 	}
 
-	MPIPE_ELEMENT_INIT(&pipe, mpipe_pipeline_init, PIPE_ID);
-	MPIPE_ELEMENT_INIT(&file_src, mpipe_file_src_init, FILE_SRC_ID);
-	MPIPE_ELEMENT_INIT(&jpeg_parser, mpipe_img_jpeg_parser_init, JPEG_PARSER_ID);
-	MPIPE_ELEMENT_INIT(&caps_filter, mpipe_caps_filter_init, CAPS_FILTER_ID);
-	MPIPE_ELEMENT_INIT(&disp_sink, mpipe_disp_sink_init, DISP_SINK_ID);
+	ret = mpipe_pipeline_init(&pipe, PIPE_ID);
+	if (ret < 0) {
+		goto err;
+	}
+	ret = mpipe_file_src_init(&file_src, FILE_SRC_ID);
+	if (ret < 0) {
+		goto err;
+	}
+	ret = mpipe_img_jpeg_parser_init(&jpeg_parser, JPEG_PARSER_ID);
+	if (ret < 0) {
+		goto err;
+	}
+	ret = mpipe_caps_filter_init(&caps_filter, CAPS_FILTER_ID);
+	if (ret < 0) {
+		goto err;
+	}
+	ret = mpipe_disp_sink_init(&disp_sink, DISP_SINK_ID);
+	if (ret < 0) {
+		goto err;
+	}
 
 #if DT_HAS_CHOSEN(zephyr_jpegdec)
-	MPIPE_ELEMENT_INIT(&jpeg_dec, mpipe_vid_transform_init, JPEG_DEC_ID);
-	MPIPE_ELEMENT_INIT(&vid_conv, mpipe_vid_convert_init, VID_CONV_ID);
+	ret = mpipe_vid_transform_init(&jpeg_dec, JPEG_DEC_ID);
+	if (ret < 0) {
+		goto err;
+	}
+	ret = mpipe_vid_convert_init(&vid_conv, VID_CONV_ID);
+	if (ret < 0) {
+		goto err;
+	}
 
 	ret = mpipe_object_set_properties((struct mpipe_object *)&jpeg_dec, MPIPE_PROP_VID_DEVICE,
 					  DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_jpegdec)),
@@ -167,10 +188,16 @@ int main(void)
 		goto err;
 	}
 #else
-	MPIPE_ELEMENT_INIT(&jpeg_dec, mpipe_img_jpeg_decoder_init, JPEG_DEC_ID);
+	ret = mpipe_img_jpeg_decoder_init(&jpeg_dec, JPEG_DEC_ID);
+	if (ret < 0) {
+		goto err;
+	}
 #endif
 #if DT_HAS_CHOSEN(zephyr_videotrans)
-	MPIPE_ELEMENT_INIT(&vid_trans, mpipe_vid_transform_init, VID_TRANS_ID);
+	ret = mpipe_vid_transform_init(&vid_trans, VID_TRANS_ID);
+	if (ret < 0) {
+		goto err;
+	}
 	ret = mpipe_object_set_properties(
 		(struct mpipe_object *)&vid_trans,
 		COND_CODE_0(CONFIG_VIDEO_ROTATION_ANGLE,

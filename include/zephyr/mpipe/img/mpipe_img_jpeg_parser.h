@@ -50,7 +50,7 @@ struct mpipe_img_jpeg_parser {
  *
  * @param self Pointer to the @ref mpipe_element to initialize.
  */
-void mpipe_img_jpeg_parser_init(struct mpipe_element *self);
+int mpipe_img_jpeg_parser_init(struct mpipe_img_jpeg_parser *jpeg_parser, uint8_t id);
 
 /** @} */
 

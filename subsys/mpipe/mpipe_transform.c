@@ -24,6 +24,7 @@ static int mpipe_transform_chain_fn(struct mpipe_pad *pad, struct net_buf *in_bu
 
 	/* Default implementation for MPIPE_MODE_PASSTHROUGH - return same buffer */
 	*out_buf = in_buf;
+
 	return 0;
 }
 
@@ -437,9 +438,16 @@ enum mpipe_state_change_return mpipe_transform_change_state(struct mpipe_element
 	return MPIPE_STATE_CHANGE_SUCCESS;
 }
 
-void mpipe_transform_init(struct mpipe_element *self)
+int mpipe_transform_init(struct mpipe_transform *transform, uint8_t id)
 {
-	struct mpipe_transform *transform = (struct mpipe_transform *)self;
+	struct mpipe_element *self = &transform->element;
+	int ret = mpipe_element_init(self, id);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	mpipe_element_set_name(self, "transform");
 
 	mpipe_pad_init(&transform->sink_pad, MPIPE_PAD_SINK_ID, MPIPE_PAD_SINK, MPIPE_PAD_ALWAYS);
 	mpipe_pad_init(&transform->src_pad, MPIPE_PAD_SRC_ID, MPIPE_PAD_SRC, MPIPE_PAD_ALWAYS);
@@ -458,4 +466,6 @@ void mpipe_transform_init(struct mpipe_element *self)
 	transform->src_pad.event_fn = mpipe_transform_event;
 	transform->decide_allocation = NULL;
 	transform->propose_allocation = NULL;
+
+	return 0;
 }
