@@ -21,7 +21,7 @@ tests:
       - CONFIG_MPIPE_BASE_QUEUE=y
       - CONFIG_MPIPE_BASE_TEE=y
 
-  mpipe.video.build:
+  mpipe.vid.build:
     tags:
       - subsys
       - mpipe
@@ -32,7 +32,7 @@ tests:
       - CONFIG_MPIPE_VID=y
       - CONFIG_MPIPE_VID_CONVERT=y
 
-  mpipe.display.build:
+  mpipe.disp.build:
     tags:
       - subsys
       - mpipe
@@ -62,7 +62,7 @@ tests:
     extra_args:
       - CONFIG_MPIPE_FS=y
 
-  mpipe.audio.build:
+  mpipe.aud.build:
     tags:
       - subsys
       - mpipe

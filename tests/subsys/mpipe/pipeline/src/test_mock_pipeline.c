@@ -54,7 +54,7 @@ static void pipeline_before(void *f)
 
 ZTEST_SUITE(test_mock_pipeline, NULL, pipeline_suite_setup, pipeline_before, NULL, NULL);
 
-ZTEST_F(test_mock_pipeline, test_pipeline_fakesrc_transform_sink)
+ZTEST_F(test_mock_pipeline, test_pipeline_fake_src_transform_sink)
 {
 	struct mpipe_bus *bus;
 	struct mpipe_message msg;

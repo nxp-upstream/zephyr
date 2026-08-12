@@ -455,9 +455,9 @@ declare -A TARGET_BUILD_TEST
 TARGET_BUILD_TEST=(
     [core]="mpipe.core.build"
     [base]="mpipe.base.build"
-    [aud]="mpipe.audio.build"
-    [vid]="mpipe.video.build"
-    [disp]="mpipe.display.build"
+    [aud]="mpipe.aud.build"
+    [vid]="mpipe.vid.build"
+    [disp]="mpipe.disp.build"
     [img]="mpipe.img.build"
     [fs]="mpipe.fs.build"
 )

@@ -2,7 +2,7 @@ sample:
   name: MJPEG file decode pipeline
 
 tests:
-  sample.mpipe.mjpeg.decode:
+  sample.mpipe.jpeg_dec:
     tags:
       - mpipe
       - video
