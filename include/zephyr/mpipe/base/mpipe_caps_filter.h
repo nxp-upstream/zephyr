@@ -56,6 +56,8 @@ struct mpipe_caps_filter {
 	struct mpipe_pad *saved_sink_peer;
 	/** Downstream sink pad that the source pad was linked to */
 	struct mpipe_pad *saved_src_peer;
+	/** Configured filter, re-applied to the pads on PAUSED -> READY */
+	struct mpipe_structure filter_caps;
 };
 
 /**

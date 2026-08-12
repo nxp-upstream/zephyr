@@ -11,11 +11,13 @@
 int mpipe_caps_filter_set_property(struct mpipe_object *obj, uint32_t key, const void *val)
 {
 	struct mpipe_transform *transform = (struct mpipe_transform *)obj;
+	struct mpipe_caps_filter *filter = (struct mpipe_caps_filter *)obj;
 
 	switch (key) {
 	case MPIPE_PROP_BASE_CAPS_FILTER_CAPS:
-		mpipe_pad_set_caps(&transform->sink_pad, (const struct mpipe_structure *)val);
-		mpipe_pad_set_caps(&transform->src_pad, (const struct mpipe_structure *)val);
+		filter->filter_caps = *(const struct mpipe_structure *)val;
+		mpipe_pad_set_caps(&transform->sink_pad, &filter->filter_caps);
+		mpipe_pad_set_caps(&transform->src_pad, &filter->filter_caps);
 		return 0;
 	default:
 		return -ENOTSUP;
@@ -24,16 +26,11 @@ int mpipe_caps_filter_set_property(struct mpipe_object *obj, uint32_t key, const
 
 int mpipe_caps_filter_get_property(struct mpipe_object *obj, uint32_t key, void *val)
 {
-	struct mpipe_transform *transform = (struct mpipe_transform *)obj;
+	struct mpipe_caps_filter *filter = (struct mpipe_caps_filter *)obj;
 
 	switch (key) {
 	case MPIPE_PROP_BASE_CAPS_FILTER_CAPS:
-		/*
-		 * The pad's caps may change during and after caps negotiation but the function is
-		 * generally called before any pipeline process, so it's OK to get the filter caps
-		 * from the pad's caps
-		 */
-		*(struct mpipe_structure **)val = &transform->sink_pad.caps;
+		*(struct mpipe_structure **)val = &filter->filter_caps;
 		return 0;
 	default:
 		return -ENOTSUP;
@@ -83,6 +80,7 @@ mpipe_caps_filter_change_state(struct mpipe_element *self, enum mpipe_state_chan
 {
 	struct mpipe_transform *transform = (struct mpipe_transform *)self;
 	struct mpipe_caps_filter *filter = (struct mpipe_caps_filter *)self;
+	enum mpipe_state_change_return ret;
 
 	switch (transition) {
 	case MPIPE_STATE_CHANGE_PAUSED_TO_READY:
@@ -106,7 +104,19 @@ mpipe_caps_filter_change_state(struct mpipe_element *self, enum mpipe_state_chan
 		break;
 	}
 
-	return mpipe_transform_change_state(self, transition);
+	ret = mpipe_transform_change_state(self, transition);
+
+	/*
+	 * The base reset above wiped the pads to ANY together with the negotiated
+	 * caps. The configured filter is not a negotiation result, so re-apply it
+	 * for the next negotiation.
+	 */
+	if (transition == MPIPE_STATE_CHANGE_PAUSED_TO_READY) {
+		mpipe_pad_set_caps(&transform->sink_pad, &filter->filter_caps);
+		mpipe_pad_set_caps(&transform->src_pad, &filter->filter_caps);
+	}
+
+	return ret;
 }
 
 int mpipe_caps_filter_init(struct mpipe_caps_filter *caps_filter, uint8_t id)
@@ -120,6 +130,11 @@ int mpipe_caps_filter_init(struct mpipe_caps_filter *caps_filter, uint8_t id)
 	}
 
 	mpipe_element_set_name(self, "caps_filter");
+
+	ret = mpipe_structure_init_any(&caps_filter->filter_caps);
+	if (ret != 0) {
+		return ret;
+	}
 
 	self->object.set_property = mpipe_caps_filter_set_property;
 	self->object.get_property = mpipe_caps_filter_get_property;
