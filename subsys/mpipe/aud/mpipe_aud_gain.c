@@ -206,8 +206,8 @@ static void apply_audio_gain(struct net_buf *buffer, int32_t gain_fixed, uint8_t
 	}
 }
 
-static int mpipe_aud_gain_chainfn(struct mpipe_pad *pad, struct net_buf *in_buf,
-				  struct net_buf **out_buf)
+static int mpipe_aud_gain_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
+				   struct net_buf **out_buf)
 {
 	struct mpipe_aud_gain *aud_gain = CONTAINER_OF(pad->object.container, struct mpipe_aud_gain,
 						       transform.element.object);
@@ -357,11 +357,11 @@ void mpipe_aud_gain_init(struct mpipe_element *self)
 	self->object.get_property = mpipe_aud_gain_get_property;
 
 	transform->mode = MPIPE_MODE_INPLACE;
-	transform->sink_pad.chainfn = mpipe_aud_gain_chainfn;
+	transform->sink_pad.chain_fn = mpipe_aud_gain_chain_fn;
 	transform->set_caps = mpipe_aud_gain_set_caps;
 	transform->decide_allocation = mpipe_aud_gain_decide_allocation;
 	transform->propose_allocation = mpipe_aud_gain_propose_allocation;
 
-	transform->sink_pad.enum_capsfn = mpipe_aud_gain_enum_caps;
-	transform->src_pad.enum_capsfn = mpipe_aud_gain_enum_caps;
+	transform->sink_pad.enum_caps_fn = mpipe_aud_gain_enum_caps;
+	transform->src_pad.enum_caps_fn = mpipe_aud_gain_enum_caps;
 }

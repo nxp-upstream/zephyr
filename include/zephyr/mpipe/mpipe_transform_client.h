@@ -46,7 +46,7 @@ struct mpipe_transform_client {
 	 * @param out_sz Output buffer size
 	 * @return 0 on success, an errno on failure
 	 */
-	int (*chainfn_rpc)(uint32_t in_buf, uint32_t in_sz, uint32_t out_buf, uint32_t *out_sz);
+	int (*chain_fn_rpc)(uint32_t in_buf, uint32_t in_sz, uint32_t out_buf, uint32_t *out_sz);
 };
 
 /**

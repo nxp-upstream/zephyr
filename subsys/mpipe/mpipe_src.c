@@ -278,6 +278,6 @@ void mpipe_src_init(struct mpipe_element *self)
 	self->change_state = mpipe_src_change_state;
 
 	src->set_caps = mpipe_src_set_caps;
-	src->src_pad.queryfn = mpipe_src_query;
+	src->src_pad.query_fn = mpipe_src_query;
 	src->decide_allocation = NULL;
 }

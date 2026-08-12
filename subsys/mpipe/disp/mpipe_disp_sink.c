@@ -181,7 +181,8 @@ static int mpipe_disp_sink_get_property(struct mpipe_object *obj, uint32_t key, 
 	}
 }
 
-int mpipe_disp_sink_chainfn(struct mpipe_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf)
+int mpipe_disp_sink_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
+			     struct net_buf **out_buf)
 {
 	struct mpipe_disp_sink *disp_sink =
 		CONTAINER_OF(pad->object.container, struct mpipe_disp_sink, sink.element.object);
@@ -271,7 +272,7 @@ void mpipe_disp_sink_init(struct mpipe_element *self)
 	self->object.get_property = mpipe_disp_sink_get_property;
 	self->object.set_property = mpipe_disp_sink_set_property;
 
-	sink->sink_pad.chainfn = mpipe_disp_sink_chainfn;
-	sink->sink_pad.enum_capsfn = mpipe_disp_sink_enum_caps;
+	sink->sink_pad.chain_fn = mpipe_disp_sink_chain_fn;
+	sink->sink_pad.enum_caps_fn = mpipe_disp_sink_enum_caps;
 	sink->set_caps = mpipe_disp_sink_set_caps;
 }

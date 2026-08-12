@@ -17,7 +17,7 @@ LOG_MODULE_REGISTER(mpipe_tee, CONFIG_MPIPE_LOG_LEVEL);
 
 #define DEFAULT_SRC_PADS_NUM 2
 
-static int mpipe_tee_sink_queryfn(struct mpipe_pad *pad, struct mpipe_dispatch *query)
+static int mpipe_tee_sink_query_fn(struct mpipe_pad *pad, struct mpipe_dispatch *query)
 {
 	struct mpipe_tee *tee = (struct mpipe_tee *)pad->object.container;
 
@@ -117,7 +117,7 @@ static int mpipe_tee_sink_queryfn(struct mpipe_pad *pad, struct mpipe_dispatch *
 	}
 }
 
-static int mpipe_tee_sink_eventfn(struct mpipe_pad *pad, struct mpipe_dispatch *event)
+static int mpipe_tee_sink_event_fn(struct mpipe_pad *pad, struct mpipe_dispatch *event)
 {
 	struct mpipe_tee *tee = (struct mpipe_tee *)pad->object.container;
 	int ret = 0;
@@ -171,8 +171,8 @@ static int mpipe_tee_sink_eventfn(struct mpipe_pad *pad, struct mpipe_dispatch *
 	}
 }
 
-static int mpipe_tee_chainfn(struct mpipe_pad *pad, struct net_buf *in_buf,
-			     struct net_buf **out_buf)
+static int mpipe_tee_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
+			      struct net_buf **out_buf)
 {
 	struct mpipe_tee *tee = (struct mpipe_tee *)pad->object.container;
 	uint8_t i = 0;
@@ -271,9 +271,9 @@ void mpipe_tee_init(struct mpipe_element *self)
 	self->object.set_property = mpipe_tee_set_property;
 	self->change_state = mpipe_tee_change_state;
 
-	tee->sink_pad.chainfn = mpipe_tee_chainfn;
-	tee->sink_pad.queryfn = mpipe_tee_sink_queryfn;
-	tee->sink_pad.eventfn = mpipe_tee_sink_eventfn;
+	tee->sink_pad.chain_fn = mpipe_tee_chain_fn;
+	tee->sink_pad.query_fn = mpipe_tee_sink_query_fn;
+	tee->sink_pad.event_fn = mpipe_tee_sink_event_fn;
 
 	/* Initialize the sink pad */
 	mpipe_pad_init(&tee->sink_pad, 0, MPIPE_PAD_SINK, MPIPE_PAD_ALWAYS);

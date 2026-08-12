@@ -68,12 +68,12 @@ void mpipe_pipeline_init(struct mpipe_element *self);
 /**
  * @brief Push a buffer downstream starting from a given source pad
  *
- * Walks downstream from an element's @p src_pad, calling each next element's chainfn
- * until a sink is reached, a chainfn fails, or output buffer is NULL
+ * Walks downstream from an element's @p src_pad, calling each next element's chain_fn
+ * until a sink is reached, a chain_fn fails, or output buffer is NULL
  *
- * On chainfn error the buffer is unreffed internally.
+ * On chain_fn error the buffer is unreffed internally.
  *
- * @param src_pad Source pad to start pushing from (its peer's chainfn is first called)
+ * @param src_pad Source pad to start pushing from (its peer's chain_fn is first called)
  * @param buffer Buffer to push (ownership transferred)
  *
  * @return 0 on success, negative errno on failure

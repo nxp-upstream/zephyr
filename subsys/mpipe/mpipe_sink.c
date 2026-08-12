@@ -71,8 +71,8 @@ int mpipe_sink_event(struct mpipe_pad *pad, struct mpipe_dispatch *event)
 	}
 }
 
-static int mpipe_sink_chainfn(struct mpipe_pad *pad, struct net_buf *in_buf,
-			      struct net_buf **out_buf)
+static int mpipe_sink_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
+			       struct net_buf **out_buf)
 {
 	/* By default, do nothing, just absorb the buffer */
 	ARG_UNUSED(pad);
@@ -106,9 +106,9 @@ void mpipe_sink_init(struct mpipe_element *self)
 
 	self->change_state = mpipe_sink_change_state;
 
-	sink->sink_pad.queryfn = mpipe_sink_query;
-	sink->sink_pad.eventfn = mpipe_sink_event;
-	sink->sink_pad.chainfn = mpipe_sink_chainfn;
+	sink->sink_pad.query_fn = mpipe_sink_query;
+	sink->sink_pad.event_fn = mpipe_sink_event;
+	sink->sink_pad.chain_fn = mpipe_sink_chain_fn;
 	sink->set_caps = mpipe_sink_set_caps;
 	sink->propose_allocation = NULL;
 }

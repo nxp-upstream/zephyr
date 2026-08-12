@@ -41,7 +41,7 @@ enum {
 /**
  * @brief Queue Element Structure
  *
- * The queue element acts as a thread boundary in a pipeline. Its chainfn enqueues
+ * The queue element acts as a thread boundary in a pipeline. Its chain_fn enqueues
  * buffers into an internal buffer queue. A dedicated thread then dequeues buffers
  * and drives downstream elements.
  */
@@ -59,7 +59,7 @@ struct mpipe_queue {
 	/** Number of buffers the queue can hold bounded by CONFIG_MPIPE_BASE_QUEUE_MAX_SIZE */
 	uint8_t size;
 	/**
-	 * Flushing flag. When set (on PAUSED -> READY), the chainfn drops incoming
+	 * Flushing flag. When set (on PAUSED -> READY), the chain_fn drops incoming
 	 * buffers instead of enqueueing them. This releases any upstream producer
 	 * blocked in k_msgq_put() during teardown and prevents a late buffer from
 	 * leaking into an already-drained queue (e.g. behind a tee).

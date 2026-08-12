@@ -201,5 +201,5 @@ void mpipe_element_init(struct mpipe_element *self, uint8_t id)
 	self->current_state = MPIPE_STATE_READY;
 	self->set_state = mpipe_element_set_state_func;
 	self->change_state = mpipe_element_change_state_func;
-	self->eventfn = NULL;
+	self->event_fn = NULL;
 }

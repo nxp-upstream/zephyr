@@ -209,10 +209,10 @@ void mpipe_parser_init(struct mpipe_element *self)
 	parser->outpool = NULL;
 	self->change_state = mpipe_parser_change_state;
 	parser->set_caps = mpipe_parser_set_caps;
-	parser->src_pad.queryfn = mpipe_parser_query;
-	parser->sink_pad.queryfn = mpipe_parser_query;
-	parser->src_pad.eventfn = mpipe_parser_event;
-	parser->sink_pad.eventfn = mpipe_parser_event;
+	parser->src_pad.query_fn = mpipe_parser_query;
+	parser->sink_pad.query_fn = mpipe_parser_query;
+	parser->src_pad.event_fn = mpipe_parser_event;
+	parser->sink_pad.event_fn = mpipe_parser_event;
 	parser->decide_allocation = NULL;
 	parser->propose_allocation = NULL;
 }

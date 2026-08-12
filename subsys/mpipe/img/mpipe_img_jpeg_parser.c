@@ -211,8 +211,8 @@ static int mpipe_img_jpeg_parser_release_buffer(struct mpipe_buffer_pool *pool, 
 	return 0;
 }
 
-static int mpipe_img_jpeg_parser_chainfn(struct mpipe_pad *pad, struct net_buf *in_buf,
-					 struct net_buf **out_buf)
+static int mpipe_img_jpeg_parser_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
+					  struct net_buf **out_buf)
 {
 	struct mpipe_parser *parser = (struct mpipe_parser *)pad->object.container;
 	struct mpipe_img_jpeg_parser *jpeg_parser = (struct mpipe_img_jpeg_parser *)parser;
@@ -398,10 +398,10 @@ void mpipe_img_jpeg_parser_init(struct mpipe_element *self)
 	 * The capabilities are enumerated from .rodata, so the ANY caps that
 	 * mpipe_parser_init() leaves on both sides are never consulted.
 	 */
-	parser->sink_pad.enum_capsfn = mpipe_img_jpeg_parser_enum_caps;
-	parser->src_pad.enum_capsfn = mpipe_img_jpeg_parser_enum_caps;
+	parser->sink_pad.enum_caps_fn = mpipe_img_jpeg_parser_enum_caps;
+	parser->src_pad.enum_caps_fn = mpipe_img_jpeg_parser_enum_caps;
 
-	parser->sink_pad.chainfn = mpipe_img_jpeg_parser_chainfn;
+	parser->sink_pad.chain_fn = mpipe_img_jpeg_parser_chain_fn;
 	parser->decide_allocation = mpipe_img_jpeg_parser_decide_allocation;
 
 	if (CONFIG_MPIPE_IMG_JPEG_PARSER_MAX_FRAME_SIZE > 0) {

@@ -140,8 +140,8 @@ void mpipe_vid_transform_client_init(struct mpipe_element *self)
 	(void)mpipe_vid_transform_client_probe_pool(vtc, MPIPE_PAD_SINK, transform->inpool);
 	(void)mpipe_vid_transform_client_probe_pool(vtc, MPIPE_PAD_SRC, transform->outpool);
 
-	transform->sink_pad.enum_capsfn = mpipe_vid_transform_client_enum_caps;
-	transform->src_pad.enum_capsfn = mpipe_vid_transform_client_enum_caps;
+	transform->sink_pad.enum_caps_fn = mpipe_vid_transform_client_enum_caps;
+	transform->src_pad.enum_caps_fn = mpipe_vid_transform_client_enum_caps;
 
 	transform->set_caps = mpipe_vid_transform_client_set_caps;
 	transform->transform_caps = mpipe_vid_transform_client_transform_caps;

@@ -32,9 +32,9 @@ struct mpipe_dispatch;
 
 /** @cond INTERNAL_HIDDEN */
 #if defined(CONFIG_MPIPE_DUMP)
-#define MPIPE_ELEMENT_SET_NAME(e, initfn) ((e)->name = #initfn)
+#define MPIPE_ELEMENT_SET_NAME(e, init_fn) ((e)->name = #init_fn)
 #else
-#define MPIPE_ELEMENT_SET_NAME(e, initfn) ((void)0)
+#define MPIPE_ELEMENT_SET_NAME(e, init_fn) ((void)0)
 #endif
 /** @endcond */
 
@@ -43,19 +43,19 @@ struct mpipe_dispatch;
  *
  * Calls @ref mpipe_element_init followed by the element-specific init function.
  *
- * When CONFIG_MPIPE_DUMP is enabled, the element is also named after @p initfn so
+ * When CONFIG_MPIPE_DUMP is enabled, the element is also named after @p init_fn so
  * a dump can identify it.
  *
- * @param elem   Pointer to the element to initialize.
- * @param initfn Element-specific initialization function.
- * @param id     Unique element identifier.
+ * @param elem    Pointer to the element to initialize.
+ * @param init_fn Element-specific initialization function.
+ * @param id      Unique element identifier.
  */
-#define MPIPE_ELEMENT_INIT(elem, initfn, id)                                                       \
+#define MPIPE_ELEMENT_INIT(elem, init_fn, id)                                                      \
 	do {                                                                                       \
 		struct mpipe_element *e = (struct mpipe_element *)(elem);                          \
 		mpipe_element_init(e, (id));                                                       \
-		initfn(e);                                                                         \
-		MPIPE_ELEMENT_SET_NAME(e, initfn);                                                 \
+		init_fn(e);                                                                        \
+		MPIPE_ELEMENT_SET_NAME(e, init_fn);                                                \
 	} while (0)
 
 /**
@@ -186,9 +186,9 @@ struct mpipe_element {
 	enum mpipe_state target_state;
 
 	/** Event handler function */
-	int (*eventfn)(struct mpipe_element *element, struct mpipe_dispatch *event);
+	int (*event_fn)(struct mpipe_element *element, struct mpipe_dispatch *event);
 	/** Query handler function */
-	int (*queryfn)(struct mpipe_element *element, struct mpipe_dispatch *query);
+	int (*query_fn)(struct mpipe_element *element, struct mpipe_dispatch *query);
 
 	/** Get current state function */
 	enum mpipe_state_change_return (*get_state)(struct mpipe_element *element,

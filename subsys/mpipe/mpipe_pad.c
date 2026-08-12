@@ -42,7 +42,7 @@ static int mpipe_pad_enum_caps_default(struct mpipe_pad *pad, uint32_t index,
 int mpipe_pad_enum_caps(struct mpipe_pad *pad, uint32_t index, const struct mpipe_structure *filter,
 			struct mpipe_structure *out)
 {
-	if (pad == NULL || pad->enum_capsfn == NULL || out == NULL) {
+	if (pad == NULL || pad->enum_caps_fn == NULL || out == NULL) {
 		return -EINVAL;
 	}
 
@@ -51,12 +51,12 @@ int mpipe_pad_enum_caps(struct mpipe_pad *pad, uint32_t index, const struct mpip
 	 * would run forever. Report it here rather than trust each element.
 	 */
 	if (index > UINT16_MAX) {
-		LOG_ERR("pad id = %u: enum_capsfn never reported the end of its capabilities",
+		LOG_ERR("pad id = %u: enum_caps_fn never reported the end of its capabilities",
 			pad->object.id);
 		return -ENOENT;
 	}
 
-	return pad->enum_capsfn(pad, index, filter, out);
+	return pad->enum_caps_fn(pad, index, filter, out);
 }
 
 int mpipe_pad_answer_caps_query(struct mpipe_pad *pad, struct mpipe_dispatch *query)
@@ -107,7 +107,7 @@ void mpipe_pad_init(struct mpipe_pad *pad, uint8_t id, enum mpipe_pad_direction 
 
 	/* A pad constrains nothing until a capability is negotiated onto it */
 	mpipe_structure_init_any(&pad->caps);
-	pad->enum_capsfn = mpipe_pad_enum_caps_default;
+	pad->enum_caps_fn = mpipe_pad_enum_caps_default;
 }
 
 int mpipe_pad_set_caps(struct mpipe_pad *pad, const struct mpipe_structure *caps)
@@ -150,11 +150,11 @@ int mpipe_pad_query(struct mpipe_pad *pad, struct mpipe_dispatch *query)
 		return -EINVAL;
 	}
 
-	if (pad->queryfn == NULL) {
+	if (pad->query_fn == NULL) {
 		return -ENOTSUP;
 	}
 
-	ret = pad->queryfn(pad, query);
+	ret = pad->query_fn(pad, query);
 	if (ret != 0) {
 		return ret;
 	}
@@ -212,9 +212,9 @@ int mpipe_pad_send_event(struct mpipe_pad *pad, struct mpipe_dispatch *event)
 		return -EINVAL;
 	}
 
-	if (pad->eventfn == NULL) {
+	if (pad->event_fn == NULL) {
 		return -ENOTSUP;
 	}
 
-	return pad->eventfn(pad, event);
+	return pad->event_fn(pad, event);
 }

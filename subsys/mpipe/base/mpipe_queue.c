@@ -63,8 +63,8 @@ static int mpipe_queue_set_property(struct mpipe_object *obj, uint32_t id, const
 	}
 }
 
-static int mpipe_queue_chainfn(struct mpipe_pad *pad, struct net_buf *in_buf,
-			       struct net_buf **out_buf)
+static int mpipe_queue_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
+				struct net_buf **out_buf)
 {
 	struct mpipe_queue *queue = (struct mpipe_queue *)pad->object.container;
 	int ret;
@@ -98,7 +98,7 @@ static int mpipe_queue_chainfn(struct mpipe_pad *pad, struct net_buf *in_buf,
 	return 0;
 }
 
-static int mpipe_queue_sink_eventfn(struct mpipe_pad *pad, struct mpipe_dispatch *event)
+static int mpipe_queue_sink_event_fn(struct mpipe_pad *pad, struct mpipe_dispatch *event)
 {
 	struct mpipe_queue *queue = (struct mpipe_queue *)pad->object.container;
 	int ret;
@@ -223,7 +223,7 @@ static enum mpipe_state_change_return mpipe_queue_change_state(struct mpipe_elem
 		 * Enter flushing before joining. Any producer blocked in this
 		 * queue's k_msgq_put() is released once the drain below frees a
 		 * slot; the flushing flag then makes its (and any subsequent)
-		 * chainfn drop the buffer instead of re-enqueueing or leaking it.
+		 * chain_fn drop the buffer instead of re-enqueueing or leaking it.
 		 */
 		atomic_set(&queue->flushing, 1);
 		mpipe_thread_join(&queue->thread, K_FOREVER);
@@ -258,8 +258,8 @@ void mpipe_queue_init(struct mpipe_element *self)
 	self->object.get_property = mpipe_queue_get_property;
 	self->change_state = mpipe_queue_change_state;
 
-	queue->transform.sink_pad.chainfn = mpipe_queue_chainfn;
-	queue->transform.sink_pad.eventfn = mpipe_queue_sink_eventfn;
+	queue->transform.sink_pad.chain_fn = mpipe_queue_chain_fn;
+	queue->transform.sink_pad.event_fn = mpipe_queue_sink_event_fn;
 	queue->size = CONFIG_MPIPE_BASE_QUEUE_MAX_SIZE;
 
 	/* Size of the msgq = queue's max size + 2 (for eos and pause sentinels) */

@@ -18,8 +18,8 @@ LOG_MODULE_REGISTER(mpipe_vid_transform, CONFIG_MPIPE_LOG_LEVEL);
 
 #define DEFAULT_PROP_DEVICE DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_videotrans))
 
-static int mpipe_vid_transform_chainfn(struct mpipe_pad *pad, struct net_buf *in_buf,
-				       struct net_buf **out_buf)
+static int mpipe_vid_transform_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
+					struct net_buf **out_buf)
 {
 	int ret;
 	struct mpipe_transform *transform =
@@ -221,12 +221,12 @@ void mpipe_vid_transform_init(struct mpipe_element *self)
 	(void)mpipe_vid_object_probe_bounds(&vid_transform->vid_obj_in);
 	(void)mpipe_vid_object_probe_bounds(&vid_transform->vid_obj_out);
 
-	transform->sink_pad.enum_capsfn = mpipe_vid_transform_enum_caps;
-	transform->src_pad.enum_capsfn = mpipe_vid_transform_enum_caps;
+	transform->sink_pad.enum_caps_fn = mpipe_vid_transform_enum_caps;
+	transform->src_pad.enum_caps_fn = mpipe_vid_transform_enum_caps;
 
 	transform->set_caps = mpipe_vid_transform_set_caps;
 	transform->transform_caps = mpipe_vid_transform_transform_caps;
-	transform->sink_pad.chainfn = mpipe_vid_transform_chainfn;
+	transform->sink_pad.chain_fn = mpipe_vid_transform_chain_fn;
 	transform->decide_allocation = mpipe_vid_transform_decide_allocation;
 	transform->propose_allocation = mpipe_vid_transform_propose_allocation;
 }

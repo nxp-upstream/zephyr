@@ -94,7 +94,7 @@ static int mpipe_aud_src_enum_caps(struct mpipe_pad *pad, uint32_t index,
 void mpipe_aud_src_update_caps(struct mpipe_src *src)
 {
 	/* The capabilities are enumerated from the device, so nothing is built here */
-	src->src_pad.enum_capsfn = mpipe_aud_src_enum_caps;
+	src->src_pad.enum_caps_fn = mpipe_aud_src_enum_caps;
 }
 
 /*

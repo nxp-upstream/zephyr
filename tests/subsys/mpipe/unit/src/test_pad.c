@@ -84,8 +84,8 @@ ZTEST_F(mpipe_pad_api, test_sanity)
 	zassert_true(mpipe_pad_query(NULL, &q) < 0, "query(NULL, q) did not fail");
 	zassert_true(mpipe_pad_query(&fixture->src_pad, NULL) < 0, "query(pad, NULL) did not fail");
 
-	fixture->src_pad.queryfn = NULL;
-	zassert_true(mpipe_pad_query(&fixture->src_pad, &q) < 0, "query(no queryfn) did not fail");
+	fixture->src_pad.query_fn = NULL;
+	zassert_true(mpipe_pad_query(&fixture->src_pad, &q) < 0, "query(no query_fn) did not fail");
 
 	mpipe_dispatch_clear(&q);
 }
@@ -136,7 +136,7 @@ ZTEST_F(mpipe_pad_api, test_enum_caps)
 	zassert_equal(mpipe_pad_enum_caps(NULL, 0, NULL, &out), -EINVAL,
 		      "enum(NULL pad) != -EINVAL");
 
-	fixture->src_pad.enum_capsfn = fake_enum_caps;
+	fixture->src_pad.enum_caps_fn = fake_enum_caps;
 
 	zassert_ok(mpipe_pad_enum_caps(&fixture->src_pad, 1, NULL, &out), "enum 1 failed");
 	zassert_equal(mpipe_value_get_uint(mpipe_structure_get_value(&out, MPIPE_CAPS_BITWIDTH)),
@@ -170,7 +170,7 @@ ZTEST_F(mpipe_pad_api, test_enum_caps)
 	zassert_equal(mpipe_pad_enum_first(&fixture->src_pad, &filter, &out), -ENODATA,
 		      "unsatisfiable filter != -ENODATA");
 
-	fixture->src_pad.enum_capsfn = NULL;
+	fixture->src_pad.enum_caps_fn = NULL;
 	zassert_equal(mpipe_pad_enum_caps(&fixture->src_pad, 0, NULL, &out), -EINVAL,
 		      "enum without a hook != -EINVAL");
 }

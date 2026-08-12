@@ -104,7 +104,7 @@ static int mpipe_aud_i2s_codec_sink_propose_allocation(struct mpipe_sink *sink,
 static void mpipe_aud_i2s_codec_sink_update_caps(struct mpipe_sink *sink)
 {
 	/* The capabilities are enumerated from the devices, so nothing is built here */
-	sink->sink_pad.enum_capsfn = mpipe_aud_i2s_codec_sink_enum_caps;
+	sink->sink_pad.enum_caps_fn = mpipe_aud_i2s_codec_sink_enum_caps;
 }
 
 static int mpipe_aud_i2s_codec_sink_set_property(struct mpipe_object *obj, uint32_t key,
@@ -266,8 +266,8 @@ static int mpipe_aud_i2s_codec_sink_set_caps(struct mpipe_sink *sink,
 	return 0;
 }
 
-int mpipe_aud_i2s_codec_sink_chainfn(struct mpipe_pad *pad, struct net_buf *in_buf,
-				     struct net_buf **out_buf)
+int mpipe_aud_i2s_codec_sink_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
+				      struct net_buf **out_buf)
 {
 	struct mpipe_aud_i2s_codec_sink *aud_i2s_codec_sink = CONTAINER_OF(
 		pad->object.container, struct mpipe_aud_i2s_codec_sink, sink.element.object);
@@ -323,7 +323,7 @@ void mpipe_aud_i2s_codec_sink_init(struct mpipe_element *self)
 	self->object.get_property = mpipe_aud_i2s_codec_sink_get_property;
 	self->object.set_property = mpipe_aud_i2s_codec_sink_set_property;
 
-	sink->sink_pad.chainfn = mpipe_aud_i2s_codec_sink_chainfn;
+	sink->sink_pad.chain_fn = mpipe_aud_i2s_codec_sink_chain_fn;
 	sink->set_caps = mpipe_aud_i2s_codec_sink_set_caps;
 	sink->propose_allocation = mpipe_aud_i2s_codec_sink_propose_allocation;
 

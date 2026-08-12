@@ -91,7 +91,7 @@ void mpipe_vid_src_init(struct mpipe_element *self)
 	src->pool = &vid_src->vid_obj.pool.pool;
 	mpipe_vid_buffer_pool_init(src->pool, &vid_src->vid_obj);
 
-	src->src_pad.enum_capsfn = mpipe_vid_src_enum_caps;
+	src->src_pad.enum_caps_fn = mpipe_vid_src_enum_caps;
 	src->set_caps = mpipe_vid_src_set_caps;
 	src->decide_allocation = mpipe_vid_src_decide_allocation;
 }
