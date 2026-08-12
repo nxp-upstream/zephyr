@@ -157,14 +157,14 @@ static int mpipe_parser_query(struct mpipe_pad *pad, struct mpipe_dispatch *quer
 		}
 
 		/* Configure/start the output buffer pool */
-		if (parser->outpool != NULL && !parser->outpool->started) {
-			ret = mpipe_buffer_pool_configure(parser->outpool, &parser->src_pad.caps);
+		if (parser->out_pool != NULL && !parser->out_pool->started) {
+			ret = mpipe_buffer_pool_configure(parser->out_pool, &parser->src_pad.caps);
 			if (ret != 0 && ret != -ENOSYS) {
 				LOG_ERR("Failed to configure output parser buffer pool");
 				return ret;
 			}
 
-			ret = mpipe_buffer_pool_start(parser->outpool);
+			ret = mpipe_buffer_pool_start(parser->out_pool);
 			if (ret != 0 && ret != -ENOSYS) {
 				LOG_ERR("Failed to start output parser buffer pool");
 				return ret;
@@ -206,7 +206,7 @@ void mpipe_parser_init(struct mpipe_element *self)
 	mpipe_pad_init(&parser->src_pad, MPIPE_PAD_SRC_ID, MPIPE_PAD_SRC, MPIPE_PAD_ALWAYS);
 	mpipe_element_add_pad(self, &parser->src_pad);
 
-	parser->outpool = NULL;
+	parser->out_pool = NULL;
 	self->change_state = mpipe_parser_change_state;
 	parser->set_caps = mpipe_parser_set_caps;
 	parser->src_pad.query_fn = mpipe_parser_query;

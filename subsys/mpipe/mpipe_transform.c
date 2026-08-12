@@ -297,13 +297,13 @@ static int mpipe_transform_query(struct mpipe_pad *pad, struct mpipe_dispatch *q
 
 		/* Configure/start the output buffer pool */
 		if (self->mode == MPIPE_MODE_NORMAL) {
-			ret = mpipe_buffer_pool_configure(self->outpool, &self->src_pad.caps);
+			ret = mpipe_buffer_pool_configure(self->out_pool, &self->src_pad.caps);
 			if (ret != 0 && ret != -ENOSYS) {
 				LOG_ERR("Failed to configure output transform buffer pool");
 				return ret;
 			}
 
-			ret = mpipe_buffer_pool_start(self->outpool);
+			ret = mpipe_buffer_pool_start(self->out_pool);
 			if (ret != 0 && ret != -ENOSYS) {
 				LOG_ERR("Failed to start output transform buffer pool");
 				return ret;

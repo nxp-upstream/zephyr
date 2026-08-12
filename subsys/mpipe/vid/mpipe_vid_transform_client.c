@@ -69,10 +69,10 @@ static int mpipe_vid_transform_client_set_caps(struct mpipe_transform *transform
 
 	if (direction == MPIPE_PAD_SINK) {
 		type = VIDEO_BUF_TYPE_INPUT;
-		pool = transform->inpool;
+		pool = transform->in_pool;
 	} else if (direction == MPIPE_PAD_SRC) {
 		type = VIDEO_BUF_TYPE_OUTPUT;
-		pool = transform->outpool;
+		pool = transform->out_pool;
 	} else {
 		LOG_ERR("Pad direction is invalid");
 		return -EINVAL;
@@ -129,16 +129,16 @@ void mpipe_vid_transform_client_init(struct mpipe_element *self)
 	/* Init base class */
 	mpipe_transform_client_init(self);
 
-	transform->inpool = &vtc->inpool.pool;
-	transform->outpool = &vtc->outpool.pool;
+	transform->in_pool = &vtc->in_pool.pool;
+	transform->out_pool = &vtc->out_pool.pool;
 
 	/*
 	 * The pool parameters are asked for once. The supported formats are not:
 	 * the pads enumerate them from the remote on demand, so the element keeps
 	 * no list of its own and its pad caps stay ANY until one is negotiated.
 	 */
-	(void)mpipe_vid_transform_client_probe_pool(vtc, MPIPE_PAD_SINK, transform->inpool);
-	(void)mpipe_vid_transform_client_probe_pool(vtc, MPIPE_PAD_SRC, transform->outpool);
+	(void)mpipe_vid_transform_client_probe_pool(vtc, MPIPE_PAD_SINK, transform->in_pool);
+	(void)mpipe_vid_transform_client_probe_pool(vtc, MPIPE_PAD_SRC, transform->out_pool);
 
 	transform->sink_pad.enum_caps_fn = mpipe_vid_transform_client_enum_caps;
 	transform->src_pad.enum_caps_fn = mpipe_vid_transform_client_enum_caps;
@@ -146,6 +146,6 @@ void mpipe_vid_transform_client_init(struct mpipe_element *self)
 	transform->set_caps = mpipe_vid_transform_client_set_caps;
 	transform->transform_caps = mpipe_vid_transform_client_transform_caps;
 	/* Initialize buffer pools */
-	mpipe_vid_buffer_pool_client_init(transform->inpool);
-	mpipe_vid_buffer_pool_client_init(transform->outpool);
+	mpipe_vid_buffer_pool_client_init(transform->in_pool);
+	mpipe_vid_buffer_pool_client_init(transform->out_pool);
 }

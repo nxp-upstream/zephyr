@@ -43,7 +43,7 @@ struct mpipe_parser {
 	/** @cond INTERNAL_HIDDEN */
 	/** @endcond */
 	/** Pointer to the output buffer pool */
-	struct mpipe_buffer_pool *outpool;
+	struct mpipe_buffer_pool *out_pool;
 
 	/**
 	 * @brief Set a capability on a pad.

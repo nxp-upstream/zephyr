@@ -70,17 +70,17 @@ static int mpipe_img_jpeg_parser_decide_allocation(struct mpipe_parser *parser,
 
 	/* Use the internal pool by default */
 	if (CONFIG_MPIPE_IMG_JPEG_PARSER_MAX_FRAME_SIZE > 0) {
-		parser->outpool = &jpeg_parser->out_pool;
+		parser->out_pool = &jpeg_parser->out_pool;
 	}
 
 	/* Use the proposed pool from downstream when available */
 	if (query_pool != NULL) {
 		/* Add one extra buffer to hold the parser's partial frame */
 		query_pool->config.min_buffers += 1;
-		parser->outpool = query_pool;
+		parser->out_pool = query_pool;
 	}
 
-	if (parser->outpool == NULL) {
+	if (parser->out_pool == NULL) {
 		return -ENOMEM;
 	}
 
@@ -216,7 +216,7 @@ static int mpipe_img_jpeg_parser_chain_fn(struct mpipe_pad *pad, struct net_buf 
 {
 	struct mpipe_parser *parser = (struct mpipe_parser *)pad->object.container;
 	struct mpipe_img_jpeg_parser *jpeg_parser = (struct mpipe_img_jpeg_parser *)parser;
-	struct mpipe_buffer_pool *outpool = parser->outpool;
+	struct mpipe_buffer_pool *out_pool = parser->out_pool;
 	const uint8_t *data = in_buf->data;
 	uint32_t in_used = mpipe_buffer_get_meta(in_buf)->bytes_used;
 	size_t parse_offset = 0;
@@ -297,7 +297,7 @@ static int mpipe_img_jpeg_parser_chain_fn(struct mpipe_pad *pad, struct net_buf 
 		size_t up_to_eoi = (size_t)(eoi_ptr - data) + 2U;
 		size_t len = up_to_eoi - parse_offset;
 
-		if (outpool->acquire_buffer(outpool, &out) != 0 || out == NULL) {
+		if (out_pool->acquire_buffer(out_pool, &out) != 0 || out == NULL) {
 			LOG_ERR("Failed to acquire output buffer");
 			net_buf_unref(in_buf);
 			if (*out_buf != NULL) {
@@ -332,7 +332,7 @@ static int mpipe_img_jpeg_parser_chain_fn(struct mpipe_pad *pad, struct net_buf 
 		struct net_buf *partial = NULL;
 		size_t remain = in_used - parse_offset;
 
-		if (outpool->acquire_buffer(outpool, &partial) != 0 || partial == NULL) {
+		if (out_pool->acquire_buffer(out_pool, &partial) != 0 || partial == NULL) {
 			LOG_ERR("Failed to acquire partial buffer");
 			net_buf_unref(in_buf);
 			if (*out_buf != NULL) {
@@ -412,6 +412,6 @@ void mpipe_img_jpeg_parser_init(struct mpipe_element *self)
 		jpeg_parser->out_pool.release_buffer = mpipe_img_jpeg_parser_release_buffer;
 		/* net_buf pool is static; no explicit start */
 		jpeg_parser->out_pool.started = true;
-		parser->outpool = &jpeg_parser->out_pool;
+		parser->out_pool = &jpeg_parser->out_pool;
 	}
 }

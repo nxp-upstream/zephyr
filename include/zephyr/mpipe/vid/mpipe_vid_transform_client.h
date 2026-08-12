@@ -42,9 +42,9 @@ struct mpipe_vid_transform_client {
 	/** Base transform client structure */
 	struct mpipe_transform_client transform;
 	/** Input buffer pool */
-	struct mpipe_vid_buffer_pool_client inpool;
+	struct mpipe_vid_buffer_pool_client in_pool;
 	/** Output buffer pool */
-	struct mpipe_vid_buffer_pool_client outpool;
+	struct mpipe_vid_buffer_pool_client out_pool;
 	/**
 	 * @brief RPC callback to query buffer pool capabilities.
 	 *

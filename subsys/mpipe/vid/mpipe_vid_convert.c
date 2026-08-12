@@ -393,11 +393,11 @@ static int vid_convert_decide_allocation(struct mpipe_transform *self, struct mp
 	struct mpipe_buffer_pool *down_pool = mpipe_dispatch_get_pool(query);
 
 	/* Use the internal pool by default */
-	self->outpool = &conv->out_pool;
+	self->out_pool = &conv->out_pool;
 
 	/* Use the proposed pool from downstream when available */
 	if (down_pool != NULL) {
-		self->outpool = down_pool;
+		self->out_pool = down_pool;
 	}
 
 	/* TODO: Do negotiation when downstream only propose pool config */
@@ -412,7 +412,7 @@ static int vid_convert_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 	struct net_buf *next;
 	struct mpipe_transform *transform = (struct mpipe_transform *)pad->object.container;
 	struct mpipe_vid_convert *conv = (struct mpipe_vid_convert *)transform;
-	struct mpipe_buffer_pool *outpool = transform->outpool;
+	struct mpipe_buffer_pool *out_pool = transform->out_pool;
 	uint32_t out_sz = vid_convert_frame_size(conv->out_pixfmt, conv->width, conv->height);
 
 	if (conv->width == 0U || conv->height == 0U || conv->in_pixfmt == 0U ||
@@ -428,7 +428,7 @@ static int vid_convert_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 	while (cur != NULL) {
 		struct net_buf *out = NULL;
 
-		if (outpool->acquire_buffer(outpool, &out) != 0 || out == NULL) {
+		if (out_pool->acquire_buffer(out_pool, &out) != 0 || out == NULL) {
 			LOG_ERR("Failed to acquire output buffer");
 			goto err;
 		}
@@ -507,7 +507,7 @@ void mpipe_vid_convert_init(struct mpipe_element *self)
 	conv->out_pool.config.max_buffers = CONFIG_VIDEO_BUFFER_POOL_NUM_MAX;
 
 	transform->mode = MPIPE_MODE_NORMAL;
-	transform->outpool = &conv->out_pool;
+	transform->out_pool = &conv->out_pool;
 	transform->set_caps = vid_convert_set_caps;
 	transform->transform_caps = vid_convert_transform_caps;
 	transform->propose_allocation = NULL;

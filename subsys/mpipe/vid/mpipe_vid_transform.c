@@ -25,7 +25,7 @@ static int mpipe_vid_transform_chain_fn(struct mpipe_pad *pad, struct net_buf *i
 	struct mpipe_transform *transform =
 		CONTAINER_OF(pad->object.container, struct mpipe_transform, element.object);
 	struct mpipe_vid_transform *vid_transform = (struct mpipe_vid_transform *)transform;
-	struct mpipe_buffer_pool *outpool = &vid_transform->vid_obj_out.pool.pool;
+	struct mpipe_buffer_pool *out_pool = &vid_transform->vid_obj_out.pool.pool;
 	struct video_buffer *in_vbuf;
 
 	/* TODO: Ensure net_buf meta's driver_buf is always a video buffer */
@@ -58,7 +58,7 @@ static int mpipe_vid_transform_chain_fn(struct mpipe_pad *pad, struct net_buf *i
 	net_buf_unref(in_buf);
 
 	/* Dequeue an output buffer, blocking */
-	ret = outpool->acquire_buffer(outpool, out_buf);
+	ret = out_pool->acquire_buffer(out_pool, out_buf);
 	if (ret != 0) {
 		LOG_ERR("Failed to acquire output buffer");
 		return -ENOMEM;
@@ -179,7 +179,7 @@ static int mpipe_vid_transform_decide_allocation(struct mpipe_transform *self,
 static int mpipe_vid_transform_propose_allocation(struct mpipe_transform *self,
 						  struct mpipe_dispatch *query)
 {
-	return mpipe_dispatch_set_pool(query, self->inpool);
+	return mpipe_dispatch_set_pool(query, self->in_pool);
 }
 
 void mpipe_vid_transform_init(struct mpipe_element *self)
@@ -205,11 +205,11 @@ void mpipe_vid_transform_init(struct mpipe_element *self)
 	 */
 	transform->mode = MPIPE_MODE_NORMAL;
 
-	transform->inpool = &vid_transform->vid_obj_in.pool.pool;
-	transform->outpool = &vid_transform->vid_obj_out.pool.pool;
+	transform->in_pool = &vid_transform->vid_obj_in.pool.pool;
+	transform->out_pool = &vid_transform->vid_obj_out.pool.pool;
 	/* Initialize buffer pools */
-	mpipe_vid_buffer_pool_init(transform->inpool, &(vid_transform->vid_obj_in));
-	mpipe_vid_buffer_pool_init(transform->outpool, &(vid_transform->vid_obj_out));
+	mpipe_vid_buffer_pool_init(transform->in_pool, &(vid_transform->vid_obj_in));
+	mpipe_vid_buffer_pool_init(transform->out_pool, &(vid_transform->vid_obj_out));
 
 	/*
 	 * Probe the pool parameters for both directions here. The formats are

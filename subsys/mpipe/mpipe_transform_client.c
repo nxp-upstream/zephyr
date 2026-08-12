@@ -24,15 +24,15 @@ static int mpipe_transform_client_chain_fn(struct mpipe_pad *pad, struct net_buf
 	uint32_t in_used;
 	uint32_t out_used;
 
-	if (in_buf == NULL || out_buf == NULL || transform->outpool == NULL ||
-	    transform->outpool->acquire_buffer == NULL) {
+	if (in_buf == NULL || out_buf == NULL || transform->out_pool == NULL ||
+	    transform->out_pool->acquire_buffer == NULL) {
 		return -EINVAL;
 	}
 
 	in_meta = mpipe_buffer_get_meta(in_buf);
 	in_used = in_meta ? in_meta->bytes_used : in_buf->len;
 
-	if (transform->outpool->acquire_buffer(transform->outpool, out_buf) != 0 ||
+	if (transform->out_pool->acquire_buffer(transform->out_pool, out_buf) != 0 ||
 	    *out_buf == NULL) {
 		LOG_ERR("Failed to acquire an output buffer");
 		return -ENOMEM;
@@ -69,14 +69,14 @@ static int mpipe_transform_client_chain_fn(struct mpipe_pad *pad, struct net_buf
 static int mpipe_transform_client_propose_allocation(struct mpipe_transform *self,
 						     struct mpipe_dispatch *query)
 {
-	return mpipe_dispatch_set_pool(query, self->inpool);
+	return mpipe_dispatch_set_pool(query, self->in_pool);
 }
 
 static int mpipe_transform_client_decide_allocation(struct mpipe_transform *self,
 						    struct mpipe_dispatch *query)
 {
 	struct mpipe_buffer_pool *query_pool = mpipe_dispatch_get_pool(query);
-	struct mpipe_buffer_pool_config *pool_config = &self->outpool->config;
+	struct mpipe_buffer_pool_config *pool_config = &self->out_pool->config;
 	struct mpipe_buffer_pool_config *qpc = NULL;
 
 	if (query_pool == NULL) {

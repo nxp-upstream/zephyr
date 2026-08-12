@@ -63,9 +63,9 @@ struct mpipe_transform {
 	/** Source pad for sending output data */
 	struct mpipe_pad src_pad;
 	/** Pointer to the input buffer pool for allocating input buffers */
-	struct mpipe_buffer_pool *inpool;
+	struct mpipe_buffer_pool *in_pool;
 	/** Pointer to the output buffer pool for allocating output buffers */
-	struct mpipe_buffer_pool *outpool;
+	struct mpipe_buffer_pool *out_pool;
 	/** Operating mode determining buffer handling strategy */
 	enum mpipe_transform_mode mode;
 
@@ -109,8 +109,8 @@ struct mpipe_transform {
 	 * All the proposed pool's ops are then intended to be called by the upstream element.
 	 *
 	 * For in-place transform, the same pool may be used for both input and output. If the
-	 * pool is proposed to upstream, the element has to use @ref mpipe_transform::inpool to
-	 * point to the pool and leave @ref mpipe_transform::outpool as NULL so that the pool is
+	 * pool is proposed to upstream, the element has to use @ref mpipe_transform::in_pool to
+	 * point to the pool and leave @ref mpipe_transform::out_pool as NULL so that the pool is
 	 * configured / started only by the upstream and not by the transform element itself.
 	 *
 	 * @param self Pointer to the transform element

@@ -24,8 +24,8 @@ NET_BUF_POOL_FIXED_DEFINE(mpipe_img_dec_pool, CONFIG_MPIPE_IMG_JPEG_DECODER_POOL
 			  CONFIG_MPIPE_IMG_JPEG_DECODER_MAX_OUT_FRAME_SIZE,
 			  sizeof(struct mpipe_buffer_meta), mpipe_buffer_destroy);
 
-static int mpipe_img_jpeg_decoder_outpool_acquire(struct mpipe_buffer_pool *pool,
-						  struct net_buf **buf)
+static int mpipe_img_jpeg_decoder_out_pool_acquire(struct mpipe_buffer_pool *pool,
+						   struct net_buf **buf)
 {
 	struct net_buf *out;
 	struct mpipe_buffer_meta *m;
@@ -52,8 +52,8 @@ static int mpipe_img_jpeg_decoder_outpool_acquire(struct mpipe_buffer_pool *pool
 	return 0;
 }
 
-static int mpipe_img_jpeg_decoder_outpool_release(struct mpipe_buffer_pool *pool,
-						  struct net_buf *buf)
+static int mpipe_img_jpeg_decoder_out_pool_release(struct mpipe_buffer_pool *pool,
+						   struct net_buf *buf)
 {
 	ARG_UNUSED(pool);
 
@@ -72,7 +72,7 @@ static int mpipe_img_jpeg_decoder_outpool_release(struct mpipe_buffer_pool *pool
 	return 0;
 }
 
-static void mpipe_img_jpeg_decoder_outpool_init(struct mpipe_img_jpeg_decoder *dec)
+static void mpipe_img_jpeg_decoder_out_pool_init(struct mpipe_img_jpeg_decoder *dec)
 {
 	mpipe_buffer_pool_init(&dec->out_pool);
 	dec->out_pool.nb_pool = &mpipe_img_dec_pool;
@@ -80,8 +80,8 @@ static void mpipe_img_jpeg_decoder_outpool_init(struct mpipe_img_jpeg_decoder *d
 	dec->out_pool.config.align = 1;
 	dec->out_pool.config.min_buffers = CONFIG_MPIPE_IMG_JPEG_DECODER_POOL_NUM;
 	dec->out_pool.config.max_buffers = CONFIG_MPIPE_IMG_JPEG_DECODER_POOL_NUM;
-	dec->out_pool.acquire_buffer = mpipe_img_jpeg_decoder_outpool_acquire;
-	dec->out_pool.release_buffer = mpipe_img_jpeg_decoder_outpool_release;
+	dec->out_pool.acquire_buffer = mpipe_img_jpeg_decoder_out_pool_acquire;
+	dec->out_pool.release_buffer = mpipe_img_jpeg_decoder_out_pool_release;
 	dec->out_pool.started = true; /* net_buf pool is static; no explicit start */
 }
 
@@ -143,17 +143,17 @@ static int mpipe_img_jpeg_decoder_chain_fn(struct mpipe_pad *pad, struct net_buf
 {
 	struct mpipe_transform *transform = (struct mpipe_transform *)pad->object.container;
 	struct mpipe_img_jpeg_decoder *dec = (struct mpipe_img_jpeg_decoder *)transform;
-	struct mpipe_buffer_pool *outpool = transform->outpool;
+	struct mpipe_buffer_pool *out_pool = transform->out_pool;
 	struct net_buf *cur;
 	struct net_buf *next;
 
 	*out_buf = NULL;
 
-	if (outpool == NULL) {
-		outpool = &dec->out_pool;
+	if (out_pool == NULL) {
+		out_pool = &dec->out_pool;
 	}
 
-	if (in_buf == NULL || outpool->acquire_buffer == NULL) {
+	if (in_buf == NULL || out_pool->acquire_buffer == NULL) {
 		return -EINVAL;
 	}
 
@@ -163,7 +163,7 @@ static int mpipe_img_jpeg_decoder_chain_fn(struct mpipe_pad *pad, struct net_buf
 		int ret;
 
 		/* Acquire first; on failure drop remaining input chain */
-		ret = outpool->acquire_buffer(outpool, &out);
+		ret = out_pool->acquire_buffer(out_pool, &out);
 		if (ret != 0 || out == NULL) {
 			LOG_ERR("Failed to acquire output buffer (%d)", ret);
 			net_buf_unref(cur);
@@ -355,10 +355,10 @@ static int mpipe_img_jpeg_decoder_decide_allocation(struct mpipe_transform *self
 	struct mpipe_buffer_pool *down_pool = mpipe_dispatch_get_pool(query);
 
 	/* Default to our internal pool */
-	self->outpool = &dec->out_pool;
+	self->out_pool = &dec->out_pool;
 
 	if (down_pool != NULL) {
-		self->outpool = down_pool;
+		self->out_pool = down_pool;
 	}
 
 	return 0;
@@ -374,12 +374,12 @@ void mpipe_img_jpeg_decoder_init(struct mpipe_element *self)
 	dec->out_pixfmt = VIDEO_PIX_FMT_RGB565;
 
 	transform->mode = MPIPE_MODE_NORMAL;
-	transform->outpool = &dec->out_pool;
+	transform->out_pool = &dec->out_pool;
 
 	transform->sink_pad.enum_caps_fn = mpipe_img_jpeg_decoder_enum_caps;
 	transform->src_pad.enum_caps_fn = mpipe_img_jpeg_decoder_enum_caps;
 
-	mpipe_img_jpeg_decoder_outpool_init(dec);
+	mpipe_img_jpeg_decoder_out_pool_init(dec);
 
 	transform->set_caps = mpipe_img_jpeg_decoder_set_caps;
 	transform->transform_caps = mpipe_img_jpeg_decoder_transform_caps;
