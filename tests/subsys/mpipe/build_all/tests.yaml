@@ -1,0 +1,76 @@
+tests:
+
+  mpipe.core.build:
+    tags:
+      - subsys
+      - mpipe
+    build_only: true
+    platform_allow:
+      - native_sim/native/64
+
+  mpipe.base.build:
+    tags:
+      - subsys
+      - mpipe
+    build_only: true
+    platform_allow:
+      - native_sim/native/64
+    extra_args:
+      - CONFIG_MPIPE_BASE=y
+      - CONFIG_MPIPE_BASE_CAPSFILTER=y
+      - CONFIG_MPIPE_BASE_QUEUE=y
+      - CONFIG_MPIPE_BASE_TEE=y
+
+  mpipe.video.build:
+    tags:
+      - subsys
+      - mpipe
+    build_only: true
+    platform_allow:
+      - native_sim/native/64
+    extra_args:
+      - CONFIG_MPIPE_VID=y
+      - CONFIG_MPIPE_VID_CONVERT=y
+
+  mpipe.display.build:
+    tags:
+      - subsys
+      - mpipe
+    build_only: true
+    platform_allow:
+      - native_sim/native/64
+    extra_args:
+      - CONFIG_MPIPE_DISP=y
+
+  mpipe.img.build:
+    tags:
+      - subsys
+      - mpipe
+    build_only: true
+    platform_allow:
+      - native_sim/native/64
+    extra_args:
+      - CONFIG_MPIPE_IMG=y
+
+  mpipe.fs.build:
+    tags:
+      - subsys
+      - mpipe
+    build_only: true
+    platform_allow:
+      - native_sim/native/64
+    extra_args:
+      - CONFIG_MPIPE_FS=y
+
+  mpipe.audio.build:
+    tags:
+      - subsys
+      - mpipe
+    build_only: true
+    platform_allow:
+      - native_sim/native/64
+    extra_args:
+      - CONFIG_I2S=y
+      - CONFIG_AUDIO_DMIC=y
+      - CONFIG_AUDIO_CODEC=y
+      - CONFIG_MPIPE_AUD=y

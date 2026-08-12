@@ -1,0 +1,69 @@
+/*
+ * Copyright 2025-2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
+ * @file
+ * @ingroup mpipe_disp_sinks
+ * @brief Display sink element for the mpipe disp plugin.
+ *
+ * Provides a sink element that renders video frames to a Zephyr display
+ * device, supporting partial frame updates and configurable display regions.
+ */
+
+#ifndef ZEPHYR_INCLUDE_MPIPE_DISP_MPIPE_DISP_SINK_H_
+#define ZEPHYR_INCLUDE_MPIPE_DISP_MPIPE_DISP_SINK_H_
+
+/**
+ * @defgroup mpipe_disp disp
+ * @ingroup mpipe_plugins
+ * @brief Display sink elements and related properties.
+ */
+
+/**
+ * @defgroup mpipe_disp_sinks Sinks
+ * @ingroup mpipe_disp
+ * @brief Display sink elements.
+ * @{
+ */
+
+#include <zephyr/device.h>
+
+#include <zephyr/mpipe/mpipe_sink.h>
+
+/**
+ * @brief Display sink property identifiers.
+ *
+ * Extends the base sink properties defined in @ref mpipe_prop_sink.
+ * Enumeration starts from @ref MPIPE_PROP_SINK_LAST to avoid conflicts.
+ */
+enum {
+	/** Display device property (const struct device *). */
+	MPIPE_PROP_DISP_SINK_DEVICE = MPIPE_PROP_SINK_LAST,
+};
+
+/**
+ * @brief Display sink element.
+ *
+ * Extends the base @ref mpipe_sink with display-specific capabilities.
+ * Renders incoming video buffers to a Zephyr display device.
+ */
+struct mpipe_disp_sink {
+	/** Base sink element. */
+	struct mpipe_sink sink;
+	/** Display device instance. */
+	const struct device *display_dev;
+};
+
+/**
+ * @brief Initialize a display sink element.
+ *
+ * @param self Pointer to the element to initialize.
+ */
+void mpipe_disp_sink_init(struct mpipe_element *self);
+
+/** @} */
+
+#endif /* ZEPHYR_INCLUDE_MPIPE_DISP_MPIPE_DISP_SINK_H_ */

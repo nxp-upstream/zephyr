@@ -1,0 +1,44 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
+ * @file
+ * @brief Fake source element
+ *
+ * A simple emulated source element producing fake data buffers used for test purpose.
+ */
+
+#ifndef ZEPHYR_INCLUDE_MPIPE_MPIPE_FAKE_SRC_H_
+#define ZEPHYR_INCLUDE_MPIPE_MPIPE_FAKE_SRC_H_
+
+/**
+ * @addtogroup mpipe_src
+ * @{
+ */
+
+#include <zephyr/mpipe/mpipe_buffer.h>
+#include <zephyr/mpipe/mpipe_src.h>
+
+/**
+ * @brief Fake source element structure
+ */
+struct mpipe_fake_src {
+	/** Base source element (must be first) */
+	struct mpipe_src src;
+	/** Buffer pool for managing output buffers */
+	struct mpipe_buffer_pool pool;
+};
+
+/**
+ * @brief Initialize a fake source element
+ *
+ * @param self Pointer to the @ref mpipe_element to initialize as a fake source
+ */
+void mpipe_fake_src_init(struct mpipe_element *self);
+
+/** @} */
+
+#endif /* ZEPHYR_INCLUDE_MPIPE_MPIPE_FAKE_SRC_H_ */

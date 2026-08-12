@@ -1,0 +1,146 @@
+/*
+ * Copyright 2025 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <limits.h>
+
+#include <zephyr/logging/log.h>
+
+#include <zephyr/mpipe/mpipe_dispatch.h>
+#include <zephyr/mpipe/mpipe_structure.h>
+#include <zephyr/mpipe/mpipe_value.h>
+
+#include <zephyr/mpipe/aud/mpipe_aud_buffer_pool.h>
+#include <zephyr/mpipe/aud/mpipe_aud_src.h>
+
+LOG_MODULE_REGISTER(mpipe_aud_src, CONFIG_MPIPE_LOG_LEVEL);
+
+static int mpipe_aud_src_set_property(struct mpipe_object *obj, uint32_t key, const void *val)
+{
+	struct mpipe_src *src = (struct mpipe_src *)obj;
+	struct mpipe_aud_buffer_pool *pool =
+		CONTAINER_OF(src->pool, struct mpipe_aud_buffer_pool, pool);
+
+	switch (key) {
+	case MPIPE_PROP_AUD_SRC_SLAB_PTR:
+		pool->mem_slab = (struct k_mem_slab *)val;
+		break;
+	case MPIPE_PROP_AUD_SRC_DEVICE:
+		pool->aud_dev = (const struct device *)val;
+
+		/* Device set, update supported caps */
+		mpipe_aud_src_update_caps(src);
+		break;
+	default:
+		return mpipe_src_set_property(obj, key, val);
+	}
+
+	return 0;
+}
+
+static int mpipe_aud_src_get_property(struct mpipe_object *obj, uint32_t key, void *val)
+{
+	struct mpipe_src *src = (struct mpipe_src *)obj;
+	struct mpipe_aud_buffer_pool *pool =
+		CONTAINER_OF(src->pool, struct mpipe_aud_buffer_pool, pool);
+
+	if (val == NULL) {
+		return -1;
+	}
+
+	switch (key) {
+	case MPIPE_PROP_AUD_SRC_SLAB_PTR:
+		if (pool->mem_slab != NULL) {
+			*(void **)val = (void *)pool->mem_slab;
+		} else {
+			*(void **)val = NULL;
+		}
+		break;
+	case MPIPE_PROP_AUD_SRC_DEVICE:
+		*(const struct device **)val = pool->aud_dev;
+		break;
+	default:
+		return mpipe_src_get_property(obj, key, val);
+	}
+
+	return 0;
+}
+
+static int mpipe_aud_src_enum_caps(struct mpipe_pad *pad, uint32_t index,
+				   const struct mpipe_structure *filter,
+				   struct mpipe_structure *out)
+{
+	struct mpipe_src *src = (struct mpipe_src *)pad->object.container;
+	struct mpipe_aud_src *aud_src = (struct mpipe_aud_src *)src;
+	struct mpipe_aud_buffer_pool *pool =
+		CONTAINER_OF(src->pool, struct mpipe_aud_buffer_pool, pool);
+	struct audio_caps src_caps;
+
+	if (aud_src->get_audio_caps == NULL || pool->aud_dev == NULL) {
+		LOG_ERR("Audio capabilities and device not configured");
+		return -ENODEV;
+	}
+
+	if (aud_src->get_audio_caps(pool->aud_dev, &src_caps) != 0) {
+		LOG_ERR("Failed to get audio capabilities");
+		return -ENODEV;
+	}
+
+	return mpipe_aud_enum_caps(&src_caps, index, filter, out);
+}
+
+void mpipe_aud_src_update_caps(struct mpipe_src *src)
+{
+	/* The capabilities are enumerated from the device, so nothing is built here */
+	src->srcpad.enum_capsfn = mpipe_aud_src_enum_caps;
+}
+
+/*
+ * Buffer count is not a media capability, so it is settled through the
+ * allocation query instead of caps: the pool is floored at what the source
+ * device needs to keep streaming and raised to what downstream must hold in
+ * flight, whichever is larger.
+ */
+static int mpipe_aud_src_decide_allocation(struct mpipe_src *src, struct mpipe_dispatch *query)
+{
+	struct mpipe_aud_src *aud_src = (struct mpipe_aud_src *)src;
+	struct mpipe_aud_buffer_pool *pool =
+		CONTAINER_OF(src->pool, struct mpipe_aud_buffer_pool, pool);
+	struct mpipe_buffer_pool_config *pool_config = &src->pool->config;
+	struct mpipe_buffer_pool *query_pool = mpipe_dispatch_get_pool(query);
+	struct mpipe_buffer_pool_config *qpc =
+		(query_pool != NULL) ? &query_pool->config : mpipe_dispatch_get_pool_config(query);
+	struct audio_caps src_caps;
+
+	/* Floor the pool at the source device's own buffering requirement */
+	if (aud_src->get_audio_caps != NULL && pool->aud_dev != NULL &&
+	    aud_src->get_audio_caps(pool->aud_dev, &src_caps) == 0) {
+		pool_config->min_buffers = src_caps.min_num_buffers;
+	} else {
+		pool_config->min_buffers = 0;
+	}
+
+	/* Raise it to what downstream needs held in flight, if higher */
+	if (qpc != NULL && qpc->min_buffers > pool_config->min_buffers) {
+		pool_config->min_buffers = qpc->min_buffers;
+	}
+
+	return 0;
+}
+
+void mpipe_aud_src_init(struct mpipe_element *self)
+{
+	struct mpipe_aud_src *aud_src = (struct mpipe_aud_src *)self;
+
+	/* Init base class */
+	mpipe_src_init(&aud_src->src.element);
+
+	self->object.get_property = mpipe_aud_src_get_property;
+	self->object.set_property = mpipe_aud_src_set_property;
+
+	aud_src->src.decide_allocation = mpipe_aud_src_decide_allocation;
+
+	aud_src->get_audio_caps = NULL;
+}

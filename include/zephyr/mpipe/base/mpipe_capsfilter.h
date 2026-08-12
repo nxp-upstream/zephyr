@@ -1,0 +1,70 @@
+/*
+ * Copyright 2025-2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
+ * @file
+ * @brief Capsfilter element.
+ *
+ * This element does not modify data, but used to enforce limitations on the data format.
+ *
+ */
+
+#ifndef ZEPHYR_INCLUDE_MPIPE_BASE_MPIPE_CAPSFILTER_H_
+#define ZEPHYR_INCLUDE_MPIPE_BASE_MPIPE_CAPSFILTER_H_
+
+/**
+ * @defgroup mpipe_base base
+ * @ingroup mpipe_plugins
+ * @brief Base plugin elements shared across Multimedia Pipeline graphs.
+ */
+
+/**
+ * @defgroup mpipe_capsfilter Caps Filters
+ * @ingroup mpipe_base
+ * @brief Transform elements that constrain negotiated capabilities.
+ * @{
+ */
+
+#include <zephyr/mpipe/mpipe_element.h>
+#include <zephyr/mpipe/mpipe_transform.h>
+
+/**
+ * @brief Caps filter Property Identifiers
+ *
+ * Defined property identifiers specific to the capsfilter element. These
+ * properties extend the base transform properties defined in @ref mpipe_prop_transform.
+ *
+ * The enumeration starts from MPIPE_PROP_TRANSFORM_LAST to ensure no
+ * conflicts with base transform properties.
+ */
+enum {
+	/** Caps ID property */
+	MPIPE_PROP_BASE_CAPSFILTER_CAPS = MPIPE_PROP_TRANSFORM_LAST,
+};
+
+/**
+ * @brief Capsfilter Element Structure
+ *
+ */
+struct mpipe_caps_filter {
+	/** Base transform element */
+	struct mpipe_transform transform;
+	/** Upstream source pad that the sink pad was linked to */
+	struct mpipe_pad *saved_sink_peer;
+	/** Downstream sink pad that the source pad was linked to */
+	struct mpipe_pad *saved_src_peer;
+};
+
+/**
+ * @brief Initialize a caps filter element
+ *
+ * @param self Pointer to the @ref mpipe_element to initialize as a caps filter
+ */
+void mpipe_caps_filter_init(struct mpipe_element *self);
+
+/** @} */
+
+#endif /* ZEPHYR_INCLUDE_MPIPE_BASE_MPIPE_CAPSFILTER_H_ */

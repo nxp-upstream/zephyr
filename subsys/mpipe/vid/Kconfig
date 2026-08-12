@@ -1,0 +1,18 @@
+#
+# Copyright 2025 NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+config MPIPE_VID
+	bool "Video plugin support"
+	select VIDEO
+
+if MPIPE_VID
+
+config MPIPE_VID_CONVERT
+	bool "Software-based pixel format converter"
+	help
+	  Convert video frame between different pixel formats based on SW
+
+endif # MPIPE_VID
