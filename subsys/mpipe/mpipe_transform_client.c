@@ -115,7 +115,11 @@ int mpipe_transform_client_init(struct mpipe_transform_client *transform_client,
 	struct mpipe_transform *transform = &transform_client->transform;
 	int ret;
 
-	(void)transform_client->init_rpc();
+	ret = transform_client->init_rpc();
+	if (ret != 0) {
+		LOG_ERR("Failed to set up RPC to the remote transform (%d)", ret);
+		return ret;
+	}
 
 	ret = mpipe_transform_init(transform, id);
 	if (ret != 0) {
