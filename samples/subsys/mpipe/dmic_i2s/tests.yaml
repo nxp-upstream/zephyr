@@ -4,6 +4,7 @@ sample:
 tests:
   sample.mpipe.dmic_i2s:
     tags:
+      - mpipe
       - audio
       - samples
     platform_allow:

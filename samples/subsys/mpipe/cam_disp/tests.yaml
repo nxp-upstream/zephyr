@@ -4,6 +4,7 @@ sample:
 tests:
   sample.mpipe.cam_disp:
     tags:
+    - mpipe
     - video
     - samples
     platform_allow:
