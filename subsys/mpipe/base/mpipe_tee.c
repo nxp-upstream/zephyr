@@ -182,6 +182,10 @@ static int mpipe_tee_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 	*out_buf = NULL;
 
 	for (i = 0; i < tee->src_pads_num; i++) {
+		if (tee->src_pads[i].peer == NULL) {
+			continue;
+		}
+
 		/* The push consumes the branch's reference, success or failure */
 		ret = mpipe_push_buffer(&tee->src_pads[i], net_buf_ref(in_buf));
 		if (ret != 0) {
