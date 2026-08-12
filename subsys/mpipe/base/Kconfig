@@ -5,16 +5,16 @@
 #
 
 config MPIPE_BASE
-	bool "Base optional elements (e.g. capsfilter, queue, tee. etc.)"
+	bool "Base optional elements (e.g. caps_filter, queue, tee. etc.)"
 	help
 	  Enable the base elements plugin.
 
 if MPIPE_BASE
 
-config MPIPE_BASE_CAPSFILTER
-	bool "Capsfilter element"
+config MPIPE_BASE_CAPS_FILTER
+	bool "Caps filter element"
 	help
-	  Enable the capsfilter element. Capsfilter restricts the media
+	  Enable the caps_filter element. Caps filter restricts the media
 	  format flowing between two elements by filtering on capabilities
 	  such as sample rate, pixel format, etc. This allows forcing a
 	  specific format at a given point in the pipeline.

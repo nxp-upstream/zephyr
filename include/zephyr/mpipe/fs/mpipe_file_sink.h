@@ -11,8 +11,8 @@
  * Writes pipeline data to a file using Zephyr's filesystem API.
  */
 
-#ifndef ZEPHYR_INCLUDE_MPIPE_FS_MPIPE_FILESINK_H_
-#define ZEPHYR_INCLUDE_MPIPE_FS_MPIPE_FILESINK_H_
+#ifndef ZEPHYR_INCLUDE_MPIPE_FS_MPIPE_FILE_SINK_H_
+#define ZEPHYR_INCLUDE_MPIPE_FS_MPIPE_FILE_SINK_H_
 
 /**
  * @defgroup mpipe_fs_sinks Sinks
@@ -41,7 +41,7 @@ enum mpipe_prop_fs_sink {
  * Extends the base @ref mpipe_sink to write received buffers to a file
  * on any Zephyr-supported filesystem.
  */
-struct mpipe_filesink {
+struct mpipe_file_sink {
 	/** Base sink element. */
 	struct mpipe_sink sink;
 	/** File handle. */
@@ -57,8 +57,8 @@ struct mpipe_filesink {
  *
  * @param self Pointer to the element to initialize.
  */
-void mpipe_filesink_init(struct mpipe_element *self);
+void mpipe_file_sink_init(struct mpipe_element *self);
 
 /** @} */
 
-#endif /* ZEPHYR_INCLUDE_MPIPE_FS_MPIPE_FILESINK_H_ */
+#endif /* ZEPHYR_INCLUDE_MPIPE_FS_MPIPE_FILE_SINK_H_ */

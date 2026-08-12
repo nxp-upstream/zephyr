@@ -15,9 +15,9 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mpipe/mpipe.h>
-#include <zephyr/mpipe/base/mpipe_capsfilter.h>
+#include <zephyr/mpipe/base/mpipe_caps_filter.h>
 #include <zephyr/mpipe/disp/mpipe_disp_sink.h>
-#include <zephyr/mpipe/fs/mpipe_filesrc.h>
+#include <zephyr/mpipe/fs/mpipe_file_src.h>
 #include <zephyr/mpipe/img/mpipe_img_jpeg_decoder.h>
 #include <zephyr/mpipe/img/mpipe_img_jpeg_parser.h>
 #include <zephyr/mpipe/utils/mpipe_player.h>
@@ -127,7 +127,7 @@ static int mount_sd(void)
 }
 
 static struct mpipe pipe;
-static struct mpipe_filesrc filesrc;
+static struct mpipe_file_src file_src;
 static struct mpipe_img_jpeg_parser jpeg_parser;
 static struct mpipe_caps_filter caps_filter;
 static struct mpipe_disp_sink disp_sink;
@@ -151,7 +151,7 @@ int main(void)
 	}
 
 	MPIPE_ELEMENT_INIT(&pipe, mpipe_pipeline_init, PIPE_ID);
-	MPIPE_ELEMENT_INIT(&filesrc, mpipe_filesrc_init, FILE_SRC_ID);
+	MPIPE_ELEMENT_INIT(&file_src, mpipe_file_src_init, FILE_SRC_ID);
 	MPIPE_ELEMENT_INIT(&jpeg_parser, mpipe_img_jpeg_parser_init, JPEG_PARSER_ID);
 	MPIPE_ELEMENT_INIT(&caps_filter, mpipe_caps_filter_init, CAPS_FILTER_ID);
 	MPIPE_ELEMENT_INIT(&disp_sink, mpipe_disp_sink_init, DISP_SINK_ID);
@@ -181,7 +181,7 @@ int main(void)
 	}
 #endif
 
-	ret = mpipe_object_set_properties((struct mpipe_object *)&filesrc, MPIPE_PROP_FS_SRC_PATH,
+	ret = mpipe_object_set_properties((struct mpipe_object *)&file_src, MPIPE_PROP_FS_SRC_PATH,
 					  CONFIG_FILE_INPUT_PATH, MPIPE_PROP_LIST_END);
 	if (ret < 0) {
 		goto err;
@@ -201,7 +201,7 @@ int main(void)
 		}
 
 		ret = mpipe_object_set_properties((struct mpipe_object *)&caps_filter,
-						  MPIPE_PROP_BASE_CAPSFILTER_CAPS, &caps,
+						  MPIPE_PROP_BASE_CAPS_FILTER_CAPS, &caps,
 						  MPIPE_PROP_LIST_END);
 		if (ret < 0) {
 			goto err;
@@ -210,7 +210,7 @@ int main(void)
 
 	/* clang-format off */
 	ret = mpipe_bin_add((struct mpipe_bin *)&pipe,
-			(struct mpipe_element *)&filesrc,
+			(struct mpipe_element *)&file_src,
 			(struct mpipe_element *)&jpeg_parser,
 			(struct mpipe_element *)&caps_filter,
 			(struct mpipe_element *)&jpeg_dec,
@@ -225,7 +225,7 @@ int main(void)
 		goto err;
 	}
 
-	ret = mpipe_element_link((struct mpipe_element *)&filesrc,
+	ret = mpipe_element_link((struct mpipe_element *)&file_src,
 			(struct mpipe_element *)&jpeg_parser,
 			(struct mpipe_element *)&caps_filter,
 			(struct mpipe_element *)&jpeg_dec,

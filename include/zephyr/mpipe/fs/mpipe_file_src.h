@@ -12,8 +12,8 @@
  * buffers for downstream processing.
  */
 
-#ifndef ZEPHYR_INCLUDE_MPIPE_FS_MPIPE_FILESRC_H_
-#define ZEPHYR_INCLUDE_MPIPE_FS_MPIPE_FILESRC_H_
+#ifndef ZEPHYR_INCLUDE_MPIPE_FS_MPIPE_FILE_SRC_H_
+#define ZEPHYR_INCLUDE_MPIPE_FS_MPIPE_FILE_SRC_H_
 
 /**
  * @defgroup mpipe_fs fs
@@ -50,7 +50,7 @@ enum mpipe_prop_fs_src {
  * Extends the base @ref mpipe_src to read data from a file on any
  * Zephyr-supported filesystem.
  */
-struct mpipe_filesrc {
+struct mpipe_file_src {
 	/** Base source element. */
 	struct mpipe_src src;
 	/** Buffer pool used by this source. */
@@ -72,8 +72,8 @@ struct mpipe_filesrc {
  *
  * @param self Pointer to the element to initialize.
  */
-void mpipe_filesrc_init(struct mpipe_element *self);
+void mpipe_file_src_init(struct mpipe_element *self);
 
 /** @} */
 
-#endif /* ZEPHYR_INCLUDE_MPIPE_FS_MPIPE_FILESRC_H_ */
+#endif /* ZEPHYR_INCLUDE_MPIPE_FS_MPIPE_FILE_SRC_H_ */

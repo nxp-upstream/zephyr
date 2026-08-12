@@ -6,14 +6,14 @@
 
 #include <errno.h>
 
-#include <zephyr/mpipe/base/mpipe_capsfilter.h>
+#include <zephyr/mpipe/base/mpipe_caps_filter.h>
 
 int mpipe_caps_filter_set_property(struct mpipe_object *obj, uint32_t key, const void *val)
 {
 	struct mpipe_transform *transform = (struct mpipe_transform *)obj;
 
 	switch (key) {
-	case MPIPE_PROP_BASE_CAPSFILTER_CAPS:
+	case MPIPE_PROP_BASE_CAPS_FILTER_CAPS:
 		mpipe_pad_set_caps(&transform->sinkpad, (const struct mpipe_structure *)val);
 		mpipe_pad_set_caps(&transform->srcpad, (const struct mpipe_structure *)val);
 		return 0;
@@ -27,7 +27,7 @@ int mpipe_caps_filter_get_property(struct mpipe_object *obj, uint32_t key, void 
 	struct mpipe_transform *transform = (struct mpipe_transform *)obj;
 
 	switch (key) {
-	case MPIPE_PROP_BASE_CAPSFILTER_CAPS:
+	case MPIPE_PROP_BASE_CAPS_FILTER_CAPS:
 		/*
 		 * The pad's caps may change during and after caps negotiation but the function is
 		 * generally called before any pipeline process, so it's OK to get the filter caps
@@ -55,12 +55,12 @@ static int mpipe_caps_filter_set_caps(struct mpipe_transform *transform,
 	}
 
 	/*
-	 * After caps negotiation, capsfilter is removed from the pipeline for two reasons:
+	 * After caps negotiation, caps_filter is removed from the pipeline for two reasons:
 	 *  - Gain some small overhead during buffer flow
 	 *  - More importantly, allow allocation negotiation can take place between the
-	 *    elements before and after the capsfilter.
+	 *    elements before and after the caps_filter.
 	 *
-	 * The bypassed peers are saved so the capsfilter can re-insert itself into the graph
+	 * The bypassed peers are saved so the caps_filter can re-insert itself into the graph
 	 * when needed, e.g. on teardown (PAUSED -> READY) or on caps re-negotiation
 	 */
 	if (upstream_srcpad != NULL && downstream_sinkpad != NULL) {
@@ -87,7 +87,7 @@ mpipe_caps_filter_change_state(struct mpipe_element *self, enum mpipe_state_chan
 	switch (transition) {
 	case MPIPE_STATE_CHANGE_PAUSED_TO_READY:
 		/*
-		 * Re-insert the capsfilter into the graph so that a subsequent caps
+		 * Re-insert the caps_filter into the graph so that a subsequent caps
 		 * negotiation (e.g. on replay) can walk through it again. This undoes
 		 * the self-removal performed in mpipe_caps_filter_set_caps() by relinking
 		 * the upstream/downstream peers back to this element's pads.

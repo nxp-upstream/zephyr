@@ -14,16 +14,16 @@
 #include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
 
-#include <zephyr/mpipe/fs/mpipe_filesrc.h>
+#include <zephyr/mpipe/fs/mpipe_file_src.h>
 
-LOG_MODULE_REGISTER(mpipe_filesrc, CONFIG_MPIPE_LOG_LEVEL);
+LOG_MODULE_REGISTER(mpipe_file_src, CONFIG_MPIPE_LOG_LEVEL);
 
 NET_BUF_POOL_FIXED_DEFINE(mpipe_fs_nb_pool, CONFIG_MPIPE_FS_NUM_BUFS, CONFIG_MPIPE_FS_BLOCK_SIZE,
 			  sizeof(struct mpipe_buffer_meta), mpipe_buffer_destroy);
 
-static int mpipe_filesrc_set_property(struct mpipe_object *obj, uint32_t key, const void *val)
+static int mpipe_file_src_set_property(struct mpipe_object *obj, uint32_t key, const void *val)
 {
-	struct mpipe_filesrc *fsrc = (struct mpipe_filesrc *)obj;
+	struct mpipe_file_src *fsrc = (struct mpipe_file_src *)obj;
 	int ret;
 
 	switch (key) {
@@ -42,9 +42,9 @@ static int mpipe_filesrc_set_property(struct mpipe_object *obj, uint32_t key, co
 	}
 }
 
-static int mpipe_filesrc_get_property(struct mpipe_object *obj, uint32_t key, void *val)
+static int mpipe_file_src_get_property(struct mpipe_object *obj, uint32_t key, void *val)
 {
-	struct mpipe_filesrc *fsrc = (struct mpipe_filesrc *)obj;
+	struct mpipe_file_src *fsrc = (struct mpipe_file_src *)obj;
 	int ret;
 
 	switch (key) {
@@ -60,16 +60,16 @@ static int mpipe_filesrc_get_property(struct mpipe_object *obj, uint32_t key, vo
 	}
 }
 
-static int mpipe_filesrc_decide_allocation(struct mpipe_src *src, struct mpipe_dispatch *query)
+static int mpipe_file_src_decide_allocation(struct mpipe_src *src, struct mpipe_dispatch *query)
 {
-	struct mpipe_filesrc *fsrc = (struct mpipe_filesrc *)src;
+	struct mpipe_file_src *fsrc = (struct mpipe_file_src *)src;
 
 	fsrc->downstream_pool = mpipe_dispatch_get_pool(query);
 
 	return 0;
 }
 
-static int mpipe_filesrc_read_chunk(struct mpipe_filesrc *fsrc, struct net_buf *buf)
+static int mpipe_file_src_read_chunk(struct mpipe_file_src *fsrc, struct net_buf *buf)
 {
 	struct mpipe_buffer_meta *m = mpipe_buffer_get_meta(buf);
 	uint32_t cap;
@@ -103,9 +103,9 @@ static int mpipe_filesrc_read_chunk(struct mpipe_filesrc *fsrc, struct net_buf *
 	return 0;
 }
 
-static int mpipe_filesrc_pool_acquire_buffer(struct mpipe_buffer_pool *pool, struct net_buf **buf)
+static int mpipe_file_src_pool_acquire_buffer(struct mpipe_buffer_pool *pool, struct net_buf **buf)
 {
-	struct mpipe_filesrc *fsrc = CONTAINER_OF(pool, struct mpipe_filesrc, pool);
+	struct mpipe_file_src *fsrc = CONTAINER_OF(pool, struct mpipe_file_src, pool);
 	struct net_buf *out = NULL;
 	struct mpipe_buffer_meta *m;
 	int ret;
@@ -137,7 +137,7 @@ static int mpipe_filesrc_pool_acquire_buffer(struct mpipe_buffer_pool *pool, str
 		m->priv = NULL;
 	}
 
-	ret = mpipe_filesrc_read_chunk(fsrc, out);
+	ret = mpipe_file_src_read_chunk(fsrc, out);
 	if (ret != 0) {
 		net_buf_unref(out);
 		return ret;
@@ -148,7 +148,7 @@ static int mpipe_filesrc_pool_acquire_buffer(struct mpipe_buffer_pool *pool, str
 	return 0;
 }
 
-static int mpipe_filesrc_pool_release_buffer(struct mpipe_buffer_pool *pool, struct net_buf *buf)
+static int mpipe_file_src_pool_release_buffer(struct mpipe_buffer_pool *pool, struct net_buf *buf)
 {
 	ARG_UNUSED(pool);
 
@@ -169,10 +169,10 @@ static int mpipe_filesrc_pool_release_buffer(struct mpipe_buffer_pool *pool, str
 	return 0;
 }
 
-static enum mpipe_state_change_return mpipe_filesrc_change_state(struct mpipe_element *self,
-								 enum mpipe_state_change transition)
+static enum mpipe_state_change_return
+mpipe_file_src_change_state(struct mpipe_element *self, enum mpipe_state_change transition)
 {
-	struct mpipe_filesrc *fsrc = (struct mpipe_filesrc *)self;
+	struct mpipe_file_src *fsrc = (struct mpipe_file_src *)self;
 	enum mpipe_state_change_return ret;
 
 	/* Reuse base mpipe_src negotiation/pool start behavior */
@@ -210,18 +210,18 @@ static enum mpipe_state_change_return mpipe_filesrc_change_state(struct mpipe_el
 	return MPIPE_STATE_CHANGE_SUCCESS;
 }
 
-void mpipe_filesrc_init(struct mpipe_element *self)
+void mpipe_file_src_init(struct mpipe_element *self)
 {
-	struct mpipe_filesrc *fsrc = (struct mpipe_filesrc *)self;
+	struct mpipe_file_src *fsrc = (struct mpipe_file_src *)self;
 	struct mpipe_src *src = &fsrc->src;
 
 	mpipe_src_init(self);
 
-	self->object.set_property = mpipe_filesrc_set_property;
-	self->object.get_property = mpipe_filesrc_get_property;
-	self->change_state = mpipe_filesrc_change_state;
+	self->object.set_property = mpipe_file_src_set_property;
+	self->object.get_property = mpipe_file_src_get_property;
+	self->change_state = mpipe_file_src_change_state;
 
-	src->decide_allocation = mpipe_filesrc_decide_allocation;
+	src->decide_allocation = mpipe_file_src_decide_allocation;
 	src->pool = &fsrc->pool;
 
 	mpipe_buffer_pool_init(&fsrc->pool);
@@ -231,6 +231,6 @@ void mpipe_filesrc_init(struct mpipe_element *self)
 	fsrc->file_open = false;
 	fsrc->blocksize = CONFIG_MPIPE_FS_BLOCK_SIZE;
 	fsrc->pool.config.size = CONFIG_MPIPE_FS_BLOCK_SIZE;
-	fsrc->pool.acquire_buffer = mpipe_filesrc_pool_acquire_buffer;
-	fsrc->pool.release_buffer = mpipe_filesrc_pool_release_buffer;
+	fsrc->pool.acquire_buffer = mpipe_file_src_pool_acquire_buffer;
+	fsrc->pool.release_buffer = mpipe_file_src_pool_release_buffer;
 }

@@ -26,7 +26,7 @@ additional processing stages (gain, filtering …) without modifying the applica
 This pipeline consists of up to four elements:
 
 - **DMIC source** - captures audio frames.
-- **Capsfilter** *(optional)* - enforces a specific audio frame interval. 
+- **Caps filter** *(optional)* - enforces a specific audio frame interval.
 Without it the pipeline still works but uses the default negotiated format.
 - **Gain transform** *(optional)* – applies audio processing such as volume control.
 - **I2S codec sink** – renders the resulting audio frames through an I2S codec to a speaker.

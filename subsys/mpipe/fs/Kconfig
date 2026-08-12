@@ -13,7 +13,7 @@ config MPIPE_FS_BLOCK_SIZE
 	help
 	  Default blocksize (read/write chunk size) used when the element blocksize
 	  property is not set.
-	  Also used as the size of each internal buffer when filesrc falls back to
+	  Also used as the size of each internal buffer when file_src falls back to
 	  its own static buffer pool.
 
 config MPIPE_FS_NUM_BUFS
@@ -21,9 +21,9 @@ config MPIPE_FS_NUM_BUFS
 	range 1 255
 	default 1
 	help
-	  Number of static buffers in filesrc's internal net_buf pool.
+	  Number of static buffers in file_src's internal net_buf pool.
 	  1 may be enough for fully synchronous pipelines; use >1 if downstream can
 	  retain buffers asynchronously.
-	  If downstream proposes a pool, filesrc uses it instead.
+	  If downstream proposes a pool, file_src uses it instead.
 
 endif # MPIPE_FS

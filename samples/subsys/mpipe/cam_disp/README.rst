@@ -28,7 +28,7 @@ modifying the application logic.
 The pipeline consists of up to four elements:
 
 - **Camera source** – generates video frames from a hardware capture device.
-- **Capsfilter** *(optional)* – enforces a specific video format, resolution, and/or
+- **Caps filter** *(optional)* – enforces a specific video format, resolution, and/or
   frame rate.  Without it the pipeline still works but uses the default negotiated
   format.
 - **Video transform** *(optional)* – applies processing such as 90° rotation.

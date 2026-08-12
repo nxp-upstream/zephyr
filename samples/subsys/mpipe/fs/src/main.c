@@ -11,8 +11,8 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mpipe/mpipe.h>
-#include <zephyr/mpipe/fs/mpipe_filesink.h>
-#include <zephyr/mpipe/fs/mpipe_filesrc.h>
+#include <zephyr/mpipe/fs/mpipe_file_sink.h>
+#include <zephyr/mpipe/fs/mpipe_file_src.h>
 
 LOG_MODULE_REGISTER(main, CONFIG_LOG_DEFAULT_LEVEL);
 
@@ -37,8 +37,8 @@ static struct fs_mount_t mp = {
 };
 
 static struct mpipe pipe;
-static struct mpipe_filesrc filesrc;
-static struct mpipe_filesink filesink;
+static struct mpipe_file_src file_src;
+static struct mpipe_file_sink file_sink;
 
 int main(void)
 {
@@ -84,32 +84,33 @@ int main(void)
 
 	/* Build the pipeline */
 	MPIPE_ELEMENT_INIT(&pipe, mpipe_pipeline_init, PIPE_ID);
-	MPIPE_ELEMENT_INIT(&filesrc, mpipe_filesrc_init, FILE_SRC_ID);
-	MPIPE_ELEMENT_INIT(&filesink, mpipe_filesink_init, FILE_SINK_ID);
+	MPIPE_ELEMENT_INIT(&file_src, mpipe_file_src_init, FILE_SRC_ID);
+	MPIPE_ELEMENT_INIT(&file_sink, mpipe_file_sink_init, FILE_SINK_ID);
 
-	ret = mpipe_object_set_properties((struct mpipe_object *)&filesrc, MPIPE_PROP_FS_SRC_PATH,
+	ret = mpipe_object_set_properties((struct mpipe_object *)&file_src, MPIPE_PROP_FS_SRC_PATH,
 					  MNT_POINT "/" INPUT_FILE, MPIPE_PROP_LIST_END);
 	if (ret < 0) {
 		goto err;
 	}
 
-	ret = mpipe_object_set_properties((struct mpipe_object *)&filesink, MPIPE_PROP_FS_SINK_PATH,
-					  MNT_POINT "/" OUTPUT_FILE, MPIPE_PROP_LIST_END);
+	ret = mpipe_object_set_properties((struct mpipe_object *)&file_sink,
+					  MPIPE_PROP_FS_SINK_PATH, MNT_POINT "/" OUTPUT_FILE,
+					  MPIPE_PROP_LIST_END);
 	if (ret < 0) {
 		goto err;
 	}
 
 	/* Add elements to the pipeline - order does not matter */
-	ret = mpipe_bin_add((struct mpipe_bin *)&pipe, (struct mpipe_element *)&filesrc,
-			    (struct mpipe_element *)&filesink, NULL);
+	ret = mpipe_bin_add((struct mpipe_bin *)&pipe, (struct mpipe_element *)&file_src,
+			    (struct mpipe_element *)&file_sink, NULL);
 	if (ret < 0) {
 		LOG_ERR("Failed to add elements (%d)", ret);
 		goto err;
 	}
 
 	/* Link elements together - order does matter */
-	ret = mpipe_element_link((struct mpipe_element *)&filesrc,
-				 (struct mpipe_element *)&filesink, NULL);
+	ret = mpipe_element_link((struct mpipe_element *)&file_src,
+				 (struct mpipe_element *)&file_sink, NULL);
 	if (ret < 0) {
 		LOG_ERR("Failed to link elements (%d)", ret);
 		goto err;

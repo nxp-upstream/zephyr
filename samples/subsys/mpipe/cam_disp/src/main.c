@@ -8,7 +8,7 @@
 #include <zephyr/video/controls.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/mpipe/mpipe.h>
-#include <zephyr/mpipe/base/mpipe_capsfilter.h>
+#include <zephyr/mpipe/base/mpipe_caps_filter.h>
 #include <zephyr/mpipe/disp/mpipe_disp_sink.h>
 #include <zephyr/mpipe/vid/mpipe_vid_src.h>
 #include <zephyr/mpipe/utils/mpipe_player.h>
@@ -36,7 +36,7 @@ enum {
 static struct mpipe pipe;
 static struct mpipe_vid_src vid_src;
 static struct mpipe_disp_sink disp_sink;
-#if defined(CONFIG_MPIPE_BASE_CAPSFILTER)
+#if defined(CONFIG_MPIPE_BASE_CAPS_FILTER)
 static struct mpipe_caps_filter caps_filter;
 #endif
 #if (DT_HAS_CHOSEN(zephyr_jpegdec))
@@ -74,7 +74,7 @@ int main(void)
 	}
 
 	/* Caps filter element */
-#if defined(CONFIG_MPIPE_BASE_CAPSFILTER)
+#if defined(CONFIG_MPIPE_BASE_CAPS_FILTER)
 	MPIPE_ELEMENT_INIT(&caps_filter, mpipe_caps_filter_init, CAPS_FILTER_ID);
 
 	/* clang-format off */
@@ -103,7 +103,7 @@ int main(void)
 	}
 
 	ret = mpipe_object_set_properties((struct mpipe_object *)&caps_filter,
-					  MPIPE_PROP_BASE_CAPSFILTER_CAPS, &caps,
+					  MPIPE_PROP_BASE_CAPS_FILTER_CAPS, &caps,
 					  MPIPE_PROP_LIST_END);
 	if (ret < 0) {
 		goto err;
@@ -141,7 +141,7 @@ int main(void)
 	/* Add elements to the pipeline - order does not matter */
 	ret = mpipe_bin_add((struct mpipe_bin *)&pipe,
 			(struct mpipe_element *)&vid_src,
-			IF_ENABLED(CONFIG_MPIPE_BASE_CAPSFILTER,
+			IF_ENABLED(CONFIG_MPIPE_BASE_CAPS_FILTER,
 				   ((struct mpipe_element *)&caps_filter,))
 			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec),
 				   ((struct mpipe_element *)&jpeg_dec,))
@@ -156,7 +156,7 @@ int main(void)
 	}
 	/* Link elements together - order does matter */
 	ret = mpipe_element_link((struct mpipe_element *)&vid_src,
-			IF_ENABLED(CONFIG_MPIPE_BASE_CAPSFILTER,
+			IF_ENABLED(CONFIG_MPIPE_BASE_CAPS_FILTER,
 				   ((struct mpipe_element *)&caps_filter,))
 			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec),
 				   ((struct mpipe_element *)&jpeg_dec,))

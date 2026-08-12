@@ -38,7 +38,7 @@
  * the application built: an element may legitimately take itself out once it
  * has nothing left to do, and @ref mpipe_caps_filter does exactly that, relinking
  * its neighbours to each other after negotiation and re-inserting itself on
- * PAUSED to READY. A capsfilter therefore shows up linked before a run and
+ * PAUSED to READY. A caps_filter therefore shows up linked before a run and
  * detached during one, and both readings are correct.
  *
  * Nothing here allocates, and the walk holds no lock: a dump taken while the

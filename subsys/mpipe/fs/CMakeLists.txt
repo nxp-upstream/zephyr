@@ -6,7 +6,7 @@
 
 if(CONFIG_MPIPE_FS)
   zephyr_library_sources(
-    mpipe_filesrc.c
-    mpipe_filesink.c
+    mpipe_file_src.c
+    mpipe_file_sink.c
   )
 endif()

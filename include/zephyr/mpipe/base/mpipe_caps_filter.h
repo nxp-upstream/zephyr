@@ -6,14 +6,14 @@
 
 /**
  * @file
- * @brief Capsfilter element.
+ * @brief Caps filter element.
  *
  * This element does not modify data, but used to enforce limitations on the data format.
  *
  */
 
-#ifndef ZEPHYR_INCLUDE_MPIPE_BASE_MPIPE_CAPSFILTER_H_
-#define ZEPHYR_INCLUDE_MPIPE_BASE_MPIPE_CAPSFILTER_H_
+#ifndef ZEPHYR_INCLUDE_MPIPE_BASE_MPIPE_CAPS_FILTER_H_
+#define ZEPHYR_INCLUDE_MPIPE_BASE_MPIPE_CAPS_FILTER_H_
 
 /**
  * @defgroup mpipe_base base
@@ -22,7 +22,7 @@
  */
 
 /**
- * @defgroup mpipe_capsfilter Caps Filters
+ * @defgroup mpipe_caps_filter Caps Filters
  * @ingroup mpipe_base
  * @brief Transform elements that constrain negotiated capabilities.
  * @{
@@ -34,7 +34,7 @@
 /**
  * @brief Caps filter Property Identifiers
  *
- * Defined property identifiers specific to the capsfilter element. These
+ * Defined property identifiers specific to the caps_filter element. These
  * properties extend the base transform properties defined in @ref mpipe_prop_transform.
  *
  * The enumeration starts from MPIPE_PROP_TRANSFORM_LAST to ensure no
@@ -42,11 +42,11 @@
  */
 enum {
 	/** Caps ID property */
-	MPIPE_PROP_BASE_CAPSFILTER_CAPS = MPIPE_PROP_TRANSFORM_LAST,
+	MPIPE_PROP_BASE_CAPS_FILTER_CAPS = MPIPE_PROP_TRANSFORM_LAST,
 };
 
 /**
- * @brief Capsfilter Element Structure
+ * @brief Caps filter Element Structure
  *
  */
 struct mpipe_caps_filter {
@@ -67,4 +67,4 @@ void mpipe_caps_filter_init(struct mpipe_element *self);
 
 /** @} */
 
-#endif /* ZEPHYR_INCLUDE_MPIPE_BASE_MPIPE_CAPSFILTER_H_ */
+#endif /* ZEPHYR_INCLUDE_MPIPE_BASE_MPIPE_CAPS_FILTER_H_ */

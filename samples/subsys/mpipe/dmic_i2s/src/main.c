@@ -14,7 +14,7 @@
 #include <zephyr/mpipe/aud/mpipe_aud_gain.h>
 #include <zephyr/mpipe/aud/mpipe_aud_dmic_src.h>
 #include <zephyr/mpipe/aud/mpipe_aud_buffer_pool.h>
-#include <zephyr/mpipe/base/mpipe_capsfilter.h>
+#include <zephyr/mpipe/base/mpipe_caps_filter.h>
 
 LOG_MODULE_REGISTER(main);
 
@@ -99,7 +99,7 @@ int main(void)
 	}
 
 	ret = mpipe_object_set_properties((struct mpipe_object *)&caps_filter,
-					  MPIPE_PROP_BASE_CAPSFILTER_CAPS, &caps,
+					  MPIPE_PROP_BASE_CAPS_FILTER_CAPS, &caps,
 					  MPIPE_PROP_LIST_END);
 	if (ret < 0) {
 		LOG_ERR("Failed to set properties for caps filter element");
@@ -110,7 +110,7 @@ int main(void)
 	/* Add elements to the pipeline - order does not matter */
 	ret = mpipe_bin_add((struct mpipe_bin *)&pipe,
 			(struct mpipe_element *)&source,
-			IF_ENABLED(CONFIG_MPIPE_BASE_CAPSFILTER,
+			IF_ENABLED(CONFIG_MPIPE_BASE_CAPS_FILTER,
 				   ((struct mpipe_element *)&caps_filter,))
 			(struct mpipe_element *)&gain,
 			(struct mpipe_element *)&sink, NULL);
@@ -121,7 +121,7 @@ int main(void)
 
 	/* Link elements together - order does matter */
 	ret = mpipe_element_link((struct mpipe_element *)&source,
-			IF_ENABLED(CONFIG_MPIPE_BASE_CAPSFILTER,
+			IF_ENABLED(CONFIG_MPIPE_BASE_CAPS_FILTER,
 				   ((struct mpipe_element *)&caps_filter,))
 			(struct mpipe_element *)&gain,
 			(struct mpipe_element *)&sink, NULL);

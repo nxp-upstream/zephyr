@@ -406,7 +406,7 @@ static int mpipe_transform_event(struct mpipe_pad *pad, struct mpipe_dispatch *e
 
 		/*
 		 * Apply this side only once the peer has accepted, and only then
-		 * the other side: a capsfilter drops itself out of the graph from
+		 * the other side: a caps_filter drops itself out of the graph from
 		 * set_caps(), so the event must already have been forwarded.
 		 */
 		if (ret == 0) {

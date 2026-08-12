@@ -11,13 +11,13 @@
 
 #include <zephyr/mpipe/mpipe_buffer.h>
 
-#include <zephyr/mpipe/fs/mpipe_filesink.h>
+#include <zephyr/mpipe/fs/mpipe_file_sink.h>
 
-LOG_MODULE_REGISTER(mpipe_filesink, CONFIG_MPIPE_LOG_LEVEL);
+LOG_MODULE_REGISTER(mpipe_file_sink, CONFIG_MPIPE_LOG_LEVEL);
 
-static int mpipe_filesink_set_property(struct mpipe_object *obj, uint32_t key, const void *val)
+static int mpipe_file_sink_set_property(struct mpipe_object *obj, uint32_t key, const void *val)
 {
-	struct mpipe_filesink *fsink = (struct mpipe_filesink *)obj;
+	struct mpipe_file_sink *fsink = (struct mpipe_file_sink *)obj;
 
 	switch (key) {
 	case MPIPE_PROP_FS_SINK_PATH:
@@ -28,9 +28,9 @@ static int mpipe_filesink_set_property(struct mpipe_object *obj, uint32_t key, c
 	}
 }
 
-static int mpipe_filesink_get_property(struct mpipe_object *obj, uint32_t key, void *val)
+static int mpipe_file_sink_get_property(struct mpipe_object *obj, uint32_t key, void *val)
 {
-	struct mpipe_filesink *fsink = (struct mpipe_filesink *)obj;
+	struct mpipe_file_sink *fsink = (struct mpipe_file_sink *)obj;
 
 	switch (key) {
 	case MPIPE_PROP_FS_SINK_PATH:
@@ -41,11 +41,11 @@ static int mpipe_filesink_get_property(struct mpipe_object *obj, uint32_t key, v
 	}
 }
 
-static int mpipe_filesink_chainfn(struct mpipe_pad *pad, struct net_buf *in_buf,
-				  struct net_buf **out)
+static int mpipe_file_sink_chainfn(struct mpipe_pad *pad, struct net_buf *in_buf,
+				   struct net_buf **out)
 {
-	struct mpipe_filesink *fsink =
-		CONTAINER_OF(pad->object.container, struct mpipe_filesink, sink.element.object);
+	struct mpipe_file_sink *fsink =
+		CONTAINER_OF(pad->object.container, struct mpipe_file_sink, sink.element.object);
 	uint32_t to_write;
 	ssize_t wr;
 
@@ -70,7 +70,7 @@ static int mpipe_filesink_chainfn(struct mpipe_pad *pad, struct net_buf *in_buf,
 		return -EIO;
 	}
 
-	LOG_DBG("filesink: wrote %d bytes", (int)wr);
+	LOG_DBG("file_sink: wrote %d bytes", (int)wr);
 
 	/* Ignore short writes for now; could loop later */
 	net_buf_unref(in_buf);
@@ -79,9 +79,9 @@ static int mpipe_filesink_chainfn(struct mpipe_pad *pad, struct net_buf *in_buf,
 }
 
 static enum mpipe_state_change_return
-mpipe_filesink_change_state(struct mpipe_element *self, enum mpipe_state_change transition)
+mpipe_file_sink_change_state(struct mpipe_element *self, enum mpipe_state_change transition)
 {
-	struct mpipe_filesink *fsink = (struct mpipe_filesink *)self;
+	struct mpipe_file_sink *fsink = (struct mpipe_file_sink *)self;
 	int ret;
 
 	switch (transition) {
@@ -119,18 +119,18 @@ mpipe_filesink_change_state(struct mpipe_element *self, enum mpipe_state_change 
 	return mpipe_sink_change_state(self, transition);
 }
 
-void mpipe_filesink_init(struct mpipe_element *self)
+void mpipe_file_sink_init(struct mpipe_element *self)
 {
-	struct mpipe_filesink *fsink = (struct mpipe_filesink *)self;
+	struct mpipe_file_sink *fsink = (struct mpipe_file_sink *)self;
 	struct mpipe_sink *sink = &fsink->sink;
 
 	mpipe_sink_init(self);
 
-	self->object.set_property = mpipe_filesink_set_property;
-	self->object.get_property = mpipe_filesink_get_property;
-	self->change_state = mpipe_filesink_change_state;
+	self->object.set_property = mpipe_file_sink_set_property;
+	self->object.get_property = mpipe_file_sink_get_property;
+	self->change_state = mpipe_file_sink_change_state;
 
-	sink->sinkpad.chainfn = mpipe_filesink_chainfn;
+	sink->sinkpad.chainfn = mpipe_file_sink_chainfn;
 
 	fsink->path = NULL;
 	fsink->file_open = false;

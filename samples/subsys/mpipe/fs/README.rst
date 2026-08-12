@@ -9,9 +9,9 @@ Overview
    digraph pipeline {
      rankdir=LR;
      node [shape=box, style=filled, fillcolor="#e8e8e8"];
-     filesrc  [label="filesrc"];
-     filesink [label="filesink"];
-     filesrc -> filesink;
+     file_src  [label="file_src"];
+     file_sink [label="file_sink"];
+     file_src -> file_sink;
    }
 
 The pipeline reads an input file from a mounted FAT filesystem and writes it to an output file.

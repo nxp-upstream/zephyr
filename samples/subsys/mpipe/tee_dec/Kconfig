@@ -1,7 +1,7 @@
 # Copyright 2026 NXP
 # SPDX-License-Identifier: Apache-2.0
 
-mainmenu "MJPEG tee pipeline (decode + filesink)"
+mainmenu "MJPEG tee pipeline (decode + file_sink)"
 
 menu "Pipeline configuration"
 
@@ -12,10 +12,10 @@ config FILE_INPUT_PATH
 	  Absolute path to the MJPEG input file.
 
 config FILE_OUTPUT_PATH
-	string "Output raw file path (filesink branch)"
+	string "Output raw file path (file_sink branch)"
 	default "/SD:/tee_out.mjpeg"
 	help
-	  Absolute path where the tee filesink branch writes raw JPEG frames.
+	  Absolute path where the tee file_sink branch writes raw JPEG frames.
 
 config JPEG_IMAGE_WIDTH
 	int "Width of the JPEG image"

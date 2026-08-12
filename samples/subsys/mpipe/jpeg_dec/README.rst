@@ -26,13 +26,13 @@ for the display controller.
    digraph pipeline_a {
      rankdir=LR;
      node [shape=box, style=filled, fillcolor="#e8e8e8"];
-     filesrc      [label="filesrc\n(fs)"];
+     file_src      [label="file_src\n(fs)"];
      jpeg_parser  [label="jpeg_parser\n(img)"];
-     capsfilter   [label="capsfilter\n(core)"];
+     caps_filter   [label="caps_filter\n(core)"];
      hw_jpegdec   [label="HW jpegdec\n(vid_transform)"];
      videoconvert [label="videoconvert\n(vid)"];
      display      [label="display\n(disp)"];
-     filesrc -> jpeg_parser -> capsfilter -> hw_jpegdec -> videoconvert -> display;
+     file_src -> jpeg_parser -> caps_filter -> hw_jpegdec -> videoconvert -> display;
    }
 
 Pipeline B: SW JPEG decode
@@ -47,18 +47,18 @@ When no ``zephyr,jpegdec`` is present, decoding falls back to the software
    digraph pipeline_b {
      rankdir=LR;
      node [shape=box, style=filled, fillcolor="#e8e8e8"];
-     filesrc      [label="filesrc\n(fs)"];
+     file_src      [label="file_src\n(fs)"];
      jpeg_parser  [label="jpeg_parser\n(img)"];
-     capsfilter   [label="capsfilter\n(core)"];
+     caps_filter   [label="caps_filter\n(core)"];
      sw_jpegdec   [label="SW jpegdec\n(img)"];
      display      [label="display\n(disp)"];
-     filesrc -> jpeg_parser -> capsfilter -> sw_jpegdec -> display;
+     file_src -> jpeg_parser -> caps_filter -> sw_jpegdec -> display;
    }
 
 Elements
 --------
 
-- ``mpipe_filesrc`` reads chunks from the file specified by
+- ``mpipe_file_src`` reads chunks from the file specified by
   :kconfig:option:`CONFIG_FILE_INPUT_PATH`.
 - ``mpipe_img_jpeg_parser`` splits the MJPEG byte stream into individual JPEG frames.
 - ``mpipe_caps_filter`` constrains the JPEG format (width/height from Kconfig:
@@ -73,7 +73,7 @@ Notes
 - If ``zephyr,videotrans`` is also available, an additional ``mpipe_vid_transform``
   is inserted before the display sink (e.g. for rotation via
   :kconfig:option:`CONFIG_VIDEO_ROTATION_ANGLE`).
-- The capsfilter is placed between the parser and decoder to enforce a fixed
+- The caps_filter is placed between the parser and decoder to enforce a fixed
   JPEG frame format before decoding begins.
 
 Input
