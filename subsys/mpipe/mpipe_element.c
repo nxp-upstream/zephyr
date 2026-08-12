@@ -4,15 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <zephyr/kernel.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/zbus/zbus.h>
 
 #include <zephyr/mpipe/mpipe_bin.h>
-#include <zephyr/mpipe/mpipe_bus.h>
 #include <zephyr/mpipe/mpipe_element.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
+#include <zephyr/mpipe/mpipe_message.h>
 #include <zephyr/mpipe/mpipe_object.h>
 #include <zephyr/mpipe/mpipe_pad.h>
+#include <zephyr/mpipe/mpipe_pipeline.h>
 
 LOG_MODULE_REGISTER(mpipe_element, CONFIG_MPIPE_LOG_LEVEL);
 
@@ -165,7 +168,7 @@ mpipe_element_change_state_func(struct mpipe_element *element, enum mpipe_state_
 	return MPIPE_STATE_CHANGE_SUCCESS;
 }
 
-struct mpipe_bus *mpipe_element_get_bus(struct mpipe_element *element)
+struct zbus_channel *mpipe_element_get_bus_chan(struct mpipe_element *element)
 {
 	struct mpipe_object *bin;
 
@@ -185,7 +188,23 @@ struct mpipe_bus *mpipe_element_get_bus(struct mpipe_element *element)
 		return NULL;
 	}
 
-	return &((struct mpipe_bin *)bin)->bus;
+	return &((struct mpipe_bin *)bin)->bus.channel;
+}
+
+int mpipe_message_post(struct mpipe_message *message)
+{
+	struct zbus_channel *chan;
+
+	if (message == NULL || message->origin == NULL || message->type == 0) {
+		return -EINVAL;
+	}
+
+	chan = mpipe_element_get_bus_chan(message->origin);
+	if (chan == NULL) {
+		return -ENODEV;
+	}
+
+	return zbus_chan_pub(chan, message, K_NO_WAIT);
 }
 
 int mpipe_element_init(struct mpipe_element *self, uint8_t id)

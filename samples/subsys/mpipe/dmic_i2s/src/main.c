@@ -5,9 +5,11 @@
  */
 
 #include <zephyr/kernel.h>
+#include <zephyr/zbus/zbus.h>
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mpipe/mpipe.h>
+#include <zephyr/mpipe/mpipe_message.h>
 #include <zephyr/mpipe/aud/mpipe_aud.h>
 #include <zephyr/mpipe/aud/mpipe_aud_src.h>
 #include <zephyr/mpipe/aud/mpipe_aud_i2s_codec_sink.h>
@@ -40,7 +42,10 @@ enum {
  */
 __nocache struct k_mem_slab mem_slab;
 
+ZBUS_MSG_SUBSCRIBER_DEFINE(main_sub);
+
 static struct mpipe pipe;
+
 static struct mpipe_aud_dmic_src source;
 static struct mpipe_aud_gain gain;
 static struct mpipe_aud_i2s_codec_sink sink;
@@ -146,38 +151,58 @@ int main(void)
 	}
 	/* clang-format on */
 
+	ret = zbus_chan_add_obs(&pipe.bin.bus.channel, &main_sub, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Failed to attach observer to pipeline channel (%d)", ret);
+		goto err;
+	}
+
 	/* Start playing */
 	if (mpipe_element_set_state((struct mpipe_element *)&pipe, MPIPE_STATE_PLAYING) !=
 	    MPIPE_STATE_CHANGE_SUCCESS) {
 		LOG_ERR("Failed to start pipeline");
-		goto err;
+		goto err_set_state;
 	}
 
 	/* Handle message from the pipeline */
-	struct mpipe_bus *bus = mpipe_element_get_bus((struct mpipe_element *)&pipe);
+	const struct zbus_channel *chan;
 	struct mpipe_message msg;
 
-	/* Wait until an Error or an EOS - blocking */
-	mpipe_bus_pop_msg(bus, MPIPE_MESSAGE_ERROR | MPIPE_MESSAGE_EOS, &msg);
+	/* Wait until an Error or an EOS */
+	int sub_ret;
+
+	do {
+		sub_ret = zbus_sub_wait_msg(&main_sub, &chan, &msg, K_FOREVER);
+		if (sub_ret != 0) {
+			LOG_ERR("zbus_sub_wait_msg failed (%d)", sub_ret);
+			goto err_set_state;
+		}
+	} while ((msg.type & (MPIPE_MESSAGE_ERROR | MPIPE_MESSAGE_EOS)) == 0);
+
+	int origin_id = (msg.origin != NULL) ? msg.origin->object.id : -1;
 
 	switch (msg.type) {
 	case MPIPE_MESSAGE_ERROR:
-		LOG_ERR("ERROR message from element %d", msg.origin->object.id);
+		LOG_ERR("ERROR message from element %d", origin_id);
 		break;
 	case MPIPE_MESSAGE_EOS:
-		LOG_INF("EOS message from element %d", msg.origin->object.id);
+		LOG_INF("EOS message from element %d", origin_id);
 		break;
 	default:
-		LOG_ERR("Unexpected message from element %d", msg.origin->object.id);
+		LOG_ERR("Unexpected message from element %d", origin_id);
 		break;
 	}
+
+	(void)zbus_chan_rm_obs(&pipe.bin.bus.channel, &main_sub, K_FOREVER);
 
 	/* Stop/Deinit the pipeline */
 	(void)mpipe_element_set_state((struct mpipe_element *)&pipe, MPIPE_STATE_READY);
 
 	return 0;
 
+err_set_state:
+	zbus_chan_rm_obs(&pipe.bin.bus.channel, &main_sub, K_FOREVER);
 err:
 	LOG_ERR("Aborting sample");
-	return 0;
+	return ret != 0 ? ret : -EIO;
 }

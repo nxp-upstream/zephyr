@@ -7,6 +7,9 @@
 menuconfig MPIPE
 	bool "Multimedia Pipeline framework"
 	select NET_BUF
+	select ZBUS
+	select ZBUS_RUNTIME_OBSERVERS
+	select ZBUS_RUNTIME_CHANNEL_REGISTRATION
 	help
 	  Enable the Multimedia Pipeline framework.
 
@@ -104,14 +107,19 @@ config MPIPE_FAKE_SRC_BUF_SZ
 	default 1
 	depends on MPIPE_FAKE_SRC
 
-config MPIPE_BUS_QUEUE_DEPTH
-	int "Message bus queue depth"
-	default 2
-	help
-	  Bus queue depth
-
 config MPIPE_RPC
 	bool "RPC support"
+
+# ---- ZBus msg_subscriber net_buf defaults for MPIPE ----
+
+config ZBUS_PREFER_DYNAMIC_ALLOCATION
+	default n
+
+config ZBUS_MSG_SUBSCRIBER_NET_BUF_STATIC_DATA_SIZE
+	default 24 if MPIPE
+
+config ZBUS_MSG_SUBSCRIBER_NET_BUF_POOL_SIZE
+	default 4 if MPIPE
 
 # ---- Plugins and utilities ----
 # Each plugin/utility directory ships its own Kconfig, guarded by its own

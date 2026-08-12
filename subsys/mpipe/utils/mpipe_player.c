@@ -11,9 +11,13 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/shell/shell.h>
 
-#include <zephyr/mpipe/mpipe_element.h>
+#include <zephyr/zbus/zbus.h>
+
+#include <zephyr/mpipe/mpipe_bin.h>
 #include <zephyr/mpipe/mpipe_message.h>
+#include <zephyr/mpipe/mpipe_pipeline.h>
 #include <zephyr/mpipe/utils/mpipe_player.h>
+
 #if defined(CONFIG_MPIPE_DUMP)
 #include <zephyr/mpipe/utils/mpipe_dump.h>
 #endif
@@ -36,9 +40,16 @@ enum mpipe_player_cmd {
 };
 
 /* Only a single player instance is supported at a time. */
-static struct mpipe_player *active_player;
+static atomic_ptr_t active_player = ATOMIC_PTR_INIT(NULL);
 
 static K_THREAD_STACK_DEFINE(mpipe_player_worker_stack, CONFIG_MPIPE_PLAYER_WORKER_STACK_SIZE);
+
+static void mpipe_player_msg_cb(const struct zbus_channel *chan, const void *msg);
+
+/* Asynchronous listener for messages received from the mpipe_bin channel. The
+ * callback handler is executed in the system workqueue (sysworkq) context.
+ */
+ZBUS_ASYNC_LISTENER_DEFINE(mpipe_player_al, mpipe_player_msg_cb);
 
 /* clang-format off */
 static const char *const mpipe_player_domain_names[] = {
@@ -235,88 +246,22 @@ static bool mpipe_player_handle_cmd(struct mpipe_player *player, uint8_t cmd)
 }
 
 /*
- * Player worker thread. This is the pipeline's sole bus consumer AND the sole
- * owner of every state transition, so nothing here ever runs in a pipeline
- * thread's context (which would risk a thread joining itself on teardown).
- *
- * It waits on two sources at once with k_poll():
- *  - the command queue, fed by the mpipe_player_*() API (play/pause/stop/quit...),
- *  - the pipeline bus, on which the pipeline posts an EOS (or an ERROR) once
- *   every sink has finished.
+ * Player worker thread. It is the sole owner of every state transition, so no
+ * state change ever runs in a pipeline thread's context (which would risk a
+ * thread joining itself on teardown) nor on the system work queue.
  */
 static void mpipe_player_worker(void *p1, void *p2, void *p3)
 {
 	struct mpipe_player *player = p1;
 	uint8_t cmd;
-	struct mpipe_message msg;
 
 	ARG_UNUSED(p2);
 	ARG_UNUSED(p3);
 
-	/*
-	 * Without a bus we can only observe commands. This keeps the worker
-	 * usable in minimal setups (e.g. unit tests) where no bus is wired up.
-	 */
-	if (player->bus == NULL) {
-		for (;;) {
-			if (k_msgq_get(&player->cmd_q, &cmd, K_FOREVER) != 0) {
-				continue;
-			}
-			if (mpipe_player_handle_cmd(player, cmd)) {
-				return;
-			}
+	while (k_msgq_get(&player->cmd_q, &cmd, K_FOREVER) == 0) {
+		if (mpipe_player_handle_cmd(player, cmd)) {
+			return;
 		}
-	}
-
-	struct k_poll_event events[2];
-
-	k_poll_event_init(&events[0], K_POLL_TYPE_MSGQ_DATA_AVAILABLE, K_POLL_MODE_NOTIFY_ONLY,
-			  &player->cmd_q);
-	k_poll_event_init(&events[1], K_POLL_TYPE_MSGQ_DATA_AVAILABLE, K_POLL_MODE_NOTIFY_ONLY,
-			  &player->bus->msgq);
-
-	for (;;) {
-		if (k_poll(events, ARRAY_SIZE(events), K_FOREVER) != 0) {
-			continue;
-		}
-
-		/* Drain all pending commands first so a QUIT is honored promptly. */
-		if (events[0].state == K_POLL_STATE_MSGQ_DATA_AVAILABLE) {
-			while (k_msgq_get(&player->cmd_q, &cmd, K_NO_WAIT) == 0) {
-				if (mpipe_player_handle_cmd(player, cmd)) {
-					return;
-				}
-			}
-		}
-
-		/*
-		 * Bus messages: the pipeline delivers a single aggregated EOS (or
-		 * an ERROR) once every sink has finished. Return to STOPPED so a
-		 * subsequent play/replay starts cleanly.
-		 */
-		if (events[1].state == K_POLL_STATE_MSGQ_DATA_AVAILABLE) {
-			while (mpipe_bus_pop_msg(player->bus, MPIPE_MESSAGE_ANY, &msg) == 0) {
-				switch (msg.type) {
-				case MPIPE_MESSAGE_ERROR:
-					mpipe_player_report_error(player, &msg);
-					mpipe_player_do_stop(player);
-					break;
-				case MPIPE_MESSAGE_EOS:
-					LOG_INF("End of stream");
-					mpipe_player_do_stop(player);
-					break;
-				default:
-					break;
-				}
-
-				if (k_msgq_num_used_get(&player->bus->msgq) == 0) {
-					break;
-				}
-			}
-		}
-
-		events[0].state = K_POLL_STATE_NOT_READY;
-		events[1].state = K_POLL_STATE_NOT_READY;
 	}
 }
 
@@ -328,7 +273,37 @@ static int mpipe_player_post(struct mpipe_player *player, enum mpipe_player_cmd 
 		return -EINVAL;
 	}
 
-	return k_msgq_put(&player->cmd_q, &c, K_FOREVER);
+	return k_msgq_put(&player->cmd_q, &c, K_NO_WAIT);
+}
+
+static void mpipe_player_msg_cb(const struct zbus_channel *chan, const void *msg)
+{
+	const struct mpipe_message *m = msg;
+	struct mpipe_player *player = atomic_ptr_get(&active_player);
+	int ret = 0;
+
+	ARG_UNUSED(chan);
+
+	if (player == NULL) {
+		return;
+	}
+
+	switch (m->type) {
+	case MPIPE_MESSAGE_ERROR:
+		mpipe_player_report_error(player, msg);
+		ret = mpipe_player_post(player, MPIPE_PLAYER_CMD_STOP);
+		break;
+	case MPIPE_MESSAGE_EOS:
+		LOG_INF("End of stream");
+		ret = mpipe_player_post(player, MPIPE_PLAYER_CMD_STOP);
+		break;
+	default:
+		break;
+	}
+
+	if (ret != 0) {
+		LOG_ERR("Failed to post command to the player command queue");
+	}
 }
 
 int mpipe_player_init(struct mpipe_player *player, struct mpipe *pipeline)
@@ -337,24 +312,36 @@ int mpipe_player_init(struct mpipe_player *player, struct mpipe *pipeline)
 		return -EINVAL;
 	}
 
-	if (active_player != NULL) {
+	if (atomic_ptr_get(&active_player) != NULL) {
 		return -EBUSY;
 	}
 
 	player->pipeline = pipeline;
-	player->bus = mpipe_element_get_bus((struct mpipe_element *)pipeline);
 	player->state = MPIPE_PLAYER_STOPPED;
 
 	k_msgq_init(&player->cmd_q, player->cmd_buf, sizeof(uint8_t),
 		    CONFIG_MPIPE_PLAYER_CMD_QUEUE_DEPTH);
 	k_sem_init(&player->exited, 0, 1);
 
-	active_player = player;
+	/* Attach the async listener to the pipeline's message channel */
+	if (zbus_chan_add_obs(&pipeline->bin.bus.channel, &mpipe_player_al, K_FOREVER) != 0) {
+		LOG_ERR("Failed to attach player to pipeline channel");
+		return -EIO;
+	}
 
 	player->worker_tid = k_thread_create(&player->worker, mpipe_player_worker_stack,
 					     K_THREAD_STACK_SIZEOF(mpipe_player_worker_stack),
 					     mpipe_player_worker, player, NULL, NULL,
 					     CONFIG_MPIPE_PLAYER_WORKER_PRIORITY, 0, K_NO_WAIT);
+	if (player->worker_tid == NULL) {
+		LOG_ERR("Failed to create player worker thread");
+		(void)zbus_chan_rm_obs(&pipeline->bin.bus.channel, &mpipe_player_al, K_FOREVER);
+
+		return -EIO;
+	}
+
+	atomic_ptr_set(&active_player, player);
+
 	k_thread_name_set(player->worker_tid, "mpipe_player");
 
 #if defined(CONFIG_SHELL)
@@ -414,7 +401,9 @@ int mpipe_player_wait_quit(struct mpipe_player *player)
 
 int mpipe_player_deinit(struct mpipe_player *player)
 {
-	if (player == NULL) {
+	int err;
+
+	if (player == NULL || player->pipeline == NULL) {
 		return -EINVAL;
 	}
 
@@ -430,9 +419,12 @@ int mpipe_player_deinit(struct mpipe_player *player)
 	 */
 	(void)k_thread_join(&player->worker, K_FOREVER);
 
-	active_player = NULL;
+	atomic_ptr_set(&active_player, NULL);
 
-	return 0;
+	/* Detach the async listener. */
+	err = zbus_chan_rm_obs(&player->pipeline->bin.bus.channel, &mpipe_player_al, K_FOREVER);
+
+	return err;
 }
 
 #if defined(CONFIG_SHELL)
@@ -447,98 +439,113 @@ int mpipe_player_deinit(struct mpipe_player *player)
  *      player play|pause|stop|replay|status
  */
 
-static int mpipe_shell_check_active(const struct shell *sh)
+static struct mpipe_player *mpipe_shell_active(const struct shell *sh)
 {
-	if (active_player == NULL) {
+	struct mpipe_player *player = atomic_ptr_get(&active_player);
+
+	if (player == NULL) {
 		shell_error(sh, "No active player");
-		return -ENODEV;
 	}
 
-	return 0;
+	return player;
 }
 
 static int cmd_player_play(const struct shell *sh, size_t argc, char **argv)
 {
+	struct mpipe_player *player = mpipe_shell_active(sh);
+
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
-	if (mpipe_shell_check_active(sh) != 0) {
+	if (player == NULL) {
 		return -ENODEV;
 	}
 
-	return mpipe_player_play(active_player);
+	return mpipe_player_play(player);
 }
 
 static int cmd_player_pause(const struct shell *sh, size_t argc, char **argv)
 {
+	struct mpipe_player *player = mpipe_shell_active(sh);
+
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
-	if (mpipe_shell_check_active(sh) != 0) {
+	if (player == NULL) {
 		return -ENODEV;
 	}
 
-	return mpipe_player_pause(active_player);
+	return mpipe_player_pause(player);
 }
 
 static int cmd_player_toggle(const struct shell *sh, size_t argc, char **argv)
 {
+	struct mpipe_player *player = mpipe_shell_active(sh);
+
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
-	if (mpipe_shell_check_active(sh) != 0) {
+	if (player == NULL) {
 		return -ENODEV;
 	}
 
-	return mpipe_player_toggle(active_player);
+	return mpipe_player_toggle(player);
 }
 
 static int cmd_player_stop(const struct shell *sh, size_t argc, char **argv)
 {
+	struct mpipe_player *player = mpipe_shell_active(sh);
+
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
-	if (mpipe_shell_check_active(sh) != 0) {
+	if (player == NULL) {
 		return -ENODEV;
 	}
 
-	return mpipe_player_stop(active_player);
+	return mpipe_player_stop(player);
 }
 
 static int cmd_player_replay(const struct shell *sh, size_t argc, char **argv)
 {
+	struct mpipe_player *player = mpipe_shell_active(sh);
+
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
-	if (mpipe_shell_check_active(sh) != 0) {
+	if (player == NULL) {
 		return -ENODEV;
 	}
 
-	return mpipe_player_replay(active_player);
+	return mpipe_player_replay(player);
 }
 
 static int cmd_player_quit(const struct shell *sh, size_t argc, char **argv)
 {
+	struct mpipe_player *player = mpipe_shell_active(sh);
+
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
-	if (mpipe_shell_check_active(sh) != 0) {
+	if (player == NULL) {
 		return -ENODEV;
 	}
 
-	return mpipe_player_quit(active_player);
+	return mpipe_player_quit(player);
 }
 
 static int cmd_player_status(const struct shell *sh, size_t argc, char **argv)
 {
+	struct mpipe_player *player = mpipe_shell_active(sh);
+
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
-	if (mpipe_shell_check_active(sh) != 0) {
+	if (player == NULL) {
 		return -ENODEV;
 	}
 
-	shell_print(sh, "Player state: %s", mpipe_player_state_str(active_player->state));
+	shell_print(sh, "Player state: %s", mpipe_player_state_str(player->state));
 
 	return 0;
 }
@@ -562,14 +569,16 @@ static int cmd_player_dump(const struct shell *sh, size_t argc, char **argv)
 		.ctx = (void *)sh,
 	};
 
+	struct mpipe_player *player = mpipe_shell_active(sh);
+
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
-	if (mpipe_shell_check_active(sh) != 0) {
+	if (player == NULL) {
 		return -ENODEV;
 	}
 
-	return mpipe_dump_bin((struct mpipe_bin *)active_player->pipeline, &sink);
+	return mpipe_dump_bin((struct mpipe_bin *)player->pipeline, &sink);
 }
 
 #endif /* CONFIG_MPIPE_DUMP */

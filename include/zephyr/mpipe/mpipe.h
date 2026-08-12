@@ -36,7 +36,6 @@
 
 #include <zephyr/mpipe/mpipe_bin.h>
 #include <zephyr/mpipe/mpipe_buffer.h>
-#include <zephyr/mpipe/mpipe_bus.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
 #include <zephyr/mpipe/mpipe_element.h>
 #include <zephyr/mpipe/mpipe_message.h>

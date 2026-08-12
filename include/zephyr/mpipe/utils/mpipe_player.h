@@ -35,7 +35,9 @@
 
 #include <zephyr/kernel.h>
 
-#include <zephyr/mpipe/mpipe_bus.h>
+#include <zephyr/zbus/zbus.h>
+
+#include <zephyr/mpipe/mpipe_message.h>
 #include <zephyr/mpipe/mpipe_pipeline.h>
 
 /**
@@ -59,8 +61,6 @@ enum mpipe_player_state {
 struct mpipe_player {
 	/** Controlled pipeline. */
 	struct mpipe *pipeline;
-	/** Cached pipeline bus (read by the worker to observe EOS / ERROR). */
-	struct mpipe_bus *bus;
 	/** Command queue feeding the worker thread. */
 	struct k_msgq cmd_q;
 	/** Backing buffer for the command queue. Each cmd is a char (keystroke). */
@@ -78,7 +78,7 @@ struct mpipe_player {
 /**
  * @brief Initialize a player and start its worker thread.
  *
- * Registers a bus listener that auto-stops the pipeline on end-of-stream or
+ * Registers a bus async listener that auto-stops the pipeline on end-of-stream or
  * error. The pipeline must already be built and linked, but should be in the
  * READY state (not yet playing).
  *

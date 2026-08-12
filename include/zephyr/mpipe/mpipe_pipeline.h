@@ -23,9 +23,10 @@
 
 #include <zephyr/net_buf.h>
 #include <zephyr/sys/atomic.h>
+#include <zephyr/zbus/zbus.h>
 
 #include <zephyr/mpipe/mpipe_bin.h>
-#include <zephyr/mpipe/mpipe_bus.h>
+#include <zephyr/mpipe/mpipe_message.h>
 #include <zephyr/mpipe/mpipe_thread.h>
 
 /**
@@ -59,7 +60,7 @@ struct mpipe {
 /**
  * @brief Initialize a pipeline
  *
- * Initializes the pipeline structure, including the base bin and message bus.
+ * Initializes the pipeline structure, including the base bin and its message channel.
  *
  * @param self Pointer to the @ref mpipe_element to initialize as a pipeline
  */

@@ -84,7 +84,7 @@ enum mpipe_error_domain {
  * MPIPE_MESSAGE_ERROR.
  */
 struct mpipe_message {
-	struct mpipe_element *origin; /**< Origin of message */
+	struct mpipe_element *origin; /**< Element that posted this message */
 	uint32_t type;                /**< Message type (see @ref mpipe_message_type) */
 	int32_t code;                 /**< errno-style code, negative, 0 if unset */
 	uint8_t domain; /**< What the element was doing, see @ref mpipe_error_domain */

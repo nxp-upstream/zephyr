@@ -8,16 +8,91 @@
 
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/atomic.h>
+#include <zephyr/sys/slist.h>
+#include <zephyr/sys/util.h>
+#include <zephyr/zbus/zbus.h>
 
-#include <zephyr/mpipe/mpipe_bus.h>
+#include <zephyr/mpipe/mpipe_bin.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
 #include <zephyr/mpipe/mpipe_element.h>
 #include <zephyr/mpipe/mpipe_message.h>
+#include <zephyr/mpipe/mpipe_object.h>
 #include <zephyr/mpipe/mpipe_pad.h>
 #include <zephyr/mpipe/mpipe_pipeline.h>
 #include <zephyr/mpipe/mpipe_src.h>
 
 LOG_MODULE_REGISTER(mpipe_pipeline, CONFIG_MPIPE_LOG_LEVEL);
+
+/**
+ * @brief Aggregate End-Of-Stream (EOS) messages for a pipeline.
+ *
+ * A pipeline with N sinks produces N EOS messages, but the application must
+ * receive only one (the last). The owning pipeline is provided by the caller,
+ * which recovers it from the message buffer.
+ *
+ * @param p Pointer to the owning pipeline.
+ *
+ * @retval true  The EOS is accepted and delivered to subscribers. This is the
+ *               case for the final aggregated EOS.
+ * @retval false An intermediate EOS that must be dropped so the consumer sees
+ *               a single EOS.
+ */
+static inline bool mpipe_pipeline_validate_eos(struct mpipe *p)
+{
+	uint32_t seen = (uint32_t)atomic_inc(&p->eos_count) + 1;
+
+	if (p->num_sinks == 0 || seen >= p->num_sinks) {
+		return true;
+	}
+
+	/* Not the last EOS yet: drop it so the consumer sees a single EOS. */
+	return false;
+}
+
+/**
+ * @brief Message validator for a pipeline's embedded mpipe_message channel.
+ *
+ * Runs synchronously in the publishing thread (zbus_chan_pub()) before the
+ * message is delivered to subscribers. zbus allows a single validator per
+ * channel, so this function dispatches by message type to the dedicated
+ * per-type helpers.
+ *
+ * @param msg      Pointer to the mpipe_message being published.
+ * @param msg_size Size of the message (unused).
+ *
+ * @retval true  The message is accepted and delivered to subscribers.
+ * @retval false The message is rejected (zbus_chan_pub() returns -ENOMSG).
+ */
+static bool mpipe_pipeline_message_validator(const void *msg, size_t msg_size)
+{
+	const struct mpipe_message *m = msg;
+	struct mpipe *pipeline;
+	struct zbus_channel *chan;
+
+	ARG_UNUSED(msg_size);
+
+	if (m->origin == NULL) {
+		return true;
+	}
+
+	chan = mpipe_element_get_bus_chan(m->origin);
+	if (chan == NULL) {
+		return true;
+	}
+
+	pipeline = zbus_chan_user_data(chan);
+	if (pipeline == NULL) {
+		return true;
+	}
+
+	switch (m->type) {
+	case MPIPE_MESSAGE_EOS:
+		return mpipe_pipeline_validate_eos(pipeline);
+	default:
+		/* Pass-through for all other type of messages */
+		return true;
+	}
+}
 
 static uint32_t mpipe_pipeline_count_sinks(struct mpipe_bin *bin)
 {
@@ -52,43 +127,6 @@ static void mpipe_pipeline_set_flushing(struct mpipe_bin *bin, bool flush)
 			atomic_set(&((struct mpipe_pad *)pad_obj)->flushing, flush ? 1 : 0);
 		}
 	}
-}
-
-/*
- * Bus sync handler that aggregates EOS messages from all sinks.
- *
- * A pipeline with N sinks receives N EOS messages (one per sink). The
- * application must only be notified once every sink has finished, otherwise it
- * could tear down the pipeline while another branch is still processing. This
- * handler drops the first N-1 EOS messages and passes only the last one to the
- * application. Non-EOS messages are always passed through unchanged.
- *
- * It runs in the posting (pipeline/queue) thread, so it should stays short and
- * must never triggers a state change.
- */
-static enum mpipe_bus_sync_reply
-mpipe_pipeline_eos_handler(struct mpipe_bus *bus, struct mpipe_message *message, void *user_data)
-{
-	struct mpipe *pipeline = user_data;
-	uint32_t seen;
-
-	ARG_UNUSED(bus);
-
-	/* Only EOS is aggregated; everything else reaches the application. */
-	if (message->type != MPIPE_MESSAGE_EOS) {
-		return MPIPE_BUS_PASS;
-	}
-
-	/* atomic_inc() returns the value prior to the increment */
-	seen = (uint32_t)atomic_inc(&pipeline->eos_count) + 1;
-
-	/* Pass through once all sinks have signaled EOS (or if none are tracked) */
-	if (pipeline->num_sinks == 0 || seen >= pipeline->num_sinks) {
-		return MPIPE_BUS_PASS;
-	}
-
-	/* Not all sinks are done yet: swallow this intermediate EOS */
-	return MPIPE_BUS_DROP;
 }
 
 int mpipe_push_buffer(struct mpipe_pad *src_pad, struct net_buf *buffer)
@@ -330,8 +368,7 @@ mpipe_pipeline_change_state(struct mpipe_element *element, enum mpipe_state_chan
 	 */
 	if (transition == MPIPE_STATE_CHANGE_PAUSED_TO_READY) {
 		mpipe_thread_join(&pipeline->thread, K_FOREVER);
-		/* Stop aggregating EOS and reset for a clean re-run */
-		mpipe_bus_set_sync_handler(&pipeline->bin.bus, NULL, NULL);
+		/* Reset EOS counter for a clean re-run. */
 		atomic_set(&pipeline->eos_count, 0);
 	}
 
@@ -358,8 +395,6 @@ mpipe_pipeline_change_state(struct mpipe_element *element, enum mpipe_state_chan
 		 */
 		pipeline->num_sinks = mpipe_pipeline_count_sinks(&pipeline->bin);
 		atomic_set(&pipeline->eos_count, 0);
-		mpipe_bus_set_sync_handler(&pipeline->bin.bus, mpipe_pipeline_eos_handler,
-					   pipeline);
 		break;
 
 	case MPIPE_STATE_CHANGE_PAUSED_TO_PLAYING:
@@ -389,5 +424,10 @@ int mpipe_pipeline_init(struct mpipe *pipe, uint8_t id)
 	/* Initialize base class */
 	self->change_state = mpipe_pipeline_change_state;
 
-	return 0;
+	ret = mpipe_bin_set_bus_validator(&pipe->bin, mpipe_pipeline_message_validator, pipe);
+	if (ret != 0) {
+		LOG_ERR("Failed to set the pipeline bus validator (%d)", ret);
+	}
+
+	return ret;
 }

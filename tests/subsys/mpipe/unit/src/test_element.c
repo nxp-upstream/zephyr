@@ -102,12 +102,13 @@ ZTEST_F(mpipe_element_api, test_get_bus_finds_the_nearest_bin)
 	mpipe_element_init(&orphan, 3);
 
 	/* Held by no bin, so there is nothing to hand out */
-	zassert_is_null(mpipe_element_get_bus(&orphan),
+	zassert_is_null(mpipe_element_get_bus_chan(&orphan),
 			"An element outside any bin shall have no bus");
 
 	/* A pipeline has no container, and answers with its own bus */
-	zassert_equal(mpipe_element_get_bus((struct mpipe_element *)&fixture->pipeline),
-		      &fixture->pipeline.bin.bus, "A pipeline shall answer with its own bus");
+	zassert_equal(mpipe_element_get_bus_chan((struct mpipe_element *)&fixture->pipeline),
+		      &fixture->pipeline.bin.bus.channel,
+		      "A pipeline shall answer with its own bus");
 
 	zassert_ok(mpipe_bin_add((struct mpipe_bin *)&fixture->pipeline,
 				 (struct mpipe_element *)&nested, NULL),
@@ -115,14 +116,17 @@ ZTEST_F(mpipe_element_api, test_get_bus_finds_the_nearest_bin)
 	zassert_ok(mpipe_bin_add(&nested, &child, NULL), "mpipe_bin_add shall succeed");
 
 	/* A bin answers with its own bus whether or not another bin holds it */
-	zassert_equal(mpipe_element_get_bus((struct mpipe_element *)&nested), &nested.bus,
+	zassert_equal(mpipe_element_get_bus_chan((struct mpipe_element *)&nested),
+		      &nested.bus.channel,
 		      "A nested bin shall answer with its own bus, not its parent's");
 
 	/* The whole point of "nearest": the walk stops at the bin holding it */
-	zassert_equal(mpipe_element_get_bus(&child), &nested.bus,
+	zassert_equal(mpipe_element_get_bus_chan(&child), &nested.bus.channel,
 		      "A child shall get the bus of the bin holding it");
-	zassert_not_equal(mpipe_element_get_bus(&child), &fixture->pipeline.bin.bus,
+	zassert_not_equal(mpipe_element_get_bus_chan(&child), &fixture->pipeline.bin.bus.channel,
 			  "A child shall not reach past its bin to the pipeline");
+
+	zassert_ok(mpipe_bin_deinit_bus(&nested), "mpipe_bin_deinit_bus shall succeed");
 }
 
 ZTEST_F(mpipe_element_api, test_sanity)

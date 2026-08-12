@@ -5,9 +5,15 @@
  */
 
 #include <zephyr/ztest.h>
+#include <zephyr/zbus/zbus.h>
 
 #include <zephyr/mpipe/mpipe.h>
 #include <zephyr/mpipe/mpipe_fake_src.h>
+#include <zephyr/mpipe/mpipe_message.h>
+#include <zephyr/mpipe/mpipe_sink.h>
+#include <zephyr/mpipe/mpipe_transform.h>
+
+ZBUS_MSG_SUBSCRIBER_DEFINE(test_pipeline_sub);
 
 /* Element IDs (values are arbitrary; only uniqueness within the pipeline matters) */
 enum {
@@ -52,11 +58,18 @@ static void pipeline_before(void *f)
 		   "Failed to set fake_src MPIPE_PROP_SRC_NUM_BUFS");
 }
 
-ZTEST_SUITE(test_mock_pipeline, NULL, pipeline_suite_setup, pipeline_before, NULL, NULL);
+static void pipeline_after(void *f)
+{
+	struct test_mock_pipeline_fixture *fix = f;
+	(void)zbus_chan_rm_obs(&fix->pipeline.bin.bus.channel, &test_pipeline_sub, K_FOREVER);
+	(void)mpipe_bin_deinit_bus(&fix->pipeline.bin);
+}
+
+ZTEST_SUITE(test_mock_pipeline, NULL, pipeline_suite_setup, pipeline_before, pipeline_after, NULL);
 
 ZTEST_F(test_mock_pipeline, test_pipeline_fake_src_transform_sink)
 {
-	struct mpipe_bus *bus;
+	const struct zbus_channel *chan;
 	struct mpipe_message msg;
 
 	/* Add all elements to the pipeline */
@@ -72,18 +85,30 @@ ZTEST_F(test_mock_pipeline, test_pipeline_fake_src_transform_sink)
 				      (struct mpipe_element *)&fixture->sink, NULL),
 		   "Failed to link elements");
 
+	/* Attach the subscriber to the pipeline bin's channel at runtime. */
+	zassert_ok(zbus_chan_add_obs(&fixture->pipeline.bin.bus.channel, &test_pipeline_sub,
+				     K_FOREVER),
+		   "Failed to add observer to pipeline channel");
+
 	/* Start the pipeline */
 	zassert_equal(mpipe_element_set_state((struct mpipe_element *)&fixture->pipeline,
 					      MPIPE_STATE_PLAYING),
 		      MPIPE_STATE_CHANGE_SUCCESS, "Pipline failed to start PLAYING");
 
 	/* Wait for EOS posted by the sink */
-	bus = mpipe_element_get_bus((struct mpipe_element *)&fixture->pipeline);
-	mpipe_bus_pop_msg(bus, MPIPE_MESSAGE_EOS | MPIPE_MESSAGE_ERROR, &msg);
+	zassert_ok(zbus_sub_wait_msg(&test_pipeline_sub, &chan, &msg, K_FOREVER),
+		   "Timed out waiting for pipeline message");
 	zassert_equal(msg.type, MPIPE_MESSAGE_EOS, "Expected EOS Message,  got %d", msg.type);
 
 	/* Bring pipeline back to READY and join the thread */
 	zassert_equal(mpipe_element_set_state((struct mpipe_element *)&fixture->pipeline,
 					      MPIPE_STATE_READY),
 		      MPIPE_STATE_CHANGE_SUCCESS, "Pipeline failed to return to READY");
+
+	/* Detach the runtime observer */
+	zassert_ok(
+		zbus_chan_rm_obs(&fixture->pipeline.bin.bus.channel, &test_pipeline_sub, K_FOREVER),
+		"Failed to remove observer from pipeline channel");
+
+	/* The bus channel is torn down in pipeline_after, which also runs on early failure. */
 }

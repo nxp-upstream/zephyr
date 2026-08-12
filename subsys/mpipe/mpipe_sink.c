@@ -6,7 +6,6 @@
 
 #include <zephyr/logging/log.h>
 
-#include <zephyr/mpipe/mpipe_bus.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
 #include <zephyr/mpipe/mpipe_element.h>
 #include <zephyr/mpipe/mpipe_object.h>

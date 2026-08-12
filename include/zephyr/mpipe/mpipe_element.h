@@ -27,7 +27,6 @@
 
 #include <zephyr/mpipe/mpipe_object.h>
 
-struct mpipe_bus;
 struct mpipe_dispatch;
 
 /** @cond INTERNAL_HIDDEN */
@@ -285,16 +284,16 @@ enum mpipe_state_change_return mpipe_element_set_state(struct mpipe_element *ele
 						       enum mpipe_state state);
 
 /**
- * @brief Get the bus of an element
+ * @brief Get the bus channel of an element
  *
- * Retrieves the @ref mpipe_bus associated with the element, which is the bus of
+ * Retrieves the @ref zbus_channel associated with the element, which is the bus channel of
  * the nearest bin that contains the element.
  *
- * @param self Pointer to the @ref mpipe_element to get the bus from.
+ * @param self Pointer to the @ref mpipe_element to get the channel from.
  *
- * @return Pointer to the @ref mpipe_bus, or NULL if no bus is found.
+ * @return Pointer to the @ref zbus_channel, or NULL if no bus channel is found.
  */
-struct mpipe_bus *mpipe_element_get_bus(struct mpipe_element *self);
+struct zbus_channel *mpipe_element_get_bus_chan(struct mpipe_element *element);
 
 /** @} */
 
