@@ -454,6 +454,7 @@ TARGET_AUTHOR=(
 declare -A TARGET_BUILD_TEST
 TARGET_BUILD_TEST=(
     [core]="mpipe.core.build"
+    [utils]="mpipe.utils.build"
     [base]="mpipe.base.build"
     [aud]="mpipe.aud.build"
     [vid]="mpipe.vid.build"
