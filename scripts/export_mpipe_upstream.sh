@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-# Export Media Pipe (MP) subsystem from libmp_dev to upstream PR branches.
+# Export the Multimedia Pipeline (mpipe) subsystem from libmp_dev to upstream PR branches.
 #
 # This script generates clean, single-commit branches for each upstream PR
 # by extracting the final state of relevant files from libmp_dev using git diff.
@@ -19,11 +19,11 @@
 # branch is generated).
 #
 # Usage:
-#   ./scripts/export_mp_upstream.sh              # Export all PRs
-#   ./scripts/export_mp_upstream.sh core          # Export core only
-#   ./scripts/export_mp_upstream.sh vid           # Export vid only (core must exist)
-#   ./scripts/export_mp_upstream.sh --dry-run     # Show what would be done
-#   ./scripts/export_mp_upstream.sh --list        # List available targets
+#   ./scripts/export_mpipe_upstream.sh              # Export all PRs
+#   ./scripts/export_mpipe_upstream.sh core          # Export core only
+#   ./scripts/export_mpipe_upstream.sh vid           # Export vid only (core must exist)
+#   ./scripts/export_mpipe_upstream.sh --dry-run     # Show what would be done
+#   ./scripts/export_mpipe_upstream.sh --list        # List available targets
 #
 # Requirements:
 #   - Must be run from the zephyr repository root
@@ -36,14 +36,14 @@ set -euo pipefail
 # Configuration
 # ===========================================================================
 
-# The branch containing all MP development (core + all plugins)
+# The branch containing all mpipe development (core + all plugins)
 SOURCE_BRANCH="libmp_dev"
 
 # The base commit where libmp_dev diverged from mmiot/main
 BASE_REF="mmiot/main"
 
 # Branch name prefix for generated upstream branches
-UPSTREAM_PREFIX="upstream/mp"
+UPSTREAM_PREFIX="upstream/mpipe"
 
 # Explicit commit authorship.
 #
@@ -71,52 +71,52 @@ TODAY="$(date +%Y-%m-%d)"
 
 # Core: framework files + integration into subsys/Kconfig and subsys/CMakeLists.txt
 #
-# Core sources now live flattened directly under subsys/mp/*.c and their
-# public headers under include/zephyr/mp/*.h (no more core/ or plugins/
-# subdirectories). Because plugins share the subsys/mp/ directory as
+# Core sources now live flattened directly under subsys/mpipe/*.c and their
+# public headers under include/zephyr/mpipe/*.h (no more core/ or plugins/
+# subdirectories). Because plugins share the subsys/mpipe/ directory as
 # subdirectories, the core paths are listed explicitly (a bare
-# "subsys/mp/" pathspec would also drag in the plugin subdirectories).
+# "subsys/mpipe/" pathspec would also drag in the plugin subdirectories).
 CORE_PATHS=(
-    "subsys/mp/Kconfig"
-    "subsys/mp/CMakeLists.txt"
-    "subsys/mp/mp_bin.c"
-    "subsys/mp/mp_buffer.c"
-    "subsys/mp/mp_bus.c"
-    "subsys/mp/mp_dispatch.c"
-    "subsys/mp/mp_element.c"
-    "subsys/mp/mp_fake_src.c"
-    "subsys/mp/mp_object.c"
-    "subsys/mp/mp_pad.c"
-    "subsys/mp/mp_parser.c"
-    "subsys/mp/mp_pipeline.c"
-    "subsys/mp/mp_sink.c"
-    "subsys/mp/mp_src.c"
-    "subsys/mp/mp_structure.c"
-    "subsys/mp/mp_thread.c"
-    "subsys/mp/mp_transform.c"
-    "subsys/mp/mp_transform_client.c"
-    "subsys/mp/mp_value.c"
-    "subsys/mp/mp_workqueue.c"
-    "include/zephyr/mp/mp.h"
-    "include/zephyr/mp/mp_bin.h"
-    "include/zephyr/mp/mp_buffer.h"
-    "include/zephyr/mp/mp_bus.h"
-    "include/zephyr/mp/mp_dispatch.h"
-    "include/zephyr/mp/mp_element.h"
-    "include/zephyr/mp/mp_fake_src.h"
-    "include/zephyr/mp/mp_message.h"
-    "include/zephyr/mp/mp_object.h"
-    "include/zephyr/mp/mp_pad.h"
-    "include/zephyr/mp/mp_parser.h"
-    "include/zephyr/mp/mp_pipeline.h"
-    "include/zephyr/mp/mp_sink.h"
-    "include/zephyr/mp/mp_src.h"
-    "include/zephyr/mp/mp_structure.h"
-    "include/zephyr/mp/mp_thread.h"
-    "include/zephyr/mp/mp_transform.h"
-    "include/zephyr/mp/mp_transform_client.h"
-    "include/zephyr/mp/mp_value.h"
-    "include/zephyr/mp/mp_workqueue.h"
+    "subsys/mpipe/Kconfig"
+    "subsys/mpipe/CMakeLists.txt"
+    "subsys/mpipe/mpipe_bin.c"
+    "subsys/mpipe/mpipe_buffer.c"
+    "subsys/mpipe/mpipe_bus.c"
+    "subsys/mpipe/mpipe_dispatch.c"
+    "subsys/mpipe/mpipe_element.c"
+    "subsys/mpipe/mpipe_fake_src.c"
+    "subsys/mpipe/mpipe_object.c"
+    "subsys/mpipe/mpipe_pad.c"
+    "subsys/mpipe/mpipe_parser.c"
+    "subsys/mpipe/mpipe_pipeline.c"
+    "subsys/mpipe/mpipe_sink.c"
+    "subsys/mpipe/mpipe_src.c"
+    "subsys/mpipe/mpipe_structure.c"
+    "subsys/mpipe/mpipe_thread.c"
+    "subsys/mpipe/mpipe_transform.c"
+    "subsys/mpipe/mpipe_transform_client.c"
+    "subsys/mpipe/mpipe_value.c"
+    "subsys/mpipe/mpipe_workqueue.c"
+    "include/zephyr/mpipe/mpipe.h"
+    "include/zephyr/mpipe/mpipe_bin.h"
+    "include/zephyr/mpipe/mpipe_buffer.h"
+    "include/zephyr/mpipe/mpipe_bus.h"
+    "include/zephyr/mpipe/mpipe_dispatch.h"
+    "include/zephyr/mpipe/mpipe_element.h"
+    "include/zephyr/mpipe/mpipe_fake_src.h"
+    "include/zephyr/mpipe/mpipe_message.h"
+    "include/zephyr/mpipe/mpipe_object.h"
+    "include/zephyr/mpipe/mpipe_pad.h"
+    "include/zephyr/mpipe/mpipe_parser.h"
+    "include/zephyr/mpipe/mpipe_pipeline.h"
+    "include/zephyr/mpipe/mpipe_sink.h"
+    "include/zephyr/mpipe/mpipe_src.h"
+    "include/zephyr/mpipe/mpipe_structure.h"
+    "include/zephyr/mpipe/mpipe_thread.h"
+    "include/zephyr/mpipe/mpipe_transform.h"
+    "include/zephyr/mpipe/mpipe_transform_client.h"
+    "include/zephyr/mpipe/mpipe_value.h"
+    "include/zephyr/mpipe/mpipe_workqueue.h"
     "subsys/Kconfig"
     "subsys/CMakeLists.txt"
     "lib/Kconfig"
@@ -126,90 +126,90 @@ CORE_PATHS=(
 
 # vid plugin
 VID_PATHS=(
-    "subsys/mp/vid/"
-    "include/zephyr/mp/vid/"
+    "subsys/mpipe/vid/"
+    "include/zephyr/mpipe/vid/"
 )
 
 # img plugin (image codec support)
 IMG_PATHS=(
-    "subsys/mp/img/"
-    "include/zephyr/mp/img/"
+    "subsys/mpipe/img/"
+    "include/zephyr/mpipe/img/"
 )
 
 # aud plugin
 AUD_PATHS=(
-    "subsys/mp/aud/"
-    "include/zephyr/mp/aud/"
+    "subsys/mpipe/aud/"
+    "include/zephyr/mpipe/aud/"
 )
 
 # disp plugin
 DISP_PATHS=(
-    "subsys/mp/disp/"
-    "include/zephyr/mp/disp/"
+    "subsys/mpipe/disp/"
+    "include/zephyr/mpipe/disp/"
 )
 
 # fs plugin
 FS_PATHS=(
-    "subsys/mp/fs/"
-    "include/zephyr/mp/fs/"
+    "subsys/mpipe/fs/"
+    "include/zephyr/mpipe/fs/"
 )
 
 # base plugin
 BASE_PATHS=(
-    "subsys/mp/base/"
-    "include/zephyr/mp/base/"
+    "subsys/mpipe/base/"
+    "include/zephyr/mpipe/base/"
 )
 
 # utils (helper utilities built on top of the core, e.g. the mp_player
 # pipeline controller). Directory globs so future files under utils/ are
 # picked up automatically.
 UTILS_PATHS=(
-    "subsys/mp/utils/"
-    "include/zephyr/mp/utils/"
-    "tests/subsys/mp/utils/"
+    "subsys/mpipe/utils/"
+    "include/zephyr/mpipe/utils/"
+    "tests/subsys/mpipe/utils/"
 )
 
 
 # Sample: cam_disp (camera to display pipeline)
 SAMPLE_CAM_DISP_PATHS=(
-    "samples/subsys/mp/cam_disp/"
+    "samples/subsys/mpipe/cam_disp/"
 )
 
 # Sample: jpeg_dec (JPEG decoding pipeline)
 SAMPLE_JPEG_DEC_PATHS=(
-    "samples/subsys/mp/jpeg_dec/"
+    "samples/subsys/mpipe/jpeg_dec/"
 )
 
 # Sample: tee_dec (tee JPEG decoding pipeline)
 SAMPLE_TEE_DEC_PATHS=(
-    "samples/subsys/mp/tee_dec/"
+    "samples/subsys/mpipe/tee_dec/"
 )
 
 # Sample: fs (filesystem read/write pipeline)
 SAMPLE_FS_PATHS=(
-    "samples/subsys/mp/fs/"
+    "samples/subsys/mpipe/fs/"
 )
 
 # Sample: dmic_i2s (DMIC to I2S audio pipeline)
 SAMPLE_DMIC_I2S_PATHS=(
-    "samples/subsys/mp/dmic_i2s/"
+    "samples/subsys/mpipe/dmic_i2s/"
 )
 
 # Core tests: unit tests and pipeline tests for libmp core
 CORE_TEST_PATHS=(
-    "tests/subsys/mp/unit/"
-    "tests/subsys/mp/pipeline/"
-    "tests/subsys/mp/build_all/"
+    "tests/subsys/mpipe/unit/"
+    "tests/subsys/mpipe/pipeline/"
+    "tests/subsys/mpipe/build_all/"
 )
 
 # ===========================================================================
 # Commit messages (following Zephyr convention: area: Short description)
 # ===========================================================================
 
-CORE_COMMIT_MSG="mp: Introduce Media Pipe (MP) subsystem
+CORE_COMMIT_MSG="mpipe: Introduce the Multimedia Pipeline (mpipe) subsystem
 
-MP (Media Pipe) is a lightweight GStreamer-like multimedia framework
-for Zephyr. MP reuses many concepts from GStreamer, such as elements,
+Multimedia Pipeline (mpipe) is a lightweight GStreamer-like multimedia framework
+for Zephyr. It reuses many concepts from GStreamer, such as elements,
 pads, caps negotiation, and buffer negotiation and adopts a pipeline-
 based architecture that decomposes multimedia processing into discrete,
 interconnected elements.
@@ -221,9 +221,9 @@ and plugins suited to their purpose to construct a pipeline, and it
 just works. This design promotes modularity, reusability, and efficient
 resource management (e.g., zero-copy data flow). Moreover, the APIs
 are generic enough so that application code can remain unchanged even
-as MP evolves.
+as mpipe evolves.
 
-MP also features a highly modular, inheritance-based architecture
+mpipe also features a highly modular, inheritance-based architecture
 inspired by GStreamer, ensuring modularity, scalability, and
 maintainability. For example, new custom elements can be easily added
 by extending existing elements, without requiring modifications to the
@@ -234,9 +234,9 @@ ${SOB_PHIBANG}
 ${SOB_TRUNGHIEU}"
 
 
-VID_COMMIT_MSG="mp: Add video plugin
+VID_COMMIT_MSG="mpipe: Add video plugin
 
-Add the vid (Zephyr Video) plugin for the MP subsystem. This plugin
+Add the vid (Zephyr Video) plugin for the mpipe subsystem. This plugin
 provides video-specific elements that interface with Zephyr's video
 subsystem, enabling building video capture and processing pipelines
 using Zephyr video devices, e.g. camera, m2m devices
@@ -244,9 +244,9 @@ using Zephyr video devices, e.g. camera, m2m devices
 ${SOB_PHIBANG}"
 
 
-IMG_COMMIT_MSG="mp: Add image codec plugin
+IMG_COMMIT_MSG="mpipe: Add image codec plugin
 
-Add the img (Zephyr Image Codec) plugin for the MP subsystem.
+Add the img (Zephyr Image Codec) plugin for the mpipe subsystem.
 
 The plugin currently includes a JPEG parser element for extracting
 JPEG frames from a byte stream, a SW-based JPEG decoder element for
@@ -255,9 +255,9 @@ jpegenc, y4mdec, etc. will be added in the future.
 
 ${SOB_PHIBANG}"
 
-AUD_COMMIT_MSG="mp: Add audio plugin
+AUD_COMMIT_MSG="mpipe: Add audio plugin
 
-Add the aud (Zephyr Audio) plugin for the MP subsystem. This plugin
+Add the aud (Zephyr Audio) plugin for the mpipe subsystem. This plugin
 provides audio-specific elements that interface with Zephyr's audio
 subsystems, enabling building audio capture, processing, and playback
 pipelines using Zephyr audio devices.
@@ -270,9 +270,9 @@ ${SOB_MICHAL}
 ${SOB_TOMAS}"
 
 
-DISP_COMMIT_MSG="mp: Add display plugin
+DISP_COMMIT_MSG="mpipe: Add display plugin
 
-Add the disp (Zephyr Display) plugin for the MP subsystem. This
+Add the disp (Zephyr Display) plugin for the mpipe subsystem. This
 plugin provides display output elements that interface with Zephyr's
 display subsystem, enabling building video display pipelines that
 output processed frames to physical displays.
@@ -284,9 +284,9 @@ configurable display regions.
 ${SOB_PHIBANG}"
 
 
-FS_COMMIT_MSG="mp: Add filesystem plugin
+FS_COMMIT_MSG="mpipe: Add filesystem plugin
 
-Add the fs (Zephyr Filesystem) plugin for the MP subsystem. This
+Add the fs (Zephyr Filesystem) plugin for the mpipe subsystem. This
 plugin provides filesystem I/O elements that interface with Zephyr's
 filesystem subsystem, enabling building pipelines that read from or
 write to files on any Zephyr-supported filesystem (FAT, LittleFS,
@@ -298,9 +298,9 @@ filesystem API.
 
 ${SOB_PHIBANG}"
 
-BASE_COMMIT_MSG="mp: Add base plugin
+BASE_COMMIT_MSG="mpipe: Add base plugin
 
-Add the base plugin for the MP subsystem. This plugin provides
+Add the base plugin for the mpipe subsystem. This plugin provides
 generic, reusable elements like:
 - queue: pipeline-level threading element
 - tee: pipeline branching element
@@ -308,7 +308,7 @@ generic, reusable elements like:
 
 ${SOB_PHIBANG}"
 
-UTILS_COMMIT_MSG="mp: Add utils
+UTILS_COMMIT_MSG="mpipe: Add utils
 
 Add the utils helpers. These are optional, reusable utilities built on
 top of the subsys to simplify application development.
@@ -328,46 +328,46 @@ Assisted-by: Claude:claude-opus-5
 
 ${SOB_PHIBANG}"
 
-SAMPLE_CAM_DISP_COMMIT_MSG="mp: samples: Add camera to display sample
+SAMPLE_CAM_DISP_COMMIT_MSG="mpipe: samples: Add camera to display sample
 
 Add the cam_disp sample application demonstrating how to build a
-camera-to-display pipeline using the MP subsystem. This sample
+camera-to-display pipeline using the Multimedia Pipeline subsystem. This sample
 captures video frames from a camera device using the vid plugin and
 renders them on a display using the disp plugin, showcasing
 real-time video preview functionality.
 
 ${SOB_PHIBANG}"
 
-SAMPLE_JPEG_DEC_COMMIT_MSG="mp: samples: Add JPEG decoding sample
+SAMPLE_JPEG_DEC_COMMIT_MSG="mpipe: samples: Add JPEG decoding sample
 
 Add the jpeg_dec sample application demonstrating how to decode JPEG
-images using the MP subsystem. This sample reads JPEG-compressed
+images using the Multimedia Pipeline subsystem. This sample reads JPEG-compressed
 data, decodes it using the vid plugin's JPEG decoder elements, and
 outputs the resulting video frames, showcasing the JPEG decoding
 pipeline.
 
 ${SOB_PHIBANG}"
 
-SAMPLE_TEE_DEC_COMMIT_MSG="mp: samples: Add TEE JPEG decoding sample
+SAMPLE_TEE_DEC_COMMIT_MSG="mpipe: samples: Add TEE JPEG decoding sample
 
 Add the tee_dec sample application demonstrating how to decode JPEG
 images, display them and write the decoded data to a file at the same
-time, showcasing pipeline branching feature of the MP subsystem.
+time, showcasing pipeline branching feature of the Multimedia Pipeline subsystem.
 
 ${SOB_PHIBANG}"
 
-SAMPLE_FS_COMMIT_MSG="mp: samples: Add filesystem sample
+SAMPLE_FS_COMMIT_MSG="mpipe: samples: Add filesystem sample
 
 Add the fs sample application demonstrating how to read from and
-write to files using the MP subsystem. This sample uses the fs
+write to files using the Multimedia Pipeline subsystem. This sample uses the fs
 plugin's file source and file sink elements to build a pipeline
 that performs filesystem I/O on any Zephyr-supported filesystem.
 
 ${SOB_PHIBANG}"
 
-CORE_TEST_COMMIT_MSG="mp: Add core tests
+CORE_TEST_COMMIT_MSG="mpipe: Add core tests
 
-Add build-only, unit and mock pipeline tests for the MP core.
+Add build-only, unit and mock pipeline tests for the mpipe core.
 
 The mock pipeline is composed of a fake source, a transform and
 a sink to verify the whole core framework behavior such as
@@ -377,10 +377,10 @@ Assisted-by: Claude:claude-opus-4.6
 ${SOB_PHIBANG}
 ${SOB_TRUNGHIEU}"
 
-SAMPLE_DMIC_I2S_COMMIT_MSG="mp: samples: Add DMIC to I2S audio sample
+SAMPLE_DMIC_I2S_COMMIT_MSG="mpipe: samples: Add DMIC to I2S audio sample
 
 Add the dmic_i2s sample application demonstrating how to build an
-audio pipeline using the MP subsystem. This sample provides a simple
+audio pipeline using the Multimedia Pipeline subsystem. This sample provides a simple
 pipeline that captures audio from a digital microphone (DMIC), applies
 gain control using the aud plugin's gain element, and outputs the
 processed audio through an I2S codec to a speaker.
@@ -443,27 +443,27 @@ TARGET_AUTHOR=(
 # ===========================================================================
 # Build-all test map: target -> testcase name in build_all/tests.yaml
 #
-# tests/subsys/mp/build_all/tests.yaml in the source branch is a single
+# tests/subsys/mpipe/build_all/tests.yaml in the source branch is a single
 # file that contains one build_only entry per plugin (plus the core entry).
 # When exporting, each commit must only carry the entries relevant to it:
-#   - the core-tests commit keeps only 'mp.core.build'
+#   - the core-tests commit keeps only 'mpipe.core.build'
 #   - each plugin commit appends only its own entry
 # Samples have no build_all entry (empty / unset).
 # ===========================================================================
 
 declare -A TARGET_BUILD_TEST
 TARGET_BUILD_TEST=(
-    [core]="mp.core.build"
-    [base]="mp.base.build"
-    [aud]="mp.audio.build"
-    [vid]="mp.video.build"
-    [disp]="mp.display.build"
-    [img]="mp.img.build"
-    [fs]="mp.fs.build"
+    [core]="mpipe.core.build"
+    [base]="mpipe.base.build"
+    [aud]="mpipe.audio.build"
+    [vid]="mpipe.video.build"
+    [disp]="mpipe.display.build"
+    [img]="mpipe.img.build"
+    [fs]="mpipe.fs.build"
 )
 
 # Path to the shared build_all testcase file (relative to repo root).
-BUILD_ALL_TESTCASE="tests/subsys/mp/build_all/tests.yaml"
+BUILD_ALL_TESTCASE="tests/subsys/mpipe/build_all/tests.yaml"
 
 
 # ===========================================================================
@@ -562,17 +562,17 @@ pause_for_manual_resolution() {
 
 # Extract a single named test block from the source build_all/tests.yaml.
 # A block starts at a line "  <name>:" (two-space indent) and runs until the
-# next top-level test entry ("  mp.*.build:") or end of file. Trailing blank
+# next top-level test entry ("  mpipe.*.build:") or end of file. Trailing blank
 # lines are stripped. The extracted text is printed to stdout.
 #
-# Args: $1=test_name (e.g. "mp.base.build")
+# Args: $1=test_name (e.g. "mpipe.base.build")
 
 extract_build_test_block() {
     local test_name="$1"
 
     git show "${SOURCE_BRANCH}:${BUILD_ALL_TESTCASE}" 2>/dev/null | awk -v name="${test_name}" '
         # Detect the start of any top-level test entry (two-space indent).
-        /^  mp\.[a-zA-Z0-9_.]+\.build:[[:space:]]*$/ {
+        /^  mpipe\.[a-zA-Z0-9_.]+\.build:[[:space:]]*$/ {
             if ($0 == "  " name ":") {
                 capturing = 1
             } else {
@@ -615,9 +615,9 @@ append_build_test_block() {
 }
 
 # Print, one name per line, every top-level test block found on stdin (a
-# build_all/tests.yaml stream). For example, "mp.core.build".
+# build_all/tests.yaml stream). For example, "mpipe.core.build".
 list_build_test_names() {
-    awk '/^  mp\.[a-zA-Z0-9_.]+\.build:[[:space:]]*$/ { gsub(/[ :]/, ""); print }'
+    awk '/^  mpipe\.[a-zA-Z0-9_.]+\.build:[[:space:]]*$/ { gsub(/[ :]/, ""); print }'
 }
 
 # Auto-resolve a conflict on build_all/tests.yaml during a cherry-pick.
@@ -696,7 +696,7 @@ check_deps() {
     for dep in ${deps}; do
         if ! git rev-parse --verify "${dep}" >/dev/null 2>&1; then
             log_error "Dependency branch '${dep}' not found for target '${target}'."
-            log_error "Generate it first: ./scripts/export_mp_upstream.sh $(echo "${dep}" | sed "s|${UPSTREAM_PREFIX}-||")"
+            log_error "Generate it first: ./scripts/export_mpipe_upstream.sh $(echo "${dep}" | sed "s|${UPSTREAM_PREFIX}-||")"
             return 1
         fi
     done
@@ -754,7 +754,7 @@ generate_branch() {
         # Use --cherry-pick to skip commits that are already applied
         # (patch-equivalent) on the current HEAD. This is essential: every
         # plugin branch carries its own copy of the core framework and the
-        # "mp: Add core tests" commits, so when a sample cherry-picks several
+        # "mpipe: Add core tests" commits, so when a sample cherry-picks several
         # plugin ranges those duplicates would otherwise be re-applied and
         # conflict (notably the core-tests commit trying to reset
         # build_all/tests.yaml back to core-only). --right-only keeps only
@@ -1072,14 +1072,14 @@ check_doxygen_coverage() {
 # Target dispatch
 # ===========================================================================
 
-# Export the core framework commit onto upstream/mp-core (commit 1 of 2).
+# Export the core framework commit onto upstream/mpipe-core (commit 1 of 2).
 export_core() {
     generate_branch "core" "${UPSTREAM_PREFIX}-core" \
         "${CORE_COMMIT_MSG}" "${CORE_PATHS[@]}"
 }
 
-# Append the core tests commit onto upstream/mp-core (commit 2 of 2).
-# Depends on upstream/mp-core (cherry-picks it), then adds test files on top.
+# Append the core tests commit onto upstream/mpipe-core (commit 2 of 2).
+# Depends on upstream/mpipe-core (cherry-picks it), then adds test files on top.
 export_core_tests() {
     local branch="${UPSTREAM_PREFIX}-core"
 
@@ -1118,11 +1118,11 @@ export_core_tests() {
         write_build_test_file "${TARGET_BUILD_TEST[core]}"
     fi
 
-    # The core build must exercise CONFIG_MP_DUMP (a core option gating the
+    # The core build must exercise CONFIG_MPIPE_DUMP (a core option gating the
     # element name); guarantee it in the shared prj.conf, idempotently.
-    if [ -f "tests/subsys/mp/build_all/prj.conf" ]; then
-        grep -q '^CONFIG_MP_DUMP=y$' tests/subsys/mp/build_all/prj.conf ||
-            echo 'CONFIG_MP_DUMP=y' >> tests/subsys/mp/build_all/prj.conf
+    if [ -f "tests/subsys/mpipe/build_all/prj.conf" ]; then
+        grep -q '^CONFIG_MPIPE_DUMP=y$' tests/subsys/mpipe/build_all/prj.conf ||
+            echo 'CONFIG_MPIPE_DUMP=y' >> tests/subsys/mpipe/build_all/prj.conf
     fi
 
     git add -A
@@ -1217,14 +1217,14 @@ export_all() {
         sample-cam_disp sample-jpeg_dec sample-tee_dec \
         sample-fs sample-dmic_i2s)
 
-    log_info "=== Exporting all MP upstream PR branches ==="
+    log_info "=== Exporting all mpipe upstream PR branches ==="
     log_info "Source: ${SOURCE_BRANCH}"
     log_info "Base:   ${BASE_REF}"
     log_info "Date:   ${TODAY}"
     echo ""
 
     # Core must be first (plugins depend on it).
-    # Two commits on upstream/mp-core: framework first, then tests.
+    # Two commits on upstream/mpipe-core: framework first, then tests.
     export_core
     export_core_tests
 
@@ -1298,7 +1298,7 @@ export_all() {
             log_warn "To fix:"
             log_warn "  1. Fix issues in '${SOURCE_BRANCH}' and commit"
             log_warn "  2. Push '${SOURCE_BRANCH}' to mmiot: git push mmiot ${SOURCE_BRANCH}"
-            log_warn "  3. Re-run: ./scripts/export_mp_upstream.sh"
+            log_warn "  3. Re-run: ./scripts/export_mpipe_upstream.sh"
         fi
     fi
 
@@ -1320,7 +1320,7 @@ export_all() {
     log_info ""
     log_info "To push upstream PR branches to your fork:"
     for target in "${TARGETS[@]}"; do
-        echo "  git push <remote> ${UPSTREAM_PREFIX}-${target}:mp-${target} --force"
+        echo "  git push <remote> ${UPSTREAM_PREFIX}-${target}:mpipe-${target} --force"
     done
     log_info ""
     log_info "To push libmp_dev to mmiot:"
@@ -1335,14 +1335,14 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [OPTIONS] [TARGET...]
 
-Export MP subsystem from libmp_dev to upstream PR branches.
+Export the Multimedia Pipeline subsystem from libmp_dev to upstream PR branches.
 
 Each branch is built from ${BASE_REF}, with dependency commits cherry-picked
 first, then the target's own commit added on top. Compliance checks only
 verify the target's own commit and tests (HEAD~2..HEAD).
 
 Targets:
-  core             Core MP framework + tests
+  core             Core mpipe framework + tests
   vid             Video plugin (depends on core)
   img             Image codec plugin (depends on core)
   aud             Audio plugin (depends on core)
@@ -1529,7 +1529,7 @@ main() {
             log_warn "To fix:"
             log_warn "  1. Fix issues in '${SOURCE_BRANCH}' and commit"
             log_warn "  2. Push '${SOURCE_BRANCH}' to mmiot: git push mmiot ${SOURCE_BRANCH}"
-            log_warn "  3. Re-run: ./scripts/export_mp_upstream.sh"
+            log_warn "  3. Re-run: ./scripts/export_mpipe_upstream.sh"
         fi
     fi
 
@@ -1551,7 +1551,7 @@ main() {
     log_info ""
     log_info "To push upstream PR branches to your fork:"
     for target in "${TARGETS[@]}"; do
-        echo "  git push <remote> ${UPSTREAM_PREFIX}-${target}:mp-${target} --force"
+        echo "  git push <remote> ${UPSTREAM_PREFIX}-${target}:mpipe-${target} --force"
     done
     log_info ""
     log_info "To push libmp_dev to mmiot:"
