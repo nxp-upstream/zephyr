@@ -78,6 +78,8 @@ int mpipe_buffer_pool_stop(struct mpipe_buffer_pool *pool)
 	}
 
 	if (pool->stop == NULL) {
+		/* Mirror start: track the logical state even with no hook */
+		pool->started = false;
 		return -ENOSYS;
 	}
 
