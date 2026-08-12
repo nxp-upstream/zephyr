@@ -357,11 +357,11 @@ void mpipe_aud_gain_init(struct mpipe_element *self)
 	self->object.get_property = mpipe_aud_gain_get_property;
 
 	transform->mode = MPIPE_MODE_INPLACE;
-	transform->sinkpad.chainfn = mpipe_aud_gain_chainfn;
+	transform->sink_pad.chainfn = mpipe_aud_gain_chainfn;
 	transform->set_caps = mpipe_aud_gain_set_caps;
 	transform->decide_allocation = mpipe_aud_gain_decide_allocation;
 	transform->propose_allocation = mpipe_aud_gain_propose_allocation;
 
-	transform->sinkpad.enum_capsfn = mpipe_aud_gain_enum_caps;
-	transform->srcpad.enum_capsfn = mpipe_aud_gain_enum_caps;
+	transform->sink_pad.enum_capsfn = mpipe_aud_gain_enum_caps;
+	transform->src_pad.enum_capsfn = mpipe_aud_gain_enum_caps;
 }

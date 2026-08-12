@@ -24,11 +24,11 @@ static int mpipe_parser_set_caps(struct mpipe_parser *parser, enum mpipe_pad_dir
 	}
 
 	if (direction == MPIPE_PAD_SINK) {
-		return mpipe_pad_set_caps(&parser->sinkpad, caps);
+		return mpipe_pad_set_caps(&parser->sink_pad, caps);
 	}
 
 	if (direction == MPIPE_PAD_SRC) {
-		return mpipe_pad_set_caps(&parser->srcpad, caps);
+		return mpipe_pad_set_caps(&parser->src_pad, caps);
 	}
 
 	return -EINVAL;
@@ -45,12 +45,12 @@ static inline int mpipe_parser_query_caps(struct mpipe_parser *self,
 
 	switch (direction) {
 	case MPIPE_PAD_SINK:
-		this_pad = &self->sinkpad;
-		other_pad = &self->srcpad;
+		this_pad = &self->sink_pad;
+		other_pad = &self->src_pad;
 		break;
 	case MPIPE_PAD_SRC:
-		this_pad = &self->srcpad;
-		other_pad = &self->sinkpad;
+		this_pad = &self->src_pad;
+		other_pad = &self->sink_pad;
 		break;
 	default:
 		return -EINVAL;
@@ -98,7 +98,7 @@ static int mpipe_parser_event(struct mpipe_pad *pad, struct mpipe_dispatch *even
 {
 	struct mpipe_parser *parser = (struct mpipe_parser *)pad->object.container;
 	struct mpipe_pad *other_pad =
-		(pad->direction == MPIPE_PAD_SINK) ? &parser->srcpad : &parser->sinkpad;
+		(pad->direction == MPIPE_PAD_SINK) ? &parser->src_pad : &parser->sink_pad;
 	int ret;
 
 	switch (event->type) {
@@ -137,10 +137,10 @@ static int mpipe_parser_query(struct mpipe_pad *pad, struct mpipe_dispatch *quer
 	case MPIPE_DISPATCH_BUFFER_CONFIG:
 		struct mpipe_dispatch peer_query;
 
-		mpipe_dispatch_buffer_config_init(&peer_query, &parser->srcpad.caps);
+		mpipe_dispatch_buffer_config_init(&peer_query, &parser->src_pad.caps);
 
 		/* Query the downstream */
-		ret = mpipe_pad_query(parser->srcpad.peer, &peer_query);
+		ret = mpipe_pad_query(parser->src_pad.peer, &peer_query);
 		if (ret < 0) {
 			mpipe_dispatch_clear(&peer_query);
 			return ret;
@@ -158,7 +158,7 @@ static int mpipe_parser_query(struct mpipe_pad *pad, struct mpipe_dispatch *quer
 
 		/* Configure/start the output buffer pool */
 		if (parser->outpool != NULL && !parser->outpool->started) {
-			ret = mpipe_buffer_pool_configure(parser->outpool, &parser->srcpad.caps);
+			ret = mpipe_buffer_pool_configure(parser->outpool, &parser->src_pad.caps);
 			if (ret != 0 && ret != -ENOSYS) {
 				LOG_ERR("Failed to configure output parser buffer pool");
 				return ret;
@@ -200,19 +200,19 @@ void mpipe_parser_init(struct mpipe_element *self)
 {
 	struct mpipe_parser *parser = (struct mpipe_parser *)self;
 
-	mpipe_pad_init(&parser->sinkpad, MPIPE_PAD_SINK_ID, MPIPE_PAD_SINK, MPIPE_PAD_ALWAYS);
-	mpipe_element_add_pad(self, &parser->sinkpad);
+	mpipe_pad_init(&parser->sink_pad, MPIPE_PAD_SINK_ID, MPIPE_PAD_SINK, MPIPE_PAD_ALWAYS);
+	mpipe_element_add_pad(self, &parser->sink_pad);
 
-	mpipe_pad_init(&parser->srcpad, MPIPE_PAD_SRC_ID, MPIPE_PAD_SRC, MPIPE_PAD_ALWAYS);
-	mpipe_element_add_pad(self, &parser->srcpad);
+	mpipe_pad_init(&parser->src_pad, MPIPE_PAD_SRC_ID, MPIPE_PAD_SRC, MPIPE_PAD_ALWAYS);
+	mpipe_element_add_pad(self, &parser->src_pad);
 
 	parser->outpool = NULL;
 	self->change_state = mpipe_parser_change_state;
 	parser->set_caps = mpipe_parser_set_caps;
-	parser->srcpad.queryfn = mpipe_parser_query;
-	parser->sinkpad.queryfn = mpipe_parser_query;
-	parser->srcpad.eventfn = mpipe_parser_event;
-	parser->sinkpad.eventfn = mpipe_parser_event;
+	parser->src_pad.queryfn = mpipe_parser_query;
+	parser->sink_pad.queryfn = mpipe_parser_query;
+	parser->src_pad.eventfn = mpipe_parser_event;
+	parser->sink_pad.eventfn = mpipe_parser_event;
 	parser->decide_allocation = NULL;
 	parser->propose_allocation = NULL;
 }

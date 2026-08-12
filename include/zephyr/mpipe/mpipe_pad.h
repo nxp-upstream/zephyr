@@ -217,12 +217,12 @@ int mpipe_pad_set_caps(struct mpipe_pad *pad, const struct mpipe_structure *caps
  * Links a source pad to a sink pad, establishing a connection for data flow.
  * Both pads will have their peer pointers set to each other.
  *
- * @param srcpad Source pad to link
- * @param sinkpad Sink pad to link
+ * @param src_pad Source pad to link
+ * @param sink_pad Sink pad to link
  *
  * @return 0 on success, negative errno on failure
  */
-int mpipe_pad_link(struct mpipe_pad *srcpad, struct mpipe_pad *sinkpad);
+int mpipe_pad_link(struct mpipe_pad *src_pad, struct mpipe_pad *sink_pad);
 
 /**
  * @brief Send an event to a pad

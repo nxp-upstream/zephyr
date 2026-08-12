@@ -124,10 +124,10 @@ enum mpipe_state_change_return mpipe_bin_change_state_func(struct mpipe_element 
 	 * Topological sort using BFS.
 	 *
 	 * For UP/DOWN transitions:
-	 *   - Sinks/Sources first (elements with no srcpad/sinkpad links have degree 0)
-	 *   - degree = number of linked srcpads/sinkpads
-	 *   - After processing element E, for each sinkpad/srcpad of E, find the
-	 *     peer srcpad/sinkpad's container element and decrement its degree.
+	 *   - Sinks/Sources first (elements with no src_pad/sink_pad links have degree 0)
+	 *   - degree = number of linked src_pads/sink_pads
+	 *   - After processing element E, for each sink_pad/src_pad of E, find the
+	 *     peer src_pad/sink_pad's container element and decrement its degree.
 	 */
 
 	is_up_transition = (transition == MPIPE_STATE_CHANGE_READY_TO_PAUSED ||
@@ -145,11 +145,11 @@ enum mpipe_state_change_return mpipe_bin_change_state_func(struct mpipe_element 
 		elements[num_elements] = elem;
 
 		if (is_up_transition) {
-			/* UP: degree = number of linked srcpads */
-			degree[num_elements] = mpipe_bin_count_linked_pads(elem, &elem->srcpads);
+			/* UP: degree = number of linked src_pads */
+			degree[num_elements] = mpipe_bin_count_linked_pads(elem, &elem->src_pads);
 		} else {
-			/* DOWN: degree = number of linked sinkpads */
-			degree[num_elements] = mpipe_bin_count_linked_pads(elem, &elem->sinkpads);
+			/* DOWN: degree = number of linked sink_pads */
+			degree[num_elements] = mpipe_bin_count_linked_pads(elem, &elem->sink_pads);
 		}
 
 		num_elements++;
@@ -183,11 +183,11 @@ enum mpipe_state_change_return mpipe_bin_change_state_func(struct mpipe_element 
 			 * Decrement degree of peer elements.
 			 *
 			 * For UP/DOWN transitions:
-			 *   - Iterate sinkpads/srcpads of this element to find the peer
-			 *     sinkpad/srcpad'scontainer element and decrement its degree.
+			 *   - Iterate sink_pads/src_pads of this element to find the peer
+			 *     sink_pad/src_pad'scontainer element and decrement its degree.
 			 */
 			sys_dlist_t *pad_list =
-				is_up_transition ? &elements[i]->sinkpads : &elements[i]->srcpads;
+				is_up_transition ? &elements[i]->sink_pads : &elements[i]->src_pads;
 
 			mpipe_bin_decrement_peer_degrees(pad_list, elements, degree, num_elements);
 		}

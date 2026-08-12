@@ -31,11 +31,11 @@ int mpipe_transform_set_caps(struct mpipe_transform *transform, enum mpipe_pad_d
 			     const struct mpipe_structure *caps)
 {
 	if (direction == MPIPE_PAD_SINK) {
-		return mpipe_pad_set_caps(&transform->sinkpad, caps);
+		return mpipe_pad_set_caps(&transform->sink_pad, caps);
 	}
 
 	if (direction == MPIPE_PAD_SRC) {
-		return mpipe_pad_set_caps(&transform->srcpad, caps);
+		return mpipe_pad_set_caps(&transform->src_pad, caps);
 	}
 
 	return -EINVAL;
@@ -208,12 +208,12 @@ static inline int mpipe_transform_query_caps(struct mpipe_transform *self,
 
 	switch (direction) {
 	case MPIPE_PAD_SINK:
-		this_pad = &self->sinkpad;
-		other_pad = &self->srcpad;
+		this_pad = &self->sink_pad;
+		other_pad = &self->src_pad;
 		break;
 	case MPIPE_PAD_SRC:
-		this_pad = &self->srcpad;
-		other_pad = &self->sinkpad;
+		this_pad = &self->src_pad;
+		other_pad = &self->sink_pad;
 		break;
 	default:
 		return -EINVAL;
@@ -275,10 +275,10 @@ static int mpipe_transform_query(struct mpipe_pad *pad, struct mpipe_dispatch *q
 	case MPIPE_DISPATCH_BUFFER_CONFIG:
 		struct mpipe_dispatch peer_query;
 
-		mpipe_dispatch_buffer_config_init(&peer_query, &self->srcpad.caps);
+		mpipe_dispatch_buffer_config_init(&peer_query, &self->src_pad.caps);
 
 		/* Query the downstream */
-		ret = mpipe_pad_query(self->srcpad.peer, &peer_query);
+		ret = mpipe_pad_query(self->src_pad.peer, &peer_query);
 		if (ret < 0) {
 			mpipe_dispatch_clear(&peer_query);
 			return ret;
@@ -297,7 +297,7 @@ static int mpipe_transform_query(struct mpipe_pad *pad, struct mpipe_dispatch *q
 
 		/* Configure/start the output buffer pool */
 		if (self->mode == MPIPE_MODE_NORMAL) {
-			ret = mpipe_buffer_pool_configure(self->outpool, &self->srcpad.caps);
+			ret = mpipe_buffer_pool_configure(self->outpool, &self->src_pad.caps);
 			if (ret != 0 && ret != -ENOSYS) {
 				LOG_ERR("Failed to configure output transform buffer pool");
 				return ret;
@@ -372,8 +372,8 @@ static int mpipe_transform_event(struct mpipe_pad *pad, struct mpipe_dispatch *e
 		struct mpipe_structure incoming;
 		struct mpipe_structure fixated;
 
-		other_pad = (pad->direction == MPIPE_PAD_SINK) ? &transform->srcpad
-							       : &transform->sinkpad;
+		other_pad = (pad->direction == MPIPE_PAD_SINK) ? &transform->src_pad
+							       : &transform->sink_pad;
 
 		/*
 		 * A caps event carries a fixed format. One that constrains
@@ -441,21 +441,21 @@ void mpipe_transform_init(struct mpipe_element *self)
 {
 	struct mpipe_transform *transform = (struct mpipe_transform *)self;
 
-	mpipe_pad_init(&transform->sinkpad, MPIPE_PAD_SINK_ID, MPIPE_PAD_SINK, MPIPE_PAD_ALWAYS);
-	mpipe_pad_init(&transform->srcpad, MPIPE_PAD_SRC_ID, MPIPE_PAD_SRC, MPIPE_PAD_ALWAYS);
-	mpipe_element_add_pad(self, &transform->sinkpad);
-	mpipe_element_add_pad(self, &transform->srcpad);
+	mpipe_pad_init(&transform->sink_pad, MPIPE_PAD_SINK_ID, MPIPE_PAD_SINK, MPIPE_PAD_ALWAYS);
+	mpipe_pad_init(&transform->src_pad, MPIPE_PAD_SRC_ID, MPIPE_PAD_SRC, MPIPE_PAD_ALWAYS);
+	mpipe_element_add_pad(self, &transform->sink_pad);
+	mpipe_element_add_pad(self, &transform->src_pad);
 
 	self->change_state = mpipe_transform_change_state;
 
 	transform->mode = MPIPE_MODE_PASSTHROUGH;
 	transform->set_caps = mpipe_transform_set_caps;
 	transform->transform_caps = mpipe_transform_transform_caps;
-	transform->sinkpad.chainfn = mpipe_transform_chainfn;
-	transform->sinkpad.queryfn = mpipe_transform_query;
-	transform->srcpad.queryfn = mpipe_transform_query;
-	transform->sinkpad.eventfn = mpipe_transform_event;
-	transform->srcpad.eventfn = mpipe_transform_event;
+	transform->sink_pad.chainfn = mpipe_transform_chainfn;
+	transform->sink_pad.queryfn = mpipe_transform_query;
+	transform->src_pad.queryfn = mpipe_transform_query;
+	transform->sink_pad.eventfn = mpipe_transform_event;
+	transform->src_pad.eventfn = mpipe_transform_event;
 	transform->decide_allocation = NULL;
 	transform->propose_allocation = NULL;
 }

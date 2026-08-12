@@ -107,7 +107,7 @@ static int mpipe_vid_transform_set_caps(struct mpipe_transform *transform,
 
 	/* Set pad's caps only when everything is OK */
 	return mpipe_pad_set_caps(
-		direction == MPIPE_PAD_SRC ? &transform->srcpad : &transform->sinkpad, caps);
+		direction == MPIPE_PAD_SRC ? &transform->src_pad : &transform->sink_pad, caps);
 }
 
 static int mpipe_vid_transform_transform_caps(struct mpipe_transform *self,
@@ -221,12 +221,12 @@ void mpipe_vid_transform_init(struct mpipe_element *self)
 	(void)mpipe_vid_object_probe_bounds(&vid_transform->vid_obj_in);
 	(void)mpipe_vid_object_probe_bounds(&vid_transform->vid_obj_out);
 
-	transform->sinkpad.enum_capsfn = mpipe_vid_transform_enum_caps;
-	transform->srcpad.enum_capsfn = mpipe_vid_transform_enum_caps;
+	transform->sink_pad.enum_capsfn = mpipe_vid_transform_enum_caps;
+	transform->src_pad.enum_capsfn = mpipe_vid_transform_enum_caps;
 
 	transform->set_caps = mpipe_vid_transform_set_caps;
 	transform->transform_caps = mpipe_vid_transform_transform_caps;
-	transform->sinkpad.chainfn = mpipe_vid_transform_chainfn;
+	transform->sink_pad.chainfn = mpipe_vid_transform_chainfn;
 	transform->decide_allocation = mpipe_vid_transform_decide_allocation;
 	transform->propose_allocation = mpipe_vid_transform_propose_allocation;
 }

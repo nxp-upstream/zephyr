@@ -130,7 +130,7 @@ void mpipe_file_sink_init(struct mpipe_element *self)
 	self->object.get_property = mpipe_file_sink_get_property;
 	self->change_state = mpipe_file_sink_change_state;
 
-	sink->sinkpad.chainfn = mpipe_file_sink_chainfn;
+	sink->sink_pad.chainfn = mpipe_file_sink_chainfn;
 
 	fsink->path = NULL;
 	fsink->file_open = false;

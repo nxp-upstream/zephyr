@@ -48,10 +48,10 @@ static void element_before(void *f)
 		      "Element shall start in READY state after init");
 	zassert_equal(fix->src.pending_state, MPIPE_STATE_READY,
 		      "pending_state shall be READY after init");
-	zassert_true(sys_dlist_is_empty(&fix->src.srcpads),
-		     "srcpads list shall be empty after init");
-	zassert_true(sys_dlist_is_empty(&fix->sink.sinkpads),
-		     "sinkpads list shall be empty after init");
+	zassert_true(sys_dlist_is_empty(&fix->src.src_pads),
+		     "src_pads list shall be empty after init");
+	zassert_true(sys_dlist_is_empty(&fix->sink.sink_pads),
+		     "sink_pads list shall be empty after init");
 }
 
 ZTEST_SUITE(mpipe_element_api, NULL, element_suite_setup, element_before, NULL, NULL);
@@ -61,14 +61,14 @@ ZTEST_F(mpipe_element_api, test_link_two_elements)
 
 	/* Add both pads and verify they are registered on the element */
 	mpipe_element_add_pad(&fixture->src, &fixture->src_pad);
-	zassert_false(sys_dlist_is_empty(&fixture->src.srcpads),
-		      "srcpads shall not be empty after adding src pad");
+	zassert_false(sys_dlist_is_empty(&fixture->src.src_pads),
+		      "src_pads shall not be empty after adding src pad");
 	zassert_equal(fixture->src_pad.object.container, (struct mpipe_object *)&fixture->src,
 		      "Pad container shall reference the owning element");
 
 	mpipe_element_add_pad(&fixture->sink, &fixture->sink_pad);
-	zassert_false(sys_dlist_is_empty(&fixture->sink.sinkpads),
-		      "sinkpads shall not be empty after adding sink pad");
+	zassert_false(sys_dlist_is_empty(&fixture->sink.sink_pads),
+		      "sink_pads shall not be empty after adding sink pad");
 	zassert_equal(fixture->sink_pad.object.container, (struct mpipe_object *)&fixture->sink,
 		      "Pad container shall reference the owning element");
 
@@ -138,10 +138,10 @@ ZTEST_F(mpipe_element_api, test_sanity)
 	mpipe_pad_init(&pad, 0, MPIPE_PAD_UNKNOWN, MPIPE_PAD_ALWAYS);
 	mpipe_element_add_pad(&elem, &pad);
 
-	zassert_true(sys_dlist_is_empty(&elem.srcpads),
-		     "srcpads shall remain empty for UNKNOWN direction pad");
-	zassert_true(sys_dlist_is_empty(&elem.sinkpads),
-		     "sinkpads shall remain empty for UNKNOWN direction pad");
+	zassert_true(sys_dlist_is_empty(&elem.src_pads),
+		     "src_pads shall remain empty for UNKNOWN direction pad");
+	zassert_true(sys_dlist_is_empty(&elem.sink_pads),
+		     "sink_pads shall remain empty for UNKNOWN direction pad");
 
 	/* Linking elements without pads shall fail */
 	struct mpipe_element src, sink;

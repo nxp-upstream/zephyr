@@ -398,10 +398,10 @@ void mpipe_img_jpeg_parser_init(struct mpipe_element *self)
 	 * The capabilities are enumerated from .rodata, so the ANY caps that
 	 * mpipe_parser_init() leaves on both sides are never consulted.
 	 */
-	parser->sinkpad.enum_capsfn = mpipe_img_jpeg_parser_enum_caps;
-	parser->srcpad.enum_capsfn = mpipe_img_jpeg_parser_enum_caps;
+	parser->sink_pad.enum_capsfn = mpipe_img_jpeg_parser_enum_caps;
+	parser->src_pad.enum_capsfn = mpipe_img_jpeg_parser_enum_caps;
 
-	parser->sinkpad.chainfn = mpipe_img_jpeg_parser_chainfn;
+	parser->sink_pad.chainfn = mpipe_img_jpeg_parser_chainfn;
 	parser->decide_allocation = mpipe_img_jpeg_parser_decide_allocation;
 
 	if (CONFIG_MPIPE_IMG_JPEG_PARSER_MAX_FRAME_SIZE > 0) {

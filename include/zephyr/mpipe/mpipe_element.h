@@ -172,9 +172,9 @@ struct mpipe_element {
 #endif
 
 	/** List of source pads */
-	sys_dlist_t srcpads;
+	sys_dlist_t src_pads;
 	/** List of sink pads */
-	sys_dlist_t sinkpads;
+	sys_dlist_t sink_pads;
 
 	/** Current state of the element */
 	enum mpipe_state current_state;

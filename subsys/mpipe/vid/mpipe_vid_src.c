@@ -35,7 +35,7 @@ static int mpipe_vid_src_set_caps(struct mpipe_src *src, const struct mpipe_stru
 	}
 
 	/* Set pad's caps only when everything is OK */
-	return mpipe_pad_set_caps(&src->srcpad, caps);
+	return mpipe_pad_set_caps(&src->src_pad, caps);
 }
 
 static int mpipe_vid_src_set_property(struct mpipe_object *obj, uint32_t key, const void *val)
@@ -91,7 +91,7 @@ void mpipe_vid_src_init(struct mpipe_element *self)
 	src->pool = &vid_src->vid_obj.pool.pool;
 	mpipe_vid_buffer_pool_init(src->pool, &vid_src->vid_obj);
 
-	src->srcpad.enum_capsfn = mpipe_vid_src_enum_caps;
+	src->src_pad.enum_capsfn = mpipe_vid_src_enum_caps;
 	src->set_caps = mpipe_vid_src_set_caps;
 	src->decide_allocation = mpipe_vid_src_decide_allocation;
 }

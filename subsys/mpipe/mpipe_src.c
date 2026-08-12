@@ -55,7 +55,7 @@ static int mpipe_src_set_caps(struct mpipe_src *src, const struct mpipe_structur
 		return -EINVAL;
 	}
 
-	return mpipe_pad_set_caps(&src->srcpad, caps);
+	return mpipe_pad_set_caps(&src->src_pad, caps);
 }
 
 static int mpipe_src_query(struct mpipe_pad *pad, struct mpipe_dispatch *query)
@@ -81,7 +81,7 @@ static int mpipe_src_offer_candidate(struct mpipe_src *src, const struct mpipe_s
 	/* The dispatch holds its own copy for as long as the query lasts */
 	mpipe_dispatch_caps_init(&caps_query, candidate);
 
-	ret = mpipe_pad_query(src->srcpad.peer, &caps_query);
+	ret = mpipe_pad_query(src->src_pad.peer, &caps_query);
 	if (ret != 0) {
 		mpipe_dispatch_clear(&caps_query);
 		return -ENODATA;
@@ -93,7 +93,7 @@ static int mpipe_src_offer_candidate(struct mpipe_src *src, const struct mpipe_s
 	}
 
 	/* Store negotiated (possibly unfixed) caps on the src pad */
-	ret = mpipe_pad_set_caps(&src->srcpad, mpipe_dispatch_get_caps(&caps_query));
+	ret = mpipe_pad_set_caps(&src->src_pad, mpipe_dispatch_get_caps(&caps_query));
 	mpipe_dispatch_clear(&caps_query);
 
 	return ret;
@@ -117,7 +117,7 @@ static int mpipe_src_negotiate(struct mpipe_src *src)
 	 * candidate can match.
 	 */
 	for (index = 0;; index++) {
-		ret = mpipe_pad_enum_caps(&src->srcpad, index, NULL, &candidate);
+		ret = mpipe_pad_enum_caps(&src->src_pad, index, NULL, &candidate);
 		if (ret == -EAGAIN) {
 			continue;
 		}
@@ -144,14 +144,14 @@ static int mpipe_src_negotiate(struct mpipe_src *src)
 		}
 	}
 
-	is_fixated = (mpipe_structure_fixate(&src->srcpad.caps, &fixated) == 0);
+	is_fixated = (mpipe_structure_fixate(&src->src_pad.caps, &fixated) == 0);
 
 	/*
 	 * Push a caps event downstream. The result only matters when a fixated
 	 * capability was sent; an ANY event is informational.
 	 */
 	mpipe_dispatch_caps_init(&caps_event, is_fixated ? &fixated : NULL);
-	ret = mpipe_pad_send_event(src->srcpad.peer, &caps_event);
+	ret = mpipe_pad_send_event(src->src_pad.peer, &caps_event);
 	mpipe_dispatch_clear(&caps_event);
 
 	/* Apply the fixated capability to the element itself */
@@ -166,8 +166,8 @@ static int mpipe_src_negotiate(struct mpipe_src *src)
 	}
 
 	/* Query the peer's allocation proposal */
-	mpipe_dispatch_buffer_config_init(&alloc_query, &src->srcpad.caps);
-	ret = mpipe_pad_query(src->srcpad.peer, &alloc_query);
+	mpipe_dispatch_buffer_config_init(&alloc_query, &src->src_pad.caps);
+	ret = mpipe_pad_query(src->src_pad.peer, &alloc_query);
 	if (ret != 0) {
 		mpipe_dispatch_clear(&alloc_query);
 		return ret;
@@ -211,7 +211,7 @@ enum mpipe_state_change_return mpipe_src_change_state(struct mpipe_element *self
 		}
 
 		/* Config buffer pool */
-		pool_ret = mpipe_buffer_pool_configure(src->pool, &src->srcpad.caps);
+		pool_ret = mpipe_buffer_pool_configure(src->pool, &src->src_pad.caps);
 		if (pool_ret != 0 && pool_ret != -ENOSYS) {
 			struct mpipe_message msg = {
 				.origin = self,
@@ -270,14 +270,14 @@ void mpipe_src_init(struct mpipe_element *self)
 {
 	struct mpipe_src *src = (struct mpipe_src *)self;
 
-	mpipe_pad_init(&src->srcpad, MPIPE_PAD_SRC_ID, MPIPE_PAD_SRC, MPIPE_PAD_ALWAYS);
-	mpipe_element_add_pad(self, &src->srcpad);
+	mpipe_pad_init(&src->src_pad, MPIPE_PAD_SRC_ID, MPIPE_PAD_SRC, MPIPE_PAD_ALWAYS);
+	mpipe_element_add_pad(self, &src->src_pad);
 
 	self->object.set_property = mpipe_src_set_property;
 	self->object.get_property = mpipe_src_get_property;
 	self->change_state = mpipe_src_change_state;
 
 	src->set_caps = mpipe_src_set_caps;
-	src->srcpad.queryfn = mpipe_src_query;
+	src->src_pad.queryfn = mpipe_src_query;
 	src->decide_allocation = NULL;
 }

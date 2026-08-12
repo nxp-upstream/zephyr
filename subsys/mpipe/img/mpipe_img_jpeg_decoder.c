@@ -334,7 +334,7 @@ static int mpipe_img_jpeg_decoder_set_caps(struct mpipe_transform *transform,
 	}
 
 	if (direction == MPIPE_PAD_SINK) {
-		return mpipe_pad_set_caps(&transform->sinkpad, caps);
+		return mpipe_pad_set_caps(&transform->sink_pad, caps);
 	}
 
 	if (direction == MPIPE_PAD_SRC) {
@@ -342,7 +342,7 @@ static int mpipe_img_jpeg_decoder_set_caps(struct mpipe_transform *transform,
 		if (v != NULL && v->type == MPIPE_TYPE_UINT) {
 			dec->out_pixfmt = mpipe_value_get_uint(v);
 		}
-		return mpipe_pad_set_caps(&transform->srcpad, caps);
+		return mpipe_pad_set_caps(&transform->src_pad, caps);
 	}
 
 	return -EINVAL;
@@ -376,13 +376,13 @@ void mpipe_img_jpeg_decoder_init(struct mpipe_element *self)
 	transform->mode = MPIPE_MODE_NORMAL;
 	transform->outpool = &dec->out_pool;
 
-	transform->sinkpad.enum_capsfn = mpipe_img_jpeg_decoder_enum_caps;
-	transform->srcpad.enum_capsfn = mpipe_img_jpeg_decoder_enum_caps;
+	transform->sink_pad.enum_capsfn = mpipe_img_jpeg_decoder_enum_caps;
+	transform->src_pad.enum_capsfn = mpipe_img_jpeg_decoder_enum_caps;
 
 	mpipe_img_jpeg_decoder_outpool_init(dec);
 
 	transform->set_caps = mpipe_img_jpeg_decoder_set_caps;
 	transform->transform_caps = mpipe_img_jpeg_decoder_transform_caps;
-	transform->sinkpad.chainfn = mpipe_img_jpeg_decoder_chainfn;
+	transform->sink_pad.chainfn = mpipe_img_jpeg_decoder_chainfn;
 	transform->decide_allocation = mpipe_img_jpeg_decoder_decide_allocation;
 }

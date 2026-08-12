@@ -20,11 +20,11 @@ void mpipe_element_reset_pad_caps(struct mpipe_element *element)
 {
 	struct mpipe_object *pad_obj;
 
-	SYS_DLIST_FOR_EACH_CONTAINER(&element->srcpads, pad_obj, node) {
+	SYS_DLIST_FOR_EACH_CONTAINER(&element->src_pads, pad_obj, node) {
 		mpipe_pad_set_caps((struct mpipe_pad *)pad_obj, NULL);
 	}
 
-	SYS_DLIST_FOR_EACH_CONTAINER(&element->sinkpads, pad_obj, node) {
+	SYS_DLIST_FOR_EACH_CONTAINER(&element->sink_pads, pad_obj, node) {
 		mpipe_pad_set_caps((struct mpipe_pad *)pad_obj, NULL);
 	}
 }
@@ -38,11 +38,11 @@ void mpipe_element_add_pad(struct mpipe_element *element, struct mpipe_pad *pad)
 	pad->object.container = &element->object;
 
 	if (pad->direction == MPIPE_PAD_SRC) {
-		sys_dlist_append(&element->srcpads, &pad->object.node);
+		sys_dlist_append(&element->src_pads, &pad->object.node);
 	}
 
 	if (pad->direction == MPIPE_PAD_SINK) {
-		sys_dlist_append(&element->sinkpads, &pad->object.node);
+		sys_dlist_append(&element->sink_pads, &pad->object.node);
 	}
 }
 
@@ -53,7 +53,7 @@ static struct mpipe_pad *mpipe_element_get_unlinked_pad(struct mpipe_element *el
 	struct mpipe_object *obj;
 	struct mpipe_pad *pad;
 
-	sys_dlist_t *pads = direction == MPIPE_PAD_SRC ? &element->srcpads : &element->sinkpads;
+	sys_dlist_t *pads = direction == MPIPE_PAD_SRC ? &element->src_pads : &element->sink_pads;
 
 	SYS_DLIST_FOR_EACH_CONTAINER(pads, obj, node) {
 		pad = (struct mpipe_pad *)obj;
@@ -68,22 +68,22 @@ static struct mpipe_pad *mpipe_element_get_unlinked_pad(struct mpipe_element *el
 static int mpipe_element_link_pads(struct mpipe_element *src, uint8_t src_pad_id,
 				   struct mpipe_element *sink, uint8_t sink_pad_id)
 {
-	struct mpipe_pad *srcpad = mpipe_element_get_unlinked_pad(src, src_pad_id, MPIPE_PAD_SRC);
-	struct mpipe_pad *sinkpad =
+	struct mpipe_pad *src_pad = mpipe_element_get_unlinked_pad(src, src_pad_id, MPIPE_PAD_SRC);
+	struct mpipe_pad *sink_pad =
 		mpipe_element_get_unlinked_pad(sink, sink_pad_id, MPIPE_PAD_SINK);
 
-	if (srcpad == NULL || sinkpad == NULL) {
+	if (src_pad == NULL || sink_pad == NULL) {
 		LOG_ERR("Link failed: no free %s pad on element %u",
-			srcpad == NULL ? "src" : "sink",
-			srcpad == NULL ? src->object.id : sink->object.id);
+			src_pad == NULL ? "src" : "sink",
+			src_pad == NULL ? src->object.id : sink->object.id);
 		return -EINVAL;
 	}
 
-	if (!mpipe_structure_can_intersect(&srcpad->caps, &sinkpad->caps)) {
+	if (!mpipe_structure_can_intersect(&src_pad->caps, &sink_pad->caps)) {
 		return -ENOTSUP;
 	}
 
-	return mpipe_pad_link(srcpad, sinkpad);
+	return mpipe_pad_link(src_pad, sink_pad);
 }
 
 int mpipe_element_link(struct mpipe_element *element, struct mpipe_element *next_element, ...)
@@ -195,8 +195,8 @@ void mpipe_element_init(struct mpipe_element *self, uint8_t id)
 
 	IF_ENABLED(CONFIG_MPIPE_DUMP, (self->name = NULL;))
 
-	sys_dlist_init(&self->srcpads);
-	sys_dlist_init(&self->sinkpads);
+	sys_dlist_init(&self->src_pads);
+	sys_dlist_init(&self->sink_pads);
 
 	self->current_state = MPIPE_STATE_READY;
 	self->set_state = mpipe_element_set_state_func;

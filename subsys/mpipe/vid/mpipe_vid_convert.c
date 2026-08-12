@@ -481,8 +481,8 @@ void mpipe_vid_convert_init(struct mpipe_element *self)
 
 	mpipe_transform_init(self);
 
-	transform->sinkpad.enum_capsfn = vid_convert_enum_caps;
-	transform->srcpad.enum_capsfn = vid_convert_enum_caps;
+	transform->sink_pad.enum_capsfn = vid_convert_enum_caps;
+	transform->src_pad.enum_capsfn = vid_convert_enum_caps;
 
 	conv->width = 0;
 	conv->height = 0;
@@ -512,5 +512,5 @@ void mpipe_vid_convert_init(struct mpipe_element *self)
 	transform->transform_caps = vid_convert_transform_caps;
 	transform->propose_allocation = NULL;
 	transform->decide_allocation = vid_convert_decide_allocation;
-	transform->sinkpad.chainfn = vid_convert_chainfn;
+	transform->sink_pad.chainfn = vid_convert_chainfn;
 }

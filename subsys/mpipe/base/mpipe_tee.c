@@ -15,7 +15,7 @@
 
 LOG_MODULE_REGISTER(mpipe_tee, CONFIG_MPIPE_LOG_LEVEL);
 
-#define DEFAULT_SRCPADS_NUM 2
+#define DEFAULT_SRC_PADS_NUM 2
 
 static int mpipe_tee_sink_queryfn(struct mpipe_pad *pad, struct mpipe_dispatch *query)
 {
@@ -33,8 +33,8 @@ static int mpipe_tee_sink_queryfn(struct mpipe_pad *pad, struct mpipe_dispatch *
 			return ret;
 		}
 
-		for (uint8_t i = 0; i < tee->srcpads_num; i++) {
-			if (tee->srcpads[i].peer == NULL) {
+		for (uint8_t i = 0; i < tee->src_pads_num; i++) {
+			if (tee->src_pads[i].peer == NULL) {
 				continue;
 			}
 
@@ -43,7 +43,7 @@ static int mpipe_tee_sink_queryfn(struct mpipe_pad *pad, struct mpipe_dispatch *
 				return ret;
 			}
 
-			ret = mpipe_pad_query(tee->srcpads[i].peer, query);
+			ret = mpipe_pad_query(tee->src_pads[i].peer, query);
 			if (ret != 0) {
 				return ret;
 			}
@@ -72,12 +72,12 @@ static int mpipe_tee_sink_queryfn(struct mpipe_pad *pad, struct mpipe_dispatch *
 	case MPIPE_DISPATCH_BUFFER_CONFIG: {
 		struct mpipe_buffer_pool_config merged = {0};
 
-		for (uint8_t i = 0; i < tee->srcpads_num; i++) {
-			if (tee->srcpads[i].peer == NULL) {
+		for (uint8_t i = 0; i < tee->src_pads_num; i++) {
+			if (tee->src_pads[i].peer == NULL) {
 				continue;
 			}
 
-			int ret = mpipe_pad_query(tee->srcpads[i].peer, query);
+			int ret = mpipe_pad_query(tee->src_pads[i].peer, query);
 
 			if (ret != 0) {
 				return ret;
@@ -136,8 +136,8 @@ static int mpipe_tee_sink_eventfn(struct mpipe_pad *pad, struct mpipe_dispatch *
 			}
 		}
 
-		for (uint8_t i = 0; i < tee->srcpads_num; i++) {
-			if (tee->srcpads[i].peer == NULL) {
+		for (uint8_t i = 0; i < tee->src_pads_num; i++) {
+			if (tee->src_pads[i].peer == NULL) {
 				continue;
 			}
 
@@ -148,13 +148,13 @@ static int mpipe_tee_sink_eventfn(struct mpipe_pad *pad, struct mpipe_dispatch *
 					continue;
 				}
 
-				ret = mpipe_pad_set_caps(&tee->srcpads[i], &evt_caps);
+				ret = mpipe_pad_set_caps(&tee->src_pads[i], &evt_caps);
 				if (ret != 0 && first_err == 0) {
 					first_err = ret;
 				}
 			}
 
-			ret = mpipe_pad_send_event(tee->srcpads[i].peer, event);
+			ret = mpipe_pad_send_event(tee->src_pads[i].peer, event);
 			if (ret != 0 && first_err == 0) {
 				first_err = ret;
 			}
@@ -181,11 +181,11 @@ static int mpipe_tee_chainfn(struct mpipe_pad *pad, struct net_buf *in_buf,
 
 	*out_buf = NULL;
 
-	for (i = 0; i < tee->srcpads_num; i++) {
+	for (i = 0; i < tee->src_pads_num; i++) {
 		/* The push consumes the branch's reference, success or failure */
-		ret = mpipe_push_buffer(&tee->srcpads[i], net_buf_ref(in_buf));
+		ret = mpipe_push_buffer(&tee->src_pads[i], net_buf_ref(in_buf));
 		if (ret != 0) {
-			LOG_ERR("Tee pushes to srcpad[%u] failed (%d)", i, ret);
+			LOG_ERR("Tee pushes to src_pad[%u] failed (%d)", i, ret);
 			if (first_err == 0) {
 				first_err = ret;
 			}
@@ -211,16 +211,16 @@ static enum mpipe_state_change_return mpipe_tee_change_state(struct mpipe_elemen
 	return MPIPE_STATE_CHANGE_SUCCESS;
 }
 
-static int mpipe_tee_add_srcpad(struct mpipe_tee *tee)
+static int mpipe_tee_add_src_pad(struct mpipe_tee *tee)
 {
-	if (tee->srcpads_num >= CONFIG_MPIPE_BASE_TEE_MAX_SRCPADS_NUM) {
+	if (tee->src_pads_num >= CONFIG_MPIPE_BASE_TEE_MAX_SRC_PADS_NUM) {
 		return -EINVAL;
 	}
 
-	mpipe_pad_init(&tee->srcpads[tee->srcpads_num], tee->srcpads_num, MPIPE_PAD_SRC,
+	mpipe_pad_init(&tee->src_pads[tee->src_pads_num], tee->src_pads_num, MPIPE_PAD_SRC,
 		       MPIPE_PAD_ALWAYS);
-	mpipe_element_add_pad(&tee->element, &tee->srcpads[tee->srcpads_num]);
-	tee->srcpads_num++;
+	mpipe_element_add_pad(&tee->element, &tee->src_pads[tee->src_pads_num]);
+	tee->src_pads_num++;
 
 	return 0;
 }
@@ -230,8 +230,8 @@ static int mpipe_tee_get_property(struct mpipe_object *obj, uint32_t id, void *v
 	struct mpipe_tee *tee = (struct mpipe_tee *)obj;
 
 	switch (id) {
-	case MPIPE_PROP_BASE_TEE_SRCPADS_NUM:
-		*(uint8_t *)val = tee->srcpads_num;
+	case MPIPE_PROP_BASE_TEE_SRC_PADS_NUM:
+		*(uint8_t *)val = tee->src_pads_num;
 
 		return 0;
 	default:
@@ -244,16 +244,16 @@ static int mpipe_tee_set_property(struct mpipe_object *obj, uint32_t id, const v
 	struct mpipe_tee *tee = (struct mpipe_tee *)obj;
 
 	switch (id) {
-	case MPIPE_PROP_BASE_TEE_SRCPADS_NUM: {
+	case MPIPE_PROP_BASE_TEE_SRC_PADS_NUM: {
 		uint8_t requested = *(const uint8_t *)val;
 
-		if (!IN_RANGE(requested, DEFAULT_SRCPADS_NUM,
-			      CONFIG_MPIPE_BASE_TEE_MAX_SRCPADS_NUM)) {
+		if (!IN_RANGE(requested, DEFAULT_SRC_PADS_NUM,
+			      CONFIG_MPIPE_BASE_TEE_MAX_SRC_PADS_NUM)) {
 			return -EINVAL;
 		}
 
-		while (tee->srcpads_num < requested) {
-			mpipe_tee_add_srcpad(tee);
+		while (tee->src_pads_num < requested) {
+			mpipe_tee_add_src_pad(tee);
 		}
 
 		return 0;
@@ -271,17 +271,17 @@ void mpipe_tee_init(struct mpipe_element *self)
 	self->object.set_property = mpipe_tee_set_property;
 	self->change_state = mpipe_tee_change_state;
 
-	tee->sinkpad.chainfn = mpipe_tee_chainfn;
-	tee->sinkpad.queryfn = mpipe_tee_sink_queryfn;
-	tee->sinkpad.eventfn = mpipe_tee_sink_eventfn;
+	tee->sink_pad.chainfn = mpipe_tee_chainfn;
+	tee->sink_pad.queryfn = mpipe_tee_sink_queryfn;
+	tee->sink_pad.eventfn = mpipe_tee_sink_eventfn;
 
 	/* Initialize the sink pad */
-	mpipe_pad_init(&tee->sinkpad, 0, MPIPE_PAD_SINK, MPIPE_PAD_ALWAYS);
-	mpipe_element_add_pad(self, &tee->sinkpad);
+	mpipe_pad_init(&tee->sink_pad, 0, MPIPE_PAD_SINK, MPIPE_PAD_ALWAYS);
+	mpipe_element_add_pad(self, &tee->sink_pad);
 
 	/* Initialize the default source pads */
-	tee->srcpads_num = 0;
-	while (tee->srcpads_num < DEFAULT_SRCPADS_NUM) {
-		mpipe_tee_add_srcpad(tee);
+	tee->src_pads_num = 0;
+	while (tee->src_pads_num < DEFAULT_SRC_PADS_NUM) {
+		mpipe_tee_add_src_pad(tee);
 	}
 }

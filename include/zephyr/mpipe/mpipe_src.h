@@ -46,7 +46,7 @@ struct mpipe_src {
 	/** Base element structure */
 	struct mpipe_element element;
 	/** Source pad for output data */
-	struct mpipe_pad srcpad;
+	struct mpipe_pad src_pad;
 	/** Buffer pool for managing output buffers */
 	struct mpipe_buffer_pool *pool;
 	/**

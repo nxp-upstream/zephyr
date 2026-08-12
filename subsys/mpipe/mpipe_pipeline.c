@@ -27,7 +27,7 @@ static uint32_t mpipe_pipeline_count_sinks(struct mpipe_bin *bin)
 
 	SYS_DLIST_FOR_EACH_CONTAINER(&bin->children, obj, node) {
 		element = (struct mpipe_element *)obj;
-		if (sys_dlist_is_empty(&element->srcpads)) {
+		if (sys_dlist_is_empty(&element->src_pads)) {
 			count++;
 		}
 	}
@@ -44,11 +44,11 @@ static void mpipe_pipeline_set_flushing(struct mpipe_bin *bin, bool flush)
 	SYS_DLIST_FOR_EACH_CONTAINER(&bin->children, obj, node) {
 		element = (struct mpipe_element *)obj;
 
-		SYS_DLIST_FOR_EACH_CONTAINER(&element->sinkpads, pad_obj, node) {
+		SYS_DLIST_FOR_EACH_CONTAINER(&element->sink_pads, pad_obj, node) {
 			atomic_set(&((struct mpipe_pad *)pad_obj)->flushing, flush ? 1 : 0);
 		}
 
-		SYS_DLIST_FOR_EACH_CONTAINER(&element->srcpads, pad_obj, node) {
+		SYS_DLIST_FOR_EACH_CONTAINER(&element->src_pads, pad_obj, node) {
 			atomic_set(&((struct mpipe_pad *)pad_obj)->flushing, flush ? 1 : 0);
 		}
 	}
@@ -91,31 +91,31 @@ mpipe_pipeline_eos_handler(struct mpipe_bus *bus, struct mpipe_message *message,
 	return MPIPE_BUS_DROP;
 }
 
-int mpipe_push_buffer(struct mpipe_pad *srcpad, struct net_buf *buffer)
+int mpipe_push_buffer(struct mpipe_pad *src_pad, struct net_buf *buffer)
 {
-	struct mpipe_pad *cur_srcpad = srcpad;
-	struct mpipe_pad *next_sinkpad;
+	struct mpipe_pad *cur_src_pad = src_pad;
+	struct mpipe_pad *next_sink_pad;
 	struct mpipe_element *next_elem;
 	struct net_buf *out_buf;
-	sys_dnode_t *srcpad_node;
+	sys_dnode_t *src_pad_node;
 	int ret;
 
-	if (cur_srcpad == NULL || buffer == NULL) {
+	if (cur_src_pad == NULL || buffer == NULL) {
 		return -EINVAL;
 	}
 
-	while (cur_srcpad != NULL && buffer != NULL) {
-		next_sinkpad = cur_srcpad->peer;
+	while (cur_src_pad != NULL && buffer != NULL) {
+		next_sink_pad = cur_src_pad->peer;
 
-		if (next_sinkpad == NULL) {
+		if (next_sink_pad == NULL) {
 			struct mpipe_message msg = {
-				.origin = (struct mpipe_element *)cur_srcpad->object.container,
+				.origin = (struct mpipe_element *)cur_src_pad->object.container,
 				.type = MPIPE_MESSAGE_ERROR,
 				.domain = MPIPE_ERROR_FLOW,
 				.code = -ENOTCONN,
 			};
 
-			LOG_ERR("srcpad has no peer");
+			LOG_ERR("src_pad has no peer");
 			net_buf_unref(buffer);
 			(void)mpipe_message_post(&msg);
 			return -ENOTCONN;
@@ -125,18 +125,18 @@ int mpipe_push_buffer(struct mpipe_pad *srcpad, struct net_buf *buffer)
 		 * Flushing: drop the buffer rather than pushing it into an element
 		 * whose caps have been reset or whose buffer pool has been freed.
 		 */
-		if (atomic_get(&next_sinkpad->flushing) != 0) {
+		if (atomic_get(&next_sink_pad->flushing) != 0) {
 			net_buf_unref(buffer);
 			return 0;
 		}
 
-		if (next_sinkpad->chainfn != NULL) {
+		if (next_sink_pad->chainfn != NULL) {
 			out_buf = NULL;
 
-			ret = next_sinkpad->chainfn(next_sinkpad, buffer, &out_buf);
+			ret = next_sink_pad->chainfn(next_sink_pad, buffer, &out_buf);
 			if (ret != 0) {
 				struct mpipe_element *elem =
-					(struct mpipe_element *)next_sinkpad->object.container;
+					(struct mpipe_element *)next_sink_pad->object.container;
 				struct mpipe_message msg = {
 					.origin = elem,
 					.type = MPIPE_MESSAGE_ERROR,
@@ -145,7 +145,7 @@ int mpipe_push_buffer(struct mpipe_pad *srcpad, struct net_buf *buffer)
 				};
 
 				LOG_ERR("chainfn failed for element %u (%d)",
-					next_sinkpad->object.container->id, ret);
+					next_sink_pad->object.container->id, ret);
 
 				/*
 				 * This runs on the pipeline thread, which has no
@@ -164,14 +164,14 @@ int mpipe_push_buffer(struct mpipe_pad *srcpad, struct net_buf *buffer)
 			buffer = out_buf;
 		}
 
-		/* Move to the next element's first srcpad */
-		next_elem = (struct mpipe_element *)next_sinkpad->object.container;
-		srcpad_node = sys_dlist_peek_head(&next_elem->srcpads);
-		if (srcpad_node == NULL) {
+		/* Move to the next element's first src_pad */
+		next_elem = (struct mpipe_element *)next_sink_pad->object.container;
+		src_pad_node = sys_dlist_peek_head(&next_elem->src_pads);
+		if (src_pad_node == NULL) {
 			/* Sink element reached - done */
 			break;
 		}
-		cur_srcpad = CONTAINER_OF(srcpad_node, struct mpipe_pad, object.node);
+		cur_src_pad = CONTAINER_OF(src_pad_node, struct mpipe_pad, object.node);
 	}
 
 	return 0;
@@ -189,7 +189,7 @@ static void mpipe_pipeline_send_eos(struct mpipe_src *src)
 
 	mpipe_dispatch_eos_init(&eos_event);
 
-	ret = mpipe_pad_send_event(src->srcpad.peer, &eos_event);
+	ret = mpipe_pad_send_event(src->src_pad.peer, &eos_event);
 	if (ret != 0) {
 		struct mpipe_message msg = {
 			.origin = &src->element,
@@ -219,7 +219,7 @@ static void mpipe_pipeline_thread_func(void *p1, void *p2, void *p3)
 	/* Find the 1st source element */
 	SYS_DLIST_FOR_EACH_CONTAINER(&bin->children, obj, node) {
 		element = (struct mpipe_element *)obj;
-		if (sys_dlist_is_empty(&element->sinkpads)) {
+		if (sys_dlist_is_empty(&element->sink_pads)) {
 			src = (struct mpipe_src *)element;
 			break;
 		}
@@ -264,7 +264,7 @@ static void mpipe_pipeline_thread_func(void *p1, void *p2, void *p3)
 			continue;
 		}
 		count++;
-		if (mpipe_push_buffer(&src->srcpad, buffer) != 0) {
+		if (mpipe_push_buffer(&src->src_pad, buffer) != 0) {
 			LOG_ERR("Failed to push buffer downstream");
 			/* Fatal to the stream: stop producing so one error, not a flood */
 			count = 0;

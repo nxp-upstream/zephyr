@@ -128,7 +128,7 @@ static int mpipe_queue_sink_eventfn(struct mpipe_pad *pad, struct mpipe_dispatch
 		queue->transform.set_caps(&queue->transform, MPIPE_PAD_SINK, caps);
 		queue->transform.set_caps(&queue->transform, MPIPE_PAD_SRC, caps);
 
-		return mpipe_pad_send_event(queue->transform.srcpad.peer, event);
+		return mpipe_pad_send_event(queue->transform.src_pad.peer, event);
 	default:
 		return -ENOTSUP;
 	}
@@ -160,7 +160,7 @@ static void mpipe_queue_thread_func(void *p1, void *p2, void *p3)
 
 			LOG_DBG("EOS sentinel dequeued, sending EOS downstream");
 			mpipe_dispatch_eos_init(&eos);
-			ret = mpipe_pad_send_event(queue->transform.srcpad.peer, &eos);
+			ret = mpipe_pad_send_event(queue->transform.src_pad.peer, &eos);
 			if (ret != 0) {
 				struct mpipe_message msg = {
 					.origin = &queue->transform.element,
@@ -181,7 +181,7 @@ static void mpipe_queue_thread_func(void *p1, void *p2, void *p3)
 			continue;
 		}
 
-		mpipe_push_buffer(&queue->transform.srcpad, buffer);
+		mpipe_push_buffer(&queue->transform.src_pad, buffer);
 	}
 
 	LOG_DBG("Queue thread exiting");
@@ -258,8 +258,8 @@ void mpipe_queue_init(struct mpipe_element *self)
 	self->object.get_property = mpipe_queue_get_property;
 	self->change_state = mpipe_queue_change_state;
 
-	queue->transform.sinkpad.chainfn = mpipe_queue_chainfn;
-	queue->transform.sinkpad.eventfn = mpipe_queue_sink_eventfn;
+	queue->transform.sink_pad.chainfn = mpipe_queue_chainfn;
+	queue->transform.sink_pad.eventfn = mpipe_queue_sink_eventfn;
 	queue->size = CONFIG_MPIPE_BASE_QUEUE_MAX_SIZE;
 
 	/* Size of the msgq = queue's max size + 2 (for eos and pause sentinels) */

@@ -123,7 +123,7 @@ void mpipe_transform_client_init(struct mpipe_element *self)
 	/* Support only normal mode for now */
 	transform->mode = MPIPE_MODE_NORMAL;
 
-	transform->sinkpad.chainfn = mpipe_transform_client_chainfn;
+	transform->sink_pad.chainfn = mpipe_transform_client_chainfn;
 	transform->decide_allocation = mpipe_transform_client_decide_allocation;
 	transform->propose_allocation = mpipe_transform_client_propose_allocation;
 }

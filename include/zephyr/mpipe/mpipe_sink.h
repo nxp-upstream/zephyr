@@ -47,7 +47,7 @@ struct mpipe_sink {
 	/** Base element structure */
 	struct mpipe_element element;
 	/** Input pad for receiving data */
-	struct mpipe_pad sinkpad;
+	struct mpipe_pad sink_pad;
 	/** Buffer pool */
 	struct mpipe_buffer_pool *pool;
 	/**

@@ -129,15 +129,15 @@ int mpipe_pad_set_caps(struct mpipe_pad *pad, const struct mpipe_structure *caps
 	return mpipe_structure_duplicate(caps, &pad->caps);
 }
 
-int mpipe_pad_link(struct mpipe_pad *srcpad, struct mpipe_pad *sinkpad)
+int mpipe_pad_link(struct mpipe_pad *src_pad, struct mpipe_pad *sink_pad)
 {
-	if (srcpad == NULL || sinkpad == NULL) {
+	if (src_pad == NULL || sink_pad == NULL) {
 		return -EINVAL;
 	}
 
 	/* Set peer pad */
-	srcpad->peer = sinkpad;
-	sinkpad->peer = srcpad;
+	src_pad->peer = sink_pad;
+	sink_pad->peer = src_pad;
 
 	return 0;
 }
@@ -181,9 +181,9 @@ int mpipe_pad_send_event_default(struct mpipe_pad *pad, struct mpipe_dispatch *e
 	sys_dlist_t *otherpad_list;
 
 	if (pad->direction == MPIPE_PAD_SINK) {
-		otherpad_list = &element->srcpads;
+		otherpad_list = &element->src_pads;
 	} else {
-		otherpad_list = &element->sinkpads;
+		otherpad_list = &element->sink_pads;
 	}
 
 	SYS_DLIST_FOR_EACH_CONTAINER(otherpad_list, obj, node) {

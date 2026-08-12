@@ -384,13 +384,13 @@ static bool dump_has_unlinked_pad(struct mpipe_element *element)
 {
 	struct mpipe_object *obj;
 
-	SYS_DLIST_FOR_EACH_CONTAINER(&element->sinkpads, obj, node) {
+	SYS_DLIST_FOR_EACH_CONTAINER(&element->sink_pads, obj, node) {
 		if (((struct mpipe_pad *)obj)->peer == NULL) {
 			return true;
 		}
 	}
 
-	SYS_DLIST_FOR_EACH_CONTAINER(&element->srcpads, obj, node) {
+	SYS_DLIST_FOR_EACH_CONTAINER(&element->src_pads, obj, node) {
 		if (((struct mpipe_pad *)obj)->peer == NULL) {
 			return true;
 		}
@@ -414,17 +414,17 @@ static void dump_dot_nodes(struct mpipe_dump_ctx *ctx)
 		dump_print(&ctx->writer, "fillcolor=\"%s\", label=\"{",
 			   dump_dot_fill(element->current_state));
 
-		if (!sys_dlist_is_empty(&element->sinkpads)) {
-			dump_dot_ports(ctx, &element->sinkpads, "sink");
+		if (!sys_dlist_is_empty(&element->sink_pads)) {
+			dump_dot_ports(ctx, &element->sink_pads, "sink");
 			dump_print(&ctx->writer, "|");
 		}
 
 		dump_element_name(ctx, element);
 		dump_print(&ctx->writer, "\\n%s", mpipe_dump_state_str(element->current_state));
 
-		if (!sys_dlist_is_empty(&element->srcpads)) {
+		if (!sys_dlist_is_empty(&element->src_pads)) {
 			dump_print(&ctx->writer, "|");
-			dump_dot_ports(ctx, &element->srcpads, "src");
+			dump_dot_ports(ctx, &element->src_pads, "src");
 		}
 
 		dump_print(&ctx->writer, "}\"];\n");
@@ -436,10 +436,10 @@ static void dump_dot_edges(struct mpipe_dump_ctx *ctx)
 	for (int i = 0; i < ctx->num_elements; i++) {
 		struct mpipe_object *obj;
 
-		SYS_DLIST_FOR_EACH_CONTAINER(&ctx->elements[i]->srcpads, obj, node) {
-			struct mpipe_pad *srcpad = (struct mpipe_pad *)obj;
+		SYS_DLIST_FOR_EACH_CONTAINER(&ctx->elements[i]->src_pads, obj, node) {
+			struct mpipe_pad *src_pad = (struct mpipe_pad *)obj;
 			/* Read once: a concurrent relink may clear it between uses */
-			struct mpipe_pad *peer = srcpad->peer;
+			struct mpipe_pad *peer = src_pad->peer;
 			int peer_index;
 
 			/* An unlinked pad has no edge to draw; the node carries the mark */
@@ -455,7 +455,7 @@ static void dump_dot_edges(struct mpipe_dump_ctx *ctx)
 
 			dump_print(&ctx->writer, "  e%d:src%u -> e%d:sink%u [label=\"", i, obj->id,
 				   peer_index, peer->object.id);
-			dump_caps(&ctx->writer, &srcpad->caps);
+			dump_caps(&ctx->writer, &src_pad->caps);
 			dump_print(&ctx->writer, "\"];\n");
 		}
 	}

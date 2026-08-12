@@ -150,7 +150,7 @@ static int mpipe_disp_sink_set_caps(struct mpipe_sink *sink, const struct mpipe_
 		return -EINVAL;
 	}
 
-	return mpipe_pad_set_caps(&sink->sinkpad, caps);
+	return mpipe_pad_set_caps(&sink->sink_pad, caps);
 }
 
 static int mpipe_disp_sink_set_property(struct mpipe_object *obj, uint32_t key, const void *val)
@@ -271,7 +271,7 @@ void mpipe_disp_sink_init(struct mpipe_element *self)
 	self->object.get_property = mpipe_disp_sink_get_property;
 	self->object.set_property = mpipe_disp_sink_set_property;
 
-	sink->sinkpad.chainfn = mpipe_disp_sink_chainfn;
-	sink->sinkpad.enum_capsfn = mpipe_disp_sink_enum_caps;
+	sink->sink_pad.chainfn = mpipe_disp_sink_chainfn;
+	sink->sink_pad.enum_capsfn = mpipe_disp_sink_enum_caps;
 	sink->set_caps = mpipe_disp_sink_set_caps;
 }

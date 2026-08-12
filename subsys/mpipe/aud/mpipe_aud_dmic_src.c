@@ -84,7 +84,7 @@ static int mpipe_aud_dmic_src_set_caps(struct mpipe_src *src, const struct mpipe
 		return -EIO;
 	}
 
-	mpipe_pad_set_caps(&src->srcpad, caps);
+	mpipe_pad_set_caps(&src->src_pad, caps);
 
 	return 0;
 }

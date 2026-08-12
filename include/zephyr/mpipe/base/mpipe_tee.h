@@ -31,7 +31,7 @@
  */
 enum mpipe_prop_base_tee {
 	/** Number of source pads */
-	MPIPE_PROP_BASE_TEE_SRCPADS_NUM,
+	MPIPE_PROP_BASE_TEE_SRC_PADS_NUM,
 };
 
 /**
@@ -44,17 +44,17 @@ struct mpipe_tee {
 	/** Base element structure */
 	struct mpipe_element element;
 	/** Sink pad for receiving input data */
-	struct mpipe_pad sinkpad;
+	struct mpipe_pad sink_pad;
 	/** Source pad array for sending data */
-	struct mpipe_pad srcpads[CONFIG_MPIPE_BASE_TEE_MAX_SRCPADS_NUM];
+	struct mpipe_pad src_pads[CONFIG_MPIPE_BASE_TEE_MAX_SRC_PADS_NUM];
 	/** Number of source pads */
-	uint8_t srcpads_num;
+	uint8_t src_pads_num;
 };
 
 /**
  * @brief Initialize a tee element
  *
- * Initializes the tee element with one sink pad and two default srcpads.
+ * Initializes the tee element with one sink pad and two default src_pads.
  *
  * @param self Pointer to the @ref mpipe_element to initialize as a tee
  */

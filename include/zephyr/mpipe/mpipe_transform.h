@@ -59,9 +59,9 @@ struct mpipe_transform {
 	/** Base element structure */
 	struct mpipe_element element;
 	/** Sink pad for receiving input data */
-	struct mpipe_pad sinkpad;
+	struct mpipe_pad sink_pad;
 	/** Source pad for sending output data */
-	struct mpipe_pad srcpad;
+	struct mpipe_pad src_pad;
 	/** Pointer to the input buffer pool for allocating input buffers */
 	struct mpipe_buffer_pool *inpool;
 	/** Pointer to the output buffer pool for allocating output buffers */

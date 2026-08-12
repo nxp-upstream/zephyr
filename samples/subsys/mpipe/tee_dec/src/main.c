@@ -217,7 +217,7 @@ int main(void)
 		goto err;
 	}
 
-	/* Branch 2: tee (2nd srcpad) -> queue2 -> file_sink */
+	/* Branch 2: tee (2nd src_pad) -> queue2 -> file_sink */
 	ret = mpipe_element_link((struct mpipe_element *)&tee, (struct mpipe_element *)&queue2,
 				 (struct mpipe_element *)&file_sink, NULL);
 	if (ret < 0) {

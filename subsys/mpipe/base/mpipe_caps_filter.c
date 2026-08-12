@@ -14,8 +14,8 @@ int mpipe_caps_filter_set_property(struct mpipe_object *obj, uint32_t key, const
 
 	switch (key) {
 	case MPIPE_PROP_BASE_CAPS_FILTER_CAPS:
-		mpipe_pad_set_caps(&transform->sinkpad, (const struct mpipe_structure *)val);
-		mpipe_pad_set_caps(&transform->srcpad, (const struct mpipe_structure *)val);
+		mpipe_pad_set_caps(&transform->sink_pad, (const struct mpipe_structure *)val);
+		mpipe_pad_set_caps(&transform->src_pad, (const struct mpipe_structure *)val);
 		return 0;
 	default:
 		return -ENOTSUP;
@@ -33,7 +33,7 @@ int mpipe_caps_filter_get_property(struct mpipe_object *obj, uint32_t key, void 
 		 * generally called before any pipeline process, so it's OK to get the filter caps
 		 * from the pad's caps
 		 */
-		*(struct mpipe_structure **)val = &transform->sinkpad.caps;
+		*(struct mpipe_structure **)val = &transform->sink_pad.caps;
 		return 0;
 	default:
 		return -ENOTSUP;
@@ -46,8 +46,8 @@ static int mpipe_caps_filter_set_caps(struct mpipe_transform *transform,
 {
 	struct mpipe_caps_filter *filter = (struct mpipe_caps_filter *)transform;
 	int ret;
-	struct mpipe_pad *upstream_srcpad = transform->sinkpad.peer;
-	struct mpipe_pad *downstream_sinkpad = transform->srcpad.peer;
+	struct mpipe_pad *upstream_src_pad = transform->sink_pad.peer;
+	struct mpipe_pad *downstream_sink_pad = transform->src_pad.peer;
 
 	ret = mpipe_transform_set_caps(transform, direction, caps);
 	if (ret < 0) {
@@ -63,17 +63,17 @@ static int mpipe_caps_filter_set_caps(struct mpipe_transform *transform,
 	 * The bypassed peers are saved so the caps_filter can re-insert itself into the graph
 	 * when needed, e.g. on teardown (PAUSED -> READY) or on caps re-negotiation
 	 */
-	if (upstream_srcpad != NULL && downstream_sinkpad != NULL) {
-		filter->saved_sink_peer = upstream_srcpad;
-		filter->saved_src_peer = downstream_sinkpad;
+	if (upstream_src_pad != NULL && downstream_sink_pad != NULL) {
+		filter->saved_sink_peer = upstream_src_pad;
+		filter->saved_src_peer = downstream_sink_pad;
 
-		upstream_srcpad->peer = downstream_sinkpad;
-		downstream_sinkpad->peer = upstream_srcpad;
+		upstream_src_pad->peer = downstream_sink_pad;
+		downstream_sink_pad->peer = upstream_src_pad;
 	}
 
 	/* Drop the peer links to avoid cycling graph error */
-	transform->sinkpad.peer = NULL;
-	transform->srcpad.peer = NULL;
+	transform->sink_pad.peer = NULL;
+	transform->src_pad.peer = NULL;
 
 	return 0;
 }
@@ -93,10 +93,10 @@ mpipe_caps_filter_change_state(struct mpipe_element *self, enum mpipe_state_chan
 		 * the upstream/downstream peers back to this element's pads.
 		 */
 		if (filter->saved_sink_peer != NULL && filter->saved_src_peer != NULL) {
-			transform->sinkpad.peer = filter->saved_sink_peer;
-			transform->srcpad.peer = filter->saved_src_peer;
-			filter->saved_sink_peer->peer = &transform->sinkpad;
-			filter->saved_src_peer->peer = &transform->srcpad;
+			transform->sink_pad.peer = filter->saved_sink_peer;
+			transform->src_pad.peer = filter->saved_src_peer;
+			filter->saved_sink_peer->peer = &transform->sink_pad;
+			filter->saved_src_peer->peer = &transform->src_pad;
 
 			filter->saved_sink_peer = NULL;
 			filter->saved_src_peer = NULL;

@@ -41,7 +41,7 @@ config MPIPE_BASE_TEE
 	  Enable the tee element which splits a single input branch
 	  into multiple output branches.
 
-config MPIPE_BASE_TEE_MAX_SRCPADS_NUM
+config MPIPE_BASE_TEE_MAX_SRC_PADS_NUM
 	int "Maximum number of source pads of a tee element"
 	range 2 8
 	default 2

@@ -24,7 +24,7 @@ static int mpipe_sink_set_caps(struct mpipe_sink *sink, const struct mpipe_struc
 		return -EINVAL;
 	}
 
-	return mpipe_pad_set_caps(&sink->sinkpad, caps);
+	return mpipe_pad_set_caps(&sink->sink_pad, caps);
 }
 
 static int mpipe_sink_query(struct mpipe_pad *pad, struct mpipe_dispatch *query)
@@ -101,14 +101,14 @@ void mpipe_sink_init(struct mpipe_element *self)
 {
 	struct mpipe_sink *sink = (struct mpipe_sink *)self;
 
-	mpipe_pad_init(&sink->sinkpad, MPIPE_PAD_SINK_ID, MPIPE_PAD_SINK, MPIPE_PAD_ALWAYS);
-	mpipe_element_add_pad(self, &sink->sinkpad);
+	mpipe_pad_init(&sink->sink_pad, MPIPE_PAD_SINK_ID, MPIPE_PAD_SINK, MPIPE_PAD_ALWAYS);
+	mpipe_element_add_pad(self, &sink->sink_pad);
 
 	self->change_state = mpipe_sink_change_state;
 
-	sink->sinkpad.queryfn = mpipe_sink_query;
-	sink->sinkpad.eventfn = mpipe_sink_event;
-	sink->sinkpad.chainfn = mpipe_sink_chainfn;
+	sink->sink_pad.queryfn = mpipe_sink_query;
+	sink->sink_pad.eventfn = mpipe_sink_event;
+	sink->sink_pad.chainfn = mpipe_sink_chainfn;
 	sink->set_caps = mpipe_sink_set_caps;
 	sink->propose_allocation = NULL;
 }

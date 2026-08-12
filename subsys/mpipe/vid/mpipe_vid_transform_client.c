@@ -95,7 +95,7 @@ static int mpipe_vid_transform_client_set_caps(struct mpipe_transform *transform
 
 	/* Set pad's caps only when everything is OK */
 	return mpipe_pad_set_caps(
-		direction == MPIPE_PAD_SRC ? &transform->srcpad : &transform->sinkpad, caps);
+		direction == MPIPE_PAD_SRC ? &transform->src_pad : &transform->sink_pad, caps);
 }
 
 static int mpipe_vid_transform_client_transform_caps(struct mpipe_transform *self,
@@ -140,8 +140,8 @@ void mpipe_vid_transform_client_init(struct mpipe_element *self)
 	(void)mpipe_vid_transform_client_probe_pool(vtc, MPIPE_PAD_SINK, transform->inpool);
 	(void)mpipe_vid_transform_client_probe_pool(vtc, MPIPE_PAD_SRC, transform->outpool);
 
-	transform->sinkpad.enum_capsfn = mpipe_vid_transform_client_enum_caps;
-	transform->srcpad.enum_capsfn = mpipe_vid_transform_client_enum_caps;
+	transform->sink_pad.enum_capsfn = mpipe_vid_transform_client_enum_caps;
+	transform->src_pad.enum_capsfn = mpipe_vid_transform_client_enum_caps;
 
 	transform->set_caps = mpipe_vid_transform_client_set_caps;
 	transform->transform_caps = mpipe_vid_transform_client_transform_caps;
