@@ -696,7 +696,8 @@ check_deps() {
     for dep in ${deps}; do
         if ! git rev-parse --verify "${dep}" >/dev/null 2>&1; then
             log_error "Dependency branch '${dep}' not found for target '${target}'."
-            log_error "Generate it first: ./scripts/export_mpipe_upstream.sh $(echo "${dep}" | sed "s|${UPSTREAM_PREFIX}-||")"
+            log_error "Generate it first: ./scripts/export_mpipe_upstream.sh" \
+                      "$(echo "${dep}" | sed "s|${UPSTREAM_PREFIX}-||")"
             return 1
         fi
     done
@@ -789,7 +790,8 @@ generate_branch() {
                         subject="$(git log -1 --pretty=format:%s "${commit}")"
                         conflicted="$(git diff --name-only --diff-filter=U)"
                         if [ "${conflicted}" = "${BUILD_ALL_TESTCASE}" ]; then
-                            log_info "  Auto-resolving ${BUILD_ALL_TESTCASE} conflict on ${commit} (${subject})"
+                            log_info "  Auto-resolving ${BUILD_ALL_TESTCASE} conflict" \
+                                     "on ${commit} (${subject})"
                             resolve_build_test_conflict
                             # Force-add: the build_all directory is matched by a
                             # .gitignore pattern, so a plain 'git add' of the freshly
@@ -824,7 +826,8 @@ generate_branch() {
                             # case there is no cherry-pick in progress anymore,
                             # so there is nothing to continue.
                             if ! git rev-parse CHERRY_PICK_HEAD >/dev/null 2>&1; then
-                                log_warn "  Cherry-pick of ${commit} was aborted/skipped; continuing."
+                                log_warn "  Cherry-pick of ${commit} was aborted/skipped;" \
+                                         "continuing."
                             elif git diff --cached --quiet; then
                                 # Conflicts resolved but nothing staged to commit
                                 # (resolution was empty, e.g. incoming change is
@@ -1314,7 +1317,8 @@ export_all() {
             done < <(git --no-pager log --oneline "${BASE_REF}..${branch}" 2>/dev/null) \
                 || echo "  ${branch}: N/A"
         else
-            echo "  ${branch}: $(git --no-pager log --oneline -1 "${branch}" 2>/dev/null || echo 'N/A')"
+            echo "  ${branch}: $(git --no-pager log --oneline -1 "${branch}" \
+                 2>/dev/null || echo 'N/A')"
         fi
     done
     log_info ""
@@ -1545,7 +1549,8 @@ main() {
             done < <(git --no-pager log --oneline "${BASE_REF}..${branch}" 2>/dev/null) \
                 || echo "  ${branch}: N/A"
         else
-            echo "  ${branch}: $(git --no-pager log --oneline -1 "${branch}" 2>/dev/null || echo 'N/A')"
+            echo "  ${branch}: $(git --no-pager log --oneline -1 "${branch}" \
+                 2>/dev/null || echo 'N/A')"
         fi
     done
     log_info ""
