@@ -193,6 +193,7 @@ int mpipe_disp_sink_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 	uint32_t width = 0;
 	struct net_buf *cur;
 	struct net_buf *next;
+	int ret;
 
 	if (value != NULL) {
 		disp_fmt = vid_to_disp_pix_fmt(mpipe_value_get_uint(value));
@@ -243,13 +244,28 @@ int mpipe_disp_sink_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 		/* Do not get height from caps as sometimes buffer is just a partial frame */
 		buf_desc.height = buf_desc.buf_size / bytes_per_line;
 
-		/* line_offset is only used to support partial video frame */
-		if (vbuf != NULL) {
-			display_write(disp_sink->display_dev, 0, vbuf->line_offset, &buf_desc,
-				      vbuf->buffer);
+		if (buf_desc.height == 0U) {
+			LOG_ERR("Buffer of %u bytes is shorter than a %u-byte line",
+				buf_desc.buf_size, bytes_per_line);
+			ret = -ENODATA;
+		} else if (vbuf != NULL) {
+			/* line_offset is only used to support partial video frame */
+			ret = display_write(disp_sink->display_dev, 0, vbuf->line_offset, &buf_desc,
+					    vbuf->buffer);
 		} else {
 			/* Fallback to net_buf data if no video_buffer metadata */
-			display_write(disp_sink->display_dev, 0, 0, &buf_desc, cur->data);
+			ret = display_write(disp_sink->display_dev, 0, 0, &buf_desc, cur->data);
+		}
+
+		if (ret != 0) {
+			if (ret != -ENODATA) {
+				LOG_ERR("display_write failed (%d)", ret);
+			}
+			net_buf_unref(cur);
+			if (next != NULL) {
+				net_buf_unref(next);
+			}
+			return ret;
 		}
 
 		net_buf_unref(cur);
