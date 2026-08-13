@@ -81,7 +81,6 @@ CORE_PATHS=(
     "subsys/mpipe/CMakeLists.txt"
     "subsys/mpipe/mpipe_bin.c"
     "subsys/mpipe/mpipe_buffer.c"
-    "subsys/mpipe/mpipe_bus.c"
     "subsys/mpipe/mpipe_element.c"
     "subsys/mpipe/mpipe_fake_src.c"
     "subsys/mpipe/mpipe_object.c"
@@ -99,7 +98,6 @@ CORE_PATHS=(
     "include/zephyr/mpipe/mpipe.h"
     "include/zephyr/mpipe/mpipe_bin.h"
     "include/zephyr/mpipe/mpipe_buffer.h"
-    "include/zephyr/mpipe/mpipe_bus.h"
     "include/zephyr/mpipe/mpipe_dispatch.h"
     "include/zephyr/mpipe/mpipe_element.h"
     "include/zephyr/mpipe/mpipe_fake_src.h"
@@ -159,7 +157,7 @@ BASE_PATHS=(
     "include/zephyr/mpipe/base/"
 )
 
-# utils (helper utilities built on top of the core, e.g. the mp_player
+# utils (helper utilities built on top of the core, e.g. the mpipe_player
 # pipeline controller). Directory globs so future files under utils/ are
 # picked up automatically.
 UTILS_PATHS=(
@@ -194,7 +192,7 @@ SAMPLE_DMIC_I2S_PATHS=(
     "samples/subsys/mpipe/dmic_i2s/"
 )
 
-# Core tests: unit tests and pipeline tests for libmp core
+# Core tests: unit tests and pipeline tests for the mpipe core
 CORE_TEST_PATHS=(
     "tests/subsys/mpipe/unit/"
     "tests/subsys/mpipe/pipeline/"
@@ -266,6 +264,7 @@ an I2S codec sink for audio output, a gain control transform for
 per-sample amplitude scaling, and audio buffer pool management.
 
 ${SOB_MICHAL}
+${SOB_PHIBANG}
 ${SOB_TOMAS}"
 
 
@@ -313,10 +312,10 @@ Add the utils helpers. These are optional, reusable utilities built on
 top of the subsys to simplify application development.
 
 The utils currently includes:
-- mp_player, a small pipeline controller that drives a pipeline
+- mpipe_player, a small pipeline controller that drives a pipeline
   through its states and exposes simple play/pause/stop/replay/quit
   controls (usable from a shell).
-- mp_dump, which renders a pipeline topology, element states and the
+- mpipe_dump, which renders a pipeline topology, element states and the
   negotiated caps on each link as a Graphviz graph, on demand from the
   shell or automatically on every state change and error through the
   player.
@@ -681,6 +680,47 @@ check_prerequisites() {
     if ! git diff --quiet || ! git diff --cached --quiet; then
         die "Working tree is not clean. Please commit or stash changes first."
     fi
+}
+
+# Check that CORE_PATHS still matches the core files in the source branch.
+#
+# The core list is spelled out file by file because the plugins live in
+# subdirectories of subsys/mpipe/, so a bare directory pathspec would drag them
+# into the core commit. A hand-maintained list drifts, and both directions fail
+# quietly: a file added to the core is simply never exported, and one that was
+# deleted is skipped by the "does this path exist" test in generate_branch().
+# Neither says anything, so the drift is only found in review of the PR, if at
+# all. Compare the list against the source branch and refuse to export a stale
+# one.
+check_core_paths_current() {
+    local listed actual missing extra
+
+    listed="$(printf '%s\n' "${CORE_PATHS[@]}" |
+        grep -E '^(subsys/mpipe|include/zephyr/mpipe)/[^/]+$' | LC_ALL=C sort)"
+
+    actual="$(git ls-tree -r --name-only "${SOURCE_BRANCH}" \
+            -- subsys/mpipe include/zephyr/mpipe |
+        grep -E '^(subsys/mpipe|include/zephyr/mpipe)/[^/]+$' | LC_ALL=C sort)"
+
+    missing="$(comm -13 <(echo "${listed}") <(echo "${actual}"))"
+    extra="$(comm -23 <(echo "${listed}") <(echo "${actual}"))"
+
+    if [ -z "${missing}" ] && [ -z "${extra}" ]; then
+        return 0
+    fi
+
+    log_error "CORE_PATHS no longer matches '${SOURCE_BRANCH}':"
+    if [ -n "${missing}" ]; then
+        log_error "  in the tree but not exported (would be missing upstream):"
+        echo "${missing}" | sed 's/^/    /'
+    fi
+    if [ -n "${extra}" ]; then
+        log_error "  exported but gone from the tree (stale entries):"
+        echo "${extra}" | sed 's/^/    /'
+    fi
+    log_error "  Update CORE_PATHS in $(basename "$0") and re-run."
+
+    return 1
 }
 
 # Check that all dependency branches exist for a target
@@ -1077,6 +1117,8 @@ check_doxygen_coverage() {
 
 # Export the core framework commit onto upstream/mpipe-core (commit 1 of 2).
 export_core() {
+    check_core_paths_current || return 1
+
     generate_branch "core" "${UPSTREAM_PREFIX}-core" \
         "${CORE_COMMIT_MSG}" "${CORE_PATHS[@]}"
 }
