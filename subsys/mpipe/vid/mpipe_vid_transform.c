@@ -184,11 +184,12 @@ static int mpipe_vid_transform_propose_buffer_pool(struct mpipe_transform *self,
 	struct mpipe_buffer_pool_config *pool_config = &vid_obj->pool.pool.config;
 
 	/*
-	 * The pool's live config is the previous negotiation's applied result,
-	 * so rebuild the baseline from the device caps cached at probe time (do
-	 * not probe again here: it pokes the hardware) before proposing. The
-	 * size is left alone - the owner derives it from the negotiated format,
-	 * which precedes the buffer pool query.
+	 * The pool goes upstream, where a raised demand reaches it through
+	 * mpipe_buffer_pool_set_config(), so rebuild the baseline from the device
+	 * caps cached at probe time (do not probe again here: it pokes the
+	 * hardware), or the JPEG parser's extra buffer is added again on every
+	 * replay. The size is left alone - the owner derives it from the
+	 * negotiated format, which precedes the buffer pool query.
 	 */
 	pool_config->min_buffers = vid_obj->bounds.vcaps.min_vbuf_count;
 	pool_config->align = vid_obj->bounds.vcaps.buf_align;

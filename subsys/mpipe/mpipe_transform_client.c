@@ -72,9 +72,10 @@ static int mpipe_transform_client_propose_buffer_pool(struct mpipe_transform *se
 	struct mpipe_transform_client *client = (struct mpipe_transform_client *)self;
 
 	/*
-	 * The pool's live config is the previous negotiation's applied result,
-	 * so restore the application-set baseline - captured on the first
-	 * proposal - before proposing.
+	 * The pool goes upstream, where a raised demand reaches it through
+	 * mpipe_buffer_pool_set_config(). Restore the application-set baseline
+	 * captured on the first proposal, or an upstream that adds a buffer
+	 * adds one again on every negotiation.
 	 */
 	if (!client->in_pool_base_valid) {
 		client->in_pool_base = self->in_pool->config;
@@ -97,8 +98,10 @@ static int mpipe_transform_client_decide_buffer_pool(struct mpipe_transform *sel
 	struct mpipe_buffer_pool_config *qpc = NULL;
 
 	/*
-	 * Rebuild the own-pool baseline the same way, so a demand absorbed from
-	 * a previous negotiation does not accumulate.
+	 * Same, on a pool that outlives the run: restore the application-set
+	 * baseline captured on the first decision, or min_buffers only ever
+	 * ratchets up and align grows into the lcm of every alignment ever
+	 * demanded, not this run's.
 	 */
 	if (!client->out_pool_base_valid) {
 		client->out_pool_base = *pool_config;
