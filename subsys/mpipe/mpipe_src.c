@@ -75,36 +75,36 @@ static int mpipe_src_query(struct mpipe_pad *pad, struct mpipe_dispatch *query)
  */
 static int mpipe_src_offer_candidate(struct mpipe_src *src, const struct mpipe_structure *candidate)
 {
-	struct mpipe_dispatch caps_query;
+	/*
+	 * The query references this frame's storage for its whole walk; the
+	 * peer answers by writing into it, so the caller's candidate is copied
+	 * rather than referenced.
+	 */
+	struct mpipe_structure caps_storage = *candidate;
+	struct mpipe_dispatch caps_query = {
+		.type = MPIPE_DISPATCH_CAPS,
+		.caps = &caps_storage,
+	};
 	int ret;
-
-	/* The dispatch holds its own copy for as long as the query lasts */
-	mpipe_dispatch_caps_init(&caps_query, candidate);
 
 	ret = mpipe_pad_query(src->src_pad.peer, &caps_query);
 	if (ret != 0) {
-		mpipe_dispatch_clear(&caps_query);
 		return -ENODATA;
 	}
 
-	if (mpipe_structure_is_empty(mpipe_dispatch_get_caps(&caps_query))) {
-		mpipe_dispatch_clear(&caps_query);
+	if (mpipe_structure_is_empty(&caps_storage)) {
 		return -ENODATA;
 	}
 
 	/* Store negotiated (possibly unfixed) caps on the src pad */
-	ret = mpipe_pad_set_caps(&src->src_pad, mpipe_dispatch_get_caps(&caps_query));
-	mpipe_dispatch_clear(&caps_query);
-
-	return ret;
+	return mpipe_pad_set_caps(&src->src_pad, &caps_storage);
 }
 
 static int mpipe_src_negotiate(struct mpipe_src *src)
 {
 	struct mpipe_structure candidate;
 	struct mpipe_structure fixated;
-	struct mpipe_dispatch alloc_query;
-	struct mpipe_dispatch caps_event;
+	struct mpipe_structure event_caps;
 	uint32_t index;
 	bool is_fixated;
 	int ret;
@@ -148,11 +148,21 @@ static int mpipe_src_negotiate(struct mpipe_src *src)
 
 	/*
 	 * Push a caps event downstream. The result only matters when a fixated
-	 * capability was sent; an ANY event is informational.
+	 * capability was sent; an event carrying no capability is informational.
+	 * The event references a sacrificial copy: elements replace the event's
+	 * capability with the one that crosses them, and the source still needs
+	 * the fixated one afterwards.
 	 */
-	mpipe_dispatch_caps_init(&caps_event, is_fixated ? &fixated : NULL);
+	if (is_fixated) {
+		event_caps = fixated;
+	}
+
+	struct mpipe_dispatch caps_event = {
+		.type = MPIPE_DISPATCH_CAPS,
+		.caps = is_fixated ? &event_caps : NULL,
+	};
+
 	ret = mpipe_pad_send_event(src->src_pad.peer, &caps_event);
-	mpipe_dispatch_clear(&caps_event);
 
 	/* Apply the fixated capability to the element itself */
 	if (is_fixated) {
@@ -166,21 +176,20 @@ static int mpipe_src_negotiate(struct mpipe_src *src)
 	}
 
 	/* Query the peer's allocation proposal */
-	mpipe_dispatch_buffer_config_init(&alloc_query, &src->src_pad.caps);
+	struct mpipe_dispatch alloc_query = {
+		.type = MPIPE_DISPATCH_BUFFER_CONFIG,
+		.caps = &src->src_pad.caps,
+	};
+
 	ret = mpipe_pad_query(src->src_pad.peer, &alloc_query);
 	if (ret != 0) {
-		mpipe_dispatch_clear(&alloc_query);
 		return ret;
 	}
 
 	/* Decide the allocation */
 	if (src->decide_allocation != NULL) {
-		ret = src->decide_allocation(src, &alloc_query);
-		mpipe_dispatch_clear(&alloc_query);
-		return ret;
+		return src->decide_allocation(src, &alloc_query);
 	}
-
-	mpipe_dispatch_clear(&alloc_query);
 
 	return 0;
 }

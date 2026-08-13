@@ -61,7 +61,7 @@ static inline int mpipe_parser_query_caps(struct mpipe_parser *self,
 	 * asked with the caps supported on the other side, which do not depend
 	 * on the candidate, so there is nothing here to backtrack over.
 	 */
-	ret = mpipe_pad_enum_first(this_pad, mpipe_dispatch_get_caps(query), &candidate);
+	ret = mpipe_pad_enum_first(this_pad, query->caps, &candidate);
 	if (ret != 0) {
 		return ret;
 	}
@@ -72,10 +72,7 @@ static inline int mpipe_parser_query_caps(struct mpipe_parser *self,
 		return ret;
 	}
 
-	ret = mpipe_dispatch_set_caps(query, &other_caps);
-	if (ret < 0) {
-		return ret;
-	}
+	*query->caps = other_caps;
 
 	ret = mpipe_pad_query(other_pad->peer, query);
 	if (ret < 0) {
@@ -83,15 +80,15 @@ static inline int mpipe_parser_query_caps(struct mpipe_parser *self,
 	}
 
 	/* Keep the query result at other_pad to use later at caps event */
-	ret = mpipe_pad_set_caps(other_pad, mpipe_dispatch_get_caps(query));
+	ret = mpipe_pad_set_caps(other_pad, query->caps);
 	if (ret != 0) {
 		return ret;
 	}
 
-	/* Answer the query */
-	ret = mpipe_dispatch_set_caps(query, &candidate);
+	/* Answer the query, writing into the asker's storage */
+	*query->caps = candidate;
 
-	return ret;
+	return 0;
 }
 
 static int mpipe_parser_event(struct mpipe_pad *pad, struct mpipe_dispatch *event)
@@ -105,15 +102,28 @@ static int mpipe_parser_event(struct mpipe_pad *pad, struct mpipe_dispatch *even
 	case MPIPE_DISPATCH_EOS:
 		return mpipe_pad_send_event_default(pad, event);
 	case MPIPE_DISPATCH_CAPS:
-		ret = mpipe_pad_set_caps(pad, mpipe_dispatch_get_caps(event));
+		/*
+		 * An event carrying no capability means the upstream could not
+		 * fixate. The parser knows the stream format it negotiated, so
+		 * it promotes the event into a real one of its own, referencing
+		 * this frame's storage.
+		 */
+		if (event->caps == NULL) {
+			struct mpipe_structure fwd_caps = other_pad->caps;
+			struct mpipe_dispatch fwd_event = {
+				.type = MPIPE_DISPATCH_CAPS,
+				.caps = &fwd_caps,
+			};
+
+			return mpipe_pad_send_event_default(pad, &fwd_event);
+		}
+
+		ret = mpipe_pad_set_caps(pad, event->caps);
 		if (ret != 0) {
 			return ret;
 		}
 
-		ret = mpipe_dispatch_set_caps(event, &other_pad->caps);
-		if (ret < 0) {
-			return ret;
-		}
+		*event->caps = other_pad->caps;
 
 		return mpipe_pad_send_event_default(pad, event);
 	default:
@@ -135,25 +145,22 @@ static int mpipe_parser_query(struct mpipe_pad *pad, struct mpipe_dispatch *quer
 	case MPIPE_DISPATCH_CAPS:
 		return mpipe_parser_query_caps(parser, pad->direction, query);
 	case MPIPE_DISPATCH_BUFFER_CONFIG:
-		struct mpipe_dispatch peer_query;
-
-		mpipe_dispatch_buffer_config_init(&peer_query, &parser->src_pad.caps);
+		struct mpipe_dispatch peer_query = {
+			.type = MPIPE_DISPATCH_BUFFER_CONFIG,
+			.caps = &parser->src_pad.caps,
+		};
 
 		/* Query the downstream */
 		ret = mpipe_pad_query(parser->src_pad.peer, &peer_query);
 		if (ret < 0) {
-			mpipe_dispatch_clear(&peer_query);
 			return ret;
 		}
 
 		if (parser->decide_allocation != NULL) {
 			ret = parser->decide_allocation(parser, &peer_query);
 			if (ret < 0) {
-				mpipe_dispatch_clear(&peer_query);
 				return ret;
 			}
-
-			mpipe_dispatch_clear(&peer_query);
 		}
 
 		/* Configure/start the output buffer pool */

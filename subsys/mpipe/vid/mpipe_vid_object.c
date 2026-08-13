@@ -531,12 +531,12 @@ int mpipe_vid_object_get_property(struct mpipe_vid_object *vid_obj, uint32_t key
 int mpipe_vid_object_decide_allocation(struct mpipe_vid_object *vid_obj,
 				       struct mpipe_dispatch *query)
 {
-	struct mpipe_buffer_pool *query_pool = mpipe_dispatch_get_pool(query);
+	struct mpipe_buffer_pool *query_pool = query->pool;
 	struct mpipe_buffer_pool_config *pool_config = &vid_obj->pool.pool.config;
 	struct mpipe_buffer_pool_config *qpc = NULL;
 
 	if (query_pool == NULL) {
-		qpc = mpipe_dispatch_get_pool_config(query);
+		qpc = &query->pool_cfg;
 	} else {
 		qpc = &query_pool->config;
 	}

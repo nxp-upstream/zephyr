@@ -120,9 +120,14 @@ static int mpipe_queue_sink_event_fn(struct mpipe_pad *pad, struct mpipe_dispatc
 
 		return ret;
 	case MPIPE_DISPATCH_CAPS:
-		struct mpipe_structure *caps = mpipe_dispatch_get_caps(event);
+		struct mpipe_structure *caps = event->caps;
 
-		if (caps == NULL || mpipe_structure_is_empty(caps)) {
+		/* An event carrying no capability is informational: just forward */
+		if (caps == NULL) {
+			return mpipe_pad_send_event(queue->transform.src_pad.peer, event);
+		}
+
+		if (mpipe_structure_is_empty(caps)) {
 			return -EINVAL;
 		}
 		queue->transform.set_caps(&queue->transform, MPIPE_PAD_SINK, caps);
@@ -156,10 +161,9 @@ static void mpipe_queue_thread_func(void *p1, void *p2, void *p3)
 		}
 
 		if (buffer == (void *)&eos_sentinel) {
-			struct mpipe_dispatch eos;
+			struct mpipe_dispatch eos = {.type = MPIPE_DISPATCH_EOS};
 
 			LOG_DBG("EOS sentinel dequeued, sending EOS downstream");
-			mpipe_dispatch_eos_init(&eos);
 			ret = mpipe_pad_send_event(queue->transform.src_pad.peer, &eos);
 			if (ret != 0) {
 				struct mpipe_message msg = {

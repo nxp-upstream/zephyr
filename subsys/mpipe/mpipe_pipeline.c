@@ -222,10 +222,8 @@ int mpipe_push_buffer(struct mpipe_pad *src_pad, struct net_buf *buffer)
  */
 static void mpipe_pipeline_send_eos(struct mpipe_src *src)
 {
-	struct mpipe_dispatch eos_event;
+	struct mpipe_dispatch eos_event = {.type = MPIPE_DISPATCH_EOS};
 	int ret;
-
-	mpipe_dispatch_eos_init(&eos_event);
 
 	ret = mpipe_pad_send_event(src->src_pad.peer, &eos_event);
 	if (ret != 0) {

@@ -179,7 +179,9 @@ static int mpipe_vid_transform_decide_allocation(struct mpipe_transform *self,
 static int mpipe_vid_transform_propose_allocation(struct mpipe_transform *self,
 						  struct mpipe_dispatch *query)
 {
-	return mpipe_dispatch_set_pool(query, self->in_pool);
+	query->pool = self->in_pool;
+
+	return 0;
 }
 
 int mpipe_vid_transform_init(struct mpipe_vid_transform *vid_transform, uint8_t id)

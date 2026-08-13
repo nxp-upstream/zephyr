@@ -67,27 +67,19 @@ ZTEST_F(mpipe_pad_api, test_sanity)
 	zassert_true(mpipe_pad_link(&fixture->src_pad, NULL) < 0, "link(src, NULL) did not fail");
 	zassert_true(mpipe_pad_link(NULL, NULL) < 0, "link(NULL, NULL) did not fail");
 
-	struct mpipe_dispatch evt;
-
-	mpipe_dispatch_eos_init(&evt);
+	struct mpipe_dispatch evt = {.type = MPIPE_DISPATCH_EOS};
 
 	zassert_true(mpipe_pad_send_event(NULL, &evt) < 0, "send_event(NULL, evt) did not fail");
 	zassert_true(mpipe_pad_send_event(&fixture->src_pad, NULL) < 0,
 		     "send_event(pad, NULL) did not fail");
 
-	mpipe_dispatch_clear(&evt);
-
-	struct mpipe_dispatch q;
-
-	mpipe_dispatch_caps_init(&q, NULL);
+	struct mpipe_dispatch q = {.type = MPIPE_DISPATCH_CAPS};
 
 	zassert_true(mpipe_pad_query(NULL, &q) < 0, "query(NULL, q) did not fail");
 	zassert_true(mpipe_pad_query(&fixture->src_pad, NULL) < 0, "query(pad, NULL) did not fail");
 
 	fixture->src_pad.query_fn = NULL;
 	zassert_true(mpipe_pad_query(&fixture->src_pad, &q) < 0, "query(no query_fn) did not fail");
-
-	mpipe_dispatch_clear(&q);
 }
 
 /* Reports two capabilities, distinguished by their bit width */

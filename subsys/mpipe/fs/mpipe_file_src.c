@@ -64,7 +64,7 @@ static int mpipe_file_src_decide_allocation(struct mpipe_src *src, struct mpipe_
 {
 	struct mpipe_file_src *fsrc = (struct mpipe_file_src *)src;
 
-	fsrc->downstream_pool = mpipe_dispatch_get_pool(query);
+	fsrc->downstream_pool = query->pool;
 
 	return 0;
 }

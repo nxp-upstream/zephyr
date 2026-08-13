@@ -130,10 +130,7 @@ static int mpipe_transform_offer(struct mpipe_transform *self, struct mpipe_pad 
 	int ret;
 
 	/* Query the peer pad with the transformed caps */
-	ret = mpipe_dispatch_set_caps(query, transformed);
-	if (ret < 0) {
-		return ret;
-	}
+	*query->caps = *transformed;
 
 	ret = mpipe_pad_query(other_pad->peer, query);
 	if (ret < 0) {
@@ -147,12 +144,11 @@ static int mpipe_transform_offer(struct mpipe_transform *self, struct mpipe_pad 
 		return -ENODATA;
 	}
 
-	if (mpipe_structure_is_empty(mpipe_dispatch_get_caps(query))) {
+	if (mpipe_structure_is_empty(query->caps)) {
 		return -ENODATA;
 	}
 
-	ret = mpipe_transform_narrow_to_candidate(self, this_pad, mpipe_dispatch_get_caps(query),
-						  candidate, out);
+	ret = mpipe_transform_narrow_to_candidate(self, this_pad, query->caps, candidate, out);
 	if (ret != 0) {
 		return ret;
 	}
@@ -163,7 +159,7 @@ static int mpipe_transform_offer(struct mpipe_transform *self, struct mpipe_pad 
 	 * now that the attempt has succeeded, so a refused candidate leaves the
 	 * pad as it found it.
 	 */
-	return mpipe_pad_set_caps(other_pad, mpipe_dispatch_get_caps(query));
+	return mpipe_pad_set_caps(other_pad, query->caps);
 }
 
 /*
@@ -226,7 +222,7 @@ static inline int mpipe_transform_query_caps(struct mpipe_transform *self,
 	 * Keep a copy of the incoming filter: offering a candidate to the peer
 	 * reuses the query and overwrites its caps.
 	 */
-	filter = *mpipe_dispatch_get_caps(query);
+	filter = *query->caps;
 
 	for (uint32_t index = 0;; index++) {
 		ret = mpipe_pad_enum_caps(this_pad, index, &filter, &candidate);
@@ -258,10 +254,10 @@ static inline int mpipe_transform_query_caps(struct mpipe_transform *self,
 		return ret;
 	}
 
-	/* Answer the upstream query */
-	ret = mpipe_dispatch_set_caps(query, &result);
+	/* Answer the upstream query, writing into the asker's storage */
+	*query->caps = result;
 
-	return ret;
+	return 0;
 }
 
 static int mpipe_transform_query(struct mpipe_pad *pad, struct mpipe_dispatch *query)
@@ -273,14 +269,14 @@ static int mpipe_transform_query(struct mpipe_pad *pad, struct mpipe_dispatch *q
 	case MPIPE_DISPATCH_CAPS:
 		return mpipe_transform_query_caps(self, pad->direction, query);
 	case MPIPE_DISPATCH_BUFFER_CONFIG:
-		struct mpipe_dispatch peer_query;
-
-		mpipe_dispatch_buffer_config_init(&peer_query, &self->src_pad.caps);
+		struct mpipe_dispatch peer_query = {
+			.type = MPIPE_DISPATCH_BUFFER_CONFIG,
+			.caps = &self->src_pad.caps,
+		};
 
 		/* Query the downstream */
 		ret = mpipe_pad_query(self->src_pad.peer, &peer_query);
 		if (ret < 0) {
-			mpipe_dispatch_clear(&peer_query);
 			return ret;
 		}
 
@@ -288,12 +284,9 @@ static int mpipe_transform_query(struct mpipe_pad *pad, struct mpipe_dispatch *q
 		if (self->decide_allocation != NULL) {
 			ret = self->decide_allocation(self, &peer_query);
 			if (ret < 0) {
-				mpipe_dispatch_clear(&peer_query);
 				return ret;
 			}
 		}
-
-		mpipe_dispatch_clear(&peer_query);
 
 		/* Configure/start the output buffer pool */
 		if (self->mode == MPIPE_MODE_NORMAL) {
@@ -376,11 +369,11 @@ static int mpipe_transform_event(struct mpipe_pad *pad, struct mpipe_dispatch *e
 							       : &transform->sink_pad;
 
 		/*
-		 * A caps event carries a fixed format. One that constrains
-		 * nothing means the source could not fixate, and there is
-		 * nothing to cross over.
+		 * A caps event carries a fixed format. One carrying none, or one
+		 * that constrains nothing, means the source could not fixate,
+		 * and there is nothing to cross over.
 		 */
-		if (mpipe_structure_is_any(mpipe_dispatch_get_caps(event))) {
+		if (event->caps == NULL || mpipe_structure_is_any(event->caps)) {
 			return -EINVAL;
 		}
 
@@ -389,17 +382,15 @@ static int mpipe_transform_event(struct mpipe_pad *pad, struct mpipe_dispatch *e
 		 * what crosses to the other side, but this side still has to be
 		 * applied afterwards.
 		 */
-		incoming = *mpipe_dispatch_get_caps(event);
+		incoming = *event->caps;
 
 		ret = mpipe_transform_cross_caps(transform, other_pad, &incoming, &fixated);
 		if (ret != 0) {
 			return ret;
 		}
 
-		ret = mpipe_dispatch_set_caps(event, &fixated);
-		if (ret == 0) {
-			ret = mpipe_pad_send_event(other_pad->peer, event);
-		}
+		*event->caps = fixated;
+		ret = mpipe_pad_send_event(other_pad->peer, event);
 
 		/*
 		 * Apply this side only once the peer has accepted, and only then

@@ -109,9 +109,9 @@ static int mpipe_aud_src_decide_allocation(struct mpipe_src *src, struct mpipe_d
 	struct mpipe_aud_buffer_pool *pool =
 		CONTAINER_OF(src->pool, struct mpipe_aud_buffer_pool, pool);
 	struct mpipe_buffer_pool_config *pool_config = &src->pool->config;
-	struct mpipe_buffer_pool *query_pool = mpipe_dispatch_get_pool(query);
+	struct mpipe_buffer_pool *query_pool = query->pool;
 	struct mpipe_buffer_pool_config *qpc =
-		(query_pool != NULL) ? &query_pool->config : mpipe_dispatch_get_pool_config(query);
+		(query_pool != NULL) ? &query_pool->config : &query->pool_cfg;
 	struct audio_caps src_caps;
 
 	/* Floor the pool at the source device's own buffering requirement */

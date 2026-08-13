@@ -390,7 +390,7 @@ static int vid_convert_transform_caps(struct mpipe_transform *self,
 static int vid_convert_decide_allocation(struct mpipe_transform *self, struct mpipe_dispatch *query)
 {
 	struct mpipe_vid_convert *conv = (struct mpipe_vid_convert *)self;
-	struct mpipe_buffer_pool *down_pool = mpipe_dispatch_get_pool(query);
+	struct mpipe_buffer_pool *down_pool = query->pool;
 
 	/* Use the internal pool by default */
 	self->out_pool = &conv->out_pool;

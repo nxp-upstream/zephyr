@@ -12,7 +12,6 @@ if(CONFIG_MPIPE)
   # Core framework sources
   zephyr_library_sources(mpipe_bin.c)
   zephyr_library_sources(mpipe_buffer.c)
-  zephyr_library_sources(mpipe_dispatch.c)
   zephyr_library_sources(mpipe_element.c)
   zephyr_library_sources(mpipe_object.c)
   zephyr_library_sources(mpipe_pad.c)

@@ -98,7 +98,9 @@ static int mpipe_aud_i2s_codec_sink_propose_allocation(struct mpipe_sink *sink,
 	cfg.min_buffers = MAX(MAX(i2s_caps.min_num_buffers, codec_caps.min_num_buffers),
 			      AUD_I2S_SINK_START_PRIME);
 
-	return mpipe_dispatch_set_pool_config(query, &cfg);
+	query->pool_cfg = cfg;
+
+	return 0;
 }
 
 static void mpipe_aud_i2s_codec_sink_update_caps(struct mpipe_sink *sink)

@@ -352,7 +352,7 @@ static int mpipe_img_jpeg_decoder_decide_allocation(struct mpipe_transform *self
 						    struct mpipe_dispatch *query)
 {
 	struct mpipe_img_jpeg_decoder *dec = (struct mpipe_img_jpeg_decoder *)self;
-	struct mpipe_buffer_pool *down_pool = mpipe_dispatch_get_pool(query);
+	struct mpipe_buffer_pool *down_pool = query->pool;
 
 	/* Default to our internal pool */
 	self->out_pool = &dec->out_pool;

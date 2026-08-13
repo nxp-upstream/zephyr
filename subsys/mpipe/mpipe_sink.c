@@ -64,7 +64,12 @@ int mpipe_sink_event(struct mpipe_pad *pad, struct mpipe_dispatch *event)
 		return 0;
 	}
 	case MPIPE_DISPATCH_CAPS:
-		return sink->set_caps(sink, mpipe_dispatch_get_caps(event));
+		/* An event carrying no capability is informational: nothing to apply */
+		if (event->caps == NULL) {
+			return 0;
+		}
+
+		return sink->set_caps(sink, event->caps);
 	default:
 		return 0;
 	}

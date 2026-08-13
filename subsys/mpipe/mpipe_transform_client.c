@@ -69,18 +69,20 @@ static int mpipe_transform_client_chain_fn(struct mpipe_pad *pad, struct net_buf
 static int mpipe_transform_client_propose_allocation(struct mpipe_transform *self,
 						     struct mpipe_dispatch *query)
 {
-	return mpipe_dispatch_set_pool(query, self->in_pool);
+	query->pool = self->in_pool;
+
+	return 0;
 }
 
 static int mpipe_transform_client_decide_allocation(struct mpipe_transform *self,
 						    struct mpipe_dispatch *query)
 {
-	struct mpipe_buffer_pool *query_pool = mpipe_dispatch_get_pool(query);
+	struct mpipe_buffer_pool *query_pool = query->pool;
 	struct mpipe_buffer_pool_config *pool_config = &self->out_pool->config;
 	struct mpipe_buffer_pool_config *qpc = NULL;
 
 	if (query_pool == NULL) {
-		qpc = mpipe_dispatch_get_pool_config(query);
+		qpc = &query->pool_cfg;
 	} else {
 		qpc = &query_pool->config;
 	}

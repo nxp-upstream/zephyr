@@ -6,7 +6,7 @@
 
 /**
  * @file
- * @brief Dispatch for event and query handler
+ * @brief Queries and events exchanged between elements
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_MPIPE_DISPATCH_H_
@@ -15,13 +15,35 @@
 /**
  * @defgroup mpipe_dispatch Dispatches
  * @ingroup mpipe_framework
- * @brief Dispatch objects exchanged between elements.
+ * @brief Queries and events exchanged between elements.
+ *
+ * A dispatch is what an element hands its peer across a pad link when what
+ * it sends is not data. It is one of two things:
+ *
+ * - a **query**, passed to mpipe_pad_query(): the peer answers it in place,
+ *   so the asker reads the answer back out of the dispatch;
+ * - an **event**, passed to mpipe_pad_send_event(): a one-way announcement
+ *   the peer acts on and forwards.
+ *
+ * One fixed-size structure carries both, because a negotiation must allocate
+ * nothing. A dispatch is not an @ref mpipe_message either: a message travels
+ * up the bus to the application, a dispatch travels across a pad link between
+ * two elements.
+ *
+ * Nothing in the structure says which of the two it is. The type says what
+ * the dispatch is about, and the function it is passed to decides whether it
+ * asks or announces:
+ *
+ * | Type | As a query | As an event |
+ * | :--- | :--- | :--- |
+ * | CAPS | what do you accept, given this filter? | this is the format, apply it |
+ * | BUFFER_CONFIG | what buffers do you need? | - |
+ * | EOS | - | the stream is over |
  * @{
  */
 
 #include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/mpipe_structure.h>
-#include <zephyr/mpipe/mpipe_object.h>
 
 /**
  * @enum mpipe_dispatch_type
@@ -37,119 +59,48 @@ enum mpipe_dispatch_type {
 
 /**
  * @struct mpipe_dispatch
- * @brief Structure representing a dispatch (event or query).
+ * @brief A query or an event travelling a pad link.
+ *
+ * A dispatch travels a synchronous walk, so it references storage that
+ * outlives the walk instead of embedding a copy of everything it carries.
+ * It is declared with a designated initializer and has no init function -
+ * zero is the neutral value of every field:
+ *
+ * @code
+ * struct mpipe_dispatch query = {
+ *         .type = MPIPE_DISPATCH_CAPS,
+ *         .caps = &caps_storage,
+ * };
+ * @endcode
  */
 struct mpipe_dispatch {
-	uint8_t type;                   /**< Dispatch type from @ref mpipe_dispatch_type */
-	struct mpipe_structure caps;    /**< The capability carried, ANY when none */
-	struct mpipe_buffer_pool *pool; /**< Buffer pool (not owned) */
-	struct mpipe_buffer_pool_config pool_cfg; /**< Pool config */
+	/** Dispatch type from @ref mpipe_dispatch_type */
+	uint8_t type;
+	/**
+	 * The capability carried, or NULL when the dispatch carries none.
+	 *
+	 * The creator points this at storage it owns for the whole walk;
+	 * every other element reads through it and answers by copying INTO
+	 * it. Repointing it at storage of your own dangles the moment your
+	 * frame returns.
+	 *
+	 * | Value | On a query (in/out storage) | On an event (an announcement) |
+	 * | :--- | :--- | :--- |
+	 * | a capability | the filter to answer within | the format decided on |
+	 * | ANY | no constraint: answer with all you support | never send one |
+	 * | NULL | caller error: nowhere to answer | nothing to announce |
+	 *
+	 * A caps event carrying none is a trigger rather than an
+	 * announcement: a source that knows no format (a file source) still
+	 * sends one, and the first element that does know one puts it in and
+	 * announces it downstream.
+	 */
+	struct mpipe_structure *caps;
+	/** Buffer pool its proposer makes available (not owned) */
+	struct mpipe_buffer_pool *pool;
+	/** A pool config proposed without a pool, negotiated by value */
+	struct mpipe_buffer_pool_config pool_cfg;
 };
-
-/**
- * @brief Initialize a dispatch of any type.
- *
- * @param dispatch Pointer to a @ref mpipe_dispatch to initialize.
- * @param type     Dispatch type from @ref mpipe_dispatch_type.
- * @param caps     Capability to copy in, or NULL for one that constrains nothing.
- */
-void mpipe_dispatch_init(struct mpipe_dispatch *dispatch, uint8_t type,
-			 const struct mpipe_structure *caps);
-
-/**
- * @brief Initialize a dispatch with end-of-stream type.
- *
- * @param d Pointer to the @ref mpipe_dispatch structure to initialize.
- */
-#define mpipe_dispatch_eos_init(d) mpipe_dispatch_init(d, MPIPE_DISPATCH_EOS, NULL)
-
-/**
- * @brief Initialize a dispatch with caps type.
- *
- * @param d Pointer to the @ref mpipe_dispatch structure to initialize.
- * @param c Pointer to the @ref mpipe_structure to copy in, or NULL.
- */
-#define mpipe_dispatch_caps_init(d, c) mpipe_dispatch_init(d, MPIPE_DISPATCH_CAPS, c)
-
-/**
- * @brief Initialize a dispatch with buffer-configuration type.
- *
- * @param d Pointer to the @ref mpipe_dispatch structure to initialize.
- * @param c Pointer to the @ref mpipe_structure to copy in, or NULL.
- */
-#define mpipe_dispatch_buffer_config_init(d, c)                                                    \
-	mpipe_dispatch_init(d, MPIPE_DISPATCH_BUFFER_CONFIG, c)
-
-/**
- * @brief Clear a dispatch, releasing any owned resources.
- *
- * @param dispatch Pointer to a @ref mpipe_dispatch to clear.
- */
-void mpipe_dispatch_clear(struct mpipe_dispatch *dispatch);
-
-/**
- * @brief Get the capability carried by a dispatch.
- *
- * The dispatch keeps ownership; the pointer is valid until it is cleared or
- * its capability replaced.
- *
- * @param dispatch Pointer to a @ref mpipe_dispatch.
- *
- * @return Pointer to the @ref mpipe_structure, or NULL if @p dispatch is NULL.
- */
-struct mpipe_structure *mpipe_dispatch_get_caps(struct mpipe_dispatch *dispatch);
-
-/**
- * @brief Set (replace) the caps on a dispatch.
- *
- * @param dispatch Pointer to a @ref mpipe_dispatch.
- * @param caps     Capability to copy in, or NULL for one that constrains nothing.
- *
- * @retval 0       Success.
- * @retval -EINVAL @p dispatch is NULL or type does not carry caps.
- */
-int mpipe_dispatch_set_caps(struct mpipe_dispatch *dispatch, const struct mpipe_structure *caps);
-
-/**
- * @brief Set the buffer pool on an allocation dispatch.
- *
- * @param dispatch Pointer to a @ref MPIPE_DISPATCH_BUFFER_CONFIG dispatch.
- * @param pool     Pointer to @ref mpipe_buffer_pool.
- *
- * @retval 0       Success.
- * @retval -EINVAL @p dispatch is NULL or not an allocation dispatch.
- */
-int mpipe_dispatch_set_pool(struct mpipe_dispatch *dispatch, struct mpipe_buffer_pool *pool);
-
-/**
- * @brief Set the pool configuration on an allocation dispatch.
- *
- * @param dispatch Pointer to a @ref MPIPE_DISPATCH_BUFFER_CONFIG dispatch.
- * @param config   Pointer to @ref mpipe_buffer_pool_config.
- *
- * @retval 0       Success.
- * @retval -EINVAL @p dispatch is NULL or not an allocation dispatch.
- */
-int mpipe_dispatch_set_pool_config(struct mpipe_dispatch *dispatch,
-				   struct mpipe_buffer_pool_config *config);
-
-/**
- * @brief Get the buffer pool from an allocation dispatch.
- *
- * @param dispatch Pointer to a @ref MPIPE_DISPATCH_BUFFER_CONFIG dispatch.
- *
- * @return Pointer to @ref mpipe_buffer_pool, or NULL.
- */
-struct mpipe_buffer_pool *mpipe_dispatch_get_pool(struct mpipe_dispatch *dispatch);
-
-/**
- * @brief Get the pool configuration from an allocation dispatch.
- *
- * @param dispatch Pointer to a @ref MPIPE_DISPATCH_BUFFER_CONFIG dispatch.
- *
- * @return Pointer to @ref mpipe_buffer_pool_config, or NULL.
- */
-struct mpipe_buffer_pool_config *mpipe_dispatch_get_pool_config(struct mpipe_dispatch *dispatch);
 
 /** @} */
 

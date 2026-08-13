@@ -319,9 +319,9 @@ static int mpipe_aud_gain_decide_allocation(struct mpipe_transform *self,
 					    struct mpipe_dispatch *query)
 {
 	struct mpipe_aud_gain *aud_gain = (struct mpipe_aud_gain *)self;
-	struct mpipe_buffer_pool *query_pool = mpipe_dispatch_get_pool(query);
+	struct mpipe_buffer_pool *query_pool = query->pool;
 	struct mpipe_buffer_pool_config *qpc =
-		(query_pool != NULL) ? &query_pool->config : mpipe_dispatch_get_pool_config(query);
+		(query_pool != NULL) ? &query_pool->config : &query->pool_cfg;
 
 	if (qpc != NULL) {
 		aud_gain->alloc_cfg = *qpc;
@@ -335,7 +335,9 @@ static int mpipe_aud_gain_propose_allocation(struct mpipe_transform *self,
 {
 	struct mpipe_aud_gain *aud_gain = (struct mpipe_aud_gain *)self;
 
-	return mpipe_dispatch_set_pool_config(query, &aud_gain->alloc_cfg);
+	query->pool_cfg = aud_gain->alloc_cfg;
+
+	return 0;
 }
 
 int mpipe_aud_gain_init(struct mpipe_aud_gain *aud_gain, uint8_t id)

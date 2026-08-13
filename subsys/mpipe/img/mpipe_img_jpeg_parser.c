@@ -70,7 +70,7 @@ static int mpipe_img_jpeg_parser_decide_allocation(struct mpipe_parser *parser,
 						   struct mpipe_dispatch *query)
 {
 	struct mpipe_img_jpeg_parser *jpeg_parser = (struct mpipe_img_jpeg_parser *)parser;
-	struct mpipe_buffer_pool *query_pool = mpipe_dispatch_get_pool(query);
+	struct mpipe_buffer_pool *query_pool = query->pool;
 
 	/* Use the internal pool by default */
 	if (CONFIG_MPIPE_IMG_JPEG_PARSER_MAX_FRAME_SIZE > 0) {

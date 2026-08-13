@@ -65,15 +65,20 @@ int mpipe_pad_answer_caps_query(struct mpipe_pad *pad, struct mpipe_dispatch *qu
 	struct mpipe_structure candidate;
 	int ret;
 
-	ret = mpipe_pad_enum_first(pad, mpipe_dispatch_get_caps(query), &candidate);
+	/* A caps query must carry the storage the answer is written into */
+	if (query->caps == NULL) {
+		return -EINVAL;
+	}
+
+	ret = mpipe_pad_enum_first(pad, query->caps, &candidate);
 	if (ret != 0) {
 		return ret;
 	}
 
-	ret = mpipe_dispatch_set_caps(query, &candidate);
-	mpipe_structure_clear(&candidate);
+	/* Answer the query, writing into the asker's storage */
+	*query->caps = candidate;
 
-	return ret;
+	return 0;
 }
 
 int mpipe_pad_enum_first(struct mpipe_pad *pad, const struct mpipe_structure *filter,
@@ -164,7 +169,7 @@ int mpipe_pad_query(struct mpipe_pad *pad, struct mpipe_dispatch *query)
 
 	/* Caps query is considered successful only if the query's caps is valid */
 	if (query->type == MPIPE_DISPATCH_CAPS &&
-	    mpipe_structure_is_empty(mpipe_dispatch_get_caps(query))) {
+	    (query->caps == NULL || mpipe_structure_is_empty(query->caps))) {
 		return -ENODATA;
 	}
 

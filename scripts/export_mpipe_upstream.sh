@@ -82,7 +82,6 @@ CORE_PATHS=(
     "subsys/mpipe/mpipe_bin.c"
     "subsys/mpipe/mpipe_buffer.c"
     "subsys/mpipe/mpipe_bus.c"
-    "subsys/mpipe/mpipe_dispatch.c"
     "subsys/mpipe/mpipe_element.c"
     "subsys/mpipe/mpipe_fake_src.c"
     "subsys/mpipe/mpipe_object.c"

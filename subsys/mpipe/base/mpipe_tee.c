@@ -28,17 +28,14 @@ static int mpipe_tee_sink_query_fn(struct mpipe_pad *pad, struct mpipe_dispatch 
 		bool answered = false;
 		int ret;
 
-		filter = *mpipe_dispatch_get_caps(query);
+		filter = *query->caps;
 
 		for (uint8_t i = 0; i < tee->src_pads_num; i++) {
 			if (tee->src_pads[i].peer == NULL) {
 				continue;
 			}
 
-			ret = mpipe_dispatch_set_caps(query, &filter);
-			if (ret != 0) {
-				return ret;
-			}
+			*query->caps = filter;
 
 			ret = mpipe_pad_query(tee->src_pads[i].peer, query);
 			if (ret != 0) {
@@ -46,13 +43,12 @@ static int mpipe_tee_sink_query_fn(struct mpipe_pad *pad, struct mpipe_dispatch 
 			}
 
 			if (!answered) {
-				answer = *mpipe_dispatch_get_caps(query);
+				answer = *query->caps;
 				answered = true;
 			} else {
 				struct mpipe_structure intersected;
 
-				ret = mpipe_structure_intersect(
-					&answer, mpipe_dispatch_get_caps(query), &intersected);
+				ret = mpipe_structure_intersect(&answer, query->caps, &intersected);
 				if (ret != 0) {
 					return ret;
 				}
@@ -61,7 +57,11 @@ static int mpipe_tee_sink_query_fn(struct mpipe_pad *pad, struct mpipe_dispatch 
 			}
 		}
 
-		return answered ? mpipe_dispatch_set_caps(query, &answer) : 0;
+		if (answered) {
+			*query->caps = answer;
+		}
+
+		return 0;
 	}
 	case MPIPE_DISPATCH_BUFFER_CONFIG: {
 		struct mpipe_buffer_pool_config merged = {0};
@@ -78,11 +78,10 @@ static int mpipe_tee_sink_query_fn(struct mpipe_pad *pad, struct mpipe_dispatch 
 			}
 
 			/* Get pool configs from pool or standalone config */
-			struct mpipe_buffer_pool *pool = mpipe_dispatch_get_pool(query);
+			struct mpipe_buffer_pool *pool = query->pool;
 
 			struct mpipe_buffer_pool_config *cfg =
-				(pool != NULL) ? &pool->config
-					       : mpipe_dispatch_get_pool_config(query);
+				(pool != NULL) ? &pool->config : &query->pool_cfg;
 
 			/* Combine all downstream branch's pool config proposals */
 			if (cfg != NULL) {
@@ -102,7 +101,7 @@ static int mpipe_tee_sink_query_fn(struct mpipe_pad *pad, struct mpipe_dispatch 
 		 * Upstream will use its own pool; if a downstream branch cannot
 		 * use the buffer, it will need to copy into its own pool.
 		 */
-		mpipe_dispatch_set_pool_config(query, &merged);
+		query->pool_cfg = merged;
 
 		return 0;
 	}
@@ -121,10 +120,11 @@ static int mpipe_tee_sink_event_fn(struct mpipe_pad *pad, struct mpipe_dispatch 
 	case MPIPE_DISPATCH_CAPS:
 	case MPIPE_DISPATCH_EOS: {
 		struct mpipe_structure evt_caps;
-		bool is_caps = (event->type == MPIPE_DISPATCH_CAPS);
+		/* An event carrying no capability is informational: only forward it */
+		bool is_caps = (event->type == MPIPE_DISPATCH_CAPS && event->caps != NULL);
 
 		if (is_caps) {
-			evt_caps = *mpipe_dispatch_get_caps(event);
+			evt_caps = *event->caps;
 		}
 
 		for (uint8_t i = 0; i < tee->src_pads_num; i++) {
@@ -133,11 +133,8 @@ static int mpipe_tee_sink_event_fn(struct mpipe_pad *pad, struct mpipe_dispatch 
 			}
 
 			if (is_caps) {
-				ret = mpipe_dispatch_set_caps(event, &evt_caps);
-				if (ret != 0 && first_err == 0) {
-					first_err = ret;
-					continue;
-				}
+				/* Hand each branch the capability that arrived */
+				*event->caps = evt_caps;
 
 				ret = mpipe_pad_set_caps(&tee->src_pads[i], &evt_caps);
 				if (ret != 0 && first_err == 0) {
