@@ -42,14 +42,7 @@ static void bin_before(void *f)
 		      "state != READY after init");
 }
 
-static void bin_after(void *f)
-{
-	struct mpipe_bin_api_fixture *fix = f;
-
-	mpipe_bin_deinit_bus(&fix->bin);
-}
-
-ZTEST_SUITE(mpipe_bin_api, NULL, bin_suite_setup, bin_before, bin_after, NULL);
+ZTEST_SUITE(mpipe_bin_api, NULL, bin_suite_setup, bin_before, NULL, NULL);
 
 ZTEST_F(mpipe_bin_api, test_add_elements)
 {

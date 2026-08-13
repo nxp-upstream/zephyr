@@ -28,6 +28,7 @@
 #include <zephyr/mpipe/mpipe_object.h>
 
 struct mpipe_dispatch;
+struct zbus_channel;
 
 /** @cond INTERNAL_HIDDEN */
 #if defined(CONFIG_MPIPE_DUMP)
@@ -287,9 +288,10 @@ enum mpipe_state_change_return mpipe_element_set_state(struct mpipe_element *ele
  * @brief Get the bus channel of an element
  *
  * Retrieves the @ref zbus_channel associated with the element, which is the bus channel of
- * the nearest bin that contains the element.
+ * the nearest bin that contains the element. This is how an application reaches the channel
+ * to attach an observer to, without depending on where the bin keeps it.
  *
- * @param self Pointer to the @ref mpipe_element to get the channel from.
+ * @param element Pointer to the @ref mpipe_element to get the channel from.
  *
  * @return Pointer to the @ref zbus_channel, or NULL if no bus channel is found.
  */

@@ -92,14 +92,7 @@ static void dump_before(void *f)
 		   "Failed to add elements");
 }
 
-static void dump_after(void *f)
-{
-	struct test_dump_fixture *fix = f;
-
-	(void)mpipe_bin_deinit_bus(&fix->pipeline.bin);
-}
-
-ZTEST_SUITE(test_dump, NULL, dump_suite_setup, dump_before, dump_after, NULL);
+ZTEST_SUITE(test_dump, NULL, dump_suite_setup, dump_before, NULL, NULL);
 
 static void dump_link_chain(struct test_dump_fixture *fix)
 {

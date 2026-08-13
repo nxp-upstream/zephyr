@@ -93,10 +93,10 @@ struct mpipe_message {
 /**
  * @brief Post a message to the bus of the bin holding its origin.
  *
- * Locates the bus from the message's origin via @ref mpipe_element_get_bus and
- * posts. The bus copies the message by value, so stack storage is fine. This
- * is the way elements post; a poster that is not an element but holds a bus
- * uses mpipe_bus_post() directly.
+ * Locates the bus from the message's origin via @ref mpipe_element_get_bus_chan
+ * and publishes it there. The bus copies the message by value, so stack storage
+ * is fine. This is the only way to post: an element is what a message comes
+ * from, and it is the origin that says which bus the message belongs on.
  *
  * The caller declares and initializes the message. A field left out of a
  * designated initializer is zero, which is the neutral value for every field:
@@ -121,7 +121,8 @@ struct mpipe_message {
  * @retval 0 on success
  * @retval -EINVAL if @p message is NULL, its origin is NULL or its type is 0
  * @retval -ENODEV if the origin has no bus
- * @retval -ENOMSG if the bus queue is full
+ * @retval -ENOMSG if the bus validator dropped the message, which the pipeline
+ *                 does to every end-of-stream but the last
  */
 int mpipe_message_post(struct mpipe_message *message);
 

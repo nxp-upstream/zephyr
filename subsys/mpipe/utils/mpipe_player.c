@@ -37,6 +37,10 @@ enum mpipe_player_cmd {
 	MPIPE_PLAYER_CMD_STOP,
 	MPIPE_PLAYER_CMD_REPLAY,
 	MPIPE_PLAYER_CMD_QUIT,
+	/* Stop asked for by the bus, on end-of-stream. */
+	MPIPE_PLAYER_CMD_END_OF_RUN,
+	/* Stop asked for by the bus, on a fatal error kept in last_error. */
+	MPIPE_PLAYER_CMD_RUN_ERROR,
 };
 
 /* Only a single player instance is supported at a time. */
@@ -44,12 +48,14 @@ static atomic_ptr_t active_player = ATOMIC_PTR_INIT(NULL);
 
 static K_THREAD_STACK_DEFINE(mpipe_player_worker_stack, CONFIG_MPIPE_PLAYER_WORKER_STACK_SIZE);
 
-static void mpipe_player_msg_cb(const struct zbus_channel *chan, const void *msg);
+static void mpipe_player_msg_cb(const struct zbus_channel *chan);
 
-/* Asynchronous listener for messages received from the mpipe_bin channel. The
- * callback handler is executed in the system workqueue (sysworkq) context.
+/*
+ * Listener for the messages the pipeline posts on its bus. zbus runs it inline
+ * in the posting thread, holding the channel lock, so it only ever records the
+ * message and queues a command; the worker does the rest.
  */
-ZBUS_ASYNC_LISTENER_DEFINE(mpipe_player_al, mpipe_player_msg_cb);
+ZBUS_LISTENER_DEFINE(mpipe_player_listener, mpipe_player_msg_cb);
 
 /* clang-format off */
 static const char *const mpipe_player_domain_names[] = {
@@ -155,6 +161,13 @@ static void mpipe_player_do_play(struct mpipe_player *player)
 		return;
 	}
 
+	/* A resume continues the run it was paused in; a start from STOPPED
+	 * begins a new one, which retires any end-of-run still queued.
+	 */
+	if (player->state == MPIPE_PLAYER_STOPPED) {
+		player->run_id++;
+	}
+
 	/* Both STOPPED->PLAYING and PAUSED->PLAYING are handled by set_state
 	 * stepping through the intermediate states. Resume from PAUSED keeps
 	 * queued data (no flush).
@@ -211,8 +224,36 @@ static void mpipe_player_report_error(struct mpipe_player *player, const struct 
 /*
  * Apply a single command. Returns true when the worker should exit (QUIT).
  */
-static bool mpipe_player_handle_cmd(struct mpipe_player *player, uint8_t cmd)
+static bool mpipe_player_handle_cmd(struct mpipe_player *player,
+				    const struct mpipe_player_cmd_msg *msg)
 {
+	uint8_t cmd = msg->cmd;
+
+	/*
+	 * An end-of-run describes the run it was posted from. A replay racing
+	 * the end of the previous run leaves one queued behind the replay, and
+	 * acting on it would stop the run that has just started. Drop it: the
+	 * run it speaks for no longer exists.
+	 */
+	if (cmd == MPIPE_PLAYER_CMD_END_OF_RUN || cmd == MPIPE_PLAYER_CMD_RUN_ERROR) {
+		if (msg->run_id != player->run_id) {
+			LOG_DBG("Dropping end-of-run from run %u, now on run %u", msg->run_id,
+				player->run_id);
+			return false;
+		}
+
+		/* Reported here, not in the listener: this is where it is worth
+		 * saying, and where the player state the report reads is settled.
+		 */
+		if (cmd == MPIPE_PLAYER_CMD_RUN_ERROR) {
+			mpipe_player_report_error(player, &player->last_error);
+		} else {
+			LOG_INF("End of stream");
+		}
+
+		cmd = MPIPE_PLAYER_CMD_STOP;
+	}
+
 	switch (cmd) {
 	case MPIPE_PLAYER_CMD_PLAY:
 		mpipe_player_do_play(player);
@@ -253,13 +294,13 @@ static bool mpipe_player_handle_cmd(struct mpipe_player *player, uint8_t cmd)
 static void mpipe_player_worker(void *p1, void *p2, void *p3)
 {
 	struct mpipe_player *player = p1;
-	uint8_t cmd;
+	struct mpipe_player_cmd_msg msg;
 
 	ARG_UNUSED(p2);
 	ARG_UNUSED(p3);
 
-	while (k_msgq_get(&player->cmd_q, &cmd, K_FOREVER) == 0) {
-		if (mpipe_player_handle_cmd(player, cmd)) {
+	while (k_msgq_get(&player->cmd_q, &msg, K_FOREVER) == 0) {
+		if (mpipe_player_handle_cmd(player, &msg)) {
 			return;
 		}
 	}
@@ -267,22 +308,23 @@ static void mpipe_player_worker(void *p1, void *p2, void *p3)
 
 static int mpipe_player_post(struct mpipe_player *player, enum mpipe_player_cmd cmd)
 {
-	uint8_t c = (uint8_t)cmd;
+	struct mpipe_player_cmd_msg msg;
 
 	if (player == NULL) {
 		return -EINVAL;
 	}
 
-	return k_msgq_put(&player->cmd_q, &c, K_NO_WAIT);
+	msg.cmd = (uint8_t)cmd;
+	msg.run_id = player->run_id;
+
+	return k_msgq_put(&player->cmd_q, &msg, K_NO_WAIT);
 }
 
-static void mpipe_player_msg_cb(const struct zbus_channel *chan, const void *msg)
+static void mpipe_player_msg_cb(const struct zbus_channel *chan)
 {
-	const struct mpipe_message *m = msg;
+	const struct mpipe_message *m = zbus_chan_const_msg(chan);
 	struct mpipe_player *player = atomic_ptr_get(&active_player);
 	int ret = 0;
-
-	ARG_UNUSED(chan);
 
 	if (player == NULL) {
 		return;
@@ -290,12 +332,12 @@ static void mpipe_player_msg_cb(const struct zbus_channel *chan, const void *msg
 
 	switch (m->type) {
 	case MPIPE_MESSAGE_ERROR:
-		mpipe_player_report_error(player, msg);
-		ret = mpipe_player_post(player, MPIPE_PLAYER_CMD_STOP);
+		/* Keep the detail for the worker: it is gone once we return. */
+		player->last_error = *m;
+		ret = mpipe_player_post(player, MPIPE_PLAYER_CMD_RUN_ERROR);
 		break;
 	case MPIPE_MESSAGE_EOS:
-		LOG_INF("End of stream");
-		ret = mpipe_player_post(player, MPIPE_PLAYER_CMD_STOP);
+		ret = mpipe_player_post(player, MPIPE_PLAYER_CMD_END_OF_RUN);
 		break;
 	default:
 		break;
@@ -318,13 +360,16 @@ int mpipe_player_init(struct mpipe_player *player, struct mpipe *pipeline)
 
 	player->pipeline = pipeline;
 	player->state = MPIPE_PLAYER_STOPPED;
+	player->run_id = 0;
 
-	k_msgq_init(&player->cmd_q, player->cmd_buf, sizeof(uint8_t),
+	k_msgq_init(&player->cmd_q, player->cmd_buf, sizeof(struct mpipe_player_cmd_msg),
 		    CONFIG_MPIPE_PLAYER_CMD_QUEUE_DEPTH);
 	k_sem_init(&player->exited, 0, 1);
 
-	/* Attach the async listener to the pipeline's message channel */
-	if (zbus_chan_add_obs(&pipeline->bin.bus.channel, &mpipe_player_al, K_FOREVER) != 0) {
+	struct zbus_channel *bus = mpipe_element_get_bus_chan((struct mpipe_element *)pipeline);
+
+	/* Attach the listener to the pipeline's message channel */
+	if (zbus_chan_add_obs(bus, &mpipe_player_listener, K_FOREVER) != 0) {
 		LOG_ERR("Failed to attach player to pipeline channel");
 		return -EIO;
 	}
@@ -335,7 +380,7 @@ int mpipe_player_init(struct mpipe_player *player, struct mpipe *pipeline)
 					     CONFIG_MPIPE_PLAYER_WORKER_PRIORITY, 0, K_NO_WAIT);
 	if (player->worker_tid == NULL) {
 		LOG_ERR("Failed to create player worker thread");
-		(void)zbus_chan_rm_obs(&pipeline->bin.bus.channel, &mpipe_player_al, K_FOREVER);
+		(void)zbus_chan_rm_obs(bus, &mpipe_player_listener, K_FOREVER);
 
 		return -EIO;
 	}
@@ -421,8 +466,9 @@ int mpipe_player_deinit(struct mpipe_player *player)
 
 	atomic_ptr_set(&active_player, NULL);
 
-	/* Detach the async listener. */
-	err = zbus_chan_rm_obs(&player->pipeline->bin.bus.channel, &mpipe_player_al, K_FOREVER);
+	/* Detach the listener. */
+	err = zbus_chan_rm_obs(mpipe_element_get_bus_chan((struct mpipe_element *)player->pipeline),
+			       &mpipe_player_listener, K_FOREVER);
 
 	return err;
 }

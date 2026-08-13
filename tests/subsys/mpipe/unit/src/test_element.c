@@ -125,8 +125,6 @@ ZTEST_F(mpipe_element_api, test_get_bus_finds_the_nearest_bin)
 		      "A child shall get the bus of the bin holding it");
 	zassert_not_equal(mpipe_element_get_bus_chan(&child), &fixture->pipeline.bin.bus.channel,
 			  "A child shall not reach past its bin to the pipeline");
-
-	zassert_ok(mpipe_bin_deinit_bus(&nested), "mpipe_bin_deinit_bus shall succeed");
 }
 
 ZTEST_F(mpipe_element_api, test_sanity)

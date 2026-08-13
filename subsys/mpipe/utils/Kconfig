@@ -7,7 +7,6 @@
 config MPIPE_PLAYER
 	bool "Multimedia Pipeline player helper"
 	depends on MPIPE
-	imply ZBUS_ASYNC_LISTENER
 	imply SHELL
 	imply SERIAL
 	imply UART_CONSOLE
@@ -43,8 +42,9 @@ config MPIPE_PLAYER_CMD_QUEUE_DEPTH
 	int "Player command queue depth"
 	default 8
 	help
-	  Number of pending commands the player can buffer before a caller
-	  blocks while enqueueing a new command.
+	  Number of pending commands the player can buffer. Posting never
+	  blocks, so a command asked for once the queue is full is dropped
+	  and reported.
 
 config MPIPE_PLAYER_DUMP_ON_STATE_CHANGE
 	bool "Dump the pipeline on every state change and every error"

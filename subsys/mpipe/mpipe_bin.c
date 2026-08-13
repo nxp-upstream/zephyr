@@ -19,7 +19,21 @@
 
 LOG_MODULE_REGISTER(mpipe_bin, CONFIG_MPIPE_LOG_LEVEL);
 
-BUILD_ASSERT(sizeof(struct mpipe_message) <= CONFIG_ZBUS_MSG_SUBSCRIBER_NET_BUF_STATIC_DATA_SIZE);
+/*
+ * The framework allocates nothing, so neither may the bus underneath it.
+ * subsys/mpipe/Kconfig turns ZBUS_PREFER_DYNAMIC_ALLOCATION off to get there,
+ * but that is a default among several and only wins on Kconfig parse order.
+ * Say what mpipe needs rather than trusting where its Kconfig is sourced.
+ */
+#if defined(CONFIG_ZBUS_MSG_SUBSCRIBER_BUF_ALLOC_DYNAMIC) ||                                       \
+	defined(CONFIG_ZBUS_RUNTIME_OBSERVERS_NODE_ALLOC_DYNAMIC)
+#error "mpipe needs static zbus allocation: set CONFIG_ZBUS_PREFER_DYNAMIC_ALLOCATION=n"
+#endif
+
+#if defined(CONFIG_ZBUS_MSG_SUBSCRIBER_BUF_ALLOC_STATIC)
+BUILD_ASSERT(sizeof(struct mpipe_message) <= CONFIG_ZBUS_MSG_SUBSCRIBER_NET_BUF_STATIC_DATA_SIZE,
+	     "A zbus message subscriber buffer cannot hold an mpipe_message");
+#endif
 
 int mpipe_bin_add(struct mpipe_bin *bin, struct mpipe_element *element, ...)
 {
@@ -206,6 +220,25 @@ enum mpipe_state_change_return mpipe_bin_change_state_func(struct mpipe_element 
 	return MPIPE_STATE_CHANGE_SUCCESS;
 }
 
+/*
+ * Bring up the bin's bus channel, with no validator: a bin has no opinion on
+ * the messages passing through it. An element wrapping the bin installs one
+ * with mpipe_bin_set_bus_validator().
+ *
+ * chan_msg is the channel's backing message buffer. It is required for every
+ * bus channel and observer type: each publish copies the message into it, and
+ * channel init rejects a NULL buffer.
+ *
+ * The channel is deliberately left out of zbus_runtime_channel_register().
+ * That registry only feeds zbus_iterate_over_channels(), which mpipe never
+ * calls; publishing and attaching observers work off the channel itself.
+ */
+static void mpipe_bin_init_bus(struct mpipe_bin *bin)
+{
+	zbus_runtime_channel_init(&bin->bus, &bin->chan_data, NULL, ZBUS_CHAN_ID_INVALID, NULL,
+				  &bin->chan_msg, sizeof(bin->chan_msg), bin);
+}
+
 int mpipe_bin_init(struct mpipe_bin *bin, uint8_t id)
 {
 	struct mpipe_element *self = &bin->element;
@@ -221,51 +254,31 @@ int mpipe_bin_init(struct mpipe_bin *bin, uint8_t id)
 	self->object.flags |= MPIPE_OBJECT_FLAG_BIN;
 
 	sys_dlist_init(&bin->children);
-	ret = mpipe_bin_init_bus(bin, NULL, bin);
-	if (ret != 0) {
-		LOG_ERR("Failed to init the bin bus channel (%d)", ret);
-		return ret;
-	}
+	mpipe_bin_init_bus(bin);
 
 	return 0;
-}
-
-int mpipe_bin_init_bus(struct mpipe_bin *bin, zbus_validator bus_validator, void *user_data)
-{
-	if (bin == NULL) {
-		return -EINVAL;
-	}
-	/*
-	 * chan_msg is the channel's backing message buffer. It is required for
-	 * every bus channel and observer type: each publish copies the message
-	 * into it, and channel init rejects a NULL buffer.
-	 */
-	zbus_runtime_channel_init(&bin->bus, &bin->chan_data, NULL, ZBUS_CHAN_ID_INVALID,
-				  bus_validator, &bin->chan_msg, sizeof(bin->chan_msg), user_data);
-
-	return zbus_runtime_channel_register(&bin->bus);
 }
 
 int mpipe_bin_set_bus_validator(struct mpipe_bin *bin, zbus_validator bus_validator,
 				void *user_data)
 {
+	struct zbus_channel *chan;
+	int ret;
+
 	if (bin == NULL) {
 		return -EINVAL;
 	}
 
-	k_sem_take(&bin->bus.channel.data->sem, K_FOREVER);
-	bin->bus.channel.validator = bus_validator;
-	bin->bus.channel.user_data = user_data;
-	k_sem_give(&bin->bus.channel.data->sem);
+	chan = &bin->bus.channel;
 
-	return 0;
-}
-
-int mpipe_bin_deinit_bus(struct mpipe_bin *bin)
-{
-	if (bin == NULL) {
-		return -EINVAL;
+	/* zbus_chan_claim() is the public form of taking the channel's lock */
+	ret = zbus_chan_claim(chan, K_FOREVER);
+	if (ret != 0) {
+		return ret;
 	}
 
-	return zbus_runtime_channel_unregister(&bin->bus);
+	chan->validator = bus_validator;
+	chan->user_data = user_data;
+
+	return zbus_chan_finish(chan);
 }

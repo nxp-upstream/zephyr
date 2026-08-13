@@ -46,6 +46,7 @@ static struct mpipe_file_sink file_sink;
 
 int main(void)
 {
+	struct zbus_channel *bus = NULL;
 	int ret;
 
 	/* Mount the disk */
@@ -131,7 +132,9 @@ int main(void)
 
 	LOG_INF("Pipeline linked.");
 
-	ret = zbus_chan_add_obs(&pipe.bin.bus.channel, &main_sub, K_FOREVER);
+	bus = mpipe_element_get_bus_chan((struct mpipe_element *)&pipe);
+
+	ret = zbus_chan_add_obs(bus, &main_sub, K_FOREVER);
 	if (ret != 0) {
 		LOG_ERR("Failed to attach observer to pipeline channel (%d)", ret);
 		goto err;
@@ -173,7 +176,7 @@ int main(void)
 		break;
 	}
 
-	(void)zbus_chan_rm_obs(&pipe.bin.bus.channel, &main_sub, K_FOREVER);
+	(void)zbus_chan_rm_obs(bus, &main_sub, K_FOREVER);
 
 	/* Stop/Deinit the pipeline */
 	(void)mpipe_element_set_state((struct mpipe_element *)&pipe, MPIPE_STATE_READY);
@@ -189,7 +192,7 @@ int main(void)
 	return 0;
 
 err_set_state:
-	zbus_chan_rm_obs(&pipe.bin.bus.channel, &main_sub, K_FOREVER);
+	zbus_chan_rm_obs(bus, &main_sub, K_FOREVER);
 err:
 	LOG_ERR("Aborting sample");
 	return 0;

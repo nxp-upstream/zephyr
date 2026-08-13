@@ -54,6 +54,7 @@ static struct mpipe_caps_filter caps_filter;
 int main(void)
 {
 	int gain_val = 90; /* Set gain to 90% (0.9x amplification) */
+	struct zbus_channel *bus = NULL;
 	int ret = 0;
 
 	ret = mpipe_pipeline_init(&pipe, PIPE_ID);
@@ -151,7 +152,9 @@ int main(void)
 	}
 	/* clang-format on */
 
-	ret = zbus_chan_add_obs(&pipe.bin.bus.channel, &main_sub, K_FOREVER);
+	bus = mpipe_element_get_bus_chan((struct mpipe_element *)&pipe);
+
+	ret = zbus_chan_add_obs(bus, &main_sub, K_FOREVER);
 	if (ret != 0) {
 		LOG_ERR("Failed to attach observer to pipeline channel (%d)", ret);
 		goto err;
@@ -193,7 +196,7 @@ int main(void)
 		break;
 	}
 
-	(void)zbus_chan_rm_obs(&pipe.bin.bus.channel, &main_sub, K_FOREVER);
+	(void)zbus_chan_rm_obs(bus, &main_sub, K_FOREVER);
 
 	/* Stop/Deinit the pipeline */
 	(void)mpipe_element_set_state((struct mpipe_element *)&pipe, MPIPE_STATE_READY);
@@ -201,7 +204,7 @@ int main(void)
 	return 0;
 
 err_set_state:
-	zbus_chan_rm_obs(&pipe.bin.bus.channel, &main_sub, K_FOREVER);
+	zbus_chan_rm_obs(bus, &main_sub, K_FOREVER);
 err:
 	LOG_ERR("Aborting sample");
 	return ret != 0 ? ret : -EIO;

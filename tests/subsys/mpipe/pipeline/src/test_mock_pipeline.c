@@ -61,8 +61,11 @@ static void pipeline_before(void *f)
 static void pipeline_after(void *f)
 {
 	struct test_mock_pipeline_fixture *fix = f;
-	(void)zbus_chan_rm_obs(&fix->pipeline.bin.bus.channel, &test_pipeline_sub, K_FOREVER);
-	(void)mpipe_bin_deinit_bus(&fix->pipeline.bin);
+	struct zbus_channel *bus =
+		mpipe_element_get_bus_chan((struct mpipe_element *)&fix->pipeline);
+
+	/* Also runs when the test failed before detaching its own observer. */
+	(void)zbus_chan_rm_obs(bus, &test_pipeline_sub, K_FOREVER);
 }
 
 ZTEST_SUITE(test_mock_pipeline, NULL, pipeline_suite_setup, pipeline_before, pipeline_after, NULL);
@@ -70,6 +73,7 @@ ZTEST_SUITE(test_mock_pipeline, NULL, pipeline_suite_setup, pipeline_before, pip
 ZTEST_F(test_mock_pipeline, test_pipeline_fake_src_transform_sink)
 {
 	const struct zbus_channel *chan;
+	struct zbus_channel *bus;
 	struct mpipe_message msg;
 
 	/* Add all elements to the pipeline */
@@ -86,8 +90,8 @@ ZTEST_F(test_mock_pipeline, test_pipeline_fake_src_transform_sink)
 		   "Failed to link elements");
 
 	/* Attach the subscriber to the pipeline bin's channel at runtime. */
-	zassert_ok(zbus_chan_add_obs(&fixture->pipeline.bin.bus.channel, &test_pipeline_sub,
-				     K_FOREVER),
+	bus = mpipe_element_get_bus_chan((struct mpipe_element *)&fixture->pipeline);
+	zassert_ok(zbus_chan_add_obs(bus, &test_pipeline_sub, K_FOREVER),
 		   "Failed to add observer to pipeline channel");
 
 	/* Start the pipeline */
@@ -106,9 +110,6 @@ ZTEST_F(test_mock_pipeline, test_pipeline_fake_src_transform_sink)
 		      MPIPE_STATE_CHANGE_SUCCESS, "Pipeline failed to return to READY");
 
 	/* Detach the runtime observer */
-	zassert_ok(
-		zbus_chan_rm_obs(&fixture->pipeline.bin.bus.channel, &test_pipeline_sub, K_FOREVER),
-		"Failed to remove observer from pipeline channel");
-
-	/* The bus channel is torn down in pipeline_after, which also runs on early failure. */
+	zassert_ok(zbus_chan_rm_obs(bus, &test_pipeline_sub, K_FOREVER),
+		   "Failed to remove observer from pipeline channel");
 }

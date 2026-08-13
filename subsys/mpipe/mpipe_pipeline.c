@@ -424,10 +424,8 @@ int mpipe_pipeline_init(struct mpipe *pipe, uint8_t id)
 	/* Initialize base class */
 	self->change_state = mpipe_pipeline_change_state;
 
-	ret = mpipe_bin_set_bus_validator(&pipe->bin, mpipe_pipeline_message_validator, pipe);
-	if (ret != 0) {
-		LOG_ERR("Failed to set the pipeline bus validator (%d)", ret);
-	}
-
-	return ret;
+	/* Only the pipeline knows how many sinks a run must hear from, so the
+	 * EOS aggregator goes on here rather than in the bin underneath.
+	 */
+	return mpipe_bin_set_bus_validator(&pipe->bin, mpipe_pipeline_message_validator, pipe);
 }

@@ -9,6 +9,8 @@ menuconfig MPIPE
 	select NET_BUF
 	select ZBUS
 	select ZBUS_RUNTIME_OBSERVERS
+	# For zbus_runtime_channel_init(), which zbus keeps behind this symbol.
+	# mpipe never registers a channel, so the registry code links out.
 	select ZBUS_RUNTIME_CHANNEL_REGISTRATION
 	help
 	  Enable the Multimedia Pipeline framework.
@@ -110,16 +112,20 @@ config MPIPE_FAKE_SRC_BUF_SZ
 config MPIPE_RPC
 	bool "RPC support"
 
-# ---- ZBus msg_subscriber net_buf defaults for MPIPE ----
+# ---- ZBus defaults for MPIPE ----
+# The framework allocates nothing, so the bus underneath it must not either.
+# mpipe_bin.c refuses to build if a dynamic choice wins anyway.
 
 config ZBUS_PREFER_DYNAMIC_ALLOCATION
 	default n
 
 config ZBUS_MSG_SUBSCRIBER_NET_BUF_STATIC_DATA_SIZE
-	default 24 if MPIPE
+	depends on ZBUS_MSG_SUBSCRIBER_BUF_ALLOC_STATIC
+	default 24
 
 config ZBUS_MSG_SUBSCRIBER_NET_BUF_POOL_SIZE
-	default 4 if MPIPE
+	depends on ZBUS_MSG_SUBSCRIBER
+	default 4
 
 # ---- Plugins and utilities ----
 # Each plugin/utility directory ships its own Kconfig, guarded by its own
