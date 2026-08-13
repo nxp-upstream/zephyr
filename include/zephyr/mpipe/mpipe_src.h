@@ -56,7 +56,12 @@ struct mpipe_src {
 	uint32_t num_buffers;
 	/** Set a given capability on the source pad */
 	int (*set_caps)(struct mpipe_src *src, const struct mpipe_structure *caps);
-	/** Decide buffer allocation strategy for the downstream peer */
+	/**
+	 * Decide buffer allocation strategy for the downstream peer.
+	 * A demand reaches a proposed pool only through
+	 * @ref mpipe_buffer_pool_set_config; an element deciding for its own
+	 * pool rebuilds its config baseline here on every negotiation.
+	 */
 	int (*decide_allocation)(struct mpipe_src *self, struct mpipe_dispatch *query);
 };
 

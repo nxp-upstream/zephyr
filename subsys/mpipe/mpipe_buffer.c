@@ -40,6 +40,26 @@ int mpipe_buffer_pool_configure(struct mpipe_buffer_pool *pool, struct mpipe_str
 	return pool->configure(pool, config);
 }
 
+int mpipe_buffer_pool_set_config(struct mpipe_buffer_pool *pool,
+				 const struct mpipe_buffer_pool_config *cfg)
+{
+	if (pool == NULL || cfg == NULL) {
+		return -EINVAL;
+	}
+
+	if (pool->started) {
+		return -EBUSY;
+	}
+
+	if (pool->set_config != NULL) {
+		return pool->set_config(pool, cfg);
+	}
+
+	pool->config = *cfg;
+
+	return 0;
+}
+
 int mpipe_buffer_pool_start(struct mpipe_buffer_pool *pool)
 {
 	int ret;

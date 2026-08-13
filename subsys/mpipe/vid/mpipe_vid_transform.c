@@ -179,7 +179,21 @@ static int mpipe_vid_transform_decide_allocation(struct mpipe_transform *self,
 static int mpipe_vid_transform_propose_allocation(struct mpipe_transform *self,
 						  struct mpipe_dispatch *query)
 {
-	query->pool = self->in_pool;
+	struct mpipe_vid_transform *vid_transform = (struct mpipe_vid_transform *)self;
+	struct mpipe_vid_object *vid_obj = &vid_transform->vid_obj_in;
+	struct mpipe_buffer_pool_config *pool_config = &vid_obj->pool.pool.config;
+
+	/*
+	 * The pool's live config is the previous negotiation's applied result,
+	 * so rebuild the baseline from the device caps cached at probe time (do
+	 * not probe again here: it pokes the hardware) before proposing. The
+	 * size is left alone - the owner derives it from the negotiated format,
+	 * which precedes the allocation query.
+	 */
+	pool_config->min_buffers = vid_obj->bounds.vcaps.min_vbuf_count;
+	pool_config->align = vid_obj->bounds.vcaps.buf_align;
+
+	query->pool = &vid_obj->pool.pool;
 
 	return 0;
 }

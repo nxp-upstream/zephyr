@@ -535,6 +535,13 @@ int mpipe_vid_object_decide_allocation(struct mpipe_vid_object *vid_obj,
 	struct mpipe_buffer_pool_config *pool_config = &vid_obj->pool.pool.config;
 	struct mpipe_buffer_pool_config *qpc = NULL;
 
+	/*
+	 * Rebuild the own-pool baseline from the cached device caps, so a
+	 * demand absorbed from a previous negotiation does not accumulate.
+	 */
+	pool_config->min_buffers = vid_obj->bounds.vcaps.min_vbuf_count;
+	pool_config->align = vid_obj->bounds.vcaps.buf_align;
+
 	if (query_pool == NULL) {
 		qpc = &query->pool_cfg;
 	} else {

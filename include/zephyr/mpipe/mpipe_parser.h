@@ -68,6 +68,11 @@ struct mpipe_parser {
 	/**
 	 * @brief Decide allocation parameters for downstream.
 	 *
+	 * A demand reaches a proposed pool only through
+	 * @ref mpipe_buffer_pool_set_config, which the pool may refuse - keep a
+	 * fallback. An element deciding for its own pool rebuilds its config
+	 * baseline here on every negotiation.
+	 *
 	 * @param parser Pointer to the parser element.
 	 * @param query Allocation query (see @ref mpipe_dispatch).
 	 *

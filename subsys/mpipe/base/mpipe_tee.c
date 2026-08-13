@@ -71,6 +71,10 @@ static int mpipe_tee_sink_query_fn(struct mpipe_pad *pad, struct mpipe_dispatch 
 				continue;
 			}
 
+			/* Hand each branch a clean slate, not the previous one's proposal */
+			query->pool = NULL;
+			query->pool_cfg = (struct mpipe_buffer_pool_config){0};
+
 			int ret = mpipe_pad_query(tee->src_pads[i].peer, query);
 
 			if (ret != 0) {
@@ -102,6 +106,8 @@ static int mpipe_tee_sink_query_fn(struct mpipe_pad *pad, struct mpipe_dispatch 
 		 * use the buffer, it will need to copy into its own pool.
 		 */
 		query->pool_cfg = merged;
+		/* The merge is the answer: no single branch's pool may travel up */
+		query->pool = NULL;
 
 		return 0;
 	}

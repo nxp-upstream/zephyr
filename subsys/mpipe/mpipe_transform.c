@@ -414,9 +414,20 @@ static int mpipe_transform_event(struct mpipe_pad *pad, struct mpipe_dispatch *e
 enum mpipe_state_change_return mpipe_transform_change_state(struct mpipe_element *self,
 							    enum mpipe_state_change transition)
 {
+	struct mpipe_transform *transform = (struct mpipe_transform *)self;
+
 	switch (transition) {
 	case MPIPE_STATE_CHANGE_PAUSED_TO_READY:
 		mpipe_element_reset_pad_caps(self);
+
+		/*
+		 * The transform started the pool it draws from - its own or an
+		 * adopted proposal - so it stops it here; otherwise the pool
+		 * stays started across runs and can never be reconfigured.
+		 */
+		if (transform->out_pool != NULL) {
+			(void)mpipe_buffer_pool_stop(transform->out_pool);
+		}
 		break;
 	default:
 		break;

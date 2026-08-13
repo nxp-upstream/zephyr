@@ -31,6 +31,20 @@ static int mpipe_vid_buffer_pool_find(struct mpipe_vid_buffer_pool *vid_pool,
 	return -1;
 }
 
+static int mpipe_vid_buffer_pool_set_config(struct mpipe_buffer_pool *pool,
+					    const struct mpipe_buffer_pool_config *cfg)
+{
+	if (cfg->min_buffers > CONFIG_VIDEO_BUFFER_POOL_NUM_MAX) {
+		LOG_ERR("min_buffers=%u exceeds CONFIG_VIDEO_BUFFER_POOL_NUM_MAX=%u",
+			cfg->min_buffers, CONFIG_VIDEO_BUFFER_POOL_NUM_MAX);
+		return -ENOSPC;
+	}
+
+	pool->config = *cfg;
+
+	return 0;
+}
+
 static int mpipe_vid_buffer_pool_start(struct mpipe_buffer_pool *pool)
 {
 	int ret = 0;
@@ -316,6 +330,7 @@ void mpipe_vid_buffer_pool_init(struct mpipe_buffer_pool *pool, struct mpipe_vid
 
 	mpipe_buffer_pool_init(pool);
 
+	pool->set_config = mpipe_vid_buffer_pool_set_config;
 	pool->start = mpipe_vid_buffer_pool_start;
 	pool->stop = mpipe_vid_buffer_pool_stop;
 	pool->acquire_buffer = mpipe_vid_buffer_pool_acquire_buffer;

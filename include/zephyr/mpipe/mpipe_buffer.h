@@ -51,6 +51,15 @@ struct mpipe_buffer_pool {
 
 	/** Configure the pool with the given caps structure */
 	int (*configure)(struct mpipe_buffer_pool *pool, struct mpipe_structure *config);
+	/**
+	 * Apply a negotiated pool config. The implementation validates @p cfg
+	 * against what the pool can provide, writes the accepted values into
+	 * @ref mpipe_buffer_pool::config itself, and returns a negative errno
+	 * to refuse (e.g. -ENOTSUP for an alignment the backing allocator
+	 * cannot honor, -ENOSPC for a buffer count beyond the pool capacity).
+	 */
+	int (*set_config)(struct mpipe_buffer_pool *pool,
+			  const struct mpipe_buffer_pool_config *cfg);
 	/** Start the pool and allocate resources */
 	int (*start)(struct mpipe_buffer_pool *pool);
 	/** Stop the pool and free resources */
@@ -107,6 +116,29 @@ void mpipe_buffer_destroy(struct net_buf *buf);
  * @return 0 on success, negative errno on failure
  */
 int mpipe_buffer_pool_configure(struct mpipe_buffer_pool *pool, struct mpipe_structure *config);
+
+/**
+ * @brief Apply a negotiated config to a buffer pool
+ *
+ * This is the only way a config negotiated through an allocation query may
+ * reach a pool: the caller hands the value over and the pool's owner
+ * validates it. An element must never write @ref mpipe_buffer_pool::config
+ * fields of a pool it does not own.
+ *
+ * With a @ref mpipe_buffer_pool::set_config implementation, the pool
+ * decides: it may accept, clamp, or refuse the config. Without one, the
+ * config is copied in as given.
+ *
+ * @param pool Pointer to the buffer pool
+ * @param cfg  Negotiated config to apply
+ *
+ * @retval 0       Success, the pool's config reflects the accepted values.
+ * @retval -EINVAL @p pool or @p cfg is NULL.
+ * @retval -EBUSY  The pool is started; stop it before reconfiguring.
+ * @return Any negative errno the pool's set_config returns to refuse.
+ */
+int mpipe_buffer_pool_set_config(struct mpipe_buffer_pool *pool,
+				 const struct mpipe_buffer_pool_config *cfg);
 
 /**
  * @brief Helper to start a buffer pool

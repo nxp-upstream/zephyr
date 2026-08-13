@@ -47,6 +47,14 @@ struct mpipe_transform_client {
 	 * @return 0 on success, an errno on failure
 	 */
 	int (*chain_fn_rpc)(uint32_t in_buf, uint32_t in_sz, uint32_t out_buf, uint32_t *out_sz);
+	/** Application-set input pool config, restored before each proposal */
+	struct mpipe_buffer_pool_config in_pool_base;
+	/** Application-set output pool config, restored at each negotiation */
+	struct mpipe_buffer_pool_config out_pool_base;
+	/** Whether in_pool_base has been captured yet */
+	bool in_pool_base_valid;
+	/** Whether out_pool_base has been captured yet */
+	bool out_pool_base_valid;
 };
 
 /**

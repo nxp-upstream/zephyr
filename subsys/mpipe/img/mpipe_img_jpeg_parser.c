@@ -79,9 +79,23 @@ static int mpipe_img_jpeg_parser_decide_allocation(struct mpipe_parser *parser,
 
 	/* Use the proposed pool from downstream when available */
 	if (query_pool != NULL) {
+		struct mpipe_buffer_pool_config cfg = query_pool->config;
+		int ret;
+
 		/* Add one extra buffer to hold the parser's partial frame */
-		query_pool->config.min_buffers += 1;
-		parser->out_pool = query_pool;
+		cfg.min_buffers += 1;
+
+		/*
+		 * The demand reaches the pool only through the owner-validated
+		 * setter, which may refuse it.
+		 */
+		ret = mpipe_buffer_pool_set_config(query_pool, &cfg);
+		if (ret == 0) {
+			parser->out_pool = query_pool;
+		} else {
+			LOG_WRN("Proposed pool refused the config (%d), keeping the internal pool",
+				ret);
+		}
 	}
 
 	if (parser->out_pool == NULL) {

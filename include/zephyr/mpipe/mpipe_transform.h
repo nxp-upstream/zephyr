@@ -105,8 +105,13 @@ struct mpipe_transform {
 	/**
 	 * @brief Propose allocation parameters to upstream
 	 *
-	 * The transform element may propose its input buffer pool to its upstream peer.
-	 * All the proposed pool's ops are then intended to be called by the upstream element.
+	 * The transform element may propose either its entire input buffer pool
+	 * (set the query's pool pointer; the pool's own config is the proposal)
+	 * or a bare config (write the query's pool_cfg). A proposed pool's ops
+	 * are then intended to be called by the upstream element. Before
+	 * proposing a pool, rebuild its config baseline from your source of
+	 * truth: the live config is the previous negotiation's applied result,
+	 * and proposing it as-is makes peer demands accumulate across replays.
 	 *
 	 * For in-place transform, the same pool may be used for both input and output. If the
 	 * pool is proposed to upstream, the element has to use @ref mpipe_transform::in_pool to
@@ -120,6 +125,15 @@ struct mpipe_transform {
 	int (*propose_allocation)(struct mpipe_transform *self, struct mpipe_dispatch *query);
 	/**
 	 * @brief Decide allocation parameters for downstream
+	 *
+	 * The downstream proposal is either an entire pool (the query's pool
+	 * pointer; its config is the proposal) or a bare config (the query's
+	 * pool_cfg). Apply a demand to a proposed pool only through
+	 * @ref mpipe_buffer_pool_set_config, which the pool may refuse - keep a
+	 * fallback. An element deciding for its own pool rebuilds its config
+	 * baseline here on every negotiation before absorbing the query's
+	 * demands, so nothing accumulates across replays.
+	 *
 	 * @param self Pointer to the transform element
 	 * @param query Allocation query (@ref mpipe_dispatch)
 	 * @return 0 on success, negative errno on failure
