@@ -507,10 +507,15 @@ int mpipe_vid_convert_init(struct mpipe_vid_convert *conv, uint8_t id)
 	conv->out_pool.stop = vid_convert_pool_stop;
 	conv->out_pool.acquire_buffer = vid_convert_pool_acquire;
 	conv->out_pool.release_buffer = vid_convert_pool_release;
-	conv->out_pool.config.size = 0;
-	conv->out_pool.config.align = 1;
-	conv->out_pool.config.min_buffers = 1;
-	conv->out_pool.config.max_buffers = CONFIG_VIDEO_BUFFER_POOL_NUM_MAX;
+
+	const struct mpipe_buffer_pool_config pool_req = {
+		.size = 0,
+		.align = 1,
+		.min_buffers = 1,
+		.max_buffers = CONFIG_VIDEO_BUFFER_POOL_NUM_MAX,
+	};
+
+	(void)mpipe_buffer_pool_set_req_config(&conv->out_pool, &pool_req);
 
 	transform->mode = MPIPE_MODE_NORMAL;
 	transform->out_pool = &conv->out_pool;

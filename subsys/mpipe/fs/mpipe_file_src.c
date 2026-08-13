@@ -235,7 +235,9 @@ int mpipe_file_src_init(struct mpipe_file_src *fsrc, uint8_t id)
 	fsrc->path = NULL;
 	fsrc->file_open = false;
 	fsrc->blocksize = CONFIG_MPIPE_FS_BLOCK_SIZE;
-	fsrc->pool.config.size = CONFIG_MPIPE_FS_BLOCK_SIZE;
+	const struct mpipe_buffer_pool_config pool_req = {.size = CONFIG_MPIPE_FS_BLOCK_SIZE};
+
+	(void)mpipe_buffer_pool_set_req_config(&fsrc->pool, &pool_req);
 	fsrc->pool.acquire_buffer = mpipe_file_src_pool_acquire_buffer;
 	fsrc->pool.release_buffer = mpipe_file_src_pool_release_buffer;
 

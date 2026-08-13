@@ -44,7 +44,19 @@ struct mpipe_structure;
  * @brief Buffer pool structure
  */
 struct mpipe_buffer_pool {
-	/** Configuration parameters of the buffer pool */
+	/**
+	 * What this pool requires of its own accord, before any negotiation:
+	 * the owner's hardware minimum, the application's request. Written once
+	 * at setup with @ref mpipe_buffer_pool_set_req_config and never by a
+	 * negotiation, so it stays the floor every run starts from.
+	 */
+	struct mpipe_buffer_pool_config req_config;
+	/**
+	 * What the negotiation settled on, and what @ref mpipe_buffer_pool::start
+	 * allocates against. Starts each run as a copy of @ref req_config -
+	 * @ref mpipe_buffer_pool_stop restores it - so a run never inherits the
+	 * demands of the one before it.
+	 */
 	struct mpipe_buffer_pool_config config;
 	/** net_buf pool associated with the buffer pool */
 	struct net_buf_pool *nb_pool;
@@ -118,6 +130,30 @@ void mpipe_buffer_destroy(struct net_buf *buf);
 int mpipe_buffer_pool_configure(struct mpipe_buffer_pool *pool, struct mpipe_structure *config);
 
 /**
+ * @brief State what a buffer pool requires of its own accord
+ *
+ * The pool's owner calls this once, at setup, with the requirement that is
+ * true of the pool whatever it is later asked to carry: a hardware minimum
+ * buffer count, an alignment the allocator imposes, a size the application
+ * fixed. A negotiation never writes it, so it survives as the floor every run
+ * starts from - the framework restores @ref mpipe_buffer_pool::config from it
+ * on teardown, and an element merging demands into a pool it owns has nothing
+ * of its own to remember.
+ *
+ * @ref mpipe_buffer_pool::config is set to the same values, so the first run
+ * starts from the requirement like every run after it.
+ *
+ * @param pool Pointer to the buffer pool
+ * @param cfg  What the pool requires
+ *
+ * @retval 0       Success
+ * @retval -EINVAL @p pool or @p cfg is NULL
+ * @retval -EBUSY  The pool is started; stop it before restating its requirement
+ */
+int mpipe_buffer_pool_set_req_config(struct mpipe_buffer_pool *pool,
+				     const struct mpipe_buffer_pool_config *cfg);
+
+/**
  * @brief Apply a negotiated config to a buffer pool
  *
  * This is the only way a config negotiated through an buffer pool query may
@@ -151,6 +187,11 @@ int mpipe_buffer_pool_start(struct mpipe_buffer_pool *pool);
 
 /**
  * @brief Helper to stop a buffer pool
+ *
+ * Also restores @ref mpipe_buffer_pool::config from
+ * @ref mpipe_buffer_pool::req_config, which is what keeps one run's negotiated
+ * demands out of the next. It happens whether or not the pool was ever started,
+ * so a pool that was proposed and turned down is reset too.
  *
  * @param pool Pointer to the buffer pool to stop
  *

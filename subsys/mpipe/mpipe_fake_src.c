@@ -74,10 +74,14 @@ int mpipe_fake_src_init(struct mpipe_fake_src *fsrc, uint8_t id)
 
 	mpipe_element_set_name(self, "fake_src");
 
+	const struct mpipe_buffer_pool_config pool_req = {
+		.size = CONFIG_MPIPE_FAKE_SRC_BUF_SZ,
+		.min_buffers = 1,
+	};
+
 	mpipe_buffer_pool_init(&fsrc->pool);
 	fsrc->pool.nb_pool = &mpipe_fake_src_pool;
-	fsrc->pool.config.min_buffers = 1;
-	fsrc->pool.config.size = CONFIG_MPIPE_FAKE_SRC_BUF_SZ;
+	(void)mpipe_buffer_pool_set_req_config(&fsrc->pool, &pool_req);
 	fsrc->pool.acquire_buffer = mpipe_fake_src_pool_acquire;
 	fsrc->pool.release_buffer = mpipe_fake_src_pool_release;
 

@@ -74,12 +74,16 @@ static int mpipe_img_jpeg_decoder_out_pool_release(struct mpipe_buffer_pool *poo
 
 static void mpipe_img_jpeg_decoder_out_pool_init(struct mpipe_img_jpeg_decoder *dec)
 {
+	const struct mpipe_buffer_pool_config pool_req = {
+		.size = CONFIG_MPIPE_IMG_JPEG_DECODER_MAX_OUT_FRAME_SIZE,
+		.align = 1,
+		.min_buffers = CONFIG_MPIPE_IMG_JPEG_DECODER_POOL_NUM,
+		.max_buffers = CONFIG_MPIPE_IMG_JPEG_DECODER_POOL_NUM,
+	};
+
 	mpipe_buffer_pool_init(&dec->out_pool);
 	dec->out_pool.nb_pool = &mpipe_img_dec_pool;
-	dec->out_pool.config.size = CONFIG_MPIPE_IMG_JPEG_DECODER_MAX_OUT_FRAME_SIZE;
-	dec->out_pool.config.align = 1;
-	dec->out_pool.config.min_buffers = CONFIG_MPIPE_IMG_JPEG_DECODER_POOL_NUM;
-	dec->out_pool.config.max_buffers = CONFIG_MPIPE_IMG_JPEG_DECODER_POOL_NUM;
+	(void)mpipe_buffer_pool_set_req_config(&dec->out_pool, &pool_req);
 	dec->out_pool.acquire_buffer = mpipe_img_jpeg_decoder_out_pool_acquire;
 	dec->out_pool.release_buffer = mpipe_img_jpeg_decoder_out_pool_release;
 	dec->out_pool.started = true; /* net_buf pool is static; no explicit start */

@@ -282,9 +282,17 @@ int mpipe_vid_object_probe_bounds(struct mpipe_vid_object *vid_obj)
 	sel.rect = rect;
 	video_set_selection(vid_obj->vdev, &sel);
 
-	/* Set buffer pool's min_buffers and alignment */
-	vid_obj->pool.pool.config.min_buffers = vcaps.min_vbuf_count;
-	vid_obj->pool.pool.config.align = vcaps.buf_align;
+	/*
+	 * The device's own buffering requirement, and the floor every
+	 * negotiation starts from. The size is not part of it: the owner derives
+	 * that from the format each run settles on.
+	 */
+	const struct mpipe_buffer_pool_config pool_req = {
+		.min_buffers = vcaps.min_vbuf_count,
+		.align = vcaps.buf_align,
+	};
+
+	(void)mpipe_buffer_pool_set_req_config(&vid_obj->pool.pool, &pool_req);
 
 	return 0;
 }

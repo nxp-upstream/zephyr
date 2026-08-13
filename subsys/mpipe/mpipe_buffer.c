@@ -40,6 +40,23 @@ int mpipe_buffer_pool_configure(struct mpipe_buffer_pool *pool, struct mpipe_str
 	return pool->configure(pool, config);
 }
 
+int mpipe_buffer_pool_set_req_config(struct mpipe_buffer_pool *pool,
+				     const struct mpipe_buffer_pool_config *cfg)
+{
+	if (pool == NULL || cfg == NULL) {
+		return -EINVAL;
+	}
+
+	if (pool->started) {
+		return -EBUSY;
+	}
+
+	pool->req_config = *cfg;
+	pool->config = *cfg;
+
+	return 0;
+}
+
 int mpipe_buffer_pool_set_config(struct mpipe_buffer_pool *pool,
 				 const struct mpipe_buffer_pool_config *cfg)
 {
@@ -92,6 +109,13 @@ int mpipe_buffer_pool_stop(struct mpipe_buffer_pool *pool)
 	if (pool == NULL) {
 		return -EINVAL;
 	}
+
+	/*
+	 * Forget what the run negotiated, before anything else: a pool that was
+	 * proposed and turned down never started, and still must not carry its
+	 * demands into the next run.
+	 */
+	pool->config = pool->req_config;
 
 	if (!pool->started) {
 		return 0;

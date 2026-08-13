@@ -430,9 +430,13 @@ int mpipe_img_jpeg_parser_init(struct mpipe_img_jpeg_parser *jpeg_parser, uint8_
 	parser->decide_buffer_pool = mpipe_img_jpeg_parser_decide_buffer_pool;
 
 	if (CONFIG_MPIPE_IMG_JPEG_PARSER_MAX_FRAME_SIZE > 0) {
+		const struct mpipe_buffer_pool_config pool_req = {
+			.size = CONFIG_MPIPE_IMG_JPEG_PARSER_MAX_FRAME_SIZE,
+		};
+
 		mpipe_buffer_pool_init(&jpeg_parser->out_pool);
 		jpeg_parser->out_pool.nb_pool = &mpipe_img_jpeg_parser_pool;
-		jpeg_parser->out_pool.config.size = CONFIG_MPIPE_IMG_JPEG_PARSER_MAX_FRAME_SIZE;
+		(void)mpipe_buffer_pool_set_req_config(&jpeg_parser->out_pool, &pool_req);
 		jpeg_parser->out_pool.acquire_buffer = mpipe_img_jpeg_parser_acquire_buffer;
 		jpeg_parser->out_pool.release_buffer = mpipe_img_jpeg_parser_release_buffer;
 		/* net_buf pool is static; no explicit start */
