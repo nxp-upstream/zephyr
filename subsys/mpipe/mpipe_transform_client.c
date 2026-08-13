@@ -69,21 +69,6 @@ static int mpipe_transform_client_chain_fn(struct mpipe_pad *pad, struct net_buf
 static int mpipe_transform_client_propose_buffer_pool(struct mpipe_transform *self,
 						      struct mpipe_dispatch *query)
 {
-	struct mpipe_transform_client *client = (struct mpipe_transform_client *)self;
-
-	/*
-	 * The pool goes upstream, where a raised demand reaches it through
-	 * mpipe_buffer_pool_set_config(). Restore the application-set baseline
-	 * captured on the first proposal, or an upstream that adds a buffer
-	 * adds one again on every negotiation.
-	 */
-	if (!client->in_pool_base_valid) {
-		client->in_pool_base = self->in_pool->config;
-		client->in_pool_base_valid = true;
-	} else {
-		self->in_pool->config = client->in_pool_base;
-	}
-
 	query->pool = self->in_pool;
 
 	return 0;
@@ -92,23 +77,9 @@ static int mpipe_transform_client_propose_buffer_pool(struct mpipe_transform *se
 static int mpipe_transform_client_decide_buffer_pool(struct mpipe_transform *self,
 						     struct mpipe_dispatch *query)
 {
-	struct mpipe_transform_client *client = (struct mpipe_transform_client *)self;
 	struct mpipe_buffer_pool *query_pool = query->pool;
 	struct mpipe_buffer_pool_config *pool_config = &self->out_pool->config;
 	struct mpipe_buffer_pool_config *qpc = NULL;
-
-	/*
-	 * Same, on a pool that outlives the run: restore the application-set
-	 * baseline captured on the first decision, or min_buffers only ever
-	 * ratchets up and align grows into the lcm of every alignment ever
-	 * demanded, not this run's.
-	 */
-	if (!client->out_pool_base_valid) {
-		client->out_pool_base = *pool_config;
-		client->out_pool_base_valid = true;
-	} else {
-		*pool_config = client->out_pool_base;
-	}
 
 	if (query_pool == NULL) {
 		qpc = &query->pool_cfg;
@@ -158,9 +129,6 @@ int mpipe_transform_client_init(struct mpipe_transform_client *transform_client,
 	}
 
 	mpipe_element_set_name(self, "transform_client");
-
-	transform_client->in_pool_base_valid = false;
-	transform_client->out_pool_base_valid = false;
 
 	/* Support only normal mode for now */
 	transform->mode = MPIPE_MODE_NORMAL;

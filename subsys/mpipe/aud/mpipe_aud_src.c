@@ -114,7 +114,11 @@ static int mpipe_aud_src_decide_buffer_pool(struct mpipe_src *src, struct mpipe_
 		(query_pool != NULL) ? &query_pool->config : &query->pool_cfg;
 	struct audio_caps src_caps;
 
-	/* Floor the pool at the source device's own buffering requirement */
+	/*
+	 * Floor the pool at the source device's own buffering requirement. Read
+	 * live rather than held in req_config: the device is only known once the
+	 * application has set it, which is after the pool is initialized.
+	 */
 	if (aud_src->get_audio_caps != NULL && pool->aud_dev != NULL &&
 	    aud_src->get_audio_caps(pool->aud_dev, &src_caps) == 0) {
 		pool_config->min_buffers = src_caps.min_num_buffers;
