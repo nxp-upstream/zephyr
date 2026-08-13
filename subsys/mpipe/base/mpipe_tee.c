@@ -28,10 +28,7 @@ static int mpipe_tee_sink_query_fn(struct mpipe_pad *pad, struct mpipe_dispatch 
 		bool answered = false;
 		int ret;
 
-		ret = mpipe_structure_duplicate(mpipe_dispatch_get_caps(query), &filter);
-		if (ret != 0) {
-			return ret;
-		}
+		filter = *mpipe_dispatch_get_caps(query);
 
 		for (uint8_t i = 0; i < tee->src_pads_num; i++) {
 			if (tee->src_pads[i].peer == NULL) {
@@ -49,21 +46,18 @@ static int mpipe_tee_sink_query_fn(struct mpipe_pad *pad, struct mpipe_dispatch 
 			}
 
 			if (!answered) {
-				ret = mpipe_structure_duplicate(mpipe_dispatch_get_caps(query),
-								&answer);
+				answer = *mpipe_dispatch_get_caps(query);
 				answered = true;
 			} else {
 				struct mpipe_structure intersected;
 
 				ret = mpipe_structure_intersect(
 					&answer, mpipe_dispatch_get_caps(query), &intersected);
-				if (ret == 0) {
-					ret = mpipe_structure_duplicate(&intersected, &answer);
+				if (ret != 0) {
+					return ret;
 				}
-			}
 
-			if (ret != 0) {
-				return ret;
+				answer = intersected;
 			}
 		}
 
@@ -130,10 +124,7 @@ static int mpipe_tee_sink_event_fn(struct mpipe_pad *pad, struct mpipe_dispatch 
 		bool is_caps = (event->type == MPIPE_DISPATCH_CAPS);
 
 		if (is_caps) {
-			ret = mpipe_structure_duplicate(mpipe_dispatch_get_caps(event), &evt_caps);
-			if (ret != 0) {
-				return ret;
-			}
+			evt_caps = *mpipe_dispatch_get_caps(event);
 		}
 
 		for (uint8_t i = 0; i < tee->src_pads_num; i++) {

@@ -55,7 +55,9 @@ static int mpipe_transform_transform_caps(struct mpipe_transform *self,
 		return -ENOENT;
 	}
 
-	return mpipe_structure_duplicate(in, out);
+	*out = *in;
+
+	return 0;
 }
 
 /*
@@ -224,10 +226,7 @@ static inline int mpipe_transform_query_caps(struct mpipe_transform *self,
 	 * Keep a copy of the incoming filter: offering a candidate to the peer
 	 * reuses the query and overwrites its caps.
 	 */
-	ret = mpipe_structure_duplicate(mpipe_dispatch_get_caps(query), &filter);
-	if (ret != 0) {
-		return ret;
-	}
+	filter = *mpipe_dispatch_get_caps(query);
 
 	for (uint32_t index = 0;; index++) {
 		ret = mpipe_pad_enum_caps(this_pad, index, &filter, &candidate);
@@ -390,10 +389,7 @@ static int mpipe_transform_event(struct mpipe_pad *pad, struct mpipe_dispatch *e
 		 * what crosses to the other side, but this side still has to be
 		 * applied afterwards.
 		 */
-		ret = mpipe_structure_duplicate(mpipe_dispatch_get_caps(event), &incoming);
-		if (ret != 0) {
-			return ret;
-		}
+		incoming = *mpipe_dispatch_get_caps(event);
 
 		ret = mpipe_transform_cross_caps(transform, other_pad, &incoming, &fixated);
 		if (ret != 0) {

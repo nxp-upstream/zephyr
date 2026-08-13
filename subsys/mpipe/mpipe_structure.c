@@ -193,18 +193,6 @@ int mpipe_structure_remove_field(struct mpipe_structure *structure, uint8_t fiel
 	return -ENOENT;
 }
 
-bool mpipe_structure_can_intersect(const struct mpipe_structure *struct1,
-				   const struct mpipe_structure *struct2)
-{
-	struct mpipe_structure scratch;
-
-	/*
-	 * Code saving by reusing mpipe_structure_intersect(). Although it takes more time
-	 * to compute, it only runs at pad-link time, so it is not a performance concern.
-	 */
-	return mpipe_structure_intersect(struct1, struct2, &scratch) == 0;
-}
-
 int mpipe_structure_intersect(const struct mpipe_structure *struct1,
 			      const struct mpipe_structure *struct2, struct mpipe_structure *out)
 {
@@ -223,11 +211,13 @@ int mpipe_structure_intersect(const struct mpipe_structure *struct1,
 
 	/* A structure that constrains nothing leaves the other side unchanged */
 	if (mpipe_structure_is_any(struct1)) {
-		return mpipe_structure_duplicate(struct2, out);
+		*out = *struct2;
+		return 0;
 	}
 
 	if (mpipe_structure_is_any(struct2)) {
-		return mpipe_structure_duplicate(struct1, out);
+		*out = *struct1;
+		return 0;
 	}
 
 	if (struct1->media_type_id != struct2->media_type_id) {
@@ -281,17 +271,6 @@ int mpipe_structure_intersect(const struct mpipe_structure *struct1,
 			return ret;
 		}
 	}
-
-	return 0;
-}
-
-int mpipe_structure_duplicate(const struct mpipe_structure *src, struct mpipe_structure *out)
-{
-	if (src == NULL || out == NULL) {
-		return -EINVAL;
-	}
-
-	*out = *src;
 
 	return 0;
 }

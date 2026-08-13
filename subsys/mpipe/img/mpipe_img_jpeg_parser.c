@@ -40,8 +40,12 @@ static int mpipe_img_jpeg_parser_enum_caps(struct mpipe_pad *pad, uint32_t index
 			return -ENOENT;
 		}
 
-		return (filter != NULL) ? mpipe_structure_duplicate(filter, out)
-					: mpipe_structure_init_any(out);
+		if (filter != NULL) {
+			*out = *filter;
+			return 0;
+		}
+
+		return mpipe_structure_init_any(out);
 	}
 
 	if (index > 0) {

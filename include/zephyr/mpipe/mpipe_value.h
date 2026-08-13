@@ -221,20 +221,6 @@ uint32_t mpipe_value_get_uint_range_max(const struct mpipe_value *range);
 uint32_t mpipe_value_get_uint_range_step(const struct mpipe_value *range);
 
 /**
- * @brief Check whether two values actually have a non-empty intersection
- *
- * For primitive values, this means the two values are identical.
- * For range values, this means the ranges overlap.
- *
- * @param val1 Pointer to the first value, may be NULL.
- * @param val2 Pointer to the second value, may be NULL.
- *
- * @return true if the intersection is non-empty, false otherwise or if either
- *         value is NULL
- */
-bool mpipe_value_can_intersect(const struct mpipe_value *val1, const struct mpipe_value *val2);
-
-/**
  * @brief Intersect two values, put the result into caller-provided storage
  *
  * @param val1 Pointer to the first value, may be NULL.

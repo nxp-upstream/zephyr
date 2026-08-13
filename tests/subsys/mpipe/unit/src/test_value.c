@@ -162,7 +162,10 @@ ZTEST(mpipe_value_api, test_copy_and_is_primitive)
 
 	mpipe_value_set(&ci_b, MPIPE_TYPE_INT, 10);
 
-	zassert_true(mpipe_value_can_intersect(&ci_a, &ci_b), "same-type values cannot intersect");
+	struct mpipe_value ci_out;
+
+	zassert_ok(mpipe_value_intersect(&ci_a, &ci_b, &ci_out),
+		   "same-type values cannot intersect");
 
 	struct mpipe_value ci_range;
 
@@ -171,8 +174,8 @@ ZTEST(mpipe_value_api, test_copy_and_is_primitive)
 
 	mpipe_value_set(&ci_val, MPIPE_TYPE_INT, 50);
 
-	zassert_true(mpipe_value_can_intersect(&ci_range, &ci_val),
-		     "&range and value cannot intersect");
+	zassert_ok(mpipe_value_intersect(&ci_range, &ci_val, &ci_out),
+		   "&range and value cannot intersect");
 }
 
 ZTEST(mpipe_value_api, test_set_updates_value)

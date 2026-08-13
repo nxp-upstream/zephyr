@@ -89,7 +89,7 @@ ZTEST(mpipe_structure_api, test_is_fixed_fixate_duplicate)
 
 	struct mpipe_structure dup;
 
-	zassert_ok(mpipe_structure_duplicate(&fixed_s, &dup), "duplicate failed");
+	dup = fixed_s;
 
 	zassert_equal(dup.media_type_id, fixed_s.media_type_id, "media_type_id mismatch");
 	zassert_equal(mpipe_value_get_int(mpipe_structure_get_value(&dup, MPIPE_CAPS_SAMPLE_RATE)),
@@ -128,9 +128,6 @@ ZTEST(mpipe_structure_api, test_intersect_primitive)
 					       -123, TEST_UINT, MPIPE_TYPE_UINT, 123,
 					       MPIPE_CAPS_END),
 		   "init &s2 failed");
-
-	zassert_true(mpipe_structure_can_intersect(&s1, &s2),
-		     "identical structures cannot intersect");
 
 	struct mpipe_structure result;
 
@@ -239,9 +236,6 @@ ZTEST(mpipe_structure_api, test_intersect_asymmetric_fields)
 					       true, MPIPE_CAPS_END),
 		   "init &s2 failed");
 
-	zassert_true(mpipe_structure_can_intersect(&s1, &s2),
-		     "asymmetric structures cannot intersect");
-
 	struct mpipe_structure result;
 
 	zassert_ok(mpipe_structure_intersect(&s1, &s2, &result), "intersect failed");
@@ -324,22 +318,14 @@ ZTEST(mpipe_structure_api, test_cannot_intersect)
 					       16000, 8000, MPIPE_CAPS_END),
 		   "init &s_low failed");
 
-	zassert_false(mpipe_structure_can_intersect(&s_sample_int, NULL),
-		      "can_intersect(&s, NULL) should return false");
-	zassert_false(mpipe_structure_can_intersect(NULL, NULL),
-		      "can_intersect(NULL, NULL) should return false");
 	zassert_not_equal(mpipe_structure_intersect(&s_sample_int, NULL, &result), 0,
 			  "intersect(&s, NULL) should fail");
 	zassert_not_equal(mpipe_structure_intersect(NULL, NULL, &result), 0,
 			  "intersect(NULL, NULL) should fail");
 
-	zassert_false(mpipe_structure_can_intersect(&s_sample_int, &s_bw),
-		      "structures with no common field should not intersect");
 	zassert_not_equal(mpipe_structure_intersect(&s_sample_int, &s_bw, &result), 0,
 			  "intersect with no common field should fail");
 
-	zassert_false(mpipe_structure_can_intersect(&s_low, &s_sample_int),
-		      "out-of-range value should not intersect");
 	zassert_not_equal(mpipe_structure_intersect(&s_low, &s_sample_int, &result), 0,
 			  "intersect with incompatible field value should fail");
 }

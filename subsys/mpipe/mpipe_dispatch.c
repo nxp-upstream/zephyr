@@ -25,7 +25,7 @@ void mpipe_dispatch_init(struct mpipe_dispatch *dispatch, uint8_t type,
 	if (caps == NULL) {
 		mpipe_structure_init_any(&dispatch->caps);
 	} else {
-		mpipe_structure_duplicate(caps, &dispatch->caps);
+		dispatch->caps = *caps;
 	}
 }
 
@@ -61,7 +61,9 @@ int mpipe_dispatch_set_caps(struct mpipe_dispatch *dispatch, const struct mpipe_
 		return mpipe_structure_init_any(&dispatch->caps);
 	}
 
-	return mpipe_structure_duplicate(caps, &dispatch->caps);
+	dispatch->caps = *caps;
+
+	return 0;
 }
 
 int mpipe_dispatch_set_pool(struct mpipe_dispatch *dispatch, struct mpipe_buffer_pool *pool)

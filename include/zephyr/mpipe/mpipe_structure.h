@@ -182,8 +182,8 @@ struct mpipe_structure {
  * @brief Define a read-only @ref mpipe_structure in .rodata.
  *
  * An element whose capabilities are known at build time can carry them here
- * instead of building them at runtime, and copy one out with
- * @ref mpipe_structure_duplicate when it is enumerated.
+ * instead of building them at runtime, and copy one out by plain struct
+ * assignment when it is enumerated.
  *
  * @p fields is a macro taking one argument, which it applies to each field as
  * `arg(field_id, value_initializer)`. Listing the fields once is what keeps the
@@ -383,30 +383,14 @@ const struct mpipe_value *mpipe_structure_get_value(const struct mpipe_structure
 int mpipe_structure_remove_field(struct mpipe_structure *structure, uint8_t field_id);
 
 /**
- * @brief Check if two @ref mpipe_structure can intersect.
- *
- * Two structures can intersect when they share the same media type, carry at
- * least one field identifier in common, and every field they do share has
- * intersecting values. A structure that constrains nothing intersects with
- * anything, so an ANY structure always can.
- *
- * @param struct1 Pointer to the first structure, may be NULL.
- * @param struct2 Pointer to the second structure, may be NULL.
- *
- * @return true if the structures can intersect, false otherwise or if either
- *         pointer is NULL
- */
-bool mpipe_structure_can_intersect(const struct mpipe_structure *struct1,
-				   const struct mpipe_structure *struct2);
-
-/**
  * @brief Intersect two structures into caller-provided storage.
  *
- * Requires the same conditions as @ref mpipe_structure_can_intersect. The result
- * is the union of both inputs: a field both sides carry holds the intersected
- * value, and a field only one side carries is copied through unchanged, which
- * can leave the result holding more fields than either input. Intersecting an
- * ANY structure yields a copy of the other one.
+ * The structures must share the same media type, carry at least one field
+ * identifier in common, and every field they do share must have intersecting
+ * values. The result is the union of both inputs: a field both sides carry
+ * holds the intersected value, and a field only one side carries is copied
+ * through unchanged, which can leave the result holding more fields than
+ * either input. Intersecting an ANY structure yields a copy of the other one.
  *
  * @param struct1 Pointer to the first structure.
  * @param struct2 Pointer to the second structure.
@@ -441,19 +425,6 @@ int mpipe_structure_intersect(const struct mpipe_structure *struct1,
  * @retval -EINVAL if either pointer is NULL or @p out is @p src
  */
 int mpipe_structure_fixate(const struct mpipe_structure *src, struct mpipe_structure *out);
-
-/**
- * @brief Copy a structure into caller-provided storage.
- *
- * Unlike the other operations that write into caller storage, this one carries
- * the flags over too, so duplicating an ANY structure yields an ANY structure.
- *
- * @param src Pointer to the structure to copy.
- * @param out Pointer to storage for the copy.
- *
- * @return 0 on success, -EINVAL if either pointer is NULL
- */
-int mpipe_structure_duplicate(const struct mpipe_structure *src, struct mpipe_structure *out);
 
 /**
  * @brief Print an @ref mpipe_structure.

@@ -74,6 +74,7 @@ static int mpipe_element_link_pads(struct mpipe_element *src, uint8_t src_pad_id
 	struct mpipe_pad *src_pad = mpipe_element_get_unlinked_pad(src, src_pad_id, MPIPE_PAD_SRC);
 	struct mpipe_pad *sink_pad =
 		mpipe_element_get_unlinked_pad(sink, sink_pad_id, MPIPE_PAD_SINK);
+	struct mpipe_structure scratch;
 
 	if (src_pad == NULL || sink_pad == NULL) {
 		LOG_ERR("Link failed: no free %s pad on element %u",
@@ -82,7 +83,12 @@ static int mpipe_element_link_pads(struct mpipe_element *src, uint8_t src_pad_id
 		return -EINVAL;
 	}
 
-	if (!mpipe_structure_can_intersect(&src_pad->caps, &sink_pad->caps)) {
+	/*
+	 * Refuse to link pads whose capabilities cannot intersect. The full
+	 * intersection costs more than a dedicated check, but it only runs at
+	 * link time.
+	 */
+	if (mpipe_structure_intersect(&src_pad->caps, &sink_pad->caps, &scratch) != 0) {
 		return -ENOTSUP;
 	}
 

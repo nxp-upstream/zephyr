@@ -185,17 +185,6 @@ static bool mpipe_value_primitive_equal(const struct mpipe_value *val1,
 	}
 }
 
-bool mpipe_value_can_intersect(const struct mpipe_value *val1, const struct mpipe_value *val2)
-{
-	struct mpipe_value scratch;
-
-	/*
-	 * Code saving by reusing mpipe_value_intersect(). Although it takes more time to
-	 * compute, it only runs at pad-link time, so it is not a performance concern.
-	 */
-	return mpipe_value_intersect(val1, val2, &scratch) == 0;
-}
-
 static int mpipe_value_intersect_range(const struct mpipe_value *ref_val,
 				       const struct mpipe_value *compare_val,
 				       struct mpipe_value *out)

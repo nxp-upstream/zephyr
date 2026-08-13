@@ -20,7 +20,8 @@ int mpipe_pad_enum_filter(const struct mpipe_structure *candidate,
 			  const struct mpipe_structure *filter, struct mpipe_structure *out)
 {
 	if (filter == NULL) {
-		return mpipe_structure_duplicate(candidate, out);
+		*out = *candidate;
+		return 0;
 	}
 
 	/* This capability cannot satisfy the filter, but a later one might */
@@ -126,7 +127,9 @@ int mpipe_pad_set_caps(struct mpipe_pad *pad, const struct mpipe_structure *caps
 		return mpipe_structure_init_any(&pad->caps);
 	}
 
-	return mpipe_structure_duplicate(caps, &pad->caps);
+	pad->caps = *caps;
+
+	return 0;
 }
 
 int mpipe_pad_link(struct mpipe_pad *src_pad, struct mpipe_pad *sink_pad)
