@@ -348,8 +348,8 @@ static int mpipe_img_jpeg_decoder_set_caps(struct mpipe_transform *transform,
 	return -EINVAL;
 }
 
-static int mpipe_img_jpeg_decoder_decide_allocation(struct mpipe_transform *self,
-						    struct mpipe_dispatch *query)
+static int mpipe_img_jpeg_decoder_decide_buffer_pool(struct mpipe_transform *self,
+						     struct mpipe_dispatch *query)
 {
 	struct mpipe_img_jpeg_decoder *dec = (struct mpipe_img_jpeg_decoder *)self;
 	struct mpipe_buffer_pool *down_pool = query->pool;
@@ -389,7 +389,7 @@ int mpipe_img_jpeg_decoder_init(struct mpipe_img_jpeg_decoder *dec, uint8_t id)
 	transform->set_caps = mpipe_img_jpeg_decoder_set_caps;
 	transform->transform_caps = mpipe_img_jpeg_decoder_transform_caps;
 	transform->sink_pad.chain_fn = mpipe_img_jpeg_decoder_chain_fn;
-	transform->decide_allocation = mpipe_img_jpeg_decoder_decide_allocation;
+	transform->decide_buffer_pool = mpipe_img_jpeg_decoder_decide_buffer_pool;
 
 	return 0;
 }

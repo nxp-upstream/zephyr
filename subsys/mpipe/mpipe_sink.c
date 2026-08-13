@@ -33,9 +33,9 @@ static int mpipe_sink_query(struct mpipe_pad *pad, struct mpipe_dispatch *query)
 	switch (query->type) {
 	case MPIPE_DISPATCH_CAPS:
 		return mpipe_pad_answer_caps_query(pad, query);
-	case MPIPE_DISPATCH_BUFFER_CONFIG:
-		if (self->propose_allocation != NULL) {
-			return self->propose_allocation(self, query);
+	case MPIPE_DISPATCH_BUFFER_POOL:
+		if (self->propose_buffer_pool != NULL) {
+			return self->propose_buffer_pool(self, query);
 		}
 
 		return 0;
@@ -121,7 +121,7 @@ int mpipe_sink_init(struct mpipe_sink *sink, uint8_t id)
 	sink->sink_pad.event_fn = mpipe_sink_event;
 	sink->sink_pad.chain_fn = mpipe_sink_chain_fn;
 	sink->set_caps = mpipe_sink_set_caps;
-	sink->propose_allocation = NULL;
+	sink->propose_buffer_pool = NULL;
 
 	return 0;
 }

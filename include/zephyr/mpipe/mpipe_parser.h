@@ -31,7 +31,7 @@
  * @brief Base parser element structure.
  *
  * Extends @ref mpipe_element with sink and source pads, capability
- * negotiation, and allocation hooks for frame-reassembly elements.
+ * negotiation, and buffer pool hooks for frame-reassembly elements.
  */
 struct mpipe_parser {
 	/** Base element */
@@ -57,16 +57,16 @@ struct mpipe_parser {
 	int (*set_caps)(struct mpipe_parser *parser, enum mpipe_pad_direction direction,
 			const struct mpipe_structure *caps);
 	/**
-	 * @brief Propose allocation parameters to upstream.
+	 * @brief Propose a buffer pool to upstream.
 	 *
 	 * @param parser Pointer to the parser element.
 	 * @param query Allocation query (see @ref mpipe_dispatch).
 	 *
 	 * @return 0 on success, negative errno on failure
 	 */
-	int (*propose_allocation)(struct mpipe_parser *parser, struct mpipe_dispatch *query);
+	int (*propose_buffer_pool)(struct mpipe_parser *parser, struct mpipe_dispatch *query);
 	/**
-	 * @brief Decide allocation parameters for downstream.
+	 * @brief Decide the buffer pool for downstream.
 	 *
 	 * A demand reaches a proposed pool only through
 	 * @ref mpipe_buffer_pool_set_config, which the pool may refuse - keep a
@@ -78,7 +78,7 @@ struct mpipe_parser {
 	 *
 	 * @return 0 on success, negative errno on failure
 	 */
-	int (*decide_allocation)(struct mpipe_parser *parser, struct mpipe_dispatch *query);
+	int (*decide_buffer_pool)(struct mpipe_parser *parser, struct mpipe_dispatch *query);
 };
 
 /**

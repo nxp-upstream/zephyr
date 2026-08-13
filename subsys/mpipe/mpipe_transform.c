@@ -268,9 +268,9 @@ static int mpipe_transform_query(struct mpipe_pad *pad, struct mpipe_dispatch *q
 	switch (query->type) {
 	case MPIPE_DISPATCH_CAPS:
 		return mpipe_transform_query_caps(self, pad->direction, query);
-	case MPIPE_DISPATCH_BUFFER_CONFIG:
+	case MPIPE_DISPATCH_BUFFER_POOL:
 		struct mpipe_dispatch peer_query = {
-			.type = MPIPE_DISPATCH_BUFFER_CONFIG,
+			.type = MPIPE_DISPATCH_BUFFER_POOL,
 			.caps = &self->src_pad.caps,
 		};
 
@@ -280,9 +280,9 @@ static int mpipe_transform_query(struct mpipe_pad *pad, struct mpipe_dispatch *q
 			return ret;
 		}
 
-		/* Decide allocation for downstream */
-		if (self->decide_allocation != NULL) {
-			ret = self->decide_allocation(self, &peer_query);
+		/* Decide the buffer pool for downstream */
+		if (self->decide_buffer_pool != NULL) {
+			ret = self->decide_buffer_pool(self, &peer_query);
 			if (ret < 0) {
 				return ret;
 			}
@@ -303,9 +303,9 @@ static int mpipe_transform_query(struct mpipe_pad *pad, struct mpipe_dispatch *q
 			}
 		}
 
-		/* Propose allocation to upstream */
-		if (self->propose_allocation != NULL) {
-			return self->propose_allocation(self, query);
+		/* Propose the buffer pool to upstream */
+		if (self->propose_buffer_pool != NULL) {
+			return self->propose_buffer_pool(self, query);
 		}
 
 		return 0;
@@ -462,8 +462,8 @@ int mpipe_transform_init(struct mpipe_transform *transform, uint8_t id)
 	transform->src_pad.query_fn = mpipe_transform_query;
 	transform->sink_pad.event_fn = mpipe_transform_event;
 	transform->src_pad.event_fn = mpipe_transform_event;
-	transform->decide_allocation = NULL;
-	transform->propose_allocation = NULL;
+	transform->decide_buffer_pool = NULL;
+	transform->propose_buffer_pool = NULL;
 
 	return 0;
 }

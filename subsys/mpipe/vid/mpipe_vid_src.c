@@ -62,11 +62,11 @@ static int mpipe_vid_src_get_property(struct mpipe_object *obj, uint32_t key, vo
 	return ret;
 }
 
-static int mpipe_vid_src_decide_allocation(struct mpipe_src *self, struct mpipe_dispatch *query)
+static int mpipe_vid_src_decide_buffer_pool(struct mpipe_src *self, struct mpipe_dispatch *query)
 {
 	struct mpipe_vid_src *vid_src = (struct mpipe_vid_src *)self;
 
-	return mpipe_vid_object_decide_allocation(&vid_src->vid_obj, query);
+	return mpipe_vid_object_decide_buffer_pool(&vid_src->vid_obj, query);
 }
 
 int mpipe_vid_src_init(struct mpipe_vid_src *vid_src, uint8_t id)
@@ -97,7 +97,7 @@ int mpipe_vid_src_init(struct mpipe_vid_src *vid_src, uint8_t id)
 
 	src->src_pad.enum_caps_fn = mpipe_vid_src_enum_caps;
 	src->set_caps = mpipe_vid_src_set_caps;
-	src->decide_allocation = mpipe_vid_src_decide_allocation;
+	src->decide_buffer_pool = mpipe_vid_src_decide_buffer_pool;
 
 	return 0;
 }

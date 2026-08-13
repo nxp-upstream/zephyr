@@ -60,7 +60,7 @@ ZBUS_LISTENER_DEFINE(mpipe_player_listener, mpipe_player_msg_cb);
 /* clang-format off */
 static const char *const mpipe_player_domain_names[] = {
 	[MPIPE_ERROR_CAPS] = "capability negotiation",
-	[MPIPE_ERROR_ALLOC] = "buffer negotiation",
+	[MPIPE_ERROR_BUFFER_POOL] = "buffer negotiation",
 	[MPIPE_ERROR_FLOW] = "buffer flow",
 	[MPIPE_ERROR_RESOURCE] = "resource",
 	[MPIPE_ERROR_FAILED] = "failure",

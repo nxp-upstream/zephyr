@@ -175,20 +175,20 @@ static int mpipe_src_negotiate(struct mpipe_src *src)
 		}
 	}
 
-	/* Query the peer's allocation proposal */
-	struct mpipe_dispatch alloc_query = {
-		.type = MPIPE_DISPATCH_BUFFER_CONFIG,
+	/* Query the peer's buffer pool proposal */
+	struct mpipe_dispatch pool_query = {
+		.type = MPIPE_DISPATCH_BUFFER_POOL,
 		.caps = &src->src_pad.caps,
 	};
 
-	ret = mpipe_pad_query(src->src_pad.peer, &alloc_query);
+	ret = mpipe_pad_query(src->src_pad.peer, &pool_query);
 	if (ret != 0) {
 		return ret;
 	}
 
-	/* Decide the allocation */
-	if (src->decide_allocation != NULL) {
-		return src->decide_allocation(src, &alloc_query);
+	/* Decide the buffer pool */
+	if (src->decide_buffer_pool != NULL) {
+		return src->decide_buffer_pool(src, &pool_query);
 	}
 
 	return 0;
@@ -225,7 +225,7 @@ enum mpipe_state_change_return mpipe_src_change_state(struct mpipe_element *self
 			struct mpipe_message msg = {
 				.origin = self,
 				.type = MPIPE_MESSAGE_ERROR,
-				.domain = MPIPE_ERROR_ALLOC,
+				.domain = MPIPE_ERROR_BUFFER_POOL,
 				.code = pool_ret,
 			};
 
@@ -240,7 +240,7 @@ enum mpipe_state_change_return mpipe_src_change_state(struct mpipe_element *self
 			struct mpipe_message msg = {
 				.origin = self,
 				.type = MPIPE_MESSAGE_ERROR,
-				.domain = MPIPE_ERROR_ALLOC,
+				.domain = MPIPE_ERROR_BUFFER_POOL,
 				.code = pool_ret,
 			};
 
@@ -295,7 +295,7 @@ int mpipe_src_init(struct mpipe_src *src, uint8_t id)
 
 	src->set_caps = mpipe_src_set_caps;
 	src->src_pad.query_fn = mpipe_src_query;
-	src->decide_allocation = NULL;
+	src->decide_buffer_pool = NULL;
 
 	return 0;
 }

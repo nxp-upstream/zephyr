@@ -144,9 +144,9 @@ static int mpipe_parser_query(struct mpipe_pad *pad, struct mpipe_dispatch *quer
 	switch (query->type) {
 	case MPIPE_DISPATCH_CAPS:
 		return mpipe_parser_query_caps(parser, pad->direction, query);
-	case MPIPE_DISPATCH_BUFFER_CONFIG:
+	case MPIPE_DISPATCH_BUFFER_POOL:
 		struct mpipe_dispatch peer_query = {
-			.type = MPIPE_DISPATCH_BUFFER_CONFIG,
+			.type = MPIPE_DISPATCH_BUFFER_POOL,
 			.caps = &parser->src_pad.caps,
 		};
 
@@ -156,8 +156,8 @@ static int mpipe_parser_query(struct mpipe_pad *pad, struct mpipe_dispatch *quer
 			return ret;
 		}
 
-		if (parser->decide_allocation != NULL) {
-			ret = parser->decide_allocation(parser, &peer_query);
+		if (parser->decide_buffer_pool != NULL) {
+			ret = parser->decide_buffer_pool(parser, &peer_query);
 			if (ret < 0) {
 				return ret;
 			}
@@ -178,9 +178,9 @@ static int mpipe_parser_query(struct mpipe_pad *pad, struct mpipe_dispatch *quer
 			}
 		}
 
-		/* Propose allocation to upstream */
-		if (parser->propose_allocation != NULL) {
-			return parser->propose_allocation(parser, query);
+		/* Propose the buffer pool to upstream */
+		if (parser->propose_buffer_pool != NULL) {
+			return parser->propose_buffer_pool(parser, query);
 		}
 
 		return 0;
@@ -238,8 +238,8 @@ int mpipe_parser_init(struct mpipe_parser *parser, uint8_t id)
 	parser->sink_pad.query_fn = mpipe_parser_query;
 	parser->src_pad.event_fn = mpipe_parser_event;
 	parser->sink_pad.event_fn = mpipe_parser_event;
-	parser->decide_allocation = NULL;
-	parser->propose_allocation = NULL;
+	parser->decide_buffer_pool = NULL;
+	parser->propose_buffer_pool = NULL;
 
 	return 0;
 }

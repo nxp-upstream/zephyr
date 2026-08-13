@@ -66,8 +66,8 @@ static int mpipe_transform_client_chain_fn(struct mpipe_pad *pad, struct net_buf
 	return 0;
 }
 
-static int mpipe_transform_client_propose_allocation(struct mpipe_transform *self,
-						     struct mpipe_dispatch *query)
+static int mpipe_transform_client_propose_buffer_pool(struct mpipe_transform *self,
+						      struct mpipe_dispatch *query)
 {
 	struct mpipe_transform_client *client = (struct mpipe_transform_client *)self;
 
@@ -88,8 +88,8 @@ static int mpipe_transform_client_propose_allocation(struct mpipe_transform *sel
 	return 0;
 }
 
-static int mpipe_transform_client_decide_allocation(struct mpipe_transform *self,
-						    struct mpipe_dispatch *query)
+static int mpipe_transform_client_decide_buffer_pool(struct mpipe_transform *self,
+						     struct mpipe_dispatch *query)
 {
 	struct mpipe_transform_client *client = (struct mpipe_transform_client *)self;
 	struct mpipe_buffer_pool *query_pool = query->pool;
@@ -163,8 +163,8 @@ int mpipe_transform_client_init(struct mpipe_transform_client *transform_client,
 	transform->mode = MPIPE_MODE_NORMAL;
 
 	transform->sink_pad.chain_fn = mpipe_transform_client_chain_fn;
-	transform->decide_allocation = mpipe_transform_client_decide_allocation;
-	transform->propose_allocation = mpipe_transform_client_propose_allocation;
+	transform->decide_buffer_pool = mpipe_transform_client_decide_buffer_pool;
+	transform->propose_buffer_pool = mpipe_transform_client_propose_buffer_pool;
 
 	return 0;
 }

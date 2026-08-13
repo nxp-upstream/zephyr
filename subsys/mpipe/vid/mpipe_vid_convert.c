@@ -387,7 +387,8 @@ static int vid_convert_transform_caps(struct mpipe_transform *self,
 	return 0;
 }
 
-static int vid_convert_decide_allocation(struct mpipe_transform *self, struct mpipe_dispatch *query)
+static int vid_convert_decide_buffer_pool(struct mpipe_transform *self,
+					  struct mpipe_dispatch *query)
 {
 	struct mpipe_vid_convert *conv = (struct mpipe_vid_convert *)self;
 	struct mpipe_buffer_pool *down_pool = query->pool;
@@ -515,8 +516,8 @@ int mpipe_vid_convert_init(struct mpipe_vid_convert *conv, uint8_t id)
 	transform->out_pool = &conv->out_pool;
 	transform->set_caps = vid_convert_set_caps;
 	transform->transform_caps = vid_convert_transform_caps;
-	transform->propose_allocation = NULL;
-	transform->decide_allocation = vid_convert_decide_allocation;
+	transform->propose_buffer_pool = NULL;
+	transform->decide_buffer_pool = vid_convert_decide_buffer_pool;
 	transform->sink_pad.chain_fn = vid_convert_chain_fn;
 
 	return 0;

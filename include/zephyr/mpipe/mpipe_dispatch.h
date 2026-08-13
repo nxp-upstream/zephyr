@@ -53,7 +53,7 @@ enum mpipe_dispatch_type {
 	MPIPE_DISPATCH_UNKNOWN = 0,     /**< Unknown dispatch type */
 	MPIPE_DISPATCH_EOS,             /**< EOS dispatch type */
 	MPIPE_DISPATCH_CAPS,            /**< CAPS dispatch type */
-	MPIPE_DISPATCH_BUFFER_CONFIG,   /**< Buffer config type */
+	MPIPE_DISPATCH_BUFFER_POOL,     /**< Buffer pool negotiation type */
 	MPIPE_DISPATCH_END = UINT8_MAX, /**< Maximum dispatch type identifier */
 };
 

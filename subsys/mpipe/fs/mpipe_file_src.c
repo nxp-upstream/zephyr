@@ -60,7 +60,7 @@ static int mpipe_file_src_get_property(struct mpipe_object *obj, uint32_t key, v
 	}
 }
 
-static int mpipe_file_src_decide_allocation(struct mpipe_src *src, struct mpipe_dispatch *query)
+static int mpipe_file_src_decide_buffer_pool(struct mpipe_src *src, struct mpipe_dispatch *query)
 {
 	struct mpipe_file_src *fsrc = (struct mpipe_file_src *)src;
 
@@ -226,7 +226,7 @@ int mpipe_file_src_init(struct mpipe_file_src *fsrc, uint8_t id)
 	self->object.get_property = mpipe_file_src_get_property;
 	self->change_state = mpipe_file_src_change_state;
 
-	src->decide_allocation = mpipe_file_src_decide_allocation;
+	src->decide_buffer_pool = mpipe_file_src_decide_buffer_pool;
 	src->pool = &fsrc->pool;
 
 	mpipe_buffer_pool_init(&fsrc->pool);

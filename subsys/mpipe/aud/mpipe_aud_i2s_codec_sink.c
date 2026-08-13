@@ -71,14 +71,14 @@ static int mpipe_aud_i2s_codec_sink_enum_caps(struct mpipe_pad *pad, uint32_t in
 }
 
 /*
- * Buffer count is settled through the allocation query rather than caps. The
+ * Buffer count is settled through the buffer pool query rather than caps. The
  * I2S driver primes its transmit queue before the START trigger, holding that
  * many buffers from the shared pool before any are transmitted and returned,
  * so make sure the upstream pool can satisfy it, otherwise the source starves
  * before the sink ever starts.
  */
-static int mpipe_aud_i2s_codec_sink_propose_allocation(struct mpipe_sink *sink,
-						       struct mpipe_dispatch *query)
+static int mpipe_aud_i2s_codec_sink_propose_buffer_pool(struct mpipe_sink *sink,
+							struct mpipe_dispatch *query)
 {
 	struct mpipe_aud_i2s_codec_sink *aud = (struct mpipe_aud_i2s_codec_sink *)sink;
 	struct mpipe_buffer_pool_config cfg = {0};
@@ -330,7 +330,7 @@ int mpipe_aud_i2s_codec_sink_init(struct mpipe_aud_i2s_codec_sink *aud_i2s_codec
 
 	sink->sink_pad.chain_fn = mpipe_aud_i2s_codec_sink_chain_fn;
 	sink->set_caps = mpipe_aud_i2s_codec_sink_set_caps;
-	sink->propose_allocation = mpipe_aud_i2s_codec_sink_propose_allocation;
+	sink->propose_buffer_pool = mpipe_aud_i2s_codec_sink_propose_buffer_pool;
 
 	mpipe_aud_i2s_codec_sink_update_caps(sink);
 

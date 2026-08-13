@@ -120,7 +120,7 @@ int mpipe_buffer_pool_configure(struct mpipe_buffer_pool *pool, struct mpipe_str
 /**
  * @brief Apply a negotiated config to a buffer pool
  *
- * This is the only way a config negotiated through an allocation query may
+ * This is the only way a config negotiated through an buffer pool query may
  * reach a pool: the caller hands the value over and the pool's owner
  * validates it. An element must never write @ref mpipe_buffer_pool::config
  * fields of a pool it does not own.

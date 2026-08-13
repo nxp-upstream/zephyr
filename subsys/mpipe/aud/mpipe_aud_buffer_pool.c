@@ -54,8 +54,8 @@ static int mpipe_aud_buffer_pool_config(struct mpipe_buffer_pool *pool,
 	}
 
 	/*
-	 * The buffer count was negotiated through the allocation query and left
-	 * in pool->config.min_buffers by mpipe_aud_src_decide_allocation().
+	 * The buffer count was negotiated through the buffer pool query and left
+	 * in pool->config.min_buffers by mpipe_aud_src_decide_buffer_pool().
 	 *
 	 * TEMPORARY WORKAROUND: Adding 2 extra buffers beyond the negotiated count
 	 * because the current buffer management system requires additional buffers.

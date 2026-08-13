@@ -99,11 +99,11 @@ void mpipe_aud_src_update_caps(struct mpipe_src *src)
 
 /*
  * Buffer count is not a media capability, so it is settled through the
- * allocation query instead of caps: the pool is floored at what the source
+ * buffer pool query instead of caps: the pool is floored at what the source
  * device needs to keep streaming and raised to what downstream must hold in
  * flight, whichever is larger.
  */
-static int mpipe_aud_src_decide_allocation(struct mpipe_src *src, struct mpipe_dispatch *query)
+static int mpipe_aud_src_decide_buffer_pool(struct mpipe_src *src, struct mpipe_dispatch *query)
 {
 	struct mpipe_aud_src *aud_src = (struct mpipe_aud_src *)src;
 	struct mpipe_aud_buffer_pool *pool =
@@ -144,7 +144,7 @@ int mpipe_aud_src_init(struct mpipe_aud_src *aud_src, uint8_t id)
 	self->object.get_property = mpipe_aud_src_get_property;
 	self->object.set_property = mpipe_aud_src_set_property;
 
-	aud_src->src.decide_allocation = mpipe_aud_src_decide_allocation;
+	aud_src->src.decide_buffer_pool = mpipe_aud_src_decide_buffer_pool;
 
 	aud_src->get_audio_caps = NULL;
 

@@ -63,7 +63,7 @@ static int mpipe_tee_sink_query_fn(struct mpipe_pad *pad, struct mpipe_dispatch 
 
 		return 0;
 	}
-	case MPIPE_DISPATCH_BUFFER_CONFIG: {
+	case MPIPE_DISPATCH_BUFFER_POOL: {
 		struct mpipe_buffer_pool_config merged = {0};
 
 		for (uint8_t i = 0; i < tee->src_pads_num; i++) {

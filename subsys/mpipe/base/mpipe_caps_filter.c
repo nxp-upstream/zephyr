@@ -54,7 +54,7 @@ static int mpipe_caps_filter_set_caps(struct mpipe_transform *transform,
 	/*
 	 * After caps negotiation, caps_filter is removed from the pipeline for two reasons:
 	 *  - Gain some small overhead during buffer flow
-	 *  - More importantly, allow allocation negotiation can take place between the
+	 *  - More importantly, allow buffer pool negotiation to take place between the
 	 *    elements before and after the caps_filter.
 	 *
 	 * The bypassed peers are saved so the caps_filter can re-insert itself into the graph

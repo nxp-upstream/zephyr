@@ -103,7 +103,7 @@ struct mpipe_transform {
 			      struct mpipe_structure *out);
 
 	/**
-	 * @brief Propose allocation parameters to upstream
+	 * @brief Propose a buffer pool to upstream
 	 *
 	 * The transform element may propose either its entire input buffer pool
 	 * (set the query's pool pointer; the pool's own config is the proposal)
@@ -122,9 +122,9 @@ struct mpipe_transform {
 	 * @param query Allocation query (@ref mpipe_dispatch)
 	 * @return 0 on success, negative errno on failure
 	 */
-	int (*propose_allocation)(struct mpipe_transform *self, struct mpipe_dispatch *query);
+	int (*propose_buffer_pool)(struct mpipe_transform *self, struct mpipe_dispatch *query);
 	/**
-	 * @brief Decide allocation parameters for downstream
+	 * @brief Decide the buffer pool for downstream
 	 *
 	 * The downstream proposal is either an entire pool (the query's pool
 	 * pointer; its config is the proposal) or a bare config (the query's
@@ -138,7 +138,7 @@ struct mpipe_transform {
 	 * @param query Allocation query (@ref mpipe_dispatch)
 	 * @return 0 on success, negative errno on failure
 	 */
-	int (*decide_allocation)(struct mpipe_transform *self, struct mpipe_dispatch *query);
+	int (*decide_buffer_pool)(struct mpipe_transform *self, struct mpipe_dispatch *query);
 };
 
 /**

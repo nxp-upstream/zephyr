@@ -168,16 +168,16 @@ static int mpipe_vid_transform_get_property(struct mpipe_object *obj, uint32_t k
 	return mpipe_vid_object_get_property(&vid_transform->vid_obj_in, key, val);
 }
 
-static int mpipe_vid_transform_decide_allocation(struct mpipe_transform *self,
-						 struct mpipe_dispatch *query)
+static int mpipe_vid_transform_decide_buffer_pool(struct mpipe_transform *self,
+						  struct mpipe_dispatch *query)
 {
 	struct mpipe_vid_transform *vid_transform = (struct mpipe_vid_transform *)self;
 
-	return mpipe_vid_object_decide_allocation(&vid_transform->vid_obj_out, query);
+	return mpipe_vid_object_decide_buffer_pool(&vid_transform->vid_obj_out, query);
 }
 
-static int mpipe_vid_transform_propose_allocation(struct mpipe_transform *self,
-						  struct mpipe_dispatch *query)
+static int mpipe_vid_transform_propose_buffer_pool(struct mpipe_transform *self,
+						   struct mpipe_dispatch *query)
 {
 	struct mpipe_vid_transform *vid_transform = (struct mpipe_vid_transform *)self;
 	struct mpipe_vid_object *vid_obj = &vid_transform->vid_obj_in;
@@ -188,7 +188,7 @@ static int mpipe_vid_transform_propose_allocation(struct mpipe_transform *self,
 	 * so rebuild the baseline from the device caps cached at probe time (do
 	 * not probe again here: it pokes the hardware) before proposing. The
 	 * size is left alone - the owner derives it from the negotiated format,
-	 * which precedes the allocation query.
+	 * which precedes the buffer pool query.
 	 */
 	pool_config->min_buffers = vid_obj->bounds.vcaps.min_vbuf_count;
 	pool_config->align = vid_obj->bounds.vcaps.buf_align;
@@ -247,8 +247,8 @@ int mpipe_vid_transform_init(struct mpipe_vid_transform *vid_transform, uint8_t 
 	transform->set_caps = mpipe_vid_transform_set_caps;
 	transform->transform_caps = mpipe_vid_transform_transform_caps;
 	transform->sink_pad.chain_fn = mpipe_vid_transform_chain_fn;
-	transform->decide_allocation = mpipe_vid_transform_decide_allocation;
-	transform->propose_allocation = mpipe_vid_transform_propose_allocation;
+	transform->decide_buffer_pool = mpipe_vid_transform_decide_buffer_pool;
+	transform->propose_buffer_pool = mpipe_vid_transform_propose_buffer_pool;
 
 	return 0;
 }

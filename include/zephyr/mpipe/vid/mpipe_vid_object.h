@@ -177,19 +177,19 @@ int mpipe_vid_object_get_property(struct mpipe_vid_object *vid_obj, uint32_t key
 int mpipe_vid_object_set_caps(struct mpipe_vid_object *vid_obj, const struct mpipe_structure *caps);
 
 /**
- * @brief Decide buffer allocation parameters.
+ * @brief Decide the buffer pool for the downstream peer.
  *
- * Negotiates buffer allocation between the video object's own pool and
- * the requirements carried by @p query. The video object always uses
- * its own pool and only negotiates configuration parameters.
+ * Reconciles the video object's own pool with the requirements @p query
+ * carries. The video object always draws from its own pool and only
+ * negotiates the configuration.
  *
  * @param vid_obj Pointer to the @ref mpipe_vid_object.
- * @param query    Pointer to @ref mpipe_dispatch containing allocation requirements.
+ * @param query    Pointer to the buffer pool @ref mpipe_dispatch.
  *
  * @return 0 on success or a negative errno code on failure.
  */
-int mpipe_vid_object_decide_allocation(struct mpipe_vid_object *vid_obj,
-				       struct mpipe_dispatch *query);
+int mpipe_vid_object_decide_buffer_pool(struct mpipe_vid_object *vid_obj,
+					struct mpipe_dispatch *query);
 
 /** @} */
 

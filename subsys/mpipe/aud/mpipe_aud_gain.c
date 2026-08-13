@@ -313,10 +313,10 @@ static int mpipe_aud_gain_set_caps(struct mpipe_transform *transform,
 /*
  * The gain is in-place, so the buffer flows through unchanged and downstream's
  * buffering requirement is remembered here to be handed to upstream when it
- * proposes its own allocation.
+ * proposes its own buffer pool config.
  */
-static int mpipe_aud_gain_decide_allocation(struct mpipe_transform *self,
-					    struct mpipe_dispatch *query)
+static int mpipe_aud_gain_decide_buffer_pool(struct mpipe_transform *self,
+					     struct mpipe_dispatch *query)
 {
 	struct mpipe_aud_gain *aud_gain = (struct mpipe_aud_gain *)self;
 	struct mpipe_buffer_pool *query_pool = query->pool;
@@ -330,8 +330,8 @@ static int mpipe_aud_gain_decide_allocation(struct mpipe_transform *self,
 	return 0;
 }
 
-static int mpipe_aud_gain_propose_allocation(struct mpipe_transform *self,
-					     struct mpipe_dispatch *query)
+static int mpipe_aud_gain_propose_buffer_pool(struct mpipe_transform *self,
+					      struct mpipe_dispatch *query)
 {
 	struct mpipe_aud_gain *aud_gain = (struct mpipe_aud_gain *)self;
 
@@ -365,8 +365,8 @@ int mpipe_aud_gain_init(struct mpipe_aud_gain *aud_gain, uint8_t id)
 	transform->mode = MPIPE_MODE_INPLACE;
 	transform->sink_pad.chain_fn = mpipe_aud_gain_chain_fn;
 	transform->set_caps = mpipe_aud_gain_set_caps;
-	transform->decide_allocation = mpipe_aud_gain_decide_allocation;
-	transform->propose_allocation = mpipe_aud_gain_propose_allocation;
+	transform->decide_buffer_pool = mpipe_aud_gain_decide_buffer_pool;
+	transform->propose_buffer_pool = mpipe_aud_gain_propose_buffer_pool;
 
 	transform->sink_pad.enum_caps_fn = mpipe_aud_gain_enum_caps;
 	transform->src_pad.enum_caps_fn = mpipe_aud_gain_enum_caps;

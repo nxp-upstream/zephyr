@@ -66,8 +66,8 @@ NET_BUF_POOL_FIXED_DEFINE(mpipe_img_jpeg_parser_pool, CONFIG_MPIPE_IMG_JPEG_PARS
 #define JPEG_EOI_BYTE0 0xFFU
 #define JPEG_EOI_BYTE1 0xD9U
 
-static int mpipe_img_jpeg_parser_decide_allocation(struct mpipe_parser *parser,
-						   struct mpipe_dispatch *query)
+static int mpipe_img_jpeg_parser_decide_buffer_pool(struct mpipe_parser *parser,
+						    struct mpipe_dispatch *query)
 {
 	struct mpipe_img_jpeg_parser *jpeg_parser = (struct mpipe_img_jpeg_parser *)parser;
 	struct mpipe_buffer_pool *query_pool = query->pool;
@@ -427,7 +427,7 @@ int mpipe_img_jpeg_parser_init(struct mpipe_img_jpeg_parser *jpeg_parser, uint8_
 	parser->src_pad.enum_caps_fn = mpipe_img_jpeg_parser_enum_caps;
 
 	parser->sink_pad.chain_fn = mpipe_img_jpeg_parser_chain_fn;
-	parser->decide_allocation = mpipe_img_jpeg_parser_decide_allocation;
+	parser->decide_buffer_pool = mpipe_img_jpeg_parser_decide_buffer_pool;
 
 	if (CONFIG_MPIPE_IMG_JPEG_PARSER_MAX_FRAME_SIZE > 0) {
 		mpipe_buffer_pool_init(&jpeg_parser->out_pool);

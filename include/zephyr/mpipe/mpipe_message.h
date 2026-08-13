@@ -68,7 +68,7 @@ enum mpipe_error_domain {
 	/** Capability negotiation: the formats would not intersect; try another config */
 	MPIPE_ERROR_CAPS,
 	/** Buffer negotiation: a pool would not configure or start; reduce counts or sizes */
-	MPIPE_ERROR_ALLOC,
+	MPIPE_ERROR_BUFFER_POOL,
 	/** Buffer flow: a chain, acquire or push failed while streaming; stop or restart */
 	MPIPE_ERROR_FLOW,
 	/** A device, file or driver refused; check the media or the hardware */

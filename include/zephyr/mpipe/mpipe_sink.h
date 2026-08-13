@@ -58,12 +58,12 @@ struct mpipe_sink {
 	 */
 	int (*set_caps)(struct mpipe_sink *sink, const struct mpipe_structure *caps);
 	/**
-	 * @brief Propose allocation strategy to the upstream peer
+	 * @brief Propose a buffer pool to the upstream peer
 	 * @param self Pointer to the sink element
 	 * @param query Allocation query to process
 	 * @return 0 on success, negative errno on failure
 	 */
-	int (*propose_allocation)(struct mpipe_sink *self, struct mpipe_dispatch *query);
+	int (*propose_buffer_pool)(struct mpipe_sink *self, struct mpipe_dispatch *query);
 };
 
 /**
