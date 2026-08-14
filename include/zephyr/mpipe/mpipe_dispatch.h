@@ -90,6 +90,11 @@ struct mpipe_dispatch {
 	 * | ANY | no constraint: answer with all you support | never send one |
 	 * | NULL | caller error: nowhere to answer | nothing to announce |
 	 *
+	 * A query function may dereference this without checking: a caps query
+	 * carrying no storage is refused by mpipe_pad_query() with -EINVAL
+	 * before any of them is called. An event handler must check, since NULL
+	 * is a valid thing for an event to carry.
+	 *
 	 * A caps event carrying none is a trigger rather than an
 	 * announcement: a source that knows no format (a file source) still
 	 * sends one, and the first element that does know one puts it in and

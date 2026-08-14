@@ -162,14 +162,22 @@ int mpipe_pad_query(struct mpipe_pad *pad, struct mpipe_dispatch *query)
 		return -ENOTSUP;
 	}
 
+	/*
+	 * A caps query is answered into the storage it carries, so a query
+	 * function is entitled to dereference it. Refuse one that carries none
+	 * here, before any of them sees it.
+	 */
+	if (query->type == MPIPE_DISPATCH_CAPS && query->caps == NULL) {
+		return -EINVAL;
+	}
+
 	ret = pad->query_fn(pad, query);
 	if (ret != 0) {
 		return ret;
 	}
 
-	/* Caps query is considered successful only if the query's caps is valid */
-	if (query->type == MPIPE_DISPATCH_CAPS &&
-	    (query->caps == NULL || mpipe_structure_is_empty(query->caps))) {
+	/* Caps query is considered successful only if the answer is not empty */
+	if (query->type == MPIPE_DISPATCH_CAPS && mpipe_structure_is_empty(query->caps)) {
 		return -ENODATA;
 	}
 

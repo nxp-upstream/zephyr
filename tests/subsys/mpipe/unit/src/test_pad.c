@@ -82,6 +82,49 @@ ZTEST_F(mpipe_pad_api, test_sanity)
 	zassert_true(mpipe_pad_query(&fixture->src_pad, &q) < 0, "query(no query_fn) did not fail");
 }
 
+static bool caps_query_fn_ran;
+
+/* Answers a caps query the way a real one does, by writing into the storage it
+ * carries. Dereferences it unguarded, which is what the refusal below protects.
+ */
+static int fake_caps_query_fn(struct mpipe_pad *pad, struct mpipe_dispatch *query)
+{
+	struct mpipe_value bitwidth = {.type = MPIPE_TYPE_UINT, .v_uint = 16U};
+
+	ARG_UNUSED(pad);
+
+	caps_query_fn_ran = true;
+
+	if (mpipe_structure_init(query->caps, MPIPE_MEDIA_AUDIO_PCM) != 0) {
+		return -EINVAL;
+	}
+
+	return mpipe_structure_append_value(query->caps, MPIPE_CAPS_BITWIDTH, &bitwidth);
+}
+
+ZTEST_F(mpipe_pad_api, test_caps_query_needs_storage_to_answer)
+{
+	struct mpipe_dispatch query = {.type = MPIPE_DISPATCH_CAPS, .caps = NULL};
+	struct mpipe_structure caps;
+
+	caps_query_fn_ran = false;
+	fixture->src_pad.query_fn = fake_caps_query_fn;
+
+	/* A caps query is answered into the storage it carries, so one that
+	 * carries none is refused before the query function can dereference it.
+	 */
+	zassert_equal(mpipe_pad_query(&fixture->src_pad, &query), -EINVAL,
+		      "caps query with no storage != -EINVAL");
+	zassert_false(caps_query_fn_ran, "query function ran on a caps query with no storage");
+
+	/* The same query, given storage, reaches the query function */
+	query.caps = &caps;
+	zassert_ok(mpipe_pad_query(&fixture->src_pad, &query), "caps query with storage failed");
+	zassert_true(caps_query_fn_ran, "query function did not run");
+	zassert_equal(mpipe_value_get_uint(mpipe_structure_get_value(&caps, MPIPE_CAPS_BITWIDTH)),
+		      16U, "the answer did not reach the caller's storage");
+}
+
 /* Reports two capabilities, distinguished by their bit width */
 static int fake_enum_caps(struct mpipe_pad *pad, uint32_t index,
 			  const struct mpipe_structure *filter, struct mpipe_structure *out)

@@ -262,10 +262,20 @@ int mpipe_pad_send_event_default(struct mpipe_pad *pad, struct mpipe_dispatch *e
  *
  * Sends a query to the pad using the pad's query function.
  *
- * @param pad Pointer to the @ref mpipe_pad to send query to
- * @param query Pointer to the @ref mpipe_dispatch to send
+ * A caps query is answered into the storage it carries, so one that carries
+ * none is refused before the pad's query function is called. That is what lets
+ * a query function dereference @ref mpipe_dispatch::caps without checking it.
  *
- * @return 0 on success, negative errno on failure
+ * @param pad Pointer to the @ref mpipe_pad to send query to, must not be NULL
+ * @param query Pointer to the @ref mpipe_dispatch to send, must not be NULL.
+ *              A caps query must carry the capability storage to answer into.
+ *
+ * @retval 0 on success
+ * @retval -EINVAL @p pad or @p query is NULL, or a caps query carries no
+ *                 capability storage to answer into
+ * @retval -ENOTSUP the pad has no query function
+ * @retval -ENODATA a caps query was answered with an empty capability
+ * @return Any negative errno the pad's query function returns
  */
 int mpipe_pad_query(struct mpipe_pad *pad, struct mpipe_dispatch *query);
 
