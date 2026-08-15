@@ -1,16 +1,17 @@
 .. zephyr:code-sample:: camera-display-sample
    :name: camera-display pipeline
+   :relevant-api: mpipe_vid mpipe_disp mpipe_base
 
-        A video pipeline built with the Multimedia Pipeline subsystem to capture camera frames,
-        apply optional processing (e.g. rotation), and display them on a screen.
+   Capture camera frames, apply optional processing such as rotation, and
+   display them on a screen.
 
-Description
-***********
+Overview
+********
 
 This sample replaces and extends the basic :zephyr:code-sample:`video-capture` sample
 (``samples/drivers/video/capture``) by rebuilding the same camera-to-display workflow
 on top of the Multimedia Pipeline framework.  The pipeline approach makes it easy to insert
-additional processing stages (format conversion, rotation, scaling …) without
+additional processing stages (format conversion, rotation, scaling ...) without
 modifying the application logic.
 
 .. graphviz::
@@ -27,12 +28,12 @@ modifying the application logic.
 
 The pipeline consists of up to four elements:
 
-- **Camera source** – generates video frames from a hardware capture device.
-- **Caps filter** *(optional)* – enforces a specific video format, resolution, and/or
+- **Camera source** - generates video frames from a hardware capture device.
+- **Caps filter** *(optional)* - enforces a specific video format, resolution, and/or
   frame rate.  Without it the pipeline still works but uses the default negotiated
   format.
-- **Video transform** *(optional)* – applies processing such as 90° rotation.
-- **Display sink** – renders the resulting frames on a display panel.
+- **Video transform** *(optional)* - applies processing such as 90° rotation.
+- **Display sink** - renders the resulting frames on a display panel.
 
 Requirements
 ************

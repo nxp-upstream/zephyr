@@ -1,15 +1,17 @@
 .. zephyr:code-sample:: dmic-i2s
    :name: dmic-i2s pipeline
+   :relevant-api: mpipe_aud mpipe_base
 
-      Build an audio pipeline that captures audio frames and applies gain control before playing them back.
+   Capture audio from a digital microphone, apply gain control, and play it back
+   through an I2S codec.
 
-Description
-***********
+Overview
+********
 
-This sample replaces and extends the basic :zephyr:code-sample:`i2s-codec` sample
+This sample replaces and extends the basic :zephyr:code-sample:`i2s_codec` sample
 (``samples/drivers/i2s/i2s_codec``) by rebuilding the same dmic-to-i2s workflow
 on top of the Multimedia Pipeline framework.  The pipeline approach makes it easy to insert
-additional processing stages (gain, filtering …) without modifying the application logic.
+additional processing stages (gain, filtering ...) without modifying the application logic.
 
 .. graphviz::
 
@@ -27,9 +29,9 @@ This pipeline consists of up to four elements:
 
 - **DMIC source** - captures audio frames.
 - **Caps filter** *(optional)* - enforces a specific audio frame interval.
-Without it the pipeline still works but uses the default negotiated format.
-- **Gain transform** *(optional)* – applies audio processing such as volume control.
-- **I2S codec sink** – renders the resulting audio frames through an I2S codec to a speaker.
+  Without it the pipeline still works but uses the default negotiated format.
+- **Gain transform** *(optional)* - applies audio processing such as volume control.
+- **I2S codec sink** - renders the resulting audio frames through an I2S codec to a speaker.
 
 The sample showcases:
 
@@ -56,7 +58,7 @@ This sample has been tested on mimxrt685_evk/mimxrt685s/cm33
 Building and Running
 ********************
 
-This sample can be found under :zephyr_file:`samples/subsys/mpipe/dmic_i2s/main.c`.
+This sample can be found under :zephyr_file:`samples/subsys/mpipe/dmic_i2s/src/main.c`.
 
 For :zephyr:board:`mimxrt685_evk`, build this sample application with the following commands:
 

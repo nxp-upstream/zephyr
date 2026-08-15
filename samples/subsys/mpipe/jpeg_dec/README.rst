@@ -1,8 +1,12 @@
 .. zephyr:code-sample:: mpipe-jpeg-decode
    :name: MJPEG file decode pipeline
+   :relevant-api: mpipe_img mpipe_fs mpipe_disp mpipe_base
 
-Description
-***********
+   Decode Motion-JPEG from a file and display the frames, using a hardware
+   decoder where the board has one and a software decoder otherwise.
+
+Overview
+********
 
 This sample demonstrates decoding Motion-JPEG (MJPEG) from a file and displaying the decoded frames
 using the Multimedia Pipeline subsystem.
@@ -64,7 +68,7 @@ Elements
 - ``mpipe_caps_filter`` constrains the JPEG format (width/height from Kconfig:
   :kconfig:option:`CONFIG_JPEG_IMAGE_WIDTH`, :kconfig:option:`CONFIG_JPEG_IMAGE_HEIGHT`).
 - ``mpipe_img_jpeg_decoder`` (SW) or ``mpipe_vid_transform`` (HW) decodes JPEG frames.
-- ``mpipe_vid_convert`` performs pixel-format conversion (NV12 → RGB565) when using HW decode.
+- ``mpipe_vid_convert`` performs pixel-format conversion (NV12 -> RGB565) when using HW decode.
 - ``mpipe_disp_sink`` renders decoded frames to the display.
 
 Notes
@@ -93,7 +97,7 @@ on the filesystem; if not, it writes the embedded data automatically. No manual
 file preparation is required.
 
 Requirements
-============
+************
 
 The build host must have GStreamer installed (specifically the ``gst-launch-1.0``
 tool and the ``good`` plugins which include ``videotestsrc`` and ``jpegenc``).

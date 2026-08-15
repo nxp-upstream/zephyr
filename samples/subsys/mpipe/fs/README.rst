@@ -1,5 +1,9 @@
 .. zephyr:code-sample:: mpipe-fs
    :name: Multimedia Pipeline filesystem sample
+   :relevant-api: mpipe_fs
+
+   Copy a file through a two-element Multimedia Pipeline, the smallest pipeline
+   there is.
 
 Overview
 ********
