@@ -188,13 +188,8 @@ static int mpipe_img_jpeg_decoder_chain_fn(struct mpipe_pad *pad, struct net_buf
 				net_buf_unref(*out_buf);
 				*out_buf = NULL;
 			}
-			/* The remaining fragments were detached, free them explicitly */
-			while (next != NULL) {
-				struct net_buf *tmp = next->frags;
-
-				next->frags = NULL;
+			if (next != NULL) {
 				net_buf_unref(next);
-				next = tmp;
 			}
 			return -EIO;
 		}
