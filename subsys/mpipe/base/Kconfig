@@ -7,7 +7,13 @@
 config MPIPE_BASE
 	bool "Base optional elements (e.g. caps_filter, queue, tee. etc.)"
 	help
-	  Enable the base elements plugin.
+	  Media-agnostic elements that shape a graph rather than its data: a caps
+	  filter that constrains what a link may carry, a tee that splits a graph
+	  into branches, and a queue that splits it across threads.
+
+	  They never look at what a buffer contains, so they belong to no media
+	  domain. Every domain needs them, which is why they live together here
+	  rather than being duplicated per plugin.
 
 if MPIPE_BASE
 
@@ -46,5 +52,12 @@ config MPIPE_BASE_TEE_MAX_SRC_PADS_NUM
 	range 2 8
 	default 2
 	depends on MPIPE_BASE_TEE
+	help
+	  Number of output branches a tee element provides. The pads are part of
+	  the element, so this is reserved whether or not every branch is linked;
+	  a branch left unlinked is simply skipped.
+
+	  Note that every branch must accept a format the single input can
+	  supply, since one negotiation has to satisfy them all.
 
 endif # MPIPE_BASE

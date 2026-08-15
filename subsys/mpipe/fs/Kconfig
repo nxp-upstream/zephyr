@@ -4,6 +4,14 @@
 config MPIPE_FS
 	bool "Filesystem plugin support"
 	depends on FILE_SYSTEM
+	help
+	  A source that reads a file in fixed-size blocks and a sink that writes
+	  whatever reaches it, on any mounted Zephyr file system.
+
+	  Neither knows what it is carrying: a file is a stream of bytes with no
+	  format attached, so the source announces no capability of its own and
+	  whatever follows it - typically a parser - works the format out. That
+	  makes these the usual way to drive a graph without hardware.
 
 if MPIPE_FS
 

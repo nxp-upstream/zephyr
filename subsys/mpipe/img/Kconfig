@@ -3,6 +3,15 @@
 
 config MPIPE_IMG
 	bool "Image codec plugin support"
+	help
+	  Elements that turn a coded image stream into frames and decode them: a
+	  JPEG parser that finds frame boundaries in undifferentiated bytes, and
+	  a software JPEG decoder that produces raw pixels.
+
+	  The two are separate because the split is real. The parser is what
+	  first knows the format, and it can be followed either by the software
+	  decoder here or by a hardware decoder from the video plugin, without
+	  either side knowing which.
 
 if MPIPE_IMG
 
@@ -27,6 +36,13 @@ config MPIPE_IMG_JPEG_DECODER_POOL_NUM
 	int "Number of buffers in the jpeg decoder's output pool"
 	range 1 255
 	default 1
+	help
+	  Number of buffers in the decoder's internal output pool, used when
+	  downstream proposes no pool of its own.
+
+	  One is enough where the element downstream consumes each frame before
+	  the next arrives, which is the case for a display sink. Raise it when
+	  downstream holds frames past the chain call.
 
 config MPIPE_IMG_JPEG_DECODER_MAX_OUT_FRAME_SIZE
 	int "Maximum decoded output frame size in bytes"
