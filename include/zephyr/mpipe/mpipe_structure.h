@@ -6,7 +6,8 @@
 
 /**
  * @file
- * @brief Structure header file.
+ * @brief Structure: one media capability, held by value.
+ * @ingroup mpipe_structure
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_MPIPE_STRUCTURE_H_
@@ -270,7 +271,7 @@ bool mpipe_structure_is_any(const struct mpipe_structure *structure);
 /**
  * @brief Check whether an @ref mpipe_structure matches nothing.
  *
- * The counterpart of @ref mpipe_structure_is_any: a structure that constrains
+ * The counterpart of @ref mpipe_structure_is_any - a structure that constrains
  * nothing because it holds no field intersects with nothing, where an ANY one
  * intersects with everything.
  *
@@ -389,18 +390,17 @@ int mpipe_structure_remove_field(struct mpipe_structure *structure, uint8_t fiel
  * through unchanged, which can leave the result holding more fields than
  * either input. Intersecting an ANY structure yields a copy of the other one.
  *
+ * @p out is written field by field, so it must not be one of the inputs.
+ *
  * @param struct1 Pointer to the first structure.
  * @param struct2 Pointer to the second structure.
- * @param out Pointer to storage for the result, left untouched on -EINVAL
- *            and cleared on any other failure.
+ * @param[out] out Pointer to storage for the result, left untouched on -EINVAL
+ *             and cleared on any other failure.
  *
  * @retval 0 on success
  * @retval -ENOENT if the structures share no field, or a shared field has no
  *         common value
- * @p out is written field by field, so it must not be one of the inputs.
- *
- * @retval -EINVAL if @p out aliases an input, or the media
- *         types differ
+ * @retval -EINVAL if @p out aliases an input, or the media types differ
  * @retval -ENOSPC if the union does not fit CONFIG_MPIPE_STRUCTURE_MAX_FIELDS
  */
 int mpipe_structure_intersect(const struct mpipe_structure *struct1,

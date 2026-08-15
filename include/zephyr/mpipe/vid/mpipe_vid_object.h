@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Video object shared by vid source and transform elements.
+ * @ingroup mpipe_vid_objects
  *
  * Provides common video device interaction (capabilities, format negotiation,
  * buffer pool management) used by @ref mpipe_vid_src and @ref mpipe_vid_transform.

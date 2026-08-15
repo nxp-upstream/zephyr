@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Queries and events exchanged between elements
+ * @ingroup mpipe_dispatch
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_MPIPE_DISPATCH_H_
@@ -37,7 +38,7 @@
  * | Type | As a query | As an event |
  * | :--- | :--- | :--- |
  * | CAPS | what do you accept, given this filter? | this is the format, apply it |
- * | BUFFER_CONFIG | what buffers do you need? | - |
+ * | BUFFER_POOL | what buffers do you need? | - |
  * | EOS | - | the stream is over |
  * @{
  */

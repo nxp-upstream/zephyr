@@ -6,15 +6,15 @@
 
 /**
  * @file
- * @brief Main header for mpipe_transform_client.
+ * @brief Transform client: a transform whose work runs on another core.
+ * @ingroup mpipe_transform
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_MPIPE_TRANSFORM_CLIENT_H_
 #define ZEPHYR_INCLUDE_MPIPE_MPIPE_TRANSFORM_CLIENT_H_
 
 /**
- * @ingroup mpipe_transform
- * @brief Client-side transform elements that offload processing over RPC.
+ * @addtogroup mpipe_transform
  * @{
  */
 
@@ -50,13 +50,20 @@ struct mpipe_transform_client {
 };
 
 /**
- * @brief Initialize a transform element
+ * @brief Initialize a transform client element
  *
- * This function initializes the base transform element structure,
- * sets up sink and source pads, and configures default function
- * pointers for element operations.
+ * Initializes the base transform element and installs the chain function that
+ * forwards a buffer over the transport instead of processing it locally.
  *
- * @param self Pointer to the element to initialize (@ref mpipe_element)
+ * @c init_rpc must already be set when this is called: it runs before the base
+ * element is initialized, so a transport that cannot come up is reported
+ * through the return value and nothing is left half-built.
+ *
+ * @param transform_client Pointer to the @ref mpipe_transform_client to
+ *                         initialize.
+ * @param id               Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
 int mpipe_transform_client_init(struct mpipe_transform_client *transform_client, uint8_t id);
 

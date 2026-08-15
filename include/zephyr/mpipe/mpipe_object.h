@@ -6,7 +6,8 @@
 
 /**
  * @file
- * @brief Main header for mpipe_object.
+ * @brief Object: the base that every mpipe type embeds.
+ * @ingroup mpipe_object
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_MPIPE_OBJECT_H_
@@ -14,8 +15,26 @@
 
 /**
  * @defgroup mpipe_object Objects
- * @brief Base object APIs.
  * @ingroup mpipe_framework
+ * @brief The common base that gives every type an identity and properties.
+ *
+ * Every mpipe type embeds an @ref mpipe_object as its first member, which is
+ * what makes upcasting a plain C cast. The base carries what the framework
+ * needs of anything it holds: an id, a pointer to the container that holds it,
+ * a list node so a container can keep its children on one list, and a flag
+ * field a walker reads to decide whether it may descend.
+ *
+ * It also carries the property callbacks. Properties are how an element is
+ * configured without the caller knowing its concrete type - a file path, a
+ * device, a queue depth - and they are reached through
+ * @ref mpipe_object_set_properties and @ref mpipe_object_get_properties rather
+ * than by calling the callbacks directly.
+ *
+ * A property is not a capability. A property configures one element and
+ * nothing else has to agree on it; a capability describes the data crossing a
+ * link, so both ends must agree before anything can flow. See
+ * @ref mpipe_structure.
+ *
  * @{
  */
 
@@ -86,6 +105,10 @@ void mpipe_object_init(struct mpipe_object *obj);
  * @param ... A variable list of {uint32_t key, const void *val} pairs, terminated by
  * MPIPE_PROP_LIST_END.
  *
+ * @retval 0 on success
+ * @retval -ENOTSUP if the object exposes no property setter
+ * @retval -errno the first failing setter's error, leaving the remaining pairs
+ *         unapplied
  */
 int mpipe_object_set_properties(struct mpipe_object *obj, ...);
 
@@ -105,6 +128,10 @@ int mpipe_object_set_properties(struct mpipe_object *obj, ...);
  * @param obj Pointer to a @ref mpipe_object.
  * @param ... A variable list of {uint32_t key, void *val} pairs, terminated by MPIPE_PROP_LIST_END.
  *
+ * @retval 0 on success
+ * @retval -ENOTSUP if the object exposes no property getter
+ * @retval -errno the first failing getter's error, leaving the remaining pairs
+ *         unread
  */
 int mpipe_object_get_properties(struct mpipe_object *obj, ...);
 

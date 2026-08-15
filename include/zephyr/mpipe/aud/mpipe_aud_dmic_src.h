@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Audio DMIC source element header file.
+ * @ingroup mpipe_aud_dmic_sources
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_AUD_MPIPE_AUD_DMIC_SRC_H_
@@ -44,8 +45,10 @@ struct mpipe_aud_dmic_src {
  * with default values, sets up the function pointers and
  * configures the buffer pool.
  *
- * @param self Pointer to the mpipe_element structure to be initialized as a
- *             DMIC source element.
+ * @param aud_dmic_src Pointer to the element to initialize.
+ * @param id Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
 int mpipe_aud_dmic_src_init(struct mpipe_aud_dmic_src *aud_dmic_src, uint8_t id);
 

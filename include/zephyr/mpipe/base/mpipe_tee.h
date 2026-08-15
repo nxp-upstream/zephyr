@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Tee element for pipeline branching.
+ * @ingroup mpipe_tee
  *
  * The tee element splits a single input branch into multiple output branches.
  */
@@ -56,7 +57,10 @@ struct mpipe_tee {
  *
  * Initializes the tee element with one sink pad and two default src_pads.
  *
- * @param self Pointer to the @ref mpipe_element to initialize as a tee
+ * @param tee Pointer to the element to initialize.
+ * @param id Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
 int mpipe_tee_init(struct mpipe_tee *tee, uint8_t id);
 

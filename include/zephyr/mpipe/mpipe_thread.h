@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Simple wrapper of k_thread to reuse a thread's stack after its termination
+ * @ingroup mpipe_thread
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_MPIPE_THREAD_H_
@@ -15,7 +16,19 @@
 /**
  * @defgroup mpipe_thread Threads
  * @ingroup mpipe_framework
- * @brief Thread helpers used by runtime components.
+ * @brief A k_thread whose stack comes from a pool and outlives it.
+ *
+ * A pipeline creates and destroys threads as it starts and stops, and a
+ * @c k_thread stack cannot simply be freed and reallocated on a system with no
+ * heap. This wrapper draws stacks from a fixed pool sized by
+ * @c CONFIG_MPIPE_THREADS_NUM, so a stack is returned when its thread
+ * terminates and reused by the next one.
+ *
+ * Threads are created sleeping and started explicitly, which is what lets a
+ * pipeline build its whole graph before anything runs. @ref mpipe_thread_wait
+ * is the loop's cooperation point: it blocks while paused and reports when a
+ * join has been requested, which is how a source loop learns to exit rather
+ * than being killed underneath itself.
  *
  * @{
  */

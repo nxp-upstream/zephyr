@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Buffer and buffer pool APIs.
+ * @ingroup mpipe_buffer
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_MPIPE_BUFFER_H_
@@ -15,7 +16,35 @@
 /**
  * @defgroup mpipe_buffer Buffers
  * @ingroup mpipe_framework
- * @brief Buffer metadata and buffer-pool APIs.
+ * @brief What carries the data, and who provides it.
+ *
+ * Data travels as Zephyr @c net_buf buffers. mpipe adds an
+ * @ref mpipe_buffer_meta in the buffer's user data - the pool it came from, how
+ * many bytes are valid, a timestamp, and the driver-owned buffer it wraps where
+ * there is one. That last field is what makes the path zero-copy: a frame a
+ * camera wrote reaches the display without being moved.
+ *
+ * Buffers come from an @ref mpipe_buffer_pool, never from a heap. A pool is a
+ * small vtable over some backing store, so a plugin can hand out buffers a
+ * driver already owns rather than copies of them, and the framework drives it
+ * through the helpers rather than calling the hooks directly.
+ *
+ * @section mpipe_buffer_negotiation Settling who provides the buffers
+ *
+ * Once the format is fixed, a query runs through the graph to settle the buffer
+ * configuration - how many, how big, how aligned, and whose pool. It travels
+ * downstream to the sink, and proposals are written on the way back up, so an
+ * element always has its downstream's proposal in hand before it decides.
+ *
+ * A proposal is either an entire pool or a bare config by value. The
+ * distinction matters for ownership: a demand may only reach a pool the
+ * proposing element still owns through @ref mpipe_buffer_pool_set_config, whose
+ * owner is free to clamp or refuse it. Nobody writes another pool's config
+ * fields directly, and whoever starts a pool is who stops it.
+ *
+ * The two configs a pool carries, @c req_config and @c config, are what keep
+ * one run's negotiated demands out of the next; see the fields below.
+ *
  * @{
  */
 
@@ -104,7 +133,16 @@ struct mpipe_buffer_meta {
 	void *priv;
 };
 
-/** Get buffer metadata */
+/**
+ * @brief Get the mpipe metadata carried by a buffer.
+ *
+ * The metadata lives in the buffer's user data area, so the returned pointer is
+ * valid for as long as the buffer is.
+ *
+ * @param buf Buffer to read the metadata of.
+ *
+ * @return Pointer to the buffer's @ref mpipe_buffer_meta.
+ */
 static inline struct mpipe_buffer_meta *mpipe_buffer_get_meta(struct net_buf *buf)
 {
 	return (struct mpipe_buffer_meta *)net_buf_user_data(buf);

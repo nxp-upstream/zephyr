@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Queue element for pipeline-level threading.
+ * @ingroup mpipe_queue
  *
  * The queue element decouples a pipeline into two segments running on two different threads.
  * Upstream deposits buffers into the queue's internal buffer queue; then a dedicated
@@ -34,7 +35,7 @@
  * @brief Queue Property Identifiers
  */
 enum {
-	/** Nmber of buffers the queue can hold */
+	/** Number of buffers the queue can hold */
 	MPIPE_PROP_BASE_QUEUE_SIZE = MPIPE_PROP_TRANSFORM_LAST,
 };
 
@@ -70,7 +71,10 @@ struct mpipe_queue {
 /**
  * @brief Initialize a queue element
  *
- * @param self Pointer to the @ref mpipe_element to initialize as a queue
+ * @param queue Pointer to the element to initialize.
+ * @param id Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
 int mpipe_queue_init(struct mpipe_queue *queue, uint8_t id);
 

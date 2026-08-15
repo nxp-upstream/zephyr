@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Hardware-backed video transform element.
+ * @ingroup mpipe_vid_transforms
  *
  * Wraps a Zephyr memory-to-memory video device to perform
  * hardware-accelerated operations such as format conversion and scaling.
@@ -44,7 +45,10 @@ struct mpipe_vid_transform {
 /**
  * @brief Initialize a hardware video transform element.
  *
- * @param self Pointer to the @ref mpipe_element to initialize.
+ * @param vid_transform Pointer to the element to initialize.
+ * @param id Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
 int mpipe_vid_transform_init(struct mpipe_vid_transform *vid_transform, uint8_t id);
 

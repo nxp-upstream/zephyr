@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Shared P4WQ pool for element-level work parallelism.
+ * @ingroup mpipe_workqueue
  *
  * Provides a shared P4WQ (Pooled Parallel Preemptible Priority-based Work Queue)
  * pool that elements can use to offload and parallelize work items
@@ -52,7 +53,18 @@
 /**
  * @defgroup mpipe_workqueue Workqueues
  * @ingroup mpipe_framework
- * @brief Shared P4WQ pool for element-level work parallelism
+ * @brief Optional offload of an element's work onto shared worker threads.
+ *
+ * By default an element does its work on whichever thread pushed the buffer
+ * into it, so a chain runs end to end on the pipeline thread. An element with
+ * work worth parallelising can instead submit it to this shared pool and let a
+ * worker run it, which is what allows several elements to progress at once on
+ * an SMP target.
+ *
+ * The pool is a Zephyr P4WQ, so a work item carries its own priority and
+ * deadline rather than inheriting a fixed queue priority. It exists only when
+ * @c CONFIG_MPIPE_WORKQUEUE is enabled.
+ *
  * @{
  */
 

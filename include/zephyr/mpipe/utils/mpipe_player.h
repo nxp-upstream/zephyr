@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Media-player-like control layer for a pipeline.
+ * @ingroup mpipe_player
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_UTILS_MPIPE_PLAYER_H_

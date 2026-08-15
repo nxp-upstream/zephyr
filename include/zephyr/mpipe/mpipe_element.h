@@ -6,7 +6,8 @@
 
 /**
  * @file
- * @brief Main header for mpipe_element.
+ * @brief Element: the unit a pipeline is built from.
+ * @ingroup mpipe_element
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_MPIPE_ELEMENT_H_
@@ -15,7 +16,42 @@
 /**
  * @defgroup mpipe_element Elements
  * @ingroup mpipe_framework
- * @brief Common element lifecycle, state, and pad-linking APIs.
+ * @brief The unit a pipeline is built from.
+ *
+ * An element is one processing step: it produces buffers, consumes them, or
+ * turns some into others. It exposes @ref mpipe_pad connectors, and linking two
+ * elements links a source pad of one to a sink pad of the other. What an
+ * element does is its own business; what the framework asks of it is that it
+ * answer queries, handle events, and follow the state machine.
+ *
+ * @section mpipe_element_states States
+ *
+ * An element is in one of three states, and moves between neighbours one step
+ * at a time:
+ *
+ *     READY <-> PAUSED <-> PLAYING
+ *
+ * READY means constructed and linked but holding no negotiated format and no
+ * buffers. The READY to PAUSED transition is where the work happens: the
+ * source drives capability negotiation across the whole graph, then the buffer
+ * pool query settles who provides buffers and how many, and the pools start.
+ * PAUSED to PLAYING lets data flow. Going back down reverses it, and PAUSED to
+ * READY drops the negotiated capabilities so the next run negotiates afresh.
+ *
+ * A transition is reported with @ref mpipe_state_change_return. An element that
+ * refuses one stays where it is; nothing unwinds the elements that already
+ * moved, which is deliberate - the graph then shows exactly which element
+ * refused and in which transition.
+ *
+ * @section mpipe_element_subclass Specialising an element
+ *
+ * The bases in @ref mpipe_src, @ref mpipe_sink, @ref mpipe_transform,
+ * @ref mpipe_parser and @ref mpipe_bin implement the protocol; a concrete
+ * element embeds one of them as its first member, calls that base's init with
+ * its own id, and overrides only the hooks it cares about. Chaining to the base
+ * change_state is mandatory - that is what performs the reset and the pool
+ * teardown every element is expected to do.
+ *
  * @{
  */
 
@@ -208,14 +244,6 @@ static inline void mpipe_element_set_name(struct mpipe_element *self, const char
 
 struct mpipe_pad;
 
-/**
- * @brief Add a pad to an element
- *
- * Adds a pad to the element. The pad's container will be set to the element.
- *
- * @param element The @ref mpipe_element to add the pad to
- * @param pad The @ref mpipe_pad to add to the element
- */
 /**
  * @brief Reset every pad of an element to constraining nothing.
  *

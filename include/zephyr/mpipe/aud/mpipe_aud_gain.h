@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Audio gain element header file.
+ * @ingroup mpipe_aud_gain_elements
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_AUD_MPIPE_AUD_GAIN_H_
@@ -67,8 +68,10 @@ struct mpipe_aud_gain {
  * This function initializes the audio gain processing element with default
  * values and sets up the function pointers.
  *
- * @param self Pointer to the mpipe_element structure to be initialized as a
- *             gain element.
+ * @param aud_gain Pointer to the element to initialize.
+ * @param id Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
 int mpipe_aud_gain_init(struct mpipe_aud_gain *aud_gain, uint8_t id);
 

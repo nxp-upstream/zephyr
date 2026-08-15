@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Fake source element
+ * @ingroup mpipe_src
  *
  * A simple emulated source element producing fake data buffers used for test purpose.
  */
@@ -35,7 +36,10 @@ struct mpipe_fake_src {
 /**
  * @brief Initialize a fake source element
  *
- * @param self Pointer to the @ref mpipe_element to initialize as a fake source
+ * @param fsrc Pointer to the @ref mpipe_fake_src to initialize.
+ * @param id   Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
 int mpipe_fake_src_init(struct mpipe_fake_src *fsrc, uint8_t id);
 

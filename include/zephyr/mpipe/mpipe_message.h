@@ -6,7 +6,8 @@
 
 /**
  * @file
- * @brief Bus message
+ * @brief Bus message: what an element reports to the application.
+ * @ingroup mpipe_message
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_MPIPE_MESSAGE_H_
@@ -15,7 +16,29 @@
 /**
  * @defgroup mpipe_message Messages
  * @ingroup mpipe_framework
- * @brief Messages exchanged through the bus.
+ * @brief What an element reports back to the application.
+ *
+ * A message travels the other way from a dispatch. A dispatch crosses a pad
+ * link between two elements; a message leaves the graph entirely, going up the
+ * bin's channel to whoever is driving the pipeline, to say that the stream
+ * ended or that something failed.
+ *
+ * It is a small value type, copied into and out of the channel, so posting one
+ * hands over no ownership. It carries where the failure happened - the element
+ * that emitted it - and what happened, as a type plus, on a failure, a domain
+ * saying which phase went wrong and an errno saying why. Those two together are
+ * meant to answer the two questions that matter when a pipeline does not run:
+ * which element, and in which phase.
+ *
+ * The message is machine-readable on purpose. It carries no human-facing
+ * string; the sentence describing a failure belongs in the log at the site that
+ * detected it, while an application branches on the domain and the errno.
+ *
+ * Message types are single bits so that a type doubles as a filter mask and a
+ * consumer can select several by OR-ing them. Note that MPIPE_MESSAGE_UNKNOWN
+ * is zero and matches nothing - it is an uninitialized message, not a
+ * selectable type.
+ *
  * @{
  */
 

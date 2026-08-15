@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Audio buffer pool header file.
+ * @ingroup mpipe_aud_buffer_pools
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_AUD_MPIPE_AUD_BUFFER_POOL_H_

@@ -6,7 +6,8 @@
 
 /**
  * @file
- * @brief Main header for mpipe_transform.
+ * @brief Transform: an element that turns input buffers into output buffers.
+ * @ingroup mpipe_transform
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_MPIPE_TRANSFORM_H_
@@ -15,7 +16,42 @@
 /**
  * @defgroup mpipe_transform Transforms
  * @ingroup mpipe_framework
- * @brief Elements that process data between sink and source pads.
+ * @brief Elements with an input and an output, and the middle of a negotiation.
+ *
+ * A transform has one sink pad and one source pad: a buffer arrives on one side
+ * and something leaves on the other. What "something" means is the element's
+ * choice, and @ref mpipe_transform_mode names the three shapes - produce a new
+ * buffer from an output pool, rewrite the incoming buffer where it lies, or
+ * pass it through untouched.
+ *
+ * A transform is the interesting case in both negotiations, because it is the
+ * only base that has to reconcile two sides.
+ *
+ * @section mpipe_transform_caps Crossing a capability
+ *
+ * @c transform_caps is what maps a capability on one side to what the other
+ * side could then be. A decoder taking one compressed format may be able to
+ * emit several raw ones, so this is a one-to-many relation - and, since nothing
+ * may allocate, those alternatives live on an index rather than in a returned
+ * set: one transformation per index, walked until the element reports there are
+ * no more.
+ *
+ * Answering a capability query therefore nests two walks: for each capability
+ * this side supports, for each transformation of it, ask the peer on the other
+ * side. The first combination the peer accepts wins, and the peer's answer is
+ * kept on the far pad because the event pass needs it to narrow back down.
+ *
+ * When the format event later arrives, the transform crosses it the same way
+ * and **forwards it before applying it to its own pads**. The order matters:
+ * an element is allowed to rewire the graph from its set_caps, so applying
+ * first would change the path the event still has to travel.
+ *
+ * @section mpipe_transform_pool Buffer pools
+ *
+ * On a buffer pool query a transform forwards downstream first and decides
+ * afterwards, so it always sees its downstream's proposal before choosing; then
+ * it answers upstream with a proposal of its own. See @c propose_buffer_pool
+ * and @c decide_buffer_pool below for what each side of that owes.
  *
  * @{
  */
@@ -144,11 +180,15 @@ struct mpipe_transform {
 /**
  * @brief Initialize a transform element
  *
- * This function initializes the base transform element structure,
- * sets up sink and source pads, and configures default function
- * pointers for element operations.
+ * This function initializes the base transform element structure, sets up sink
+ * and source pads, and configures default function pointers for element
+ * operations. A concrete transform calls it first from its own init, with the
+ * same id, and then overrides what it needs.
  *
- * @param self Pointer to the element to initialize (@ref mpipe_element)
+ * @param transform Pointer to the @ref mpipe_transform to initialize.
+ * @param id        Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
 int mpipe_transform_init(struct mpipe_transform *transform, uint8_t id);
 

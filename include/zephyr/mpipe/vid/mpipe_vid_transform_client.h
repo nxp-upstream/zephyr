@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Client-side video transform element for multi-core pipelines.
+ * @ingroup mpipe_vid_transform_clients
  *
  * Extends the generic transform client with video-specific RPC callbacks
  * to offload video processing to a remote core.
@@ -93,7 +94,10 @@ struct mpipe_vid_transform_client {
 /**
  * @brief Initialize a client-side video transform element.
  *
- * @param self Pointer to the @ref mpipe_element to initialize.
+ * @param vtc Pointer to the element to initialize.
+ * @param id Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
 int mpipe_vid_transform_client_init(struct mpipe_vid_transform_client *vtc, uint8_t id);
 

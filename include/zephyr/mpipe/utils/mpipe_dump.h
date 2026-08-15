@@ -6,7 +6,8 @@
 
 /**
  * @file
- * @brief Main header for mpipe_dump.
+ * @brief Render a pipeline's topology for debugging.
+ * @ingroup mpipe_dump
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_UTILS_MPIPE_DUMP_H_
@@ -14,7 +15,7 @@
 
 /**
  * @defgroup mpipe_dump Topology dump
- * @ingroup mpipe_framework
+ * @ingroup mpipe
  * @brief Render a bin's topology and the capability negotiated on each pad.
  *
  * Renders a bin as a Graphviz graph: every element with its state, its pads as

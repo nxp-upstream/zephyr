@@ -46,7 +46,10 @@ struct mpipe_img_jpeg_decoder {
 /**
  * @brief Initialize a software JPEG decoder element.
  *
- * @param self Pointer to the @ref mpipe_element to initialize.
+ * @param dec Pointer to the element to initialize.
+ * @param id Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
 int mpipe_img_jpeg_decoder_init(struct mpipe_img_jpeg_decoder *dec, uint8_t id);
 

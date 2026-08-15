@@ -12,9 +12,9 @@
  * Performs pixel format and colorspace conversions (no scaling or rotation).
  *
  * Currently supported conversions:
- *  - NV12 → RGB565
- *  - XRGB32 → ARGB32
- *  - ARGB32 → XRGB32
+ *  - NV12 -> RGB565
+ *  - XRGB32 -> ARGB32
+ *  - ARGB32 -> XRGB32
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_VID_MPIPE_VID_CONVERT_H_
@@ -73,7 +73,10 @@ struct mpipe_vid_convert {
 /**
  * @brief Initialize a software pixel format conversion element.
  *
- * @param self Pointer to the @ref mpipe_element to initialize.
+ * @param conv Pointer to the element to initialize.
+ * @param id Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
 int mpipe_vid_convert_init(struct mpipe_vid_convert *conv, uint8_t id);
 

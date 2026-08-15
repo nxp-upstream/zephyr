@@ -40,7 +40,7 @@ static int32_t percent_to_fixed_gain(int gain_percent)
 		/* gain_percent is within valid range, no clamping needed */
 	}
 
-	/* Convert: gain_percent% → Q16.16 fixed point */
+	/* Convert: gain_percent% -> Q16.16 fixed point */
 	return (gain_percent * GAIN_UNITY_FIXED) / 100;
 }
 

@@ -6,7 +6,8 @@
 
 /**
  * @file
- * @brief Main header for mpipe_bin.
+ * @brief Bin: an element that contains other elements.
+ * @ingroup mpipe_bin
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_MPIPE_BIN_H_
@@ -15,7 +16,22 @@
 /**
  * @defgroup mpipe_bin Bins
  * @ingroup mpipe_framework
- * @brief Container elements that hold and manage child elements.
+ * @brief An element that contains other elements.
+ *
+ * A bin is itself an @ref mpipe_element, so a graph can be treated as one
+ * element from the outside. Its job is to hold children and to forward a state
+ * change to them in an order that is safe.
+ *
+ * That order is not the order they were added. The bin sorts its children
+ * topologically by their links and walks them from the sink towards the source
+ * when the transition goes up, so a downstream element is ready before anything
+ * is pushed into it, and from the source towards the sink when it goes down, so
+ * nothing keeps producing into an element that has already been torn down.
+ * @c CONFIG_MPIPE_BIN_MAX_CHILDREN bounds the arrays that sort uses.
+ *
+ * A bin also owns the message channel its children report on, which is how a
+ * failure deep in a graph reaches the application. See @ref mpipe_message.
+ *
  * @{
  */
 
@@ -97,7 +113,10 @@ struct mpipe_bin {
  * Initializes the bin structure and sets up the necessary function pointers
  * and data structures.
  *
- * @param self Pointer to the @ref mpipe_element to initialize as a bin
+ * @param bin Pointer to the @ref mpipe_bin to initialize.
+ * @param id  Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
 int mpipe_bin_init(struct mpipe_bin *bin, uint8_t id);
 

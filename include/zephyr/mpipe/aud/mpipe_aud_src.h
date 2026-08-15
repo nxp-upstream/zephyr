@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Audio source element header file.
+ * @ingroup mpipe_aud_sources
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_AUD_MPIPE_AUD_SRC_H_
@@ -45,10 +46,26 @@ enum mpipe_prop_aud_src {
  * This structure represents an audio source element.
  */
 struct mpipe_aud_src {
+	/** Base source element (must be first) */
 	struct mpipe_src src;
+	/**
+	 * Read what the backing device supports. A derived source sets this to
+	 * the accessor of its own device, and the base enumerates capabilities
+	 * through it rather than holding a fixed set of its own.
+	 */
 	int (*get_audio_caps)(const struct device *dev, struct audio_caps *caps);
 };
 
+/**
+ * @brief Serve the source pad's capabilities from the audio device.
+ *
+ * Installs the enumeration hook that answers a capability query by asking the
+ * device through @c get_audio_caps, rather than from anything stored on the
+ * element. A derived source calls this once its device is known, and again if
+ * that device changes.
+ *
+ * @param src Pointer to the base source element of an @ref mpipe_aud_src.
+ */
 void mpipe_aud_src_update_caps(struct mpipe_src *src);
 
 /**
@@ -58,8 +75,10 @@ void mpipe_aud_src_update_caps(struct mpipe_src *src);
  * This function initializes the audio source element with default
  * values and sets up the function pointers.
  *
- * @param self Pointer to the mpipe_element structure to be initialized as an
- *             audio source element.
+ * @param aud_src Pointer to the element to initialize.
+ * @param id Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
 int mpipe_aud_src_init(struct mpipe_aud_src *aud_src, uint8_t id);
 

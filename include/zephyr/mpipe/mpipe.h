@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Umbrella header.
+ * @ingroup mpipe
  *
  * Applications include this header, and only this one, for the whole core
  * API; each plugin element they instantiate adds that element's own header.
@@ -18,14 +19,38 @@
 /**
  * @defgroup mpipe Multimedia Pipeline
  * @ingroup os_services
- * @brief Multimedia Pipeline (mpipe) subsystem.
+ * @brief Build a media stream out of self-contained processing elements.
  * @since 4.5
+ * @version 0.1.0
  */
 
 /**
  * @defgroup mpipe_framework Framework
  * @ingroup mpipe
- * @brief Core Multimedia Pipeline APIs.
+ * @brief The object model, the negotiation and the runtime.
+ *
+ * An application declares the elements it needs, links them into a graph, and
+ * drives that graph through a state machine. The framework is what negotiates
+ * the data format between neighbours, settles which pool provides the buffers,
+ * and moves those buffers from one element to the next.
+ *
+ * @ref mpipe_object is the base every type embeds; @ref mpipe_element is what a
+ * graph is made of and @ref mpipe_pad is where two elements meet;
+ * @ref mpipe_structure describes what crosses a link and @ref mpipe_dispatch
+ * carries the negotiation; @ref mpipe_pipeline runs the result.
+ *
+ * @section mpipe_no_alloc No dynamic allocation
+ *
+ * The framework allocates nothing. Buffers come from pools sized while leaving
+ * READY, and every type on the negotiation path is fixed-size and held by
+ * value, so a stream that runs for hours cannot fragment a heap it never
+ * touches and a negotiation cannot fail for memory. The cost lands on the stack
+ * instead, since a negotiation holds several capabilities live at once.
+ *
+ * This is a property to preserve rather than an implementation detail: a change
+ * that reintroduces allocation on a negotiation path is wrong however clean it
+ * looks. An element needing scratch memory takes it from the application at
+ * init, the way pools and stacks are taken.
  *
  * @section mpipe_null Pointer parameters
  *
@@ -45,7 +70,14 @@
 /**
  * @defgroup mpipe_plugins Plugins
  * @ingroup mpipe
- * @brief Multimedia Pipeline plugins.
+ * @brief The concrete elements, grouped by the domain they serve.
+ *
+ * Plugins are where the framework meets real hardware and real formats. They
+ * are decentralised from the core: a plugin adds its own directory, its own
+ * Kconfig and its own headers, and the build picks it up without an edit to
+ * anything the core owns. A vendor or a middleware provider can therefore ship
+ * elements without altering the framework, and an application pays only for the
+ * domains it enables.
  */
 
 #include <zephyr/mpipe/mpipe_bin.h>

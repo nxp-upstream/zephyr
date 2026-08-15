@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Video buffer pool backed by the Zephyr video subsystem.
+ * @ingroup mpipe_vid_buffer_pools
  *
  * Manages video buffer allocation and queuing through a Zephyr video
  * device, used internally by @ref mpipe_vid_object.
@@ -18,7 +19,18 @@
 /**
  * @defgroup mpipe_vid vid
  * @ingroup mpipe_plugins
- * @brief Video device-backed elements, transforms, and helper APIs.
+ * @brief Elements backed by Zephyr video devices, and the software fallbacks.
+ *
+ * The video plugin sits on Zephyr's video API. It covers capture from a camera,
+ * memory-to-memory transforms performed by hardware, and a software converter
+ * for the pixel-format changes no hardware on the board can do.
+ *
+ * Video is where zero-copy matters most, so the pools here hand out the
+ * driver's own buffers rather than copies of them, and the shared video object
+ * translates between what a driver reports and what a capability says. The two
+ * spellings do not match exactly - the video API states a single supported size
+ * as a degenerate range, mpipe as a fixed value - and that translation lives in
+ * one place so the round trip stays exact.
  */
 
 /**

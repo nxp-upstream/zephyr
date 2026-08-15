@@ -6,7 +6,8 @@
 
 /**
  * @file
- * @brief Main header for mpipe_src.
+ * @brief Source: an element that produces buffers.
+ * @ingroup mpipe_src
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_MPIPE_SRC_H_
@@ -15,7 +16,23 @@
 /**
  * @defgroup mpipe_src Sources
  * @ingroup mpipe_framework
- * @brief Elements that generate data.
+ * @brief Elements that produce buffers, and drive the negotiation.
+ *
+ * A source has one source pad and no sink pad: it is where data enters the
+ * graph, whether from a device, a file, or nothing at all. It owns the buffer
+ * pool the buffers it pushes come from.
+ *
+ * A source carries a second responsibility the other bases do not. Because it
+ * sits at the head of the graph, it is the source that **drives negotiation**
+ * on the READY to PAUSED transition. It offers the capabilities it supports
+ * downstream one at a time, keeps the first the whole chain accepts, reduces it
+ * to a single format and announces it as an event; then it runs the buffer pool
+ * query and configures and starts its pool. A derived source supplies the
+ * pieces - what it supports, what to do when a format is chosen, what buffers
+ * it needs - and the base performs the walk.
+ *
+ * The @c num_buffers property bounds how many buffers are produced before the
+ * source declares the end of the stream; 0 means it runs until it is stopped.
  *
  * @{
  */
@@ -69,9 +86,13 @@ struct mpipe_src {
  * @brief Initialize a source element
  *
  * This function initializes the base source element structure, including
- * the source pad and default callbacks.
+ * the source pad and default callbacks. A concrete source calls it first from
+ * its own init, with the same id, and then overrides what it needs.
  *
- * @param self Pointer to the @ref mpipe_element to initialize as a source
+ * @param src Pointer to the @ref mpipe_src to initialize.
+ * @param id  Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
 int mpipe_src_init(struct mpipe_src *src, uint8_t id);
 

@@ -6,7 +6,8 @@
 
 /**
  * @file
- * @brief Main header for mpipe_pipeline.
+ * @brief Pipeline: the top-level bin that runs a graph.
+ * @ingroup mpipe_pipeline
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_MPIPE_PIPELINE_H_
@@ -15,7 +16,30 @@
 /**
  * @defgroup mpipe_pipeline Pipelines
  * @ingroup mpipe_framework
- * @brief Top-level pipeline container and runtime control.
+ * @brief The top-level bin, and what actually runs a graph.
+ *
+ * A pipeline is the outermost @ref mpipe_bin. Being the outermost is what gives
+ * it three jobs no inner bin has.
+ *
+ * It **owns the thread**. One thread sits at the head of the graph acquiring
+ * buffers from the source and pushing each one downstream through the chain
+ * functions until a sink consumes it. An element that needs its own thread -
+ * to decouple two halves of a graph - gets one by putting a queue between them.
+ *
+ * It **orders the teardown**. Going down from PAUSED to READY, the pipeline
+ * raises a flushing gate on every pad before the children dismantle their pools,
+ * so a buffer still in flight is dropped rather than pushed into an element that
+ * has already been torn down; and it joins the thread only after the children
+ * have drained, because a child still holding the thread in a full queue would
+ * otherwise deadlock the join. Going from PLAYING to PAUSED it does neither -
+ * a pause is not a teardown, so whatever is queued survives and a resume
+ * continues without loss.
+ *
+ * It **folds the end of the stream**. A graph with several sinks produces one
+ * end-of-stream message per sink; the pipeline counts them and passes on only
+ * the last, so the application is told once and never tears a graph down while
+ * a branch is still running.
+ *
  * @{
  */
 
@@ -30,14 +54,11 @@
 #include <zephyr/mpipe/mpipe_thread.h>
 
 /**
- * @{
- */
-
-/**
- * @brief struct mpipe structure
+ * @brief A pipeline: the top-level bin that runs a graph.
  *
- * Contains all the state and timing information needed to manage
- * a complete media processing pipeline.
+ * Adds to @ref mpipe_bin the thread that drives the source and the
+ * end-of-stream accounting that lets a graph with several sinks report
+ * completion exactly once.
  */
 struct mpipe {
 	/** Base bin container */
@@ -55,7 +76,10 @@ struct mpipe {
  *
  * Initializes the pipeline structure, including the base bin and its message channel.
  *
- * @param self Pointer to the @ref mpipe_element to initialize as a pipeline
+ * @param pipe Pointer to the @ref mpipe to initialize.
+ * @param id   Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
 int mpipe_pipeline_init(struct mpipe *pipe, uint8_t id);
 
@@ -73,10 +97,6 @@ int mpipe_pipeline_init(struct mpipe *pipe, uint8_t id);
  * @return 0 on success, negative errno on failure
  */
 int mpipe_push_buffer(struct mpipe_pad *src_pad, struct net_buf *buffer);
-
-/**
- * @}
- */
 
 /** @} */
 

@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Caps filter element.
+ * @ingroup mpipe_caps_filter
  *
  * This element does not modify data, but used to enforce limitations on the data format.
  *
@@ -18,7 +19,12 @@
 /**
  * @defgroup mpipe_base base
  * @ingroup mpipe_plugins
- * @brief Base plugin elements shared across Multimedia Pipeline graphs.
+ * @brief Media-agnostic elements that shape a graph rather than its data.
+ *
+ * The base plugin holds the elements that belong to no media domain. They do
+ * not look at what a buffer contains: they constrain what a link may carry,
+ * split a graph into branches, or split it across threads. Every domain needs
+ * them, so they live together rather than being duplicated per domain.
  */
 
 /**
@@ -46,8 +52,15 @@ enum {
 };
 
 /**
- * @brief Caps filter Element Structure
+ * @brief Caps filter element.
  *
+ * Holds the filter the application configured, and the two peers the element
+ * was linked to. It keeps its own copy of the filter because the pads are reset
+ * on teardown: without it, a second run would negotiate unconstrained.
+ *
+ * The saved peers are what let the element take itself out of the graph once
+ * the format is settled and put itself back on teardown, so that it costs
+ * nothing on the buffer path.
  */
 struct mpipe_caps_filter {
 	/** Base transform element */
@@ -63,7 +76,10 @@ struct mpipe_caps_filter {
 /**
  * @brief Initialize a caps filter element
  *
- * @param self Pointer to the @ref mpipe_element to initialize as a caps filter
+ * @param caps_filter Pointer to the element to initialize.
+ * @param id Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
 int mpipe_caps_filter_init(struct mpipe_caps_filter *caps_filter, uint8_t id);
 

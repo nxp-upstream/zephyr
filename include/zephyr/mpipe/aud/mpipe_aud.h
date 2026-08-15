@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Audio definitions and utilities header file.
+ * @ingroup mpipe_aud_utils
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_AUD_MPIPE_AUD_H_
@@ -15,7 +16,17 @@
 /**
  * @defgroup mpipe_aud aud
  * @ingroup mpipe_plugins
- * @brief Audio plugin elements, properties, and utility APIs.
+ * @brief Elements that capture, process and play back PCM audio.
+ *
+ * The audio plugin sits on Zephyr's audio APIs - DMIC for capture, I2S and the
+ * audio codec API for playback - and describes what they carry as PCM
+ * capabilities: a sample rate, a sample width, a channel count and the layout
+ * of those channels within a buffer.
+ *
+ * Audio differs from video in what the buffer count means. A codec starved of
+ * data produces an audible artefact rather than a dropped frame, so the number
+ * of buffers is settled through the buffer pool query, where a sink can state
+ * how much it must have primed before it starts.
  */
 
 /**

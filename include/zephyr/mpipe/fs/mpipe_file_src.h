@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief File source element for the mpipe fs plugin.
+ * @ingroup mpipe_fs_sources
  *
  * Reads data from a file using Zephyr's filesystem API and produces
  * buffers for downstream processing.
@@ -18,7 +19,16 @@
 /**
  * @defgroup mpipe_fs fs
  * @ingroup mpipe_plugins
- * @brief File-based source and sink elements.
+ * @brief Elements that read from and write to a mounted file system.
+ *
+ * The file system plugin puts a file at either end of a graph: a source that
+ * reads one in fixed-size blocks, and a sink that writes whatever reaches it.
+ *
+ * Neither knows what it is carrying, which is the point. A file is a stream of
+ * bytes with no format attached, so a file source has nothing to announce and
+ * negotiates no capability of its own; whatever follows it - typically a parser
+ * - is what works out the format. That makes these two elements the usual way
+ * to test a graph without hardware.
  */
 
 /**

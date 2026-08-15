@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Video source element backed by a Zephyr video device.
+ * @ingroup mpipe_vid_sources
  *
  * Captures video frames from a hardware video device and pushes them
  * into the pipeline as a source element.
@@ -42,7 +43,10 @@ struct mpipe_vid_src {
 /**
  * @brief Initialize a video source element.
  *
- * @param self Pointer to the @ref mpipe_element to initialize.
+ * @param vid_src Pointer to the element to initialize.
+ * @param id Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
 int mpipe_vid_src_init(struct mpipe_vid_src *vid_src, uint8_t id);
 

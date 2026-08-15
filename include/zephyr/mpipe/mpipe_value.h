@@ -6,7 +6,8 @@
 
 /**
  * @file
- * @brief Main header for mpipe_value.
+ * @brief Value: one typed scalar or range inside a capability.
+ * @ingroup mpipe_value
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_MPIPE_VALUE_H_
@@ -15,7 +16,25 @@
 /**
  * @defgroup mpipe_value Value Container
  * @ingroup mpipe_framework
- * @brief A generic container for values of different types
+ * @brief One typed scalar or range, the smallest piece of a capability.
+ *
+ * An @ref mpipe_value is what a field of an @ref mpipe_structure holds: a
+ * boolean, a signed or unsigned integer, or a `{min, max, step}` range of one
+ * of those. A range is how a device says it accepts a span rather than one
+ * setting - every width from 16 to 1280 in steps of 2 - and fixation later
+ * picks a single value out of it.
+ *
+ * It is a tagged union with no pointer in any arm, so it is the same size on
+ * every target, copying one is a plain assignment, and there is nothing to
+ * release. That is what lets a capability be passed by value and placed in
+ * `.rodata`.
+ *
+ * The type set is deliberately just these two shapes, because they are closed
+ * under intersection: intersecting two values never yields something larger
+ * than its inputs, so the result always fits in storage the caller already has.
+ * A set-of-alternatives type would break that and force an allocation back in,
+ * which is why alternatives live on an enumeration index instead - see
+ * @ref mpipe_pad.
  *
  * Pointers passed to this API must not be NULL unless the parameter is
  * documented otherwise.

@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Client-side video buffer pool for multi-core pipelines.
+ * @ingroup mpipe_vid_buffer_pool_clients
  *
  * Provides a lightweight buffer pool on the client (application) core
  * that pairs with a server-side pool over an RPC transport.

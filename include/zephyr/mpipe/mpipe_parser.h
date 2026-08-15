@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Stream parser base element.
+ * @ingroup mpipe_parser
  *
  * Provides a base class for elements that accumulate incoming data
  * into complete frames before pushing them downstream.
@@ -18,7 +19,22 @@
 /**
  * @defgroup mpipe_parser Parsers
  * @ingroup mpipe_framework
- * @brief Base parser element that parses encoded streams into frames.
+ * @brief Elements that cut a formless byte stream into frames.
+ *
+ * A parser sits where a stream stops being bytes and starts being frames. Its
+ * input is a file or a socket, which can say nothing about what it carries; its
+ * output is whole frames of a format the parser worked out by looking at them.
+ *
+ * That asymmetry is why a parser is its own base rather than a transform. It
+ * cannot map its output back to an input capability, so it does not implement
+ * a capability crossing; it simply describes what it produces. And because the
+ * element upstream of it knows no format, the format event that arrives from
+ * there announces nothing at all - the parser is what turns it into a real
+ * announcement by substituting the capability it settled on before passing it
+ * downstream.
+ *
+ * A parser also usually needs one buffer more than the stream in flight, to
+ * hold the frame it is still assembling.
  *
  * @{
  */
@@ -84,7 +100,14 @@ struct mpipe_parser {
 /**
  * @brief Initialize a parser element.
  *
- * @param self Pointer to the @ref mpipe_element to initialize.
+ * Initializes the base parser element structure, its sink and source pads and
+ * the default callbacks. A concrete parser calls it first from its own init,
+ * with the same id, and then overrides what it needs.
+ *
+ * @param parser Pointer to the @ref mpipe_parser to initialize.
+ * @param id     Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
 int mpipe_parser_init(struct mpipe_parser *parser, uint8_t id);
 

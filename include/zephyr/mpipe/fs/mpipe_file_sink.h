@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief File sink element for the mpipe fs plugin.
+ * @ingroup mpipe_fs_sinks
  *
  * Writes pipeline data to a file using Zephyr's filesystem API.
  */

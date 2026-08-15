@@ -9,7 +9,7 @@
  * @ingroup mpipe_img_jpeg_parsers
  * @brief JPEG stream parser element.
  *
- * Accumulates incoming data until a complete JPEG frame (SOI … EOI)
+ * Accumulates incoming data until a complete JPEG frame (SOI to EOI)
  * is assembled, then pushes it downstream as a single buffer.
  */
 
@@ -19,7 +19,17 @@
 /**
  * @defgroup mpipe_img img
  * @ingroup mpipe_plugins
- * @brief JPEG parser, decoder, and helper APIs.
+ * @brief Elements that turn a coded image stream into frames and decode them.
+ *
+ * The image plugin covers the two steps between a file or a network socket and
+ * something displayable. A parser finds the frame boundaries in a stream that
+ * arrives as undifferentiated bytes and emits whole images; a decoder turns one
+ * of those into raw pixels.
+ *
+ * They are separate elements because the split is real: the parser is what
+ * first knows the format, and it can be followed either by the software decoder
+ * here or by a hardware decoder from the video plugin, without either side
+ * knowing which.
  */
 
 /**
@@ -48,7 +58,10 @@ struct mpipe_img_jpeg_parser {
 /**
  * @brief Initialize a JPEG stream parser element.
  *
- * @param self Pointer to the @ref mpipe_element to initialize.
+ * @param jpeg_parser Pointer to the element to initialize.
+ * @param id Unique element identifier.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
 int mpipe_img_jpeg_parser_init(struct mpipe_img_jpeg_parser *jpeg_parser, uint8_t id);
 

@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Pixel format conversion lookup table for @ref mpipe_vid_convert.
+ * @ingroup mpipe_vid_conversion_tables
  *
  * Provides a table of conversion descriptors that map input/output pixel
  * format pairs to their conversion functions.

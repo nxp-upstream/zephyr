@@ -7,6 +7,7 @@
 /**
  * @file
  * @brief Audio I2S codec sink element header file.
+ * @ingroup mpipe_aud_i2s_codec_sinks
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_AUD_MPIPE_AUD_I2S_CODEC_SINK_H_
@@ -91,11 +92,13 @@ struct mpipe_aud_i2s_codec_sink {
  * - i2s_codec_tx alias for I2S transmission device
  * - audio_codec node label for codec configuration device
  *
- * @param self Pointer to the mpipe_element structure to be initialized as an
- *             I2S codec sink element.
+ * @param aud_i2s_codec_sink Pointer to the element to initialize.
+ * @param id Unique element identifier.
  *
  * @note This function will log errors and return early if required devices
  *       are not ready or not found in device tree.
+ *
+ * @return 0 on success, negative errno otherwise.
  */
 int mpipe_aud_i2s_codec_sink_init(struct mpipe_aud_i2s_codec_sink *aud_i2s_codec_sink, uint8_t id);
 
