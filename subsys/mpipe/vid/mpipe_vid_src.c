@@ -71,6 +71,8 @@ static int mpipe_vid_src_decide_buffer_pool(struct mpipe_src *self, struct mpipe
 
 int mpipe_vid_src_init(struct mpipe_vid_src *vid_src, uint8_t id)
 {
+	__ASSERT_NO_MSG(vid_src != NULL);
+
 	struct mpipe_element *self = &vid_src->src.element;
 	struct mpipe_src *src = &vid_src->src;
 	int ret = mpipe_src_init(src, id);

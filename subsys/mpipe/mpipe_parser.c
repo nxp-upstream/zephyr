@@ -216,6 +216,8 @@ enum mpipe_state_change_return mpipe_parser_change_state(struct mpipe_element *s
 
 int mpipe_parser_init(struct mpipe_parser *parser, uint8_t id)
 {
+	__ASSERT_NO_MSG(parser != NULL);
+
 	struct mpipe_element *self = &parser->element;
 	int ret = mpipe_element_init(self, id);
 

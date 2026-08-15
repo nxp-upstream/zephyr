@@ -121,6 +121,8 @@ mpipe_file_sink_change_state(struct mpipe_element *self, enum mpipe_state_change
 
 int mpipe_file_sink_init(struct mpipe_file_sink *fsink, uint8_t id)
 {
+	__ASSERT_NO_MSG(fsink != NULL);
+
 	struct mpipe_element *self = &fsink->sink.element;
 	struct mpipe_sink *sink = &fsink->sink;
 	int ret = mpipe_sink_init(sink, id);

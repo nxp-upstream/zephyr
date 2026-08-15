@@ -342,6 +342,8 @@ static int mpipe_aud_gain_propose_buffer_pool(struct mpipe_transform *self,
 
 int mpipe_aud_gain_init(struct mpipe_aud_gain *aud_gain, uint8_t id)
 {
+	__ASSERT_NO_MSG(aud_gain != NULL);
+
 	struct mpipe_element *self = &aud_gain->transform.element;
 	struct mpipe_transform *transform = &aud_gain->transform;
 	int ret = mpipe_transform_init(transform, id);

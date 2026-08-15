@@ -310,9 +310,7 @@ static int mpipe_player_post(struct mpipe_player *player, enum mpipe_player_cmd 
 {
 	struct mpipe_player_cmd_msg msg;
 
-	if (player == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(player != NULL);
 
 	msg.cmd = (uint8_t)cmd;
 	msg.run_id = player->run_id;
@@ -350,9 +348,8 @@ static void mpipe_player_msg_cb(const struct zbus_channel *chan)
 
 int mpipe_player_init(struct mpipe_player *player, struct mpipe *pipeline)
 {
-	if (player == NULL || pipeline == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(player != NULL);
+	__ASSERT_NO_MSG(pipeline != NULL);
 
 	if (atomic_ptr_get(&active_player) != NULL) {
 		return -EBUSY;
@@ -435,9 +432,7 @@ int mpipe_player_quit(struct mpipe_player *player)
 
 int mpipe_player_wait_quit(struct mpipe_player *player)
 {
-	if (player == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(player != NULL);
 
 	k_sem_take(&player->exited, K_FOREVER);
 
@@ -448,7 +443,9 @@ int mpipe_player_deinit(struct mpipe_player *player)
 {
 	int err;
 
-	if (player == NULL || player->pipeline == NULL) {
+	__ASSERT_NO_MSG(player != NULL);
+
+	if (player->pipeline == NULL) {
 		return -EINVAL;
 	}
 

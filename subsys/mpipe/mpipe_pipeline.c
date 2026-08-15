@@ -410,6 +410,8 @@ mpipe_pipeline_change_state(struct mpipe_element *element, enum mpipe_state_chan
 
 int mpipe_pipeline_init(struct mpipe *pipe, uint8_t id)
 {
+	__ASSERT_NO_MSG(pipe != NULL);
+
 	struct mpipe_element *self = &pipe->bin.element;
 	int ret = mpipe_bin_init(&pipe->bin, id);
 

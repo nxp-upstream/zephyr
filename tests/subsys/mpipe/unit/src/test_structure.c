@@ -68,12 +68,6 @@ ZTEST(mpipe_structure_api, test_new)
 	zassert_equal(mpipe_structure_append_value(&si, MPIPE_CAPS_SAMPLE_RATE, &dup_val), -EEXIST,
 		      "duplicate field != -EEXIST");
 
-	zassert_equal(mpipe_structure_init(NULL, MPIPE_MEDIA_AUDIO_PCM), -EINVAL,
-		      "init(NULL) != -EINVAL");
-	zassert_equal(mpipe_structure_append_value(NULL, MPIPE_CAPS_SAMPLE_RATE, &appended),
-		      -EINVAL, "append(NULL struct) != -EINVAL");
-	zassert_equal(mpipe_structure_append_value(&si, MPIPE_CAPS_BITWIDTH, NULL), -EINVAL,
-		      "append(NULL value) != -EINVAL");
 }
 
 ZTEST(mpipe_structure_api, test_is_fixed_fixate_duplicate)
@@ -317,11 +311,6 @@ ZTEST(mpipe_structure_api, test_cannot_intersect)
 					       MPIPE_CAPS_SAMPLE_RATE, MPIPE_TYPE_INT_RANGE, 8000,
 					       16000, 8000, MPIPE_CAPS_END),
 		   "init &s_low failed");
-
-	zassert_not_equal(mpipe_structure_intersect(&s_sample_int, NULL, &result), 0,
-			  "intersect(&s, NULL) should fail");
-	zassert_not_equal(mpipe_structure_intersect(NULL, NULL, &result), 0,
-			  "intersect(NULL, NULL) should fail");
 
 	zassert_not_equal(mpipe_structure_intersect(&s_sample_int, &s_bw, &result), 0,
 			  "intersect with no common field should fail");

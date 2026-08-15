@@ -34,7 +34,9 @@ static const uint32_t mpipe_value_intersect_mask[MPIPE_TYPE_COUNT] = {
 
 bool mpipe_value_is_primitive(const struct mpipe_value *value)
 {
-	if (value == NULL || !IN_RANGE(value->type, MPIPE_TYPE_NONE + 1, MPIPE_TYPE_COUNT - 1)) {
+	__ASSERT_NO_MSG(value != NULL);
+
+	if (!IN_RANGE(value->type, MPIPE_TYPE_NONE + 1, MPIPE_TYPE_COUNT - 1)) {
 		return false;
 	}
 
@@ -64,9 +66,7 @@ int mpipe_value_set_va_list(struct mpipe_value *value, enum mpipe_value_type typ
 {
 	__ASSERT_NO_MSG(args != NULL);
 
-	if (value == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(value != NULL);
 
 	/* Any integer type narrower than int arrives as int through the variadic argument list */
 	switch (type) {
@@ -235,13 +235,13 @@ int mpipe_value_intersect(const struct mpipe_value *val1, const struct mpipe_val
 {
 	const struct mpipe_value *ref_val, *compare_val;
 
-	if (out == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(out != NULL);
 
 	/* Only a pair of types the mask allows can have a common value */
-	if (val1 == NULL || val2 == NULL ||
-	    !IN_RANGE(val1->type, MPIPE_TYPE_NONE, MPIPE_TYPE_COUNT - 1) ||
+	__ASSERT_NO_MSG(val1 != NULL);
+	__ASSERT_NO_MSG(val2 != NULL);
+
+	if (!IN_RANGE(val1->type, MPIPE_TYPE_NONE, MPIPE_TYPE_COUNT - 1) ||
 	    !IN_RANGE(val2->type, MPIPE_TYPE_NONE, MPIPE_TYPE_COUNT - 1) ||
 	    (mpipe_value_intersect_mask[val1->type] & BIT(val2->type)) == 0) {
 		return -ENOENT;
@@ -318,7 +318,9 @@ static const mpipe_value_print_fn mpipe_value_print_table[MPIPE_TYPE_COUNT] = {
 
 void mpipe_value_print(const struct mpipe_value *value, bool new_line)
 {
-	if (value == NULL || value->type >= ARRAY_SIZE(mpipe_value_print_table) ||
+	__ASSERT_NO_MSG(value != NULL);
+
+	if (value->type >= ARRAY_SIZE(mpipe_value_print_table) ||
 	    mpipe_value_print_table[value->type] == NULL) {
 		LOG_ERR("Invalid mpipe_value to print");
 		return;

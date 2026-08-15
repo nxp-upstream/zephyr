@@ -141,9 +141,8 @@ static int copy_jpeg_frame(struct net_buf *dst, const uint8_t *src, size_t len)
 	struct mpipe_buffer_meta *bm;
 	uint32_t cap;
 
-	if (dst == NULL || src == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(dst != NULL);
+	__ASSERT_NO_MSG(src != NULL);
 
 	bm = mpipe_buffer_get_meta(dst);
 	cap = bm && bm->pool ? bm->pool->config.size : 0;
@@ -164,9 +163,8 @@ static int append_to_partial(struct net_buf *partial, const uint8_t *src, size_t
 	uint32_t used;
 	uint32_t cap;
 
-	if (partial == NULL || src == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(partial != NULL);
+	__ASSERT_NO_MSG(src != NULL);
 
 	m = mpipe_buffer_get_meta(partial);
 	used = m->bytes_used;
@@ -189,7 +187,10 @@ static int mpipe_img_jpeg_parser_acquire_buffer(struct mpipe_buffer_pool *pool,
 	struct net_buf *out;
 	struct mpipe_buffer_meta *m;
 
-	if (pool == NULL || buf == NULL || pool->nb_pool == NULL) {
+	__ASSERT_NO_MSG(pool != NULL);
+	__ASSERT_NO_MSG(buf != NULL);
+
+	if (pool->nb_pool == NULL) {
 		return -EINVAL;
 	}
 
@@ -406,6 +407,8 @@ mpipe_img_jpeg_parser_change_state(struct mpipe_element *self, enum mpipe_state_
 
 int mpipe_img_jpeg_parser_init(struct mpipe_img_jpeg_parser *jpeg_parser, uint8_t id)
 {
+	__ASSERT_NO_MSG(jpeg_parser != NULL);
+
 	struct mpipe_element *self = &jpeg_parser->base.element;
 	struct mpipe_parser *parser = &jpeg_parser->base;
 	int ret = mpipe_parser_init(parser, id);

@@ -322,6 +322,8 @@ static int mpipe_vid_buffer_pool_release_buffer(struct mpipe_buffer_pool *pool, 
 
 void mpipe_vid_buffer_pool_init(struct mpipe_buffer_pool *pool, struct mpipe_vid_object *obj)
 {
+	__ASSERT_NO_MSG(pool != NULL);
+
 	struct mpipe_vid_buffer_pool *vid_pool = (struct mpipe_vid_buffer_pool *)pool;
 
 	k_fifo_init(&vid_pool->free_fifo);

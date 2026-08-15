@@ -74,7 +74,6 @@ struct mpipe_dump_sink {
  * @param sink Where to write, or NULL to write to the console with printk().
  *
  * @retval 0 on success
- * @retval -EINVAL if @p bin is NULL
  */
 int mpipe_dump_bin(struct mpipe_bin *bin, const struct mpipe_dump_sink *sink);
 
@@ -91,7 +90,6 @@ int mpipe_dump_bin(struct mpipe_bin *bin, const struct mpipe_dump_sink *sink);
  * @param sink Where to write, or NULL to write to the console with printk().
  *
  * @retval 0 on success
- * @retval -EINVAL if @p caps is NULL
  */
 int mpipe_dump_caps(const struct mpipe_structure *caps, const struct mpipe_dump_sink *sink);
 

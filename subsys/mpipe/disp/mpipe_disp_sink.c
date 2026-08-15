@@ -184,6 +184,9 @@ static int mpipe_disp_sink_get_property(struct mpipe_object *obj, uint32_t key, 
 int mpipe_disp_sink_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 			     struct net_buf **out_buf)
 {
+	__ASSERT_NO_MSG(pad != NULL);
+	__ASSERT_NO_MSG(out_buf != NULL);
+
 	struct mpipe_disp_sink *disp_sink =
 		CONTAINER_OF(pad->object.container, struct mpipe_disp_sink, sink.element.object);
 	const struct mpipe_value *value =
@@ -277,6 +280,8 @@ int mpipe_disp_sink_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 
 int mpipe_disp_sink_init(struct mpipe_disp_sink *disp_sink, uint8_t id)
 {
+	__ASSERT_NO_MSG(disp_sink != NULL);
+
 	struct mpipe_element *self = &disp_sink->sink.element;
 	struct mpipe_sink *sink = &disp_sink->sink;
 	int ret = mpipe_sink_init(sink, id);

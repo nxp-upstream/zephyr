@@ -43,6 +43,8 @@ k_tid_t mpipe_thread_create(struct mpipe_thread *thread, k_thread_entry_t func, 
 
 int mpipe_thread_wait(struct mpipe_thread *thread)
 {
+	__ASSERT_NO_MSG(thread != NULL);
+
 	for (;;) {
 		int state = atomic_get(&thread->state);
 
@@ -61,6 +63,8 @@ int mpipe_thread_wait(struct mpipe_thread *thread)
 
 void mpipe_thread_resume(struct mpipe_thread *thread)
 {
+	__ASSERT_NO_MSG(thread != NULL);
+
 	/* Resume must not override a concurrent join(). Only transition PAUSED -> RUNNING */
 	for (;;) {
 		int state = atomic_get(&thread->state);
@@ -83,6 +87,8 @@ void mpipe_thread_resume(struct mpipe_thread *thread)
 
 void mpipe_thread_pause(struct mpipe_thread *thread)
 {
+	__ASSERT_NO_MSG(thread != NULL);
+
 	/* Pause must not override a concurrent join(). Only transition RUNNING -> PAUSED */
 	for (;;) {
 		int state = atomic_get(&thread->state);
@@ -98,9 +104,7 @@ int mpipe_thread_join(struct mpipe_thread *thread, k_timeout_t timeout)
 {
 	int ret;
 
-	if (thread == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(thread != NULL);
 
 	/* Signal the thread to exit */
 	atomic_set(&thread->state, MPIPE_THREAD_TERMINATED);

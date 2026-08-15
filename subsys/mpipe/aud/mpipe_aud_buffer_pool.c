@@ -131,6 +131,8 @@ static int mpipe_aud_buffer_pool_stop(struct mpipe_buffer_pool *pool)
 
 void mpipe_aud_buffer_pool_init(struct mpipe_buffer_pool *pool)
 {
+	__ASSERT_NO_MSG(pool != NULL);
+
 	struct mpipe_aud_buffer_pool *aud_pool = (struct mpipe_aud_buffer_pool *)pool;
 
 	aud_pool->aud_dev = NULL;

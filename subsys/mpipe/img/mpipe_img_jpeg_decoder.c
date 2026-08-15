@@ -30,9 +30,8 @@ static int mpipe_img_jpeg_decoder_out_pool_acquire(struct mpipe_buffer_pool *poo
 	struct net_buf *out;
 	struct mpipe_buffer_meta *m;
 
-	if (pool == NULL || buf == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(pool != NULL);
+	__ASSERT_NO_MSG(buf != NULL);
 
 	out = net_buf_alloc_len(pool->nb_pool, pool->config.size, K_NO_WAIT);
 	if (out == NULL) {
@@ -365,6 +364,8 @@ static int mpipe_img_jpeg_decoder_decide_buffer_pool(struct mpipe_transform *sel
 
 int mpipe_img_jpeg_decoder_init(struct mpipe_img_jpeg_decoder *dec, uint8_t id)
 {
+	__ASSERT_NO_MSG(dec != NULL);
+
 	struct mpipe_element *self = &dec->transform.element;
 	struct mpipe_transform *transform = &dec->transform;
 	int ret = mpipe_transform_init(transform, id);

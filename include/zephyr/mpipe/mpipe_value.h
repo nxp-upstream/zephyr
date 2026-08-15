@@ -118,7 +118,7 @@ struct mpipe_value {
  *             than int, which an enum is allowed to be.
  * @param ... Arguments initializing the value, per the rules above.
  *
- * @return 0 on success, -EINVAL if @p value is NULL or @p type is invalid
+ * @return 0 on success, -EINVAL if @p type is invalid
  */
 int mpipe_value_set(struct mpipe_value *value, int type, ...);
 
@@ -132,7 +132,7 @@ int mpipe_value_set(struct mpipe_value *value, int type, ...);
  * @param type Type of the value, see @ref mpipe_value_type.
  * @param args Pointer to a va_list positioned at this value's arguments.
  *
- * @return 0 on success, -EINVAL if @p value is NULL or @p type is invalid
+ * @return 0 on success, -EINVAL if @p type is invalid
  */
 int mpipe_value_set_va_list(struct mpipe_value *value, enum mpipe_value_type type, va_list *args);
 
@@ -228,8 +228,7 @@ uint32_t mpipe_value_get_uint_range_step(const struct mpipe_value *range);
  * @param out Pointer to storage for the result, untouched unless 0 is returned.
  *
  * @retval 0 on success
- * @retval -ENOENT if the intersection is empty or either input value is NULL
- * @retval -EINVAL if @p out is NULL
+ * @retval -ENOENT if the intersection is empty
  */
 int mpipe_value_intersect(const struct mpipe_value *val1, const struct mpipe_value *val2,
 			  struct mpipe_value *out);

@@ -15,7 +15,9 @@ LOG_MODULE_REGISTER(mpipe_structure, CONFIG_MPIPE_LOG_LEVEL);
 
 int mpipe_structure_init(struct mpipe_structure *structure, uint8_t media_type_id)
 {
-	if (structure == NULL || media_type_id >= MPIPE_MEDIA_END) {
+	__ASSERT_NO_MSG(structure != NULL);
+
+	if (media_type_id >= MPIPE_MEDIA_END) {
 		return -EINVAL;
 	}
 
@@ -28,6 +30,8 @@ int mpipe_structure_init(struct mpipe_structure *structure, uint8_t media_type_i
 
 int mpipe_structure_init_any(struct mpipe_structure *structure)
 {
+	__ASSERT_NO_MSG(structure != NULL);
+
 	int ret = mpipe_structure_init(structure, MPIPE_MEDIA_UNKNOWN);
 
 	if (ret != 0) {
@@ -52,9 +56,7 @@ bool mpipe_structure_is_empty(const struct mpipe_structure *structure)
 
 int mpipe_structure_clear(struct mpipe_structure *structure)
 {
-	if (structure == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(structure != NULL);
 
 	/*
 	 * Resetting num_fields to empty the structure. Every read of ids and values is
@@ -69,7 +71,10 @@ int mpipe_structure_clear(struct mpipe_structure *structure)
 int mpipe_structure_append_value(struct mpipe_structure *structure, uint8_t field_id,
 				 const struct mpipe_value *value)
 {
-	if (structure == NULL || value == NULL || field_id >= MPIPE_CAPS_END) {
+	__ASSERT_NO_MSG(structure != NULL);
+	__ASSERT_NO_MSG(value != NULL);
+
+	if (field_id >= MPIPE_CAPS_END) {
 		return -EINVAL;
 	}
 
@@ -173,9 +178,7 @@ const struct mpipe_value *mpipe_structure_get_value(const struct mpipe_structure
 
 int mpipe_structure_remove_field(struct mpipe_structure *structure, uint8_t field_id)
 {
-	if (structure == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(structure != NULL);
 
 	for (uint8_t i = 0; i < structure->num_fields; i++) {
 		if (structure->ids[i] != field_id) {
@@ -205,7 +208,11 @@ int mpipe_structure_intersect(const struct mpipe_structure *struct1,
 	 * an input would be read after it has been reset. Nothing needs it, so
 	 * it is refused rather than paid for with a scratch structure.
 	 */
-	if (struct1 == NULL || struct2 == NULL || out == NULL || out == struct1 || out == struct2) {
+	__ASSERT_NO_MSG(struct1 != NULL);
+	__ASSERT_NO_MSG(struct2 != NULL);
+	__ASSERT_NO_MSG(out != NULL);
+
+	if (out == struct1 || out == struct2) {
 		return -EINVAL;
 	}
 
@@ -277,7 +284,9 @@ int mpipe_structure_intersect(const struct mpipe_structure *struct1,
 
 bool mpipe_structure_is_fixed(const struct mpipe_structure *structure)
 {
-	if (structure == NULL || mpipe_structure_is_any(structure) || structure->num_fields == 0) {
+	__ASSERT_NO_MSG(structure != NULL);
+
+	if (mpipe_structure_is_any(structure) || structure->num_fields == 0) {
 		return false;
 	}
 
@@ -296,7 +305,10 @@ int mpipe_structure_fixate(const struct mpipe_structure *src, struct mpipe_struc
 	int ret;
 
 	/* Same as the intersection: out is built from src, so it cannot be src */
-	if (src == NULL || out == NULL || out == src) {
+	__ASSERT_NO_MSG(src != NULL);
+	__ASSERT_NO_MSG(out != NULL);
+
+	if (out == src) {
 		return -EINVAL;
 	}
 

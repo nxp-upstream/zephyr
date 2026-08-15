@@ -254,6 +254,8 @@ static enum mpipe_state_change_return mpipe_queue_change_state(struct mpipe_elem
 
 int mpipe_queue_init(struct mpipe_queue *queue, uint8_t id)
 {
+	__ASSERT_NO_MSG(queue != NULL);
+
 	struct mpipe_element *self = &queue->transform.element;
 	int ret = mpipe_transform_init(&queue->transform, id);
 

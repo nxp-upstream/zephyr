@@ -61,25 +61,23 @@ ZTEST_F(mpipe_pad_api, test_link_sets_peers)
 	zassert_equal(fixture->sink_pad.peer, &fixture->src_pad, "sink_pad peer != src_pad");
 }
 
-ZTEST_F(mpipe_pad_api, test_sanity)
+/* A pad with no hook has no answer to give, which is a state and not an error */
+ZTEST_F(mpipe_pad_api, test_a_pad_without_a_hook_answers_nothing)
 {
-	zassert_true(mpipe_pad_link(NULL, &fixture->sink_pad) < 0, "link(NULL, sink) did not fail");
-	zassert_true(mpipe_pad_link(&fixture->src_pad, NULL) < 0, "link(src, NULL) did not fail");
-	zassert_true(mpipe_pad_link(NULL, NULL) < 0, "link(NULL, NULL) did not fail");
+	struct mpipe_dispatch query = {.type = MPIPE_DISPATCH_CAPS};
+	struct mpipe_dispatch event = {.type = MPIPE_DISPATCH_EOS};
+	struct mpipe_structure caps;
 
-	struct mpipe_dispatch evt = {.type = MPIPE_DISPATCH_EOS};
-
-	zassert_true(mpipe_pad_send_event(NULL, &evt) < 0, "send_event(NULL, evt) did not fail");
-	zassert_true(mpipe_pad_send_event(&fixture->src_pad, NULL) < 0,
-		     "send_event(pad, NULL) did not fail");
-
-	struct mpipe_dispatch q = {.type = MPIPE_DISPATCH_CAPS};
-
-	zassert_true(mpipe_pad_query(NULL, &q) < 0, "query(NULL, q) did not fail");
-	zassert_true(mpipe_pad_query(&fixture->src_pad, NULL) < 0, "query(pad, NULL) did not fail");
+	zassert_ok(mpipe_structure_init_any(&caps), "caps init failed");
+	query.caps = &caps;
 
 	fixture->src_pad.query_fn = NULL;
-	zassert_true(mpipe_pad_query(&fixture->src_pad, &q) < 0, "query(no query_fn) did not fail");
+	zassert_equal(mpipe_pad_query(&fixture->src_pad, &query), -ENOTSUP,
+		      "a pad with no query hook did not report -ENOTSUP");
+
+	fixture->src_pad.event_fn = NULL;
+	zassert_equal(mpipe_pad_send_event(&fixture->src_pad, &event), -ENOTSUP,
+		      "a pad with no event hook did not report -ENOTSUP");
 }
 
 static bool caps_query_fn_ran;
@@ -167,9 +165,6 @@ ZTEST_F(mpipe_pad_api, test_enum_caps)
 	zassert_true(mpipe_structure_is_any(&out), "ANY caps did not enumerate an ANY structure");
 	zassert_equal(mpipe_pad_enum_caps(&fixture->src_pad, 1, NULL, &out), -ENOENT,
 		      "ANY caps enumerated more than once");
-
-	zassert_equal(mpipe_pad_enum_caps(NULL, 0, NULL, &out), -EINVAL,
-		      "enum(NULL pad) != -EINVAL");
 
 	fixture->src_pad.enum_caps_fn = fake_enum_caps;
 

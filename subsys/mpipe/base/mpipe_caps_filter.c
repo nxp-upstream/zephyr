@@ -121,6 +121,8 @@ mpipe_caps_filter_change_state(struct mpipe_element *self, enum mpipe_state_chan
 
 int mpipe_caps_filter_init(struct mpipe_caps_filter *caps_filter, uint8_t id)
 {
+	__ASSERT_NO_MSG(caps_filter != NULL);
+
 	struct mpipe_element *self = &caps_filter->transform.element;
 	struct mpipe_transform *transform = &caps_filter->transform;
 	int ret = mpipe_transform_init(transform, id);

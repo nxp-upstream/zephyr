@@ -46,6 +46,9 @@ static int mpipe_sink_query(struct mpipe_pad *pad, struct mpipe_dispatch *query)
 
 int mpipe_sink_event(struct mpipe_pad *pad, struct mpipe_dispatch *event)
 {
+	__ASSERT_NO_MSG(pad != NULL);
+	__ASSERT_NO_MSG(event != NULL);
+
 	struct mpipe_sink *sink = (struct mpipe_sink *)pad->object.container;
 
 	switch (event->type) {
@@ -103,6 +106,8 @@ enum mpipe_state_change_return mpipe_sink_change_state(struct mpipe_element *sel
 
 int mpipe_sink_init(struct mpipe_sink *sink, uint8_t id)
 {
+	__ASSERT_NO_MSG(sink != NULL);
+
 	struct mpipe_element *self = &sink->element;
 	int ret = mpipe_element_init(self, id);
 

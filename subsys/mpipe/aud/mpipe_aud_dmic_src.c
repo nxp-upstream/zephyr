@@ -151,6 +151,8 @@ static int mpipe_aud_dmic_src_start(struct mpipe_buffer_pool *pool)
 
 int mpipe_aud_dmic_src_init(struct mpipe_aud_dmic_src *aud_dmic_src, uint8_t id)
 {
+	__ASSERT_NO_MSG(aud_dmic_src != NULL);
+
 	struct mpipe_element *self = &aud_dmic_src->aud_src.src.element;
 	struct mpipe_src *src = &aud_dmic_src->aud_src.src;
 	int ret = mpipe_aud_src_init(&aud_dmic_src->aud_src, id);

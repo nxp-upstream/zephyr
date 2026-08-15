@@ -23,18 +23,11 @@ ZTEST(mpipe_buffer_api, test_sanity)
 	mpipe_buffer_pool_init(&pool);
 	zassert_false(pool.started, "pool.started != false after init");
 
-	zassert_true(mpipe_buffer_pool_configure(NULL, &config) < 0,
-		     "configure NULL pool did not fail");
-
 	zassert_true(mpipe_buffer_pool_configure(&pool, &config) < 0,
 		     "configure(no callback) did not fail");
 
-	zassert_true(mpipe_buffer_pool_start(NULL) < 0, "start NULL pool did not fail");
-
 	pool.start = NULL;
 	zassert_true(mpipe_buffer_pool_start(&pool) < 0, "start no callback did not fail");
-
-	zassert_true(mpipe_buffer_pool_stop(NULL) < 0, "stop NULL pool did not fail");
 
 	pool.stop = NULL;
 	zassert_true(mpipe_buffer_pool_stop(&pool) < 0, "stop no callback did not fail");

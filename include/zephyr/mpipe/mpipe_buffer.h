@@ -147,7 +147,6 @@ int mpipe_buffer_pool_configure(struct mpipe_buffer_pool *pool, struct mpipe_str
  * @param cfg  What the pool requires
  *
  * @retval 0       Success
- * @retval -EINVAL @p pool or @p cfg is NULL
  * @retval -EBUSY  The pool is started; stop it before restating its requirement
  */
 int mpipe_buffer_pool_set_req_config(struct mpipe_buffer_pool *pool,
@@ -169,7 +168,6 @@ int mpipe_buffer_pool_set_req_config(struct mpipe_buffer_pool *pool,
  * @param cfg  Negotiated config to apply
  *
  * @retval 0       Success, the pool's config reflects the accepted values.
- * @retval -EINVAL @p pool or @p cfg is NULL.
  * @retval -EBUSY  The pool is started; stop it before reconfiguring.
  * @return Any negative errno the pool's set_config returns to refuse.
  */

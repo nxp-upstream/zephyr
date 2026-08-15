@@ -19,7 +19,10 @@ static int mpipe_fake_src_pool_acquire(struct mpipe_buffer_pool *pool, struct ne
 	struct net_buf *nb;
 	struct mpipe_buffer_meta *meta;
 
-	if (pool == NULL || buf == NULL || pool->nb_pool == NULL) {
+	__ASSERT_NO_MSG(pool != NULL);
+	__ASSERT_NO_MSG(buf != NULL);
+
+	if (pool->nb_pool == NULL) {
 		return -EINVAL;
 	}
 
@@ -45,9 +48,7 @@ static int mpipe_fake_src_pool_release(struct mpipe_buffer_pool *pool, struct ne
 {
 	ARG_UNUSED(pool);
 
-	if (buf == NULL) {
-		return 0;
-	}
+	__ASSERT_NO_MSG(buf != NULL);
 
 	struct mpipe_buffer_meta *meta = mpipe_buffer_get_meta(buf);
 
@@ -65,6 +66,8 @@ static int mpipe_fake_src_pool_release(struct mpipe_buffer_pool *pool, struct ne
 
 int mpipe_fake_src_init(struct mpipe_fake_src *fsrc, uint8_t id)
 {
+	__ASSERT_NO_MSG(fsrc != NULL);
+
 	struct mpipe_element *self = &fsrc->src.element;
 	int ret = mpipe_src_init(&fsrc->src, id);
 

@@ -277,6 +277,8 @@ enum mpipe_state_change_return mpipe_src_change_state(struct mpipe_element *self
 
 int mpipe_src_init(struct mpipe_src *src, uint8_t id)
 {
+	__ASSERT_NO_MSG(src != NULL);
+
 	struct mpipe_element *self = &src->element;
 	int ret = mpipe_element_init(self, id);
 

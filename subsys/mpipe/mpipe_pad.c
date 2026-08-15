@@ -19,6 +19,9 @@ LOG_MODULE_REGISTER(mpipe_pad, CONFIG_MPIPE_LOG_LEVEL);
 int mpipe_pad_enum_filter(const struct mpipe_structure *candidate,
 			  const struct mpipe_structure *filter, struct mpipe_structure *out)
 {
+	__ASSERT_NO_MSG(candidate != NULL);
+	__ASSERT_NO_MSG(out != NULL);
+
 	if (filter == NULL) {
 		*out = *candidate;
 		return 0;
@@ -43,7 +46,10 @@ static int mpipe_pad_enum_caps_default(struct mpipe_pad *pad, uint32_t index,
 int mpipe_pad_enum_caps(struct mpipe_pad *pad, uint32_t index, const struct mpipe_structure *filter,
 			struct mpipe_structure *out)
 {
-	if (pad == NULL || pad->enum_caps_fn == NULL || out == NULL) {
+	__ASSERT_NO_MSG(pad != NULL);
+	__ASSERT_NO_MSG(out != NULL);
+
+	if (pad->enum_caps_fn == NULL) {
 		return -EINVAL;
 	}
 
@@ -62,6 +68,8 @@ int mpipe_pad_enum_caps(struct mpipe_pad *pad, uint32_t index, const struct mpip
 
 int mpipe_pad_answer_caps_query(struct mpipe_pad *pad, struct mpipe_dispatch *query)
 {
+	__ASSERT_NO_MSG(query != NULL);
+
 	struct mpipe_structure candidate;
 	int ret;
 
@@ -118,9 +126,7 @@ void mpipe_pad_init(struct mpipe_pad *pad, uint8_t id, enum mpipe_pad_direction 
 
 int mpipe_pad_set_caps(struct mpipe_pad *pad, const struct mpipe_structure *caps)
 {
-	if (pad == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(pad != NULL);
 
 	if (caps == &pad->caps) {
 		return 0;
@@ -139,9 +145,8 @@ int mpipe_pad_set_caps(struct mpipe_pad *pad, const struct mpipe_structure *caps
 
 int mpipe_pad_link(struct mpipe_pad *src_pad, struct mpipe_pad *sink_pad)
 {
-	if (src_pad == NULL || sink_pad == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(src_pad != NULL);
+	__ASSERT_NO_MSG(sink_pad != NULL);
 
 	/* Set peer pad */
 	src_pad->peer = sink_pad;
@@ -154,9 +159,8 @@ int mpipe_pad_query(struct mpipe_pad *pad, struct mpipe_dispatch *query)
 {
 	int ret;
 
-	if (pad == NULL || query == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(pad != NULL);
+	__ASSERT_NO_MSG(query != NULL);
 
 	if (pad->query_fn == NULL) {
 		return -ENOTSUP;
@@ -188,9 +192,8 @@ int mpipe_pad_send_event_default(struct mpipe_pad *pad, struct mpipe_dispatch *e
 {
 	int ret = -ENOTSUP;
 
-	if (pad == NULL || event == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(pad != NULL);
+	__ASSERT_NO_MSG(event != NULL);
 
 	struct mpipe_element *element = (struct mpipe_element *)pad->object.container;
 	struct mpipe_object *obj;
@@ -224,9 +227,8 @@ int mpipe_pad_send_event_default(struct mpipe_pad *pad, struct mpipe_dispatch *e
 
 int mpipe_pad_send_event(struct mpipe_pad *pad, struct mpipe_dispatch *event)
 {
-	if (pad == NULL || event == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(pad != NULL);
+	__ASSERT_NO_MSG(event != NULL);
 
 	if (pad->event_fn == NULL) {
 		return -ENOTSUP;

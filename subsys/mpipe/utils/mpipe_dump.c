@@ -259,9 +259,7 @@ int mpipe_dump_caps(const struct mpipe_structure *caps, const struct mpipe_dump_
 {
 	struct mpipe_dump_writer w = {.sink = sink};
 
-	if (caps == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(caps != NULL);
 
 	dump_caps(&w, caps);
 	dump_flush(&w);
@@ -468,9 +466,7 @@ int mpipe_dump_bin(struct mpipe_bin *bin, const struct mpipe_dump_sink *sink)
 	};
 	struct mpipe_element *self = (struct mpipe_element *)bin;
 
-	if (bin == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(bin != NULL);
 
 	dump_index_bin(&ctx, bin);
 

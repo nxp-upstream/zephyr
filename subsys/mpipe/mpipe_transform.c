@@ -31,6 +31,8 @@ static int mpipe_transform_chain_fn(struct mpipe_pad *pad, struct net_buf *in_bu
 int mpipe_transform_set_caps(struct mpipe_transform *transform, enum mpipe_pad_direction direction,
 			     const struct mpipe_structure *caps)
 {
+	__ASSERT_NO_MSG(transform != NULL);
+
 	if (direction == MPIPE_PAD_SINK) {
 		return mpipe_pad_set_caps(&transform->sink_pad, caps);
 	}
@@ -438,6 +440,8 @@ enum mpipe_state_change_return mpipe_transform_change_state(struct mpipe_element
 
 int mpipe_transform_init(struct mpipe_transform *transform, uint8_t id)
 {
+	__ASSERT_NO_MSG(transform != NULL);
+
 	struct mpipe_element *self = &transform->element;
 	int ret = mpipe_element_init(self, id);
 

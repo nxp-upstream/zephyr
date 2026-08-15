@@ -21,6 +21,8 @@ LOG_MODULE_REGISTER(mpipe_element, CONFIG_MPIPE_LOG_LEVEL);
 
 void mpipe_element_reset_pad_caps(struct mpipe_element *element)
 {
+	__ASSERT_NO_MSG(element != NULL);
+
 	struct mpipe_object *pad_obj;
 
 	SYS_DLIST_FOR_EACH_CONTAINER(&element->src_pads, pad_obj, node) {
@@ -120,6 +122,8 @@ int mpipe_element_link(struct mpipe_element *element, struct mpipe_element *next
 enum mpipe_state_change_return mpipe_element_set_state(struct mpipe_element *element,
 						       enum mpipe_state state)
 {
+	__ASSERT_NO_MSG(element != NULL);
+
 	if (element->set_state != NULL) {
 		return element->set_state(element, state);
 	}
@@ -201,7 +205,9 @@ int mpipe_message_post(struct mpipe_message *message)
 {
 	struct zbus_channel *chan;
 
-	if (message == NULL || message->origin == NULL || message->type == 0) {
+	__ASSERT_NO_MSG(message != NULL);
+
+	if (message->origin == NULL || message->type == 0) {
 		return -EINVAL;
 	}
 
@@ -215,6 +221,8 @@ int mpipe_message_post(struct mpipe_message *message)
 
 int mpipe_element_init(struct mpipe_element *self, uint8_t id)
 {
+	__ASSERT_NO_MSG(self != NULL);
+
 	mpipe_object_init(&self->object);
 	self->object.id = id;
 

@@ -189,6 +189,8 @@ static int mpipe_vid_transform_propose_buffer_pool(struct mpipe_transform *self,
 
 int mpipe_vid_transform_init(struct mpipe_vid_transform *vid_transform, uint8_t id)
 {
+	__ASSERT_NO_MSG(vid_transform != NULL);
+
 	struct mpipe_element *self = &vid_transform->transform.element;
 	struct mpipe_transform *transform = &vid_transform->transform;
 	int ret = mpipe_transform_init(transform, id);

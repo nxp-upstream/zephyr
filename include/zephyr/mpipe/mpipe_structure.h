@@ -220,7 +220,7 @@ struct mpipe_structure {
  * @param media_type_id Media type of the structure, see @ref mpipe_media_type.
  *
  * @retval 0 on success
- * @retval -EINVAL if @p structure is NULL or @p media_type_id is not a media type
+ * @retval -EINVAL if @p media_type_id is not a media type
  */
 int mpipe_structure_init(struct mpipe_structure *structure, uint8_t media_type_id);
 
@@ -237,7 +237,7 @@ int mpipe_structure_init(struct mpipe_structure *structure, uint8_t media_type_i
  * @param ... Field triples, terminated by MPIPE_CAPS_END.
  *
  * @retval 0 on success
- * @retval -EINVAL if @p structure is NULL, @p media_type_id is not a media
+ * @retval -EINVAL if @p media_type_id is not a media
  *         type, or a field identifier or value type is invalid
  * @retval -EEXIST if the list names the same field twice
  * @retval -ENOSPC if the list holds more fields than
@@ -254,7 +254,6 @@ int mpipe_structure_init_fields(struct mpipe_structure *structure, uint8_t media
  * @param structure Pointer to the structure to initialize.
  *
  * @retval 0 on success
- * @retval -EINVAL if @p structure is NULL
  */
 int mpipe_structure_init_any(struct mpipe_structure *structure);
 
@@ -292,7 +291,7 @@ bool mpipe_structure_is_empty(const struct mpipe_structure *structure);
  * @param value Pointer to the field value to copy in.
  *
  * @retval 0 on success
- * @retval -EINVAL if a pointer is NULL or @p field_id is not a field identifier
+ * @retval -EINVAL if @p field_id is not a field identifier
  * @retval -EEXIST if the structure already carries @p field_id
  * @retval -ENOSPC if the structure already holds
  *         CONFIG_MPIPE_STRUCTURE_MAX_FIELDS fields
@@ -314,7 +313,7 @@ int mpipe_structure_append_value(struct mpipe_structure *structure, uint8_t fiel
  *
  * @retval 0 on success
  * @retval -ENOENT if @p src does not carry the field
- * @retval -EINVAL if @p dst is NULL or @p field_id is not a field identifier
+ * @retval -EINVAL if @p field_id is not a field identifier
  * @retval -EEXIST if @p dst already carries the field
  * @retval -ENOSPC if @p dst is full
  */
@@ -335,7 +334,6 @@ int mpipe_structure_copy_field(const struct mpipe_structure *src, struct mpipe_s
  * @param structure Pointer to the structure to clear.
  *
  * @retval 0 on success
- * @retval -EINVAL if @p structure is NULL
  */
 int mpipe_structure_clear(struct mpipe_structure *structure);
 
@@ -377,7 +375,6 @@ const struct mpipe_value *mpipe_structure_get_value(const struct mpipe_structure
  * @param field_id Field identifier, see @ref mpipe_caps_field.
  *
  * @retval 0 on success
- * @retval -EINVAL if @p structure is NULL
  * @retval -ENOENT if the structure does not carry the field
  */
 int mpipe_structure_remove_field(struct mpipe_structure *structure, uint8_t field_id);
@@ -402,7 +399,7 @@ int mpipe_structure_remove_field(struct mpipe_structure *structure, uint8_t fiel
  *         common value
  * @p out is written field by field, so it must not be one of the inputs.
  *
- * @retval -EINVAL if a pointer is NULL, @p out aliases an input, or the media
+ * @retval -EINVAL if @p out aliases an input, or the media
  *         types differ
  * @retval -ENOSPC if the union does not fit CONFIG_MPIPE_STRUCTURE_MAX_FIELDS
  */
@@ -422,7 +419,7 @@ int mpipe_structure_intersect(const struct mpipe_structure *struct1,
  * @retval 0 on success
  * @retval -ENOENT if @p src constrains nothing and so has nothing to fixate,
  *         whether it is flagged ANY or simply holds no field
- * @retval -EINVAL if either pointer is NULL or @p out is @p src
+ * @retval -EINVAL if @p out is @p src
  */
 int mpipe_structure_fixate(const struct mpipe_structure *src, struct mpipe_structure *out);
 

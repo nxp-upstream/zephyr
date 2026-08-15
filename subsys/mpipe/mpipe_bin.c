@@ -39,9 +39,7 @@ int mpipe_bin_add(struct mpipe_bin *bin, struct mpipe_element *element, ...)
 {
 	va_list args;
 
-	if (bin == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(bin != NULL);
 
 	va_start(args, element);
 	while (element != NULL) {
@@ -241,6 +239,8 @@ static void mpipe_bin_init_bus(struct mpipe_bin *bin)
 
 int mpipe_bin_init(struct mpipe_bin *bin, uint8_t id)
 {
+	__ASSERT_NO_MSG(bin != NULL);
+
 	struct mpipe_element *self = &bin->element;
 	int ret = mpipe_element_init(self, id);
 
@@ -265,9 +265,7 @@ int mpipe_bin_set_bus_validator(struct mpipe_bin *bin, zbus_validator bus_valida
 	struct zbus_channel *chan;
 	int ret;
 
-	if (bin == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(bin != NULL);
 
 	chan = &bin->bus.channel;
 

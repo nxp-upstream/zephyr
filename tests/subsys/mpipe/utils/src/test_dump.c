@@ -276,10 +276,11 @@ ZTEST_F(test_dump, test_dump_caps_tells_any_from_empty)
 		      fixture->capture.buf);
 }
 
-ZTEST_F(test_dump, test_dump_rejects_bad_arguments)
+/* A dump with no sink goes to the console, which is how the player renders one */
+ZTEST_F(test_dump, test_dump_without_a_sink_is_accepted)
 {
-	zassert_equal(mpipe_dump_bin(NULL, &fixture->sink_cfg), -EINVAL,
-		      "A NULL bin should be rejected");
-	zassert_equal(mpipe_dump_caps(NULL, &fixture->sink_cfg), -EINVAL,
-		      "A NULL capability should be rejected");
+	dump_link_chain(fixture);
+
+	zassert_ok(mpipe_dump_bin((struct mpipe_bin *)&fixture->pipeline, NULL),
+		   "A dump to the console should be accepted");
 }

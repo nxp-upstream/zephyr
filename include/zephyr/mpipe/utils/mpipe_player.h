@@ -103,7 +103,6 @@ struct mpipe_player {
  * @param player   Pointer to an uninitialized @ref mpipe_player.
  * @param pipeline Pointer to the pipeline to control.
  * @retval 0 on success
- * @retval -EINVAL if @p player or @p pipeline is NULL
  * @retval -EBUSY if another player instance is already active
  */
 int mpipe_player_init(struct mpipe_player *player, struct mpipe *pipeline);
@@ -184,7 +183,6 @@ int mpipe_player_quit(struct mpipe_player *player);
  *
  * @param player Pointer to the player.
  * @retval 0 on success
- * @retval -EINVAL if @p player is NULL
  */
 int mpipe_player_wait_quit(struct mpipe_player *player);
 
@@ -196,7 +194,6 @@ int mpipe_player_wait_quit(struct mpipe_player *player);
  *
  * @param player Pointer to the player.
  * @retval 0 on success
- * @retval -EINVAL if @p player is NULL
  */
 int mpipe_player_deinit(struct mpipe_player *player);
 

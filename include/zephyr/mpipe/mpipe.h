@@ -26,6 +26,20 @@
  * @defgroup mpipe_framework Framework
  * @ingroup mpipe
  * @brief Core Multimedia Pipeline APIs.
+ *
+ * @section mpipe_null Pointer parameters
+ *
+ * A pointer parameter must not be NULL unless its own documentation says what
+ * NULL means for it - "or NULL to reset to ANY", "or NULL if unused". Passing
+ * NULL anywhere else is a programming error, not a runtime condition: the
+ * caller is handing over an object it owns, so there is nothing to recover
+ * from and nothing useful to report. Those are trapped by an assertion, which
+ * costs nothing once CONFIG_ASSERT is off.
+ *
+ * Values are different. Where an argument carries data rather than an object -
+ * a capability that may be empty, a property whose value the application
+ * chose - the API validates it and returns a negative errno, because a
+ * pipeline can report that and carry on.
  */
 
 /**

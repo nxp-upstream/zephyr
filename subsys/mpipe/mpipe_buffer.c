@@ -15,9 +15,7 @@ void mpipe_buffer_destroy(struct net_buf *buf)
 {
 	struct mpipe_buffer_meta *bm;
 
-	if (buf == NULL) {
-		return;
-	}
+	__ASSERT_NO_MSG(buf != NULL);
 
 	bm = mpipe_buffer_get_meta(buf);
 	if (bm != NULL && bm->pool != NULL && bm->pool->release_buffer != NULL) {
@@ -29,9 +27,7 @@ void mpipe_buffer_destroy(struct net_buf *buf)
 
 int mpipe_buffer_pool_configure(struct mpipe_buffer_pool *pool, struct mpipe_structure *config)
 {
-	if (pool == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(pool != NULL);
 
 	if (pool->configure == NULL) {
 		return -ENOSYS;
@@ -43,9 +39,8 @@ int mpipe_buffer_pool_configure(struct mpipe_buffer_pool *pool, struct mpipe_str
 int mpipe_buffer_pool_set_req_config(struct mpipe_buffer_pool *pool,
 				     const struct mpipe_buffer_pool_config *cfg)
 {
-	if (pool == NULL || cfg == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(pool != NULL);
+	__ASSERT_NO_MSG(cfg != NULL);
 
 	if (pool->started) {
 		return -EBUSY;
@@ -60,9 +55,8 @@ int mpipe_buffer_pool_set_req_config(struct mpipe_buffer_pool *pool,
 int mpipe_buffer_pool_set_config(struct mpipe_buffer_pool *pool,
 				 const struct mpipe_buffer_pool_config *cfg)
 {
-	if (pool == NULL || cfg == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(pool != NULL);
+	__ASSERT_NO_MSG(cfg != NULL);
 
 	if (pool->started) {
 		return -EBUSY;
@@ -81,9 +75,7 @@ int mpipe_buffer_pool_start(struct mpipe_buffer_pool *pool)
 {
 	int ret;
 
-	if (pool == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(pool != NULL);
 
 	if (pool->started) {
 		return 0;
@@ -106,9 +98,7 @@ int mpipe_buffer_pool_stop(struct mpipe_buffer_pool *pool)
 {
 	int ret;
 
-	if (pool == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(pool != NULL);
 
 	/*
 	 * Forget what the run negotiated, before anything else: a pool that was
@@ -137,9 +127,7 @@ int mpipe_buffer_pool_stop(struct mpipe_buffer_pool *pool)
 
 void mpipe_buffer_pool_init(struct mpipe_buffer_pool *pool)
 {
-	if (pool == NULL) {
-		return;
-	}
+	__ASSERT_NO_MSG(pool != NULL);
 
 	pool->nb_pool = &mpipe_buf_pool;
 	pool->started = false;

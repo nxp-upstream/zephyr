@@ -110,9 +110,7 @@ static int mpipe_file_src_pool_acquire_buffer(struct mpipe_buffer_pool *pool, st
 	struct mpipe_buffer_meta *m;
 	int ret;
 
-	if (buf == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(buf != NULL);
 
 	if (fsrc->downstream_pool != NULL && fsrc->downstream_pool->acquire_buffer != NULL) {
 		if (fsrc->downstream_pool->acquire_buffer(fsrc->downstream_pool, &out) != 0 ||
@@ -212,6 +210,8 @@ mpipe_file_src_change_state(struct mpipe_element *self, enum mpipe_state_change 
 
 int mpipe_file_src_init(struct mpipe_file_src *fsrc, uint8_t id)
 {
+	__ASSERT_NO_MSG(fsrc != NULL);
+
 	struct mpipe_element *self = &fsrc->src.element;
 	struct mpipe_src *src = &fsrc->src;
 	int ret = mpipe_src_init(src, id);

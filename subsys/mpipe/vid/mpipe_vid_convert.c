@@ -55,9 +55,7 @@ static int vid_convert_pool_start(struct mpipe_buffer_pool *pool)
 {
 	struct mpipe_vid_convert *conv;
 
-	if (pool == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(pool != NULL);
 
 	conv = CONTAINER_OF(pool, struct mpipe_vid_convert, out_pool);
 
@@ -91,9 +89,7 @@ static int vid_convert_pool_stop(struct mpipe_buffer_pool *pool)
 {
 	struct mpipe_vid_convert *conv;
 
-	if (pool == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(pool != NULL);
 
 	conv = CONTAINER_OF(pool, struct mpipe_vid_convert, out_pool);
 
@@ -115,9 +111,8 @@ static int vid_convert_pool_acquire(struct mpipe_buffer_pool *pool, struct net_b
 	struct mpipe_buffer_meta *meta;
 	struct mpipe_vid_convert *conv;
 
-	if (pool == NULL || out == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(pool != NULL);
+	__ASSERT_NO_MSG(out != NULL);
 
 	conv = CONTAINER_OF(pool, struct mpipe_vid_convert, out_pool);
 
@@ -147,9 +142,8 @@ static int vid_convert_pool_release(struct mpipe_buffer_pool *pool, struct net_b
 	struct video_buffer *vbuf;
 	struct mpipe_vid_convert *conv;
 
-	if (pool == NULL || buf == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(pool != NULL);
+	__ASSERT_NO_MSG(buf != NULL);
 
 	conv = CONTAINER_OF(pool, struct mpipe_vid_convert, out_pool);
 
@@ -477,6 +471,8 @@ err:
 
 int mpipe_vid_convert_init(struct mpipe_vid_convert *conv, uint8_t id)
 {
+	__ASSERT_NO_MSG(conv != NULL);
+
 	struct mpipe_element *self = &conv->transform.element;
 	struct mpipe_transform *transform = &conv->transform;
 	int ret = mpipe_transform_init(transform, id);

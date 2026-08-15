@@ -271,6 +271,10 @@ static int mpipe_aud_i2s_codec_sink_set_caps(struct mpipe_sink *sink,
 int mpipe_aud_i2s_codec_sink_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 				      struct net_buf **out_buf)
 {
+	__ASSERT_NO_MSG(pad != NULL);
+	__ASSERT_NO_MSG(in_buf != NULL);
+	__ASSERT_NO_MSG(out_buf != NULL);
+
 	struct mpipe_aud_i2s_codec_sink *aud_i2s_codec_sink = CONTAINER_OF(
 		pad->object.container, struct mpipe_aud_i2s_codec_sink, sink.element.object);
 	uint32_t bytes_used = mpipe_buffer_get_meta(in_buf)->bytes_used;
@@ -310,6 +314,8 @@ int mpipe_aud_i2s_codec_sink_chain_fn(struct mpipe_pad *pad, struct net_buf *in_
 
 int mpipe_aud_i2s_codec_sink_init(struct mpipe_aud_i2s_codec_sink *aud_i2s_codec_sink, uint8_t id)
 {
+	__ASSERT_NO_MSG(aud_i2s_codec_sink != NULL);
+
 	struct mpipe_element *self = &aud_i2s_codec_sink->sink.element;
 	struct mpipe_sink *sink = &aud_i2s_codec_sink->sink;
 	int ret = mpipe_sink_init(sink, id);

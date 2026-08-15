@@ -123,6 +123,8 @@ static int mpipe_vid_transform_client_transform_caps(struct mpipe_transform *sel
 
 int mpipe_vid_transform_client_init(struct mpipe_vid_transform_client *vtc, uint8_t id)
 {
+	__ASSERT_NO_MSG(vtc != NULL);
+
 	struct mpipe_element *self = &vtc->transform.transform.element;
 	struct mpipe_transform *transform = &vtc->transform.transform;
 	int ret = mpipe_transform_client_init(&vtc->transform, id);

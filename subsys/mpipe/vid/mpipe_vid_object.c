@@ -66,6 +66,8 @@ static int append_dimension(struct mpipe_structure *caps, uint8_t field_id, uint
 
 int mpipe_vid_caps_to_vfc(const struct mpipe_structure *caps, struct video_format_cap *vfc)
 {
+	__ASSERT_NO_MSG(vfc != NULL);
+
 	int ret;
 	const struct mpipe_value *value;
 
@@ -423,6 +425,8 @@ static bool has_frmival(const struct device *vdev, struct video_format *fmt)
 
 int mpipe_vid_object_set_caps(struct mpipe_vid_object *vid_obj, const struct mpipe_structure *caps)
 {
+	__ASSERT_NO_MSG(vid_obj != NULL);
+
 	struct video_format fmt;
 	const struct mpipe_value *frmival_us;
 
@@ -473,6 +477,8 @@ int mpipe_vid_object_set_caps(struct mpipe_vid_object *vid_obj, const struct mpi
 
 int mpipe_vid_object_set_property(struct mpipe_vid_object *vid_obj, uint32_t key, const void *val)
 {
+	__ASSERT_NO_MSG(vid_obj != NULL);
+
 	switch (key) {
 	case MPIPE_PROP_VID_DEVICE:
 	case MPIPE_PROP_VID_CROP:
@@ -507,6 +513,8 @@ int mpipe_vid_object_set_property(struct mpipe_vid_object *vid_obj, uint32_t key
 
 int mpipe_vid_object_get_property(struct mpipe_vid_object *vid_obj, uint32_t key, void *val)
 {
+	__ASSERT_NO_MSG(vid_obj != NULL);
+
 	int ret;
 
 	switch (key) {
@@ -539,6 +547,9 @@ int mpipe_vid_object_get_property(struct mpipe_vid_object *vid_obj, uint32_t key
 int mpipe_vid_object_decide_buffer_pool(struct mpipe_vid_object *vid_obj,
 					struct mpipe_dispatch *query)
 {
+	__ASSERT_NO_MSG(vid_obj != NULL);
+	__ASSERT_NO_MSG(query != NULL);
+
 	struct mpipe_buffer_pool *query_pool = query->pool;
 	struct mpipe_buffer_pool_config *pool_config = &vid_obj->pool.pool.config;
 	struct mpipe_buffer_pool_config *qpc = NULL;

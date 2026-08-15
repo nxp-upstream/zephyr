@@ -263,6 +263,8 @@ static int mpipe_tee_set_property(struct mpipe_object *obj, uint32_t id, const v
 
 int mpipe_tee_init(struct mpipe_tee *tee, uint8_t id)
 {
+	__ASSERT_NO_MSG(tee != NULL);
+
 	struct mpipe_element *self = &tee->element;
 	int ret = mpipe_element_init(self, id);
 

@@ -113,6 +113,8 @@ static int mpipe_transform_client_decide_buffer_pool(struct mpipe_transform *sel
 
 int mpipe_transform_client_init(struct mpipe_transform_client *transform_client, uint8_t id)
 {
+	__ASSERT_NO_MSG(transform_client != NULL);
+
 	struct mpipe_element *self = &transform_client->transform.element;
 	struct mpipe_transform *transform = &transform_client->transform;
 	int ret;

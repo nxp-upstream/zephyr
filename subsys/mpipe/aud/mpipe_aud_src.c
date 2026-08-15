@@ -93,6 +93,8 @@ static int mpipe_aud_src_enum_caps(struct mpipe_pad *pad, uint32_t index,
 
 void mpipe_aud_src_update_caps(struct mpipe_src *src)
 {
+	__ASSERT_NO_MSG(src != NULL);
+
 	/* The capabilities are enumerated from the device, so nothing is built here */
 	src->src_pad.enum_caps_fn = mpipe_aud_src_enum_caps;
 }
@@ -136,6 +138,8 @@ static int mpipe_aud_src_decide_buffer_pool(struct mpipe_src *src, struct mpipe_
 
 int mpipe_aud_src_init(struct mpipe_aud_src *aud_src, uint8_t id)
 {
+	__ASSERT_NO_MSG(aud_src != NULL);
+
 	struct mpipe_element *self = &aud_src->src.element;
 	int ret = mpipe_src_init(&aud_src->src, id);
 

@@ -66,9 +66,7 @@ static int mpipe_vid_buffer_pool_client_acquire_buffer(struct mpipe_buffer_pool 
 	struct mpipe_vid_buffer_pool_client *zbpc = (struct mpipe_vid_buffer_pool_client *)pool;
 	struct net_buf *nb;
 
-	if (buf == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(buf != NULL);
 
 	nb = k_fifo_get(&zbpc->fifo, K_FOREVER);
 	if (nb == NULL) {
@@ -87,9 +85,8 @@ static int mpipe_vid_buffer_pool_client_release_buffer(struct mpipe_buffer_pool 
 	struct mpipe_buffer_meta *m;
 	struct video_buffer *vbuf;
 
-	if (pool == NULL || buf == NULL) {
-		return -EINVAL;
-	}
+	__ASSERT_NO_MSG(pool != NULL);
+	__ASSERT_NO_MSG(buf != NULL);
 
 	m = mpipe_buffer_get_meta(buf);
 	vbuf = m ? (struct video_buffer *)m->driver_buf : NULL;
@@ -106,6 +103,8 @@ static int mpipe_vid_buffer_pool_client_release_buffer(struct mpipe_buffer_pool 
 
 void mpipe_vid_buffer_pool_client_init(struct mpipe_buffer_pool *pool)
 {
+	__ASSERT_NO_MSG(pool != NULL);
+
 	struct mpipe_vid_buffer_pool_client *vbpc = (struct mpipe_vid_buffer_pool_client *)pool;
 
 	k_fifo_init(&vbpc->fifo);

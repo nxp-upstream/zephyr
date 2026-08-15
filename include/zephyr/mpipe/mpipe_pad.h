@@ -180,7 +180,6 @@ int mpipe_pad_answer_caps_query(struct mpipe_pad *pad, struct mpipe_dispatch *qu
  *
  * @retval 0 on success
  * @retval -EAGAIN if @p candidate cannot satisfy @p filter
- * @retval -EINVAL if @p candidate or @p out is NULL
  */
 int mpipe_pad_enum_filter(const struct mpipe_structure *candidate,
 			  const struct mpipe_structure *filter, struct mpipe_structure *out);
@@ -271,8 +270,7 @@ int mpipe_pad_send_event_default(struct mpipe_pad *pad, struct mpipe_dispatch *e
  *              A caps query must carry the capability storage to answer into.
  *
  * @retval 0 on success
- * @retval -EINVAL @p pad or @p query is NULL, or a caps query carries no
- *                 capability storage to answer into
+ * @retval -EINVAL a caps query carries no capability storage to answer into
  * @retval -ENOTSUP the pad has no query function
  * @retval -ENODATA a caps query was answered with an empty capability
  * @return Any negative errno the pad's query function returns
