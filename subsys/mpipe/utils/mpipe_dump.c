@@ -268,29 +268,19 @@ int mpipe_dump_caps(const struct mpipe_structure *caps, const struct mpipe_dump_
 }
 
 /*
- * Render "mpipe_vid_src_init" as "vid_src #1": the name is the init function's,
- * so drop the "mpipe_" prefix and "_init" suffix.
+ * Render an element as "vid_src #1". Every init function names its element
+ * after its type, so the name is printed as it was set.
  */
 static void dump_element_name(struct mpipe_dump_ctx *ctx, struct mpipe_element *element)
 {
 	const char *name = element->name;
-	size_t len;
 
 	if (name == NULL) {
 		dump_print(&ctx->writer, "element #%u", element->object.id);
 		return;
 	}
 
-	if (strncmp(name, "mpipe_", 3) == 0) {
-		name += 3;
-	}
-
-	len = strlen(name);
-	if (len > 5U && strcmp(&name[len - 5U], "_init") == 0) {
-		len -= 5U;
-	}
-
-	dump_print(&ctx->writer, "%.*s #%u", (int)len, name, element->object.id);
+	dump_print(&ctx->writer, "%s #%u", name, element->object.id);
 }
 
 static int dump_element_index(struct mpipe_dump_ctx *ctx, struct mpipe_element *element)
