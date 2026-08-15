@@ -6,7 +6,8 @@
 
 /**
  * @file
- * @brief Main header for mpipe_pad.
+ * @brief Pad: the point where two elements meet.
+ * @ingroup mpipe_pad
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_MPIPE_PAD_H_
@@ -15,7 +16,53 @@
 /**
  * @defgroup mpipe_pad Pad
  * @ingroup mpipe_framework
- * @brief Connection point for data flow between elements
+ * @brief The point where two elements meet.
+ *
+ * A pad is an element's input or output connector. It has a direction - a
+ * source pad (MPIPE_PAD_SRC) emits data, a sink pad (MPIPE_PAD_SINK) receives
+ * it - and @ref mpipe_pad_link joins one of each. The link is recorded on both
+ * sides through their @c peer pointers, and that pair of pointers is the path
+ * every buffer, event and query travels.
+ *
+ * A pad also holds the capability it settled on, one @ref mpipe_structure by
+ * value. Until a negotiation has run it constrains nothing, and
+ * @ref mpipe_pad_set_caps with NULL puts it back that way, which is what the
+ * PAUSED to READY transition does.
+ *
+ * @section mpipe_pad_traffic Buffers, events and queries
+ *
+ * Three kinds of traffic cross a link, each with its own hook:
+ *
+ * - a **buffer** arrives at a sink pad's @c chain_fn. The chain function owns
+ *   the buffer it is given and must release it even when it fails; the caller
+ *   never touches it again either way.
+ * - an **event** announces something and is sent with
+ *   @ref mpipe_pad_send_event - a format to apply, or the end of the stream.
+ *   The default handler forwards it across the element to the peers on the
+ *   other side.
+ * - a **query** asks something and is sent with @ref mpipe_pad_query. The
+ *   answer is written into storage the asker owns, so a query allocates
+ *   nothing.
+ *
+ * Events and queries are both carried by @ref mpipe_dispatch; what decides
+ * whether a dispatch asks or announces is the function it is passed to, not
+ * anything in the dispatch itself.
+ *
+ * @section mpipe_pad_enum Enumerating capabilities
+ *
+ * An element that supports several formats does not describe them as one
+ * capability holding a list - there is no list type, because there is no
+ * allocation. It answers @c enum_caps_fn once per index, producing one
+ * capability at a time, and negotiation walks those indices. See
+ * @ref mpipe_pad_enum_caps for the three-way return that drives the walk.
+ *
+ * @section mpipe_pad_presence Presence
+ *
+ * A pad's presence says when it exists, so an application knows which pads it
+ * can rely on at construction time: MPIPE_PAD_ALWAYS is there as soon as the
+ * element is built, MPIPE_PAD_SOMETIMES comes and goes with the stream, and
+ * MPIPE_PAD_REQUEST exists only once asked for.
+ *
  * @{
  */
 
@@ -69,14 +116,6 @@ enum mpipe_pad_presence {
 	MPIPE_PAD_SOMETIMES,
 	/** The pad is only available on request */
 	MPIPE_PAD_REQUEST
-};
-
-/**
- * @brief Pad flags
- */
-enum mpipe_pad_flags {
-	/** Pad needs to pass through the negotiation process */
-	MPIPE_PAD_FLAG_NEGOTIATE = BIT(0),
 };
 
 /**

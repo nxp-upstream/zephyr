@@ -46,8 +46,6 @@ static void element_before(void *f)
 	zassert_equal(fix->src.object.id, 1, "Element ID shall be set by init");
 	zassert_equal(fix->src.current_state, MPIPE_STATE_READY,
 		      "Element shall start in READY state after init");
-	zassert_equal(fix->src.pending_state, MPIPE_STATE_READY,
-		      "pending_state shall be READY after init");
 	zassert_true(sys_dlist_is_empty(&fix->src.src_pads),
 		     "src_pads list shall be empty after init");
 	zassert_true(sys_dlist_is_empty(&fix->sink.sink_pads),

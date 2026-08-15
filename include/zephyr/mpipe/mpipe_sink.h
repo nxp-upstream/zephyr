@@ -48,8 +48,6 @@ struct mpipe_sink {
 	struct mpipe_element element;
 	/** Input pad for receiving data */
 	struct mpipe_pad sink_pad;
-	/** Buffer pool */
-	struct mpipe_buffer_pool *pool;
 	/**
 	 * @brief Set a given caps to the element
 	 * @param sink Pointer to the sink element

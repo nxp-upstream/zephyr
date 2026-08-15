@@ -158,21 +158,7 @@ struct mpipe_element {
 
 	/** Current state of the element */
 	enum mpipe_state current_state;
-	/** Next state (for transitions) */
-	enum mpipe_state next_state;
-	/** Pending state (for async transitions) */
-	enum mpipe_state pending_state;
-	/** Target state */
-	enum mpipe_state target_state;
 
-	/** Event handler function */
-	int (*event_fn)(struct mpipe_element *element, struct mpipe_dispatch *event);
-	/** Query handler function */
-	int (*query_fn)(struct mpipe_element *element, struct mpipe_dispatch *query);
-
-	/** Get current state function */
-	enum mpipe_state_change_return (*get_state)(struct mpipe_element *element,
-						    enum mpipe_state *state);
 	/** Set state function */
 	enum mpipe_state_change_return (*set_state)(struct mpipe_element *element,
 						    enum mpipe_state state);

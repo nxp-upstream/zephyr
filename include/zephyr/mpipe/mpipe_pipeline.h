@@ -44,13 +44,6 @@ struct mpipe {
 	struct mpipe_bin bin;
 	/** Thread associated with the pipeline */
 	struct mpipe_thread thread;
-	/** The running time - total time spent in PLAYING state without being flushed */
-	uint64_t stream_time;
-	/**
-	 * Extra delay added to base_time to compensate for computing delays when setting
-	 * elements to PLAYING
-	 */
-	uint64_t delay;
 	/** Number of sink elements in the pipeline (computed on READY->PAUSED) */
 	uint32_t num_sinks;
 	/** Number of EOS messages seen so far during the current run */
