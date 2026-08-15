@@ -220,8 +220,8 @@ struct mpipe_structure {
  * @param structure Pointer to the structure to initialize.
  * @param media_type_id Media type of the structure, see @ref mpipe_media_type.
  *
- * @retval 0 on success
- * @retval -EINVAL if @p media_type_id is not a media type
+ * @retval 0 Success.
+ * @retval -EINVAL @p media_type_id is not a media type
  */
 int mpipe_structure_init(struct mpipe_structure *structure, uint8_t media_type_id);
 
@@ -237,11 +237,11 @@ int mpipe_structure_init(struct mpipe_structure *structure, uint8_t media_type_i
  * @param media_type_id Media type of the structure, see @ref mpipe_media_type.
  * @param ... Field triples, terminated by MPIPE_CAPS_END.
  *
- * @retval 0 on success
- * @retval -EINVAL if @p media_type_id is not a media
+ * @retval 0 Success.
+ * @retval -EINVAL @p media_type_id is not a media
  *         type, or a field identifier or value type is invalid
- * @retval -EEXIST if the list names the same field twice
- * @retval -ENOSPC if the list holds more fields than
+ * @retval -EEXIST The list names the same field twice
+ * @retval -ENOSPC The list holds more fields than
  *         CONFIG_MPIPE_STRUCTURE_MAX_FIELDS
  */
 int mpipe_structure_init_fields(struct mpipe_structure *structure, uint8_t media_type_id, ...);
@@ -254,7 +254,7 @@ int mpipe_structure_init_fields(struct mpipe_structure *structure, uint8_t media
  *
  * @param structure Pointer to the structure to initialize.
  *
- * @retval 0 on success
+ * @retval 0 Success.
  */
 int mpipe_structure_init_any(struct mpipe_structure *structure);
 
@@ -291,10 +291,10 @@ bool mpipe_structure_is_empty(const struct mpipe_structure *structure);
  * @param field_id Field identifier, see @ref mpipe_caps_field. Must not already be set.
  * @param value Pointer to the field value to copy in.
  *
- * @retval 0 on success
- * @retval -EINVAL if @p field_id is not a field identifier
- * @retval -EEXIST if the structure already carries @p field_id
- * @retval -ENOSPC if the structure already holds
+ * @retval 0 Success.
+ * @retval -EINVAL @p field_id is not a field identifier
+ * @retval -EEXIST The structure already carries @p field_id
+ * @retval -ENOSPC The structure already holds
  *         CONFIG_MPIPE_STRUCTURE_MAX_FIELDS fields
  */
 int mpipe_structure_append_value(struct mpipe_structure *structure, uint8_t field_id,
@@ -312,11 +312,11 @@ int mpipe_structure_append_value(struct mpipe_structure *structure, uint8_t fiel
  * @param dst Pointer to the structure to append the field to.
  * @param field_id Field identifier, see @ref mpipe_caps_field.
  *
- * @retval 0 on success
- * @retval -ENOENT if @p src does not carry the field
- * @retval -EINVAL if @p field_id is not a field identifier
- * @retval -EEXIST if @p dst already carries the field
- * @retval -ENOSPC if @p dst is full
+ * @retval 0 Success.
+ * @retval -ENOENT @p src does not carry the field
+ * @retval -EINVAL @p field_id is not a field identifier
+ * @retval -EEXIST @p dst already carries the field
+ * @retval -ENOSPC @p dst is full
  */
 int mpipe_structure_copy_field(const struct mpipe_structure *src, struct mpipe_structure *dst,
 			       uint8_t field_id);
@@ -334,7 +334,7 @@ int mpipe_structure_copy_field(const struct mpipe_structure *src, struct mpipe_s
  *
  * @param structure Pointer to the structure to clear.
  *
- * @retval 0 on success
+ * @retval 0 Success.
  */
 int mpipe_structure_clear(struct mpipe_structure *structure);
 
@@ -346,7 +346,7 @@ int mpipe_structure_clear(struct mpipe_structure *structure);
  * constrains nothing is never fixed, whether it is flagged ANY or simply
  * holds no field: there is nothing to have settled.
  *
- * @param structure Pointer to the structure to check, may be NULL.
+ * @param structure Pointer to the structure to check.
  *
  * @return true if the structure is fixed, false otherwise or if @p structure
  *         is NULL
@@ -375,8 +375,8 @@ const struct mpipe_value *mpipe_structure_get_value(const struct mpipe_structure
  * @param structure Pointer to the structure containing the field to remove.
  * @param field_id Field identifier, see @ref mpipe_caps_field.
  *
- * @retval 0 on success
- * @retval -ENOENT if the structure does not carry the field
+ * @retval 0 Success.
+ * @retval -ENOENT The structure does not carry the field
  */
 int mpipe_structure_remove_field(struct mpipe_structure *structure, uint8_t field_id);
 
@@ -397,11 +397,11 @@ int mpipe_structure_remove_field(struct mpipe_structure *structure, uint8_t fiel
  * @param[out] out Pointer to storage for the result, left untouched on -EINVAL
  *             and cleared on any other failure.
  *
- * @retval 0 on success
- * @retval -ENOENT if the structures share no field, or a shared field has no
+ * @retval 0 Success.
+ * @retval -ENOENT The structures share no field, or a shared field has no
  *         common value
- * @retval -EINVAL if @p out aliases an input, or the media types differ
- * @retval -ENOSPC if the union does not fit CONFIG_MPIPE_STRUCTURE_MAX_FIELDS
+ * @retval -EINVAL @p out aliases an input, or the media types differ
+ * @retval -ENOSPC The union does not fit CONFIG_MPIPE_STRUCTURE_MAX_FIELDS
  */
 int mpipe_structure_intersect(const struct mpipe_structure *struct1,
 			      const struct mpipe_structure *struct2, struct mpipe_structure *out);
@@ -413,13 +413,12 @@ int mpipe_structure_intersect(const struct mpipe_structure *struct1,
  * already fixed to itself.
  *
  * @param src Pointer to the structure to fixate.
- * @param out Pointer to storage for the result, left untouched on -EINVAL
- *            and cleared on any other failure.
+ * @param[out] out Pointer to storage for the result, left untouched on failure.
  *
- * @retval 0 on success
- * @retval -ENOENT if @p src constrains nothing and so has nothing to fixate,
+ * @retval 0 Success.
+ * @retval -ENOENT @p src constrains nothing and so has nothing to fixate,
  *         whether it is flagged ANY or simply holds no field
- * @retval -EINVAL if @p out is @p src
+ * @retval -EINVAL @p out is @p src
  */
 int mpipe_structure_fixate(const struct mpipe_structure *src, struct mpipe_structure *out);
 

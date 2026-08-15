@@ -127,7 +127,7 @@ struct mpipe_buffer_meta {
 	uint32_t bytes_used;
 	/** Timestamp in milliseconds. */
 	uint32_t timestamp;
-	/** Pointer to the real driver-own buffer. */
+	/** Pointer to the real driver-owned buffer. */
 	void *driver_buf;
 	/** Opaque pointer for plugin-specific usage. */
 	void *priv;
@@ -193,7 +193,7 @@ int mpipe_buffer_pool_set_req_config(struct mpipe_buffer_pool *pool,
 /**
  * @brief Apply a negotiated config to a buffer pool
  *
- * This is the only way a config negotiated through an buffer pool query may
+ * This is the only way a config negotiated through a buffer pool query may
  * reach a pool: the caller hands the value over and the pool's owner
  * validates it. An element must never write @ref mpipe_buffer_pool::config
  * fields of a pool it does not own.

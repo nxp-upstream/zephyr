@@ -57,7 +57,7 @@
  *
  * By default an element does its work on whichever thread pushed the buffer
  * into it, so a chain runs end to end on the pipeline thread. An element with
- * work worth parallelising can instead submit it to this shared pool and let a
+ * work worth parallelizing can instead submit it to this shared pool and let a
  * worker run it, which is what allows several elements to progress at once on
  * an SMP target.
  *

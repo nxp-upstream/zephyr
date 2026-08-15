@@ -17,7 +17,7 @@
 #define ZEPHYR_INCLUDE_MPIPE_FS_MPIPE_FILE_SRC_H_
 
 /**
- * @defgroup mpipe_fs fs
+ * @defgroup mpipe_fs File System
  * @ingroup mpipe_plugins
  * @brief Elements that read from and write to a mounted file system.
  *

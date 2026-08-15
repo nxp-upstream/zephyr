@@ -18,7 +18,7 @@
 /**
  * @defgroup mpipe_tee Tee
  * @ingroup mpipe_base
- * @brief Pipeline branching element (1 sink pad , N source pad)
+ * @brief Pipeline branching element: one sink pad, N source pads.
  * @{
  */
 

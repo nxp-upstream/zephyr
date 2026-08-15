@@ -141,10 +141,10 @@ struct mpipe_message {
  *
  * @param message Message to post, with at least its origin and type set.
  *
- * @retval 0 on success
- * @retval -EINVAL if the message has no origin or no type
- * @retval -ENODEV if the origin has no bus
- * @retval -ENOMSG if the bus validator dropped the message, which the pipeline
+ * @retval 0 Success.
+ * @retval -EINVAL The message has no origin or no type
+ * @retval -ENODEV The origin has no bus
+ * @retval -ENOMSG The bus validator dropped the message, which the pipeline
  *                 does to every end-of-stream but the last
  */
 int mpipe_message_post(struct mpipe_message *message);

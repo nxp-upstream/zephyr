@@ -14,7 +14,7 @@ config MPIPE_PLAYER
 	  Enable the mpipe_player control layer: a reusable, media-player-like
 	  helper that owns the run-time lifecycle of a pipeline (play, pause,
 	  stop, replay, quit). When SHELL is enabled it also registers
-	  interactive shell commands ("player play|pause|stop|replay|status"
+	  interactive shell commands ("player play|pause|stop|replay|quit|status"
 	  and the single-letter shortcuts p/s/r/q).
 
 if MPIPE_PLAYER

@@ -251,7 +251,7 @@ static int mpipe_aud_gain_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf
  * width and the channel layout it can process but is agnostic to the sample
  * rate, channel count and frame interval, which it passes through unchanged.
  * Those pass-through fields are advertised as open ranges so the pad caps share
- * fields with neighbouring elements (e.g. a caps filter fixing frame interval
+ * fields with neighboring elements (e.g. a caps filter fixing frame interval
  * and channel count). Without them the structures would have no field in common
  * and caps negotiation would refuse to link the pads.
  *

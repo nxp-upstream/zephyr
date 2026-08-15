@@ -14,7 +14,7 @@
 #define ZEPHYR_INCLUDE_MPIPE_AUD_MPIPE_AUD_H_
 
 /**
- * @defgroup mpipe_aud aud
+ * @defgroup mpipe_aud Audio
  * @ingroup mpipe_plugins
  * @brief Elements that capture, process and play back PCM audio.
  *
@@ -24,7 +24,7 @@
  * of those channels within a buffer.
  *
  * Audio differs from video in what the buffer count means. A codec starved of
- * data produces an audible artefact rather than a dropped frame, so the number
+ * data produces an audible artifact rather than a dropped frame, so the number
  * of buffers is settled through the buffer pool query, where a sink can state
  * how much it must have primed before it starts.
  */
@@ -41,7 +41,7 @@
 #include <zephyr/mpipe/mpipe_structure.h>
 
 /**
- * @brief Supported sample rates (Hz)
+ * @name Supported sample rates (Hz)
  * @{
  */
 /** @brief 8 kHz sample rate */
@@ -59,7 +59,7 @@
 /** @} */
 
 /**
- * @brief Supported bit widths
+ * @name Supported bit widths
  * @{
  */
 /** @brief 16 bit width */
@@ -82,12 +82,12 @@
  * @param caps Audio capabilities to enumerate.
  * @param index Zero-based enumeration index.
  * @param filter Capability the result must satisfy, may be NULL.
- * @param out Pointer to storage for the capability at @p index.
+ * @param[out] out Pointer to storage for the capability at @p index.
  *
- * @retval 0 on success
- * @retval -EAGAIN if the capability at @p index cannot satisfy @p filter
- * @retval -ENOENT if @p index is past the last capability
- * @retval -EINVAL if @p caps or @p out is NULL
+ * @retval 0 Success.
+ * @retval -EAGAIN The capability at @p index cannot satisfy @p filter.
+ * @retval -ENOENT @p index is past the last capability.
+ * @retval -EINVAL @p caps is NULL.
  */
 int mpipe_aud_enum_caps(const struct audio_caps *caps, uint32_t index,
 			const struct mpipe_structure *filter, struct mpipe_structure *out);
@@ -103,9 +103,9 @@ int mpipe_aud_enum_caps(const struct audio_caps *caps, uint32_t index,
  * @param field_id Field identifier, see @ref mpipe_caps_field.
  * @param out Pointer to storage for the value, untouched unless 0 is returned.
  *
- * @retval 0 on success
- * @retval -ENOENT if the capability does not carry the field
- * @retval -EINVAL if @p out is NULL or the field is not a fixed unsigned value
+ * @retval 0 Success.
+ * @retval -ENOENT The capability does not carry the field
+ * @retval -EINVAL @p out is NULL or the field is not a fixed unsigned value
  */
 int mpipe_aud_caps_get_uint(const struct mpipe_structure *caps, uint8_t field_id, uint32_t *out);
 

@@ -95,8 +95,9 @@ struct mpipe_aud_i2s_codec_sink {
  * @param aud_i2s_codec_sink Pointer to the element to initialize.
  * @param id Unique element identifier.
  *
- * @note This function will log errors and return early if required devices
- *       are not ready or not found in device tree.
+ * @note A device missing from the devicetree leaves the corresponding pointer
+ *       NULL rather than failing; set it afterwards through
+ *       MPIPE_PROP_AUD_SINK_I2S_DEVICE or MPIPE_PROP_AUD_SINK_CODEC_DEVICE.
  *
  * @return 0 on success, negative errno otherwise.
  */

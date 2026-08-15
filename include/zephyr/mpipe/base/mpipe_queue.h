@@ -20,7 +20,7 @@
 /**
  * @defgroup mpipe_queue Queues
  * @ingroup mpipe_base
- * @brief Pipeline-level threading element
+ * @brief Pipeline-level threading element.
  * @{
  */
 
@@ -61,7 +61,7 @@ struct mpipe_queue {
 	uint8_t size;
 	/**
 	 * Flushing flag. When set (on PAUSED -> READY), the chain_fn drops incoming
-	 * buffers instead of enqueueing them. This releases any upstream producer
+	 * buffers instead of enqueuing them. This releases any upstream producer
 	 * blocked in k_msgq_put() during teardown and prevents a late buffer from
 	 * leaking into an already-drained queue (e.g. behind a tee).
 	 */

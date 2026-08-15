@@ -69,7 +69,7 @@ struct mpipe_object {
 	 * should not be used
 	 */
 	uint8_t id;
-	/** Flags of the object, bitfield inheritable */
+	/** Flags of the object, an inheritable bitfield */
 	uint32_t flags;
 	/** Object node to be used in a linked list */
 	sys_dnode_t node;
@@ -105,8 +105,8 @@ void mpipe_object_init(struct mpipe_object *obj);
  * @param ... A variable list of {uint32_t key, const void *val} pairs, terminated by
  * MPIPE_PROP_LIST_END.
  *
- * @retval 0 on success
- * @retval -ENOTSUP if the object exposes no property setter
+ * @retval 0 Success.
+ * @retval -ENOTSUP The object exposes no property setter
  * @retval -errno the first failing setter's error, leaving the remaining pairs
  *         unapplied
  */
@@ -128,8 +128,8 @@ int mpipe_object_set_properties(struct mpipe_object *obj, ...);
  * @param obj Pointer to a @ref mpipe_object.
  * @param ... A variable list of {uint32_t key, void *val} pairs, terminated by MPIPE_PROP_LIST_END.
  *
- * @retval 0 on success
- * @retval -ENOTSUP if the object exposes no property getter
+ * @retval 0 Success.
+ * @retval -ENOTSUP The object exposes no property getter
  * @retval -errno the first failing getter's error, leaving the remaining pairs
  *         unread
  */

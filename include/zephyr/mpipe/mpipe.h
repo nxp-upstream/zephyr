@@ -31,7 +31,7 @@
  *
  * An application declares the elements it needs, links them into a graph, and
  * drives that graph through a state machine. The framework is what negotiates
- * the data format between neighbours, settles which pool provides the buffers,
+ * the data format between neighbors, settles which pool provides the buffers,
  * and moves those buffers from one element to the next.
  *
  * @ref mpipe_object is the base every type embeds; @ref mpipe_element is what a
@@ -73,7 +73,7 @@
  * @brief The concrete elements, grouped by the domain they serve.
  *
  * Plugins are where the framework meets real hardware and real formats. They
- * are decentralised from the core: a plugin adds its own directory, its own
+ * are decentralized from the core: a plugin adds its own directory, its own
  * Kconfig and its own headers, and the build picks it up without an edit to
  * anything the core owns. A vendor or a middleware provider can therefore ship
  * elements without altering the framework, and an application pays only for the

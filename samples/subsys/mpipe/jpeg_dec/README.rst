@@ -32,11 +32,11 @@ for the display controller.
      node [shape=box, style=filled, fillcolor="#e8e8e8"];
      file_src      [label="file_src\n(fs)"];
      jpeg_parser  [label="jpeg_parser\n(img)"];
-     caps_filter   [label="caps_filter\n(core)"];
+     caps_filter   [label="caps_filter\n(base)"];
      hw_jpegdec   [label="HW jpegdec\n(vid_transform)"];
-     videoconvert [label="videoconvert\n(vid)"];
+     vid_convert  [label="vid_convert\n(vid)"];
      display      [label="display\n(disp)"];
-     file_src -> jpeg_parser -> caps_filter -> hw_jpegdec -> videoconvert -> display;
+     file_src -> jpeg_parser -> caps_filter -> hw_jpegdec -> vid_convert -> display;
    }
 
 Pipeline B: SW JPEG decode
@@ -53,7 +53,7 @@ When no ``zephyr,jpegdec`` is present, decoding falls back to the software
      node [shape=box, style=filled, fillcolor="#e8e8e8"];
      file_src      [label="file_src\n(fs)"];
      jpeg_parser  [label="jpeg_parser\n(img)"];
-     caps_filter   [label="caps_filter\n(core)"];
+     caps_filter   [label="caps_filter\n(base)"];
      sw_jpegdec   [label="SW jpegdec\n(img)"];
      display      [label="display\n(disp)"];
      file_src -> jpeg_parser -> caps_filter -> sw_jpegdec -> display;

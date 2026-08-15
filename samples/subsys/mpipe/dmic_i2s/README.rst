@@ -30,7 +30,7 @@ This pipeline consists of up to four elements:
 - **DMIC source** - captures audio frames.
 - **Caps filter** *(optional)* - enforces a specific audio frame interval.
   Without it the pipeline still works but uses the default negotiated format.
-- **Gain transform** *(optional)* - applies audio processing such as volume control.
+- **Gain transform** - applies audio processing such as volume control.
 - **I2S codec sink** - renders the resulting audio frames through an I2S codec to a speaker.
 
 The sample showcases:
@@ -86,9 +86,12 @@ Check for any error messages during initialization:
 Configuration Options
 *********************
 
-The sample supports the following configuration options:
+* :kconfig:option:`CONFIG_USE_I2S_TARGET_CODEC_CONTROLLER` selects which side
+  generates the I2S BCK and WS signals. When set, the codec generates them and
+  the I2S peripheral consumes them; when unset, the roles are reversed.
 
-* **Gain Level**: Adjustable audio gain (0-1000 %), default is 90 %
+The gain is not a Kconfig option: ``main.c`` sets it to 90 % through
+``MPIPE_PROP_AUD_TRANSFORM_GAIN``. The gain element accepts 0 to 1000 %.
 
 Devicetree Configuration
 ************************

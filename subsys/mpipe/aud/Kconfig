@@ -26,7 +26,8 @@ config MPIPE_AUD_BUFFER_POOL_SZ_MAX
 	  bounds one block of PCM, so it follows from the sample rate, the sample
 	  width, the channel count and how much time one buffer covers.
 
-	  The default holds roughly a second of 48 kHz 16-bit stereo. Reserved
+	  The default holds roughly half a second of 48 kHz 16-bit stereo, or a
+	  full second of the same in mono. Reserved
 	  memory, so lower it when the pipeline's format is known and smaller.
 
 config MPIPE_AUD_BUFFER_POOL_NUM_MAX
@@ -37,7 +38,7 @@ config MPIPE_AUD_BUFFER_POOL_NUM_MAX
 	  settles the number actually used, and this caps what it may ask for.
 
 	  Audio needs more slack than video: a codec starved of data produces an
-	  audible artefact rather than a dropped frame, so leave enough for the
+	  audible artifact rather than a dropped frame, so leave enough for the
 	  sink to keep its buffers primed.
 
 config MPIPE_AUD_I2S_CODEC_SINK_SET_OUTPUT_VOLUME

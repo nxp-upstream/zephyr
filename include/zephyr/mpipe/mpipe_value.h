@@ -242,12 +242,12 @@ uint32_t mpipe_value_get_uint_range_step(const struct mpipe_value *range);
 /**
  * @brief Intersect two values, put the result into caller-provided storage
  *
- * @param val1 Pointer to the first value, may be NULL.
- * @param val2 Pointer to the second value, may be NULL.
+ * @param val1 Pointer to the first value.
+ * @param val2 Pointer to the second value.
  * @param out Pointer to storage for the result, untouched unless 0 is returned.
  *
- * @retval 0 on success
- * @retval -ENOENT if the intersection is empty
+ * @retval 0 Success.
+ * @retval -ENOENT The intersection is empty
  */
 int mpipe_value_intersect(const struct mpipe_value *val1, const struct mpipe_value *val2,
 			  struct mpipe_value *out);
@@ -255,7 +255,7 @@ int mpipe_value_intersect(const struct mpipe_value *val1, const struct mpipe_val
 /**
  * @brief Check if a value is of a primitive type
  *
- * @param value Pointer to the value to check, may be NULL.
+ * @param value Pointer to the value to check.
  *
  * @return true if the value is primitive, false otherwise or if @p value is NULL
  */
@@ -264,7 +264,7 @@ bool mpipe_value_is_primitive(const struct mpipe_value *value);
 /**
  * @brief Print a value
  *
- * @param value Pointer to the value to print, may be NULL.
+ * @param value Pointer to the value to print.
  * @param new_line Add newline after printing.
  */
 void mpipe_value_print(const struct mpipe_value *value, bool new_line);

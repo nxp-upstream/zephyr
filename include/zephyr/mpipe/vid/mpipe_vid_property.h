@@ -31,7 +31,7 @@
 /**
  * @brief Video property identifiers.
  *
- * Starts from MAX(@ref MPIPE_PROP_SRC_LAST, @ref MPIPE_PROP_TRANSFORM_LAST) + 1 to
+ * Starts from MAX(@ref MPIPE_PROP_SRC_LAST, @ref MPIPE_PROP_TRANSFORM_LAST) to
  * avoid conflicts with base source and transform properties.
  */
 enum mpipe_prop_vid {

@@ -56,8 +56,6 @@ struct mpipe_parser {
 	struct mpipe_pad sink_pad;
 	/** Source pad to send data */
 	struct mpipe_pad src_pad;
-	/** @cond INTERNAL_HIDDEN */
-	/** @endcond */
 	/** Pointer to the output buffer pool */
 	struct mpipe_buffer_pool *out_pool;
 

@@ -20,10 +20,7 @@ Overview
 
 The pipeline reads an input file from a mounted FAT filesystem and writes it to an output file.
 
-Currently the following boards are supported:
-
-- ``native_sim/native/64``
-- ``mimxrt700_evk/mimxrt798s/cm33_cpu0``
+The sample builds for ``native_sim/native/64``.
 
 Notes
 *****
@@ -51,12 +48,3 @@ Run (erase flash content first)::
 After the run completes, the output file will be present in the FAT volume.
 
 To reuse the same flash image across runs, omit ``--flash_erase``.
-
-MIMXRT700-EVK
-=============
-
-.. zephyr-app-commands::
-   :zephyr-app: samples/subsys/mpipe/fs
-   :board: mimxrt700_evk/mimxrt798s/cm33_cpu0
-   :goals: build
-   :compact:

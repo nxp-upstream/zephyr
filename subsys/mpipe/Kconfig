@@ -16,7 +16,7 @@ menuconfig MPIPE
 	  Build a media stream out of self-contained processing elements linked
 	  into a graph, instead of wiring the drivers together by hand.
 
-	  The framework negotiates the data format between neighbouring elements,
+	  The framework negotiates the data format between neighboring elements,
 	  settles which pool provides the buffers, and moves those buffers along
 	  the graph under a state machine. It allocates nothing at runtime: the
 	  buffers come from pools sized while the pipeline starts, and everything
@@ -108,7 +108,7 @@ config MPIPE_NET_BUF_POOL_COUNT
 	help
 	  Number of buffers needed in the shared mpipe net_buf pool across pipelines.
 	  This is sum of the maximum number of in-flight net_buf buffers of each
-	  pipeline at any given time
+	  pipeline at any given time.
 
 config MPIPE_DUMP
 	bool "Pipeline topology dump"

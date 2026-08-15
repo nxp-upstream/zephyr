@@ -103,8 +103,10 @@ struct mpipe_player {
  *
  * @param player   Pointer to an uninitialized @ref mpipe_player.
  * @param pipeline Pointer to the pipeline to control.
- * @retval 0 on success
- * @retval -EBUSY if another player instance is already active
+ * @retval 0 Success.
+ * @retval -EBUSY Another player instance is already active.
+ * @retval -EIO The bus observer could not be attached, or the worker thread
+ *         could not be created.
  */
 int mpipe_player_init(struct mpipe_player *player, struct mpipe *pipeline);
 
@@ -115,7 +117,7 @@ int mpipe_player_init(struct mpipe_player *player, struct mpipe *pipeline);
  * loss. No effect if already PLAYING.
  *
  * @param player Pointer to the player.
- * @retval 0 on success, negative errno on failure.
+ * @return 0 on success, negative errno on failure.
  */
 int mpipe_player_play(struct mpipe_player *player);
 
@@ -125,7 +127,7 @@ int mpipe_player_play(struct mpipe_player *player);
  * Suspends streaming while preserving queued data. No effect unless PLAYING.
  *
  * @param player Pointer to the player.
- * @retval 0 on success, negative errno on failure.
+ * @return 0 on success, negative errno on failure.
  */
 int mpipe_player_pause(struct mpipe_player *player);
 
@@ -136,7 +138,7 @@ int mpipe_player_pause(struct mpipe_player *player);
  * STOPPED).
  *
  * @param player Pointer to the player.
- * @retval 0 on success, negative errno on failure.
+ * @return 0 on success, negative errno on failure.
  */
 int mpipe_player_toggle(struct mpipe_player *player);
 
@@ -146,7 +148,7 @@ int mpipe_player_toggle(struct mpipe_player *player);
  * Flushes any queued data and joins all streaming threads.
  *
  * @param player Pointer to the player.
- * @retval 0 on success, negative errno on failure.
+ * @return 0 on success, negative errno on failure.
  */
 int mpipe_player_stop(struct mpipe_player *player);
 
@@ -156,7 +158,7 @@ int mpipe_player_stop(struct mpipe_player *player);
  * Equivalent to a stop followed by a play.
  *
  * @param player Pointer to the player.
- * @retval 0 on success, negative errno on failure.
+ * @return 0 on success, negative errno on failure.
  */
 int mpipe_player_replay(struct mpipe_player *player);
 
@@ -167,7 +169,7 @@ int mpipe_player_replay(struct mpipe_player *player);
  * finish and release its resources.
  *
  * @param player Pointer to the player.
- * @retval 0 on success, negative errno on failure.
+ * @return 0 on success, negative errno on failure.
  */
 int mpipe_player_quit(struct mpipe_player *player);
 
@@ -183,7 +185,7 @@ int mpipe_player_quit(struct mpipe_player *player);
  *       worker and release the player's resources.
  *
  * @param player Pointer to the player.
- * @retval 0 on success
+ * @retval 0 Success.
  */
 int mpipe_player_wait_quit(struct mpipe_player *player);
 
@@ -194,7 +196,7 @@ int mpipe_player_wait_quit(struct mpipe_player *player);
  * this call the player must be re-initialized before reuse.
  *
  * @param player Pointer to the player.
- * @retval 0 on success
+ * @retval 0 Success.
  */
 int mpipe_player_deinit(struct mpipe_player *player);
 

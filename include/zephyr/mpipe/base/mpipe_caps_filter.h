@@ -17,7 +17,7 @@
 #define ZEPHYR_INCLUDE_MPIPE_BASE_MPIPE_CAPS_FILTER_H_
 
 /**
- * @defgroup mpipe_base base
+ * @defgroup mpipe_base Base Elements
  * @ingroup mpipe_plugins
  * @brief Media-agnostic elements that shape a graph rather than its data.
  *

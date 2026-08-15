@@ -119,6 +119,11 @@ CORE_PATHS=(
     "lib/Kconfig"
     "lib/CMakeLists.txt"
     "MAINTAINERS.yml"
+    # The subsystem's documentation page ships with the core it describes.
+    # check_core_paths_current() only validates the subsys/ and include/
+    # entries, so these two are not covered by it - keep them in step by hand.
+    "doc/services/mpipe/index.rst"
+    "doc/services/frameworks.rst"
 )
 
 # vid plugin

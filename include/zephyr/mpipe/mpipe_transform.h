@@ -73,7 +73,7 @@ enum mpipe_prop_transform {
 /**
  * @brief Operating modes of a transform element
  *
- * The modes specifies how input and output buffers are handled.
+ * The mode specifies how input and output buffers are handled.
  */
 enum mpipe_transform_mode {
 	/** The buffer is kept intact. */

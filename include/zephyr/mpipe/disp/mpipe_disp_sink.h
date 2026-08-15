@@ -10,14 +10,14 @@
  * @brief Display sink element for the mpipe disp plugin.
  *
  * Provides a sink element that renders video frames to a Zephyr display
- * device, supporting partial frame updates and configurable display regions.
+ * device, supporting partial frame updates.
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_DISP_MPIPE_DISP_SINK_H_
 #define ZEPHYR_INCLUDE_MPIPE_DISP_MPIPE_DISP_SINK_H_
 
 /**
- * @defgroup mpipe_disp disp
+ * @defgroup mpipe_disp Display
  * @ingroup mpipe_plugins
  * @brief The element that puts frames on a screen.
  *

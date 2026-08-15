@@ -38,7 +38,7 @@
  * What is rendered is the graph as it is *now*, which is not always the graph
  * the application built: an element may legitimately take itself out once it
  * has nothing left to do, and @ref mpipe_caps_filter does exactly that, relinking
- * its neighbours to each other after negotiation and re-inserting itself on
+ * its neighbors to each other after negotiation and re-inserting itself on
  * PAUSED to READY. A caps_filter therefore shows up linked before a run and
  * detached during one, and both readings are correct.
  *
@@ -74,7 +74,7 @@ struct mpipe_dump_sink {
  * @param bin Bin to render. A pipeline is one, cast to @ref mpipe_bin.
  * @param sink Where to write, or NULL to write to the console with printk().
  *
- * @retval 0 on success
+ * @retval 0 Success.
  */
 int mpipe_dump_bin(struct mpipe_bin *bin, const struct mpipe_dump_sink *sink);
 
@@ -87,10 +87,10 @@ int mpipe_dump_bin(struct mpipe_bin *bin, const struct mpipe_dump_sink *sink);
  * out of a line that carries other text after it. Ends without a newline, so a
  * caller can put it where it wants.
  *
- * @param caps Capability to render, may be NULL.
+ * @param caps Capability to render.
  * @param sink Where to write, or NULL to write to the console with printk().
  *
- * @retval 0 on success
+ * @retval 0 Success.
  */
 int mpipe_dump_caps(const struct mpipe_structure *caps, const struct mpipe_dump_sink *sink);
 

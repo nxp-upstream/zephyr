@@ -71,7 +71,7 @@ static int mpipe_queue_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 
 	/*
 	 * If the queue is flushing (teardown to READY), drop the buffer instead
-	 * of enqueueing it. This keeps a producer that was just released from a
+	 * of enqueuing it. This keeps a producer that was just released from a
 	 * blocking k_msgq_put() from re-blocking, and prevents a late buffer from
 	 * leaking into an already-drained queue (e.g. behind a tee).
 	 */
@@ -227,7 +227,7 @@ static enum mpipe_state_change_return mpipe_queue_change_state(struct mpipe_elem
 		 * Enter flushing before joining. Any producer blocked in this
 		 * queue's k_msgq_put() is released once the drain below frees a
 		 * slot; the flushing flag then makes its (and any subsequent)
-		 * chain_fn drop the buffer instead of re-enqueueing or leaking it.
+		 * chain_fn drop the buffer instead of re-enqueuing or leaking it.
 		 */
 		atomic_set(&queue->flushing, 1);
 		mpipe_thread_join(&queue->thread, K_FOREVER);

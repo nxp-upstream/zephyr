@@ -146,12 +146,13 @@ int mpipe_bin_set_bus_validator(struct mpipe_bin *bin, zbus_validator bus_valida
  *
  * Adds the given element(s) to the bin.
  *
- * An element can only be added to one bin. Element names must be unique within the bin.
+ * An element can only be added to one bin. Element ids must be unique within
+ * the bin.
  *
  * The function accepts a variable number of elements, terminated by NULL.
  *
- * If the element's pads are linked to other pads, the pads will be unlinked
- * before the element is added to the bin.
+ * Adding an element leaves its pads alone, so elements may be added before or
+ * after they are linked.
  *
  * @param bin Pointer to the @ref mpipe_bin to add elements to
  * @param element First @ref mpipe_element to add

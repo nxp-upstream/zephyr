@@ -26,13 +26,18 @@ modifying the application logic.
      camera -> caps -> transform -> display;
    }
 
-The pipeline consists of up to four elements:
+The pipeline is built from these elements, the optional ones depending on what
+the board provides:
 
 - **Camera source** - generates video frames from a hardware capture device.
-- **Caps filter** *(optional)* - enforces a specific video format, resolution, and/or
-  frame rate.  Without it the pipeline still works but uses the default negotiated
-  format.
-- **Video transform** *(optional)* - applies processing such as 90° rotation.
+- **Caps filter** *(optional)* - enforces a specific video format, resolution,
+  and/or frame rate. Without it the pipeline still works but uses the default
+  negotiated format.
+- **JPEG decoder and pixel format converter** *(when the board has a
+  ``zephyr,jpegdec`` node)* - decode in hardware, then convert the decoder's
+  output to what the panel accepts.
+- **Video transform** *(when the board has a ``zephyr,videotrans`` node)* -
+  applies processing such as 90-degree rotation.
 - **Display sink** - renders the resulting frames on a display panel.
 
 Requirements
@@ -142,7 +147,9 @@ Sample Output
    *** Booting Zephyr OS build v4.3.0-rc2-1649-gef3755ee080b ***
    [00:00:00.366,000] <inf> mpipe_vid_buffer_pool: Started buffer pool
    [00:00:00.367,000] <inf> mpipe_vid_buffer_pool: Started buffer pool
-   [00:00:07.128,000] <inf> main: EOS message from element 1
+   [00:00:00.370,000] <inf> mpipe_player: Player shell ready. Interactive controls:
+   [00:00:00.371,000] <inf> mpipe_player:   p = play/pause toggle, s = stop, r = replay, q = quit
+   [00:00:00.380,000] <inf> mpipe_player: Player state: PLAYING
 
 References
 **********

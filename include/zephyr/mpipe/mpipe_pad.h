@@ -58,10 +58,11 @@
  *
  * @section mpipe_pad_presence Presence
  *
- * A pad's presence says when it exists, so an application knows which pads it
- * can rely on at construction time: MPIPE_PAD_ALWAYS is there as soon as the
- * element is built, MPIPE_PAD_SOMETIMES comes and goes with the stream, and
- * MPIPE_PAD_REQUEST exists only once asked for.
+ * A pad records a presence describing when it is meant to exist -
+ * MPIPE_PAD_ALWAYS as soon as the element is built, MPIPE_PAD_SOMETIMES coming
+ * and going with the stream, MPIPE_PAD_REQUEST only once asked for. Only
+ * MPIPE_PAD_ALWAYS is implemented today: the field is stored and nothing acts
+ * on it, so treat the other two as reserved.
  *
  * @{
  */
@@ -112,7 +113,7 @@ enum mpipe_pad_mode {
 enum mpipe_pad_presence {
 	/** The pad is always present */
 	MPIPE_PAD_ALWAYS,
-	/** The pad will present depending on the media stream */
+	/** The pad will be present depending on the media stream */
 	MPIPE_PAD_SOMETIMES,
 	/** The pad is only available on request */
 	MPIPE_PAD_REQUEST
@@ -217,8 +218,8 @@ int mpipe_pad_answer_caps_query(struct mpipe_pad *pad, struct mpipe_dispatch *qu
  * @param filter Capability to narrow by, may be NULL.
  * @param out Pointer to storage for the result.
  *
- * @retval 0 on success
- * @retval -EAGAIN if @p candidate cannot satisfy @p filter
+ * @retval 0 Success.
+ * @retval -EAGAIN @p candidate cannot satisfy @p filter
  */
 int mpipe_pad_enum_filter(const struct mpipe_structure *candidate,
 			  const struct mpipe_structure *filter, struct mpipe_structure *out);
@@ -289,9 +290,9 @@ int mpipe_pad_send_event(struct mpipe_pad *pad, struct mpipe_dispatch *event);
  * @param pad Pointer to the @ref mpipe_pad that received the event
  * @param event Pointer to the @ref mpipe_dispatch to send
  *
- * @return 0 if the event was successfully forwarded to at least one peer,
- *         -ENOTSUP if there are no opposite-side pads or none have a peer,
- *         negative errno on other failures
+ * @retval 0 The event reached at least one peer.
+ * @retval -ENOTSUP No opposite-side pad has a peer, or every peer refused the
+ *         event. A peer's own error is logged and not propagated.
  */
 int mpipe_pad_send_event_default(struct mpipe_pad *pad, struct mpipe_dispatch *event);
 
@@ -308,7 +309,7 @@ int mpipe_pad_send_event_default(struct mpipe_pad *pad, struct mpipe_dispatch *e
  * @param query Pointer to the @ref mpipe_dispatch to send, must not be NULL.
  *              A caps query must carry the capability storage to answer into.
  *
- * @retval 0 on success
+ * @retval 0 Success.
  * @retval -EINVAL a caps query carries no capability storage to answer into
  * @retval -ENOTSUP the pad has no query function
  * @retval -ENODATA a caps query was answered with an empty capability

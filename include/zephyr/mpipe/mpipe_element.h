@@ -26,7 +26,7 @@
  *
  * @section mpipe_element_states States
  *
- * An element is in one of three states, and moves between neighbours one step
+ * An element is in one of three states, and moves between neighbors one step
  * at a time:
  *
  *     READY <-> PAUSED <-> PLAYING
@@ -43,7 +43,7 @@
  * moved, which is deliberate - the graph then shows exactly which element
  * refused and in which transition.
  *
- * @section mpipe_element_subclass Specialising an element
+ * @section mpipe_element_subclass Specializing an element
  *
  * The bases in @ref mpipe_src, @ref mpipe_sink, @ref mpipe_transform,
  * @ref mpipe_parser and @ref mpipe_bin implement the protocol; a concrete
@@ -179,10 +179,12 @@ struct mpipe_element {
 	/** Base object */
 	struct mpipe_object object;
 
-#if defined(CONFIG_MPIPE_DUMP)
+#if defined(CONFIG_MPIPE_DUMP) || defined(__DOXYGEN__)
 	/**
 	 * Name of the element, set to its type by the element's init function and
 	 * overridable per instance with @ref mpipe_element_set_name. Debugging only.
+	 *
+	 * @kconfig_dep{CONFIG_MPIPE_DUMP}
 	 */
 	const char *name;
 #endif

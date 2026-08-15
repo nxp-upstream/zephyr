@@ -60,7 +60,7 @@ enum mpipe_dispatch_type {
 
 /**
  * @struct mpipe_dispatch
- * @brief A query or an event travelling a pad link.
+ * @brief A query or an event traveling a pad link.
  *
  * A dispatch travels a synchronous walk, so it references storage that
  * outlives the walk instead of embedding a copy of everything it carries.

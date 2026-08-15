@@ -17,7 +17,7 @@
 #define ZEPHYR_INCLUDE_MPIPE_VID_MPIPE_VID_BUFFER_POOL_H_
 
 /**
- * @defgroup mpipe_vid vid
+ * @defgroup mpipe_vid Video
  * @ingroup mpipe_plugins
  * @brief Elements backed by Zephyr video devices, and the software fallbacks.
  *

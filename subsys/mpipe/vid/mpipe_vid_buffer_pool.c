@@ -294,7 +294,7 @@ static int mpipe_vid_buffer_pool_release_buffer(struct mpipe_buffer_pool *pool, 
 
 	/*
 	 * Flushing: the pool has stopped, so this is the last reference to the
-	 * buffer coming home. Free it here instead of re-enqueueing it into a
+	 * buffer coming home. Free it here instead of re-enqueuing it into a
 	 * stopped device.
 	 */
 	if (flushing) {

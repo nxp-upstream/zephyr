@@ -17,7 +17,7 @@
 #define ZEPHYR_INCLUDE_MPIPE_IMG_MPIPE_IMG_JPEG_PARSER_H_
 
 /**
- * @defgroup mpipe_img img
+ * @defgroup mpipe_img Image Codecs
  * @ingroup mpipe_plugins
  * @brief Elements that turn a coded image stream into frames and decode them.
  *
