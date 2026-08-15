@@ -94,20 +94,33 @@ ZTEST_F(test_mock_pipeline, test_pipeline_fake_src_transform_sink)
 	zassert_ok(zbus_chan_add_obs(bus, &test_pipeline_sub, K_FOREVER),
 		   "Failed to add observer to pipeline channel");
 
-	/* Start the pipeline */
-	zassert_equal(mpipe_element_set_state((struct mpipe_element *)&fixture->pipeline,
-					      MPIPE_STATE_PLAYING),
-		      MPIPE_STATE_CHANGE_SUCCESS, "Pipline failed to start PLAYING");
+	/*
+	 * Run it more than once. A second run is where state left behind by the
+	 * first one shows up - a stale end-of-stream, a buffer pool carrying the
+	 * demands it was negotiated to last time - and each of those has been a
+	 * real defect. One run proves the pipeline streams; the replay proves it
+	 * goes back to where it started.
+	 */
+	for (int run = 0; run < 3; run++) {
+		zassert_equal(mpipe_element_set_state((struct mpipe_element *)&fixture->pipeline,
+						      MPIPE_STATE_PLAYING),
+			      MPIPE_STATE_CHANGE_SUCCESS, "run %d failed to start PLAYING", run);
 
-	/* Wait for EOS posted by the sink */
-	zassert_ok(zbus_sub_wait_msg(&test_pipeline_sub, &chan, &msg, K_FOREVER),
-		   "Timed out waiting for pipeline message");
-	zassert_equal(msg.type, MPIPE_MESSAGE_EOS, "Expected EOS Message,  got %d", msg.type);
+		/* Wait for EOS posted by the sink */
+		zassert_ok(zbus_sub_wait_msg(&test_pipeline_sub, &chan, &msg, K_FOREVER),
+			   "run %d timed out waiting for a pipeline message", run);
+		zassert_equal(msg.type, MPIPE_MESSAGE_EOS, "run %d: expected EOS, got %d", run,
+			      msg.type);
 
-	/* Bring pipeline back to READY and join the thread */
-	zassert_equal(mpipe_element_set_state((struct mpipe_element *)&fixture->pipeline,
-					      MPIPE_STATE_READY),
-		      MPIPE_STATE_CHANGE_SUCCESS, "Pipeline failed to return to READY");
+		/* Exactly one EOS per run: a second would mean the aggregation leaked */
+		zassert_equal(zbus_sub_wait_msg(&test_pipeline_sub, &chan, &msg, K_MSEC(50)),
+			      -ENOMSG, "run %d produced more than one message", run);
+
+		/* Bring pipeline back to READY and join the thread */
+		zassert_equal(mpipe_element_set_state((struct mpipe_element *)&fixture->pipeline,
+						      MPIPE_STATE_READY),
+			      MPIPE_STATE_CHANGE_SUCCESS, "run %d failed to return to READY", run);
+	}
 
 	/* Detach the runtime observer */
 	zassert_ok(zbus_chan_rm_obs(bus, &test_pipeline_sub, K_FOREVER),

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef TESTS_SUBSYS_MP_CORE_UNIT_SRC_MP_TEST_HELPERS_H_
-#define TESTS_SUBSYS_MP_CORE_UNIT_SRC_MP_TEST_HELPERS_H_
+#ifndef TESTS_SUBSYS_MPIPE_UNIT_SRC_MPIPE_TEST_HELPERS_H_
+#define TESTS_SUBSYS_MPIPE_UNIT_SRC_MPIPE_TEST_HELPERS_H_
 
 #include <zephyr/mpipe/mpipe_value.h>
 #include <zephyr/ztest.h>
@@ -49,4 +49,4 @@
 		zassert_equal(mpipe_value_get_uint_range_step(value), step);                       \
 	})
 
-#endif /* TESTS_SUBSYS_MP_CORE_UNIT_SRC_MP_TEST_HELPERS_H_ */
+#endif /* TESTS_SUBSYS_MPIPE_UNIT_SRC_MPIPE_TEST_HELPERS_H_ */
