@@ -12,11 +12,11 @@
 #
 # Each generated branch starts from BASE_REF (mmiot/main) and includes:
 #   1. Cherry-picked dependency commits (from previously generated branches)
-#   2. The target's own commit (new files from libmp_dev)
+#   2. The target's own commit(s) (new files from libmp_dev)
 #
-# Compliance checks only verify the target's own commit (HEAD~1..HEAD),
-# not the cherry-picked dependencies (which are checked when their own
-# branch is generated).
+# Compliance checks only verify the target's own commits, one at a time, not
+# the cherry-picked dependencies (which are checked when their own branch is
+# generated). TARGET_COMMITS says how many commits a target adds.
 #
 # Usage:
 #   ./scripts/export_mpipe_upstream.sh              # Export all PRs
@@ -27,8 +27,9 @@
 #
 # Requirements:
 #   - Must be run from the zephyr repository root
-#   - Must be on the libmp_dev branch (or specify --source-branch)
+#   - Must be on the libmp_dev branch
 #   - mmiot/main remote must be available
+#   - libmp_dev must be rebased onto mmiot/main
 
 set -euo pipefail
 
@@ -44,6 +45,10 @@ BASE_REF="mmiot/main"
 
 # Branch name prefix for generated upstream branches
 UPSTREAM_PREFIX="upstream/mpipe"
+
+# Release notes announcing the subsystem. Bump this when the target release
+# changes; it is the only place the version appears.
+RELNOTES_PATH="doc/releases/release-notes-4.5.rst"
 
 # Explicit commit authorship.
 #
@@ -114,17 +119,53 @@ CORE_PATHS=(
     "include/zephyr/mpipe/mpipe_transform_client.h"
     "include/zephyr/mpipe/mpipe_value.h"
     "include/zephyr/mpipe/mpipe_workqueue.h"
-    "subsys/Kconfig"
-    "subsys/CMakeLists.txt"
-    "lib/Kconfig"
-    "lib/CMakeLists.txt"
-    "MAINTAINERS.yml"
     # The subsystem's documentation page ships with the core it describes.
+    # mpipe owns the whole directory, so taking the file wholesale is right.
     # check_core_paths_current() only validates the subsys/ and include/
-    # entries, so these two are not covered by it - keep them in step by hand.
+    # entries, so this one is not covered by it - keep it in step by hand.
     "doc/services/mpipe/index.rst"
-    "doc/services/frameworks.rst"
 )
+
+# Files upstream also owns, where mpipe only adds a few lines: apply our delta
+# instead of taking the file. A whole-file checkout here would revert anything
+# that landed upstream since we branched. Only the core target has any.
+#
+# MAINTAINERS.yml is deliberately absent: it lands in its own trailing commit
+# (see MAINTAINERS_PATH below) once the paths its area names exist.
+declare -A TARGET_DELTAS
+TARGET_DELTAS=(
+    # The continuation line is deliberately not indented: the backslash eats
+    # only the newline, so any leading spaces would end up inside the string.
+    [core]="subsys/Kconfig subsys/CMakeLists.txt \
+doc/services/frameworks.rst ${RELNOTES_PATH}"
+)
+
+# ---------------------------------------------------------------------------
+# MAINTAINERS.yml
+#
+# get_maintainer.py raises on a 'files:' glob that matches nothing, and that is
+# a hard failure of check_compliance.py's MaintainersFormat - which runs on
+# every PR to the tree, whether or not the PR touches this file. A path listed
+# before it exists therefore breaks compliance tree-wide, not just for us.
+#
+# So the area block lands last on each branch, alone, naming only the paths the
+# commits before it have already created:
+#   - the core branch adds the area after the framework and the tests;
+#   - the first sample branch adds samples/subsys/mpipe/ and its tests entry.
+# Every commit's tree is then self-consistent on its own.
+# ---------------------------------------------------------------------------
+MAINTAINERS_PATH="MAINTAINERS.yml"
+MAINTAINERS_AREA="Multimedia Pipeline"
+
+# The area's entries at each point in the series. Keep the order of the source
+# block in libmp_dev, so the final upstream state matches it line for line.
+CORE_MAINTAINERS_FILES="doc/services/mpipe/ include/zephyr/mpipe/ \
+subsys/mpipe/ tests/subsys/mpipe/"
+CORE_MAINTAINERS_TESTS="mpipe"
+
+SAMPLE_MAINTAINERS_FILES="doc/services/mpipe/ include/zephyr/mpipe/ \
+subsys/mpipe/ samples/subsys/mpipe/ tests/subsys/mpipe/"
+SAMPLE_MAINTAINERS_TESTS="mpipe sample.mpipe"
 
 # vid plugin
 VID_PATHS=(
@@ -173,8 +214,15 @@ UTILS_PATHS=(
 
 
 # Sample: cam_disp (camera to display pipeline)
+#
+# mpipe.rst is the code-sample-category page shared by every mpipe sample, and
+# the doc extension turns it into the toctree parent of the sample READMEs
+# under it. Without it those pages are orphaned and the doc build warns, so it
+# ships with the first sample to reach upstream - cam_disp today. If another
+# sample merges first, move mpipe.rst and the maintainers commit below to it.
 SAMPLE_CAM_DISP_PATHS=(
     "samples/subsys/mpipe/cam_disp/"
+    "samples/subsys/mpipe/mpipe.rst"
 )
 
 # Sample: jpeg_dec (JPEG decoding pipeline)
@@ -210,27 +258,46 @@ CORE_TEST_PATHS=(
 
 CORE_COMMIT_MSG="mpipe: Introduce the Multimedia Pipeline (mpipe) subsystem
 
-Multimedia Pipeline (mpipe) is a lightweight GStreamer-like multimedia framework
-for Zephyr. It reuses many concepts from GStreamer, such as elements,
-pads, caps negotiation, and buffer negotiation and adopts a pipeline-
-based architecture that decomposes multimedia processing into discrete,
-interconnected elements.
+Embedded devices increasingly combine video, audio, networking, graphics
+and AI inference in one application, but multimedia code on a
+microcontroller is still usually written per use case: each application
+handles the specifics of every domain it touches, manages the buffers of
+every component, and synchronises them by hand. That does not scale - a
+new use case means a new application rather than a new arrangement of
+the parts.
 
-It aims to simplify the development of multimedia applications by
-providing simple and stable APIs for users to rapidly create their
-specific applications, i.e., users simply select the built-in elements
-and plugins suited to their purpose to construct a pipeline, and it
-just works. This design promotes modularity, reusability, and efficient
-resource management (e.g., zero-copy data flow). Moreover, the APIs
-are generic enough so that application code can remain unchanged even
-as mpipe evolves.
+Introduce mpipe, which builds a media stream out of self-contained
+processing elements. An application declares the elements it needs,
+links them into a graph, and drives that graph through a state machine;
+mpipe negotiates the data format between neighboring elements, settles
+which buffer pool provides the buffers, and moves those buffers from one
+element to the next.
 
-mpipe also features a highly modular, inheritance-based architecture
-inspired by GStreamer, ensuring modularity, scalability, and
-maintainability. For example, new custom elements can be easily added
-by extending existing elements, without requiring modifications to the
-core components. Plugins are decentralized from the core structures,
-allowing seamless extension without altering the core framework.
+mpipe provides the pieces and the rules by which they fit together
+rather than finished solutions, so a developer assembles a pipeline much
+like building with interlocking bricks. The same graph runs on another
+board by binding its elements to different devices, and a new
+requirement is usually one more element rather than a rewrite.
+
+The elements live in plugins, decentralised from the framework: a plugin
+brings its own directory, its own Kconfig and its own headers, and the
+build picks it up without an edit to the core. A silicon vendor or a
+middleware provider can therefore ship elements without altering the
+framework.
+
+The framework allocates nothing at runtime. Buffers come from pools
+sized while the pipeline starts, and everything on the negotiation path
+is fixed-size and held by value, so a stream that runs for hours cannot
+fragment a heap it never touches and a negotiation cannot fail for
+memory.
+
+This commit adds the framework only. Plugins, the pipeline dump, the
+player and the samples follow in their own patches.
+
+Trung Hieu Le contributed the message bus, which is built on zbus, and
+the first heap-based implementation of the mpipe_value and
+mpipe_structure type system. That type system was later re-implemented
+into the fixed-size, heap-free form described above.
 
 ${SOB_PHIBANG}
 ${SOB_TRUNGHIEU}"
@@ -368,7 +435,7 @@ that performs filesystem I/O on any Zephyr-supported filesystem.
 
 ${SOB_PHIBANG}"
 
-CORE_TEST_COMMIT_MSG="mpipe: Add core tests
+CORE_TEST_COMMIT_MSG="mpipe: Add tests
 
 Add build-only, unit and mock pipeline tests for the mpipe core.
 
@@ -379,6 +446,23 @@ pipeline creation, caps negotiation and data flow.
 Assisted-by: Claude:claude-opus-4.6
 ${SOB_PHIBANG}
 ${SOB_TRUNGHIEU}"
+
+CORE_MAINTAINERS_COMMIT_MSG="MAINTAINERS: Add the Multimedia Pipeline area
+
+Add an area for the Multimedia Pipeline subsystem, covering its
+documentation, public headers, sources and tests.
+
+Add myself, ngphibang, as the maintainer.
+
+${SOB_PHIBANG}"
+
+SAMPLE_MAINTAINERS_COMMIT_MSG="MAINTAINERS: add the mpipe samples to its area
+
+Now that the first Multimedia Pipeline sample exists, add
+samples/subsys/mpipe/ to the area, along with the sample.mpipe tests
+that cover it.
+
+${SOB_PHIBANG}"
 
 SAMPLE_DMIC_I2S_COMMIT_MSG="mpipe: samples: Add DMIC to I2S audio sample
 
@@ -468,6 +552,18 @@ TARGET_BUILD_TEST=(
 
 # Path to the shared build_all testcase file (relative to repo root).
 BUILD_ALL_TESTCASE="tests/subsys/mpipe/build_all/tests.yaml"
+
+# ===========================================================================
+# Commit count map: target -> how many commits the target adds on top of its
+# dependencies. Compliance runs on each of them separately, so this is what
+# says where a branch's own commits start. Anything unlisted adds one.
+# ===========================================================================
+
+declare -A TARGET_COMMITS
+TARGET_COMMITS=(
+    [core]=3            # framework, tests, maintainers
+    [sample-cam_disp]=2 # sample, maintainers
+)
 
 
 # ===========================================================================
@@ -618,6 +714,71 @@ append_build_test_block() {
     extract_build_test_block "${test_name}" >> "${BUILD_ALL_TESTCASE}"
 }
 
+# Rewrite the 'files:' and 'tests:' lists of the subsystem's area block in the
+# working-tree MAINTAINERS.yml so they name exactly the given entries. An empty
+# list drops its key.
+#
+# Why the block is trimmed at all is explained at MAINTAINERS_PATH above: a
+# path must never be listed before the commits that create it.
+#
+# The block's lines are edited in place rather than round-tripped through a
+# YAML parser, which would reformat all 400-odd areas of the file.
+#
+# Args: $1=space-separated files entries, $2=space-separated tests entries
+set_maintainers_lists() {
+    MAINTAINERS_FILE="${MAINTAINERS_PATH}" MAINTAINERS_AREA="${MAINTAINERS_AREA}" \
+    MAINTAINERS_FILES="$1" MAINTAINERS_TESTS="$2" python3 - <<'PYEOF'
+import os
+import sys
+
+path = os.environ["MAINTAINERS_FILE"]
+area = os.environ["MAINTAINERS_AREA"]
+wanted = {"files": os.environ["MAINTAINERS_FILES"].split(),
+          "tests": os.environ["MAINTAINERS_TESTS"].split()}
+
+with open(path) as f:
+    lines = f.readlines()
+
+# The area block runs from its "<area>:" line to the next top-level key. Blank
+# lines are part of the block; only an unindented, non-empty line ends it.
+try:
+    start = next(i for i, l in enumerate(lines) if l.rstrip("\n") == area + ":")
+except StopIteration:
+    sys.exit("{}: no '{}' area".format(path, area))
+
+end = next((i for i in range(start + 1, len(lines))
+            if lines[i][:1] not in (" ", "\n")), len(lines))
+
+out = []
+i = start
+while i < end:
+    line = lines[i]
+    key = line.strip().rstrip(":")
+    if not (line.startswith("  ") and line.rstrip("\n").endswith(":")
+            and key in wanted):
+        out.append(line)
+        i += 1
+        continue
+
+    # Swallow the existing entries, then emit the wanted ones. A key with no
+    # entries left is dropped along with them: an empty list is invalid here.
+    i += 1
+    while i < end and lines[i].startswith("    - "):
+        i += 1
+    entries = wanted.pop(key)
+    if entries:
+        out.append(line)
+        out.extend("    - {}\n".format(entry) for entry in entries)
+
+if wanted:
+    sys.exit("{}: area '{}' has no {} key".format(
+        path, area, " or ".join(sorted(wanted))))
+
+with open(path, "w") as f:
+    f.writelines(lines[:start] + out + lines[end:])
+PYEOF
+}
+
 # Print, one name per line, every top-level test block found on stdin (a
 # build_all/tests.yaml stream). For example, "mpipe.core.build".
 list_build_test_names() {
@@ -679,6 +840,18 @@ check_prerequisites() {
     # Verify base ref exists
     if ! git rev-parse --verify "${BASE_REF}" >/dev/null 2>&1; then
         die "Base ref '${BASE_REF}' not found. Run: git fetch mmiot"
+    fi
+
+    # Verify the source branch is rebased onto the base ref. Exporting from a
+    # stale branch builds every PR on an upstream that has already moved, so
+    # the compliance and build checks run against a tree upstream no longer
+    # has, and any file taken wholesale is written back missing whatever
+    # landed there since.
+    if ! git merge-base --is-ancestor "${BASE_REF}" "${SOURCE_BRANCH}"; then
+        local behind
+        behind="$(git rev-list --count "${SOURCE_BRANCH}..${BASE_REF}")"
+        log_error "'${SOURCE_BRANCH}' is ${behind} commit(s) behind '${BASE_REF}'."
+        die "Rebase first: git fetch mmiot && git rebase ${BASE_REF} ${SOURCE_BRANCH}"
     fi
 
     # Check for clean working tree
@@ -749,6 +922,35 @@ check_deps() {
     return 0
 }
 
+# Apply our change to a file upstream also owns, instead of taking the file.
+#
+# The diff is taken from the merge base rather than from BASE_REF, so it is
+# exactly what we added and nothing upstream has done since we branched.
+# --3way makes an upstream change in the same region a reported conflict
+# rather than a silent clobber.
+#
+# Args: $1=path
+apply_delta() {
+    local path="$1"
+    local merge_base
+
+    merge_base="$(git merge-base "${BASE_REF}" "${SOURCE_BRANCH}")"
+
+    if git diff --quiet "${merge_base}" "${SOURCE_BRANCH}" -- "${path}"; then
+        log_warn "  No delta for ${path}; skipping."
+        return 0
+    fi
+
+    if ! git diff "${merge_base}" "${SOURCE_BRANCH}" -- "${path}" |
+            git apply --3way --index -; then
+        log_error "  Could not apply the ${path} delta onto ${BASE_REF}."
+        log_error "  Upstream changed the same region - resolve by hand."
+        return 1
+    fi
+
+    log_info "  Applied delta: ${path}"
+}
+
 # Generate a single upstream branch for a target.
 # The branch starts from BASE_REF, cherry-picks dependency commits, then
 # adds the target's own commit on top.
@@ -767,7 +969,12 @@ generate_branch() {
     if [ -n "${deps}" ]; then
         log_info "  Dependencies: ${deps}"
     fi
+    local deltas="${TARGET_DELTAS[${target}]:-}"
+
     log_info "  Paths: ${paths[*]}"
+    if [ -n "${deltas}" ]; then
+        log_info "  Deltas: ${deltas}"
+    fi
 
     if ${DRY_RUN}; then
         log_info "  [DRY RUN] Would create branch '${branch}' from '${BASE_REF}'"
@@ -775,6 +982,9 @@ generate_branch() {
             log_info "  [DRY RUN] Would cherry-pick from: ${deps}"
         fi
         log_info "  [DRY RUN] With files from ${SOURCE_BRANCH} -- ${paths[*]}"
+        if [ -n "${deltas}" ]; then
+            log_info "  [DRY RUN] And deltas onto ${BASE_REF} -- ${deltas}"
+        fi
         echo ""
         return 0
     fi
@@ -925,6 +1135,15 @@ generate_branch() {
         return 1
     fi
 
+    # Files upstream shares with us: add our lines, leave the rest alone.
+    # These land in the same commit as the files taken wholesale above.
+    for path in ${deltas}; do
+        if ! apply_delta "${path}"; then
+            git checkout "${current_branch}" --quiet
+            return 1
+        fi
+    done
+
     # Append this plugin's own build_all entry. The core-tests commit (cherry-
     # picked as a dependency) provides build_all/tests.yaml with only the
     # core entry; each plugin adds exactly its own build test here. Targets
@@ -1015,6 +1234,28 @@ check_compliance() {
 
     log_ok "  Compliance check passed for '${branch}' (${range})"
     return 0
+}
+
+# Run compliance on each of a target's own commits, one at a time, the way
+# Zephyr validates every commit of a PR. TARGET_COMMITS says how many a target
+# adds on top of its cherry-picked dependencies; the rest were already checked
+# when their own branch was generated.
+#
+# Args: $1=target_name
+check_target_compliance() {
+    local target="$1"
+    local branch="${UPSTREAM_PREFIX}-${target}"
+    local count="${TARGET_COMMITS[${target}]:-1}"
+    local result=0
+    local i
+
+    for ((i = count; i >= 1; i--)); do
+        if ! check_compliance "${branch}" "HEAD~${i}..HEAD~$((i - 1))"; then
+            result=1
+        fi
+    done
+
+    return ${result}
 }
 
 # Run doxygen coverage delta check on a branch.
@@ -1198,6 +1439,71 @@ export_core_tests() {
     echo ""
 }
 
+# Append the maintainers commit onto a branch (its last commit).
+#
+# It is the last one, and touches nothing else, so that the area block only
+# ever names paths the commits before it have created - see MAINTAINERS_PATH.
+# The delta is applied only when the block is not there yet, i.e. on the core
+# branch; a branch that cherry-picked core already has it and is only trimmed.
+#
+# Args: $1=branch, $2=files entries, $3=tests entries, $4=commit message
+append_maintainers_commit() {
+    local branch="$1"
+    local files="$2"
+    local tests="$3"
+    local commit_msg="$4"
+
+    log_info "Appending the maintainers commit to branch: ${branch}"
+    log_info "  Files: ${files}"
+    log_info "  Tests: ${tests}"
+
+    if ${DRY_RUN}; then
+        log_info "  [DRY RUN] Would append the maintainers commit to '${branch}'"
+        echo ""
+        return 0
+    fi
+
+    local current_branch
+    current_branch="$(git branch --show-current)"
+    git checkout "${branch}" --quiet
+
+    if ! grep -q "^${MAINTAINERS_AREA}:$" "${MAINTAINERS_PATH}"; then
+        if ! apply_delta "${MAINTAINERS_PATH}"; then
+            git checkout "${current_branch}" --quiet
+            return 1
+        fi
+    fi
+
+    if ! set_maintainers_lists "${files}" "${tests}"; then
+        git checkout "${current_branch}" --quiet
+        return 1
+    fi
+
+    git add -A
+
+    if git diff --cached --quiet; then
+        log_warn "  No maintainers changes to commit. Skipping."
+        git checkout "${current_branch}" --quiet
+        return 0
+    fi
+
+    git commit --no-verify --author="${AUTHOR_PHIBANG}" -m "${commit_msg}" --quiet
+
+    log_ok "  maintainers commit appended to '${branch}' successfully"
+    log_info "  Commit: $(git --no-pager log --oneline -1)"
+    git --no-pager diff --stat HEAD~1 HEAD | tail -3
+
+    git checkout "${current_branch}" --quiet
+    echo ""
+}
+
+# Append the maintainers entry onto upstream/mpipe-core (commit 3 of 3).
+export_core_maintainers() {
+    append_maintainers_commit "${UPSTREAM_PREFIX}-core" \
+        "${CORE_MAINTAINERS_FILES}" "${CORE_MAINTAINERS_TESTS}" \
+        "${CORE_MAINTAINERS_COMMIT_MSG}"
+}
+
 export_vid() {
     generate_branch "vid" "${UPSTREAM_PREFIX}-vid" \
         "${VID_COMMIT_MSG}" "${VID_PATHS[@]}"
@@ -1238,6 +1544,13 @@ export_sample_cam_disp() {
         "${SAMPLE_CAM_DISP_COMMIT_MSG}" "${SAMPLE_CAM_DISP_PATHS[@]}"
 }
 
+# Widen the area to the samples, on the first sample branch to reach upstream.
+export_sample_cam_disp_maintainers() {
+    append_maintainers_commit "${UPSTREAM_PREFIX}-sample-cam_disp" \
+        "${SAMPLE_MAINTAINERS_FILES}" "${SAMPLE_MAINTAINERS_TESTS}" \
+        "${SAMPLE_MAINTAINERS_COMMIT_MSG}"
+}
+
 export_sample_jpeg_dec() {
     generate_branch "sample-jpeg_dec" "${UPSTREAM_PREFIX}-sample-jpeg_dec" \
         "${SAMPLE_JPEG_DEC_COMMIT_MSG}" "${SAMPLE_JPEG_DEC_PATHS[@]}"
@@ -1273,10 +1586,11 @@ export_all() {
     log_info "Date:   ${TODAY}"
     echo ""
 
-    # Core must be first (plugins depend on it).
-    # Two commits on upstream/mpipe-core: framework first, then tests.
+    # Core must be first (plugins depend on it). Three commits on
+    # upstream/mpipe-core: framework, then tests, then the maintainers entry.
     export_core
     export_core_tests
+    export_core_maintainers
 
     # Plugins (independent of each other, all depend on core)
     export_vid
@@ -1291,6 +1605,7 @@ export_all() {
 
     # Samples (depend on core + relevant plugin + utils)
     export_sample_cam_disp
+    export_sample_cam_disp_maintainers
     export_sample_jpeg_dec
     export_sample_tee_dec
     export_sample_fs
@@ -1303,20 +1618,8 @@ export_all() {
 
         local failed_targets=()
         for target in "${TARGETS[@]}"; do
-            local branch="${UPSTREAM_PREFIX}-${target}"
-            if [ "${target}" = "core" ]; then
-                # core branch has two commits: [framework] [tests]
-                # Check each commit individually
-                if ! check_compliance "${branch}" "HEAD~2..HEAD~1"; then
-                    failed_targets+=(core)
-                fi
-                if ! check_compliance "${branch}" "HEAD~1.."; then
-                    failed_targets+=(core-tests)
-                fi
-            else
-                if ! check_compliance "${branch}"; then
-                    failed_targets+=("${target}")
-                fi
+            if ! check_target_compliance "${target}"; then
+                failed_targets+=("${target}")
             fi
         done
 
@@ -1358,15 +1661,11 @@ export_all() {
     log_info "Generated branches:"
     for target in "${TARGETS[@]}"; do
         local branch="${UPSTREAM_PREFIX}-${target}"
-        if [ "${target}" = "core" ]; then
-            while IFS= read -r line; do
-                echo "  ${branch}: ${line}"
-            done < <(git --no-pager log --oneline "${BASE_REF}..${branch}" 2>/dev/null) \
-                || echo "  ${branch}: N/A"
-        else
-            echo "  ${branch}: $(git --no-pager log --oneline -1 "${branch}" \
-                 2>/dev/null || echo 'N/A')"
-        fi
+        # Show the target's own commits only; the rest are cherry-picked deps.
+        while IFS= read -r line; do
+            echo "  ${branch}: ${line}"
+        done < <(git --no-pager log --oneline "-${TARGET_COMMITS[${target}]:-1}" \
+            "${branch}" 2>/dev/null) || echo "  ${branch}: N/A"
     done
     log_info ""
     log_info "To push upstream PR branches to your fork:"
@@ -1389,11 +1688,11 @@ Usage: $(basename "$0") [OPTIONS] [TARGET...]
 Export the Multimedia Pipeline subsystem from libmp_dev to upstream PR branches.
 
 Each branch is built from ${BASE_REF}, with dependency commits cherry-picked
-first, then the target's own commit added on top. Compliance checks only
-verify the target's own commit and tests (HEAD~2..HEAD).
+first, then the target's own commit(s) added on top. Compliance checks only
+verify the target's own commits, one at a time.
 
 Targets:
-  core             Core mpipe framework + tests
+  core             Core mpipe framework, tests and maintainers entry
   vid             Video plugin (depends on core)
   img             Image codec plugin (depends on core)
   aud             Audio plugin (depends on core)
@@ -1477,6 +1776,7 @@ main() {
                 TARGETS+=(core)
                 export_core
                 export_core_tests
+                export_core_maintainers
                 ;;
             vid)
                 TARGETS+=(vid)
@@ -1509,6 +1809,7 @@ main() {
             sample-cam_disp)
                 TARGETS+=(sample-cam_disp)
                 export_sample_cam_disp
+                export_sample_cam_disp_maintainers
                 ;;
             sample-jpeg_dec)
                 TARGETS+=(sample-jpeg_dec)
@@ -1536,19 +1837,8 @@ main() {
 
         local failed_targets_single=()
         for target in "${TARGETS[@]}"; do
-            local branch="${UPSTREAM_PREFIX}-${target}"
-            if [ "${target}" = "core" ]; then
-                # core branch has two commits; check each individually
-                if ! check_compliance "${branch}" "HEAD~2..HEAD~1"; then
-                    failed_targets_single+=(core)
-                fi
-                if ! check_compliance "${branch}" "HEAD~1.."; then
-                    failed_targets_single+=(core-tests)
-                fi
-            else
-                if ! check_compliance "${branch}"; then
-                    failed_targets_single+=("${target}")
-                fi
+            if ! check_target_compliance "${target}"; then
+                failed_targets_single+=("${target}")
             fi
         done
 
@@ -1590,15 +1880,11 @@ main() {
     log_info "Generated branches:"
     for target in "${TARGETS[@]}"; do
         local branch="${UPSTREAM_PREFIX}-${target}"
-        if [ "${target}" = "core" ]; then
-            while IFS= read -r line; do
-                echo "  ${branch}: ${line}"
-            done < <(git --no-pager log --oneline "${BASE_REF}..${branch}" 2>/dev/null) \
-                || echo "  ${branch}: N/A"
-        else
-            echo "  ${branch}: $(git --no-pager log --oneline -1 "${branch}" \
-                 2>/dev/null || echo 'N/A')"
-        fi
+        # Show the target's own commits only; the rest are cherry-picked deps.
+        while IFS= read -r line; do
+            echo "  ${branch}: ${line}"
+        done < <(git --no-pager log --oneline "-${TARGET_COMMITS[${target}]:-1}" \
+            "${branch}" 2>/dev/null) || echo "  ${branch}: N/A"
     done
     log_info ""
     log_info "To push upstream PR branches to your fork:"
