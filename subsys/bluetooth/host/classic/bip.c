@@ -669,9 +669,13 @@ struct bip_function {
 
 #define PUT_IMAGE_FUNC_BIT      BT_BIP_SUPP_FUNC_PUT_IMAGE
 #define PUT_IMAGE_SUPPORT_FEATS IMAGE_PUSH | REMOTE_DISPLAY
+/*
+ * Image Descriptor header is optional here to accept Put Image requests that
+ * omit it (e.g. some test/peer implementations). Only Connection ID, Type and
+ * Name are treated as required.
+ */
 #define PUT_IMAGE_REQUIRED_HDR                                                                     \
-	BT_OBEX_HEADER_ID_CONN_ID, BT_OBEX_HEADER_ID_TYPE, BT_OBEX_HEADER_ID_NAME,                 \
-		BT_BIP_HEADER_ID_IMG_DESC
+	BT_OBEX_HEADER_ID_CONN_ID, BT_OBEX_HEADER_ID_TYPE, BT_OBEX_HEADER_ID_NAME
 #define PUT_IMAGE_AP 0
 
 #define PUT_LINKED_THUMBNAIL_FUNC_BIT      BT_BIP_SUPP_FUNC_PUT_LINKED_THUMBNAIL
@@ -1364,15 +1368,24 @@ static int bt_bip_client_connect(struct bt_bip *bip, struct bt_bip_client *clien
 	} else {
 		struct bt_bip *primary_bip;
 
-		if (bip->role == BT_BIP_ROLE_INITIATOR) {
-			LOG_ERR("Invalid role initiator");
-			return -EINVAL;
-		}
+		/*
+		 * Do not gate the secondary client connect on bip->role. The
+		 * role field is overwritten to INITIATOR by the transport
+		 * connect (bt_bip_l2cap_connect()/bt_bip_rfcomm_connect()) that
+		 * actively opens the secondary transport, which conflicts with
+		 * the BIP pairing identity meaning of role. A local end that is
+		 * a server on the primary connection may legitimately act as the
+		 * client that initiates the secondary OBEX connection. The
+		 * legitimacy of this secondary connect is fully determined by
+		 * the primary_server pairing checks below (non-NULL, matching
+		 * connection type, CONNECTED state, registered on its bip).
+		 */
 
 		if (primary_server == NULL || primary_server->_bip == NULL) {
 			LOG_ERR("Invalid primary client");
 			return -EINVAL;
 		}
+
 
 		if (type == BT_BIP_2ND_CONN_TYPE_REFERENCED_OBJECTS &&
 		    primary_server->_type != BT_BIP_PRIM_CONN_TYPE_ADVANCED_IMAGE_PRINTING) {
