@@ -54,6 +54,7 @@
 #include "btp_map.h"
 #include "btp_hid_device.h"
 #include "btp_hid_host.h"
+#include "btp_opp.h"
 
 #define BTP_MTU 1024
 #define BTP_DATA_MAX_SIZE (BTP_MTU - sizeof(struct btp_hdr))
@@ -107,8 +108,9 @@
 #define BTP_SERVICE_ID_MAP      0x29
 #define BTP_SERVICE_ID_HID_DEVICE 0x2a
 #define BTP_SERVICE_ID_HID_HOST   0x2b
+#define BTP_SERVICE_ID_OPP      0x2c
 
-#define BTP_SERVICE_ID_MAX	BTP_SERVICE_ID_HID_HOST
+#define BTP_SERVICE_ID_MAX	BTP_SERVICE_ID_OPP
 
 /* Service ID starts from index 0.
  * BTP_SERVICE_ID_MAX is the last service ID.

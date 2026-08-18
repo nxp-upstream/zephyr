@@ -184,3 +184,6 @@ uint8_t tester_unregister_hid_device(void);
 
 uint8_t tester_init_hid_host(void);
 uint8_t tester_unregister_hid_host(void);
+
+uint8_t tester_init_opp(void);
+uint8_t tester_unregister_opp(void);
