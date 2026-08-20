@@ -13,6 +13,8 @@
 #ifndef ZEPHYR_INCLUDE_MPIPE_MPIPE_STRUCTURE_H_
 #define ZEPHYR_INCLUDE_MPIPE_MPIPE_STRUCTURE_H_
 
+#include <zephyr/sys/clock.h>
+#include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
 #include <zephyr/toolchain.h>
 
@@ -149,6 +151,20 @@ enum mpipe_caps_field {
  * because it is empty and therefore intersects with nothing.
  */
 #define MPIPE_STRUCTURE_FLAG_ANY BIT(0)
+
+/**
+ * @brief Convert a frame rate in frames per second to a frame interval in microseconds.
+ *
+ * Gives the value @ref MPIPE_CAPS_FRAME_INTERVAL holds. A frame rate that does not divide
+ * 1000000 exactly should be rounded the same way everywhere so that its representation is
+ * consistent across the system. Using DIV_ROUND_CLOSEST() is also consistent with the video
+ * subsystem and drivers.
+ *
+ * @param fps Frame rate in frames per second, must not be zero
+ *
+ * @return Frame interval in microseconds
+ */
+#define MPIPE_FRAME_INTERVAL_FROM_FPS(fps) DIV_ROUND_CLOSEST(USEC_PER_SEC, (fps))
 
 /**
  * @struct mpipe_structure
