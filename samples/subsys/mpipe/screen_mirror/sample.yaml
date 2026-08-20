@@ -1,0 +1,28 @@
+# Copyright 2024-2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+sample:
+  name: mpipe screen mirror
+tests:
+  sample.mpipe.screen_mirror:
+    build_only: true
+    tags:
+      - samples
+      - shield
+      - net
+      - socket
+      - display
+      - mpipe
+    depends_on:
+      - display
+      - netif
+    platform_allow:
+      - mimxrt1170_evk/mimxrt1176/cm7
+      - native_sim
+      - native_sim/native/64
+    integration_platforms:
+      - mimxrt1170_evk/mimxrt1176/cm7
+      - native_sim
+    extra_args:
+      - platform:mimxrt1170_evk/mimxrt1176/cm7:SHIELD="rk055hdmipi4ma0"
+

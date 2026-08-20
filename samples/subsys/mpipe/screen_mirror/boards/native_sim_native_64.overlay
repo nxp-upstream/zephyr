@@ -1,0 +1,19 @@
+/*
+ * Copyright 2024-2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * native_sim uses the SDL display and the SDL pointer input already declared
+ * by the board devicetree (chosen zephyr,display = &sdl_dc and
+ * zephyr,touch = &input_sdl_touch). Only the panel geometry is pinned here so
+ * that it matches the resolution the client is expected to stream (the
+ * GStreamer sender must scale to 720x1280 to match this panel).
+ */
+
+&sdl_dc {
+	compatible = "zephyr,sdl-dc";
+	width = <720>;
+	height = <1280>;
+};

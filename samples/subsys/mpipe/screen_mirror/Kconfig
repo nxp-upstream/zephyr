@@ -1,0 +1,37 @@
+# Copyright 2024-2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+source "Kconfig.zephyr"
+
+config NET_STACK_CODE_RELOCATE
+	bool "Relocate networking code into RAM"
+	select CODE_DATA_RELOCATION
+	help
+	  Relocate networking code into RAM. Can improve performance on
+	  platforms with fast code RAM.
+
+if NET_STACK_CODE_RELOCATE
+
+config NET_STACK_CODE_RAM_NAME
+	string "Networking code RAM location"
+	default "RAM"
+	help
+	  Region to relocate networking code to
+
+endif # NET_STACK_CODE_RELOCATE
+
+choice
+	prompt "Control Event protocol"
+	default CONTROL_EVENT_TCP
+
+config CONTROL_EVENT_UDP
+	bool "Control UDP protocol"
+	help
+	  Control events are reported using the UDP protocol.
+
+config CONTROL_EVENT_TCP
+	bool "Control TCP protocol"
+	help
+	  Touch events are reported using the TCP protocol.
+
+endchoice
