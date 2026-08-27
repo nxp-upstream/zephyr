@@ -27,6 +27,7 @@ void usbh_class_init_all(void)
 		sys_dlist_init(&c_data->xfer_anchor_list);
 		k_mutex_init(&c_data->mutex);
 		k_condvar_init(&c_data->drained);
+		k_condvar_init(&c_data->udev_drained);
 
 		if (c_node->state != USBH_CLASS_STATE_IDLE) {
 			LOG_DBG("Skipping '%s' in state %u",
@@ -68,6 +69,14 @@ void usbh_class_remove_all(struct usb_device *const udev)
 		usbh_class_xfer_dequeue_all_anchored(c_data);
 		if (usbh_class_xfer_drain(c_data, USBH_CLASS_DRAIN_TIMEOUT) != 0) {
 			LOG_ERR("%s transfers did not drain on removal", c_data->name);
+		}
+
+		/*
+		 * Wait for any class-driver API call that pinned the device to
+		 * finish before freeing it in usbh_class_removed().
+		 */
+		if (usbh_class_udev_drain(c_data, USBH_CLASS_DRAIN_TIMEOUT) != 0) {
+			LOG_ERR("%s device references did not drain on removal", c_data->name);
 		}
 
 		ret = usbh_class_removed(c_data);
@@ -297,6 +306,56 @@ int usbh_class_xfer_drain(struct usbh_class_data *const c_data, k_timeout_t time
 
 	while (c_data->xfer_count != 0) {
 		if (k_condvar_wait(&c_data->drained, &c_data->mutex, timeout) != 0) {
+			ret = -ETIMEDOUT;
+			break;
+		}
+	}
+
+	k_mutex_unlock(&c_data->mutex);
+
+	return ret;
+}
+
+int usbh_class_udev_acquire(struct usbh_class_data *const c_data)
+{
+	int ret = 0;
+
+	k_mutex_lock(&c_data->mutex, K_FOREVER);
+
+	if (!c_data->bound) {
+		ret = -ESHUTDOWN;
+	} else {
+		c_data->udev_count++;
+	}
+
+	k_mutex_unlock(&c_data->mutex);
+
+	return ret;
+}
+
+void usbh_class_udev_release(struct usbh_class_data *const c_data)
+{
+	k_mutex_lock(&c_data->mutex, K_FOREVER);
+
+	if (c_data->udev_count > 0) {
+		c_data->udev_count--;
+	}
+
+	if (c_data->udev_count == 0) {
+		k_condvar_broadcast(&c_data->udev_drained);
+	}
+
+	k_mutex_unlock(&c_data->mutex);
+}
+
+int usbh_class_udev_drain(struct usbh_class_data *const c_data, k_timeout_t timeout)
+{
+	int ret = 0;
+
+	k_mutex_lock(&c_data->mutex, K_FOREVER);
+
+	while (c_data->udev_count != 0) {
+		if (k_condvar_wait(&c_data->udev_drained, &c_data->mutex, timeout) != 0) {
 			ret = -ETIMEDOUT;
 			break;
 		}

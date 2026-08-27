@@ -128,6 +128,11 @@ struct usbh_class_data {
 	struct k_condvar drained;
 	/** Number of submitted transfers not yet completed */
 	uint32_t xfer_count;
+	/** Signalled when all device references have been released */
+	struct k_condvar udev_drained;
+	/** Number of active references pinning the bound device */
+	uint32_t udev_count;
+
 	/** Name of the USB host class instance */
 	const char *name;
 	/** Pointer to USB device this class is used for */

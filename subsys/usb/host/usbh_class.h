@@ -116,6 +116,45 @@ int usbh_class_xfer_drain(struct usbh_class_data *const c_data,
 			  k_timeout_t timeout);
 
 /**
+ * @brief Pin the bound device so it cannot be removed.
+ *
+ * To be used by a class driver around code that dereferences the bound USB
+ * device (c_data->udev) but does not necessarily submit a tracked transfer,
+ * so that usbh_class_remove_all() cannot free the device underneath it.
+ *
+ * This reference count is independent of the transfer count used by
+ * usbh_class_xfer_acquire(), so a held device reference does not block
+ * usbh_class_xfer_drain(). Fails while the instance is not bound to a device.
+ *
+ * @param[in] c_data USB host class data
+ *
+ * @return 0 on success, other values on error
+ * @retval -ESHUTDOWN if the instance is not bound
+ */
+int usbh_class_udev_acquire(struct usbh_class_data *const c_data);
+
+/**
+ * @brief Release a device reference taken with usbh_class_udev_acquire().
+ *
+ * Signals usbh_class_udev_drain() waiters once the count reaches zero.
+ *
+ * @param[in] c_data USB host class data
+ */
+void usbh_class_udev_release(struct usbh_class_data *const c_data);
+
+/**
+ * @brief Wait until all device references of a class instance are released.
+ *
+ * @param[in] c_data USB host class data
+ * @param[in] timeout Time to wait
+ *
+ * @return 0 on success, other values on error
+ * @retval -ETIMEDOUT if the references were not released in time
+ */
+int usbh_class_udev_drain(struct usbh_class_data *const c_data,
+			  k_timeout_t timeout);
+
+/**
  * @brief Remove all transfers from the anchor list for an endpoint.
  *
  * @param[in] c_data USB host class data
