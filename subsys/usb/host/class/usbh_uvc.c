@@ -2493,11 +2493,19 @@ static int usbh_uvc_set_fmt(const struct device *dev, struct video_format *const
 	struct uvc_host_data *host_data = (void *)dev->data;
 	int ret;
 
+	/* block the udev from being removed */
+	if (usbh_class_udev_acquire(host_data->c_data) != 0) {
+		return -ENODEV;
+	}
+
 	ret = set_format(host_data, fmt);
 	if (ret != 0) {
 		LOG_ERR("Failed to set UVC format: %d", ret);
+		usbh_class_udev_release(host_data->c_data);
 		return ret;
 	}
+
+	usbh_class_udev_release(host_data->c_data);
 
 	ret = video_estimate_fmt_size(fmt);
 	if (ret != 0) {
@@ -2536,12 +2544,13 @@ static int usbh_uvc_set_frmival(const struct device *dev, struct video_frmival *
 	uint32_t fps;
 	int ret;
 
-	if (!atomic_test_bit(&host_data->device_flags, UVC_DEVICE_FLAG_CONNECTED)) {
-		return -ENODEV;
-	}
-
 	if (frmival->numerator == 0 || frmival->denominator == 0) {
 		return -EINVAL;
+	}
+
+	/* block the udev from being removed */
+	if (usbh_class_udev_acquire(host_data->c_data) != 0) {
+		return -ENODEV;
 	}
 
 	fps = frmival->denominator / frmival->numerator;
@@ -2551,6 +2560,7 @@ static int usbh_uvc_set_frmival(const struct device *dev, struct video_frmival *
 		LOG_ERR("Failed to set UVC frame rate: %d", ret);
 	}
 
+	usbh_class_udev_release(host_data->c_data);
 	return ret;
 }
 
@@ -2560,19 +2570,23 @@ static int usbh_uvc_get_frmival(const struct device *dev, struct video_frmival *
 	struct uvc_host_data *host_data = dev->data;
 	uint32_t fps;
 
-	if (!atomic_test_bit(&host_data->device_flags, UVC_DEVICE_FLAG_CONNECTED)) {
+	/* block the udev from being removed */
+	if (usbh_class_udev_acquire(host_data->c_data) != 0) {
 		return -ENODEV;
 	}
 
 	if (host_data->current_format.frmival_100ns == 0) {
 		LOG_ERR("Invalid current format frmival: %u",
 			host_data->current_format.frmival_100ns);
+		usbh_class_udev_release(host_data->c_data);
 		return -EINVAL;
 	}
 
 	fps = (NSEC_PER_SEC / 100) / host_data->current_format.frmival_100ns;
 	frmival->numerator = 1;
 	frmival->denominator = fps;
+
+	usbh_class_udev_release(host_data->c_data);
 
 	LOG_DBG("Current frame interval: %u/%u (fps=%u)", frmival->numerator, frmival->denominator,
 		fps);
@@ -2586,7 +2600,8 @@ static int usbh_uvc_enum_frmival(const struct device *dev, struct video_frmival_
 	struct uvc_host_data *host_data = dev->data;
 	int ret;
 
-	if (!atomic_test_bit(&host_data->device_flags, UVC_DEVICE_FLAG_CONNECTED)) {
+	/* block the udev from being removed */
+	if (usbh_class_udev_acquire(host_data->c_data) != 0) {
 		return -ENODEV;
 	}
 
@@ -2595,6 +2610,7 @@ static int usbh_uvc_enum_frmival(const struct device *dev, struct video_frmival_
 		LOG_DBG("Failed to enumerate frame intervals: %d", ret);
 	}
 
+	usbh_class_udev_release(host_data->c_data);
 	return ret;
 }
 
@@ -2805,7 +2821,7 @@ static bool control_is_supported(struct uvc_host_data *const host_data,
 }
 
 /* Set control value */
-static int usbh_uvc_set_ctrl(const struct device *dev, uint32_t id)
+static int set_ctrl_impl(const struct device *dev, uint32_t id)
 {
 	struct uvc_host_data *const host_data = dev->data;
 	const struct uvc_control_map *map;
@@ -2814,10 +2830,6 @@ static int usbh_uvc_set_ctrl(const struct device *dev, uint32_t id)
 	uint8_t unit_subtype;
 	uint8_t entity_id;
 	int ret;
-
-	if (!atomic_test_bit(&host_data->device_flags, UVC_DEVICE_FLAG_CONNECTED)) {
-		return -ENODEV;
-	}
 
 	ret = video_get_ctrl(dev, &control);
 	if (ret != 0) {
@@ -2855,6 +2867,22 @@ static int usbh_uvc_set_ctrl(const struct device *dev, uint32_t id)
 	}
 
 	return 0;
+}
+
+static int usbh_uvc_set_ctrl(const struct device *dev, uint32_t id)
+{
+	struct uvc_host_data *host_data = dev->data;
+	int ret;
+
+	/* block the udev from being removed */
+	if (usbh_class_udev_acquire(host_data->c_data) != 0) {
+		return -ENODEV;
+	}
+
+	ret = set_ctrl_impl(dev, id);
+
+	usbh_class_udev_release(host_data->c_data);
+	return ret;
 }
 
 /* Generic getter for UVC control values */
@@ -2920,7 +2948,7 @@ static int get_control_value(struct uvc_host_data *const host_data, uint32_t cid
 }
 
 /* Get volatile control values */
-static int usbh_uvc_get_volatile_ctrl(const struct device *dev, uint32_t id)
+static int get_volatile_ctrl_impl(const struct device *dev, uint32_t id)
 {
 	struct uvc_host_data *const host_data = dev->data;
 	struct uvc_ctrls *ctrls = &host_data->ctrls;
@@ -2979,8 +3007,24 @@ static int usbh_uvc_get_volatile_ctrl(const struct device *dev, uint32_t id)
 	return 0;
 }
 
+static int usbh_uvc_get_volatile_ctrl(const struct device *dev, uint32_t id)
+{
+	struct uvc_host_data *host_data = dev->data;
+	int ret;
+
+	/* block the udev from being removed */
+	if (usbh_class_udev_acquire(host_data->c_data) != 0) {
+		return -ENODEV;
+	}
+
+	ret = get_volatile_ctrl_impl(dev, id);
+
+	usbh_class_udev_release(host_data->c_data);
+	return ret;
+}
+
 /* Start/stop streaming */
-static int usbh_uvc_set_stream(const struct device *dev, bool enable, enum video_buf_type type)
+static int set_stream_impl(const struct device *dev, bool enable, enum video_buf_type type)
 {
 	struct uvc_host_data *const host_data = dev->data;
 	struct uvc_stream_iface_info *const stream_info = &host_data->current_stream_iface_info;
@@ -2989,10 +3033,6 @@ static int usbh_uvc_set_stream(const struct device *dev, bool enable, enum video
 	uint8_t interface_num;
 	uint8_t alt;
 	int ret;
-
-	if (!atomic_test_bit(&host_data->device_flags, UVC_DEVICE_FLAG_CONNECTED)) {
-		return -ENODEV;
-	}
 
 	if (stream_iface == NULL) {
 		LOG_WRN("No interface configured");
@@ -3058,12 +3098,29 @@ err_stream:
 	return ret;
 }
 
+static int usbh_uvc_set_stream(const struct device *dev, bool enable, enum video_buf_type type)
+{
+	struct uvc_host_data *host_data = dev->data;
+	int ret;
+
+	/* Pin the udev so it is not freed while we touch it or drain transfers */
+	if (usbh_class_udev_acquire(host_data->c_data) != 0) {
+		return -ENODEV;
+	}
+
+	ret = set_stream_impl(dev, enable, type);
+
+	usbh_class_udev_release(host_data->c_data);
+	return ret;
+}
+
 /* Enqueue video buffer */
 static int usbh_uvc_enqueue(const struct device *dev, struct video_buffer *const vbuf)
 {
 	struct uvc_host_data *const host_data = dev->data;
 
-	if (!atomic_test_bit(&host_data->device_flags, UVC_DEVICE_FLAG_CONNECTED)) {
+	/* block the udev from being removed */
+	if (usbh_class_udev_acquire(host_data->c_data) != 0) {
 		return -ENODEV;
 	}
 
@@ -3073,6 +3130,7 @@ static int usbh_uvc_enqueue(const struct device *dev, struct video_buffer *const
 
 	k_fifo_put(&host_data->fifo_in, vbuf);
 
+	usbh_class_udev_release(host_data->c_data);
 	return 0;
 }
 
