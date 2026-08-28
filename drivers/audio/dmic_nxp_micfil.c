@@ -623,7 +623,11 @@ static int nxp_micfil_get_caps(const struct device *dev, struct audio_caps *caps
 	caps->supported_sample_rates = AUDIO_SAMPLE_RATE_16000;
 	/* Currently, driver supports only 32-bit samples */
 	caps->supported_bit_widths = AUDIO_BIT_WIDTH_32;
-	caps->min_num_buffers = 4;
+	/*
+	 * The rotation in the ISR holds the completed block while it allocates
+	 * the next one, so the queue can be full with two more outstanding.
+	 */
+	caps->min_num_buffers = CONFIG_DMIC_NXP_MICFIL_QUEUE_SIZE + 2U;
 	caps->min_frame_interval = 10000;   /* 1ms minimum */
 	caps->max_frame_interval = 100000; /* 100ms maximum */
 	caps->interleaved = true;
