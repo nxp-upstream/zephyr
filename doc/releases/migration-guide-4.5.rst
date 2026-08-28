@@ -62,6 +62,12 @@ Build System
   that ``west spdx`` reads, so generating an SBOM no longer needs the build directory to be
   prepared beforehand: build as usual, then run ``west spdx``.
 
+* The CMake ``flash``, ``debug``, ``debugserver``, ``attach`` and ``rtt`` targets have been
+  removed. Use ``west flash``, ``west debug``, ``west debugserver``, ``west attach`` and
+  ``west rtt`` instead. The emulation ``run`` and ``debugserver`` targets are unaffected.
+
+* The ``WEST_DIR`` build system variable is no longer used.
+
 Kernel
 ******
 
@@ -540,6 +546,10 @@ Ethernet
   the network stack has joined is received. Disable this option to receive all multicast, as
   before. (:github:`113235`)
 
+* Boards with Ethernet interfaces should now enable :kconfig:option:`CONFIG_ETH_DRIVER` by default,
+  instead of :kconfig:option:`CONFIG_NET_L2_ETHERNET`. The later is now enabled by default when the
+  former is. (:github:`117121`)
+
 Flash
 =====
 * :dtcompatible:`jedec,spi-nand` now requires a ``plane-bytes`` property, which indicates the size
@@ -974,6 +984,16 @@ Sensor
   :ref:`mux <mux_api>` subsystem. The ``xbar`` property has been removed; describe the routing with
   a mux controller node (for example :dtcompatible:`nxp,mcux-xbar`) and reference it from the
   decoder node's ``mux-states`` property instead. (:github:`112088`)
+
+* The ``pgain``, ``again``, ``ppulse-length`` and ``pled-boost`` properties of
+  :dtcompatible:`avago,apds9960` used to spell the 2-bit register fields they select in hex
+  (``0x00``/``0x01``/``0x10``/``0x11``) and now take the physical value they select instead: gain
+  multipliers for ``pgain`` (``1``/``2``/``4``/``8``) and ``again`` (``1``/``4``/``16``/``64``),
+  microseconds for ``ppulse-length`` (``4``/``8``/``16``/``32``) and percent for ``pled-boost``
+  (``100``/``150``/``200``/``300``). Most of the old values are rejected by the new enums, but
+  ``pgain = <0x01>`` and ``again = <0x01>`` still build and now select 1x rather than 2x and 4x,
+  so update them explicitly. Nodes that do not set these properties are unaffected
+  (:github:`116079`).
 
 Serial
 ======
@@ -1731,6 +1751,18 @@ Other subsystems
   :c:func:`cpu_load_get_cpu`. Note that :c:func:`cpu_load_get_cpu` returns the load in per mille
   (0...1000) rather than percent; use :c:macro:`CPU_LOAD_PERMILLE_TO_PERCENT` to convert.
 
+* The internal ``__ASSERT_ON`` define has been removed. Out-of-tree code should invoke
+  ``__ASSERT()`` or ``__ASSERT_NO_MSG()`` directly, as these macros already compile out when
+  assertions are disabled.
+  Mark values used only by assertions with ``__maybe_unused`` or ``ARG_UNUSED()`` as appropriate.
+
+hawkBit
+=======
+
+* The legacy ``<zephyr/mgmt/hawkbit.h>`` header, deprecated since Zephyr 4.0, has been removed.
+  Include ``<zephyr/mgmt/hawkbit/hawkbit.h>``, ``<zephyr/mgmt/hawkbit/config.h>`` and
+  ``<zephyr/mgmt/hawkbit/autohandler.h>`` instead.
+
 Logging
 =======
 
@@ -1791,9 +1823,9 @@ lvgl
 ====
 
 * The ``zephyr,lvgl-pointer-input`` devicetree binding marks the ``swap-xy``, ``invert-x``, and
-  ``invert-y`` properties as **deprecated**. Users should instead add these properties to the
-  underlying touch input controller device node, where they are now the canonical location for
-  such transformations.
+  ``invert-y`` properties as **deprecated**. Users should instead add the corresponding
+  touchscreen properties ``swapped-x-y``, ``inverted-x``, and ``inverted-y`` to the underlying
+  touch input controller device node, where these transformations are now defined canonically.
 
 * :kconfig:option:`CONFIG_LV_Z_FULL_REFRESH` is now part of the ``LV_Z_RENDERING_MODE`` Kconfig
   choice, alongside :kconfig:option:`CONFIG_LV_Z_PARTIAL_REFRESH` (default) and

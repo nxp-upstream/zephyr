@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2025 NXP
+ * Copyright (c) 2022, 2025-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -22,8 +22,19 @@
 #define NXP_RESET_PIN_FLAG      SRC_SRSR_IPP_USER_RESET_B_M7_MASK
 #define NXP_RESET_SOFTWARE_FLAG SRC_SRSR_M7_LOCKUP_M7_MASK
 #define NXP_RESET_POR_FLAG      SRC_SRSR_IPP_RESET_B_M7_MASK
-#define NXP_RESET_WATCHDOG_FLAG                                                                   \
-	(SRC_SRSR_WDOG_RST_B_M7_MASK | SRC_SRSR_WDOG3_RST_B_M7_MASK | SRC_SRSR_WDOG4_RST_B_M7_MASK)
+/*
+ * RT116x/RT117x have WDOG, WDOG3 and WDOG4 reset sources.
+ * RT115x (e.g. MIMXRT1152) only has WDOG and WDOG3; guard
+ * WDOG4 so the driver compiles on both sub-families.
+ */
+#ifdef SRC_SRSR_WDOG4_RST_B_M7_MASK
+#define NXP_RESET_WATCHDOG_FLAG                                        \
+	(SRC_SRSR_WDOG_RST_B_M7_MASK | SRC_SRSR_WDOG3_RST_B_M7_MASK | \
+	 SRC_SRSR_WDOG4_RST_B_M7_MASK)
+#else
+#define NXP_RESET_WATCHDOG_FLAG                                        \
+	(SRC_SRSR_WDOG_RST_B_M7_MASK | SRC_SRSR_WDOG3_RST_B_M7_MASK)
+#endif /* SRC_SRSR_WDOG4_RST_B_M7_MASK */
 #define NXP_RESET_DEBUG_FLAG       SRC_SRSR_JTAG_RST_B_M7_MASK
 #define NXP_RESET_SECURITY_FLAG    SRC_SRSR_CSU_RESET_B_M7_MASK
 #define NXP_RESET_TEMPERATURE_FLAG SRC_SRSR_TEMPSENSE_RST_B_M7_MASK
@@ -32,8 +43,14 @@
 #define NXP_RESET_PIN_FLAG      SRC_SRSR_IPP_USER_RESET_B_M4_MASK
 #define NXP_RESET_SOFTWARE_FLAG SRC_SRSR_M7_LOCKUP_M4_MASK
 #define NXP_RESET_POR_FLAG      SRC_SRSR_IPP_RESET_B_M4_MASK
-#define NXP_RESET_WATCHDOG_FLAG                                                                   \
-	(SRC_SRSR_WDOG_RST_B_M4_MASK | SRC_SRSR_WDOG3_RST_B_M4_MASK | SRC_SRSR_WDOG4_RST_B_M4_MASK)
+#ifdef SRC_SRSR_WDOG4_RST_B_M4_MASK
+#define NXP_RESET_WATCHDOG_FLAG                                        \
+	(SRC_SRSR_WDOG_RST_B_M4_MASK | SRC_SRSR_WDOG3_RST_B_M4_MASK | \
+	 SRC_SRSR_WDOG4_RST_B_M4_MASK)
+#else
+#define NXP_RESET_WATCHDOG_FLAG                                        \
+	(SRC_SRSR_WDOG_RST_B_M4_MASK | SRC_SRSR_WDOG3_RST_B_M4_MASK)
+#endif /* SRC_SRSR_WDOG4_RST_B_M4_MASK */
 #define NXP_RESET_DEBUG_FLAG       SRC_SRSR_JTAG_RST_B_M4_MASK
 #define NXP_RESET_SECURITY_FLAG    SRC_SRSR_CSU_RESET_B_M4_MASK
 #define NXP_RESET_TEMPERATURE_FLAG SRC_SRSR_TEMPSENSE_RST_B_M4_MASK
@@ -76,7 +93,7 @@
 #endif
 
 #else
-/* Only support RT116x/RT117x/RT118x. */
+/* Only support RT115x/RT116x/RT117x/RT118x. */
 #error "NXP SRC driver not supported for this SOC!"
 #endif
 
