@@ -643,7 +643,12 @@ static int dmic_mcux_get_caps(const struct device *dev, struct audio_caps *caps)
 	caps->supported_sample_rates = AUDIO_SAMPLE_RATE_16000 | AUDIO_SAMPLE_RATE_48000;
 	/* Currently, driver supports only 16-bit samples */
 	caps->supported_bit_widths = AUDIO_BIT_WIDTH_16;
-	caps->min_num_buffers = CONFIG_DMIC_MCUX_DMA_BUFFERS;
+	/*
+	 * The DMA ring is held for as long as the stream runs, the receive queue
+	 * can be full alongside it, and the callback allocates a replacement
+	 * before it hands the completed block over.
+	 */
+	caps->min_num_buffers = CONFIG_DMIC_MCUX_DMA_BUFFERS + CONFIG_DMIC_MCUX_QUEUE_SIZE + 1U;
 	caps->min_frame_interval = 1000;   /* 1ms minimum */
 	caps->max_frame_interval = 100000; /* 100ms maximum */
 	caps->interleaved = true;
