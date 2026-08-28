@@ -575,7 +575,11 @@ static int ns_dmic_get_caps(const struct device *dev, struct audio_caps *caps)
 		AUDIO_SAMPLE_RATE_192000 | AUDIO_SAMPLE_RATE_352800 | AUDIO_SAMPLE_RATE_384000;
 	caps->supported_bit_widths =
 		AUDIO_BIT_WIDTH_8 | AUDIO_BIT_WIDTH_16 | AUDIO_BIT_WIDTH_24 | AUDIO_BIT_WIDTH_32;
-	caps->min_num_buffers = 1U;
+	/*
+	 * The worker holds a block while it fills it and then queues it, so the
+	 * driver can own the whole receive queue plus that one at the same time.
+	 */
+	caps->min_num_buffers = CONFIG_AUDIO_DMIC_NATIVE_SIM_QUEUE_SIZE + 1U;
 	caps->min_frame_interval = 1U;
 	caps->max_frame_interval = UINT32_MAX;
 	caps->interleaved = true;
