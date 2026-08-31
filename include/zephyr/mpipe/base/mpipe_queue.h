@@ -37,6 +37,8 @@
 enum {
 	/** Number of buffers the queue can hold */
 	MPIPE_PROP_BASE_QUEUE_SIZE = MPIPE_PROP_TRANSFORM_LAST,
+	/** Scheduling priority of the queue's downstream thread */
+	MPIPE_PROP_BASE_QUEUE_THREAD_PRIORTITY,
 };
 
 /**

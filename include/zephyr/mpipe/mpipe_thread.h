@@ -60,6 +60,8 @@ struct mpipe_thread {
 	uint8_t stack_id;
 	/** Current thread state */
 	atomic_t state;
+	/** Priority of the thread */
+	int priority;
 };
 
 /**

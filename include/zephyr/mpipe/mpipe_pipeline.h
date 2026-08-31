@@ -54,6 +54,18 @@
 #include <zephyr/mpipe/mpipe_thread.h>
 
 /**
+ * @brief Properties for a pipeline
+ *
+ * Enumeration of properties that can be configured for a pipeline via
+ */
+enum mpipe_prop_pipeline {
+	/** Thread scheduling priority used when the pipeline thread is created.
+	 *  Defaults to CONFIG_MPIPE_THREAD_DEFAULT_PRIORITY.
+	 */
+	MPIPE_PROP_PIPELINE_THREAD_PRIORITY,
+};
+
+/**
  * @brief A pipeline: the top-level bin that runs a graph.
  *
  * Adds to @ref mpipe_bin the thread that drives the source and the

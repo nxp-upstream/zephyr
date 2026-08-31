@@ -23,6 +23,34 @@
 
 LOG_MODULE_REGISTER(mpipe_pipeline, CONFIG_MPIPE_LOG_LEVEL);
 
+static int mpipe_pipeline_set_property(struct mpipe_object *obj, uint32_t key, const void *val)
+{
+	struct mpipe *pipeline = (struct mpipe *)obj;
+
+	switch (key) {
+	case MPIPE_PROP_PIPELINE_THREAD_PRIORITY:
+		pipeline->thread.priority = *(const int *)val;
+		return 0;
+	default:
+		LOG_ERR("Property %d is unknown", key);
+		return -ENOTSUP;
+	}
+}
+
+static int mpipe_pipeline_get_property(struct mpipe_object *obj, uint32_t key, void *val)
+{
+	struct mpipe *pipeline = (struct mpipe *)obj;
+
+	switch (key) {
+	case MPIPE_PROP_PIPELINE_THREAD_PRIORITY:
+		*(int *)val = pipeline->thread.priority;
+		return 0;
+	default:
+		LOG_ERR("Property %d is unknown", key);
+		return -ENOTSUP;
+	}
+}
+
 /**
  * @brief Aggregate End-Of-Stream (EOS) messages for a pipeline.
  *
@@ -381,8 +409,7 @@ mpipe_pipeline_change_state(struct mpipe_element *element, enum mpipe_state_chan
 
 		/* Create the thread but do not start it (K_FOREVER) */
 		if (mpipe_thread_create(&pipeline->thread, mpipe_pipeline_thread_func, element,
-					NULL, NULL, CONFIG_MPIPE_THREAD_DEFAULT_PRIORITY,
-					K_FOREVER) == NULL) {
+					NULL, NULL, pipeline->thread.priority, K_FOREVER) == NULL) {
 			LOG_ERR("Failed to create a new pipeline thread");
 			return MPIPE_STATE_CHANGE_FAILURE;
 		}
@@ -423,6 +450,11 @@ int mpipe_pipeline_init(struct mpipe *pipe, uint8_t id)
 
 	/* Initialize base class */
 	self->change_state = mpipe_pipeline_change_state;
+	self->object.set_property = mpipe_pipeline_set_property;
+	self->object.get_property = mpipe_pipeline_get_property;
+
+	/* Default thread priority; caller may override before the first play. */
+	pipe->thread.priority = CONFIG_MPIPE_THREAD_DEFAULT_PRIORITY;
 
 	/* Only the pipeline knows how many sinks a run must hear from, so the
 	 * EOS aggregator goes on here rather than in the bin underneath.

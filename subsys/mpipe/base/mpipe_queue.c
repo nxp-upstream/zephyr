@@ -38,6 +38,9 @@ static int mpipe_queue_get_property(struct mpipe_object *obj, uint32_t id, void 
 	case MPIPE_PROP_BASE_QUEUE_SIZE:
 		*(uint8_t *)val = queue->size;
 		return 0;
+	case MPIPE_PROP_BASE_QUEUE_THREAD_PRIORTITY:
+		*(int *)val = queue->thread.priority;
+		return 0;
 	default:
 		return -ENOTSUP;
 	}
@@ -57,6 +60,9 @@ static int mpipe_queue_set_property(struct mpipe_object *obj, uint32_t id, const
 			return -EINVAL;
 		}
 
+		return 0;
+	case MPIPE_PROP_BASE_QUEUE_THREAD_PRIORTITY:
+		queue->thread.priority = *(const int *)val;
 		return 0;
 	default:
 		return -ENOTSUP;
@@ -202,7 +208,7 @@ static enum mpipe_state_change_return mpipe_queue_change_state(struct mpipe_elem
 		/* Not flushing while active: accept incoming buffers. */
 		atomic_set(&queue->flushing, 0);
 		if (mpipe_thread_create(&queue->thread, mpipe_queue_thread_func, queue, NULL, NULL,
-					CONFIG_MPIPE_THREAD_DEFAULT_PRIORITY, K_FOREVER) == NULL) {
+					queue->thread.priority, K_FOREVER) == NULL) {
 			LOG_ERR("Failed to create a new queue thread");
 			return MPIPE_STATE_CHANGE_FAILURE;
 		}
@@ -272,6 +278,9 @@ int mpipe_queue_init(struct mpipe_queue *queue, uint8_t id)
 	queue->transform.sink_pad.chain_fn = mpipe_queue_chain_fn;
 	queue->transform.sink_pad.event_fn = mpipe_queue_sink_event_fn;
 	queue->size = CONFIG_MPIPE_BASE_QUEUE_MAX_SIZE;
+
+	/* Default thread priority; caller may override before the first play. */
+	queue->thread.priority = CONFIG_MPIPE_THREAD_DEFAULT_PRIORITY;
 
 	/* Size of the msgq = queue's max size + 2 (for eos and pause sentinels) */
 	k_msgq_init(&queue->msgq, queue->msgq_buffer, sizeof(void *),
