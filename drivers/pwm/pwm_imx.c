@@ -7,8 +7,13 @@
 #include <errno.h>
 #include <zephyr/drivers/pwm.h>
 #include <zephyr/kernel.h>
+#if defined(CONFIG_PWM_IMX_MCUX)
+#include <fsl_device_registers.h>
+#include <fsl_clock.h>
+#else
 #include <soc.h>
 #include <device_imx.h>
+#endif
 #include <zephyr/drivers/pinctrl.h>
 
 #include <zephyr/logging/log.h>
@@ -17,8 +22,59 @@ LOG_MODULE_REGISTER(pwm_imx, CONFIG_PWM_LOG_LEVEL);
 
 #define PWM_PWMSR_FIFOAV_4WORDS	0x4
 
+#if defined(CONFIG_PWM_IMX_MCUX)
+/*
+ * The MCUXpresso SDK exposes the classic i.MX PWM registers as C struct
+ * members (base->PWMCR, base->PWMSR, ...) instead of the legacy
+ * PWM_*_REG(base) accessor macros used by the device_imx.h HAL. Provide the
+ * accessor macros the driver body relies on so the same code path works with
+ * either HAL. The register bitfield macros (PWM_PWMCR_*_MASK/SHIFT,
+ * PWM_PWMCR_PRESCALER(), PWM_PWMCR_CLKSRC(), PWM_PWMSR_FIFOAV_MASK/SHIFT) are
+ * already provided by the MCUXpresso device header.
+ */
+#define PWM_PWMCR_REG(base)	((base)->PWMCR)
+#define PWM_PWMSR_REG(base)	((base)->PWMSR)
+#define PWM_PWMSAR_REG(base)	((base)->PWMSAR)
+#define PWM_PWMPR_REG(base)	((base)->PWMPR)
+
+/* Extract the FIFOAV field value from a PWMSR register read. */
+#define PWM_PWMSR_FIFOAV_GET(sr) \
+	(((uint32_t)(sr) & PWM_PWMSR_FIFOAV_MASK) >> PWM_PWMSR_FIFOAV_SHIFT)
+
+/* Return the PWM peripheral input clock frequency in Hz. */
+static uint32_t get_pwm_clock_freq(PWM_Type *base)
+{
+	switch ((uintptr_t)base) {
+	case PWM1_BASE:
+		return CLOCK_GetClockRootFreq(kCLOCK_Pwm1ClkRoot);
+	case PWM2_BASE:
+		return CLOCK_GetClockRootFreq(kCLOCK_Pwm2ClkRoot);
+	case PWM3_BASE:
+		return CLOCK_GetClockRootFreq(kCLOCK_Pwm3ClkRoot);
+	case PWM4_BASE:
+		return CLOCK_GetClockRootFreq(kCLOCK_Pwm4ClkRoot);
+	default:
+		return 0;
+	}
+}
+#else
+/*
+ * The legacy device_imx.h HAL provides a PWM_PWMSR_FIFOAV(sr) macro that
+ * extracts the FIFOAV field. Map the common accessor onto it.
+ */
+#define PWM_PWMSR_FIFOAV_GET(sr)	PWM_PWMSR_FIFOAV(sr)
+#endif /* CONFIG_PWM_IMX_MCUX */
+
+#if !defined(CONFIG_PWM_IMX_MCUX)
+/*
+ * The MCUXpresso device header (fsl_device_registers.h) already defines the
+ * function-like PWM_PWMCR_SWR(x) macro. The legacy device_imx.h HAL only
+ * provides PWM_PWMCR_SWR_MASK/SHIFT, so define the accessor here for that path
+ * to avoid a redefinition warning when building against MCUXpresso.
+ */
 #define PWM_PWMCR_SWR(x) (((uint32_t)(((uint32_t)(x)) \
 				<<PWM_PWMCR_SWR_SHIFT))&PWM_PWMCR_SWR_MASK)
+#endif
 
 struct imx_pwm_config {
 	PWM_Type *base;
@@ -81,14 +137,15 @@ static int imx_pwm_set_cycles(const struct device *dev, uint32_t channel,
 	 */
 	if (enabled) {
 		sr = PWM_PWMSR_REG(config->base);
-		fifoav = PWM_PWMSR_FIFOAV(sr);
+		fifoav = PWM_PWMSR_FIFOAV_GET(sr);
 		if (fifoav == PWM_PWMSR_FIFOAV_4WORDS) {
 			period_ms = (get_pwm_clock_freq(config->base) >>
 					config->prescaler) * MSEC_PER_SEC;
 			k_sleep(K_MSEC(period_ms));
 
 			sr = PWM_PWMSR_REG(config->base);
-			if (fifoav == PWM_PWMSR_FIFOAV(sr)) {
+			if (fifoav == PWM_PWMSR_FIFOAV_GET(sr)) {
+
 				LOG_WRN("there is no free FIFO slot\n");
 			}
 		}

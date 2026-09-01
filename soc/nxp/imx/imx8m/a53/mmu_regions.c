@@ -29,6 +29,34 @@ static const struct arm_mmu_region mmu_regions[] = {
 			      DT_REG_ADDR(DT_NODELABEL(rdc)),
 			      DT_REG_SIZE(DT_NODELABEL(rdc)),
 			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(pwm1))
+	MMU_REGION_FLAT_ENTRY("PWM1",
+			      DT_REG_ADDR(DT_NODELABEL(pwm1)),
+			      DT_REG_SIZE(DT_NODELABEL(pwm1)),
+			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(pwm2))
+	MMU_REGION_FLAT_ENTRY("PWM2",
+			      DT_REG_ADDR(DT_NODELABEL(pwm2)),
+			      DT_REG_SIZE(DT_NODELABEL(pwm2)),
+			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(pwm3))
+	MMU_REGION_FLAT_ENTRY("PWM3",
+			      DT_REG_ADDR(DT_NODELABEL(pwm3)),
+			      DT_REG_SIZE(DT_NODELABEL(pwm3)),
+			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+#endif
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(pwm4))
+	MMU_REGION_FLAT_ENTRY("PWM4",
+			      DT_REG_ADDR(DT_NODELABEL(pwm4)),
+			      DT_REG_SIZE(DT_NODELABEL(pwm4)),
+			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+#endif
 };
 
 const struct arm_mmu_config mmu_config = {
