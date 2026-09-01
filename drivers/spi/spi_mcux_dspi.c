@@ -56,6 +56,10 @@ struct spi_mcux_config {
 struct spi_mcux_data {
 	const struct device *dev;
 	dspi_master_handle_t handle;
+#if !(defined(FSL_FEATURE_DSPI_HAS_NO_SLAVE_SUPPORT) && FSL_FEATURE_DSPI_HAS_NO_SLAVE_SUPPORT)
+	dspi_slave_handle_t slave_handle;
+	uint8_t slave_bytes_per_frame;
+#endif
 	struct spi_context ctx;
 	size_t transfer_len;
 #ifdef CONFIG_DSPI_MCUX_EDMA
@@ -203,6 +207,70 @@ static int spi_mcux_transfer_next_packet(const struct device *dev)
 	return 0;
 }
 
+#if !(defined(FSL_FEATURE_DSPI_HAS_NO_SLAVE_SUPPORT) && FSL_FEATURE_DSPI_HAS_NO_SLAVE_SUPPORT)
+static void spi_mcux_slave_transfer_callback(SPI_Type *base,
+					     dspi_slave_handle_t *handle,
+					     status_t status,
+					     void *user_data)
+{
+	struct spi_mcux_data *data = user_data;
+
+	ARG_UNUSED(base);
+	ARG_UNUSED(handle);
+
+	if (status != kStatus_Success) {
+		spi_context_complete(&data->ctx, data->dev, -EIO);
+		return;
+	}
+
+	if (data->ctx.tx_len != 0U) {
+		spi_context_update_tx(&data->ctx, 1, data->transfer_len);
+	}
+
+	if (data->ctx.rx_len != 0U) {
+		spi_context_update_rx(&data->ctx, 1, data->transfer_len);
+	}
+
+	data->ctx.recv_frames = DIV_ROUND_UP(data->transfer_len, data->slave_bytes_per_frame);
+	spi_context_complete(&data->ctx, data->dev, 0);
+}
+
+static int spi_mcux_slave_transfer(const struct device *dev)
+{
+	const struct spi_mcux_config *config = dev->config;
+	struct spi_mcux_data *data = dev->data;
+	struct spi_context *ctx = &data->ctx;
+	dspi_transfer_t transfer = {
+		.txData = ctx->tx_buf,
+		.rxData = ctx->rx_buf,
+		.configFlags = kDSPI_SlaveCtar0,
+	};
+	status_t status;
+
+	if (ctx->tx_len == 0U) {
+		transfer.dataSize = ctx->rx_len;
+	} else if (ctx->rx_len == 0U) {
+		transfer.dataSize = ctx->tx_len;
+	} else {
+		transfer.dataSize = ctx->tx_len;
+	}
+
+	if (transfer.dataSize == 0U) {
+		spi_context_complete(ctx, dev, 0);
+		return 0;
+	}
+
+	data->transfer_len = transfer.dataSize;
+	status = DSPI_SlaveTransferNonBlocking(config->base, &data->slave_handle, &transfer);
+	if (status != kStatus_Success) {
+		LOG_ERR("Slave transfer could not start on %s: %d", dev->name, status);
+		return status == kDSPI_Busy ? -EBUSY : -EINVAL;
+	}
+
+	return 0;
+}
+#endif
+
 static void spi_mcux_isr(const struct device *dev)
 {
 	const struct spi_mcux_config *config = dev->config;
@@ -218,7 +286,13 @@ static void spi_mcux_isr(const struct device *dev)
 		dma_start(data->rx_dma_config.dma_dev, data->rx_dma_config.dma_channel);
 	}
 #else
-	DSPI_MasterTransferHandleIRQ(base, &data->handle);
+	if (data->ctx.config->operation & SPI_OP_MODE_SLAVE) {
+#if !(defined(FSL_FEATURE_DSPI_HAS_NO_SLAVE_SUPPORT) && FSL_FEATURE_DSPI_HAS_NO_SLAVE_SUPPORT)
+		DSPI_SlaveTransferHandleIRQ(base, &data->slave_handle);
+#endif
+	} else {
+		DSPI_MasterTransferHandleIRQ(base, &data->handle);
+	}
 #endif
 }
 
@@ -584,6 +658,66 @@ static int spi_mcux_configure(const struct device *dev,
 		return -ENOTSUP;
 	}
 
+	if (spi_cfg->operation & SPI_OP_MODE_SLAVE) {
+#if !defined(CONFIG_SPI_SLAVE)
+		LOG_ERR("DSPI slave mode requires CONFIG_SPI_SLAVE");
+		return -ENOTSUP;
+#else
+#ifdef CONFIG_DSPI_MCUX_EDMA
+		LOG_ERR("DSPI slave mode is not supported with eDMA");
+		return -ENOTSUP;
+#else
+#if !(defined(FSL_FEATURE_DSPI_HAS_NO_SLAVE_SUPPORT) && FSL_FEATURE_DSPI_HAS_NO_SLAVE_SUPPORT)
+		dspi_slave_config_t slave_config;
+
+		if (spi_cfg->slave != 0U) {
+			LOG_ERR("DSPI slave mode only supports PCS0");
+			return -EINVAL;
+		}
+
+		if (spi_cfg->operation & SPI_TRANSFER_LSB) {
+			LOG_ERR("DSPI slave mode only supports MSB-first transfers");
+			return -ENOTSUP;
+		}
+
+		if (spi_cfg->operation & SPI_CS_ACTIVE_HIGH) {
+			LOG_ERR("DSPI slave mode only supports active-low PCS");
+			return -ENOTSUP;
+		}
+
+		DSPI_SlaveGetDefaultConfig(&slave_config);
+		slave_config.whichCtar = config->which_ctar;
+		slave_config.ctarConfig.bitsPerFrame = SPI_WORD_SIZE_GET(spi_cfg->operation);
+		slave_config.ctarConfig.cpol = (SPI_MODE_GET(spi_cfg->operation) & SPI_MODE_CPOL) ?
+			kDSPI_ClockPolarityActiveLow : kDSPI_ClockPolarityActiveHigh;
+		slave_config.ctarConfig.cpha = (SPI_MODE_GET(spi_cfg->operation) & SPI_MODE_CPHA) ?
+			kDSPI_ClockPhaseSecondEdge : kDSPI_ClockPhaseFirstEdge;
+		slave_config.enableContinuousSCK = config->enable_continuous_sck;
+		slave_config.enableRxFifoOverWrite = config->enable_rxfifo_overwrite;
+		slave_config.enableModifiedTimingFormat = config->enable_modified_timing_format;
+		slave_config.samplePoint = config->samplePoint;
+
+		word_size = slave_config.ctarConfig.bitsPerFrame;
+		if (word_size < 4U || word_size > FSL_FEATURE_DSPI_MAX_DATA_WIDTH) {
+			LOG_ERR("Word size %d is outside the supported range 4-%d",
+				word_size, FSL_FEATURE_DSPI_MAX_DATA_WIDTH);
+			return -EINVAL;
+		}
+
+		data->slave_bytes_per_frame = DIV_ROUND_UP(word_size, BITS_PER_BYTE);
+		DSPI_SlaveInit(base, &slave_config);
+		DSPI_SlaveTransferCreateHandle(base, &data->slave_handle,
+					       spi_mcux_slave_transfer_callback, data);
+		data->ctx.config = spi_cfg;
+		return 0;
+#else
+		LOG_ERR("DSPI slave mode is not supported by this SoC");
+		return -ENOTSUP;
+#endif
+#endif
+#endif
+	}
+
 	DSPI_MasterGetDefaultConfig(&master_config);
 
 	master_config.whichPcs = 1U << spi_cfg->slave;
@@ -694,10 +828,22 @@ static int transceive(const struct device *dev,
 		goto out;
 	}
 
+	if ((spi_cfg->operation & SPI_OP_MODE_SLAVE) &&
+	    ((tx_bufs != NULL && tx_bufs->count > 1U) ||
+	     (rx_bufs != NULL && rx_bufs->count > 1U) ||
+	     (tx_bufs != NULL && tx_bufs->count == 1U &&
+	      rx_bufs != NULL && rx_bufs->count == 1U &&
+	      tx_bufs->buffers[0].len != rx_bufs->buffers[0].len))) {
+		LOG_ERR("DSPI slave mode requires single, equal-length TX and RX buffers");
+		ret = -ENOTSUP;
+		goto out;
+	}
 
 	spi_context_buffers_setup(&data->ctx, tx_bufs, rx_bufs, 1);
 
-	spi_context_cs_control(&data->ctx, true);
+	if (!(spi_cfg->operation & SPI_OP_MODE_SLAVE)) {
+		spi_context_cs_control(&data->ctx, true);
+	}
 
 #ifdef CONFIG_DSPI_MCUX_EDMA
 	DSPI_StopTransfer(base);
@@ -721,7 +867,15 @@ static int transceive(const struct device *dev,
 	configure_dma(dev);
 #endif
 
-	ret = spi_mcux_transfer_next_packet(dev);
+	if (spi_cfg->operation & SPI_OP_MODE_SLAVE) {
+#if !(defined(FSL_FEATURE_DSPI_HAS_NO_SLAVE_SUPPORT) && FSL_FEATURE_DSPI_HAS_NO_SLAVE_SUPPORT)
+		ret = spi_mcux_slave_transfer(dev);
+#else
+		ret = -ENOTSUP;
+#endif
+	} else {
+		ret = spi_mcux_transfer_next_packet(dev);
+	}
 	if (ret) {
 		goto out;
 	}
