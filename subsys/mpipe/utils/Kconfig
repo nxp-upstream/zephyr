@@ -46,6 +46,20 @@ config MPIPE_PLAYER_CMD_QUEUE_DEPTH
 	  blocks, so a command asked for once the queue is full is dropped
 	  and reported.
 
+config MPIPE_PLAYER_MAX_INSTANCES
+	int "Maximum number of concurrent player instances"
+	default 2
+	range 1 16
+	help
+	  Number of player instances that can be active at the same time. Each
+	  player controls one pipeline, so a use case that drives several
+	  pipelines side by side (for example an audio and a video pipeline)
+	  needs one slot per pipeline. When several players are active the
+	  interactive shell commands and single-letter shortcuts apply to every
+	  registered player at once, or to a single player when given its
+	  registry index (for example "s 1" stops only the player in slot 1).
+
+
 config MPIPE_PLAYER_DUMP_ON_STATE_CHANGE
 	bool "Dump the pipeline on every state change and every error"
 	depends on MPIPE_DUMP

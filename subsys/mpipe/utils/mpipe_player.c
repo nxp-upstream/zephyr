@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <zephyr/kernel.h>
@@ -43,10 +43,17 @@ enum mpipe_player_cmd {
 	MPIPE_PLAYER_CMD_RUN_ERROR,
 };
 
-/* Only a single player instance is supported at a time. */
-static atomic_ptr_t active_player = ATOMIC_PTR_INIT(NULL);
+/*
+ * Registry of the players that are currently active. Every player controls a
+ * single pipeline, so a use case that drives several pipelines side by side
+ * (e.g. an audio pipeline and a video pipeline) registers one player per
+ * pipeline.
+ */
+static atomic_ptr_t players[CONFIG_MPIPE_PLAYER_MAX_INSTANCES];
+static struct k_spinlock players_lock;
 
-static K_THREAD_STACK_DEFINE(mpipe_player_worker_stack, CONFIG_MPIPE_PLAYER_WORKER_STACK_SIZE);
+static K_THREAD_STACK_ARRAY_DEFINE(players_worker_stacks, CONFIG_MPIPE_PLAYER_MAX_INSTANCES,
+				   CONFIG_MPIPE_PLAYER_WORKER_STACK_SIZE);
 
 static void mpipe_player_msg_cb(const struct zbus_channel *chan);
 
@@ -318,12 +325,35 @@ static int mpipe_player_post(struct mpipe_player *player, enum mpipe_player_cmd 
 	return k_msgq_put(&player->cmd_q, &msg, K_NO_WAIT);
 }
 
+static struct mpipe_player *mpipe_player_from_pipeline(const struct mpipe *pipeline)
+{
+	for (size_t i = 0; i < ARRAY_SIZE(players); i++) {
+		struct mpipe_player *p = atomic_ptr_get(&players[i]);
+
+		if (p != NULL && p->pipeline == pipeline) {
+			return p;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+ * Handle a bus message: resolve the owning player from the posting pipeline
+ * pointer and post it a command. A message with no matching player is ignored.
+ */
 static void mpipe_player_msg_cb(const struct zbus_channel *chan)
 {
+	struct mpipe *pipeline = zbus_chan_user_data(chan);
 	const struct mpipe_message *m = zbus_chan_const_msg(chan);
-	struct mpipe_player *player = atomic_ptr_get(&active_player);
+	struct mpipe_player *player;
 	int ret = 0;
 
+	if (pipeline == NULL) {
+		return;
+	}
+
+	player = mpipe_player_from_pipeline(pipeline);
 	if (player == NULL) {
 		return;
 	}
@@ -346,16 +376,63 @@ static void mpipe_player_msg_cb(const struct zbus_channel *chan)
 	}
 }
 
+static int mpipe_player_register(struct mpipe_player *player, struct mpipe *pipeline)
+{
+	k_spinlock_key_t key = k_spin_lock(&players_lock);
+	int slot = -EBUSY;
+	int free_slot = -1;
+
+	for (size_t i = 0; i < ARRAY_SIZE(players); i++) {
+		struct mpipe_player *p = atomic_ptr_get(&players[i]);
+
+		if (p == NULL) {
+			if (free_slot < 0) {
+				free_slot = (int)i;
+			}
+		} else if (p->pipeline == pipeline) {
+			/*
+			 * Reject a pipeline that is already controlled by a
+			 * player.
+			 */
+			k_spin_unlock(&players_lock, key);
+			return -EBUSY;
+		}
+	}
+
+	if (free_slot >= 0) {
+		atomic_ptr_set(&players[free_slot], player);
+		slot = free_slot;
+	}
+
+	k_spin_unlock(&players_lock, key);
+
+	return slot;
+}
+
+static void mpipe_player_unregister(struct mpipe_player *player)
+{
+	for (size_t i = 0; i < ARRAY_SIZE(players); i++) {
+		if (atomic_ptr_get(&players[i]) == player) {
+			atomic_ptr_set(&players[i], NULL);
+			break;
+		}
+	}
+}
+
 int mpipe_player_init(struct mpipe_player *player, struct mpipe *pipeline)
 {
+	int slot;
+
 	__ASSERT_NO_MSG(player != NULL);
 	__ASSERT_NO_MSG(pipeline != NULL);
 
-	if (atomic_ptr_get(&active_player) != NULL) {
-		return -EBUSY;
+	player->pipeline = pipeline;
+
+	slot = mpipe_player_register(player, pipeline);
+	if (slot < 0) {
+		return slot;
 	}
 
-	player->pipeline = pipeline;
 	player->state = MPIPE_PLAYER_STOPPED;
 	player->run_id = 0;
 
@@ -365,24 +442,24 @@ int mpipe_player_init(struct mpipe_player *player, struct mpipe *pipeline)
 
 	struct zbus_channel *bus = mpipe_element_get_bus_chan((struct mpipe_element *)pipeline);
 
-	/* Attach the listener to the pipeline's message channel */
+	/* Attach the shared listener to the pipeline's message channel */
 	if (zbus_chan_add_obs(bus, &mpipe_player_listener, K_FOREVER) != 0) {
 		LOG_ERR("Failed to attach player to pipeline channel");
+		mpipe_player_unregister(player);
 		return -EIO;
 	}
 
-	player->worker_tid = k_thread_create(&player->worker, mpipe_player_worker_stack,
-					     K_THREAD_STACK_SIZEOF(mpipe_player_worker_stack),
+	player->worker_tid = k_thread_create(&player->worker, players_worker_stacks[slot],
+					     K_THREAD_STACK_SIZEOF(players_worker_stacks[slot]),
 					     mpipe_player_worker, player, NULL, NULL,
 					     CONFIG_MPIPE_PLAYER_WORKER_PRIORITY, 0, K_NO_WAIT);
 	if (player->worker_tid == NULL) {
 		LOG_ERR("Failed to create player worker thread");
 		(void)zbus_chan_rm_obs(bus, &mpipe_player_listener, K_FOREVER);
+		mpipe_player_unregister(player);
 
 		return -EIO;
 	}
-
-	atomic_ptr_set(&active_player, player);
 
 	k_thread_name_set(player->worker_tid, "mpipe_player");
 
@@ -461,9 +538,12 @@ int mpipe_player_deinit(struct mpipe_player *player)
 	 */
 	(void)k_thread_join(&player->worker, K_FOREVER);
 
-	atomic_ptr_set(&active_player, NULL);
+	/*
+	 * Unregister before detaching so a message arriving mid-teardown no
+	 * longer resolves to this player and is ignored.
+	 */
+	mpipe_player_unregister(player);
 
-	/* Detach the listener. */
 	err = zbus_chan_rm_obs(mpipe_element_get_bus_chan((struct mpipe_element *)player->pipeline),
 			       &mpipe_player_listener, K_FOREVER);
 
@@ -473,122 +553,163 @@ int mpipe_player_deinit(struct mpipe_player *player)
 #if defined(CONFIG_SHELL)
 
 /*
- * Interactive shell control for the active player.
+ * Interactive shell control for all registered players.
  *
- * Two ways to drive the player are registered:
+ *
+ * Two ways to drive the players are registered:
  *  - single-letter top-level shortcuts for fast, one-key control:
  *      p (play/pause toggle), s (stop), r (replay), q (quit)
  *  - a grouped "player" command for discoverability and tab-completion:
  *      player play|pause|stop|replay|status
  */
 
-static struct mpipe_player *mpipe_shell_active(const struct shell *sh)
-{
-	struct mpipe_player *player = atomic_ptr_get(&active_player);
+/* Per-player action applied by the fan-out helper below. */
+typedef int (*mpipe_player_action_t)(struct mpipe_player *player);
 
-	if (player == NULL) {
-		shell_error(sh, "No active player");
+/*
+ * Parse the optional trailing index argument shared by every player command.
+ * With no argument, *index is set to -1, meaning "apply to all players". With
+ * an argument, argv[1] is parsed as a 0-based registry slot (the same index
+ * "player status" prints) and range-checked. Returns 0 on success, or -EINVAL
+ * on a malformed or out-of-range index (an error is printed to the shell).
+ */
+static int mpipe_player_index_arg(const struct shell *sh, size_t argc, char **argv, int *index)
+{
+	long val;
+	char *end;
+
+	if (argc < 2) {
+		*index = -1;
+		return 0;
 	}
 
-	return player;
+	val = strtol(argv[1], &end, 0);
+	if (*end != '\0' || val < 0 || val >= (long)ARRAY_SIZE(players)) {
+		shell_error(sh, "Invalid player index '%s' (expected 0..%zu)", argv[1],
+			    ARRAY_SIZE(players) - 1);
+		return -EINVAL;
+	}
+
+	*index = (int)val;
+
+	return 0;
+}
+
+/*
+ * Apply an action to the selected player(s). When index < 0 the action is
+ * applied to every registered player; otherwise only to the player in registry
+ * slot 'index'.
+ */
+static int mpipe_player_apply(const struct shell *sh, mpipe_player_action_t action, int index)
+{
+	size_t count = 0;
+	int first_err = 0;
+
+	for (size_t i = 0; i < ARRAY_SIZE(players); i++) {
+		struct mpipe_player *p = atomic_ptr_get(&players[i]);
+
+		if (p == NULL || (index >= 0 && (int)i != index)) {
+			continue;
+		}
+
+		count++;
+
+		int err = action(p);
+
+		if (err != 0 && first_err == 0) {
+			first_err = err;
+		}
+	}
+
+	if (count == 0) {
+		if (index < 0) {
+			shell_error(sh, "No active player");
+		} else {
+			shell_error(sh, "No player at index %d", index);
+		}
+		return -ENODEV;
+	}
+
+	return first_err;
+}
+
+/* Parse the optional index and apply an action to the selected player(s). */
+static int mpipe_player_cmd(const struct shell *sh, size_t argc, char **argv,
+			    mpipe_player_action_t action)
+{
+	int index;
+	int err = mpipe_player_index_arg(sh, argc, argv, &index);
+
+	if (err != 0) {
+		return err;
+	}
+
+	return mpipe_player_apply(sh, action, index);
 }
 
 static int cmd_player_play(const struct shell *sh, size_t argc, char **argv)
 {
-	struct mpipe_player *player = mpipe_shell_active(sh);
-
-	ARG_UNUSED(argc);
-	ARG_UNUSED(argv);
-
-	if (player == NULL) {
-		return -ENODEV;
-	}
-
-	return mpipe_player_play(player);
+	return mpipe_player_cmd(sh, argc, argv, mpipe_player_play);
 }
 
 static int cmd_player_pause(const struct shell *sh, size_t argc, char **argv)
 {
-	struct mpipe_player *player = mpipe_shell_active(sh);
-
-	ARG_UNUSED(argc);
-	ARG_UNUSED(argv);
-
-	if (player == NULL) {
-		return -ENODEV;
-	}
-
-	return mpipe_player_pause(player);
+	return mpipe_player_cmd(sh, argc, argv, mpipe_player_pause);
 }
 
 static int cmd_player_toggle(const struct shell *sh, size_t argc, char **argv)
 {
-	struct mpipe_player *player = mpipe_shell_active(sh);
-
-	ARG_UNUSED(argc);
-	ARG_UNUSED(argv);
-
-	if (player == NULL) {
-		return -ENODEV;
-	}
-
-	return mpipe_player_toggle(player);
+	return mpipe_player_cmd(sh, argc, argv, mpipe_player_toggle);
 }
 
 static int cmd_player_stop(const struct shell *sh, size_t argc, char **argv)
 {
-	struct mpipe_player *player = mpipe_shell_active(sh);
-
-	ARG_UNUSED(argc);
-	ARG_UNUSED(argv);
-
-	if (player == NULL) {
-		return -ENODEV;
-	}
-
-	return mpipe_player_stop(player);
+	return mpipe_player_cmd(sh, argc, argv, mpipe_player_stop);
 }
 
 static int cmd_player_replay(const struct shell *sh, size_t argc, char **argv)
 {
-	struct mpipe_player *player = mpipe_shell_active(sh);
-
-	ARG_UNUSED(argc);
-	ARG_UNUSED(argv);
-
-	if (player == NULL) {
-		return -ENODEV;
-	}
-
-	return mpipe_player_replay(player);
+	return mpipe_player_cmd(sh, argc, argv, mpipe_player_replay);
 }
 
 static int cmd_player_quit(const struct shell *sh, size_t argc, char **argv)
 {
-	struct mpipe_player *player = mpipe_shell_active(sh);
-
-	ARG_UNUSED(argc);
-	ARG_UNUSED(argv);
-
-	if (player == NULL) {
-		return -ENODEV;
-	}
-
-	return mpipe_player_quit(player);
+	return mpipe_player_cmd(sh, argc, argv, mpipe_player_quit);
 }
 
 static int cmd_player_status(const struct shell *sh, size_t argc, char **argv)
 {
-	struct mpipe_player *player = mpipe_shell_active(sh);
+	size_t count = 0;
+	int index;
+	int err;
 
-	ARG_UNUSED(argc);
-	ARG_UNUSED(argv);
-
-	if (player == NULL) {
-		return -ENODEV;
+	err = mpipe_player_index_arg(sh, argc, argv, &index);
+	if (err != 0) {
+		return err;
 	}
 
-	shell_print(sh, "Player state: %s", mpipe_player_state_str(player->state));
+	for (size_t i = 0; i < ARRAY_SIZE(players); i++) {
+		struct mpipe_player *p = atomic_ptr_get(&players[i]);
+
+		if (p == NULL || (index >= 0 && (int)i != index)) {
+			continue;
+		}
+
+		count++;
+
+		shell_print(sh, "Player %zu (pipeline #%u): %s", i,
+			    ((struct mpipe_object *)p->pipeline)->id,
+			    mpipe_player_state_str(p->state));
+	}
+
+	if (count == 0) {
+		if (index < 0) {
+			shell_error(sh, "No active player");
+		} else {
+			shell_error(sh, "No player at index %d", index);
+		}
+		return -ENODEV;
+	}
 
 	return 0;
 }
@@ -611,44 +732,78 @@ static int cmd_player_dump(const struct shell *sh, size_t argc, char **argv)
 		.vprint = mpipe_player_dump_vprint,
 		.ctx = (void *)sh,
 	};
+	size_t count = 0;
+	int first_err = 0;
+	int index;
+	int err;
 
-	struct mpipe_player *player = mpipe_shell_active(sh);
+	err = mpipe_player_index_arg(sh, argc, argv, &index);
+	if (err != 0) {
+		return err;
+	}
 
-	ARG_UNUSED(argc);
-	ARG_UNUSED(argv);
+	/*
+	 * Lock-free scan: each slot is a single atomic load, and the dump reads
+	 * only the pipeline it was handed, so no lock or snapshot is needed.
+	 */
+	for (size_t i = 0; i < ARRAY_SIZE(players); i++) {
+		struct mpipe_player *p = atomic_ptr_get(&players[i]);
 
-	if (player == NULL) {
+		if (p == NULL || (index >= 0 && (int)i != index)) {
+			continue;
+		}
+
+		count++;
+
+		err = mpipe_dump_bin((struct mpipe_bin *)p->pipeline, &sink);
+		if (err != 0 && first_err == 0) {
+			first_err = err;
+		}
+	}
+
+	if (count == 0) {
+		if (index < 0) {
+			shell_error(sh, "No active player");
+		} else {
+			shell_error(sh, "No player at index %d", index);
+		}
 		return -ENODEV;
 	}
 
-	return mpipe_dump_bin((struct mpipe_bin *)player->pipeline, &sink);
+	return first_err;
 }
 
 #endif /* CONFIG_MPIPE_DUMP */
 
 /* clang-format off */
 SHELL_STATIC_SUBCMD_SET_CREATE(
-	mpipe_player_subcmds, SHELL_CMD(play, NULL, "Start or resume playback", cmd_player_play),
-	SHELL_CMD(pause, NULL, "Pause playback", cmd_player_pause),
-	SHELL_CMD(stop, NULL, "Stop playback (pipeline to READY)", cmd_player_stop),
-	SHELL_CMD(replay, NULL, "Restart playback from the beginning", cmd_player_replay),
-	SHELL_CMD(quit, NULL, "Stop the pipeline and exit the player", cmd_player_quit),
-	SHELL_CMD(status, NULL, "Print the current player state", cmd_player_status),
+	mpipe_player_subcmds,
+	SHELL_CMD(play, NULL, "Start or resume playback [index]", cmd_player_play),
+	SHELL_CMD(pause, NULL, "Pause playback [index]", cmd_player_pause),
+	SHELL_CMD(stop, NULL, "Stop playback (pipeline to READY) [index]", cmd_player_stop),
+	SHELL_CMD(replay, NULL, "Restart playback from the beginning [index]", cmd_player_replay),
+	SHELL_CMD(quit, NULL, "Stop the pipeline and exit the player [index]", cmd_player_quit),
+	SHELL_CMD(status, NULL, "Print the current player state [index]", cmd_player_status),
 	IF_ENABLED(CONFIG_MPIPE_DUMP,
 		   (SHELL_CMD(dump, NULL,
 			      "Print the pipeline topology and negotiated caps as a "
-			      "Graphviz graph",
+			      "Graphviz graph [index]",
 			      cmd_player_dump),))
+
 	SHELL_SUBCMD_SET_END);
 /* clang-format on */
 
 SHELL_CMD_REGISTER(player, &mpipe_player_subcmds, "Multimedia Pipeline player control", NULL);
 
-/* Single-letter top-level shortcuts for fast, one-key control. */
-SHELL_CMD_REGISTER(p, NULL, "Player: play/pause toggle", cmd_player_toggle);
-SHELL_CMD_REGISTER(s, NULL, "Player: stop", cmd_player_stop);
-SHELL_CMD_REGISTER(r, NULL, "Player: replay from the beginning", cmd_player_replay);
-SHELL_CMD_REGISTER(q, NULL, "Player: quit", cmd_player_quit);
+/*
+ * Single-letter top-level shortcuts for fast, one-key control. Each takes an
+ * optional player index (e.g. "s 1" stops only pipeline 1); with no index the
+ * action applies to every registered player.
+ */
+SHELL_CMD_REGISTER(p, NULL, "Player: play/pause toggle [index]", cmd_player_toggle);
+SHELL_CMD_REGISTER(s, NULL, "Player: stop [index]", cmd_player_stop);
+SHELL_CMD_REGISTER(r, NULL, "Player: replay from the beginning [index]", cmd_player_replay);
+SHELL_CMD_REGISTER(q, NULL, "Player: quit [index]", cmd_player_quit);
 
 #if defined(CONFIG_MPIPE_DUMP)
 /*
@@ -656,7 +811,9 @@ SHELL_CMD_REGISTER(q, NULL, "Player: quit", cmd_player_quit);
  * rather than a whole command, which matters when the console is the only way
  * in.
  */
-SHELL_CMD_REGISTER(d, NULL, "Player: dump the pipeline as a Graphviz graph", cmd_player_dump);
+SHELL_CMD_REGISTER(d, NULL, "Player: dump the pipeline as a Graphviz graph [index]",
+		   cmd_player_dump);
+
 #endif
 
 #endif /* CONFIG_SHELL */

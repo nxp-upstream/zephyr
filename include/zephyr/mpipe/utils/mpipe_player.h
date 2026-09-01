@@ -99,12 +99,20 @@ struct mpipe_player {
  * error. The pipeline must already be built and linked, but should be in the
  * READY state (not yet playing).
  *
- * @note Only a single player instance can be active at a time.
+ * @note Up to @kconfig{CONFIG_MPIPE_PLAYER_MAX_INSTANCES} player instances can
+ *       be active at the same time, each controlling one pipeline. This lets a
+ *       single application drive several pipelines side by side (for example an
+ *       audio and a video pipeline). When more than one player is registered,
+ *       the interactive shell commands and single-letter shortcuts apply to
+ *       every registered player at once, or to a single player when given its
+ *       registry index (e.g. "s 1" stops only the player in slot 1).
  *
  * @param player   Pointer to an uninitialized @ref mpipe_player.
  * @param pipeline Pointer to the pipeline to control.
  * @retval 0 Success.
- * @retval -EBUSY Another player instance is already active.
+ * @retval -EBUSY No free player slot is available (all
+ *         @kconfig{CONFIG_MPIPE_PLAYER_MAX_INSTANCES} slots are in use), or the
+ *         pipeline is already controlled by a player.
  * @retval -EIO The bus observer could not be attached, or the worker thread
  *         could not be created.
  */
