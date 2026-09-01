@@ -1345,11 +1345,13 @@ static int bt_bip_client_connect(struct bt_bip *bip, struct bt_bip_client *clien
 		return -EINVAL;
 	}
 
+        if (bip->role == BT_BIP_ROLE_RESPONDER) {
+                LOG_ERR("Invalid role responder");
+                return -EINVAL;
+        }
+
 	if (is_bip_primary_connect(type)) {
-		if (bip->role == BT_BIP_ROLE_RESPONDER) {
-			LOG_ERR("Invalid role responder");
-			return -EINVAL;
-		}
+
 
 		if (primary_server != NULL) {
 			LOG_ERR("primary server should be NULL");
@@ -1363,16 +1365,6 @@ static int bt_bip_client_connect(struct bt_bip *bip, struct bt_bip_client *clien
 		}
 	} else {
 		struct bt_bip *primary_bip;
-
-		if (bip->role == BT_BIP_ROLE_INITIATOR) {
-			LOG_ERR("Invalid role initiator");
-			return -EINVAL;
-		}
-
-		if (primary_server == NULL || primary_server->_bip == NULL) {
-			LOG_ERR("Invalid primary client");
-			return -EINVAL;
-		}
 
 		if (type == BT_BIP_2ND_CONN_TYPE_REFERENCED_OBJECTS &&
 		    primary_server->_type != BT_BIP_PRIM_CONN_TYPE_ADVANCED_IMAGE_PRINTING) {
