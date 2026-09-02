@@ -50,3 +50,22 @@ config MIPI_DSI_NXP_DWC
 	depends on DT_HAS_NXP_MIPI_DSI_DWC_ENABLED
 	help
 	  NXP MIPI DSI DWC controller driver
+
+config MIPI_DSI_MCUX_SPLIT
+	bool "NXP MCUX MIPI-DSI split controller"
+	default y
+	depends on DT_HAS_NXP_MIPI_DSI_SPLIT_ENABLED
+	help
+	  NXP MIPI DSI controller driver for the split_1 IP, whose registers are
+	  split across separate HOST, DPI, DBI, APB and D-PHY blocks.
+
+if MIPI_DSI_MCUX_SPLIT
+
+config MIPI_DSI_MCUX_SPLIT_SWAP16
+	bool "Swap 16 byte color"
+	help
+	  Swap 16 byte color data from little to big endian format. When
+	  this Kconfig is enabled, the DSI expects RGB565 data in little endian
+	  format, which will then be byte swapped.
+
+endif # MIPI_DSI_MCUX_SPLIT

@@ -1,0 +1,67 @@
+#
+# SPDX-FileCopyrightText: Copyright 2026 NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+description: NXP MCUX MIPI DSI (split_1 controller)
+
+compatible: "nxp,mipi-dsi-split"
+
+include: mipi-dsi-host.yaml
+
+properties:
+  interrupts:
+    required: true
+
+  nxp,lcdif:
+    type: phandle
+    description:
+      Instance of the LCDIF/DCIF peripheral. Only required when using the MIPI
+      in video mode
+
+  dpi-pixel-packet:
+    type: string
+    enum:
+      - "16-bit"
+      - "18-bit"
+      - "18-bit-loose"
+      - "24-bit"
+    description:
+      MIPI DSI pixel packet type send through DPI interface.
+
+  dpi-video-mode:
+    type: string
+    enum:
+      - "non-burst-sync-pulse"
+      - "non-burst-sync-event"
+      - "burst"
+    description:
+      DPI video mode.
+
+  dpi-bllp-mode:
+    type: string
+    enum:
+      - "blank"
+      - "null"
+      - "vertical-low-power"
+      - "horizontal-low-power"
+    description:
+      Behavior in BLLP (Blanking or Low-Power Interval).
+
+  autoinsert-eotp:
+    type: boolean
+    description:
+      Automatically insert an EoTp short packet when switching from HS to LP mode.
+
+  dphy-ref-frequency:
+    type: int
+    default: 0
+    description:
+      Maximum clock speed supported by the device, in Hz. Leave at default
+      if no DPHY PLL is present
+
+  noncontinuous-hs-clk:
+    type: boolean
+    description:
+      Enable non-continuous high speed clock. Saves power but introduces latency
+      when transitioning to high speed mode.
