@@ -648,37 +648,28 @@ static void hub_process(struct k_work *work)
 		CONTAINER_OF(work, struct usbh_hub_data, hub_work);
 	int ret;
 
-	k_mutex_lock(&hub_data->lock, K_FOREVER);
-
 	if (!hub_data->connected) {
-		k_mutex_unlock(&hub_data->lock);
 		return;
 	}
 
 	if (hub_data->state == HUB_STATE_OPERATIONAL) {
-		k_mutex_unlock(&hub_data->lock);
 		hub_process_data(hub_data);
 		return;
 	}
 
 	if (hub_data->state != HUB_STATE_INIT) {
 		LOG_WRN("Hub not in INIT state, skipping initialization");
-		k_mutex_unlock(&hub_data->lock);
 		return;
 	}
-
-	k_mutex_unlock(&hub_data->lock);
 
 	ret = hub_initialize(hub_data);
 
-	k_mutex_lock(&hub_data->lock, K_FOREVER);
-
 	/* hub may have been removed while hub_initialize */
 	if (!hub_data->connected) {
-		k_mutex_unlock(&hub_data->lock);
 		return;
 	}
 
+	k_mutex_lock(&hub_data->lock, K_FOREVER);
 	if (ret != 0) {
 		hub_data->state = HUB_STATE_ERROR;
 		k_mutex_unlock(&hub_data->lock);
