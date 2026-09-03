@@ -753,12 +753,9 @@ static int usbh_hub_probe(struct usbh_class_data *const c_data,
 	}
 
 	hub_data->connected = true;
-	hub_data->interrupt_transfer = NULL;
 
 	k_mutex_init(&hub_data->lock);
 	k_work_init(&hub_data->hub_work, hub_process);
-
-	c_data->priv = hub_data;
 
 	k_work_submit_to_queue(&hub_work_q, &hub_data->hub_work);
 
