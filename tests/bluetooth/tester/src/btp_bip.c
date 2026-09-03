@@ -16,6 +16,10 @@
 #include <zephyr/bluetooth/classic/obex.h>
 #include <zephyr/sys/byteorder.h>
 
+#include <zephyr/logging/log.h>
+#define LOG_MODULE_NAME btp_bip
+LOG_MODULE_REGISTER(LOG_MODULE_NAME, CONFIG_BTTESTER_LOG_LEVEL);
+
 #include "btp/btp.h"
 
 
@@ -349,6 +353,28 @@ static void bip_instance_release_transport(struct bip_app *inst)
 	}
 }
 
+/*
+ * Drop an instance after an OBEX server unregister if it no longer serves any
+ * purpose: no live transport on either bt_bip and no server still registered.
+ *
+ * bt_bip_server_unregister() only removes the server from the host's list; it
+ * leaves server._bip set, so the unregister handlers must clear it themselves
+ * before calling this (otherwise bip_instance_is_preregistered() keeps
+ * reporting the instance as pre-registered). Without this collection the slot
+ * stays in_use forever, exhausting the CONFIG_BT_MAX_CONN-sized pool after a
+ * few register/unregister cycles and leaving a zombie that
+ * find_preregistered_instance_by_address() would rebind an incoming transport
+ * to (its OBEX server is gone, so the CONNECT is answered NOT_FOUND).
+ */
+static void bip_instance_gc(struct bip_app *inst)
+{
+	if (inst->conn == NULL && inst->second_conn == NULL &&
+	    !bip_instance_is_preregistered(inst)) {
+		bip_instance_free(inst);
+	}
+}
+
+
 static inline struct bip_app *inst_from_bip(struct bt_bip *bip)
 {
 	return CONTAINER_OF(bip, struct bip_app, bip);
@@ -381,7 +407,7 @@ static inline struct bip_app *inst_from_second_bip(struct bt_bip *bip)
 
 static void bip_inst_get_address(struct bip_app *inst, bt_addr_le_t *addr)
 {
-	if (inst != NULL && (inst->conn != NULL || inst->second_conn != NULL)) {
+	if (inst != NULL && inst->in_use) {
 		bt_addr_copy(&addr->a, &inst->address);
 		addr->type = BTP_BR_ADDRESS_TYPE;
 	} else {
@@ -444,6 +470,30 @@ static int bip_sdp_get_functions(const struct net_buf *buf, uint32_t *funcs)
 	return 0;
 }
 
+static int bip_sdp_get_caps(const struct net_buf *buf, uint8_t *caps)
+{
+	int err;
+	struct bt_sdp_attribute attr;
+	struct bt_sdp_attr_value value;
+
+	err = bt_sdp_get_attr(buf, BT_SDP_ATTR_SUPPORTED_CAPABILITIES, &attr);
+	if (err != 0) {
+		return err;
+	}
+
+	err = bt_sdp_attr_read(&attr, NULL, &value);
+	if (err != 0) {
+		return err;
+	}
+
+	if ((value.type != BT_SDP_ATTR_VALUE_TYPE_UINT) || (value.uint.size != sizeof(*caps))) {
+		return -EINVAL;
+	}
+
+	*caps = value.uint.u8;
+	return 0;
+}
+
 static uint8_t bip_discover_func(struct bt_conn *conn, struct bt_sdp_client_result *result,
 				 const struct bt_sdp_discover_params *params)
 {
@@ -453,16 +503,38 @@ static uint8_t bip_discover_func(struct bt_conn *conn, struct bt_sdp_client_resu
 	uint16_t l2cap_psm = 0;
 	uint16_t features = 0;
 	uint32_t functions = 0;
+	uint8_t caps = 0;
+	bool is_responder;
 	int err;
 
 	if (result == NULL || result->resp_buf == NULL || conn == NULL || params == NULL) {
 		return BT_SDP_DISCOVER_UUID_STOP;
 	}
 
-	bt_sdp_get_proto_param(result->resp_buf, BT_SDP_PROTO_RFCOMM, &rfcomm_channel);
-	bip_sdp_get_goep_l2cap_psm(result->resp_buf, &l2cap_psm);
-	bt_sdp_get_features(result->resp_buf, &features);
-	bip_sdp_get_functions(result->resp_buf, &functions);
+	is_responder = bt_uuid_cmp(params->uuid, BT_UUID_DECLARE_16(BT_SDP_IMAGING_RESPONDER_SVCLASS)) == 0;
+
+	{
+		int rfcomm_err = bt_sdp_get_proto_param(result->resp_buf, BT_SDP_PROTO_RFCOMM,
+							&rfcomm_channel);
+		int l2cap_err = bip_sdp_get_goep_l2cap_psm(result->resp_buf, &l2cap_psm);
+
+		if (rfcomm_err != 0 && l2cap_err != 0) {
+			LOG_DBG("No RFCOMM channel or L2CAP PSM attribute");
+		}
+	}
+
+	if (bip_sdp_get_functions(result->resp_buf, &functions) != 0) {
+		LOG_DBG("No supported functions attribute");
+	}
+
+	if (is_responder) {
+		if (bip_sdp_get_caps(result->resp_buf, &caps) != 0) {
+			LOG_DBG("No supported capabilities attribute");
+		}
+		if (bt_sdp_get_features(result->resp_buf, &features) != 0) {
+			LOG_DBG("No supported features attribute");
+		}
+	}
 
 	err = bt_conn_get_info(conn, &info);
 	if (err != 0) {
@@ -474,7 +546,7 @@ static uint8_t bip_discover_func(struct bt_conn *conn, struct bt_sdp_client_resu
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
 	ev.channel = (uint8_t)rfcomm_channel;
 	ev.psm = sys_cpu_to_le16(l2cap_psm);
-	ev.caps = 0;
+	ev.caps = caps;
 	ev.features = sys_cpu_to_le16(features);
 	ev.functions = sys_cpu_to_le32(functions);
 
@@ -552,35 +624,109 @@ static struct bt_bip_transport_ops bip_l2cap_transport_ops = {
 	.disconnected = bip_l2cap_transport_disconnected,
 };
 
-/* Helper to send variable-length server events */
+/*
+ * Canonical wire layouts for the two families of variable-length BIP events.
+ * The generic serializers below write through these structures instead of
+ * computing byte offsets by hand, so one structure definition is the source of
+ * truth for the wire format of each family. They carry no opcode of their own
+ * and are private to this file; every per-event structure in btp_bip.h must
+ * stay byte-compatible with one of them.
+ *
+ * bip_param_ev covers the events carrying a leading parameter byte (Final on
+ * server requests, response code on client responses).
+ * bip_plain_ev covers the events that have no such byte, i.e. the server and
+ * secondary server disconnect/abort requests.
+ */
+struct bip_param_ev {
+	bt_addr_le_t address;
+	uint8_t param;
+	uint16_t data_len;
+	uint8_t data[];
+} __packed;
+
+struct bip_plain_ev {
+	bt_addr_le_t address;
+	uint16_t data_len;
+	uint8_t data[];
+} __packed;
+
+/*
+ * The BTP response buffer is a fixed BTP_MTU-sized static buffer; the amount of
+ * OBEX payload an event carries is bounded by the GOEP MOPL, which can exceed
+ * it. Drop the event with a log line instead of overrunning the buffer, which
+ * tester_rsp_buffer_allocate() only catches with an assert (compiled out in
+ * release builds).
+ */
+static bool bip_ev_len_ok(uint8_t ev_opcode, size_t ev_len)
+{
+	if (ev_len > BTP_DATA_MAX_SIZE) {
+		LOG_ERR("BIP event 0x%02x dropped: %zu bytes exceed BTP limit %zu", ev_opcode,
+			ev_len, (size_t)BTP_DATA_MAX_SIZE);
+		return false;
+	}
+
+	return true;
+}
+
+/* Helper to send variable-length server events carrying a Final flag */
 static void send_server_event(struct bip_app *inst, uint8_t ev_opcode, uint8_t final,
 			      struct net_buf *buf)
 {
 	uint8_t *ev_data;
-	size_t ev_len;
-	size_t off = 0;
 	uint16_t data_len = (buf != NULL) ? buf->len : 0;
+	size_t ev_len = sizeof(struct bip_param_ev) + data_len;
 
-	ev_len = sizeof(bt_addr_le_t) + sizeof(uint8_t) + sizeof(uint16_t) + data_len;
+	if (!bip_ev_len_ok(ev_opcode, ev_len)) {
+		return;
+	}
 
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, &ev_data);
 
-	if (ev_data == NULL) {
-		tester_rsp_buffer_unlock();
+	struct bip_param_ev *ev = (void *)ev_data;
+
+	bip_inst_get_address(inst, &ev->address);
+	ev->param = final;
+	ev->data_len = sys_cpu_to_le16(data_len);
+	if (data_len > 0) {
+		memcpy(ev->data, buf->data, data_len);
+	}
+
+	tester_event(BTP_SERVICE_ID_BIP, ev_opcode, ev, ev_len);
+
+	tester_rsp_buffer_free();
+	tester_rsp_buffer_unlock();
+}
+
+/*
+ * Helper to send the variable-length server events that have no Final flag,
+ * i.e. the disconnect and abort requests. These must not borrow
+ * send_server_event(): OBEX DISCONNECT and ABORT are single-packet operations,
+ * so their event structures carry no parameter byte and the upper tester parses
+ * a header one byte shorter.
+ */
+static void send_server_event_nofinal(struct bip_app *inst, uint8_t ev_opcode, struct net_buf *buf)
+{
+	uint8_t *ev_data;
+	uint16_t data_len = (buf != NULL) ? buf->len : 0;
+	size_t ev_len = sizeof(struct bip_plain_ev) + data_len;
+
+	if (!bip_ev_len_ok(ev_opcode, ev_len)) {
 		return;
 	}
 
-	bip_inst_get_address(inst, (bt_addr_le_t *)&ev_data[off]);
-	off += sizeof(bt_addr_le_t);
-	ev_data[off++] = final;
-	sys_put_le16(data_len, &ev_data[off]);
-	off += sizeof(uint16_t);
+	tester_rsp_buffer_lock();
+	tester_rsp_buffer_allocate(ev_len, &ev_data);
+
+	struct bip_plain_ev *ev = (void *)ev_data;
+
+	bip_inst_get_address(inst, &ev->address);
+	ev->data_len = sys_cpu_to_le16(data_len);
 	if (data_len > 0) {
-		memcpy(&ev_data[off], buf->data, data_len);
+		memcpy(ev->data, buf->data, data_len);
 	}
 
-	tester_event(BTP_SERVICE_ID_BIP, ev_opcode, ev_data, ev_len);
+	tester_event(BTP_SERVICE_ID_BIP, ev_opcode, ev, ev_len);
 
 	tester_rsp_buffer_free();
 	tester_rsp_buffer_unlock();
@@ -591,30 +737,26 @@ static void send_client_event(struct bip_app *inst, uint8_t ev_opcode, uint8_t r
 			      struct net_buf *buf)
 {
 	uint8_t *ev_data;
-	size_t ev_len;
-	size_t off = 0;
 	uint16_t data_len = (buf != NULL) ? buf->len : 0;
+	size_t ev_len = sizeof(struct bip_param_ev) + data_len;
 
-	ev_len = sizeof(bt_addr_le_t) + sizeof(uint8_t) + sizeof(uint16_t) + data_len;
+	if (!bip_ev_len_ok(ev_opcode, ev_len)) {
+		return;
+	}
 
 	tester_rsp_buffer_lock();
 	tester_rsp_buffer_allocate(ev_len, &ev_data);
 
-	if (ev_data == NULL) {
-		tester_rsp_buffer_unlock();
-		return;
-	}
+	struct bip_param_ev *ev = (void *)ev_data;
 
-	bip_inst_get_address(inst, (bt_addr_le_t *)&ev_data[off]);
-	off += sizeof(bt_addr_le_t);
-	ev_data[off++] = rsp_code;
-	sys_put_le16(data_len, &ev_data[off]);
-	off += sizeof(uint16_t);
+	bip_inst_get_address(inst, &ev->address);
+	ev->param = rsp_code;
+	ev->data_len = sys_cpu_to_le16(data_len);
 	if (data_len > 0) {
-		memcpy(&ev_data[off], buf->data, data_len);
+		memcpy(ev->data, buf->data, data_len);
 	}
 
-	tester_event(BTP_SERVICE_ID_BIP, ev_opcode, ev_data, ev_len);
+	tester_event(BTP_SERVICE_ID_BIP, ev_opcode, ev, ev_len);
 
 	tester_rsp_buffer_free();
 	tester_rsp_buffer_unlock();
@@ -633,13 +775,12 @@ static void bip_server_connect(struct bt_bip_server *server, uint8_t version, ui
 
 	ev_len = sizeof(struct btp_bip_server_connect_req_ev) + data_len;
 
-	tester_rsp_buffer_lock();
-	tester_rsp_buffer_allocate(ev_len, &ev_data);
-
-	if (ev_data == NULL) {
-		tester_rsp_buffer_unlock();
+	if (!bip_ev_len_ok(BTP_BIP_EV_SERVER_CONNECT_REQ, ev_len)) {
 		return;
 	}
+
+	tester_rsp_buffer_lock();
+	tester_rsp_buffer_allocate(ev_len, &ev_data);
 
 	struct btp_bip_server_connect_req_ev *ev = (void *)ev_data;
 
@@ -659,12 +800,12 @@ static void bip_server_connect(struct bt_bip_server *server, uint8_t version, ui
 
 static void bip_server_disconnect(struct bt_bip_server *server, struct net_buf *buf)
 {
-	send_server_event(inst_from_server(server), BTP_BIP_EV_SERVER_DISCONNECT_REQ, 0, buf);
+	send_server_event_nofinal(inst_from_server(server), BTP_BIP_EV_SERVER_DISCONNECT_REQ, buf);
 }
 
 static void bip_server_abort(struct bt_bip_server *server, struct net_buf *buf)
 {
-	send_server_event(inst_from_server(server), BTP_BIP_EV_SERVER_ABORT_REQ, 0, buf);
+	send_server_event_nofinal(inst_from_server(server), BTP_BIP_EV_SERVER_ABORT_REQ, buf);
 }
 
 #define BIP_SERVER_REQ_CB(cbname, evop)                                                       \
@@ -679,7 +820,6 @@ BIP_SERVER_REQ_CB(bip_server_get_image_properties, BTP_BIP_EV_SERVER_GET_IMAGE_P
 BIP_SERVER_REQ_CB(bip_server_get_image, BTP_BIP_EV_SERVER_GET_IMAGE_REQ)
 BIP_SERVER_REQ_CB(bip_server_get_linked_thumbnail, BTP_BIP_EV_SERVER_GET_LINKED_THUMBNAIL_REQ)
 BIP_SERVER_REQ_CB(bip_server_get_linked_attachment, BTP_BIP_EV_SERVER_GET_LINKED_ATTACHMENT_REQ)
-BIP_SERVER_REQ_CB(bip_server_get_partial_image, BTP_BIP_EV_SERVER_GET_PARTIAL_IMAGE_REQ)
 BIP_SERVER_REQ_CB(bip_server_get_monitoring_image, BTP_BIP_EV_SERVER_GET_MONITORING_IMAGE_REQ)
 BIP_SERVER_REQ_CB(bip_server_get_status, BTP_BIP_EV_SERVER_GET_STATUS_REQ)
 BIP_SERVER_REQ_CB(bip_server_put_image, BTP_BIP_EV_SERVER_PUT_IMAGE_REQ)
@@ -700,7 +840,6 @@ static struct bt_bip_server_cb bip_server_cb = {
 	.get_image = bip_server_get_image,
 	.get_linked_thumbnail = bip_server_get_linked_thumbnail,
 	.get_linked_attachment = bip_server_get_linked_attachment,
-	.get_partial_image = bip_server_get_partial_image,
 	.get_monitoring_image = bip_server_get_monitoring_image,
 	.get_status = bip_server_get_status,
 	.put_image = bip_server_put_image,
@@ -728,13 +867,12 @@ static void bip_client_connect(struct bt_bip_client *client, uint8_t rsp_code, u
 
 	ev_len = sizeof(struct btp_bip_client_connected_ev) + data_len;
 
-	tester_rsp_buffer_lock();
-	tester_rsp_buffer_allocate(ev_len, &ev_data);
-
-	if (ev_data == NULL) {
-		tester_rsp_buffer_unlock();
+	if (!bip_ev_len_ok(BTP_BIP_EV_CLIENT_CONNECTED, ev_len)) {
 		return;
 	}
+
+	tester_rsp_buffer_lock();
+	tester_rsp_buffer_allocate(ev_len, &ev_data);
 
 	struct btp_bip_client_connected_ev *ev = (void *)ev_data;
 
@@ -823,13 +961,12 @@ static void bip_second_server_connect(struct bt_bip_server *server, uint8_t vers
 
 	ev_len = sizeof(struct btp_bip_second_server_connect_req_ev) + data_len;
 
-	tester_rsp_buffer_lock();
-	tester_rsp_buffer_allocate(ev_len, &ev_data);
-
-	if (ev_data == NULL) {
-		tester_rsp_buffer_unlock();
+	if (!bip_ev_len_ok(BTP_BIP_EV_SECOND_SERVER_CONNECT_REQ, ev_len)) {
 		return;
 	}
+
+	tester_rsp_buffer_lock();
+	tester_rsp_buffer_allocate(ev_len, &ev_data);
 
 	struct btp_bip_second_server_connect_req_ev *ev = (void *)ev_data;
 
@@ -849,14 +986,14 @@ static void bip_second_server_connect(struct bt_bip_server *server, uint8_t vers
 
 static void bip_second_server_disconnect(struct bt_bip_server *server, struct net_buf *buf)
 {
-	send_server_event(inst_from_second_server(server), BTP_BIP_EV_SECOND_SERVER_DISCONNECT_REQ,
-			  0, buf);
+	send_server_event_nofinal(inst_from_second_server(server),
+				  BTP_BIP_EV_SECOND_SERVER_DISCONNECT_REQ, buf);
 }
 
 static void bip_second_server_abort(struct bt_bip_server *server, struct net_buf *buf)
 {
-	send_server_event(inst_from_second_server(server), BTP_BIP_EV_SECOND_SERVER_ABORT_REQ, 0,
-			  buf);
+	send_server_event_nofinal(inst_from_second_server(server),
+				  BTP_BIP_EV_SECOND_SERVER_ABORT_REQ, buf);
 }
 
 /*
@@ -886,6 +1023,8 @@ BIP_SECOND_SERVER_REQ_CB(bip_second_server_get_partial_image,
  *
  * GetPartialImage is the exception: it is a Referenced-Objects-only operation
  * with no BTP_BIP_EV_SECOND_SERVER_* variant, so it keeps the primary event.
+ * The primary server never registers get_partial_image (the operation cannot
+ * arrive on the primary connection), so this event is only ever emitted here.
  */
 BIP_SECOND_SERVER_REQ_CB(bip_second_server_get_caps, BTP_BIP_EV_SECOND_SERVER_GET_CAPS_REQ)
 BIP_SECOND_SERVER_REQ_CB(bip_second_server_get_image_list,
@@ -941,13 +1080,12 @@ static void bip_second_client_connect(struct bt_bip_client *client, uint8_t rsp_
 
 	ev_len = sizeof(struct btp_bip_second_client_connected_ev) + data_len;
 
-	tester_rsp_buffer_lock();
-	tester_rsp_buffer_allocate(ev_len, &ev_data);
-
-	if (ev_data == NULL) {
-		tester_rsp_buffer_unlock();
+	if (!bip_ev_len_ok(BTP_BIP_EV_SECOND_CLIENT_CONNECTED, ev_len)) {
 		return;
 	}
+
+	tester_rsp_buffer_lock();
+	tester_rsp_buffer_allocate(ev_len, &ev_data);
 
 	struct btp_bip_second_client_connected_ev *ev = (void *)ev_data;
 
@@ -1121,7 +1259,7 @@ static struct bip_app *find_second_server_instance_by_address(const bt_addr_t *a
 
 static void bip_second_rfcomm_transport_connected(struct bt_conn *conn, struct bt_bip *bip)
 {
-	struct btp_bip_rfcomm_connected_ev ev;
+	struct btp_bip_second_rfcomm_connected_ev ev;
 	struct bt_conn_info info;
 	int err;
 
@@ -1133,17 +1271,17 @@ static void bip_second_rfcomm_transport_connected(struct bt_conn *conn, struct b
 	bt_addr_copy(&ev.address.a, info.br.dst);
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
 
-	tester_event(BTP_SERVICE_ID_BIP, BTP_BIP_EV_RFCOMM_CONNECTED, &ev, sizeof(ev));
+	tester_event(BTP_SERVICE_ID_BIP, BTP_BIP_EV_SECOND_RFCOMM_CONNECTED, &ev, sizeof(ev));
 }
 
 static void bip_second_rfcomm_transport_disconnected(struct bt_bip *bip)
 {
 	struct bip_app *inst = inst_from_second_bip(bip);
-	struct btp_bip_rfcomm_disconnected_ev ev;
+	struct btp_bip_second_rfcomm_disconnected_ev ev;
 
 	bip_inst_get_address(inst, &ev.address);
 
-	tester_event(BTP_SERVICE_ID_BIP, BTP_BIP_EV_RFCOMM_DISCONNECTED, &ev, sizeof(ev));
+	tester_event(BTP_SERVICE_ID_BIP, BTP_BIP_EV_SECOND_RFCOMM_DISCONNECTED, &ev, sizeof(ev));
 
 	if (inst->second_conn != NULL) {
 		bt_conn_unref(inst->second_conn);
@@ -1153,7 +1291,7 @@ static void bip_second_rfcomm_transport_disconnected(struct bt_bip *bip)
 
 static void bip_second_l2cap_transport_connected(struct bt_conn *conn, struct bt_bip *bip)
 {
-	struct btp_bip_l2cap_connected_ev ev;
+	struct btp_bip_second_l2cap_connected_ev ev;
 	struct bt_conn_info info;
 	int err;
 
@@ -1165,17 +1303,17 @@ static void bip_second_l2cap_transport_connected(struct bt_conn *conn, struct bt
 	bt_addr_copy(&ev.address.a, info.br.dst);
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
 
-	tester_event(BTP_SERVICE_ID_BIP, BTP_BIP_EV_L2CAP_CONNECTED, &ev, sizeof(ev));
+	tester_event(BTP_SERVICE_ID_BIP, BTP_BIP_EV_SECOND_L2CAP_CONNECTED, &ev, sizeof(ev));
 }
 
 static void bip_second_l2cap_transport_disconnected(struct bt_bip *bip)
 {
 	struct bip_app *inst = inst_from_second_bip(bip);
-	struct btp_bip_l2cap_disconnected_ev ev;
+	struct btp_bip_second_l2cap_disconnected_ev ev;
 
 	bip_inst_get_address(inst, &ev.address);
 
-	tester_event(BTP_SERVICE_ID_BIP, BTP_BIP_EV_L2CAP_DISCONNECTED, &ev, sizeof(ev));
+	tester_event(BTP_SERVICE_ID_BIP, BTP_BIP_EV_SECOND_L2CAP_DISCONNECTED, &ev, sizeof(ev));
 
 	if (inst->second_conn != NULL) {
 		bt_conn_unref(inst->second_conn);
@@ -1203,6 +1341,8 @@ static int bip_second_transport_accept(struct bt_conn *conn, struct bt_bip **bip
 		return -ENOMEM;
 	}
 
+	/* Release any stale secondary transport ref before taking a new one. */
+	bt_conn_drop(&inst->second_conn);
 	inst->second_conn = bt_conn_ref(conn);
 	inst->second_bip.ops = ops;
 	*bip = &inst->second_bip;
@@ -1294,66 +1434,37 @@ static struct net_buf *alloc_buf_with_data_bip(struct bt_bip *bip, const uint8_t
 }
 
 /* BTP command handlers */
+
+/*
+ * The variable-length BIP commands are registered with
+ * BTP_HANDLER_LENGTH_VARIABLE, so the framework skips its own length check and
+ * each handler has to validate cmd_len itself. cp->data_len is redundant with
+ * cmd_len: reject the command unless the two agree, otherwise a too-large
+ * data_len makes the handler read past the received command and put whatever
+ * follows it in memory on the wire.
+ *
+ * The length of the fixed part is checked first so that cp->data_len itself is
+ * known to be within the received data before it is read.
+ */
+#define BIP_CHECK_VAR_LEN(_cp, _cmd_len)                                                       \
+	do {                                                                                   \
+		if ((_cmd_len) < sizeof(*(_cp))) {                                             \
+			LOG_ERR("BIP cmd too short: %u < %zu", (_cmd_len), sizeof(*(_cp)));    \
+			return BTP_STATUS_FAILED;                                              \
+		}                                                                              \
+		if ((_cmd_len) != sizeof(*(_cp)) + sys_le16_to_cpu((_cp)->data_len)) {         \
+			LOG_ERR("BIP cmd len mismatch: cmd_len %u, data_len %u", (_cmd_len),   \
+				sys_le16_to_cpu((_cp)->data_len));                             \
+			return BTP_STATUS_FAILED;                                              \
+		}                                                                              \
+	} while (0)
+
 static uint8_t supported_commands(const void *cmd, uint16_t cmd_len, void *rsp, uint16_t *rsp_len)
 {
 	struct btp_bip_read_supported_commands_rp *rp = rsp;
 
-	tester_set_bit(rp->data, BTP_BIP_READ_SUPPORTED_COMMANDS);
-	tester_set_bit(rp->data, BTP_BIP_CONNECT_RFCOMM);
-	tester_set_bit(rp->data, BTP_BIP_DISCONNECT_RFCOMM);
-	tester_set_bit(rp->data, BTP_BIP_CONNECT_L2CAP);
-	tester_set_bit(rp->data, BTP_BIP_DISCONNECT_L2CAP);
-	tester_set_bit(rp->data, BTP_BIP_SDP_DISCOVER);
-	tester_set_bit(rp->data, BTP_BIP_SERVER_REGISTER);
-	tester_set_bit(rp->data, BTP_BIP_SERVER_UNREGISTER);
-	tester_set_bit(rp->data, BTP_BIP_CLIENT_CONNECT);
-	tester_set_bit(rp->data, BTP_BIP_OBEX_DISCONNECT);
-	tester_set_bit(rp->data, BTP_BIP_OBEX_ABORT);
-	tester_set_bit(rp->data, BTP_BIP_CONNECT_RSP);
-	tester_set_bit(rp->data, BTP_BIP_DISCONNECT_RSP);
-	tester_set_bit(rp->data, BTP_BIP_ABORT_RSP);
-	tester_set_bit(rp->data, BTP_BIP_GET_CAPABILITIES);
-	tester_set_bit(rp->data, BTP_BIP_GET_CAPABILITIES_RSP);
-	tester_set_bit(rp->data, BTP_BIP_GET_IMAGE_LIST);
-	tester_set_bit(rp->data, BTP_BIP_GET_IMAGE_LIST_RSP);
-	tester_set_bit(rp->data, BTP_BIP_GET_IMAGE_PROPERTIES);
-	tester_set_bit(rp->data, BTP_BIP_GET_IMAGE_PROPERTIES_RSP);
-	tester_set_bit(rp->data, BTP_BIP_GET_IMAGE);
-	tester_set_bit(rp->data, BTP_BIP_GET_IMAGE_RSP);
-	tester_set_bit(rp->data, BTP_BIP_GET_LINKED_THUMBNAIL);
-	tester_set_bit(rp->data, BTP_BIP_GET_LINKED_THUMBNAIL_RSP);
-	tester_set_bit(rp->data, BTP_BIP_GET_LINKED_ATTACHMENT);
-	tester_set_bit(rp->data, BTP_BIP_GET_LINKED_ATTACHMENT_RSP);
-	tester_set_bit(rp->data, BTP_BIP_GET_PARTIAL_IMAGE);
-	tester_set_bit(rp->data, BTP_BIP_GET_PARTIAL_IMAGE_RSP);
-	tester_set_bit(rp->data, BTP_BIP_GET_MONITORING_IMAGE);
-	tester_set_bit(rp->data, BTP_BIP_GET_MONITORING_IMAGE_RSP);
-	tester_set_bit(rp->data, BTP_BIP_GET_STATUS);
-	tester_set_bit(rp->data, BTP_BIP_GET_STATUS_RSP);
-	tester_set_bit(rp->data, BTP_BIP_PUT_IMAGE);
-	tester_set_bit(rp->data, BTP_BIP_PUT_IMAGE_RSP);
-	tester_set_bit(rp->data, BTP_BIP_PUT_LINKED_THUMBNAIL);
-	tester_set_bit(rp->data, BTP_BIP_PUT_LINKED_THUMBNAIL_RSP);
-	tester_set_bit(rp->data, BTP_BIP_PUT_LINKED_ATTACHMENT);
-	tester_set_bit(rp->data, BTP_BIP_PUT_LINKED_ATTACHMENT_RSP);
-	tester_set_bit(rp->data, BTP_BIP_REMOTE_DISPLAY);
-	tester_set_bit(rp->data, BTP_BIP_REMOTE_DISPLAY_RSP);
-	tester_set_bit(rp->data, BTP_BIP_DELETE_IMAGE);
-	tester_set_bit(rp->data, BTP_BIP_DELETE_IMAGE_RSP);
-	tester_set_bit(rp->data, BTP_BIP_START_PRINT);
-	tester_set_bit(rp->data, BTP_BIP_START_PRINT_RSP);
-	tester_set_bit(rp->data, BTP_BIP_START_ARCHIVE);
-	tester_set_bit(rp->data, BTP_BIP_START_ARCHIVE_RSP);
-	tester_set_bit(rp->data, BTP_BIP_SECOND_SERVER_REGISTER);
-	tester_set_bit(rp->data, BTP_BIP_SECOND_CONNECT);
-	tester_set_bit(rp->data, BTP_BIP_SECOND_OBEX_DISCONNECT);
-	tester_set_bit(rp->data, BTP_BIP_SECOND_OBEX_ABORT);
-	tester_set_bit(rp->data, BTP_BIP_SECOND_CONNECT_RSP);
-	tester_set_bit(rp->data, BTP_BIP_SECOND_DISCONNECT_RSP);
-	tester_set_bit(rp->data, BTP_BIP_SECOND_ABORT_RSP);
-	tester_set_bit(rp->data, BTP_BIP_SECOND_SERVER_UNREGISTER);
-
-	*rsp_len = sizeof(*rp) + 8;
+	*rsp_len = tester_supported_commands(BTP_SERVICE_ID_BIP, rp->data);
+	*rsp_len += sizeof(*rp);
 
 	return BTP_STATUS_SUCCESS;
 }
@@ -1388,6 +1499,8 @@ static uint8_t connect_rfcomm(const void *cmd, uint16_t cmd_len, void *rsp, uint
 	 */
 	inst = find_second_server_instance_by_address(&cp->address.a);
 	if (inst != NULL) {
+		/* Release any stale secondary transport ref before taking a new one. */
+		bt_conn_drop(&inst->second_conn);
 		inst->second_conn = bt_conn_ref(conn);
 		inst->second_bip.ops = &bip_second_rfcomm_transport_ops;
 
@@ -1469,6 +1582,8 @@ static uint8_t connect_l2cap(const void *cmd, uint16_t cmd_len, void *rsp, uint1
 	 */
 	inst = find_second_server_instance_by_address(&cp->address.a);
 	if (inst != NULL) {
+		/* Release any stale secondary transport ref before taking a new one. */
+		bt_conn_drop(&inst->second_conn);
 		inst->second_conn = bt_conn_ref(conn);
 		inst->second_bip.ops = &bip_second_l2cap_transport_ops;
 		err = bt_bip_l2cap_connect(conn, &inst->second_bip, sys_le16_to_cpu(cp->psm));
@@ -1563,6 +1678,8 @@ static uint8_t second_connect_l2cap(const void *cmd, uint16_t cmd_len, void *rsp
 		inst->conn = bt_conn_ref(conn);
 		bt_addr_copy(&inst->address, &cp->address.a);
 	}
+	/* Release any stale secondary transport ref before taking a new one. */
+	bt_conn_drop(&inst->second_conn);
 	inst->second_conn = bt_conn_ref(conn);
 	inst->second_bip.ops = &bip_second_l2cap_transport_ops;
 
@@ -1604,6 +1721,8 @@ static uint8_t second_connect_rfcomm(const void *cmd, uint16_t cmd_len, void *rs
 		inst->conn = bt_conn_ref(conn);
 		bt_addr_copy(&inst->address, &cp->address.a);
 	}
+	/* Release any stale secondary transport ref before taking a new one. */
+	bt_conn_drop(&inst->second_conn);
 	inst->second_conn = bt_conn_ref(conn);
 	inst->second_bip.ops = &bip_second_rfcomm_transport_ops;
 
@@ -1612,6 +1731,54 @@ static uint8_t second_connect_rfcomm(const void *cmd, uint16_t cmd_len, void *rs
 	if (err != 0) {
 		bt_conn_unref(inst->second_conn);
 		inst->second_conn = NULL;
+		return BTP_STATUS_FAILED;
+	}
+
+	return BTP_STATUS_SUCCESS;
+}
+
+static uint8_t second_disconnect_l2cap(const void *cmd, uint16_t cmd_len, void *rsp,
+				       uint16_t *rsp_len)
+{
+	const struct btp_bip_second_disconnect_l2cap_cmd *cp = cmd;
+	struct bip_app *inst;
+	int err;
+
+	if (cp->address.type != BTP_BR_ADDRESS_TYPE) {
+		return BTP_STATUS_FAILED;
+	}
+
+	inst = find_second_connect_instance(&cp->address.a);
+	if (inst == NULL) {
+		return BTP_STATUS_FAILED;
+	}
+
+	err = bt_bip_l2cap_disconnect(&inst->second_bip);
+	if (err != 0) {
+		return BTP_STATUS_FAILED;
+	}
+
+	return BTP_STATUS_SUCCESS;
+}
+
+static uint8_t second_disconnect_rfcomm(const void *cmd, uint16_t cmd_len, void *rsp,
+					uint16_t *rsp_len)
+{
+	const struct btp_bip_second_disconnect_rfcomm_cmd *cp = cmd;
+	struct bip_app *inst;
+	int err;
+
+	if (cp->address.type != BTP_BR_ADDRESS_TYPE) {
+		return BTP_STATUS_FAILED;
+	}
+
+	inst = find_second_connect_instance(&cp->address.a);
+	if (inst == NULL) {
+		return BTP_STATUS_FAILED;
+	}
+
+	err = bt_bip_rfcomm_disconnect(&inst->second_bip);
+	if (err != 0) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1655,7 +1822,7 @@ static uint8_t sdp_discover(const void *cmd, uint16_t cmd_len, void *rsp, uint16
 	}
 
 	uuid.uuid.type = BT_UUID_TYPE_16;
-	uuid.val = cp->uuid;
+	uuid.val = sys_le16_to_cpu(cp->uuid);
 	sdp_bip_params.uuid = &uuid.uuid;
 	sdp_bip_params.func = bip_discover_func;
 	sdp_bip_params.pool = &bip_sdp_pool;
@@ -1687,44 +1854,58 @@ static uint8_t server_register(const void *cmd, uint16_t cmd_len, void *rsp, uin
 	struct bip_app *inst;
 	const struct bt_uuid_128 *u;
 	struct bt_conn *conn;
+	bool allocated = false;
 	int err;
 
-	/*
-	 * A BIP server (responder) must be registered before the remote peer
-	 * connects, so an active BR/EDR connection is not required here. Reuse
-	 * an existing instance if the connection is already up, otherwise
-	 * allocate a connection-less instance keyed on the given address.
-	 */
-	conn = bt_conn_lookup_addr_br(&cp->address.a);
-	if (conn != NULL) {
-		inst = bip_instance_allocate(conn);
-		if (inst == NULL) {
-			bt_conn_unref(conn);
-			return BTP_STATUS_FAILED;
-		}
-	} else {
-		inst = bip_instance_allocate(NULL);
-		if (inst == NULL) {
-			return BTP_STATUS_FAILED;
-		}
-		bt_addr_copy(&inst->address, &cp->address.a);
-		/*
-		 * Registered before the peer connected. Once the OBEX server is
-		 * registered below (server._bip == &inst->bip), this instance is
-		 * recognized as pre-registered and kept alive across transport
-		 * disconnects so a later incoming transport for the same peer can
-		 * rebind to it (see bip_instance_is_preregistered()).
-		 */
+	if (cp->address.type != BTP_BR_ADDRESS_TYPE) {
+		return BTP_STATUS_FAILED;
 	}
 
 	if (type >= ARRAY_SIZE(bip_uuids) || bip_uuids[type] == NULL) {
-		bip_instance_free(inst);
 		return BTP_STATUS_FAILED;
 	}
 	u = bip_uuids[type];
+
+	/*
+	 * Reuse an existing instance for this address instead of unconditionally
+	 * allocating a fresh slot: a repeated register (or a register after the
+	 * peer already connected) would otherwise create a second instance for the
+	 * same address, and find_instance_by_address() would then route *_RSP
+	 * commands to the wrong one.
+	 */
+	inst = find_instance_by_address(&cp->address.a);
+	if (inst == NULL) {
+		inst = find_preregistered_instance_by_address(&cp->address.a);
+	}
+
+	if (inst != NULL && inst->server._bip == &inst->bip) {
+		/* Primary server already registered for this address: idempotent. */
+		return BTP_STATUS_SUCCESS;
+	}
+
+	if (inst == NULL) {
+		conn = bt_conn_lookup_addr_br(&cp->address.a);
+		if (conn != NULL) {
+			inst = bip_instance_allocate(conn);
+			if (inst == NULL) {
+				bt_conn_unref(conn);
+				return BTP_STATUS_FAILED;
+			}
+		} else {
+			inst = bip_instance_allocate(NULL);
+			if (inst == NULL) {
+				return BTP_STATUS_FAILED;
+			}
+			bt_addr_copy(&inst->address, &cp->address.a);
+		}
+		allocated = true;
+	}
+
 	err = bt_bip_primary_server_register(&inst->bip, &inst->server, type, u, &bip_server_cb);
 	if (err != 0) {
-		bip_instance_free(inst);
+		if (allocated) {
+			bip_instance_free(inst);
+		}
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1737,7 +1918,15 @@ static uint8_t server_unregister(const void *cmd, uint16_t cmd_len, void *rsp, u
 	struct bip_app *inst;
 	int err;
 
+	/*
+	 * The server may have been registered before the peer connected, so it
+	 * can still be connection-less; fall back to the pre-registered lookup
+	 * when no transport-carrying instance matches the address.
+	 */
 	inst = find_instance_by_address(&cp->address.a);
+	if (inst == NULL) {
+		inst = find_preregistered_instance_by_address(&cp->address.a);
+	}
 	if (inst == NULL) {
 		return BTP_STATUS_FAILED;
 	}
@@ -1746,6 +1935,14 @@ static uint8_t server_unregister(const void *cmd, uint16_t cmd_len, void *rsp, u
 	if (err != 0) {
 		return BTP_STATUS_FAILED;
 	}
+
+	/*
+	 * bt_bip_server_unregister() leaves server._bip pointing at inst->bip,
+	 * so clear it here to let bip_instance_is_preregistered() (and thus the
+	 * garbage collector) see that this server is gone.
+	 */
+	inst->server._bip = NULL;
+	bip_instance_gc(inst);
 
 	return BTP_STATUS_SUCCESS;
 }
@@ -1816,10 +2013,13 @@ static uint8_t obex_abort(const void *cmd, uint16_t cmd_len, void *rsp, uint16_t
 static uint8_t connect_rsp(const void *cmd, uint16_t cmd_len, void *rsp, uint16_t *rsp_len)
 {
 	const struct btp_bip_connect_rsp_cmd *cp = cmd;
-	uint16_t data_len = sys_le16_to_cpu(cp->data_len);
+	uint16_t data_len;
 	struct bip_app *inst;
 	struct net_buf *buf = NULL;
 	int err;
+
+	BIP_CHECK_VAR_LEN(cp, cmd_len);
+	data_len = sys_le16_to_cpu(cp->data_len);
 
 	inst = find_instance_by_address(&cp->address.a);
 	if (inst == NULL) {
@@ -1887,6 +2087,7 @@ static uint8_t abort_rsp(const void *cmd, uint16_t cmd_len, void *rsp, uint16_t 
 	static uint8_t hname(const void *cmd, uint16_t cmd_len, void *rsp, uint16_t *rsp_len) \
 	{                                                                                     \
 		const struct btp_bip_##hname##_cmd *cp = cmd;                                 \
+		BIP_CHECK_VAR_LEN(cp, cmd_len);                                               \
 		uint16_t data_len = sys_le16_to_cpu(cp->data_len);                            \
 		struct bip_app *inst;                                                         \
 		struct net_buf *buf;                                                          \
@@ -1911,6 +2112,7 @@ static uint8_t abort_rsp(const void *cmd, uint16_t cmd_len, void *rsp, uint16_t 
 	static uint8_t hname(const void *cmd, uint16_t cmd_len, void *rsp, uint16_t *rsp_len) \
 	{                                                                                     \
 		const struct btp_bip_##hname##_cmd *cp = cmd;                                 \
+		BIP_CHECK_VAR_LEN(cp, cmd_len);                                               \
 		uint16_t data_len = sys_le16_to_cpu(cp->data_len);                            \
 		struct bip_app *inst;                                                         \
 		struct net_buf *buf;                                                          \
@@ -1956,10 +2158,13 @@ static uint8_t get_partial_image_rsp(const void *cmd, uint16_t cmd_len, void *rs
 				     uint16_t *rsp_len)
 {
 	const struct btp_bip_get_partial_image_rsp_cmd *cp = cmd;
-	uint16_t data_len = sys_le16_to_cpu(cp->data_len);
+	uint16_t data_len;
 	struct bip_app *inst;
 	struct net_buf *buf;
 	int err;
+
+	BIP_CHECK_VAR_LEN(cp, cmd_len);
+	data_len = sys_le16_to_cpu(cp->data_len);
 
 	inst = find_instance_by_address(&cp->address.a);
 	if (inst == NULL) {
@@ -1994,6 +2199,7 @@ static uint8_t get_partial_image_rsp(const void *cmd, uint16_t cmd_len, void *rs
 	static uint8_t hname(const void *cmd, uint16_t cmd_len, void *rsp, uint16_t *rsp_len) \
 	{                                                                                     \
 		const struct btp_bip_##hname##_cmd *cp = cmd;                                 \
+		BIP_CHECK_VAR_LEN(cp, cmd_len);                                               \
 		uint16_t data_len = sys_le16_to_cpu(cp->data_len);                            \
 		struct bip_app *inst;                                                         \
 		struct net_buf *buf;                                                          \
@@ -2110,7 +2316,12 @@ static uint8_t second_server_unregister(const void *cmd, uint16_t cmd_len, void 
 	struct bip_app *inst;
 	int err;
 
-	inst = find_instance_by_address(&cp->address.a);
+	/*
+	 * The secondary server is keyed on the address and may be
+	 * connection-less; find_second_server_instance_by_address() locates it
+	 * by its second_server binding rather than requiring a live transport.
+	 */
+	inst = find_second_server_instance_by_address(&cp->address.a);
 	if (inst == NULL) {
 		return BTP_STATUS_FAILED;
 	}
@@ -2119,6 +2330,10 @@ static uint8_t second_server_unregister(const void *cmd, uint16_t cmd_len, void 
 	if (err != 0) {
 		return BTP_STATUS_FAILED;
 	}
+
+	/* See server_unregister(): clear the stale _bip before collecting. */
+	inst->second_server._bip = NULL;
+	bip_instance_gc(inst);
 
 	return BTP_STATUS_SUCCESS;
 }
@@ -2151,7 +2366,10 @@ static uint8_t second_connect(const void *cmd, uint16_t cmd_len, void *rsp,
 	 */
 	bt_bip_set_supported_capabilities(&inst->second_bip, bip_supported_caps);
 	bt_bip_set_supported_features(&inst->second_bip, bip_supported_features);
-	bt_bip_set_supported_functions(&inst->second_bip, bip_supported_functions);
+	bt_bip_set_supported_functions(&inst->second_bip,
+					type == BT_BIP_2ND_CONN_TYPE_ARCHIVED_OBJECTS
+						? bip_archive_supported_functions
+						: bip_refobj_supported_functions);
 
 	err = bt_bip_secondary_client_connect(&inst->second_bip, &inst->second_client, type,
 					      &bip_second_client_cb, NULL, &inst->server);
@@ -2204,10 +2422,13 @@ static uint8_t second_obex_abort(const void *cmd, uint16_t cmd_len, void *rsp, u
 static uint8_t second_connect_rsp(const void *cmd, uint16_t cmd_len, void *rsp, uint16_t *rsp_len)
 {
 	const struct btp_bip_second_connect_rsp_cmd *cp = cmd;
-	uint16_t data_len = sys_le16_to_cpu(cp->data_len);
+	uint16_t data_len;
 	struct bip_app *inst;
 	struct net_buf *buf = NULL;
 	int err;
+
+	BIP_CHECK_VAR_LEN(cp, cmd_len);
+	data_len = sys_le16_to_cpu(cp->data_len);
 
 	inst = find_instance_by_address(&cp->address.a);
 	if (inst == NULL) {
@@ -2284,6 +2505,7 @@ static uint8_t second_abort_rsp(const void *cmd, uint16_t cmd_len, void *rsp, ui
 	static uint8_t hname(const void *cmd, uint16_t cmd_len, void *rsp, uint16_t *rsp_len) \
 	{                                                                                     \
 		const struct btp_bip_##hname##_cmd *cp = cmd;                                 \
+		BIP_CHECK_VAR_LEN(cp, cmd_len);                                               \
 		uint16_t data_len = sys_le16_to_cpu(cp->data_len);                            \
 		struct bip_app *inst;                                                         \
 		struct net_buf *buf;                                                          \
@@ -2575,6 +2797,16 @@ static const struct btp_handler handlers[] = {
 		.opcode = BTP_BIP_SECOND_CONNECT_RFCOMM,
 		.expect_len = sizeof(struct btp_bip_second_connect_rfcomm_cmd),
 		.func = second_connect_rfcomm,
+	},
+	{
+		.opcode = BTP_BIP_SECOND_DISCONNECT_L2CAP,
+		.expect_len = sizeof(struct btp_bip_second_disconnect_l2cap_cmd),
+		.func = second_disconnect_l2cap,
+	},
+	{
+		.opcode = BTP_BIP_SECOND_DISCONNECT_RFCOMM,
+		.expect_len = sizeof(struct btp_bip_second_disconnect_rfcomm_cmd),
+		.func = second_disconnect_rfcomm,
 	},
 
 	{

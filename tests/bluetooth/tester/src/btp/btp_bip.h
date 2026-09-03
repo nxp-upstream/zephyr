@@ -570,6 +570,23 @@ struct btp_bip_second_delete_image_cmd {
 	uint8_t data[];
 } __packed;
 
+/*
+ * Secondary transport disconnect commands.
+ *
+ * Counterparts to BTP_BIP_SECOND_CONNECT_L2CAP/RFCOMM: tear down the secondary
+ * (Archived/Referenced Objects) transport that the IUT itself initiated as an
+ * Initiator. They act on inst->second_bip rather than inst->bip.
+ */
+#define BTP_BIP_SECOND_DISCONNECT_L2CAP 0x4b
+struct btp_bip_second_disconnect_l2cap_cmd {
+	bt_addr_le_t address;
+} __packed;
+
+#define BTP_BIP_SECOND_DISCONNECT_RFCOMM 0x4c
+struct btp_bip_second_disconnect_rfcomm_cmd {
+	bt_addr_le_t address;
+} __packed;
+
 
 /* events */
 
@@ -1104,5 +1121,31 @@ struct btp_bip_second_client_delete_image_rsp_ev {
 	uint8_t data[];
 } __packed;
 
+/*
+ * Secondary transport connected/disconnected events.
+ *
+ * Separate from the primary transport events (0x80-0x83) so the upper tester
+ * can tell which of the two transports (primary vs secondary) connected or
+ * disconnected. In the Auto-Archive scenario both transports share the same
+ * peer address and PSM, so without distinct opcodes the upper tester cannot
+ * distinguish them.
+ */
+#define BTP_BIP_EV_SECOND_RFCOMM_CONNECTED 0xc0
+struct btp_bip_second_rfcomm_connected_ev {
+	bt_addr_le_t address;
+} __packed;
 
+#define BTP_BIP_EV_SECOND_RFCOMM_DISCONNECTED 0xc1
+struct btp_bip_second_rfcomm_disconnected_ev {
+	bt_addr_le_t address;
+} __packed;
 
+#define BTP_BIP_EV_SECOND_L2CAP_CONNECTED 0xc2
+struct btp_bip_second_l2cap_connected_ev {
+	bt_addr_le_t address;
+} __packed;
+
+#define BTP_BIP_EV_SECOND_L2CAP_DISCONNECTED 0xc3
+struct btp_bip_second_l2cap_disconnected_ev {
+	bt_addr_le_t address;
+} __packed;

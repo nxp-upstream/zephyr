@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../_DDM/zephyr/zephyrproject_2/zephyr"
+		},
+		{
+			"path": "../Zephyr_PTS/auto-pts"
+		}
+	],
+        "settings": {
+                "files.associations": {
+                        "hci.h": "c",
+                        "C_Cpp.default.compilerPath": "build\\compile_commands.json",
+                        "cmake.configureOnOpen": false
+                }
+        }
+}

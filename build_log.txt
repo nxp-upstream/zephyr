@@ -1,0 +1,30 @@
+-- west build: making build dir D:\zephyr\zephyrproject\zephyr\build pristine
+-- west build: generating a build system
+Loading Zephyr default modules (Zephyr base).
+-- Application: D:/zephyr/zephyrproject/zephyr/samples/bluetooth/classic/handsfree
+-- CMake version: 3.31.5
+-- Found Python3: C:/Users/MSN/AppData/Local/Programs/Python/Python312/python.exe (found suitable version "3.12.8", minimum required is "3.12") found components: Interpreter
+-- Cache files will be written to: D:/zephyr/zephyrproject/zephyr/.cache
+-- Zephyr version: 4.4.99 (D:/zephyr/zephyrproject/zephyr)
+-- Found west (found suitable version "1.3.0", minimum required is "0.14.0")
+-- Board: mimxrt1170_evk, Revision: B, qualifiers: mimxrt1176/cm7
+-- ZEPHYR_TOOLCHAIN_VARIANT not set, trying to locate Zephyr SDK
+CMake Error at D:/zephyr/zephyrproject/zephyr/cmake/modules/FindZephyr-sdk.cmake:165 (find_package):
+  Could not find a configuration file for package "Zephyr-sdk" that is
+  compatible with requested version "1.0".
+
+  The following configuration files were considered but not accepted:
+
+    C:/Users/MSN/zephyr-sdk-0.17.0/cmake/Zephyr-sdkConfig.cmake, version: 0.17.0
+
+Call Stack (most recent call first):
+  D:/zephyr/zephyrproject/zephyr/cmake/modules/FindHostTools.cmake:51 (find_package)
+  D:/zephyr/zephyrproject/zephyr/cmake/modules/dts.cmake:9 (find_package)
+  D:/zephyr/zephyrproject/zephyr/cmake/modules/zephyr_default.cmake:115 (include)
+  D:/zephyr/zephyrproject/zephyr/share/zephyr-package/cmake/ZephyrConfig.cmake:66 (include)
+  D:/zephyr/zephyrproject/zephyr/share/zephyr-package/cmake/ZephyrConfig.cmake:92 (include_boilerplate)
+  CMakeLists.txt:4 (find_package)
+
+
+-- Configuring incomplete, errors occurred!
+FATAL ERROR: command exited with status 1: 'C:\Program Files\CMake\bin\cmake.EXE' -DWEST_PYTHON=C:/Users/MSN/AppData/Local/Programs/Python/Python312/python.exe -DWEST_TOPDIR=D:/zephyr/zephyrproject -DWEST_VERSION=1.3.0 '-BD:\zephyr\zephyrproject\zephyr\build' -GNinja '-DWEST_PYTHON_PROPERTIES="Python;3;12;8;64;;cp312-win_amd64.pyd;;C:\Users\MSN\AppData\Local\Programs\Python\Python312\Lib;C:\Users\MSN\AppData\Local\Programs\Python\Python312\Lib;C:\Users\MSN\AppData\Local\Programs\Python\Python312\Lib\site-packages;C:\Users\MSN\AppData\Local\Programs\Python\Python312\Lib\site-packages"' -DBOARD=mimxrt1170_evk@B/mimxrt1176/cm7 '-SD:\zephyr\zephyrproject\zephyr\samples\bluetooth\classic\handsfree'
