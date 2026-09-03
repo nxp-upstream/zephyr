@@ -29,8 +29,6 @@ struct usb_hub_port {
 
 struct usbh_hub_data {
 	sys_snode_t node;
-	sys_snode_t child_node;
-	sys_slist_t child_hubs;
 	struct usbh_context *uhs_ctx;
 	struct usb_device *udev;
 	struct usb_hub_port port_list[7];

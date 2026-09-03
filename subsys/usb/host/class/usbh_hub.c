@@ -19,12 +19,6 @@
 
 LOG_MODULE_REGISTER(usbh_hub, CONFIG_USBH_HUB_LOG_LEVEL);
 
-static struct {
-	uint8_t total_hubs;
-	sys_slist_t hub_list;
-	struct k_mutex lock;
-} hub_mgr;
-
 static K_KERNEL_STACK_DEFINE(hub_stack, CONFIG_USBH_HUB_STACK_SIZE);
 static struct k_work_q hub_work_q;
 
@@ -132,24 +126,6 @@ static int hub_start_interrupt(struct usbh_hub_data *hub_data)
 	ret = hub_enqueue_interrupt(hub_data, xfer);
 
 	return ret;
-}
-
-static struct usbh_hub_data *const find_hub_by_udev(const struct usb_device *const udev)
-{
-	struct usbh_hub_data *hub_data;
-
-	k_mutex_lock(&hub_mgr.lock, K_FOREVER);
-
-	SYS_SLIST_FOR_EACH_CONTAINER(&hub_mgr.hub_list, hub_data, node) {
-		if (hub_data->udev == udev) {
-			k_mutex_unlock(&hub_mgr.lock);
-			return hub_data;
-		}
-	}
-
-	k_mutex_unlock(&hub_mgr.lock);
-
-	return NULL;
 }
 
 static void hub_log_info(struct usbh_hub_data *const hub_data)
@@ -644,7 +620,6 @@ cleanup:
 
 static int hub_initialize(struct usbh_hub_data *hub_data)
 {
-	struct usbh_hub_data *parent_hub;
 	struct usb_device *udev;
 	uint16_t total_hub_desc_len = 0;
 	int ret;
@@ -703,14 +678,6 @@ static int hub_initialize(struct usbh_hub_data *hub_data)
 	}
 
 	k_msleep(hub_data->hub_desc.bPwrOn2PwrGood * 2U);
-
-	/* this hub has a parent hub, add to parent's child list */
-	if (hub_data->udev->hub != NULL) {
-		parent_hub = find_hub_by_udev(hub_data->udev->hub);
-		if (parent_hub != NULL) {
-			sys_slist_append(&parent_hub->child_hubs, &hub_data->child_node);
-		}
-	}
 
 	hub_log_info(hub_data);
 
@@ -780,11 +747,6 @@ static int usbh_hub_probe(struct usbh_class_data *const c_data,
 	const void *desc_end;
 	uint8_t target_iface;
 
-	if (hub_mgr.total_hubs == CONFIG_USBH_HUB_INSTANCES_COUNT) {
-		LOG_ERR("Maximum number of hubs reached (%d)", CONFIG_USBH_HUB_INSTANCES_COUNT);
-		return -ENOTSUP;
-	}
-
 	if (udev->level > CONFIG_USBH_HUB_MAX_LEVELS) {
 		LOG_ERR("Hub chain depth limit exceeded (%d > %d)",
 			udev->level,
@@ -817,8 +779,6 @@ static int usbh_hub_probe(struct usbh_class_data *const c_data,
 	hub_data->uhs_ctx = (struct usbh_context *)udev->ctx;
 	hub_data->state = HUB_STATE_INIT;
 
-	sys_slist_init(&hub_data->child_hubs);
-
 	/* Parse interrupt endpoint within the interface descriptors */
 	header = (const void *)desc_start;
 	while (header != NULL) {
@@ -850,11 +810,6 @@ static int usbh_hub_probe(struct usbh_class_data *const c_data,
 	k_work_init(&hub_data->hub_work, hub_process);
 
 	c_data->priv = hub_data;
-
-	k_mutex_lock(&hub_mgr.lock, K_FOREVER);
-	sys_slist_append(&hub_mgr.hub_list, &hub_data->node);
-	hub_mgr.total_hubs++;
-	k_mutex_unlock(&hub_mgr.lock);
 
 	k_work_submit_to_queue(&hub_work_q, &hub_data->hub_work);
 
@@ -899,24 +854,7 @@ static int usbh_hub_removed(struct usbh_class_data *const cdata)
 
 	hub_data->state = HUB_STATE_ERROR;
 
-	if (hub_data->udev->hub != NULL) {
-		struct usbh_hub_data *parent_hub;
-
-		parent_hub = find_hub_by_udev(hub_data->udev->hub);
-		if (parent_hub != NULL) {
-			sys_slist_find_and_remove(&parent_hub->child_hubs,
-						  &hub_data->child_node);
-		}
-	}
-
 	k_mutex_unlock(&hub_data->lock);
-
-	k_mutex_lock(&hub_mgr.lock, K_FOREVER);
-	sys_slist_find_and_remove(&hub_mgr.hub_list, &hub_data->node);
-	if (hub_mgr.total_hubs > 0) {
-		hub_mgr.total_hubs--;
-	}
-	k_mutex_unlock(&hub_mgr.lock);
 
 	LOG_INF("Hub (level %d, Vendor ID: 0x%04x, Product ID: 0x%04x) removal completed",
 		level, vendor_id, product_id);
@@ -929,14 +867,6 @@ static int usbh_hub_init(struct usbh_class_data *const c_data)
 	return 0;
 }
 
-static int usbh_hub_pre_init(void)
-{
-	sys_slist_init(&hub_mgr.hub_list);
-	k_mutex_init(&hub_mgr.lock);
-	hub_mgr.total_hubs = 0;
-
-	return 0;
-}
 
 static struct usbh_class_filter hub_filters[] = {
 	{
@@ -964,7 +894,6 @@ static int usbh_hub_init_wq(void)
 	return 0;
 }
 
-SYS_INIT(usbh_hub_pre_init, POST_KERNEL, CONFIG_USBH_HUB_INIT_PRIO);
 SYS_INIT(usbh_hub_init_wq, POST_KERNEL, CONFIG_USBH_HUB_INIT_PRIO);
 
 #define USBH_DEFINE_HUB_CLASS(i, _)						\
