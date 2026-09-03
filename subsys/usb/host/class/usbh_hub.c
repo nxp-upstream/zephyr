@@ -25,10 +25,16 @@ static struct k_work_q hub_work_q;
 static int hub_interrupt_in_cb(struct usb_device *const udev,
 			       struct uhc_transfer *const xfer);
 
-static int hub_prepare_interrupt_xfer(struct usbh_hub_data *hub_data,
-				      struct uhc_transfer **xfer_out)
+static int hub_start_interrupt(struct usbh_hub_data *hub_data)
 {
 	struct uhc_transfer *xfer;
+	struct net_buf *buf = NULL;
+	int ret;
+
+	if (!hub_data->connected || hub_data->state != HUB_STATE_OPERATIONAL ||
+	    hub_data->interrupt_transfer != NULL) {
+		return -EINVAL;
+	}
 
 	if (hub_data->int_ep == NULL) {
 		LOG_ERR("No interrupt endpoint available");
@@ -44,86 +50,38 @@ static int hub_prepare_interrupt_xfer(struct usbh_hub_data *hub_data,
 		return -ENOMEM;
 	}
 
-	*xfer_out = xfer;
+	hub_data->interrupt_transfer = xfer;
 
-	return 0;
-}
-
-static int hub_enqueue_interrupt(struct usbh_hub_data *hub_data,
-				 struct uhc_transfer *xfer)
-{
-	struct net_buf *buf;
-	int ret;
-
-	k_mutex_lock(&hub_data->lock, K_FOREVER);
-	if (!hub_data->connected) {
-		hub_data->interrupt_transfer = NULL;
-		k_mutex_unlock(&hub_data->lock);
-		usbh_xfer_free(hub_data->udev, xfer);
-		return -ENODEV;
-	}
-	k_mutex_unlock(&hub_data->lock);
 
 	buf = usbh_xfer_buf_alloc(hub_data->udev,
 				  sys_le16_to_cpu(hub_data->int_ep->wMaxPacketSize));
-
-	k_mutex_lock(&hub_data->lock, K_FOREVER);
 	if (buf == NULL) {
 		LOG_ERR("Failed to allocate interrupt buffer");
-		hub_data->interrupt_transfer = NULL;
-		k_mutex_unlock(&hub_data->lock);
-		usbh_xfer_free(hub_data->udev, xfer);
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto err_free;
 	}
 
 	if (!hub_data->connected) {
-		hub_data->interrupt_transfer = NULL;
-		k_mutex_unlock(&hub_data->lock);
-		usbh_xfer_buf_free(hub_data->udev, buf);
-		usbh_xfer_free(hub_data->udev, xfer);
-		return -ENODEV;
+		ret = -ENODEV;
+		goto err_free;
 	}
-	k_mutex_unlock(&hub_data->lock);
 
 	xfer->buf = buf;
 
 	ret = usbh_xfer_enqueue(hub_data->udev, xfer);
 	if (ret != 0) {
 		LOG_ERR("Failed to enqueue interrupt transfer: %d", ret);
-		usbh_xfer_buf_free(hub_data->udev, buf);
-		usbh_xfer_free(hub_data->udev, xfer);
-		k_mutex_lock(&hub_data->lock, K_FOREVER);
-		hub_data->interrupt_transfer = NULL;
-		k_mutex_unlock(&hub_data->lock);
-		return ret;
+		goto err_free;
 	}
 
 	return 0;
-}
 
-static int hub_start_interrupt(struct usbh_hub_data *hub_data)
-{
-	struct uhc_transfer *xfer;
-	int ret;
-
-	k_mutex_lock(&hub_data->lock, K_FOREVER);
-
-	if (!hub_data->connected || hub_data->state != HUB_STATE_OPERATIONAL ||
-	    hub_data->interrupt_transfer != NULL) {
-		k_mutex_unlock(&hub_data->lock);
-		return -EINVAL;
+err_free:
+	if (buf != NULL) {
+		usbh_xfer_buf_free(hub_data->udev, buf);
 	}
-
-	ret = hub_prepare_interrupt_xfer(hub_data, &xfer);
-	if (ret != 0) {
-		k_mutex_unlock(&hub_data->lock);
-		return ret;
-	}
-
-	hub_data->interrupt_transfer = xfer;
-	k_mutex_unlock(&hub_data->lock);
-
-	ret = hub_enqueue_interrupt(hub_data, xfer);
+	usbh_xfer_free(hub_data->udev, xfer);
+	hub_data->interrupt_transfer = NULL;
 
 	return ret;
 }
