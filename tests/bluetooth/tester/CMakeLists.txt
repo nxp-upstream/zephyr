@@ -91,3 +91,7 @@ endif()
 if(CONFIG_BT_OPP)
   target_sources(app PRIVATE src/btp_opp.c)
 endif()
+
+if(CONFIG_BT_FTP)
+  target_sources(app PRIVATE src/btp_ftp.c)
+endif()

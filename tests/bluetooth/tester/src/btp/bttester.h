@@ -190,3 +190,6 @@ uint8_t tester_unregister_opp(void);
 
 uint8_t tester_init_bip(void);
 uint8_t tester_unregister_bip(void);
+
+uint8_t tester_init_ftp(void);
+uint8_t tester_unregister_ftp(void);
