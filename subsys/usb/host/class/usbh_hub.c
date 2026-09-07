@@ -113,18 +113,14 @@ static void hub_recursive_disconnect(struct usbh_hub_data *const hub_data)
 	LOG_DBG("Recursively disconnecting Hub level %d and all children",
 		hub_data->udev->level);
 
-	k_mutex_lock(&hub_data->lock, K_FOREVER);
 	for (uint8_t i = 0; i < hub_data->port_count; i++) {
 		hub_data->port_list[i].enum_pending = false;
 		port_udev = hub_data->port_list[i].udev;
 		hub_data->port_list[i].udev = NULL;
 		if (port_udev != NULL) {
-			k_mutex_unlock(&hub_data->lock);
 			usbh_device_disconnect(hub_data->uhs_ctx, port_udev);
-			k_mutex_lock(&hub_data->lock, K_FOREVER);
 		}
 	}
-	k_mutex_unlock(&hub_data->lock);
 }
 
 static int enumerate_port_device(struct usbh_hub_data *hub_data,
@@ -437,17 +433,13 @@ static void hub_process_data(struct usbh_hub_data *const hub_data)
 	bool clear_over_current = false;
 	int ret;
 
-	k_mutex_lock(&hub_data->lock, K_FOREVER);
-
 	if (!hub_data->connected) {
-		k_mutex_unlock(&hub_data->lock);
 		return;
 	}
 
 	if (hub_data->state != HUB_STATE_OPERATIONAL) {
 		LOG_WRN("Hub not ready for data processing (state=%d)",
 			hub_data->state);
-		k_mutex_unlock(&hub_data->lock);
 		return;
 	}
 
@@ -469,16 +461,11 @@ static void hub_process_data(struct usbh_hub_data *const hub_data)
 
 	memset(hub_data->int_buffer, 0, sizeof(hub_data->int_buffer));
 
-	k_mutex_unlock(&hub_data->lock);
-
 	if (hub_changed) {
 		LOG_INF("Hub level %d status changed, processing", hub_data->udev->level);
 		ret = usbh_req_get_hub_status(hub_data->udev, &hub_status, &hub_change);
 
-		k_mutex_lock(&hub_data->lock, K_FOREVER);
-
 		if (!hub_data->connected || hub_data->state != HUB_STATE_OPERATIONAL) {
-			k_mutex_unlock(&hub_data->lock);
 			return;
 		}
 
@@ -495,8 +482,6 @@ static void hub_process_data(struct usbh_hub_data *const hub_data)
 			clear_over_current =
 				(hub_change & USB_HUB_CHANGE_OVER_CURRENT) != 0;
 		}
-
-		k_mutex_unlock(&hub_data->lock);
 
 		if (clear_local_power) {
 			LOG_WRN("Hub local power status changed");
@@ -544,8 +529,6 @@ static int hub_interrupt_in_cb(struct usb_device *const udev,
 	struct usbh_hub_data *const hub_data = (void *)xfer->priv;
 	struct net_buf *buf = xfer->buf;
 
-	k_mutex_lock(&hub_data->lock, K_FOREVER);
-
 	if (!hub_data->connected) {
 		hub_data->interrupt_transfer = NULL;
 		goto cleanup;
@@ -571,7 +554,6 @@ cleanup:
 		net_buf_unref(buf);
 	}
 
-	k_mutex_unlock(&hub_data->lock);
 	usbh_xfer_free(hub_data->udev, xfer);
 	return 0;
 }
@@ -677,6 +659,12 @@ static void hub_process(struct k_work *work)
 		return;
 	}
 
+	if (hub_data->state != HUB_STATE_INIT) {
+		k_mutex_unlock(&hub_data->lock);
+		LOG_WRN("Hub not in INIT state");
+		return;
+	}
+
 	hub_data->state = HUB_STATE_OPERATIONAL;
 	k_mutex_unlock(&hub_data->lock);
 
@@ -777,16 +765,15 @@ static int usbh_hub_removed(struct usbh_class_data *const cdata)
 	vendor_id = sys_le16_to_cpu(hub_data->udev->dev_desc.idVendor);
 	product_id = sys_le16_to_cpu(hub_data->udev->dev_desc.idProduct);
 
-	k_mutex_lock(&hub_data->lock, K_FOREVER);
 	hub_data->connected = false;
+	k_mutex_lock(&hub_data->lock, K_FOREVER);
+	hub_data->state = HUB_STATE_ERROR;
 	k_mutex_unlock(&hub_data->lock);
 
 	k_work_cancel_sync(&hub_data->hub_work, &sync);
 
 	/* Recursively disconnect all child hubs and devices */
 	hub_recursive_disconnect(hub_data);
-
-	k_mutex_lock(&hub_data->lock, K_FOREVER);
 
 	if (hub_data->interrupt_transfer != NULL) {
 		ret = usbh_xfer_dequeue(hub_data->udev,
@@ -797,10 +784,6 @@ static int usbh_hub_removed(struct usbh_class_data *const cdata)
 		hub_data->interrupt_transfer = NULL;
 		LOG_DBG("Interrupt transfer cancelled");
 	}
-
-	hub_data->state = HUB_STATE_ERROR;
-
-	k_mutex_unlock(&hub_data->lock);
 
 	LOG_INF("Hub (level %d, Vendor ID: 0x%04x, Product ID: 0x%04x) removal completed",
 		level, vendor_id, product_id);
