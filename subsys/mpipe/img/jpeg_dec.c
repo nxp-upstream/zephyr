@@ -20,6 +20,17 @@
 
 #include <zephyr/mpipe/img/jpeg_dec.h>
 
+/*
+ * cmsis_gcc.h and the SIMD intrinsics it provides are Arm Cortex-M specific.
+ * native_sim builds run on the host and have no such toolchain header, so skip
+ * the CMSIS include and the SIMD fast paths there.
+ */
+#ifndef CONFIG_BOARD_NATIVE_SIM
+#include "cmsis_gcc.h"
+
+#define HAS_SIMD
+#endif
+
 /* Forward references */
 static int JPEGInit(JPEGIMAGE *pJPEG);
 static int JPEGParseInfo(JPEGIMAGE *pPage, int bExtractThumb);
