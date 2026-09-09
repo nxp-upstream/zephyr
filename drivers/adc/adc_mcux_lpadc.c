@@ -48,6 +48,16 @@ LOG_MODULE_REGISTER(nxp_mcux_lpadc);
 #define ADC_CONTEXT_ENABLE_ON_COMPLETE
 #endif
 #define ADC_CONTEXT_USES_KERNEL_TIMER
+/*
+ * Bound the wait for sequence completion. The default in adc_context.h is
+ * K_FOREVER, which turns any sequence that can never complete into a permanent
+ * block of the calling thread. That is reachable through the API: a trigger
+ * issued while the converter is disabled (CTRL[ADCEN] = 0, for instance after
+ * PM_DEVICE_ACTION_SUSPEND) never stores a result, so the watermark interrupt
+ * that releases ctx.sync never fires.
+ */
+#define ADC_CONTEXT_WAIT_FOR_COMPLETION_TIMEOUT \
+	K_MSEC(CONFIG_ADC_MCUX_LPADC_ACQUISITION_TIMEOUT_MS)
 #include "adc_context.h"
 
 struct mcux_lpadc_config {
@@ -57,6 +67,8 @@ struct mcux_lpadc_config {
 	uint32_t calibration_average;
 	int16_t offset_a;
 	int16_t offset_b;
+	/* CTRL[DOZEN]: stop the converter for the duration of any low-power mode */
+	bool stop_in_low_power;
 	void (*irq_config_func)(const struct device *dev);
 	const struct pinctrl_dev_config *pincfg;
 	const struct device *ref_supplies;
@@ -337,6 +349,49 @@ static int mcux_lpadc_channel_setup(const struct device *dev,
 	return 0;
 }
 
+/*
+ * Abandon an in-flight conversion sequence. Used when the sequence failed to
+ * complete in time: the hardware is still armed and the caller's buffer is
+ * about to go out of scope, so the converter is quiesced and the result FIFOs
+ * are emptied before returning to the caller.
+ */
+static void mcux_lpadc_stop_sequence(const struct device *dev)
+{
+	const struct mcux_lpadc_config *config = dev->config;
+	struct mcux_lpadc_data *data = dev->data;
+
+#ifdef CONFIG_ADC_MCUX_LPADC_DMA_DRIVEN
+	if (data->use_dma) {
+		(void)dma_stop(config->dma_dev, config->dma_channel);
+#if (defined(FSL_FEATURE_LPADC_FIFO_COUNT) && (FSL_FEATURE_LPADC_FIFO_COUNT == 2U))
+		LPADC_EnableFIFO0WatermarkDMA(config->base, false);
+#else
+		LPADC_EnableFIFOWatermarkDMA(config->base, false);
+#endif
+	}
+#endif /* CONFIG_ADC_MCUX_LPADC_DMA_DRIVEN */
+
+	/*
+	 * Disabling the converter drops any conversion in progress and any
+	 * pending trigger. Calibration results (OFSTRIM, GCC) are unaffected,
+	 * so the module can simply be re-enabled afterwards.
+	 */
+	LPADC_Enable(config->base, false);
+
+#if (defined(FSL_FEATURE_LPADC_FIFO_COUNT) && (FSL_FEATURE_LPADC_FIFO_COUNT == 2U))
+	LPADC_DoResetFIFO0(config->base);
+	LPADC_DoResetFIFO1(config->base);
+#else
+	LPADC_DoResetFIFO(config->base);
+#endif
+
+	LPADC_Enable(config->base, true);
+
+	data->buffer = NULL;
+	data->repeat_buffer = NULL;
+	data->channels = 0U;
+}
+
 static int mcux_lpadc_start_read(const struct device *dev,
 		 const struct adc_sequence *sequence)
 {
@@ -466,6 +521,17 @@ static int mcux_lpadc_start_read(const struct device *dev,
 	adc_context_start_read(&data->ctx, sequence);
 	int error = adc_context_wait_for_completion(&data->ctx);
 
+	if (error == -EAGAIN) {
+		/*
+		 * The sequence did not complete in time. Stop it before
+		 * returning: the caller's buffer goes out of scope, so a late
+		 * watermark interrupt must not be able to store into it.
+		 */
+		LOG_ERR("Conversion sequence timed out after %d ms",
+			CONFIG_ADC_MCUX_LPADC_ACQUISITION_TIMEOUT_MS);
+		mcux_lpadc_stop_sequence(dev);
+	}
+
 	return error;
 }
 
@@ -494,12 +560,45 @@ static void mcux_lpadc_pm_policy_device_power_lock_put(const struct device *dev)
 #endif
 }
 
+/*
+ * The converter is left disabled (CTRL[ADCEN] = 0) in every state other than
+ * ACTIVE, and a disabled converter never stores a result, so a trigger issued
+ * in that state cannot complete. Reject the read instead of making the caller
+ * wait out the acquisition timeout.
+ *
+ * With device runtime PM this means an unwrapped read fails: the caller has to
+ * hold a reference via pm_device_runtime_get() for the duration of the read.
+ */
+static int mcux_lpadc_check_active(const struct device *dev)
+{
+#if defined(CONFIG_PM_DEVICE)
+	enum pm_device_state state;
+	int err;
+
+	err = pm_device_state_get(dev, &state);
+	if (err == 0 && state != PM_DEVICE_STATE_ACTIVE) {
+		LOG_ERR("Converter is not active (pm state %s)",
+			pm_device_state_str(state));
+		return -EBUSY;
+	}
+#else
+	ARG_UNUSED(dev);
+#endif /* CONFIG_PM_DEVICE */
+
+	return 0;
+}
+
 static int mcux_lpadc_read_async(const struct device *dev,
 			const struct adc_sequence *sequence,
 			struct k_poll_signal *async)
 {
 	struct mcux_lpadc_data *data = dev->data;
 	int error;
+
+	error = mcux_lpadc_check_active(dev);
+	if (error != 0) {
+		return error;
+	}
 
 	adc_context_lock(&data->ctx, async ? true : false, async);
 
@@ -963,6 +1062,15 @@ static int mcux_lpadc_init(const struct device *dev)
 	adc_config.enableAnalogPreliminary = true;
 	adc_config.referenceVoltageSource = config->voltage_ref;
 
+	/*
+	 * CTRL[DOZEN]. Cleared by default (the reset value), which lets the
+	 * converter keep running in low-power modes where it stays functional,
+	 * provided ADCK keeps running. Setting it makes the converter drain the
+	 * current averaging iteration or FIFO store and then stay inactive for
+	 * the duration of the low-power mode.
+	 */
+	adc_config.enableInDozeMode = !config->stop_in_low_power;
+
 #if defined(FSL_FEATURE_LPADC_HAS_CTRL_CAL_AVGS) && FSL_FEATURE_LPADC_HAS_CTRL_CAL_AVGS
 	adc_config.conversionAverageMode = config->calibration_average;
 #endif /* FSL_FEATURE_LPADC_HAS_CTRL_CAL_AVGS */
@@ -1123,6 +1231,7 @@ static DEVICE_API(adc, mcux_lpadc_driver_api) = {
 		.power_level = DT_INST_PROP_OR(n, power_level, 0),				\
 		.offset_a = (int16_t)DT_INST_PROP(n, offset_value_a),				\
 		.offset_b = (int16_t)DT_INST_PROP(n, offset_value_b),				\
+		.stop_in_low_power = DT_INST_PROP(n, nxp_stop_in_low_power_mode),		\
 		.irq_config_func = mcux_lpadc_config_func_##n,					\
 		.pincfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),					\
 		.ref_supplies = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, nxp_references),		\
