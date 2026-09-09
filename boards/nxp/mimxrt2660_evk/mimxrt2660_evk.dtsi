@@ -49,3 +49,31 @@
 	pinctrl-0 = <&pinmux_lpuart0>;
 	pinctrl-names = "default";
 };
+
+&lpi2c0 {
+	pinctrl-0 = <&pinmux_lpi2c0>;
+	pinctrl-names = "default";
+
+	/* PCAL6524 (0x22): LCM_RGB_5INCH panel power-enable on pin 16. */
+	pcal6524: gpio@22 {
+		compatible = "nxp,pcal6524";
+		reg = <0x22>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		ngpios = <24>;
+	};
+
+	/* PCA9555 (0x21): LCM_RGB_5INCH panel backlight-enable on pin 9. */
+	pca9555: gpio@21 {
+		compatible = "nxp,pca9555";
+		reg = <0x21>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		ngpios = <16>;
+	};
+};
+
+&dcif {
+	pinctrl-0 = <&pinmux_dcif>;
+	pinctrl-names = "default";
+};

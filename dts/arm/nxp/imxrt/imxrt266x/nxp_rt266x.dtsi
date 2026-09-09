@@ -483,6 +483,21 @@
 			clock-mux = <IMX_CCM_MUX_PERI3_MAINPLL_DIVX>;
 			clock-div = <1>;
 		};
+
+		/*
+		 * Peripheral distribution root used as the DCIF pixel clock's
+		 * upstream source (400 MHz). The DCIF driver reads this root's rate
+		 * at init and programs dcpixel_fclk's own divider from it, so this
+		 * root's mux/div has to stay a fixed, known value rather than move.
+		 */
+		/* CLOCK_ROOT42 */
+		peri5_rootclk: clock-root@2a0 {
+			compatible = "nxp,imx-ccm-rev3-root";
+			reg = <0x2a0 0x10>;
+			nxp,root-id = <IMX_CCM_ROOT_CGU_PERI_ROOTCLK5>;
+			clock-mux = <IMX_CCM_MUX_PERI5_MAINPLL_DIVX>;
+			clock-div = <1>;
+		};
 	};
 
 	cmpt_ccm: clock-controller@44060000 {
@@ -1877,16 +1892,39 @@
 
 	/*
 	 * Parallel CSI (MEDIA__CSI, NS alias 0x4C090000, MEDIA_CSI_IRQn = 326),
-	 * described by the existing nxp,imx-csi binding.
-	 *
-	 * It is the only "Display and Graphics" peripheral with an applicable
-	 * Zephyr binding today, so it is the only node the per-part overlays
-	 * delete.
+	 * described by the existing nxp,imx-csi binding. RT2660/RT2661 lack this
+	 * peripheral and delete this node in their per-part overlay.
 	 */
 	csi: media_csi: csi@4c090000 {
 		compatible = "nxp,imx-csi";
 		reg = <0x4c090000 0x1000>;
 		interrupts = <326 0>;
+		status = "disabled";
+	};
+
+	/*
+	 * DCIF (MEDIA__DCIF, NS alias 0x4C200000, MEDIA_DCIF_CH0_IRQn = 317).
+	 *
+	 * dcpixel_fclk's divider is panel-dependent (its target frequency comes
+	 * from the shield's display-timings), so "source" carries a placeholder
+	 * div: the driver reads this cell's root/mux back with the
+	 * IMX_CCM_ROOT_CFG_* accessors and rebuilds it with a div computed from
+	 * "peri5-source"'s rate, rather than a value fixed here.
+	 *
+	 * width/height/pixel-format/display-timings/backlight-gpios are left
+	 * for the shield overlay to supply, same as nxp,imx-elcdif on other
+	 * i.MX RT parts.
+	 */
+	dcif: dcif@4c200000 {
+		compatible = "nxp,dcif";
+		reg = <0x4c200000 0x1000>;
+		interrupts = <317 0>;
+		clock-names = "gate", "source", "peri5-source";
+		clocks = <&media_ccm IMX_CCM_CLK(IMX_CCM_LPCG_MEDIA_DCIF,
+						  IMX_CCM_ROOT_MEDIA_DCPIXEL_FCLK)>,
+			 <&media_ccm IMX_CCM_ROOT_CFG(IMX_CCM_ROOT_MEDIA_DCPIXEL_FCLK,
+						       IMX_CCM_MUX_DCPIXEL_PERI5, 1, 1)>,
+			 <&ccm IMX_CCM_CLK(IMX_CCM_GATE_NONE, IMX_CCM_ROOT_CGU_PERI_ROOTCLK5)>;
 		status = "disabled";
 	};
 

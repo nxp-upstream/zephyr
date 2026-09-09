@@ -20,6 +20,12 @@ properties:
     description:
       LCD backlight control gpio. Driver will initialize this GPIO to active high
 
+  power-gpios:
+    type: phandle-array
+    description:
+      Panel power-enable gpio, driven active high once at init and left on.
+      Left blank for a panel whose power rail is not gpio-controlled.
+
   data-bus-width:
     type: string
     default: "RGB565"

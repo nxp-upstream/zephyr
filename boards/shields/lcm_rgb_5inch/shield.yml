@@ -1,0 +1,6 @@
+shield:
+  name: lcm_rgb_5inch
+  full_name: LCM RGB 5" 800x480 DPI panel (DEMO_PANEL_LCM_RGB_5INCH)
+  vendor: nxp
+  supported_features:
+    - display

@@ -6,6 +6,7 @@
 #define DT_DRV_COMPAT nxp_dcif
 
 #include <zephyr/drivers/clock_control.h>
+#include <zephyr/dt-bindings/clock/imx_ccm_rev3.h>
 #include <zephyr/drivers/display.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/reset.h>
@@ -13,6 +14,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/irq.h>
 #include <zephyr/linker/devicetree_regions.h>
+#include <zephyr/sys/util.h>
 #include <fsl_dcif.h>
 #ifdef CONFIG_HAS_MCUX_CACHE
 #include <fsl_cache.h>
@@ -30,12 +32,21 @@ struct nxp_dcif_config {
 	void (*irq_config_func)(const struct device *dev);
 	const struct device *clock_dev;
 	clock_control_subsys_t clock_subsys;
+	/* dcpixel_fclk's "source" root-config cell: root/mux come from here, div is
+	 * recomputed at init (see nxp_dcif_configure_pixel_clock).
+	 */
+	uint32_t dcpixel_root_cfg;
+	const struct device *peri5_clock_dev;
+	clock_control_subsys_t peri5_clock_subsys;
 	const struct gpio_dt_spec backlight_gpio;
+	const struct gpio_dt_spec power_gpio;
 	struct reset_dt_spec reset;
 	dcif_dpi_config_t dpi_config;
 	dcif_output_config_t output_config;
 	/* Initial pixel format from devicetree (display_pixel_format value) */
 	enum display_pixel_format init_pixel_format;
+	/* Target dcpixel_fclk rate (Hz), from the shield's display-timings */
+	uint32_t pixel_clk_rate;
 	/* Pointer to start of first framebuffer */
 	uint8_t *fb_ptr;
 };
@@ -249,6 +260,43 @@ static void nxp_dcif_isr(const struct device *dev)
 	}
 }
 
+/*
+ * dcpixel_fclk's target rate depends on whichever panel/shield is attached,
+ * so its divider is computed here from the "peri5-source" root's rate
+ * instead of a value fixed in devicetree. Mirrors the SDK's
+ * BOARD_InitDcifPowerClockReset(), which derives the same divider from
+ * CLOCK_GetClockSrcFreq(kCLOCK_SRC_PERI5). The root and mux to reprogram
+ * travel in the devicetree "source" cell rather than as constants here, so
+ * this driver carries no per-SoC clock identifiers.
+ */
+static int nxp_dcif_configure_pixel_clock(const struct device *dev)
+{
+	const struct nxp_dcif_config *config = dev->config;
+	uint32_t peri5_rate;
+	uint32_t div;
+	int ret;
+
+	if (config->clock_dev == NULL || config->pixel_clk_rate == 0U) {
+		return 0;
+	}
+
+	ret = clock_control_get_rate(config->peri5_clock_dev, config->peri5_clock_subsys,
+				      &peri5_rate);
+	if (ret != 0) {
+		LOG_ERR("Failed to read PERI5 root rate (%d)", ret);
+		return ret;
+	}
+
+	div = CLAMP(peri5_rate / config->pixel_clk_rate, 1U, 255U);
+
+	return clock_control_configure(
+		config->clock_dev,
+		(clock_control_subsys_t)IMX_CCM_ROOT_CFG(
+			IMX_CCM_ROOT_CFG_ROOT(config->dcpixel_root_cfg),
+			IMX_CCM_ROOT_CFG_MUX(config->dcpixel_root_cfg), div, 1U),
+		NULL);
+}
+
 static int nxp_dcif_init(const struct device *dev)
 {
 	const struct nxp_dcif_config *config = dev->config;
@@ -263,6 +311,18 @@ static int nxp_dcif_init(const struct device *dev)
 
 		ret = clock_control_on(config->clock_dev, config->clock_subsys);
 		if (ret != 0) {
+			return ret;
+		}
+	}
+
+	ret = nxp_dcif_configure_pixel_clock(dev);
+	if (ret != 0) {
+		return ret;
+	}
+
+	if (config->power_gpio.port != NULL) {
+		ret = gpio_pin_configure_dt(&config->power_gpio, GPIO_OUTPUT_ACTIVE);
+		if (ret) {
 			return ret;
 		}
 	}
@@ -378,13 +438,23 @@ static DEVICE_API(display, nxp_dcif_api) = {
 		.base = (DCIF_Type *)DT_INST_REG_ADDR(n),                                          \
 		.irq_config_func = nxp_dcif_config_func_##n,                                      \
 		.init_pixel_format = DT_INST_PROP(n, pixel_format),                                \
+		.pixel_clk_rate = DT_PROP(DT_INST_CHILD(n, display_timings), clock_frequency),     \
 		.clock_dev = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, clocks),                         \
 					 (DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n))), (NULL)),         \
 		.clock_subsys = COND_CODE_1(                                                       \
 			DT_INST_NODE_HAS_PROP(n, clocks),                                          \
 			((clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, name)),                    \
 			((clock_control_subsys_t)0U)),                                             \
+		.dcpixel_root_cfg = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, clocks),                  \
+			(DT_INST_CLOCKS_CELL_BY_NAME(n, source, name)), (0U)),                     \
+		.peri5_clock_dev = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, clocks),                   \
+			(DEVICE_DT_GET(DT_INST_CLOCKS_CTLR_BY_NAME(n, peri5_source))), (NULL)),    \
+		.peri5_clock_subsys = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, clocks),                \
+			((clock_control_subsys_t)DT_INST_CLOCKS_CELL_BY_NAME(n, peri5_source,      \
+									      name)),               \
+			((clock_control_subsys_t)0U)),                                             \
 		.backlight_gpio = GPIO_DT_SPEC_INST_GET(n, backlight_gpios),                       \
+		.power_gpio = GPIO_DT_SPEC_INST_GET_OR(n, power_gpios, {0}),                       \
 		.reset = RESET_DT_SPEC_INST_GET_OR(n, {0}),                                        \
 		.output_config = {                                                                 \
 			.interface = kDCIF_OutputDpi,                                              \

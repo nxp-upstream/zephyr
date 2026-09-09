@@ -1,0 +1,43 @@
+/*
+ * Copyright 2026 NXP
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/display/panel.h>
+#include <zephyr/dt-bindings/gpio/gpio.h>
+
+/ {
+	chosen {
+		zephyr,display = &dcif;
+	};
+};
+
+&dcif {
+	status = "okay";
+
+	width = <800>;
+	height = <480>;
+	pixel-format = <PANEL_PIXEL_FORMAT_RGB_888>;
+	data-bus-width = "RGB888";
+
+	/* PCA9555 pin 9: LCM_RGB_5INCH backlight-enable. */
+	backlight-gpios = <&pca9555 9 GPIO_ACTIVE_HIGH>;
+	/* PCAL6524 pin 16: LCM_RGB_5INCH panel power-enable. */
+	power-gpios = <&pcal6524 16 GPIO_ACTIVE_HIGH>;
+
+	display-timings {
+		compatible = "zephyr,panel-timing";
+		hsync-len = <4>;
+		hfront-porch = <8>;
+		hback-porch = <8>;
+		vsync-len = <4>;
+		vfront-porch = <8>;
+		vback-porch = <8>;
+		de-active = <1>;
+		pixelclk-active = <1>;
+		hsync-active = <0>;
+		vsync-active = <0>;
+		/* (800+4+8+8) * (480+4+8+8) * 50 Hz (DEMO_FRAME_RATE) */
+		clock-frequency = <20500000>;
+	};
+};
