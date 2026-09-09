@@ -9,6 +9,7 @@
 #include <zephyr/dt-bindings/clock/imx_ccm_rev3.h>
 #include <zephyr/drivers/display.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/pinctrl.h>
 #include <zephyr/drivers/reset.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -30,6 +31,7 @@ LOG_MODULE_REGISTER(display_nxp_dcif, CONFIG_DISPLAY_LOG_LEVEL);
 struct nxp_dcif_config {
 	DCIF_Type *base;
 	void (*irq_config_func)(const struct device *dev);
+	const struct pinctrl_dev_config *pincfg;
 	const struct device *clock_dev;
 	clock_control_subsys_t clock_subsys;
 	/* dcpixel_fclk's "source" root-config cell: root/mux come from here, div is
@@ -304,6 +306,11 @@ static int nxp_dcif_init(const struct device *dev)
 	dcif_layer_config_t layer_config = {0};
 	int ret;
 
+	ret = pinctrl_apply_state(config->pincfg, PINCTRL_STATE_DEFAULT);
+	if (ret != 0) {
+		return ret;
+	}
+
 	if (config->clock_dev != NULL) {
 		if (!device_is_ready(config->clock_dev)) {
 			return -ENODEV;
@@ -431,12 +438,14 @@ static DEVICE_API(display, nxp_dcif_api) = {
 		irq_enable(DT_INST_IRQN(n));                                                        \
 	}                                                                                          \
 	NXP_DCIF_FRAMEBUFFER_DECL(n);                                                             \
+	PINCTRL_DT_INST_DEFINE(n);                                                               \
 	struct nxp_dcif_data nxp_dcif_data_##n = {                                               \
 		.next_idx = 0,                                                                     \
 	};                                                                                         \
 	struct nxp_dcif_config nxp_dcif_config_##n = {                                           \
 		.base = (DCIF_Type *)DT_INST_REG_ADDR(n),                                          \
 		.irq_config_func = nxp_dcif_config_func_##n,                                      \
+		.pincfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),                                       \
 		.init_pixel_format = DT_INST_PROP(n, pixel_format),                                \
 		.pixel_clk_rate = DT_PROP(DT_INST_CHILD(n, display_timings), clock_frequency),     \
 		.clock_dev = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, clocks),                         \

@@ -65,6 +65,11 @@ static void soc_ele_release_rdc(void)
  * Mirrors BOARD_ConfigTRDC()'s exhaustive branch in the SDK board support,
  * which is what actually runs there: board.h defines
  * BOARD_TRDC_ALL_MASTER_TO_PREVELEGE_DOMAIN to 1 unless a build overrides it.
+ * BOARD_CommonSetting() calls BOARD_InitBootClocks() before BOARD_ConfigTRDC()
+ * for the same reason this has to run after soc_clock_init(): MEDIA__TRDC sits
+ * on the MEDIA domain bus, which mediabus_rootclk (CGU slice 32) has to be
+ * clocking before anything on that bus is accessible -- writing it any earlier
+ * stalls the bus transaction indefinitely and hangs the core.
  *
  * The TRDC has one master per channel PAIR on the eDMA controllers, and an
  * unassigned master is denied silently -- the transfer completes and moves
@@ -73,7 +78,7 @@ static void soc_ele_release_rdc(void)
  * trdc_master_t enumerator (fsl_trdc_soc.h); ranges are contiguous except for
  * MAIN's five reserved slots.
  */
-static void soc_trdc_assign_masters(void)
+void soc_trdc_assign_masters(void)
 {
 	for (uint32_t master = 0U; master <= (uint32_t)kTRDC_MAIN_MasterTESTPORT; master++) {
 		if (master == (uint32_t)kTRDC_MAIN_MasterReserved0 ||
@@ -117,9 +122,12 @@ static void soc_trdc_assign_masters(void)
 	}
 }
 
+/*
+ * Hand the Resource Domain Controller over from the EdgeLock enclave. Must run
+ * before any peripheral access; soc_trdc_assign_masters() is the rest of TRDC
+ * setup and runs later, once clocks are up (see its own comment).
+ */
 void soc_trdc_setup(void)
 {
-	/* Release first: every step after it is itself a peripheral access. */
 	soc_ele_release_rdc();
-	soc_trdc_assign_masters();
 }
