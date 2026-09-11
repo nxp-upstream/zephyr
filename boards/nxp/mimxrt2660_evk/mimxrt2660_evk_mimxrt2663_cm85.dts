@@ -36,6 +36,7 @@
 		zephyr,dtcm = &dtcm;
 		zephyr,console = &lpuart0;
 		zephyr,shell-uart = &lpuart0;
+		zephyr,display = &dcif;
 	};
 
 	/*
@@ -47,6 +48,20 @@
 	psram: memory@88000000 {
 		device_type = "memory";
 		reg = <0x88000000 DT_SIZE_M(32)>;
+	};
+
+	/*
+	 * This node describes the GPIO pins of the I2C display FPC interface,
+	 * This interface is standard to several NXP EVKs, and is used with
+	 * several parallel LCD displays (available as zephyr shields)
+	 */
+	nxp_i2c_touch_fpc: i2c-touch-connector {
+		compatible = "nxp,i2c-tsc-fpc";
+		#gpio-cells = <2>;
+		gpio-map-mask = <0xffffffff 0xffffffc0>;
+		gpio-map-pass-thru = <0 0x3f>;
+		gpio-map = <1 0 &pcal6524 19 0>,
+			   <2 0 &pcal6524 3 0>;
 	};
 };
 
@@ -69,7 +84,15 @@
 	status = "okay";
 };
 
+&lpi2c1 {
+	status = "okay";
+};
+
 &media_ccm {
+	status = "okay";
+};
+
+&jpegdec {
 	status = "okay";
 };
 
@@ -128,3 +151,12 @@
 		};
 	};
 };
+
+zephyr_lcdif: &dcif {
+	/* PCA9555 pin 9: LCM_RGB_5INCH backlight-enable. */
+	backlight-gpios = <&pca9555 9 GPIO_ACTIVE_HIGH>;
+	/* PCAL6524 pin 16: LCM_RGB_5INCH panel power-enable. */
+	power-gpios = <&pcal6524 16 GPIO_ACTIVE_HIGH>;
+};
+
+nxp_touch_i2c: &lpi2c1 {};

@@ -8,22 +8,29 @@
 
 / {
 	chosen {
-		zephyr,display = &dcif;
+		zephyr,display = &zephyr_lcdif;
+		zephyr,touch = &gt911_lcm_rgb_5inch;
 	};
 };
 
-&dcif {
+&nxp_touch_i2c {
+	status = "okay";
+
+	gt911_lcm_rgb_5inch: gt911-lcm_rgb_5inch@5d {
+		compatible = "goodix,gt911";
+		reg = <0x5d>;
+		reset-gpios = <&nxp_i2c_touch_fpc 1 GPIO_ACTIVE_LOW>; /**/
+		irq-gpios = <&nxp_i2c_touch_fpc 2 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&zephyr_lcdif {
 	status = "okay";
 
 	width = <800>;
 	height = <480>;
 	pixel-format = <PANEL_PIXEL_FORMAT_RGB_888>;
 	data-bus-width = "RGB888";
-
-	/* PCA9555 pin 9: LCM_RGB_5INCH backlight-enable. */
-	backlight-gpios = <&pca9555 9 GPIO_ACTIVE_HIGH>;
-	/* PCAL6524 pin 16: LCM_RGB_5INCH panel power-enable. */
-	power-gpios = <&pcal6524 16 GPIO_ACTIVE_HIGH>;
 
 	display-timings {
 		compatible = "zephyr,panel-timing";

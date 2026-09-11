@@ -110,6 +110,27 @@ static int nxp_dcif_write(const struct device *dev, const uint16_t x, const uint
 			src += data->pixel_bytes * desc->pitch;
 			dst += data->pitch_bytes;
 		}
+
+		if (data->format == kDCIF_LayerPixelFormatNV21) {
+			/*
+			 * The UV plane is interleaved at the same byte-width per row as
+			 * Y (width/2 U bytes + width/2 V bytes), but at half the row
+			 * count (4:2:0 subsampling), so x/y must be even.
+			 */
+			__ASSERT(((x % 2) == 0) && ((y % 2) == 0), "NV12 requires even x/y");
+
+			src = (const uint8_t *)buf + desc->pitch * desc->height;
+			dst = data->fb[data->next_idx];
+			dst += data->pitch_bytes * config->output_config.height;
+			dst += data->pixel_bytes * x + ((y / 2) * data->pitch_bytes);
+
+			for (h_idx = 0; h_idx < desc->height / 2; h_idx++) {
+				memcpy(dst, src, data->pixel_bytes * desc->width);
+				src += data->pixel_bytes * desc->pitch;
+				dst += data->pitch_bytes;
+			}
+		}
+
 		LOG_DBG("Setting FB from %p->%p", (void *)data->active_fb,
 			(void *)data->fb[data->next_idx]);
 		/* Set new active framebuffer */
@@ -125,6 +146,11 @@ static int nxp_dcif_write(const struct device *dev, const uint16_t x, const uint
 	/* Set new framebuffer and trigger a shadow load, taking effect at next VSYNC. */
 	DCIF_SetLayerStride(config->base, NXP_DCIF_LAYER, data->pitch_bytes);
 	DCIF_SetLayerAddr(config->base, NXP_DCIF_LAYER, (uint32_t)data->active_fb);
+	if (data->format == kDCIF_LayerPixelFormatNV21) {
+		DCIF_SetLayerUVAddr(config->base, NXP_DCIF_LAYER,
+				    (uint32_t)data->active_fb +
+					    data->pitch_bytes * config->output_config.height);
+	}
 	DCIF_TriggerLayerShadowLoad(config->base, NXP_DCIF_LAYER);
 
 #if CONFIG_NXP_DCIF_FB_NUM != 0
@@ -222,9 +248,23 @@ static int nxp_dcif_set_pixel_format(const struct device *dev,
 		data->format = kDCIF_LayerPixelFormatABGR8888;
 		data->pixel_bytes = 4;
 		break;
+	case PIXEL_FORMAT_NV12:
+		/*
+		 * The HAL's kDCIF_LayerPixelFormatNV12 is documented as producing a
+		 * V-then-U second plane, and kDCIF_LayerPixelFormatNV21 a U-then-V
+		 * one -- the two names are swapped relative to the usual NV12/NV21
+		 * convention. Zephyr's PIXEL_FORMAT_NV12 (and the jpegdec driver
+		 * that feeds it) is U-then-V, so NV21 is the HAL value that matches.
+		 */
+		data->format = kDCIF_LayerPixelFormatNV21;
+		data->pixel_bytes = 1;
+		break;
 	default:
 		return -ENOTSUP;
 	}
+
+	DCIF_SetCscMode(config->base, NXP_DCIF_LAYER,
+			pixel_format == PIXEL_FORMAT_NV12 ? kDCIF_CscYCbCr2RGB : kDCIF_CscDisable);
 
 	/*
 	 * Update the pitch bytes and framebuffer size based on new pixel format,
@@ -233,7 +273,13 @@ static int nxp_dcif_set_pixel_format(const struct device *dev,
 	 */
 	data->pitch_bytes = ROUND_UP((config->output_config.width * data->pixel_bytes),
 				     DCIF_FB_ALIGN);
-	data->fb_bytes = data->pitch_bytes * config->output_config.height;
+	/*
+	 * NV12 is 2-plane: a full Y plane followed by a half-height, interleaved
+	 * UV plane. Size the buffer as if the UV plane were full-height too, to
+	 * match the allocation convention the jpegdec driver's NV12 output uses.
+	 */
+	data->fb_bytes = data->pitch_bytes * config->output_config.height *
+			 (pixel_format == PIXEL_FORMAT_NV12 ? 2U : 1U);
 
 	/* Update frame buffer pointer. */
 	for (int i = 0; i < CONFIG_NXP_DCIF_FB_NUM; i++) {
@@ -244,6 +290,26 @@ static int nxp_dcif_set_pixel_format(const struct device *dev,
 
 	/* Clear the framebuffer since the frame size may be larger. */
 	memset(config->fb_ptr, 0, data->fb_bytes * CONFIG_NXP_DCIF_FB_NUM);
+
+	/*
+	 * Propagate the new format to the layer's own FORMAT bits. This is a
+	 * no-op the first time (called from nxp_dcif_init() before DCIF_Init()
+	 * resets the layer registers, which then applies the real config with
+	 * this same data->format), but it is the only place a *later*
+	 * set_pixel_format() call -- e.g. an application switching to NV12 at
+	 * runtime -- reaches hardware; nxp_dcif_init()'s own DCIF_SetLayerConfig()
+	 * call only ever runs once, at that first init_pixel_format value.
+	 */
+	dcif_layer_config_t layer_config = {0};
+
+	layer_config.enable = true;
+	layer_config.format = data->format;
+	layer_config.width = config->output_config.width;
+	layer_config.height = config->output_config.height;
+	layer_config.globalAlpha = 0xFFU;
+	layer_config.alphaBlendMode = kDCIF_AlphaBlendOverride;
+
+	DCIF_SetLayerConfig(config->base, NXP_DCIF_LAYER, &layer_config);
 
 	return 0;
 }
@@ -401,6 +467,11 @@ static int nxp_dcif_init(const struct device *dev)
 	/* Program the initial framebuffer and start output. */
 	DCIF_SetLayerStride(config->base, NXP_DCIF_LAYER, data->pitch_bytes);
 	DCIF_SetLayerAddr(config->base, NXP_DCIF_LAYER, (uint32_t)data->active_fb);
+	if (data->format == kDCIF_LayerPixelFormatNV21) {
+		DCIF_SetLayerUVAddr(config->base, NXP_DCIF_LAYER,
+				    (uint32_t)data->active_fb +
+					    data->pitch_bytes * config->output_config.height);
+	}
 	DCIF_TriggerLayerShadowLoad(config->base, NXP_DCIF_LAYER);
 	DCIF_EnableOutput(config->base, true);
 
