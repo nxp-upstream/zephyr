@@ -1,0 +1,104 @@
+# SPDX-FileCopyrightText: Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config USBH_CDC_NCM_CLASS
+	bool "USB Communication Device Class (NCM) support [EXPERIMENTAL]"
+	select EXPERIMENTAL
+	select NET_L2_ETHERNET
+	help
+	  USB Host Communication Device Class - Network Control Model (CDC-NCM)
+	  implementation.
+
+	  Enables support for USB CDC-NCM devices (for example, USB Ethernet
+	  adapters) and exposes them as Ethernet network interfaces.
+
+if USBH_CDC_NCM_CLASS
+
+config USBH_CDC_NCM_ETH_DRV_NAME
+	string "Ethernet interface name"
+	default "usbh_cdc_ncm_eth"
+	help
+	  This option sets the driver name and name of the network interface
+	  in your host system. If there are multiple network interfaces
+	  defined, then this value is used as a prefix and the interface names
+	  will be usbh_cdc_ncm_eth0, usbh_cdc_ncm_eth1, etc.
+
+config USBH_CDC_NCM_MAX_SEGMENT_SIZE
+	int "Maximum supported Ethernet frame size"
+	default 1514
+	range 60 1522
+	help
+	  Maximum Ethernet frame size (excluding FCS) supported by the host.
+
+	  Typical values (excluding FCS):
+
+	  - 60: Minimum Ethernet frame size
+	  - 1514: Standard Ethernet frame (1500 MTU + 14-byte header)
+	  - 1522: Ethernet frame with VLAN tag (802.1Q)
+
+	  Used as an upper bound for wMaxSegmentSize in the Ethernet Networking
+	  Functional Descriptor.
+
+	  The effective frame size is limited by both the device-reported value
+	  and this host setting.
+
+config USBH_CDC_NCM_MAX_NTB_SIZE
+	int "Maximum NTB size"
+	default 2048
+	range 2048 16384
+	help
+	  Size of the buffers used to build and receive the NCM Transfer Blocks
+	  (NTB).
+
+	  This is also used as the initial value for the maximum NTB size the
+	  device is allowed to send to the host (SetNtbInputSize), clamped to
+	  the maximum size reported by the device. The host shall select at
+	  least 2048 bytes (NCM100.pdf, 7.2.7).
+
+config USBH_CDC_NCM_DEFAULT_MAC_ADDR_UNICODE_LANGID
+	hex "Default LANGID for MAC address string descriptor"
+	default 0x0409
+	help
+	  This option specifies the default USB language ID (LANGID) used to
+	  retrieve the MAC address string descriptor from the CDC-NCM device.
+
+	  If the device does not support the configured LANGID, the driver will
+	  automatically fall back to one of the supported LANGIDs reported by
+	  the device.
+
+	  Common values:
+
+	  - 0x0409: English (United States) [default]
+	  - 0x0804: Chinese (Simplified)
+
+config USBH_CDC_NCM_TX_PIPELINE_DEPTH
+	int "TX pipeline depth"
+	default 1
+	range 1 16
+	help
+	  Number of concurrent USB bulk OUT transfers used for NTB
+	  transmission.
+
+	  Increasing this value improves throughput by allowing multiple
+	  transfers to be in flight simultaneously, reducing USB bus idle time.
+
+	  Higher values increase memory usage and latency per packet.
+
+config USBH_CDC_NCM_RX_PIPELINE_DEPTH
+	int "RX pipeline depth"
+	default 1
+	range 1 16
+	help
+	  Number of concurrent USB bulk IN transfers used for NTB reception.
+
+	  Higher values reduce the likelihood of packet drops by ensuring
+	  buffers are available for incoming data and minimizing USB receive
+	  stalls, at the cost of additional memory usage.
+
+module = USBH_CDC_NCM
+module-str = "usbh cdc_ncm"
+default-count = 1
+source "subsys/logging/Kconfig.template.log_config"
+source "subsys/usb/common/Kconfig.template.instances_count"
+
+endif # USBH_CDC_NCM_CLASS

@@ -14,9 +14,10 @@
  *
  * Header follows the Class Definitions for
  * Communications Devices Specification (CDC120-20101103-track.pdf),
- * PSTN Devices Specification (PSTN120.pdf) and
- * Ethernet Control Model Devices Specification (ECM120.pdf).
- * Header is limited to ACM and ECM Subclasses.
+ * PSTN Devices Specification (PSTN120.pdf),
+ * Ethernet Control Model Devices Specification (ECM120.pdf) and
+ * Network Control Model Devices Specification (NCM100.pdf).
+ * Header is limited to ACM, ECM and NCM Subclasses.
  */
 
 #ifndef ZEPHYR_INCLUDE_USB_CLASS_USB_CDC_H_
@@ -319,6 +320,86 @@ struct cdc_ncm_descriptor {
 	uint8_t bDescriptorSubtype;
 	uint16_t bcdNcmVersion;
 	uint8_t bmNetworkCapabilities;
+} __packed;
+
+/**
+ * @brief NCM Functional Descriptor bmNetworkCapabilities bits
+ * @note NCM100.pdf, 6.2.1, Table 6-2
+ */
+#define USB_CDC_NCM_NCAP_ETH_FILTER		BIT(0)
+#define USB_CDC_NCM_NCAP_NET_ADDRESS		BIT(1)
+#define USB_CDC_NCM_NCAP_ENCAP_COMMAND		BIT(2)
+#define USB_CDC_NCM_NCAP_MAX_DATAGRAM_SIZE	BIT(3)
+#define USB_CDC_NCM_NCAP_CRC_MODE		BIT(4)
+#define USB_CDC_NCM_NCAP_NTB_INPUT_SIZE		BIT(5)
+#define USB_CDC_NCM_NCAP_EXTENDED		BIT(7)
+
+/** NTB format selection values (GetNtbFormat/SetNtbFormat) */
+#define USB_CDC_NCM_NTB16_FORMAT	0x0000
+#define USB_CDC_NCM_NTB32_FORMAT	0x0001
+
+/** bmNtbFormatsSupported bits (GetNtbParameters) */
+#define USB_CDC_NCM_NTB16_SUPPORTED	BIT(0)
+#define USB_CDC_NCM_NTB32_SUPPORTED	BIT(1)
+
+/** NCM CRC mode values (GetCrcMode/SetCrcMode) */
+#define USB_CDC_NCM_CRC_NOT_APPENDED	0x0000
+#define USB_CDC_NCM_CRC_APPENDED	0x0001
+
+/** Minimum NTB size a host is allowed to select (NCM100.pdf, 7.2.7) */
+#define USB_CDC_NCM_NTB_INPUT_SIZE_MIN	2048U
+
+/** NTH16 signature, little-endian "NCMH" (NCM100.pdf, 3.2.1, Table 3-1) */
+#define USB_CDC_NCM_NTH16_SIGNATURE	0x484D434E
+/** NDP16 signature, little-endian "NCM0": datagrams without CRC-32 (Table 3-3, 3.3.3) */
+#define USB_CDC_NCM_NDP16_SIGNATURE_NOCRC	0x304D434E
+/** NDP16 signature, little-endian "NCM1": datagrams with CRC-32 appended (Table 3-3, 3.3.3) */
+#define USB_CDC_NCM_NDP16_SIGNATURE_CRC		0x314D434E
+
+/** NCM Transfer Header for 16-bit NTBs (NTH16) */
+struct usb_cdc_ncm_nth16 {
+	uint32_t dwSignature;
+	uint16_t wHeaderLength;
+	uint16_t wSequence;
+	uint16_t wBlockLength;
+	uint16_t wNdpIndex;
+} __packed;
+
+/** Datagram Pointer Entry used by NDP16 (DPE16) */
+struct usb_cdc_ncm_ndp16_dpe {
+	uint16_t wDatagramIndex;
+	uint16_t wDatagramLength;
+} __packed;
+
+/** NCM Datagram Pointer for 16-bit NTBs (NDP16) */
+struct usb_cdc_ncm_ndp16 {
+	uint32_t dwSignature;
+	uint16_t wLength;
+	uint16_t wNextNdpIndex;
+	struct usb_cdc_ncm_ndp16_dpe dpe[];
+} __packed;
+
+/** NTB Parameter Structure, response to GetNtbParameters (NCM100.pdf, 7.2.1, Table 7-3) */
+struct usb_cdc_ncm_ntb_parameters {
+	uint16_t wLength;
+	uint16_t bmNtbFormatsSupported;
+	uint32_t dwNtbInMaxSize;
+	uint16_t wNdpInDivisor;
+	uint16_t wNdpInPayloadRemainder;
+	uint16_t wNdpInAlignment;
+	uint16_t wReserved;
+	uint32_t dwNtbOutMaxSize;
+	uint16_t wNdpOutDivisor;
+	uint16_t wNdpOutPayloadRemainder;
+	uint16_t wNdpOutAlignment;
+	uint16_t wNtbOutMaxDatagrams;
+} __packed;
+
+/** NTB Input Size Structure, Get/SetNtbInputSize 8-byte form (NCM100.pdf, 7.2.7, Table 7-4) */
+struct usb_cdc_ncm_ntb_input_size {
+	uint32_t dwNtbInMaxSize;
+	uint16_t wNtbInMaxDatagrams;
+	uint16_t wReserved;
 } __packed;
 
 #endif /* ZEPHYR_INCLUDE_USB_CLASS_USB_CDC_H_ */
