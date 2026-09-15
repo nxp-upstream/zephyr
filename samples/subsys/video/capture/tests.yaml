@@ -42,6 +42,24 @@ tests:
     integration_platforms:
       - mimxrt1064_evk/mimxrt1064
       - mimxrt1170_evk/mimxrt1176/cm7
+  sample.video.capture.usbh:
+    tags:
+      - video
+      - usb
+      - samples
+    extra_args:
+      - EXTRA_CONF_FILE="usbh.conf"
+      - platform:frdm_mcxn947/mcxn947/cpu0:SHIELD="lcd_par_s035_8080"
+    extra_configs:
+      - CONFIG_FPU=y
+    depends_on:
+      - usbh
+      - video
+    build_only: true
+    platform_allow:
+      - frdm_mcxn947/mcxn947/cpu0
+    integration_platforms:
+      - frdm_mcxn947/mcxn947/cpu0
   sample.video.capture.shell:
     tags:
       - video

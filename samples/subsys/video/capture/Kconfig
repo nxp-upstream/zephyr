@@ -80,6 +80,19 @@ choice VIDEO_TRANSFORM
 	  The implementation could include "transform.h" which provides helper functions
 	  for setting up and executing the transformation.
 
+config VIDEO_TRANSFORM_NONE
+	bool "No transform"
+	help
+	  Display the captured frames as they come out of the video source.
+
+config VIDEO_TRANSFORM_SW_YUYV
+	bool "Software YUYV to RGB565 conversion"
+	help
+	  Convert the YUYV frames coming from the video source into the RGB565 frames the
+	  display drivers accept, on the CPU. Needed for video sources such as USB webcams
+	  that do not offer a pixel format the display accepts, on boards without a hardware
+	  pixel converter.
+
 endchoice
 
 endmenu

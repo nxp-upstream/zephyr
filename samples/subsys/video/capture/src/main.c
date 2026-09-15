@@ -5,6 +5,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <string.h>
+
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 
@@ -21,9 +23,85 @@ LOG_MODULE_REGISTER(main, CONFIG_LOG_DEFAULT_LEVEL);
  */
 #include "transform.h"
 
+/*
+ * The video source is either a camera described in the devicetree, or a USB webcam attached to
+ * the USB host controller. The two cases need different symbols to even exist, hence the
+ * preprocessor rather than IS_ENABLED().
+ */
+#if defined(CONFIG_USBH_VIDEO_CLASS)
+
+#include <zephyr/usb/usbh.h>
+
+USBH_CONTROLLER_DEFINE(uhs_ctx, DEVICE_DT_GET(DT_NODELABEL(zephyr_uhc0)));
+
+/* Video device name registered by the USB host video class for its first instance */
+#define APP_UVC_DEVICE_NAME "usbh_uvc_0"
+
+static inline const struct device *app_get_camera_dev(void)
+{
+	return device_get_binding(APP_UVC_DEVICE_NAME);
+}
+
+static int app_start_camera_bus(void)
+{
+	int ret;
+
+	ret = usbh_init(&uhs_ctx);
+	if (ret < 0) {
+		LOG_ERR("Failed to initialize USB host support");
+		return ret;
+	}
+
+	ret = usbh_enable(&uhs_ctx);
+	if (ret < 0) {
+		LOG_ERR("Failed to enable USB host support");
+		return ret;
+	}
+
+	return 0;
+}
+
+/*
+ * A webcam is only usable once it has been plugged in and enumerated, which happens
+ * asynchronously. The class driver reports a format as soon as the device is attached.
+ */
+static void app_wait_for_camera(const struct device *const camera_dev)
+{
+	struct video_format fmt = {
+		.type = VIDEO_BUF_TYPE_OUTPUT,
+	};
+
+	LOG_INF("Waiting for a USB video device to be attached");
+
+	while (video_get_format(camera_dev, &fmt) != 0) {
+		k_sleep(K_MSEC(100));
+	}
+
+	LOG_INF("USB video device attached");
+}
+
+#else /* !CONFIG_USBH_VIDEO_CLASS */
+
 #if !DT_HAS_CHOSEN(zephyr_camera)
 #error No camera chosen in devicetree. Missing "--shield" or "--snippet video-sw-generator" flag?
 #endif
+
+static inline const struct device *app_get_camera_dev(void)
+{
+	return DEVICE_DT_GET(DT_CHOSEN(zephyr_camera));
+}
+
+static inline int app_start_camera_bus(void)
+{
+	return 0;
+}
+
+static inline void app_wait_for_camera(const struct device *const camera_dev)
+{
+	ARG_UNUSED(camera_dev);
+}
+
+#endif /* CONFIG_USBH_VIDEO_CLASS */
 
 /* The default transform implementation is a pass-through when no transform device is available */
 int __weak app_setup_video_transform(const struct device *const transform_dev,
@@ -42,6 +120,72 @@ int __weak app_transform_frame(const struct device *const transform_dev,
 	*out_buf = in_buf;
 
 	return 0;
+}
+
+void __weak app_teardown_video_transform(struct video_buffer **out_buf)
+{
+	ARG_UNUSED(out_buf);
+}
+
+/* Lines of black pushed to the display at a time when clearing it */
+#define APP_CLEAR_BAND_LINES 16
+
+/*
+ * Paint the whole panel black once. A video source smaller than the panel only ever covers
+ * part of it, and a display controller comes out of reset with whatever its memory happened
+ * to contain, which would otherwise stay visible around the image.
+ */
+static void app_clear_display(const struct device *const display_dev,
+			      const struct display_capabilities *const caps)
+{
+	struct display_buffer_descriptor buf_desc = {
+		.width = caps->x_resolution,
+		.pitch = caps->x_resolution,
+	};
+	struct video_buffer *vbuf;
+	size_t bytes_per_pixel;
+	uint16_t band;
+	int ret;
+
+	ret = display_clear(display_dev);
+	if (ret == 0) {
+		return;
+	}
+	if (ret != -ENOSYS) {
+		LOG_WRN("Failed to clear the display: %d", ret);
+		return;
+	}
+
+	/* The driver has no clear operation, write black over the panel instead */
+	bytes_per_pixel = DISPLAY_BITS_PER_PIXEL(caps->current_pixel_format) / BITS_PER_BYTE;
+	if (bytes_per_pixel == 0) {
+		LOG_WRN("Unknown display pixel format, not clearing the display");
+		return;
+	}
+
+	band = MIN(APP_CLEAR_BAND_LINES, caps->y_resolution);
+
+	vbuf = video_buffer_aligned_alloc((size_t)caps->x_resolution * band * bytes_per_pixel,
+					  CONFIG_VIDEO_BUFFER_POOL_ALIGN, K_NO_WAIT);
+	if (vbuf == NULL) {
+		LOG_WRN("Not enough video pool memory to clear the display");
+		return;
+	}
+
+	memset(vbuf->buffer, 0, vbuf->size);
+
+	for (uint16_t y = 0; y < caps->y_resolution; y += band) {
+		buf_desc.height = MIN(band, caps->y_resolution - y);
+		buf_desc.buf_size = (size_t)buf_desc.height * caps->x_resolution * bytes_per_pixel;
+
+		ret = display_write(display_dev, 0, y, &buf_desc, vbuf->buffer);
+		if (ret != 0) {
+			LOG_WRN("Failed to clear the display at line %u: %d", y, ret);
+			break;
+		}
+	}
+
+	video_buffer_release(vbuf);
 }
 
 static inline int app_setup_display(const struct device *const display_dev, const uint32_t pixfmt)
@@ -103,8 +247,15 @@ static inline int app_setup_display(const struct device *const display_dev, cons
 		LOG_DBG("Display blanking off not available");
 		ret = 0;
 	}
+	if (ret < 0) {
+		return ret;
+	}
 
-	return ret;
+	/* Read the capabilities again to pick up the pixel format that was just set */
+	display_get_capabilities(display_dev, &capabilities);
+	app_clear_display(display_dev, &capabilities);
+
+	return 0;
 }
 
 static int app_display_frame(const struct device *const display_dev,
@@ -303,6 +454,18 @@ static int app_setup_video_controls(const struct device *const camera_dev)
 	return 0;
 }
 
+static struct video_buffer *app_camera_vbufs[CONFIG_VIDEO_CAM_NUM_BUFS];
+
+static void app_release_video_buffers(void)
+{
+	for (uint8_t i = 0; i < ARRAY_SIZE(app_camera_vbufs); i++) {
+		if (app_camera_vbufs[i] != NULL) {
+			video_buffer_release(app_camera_vbufs[i]);
+			app_camera_vbufs[i] = NULL;
+		}
+	}
+}
+
 static int app_setup_video_buffers(const struct device *const camera_dev,
 				   struct video_caps *const caps,
 				   struct video_format *const fmt)
@@ -329,6 +492,7 @@ static int app_setup_video_buffers(const struct device *const camera_dev,
 			return -ENOMEM;
 		}
 
+		app_camera_vbufs[i] = vbuf;
 		vbuf->type = VIDEO_BUF_TYPE_OUTPUT;
 
 		ret = video_enqueue(camera_dev, vbuf);
@@ -341,11 +505,14 @@ static int app_setup_video_buffers(const struct device *const camera_dev,
 	return 0;
 }
 
-int main(void)
+/*
+ * Configure the camera, stream frames to the display until the camera goes away, then release
+ * everything that was set up so that a new session can start from scratch.
+ */
+static int app_capture_session(const struct device *const camera_dev,
+			       const struct device *const display_dev,
+			       const struct device *const transform_dev)
 {
-	const struct device *const camera_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_camera));
-	const struct device *const display_dev = DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_display));
-	const struct device *transform_dev = NULL;
 	struct video_buffer *camera_vbuf = &(struct video_buffer){};
 	struct video_buffer *transformed_vbuf = &(struct video_buffer){};
 	struct video_format camera_fmt = {
@@ -361,65 +528,54 @@ int main(void)
 	uint32_t last_ts = 0;
 	int ret;
 
-	/* When the video shell is enabled, do not run the capture loop unless requested */
-	if (IS_ENABLED(CONFIG_VIDEO_SHELL) && !IS_ENABLED(CONFIG_VIDEO_SHELL_AND_CAPTURE)) {
-		LOG_INF("Letting the user control the device with the video shell");
-		return 0;
-	}
-
-	transform_dev = DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_videotrans));
-	if (transform_dev == NULL) {
-		transform_dev = DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_videodec));
-	}
-
 	ret = app_query_video_info(camera_dev, &caps, &camera_fmt);
 	if (ret < 0) {
-		goto err;
+		goto out;
 	}
 
 	ret = app_setup_video_selection(camera_dev, &camera_fmt);
 	if (ret < 0) {
-		goto err;
+		goto out;
 	}
 
 	ret = app_setup_video_format(camera_dev, &camera_fmt);
 	if (ret < 0) {
-		goto err;
+		goto out;
 	}
 
 	ret = app_setup_video_frmival(camera_dev, &camera_fmt);
 	if (ret < 0) {
-		goto err;
+		goto out;
 	}
 
 	ret = app_setup_video_controls(camera_dev);
 	if (ret < 0) {
-		goto err;
+		goto out;
 	}
 
 	ret = app_setup_video_transform(transform_dev, &camera_fmt, &transformed_fmt,
 					&transformed_vbuf);
 	if (ret < 0) {
 		LOG_ERR("Unable to setup video transform");
-		goto err;
+		goto out;
 	}
 
 	if (DT_HAS_CHOSEN(zephyr_display)) {
 		ret = app_setup_display(display_dev, transformed_fmt.pixelformat);
 		if (ret < 0) {
-			goto err;
+			goto out;
 		}
 	}
 
 	ret = app_setup_video_buffers(camera_dev, &caps, &camera_fmt);
 	if (ret < 0) {
-		goto err;
+		goto out;
 	}
 
 	ret = video_stream_start(camera_dev, VIDEO_BUF_TYPE_OUTPUT);
 	if (ret < 0) {
 		LOG_ERR("Unable to start capture (interface)");
-		goto err;
+		goto out;
 	}
 
 	LOG_INF("Capture started");
@@ -429,7 +585,7 @@ int main(void)
 		ret = video_dequeue(camera_dev, &camera_vbuf, K_FOREVER);
 		if (ret < 0) {
 			LOG_ERR("Unable to dequeue video buf");
-			goto err;
+			break;
 		}
 
 		LOG_INF("Got frame %u! size: %u; timestamp %u ms (delta %u ms)", frame++,
@@ -440,7 +596,7 @@ int main(void)
 		ret = app_transform_frame(transform_dev, camera_vbuf, &transformed_vbuf);
 		if (ret < 0) {
 			LOG_ERR("Unable to transform video frame");
-			goto err;
+			break;
 		}
 
 		if (DT_HAS_CHOSEN(zephyr_display)) {
@@ -453,9 +609,63 @@ int main(void)
 		ret = video_enqueue(camera_dev, camera_vbuf);
 		if (ret < 0) {
 			LOG_ERR("Unable to requeue video buf");
-			goto err;
+			break;
 		}
 	}
+
+	/* -ENODEV is expected once the camera is detached, the stream is already gone */
+	if (video_stream_stop(camera_dev, VIDEO_BUF_TYPE_OUTPUT) < 0) {
+		LOG_WRN("Unable to stop capture (interface)");
+	}
+
+out:
+	app_teardown_video_transform(&transformed_vbuf);
+	app_release_video_buffers();
+
+	return ret;
+}
+
+int main(void)
+{
+	const struct device *const camera_dev = app_get_camera_dev();
+	const struct device *const display_dev = DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_display));
+	const struct device *transform_dev = NULL;
+	int ret;
+
+	/* When the video shell is enabled, do not run the capture loop unless requested */
+	if (IS_ENABLED(CONFIG_VIDEO_SHELL) && !IS_ENABLED(CONFIG_VIDEO_SHELL_AND_CAPTURE)) {
+		LOG_INF("Letting the user control the device with the video shell");
+		return 0;
+	}
+
+	if (camera_dev == NULL || !device_is_ready(camera_dev)) {
+		LOG_ERR("Video source device is not ready");
+		return 0;
+	}
+
+	ret = app_start_camera_bus();
+	if (ret < 0) {
+		goto err;
+	}
+
+	transform_dev = DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_videotrans));
+	if (transform_dev == NULL) {
+		transform_dev = DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_videodec));
+	}
+
+	do {
+		app_wait_for_camera(camera_dev);
+
+		ret = app_capture_session(camera_dev, display_dev, transform_dev);
+
+		/*
+		 * A detached camera is not an error for a hotpluggable video source: wait for the
+		 * next one instead of giving up.
+		 */
+		if (IS_ENABLED(CONFIG_USBH_VIDEO_CLASS) && ret == -ENODEV) {
+			LOG_INF("Video source detached, waiting for it to come back");
+		}
+	} while (IS_ENABLED(CONFIG_USBH_VIDEO_CLASS) && ret == -ENODEV);
 
 err:
 	LOG_ERR("Aborting sample");

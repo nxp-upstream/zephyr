@@ -36,6 +36,10 @@ Supported boards and camera modules include:
 Also :zephyr:board:`arduino_nicla_vision` can be used in this sample as capture device, in that case
 The user can transfer the captured frames through on board USB.
 
+Instead of a camera described in the devicetree, a USB webcam attached to a USB host controller
+can be used as the video source. This needs a board with a ``zephyr_uhc0`` USB host controller,
+such as :zephyr:board:`frdm_mcxn947`, and a webcam that offers the ``YUYV`` pixel format.
+
 Wiring
 ******
 
@@ -127,6 +131,23 @@ specifying the shields, and using :ref:`snippet-video-sw-generator`:
    :snippets: video-sw-generator
    :goals: build
    :compact:
+
+To capture from a USB webcam instead of a devicetree camera, add the ``usbh.conf`` configuration
+fragment. It turns on the USB host stack and its video class, asks the webcam for ``YUYV`` and
+enables ``CONFIG_VIDEO_TRANSFORM_SW_YUYV``, which converts the frames to the RGB565 the display
+drivers accept:
+
+.. zephyr-app-commands::
+   :zephyr-app: samples/subsys/video/capture
+   :board: frdm_mcxn947/mcxn947/cpu0
+   :shield: lcd_par_s035_8080
+   :gen-args: -DEXTRA_CONF_FILE=usbh.conf
+   :goals: build
+   :compact:
+
+The webcam is plugged into the high-speed USB connector of the board, not the debug connector.
+It can be attached and detached while the sample runs: the sample waits for a webcam, streams
+from it, and goes back to waiting when it is unplugged.
 
 For controlling the camera device using shell commands instead of continuously capturing the data,
 append ``-DCONFIG_VIDEO_SHELL=y`` to the build command:
