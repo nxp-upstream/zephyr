@@ -62,6 +62,20 @@ void soc_trdc_setup(void);
  */
 void soc_trdc_assign_masters(void);
 
+/* MIPI-DSI attach/detach hooks the driver calls; see display_if.c. */
+void imxrt_pre_init_display_interface(void);
+void imxrt_post_init_display_interface(void);
+void imxrt_deinit_display_interface(void);
+
+/*
+ * MIPI-DSI DPHY bit-clock root, configured once at early boot by
+ * soc_early_init_hook() (see soc_mipi_dsi_clock_init() in soc.c) rather than
+ * computed/configured by dsi_mcux_split.c itself. Boards/shields declare a
+ * phy-clock devicetree property matching this fixed value; that driver uses
+ * it for D-PHY timing math and its own bandwidth sanity check.
+ */
+#define SOC_MIPI_DSI_BIT_CLK_HZ MHZ(400)
+
 #ifdef __cplusplus
 }
 #endif

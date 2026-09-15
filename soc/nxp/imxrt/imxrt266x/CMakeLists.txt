@@ -11,6 +11,8 @@ zephyr_sources_ifdef(CONFIG_SOC_SERIES_IMXRT266X_CM85
   trdc_setup.c
 )
 
+zephyr_sources_ifdef(CONFIG_MIPI_DSI display_if.c)
+
 # MPU regions come from the generic arch/arm/core/mpu/arm_mpu_regions.c, which
 # builds them from the chosen nodes: FLASH_0 = zephyr,flash (the XSPI0 NOR
 # window) and SRAM_0 = zephyr,sram (the XSPI1 PSRAM). Everything else, the

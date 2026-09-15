@@ -1411,6 +1411,26 @@ static void ConfigCGUDig_MEDIA(void)
 	rootCfg.mux = kCLOCK_MEDIAPLL_ClockRoot_MAINPLLDIV10;
 	rootCfg.div = 1U;
 	CLOCK_SetRootClock(kCLOCK_Root_MEDIA_mediapll_clk, &rootCfg);
+
+	rootCfg.mux = kCLOCK_MIPIDSI_ESCCLK_ClockRoot_PERI5;
+	rootCfg.div = 2U;
+	CLOCK_SetRootClock(kCLOCK_Root_MEDIA_mipidsi_escclk_divided, &rootCfg);
+
+	rootCfg.mux = kCLOCK_MIPIDSI_REFCLK_ClockRoot_SXOSC;
+	rootCfg.div = 1U;
+	CLOCK_SetRootClock(kCLOCK_Root_MEDIA_mipidsi_refclk, &rootCfg);
+
+	rootCfg.mux = kCLOCK_MIPIDSI_ClockRoot_PERI5;
+	rootCfg.div = 2U;
+	CLOCK_SetRootClock(kCLOCK_Root_MEDIA_mipidsi_clk, &rootCfg);
+
+	rootCfg.mux = kCLOCK_REFORMAT_ClockRoot_PERI5;
+	rootCfg.div = 2U;
+	CLOCK_SetRootClock(kCLOCK_Root_MEDIA_reformat_fclk, &rootCfg);
+
+	rootCfg.mux = kCLOCK_DCPIXEL_ClockRoot_PERI5;
+	rootCfg.div = 2U;
+	CLOCK_SetRootClock(kCLOCK_Root_MEDIA_dcpixel_fclk, &rootCfg);
 }
 
 /*

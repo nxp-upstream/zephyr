@@ -1,0 +1,19 @@
+/*
+ * Copyright 2026, NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&zephyr_lcdif {
+	data-bus-width = "RGB888";
+
+	display-timings {
+		hsync-len = <40>;
+		hfront-porch = <40>;
+		hback-porch = <50>;
+		vsync-len = <2>;
+		vfront-porch = <16>;
+		vback-porch = <14>;
+		clock-frequency = <55760000>;
+	};
+};

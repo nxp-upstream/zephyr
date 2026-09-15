@@ -9,6 +9,7 @@
 #include <nxp/imxrt/imxrt266x/clock/imx_ccm_rev3_rt266x.h>
 #include <zephyr/dt-bindings/gpio/gpio.h>
 #include <zephyr/dt-bindings/i2c/i2c.h>
+#include <zephyr/dt-bindings/mipi_dsi/mipi_dsi.h>
 
 /*
  * i.MX RT266x shared peripheral tree. The CPU, its TCMs and its NVIC
@@ -557,6 +558,22 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		ranges = <0x0 0x4c060000 0x4000>;
+
+		/*
+		 * MIPI-DSI D-PHY PLL reference (MEDIA ROOT 5, MIPIDSI_REFCLK).
+		 * Its only legal mux is SXOSC, so unlike the DSI host's own
+		 * "esc-target" root (self-configured by the mipi_dsi driver from
+		 * esc-rx-clock/esc-tx-clock) this one has nothing to compute at
+		 * runtime; the mipi_dsi node's "ref-source" clocks entry just
+		 * reads back the 24 MHz this declares.
+		 */
+		mipidsi_refclk_rootclk: clock-root@50 {
+			compatible = "nxp,imx-ccm-rev3-root";
+			reg = <0x50 0x10>;
+			nxp,root-id = <IMX_CCM_ROOT_MEDIA_MIPIDSI_REFCLK>;
+			clock-mux = <IMX_CCM_MUX_MIPIDSI_REFCLK_SXOSC>;
+			clock-div = <1>;
+		};
 	};
 
 	/*
@@ -1929,10 +1946,64 @@
 	};
 
 	/*
+	 * MIPI-DSI split_1 host. HOST (0x4C0A0000), VID_IF (0x4C0A0100),
+	 * APB_PKT_IF (0x4C0A0180) and DBI_IF (0x4C0A0200) are contiguous and
+	 * covered by reg below; the D-PHY (DSI2_TX_PHY @0x4C160000) is a
+	 * separate block the Zephyr driver addresses via its own aggregate
+	 * MIPI_DSI_Type, assembled from the device header's DSI2_* pointers
+	 * (fsl_soc_mipi_dsi.h carries no pre-built singleton for this part).
+	 * nxp,lcdif and the panel child node are left for the shield overlay
+	 * to supply, since only a DSI panel shield knows its own timings.
+	 */
+	mipi_dsi: dsi@4c0a0000 {
+		compatible = "nxp,mipi-dsi-split";
+		reg = <0x4c0a0000 0x300>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		interrupts = <332 0>;
+		/*
+		 * "gate" ungates MEDIA ROOT 6 (MIPIDSI). The DPHY bit clock root
+		 * (ROOT 6) is configured once, at early boot, by
+		 * soc_mipi_dsi_clock_init() in soc.c (SOC_MIPI_DSI_BIT_CLK_HZ in
+		 * soc.h) rather than through a clocks cell here, since this SoC's
+		 * mux for it offers no target worth computing at runtime (PERI5
+		 * undivided is the ceiling regardless of what a panel asks for).
+		 *
+		 * "esc-target" carries the escape-clock root's id and PERI5 mux
+		 * (ROOT 4, MIPIDSI_ESCCLK) with a placeholder div/sndDiv; the
+		 * driver self-configures the real dividers at runtime from
+		 * "peri5-source"'s rate and the esc-rx-clock/esc-tx-clock
+		 * properties, the same way nxp_dcif_configure_pixel_clock()
+		 * reprograms its own "source" cell -- so this driver, like that
+		 * one, carries no per-SoC clock identifiers.
+		 *
+		 * "ref-source" reads back the D-PHY PLL reference root (ROOT 5,
+		 * MIPIDSI_REFCLK) that the static mipidsi_refclk_rootclk child
+		 * below already configures.
+		 *
+		 * "pixel-source" reads back the DCPIXEL_FCLK root (ROOT 8) that
+		 * dcif's own "source" cell owns and self-configures, since the
+		 * devicetree-declared pixel clock is only a target -- dcif rounds
+		 * it to an integer PERI5 divider, and this driver needs the rate
+		 * it actually achieved for its own D-PHY bandwidth check.
+		 */
+		clock-names = "gate", "esc-target", "peri5-source", "ref-source", "pixel-source";
+		clocks = <&media_ccm IMX_CCM_CLK(IMX_CCM_LPCG_MEDIA_MIPI_DSI,
+						  IMX_CCM_ROOT_MEDIA_MIPIDSI_CLK)>,
+			 <&media_ccm IMX_CCM_ROOT_CFG(IMX_CCM_ROOT_MEDIA_MIPIDSI_ESCCLK_DIVIDED,
+						       IMX_CCM_MUX_MIPIDSI_ESCCLK_PERI5, 1, 1)>,
+			 <&ccm IMX_CCM_CLK(IMX_CCM_GATE_NONE, IMX_CCM_ROOT_CGU_PERI_ROOTCLK5)>,
+			 <&media_ccm IMX_CCM_CLK(IMX_CCM_GATE_NONE, IMX_CCM_ROOT_MEDIA_MIPIDSI_REFCLK)>,
+			 <&media_ccm IMX_CCM_CLK(IMX_CCM_GATE_NONE, IMX_CCM_ROOT_MEDIA_DCPIXEL_FCLK)>;
+		status = "disabled";
+	};
+
+	/*
 	 * JPEG decoder (MEDIA__JPEGDEC, NS alias 0x4C0C0100 for the core /
 	 * 0x4C0C0000 for the wrapper, MEDIA_JPEGDEC_IRQn = 330). No dedicated
 	 * clock root exists for this peripheral -- only a gate.
 	 */
+
 	jpegdec: jpegdec@4c0c0000 {
 		compatible = "nxp,jpegdec";
 		reg = <0x4c0c0000 0x100>, <0x4c0c0100 0x100>;

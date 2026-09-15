@@ -8,7 +8,9 @@
  * SoC bring-up for the i.MX RT266x (single Cortex-M85): the access-control,
  * TCM, cache and clock steps every RT266x board needs before drivers run.
  * Peripheral gating and clock roots belong to the clock-control driver
- * (nxp,imx-ccm-rev3), driven from devicetree.
+ * (nxp,imx-ccm-rev3), driven from devicetree -- except the MIPI-DSI roots
+ * (see soc_mipi_dsi_clock_init()), fixed here instead of computed by
+ * dsi_mcux_split.c itself.
  */
 
 #include <zephyr/cache.h>
@@ -23,9 +25,11 @@
 #include "soc.h"
 #include "soc_clock.h"
 
+#include <fsl_clock.h>
 #include <fsl_common.h>
 #include <fsl_powercon.h>
-
+#include <fsl_power.h>
+#include <fsl_reset.h>
 /*
  * The ROM leaves SCB->VTOR at 0 and SystemInit() only relocates it for a RAM
  * vector table, so an XIP image has to point VTOR at this one itself before any
@@ -91,6 +95,39 @@ static void soc_release_sleep_hold(void)
 	POWERCON_DisableSleepHold(SYSCON__POWERCON_CMC0_CTRL);
 }
 
+/*
+ * MIPI-DSI's MEDIA_CCM DPHY bit-clock root (see the comment on
+ * ConfigCGUDig_MEDIA() in soc_clock.c for why the other MIPI-DSI leaf roots
+ * otherwise keep their reset values). Compiled in only when a board actually
+ * enables the mipi_dsi node.
+ *
+ * The DPHY bit clock root's mux offers PERI5/VIDEOPLL/VIDEO/MEDIAPLL and only
+ * divides, never multiplies, so PERI5 undivided (400 MHz, SOC_MIPI_DSI_BIT_CLK_HZ
+ * in soc.h) is this SoC's ceiling for it -- not a target tuned to any particular
+ * panel. Boards/shields declare their phy-clock devicetree property to match
+ * this fixed value; dsi_mcux_split.c uses that property for D-PHY timing math and
+ * its own bandwidth sanity check, but does not reprogram this root itself. The
+ * escape clock (two divider stages off a PERI5-derived source) and the D-PHY PLL
+ * reference clock (SXOSC, via the static mipidsi_refclk_rootclk devicetree child)
+ * are both self-configured by dsi_mcux_split.c's mcux_mipi_dsi_init() instead of
+ * here.
+ */
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(mipi_dsi))
+static void soc_mipi_dsi_clock_init(void)
+{
+	clock_root_config_t root_cfg = {0};
+
+	/* Pulse the MIPI-DSI peripheral reset. */
+	RESET_PeripheralReset((reset_ip_name_t)kModCon_MEDIA_MIPI_DSI);
+	/* Enable MIPI-DSI peripheral clock. */
+	CLOCK_EnableClock(kCLOCK_MEDIA_mipi_dsi);
+
+	root_cfg.mux = kCLOCK_MIPIDSI_ClockRoot_PERI5;
+	root_cfg.div = 1U;
+	CLOCK_SetRootClock(kCLOCK_Root_MEDIA_mipidsi_clk, &root_cfg);
+}
+#endif /* DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(mipi_dsi)) */
+
 void soc_reset_hook(void)
 {
 	/*
@@ -135,6 +172,13 @@ void soc_early_init_hook(void)
 	 * it depends on has to be working already.
 	 */
 	soc_clock_init();
+
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(mipi_dsi))
+	/* Needs PERI5 (soc_clock_init() above) and the MEDIA domain powered
+	 * (ConfigCGUDig_MEDIA(), also from soc_clock_init()) already running.
+	 */
+	soc_mipi_dsi_clock_init();
+#endif
 
 	/*
 	 * Last: soc_trdc_assign_masters() writes MEDIA__TRDC, which sits on the

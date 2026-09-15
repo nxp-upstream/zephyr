@@ -20,6 +20,9 @@
 #ifdef CONFIG_HAS_MCUX_CACHE
 #include <fsl_cache.h>
 #endif
+#ifdef CONFIG_MIPI_DSI_MCUX_SPLIT
+#include <zephyr/drivers/mipi_dsi/mipi_dsi_mcux_split.h>
+#endif
 
 LOG_MODULE_REGISTER(display_nxp_dcif, CONFIG_DISPLAY_LOG_LEVEL);
 
@@ -51,6 +54,11 @@ struct nxp_dcif_config {
 	uint32_t pixel_clk_rate;
 	/* Pointer to start of first framebuffer */
 	uint8_t *fb_ptr;
+	/* MIPI-DSI host this DCIF feeds over DPI, if the split_1 driver is built
+	 * (RT266x has exactly one such controller) -- NULL for a parallel-RGB
+	 * panel, where CONFIG_MIPI_DSI_MCUX_SPLIT is not enabled at all.
+	 */
+	const struct device *mipi_dsi_dev;
 };
 
 struct nxp_dcif_data {
@@ -66,6 +74,26 @@ struct nxp_dcif_data {
 	/* Tracks index of next active driver framebuffer */
 	uint8_t next_idx;
 };
+
+/*
+ * Arms the MIPI-DSI host's DPI/video-mode interface, for a DSI-driven panel,
+ * at the same point this driver first starts driving real DPI output itself
+ * -- see nxp_dcif_display_blanking_off() for why neither happens any
+ * earlier, e.g. in nxp_dcif_init(). A no-op when CONFIG_MIPI_DSI_MCUX_SPLIT
+ * is not built (parallel-RGB panel) or before
+ * mcux_mipi_dsi_split_start_video_mode() has anything to do (no panel
+ * attached yet, or already started).
+ */
+static void nxp_dcif_start_mipi_dsi_video_mode(const struct device *dev)
+{
+#ifdef CONFIG_MIPI_DSI_MCUX_SPLIT
+	const struct nxp_dcif_config *config = dev->config;
+
+	if (config->mipi_dsi_dev != NULL) {
+		mcux_mipi_dsi_split_start_video_mode(config->mipi_dsi_dev);
+	}
+#endif
+}
 
 static int nxp_dcif_write(const struct device *dev, const uint16_t x, const uint16_t y,
 			   const struct display_buffer_descriptor *desc, const void *buf)
@@ -152,6 +180,9 @@ static int nxp_dcif_write(const struct device *dev, const uint16_t x, const uint
 					    data->pitch_bytes * config->output_config.height);
 	}
 	DCIF_TriggerLayerShadowLoad(config->base, NXP_DCIF_LAYER);
+	/* See nxp_dcif_display_blanking_off() for why these aren't in nxp_dcif_init(). */
+	nxp_dcif_start_mipi_dsi_video_mode(dev);
+	DCIF_EnableOutput(config->base, true);
 
 #if CONFIG_NXP_DCIF_FB_NUM != 0
 	/* Update index of active framebuffer */
@@ -210,6 +241,17 @@ static void *nxp_dcif_get_framebuffer(const struct device *dev)
 static int nxp_dcif_display_blanking_off(const struct device *dev)
 {
 	const struct nxp_dcif_config *config = dev->config;
+
+	/*
+	 * Deferred here (and to the first nxp_dcif_write()) rather than done in
+	 * nxp_dcif_init(): DCIF starts driving live DPI signals the instant this
+	 * runs, which -- once mipi_dsi's DPI video interface is armed -- takes
+	 * over the DSI bus. Enabling it during nxp_dcif_init() would race the
+	 * MIPI-DSI panel's own LP-mode init command sequence, sent later at
+	 * POST_KERNEL priority 90 (panel driver) vs. this driver's 85.
+	 */
+	nxp_dcif_start_mipi_dsi_video_mode(dev);
+	DCIF_EnableOutput(config->base, true);
 
 	return gpio_pin_set_dt(&config->backlight_gpio, 1);
 }
@@ -464,7 +506,11 @@ static int nxp_dcif_init(const struct device *dev)
 	/* Clear external memory, as it is uninitialized */
 	memset(config->fb_ptr, 0, data->fb_bytes * CONFIG_NXP_DCIF_FB_NUM);
 
-	/* Program the initial framebuffer and start output. */
+	/*
+	 * Program the initial framebuffer. Output itself stays off (DISP_ON unset)
+	 * until nxp_dcif_display_blanking_off()/nxp_dcif_write() -- see the comment
+	 * on the former for why.
+	 */
 	DCIF_SetLayerStride(config->base, NXP_DCIF_LAYER, data->pitch_bytes);
 	DCIF_SetLayerAddr(config->base, NXP_DCIF_LAYER, (uint32_t)data->active_fb);
 	if (data->format == kDCIF_LayerPixelFormatNV21) {
@@ -473,7 +519,6 @@ static int nxp_dcif_init(const struct device *dev)
 					    data->pitch_bytes * config->output_config.height);
 	}
 	DCIF_TriggerLayerShadowLoad(config->base, NXP_DCIF_LAYER);
-	DCIF_EnableOutput(config->base, true);
 
 	return 0;
 }
@@ -562,12 +607,14 @@ static DEVICE_API(display, nxp_dcif_api) = {
 					 ? kDCIF_DpiVsyncActiveHigh                                \
 					 : kDCIF_DpiVsyncActiveLow),                               \
 			.format = DT_INST_ENUM_IDX(n, data_bus_width),                             \
-			.displayMode = kDCIF_DpiNormal,                                            \
+			.displayMode = kDCIF_DpiNormal,/*kDCIF_DpiTestColorBarColumn,*/                                            \
 			.frameFetch = kDCIF_DpiVfpBegin,                                           \
 			.txFifoFill = kDCIF_DpiVfpBegin,                                           \
 			.enableBackground = true,                                                  \
 		},                                                                                 \
 		.fb_ptr = NXP_DCIF_FRAMEBUFFER(n),                                                \
+		IF_ENABLED(CONFIG_MIPI_DSI_MCUX_SPLIT,                                             \
+			(.mipi_dsi_dev = DEVICE_DT_GET_ANY(nxp_mipi_dsi_split),))                  \
 	};                                                                                         \
 	DEVICE_DT_INST_DEFINE(n, &nxp_dcif_init, NULL, &nxp_dcif_data_##n,                        \
 			      &nxp_dcif_config_##n, POST_KERNEL, CONFIG_DISPLAY_INIT_PRIORITY,     \
