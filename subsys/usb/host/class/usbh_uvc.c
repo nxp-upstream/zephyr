@@ -1553,7 +1553,7 @@ static int initiate_transfer(struct uvc_host_data *const host_data,
 
 /* Continue existing video transfer */
 static int continue_transfer(struct uvc_host_data *const host_data,
-			     struct uhc_transfer *const xfer, struct video_buffer *vbuf)
+			     struct uhc_transfer *const xfer)
 {
 	struct uvc_stream_iface_info *const stream_info = &host_data->current_stream_iface_info;
 	struct net_buf *buf;
@@ -1697,6 +1697,8 @@ static int stream_iso_req_cb(struct usb_device *const dev, struct uhc_transfer *
 		goto cleanup;
 	}
 
+	/* The buffer being filled is by construction the head of the input queue */
+	__ASSERT_NO_MSG(k_fifo_peek_head(&host_data->fifo_in) == vbuf);
 	(void)k_fifo_get(&host_data->fifo_in, K_NO_WAIT);
 	k_fifo_put(&host_data->fifo_out, vbuf);
 
@@ -1711,20 +1713,33 @@ static int stream_iso_req_cb(struct usb_device *const dev, struct uhc_transfer *
 		k_poll_signal_raise(host_data->sig, VIDEO_BUF_DONE);
 	}
 
+	/*
+	 * Leave the current buffer empty when the application holds them all. The payloads
+	 * received until it queues one back are then dropped instead of being written into a
+	 * buffer it owns, and usbh_uvc_enqueue() picks the next one up.
+	 */
 	vbuf = k_fifo_peek_head(&host_data->fifo_in);
 	if (vbuf != NULL) {
 		vbuf->bytesused = 0;
 		memset(vbuf->buffer, 0, vbuf->size);
-		host_data->current_vbuf = vbuf;
 	}
+	host_data->current_vbuf = vbuf;
 
 	k_mutex_unlock(&host_data->lock);
 
 cleanup:
 	net_buf_unref(buf);
-	if ((atomic_test_bit(&host_data->device_flags, UVC_DEVICE_FLAG_STREAMING)) &&
-	    (vbuf != NULL)) {
-		continue_transfer(host_data, xfer, vbuf);
+	/*
+	 * Keep the transfer going for as long as the stream is enabled, whether or not a buffer
+	 * is available to fill. Dropping it here would silently retire one of the concurrent
+	 * transfers, and nothing would ever start it again.
+	 */
+	if (atomic_test_bit(&host_data->device_flags, UVC_DEVICE_FLAG_STREAMING)) {
+		int err = continue_transfer(host_data, xfer);
+
+		if (err != 0) {
+			LOG_ERR("Failed to continue the video transfer: %d", err);
+		}
 	}
 
 	return 0;
@@ -3100,6 +3115,22 @@ static int usbh_uvc_enqueue(const struct device *dev, struct video_buffer *const
 	vbuf->line_offset = 0;
 
 	k_fifo_put(&host_data->fifo_in, vbuf);
+
+	/*
+	 * The transfer completion callback leaves the current buffer empty when the application
+	 * holds them all, and drops the payloads meanwhile. Take this one into use and let the
+	 * partial frame received in between be discarded, so that capture resumes on a frame
+	 * boundary rather than delivering a frame missing its beginning.
+	 */
+	k_mutex_lock(&host_data->lock, K_FOREVER);
+
+	if (host_data->current_vbuf == NULL) {
+		host_data->current_vbuf = k_fifo_peek_head(&host_data->fifo_in);
+		host_data->vbuf_offset = 0;
+		host_data->save_picture = false;
+	}
+
+	k_mutex_unlock(&host_data->lock);
 
 	return 0;
 }
