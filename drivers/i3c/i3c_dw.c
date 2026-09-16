@@ -183,12 +183,15 @@ LOG_MODULE_REGISTER(i3c_dw, CONFIG_I3C_DW_LOG_LEVEL);
 
 #ifdef CONFIG_I3C_USE_IBI
 #define INTR_MASTER_MASK (INTR_TRANSFER_ERR_STAT | INTR_RESP_READY_STAT | INTR_IBI_THLD_STAT)
-#else
-#define INTR_MASTER_MASK (INTR_TRANSFER_ERR_STAT | INTR_RESP_READY_STAT)
-#endif
 #define INTR_SLAVE_MASK                                                                            \
 	(INTR_TRANSFER_ERR_STAT | INTR_IBI_UPDATED_STAT | INTR_READ_REQ_RECV_STAT |                \
 	 INTR_DYN_ADDR_ASSGN_STAT | INTR_RESP_READY_STAT)
+#else
+#define INTR_MASTER_MASK (INTR_TRANSFER_ERR_STAT | INTR_RESP_READY_STAT)
+#define INTR_SLAVE_MASK                                                                            \
+	(INTR_TRANSFER_ERR_STAT | INTR_READ_REQ_RECV_STAT | INTR_DYN_ADDR_ASSGN_STAT |             \
+	 INTR_RESP_READY_STAT)
+#endif
 
 #define QUEUE_STATUS_LEVEL             0x4c
 #define QUEUE_STATUS_IBI_STATUS_CNT(x) (((x) & GENMASK(28, 24)) >> 24)
@@ -1422,7 +1425,7 @@ static void ibis_handle(const struct device *dev)
 	int32_t i;
 
 	nibis = sys_read32(config->regs + QUEUE_STATUS_LEVEL);
-	nibis = QUEUE_STATUS_IBI_BUF_BLR(nibis);
+	nibis = QUEUE_STATUS_IBI_STATUS_CNT(nibis);
 	for (i = 0; i < nibis; i++) {
 		ibi_stat = sys_read32(config->regs + IBI_QUEUE_STATUS);
 		if (IBI_TYPE_SIRQ(ibi_stat)) {
@@ -1689,12 +1692,14 @@ static int i3c_dw_irq(const struct device *dev)
 			k_sem_give(&data->ibi_sts_sem);
 			sys_write32(INTR_IBI_UPDATED_STAT, config->regs + INTR_STATUS);
 		}
+#endif /* CONFIG_I3C_USE_IBI */
 		/* DA has been assigned, could happen after a IBI HJ request */
 		if (status & INTR_DYN_ADDR_ASSGN_STAT) {
+#ifdef CONFIG_I3C_USE_IBI
 			k_sem_give(&data->sem_hj);
+#endif /* CONFIG_I3C_USE_IBI */
 			sys_write32(INTR_DYN_ADDR_ASSGN_STAT, config->regs + INTR_STATUS);
 		}
-#endif /* CONFIG_I3C_USE_IBI */
 	}
 #endif /* CONFIG_I3C_TARGET */
 
@@ -1928,8 +1933,7 @@ static int dw_i3c_detach_device(const struct device *dev, struct i3c_device_desc
 	struct dw_i3c_i2c_dev_data *dw_i3c_device_data = desc->controller_priv;
 
 	if (dw_i3c_device_data == NULL) {
-		LOG_ERR("%s: %s: device not attached", dev->name, desc->dev->name);
-		return -EINVAL;
+		return -EALREADY;
 	}
 
 	LOG_DBG("%s: Detaching %s", dev->name, desc->dev->name);
@@ -2622,7 +2626,7 @@ static int dw_i3c_recover_bus(const struct device *dev)
 	/* Drain any pending IBIs so the controller is not blocked by
 	 * an unread IBI queue when we try to resume.
 	 */
-	nibis = QUEUE_STATUS_IBI_BUF_BLR(sys_read32(config->regs + QUEUE_STATUS_LEVEL));
+	nibis = QUEUE_STATUS_IBI_STATUS_CNT(sys_read32(config->regs + QUEUE_STATUS_LEVEL));
 	while (nibis--) {
 		(void)sys_read32(config->regs + IBI_QUEUE_STATUS);
 	}

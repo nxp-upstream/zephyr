@@ -381,6 +381,18 @@ ADC
   condition. In-tree boards no longer enable it explicitly in their defconfigs since
   the default already covers them.
 
+* The ``CONFIG_LPADC_CHANNEL_COUNT`` Kconfig option has been removed. The NXP LPADC driver now
+  treats hardware command slots as logical ADC channels and derives the number of logical channels
+  per instance from the ``channel`` child nodes declared for that instance in devicetree, so unused
+  command slots no longer consume RAM. Applications that lowered the Kconfig option to save RAM
+  should simply drop it. An instance that declares no ``channel`` node keeps the full hardware
+  capacity available, so applications that only ever configure channels at runtime through
+  :c:func:`adc_channel_setup` are unaffected; applications that mix both must declare in
+  devicetree the highest channel identifier they set up at runtime. Declaring a channel identifier
+  beyond the number of ``CMD`` registers implemented by the SoC is now a build error instead of a
+  runtime HAL assertion, and :c:func:`adc_read` now rejects an empty channel mask, or one selecting
+  channels beyond that limit, with ``-EINVAL`` instead of silently ignoring it (:github:`116995`).
+
 Analog Devices
 ==============
 
@@ -1974,6 +1986,17 @@ Bluetooth Host
   :kconfig:option:`CONFIG_SYSTEM_WORKQUEUE_STACK_SIZE`, but both stack sizes are
   application-specific and should be validated using stack-usage measurements.
 
+* When :kconfig:option:`CONFIG_BT_GATT_AUTO_READ_CENTRAL_ADDR_RES` is enabled (the
+  default when possible), the host reads the Central Address Resolution characteristic
+  of a bonded peer once when the bond is created, and :c:func:`bt_le_adv_start`,
+  :c:func:`bt_le_ext_adv_create` and :c:func:`bt_le_ext_adv_update_param` now fail
+  with ``-ENOTSUP`` when :c:enumerator:`BT_LE_ADV_OPT_DIR_ADDR_RPA` is used towards a
+  peer known not to support address resolution. Such a peer cannot resolve the target
+  address, so it would never respond to the advertising. Applications that need to know
+  in advance can read the same answer with :c:func:`bt_le_bond_addr_res_support`, and
+  reach those peers with directed advertising towards their identity address instead.
+  Disabling the option restores the previous behavior.
+
 * Selected Bluetooth Host work items now run on the dedicated Bluetooth RX
   workqueue instead of the system workqueue. Application callbacks reached from
   those work items consequently run in the Bluetooth RX thread. This includes
@@ -2225,6 +2248,101 @@ LoRaWAN
 
   These ordering requirements do not apply to the LoRaMac-node backend
   (:kconfig:option:`CONFIG_LORA_MODULE_BACKEND_LORAMAC_NODE`).
+
+Libraries
+*********
+
+Ring Buffer
+===========
+
+The ring buffer API has been reworked to reduce the :c:struct:`ring_buf` size and to make the
+bookkeeping path more efficient. To accommodate these changes, the zero-copy claim/finish API
+(``ring_buf_put_claim()`` / ``ring_buf_put_finish()`` and their ``get`` counterparts) has been
+replaced by the non-stacking :c:func:`ring_buf_put_ptr` and :c:func:`ring_buf_get_ptr`.
+
+The legacy claim/finish API is still available, but only when
+:kconfig:option:`CONFIG_RING_BUFFER` is enabled. New code should use the ``_ptr`` API
+directly.
+
+Enabling :kconfig:option:`CONFIG_RING_BUFFER` selects the legacy ring buffer header, which
+also brings back the other deprecated symbols that are absent from the default header: the entire
+item API (:c:func:`ring_buf_item_init`, :c:func:`ring_buf_item_put`, :c:func:`ring_buf_item_get`,
+:c:func:`ring_buf_item_space_get`, ``RING_BUF_ITEM_DECLARE*`` and ``RING_BUF_ITEM_SIZEOF``) and
+``ring_buf_internal_reset()``. Out-of-tree code that still uses any of these fails to compile with
+no other hint; enabling this option is the switch that restores them while the code is migrated to
+:c:struct:`sys_ringq` and the ``_ptr`` API.
+
+:c:func:`ring_buf_get` no longer accepts a ``NULL`` destination to discard data in the default
+(slim) build; passing ``NULL`` is only tolerated when :kconfig:option:`CONFIG_RING_BUFFER` is
+enabled. To drop data without a destination buffer, advance the read index directly with
+:c:func:`ring_buf_consume`, for example
+``ring_buf_consume(rb, MIN(count, ring_buf_size_get(rb)))``.
+
+Advanced use cases such as **speculative-write-then-cancel** and **backfilling** (modifying a
+previously written header before committing) now rely on the trailing ``offset`` parameter of
+:c:func:`ring_buf_put_ptr` and :c:func:`ring_buf_get_ptr`. The offset is the number of bytes past
+the current write (or read) index that the caller has already tentatively reserved, wrapping
+handled internally. You lay out successive regions by passing an increasing offset, leaving the
+real ring buffer unmodified, and only advance it with :c:func:`ring_buf_commit` (or
+:c:func:`ring_buf_consume`).
+If any step fails you simply return without committing, which is the equivalent of the old
+``ring_buf_put_finish(rb, 0)`` cancellation.
+
+For example, the following claim/finish code:
+
+.. code-block:: c
+
+   int write_pkg(struct ring_buf *rb, const uint8_t *payload, size_t payload_size)
+   {
+           struct hdr *h;
+           uint8_t *ptr;
+           uint32_t claim_size;
+
+           claim_size = ring_buf_put_claim(rb, (uint8_t **)&h, sizeof(*h));
+           if (claim_size < sizeof(*h)) {
+                   ring_buf_put_finish(rb, 0);
+                   return -ENOMEM;
+           }
+
+           claim_size = ring_buf_put_claim(rb, &ptr, payload_size);
+           if (claim_size == 0) {
+                   ring_buf_put_finish(rb, 0);
+                   return -ENOMEM;
+           }
+           h->len = claim_size;
+           /* ... write payload through ptr ... */
+           ring_buf_put_finish(rb, sizeof(*h) + h->len);
+           return h->len;
+   }
+
+would roughly translate to:
+
+.. code-block:: c
+
+   int write_pkg(struct ring_buf *rb, const uint8_t *payload, size_t payload_size)
+   {
+           struct hdr *h;
+           uint8_t *ptr;
+           uint32_t claim_size;
+
+           /* Reserve the header region without committing it. */
+           if (ring_buf_put_ptr(rb, (uint8_t **)&h, 0) < sizeof(*h)) {
+                   return -ENOMEM;
+           }
+
+           /* Expose the region right after the header via a trailing offset. */
+           claim_size = ring_buf_put_ptr(rb, &ptr, sizeof(*h));
+           if (claim_size == 0) {
+                   /* Nothing was committed to rb, so the write is cancelled. */
+                   return -ENOMEM;
+           }
+           h->len = MIN(claim_size, payload_size);
+           /* ... write payload through ptr ... */
+
+           /* Publish header and payload atomically to the real buffer. */
+           ring_buf_commit(rb, sizeof(*h) + h->len);
+           return h->len;
+   }
 
 Other subsystems
 ****************
