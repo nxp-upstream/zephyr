@@ -12,7 +12,7 @@
 # final state of the relevant files from mpipe_dev using git diff. All fixup
 # commits are implicitly squashed since only the final diff is used.
 #
-# Each generated branch starts from BASE_REF (origin/main) and includes:
+# Each generated branch starts from BASE_REF (the local main) and includes:
 #   1. Cherry-picked dependency commits (from previously generated branches)
 #   2. The target's own commit (new files from mpipe_dev)
 #
@@ -29,8 +29,7 @@
 # Requirements:
 #   - Must be run from the zephyr repository root
 #   - Must be on the mpipe_dev branch
-#   - origin/main must be available
-#   - mpipe_dev must be rebased onto origin/main
+#   - mpipe_dev must be rebased onto the local main branch
 
 set -euo pipefail
 
@@ -41,8 +40,8 @@ set -euo pipefail
 # The branch containing all mpipe development (plugins, utils and samples)
 SOURCE_BRANCH="mpipe_dev"
 
-# The upstream branch mpipe_dev is rebased onto; every generated branch starts here
-BASE_REF="origin/main"
+# The local main branch mpipe_dev is rebased onto; every generated branch starts here
+BASE_REF="main"
 
 # Branch name prefix for generated upstream branches
 UPSTREAM_PREFIX="upstream/mpipe"
@@ -574,7 +573,7 @@ check_prerequisites() {
 
     # Verify base ref exists
     if ! git rev-parse --verify "${BASE_REF}" >/dev/null 2>&1; then
-        die "Base ref '${BASE_REF}' not found. Run: git fetch origin"
+        die "Base ref '${BASE_REF}' not found."
     fi
 
     # Verify the source branch is rebased onto the base ref. Exporting from a
@@ -586,7 +585,7 @@ check_prerequisites() {
         local behind
         behind="$(git rev-list --count "${SOURCE_BRANCH}..${BASE_REF}")"
         log_error "'${SOURCE_BRANCH}' is ${behind} commit(s) behind '${BASE_REF}'."
-        die "Rebase first: git fetch origin && git rebase ${BASE_REF} ${SOURCE_BRANCH}"
+        die "Rebase first: git rebase ${BASE_REF} ${SOURCE_BRANCH}"
     fi
 
     # Check for clean working tree
