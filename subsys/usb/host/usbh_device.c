@@ -139,9 +139,9 @@ static void assign_ep_desc_ptr(struct usb_device *const udev,
 	uint8_t idx = USB_EP_GET_IDX(ep) & 0xF;
 
 	if (USB_EP_DIR_IS_IN(ep)) {
-		udev->ep_in[idx].desc = ptr;
+		udev->pipe_in[idx].desc = ptr;
 	} else {
-		udev->ep_out[idx].desc = ptr;
+		udev->pipe_out[idx].desc = ptr;
 	}
 }
 
@@ -354,8 +354,8 @@ static int parse_configuration_descriptor(struct usb_device *const udev)
 static void reset_configuration(struct usb_device *const udev)
 {
 	/* Reset all endpoint pointers */
-	memset(udev->ep_in, 0, sizeof(udev->ep_in));
-	memset(udev->ep_out, 0, sizeof(udev->ep_out));
+	memset(udev->pipe_in, 0, sizeof(udev->pipe_in));
+	memset(udev->pipe_out, 0, sizeof(udev->pipe_out));
 
 	/* Reset all interface pointers */
 	memset(udev->ifaces, 0, sizeof(udev->ifaces));
@@ -634,7 +634,7 @@ int usbh_xfer_enqueue(const struct usb_device *const udev,
 		}
 	}
 
-	ret = uhc_ep_enqueue(ctx->dev, xfer);
+	ret = uhc_pipe_enqueue(ctx->dev, xfer);
 	if (ret != 0 && xfer->anchor != NULL) {
 		usbh_class_xfer_release(xfer->anchor);
 	}

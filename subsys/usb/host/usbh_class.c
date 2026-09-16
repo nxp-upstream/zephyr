@@ -323,7 +323,7 @@ void usbh_class_xfer_dequeue_anchored(struct usbh_class_data *const c_data,
 
 	SYS_DLIST_FOR_EACH_CONTAINER(&c_data->xfer_anchor_list, xfer, anchor_node) {
 		if (xfer->ep == ep) {
-			(void)uhc_ep_dequeue(uhs_ctx->dev, xfer);
+			(void)uhc_pipe_dequeue(uhs_ctx->dev, xfer);
 		}
 	}
 
@@ -344,7 +344,7 @@ void usbh_class_xfer_dequeue_all_anchored(struct usbh_class_data *const c_data)
 	k_mutex_lock(&c_data->mutex, K_FOREVER);
 
 	SYS_DLIST_FOR_EACH_CONTAINER(&c_data->xfer_anchor_list, xfer, anchor_node) {
-		(void)uhc_ep_dequeue(uhs_ctx->dev, xfer);
+		(void)uhc_pipe_dequeue(uhs_ctx->dev, xfer);
 	}
 
 	k_mutex_unlock(&c_data->mutex);
