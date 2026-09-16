@@ -1736,11 +1736,12 @@ cleanup:
 	net_buf_unref(buf);
 
 	/*
-	 * Resubmit the transfer to keep streaming. Unreference the transfer if
-	 * the streaming gets disabled.
+	 * Resubmit the transfer to keep streaming, whether or not a buffer is available to
+	 * fill. Dropping it here would silently retire one of the concurrent transfers, and
+	 * nothing would ever submit it again. Unreference the transfer once streaming stops.
 	 */
 	if (atomic_test_bit(&host_data->device_flags, UVC_DEVICE_FLAG_STREAMING) &&
-	    vbuf != NULL && continue_transfer(host_data, xfer, vbuf) == 0) {
+	    continue_transfer(host_data, xfer) == 0) {
 		return 0;
 	}
 
@@ -2352,6 +2353,24 @@ static int camera_init_controls(const struct device *dev)
 }
 
 /* Initialize UVC host class */
+/*
+ * Bring the frame assembly state back to what it is on a freshly initialized instance. Called
+ * for every device probed, so that a device attached after another one does not inherit the
+ * frame identifier and timestamp the previous one left behind.
+ */
+static void uvc_reset_stream_state(struct uvc_host_data *const host_data)
+{
+	host_data->expect_frame_id = UVC_FRAME_ID_INVALID;
+	host_data->discard_first_frame = 1;
+	host_data->save_picture = false;
+	host_data->current_frame_timestamp = 0;
+	host_data->discard_frame_cnt = 0;
+	host_data->current_vbuf = NULL;
+	host_data->vbuf_offset = 0;
+	host_data->transfer_count = 0;
+	host_data->multi_prime_cnt = CONFIG_USBH_VIDEO_CONCURRENT_TRANSFERS;
+}
+
 static int usbh_uvc_init(struct usbh_class_data *const c_data)
 {
 	const struct device *dev = c_data->priv;
@@ -2367,9 +2386,7 @@ static int usbh_uvc_init(struct usbh_class_data *const c_data)
 	k_fifo_init(&host_data->fifo_out);
 	k_mutex_init(&host_data->lock);
 
-	host_data->expect_frame_id = UVC_FRAME_ID_INVALID;
-	host_data->discard_first_frame = 1;
-	host_data->multi_prime_cnt = CONFIG_USBH_VIDEO_CONCURRENT_TRANSFERS;
+	uvc_reset_stream_state(host_data);
 
 	LOG_INF("UVC host data initialized successfully");
 	return 0;
@@ -2399,6 +2416,7 @@ static int usbh_uvc_probe(struct usbh_class_data *const c_data, struct usb_devic
 	k_mutex_lock(&host_data->lock, K_FOREVER);
 
 	host_data->udev = udev;
+	uvc_reset_stream_state(host_data);
 
 	/* Convert device-level match to interface 0 */
 	if (iface == USBH_CLASS_IFNUM_DEVICE) {

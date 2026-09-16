@@ -131,21 +131,25 @@ void __weak app_teardown_video_transform(struct video_buffer **out_buf)
 #define APP_CLEAR_BAND_LINES 16
 
 /*
- * Paint the whole panel black once. A video source smaller than the panel only ever covers
- * part of it, and a display controller comes out of reset with whatever its memory happened
- * to contain, which would otherwise stay visible around the image.
+ * Paint the whole panel black. The display controller keeps refreshing its memory across a
+ * CPU reset, so the last frame of the previous run stays on the screen until something
+ * overwrites it, and a video source smaller than the panel never covers all of it. Called
+ * before waiting for the video source so that the stale image goes away right away rather
+ * than lingering for as long as the source takes to show up.
  */
-static void app_clear_display(const struct device *const display_dev,
-			      const struct display_capabilities *const caps)
+static void app_clear_display(const struct device *const display_dev)
 {
-	struct display_buffer_descriptor buf_desc = {
-		.width = caps->x_resolution,
-		.pitch = caps->x_resolution,
-	};
+	struct display_capabilities capabilities;
+	struct display_buffer_descriptor buf_desc;
 	struct video_buffer *vbuf;
 	size_t bytes_per_pixel;
 	uint16_t band;
 	int ret;
+
+	if (!device_is_ready(display_dev)) {
+		LOG_ERR("%s: display device not ready.", display_dev->name);
+		return;
+	}
 
 	ret = display_clear(display_dev);
 	if (ret == 0) {
@@ -157,16 +161,19 @@ static void app_clear_display(const struct device *const display_dev,
 	}
 
 	/* The driver has no clear operation, write black over the panel instead */
-	bytes_per_pixel = DISPLAY_BITS_PER_PIXEL(caps->current_pixel_format) / BITS_PER_BYTE;
+	display_get_capabilities(display_dev, &capabilities);
+
+	bytes_per_pixel = DISPLAY_BITS_PER_PIXEL(capabilities.current_pixel_format) / BITS_PER_BYTE;
 	if (bytes_per_pixel == 0) {
 		LOG_WRN("Unknown display pixel format, not clearing the display");
 		return;
 	}
 
-	band = MIN(APP_CLEAR_BAND_LINES, caps->y_resolution);
+	band = MIN(APP_CLEAR_BAND_LINES, capabilities.y_resolution);
 
-	vbuf = video_buffer_aligned_alloc((size_t)caps->x_resolution * band * bytes_per_pixel,
-					  CONFIG_VIDEO_BUFFER_POOL_ALIGN, K_NO_WAIT);
+	vbuf = video_buffer_aligned_alloc((size_t)capabilities.x_resolution * band *
+					  bytes_per_pixel, CONFIG_VIDEO_BUFFER_POOL_ALIGN,
+					  K_NO_WAIT);
 	if (vbuf == NULL) {
 		LOG_WRN("Not enough video pool memory to clear the display");
 		return;
@@ -174,9 +181,13 @@ static void app_clear_display(const struct device *const display_dev,
 
 	memset(vbuf->buffer, 0, vbuf->size);
 
-	for (uint16_t y = 0; y < caps->y_resolution; y += band) {
-		buf_desc.height = MIN(band, caps->y_resolution - y);
-		buf_desc.buf_size = (size_t)buf_desc.height * caps->x_resolution * bytes_per_pixel;
+	buf_desc.width = capabilities.x_resolution;
+	buf_desc.pitch = capabilities.x_resolution;
+
+	for (uint16_t y = 0; y < capabilities.y_resolution; y += band) {
+		buf_desc.height = MIN(band, capabilities.y_resolution - y);
+		buf_desc.buf_size = (size_t)buf_desc.height * capabilities.x_resolution *
+				    bytes_per_pixel;
 
 		ret = display_write(display_dev, 0, y, &buf_desc, vbuf->buffer);
 		if (ret != 0) {
@@ -247,15 +258,8 @@ static inline int app_setup_display(const struct device *const display_dev, cons
 		LOG_DBG("Display blanking off not available");
 		ret = 0;
 	}
-	if (ret < 0) {
-		return ret;
-	}
 
-	/* Read the capabilities again to pick up the pixel format that was just set */
-	display_get_capabilities(display_dev, &capabilities);
-	app_clear_display(display_dev, &capabilities);
-
-	return 0;
+	return ret;
 }
 
 static int app_display_frame(const struct device *const display_dev,
@@ -588,9 +592,9 @@ static int app_capture_session(const struct device *const camera_dev,
 			break;
 		}
 
-		LOG_INF("Got frame %u! size: %u; timestamp %u ms (delta %u ms)", frame++,
-			camera_vbuf->bytesused, camera_vbuf->timestamp,
-			camera_vbuf->timestamp - last_ts);
+		// LOG_INF("Got frame %u! size: %u; timestamp %u ms (delta %u ms)", frame++,
+		// 	camera_vbuf->bytesused, camera_vbuf->timestamp,
+		// 	camera_vbuf->timestamp - last_ts);
 		last_ts = camera_vbuf->timestamp;
 
 		ret = app_transform_frame(transform_dev, camera_vbuf, &transformed_vbuf);
@@ -654,6 +658,15 @@ int main(void)
 	}
 
 	do {
+		/*
+		 * Wipe whatever is on the panel, be it the last frame of the previous run left
+		 * in the controller memory by a reset, or the last frame of the session that
+		 * just ended, before waiting for a source that may take a while to appear.
+		 */
+		if (DT_HAS_CHOSEN(zephyr_display)) {
+			app_clear_display(display_dev);
+		}
+
 		app_wait_for_camera(camera_dev);
 
 		ret = app_capture_session(camera_dev, display_dev, transform_dev);
