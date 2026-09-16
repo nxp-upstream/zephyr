@@ -130,10 +130,10 @@ Sample Output
    [00:00:01.454,000] <inf> mpipe_player: Player shell ready. Interactive controls:
    [00:00:01.464,000] <inf> mpipe_player:   p = play/pause toggle, s = stop, r = replay, q = quit
    [00:00:01.497,000] <inf> mpipe_file_sink: Opened file for write: /SD:/tee_out.mjpeg
-   [00:00:01.890,000] <inf> mpipe_player: Player state: PLAYING
+   [00:00:01.890,000] <inf> mpipe_player: Player #0 state: PLAYING
    [00:00:13.923,000] <inf> mpipe_file_src: End of file
-   [00:00:13.995,000] <inf> mpipe_player: End of stream
-   [00:00:14.359,000] <inf> mpipe_player: Player state: STOPPED
+   [00:00:13.995,000] <inf> mpipe_player: Player #0: end of stream
+   [00:00:14.359,000] <inf> mpipe_player: Player #0 state: STOPPED
 
 The decoded frames appear on the display while the run proceeds, and
 ``/SD:/tee_out.mjpeg`` holds the JPEG frames written by the other branch.
