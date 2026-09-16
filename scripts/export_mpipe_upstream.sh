@@ -157,17 +157,17 @@ SAMPLE_DMIC_I2S_PATHS=(
 
 VID_COMMIT_MSG="mpipe: Add video plugin
 
-Add the vid (Zephyr Video) plugin for the mpipe subsystem. This plugin
-provides video-specific elements that interface with Zephyr's video
-subsystem, enabling building video capture and processing pipelines
-using Zephyr video devices, e.g. camera, m2m devices
+Add the video plugin for the mpipe subsystem. This plugin provides
+video-specific elements that interface with Zephyr's video subsystem,
+enabling building video capture and processing pipelines using Zephyr
+video devices, e.g. camera, m2m devices.
 
 ${SOB_PHIBANG}"
 
 
 IMG_COMMIT_MSG="mpipe: Add image codec plugin
 
-Add the img (Zephyr Image Codec) plugin for the mpipe subsystem.
+Add the image codec plugin for the mpipe subsystem.
 
 The plugin currently includes a JPEG parser element for extracting
 JPEG frames from a byte stream, a SW-based JPEG decoder element for
@@ -194,13 +194,13 @@ ${SOB_TOMAS}"
 
 DISP_COMMIT_MSG="mpipe: Add display plugin
 
-Add the disp (Zephyr Display) plugin for the mpipe subsystem. This
-plugin provides display output elements that interface with Zephyr's
-display subsystem, enabling building video display pipelines that
-output processed frames to physical displays.
+Add the display plugin for the mpipe subsystem. This plugin provides
+display output elements that interface with Zephyr's display API,
+enabling building video and display pipelines that output processed
+frames to physical displays.
 
 The plugin includes a display sink element that renders video frames
-to a Zephyr display device, supporting partial frame updates and
+to a display device, supporting partial frame updates and
 configurable display regions.
 
 ${SOB_PHIBANG}"
@@ -208,15 +208,13 @@ ${SOB_PHIBANG}"
 
 FS_COMMIT_MSG="mpipe: Add filesystem plugin
 
-Add the fs (Zephyr Filesystem) plugin for the mpipe subsystem. This
-plugin provides filesystem I/O elements that interface with Zephyr's
-filesystem subsystem, enabling building pipelines that read from or
-write to files on any Zephyr-supported filesystem (FAT, LittleFS,
-etc.).
+Add the filesystem plugin for the mpipe subsystem. This plugin provides
+filesystem I/O elements that interface with Zephyr's filesystem, enabling
+building pipelines that read from or write to files on any supported
+filesystem (FAT, LittleFS, etc.).
 
-The plugin includes a file source element for reading data and a
-file sink element for writing pipeline data using Zephyr's
-filesystem API.
+The plugin includes a file source element for reading data and a file sink
+element for writing pipeline data.
 
 ${SOB_PHIBANG}"
 
@@ -244,10 +242,7 @@ The utils currently includes:
   shell or automatically on every state change and error through the
   player.
 
-Tests for the dump rendering are included.
-
 Assisted-by: Claude:claude-opus-5
-
 ${SOB_PHIBANG}"
 
 SAMPLE_CAM_DISP_COMMIT_MSG="mpipe: samples: Add camera to display sample
