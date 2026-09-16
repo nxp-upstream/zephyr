@@ -10,6 +10,7 @@
 #include "usbh_class.h"
 #include "usbh_class_api.h"
 #include "usbh_desc.h"
+#include "usbh_device.h"
 #include "usbh_host.h"
 
 LOG_MODULE_REGISTER(usbh_class, CONFIG_USBH_LOG_LEVEL);
@@ -142,6 +143,18 @@ static void usbh_class_probe_function(struct usb_device *const udev,
 		}
 
 		LOG_INF("Class '%s' matches interface %u", c_data->name, iface);
+
+		/* A class matched against the entire device brings up the
+		 * interfaces it uses on its own.
+		 */
+		if (iface != USBH_CLASS_IFNUM_DEVICE) {
+			ret = usbh_device_default_interface_init(udev, iface);
+			if (ret != 0) {
+				LOG_ERR("Failed to enable interface %u pipes (%d)", iface, ret);
+				continue;
+			}
+		}
+
 		c_node->state = USBH_CLASS_STATE_BOUND;
 		c_data->udev = udev;
 		c_data->iface = iface;
