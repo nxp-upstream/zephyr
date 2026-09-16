@@ -149,7 +149,7 @@ Sample Output
    [00:00:00.367,000] <inf> mpipe_vid_buffer_pool: Started buffer pool
    [00:00:00.370,000] <inf> mpipe_player: Player shell ready. Interactive controls:
    [00:00:00.371,000] <inf> mpipe_player:   p = play/pause toggle, s = stop, r = replay, q = quit
-   [00:00:00.380,000] <inf> mpipe_player: Player state: PLAYING
+   [00:00:00.380,000] <inf> mpipe_player: Player #0 state: PLAYING
 
 References
 **********
