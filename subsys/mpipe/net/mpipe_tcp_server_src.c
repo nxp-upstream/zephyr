@@ -10,6 +10,9 @@
 #include <zephyr/net/socket.h>
 #include <zephyr/net_buf.h>
 
+#include <zephyr/mpipe/mpipe_buffer.h>
+#include <zephyr/mpipe/mpipe_dispatch.h>
+
 #include <zephyr/mpipe/net/mpipe_tcp_server_src.h>
 
 #include "tcp_server.h"
@@ -50,26 +53,65 @@ static int mpipe_tcp_server_src_get_property(struct mpipe_object *obj, uint32_t 
 	}
 }
 
+static int mpipe_tcp_server_src_decide_buffer_pool(struct mpipe_src *src,
+						   struct mpipe_dispatch *query)
+{
+	struct mpipe_tcp_server_src *tsrc = (struct mpipe_tcp_server_src *)src;
+
+	tsrc->downstream_pool = query->pool;
+
+	if (tsrc->downstream_pool != NULL) {
+		LOG_DBG("Receiving into the pool offered downstream");
+	}
+
+	return 0;
+}
+
 static int mpipe_tcp_server_src_pool_acquire(struct mpipe_buffer_pool *pool, struct net_buf **buf)
 {
 	struct mpipe_tcp_server_src *tsrc = CONTAINER_OF(pool, struct mpipe_tcp_server_src, pool);
+	struct mpipe_buffer_pool *down = tsrc->downstream_pool;
 	struct mpipe_buffer_meta *meta;
 	struct net_buf *nb;
+	uint32_t used;
 	ssize_t rd;
+	int ret;
 
 	if (tsrc->client_fd < 0) {
 		return -ENOTCONN;
 	}
 
-	nb = net_buf_alloc(pool->nb_pool, K_NO_WAIT);
-	if (nb == NULL) {
-		return -ENOBUFS;
+	/*
+	 * Take the buffer from the downstream pool when it offered one, so the
+	 * received bytes land where the next element wants them. Otherwise fall
+	 * back to this element's own internal chunk pool.
+	 */
+	if (down != NULL && down->acquire_buffer != NULL) {
+		ret = down->acquire_buffer(down, &nb);
+		if (ret != 0 || nb == NULL) {
+			return (ret != 0) ? ret : -ENOBUFS;
+		}
+	} else {
+		nb = net_buf_alloc_len(pool->nb_pool, CONFIG_MPIPE_NET_SRC_BUF_SIZE, K_NO_WAIT);
+		if (nb == NULL) {
+			return -ENOBUFS;
+		}
+
+		meta = mpipe_buffer_get_meta(nb);
+		meta->pool = pool;
+		meta->bytes_used = 0;
 	}
 
+	/* Continue to receive at the end of the filled data */
 	meta = mpipe_buffer_get_meta(nb);
-	meta->pool = pool;
+	used = meta->bytes_used;
+	if (used >= nb->size) {
+		LOG_WRN("Buffer already holds %u bytes with no room left", used);
+		ret = -ENOBUFS;
+		goto unref;
+	}
 
-	rd = zsock_recv(tsrc->client_fd, nb->data, nb->size, 0);
+	rd = zsock_recv(tsrc->client_fd, nb->data + used, nb->size - used, 0);
 	if (rd <= 0) {
 		/* A closed connection is the end of the stream */
 		ret = (rd == 0) ? -ENODATA : -errno;
@@ -81,12 +123,17 @@ static int mpipe_tcp_server_src_pool_acquire(struct mpipe_buffer_pool *pool, str
 		return ret;
 	}
 
-	meta->bytes_used = rd;
+	meta->bytes_used = used + (uint32_t)rd;
 	meta->timestamp = k_uptime_get_32();
-	nb->len = rd;
+	nb->len = meta->bytes_used;
 	*buf = nb;
 
 	return 0;
+
+unref:
+	net_buf_unref(nb);
+
+	return ret;
 }
 
 static int mpipe_tcp_server_src_change_state(struct mpipe_element *self,
@@ -147,12 +194,15 @@ int mpipe_tcp_server_src_init(struct mpipe_tcp_server_src *tsrc, uint8_t id)
 	self->object.get_property = mpipe_tcp_server_src_get_property;
 	self->change_state = mpipe_tcp_server_src_change_state;
 
+	tsrc->src.decide_buffer_pool = mpipe_tcp_server_src_decide_buffer_pool;
+
 	mpipe_buffer_pool_init(&tsrc->pool);
 	tsrc->pool.nb_pool = &mpipe_tcp_server_src_nb_pool;
 	(void)mpipe_buffer_pool_set_req_config(&tsrc->pool, &pool_req);
 	tsrc->pool.acquire_buffer = mpipe_tcp_server_src_pool_acquire;
 	tsrc->src.pool = &tsrc->pool;
 
+	tsrc->downstream_pool = NULL;
 	tsrc->port = CONFIG_MPIPE_NET_SRC_PORT;
 	tsrc->server_fd = -1;
 	tsrc->client_fd = -1;

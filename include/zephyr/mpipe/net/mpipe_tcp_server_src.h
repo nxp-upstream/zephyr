@@ -32,6 +32,8 @@ struct mpipe_tcp_server_src {
 	struct mpipe_src src;
 	/** Receive buffer pool. */
 	struct mpipe_buffer_pool pool;
+	/** Buffer pool offered by the downstream element, or NULL (not owned). */
+	struct mpipe_buffer_pool *downstream_pool;
 	/** TCP port number. */
 	uint16_t port;
 	/** Listening socket, -1 when closed. */
