@@ -36,6 +36,7 @@
 		zephyr,dtcm = &dtcm;
 		zephyr,console = &lpuart0;
 		zephyr,shell-uart = &lpuart0;
+		zephyr,display = &dcif;
 	};
 
 	/*
@@ -47,6 +48,45 @@
 	psram: memory@88000000 {
 		device_type = "memory";
 		reg = <0x88000000 DT_SIZE_M(32)>;
+	};
+
+	/*
+	 * This node describes the GPIO pins of the I2C display FPC interface,
+	 * This interface is standard to several NXP EVKs, and is used with
+	 * several parallel LCD displays (available as zephyr shields)
+	 */
+	nxp_i2c_touch_fpc: i2c-touch-connector {
+		compatible = "nxp,i2c-tsc-fpc";
+		#gpio-cells = <2>;
+		gpio-map-mask = <0xffffffff 0xffffffc0>;
+		gpio-map-pass-thru = <0 0x3f>;
+		gpio-map = <1 0 &pcal6524 19 0>,
+			   <2 0 &pcal6524 3 0>;
+	};
+
+	/* This node describes the GPIO pins of the MIPI FPC interface. */
+	nxp_mipi_connector: mipi-connector {
+		compatible = "gpio-nexus";
+		#gpio-cells = <2>;
+		gpio-map-mask = <0xffffffff 0xffffffc0>;
+		gpio-map-pass-thru = <0 0x3f>;
+		gpio-map = <0 0 &gpio1 28 0>,		/* Pin 1, LEDK (backlight enable) */
+			   <21 0 &pcal6524 19 0>,	/* Pin 21, RESET */
+			   <22 0 &pcal6524 7 0>,	/* Pin 22, LPTE (tear effect) */
+			   <28 0 &pcal6524 20 0>,	/* Pin 28, CTP_RST */
+			   <29 0 &pcal6524 6 0>,	/* Pin 29, CTP_INT */
+			   <32 0 &pca9555 10 0>;	/* Pin 32, PWR_EN */
+	};
+
+	/* This node describes the GPIO pins of the 8080 interface. */
+	nxp_lcd_8080_connector: lcd-8080-connector {
+		compatible = "nxp,lcd-8080";
+		#gpio-cells = <2>;
+		gpio-map-mask = <0xffffffff 0xffffffc0>;
+		gpio-map-pass-thru = <0 0x3f>;
+		gpio-map = <9 0 &gpio1 22 0>,	/* Pin 9, LCD touch INT */
+			   <10 0 &gpio1 21 0>,	/* Pin 10, LCD backlight control */
+			   <11 0 &gpio1 23 0>;	/* Pin 11, LCD and touch reset */
 	};
 };
 
@@ -65,7 +105,27 @@
 	status = "okay";
 };
 
+&lpi2c0 {
+	status = "okay";
+};
+
+&lpi2c1 {
+	status = "okay";
+};
+
+&media_ccm {
+	status = "okay";
+};
+
+&jpegdec {
+	status = "okay";
+};
+
 &gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
 	status = "okay";
 };
 
@@ -120,3 +180,20 @@
 		};
 	};
 };
+
+zephyr_lcdif: &dcif {
+	/* PCA9555 pin 9: Parallel RGB backlight-enable. */
+	backlight-gpios = <&pca9555 9 GPIO_ACTIVE_HIGH>;
+	/* PCAL6524 pin 16: Parallel RGB power-enable. */
+	power-gpios = <&pcal6524 16 GPIO_ACTIVE_HIGH>;
+};
+
+zephyr_mipi_dbi_parallel: &dcif {};
+
+nxp_touch_i2c: &lpi2c1 {};
+
+nxp_mipi_i2c: &lpi2c0 {};
+
+nxp_8080_touch_panel_i2c: &lpi2c0 {};
+
+zephyr_mipi_dsi: &mipi_dsi {};
