@@ -8,19 +8,16 @@
 #include <nxp/mcx/mcxw/nxp_mcxw70.dtsi>
 #include "frdm_mcxw70_common.dtsi"
 
-&flash {
-	partitions {
-		ranges;
-		#address-cells = <1>;
-		#size-cells = <1>;
-
-		storage_partition: partition@17a000 {
-			compatible = "zephyr,mapped-partition";
-			label = "storage";
-			reg = <0x17a000 DT_SIZE_K(24)>;
-		};
-	};
-};
+/*
+ * FLW (Flash Logical Window, base 0x800000)
+ *
+ * The FLW hardware window skips the NBU region and maps the application
+ * code area starting at physical address determined by the following:
+ *
+ *     FLW_zero_offset -> flash_base_addr + NBU_size + 32kB padding
+ *
+ * With NBU of size 352kB (0x58000) the FLW window is 1184kB large (0x128000)
+ */
 
 &flw {
 	partitions {
@@ -28,10 +25,29 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 
-		code_partition: partition@0 {
+		boot_partition: partition@0 {
 			compatible = "zephyr,mapped-partition";
-			label = "code";
-			reg = <0x0 DT_SIZE_K(1160)>;
+			label = "mcuboot";
+			reg = <0x0 DT_SIZE_K(64)>;
+			read-only;
+		};
+
+		slot0_partition: partition@10000 {
+			compatible = "zephyr,mapped-partition";
+			label = "image-0";
+			reg = <0x10000 DT_SIZE_K(512)>;
+		};
+
+		slot1_partition: partition@90000 {
+			compatible = "zephyr,mapped-partition";
+			label = "image-1";
+			reg = <0x90000 DT_SIZE_K(512)>;
+		};
+
+		storage_partition: partition@110000 {
+			compatible = "zephyr,mapped-partition";
+			label = "storage";
+			reg = <0x110000 DT_SIZE_K(24)>;
 		};
 	};
 };
