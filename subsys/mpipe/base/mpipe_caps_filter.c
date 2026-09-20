@@ -64,8 +64,7 @@ static int mpipe_caps_filter_set_caps(struct mpipe_transform *transform,
 		filter->saved_sink_peer = upstream_src_pad;
 		filter->saved_src_peer = downstream_sink_pad;
 
-		upstream_src_pad->peer = downstream_sink_pad;
-		downstream_sink_pad->peer = upstream_src_pad;
+		mpipe_pad_link(upstream_src_pad, downstream_sink_pad);
 	}
 
 	/* Drop the peer links to avoid cycling graph error */
@@ -91,10 +90,8 @@ static int mpipe_caps_filter_change_state(struct mpipe_element *self,
 		 * the upstream/downstream peers back to this element's pads.
 		 */
 		if (filter->saved_sink_peer != NULL && filter->saved_src_peer != NULL) {
-			transform->sink_pad.peer = filter->saved_sink_peer;
-			transform->src_pad.peer = filter->saved_src_peer;
-			filter->saved_sink_peer->peer = &transform->sink_pad;
-			filter->saved_src_peer->peer = &transform->src_pad;
+			mpipe_pad_link(filter->saved_sink_peer, &transform->sink_pad);
+			mpipe_pad_link(&transform->src_pad, filter->saved_src_peer);
 
 			filter->saved_sink_peer = NULL;
 			filter->saved_src_peer = NULL;
