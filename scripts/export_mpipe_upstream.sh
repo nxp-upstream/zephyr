@@ -8,16 +8,17 @@
 # upstream PR branches.
 #
 # The core framework and the utils are upstream already. This script
-# generates clean, single-commit branches for each remaining upstream PR by
-# extracting the final state of the relevant files from mpipe_dev using git
-# diff. All fixup commits are implicitly squashed since only the final diff is
-# used.
+# generates clean branches for each remaining upstream PR by extracting the
+# final state of the relevant files from mpipe_dev. All fixup commits are
+# implicitly squashed since only the final state is used.
 #
 # Each generated branch starts from BASE_REF (the local main) and includes:
 #   1. Cherry-picked dependency commits (from previously generated branches)
 #   2. The target's own commit (new files from mpipe_dev)
+#   3. For a target that ships a test suite, a second commit adding it,
+#      together with the target's build_all entry
 #
-# Compliance checks only verify the target's own commit, not the cherry-picked
+# Compliance checks only verify the target's own commits, not the cherry-picked
 # dependencies (which are checked when their own branch is generated).
 #
 # Usage:
@@ -38,8 +39,9 @@ set -euo pipefail
 # Configuration
 # ===========================================================================
 
-# The branch containing all mpipe development (plugins and samples)
-SOURCE_BRANCH="mpipe_dev"
+# The branch containing all mpipe development (plugins and samples). Set
+# MPIPE_SOURCE_BRANCH to export from a work branch before it lands there.
+SOURCE_BRANCH="${MPIPE_SOURCE_BRANCH:-mpipe_dev}"
 
 # The local main branch mpipe_dev is rebased onto; every generated branch starts here
 BASE_REF="main"
@@ -219,6 +221,26 @@ generic, reusable elements like:
 
 ${SOB_PHIBANG}"
 
+BASE_TESTS_COMMIT_MSG="mpipe: base: Add tests
+
+Cover the queue's size and leak properties. The element is driven
+without a pipeline: READY -> PAUSED creates its thread with an
+indefinite start delay, so what the chain function leaves in the msgq
+can be inspected before PAUSED -> READY drains it.
+
+Cover the application boundary end to end with an app_src to app_sink
+pipeline: callback and pull delivery in order with the payload size,
+a puller that lags losing arrivals rather than stalling the pipeline,
+the in-place alloc and push path, the argument checks and what a full
+pool or queue report without waiting, a stop with buffers pending
+releasing them without an EOS, and two declared capabilities with
+nothing in common failing to negotiate. The delivery case runs three
+times and checks the negotiated capability each time, since a
+capability written onto a pad rather than kept by the element
+survives only the first run.
+
+${SOB_PHIBANG}"
+
 SAMPLE_CAM_DISP_COMMIT_MSG="mpipe: samples: Add camera to display sample
 
 Add the cam_disp sample application demonstrating how to build a
@@ -334,6 +356,39 @@ TARGET_BUILD_TEST=(
 
 # Path to the shared build_all testcase file (relative to repo root).
 BUILD_ALL_TESTCASE="tests/subsys/mpipe/build_all/tests.yaml"
+
+# ===========================================================================
+# Test suite map: target -> paths of its test suite, and the message of the
+# commit adding it
+#
+# A target listed here gets a second commit on its branch, right after the
+# one adding the plugin, holding every test of the target: the suite and the
+# build_all entry. A target without a suite has only the build_all entry,
+# which then goes with the plugin commit.
+# ===========================================================================
+
+declare -A TARGET_TEST_PATHS
+TARGET_TEST_PATHS=(
+    [base]="tests/subsys/mpipe/base/"
+)
+
+declare -A TARGET_TEST_COMMIT_MSG
+TARGET_TEST_COMMIT_MSG=(
+    [base]="${BASE_TESTS_COMMIT_MSG}"
+)
+
+# Number of commits a target adds on top of its dependencies.
+#
+# Args: $1=target_name
+target_commit_count() {
+    local target="$1"
+
+    if [ -n "${TARGET_TEST_PATHS[${target}]:-}" ]; then
+        echo 2
+    else
+        echo 1
+    fi
+}
 
 # ===========================================================================
 # Helpers
@@ -611,6 +666,10 @@ generate_branch() {
             log_info "  [DRY RUN] Would cherry-pick from: ${deps}"
         fi
         log_info "  [DRY RUN] With files from ${SOURCE_BRANCH} -- ${paths[*]}"
+        if [ -n "${TARGET_TEST_PATHS[${target}]:-}" ]; then
+            log_info "  [DRY RUN] Then a tests commit with files from ${SOURCE_BRANCH}" \
+                     "-- ${TARGET_TEST_PATHS[${target}]} and the build_all entry"
+        fi
         echo ""
         return 0
     fi
@@ -759,9 +818,11 @@ generate_branch() {
     # Append this plugin's own build_all entry. Upstream provides
     # build_all/tests.yaml with only the core entry; each plugin adds exactly
     # its own build test here. Targets without a build test (e.g. samples)
-    # are left untouched.
+    # are left untouched, and a target with a test suite adds the entry in
+    # its tests commit below instead.
     local build_test="${TARGET_BUILD_TEST[${target}]:-}"
-    if [ -n "${build_test}" ] && [ -f "${BUILD_ALL_TESTCASE}" ]; then
+    local test_paths="${TARGET_TEST_PATHS[${target}]:-}"
+    if [ -n "${build_test}" ] && [ -z "${test_paths}" ] && [ -f "${BUILD_ALL_TESTCASE}" ]; then
         log_info "  Adding build test '${build_test}' to ${BUILD_ALL_TESTCASE}"
         append_build_test_block "${build_test}"
     fi
@@ -782,12 +843,38 @@ generate_branch() {
     local author="${TARGET_AUTHOR[${target}]}"
     git commit --no-verify --author="${author}" -m "${commit_msg}" --quiet
 
+    # The tests, when the target ships a suite, go in a commit of their own
+    # so the plugin and its tests can be reviewed apart.
+    if [ -n "${test_paths}" ]; then
+        local test_path
+        for test_path in ${test_paths}; do
+            if git ls-tree -r "${SOURCE_BRANCH}" -- "${test_path}" 2>/dev/null | grep -q .; then
+                git checkout "${SOURCE_BRANCH}" -- "${test_path}"
+            fi
+        done
+        if [ -n "${build_test}" ] && [ -f "${BUILD_ALL_TESTCASE}" ]; then
+            log_info "  Adding build test '${build_test}' to ${BUILD_ALL_TESTCASE}"
+            append_build_test_block "${build_test}"
+        fi
+        git add -A
+        if git diff --cached --quiet; then
+            log_error "  No test files found for target '${target}' under ${test_paths}"
+            git checkout "${current_branch}" --quiet
+            return 1
+        fi
+        git commit --no-verify --author="${author}" \
+            -m "${TARGET_TEST_COMMIT_MSG[${target}]}" --quiet
+    fi
+
+    local count
+    count="$(target_commit_count "${target}")"
 
     log_ok "  Branch '${branch}' created successfully"
-    log_info "  Commit: $(git --no-pager log --oneline -1)"
+    log_info "  Commits:"
+    git --no-pager log --oneline "-${count}" | sed 's/^/    /'
 
     # Show stats
-    git --no-pager diff --stat HEAD~1 HEAD | tail -3
+    git --no-pager diff --stat "HEAD~${count}" HEAD | tail -3
 
     # Return to original branch
     git checkout "${current_branch}" --quiet
@@ -848,16 +935,18 @@ check_compliance() {
     return 0
 }
 
-# Run compliance on a target's own commit, the last one on its branch. The
-# cherry-picked dependencies below it were already checked when their own
+# Run compliance on a target's own commits, the last ones on its branch. The
+# cherry-picked dependencies below them were already checked when their own
 # branch was generated.
 #
 # Args: $1=target_name
 check_target_compliance() {
     local target="$1"
     local branch="${UPSTREAM_PREFIX}-${target}"
+    local count
+    count="$(target_commit_count "${target}")"
 
-    check_compliance "${branch}" "HEAD~1..HEAD"
+    check_compliance "${branch}" "HEAD~${count}..HEAD"
 }
 
 # Run doxygen coverage delta check on a branch.
