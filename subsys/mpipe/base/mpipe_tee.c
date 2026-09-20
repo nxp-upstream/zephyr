@@ -23,42 +23,45 @@ static int mpipe_tee_sink_query_fn(struct mpipe_pad *pad, struct mpipe_dispatch 
 
 	switch (query->type) {
 	case MPIPE_DISPATCH_CAPS: {
-		struct mpipe_structure filter;
-		struct mpipe_structure answer;
-		bool answered = false;
+		struct mpipe_structure result;
+		bool has_result = false;
 		int ret;
-
-		filter = *query->caps;
 
 		for (uint8_t i = 0; i < tee->src_pads_num; i++) {
 			if (tee->src_pads[i].peer == NULL) {
 				continue;
 			}
 
-			*query->caps = filter;
+			/* A branch answers in place: ask each one within the filter that arrived */
+			struct mpipe_structure branch_caps = *query->caps;
+			struct mpipe_dispatch peer_query = {
+				.type = MPIPE_DISPATCH_CAPS,
+				.caps = &branch_caps,
+			};
 
-			ret = mpipe_pad_query(tee->src_pads[i].peer, query);
+			ret = mpipe_pad_query(tee->src_pads[i].peer, &peer_query);
 			if (ret != 0) {
 				return ret;
 			}
 
-			if (!answered) {
-				answer = *query->caps;
-				answered = true;
+			if (!has_result) {
+				result = branch_caps;
+				has_result = true;
 			} else {
 				struct mpipe_structure intersected;
 
-				ret = mpipe_structure_intersect(&answer, query->caps, &intersected);
+				ret = mpipe_structure_intersect(&result, &branch_caps,
+								&intersected);
 				if (ret != 0) {
 					return ret;
 				}
 
-				answer = intersected;
+				result = intersected;
 			}
 		}
 
-		if (answered) {
-			*query->caps = answer;
+		if (has_result) {
+			*query->caps = result;
 		}
 
 		return 0;
@@ -71,42 +74,40 @@ static int mpipe_tee_sink_query_fn(struct mpipe_pad *pad, struct mpipe_dispatch 
 				continue;
 			}
 
-			/* Hand each branch a clean slate, not the previous one's proposal */
-			query->pool = NULL;
-			query->pool_cfg = (struct mpipe_buffer_pool_config){0};
+			struct mpipe_dispatch peer_query = {
+				.type = MPIPE_DISPATCH_BUFFER_POOL,
+				.caps = query->caps,
+			};
 
-			int ret = mpipe_pad_query(tee->src_pads[i].peer, query);
+			int ret = mpipe_pad_query(tee->src_pads[i].peer, &peer_query);
 
 			if (ret != 0) {
 				return ret;
 			}
 
-			/* Get pool configs from pool or standalone config */
-			struct mpipe_buffer_pool *pool = query->pool;
-
-			struct mpipe_buffer_pool_config *cfg =
-				(pool != NULL) ? &pool->config : &query->pool_cfg;
+			/* The proposal is a pool's config or a standalone one */
+			const struct mpipe_buffer_pool_config *cfg =
+				(peer_query.pool != NULL) ? &peer_query.pool->config
+							  : &peer_query.pool_cfg;
 
 			/* Combine all downstream branch's pool config proposals */
-			if (cfg != NULL) {
-				merged.size = MAX(merged.size, cfg->size);
-				merged.min_buffers = MAX(merged.min_buffers, cfg->min_buffers);
-				int align = sys_lcm(merged.align, cfg->align);
+			merged.size = MAX(merged.size, cfg->size);
+			merged.min_buffers = MAX(merged.min_buffers, cfg->min_buffers);
+			int align = sys_lcm(merged.align, cfg->align);
 
-				if (align == 0 && cfg->align != 0) {
-					merged.align = cfg->align;
-				} else {
-					merged.align = align;
-				}
+			if (align == 0 && cfg->align != 0) {
+				merged.align = cfg->align;
+			} else {
+				merged.align = align;
 			}
 		}
+
 		/*
-		 * Discard all downstream pool proposals.
-		 * Upstream will use its own pool; if a downstream branch cannot
-		 * use the buffer, it will need to copy into its own pool.
+		 * The merge is the answer: several branches cannot share one pool,
+		 * so no branch's pool travels up. Upstream allocates from its own,
+		 * and a branch that cannot use those buffers copies into its own pool.
 		 */
 		query->pool_cfg = merged;
-		/* The merge is the answer: no single branch's pool may travel up */
 		query->pool = NULL;
 
 		return 0;
@@ -139,7 +140,11 @@ static int mpipe_tee_sink_event_fn(struct mpipe_pad *pad, struct mpipe_dispatch 
 			}
 
 			if (is_caps) {
-				/* Hand each branch the capability that arrived */
+				/*
+				 * A branch transform replaces the event's capability in
+				 * place with what crosses to its far side: hand each
+				 * branch the one that arrived.
+				 */
 				*event->caps = evt_caps;
 
 				ret = mpipe_pad_set_caps(&tee->src_pads[i], &evt_caps);

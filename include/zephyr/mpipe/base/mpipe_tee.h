@@ -40,6 +40,11 @@ enum mpipe_prop_base_tee {
  *
  * The tee element receives buffers on its single sink pad and
  * broadcasts them to all of its source pads.
+ *
+ * The branches share the buffers upstream allocates. The tee never forwards
+ * a downstream pool to upstream, since several branches cannot share one:
+ * only the merged pool configuration of the branches travels up, and a
+ * branch that cannot use those buffers copies into its own pool.
  */
 struct mpipe_tee {
 	/** Base element structure */
