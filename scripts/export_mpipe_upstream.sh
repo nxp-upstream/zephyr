@@ -7,10 +7,11 @@
 # Export the Multimedia Pipeline (mpipe) plugins and samples from mpipe_dev to
 # upstream PR branches.
 #
-# The core framework is upstream already. This script generates clean,
-# single-commit branches for each remaining upstream PR by extracting the
-# final state of the relevant files from mpipe_dev using git diff. All fixup
-# commits are implicitly squashed since only the final diff is used.
+# The core framework and the utils are upstream already. This script
+# generates clean, single-commit branches for each remaining upstream PR by
+# extracting the final state of the relevant files from mpipe_dev using git
+# diff. All fixup commits are implicitly squashed since only the final diff is
+# used.
 #
 # Each generated branch starts from BASE_REF (the local main) and includes:
 #   1. Cherry-picked dependency commits (from previously generated branches)
@@ -37,7 +38,7 @@ set -euo pipefail
 # Configuration
 # ===========================================================================
 
-# The branch containing all mpipe development (plugins, utils and samples)
+# The branch containing all mpipe development (plugins and samples)
 SOURCE_BRANCH="mpipe_dev"
 
 # The local main branch mpipe_dev is rebased onto; every generated branch starts here
@@ -103,15 +104,6 @@ FS_PATHS=(
 BASE_PATHS=(
     "subsys/mpipe/base/"
     "include/zephyr/mpipe/base/"
-)
-
-# utils (helper utilities built on top of the core, e.g. the mpipe_player
-# pipeline controller). Directory globs so future files under utils/ are
-# picked up automatically.
-UTILS_PATHS=(
-    "subsys/mpipe/utils/"
-    "include/zephyr/mpipe/utils/"
-    "tests/subsys/mpipe/utils/"
 )
 
 
@@ -227,23 +219,6 @@ generic, reusable elements like:
 
 ${SOB_PHIBANG}"
 
-UTILS_COMMIT_MSG="mpipe: Add utils
-
-Add the utils helpers. These are optional, reusable utilities built on
-top of the subsys to simplify application development.
-
-The utils currently includes:
-- mpipe_player, a small pipeline controller that drives a pipeline
-  through its states and exposes simple play/pause/stop/replay/quit
-  controls (usable from a shell).
-- mpipe_dump, which renders a pipeline topology, element states and the
-  negotiated caps on each link as a Graphviz graph, on demand from the
-  shell or automatically on every state change and error through the
-  player.
-
-Assisted-by: Claude:claude-opus-5
-${SOB_PHIBANG}"
-
 SAMPLE_CAM_DISP_COMMIT_MSG="mpipe: samples: Add camera to display sample
 
 Add the cam_disp sample application demonstrating how to build a
@@ -304,15 +279,12 @@ TARGET_DEPS=(
     [disp]=""
     [fs]=""
     [base]=""
-    [utils]=""
     [sample-cam_disp]="${UPSTREAM_PREFIX}-base ${UPSTREAM_PREFIX}-vid \
-        ${UPSTREAM_PREFIX}-disp ${UPSTREAM_PREFIX}-utils"
+        ${UPSTREAM_PREFIX}-disp"
     [sample-jpeg_dec]="${UPSTREAM_PREFIX}-base ${UPSTREAM_PREFIX}-vid \
-        ${UPSTREAM_PREFIX}-img ${UPSTREAM_PREFIX}-disp ${UPSTREAM_PREFIX}-fs \
-        ${UPSTREAM_PREFIX}-utils"
+        ${UPSTREAM_PREFIX}-img ${UPSTREAM_PREFIX}-disp ${UPSTREAM_PREFIX}-fs"
     [sample-tee_dec]="${UPSTREAM_PREFIX}-base ${UPSTREAM_PREFIX}-vid \
-        ${UPSTREAM_PREFIX}-img ${UPSTREAM_PREFIX}-disp ${UPSTREAM_PREFIX}-fs \
-        ${UPSTREAM_PREFIX}-utils"
+        ${UPSTREAM_PREFIX}-img ${UPSTREAM_PREFIX}-disp ${UPSTREAM_PREFIX}-fs"
     [sample-fs]="${UPSTREAM_PREFIX}-fs"
     [sample-dmic_i2s]="${UPSTREAM_PREFIX}-base ${UPSTREAM_PREFIX}-aud"
 )
@@ -334,7 +306,6 @@ TARGET_AUTHOR=(
     [disp]="${AUTHOR_PHIBANG}"
     [fs]="${AUTHOR_PHIBANG}"
     [base]="${AUTHOR_PHIBANG}"
-    [utils]="${AUTHOR_PHIBANG}"
     [sample-cam_disp]="${AUTHOR_PHIBANG}"
     [sample-jpeg_dec]="${AUTHOR_PHIBANG}"
     [sample-tee_dec]="${AUTHOR_PHIBANG}"
@@ -346,14 +317,13 @@ TARGET_AUTHOR=(
 # Build-all test map: target -> testcase name in build_all/tests.yaml
 #
 # tests/subsys/mpipe/build_all/tests.yaml in the source branch is a single
-# file that contains one build_only entry per plugin, plus the core entry that
-# is upstream already. When exporting, each plugin commit appends only its own
-# entry. Samples have no build_all entry (empty / unset).
+# file that contains one build_only entry per plugin, plus the core and utils
+# entries that are upstream already. When exporting, each plugin commit appends
+# only its own entry. Samples have no build_all entry (empty / unset).
 # ===========================================================================
 
 declare -A TARGET_BUILD_TEST
 TARGET_BUILD_TEST=(
-    [utils]="mpipe.utils.build"
     [base]="mpipe.base.build"
     [aud]="mpipe.aud.build"
     [vid]="mpipe.vid.build"
@@ -502,7 +472,7 @@ write_build_test_file() {
 
 # Append the named test block to the existing build_all/tests.yaml in the
 # working tree (used by plugin commits, which inherit the file with only the
-# core entry from upstream).
+# core and utils entries from upstream).
 #
 # Args: $1=test_name
 append_build_test_block() {
@@ -1023,11 +993,6 @@ export_base() {
         "${BASE_COMMIT_MSG}" "${BASE_PATHS[@]}"
 }
 
-export_utils() {
-    generate_branch "utils" "${UPSTREAM_PREFIX}-utils" \
-        "${UTILS_COMMIT_MSG}" "${UTILS_PATHS[@]}"
-}
-
 export_sample_cam_disp() {
     generate_branch "sample-cam_disp" "${UPSTREAM_PREFIX}-sample-cam_disp" \
         "${SAMPLE_CAM_DISP_COMMIT_MSG}" "${SAMPLE_CAM_DISP_PATHS[@]}"
@@ -1058,7 +1023,7 @@ export_sample_dmic_i2s() {
 # ===========================================================================
 
 export_all() {
-    TARGETS=(vid img aud disp fs base utils \
+    TARGETS=(vid img aud disp fs base \
         sample-cam_disp sample-jpeg_dec sample-tee_dec \
         sample-fs sample-dmic_i2s)
 
@@ -1077,10 +1042,7 @@ export_all() {
     export_fs
     export_base
 
-    # Utils (exported before the samples that cherry-pick it)
-    export_utils
-
-    # Samples (depend on their plugins and, for most, utils)
+    # Samples (depend on their plugins)
     export_sample_cam_disp
     export_sample_jpeg_dec
     export_sample_tee_dec
@@ -1171,11 +1133,10 @@ Targets:
   disp             Display plugin
   fs               Filesystem plugin
   base             Base plugin
-  utils            Utils helper library
-  sample-cam_disp  Camera-to-display sample (depends on base, vid, disp, utils)
-  sample-jpeg_dec  JPEG decoding sample (depends on base, vid, img, disp, fs, utils)
+  sample-cam_disp  Camera-to-display sample (depends on base, vid, disp)
+  sample-jpeg_dec  JPEG decoding sample (depends on base, vid, img, disp, fs)
   sample-tee_dec   Multi-branch jpeg decoding sample
-                   (depends on base, vid, img, disp, fs, utils)
+                   (depends on base, vid, img, disp, fs)
   sample-fs        Filesystem sample (depends on fs)
   sample-dmic_i2s  DMIC to I2S sample (depends on base, aud)
   all              All of the above (default)
@@ -1206,7 +1167,7 @@ main() {
                 ;;
             --list)
                 echo "Available targets:"
-                echo "  vid img aud disp fs base utils"
+                echo "  vid img aud disp fs base"
                 echo "  sample-cam_disp sample-jpeg_dec"
                 echo "  sample-tee_dec sample-fs sample-dmic_i2s"
                 exit 0
@@ -1219,7 +1180,7 @@ main() {
                 usage
                 exit 0
                 ;;
-            vid|img|aud|disp|fs|base|utils|\
+            vid|img|aud|disp|fs|base|\
             sample-cam_disp|sample-jpeg_dec|\
             sample-tee_dec|sample-fs|sample-dmic_i2s|all)
                 targets+=("$1")
@@ -1267,10 +1228,6 @@ main() {
             base)
                 TARGETS+=(base)
                 export_base
-                ;;
-            utils)
-                TARGETS+=(utils)
-                export_utils
                 ;;
             sample-cam_disp)
                 TARGETS+=(sample-cam_disp)
