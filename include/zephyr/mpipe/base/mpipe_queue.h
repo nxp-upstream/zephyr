@@ -55,11 +55,15 @@ struct mpipe_queue {
 	struct mpipe_thread thread;
 	/** Message queue for storing incoming buffer pointers */
 	struct k_msgq msgq;
-	/** Backing storage for the message queue, its size equals to queue's max size + 2
-	 * (for eos and pause sentinels)
+	/**
+	 * Backing storage for the message queue, sized for the largest queue
+	 * plus the EOS and pause sentinels
 	 */
 	char msgq_buffer[(CONFIG_MPIPE_BASE_QUEUE_MAX_SIZE + 2) * sizeof(void *)];
-	/** Number of buffers the queue can hold bounded by CONFIG_MPIPE_BASE_QUEUE_MAX_SIZE */
+	/**
+	 * Number of buffers the queue can hold, bounded by
+	 * CONFIG_MPIPE_BASE_QUEUE_MAX_SIZE and applied on READY -> PAUSED
+	 */
 	uint8_t size;
 	/**
 	 * Flushing flag. When set (on PAUSED -> READY), the chain_fn drops incoming

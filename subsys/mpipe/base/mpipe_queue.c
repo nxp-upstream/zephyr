@@ -205,6 +205,13 @@ static int mpipe_queue_change_state(struct mpipe_element *element,
 
 	switch (transition) {
 	case MPIPE_STATE_CHANGE_READY_TO_PAUSED:
+		/*
+		 * Apply the configured size: the queue is drained and no thread
+		 * runs, so the msgq can be re-initialized in place. Two slots on
+		 * top of the size hold the EOS and pause sentinels.
+		 */
+		k_msgq_init(&queue->msgq, queue->msgq_buffer, sizeof(void *), queue->size + 2);
+
 		/* Not flushing while active: accept incoming buffers. */
 		atomic_set(&queue->flushing, 0);
 		if (mpipe_thread_create(&queue->thread, mpipe_queue_thread_func, queue, NULL, NULL,
@@ -282,9 +289,8 @@ int mpipe_queue_init(struct mpipe_queue *queue, uint8_t id)
 	/* Default thread priority; caller may override before the first play. */
 	queue->thread.priority = CONFIG_MPIPE_THREAD_DEFAULT_PRIORITY;
 
-	/* Size of the msgq = queue's max size + 2 (for eos and pause sentinels) */
-	k_msgq_init(&queue->msgq, queue->msgq_buffer, sizeof(void *),
-		    CONFIG_MPIPE_BASE_QUEUE_MAX_SIZE + 2);
+	/* Sized for the default; READY -> PAUSED applies the configured size */
+	k_msgq_init(&queue->msgq, queue->msgq_buffer, sizeof(void *), queue->size + 2);
 
 	return 0;
 }
