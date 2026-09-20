@@ -88,3 +88,32 @@ tests:
       - CONFIG_AUDIO_DMIC=y
       - CONFIG_AUDIO_CODEC=y
       - CONFIG_MPIPE_AUD=y
+
+  mpipe.net.build:
+    tags:
+      - subsys
+      - mpipe
+    build_only: true
+    platform_allow:
+      - native_sim/native/64
+    extra_args:
+      - CONFIG_NETWORKING=y
+      - CONFIG_NET_IPV4=y
+      - CONFIG_NET_TCP=y
+      - CONFIG_NET_SOCKETS=y
+      - CONFIG_MPIPE_NET=y
+
+  mpipe.net.build.ipv4_only:
+    tags:
+      - subsys
+      - mpipe
+    build_only: true
+    platform_allow:
+      - native_sim/native/64
+    extra_args:
+      - CONFIG_NETWORKING=y
+      - CONFIG_NET_IPV4=y
+      - CONFIG_NET_IPV6=n
+      - CONFIG_NET_TCP=y
+      - CONFIG_NET_SOCKETS=y
+      - CONFIG_MPIPE_NET=y
