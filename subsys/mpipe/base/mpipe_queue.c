@@ -41,6 +41,9 @@ static int mpipe_queue_get_property(struct mpipe_object *obj, uint32_t id, void 
 	case MPIPE_PROP_BASE_QUEUE_THREAD_PRIORITY:
 		*(int *)val = queue->thread.priority;
 		return 0;
+	case MPIPE_PROP_BASE_QUEUE_LEAK:
+		*(enum mpipe_base_queue_leak *)val = queue->leak;
+		return 0;
 	default:
 		return -ENOTSUP;
 	}
@@ -63,6 +66,16 @@ static int mpipe_queue_set_property(struct mpipe_object *obj, uint32_t id, const
 		return 0;
 	case MPIPE_PROP_BASE_QUEUE_THREAD_PRIORITY:
 		queue->thread.priority = *(const int *)val;
+		return 0;
+	case MPIPE_PROP_BASE_QUEUE_LEAK:
+		enum mpipe_base_queue_leak leak = *(const enum mpipe_base_queue_leak *)val;
+
+		if (leak != MPIPE_BASE_QUEUE_LEAK_NONE && leak != MPIPE_BASE_QUEUE_LEAK_OLDEST &&
+		    leak != MPIPE_BASE_QUEUE_LEAK_NEWEST) {
+			return -EINVAL;
+		}
+
+		queue->leak = leak;
 		return 0;
 	default:
 		return -ENOTSUP;
@@ -87,19 +100,54 @@ static int mpipe_queue_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 		return 0;
 	}
 
-	ret = k_msgq_put(&queue->msgq, &in_buf, K_FOREVER);
-	if (ret != 0) {
-		/*
-		 * A non-zero return here means the put was interrupted (e.g. the
-		 * queue was purged/started flushing). Drop the buffer and report
-		 * success so the release path unwinds cleanly without error spam.
-		 */
-		net_buf_unref(in_buf);
-		*out_buf = NULL;
+	*out_buf = NULL;
+
+	if (queue->leak == MPIPE_BASE_QUEUE_LEAK_NONE) {
+		ret = k_msgq_put(&queue->msgq, &in_buf, K_FOREVER);
+		if (ret != 0) {
+			/*
+			 * A non-zero return here means the put was interrupted
+			 * (e.g. the queue was purged/started flushing). Drop the
+			 * buffer and report success so the release path unwinds
+			 * cleanly without error spam.
+			 */
+			net_buf_unref(in_buf);
+		}
+
 		return 0;
 	}
 
-	*out_buf = NULL;
+	/*
+	 * Leaking: the configured size is the bound, not the msgq capacity,
+	 * whose two spare slots belong to the sentinels. The consumer may
+	 * dequeue concurrently, which costs at most one needless drop.
+	 */
+	if (queue->leak == MPIPE_BASE_QUEUE_LEAK_NEWEST &&
+	    k_msgq_num_used_get(&queue->msgq) >= queue->size) {
+		net_buf_unref(in_buf);
+		return 0;
+	}
+
+	while (k_msgq_num_used_get(&queue->msgq) >= queue->size) {
+		struct net_buf *oldest;
+
+		if (k_msgq_get(&queue->msgq, &oldest, K_NO_WAIT) != 0) {
+			break;
+		}
+
+		/* Sentinels are never dropped: put one back and stop making room */
+		if (oldest == (void *)&eos_sentinel || oldest == (void *)&pause_sentinel) {
+			(void)k_msgq_put(&queue->msgq, &oldest, K_NO_WAIT);
+			break;
+		}
+
+		net_buf_unref(oldest);
+	}
+
+	ret = k_msgq_put(&queue->msgq, &in_buf, K_NO_WAIT);
+	if (ret != 0) {
+		net_buf_unref(in_buf);
+	}
 
 	return 0;
 }
@@ -285,6 +333,7 @@ int mpipe_queue_init(struct mpipe_queue *queue, uint8_t id)
 	queue->transform.sink_pad.chain_fn = mpipe_queue_chain_fn;
 	queue->transform.sink_pad.event_fn = mpipe_queue_sink_event_fn;
 	queue->size = CONFIG_MPIPE_BASE_QUEUE_MAX_SIZE;
+	queue->leak = MPIPE_BASE_QUEUE_LEAK_NONE;
 
 	/* Default thread priority; caller may override before the first play. */
 	queue->thread.priority = CONFIG_MPIPE_THREAD_DEFAULT_PRIORITY;

@@ -39,6 +39,25 @@ enum {
 	MPIPE_PROP_BASE_QUEUE_SIZE = MPIPE_PROP_TRANSFORM_LAST,
 	/** Scheduling priority of the queue's thread */
 	MPIPE_PROP_BASE_QUEUE_THREAD_PRIORITY,
+	/** What a full queue does with a new buffer, an @ref mpipe_base_queue_leak */
+	MPIPE_PROP_BASE_QUEUE_LEAK,
+};
+
+/**
+ * @brief What a full queue does with a new buffer
+ *
+ * A queue is first a thread boundary that loses nothing, so by default a
+ * full queue holds the producer until the consumer frees a slot. A live
+ * source feeding a slower branch would rather drop: a leak policy bounds
+ * the latency instead of the producer. End of stream is never dropped.
+ */
+enum mpipe_base_queue_leak {
+	/** Block the producer until a slot is free */
+	MPIPE_BASE_QUEUE_LEAK_NONE = 0,
+	/** Drop the oldest queued buffer: the consumer always gets the freshest */
+	MPIPE_BASE_QUEUE_LEAK_OLDEST,
+	/** Drop the arriving buffer: the queued ones are delivered in order */
+	MPIPE_BASE_QUEUE_LEAK_NEWEST,
 };
 
 /**
@@ -65,6 +84,8 @@ struct mpipe_queue {
 	 * CONFIG_MPIPE_BASE_QUEUE_MAX_SIZE and applied on READY -> PAUSED
 	 */
 	uint8_t size;
+	/** Leak policy of a full queue, an @ref mpipe_base_queue_leak */
+	uint8_t leak;
 	/**
 	 * Flushing flag. When set (on PAUSED -> READY), the chain_fn drops incoming
 	 * buffers instead of enqueuing them. This releases any upstream producer
