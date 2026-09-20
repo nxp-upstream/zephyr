@@ -72,7 +72,15 @@ struct mpipe_queue {
 	struct mpipe_transform transform;
 	/** Dedicated thread for downstream processing */
 	struct mpipe_thread thread;
-	/** Message queue for storing incoming buffer pointers */
+	/**
+	 * Queue for storing incoming buffer pointers.
+	 *
+	 * A k_fifo would not do here as it keeps no storage of its own: it chains its
+	 * items through a link field inside each item, so a given buffer can be on one
+	 * fifo at a time. A tee pushes the same buffer to every branch, and a branch
+	 * may start with a queue, so one buffer must be able to wait in several queues
+	 * at once. The k_msgq stores its own copy of the pointer which makes that possible.
+	 */
 	struct k_msgq msgq;
 	/**
 	 * Backing storage for the message queue, sized for the largest queue
