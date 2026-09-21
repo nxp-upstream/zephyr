@@ -17,17 +17,6 @@
 #define ZEPHYR_INCLUDE_MPIPE_BASE_MPIPE_CAPS_FILTER_H_
 
 /**
- * @defgroup mpipe_base Base Elements
- * @ingroup mpipe_plugins
- * @brief Media-agnostic elements that shape a graph rather than its data.
- *
- * The base plugin holds the elements that belong to no media domain. They do
- * not look at what a buffer contains: they constrain what a link may carry,
- * split a graph into branches, or split it across threads. Every domain needs
- * them, so they live together rather than being duplicated per domain.
- */
-
-/**
  * @defgroup mpipe_caps_filter Caps Filters
  * @ingroup mpipe_base
  * @brief Transform elements that constrain negotiated capabilities.
