@@ -27,6 +27,7 @@ static int mpipe_vid_transform_process_fn(struct mpipe_pad *pad, struct net_buf 
 	struct mpipe_vid_transform *vid_transform = (struct mpipe_vid_transform *)transform;
 	struct mpipe_buffer_pool *out_pool = &vid_transform->vid_obj_out.pool.pool;
 	struct video_buffer *in_vbuf;
+	uint64_t pts = mpipe_buffer_get_meta(in_buf)->pts;
 
 	/* TODO: Ensure net_buf meta's driver_buf is always a video buffer */
 	if (mpipe_buffer_get_meta(in_buf)->driver_buf == NULL) {
@@ -63,6 +64,9 @@ static int mpipe_vid_transform_process_fn(struct mpipe_pad *pad, struct net_buf 
 		LOG_ERR("Failed to acquire output buffer");
 		return -ENOMEM;
 	}
+
+	/* The output shows the same instant as the input, not when the device finished */
+	mpipe_buffer_get_meta(*out_buf)->pts = pts;
 
 	return 0;
 }
@@ -202,6 +206,8 @@ int mpipe_vid_transform_init(struct mpipe_vid_transform *vid_transform, uint8_t 
 	mpipe_element_set_name(self, "vid_transform");
 
 	/* Initialize vid objects */
+	vid_transform->vid_obj_in.element = self;
+	vid_transform->vid_obj_out.element = self;
 	vid_transform->vid_obj_in.vdev = DEFAULT_PROP_DEVICE;
 	vid_transform->vid_obj_out.vdev = DEFAULT_PROP_DEVICE;
 	vid_transform->vid_obj_in.type = VIDEO_BUF_TYPE_INPUT;

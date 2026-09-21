@@ -70,7 +70,7 @@ static int mpipe_vid_buffer_pool_client_acquire_buffer(struct mpipe_buffer_pool 
 	m->pool = pool;
 	m->driver_buf = vbuf;
 	m->bytes_used = vbuf->bytesused;
-	m->timestamp = vbuf->timestamp;
+	m->pts = 0;
 	nb->len = m->bytes_used;
 
 	*buf = nb;
@@ -96,7 +96,6 @@ static int mpipe_vid_buffer_pool_client_release_buffer(struct mpipe_buffer_pool 
 	}
 
 	vbuf->bytesused = m->bytes_used;
-	vbuf->timestamp = m->timestamp;
 
 	k_fifo_put(&zbpc->fifo, vbuf);
 
