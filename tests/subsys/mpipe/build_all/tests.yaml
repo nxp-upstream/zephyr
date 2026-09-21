@@ -131,3 +131,16 @@ tests:
       - CONFIG_NET_TCP=y
       - CONFIG_NET_SOCKETS=y
       - CONFIG_MPIPE_NET=y
+
+  mpipe.nn.build:
+    tags:
+      - subsys
+      - mpipe
+    build_only: true
+    platform_allow:
+      - native_sim/native/64
+    extra_args:
+      - CONFIG_MPIPE_NN=y
+      - CONFIG_MPIPE_NN_CONVERTER=y
+      - CONFIG_MPIPE_NN_RUNNER=y
+      - CONFIG_MPIPE_NN_DECODER=y
