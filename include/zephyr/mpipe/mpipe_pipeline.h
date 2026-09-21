@@ -42,6 +42,7 @@
 #include <zephyr/zbus/zbus.h>
 
 #include <zephyr/mpipe/mpipe_bin.h>
+#include <zephyr/mpipe/mpipe_clock.h>
 #include <zephyr/mpipe/mpipe_message.h>
 #include <zephyr/mpipe/mpipe_thread.h>
 
@@ -61,9 +62,9 @@ enum mpipe_prop_pipeline {
 /**
  * @brief A pipeline: the top-level bin that runs a graph.
  *
- * Adds to @ref mpipe_bin the thread that drives the source and the
- * end-of-stream accounting that lets a graph with several sinks report
- * completion exactly once.
+ * Adds to @ref mpipe_bin the thread that drives the source, the clock the
+ * running time is derived from and the end-of-stream accounting that lets a
+ * graph with several sinks report completion exactly once.
  */
 struct mpipe {
 	/** Base bin container */
@@ -76,6 +77,15 @@ struct mpipe {
 	 * element is dismantled under a push.
 	 */
 	struct k_mutex stream_lock;
+	/** The pipeline clock; the monotonic system clock unless replaced */
+	struct mpipe_clock *clock;
+	/** Clock time at which the running time was zero */
+	uint64_t base_time;
+	/**
+	 * The running time frozen while not PLAYING: total time spent in
+	 * PLAYING since READY, excluding pauses
+	 */
+	uint64_t stream_time;
 	/** Number of sink elements in the pipeline (computed on READY->PAUSED) */
 	uint32_t num_sinks;
 	/** Number of EOS messages seen so far during the current run */
@@ -111,6 +121,84 @@ int mpipe_pipeline_init(struct mpipe *pipe, uint8_t id);
  * @return 0 on success, negative errno on failure
  */
 int mpipe_push_buffer(struct mpipe_pad *src_pad, struct net_buf *buffer);
+
+/**
+ * @brief Replace the pipeline clock
+ *
+ * Call while the pipeline is in READY; the running time restarts from zero
+ * with the new clock. The default is the monotonic system clock.
+ *
+ * @param pipe The pipeline
+ * @param clock The clock to use
+ *
+ * @retval 0 Success
+ * @retval -EINVAL @p pipe or @p clock is NULL
+ */
+int mpipe_pipeline_set_clock(struct mpipe *pipe, struct mpipe_clock *clock);
+
+/**
+ * @brief The pipeline running time
+ *
+ * The time spent in PLAYING since READY, in microseconds, excluding pauses:
+ * it advances while PLAYING and freezes while PAUSED. Buffer timestamps are
+ * expressed in it.
+ *
+ * @param pipe The pipeline
+ * @return Running time in microseconds, 0 when @p pipe is NULL
+ */
+uint64_t mpipe_pipeline_running_time(struct mpipe *pipe);
+
+/**
+ * @brief The running time an uptime instant corresponds to
+ *
+ * Converts a time a driver stamped from the kernel uptime, such as the
+ * capture time of a video frame, into the pipeline running time: the
+ * running time now, minus the age of the instant on the uptime clock.
+ * That holds whatever clock the pipeline runs on.
+ *
+ * @param pipe The pipeline
+ * @param uptime_us Kernel uptime of the instant, in microseconds
+ * @return Running time in microseconds, 0 when @p pipe is NULL, when the
+ *         instant lies in the future, or when it predates the run
+ */
+uint64_t mpipe_pipeline_running_time_at(struct mpipe *pipe, uint64_t uptime_us);
+
+/**
+ * @brief The pipeline an element is rooted in
+ *
+ * Walks the container chain to the root of the graph.
+ *
+ * @param element The element
+ * @return The pipeline, or NULL when the element is not in a container yet
+ */
+struct mpipe *mpipe_pipeline_from_element(struct mpipe_element *element);
+
+/**
+ * @brief The running time of the pipeline an element belongs to
+ *
+ * Convenience for elements stamping or interpreting buffer timestamps.
+ *
+ * @param element The element
+ * @return Running time in microseconds, 0 when the element is not in a pipeline
+ */
+static inline uint64_t mpipe_element_running_time(struct mpipe_element *element)
+{
+	return mpipe_pipeline_running_time(mpipe_pipeline_from_element(element));
+}
+
+/**
+ * @brief The running time an uptime instant corresponds to, for an element
+ *
+ * @param element The element
+ * @param uptime_us Kernel uptime of the instant, in microseconds
+ * @return Running time in microseconds, 0 when the element is not in a
+ *         pipeline or the instant is outside the run
+ */
+static inline uint64_t mpipe_element_running_time_at(struct mpipe_element *element,
+						     uint64_t uptime_us)
+{
+	return mpipe_pipeline_running_time_at(mpipe_pipeline_from_element(element), uptime_us);
+}
 
 /** @} */
 

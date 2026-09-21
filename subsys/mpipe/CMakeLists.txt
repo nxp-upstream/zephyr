@@ -9,6 +9,7 @@ zephyr_library_named(mpipe)
 zephyr_library_sources(
   mpipe_bin.c
   mpipe_buffer.c
+  mpipe_clock.c
   mpipe_element.c
   mpipe_object.c
   mpipe_pad.c
