@@ -22,4 +22,4 @@ tests:
     harness_config:
       type: one_line
       regex:
-        - "End of stream"
+        - "end of stream"
