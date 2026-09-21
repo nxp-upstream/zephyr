@@ -1,0 +1,59 @@
+/*
+ * Copyright (c) 2019 Peter Bigot Consulting, LLC
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	chosen {
+		zephyr,sram = &dtcm;
+		zephyr,uart-mcumgr = &lpuart7;
+		zephyr,console = &lpuart7;
+		zephyr,shell-uart = &lpuart7;
+	};
+};
+
+&lpuart7 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&pinmux_lpuart7>;
+	pinctrl-names = "default";
+};
+
+&pinctrl {
+    pinmux_lpuart7: pinmux_lpuart7 {
+		group0 {
+			pinmux = <&iomuxc_gpio_emc_31_lpuart7_tx>,
+				<&iomuxc_gpio_emc_32_lpuart7_rx>;
+			drive-strength = "r0-6";
+			slew-rate = "slow";
+			nxp,speed = "100-mhz";
+		};
+	};
+
+	pinmux_flexspi1_nand: pinmux_flexspi1_nand {
+		group0 {
+			pinmux = <&iomuxc_gpio_sd_b0_05_flexspi_b_dqs>,
+				<&iomuxc_gpio_ad_b1_09_flexspi_a_dqs>;
+			drive-strength = "r0-6";
+			input-schmitt-enable;
+			bias-pull-down;
+			bias-pull-down-value = "100k";
+			slew-rate = "fast";
+			nxp,speed = "200-mhz";
+			input-enable;
+		};
+		group1 {
+			pinmux = <&iomuxc_gpio_sd_b1_05_flexspi_b_ss0_b>,
+				<&iomuxc_gpio_sd_b1_00_flexspi_b_data3>,
+				<&iomuxc_gpio_sd_b1_01_flexspi_b_data2>,
+				<&iomuxc_gpio_sd_b1_02_flexspi_b_data1>,
+				<&iomuxc_gpio_sd_b1_03_flexspi_b_data0>,
+				<&iomuxc_gpio_sd_b1_04_flexspi_b_sclk>;
+			drive-strength = "r0-6";
+			slew-rate = "fast";
+			nxp,speed = "200-mhz";
+			input-enable;
+		};
+	};
+};
