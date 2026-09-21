@@ -17,6 +17,11 @@ if(CONFIG_MPIPE_VID)
     mpipe_vid_convert_table.c
   )
 
+  zephyr_library_sources_ifdef(CONFIG_MPIPE_VID_OVERLAY
+    mpipe_vid_draw.c
+    mpipe_vid_overlay.c
+  )
+
   zephyr_library_sources_ifdef(CONFIG_MPIPE_RPC
     mpipe_vid_buffer_pool_client.c
     mpipe_vid_transform_client.c

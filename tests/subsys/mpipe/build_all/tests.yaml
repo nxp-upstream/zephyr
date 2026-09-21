@@ -55,6 +55,7 @@ tests:
     extra_args:
       - CONFIG_MPIPE_VID=y
       - CONFIG_MPIPE_VID_CONVERT=y
+      - CONFIG_MPIPE_VID_OVERLAY=y
 
   mpipe.img.build:
     tags:

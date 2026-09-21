@@ -29,4 +29,16 @@ config MPIPE_VID_CONVERT
 	  accepts. It converts pixel formats only: it does not scale, crop or
 	  rotate. Expect it to cost real CPU time per frame.
 
+config MPIPE_VID_OVERLAY
+	bool "Video overlay element"
+	help
+	  A format-preserving transform handing every frame to an application
+	  draw callback, the pipeline equivalent of drawing on a canvas, with
+	  simple rectangle drawing helpers. The element copies each frame and
+	  the callback draws into the copy, so it is safe behind a tee.
+
+	  It is the software fallback and demonstration tier: the target for
+	  compositing is an aggregator-based compositor and, where the display
+	  controller has them, hardware layers.
+
 endif # MPIPE_VID
