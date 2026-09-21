@@ -6,6 +6,8 @@
 
 #include <errno.h>
 
+#include <zephyr/kernel.h>
+
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/atomic.h>
 #include <zephyr/sys/slist.h>
@@ -14,6 +16,7 @@
 
 #include <zephyr/mpipe/mpipe_bin.h>
 #include <zephyr/mpipe/mpipe_buffer.h>
+#include <zephyr/mpipe/mpipe_clock.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
 #include <zephyr/mpipe/mpipe_element.h>
 #include <zephyr/mpipe/mpipe_message.h>
@@ -351,6 +354,7 @@ static int mpipe_pipeline_change_state(struct mpipe_element *element,
 	switch (transition) {
 	case MPIPE_STATE_CHANGE_PLAYING_TO_PAUSED:
 		/* A pause keeps the queued buffers: nothing is flushed or joined */
+		pipeline->stream_time = mpipe_clock_get_time(pipeline->clock) - pipeline->base_time;
 		mpipe_thread_pause(&pipeline->thread);
 		break;
 	case MPIPE_STATE_CHANGE_PAUSED_TO_READY:
@@ -399,9 +403,17 @@ static int mpipe_pipeline_change_state(struct mpipe_element *element,
 		/* Arm the EOS folding before the thread can produce one */
 		pipeline->num_sinks = mpipe_pipeline_count_sinks(&pipeline->bin);
 		atomic_set(&pipeline->eos_count, 0);
+
+		/* The running time restarts from zero on the next PLAYING */
+		pipeline->stream_time = 0;
 		break;
 
 	case MPIPE_STATE_CHANGE_PAUSED_TO_PLAYING:
+		/*
+		 * The running time resumes where it froze: shift the base so
+		 * that (now - base_time) continues from stream_time.
+		 */
+		pipeline->base_time = mpipe_clock_get_time(pipeline->clock) - pipeline->stream_time;
 		mpipe_thread_resume(&pipeline->thread);
 		break;
 	default:
@@ -436,6 +448,72 @@ int mpipe_pipeline_init(struct mpipe *pipe, uint8_t id)
 	pipe->thread.priority = CONFIG_MPIPE_THREAD_DEFAULT_PRIORITY;
 	k_mutex_init(&pipe->stream_lock);
 
+	pipe->clock = mpipe_clock_monotonic();
+	pipe->base_time = 0;
+	pipe->stream_time = 0;
+
 	/* Only the pipeline knows how many sinks a run must hear from */
 	return mpipe_bin_set_bus_validator(&pipe->bin, mpipe_pipeline_message_validator, pipe);
+}
+
+int mpipe_pipeline_set_clock(struct mpipe *pipe, struct mpipe_clock *clock)
+{
+	if (pipe == NULL || clock == NULL) {
+		return -EINVAL;
+	}
+
+	pipe->clock = clock;
+	pipe->base_time = 0;
+	pipe->stream_time = 0;
+
+	return 0;
+}
+
+uint64_t mpipe_pipeline_running_time(struct mpipe *pipe)
+{
+	if (pipe == NULL) {
+		return 0;
+	}
+
+	if (pipe->bin.element.current_state == MPIPE_STATE_PLAYING) {
+		return mpipe_clock_get_time(pipe->clock) - pipe->base_time;
+	}
+
+	return pipe->stream_time;
+}
+
+uint64_t mpipe_pipeline_running_time_at(struct mpipe *pipe, uint64_t uptime_us)
+{
+	uint64_t now_rt = mpipe_pipeline_running_time(pipe);
+	uint64_t now_up = k_ticks_to_us_floor64((uint64_t)k_uptime_ticks());
+	uint64_t age;
+
+	if (pipe == NULL || uptime_us > now_up) {
+		return 0;
+	}
+
+	/* An instant older than the run has no running time */
+	age = now_up - uptime_us;
+
+	return (age < now_rt) ? now_rt - age : 0;
+}
+
+struct mpipe *mpipe_pipeline_from_element(struct mpipe_element *element)
+{
+	struct mpipe_object *obj;
+
+	if (element == NULL) {
+		return NULL;
+	}
+
+	obj = &element->object;
+	if (obj->container == NULL) {
+		return NULL;
+	}
+
+	while (obj->container != NULL) {
+		obj = obj->container;
+	}
+
+	return (struct mpipe *)obj;
 }
