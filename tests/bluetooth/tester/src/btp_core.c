@@ -174,6 +174,12 @@ static uint8_t supported_services(const void *cmd, uint16_t cmd_len,
 #if defined(CONFIG_BT_RFCOMM)
 	tester_set_bit(rp->data, BTP_SERVICE_ID_SPP);
 #endif /* CONFIG_BT_RFCOMM */
+#if defined(CONFIG_BT_HID_DEVICE)
+	tester_set_bit(rp->data, BTP_SERVICE_ID_HID_DEVICE);
+#endif /* CONFIG_BT_HID_DEVICE */
+#if defined(CONFIG_BT_HID_HOST)
+	tester_set_bit(rp->data, BTP_SERVICE_ID_HID_HOST);
+#endif /* CONFIG_BT_HID_HOST */
 
 	/* octet 5 */
 #if defined(CONFIG_BT_PBAP)
@@ -386,6 +392,16 @@ static uint8_t register_service(const void *cmd, uint16_t cmd_len,
 		status = tester_init_map();
 		break;
 #endif /* CONFIG_BT_MAP */
+#if defined(CONFIG_BT_HID_DEVICE)
+	case BTP_SERVICE_ID_HID_DEVICE:
+		status = tester_init_hid_device();
+		break;
+#endif /* CONFIG_BT_HID_DEVICE */
+#if defined(CONFIG_BT_HID_HOST)
+	case BTP_SERVICE_ID_HID_HOST:
+		status = tester_init_hid_host();
+		break;
+#endif /* CONFIG_BT_HID_HOST */
 	default:
 		LOG_WRN("unknown id: 0x%02x", cp->id);
 		status = BTP_STATUS_FAILED;
@@ -595,6 +611,16 @@ static uint8_t unregister_service(const void *cmd, uint16_t cmd_len,
 		break;
 #endif /* CONFIG_BT_MAP */
 
+#if defined(CONFIG_BT_HID_DEVICE)
+	case BTP_SERVICE_ID_HID_DEVICE:
+		status = tester_unregister_hid_device();
+		break;
+#endif /* CONFIG_BT_HID_DEVICE */
+#if defined(CONFIG_BT_HID_HOST)
+	case BTP_SERVICE_ID_HID_HOST:
+		status = tester_unregister_hid_host();
+		break;
+#endif /* CONFIG_BT_HID_HOST */
 	default:
 		LOG_WRN("unknown id: 0x%x", cp->id);
 		status = BTP_STATUS_FAILED;
