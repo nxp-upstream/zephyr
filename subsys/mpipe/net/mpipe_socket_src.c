@@ -12,6 +12,7 @@
 
 #include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/mpipe_element.h>
+#include <zephyr/mpipe/mpipe_pipeline.h>
 
 #include <zephyr/mpipe/net/mpipe_socket_src.h>
 
@@ -109,7 +110,7 @@ static int mpipe_socket_src_pool_acquire(struct mpipe_buffer_pool *pool, struct 
 		meta = mpipe_buffer_get_meta(chunk);
 		meta->pool = pool;
 		meta->bytes_used = 0;
-		meta->timestamp = 0;
+		meta->pts = 0;
 		meta->driver_buf = NULL;
 		meta->priv = NULL;
 		meta->parent = NULL;
@@ -154,7 +155,7 @@ static int mpipe_socket_src_pool_acquire(struct mpipe_buffer_pool *pool, struct 
 	}
 
 	meta->bytes_used = fill + (uint32_t)rd;
-	meta->timestamp = k_uptime_get_32();
+	meta->pts = mpipe_element_running_time(&ssrc->src.element);
 	chunk->len = meta->bytes_used;
 
 	view = mpipe_buffer_view(chunk, fill, (uint32_t)rd, K_FOREVER);

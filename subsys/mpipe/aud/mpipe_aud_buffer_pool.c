@@ -172,7 +172,7 @@ static int mpipe_aud_buffer_pool_acquire_buffer(struct mpipe_buffer_pool *pool,
 	meta = mpipe_buffer_get_meta(out);
 	meta->pool = pool;
 	meta->bytes_used = 0;
-	meta->timestamp = 0;
+	meta->pts = 0;
 	meta->driver_buf = NULL;
 	meta->priv = NULL;
 	meta->parent = NULL;

@@ -48,7 +48,7 @@ static int mpipe_img_jpeg_decoder_out_pool_acquire(struct mpipe_buffer_pool *poo
 	m = mpipe_buffer_get_meta(out);
 	m->pool = pool;
 	m->bytes_used = 0;
-	m->timestamp = 0;
+	m->pts = 0;
 	m->driver_buf = NULL;
 	m->priv = NULL;
 	out->len = 0;
@@ -68,7 +68,7 @@ static int mpipe_img_jpeg_decoder_out_pool_release(struct mpipe_buffer_pool *poo
 
 		if (m != NULL) {
 			m->bytes_used = 0;
-			m->timestamp = 0;
+			m->pts = 0;
 			m->driver_buf = NULL;
 			m->priv = NULL;
 		}

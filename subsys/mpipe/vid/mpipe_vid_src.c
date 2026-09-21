@@ -84,6 +84,7 @@ int mpipe_vid_src_init(struct mpipe_vid_src *vid_src, uint8_t id)
 	mpipe_element_set_name(self, "vid_src");
 
 	/* Initialize vid object */
+	vid_src->vid_obj.element = self;
 	vid_src->vid_obj.vdev = DEFAULT_PROP_DEVICE;
 	vid_src->vid_obj.type = VIDEO_BUF_TYPE_OUTPUT;
 

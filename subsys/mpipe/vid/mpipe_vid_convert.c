@@ -132,7 +132,7 @@ static int vid_convert_pool_acquire(struct mpipe_buffer_pool *pool, struct net_b
 	meta->driver_buf = vbuf;
 	meta->priv = NULL;
 	meta->bytes_used = 0;
-	meta->timestamp = 0;
+	meta->pts = 0;
 	(*out)->len = 0;
 
 	return 0;

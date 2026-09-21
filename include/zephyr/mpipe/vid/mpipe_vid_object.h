@@ -28,6 +28,7 @@
 
 #include <zephyr/drivers/video.h>
 
+#include <zephyr/mpipe/mpipe_element.h>
 #include <zephyr/mpipe/mpipe_structure.h>
 #include <zephyr/mpipe/vid/mpipe_vid_buffer_pool.h>
 #include <zephyr/mpipe/vid/mpipe_vid_property.h>
@@ -41,6 +42,8 @@ struct mpipe_dispatch;
  * crop region, providing helpers for capability and format negotiation.
  */
 struct mpipe_vid_object {
+	/** The element this object belongs to, for the running time its buffers are stamped in */
+	struct mpipe_element *element;
 	/** Pointer to the video device */
 	const struct device *vdev;
 	/** Video buffer type (input or output) */

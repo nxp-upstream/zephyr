@@ -47,7 +47,7 @@ static struct net_buf *new_chunk(void)
 	zassert_not_null(chunk, "chunk allocation failed");
 	m = mpipe_buffer_get_meta(chunk);
 	m->bytes_used = 0;
-	m->timestamp = 0;
+	m->pts = 0;
 	m->parent = NULL;
 	chunk->len = 0;
 

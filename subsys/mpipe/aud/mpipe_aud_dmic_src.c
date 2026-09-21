@@ -137,7 +137,7 @@ static int mpipe_aud_dmic_src_acquire_buffer(struct mpipe_buffer_pool *pool,
 			meta = mpipe_buffer_get_meta(*buffer);
 			meta->pool = pool;
 			meta->bytes_used = bytes_used;
-			meta->timestamp = 0U;
+			meta->pts = 0;
 			meta->driver_buf = NULL;
 			meta->priv = NULL;
 

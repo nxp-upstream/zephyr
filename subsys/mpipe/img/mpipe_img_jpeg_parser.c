@@ -175,7 +175,7 @@ static int mpipe_img_jpeg_parser_release_buffer(struct mpipe_buffer_pool *pool, 
 	ARG_UNUSED(pool);
 
 	m->bytes_used = 0;
-	m->timestamp = 0;
+	m->pts = 0;
 	m->driver_buf = NULL;
 	m->priv = NULL;
 	buf->len = 0;
@@ -197,7 +197,7 @@ static int mpipe_img_jpeg_parser_acquire_buffer(struct mpipe_buffer_pool *pool,
 	m = mpipe_buffer_get_meta(out);
 	m->pool = pool;
 	m->bytes_used = 0;
-	m->timestamp = 0;
+	m->pts = 0;
 	m->driver_buf = NULL;
 	m->priv = NULL;
 	m->parent = NULL;

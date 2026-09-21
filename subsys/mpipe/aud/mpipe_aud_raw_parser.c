@@ -195,6 +195,7 @@ static int mpipe_aud_raw_parser_process_fn(struct mpipe_pad *pad, struct net_buf
 	struct mpipe_buffer_pool *pool = parser->base.out_pool;
 	const uint8_t *src = in_buf->data;
 	uint32_t remaining = mpipe_buffer_get_meta(in_buf)->bytes_used;
+	uint64_t in_pts = mpipe_buffer_get_meta(in_buf)->pts;
 
 	*out_buf = NULL;
 
@@ -218,7 +219,7 @@ static int mpipe_aud_raw_parser_process_fn(struct mpipe_pad *pad, struct net_buf
 		remaining -= n;
 
 		if (bm->bytes_used == pool->config.size) {
-			bm->timestamp = k_uptime_get_32();
+			bm->pts = in_pts;
 			if (*out_buf == NULL) {
 				*out_buf = parser->block;
 			} else {

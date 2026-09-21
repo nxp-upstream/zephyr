@@ -7,6 +7,7 @@
 #include <zephyr/drivers/video.h>
 #include <zephyr/logging/log.h>
 
+#include <zephyr/mpipe/mpipe_pipeline.h>
 #include <zephyr/mpipe/vid/mpipe_vid_buffer_pool.h>
 #include <zephyr/mpipe/vid/mpipe_vid_object.h>
 
@@ -259,7 +260,11 @@ static int mpipe_vid_buffer_pool_acquire_buffer(struct mpipe_buffer_pool *pool,
 	bm->pool = pool;
 	bm->driver_buf = vbuf;
 	bm->bytes_used = vbuf->bytesused;
-	bm->timestamp = vbuf->timestamp;
+	/* Drivers stamp the capture with the kernel uptime in milliseconds */
+	bm->pts = (vbuf->timestamp != 0U)
+			  ? mpipe_element_running_time_at(vid_pool->vid_obj->element,
+							  (uint64_t)vbuf->timestamp * USEC_PER_MSEC)
+			  : 0;
 	(*buf)->len = bm->bytes_used;
 
 	return ret;

@@ -233,7 +233,7 @@ static int vid_overlay_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 
 		meta = mpipe_buffer_get_meta(out);
 		meta->bytes_used = len;
-		meta->timestamp = mpipe_buffer_get_meta(cur)->timestamp;
+		meta->pts = mpipe_buffer_get_meta(cur)->pts;
 		out->len = len;
 
 		if (meta->driver_buf != NULL) {
@@ -383,7 +383,7 @@ static int vid_overlay_pool_acquire(struct mpipe_buffer_pool *pool, struct net_b
 	meta->driver_buf = vbuf;
 	meta->priv = NULL;
 	meta->bytes_used = 0;
-	meta->timestamp = 0;
+	meta->pts = 0;
 	(*out)->len = 0;
 
 	return 0;
