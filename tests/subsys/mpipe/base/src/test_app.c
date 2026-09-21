@@ -33,6 +33,7 @@ static struct {
 	atomic_t count;
 	uint32_t bytes_used[TEST_BUFS_NUM];
 	uint8_t first_byte[TEST_BUFS_NUM];
+	uint64_t pts[TEST_BUFS_NUM];
 } seen;
 
 static void app_sink_cb(const struct net_buf *buf, void *user_data)
@@ -44,6 +45,7 @@ static void app_sink_cb(const struct net_buf *buf, void *user_data)
 	if (i < TEST_BUFS_NUM) {
 		seen.bytes_used[i] = mpipe_buffer_get_meta(buf)->bytes_used;
 		seen.first_byte[i] = buf->data[0];
+		seen.pts[i] = mpipe_buffer_get_meta(buf)->pts;
 	}
 }
 
@@ -159,8 +161,8 @@ static void expect_eos(void)
 
 /*
  * Callback delivery, repeated: every payload reaches the callback in order with
- * its size, and the declared capability is the one negotiated on every run,
- * not only the first.
+ * its size and a non-decreasing timestamp, and the declared capability is the
+ * one negotiated on every run, not only the first.
  */
 ZTEST_F(test_app, test_push_callback)
 {
@@ -193,6 +195,10 @@ ZTEST_F(test_app, test_push_callback)
 				      i);
 			zassert_equal(seen.bytes_used[i], TEST_PAYLOAD,
 				      "run %d: payload %u bytes_used", run, i);
+			if (i > 0U) {
+				zassert_true(seen.pts[i] >= seen.pts[i - 1U],
+					     "run %d: pts went backwards at %u", run, i);
+			}
 		}
 
 		zassert_ok(mpipe_element_set_state(pipe, MPIPE_STATE_READY),

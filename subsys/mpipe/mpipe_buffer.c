@@ -56,7 +56,7 @@ struct net_buf *mpipe_buffer_view(struct net_buf *parent, uint32_t offset, uint3
 	vm = mpipe_buffer_get_meta(view);
 	vm->pool = NULL;
 	vm->bytes_used = len;
-	vm->timestamp = pm->timestamp;
+	vm->pts = pm->pts;
 	vm->driver_buf = NULL;
 	vm->priv = NULL;
 	vm->parent = net_buf_ref(parent);
