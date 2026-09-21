@@ -273,6 +273,12 @@ static void mpipe_pipeline_stream_once(struct mpipe *pipeline, struct mpipe_src 
 		return;
 	}
 	(*count)++;
+
+	/* Stamp buffers the source left unstamped with the running time */
+	if (mpipe_buffer_get_meta(buffer)->pts == 0U) {
+		mpipe_buffer_get_meta(buffer)->pts = mpipe_pipeline_running_time(pipeline);
+	}
+
 	if (mpipe_push_buffer(&src->src_pad, buffer) != 0) {
 		LOG_ERR("Failed to push buffer downstream");
 		/* Fatal to the stream: stop producing so one error, not a flood */

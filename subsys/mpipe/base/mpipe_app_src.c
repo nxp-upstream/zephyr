@@ -12,6 +12,7 @@
 #include <zephyr/net_buf.h>
 
 #include <zephyr/mpipe/mpipe_pad.h>
+#include <zephyr/mpipe/mpipe_pipeline.h>
 #include <zephyr/mpipe/mpipe_structure.h>
 #include <zephyr/mpipe/base/mpipe_app_src.h>
 
@@ -50,7 +51,7 @@ int mpipe_app_src_alloc(struct mpipe_app_src *app_src, uint32_t size, k_timeout_
 	meta = mpipe_buffer_get_meta(nb);
 	meta->pool = &app_src->pool;
 	meta->bytes_used = 0;
-	meta->timestamp = 0;
+	meta->pts = 0;
 	meta->driver_buf = NULL;
 	meta->priv = NULL;
 	nb->len = 0;
@@ -75,7 +76,7 @@ int mpipe_app_src_push_buf(struct mpipe_app_src *app_src, struct net_buf *buf, u
 	buf->len = size;
 	meta = mpipe_buffer_get_meta(buf);
 	meta->bytes_used = size;
-	meta->timestamp = 0;
+	meta->pts = mpipe_element_running_time(&app_src->src.element);
 
 	if (k_msgq_put(&app_src->msgq, &buf, timeout) != 0) {
 		return -EAGAIN;
@@ -157,7 +158,7 @@ static int mpipe_app_src_pool_release(struct mpipe_buffer_pool *pool, struct net
 
 	if (meta != NULL) {
 		meta->bytes_used = 0;
-		meta->timestamp = 0;
+		meta->pts = 0;
 		meta->driver_buf = NULL;
 		meta->priv = NULL;
 	}

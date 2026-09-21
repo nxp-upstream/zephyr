@@ -185,7 +185,7 @@ static struct net_buf *alloc_parent(uint32_t bytes_used)
 
 	m = mpipe_buffer_get_meta(parent);
 	m->bytes_used = bytes_used;
-	m->timestamp = 1234;
+	m->pts = 1234;
 	parent->len = bytes_used;
 
 	for (uint32_t i = 0; i < bytes_used; i++) {
@@ -208,7 +208,7 @@ ZTEST(mpipe_buffer_api, test_a_view_covers_a_range_of_its_parent)
 
 	vm = mpipe_buffer_get_meta(view);
 	zassert_equal(vm->bytes_used, 50, "view bytes_used is not the range length");
-	zassert_equal(vm->timestamp, 1234, "the parent's timestamp was not carried");
+	zassert_equal(vm->pts, 1234, "the parent's PTS was not carried");
 	zassert_is_null(vm->pool, "a view belongs to no pool");
 	zassert_equal_ptr(vm->parent, parent, "the view does not record its parent");
 	zassert_equal(view->data[0], 10, "the view does not read the parent's bytes");

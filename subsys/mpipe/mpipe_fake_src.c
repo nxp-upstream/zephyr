@@ -37,7 +37,7 @@ static int mpipe_fake_src_pool_acquire(struct mpipe_buffer_pool *pool, struct ne
 	meta = mpipe_buffer_get_meta(nb);
 	meta->pool = pool;
 	meta->bytes_used = pool->config.size;
-	meta->timestamp = k_uptime_get_32();
+	meta->pts = 0;
 
 	*buf = nb;
 
@@ -54,7 +54,7 @@ static int mpipe_fake_src_pool_release(struct mpipe_buffer_pool *pool, struct ne
 
 	if (meta != NULL) {
 		meta->bytes_used = 0;
-		meta->timestamp = 0;
+		meta->pts = 0;
 		meta->driver_buf = NULL;
 		meta->priv = NULL;
 	}

@@ -25,7 +25,8 @@
  * The application boundary on the producing side. Payloads either travel by
  * copy, with @ref mpipe_app_src_push, or in place: @ref mpipe_app_src_alloc
  * hands out a buffer of the element's pool for the application to fill, and
- * @ref mpipe_app_src_push_buf queues it.
+ * @ref mpipe_app_src_push_buf queues it. Every queued buffer is stamped with
+ * the pipeline running time at the time it is pushed.
  *
  * Push once the pipeline is at least PAUSED: whatever was queued while READY
  * is discarded when the pipeline starts. End of stream is declared with
