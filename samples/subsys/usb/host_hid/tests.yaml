@@ -1,0 +1,15 @@
+sample:
+  name: USB host HID sample
+tests:
+  sample.usb.host.hid:
+    depends_on:
+      - usbh
+    tags:
+      - usb
+      - usbh
+      - input
+      - samples
+    platform_allow:
+      - frdm_mcxa577
+    integration_platforms:
+      - frdm_mcxa577
