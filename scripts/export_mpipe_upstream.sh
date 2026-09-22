@@ -214,10 +214,11 @@ ${SOB_PHIBANG}"
 BASE_COMMIT_MSG="mpipe: Add base plugin
 
 Add the base plugin for the mpipe subsystem. This plugin provides
-generic, reusable elements like:
-- queue: pipeline-level threading element
-- tee: pipeline branching element
-- capsfilter: caps enforcement element
+the media-agnostic elements every domain needs:
+- caps_filter: constrains the capability of a link
+- tee: pushes each buffer to every branch of a graph
+- queue: decouples the elements downstream of it onto their own thread
+- app_src and app_sink: let the application be one end of a pipeline
 
 ${SOB_PHIBANG}"
 
