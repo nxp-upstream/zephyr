@@ -115,6 +115,7 @@ set_variable_ifdef(CONFIG_DISPLAY_SOCIONEXT_DPU CONFIG_MCUX_COMPONENT_driver.dpu
 set_variable_ifdef(CONFIG_MCUX_PXP              CONFIG_MCUX_COMPONENT_driver.pxp)
 set_variable_ifdef(CONFIG_LV_USE_GPU_NXP_PXP    CONFIG_MCUX_COMPONENT_driver.pxp)
 set_variable_ifdef(CONFIG_GPIO_MCUX_RGPIO       CONFIG_MCUX_COMPONENT_driver.rgpio)
+set_variable_ifdef(CONFIG_GPIO_MCUX_GPIO        CONFIG_MCUX_COMPONENT_driver.gpio)
 set_variable_ifdef(CONFIG_I2S_MCUX_SAI          CONFIG_MCUX_COMPONENT_driver.sai)
 set_variable_ifdef(CONFIG_DAI_NXP_SAI           CONFIG_MCUX_COMPONENT_driver.sai)
 set_variable_ifdef(CONFIG_MEMC_MCUX_FLEXSPI     CONFIG_MCUX_COMPONENT_driver.flexspi)
@@ -463,6 +464,16 @@ endif()
 if(CONFIG_MSPI_NXP_QSPI)
   set_variable_ifdef(CONFIG_SOC_SERIES_MCXE24X CONFIG_MCUX_COMPONENT_driver.qspi_mcxe247)
   set_variable_ifdef(CONFIG_SOC_SERIES_MCXE31X CONFIG_MCUX_COMPONENT_driver.qspi_mcxe31b)
+endif()
+
+# RT266x power and clock components require explicit selection; they are
+# device-level and not auto-selected.  This file runs before device/device.cmake.
+if(CONFIG_SOC_SERIES_IMXRT266X)
+  set(CONFIG_MCUX_COMPONENT_driver.powercon ON)
+  set(CONFIG_MCUX_COMPONENT_driver.pdcon ON)
+  set(CONFIG_MCUX_COMPONENT_driver.rt2k_pmu ON)
+  set(CONFIG_MCUX_COMPONENT_driver.modcon ON)
+  set(CONFIG_MCUX_COMPONENT_driver.memcon ON)
 endif()
 
 # Load all drivers
