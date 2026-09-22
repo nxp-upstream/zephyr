@@ -29,6 +29,8 @@ tests:
       - native_sim/native/64
     extra_args:
       - CONFIG_MPIPE_BASE=y
+      - CONFIG_MPIPE_BASE_APP_SINK=y
+      - CONFIG_MPIPE_BASE_APP_SRC=y
       - CONFIG_MPIPE_BASE_CAPS_FILTER=y
       - CONFIG_MPIPE_BASE_QUEUE=y
       - CONFIG_MPIPE_BASE_TEE=y
