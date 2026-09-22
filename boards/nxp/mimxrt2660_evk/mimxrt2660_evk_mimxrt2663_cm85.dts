@@ -122,4 +122,6 @@ zephyr_lcdif: &dcif {
 	power-gpios = <&pcal6524 16 GPIO_ACTIVE_HIGH>;
 };
 
+zephyr_mipi_dbi_parallel: &dcif {};
+
 zephyr_mipi_dsi: &mipi_dsi {};
