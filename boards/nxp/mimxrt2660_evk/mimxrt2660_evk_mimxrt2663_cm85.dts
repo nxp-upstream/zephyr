@@ -110,6 +110,10 @@
 	status = "okay";
 };
 
+&jpegdec {
+	status = "okay";
+};
+
 &gpio0 {
 	status = "okay";
 };
