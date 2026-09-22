@@ -18,4 +18,5 @@ supported:
   - uart
   - i2c
   - display
+  - video
 vendor: nxp
