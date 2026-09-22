@@ -13,10 +13,6 @@ config MPIPE_BASE
 	  application source and sink that let the application inject data
 	  into a graph and receive what comes out of it.
 
-	  They never look at what a buffer contains, so they belong to no media
-	  domain. Every domain needs them, which is why they live together here
-	  rather than being duplicated per plugin.
-
 if MPIPE_BASE
 
 config MPIPE_BASE_APP_SINK
