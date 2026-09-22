@@ -37,7 +37,8 @@
 __attribute__((section(".boot_hdr.xmcd_data"), used))
 
 const uint32_t xmcd_data[] = {
-	0xC0010008U, 0xC0001A00U, /* W958D6NMYA */
+	// 0xC0010008U, 0xC0001A00U, /* W958D6NMYA */
+	0xC0010008U, 0xC0100900,
 };
 #endif /* CONFIG_EXTERNAL_MEM_CONFIG_DATA */
 
