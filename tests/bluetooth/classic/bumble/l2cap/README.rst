@@ -75,6 +75,14 @@ fallback if the peer does not support the requested mode.
   Client requests Streaming mode with optional fallback.
   Extra conf: :file:`prj_stream.conf`.
 
+``bluetooth.classic.sim.l2cap.multiple_channels_simultaneously.basic``
+  Both sides negotiate Basic mode.
+  Extra conf: :file:`prj_basic.conf`.
+
+``bluetooth.classic.sim.l2cap.multiple_channels_simultaneously.eret``
+  Both sides negotiate Basic mode.
+  Extra conf: :file:`prj_eret.conf`.
+
 Requirements
 ************
 
@@ -150,10 +158,10 @@ See :file:`prj.conf` for the default configuration.
 
 Mode-specific overlay files:
 
-* :file:`prj_basic.conf` â€” Basic mode optional fallback
-* :file:`prj_ret.conf` â€” Retransmission mode
-* :file:`prj_fc.conf` â€” Flow Control mode
-* :file:`prj_eret.conf` â€” Enhanced Retransmission mode
-* :file:`prj_stream.conf` â€” Streaming mode
+* :file:`prj_basic.conf` ¡ª Basic mode optional fallback
+* :file:`prj_ret.conf` ¡ª Retransmission mode
+* :file:`prj_fc.conf` ¡ª Flow Control mode
+* :file:`prj_eret.conf` ¡ª Enhanced Retransmission mode
+* :file:`prj_stream.conf` ¡ª Streaming mode
 
 Additional configuration options can be found in :file:`Kconfig`.
