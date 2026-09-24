@@ -1,0 +1,11 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * MCXW235 and MCXW236 share the same flash and RAM sizes; no memory
+ * differences are modeled between the two parts in this devicetree.
+ */
+#include "nxp_mcxw236.dtsi"

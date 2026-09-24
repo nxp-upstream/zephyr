@@ -196,6 +196,19 @@
 	status = "okay";
 };
 
+arduino_i2c: &flexcomm0 {};
+
+mikrobus_i2c: &flexcomm0 {};
+
+mikrobus_spi: &flexcomm2 {
+	status = "okay";
+	compatible = "nxp,lpc-spi";
+	pinctrl-0 = <&pinmux_flexcomm2_spi>;
+	pinctrl-names = "default";
+	#address-cells = <1>;
+	#size-cells = <0>;
+};
+
 &flash0 {
 	partitions {
 		ranges;
@@ -226,17 +239,4 @@
 			reg = <0x000f0000 DT_SIZE_K(56)>;
 		};
 	};
-};
-
-arduino_i2c: &flexcomm0 {};
-
-mikrobus_i2c: &flexcomm0 {};
-
-mikrobus_spi: &flexcomm2 {
-	status = "okay";
-	compatible = "nxp,lpc-spi";
-	pinctrl-0 = <&pinmux_flexcomm2_spi>;
-	pinctrl-names = "default";
-	#address-cells = <1>;
-	#size-cells = <0>;
 };
