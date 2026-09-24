@@ -92,10 +92,10 @@
  * exists to maintain it.
  */
 / {
-	psram: memory@80000000 {
+	psram: memory@88000000 {
 		compatible = "zephyr,memory-region";
 		device_type = "memory";
-		reg = <0x80000000 DT_SIZE_M(32)>;
+		reg = <0x88000000 DT_SIZE_M(32)>;
 		zephyr,memory-region = "PSRAM";
 		status = "disabled";
 	};
