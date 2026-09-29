@@ -632,6 +632,13 @@ static void mcux_lpc_ctimer_context_restore(const struct device *dev)
 	ctx->valid = false;
 }
 
+static int mcux_lpc_ctimer_clock_off(const struct device *dev)
+{
+	const struct mcux_lpc_ctimer_config *config = dev->config;
+
+	return clock_control_off(config->clock_dev, config->clock_subsys);
+}
+
 static int mcux_lpc_ctimer_suspend(const struct device *dev)
 {
 	const struct mcux_lpc_ctimer_config *config = dev->config;
@@ -646,13 +653,32 @@ static int mcux_lpc_ctimer_suspend(const struct device *dev)
 	mcux_lpc_ctimer_context_save(dev);
 	CTIMER_StopTimer(config->base);
 
-	return clock_control_off(config->clock_dev, config->clock_subsys);
+	return mcux_lpc_ctimer_clock_off(dev);
+}
+
+#endif /* CONFIG_PM_DEVICE */
+
+/*
+ * Bring the block into service from an unknown state: either the register image
+ * the last suspend kept, or a fresh configuration out of devicetree.
+ */
+static void mcux_lpc_ctimer_bring_up(const struct device *dev)
+{
+#ifdef CONFIG_PM_DEVICE
+	struct mcux_lpc_ctimer_data *data = dev->data;
+
+	if (data->context.valid) {
+		mcux_lpc_ctimer_context_restore(dev);
+		return;
+	}
+#endif /* CONFIG_PM_DEVICE */
+
+	mcux_lpc_ctimer_hw_init(dev);
 }
 
 static int mcux_lpc_ctimer_resume(const struct device *dev)
 {
 	const struct mcux_lpc_ctimer_config *config = dev->config;
-	struct mcux_lpc_ctimer_data *data = dev->data;
 	int ret;
 
 	ret = clock_control_on(config->clock_dev, config->clock_subsys);
@@ -660,52 +686,44 @@ static int mcux_lpc_ctimer_resume(const struct device *dev)
 		return ret;
 	}
 
-	if (data->context.valid) {
-		mcux_lpc_ctimer_context_restore(dev);
-	}
-
-	return 0;
-}
-#endif /* CONFIG_PM_DEVICE */
-
-static int mcux_lpc_ctimer_turn_on(const struct device *dev)
-{
-	const struct mcux_lpc_ctimer_config *config = dev->config;
-	int ret;
-
 	ret = mcux_lpc_ctimer_pins_apply(dev);
 	if (ret != 0) {
 		return ret;
 	}
 
-	mcux_lpc_ctimer_hw_init(dev);
+	mcux_lpc_ctimer_bring_up(dev);
+
+	/*
+	 * Unconditional: the NVIC enable is lost with the power domain, and
+	 * re-enabling an already enabled interrupt is free.
+	 */
 	config->irq_config_func(dev);
 
 	return 0;
 }
 
+
 static int mcux_lpc_ctimer_pm_action(const struct device *dev, enum pm_device_action action)
 {
 	switch (action) {
+	case PM_DEVICE_ACTION_RESUME:
+		return mcux_lpc_ctimer_resume(dev);
 #ifdef CONFIG_PM_DEVICE
 	case PM_DEVICE_ACTION_SUSPEND:
 		return mcux_lpc_ctimer_suspend(dev);
-	case PM_DEVICE_ACTION_RESUME:
-		return mcux_lpc_ctimer_resume(dev);
-#else
-	case PM_DEVICE_ACTION_RESUME:
-		break;
-	case PM_DEVICE_ACTION_SUSPEND:
-		break;
-#endif /* CONFIG_PM_DEVICE */
 	case PM_DEVICE_ACTION_TURN_OFF:
-		break;
+		return mcux_lpc_ctimer_clock_off(dev);
+#endif /* CONFIG_PM_DEVICE */
 	case PM_DEVICE_ACTION_TURN_ON:
-		return mcux_lpc_ctimer_turn_on(dev);
+		/*
+		 * Nothing. The block is brought up from RESUME, so that an instance
+		 * which boots SUSPENDED under runtime device PM boots with its clock
+		 * gated rather than running behind a PM state that says otherwise.
+		 */
+		return 0;
 	default:
 		return -ENOTSUP;
 	}
-	return 0;
 }
 
 static int mcux_lpc_ctimer_init(const struct device *dev)
