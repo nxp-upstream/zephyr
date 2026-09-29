@@ -45,10 +45,38 @@ struct mcux_lpc_ctimer_channel_data {
 #endif /* CONFIG_COUNTER_CAPTURE */
 };
 
+#ifdef CONFIG_PM_DEVICE
+/*
+ * Everything a suspended CTIMER cannot keep for itself. Suspend gates the
+ * block's function clock, so the registers stop answering and have to be read
+ * out before it goes and written back after. MR and MCR are the run-time part:
+ * an armed alarm lives there and nowhere else, so the devicetree configuration
+ * alone does not describe the block.
+ */
+struct mcux_lpc_ctimer_context {
+	uint32_t tcr;
+	uint32_t tc;
+	uint32_t pr;
+	uint32_t mcr;
+	uint32_t mr[CTIMER_MR_COUNT];
+	uint32_t ccr;
+	uint32_t emr;
+	uint32_t ctcr;
+	uint32_t pwmc;
+#if defined(CTIMER_MSR_COUNT)
+	uint32_t msr[CTIMER_MSR_COUNT];
+#endif
+	bool valid;
+};
+#endif /* CONFIG_PM_DEVICE */
+
 struct mcux_lpc_ctimer_data {
 	struct mcux_lpc_ctimer_channel_data channels[NUM_CHANNELS];
 	counter_top_callback_t top_callback;
 	void *top_user_data;
+#ifdef CONFIG_PM_DEVICE
+	struct mcux_lpc_ctimer_context context;
+#endif
 };
 
 #ifdef CONFIG_COUNTER_CAPTURE
@@ -534,6 +562,112 @@ static void mcux_lpc_ctimer_hw_init(const struct device *dev)
 	CTIMER_Init(config->base, &ctimer_config);
 }
 
+#ifdef CONFIG_PM_DEVICE
+static void mcux_lpc_ctimer_context_save(const struct device *dev)
+{
+	const struct mcux_lpc_ctimer_config *config = dev->config;
+	struct mcux_lpc_ctimer_data *data = dev->data;
+	struct mcux_lpc_ctimer_context *ctx = &data->context;
+	CTIMER_Type *base = config->base;
+
+	ctx->tcr = base->TCR;
+	ctx->tc = base->TC;
+	ctx->pr = base->PR;
+	ctx->mcr = base->MCR;
+	ctx->ccr = base->CCR;
+	ctx->emr = base->EMR;
+	ctx->ctcr = base->CTCR;
+	ctx->pwmc = base->PWMC;
+
+	for (uint8_t i = 0; i < CTIMER_MR_COUNT; i++) {
+		ctx->mr[i] = base->MR[i];
+	}
+#if defined(CTIMER_MSR_COUNT)
+	for (uint8_t i = 0; i < CTIMER_MSR_COUNT; i++) {
+		ctx->msr[i] = base->MSR[i];
+	}
+#endif
+
+	ctx->valid = true;
+}
+
+static void mcux_lpc_ctimer_context_restore(const struct device *dev)
+{
+	const struct mcux_lpc_ctimer_config *config = dev->config;
+	struct mcux_lpc_ctimer_data *data = dev->data;
+	struct mcux_lpc_ctimer_context *ctx = &data->context;
+	CTIMER_Type *base = config->base;
+
+	/*
+	 * Match and capture flags may be latched already; drop them before MCR and
+	 * CCR arm their interrupts, otherwise the first interrupt after resume is
+	 * one that belongs to no alarm.
+	 */
+	CTIMER_ClearStatusFlags(base, 0xFFU);
+
+	base->PR = ctx->pr;
+	base->CTCR = ctx->ctcr;
+	base->PWMC = ctx->pwmc;
+	base->EMR = ctx->emr;
+
+	for (uint8_t i = 0; i < CTIMER_MR_COUNT; i++) {
+		base->MR[i] = ctx->mr[i];
+	}
+#if defined(CTIMER_MSR_COUNT)
+	for (uint8_t i = 0; i < CTIMER_MSR_COUNT; i++) {
+		base->MSR[i] = ctx->msr[i];
+	}
+#endif
+
+	base->MCR = ctx->mcr;
+	base->CCR = ctx->ccr;
+	base->TC = ctx->tc;
+
+	/*
+	 * TCR last: its CEN bit restarts the counter, so every register the counter
+	 * can act on is already back in place when it does.
+	 */
+	base->TCR = ctx->tcr;
+
+	ctx->valid = false;
+}
+
+static int mcux_lpc_ctimer_suspend(const struct device *dev)
+{
+	const struct mcux_lpc_ctimer_config *config = dev->config;
+
+	/*
+	 * Read out before the timer is stopped, so that TCR[CEN] records whether the
+	 * counter was running. The few clocks between reading TC and stopping the
+	 * counter are the whole error in the TC that resume puts back; the time
+	 * spent suspended is not counted at all, which is a property of gating a
+	 * counter rather than of this driver.
+	 */
+	mcux_lpc_ctimer_context_save(dev);
+	CTIMER_StopTimer(config->base);
+
+	return clock_control_off(config->clock_dev, config->clock_subsys);
+}
+
+static int mcux_lpc_ctimer_resume(const struct device *dev)
+{
+	const struct mcux_lpc_ctimer_config *config = dev->config;
+	struct mcux_lpc_ctimer_data *data = dev->data;
+	int ret;
+
+	ret = clock_control_on(config->clock_dev, config->clock_subsys);
+	if (ret < 0) {
+		return ret;
+	}
+
+	if (data->context.valid) {
+		mcux_lpc_ctimer_context_restore(dev);
+	}
+
+	return 0;
+}
+#endif /* CONFIG_PM_DEVICE */
+
 static int mcux_lpc_ctimer_turn_on(const struct device *dev)
 {
 	const struct mcux_lpc_ctimer_config *config = dev->config;
@@ -553,10 +687,17 @@ static int mcux_lpc_ctimer_turn_on(const struct device *dev)
 static int mcux_lpc_ctimer_pm_action(const struct device *dev, enum pm_device_action action)
 {
 	switch (action) {
+#ifdef CONFIG_PM_DEVICE
+	case PM_DEVICE_ACTION_SUSPEND:
+		return mcux_lpc_ctimer_suspend(dev);
+	case PM_DEVICE_ACTION_RESUME:
+		return mcux_lpc_ctimer_resume(dev);
+#else
 	case PM_DEVICE_ACTION_RESUME:
 		break;
 	case PM_DEVICE_ACTION_SUSPEND:
 		break;
+#endif /* CONFIG_PM_DEVICE */
 	case PM_DEVICE_ACTION_TURN_OFF:
 		break;
 	case PM_DEVICE_ACTION_TURN_ON:
