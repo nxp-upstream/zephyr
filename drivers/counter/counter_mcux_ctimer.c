@@ -17,6 +17,7 @@
 #include <zephyr/dt-bindings/clock/mcux_lpc_syscon_clock.h>
 #include <zephyr/irq.h>
 #include <zephyr/pm/device.h>
+#include <zephyr/pm/policy.h>
 
 LOG_MODULE_REGISTER(mcux_ctimer, CONFIG_COUNTER_LOG_LEVEL);
 
@@ -106,9 +107,20 @@ struct mcux_lpc_ctimer_config {
 #endif /* CONFIG_COUNTER_CAPTURE */
 };
 
+/*
+ * The policy lock tracks TCR[CEN]. A counter that is not counting needs nothing
+ * kept out of its way, and a counter has no completion event that could bound a
+ * window shorter than start to stop. Reading CEN rather than keeping a flag is
+ * what keeps the lock count balanced when start or stop is called twice. A node
+ * that declares no disabling power state locks nothing either way.
+ */
 static int mcux_lpc_ctimer_start(const struct device *dev)
 {
 	const struct mcux_lpc_ctimer_config *config = dev->config;
+
+	if ((config->base->TCR & CTIMER_TCR_CEN_MASK) == 0U) {
+		pm_policy_device_power_lock_get(dev);
+	}
 
 	CTIMER_StartTimer(config->base);
 
@@ -118,8 +130,13 @@ static int mcux_lpc_ctimer_start(const struct device *dev)
 static int mcux_lpc_ctimer_stop(const struct device *dev)
 {
 	const struct mcux_lpc_ctimer_config *config = dev->config;
+	bool was_running = (config->base->TCR & CTIMER_TCR_CEN_MASK) != 0U;
 
 	CTIMER_StopTimer(config->base);
+
+	if (was_running) {
+		pm_policy_device_power_lock_put(dev);
+	}
 
 	return 0;
 }
@@ -642,6 +659,7 @@ static int mcux_lpc_ctimer_clock_off(const struct device *dev)
 static int mcux_lpc_ctimer_suspend(const struct device *dev)
 {
 	const struct mcux_lpc_ctimer_config *config = dev->config;
+	struct mcux_lpc_ctimer_data *data = dev->data;
 
 	/*
 	 * Read out before the timer is stopped, so that TCR[CEN] records whether the
@@ -652,6 +670,11 @@ static int mcux_lpc_ctimer_suspend(const struct device *dev)
 	 */
 	mcux_lpc_ctimer_context_save(dev);
 	CTIMER_StopTimer(config->base);
+
+	/* The counter is no longer counting, so it no longer needs protecting. */
+	if ((data->context.tcr & CTIMER_TCR_CEN_MASK) != 0U) {
+		pm_policy_device_power_lock_put(dev);
+	}
 
 	return mcux_lpc_ctimer_clock_off(dev);
 }
@@ -692,6 +715,15 @@ static int mcux_lpc_ctimer_resume(const struct device *dev)
 	}
 
 	mcux_lpc_ctimer_bring_up(dev);
+
+	/*
+	 * A restored TCR[CEN] means the counter is counting again, so it needs the
+	 * protection back that suspend handed in. A cold bring-up leaves CEN clear
+	 * and takes nothing.
+	 */
+	if ((config->base->TCR & CTIMER_TCR_CEN_MASK) != 0U) {
+		pm_policy_device_power_lock_get(dev);
+	}
 
 	/*
 	 * Unconditional: the NVIC enable is lost with the power domain, and
