@@ -9,7 +9,10 @@ target_sources(app PRIVATE
   src/main.c
   )
 if(CONFIG_BT_VOICE_OVER_HCI)
-  target_sources(app PRIVATE src/voice_over_hci.c)
+  target_sources(app PRIVATE
+    src/cvsd.c
+    src/voice_over_hci.c
+    )
 else()
   target_sources(app PRIVATE src/voice_over_pcm.c)
 endif()

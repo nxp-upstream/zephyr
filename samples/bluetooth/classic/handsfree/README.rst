@@ -42,9 +42,17 @@ This sample has been tested on :zephyr:board:`mimxrt1170_evk@B/mimxrt1176/cm7 <m
 See :zephyr:code-sample-category:`bluetooth` samples for details.
 
 For the case where :kconfig:option:`CONFIG_BT_VOICE_OVER_HCI` is enabled, only CVSD codec is
-supported. And also only controller-offload is supported, which means the CVSD is decoded by
-controller, and decoded PCM data is sent to the host. Similarly, the data sent by host is PCM
-mode, and the CVSD encoding is done by the controller.
+supported, in one of two modes.
+
+When :kconfig:option:`CONFIG_APP_CVSD_CODEC_ENABLED` is disabled, the CVSD coding is offloaded to
+the controller, which means the CVSD is decoded by controller, and decoded PCM data is sent to the
+host. Similarly, the data sent by host is PCM mode, and the CVSD encoding is done by the
+controller.
+
+When :kconfig:option:`CONFIG_APP_CVSD_CODEC_ENABLED` is enabled, the application codes the CVSD
+bitstream itself, which is what controllers that carry the air stream over HCI require. CVSD
+occupies 64 kbit/s, so one encoded byte carries one 8 kHz PCM sample and the codec resamples
+between 8 kHz and 64 kHz internally.
 
 For the case where :kconfig:option:`CONFIG_BT_VOICE_OVER_HCI` is disabled, the following topology
 applies:

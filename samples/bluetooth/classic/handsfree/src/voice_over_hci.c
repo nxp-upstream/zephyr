@@ -21,6 +21,7 @@
 #include <zephyr/bluetooth/sbc.h>
 #endif /* CONFIG_LIBSBC */
 
+#include "cvsd.h"
 #include "voice.h"
 
 static struct bt_sco_stream voice_stream;
@@ -69,6 +70,9 @@ static struct sbc_encoder encoder;
 static struct sbc_decoder decoder;
 #endif /* CONFIG_LIBSBC */
 
+static struct cvsd_encoder cvsd_enc;
+static struct cvsd_decoder cvsd_dec;
+
 static void msbc_decode(uint8_t *data, uint32_t len)
 {
 	printk("mSBC codec is not supported\n");
@@ -82,9 +86,17 @@ static void cvsd_decode(uint8_t *data, uint32_t len)
 	uint32_t added_len;
 
 	if (IS_ENABLED(CONFIG_APP_CVSD_CODEC_ENABLED)) {
-		/* Not Supported */
-		printk("CVSD codec is not supported\n");
-		return;
+		static uint8_t pcm_buf[BLOCK_SIZE];
+		int decoded;
+
+		decoded = cvsd_decoder_decode(&cvsd_dec, data, len, pcm_buf, sizeof(pcm_buf));
+		if (decoded < 0) {
+			printk("Failed to decode CVSD data: %d\n", decoded);
+			return;
+		}
+
+		data = pcm_buf;
+		len = (uint32_t)decoded;
 	}
 
 	added_len = ring_buf_put(&raw_rx_ringbuf, data, len);
@@ -186,9 +198,17 @@ static void msbc_encode(struct net_buf *buf, const uint8_t *data, uint32_t len)
 static void cvsd_encode(struct net_buf *buf, const uint8_t *data, uint32_t len)
 {
 	if (IS_ENABLED(CONFIG_APP_CVSD_CODEC_ENABLED)) {
-		/* Not Supported */
-		printk("CVSD codec is not supported\n");
-		return;
+		static uint8_t cvsd_buf[BLOCK_SIZE / 2];
+		int encoded;
+
+		encoded = cvsd_encoder_encode(&cvsd_enc, data, len, cvsd_buf, sizeof(cvsd_buf));
+		if (encoded < 0) {
+			printk("Failed to encode CVSD data: %d\n", encoded);
+			return;
+		}
+
+		data = cvsd_buf;
+		len = (uint32_t)encoded;
 	}
 
 	len = MIN(len, sco_mtu);
@@ -421,6 +441,12 @@ int voice_init(struct bt_conn *sco_conn, uint8_t air_mode, uint8_t codec_id)
 	k_mutex_lock(&voice_rx_mutex, K_FOREVER);
 	ring_buf_reset(&sco_rx_ringbuf);
 	k_mutex_unlock(&voice_rx_mutex);
+
+	/* Both directions carry state across frames, so a new SCO link starts over. */
+	if (IS_ENABLED(CONFIG_APP_CVSD_CODEC_ENABLED)) {
+		cvsd_encoder_init(&cvsd_enc);
+		cvsd_decoder_init(&cvsd_dec);
+	}
 
 #if defined(CONFIG_LIBSBC)
 	err = msbc_init();
