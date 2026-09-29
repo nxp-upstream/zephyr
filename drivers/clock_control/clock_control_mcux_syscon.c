@@ -15,6 +15,63 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(clock_control);
 
+#if defined(CONFIG_COUNTER_MCUX_CTIMER) || defined(CONFIG_PWM_MCUX_CTIMER)
+/*
+ * The CTIMER gates carry three different names across the parts this driver
+ * serves, so the devicetree cell is mapped to one gate here and both on() and
+ * off() use it. An instance whose node is not enabled is left out entirely, which
+ * is what keeps the MCUX_CTIMER5..7 cases off the parts that stop at CTIMER4.
+ */
+#if defined(CONFIG_SOC_FAMILY_MCXA)
+#define MCUX_LPC_SYSCON_CTIMER_GATE(n) kCLOCK_GateCTIMER##n
+#elif defined(CONFIG_SOC_SERIES_LPC55XXX) || defined(CONFIG_SOC_FAMILY_MCXN) ||                    \
+	defined(CONFIG_SOC_SERIES_MCXW2XX)
+#define MCUX_LPC_SYSCON_CTIMER_GATE(n) kCLOCK_Timer##n
+#else
+/* LPC54xxx, RW6xx and the i.MX RT5xx/6xx/7xx parts name the same gate Ct32b. */
+#define MCUX_LPC_SYSCON_CTIMER_GATE(n) kCLOCK_Ct32b##n
+#endif
+
+#define MCUX_LPC_SYSCON_CTIMER_CASE(n)                                                             \
+	case MCUX_CTIMER##n##_CLK:                                                                 \
+		*gate = MCUX_LPC_SYSCON_CTIMER_GATE(n);                                            \
+		break;
+
+static bool mcux_lpc_syscon_ctimer_gate(uint32_t clock_name, clock_ip_name_t *gate)
+{
+	switch (clock_name) {
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(ctimer0))
+		MCUX_LPC_SYSCON_CTIMER_CASE(0)
+#endif
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(ctimer1))
+		MCUX_LPC_SYSCON_CTIMER_CASE(1)
+#endif
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(ctimer2))
+		MCUX_LPC_SYSCON_CTIMER_CASE(2)
+#endif
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(ctimer3))
+		MCUX_LPC_SYSCON_CTIMER_CASE(3)
+#endif
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(ctimer4))
+		MCUX_LPC_SYSCON_CTIMER_CASE(4)
+#endif
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(ctimer5))
+		MCUX_LPC_SYSCON_CTIMER_CASE(5)
+#endif
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(ctimer6))
+		MCUX_LPC_SYSCON_CTIMER_CASE(6)
+#endif
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(ctimer7))
+		MCUX_LPC_SYSCON_CTIMER_CASE(7)
+#endif
+	default:
+		return false;
+	}
+
+	return true;
+}
+#endif /* CONFIG_COUNTER_MCUX_CTIMER || CONFIG_PWM_MCUX_CTIMER */
+
 static int mcux_lpc_syscon_clock_control_on(const struct device *dev,
 					    clock_control_subsys_t sub_system)
 {
@@ -496,6 +553,16 @@ static int mcux_lpc_syscon_clock_control_on(const struct device *dev,
 	}
 #endif
 
+#if defined(CONFIG_COUNTER_MCUX_CTIMER) || defined(CONFIG_PWM_MCUX_CTIMER)
+	{
+		clock_ip_name_t gate;
+
+		if (mcux_lpc_syscon_ctimer_gate((uint32_t)sub_system, &gate)) {
+			CLOCK_EnableClock(gate);
+		}
+	}
+#endif
+
 	return 0;
 }
 
@@ -513,6 +580,17 @@ static int mcux_lpc_syscon_clock_control_off(const struct device *dev,
 	}
 #endif /* FSL_FEATURE_SOC_EQDC_COUNT > 1 */
 #endif
+
+#if defined(CONFIG_COUNTER_MCUX_CTIMER) || defined(CONFIG_PWM_MCUX_CTIMER)
+	{
+		clock_ip_name_t gate;
+
+		if (mcux_lpc_syscon_ctimer_gate((uint32_t)sub_system, &gate)) {
+			CLOCK_DisableClock(gate);
+		}
+	}
+#endif
+
 	return 0;
 }
 
