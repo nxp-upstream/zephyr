@@ -494,18 +494,15 @@ static void mcux_lpc_ctimer_isr(const struct device *dev)
 #endif
 }
 
-static int mcux_lpc_ctimer_init_common(const struct device *dev)
+/*
+ * Re-applied whenever the block has to be configured from scratch, which is more
+ * than once: a CTIMER that came back from a power-down lost its pin-mux and its
+ * capture routing along with its registers.
+ */
+static int mcux_lpc_ctimer_pins_apply(const struct device *dev)
 {
-	const struct mcux_lpc_ctimer_config *config = dev->config;
-	struct mcux_lpc_ctimer_data *data = dev->data;
-	ctimer_config_t ctimer_config;
-
-	if (!device_is_ready(config->clock_dev)) {
-		LOG_ERR("clock control device not ready");
-		return -ENODEV;
-	}
-
 #ifdef CONFIG_COUNTER_CAPTURE
+	const struct mcux_lpc_ctimer_config *config = dev->config;
 	int ret;
 
 	if (config->pincfg != NULL) {
@@ -515,22 +512,18 @@ static int mcux_lpc_ctimer_init_common(const struct device *dev)
 		}
 	}
 
-	ret = mcux_lpc_ctimer_apply_mux(config);
-	if (ret != 0) {
-		return ret;
-	}
-#endif /* CONFIG_COUNTER_CAPTURE */
+	return mcux_lpc_ctimer_apply_mux(config);
+#else
+	ARG_UNUSED(dev);
 
-	for (uint8_t chan = 0; chan < NUM_CHANNELS; chan++) {
-		data->channels[chan].alarm_callback = NULL;
-		data->channels[chan].alarm_user_data = NULL;
-#ifdef CONFIG_COUNTER_CAPTURE
-		data->channels[chan].capture_callback = NULL;
-		data->channels[chan].capture_user_data = NULL;
-		data->channels[chan].capture_flags = 0U;
-		data->channels[chan].capture_single_shot = false;
+	return 0;
 #endif /* CONFIG_COUNTER_CAPTURE */
-	}
+}
+
+static void mcux_lpc_ctimer_hw_init(const struct device *dev)
+{
+	const struct mcux_lpc_ctimer_config *config = dev->config;
+	ctimer_config_t ctimer_config;
 
 	CTIMER_GetDefaultConfig(&ctimer_config);
 
@@ -539,7 +532,19 @@ static int mcux_lpc_ctimer_init_common(const struct device *dev)
 	ctimer_config.prescale = config->prescale;
 
 	CTIMER_Init(config->base, &ctimer_config);
+}
 
+static int mcux_lpc_ctimer_turn_on(const struct device *dev)
+{
+	const struct mcux_lpc_ctimer_config *config = dev->config;
+	int ret;
+
+	ret = mcux_lpc_ctimer_pins_apply(dev);
+	if (ret != 0) {
+		return ret;
+	}
+
+	mcux_lpc_ctimer_hw_init(dev);
 	config->irq_config_func(dev);
 
 	return 0;
@@ -555,8 +560,7 @@ static int mcux_lpc_ctimer_pm_action(const struct device *dev, enum pm_device_ac
 	case PM_DEVICE_ACTION_TURN_OFF:
 		break;
 	case PM_DEVICE_ACTION_TURN_ON:
-		mcux_lpc_ctimer_init_common(dev);
-		break;
+		return mcux_lpc_ctimer_turn_on(dev);
 	default:
 		return -ENOTSUP;
 	}
@@ -565,8 +569,27 @@ static int mcux_lpc_ctimer_pm_action(const struct device *dev, enum pm_device_ac
 
 static int mcux_lpc_ctimer_init(const struct device *dev)
 {
-	/* Rest of the init is done from the PM_DEVICE_TURN_ON action
-	 * which is invoked by pm_device_driver_init().
+	const struct mcux_lpc_ctimer_config *config = dev->config;
+	struct mcux_lpc_ctimer_data *data = dev->data;
+
+	if (!device_is_ready(config->clock_dev)) {
+		LOG_ERR("clock control device not ready");
+		return -ENODEV;
+	}
+
+	for (uint8_t chan = 0; chan < NUM_CHANNELS; chan++) {
+		data->channels[chan].alarm_callback = NULL;
+		data->channels[chan].alarm_user_data = NULL;
+#ifdef CONFIG_COUNTER_CAPTURE
+		data->channels[chan].capture_callback = NULL;
+		data->channels[chan].capture_user_data = NULL;
+		data->channels[chan].capture_flags = 0U;
+		data->channels[chan].capture_single_shot = false;
+#endif /* CONFIG_COUNTER_CAPTURE */
+	}
+
+	/* The hardware is brought up from the PM_DEVICE_TURN_ON action that this
+	 * call invokes.
 	 */
 	return pm_device_driver_init(dev, mcux_lpc_ctimer_pm_action);
 }
