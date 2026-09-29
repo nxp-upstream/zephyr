@@ -72,7 +72,7 @@ static int mpipe_tcp_server_src_pool_acquire(struct mpipe_buffer_pool *pool, str
 	rd = zsock_recv(tsrc->client_fd, nb->data, nb->size, 0);
 	if (rd <= 0) {
 		/* A closed connection is the end of the stream */
-		int ret = (rd == 0) ? -ENODATA : -errno;
+		ret = (rd == 0) ? -ENODATA : -errno;
 
 		if (rd < 0) {
 			LOG_ERR("recv() failed (%d)", errno);
@@ -108,17 +108,17 @@ static int mpipe_tcp_server_src_change_state(struct mpipe_element *self,
 		tsrc->server_fd = ret;
 		break;
 	case MPIPE_STATE_CHANGE_PAUSED_TO_PLAYING:
-		/* A pause keeps the client, so accept only on the first start */
-		if (tsrc->client_fd < 0) {
-			ret = mpipe_net_tcp_accept(tsrc->server_fd);
-			if (ret < 0) {
-				return ret;
-			}
-			tsrc->client_fd = ret;
+		/* The client is accepted on every start, since a pause drops it */
+		ret = mpipe_net_tcp_accept(tsrc->server_fd);
+		if (ret < 0) {
+			return ret;
 		}
+		tsrc->client_fd = ret;
+		break;
+	case MPIPE_STATE_CHANGE_PLAYING_TO_PAUSED:
+		mpipe_net_tcp_close(&tsrc->client_fd);
 		break;
 	case MPIPE_STATE_CHANGE_PAUSED_TO_READY:
-		mpipe_net_tcp_close(&tsrc->client_fd);
 		mpipe_net_tcp_close(&tsrc->server_fd);
 		break;
 	default:

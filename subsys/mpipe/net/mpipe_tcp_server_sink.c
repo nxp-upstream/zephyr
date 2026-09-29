@@ -96,17 +96,17 @@ static int mpipe_tcp_server_sink_change_state(struct mpipe_element *self,
 		tsink->server_fd = ret;
 		break;
 	case MPIPE_STATE_CHANGE_PAUSED_TO_PLAYING:
-		/* A pause keeps the client, so accept only on the first start */
-		if (tsink->client_fd < 0) {
-			ret = mpipe_net_tcp_accept(tsink->server_fd);
-			if (ret < 0) {
-				return ret;
-			}
-			tsink->client_fd = ret;
+		/* The client is accepted on every start, since a pause drops it */
+		ret = mpipe_net_tcp_accept(tsink->server_fd);
+		if (ret < 0) {
+			return ret;
 		}
+		tsink->client_fd = ret;
+		break;
+	case MPIPE_STATE_CHANGE_PLAYING_TO_PAUSED:
+		mpipe_net_tcp_close(&tsink->client_fd);
 		break;
 	case MPIPE_STATE_CHANGE_PAUSED_TO_READY:
-		mpipe_net_tcp_close(&tsink->client_fd);
 		mpipe_net_tcp_close(&tsink->server_fd);
 		break;
 	default:
