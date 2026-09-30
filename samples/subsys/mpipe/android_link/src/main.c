@@ -32,10 +32,13 @@
 #include <zephyr/net/net_config.h>
 #include <zephyr/net/wifi_mgmt.h>
 
+#include <zephyr/zbus/zbus.h>
+
 #include <zephyr/drivers/video.h>
 #include <zephyr/mpipe/mpipe.h>
 #include <zephyr/mpipe/base/mpipe_caps_filter.h>
 #include <zephyr/mpipe/base/mpipe_queue.h>
+#include <zephyr/mpipe/mpipe_message.h>
 #include <zephyr/mpipe/net/mpipe_tcp_server_src.h>
 
 #include <zephyr/mpipe/img/mpipe_img_jpeg_parser.h>
@@ -75,6 +78,9 @@ enum {
 
 K_EVENT_DEFINE(application_event);
 
+/* The run ended: the phone closed the video connection, or the stream failed */
+#define EVENT_STREAM_END BIT(3)
+
 #if !defined(CONFIG_WIFI)
 /*
  * Static server address / netmask used on the wired (Ethernet or native_sim
@@ -97,6 +103,21 @@ static struct mpipe_caps_filter caps_filter;
 static struct mpipe_player player;
 
 static const struct device *const display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
+
+/*
+ * Runs in the thread posting the message: only note that the run is over. A
+ * stop from the shell posts nothing here, so it is not undone by main().
+ */
+static void stream_msg_cb(const struct zbus_channel *chan)
+{
+	const struct mpipe_message *msg = zbus_chan_const_msg(chan);
+
+	if (msg->type == MPIPE_MESSAGE_EOS || msg->type == MPIPE_MESSAGE_ERROR) {
+		k_event_post(&application_event, EVENT_STREAM_END);
+	}
+}
+
+ZBUS_LISTENER_DEFINE(stream_listener, stream_msg_cb);
 
 /*
  * Build the mpipe pipeline that serves the phone and renders the frames it
@@ -231,6 +252,12 @@ static int build_video_stream_pipeline(void)
 
 	LOG_INF("Pipeline linked.");
 
+	ret = zbus_chan_add_obs(mpipe_element_get_bus_chan((struct mpipe_element *)&pipe),
+				&stream_listener, K_FOREVER);
+	if (ret != 0) {
+		return ret;
+	}
+
 	return mpipe_player_init(&player, &pipe);
 }
 
@@ -292,11 +319,11 @@ int main(void)
 	control_init();
 
 	/*
-	 * The video path is the player's from here on: it is built, its display
-	 * rate probe attached, and started once. The player owns every state
-	 * transition after this - the stream ends and resumes, the client comes
-	 * and goes, without main() touching the pipeline again. Drive it from the
-	 * shell with p/s/r/q.
+	 * The video path is the player's from here on. The player takes the
+	 * pipeline back to READY when the phone closes the video connection,
+	 * which also closes the listening port; main() then plays again so the
+	 * next client is accepted, and otherwise never touches the pipeline.
+	 * The shell still drives it with p/s/r/q.
 	 */
 	ret = build_video_stream_pipeline();
 	if (ret < 0) {
@@ -333,10 +360,21 @@ int main(void)
 
 		connect_control_socket(tcp_src.server_fd, &client_addr);
 
-		/* Block until the touch/control connection reports a failure */
-		(void)k_event_wait(&application_event, EVENT_TOUCH_ERROR, true, K_FOREVER);
+		/* Serve this client until the run ends or the control connection fails */
+		uint32_t events = k_event_wait(&application_event,
+					       EVENT_TOUCH_ERROR | EVENT_STREAM_END, false,
+					       K_FOREVER);
 
 		(void)disconnect_control_socket();
+		k_event_clear(&application_event, EVENT_TOUCH_ERROR | EVENT_STREAM_END);
+
+		if ((events & EVENT_STREAM_END) != 0U) {
+			/*
+			 * Queued behind the player's own end-of-run handling, so the
+			 * pipeline is back in READY before it is played again.
+			 */
+			(void)mpipe_player_play(&player);
+		}
 	}
 
 	return 0;
