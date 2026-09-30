@@ -27,6 +27,17 @@ config MPIPE_NET_SRC_PORT
 	help
 	  Used unless the application sets MPIPE_PROP_TCP_SERVER_SRC_PORT.
 
+config MPIPE_NET_LISTEN_BACKLOG
+	int "Pending connections a listening socket keeps"
+	range 1 16
+	default 2
+	help
+	  Connections completed by the TCP stack but not yet accepted. An
+	  element takes one client, but an application may accept further
+	  connections on the same listening socket, and a peer that opens them
+	  back to back has its second SYN dropped while the backlog is full,
+	  until it retransmits.
+
 config MPIPE_NET_SRC_BUF_SIZE
 	int "Size of a TCP source receive buffer in bytes"
 	range 64 65535
