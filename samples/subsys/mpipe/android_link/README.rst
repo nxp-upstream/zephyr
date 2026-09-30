@@ -20,14 +20,20 @@ constructs the following pipeline:
 
 .. code-block:: none
 
-   tcp_src -> jpeg_parser -> jpeg_decoder -> disp_sink
+   tcp_src -> jpeg_parser -> queue -> jpeg_decoder -> queue -> caps_filter -> disp_sink
 
 * ``tcp_src`` (mpipe ``net`` plugin) reads the raw byte stream from the connected
-  TCP socket in fixed-size chunks.
-* ``jpeg_parser`` (mpipe ``img`` plugin) reassembles complete JPEG frames from the
+  TCP socket, straight into the buffer the parser is assembling a frame in.
+* ``jpeg_parser`` (mpipe ``img`` plugin) cuts complete JPEG frames out of the
   byte stream by locating the JPEG end-of-image (``0xFFD9``) markers.
+* The two ``queue`` elements (mpipe ``base`` plugin) put the receiving, decoding
+  and displaying on three threads. Each keeps at most a frame or two and drops
+  its oldest one when the stage behind it falls behind, so the display always
+  shows the newest frame and the phone is never throttled into buffering
+  frames on its side.
 * ``jpeg_decoder`` (mpipe ``img`` plugin) decodes each JPEG frame into raw RGB565
-  pixels using the software decoder.
+  pixels using the software decoder. A frame that does not decode is dropped.
+* ``caps_filter`` (mpipe ``base`` plugin) pins the panel's format and geometry.
 * ``disp_sink`` (mpipe ``disp`` plugin) renders the decoded frames to the Zephyr
   display device.
 

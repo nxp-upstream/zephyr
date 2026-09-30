@@ -14,3 +14,18 @@ target_sources(app PRIVATE
 )
 
 target_include_directories(app PRIVATE src)
+
+if(CONFIG_NET_STACK_CODE_RELOCATE)
+  # Relocate the networking stack and the L2 layer into the RAM named by
+  # CONFIG_NET_STACK_CODE_RAM_NAME (ITCM on the RT1170), as the original demo does.
+  zephyr_code_relocate(LIBRARY subsys__net__ip
+    LOCATION "${CONFIG_NET_STACK_CODE_RAM_NAME}_TEXT" NOKEEP)
+  zephyr_code_relocate(LIBRARY subsys__net
+    LOCATION "${CONFIG_NET_STACK_CODE_RAM_NAME}_TEXT" NOKEEP)
+  if(CONFIG_NET_L2_ETHERNET)
+    zephyr_code_relocate(LIBRARY drivers__ethernet
+      LOCATION "${CONFIG_NET_STACK_CODE_RAM_NAME}_TEXT" NOKEEP)
+    zephyr_code_relocate(LIBRARY subsys__net__l2__ethernet
+      LOCATION "${CONFIG_NET_STACK_CODE_RAM_NAME}_TEXT" NOKEEP)
+  endif()
+endif()

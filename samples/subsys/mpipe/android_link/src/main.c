@@ -178,6 +178,31 @@ static int build_video_stream_pipeline(void)
 	}
 
 	/*
+	 * A mirror shows the newest frame, so a queue that fills because the
+	 * stage behind it is slower drops its oldest frame rather than holding
+	 * the producer: frames the decoder cannot keep up with are dropped
+	 * before being decoded, and the sender is never throttled into
+	 * buffering seconds of frames on its side.
+	 */
+	ret = mpipe_object_set_properties((struct mpipe_object *)&queue_parse,
+					  MPIPE_PROP_BASE_QUEUE_SIZE, &(uint8_t){2},
+					  MPIPE_PROP_BASE_QUEUE_LEAK,
+					  &(enum mpipe_base_queue_leak){MPIPE_BASE_QUEUE_LEAK_OLDEST},
+					  MPIPE_PROP_LIST_END);
+	if (ret < 0) {
+		return ret;
+	}
+
+	ret = mpipe_object_set_properties((struct mpipe_object *)&queue_dec,
+					  MPIPE_PROP_BASE_QUEUE_SIZE, &(uint8_t){1},
+					  MPIPE_PROP_BASE_QUEUE_LEAK,
+					  &(enum mpipe_base_queue_leak){MPIPE_BASE_QUEUE_LEAK_OLDEST},
+					  MPIPE_PROP_LIST_END);
+	if (ret < 0) {
+		return ret;
+	}
+
+	/*
 	 * The queues are what split the graph across threads. Without them the
 	 * whole path - receive, parse, decode, display - runs on the source
 	 * thread, so the socket is not read again until a frame has been decoded
