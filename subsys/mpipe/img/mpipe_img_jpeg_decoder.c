@@ -102,8 +102,21 @@ static int mpipe_img_jpeg_decoder_decode_one(struct mpipe_img_jpeg_decoder *dec,
 	}
 
 	if (JPEGDEC_openRAM(jpg, in_buf->data, (int)in_sz, NULL) == 0) {
-		LOG_ERR("JPEG open failed");
+		LOG_WRN("JPEG open failed");
 		return -EINVAL;
+	}
+
+	/*
+	 * Do not use JPEGDEC_getBpp() as it reports the JPEG stream bpp (e.g.
+	 * 24 bits for 3 components YCbCr), not the decoded output format bpp.
+	 */
+	out_sz = (uint32_t)JPEGDEC_getWidth(jpg) * (uint32_t)JPEGDEC_getHeight(jpg) *
+		 video_bits_per_pixel(dec->out_pixfmt) / BITS_PER_BYTE;
+	if (out_sz > out_buf->size) {
+		LOG_WRN("A %dx%d frame needs %u bytes, the output buffer holds %u",
+			JPEGDEC_getWidth(jpg), JPEGDEC_getHeight(jpg), out_sz, out_buf->size);
+		JPEGDEC_close(jpg);
+		return -ENOBUFS;
 	}
 
 	JPEGDEC_setFramebuffer(jpg, (void *)out_buf->data);
@@ -122,17 +135,11 @@ static int mpipe_img_jpeg_decoder_decode_one(struct mpipe_img_jpeg_decoder *dec,
 	}
 
 	if (JPEGDEC_decode(jpg, 0, 0, 0) == 0) {
-		LOG_ERR("JPEG decode failed");
+		LOG_WRN("JPEG decode failed");
 		JPEGDEC_close(jpg);
 		return -EIO;
 	}
 
-	/*
-	 * Do not use JPEGDEC_getBpp() as it reports the JPEG stream bpp (e.g.
-	 * 24 bits for 3 components YCbCr), not the decoded output format bpp.
-	 */
-	out_sz = (uint32_t)JPEGDEC_getWidth(jpg) * (uint32_t)JPEGDEC_getHeight(jpg) *
-		 video_bits_per_pixel(dec->out_pixfmt) / BITS_PER_BYTE;
 	mpipe_buffer_get_meta(out_buf)->bytes_used = out_sz;
 	out_buf->len = out_sz;
 
@@ -180,7 +187,10 @@ static int mpipe_img_jpeg_decoder_process_fn(struct mpipe_pad *pad, struct net_b
 		next = cur->frags;
 		cur->frags = NULL;
 
-		if (mpipe_img_jpeg_decoder_decode_one(dec, cur, out) < 0) {
+		ret = mpipe_img_jpeg_decoder_decode_one(dec, cur, out);
+
+		if (ret == -ENOTSUP) {
+			/* A format this element cannot produce: the stream cannot go on */
 			net_buf_unref(out);
 			net_buf_unref(cur);
 			if (*out_buf != NULL) {
@@ -190,7 +200,19 @@ static int mpipe_img_jpeg_decoder_process_fn(struct mpipe_pad *pad, struct net_b
 			if (next != NULL) {
 				net_buf_unref(next);
 			}
-			return -EIO;
+			return ret;
+		}
+
+		if (ret != 0) {
+			/*
+			 * A frame that does not decode is dropped and the stream goes
+			 * on: a live source resynchronizes on the next frame, and
+			 * failing the chain would end the run for one bad frame.
+			 */
+			net_buf_unref(out);
+			net_buf_unref(cur);
+			cur = next;
+			continue;
 		}
 
 		if (*out_buf == NULL) {
