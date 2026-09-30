@@ -58,7 +58,8 @@ int mpipe_net_tcp_listen(uint16_t port)
 				       sizeof(v6only));
 	}
 
-	if (zsock_bind(fd, addr, addrlen) < 0 || zsock_listen(fd, 1) < 0) {
+	if (zsock_bind(fd, addr, addrlen) < 0 ||
+	    zsock_listen(fd, CONFIG_MPIPE_NET_LISTEN_BACKLOG) < 0) {
 		ret = -errno;
 		LOG_ERR("Failed to listen on port %u (%d)", port, errno);
 		(void)zsock_close(fd);
