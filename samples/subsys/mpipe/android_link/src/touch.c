@@ -146,9 +146,15 @@ static void send_work_handler(struct k_work *kwork)
 
 	while (k_msgq_get(&sc_control_queue, &android_evt_data, K_NO_WAIT) == 0) {
 		ssize_t msg_len = sc_control_msg_serialize(&android_evt_data, msg_buf);
-		ssize_t send_size = zsock_sendto(evt_send->control_socket, msg_buf, msg_len, 0,
+		ssize_t send_size;
+
+		if (IS_ENABLED(CONFIG_CONTROL_EVENT_TCP)) {
+			send_size = zsock_send(evt_send->control_socket, msg_buf, msg_len, 0);
+		} else {
+			send_size = zsock_sendto(evt_send->control_socket, msg_buf, msg_len, 0,
 						 (const struct sockaddr *)evt_send->remote_addr,
 						 sizeof(struct sockaddr));
+		}
 		if (send_size <= 0) {
 			LOG_ERR("Touch socket error");
 			k_event_post(&application_event, EVENT_TOUCH_ERROR);

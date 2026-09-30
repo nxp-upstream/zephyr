@@ -281,19 +281,30 @@ int main(void)
 
 	(void)mpipe_player_play(&player);
 
-	(void)memset(&client_addr, 0, sizeof(client_addr));
-	client_addr.sin_family = AF_INET;
-	client_addr.sin_port = htons(MY_PORT);
-
 	while (1) {
+		socklen_t addr_len = sizeof(client_addr);
+
 		/*
 		 * The player opens the listening socket on its own worker thread,
 		 * so tcp_src.server_fd is not valid the instant play() returns and
 		 * is closed again on a stop/replay. Wait for it before each accept.
 		 */
 		while (pipe.bin.element.current_state != MPIPE_STATE_PLAYING) {
-			k_msleep(1000);
+			k_msleep(100);
 		}
+
+		/*
+		 * The control messages go to the phone that sends the video, so
+		 * take its address from the video connection: a send to an
+		 * unspecified address is refused by the socket layer.
+		 */
+		(void)memset(&client_addr, 0, sizeof(client_addr));
+		if (zsock_getpeername(tcp_src.ssrc.fd, (struct sockaddr *)&client_addr,
+				      &addr_len) < 0) {
+			LOG_ERR("Failed to get the video client address (%d)", errno);
+		}
+		client_addr.sin_family = AF_INET;
+		client_addr.sin_port = htons(MY_PORT);
 
 		connect_control_socket(tcp_src.server_fd, &client_addr);
 
