@@ -448,6 +448,11 @@ int mpipe_vid_object_set_caps(struct mpipe_vid_object *vid_obj, const struct mpi
 		return -EIO;
 	}
 
+	if (video_estimate_fmt_size(&fmt) != 0) {
+		LOG_ERR("Unable to estimate frame size");
+		return -EINVAL;
+	}
+
 	vid_obj->pool.pool.config.size = fmt.size;
 
 	/*
