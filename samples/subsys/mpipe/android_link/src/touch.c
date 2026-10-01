@@ -90,12 +90,12 @@ static void convert_to_android_event(struct sc_control_msg *android_point,
 static void check_alive(struct k_timer *timer)
 {
 	struct control_data *p_data = k_timer_user_data_get(timer);
-	struct sc_control_msg dummy_msg = {0};
+	struct sc_control_msg keep_alive = {0};
 
-	dummy_msg.type = SC_CONTROL_MSG_TYPE_DUMMY;
+	keep_alive.type = SC_CONTROL_MSG_TYPE_KEEP_ALIVE;
 	LOG_DBG("Check alive");
 	if (p_data->is_connected && k_msgq_num_used_get(&sc_control_queue) == 0) {
-		k_msgq_put(&sc_control_queue, &dummy_msg, K_NO_WAIT);
+		k_msgq_put(&sc_control_queue, &keep_alive, K_NO_WAIT);
 		k_work_submit(&p_data->send_work);
 	}
 }

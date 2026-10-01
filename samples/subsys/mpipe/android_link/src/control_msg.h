@@ -30,7 +30,7 @@
 
 enum sc_control_msg_type {
 	SC_CONTROL_MSG_TYPE_INJECT_TOUCH_EVENT = 2,
-	SC_CONTROL_MSG_TYPE_DUMMY = 15
+	SC_CONTROL_MSG_TYPE_KEEP_ALIVE = 100
 };
 
 struct sc_control_msg {

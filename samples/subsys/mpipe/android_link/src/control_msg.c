@@ -44,7 +44,7 @@ size_t sc_control_msg_serialize(const struct sc_control_msg *msg, unsigned char 
 		sc_write32be(&buf[24], msg->inject_touch_event.action_button);
 		sc_write32be(&buf[28], msg->inject_touch_event.buttons);
 		return 32;
-	case SC_CONTROL_MSG_TYPE_DUMMY:
+	case SC_CONTROL_MSG_TYPE_KEEP_ALIVE:
 		return 1;
 	default:
 		return 0;
