@@ -6,9 +6,10 @@ config MPIPE_NET
 	depends on NETWORKING && NET_TCP && NET_SOCKETS
 	select NET_IPV4_MAPPING_TO_IPV6 if NET_NATIVE_IPV6
 	help
-	  Elements that move a stream over a socket: a socket source reading a
-	  connected socket the application hands it, and a TCP server source
-	  and sink that listen on a port of their own and take one client.
+	  Elements that move a stream over a socket: a socket source and sink
+	  reading and writing a connected socket the application hands them,
+	  and a TCP server source and sink built on them that listen on a port
+	  of their own and take one client.
 	  With IPv6 enabled a single socket serves IPv4 clients too, through
 	  IPv4-mapped addresses.
 
