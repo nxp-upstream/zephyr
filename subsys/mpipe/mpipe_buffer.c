@@ -14,15 +14,54 @@ NET_BUF_POOL_FIXED_DEFINE(mpipe_buf_pool, CONFIG_MPIPE_NET_BUF_POOL_COUNT, 1,
 void mpipe_buffer_destroy(struct net_buf *buf)
 {
 	struct mpipe_buffer_meta *bm;
+	struct net_buf *parent;
 
 	__ASSERT_NO_MSG(buf != NULL);
 
 	bm = mpipe_buffer_get_meta(buf);
-	if (bm != NULL && bm->pool != NULL && bm->pool->release_buffer != NULL) {
+	if (bm->pool != NULL && bm->pool->release_buffer != NULL) {
 		bm->pool->release_buffer(bm->pool, buf);
 	}
 
+	/* The header goes back first: the parent may be the last thing holding it */
+	parent = bm->parent;
+	bm->parent = NULL;
+
 	net_buf_destroy(buf);
+
+	if (parent != NULL) {
+		net_buf_unref(parent);
+	}
+}
+
+struct net_buf *mpipe_buffer_view(struct net_buf *parent, uint32_t offset, uint32_t len,
+				  k_timeout_t timeout)
+{
+	const struct mpipe_buffer_meta *pm;
+	struct mpipe_buffer_meta *vm;
+	struct net_buf *view;
+
+	__ASSERT_NO_MSG(parent != NULL);
+
+	pm = mpipe_buffer_get_meta(parent);
+	if (offset > pm->bytes_used || len > pm->bytes_used - offset) {
+		return NULL;
+	}
+
+	view = net_buf_alloc_with_data(&mpipe_buf_pool, parent->data + offset, len, timeout);
+	if (view == NULL) {
+		return NULL;
+	}
+
+	vm = mpipe_buffer_get_meta(view);
+	vm->pool = NULL;
+	vm->bytes_used = len;
+	vm->timestamp = pm->timestamp;
+	vm->driver_buf = NULL;
+	vm->priv = NULL;
+	vm->parent = net_buf_ref(parent);
+
+	return view;
 }
 
 int mpipe_buffer_pool_configure(struct mpipe_buffer_pool *pool, const struct mpipe_structure *caps)
