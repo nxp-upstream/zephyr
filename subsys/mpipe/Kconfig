@@ -100,7 +100,8 @@ config MPIPE_NET_BUF_POOL_COUNT
 	default 1
 	help
 	  Number of net_buf buffers in the pool shared by every pipeline: the
-	  sum of the buffers each pipeline can have in flight at once.
+	  sum of the buffers each pipeline can have in flight at once, views a
+	  source or a parser cut from a buffer included (see mpipe_buffer_view()).
 
 config MPIPE_ELEMENT_NAME
 	bool

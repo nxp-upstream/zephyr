@@ -29,6 +29,13 @@
  * driver already owns rather than copies of them, and the framework drives it
  * through the helpers rather than calling the hooks directly.
  *
+ * A buffer can also be a @em view of another one: @ref mpipe_buffer_view
+ * returns a buffer whose data is a range of its parent's, holding a reference
+ * on the parent for as long as it lives. A source that receives into a large
+ * chunk pushes one view per read, and a parser that finds a frame inside the
+ * chunk emits a view of it, so the bytes never move. Views come from a
+ * header-only pool sized by @kconfig{CONFIG_MPIPE_NET_BUF_POOL_COUNT}.
+ *
  * @section mpipe_buffer_negotiation Settling who provides the buffers
  *
  * Once the format is fixed, a query runs through the graph to settle the buffer
@@ -51,6 +58,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <zephyr/kernel.h>
 #include <zephyr/net_buf.h>
 
 /**
@@ -134,6 +142,11 @@ struct mpipe_buffer_meta {
 	void *driver_buf;
 	/** Opaque pointer for plugin-specific usage. */
 	void *priv;
+	/**
+	 * Buffer this one is a view of, or NULL. A view holds a reference on its
+	 * parent, released when the view is.
+	 */
+	struct net_buf *parent;
 };
 
 /**
@@ -159,6 +172,26 @@ static inline struct mpipe_buffer_meta *mpipe_buffer_get_meta(const struct net_b
  * @param buf Pointer to the net_buf to destroy.
  */
 void mpipe_buffer_destroy(struct net_buf *buf);
+
+/**
+ * @brief Create a view of a range of another buffer.
+ *
+ * The view's data is @p parent's data from @p offset for @p len bytes, with
+ * no copy: the parent must carry an @ref mpipe_buffer_meta, and it stays alive
+ * for as long as the view does, since the view takes a reference on it. The
+ * view's metadata reports @p len valid bytes, the parent's timestamp, no pool
+ * and no driver buffer.
+ *
+ * @param parent  Buffer to view a range of.
+ * @param offset  First byte of the range, within the parent's valid bytes.
+ * @param len     Length of the range in bytes.
+ * @param timeout How long to wait for a view header to become available.
+ *
+ * @return The view, or NULL when the range is out of the parent's valid bytes
+ *         or no header was available within @p timeout.
+ */
+struct net_buf *mpipe_buffer_view(struct net_buf *parent, uint32_t offset, uint32_t len,
+				  k_timeout_t timeout);
 
 /**
  * @brief Configure a buffer pool
