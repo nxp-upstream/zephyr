@@ -8,6 +8,9 @@
  * Buffer pools: what a pool requires stays apart from what a negotiation
  * settled on, and a stop forgets the latter, so one run's demands are not the
  * next run's floor.
+ *
+ * Views: a buffer over a range of another one keeps its parent alive and
+ * hands it back when it goes.
  */
 
 #include <zephyr/kernel.h>
@@ -167,4 +170,97 @@ ZTEST_F(mpipe_buffer_api, test_the_owner_decides_what_it_accepts)
 	/* Stopping still restores the requirement, whatever the owner accepted */
 	zassert_ok(mpipe_buffer_pool_stop(&fixture->pool), "stop failed");
 	zassert_equal(fixture->pool.config.min_buffers, 2, "stop did not restore the requirement");
+}
+
+/* A parent for the views: one buffer, so its return to the pool is observable */
+NET_BUF_POOL_FIXED_DEFINE(view_parent_pool, 1, 256, sizeof(struct mpipe_buffer_meta),
+			  mpipe_buffer_destroy);
+
+static struct net_buf *alloc_parent(uint32_t bytes_used)
+{
+	struct net_buf *parent = net_buf_alloc_len(&view_parent_pool, 256, K_NO_WAIT);
+	struct mpipe_buffer_meta *m;
+
+	zassert_not_null(parent, "parent allocation failed");
+
+	m = mpipe_buffer_get_meta(parent);
+	m->bytes_used = bytes_used;
+	m->timestamp = 1234;
+	parent->len = bytes_used;
+
+	for (uint32_t i = 0; i < bytes_used; i++) {
+		parent->data[i] = (uint8_t)i;
+	}
+
+	return parent;
+}
+
+/* A view is the parent's bytes, not a copy of them */
+ZTEST(mpipe_buffer_api, test_a_view_covers_a_range_of_its_parent)
+{
+	struct net_buf *parent = alloc_parent(100);
+	struct net_buf *view = mpipe_buffer_view(parent, 10, 50, K_NO_WAIT);
+	const struct mpipe_buffer_meta *vm;
+
+	zassert_not_null(view, "view creation failed");
+	zassert_equal_ptr(view->data, parent->data + 10, "the view does not point into its parent");
+	zassert_equal(view->len, 50, "view len is not the range length");
+
+	vm = mpipe_buffer_get_meta(view);
+	zassert_equal(vm->bytes_used, 50, "view bytes_used is not the range length");
+	zassert_equal(vm->timestamp, 1234, "the parent's timestamp was not carried");
+	zassert_is_null(vm->pool, "a view belongs to no pool");
+	zassert_equal_ptr(vm->parent, parent, "the view does not record its parent");
+	zassert_equal(view->data[0], 10, "the view does not read the parent's bytes");
+
+	/* Writing through the view is writing the parent */
+	view->data[1] = 0xAB;
+	zassert_equal(parent->data[11], 0xAB, "the view is a copy, not a view");
+
+	net_buf_unref(view);
+	net_buf_unref(parent);
+}
+
+/* The parent lives as long as any view of it, whatever order they are released in */
+ZTEST(mpipe_buffer_api, test_a_view_keeps_its_parent_alive)
+{
+	struct net_buf *parent = alloc_parent(100);
+	struct net_buf *first = mpipe_buffer_view(parent, 0, 40, K_NO_WAIT);
+	struct net_buf *second = mpipe_buffer_view(parent, 40, 60, K_NO_WAIT);
+
+	zassert_not_null(first, "first view failed");
+	zassert_not_null(second, "second view failed");
+	zassert_equal(parent->ref, 3, "two views should hold two references");
+
+	/* The owner lets go first: the parent must survive for the views */
+	net_buf_unref(parent);
+	zassert_is_null(net_buf_alloc_len(&view_parent_pool, 256, K_NO_WAIT),
+			"the parent returned to its pool while views were alive");
+	zassert_equal(second->data[0], 40, "the parent's bytes are gone");
+
+	net_buf_unref(first);
+	zassert_is_null(net_buf_alloc_len(&view_parent_pool, 256, K_NO_WAIT),
+			"the parent returned to its pool while a view was alive");
+
+	net_buf_unref(second);
+	parent = net_buf_alloc_len(&view_parent_pool, 256, K_NO_WAIT);
+	zassert_not_null(parent, "the parent did not return to its pool after the last view");
+	net_buf_unref(parent);
+}
+
+/* A range outside the parent's valid bytes is refused, not clamped */
+ZTEST(mpipe_buffer_api, test_a_view_must_fit_the_parent)
+{
+	struct net_buf *parent = alloc_parent(100);
+
+	zassert_is_null(mpipe_buffer_view(parent, 90, 20, K_NO_WAIT), "a view past the end");
+	zassert_is_null(mpipe_buffer_view(parent, 101, 0, K_NO_WAIT),
+			"a view starting past the end");
+	zassert_not_null(mpipe_buffer_view(parent, 100, 0, K_NO_WAIT), "an empty view at the end");
+	zassert_equal(parent->ref, 2, "the refused views took references");
+
+	/* Release the empty view through the parent's pool accounting */
+	net_buf_unref(parent);
+	zassert_is_null(net_buf_alloc_len(&view_parent_pool, 256, K_NO_WAIT),
+			"the empty view does not hold its parent");
 }
