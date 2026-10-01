@@ -39,11 +39,36 @@ constructs the following pipeline:
 * ``disp_sink`` (mpipe ``disp`` plugin) renders the decoded frames to the Zephyr
   display device.
 
-The pipeline is driven by the mpipe player. The application sets up the network
-(Wi-Fi AP or Ethernet + DHCP server), listens on port 5000, accepts the phone's
-video connection and then its control connection, hands the video socket to the
-pipeline and keeps the control one for the touch events. When the phone
-disconnects it accepts the next client.
+With ``CONFIG_ANDROID_LINK_AUDIO`` (the default) a second pipeline plays the
+audio the phone sends on a separate connection, as raw PCM, 48 kHz, 16-bit,
+stereo:
+
+.. code-block:: none
+
+   socket_src -> aud_raw_parser -> queue -> i2s_codec_sink
+
+* ``aud_raw_parser`` (mpipe ``aud`` plugin) announces the format, which a raw
+  stream cannot, and cuts the bytes into 10 ms blocks for the I2S sink.
+* The ``queue`` holds 150 ms of blocks against the jitter of the link and runs
+  the sink on its own thread, above the video decoder in priority.
+* ``i2s_codec_sink`` (mpipe ``aud`` plugin) plays the blocks through the codec.
+
+The two streams are not synchronized with each other, as in the phone's own
+desktop client: each runs at the lowest latency it can, which keeps them within
+about a tenth of a second of each other. The phone's volume setting is applied
+before capture, so it is heard on the board; the phone itself stays silent while
+mirroring unless the client is launched with ``audio_dup=true`` (Android 13 or
+later).
+
+The pipelines are driven by the mpipe player, one per pipeline. The application
+sets up the network (Wi-Fi AP or Ethernet + DHCP server), listens on port 5000,
+accepts the phone's video connection, then its audio connection, then its control
+connection, hands the stream sockets to the pipelines and keeps the control one
+for the touch events. When the phone disconnects it accepts the next client.
+
+The phone's client must be launched with audio enabled and the raw codec, for
+example ``audio=true audio_codec=raw`` on the scrcpy server command line, and
+with ``audio=false`` when the sample is built without audio.
 
 Requirements
 ************

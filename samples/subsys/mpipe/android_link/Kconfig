@@ -20,6 +20,15 @@ config NET_STACK_CODE_RAM_NAME
 
 endif # NET_STACK_CODE_RELOCATE
 
+config ANDROID_LINK_AUDIO
+	bool "Play the phone's audio"
+	default y
+	depends on MPIPE_AUD
+	help
+	  Accept the phone's audio connection and play the raw PCM it carries
+	  through a second pipeline ending in the I2S codec sink. The phone
+	  must be launched with audio enabled and the raw codec.
+
 choice
 	prompt "Control Event protocol"
 	default CONTROL_EVENT_TCP

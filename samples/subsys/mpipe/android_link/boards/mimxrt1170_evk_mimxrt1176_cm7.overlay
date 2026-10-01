@@ -1,0 +1,10 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* The codec takes its master clock from the SAI */
+&sai1 {
+	mclk-output;
+};
