@@ -14,6 +14,7 @@
 #include <zephyr/mpipe/mpipe_value.h>
 
 #include <zephyr/mpipe/aud/mpipe_aud.h>
+#include <zephyr/mpipe/aud/mpipe_aud_buffer_pool.h>
 #include <zephyr/mpipe/aud/mpipe_aud_i2s_codec_sink.h>
 
 LOG_MODULE_REGISTER(mpipe_aud_i2s_codec_sink, CONFIG_MPIPE_LOG_LEVEL);
@@ -324,7 +325,8 @@ int mpipe_aud_i2s_codec_sink_process_fn(struct mpipe_pad *pad, struct net_buf *i
 		}
 	}
 
-	/* Done with the buffer */
+	/* The I2S driver frees the block once sent; only the wrapper is released here */
+	mpipe_aud_buffer_pool_hand_over(in_buf);
 	net_buf_unref(in_buf);
 
 	/* A sink consumes the buffer: no output buffer */
