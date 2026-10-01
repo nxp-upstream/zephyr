@@ -74,6 +74,10 @@ struct mpipe_aud_i2s_codec_sink {
 	struct k_mem_slab *mem_slab;
 	/** Number of buffers written at the beginning of the stream */
 	uint8_t count;
+	/** Times the stream was restarted after the driver ran dry, since the last start */
+	uint32_t underruns;
+	/** Blocks dropped because the driver's queue stayed full, since the last start */
+	uint32_t dropped;
 	/** Number of queued buffers required before starting the stream */
 	uint8_t start_threshold;
 	/** Flag indicating if the sink has been started */
