@@ -70,6 +70,13 @@ The phone's client must be launched with audio enabled and the raw codec, for
 example ``audio=true audio_codec=raw`` on the scrcpy server command line, and
 with ``audio=false`` when the sample is built without audio.
 
+The client is the scrcpy 4.1 server of the demo repository (branch ``android-4.1``),
+which adds a connection to a remote host, an MJPEG codec and a keep-alive message;
+its ``server/scripts/build_launch_server.sh`` builds it, pushes it to the phone and
+launches it with the options this sample expects. The liveness probe the sample
+sends every second is control message type 100, which that server accepts and
+ignores.
+
 Requirements
 ************
 
