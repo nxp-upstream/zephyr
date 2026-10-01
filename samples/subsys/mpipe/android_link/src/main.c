@@ -11,15 +11,14 @@
  * Ethernet and streams MJPEG frames to this device over TCP. The frames are
  * fed into an mpipe pipeline that parses, decodes and displays them:
  *
- *   tcp_src -> jpeg_parser -> caps_filter -> queue_parse -> jpeg_decoder -> queue_dec -> disp_sink
+ *   video_src -> jpeg_parser -> caps_filter -> queue_parse -> jpeg_decoder -> queue_dec
+ *             -> disp_sink
  *
- * tcp_src is the TCP server: it binds the port when the pipeline is prepared
- * and waits for the phone to connect when the pipeline starts playing, so the
- * sample only tells it which port to use.
- *
- * The touch controller is read locally and injected touch events are sent back
- * to the phone over a second (control) connection to that same port, accepted
- * on the listening socket tcp_src owns.
+ * The phone opens its connections to one port, video first and control last,
+ * so the application owns the listening socket, accepts them in that order
+ * and hands the video socket to the pipeline's socket source. The touch
+ * controller is read locally and injected touch events are sent back to the
+ * phone over the control connection, which the application keeps.
  */
 
 #include <zephyr/kernel.h>
@@ -39,7 +38,7 @@
 #include <zephyr/mpipe/base/mpipe_caps_filter.h>
 #include <zephyr/mpipe/base/mpipe_queue.h>
 #include <zephyr/mpipe/mpipe_message.h>
-#include <zephyr/mpipe/net/mpipe_tcp_server_src.h>
+#include <zephyr/mpipe/net/mpipe_socket_src.h>
 
 #include <zephyr/mpipe/img/mpipe_img_jpeg_parser.h>
 #include <zephyr/mpipe/img/mpipe_img_jpeg_decoder.h>
@@ -61,7 +60,7 @@ LOG_MODULE_REGISTER(main);
 /* Element IDs (values are arbitrary; only uniqueness within the pipeline matters) */
 enum {
 	PIPE_ID,
-	TCP_SRC_ID,
+	VIDEO_SRC_ID,
 	JPEG_PARSER_ID,
 	QUEUE_PARSE_ID,
 	JPEG_DEC_ID,
@@ -92,7 +91,7 @@ static struct in_addr netmask = {{{255, 255, 255, 0}}};
 #endif
 
 static struct mpipe pipe;
-static struct mpipe_tcp_server_src tcp_src;
+static struct mpipe_socket_src video_src;
 
 static struct mpipe_img_jpeg_parser jpeg_parser;
 static struct mpipe_img_jpeg_decoder jpeg_dec;
@@ -120,21 +119,18 @@ static void stream_msg_cb(const struct zbus_channel *chan)
 ZBUS_LISTENER_DEFINE(stream_listener, stream_msg_cb);
 
 /*
- * Build the mpipe pipeline that serves the phone and renders the frames it
- * sends to the display. Only the port is configured here: tcp_src binds it
- * when the pipeline is prepared and accepts the client when it starts playing.
+ * Build the mpipe pipeline that renders the frames the phone sends to the
+ * display. The video socket is handed to the source once a phone connects.
  */
 static int build_video_stream_pipeline(void)
 {
-	uint16_t port = MY_PORT;
 	int ret;
 
 	ret = mpipe_pipeline_init(&pipe, PIPE_ID);
 	if (ret < 0) {
 		return ret;
 	}
-	ret = mpipe_tcp_server_src_init(&tcp_src, TCP_SRC_ID);
-
+	ret = mpipe_socket_src_init(&video_src, VIDEO_SRC_ID);
 	if (ret < 0) {
 		return ret;
 	}
@@ -184,13 +180,6 @@ static int build_video_stream_pipeline(void)
 		return ret;
 	}
 
-	ret = mpipe_object_set_properties((struct mpipe_object *)&tcp_src,
-					  MPIPE_PROP_TCP_SERVER_SRC_PORT, &port,
-					  MPIPE_PROP_LIST_END);
-	if (ret < 0) {
-		return ret;
-	}
-
 	ret = mpipe_object_set_properties((struct mpipe_object *)&disp_sink,
 					  MPIPE_PROP_DISP_SINK_DEVICE, display_dev,
 					  MPIPE_PROP_LIST_END);
@@ -231,7 +220,7 @@ static int build_video_stream_pipeline(void)
 	 * a frame is being decoded, and the decoder while a frame is displayed.
 	 */
 	ret = mpipe_bin_add(
-		(struct mpipe_bin *)&pipe, (struct mpipe_element *)&tcp_src,
+		(struct mpipe_bin *)&pipe, (struct mpipe_element *)&video_src,
 		(struct mpipe_element *)&jpeg_parser, (struct mpipe_element *)&caps_filter,
 		(struct mpipe_element *)&queue_parse, (struct mpipe_element *)&jpeg_dec,
 		(struct mpipe_element *)&queue_dec, (struct mpipe_element *)&disp_sink, NULL);
@@ -241,7 +230,7 @@ static int build_video_stream_pipeline(void)
 	}
 
 	ret = mpipe_element_link(
-		(struct mpipe_element *)&tcp_src, (struct mpipe_element *)&jpeg_parser,
+		(struct mpipe_element *)&video_src, (struct mpipe_element *)&jpeg_parser,
 		(struct mpipe_element *)&caps_filter, (struct mpipe_element *)&queue_parse,
 		(struct mpipe_element *)&jpeg_dec, (struct mpipe_element *)&queue_dec,
 		(struct mpipe_element *)&disp_sink, NULL);
@@ -261,10 +250,50 @@ static int build_video_stream_pipeline(void)
 	return mpipe_player_init(&player, &pipe);
 }
 
+/*
+ * Listen on the port the phone connects to. The phone opens video, (audio,)
+ * and control in that order, each as a new connection, so the backlog holds
+ * them all while the application accepts them one by one.
+ */
+static int scrcpy_listen(uint16_t port)
+{
+	struct sockaddr_in addr = {
+		.sin_family = AF_INET,
+		.sin_port = htons(port),
+	};
+	int opt = 1;
+	int fd;
+
+	fd = zsock_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (fd < 0) {
+		LOG_ERR("socket() failed (%d)", errno);
+		return -errno;
+	}
+
+	(void)zsock_setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+	if (zsock_bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0 || zsock_listen(fd, 3) < 0) {
+		LOG_ERR("Failed to listen on port %u (%d)", port, errno);
+		(void)zsock_close(fd);
+		return -errno;
+	}
+
+	return fd;
+}
+
+/* Wait for the player to have brought the pipeline to @p state */
+static void wait_for_state(enum mpipe_state state)
+{
+	while (pipe.bin.element.current_state != state) {
+		k_msleep(10);
+	}
+}
+
 int main(void)
 {
 	struct sockaddr_in client_addr;
 	struct net_if *iface;
+	int server_fd;
 	int ret;
 
 	iface = net_if_get_default();
@@ -318,62 +347,74 @@ int main(void)
 
 	control_init();
 
-	/*
-	 * The video path is the player's from here on. The player takes the
-	 * pipeline back to READY when the phone closes the video connection,
-	 * which also closes the listening port; main() then plays again so the
-	 * next client is accepted, and otherwise never touches the pipeline.
-	 * The shell still drives it with p/s/r/q.
-	 */
 	ret = build_video_stream_pipeline();
 	if (ret < 0) {
 		LOG_ERR("Failed to build pipeline (%d)", ret);
 		return ret;
 	}
 
-	(void)mpipe_player_play(&player);
+	server_fd = scrcpy_listen(MY_PORT);
+	if (server_fd < 0) {
+		return server_fd;
+	}
 
+	/*
+	 * One client at a time: accept its connections, hand the video one to
+	 * the pipeline and play. The player takes the pipeline back to READY
+	 * when the phone closes the video connection, which closes the socket
+	 * with it; the application then accepts the next client. The shell
+	 * still drives the pipeline with p/s/r/q.
+	 */
 	while (1) {
 		socklen_t addr_len = sizeof(client_addr);
+		int video_fd;
+		int control_fd;
+		uint32_t events;
 
-		/*
-		 * The player opens the listening socket on its own worker thread,
-		 * so tcp_src.server_fd is not valid the instant play() returns and
-		 * is closed again on a stop/replay. Wait for it before each accept.
-		 */
-		while (pipe.bin.element.current_state != MPIPE_STATE_PLAYING) {
-			k_msleep(100);
+		LOG_INF("Waiting for a client on port %u", MY_PORT);
+
+		video_fd = zsock_accept(server_fd, (struct sockaddr *)&client_addr, &addr_len);
+		if (video_fd < 0) {
+			LOG_ERR("accept() failed (%d)", errno);
+			k_msleep(1000);
+			continue;
 		}
 
-		/*
-		 * The control messages go to the phone that sends the video, so
-		 * take its address from the video connection: a send to an
-		 * unspecified address is refused by the socket layer.
-		 */
-		(void)memset(&client_addr, 0, sizeof(client_addr));
-		if (zsock_getpeername(tcp_src.ssrc.fd, (struct sockaddr *)&client_addr,
-				      &addr_len) < 0) {
-			LOG_ERR("Failed to get the video client address (%d)", errno);
-		}
-		client_addr.sin_family = AF_INET;
+		/* The control messages go back to the phone that sends the video */
 		client_addr.sin_port = htons(MY_PORT);
 
-		connect_control_socket(tcp_src.server_fd, &client_addr);
+		control_fd = zsock_accept(server_fd, NULL, NULL);
+		if (control_fd < 0) {
+			LOG_ERR("accept() of the control connection failed (%d)", errno);
+			(void)zsock_close(video_fd);
+			continue;
+		}
+
+		/* The source takes the socket once the previous run is torn down */
+		wait_for_state(MPIPE_STATE_READY);
+		ret = mpipe_object_set_properties((struct mpipe_object *)&video_src,
+						  MPIPE_PROP_SOCKET_SRC_FD, &video_fd,
+						  MPIPE_PROP_LIST_END);
+		if (ret < 0) {
+			LOG_ERR("Failed to hand the video socket to the pipeline (%d)", ret);
+			(void)zsock_close(video_fd);
+			(void)zsock_close(control_fd);
+			continue;
+		}
+
+		(void)mpipe_player_play(&player);
+		connect_control_socket(control_fd, &client_addr);
 
 		/* Serve this client until the run ends or the control connection fails */
-		uint32_t events = k_event_wait(&application_event,
-					       EVENT_TOUCH_ERROR | EVENT_STREAM_END, false,
-					       K_FOREVER);
+		events = k_event_wait(&application_event, EVENT_TOUCH_ERROR | EVENT_STREAM_END,
+				      false, K_FOREVER);
 
 		(void)disconnect_control_socket();
 		k_event_clear(&application_event, EVENT_TOUCH_ERROR | EVENT_STREAM_END);
 
-		if ((events & EVENT_STREAM_END) != 0U) {
-			/*
-			 * Queued behind the player's own end-of-run handling, so the
-			 * pipeline is back in READY before it is played again.
-			 */
-			(void)mpipe_player_play(&player);
+		if ((events & EVENT_STREAM_END) == 0U) {
+			/* The control connection failed first: drop the video too */
+			(void)mpipe_player_stop(&player);
 		}
 	}
 

@@ -166,22 +166,17 @@ static void send_work_handler(struct k_work *kwork)
 	}
 }
 
-void connect_control_socket(int socket_fd, struct sockaddr_in *client_addr)
+void connect_control_socket(int control_fd, struct sockaddr_in *client_addr)
 {
-	int client_addr_len = 0;
-
-	LOG_INF("Wait for control socket ...");
-
 	if (IS_ENABLED(CONFIG_CONTROL_EVENT_TCP)) {
-		/* Open another TCP socket for the control event*/
-		data.control_socket =
-			zsock_accept(socket_fd, (struct sockaddr *)client_addr, &client_addr_len);
+		/* The connection the phone opened for control, accepted by the caller */
+		data.control_socket = control_fd;
 	} else {
 		data.control_socket = zsock_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	}
 
 	if (data.control_socket < 0) {
-		LOG_ERR("Failed to accept control socket: %d", errno);
+		LOG_ERR("No control socket: %d", errno);
 		return;
 	}
 

@@ -33,7 +33,11 @@
 #endif
 
 void control_init(void);
-void connect_control_socket(int socket_fd, struct sockaddr_in *client_addr);
+/*
+ * Start sending touch events to the phone at @p client_addr: over @p control_fd,
+ * the connection the phone opened for control, or over a UDP socket of its own.
+ */
+void connect_control_socket(int control_fd, struct sockaddr_in *client_addr);
 int disconnect_control_socket(void);
 bool control_socket_is_connected(void);
 

@@ -20,12 +20,14 @@ constructs the following pipeline:
 
 .. code-block:: none
 
-   tcp_src -> jpeg_parser -> queue -> jpeg_decoder -> queue -> caps_filter -> disp_sink
+   socket_src -> jpeg_parser -> queue -> jpeg_decoder -> queue -> caps_filter -> disp_sink
 
-* ``tcp_src`` (mpipe ``net`` plugin) reads the raw byte stream from the connected
-  TCP socket, straight into the buffer the parser is assembling a frame in.
+* ``socket_src`` (mpipe ``net`` plugin) reads the raw byte stream from the video
+  connection the application accepted and handed to it, into large chunks, and
+  pushes each read as a view of its chunk.
 * ``jpeg_parser`` (mpipe ``img`` plugin) cuts complete JPEG frames out of the
-  byte stream by locating the JPEG end-of-image (``0xFFD9``) markers.
+  byte stream at the JPEG end-of-image (``0xFFD9``) markers. A frame that lies
+  inside one chunk reaches the decoder as a view of that chunk, without a copy.
 * The two ``queue`` elements (mpipe ``base`` plugin) put the receiving, decoding
   and displaying on three threads. Each keeps at most a frame or two and drops
   its oldest one when the stage behind it falls behind, so the display always
@@ -37,10 +39,11 @@ constructs the following pipeline:
 * ``disp_sink`` (mpipe ``disp`` plugin) renders the decoded frames to the Zephyr
   display device.
 
-The pipeline is driven by the mpipe player. The application main loop only sets
-up the network (Wi-Fi AP or Ethernet + DHCP server), accepts an incoming client
-connection, hands the connected socket to the pipeline, and manages the touch
-control socket.
+The pipeline is driven by the mpipe player. The application sets up the network
+(Wi-Fi AP or Ethernet + DHCP server), listens on port 5000, accepts the phone's
+video connection and then its control connection, hands the video socket to the
+pipeline and keeps the control one for the touch events. When the phone
+disconnects it accepts the next client.
 
 Requirements
 ************
