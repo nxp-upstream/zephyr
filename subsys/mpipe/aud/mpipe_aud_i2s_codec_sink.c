@@ -22,15 +22,7 @@ LOG_MODULE_REGISTER(mpipe_aud_i2s_codec_sink, CONFIG_MPIPE_LOG_LEVEL);
 #define DEFAULT_PROP_I2S_DEVICE   DEVICE_DT_GET(DT_ALIAS(i2s_codec_tx))
 #define DEFAULT_PROP_CODEC_DEVICE DEVICE_DT_GET(DT_NODELABEL(audio_codec));
 
-/*
- * Number of buffers to queue into the I2S TX FIFO before issuing the START
- * trigger. The source and sink are clocked at the same rate, so the I2S
- * consumer can momentarily get one buffer ahead of the source right after
- * start. Priming more than one buffer keeps the TX queue from draining to
- * empty on a scheduling tie, which would otherwise raise a TX underrun.
- * This needs the negotiated buffer count to be at least 2 (true for any
- * double-buffered codec).
- */
+/* Blocks queued to the driver before the stream is started */
 #define AUD_I2S_SINK_START_PRIME 3
 
 /* A capability of this sink is one the I2S link and the codec both support */
@@ -285,6 +277,75 @@ static int mpipe_aud_i2s_codec_sink_set_caps(struct mpipe_sink *sink,
 	return 0;
 }
 
+/*
+ * Queue one block to the driver. A failure while the stream runs is an
+ * underrun, which a stream fed over a network cannot rule out: bring the
+ * driver back to ready, prime it again from this block on, and go on with a
+ * gap rather than end the stream. A queue that stayed full for the whole
+ * write timeout means the stream is ahead of the codec's clock: the block is
+ * surplus and dropped.
+ *
+ * Returns 1 when the block was queued, 0 when it was dropped, negative errno
+ * when the driver is gone.
+ */
+static int mpipe_aud_i2s_codec_sink_write(struct mpipe_aud_i2s_codec_sink *sink,
+					  const struct net_buf *block)
+{
+	uint32_t bytes_used = mpipe_buffer_get_meta(block)->bytes_used;
+	int ret;
+
+	ret = i2s_write(sink->i2s_dev, block->data, bytes_used);
+	if (ret == -EAGAIN) {
+		sink->dropped++;
+		LOG_DBG("I2S queue full, block dropped (%u so far)", sink->dropped);
+		return 0;
+	}
+	if (ret == -EIO && sink->started) {
+		sink->underruns++;
+		LOG_WRN("I2S underrun, restarting the stream (%u so far)", sink->underruns);
+
+		ret = i2s_trigger(sink->i2s_dev, I2S_DIR_TX, I2S_TRIGGER_PREPARE);
+		if (ret < 0) {
+			ret = i2s_trigger(sink->i2s_dev, I2S_DIR_TX, I2S_TRIGGER_DROP);
+		}
+		sink->started = false;
+		sink->count = 0;
+
+		if (ret == 0) {
+			ret = i2s_write(sink->i2s_dev, block->data, bytes_used);
+		}
+	}
+	if (ret < 0) {
+		LOG_ERR("Failed to write data: %d", ret);
+		/*
+		 * A failed write may have left the transmit stream in the I2S
+		 * error state, so the next configure has to clear it first.
+		 */
+		sink->needs_prepare = true;
+		return -EIO;
+	}
+
+	if (!sink->started) {
+		sink->count++;
+		if (sink->count == AUD_I2S_SINK_START_PRIME) {
+			ret = i2s_trigger(sink->i2s_dev, I2S_DIR_TX, I2S_TRIGGER_START);
+			if (ret < 0) {
+				LOG_ERR("Failed to start I2S stream: %d", ret);
+				return -EIO;
+			}
+			sink->started = true;
+		}
+	}
+
+	return 1;
+}
+
+/*
+ * Play the buffer, which a parser may hand over as a chain of blocks, one
+ * fragment per block. Every fragment is queued to the driver, which frees a
+ * block once sent; the fragments the driver was given are marked so that only
+ * their wrappers are released here, and the others go back to the pool.
+ */
 int mpipe_aud_i2s_codec_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 					struct net_buf **out_buf)
 {
@@ -294,45 +355,20 @@ int mpipe_aud_i2s_codec_sink_process_fn(struct mpipe_pad *pad, struct net_buf *i
 
 	struct mpipe_aud_i2s_codec_sink *aud_i2s_codec_sink = CONTAINER_OF(
 		pad->object.container, struct mpipe_aud_i2s_codec_sink, sink.element.object);
-	uint32_t bytes_used = mpipe_buffer_get_meta(in_buf)->bytes_used;
-	int ret = -1;
+	int ret = 0;
 
-	ret = i2s_write(aud_i2s_codec_sink->i2s_dev, in_buf->data, bytes_used);
-	if (ret < 0) {
-		LOG_DBG("Failed to write data: %d\n", ret);
-		/*
-		 * A failed write may have left the transmit stream in the I2S
-		 * error state, so the next configure has to clear it first.
-		 */
-		aud_i2s_codec_sink->needs_prepare = true;
-		net_buf_unref(in_buf);
-		*out_buf = NULL;
-		return -EIO;
-	}
+	*out_buf = NULL;
 
-	if (!aud_i2s_codec_sink->started) {
-		aud_i2s_codec_sink->count++;
-		if (aud_i2s_codec_sink->count == AUD_I2S_SINK_START_PRIME) {
-			ret = i2s_trigger(aud_i2s_codec_sink->i2s_dev, I2S_DIR_TX,
-					  I2S_TRIGGER_START);
-			if (ret < 0) {
-				LOG_ERR("Failed to start I2S stream: %d", ret);
-				net_buf_unref(in_buf);
-				*out_buf = NULL;
-				return -EIO;
-			}
-			aud_i2s_codec_sink->started = true;
+	for (struct net_buf *frag = in_buf; frag != NULL && ret >= 0; frag = frag->frags) {
+		ret = mpipe_aud_i2s_codec_sink_write(aud_i2s_codec_sink, frag);
+		if (ret > 0) {
+			mpipe_aud_buffer_pool_hand_over(frag);
 		}
 	}
 
-	/* The I2S driver frees the block once sent; only the wrapper is released here */
-	mpipe_aud_buffer_pool_hand_over(in_buf);
 	net_buf_unref(in_buf);
 
-	/* A sink consumes the buffer: no output buffer */
-	*out_buf = NULL;
-
-	return 0;
+	return (ret < 0) ? ret : 0;
 }
 
 static int mpipe_aud_i2s_codec_sink_change_state(struct mpipe_element *self,
@@ -347,8 +383,14 @@ static int mpipe_aud_i2s_codec_sink_change_state(struct mpipe_element *self,
 	 * never starts, and the pipeline runs with a codec that stays silent.
 	 */
 	if (transition == MPIPE_STATE_CHANGE_PAUSED_TO_READY) {
+		if (aud_i2s_codec_sink->underruns > 0U || aud_i2s_codec_sink->dropped > 0U) {
+			LOG_INF("Stream restarted %u times after an underrun, %u blocks dropped",
+				aud_i2s_codec_sink->underruns, aud_i2s_codec_sink->dropped);
+		}
 		aud_i2s_codec_sink->started = false;
 		aud_i2s_codec_sink->count = 0;
+		aud_i2s_codec_sink->underruns = 0;
+		aud_i2s_codec_sink->dropped = 0;
 	}
 
 	/*
@@ -391,6 +433,8 @@ int mpipe_aud_i2s_codec_sink_init(struct mpipe_aud_i2s_codec_sink *aud_i2s_codec
 	aud_i2s_codec_sink->started = false;
 	aud_i2s_codec_sink->count = 0;
 	aud_i2s_codec_sink->needs_prepare = false;
+	aud_i2s_codec_sink->underruns = 0;
+	aud_i2s_codec_sink->dropped = 0;
 	aud_i2s_codec_sink->mem_slab = NULL;
 	return 0;
 }
