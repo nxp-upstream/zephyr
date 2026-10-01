@@ -18,11 +18,42 @@
 LOG_MODULE_REGISTER(mpipe_aud_buffer_pool, CONFIG_MPIPE_LOG_LEVEL);
 
 #define AUD_BUFFER_POOL_BASE_ALIGN sizeof(void *)
+/* What one slab may hold: the slice of the store it is given */
 #define AUD_BUFFER_POOL_SIZE                                                                       \
 	(CONFIG_MPIPE_AUD_BUFFER_POOL_SZ_MAX * CONFIG_MPIPE_AUD_BUFFER_POOL_NUM_MAX)
 
 static __nocache __aligned(AUD_BUFFER_POOL_BASE_ALIGN)
-uint8_t aud_buffer_pool_buf[AUD_BUFFER_POOL_SIZE];
+uint8_t aud_buffer_pool_buf[CONFIG_MPIPE_AUD_BUFFER_POOL_COUNT][AUD_BUFFER_POOL_SIZE];
+
+/* The slab each slice was given to, NULL while free */
+static struct k_mem_slab *aud_buffer_pool_slabs[CONFIG_MPIPE_AUD_BUFFER_POOL_COUNT];
+
+/*
+ * The slice of the store backing a slab: the one it already has, or the next
+ * free one. A slab keeps its slice for the life of the program, so a pool
+ * configured again, or initialized again over the same slab, finds it.
+ */
+static uint8_t *mpipe_aud_buffer_pool_slice(struct k_mem_slab *slab)
+{
+	int free_slot = -1;
+
+	for (int i = 0; i < CONFIG_MPIPE_AUD_BUFFER_POOL_COUNT; i++) {
+		if (aud_buffer_pool_slabs[i] == slab) {
+			return aud_buffer_pool_buf[i];
+		}
+		if (aud_buffer_pool_slabs[i] == NULL && free_slot < 0) {
+			free_slot = i;
+		}
+	}
+
+	if (free_slot < 0) {
+		return NULL;
+	}
+
+	aud_buffer_pool_slabs[free_slot] = slab;
+
+	return aud_buffer_pool_buf[free_slot];
+}
 
 static int mpipe_aud_buffer_pool_config(struct mpipe_buffer_pool *pool,
 					const struct mpipe_structure *config)
@@ -30,6 +61,7 @@ static int mpipe_aud_buffer_pool_config(struct mpipe_buffer_pool *pool,
 	struct mpipe_aud_buffer_pool *aud_pool = (struct mpipe_aud_buffer_pool *)pool;
 	int align = 0;
 	uint32_t required_align = 0;
+	uint8_t *slice;
 	uint8_t *base;
 	int ret;
 
@@ -63,7 +95,9 @@ static int mpipe_aud_buffer_pool_config(struct mpipe_buffer_pool *pool,
 	}
 
 	if (pool->config.size * pool->config.min_buffers > AUD_BUFFER_POOL_SIZE) {
-		LOG_ERR("aud_buffer_pool_buf hos not enough space for requested buffers");
+		LOG_ERR("%u blocks of %u bytes needed, the pool holds %u bytes",
+			pool->config.min_buffers, pool->config.size,
+			(uint32_t)AUD_BUFFER_POOL_SIZE);
 		return -EINVAL;
 	}
 
@@ -78,9 +112,16 @@ static int mpipe_aud_buffer_pool_config(struct mpipe_buffer_pool *pool,
 		return -EINVAL;
 	}
 
+	slice = mpipe_aud_buffer_pool_slice(aud_pool->mem_slab);
+	if (slice == NULL) {
+		LOG_ERR("No store left for this slab, MPIPE_AUD_BUFFER_POOL_COUNT allows %d",
+			CONFIG_MPIPE_AUD_BUFFER_POOL_COUNT);
+		return -ENOSPC;
+	}
+
 	memset(aud_pool->blocks, 0, sizeof(aud_pool->blocks));
 
-	ret = k_mem_slab_init(aud_pool->mem_slab, (void *)aud_buffer_pool_buf, pool->config.size,
+	ret = k_mem_slab_init(aud_pool->mem_slab, (void *)slice, pool->config.size,
 			      pool->config.min_buffers);
 	if (ret != 0) {
 		LOG_ERR("Unable to initialize memory slab (%d)", ret);
