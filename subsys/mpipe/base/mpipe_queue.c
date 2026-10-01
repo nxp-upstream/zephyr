@@ -171,6 +171,48 @@ static int mpipe_queue_sink_event_fn(struct mpipe_pad *pad, struct mpipe_dispatc
 	}
 }
 
+/*
+ * A queue holds up to its size in buffers between the thread that fills it
+ * and the one that drains it, so whoever provides the buffers must have that
+ * many more to spare. The proposal from downstream passes through with the
+ * queue's size added; the queue itself offers no pool.
+ */
+static int mpipe_queue_decide_buffer_pool(struct mpipe_transform *self,
+					  struct mpipe_dispatch *query)
+{
+	struct mpipe_queue *queue = (struct mpipe_queue *)self;
+
+	queue->downstream_pool = query->pool;
+	queue->downstream_cfg = (query->pool != NULL) ? query->pool->config : query->pool_cfg;
+
+	return 0;
+}
+
+static int mpipe_queue_propose_buffer_pool(struct mpipe_transform *self,
+					   struct mpipe_dispatch *query)
+{
+	struct mpipe_queue *queue = (struct mpipe_queue *)self;
+	struct mpipe_buffer_pool_config cfg = queue->downstream_cfg;
+
+	cfg.min_buffers = (uint8_t)MIN((uint32_t)cfg.min_buffers + queue->size, UINT8_MAX);
+
+	if (queue->downstream_pool != NULL) {
+		int ret = mpipe_buffer_pool_set_config(queue->downstream_pool, &cfg);
+
+		if (ret != 0) {
+			LOG_WRN("Proposed pool refused %u more buffers (%d)", queue->size, ret);
+		}
+
+		/* The pool's own config is the proposal, accepted or not */
+		query->pool = queue->downstream_pool;
+		query->pool_cfg = queue->downstream_pool->config;
+	} else {
+		query->pool_cfg = cfg;
+	}
+
+	return 0;
+}
+
 static void mpipe_queue_thread_func(void *p1, void *p2, void *p3)
 {
 	struct mpipe_queue *queue = p1;
@@ -285,6 +327,9 @@ int mpipe_queue_init(struct mpipe_queue *queue, uint8_t id)
 
 	queue->transform.sink_pad.process_fn = mpipe_queue_process_fn;
 	queue->transform.sink_pad.event_fn = mpipe_queue_sink_event_fn;
+	queue->transform.decide_buffer_pool = mpipe_queue_decide_buffer_pool;
+	queue->transform.propose_buffer_pool = mpipe_queue_propose_buffer_pool;
+	queue->downstream_pool = NULL;
 	queue->size = CONFIG_MPIPE_BASE_QUEUE_MAX_SIZE;
 	queue->leak = MPIPE_BASE_QUEUE_LEAK_NONE;
 

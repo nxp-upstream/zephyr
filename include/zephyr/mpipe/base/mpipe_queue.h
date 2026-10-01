@@ -85,6 +85,10 @@ struct mpipe_queue {
 	uint8_t size;
 	/** Leak policy of a full queue, an @ref mpipe_base_queue_leak */
 	uint8_t leak;
+	/** Pool the element downstream proposed, or NULL (not owned) */
+	struct mpipe_buffer_pool *downstream_pool;
+	/** Config the element downstream proposed, by value or from its pool */
+	struct mpipe_buffer_pool_config downstream_cfg;
 	/**
 	 * Set on PAUSED -> READY: the processing function drops buffers instead of
 	 * enqueuing them, which releases a producer blocked in k_msgq_put().
