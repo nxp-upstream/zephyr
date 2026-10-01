@@ -84,6 +84,11 @@ sends the mode in force when the control connection comes up and whenever it
 changes. The phone must be launched with the microphone channel enabled, or the
 sample built with ``CONFIG_ANDROID_LINK_MIC=n``.
 
+The user button (SW7 on the RT1170 EVK) cycles the mode through speaker, inject
+and off; the first user LED is lit in speaker mode, the second in inject mode. The
+shell command ``mic [off|speaker|inject]`` sets or prints the mode, and is the only
+control on a board without a button.
+
 The client is the scrcpy 4.1 server of the demo repository (branch ``android-4.1``),
 which adds a connection to a remote host, an MJPEG codec, a keep-alive message and
 the microphone channel; its ``server/scripts/build_launch_server.sh`` builds it,

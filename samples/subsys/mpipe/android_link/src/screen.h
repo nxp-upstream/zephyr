@@ -50,6 +50,8 @@ void control_send_mic_mode(enum sc_mic_mode mode);
 enum sc_mic_mode mic_mode_get(void);
 void mic_mode_set(enum sc_mic_mode mode);
 const char *mic_mode_name(enum sc_mic_mode mode);
+/* Set the LEDs up and show the initial mode */
+void mic_mode_init(void);
 
 int display_setup(const struct device *const display_dev);
 
