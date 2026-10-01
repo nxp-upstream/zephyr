@@ -70,12 +70,26 @@ The phone's client must be launched with audio enabled and the raw codec, for
 example ``audio=true audio_codec=raw`` on the scrcpy server command line, and
 with ``audio=false`` when the sample is built without audio.
 
+With ``CONFIG_ANDROID_LINK_MIC`` (the default where a DMIC exists) a third pipeline
+sends the board's microphone to the phone as raw PCM, 16 kHz, 32-bit, one channel,
+on a fourth connection the phone opens after the control one::
+
+   mic_src -> mic_caps_filter -> queue_mic -> mic_sink
+
+The stream flows whenever the phone is connected; what the phone does with it is
+the microphone mode, sent as control message type 101 with one byte: ``0`` drops
+it, ``1`` plays it on the phone's speaker, ``2`` feeds it to the applications
+recording from the phone's microphone, for a call or a voice assistant. The board
+sends the mode in force when the control connection comes up and whenever it
+changes. The phone must be launched with the microphone channel enabled, or the
+sample built with ``CONFIG_ANDROID_LINK_MIC=n``.
+
 The client is the scrcpy 4.1 server of the demo repository (branch ``android-4.1``),
-which adds a connection to a remote host, an MJPEG codec and a keep-alive message;
-its ``server/scripts/build_launch_server.sh`` builds it, pushes it to the phone and
-launches it with the options this sample expects. The liveness probe the sample
-sends every second is control message type 100, which that server accepts and
-ignores.
+which adds a connection to a remote host, an MJPEG codec, a keep-alive message and
+the microphone channel; its ``server/scripts/build_launch_server.sh`` builds it,
+pushes it to the phone and launches it with the options this sample expects. The
+liveness probe the sample sends every second is control message type 100, which
+that server accepts and ignores.
 
 Requirements
 ************

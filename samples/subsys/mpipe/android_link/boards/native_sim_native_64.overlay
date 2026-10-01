@@ -10,7 +10,7 @@
  * zephyr,touch = &input_sdl_touch). The panel geometry is pinned here so that
  * it matches the resolution the client is expected to stream: the sender must
  * scale to 720x1280 to match this panel. The audio goes to the emulated I2S
- * through the dummy codec.
+ * through the dummy codec, and the microphone is the emulated DMIC.
  */
 
 / {
@@ -23,6 +23,10 @@
 	compatible = "zephyr,sdl-dc";
 	width = <720>;
 	height = <1280>;
+};
+
+dmic_dev: &dmic0 {
+	status = "okay";
 };
 
 &i2s_tx0 {

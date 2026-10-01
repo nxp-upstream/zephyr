@@ -28,9 +28,24 @@
 
 #define SC_CONTROL_MSG_MAX_SIZE (1 << 18) // 256k
 
+/*
+ * The types above 100 are the demo's own, understood by its server build only;
+ * the scrcpy types stop well below.
+ */
 enum sc_control_msg_type {
 	SC_CONTROL_MSG_TYPE_INJECT_TOUCH_EVENT = 2,
-	SC_CONTROL_MSG_TYPE_KEEP_ALIVE = 100
+	SC_CONTROL_MSG_TYPE_KEEP_ALIVE = 100,
+	SC_CONTROL_MSG_TYPE_SET_MIC_MODE = 101,
+};
+
+/* What the phone does with the microphone stream the board sends it */
+enum sc_mic_mode {
+	/* Discard it */
+	SC_MIC_MODE_OFF = 0,
+	/* Play it on the phone's speaker */
+	SC_MIC_MODE_SPEAKER = 1,
+	/* Feed it to the applications recording from the phone's microphone */
+	SC_MIC_MODE_INJECT = 2,
 };
 
 struct sc_control_msg {
@@ -44,6 +59,9 @@ struct sc_control_msg {
 			struct sc_position position;
 			float pressure;
 		} inject_touch_event;
+		struct {
+			enum sc_mic_mode mode;
+		} set_mic_mode;
 	};
 };
 

@@ -8,3 +8,10 @@
 &sai1 {
 	mclk-output;
 };
+
+/* The on-board digital microphone, one channel: PDM data line 0, left */
+dmic_dev: &micfil {
+	channel0: micfil-channel@0 {
+		status = "okay";
+	};
+};

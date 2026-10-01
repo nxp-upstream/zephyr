@@ -40,6 +40,16 @@ void control_init(void);
 void connect_control_socket(int control_fd, struct sockaddr_in *client_addr);
 int disconnect_control_socket(void);
 bool control_socket_is_connected(void);
+/* Tell the phone what to do with the microphone stream; nothing when not connected */
+void control_send_mic_mode(enum sc_mic_mode mode);
+
+/*
+ * The microphone mode the phone is asked for. Changing it sends the phone the
+ * new mode when the control connection is up; connecting sends the current one.
+ */
+enum sc_mic_mode mic_mode_get(void);
+void mic_mode_set(enum sc_mic_mode mode);
+const char *mic_mode_name(enum sc_mic_mode mode);
 
 int display_setup(const struct device *const display_dev);
 
