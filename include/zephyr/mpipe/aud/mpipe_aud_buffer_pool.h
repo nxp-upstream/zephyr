@@ -30,7 +30,13 @@
  * @brief Audio buffer pool structure
  *
  * This structure manages memory allocation and buffer handling for audio
- * data processing within the plugin.
+ * data processing within the plugin. The blocks come from one static store,
+ * cut into @kconfig{CONFIG_MPIPE_AUD_BUFFER_POOL_COUNT} slices of
+ * @kconfig{CONFIG_MPIPE_AUD_BUFFER_POOL_SZ_MAX} times
+ * @kconfig{CONFIG_MPIPE_AUD_BUFFER_POOL_NUM_MAX} bytes. A slice belongs to
+ * the memory slab the application provides, for as long as the program runs,
+ * so the pools that share a slab share a slice, and a pool initialized again
+ * over the same slab finds its slice.
  */
 struct mpipe_aud_buffer_pool {
 	/** Base buffer pool structure */
