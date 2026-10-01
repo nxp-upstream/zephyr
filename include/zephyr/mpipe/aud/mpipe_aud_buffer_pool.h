@@ -56,6 +56,19 @@ struct mpipe_aud_buffer_pool {
  */
 void mpipe_aud_buffer_pool_init(struct mpipe_buffer_pool *pool);
 
+/**
+ * @brief Mark a block as handed to the audio driver.
+ *
+ * An audio driver that is given a block, as @c i2s_write() is, frees it to
+ * the slab itself once it is done with it. A sink calls this before releasing
+ * the buffer that wraps such a block, so that the pool does not free the
+ * block a second time. A block never handed over, dropped by a queue for
+ * instance, is freed by the pool when its buffer is released.
+ *
+ * @param buf Buffer wrapping the block, from an audio buffer pool.
+ */
+void mpipe_aud_buffer_pool_hand_over(struct net_buf *buf);
+
 /** @} */
 
 #endif /* ZEPHYR_INCLUDE_MPIPE_AUD_MPIPE_AUD_BUFFER_POOL_H_ */

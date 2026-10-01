@@ -97,6 +97,72 @@ static int mpipe_aud_buffer_pool_config(struct mpipe_buffer_pool *pool,
 	return 0;
 }
 
+/* Address stored in the buffer metadata of a block the driver now owns */
+static uint8_t mpipe_aud_buffer_pool_handed_over;
+
+void mpipe_aud_buffer_pool_hand_over(struct net_buf *buf)
+{
+	mpipe_buffer_get_meta(buf)->priv = &mpipe_aud_buffer_pool_handed_over;
+}
+
+/* A free block of the slab, wrapped in an empty buffer */
+static int mpipe_aud_buffer_pool_acquire_buffer(struct mpipe_buffer_pool *pool,
+						struct net_buf **buf)
+{
+	struct mpipe_aud_buffer_pool *aud_pool = (struct mpipe_aud_buffer_pool *)pool;
+	struct mpipe_buffer_meta *meta;
+	struct net_buf *out;
+	void *block;
+
+	if (aud_pool->mem_slab == NULL) {
+		return -EINVAL;
+	}
+
+	if (k_mem_slab_alloc(aud_pool->mem_slab, &block, K_NO_WAIT) != 0) {
+		return -ENOBUFS;
+	}
+
+	out = net_buf_alloc_with_data(pool->nb_pool, block, pool->config.size, K_NO_WAIT);
+	if (out == NULL) {
+		k_mem_slab_free(aud_pool->mem_slab, block);
+		return -ENOBUFS;
+	}
+
+	meta = mpipe_buffer_get_meta(out);
+	meta->pool = pool;
+	meta->bytes_used = 0;
+	meta->timestamp = 0;
+	meta->driver_buf = NULL;
+	meta->priv = NULL;
+	meta->parent = NULL;
+	out->len = 0;
+
+	*buf = out;
+
+	return 0;
+}
+
+/*
+ * The block goes back to the slab unless a driver was handed it, in which
+ * case the driver frees it. Runs before the buffer header is destroyed, while
+ * its data pointer still names the block.
+ */
+static int mpipe_aud_buffer_pool_release_buffer(struct mpipe_buffer_pool *pool, struct net_buf *buf)
+{
+	struct mpipe_aud_buffer_pool *aud_pool = (struct mpipe_aud_buffer_pool *)pool;
+	struct mpipe_buffer_meta *meta = mpipe_buffer_get_meta(buf);
+
+	if (meta->priv != &mpipe_aud_buffer_pool_handed_over && buf->__buf != NULL &&
+	    aud_pool->mem_slab != NULL) {
+		k_mem_slab_free(aud_pool->mem_slab, buf->__buf);
+	}
+
+	meta->priv = NULL;
+	meta->bytes_used = 0;
+
+	return 0;
+}
+
 void mpipe_aud_buffer_pool_init(struct mpipe_buffer_pool *pool)
 {
 	__ASSERT_NO_MSG(pool != NULL);
@@ -110,4 +176,6 @@ void mpipe_aud_buffer_pool_init(struct mpipe_buffer_pool *pool)
 	mpipe_buffer_pool_init(pool);
 
 	pool->configure = mpipe_aud_buffer_pool_config;
+	pool->acquire_buffer = mpipe_aud_buffer_pool_acquire_buffer;
+	pool->release_buffer = mpipe_aud_buffer_pool_release_buffer;
 }
