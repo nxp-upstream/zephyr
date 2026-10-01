@@ -22,8 +22,8 @@ LOG_MODULE_REGISTER(mpipe_aud_i2s_codec_sink, CONFIG_MPIPE_LOG_LEVEL);
 #define DEFAULT_PROP_I2S_DEVICE   DEVICE_DT_GET(DT_ALIAS(i2s_codec_tx))
 #define DEFAULT_PROP_CODEC_DEVICE DEVICE_DT_GET(DT_NODELABEL(audio_codec));
 
-/* Blocks queued to the driver before the stream is started */
-#define AUD_I2S_SINK_START_PRIME 3
+/* Blocks queued to the driver before the stream is started; see the Kconfig help */
+#define AUD_I2S_SINK_START_PRIME CONFIG_MPIPE_AUD_I2S_SINK_PRIME_BLOCKS
 
 /* A capability of this sink is one the I2S link and the codec both support */
 static int mpipe_aud_i2s_codec_sink_enum_caps(struct mpipe_pad *pad, uint32_t index,
