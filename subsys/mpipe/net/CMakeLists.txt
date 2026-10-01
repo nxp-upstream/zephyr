@@ -3,6 +3,7 @@
 
 zephyr_library_sources_ifdef(CONFIG_MPIPE_NET
   tcp_server.c
+  mpipe_socket_sink.c
   mpipe_socket_src.c
   mpipe_tcp_server_sink.c
   mpipe_tcp_server_src.c

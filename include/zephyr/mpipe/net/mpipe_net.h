@@ -22,10 +22,11 @@
  * capability and the sink accepts any; the parser that follows the source is
  * what works out the format, as after a file source.
  *
- * The socket source reads a connected socket the application hands it, which
- * is the shape for an application that owns its listening socket and accepts
- * several connections on it. The TCP server source and sink own a port of
- * their own and accept one client, for the single-stream case.
+ * The socket source and sink read and write a connected socket the
+ * application hands them, which is the shape for an application that owns its
+ * listening socket and accepts several connections on it. The TCP server
+ * source and sink are built on them and own a port of their own, accepting
+ * one client, for the single-stream case.
  */
 
 #endif /* ZEPHYR_INCLUDE_MPIPE_NET_MPIPE_NET_H_ */

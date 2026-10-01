@@ -7,9 +7,8 @@
 #include <errno.h>
 
 #include <zephyr/logging/log.h>
-#include <zephyr/net/socket.h>
 
-#include <zephyr/mpipe/mpipe_buffer.h>
+#include <zephyr/mpipe/mpipe_element.h>
 #include <zephyr/mpipe/net/mpipe_tcp_server_sink.h>
 
 #include "tcp_server.h"
@@ -29,7 +28,7 @@ static int mpipe_tcp_server_sink_set_property(struct mpipe_object *obj, uint32_t
 		tsink->port = *(const uint16_t *)val;
 		return 0;
 	default:
-		return -ENOTSUP;
+		return mpipe_socket_sink_set_property(obj, key, val);
 	}
 }
 
@@ -42,68 +41,35 @@ static int mpipe_tcp_server_sink_get_property(struct mpipe_object *obj, uint32_t
 		*(uint16_t *)val = tsink->port;
 		return 0;
 	default:
-		return -ENOTSUP;
+		return mpipe_socket_sink_get_property(obj, key, val);
 	}
-}
-
-static int mpipe_tcp_server_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
-					  struct net_buf **out_buf)
-{
-	struct mpipe_tcp_server_sink *tsink = CONTAINER_OF(
-		pad->object.container, struct mpipe_tcp_server_sink, sink.element.object);
-	int ret = 0;
-
-	*out_buf = NULL;
-
-	if (tsink->client_fd < 0) {
-		ret = -ENOTCONN;
-	}
-
-	/* A parser may hand over several frames as a fragment chain */
-	for (struct net_buf *frag = in_buf; frag != NULL && ret == 0; frag = frag->frags) {
-		uint32_t len = mpipe_buffer_get_meta(frag)->bytes_used;
-		uint32_t sent = 0;
-
-		while (sent < len) {
-			ssize_t wr = zsock_send(tsink->client_fd, frag->data + sent, len - sent, 0);
-
-			if (wr < 0) {
-				ret = -errno;
-				LOG_ERR("send() failed (%d)", errno);
-				break;
-			}
-			sent += wr;
-		}
-	}
-
-	net_buf_unref(in_buf);
-
-	return ret;
 }
 
 static int mpipe_tcp_server_sink_change_state(struct mpipe_element *self,
 					      enum mpipe_state_change transition)
 {
 	struct mpipe_tcp_server_sink *tsink = (struct mpipe_tcp_server_sink *)self;
-	int ret;
+	int fd;
 
 	switch (transition) {
 	case MPIPE_STATE_CHANGE_READY_TO_PAUSED:
-		ret = mpipe_net_tcp_listen(tsink->port);
-		if (ret < 0) {
-			return ret;
+		fd = mpipe_net_tcp_listen(tsink->port);
+		if (fd < 0) {
+			return fd;
 		}
-		tsink->server_fd = ret;
+		tsink->server_fd = fd;
 		break;
 	case MPIPE_STATE_CHANGE_PAUSED_TO_PLAYING:
-		ret = mpipe_net_tcp_accept(tsink->server_fd);
-		if (ret < 0) {
-			return ret;
+		/* The client is accepted on every start, since a pause drops it */
+		fd = mpipe_net_tcp_accept(tsink->server_fd);
+		if (fd < 0) {
+			return fd;
 		}
-		tsink->client_fd = ret;
+		mpipe_net_tcp_close(&tsink->ssink.fd);
+		tsink->ssink.fd = fd;
 		break;
 	case MPIPE_STATE_CHANGE_PLAYING_TO_PAUSED:
-		mpipe_net_tcp_close(&tsink->client_fd);
+		mpipe_net_tcp_close(&tsink->ssink.fd);
 		break;
 	case MPIPE_STATE_CHANGE_PAUSED_TO_READY:
 		mpipe_net_tcp_close(&tsink->server_fd);
@@ -112,13 +78,14 @@ static int mpipe_tcp_server_sink_change_state(struct mpipe_element *self,
 		break;
 	}
 
-	return mpipe_sink_change_state(self, transition);
+	/* The socket sink writes the client and lets go of it on teardown */
+	return mpipe_socket_sink_change_state(self, transition);
 }
 
 int mpipe_tcp_server_sink_init(struct mpipe_tcp_server_sink *tsink, uint8_t id)
 {
-	struct mpipe_element *self = &tsink->sink.element;
-	int ret = mpipe_sink_init(&tsink->sink, id);
+	struct mpipe_element *self = &tsink->ssink.sink.element;
+	int ret = mpipe_socket_sink_init(&tsink->ssink, id);
 
 	if (ret != 0) {
 		return ret;
@@ -129,11 +96,9 @@ int mpipe_tcp_server_sink_init(struct mpipe_tcp_server_sink *tsink, uint8_t id)
 	self->object.set_property = mpipe_tcp_server_sink_set_property;
 	self->object.get_property = mpipe_tcp_server_sink_get_property;
 	self->change_state = mpipe_tcp_server_sink_change_state;
-	tsink->sink.sink_pad.process_fn = mpipe_tcp_server_sink_process_fn;
 
 	tsink->port = CONFIG_MPIPE_NET_SINK_PORT;
 	tsink->server_fd = -1;
-	tsink->client_fd = -1;
 
 	return 0;
 }
