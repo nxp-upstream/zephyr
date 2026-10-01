@@ -38,6 +38,21 @@ config MPIPE_AUD_BUFFER_POOL_NUM_MAX
 	  settles the number actually used, and this caps what it may ask for.
 	  It reports the count it needed when this bound refuses it.
 
+config MPIPE_AUD_I2S_SINK_PRIME_BLOCKS
+	int "Blocks the I2S sink queues before starting the stream"
+	range 1 64
+	default 3
+	help
+	  The I2S codec sink hands this many blocks to the driver before it
+	  triggers the stream. Once started the driver consumes a block per
+	  block interval, so this is the whole margin against a late block
+	  when the stream arrives in real time, over a network for instance:
+	  a smaller value starts sooner, a larger one rides out more jitter
+	  before an underrun, which restarts the stream with a gap. It must
+	  not exceed the driver's queue depth, since the blocks are queued
+	  before anything is transmitted, and the upstream pool is asked for
+	  at least this many buffers.
+
 config MPIPE_AUD_BUFFER_POOL_COUNT
 	int "Number of audio buffer pools"
 	range 1 8
