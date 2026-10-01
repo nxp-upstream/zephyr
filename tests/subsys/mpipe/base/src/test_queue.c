@@ -7,8 +7,10 @@
 #include <zephyr/net_buf.h>
 #include <zephyr/ztest.h>
 
+#include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
 #include <zephyr/mpipe/mpipe_element.h>
+#include <zephyr/mpipe/mpipe_pad.h>
 #include <zephyr/mpipe/mpipe_object.h>
 #include <zephyr/mpipe/base/mpipe_queue.h>
 
@@ -182,4 +184,78 @@ ZTEST_F(test_queue, test_leak_never_drops_eos)
 	zassert_equal(k_msgq_num_used_get(&queue->msgq), 2);
 
 	queue_leave_paused(queue);
+}
+
+/* What the element downstream of the queue proposes */
+static struct mpipe_buffer_pool_config peer_proposal;
+static struct mpipe_buffer_pool *peer_pool;
+
+static int fake_peer_pool_query(struct mpipe_pad *pad, struct mpipe_dispatch *query)
+{
+	ARG_UNUSED(pad);
+
+	zassert_equal(query->type, MPIPE_DISPATCH_BUFFER_POOL, "unexpected query");
+	query->pool = peer_pool;
+	query->pool_cfg = peer_proposal;
+
+	return 0;
+}
+
+/*
+ * The buffers waiting in the queue are buffers the provider does not have,
+ * so a proposal that passes through the queue grows by the queue's size.
+ */
+ZTEST_F(test_queue, test_a_proposal_grows_by_the_queue_size)
+{
+	struct mpipe_queue *queue = &fixture->queue;
+	struct mpipe_pad peer;
+	struct mpipe_structure caps;
+	struct mpipe_dispatch query = {.type = MPIPE_DISPATCH_BUFFER_POOL, .caps = &caps};
+
+	peer_proposal = (struct mpipe_buffer_pool_config){.size = 64, .min_buffers = 3};
+	peer_pool = NULL;
+
+	mpipe_pad_init(&peer, 0, MPIPE_PAD_SINK, MPIPE_PAD_ALWAYS);
+	peer.query_fn = fake_peer_pool_query;
+	mpipe_pad_link(&queue->transform.src_pad, &peer);
+
+	queue_enter_paused(queue, 3, MPIPE_BASE_QUEUE_LEAK_NONE);
+	zassert_ok(mpipe_pad_query(&queue->transform.sink_pad, &query), "pool query failed");
+
+	zassert_is_null(query.pool, "the queue offers no pool of its own");
+	zassert_equal(query.pool_cfg.min_buffers, 6, "3 proposed + 3 queued, got %u",
+		      query.pool_cfg.min_buffers);
+	zassert_equal(query.pool_cfg.size, 64, "the rest of the proposal must pass through");
+
+	queue_leave_paused(queue);
+}
+
+/* A pool proposed downstream passes through, with the demand applied via its owner */
+ZTEST_F(test_queue, test_a_proposed_pool_passes_through_with_the_demand)
+{
+	struct mpipe_queue *queue = &fixture->queue;
+	struct mpipe_buffer_pool pool;
+	struct mpipe_pad peer;
+	struct mpipe_structure caps;
+	struct mpipe_dispatch query = {.type = MPIPE_DISPATCH_BUFFER_POOL, .caps = &caps};
+	const struct mpipe_buffer_pool_config req = {.size = 64, .min_buffers = 2};
+
+	mpipe_buffer_pool_init(&pool);
+	zassert_ok(mpipe_buffer_pool_set_req_config(&pool, &req));
+	peer_pool = &pool;
+
+	mpipe_pad_init(&peer, 0, MPIPE_PAD_SINK, MPIPE_PAD_ALWAYS);
+	peer.query_fn = fake_peer_pool_query;
+	mpipe_pad_link(&queue->transform.src_pad, &peer);
+
+	queue_enter_paused(queue, 2, MPIPE_BASE_QUEUE_LEAK_NONE);
+	zassert_ok(mpipe_pad_query(&queue->transform.sink_pad, &query), "pool query failed");
+
+	zassert_equal_ptr(query.pool, &pool, "the downstream pool must reach upstream");
+	zassert_equal(pool.config.min_buffers, 4, "2 required + 2 queued, got %u",
+		      pool.config.min_buffers);
+	zassert_equal(query.pool_cfg.min_buffers, 4, "pool_cfg must mirror the pool");
+
+	queue_leave_paused(queue);
+	peer_pool = NULL;
 }
