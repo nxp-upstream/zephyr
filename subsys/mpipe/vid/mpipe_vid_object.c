@@ -443,6 +443,8 @@ int mpipe_vid_object_set_caps(struct mpipe_vid_object *vid_obj, const struct mpi
 		return ret;
 	}
 
+	mpipe_structure_print(caps);
+
 	if (video_set_compose_format(vid_obj->vdev, &fmt) != 0) {
 		LOG_ERR("Unable to set format");
 		return -EIO;

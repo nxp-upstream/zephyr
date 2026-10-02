@@ -291,6 +291,11 @@ static inline void mpipe_value_print_int(const struct mpipe_value *value)
 static inline void mpipe_value_print_uint(const struct mpipe_value *value)
 {
 	printk("%u", value->v_uint);
+	if ((value->v_uint >> 24) & 0xff) {
+		printk("(%c%c%c%c)", (char)(value->v_uint & 0xff),
+		       (char)((value->v_uint >> 8) & 0xff), (char)((value->v_uint >> 16) & 0xff),
+		       (char)((value->v_uint >> 24) & 0xff));
+	}
 }
 
 static inline void mpipe_value_print_int_range(const struct mpipe_value *value)

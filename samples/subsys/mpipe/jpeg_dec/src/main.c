@@ -243,8 +243,8 @@ int main(void)
 			(struct mpipe_element *)&jpeg_dec,
 			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec),
 				   ((struct mpipe_element *)&vid_conv,))
-			IF_ENABLED(DT_HAS_CHOSEN(zephyr_videotrans),
-				   ((struct mpipe_element *)&vid_trans,))
+			// IF_ENABLED(DT_HAS_CHOSEN(zephyr_videotrans),
+			// 	   ((struct mpipe_element *)&vid_trans,))
 			(struct mpipe_element *)&disp_sink,
 			NULL);
 	if (ret < 0) {
@@ -258,8 +258,8 @@ int main(void)
 			(struct mpipe_element *)&jpeg_dec,
 			IF_ENABLED(DT_HAS_CHOSEN(zephyr_jpegdec),
 				   ((struct mpipe_element *)&vid_conv,))
-			IF_ENABLED(DT_HAS_CHOSEN(zephyr_videotrans),
-				   ((struct mpipe_element *)&vid_trans,))
+			// IF_ENABLED(DT_HAS_CHOSEN(zephyr_videotrans),
+			// 	   ((struct mpipe_element *)&vid_trans,))
 			(struct mpipe_element *)&disp_sink,
 			NULL);
 	if (ret < 0) {

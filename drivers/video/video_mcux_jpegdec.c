@@ -113,7 +113,7 @@ static int mcux_jpegdec_get_conf(uint32_t pixel_format, bool is_driver)
 	for (size_t i = 0; i < ARRAY_SIZE(pixel_map_confs); i++) {
 		if (is_driver) {
 			if (pixel_map_confs[i].drv_pixel_format ==
-				(jpegdec_pixel_format_t)pixel_format) {
+			    (jpegdec_pixel_format_t)pixel_format) {
 				return i;
 			}
 		} else {
@@ -190,15 +190,14 @@ static int mcux_jpegdec_set_fmt(const struct device *dev, struct video_format *f
 	 * same format as the first one.
 	 */
 	if (data->first_frame_rcv) {
-		struct video_format *current_format =
-			(fmt->type == VIDEO_BUF_TYPE_INPUT) ? &(data->m2m.in.fmt) :
-			&(data->m2m.out.fmt);
+		struct video_format *current_format = (fmt->type == VIDEO_BUF_TYPE_INPUT)
+							      ? &(data->m2m.in.fmt)
+							      : &(data->m2m.out.fmt);
 
 		if ((fmt->pixelformat != current_format->pixelformat) ||
-			(fmt->width != current_format->width) ||
-			(fmt->height != current_format->height) ||
-			(fmt->pitch != current_format->pitch) ||
-			(fmt->size != current_format->size)) {
+		    (fmt->width != current_format->width) ||
+		    (fmt->height != current_format->height) ||
+		    (fmt->pitch != current_format->pitch) || (fmt->size != current_format->size)) {
 			LOG_ERR("The input/output format is determined by the JPEG header"
 				" and cannot be changed.");
 			return -EINVAL;
@@ -293,15 +292,15 @@ static int mcux_jpegdec_enqueue(const struct device *dev, struct video_buffer *v
 				ROUND_UP(vbuf->size, MCUX_JPEGDEC_BUF_ALIGN);
 
 			if (JPEGDEC_ParseHeader(&data->decoder_despt.config) ==
-				kStatus_JPEGDEC_NotSupported) {
+			    kStatus_JPEGDEC_NotSupported) {
 				LOG_ERR("JPEG format not supported");
 				ret = -ENOTSUP;
 				goto unlock;
 			}
 
 			/* Set output pixel format based on parsed JPEG header */
-			data->format_idx = mcux_jpegdec_get_conf(
-				data->decoder_despt.config.pixelFormat, true);
+			data->format_idx =
+				mcux_jpegdec_get_conf(data->decoder_despt.config.pixelFormat, true);
 			data->m2m.out.fmt.pixelformat =
 				pixel_map_confs[data->format_idx].vid_pixel_format;
 			data->m2m.out.fmt.width = data->decoder_despt.config.width;
@@ -318,8 +317,8 @@ static int mcux_jpegdec_enqueue(const struct device *dev, struct video_buffer *v
 				data->m2m.out.fmt.pitch = 1U * data->m2m.out.fmt.width;
 			} else {
 				data->m2m.out.fmt.pitch =
-					video_bits_per_pixel(data->m2m.out.fmt.pixelformat)
-					/ 8U * data->m2m.out.fmt.width;
+					video_bits_per_pixel(data->m2m.out.fmt.pixelformat) / 8U *
+					data->m2m.out.fmt.width;
 			}
 			/*
 			 * For NV12 2-plane format, the Y plane pitch is 1 byte per
@@ -332,8 +331,8 @@ static int mcux_jpegdec_enqueue(const struct device *dev, struct video_buffer *v
 			 * bpp gives a smaller 1.5x factor and cannot be used here.
 			 */
 			if (data->m2m.out.fmt.pixelformat == VIDEO_PIX_FMT_NV12) {
-				data->m2m.out.fmt.size = data->m2m.out.fmt.pitch *
-					data->m2m.out.fmt.height * 2U;
+				data->m2m.out.fmt.size =
+					data->m2m.out.fmt.pitch * data->m2m.out.fmt.height * 2U;
 			} else {
 				data->m2m.out.fmt.size =
 					data->m2m.out.fmt.pitch * data->m2m.out.fmt.height;
@@ -428,9 +427,9 @@ static int mcux_jpegdec_get_caps(const struct device *dev, struct video_caps *ca
 }
 
 static int mcux_jpegdec_transform_cap(const struct device *const dev,
-				const struct video_format_cap *const cap,
-				struct video_format_cap *const res_cap,
-				enum video_buf_type direction, uint16_t ind)
+				      const struct video_format_cap *const cap,
+				      struct video_format_cap *const res_cap,
+				      enum video_buf_type direction, uint16_t ind)
 {
 	struct mcux_jpegdec_data *data = dev->data;
 
@@ -496,6 +495,8 @@ static int mcux_jpegdec_init(const struct device *dev)
 
 	JPEGDEC_EnableInterrupts((JPEG_DECODER_Type *)&config->base, 0U,
 				 kJPEGDEC_DecodeCompleteFlag | kJPEGDEC_ErrorFlags);
+
+	JPEGDEC_ConfigDecoder((JPEG_DECODER_Type *)&config->base, &data->decoder_despt.config);
 
 	/* Link the descriptor to itself so no need to set the descriptor address every time. */
 	data->decoder_despt.nextDescptAddr = (uint32_t)&(data->decoder_despt);

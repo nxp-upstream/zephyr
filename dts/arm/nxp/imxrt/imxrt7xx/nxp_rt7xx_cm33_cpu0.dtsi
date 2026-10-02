@@ -1371,8 +1371,6 @@
 		resets = <&rstctl4 NXP_SYSCON_RESET(10, 3)>;
 		clocks = <&clkctl4 MCUX_LCDIF_CLK>;
 		status = "disabled";
-		#address-cells = <1>;
-		#size-cells = <0>;
 	};
 
 	mipi_dsi: dsi@417000 {
