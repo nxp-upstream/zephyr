@@ -17,7 +17,7 @@ add_custom_command(
     COMMAND ${GST_LAUNCH}
     videotestsrc num-buffers=${CONFIG_MJPEG_NUM_FRAMES}
     ! videoconvert
-    ! "video/x-raw,width=${CONFIG_JPEG_IMAGE_WIDTH},height=${CONFIG_JPEG_IMAGE_HEIGHT}"
+    ! "video/x-raw,format=I420,width=${CONFIG_JPEG_IMAGE_WIDTH},height=${CONFIG_JPEG_IMAGE_HEIGHT}"
     ! timeoverlay font-desc="Sans 32"
     ! jpegenc
     ! filesink location=${TEST_MJPEG_FILE}
