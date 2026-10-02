@@ -92,9 +92,12 @@ The resolution matches :kconfig:option:`CONFIG_JPEG_IMAGE_WIDTH` and
 is controlled by :kconfig:option:`CONFIG_MJPEG_NUM_FRAMES`.
 
 The generated file is placed in the build directory and embedded into the binary
-via ``mjpeg.inc``. On first boot the sample checks whether the file already exists
-on the filesystem; if not, it writes the embedded data automatically. No manual
-file preparation is required.
+via ``mjpeg.inc``. On every boot the sample checks whether the file already exists
+on the filesystem and, if so, compares its size against the embedded data: if the
+sizes match, the file is assumed unchanged and is left as-is; otherwise it is
+rewritten from the embedded copy. This avoids rewriting the file to the SD card on
+every boot (which would significantly increase flash time), at the cost of not
+detecting a same-size content change. No manual file preparation is required.
 
 Requirements
 ************
@@ -131,7 +134,9 @@ Run::
   ./build/zephyr/zephyr.exe
 
 The test MJPEG file is generated during build and embedded into the binary.
-On first run it is written to the simulated SD card (``flash.bin``).
+It is written to the simulated SD card (``flash.bin``) on first run, and again
+on later runs only if the file's size on the card no longer matches the
+embedded one.
 
 NXP RT EVK platforms
 ====================
@@ -143,5 +148,6 @@ NXP RT EVK platforms
    :compact:
 
 The test MJPEG file is generated during build and embedded into the binary.
-On first boot it is written to the SD card automatically.
+It is written to the SD card automatically on first boot, and again on later
+boots only if the file's size on the card no longer matches the embedded one.
 Make sure the SD card is FAT formatted and writable.
