@@ -35,8 +35,8 @@ config ANDROID_LINK_MIC
 	depends on MPIPE_AUD && AUDIO_DMIC
 	help
 	  Accept a fourth connection from the phone, after the control one,
-	  and send it the board's microphone as raw PCM, 16 kHz, 32-bit, one
-	  channel, through a third pipeline from the DMIC source to a socket
+	  and send it the board's microphone as raw PCM, 16 kHz, 32-bit, two
+	  channels, through a third pipeline from the DMIC source to a socket
 	  sink. What the phone does with the stream, play it on its speaker,
 	  feed it to the applications recording from its microphone, or drop
 	  it, is set by a control message. The phone must be launched with the

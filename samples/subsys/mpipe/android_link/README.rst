@@ -71,8 +71,9 @@ example ``audio=true audio_codec=raw`` on the scrcpy server command line, and
 with ``audio=false`` when the sample is built without audio.
 
 With ``CONFIG_ANDROID_LINK_MIC`` (the default where a DMIC exists) a third pipeline
-sends the board's microphone to the phone as raw PCM, 16 kHz, 32-bit, one channel,
-on a fourth connection the phone opens after the control one::
+sends the board's microphone to the phone as raw PCM, 16 kHz, 32-bit, two channels
+(both slots of the PDM data line, summed by the phone), on a fourth connection the
+phone opens after the control one::
 
    mic_src -> mic_caps_filter -> queue_mic -> mic_sink
 
@@ -88,6 +89,17 @@ The user button (SW7 on the RT1170 EVK) cycles the mode through speaker, inject
 and off; the first user LED is lit in speaker mode, the second in inject mode. The
 shell command ``mic [off|speaker|inject]`` sets or prints the mode, and is the only
 control on a board without a button.
+
+On the phone, speaker mode plays through the alarm volume, since the phone's own
+audio capture takes every media track for the board; raise the alarm volume if it
+is quiet. Inject mode replaces the phone's microphone for the applications that
+open it without choosing a device: the Camera and cellular calls take it, the Google
+Recorder does not. The other party of a cellular call is never heard on the board,
+since Android keeps call audio out of any playback capture.
+
+Headphones on the board's jack must be plain stereo (3-pole plug). A 4-pole headset
+plug leaves the common return floating and the two channels cancel: voices vanish
+while wide stereo music plays.
 
 The client is the scrcpy 4.1 server of the demo repository (branch ``android-4.1``),
 which adds a connection to a remote host, an MJPEG codec, a keep-alive message and

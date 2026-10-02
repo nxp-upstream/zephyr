@@ -160,11 +160,13 @@ static __nocache struct k_mem_slab audio_slab;
 #if defined(CONFIG_ANDROID_LINK_MIC)
 /*
  * What the microphone path produces and the phone expects: the MICFIL on the
- * RT1170 delivers 16 kHz 32-bit samples and one channel is enough for speech.
+ * RT1170 delivers 16 kHz 32-bit samples. Both slots of the PDM data line are
+ * captured, since which one the board's microphone drives depends on the
+ * board; the phone sums them.
  */
 #define MIC_SAMPLE_RATE  16000
 #define MIC_BIT_WIDTH    32
-#define MIC_CHANNELS     1
+#define MIC_CHANNELS     2
 /* One block covers 10 ms; the queue holds 100 ms of them against Wi-Fi back-pressure */
 #define MIC_BLOCK_US     10000
 #define MIC_QUEUE_BLOCKS 10
