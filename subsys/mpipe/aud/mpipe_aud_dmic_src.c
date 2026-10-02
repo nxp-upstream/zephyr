@@ -18,6 +18,9 @@
 
 LOG_MODULE_REGISTER(mpipe_aud_dmic_src, CONFIG_MPIPE_LOG_LEVEL);
 
+/* Longest wait for a block; the driver returns silence after its own timeout anyway */
+#define DMIC_READ_TIMEOUT_MS 1000
+
 static int mpipe_aud_dmic_src_set_caps(struct mpipe_src *src, const struct mpipe_structure *caps)
 {
 	struct mpipe_aud_dmic_src *aud_dmic_src = (struct mpipe_aud_dmic_src *)src;
@@ -99,8 +102,16 @@ static int mpipe_aud_dmic_src_acquire_buffer(struct mpipe_buffer_pool *pool,
 	size_t bytes_used = pool->config.size;
 	int err = -1;
 
-	err = dmic_read(aud_pool->aud_dev, 0, &mem_block, &bytes_used, INT32_MAX);
+	/*
+	 * Bounded so that a read left waiting when the pool is stopped returns:
+	 * the driver produces no more blocks once stopped.
+	 */
+	err = dmic_read(aud_pool->aud_dev, 0, &mem_block, &bytes_used, DMIC_READ_TIMEOUT_MS);
 	if (err < 0) {
+		if (!pool->started) {
+			return -EPIPE;
+		}
+
 		LOG_ERR("Unable to read a DMIC buffer: %d", err);
 		return err;
 	}
@@ -149,6 +160,23 @@ static int mpipe_aud_dmic_src_acquire_buffer(struct mpipe_buffer_pool *pool,
 	return -ENOENT;
 }
 
+/*
+ * Stop the capture, so that the device can be configured again for the next
+ * run: the driver refuses a configuration while it captures.
+ */
+static int mpipe_aud_dmic_src_stop(struct mpipe_buffer_pool *pool)
+{
+	struct mpipe_aud_buffer_pool *aud_pool =
+		CONTAINER_OF(pool, struct mpipe_aud_buffer_pool, pool);
+
+	if (dmic_trigger(aud_pool->aud_dev, DMIC_TRIGGER_STOP) < 0) {
+		LOG_ERR("Unable to stop capture (interface)");
+		return -EIO;
+	}
+
+	return 0;
+}
+
 static int mpipe_aud_dmic_src_start(struct mpipe_buffer_pool *pool)
 {
 	struct mpipe_aud_buffer_pool *aud_pool =
@@ -190,6 +218,7 @@ int mpipe_aud_dmic_src_init(struct mpipe_aud_dmic_src *aud_dmic_src, uint8_t id)
 	src->set_caps = mpipe_aud_dmic_src_set_caps;
 	src->pool->acquire_buffer = mpipe_aud_dmic_src_acquire_buffer;
 	src->pool->start = mpipe_aud_dmic_src_start;
+	src->pool->stop = mpipe_aud_dmic_src_stop;
 
 	mpipe_aud_src_update_caps(src);
 
