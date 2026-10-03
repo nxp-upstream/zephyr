@@ -86,9 +86,18 @@ changes. The phone must be launched with the microphone channel enabled, or the
 sample built with ``CONFIG_ANDROID_LINK_MIC=n``.
 
 The user button (SW7 on the RT1170 EVK) cycles the mode through speaker, inject
-and off; the first user LED is lit in speaker mode, the second in inject mode. The
-shell command ``mic [off|speaker|inject]`` sets or prints the mode, and is the only
-control on a board without a button.
+and off; the green LED (D6) is lit in speaker mode, the red one (D34) in inject
+mode, neither when off. The shell command ``mic [off|speaker|inject]`` sets or
+prints the mode, and is the only control on a board without a button.
+
+Two launch profiles of the phone's client use these modes. The mirror captures the
+phone's playback for the board. The intercom instead captures the phone's microphone
+(``audio_source=mic-voice-communication``, with the phone's own echo cancelling), so
+with the board in speaker mode the person at the board and the person holding the
+phone talk both ways: the board's microphone plays on the phone's speaker, the phone's
+microphone plays on the board's jack. Switching profiles is a relaunch of the client;
+the board needs nothing. With a loudspeaker on the board, the phone user's voice is
+picked up by the board's microphone and comes back as an echo; headphones avoid it.
 
 On the phone, speaker mode plays through the alarm volume, since the phone's own
 audio capture takes every media track for the board; raise the alarm volume if it

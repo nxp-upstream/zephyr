@@ -9,6 +9,14 @@
 	mclk-output;
 };
 
+/*
+ * The board file declares the red user LED D34 active low; on the EVKB rev B
+ * it lights on a high level. The microphone mode shows on it.
+ */
+&red_led {
+	gpios = <&gpio9 25 GPIO_ACTIVE_HIGH>;
+};
+
 /* The on-board digital microphone: both slots of PDM data line 0 */
 dmic_dev: &micfil {
 	channel0: micfil-channel@0 {
