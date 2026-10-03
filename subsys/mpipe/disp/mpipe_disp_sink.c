@@ -188,6 +188,20 @@ static int mpipe_disp_sink_get_property(struct mpipe_object *obj, uint32_t key, 
 	}
 }
 
+/* The frame on screen goes back to its pool with the run, before the pool itself does */
+static int mpipe_disp_sink_change_state(struct mpipe_element *self,
+					enum mpipe_state_change transition)
+{
+	struct mpipe_disp_sink *disp_sink = (struct mpipe_disp_sink *)self;
+
+	if (transition == MPIPE_STATE_CHANGE_PAUSED_TO_READY && disp_sink->shown != NULL) {
+		net_buf_unref(disp_sink->shown);
+		disp_sink->shown = NULL;
+	}
+
+	return mpipe_sink_change_state(self, transition);
+}
+
 int mpipe_disp_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 			       struct net_buf **out_buf)
 {
@@ -203,6 +217,7 @@ int mpipe_disp_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 	uint32_t width = 0;
 	struct net_buf *cur;
 	struct net_buf *next;
+	struct net_buf *prev;
 	int ret;
 
 	if (value != NULL) {
@@ -295,7 +310,17 @@ int mpipe_disp_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 			return ret;
 		}
 
-		net_buf_unref(cur);
+		/*
+		 * The frame just written may be scanned out of this very buffer:
+		 * keep it, and let go of the one it replaced on screen. Released
+		 * at once, the buffer would be the next one the decoder writes
+		 * into, under the viewer's eyes.
+		 */
+		prev = disp_sink->shown;
+		disp_sink->shown = cur;
+		if (prev != NULL) {
+			net_buf_unref(prev);
+		}
 		cur = next;
 	}
 
@@ -317,9 +342,11 @@ int mpipe_disp_sink_init(struct mpipe_disp_sink *disp_sink, uint8_t id)
 	mpipe_element_set_name(self, "disp_sink");
 
 	disp_sink->display_dev = DEFAULT_PROP_DEVICE;
+	disp_sink->shown = NULL;
 
 	self->object.get_property = mpipe_disp_sink_get_property;
 	self->object.set_property = mpipe_disp_sink_set_property;
+	self->change_state = mpipe_disp_sink_change_state;
 
 	sink->sink_pad.process_fn = mpipe_disp_sink_process_fn;
 	sink->sink_pad.enum_caps_fn = mpipe_disp_sink_enum_caps;

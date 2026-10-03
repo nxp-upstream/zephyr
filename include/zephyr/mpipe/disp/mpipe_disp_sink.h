@@ -49,6 +49,12 @@ struct mpipe_disp_sink {
 	struct mpipe_sink sink;
 	/** Display device instance. */
 	const struct device *display_dev;
+	/**
+	 * The frame on screen. A driver may scan the frame out of the buffer it
+	 * was given rather than copy it, so the buffer is held until the next
+	 * frame has replaced it, or until the run ends.
+	 */
+	struct net_buf *shown;
 };
 
 /**
