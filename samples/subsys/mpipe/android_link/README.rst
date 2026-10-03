@@ -77,26 +77,36 @@ phone opens after the control one::
 
    mic_src -> mic_caps_filter -> queue_mic -> mic_sink
 
-The stream flows whenever the phone is connected; what the phone does with it is
-the microphone mode, sent as control message type 101 with one byte: ``0`` drops
-it, ``1`` plays it on the phone's speaker, ``2`` feeds it to the applications
-recording from the phone's microphone, for a call or a voice assistant. The board
-sends the mode in force when the control connection comes up and whenever it
-changes. The phone must be launched with the microphone channel enabled, or the
-sample built with ``CONFIG_ANDROID_LINK_MIC=n``.
+The streams flow whenever the phone is connected; what each side does with them
+is the demo mode, which the board sends as two control messages when the control
+connection comes up and whenever it changes: type 101, the microphone mode, one
+byte, ``0`` drops the board's microphone, ``1`` plays it on the phone's speaker,
+``2`` feeds it to the applications recording from the phone's microphone; and type
+102, the audio source, one byte, ``0`` for the phone's playback, ``1`` for the
+phone's microphone with its own echo cancelling. The phone must be launched with
+the microphone channel enabled, or the sample built with
+``CONFIG_ANDROID_LINK_MIC=n``.
 
-The user button (SW7 on the RT1170 EVK) cycles the mode through speaker, inject
-and off; the green LED (D6) is lit in speaker mode, the red one (D34) in inject
-mode, neither when off. The shell command ``mic [off|speaker|inject]`` sets or
-prints the mode, and is the only control on a board without a button.
+The user button (SW7 on the RT1170 EVK) cycles four modes; the shell command
+``mode [mirror|inject|intercom|off]`` sets or prints them, and is the only control
+on a board without a button:
 
-Two launch profiles of the phone's client use these modes. The mirror captures the
-phone's playback for the board. The intercom instead captures the phone's microphone
-(``audio_source=mic-voice-communication``, with the phone's own echo cancelling), so
-with the board in speaker mode the person at the board and the person holding the
-phone talk both ways: the board's microphone plays on the phone's speaker, the phone's
-microphone plays on the board's jack. Switching profiles is a relaunch of the client;
-the board needs nothing. With a loudspeaker on the board, the phone user's voice is
+============ ========================= ================================= ===============
+Mode         Phone sends to the board  Board's microphone on the phone   LEDs
+============ ========================= ================================= ===============
+``mirror``   its playback              played on the phone's speaker     green
+``inject``   its playback              the phone's microphone, for calls red
+``intercom`` its microphone            played on the phone's speaker     green and red
+``off``      its playback              dropped                           none
+============ ========================= ================================= ===============
+
+In ``intercom`` the person at the board and the person holding the phone talk both
+ways, and the phone's media is not heard on the board meanwhile. On the phone,
+speaker mode plays through the alarm volume. Inject mode replaces the phone's
+microphone for the applications that open it without choosing a device: the Camera
+and cellular calls take it, the Google Recorder does not. The other party of a
+cellular call is never heard on the board, since Android keeps call audio out of
+any playback capture. With a loudspeaker on the board, the phone user's voice is
 picked up by the board's microphone and comes back as an echo; headphones avoid it.
 
 On the phone, speaker mode plays through the alarm volume, since the phone's own

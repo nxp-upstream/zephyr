@@ -36,6 +36,15 @@ enum sc_control_msg_type {
 	SC_CONTROL_MSG_TYPE_INJECT_TOUCH_EVENT = 2,
 	SC_CONTROL_MSG_TYPE_KEEP_ALIVE = 100,
 	SC_CONTROL_MSG_TYPE_SET_MIC_MODE = 101,
+	SC_CONTROL_MSG_TYPE_SET_AUDIO_SOURCE = 102,
+};
+
+/* What the phone sends on its audio connection */
+enum sc_audio_source {
+	/* What it plays: media, games */
+	SC_AUDIO_SOURCE_PLAYBACK = 0,
+	/* Its microphone, with its own echo cancelling */
+	SC_AUDIO_SOURCE_MIC = 1,
 };
 
 /* What the phone does with the microphone stream the board sends it */
@@ -62,6 +71,9 @@ struct sc_control_msg {
 		struct {
 			enum sc_mic_mode mode;
 		} set_mic_mode;
+		struct {
+			enum sc_audio_source source;
+		} set_audio_source;
 	};
 };
 

@@ -49,6 +49,9 @@ size_t sc_control_msg_serialize(const struct sc_control_msg *msg, unsigned char 
 	case SC_CONTROL_MSG_TYPE_SET_MIC_MODE:
 		buf[1] = msg->set_mic_mode.mode;
 		return 2;
+	case SC_CONTROL_MSG_TYPE_SET_AUDIO_SOURCE:
+		buf[1] = msg->set_audio_source.source;
+		return 2;
 	default:
 		return 0;
 	}

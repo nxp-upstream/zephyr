@@ -31,7 +31,8 @@
  * as in the phone's own client: each runs at the lowest latency it can. The
  * touch controller is read locally and injected touch events are sent back to
  * the phone over the control connection, which the application keeps; the
- * same connection tells the phone what to do with the microphone stream.
+ * same connection tells the phone what to do with the microphone stream and
+ * what to send on its audio connection, its playback or its microphone.
  */
 
 #include <zephyr/kernel.h>
@@ -654,7 +655,7 @@ int main(void)
 
 	control_init();
 #if defined(CONFIG_ANDROID_LINK_MIC)
-	mic_mode_init();
+	demo_mode_init();
 #endif
 
 	ret = build_video_stream_pipeline();
@@ -766,7 +767,7 @@ int main(void)
 #endif
 		connect_control_socket(control_fd, &client_addr);
 #if defined(CONFIG_ANDROID_LINK_MIC)
-		control_send_mic_mode(mic_mode_get());
+		demo_mode_announce();
 #endif
 
 		/* Serve this client until a stream ends or the control connection fails */

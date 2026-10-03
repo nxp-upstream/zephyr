@@ -5,13 +5,16 @@
  */
 
 /*
- * The microphone stream always flows while the phone is connected; this is
- * what the phone is asked to do with it. The mode outlives a connection, so a
- * phone that reconnects is told the mode in force.
+ * The demo mode: what the phone does with the board's microphone, and what it
+ * sends on its audio connection. The streams always flow while the phone is
+ * connected; the mode only says what each side does with them. It outlives a
+ * connection, so a phone that reconnects is told the mode in force.
  *
- * The user button cycles speaker, inject, off; the first user LED is lit in
- * speaker mode and the second in inject mode. The shell command "mic" does
- * the same from a terminal, and is all there is on a board without them.
+ * The user button cycles mirror, inject, intercom, off. The green LED is lit
+ * when the board's microphone plays on the phone (mirror, intercom), the red
+ * one when the phone's microphone is involved (inject, intercom). The shell
+ * command "mode" does the same from a terminal, and is all there is on a
+ * board without button or LEDs.
  */
 
 #include <zephyr/kernel.h>
@@ -23,42 +26,47 @@
 
 #define LOG_LEVEL CONFIG_LOG_DEFAULT_LEVEL
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(mic_mode);
+LOG_MODULE_REGISTER(demo_mode);
 
-#define LED_SPEAKER_NODE DT_ALIAS(led0)
-#define LED_INJECT_NODE  DT_ALIAS(led1)
+#define LED_GREEN_NODE DT_ALIAS(led0)
+#define LED_RED_NODE   DT_ALIAS(led1)
 
-#if DT_NODE_HAS_STATUS_OKAY(LED_SPEAKER_NODE)
-static const struct gpio_dt_spec led_speaker = GPIO_DT_SPEC_GET(LED_SPEAKER_NODE, gpios);
+#if DT_NODE_HAS_STATUS_OKAY(LED_GREEN_NODE)
+static const struct gpio_dt_spec led_green = GPIO_DT_SPEC_GET(LED_GREEN_NODE, gpios);
 #else
-static const struct gpio_dt_spec led_speaker;
+static const struct gpio_dt_spec led_green;
 #endif
 
-#if DT_NODE_HAS_STATUS_OKAY(LED_INJECT_NODE)
-static const struct gpio_dt_spec led_inject = GPIO_DT_SPEC_GET(LED_INJECT_NODE, gpios);
+#if DT_NODE_HAS_STATUS_OKAY(LED_RED_NODE)
+static const struct gpio_dt_spec led_red = GPIO_DT_SPEC_GET(LED_RED_NODE, gpios);
 #else
-static const struct gpio_dt_spec led_inject;
+static const struct gpio_dt_spec led_red;
 #endif
 
-static enum sc_mic_mode mic_mode = SC_MIC_MODE_SPEAKER;
+static enum demo_mode demo_mode = DEMO_MODE_MIRROR;
 
-const char *mic_mode_name(enum sc_mic_mode mode)
+/* What each mode asks of the phone */
+static const struct {
+	const char *name;
+	enum sc_mic_mode mic_mode;
+	enum sc_audio_source audio_source;
+	bool green;
+	bool red;
+} modes[] = {
+	[DEMO_MODE_MIRROR] = {"mirror", SC_MIC_MODE_SPEAKER, SC_AUDIO_SOURCE_PLAYBACK, true, false},
+	[DEMO_MODE_INJECT] = {"inject", SC_MIC_MODE_INJECT, SC_AUDIO_SOURCE_PLAYBACK, false, true},
+	[DEMO_MODE_INTERCOM] = {"intercom", SC_MIC_MODE_SPEAKER, SC_AUDIO_SOURCE_MIC, true, true},
+	[DEMO_MODE_OFF] = {"off", SC_MIC_MODE_OFF, SC_AUDIO_SOURCE_PLAYBACK, false, false},
+};
+
+const char *demo_mode_name(enum demo_mode mode)
 {
-	switch (mode) {
-	case SC_MIC_MODE_OFF:
-		return "off";
-	case SC_MIC_MODE_SPEAKER:
-		return "speaker";
-	case SC_MIC_MODE_INJECT:
-		return "inject";
-	default:
-		return "?";
-	}
+	return (mode < ARRAY_SIZE(modes)) ? modes[mode].name : "?";
 }
 
-enum sc_mic_mode mic_mode_get(void)
+enum demo_mode demo_mode_get(void)
 {
-	return mic_mode;
+	return demo_mode;
 }
 
 static void led_init(const struct gpio_dt_spec *led)
@@ -75,20 +83,30 @@ static void led_show(const struct gpio_dt_spec *led, bool on)
 	}
 }
 
-void mic_mode_set(enum sc_mic_mode mode)
+void demo_mode_announce(void)
 {
-	mic_mode = mode;
-	led_show(&led_speaker, mode == SC_MIC_MODE_SPEAKER);
-	led_show(&led_inject, mode == SC_MIC_MODE_INJECT);
-	LOG_INF("Microphone mode: %s", mic_mode_name(mode));
-	control_send_mic_mode(mode);
+	control_send_mic_mode(modes[demo_mode].mic_mode);
+	control_send_audio_source(modes[demo_mode].audio_source);
 }
 
-void mic_mode_init(void)
+void demo_mode_set(enum demo_mode mode)
 {
-	led_init(&led_speaker);
-	led_init(&led_inject);
-	mic_mode_set(mic_mode);
+	if (mode >= ARRAY_SIZE(modes)) {
+		return;
+	}
+
+	demo_mode = mode;
+	led_show(&led_green, modes[mode].green);
+	led_show(&led_red, modes[mode].red);
+	LOG_INF("Mode: %s", modes[mode].name);
+	demo_mode_announce();
+}
+
+void demo_mode_init(void)
+{
+	led_init(&led_green);
+	led_init(&led_red);
+	demo_mode_set(demo_mode);
 }
 
 #if DT_HAS_COMPAT_STATUS_OKAY(gpio_keys)
@@ -100,43 +118,31 @@ static void button_cb(struct input_event *evt, void *user_data)
 		return;
 	}
 
-	switch (mic_mode) {
-	case SC_MIC_MODE_SPEAKER:
-		mic_mode_set(SC_MIC_MODE_INJECT);
-		break;
-	case SC_MIC_MODE_INJECT:
-		mic_mode_set(SC_MIC_MODE_OFF);
-		break;
-	default:
-		mic_mode_set(SC_MIC_MODE_SPEAKER);
-		break;
-	}
+	demo_mode_set((demo_mode + 1) % ARRAY_SIZE(modes));
 }
 
 INPUT_CALLBACK_DEFINE(DEVICE_DT_GET_ANY(gpio_keys), button_cb, NULL);
 #endif
 
 #if defined(CONFIG_SHELL)
-static int cmd_mic(const struct shell *sh, size_t argc, char **argv)
+static int cmd_mode(const struct shell *sh, size_t argc, char **argv)
 {
 	if (argc < 2) {
-		shell_print(sh, "Microphone mode: %s", mic_mode_name(mic_mode));
+		shell_print(sh, "Mode: %s", modes[demo_mode].name);
 		return 0;
 	}
 
-	if (strcmp(argv[1], "off") == 0) {
-		mic_mode_set(SC_MIC_MODE_OFF);
-	} else if (strcmp(argv[1], "speaker") == 0) {
-		mic_mode_set(SC_MIC_MODE_SPEAKER);
-	} else if (strcmp(argv[1], "inject") == 0) {
-		mic_mode_set(SC_MIC_MODE_INJECT);
-	} else {
-		shell_error(sh, "Unknown mode %s", argv[1]);
-		return -EINVAL;
+	for (size_t i = 0; i < ARRAY_SIZE(modes); i++) {
+		if (strcmp(argv[1], modes[i].name) == 0) {
+			demo_mode_set(i);
+			return 0;
+		}
 	}
 
-	return 0;
+	shell_error(sh, "Unknown mode %s", argv[1]);
+	return -EINVAL;
 }
 
-SHELL_CMD_ARG_REGISTER(mic, NULL, "Microphone mode: mic [off|speaker|inject]", cmd_mic, 1, 1);
+SHELL_CMD_ARG_REGISTER(mode, NULL, "Demo mode: mode [mirror|inject|intercom|off]", cmd_mode, 1,
+		       1);
 #endif

@@ -100,6 +100,14 @@ static void check_alive(struct k_timer *timer)
 	}
 }
 
+static void control_send(const struct sc_control_msg *msg)
+{
+	if (data.is_connected) {
+		k_msgq_put(&sc_control_queue, msg, K_NO_WAIT);
+		k_work_submit(&data.send_work);
+	}
+}
+
 void control_send_mic_mode(enum sc_mic_mode mode)
 {
 	struct sc_control_msg msg = {
@@ -107,10 +115,17 @@ void control_send_mic_mode(enum sc_mic_mode mode)
 		.set_mic_mode.mode = mode,
 	};
 
-	if (data.is_connected) {
-		k_msgq_put(&sc_control_queue, &msg, K_NO_WAIT);
-		k_work_submit(&data.send_work);
-	}
+	control_send(&msg);
+}
+
+void control_send_audio_source(enum sc_audio_source source)
+{
+	struct sc_control_msg msg = {
+		.type = SC_CONTROL_MSG_TYPE_SET_AUDIO_SOURCE,
+		.set_audio_source.source = source,
+	};
+
+	control_send(&msg);
 }
 
 static void parse_touch_event_cb(struct input_event *evt, void *user_data)
