@@ -111,17 +111,20 @@ Mode         Phone sends to the board  Board's microphone on the phone   LEDs
 
 In ``headset`` the board behaves like a wired headset of the phone: the phone's
 sound comes out of the board and the board's microphone replaces the phone's for
-the applications that open it without choosing a device. The Camera and cellular
-calls take it, the Google Recorder does not. The other party of a cellular call is
-never heard on the board, since Android keeps call audio out of any playback
+the applications that open it without choosing a device. The Camera, cellular
+calls and VoIP calls take it, the Google Recorder does not. The other party of a
+VoIP call (Messenger) is heard on the board like any other sound; the other party
+of a cellular call never is, since Android keeps call audio out of any playback
 capture. In ``intercom`` the person at the board and the person holding the phone
 talk both ways, and the phone's media is not heard on the board meanwhile. With a
 loudspeaker on the board, the phone user's voice is picked up by the board's
 microphone and comes back as an echo; headphones avoid it.
 
-On the phone, ``speaker`` and ``intercom`` play the board's microphone through the
-alarm volume, since the phone's own audio capture takes every media track for the
-board; raise the alarm volume if it is quiet.
+The phone's volume keys set the level on the board: the media volume outside a
+call, the call volume during one. ``speaker`` and ``intercom`` play the board's
+microphone on the phone through the alarm volume, since the phone's own audio
+capture takes every media track for the board; raise the alarm volume if it is
+quiet.
 
 Headphones on the board's jack must be plain stereo (3-pole plug). A 4-pole headset
 plug leaves the common return floating and the two channels cancel: voices vanish
