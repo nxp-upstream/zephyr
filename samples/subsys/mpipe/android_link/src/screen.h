@@ -45,6 +45,8 @@ void control_send_mic_mode(enum sc_mic_mode mode);
 void control_send_audio_source(enum sc_audio_source source);
 /* Press and release a key on the phone, as a headset button does */
 void control_send_key(enum android_keycode keycode);
+/* Tell the phone's client to exit for good */
+void control_send_quit(void);
 
 /*
  * What the demo does with the two audio streams, as one state the user button

@@ -91,10 +91,12 @@ A short press of the user button (SW7 on the RT1170 EVK) cycles four modes; a
 press held longer than 0.7 s calls the phone's voice assistant instead, as a
 headset button does, since the assistant's wake word cannot hear the board: in
 ``inject`` mode the assistant then listens to the board's microphone and its answer
-plays on the board. Each action is shown for two seconds as a text band at the top
-of the panel, drawn by the overlay element; while no phone streams, the panel says
-so. The shell commands ``mode [mirror|inject|intercom|off]`` and ``assist`` do the
-same from a terminal, and are the only controls on a board without a button:
+plays on the board. A press held for 3 s ends the demo: the phone's client, which
+otherwise reconnects whenever the board comes back, exits and restores the phone's
+settings. Each action is shown for two seconds as a text band at the top of the
+panel, drawn by the overlay element; while no phone streams, the panel says so. The
+shell commands ``mode [mirror|inject|intercom|off]``, ``assist`` and ``phone quit``
+do the same from a terminal, and are the only controls on a board without a button:
 
 ============ ========================= ================================= ===============
 Mode         Phone sends to the board  Board's microphone on the phone   LEDs

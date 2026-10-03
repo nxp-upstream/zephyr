@@ -38,6 +38,8 @@ enum sc_control_msg_type {
 	SC_CONTROL_MSG_TYPE_KEEP_ALIVE = 100,
 	SC_CONTROL_MSG_TYPE_SET_MIC_MODE = 101,
 	SC_CONTROL_MSG_TYPE_SET_AUDIO_SOURCE = 102,
+	/* The phone's client exits for good instead of reconnecting */
+	SC_CONTROL_MSG_TYPE_QUIT = 103,
 };
 
 /* What the phone sends on its audio connection */

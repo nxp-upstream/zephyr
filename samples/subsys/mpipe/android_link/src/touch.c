@@ -133,6 +133,13 @@ void control_send_key(enum android_keycode keycode)
 	control_send(&msg);
 }
 
+void control_send_quit(void)
+{
+	struct sc_control_msg msg = {.type = SC_CONTROL_MSG_TYPE_QUIT};
+
+	control_send(&msg);
+}
+
 void control_send_audio_source(enum sc_audio_source source)
 {
 	struct sc_control_msg msg = {

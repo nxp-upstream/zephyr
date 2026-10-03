@@ -11,9 +11,10 @@
  * connection, so a phone that reconnects is told the mode in force.
  *
  * A short press of the user button cycles mirror, inject, intercom, off; a
- * long press wakes the phone's voice assistant instead, as a headset button
- * does, which is how the assistant is called from across the room since its
- * wake word cannot hear the board. The green LED is lit when the board's
+ * press held longer wakes the phone's voice assistant instead, as a headset
+ * button does, which is how the assistant is called from across the room
+ * since its wake word cannot hear the board; a press held for seconds ends
+ * the demo: the phone's client exits instead of reconnecting. The green LED is lit when the board's
  * microphone plays on the phone (mirror, intercom), the red one when the
  * phone's microphone is involved (inject, intercom). The shell commands
  * "mode" and "assist" do the same from a terminal, and are all there is on a
@@ -35,6 +36,8 @@ LOG_MODULE_REGISTER(demo_mode);
 
 /* A press held this long calls the assistant instead of changing the mode */
 #define LONG_PRESS_MS 700
+/* A press held this long ends the demo on the phone */
+#define QUIT_PRESS_MS 3000
 /* How long a message stays on the panel */
 #define OSD_MS        2000
 
@@ -120,6 +123,13 @@ static void assist(void)
 	control_send_key(AKEYCODE_VOICE_ASSIST);
 }
 
+static void quit_phone(void)
+{
+	LOG_INF("Ending the demo on the phone");
+	osd_show("Bye", OSD_MS);
+	control_send_quit();
+}
+
 void demo_mode_init(void)
 {
 	led_init(&led_green);
@@ -128,14 +138,26 @@ void demo_mode_init(void)
 }
 
 #if DT_HAS_COMPAT_STATUS_OKAY(gpio_keys)
-/* Fires while the button is still held: a long press */
-static void long_press(struct k_timer *timer)
+/*
+ * How long the button has been held, in stages: a release in stage 0 is a
+ * short press, in stage 1 it calls the assistant, and stage 2 is reached while
+ * still held and ends the demo at once.
+ */
+static uint8_t press_stage;
+
+static void press_timer_fn(struct k_timer *timer)
 {
-	ARG_UNUSED(timer);
-	assist();
+	if (press_stage == 0U) {
+		press_stage = 1;
+		osd_show("Assistant", OSD_MS);
+		k_timer_start(timer, K_MSEC(QUIT_PRESS_MS - LONG_PRESS_MS), K_NO_WAIT);
+	} else {
+		press_stage = 2;
+		quit_phone();
+	}
 }
 
-static K_TIMER_DEFINE(long_press_timer, long_press, NULL);
+static K_TIMER_DEFINE(press_timer, press_timer_fn, NULL);
 
 static void button_cb(struct input_event *evt, void *user_data)
 {
@@ -146,14 +168,21 @@ static void button_cb(struct input_event *evt, void *user_data)
 	}
 
 	if (evt->value != 0) {
-		k_timer_start(&long_press_timer, K_MSEC(LONG_PRESS_MS), K_NO_WAIT);
+		press_stage = 0;
+		k_timer_start(&press_timer, K_MSEC(LONG_PRESS_MS), K_NO_WAIT);
 		return;
 	}
 
-	/* Released before the timer fired: a short press */
-	if (k_timer_remaining_get(&long_press_timer) > 0U) {
-		k_timer_stop(&long_press_timer);
+	k_timer_stop(&press_timer);
+	switch (press_stage) {
+	case 0:
 		demo_mode_set((demo_mode + 1) % ARRAY_SIZE(modes));
+		break;
+	case 1:
+		assist();
+		break;
+	default:
+		break;
 	}
 }
 
@@ -194,4 +223,20 @@ static int cmd_assist(const struct shell *sh, size_t argc, char **argv)
 }
 
 SHELL_CMD_REGISTER(assist, NULL, "Call the phone's voice assistant", cmd_assist);
+
+static int cmd_phone_quit(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(sh);
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
+	quit_phone();
+
+	return 0;
+}
+
+SHELL_STATIC_SUBCMD_SET_CREATE(phone_cmds,
+			       SHELL_CMD(quit, NULL, "End the demo on the phone", cmd_phone_quit),
+			       SHELL_SUBCMD_SET_END);
+SHELL_CMD_REGISTER(phone, &phone_cmds, "The phone's client", NULL);
 #endif
