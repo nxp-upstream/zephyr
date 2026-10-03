@@ -56,7 +56,11 @@ static const struct gpio_dt_spec led_red = GPIO_DT_SPEC_GET(LED_RED_NODE, gpios)
 static const struct gpio_dt_spec led_red;
 #endif
 
-static enum demo_mode demo_mode = DEMO_MODE_MIRROR;
+/*
+ * Start with the microphone dropped: a phone lying next to the board would
+ * otherwise feed its own speaker back through the board's microphone.
+ */
+static enum demo_mode demo_mode = DEMO_MODE_OFF;
 
 /* What each mode asks of the phone */
 static const struct {
@@ -66,10 +70,10 @@ static const struct {
 	bool green;
 	bool red;
 } modes[] = {
+	[DEMO_MODE_OFF] = {"off", SC_MIC_MODE_OFF, SC_AUDIO_SOURCE_PLAYBACK, false, false},
 	[DEMO_MODE_MIRROR] = {"mirror", SC_MIC_MODE_SPEAKER, SC_AUDIO_SOURCE_PLAYBACK, true, false},
 	[DEMO_MODE_INJECT] = {"inject", SC_MIC_MODE_INJECT, SC_AUDIO_SOURCE_PLAYBACK, false, true},
 	[DEMO_MODE_INTERCOM] = {"intercom", SC_MIC_MODE_SPEAKER, SC_AUDIO_SOURCE_MIC, true, true},
-	[DEMO_MODE_OFF] = {"off", SC_MIC_MODE_OFF, SC_AUDIO_SOURCE_PLAYBACK, false, false},
 };
 
 const char *demo_mode_name(enum demo_mode mode)
@@ -208,8 +212,7 @@ static int cmd_mode(const struct shell *sh, size_t argc, char **argv)
 	return -EINVAL;
 }
 
-SHELL_CMD_ARG_REGISTER(mode, NULL, "Demo mode: mode [mirror|inject|intercom|off]", cmd_mode, 1,
-		       1);
+SHELL_CMD_ARG_REGISTER(mode, NULL, "Demo mode: mode [off|mirror|inject|intercom]", cmd_mode, 1, 1);
 
 static int cmd_assist(const struct shell *sh, size_t argc, char **argv)
 {
