@@ -255,7 +255,10 @@ static void mpipe_queue_thread_func(void *p1, void *p2, void *p3)
 			continue;
 		}
 
-		mpipe_push_buffer(&queue->transform.src_pad, buffer);
+		if (mpipe_push_buffer(&queue->transform.src_pad, buffer) != 0) {
+			/* Fatal to the stream: stop forwarding so one error, not a flood */
+			mpipe_thread_pause(&queue->thread);
+		}
 	}
 
 	LOG_DBG("Queue thread exiting");
