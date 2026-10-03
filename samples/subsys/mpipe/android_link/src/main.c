@@ -614,10 +614,32 @@ static void wifi_event_cb(struct net_mgmt_event_callback *cb, uint64_t event, st
 static struct net_mgmt_event_callback wifi_event_cb_data;
 #endif
 
-/* Wait for a player to have brought its pipeline to @p state */
+/*
+ * Wait for a player to have brought its pipeline to @p state, and say so
+ * when it takes long: a teardown that never completes would otherwise look
+ * like a board that stopped accepting the phone.
+ */
 static void wait_for_state(const struct mpipe *p, enum mpipe_state state)
 {
+	uint32_t waited_ms = 0;
+
 	while (p->bin.element.current_state != state) {
+		k_msleep(10);
+		waited_ms += 10;
+		if ((waited_ms % 5000) == 0) {
+			LOG_WRN("Pipeline #%u not in state %d after %u ms",
+				p->bin.element.object.id, state, waited_ms);
+		}
+	}
+}
+
+/*
+ * Ask a player to stop until the command is queued: a pipeline whose stream
+ * just failed can fill the player's queue with error reports for a moment.
+ */
+static void stop_player(struct mpipe_player *pl)
+{
+	while (mpipe_player_stop(pl) != 0) {
 		k_msleep(10);
 	}
 }
@@ -844,14 +866,14 @@ int main(void)
 		 * posted by another pipeline during the teardown would
 		 * otherwise end the next client's session at once.
 		 */
-		(void)mpipe_player_stop(&player);
+		stop_player(&player);
 		wait_for_state(&pipe, MPIPE_STATE_READY);
 #if defined(CONFIG_ANDROID_LINK_AUDIO)
-		(void)mpipe_player_stop(&audio_player);
+		stop_player(&audio_player);
 		wait_for_state(&audio_pipe, MPIPE_STATE_READY);
 #endif
 #if defined(CONFIG_ANDROID_LINK_MIC)
-		(void)mpipe_player_stop(&mic_player);
+		stop_player(&mic_player);
 		wait_for_state(&mic_pipe, MPIPE_STATE_READY);
 #endif
 		k_event_clear(&application_event, EVENT_TOUCH_ERROR | EVENT_STREAM_END);
