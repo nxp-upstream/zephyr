@@ -11,6 +11,7 @@ target_sources(app PRIVATE
   src/touch.c
   src/display.c
   src/control_msg.c
+  src/osd.c
 )
 target_sources_ifdef(CONFIG_ANDROID_LINK_MIC app PRIVATE src/mic_mode.c)
 

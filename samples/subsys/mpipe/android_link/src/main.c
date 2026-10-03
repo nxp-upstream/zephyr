@@ -11,8 +11,12 @@
  * Ethernet and streams MJPEG frames to this device over TCP. The frames are
  * fed into an mpipe pipeline that parses, decodes and displays them:
  *
- *   video_src -> jpeg_parser -> caps_filter -> queue_parse -> jpeg_decoder -> queue_dec
- *             -> disp_sink
+ *   video_src -> jpeg_parser -> caps_filter -> queue_parse -> jpeg_decoder
+ *             -> queue_dec -> overlay -> disp_sink
+ *
+ * The overlay draws the demo's messages (the mode, the assistant call) as a
+ * band at the top of the frames for a moment; while no phone streams, the
+ * application writes the same band to the panel itself.
  *
  * and, with CONFIG_ANDROID_LINK_AUDIO, a second pipeline plays the raw PCM
  * the phone sends on its audio connection:
@@ -58,6 +62,7 @@
 #include <zephyr/mpipe/img/mpipe_img_jpeg_parser.h>
 #include <zephyr/mpipe/img/mpipe_img_jpeg_decoder.h>
 #include <zephyr/mpipe/disp/mpipe_disp_sink.h>
+#include <zephyr/mpipe/vid/mpipe_vid_overlay.h>
 #include <zephyr/mpipe/utils/mpipe_player.h>
 #if defined(CONFIG_ANDROID_LINK_AUDIO)
 #include <zephyr/mpipe/aud/mpipe_aud_i2s_codec_sink.h>
@@ -67,6 +72,7 @@
 #include <zephyr/mpipe/aud/mpipe_aud_dmic_src.h>
 #endif
 
+#include "osd.h"
 #include "screen.h"
 #include "zephyr/mpipe/mpipe_element.h"
 
@@ -88,6 +94,7 @@ enum {
 	JPEG_DEC_ID,
 	QUEUE_DEC_ID,
 	CAPS_FILTER_ID,
+	OVERLAY_ID,
 	DISP_SINK_ID,
 	AUDIO_PIPE_ID,
 	AUDIO_SRC_ID,
@@ -131,6 +138,7 @@ static struct mpipe_disp_sink disp_sink;
 static struct mpipe_queue queue_parse;
 static struct mpipe_queue queue_dec;
 static struct mpipe_caps_filter caps_filter;
+static struct mpipe_vid_overlay overlay;
 static struct mpipe_player player;
 
 #if defined(CONFIG_ANDROID_LINK_AUDIO)
@@ -240,6 +248,14 @@ static int build_video_stream_pipeline(void)
 	if (ret < 0) {
 		return ret;
 	}
+	ret = mpipe_vid_overlay_init(&overlay, OVERLAY_ID);
+	if (ret < 0) {
+		return ret;
+	}
+	ret = osd_init(&overlay, display_dev);
+	if (ret < 0) {
+		return ret;
+	}
 
 	/*
 	 * The parser only tells the format: pin the frame size behind it so
@@ -301,11 +317,12 @@ static int build_video_stream_pipeline(void)
 	 * and blitted. With them the reader keeps filling the next buffer while
 	 * a frame is being decoded, and the decoder while a frame is displayed.
 	 */
-	ret = mpipe_bin_add(
-		(struct mpipe_bin *)&pipe, (struct mpipe_element *)&video_src,
-		(struct mpipe_element *)&jpeg_parser, (struct mpipe_element *)&caps_filter,
-		(struct mpipe_element *)&queue_parse, (struct mpipe_element *)&jpeg_dec,
-		(struct mpipe_element *)&queue_dec, (struct mpipe_element *)&disp_sink, NULL);
+	ret = mpipe_bin_add((struct mpipe_bin *)&pipe, (struct mpipe_element *)&video_src,
+			    (struct mpipe_element *)&jpeg_parser,
+			    (struct mpipe_element *)&caps_filter,
+			    (struct mpipe_element *)&queue_parse, (struct mpipe_element *)&jpeg_dec,
+			    (struct mpipe_element *)&queue_dec, (struct mpipe_element *)&overlay,
+			    (struct mpipe_element *)&disp_sink, NULL);
 	if (ret < 0) {
 		LOG_ERR("Failed to add elements (%d)", ret);
 		return ret;
@@ -315,7 +332,7 @@ static int build_video_stream_pipeline(void)
 		(struct mpipe_element *)&video_src, (struct mpipe_element *)&jpeg_parser,
 		(struct mpipe_element *)&caps_filter, (struct mpipe_element *)&queue_parse,
 		(struct mpipe_element *)&jpeg_dec, (struct mpipe_element *)&queue_dec,
-		(struct mpipe_element *)&disp_sink, NULL);
+		(struct mpipe_element *)&overlay, (struct mpipe_element *)&disp_sink, NULL);
 	if (ret < 0) {
 		LOG_ERR("Failed to link elements (%d)", ret);
 		return ret;
@@ -654,6 +671,7 @@ int main(void)
 #endif
 
 	control_init();
+	(void)display_setup(display_dev);
 #if defined(CONFIG_ANDROID_LINK_MIC)
 	demo_mode_init();
 #endif
@@ -702,6 +720,7 @@ int main(void)
 		int mic_fd = -1;
 
 		LOG_INF("Waiting for a client on port %u", MY_PORT);
+		osd_idle("Waiting for the phone");
 
 		video_fd = zsock_accept(server_fd, (struct sockaddr *)&client_addr, &addr_len);
 		if (video_fd < 0) {
@@ -766,6 +785,7 @@ int main(void)
 		(void)mpipe_player_play(&mic_player);
 #endif
 		connect_control_socket(control_fd, &client_addr);
+		osd_show("Phone connected", 2000);
 #if defined(CONFIG_ANDROID_LINK_MIC)
 		demo_mode_announce();
 #endif
