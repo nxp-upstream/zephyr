@@ -10,11 +10,15 @@
  * connected; the mode only says what each side does with them. It outlives a
  * connection, so a phone that reconnects is told the mode in force.
  *
- * The user button cycles mirror, inject, intercom, off. The green LED is lit
- * when the board's microphone plays on the phone (mirror, intercom), the red
- * one when the phone's microphone is involved (inject, intercom). The shell
- * command "mode" does the same from a terminal, and is all there is on a
- * board without button or LEDs.
+ * A short press of the user button cycles mirror, inject, intercom, off; a
+ * long press wakes the phone's voice assistant instead, as a headset button
+ * does, which is how the assistant is called from across the room since its
+ * wake word cannot hear the board. The green LED is lit when the board's
+ * microphone plays on the phone (mirror, intercom), the red one when the
+ * phone's microphone is involved (inject, intercom). The shell commands
+ * "mode" and "assist" do the same from a terminal, and are all there is on a
+ * board without button or LEDs. Each action is shown on the panel for a
+ * moment.
  */
 
 #include <zephyr/kernel.h>
@@ -22,11 +26,17 @@
 #include <zephyr/input/input.h>
 #include <zephyr/shell/shell.h>
 
+#include "osd.h"
 #include "screen.h"
 
 #define LOG_LEVEL CONFIG_LOG_DEFAULT_LEVEL
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(demo_mode);
+
+/* A press held this long calls the assistant instead of changing the mode */
+#define LONG_PRESS_MS 700
+/* How long a message stays on the panel */
+#define OSD_MS        2000
 
 #define LED_GREEN_NODE DT_ALIAS(led0)
 #define LED_RED_NODE   DT_ALIAS(led1)
@@ -99,7 +109,15 @@ void demo_mode_set(enum demo_mode mode)
 	led_show(&led_green, modes[mode].green);
 	led_show(&led_red, modes[mode].red);
 	LOG_INF("Mode: %s", modes[mode].name);
+	osd_show(modes[mode].name, OSD_MS);
 	demo_mode_announce();
+}
+
+static void assist(void)
+{
+	LOG_INF("Calling the assistant");
+	osd_show("Assistant", OSD_MS);
+	control_send_key(AKEYCODE_VOICE_ASSIST);
 }
 
 void demo_mode_init(void)
@@ -110,15 +128,33 @@ void demo_mode_init(void)
 }
 
 #if DT_HAS_COMPAT_STATUS_OKAY(gpio_keys)
+/* Fires while the button is still held: a long press */
+static void long_press(struct k_timer *timer)
+{
+	ARG_UNUSED(timer);
+	assist();
+}
+
+static K_TIMER_DEFINE(long_press_timer, long_press, NULL);
+
 static void button_cb(struct input_event *evt, void *user_data)
 {
 	ARG_UNUSED(user_data);
 
-	if (evt->type != INPUT_EV_KEY || evt->code != INPUT_KEY_0 || evt->value == 0) {
+	if (evt->type != INPUT_EV_KEY || evt->code != INPUT_KEY_0) {
 		return;
 	}
 
-	demo_mode_set((demo_mode + 1) % ARRAY_SIZE(modes));
+	if (evt->value != 0) {
+		k_timer_start(&long_press_timer, K_MSEC(LONG_PRESS_MS), K_NO_WAIT);
+		return;
+	}
+
+	/* Released before the timer fired: a short press */
+	if (k_timer_remaining_get(&long_press_timer) > 0U) {
+		k_timer_stop(&long_press_timer);
+		demo_mode_set((demo_mode + 1) % ARRAY_SIZE(modes));
+	}
 }
 
 INPUT_CALLBACK_DEFINE(DEVICE_DT_GET_ANY(gpio_keys), button_cb, NULL);
@@ -145,4 +181,17 @@ static int cmd_mode(const struct shell *sh, size_t argc, char **argv)
 
 SHELL_CMD_ARG_REGISTER(mode, NULL, "Demo mode: mode [mirror|inject|intercom|off]", cmd_mode, 1,
 		       1);
+
+static int cmd_assist(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(sh);
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
+	assist();
+
+	return 0;
+}
+
+SHELL_CMD_REGISTER(assist, NULL, "Call the phone's voice assistant", cmd_assist);
 #endif

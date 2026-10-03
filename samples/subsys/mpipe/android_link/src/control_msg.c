@@ -35,6 +35,12 @@ size_t sc_control_msg_serialize(const struct sc_control_msg *msg, unsigned char 
 {
 	buf[0] = msg->type;
 	switch (msg->type) {
+	case SC_CONTROL_MSG_TYPE_INJECT_KEYCODE:
+		buf[1] = msg->inject_keycode.action;
+		sc_write32be(&buf[2], msg->inject_keycode.keycode);
+		sc_write32be(&buf[6], msg->inject_keycode.repeat);
+		sc_write32be(&buf[10], msg->inject_keycode.metastate);
+		return 14;
 	case SC_CONTROL_MSG_TYPE_INJECT_TOUCH_EVENT:
 		buf[1] = msg->inject_touch_event.action;
 		sc_write64be(&buf[2], msg->inject_touch_event.pointer_id);

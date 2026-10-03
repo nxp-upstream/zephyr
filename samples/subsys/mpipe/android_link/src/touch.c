@@ -118,6 +118,21 @@ void control_send_mic_mode(enum sc_mic_mode mode)
 	control_send(&msg);
 }
 
+void control_send_key(enum android_keycode keycode)
+{
+	struct sc_control_msg msg = {
+		.type = SC_CONTROL_MSG_TYPE_INJECT_KEYCODE,
+		.inject_keycode.keycode = keycode,
+		.inject_keycode.repeat = 0,
+		.inject_keycode.metastate = AMETA_NONE,
+	};
+
+	msg.inject_keycode.action = AKEY_EVENT_ACTION_DOWN;
+	control_send(&msg);
+	msg.inject_keycode.action = AKEY_EVENT_ACTION_UP;
+	control_send(&msg);
+}
+
 void control_send_audio_source(enum sc_audio_source source)
 {
 	struct sc_control_msg msg = {

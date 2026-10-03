@@ -43,6 +43,8 @@ bool control_socket_is_connected(void);
 /* Tell the phone what to do with the microphone stream, and what to send; nothing when not connected */
 void control_send_mic_mode(enum sc_mic_mode mode);
 void control_send_audio_source(enum sc_audio_source source);
+/* Press and release a key on the phone, as a headset button does */
+void control_send_key(enum android_keycode keycode);
 
 /*
  * What the demo does with the two audio streams, as one state the user button

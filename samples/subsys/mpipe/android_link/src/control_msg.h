@@ -33,6 +33,7 @@
  * the scrcpy types stop well below.
  */
 enum sc_control_msg_type {
+	SC_CONTROL_MSG_TYPE_INJECT_KEYCODE = 0,
 	SC_CONTROL_MSG_TYPE_INJECT_TOUCH_EVENT = 2,
 	SC_CONTROL_MSG_TYPE_KEEP_ALIVE = 100,
 	SC_CONTROL_MSG_TYPE_SET_MIC_MODE = 101,
@@ -60,6 +61,12 @@ enum sc_mic_mode {
 struct sc_control_msg {
 	enum sc_control_msg_type type;
 	union {
+		struct {
+			enum android_keyevent_action action;
+			enum android_keycode keycode;
+			uint32_t repeat;
+			enum android_metastate metastate;
+		} inject_keycode;
 		struct {
 			enum android_motionevent_action action;
 			enum android_motionevent_buttons action_button;
