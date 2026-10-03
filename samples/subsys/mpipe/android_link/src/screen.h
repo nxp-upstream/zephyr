@@ -54,12 +54,12 @@ void control_send_quit(void);
  * for the phone's audio connection.
  */
 enum demo_mode {
-	/* The phone's playback on the board, the board's microphone dropped: the start mode */
-	DEMO_MODE_OFF,
+	/* The phone's playback on the board, the board's microphone muted: the start mode */
+	DEMO_MODE_MUTE,
 	/* The phone's playback on the board, the board's microphone on the phone's speaker */
-	DEMO_MODE_MIRROR,
+	DEMO_MODE_SPEAKER,
 	/* The phone's playback on the board, the board's microphone as the phone's microphone */
-	DEMO_MODE_INJECT,
+	DEMO_MODE_HEADSET,
 	/* The phone's microphone on the board, the board's microphone on the phone's speaker */
 	DEMO_MODE_INTERCOM,
 };

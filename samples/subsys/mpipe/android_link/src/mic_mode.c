@@ -10,13 +10,17 @@
  * connected; the mode only says what each side does with them. It outlives a
  * connection, so a phone that reconnects is told the mode in force.
  *
- * A short press of the user button cycles mirror, inject, intercom, off; a
- * press held longer wakes the phone's voice assistant instead, as a headset
- * button does, which is how the assistant is called from across the room
- * since its wake word cannot hear the board; a press held for seconds ends
- * the demo: the phone's client exits instead of reconnecting. The green LED is lit when the board's
- * microphone plays on the phone (mirror, intercom), the red one when the
- * phone's microphone is involved (inject, intercom). The shell commands
+ * The modes name where the board's microphone goes: nowhere (mute), the
+ * phone's speaker (speaker), the phone's applications as if the board were
+ * its headset (headset), and intercom, where the phone sends its own
+ * microphone instead of its playback. A short press of the user button
+ * cycles them in that order; a press held longer wakes the phone's voice
+ * assistant instead, as a headset button does, which is how the assistant is
+ * called from across the room since its wake word cannot hear the board; a
+ * press held for seconds ends the demo: the phone's client exits instead of
+ * reconnecting. The green LED is lit when the board's microphone plays on the
+ * phone (speaker, intercom), the red one when the phone's microphone is
+ * involved (headset, intercom). The shell commands
  * "mode" and "assist" do the same from a terminal, and are all there is on a
  * board without button or LEDs. Each action is shown on the panel for a
  * moment.
@@ -57,10 +61,10 @@ static const struct gpio_dt_spec led_red;
 #endif
 
 /*
- * Start with the microphone dropped: a phone lying next to the board would
+ * Start with the microphone muted: a phone lying next to the board would
  * otherwise feed its own speaker back through the board's microphone.
  */
-static enum demo_mode demo_mode = DEMO_MODE_OFF;
+static enum demo_mode demo_mode = DEMO_MODE_MUTE;
 
 /* What each mode asks of the phone */
 static const struct {
@@ -70,9 +74,11 @@ static const struct {
 	bool green;
 	bool red;
 } modes[] = {
-	[DEMO_MODE_OFF] = {"off", SC_MIC_MODE_OFF, SC_AUDIO_SOURCE_PLAYBACK, false, false},
-	[DEMO_MODE_MIRROR] = {"mirror", SC_MIC_MODE_SPEAKER, SC_AUDIO_SOURCE_PLAYBACK, true, false},
-	[DEMO_MODE_INJECT] = {"inject", SC_MIC_MODE_INJECT, SC_AUDIO_SOURCE_PLAYBACK, false, true},
+	[DEMO_MODE_MUTE] = {"mute", SC_MIC_MODE_OFF, SC_AUDIO_SOURCE_PLAYBACK, false, false},
+	[DEMO_MODE_SPEAKER] = {"speaker", SC_MIC_MODE_SPEAKER, SC_AUDIO_SOURCE_PLAYBACK, true,
+			       false},
+	[DEMO_MODE_HEADSET] = {"headset", SC_MIC_MODE_INJECT, SC_AUDIO_SOURCE_PLAYBACK, false,
+			       true},
 	[DEMO_MODE_INTERCOM] = {"intercom", SC_MIC_MODE_SPEAKER, SC_AUDIO_SOURCE_MIC, true, true},
 };
 
@@ -212,7 +218,8 @@ static int cmd_mode(const struct shell *sh, size_t argc, char **argv)
 	return -EINVAL;
 }
 
-SHELL_CMD_ARG_REGISTER(mode, NULL, "Demo mode: mode [off|mirror|inject|intercom]", cmd_mode, 1, 1);
+SHELL_CMD_ARG_REGISTER(mode, NULL, "Demo mode: mode [mute|speaker|headset|intercom]", cmd_mode, 1,
+		       1);
 
 static int cmd_assist(const struct shell *sh, size_t argc, char **argv)
 {

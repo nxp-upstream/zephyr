@@ -87,43 +87,41 @@ phone's microphone with its own echo cancelling. The phone must be launched with
 the microphone channel enabled, or the sample built with
 ``CONFIG_ANDROID_LINK_MIC=n``.
 
-The board starts in ``off``, since a phone lying next to it would otherwise hear
-its own speaker through the board's microphone. A short press of the user button
-(SW7 on the RT1170 EVK) cycles the four modes in the order of the table; a
-press held longer than 0.7 s calls the phone's voice assistant instead, as a
+The modes name where the board's microphone goes. The board starts in ``mute``,
+since a phone lying next to it would otherwise hear its own speaker through the
+board's microphone. A short press of the user button (SW7 on the RT1170 EVK)
+cycles the four modes in the order of the table; a press held longer than 0.7 s calls the phone's voice assistant instead, as a
 headset button does, since the assistant's wake word cannot hear the board: in
-``inject`` mode the assistant then listens to the board's microphone and its answer
+``headset`` mode the assistant then listens to the board's microphone and its answer
 plays on the board. A press held for 3 s ends the demo: the phone's client, which
 otherwise reconnects whenever the board comes back, exits and restores the phone's
 settings. Each action is shown for two seconds as a text band at the top of the
 panel, drawn by the overlay element; while no phone streams, the panel says so. The
-shell commands ``mode [off|mirror|inject|intercom]``, ``assist`` and ``phone quit``
+shell commands ``mode [mute|speaker|headset|intercom]``, ``assist`` and ``phone quit``
 do the same from a terminal, and are the only controls on a board without a button:
 
 ============ ========================= ================================= ===============
 Mode         Phone sends to the board  Board's microphone on the phone   LEDs
 ============ ========================= ================================= ===============
-``off``      its playback              dropped                           none
-``mirror``   its playback              played on the phone's speaker     green
-``inject``   its playback              the phone's microphone, for calls red
+``mute``     its playback              muted                             none
+``speaker``  its playback              played on the phone's speaker     green
+``headset``  its playback              the phone's microphone, for calls red
 ``intercom`` its microphone            played on the phone's speaker     green and red
 ============ ========================= ================================= ===============
 
-In ``intercom`` the person at the board and the person holding the phone talk both
-ways, and the phone's media is not heard on the board meanwhile. On the phone,
-speaker mode plays through the alarm volume. Inject mode replaces the phone's
-microphone for the applications that open it without choosing a device: the Camera
-and cellular calls take it, the Google Recorder does not. The other party of a
-cellular call is never heard on the board, since Android keeps call audio out of
-any playback capture. With a loudspeaker on the board, the phone user's voice is
-picked up by the board's microphone and comes back as an echo; headphones avoid it.
+In ``headset`` the board behaves like a wired headset of the phone: the phone's
+sound comes out of the board and the board's microphone replaces the phone's for
+the applications that open it without choosing a device. The Camera and cellular
+calls take it, the Google Recorder does not. The other party of a cellular call is
+never heard on the board, since Android keeps call audio out of any playback
+capture. In ``intercom`` the person at the board and the person holding the phone
+talk both ways, and the phone's media is not heard on the board meanwhile. With a
+loudspeaker on the board, the phone user's voice is picked up by the board's
+microphone and comes back as an echo; headphones avoid it.
 
-On the phone, speaker mode plays through the alarm volume, since the phone's own
-audio capture takes every media track for the board; raise the alarm volume if it
-is quiet. Inject mode replaces the phone's microphone for the applications that
-open it without choosing a device: the Camera and cellular calls take it, the Google
-Recorder does not. The other party of a cellular call is never heard on the board,
-since Android keeps call audio out of any playback capture.
+On the phone, ``speaker`` and ``intercom`` play the board's microphone through the
+alarm volume, since the phone's own audio capture takes every media track for the
+board; raise the alarm volume if it is quiet.
 
 Headphones on the board's jack must be plain stereo (3-pole plug). A 4-pole headset
 plug leaves the common return floating and the two channels cancel: voices vanish
