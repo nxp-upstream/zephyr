@@ -65,10 +65,10 @@ enum {
  * @brief Video overlay element
  *
  * A format-preserving transform handing every frame to an application draw
- * callback - the pipeline equivalent of drawing on a canvas. The element
- * copies each frame and the callback draws into the copy: behind a tee
- * every branch sees the same buffer payload, so drawing in place would leak
- * the drawing into sibling branches.
+ * callback - the pipeline equivalent of drawing on a canvas. A frame nobody
+ * else holds is drawn in place; a frame that is shared, as every branch
+ * behind a tee sees the same payload, is copied first and the callback
+ * draws into the copy, so the drawing never leaks into a sibling branch.
  *
  * The element itself knows nothing about what is drawn; pair it with an
  * app_sink feeding application state (e.g. a latest-results store from an AI
