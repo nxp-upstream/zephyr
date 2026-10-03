@@ -197,6 +197,28 @@ static int vid_overlay_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 		uint32_t len =
 			MIN(overlay->out_pool.config.size, mpipe_buffer_get_meta(cur)->bytes_used);
 
+		/*
+		 * A frame nobody else holds is drawn in place: only behind a tee,
+		 * where every branch sees the same payload, is the copy needed. A
+		 * view shares its parent's bytes with other views, so it is copied
+		 * as well.
+		 */
+		if (cur->ref == 1U && mpipe_buffer_get_meta(cur)->parent == NULL) {
+			if (overlay->cb.fn != NULL) {
+				overlay->cb.fn(cur->data, overlay->width, overlay->height,
+					       overlay->pixfmt, overlay->cb.user_data);
+			}
+			next = cur->frags;
+			cur->frags = NULL;
+			if (*out_buf == NULL) {
+				*out_buf = cur;
+			} else {
+				net_buf_frag_add(*out_buf, cur);
+			}
+			cur = next;
+			continue;
+		}
+
 		if (out_pool->acquire_buffer(out_pool, &out) != 0 || out == NULL) {
 			LOG_ERR("Failed to acquire output buffer");
 			goto err;
