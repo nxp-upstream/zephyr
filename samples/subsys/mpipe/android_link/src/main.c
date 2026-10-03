@@ -580,6 +580,40 @@ static int scrcpy_listen(uint16_t port)
 	return fd;
 }
 
+/*
+ * Notice a phone that vanished without closing: a Wi-Fi drop leaves the
+ * sockets open on both sides, the reads blocked and the writes retransmitting
+ * for minutes. Keep-alive probes fail them within about twenty seconds.
+ */
+static void set_keepalive(int fd)
+{
+	int on = 1;
+	int idle = 5;
+	int interval = 5;
+	int count = 3;
+
+	(void)zsock_setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
+	(void)zsock_setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle));
+	(void)zsock_setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &interval, sizeof(interval));
+	(void)zsock_setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &count, sizeof(count));
+}
+
+#if defined(CONFIG_WIFI)
+/* The access point knows at once when the phone leaves: end the session then */
+static void wifi_event_cb(struct net_mgmt_event_callback *cb, uint64_t event, struct net_if *iface)
+{
+	ARG_UNUSED(cb);
+	ARG_UNUSED(iface);
+
+	if (event == NET_EVENT_WIFI_AP_STA_DISCONNECTED) {
+		LOG_INF("The phone left the network");
+		k_event_post(&application_event, EVENT_STREAM_END);
+	}
+}
+
+static struct net_mgmt_event_callback wifi_event_cb_data;
+#endif
+
 /* Wait for a player to have brought its pipeline to @p state */
 static void wait_for_state(const struct mpipe *p, enum mpipe_state state)
 {
@@ -654,6 +688,10 @@ int main(void)
 
 	ret = net_mgmt(NET_REQUEST_WIFI_AP_ENABLE, iface, &ap_config,
 		       sizeof(struct wifi_connect_req_params));
+
+	net_mgmt_init_event_callback(&wifi_event_cb_data, wifi_event_cb,
+				     NET_EVENT_WIFI_AP_STA_DISCONNECTED);
+	net_mgmt_add_event_callback(&wifi_event_cb_data);
 #endif
 
 	LOG_INF("Protocol %s is selected", iface->if_dev->dev->name);
@@ -731,6 +769,7 @@ int main(void)
 
 		/* The control messages go back to the phone that sends the video */
 		client_addr.sin_port = htons(MY_PORT);
+		set_keepalive(video_fd);
 
 		if (IS_ENABLED(CONFIG_ANDROID_LINK_AUDIO)) {
 			audio_fd = zsock_accept(server_fd, NULL, NULL);
@@ -739,6 +778,7 @@ int main(void)
 				close_client(video_fd, -1, -1, -1);
 				continue;
 			}
+			set_keepalive(audio_fd);
 		}
 
 		control_fd = zsock_accept(server_fd, NULL, NULL);
@@ -747,6 +787,7 @@ int main(void)
 			close_client(video_fd, audio_fd, -1, -1);
 			continue;
 		}
+		set_keepalive(control_fd);
 
 		if (IS_ENABLED(CONFIG_ANDROID_LINK_MIC)) {
 			mic_fd = zsock_accept(server_fd, NULL, NULL);
@@ -755,6 +796,7 @@ int main(void)
 				close_client(video_fd, audio_fd, control_fd, -1);
 				continue;
 			}
+			set_keepalive(mic_fd);
 		}
 
 		ret = hand_socket(&pipe, (struct mpipe_object *)&video_src,
