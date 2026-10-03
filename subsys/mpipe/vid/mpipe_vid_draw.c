@@ -5,7 +5,9 @@
  */
 
 #include <errno.h>
+#include <string.h>
 
+#include <zephyr/display/cfb.h>
 #include <zephyr/drivers/video.h>
 #include <zephyr/sys/util.h>
 
@@ -104,6 +106,127 @@ int mpipe_vid_draw_rect(uint8_t *frame, uint16_t width, uint16_t height, uint32_
 		vid_draw_hline(frame, width, height, &px, rect->x0, rect->x1, rect->y1 - t);
 		vid_draw_vline(frame, width, height, &px, rect->x0 + t, rect->y0, rect->y1);
 		vid_draw_vline(frame, width, height, &px, rect->x1 - t, rect->y0, rect->y1);
+	}
+
+	return 0;
+}
+
+int mpipe_vid_draw_fill(uint8_t *frame, uint16_t width, uint16_t height, uint32_t pixfmt,
+			const struct mpipe_vid_rect *rect, uint32_t argb)
+{
+	struct vid_draw_px px;
+	int ret;
+
+	if (frame == NULL || rect == NULL) {
+		return -EINVAL;
+	}
+
+	ret = vid_draw_pack(pixfmt, argb, &px);
+	if (ret != 0) {
+		return ret;
+	}
+
+	for (int32_t y = MAX(rect->y0, 0); y <= MIN(rect->y1, (int32_t)height - 1); y++) {
+		vid_draw_hline(frame, width, height, &px, rect->x0, rect->x1, y);
+	}
+
+	return 0;
+}
+
+/* The largest built-in bitmap font, or NULL when none is compiled in */
+static const struct cfb_font *vid_draw_font(void)
+{
+	const struct cfb_font *best = NULL;
+
+#if defined(CONFIG_CHARACTER_FRAMEBUFFER)
+	STRUCT_SECTION_FOREACH(cfb_font, font) {
+		if ((font->caps & CFB_FONT_MONO_VPACKED) != 0 &&
+		    (best == NULL || font->height > best->height)) {
+			best = font;
+		}
+	}
+#endif
+
+	return best;
+}
+
+/* Whether the glyph of @p c has its pixel (@p gx, @p gy) set */
+static bool vid_draw_glyph_pixel(const struct cfb_font *font, char c, uint8_t gx, uint8_t gy)
+{
+	const uint8_t bytes_per_col = DIV_ROUND_UP(font->height, 8U);
+	const uint8_t *glyph;
+	uint8_t byte;
+	uint8_t bit;
+
+	if ((uint8_t)c < font->first_char || (uint8_t)c > font->last_char) {
+		return false;
+	}
+
+	glyph = (const uint8_t *)font->data +
+		((uint8_t)c - font->first_char) * font->width * bytes_per_col;
+	byte = glyph[gx * bytes_per_col + gy / 8U];
+	bit = ((font->caps & CFB_FONT_MSB_FIRST) != 0) ? (7U - (gy % 8U)) : (gy % 8U);
+
+	return ((byte >> bit) & 1U) != 0U;
+}
+
+int mpipe_vid_draw_text_size(uint8_t scale, const char *text, uint32_t *w, uint32_t *h)
+{
+	const struct cfb_font *font = vid_draw_font();
+
+	if (font == NULL) {
+		return -ENOTSUP;
+	}
+
+	if (w != NULL) {
+		*w = (text != NULL ? (uint32_t)strlen(text) : 0U) * font->width * scale;
+	}
+	if (h != NULL) {
+		*h = (uint32_t)font->height * scale;
+	}
+
+	return 0;
+}
+
+int mpipe_vid_draw_text(uint8_t *frame, uint16_t width, uint16_t height, uint32_t pixfmt, int32_t x,
+			int32_t y, uint8_t scale, uint32_t argb, const char *text)
+{
+	const struct cfb_font *font = vid_draw_font();
+	struct vid_draw_px px;
+	int ret;
+
+	if (frame == NULL || text == NULL || scale == 0U) {
+		return -EINVAL;
+	}
+
+	if (font == NULL) {
+		return -ENOTSUP;
+	}
+
+	ret = vid_draw_pack(pixfmt, argb, &px);
+	if (ret != 0) {
+		return ret;
+	}
+
+	for (; *text != '\0'; text++, x += (int32_t)font->width * scale) {
+		if (x >= (int32_t)width || x + (int32_t)font->width * scale <= 0) {
+			continue;
+		}
+
+		for (uint8_t gy = 0; gy < font->height; gy++) {
+			for (uint8_t gx = 0; gx < font->width; gx++) {
+				if (!vid_draw_glyph_pixel(font, *text, gx, gy)) {
+					continue;
+				}
+
+				for (uint8_t sy = 0; sy < scale; sy++) {
+					vid_draw_hline(frame, width, height, &px,
+						       x + (int32_t)gx * scale,
+						       x + (int32_t)gx * scale + scale - 1,
+						       y + (int32_t)gy * scale + sy);
+				}
+			}
+		}
 	}
 
 	return 0;
