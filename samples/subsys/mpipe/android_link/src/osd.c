@@ -31,6 +31,9 @@ static struct {
 	char text[OSD_TEXT_MAX];
 	int64_t deadline;
 	const struct device *display_dev;
+	uint32_t painted;
+	uint32_t frames;
+	int64_t stats_at;
 } osd;
 
 /* The band the panel shows while nothing streams; the panel is RGB565 */
@@ -41,20 +44,27 @@ static void osd_paint(uint8_t *frame, uint16_t width, uint16_t height, uint32_t 
 		      const char *text)
 {
 	const struct mpipe_vid_rect band = {0, 0, width - 1, OSD_BAND_HEIGHT - 1};
+	uint8_t scale = OSD_TEXT_SCALE;
 	uint32_t tw = 0;
 	uint32_t th = 0;
 	int32_t x;
 	int32_t y;
 
 	(void)mpipe_vid_draw_fill(frame, width, height, pixfmt, &band, OSD_BACKGROUND);
-	if (mpipe_vid_draw_text_size(OSD_TEXT_SCALE, text, &tw, &th) != 0) {
+	if (mpipe_vid_draw_text_size(scale, text, &tw, &th) != 0) {
 		return;
+	}
+
+	/* A text too wide for the band is drawn smaller rather than cut */
+	while (scale > 1U && tw > width) {
+		scale--;
+		(void)mpipe_vid_draw_text_size(scale, text, &tw, &th);
 	}
 
 	x = ((int32_t)width - (int32_t)tw) / 2;
 	y = (OSD_BAND_HEIGHT - (int32_t)th) / 2;
-	(void)mpipe_vid_draw_text(frame, width, height, pixfmt, MAX(x, 0), MAX(y, 0),
-				  OSD_TEXT_SCALE, OSD_FOREGROUND, text);
+	(void)mpipe_vid_draw_text(frame, width, height, pixfmt, MAX(x, 0), MAX(y, 0), scale,
+				  OSD_FOREGROUND, text);
 }
 
 /* The overlay element's callback, once per frame on the display thread */
@@ -76,6 +86,18 @@ static void osd_draw(uint8_t *frame, uint16_t width, uint16_t height, uint32_t p
 
 	if (active) {
 		osd_paint(frame, width, height, pixfmt, text);
+		osd.painted++;
+	}
+	osd.frames++;
+
+	/* How many of the frames carried the band, once a second while one is shown */
+	if (k_uptime_get() - osd.stats_at >= 1000) {
+		if (osd.painted > 0U) {
+			LOG_INF("band on %u of %u frames", osd.painted, osd.frames);
+		}
+		osd.painted = 0;
+		osd.frames = 0;
+		osd.stats_at = k_uptime_get();
 	}
 }
 

@@ -17,6 +17,11 @@
 	gpios = <&gpio9 25 GPIO_ACTIVE_HIGH>;
 };
 
+/* Likewise the user button SW7: declared active high, pressed is low on the EVKB rev B */
+&user_button {
+	gpios = <&gpio13 0 GPIO_ACTIVE_LOW>;
+};
+
 /* The on-board digital microphone: both slots of PDM data line 0 */
 dmic_dev: &micfil {
 	channel0: micfil-channel@0 {

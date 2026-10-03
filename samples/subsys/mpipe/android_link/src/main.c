@@ -720,7 +720,7 @@ int main(void)
 		int mic_fd = -1;
 
 		LOG_INF("Waiting for a client on port %u", MY_PORT);
-		osd_idle("Waiting for the phone");
+		osd_idle("Waiting for phone");
 
 		video_fd = zsock_accept(server_fd, (struct sockaddr *)&client_addr, &addr_len);
 		if (video_fd < 0) {
