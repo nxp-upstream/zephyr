@@ -81,6 +81,8 @@ struct mpipe_player {
 	uint8_t slot;
 	/** Signaled by the worker just before it exits. */
 	struct k_sem exited;
+	/** Set while the worker is applying a command. */
+	atomic_t busy;
 	/** @endcond */
 };
 
@@ -181,6 +183,27 @@ int mpipe_player_quit(struct mpipe_player *player);
  * @retval 0 Success.
  */
 int mpipe_player_wait_quit(struct mpipe_player *player);
+
+/**
+ * @brief Wait for the pipeline to settle in a state.
+ *
+ * A command posted to the player is applied by its worker later, so reading the
+ * pipeline's state right after @ref mpipe_player_stop can still show the state
+ * the previous command left, or even the one it is about to leave: a play that
+ * takes a second to complete is still running when the stop is posted behind
+ * it. This call returns once the worker has applied every queued command and
+ * the pipeline is in @p state, which is also the point after which no message
+ * of the run can reach the bus any more.
+ *
+ * @param player  Player initialized with @ref mpipe_player_init.
+ * @param state   State the pipeline must have settled in.
+ * @param timeout How long to wait.
+ *
+ * @retval 0           The pipeline is in @p state and the worker is idle.
+ * @retval -ETIMEDOUT  @p timeout passed first.
+ */
+int mpipe_player_wait_state(struct mpipe_player *player, enum mpipe_state state,
+			    k_timeout_t timeout);
 
 /**
  * @brief Wait for the worker to exit and release the player's resources.
