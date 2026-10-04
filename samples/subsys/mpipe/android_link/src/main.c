@@ -822,6 +822,14 @@ int main(void)
 			set_keepalive(mic_fd);
 		}
 
+		/*
+		 * Whatever was posted while no client was served is about the
+		 * past: a station-left event for a phone that is back, or a
+		 * late message of the previous run. From here on every event is
+		 * this client's.
+		 */
+		k_event_clear(&application_event, EVENT_TOUCH_ERROR | EVENT_STREAM_END);
+
 		ret = hand_socket(&player, (struct mpipe_object *)&video_src,
 				  MPIPE_PROP_SOCKET_SRC_FD, video_fd);
 #if defined(CONFIG_ANDROID_LINK_AUDIO)
