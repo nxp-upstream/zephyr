@@ -247,9 +247,34 @@ static void mpipe_player_worker(void *p1, void *p2, void *p3)
 	ARG_UNUSED(p3);
 
 	while (k_msgq_get(&player->cmd_q, &msg, K_FOREVER) == 0) {
-		if (mpipe_player_handle_cmd(player, &msg)) {
+		bool quit;
+
+		atomic_set(&player->busy, 1);
+		quit = mpipe_player_handle_cmd(player, &msg);
+		atomic_set(&player->busy, 0);
+		if (quit) {
 			return;
 		}
+	}
+}
+
+int mpipe_player_wait_state(struct mpipe_player *player, enum mpipe_state state,
+			    k_timeout_t timeout)
+{
+	k_timepoint_t end;
+
+	__ASSERT_NO_MSG(player != NULL);
+
+	end = sys_timepoint_calc(timeout);
+	for (;;) {
+		if (k_msgq_num_used_get(&player->cmd_q) == 0U && atomic_get(&player->busy) == 0 &&
+		    mpipe_player_get_state(player) == state) {
+			return 0;
+		}
+		if (sys_timepoint_expired(end)) {
+			return -ETIMEDOUT;
+		}
+		k_sleep(K_MSEC(10));
 	}
 }
 
@@ -346,6 +371,7 @@ int mpipe_player_init(struct mpipe_player *player, struct mpipe *pipeline)
 
 	player->pipeline = pipeline;
 	player->run_id = 0;
+	atomic_set(&player->busy, 0);
 
 	k_msgq_init(&player->cmd_q, player->cmd_buf, sizeof(struct mpipe_player_cmd_msg),
 		    CONFIG_MPIPE_PLAYER_CMD_QUEUE_DEPTH);
