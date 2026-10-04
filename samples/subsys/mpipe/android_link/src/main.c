@@ -615,21 +615,22 @@ static struct net_mgmt_event_callback wifi_event_cb_data;
 #endif
 
 /*
- * Wait for a player to have brought its pipeline to @p state, and say so
- * when it takes long: a teardown that never completes would otherwise look
- * like a board that stopped accepting the phone.
+ * Wait for a player to have settled its pipeline in @p state, with every
+ * command it was given applied, and say so when it takes long: a teardown
+ * that never completes would otherwise look like a board that stopped
+ * accepting the phone. Reading the pipeline's state alone is not enough: a
+ * stop posted behind a play still in progress finds the pipeline READY
+ * before the play has even started, and the end of stream that play then
+ * produces would end the next client's session at once.
  */
-static void wait_for_state(const struct mpipe *p, enum mpipe_state state)
+static void wait_for_state(struct mpipe_player *pl, enum mpipe_state state)
 {
 	uint32_t waited_ms = 0;
 
-	while (p->bin.element.current_state != state) {
-		k_msleep(10);
-		waited_ms += 10;
-		if ((waited_ms % 5000) == 0) {
-			LOG_WRN("Pipeline #%u not in state %d after %u ms",
-				p->bin.element.object.id, state, waited_ms);
-		}
+	while (mpipe_player_wait_state(pl, state, K_MSEC(5000)) != 0) {
+		waited_ms += 5000;
+		LOG_WRN("Player #%u not settled in state %d after %u ms",
+			pl->pipeline->bin.element.object.id, state, waited_ms);
 	}
 }
 
@@ -648,9 +649,9 @@ static void stop_player(struct mpipe_player *pl)
  * Hand a connected socket to a pipeline's socket element, once the previous
  * run is torn down. @p key is the element's socket property.
  */
-static int hand_socket(struct mpipe *p, struct mpipe_object *obj, uint32_t key, int fd)
+static int hand_socket(struct mpipe_player *pl, struct mpipe_object *obj, uint32_t key, int fd)
 {
-	wait_for_state(p, MPIPE_STATE_READY);
+	wait_for_state(pl, MPIPE_STATE_READY);
 
 	return mpipe_object_set_properties(obj, key, &fd, MPIPE_PROP_LIST_END);
 }
@@ -821,17 +822,17 @@ int main(void)
 			set_keepalive(mic_fd);
 		}
 
-		ret = hand_socket(&pipe, (struct mpipe_object *)&video_src,
+		ret = hand_socket(&player, (struct mpipe_object *)&video_src,
 				  MPIPE_PROP_SOCKET_SRC_FD, video_fd);
 #if defined(CONFIG_ANDROID_LINK_AUDIO)
 		if (ret == 0) {
-			ret = hand_socket(&audio_pipe, (struct mpipe_object *)&audio_src,
+			ret = hand_socket(&audio_player, (struct mpipe_object *)&audio_src,
 					  MPIPE_PROP_SOCKET_SRC_FD, audio_fd);
 		}
 #endif
 #if defined(CONFIG_ANDROID_LINK_MIC)
 		if (ret == 0) {
-			ret = hand_socket(&mic_pipe, (struct mpipe_object *)&mic_sink,
+			ret = hand_socket(&mic_player, (struct mpipe_object *)&mic_sink,
 					  MPIPE_PROP_SOCKET_SINK_FD, mic_fd);
 		}
 #endif
@@ -867,14 +868,14 @@ int main(void)
 		 * otherwise end the next client's session at once.
 		 */
 		stop_player(&player);
-		wait_for_state(&pipe, MPIPE_STATE_READY);
+		wait_for_state(&player, MPIPE_STATE_READY);
 #if defined(CONFIG_ANDROID_LINK_AUDIO)
 		stop_player(&audio_player);
-		wait_for_state(&audio_pipe, MPIPE_STATE_READY);
+		wait_for_state(&audio_player, MPIPE_STATE_READY);
 #endif
 #if defined(CONFIG_ANDROID_LINK_MIC)
 		stop_player(&mic_player);
-		wait_for_state(&mic_pipe, MPIPE_STATE_READY);
+		wait_for_state(&mic_player, MPIPE_STATE_READY);
 #endif
 		k_event_clear(&application_event, EVENT_TOUCH_ERROR | EVENT_STREAM_END);
 	}
