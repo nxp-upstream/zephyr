@@ -176,8 +176,16 @@ Wi-Fi
    :compact:
 
 When using Wi-Fi, the board starts a soft-AP with SSID ``zephyr-link`` and
-passphrase ``zephyrdemo`` and runs a DHCP server on ``192.0.2.1``. Connect the
-phone to that network and point the client at ``192.0.2.1:5000``.
+passphrase ``zephyrdemo`` and runs a DHCP server on ``192.0.2.1``. The phone
+does not need to join that network by hand: the demo's server asks Android for
+it with a local-only network request and holds it for as long as it runs.
+Android shows the network as "Connected via Shell", keeps mobile data as the
+default route so the phone keeps its internet access, and needs no change of
+settings. After a drop (board reset, Wi-Fi toggled) the server requests the
+network again and the session resumes by itself. If the phone is on another
+Wi-Fi network at that moment, Android asks first with a "Connect to device"
+notification; accepting it switches the phone to the board. Any client without
+that logic joins the network manually and points at ``192.0.2.1:5000``.
 
 native_sim (host simulation)
 ============================
