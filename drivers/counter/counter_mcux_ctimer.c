@@ -17,6 +17,7 @@
 #include <zephyr/dt-bindings/clock/mcux_lpc_syscon_clock.h>
 #include <zephyr/irq.h>
 #include <zephyr/pm/device.h>
+#include <zephyr/pm/policy.h>
 
 LOG_MODULE_REGISTER(mcux_ctimer, CONFIG_COUNTER_LOG_LEVEL);
 
@@ -84,6 +85,10 @@ static int mcux_lpc_ctimer_start(const struct device *dev)
 {
 	const struct mcux_lpc_ctimer_config *config = dev->config;
 
+	if ((config->base->TCR & CTIMER_TCR_CEN_MASK) == 0U) {
+		pm_policy_device_power_lock_get(dev);
+	}
+
 	CTIMER_StartTimer(config->base);
 
 	return 0;
@@ -92,8 +97,13 @@ static int mcux_lpc_ctimer_start(const struct device *dev)
 static int mcux_lpc_ctimer_stop(const struct device *dev)
 {
 	const struct mcux_lpc_ctimer_config *config = dev->config;
+	bool was_running = (config->base->TCR & CTIMER_TCR_CEN_MASK) != 0U;
 
 	CTIMER_StopTimer(config->base);
+
+	if (was_running) {
+		pm_policy_device_power_lock_put(dev);
+	}
 
 	return 0;
 }
