@@ -559,11 +559,13 @@ static int mcux_lpc_ctimer_init_common(const struct device *dev)
 
 static int mcux_lpc_ctimer_pm_action(const struct device *dev, enum pm_device_action action)
 {
+	const struct mcux_lpc_ctimer_config *config = dev->config;
+
 	switch (action) {
 	case PM_DEVICE_ACTION_RESUME:
-		break;
+		return clock_control_on(config->clock_dev, config->clock_subsys);
 	case PM_DEVICE_ACTION_SUSPEND:
-		break;
+		return clock_control_off(config->clock_dev, config->clock_subsys);
 	case PM_DEVICE_ACTION_TURN_OFF:
 		break;
 	case PM_DEVICE_ACTION_TURN_ON:
