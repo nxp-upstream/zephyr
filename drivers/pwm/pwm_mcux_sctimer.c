@@ -785,12 +785,9 @@ static int mcux_sctimer_pwm_init_common(const struct device *dev)
 	sctimer_config_t pwm_config;
 	status_t status;
 	int i;
+#ifdef CONFIG_PWM_CAPTURE
 	int err;
-
-	err = pinctrl_apply_state(config->pincfg, PINCTRL_STATE_DEFAULT);
-	if (err) {
-		return err;
-	}
+#endif /* CONFIG_PWM_CAPTURE */
 
 	SCTIMER_GetDefaultConfig(&pwm_config);
 
@@ -906,6 +903,13 @@ static int mcux_sctimer_pwm_pm_action(const struct device *dev, enum pm_device_a
 
 static int mcux_sctimer_pwm_init(const struct device *dev)
 {
+	const struct pwm_mcux_sctimer_config *config = dev->config;
+
+	if (!device_is_ready(config->clock_dev)) {
+		LOG_ERR_DEVICE_NOT_READY(config->clock_dev);
+		return -ENODEV;
+	}
+
 	/* Rest of the init is done from the PM_DEVICE_TURN_ON action
 	 * which is invoked by pm_device_driver_init().
 	 */
