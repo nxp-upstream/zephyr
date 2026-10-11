@@ -1152,6 +1152,8 @@
 		reg = <0x91000 0x1000>;
 		interrupts = <33 0>;
 		clocks = <&syscon MCUX_SCTIMER_CLK>;
+		power-domains = <&core_domain>;
+		zephyr,disabling-power-states = <&deepsleep &powerdown &deeppowerdown>;
 		status = "disabled";
 		prescaler = <1>;
 		#pwm-cells = <3>;
