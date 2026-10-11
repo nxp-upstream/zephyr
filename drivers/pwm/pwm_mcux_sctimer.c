@@ -9,6 +9,7 @@
 
 #include <errno.h>
 #include <zephyr/pm/device.h>
+#include <zephyr/pm/policy.h>
 #include <zephyr/drivers/pwm.h>
 #include <fsl_sctimer.h>
 #include <fsl_clock.h>
@@ -60,6 +61,9 @@ struct pwm_mcux_sctimer_config {
 	uint8_t mux_entries_count;
 	void (*irq_config_func)(const struct device *dev);
 #endif /* CONFIG_PWM_CAPTURE */
+#if defined(CONFIG_PM_POLICY_DEVICE_CONSTRAINTS)
+	bool pm_device_constraints;
+#endif
 };
 
 #ifdef CONFIG_PWM_CAPTURE
@@ -98,7 +102,45 @@ struct pwm_mcux_sctimer_data {
 	struct pwm_mcux_sctimer_capture_data capture_data[CAPTURE_CHANNEL_COUNT];
 #endif /* CONFIG_PWM_CAPTURE */
 	bool pwm_channel_active;
+#if defined(CONFIG_PM_POLICY_DEVICE_CONSTRAINTS)
+	bool power_locked;
+#endif
 };
+
+/*
+ * Block the power states the node declares in zephyr,disabling-power-states for
+ * exactly as long as a channel is driving an output and the device is active:
+ * taken when a channel is first configured, dropped when the device suspends,
+ * and taken again when a resume restarts the counter.
+ */
+static void mcux_sctimer_power_lock_get(const struct device *dev)
+{
+#if defined(CONFIG_PM_POLICY_DEVICE_CONSTRAINTS)
+	const struct pwm_mcux_sctimer_config *config = dev->config;
+	struct pwm_mcux_sctimer_data *data = dev->data;
+
+	if (config->pm_device_constraints && !data->power_locked) {
+		pm_policy_device_power_lock_get(dev);
+		data->power_locked = true;
+	}
+#else
+	ARG_UNUSED(dev);
+#endif
+}
+
+static void mcux_sctimer_power_lock_put(const struct device *dev)
+{
+#if defined(CONFIG_PM_POLICY_DEVICE_CONSTRAINTS)
+	struct pwm_mcux_sctimer_data *data = dev->data;
+
+	if (data->power_locked) {
+		pm_policy_device_power_lock_put(dev);
+		data->power_locked = false;
+	}
+#else
+	ARG_UNUSED(dev);
+#endif
+}
 
 #ifdef CONFIG_PM_DEVICE
 static void mcux_sctimer_restore_chn_config(const struct device *dev);
@@ -385,6 +427,8 @@ static int mcux_sctimer_pwm_set_cycles(const struct device *dev,
 	data->pwm_channel_config[channel].flags = flags;
 	data->pwm_channel_active = true;
 #endif /* CONFIG_PM_DEVICE */
+
+	mcux_sctimer_power_lock_get(dev);
 
 	return 0;
 }
@@ -937,6 +981,7 @@ static int mcux_sctimer_pwm_pm_action(const struct device *dev, enum pm_device_a
 #ifdef CONFIG_PM_DEVICE
 		if (data->pwm_channel_active) {
 			SCTIMER_StartTimer(config->base, kSCTIMER_Counter_U);
+			mcux_sctimer_power_lock_get(dev);
 		}
 #endif /* CONFIG_PM_DEVICE */
 		break;
@@ -944,6 +989,7 @@ static int mcux_sctimer_pwm_pm_action(const struct device *dev, enum pm_device_a
 #ifdef CONFIG_PM_DEVICE
 		mcux_sctimer_park(dev);
 #endif /* CONFIG_PM_DEVICE */
+		mcux_sctimer_power_lock_put(dev);
 		err = pinctrl_apply_state(config->pincfg, PINCTRL_STATE_SLEEP);
 		if (err < 0 && err != -ENOENT) {
 			return err;
@@ -1016,6 +1062,13 @@ static DEVICE_API(pwm, pwm_mcux_sctimer_driver_api) = {
 #endif
 };
 
+#if defined(CONFIG_PM_POLICY_DEVICE_CONSTRAINTS)
+#define SCTIMER_PM_DEVICE_CONSTRAINTS_INIT(n)						\
+	.pm_device_constraints = DT_INST_NODE_HAS_PROP(n, zephyr_disabling_power_states),
+#else
+#define SCTIMER_PM_DEVICE_CONSTRAINTS_INIT(n)
+#endif
+
 #define SCTIMER_DECLARE_CFG(n, CAPTURE_INIT) \
 	static const struct pwm_mcux_sctimer_config pwm_mcux_sctimer_config_##n = { \
 		.base = (SCT_Type *)DT_INST_REG_ADDR(n),				\
@@ -1024,6 +1077,7 @@ static DEVICE_API(pwm, pwm_mcux_sctimer_driver_api) = {
 		.pincfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),				\
 		.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)),			\
 		.clock_subsys = (clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, name),	\
+		SCTIMER_PM_DEVICE_CONSTRAINTS_INIT(n)					\
 		CAPTURE_INIT								\
 	}
 
