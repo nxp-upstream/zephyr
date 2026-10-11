@@ -66,6 +66,14 @@ static bool mcux_lpc_syscon_ctimer_gate(uint32_t clock_name, clock_ip_name_t *ga
 }
 #endif /* CONFIG_COUNTER_MCUX_CTIMER || CONFIG_PWM_MCUX_CTIMER */
 
+#if defined(CONFIG_PWM_MCUX_SCTIMER) && defined(SCT_CLOCKS)
+/* The gate enum is named kCLOCK_Sct on some SoCs and kCLOCK_Sct0 on others, and the
+ * split does not follow the Zephyr SoC series boundaries. SCT_CLOCKS carries the right
+ * name for the SoC being built and is absent on SoCs without an SCTimer.
+ */
+static const clock_ip_name_t sct_clocks[] = SCT_CLOCKS;
+#endif
+
 static int mcux_lpc_syscon_clock_control_on(const struct device *dev,
 					    clock_control_subsys_t sub_system)
 {
@@ -565,6 +573,12 @@ static int mcux_lpc_syscon_clock_control_on(const struct device *dev,
 	}
 #endif
 
+#if defined(CONFIG_PWM_MCUX_SCTIMER) && defined(SCT_CLOCKS)
+	if ((uint32_t)sub_system == MCUX_SCTIMER_CLK) {
+		CLOCK_EnableClock(sct_clocks[0]);
+	}
+#endif
+
 	return 0;
 }
 
@@ -618,6 +632,12 @@ static int mcux_lpc_syscon_clock_control_off(const struct device *dev,
 		CLOCK_DisableClock(kCLOCK_GateQDC1);
 	}
 #endif /* FSL_FEATURE_SOC_EQDC_COUNT > 1 */
+#endif
+
+#if defined(CONFIG_PWM_MCUX_SCTIMER) && defined(SCT_CLOCKS)
+	if ((uint32_t)sub_system == MCUX_SCTIMER_CLK) {
+		CLOCK_DisableClock(sct_clocks[0]);
+	}
 #endif
 
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(opamp0), okay)
