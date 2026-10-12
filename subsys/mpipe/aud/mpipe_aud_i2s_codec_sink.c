@@ -193,8 +193,8 @@ static int mpipe_aud_i2s_codec_sink_set_caps(struct mpipe_sink *sink,
 	uint32_t sample_rate, bit_width, num_of_channel, frame_interval;
 
 	if (mpipe_aud_caps_get_uint(caps, MPIPE_CAPS_SAMPLE_RATE, &sample_rate) != 0 ||
-	    mpipe_aud_caps_get_uint(caps, MPIPE_CAPS_BITWIDTH, &bit_width) != 0 ||
-	    mpipe_aud_caps_get_uint(caps, MPIPE_CAPS_NUM_OF_CHANNEL, &num_of_channel) != 0 ||
+	    mpipe_aud_caps_get_uint(caps, MPIPE_CAPS_BIT_WIDTH, &bit_width) != 0 ||
+	    mpipe_aud_caps_get_uint(caps, MPIPE_CAPS_NUM_CHANNELS, &num_of_channel) != 0 ||
 	    mpipe_aud_caps_get_uint(caps, MPIPE_CAPS_FRAME_INTERVAL, &frame_interval) != 0) {
 		return -EINVAL;
 	}
@@ -276,8 +276,8 @@ static int mpipe_aud_i2s_codec_sink_set_caps(struct mpipe_sink *sink,
 	return 0;
 }
 
-int mpipe_aud_i2s_codec_sink_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
-				      struct net_buf **out_buf)
+int mpipe_aud_i2s_codec_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
+					struct net_buf **out_buf)
 {
 	__ASSERT_NO_MSG(pad != NULL);
 	__ASSERT_NO_MSG(in_buf != NULL);
@@ -314,7 +314,7 @@ int mpipe_aud_i2s_codec_sink_chain_fn(struct mpipe_pad *pad, struct net_buf *in_
 	/* Done with the buffer */
 	net_buf_unref(in_buf);
 
-	/* Sink returns NULL - end of chain */
+	/* A sink consumes the buffer: no output buffer */
 	*out_buf = NULL;
 
 	return 0;
@@ -367,7 +367,7 @@ int mpipe_aud_i2s_codec_sink_init(struct mpipe_aud_i2s_codec_sink *aud_i2s_codec
 
 	self->change_state = mpipe_aud_i2s_codec_sink_change_state;
 
-	sink->sink_pad.chain_fn = mpipe_aud_i2s_codec_sink_chain_fn;
+	sink->sink_pad.process_fn = mpipe_aud_i2s_codec_sink_process_fn;
 	sink->set_caps = mpipe_aud_i2s_codec_sink_set_caps;
 	sink->propose_buffer_pool = mpipe_aud_i2s_codec_sink_propose_buffer_pool;
 

@@ -25,8 +25,8 @@ static int mpipe_aud_dmic_src_set_caps(struct mpipe_src *src, const struct mpipe
 	uint32_t sample_rate, bit_width, num_of_channel, frame_interval;
 
 	if (mpipe_aud_caps_get_uint(caps, MPIPE_CAPS_SAMPLE_RATE, &sample_rate) != 0 ||
-	    mpipe_aud_caps_get_uint(caps, MPIPE_CAPS_BITWIDTH, &bit_width) != 0 ||
-	    mpipe_aud_caps_get_uint(caps, MPIPE_CAPS_NUM_OF_CHANNEL, &num_of_channel) != 0 ||
+	    mpipe_aud_caps_get_uint(caps, MPIPE_CAPS_BIT_WIDTH, &bit_width) != 0 ||
+	    mpipe_aud_caps_get_uint(caps, MPIPE_CAPS_NUM_CHANNELS, &num_of_channel) != 0 ||
 	    mpipe_aud_caps_get_uint(caps, MPIPE_CAPS_FRAME_INTERVAL, &frame_interval) != 0) {
 		return -EINVAL;
 	}
