@@ -7,7 +7,7 @@
 # Export the Multimedia Pipeline (mpipe) plugins and samples from mpipe_dev to
 # upstream PR branches.
 #
-# The core framework and the utils are upstream already. This script
+# The core framework, the utils and the base plugin are upstream already. This script
 # generates clean branches for each remaining upstream PR by extracting the
 # final state of the relevant files from mpipe_dev. All fixup commits are
 # implicitly squashed since only the final state is used.
@@ -101,13 +101,6 @@ FS_PATHS=(
     "subsys/mpipe/fs/"
     "include/zephyr/mpipe/fs/"
 )
-
-# base plugin
-BASE_PATHS=(
-    "subsys/mpipe/base/"
-    "include/zephyr/mpipe/base/"
-)
-
 
 # Sample: cam_disp (camera to display pipeline)
 #
@@ -211,37 +204,6 @@ element for writing pipeline data.
 
 ${SOB_PHIBANG}"
 
-BASE_COMMIT_MSG="mpipe: Add base plugin
-
-Add the base plugin for the mpipe subsystem. This plugin provides
-the media-agnostic elements every domain needs:
-- caps_filter: constrains the capability of a link
-- tee: pushes each buffer to every branch of a graph
-- queue: decouples the elements downstream of it onto their own thread
-- app_src and app_sink: let the application be one end of a pipeline
-
-${SOB_PHIBANG}"
-
-BASE_TESTS_COMMIT_MSG="mpipe: base: Add tests
-
-Cover the queue's size and leak properties. The element is driven
-without a pipeline: READY -> PAUSED creates its thread with an
-indefinite start delay, so what the chain function leaves in the msgq
-can be inspected before PAUSED -> READY drains it.
-
-Cover the application boundary end to end with an app_src to app_sink
-pipeline: callback and pull delivery in order with the payload size,
-a puller that lags losing arrivals rather than stalling the pipeline,
-the in-place alloc and push path, the argument checks and what a full
-pool or queue report without waiting, a stop with buffers pending
-releasing them without an EOS, and two declared capabilities with
-nothing in common failing to negotiate. The delivery case runs three
-times and checks the negotiated capability each time, since a
-capability written onto a pad rather than kept by the element
-survives only the first run.
-
-${SOB_PHIBANG}"
-
 SAMPLE_CAM_DISP_COMMIT_MSG="mpipe: samples: Add camera to display sample
 
 Add the cam_disp sample application demonstrating how to build a
@@ -301,15 +263,13 @@ TARGET_DEPS=(
     [aud]=""
     [disp]=""
     [fs]=""
-    [base]=""
-    [sample-cam_disp]="${UPSTREAM_PREFIX}-base ${UPSTREAM_PREFIX}-vid \
-        ${UPSTREAM_PREFIX}-disp"
-    [sample-jpeg_dec]="${UPSTREAM_PREFIX}-base ${UPSTREAM_PREFIX}-vid \
-        ${UPSTREAM_PREFIX}-img ${UPSTREAM_PREFIX}-disp ${UPSTREAM_PREFIX}-fs"
-    [sample-tee_dec]="${UPSTREAM_PREFIX}-base ${UPSTREAM_PREFIX}-vid \
-        ${UPSTREAM_PREFIX}-img ${UPSTREAM_PREFIX}-disp ${UPSTREAM_PREFIX}-fs"
+    [sample-cam_disp]="${UPSTREAM_PREFIX}-vid ${UPSTREAM_PREFIX}-disp"
+    [sample-jpeg_dec]="${UPSTREAM_PREFIX}-vid ${UPSTREAM_PREFIX}-img \
+        ${UPSTREAM_PREFIX}-disp ${UPSTREAM_PREFIX}-fs"
+    [sample-tee_dec]="${UPSTREAM_PREFIX}-vid ${UPSTREAM_PREFIX}-img \
+        ${UPSTREAM_PREFIX}-disp ${UPSTREAM_PREFIX}-fs"
     [sample-fs]="${UPSTREAM_PREFIX}-fs"
-    [sample-dmic_i2s]="${UPSTREAM_PREFIX}-base ${UPSTREAM_PREFIX}-aud"
+    [sample-dmic_i2s]="${UPSTREAM_PREFIX}-aud"
 )
 
 # ===========================================================================
@@ -328,7 +288,6 @@ TARGET_AUTHOR=(
     [aud]="${AUTHOR_MICHAL}"
     [disp]="${AUTHOR_PHIBANG}"
     [fs]="${AUTHOR_PHIBANG}"
-    [base]="${AUTHOR_PHIBANG}"
     [sample-cam_disp]="${AUTHOR_PHIBANG}"
     [sample-jpeg_dec]="${AUTHOR_PHIBANG}"
     [sample-tee_dec]="${AUTHOR_PHIBANG}"
@@ -340,14 +299,13 @@ TARGET_AUTHOR=(
 # Build-all test map: target -> testcase name in build_all/tests.yaml
 #
 # tests/subsys/mpipe/build_all/tests.yaml in the source branch is a single
-# file that contains one build_only entry per plugin, plus the core and utils
-# entries that are upstream already. When exporting, each plugin commit appends
-# only its own entry. Samples have no build_all entry (empty / unset).
+# file that contains one build_only entry per plugin, plus the core, utils and
+# base entries that are upstream already. When exporting, each plugin commit
+# appends only its own entry. Samples have no build_all entry (empty / unset).
 # ===========================================================================
 
 declare -A TARGET_BUILD_TEST
 TARGET_BUILD_TEST=(
-    [base]="mpipe.base.build"
     [aud]="mpipe.aud.build"
     [vid]="mpipe.vid.build"
     [disp]="mpipe.disp.build"
@@ -365,18 +323,15 @@ BUILD_ALL_TESTCASE="tests/subsys/mpipe/build_all/tests.yaml"
 # A target listed here gets a second commit on its branch, right after the
 # one adding the plugin, holding every test of the target: the suite and the
 # build_all entry. A target without a suite has only the build_all entry,
-# which then goes with the plugin commit.
+# which then goes with the plugin commit. No remaining target ships a suite
+# today; the base plugin, now upstream, was the last one.
 # ===========================================================================
 
 declare -A TARGET_TEST_PATHS
-TARGET_TEST_PATHS=(
-    [base]="tests/subsys/mpipe/base/"
-)
+TARGET_TEST_PATHS=()
 
 declare -A TARGET_TEST_COMMIT_MSG
-TARGET_TEST_COMMIT_MSG=(
-    [base]="${BASE_TESTS_COMMIT_MSG}"
-)
+TARGET_TEST_COMMIT_MSG=()
 
 # Number of commits a target adds on top of its dependencies.
 #
@@ -490,7 +445,7 @@ pause_for_manual_resolution() {
 # next top-level test entry ("  mpipe.*.build:") or end of file. Trailing blank
 # lines are stripped. The extracted text is printed to stdout.
 #
-# Args: $1=test_name (e.g. "mpipe.base.build")
+# Args: $1=test_name (e.g. "mpipe.vid.build")
 
 extract_build_test_block() {
     local test_name="$1"
@@ -528,7 +483,7 @@ write_build_test_file() {
 
 # Append the named test block to the existing build_all/tests.yaml in the
 # working tree (used by plugin commits, which inherit the file with only the
-# core and utils entries from upstream).
+# core, utils and base entries from upstream).
 #
 # Args: $1=test_name
 append_build_test_block() {
@@ -1078,11 +1033,6 @@ export_fs() {
         "${FS_COMMIT_MSG}" "${FS_PATHS[@]}"
 }
 
-export_base() {
-    generate_branch "base" "${UPSTREAM_PREFIX}-base" \
-        "${BASE_COMMIT_MSG}" "${BASE_PATHS[@]}"
-}
-
 export_sample_cam_disp() {
     generate_branch "sample-cam_disp" "${UPSTREAM_PREFIX}-sample-cam_disp" \
         "${SAMPLE_CAM_DISP_COMMIT_MSG}" "${SAMPLE_CAM_DISP_PATHS[@]}"
@@ -1113,7 +1063,7 @@ export_sample_dmic_i2s() {
 # ===========================================================================
 
 export_all() {
-    TARGETS=(vid img aud disp fs base \
+    TARGETS=(vid img aud disp fs \
         sample-cam_disp sample-jpeg_dec sample-tee_dec \
         sample-fs sample-dmic_i2s)
 
@@ -1130,7 +1080,6 @@ export_all() {
     export_aud
     export_disp
     export_fs
-    export_base
 
     # Samples (depend on their plugins)
     export_sample_cam_disp
@@ -1210,7 +1159,8 @@ usage() {
 Usage: $(basename "$0") [OPTIONS] [TARGET...]
 
 Export the Multimedia Pipeline plugins and samples from ${SOURCE_BRANCH} to
-upstream PR branches. The core framework is upstream already.
+upstream PR branches. The core framework, the utils and the base plugin are
+upstream already.
 
 Each branch is built from ${BASE_REF}, with dependency commits cherry-picked
 first, then the target's own commit added on top. Compliance checks only
@@ -1222,13 +1172,12 @@ Targets:
   aud              Audio plugin
   disp             Display plugin
   fs               Filesystem plugin
-  base             Base plugin
-  sample-cam_disp  Camera-to-display sample (depends on base, vid, disp)
-  sample-jpeg_dec  JPEG decoding sample (depends on base, vid, img, disp, fs)
+  sample-cam_disp  Camera-to-display sample (depends on vid, disp)
+  sample-jpeg_dec  JPEG decoding sample (depends on vid, img, disp, fs)
   sample-tee_dec   Multi-branch jpeg decoding sample
-                   (depends on base, vid, img, disp, fs)
+                   (depends on vid, img, disp, fs)
   sample-fs        Filesystem sample (depends on fs)
-  sample-dmic_i2s  DMIC to I2S sample (depends on base, aud)
+  sample-dmic_i2s  DMIC to I2S sample (depends on aud)
   all              All of the above (default)
 
 Options:
@@ -1257,7 +1206,7 @@ main() {
                 ;;
             --list)
                 echo "Available targets:"
-                echo "  vid img aud disp fs base"
+                echo "  vid img aud disp fs"
                 echo "  sample-cam_disp sample-jpeg_dec"
                 echo "  sample-tee_dec sample-fs sample-dmic_i2s"
                 exit 0
@@ -1270,7 +1219,7 @@ main() {
                 usage
                 exit 0
                 ;;
-            vid|img|aud|disp|fs|base|\
+            vid|img|aud|disp|fs|\
             sample-cam_disp|sample-jpeg_dec|\
             sample-tee_dec|sample-fs|sample-dmic_i2s|all)
                 targets+=("$1")
@@ -1314,10 +1263,6 @@ main() {
             fs)
                 TARGETS+=(fs)
                 export_fs
-                ;;
-            base)
-                TARGETS+=(base)
-                export_base
                 ;;
             sample-cam_disp)
                 TARGETS+=(sample-cam_disp)
