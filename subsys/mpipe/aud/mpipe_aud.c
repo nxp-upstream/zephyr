@@ -155,8 +155,8 @@ int mpipe_aud_enum_caps(const struct audio_caps *caps, uint32_t index,
 
 	ret = mpipe_structure_init_fields(
 		&candidate, MPIPE_MEDIA_AUDIO_PCM, MPIPE_CAPS_SAMPLE_RATE, MPIPE_TYPE_UINT,
-		sample_rate, MPIPE_CAPS_BITWIDTH, MPIPE_TYPE_UINT, bit_width,
-		MPIPE_CAPS_NUM_OF_CHANNEL, MPIPE_TYPE_UINT_RANGE, caps->min_total_channels,
+		sample_rate, MPIPE_CAPS_BIT_WIDTH, MPIPE_TYPE_UINT, bit_width,
+		MPIPE_CAPS_NUM_CHANNELS, MPIPE_TYPE_UINT_RANGE, caps->min_total_channels,
 		caps->max_total_channels, 1, MPIPE_CAPS_FRAME_INTERVAL, MPIPE_TYPE_UINT_RANGE,
 		caps->min_frame_interval, caps->max_frame_interval, 1, MPIPE_CAPS_INTERLEAVED,
 		MPIPE_TYPE_BOOLEAN, caps->interleaved, MPIPE_CAPS_END);

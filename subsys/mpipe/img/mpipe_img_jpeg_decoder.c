@@ -141,8 +141,8 @@ static int mpipe_img_jpeg_decoder_decode_one(struct mpipe_img_jpeg_decoder *dec,
 	return 0;
 }
 
-static int mpipe_img_jpeg_decoder_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
-					   struct net_buf **out_buf)
+static int mpipe_img_jpeg_decoder_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
+					     struct net_buf **out_buf)
 {
 	struct mpipe_transform *transform = (struct mpipe_transform *)pad->object.container;
 	struct mpipe_img_jpeg_decoder *dec = (struct mpipe_img_jpeg_decoder *)transform;
@@ -378,7 +378,7 @@ int mpipe_img_jpeg_decoder_init(struct mpipe_img_jpeg_decoder *dec, uint8_t id)
 
 	dec->out_pixfmt = VIDEO_PIX_FMT_RGB565;
 
-	transform->mode = MPIPE_MODE_NORMAL;
+	transform->mode = MPIPE_TRANSFORM_MODE_NORMAL;
 	transform->out_pool = &dec->out_pool;
 
 	transform->sink_pad.enum_caps_fn = mpipe_img_jpeg_decoder_enum_caps;
@@ -388,7 +388,7 @@ int mpipe_img_jpeg_decoder_init(struct mpipe_img_jpeg_decoder *dec, uint8_t id)
 
 	transform->set_caps = mpipe_img_jpeg_decoder_set_caps;
 	transform->transform_caps = mpipe_img_jpeg_decoder_transform_caps;
-	transform->sink_pad.chain_fn = mpipe_img_jpeg_decoder_chain_fn;
+	transform->sink_pad.process_fn = mpipe_img_jpeg_decoder_process_fn;
 	transform->decide_buffer_pool = mpipe_img_jpeg_decoder_decide_buffer_pool;
 
 	return 0;
