@@ -110,9 +110,9 @@ int main(void)
 	uint32_t frame_interval = 10000; /* 10ms */
 	struct mpipe_structure caps;
 
-	ret = mpipe_structure_init_fields(
-		&caps, MPIPE_MEDIA_AUDIO_PCM, MPIPE_CAPS_FRAME_INTERVAL, MPIPE_TYPE_UINT,
-		frame_interval, MPIPE_CAPS_NUM_OF_CHANNEL, MPIPE_TYPE_UINT, 2, MPIPE_CAPS_END);
+	ret = mpipe_structure_init_fields(&caps, MPIPE_MEDIA_AUDIO_PCM, MPIPE_CAPS_FRAME_INTERVAL,
+					  MPIPE_TYPE_UINT, frame_interval, MPIPE_CAPS_NUM_CHANNELS,
+					  MPIPE_TYPE_UINT, 2, MPIPE_CAPS_END);
 
 	if (ret != 0) {
 		LOG_ERR("Failed to create a caps");

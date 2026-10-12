@@ -401,8 +401,8 @@ static int vid_convert_decide_buffer_pool(struct mpipe_transform *self,
 	return 0;
 }
 
-static int vid_convert_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
-				struct net_buf **out_buf)
+static int vid_convert_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
+				  struct net_buf **out_buf)
 {
 	struct net_buf *cur;
 	struct net_buf *next;
@@ -515,13 +515,13 @@ int mpipe_vid_convert_init(struct mpipe_vid_convert *conv, uint8_t id)
 
 	(void)mpipe_buffer_pool_set_req_config(&conv->out_pool, &pool_req);
 
-	transform->mode = MPIPE_MODE_NORMAL;
+	transform->mode = MPIPE_TRANSFORM_MODE_NORMAL;
 	transform->out_pool = &conv->out_pool;
 	transform->set_caps = vid_convert_set_caps;
 	transform->transform_caps = vid_convert_transform_caps;
 	transform->propose_buffer_pool = NULL;
 	transform->decide_buffer_pool = vid_convert_decide_buffer_pool;
-	transform->sink_pad.chain_fn = vid_convert_chain_fn;
+	transform->sink_pad.process_fn = vid_convert_process_fn;
 
 	return 0;
 }

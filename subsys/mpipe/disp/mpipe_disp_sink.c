@@ -181,8 +181,8 @@ static int mpipe_disp_sink_get_property(struct mpipe_object *obj, uint32_t key, 
 	}
 }
 
-int mpipe_disp_sink_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
-			     struct net_buf **out_buf)
+int mpipe_disp_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
+			       struct net_buf **out_buf)
 {
 	__ASSERT_NO_MSG(pad != NULL);
 	__ASSERT_NO_MSG(out_buf != NULL);
@@ -207,7 +207,7 @@ int mpipe_disp_sink_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 		width = mpipe_value_get_uint(value);
 	}
 
-	/* Sink returns NULL for output buffer as it is at the end of the chain */
+	/* A sink consumes the buffer: no output buffer */
 	*out_buf = NULL;
 
 	if (in_buf == NULL) {
@@ -297,7 +297,7 @@ int mpipe_disp_sink_init(struct mpipe_disp_sink *disp_sink, uint8_t id)
 	self->object.get_property = mpipe_disp_sink_get_property;
 	self->object.set_property = mpipe_disp_sink_set_property;
 
-	sink->sink_pad.chain_fn = mpipe_disp_sink_chain_fn;
+	sink->sink_pad.process_fn = mpipe_disp_sink_process_fn;
 	sink->sink_pad.enum_caps_fn = mpipe_disp_sink_enum_caps;
 	sink->set_caps = mpipe_disp_sink_set_caps;
 

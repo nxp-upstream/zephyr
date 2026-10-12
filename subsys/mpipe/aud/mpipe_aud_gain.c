@@ -206,8 +206,8 @@ static void apply_audio_gain(struct net_buf *buffer, int32_t gain_fixed, uint8_t
 	}
 }
 
-static int mpipe_aud_gain_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
-				   struct net_buf **out_buf)
+static int mpipe_aud_gain_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
+				     struct net_buf **out_buf)
 {
 	struct mpipe_aud_gain *aud_gain = CONTAINER_OF(pad->object.container, struct mpipe_aud_gain,
 						       transform.element.object);
@@ -279,9 +279,9 @@ static int mpipe_aud_gain_enum_caps(struct mpipe_pad *pad, uint32_t index,
 
 	ret = mpipe_structure_init_fields(
 		&candidate, MPIPE_MEDIA_AUDIO_PCM, MPIPE_CAPS_SAMPLE_RATE, MPIPE_TYPE_UINT_RANGE,
-		1U, UINT32_MAX, 1U, MPIPE_CAPS_NUM_OF_CHANNEL, MPIPE_TYPE_UINT_RANGE, 1U,
-		UINT32_MAX, 1U, MPIPE_CAPS_FRAME_INTERVAL, MPIPE_TYPE_UINT_RANGE, 1U, UINT32_MAX,
-		1U, MPIPE_CAPS_BITWIDTH, MPIPE_TYPE_UINT, mpipe_aud_gain_bit_widths[index],
+		1U, UINT32_MAX, 1U, MPIPE_CAPS_NUM_CHANNELS, MPIPE_TYPE_UINT_RANGE, 1U, UINT32_MAX,
+		1U, MPIPE_CAPS_FRAME_INTERVAL, MPIPE_TYPE_UINT_RANGE, 1U, UINT32_MAX, 1U,
+		MPIPE_CAPS_BIT_WIDTH, MPIPE_TYPE_UINT, mpipe_aud_gain_bit_widths[index],
 		MPIPE_CAPS_INTERLEAVED, MPIPE_TYPE_BOOLEAN, true, MPIPE_CAPS_END);
 	if (ret != 0) {
 		return ret;
@@ -298,7 +298,7 @@ static int mpipe_aud_gain_set_caps(struct mpipe_transform *transform,
 	uint32_t bit_width;
 	int ret;
 
-	ret = mpipe_aud_caps_get_uint(caps, MPIPE_CAPS_BITWIDTH, &bit_width);
+	ret = mpipe_aud_caps_get_uint(caps, MPIPE_CAPS_BIT_WIDTH, &bit_width);
 	if (ret != 0) {
 		return ret;
 	}
@@ -364,8 +364,8 @@ int mpipe_aud_gain_init(struct mpipe_aud_gain *aud_gain, uint8_t id)
 	self->object.set_property = mpipe_aud_gain_set_property;
 	self->object.get_property = mpipe_aud_gain_get_property;
 
-	transform->mode = MPIPE_MODE_INPLACE;
-	transform->sink_pad.chain_fn = mpipe_aud_gain_chain_fn;
+	transform->mode = MPIPE_TRANSFORM_MODE_INPLACE;
+	transform->sink_pad.process_fn = mpipe_aud_gain_process_fn;
 	transform->set_caps = mpipe_aud_gain_set_caps;
 	transform->decide_buffer_pool = mpipe_aud_gain_decide_buffer_pool;
 	transform->propose_buffer_pool = mpipe_aud_gain_propose_buffer_pool;

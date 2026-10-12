@@ -231,8 +231,8 @@ static int mpipe_img_jpeg_parser_release_buffer(struct mpipe_buffer_pool *pool, 
 	return 0;
 }
 
-static int mpipe_img_jpeg_parser_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
-					  struct net_buf **out_buf)
+static int mpipe_img_jpeg_parser_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
+					    struct net_buf **out_buf)
 {
 	struct mpipe_parser *parser = (struct mpipe_parser *)pad->object.container;
 	struct mpipe_img_jpeg_parser *jpeg_parser = (struct mpipe_img_jpeg_parser *)parser;
@@ -429,7 +429,7 @@ int mpipe_img_jpeg_parser_init(struct mpipe_img_jpeg_parser *jpeg_parser, uint8_
 	parser->sink_pad.enum_caps_fn = mpipe_img_jpeg_parser_enum_caps;
 	parser->src_pad.enum_caps_fn = mpipe_img_jpeg_parser_enum_caps;
 
-	parser->sink_pad.chain_fn = mpipe_img_jpeg_parser_chain_fn;
+	parser->sink_pad.process_fn = mpipe_img_jpeg_parser_process_fn;
 	parser->decide_buffer_pool = mpipe_img_jpeg_parser_decide_buffer_pool;
 
 	if (CONFIG_MPIPE_IMG_JPEG_PARSER_MAX_FRAME_SIZE > 0) {

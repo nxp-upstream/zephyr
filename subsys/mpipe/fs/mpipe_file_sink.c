@@ -41,8 +41,8 @@ static int mpipe_file_sink_get_property(struct mpipe_object *obj, uint32_t key, 
 	}
 }
 
-static int mpipe_file_sink_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
-				    struct net_buf **out)
+static int mpipe_file_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
+				      struct net_buf **out)
 {
 	struct mpipe_file_sink *fsink =
 		CONTAINER_OF(pad->object.container, struct mpipe_file_sink, sink.element.object);
@@ -137,7 +137,7 @@ int mpipe_file_sink_init(struct mpipe_file_sink *fsink, uint8_t id)
 	self->object.get_property = mpipe_file_sink_get_property;
 	self->change_state = mpipe_file_sink_change_state;
 
-	sink->sink_pad.chain_fn = mpipe_file_sink_chain_fn;
+	sink->sink_pad.process_fn = mpipe_file_sink_process_fn;
 
 	fsink->path = NULL;
 	fsink->file_open = false;

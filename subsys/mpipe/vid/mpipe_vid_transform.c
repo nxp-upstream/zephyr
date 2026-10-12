@@ -18,8 +18,8 @@ LOG_MODULE_REGISTER(mpipe_vid_transform, CONFIG_MPIPE_LOG_LEVEL);
 
 #define DEFAULT_PROP_DEVICE DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_videotrans))
 
-static int mpipe_vid_transform_chain_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
-					struct net_buf **out_buf)
+static int mpipe_vid_transform_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
+					  struct net_buf **out_buf)
 {
 	int ret;
 	struct mpipe_transform *transform =
@@ -214,7 +214,7 @@ int mpipe_vid_transform_init(struct mpipe_vid_transform *vid_transform, uint8_t 
 	 * m2m devices have both input and output buffer queues,
 	 * so it should be in normal mode by default
 	 */
-	transform->mode = MPIPE_MODE_NORMAL;
+	transform->mode = MPIPE_TRANSFORM_MODE_NORMAL;
 
 	transform->in_pool = &vid_transform->vid_obj_in.pool.pool;
 	transform->out_pool = &vid_transform->vid_obj_out.pool.pool;
@@ -237,7 +237,7 @@ int mpipe_vid_transform_init(struct mpipe_vid_transform *vid_transform, uint8_t 
 
 	transform->set_caps = mpipe_vid_transform_set_caps;
 	transform->transform_caps = mpipe_vid_transform_transform_caps;
-	transform->sink_pad.chain_fn = mpipe_vid_transform_chain_fn;
+	transform->sink_pad.process_fn = mpipe_vid_transform_process_fn;
 	transform->decide_buffer_pool = mpipe_vid_transform_decide_buffer_pool;
 	transform->propose_buffer_pool = mpipe_vid_transform_propose_buffer_pool;
 
