@@ -12,7 +12,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXPORT_SCRIPT="${SCRIPT_DIR}/export_mpipe_upstream.sh"
 
 TARGETS=(
-    base
     fs
     vid
     img
@@ -33,7 +32,6 @@ for target in "${TARGETS[@]}"; do
 done
 
 # Push to upstream
-# git push --force nxp-upstream upstream/mpipe-base:mp_zbase
 # git push --force nxp-upstream upstream/mpipe-fs:mp-zfs
 # git push --force nxp-upstream upstream/mpipe-disp:mp-zdisp
 # git push --force nxp-upstream upstream/mpipe-vid:mp-zvid
