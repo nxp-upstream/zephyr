@@ -78,6 +78,13 @@ struct mpipe_aud_i2s_codec_sink {
 	uint8_t start_threshold;
 	/** Flag indicating if the sink has been started */
 	bool started;
+	/**
+	 * Flag indicating the transmit stream was left in the I2S error state
+	 * by a failed write, so it needs I2S_TRIGGER_PREPARE before it can be
+	 * configured again. PREPARE is only valid in the error state, so it
+	 * must not be issued on a stream that never failed.
+	 */
+	bool needs_prepare;
 	/** Clock role configuration for I2S and codec */
 	enum mpipe_aud_i2s_codec_clk_role clk_role;
 };
