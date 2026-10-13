@@ -70,15 +70,17 @@ static int embed_test_file(void)
 	int ret = fs_stat(CONFIG_FILE_INPUT_PATH, &ent);
 
 	if (ret == 0) {
-		return 0;
-	}
+		/* A file of the same size is assumed to be the embedded one: keep it */
+		if (mjpeg_sz == 0 || ent.size == mjpeg_sz) {
+			return 0;
+		}
 
-	if (ret != -ENOENT) {
+		LOG_INF("%s is %u bytes, embedded file is %u bytes: replacing it",
+			CONFIG_FILE_INPUT_PATH, (unsigned int)ent.size, (unsigned int)mjpeg_sz);
+	} else if (ret != -ENOENT) {
 		LOG_ERR("fs_stat(%s) failed (%d)", CONFIG_FILE_INPUT_PATH, ret);
 		return ret;
-	}
-
-	if (mjpeg_sz == 0) {
+	} else if (mjpeg_sz == 0) {
 		LOG_ERR("MJPEG test file not available");
 		return -ENOENT;
 	}
@@ -87,7 +89,7 @@ static int embed_test_file(void)
 
 	fs_file_t_init(&f);
 
-	ret = fs_open(&f, CONFIG_FILE_INPUT_PATH, FS_O_CREATE | FS_O_WRITE);
+	ret = fs_open(&f, CONFIG_FILE_INPUT_PATH, FS_O_CREATE | FS_O_WRITE | FS_O_TRUNC);
 	if (ret != 0) {
 		LOG_ERR("fs_open(%s) failed (%d)", CONFIG_FILE_INPUT_PATH, ret);
 		return ret;
