@@ -260,12 +260,20 @@ static int mpipe_aud_i2s_codec_sink_set_caps(struct mpipe_sink *sink,
 	config.timeout = frame_interval * 10;
 
 	/*
-	 * A TX underrun latches the device in an error state that i2s_configure()
-	 * refuses, so a restart would fail for as long as the board stays powered.
-	 * PREPARE is the only transition back to READY; it reports -EIO when there
-	 * was nothing to clear, which is the ordinary path.
+	 * A TX underrun latches the device in the I2S error state, which
+	 * i2s_configure() refuses, so a restart would fail for as long as the
+	 * board stays powered. PREPARE is the only transition back to READY,
+	 * but it is valid in the error state only, so issue it just for a
+	 * stream a failed write actually left there.
 	 */
-	(void)i2s_trigger(aud_i2s_codec_sink->i2s_dev, I2S_DIR_TX, I2S_TRIGGER_PREPARE);
+	if (aud_i2s_codec_sink->needs_prepare) {
+		ret = i2s_trigger(aud_i2s_codec_sink->i2s_dev, I2S_DIR_TX, I2S_TRIGGER_PREPARE);
+		if (ret < 0) {
+			LOG_WRN("Failed to prepare I2S stream after error: %d", ret);
+		}
+
+		aud_i2s_codec_sink->needs_prepare = false;
+	}
 
 	ret = i2s_configure(aud_i2s_codec_sink->i2s_dev, I2S_DIR_TX, &config);
 	if (ret < 0) {
@@ -291,6 +299,11 @@ int mpipe_aud_i2s_codec_sink_process_fn(struct mpipe_pad *pad, struct net_buf *i
 	ret = i2s_write(aud_i2s_codec_sink->i2s_dev, in_buf->data, bytes_used);
 	if (ret < 0) {
 		LOG_DBG("Failed to write data: %d\n", ret);
+		/*
+		 * A failed write may have left the transmit stream in the I2S
+		 * error state, so the next configure has to clear it first.
+		 */
+		aud_i2s_codec_sink->needs_prepare = true;
 		net_buf_unref(in_buf);
 		*out_buf = NULL;
 		return -EIO;
@@ -375,6 +388,7 @@ int mpipe_aud_i2s_codec_sink_init(struct mpipe_aud_i2s_codec_sink *aud_i2s_codec
 
 	aud_i2s_codec_sink->started = false;
 	aud_i2s_codec_sink->count = 0;
+	aud_i2s_codec_sink->needs_prepare = false;
 	aud_i2s_codec_sink->mem_slab = NULL;
 	return 0;
 }
