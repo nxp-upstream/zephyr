@@ -87,8 +87,13 @@ The input file is generated at build time, with the resolution given by
 :kconfig:option:`CONFIG_JPEG_IMAGE_WIDTH` and
 :kconfig:option:`CONFIG_JPEG_IMAGE_HEIGHT` and the length by
 :kconfig:option:`CONFIG_MJPEG_NUM_FRAMES`. It is embedded into the binary, and
-the sample writes it to the volume on first boot if it is not already there, so
-no manual file preparation is needed.
+the sample writes it to the volume on first boot if it is not already there.
+On later boots, if a file is already present, its size is compared against the
+embedded data: a mismatch is treated as a changed test file and the file is
+rewritten, otherwise it is left as-is. This avoids rewriting the file to the
+volume on every boot (which would significantly increase flash time), at the
+cost of not detecting a same-size content change. No manual file preparation
+is needed.
 
 Building and Running
 ********************
