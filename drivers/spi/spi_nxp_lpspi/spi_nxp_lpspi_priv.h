@@ -1,5 +1,5 @@
 /*
- * Copyright 2018, 2024-2025 NXP
+ * Copyright 2018, 2024-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -32,6 +32,12 @@
 /* Required by DEVICE_MMIO_NAMED_* macros */
 #define DEV_CFG(_dev)  ((const struct lpspi_config *)(_dev)->config)
 #define DEV_DATA(_dev) ((struct lpspi_data *)(_dev)->data)
+
+/* LPSPI pin (SDO and SDI) configuration. */
+#define LPSPI_SDI_IN_SDO_OUT 0
+#define LPSPI_SDI_IN_SDI_OUT 1
+#define LPSPI_SDO_IN_SDO_OUT 2
+#define LPSPI_SDO_IN_SDI_OUT 3
 
 struct lpspi_config {
 	DEVICE_MMIO_NAMED_ROM(reg_base);
@@ -148,6 +154,23 @@ int spi_nxp_init_common(const struct device *dev);
 int spi_lpspi_release(const struct device *dev, const struct spi_config *spi_cfg);
 
 int lpspi_wait_tx_fifo_empty(const struct device *dev);
+
+/* Configuration of CFGR1[PINCFG] - configures which pins are used for input and output data
+ * during serial transfers.
+ */
+static inline void lpspi_set_pincfg(LPSPI_Type *base, uint8_t pincfg)
+{
+	/* Clear only MEN bit, preserve DBGEN and other CR fields */
+	base->CR &= ~LPSPI_CR_MEN_MASK;
+	while (base->CR & LPSPI_CR_MEN_MASK) {
+		/* Wait for module to become idle before writing CFGR1 */
+	}
+
+	base->CFGR1 = (base->CFGR1 & ~LPSPI_CFGR1_PINCFG_MASK) |
+		      LPSPI_CFGR1_PINCFG(pincfg);
+
+	base->CR |= LPSPI_CR_MEN_MASK;
+}
 
 #define SPI_LPSPI_IRQ_FUNC_LP_FLEXCOMM(n)                                                     \
 	nxp_lp_flexcomm_setirqhandler(DEVICE_DT_GET(DT_INST_PARENT(n)), DEVICE_DT_INST_GET(n),     \

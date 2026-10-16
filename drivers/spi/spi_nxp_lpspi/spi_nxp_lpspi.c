@@ -1,5 +1,5 @@
 /*
- * Copyright 2024-2025 NXP
+ * Copyright 2024-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -279,7 +279,10 @@ static void lpspi_isr(const struct device *dev)
 		 * in order to get last bit clocked out on bus. So all we need to do is touch the
 		 * TCR by writing to fifo through TCR register and wait for final RX interrupt.
 		 */
-		base->TCR = lpspi_read_tcr(base);
+		if (data->major_version < 2 ||
+		    !(ctx->config->operation & SPI_HOLD_ON_CS)) {
+			base->TCR = lpspi_read_tcr(base) & ~LPSPI_TCR_CONTC_MASK;
+		}
 		return;
 	}
 
@@ -379,6 +382,32 @@ static int transceive(const struct device *dev, const struct spi_config *spi_cfg
 	ret = lpspi_configure(dev, spi_cfg);
 	if (ret) {
 		goto error;
+	}
+
+	if (spi_cfg->operation & SPI_HALF_DUPLEX) {
+		uint8_t pincfg = (base->CFGR1 & LPSPI_CFGR1_PINCFG_MASK) >> LPSPI_CFGR1_PINCFG_SHIFT;
+
+		if ((config->data_pin_config != LPSPI_SDI_IN_SDI_OUT) &&
+		    (config->data_pin_config != LPSPI_SDO_IN_SDO_OUT)) {
+			LOG_ERR("data-pin-config must be set to \"sdo-in,sdo-out\" or "
+				"\"sdi-in,sdi-out\" for SPI_HALF_DUPLEX.");
+			ret = -EINVAL;
+			goto error;
+		}
+
+		if (!(tx_bufs && tx_bufs->count > 0) && (rx_bufs && rx_bufs->count > 0)) {
+			/* RX-only: route SOUT away from the shared wire so the master does not
+			 * drive it while the slave transmits.
+			 */
+			if (pincfg != (config->data_pin_config ^ 1)) {
+				lpspi_set_pincfg(base, config->data_pin_config ^ 1);
+			}
+		} else {
+			/* TX: restore the DT pin config (may differ from RX setting). */
+			if (pincfg != config->data_pin_config) {
+				lpspi_set_pincfg(base, config->data_pin_config);
+			}
+		}
 	}
 
 	base->CR |= LPSPI_CR_RRF_MASK;

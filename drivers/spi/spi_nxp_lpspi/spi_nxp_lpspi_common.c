@@ -117,12 +117,6 @@ static inline int lpspi_validate_xfer_args(const struct spi_config *spi_cfg)
 	uint32_t word_size = SPI_WORD_SIZE_GET(spi_cfg->operation);
 	uint32_t pcs = spi_cfg->peripheral;
 
-	if (spi_cfg->operation & SPI_HALF_DUPLEX) {
-		/* the IP DOES support half duplex, need to implement driver support */
-		LOG_WRN("Half-duplex not supported");
-		return -ENOTSUP;
-	}
-
 	if (word_size < 2 || (word_size % 32 == 1)) {
 		/* Zephyr word size == hardware FRAME size (not word size)
 		 * Max frame size: 4096 bits
@@ -281,7 +275,7 @@ static void lpspi_basic_config(const struct device *dev, const struct spi_config
 		cfgr1_val |= LPSPI_CFGR1_MASTER_MASK;
 	}
 
-	if (config->tristate_output) {
+	if (config->tristate_output || (spi_cfg->operation & SPI_HALF_DUPLEX)) {
 		cfgr1_val |= LPSPI_CFGR1_OUTCFG_MASK;
 	}
 

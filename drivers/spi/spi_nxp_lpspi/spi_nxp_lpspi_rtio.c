@@ -1,5 +1,5 @@
 /*
- * Copyright 2024-2025 NXP
+ * Copyright 2024-2026 NXP
  * Copyright 2025 Croxel, Inc.
  * Copyright 2025 CogniPilot Foundation
  *
@@ -624,6 +624,32 @@ static void lpspi_rtio_iodev_start(const struct device *dev)
 
 	lpspi_data->rx_curr.sqe = sqe;
 	lpspi_data->rx_curr.words_clocked = 0;
+
+	if (spi_cfg->operation & SPI_HALF_DUPLEX) {
+		uint8_t pincfg = (base->CFGR1 & LPSPI_CFGR1_PINCFG_MASK) >> LPSPI_CFGR1_PINCFG_SHIFT;
+
+		if ((config->data_pin_config != LPSPI_SDI_IN_SDI_OUT) &&
+		    (config->data_pin_config != LPSPI_SDO_IN_SDO_OUT)) {
+			LOG_ERR("data-pin-config must be set to \"sdo-in,sdo-out\" or "
+				"\"sdi-in,sdi-out\" for SPI_HALF_DUPLEX.");
+			ret = -EINVAL;
+			goto lpspi_rtio_iodev_start_on_error;
+		}
+
+		if (sqe->op == RTIO_OP_RX) {
+			/* RX-only: route SOUT away from the shared wire so the master does not
+			 * drive it while the slave transmits.
+			 */
+			if (pincfg != (config->data_pin_config ^ 1)) {
+				lpspi_set_pincfg(base, config->data_pin_config ^ 1);
+			}
+		} else {
+			/* TX: restore the DT pin config (may differ from RX setting). */
+			if (pincfg != config->data_pin_config) {
+				lpspi_set_pincfg(base, config->data_pin_config);
+			}
+		}
+	}
 
 	/* Compose the transfer command once, while the transmit FIFO is empty
 	 * and the TCR read is defined, and cache it. Every later command write

@@ -1,5 +1,5 @@
 /*
- * Copyright 2018, 2024-2025 NXP
+ * Copyright 2018, 2024-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -346,6 +346,7 @@ static int transceive_dma(const struct device *dev, const struct spi_config *spi
 			  bool asynchronous, spi_callback_t cb, void *userdata)
 {
 	LPSPI_Type *base = (LPSPI_Type *)DEVICE_MMIO_NAMED_GET(dev, reg_base);
+	const struct lpspi_config *config = dev->config;
 	struct lpspi_data *data = dev->data;
 	struct spi_nxp_dma_data *dma_data = (struct spi_nxp_dma_data *)data->driver_data;
 	struct spi_context *ctx = &data->ctx;
@@ -360,9 +361,36 @@ static int transceive_dma(const struct device *dev, const struct spi_config *spi
 	}
 
 	/* Check CS hold on feature for DMA mode, it is not supported on some platform. */
-	if ((spi_cfg->operation & SPI_HOLD_ON_CS) && major_ver < 2) {
+	if ((spi_cfg->operation & SPI_HOLD_ON_CS) && major_ver < 2 && !spi_cs_is_gpio(spi_cfg)) {
 		LOG_ERR("SPI CS hold on feature is not supported on this platform.");
-		return -ENOTSUP;
+		ret = -ENOTSUP;
+		goto out;
+	}
+
+	if (spi_cfg->operation & SPI_HALF_DUPLEX) {
+		uint8_t pincfg = (base->CFGR1 & LPSPI_CFGR1_PINCFG_MASK) >> LPSPI_CFGR1_PINCFG_SHIFT;
+
+		if ((config->data_pin_config != LPSPI_SDI_IN_SDI_OUT) &&
+		    (config->data_pin_config != LPSPI_SDO_IN_SDO_OUT)) {
+			LOG_ERR("data-pin-config must be set to \"sdo-in,sdo-out\" or "
+				"\"sdi-in,sdi-out\" for SPI_HALF_DUPLEX.");
+			ret = -EINVAL;
+			goto out;
+		}
+
+		if (!(tx_bufs && tx_bufs->count > 0) && (rx_bufs && rx_bufs->count > 0)) {
+			/* RX-only: route SOUT away from the shared wire so the master does not
+			 * drive it while the slave transmits.
+			 */
+			if (pincfg != (config->data_pin_config ^ 1)) {
+				lpspi_set_pincfg(base, config->data_pin_config ^ 1);
+			}
+		} else {
+			/* TX: restore the DT pin config (may differ from RX setting). */
+			if (pincfg != config->data_pin_config) {
+				lpspi_set_pincfg(base, config->data_pin_config);
+			}
+		}
 	}
 
 	/* Always use continuous mode to satisfy SPI API requirements. */
