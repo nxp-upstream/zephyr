@@ -1,0 +1,85 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/ipc_service/static_vrings.h>
+#include <zephyr/dt-bindings/memory-attr/memory-attr-arm.h>
+
+/ {
+	aliases {
+		/* The IPC instance eRPC runs over */
+		erpc-ipc = &ipc0;
+	};
+
+	chosen {
+		/* Delete ipc chosen property where old IPM mailbox driver below is
+		 * configured.
+		 */
+		/delete-property/ zephyr,ipc;
+		/delete-property/ zephyr,ipc_shm;
+	};
+
+	/* Define memory regions for IPC
+	 * Note that shared memory must have specific MPU attributes set.
+	 */
+	ocram2_ipc0: memory@202c0000 {
+		compatible = "zephyr,memory-region", "mmio-sram";
+		reg = <0x202c0000 DT_SIZE_K(32)>;
+		zephyr,memory-region = "OCRAM2_IPC0";
+		zephyr,memory-attr = <DT_MEM_ARM(ATTR_MPU_IO)>;
+	};
+
+	/*
+	 * The video frames live in OCRAM1 and are read by the remote core, so
+	 * the M7 must not cache them. The MPU anchors a region at a multiple
+	 * of its size and OCRAM1 is 512K at a 256K-aligned address: cover it
+	 * with two 256K regions.
+	 */
+	ocram1_nocache_lo: memory@20240000 {
+		compatible = "zephyr,memory-region", "mmio-sram";
+		reg = <0x20240000 DT_SIZE_K(256)>;
+		zephyr,memory-region = "OCRAM1_NOCACHE_LO";
+		zephyr,memory-attr = <DT_MEM_ARM_MPU_RAM_NOCACHE>;
+	};
+
+	ocram1_nocache_hi: memory@20280000 {
+		compatible = "zephyr,memory-region", "mmio-sram";
+		reg = <0x20280000 DT_SIZE_K(256)>;
+		zephyr,memory-region = "OCRAM1_NOCACHE_HI";
+		zephyr,memory-attr = <DT_MEM_ARM_MPU_RAM_NOCACHE>;
+	};
+
+	soc {
+		/* Delete IPM Driver node nxp,imx-mu */
+		/delete-node/ mailbox@40c48000;
+
+		/* Attach MBOX driver to MU Unit */
+		mbox: mbox@40c48000 {
+			compatible = "nxp,mbox-imx-mu";
+			reg = <0x40c48000 0x4000>;
+			interrupts = <118 0>;
+			rx-channels = <4>;
+			#mbox-cells = <1>;
+			status = "okay";
+		};
+	};
+
+	ipc {
+		/delete-node/ ipc0;
+
+		ipc0: ipc0 {
+			compatible = "nxp,ipc-rpmsg-lite";
+			memory-region = <&ocram2_ipc0>;
+			/* With ipc-rpmsg-lite we can reuse same MBOX channel per IPC instance */
+			mboxes = <&mbox 2>, <&mbox 3>;
+			mbox-names = "tx", "rx";
+			link-id = <0>;
+			role = "host";
+			buffer-size = <512>;
+			buffer-count = <2>;
+			status = "okay";
+		};
+	};
+};
