@@ -26,7 +26,8 @@
  * They are separate elements because the split is real: the parser is what
  * first knows the format, and it can be followed either by the software decoder
  * here or by a hardware decoder from the video plugin, without either side
- * knowing which.
+ * knowing which. The software decoder is optional: it is built on the jpegdec
+ * module and enabled with CONFIG_MPIPE_IMG_JPEG_DECODER.
  */
 
 #endif /* ZEPHYR_INCLUDE_MPIPE_IMG_MPIPE_IMG_H_ */

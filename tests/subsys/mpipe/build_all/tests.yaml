@@ -66,6 +66,19 @@ tests:
     extra_args:
       - CONFIG_MPIPE_IMG=y
 
+  mpipe.img.jpeg_decoder.build:
+    tags:
+      - subsys
+      - mpipe
+    build_only: true
+    platform_allow:
+      - native_sim/native/64
+    modules:
+      - jpegdec
+    extra_args:
+      - CONFIG_MPIPE_IMG=y
+      - CONFIG_MPIPE_IMG_JPEG_DECODER=y
+
   mpipe.fs.build:
     tags:
       - subsys
