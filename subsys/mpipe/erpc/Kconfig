@@ -1,0 +1,31 @@
+#
+# Copyright 2026 NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+config MPIPE_ERPC
+	bool "eRPC backend for the transform clients"
+	depends on MPIPE_RPC
+	depends on ZEPHYR_ERPC_MODULE
+	help
+	  Carry the RPC hooks of the transform clients over eRPC, with the
+	  Zephyr IPC service as the transport.
+
+	  This brings up the eRPC client and reports its errors; each plugin
+	  binds its own eRPC interface to that client. The interface
+	  definitions are compiled at build time by the erpcgen host tool.
+
+	  The library and its transport are the module's own options, ERPC
+	  and ERPC_TRANSPORT_IPC_SERVICE: the application enables both.
+
+if MPIPE_ERPC
+
+config MPIPE_ERPC_INIT_DELAY_MS
+	int "Delay before the first exchange with the remote core (in milliseconds)"
+	default 300
+	help
+	  Time the client transport waits before it talks to the remote core,
+	  which may still be booting when the pipeline is built.
+
+endif # MPIPE_ERPC
