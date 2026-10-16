@@ -82,6 +82,9 @@ VID_PATHS=(
 IMG_PATHS=(
     "subsys/mpipe/img/"
     "include/zephyr/mpipe/img/"
+    "modules/jpegdec/"
+    "modules/Kconfig"
+    "west.yml"
 )
 
 # aud plugin
