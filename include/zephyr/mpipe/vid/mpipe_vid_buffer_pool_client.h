@@ -36,7 +36,7 @@
 struct mpipe_vid_buffer_pool_client {
 	/** Base buffer pool structure */
 	struct mpipe_buffer_pool pool;
-	/** FIFO queue for available buffers */
+	/** FIFO of the video buffers not wrapped in a net_buf at the moment */
 	struct k_fifo fifo;
 };
 

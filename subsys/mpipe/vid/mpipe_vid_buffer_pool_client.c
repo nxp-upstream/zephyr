@@ -26,26 +26,7 @@ static int mpipe_vid_buffer_pool_client_start(struct mpipe_buffer_pool *pool)
 			return -ENOBUFS;
 		}
 
-		/*
-		 * Wrap the externally allocated payload (video_buffer->buffer) into a
-		 * net_buf allocated from mpipe's net_buf pool.
-		 */
-		struct net_buf *nb =
-			net_buf_alloc_with_data(pool->nb_pool, vbuf->buffer, vbuf->size, K_NO_WAIT);
-		if (nb == NULL) {
-			(void)video_buffer_release(vbuf);
-			return -ENOBUFS;
-		}
-
-		struct mpipe_buffer_meta *m = mpipe_buffer_get_meta(nb);
-
-		m->pool = pool;
-		m->driver_buf = vbuf;
-		m->bytes_used = vbuf->bytesused;
-		m->timestamp = vbuf->timestamp;
-		nb->len = m->bytes_used;
-
-		k_fifo_put(&zbpc->fifo, nb);
+		k_fifo_put(&zbpc->fifo, vbuf);
 	}
 
 	LOG_INF("Started buffer pool");
@@ -64,14 +45,33 @@ static int mpipe_vid_buffer_pool_client_acquire_buffer(struct mpipe_buffer_pool 
 						       struct net_buf **buf)
 {
 	struct mpipe_vid_buffer_pool_client *zbpc = (struct mpipe_vid_buffer_pool_client *)pool;
+	struct video_buffer *vbuf;
 	struct net_buf *nb;
+	struct mpipe_buffer_meta *m;
 
 	__ASSERT_NO_MSG(buf != NULL);
 
-	nb = k_fifo_get(&zbpc->fifo, K_FOREVER);
-	if (nb == NULL) {
+	vbuf = k_fifo_get(&zbpc->fifo, K_FOREVER);
+	if (vbuf == NULL) {
 		return -ENOBUFS;
 	}
+
+	/*
+	 * Wrap the video buffer payload into a net_buf from mpipe's pool. The
+	 * net_buf is freed on its last unref and the payload comes back here.
+	 */
+	nb = net_buf_alloc_with_data(pool->nb_pool, vbuf->buffer, vbuf->size, K_NO_WAIT);
+	if (nb == NULL) {
+		k_fifo_put(&zbpc->fifo, vbuf);
+		return -ENOBUFS;
+	}
+
+	m = mpipe_buffer_get_meta(nb);
+	m->pool = pool;
+	m->driver_buf = vbuf;
+	m->bytes_used = vbuf->bytesused;
+	m->timestamp = vbuf->timestamp;
+	nb->len = m->bytes_used;
 
 	*buf = nb;
 
@@ -88,15 +88,17 @@ static int mpipe_vid_buffer_pool_client_release_buffer(struct mpipe_buffer_pool 
 	__ASSERT_NO_MSG(pool != NULL);
 	__ASSERT_NO_MSG(buf != NULL);
 
+	/* The net_buf is about to be freed: only the video buffer is recycled */
 	m = mpipe_buffer_get_meta(buf);
-	vbuf = m ? (struct video_buffer *)m->driver_buf : NULL;
-	if (vbuf != NULL) {
-		m->bytes_used = vbuf->bytesused;
-		m->timestamp = vbuf->timestamp;
-		buf->len = m->bytes_used;
+	vbuf = (m != NULL) ? (struct video_buffer *)m->driver_buf : NULL;
+	if (vbuf == NULL) {
+		return -EINVAL;
 	}
 
-	k_fifo_put(&zbpc->fifo, buf);
+	vbuf->bytesused = m->bytes_used;
+	vbuf->timestamp = m->timestamp;
+
+	k_fifo_put(&zbpc->fifo, vbuf);
 
 	return 0;
 }
