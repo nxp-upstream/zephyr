@@ -9,8 +9,9 @@
  * @ingroup mpipe_img_jpeg_decoders
  * @brief Software JPEG decoder transform element.
  *
- * Decodes JPEG-compressed frames into raw pixel data using a software
- * decoder. Operates as a transform element within a media pipeline.
+ * Decodes JPEG-compressed frames into raw pixel data with the jpegdec
+ * module. Operates as a transform element within a media pipeline and is
+ * built with CONFIG_MPIPE_IMG_JPEG_DECODER.
  */
 
 #ifndef ZEPHYR_INCLUDE_MPIPE_IMG_MPIPE_IMG_JPEG_DECODER_H_
@@ -24,7 +25,7 @@
  */
 
 #include <zephyr/mpipe/mpipe_transform.h>
-#include <zephyr/mpipe/img/jpeg_dec.h>
+#include <JPEGDEC.h>
 
 /**
  * @brief Software JPEG decoder element.

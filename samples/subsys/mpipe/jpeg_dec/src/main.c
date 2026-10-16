@@ -18,7 +18,6 @@
 #include <zephyr/mpipe/base/mpipe_caps_filter.h>
 #include <zephyr/mpipe/disp/mpipe_disp_sink.h>
 #include <zephyr/mpipe/fs/mpipe_file_src.h>
-#include <zephyr/mpipe/img/mpipe_img_jpeg_decoder.h>
 #include <zephyr/mpipe/img/mpipe_img_jpeg_parser.h>
 #include <zephyr/mpipe/utils/mpipe_player.h>
 #if DT_HAS_CHOSEN(zephyr_jpegdec) || DT_HAS_CHOSEN(zephyr_videotrans)
@@ -26,6 +25,10 @@
 #endif
 #if DT_HAS_CHOSEN(zephyr_jpegdec)
 #include <zephyr/mpipe/vid/mpipe_vid_convert.h>
+#elif defined(CONFIG_MPIPE_IMG_JPEG_DECODER)
+#include <zephyr/mpipe/img/mpipe_img_jpeg_decoder.h>
+#else
+#error "jpeg_dec needs a zephyr,jpegdec device or CONFIG_MPIPE_IMG_JPEG_DECODER"
 #endif
 
 LOG_MODULE_REGISTER(main, CONFIG_LOG_DEFAULT_LEVEL);
