@@ -1,0 +1,104 @@
+#
+# Copyright 2026 NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+config MPIPE_ERPC
+	bool "eRPC backend for the client elements"
+	depends on MPIPE_RPC
+	depends on ZEPHYR_ERPC_MODULE
+	help
+	  Provide the RPC channels of the client elements over eRPC, with the
+	  Zephyr IPC service as the transport.
+
+	  Each client element has a channel of its own, so a pipeline can hold
+	  several client elements of the same kind, on one endpoint each or
+	  sharing one. The eRPC objects are static: no channel takes memory
+	  from the heap when eRPC uses its static allocation policy
+	  (ERPC_ALLOCATION_POLICY_STATIC).
+
+	  The interface definitions are compiled at build time by the erpcgen
+	  host tool.
+
+	  The library and its transport are the module's own options, ERPC
+	  and ERPC_TRANSPORT_IPC_SERVICE: the application enables both.
+
+if MPIPE_ERPC
+
+config MPIPE_ERPC_CHANNELS_NUM
+	int "Number of eRPC channels"
+	default 1
+	range 1 255
+	help
+	  Number of client elements that can have an eRPC channel.
+
+config MPIPE_ERPC_ENDPOINTS_NUM
+	int "Number of eRPC endpoints of the channels"
+	default MPIPE_ERPC_CHANNELS_NUM
+	range 1 MPIPE_ERPC_CHANNELS_NUM
+	help
+	  Number of IPC service endpoints the channels use. Channels that name
+	  the same endpoint share one eRPC client and one server on the other
+	  core. With the static allocation policy of eRPC, ERPC_CODEC_COUNT
+	  must be at least this number.
+
+config MPIPE_ERPC_INIT_DELAY_MS
+	int "Delay before the first exchange with the remote core (in milliseconds)"
+	default 300
+	help
+	  Time a channel waits before it talks to the remote core,
+	  which may still be booting when the pipeline is built.
+
+endif # MPIPE_ERPC
+
+config MPIPE_ERPC_SERVER
+	bool "eRPC binding of the pipeline server"
+	depends on MPIPE_PIPELINE_SERVER
+	depends on ZEPHYR_ERPC_MODULE
+	help
+	  Receive the calls of the client elements of another core over eRPC,
+	  with the Zephyr IPC service as the transport, and answer them with a
+	  pipeline server. This is the server side of the channels the eRPC
+	  backend of the client elements (MPIPE_ERPC) provides. A plugin adds
+	  the calls of its media type.
+
+	  The library and its transport are the module's own options, ERPC
+	  and ERPC_TRANSPORT_IPC_SERVICE: the application enables both.
+
+config MPIPE_ERPC_SERVERS_NUM
+	int "Number of eRPC pipeline servers"
+	default 1
+	range 1 255
+	depends on MPIPE_ERPC_SERVER
+	help
+	  Number of pipelines that can be served over eRPC, each on an
+	  endpoint of its own. With the static allocation policy of eRPC,
+	  ERPC_CODEC_COUNT must be at least this number.
+
+config MPIPE_ERPC_SERVER_PRODUCE_TIMEOUT_MS
+	int "Time a served source is waited for (in milliseconds)"
+	default 50
+	range 1 10000
+	depends on MPIPE_ERPC_SERVER
+	help
+	  How long the server waits for the next buffer of a pipeline that
+	  has a source of its own before it tells the source client that
+	  nothing came. The client then asks again. The other client elements
+	  of the endpoint wait during that time, and so does a stop.
+
+config MPIPE_ERPC_VID
+	bool "eRPC channels for the video client elements"
+	default y
+	depends on MPIPE_ERPC && MPIPE_VID
+	help
+	  Carry the format calls of the video client elements over their eRPC
+	  channels.
+
+config MPIPE_ERPC_VID_SERVER
+	bool "eRPC binding of the video pipeline server"
+	depends on MPIPE_ERPC_SERVER && MPIPE_VID_PIPELINE_SERVER
+	help
+	  Answer the format calls of the video client elements of another
+	  core over eRPC with a pipeline server: the video side of the eRPC
+	  binding of the pipeline server (MPIPE_ERPC_SERVER).

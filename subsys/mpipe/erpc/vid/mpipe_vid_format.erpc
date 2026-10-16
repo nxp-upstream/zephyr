@@ -1,0 +1,59 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * RPC interface between the video client elements and their servers on the
+ * remote core, for the formats. The buffers and the states go through the
+ * interface every client element uses, subsys/mpipe/erpc/mpipe_stream.erpc,
+ * which also lists the interface numbers. Both sides are generated from this
+ * file with erpcgen.
+ *
+ * The wire types are the interface's own: the clients convert them from and
+ * to the Zephyr video types, and a server needs no Zephyr or mpipe header.
+ * The pad direction values are those of enum mpipe_rpc_pad_direction of the
+ * common interface, and the instance is the one the element opened there.
+ */
+
+program mpipe_vid_format
+
+/* Mirrors struct video_format; type is reserved in the IDL, hence the rename */
+struct mpipe_rpc_video_format {
+	uint8 buf_type @name("type");
+	uint32 pixelformat;
+	uint32 width;
+	uint32 height;
+	uint32 pitch;
+	uint32 size;
+}
+
+/* Mirrors struct video_format_cap */
+struct mpipe_rpc_video_format_cap {
+	uint32 pixelformat;
+	uint32 width_min;
+	uint32 width_max;
+	uint32 height_min;
+	uint32 height_max;
+	uint16 width_step;
+	uint16 height_step;
+}
+
+/*
+ * A structure argument is declared as an array of one element: erpcgen then
+ * keeps it on the stack of the server, where it allocates a plain structure
+ * from the heap.
+ */
+@id(2)
+interface MpipeVidFormat {
+	@error_return(-5)
+	mpipe_vid_format_get_buf_caps(in uint32 instance, in uint8 direction, out uint8 min_buffers, out uint16 buf_align) -> int32
+	@error_return(-5)
+	mpipe_vid_format_get_caps(in uint32 instance, in uint8 direction, in uint8 ind, out mpipe_rpc_video_format_cap[1] vfc) -> int32
+	@error_return(-5)
+	mpipe_vid_format_set(in uint32 instance, inout mpipe_rpc_video_format[1] fmt) -> int32
+	/* A sink has no opposite pad and does not serve this call */
+	@error_return(-5)
+	mpipe_vid_format_transform_cap(in uint32 instance, in uint8 direction, in uint16 ind, in mpipe_rpc_video_format_cap[1] vfc, out mpipe_rpc_video_format_cap[1] other_vfc) -> int32
+}
