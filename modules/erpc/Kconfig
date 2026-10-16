@@ -1,0 +1,8 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+# The module carries its own Kconfig; this keeps ZEPHYR_ERPC_MODULE defined
+# when the module is absent.
+
+config ZEPHYR_ERPC_MODULE
+	bool

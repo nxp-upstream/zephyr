@@ -7068,6 +7068,15 @@ West:
   labels:
     - "area: Tests"
 
+"West project: erpc":
+  status: maintained
+  maintainers:
+    - ngphibang
+  files:
+    - modules/erpc/
+  labels:
+    - "area: Multimedia Pipeline"
+
 "West project: fatfs":
   status: maintained
   maintainers:
