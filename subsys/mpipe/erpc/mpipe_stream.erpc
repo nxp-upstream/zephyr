@@ -1,0 +1,72 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * RPC interface between a client element and its server on the remote core:
+ * the calls every client element makes, whatever it carries. Both sides are
+ * generated from this file with erpcgen.
+ *
+ * What depends on the kind of data, the formats above all, is in an interface
+ * of each plugin. A client and its server carry both interfaces on one
+ * endpoint, so each interface has a number of its own:
+ *
+ *   1  MpipeStream     (this file)
+ *   2  MpipeVidFormat  (subsys/mpipe/erpc/vid/mpipe_vid_format.erpc)
+ *
+ * One endpoint carries the calls of one client element or of several. Each
+ * element opens an instance on the server and names it in every call, so a
+ * server can run several instances, of the same function or not, behind one
+ * endpoint and in one thread; it then answers one call at a time. Elements
+ * whose servers must work at the same time use an endpoint each.
+ *
+ * The state transition values match enum mpipe_state_change. A server needs
+ * no Zephyr or mpipe header.
+ */
+
+program mpipe_stream
+
+/*
+ * Pad of a client element, for the interfaces of the plugins. The values match
+ * enum mpipe_pad_direction and cross the wire as uint8.
+ */
+enum mpipe_rpc_pad_direction {
+	MPIPE_RPC_PAD_UNKNOWN = 0,
+	MPIPE_RPC_PAD_SRC = 1,
+	MPIPE_RPC_PAD_SINK = 2
+}
+
+/*
+ * Every function returns 0 or a negative errno. A call that fails in eRPC
+ * itself returns -EIO (-5), set by @error_return.
+ */
+@id(1)
+interface MpipeStream {
+	/*
+	 * Open what the client element runs on the server. The function number
+	 * is the server's own: a server that runs one thing knows function 0
+	 * only. The instance returned goes with every later call of the
+	 * element, in this interface and in the one of its plugin.
+	 */
+	@error_return(-5)
+	mpipe_stream_open(in uint32 function, out uint32 instance) -> int32
+	/*
+	 * Process one buffer. A server that returns no buffer, a sink, is given
+	 * no output buffer. An out_sz of 0 means that the server produced
+	 * nothing for this input.
+	 *
+	 * A server that has a source of its own is given no input buffer and
+	 * fills the output buffer with its next buffer. It waits for one for a
+	 * bounded time: -EAGAIN (-11) says that nothing came and that the
+	 * client asks again, -ENODATA (-61) that its stream ended.
+	 */
+	@error_return(-5)
+	mpipe_stream_process(in uint32 instance, in uint32 in_buf, in uint32 in_sz, in uint32 out_buf, in uint32 out_cap, out uint32 out_sz) -> int32
+	@error_return(-5)
+	mpipe_stream_set_state(in uint32 instance, in uint8 transition) -> int32
+	/* Returns once the server has flushed what it held */
+	@error_return(-5)
+	mpipe_stream_eos(in uint32 instance) -> int32
+}
