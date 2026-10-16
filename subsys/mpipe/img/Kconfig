@@ -6,7 +6,7 @@ config MPIPE_IMG
 	help
 	  Elements that turn a coded image stream into frames and decode them: a
 	  JPEG parser that finds frame boundaries in undifferentiated bytes, and
-	  a software JPEG decoder that produces raw pixels.
+	  an optional software JPEG decoder that produces raw pixels.
 
 	  The two are separate because the split is real. The parser is what
 	  first knows the format, and it can be followed either by the software
@@ -32,6 +32,17 @@ config MPIPE_IMG_JPEG_PARSER_POOL_NUM
 	  Number of buffers in the parser's internal staging pool.
 	  2 is usually enough (one partial, one output).
 
+config MPIPE_IMG_JPEG_DECODER
+	bool "Software JPEG decoder element"
+	depends on ZEPHYR_JPEGDEC_MODULE
+	select JPEGDEC
+	help
+	  Transform element that decodes JPEG frames to raw pixels with the
+	  jpegdec module. Boards with a JPEG decoder block use the video
+	  plugin's transform element instead.
+
+if MPIPE_IMG_JPEG_DECODER
+
 config MPIPE_IMG_JPEG_DECODER_POOL_NUM
 	int "Number of buffers in the jpeg decoder's output pool"
 	range 1 255
@@ -50,5 +61,7 @@ config MPIPE_IMG_JPEG_DECODER_MAX_OUT_FRAME_SIZE
 	help
 	  Maximum decoded output frame size in bytes for the SW JPEG decoder internal pool.
 	  Default value is set for 320x240 RGB565 format.
+
+endif # MPIPE_IMG_JPEG_DECODER
 
 endif # MPIPE_IMG
