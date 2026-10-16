@@ -1,0 +1,24 @@
+sample:
+  name: Multi-core MJPEG file decode pipeline
+
+tests:
+  sample.mpipe.multicore:
+    tags:
+      - mpipe
+      - video
+      - filesystem
+    platform_allow:
+      - mimxrt1170_evk@B/mimxrt1176/cm7
+    integration_platforms:
+      - mimxrt1170_evk@B/mimxrt1176/cm7
+    modules:
+      - erpc
+      - jpegdec
+    sysbuild: true
+    harness: console
+    extra_args:
+      - multicore_SHIELD="rk055hdmipi4ma0"
+    harness_config:
+      type: one_line
+      regex:
+        - "end of stream"
