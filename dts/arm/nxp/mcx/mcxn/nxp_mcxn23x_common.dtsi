@@ -976,6 +976,8 @@
 		regulator-name = "mcxn23x-vref";
 		reg = <0x111000 0x14>;
 		status = "disabled";
+		clocks = <&syscon MCUX_VREF_CLK>;
+		nxp,spc = <&spc>;
 		#nxp,reference-cells = <1>;
 		nxp,buffer-startup-delay-us = <400>;
 		nxp,bandgap-startup-time-us = <20>;
@@ -985,6 +987,8 @@
 		regulator-min-microvolt = <1000000>;
 		regulator-max-microvolt = <2100000>;
 		power-domains = <&core_domain>;
+		/* Low-power analog retention is not configured; DPD also resets registers. */
+		zephyr,disabling-power-states = <&deepsleep &powerdown &deeppowerdown>;
 	};
 
 	lpadc0: lpadc@10d000 {
