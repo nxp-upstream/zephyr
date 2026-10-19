@@ -151,6 +151,26 @@
 	#address-cells = <1>;
 	#size-cells = <1>;
 
+	vref: vref@bb000 {
+		compatible = "nxp,vref";
+		reg = <0xbb000 0x14>;
+		regulator-name = "mcxa-vref";
+		status = "disabled";
+		clocks = <&syscon MCUX_VREF_CLK>;
+		nxp,spc = <&spc>;
+		#nxp,reference-cells = <1>;
+		nxp,buffer-startup-delay-us = <400>;
+		nxp,bandgap-startup-time-us = <20>;
+		nxp,current-compensation-en;
+		nxp,internal-voltage-regulator-en;
+		nxp,chop-oscillator-en;
+		regulator-min-microvolt = <1000000>;
+		regulator-max-microvolt = <2500000>;
+		power-domains = <&core_domain>;
+		/* Low-power analog retention is not configured; DPD also resets registers. */
+		zephyr,disabling-power-states = <&deepsleep &powerdown &deeppowerdown>;
+	};
+
 	syscon: syscon@91000 {
 		compatible = "nxp,lpc-syscon";
 		reg = <0x91000 0x4000>;
