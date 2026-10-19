@@ -38,7 +38,6 @@ struct mcux_wwdt_data {
 	wdt_callback_t callback;
 	wwdt_config_t wwdt_config;
 	bool timeout_valid;
-	bool active_before_sleep;
 	bool started;
 };
 
@@ -120,7 +119,6 @@ static int mcux_wwdt_disable(const struct device *dev)
 
 	WWDT_Deinit(base);
 	data->timeout_valid = false;
-	data->active_before_sleep = false;
 	data->started = false;
 	LOG_DBG("Disabled the watchdog");
 
@@ -251,34 +249,49 @@ static void mcux_wwdt_isr(const struct device *dev)
 }
 
 /*
- * Power Management:
- * When the system enters sleep mode, this driver maintains awareness
- * of whether the WWDT was active. After wake up, the WDT counter
- * resets to its reload value.
+ * A state that power gates the WWDT resets its register block, clock gate
+ * included, which stops a running watchdog. TURN_ON restarts a watchdog the
+ * consumer had set up from the configuration kept in RAM, and leaves one whose
+ * register block kept MOD[WDEN] set alone: initialising it again would feed
+ * it, and a feed above the window is itself a watchdog event.
  */
-static int mcux_wwdt_driver_pm_action(const struct device *dev,
-				      enum pm_device_action action)
+static int mcux_wwdt_turn_on(const struct device *dev)
 {
 	const struct mcux_wwdt_config *config = dev->config;
 	struct mcux_wwdt_data *data = dev->data;
+	WWDT_Type *base = config->base;
+	int ret;
+
+	ret = clock_control_on(config->clock_dev, config->clock_subsys);
+	if (ret) {
+		LOG_ERR("Failed to enable clock: %d", ret);
+		return ret;
+	}
+
+	if (data->started && ((base->MOD & WWDT_MOD_WDEN_MASK) == 0U)) {
+		mcux_wwdt_set_clock_divider(dev);
+		WWDT_Init(base, &data->wwdt_config);
+		LOG_DBG("Restarted the watchdog");
+	}
+
+	return 0;
+}
+
+static int mcux_wwdt_driver_pm_action(const struct device *dev,
+				      enum pm_device_action action)
+{
 	int err = 0;
 
 	switch (action) {
 	case PM_DEVICE_ACTION_RESUME:
 		break;
 	case PM_DEVICE_ACTION_TURN_ON:
-		if (data->active_before_sleep) {
-			err = mcux_wwdt_setup(dev, 0);
-			data->active_before_sleep = false;
-		}
+		err = mcux_wwdt_turn_on(dev);
 		break;
 	case PM_DEVICE_ACTION_SUSPEND:
 		break;
 	case PM_DEVICE_ACTION_TURN_OFF:
-		data->started = false;
-		if (config->base->MOD & WWDT_MOD_WDEN_MASK) {
-			data->active_before_sleep = true;
-		}
+		/* Whether the watchdog was started, and how, is kept in RAM. */
 		break;
 	default:
 		err = -ENOTSUP;
