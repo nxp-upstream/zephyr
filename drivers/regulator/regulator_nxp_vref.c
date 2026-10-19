@@ -251,6 +251,7 @@ static int regulator_nxp_vref_configure_hw(const struct device *dev)
 	const struct regulator_nxp_vref_config *config = dev->config;
 	struct regulator_nxp_vref_data *data = dev->data;
 	VREF_Type *const base = config->base;
+	uint32_t csr;
 	int ret;
 
 	if (config->clock_dev) {
@@ -273,19 +274,19 @@ static int regulator_nxp_vref_configure_hw(const struct device *dev)
 		}
 	}
 
-	regulator_nxp_vref_disable_hw(dev);
-
+	csr = base->CSR & ~(NXP_VREF_CONFIG_MASK | NXP_VREF_ENABLE_MASK | VREF_CSR_HI_PWR_LV_MASK);
 	if (config->current_compensation_en) {
-		base->CSR |= VREF_CSR_ICOMPEN_MASK;
+		csr |= VREF_CSR_ICOMPEN_MASK;
 	}
 
 	if (config->chop_oscillator_en) {
-		base->CSR |= VREF_CSR_CHOPEN_MASK;
+		csr |= VREF_CSR_CHOPEN_MASK;
 	}
 
 	if (config->internal_voltage_regulator_en) {
-		base->CSR |= VREF_CSR_REGEN_MASK;
+		csr |= VREF_CSR_REGEN_MASK;
 	}
+	base->CSR = csr;
 
 	if (data->trim_set) {
 		/*
