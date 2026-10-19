@@ -216,11 +216,17 @@ static int mcux_wwdt_install_timeout(const struct device *dev,
 static int mcux_wwdt_feed(const struct device *dev, int channel_id)
 {
 	const struct mcux_wwdt_config *config = dev->config;
+	struct mcux_wwdt_data *data = dev->data;
 	WWDT_Type *base = config->base;
 
 	if (channel_id != 0) {
 		LOG_ERR("Invalid channel id");
 		return -EINVAL;
+	}
+
+	if (!data->started) {
+		/* Nothing is counting, and the bus clock may be gated. */
+		return 0;
 	}
 
 	WWDT_Refresh(base);
@@ -274,21 +280,38 @@ static int mcux_wwdt_turn_on(const struct device *dev)
 		LOG_DBG("Restarted the watchdog");
 	}
 
+	if (!data->started) {
+		/* A resume takes the clock back. */
+		return clock_control_off(config->clock_dev, config->clock_subsys);
+	}
+
 	return 0;
 }
 
+/*
+ * A started watchdog cannot be stopped by software: MOD[WDEN] only returns to
+ * 0 on a reset. A suspend leaves a running watchdog counting, with its bus
+ * clock on so that feeds keep reaching it, and releases the bus clock of a
+ * watchdog that is not running. A resume takes the bus clock back.
+ */
 static int mcux_wwdt_driver_pm_action(const struct device *dev,
 				      enum pm_device_action action)
 {
+	const struct mcux_wwdt_config *config = dev->config;
+	struct mcux_wwdt_data *data = dev->data;
 	int err = 0;
 
 	switch (action) {
 	case PM_DEVICE_ACTION_RESUME:
+		err = clock_control_on(config->clock_dev, config->clock_subsys);
 		break;
 	case PM_DEVICE_ACTION_TURN_ON:
 		err = mcux_wwdt_turn_on(dev);
 		break;
 	case PM_DEVICE_ACTION_SUSPEND:
+		if (!data->started) {
+			err = clock_control_off(config->clock_dev, config->clock_subsys);
+		}
 		break;
 	case PM_DEVICE_ACTION_TURN_OFF:
 		/* Whether the watchdog was started, and how, is kept in RAM. */
