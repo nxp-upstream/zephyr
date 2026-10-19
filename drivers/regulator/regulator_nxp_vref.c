@@ -235,60 +235,47 @@ static int regulator_nxp_vref_configure_hw(const struct device *dev)
 {
 	const struct regulator_nxp_vref_config *config = dev->config;
 	struct regulator_nxp_vref_data *data = dev->data;
-	VREF_Type *const base = config->base;
+	VREF_Type *base = config->base;
+	uint32_t csr;
 	int ret;
 
-	if (config->clock_dev) {
+	if (config->clock_dev != NULL) {
 		if (!device_is_ready(config->clock_dev)) {
-			LOG_ERR("clock device not ready");
+			LOG_ERR("Clock device not ready");
 			return -ENODEV;
 		}
-
 		ret = clock_control_configure(config->clock_dev, config->clock_subsys, NULL);
-		if (ret && ret != -ENOSYS) {
-			/* Real error occurred */
+		if (ret != 0 && ret != -ENOSYS) {
 			LOG_ERR("Failed to configure clock: %d", ret);
 			return ret;
 		}
-
 		ret = clock_control_on(config->clock_dev, config->clock_subsys);
-		if (ret) {
+		if (ret != 0) {
 			LOG_ERR("Failed to enable clock: %d", ret);
 			return ret;
 		}
 	}
 
-	regulator_nxp_vref_disable_hw(dev);
 
+	csr = base->CSR & ~(NXP_VREF_CONFIG_MASK | NXP_VREF_ENABLE_MASK | VREF_CSR_HI_PWR_LV_MASK);
 	if (config->current_compensation_en) {
-		base->CSR |= VREF_CSR_ICOMPEN_MASK;
+		csr |= VREF_CSR_ICOMPEN_MASK;
 	}
-
 	if (config->chop_oscillator_en) {
-		base->CSR |= VREF_CSR_CHOPEN_MASK;
+		csr |= VREF_CSR_CHOPEN_MASK;
 	}
-
 	if (config->internal_voltage_regulator_en) {
-		base->CSR |= VREF_CSR_REGEN_MASK;
+		csr |= VREF_CSR_REGEN_MASK;
 	}
+	base->CSR = csr;
 
 	if (data->trim_set) {
-		/*
-		 * A trim asked for through set_voltage() is the consumer's choice
-		 * of output voltage, and nothing else puts it back once the block
-		 * has been reset, so restore it rather than the reset value.
-		 */
 		base->UTRIM = (base->UTRIM & ~NXP_VREF_TRIM_MASK) |
 			      (((uint32_t)data->trim << NXP_VREF_TRIM_SHIFT) & NXP_VREF_TRIM_MASK);
 	} else if (!NXP_VREF_TRIM_IS_FACTORY) {
-		/*
-		 * Start from the bottom of the trim range. On the VREFTRIM-only
-		 * variant the trim register holds a factory value loaded at
-		 * reset instead, so it is left intact.
-		 */
+		/* Preserve the factory fine trim while selecting the minimum coarse voltage. */
 		base->UTRIM &= ~NXP_VREF_TRIM_MASK;
 	}
-
 	return 0;
 }
 
