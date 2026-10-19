@@ -654,6 +654,7 @@
 			compatible = "nxp,lpc-wwdt";
 			reg = <0x4000c000 0x1000>;
 			clocks = <&syscon MCUX_WWDT0_CLK>;
+			power-domains = <&core_domain>;
 			interrupts = <60 0>;
 			status = "disabled";
 			clk-divider = <1>;
