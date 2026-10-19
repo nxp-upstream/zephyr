@@ -85,6 +85,9 @@ struct regulator_nxp_vref_config {
 	bool internal_voltage_regulator_en;
 	const struct device *clock_dev;
 	clock_control_subsys_t clock_subsys;
+#if defined(FSL_FEATURE_SOC_SPC_COUNT) && FSL_FEATURE_SOC_SPC_COUNT > 0
+	SPC_Type *spc;
+#endif
 };
 
 static void regulator_nxp_vref_power_lock(const struct device *dev, bool enabled)
@@ -358,6 +361,12 @@ static int regulator_nxp_vref_configure_hw(const struct device *dev)
 		}
 	}
 
+#if defined(FSL_FEATURE_SOC_SPC_COUNT) && FSL_FEATURE_SOC_SPC_COUNT > 0
+	/* SPC SOC_CNTRL bit 0 supplies the VREF analog block. */
+	if (config->spc != NULL) {
+		config->spc->ACTIVE_CFG1 |= SPC_ACTIVE_CFG1_SOC_CNTRL(BIT(0));
+	}
+#endif
 
 	csr = base->CSR & ~(NXP_VREF_CONFIG_MASK | NXP_VREF_ENABLE_MASK | VREF_CSR_HI_PWR_LV_MASK);
 	if (config->current_compensation_en) {
@@ -437,6 +446,13 @@ static int regulator_nxp_vref_init(const struct device *dev)
 	return regulator_nxp_vref_release(dev, ret);
 }
 
+#if defined(FSL_FEATURE_SOC_SPC_COUNT) && FSL_FEATURE_SOC_SPC_COUNT > 0
+#define NXP_VREF_SPC_CONFIG(inst) \
+	.spc = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, nxp_spc), \
+			  ((SPC_Type *)DT_REG_ADDR(DT_INST_PHANDLE(inst, nxp_spc))), (NULL)),
+#else
+#define NXP_VREF_SPC_CONFIG(inst)
+#endif
 
 #define REGULATOR_NXP_VREF_DEFINE(inst)								\
 	static struct regulator_nxp_vref_data data_##inst;				\
@@ -454,6 +470,7 @@ static int regulator_nxp_vref_init(const struct device *dev)
 		.clock_subsys = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, clocks),		\
 			((clock_control_subsys_t)DT_INST_CLOCKS_CELL(inst, name)),		\
 			((clock_control_subsys_t)0)),					\
+		NXP_VREF_SPC_CONFIG(inst)						\
 	};										\
 	PM_DEVICE_DT_INST_DEFINE(inst, regulator_nxp_vref_pm_action);			\
 	DEVICE_DT_INST_DEFINE(inst, regulator_nxp_vref_init, PM_DEVICE_DT_INST_GET(inst),	\
