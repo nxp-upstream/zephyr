@@ -123,8 +123,11 @@ static int regulator_nxp_vref_enable_hw(const struct device *dev)
 	base->CSR |= VREF_CSR_HCBGEN_MASK;
 
 	/* Monitor until stable */
-	while ((base->CSR & VREF_CSR_VREFST_MASK) == 0U) {
-		;
+	if (!WAIT_FOR((base->CSR & VREF_CSR_VREFST_MASK) != 0U,
+		      config->buf_start_delay + config->bg_start_time, k_busy_wait(1))) {
+		regulator_nxp_vref_disable_hw(dev);
+		LOG_ERR("Reference did not stabilize");
+		return -ETIMEDOUT;
 	}
 
 	regulator_nxp_vref_apply_mode(dev);
