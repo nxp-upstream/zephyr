@@ -20,6 +20,12 @@ properties:
   reg:
     required: true
 
+  nxp,spc:
+    type: phandle
+    description: |
+      SPC controller providing the analog supply on MCXN and MCXA variants
+      with SPC-controlled VREF power.
+
   nxp,buffer-startup-delay-us:
     type: int
     required: true
