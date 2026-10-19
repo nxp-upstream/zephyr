@@ -94,15 +94,30 @@ static inline int mcux_wwdt_get_clock_frequency(const struct device *dev, uint32
 	return 0;
 }
 
+/*
+ * With CONFIG_PM_DEVICE_RUNTIME the consumer owns the device's lifetime. A
+ * running watchdog has no completion event the driver could hang a
+ * pm_device_runtime_put() on, so the driver takes no runtime reference of its
+ * own: call pm_device_runtime_get() before wdt_setup() and keep the reference
+ * for as long as the watchdog runs. A setup on a device that is not active
+ * returns -EBUSY and leaves the hardware untouched.
+ */
 static int mcux_wwdt_setup(const struct device *dev, uint8_t options)
 {
 	const struct mcux_wwdt_config *config = dev->config;
 	struct mcux_wwdt_data *data = dev->data;
 	WWDT_Type *base = config->base;
+	enum pm_device_state state = PM_DEVICE_STATE_ACTIVE;
 
 	if (!data->timeout_valid) {
 		LOG_ERR("No valid timeouts installed");
 		return -EINVAL;
+	}
+
+	(void)pm_device_state_get(dev, &state);
+	if (state != PM_DEVICE_STATE_ACTIVE) {
+		LOG_ERR("Watchdog is not active");
+		return -EBUSY;
 	}
 
 	WWDT_Init(base, &data->wwdt_config);
