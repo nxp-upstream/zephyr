@@ -1,6 +1,10 @@
 /*
  * Copyright 2023-2026 NXP
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * The first regulator enable holds a runtime PM reference until the last
+ * disable. Configuration operations take temporary references without
+ * enabling the output.
  */
 
 #define DT_DRV_COMPAT nxp_vref
@@ -12,6 +16,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/pm/device.h>
+#include <zephyr/pm/device_runtime.h>
 #include <zephyr/sys/linear_range.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/logging/log.h>
@@ -67,6 +72,7 @@ static const struct linear_range utrim_ranges[] = {
 
 struct regulator_nxp_vref_data {
 	struct regulator_common_data common;
+	struct k_mutex lock;
 	uint16_t trim;
 	regulator_mode_t mode;
 	bool trim_set;
@@ -84,6 +90,7 @@ struct regulator_nxp_vref_config {
 	const struct device *clock_dev;
 	clock_control_subsys_t clock_subsys;
 };
+
 
 static void regulator_nxp_vref_disable_hw(const struct device *dev)
 {
@@ -134,47 +141,110 @@ static int regulator_nxp_vref_enable_hw(const struct device *dev)
 	return 0;
 }
 
+static int regulator_nxp_vref_release(const struct device *dev, int result)
+{
+	int ret = pm_device_runtime_put(dev);
+
+	if (ret < 0) {
+		LOG_ERR("Failed to release runtime reference: %d", ret);
+	}
+	return result < 0 ? result : ret;
+}
+
+static int regulator_nxp_vref_acquire(const struct device *dev)
+{
+	enum pm_device_state state;
+	int ret;
+
+	ret = pm_device_runtime_get(dev);
+	if (ret < 0) {
+		return ret;
+	}
+	ret = pm_device_state_get(dev, &state);
+	if (ret < 0 || state != PM_DEVICE_STATE_ACTIVE) {
+		return regulator_nxp_vref_release(dev, ret < 0 ? ret : -EBUSY);
+	}
+	return 0;
+}
+
 static int regulator_nxp_vref_enable(const struct device *dev)
 {
 	struct regulator_nxp_vref_data *data = dev->data;
-	int ret = regulator_nxp_vref_enable_hw(dev);
+	int ret;
 
+	ret = regulator_nxp_vref_acquire(dev);
+	if (ret < 0) {
+		return ret;
+	}
+	k_mutex_lock(&data->lock, K_FOREVER);
+	ret = regulator_nxp_vref_enable_hw(dev);
 	if (ret == 0) {
 		data->enabled = true;
 	}
-	return ret;
+	k_mutex_unlock(&data->lock);
+
+	return ret < 0 ? regulator_nxp_vref_release(dev, ret) : 0;
 }
 
 static int regulator_nxp_vref_disable(const struct device *dev)
 {
 	struct regulator_nxp_vref_data *data = dev->data;
+	enum pm_device_state state;
+	int ret;
 
+	ret = pm_device_state_get(dev, &state);
+	if (ret < 0 || state != PM_DEVICE_STATE_ACTIVE) {
+		return ret < 0 ? ret : -EBUSY;
+	}
+	k_mutex_lock(&data->lock, K_FOREVER);
 	regulator_nxp_vref_disable_hw(dev);
 	data->enabled = false;
-	return 0;
+	k_mutex_unlock(&data->lock);
+
+	ret = regulator_nxp_vref_release(dev, 0);
+	if (ret < 0) {
+		k_mutex_lock(&data->lock, K_FOREVER);
+		data->enabled = true;
+		(void)regulator_nxp_vref_enable_hw(dev);
+		k_mutex_unlock(&data->lock);
+	}
+	return ret;
 }
 
 static int regulator_nxp_vref_set_mode(const struct device *dev, regulator_mode_t mode)
 {
 	struct regulator_nxp_vref_data *data = dev->data;
+	int ret;
 
 	if (mode != NXP_VREF_MODE_STANDBY && mode != NXP_VREF_MODE_LOW_POWER &&
 	    mode != NXP_VREF_MODE_HIGH_POWER) {
 		return -EINVAL;
 	}
+	ret = regulator_nxp_vref_acquire(dev);
+	if (ret < 0) {
+		return ret;
+	}
+	k_mutex_lock(&data->lock, K_FOREVER);
 	data->mode = mode;
 	if (data->enabled) {
 		regulator_nxp_vref_apply_mode(dev);
 	}
-	return 0;
+	k_mutex_unlock(&data->lock);
+	return regulator_nxp_vref_release(dev, 0);
 }
 
 static int regulator_nxp_vref_get_mode(const struct device *dev, regulator_mode_t *mode)
 {
-	const struct regulator_nxp_vref_data *data = dev->data;
+	struct regulator_nxp_vref_data *data = dev->data;
+	int ret = regulator_nxp_vref_acquire(dev);
 
+	if (ret < 0) {
+		return ret;
+	}
+	k_mutex_lock(&data->lock, K_FOREVER);
 	*mode = data->mode;
-	return 0;
+	k_mutex_unlock(&data->lock);
+	return regulator_nxp_vref_release(dev, 0);
 }
 
 static unsigned int regulator_nxp_vref_count_voltages(const struct device *dev)
@@ -213,26 +283,39 @@ static int regulator_nxp_vref_set_voltage(const struct device *dev, int32_t min_
 	if (ret < 0 || voltage < min_uv || voltage > max_uv) {
 		return -EINVAL;
 	}
+	ret = regulator_nxp_vref_acquire(dev);
+	if (ret < 0) {
+		return ret;
+	}
+	k_mutex_lock(&data->lock, K_FOREVER);
 	config->base->UTRIM = (config->base->UTRIM & ~NXP_VREF_TRIM_MASK) |
 			     (((uint32_t)idx << NXP_VREF_TRIM_SHIFT) & NXP_VREF_TRIM_MASK);
 	data->trim = idx;
 	data->trim_set = true;
+	k_mutex_unlock(&data->lock);
 
-	return 0;
+	return regulator_nxp_vref_release(dev, 0);
 }
 
 static int regulator_nxp_vref_get_voltage(const struct device *dev, int32_t *volt_uv)
 {
 	const struct regulator_nxp_vref_config *config = dev->config;
+	struct regulator_nxp_vref_data *data = dev->data;
 	uint16_t idx;
-	int ret;
+	int ret = regulator_nxp_vref_acquire(dev);
+
+	if (ret < 0) {
+		return ret;
+	}
+	k_mutex_lock(&data->lock, K_FOREVER);
 
 	/* Linear range index is the register value */
 	idx = (config->base->UTRIM & NXP_VREF_TRIM_MASK) >> NXP_VREF_TRIM_SHIFT;
 
 	ret = linear_range_group_get_value(utrim_ranges, ARRAY_SIZE(utrim_ranges), idx, volt_uv);
+	k_mutex_unlock(&data->lock);
 
-	return ret;
+	return regulator_nxp_vref_release(dev, ret);
 }
 
 static DEVICE_API(regulator, api) = {
@@ -341,14 +424,23 @@ static int regulator_nxp_vref_init(const struct device *dev)
 	int ret;
 
 	regulator_common_data_init(dev);
+	k_mutex_init(&data->lock);
 	data->mode = NXP_VREF_MODE_STANDBY;
 
 	ret = pm_device_driver_init(dev, regulator_nxp_vref_pm_action);
 	if (ret < 0) {
 		return ret;
 	}
-
-	return regulator_common_init(dev, false);
+	ret = pm_device_runtime_enable(dev);
+	if (ret < 0) {
+		return ret;
+	}
+	ret = regulator_nxp_vref_acquire(dev);
+	if (ret < 0) {
+		return ret;
+	}
+	ret = regulator_common_init(dev, false);
+	return regulator_nxp_vref_release(dev, ret);
 }
 
 #define REGULATOR_NXP_VREF_DEFINE(inst)                                                            \
