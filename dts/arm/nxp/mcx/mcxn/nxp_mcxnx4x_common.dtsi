@@ -1181,6 +1181,8 @@
 		regulator-name = "mcxn54x-vref";
 		reg = <0x111000 0x14>;
 		status = "disabled";
+		clocks = <&syscon MCUX_VREF_CLK>;
+		nxp,spc = <&spc>;
 		#nxp,reference-cells = <1>;
 		nxp,current-compensation-en;
 		nxp,internal-voltage-regulator-en;
@@ -1190,6 +1192,8 @@
 		regulator-min-microvolt = <1000000>;
 		regulator-max-microvolt = <2100000>;
 		power-domains = <&core_domain>;
+		/* Low-power analog retention is not configured; DPD also resets registers. */
+		zephyr,disabling-power-states = <&deepsleep &powerdown &deeppowerdown>;
 	};
 
 	lpadc0: adc@10d000 {
