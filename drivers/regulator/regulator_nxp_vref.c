@@ -149,8 +149,12 @@ static inline unsigned int regulator_nxp_vref_count_voltages(const struct device
 }
 
 static int regulator_nxp_vref_list_voltage(const struct device *dev, unsigned int idx,
-					   int32_t *volt_uv)
+					 int32_t *volt_uv)
 {
+	ARG_UNUSED(dev);
+	if (idx > UINT16_MAX) {
+		return -EINVAL;
+	}
 	return linear_range_get_value(&utrim_range, idx, volt_uv);
 }
 
@@ -158,21 +162,26 @@ static int regulator_nxp_vref_set_voltage(const struct device *dev, int32_t min_
 {
 	const struct regulator_nxp_vref_config *config = dev->config;
 	struct regulator_nxp_vref_data *data = dev->data;
-	VREF_Type *const base = config->base;
+	int32_t voltage;
 	uint16_t idx;
 	int ret;
 
-	ret = linear_range_get_win_index(&utrim_range, min_uv, max_uv, &idx);
-	if (ret < 0) {
+	if (min_uv > max_uv) {
+		return -EINVAL;
+	}
+	ret = linear_range_get_win_index(&utrim_range,
+					      min_uv, max_uv, &idx);
+	if (ret < 0 && ret != -ERANGE) {
 		return ret;
 	}
-
-	base->UTRIM = (base->UTRIM & ~NXP_VREF_TRIM_MASK) |
-		      (((uint32_t)idx << NXP_VREF_TRIM_SHIFT) & NXP_VREF_TRIM_MASK);
-
+	ret = linear_range_get_value(&utrim_range, idx, &voltage);
+	if (ret < 0 || voltage < min_uv || voltage > max_uv) {
+		return -EINVAL;
+	}
+	config->base->UTRIM = (config->base->UTRIM & ~NXP_VREF_TRIM_MASK) |
+			     (((uint32_t)idx << NXP_VREF_TRIM_SHIFT) & NXP_VREF_TRIM_MASK);
 	data->trim = idx;
 	data->trim_set = true;
-
 	return 0;
 }
 
