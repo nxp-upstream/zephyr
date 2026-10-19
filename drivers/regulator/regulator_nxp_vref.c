@@ -62,7 +62,9 @@ static const struct linear_range utrim_ranges[] = {
 struct regulator_nxp_vref_data {
 	struct regulator_common_data common;
 	uint16_t trim;
+	regulator_mode_t mode;
 	bool trim_set;
+	bool enabled;
 };
 
 struct regulator_nxp_vref_config {
@@ -77,7 +79,31 @@ struct regulator_nxp_vref_config {
 	clock_control_subsys_t clock_subsys;
 };
 
-static int regulator_nxp_vref_enable(const struct device *dev)
+static void regulator_nxp_vref_disable_hw(const struct device *dev)
+{
+	const struct regulator_nxp_vref_config *config = dev->config;
+
+	config->base->CSR &= ~NXP_VREF_ENABLE_MASK;
+}
+
+static void regulator_nxp_vref_apply_mode(const struct device *dev)
+{
+	const struct regulator_nxp_vref_config *config = dev->config;
+	const struct regulator_nxp_vref_data *data = dev->data;
+	uint32_t csr = config->base->CSR;
+
+	csr &= ~(VREF_CSR_HI_PWR_LV_MASK | VREF_CSR_BUF21EN_MASK);
+	if (data->mode != NXP_VREF_MODE_STANDBY) {
+		csr |= VREF_CSR_BUF21EN_MASK;
+	}
+	if (data->mode == NXP_VREF_MODE_HIGH_POWER) {
+		csr |= VREF_CSR_HI_PWR_LV_MASK;
+	}
+	config->base->CSR = csr;
+	k_busy_wait(config->buf_start_delay);
+}
+
+static int regulator_nxp_vref_enable_hw(const struct device *dev)
 {
 	const struct regulator_nxp_vref_config *config = dev->config;
 	VREF_Type *base = config->base;
@@ -85,59 +111,55 @@ static int regulator_nxp_vref_enable(const struct device *dev)
 	base->CSR |= NXP_VREF_BIAS_MASK | NXP_VREF_LP_BUFFER_MASK;
 	k_busy_wait(config->bg_start_time);
 	base->CSR |= VREF_CSR_HCBGEN_MASK;
+
 	while ((base->CSR & VREF_CSR_VREFST_MASK) == 0U) {
 		;
 	}
+
+	regulator_nxp_vref_apply_mode(dev);
 	return 0;
+}
+
+static int regulator_nxp_vref_enable(const struct device *dev)
+{
+	struct regulator_nxp_vref_data *data = dev->data;
+	int ret = regulator_nxp_vref_enable_hw(dev);
+
+	if (ret == 0) {
+		data->enabled = true;
+	}
+	return ret;
 }
 
 static int regulator_nxp_vref_disable(const struct device *dev)
 {
-	const struct regulator_nxp_vref_config *config = dev->config;
+	struct regulator_nxp_vref_data *data = dev->data;
 
-	config->base->CSR &= ~NXP_VREF_ENABLE_MASK;
+	regulator_nxp_vref_disable_hw(dev);
+	data->enabled = false;
 	return 0;
 }
 
 static int regulator_nxp_vref_set_mode(const struct device *dev, regulator_mode_t mode)
 {
-	const struct regulator_nxp_vref_config *config = dev->config;
-	VREF_Type *const base = config->base;
-	uint32_t csr = base->CSR;
+	struct regulator_nxp_vref_data *data = dev->data;
 
-	if (mode == NXP_VREF_MODE_STANDBY) {
-		csr &= ~(VREF_CSR_HI_PWR_LV_MASK | VREF_CSR_BUF21EN_MASK);
-	} else if (mode == NXP_VREF_MODE_LOW_POWER) {
-		csr &= ~VREF_CSR_HI_PWR_LV_MASK;
-		csr |= VREF_CSR_BUF21EN_MASK;
-	} else if (mode == NXP_VREF_MODE_HIGH_POWER) {
-		csr |= (VREF_CSR_HI_PWR_LV_MASK | VREF_CSR_BUF21EN_MASK);
-	} else {
+	if (mode != NXP_VREF_MODE_STANDBY && mode != NXP_VREF_MODE_LOW_POWER &&
+	    mode != NXP_VREF_MODE_HIGH_POWER) {
 		return -EINVAL;
 	}
-
-	base->CSR = csr;
-
-	k_busy_wait(config->buf_start_delay);
-
+	data->mode = mode;
+	if (data->enabled) {
+		regulator_nxp_vref_apply_mode(dev);
+	}
 	return 0;
 }
 
 static int regulator_nxp_vref_get_mode(const struct device *dev, regulator_mode_t *mode)
 {
-	const struct regulator_nxp_vref_config *config = dev->config;
-	VREF_Type *const base = config->base;
-	uint32_t csr = base->CSR;
+	const struct regulator_nxp_vref_data *data = dev->data;
 
-	/* Check bits to determine mode */
-	if ((csr & VREF_CSR_HI_PWR_LV_MASK) && (csr & VREF_CSR_BUF21EN_MASK)) {
-		*mode = NXP_VREF_MODE_HIGH_POWER;
-	} else if (csr & VREF_CSR_BUF21EN_MASK) {
-		*mode = NXP_VREF_MODE_LOW_POWER;
-	} else {
-		*mode = NXP_VREF_MODE_STANDBY;
-	}
-
+	*mode = data->mode;
 	return 0;
 }
 
@@ -233,10 +255,7 @@ static int regulator_nxp_vref_configure_hw(const struct device *dev)
 		}
 	}
 
-	ret = regulator_nxp_vref_disable(dev);
-	if (ret < 0) {
-		return ret;
-	}
+	regulator_nxp_vref_disable_hw(dev);
 
 	if (config->current_compensation_en) {
 		base->CSR |= VREF_CSR_ICOMPEN_MASK;
@@ -301,9 +320,11 @@ static int regulator_nxp_vref_pm_action(const struct device *dev, enum pm_device
 
 static int regulator_nxp_vref_init(const struct device *dev)
 {
+	struct regulator_nxp_vref_data *data = dev->data;
 	int ret;
 
 	regulator_common_data_init(dev);
+	data->mode = NXP_VREF_MODE_STANDBY;
 
 	ret = pm_device_driver_init(dev, regulator_nxp_vref_pm_action);
 	if (ret < 0) {
