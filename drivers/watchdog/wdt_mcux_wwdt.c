@@ -227,10 +227,16 @@ static int mcux_wwdt_install_timeout(const struct device *dev,
 static int mcux_wwdt_feed(const struct device *dev, int channel_id)
 {
 	const struct mcux_wwdt_config *config = dev->config;
+	struct mcux_wwdt_data *data = dev->data;
 	WWDT_Type *base = config->base;
 
 	if (channel_id != 0) {
 		LOG_ERR("Invalid channel id");
+		return -EINVAL;
+	}
+
+	if (MCUX_WWDT_MCX && (!data->timeout_valid || !data->started)) {
+		LOG_ERR("No running watchdog timeout");
 		return -EINVAL;
 	}
 
