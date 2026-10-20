@@ -171,6 +171,8 @@ static int mcux_wwdt_setup(const struct device *dev, uint8_t options)
 	int ret = 0;
 
 	if (MCUX_WWDT_MCX) {
+		enum pm_device_state state;
+
 		key = k_spin_lock(&data->lock);
 		if (data->faulted) {
 			ret = -EIO;
@@ -182,6 +184,11 @@ static int mcux_wwdt_setup(const struct device *dev, uint8_t options)
 			ret = -EINVAL;
 		} else if (options != 0U) {
 			ret = -ENOTSUP;
+		} else {
+			ret = pm_device_state_get(dev, &state);
+			if ((ret == 0) && (state != PM_DEVICE_STATE_ACTIVE)) {
+				ret = -EBUSY;
+			}
 		}
 
 		if (ret != 0) {
