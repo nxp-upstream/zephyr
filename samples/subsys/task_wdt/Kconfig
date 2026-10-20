@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config TASK_WDT_HW_FALLBACK_PAUSE_HALTED_BY_DBG
+	default n if WDT_MCUX_WWDT && (SOC_FAMILY_MCXN || SOC_FAMILY_MCXA)
+
+source "Kconfig.zephyr"
