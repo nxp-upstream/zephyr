@@ -124,6 +124,13 @@ static int mcux_wwdt_disable(const struct device *dev)
 	struct mcux_wwdt_data *data = dev->data;
 	WWDT_Type *base = config->base;
 
+	if (MCUX_WWDT_MCX) {
+		int ret = data->started ? -EPERM : -EFAULT;
+
+		LOG_ERR("Cannot disable watchdog: %d", ret);
+		return ret;
+	}
+
 	WWDT_Deinit(base);
 	data->timeout_valid = false;
 	data->active_before_sleep = false;
