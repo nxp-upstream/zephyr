@@ -34,6 +34,7 @@ struct mcux_wwdt_config {
 	const struct device *clock_dev;
 	clock_control_subsys_t clock_subsys;
 	void (*irq_config_func)(const struct device *dev);
+	unsigned int irq;
 };
 
 struct mcux_wwdt_data {
@@ -102,6 +103,7 @@ static int mcux_wwdt_setup(const struct device *dev, uint8_t options)
 	struct mcux_wwdt_data *data = dev->data;
 	WWDT_Type *base = config->base;
 	k_spinlock_key_t key;
+	bool irq_enabled = false;
 	int ret = 0;
 
 	if (MCUX_WWDT_MCX) {
@@ -121,6 +123,8 @@ static int mcux_wwdt_setup(const struct device *dev, uint8_t options)
 		}
 
 		data->starting = true;
+		irq_enabled = irq_is_enabled(config->irq) != 0;
+		irq_disable(config->irq);
 		k_spin_unlock(&data->lock, key);
 	} else if (!data->timeout_valid) {
 		LOG_ERR("No valid timeouts installed");
@@ -132,6 +136,9 @@ static int mcux_wwdt_setup(const struct device *dev, uint8_t options)
 		key = k_spin_lock(&data->lock);
 		data->started = true;
 		data->starting = false;
+		if (irq_enabled) {
+			irq_enable(config->irq);
+		}
 		k_spin_unlock(&data->lock, key);
 	} else {
 		data->started = true;
@@ -400,6 +407,7 @@ static DEVICE_API(wdt, mcux_wwdt_api) = {
 		.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(id)),                               \
 		.clock_subsys = (clock_control_subsys_t)DT_INST_CLOCKS_CELL(id, name),             \
 		.irq_config_func = mcux_wwdt_config_func_##id,                                     \
+		.irq = DT_INST_IRQN(id),                                                          \
 	};                                                                                         \
                                                                                                    \
 	static struct mcux_wwdt_data mcux_wwdt_data_##id;                                          \
