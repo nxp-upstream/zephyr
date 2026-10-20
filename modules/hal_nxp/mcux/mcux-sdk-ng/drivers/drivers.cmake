@@ -478,6 +478,17 @@ if(CONFIG_SOC_SERIES_IMXRT266X)
   set(CONFIG_MCUX_COMPONENT_driver.rt2k_pmu ON)
   set(CONFIG_MCUX_COMPONENT_driver.modcon ON)
   set(CONFIG_MCUX_COMPONENT_driver.memcon ON)
+  # RT266x has its own MIPI CSI-2 RX IP ("rambus"), with the D-PHY controls
+  # integrated into the block (CFG_REG0/CFG_REG1, CLOCK_LANE, LANE_0, LANE_1)
+  # and the lane count in CFG_MODE. It is not register-compatible with the
+  # RT1170 IP that drivers/mipi_csi2rx targets - that driver expects IRQ_MASK,
+  # ULPS_STATUS and the PPI_ERR* registers, none of which exist here - so the
+  # dedicated driver is selected and the generic one is turned off.
+  if(CONFIG_VIDEO_MCUX_MIPI_CSI2RX)
+    set(CONFIG_MCUX_COMPONENT_driver.mipi_csi2rx_rambus ON)
+    set(CONFIG_MCUX_COMPONENT_driver.mipi_csi2rx OFF)
+    set(CONFIG_MCUX_COMPONENT_driver.mipi_csi2rx_soc OFF)
+  endif()
 endif()
 
 # Load all drivers
