@@ -16,6 +16,12 @@ It should be possible to build and run the task watchdog sample on almost any
 board. If a hardware watchdog is defined in the devicetree, it is used as a
 fallback. Otherwise the task watchdog will run independently.
 
+On MCXN/MCXA WWDT targets, this sample disables the hardware-fallback debugger-pause
+option. The driver supports continuous supervision, not sleep/debugger pause.
+Hardware setup errors are returned by ``task_wdt_add()`` instead of being reported
+as a working fallback. The subsystem retains the backend's runtime reference for
+its lifetime; a running MCX WWDT cannot be disabled by software.
+
 Building and Running for ST Nucleo L073RZ
 =========================================
 The sample can be built and executed for the
