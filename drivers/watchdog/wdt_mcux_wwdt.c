@@ -25,6 +25,7 @@ LOG_MODULE_REGISTER(wdt_mcux_wwdt);
 
 #define MIN_TIMEOUT 0xFF
 #define MAX_TIMEOUT WWDT_TC_COUNT_MASK
+#define MCUX_WWDT_MCX (IS_ENABLED(CONFIG_SOC_FAMILY_MCXN) || IS_ENABLED(CONFIG_SOC_FAMILY_MCXA))
 
 struct mcux_wwdt_config {
 	WWDT_Type *base;
@@ -104,6 +105,11 @@ static int mcux_wwdt_setup(const struct device *dev, uint8_t options)
 	if (!data->timeout_valid) {
 		LOG_ERR("No valid timeouts installed");
 		return -EINVAL;
+	}
+
+	if (MCUX_WWDT_MCX && (options != 0U)) {
+		LOG_ERR("Unsupported watchdog options: %u", options);
+		return -ENOTSUP;
 	}
 
 	WWDT_Init(base, &data->wwdt_config);
