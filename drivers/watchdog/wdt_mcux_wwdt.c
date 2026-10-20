@@ -16,6 +16,7 @@
 #include <zephyr/irq.h>
 #include <zephyr/sys/clock.h>
 #include <zephyr/pm/device.h>
+#include <zephyr/spinlock.h>
 #include <fsl_wwdt.h>
 #include <fsl_clock.h>
 
@@ -25,6 +26,7 @@ LOG_MODULE_REGISTER(wdt_mcux_wwdt);
 
 #define MIN_TIMEOUT 0xFF
 #define MAX_TIMEOUT WWDT_TC_COUNT_MASK
+#define MCUX_WWDT_MCX (IS_ENABLED(CONFIG_SOC_FAMILY_MCXN) || IS_ENABLED(CONFIG_SOC_FAMILY_MCXA))
 
 struct mcux_wwdt_config {
 	WWDT_Type *base;
@@ -32,14 +34,18 @@ struct mcux_wwdt_config {
 	const struct device *clock_dev;
 	clock_control_subsys_t clock_subsys;
 	void (*irq_config_func)(const struct device *dev);
+	unsigned int irq;
 };
 
 struct mcux_wwdt_data {
 	wdt_callback_t callback;
 	wwdt_config_t wwdt_config;
 	bool timeout_valid;
-	bool active_before_sleep;
 	bool started;
+	bool active_before_sleep;
+	struct k_spinlock lock;
+	bool starting;
+	bool faulted;
 };
 
 static void mcux_wwdt_set_clock_divider(const struct device *dev)
@@ -95,19 +101,58 @@ static inline int mcux_wwdt_get_clock_frequency(const struct device *dev, uint32
 	return 0;
 }
 
+/*
+ * On MCXN/MCXA the consumer holds a runtime reference from setup until reset.
+ * Software cannot stop an enabled watchdog.
+ */
 static int mcux_wwdt_setup(const struct device *dev, uint8_t options)
 {
 	const struct mcux_wwdt_config *config = dev->config;
 	struct mcux_wwdt_data *data = dev->data;
 	WWDT_Type *base = config->base;
+	k_spinlock_key_t key;
+	bool irq_enabled = false;
+	int ret = 0;
 
-	if (!data->timeout_valid) {
+	if (MCUX_WWDT_MCX) {
+		key = k_spin_lock(&data->lock);
+		if (data->faulted) {
+			ret = -EIO;
+		} else if (data->started || data->starting) {
+			ret = -EBUSY;
+		} else if (!data->timeout_valid) {
+			ret = -EINVAL;
+		} else if (options != 0U) {
+			ret = -ENOTSUP;
+		}
+
+		if (ret != 0) {
+			k_spin_unlock(&data->lock, key);
+			LOG_ERR("Cannot set up watchdog: %d", ret);
+			return ret;
+		}
+
+		data->starting = true;
+		irq_enabled = irq_is_enabled(config->irq) != 0;
+		irq_disable(config->irq);
+		k_spin_unlock(&data->lock, key);
+	} else if (!data->timeout_valid) {
 		LOG_ERR("No valid timeouts installed");
 		return -EINVAL;
 	}
 
 	WWDT_Init(base, &data->wwdt_config);
-	data->started = true;
+	if (MCUX_WWDT_MCX) {
+		key = k_spin_lock(&data->lock);
+		data->started = true;
+		data->starting = false;
+		k_spin_unlock(&data->lock, key);
+		if (irq_enabled) {
+			irq_enable(config->irq);
+		}
+	} else {
+		data->started = true;
+	}
 	LOG_DBG("Setup the watchdog");
 	return 0;
 }
@@ -117,6 +162,24 @@ static int mcux_wwdt_disable(const struct device *dev)
 	const struct mcux_wwdt_config *config = dev->config;
 	struct mcux_wwdt_data *data = dev->data;
 	WWDT_Type *base = config->base;
+
+	if (MCUX_WWDT_MCX) {
+		k_spinlock_key_t key = k_spin_lock(&data->lock);
+		int ret;
+
+		if (data->faulted) {
+			ret = -EIO;
+		} else if (data->starting) {
+			ret = -EBUSY;
+		} else if (data->started) {
+			ret = -EPERM;
+		} else {
+			ret = -EFAULT;
+		}
+		k_spin_unlock(&data->lock, key);
+		LOG_ERR("Cannot disable watchdog: %d", ret);
+		return ret;
+	}
 
 	WWDT_Deinit(base);
 	data->timeout_valid = false;
@@ -134,8 +197,8 @@ static int mcux_wwdt_disable(const struct device *dev)
 #define MSEC_TO_WWDT_TICKS(clock_freq, msec) \
 	((uint32_t)((clock_freq / MSEC_PER_SEC) * msec) / 4)
 
-static int mcux_wwdt_install_timeout(const struct device *dev,
-				     const struct wdt_timeout_cfg *cfg)
+static int mcux_wwdt_install_timeout_config(const struct device *dev,
+					    const struct wdt_timeout_cfg *cfg)
 {
 	struct mcux_wwdt_data *data = dev->data;
 	uint32_t clock_freq;
@@ -215,14 +278,61 @@ static int mcux_wwdt_install_timeout(const struct device *dev,
 	return 0;
 }
 
+static int mcux_wwdt_install_timeout(const struct device *dev, const struct wdt_timeout_cfg *cfg)
+{
+	struct mcux_wwdt_data *data = dev->data;
+	int ret;
+
+	if (!MCUX_WWDT_MCX) {
+		return mcux_wwdt_install_timeout_config(dev, cfg);
+	}
+
+	k_spinlock_key_t key = k_spin_lock(&data->lock);
+
+	if (data->faulted) {
+		ret = -EIO;
+	} else if (data->started || data->starting) {
+		ret = -EBUSY;
+	} else {
+		ret = mcux_wwdt_install_timeout_config(dev, cfg);
+	}
+	k_spin_unlock(&data->lock, key);
+
+	if (ret < 0) {
+		LOG_ERR("Cannot install watchdog timeout: %d", ret);
+	}
+	return ret;
+}
+
 static int mcux_wwdt_feed(const struct device *dev, int channel_id)
 {
 	const struct mcux_wwdt_config *config = dev->config;
+	struct mcux_wwdt_data *data = dev->data;
 	WWDT_Type *base = config->base;
 
 	if (channel_id != 0) {
 		LOG_ERR("Invalid channel id");
 		return -EINVAL;
+	}
+
+	if (MCUX_WWDT_MCX) {
+		k_spinlock_key_t key = k_spin_lock(&data->lock);
+		int ret = 0;
+
+		if (data->faulted) {
+			ret = -EIO;
+		} else if (data->starting) {
+			ret = -EAGAIN;
+		} else if (!data->timeout_valid || !data->started) {
+			ret = -EINVAL;
+		} else {
+			WWDT_Refresh(base);
+		}
+		k_spin_unlock(&data->lock, key);
+		if (ret != 0) {
+			LOG_ERR("Cannot feed watchdog: %d", ret);
+		}
+		return ret;
 	}
 
 	WWDT_Refresh(base);
@@ -329,6 +439,7 @@ static DEVICE_API(wdt, mcux_wwdt_api) = {
 		.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(id)),                               \
 		.clock_subsys = (clock_control_subsys_t)DT_INST_CLOCKS_CELL(id, name),             \
 		.irq_config_func = mcux_wwdt_config_func_##id,                                     \
+		.irq = DT_INST_IRQN(id),                                                          \
 	};                                                                                         \
                                                                                                    \
 	static struct mcux_wwdt_data mcux_wwdt_data_##id;                                          \
