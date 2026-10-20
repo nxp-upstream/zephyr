@@ -1,0 +1,35 @@
+/*
+ * SPDX-FileCopyrightText: Copyright 2026 NXP
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	test_sleep: test-sleep {
+		compatible = "zephyr,power-state";
+		power-state-name = "runtime-idle";
+	};
+	test_ds: test-ds {
+		compatible = "zephyr,power-state";
+		power-state-name = "suspend-to-idle";
+	};
+	test_pd: test-pd {
+		compatible = "zephyr,power-state";
+		power-state-name = "standby";
+	};
+	test_dpd: test-dpd {
+		compatible = "zephyr,power-state";
+		power-state-name = "suspend-to-ram";
+	};
+	wwdt0: watchdog0 {
+		compatible = "test-wwdt-pm";
+		zephyr,disabling-power-states = <&test_ds &test_pd &test_dpd>;
+	};
+	wwdt1: watchdog1 {
+		compatible = "test-wwdt-pm";
+		zephyr,disabling-power-states = <&test_ds &test_pd &test_dpd>;
+	};
+};
+
+&{/cpus/cpu@0} {
+	cpu-power-states = <&test_sleep &test_ds &test_pd &test_dpd>;
+};
