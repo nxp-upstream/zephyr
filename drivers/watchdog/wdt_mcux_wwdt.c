@@ -102,6 +102,11 @@ static int mcux_wwdt_setup(const struct device *dev, uint8_t options)
 	struct mcux_wwdt_data *data = dev->data;
 	WWDT_Type *base = config->base;
 
+	if (MCUX_WWDT_MCX && data->started) {
+		LOG_ERR("Watchdog is already started");
+		return -EBUSY;
+	}
+
 	if (!data->timeout_valid) {
 		LOG_ERR("No valid timeouts installed");
 		return -EINVAL;
@@ -153,6 +158,11 @@ static int mcux_wwdt_install_timeout(const struct device *dev,
 	struct mcux_wwdt_data *data = dev->data;
 	uint32_t clock_freq;
 	int ret;
+
+	if (MCUX_WWDT_MCX && data->started) {
+		LOG_ERR("Watchdog is already started");
+		return -EBUSY;
+	}
 
 	if (data->timeout_valid) {
 		LOG_ERR("No more timeouts can be installed");
