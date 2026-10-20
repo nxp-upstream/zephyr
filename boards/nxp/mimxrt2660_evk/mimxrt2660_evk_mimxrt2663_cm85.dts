@@ -57,6 +57,24 @@
 			   <11 0 &gpio1 23 0>;	/* Pin 11, LCD and touch reset */
 	};
 
+	/*
+	 * This node describes the GPIO pins of the camera FPC interface at J8,
+	 * in the pin numbering the nxp_btb44_ov5640 shield uses. Both control
+	 * lines are on the PCAL6524 expander rather than on a GPIO port.
+	 *
+	 * Pin 17 is CSI_PWR_CTL (net WS_PWN at the connector). Despite the
+	 * name it is the sensor's active-high power-down input, not a power
+	 * enable, which is also how the shield describes it.
+	 */
+	nxp_cam_connector: cam-connector {
+		compatible = "nxp,cam-44pins-connector";
+		#gpio-cells = <2>;
+		gpio-map-mask = <0xffffffff 0xffffffc0>;
+		gpio-map-pass-thru = <0 0x3f>;
+		gpio-map = <9 0 &pcal6524 9 0>,		/* Pin 9, RESETB */
+			   <17 0 &pcal6524 10 0>;	/* Pin 17, PWDN */
+	};
+
 	/* This node describes the GPIO pins of the MIPI FPC interface. */
 	nxp_mipi_connector: mipi-connector {
 		compatible = "gpio-nexus";
@@ -199,3 +217,10 @@ zephyr_lcdif: &dcif {
 };
 
 nxp_mipi_i2c: &lpi2c0 {};
+
+/* The camera module at J8 shares the MIPI connector's I2C bus. */
+nxp_cam_i2c: &lpi2c0 {};
+
+nxp_mipi_csi: &mipi_csi2rx {};
+
+nxp_csi: &csi {};
