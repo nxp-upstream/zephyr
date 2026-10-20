@@ -16,6 +16,7 @@
 #include <zephyr/irq.h>
 #include <zephyr/sys/clock.h>
 #include <zephyr/pm/device.h>
+#include <zephyr/pm/policy.h>
 #include <zephyr/spinlock.h>
 #include <fsl_wwdt.h>
 #include <fsl_clock.h>
@@ -45,8 +46,19 @@ struct mcux_wwdt_data {
 	bool active_before_sleep;
 	struct k_spinlock lock;
 	bool starting;
+	bool power_locked;
 	bool faulted;
 };
+
+static void mcux_wwdt_power_lock_get(const struct device *dev)
+{
+	struct mcux_wwdt_data *data = dev->data;
+
+	if (IS_ENABLED(CONFIG_PM_POLICY_DEVICE_CONSTRAINTS) && !data->power_locked) {
+		pm_policy_device_power_lock_get(dev);
+		data->power_locked = true;
+	}
+}
 
 static void mcux_wwdt_set_clock_divider(const struct device *dev)
 {
@@ -104,6 +116,9 @@ static inline int mcux_wwdt_get_clock_frequency(const struct device *dev, uint32
 /*
  * On MCXN/MCXA the consumer holds a runtime reference from setup until reset.
  * Software cannot stop an enabled watchdog.
+ *
+ * The driver holds system-state constraints for the running lifetime.
+ * A rejected suspend or disable does not release these constraints.
  */
 static int mcux_wwdt_setup(const struct device *dev, uint8_t options)
 {
@@ -140,6 +155,7 @@ static int mcux_wwdt_setup(const struct device *dev, uint8_t options)
 		}
 
 		data->starting = true;
+		mcux_wwdt_power_lock_get(dev);
 		irq_enabled = irq_is_enabled(config->irq) != 0;
 		irq_disable(config->irq);
 		k_spin_unlock(&data->lock, key);
