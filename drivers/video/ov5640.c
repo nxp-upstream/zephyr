@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 NXP
+ * Copyright 2024, 2026 NXP
  * Copyright (c) 2025, Charles Dias
  *
  * SPDX-License-Identifier: Apache-2.0
@@ -848,6 +848,21 @@ static int ov5640_set_fmt(const struct device *dev, struct video_format *fmt)
 		return ret;
 	}
 
+	if (!ov5640_is_dvp(dev)) {
+		/*
+		 * Set the CSI-2 data type in 0x4814[5:0] to match the pixel
+		 * format. The power-on default is RAW8 (0x2A), which the
+		 * receiver rejects for RGB565 or YUYV payloads.
+		 */
+		uint8_t mipi_dt = (fmt->pixelformat == VIDEO_PIX_FMT_YUYV) ? 0x1E : 0x22;
+
+		ret = video_modify_cci_reg(&cfg->i2c, OV5640_REG8(0x4814), 0x3F, mipi_dt);
+		if (ret) {
+			LOG_ERR("Unable to set MIPI data type");
+			return ret;
+		}
+	}
+
 	if (ov5640_is_dvp(dev)) {
 		ret = ov5640_set_fmt_dvp(cfg);
 		if (ret) {
@@ -888,6 +903,17 @@ static int ov5640_set_stream(const struct device *dev, bool enable, enum video_b
 					      enable ? 0x45 : 0x40);
 		if (ret) {
 			LOG_ERR("Unable to power up / down MIPI PHY");
+			return ret;
+		}
+
+		/*
+		 * MIPI_CTRL00 0x4800 = 0x04, as in the NXP SDK driver. Bit 5
+		 * gates the clock lane between packets, which makes the
+		 * receiver see a spurious VSYNC every few lines.
+		 */
+		ret = video_write_cci_reg(&cfg->i2c, OV5640_REG8(0x4800), 0x04);
+		if (ret) {
+			LOG_ERR("Unable to set MIPI control");
 			return ret;
 		}
 	}
