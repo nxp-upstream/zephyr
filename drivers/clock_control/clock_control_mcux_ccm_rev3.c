@@ -150,10 +150,31 @@ static int ccm_rev3_off(const struct device *dev, clock_control_subsys_t sub_sys
 	return 0;
 }
 
+/*
+ * Resolve the clock root a subsystem specifier refers to, in either of the two
+ * cell forms a peripheral's clocks entry can use: an IMX_CCM_CLK(gate, root)
+ * specifier, or a self-describing IMX_CCM_ROOT_CFG cell. A driver passes
+ * clock_control whichever one its devicetree gave it, and the MIPI CSI-2 RX
+ * node for instance declares its byte, UI and escape clocks as ROOT_CFG cells.
+ * Decoding one of those as an IMX_CCM_CLK specifier yields a nonsense root.
+ */
+static bool ccm_rev3_resolve_root(clock_control_subsys_t sub_system, uint32_t *root)
+{
+	uintptr_t cell = (uintptr_t)sub_system;
+	uint32_t gate;
+
+	if (IMX_CCM_ROOT_CFG_IS(cell)) {
+		*root = IMX_CCM_ROOT_CFG_ROOT(cell);
+		return true;
+	}
+
+	return ccm_rev3_decode(sub_system, &gate, root);
+}
+
 static int ccm_rev3_get_rate(const struct device *dev, clock_control_subsys_t sub_system,
 			     uint32_t *rate)
 {
-	uint32_t gate, root;
+	uint32_t root;
 
 	ARG_UNUSED(dev);
 
@@ -161,7 +182,7 @@ static int ccm_rev3_get_rate(const struct device *dev, clock_control_subsys_t su
 		return -EINVAL;
 	}
 
-	if (!ccm_rev3_decode(sub_system, &gate, &root)) {
+	if (!ccm_rev3_resolve_root(sub_system, &root)) {
 		return -EINVAL;
 	}
 
@@ -261,10 +282,117 @@ static int ccm_rev3_configure(const struct device *dev, clock_control_subsys_t s
 	return 0;
 }
 
+/*
+ * Divider field bounds. CCM_SLICE_CONTROL_DIV is 8 bits wide and encodes
+ * div - 1, so the usable range is 1..256.
+ */
+#define CCM_REV3_DIV_MIN 1U
+#define CCM_REV3_DIV_MAX 256U
+
+static int ccm_rev3_set_rate(const struct device *dev, clock_control_subsys_t sub_system,
+			     clock_control_subsys_rate_t rate)
+{
+	uint32_t requested = (uint32_t)(uintptr_t)rate;
+	uint32_t root, mux, div, src_freq, cur_freq, cur_div, snd_div;
+	clock_name_t src;
+	clock_root_config_t root_cfg;
+	k_spinlock_key_t key;
+
+	ARG_UNUSED(dev);
+
+	if (!ccm_rev3_resolve_root(sub_system, &root)) {
+		return -EINVAL;
+	}
+
+	if (root == IMX_CCM_ROOT_NONE) {
+		/* No dedicated root, so there is no rate to set. */
+		return -ENOTSUP;
+	}
+
+	if (requested == 0U) {
+		return -EINVAL;
+	}
+
+	/*
+	 * Only the first divider is adjusted. The mux keeps whatever source the
+	 * static devicetree root configuration (or the SoC bring-up) selected,
+	 * and the second divider is read back and written through unchanged.
+	 *
+	 * Re-muxing would change the source for every consumer of this root,
+	 * which a per-peripheral rate request has no business doing: the source
+	 * a board picked is a deliberate choice. And a root whose second
+	 * divider is in use (CGU MAIN_ROOTCLK, for one) would have its ratio
+	 * silently altered if sndDiv were forced to 1 here.
+	 */
+	mux = CLOCK_GetRootClockMux((clock_root_t)root);
+	src = CLOCK_GetRootClockSource((clock_root_t)root, mux);
+	if (src == kCLOCK_SRC_Invalid) {
+		return -EIO;
+	}
+
+	src_freq = CLOCK_GetClockSrcFreq(src);
+	cur_div = CLOCK_GetRootClockDiv((clock_root_t)root);
+	cur_freq = CLOCK_GetRootClockFreq((clock_root_t)root);
+	if (src_freq == 0U || cur_div == 0U || cur_freq == 0U) {
+		return -EIO;
+	}
+
+	/*
+	 * The second divider has to be recovered rather than read:
+	 * CLOCK_GetRootClockSndDiv() is static in fsl_clock.c and not exported.
+	 * CLOCK_GetRootClockFreq() computes (src_freq / div) / sndDiv from the
+	 * same registers, so dividing the source frequency by the reported
+	 * output and the first divider leaves exactly the second divider.
+	 *
+	 * A zero result would mean the reported output exceeds src_freq / div,
+	 * i.e. the three readings disagree.
+	 */
+	snd_div = src_freq / cur_div / cur_freq;
+	if (snd_div == 0U) {
+		return -EIO;
+	}
+
+	/*
+	 * The root output is (src_freq / div) / snd_div, so the first divider
+	 * has to cover the requested rate with the second one already applied.
+	 *
+	 * Rounded up, so the resulting rate lands at or below the request:
+	 * callers ask for a rate their peripheral must not exceed (the CSI-2
+	 * escape clock has a documented upper bound), which makes overshooting
+	 * the unsafe direction to err in.
+	 */
+	div = DIV_ROUND_UP(src_freq, requested * snd_div);
+
+	if (div < CCM_REV3_DIV_MIN || div > CCM_REV3_DIV_MAX) {
+		/*
+		 * Not reachable from this source by division alone: either
+		 * above what the source supplies, or so far below it that the
+		 * divider field cannot express the ratio. Changing the mux is
+		 * the board's decision, so report the request as unsatisfiable
+		 * rather than programming a rate nobody asked for.
+		 */
+		return -ENOTSUP;
+	}
+
+	root_cfg = (clock_root_config_t){
+		.clockShutdown = false,
+		.mux = (uint8_t)mux,
+		.div = (uint8_t)div,
+		.sndDiv = (uint8_t)snd_div,
+	};
+
+	key = k_spin_lock(&ccm_lock);
+	CLOCK_SetRootClock((clock_root_t)root, &root_cfg);
+	k_spin_unlock(&ccm_lock, key);
+
+	return 0;
+}
+
 static DEVICE_API(clock_control, ccm_rev3_api) = {
 	.on = ccm_rev3_on,
 	.off = ccm_rev3_off,
 	.get_rate = ccm_rev3_get_rate,
+	.set_rate = ccm_rev3_set_rate,
 	.get_status = ccm_rev3_get_status,
 	.configure = ccm_rev3_configure,
 };
