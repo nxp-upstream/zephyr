@@ -16,6 +16,7 @@
 #include <zephyr/irq.h>
 #include <zephyr/sys/clock.h>
 #include <zephyr/pm/device.h>
+#include <zephyr/spinlock.h>
 #include <fsl_wwdt.h>
 #include <fsl_clock.h>
 
@@ -39,8 +40,10 @@ struct mcux_wwdt_data {
 	wdt_callback_t callback;
 	wwdt_config_t wwdt_config;
 	bool timeout_valid;
-	bool active_before_sleep;
 	bool started;
+	bool active_before_sleep;
+	struct k_spinlock lock;
+	bool starting;
 };
 
 static void mcux_wwdt_set_clock_divider(const struct device *dev)
@@ -96,29 +99,50 @@ static inline int mcux_wwdt_get_clock_frequency(const struct device *dev, uint32
 	return 0;
 }
 
+/*
+ * On MCXN/MCXA the consumer holds a runtime reference from setup until reset.
+ * Software cannot stop an enabled watchdog.
+ */
 static int mcux_wwdt_setup(const struct device *dev, uint8_t options)
 {
 	const struct mcux_wwdt_config *config = dev->config;
 	struct mcux_wwdt_data *data = dev->data;
 	WWDT_Type *base = config->base;
+	k_spinlock_key_t key;
+	int ret = 0;
 
-	if (MCUX_WWDT_MCX && data->started) {
-		LOG_ERR("Watchdog is already started");
-		return -EBUSY;
-	}
+	if (MCUX_WWDT_MCX) {
+		key = k_spin_lock(&data->lock);
+		if (data->started || data->starting) {
+			ret = -EBUSY;
+		} else if (!data->timeout_valid) {
+			ret = -EINVAL;
+		} else if (options != 0U) {
+			ret = -ENOTSUP;
+		}
 
-	if (!data->timeout_valid) {
+		if (ret != 0) {
+			k_spin_unlock(&data->lock, key);
+			LOG_ERR("Cannot set up watchdog: %d", ret);
+			return ret;
+		}
+
+		data->starting = true;
+		k_spin_unlock(&data->lock, key);
+	} else if (!data->timeout_valid) {
 		LOG_ERR("No valid timeouts installed");
 		return -EINVAL;
 	}
 
-	if (MCUX_WWDT_MCX && (options != 0U)) {
-		LOG_ERR("Unsupported watchdog options: %u", options);
-		return -ENOTSUP;
-	}
-
 	WWDT_Init(base, &data->wwdt_config);
-	data->started = true;
+	if (MCUX_WWDT_MCX) {
+		key = k_spin_lock(&data->lock);
+		data->started = true;
+		data->starting = false;
+		k_spin_unlock(&data->lock, key);
+	} else {
+		data->started = true;
+	}
 	LOG_DBG("Setup the watchdog");
 	return 0;
 }
@@ -130,8 +154,17 @@ static int mcux_wwdt_disable(const struct device *dev)
 	WWDT_Type *base = config->base;
 
 	if (MCUX_WWDT_MCX) {
-		int ret = data->started ? -EPERM : -EFAULT;
+		k_spinlock_key_t key = k_spin_lock(&data->lock);
+		int ret;
 
+		if (data->starting) {
+			ret = -EBUSY;
+		} else if (data->started) {
+			ret = -EPERM;
+		} else {
+			ret = -EFAULT;
+		}
+		k_spin_unlock(&data->lock, key);
 		LOG_ERR("Cannot disable watchdog: %d", ret);
 		return ret;
 	}
@@ -152,17 +185,12 @@ static int mcux_wwdt_disable(const struct device *dev)
 #define MSEC_TO_WWDT_TICKS(clock_freq, msec) \
 	((uint32_t)((clock_freq / MSEC_PER_SEC) * msec) / 4)
 
-static int mcux_wwdt_install_timeout(const struct device *dev,
-				     const struct wdt_timeout_cfg *cfg)
+static int mcux_wwdt_install_timeout_config(const struct device *dev,
+					    const struct wdt_timeout_cfg *cfg)
 {
 	struct mcux_wwdt_data *data = dev->data;
 	uint32_t clock_freq;
 	int ret;
-
-	if (MCUX_WWDT_MCX && data->started) {
-		LOG_ERR("Watchdog is already started");
-		return -EBUSY;
-	}
 
 	if (data->timeout_valid) {
 		LOG_ERR("No more timeouts can be installed");
@@ -238,6 +266,30 @@ static int mcux_wwdt_install_timeout(const struct device *dev,
 	return 0;
 }
 
+static int mcux_wwdt_install_timeout(const struct device *dev, const struct wdt_timeout_cfg *cfg)
+{
+	struct mcux_wwdt_data *data = dev->data;
+	int ret;
+
+	if (!MCUX_WWDT_MCX) {
+		return mcux_wwdt_install_timeout_config(dev, cfg);
+	}
+
+	k_spinlock_key_t key = k_spin_lock(&data->lock);
+
+	if (data->started || data->starting) {
+		ret = -EBUSY;
+	} else {
+		ret = mcux_wwdt_install_timeout_config(dev, cfg);
+	}
+	k_spin_unlock(&data->lock, key);
+
+	if (ret < 0) {
+		LOG_ERR("Cannot install watchdog timeout: %d", ret);
+	}
+	return ret;
+}
+
 static int mcux_wwdt_feed(const struct device *dev, int channel_id)
 {
 	const struct mcux_wwdt_config *config = dev->config;
@@ -249,9 +301,22 @@ static int mcux_wwdt_feed(const struct device *dev, int channel_id)
 		return -EINVAL;
 	}
 
-	if (MCUX_WWDT_MCX && (!data->timeout_valid || !data->started)) {
-		LOG_ERR("No running watchdog timeout");
-		return -EINVAL;
+	if (MCUX_WWDT_MCX) {
+		k_spinlock_key_t key = k_spin_lock(&data->lock);
+		int ret = 0;
+
+		if (data->starting) {
+			ret = -EAGAIN;
+		} else if (!data->timeout_valid || !data->started) {
+			ret = -EINVAL;
+		} else {
+			WWDT_Refresh(base);
+		}
+		k_spin_unlock(&data->lock, key);
+		if (ret != 0) {
+			LOG_ERR("Cannot feed watchdog: %d", ret);
+		}
+		return ret;
 	}
 
 	WWDT_Refresh(base);
