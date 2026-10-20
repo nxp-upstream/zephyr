@@ -9,6 +9,7 @@
 #include <zephyr/drivers/watchdog.h>
 #include <zephyr/sys/reboot.h>
 #include <zephyr/device.h>
+#include <zephyr/pm/device_runtime.h>
 #include <errno.h>
 
 #define LOG_LEVEL CONFIG_WDT_LOG_LEVEL
@@ -46,12 +47,23 @@ static struct k_timer timer;
 
 /* Tell whether the Task Watchdog has been fully initialized. */
 static bool task_wdt_initialized;
+static K_MUTEX_DEFINE(init_lock);
 
 #ifdef CONFIG_TASK_WDT_HW_FALLBACK
 /* pointer to the hardware watchdog used as a fallback */
 static const struct device *hw_wdt_dev;
+static const struct device *hw_wdt_ref_dev;
 static int hw_wdt_channel;
 static bool hw_wdt_started;
+
+static void task_wdt_hw_feed(void)
+{
+	int ret = wdt_feed(hw_wdt_dev, hw_wdt_channel);
+
+	if (ret < 0) {
+		LOG_ERR("Hardware watchdog feed failed: %d", ret);
+	}
+}
 #endif
 
 static void schedule_next_timeout(int64_t current_ticks)
@@ -83,7 +95,7 @@ static void schedule_next_timeout(int64_t current_ticks)
 
 #ifdef CONFIG_TASK_WDT_HW_FALLBACK
 	if (hw_wdt_started) {
-		wdt_feed(hw_wdt_dev, hw_wdt_channel);
+		task_wdt_hw_feed();
 	}
 #endif
 }
@@ -128,24 +140,71 @@ static void task_wdt_trigger(struct k_timer *timer_id)
 
 int task_wdt_init(const struct device *hw_wdt)
 {
+	int ret;
+	int unlock_ret;
+
+	if (k_is_in_isr()) {
+		LOG_ERR("Task watchdog initialization requires thread context");
+		return -EWOULDBLOCK;
+	}
+
+	ret = k_mutex_lock(&init_lock, K_FOREVER);
+	if (ret != 0) {
+		LOG_ERR("Cannot lock task watchdog initialization: %d", ret);
+		return ret;
+	}
+	if (task_wdt_initialized) {
+		ret = -EALREADY;
+		goto out;
+	}
+#ifdef CONFIG_TASK_WDT_HW_FALLBACK
+	if ((hw_wdt_ref_dev != NULL) && (hw_wdt_ref_dev != hw_wdt)) {
+		ret = -EBUSY;
+		goto out;
+	}
+#endif
+
 	if (hw_wdt) {
 #ifdef CONFIG_TASK_WDT_HW_FALLBACK
-		struct wdt_timeout_cfg wdt_config;
+		const struct wdt_timeout_cfg wdt_config = {
+			.flags = WDT_FLAG_RESET_SOC,
+			.window =
+				{
+					.min = 0U,
+					.max = CONFIG_TASK_WDT_MIN_TIMEOUT +
+					       CONFIG_TASK_WDT_HW_FALLBACK_DELAY,
+				},
+		};
+		int channel;
 
-		wdt_config.flags = WDT_FLAG_RESET_SOC;
-		wdt_config.window.min = 0U;
-		wdt_config.window.max = CONFIG_TASK_WDT_MIN_TIMEOUT +
-			CONFIG_TASK_WDT_HW_FALLBACK_DELAY;
-		wdt_config.callback = NULL;
-
-		hw_wdt_dev = hw_wdt;
-		hw_wdt_channel = wdt_install_timeout(hw_wdt_dev, &wdt_config);
-		if (hw_wdt_channel < 0) {
-			LOG_ERR("hw_wdt install timeout failed: %d", hw_wdt_channel);
-			return hw_wdt_channel;
+		if (!device_is_ready(hw_wdt)) {
+			ret = -ENODEV;
+			goto out;
 		}
+		if (hw_wdt_ref_dev == NULL) {
+			ret = pm_device_runtime_get(hw_wdt);
+			if (ret < 0) {
+				goto out;
+			}
+			hw_wdt_ref_dev = hw_wdt;
+		}
+		channel = wdt_install_timeout(hw_wdt, &wdt_config);
+		if (channel < 0) {
+			int put_ret = pm_device_runtime_put(hw_wdt);
+
+			if (put_ret < 0) {
+				LOG_ERR("Hardware watchdog reference cleanup failed: %d", put_ret);
+			} else {
+				hw_wdt_ref_dev = NULL;
+			}
+			ret = channel;
+			goto out;
+		}
+		hw_wdt_dev = hw_wdt;
+		hw_wdt_channel = channel;
 #else
-		return -ENOTSUP;
+		ret = -ENOTSUP;
+		goto out;
 #endif
 	}
 
@@ -154,7 +213,19 @@ int task_wdt_init(const struct device *hw_wdt)
 
 	task_wdt_initialized = true;
 
-	return 0;
+	ret = 0;
+out:
+	unlock_ret = k_mutex_unlock(&init_lock);
+	if (unlock_ret < 0) {
+		LOG_ERR("Cannot unlock task watchdog initialization: %d", unlock_ret);
+		if (ret == 0) {
+			ret = unlock_ret;
+		}
+	}
+	if (ret < 0) {
+		LOG_ERR("Task watchdog initialization failed: %d", ret);
+	}
+	return ret;
 }
 
 int task_wdt_add(uint32_t reload_period, task_wdt_callback_t callback,
@@ -183,15 +254,21 @@ int task_wdt_add(uint32_t reload_period, task_wdt_callback_t callback,
 #ifdef CONFIG_TASK_WDT_HW_FALLBACK
 			if (!hw_wdt_started && hw_wdt_dev) {
 				/* also start fallback hw wdt */
-				wdt_setup(hw_wdt_dev,
-					0
+				int ret =
+					wdt_setup(hw_wdt_dev, 0
 #ifdef CONFIG_TASK_WDT_HW_FALLBACK_PAUSE_HALTED_BY_DBG
-					| WDT_OPT_PAUSE_HALTED_BY_DBG
+								      | WDT_OPT_PAUSE_HALTED_BY_DBG
 #endif
 #ifdef CONFIG_TASK_WDT_HW_FALLBACK_PAUSE_IN_SLEEP
-					| WDT_OPT_PAUSE_IN_SLEEP
+								      | WDT_OPT_PAUSE_IN_SLEEP
 #endif
-				);
+					);
+				if (ret < 0) {
+					channels[id] = (struct task_wdt_channel){0};
+					k_spin_unlock(&channels_lock, key);
+					LOG_ERR("Hardware watchdog setup failed: %d", ret);
+					return ret;
+				}
 				hw_wdt_started = true;
 			}
 #endif
@@ -282,7 +359,7 @@ void task_wdt_suspend(void)
 	 * the system in a suspend mode that will pause the hardware watchdog.
 	 */
 	if (hw_wdt_started) {
-		wdt_feed(hw_wdt_dev, hw_wdt_channel);
+		task_wdt_hw_feed();
 	}
 #endif
 }
