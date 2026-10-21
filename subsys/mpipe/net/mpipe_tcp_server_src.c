@@ -7,27 +7,13 @@
 #include <errno.h>
 
 #include <zephyr/logging/log.h>
-#include <zephyr/net/socket.h>
-#include <zephyr/net_buf.h>
 
-#include <zephyr/mpipe/mpipe_buffer.h>
-
+#include <zephyr/mpipe/mpipe_element.h>
 #include <zephyr/mpipe/net/mpipe_tcp_server_src.h>
 
 #include "tcp_server.h"
 
-/* Investigation aid, see mpipe_stage_stats.h */
-#define MPIPE_STAGE_STATS 1
-#if MPIPE_STAGE_STATS
-#include "../mpipe_stage_stats.h"
-static struct mpipe_stage_stats rx_stats;
-#endif
-
 LOG_MODULE_REGISTER(mpipe_tcp_server_src, CONFIG_MPIPE_LOG_LEVEL);
-
-NET_BUF_POOL_FIXED_DEFINE(mpipe_tcp_server_src_nb_pool, CONFIG_MPIPE_NET_SRC_NUM_BUFS,
-			  CONFIG_MPIPE_NET_SRC_BUF_SIZE, sizeof(struct mpipe_buffer_meta),
-			  mpipe_buffer_destroy);
 
 static int mpipe_tcp_server_src_set_property(struct mpipe_object *obj, uint32_t key,
 					     const void *val)
@@ -42,7 +28,7 @@ static int mpipe_tcp_server_src_set_property(struct mpipe_object *obj, uint32_t 
 		tsrc->port = *(const uint16_t *)val;
 		return 0;
 	default:
-		return mpipe_src_set_property(obj, key, val);
+		return mpipe_socket_src_set_property(obj, key, val);
 	}
 }
 
@@ -55,150 +41,51 @@ static int mpipe_tcp_server_src_get_property(struct mpipe_object *obj, uint32_t 
 		*(uint16_t *)val = tsrc->port;
 		return 0;
 	default:
-		return mpipe_src_get_property(obj, key, val);
+		return mpipe_socket_src_get_property(obj, key, val);
 	}
-}
-
-/*
- * Receive into the current chunk and push the new bytes as a view of it. The
- * chunk is released once the room left in it is too small for a useful read;
- * it returns to the pool when the last view of it, typically the last frame
- * cut out of it downstream, is released.
- */
-static int mpipe_tcp_server_src_pool_acquire(struct mpipe_buffer_pool *pool, struct net_buf **buf)
-{
-	struct mpipe_tcp_server_src *tsrc = CONTAINER_OF(pool, struct mpipe_tcp_server_src, pool);
-	struct mpipe_buffer_meta *meta;
-	struct net_buf *chunk;
-	struct net_buf *view;
-	uint32_t fill;
-	ssize_t rd;
-
-	if (tsrc->client_fd < 0) {
-		return -ENOTCONN;
-	}
-
-	chunk = tsrc->chunk;
-	if (chunk != NULL &&
-	    chunk->size - mpipe_buffer_get_meta(chunk)->bytes_used < CONFIG_MPIPE_NET_SRC_MIN_READ) {
-		net_buf_unref(chunk);
-		chunk = NULL;
-		tsrc->chunk = NULL;
-	}
-
-	if (chunk == NULL) {
-		/* Blocks while every chunk is pinned by frames not consumed yet */
-		chunk = net_buf_alloc_len(pool->nb_pool, pool->config.size, K_FOREVER);
-		if (chunk == NULL) {
-			return -ENOBUFS;
-		}
-
-		meta = mpipe_buffer_get_meta(chunk);
-		meta->pool = pool;
-		meta->bytes_used = 0;
-		meta->timestamp = 0;
-		meta->driver_buf = NULL;
-		meta->priv = NULL;
-		meta->parent = NULL;
-		chunk->len = 0;
-		tsrc->chunk = chunk;
-	}
-
-	meta = mpipe_buffer_get_meta(chunk);
-	fill = meta->bytes_used;
-
-#if MPIPE_STAGE_STATS
-	uint32_t t0 = k_cycle_get_32();
-#endif
-
-	rd = zsock_recv(tsrc->client_fd, chunk->data + fill, chunk->size - fill, 0);
-
-#if MPIPE_STAGE_STATS
-	if (rd > 0 && mpipe_stage_stats_add(&rx_stats, 1, (uint32_t)rd, (uint32_t)rd,
-					    mpipe_stage_stats_elapsed_us(t0))) {
-		LOG_INF("stats tcp_src: %u KB/s, %u recv/s, %u..%u B, %u ms in recv (%u ms)",
-			mpipe_stage_stats_per_s(&rx_stats, rx_stats.bytes) / 1024U,
-			mpipe_stage_stats_per_s(&rx_stats, rx_stats.count),
-			rx_stats.bytes / rx_stats.count, rx_stats.bytes_max,
-			rx_stats.us_sum / 1000U, rx_stats.elapsed_ms);
-		mpipe_stage_stats_reset(&rx_stats);
-	}
-#endif
-
-	if (rd <= 0) {
-		/* A closed connection is the end of the stream */
-		if (rd < 0) {
-			LOG_ERR("recv() failed (%d)", errno);
-			return -errno;
-		}
-
-		return -ENODATA;
-	}
-
-	meta->bytes_used = fill + (uint32_t)rd;
-	meta->timestamp = k_uptime_get_32();
-	chunk->len = meta->bytes_used;
-
-	view = mpipe_buffer_view(chunk, fill, (uint32_t)rd, K_FOREVER);
-	if (view == NULL) {
-		return -ENOBUFS;
-	}
-
-	*buf = view;
-
-	return 0;
 }
 
 static int mpipe_tcp_server_src_change_state(struct mpipe_element *self,
 					     enum mpipe_state_change transition)
 {
 	struct mpipe_tcp_server_src *tsrc = (struct mpipe_tcp_server_src *)self;
-	int ret = mpipe_src_change_state(self, transition);
-
-	if (ret != 0) {
-		return ret;
-	}
+	int fd;
 
 	switch (transition) {
 	case MPIPE_STATE_CHANGE_READY_TO_PAUSED:
-		ret = mpipe_net_tcp_listen(tsrc->port);
-		if (ret < 0) {
-			return ret;
+		fd = mpipe_net_tcp_listen(tsrc->port);
+		if (fd < 0) {
+			return fd;
 		}
-		tsrc->server_fd = ret;
+		tsrc->server_fd = fd;
 		break;
 	case MPIPE_STATE_CHANGE_PAUSED_TO_PLAYING:
-		ret = mpipe_net_tcp_accept(tsrc->server_fd);
-		if (ret < 0) {
-			return ret;
+		/* The client is accepted on every start, since a pause drops it */
+		fd = mpipe_net_tcp_accept(tsrc->server_fd);
+		if (fd < 0) {
+			return fd;
 		}
-		tsrc->client_fd = ret;
+		mpipe_net_tcp_close(&tsrc->ssrc.fd);
+		tsrc->ssrc.fd = fd;
 		break;
 	case MPIPE_STATE_CHANGE_PLAYING_TO_PAUSED:
-		mpipe_net_tcp_close(&tsrc->client_fd);
+		mpipe_net_tcp_close(&tsrc->ssrc.fd);
 		break;
 	case MPIPE_STATE_CHANGE_PAUSED_TO_READY:
 		mpipe_net_tcp_close(&tsrc->server_fd);
-		if (tsrc->chunk != NULL) {
-			net_buf_unref(tsrc->chunk);
-			tsrc->chunk = NULL;
-		}
 		break;
 	default:
 		break;
 	}
 
-	return 0;
+	/* The socket source reads the client and lets go of it on teardown */
+	return mpipe_socket_src_change_state(self, transition);
 }
 
 int mpipe_tcp_server_src_init(struct mpipe_tcp_server_src *tsrc, uint8_t id)
 {
-	const struct mpipe_buffer_pool_config pool_req = {
-		.size = CONFIG_MPIPE_NET_SRC_BUF_SIZE,
-		.min_buffers = CONFIG_MPIPE_NET_SRC_NUM_BUFS,
-	};
-	struct mpipe_element *self = &tsrc->src.element;
-	int ret = mpipe_src_init(&tsrc->src, id);
+	struct mpipe_element *self = &tsrc->ssrc.src.element;
+	int ret = mpipe_socket_src_init(&tsrc->ssrc, id);
 
 	if (ret != 0) {
 		return ret;
@@ -210,16 +97,8 @@ int mpipe_tcp_server_src_init(struct mpipe_tcp_server_src *tsrc, uint8_t id)
 	self->object.get_property = mpipe_tcp_server_src_get_property;
 	self->change_state = mpipe_tcp_server_src_change_state;
 
-	mpipe_buffer_pool_init(&tsrc->pool);
-	tsrc->pool.nb_pool = &mpipe_tcp_server_src_nb_pool;
-	(void)mpipe_buffer_pool_set_req_config(&tsrc->pool, &pool_req);
-	tsrc->pool.acquire_buffer = mpipe_tcp_server_src_pool_acquire;
-	tsrc->src.pool = &tsrc->pool;
-
-	tsrc->chunk = NULL;
 	tsrc->port = CONFIG_MPIPE_NET_SRC_PORT;
 	tsrc->server_fd = -1;
-	tsrc->client_fd = -1;
 
 	return 0;
 }
