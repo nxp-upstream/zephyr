@@ -110,9 +110,15 @@ static int mpipe_aud_dmic_src_acquire_buffer(struct mpipe_buffer_pool *pool,
 			*buffer = net_buf_alloc_with_data(pool->nb_pool, aud_pool->blocks[i],
 							  pool->config.size, K_NO_WAIT);
 			if (*buffer == NULL) {
-				LOG_ERR("Unable to allocate net_buf wrapper for DMIC buffer");
+				/*
+				 * Every header is held downstream: the pipeline is
+				 * congested. A live capture drops this block and reads
+				 * the next rather than end the stream; dmic_read()
+				 * paces the retry.
+				 */
+				LOG_DBG("No buffer header free, DMIC block dropped");
 				k_mem_slab_free(aud_pool->mem_slab, mem_block);
-				return -ENOBUFS;
+				return -EAGAIN;
 			}
 
 			(*buffer)->len = bytes_used;
