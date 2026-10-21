@@ -6,8 +6,9 @@ config MPIPE_NET
 	depends on NETWORKING && NET_TCP && NET_SOCKETS
 	select NET_IPV4_MAPPING_TO_IPV6 if NET_NATIVE_IPV6
 	help
-	  TCP server sink and source elements. Each listens on its own port,
-	  takes one client and moves pipeline buffers as a raw byte stream.
+	  Elements that move a stream over a socket: a socket source reading a
+	  connected socket the application hands it, and a TCP server source
+	  and sink that listen on a port of their own and take one client.
 	  With IPv6 enabled a single socket serves IPv4 clients too, through
 	  IPv4-mapped addresses.
 
@@ -39,7 +40,7 @@ config MPIPE_NET_LISTEN_BACKLOG
 	  until it retransmits.
 
 config MPIPE_NET_SRC_BUF_SIZE
-	int "Size of a TCP source receive chunk in bytes"
+	int "Size of a socket source receive chunk in bytes"
 	range 1024 16777216
 	default 65536
 	help
@@ -49,7 +50,7 @@ config MPIPE_NET_SRC_BUF_SIZE
 	  the chunk a few times larger than a frame.
 
 config MPIPE_NET_SRC_NUM_BUFS
-	int "Number of chunks in the TCP source pool"
+	int "Number of chunks in the socket source pool"
 	range 2 255
 	default 4
 	help
