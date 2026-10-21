@@ -16,6 +16,9 @@ It should be possible to build and run the task watchdog sample on almost any
 board. If a hardware watchdog is defined in the devicetree, it is used as a
 fallback. Otherwise the task watchdog will run independently.
 
+The subsystem retains the hardware backend's runtime reference for its lifetime
+rather than automatically disabling the hardware backend.
+
 Building and Running for ST Nucleo L073RZ
 =========================================
 The sample can be built and executed for the

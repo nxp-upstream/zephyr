@@ -283,6 +283,10 @@ Task Watchdog
   A second successful initialization returns ``-EALREADY``; an interrupt-context
   call returns ``-EWOULDBLOCK``. Initialization failures may be retried.
 
+* Task watchdog retains the hardware backend's runtime reference for its service
+  lifetime. Initialization failures release it unless cleanup fails; deleting
+  task channels does not automatically disable or suspend the hardware backend.
+
 Modules
 *******
 

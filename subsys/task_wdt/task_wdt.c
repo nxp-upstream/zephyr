@@ -9,6 +9,7 @@
 #include <zephyr/drivers/watchdog.h>
 #include <zephyr/sys/reboot.h>
 #include <zephyr/device.h>
+#include <zephyr/pm/device_runtime.h>
 #include <errno.h>
 
 #define LOG_LEVEL CONFIG_WDT_LOG_LEVEL
@@ -51,6 +52,7 @@ static K_MUTEX_DEFINE(init_lock);
 #ifdef CONFIG_TASK_WDT_HW_FALLBACK
 /* pointer to the hardware watchdog used as a fallback */
 static const struct device *hw_wdt_dev;
+static const struct device *hw_wdt_ref_dev;
 static int hw_wdt_channel;
 static bool hw_wdt_started;
 
@@ -156,6 +158,13 @@ int task_wdt_init(const struct device *hw_wdt)
 		goto out;
 	}
 
+#ifdef CONFIG_TASK_WDT_HW_FALLBACK
+	if ((hw_wdt_ref_dev != NULL) && (hw_wdt_ref_dev != hw_wdt)) {
+		ret = -EBUSY;
+		goto out;
+	}
+#endif
+
 	if (hw_wdt) {
 #ifdef CONFIG_TASK_WDT_HW_FALLBACK
 		const struct wdt_timeout_cfg wdt_config = {
@@ -172,8 +181,22 @@ int task_wdt_init(const struct device *hw_wdt)
 			ret = -ENODEV;
 			goto out;
 		}
+		if (hw_wdt_ref_dev == NULL) {
+			ret = pm_device_runtime_get(hw_wdt);
+			if (ret < 0) {
+				goto out;
+			}
+			hw_wdt_ref_dev = hw_wdt;
+		}
 		channel = wdt_install_timeout(hw_wdt, &wdt_config);
 		if (channel < 0) {
+			int put_ret = pm_device_runtime_put(hw_wdt);
+
+			if (put_ret < 0) {
+				LOG_ERR("Hardware watchdog reference cleanup failed: %d", put_ret);
+			} else {
+				hw_wdt_ref_dev = NULL;
+			}
 			ret = channel;
 			goto out;
 		}
