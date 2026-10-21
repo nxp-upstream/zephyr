@@ -191,16 +191,17 @@ static int mpipe_img_jpeg_decoder_process_fn(struct mpipe_pad *pad, struct net_b
 		struct net_buf *out = NULL;
 		int ret;
 
-		/* Acquire first; on failure drop remaining input chain */
+		/*
+		 * Acquire first. Every output frame held downstream for a moment,
+		 * as when a chain of frames waits in a queue, is not the end of
+		 * the stream: drop the rest of the input chain and go on with what
+		 * was decoded, the live source resynchronizes on the next frame.
+		 */
 		ret = out_pool->acquire_buffer(out_pool, &out);
 		if (ret != 0 || out == NULL) {
-			LOG_ERR("Failed to acquire output buffer (%d)", ret);
+			LOG_WRN("No output buffer free, dropping a frame (%d)", ret);
 			net_buf_unref(cur);
-			if (*out_buf != NULL) {
-				net_buf_unref(*out_buf);
-				*out_buf = NULL;
-			}
-			return -ENOMEM;
+			return 0;
 		}
 
 		next = cur->frags;
