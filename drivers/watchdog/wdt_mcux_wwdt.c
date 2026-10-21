@@ -457,7 +457,7 @@ static void mcux_wwdt_isr(const struct device *dev)
 	}
 }
 
-static int mcux_wwdt_prepare(const struct device *dev)
+static int mcux_wwdt_set_active(const struct device *dev, bool active)
 {
 	const struct mcux_wwdt_config *config = dev->config;
 	struct mcux_wwdt_data *data = dev->data;
@@ -488,6 +488,13 @@ static int mcux_wwdt_prepare(const struct device *dev)
 				if (err != 0) {
 					LOG_ERR("Failed to close watchdog access clock: %d", err);
 				}
+				goto out;
+			}
+		}
+		if (!active) {
+			ret = clock_control_off(config->clock_dev, config->clock_subsys);
+			if (ret != 0) {
+				LOG_ERR("Failed to release disabled watchdog clock: %d", ret);
 			}
 		}
 		goto out;
@@ -514,7 +521,15 @@ static int mcux_wwdt_prepare(const struct device *dev)
 		k_irq_clear_pending(config->irq);
 	}
 
-	irq_enable(config->irq);
+	if (active || data->started) {
+		irq_enable(config->irq);
+	} else {
+		irq_disable(config->irq);
+		ret = clock_control_off(config->clock_dev, config->clock_subsys);
+		if (ret != 0) {
+			LOG_ERR("Failed to release clock: %d", ret);
+		}
+	}
 
 out:
 	k_spin_unlock(&data->lock, key);
@@ -531,10 +546,34 @@ static int mcux_wwdt_driver_pm_action(const struct device *dev,
 	if (MCUX_WWDT_MCX) {
 		switch (action) {
 		case PM_DEVICE_ACTION_TURN_ON:
-			return mcux_wwdt_prepare(dev);
+			return mcux_wwdt_set_active(dev, false);
 		case PM_DEVICE_ACTION_RESUME:
-		case PM_DEVICE_ACTION_SUSPEND:
-			return 0;
+			return mcux_wwdt_set_active(dev, true);
+		case PM_DEVICE_ACTION_SUSPEND: {
+			k_spinlock_key_t key = k_spin_lock(&data->lock);
+
+			if (data->faulted) {
+				err = -EIO;
+			} else if (data->starting) {
+				err = -EBUSY;
+			} else if (data->started) {
+				/* Keep a running watchdog active while the system sleeps. */
+				err = -ENOTSUP;
+			} else {
+				bool irq_enabled = irq_is_enabled(config->irq) != 0;
+
+				irq_disable(config->irq);
+				err = clock_control_off(config->clock_dev, config->clock_subsys);
+				if (err != 0) {
+					if (irq_enabled) {
+						irq_enable(config->irq);
+					}
+					LOG_ERR("Failed to suspend watchdog clock: %d", err);
+				}
+			}
+			k_spin_unlock(&data->lock, key);
+			return err;
+		}
 		case PM_DEVICE_ACTION_TURN_OFF: {
 			k_spinlock_key_t key = k_spin_lock(&data->lock);
 
