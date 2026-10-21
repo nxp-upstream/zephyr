@@ -14,6 +14,13 @@
 
 #include "tcp_server.h"
 
+/* Investigation aid, see mpipe_stage_stats.h */
+#define MPIPE_STAGE_STATS 1
+#if MPIPE_STAGE_STATS
+#include "../mpipe_stage_stats.h"
+static struct mpipe_stage_stats rx_stats;
+#endif
+
 LOG_MODULE_REGISTER(mpipe_tcp_server_src, CONFIG_MPIPE_LOG_LEVEL);
 
 NET_BUF_POOL_FIXED_DEFINE(mpipe_tcp_server_src_nb_pool, CONFIG_MPIPE_NET_SRC_NUM_BUFS,
@@ -69,7 +76,24 @@ static int mpipe_tcp_server_src_pool_acquire(struct mpipe_buffer_pool *pool, str
 	meta = mpipe_buffer_get_meta(nb);
 	meta->pool = pool;
 
+#if MPIPE_STAGE_STATS
+	uint32_t t0 = k_cycle_get_32();
+#endif
+
 	rd = zsock_recv(tsrc->client_fd, nb->data, nb->size, 0);
+
+#if MPIPE_STAGE_STATS
+	if (rd > 0 && mpipe_stage_stats_add(&rx_stats, 1, (uint32_t)rd, (uint32_t)rd,
+					    mpipe_stage_stats_elapsed_us(t0))) {
+		LOG_INF("stats tcp_src: %u KB/s, %u recv/s, %u..%u B, %u ms in recv (%u ms)",
+			mpipe_stage_stats_per_s(&rx_stats, rx_stats.bytes) / 1024U,
+			mpipe_stage_stats_per_s(&rx_stats, rx_stats.count),
+			rx_stats.bytes / rx_stats.count, rx_stats.bytes_max,
+			rx_stats.us_sum / 1000U, rx_stats.elapsed_ms);
+		mpipe_stage_stats_reset(&rx_stats);
+	}
+#endif
+
 	if (rd <= 0) {
 		/* A closed connection is the end of the stream */
 		int ret = (rd == 0) ? -ENODATA : -errno;
