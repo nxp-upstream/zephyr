@@ -285,10 +285,13 @@ static int build_video_stream_pipeline(void)
 	 * stage behind it is slower drops its oldest frame rather than holding
 	 * the producer: frames the decoder cannot keep up with are dropped
 	 * before being decoded, and the sender is never throttled into
-	 * buffering seconds of frames on its side.
+	 * buffering seconds of frames on its side. One frame is enough in front
+	 * of the decoder: every frame it holds while the decoder lags is a
+	 * frame of latency on the panel, for nothing, since the surplus is
+	 * dropped anyway.
 	 */
 	ret = mpipe_object_set_properties((struct mpipe_object *)&queue_parse,
-					  MPIPE_PROP_BASE_QUEUE_SIZE, &(uint8_t){2},
+					  MPIPE_PROP_BASE_QUEUE_SIZE, &(uint8_t){1},
 					  MPIPE_PROP_BASE_QUEUE_LEAK,
 					  &(enum mpipe_base_queue_leak){MPIPE_BASE_QUEUE_LEAK_OLDEST},
 					  MPIPE_PROP_LIST_END);
