@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2024 Nordic Semiconductor
+ * Copyright 2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -58,10 +59,19 @@ static struct wdt_timeout_cfg m_cfg_wdt0;
 /* Following variables are incremented in WDT callbacks
  * to indicate whether interrupt was fired or not.
  */
-volatile uint32_t m_test_06b_value __attribute__((section(NOINIT_SECTION)));
-#define TEST_06B_TAG (0x12345678U)
 volatile uint32_t m_test_08b_value __attribute__((section(NOINIT_SECTION)));
 #define TEST_08B_TAG (0x23456789U)
+
+static void wdt_test_08b_cb(const struct device *wdt_dev, int channel_id)
+{
+	ARG_UNUSED(wdt_dev);
+	ARG_UNUSED(channel_id);
+	m_test_08b_value = TEST_08B_TAG;
+}
+
+#if !defined(CONFIG_TEST_WDT_DISABLE_ONLY)
+volatile uint32_t m_test_06b_value __attribute__((section(NOINIT_SECTION)));
+#define TEST_06B_TAG (0x12345678U)
 volatile uint32_t m_test_08d_A_value __attribute__((section(NOINIT_SECTION)));
 #define TEST_08D_A_TAG (0x3456789AU)
 volatile uint32_t m_test_08d_B_value __attribute__((section(NOINIT_SECTION)));
@@ -72,13 +82,6 @@ static void wdt_test_06b_cb(const struct device *wdt_dev, int channel_id)
 	ARG_UNUSED(wdt_dev);
 	ARG_UNUSED(channel_id);
 	m_test_06b_value = TEST_06B_TAG;
-}
-
-static void wdt_test_08b_cb(const struct device *wdt_dev, int channel_id)
-{
-	ARG_UNUSED(wdt_dev);
-	ARG_UNUSED(channel_id);
-	m_test_08b_value = TEST_08B_TAG;
 }
 
 static void wdt_test_08d_A_cb(const struct device *wdt_dev, int channel_id)
@@ -578,6 +581,8 @@ ZTEST(wdt_coverage, test_08a_wdt_disable_not_supported)
 		     ret);
 }
 
+#endif /* !CONFIG_TEST_WDT_DISABLE_ONLY */
+
 /**
  * @brief Test that wdt_disable() stops watchdog
  *
@@ -636,6 +641,7 @@ ZTEST(wdt_coverage, test_08b_wdt_disable_check_not_firing)
 	zassert_equal(m_test_08b_value, 0, "Watchod has fired while it shouldn't");
 }
 
+#if !defined(CONFIG_TEST_WDT_DISABLE_ONLY)
 /**
  * @brief Test that after wdt_disable() timeouts can be reconfigured
  *
@@ -949,6 +955,8 @@ ZTEST(wdt_coverage, test_10_wdt_install_timeout_max_number_of_timeouts)
 		     "wdt_install_timeout shall return -ENOMEM (-12), got unexpected value of %d",
 		     ret);
 }
+
+#endif /* !CONFIG_TEST_WDT_DISABLE_ONLY */
 
 static void *suite_setup(void)
 {

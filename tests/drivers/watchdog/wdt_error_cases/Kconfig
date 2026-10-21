@@ -12,6 +12,13 @@ config TEST_WDT_DISABLE_SUPPORTED
 	  Therefore, this test suite currently can only be run on targets that
 	  support watchdog disable.
 
+config TEST_WDT_DISABLE_ONLY
+	bool "Run only the functional watchdog disable test"
+	depends on TEST_WDT_DISABLE_SUPPORTED
+	help
+	  Run the stop test in a fresh watchdog session without the cases that
+	  require disabling and restarting the same watchdog instance.
+
 config TEST_WDT_FLAG_RESET_NONE_SUPPORTED
 	bool "Watchdog flag WDT_FLAG_RESET_NONE is supported"
 	default y if SOC_FAMILY_SILABS_S2 || SOC_FAMILY_SILABS_S3 || SOC_SERIES_M48X

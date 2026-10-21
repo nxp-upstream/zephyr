@@ -6,6 +6,27 @@ common:
   harness: ztest
 
 tests:
+  drivers.watchdog.wdt_error_cases.disable_only:
+    testcases:
+      - wdt_coverage.08b_wdt_disable_check_not_firing
+    platform_allow:
+      - frdm_mcxa153
+      - frdm_mcxa156
+      - frdm_mcxa344
+      - frdm_mcxa346
+      - frdm_mcxa577
+      - frdm_mcxn236
+      - frdm_mcxn947/mcxn947/cpu0
+    integration_platforms:
+      - frdm_mcxa156
+      - frdm_mcxn947/mcxn947/cpu0
+    extra_configs:
+      - CONFIG_TEST_WDT_DISABLE_ONLY=y
+      - CONFIG_TEST_WDT_OPT_PAUSE_HALTED_BY_DBG_SUPPORTED=n
+      - CONFIG_TEST_WDT_OPT_PAUSE_IN_SLEEP_SUPPORTED=n
+      - CONFIG_WDT_MCUX_WWDT_WARNING_INTERRUPT_CFG=512
+      - CONFIG_PM=n
+      - CONFIG_PM_DEVICE=n
   drivers.watchdog.wdt_error_cases:
     platform_allow:
       - nrf5340dk/nrf5340/cpuapp
