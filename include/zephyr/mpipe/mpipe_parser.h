@@ -44,6 +44,17 @@
 #include <zephyr/mpipe/mpipe_pad.h>
 
 /**
+ * @brief Base parser property identifiers.
+ *
+ * A concrete parser anchors its own properties on @ref MPIPE_PROP_PARSER_LAST so
+ * that its keys never collide with the ones the base may gain later.
+ */
+enum mpipe_prop_parser {
+	/** Last parser property marker (for validation/iteration) */
+	MPIPE_PROP_PARSER_LAST,
+};
+
+/**
  * @brief Base parser element structure.
  *
  * Extends @ref mpipe_element with sink and source pads, capability
