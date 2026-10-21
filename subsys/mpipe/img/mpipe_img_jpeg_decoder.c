@@ -17,6 +17,13 @@
 
 #include <zephyr/mpipe/img/mpipe_img_jpeg_decoder.h>
 
+/* Investigation aid, see mpipe_stage_stats.h */
+#define MPIPE_STAGE_STATS 1
+#if MPIPE_STAGE_STATS
+#include "../mpipe_stage_stats.h"
+static struct mpipe_stage_stats dec_stats;
+#endif
+
 LOG_MODULE_REGISTER(mpipe_img_jpeg_decoder, CONFIG_MPIPE_LOG_LEVEL);
 
 /* Internal output pool (used when downstream doesn't propose a pool) */
@@ -134,6 +141,18 @@ static int mpipe_img_jpeg_decoder_decode_one(struct mpipe_img_jpeg_decoder *dec,
 		return -ENOTSUP;
 	}
 
+#if MPIPE_STAGE_STATS
+	static bool geometry_reported;
+
+	if (!geometry_reported) {
+		geometry_reported = true;
+		LOG_INF("stats jpeg_decoder: first frame %dx%d, %d bpp in stream, %u B out, "
+			"output buffer %u B",
+			JPEGDEC_getWidth(jpg), JPEGDEC_getHeight(jpg), JPEGDEC_getBpp(jpg), out_sz,
+			out_buf->size);
+	}
+#endif
+
 	if (JPEGDEC_decode(jpg, 0, 0, 0) == 0) {
 		LOG_WRN("JPEG decode failed");
 		JPEGDEC_close(jpg);
@@ -187,7 +206,28 @@ static int mpipe_img_jpeg_decoder_process_fn(struct mpipe_pad *pad, struct net_b
 		next = cur->frags;
 		cur->frags = NULL;
 
+#if MPIPE_STAGE_STATS
+		uint32_t t0 = k_cycle_get_32();
+		uint32_t in_sz = mpipe_buffer_get_meta(cur)->bytes_used;
+#endif
+
 		ret = mpipe_img_jpeg_decoder_decode_one(dec, cur, out);
+
+#if MPIPE_STAGE_STATS
+		if (ret != 0) {
+			dec_stats.aux++;
+		}
+		if (mpipe_stage_stats_add(&dec_stats, 1, in_sz, in_sz,
+					  mpipe_stage_stats_elapsed_us(t0))) {
+			LOG_INF("stats jpeg_decoder: %u fr/s, in avg %u max %u B, "
+				"decode %u/%u/%u ms min/avg/max, fail %u (%u ms)",
+				mpipe_stage_stats_per_s(&dec_stats, dec_stats.count),
+				dec_stats.bytes / dec_stats.count, dec_stats.bytes_max,
+				dec_stats.us_min / 1000U, mpipe_stage_stats_us_avg(&dec_stats) / 1000U,
+				dec_stats.us_max / 1000U, dec_stats.aux, dec_stats.elapsed_ms);
+			mpipe_stage_stats_reset(&dec_stats);
+		}
+#endif
 
 		if (ret == -ENOTSUP) {
 			/* A format this element cannot produce: the stream cannot go on */
