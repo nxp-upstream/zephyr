@@ -56,7 +56,8 @@ config MPIPE_IMG_JPEG_DECODER_POOL_NUM
 
 	  One is enough where the element downstream consumes each frame before
 	  the next arrives, which is the case for a display sink. Raise it when
-	  downstream holds frames past the chain call.
+	  downstream holds frames past the chain call: a frame decoded while
+	  every buffer is held is dropped, not waited for.
 
 config MPIPE_IMG_JPEG_DECODER_MAX_OUT_FRAME_SIZE
 	int "Maximum decoded output frame size in bytes"
