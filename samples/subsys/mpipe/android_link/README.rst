@@ -61,7 +61,8 @@ mirroring unless the client is launched with ``audio_dup=true`` (Android 13 or
 later).
 
 The pipelines are driven by the mpipe player, one per pipeline. The application
-sets up the network (Wi-Fi AP or Ethernet + DHCP server), listens on port 5000,
+sets up the network (Wi-Fi AP or Ethernet + DHCP server), listens on port 5000
+(``CONFIG_ANDROID_LINK_PORT``),
 accepts the phone's video connection, then its audio connection, then its control
 connection, hands the stream sockets to the pipelines and keeps the control one
 for the touch events. When the phone disconnects it accepts the next client.
@@ -176,7 +177,9 @@ Wi-Fi
    :compact:
 
 When using Wi-Fi, the board starts a soft-AP with SSID ``zephyr-link`` and
-passphrase ``zephyrdemo`` and runs a DHCP server on ``192.0.2.1``. The phone
+passphrase ``zephyrdemo`` (``CONFIG_ANDROID_LINK_WIFI_SSID`` and
+``CONFIG_ANDROID_LINK_WIFI_PSK``; the phone's server must be launched with the
+same ``WIFI_SSID`` and ``WIFI_PSK``) and runs a DHCP server on ``192.0.2.1``. The phone
 does not need to join that network by hand: the demo's server asks Android for
 it with a local-only network request and holds it for as long as it runs.
 Android shows the network as "Connected via Shell", keeps mobile data as the

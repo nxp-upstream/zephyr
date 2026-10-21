@@ -42,6 +42,33 @@ config ANDROID_LINK_MIC
 	  it, is set by a control message. The phone must be launched with the
 	  microphone channel enabled.
 
+config ANDROID_LINK_PORT
+	int "TCP port the board listens on"
+	range 1 65535
+	default 5000
+	help
+	  Port of the listening socket the phone's server connects to for the
+	  video, audio, control and microphone streams (REMOTE_PORT in its
+	  launch script).
+
+if WIFI
+
+config ANDROID_LINK_WIFI_SSID
+	string "Name of the board's Wi-Fi network"
+	default "zephyr-link"
+	help
+	  SSID of the soft-AP the board starts. The phone's server joins it
+	  by itself when launched with the same name (WIFI_SSID).
+
+config ANDROID_LINK_WIFI_PSK
+	string "Passphrase of the board's Wi-Fi network"
+	default "zephyrdemo"
+	help
+	  WPA2 passphrase of the soft-AP, at least 8 characters; empty for an
+	  open network. The phone's server needs the same value (WIFI_PSK).
+
+endif # WIFI
+
 choice
 	prompt "Control Event protocol"
 	default CONTROL_EVENT_TCP

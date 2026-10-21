@@ -80,11 +80,6 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(main);
 
-#define MY_PORT 5000
-
-#define WIFI_AP_SSID "zephyr-link"
-#define WIFI_AP_PSK  "zephyrdemo"
-
 /* Element IDs (values are arbitrary; only uniqueness within the pipeline matters) */
 enum {
 	PIPE_ID,
@@ -695,15 +690,15 @@ int main(void)
 	}
 
 	LOG_INF("Turning on AP Mode");
-	ap_config.ssid = (const uint8_t *)WIFI_AP_SSID;
-	ap_config.ssid_length = strlen(WIFI_AP_SSID);
-	ap_config.psk = (const uint8_t *)WIFI_AP_PSK;
-	ap_config.psk_length = strlen(WIFI_AP_PSK);
+	ap_config.ssid = (const uint8_t *)CONFIG_ANDROID_LINK_WIFI_SSID;
+	ap_config.ssid_length = strlen(CONFIG_ANDROID_LINK_WIFI_SSID);
+	ap_config.psk = (const uint8_t *)CONFIG_ANDROID_LINK_WIFI_PSK;
+	ap_config.psk_length = strlen(CONFIG_ANDROID_LINK_WIFI_PSK);
 	ap_config.channel = WIFI_CHANNEL_ANY;
 	ap_config.band = WIFI_FREQ_BAND_5_GHZ;
 	ap_config.bandwidth = WIFI_FREQ_BANDWIDTH_40MHZ;
 
-	if (strlen(WIFI_AP_PSK) == 0) {
+	if (strlen(CONFIG_ANDROID_LINK_WIFI_PSK) == 0) {
 		ap_config.security = WIFI_SECURITY_TYPE_NONE;
 	} else {
 		ap_config.security = WIFI_SECURITY_TYPE_PSK;
@@ -759,7 +754,7 @@ int main(void)
 	}
 #endif
 
-	server_fd = scrcpy_listen(MY_PORT);
+	server_fd = scrcpy_listen(CONFIG_ANDROID_LINK_PORT);
 	if (server_fd < 0) {
 		return server_fd;
 	}
@@ -780,7 +775,7 @@ int main(void)
 		int control_fd;
 		int mic_fd = -1;
 
-		LOG_INF("Waiting for a client on port %u", MY_PORT);
+		LOG_INF("Waiting for a client on port %u", CONFIG_ANDROID_LINK_PORT);
 		osd_idle("Waiting for phone");
 
 		video_fd = zsock_accept(server_fd, (struct sockaddr *)&client_addr, &addr_len);
@@ -791,7 +786,7 @@ int main(void)
 		}
 
 		/* The control messages go back to the phone that sends the video */
-		client_addr.sin_port = htons(MY_PORT);
+		client_addr.sin_port = htons(CONFIG_ANDROID_LINK_PORT);
 		set_keepalive(video_fd);
 
 		if (IS_ENABLED(CONFIG_ANDROID_LINK_AUDIO)) {
