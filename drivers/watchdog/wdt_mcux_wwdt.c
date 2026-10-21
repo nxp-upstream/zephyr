@@ -343,27 +343,52 @@ static int mcux_wwdt_driver_pm_action(const struct device *dev,
 	struct mcux_wwdt_data *data = dev->data;
 	int err = 0;
 
+	k_spinlock_key_t key = k_spin_lock(&data->lock);
+
+	if (data->starting) {
+		k_spin_unlock(&data->lock, key);
+		LOG_ERR("Power transition requested during watchdog startup");
+		return -EBUSY;
+	}
+
 	switch (action) {
 	case PM_DEVICE_ACTION_RESUME:
 		break;
 	case PM_DEVICE_ACTION_TURN_ON:
 		if (data->active_before_sleep) {
-			err = mcux_wwdt_setup(dev, 0);
-			data->active_before_sleep = false;
+			if (!data->timeout_valid) {
+				err = -EINVAL;
+				break;
+			}
+			bool irq_enabled = data->irq_was_enabled;
+
+			data->starting = true;
+			irq_disable(config->irq);
+			k_spin_unlock(&data->lock, key);
+			mcux_wwdt_start(dev, irq_enabled);
+			return 0;
+		}
+		if (data->irq_was_enabled) {
+			irq_enable(config->irq);
+			data->irq_was_enabled = false;
 		}
 		break;
 	case PM_DEVICE_ACTION_SUSPEND:
 		break;
 	case PM_DEVICE_ACTION_TURN_OFF:
+		data->irq_was_enabled |= irq_is_enabled(config->irq) != 0;
+		irq_disable(config->irq);
+		data->active_before_sleep =
+			data->started && ((config->base->MOD & WWDT_MOD_WDEN_MASK) != 0U);
 		data->started = false;
-		if (config->base->MOD & WWDT_MOD_WDEN_MASK) {
-			data->active_before_sleep = true;
-		}
 		break;
 	default:
 		err = -ENOTSUP;
 	}
-
+	k_spin_unlock(&data->lock, key);
+	if (err != 0) {
+		LOG_ERR("Cannot change watchdog power state: %d", err);
+	}
 	return err;
 }
 

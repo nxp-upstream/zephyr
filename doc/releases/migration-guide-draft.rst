@@ -198,6 +198,14 @@ PTP Clock
   addend register from its nominal value. All in-tree drivers have been converted.
   (:github:`120828`)
 
+Watchdog
+========
+
+* Power-domain replay for :dtcompatible:`nxp,lpc-wwdt` records the software running
+  state as well as retained WDEN. A timeout uninstalled by disable is not replayed
+  after a power cycle. Startup conflicts are reported; a power-domain notification
+  is not a request that the driver can veto by returning an error.
+
 .. zephyr-keep-sorted-stop
 
 Bluetooth
