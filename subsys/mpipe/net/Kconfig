@@ -39,17 +39,30 @@ config MPIPE_NET_LISTEN_BACKLOG
 	  until it retransmits.
 
 config MPIPE_NET_SRC_BUF_SIZE
-	int "Size of a TCP source receive buffer in bytes"
-	range 64 65535
-	default 4096
+	int "Size of a TCP source receive chunk in bytes"
+	range 1024 16777216
+	default 65536
 	help
-	  One recv() fills at most this many bytes.
+	  The stream is received into chunks of this size, and each read is
+	  pushed downstream as a view of the chunk it landed in. A frame that
+	  fits in a chunk reaches the consumer without being copied, so make
+	  the chunk a few times larger than a frame.
 
 config MPIPE_NET_SRC_NUM_BUFS
-	int "Number of buffers in the TCP source pool"
-	range 1 255
+	int "Number of chunks in the TCP source pool"
+	range 2 255
 	default 4
 	help
-	  Use more than one when downstream holds buffers across calls.
+	  A chunk returns to the pool once every view of it has been released,
+	  so the frames downstream still holds pin their chunks. Two is the
+	  minimum for the source to fill one while the other is consumed.
+
+config MPIPE_NET_SRC_MIN_READ
+	int "Room left in a chunk below which the next one is started"
+	range 64 65536
+	default 4096
+	help
+	  A read into the tail of a chunk is pushed as a view like any other;
+	  this bounds how small such a tail read may get.
 
 endif # MPIPE_NET
