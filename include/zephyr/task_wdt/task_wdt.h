@@ -42,13 +42,17 @@ typedef void (*task_wdt_callback_t)(int channel_id, void *user_data);
  *
  * This function sets up necessary kernel timers and the hardware watchdog (if
  * desired as fallback). It has to be called before task_wdt_add() and
- * task_wdt_feed().
+ * task_wdt_feed(). Call it from thread context, once for the service
+ * lifetime. A failed initialization may be retried.
  *
  * @param hw_wdt Pointer to the hardware watchdog device used as fallback.
  *               Pass NULL if no hardware watchdog fallback is desired.
  *
  * @retval 0 If successful.
  * @retval -ENOTSUP If assigning a hardware watchdog is not supported.
+ * @retval -EWOULDBLOCK If called from interrupt context.
+ * @retval -EALREADY If the service has already been initialized successfully.
+ * @retval -ENODEV If the hardware watchdog is not ready.
  * @retval -Errno Negative errno if the fallback hw_wdt is used and the
  *                install timeout API fails.  See wdt_install_timeout()
  *                API for possible return values.

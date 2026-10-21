@@ -276,6 +276,13 @@ Shell
   ``-ENOEXEC`` instead of ``SHELL_CMD_HELP_PRINTED`` (1). The help is still printed. Update code
   that checks the return value of :c:func:`shell_execute_cmd` for this case.
 
+Task Watchdog
+=============
+
+* Call :c:func:`task_wdt_init` from thread context, once for the service lifetime.
+  A second successful initialization returns ``-EALREADY``; an interrupt-context
+  call returns ``-EWOULDBLOCK``. Initialization failures may be retried.
+
 Modules
 *******
 
