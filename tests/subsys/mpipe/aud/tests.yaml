@@ -1,0 +1,10 @@
+tests:
+  mpipe.aud:
+    platform_allow:
+      - native_sim/native/64
+    tags:
+      - mpipe
+      - aud
+    integration_platforms:
+      - native_sim/native/64
+    timeout: 60
