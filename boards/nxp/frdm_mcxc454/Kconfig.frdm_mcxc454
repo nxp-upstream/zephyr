@@ -1,0 +1,6 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_FRDM_MCXC454
+	select SOC_MCXC454 if BOARD_FRDM_MCXC454
+	select SOC_PART_NUMBER_MCXC454VLH

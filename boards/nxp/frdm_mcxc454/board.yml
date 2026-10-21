@@ -1,0 +1,6 @@
+board:
+  name: frdm_mcxc454
+  full_name: FRDM-MCXC454
+  vendor: nxp
+  socs:
+  - name: mcxc454
