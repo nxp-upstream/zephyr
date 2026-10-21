@@ -259,6 +259,11 @@ static void mpipe_pipeline_thread_func(void *p1, void *p2, void *p3)
 			acq_ret = src->pool->acquire_buffer(src->pool, &buffer);
 		}
 
+		/* A live source that had to drop what it captured: nothing to push this time */
+		if (acq_ret == -EAGAIN) {
+			continue;
+		}
+
 		/* EOS: a playback source ran out of data, or a live source hit its limit */
 		bool is_eos = reached_limit || acq_ret == -ENODATA;
 
