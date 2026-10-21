@@ -383,6 +383,22 @@ static int mpipe_aud_i2s_codec_sink_change_state(struct mpipe_element *self,
 	 * never starts, and the pipeline runs with a codec that stays silent.
 	 */
 	if (transition == MPIPE_STATE_CHANGE_PAUSED_TO_READY) {
+		/*
+		 * Stop a running stream now. Left running, it underruns once the
+		 * last block is out and the driver parks in its error state,
+		 * which refuses the next configure. DROP stops it at once and
+		 * leaves it READY; a stream already in error is prepared before
+		 * the next configure, as after a failed write.
+		 */
+		if (aud_i2s_codec_sink->started) {
+			int ret = i2s_trigger(aud_i2s_codec_sink->i2s_dev, I2S_DIR_TX,
+					      I2S_TRIGGER_DROP);
+
+			if (ret < 0) {
+				LOG_WRN("Failed to drop the I2S stream: %d", ret);
+				aud_i2s_codec_sink->needs_prepare = true;
+			}
+		}
 		if (aud_i2s_codec_sink->underruns > 0U || aud_i2s_codec_sink->dropped > 0U) {
 			LOG_INF("Stream restarted %u times after an underrun, %u blocks dropped",
 				aud_i2s_codec_sink->underruns, aud_i2s_codec_sink->dropped);
