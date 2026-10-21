@@ -19,18 +19,21 @@ config MPIPE_IMG_JPEG_PARSER_MAX_FRAME_SIZE
 	int "Maximum JPEG frame size in bytes"
 	default 0
 	help
-	  Maximum size of a single JPEG frame that the parser can accumulate when
-	  downstream does not provide a usable pool.
-	  Default value is set to 0 to disable the internal staging pool entirely
-	  (no memory reserved).
+	  Longest frame the parser produces, and the size of the buffers in its
+	  own pool. A frame that lies inside one input chunk is emitted as a view
+	  of the chunk; a frame split across two chunks is copied into one of
+	  these buffers. 0 reserves no pool, which only works when the element
+	  downstream offers a pool of its own, in which case every frame is
+	  copied into that pool.
 
 config MPIPE_IMG_JPEG_PARSER_POOL_NUM
-	int "Staging pool buffer count"
+	int "Copy pool buffer count"
 	range 1 255
 	default 2
 	help
-	  Number of buffers in the parser's internal staging pool.
-	  2 is usually enough (one partial, one output).
+	  Number of buffers in the parser's own pool. One frame is being copied
+	  while the previous one is consumed downstream, so two is usually
+	  enough; raise it when the elements downstream hold frames.
 
 config MPIPE_IMG_JPEG_DECODER
 	bool "Software JPEG decoder element"
