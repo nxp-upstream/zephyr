@@ -28,6 +28,11 @@ config WDT_MCUX_WWDT
 
 if WDT_MCUX_WWDT
 
+config WDT_MCUX_WWDT_HAS_CLOCK_HALT
+	def_bool SOC_FAMILY_MCXN || SOC_FAMILY_MCXA
+	help
+	  Stop watchdog counting through the functional-clock divider.
+
 config WDT_MCUX_WWDT_WARNING_INTERRUPT_CFG
 	int "WWDT timeout warning interrupt configuration"
 	range 0 1023

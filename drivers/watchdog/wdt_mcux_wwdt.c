@@ -32,6 +32,7 @@ struct mcux_wwdt_config {
 	const struct device *clock_dev;
 	clock_control_subsys_t clock_subsys;
 	void (*irq_config_func)(const struct device *dev);
+	unsigned int irq;
 };
 
 struct mcux_wwdt_data {
@@ -40,7 +41,72 @@ struct mcux_wwdt_data {
 	bool timeout_valid;
 	bool active_before_sleep;
 	bool started;
+	bool disabled;
 };
+
+#ifdef CONFIG_WDT_MCUX_WWDT_HAS_CLOCK_HALT
+static int mcux_wwdt_mcx_divider(const struct device *dev, clock_div_name_t *divider)
+{
+	const struct mcux_wwdt_config *config = dev->config;
+
+	switch ((uint32_t)config->clock_subsys) {
+	case MCUX_WWDT0_CLK:
+#if defined(CONFIG_SOC_FAMILY_MCXA)
+		*divider = kCLOCK_DivWWDT0;
+#else
+		*divider = kCLOCK_DivWdt0Clk;
+#endif
+		return 0;
+#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(wwdt1))
+	case MCUX_WWDT1_CLK:
+#if defined(CONFIG_SOC_FAMILY_MCXA)
+		*divider = kCLOCK_DivWWDT1;
+#else
+		*divider = kCLOCK_DivWdt1Clk;
+#endif
+		return 0;
+#endif
+	default:
+		return -ENOTSUP;
+	}
+}
+
+static void mcux_wwdt_set_clock_divider(clock_div_name_t divider, uint32_t value)
+{
+#if defined(CONFIG_SOC_FAMILY_MCXA)
+	CLOCK_SetClockDiv(divider, value);
+#else
+	CLOCK_SetClkDiv(divider, value);
+#endif
+}
+#endif
+
+static int mcux_wwdt_clock_halted(const struct device *dev, bool halt)
+{
+#ifdef CONFIG_WDT_MCUX_WWDT_HAS_CLOCK_HALT
+	clock_div_name_t divider;
+	int ret = mcux_wwdt_mcx_divider(dev, &divider);
+
+	if (ret != 0) {
+		return ret;
+	}
+#if defined(CONFIG_SOC_FAMILY_MCXA)
+	if (halt) {
+		CLOCK_HaltClockDiv(divider);
+	}
+	return CLOCK_GetClockDiv(divider) == 0U ? 0 : -EIO;
+#else
+	if (halt) {
+		CLOCK_SetClkDiv(divider, 0U);
+	}
+	return CLOCK_GetClkDiv(divider) == 0U ? 0 : -EIO;
+#endif
+#else
+	ARG_UNUSED(dev);
+	ARG_UNUSED(halt);
+	return -ENOTSUP;
+#endif
+}
 
 static inline int mcux_wwdt_get_clock_frequency(const struct device *dev, uint32_t *freq)
 {
@@ -52,31 +118,31 @@ static inline int mcux_wwdt_get_clock_frequency(const struct device *dev, uint32
 		return -ENODEV;
 	}
 
+#ifdef CONFIG_WDT_MCUX_WWDT_HAS_CLOCK_HALT
+	clock_div_name_t divider;
+
+	ret = mcux_wwdt_mcx_divider(dev, &divider);
+	if (ret != 0) {
+		LOG_ERR("Unsupported watchdog divider: %d", ret);
+		return ret;
+	}
+	mcux_wwdt_set_clock_divider(divider, config->clk_divider);
+#else
 	switch ((uint32_t)config->clock_subsys) {
 #if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(wwdt0)) || DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(wwdt))
 	case MCUX_WWDT0_CLK:
 #if defined(CONFIG_SOC_SERIES_MCXW2XX) || defined(CONFIG_SOC_SERIES_LPC55XXX) ||                   \
 	defined(CONFIG_SOC_SERIES_LPC51U68) || defined(CONFIG_SOC_SERIES_LPC11U6X)
 		CLOCK_SetClkDiv(kCLOCK_DivWdtClk, config->clk_divider, true);
-#elif defined(CONFIG_SOC_FAMILY_MCXA) || defined(CONFIG_SOC_FAMILY_MCXL)
+#elif defined(CONFIG_SOC_FAMILY_MCXL)
 		CLOCK_SetClockDiv(kCLOCK_DivWWDT0, config->clk_divider);
-#elif defined(CONFIG_SOC_FAMILY_MCXN)
-		CLOCK_SetClkDiv(kCLOCK_DivWdt0Clk, config->clk_divider);
-#endif
-		break;
-#endif
-#if DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(wwdt1))
-	case MCUX_WWDT1_CLK:
-#if defined(CONFIG_SOC_FAMILY_MCXA)
-		CLOCK_SetClockDiv(kCLOCK_DivWWDT1, config->clk_divider);
-#elif defined(CONFIG_SOC_FAMILY_MCXN)
-		CLOCK_SetClkDiv(kCLOCK_DivWdt1Clk, config->clk_divider);
 #endif
 		break;
 #endif
 	default:
 		break;
 	}
+#endif
 
 	ret = clock_control_get_rate(config->clock_dev, config->clock_subsys, freq);
 	if (ret) {
@@ -96,6 +162,11 @@ static int mcux_wwdt_setup(const struct device *dev, uint8_t options)
 	if (data->started) {
 		LOG_ERR("Cannot set up watchdog: already started");
 		return -EBUSY;
+	}
+
+	if (IS_ENABLED(CONFIG_WDT_MCUX_WWDT_HAS_CLOCK_HALT) && data->disabled) {
+		LOG_ERR("Cannot restart a disabled watchdog");
+		return -ENOTSUP;
 	}
 
 	if (!data->timeout_valid) {
@@ -120,7 +191,26 @@ static int mcux_wwdt_disable(const struct device *dev)
 		return -EFAULT;
 	}
 
-	WWDT_Deinit(base);
+	if (IS_ENABLED(CONFIG_WDT_MCUX_WWDT_HAS_CLOCK_HALT)) {
+		unsigned int key = irq_lock();
+		bool irq_enabled = irq_is_enabled(config->irq) != 0;
+
+		irq_disable(config->irq);
+		int ret = mcux_wwdt_clock_halted(dev, true);
+
+		if (ret != 0) {
+			if (irq_enabled) {
+				irq_enable(config->irq);
+			}
+			irq_unlock(key);
+			LOG_ERR("Cannot halt watchdog: %d", ret);
+			return ret;
+		}
+		data->disabled = true;
+		irq_unlock(key);
+	} else {
+		WWDT_Deinit(base);
+	}
 	data->timeout_valid = false;
 	data->callback = NULL;
 	data->active_before_sleep = false;
@@ -143,6 +233,11 @@ static int mcux_wwdt_install_timeout(const struct device *dev,
 	struct mcux_wwdt_data *data = dev->data;
 	uint32_t clock_freq;
 	int ret;
+
+	if (IS_ENABLED(CONFIG_WDT_MCUX_WWDT_HAS_CLOCK_HALT) && data->disabled) {
+		LOG_ERR("Cannot restart a disabled watchdog");
+		return -ENOTSUP;
+	}
 
 	if (data->timeout_valid) {
 		LOG_ERR("No more timeouts can be installed");
@@ -279,6 +374,10 @@ static int mcux_wwdt_driver_pm_action(const struct device *dev,
 		break;
 	case PM_DEVICE_ACTION_TURN_OFF:
 		data->started = false;
+		if (IS_ENABLED(CONFIG_WDT_MCUX_WWDT_HAS_CLOCK_HALT) && data->disabled) {
+			data->active_before_sleep = false;
+			break;
+		}
 		if (config->base->MOD & WWDT_MOD_WDEN_MASK) {
 			data->active_before_sleep = true;
 		}
@@ -332,6 +431,7 @@ static DEVICE_API(wdt, mcux_wwdt_api) = {
 		.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(id)),                               \
 		.clock_subsys = (clock_control_subsys_t)DT_INST_CLOCKS_CELL(id, name),             \
 		.irq_config_func = mcux_wwdt_config_func_##id,                                     \
+		.irq = DT_INST_IRQN(id),                                                           \
 	};                                                                                         \
                                                                                                    \
 	static struct mcux_wwdt_data mcux_wwdt_data_##id;                                          \
