@@ -198,6 +198,38 @@ PTP Clock
   addend register from its nominal value. All in-tree drivers have been converted.
   (:github:`120828`)
 
+Watchdog
+========
+
+* All :dtcompatible:`nxp,lpc-wwdt` backends reject repeated setup and timeout installation
+  on a running or starting instance with ``-EBUSY``. Feed without a running timeout returns
+  ``-EINVAL`` and feed during startup returns ``-EAGAIN``.
+  Control operations and IRQ delivery are serialized; disable before startup returns
+  ``-EFAULT``. The non-MCX HAL stop and power-domain replay retain their baseline behavior.
+* On MCXN/MCXA, disabling a running instance halts its functional clock and uninstalls
+  its timeout. Repeated setup returns ``-EBUSY`` without feeding the watchdog.
+  The driver does not support restarting that instance in the same software boot:
+  subsequent install and setup return ``-ENOTSUP``, feed returns ``-EINVAL``, and
+  repeated disable returns ``-EFAULT``. A power-domain cycle does not permit restart.
+  Setup requires an ACTIVE MCXN/MCXA device; other backends retain their legacy
+  power-domain setup path. These API checks also apply with
+  :kconfig:option:`CONFIG_PM_DEVICE` disabled.
+* With system PM enabled, the MCX WWDT driver selects
+  :kconfig:option:`CONFIG_PM_POLICY_DEVICE_CONSTRAINTS` and holds the states listed
+  in ``zephyr,disabling-power-states`` while the watchdog runs. The conservative
+  defaults exclude Deep Sleep, Power Down and Deep Power Down. A board may relax
+  conditional entries only after configuring and verifying the required low-power
+  functional clock. The driver does not configure SCG or oscillator retention.
+  Successful disable releases the running-state constraints. PM resume preserves
+  the disabled state rather than restarting the old countdown.
+* Consumers of a runtime-enabled MCX WWDT must hold a runtime reference before setup
+  and retain it while the watchdog runs. Running-device suspend is rejected with
+  ``-ENOTSUP``; an attempted final synchronous runtime put therefore retains its
+  reference. Do not use a final asynchronous put for a running watchdog.
+  After successful disable, the consumer can release its runtime reference.
+  An unexpected loss of watchdog state is reported rather than silently starting
+  a new timeout. These hardware and power-policy changes apply only to MCXN/MCXA.
+
 .. zephyr-keep-sorted-stop
 
 Bluetooth
