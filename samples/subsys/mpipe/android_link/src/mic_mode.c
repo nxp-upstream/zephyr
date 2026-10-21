@@ -155,8 +155,48 @@ void demo_mode_init(void)
  */
 static uint8_t press_stage;
 
+/*
+ * The release event can be lost: it goes through the input queue with the
+ * touch panel's events, which fill it when the panel is busy. So each timer
+ * reads the button itself and a button found up is a release at that stage.
+ */
+#if DT_NODE_HAS_STATUS_OKAY(DT_ALIAS(sw0))
+static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET(DT_ALIAS(sw0), gpios);
+#else
+static const struct gpio_dt_spec button;
+#endif
+
+static bool button_held(void)
+{
+	return button.port == NULL || gpio_pin_get_dt(&button) != 0;
+}
+
+/* What a release does at the stage the press reached */
+static void release_work_fn(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	switch (press_stage) {
+	case 0:
+		demo_mode_set((demo_mode + 1) % ARRAY_SIZE(modes));
+		break;
+	case 1:
+		assist();
+		break;
+	default:
+		break;
+	}
+}
+
+static K_WORK_DEFINE(release_work, release_work_fn);
+
 static void press_timer_fn(struct k_timer *timer)
 {
+	if (!button_held()) {
+		k_work_submit(&release_work);
+		return;
+	}
+
 	if (press_stage == 0U) {
 		press_stage = 1;
 		osd_show("Assistant", OSD_MS);
@@ -184,16 +224,7 @@ static void button_cb(struct input_event *evt, void *user_data)
 	}
 
 	k_timer_stop(&press_timer);
-	switch (press_stage) {
-	case 0:
-		demo_mode_set((demo_mode + 1) % ARRAY_SIZE(modes));
-		break;
-	case 1:
-		assist();
-		break;
-	default:
-		break;
-	}
+	k_work_submit(&release_work);
 }
 
 INPUT_CALLBACK_DEFINE(DEVICE_DT_GET_ANY(gpio_keys), button_cb, NULL);
