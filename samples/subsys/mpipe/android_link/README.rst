@@ -61,15 +61,32 @@ mirroring unless the client is launched with ``audio_dup=true`` (Android 13 or
 later).
 
 The pipelines are driven by the mpipe player, one per pipeline. The application
-sets up the network (Wi-Fi AP or Ethernet + DHCP server), listens on port 5000
-(``CONFIG_ANDROID_LINK_PORT``),
+sets up the network (Wi-Fi AP or Ethernet + DHCP server), listens on port 5000,
 accepts the phone's video connection, then its audio connection, then its control
 connection, hands the stream sockets to the pipelines and keeps the control one
 for the touch events. When the phone disconnects it accepts the next client.
 
-The phone's client must be launched with audio enabled and the raw codec, for
-example ``audio=true audio_codec=raw`` on the scrcpy server command line, and
-with ``audio=false`` when the sample is built without audio.
+The sample's options, set in Kconfig or on the build line, and what the phone's
+server must be launched with to match (see `Launching the phone's server`_):
+
+- ``CONFIG_ANDROID_LINK_PORT`` (5000): the listening port.
+- ``CONFIG_ANDROID_LINK_WIFI_SSID`` and ``CONFIG_ANDROID_LINK_WIFI_PSK``
+  (``zephyr-link`` / ``zephyrdemo``, Wi-Fi builds only): the soft-AP's name and
+  WPA2 passphrase; an empty passphrase makes an open network.
+- ``CONFIG_ANDROID_LINK_AUDIO`` (on): play the phone's audio. The phone's client
+  must be launched with audio enabled and the raw codec, ``audio=true
+  audio_codec=raw`` on the scrcpy server command line, and with ``audio=false``
+  when the sample is built without audio.
+- ``CONFIG_ANDROID_LINK_MIC`` (on where a DMIC exists): send the board's microphone.
+
+For example, a board on another network and port:
+
+.. code-block:: console
+
+   west build -p -b mimxrt1170_evk/mimxrt1176/cm7 --shield rk055hdmipi4ma0 \
+       samples/subsys/mpipe/android_link -- -DEXTRA_CONF_FILE=overlay-wifi.conf \
+       -DCONFIG_ANDROID_LINK_WIFI_SSID=\"other-ap\" -DCONFIG_ANDROID_LINK_WIFI_PSK=\"otherpass\" \
+       -DCONFIG_ANDROID_LINK_PORT=5001
 
 With ``CONFIG_ANDROID_LINK_MIC`` (the default where a DMIC exists) a third pipeline
 sends the board's microphone to the phone as raw PCM, 16 kHz, 32-bit, two channels
@@ -133,10 +150,9 @@ while wide stereo music plays.
 
 The client is the scrcpy 4.1 server of the demo repository (branch ``android-4.1``),
 which adds a connection to a remote host, an MJPEG codec, a keep-alive message and
-the microphone channel; its ``server/scripts/build_launch_server.sh`` builds it,
-pushes it to the phone and launches it with the options this sample expects. The
-liveness probe the sample sends every second is control message type 100, which
-that server accepts and ignores.
+the microphone channel; `Launching the phone's server`_ shows how to build and
+launch it. The liveness probe the sample sends every second is control message
+type 100, which that server accepts and ignores.
 
 Requirements
 ************
@@ -177,9 +193,7 @@ Wi-Fi
    :compact:
 
 When using Wi-Fi, the board starts a soft-AP with SSID ``zephyr-link`` and
-passphrase ``zephyrdemo`` (``CONFIG_ANDROID_LINK_WIFI_SSID`` and
-``CONFIG_ANDROID_LINK_WIFI_PSK``; the phone's server must be launched with the
-same ``WIFI_SSID`` and ``WIFI_PSK``) and runs a DHCP server on ``192.0.2.1``. The phone
+passphrase ``zephyrdemo`` and runs a DHCP server on ``192.0.2.1``. The phone
 does not need to join that network by hand: the demo's server asks Android for
 it with a local-only network request and holds it for as long as it runs.
 Android shows the network as "Connected via Shell", keeps mobile data as the
@@ -189,6 +203,70 @@ network again and the session resumes by itself. If the phone is on another
 Wi-Fi network at that moment, Android asks first with a "Connect to device"
 notification; accepting it switches the phone to the board. Any client without
 that logic joins the network manually and points at ``192.0.2.1:5000``.
+
+Launching the phone's server
+============================
+
+The phone is connected over USB with ``adb`` authorized; the host has an Android
+SDK (``ANDROID_HOME``, default ``~/Android/Sdk``) and the JDK Android Studio
+ships. The board is flashed and, for Wi-Fi, power-cycled so that its access
+point is up. Then, from the demo repository:
+
+.. code-block:: console
+
+   server/scripts/build_launch_server.sh
+
+The script builds the server without Gradle, stops any server still running on
+the phone, pushes the jar and launches it against the board with every default
+below. The server then joins the board's network by itself and connects; after a
+board reset or a Wi-Fi drop it reconnects on its own, so a relaunch is only
+needed after a phone reboot or to install a new jar. Variables override the
+defaults; each must match the board it was built with:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Variable
+     - Default
+     - Must match
+   * - ``REMOTE_HOST``
+     - ``192.0.2.1``
+     - the board's address (``CONFIG_NET_CONFIG_MY_IPV4_ADDR``, the soft-AP
+       address in ``overlay-wifi.conf``)
+   * - ``REMOTE_PORT``
+     - ``5000``
+     - ``CONFIG_ANDROID_LINK_PORT``
+   * - ``AUDIO``
+     - ``true``
+     - ``CONFIG_ANDROID_LINK_AUDIO``
+   * - ``MIC``
+     - ``true``
+     - ``CONFIG_ANDROID_LINK_MIC``
+   * - ``AUDIO_SOURCE``
+     - ``playback``
+     - the source to start with; ``mic-voice-communication`` starts in the
+       intercom source, which the board's modes switch at run time anyway
+   * - ``WIFI_SSID`` / ``WIFI_PSK``
+     - ``zephyr-link`` / ``zephyrdemo``
+     - ``CONFIG_ANDROID_LINK_WIFI_SSID`` / ``CONFIG_ANDROID_LINK_WIFI_PSK``;
+       leave ``WIFI_SSID`` empty on Ethernet, so the server joins no network
+   * - ``MAX_FPS``
+     - ``15``
+     - the sender's frame rate cap
+   * - ``BUILD``
+     - ``true``
+     - ``false`` relaunches without rebuilding, which takes a second
+   * - ``KEEP_SAVED_WIFI``
+     - ``false``
+     - ``true`` keeps saved entries of the board's network on the phone, which
+       Android would otherwise join as an ordinary network and lose its internet
+
+For example, after a phone reboot, or for a board built without the microphone:
+
+.. code-block:: console
+
+   BUILD=false server/scripts/build_launch_server.sh
+   MIC=false server/scripts/build_launch_server.sh
 
 native_sim (host simulation)
 ============================
