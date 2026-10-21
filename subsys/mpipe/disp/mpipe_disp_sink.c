@@ -15,6 +15,13 @@
 
 #include <zephyr/mpipe/disp/mpipe_disp_sink.h>
 
+/* Investigation aid, see mpipe_stage_stats.h */
+#define MPIPE_STAGE_STATS 1
+#if MPIPE_STAGE_STATS
+#include "../mpipe_stage_stats.h"
+static struct mpipe_stage_stats disp_stats;
+#endif
+
 LOG_MODULE_REGISTER(mpipe_disp_sink, CONFIG_MPIPE_LOG_LEVEL);
 
 #define DEFAULT_PROP_DEVICE DEVICE_DT_GET_OR_NULL(DT_CHOSEN(zephyr_display))
@@ -247,6 +254,10 @@ int mpipe_disp_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 		/* Do not get height from caps as sometimes buffer is just a partial frame */
 		buf_desc.height = buf_desc.buf_size / bytes_per_line;
 
+#if MPIPE_STAGE_STATS
+		uint32_t t0 = k_cycle_get_32();
+#endif
+
 		if (buf_desc.height == 0U) {
 			LOG_ERR("Buffer of %u bytes is shorter than a %u-byte line",
 				buf_desc.buf_size, bytes_per_line);
@@ -259,6 +270,19 @@ int mpipe_disp_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 			/* Fallback to net_buf data if no video_buffer metadata */
 			ret = display_write(disp_sink->display_dev, 0, 0, &buf_desc, cur->data);
 		}
+
+#if MPIPE_STAGE_STATS
+		if (mpipe_stage_stats_add(&disp_stats, 1, buf_desc.buf_size, buf_desc.buf_size,
+					  mpipe_stage_stats_elapsed_us(t0))) {
+			LOG_INF("stats disp_sink: %u fps, %ux%u, write %u/%u/%u ms min/avg/max "
+				"(%u ms)",
+				mpipe_stage_stats_per_s(&disp_stats, disp_stats.count), buf_desc.width,
+				buf_desc.height, disp_stats.us_min / 1000U,
+				mpipe_stage_stats_us_avg(&disp_stats) / 1000U, disp_stats.us_max / 1000U,
+				disp_stats.elapsed_ms);
+			mpipe_stage_stats_reset(&disp_stats);
+		}
+#endif
 
 		if (ret != 0) {
 			if (ret != -ENODATA) {
