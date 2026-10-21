@@ -9,8 +9,8 @@ config MPIPE_AUD
 	select AUDIO
 	help
 	  Elements that capture, process and play back PCM audio: a digital
-	  microphone source, a gain transform, and a sink driving an audio codec
-	  over I2S.
+	  microphone source, a parser that frames a raw PCM byte stream into
+	  blocks, a gain transform, and a sink driving an audio codec over I2S.
 
 	  They sit on Zephyr's audio APIs and describe what they carry as a
 	  sample rate, a sample width, a channel count and the layout of those
