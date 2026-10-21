@@ -24,6 +24,7 @@ endchoice # PM_PREWAKEUP_CONV_MODE
 endif # PM && MCUX_LPTMR_TIMER
 
 configdefault NUM_IRQS
+	default 122 if SOC_MCXC454
 	default 32
 
 configdefault SYS_CLOCK_TICKS_PER_SEC

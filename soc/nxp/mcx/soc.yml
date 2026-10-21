@@ -25,6 +25,7 @@ family:
   - name: mcxc142
   - name: mcxc242
   - name: mcxc444
+  - name: mcxc454
 - name: mcxe
   series:
   - name: mcxe24x

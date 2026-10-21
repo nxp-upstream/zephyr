@@ -5,7 +5,13 @@ zephyr_sources_ifdef(CONFIG_MCXC_FLASH_CONFIG	flash_configuration.c)
 
 zephyr_include_directories(.)
 
-zephyr_sources(soc.c)
+# soc.c holds the MCG-Lite/SIM clock bring-up shared by the Cortex-M0+ MCXC
+# parts. MCXC454 is Cortex-M23 with SCG/MRCC clocking and has its own file.
+if(CONFIG_SOC_MCXC454)
+  zephyr_sources(soc_mcxc454.c)
+else()
+  zephyr_sources(soc.c)
+endif()
 
 zephyr_sources_ifdef(CONFIG_PM power.c)
 

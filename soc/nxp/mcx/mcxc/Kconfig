@@ -3,20 +3,50 @@
 
 config SOC_FAMILY_MCXC
 	select ARM
-	select CPU_CORTEX_M0PLUS
 	select CPU_CORTEX_M_HAS_SYSTICK
 	select CPU_CORTEX_M_HAS_VTOR
 	select CLOCK_CONTROL
 	select SOC_RESET_HOOK
 	select HAS_MCUX
-	select SOC_EARLY_INIT_HOOK
 	select HAS_SEGGER_RTT if ZEPHYR_SEGGER_MODULE
+
+# The MCXC family spans two hardware generations, so the CPU core and the
+# Kinetis-derived support are selected per SoC instead of for the whole family.
+#
+# MCXC141/MCXC142/MCXC242/MCXC444 are Cortex-M0+ parts with MCG-Lite/SIM
+# clocking and an FTFx flash controller, and they configure their clocks from
+# soc.c through the SoC early-init hook. MCXC454 is a Cortex-M23 part with
+# SCG/MRCC clocking and an FMU flash controller, and it configures its clocks
+# from the board early-init hook instead, like the MCXA parts it derives from.
+
+config SOC_MCXC141
+	select CPU_CORTEX_M0PLUS
+	select SOC_EARLY_INIT_HOOK
 	select HAS_PM
+
+config SOC_MCXC142
+	select CPU_CORTEX_M0PLUS
+	select SOC_EARLY_INIT_HOOK
+	select HAS_PM
+
+config SOC_MCXC242
+	select CPU_CORTEX_M0PLUS
+	select SOC_EARLY_INIT_HOOK
+	select HAS_PM
+
+config SOC_MCXC444
+	select CPU_CORTEX_M0PLUS
+	select SOC_EARLY_INIT_HOOK
+	select HAS_PM
+
+config SOC_MCXC454
+	select CPU_CORTEX_M23
 
 if SOC_FAMILY_MCXC
 
 config MCXC_FLASH_CONFIG
 	bool "MCXC flash configuration field"
+	depends on !SOC_MCXC454
 	default y if XIP && !BOOTLOADER_MCUBOOT
 	help
 	  Include the 16-byte flash configuration field that stores default
