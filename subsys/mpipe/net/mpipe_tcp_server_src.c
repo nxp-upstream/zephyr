@@ -10,6 +10,8 @@
 #include <zephyr/net/socket.h>
 #include <zephyr/net_buf.h>
 
+#include <zephyr/mpipe/mpipe_buffer.h>
+
 #include <zephyr/mpipe/net/mpipe_tcp_server_src.h>
 
 #include "tcp_server.h"
@@ -57,30 +59,59 @@ static int mpipe_tcp_server_src_get_property(struct mpipe_object *obj, uint32_t 
 	}
 }
 
+/*
+ * Receive into the current chunk and push the new bytes as a view of it. The
+ * chunk is released once the room left in it is too small for a useful read;
+ * it returns to the pool when the last view of it, typically the last frame
+ * cut out of it downstream, is released.
+ */
 static int mpipe_tcp_server_src_pool_acquire(struct mpipe_buffer_pool *pool, struct net_buf **buf)
 {
 	struct mpipe_tcp_server_src *tsrc = CONTAINER_OF(pool, struct mpipe_tcp_server_src, pool);
 	struct mpipe_buffer_meta *meta;
-	struct net_buf *nb;
+	struct net_buf *chunk;
+	struct net_buf *view;
+	uint32_t fill;
 	ssize_t rd;
 
 	if (tsrc->client_fd < 0) {
 		return -ENOTCONN;
 	}
 
-	nb = net_buf_alloc(pool->nb_pool, K_NO_WAIT);
-	if (nb == NULL) {
-		return -ENOBUFS;
+	chunk = tsrc->chunk;
+	if (chunk != NULL &&
+	    chunk->size - mpipe_buffer_get_meta(chunk)->bytes_used < CONFIG_MPIPE_NET_SRC_MIN_READ) {
+		net_buf_unref(chunk);
+		chunk = NULL;
+		tsrc->chunk = NULL;
 	}
 
-	meta = mpipe_buffer_get_meta(nb);
-	meta->pool = pool;
+	if (chunk == NULL) {
+		/* Blocks while every chunk is pinned by frames not consumed yet */
+		chunk = net_buf_alloc_len(pool->nb_pool, pool->config.size, K_FOREVER);
+		if (chunk == NULL) {
+			return -ENOBUFS;
+		}
+
+		meta = mpipe_buffer_get_meta(chunk);
+		meta->pool = pool;
+		meta->bytes_used = 0;
+		meta->timestamp = 0;
+		meta->driver_buf = NULL;
+		meta->priv = NULL;
+		meta->parent = NULL;
+		chunk->len = 0;
+		tsrc->chunk = chunk;
+	}
+
+	meta = mpipe_buffer_get_meta(chunk);
+	fill = meta->bytes_used;
 
 #if MPIPE_STAGE_STATS
 	uint32_t t0 = k_cycle_get_32();
 #endif
 
-	rd = zsock_recv(tsrc->client_fd, nb->data, nb->size, 0);
+	rd = zsock_recv(tsrc->client_fd, chunk->data + fill, chunk->size - fill, 0);
 
 #if MPIPE_STAGE_STATS
 	if (rd > 0 && mpipe_stage_stats_add(&rx_stats, 1, (uint32_t)rd, (uint32_t)rd,
@@ -96,19 +127,24 @@ static int mpipe_tcp_server_src_pool_acquire(struct mpipe_buffer_pool *pool, str
 
 	if (rd <= 0) {
 		/* A closed connection is the end of the stream */
-		int ret = (rd == 0) ? -ENODATA : -errno;
-
 		if (rd < 0) {
 			LOG_ERR("recv() failed (%d)", errno);
+			return -errno;
 		}
-		net_buf_unref(nb);
-		return ret;
+
+		return -ENODATA;
 	}
 
-	meta->bytes_used = rd;
+	meta->bytes_used = fill + (uint32_t)rd;
 	meta->timestamp = k_uptime_get_32();
-	nb->len = rd;
-	*buf = nb;
+	chunk->len = meta->bytes_used;
+
+	view = mpipe_buffer_view(chunk, fill, (uint32_t)rd, K_FOREVER);
+	if (view == NULL) {
+		return -ENOBUFS;
+	}
+
+	*buf = view;
 
 	return 0;
 }
@@ -143,6 +179,10 @@ static int mpipe_tcp_server_src_change_state(struct mpipe_element *self,
 		break;
 	case MPIPE_STATE_CHANGE_PAUSED_TO_READY:
 		mpipe_net_tcp_close(&tsrc->server_fd);
+		if (tsrc->chunk != NULL) {
+			net_buf_unref(tsrc->chunk);
+			tsrc->chunk = NULL;
+		}
 		break;
 	default:
 		break;
@@ -155,7 +195,7 @@ int mpipe_tcp_server_src_init(struct mpipe_tcp_server_src *tsrc, uint8_t id)
 {
 	const struct mpipe_buffer_pool_config pool_req = {
 		.size = CONFIG_MPIPE_NET_SRC_BUF_SIZE,
-		.min_buffers = 1,
+		.min_buffers = CONFIG_MPIPE_NET_SRC_NUM_BUFS,
 	};
 	struct mpipe_element *self = &tsrc->src.element;
 	int ret = mpipe_src_init(&tsrc->src, id);
@@ -176,6 +216,7 @@ int mpipe_tcp_server_src_init(struct mpipe_tcp_server_src *tsrc, uint8_t id)
 	tsrc->pool.acquire_buffer = mpipe_tcp_server_src_pool_acquire;
 	tsrc->src.pool = &tsrc->pool;
 
+	tsrc->chunk = NULL;
 	tsrc->port = CONFIG_MPIPE_NET_SRC_PORT;
 	tsrc->server_fd = -1;
 	tsrc->client_fd = -1;

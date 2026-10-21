@@ -30,8 +30,10 @@ enum mpipe_prop_tcp_server_src {
 struct mpipe_tcp_server_src {
 	/** Base source element. */
 	struct mpipe_src src;
-	/** Receive buffer pool. */
+	/** Pool of the chunks the stream is received into. */
 	struct mpipe_buffer_pool pool;
+	/** Chunk being filled, or NULL. */
+	struct net_buf *chunk;
 	/** TCP port number. */
 	uint16_t port;
 	/** Listening socket, -1 when closed. */
