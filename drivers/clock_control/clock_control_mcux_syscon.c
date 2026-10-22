@@ -228,6 +228,55 @@ static int mcux_lpc_syscon_clock_control_on(const struct device *dev,
 	}
 #endif /* defined(CONFIG_PINCTRL_NXP_PORT) */
 
+#if defined(CONFIG_GPIO_MCUX) &&                                                                   \
+	(defined(CONFIG_SOC_FAMILY_MCXA) || defined(CONFIG_SOC_FAMILY_MCXN))
+	switch ((uint32_t)sub_system) {
+#if defined(CONFIG_SOC_FAMILY_MCXA)
+	case MCUX_GPIO0_CLK:
+		CLOCK_EnableClock(kCLOCK_GateGPIO0);
+		break;
+	case MCUX_GPIO1_CLK:
+		CLOCK_EnableClock(kCLOCK_GateGPIO1);
+		break;
+	case MCUX_GPIO2_CLK:
+		CLOCK_EnableClock(kCLOCK_GateGPIO2);
+		break;
+	case MCUX_GPIO3_CLK:
+		CLOCK_EnableClock(kCLOCK_GateGPIO3);
+		break;
+#if (defined(FSL_FEATURE_SOC_GPIO_COUNT) && (FSL_FEATURE_SOC_GPIO_COUNT > 4))
+	case MCUX_GPIO4_CLK:
+		CLOCK_EnableClock(kCLOCK_GateGPIO4);
+		break;
+#endif /* FSL_FEATURE_SOC_GPIO_COUNT > 4 */
+#if (defined(FSL_FEATURE_SOC_GPIO_COUNT) && (FSL_FEATURE_SOC_GPIO_COUNT > 5))
+	case MCUX_GPIO5_CLK:
+		CLOCK_EnableClock(kCLOCK_GateGPIO5);
+		break;
+#endif /* FSL_FEATURE_SOC_GPIO_COUNT > 5 */
+#else /* CONFIG_SOC_FAMILY_MCXN */
+	/* GPIO5 is supplied from VBAT and has no SYSCON gate. */
+	case MCUX_GPIO0_CLK:
+		CLOCK_EnableClock(kCLOCK_Gpio0);
+		break;
+	case MCUX_GPIO1_CLK:
+		CLOCK_EnableClock(kCLOCK_Gpio1);
+		break;
+	case MCUX_GPIO2_CLK:
+		CLOCK_EnableClock(kCLOCK_Gpio2);
+		break;
+	case MCUX_GPIO3_CLK:
+		CLOCK_EnableClock(kCLOCK_Gpio3);
+		break;
+	case MCUX_GPIO4_CLK:
+		CLOCK_EnableClock(kCLOCK_Gpio4);
+		break;
+#endif /* defined(CONFIG_SOC_FAMILY_MCXA) */
+	default:
+		break;
+	}
+#endif /* CONFIG_GPIO_MCUX && (CONFIG_SOC_FAMILY_MCXA || CONFIG_SOC_FAMILY_MCXN) */
+
 #if defined(CONFIG_ETH_NXP_ENET_QOS) || defined(CONFIG_ETH_NXP_DWC_ETHER_QOS)
 	if ((uint32_t)sub_system == MCUX_ENET_QOS_CLK) {
 #if defined(CONFIG_SOC_FAMILY_MCXA)
