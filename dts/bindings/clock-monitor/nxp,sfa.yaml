@@ -1,0 +1,72 @@
+# SPDX-FileCopyrightText: 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  NXP Signal Frequency Analyser (SFA).
+
+  Measures a clock under test (the clock_monitor target) against a reference
+  clock with two 32-bit counters, driven through the MCUX SDK fsl_sfa HAL.
+  Both clock_monitor modes are supported:
+
+    - MEASURE: one frequency measurement per start(), completion IRQ.
+    - WINDOW: the SFA monitor mode (CTRL[MONITOR_EN]) re-measures until the
+      result leaves the low/high limits, then raises FREQ_GT_MAX or
+      FREQ_LT_MIN. The driver re-arms after each event.
+
+  The driver picks the counting method per configure(). When target-frequency
+  is known and below reference-frequency it uses CTRL[MODE] = 0 (time a fixed
+  number of target edges in reference ticks, good for slow clocks); otherwise
+  CTRL[MODE] = 1 (count target edges during a fixed reference window).
+
+  The reference and target inputs are fixed per instance; select another pair
+  in a board overlay. clock_monitor_set_source() is not supported.
+
+  The driver does not enable either clock. The application must have both
+  running before configure()/start(); a target left off counts no edges and is
+  reported as CLOCK_LOST.
+
+  Selector values for each SoC are in
+  <zephyr/dt-bindings/clock-monitor/nxp-sfa.h>.
+
+compatible: "nxp,sfa"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  clocks:
+    required: true
+    description: |
+      SFA peripheral gate clock, enabled by the driver via clock_control_on().
+
+  reference-select:
+    type: int
+    required: true
+    description: |
+      CTRL2[REF_CLK_SEL] value of the reference clock (NXP_SFA_*_REF_*).
+
+  reference-frequency:
+    type: int
+    required: true
+    description: |
+      Reference clock rate in Hz. The driver converts the counters to Hz with
+      it, so it must match the real clock.
+
+  target-select:
+    type: int
+    required: true
+    description: |
+      CTRL[CUT_SEL] value of the clock under test (NXP_SFA_*_CUT_*).
+
+  target-frequency:
+    type: int
+    description: |
+      Nominal rate of the clock under test in Hz. Picks the counting method,
+      and is the WINDOW centre when expected_hz is 0. Leave it out when the
+      rate is unknown; MEASURE then uses CTRL[MODE] = 1 and WINDOW needs an
+      explicit expected_hz.

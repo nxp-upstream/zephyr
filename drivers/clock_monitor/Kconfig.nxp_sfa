@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config CLOCK_MONITOR_NXP_SFA
+	bool "NXP SFA (Signal Frequency Analyser) driver"
+	default y
+	depends on DT_HAS_NXP_SFA_ENABLED
+	help
+	  Zephyr clock_monitor back-end for the NXP Signal Frequency Analyser,
+	  built on the MCUX SDK fsl_sfa HAL. Supports MEASURE (one-shot,
+	  completion interrupt) and WINDOW (SFA monitor mode with low/high
+	  limit interrupts). Reference and target inputs are selected inside
+	  the SFA itself, so no INPUTMUX is needed.
