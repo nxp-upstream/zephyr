@@ -5,6 +5,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/*
+ * With CONFIG_PM_DEVICE_RUNTIME the consumer owns the lifetime of whatever it
+ * configured. A pin level, a pin direction and an armed edge have no completion
+ * event the driver could hang a pm_device_runtime_put() on, so the driver takes
+ * no runtime reference of its own: call pm_device_runtime_get() before
+ * gpio_pin_configure() and keep the reference for as long as the pin's state is
+ * needed.
+ */
+
 #define DT_DRV_COMPAT nxp_kinetis_gpio
 
 #include <errno.h>
@@ -14,6 +23,7 @@
 #include <zephyr/drivers/reset.h>
 #include <zephyr/dt-bindings/gpio/nxp-kinetis-gpio.h>
 #include <zephyr/irq.h>
+#include <zephyr/pm/device.h>
 #include <soc.h>
 #include <fsl_common.h>
 
@@ -99,6 +109,22 @@ struct gpio_mcux_data {
 	struct gpio_driver_data common;
 	/* port ISR callback routine address */
 	sys_slist_t callbacks;
+#ifdef CONFIG_PM_DEVICE
+	/*
+	 * Pins this driver has configured. Only these are saved and restored:
+	 * the pad registers are shared with pinctrl, and a pin this driver never
+	 * wrote has no value of its own to put back.
+	 */
+	gpio_port_pins_t configured;
+	/* Saved while the block still has power, and written back after it has
+	 * been powered up again. The pad and interrupt settings are per pin; the
+	 * direction and the output level are one bit per pin.
+	 */
+	uint32_t pad[GPIO_MAX_PINS_PER_PORT];
+	uint8_t irqc[GPIO_MAX_PINS_PER_PORT];
+	uint32_t pddr;
+	uint32_t pdor;
+#endif /* CONFIG_PM_DEVICE */
 };
 
 #if defined(CONFIG_PINCTRL_NXP_IOCON)
@@ -134,6 +160,18 @@ static void gpio_mcux_pad_set(const struct device *dev, gpio_pin_t pin, uint32_t
 }
 
 #endif /* defined(CONFIG_PINCTRL_NXP_IOCON) */
+
+static void gpio_mcux_pin_configured(const struct device *dev, gpio_pin_t pin)
+{
+#ifdef CONFIG_PM_DEVICE
+	struct gpio_mcux_data *data = dev->data;
+
+	data->configured |= BIT(pin);
+#else
+	ARG_UNUSED(dev);
+	ARG_UNUSED(pin);
+#endif /* CONFIG_PM_DEVICE */
+}
 
 #if defined(CONFIG_PINCTRL_NXP_IOCON)
 static int gpio_mcux_iopctl_configure(const struct device *dev, gpio_pin_t pin, gpio_flags_t flags)
@@ -202,6 +240,7 @@ static int gpio_mcux_iopctl_configure(const struct device *dev, gpio_pin_t pin, 
 	}
 
 	gpio_mcux_pad_set(dev, pin, pinconfig);
+	gpio_mcux_pin_configured(dev, pin);
 
 	return 0;
 }
@@ -265,6 +304,7 @@ static int gpio_mcux_port_configure(const struct device *dev, gpio_pin_t pin, gp
 		mask |= PORT_PCR_IBE_MASK;
 #endif
 		gpio_mcux_pad_set(dev, pin, gpio_mcux_pad_get(dev, pin) & ~mask);
+		gpio_mcux_pin_configured(dev, pin);
 		return 0;
 	default:
 		return -ENOTSUP;
@@ -313,6 +353,7 @@ static int gpio_mcux_port_configure(const struct device *dev, gpio_pin_t pin, gp
 
 	/* Accessing by pin, we only need to write one PCR register. */
 	gpio_mcux_pad_set(dev, pin, (gpio_mcux_pad_get(dev, pin) & ~mask) | pcr);
+	gpio_mcux_pin_configured(dev, pin);
 
 	return 0;
 }
@@ -450,6 +491,14 @@ static uint32_t get_gpio_icr_irqc_value_from_flags(const struct device *dev, uin
 
 #if (GPIO_IRQ_CTRL == GPIO_IRQ_CTRL_BY_GPIO)
 
+static __maybe_unused uint8_t gpio_mcux_irqc_get(const struct device *dev, gpio_pin_t pin)
+{
+	const struct gpio_mcux_config *config = dev->config;
+
+	return (uint8_t)((config->gpio_base->ICR[pin] & GPIO_ICR_IRQC_MASK) >>
+			 GPIO_ICR_IRQC_SHIFT);
+}
+
 static void gpio_mcux_irqc_set(const struct device *dev, gpio_pin_t pin, uint8_t irqc)
 {
 	const struct gpio_mcux_config *config = dev->config;
@@ -460,6 +509,14 @@ static void gpio_mcux_irqc_set(const struct device *dev, gpio_pin_t pin, uint8_t
 
 #elif (GPIO_IRQ_CTRL == GPIO_IRQ_CTRL_BY_PORT)
 
+static __maybe_unused uint8_t gpio_mcux_irqc_get(const struct device *dev, gpio_pin_t pin)
+{
+	const struct gpio_mcux_config *config = dev->config;
+
+	return (uint8_t)((config->port_base->PCR[pin] & PORT_PCR_IRQC_MASK) >>
+			 PORT_PCR_IRQC_SHIFT);
+}
+
 static void gpio_mcux_irqc_set(const struct device *dev, gpio_pin_t pin, uint8_t irqc)
 {
 	const struct gpio_mcux_config *config = dev->config;
@@ -469,6 +526,14 @@ static void gpio_mcux_irqc_set(const struct device *dev, gpio_pin_t pin, uint8_t
 }
 
 #else
+
+static __maybe_unused uint8_t gpio_mcux_irqc_get(const struct device *dev, gpio_pin_t pin)
+{
+	ARG_UNUSED(dev);
+	ARG_UNUSED(pin);
+
+	return 0U;
+}
 
 static void gpio_mcux_irqc_set(const struct device *dev, gpio_pin_t pin, uint8_t irqc)
 {
@@ -627,8 +692,82 @@ static int gpio_mcux_port_get_direction(const struct device *dev, gpio_port_pins
 }
 #endif /* CONFIG_GPIO_GET_DIRECTION */
 
+static void gpio_mcux_state_save(const struct device *dev)
+{
+#ifdef CONFIG_PM_DEVICE
+	const struct gpio_mcux_config *config = dev->config;
+	struct gpio_mcux_data *data = dev->data;
+	GPIO_Type *gpio_base = config->gpio_base;
+
+	data->pddr = gpio_base->PDDR;
+	data->pdor = gpio_base->PDOR;
+
+	for (gpio_pin_t pin = 0; pin < GPIO_MAX_PINS_PER_PORT; pin++) {
+		if ((data->configured & BIT(pin)) == 0U) {
+			continue;
+		}
+
+		data->pad[pin] = gpio_mcux_pad_get(dev, pin) & GPIO_MCUX_PAD_MASK;
+		data->irqc[pin] = gpio_mcux_irqc_get(dev, pin);
+	}
+#else
+	ARG_UNUSED(dev);
+#endif /* CONFIG_PM_DEVICE */
+}
+
+static void gpio_mcux_state_restore(const struct device *dev)
+{
+#ifdef CONFIG_PM_DEVICE
+	const struct gpio_mcux_config *config = dev->config;
+	struct gpio_mcux_data *data = dev->data;
+	GPIO_Type *gpio_base = config->gpio_base;
+
+	if (data->configured == 0U) {
+		return;
+	}
+
+	for (gpio_pin_t pin = 0; pin < GPIO_MAX_PINS_PER_PORT; pin++) {
+		if ((data->configured & BIT(pin)) == 0U) {
+			continue;
+		}
+
+		gpio_mcux_pad_set(dev, pin,
+				  (gpio_mcux_pad_get(dev, pin) & ~GPIO_MCUX_PAD_MASK) |
+					  data->pad[pin]);
+	}
+
+	/* Drive the saved level before the direction, so a pin that was an
+	 * output does not drive the reset level in between the two writes.
+	 */
+	gpio_base->PDOR = (gpio_base->PDOR & ~data->configured) | (data->pdor & data->configured);
+	gpio_base->PDDR = (gpio_base->PDDR & ~data->configured) | (data->pddr & data->configured);
+
+	for (gpio_pin_t pin = 0; pin < GPIO_MAX_PINS_PER_PORT; pin++) {
+		if ((data->configured & BIT(pin)) == 0U) {
+			continue;
+		}
+
+		gpio_mcux_irqc_set(dev, pin, data->irqc[pin]);
+	}
+
+	/*
+	 * The interrupt status flags are left alone. A flag records
+	 * an edge that already happened, and the edges that arrived while the
+	 * block had no power are gone; setting one would hand the consumer a
+	 * callback for a transition the hardware never saw.
+	 */
+#else
+	ARG_UNUSED(dev);
+#endif /* CONFIG_PM_DEVICE */
+}
+
 /*
  * Open the clock gate and release the reset.
+ *
+ * Called from init as well as from TURN_ON: the block is powered at boot, but
+ * a device sitting in a power domain is only handed TURN_ON once something
+ * resumes the domain, which for a domain that only tracks SoC power states
+ * may be much later or never.
  */
 static int gpio_mcux_bring_up(const struct device *dev)
 {
@@ -658,6 +797,45 @@ static int gpio_mcux_bring_up(const struct device *dev)
 	}
 
 	return 0;
+}
+
+static int gpio_mcux_pm_action(const struct device *dev, enum pm_device_action action)
+{
+	int ret;
+
+	switch (action) {
+	case PM_DEVICE_ACTION_TURN_ON:
+		ret = gpio_mcux_bring_up(dev);
+		if (ret != 0) {
+			return ret;
+		}
+
+		gpio_mcux_state_restore(dev);
+		return 0;
+
+	case PM_DEVICE_ACTION_TURN_OFF:
+		/*
+		 * Save while the block still has power. The supply goes away
+		 * once this returns, and the pad, direction, output and
+		 * interrupt registers do not survive it.
+		 */
+		gpio_mcux_state_save(dev);
+		return 0;
+
+	case PM_DEVICE_ACTION_RESUME:
+	case PM_DEVICE_ACTION_SUSPEND:
+		/*
+		 * A pin level, a pin direction and an armed edge are state, not
+		 * activity: they have to hold for as long as the block is
+		 * powered, whatever the rest of the SoC is doing. Suspending the
+		 * device does not take them away, so there is nothing to put
+		 * back on the way up either.
+		 */
+		return 0;
+
+	default:
+		return -ENOTSUP;
+	}
 }
 
 static DEVICE_API(gpio, gpio_mcux_driver_api) = {
@@ -719,9 +897,11 @@ static DEVICE_API(gpio, gpio_mcux_driver_api) = {
                                                                                                    \
 	static struct gpio_mcux_data gpio_mcux_port##n##_data;                                     \
                                                                                                    \
-	DEVICE_DT_INST_DEFINE(n, gpio_mcux_port##n##_init, NULL, &gpio_mcux_port##n##_data,        \
-			      &gpio_mcux_port##n##_config, POST_KERNEL, CONFIG_GPIO_INIT_PRIORITY, \
-			      &gpio_mcux_driver_api);                                              \
+	PM_DEVICE_DT_INST_DEFINE(n, gpio_mcux_pm_action);                                          \
+                                                                                                   \
+	DEVICE_DT_INST_DEFINE(n, gpio_mcux_port##n##_init, PM_DEVICE_DT_INST_GET(n),               \
+			      &gpio_mcux_port##n##_data, &gpio_mcux_port##n##_config, POST_KERNEL,  \
+			      CONFIG_GPIO_INIT_PRIORITY, &gpio_mcux_driver_api);                    \
                                                                                                    \
 	static int gpio_mcux_port##n##_init(const struct device *dev)                              \
 	{                                                                                          \
@@ -732,9 +912,9 @@ static DEVICE_API(gpio, gpio_mcux_driver_api) = {
 			return ret;                                                                \
 		}                                                                                  \
                                                                                                    \
-		IF_ENABLED(DT_INST_IRQ_HAS_IDX(n, 0),			\
-			(GPIO_MCUX_IRQ_INIT(n);))                                         \
-		return 0;                                                                          \
+		IF_ENABLED(DT_INST_IRQ_HAS_IDX(n, 0), (GPIO_MCUX_IRQ_INIT(n);))                    \
+                                                                                                   \
+		return pm_device_driver_init(dev, gpio_mcux_pm_action);                            \
 	}
 
 DT_INST_FOREACH_STATUS_OKAY(GPIO_DEVICE_INIT_MCUX)
