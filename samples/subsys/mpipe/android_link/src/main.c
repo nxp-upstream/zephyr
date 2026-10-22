@@ -26,7 +26,7 @@
  * With CONFIG_ANDROID_LINK_MIC a third pipeline sends the board's microphone
  * to the phone as raw PCM, on a connection of its own:
  *
- *   mic_src -> mic_caps_filter -> queue_mic -> mic_sink
+ *   mic_src -> mic_caps_filter -> mic_gain -> queue_mic -> mic_sink
  *
  * The phone opens its connections to one port, video first, then audio, then
  * control, then the microphone, so the application owns the listening socket,
@@ -70,6 +70,7 @@
 #endif
 #if defined(CONFIG_ANDROID_LINK_MIC)
 #include <zephyr/mpipe/aud/mpipe_aud_dmic_src.h>
+#include <zephyr/mpipe/aud/mpipe_aud_gain.h>
 #endif
 
 #include "osd.h"
@@ -99,6 +100,7 @@ enum {
 	MIC_PIPE_ID,
 	MIC_SRC_ID,
 	MIC_CAPS_FILTER_ID,
+	MIC_GAIN_ID,
 	QUEUE_MIC_ID,
 	MIC_SINK_ID,
 };
@@ -179,6 +181,7 @@ static __nocache struct k_mem_slab audio_slab;
 static struct mpipe mic_pipe;
 static struct mpipe_aud_dmic_src mic_src;
 static struct mpipe_caps_filter mic_caps_filter;
+static struct mpipe_aud_gain mic_gain;
 static struct mpipe_queue queue_mic;
 static struct mpipe_socket_sink mic_sink;
 static struct mpipe_player mic_player;
@@ -453,7 +456,8 @@ static int build_audio_stream_pipeline(void)
 #if defined(CONFIG_ANDROID_LINK_MIC)
 /*
  * Build the pipeline that sends the microphone to the phone. The caps filter
- * pins the format the phone expects out of what the DMIC offers; the queue
+ * pins the format the phone expects out of what the DMIC offers; the gain
+ * lifts the microphone's soft signal to a speaking level in place; the queue
  * keeps a slow link from holding the capture thread, dropping the oldest
  * block instead; the socket sink writes the blocks to the connection.
  */
@@ -472,6 +476,10 @@ static int build_mic_stream_pipeline(void)
 		return ret;
 	}
 	ret = mpipe_caps_filter_init(&mic_caps_filter, MIC_CAPS_FILTER_ID);
+	if (ret < 0) {
+		return ret;
+	}
+	ret = mpipe_aud_gain_init(&mic_gain, MIC_GAIN_ID);
 	if (ret < 0) {
 		return ret;
 	}
@@ -514,6 +522,13 @@ static int build_mic_stream_pipeline(void)
 	}
 
 	ret = mpipe_object_set_properties(
+		(struct mpipe_object *)&mic_gain, MPIPE_PROP_AUD_TRANSFORM_GAIN,
+		&(int){CONFIG_ANDROID_LINK_MIC_GAIN}, MPIPE_PROP_LIST_END);
+	if (ret < 0) {
+		return ret;
+	}
+
+	ret = mpipe_object_set_properties(
 		(struct mpipe_object *)&queue_mic, MPIPE_PROP_BASE_QUEUE_SIZE,
 		&(uint8_t){MIC_QUEUE_BLOCKS}, MPIPE_PROP_BASE_QUEUE_LEAK,
 		&(enum mpipe_base_queue_leak){MPIPE_BASE_QUEUE_LEAK_OLDEST},
@@ -524,8 +539,8 @@ static int build_mic_stream_pipeline(void)
 
 	ret = mpipe_bin_add((struct mpipe_bin *)&mic_pipe, (struct mpipe_element *)&mic_src,
 			    (struct mpipe_element *)&mic_caps_filter,
-			    (struct mpipe_element *)&queue_mic, (struct mpipe_element *)&mic_sink,
-			    NULL);
+			    (struct mpipe_element *)&mic_gain, (struct mpipe_element *)&queue_mic,
+			    (struct mpipe_element *)&mic_sink, NULL);
 	if (ret < 0) {
 		LOG_ERR("Failed to add the microphone elements (%d)", ret);
 		return ret;
@@ -533,7 +548,8 @@ static int build_mic_stream_pipeline(void)
 
 	ret = mpipe_element_link(
 		(struct mpipe_element *)&mic_src, (struct mpipe_element *)&mic_caps_filter,
-		(struct mpipe_element *)&queue_mic, (struct mpipe_element *)&mic_sink, NULL);
+		(struct mpipe_element *)&mic_gain, (struct mpipe_element *)&queue_mic,
+		(struct mpipe_element *)&mic_sink, NULL);
 	if (ret < 0) {
 		LOG_ERR("Failed to link the microphone elements (%d)", ret);
 		return ret;

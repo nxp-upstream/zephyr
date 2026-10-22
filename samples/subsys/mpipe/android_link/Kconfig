@@ -70,6 +70,16 @@ config ANDROID_LINK_MIC
 	  it, is set by a control message. The phone must be launched with the
 	  microphone channel enabled.
 
+config ANDROID_LINK_MIC_GAIN
+	int "Gain applied to the board's microphone, in percent"
+	depends on ANDROID_LINK_MIC
+	range 0 1000
+	default 200
+	help
+	  Gain of the aud_gain element in the microphone pipeline, 100 for
+	  unity. A digital microphone's speech peaks well below full scale;
+	  200 (+6 dB) brings it to the level of a phone's microphone. 0 mutes.
+
 config ANDROID_LINK_PORT
 	int "TCP port the board listens on"
 	range 1 65535
