@@ -1,0 +1,19 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config MEMC_NXP_AHB_SRAMC
+	bool "NXP AHB SRAM Controller (AHB_SRAMC)"
+	default y
+	depends on DT_HAS_NXP_AHB_SRAMC_ENABLED
+	select PINCTRL
+	help
+	  Enable the NXP AHB SRAM Controller driver, found on i.MX RT266x. The
+	  driver programs the bus timing of each populated chip select through
+	  the MCUXpresso SDK sramc_1 HAL at init, which leaves the external
+	  asynchronous parallel SRAM usable as a memory-mapped window.
+
+	  This is a different block from the one MEMC_NXP_SRAMC drives, whose
+	  registers sit inside BLK_CTRL_WAKEUPMIX on i.MX RT118x and which uses
+	  the SDK sramc HAL. Both HALs ship a header named fsl_sramc.h that
+	  declares the same symbols over different register types, so no single
+	  build can contain both drivers.
