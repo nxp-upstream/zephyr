@@ -270,7 +270,6 @@
 		compatible = "nxp,port-pinmux";
 		reg = <0xe3000 0x1000>;
 		clocks = <&syscon MCUX_PORT5_CLK>;
-		power-domains = <&core_domain>;
 	};
 
 	gpio0: gpio@48000 {
