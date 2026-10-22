@@ -103,6 +103,21 @@ enum nxp_freqme_state {
 	NXP_FREQME_STATE_RUNNING,
 };
 
+/*
+ * Resolved hardware parameters computed from a clock_monitor_config before
+ * any registers are touched. Passed from freqme_derive_hw_params() to
+ * freqme_hw_apply() so the two steps can be read and tested independently,
+ * and retained in dev->data so a TURN_ON after a power loss can rebuild the
+ * block from the values configure() actually applied.
+ */
+struct freqme_hw_params {
+	uint32_t ref_hz;     /* reference clock rate in Hz                    */
+	uint8_t  ref_scale;  /* REF_SCALE exponent (window = 2^N ref periods) */
+	uint32_t min_val;    /* WINDOW MIN counter threshold (0 in MEASURE)   */
+	uint32_t max_val;    /* WINDOW MAX counter threshold                  */
+	uint32_t int_mask;   /* interrupt-enable bitmask for FREQME_EnableInterrupts */
+};
+
 struct nxp_freqme_data {
 	/* Protects the state machine, cfg, source selection and result fields
 	 * against the ISR and against concurrent API calls.
@@ -123,6 +138,13 @@ struct nxp_freqme_data {
 	bool has_rate;
 	/* CLOCK_LOST latched since configure(). */
 	bool clock_lost;
+	/* Parameters configure() last applied, replayed after a power loss. */
+	struct freqme_hw_params params;
+	/* A configure() has been applied, so the block may be rebuilt from
+	 * params. An instance the application never configured keeps the reset
+	 * state it had instead.
+	 */
+	bool configured;
 };
 
 /*
@@ -267,19 +289,6 @@ static uint8_t nxp_freqme_default_idx(const struct nxp_freqme_source *srcs, uint
 	}
 	return 0U;
 }
-
-/*
- * Resolved hardware parameters computed from a clock_monitor_config before
- * any registers are touched. Passed from freqme_derive_hw_params() to
- * freqme_hw_apply() so the two steps can be read and tested independently.
- */
-struct freqme_hw_params {
-	uint32_t ref_hz;     /* reference clock rate in Hz                    */
-	uint8_t  ref_scale;  /* REF_SCALE exponent (window = 2^N ref periods) */
-	uint32_t min_val;    /* WINDOW MIN counter threshold (0 in MEASURE)   */
-	uint32_t max_val;    /* WINDOW MAX counter threshold                  */
-	uint32_t int_mask;   /* interrupt-enable bitmask for FREQME_EnableInterrupts */
-};
 
 /*
  * Translate a clock_monitor_config into FREQME register-level parameters:
@@ -437,6 +446,8 @@ static int nxp_freqme_configure(const struct device *dev,
 	data->cfg         = *cfg;
 	data->ref_hz      = params.ref_hz;
 	data->ref_scale   = params.ref_scale;
+	data->params      = params;
+	data->configured  = true;
 	data->last_rate_hz = 0U;
 	data->has_rate    = false;
 	data->clock_lost  = false;
@@ -619,6 +630,7 @@ static int nxp_freqme_set_source(const struct device *dev, uint32_t reference, u
 	data->last_rate_hz = 0U;
 	data->has_rate = false;
 	data->clock_lost = false;
+	data->configured = false;
 	data->state = NXP_FREQME_STATE_IDLE;
 	k_spin_unlock(&data->lock, key);
 	return 0;
