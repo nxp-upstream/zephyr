@@ -24,7 +24,8 @@
  * the source and pushes each one through every element's process function
  * until a sink consumes it. A queue element gives a part of the graph a thread
  * of its own. It orders the teardown: buffers still in flight are dropped
- * before the children dismantle their pools, and the thread is joined only
+ * at the pads, the source stops producing, the push in flight is waited for
+ * before the other children dismantle their pools, and the thread is joined
  * once the children have drained. A pause is not a teardown, so whatever is
  * queued survives and a resume continues without loss. And it folds the end of
  * the stream: a graph with several sinks produces one end-of-stream message
@@ -35,6 +36,7 @@
 
 #include <stdint.h>
 
+#include <zephyr/kernel.h>
 #include <zephyr/net_buf.h>
 #include <zephyr/sys/atomic.h>
 #include <zephyr/zbus/zbus.h>
@@ -68,6 +70,12 @@ struct mpipe {
 	struct mpipe_bin bin;
 	/** Thread associated with the pipeline */
 	struct mpipe_thread thread;
+	/**
+	 * Held by the thread from the acquire of a buffer to the end of its push.
+	 * A teardown stops the source producing and takes it, so that no
+	 * element is dismantled under a push.
+	 */
+	struct k_mutex stream_lock;
 	/** Number of sink elements in the pipeline (computed on READY->PAUSED) */
 	uint32_t num_sinks;
 	/** Number of EOS messages seen so far during the current run */
