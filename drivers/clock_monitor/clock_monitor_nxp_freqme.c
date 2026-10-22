@@ -45,6 +45,11 @@
  * INPUTMUX routing that selects its reference and target clocks. TURN_ON
  * re-applies the routing, and rebuilds the measurement parameters of an
  * instance that was already configured.
+ *
+ * An API call that arrives while the device is not active returns -EBUSY
+ * rather than writing a register block that is gated or has lost its contents.
+ * clock_monitor_get_rate() is the exception: it answers from RAM and touches
+ * no register, so a suspended device still reports its retained result.
  */
 
 #define DT_DRV_COMPAT nxp_freqme
@@ -171,6 +176,15 @@ struct nxp_freqme_data {
 	 */
 	bool started;
 };
+
+static bool nxp_freqme_is_active(const struct device *dev)
+{
+	enum pm_device_state state;
+
+	(void)pm_device_state_get(dev, &state);
+
+	return state == PM_DEVICE_STATE_ACTIVE;
+}
 
 /*
  * Convert a measurement window (ns) into the REF_SCALE power-of-two exponent.
@@ -441,6 +455,11 @@ static int nxp_freqme_configure(const struct device *dev,
 	 * set_source() callers return -EBUSY, so the clock queries and HAL
 	 * writes below run against a stable source pair outside the spinlock.
 	 */
+	if (!nxp_freqme_is_active(dev)) {
+		LOG_ERR("%s: device is not active", dev->name);
+		return -EBUSY;
+	}
+
 	key = k_spin_lock(&data->lock);
 	if (data->state == NXP_FREQME_STATE_RUNNING ||
 	    data->state == NXP_FREQME_STATE_CONFIGURING) {
@@ -494,6 +513,11 @@ static int nxp_freqme_start(const struct device *dev)
 	struct nxp_freqme_data *data = dev->data;
 	k_spinlock_key_t key;
 
+	if (!nxp_freqme_is_active(dev)) {
+		LOG_ERR("%s: device is not active", dev->name);
+		return -EBUSY;
+	}
+
 	key = k_spin_lock(&data->lock);
 	if (data->state == NXP_FREQME_STATE_RUNNING ||
 	    data->state == NXP_FREQME_STATE_CONFIGURING) {
@@ -525,9 +549,14 @@ static int nxp_freqme_stop(const struct device *dev)
 	struct nxp_freqme_data *data = dev->data;
 	k_spinlock_key_t key;
 
+	/* The API documents 0 as the only return, so a stop on a device that is
+	 * not active still succeeds. A suspend already terminated the cycle, so
+	 * only the bookkeeping is dropped here; the register block is not
+	 * touched while it may be gated or without its contents.
+	 */
 	key = k_spin_lock(&data->lock);
 	data->started = false;
-	if (data->state == NXP_FREQME_STATE_RUNNING) {
+	if (data->state == NXP_FREQME_STATE_RUNNING && nxp_freqme_is_active(dev)) {
 		if (data->cfg.mode == CLOCK_MONITOR_MODE_WINDOW) {
 			FREQME_EnableContinuousMode(config->base, false);
 		}
@@ -577,6 +606,11 @@ static int nxp_freqme_set_source(const struct device *dev, uint32_t reference, u
 
 	if (!ref_req && !tar_req) {
 		return -EINVAL;
+	}
+
+	if (!nxp_freqme_is_active(dev)) {
+		LOG_ERR("%s: device is not active", dev->name);
+		return -EBUSY;
 	}
 
 	/* Resolve the requested cookies up front. An unknown cookie - including
