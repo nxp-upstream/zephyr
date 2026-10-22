@@ -13,6 +13,7 @@
 #include <zephyr/zbus/zbus.h>
 
 #include <zephyr/mpipe/mpipe_bin.h>
+#include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
 #include <zephyr/mpipe/mpipe_element.h>
 #include <zephyr/mpipe/mpipe_message.h>
@@ -225,84 +226,125 @@ static void mpipe_pipeline_send_eos(struct mpipe_src *src)
 	}
 }
 
+/*
+ * One turn of the streaming loop: acquire a buffer from the source and push it
+ * through the graph. Runs under the stream lock, so a teardown waits for it.
+ */
+static void mpipe_pipeline_stream_once(struct mpipe *pipeline, struct mpipe_src *src,
+				       uint32_t *count)
+{
+	struct net_buf *buffer = NULL;
+	int acq_ret = 0;
+	bool reached_limit = (src->num_buffers != 0 && *count == src->num_buffers);
+
+	if (!reached_limit) {
+		acq_ret = src->pool->acquire_buffer(src->pool, &buffer);
+	}
+
+	/* A live source that had to drop what it captured: nothing to push this time */
+	if (acq_ret == -EAGAIN) {
+		return;
+	}
+
+	/* EOS: a playback source ran out of data, or a live source hit its limit */
+	bool is_eos = reached_limit || acq_ret == -ENODATA;
+
+	if (reached_limit || acq_ret != 0) {
+		if (is_eos) {
+			mpipe_pipeline_send_eos(src);
+		} else if (acq_ret != -EPIPE) {
+			struct mpipe_message msg = {
+				.origin = &src->element,
+				.type = MPIPE_MESSAGE_ERROR,
+				.domain = MPIPE_ERROR_FLOW,
+				.code = acq_ret,
+			};
+
+			/* Neither EOS nor a forced-stop flush (-EPIPE): a real error */
+			LOG_ERR("Source failed to acquire a buffer (%d)", acq_ret);
+			(void)mpipe_message_post(&msg);
+		}
+		*count = 0;
+		/* Self-pause: block in wait() until next resume */
+		mpipe_thread_pause(&pipeline->thread);
+		return;
+	}
+	(*count)++;
+	if (mpipe_push_buffer(&src->src_pad, buffer) != 0) {
+		LOG_ERR("Failed to push buffer downstream");
+		/* Fatal to the stream: stop producing so one error, not a flood */
+		*count = 0;
+		mpipe_thread_pause(&pipeline->thread);
+	}
+}
+
+/* The source the thread drives: the first child without a sink pad */
+static struct mpipe_src *mpipe_pipeline_first_src(struct mpipe_bin *bin)
+{
+	struct mpipe_object *obj;
+
+	SYS_DLIST_FOR_EACH_CONTAINER(&bin->children, obj, node) {
+		struct mpipe_element *element = (struct mpipe_element *)obj;
+
+		if (sys_dlist_is_empty(&element->sink_pads)) {
+			return (struct mpipe_src *)element;
+		}
+	}
+
+	return NULL;
+}
+
 static void mpipe_pipeline_thread_func(void *p1, void *p2, void *p3)
 {
-	struct mpipe_bin *bin = p1;
 	struct mpipe *pipeline = p1;
-	struct mpipe_object *obj;
-	struct mpipe_element *element;
-	struct mpipe_src *src = NULL;
-	struct net_buf *buffer = NULL;
+	struct mpipe_src *src = mpipe_pipeline_first_src(&pipeline->bin);
 	uint32_t count = 0;
 
 	ARG_UNUSED(p2);
 	ARG_UNUSED(p3);
-
-	/* Find the 1st source element */
-	SYS_DLIST_FOR_EACH_CONTAINER(&bin->children, obj, node) {
-		element = (struct mpipe_element *)obj;
-		if (sys_dlist_is_empty(&element->sink_pads)) {
-			src = (struct mpipe_src *)element;
-			break;
-		}
-	}
 
 	if (src == NULL || src->pool == NULL || src->pool->acquire_buffer == NULL) {
 		return;
 	}
 
 	while (mpipe_thread_wait(&pipeline->thread) == 0) {
-		int acq_ret = 0;
-		bool reached_limit = (src->num_buffers != 0 && count == src->num_buffers);
-
-		if (!reached_limit) {
-			acq_ret = src->pool->acquire_buffer(src->pool, &buffer);
-		}
-
-		/* A live source that had to drop what it captured: nothing to push this time */
-		if (acq_ret == -EAGAIN) {
-			continue;
-		}
-
-		/* EOS: a playback source ran out of data, or a live source hit its limit */
-		bool is_eos = reached_limit || acq_ret == -ENODATA;
-
-		if (reached_limit || acq_ret != 0) {
-			if (is_eos) {
-				mpipe_pipeline_send_eos(src);
-			} else if (acq_ret != -EPIPE) {
-				struct mpipe_message msg = {
-					.origin = &src->element,
-					.type = MPIPE_MESSAGE_ERROR,
-					.domain = MPIPE_ERROR_FLOW,
-					.code = acq_ret,
-				};
-
-				/* Neither EOS nor a forced-stop flush (-EPIPE): a real error */
-				LOG_ERR("Source failed to acquire a buffer (%d)", acq_ret);
-				(void)mpipe_message_post(&msg);
-			}
-			count = 0;
-			/* Self-pause: block in wait() until next resume */
-			mpipe_thread_pause(&pipeline->thread);
-			continue;
-		}
-		count++;
-		if (mpipe_push_buffer(&src->src_pad, buffer) != 0) {
-			LOG_ERR("Failed to push buffer downstream");
-			/* Fatal to the stream: stop producing so one error, not a flood */
-			count = 0;
-			mpipe_thread_pause(&pipeline->thread);
-		}
+		k_mutex_lock(&pipeline->stream_lock, K_FOREVER);
+		mpipe_pipeline_stream_once(pipeline, src, &count);
+		k_mutex_unlock(&pipeline->stream_lock);
 	}
 
 	LOG_DBG("Pipeline thread exiting");
+}
+
+/*
+ * Stop the source producing and wait for the push in flight: stopping the
+ * pool returns a read the thread is blocked in, and the push ends at the
+ * flushing gate. The source stops its pool again in its own state change,
+ * which is then a no-op. Returns with the stream lock held.
+ */
+static int mpipe_pipeline_quiesce(struct mpipe *pipeline)
+{
+	struct mpipe_src *src = mpipe_pipeline_first_src(&pipeline->bin);
+	int ret;
+
+	if (src != NULL && src->pool != NULL) {
+		ret = mpipe_buffer_pool_stop(src->pool);
+		if (ret != 0 && ret != -ENOSYS) {
+			LOG_ERR("Failed to stop source buffer pool");
+			return ret;
+		}
+	}
+
+	k_mutex_lock(&pipeline->stream_lock, K_FOREVER);
+
+	return 0;
 }
 
 static int mpipe_pipeline_change_state(struct mpipe_element *element,
 				       enum mpipe_state_change transition)
 {
 	struct mpipe *pipeline = (struct mpipe *)element;
+	bool locked = false;
 	int ret;
 
 	/* Going down, the source stops producing before the children change state */
@@ -314,6 +356,12 @@ static int mpipe_pipeline_change_state(struct mpipe_element *element,
 	case MPIPE_STATE_CHANGE_PAUSED_TO_READY:
 		/* Raise the flushing gate before the children tear down their caps and pools */
 		mpipe_pipeline_set_flushing(&pipeline->bin, true);
+		/* No child is dismantled under a push */
+		ret = mpipe_pipeline_quiesce(pipeline);
+		if (ret != 0) {
+			return ret;
+		}
+		locked = true;
 		break;
 	default:
 		break;
@@ -321,7 +369,9 @@ static int mpipe_pipeline_change_state(struct mpipe_element *element,
 
 	/* Children state change: UP = sink-to-source, DOWN = source-to-sink */
 	ret = mpipe_bin_change_state_func(element, transition);
-
+	if (locked) {
+		k_mutex_unlock(&pipeline->stream_lock);
+	}
 	if (ret != 0) {
 		return ret;
 	}
@@ -384,6 +434,7 @@ int mpipe_pipeline_init(struct mpipe *pipe, uint8_t id)
 
 	/* Default thread priority; caller may override before the first play. */
 	pipe->thread.priority = CONFIG_MPIPE_THREAD_DEFAULT_PRIORITY;
+	k_mutex_init(&pipe->stream_lock);
 
 	/* Only the pipeline knows how many sinks a run must hear from */
 	return mpipe_bin_set_bus_validator(&pipe->bin, mpipe_pipeline_message_validator, pipe);

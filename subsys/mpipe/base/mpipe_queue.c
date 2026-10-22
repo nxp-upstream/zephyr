@@ -74,6 +74,27 @@ static int mpipe_queue_set_property(struct mpipe_object *obj, uint32_t id, const
 	}
 }
 
+/* How often a put blocked on a full queue looks at the flushing gate */
+#define MPIPE_QUEUE_PUT_POLL K_MSEC(10)
+
+/*
+ * Put @p item, waiting for room until the gate is raised: a teardown never
+ * waits on a producer blocked in a full queue. -EAGAIN once flushing.
+ */
+static int mpipe_queue_put(struct mpipe_queue *queue, struct mpipe_pad *pad, void *item)
+{
+	int ret;
+
+	do {
+		ret = k_msgq_put(&queue->msgq, &item, MPIPE_QUEUE_PUT_POLL);
+		if (ret != -EAGAIN) {
+			return ret;
+		}
+	} while (atomic_get(&pad->flushing) == 0 && atomic_get(&queue->flushing) == 0);
+
+	return -EAGAIN;
+}
+
 static int mpipe_queue_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 				  struct net_buf **out_buf)
 {
@@ -90,9 +111,9 @@ static int mpipe_queue_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 	*out_buf = NULL;
 
 	if (queue->leak == MPIPE_BASE_QUEUE_LEAK_NONE) {
-		ret = k_msgq_put(&queue->msgq, &in_buf, K_FOREVER);
+		ret = mpipe_queue_put(queue, pad, in_buf);
 		if (ret != 0) {
-			/* Only a purge fails a K_FOREVER put: drop the buffer, not the stream */
+			/* A teardown or a purge: drop the buffer, not the stream */
 			net_buf_unref(in_buf);
 		}
 
@@ -144,9 +165,9 @@ static int mpipe_queue_sink_event_fn(struct mpipe_pad *pad, struct mpipe_dispatc
 			return 0;
 		}
 
-		ret = k_msgq_put(&queue->msgq, &eos_ptr, K_FOREVER);
+		ret = mpipe_queue_put(queue, pad, eos_ptr);
 		if (ret != 0) {
-			/* Only a purge fails a K_FOREVER put; treat the EOS as consumed */
+			/* A teardown or a purge: nothing downstream needs the EOS */
 			return 0;
 		}
 
