@@ -46,6 +46,8 @@ struct control_data {
 	struct point_event actual_event[MAX_TOUCH_POINTS];
 	struct k_work send_work;
 	bool is_connected;
+	/* Moves lost to a full queue since the last report */
+	uint32_t moves_dropped;
 };
 
 static struct control_data data;
@@ -161,6 +163,31 @@ void control_send_audio_source(enum sc_audio_source source)
 	control_send(&msg);
 }
 
+/*
+ * A move lost to a full queue only costs smoothness; a down or an up lost
+ * leaves the phone with a finger it never sees released. When the queue is
+ * full, a down or an up takes the place of the oldest message queued.
+ */
+static void control_queue_touch(struct control_data *p_data, const struct sc_control_msg *msg)
+{
+	struct sc_control_msg oldest;
+
+	if (k_msgq_put(&sc_control_queue, msg, K_NO_WAIT) == 0) {
+		return;
+	}
+
+	if (msg->inject_touch_event.action == AMOTION_EVENT_ACTION_MOVE) {
+		p_data->moves_dropped++;
+		return;
+	}
+
+	(void)k_msgq_get(&sc_control_queue, &oldest, K_NO_WAIT);
+	if (k_msgq_put(&sc_control_queue, msg, K_NO_WAIT) != 0) {
+		LOG_ERR("Touch %s lost, the queue is full",
+			msg->inject_touch_event.action == AMOTION_EVENT_ACTION_UP ? "up" : "down");
+	}
+}
+
 static void parse_touch_event_cb(struct input_event *evt, void *user_data)
 {
 	struct control_data *p_data = user_data;
@@ -191,7 +218,7 @@ static void parse_touch_event_cb(struct input_event *evt, void *user_data)
 						 &p_data->actual_event[p_data->actual_point_id],
 						 &p_data->prev_event[p_data->actual_point_id]);
 
-			k_msgq_put(&sc_control_queue, &actual_msg, K_NO_WAIT);
+			control_queue_touch(p_data, &actual_msg);
 			k_work_submit_to_queue(&send_q, &p_data->send_work);
 		}
 		p_data->prev_event[p_data->actual_point_id] =
@@ -222,6 +249,12 @@ static void send_work_handler(struct k_work *kwork)
 
 		if (len == 0) {
 			break;
+		}
+
+		if (evt_send->moves_dropped != 0U) {
+			LOG_WRN("%u touch moves dropped, the queue was full",
+				evt_send->moves_dropped);
+			evt_send->moves_dropped = 0;
 		}
 
 		if (IS_ENABLED(CONFIG_CONTROL_EVENT_TCP)) {
