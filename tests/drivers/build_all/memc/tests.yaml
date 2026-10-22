@@ -13,3 +13,13 @@ tests:
       - mimxrt1180_evk/mimxrt1189/cm7
     integration_platforms:
       - mimxrt1180_evk/mimxrt1189/cm33
+
+  # NXP AHB SRAM Controller (AHB_SRAMC), a different block with the same name:
+  # its own peripheral, one timing register pair per chip select, and the
+  # fsl_sramc HAL from the SDK's sramc_1 component. Nothing in tree enables an
+  # &sramc node on this SoC either, so build it on the mimxrt2660_evk.
+  drivers.memc.nxp_ahb_sramc.build:
+    platform_allow:
+      - mimxrt2660_evk/mimxrt2663/cm85
+    integration_platforms:
+      - mimxrt2660_evk/mimxrt2663/cm85
