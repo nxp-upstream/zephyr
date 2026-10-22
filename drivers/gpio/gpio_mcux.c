@@ -43,6 +43,42 @@
 #define GPIO_IRQ_CTRL GPIO_IRQ_CTRL_BY_PORT
 #endif
 
+#if defined(CONFIG_PINCTRL_NXP_IOCON)
+
+/* A pin this driver configures gets its whole IOPCTL word assigned. */
+#define GPIO_MCUX_PAD_MASK UINT32_MAX
+
+#else /* !defined(CONFIG_PINCTRL_NXP_IOCON) */
+
+#if defined(FSL_FEATURE_PORT_HAS_INPUT_BUFFER) && FSL_FEATURE_PORT_HAS_INPUT_BUFFER
+#define GPIO_MCUX_PCR_IBE_MASK PORT_PCR_IBE_MASK
+#else
+#define GPIO_MCUX_PCR_IBE_MASK 0U
+#endif
+
+#if defined(FSL_FEATURE_PORT_HAS_DRIVE_STRENGTH) && FSL_FEATURE_PORT_HAS_DRIVE_STRENGTH
+#define GPIO_MCUX_PCR_DSE_MASK PORT_PCR_DSE_MASK
+#else
+#define GPIO_MCUX_PCR_DSE_MASK 0U
+#endif
+
+#if defined(FSL_FEATURE_PORT_HAS_OPEN_DRAIN) && FSL_FEATURE_PORT_HAS_OPEN_DRAIN
+#define GPIO_MCUX_PCR_ODE_MASK PORT_PCR_ODE_MASK
+#else
+#define GPIO_MCUX_PCR_ODE_MASK 0U
+#endif
+
+/*
+ * The PCR bits this driver writes from the gpio_pin_configure() flags. The rest
+ * of the register belongs to pinctrl, which configures the pins that are muxed
+ * to another peripheral.
+ */
+#define GPIO_MCUX_PAD_MASK                                                                         \
+	(PORT_PCR_MUX_MASK | PORT_PCR_PE_MASK | PORT_PCR_PS_MASK | GPIO_MCUX_PCR_IBE_MASK |         \
+	 GPIO_MCUX_PCR_DSE_MASK | GPIO_MCUX_PCR_ODE_MASK)
+
+#endif /* defined(CONFIG_PINCTRL_NXP_IOCON) */
+
 struct gpio_mcux_config {
 	/* gpio_driver_config needs to be first */
 	struct gpio_driver_config common;
@@ -64,6 +100,40 @@ struct gpio_mcux_data {
 	/* port ISR callback routine address */
 	sys_slist_t callbacks;
 };
+
+#if defined(CONFIG_PINCTRL_NXP_IOCON)
+
+static __maybe_unused uint32_t gpio_mcux_pad_get(const struct device *dev, gpio_pin_t pin)
+{
+	const struct gpio_mcux_config *config = dev->config;
+
+	return sys_read32(config->port_base + (pin * 4));
+}
+
+static void gpio_mcux_pad_set(const struct device *dev, gpio_pin_t pin, uint32_t pad)
+{
+	const struct gpio_mcux_config *config = dev->config;
+
+	sys_write32(pad, config->port_base + (pin * 4));
+}
+
+#else /* !defined(CONFIG_PINCTRL_NXP_IOCON) */
+
+static __maybe_unused uint32_t gpio_mcux_pad_get(const struct device *dev, gpio_pin_t pin)
+{
+	const struct gpio_mcux_config *config = dev->config;
+
+	return config->port_base->PCR[pin];
+}
+
+static void gpio_mcux_pad_set(const struct device *dev, gpio_pin_t pin, uint32_t pad)
+{
+	const struct gpio_mcux_config *config = dev->config;
+
+	config->port_base->PCR[pin] = pad;
+}
+
+#endif /* defined(CONFIG_PINCTRL_NXP_IOCON) */
 
 #if defined(CONFIG_PINCTRL_NXP_IOCON)
 static int gpio_mcux_iopctl_configure(const struct device *dev, gpio_pin_t pin, gpio_flags_t flags)
@@ -131,7 +201,7 @@ static int gpio_mcux_iopctl_configure(const struct device *dev, gpio_pin_t pin, 
 		return -ENOTSUP;
 	}
 
-	*((volatile uint32_t *)(config->port_base + (pin * 4))) = pinconfig;
+	gpio_mcux_pad_set(dev, pin, pinconfig);
 
 	return 0;
 }
@@ -194,7 +264,7 @@ static int gpio_mcux_port_configure(const struct device *dev, gpio_pin_t pin, gp
 #if defined(FSL_FEATURE_PORT_HAS_INPUT_BUFFER) && FSL_FEATURE_PORT_HAS_INPUT_BUFFER
 		mask |= PORT_PCR_IBE_MASK;
 #endif
-		port_base->PCR[pin] &= ~mask;
+		gpio_mcux_pad_set(dev, pin, gpio_mcux_pad_get(dev, pin) & ~mask);
 		return 0;
 	default:
 		return -ENOTSUP;
@@ -242,7 +312,7 @@ static int gpio_mcux_port_configure(const struct device *dev, gpio_pin_t pin, gp
 #endif /* defined(FSL_FEATURE_PORT_HAS_DRIVE_STRENGTH) && FSL_FEATURE_PORT_HAS_DRIVE_STRENGTH */
 
 	/* Accessing by pin, we only need to write one PCR register. */
-	port_base->PCR[pin] = (port_base->PCR[pin] & ~mask) | pcr;
+	gpio_mcux_pad_set(dev, pin, (gpio_mcux_pad_get(dev, pin) & ~mask) | pcr);
 
 	return 0;
 }
@@ -330,7 +400,7 @@ static uint32_t get_port_pcr_irqc_value_from_flags(const struct device *dev, uin
 		}
 	}
 
-	return PORT_PCR_IRQC(port_interrupt);
+	return (uint32_t)port_interrupt;
 }
 #endif /* (GPIO_IRQ_CTRL == GPIO_IRQ_CTRL_BY_PORT) */
 
@@ -374,9 +444,40 @@ static uint32_t get_gpio_icr_irqc_value_from_flags(const struct device *dev, uin
 		}
 	}
 
-	return GPIO_ICR_IRQC(gpio_interrupt);
+	return (uint32_t)gpio_interrupt;
 }
 #endif /* (GPIO_IRQ_CTRL == GPIO_IRQ_CTRL_BY_GPIO) */
+
+#if (GPIO_IRQ_CTRL == GPIO_IRQ_CTRL_BY_GPIO)
+
+static void gpio_mcux_irqc_set(const struct device *dev, gpio_pin_t pin, uint8_t irqc)
+{
+	const struct gpio_mcux_config *config = dev->config;
+	GPIO_Type *gpio_base = config->gpio_base;
+
+	gpio_base->ICR[pin] = (gpio_base->ICR[pin] & ~GPIO_ICR_IRQC_MASK) | GPIO_ICR_IRQC(irqc);
+}
+
+#elif (GPIO_IRQ_CTRL == GPIO_IRQ_CTRL_BY_PORT)
+
+static void gpio_mcux_irqc_set(const struct device *dev, gpio_pin_t pin, uint8_t irqc)
+{
+	const struct gpio_mcux_config *config = dev->config;
+	PORT_Type *port_base = config->port_base;
+
+	port_base->PCR[pin] = (port_base->PCR[pin] & ~PORT_PCR_IRQC_MASK) | PORT_PCR_IRQC(irqc);
+}
+
+#else
+
+static void gpio_mcux_irqc_set(const struct device *dev, gpio_pin_t pin, uint8_t irqc)
+{
+	ARG_UNUSED(dev);
+	ARG_UNUSED(pin);
+	ARG_UNUSED(irqc);
+}
+
+#endif /* GPIO_IRQ_CTRL */
 
 static int gpio_mcux_pin_interrupt_configure(const struct device *dev, gpio_pin_t pin,
 					     enum gpio_int_mode mode, enum gpio_int_trig trig)
@@ -404,13 +505,9 @@ static int gpio_mcux_pin_interrupt_configure(const struct device *dev, gpio_pin_
 	}
 
 #if (GPIO_IRQ_CTRL == GPIO_IRQ_CTRL_BY_GPIO)
-	uint32_t icr = get_gpio_icr_irqc_value_from_flags(dev, pin, mode, trig);
-
-	gpio_base->ICR[pin] = (gpio_base->ICR[pin] & ~GPIO_ICR_IRQC_MASK) | icr;
+	gpio_mcux_irqc_set(dev, pin, get_gpio_icr_irqc_value_from_flags(dev, pin, mode, trig));
 #elif (GPIO_IRQ_CTRL == GPIO_IRQ_CTRL_BY_PORT)
-	uint32_t pcr = get_port_pcr_irqc_value_from_flags(dev, pin, mode, trig);
-
-	port_base->PCR[pin] = (port_base->PCR[pin] & ~PORT_PCR_IRQC_MASK) | pcr;
+	gpio_mcux_irqc_set(dev, pin, get_port_pcr_irqc_value_from_flags(dev, pin, mode, trig));
 #endif /* GPIO_IRQ_CTRL */
 
 	return 0;
@@ -501,12 +598,15 @@ static int gpio_mcux_port_get_direction(const struct device *dev, gpio_port_pins
 	gpio_port_pins_t connected = 0;
 
 	for (int i = 0; i < ARRAY_SIZE(port_base->PCR); i++) {
+		uint32_t pad;
+
 		if (!(map & BIT(i))) {
 			continue;
 		}
-		if (!(((port_base->PCR[i] & PORT_PCR_MUX_MASK) == 0U) &&
+		pad = gpio_mcux_pad_get(dev, i);
+		if (!(((pad & PORT_PCR_MUX_MASK) == 0U) &&
 #if defined(FSL_FEATURE_PORT_HAS_INPUT_BUFFER) && FSL_FEATURE_PORT_HAS_INPUT_BUFFER
-		      ((port_base->PCR[i] & PORT_PCR_IBE_MASK) == 0U) &&
+		      ((pad & PORT_PCR_IBE_MASK) == 0U) &&
 #endif
 		      ((gpio_base->PDDR & BIT(i)) == 0U))) {
 			connected |= BIT(i);
