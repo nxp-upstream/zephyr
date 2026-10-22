@@ -161,6 +161,13 @@
 			gpio-controller;
 			#gpio-cells = <2>;
 			nxp,kinetis-port = <&porta>;
+			clocks = <&syscon MCUX_GPIO0_CLK>;
+			/*
+			 * Deep Power Down gates the CORE domain, so the pad configuration, the
+			 * pin direction, the output level and the interrupt configuration are
+			 * all lost and have to be written back on the way up.
+			 */
+			power-domains = <&core_domain>;
 		};
 
 		gpio1: gpio@40103000 {
@@ -171,6 +178,8 @@
 			gpio-controller;
 			#gpio-cells = <2>;
 			nxp,kinetis-port = <&portb>;
+			clocks = <&syscon MCUX_GPIO1_CLK>;
+			power-domains = <&core_domain>;
 		};
 
 		gpio2: gpio@40104000 {
@@ -181,6 +190,8 @@
 			gpio-controller;
 			#gpio-cells = <2>;
 			nxp,kinetis-port = <&portc>;
+			clocks = <&syscon MCUX_GPIO2_CLK>;
+			power-domains = <&core_domain>;
 		};
 
 		gpio3: gpio@40105000 {
@@ -191,6 +202,8 @@
 			gpio-controller;
 			#gpio-cells = <2>;
 			nxp,kinetis-port = <&portd>;
+			clocks = <&syscon MCUX_GPIO3_CLK>;
+			power-domains = <&core_domain>;
 		};
 
 		gpio4: gpio@40106000 {
@@ -201,6 +214,8 @@
 			gpio-controller;
 			#gpio-cells = <2>;
 			nxp,kinetis-port = <&porte>;
+			clocks = <&syscon MCUX_GPIO4_CLK>;
+			power-domains = <&core_domain>;
 		};
 
 		freqme0: freqme@40009000 {
