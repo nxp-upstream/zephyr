@@ -16,7 +16,7 @@
 #include <zephyr/mpipe/disp/mpipe_disp_sink.h>
 
 /* Investigation aid, see mpipe_stage_stats.h */
-#define MPIPE_STAGE_STATS 1
+#define MPIPE_STAGE_STATS IS_ENABLED(CONFIG_MPIPE_STAGE_STATS)
 #if MPIPE_STAGE_STATS
 #include "../mpipe_stage_stats.h"
 static struct mpipe_stage_stats disp_stats;
