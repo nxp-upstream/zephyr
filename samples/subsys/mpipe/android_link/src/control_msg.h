@@ -26,7 +26,10 @@
 #include "android/keycodes.h"
 #include "coords.h"
 
-#define SC_CONTROL_MSG_MAX_SIZE (1 << 18) // 256k
+/* The longest message this side sends, the touch event; the clipboard text, which sized
+ * the original constant at 256k, never leaves the board.
+ */
+#define SC_CONTROL_MSG_MAX_SIZE 32
 
 /*
  * The types above 100 are the demo's own, understood by its server build only;

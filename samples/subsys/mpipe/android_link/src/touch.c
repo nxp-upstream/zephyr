@@ -50,7 +50,18 @@ struct control_data {
 
 static struct control_data data;
 
-static uint8_t msg_buf[SC_CONTROL_MSG_MAX_SIZE];
+/*
+ * The messages leave from a work queue of their own: on the system workqueue
+ * a send that blocks on Wi-Fi held up the touch controller's poll, which runs
+ * there too. Everything queued when the work runs goes in one send.
+ */
+#define CONTROL_SEND_BUF_SIZE     1024
+#define CONTROL_SEND_STACK_SIZE   2048
+#define CONTROL_SEND_THREAD_PRIO  3
+
+static uint8_t msg_buf[CONTROL_SEND_BUF_SIZE];
+static struct k_work_q send_q;
+static K_KERNEL_STACK_DEFINE(send_q_stack, CONTROL_SEND_STACK_SIZE);
 
 static bool has_touch_moved(const struct point_event *prev_point,
 			    const struct point_event *actual_point)
@@ -96,7 +107,7 @@ static void check_alive(struct k_timer *timer)
 	LOG_DBG("Check alive");
 	if (p_data->is_connected && k_msgq_num_used_get(&sc_control_queue) == 0) {
 		k_msgq_put(&sc_control_queue, &keep_alive, K_NO_WAIT);
-		k_work_submit(&p_data->send_work);
+		k_work_submit_to_queue(&send_q, &p_data->send_work);
 	}
 }
 
@@ -104,7 +115,7 @@ static void control_send(const struct sc_control_msg *msg)
 {
 	if (data.is_connected) {
 		k_msgq_put(&sc_control_queue, msg, K_NO_WAIT);
-		k_work_submit(&data.send_work);
+		k_work_submit_to_queue(&send_q, &data.send_work);
 	}
 }
 
@@ -181,7 +192,7 @@ static void parse_touch_event_cb(struct input_event *evt, void *user_data)
 						 &p_data->prev_event[p_data->actual_point_id]);
 
 			k_msgq_put(&sc_control_queue, &actual_msg, K_NO_WAIT);
-			k_work_submit(&p_data->send_work);
+			k_work_submit_to_queue(&send_q, &p_data->send_work);
 		}
 		p_data->prev_event[p_data->actual_point_id] =
 			p_data->actual_event[p_data->actual_point_id];
@@ -194,25 +205,37 @@ static void send_work_handler(struct k_work *kwork)
 	struct sc_control_msg android_evt_data;
 	struct control_data *evt_send = CONTAINER_OF(kwork, struct control_data, send_work);
 
-	while (k_msgq_get(&sc_control_queue, &android_evt_data, K_NO_WAIT) == 0) {
-		ssize_t msg_len = sc_control_msg_serialize(&android_evt_data, msg_buf);
+	while (k_msgq_num_used_get(&sc_control_queue) > 0) {
+		size_t len = 0;
 		ssize_t send_size;
 
+		/* Serialize what is queued, as long as a longest message still fits */
+		while (len + SC_CONTROL_MSG_MAX_SIZE <= sizeof(msg_buf) &&
+		       k_msgq_get(&sc_control_queue, &android_evt_data, K_NO_WAIT) == 0) {
+			len += sc_control_msg_serialize(&android_evt_data, &msg_buf[len]);
+			LOG_DBG("Report touch point %u x: %d y: %d btn: %d",
+				(unsigned int)android_evt_data.inject_touch_event.pointer_id,
+				android_evt_data.inject_touch_event.position.point.x,
+				android_evt_data.inject_touch_event.position.point.y,
+				android_evt_data.inject_touch_event.action);
+		}
+
+		if (len == 0) {
+			break;
+		}
+
 		if (IS_ENABLED(CONFIG_CONTROL_EVENT_TCP)) {
-			send_size = zsock_send(evt_send->control_socket, msg_buf, msg_len, 0);
+			send_size = zsock_send(evt_send->control_socket, msg_buf, len, 0);
 		} else {
-			send_size = zsock_sendto(evt_send->control_socket, msg_buf, msg_len, 0,
+			send_size = zsock_sendto(evt_send->control_socket, msg_buf, len, 0,
 						 (const struct sockaddr *)evt_send->remote_addr,
 						 sizeof(struct sockaddr));
 		}
 		if (send_size <= 0) {
 			LOG_ERR("Touch socket error");
 			k_event_post(&application_event, EVENT_TOUCH_ERROR);
+			return;
 		}
-		LOG_DBG("Report touch point %d x: %d y: %d btn: %d ", data.actual_point_id,
-			android_evt_data.inject_touch_event.position.point.x,
-			android_evt_data.inject_touch_event.position.point.x,
-			android_evt_data.inject_touch_event.action);
 	}
 }
 
@@ -271,6 +294,10 @@ bool control_socket_is_connected(void)
 
 void control_init(void)
 {
+	k_work_queue_init(&send_q);
+	k_work_queue_start(&send_q, send_q_stack, K_KERNEL_STACK_SIZEOF(send_q_stack),
+			   CONTROL_SEND_THREAD_PRIO, NULL);
+	k_thread_name_set(k_work_queue_thread_get(&send_q), "control_send");
 	k_work_init(&data.send_work, send_work_handler);
 	k_timer_user_data_set(&check_alive_timer, &data);
 }
