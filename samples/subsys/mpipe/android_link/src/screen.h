@@ -18,7 +18,8 @@
 
 #define EVENT_SOCKET_THREAD_STOP (1 << 1)
 #define EVENT_TOUCH_ERROR        (1 << 2)
-#define SENSITIVITY_RADIUS       1
+/* Pixels a finger must travel from the last point sent before a move is sent */
+#define SENSITIVITY_RADIUS       2
 
 /*
  * Maximum number of simultaneous touch points. The GT911 controller on the

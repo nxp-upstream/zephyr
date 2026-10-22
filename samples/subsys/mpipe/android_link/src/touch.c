@@ -42,6 +42,7 @@ struct control_data {
 	int control_socket;
 	struct sockaddr_in *remote_addr;
 	uint8_t actual_point_id;
+	/* The last state of each pointer the phone was given */
 	struct point_event prev_event[MAX_TOUCH_POINTS];
 	struct point_event actual_event[MAX_TOUCH_POINTS];
 	struct k_work send_work;
@@ -208,6 +209,12 @@ static void parse_touch_event_cb(struct input_event *evt, void *user_data)
 		break;
 	case INPUT_BTN_TOUCH:
 		p_data->actual_event[p_data->actual_point_id].state = evt->value;
+		/*
+		 * A move is measured from the last point the phone was given, not
+		 * from the previous sample: a slow drag adds up until it crosses the
+		 * radius, and the controller's jitter around a resting finger stays
+		 * below it.
+		 */
 		if (p_data->is_connected &&
 		    (has_touch_moved(&p_data->prev_event[p_data->actual_point_id],
 				     &p_data->actual_event[p_data->actual_point_id]) ||
@@ -220,9 +227,9 @@ static void parse_touch_event_cb(struct input_event *evt, void *user_data)
 
 			control_queue_touch(p_data, &actual_msg);
 			k_work_submit_to_queue(&send_q, &p_data->send_work);
+			p_data->prev_event[p_data->actual_point_id] =
+				p_data->actual_event[p_data->actual_point_id];
 		}
-		p_data->prev_event[p_data->actual_point_id] =
-			p_data->actual_event[p_data->actual_point_id];
 		break;
 	}
 }
