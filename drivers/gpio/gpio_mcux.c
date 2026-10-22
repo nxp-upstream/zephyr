@@ -627,6 +627,39 @@ static int gpio_mcux_port_get_direction(const struct device *dev, gpio_port_pins
 }
 #endif /* CONFIG_GPIO_GET_DIRECTION */
 
+/*
+ * Open the clock gate and release the reset.
+ */
+static int gpio_mcux_bring_up(const struct device *dev)
+{
+	const struct gpio_mcux_config *config = dev->config;
+	int ret;
+
+	if (config->clock_dev != NULL) {
+		if (!device_is_ready(config->clock_dev)) {
+			return -ENODEV;
+		}
+
+		ret = clock_control_on(config->clock_dev, config->clock_subsys);
+		if (ret != 0) {
+			return ret;
+		}
+	}
+
+	if (config->reset.dev != NULL) {
+		if (!device_is_ready(config->reset.dev)) {
+			return -ENODEV;
+		}
+
+		ret = reset_line_deassert_dt(&config->reset);
+		if (ret != 0) {
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
 static DEVICE_API(gpio, gpio_mcux_driver_api) = {
 #if defined(CONFIG_PINCTRL_NXP_IOCON)
 	.pin_configure = gpio_mcux_iopctl_configure,
@@ -692,30 +725,13 @@ static DEVICE_API(gpio, gpio_mcux_driver_api) = {
                                                                                                    \
 	static int gpio_mcux_port##n##_init(const struct device *dev)                              \
 	{                                                                                          \
-		const struct gpio_mcux_config *config = dev->config;                               \
 		int ret;                                                                           \
                                                                                                    \
-		if (config->clock_dev != NULL) {                                                   \
-			if (!device_is_ready(config->clock_dev)) {                                 \
-				return -ENODEV;                                                    \
-			}                                                                          \
+		ret = gpio_mcux_bring_up(dev);                                                     \
+		if (ret != 0) {                                                                    \
+			return ret;                                                                \
+		}                                                                                  \
                                                                                                    \
-			ret = clock_control_on(config->clock_dev, config->clock_subsys);           \
-			if (ret != 0) {                                                            \
-				return ret;                                                        \
-			}                                                                          \
-		}                                                                                  \
-			                                                                           \
-		if (config->reset.dev != NULL) {                                                   \
-			if (!device_is_ready(config->reset.dev)) {                                 \
-				return -ENODEV;                                                    \
-			}                                                                          \
-			ret = reset_line_deassert_dt(&config->reset);                              \
-			if (ret != 0) {                                                            \
-				return ret;                                                        \
-			}                                                                          \
-		}                                                                                  \
-												   \
 		IF_ENABLED(DT_INST_IRQ_HAS_IDX(n, 0),			\
 			(GPIO_MCUX_IRQ_INIT(n);))                                         \
 		return 0;                                                                          \
