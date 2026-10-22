@@ -7,10 +7,11 @@
 /*
  * native_sim uses the SDL display and the SDL pointer input already declared
  * by the board devicetree (chosen zephyr,display = &sdl_dc and
- * zephyr,touch = &input_sdl_touch). The panel geometry is pinned here so that
- * it matches the resolution the client is expected to stream: the sender must
- * scale to 720x1280 to match this panel. The audio goes to the emulated I2S
- * through the dummy codec, and the microphone is the emulated DMIC.
+ * zephyr,touch = &input_sdl_touch). The window takes the size of a phone's
+ * screen in portrait; the frame size the sample expects follows it
+ * (CONFIG_ANDROID_LINK_FRAME_WIDTH/HEIGHT) and the sender must stream that
+ * size. The audio goes to the emulated I2S through the dummy codec, and the
+ * microphone is the emulated DMIC.
  */
 
 / {

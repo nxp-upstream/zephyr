@@ -1,7 +1,35 @@
 # Copyright 2024-2026 NXP
 # SPDX-License-Identifier: Apache-2.0
 
+DT_CHOSEN_Z_DISPLAY := zephyr,display
+DT_DISPLAY_PATH := $(dt_chosen_path,$(DT_CHOSEN_Z_DISPLAY))
+DT_DISPLAY_WIDTH := $(dt_node_int_prop_int,$(DT_DISPLAY_PATH),width)
+DT_DISPLAY_HEIGHT := $(dt_node_int_prop_int,$(DT_DISPLAY_PATH),height)
+# A frame of the panel's size in RGB565
+DT_DISPLAY_FRAME_SIZE := $(mul,$(mul,$(DT_DISPLAY_WIDTH),$(DT_DISPLAY_HEIGHT)),2)
+
+# The decoder's pool holds frames of the panel's size
+config MPIPE_IMG_JPEG_DECODER_MAX_OUT_FRAME_SIZE
+	default $(DT_DISPLAY_FRAME_SIZE) if $(dt_chosen_enabled,$(DT_CHOSEN_Z_DISPLAY))
+
 source "Kconfig.zephyr"
+
+config ANDROID_LINK_FRAME_WIDTH
+	int "Width of the frames the phone sends"
+	default $(DT_DISPLAY_WIDTH)
+	help
+	  Width in pixels of the JPEG frames the phone streams, which the caps
+	  filter pins behind the parser. It defaults to the width of the chosen
+	  display and the phone's server must be launched with the same value
+	  (WIDTH in its launch script).
+
+config ANDROID_LINK_FRAME_HEIGHT
+	int "Height of the frames the phone sends"
+	default $(DT_DISPLAY_HEIGHT)
+	help
+	  Height in pixels of the JPEG frames the phone streams. It defaults to
+	  the height of the chosen display and the phone's server must be
+	  launched with the same value (HEIGHT in its launch script).
 
 config NET_STACK_CODE_RELOCATE
 	bool "Relocate networking code into RAM"

@@ -103,12 +103,6 @@ enum {
 	MIC_SINK_ID,
 };
 
-/* The panel's geometry, pinned behind the JPEG parser by the caps filter.
- * The sender must stream frames of this resolution.
- */
-#define DISP_WIDTH   720
-#define DISP_HEIGHT  1280
-
 K_EVENT_DEFINE(application_event);
 
 /* The run ended: the phone closed the video connection, or the stream failed */
@@ -261,15 +255,16 @@ static int build_video_stream_pipeline(void)
 
 	/*
 	 * The parser only tells the format: pin the frame size behind it so
-	 * that the decoder and the display negotiate the panel's resolution.
+	 * that the decoder and the display negotiate the size the phone sends,
+	 * the panel's by default.
 	 */
 	struct mpipe_structure stream_caps;
 
-	ret = mpipe_structure_init_fields(&stream_caps, MPIPE_MEDIA_VIDEO, MPIPE_CAPS_PIXEL_FORMAT,
-					  MPIPE_TYPE_UINT, VIDEO_PIX_FMT_JPEG,
-					  MPIPE_CAPS_IMAGE_WIDTH, MPIPE_TYPE_UINT, DISP_WIDTH,
-					  MPIPE_CAPS_IMAGE_HEIGHT, MPIPE_TYPE_UINT, DISP_HEIGHT,
-					  MPIPE_CAPS_END);
+	ret = mpipe_structure_init_fields(
+		&stream_caps, MPIPE_MEDIA_VIDEO, MPIPE_CAPS_PIXEL_FORMAT, MPIPE_TYPE_UINT,
+		VIDEO_PIX_FMT_JPEG, MPIPE_CAPS_IMAGE_WIDTH, MPIPE_TYPE_UINT,
+		CONFIG_ANDROID_LINK_FRAME_WIDTH, MPIPE_CAPS_IMAGE_HEIGHT, MPIPE_TYPE_UINT,
+		CONFIG_ANDROID_LINK_FRAME_HEIGHT, MPIPE_CAPS_END);
 	if (ret != 0) {
 		return ret;
 	}
