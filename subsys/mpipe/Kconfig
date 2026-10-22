@@ -109,6 +109,15 @@ config MPIPE_ELEMENT_NAME
 	  Keep a name on every element for the debugging tools that print one.
 	  Selected by those tools, not meant to be set by hand.
 
+config MPIPE_STAGE_STATS
+	bool "Per-second statistics of the pipeline stages"
+	help
+	  Print once a second what the socket source, the JPEG parser and
+	  decoder and the display sink did: rate, sizes, time per call. An
+	  investigation aid that names the stage a frame rate is short on; it
+	  costs a cycle counter read per unit of work and a log line per second
+	  per stage. Off for a run that must not log.
+
 config MPIPE_BIN_MAX_CHILDREN
 	int "Maximum number of elements in a bin/pipeline"
 	range 2 64
