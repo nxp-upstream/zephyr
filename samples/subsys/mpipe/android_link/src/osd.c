@@ -91,7 +91,7 @@ static void osd_draw(uint8_t *frame, uint16_t width, uint16_t height, uint32_t p
 	osd.frames++;
 
 	/* How many of the frames carried the band, once a second while one is shown */
-	if (k_uptime_get() - osd.stats_at >= 1000) {
+	if (IS_ENABLED(CONFIG_MPIPE_STAGE_STATS) && k_uptime_get() - osd.stats_at >= 1000) {
 		if (osd.painted > 0U) {
 			LOG_INF("band on %u of %u frames", osd.painted, osd.frames);
 		}

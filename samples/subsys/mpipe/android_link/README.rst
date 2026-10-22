@@ -192,6 +192,13 @@ Wi-Fi
    :goals: build flash
    :compact:
 
+That build logs only the session events. To measure, add ``overlay-stats.conf``
+(``-DEXTRA_CONF_FILE="overlay-wifi.conf;overlay-stats.conf"``): it turns on the
+per-second statistics of each stage (``CONFIG_MPIPE_STAGE_STATS``: receive rate,
+frame sizes, decode and display times), the kernel and network shells and thread
+accounting, at the cost of a log line per second per stage. Leave it out for a
+demonstration.
+
 When using Wi-Fi, the board starts a soft-AP with SSID ``zephyr-link`` and
 passphrase ``zephyrdemo`` and runs a DHCP server on ``192.0.2.1``. The phone
 does not need to join that network by hand: the demo's server asks Android for
