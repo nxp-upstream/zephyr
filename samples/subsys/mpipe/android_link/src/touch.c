@@ -244,6 +244,16 @@ void connect_control_socket(int control_fd, struct sockaddr_in *client_addr)
 	if (IS_ENABLED(CONFIG_CONTROL_EVENT_TCP)) {
 		/* The connection the phone opened for control, accepted by the caller */
 		data.control_socket = control_fd;
+
+		/*
+		 * Every message is a few bytes and must leave now: with Nagle a
+		 * segment waits for the acknowledgment of the previous one, and the
+		 * phone delays its acknowledgments, so moves left in bursts.
+		 */
+		if (zsock_setsockopt(control_fd, IPPROTO_TCP, TCP_NODELAY, &(int){1},
+				     sizeof(int)) < 0) {
+			LOG_WRN("Cannot disable Nagle on the control socket (%d)", errno);
+		}
 	} else {
 		data.control_socket = zsock_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	}
