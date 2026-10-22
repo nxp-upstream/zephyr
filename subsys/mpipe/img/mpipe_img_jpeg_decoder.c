@@ -18,7 +18,7 @@
 #include <zephyr/mpipe/img/mpipe_img_jpeg_decoder.h>
 
 /* Investigation aid, see mpipe_stage_stats.h */
-#define MPIPE_STAGE_STATS 1
+#define MPIPE_STAGE_STATS IS_ENABLED(CONFIG_MPIPE_STAGE_STATS)
 #if MPIPE_STAGE_STATS
 #include "../mpipe_stage_stats.h"
 static struct mpipe_stage_stats dec_stats;
