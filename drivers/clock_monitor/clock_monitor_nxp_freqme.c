@@ -26,6 +26,20 @@
  * derive REF_SCALE and the WINDOW thresholds, never turned on. If a source is
  * left off the measurement simply counts zero edges and surfaces CLOCK_LOST.
  * Only the peripheral's own gate clock is enabled here, through clock_control.
+ *
+ * With CONFIG_PM_DEVICE_RUNTIME the consumer owns the monitor's lifetime, in
+ * both modes. configure() installs a configuration that outlives every
+ * start()/stop() cycle, and in MEASURE mode the measured value stays readable
+ * until the next configure(), so there is no completion event the driver could
+ * hang a pm_device_runtime_put() on: call pm_device_runtime_get() before
+ * clock_monitor_configure() and keep the reference for as long as the monitor
+ * is wanted.
+ *
+ * A suspend stops the measurement and a resume re-arms WINDOW monitoring that
+ * the consumer had started, so a consumer that keeps its reference does not
+ * have to call clock_monitor_start() again. A MEASURE cycle interrupted this
+ * way is not restarted: a one-shot result has to cover one contiguous window,
+ * and the consumer learns it did not complete from its own timeout.
  */
 
 #define DT_DRV_COMPAT nxp_freqme
@@ -37,6 +51,7 @@
 #include <zephyr/irq.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/pm/device.h>
 #include <zephyr/sys/util.h>
 
 #include <fsl_freqme.h>
@@ -145,6 +160,11 @@ struct nxp_freqme_data {
 	 * state it had instead.
 	 */
 	bool configured;
+	/* The consumer started WINDOW monitoring and has not stopped it, so a
+	 * resume re-arms it. Never set for MEASURE: a one-shot cycle that a
+	 * suspend aborted is not restarted.
+	 */
+	bool started;
 };
 
 /*
@@ -486,6 +506,7 @@ static int nxp_freqme_start(const struct device *dev)
 	 */
 	data->state = NXP_FREQME_STATE_RUNNING;
 	if (data->cfg.mode == CLOCK_MONITOR_MODE_WINDOW) {
+		data->started = true;
 		FREQME_EnableContinuousMode(config->base, true);
 	}
 	FREQME_StartMeasurementCycle(config->base);
@@ -500,6 +521,7 @@ static int nxp_freqme_stop(const struct device *dev)
 	k_spinlock_key_t key;
 
 	key = k_spin_lock(&data->lock);
+	data->started = false;
 	if (data->state == NXP_FREQME_STATE_RUNNING) {
 		if (data->cfg.mode == CLOCK_MONITOR_MODE_WINDOW) {
 			FREQME_EnableContinuousMode(config->base, false);
@@ -631,6 +653,7 @@ static int nxp_freqme_set_source(const struct device *dev, uint32_t reference, u
 	data->has_rate = false;
 	data->clock_lost = false;
 	data->configured = false;
+	data->started = false;
 	data->state = NXP_FREQME_STATE_IDLE;
 	k_spin_unlock(&data->lock, key);
 	return 0;
@@ -768,10 +791,71 @@ static int nxp_freqme_hw_bringup(const struct device *dev)
 	return 0;
 }
 
+static int nxp_freqme_pm_action(const struct device *dev, enum pm_device_action action)
+{
+	const struct nxp_freqme_config *config = dev->config;
+	struct nxp_freqme_data *data = dev->data;
+	k_spinlock_key_t key;
+
+	switch (action) {
+	case PM_DEVICE_ACTION_RESUME:
+		/*
+		 * The suspend cleared the interrupt enables and start() does not
+		 * write them, so restore them for an instance that has been
+		 * configured.
+		 *
+		 * Re-arm the continuous monitoring the consumer asked for, and
+		 * only that. A MEASURE cycle that a suspend aborted is not
+		 * restarted: its result has to cover one contiguous window, so
+		 * the consumer re-starts it after its own timeout instead.
+		 */
+		key = k_spin_lock(&data->lock);
+		if (data->configured) {
+			FREQME_EnableInterrupts(config->base, data->params.int_mask);
+		}
+		if (data->started) {
+			data->state = NXP_FREQME_STATE_RUNNING;
+			FREQME_EnableContinuousMode(config->base, true);
+			FREQME_StartMeasurementCycle(config->base);
+		}
+		k_spin_unlock(&data->lock, key);
+
+		return 0;
+
+	case PM_DEVICE_ACTION_SUSPEND:
+		/*
+		 * Terminating the cycle is what actually stops the counters, so
+		 * no measurement is left in flight across the transition. The
+		 * interrupt enables go with it: a pending result-ready or
+		 * out-of-range request must not survive into a state where the
+		 * block is not measuring.
+		 */
+		key = k_spin_lock(&data->lock);
+		if (data->state == NXP_FREQME_STATE_RUNNING) {
+			FREQME_EnableContinuousMode(config->base, false);
+			FREQME_TerminateMeasurementCycle(config->base);
+			data->state = NXP_FREQME_STATE_CONFIGURED;
+		}
+		FREQME_DisableInterrupts(config->base,
+					 (uint32_t)kFREQME_ReadyInterruptEnable |
+					 (uint32_t)kFREQME_OverflowInterruptEnable |
+					 (uint32_t)kFREQME_UnderflowInterruptEnable);
+		FREQME_ClearInterruptStatusFlags(config->base,
+			FREQME_GetInterruptStatusFlags(config->base));
+		k_spin_unlock(&data->lock, key);
+
+		return 0;
+
+	default:
+		return -ENOTSUP;
+	}
+}
+
 static int nxp_freqme_init(const struct device *dev)
 {
 	const struct nxp_freqme_config *config = dev->config;
 	struct nxp_freqme_data *data = dev->data;
+	int ret;
 
 	data->state = NXP_FREQME_STATE_IDLE;
 	data->cur_ref_idx = nxp_freqme_default_idx(config->ref_srcs,
@@ -786,7 +870,12 @@ static int nxp_freqme_init(const struct device *dev)
 
 	config->irq_config_func(dev);
 
-	return nxp_freqme_hw_bringup(dev);
+	ret = nxp_freqme_hw_bringup(dev);
+	if (ret != 0) {
+		return ret;
+	}
+
+	return pm_device_driver_init(dev, nxp_freqme_pm_action);
 }
 
 static DEVICE_API(clock_monitor, nxp_freqme_api) = {
@@ -901,7 +990,9 @@ static DEVICE_API(clock_monitor, nxp_freqme_api) = {
 			(uint8_t)ARRAY_SIZE(nxp_freqme_tar_srcs_##inst),       \
 		.irq_config_func = nxp_freqme_irq_cfg_##inst,                  \
 	};                                                                     \
-	DEVICE_DT_INST_DEFINE(inst, nxp_freqme_init, NULL,                     \
+	PM_DEVICE_DT_INST_DEFINE(inst, nxp_freqme_pm_action);                  \
+	DEVICE_DT_INST_DEFINE(inst, nxp_freqme_init,                           \
+			      PM_DEVICE_DT_INST_GET(inst),                     \
 			      &nxp_freqme_data_##inst, &nxp_freqme_cfg_##inst, \
 			      POST_KERNEL, CONFIG_CLOCK_MONITOR_INIT_PRIORITY, \
 			      &nxp_freqme_api);
