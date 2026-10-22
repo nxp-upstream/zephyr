@@ -343,7 +343,7 @@ static int build_video_stream_pipeline(void)
 		return ret;
 	}
 
-	LOG_INF("Pipeline linked.");
+	LOG_INF("Video pipeline linked.");
 
 	ret = zbus_chan_add_obs(mpipe_element_get_bus_chan((struct mpipe_element *)&pipe),
 				&stream_listener, K_FOREVER);
