@@ -22,13 +22,19 @@
 	gpios = <&gpio13 0 GPIO_ACTIVE_LOW>;
 };
 
-/* The on-board digital microphone: both slots of PDM data line 0 */
+/*
+ * The on-board digital microphone: both slots of PDM data line 0. The
+ * controller's output range adjustment, in dB, lifts the soft signal of the
+ * microphone (speech peaked near -18 dB full scale on the phone) by 6 dB.
+ */
 dmic_dev: &micfil {
 	channel0: micfil-channel@0 {
 		status = "okay";
+		decimation-filter-gain = <6>;
 	};
 
 	channel1: micfil-channel@1 {
 		status = "okay";
+		decimation-filter-gain = <6>;
 	};
 };
