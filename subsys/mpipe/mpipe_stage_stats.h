@@ -7,7 +7,8 @@
 /*
  * Per-second statistics of one pipeline stage, for the Android link sample
  * performance investigation. Temporary: every user sits behind a local
- * MPIPE_STAGE_STATS switch and the file goes once the bottleneck is known.
+ * MPIPE_STAGE_STATS switch that follows CONFIG_MPIPE_STAGE_STATS, and the
+ * file goes once the bottleneck is known.
  *
  * A stage folds one sample in per unit of work; when the window is over the
  * call returns true, the stage prints its line and resets the window.
