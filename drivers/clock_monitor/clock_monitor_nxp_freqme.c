@@ -40,6 +40,11 @@
  * have to call clock_monitor_start() again. A MEASURE cycle interrupted this
  * way is not restarted: a one-shot result has to cover one contiguous window,
  * and the consumer learns it did not complete from its own timeout.
+ *
+ * A state that power gates the block resets both its registers and the
+ * INPUTMUX routing that selects its reference and target clocks. TURN_ON
+ * re-applies the routing, and rebuilds the measurement parameters of an
+ * instance that was already configured.
  */
 
 #define DT_DRV_COMPAT nxp_freqme
@@ -756,6 +761,10 @@ static void nxp_freqme_isr(const struct device *dev)
  * The gate clock comes first because a register write issued while the gate is
  * closed is dropped without reporting anything, so a rebuild in the other order
  * would appear to succeed and change nothing.
+ *
+ * TURN_ON calls this on a block that has just lost power. It leaves the block
+ * not measuring: the core records the device as suspended once TURN_ON
+ * returns.
  */
 static int nxp_freqme_hw_bringup(const struct device *dev)
 {
@@ -798,6 +807,9 @@ static int nxp_freqme_pm_action(const struct device *dev, enum pm_device_action 
 	k_spinlock_key_t key;
 
 	switch (action) {
+	case PM_DEVICE_ACTION_TURN_ON:
+		return nxp_freqme_hw_bringup(dev);
+
 	case PM_DEVICE_ACTION_RESUME:
 		/*
 		 * The suspend cleared the interrupt enables and start() does not
@@ -846,6 +858,15 @@ static int nxp_freqme_pm_action(const struct device *dev, enum pm_device_action 
 
 		return 0;
 
+	case PM_DEVICE_ACTION_TURN_OFF:
+		/*
+		 * Nothing to do: the core suspends the device before it turns it
+		 * off, so the cycle is already terminated and the interrupts are
+		 * already disabled. Every value the consumer is entitled to lives
+		 * in dev->data, which does not depend on the register block.
+		 */
+		return 0;
+
 	default:
 		return -ENOTSUP;
 	}
@@ -855,7 +876,6 @@ static int nxp_freqme_init(const struct device *dev)
 {
 	const struct nxp_freqme_config *config = dev->config;
 	struct nxp_freqme_data *data = dev->data;
-	int ret;
 
 	data->state = NXP_FREQME_STATE_IDLE;
 	data->cur_ref_idx = nxp_freqme_default_idx(config->ref_srcs,
@@ -869,11 +889,6 @@ static int nxp_freqme_init(const struct device *dev)
 	}
 
 	config->irq_config_func(dev);
-
-	ret = nxp_freqme_hw_bringup(dev);
-	if (ret != 0) {
-		return ret;
-	}
 
 	return pm_device_driver_init(dev, nxp_freqme_pm_action);
 }
