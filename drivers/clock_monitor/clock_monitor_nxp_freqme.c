@@ -50,6 +50,10 @@
  * rather than writing a register block that is gated or has lost its contents.
  * clock_monitor_get_rate() is the exception: it answers from RAM and touches
  * no register, so a suspended device still reports its retained result.
+ *
+ * A node that names power states in zephyr,disabling-power-states gets those
+ * states blocked for as long as the block is measuring, so a consumer does not
+ * have to know which system states would break the measurement it started.
  */
 
 #define DT_DRV_COMPAT nxp_freqme
@@ -62,6 +66,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/pm/device.h>
+#include <zephyr/pm/policy.h>
 #include <zephyr/sys/util.h>
 
 #include <fsl_freqme.h>
@@ -116,6 +121,9 @@ struct nxp_freqme_config {
 	const struct nxp_freqme_source *tar_srcs;
 	uint8_t tar_srcs_count;
 	void (*irq_config_func)(const struct device *dev);
+#if defined(CONFIG_PM_POLICY_DEVICE_CONSTRAINTS)
+	bool pm_device_constraints;
+#endif
 };
 
 enum nxp_freqme_state {
@@ -175,7 +183,49 @@ struct nxp_freqme_data {
 	 * suspend aborted is not restarted.
 	 */
 	bool started;
+#if defined(CONFIG_PM_POLICY_DEVICE_CONSTRAINTS)
+	bool power_locked;
+#endif
 };
+
+/*
+ * Block the power states the node declares in zephyr,disabling-power-states
+ * for exactly as long as the hardware is measuring, in either mode: taken when
+ * a measurement is started, dropped when a MEASURE cycle completes, when the
+ * monitor is stopped or when the device suspends, and taken again when a
+ * resume re-arms WINDOW monitoring. A MEASURE cycle
+ * needs this as much as a WINDOW one does, because a cycle that crosses one of
+ * those states can come back reporting zero counted edges, which the ISR below
+ * turns into CLOCK_LOST for a clock that never stopped.
+ */
+static void nxp_freqme_power_lock_get(const struct device *dev)
+{
+#if defined(CONFIG_PM_POLICY_DEVICE_CONSTRAINTS)
+	const struct nxp_freqme_config *config = dev->config;
+	struct nxp_freqme_data *data = dev->data;
+
+	if (config->pm_device_constraints && !data->power_locked) {
+		pm_policy_device_power_lock_get(dev);
+		data->power_locked = true;
+	}
+#else
+	ARG_UNUSED(dev);
+#endif
+}
+
+static void nxp_freqme_power_lock_put(const struct device *dev)
+{
+#if defined(CONFIG_PM_POLICY_DEVICE_CONSTRAINTS)
+	struct nxp_freqme_data *data = dev->data;
+
+	if (data->power_locked) {
+		pm_policy_device_power_lock_put(dev);
+		data->power_locked = false;
+	}
+#else
+	ARG_UNUSED(dev);
+#endif
+}
 
 static bool nxp_freqme_is_active(const struct device *dev)
 {
@@ -538,6 +588,10 @@ static int nxp_freqme_start(const struct device *dev)
 		data->started = true;
 		FREQME_EnableContinuousMode(config->base, true);
 	}
+	/* Taken before the cycle starts, under the same lock the completion
+	 * interrupt releases it under.
+	 */
+	nxp_freqme_power_lock_get(dev);
 	FREQME_StartMeasurementCycle(config->base);
 	k_spin_unlock(&data->lock, key);
 	return 0;
@@ -563,6 +617,7 @@ static int nxp_freqme_stop(const struct device *dev)
 		FREQME_TerminateMeasurementCycle(config->base);
 		data->state = NXP_FREQME_STATE_CONFIGURED;
 	}
+	nxp_freqme_power_lock_put(dev);
 	k_spin_unlock(&data->lock, key);
 	return 0;
 }
@@ -755,6 +810,7 @@ static void nxp_freqme_isr(const struct device *dev)
 			}
 			/* Auto-disarm before the callback so it may restart. */
 			data->state = NXP_FREQME_STATE_CONFIGURED;
+			nxp_freqme_power_lock_put(dev);
 		}
 	} else {
 		if ((flags & (uint32_t)kFREQME_OverflowInterruptStatusFlag) != 0U) {
@@ -862,6 +918,7 @@ static int nxp_freqme_pm_action(const struct device *dev, enum pm_device_action 
 		if (data->started) {
 			data->state = NXP_FREQME_STATE_RUNNING;
 			FREQME_EnableContinuousMode(config->base, true);
+			nxp_freqme_power_lock_get(dev);
 			FREQME_StartMeasurementCycle(config->base);
 		}
 		k_spin_unlock(&data->lock, key);
@@ -888,6 +945,12 @@ static int nxp_freqme_pm_action(const struct device *dev, enum pm_device_action 
 					 (uint32_t)kFREQME_UnderflowInterruptEnable);
 		FREQME_ClearInterruptStatusFlags(config->base,
 			FREQME_GetInterruptStatusFlags(config->base));
+
+		/*
+		 * Nothing is measuring from here, so stop blocking the states
+		 * that would have broken it.
+		 */
+		nxp_freqme_power_lock_put(dev);
 		k_spin_unlock(&data->lock, key);
 
 		return 0;
@@ -991,6 +1054,14 @@ static DEVICE_API(clock_monitor, nxp_freqme_api) = {
 #define NXP_FREQME_REF_NODE(inst) DT_INST_CHILD(inst, reference_sources)
 #define NXP_FREQME_TAR_NODE(inst) DT_INST_CHILD(inst, target_sources)
 
+#if defined(CONFIG_PM_POLICY_DEVICE_CONSTRAINTS)
+#define NXP_FREQME_PM_DEVICE_CONSTRAINTS_INIT(inst)                            \
+	.pm_device_constraints =                                               \
+		DT_INST_NODE_HAS_PROP(inst, zephyr_disabling_power_states),
+#else
+#define NXP_FREQME_PM_DEVICE_CONSTRAINTS_INIT(inst)
+#endif
+
 #define NXP_FREQME_DEVICE_INIT(inst)                                           \
 	BUILD_ASSERT(DT_NODE_EXISTS(NXP_FREQME_REF_NODE(inst)),                \
 		     "nxp,freqme: missing reference-sources node");            \
@@ -1038,6 +1109,7 @@ static DEVICE_API(clock_monitor, nxp_freqme_api) = {
 		.tar_srcs_count =                                              \
 			(uint8_t)ARRAY_SIZE(nxp_freqme_tar_srcs_##inst),       \
 		.irq_config_func = nxp_freqme_irq_cfg_##inst,                  \
+		NXP_FREQME_PM_DEVICE_CONSTRAINTS_INIT(inst)                    \
 	};                                                                     \
 	PM_DEVICE_DT_INST_DEFINE(inst, nxp_freqme_pm_action);                  \
 	DEVICE_DT_INST_DEFINE(inst, nxp_freqme_init,                           \
