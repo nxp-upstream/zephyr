@@ -161,6 +161,13 @@ static __nocache struct k_mem_slab audio_slab;
 #define AUDIO_THREAD_PRIORITY 4
 #endif
 
+/*
+ * Below every other thread of the demo: the decoder runs for a whole frame
+ * at a time, and the receiver and the display, which only move a frame
+ * along, must preempt it rather than wait for its time slice to end.
+ */
+#define VIDEO_DECODE_THREAD_PRIORITY (CONFIG_MPIPE_THREAD_DEFAULT_PRIORITY + 1)
+
 #if defined(CONFIG_ANDROID_LINK_MIC)
 /*
  * What the microphone path produces and the phone expects: the MICFIL on the
@@ -294,6 +301,8 @@ static int build_video_stream_pipeline(void)
 					  MPIPE_PROP_BASE_QUEUE_SIZE, &(uint8_t){1},
 					  MPIPE_PROP_BASE_QUEUE_LEAK,
 					  &(enum mpipe_base_queue_leak){MPIPE_BASE_QUEUE_LEAK_OLDEST},
+					  MPIPE_PROP_BASE_QUEUE_THREAD_PRIORITY,
+					  &(int){VIDEO_DECODE_THREAD_PRIORITY},
 					  MPIPE_PROP_LIST_END);
 	if (ret < 0) {
 		return ret;
