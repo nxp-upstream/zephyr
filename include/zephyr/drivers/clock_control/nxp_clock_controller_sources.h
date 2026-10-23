@@ -64,6 +64,11 @@
 #define NXP_SIRC_STANDBY_ENABLE DT_PROP(DT_NODELABEL(sirc), standby_enable)
 #endif
 
+#if DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(sxosc), nxp_sxosc, okay)
+/** @brief SXOSC crystal stabilization time, in EOCV counts. */
+#define NXP_SXOSC_STARTUP_DELAY DT_PROP(DT_NODELABEL(sxosc), startup_delay)
+#endif
+
 /** @} */
 
 #endif /* ZEPHYR_INCLUDE_DRIVERS_CLOCK_CONTROL_NXP_CLOCK_CONTROLLER_SOURCES_H_ */

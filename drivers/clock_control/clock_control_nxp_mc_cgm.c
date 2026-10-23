@@ -41,6 +41,16 @@ const clock_pcfs_config_t pcfs_config = {.maxAllowableIDDchange = NXP_PLL_MAXIDO
 					 .clkSrcFreq = NXP_PLL_CLKSRCFREQ};
 #endif
 
+/*
+ * The SXOSC is bonded out only on some MCXE packages, so the SDK gates its
+ * API behind a feature macro. Fold that together with the devicetree status
+ * to keep the derivatives that lack it compiling.
+ */
+#if defined(FSL_FEATURE_MC_CGM_HAS_SXOSC) && (FSL_FEATURE_MC_CGM_HAS_SXOSC != 0U) && \
+	DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(sxosc), nxp_sxosc, okay)
+#define MC_CGM_HAS_SXOSC 1
+#endif
+
 #define MC_CGM_EMAC_NODE DT_NODELABEL(emac)
 
 /*
@@ -232,6 +242,10 @@ static const struct mc_cgm_rate_entry mc_cgm_rate_map[] = {
 #if defined(CONFIG_MSPI_NXP_QSPI)
 	{ MCUX_QSPISF_CLK, kCLOCK_QspiSfClk },
 #endif
+#if defined(MC_CGM_HAS_SXOSC)
+	/* Reports 0 until the crystal has stabilized. */
+	{ MCUX_SXOSC_CLK, kCLOCK_SxoscClk },
+#endif
 };
 
 static const struct mc_cgm_gate_entry *mc_cgm_lookup_gate(uint32_t subsys)
@@ -369,6 +383,15 @@ static int mc_cgm_clock_control_on(const struct device *dev, clock_control_subsy
 #endif
 	case MCUX_SIRC_CLK:
 		return 0;
+#if defined(MC_CGM_HAS_SXOSC)
+	/*
+	 * Started from devicetree in mc_cgm_init(). Its consumer is the RTC,
+	 * which relies on the SXOSC surviving functional reset, so the
+	 * oscillator is left running rather than gated per request.
+	 */
+	case MCUX_SXOSC_CLK:
+		return 0;
+#endif
 	default:
 		return -ENOTSUP;
 	}
@@ -403,6 +426,10 @@ static int mc_cgm_clock_control_off(const struct device *dev, clock_control_subs
 #endif
 	case MCUX_SIRC_CLK:
 		return 0;
+#if defined(MC_CGM_HAS_SXOSC)
+	case MCUX_SXOSC_CLK:
+		return 0;
+#endif
 	default:
 		return -ENOTSUP;
 	}
@@ -505,6 +532,19 @@ static int mc_cgm_init(const struct device *dev)
 #if DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(fxosc), nxp_fxosc, okay)
 	/* Enable FXOSC. */
 	CLOCK_InitFxosc(&fxosc_config);
+#endif
+
+#if defined(MC_CGM_HAS_SXOSC)
+	/*
+	 * The SXOSC has no bypass mode, so it only stabilizes with a crystal
+	 * across OSC32K_EXTAL/OSC32K_XTAL. Without one OSC_STAT never
+	 * asserts, and the wait here is bounded only when
+	 * CONFIG_CLOCK_RETRY_TIMES is non-zero.
+	 */
+	if (CLOCK_InitSxosc(true, NXP_SXOSC_STARTUP_DELAY) != kStatus_Success) {
+		LOG_ERR("SXOSC did not stabilize; is the 32.768 kHz crystal fitted?");
+		return -ETIMEDOUT;
+	}
 #endif
 
 #if DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(pll), nxp_plldig, okay)

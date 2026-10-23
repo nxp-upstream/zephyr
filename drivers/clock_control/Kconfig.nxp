@@ -65,6 +65,29 @@ config CLOCK_CONTROL_NXP_MC_CGM
 	help
 	  Enable support for NXP MC_CGM clock driver.
 
+if CLOCK_CONTROL_NXP_MC_CGM
+
+config CLOCK_RETRY_TIMES
+	int "Clock status poll limit"
+	default 0
+	help
+	  How many times the MCUX clock HAL polls a status flag before it gives
+	  up and returns an error. The name is fixed by the HAL, which reads it
+	  as CONFIG_CLOCK_RETRY_TIMES.
+
+	  Zero, the default, polls forever. That suits a clock source which
+	  always stabilizes once it is configured, and it is what this driver
+	  has always done. Set a non-zero bound when a source may be absent and
+	  the driver should report the failure instead of hanging: the SXOSC has
+	  no bypass mode and never stabilizes without its external 32.768 kHz
+	  crystal.
+
+	  The limit is a plain poll count shared by every clock operation that
+	  waits on hardware, so a bound that is too low can also fail a healthy
+	  PLL lock or clock mux switch.
+
+endif # CLOCK_CONTROL_NXP_MC_CGM
+
 config CLOCK_CONTROL_NXP_S32
 	bool "NXP S32 clock control driver"
 	default y
