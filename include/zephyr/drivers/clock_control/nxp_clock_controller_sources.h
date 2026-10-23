@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 NXP
+ * Copyright 2025, 2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -57,6 +57,11 @@
 #define NXP_PLL_ACCURACY       DT_ENUM_IDX(DT_NODELABEL(pll), accuracy)
 /** @brief PLL output divider table pointer. */
 #define NXP_PLL_OUTDIV_POINTER DT_PROP(DT_NODELABEL(pll), outdiv)
+#endif
+
+#if DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(sirc), nxp_sirc, okay)
+/** @brief Whether the SIRC keeps running in Standby mode. */
+#define NXP_SIRC_STANDBY_ENABLE DT_PROP(DT_NODELABEL(sirc), standby_enable)
 #endif
 
 /** @} */
