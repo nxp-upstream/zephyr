@@ -155,6 +155,10 @@
 	firc-div = "UnDiv";
 };
 
+&sirc {
+	status = "okay";
+};
+
 &fxosc {
 	status = "okay";
 	freq = <16000000>;
