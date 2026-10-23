@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  NXP PDCON (Power Domain Controller) power domain.
+
+  One of the domains PDCON can switch off while the CPU runs. The domain has no
+  register block of its own, so the node has no reg; domain-name says which
+  domain it is.
+
+compatible: "nxp,pdcon-power-domain"
+
+include: power-domain.yaml
+
+properties:
+  domain-name:
+    type: string
+    required: true
+    enum:
+      - "Npu"
+      - "Comm"
+      - "Media"
+    description: |
+      Domain this node controls: the NPU, communication or media domain. The
+      value is spelled as the suffix of the matching power_domain_t member of
+      the MCUX HAL ("Npu" for kPOWER_DomainNpu), so the HAL value follows from
+      it without a lookup table.

@@ -96,6 +96,28 @@ config POWER_DOMAIN_NXP_SCU_INIT_PRIORITY
 
 endif #POWER_DOMAIN_NXP_SCU
 
+config POWER_DOMAIN_NXP_PDCON
+	bool "NXP PDCON power domain driver"
+	default y
+	depends on DT_HAS_NXP_PDCON_POWER_DOMAIN_ENABLED
+	depends on PM_DEVICE
+	select DEVICE_DEPS
+	help
+	  Enable the driver for the power domains the NXP PDCON switches off
+	  while the CPU runs.
+
+if POWER_DOMAIN_NXP_PDCON
+
+config POWER_DOMAIN_NXP_PDCON_INIT_PRIORITY
+	int "NXP PDCON power domain driver init priority"
+	default 10
+	help
+	  NXP PDCON power domain driver initialization priority. A device in
+	  one of the domains depends on it, so this must be lower than the
+	  priority of every such device.
+
+endif # POWER_DOMAIN_NXP_PDCON
+
 config POWER_DOMAIN_SOC_PM_STATE
 	bool "SoC PM state power domain"
 	default y

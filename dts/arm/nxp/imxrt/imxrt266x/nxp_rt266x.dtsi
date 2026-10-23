@@ -9,6 +9,7 @@
 #include <nxp/imxrt/imxrt266x/clock/imx_ccm_rev3_rt266x.h>
 #include <zephyr/dt-bindings/gpio/gpio.h>
 #include <zephyr/dt-bindings/i2c/i2c.h>
+#include <zephyr/dt-bindings/wuc/wuc_nxp_powercon.h>
 
 /*
  * i.MX RT266x shared peripheral tree. The CPU, its TCMs and its NVIC
@@ -70,6 +71,33 @@
 		compatible = "zephyr,memory-region", "mmio-sram";
 		reg = <0x22080000 DT_SIZE_K(256)>;
 		zephyr,memory-region = "SRAM2";
+	};
+};
+
+/*
+ * The PDCON power domains have no register block of their own -- the HAL
+ * switches them through PDCON by domain identifier -- so they sit at the root
+ * rather than in the &peripheral aperture. domain-name is the suffix of the
+ * HAL's power_domain_t member: "Npu" is kPOWER_DomainNpu. There is no node for
+ * the CPU domain: the low-power state entered decides whether it stays powered.
+ */
+/ {
+	pd_npu: npu-domain {
+		compatible = "nxp,pdcon-power-domain";
+		domain-name = "Npu";
+		#power-domain-cells = <0>;
+	};
+
+	pd_comm: comm-domain {
+		compatible = "nxp,pdcon-power-domain";
+		domain-name = "Comm";
+		#power-domain-cells = <0>;
+	};
+
+	pd_media: media-domain {
+		compatible = "nxp,pdcon-power-domain";
+		domain-name = "Media";
+		#power-domain-cells = <0>;
 	};
 };
 
@@ -545,6 +573,57 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		ranges = <0x0 0x4c060000 0x4000>;
+	};
+
+	/*
+	 * SYSCON__PMU. The regulators are identified by node name and carry no
+	 * compatible (see the nxp,rt2k-pmu-regulator binding).
+	 */
+	pmu: pmu@40520000 {
+		compatible = "nxp,rt2k-pmu-regulator";
+		reg = <0x40520000 0x1000>;
+		status = "disabled";
+
+		dcdc: dcdc {
+		};
+
+		ldo0v8: ldo0v8 {
+		};
+
+		ldo1v8: ldo1v8 {
+		};
+
+		ldovdda: ldovdda {
+		};
+
+		ldoa0v8: ldoa0v8 {
+		};
+
+		ldoq0v8: ldoq0v8 {
+		};
+	};
+
+	/*
+	 * SYSCON__RESETCON. Okay by default, unlike the peripherals around it: it
+	 * needs no pins and no clock, so there is nothing for a board to decide.
+	 */
+	resetcon: reset-controller@40530000 {
+		compatible = "nxp,resetcon-hwinfo";
+		reg = <0x40530000 0x1000>;
+		status = "okay";
+	};
+
+	/*
+	 * SYSCON__POWERCON_GLOBAL. Okay by default: wake-capable nodes in this
+	 * file reference it, and with CONFIG_WUC=y a reference to a disabled
+	 * controller fails to link. The reg spans every POWERCON sub-block, from
+	 * GLOBAL to SOC_CTRL at +0x8000.
+	 */
+	wuc: wakeup-controller@40540000 {
+		compatible = "nxp,powercon-wuc";
+		reg = <0x40540000 0x10000>;
+		#wakeup-ctrl-cells = <1>;
+		status = "okay";
 	};
 
 	/*
@@ -1574,14 +1653,21 @@
 		status = "disabled";
 	};
 
+	/*
+	 * VBAT-domain LPTMR. It counts ULP32K (PCS 0), which keeps running in
+	 * every low-power mode, and its clock gate is in VBATCON rather than the
+	 * CCM; soc.c ungates it. Its alarm wakes the system only when the node
+	 * also has wakeup-source.
+	 */
 	lptmr0: vbat_lptmr: timer@46330000 {
 		compatible = "nxp,lptmr";
 		reg = <0x46330000 0x1000>;
 		interrupts = <250 0>;
-		clock-frequency = <DT_FREQ_M(80)>;
+		clock-frequency = <32768>;
 		prescale-glitch-filter-bypass;
 		clk-source = <0>;
 		resolution = <32>;
+		wakeup-ctrls = <&wuc NXP_POWERCON_WUC_VBAT_LPTMR>;
 		status = "disabled";
 	};
 

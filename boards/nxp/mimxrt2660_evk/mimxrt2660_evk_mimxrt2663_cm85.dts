@@ -40,6 +40,12 @@
 		zephyr,dtcm = &dtcm;
 		zephyr,console = &lpuart0;
 		zephyr,shell-uart = &lpuart0;
+		/*
+		 * Deep Sleep gates SXOSC, the SysTick reference, so with CONFIG_PM
+		 * the kernel hands its timeout to the VBAT LPTMR, which counts
+		 * ULP32K in every low-power mode.
+		 */
+		zephyr,system-timer-companion = &vbat_lptmr;
 	};
 };
 
@@ -54,6 +60,10 @@
 	status = "okay";
 };
 
+&pmu {
+	status = "okay";
+};
+
 &lpuart0 {
 	status = "okay";
 };
@@ -62,8 +72,18 @@
 	status = "okay";
 };
 
+&gpio5 {
+	status = "okay";
+};
+
 &gpio6 {
 	status = "okay";
+};
+
+/* The system timer's low-power companion: its alarm has to wake the system. */
+&vbat_lptmr {
+	status = "okay";
+	wakeup-source;
 };
 
 &cpu0 {

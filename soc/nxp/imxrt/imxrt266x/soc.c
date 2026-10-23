@@ -5,9 +5,11 @@
  */
 
 /*
- * SoC bring-up for the i.MX RT266x (single Cortex-M85): the access-control, TCM,
- * cache and clock steps every board needs before drivers run. Peripheral gating
- * and clock roots belong to the nxp,imx-ccm-rev3 driver, driven from devicetree.
+ * SoC bring-up for the i.MX RT266x (single Cortex-M85): the access-control, power
+ * baseline, TCM, cache, VBAT-domain and clock steps every board needs before
+ * drivers run.
+ * Peripheral gating and clock roots belong to the nxp,imx-ccm-rev3 driver, driven
+ * from devicetree.
  */
 
 #include <zephyr/cache.h>
@@ -23,7 +25,19 @@
 #include "soc_clock.h"
 
 #include <fsl_common.h>
-#include <fsl_powercon.h>
+#include <fsl_lptmr.h>
+#include <fsl_power.h>
+#include <fsl_resetcon.h>
+#include <fsl_vbatcon.h>
+
+#define SOC_VBAT_LPTMR_ENABLED DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(vbat_lptmr))
+
+/*
+ * Bound on the polls for the FRO32K ready flag. FRO32K runs from VBAT power-on,
+ * so it is normally ready on the first read; the bound only keeps a dead
+ * oscillator from hanging the boot.
+ */
+#define SOC_ULP32K_SWITCH_TIMEOUT 0xFFFFU
 
 /*
  * The ROM leaves SCB->VTOR at 0 and SystemInit() only relocates it for a RAM
@@ -72,14 +86,76 @@ static void soc_llc_init(void)
 }
 
 /*
- * Release the sleep hold, which comes out of reset set. It pins the CMC state
- * machine at its current step, so a WFI never completes: only a debugger halt
- * brings the core back. The SDK clears it from POWER_SetPolicy(); nothing else
- * in this port programs POWERCON, so it happens here.
+ * The HAL's one-time POWERCON, PDCON and MEMCON baseline, which every fsl_power
+ * entry point assumes: function clocks, the standby mask that keeps a plain WFI
+ * a core-only sleep, the PDCON and MEMCON trigger modes, the NPU, COMM and MEDIA
+ * domains powered, and every wakeup source masked until a driver enables it. It
+ * also releases the sleep hold, which comes out of reset set and pins the CMC
+ * state machine, so that no WFI would complete. The SDK runs it from its board
+ * boot code ahead of the clock bring-up, followed by the default policy, which is
+ * the hardware reset state.
  */
-static void soc_release_sleep_hold(void)
+static void soc_power_init(void)
 {
-	POWERCON_DisableSleepHold(SYSCON__POWERCON_CMC0_CTRL);
+	power_policy_config_t policy;
+
+	POWER_Init();
+
+	POWER_GetDefaultPolicyConfig(&policy);
+	POWER_SetPolicy(&policy);
+}
+
+/*
+ * Power Down and Deep Power Down wake through a PoR, and the VBAT domain keeps
+ * what it latched: a stale LPTMR compare flag or VBATCON event holds the wakeup
+ * request and pops the next low-power entry straight back out, and an LPTMR
+ * left running across the PoR fails to set CSR.TEN again on the next start.
+ * RESETCON's sticky status is left alone: it is the reset cause, which the
+ * application reads and clears.
+ */
+static void soc_vbat_clear_wake_residue(void)
+{
+	const uint32_t low_power_wake =
+		(uint32_t)kRESETCON_SrcWuPd | (uint32_t)kRESETCON_SrcWuVbat;
+	uint32_t sticky = RESETCON_GetStickyResetStatus(SYSCON__RESETCON);
+
+	if ((sticky & low_power_wake) == 0U) {
+		return;
+	}
+
+	/* The LPTMR registers need their clock ungated; false means not gated. */
+	VBATCON_EnableLPTMRClockGate(VBAT__VBATCON, false);
+	LPTMR_ClearStatusFlags(VBAT__LPTMR, (uint32_t)kLPTMR_TimerCompareFlag);
+	LPTMR_Deinit(VBAT__LPTMR);
+	VBATCON_ClearEventFlags(VBAT__VBATCON, (uint32_t)kVBATCON_EventAll);
+}
+
+/*
+ * The VBAT LPTMR counts ULP32K at the 32768 Hz its devicetree node states.
+ * VBATCON is in the VBAT domain, which stays powered across the resets a
+ * low-power wakeup ends in, so the gate and the ULP32K source are whatever the
+ * last image left; both are set here. FRO32K needs no crystal on the board. A
+ * failed switch leaves ULP32K on its current source, which still counts, so it
+ * is not worth failing the boot over.
+ */
+static void soc_vbat_lptmr_clock_init(void)
+{
+	VBATCON_EnableLPTMRClockGate(VBAT__VBATCON, false);
+	(void)VBATCON_SwitchUlp32kSource(VBAT__VBATCON, kVBATCON_Ulp32kSourceFro32k,
+					 SOC_ULP32K_SWITCH_TIMEOUT);
+}
+
+/*
+ * The residue is cleared whatever this image's devicetree says: it is left over
+ * from the previous run.
+ */
+static void soc_vbat_init(void)
+{
+	soc_vbat_clear_wake_residue();
+
+	if (SOC_VBAT_LPTMR_ENABLED) {
+		soc_vbat_lptmr_clock_init();
+	}
 }
 
 void soc_reset_hook(void)
@@ -106,7 +182,9 @@ void soc_early_init_hook(void)
 	/* Access control first: every step after it is a peripheral access. */
 	soc_trdc_setup();
 
-	soc_release_sleep_hold();
+	soc_power_init();
+
+	soc_vbat_init();
 
 	/*
 	 * Caches before the clock bring-up, whose switching window saves and

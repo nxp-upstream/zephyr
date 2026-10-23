@@ -49,4 +49,26 @@ config SYS_CLOCK_HW_CYCLES_PER_SEC
 		if CORTEX_M_SYSTICK && \
 		!$(dt_nodelabel_bool_prop,systick,external-clock-source)
 
+if PM
+
+DT_CHOSEN_SYSTEM_TIMER_COMPANION := zephyr,system-timer-companion
+
+# Deep Sleep gates SXOSC, the SysTick reference, so a sleep only ends on time if
+# timekeeping is handed over to the companion timer named by
+# /chosen/zephyr,system-timer-companion. That timer is driven through the
+# Counter API, which nothing else in a PM build selects, and without it the
+# companion choice silently falls back to none: the kernel keeps arming SysTick,
+# the wakeup never arrives and the sleep never ends.
+configdefault COUNTER
+	default y if $(dt_chosen_enabled,$(DT_CHOSEN_SYSTEM_TIMER_COMPANION))
+
+# The companion's alarm only ends a Deep Sleep through a POWERCON wakeup source,
+# which counter_mcux_lptmr.c enables through the WUC API when it arms the alarm.
+# Without WUC that call compiles out, nothing unmasks the alarm as a wakeup
+# source and the kernel timeout never wakes the system.
+configdefault WUC
+	default y if $(dt_chosen_enabled,$(DT_CHOSEN_SYSTEM_TIMER_COMPANION))
+
+endif # PM
+
 endif # SOC_SERIES_IMXRT266X_CM85

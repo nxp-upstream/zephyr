@@ -479,6 +479,10 @@ if(CONFIG_SOC_SERIES_IMXRT266X)
   set(CONFIG_MCUX_COMPONENT_driver.rt2k_pmu ON)
   set(CONFIG_MCUX_COMPONENT_driver.modcon ON)
   set(CONFIG_MCUX_COMPONENT_driver.memcon ON)
+  set(CONFIG_MCUX_COMPONENT_driver.resetcon ON)
+  set(CONFIG_MCUX_COMPONENT_driver.vbatcon ON)
+  # The SoC bring-up stops the VBAT LPTMR whether or not a counter driver uses it.
+  set(CONFIG_MCUX_COMPONENT_driver.lptmr ON)
 endif()
 
 # Load all drivers

@@ -8,6 +8,15 @@ config WUC_MCUX_LLWU
 	help
 	  Enable support for NXP LLWU(Low Leakage Wakeup Unit) wakeup controller driver.
 
+config WUC_MCUX_POWERCON
+	bool "NXP POWERCON wakeup control"
+	default y
+	depends on DT_HAS_NXP_POWERCON_WUC_ENABLED
+	help
+	  Enable support for the NXP POWERCON (Power Controller) acting as a
+	  wakeup controller driver. The POWERCON CMC wakeup masks select which
+	  interrupts and DMA requests may wake the SoC from low-power modes.
+
 config WUC_MCUX_SLEEPCON
 	bool "NXP SLEEPCON wakeup control"
 	default y

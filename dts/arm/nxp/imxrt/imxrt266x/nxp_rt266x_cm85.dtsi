@@ -33,6 +33,8 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 			d-cache-line-size = <32>;
+			cpu-power-states = <&sleep &deep_sleep1 &deep_sleep2
+					    &deep_sleep3 &power_down &deep_power_down1>;
 
 			/*
 			 * clock-frequency is deliberately not set here. It is
@@ -53,6 +55,93 @@
 				compatible = "arm,armv8m-mpu";
 				reg = <0xe000ed90 0x40>;
 			};
+		};
+
+		/*
+		 * exit-latency-us is the wake latency the MCUXpresso SDK power
+		 * manager measured. Deep Sleep 2 and Deep Sleep 3 are not states of
+		 * that framework, so they carry none.
+		 *
+		 * min-residency-us keeps short idle periods out of Deep Sleep, whose
+		 * PMU and clock switching outweighs a brief stay. The break-even
+		 * point has not been measured, so the values are a starting point
+		 * to tune per project.
+		 */
+		power-states {
+			sleep: sleep {
+				compatible = "zephyr,power-state";
+				power-state-name = "suspend-to-idle";
+				substate-id = <0>;
+				exit-latency-us = <2>;
+			};
+
+			deep_sleep1: deep-sleep1 {
+				compatible = "zephyr,power-state";
+				power-state-name = "suspend-to-idle";
+				substate-id = <1>;
+				min-residency-us = <50000>;
+				exit-latency-us = <149>;
+			};
+
+			deep_sleep2: deep-sleep2 {
+				compatible = "zephyr,power-state";
+				power-state-name = "suspend-to-idle";
+				substate-id = <2>;
+				min-residency-us = <80000>;
+			};
+
+			/*
+			 * The states below wake through a system reset, so they are
+			 * opt-in: disabled keeps the policy from picking them, and
+			 * pm_state_force() still finds them. An application enables a
+			 * node to let the policy use it.
+			 */
+			deep_sleep3: deep-sleep3 {
+				compatible = "zephyr,power-state";
+				power-state-name = "suspend-to-ram";
+				substate-id = <0>;
+				status = "disabled";
+			};
+
+			power_down: power-down {
+				compatible = "zephyr,power-state";
+				power-state-name = "suspend-to-ram";
+				substate-id = <1>;
+				exit-latency-us = <381>;
+				status = "disabled";
+			};
+
+			deep_power_down1: deep-power-down1 {
+				compatible = "zephyr,power-state";
+				power-state-name = "suspend-to-disk";
+				exit-latency-us = <18700>;
+				status = "disabled";
+			};
+		};
+	};
+
+	/*
+	 * The three run modes, in the descending load-threshold order the cpu_freq
+	 * policies expect. The thresholds are a starting point to tune per
+	 * project, not measured break-even points.
+	 */
+	performance-states {
+		pstate_od_run: pstate-0 {
+			compatible = "nxp,rt2k-pmu-pstate";
+			load-threshold = <60>;
+			cpu-frequency-level = "high";
+		};
+
+		pstate_normal_run: pstate-1 {
+			compatible = "nxp,rt2k-pmu-pstate";
+			load-threshold = <30>;
+			cpu-frequency-level = "normal";
+		};
+
+		pstate_lp_run: pstate-2 {
+			compatible = "nxp,rt2k-pmu-pstate";
+			load-threshold = <0>;
+			cpu-frequency-level = "low";
 		};
 	};
 };

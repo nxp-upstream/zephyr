@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  NXP RT2K PMU (Power Management Unit) on-chip regulators.
+
+  Each regulator is a child node without a compatible, identified by its node
+  name:
+
+  - dcdc: VDD_CORE buck converter
+  - ldo0v8: VDD_0V8 LDO
+  - ldo1v8: VDD_1V8 LDO
+  - ldovdda: VDDA_1V8 LDO
+  - ldoa0v8, ldoq0v8: LDOA_0V8 and LDOQ_0V8 supplies. They have no voltage or
+    mode setting; the only control is whether they stay powered in low-power
+    modes.
+
+compatible: "nxp,rt2k-pmu-regulator"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
+
+child-binding:
+  include:
+    - name: regulator.yaml
+      property-allowlist:
+        - regulator-always-on
+        - regulator-boot-on
+        - regulator-min-microvolt
+        - regulator-max-microvolt
+
+  description: Output of an on-chip PMU regulator

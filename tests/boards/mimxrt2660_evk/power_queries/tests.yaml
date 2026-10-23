@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+common:
+  tags:
+    - pm
+    - power_domain
+    - regulator
+  platform_allow:
+    - mimxrt2660_evk/mimxrt2663/cm85
+  integration_platforms:
+    - mimxrt2660_evk/mimxrt2663/cm85
+tests:
+  boards.mimxrt2660_evk.power_queries: {}
+  boards.mimxrt2660_evk.power_queries.cpu_freq:
+    extra_configs:
+      - CONFIG_CPU_FREQ=y
+      - CONFIG_CPU_FREQ_PSTATE_SET_SOC=y
+      - CONFIG_CPU_FREQ_POLICY_ON_DEMAND=y
+      # The tests switch the run mode themselves: keep the policy from switching it in between.
+      - CONFIG_CPU_FREQ_INTERVAL_MS=1000000
+  boards.mimxrt2660_evk.power_queries.alarm:
+    extra_configs:
+      # With CONFIG_PM the kernel arms vbat_lptmr as the system timer's low-power companion.
+      - CONFIG_PM=n
+      - CONFIG_COUNTER=y
+      - CONFIG_COUNTER_MCUX_LPTMR_ALARM=y

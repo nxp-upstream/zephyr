@@ -1,0 +1,10 @@
+common:
+  tags:
+    - flash
+    - security
+tests:
+  sample.boards.nxp.frdm_rw612.iped_psram:
+    build_only: true
+    platform_allow: frdm_rw612
+    integration_platforms:
+      - frdm_rw612

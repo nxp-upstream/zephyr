@@ -874,6 +874,180 @@ static void soc_clock_apply_od_run(void)
 }
 
 /*******************************************************************************
+ * Run-mode switching
+ *****************************************************************************
+ */
+/*
+ * Normal Run and Low Power Run follow the MCUXpresso SDK BOARD_BootClockNPRUN()
+ * and BOARD_BootClockLPRUN(), without the part they share with the boot: the
+ * crystal hand-over, the Sys PLL and the mode-invariant slices stay as
+ * soc_clock_init() left them. A switch changes only the core PLL rate, the main
+ * PLL's second fractional output and the three per-mode CGU slices. XSPI0 and
+ * XSPI1 run from the Sys PLL, which no run mode changes, so a switch runs from
+ * the XIP flash and needs no window.
+ */
+
+/* Low Power Run CPU rate, from the core PLL. */
+#define SOC_LP_RUN_CORE_PLL_HZ 600000000U
+
+/*
+ * Main PLL second fractional output for the NPU root: VCO * 4 / selector, so
+ * 666.67 MHz in Normal Run and 400 MHz in Low Power Run with the 2 GHz VCO.
+ */
+#define SOC_RUN_MODE_MAIN_PLL_VCO_HZ        2000000000U
+#define SOC_NORMAL_RUN_MAIN_PLL_DIVOUT1_SEL 12U
+#define SOC_LP_RUN_MAIN_PLL_DIVOUT1_SEL     20U
+
+BUILD_ASSERT(DT_PROP(MAIN_PLL_NODE, nxp_vco_frequency) == SOC_RUN_MODE_MAIN_PLL_VCO_HZ,
+	     "the Normal and Low Power Run NPU selectors assume a 2 GHz main PLL VCO");
+BUILD_ASSERT((SOC_LP_RUN_CORE_PLL_HZ % SOC_PLL_REF_HZ(CORE_PLL_NODE)) == 0U,
+	     "the Low Power Run core PLL rate is not a multiple of its reference");
+
+/* 600 MHz is at the bottom of the low VCO band, with the post divider off. */
+static const clock_cguana_core_pll_config_t s_corePllConfigLpRun = {
+	.vcoSelHf = false,
+	.refFreq = SOC_CGUANA_REF_FREQ(SOC_PLL_REF_HZ(CORE_PLL_NODE)),
+	.loopDivNint = SOC_LP_RUN_CORE_PLL_HZ / SOC_PLL_REF_HZ(CORE_PLL_NODE),
+	.postDivBy2 = false,
+};
+
+/* What a run mode sets: two PLL settings and the per-mode CGU slices. */
+struct soc_clock_run_point {
+	const clock_cguana_core_pll_config_t *core_pll;
+	uint32_t main_pll_divout1_sel;
+	void (*set_mode_roots)(void);
+};
+
+/*
+ * Per-mode CGU slices of Normal Run and Low Power Run, the same in both: the CPU
+ * from COREPLL_OUT with the MAIN bus divider of Over Drive Run, the NPU from
+ * MAINPLL_DIVOUT1 and MEDIABUS from SYSPLL_DIVOUT2 (500 MHz) / 2 = 250 MHz.
+ */
+static void soc_clock_set_core_pll_run_roots(void)
+{
+	clock_root_config_t rootCfg = {0};
+
+	rootCfg.mux = kCLOCK_CGU_MAIN_ClockRoot_COREPLL_OUT;
+	rootCfg.div = 1U;
+	rootCfg.sndDiv = DT_PROP(DT_NODELABEL(main_rootclk), clock_second_div);
+	CLOCK_SetRootClock(kCLOCK_Root_CGU_MAIN_ROOTCLK, &rootCfg);
+
+	rootCfg.sndDiv = 1U;
+
+	rootCfg.mux = kCLOCK_NPU_ClockRoot_MAINPLL_DIVOUT1;
+	rootCfg.div = 1U;
+	CLOCK_SetRootClock(kCLOCK_Root_CGU_NPU_ROOTCLK, &rootCfg);
+
+	rootCfg.mux = kCLOCK_MEDIABUS_ClockRoot_SYSPLL_DIVOUT2;
+	rootCfg.div = 2U;
+	CLOCK_SetRootClock(kCLOCK_Root_CGU_MEDIABUS_ROOTCLK, &rootCfg);
+}
+
+/*
+ * Move the per-mode slices onto BASE (FRO192M), as the boot window does, so
+ * nothing rides a PLL output while it changes. The core runs at the FRO rate
+ * until the target slices are set.
+ */
+static void soc_clock_park_mode_roots(void)
+{
+	CLOCK_SetRootClockMux(kCLOCK_Root_CGU_MAIN_ROOTCLK, kCLOCK_CGU_MAIN_ClockRoot_BASE);
+	CLOCK_SetRootClockMux(kCLOCK_Root_CGU_NPU_ROOTCLK, kCLOCK_NPU_ClockRoot_BASE);
+	CLOCK_SetRootClockMux(kCLOCK_Root_CGU_MEDIABUS_ROOTCLK, kCLOCK_MEDIABUS_ClockRoot_BASE);
+}
+
+static uint32_t soc_clock_core_pll_hz(const clock_cguana_core_pll_config_t *config)
+{
+	uint32_t vco_hz = SOC_PLL_REF_HZ(CORE_PLL_NODE) * config->loopDivNint;
+
+	return config->postDivBy2 ? (vco_hz / 2U) : vco_hz;
+}
+
+/*
+ * Re-lock the core PLL at a new rate from off. Requesting it on while the off
+ * request is still in flight can wedge the CGUANA state machine, so this waits
+ * for it to report off first.
+ */
+static void soc_clock_set_core_pll(const clock_cguana_core_pll_config_t *config)
+{
+	const uint32_t core_pll_ready =
+		CLOCK_CGUANA_FSM_COREPLL & CGUANA_CGUAD_CTRL_STS_CGUAD_FSM_RDY_MASK;
+
+	if (CLOCK_GetCorePllFreq() == soc_clock_core_pll_hz(config)) {
+		return;
+	}
+
+	CLOCK_DeinitCorePll();
+	while ((SYSCON__CGUANA->CGUAD_CTRL_STS & core_pll_ready) != 0U) {
+	}
+	CLOCK_InitCorePll(config);
+}
+
+/*
+ * Change the main PLL's second fractional output while the PLL keeps running:
+ * its integer outputs feed the console and bus roots. The output is gated
+ * across the selector change.
+ */
+static void soc_clock_set_main_pll_divout1(uint32_t selector)
+{
+	const uint32_t new_sel = CGUANA_CGUA_MAINPLL_PLL2_REG_MAINPLL_DIVFRAC1_SEL(selector);
+	uint32_t pll2 = SYSCON__CGUANA->CGUA_MAINPLL_PLL2_REG;
+
+	if ((pll2 & CGUANA_CGUA_MAINPLL_PLL2_REG_MAINPLL_DIVFRAC1_SEL_MASK) == new_sel) {
+		return;
+	}
+
+	CLOCK_DisableMainSysPllOutput(kCLOCK_MainSysPll_Main, kCLOCK_MainSysPllOutput_Divfrac1);
+
+	pll2 = SYSCON__CGUANA->CGUA_MAINPLL_PLL2_REG;
+	pll2 &= ~CGUANA_CGUA_MAINPLL_PLL2_REG_MAINPLL_DIVFRAC1_SEL_MASK;
+	SYSCON__CGUANA->CGUA_MAINPLL_PLL2_REG = pll2 | new_sel;
+
+	CLOCK_EnableMainSysPllOutput(kCLOCK_MainSysPll_Main, kCLOCK_MainSysPllOutput_Divfrac1);
+}
+
+static void soc_clock_switch_run_point(const struct soc_clock_run_point *point)
+{
+	soc_clock_park_mode_roots();
+	soc_clock_set_core_pll(point->core_pll);
+	soc_clock_set_main_pll_divout1(point->main_pll_divout1_sel);
+	point->set_mode_roots();
+	SystemCoreClockUpdate();
+}
+
+static const struct soc_clock_run_point soc_clock_od_run_point = {
+	.core_pll = &s_corePllConfig,
+	.main_pll_divout1_sel = DT_PROP_BY_IDX(MAIN_PLL_NODE, nxp_frac_div_sels, 1),
+	.set_mode_roots = ConfigCGUDig_SYSCON_HPRUN,
+};
+
+static const struct soc_clock_run_point soc_clock_normal_run_point = {
+	.core_pll = &s_corePllConfig,
+	.main_pll_divout1_sel = SOC_NORMAL_RUN_MAIN_PLL_DIVOUT1_SEL,
+	.set_mode_roots = soc_clock_set_core_pll_run_roots,
+};
+
+static const struct soc_clock_run_point soc_clock_lp_run_point = {
+	.core_pll = &s_corePllConfigLpRun,
+	.main_pll_divout1_sel = SOC_LP_RUN_MAIN_PLL_DIVOUT1_SEL,
+	.set_mode_roots = soc_clock_set_core_pll_run_roots,
+};
+
+void soc_clock_switch_to_od_run(void)
+{
+	soc_clock_switch_run_point(&soc_clock_od_run_point);
+}
+
+void soc_clock_switch_to_normal_run(void)
+{
+	soc_clock_switch_run_point(&soc_clock_normal_run_point);
+}
+
+void soc_clock_switch_to_lp_run(void)
+{
+	soc_clock_switch_run_point(&soc_clock_lp_run_point);
+}
+
+/*******************************************************************************
  * Static helpers
  *****************************************************************************
  */
@@ -1195,10 +1369,13 @@ static void ConfigCGUDig_MAIN(void)
  * set here: media_clk (MEDIABUS) and mediapll_clk (MAINPLLDIV10). The
  * per-peripheral leaf roots (mipicsi, mipidsi, reformat, dcpixel, csi) are not
  * described anywhere yet and keep their reset values.
+ *
+ * MEDIA_CCM is inside the domain it clocks, so the domain has to be powered:
+ * POWER_Init() powers it before the boot bring-up, the power domain driver
+ * before soc_clock_restore_domain_roots().
  */
 static void ConfigCGUDig_MEDIA(void)
 {
-	POWER_SetDomainRunMode(kPOWER_DomainMedia, kPDCON_EventNoneOrActive);
 	clock_root_config_t rootCfg = {0};
 
 	rootCfg.sndDiv = 1U;
@@ -1293,4 +1470,18 @@ static void ConfigCGUDig_WAKE(void)
 	CLOCK_SetRootClock(kCLOCK_Root_WAKE_wake_lpclk, &rootCfg);
 
 	SystemCoreClockUpdate();
+}
+
+void soc_clock_restore_domain_roots(power_domain_t domain)
+{
+	switch (domain) {
+	case kPOWER_DomainComm:
+		ConfigCGUDig_COMM();
+		break;
+	case kPOWER_DomainMedia:
+		ConfigCGUDig_MEDIA();
+		break;
+	default:
+		break;
+	}
 }

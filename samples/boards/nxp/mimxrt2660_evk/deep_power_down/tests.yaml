@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+sample:
+  name: MIMXRT2660-EVK deep power down sample
+
+common:
+  tags:
+    - boards
+    - nxp
+    - power
+  harness: console
+  harness_config: &dpd_harness_config
+    type: multi_line
+    ordered: true
+    regex:
+      - "deep power down sample"
+      - "Woke from deep power down, cycle 1 of 3"
+      - "Woke from deep power down, cycle 2 of 3"
+      - "Woke from deep power down, cycle 3 of 3"
+      - "Done, staying awake"
+  platform_allow:
+    - mimxrt2660_evk/mimxrt2663/cm85
+  integration_platforms:
+    - mimxrt2660_evk/mimxrt2663/cm85
+
+tests:
+  sample.boards.nxp.mimxrt2660_evk.deep_power_down.dpd1.timer:
+    timeout: 120
+    extra_configs:
+      - CONFIG_PM=y
+      - CONFIG_SAMPLE_DPD_MODE_DPD1=y
+  sample.boards.nxp.mimxrt2660_evk.deep_power_down.dpd2.timer:
+    timeout: 120
+  # Every button cycle waits for an operator to press SW5, so these only run
+  # when the fixture is given (--fixture or the hardware map).
+  sample.boards.nxp.mimxrt2660_evk.deep_power_down.dpd1.button:
+    timeout: 300
+    harness_config:
+      <<: *dpd_harness_config
+      fixture: fixture_press_sw5
+    extra_configs:
+      - CONFIG_PM=y
+      - CONFIG_SAMPLE_DPD_MODE_DPD1=y
+      - CONFIG_SAMPLE_DPD_WAKEUP_BUTTON=y
+  sample.boards.nxp.mimxrt2660_evk.deep_power_down.dpd2.button:
+    timeout: 300
+    harness_config:
+      <<: *dpd_harness_config
+      fixture: fixture_press_sw5
+    extra_configs:
+      - CONFIG_SAMPLE_DPD_WAKEUP_BUTTON=y

@@ -6,6 +6,7 @@
 
 #include "mimxrt2660_evk-pinctrl.dtsi"
 #include <zephyr/dt-bindings/input/input-event-codes.h>
+#include <zephyr/dt-bindings/wuc/wuc_nxp_powercon.h>
 
 / {
 	aliases {
@@ -40,6 +41,19 @@
 			label = "User SW (WAKE)";
 			gpios = <&gpio6 0 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
 			zephyr,code = <INPUT_KEY_0>;
+		};
+
+		wakeup_button: button_1 {
+			/*
+			 * SW5, ball PIO0_4 -> VBAT gpio5 pin 4, also the PMIC on/off
+			 * key. Low active with the internal pull-up, as the SDK demo
+			 * configures it (pad 0xA0, falling edge). Channel 0 matches
+			 * gpio5's default irq-output-select = <0>.
+			 */
+			label = "Wakeup SW (VBAT)";
+			gpios = <&gpio5 4 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+			zephyr,code = <INPUT_KEY_WAKEUP>;
+			wakeup-ctrls = <&wuc NXP_POWERCON_WUC_VBAT_GPIO_CH0>;
 		};
 	};
 };

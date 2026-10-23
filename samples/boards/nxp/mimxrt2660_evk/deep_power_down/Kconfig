@@ -1,0 +1,62 @@
+# SPDX-FileCopyrightText: Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "MIMXRT2660-EVK deep power down sample"
+
+choice SAMPLE_DPD_MODE
+	prompt "Deep power down mode"
+	default SAMPLE_DPD_MODE_DPD2
+	help
+	  Select the deep power down mode the sample enters on every cycle.
+
+config SAMPLE_DPD_MODE_DPD1
+	bool "Deep Power Down 1"
+	depends on PM
+	help
+	  Force PM_STATE_SUSPEND_TO_DISK, which the SoC maps to Deep Power
+	  Down 1, and let the main thread sleep. The VBAT SRAM is retained.
+
+config SAMPLE_DPD_MODE_DPD2
+	bool "Deep Power Down 2"
+	depends on POWEROFF
+	help
+	  Call sys_poweroff(), which the SoC maps to Deep Power Down 2. The
+	  VBAT SRAM is not retained.
+
+endchoice
+
+choice SAMPLE_DPD_WAKEUP
+	prompt "Deep power down wakeup source"
+	default SAMPLE_DPD_WAKEUP_TIMER
+	help
+	  Select what ends each deep power down.
+
+config SAMPLE_DPD_WAKEUP_TIMER
+	bool "VBAT LPTMR alarm"
+	help
+	  Wake after SAMPLE_DPD_WAKEUP_SECONDS on a VBAT LPTMR alarm, with no
+	  operator action.
+
+config SAMPLE_DPD_WAKEUP_BUTTON
+	bool "SW5 button"
+	help
+	  Wake on a press of SW5. Each cycle waits for an operator.
+
+endchoice
+
+config SAMPLE_DPD_CYCLES
+	int "Number of deep power down cycles"
+	range 1 1000
+	default 3
+	help
+	  Number of times the sample enters deep power down before it stays
+	  awake. The count is kept in VBATCON GPR[0] across each wake reset.
+
+config SAMPLE_DPD_WAKEUP_SECONDS
+	int "Timer wakeup delay in seconds"
+	range 1 3600
+	default 5
+	help
+	  Time each deep power down lasts with SAMPLE_DPD_WAKEUP_TIMER.
+
+source "Kconfig.zephyr"

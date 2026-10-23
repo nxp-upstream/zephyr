@@ -1,0 +1,26 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Reproduces customer Issue 2 from psram-iped.md: with an IPED GCM region
+ * provisioned on FlexSPI A1 (ext_flash), CPU accesses to the aps6404l pSRAM
+ * on FlexSPI B1 - outside every configured IPED region - do not round trip.
+ *
+ * ext_flash (A1) keeps the IPED region provisioned by
+ * ../iped/scripts/provision_and_test.py (region 1, 0x320000-0x324000, CTR
+ * mode). This overlay only enables the pSRAM on B1; it does not touch the
+ * flash partitions or IPED region layout.
+ */
+
+&aps6404l {
+	status = "okay";
+};
+
+/ {
+	psram0: memory@1c000000 {
+		compatible = "zephyr,memory-region", "mmio-sram";
+		reg = <0x1c000000 DT_SIZE_M(8)>;
+		zephyr,memory-region = "EXT_PSRAM";
+	};
+};

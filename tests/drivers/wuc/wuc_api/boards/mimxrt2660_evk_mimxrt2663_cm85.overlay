@@ -1,0 +1,15 @@
+/*
+ * SPDX-FileCopyrightText: Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/wuc/wuc_nxp_powercon.h>
+
+/ {
+	zephyr,user {
+		wakeup-source;
+		wakeup-ctrls = <&wuc NXP_POWERCON_WUC_VBAT_LPTMR>,
+			       <&wuc NXP_POWERCON_WUC_VBAT_GPIO_CH0>;
+	};
+};

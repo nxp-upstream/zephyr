@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  NXP POWERCON (Power Controller) acting as a Wakeup Controller (WUC).
+
+  POWERCON gates which sources can wake the SoC from a low-power mode:
+  interrupts through the CMC0 interrupt wakeup mask, DMA requests through the
+  CMC1 (MAIN domain) and CMC2 (WAKE domain) DMA wakeup masks. The "id" cell
+  consumed through "wakeup-ctrls" properties encodes one source: bits [31:28]
+  select the path and the remaining bits are the source index on it, the NVIC
+  interrupt number for the interrupt path. Write it with the macros of
+  <zephyr/dt-bindings/wuc/wuc_nxp_powercon.h>.
+
+compatible: "nxp,powercon-wuc"
+
+include: [base.yaml, wuc-controller.yaml]
+
+properties:
+  reg:
+    required: true
+
+  '#wakeup-ctrl-cells':
+    type: int
+    const: 1
+    description: |
+      Number of cells in wakeup-ctrls property.
+
+wakeup-ctrl-cells:
+  - id
