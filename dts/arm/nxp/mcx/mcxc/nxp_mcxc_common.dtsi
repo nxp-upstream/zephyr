@@ -448,6 +448,12 @@
 			reg = <0x4007e000 0x1000>;
 		};
 
+		rfsys: retained-memory@40041000 {
+			compatible = "nxp,rfsys", "zephyr,retained-reg";
+			reg = <0x40041000 32>;
+			status = "disabled";
+		};
+
 		crc: crc@40032000 {
 			compatible = "nxp,crc";
 			reg = <0x40032000 0x1000>;

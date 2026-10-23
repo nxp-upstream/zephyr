@@ -1,0 +1,26 @@
+# Copyright 2026 NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+
+title: NXP System Register File (RFSYS)
+
+description: |
+  Retained memory area backed by the NXP system register file (RFSYS).
+
+  RFSYS is a small array of 32-bit registers that stays powered in every
+  power mode, keeps its contents across a low-voltage detect event and is
+  only cleared by a power-on reset. It has no clock gate and no enable bit,
+  so the generic "zephyr,retained-reg" driver handles it as is; list that
+  compatible second to bind it.
+
+  The reg size is the usable size of the area in bytes, not the size of the
+  peripheral slot: four registers on MCXC041, eight on the other MCX C
+  parts.
+
+compatible: "nxp,rfsys"
+
+include: ["base.yaml", "zephyr,retained-reg.yaml"]
+
+properties:
+  reg:
+    required: true
