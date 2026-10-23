@@ -46,3 +46,10 @@ tests:
     tags:
       - drivers
       - retained_mem
+  drivers.retained_mem.api.rfsys:
+    platform_allow:
+      - frdm_mcxc242
+      - frdm_mcxc444
+    tags:
+      - drivers
+      - retained_mem
