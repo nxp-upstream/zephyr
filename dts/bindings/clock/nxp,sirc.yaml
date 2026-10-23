@@ -1,0 +1,23 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: Slow internal RC oscillator
+
+compatible: "nxp,sirc"
+
+include: [base.yaml]
+
+properties:
+  reg:
+    required: true
+
+  standby-enable:
+    type: boolean
+    description: |
+      Keep the SIRC running in Standby mode, by setting
+      MISCELLANEOUS_IN[STANDBY_ENABLE].
+
+      The SIRC is enabled out of reset and cannot be disabled in Run mode, so
+      Standby is the only mode its state can be chosen for. Leave the property
+      out to stop the SIRC on Standby entry; set it when a peripheral clocked
+      from the SIRC has to keep running through Standby.
