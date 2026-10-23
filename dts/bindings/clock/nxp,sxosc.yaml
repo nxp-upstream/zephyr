@@ -1,0 +1,28 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: Slow external crystal oscillator
+
+compatible: "nxp,sxosc"
+
+include: [base.yaml]
+
+properties:
+  reg:
+    required: true
+
+  startup-delay:
+    required: true
+    type: int
+    description: |
+      Crystal stabilization time, programmed into SXOSC_CTRL[EOCV].
+
+      The oscillator releases its clock one cycle after its counter reaches
+      EOCV times 128, so this has to cover the startup time of the crystal
+      that is fitted. Valid range is 0 to 255.
+
+      The SXOSC has no bypass mode: it only ever stabilizes with a 32.768 kHz
+      crystal wired to OSC32K_EXTAL/OSC32K_XTAL. Enabling this node on a
+      board without one leaves SXOSC_STAT[OSC_STAT] clear forever, so bound
+      the wait with CONFIG_CLOCK_RETRY_TIMES to get an error instead of a
+      hang during initialization.
