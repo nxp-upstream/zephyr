@@ -42,7 +42,9 @@ enum {
  * @brief Display sink element.
  *
  * Extends the base @ref mpipe_sink with display-specific capabilities.
- * Renders incoming video buffers to a Zephyr display device.
+ * Renders incoming video buffers to a Zephyr display device. It keeps the
+ * frame on screen until the next one replaces it, and asks upstream for
+ * that one buffer in the pool query.
  */
 struct mpipe_disp_sink {
 	/** Base sink element. */
