@@ -9,6 +9,7 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mpipe/mpipe_buffer.h>
+#include <zephyr/mpipe/mpipe_dispatch.h>
 #include <zephyr/mpipe/mpipe_element.h>
 #include <zephyr/mpipe/mpipe_structure.h>
 #include <zephyr/mpipe/mpipe_value.h>
@@ -202,6 +203,17 @@ static int mpipe_disp_sink_change_state(struct mpipe_element *self,
 	return mpipe_sink_change_state(self, transition);
 }
 
+/* The frame kept on screen is one buffer upstream cannot have back */
+static int mpipe_disp_sink_propose_buffer_pool(struct mpipe_sink *self,
+					       struct mpipe_dispatch *query)
+{
+	ARG_UNUSED(self);
+
+	query->pool_cfg.min_buffers = 1U;
+
+	return 0;
+}
+
 int mpipe_disp_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 			       struct net_buf **out_buf)
 {
@@ -351,6 +363,7 @@ int mpipe_disp_sink_init(struct mpipe_disp_sink *disp_sink, uint8_t id)
 	sink->sink_pad.process_fn = mpipe_disp_sink_process_fn;
 	sink->sink_pad.enum_caps_fn = mpipe_disp_sink_enum_caps;
 	sink->set_caps = mpipe_disp_sink_set_caps;
+	sink->propose_buffer_pool = mpipe_disp_sink_propose_buffer_pool;
 
 	return 0;
 }

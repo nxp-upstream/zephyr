@@ -562,10 +562,14 @@ int mpipe_vid_object_decide_buffer_pool(struct mpipe_vid_object *vid_obj,
 
 	/* Always use its own pool, just negotiate the configs */
 	if (qpc != NULL) {
-		/* Decide min buffers */
-		if (qpc->min_buffers > pool_config->min_buffers) {
-			pool_config->min_buffers = qpc->min_buffers;
-		}
+		/*
+		 * The device needs its own count queued while downstream keeps
+		 * its share, so add the two rather than take the larger: sized
+		 * to the larger, the stream starves once each holds its maximum.
+		 */
+		pool_config->min_buffers = (uint8_t)MIN(
+			(uint32_t)vid_obj->pool.pool.req_config.min_buffers + qpc->min_buffers,
+			UINT8_MAX);
 
 		/* Decide alignment */
 		int align = sys_lcm(qpc->align, pool_config->align);
