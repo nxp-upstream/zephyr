@@ -93,6 +93,8 @@ struct mpipe_vid_overlay {
 	struct video_buffer *vbufs[CONFIG_VIDEO_BUFFER_POOL_NUM_MAX];
 	/** Number of allocated video buffers */
 	uint8_t vbuf_count;
+	/** Frames downstream holds at once, asked of upstream and of the pool */
+	uint8_t held_downstream;
 };
 
 /**

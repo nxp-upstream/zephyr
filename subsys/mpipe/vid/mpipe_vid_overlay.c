@@ -281,6 +281,36 @@ static int mpipe_vid_overlay_set_property(struct mpipe_object *obj, uint32_t key
 	}
 }
 
+/*
+ * Downstream's demand lands on the overlay's own pool, which supplies the
+ * copies it draws into when a frame is shared, and travels upstream as well,
+ * since a frame drawn in place is upstream's buffer held downstream. The
+ * overlay itself holds nothing across process calls.
+ */
+static int vid_overlay_decide_buffer_pool(struct mpipe_transform *self,
+					  struct mpipe_dispatch *query)
+{
+	struct mpipe_vid_overlay *overlay = (struct mpipe_vid_overlay *)self;
+	const struct mpipe_buffer_pool_config *qpc =
+		(query->pool != NULL) ? &query->pool->config : &query->pool_cfg;
+
+	overlay->held_downstream = qpc->min_buffers;
+	overlay->out_pool.config.min_buffers = (uint8_t)MIN(
+		(uint32_t)overlay->out_pool.req_config.min_buffers + qpc->min_buffers, UINT8_MAX);
+
+	return 0;
+}
+
+static int vid_overlay_propose_buffer_pool(struct mpipe_transform *self,
+					   struct mpipe_dispatch *query)
+{
+	struct mpipe_vid_overlay *overlay = (struct mpipe_vid_overlay *)self;
+
+	query->pool_cfg.min_buffers = overlay->held_downstream;
+
+	return 0;
+}
+
 /* Frame-sized output buffers come from the video buffer heap */
 static int vid_overlay_pool_start(struct mpipe_buffer_pool *pool)
 {
@@ -403,6 +433,7 @@ int mpipe_vid_overlay_init(struct mpipe_vid_overlay *overlay, uint8_t id)
 	k_fifo_init(&overlay->free_fifo);
 	memset(overlay->vbufs, 0, sizeof(overlay->vbufs));
 	overlay->vbuf_count = 0;
+	overlay->held_downstream = 0;
 
 	mpipe_buffer_pool_init(&overlay->out_pool);
 	overlay->out_pool.start = vid_overlay_pool_start;
@@ -423,8 +454,8 @@ int mpipe_vid_overlay_init(struct mpipe_vid_overlay *overlay, uint8_t id)
 	transform->out_pool = &overlay->out_pool;
 	transform->set_caps = vid_overlay_set_caps;
 	transform->transform_caps = vid_overlay_transform_caps;
-	transform->propose_buffer_pool = NULL;
-	transform->decide_buffer_pool = NULL;
+	transform->propose_buffer_pool = vid_overlay_propose_buffer_pool;
+	transform->decide_buffer_pool = vid_overlay_decide_buffer_pool;
 	transform->sink_pad.process_fn = vid_overlay_process_fn;
 
 	return 0;
