@@ -29,9 +29,10 @@ config MPIPE_FS_NUM_BUFS
 	range 1 255
 	default 1
 	help
-	  Number of static buffers in file_src's internal net_buf pool.
-	  1 may be enough for fully synchronous pipelines; use >1 if downstream can
-	  retain buffers asynchronously.
+	  Number of static buffers in file_src's internal net_buf pool: what
+	  downstream holds at once plus one being filled. A parser that cuts
+	  frames as views of the chunks pins a chunk until the frame is consumed,
+	  so it asks for several. Negotiation fails when downstream asks for more.
 	  If downstream proposes a pool, file_src uses it instead.
 
 endif # MPIPE_FS
