@@ -66,6 +66,13 @@ static int mpipe_file_src_decide_buffer_pool(struct mpipe_src *src, struct mpipe
 
 	fsrc->downstream_pool = query->pool;
 
+	/* Reading into the static pool: downstream must not hold more than it has */
+	if (query->pool == NULL && query->pool_cfg.min_buffers > CONFIG_MPIPE_FS_NUM_BUFS) {
+		LOG_ERR("Downstream holds up to %u chunks, CONFIG_MPIPE_FS_NUM_BUFS=%u",
+			query->pool_cfg.min_buffers, CONFIG_MPIPE_FS_NUM_BUFS);
+		return -ENOBUFS;
+	}
+
 	return 0;
 }
 

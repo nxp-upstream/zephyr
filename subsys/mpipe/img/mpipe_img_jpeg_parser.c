@@ -93,9 +93,12 @@ static int mpipe_img_jpeg_parser_decide_buffer_pool(struct mpipe_parser *parser,
 						    struct mpipe_dispatch *query)
 {
 	struct mpipe_img_jpeg_parser *jpeg_parser = (struct mpipe_img_jpeg_parser *)parser;
+	const struct mpipe_buffer_pool_config *qpc =
+		(query->pool != NULL) ? &query->pool->config : &query->pool_cfg;
 
 	parser->out_pool = NULL;
 	jpeg_parser->copy_out = false;
+	jpeg_parser->held_downstream = qpc->min_buffers;
 
 	if (CONFIG_MPIPE_IMG_JPEG_PARSER_MAX_FRAME_SIZE > 0) {
 		parser->out_pool = &jpeg_parser->out_pool;
@@ -116,6 +119,23 @@ static int mpipe_img_jpeg_parser_decide_buffer_pool(struct mpipe_parser *parser,
 			"CONFIG_MPIPE_IMG_JPEG_PARSER_MAX_FRAME_SIZE");
 		return -ENOMEM;
 	}
+
+	return 0;
+}
+
+/*
+ * The chunks upstream must spare: the one being filled, the one pending here
+ * and, when frames leave as views, one per frame downstream holds. A frame
+ * larger than a chunk is copied and pins none, but keeps more than one chunk
+ * pending while it is assembled, which the chunk size should rule out.
+ */
+static int mpipe_img_jpeg_parser_propose_buffer_pool(struct mpipe_parser *parser,
+						     struct mpipe_dispatch *query)
+{
+	struct mpipe_img_jpeg_parser *jpeg_parser = (struct mpipe_img_jpeg_parser *)parser;
+	uint32_t held = jpeg_parser->copy_out ? 0U : jpeg_parser->held_downstream;
+
+	query->pool_cfg.min_buffers = (uint8_t)MIN(held + 2U, UINT8_MAX);
 
 	return 0;
 }
@@ -506,6 +526,7 @@ int mpipe_img_jpeg_parser_init(struct mpipe_img_jpeg_parser *jpeg_parser, uint8_
 	jpeg_parser->pending = NULL;
 	jpeg_parser->scanned = 0;
 	jpeg_parser->copy_out = false;
+	jpeg_parser->held_downstream = 0;
 
 	/*
 	 * The capabilities are enumerated from .rodata, so the ANY caps that
@@ -516,6 +537,7 @@ int mpipe_img_jpeg_parser_init(struct mpipe_img_jpeg_parser *jpeg_parser, uint8_
 
 	parser->sink_pad.process_fn = mpipe_img_jpeg_parser_process_fn;
 	parser->decide_buffer_pool = mpipe_img_jpeg_parser_decide_buffer_pool;
+	parser->propose_buffer_pool = mpipe_img_jpeg_parser_propose_buffer_pool;
 
 	if (CONFIG_MPIPE_IMG_JPEG_PARSER_MAX_FRAME_SIZE > 0) {
 		const struct mpipe_buffer_pool_config pool_req = {

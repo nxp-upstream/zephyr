@@ -47,6 +47,8 @@ struct mpipe_img_jpeg_parser {
 	uint32_t scanned;
 	/** Every frame is copied into the pool the element downstream offered */
 	bool copy_out;
+	/** Frames downstream holds at once, each pinning the chunk it is a view of */
+	uint8_t held_downstream;
 };
 
 /**
