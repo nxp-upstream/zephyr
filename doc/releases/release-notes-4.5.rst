@@ -811,6 +811,7 @@ New APIs and options
 
   * :c:enumerator:`PIXEL_FORMAT_YUYV`
   * :c:macro:`PANEL_PIXEL_FORMAT_YUYV`
+  * :c:enumerator:`SCREEN_INFO_WRITE_HOLDS_BUFFER`
 
 * Entropy
 
