@@ -42,19 +42,22 @@ enum {
  * @brief Display sink element.
  *
  * Extends the base @ref mpipe_sink with display-specific capabilities.
- * Renders incoming video buffers to a Zephyr display device. It keeps the
- * frame on screen until the next one replaces it, and asks upstream for
- * that one buffer in the pool query.
+ * Renders incoming video buffers to a Zephyr display device. When the
+ * display holds the buffer of a full-frame write
+ * (@ref SCREEN_INFO_WRITE_HOLDS_BUFFER), the sink keeps the frame on screen
+ * until the next one replaces it and asks upstream for that one buffer in
+ * the pool query.
  */
 struct mpipe_disp_sink {
 	/** Base sink element. */
 	struct mpipe_sink sink;
 	/** Display device instance. */
 	const struct device *display_dev;
+	/** The display holds the buffer of a full-frame write until the next one. */
+	bool holds_buffer;
 	/**
-	 * The frame on screen. A driver may scan the frame out of the buffer it
-	 * was given rather than copy it, so the buffer is held until the next
-	 * frame has replaced it, or until the run ends.
+	 * The frame on screen, held until the next frame has replaced it or the
+	 * run ends. NULL when the display copies its frames.
 	 */
 	struct net_buf *shown;
 };
