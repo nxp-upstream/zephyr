@@ -189,13 +189,29 @@ static int mpipe_disp_sink_get_property(struct mpipe_object *obj, uint32_t key, 
 	}
 }
 
+/* Whether the display reads the buffer it is given until the next frame replaces it */
+static bool mpipe_disp_sink_holds_buffer(const struct mpipe_disp_sink *disp_sink)
+{
+	struct display_capabilities display_caps;
+
+	if (disp_sink->display_dev == NULL) {
+		return false;
+	}
+
+	display_get_capabilities(disp_sink->display_dev, &display_caps);
+
+	return (display_caps.screen_info & SCREEN_INFO_WRITE_HOLDS_BUFFER) != 0U;
+}
+
 /* The frame on screen goes back to its pool with the run, before the pool itself does */
 static int mpipe_disp_sink_change_state(struct mpipe_element *self,
 					enum mpipe_state_change transition)
 {
 	struct mpipe_disp_sink *disp_sink = (struct mpipe_disp_sink *)self;
 
-	if (transition == MPIPE_STATE_CHANGE_PAUSED_TO_READY && disp_sink->shown != NULL) {
+	if (transition == MPIPE_STATE_CHANGE_READY_TO_PAUSED) {
+		disp_sink->holds_buffer = mpipe_disp_sink_holds_buffer(disp_sink);
+	} else if (transition == MPIPE_STATE_CHANGE_PAUSED_TO_READY && disp_sink->shown != NULL) {
 		net_buf_unref(disp_sink->shown);
 		disp_sink->shown = NULL;
 	}
@@ -203,13 +219,13 @@ static int mpipe_disp_sink_change_state(struct mpipe_element *self,
 	return mpipe_sink_change_state(self, transition);
 }
 
-/* The frame kept on screen is one buffer upstream cannot have back */
+/* A frame kept on screen is one buffer upstream cannot have back */
 static int mpipe_disp_sink_propose_buffer_pool(struct mpipe_sink *self,
 					       struct mpipe_dispatch *query)
 {
-	ARG_UNUSED(self);
+	const struct mpipe_disp_sink *disp_sink = (const struct mpipe_disp_sink *)self;
 
-	query->pool_cfg.min_buffers = 1U;
+	query->pool_cfg.min_buffers = mpipe_disp_sink_holds_buffer(disp_sink) ? 1U : 0U;
 
 	return 0;
 }
@@ -323,15 +339,19 @@ int mpipe_disp_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 		}
 
 		/*
-		 * The frame just written may be scanned out of this very buffer:
-		 * keep it, and let go of the one it replaced on screen. Released
-		 * at once, the buffer would be the next one the decoder writes
-		 * into, under the viewer's eyes.
+		 * A display that scans the frame out of this very buffer reads it
+		 * until the next frame replaces it: keep it and let go of the one
+		 * it replaced. Released at once, the buffer would be the next one
+		 * the decoder writes into, under the viewer's eyes.
 		 */
-		prev = disp_sink->shown;
-		disp_sink->shown = cur;
-		if (prev != NULL) {
-			net_buf_unref(prev);
+		if (disp_sink->holds_buffer) {
+			prev = disp_sink->shown;
+			disp_sink->shown = cur;
+			if (prev != NULL) {
+				net_buf_unref(prev);
+			}
+		} else {
+			net_buf_unref(cur);
 		}
 		cur = next;
 	}
@@ -354,6 +374,7 @@ int mpipe_disp_sink_init(struct mpipe_disp_sink *disp_sink, uint8_t id)
 	mpipe_element_set_name(self, "disp_sink");
 
 	disp_sink->display_dev = DEFAULT_PROP_DEVICE;
+	disp_sink->holds_buffer = false;
 	disp_sink->shown = NULL;
 
 	self->object.get_property = mpipe_disp_sink_get_property;
