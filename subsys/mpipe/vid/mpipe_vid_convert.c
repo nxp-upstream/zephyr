@@ -404,12 +404,13 @@ static int vid_convert_decide_buffer_pool(struct mpipe_transform *self,
 static int vid_convert_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 				  struct net_buf **out_buf)
 {
-	struct net_buf *cur;
-	struct net_buf *next;
 	struct mpipe_transform *transform = (struct mpipe_transform *)pad->object.container;
 	struct mpipe_vid_convert *conv = (struct mpipe_vid_convert *)transform;
 	struct mpipe_buffer_pool *out_pool = transform->out_pool;
 	uint32_t out_sz = vid_convert_frame_size(conv->out_pixfmt, conv->width, conv->height);
+	struct net_buf *out = NULL;
+
+	*out_buf = NULL;
 
 	if (conv->width == 0U || conv->height == 0U || conv->in_pixfmt == 0U ||
 	    conv->out_pixfmt == 0U || conv->desc == NULL || conv->desc->fn == NULL) {
@@ -418,57 +419,33 @@ static int vid_convert_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 		return -EINVAL;
 	}
 
-	/* Process all input net_buf fragments */
-	*out_buf = NULL;
-	cur = in_buf;
-	while (cur != NULL) {
-		struct net_buf *out = NULL;
-
-		if (out_pool->acquire_buffer(out_pool, &out) != 0 || out == NULL) {
-			LOG_ERR("Failed to acquire output buffer");
-			goto err;
-		}
-
-		if (conv->in_pixfmt == conv->out_pixfmt) {
-			memcpy(out->data, cur->data,
-			       MIN(out_sz, mpipe_buffer_get_meta(cur)->bytes_used));
-		} else {
-			if (conv->desc->fn(conv, cur, out) != 0) {
-				LOG_ERR("Failed to convert pixel format");
-				net_buf_unref(out);
-				goto err;
-			}
-		}
-
-		mpipe_buffer_get_meta(out)->bytes_used = out_sz;
-		out->len = out_sz;
-
-		if (mpipe_buffer_get_meta(out)->driver_buf != NULL) {
-			((struct video_buffer *)mpipe_buffer_get_meta(out)->driver_buf)->bytesused =
-				out_sz;
-		}
-
-		if (*out_buf == NULL) {
-			*out_buf = out;
-		} else {
-			net_buf_frag_add(*out_buf, out);
-		}
-
-		next = cur->frags;
-		cur->frags = NULL;
-		net_buf_unref(cur);
-		cur = next;
+	if (out_pool->acquire_buffer(out_pool, &out) != 0 || out == NULL) {
+		LOG_ERR("Failed to acquire output buffer");
+		net_buf_unref(in_buf);
+		return -EIO;
 	}
+
+	if (conv->in_pixfmt == conv->out_pixfmt) {
+		memcpy(out->data, in_buf->data,
+		       MIN(out_sz, mpipe_buffer_get_meta(in_buf)->bytes_used));
+	} else if (conv->desc->fn(conv, in_buf, out) != 0) {
+		LOG_ERR("Failed to convert pixel format");
+		net_buf_unref(out);
+		net_buf_unref(in_buf);
+		return -EIO;
+	}
+
+	mpipe_buffer_get_meta(out)->bytes_used = out_sz;
+	out->len = out_sz;
+
+	if (mpipe_buffer_get_meta(out)->driver_buf != NULL) {
+		((struct video_buffer *)mpipe_buffer_get_meta(out)->driver_buf)->bytesused = out_sz;
+	}
+
+	net_buf_unref(in_buf);
+	*out_buf = out;
 
 	return 0;
-err:
-	net_buf_unref(cur);
-	if (*out_buf != NULL) {
-		net_buf_unref(*out_buf);
-		*out_buf = NULL;
-	}
-
-	return -EIO;
 }
 
 int mpipe_vid_convert_init(struct mpipe_vid_convert *conv, uint8_t id)

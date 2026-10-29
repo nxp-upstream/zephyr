@@ -243,8 +243,6 @@ int mpipe_disp_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 	enum display_pixel_format disp_fmt = 0;
 	uint32_t bytes_per_line;
 	uint32_t width = 0;
-	struct net_buf *cur;
-	struct net_buf *next;
 	struct net_buf *prev;
 	int ret;
 
@@ -265,7 +263,7 @@ int mpipe_disp_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 	}
 
 	/*
-	 * The height of a fragment is derived from its size, the frame width and
+	 * The height of a buffer is derived from its size, the frame width and
 	 * the pixel depth. Caps that never got negotiated leave both the format
 	 * and the width unset, so report that instead of dividing by zero.
 	 */
@@ -276,84 +274,72 @@ int mpipe_disp_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 		return -ENODATA;
 	}
 
-	/* Input may be a fragment chain. Display each fragment then unref it */
-	cur = in_buf;
-	while (cur != NULL) {
-		/*
-		 * The buffer is assumed to carry a video buffer.
-		 * TODO: Add support for other buffer types
-		 */
-		struct video_buffer *vbuf =
-			(struct video_buffer *)mpipe_buffer_get_meta(cur)->driver_buf;
-		struct display_buffer_descriptor buf_desc = {
-			.buf_size = mpipe_buffer_get_meta(cur)->bytes_used,
-		};
+	/*
+	 * The buffer is assumed to carry a video buffer.
+	 * TODO: Add support for other buffer types
+	 */
+	struct video_buffer *vbuf =
+		(struct video_buffer *)mpipe_buffer_get_meta(in_buf)->driver_buf;
+	struct display_buffer_descriptor buf_desc = {
+		.buf_size = mpipe_buffer_get_meta(in_buf)->bytes_used,
+	};
 
-		next = cur->frags;
-		cur->frags = NULL;
-
-		buf_desc.width = width;
-		buf_desc.pitch = buf_desc.width;
-		/* Do not get height from caps as sometimes buffer is just a partial frame */
-		buf_desc.height = buf_desc.buf_size / bytes_per_line;
+	buf_desc.width = width;
+	buf_desc.pitch = buf_desc.width;
+	/* Do not get height from caps as sometimes buffer is just a partial frame */
+	buf_desc.height = buf_desc.buf_size / bytes_per_line;
 
 #if MPIPE_STAGE_STATS
-		uint32_t t0 = k_cycle_get_32();
+	uint32_t t0 = k_cycle_get_32();
 #endif
 
-		if (buf_desc.height == 0U) {
-			LOG_ERR("Buffer of %u bytes is shorter than a %u-byte line",
-				buf_desc.buf_size, bytes_per_line);
-			ret = -ENODATA;
-		} else if (vbuf != NULL) {
-			/* line_offset is only used to support partial video frame */
-			ret = display_write(disp_sink->display_dev, 0, vbuf->line_offset, &buf_desc,
-					    vbuf->buffer);
-		} else {
-			/* Fallback to net_buf data if no video_buffer metadata */
-			ret = display_write(disp_sink->display_dev, 0, 0, &buf_desc, cur->data);
-		}
+	if (buf_desc.height == 0U) {
+		LOG_ERR("Buffer of %u bytes is shorter than a %u-byte line", buf_desc.buf_size,
+			bytes_per_line);
+		ret = -ENODATA;
+	} else if (vbuf != NULL) {
+		/* line_offset is only used to support partial video frame */
+		ret = display_write(disp_sink->display_dev, 0, vbuf->line_offset, &buf_desc,
+				    vbuf->buffer);
+	} else {
+		/* Fallback to net_buf data if no video_buffer metadata */
+		ret = display_write(disp_sink->display_dev, 0, 0, &buf_desc, in_buf->data);
+	}
 
 #if MPIPE_STAGE_STATS
-		if (mpipe_stage_stats_add(&disp_stats, 1, buf_desc.buf_size, buf_desc.buf_size,
-					  mpipe_stage_stats_elapsed_us(t0))) {
-			LOG_INF("stats disp_sink: %u fps, %ux%u, write %u/%u/%u ms min/avg/max "
-				"(%u ms)",
-				mpipe_stage_stats_per_s(&disp_stats, disp_stats.count), buf_desc.width,
-				buf_desc.height, disp_stats.us_min / 1000U,
-				mpipe_stage_stats_us_avg(&disp_stats) / 1000U, disp_stats.us_max / 1000U,
-				disp_stats.elapsed_ms);
-			mpipe_stage_stats_reset(&disp_stats);
-		}
+	if (mpipe_stage_stats_add(&disp_stats, 1, buf_desc.buf_size, buf_desc.buf_size,
+				  mpipe_stage_stats_elapsed_us(t0))) {
+		LOG_INF("stats disp_sink: %u fps, %ux%u, write %u/%u/%u ms min/avg/max (%u ms)",
+			mpipe_stage_stats_per_s(&disp_stats, disp_stats.count), buf_desc.width,
+			buf_desc.height, disp_stats.us_min / 1000U,
+			mpipe_stage_stats_us_avg(&disp_stats) / 1000U, disp_stats.us_max / 1000U,
+			disp_stats.elapsed_ms);
+		mpipe_stage_stats_reset(&disp_stats);
+	}
 #endif
 
-		if (ret != 0) {
-			if (ret != -ENODATA) {
-				LOG_ERR("display_write failed (%d)", ret);
-			}
-			net_buf_unref(cur);
-			if (next != NULL) {
-				net_buf_unref(next);
-			}
-			return ret;
+	if (ret != 0) {
+		if (ret != -ENODATA) {
+			LOG_ERR("display_write failed (%d)", ret);
 		}
+		net_buf_unref(in_buf);
+		return ret;
+	}
 
-		/*
-		 * A display that scans the frame out of this very buffer reads it
-		 * until the next frame replaces it: keep it and let go of the one
-		 * it replaced. Released at once, the buffer would be the next one
-		 * the decoder writes into, under the viewer's eyes.
-		 */
-		if (disp_sink->holds_buffer) {
-			prev = disp_sink->shown;
-			disp_sink->shown = cur;
-			if (prev != NULL) {
-				net_buf_unref(prev);
-			}
-		} else {
-			net_buf_unref(cur);
+	/*
+	 * A display that scans the frame out of this very buffer reads it until
+	 * the next frame replaces it: keep it and let go of the one it replaced.
+	 * Released at once, the buffer would be the next one the decoder writes
+	 * into, under the viewer's eyes.
+	 */
+	if (disp_sink->holds_buffer) {
+		prev = disp_sink->shown;
+		disp_sink->shown = in_buf;
+		if (prev != NULL) {
+			net_buf_unref(prev);
 		}
-		cur = next;
+	} else {
+		net_buf_unref(in_buf);
 	}
 
 	return 0;

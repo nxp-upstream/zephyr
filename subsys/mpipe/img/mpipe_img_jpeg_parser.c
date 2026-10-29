@@ -220,8 +220,6 @@ static void mpipe_img_jpeg_parser_append(struct mpipe_img_jpeg_parser *jpeg_pars
 	const struct mpipe_buffer_meta *in_meta = mpipe_buffer_get_meta(in_buf);
 	struct mpipe_buffer_meta *tail_meta;
 
-	in_buf->frags = NULL;
-
 	if (tail == NULL) {
 		jpeg_parser->pending = in_buf;
 		return;
