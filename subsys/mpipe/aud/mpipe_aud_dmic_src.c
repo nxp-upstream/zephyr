@@ -121,7 +121,7 @@ static int mpipe_aud_dmic_src_acquire_buffer(struct mpipe_buffer_pool *pool,
 			meta->pool = pool;
 			meta->bytes_used = bytes_used;
 			meta->timestamp = 0U;
-			meta->driver_buf = NULL;
+			meta->driver_buf = mem_block;
 			meta->priv = NULL;
 
 			return 0;
@@ -141,6 +141,22 @@ static int mpipe_aud_dmic_src_acquire_buffer(struct mpipe_buffer_pool *pool,
 
 	LOG_ERR("Unable to match DMIC buffer %p with mem_slab backing store", mem_block);
 	return -ENOENT;
+}
+
+static int mpipe_aud_dmic_src_release_buffer(struct mpipe_buffer_pool *pool, struct net_buf *buf)
+{
+	struct mpipe_aud_buffer_pool *aud_pool =
+		CONTAINER_OF(pool, struct mpipe_aud_buffer_pool, pool);
+	struct mpipe_buffer_meta *meta = mpipe_buffer_get_meta(buf);
+
+	if (meta->driver_buf == NULL) {
+		return -EINVAL;
+	}
+
+	k_mem_slab_free(aud_pool->mem_slab, meta->driver_buf);
+	meta->driver_buf = NULL;
+
+	return 0;
 }
 
 static int mpipe_aud_dmic_src_start(struct mpipe_buffer_pool *pool)
@@ -183,6 +199,7 @@ int mpipe_aud_dmic_src_init(struct mpipe_aud_dmic_src *aud_dmic_src, uint8_t id)
 
 	src->set_caps = mpipe_aud_dmic_src_set_caps;
 	src->pool->acquire_buffer = mpipe_aud_dmic_src_acquire_buffer;
+	src->pool->release_buffer = mpipe_aud_dmic_src_release_buffer;
 	src->pool->start = mpipe_aud_dmic_src_start;
 
 	mpipe_aud_src_update_caps(src);
