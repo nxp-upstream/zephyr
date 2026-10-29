@@ -36,18 +36,9 @@ static int mpipe_app_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_b
 				     struct net_buf **out_buf)
 {
 	struct mpipe_app_sink *app_sink = (struct mpipe_app_sink *)pad->object.container;
-	struct net_buf *cur = in_buf;
-	struct net_buf *next;
 
 	*out_buf = NULL;
-
-	/* A chain carries independent buffers of the same caps: deliver each on its own */
-	while (cur != NULL) {
-		next = cur->frags;
-		cur->frags = NULL;
-		mpipe_app_sink_deliver(app_sink, cur);
-		cur = next;
-	}
+	mpipe_app_sink_deliver(app_sink, in_buf);
 
 	return 0;
 }
