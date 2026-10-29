@@ -24,8 +24,8 @@
  * @brief Element handing pipeline buffers to the application.
  *
  * The application boundary on the consuming side. Each buffer reaching the
- * sink is delivered once, fragment by fragment: to the callback when one is
- * registered, otherwise to a queue the application drains with
+ * sink is delivered once: to the callback when one is registered, otherwise
+ * to a queue the application drains with
  * @ref mpipe_app_sink_pull. End of stream is reported on the pipeline bus,
  * as for every sink.
  *
