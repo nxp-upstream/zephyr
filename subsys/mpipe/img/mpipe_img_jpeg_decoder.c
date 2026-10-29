@@ -173,8 +173,8 @@ static int mpipe_img_jpeg_decoder_process_fn(struct mpipe_pad *pad, struct net_b
 	struct mpipe_transform *transform = (struct mpipe_transform *)pad->object.container;
 	struct mpipe_img_jpeg_decoder *dec = (struct mpipe_img_jpeg_decoder *)transform;
 	struct mpipe_buffer_pool *out_pool = transform->out_pool;
-	struct net_buf *cur;
-	struct net_buf *next;
+	struct net_buf *out = NULL;
+	int ret;
 
 	*out_buf = NULL;
 
@@ -186,85 +186,59 @@ static int mpipe_img_jpeg_decoder_process_fn(struct mpipe_pad *pad, struct net_b
 		return -EINVAL;
 	}
 
-	cur = in_buf;
-	while (cur != NULL) {
-		struct net_buf *out = NULL;
-		int ret;
-
-		/*
-		 * Acquire first. Every output frame held downstream for a moment,
-		 * as when a chain of frames waits in a queue, is not the end of
-		 * the stream: drop the rest of the input chain and go on with what
-		 * was decoded, the live source resynchronizes on the next frame.
-		 */
-		ret = out_pool->acquire_buffer(out_pool, &out);
-		if (ret != 0 || out == NULL) {
-			LOG_WRN("No output buffer free, dropping a frame (%d)", ret);
-			net_buf_unref(cur);
-			return 0;
-		}
-
-		next = cur->frags;
-		cur->frags = NULL;
-
-#if MPIPE_STAGE_STATS
-		uint32_t t0 = k_cycle_get_32();
-		uint32_t in_sz = mpipe_buffer_get_meta(cur)->bytes_used;
-#endif
-
-		ret = mpipe_img_jpeg_decoder_decode_one(dec, cur, out);
-
-#if MPIPE_STAGE_STATS
-		if (ret != 0) {
-			dec_stats.aux++;
-		}
-		if (mpipe_stage_stats_add(&dec_stats, 1, in_sz, in_sz,
-					  mpipe_stage_stats_elapsed_us(t0))) {
-			LOG_INF("stats jpeg_decoder: %u fr/s, in avg %u max %u B, "
-				"decode %u/%u/%u ms min/avg/max, fail %u (%u ms)",
-				mpipe_stage_stats_per_s(&dec_stats, dec_stats.count),
-				dec_stats.bytes / dec_stats.count, dec_stats.bytes_max,
-				dec_stats.us_min / 1000U, mpipe_stage_stats_us_avg(&dec_stats) / 1000U,
-				dec_stats.us_max / 1000U, dec_stats.aux, dec_stats.elapsed_ms);
-			mpipe_stage_stats_reset(&dec_stats);
-		}
-#endif
-
-		if (ret == -ENOTSUP) {
-			/* A format this element cannot produce: the stream cannot go on */
-			net_buf_unref(out);
-			net_buf_unref(cur);
-			if (*out_buf != NULL) {
-				net_buf_unref(*out_buf);
-				*out_buf = NULL;
-			}
-			if (next != NULL) {
-				net_buf_unref(next);
-			}
-			return ret;
-		}
-
-		if (ret != 0) {
-			/*
-			 * A frame that does not decode is dropped and the stream goes
-			 * on: a live source resynchronizes on the next frame, and
-			 * failing the chain would end the run for one bad frame.
-			 */
-			net_buf_unref(out);
-			net_buf_unref(cur);
-			cur = next;
-			continue;
-		}
-
-		if (*out_buf == NULL) {
-			*out_buf = out;
-		} else {
-			net_buf_frag_add(*out_buf, out);
-		}
-
-		net_buf_unref(cur);
-		cur = next;
+	/*
+	 * Every output frame held downstream for a moment is not the end of the
+	 * stream: drop this frame and go on, the live source resynchronizes on
+	 * the next one.
+	 */
+	ret = out_pool->acquire_buffer(out_pool, &out);
+	if (ret != 0 || out == NULL) {
+		LOG_WRN("No output buffer free, dropping a frame (%d)", ret);
+		net_buf_unref(in_buf);
+		return 0;
 	}
+
+#if MPIPE_STAGE_STATS
+	uint32_t t0 = k_cycle_get_32();
+	uint32_t in_sz = mpipe_buffer_get_meta(in_buf)->bytes_used;
+#endif
+
+	ret = mpipe_img_jpeg_decoder_decode_one(dec, in_buf, out);
+
+#if MPIPE_STAGE_STATS
+	if (ret != 0) {
+		dec_stats.aux++;
+	}
+	if (mpipe_stage_stats_add(&dec_stats, 1, in_sz, in_sz, mpipe_stage_stats_elapsed_us(t0))) {
+		LOG_INF("stats jpeg_decoder: %u fr/s, in avg %u max %u B, "
+			"decode %u/%u/%u ms min/avg/max, fail %u (%u ms)",
+			mpipe_stage_stats_per_s(&dec_stats, dec_stats.count),
+			dec_stats.bytes / dec_stats.count, dec_stats.bytes_max,
+			dec_stats.us_min / 1000U, mpipe_stage_stats_us_avg(&dec_stats) / 1000U,
+			dec_stats.us_max / 1000U, dec_stats.aux, dec_stats.elapsed_ms);
+		mpipe_stage_stats_reset(&dec_stats);
+	}
+#endif
+
+	net_buf_unref(in_buf);
+
+	if (ret == -ENOTSUP) {
+		/* A format this element cannot produce: the stream cannot go on */
+		net_buf_unref(out);
+		return ret;
+	}
+
+	if (ret != 0) {
+		/*
+		 * A frame that does not decode is dropped and the stream goes on:
+		 * a live source resynchronizes on the next frame, and failing
+		 * would end the run for one bad frame.
+		 */
+		net_buf_unref(out);
+		return 0;
+	}
+
+	*out_buf = out;
 
 	return 0;
 }

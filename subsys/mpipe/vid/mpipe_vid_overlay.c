@@ -180,8 +180,11 @@ static int vid_overlay_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 	struct mpipe_transform *transform = (struct mpipe_transform *)pad->object.container;
 	struct mpipe_vid_overlay *overlay = (struct mpipe_vid_overlay *)transform;
 	struct mpipe_buffer_pool *out_pool = transform->out_pool;
-	struct net_buf *cur;
-	struct net_buf *next;
+	struct net_buf *out = NULL;
+	struct mpipe_buffer_meta *meta;
+	uint32_t len;
+
+	*out_buf = NULL;
 
 	if (overlay->width == 0U || overlay->height == 0U || overlay->pixfmt == 0U) {
 		LOG_ERR("Missing negotiated caps");
@@ -189,78 +192,47 @@ static int vid_overlay_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 		return -EINVAL;
 	}
 
-	*out_buf = NULL;
-	cur = in_buf;
-	while (cur != NULL) {
-		struct net_buf *out = NULL;
-		struct mpipe_buffer_meta *meta;
-		uint32_t len =
-			MIN(overlay->out_pool.config.size, mpipe_buffer_get_meta(cur)->bytes_used);
-
-		/*
-		 * A frame nobody else holds is drawn in place: only behind a tee,
-		 * where every branch sees the same payload, is the copy needed. A
-		 * view shares its parent's bytes with other views, so it is copied
-		 * as well.
-		 */
-		if (cur->ref == 1U && mpipe_buffer_get_meta(cur)->parent == NULL) {
-			if (overlay->cb.fn != NULL) {
-				overlay->cb.fn(cur->data, overlay->width, overlay->height,
-					       overlay->pixfmt, overlay->cb.user_data);
-			}
-			next = cur->frags;
-			cur->frags = NULL;
-			if (*out_buf == NULL) {
-				*out_buf = cur;
-			} else {
-				net_buf_frag_add(*out_buf, cur);
-			}
-			cur = next;
-			continue;
-		}
-
-		if (out_pool->acquire_buffer(out_pool, &out) != 0 || out == NULL) {
-			LOG_ERR("Failed to acquire output buffer");
-			goto err;
-		}
-
-		memcpy(out->data, cur->data, len);
-
+	/*
+	 * A frame nobody else holds is drawn in place: only behind a tee, where
+	 * every branch sees the same payload, is the copy needed. A view shares
+	 * its parent's bytes with other views, so it is copied as well.
+	 */
+	if (in_buf->ref == 1U && mpipe_buffer_get_meta(in_buf)->parent == NULL) {
 		if (overlay->cb.fn != NULL) {
-			overlay->cb.fn(out->data, overlay->width, overlay->height, overlay->pixfmt,
-				       overlay->cb.user_data);
+			overlay->cb.fn(in_buf->data, overlay->width, overlay->height,
+				       overlay->pixfmt, overlay->cb.user_data);
 		}
-
-		meta = mpipe_buffer_get_meta(out);
-		meta->bytes_used = len;
-		meta->pts = mpipe_buffer_get_meta(cur)->pts;
-		out->len = len;
-
-		if (meta->driver_buf != NULL) {
-			((struct video_buffer *)meta->driver_buf)->bytesused = len;
-		}
-
-		if (*out_buf == NULL) {
-			*out_buf = out;
-		} else {
-			net_buf_frag_add(*out_buf, out);
-		}
-
-		next = cur->frags;
-		cur->frags = NULL;
-		net_buf_unref(cur);
-		cur = next;
+		*out_buf = in_buf;
+		return 0;
 	}
+
+	if (out_pool->acquire_buffer(out_pool, &out) != 0 || out == NULL) {
+		LOG_ERR("Failed to acquire output buffer");
+		net_buf_unref(in_buf);
+		return -EIO;
+	}
+
+	len = MIN(overlay->out_pool.config.size, mpipe_buffer_get_meta(in_buf)->bytes_used);
+	memcpy(out->data, in_buf->data, len);
+
+	if (overlay->cb.fn != NULL) {
+		overlay->cb.fn(out->data, overlay->width, overlay->height, overlay->pixfmt,
+			       overlay->cb.user_data);
+	}
+
+	meta = mpipe_buffer_get_meta(out);
+	meta->bytes_used = len;
+	meta->pts = mpipe_buffer_get_meta(in_buf)->pts;
+	out->len = len;
+
+	if (meta->driver_buf != NULL) {
+		((struct video_buffer *)meta->driver_buf)->bytesused = len;
+	}
+
+	net_buf_unref(in_buf);
+	*out_buf = out;
 
 	return 0;
-err:
-	net_buf_unref(cur);
-	if (*out_buf != NULL) {
-		net_buf_unref(*out_buf);
-		*out_buf = NULL;
-	}
-
-	return -EIO;
 }
 
 static int mpipe_vid_overlay_set_property(struct mpipe_object *obj, uint32_t key, const void *val)

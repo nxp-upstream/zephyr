@@ -341,10 +341,9 @@ static int mpipe_aud_i2s_codec_sink_write(struct mpipe_aud_i2s_codec_sink *sink,
 }
 
 /*
- * Play the buffer, which a parser may hand over as a chain of blocks, one
- * fragment per block. Every fragment is queued to the driver, which frees a
- * block once sent; the fragments the driver was given are marked so that only
- * their wrappers are released here, and the others go back to the pool.
+ * Play the block: queued to the driver, which frees it once sent. A block
+ * the driver was given is marked so that only its wrapper is released here;
+ * one it refused goes back to the pool.
  */
 int mpipe_aud_i2s_codec_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 					struct net_buf **out_buf)
@@ -359,11 +358,9 @@ int mpipe_aud_i2s_codec_sink_process_fn(struct mpipe_pad *pad, struct net_buf *i
 
 	*out_buf = NULL;
 
-	for (struct net_buf *frag = in_buf; frag != NULL && ret >= 0; frag = frag->frags) {
-		ret = mpipe_aud_i2s_codec_sink_write(aud_i2s_codec_sink, frag);
-		if (ret > 0) {
-			mpipe_aud_buffer_pool_hand_over(frag);
-		}
+	ret = mpipe_aud_i2s_codec_sink_write(aud_i2s_codec_sink, in_buf);
+	if (ret > 0) {
+		mpipe_aud_buffer_pool_hand_over(in_buf);
 	}
 
 	net_buf_unref(in_buf);

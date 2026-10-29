@@ -68,49 +68,47 @@ static bool mpipe_socket_sink_transient(int err)
 }
 
 /*
- * Write the buffer, fragment by fragment, each whole or not at all: a
- * transient shortage before the first byte of a fragment drops it, since a
- * live stream is better short of a block than stalled, while a shortage in
- * the middle of one is retried, so the bytes the peer reads stay aligned on
- * block boundaries. A peer that is gone fails the stream.
+ * Write the buffer, whole or not at all: a transient shortage before the
+ * first byte drops it, since a live stream is better short of a block than
+ * stalled, while a shortage in the middle is retried, so the bytes the peer
+ * reads stay aligned on block boundaries. A peer that is gone fails the
+ * stream.
  */
 static int mpipe_socket_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 					struct net_buf **out_buf)
 {
 	struct mpipe_socket_sink *ssink =
 		CONTAINER_OF(pad->object.container, struct mpipe_socket_sink, sink.element.object);
+	uint32_t len = mpipe_buffer_get_meta(in_buf)->bytes_used;
+	uint32_t sent = 0;
 	int ret = 0;
 
 	*out_buf = NULL;
 
 	if (ssink->fd < 0) {
-		ret = -ENOTCONN;
+		net_buf_unref(in_buf);
+		return -ENOTCONN;
 	}
 
-	for (struct net_buf *frag = in_buf; frag != NULL && ret == 0; frag = frag->frags) {
-		uint32_t len = mpipe_buffer_get_meta(frag)->bytes_used;
-		uint32_t sent = 0;
+	while (sent < len) {
+		ssize_t wr = zsock_send(ssink->fd, in_buf->data + sent, len - sent, 0);
 
-		while (sent < len) {
-			ssize_t wr = zsock_send(ssink->fd, frag->data + sent, len - sent, 0);
+		if (wr >= 0) {
+			sent += (uint32_t)wr;
+			continue;
+		}
 
-			if (wr >= 0) {
-				sent += (uint32_t)wr;
-				continue;
-			}
+		if (!mpipe_socket_sink_transient(errno)) {
+			ret = -errno;
+			LOG_ERR("send() failed (%d)", errno);
+			break;
+		}
 
-			if (!mpipe_socket_sink_transient(errno)) {
-				ret = -errno;
-				LOG_ERR("send() failed (%d)", errno);
-				break;
-			}
-
-			if (sent == 0U) {
-				ssink->dropped++;
-				LOG_DBG("No room to send, %u bytes dropped (%u so far)", len,
-					ssink->dropped);
-				break;
-			}
+		if (sent == 0U) {
+			ssink->dropped++;
+			LOG_DBG("No room to send, %u bytes dropped (%u so far)", len,
+				ssink->dropped);
+			break;
 		}
 	}
 

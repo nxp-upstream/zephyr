@@ -38,20 +38,18 @@ enum mpipe_prop_socket_sink {
 /**
  * @brief Socket sink: writes every buffer it receives to a connected socket.
  *
- * The bytes go out as they come, with nothing added: a buffer carrying several
- * frames as a fragment chain is written fragment by fragment, in order, and
- * each fragment goes out whole or not at all. When the stack has no room to
- * send, a fragment not yet started is dropped rather than the stream stalled,
- * as a live stream wants, and one already started is completed, so the peer
- * keeps reading on block boundaries. A socket carries no format, so the sink
- * accepts any.
+ * The bytes go out as they come, with nothing added, and each buffer goes out
+ * whole or not at all. When the stack has no room to send, a buffer not yet
+ * started is dropped rather than the stream stalled, as a live stream wants,
+ * and one already started is completed, so the peer keeps reading on block
+ * boundaries. A socket carries no format, so the sink accepts any.
  */
 struct mpipe_socket_sink {
 	/** Base sink element. */
 	struct mpipe_sink sink;
 	/** Socket being written, -1 when none. */
 	int fd;
-	/** Fragments dropped for want of room to send, since the last start. */
+	/** Buffers dropped for want of room to send, since the last start. */
 	uint32_t dropped;
 };
 
