@@ -1,0 +1,20 @@
+sample:
+  name: Camera face detection with TFLite Micro
+common:
+  tags:
+    - mpipe
+    - video
+    - NPU
+    - tflite-micro
+  modules:
+    - tflite-micro
+  # The build needs the eIQ Neutron SDK, which CI does not provide.
+  build_only: true
+  platform_allow:
+    - mimxrt700_evk/mimxrt798s/cm33_cpu0
+  integration_platforms:
+    - mimxrt700_evk/mimxrt798s/cm33_cpu0
+  extra_args:
+    - SHIELD="dvp_20pin_ov7670;rk055hdmipi4ma0"
+tests:
+  sample.mpipe.cam_face_detection_tflm: {}
