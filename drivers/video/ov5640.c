@@ -719,6 +719,23 @@ static int ov5640_set_frmival(const struct device *dev, struct video_frmival *fr
 		}
 	}
 
+	/*
+	 * ov5640_frame_rates[] is ordered 60/30/15 while the per-mode
+	 * frmrate_config[] tables are ordered 15/30/60, so the index found
+	 * above cannot be used on them directly: 15 fps would program the
+	 * 60 fps PLL. Look the entry up by its frame rate instead.
+	 */
+	for (i = 0; i < ARRAY_SIZE(ov5640_frame_rates); i++) {
+		if (drv_data->cur_mode->frmrate_config[i].frmrate == best_match) {
+			break;
+		}
+	}
+	if (i == ARRAY_SIZE(ov5640_frame_rates)) {
+		LOG_ERR("No PLL settings for %u fps", best_match);
+		return -ENOTSUP;
+	}
+	ind = i;
+
 	struct video_reg16 frmrate_params[] = {
 		{SC_PLL_CTRL1_REG, drv_data->cur_mode->frmrate_config[ind].pllCtrl1},
 		{SC_PLL_CTRL2_REG, drv_data->cur_mode->frmrate_config[ind].pllCtrl2},
