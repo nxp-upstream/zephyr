@@ -29,4 +29,22 @@ config MPIPE_VID_CONVERT
 	  accepts. It converts pixel formats only: it does not scale, crop or
 	  rotate. Expect it to cost real CPU time per frame.
 
+config MPIPE_VID_OVERLAY
+	bool "Rectangle overlay"
+	help
+	  An in-place transform drawing rectangle outlines into the frames
+	  passing through, typically detection boxes from an inference
+	  running beside the pipeline. The application updates the set of
+	  rectangles at any time through a property.
+
+config MPIPE_VID_OVERLAY_MAX_RECTS
+	int "Rectangles the overlay holds"
+	depends on MPIPE_VID_OVERLAY
+	range 1 255
+	default 16
+	help
+	  Upper bound on the rectangles drawn into one frame. The element
+	  keeps a copy of the set, and copies it again on the stack for each
+	  frame, so this sizes both.
+
 endif # MPIPE_VID
