@@ -130,7 +130,12 @@ static void mpipe_pipeline_set_flushing(struct mpipe_bin *bin, bool flush)
 	}
 }
 
-int mpipe_push_buffer(struct mpipe_pad *src_pad, struct net_buf *buffer)
+/*
+ * One buffer, never a chain, through the graph from src_pad. An element that
+ * cuts several buffers out of one hands them back as a chain, which goes on
+ * fragment by fragment from its src pad.
+ */
+static int mpipe_push_one(struct mpipe_pad *src_pad, struct net_buf *buffer)
 {
 	struct mpipe_pad *cur_src_pad = src_pad;
 	struct mpipe_pad *next_sink_pad;
@@ -138,10 +143,6 @@ int mpipe_push_buffer(struct mpipe_pad *src_pad, struct net_buf *buffer)
 	struct net_buf *out_buf;
 	sys_dnode_t *src_pad_node;
 	int ret;
-
-	if (cur_src_pad == NULL || buffer == NULL) {
-		return -EINVAL;
-	}
 
 	while (cur_src_pad != NULL && buffer != NULL) {
 		next_sink_pad = cur_src_pad->peer;
@@ -204,6 +205,44 @@ int mpipe_push_buffer(struct mpipe_pad *src_pad, struct net_buf *buffer)
 			break;
 		}
 		cur_src_pad = CONTAINER_OF(src_pad_node, struct mpipe_pad, object.node);
+
+		/* Several buffers cut out of one: each goes on alone */
+		if (buffer->frags != NULL) {
+			return mpipe_push_buffer(cur_src_pad, buffer);
+		}
+	}
+
+	return 0;
+}
+
+int mpipe_push_buffer(struct mpipe_pad *src_pad, struct net_buf *buffer)
+{
+	int ret;
+
+	if (src_pad == NULL || buffer == NULL) {
+		return -EINVAL;
+	}
+
+	/*
+	 * A chain is a batch of independent buffers. Each goes through the graph
+	 * alone, in order, and reaches the sink before the next one is processed,
+	 * so an element never sees a chain and the pools hold one buffer per
+	 * stage. A failure releases the fragments not pushed yet.
+	 */
+	while (buffer != NULL) {
+		struct net_buf *next = buffer->frags;
+
+		buffer->frags = NULL;
+
+		ret = mpipe_push_one(src_pad, buffer);
+		if (ret != 0) {
+			if (next != NULL) {
+				net_buf_unref(next);
+			}
+			return ret;
+		}
+
+		buffer = next;
 	}
 
 	return 0;

@@ -33,9 +33,10 @@
  *
  * Three kinds of traffic cross a link, each with its own hook:
  *
- * - a **buffer** arrives at a sink pad's @c process_fn. The processing function owns
- *   the buffer it is given and must release it even when it fails; the caller
- *   never touches it again either way.
+ * - a **buffer** arrives at a sink pad's @c process_fn, one at a time: a fragment
+ *   chain an element returns is pushed fragment by fragment. The processing
+ *   function owns the buffer it is given and must release it even when it fails;
+ *   the caller never touches it again either way.
  * - an **event** announces something and is sent with
  *   @ref mpipe_pad_send_event - a format to apply, or the end of the stream.
  *   The default handler forwards it across the element to the peers on the
@@ -150,9 +151,15 @@ struct mpipe_pad {
 	 * its pool, the same buffer transformed in place or passed through, or
 	 * NULL when it consumed the input, which ends the push.
 	 *
+	 * @p in_buf is one buffer, never a fragment chain: a chain is a batch of
+	 * independent buffers of the same caps, each with its own metadata, and
+	 * @ref mpipe_push_buffer pushes it one fragment at a time. A function
+	 * that cuts several buffers out of one input returns them as a chain
+	 * (@c net_buf_frag_add), which is split the same way downstream.
+	 *
 	 * @param pad Sink pad the buffer arrives on
 	 * @param in_buf Buffer to process
-	 * @param[out] out_buf Buffer produced, or NULL when the input was consumed
+	 * @param[out] out_buf Buffer or chain produced, or NULL when the input was consumed
 	 *
 	 * @return 0 on success, negative errno on failure
 	 */
