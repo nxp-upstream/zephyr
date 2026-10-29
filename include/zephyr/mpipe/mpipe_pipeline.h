@@ -110,13 +110,20 @@ int mpipe_pipeline_init(struct mpipe *pipe, uint8_t id);
  * Walks downstream from an element's @p src_pad, calling each next element's process_fn
  * until a sink is reached, a process_fn fails, or the output buffer is NULL.
  *
+ * A fragment chain is a batch of independent buffers of the same caps, each with its
+ * own metadata, as a parser emits when it cuts several out of one input. The walk
+ * pushes it fragment by fragment, in order, each one reaching the sink before the next
+ * is processed; a processing function never sees a chain, and one it returns is split
+ * the same way from the element's source pad.
+ *
  * The processing function owns the buffer it is given and releases it whether it
- * succeeds or fails, so the walk does not release it on a processing error. The walk
- * does release the buffer itself in the two cases where no processing function is
- * reached: the source pad has no peer, and the peer pad is flushing.
+ * succeeds or fails, so the walk does not release it on a processing error; it does
+ * release the fragments not pushed yet. The walk also releases the buffer itself in
+ * the two cases where no processing function is reached: the source pad has no peer,
+ * and the peer pad is flushing.
  *
  * @param src_pad Source pad to start pushing from (its peer's process_fn is first called)
- * @param buffer Buffer to push (ownership transferred)
+ * @param buffer Buffer or fragment chain to push (ownership transferred)
  *
  * @return 0 on success, negative errno on failure
  */
