@@ -51,7 +51,10 @@ struct video_mcux_csi_data {
 #if defined(CSI_USE_ISI)
 	struct k_fifo isi_free;           /* queued buffers not yet in the ISI */
 	struct video_buffer *isi_slot[2]; /* buffers loaded in ISI BUF1 / BUF2 */
+	bool isi_lent[2];                 /* slot buffer is with the application */
+	bool isi_paused;                  /* channel stopped: no safe slot buffer */
 	uint8_t isi_idx;                  /* slot the ISI is currently filling */
+	struct k_spinlock isi_lock;       /* slots vs. ISR and enqueue */
 #endif
 };
 
@@ -187,19 +190,95 @@ static void csi_isi_load(uint8_t idx, struct video_buffer *vbuf)
 }
 
 /*
- * The ISI alternates between BUF1 and BUF2. When a frame is stored, the slot
- * that just completed is handed to the application and refilled with the next
- * free buffer. With no free buffer the slot is parked on the other slot's
- * buffer so capture keeps running; a buffer shared by both slots is never
- * delivered while the other slot can still write into it.
+ * BUF1_ACTIVE / BUF2_ACTIVE report the slot the ISI is writing now, so the
+ * frame that has just been stored is in the other slot. The Linux imx8-isi
+ * driver reads the bits the same way. Returns the stored slot, or -1 when the
+ * bits do not name exactly one active slot.
  */
+static int csi_isi_stored_slot(uint32_t sts)
+{
+	bool buf1 = (sts & ISI_STS_BUF1_ACTIVE_MASK) != 0U;
+	bool buf2 = (sts & ISI_STS_BUF2_ACTIVE_MASK) != 0U;
+
+	if (buf1 == buf2) {
+		return -1;
+	}
+
+	return buf1 ? 1 : 0;
+}
+
+/* Hand a stored frame to the application. Caller holds isi_lock. */
+static void csi_isi_deliver(struct video_mcux_csi_data *data, struct video_buffer *vbuf)
+{
+	vbuf->timestamp = k_uptime_get_32();
+	sys_cache_data_invd_range(vbuf->buffer, vbuf->bytesused);
+	k_fifo_put(&data->fifo_out, vbuf);
+	if (IS_ENABLED(CONFIG_POLL) && data->sig) {
+		k_poll_signal_raise(data->sig, VIDEO_BUF_DONE);
+	}
+}
+
+/*
+ * Stop and restart the channel. While stopped the ISI writes nothing, so a
+ * slot can keep the address of a buffer the application owns. Caller holds
+ * isi_lock.
+ */
+static void csi_isi_pause(struct video_mcux_csi_data *data)
+{
+	csi_isi->CHNL[0].CTRL &= ~ISI_CTRL_CHNL_EN_MASK;
+	data->isi_paused = true;
+}
+
+static void csi_isi_resume_if_safe(struct video_mcux_csi_data *data)
+{
+	if (!data->isi_paused || data->isi_lent[0] || data->isi_lent[1]) {
+		return;
+	}
+
+	/* Errors latched while stopped belong to no frame. */
+	csi_isi->CHNL[0].STS = 0xFFFFFFFFU;
+	data->isi_paused = false;
+	csi_isi->CHNL[0].CTRL |= ISI_CTRL_CHNL_EN(1U);
+}
+
+/*
+ * The ISI alternates between BUF1 (slot 0) and BUF2 (slot 1). The two slots
+ * never hold the same buffer: a slot address is only ever reloaded with a
+ * different, free buffer. The slot holding the stored frame is taken from the
+ * hardware status rather than a software toggle, which a late interrupt would
+ * put out of step.
+ *
+ * Every stored frame is delivered. When a free buffer is queued it replaces
+ * the delivered one in the slot. With three buffers there often is none: the
+ * application holds one buffer for the whole pipeline cycle, which takes
+ * several frame periods. The slot then keeps the delivered buffer's address,
+ * is marked lent, and the channel is stopped, so the ISI cannot come back and
+ * write into a buffer that is being converted. video_mcux_csi_enqueue() loads
+ * the first buffer handed back into the lent slot and restarts the channel.
+ * Frames that arrive while the channel is stopped are not captured.
+ *
+ * A frame stored with EARLY_VSYNC set has fewer lines than configured. This
+ * happens when the channel is restarted partway through a sensor frame: the
+ * buffer then starts with the lower part of that frame and ends with stale
+ * lines. Such a frame is never delivered; the slot keeps its buffer and the
+ * ISI overwrites it with the next, complete frame.
+ *
+ * A frame stored with a Y buffer overflow or an AXI write error has lost
+ * pixel data: the ISI could not write it to memory fast enough. It is
+ * dropped the same way.
+ */
+#define CSI_ISI_STS_BAD_FRAME                                                                      \
+	(ISI_STS_EARLY_VSYNC_ERR_MASK | ISI_STS_OFLW_Y_BUF_MASK | ISI_STS_AXI_WR_ERR_Y_MASK)
+
 static void csi_isi_isr(const void *arg)
 {
 	ARG_UNUSED(arg);
 	struct video_mcux_csi_data *data = csi_isi_dev->data;
 	uint32_t sts = csi_isi->CHNL[0].STS;
-	struct video_buffer *done, *next, *other;
+	struct video_buffer *done, *next;
+	k_spinlock_key_t key;
 	uint8_t idx;
+	int hw_idx;
 
 	csi_isi->CHNL[0].STS = sts; /* W1C */
 
@@ -207,31 +286,85 @@ static void csi_isi_isr(const void *arg)
 		return;
 	}
 
-	idx = data->isi_idx;
+	key = k_spin_lock(&data->isi_lock);
+
+	hw_idx = csi_isi_stored_slot(sts);
+	/* Without a usable status, fall back to the software toggle. */
+	idx = (hw_idx < 0) ? data->isi_idx : (uint8_t)hw_idx;
+
 	done = data->isi_slot[idx];
-	other = data->isi_slot[idx ^ 1U];
 	next = k_fifo_get(&data->isi_free, K_NO_WAIT);
 
-	if (next != NULL) {
+	if (data->isi_lent[idx]) {
+		/* The application already owns this buffer; do not deliver it again. */
+		if (next != NULL) {
+			data->isi_slot[idx] = next;
+			data->isi_lent[idx] = false;
+			csi_isi_load(idx, next);
+		}
+	} else if ((done != NULL) && ((sts & CSI_ISI_STS_BAD_FRAME) != 0U)) {
+		/* Partial or corrupt frame: keep the buffer in the slot, deliver nothing. */
+		if (next != NULL) {
+			k_fifo_put(&data->isi_free, next);
+		}
+	} else if (done != NULL) {
+		if (next != NULL) {
+			data->isi_slot[idx] = next;
+			csi_isi_load(idx, next);
+		} else {
+			/*
+			 * Keep the address: never point both slots at one buffer.
+			 * Stop before the ISI returns to this slot.
+			 */
+			data->isi_lent[idx] = true;
+			csi_isi_pause(data);
+		}
+		csi_isi_deliver(data, done);
+	} else if (next != NULL) {
 		data->isi_slot[idx] = next;
 		csi_isi_load(idx, next);
-	} else if ((done != NULL) && (done != other) && (other != NULL)) {
-		data->isi_slot[idx] = other;
-		csi_isi_load(idx, other);
-	} else {
-		done = NULL;
 	}
 
-	if ((done != NULL) && (done != other)) {
-		done->timestamp = k_uptime_get_32();
-		sys_cache_data_invd_range(done->buffer, done->bytesused);
-		k_fifo_put(&data->fifo_out, done);
-		if (IS_ENABLED(CONFIG_POLL) && data->sig) {
-			k_poll_signal_raise(data->sig, VIDEO_BUF_DONE);
+	/* The ISI stores the next frame in the other slot. */
+	data->isi_idx = idx ^ 1U;
+
+	k_spin_unlock(&data->isi_lock, key);
+}
+
+/*
+ * A buffer handed back by the application. A lent slot takes it at once;
+ * otherwise it waits in isi_free. A lent slot whose own buffer comes back
+ * simply stops being lent: it already holds that address. Once no slot is
+ * lent a stopped channel is restarted.
+ */
+static void csi_isi_enqueue(struct video_mcux_csi_data *data, struct video_buffer *vbuf)
+{
+	k_spinlock_key_t key = k_spin_lock(&data->isi_lock);
+	bool placed = false;
+
+	for (uint8_t i = 0U; i < 2U; i++) {
+		if (data->isi_lent[i] && (data->isi_slot[i] == vbuf)) {
+			data->isi_lent[i] = false;
+			placed = true;
+			break;
 		}
 	}
 
-	data->isi_idx ^= 1U;
+	for (uint8_t i = 0U; (i < 2U) && !placed; i++) {
+		if (data->isi_lent[i]) {
+			data->isi_slot[i] = vbuf;
+			data->isi_lent[i] = false;
+			csi_isi_load(i, vbuf);
+			placed = true;
+		}
+	}
+
+	if (!placed) {
+		k_fifo_put(&data->isi_free, vbuf);
+	}
+
+	csi_isi_resume_if_safe(data);
+	k_spin_unlock(&data->isi_lock, key);
 }
 
 static int csi_isi_set_fmt(const struct device *dev, struct video_format *fmt,
@@ -303,6 +436,9 @@ static int csi_isi_set_stream(const struct device *dev, bool enable, enum video_
 
 		data->isi_slot[0] = s0;
 		data->isi_slot[1] = s1;
+		data->isi_lent[0] = false;
+		data->isi_lent[1] = false;
+		data->isi_paused = false;
 		data->isi_idx = 0U;
 		csi_isi_load(0U, s0);
 		csi_isi_load(1U, s1);
@@ -324,13 +460,15 @@ static int csi_isi_set_stream(const struct device *dev, bool enable, enum video_
 		csi_isi->CHNL[0].IER = 0U;
 		irq_disable(CSI_ISI_IRQN);
 
-		/* Hand every buffer back to the application. */
+		/* Hand every buffer back to the application; lent ones it already has. */
 		for (int i = 0; i < 2; i++) {
-			if (data->isi_slot[i] != NULL) {
+			if ((data->isi_slot[i] != NULL) && !data->isi_lent[i]) {
 				k_fifo_put(&data->fifo_out, data->isi_slot[i]);
-				data->isi_slot[i] = NULL;
 			}
+			data->isi_slot[i] = NULL;
+			data->isi_lent[i] = false;
 		}
+		data->isi_paused = false;
 		while ((vbuf = k_fifo_get(&data->isi_free, K_NO_WAIT)) != NULL) {
 			k_fifo_put(&data->fifo_out, vbuf);
 		}
@@ -482,8 +620,7 @@ static int video_mcux_csi_enqueue(const struct device *dev, struct video_buffer 
 #if defined(CSI_USE_ISI)
 	ARG_UNUSED(config);
 	ARG_UNUSED(ret);
-	/* The ISI ISR picks free buffers from here when a slot completes. */
-	k_fifo_put(&data->isi_free, vbuf);
+	csi_isi_enqueue(data, vbuf);
 	return 0;
 #endif
 
