@@ -36,6 +36,7 @@
 		zephyr,shell-uart = &lpuart2;
 		zephyr,canbus = &flexcan0;
 		zephyr,edac = &erm0;
+		zephyr,system-timer = &ostimer0;
 		zephyr,system-timer-companion = &lptmr0;
 		zephyr,crc = &crc;
 	};
@@ -251,9 +252,6 @@
 	status = "okay";
 };
 
-/*
- * Uses OS timer as the kernel timer
- */
 &ostimer0 {
 	status = "okay";
 };
