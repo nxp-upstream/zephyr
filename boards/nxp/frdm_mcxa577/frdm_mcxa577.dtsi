@@ -26,6 +26,10 @@
 		ambient-temp0 = &p3t1755;
 	};
 
+	chosen {
+		zephyr,system-timer = &systick;
+	};
+
 	leds {
 		compatible = "gpio-leds";
 
