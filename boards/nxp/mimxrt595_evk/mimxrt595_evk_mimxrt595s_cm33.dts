@@ -42,6 +42,7 @@
 		zephyr,shell-uart = &flexcomm0;
 		zephyr,display = &lcdif;
 		zephyr,crc = &crc;
+		zephyr,system-timer = &os_timer;
 	};
 
 	gpio_keys {
@@ -146,11 +147,6 @@
 	};
 };
 
-/*
- * RT595 EVK board uses OS timer as the kernel timer
- * In case we need to switch to SYSTICK timer, then
- * replace &os_timer with &systick
- */
 &os_timer {
 	wakeup-source;
 	status = "okay";
