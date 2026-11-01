@@ -15,6 +15,11 @@ domain is gated and the chip wakes through the reset routine; the
 site without re-running kernel or CPU initialization, so on both families the
 resume is transparent (resume-in-place) to the application.
 
+The sample selects SysTick as the system timer through the
+``zephyr,system-timer`` chosen property. The chosen property determines which
+driver provides kernel timekeeping. LPTMR0 is a separate counter used for
+low-power wakeup.
+
 A stand-in application thread models a real workload: it does its work and then
 blocks waiting for its next event, with no knowledge of Deep Power Down. The
 thread suspends the SoC to RAM and the wakeup resumes it transparently, right
@@ -54,6 +59,7 @@ Building and Running
 .. zephyr-app-commands::
    :zephyr-app: samples/boards/nxp/mcxn_a/s2ram
    :board: frdm_mcxa156
+   :gen-args: -DDTC_OVERLAY_FILE=mcxa.overlay
    :goals: build flash
    :compact:
 
