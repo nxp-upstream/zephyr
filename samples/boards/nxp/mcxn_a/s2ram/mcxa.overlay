@@ -18,10 +18,8 @@
 	status = "okay";
 };
 
-&ostimer0 {
-	status = "disabled";
-};
-
-&systick {
-	status = "okay";
+/ {
+	chosen {
+		zephyr,system-timer = &systick;
+	};
 };
