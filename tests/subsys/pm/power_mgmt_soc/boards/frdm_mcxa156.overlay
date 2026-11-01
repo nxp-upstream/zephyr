@@ -4,12 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-&ostimer0 {
-	status = "disabled";
-};
-
-&systick {
-	status = "okay";
+/ {
+	chosen {
+		zephyr,system-timer = &systick;
+	};
 };
 
 &lptmr0 {
