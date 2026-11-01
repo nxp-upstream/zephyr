@@ -30,6 +30,7 @@
 		zephyr,code-partition = &slot0_partition;
 		zephyr,console = &lpuart2;
 		zephyr,shell-uart = &lpuart2;
+		zephyr,system-timer = &systick;
 		zephyr,system-timer-companion = &lptmr0;
 		zephyr,canbus = &flexcan0;
 		zephyr,edac = &erm0;
