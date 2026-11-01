@@ -39,6 +39,7 @@
 		zephyr,console = &lpuart0;
 		zephyr,shell-uart = &lpuart0;
 		zephyr,edac = &erm0;
+		zephyr,system-timer = &ostimer0;
 		zephyr,system-timer-companion = &lptmr0;
 		zephyr,crc = &crc;
 	};
@@ -278,9 +279,6 @@ arduino_spi: &lpspi1 {};
 
 mikrobus_serial: &lpuart2 {};
 
-/*
- * Uses OS timer as the kernel timer
- */
 &ostimer0 {
 	status = "okay";
 };
