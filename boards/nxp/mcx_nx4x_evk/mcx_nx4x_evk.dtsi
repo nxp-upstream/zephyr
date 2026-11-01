@@ -21,6 +21,10 @@
 		mcuboot-button0 = &user_button_2;
 	};
 
+	chosen {
+		zephyr,system-timer = &systick;
+	};
+
 	leds {
 		compatible = "gpio-leds";
 
@@ -123,11 +127,6 @@ nxp_8080_touch_panel_i2c: &flexcomm2_lpi2c2 {
 	clock-frequency = <I2C_BITRATE_STANDARD>;
 };
 
-/* The MCXNx4x (MCXN547/MCXN947) can use ostimer as the kernel timer.
- * We enable it in the dts, and which specific timer
- * to use as the system timer can be controlled through
- * Kconfig option based on application requirements.
- */
 &os_timer {
 	status = "okay";
 };

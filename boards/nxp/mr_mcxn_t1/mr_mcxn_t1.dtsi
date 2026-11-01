@@ -10,6 +10,10 @@
 #include <zephyr/dt-bindings/led/led.h>
 
 / {
+	chosen {
+		zephyr,system-timer = &systick;
+	};
+
 	/*
 	 * Stacking-header connector nexus. Maps the raw GPIO control lines the
 	 * expansion boards use (sensor interrupts, resets, indicator and user
@@ -169,11 +173,6 @@ mr_mcxn_t1_flexio_adc: &lpadc1 {};
 	pinctrl-names = "default";
 };
 
-/*
- * The board uses SYSTICK as the kernel timer.
- * To switch to the OS timer instead, replace
- * &systick with &os_timer.
- */
 &os_timer {
 	status = "disabled";
 };
