@@ -48,6 +48,7 @@
 		zephyr,console = &flexcomm0;
 		zephyr,shell-uart = &flexcomm0;
 		zephyr,crc = &crc;
+		zephyr,system-timer = &os_timer;
 	};
 
 	gpio_keys {
@@ -137,11 +138,6 @@
 	};
 };
 
-/*
- * RT600 EVK board uses OS timer as the kernel timer
- * In case we need to switch to SYSTICK timer, then
- * replace &os_timer with &systick
- */
 &os_timer {
 	wakeup-source;
 	status = "okay";
