@@ -40,6 +40,7 @@
 		zephyr,shell-uart = &lpuart0;
 		zephyr,uart-mcumgr = &lpuart0;
 		zephyr,canbus = &flexcan0;
+		zephyr,system-timer = &ostimer0;
 		zephyr,system-timer-companion = &lptmr0;
 		zephyr,edac = &erm0;
 		zephyr,crc = &crc;
@@ -268,9 +269,6 @@ zephyr_mipi_dbi_parallel: &flexio0_lcd {
 	status = "okay";
 };
 
-/*
- * Uses OS timer as the kernel timer
- */
 &ostimer0 {
 	status = "okay";
 };
