@@ -80,6 +80,18 @@ OPAMP
   without device runtime PM are unaffected: the device is resumed at init and the instance comes
   up enabled as before. (:github:`122135`)
 
+Timers
+======
+
+* NXP MCXA, MCXN, RT500, RT600, and RT700 boards declare their system timer
+  using ``zephyr,system-timer`` in the board-level ``/chosen`` node. SoC
+  devicetree definitions and Kconfig defaults are unchanged. Applications
+  that previously switched timers using node status or
+  :kconfig:option:`CONFIG_CORTEX_M_SYSTICK` and
+  :kconfig:option:`CONFIG_MCUX_OS_TIMER` must also override this chosen
+  property and enable the desired timer node. Board defaults are unchanged.
+  Boards without this chosen retain the legacy selection rules.
+
 .. zephyr-keep-sorted-stop
 
 Bluetooth
