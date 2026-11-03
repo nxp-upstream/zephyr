@@ -457,7 +457,7 @@ struct btp_gap_pawr_configure_cmd {
 	uint8_t num_response_slots;
 } __packed;
 
-#define BTP_GAP_SET_EXTENDED_INQUIRY_RESPONSE	0x35
+#define BTP_GAP_SET_EXTENDED_INQUIRY_RESPONSE	0x36
 struct btp_gap_set_extended_inquiry_response_cmd {
 	uint8_t fec_required;
 	uint8_t eir_data_len;
