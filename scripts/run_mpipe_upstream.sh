@@ -17,11 +17,13 @@ TARGETS=(
     img
     disp
     aud
+    nn
     sample-fs
     sample-cam_disp
     sample-jpeg_dec
     sample-tee_dec
     sample-dmic_i2s
+    sample-nn
 )
 
 for target in "${TARGETS[@]}"; do
@@ -42,6 +44,8 @@ done
 # git push --force nxp-upstream upstream/mpipe-sample-jpeg_dec:mp-sample-jpeg_dec
 # git push --force nxp-upstream upstream/mpipe-sample-tee_dec:mp-sample-tee_dec
 # git push --force nxp-upstream upstream/mpipe-sample-dmic_i2s:libmp_audio_sample
+# git push --force nxp-upstream upstream/mpipe-nn:mp-nn
+# git push --force nxp-upstream upstream/mpipe-sample-nn:mp-sample-nn
 
 # Dependencies branches:
 # git push --force nxp-upstream libmp_video:libmp_video

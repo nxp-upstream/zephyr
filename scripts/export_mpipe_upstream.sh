@@ -18,6 +18,10 @@
 #   3. For a target that ships a test suite, a second commit adding it,
 #      together with the target's build_all entry
 #
+# A series target (TARGET_SERIES) is picked instead of assembled: its commits
+# already exist on the source branch in review-sized form, so the branch
+# cherry-picks them as they are, found by subject.
+#
 # Compliance checks only verify the target's own commits, not the cherry-picked
 # dependencies (which are checked when their own branch is generated).
 #
@@ -138,6 +142,31 @@ SAMPLE_FS_PATHS=(
 # Sample: dmic_i2s (DMIC to I2S audio pipeline)
 SAMPLE_DMIC_I2S_PATHS=(
     "samples/subsys/mpipe/dmic_i2s/"
+)
+
+# ===========================================================================
+# Series targets: commits picked from the source branch as they are
+#
+# The neural network plugin and its samples were written as review-sized
+# commits that must reach upstream unchanged (the plugin and the TFLM backend
+# commits both edit the plugin's Kconfig and CMakeLists, so an assembly from
+# the final file state would merge the backend glue into the plugin commit).
+# Each list names the subjects, in order; a reword on the source branch is
+# mirrored here. The commits carry their own messages and trailers.
+# ===========================================================================
+
+# nn plugin: tensor caps, the three elements, the TFLM backend, the test
+NN_COMMITS=(
+    "mpipe: caps: Add the tensor and results media types"
+    "mpipe: Add the neural network plugin"
+    "mpipe: nn: Add the TensorFlow Lite Micro backend"
+    "mpipe: tests: Add the neural network pipeline test"
+)
+
+# nn samples: classification and detection
+SAMPLE_NN_COMMITS=(
+    "mpipe: samples: Add the neural network classification sample"
+    "mpipe: samples: Add the neural network detection sample"
 )
 
 # ===========================================================================
@@ -273,6 +302,8 @@ TARGET_DEPS=(
         ${UPSTREAM_PREFIX}-disp ${UPSTREAM_PREFIX}-fs"
     [sample-fs]="${UPSTREAM_PREFIX}-fs"
     [sample-dmic_i2s]="${UPSTREAM_PREFIX}-aud"
+    [nn]=""
+    [sample-nn]="${UPSTREAM_PREFIX}-vid ${UPSTREAM_PREFIX}-disp ${UPSTREAM_PREFIX}-nn"
 )
 
 # ===========================================================================
@@ -336,13 +367,30 @@ TARGET_TEST_PATHS=()
 declare -A TARGET_TEST_COMMIT_MSG
 TARGET_TEST_COMMIT_MSG=()
 
+# ===========================================================================
+# Series map: target -> name of the array holding its commit subjects
+#
+# A target listed here is a series target (see the lists above): no path
+# list, no commit message, no author and no build_all entry of its own, since
+# the picked commits bring theirs.
+# ===========================================================================
+
+declare -A TARGET_SERIES
+TARGET_SERIES=(
+    [nn]="NN_COMMITS"
+    [sample-nn]="SAMPLE_NN_COMMITS"
+)
+
 # Number of commits a target adds on top of its dependencies.
 #
 # Args: $1=target_name
 target_commit_count() {
     local target="$1"
 
-    if [ -n "${TARGET_TEST_PATHS[${target}]:-}" ]; then
+    if [ -n "${TARGET_SERIES[${target}]:-}" ]; then
+        local -n series_subjects="${TARGET_SERIES[${target}]}"
+        echo "${#series_subjects[@]}"
+    elif [ -n "${TARGET_TEST_PATHS[${target}]:-}" ]; then
         echo 2
     else
         echo 1
@@ -503,31 +551,46 @@ list_build_test_names() {
     awk '/^  mpipe\.[a-zA-Z0-9_.]+\.build:[[:space:]]*$/ { gsub(/[ :]/, ""); print }'
 }
 
+# Print, sorted, the names of the test blocks of build_all/tests.yaml at a
+# revision (empty when the file does not exist there).
+#
+# Args: $1=revision
+build_test_names_at() {
+    git show "$1:${BUILD_ALL_TESTCASE}" 2>/dev/null | list_build_test_names | LC_ALL=C sort
+}
+
 # Auto-resolve a conflict on build_all/tests.yaml during a cherry-pick.
 #
 # Every plugin commit appends its own test block right after the core block.
 # When a sample cherry-picks several plugins, those appends collide. The
 # correct resolution is the UNION of:
-#   - the blocks already present on HEAD  (stage :2, "ours"), and
-#   - the blocks from the incoming commit (stage :3, "theirs").
-# This keeps every plugin already applied and adds the incoming plugin's block.
+#   - the blocks already present on HEAD (stage :2, "ours"), and
+#   - the blocks the incoming commit itself adds (its file minus its parent's).
+# This keeps every plugin already applied and adds the incoming commit's block.
 # Crucially, it does NOT pull in blocks from plugins that have not been
 # cherry-picked yet: the resolution reflects only what actually exists at this
-# point in the sequence, so the file grows one plugin at a time.
+# point in the sequence, so the file grows one plugin at a time. Taking the
+# commit's own additions rather than its whole file ("theirs") matters for a
+# series commit picked from the source branch, whose file also holds the
+# blocks of every other plugin there.
 #
 # The kept blocks are emitted in the canonical order in which they appear in the
 # source branch's file, and each block's content is regenerated verbatim from
 # the source branch, so the result is always well-formed and deterministic.
+#
+# Args: $1=commit being picked
 resolve_build_test_conflict() {
-    local ours theirs present ordered=()
+    local commit="$1"
+    local ours added present ordered=()
     local name
 
     ours="$(git show ":2:${BUILD_ALL_TESTCASE}" 2>/dev/null | list_build_test_names)"
-    theirs="$(git show ":3:${BUILD_ALL_TESTCASE}" 2>/dev/null | list_build_test_names)"
+    added="$(LC_ALL=C comm -13 <(build_test_names_at "${commit}^") \
+                               <(build_test_names_at "${commit}"))"
 
     # Space-padded haystack for whole-word membership tests. The command
     # substitutions collapse the newline-separated lists into spaces.
-    present=" $(echo ${ours}) $(echo ${theirs}) "
+    present=" $(echo ${ours}) $(echo ${added}) "
 
     # Walk the source file in its natural order and keep the blocks that are
     # present on either side of the conflict.
@@ -599,6 +662,254 @@ check_deps() {
     return 0
 }
 
+# Cherry-pick one commit onto HEAD.
+#
+# Returns 0 when the commit landed, 2 when it was skipped (already applied,
+# an empty resolution, or aborted by the operator) and 1 on a failure.
+#
+# Args: $1=commit
+cherry_pick_commit() {
+    local commit="$1"
+
+    if git -c core.hooksPath=/dev/null cherry-pick "${commit}" --quiet 2>/dev/null; then
+        return 0
+    fi
+
+    # CHERRY_PICK_HEAD exists while a cherry-pick is paused
+    if ! git rev-parse CHERRY_PICK_HEAD >/dev/null 2>&1; then
+        log_error "Cherry-pick failed on commit ${commit}"
+        return 1
+    fi
+
+    if git diff --cached --quiet && git diff --quiet; then
+        # Nothing staged and nothing modified = commit already applied.
+        # Use --abort (not --skip) for compatibility with Git < 2.32.
+        # Since we pick one commit at a time, abort just clears the
+        # cherry-pick state and leaves HEAD unchanged, which is correct.
+        git cherry-pick --abort 2>/dev/null || true
+        return 2
+    fi
+
+    # Real conflict. Two cases:
+    #   1. The ONLY conflicted file is build_all/tests.yaml.
+    #      This is expected when a sample cherry-picks several
+    #      plugins that each append their own test block to the
+    #      same file. We resolve it deterministically as the union
+    #      of the blocks already on HEAD ("ours") and the blocks the
+    #      incoming commit adds, keeping only what actually
+    #      exists at this point in the sequence (see
+    #      resolve_build_test_conflict). No human interaction
+    #      required.
+    #   2. Anything else: pause and let the operator resolve it by
+    #      hand, then continue the same run.
+    local subject conflicted
+    subject="$(git log -1 --pretty=format:%s "${commit}")"
+    conflicted="$(git diff --name-only --diff-filter=U)"
+    if [ "${conflicted}" = "${BUILD_ALL_TESTCASE}" ]; then
+        log_info "  Auto-resolving ${BUILD_ALL_TESTCASE} conflict" \
+                 "on ${commit} (${subject})"
+        resolve_build_test_conflict "${commit}"
+        # Force-add: the build_all directory is matched by a
+        # .gitignore pattern, so a plain 'git add' of the freshly
+        # written file is refused and returns non-zero, which (under
+        # 'set -e') would abort the whole script right here and leave
+        # the operator to run 'git cherry-pick --continue' by hand.
+        # '-f' stages the resolved file regardless of the ignore rule.
+        git add -f "${BUILD_ALL_TESTCASE}"
+
+        # The resolved index may be identical to HEAD (the incoming
+        # commit adds no new block, e.g. it was already present). In
+        # that case the cherry-pick would be empty: skip it. Compare
+        # the tree, not the staged diff, since after resolution the
+        # index is fully merged.
+        if git diff --cached --quiet HEAD; then
+            log_warn "  Resolution of ${commit} is empty; skipping commit."
+            git cherry-pick --abort 2>/dev/null || true
+            return 2
+        fi
+        if ! GIT_EDITOR=true git -c core.hooksPath=/dev/null \
+                cherry-pick --continue --no-edit >/dev/null 2>&1; then
+            log_error "Cherry-pick --continue failed on ${commit}"
+            git status --short | sed 's/^/    /'
+            git cherry-pick --abort 2>/dev/null || true
+            return 1
+        fi
+        log_ok "  Auto-resolved and continued past ${commit}"
+        return 0
+    fi
+
+    if ! pause_for_manual_resolution "${commit}" "${subject}"; then
+        log_error "Cherry-pick conflict on commit ${commit}"
+        git cherry-pick --abort 2>/dev/null || true
+        return 1
+    fi
+
+    # The operator may have run 'git cherry-pick --abort'
+    # inside the sub-shell to skip this commit; in that
+    # case there is no cherry-pick in progress anymore,
+    # so there is nothing to continue.
+    if ! git rev-parse CHERRY_PICK_HEAD >/dev/null 2>&1; then
+        log_warn "  Cherry-pick of ${commit} was aborted/skipped;" \
+                 "continuing."
+        return 2
+    fi
+    if git diff --cached --quiet; then
+        # Conflicts resolved but nothing staged to commit
+        # (resolution was empty, e.g. incoming change is
+        # already present). Skip this commit.
+        log_warn "  Resolution of ${commit} is empty; skipping commit."
+        git cherry-pick --abort 2>/dev/null || true
+        return 2
+    fi
+    if ! GIT_EDITOR=true git -c core.hooksPath=/dev/null \
+            cherry-pick --continue --no-edit >/dev/null 2>&1; then
+        log_error "Cherry-pick --continue failed on ${commit}"
+        git cherry-pick --abort 2>/dev/null || true
+        return 1
+    fi
+    return 0
+}
+
+# Cherry-pick a range of commits, silently dropping any that become empty
+# (i.e., already applied). Compatible with all Git versions.
+#
+# Args: $1=to_ref
+cherry_pick_range() {
+    local to_ref="$1"
+    local commits commit rc
+
+    # Use --cherry-pick to skip commits that are already applied
+    # (patch-equivalent) on the current HEAD, so a commit shared by two
+    # dependency branches is picked once. --right-only keeps only commits
+    # reachable from the dependency branch, not from HEAD.
+    mapfile -t commits < <(git rev-list --reverse --cherry-pick --right-only "HEAD...${to_ref}")
+
+    for commit in "${commits[@]}"; do
+        cherry_pick_commit "${commit}" && rc=0 || rc=$?
+        if [ "${rc}" -eq 1 ]; then
+            return 1
+        fi
+    done
+}
+
+# Print the sha of the commit on SOURCE_BRANCH, above BASE_REF, whose subject
+# is exactly $1. Fails when there is none or more than one.
+#
+# Args: $1=subject
+series_commit_sha() {
+    local subject="$1"
+    local matches count
+
+    matches="$(git log --format='%H%x09%s' "${BASE_REF}..${SOURCE_BRANCH}" |
+        awk -F'\t' -v s="${subject}" '$2 == s { print $1 }')"
+    count="$(echo "${matches}" | grep -c .)"
+    case "${count}" in
+        1)
+            echo "${matches}"
+            ;;
+        0)
+            log_error "No commit '${subject}' on ${SOURCE_BRANCH} above ${BASE_REF}." >&2
+            log_error "Export from the branch holding the series:" \
+                      "MPIPE_SOURCE_BRANCH=<branch> $(basename "$0") ..." >&2
+            return 1
+            ;;
+        *)
+            log_error "${count} commits '${subject}' on ${SOURCE_BRANCH}; the subject" \
+                      "must be unique." >&2
+            return 1
+            ;;
+    esac
+}
+
+# Generate the upstream branch of a series target.
+# The branch starts from BASE_REF, cherry-picks dependency commits, then the
+# commits of the series as they are on SOURCE_BRANCH, found by subject.
+#
+# Args: $1=target_name, $2=branch_name
+generate_series_branch() {
+    local target="$1"
+    local branch="$2"
+    local deps="${TARGET_DEPS[${target}]}"
+    local -n subjects="${TARGET_SERIES[${target}]}"
+    local subject
+
+    log_info "Generating branch: ${branch}"
+    log_info "  Base: ${BASE_REF}"
+    if [ -n "${deps}" ]; then
+        log_info "  Dependencies: ${deps}"
+    fi
+    log_info "  Series from ${SOURCE_BRANCH}:"
+    for subject in "${subjects[@]}"; do
+        log_info "    ${subject}"
+    done
+
+    if ${DRY_RUN}; then
+        log_info "  [DRY RUN] Would create branch '${branch}' from '${BASE_REF}'"
+        if [ -n "${deps}" ]; then
+            log_info "  [DRY RUN] Would cherry-pick from: ${deps}"
+        fi
+        log_info "  [DRY RUN] Would cherry-pick the ${#subjects[@]} commits above"
+        echo ""
+        return 0
+    fi
+
+    # Resolve every subject before touching any branch, so a series that is
+    # not on the source branch fails without leaving a half-built branch.
+    local shas=() sha
+    for subject in "${subjects[@]}"; do
+        if ! sha="$(series_commit_sha "${subject}")"; then
+            return 1
+        fi
+        shas+=("${sha}")
+    done
+
+    # Check dependencies exist
+    if ! check_deps "${target}"; then
+        return 1
+    fi
+
+    # Remember current branch to return to it
+    local current_branch
+    current_branch="$(git branch --show-current)"
+
+    # Create the branch from BASE_REF
+    git checkout -B "${branch}" "${BASE_REF}" --quiet
+
+    # Cherry-pick dependency commits (all commits from each dependency branch)
+    if [ -n "${deps}" ]; then
+        for dep in ${deps}; do
+            log_info "  Cherry-picking all commits from ${dep}..."
+            cherry_pick_range "${dep}"
+        done
+    fi
+
+    # The series itself: every commit must land, a skip is a failure here.
+    local i rc
+    for i in "${!shas[@]}"; do
+        log_info "  Cherry-picking ${shas[${i}]:0:11} (${subjects[${i}]})"
+        cherry_pick_commit "${shas[${i}]}" && rc=0 || rc=$?
+        if [ "${rc}" -ne 0 ]; then
+            log_error "  Series commit did not land: ${subjects[${i}]}"
+            git checkout "${current_branch}" --quiet
+            return 1
+        fi
+    done
+
+    local count
+    count="$(target_commit_count "${target}")"
+
+    log_ok "  Branch '${branch}' created successfully"
+    log_info "  Commits:"
+    git --no-pager log --oneline "-${count}" | sed 's/^/    /'
+
+    # Show stats
+    git --no-pager diff --stat "HEAD~${count}" HEAD | tail -3
+
+    # Return to original branch
+    git checkout "${current_branch}" --quiet
+    echo ""
+}
+
 # Generate a single upstream branch for a target.
 # The branch starts from BASE_REF, cherry-picks dependency commits, then
 # adds the target's own commit on top.
@@ -644,111 +955,6 @@ generate_branch() {
 
     # Create the branch from BASE_REF
     git checkout -B "${branch}" "${BASE_REF}" --quiet
-    # Cherry-pick a range of commits, silently dropping any that become empty
-    # (i.e., already applied). Compatible with all Git versions.
-    # Args: $1=to_ref
-    cherry_pick_range() {
-        local to_ref="$1"
-        local commits
-
-        # Use --cherry-pick to skip commits that are already applied
-        # (patch-equivalent) on the current HEAD, so a commit shared by two
-        # dependency branches is picked once. --right-only keeps only commits
-        # reachable from the dependency branch, not from HEAD.
-        mapfile -t commits < <(git rev-list --reverse --cherry-pick --right-only "HEAD...${to_ref}")
-
-        for commit in "${commits[@]}"; do
-            if ! git -c core.hooksPath=/dev/null cherry-pick "${commit}" --quiet 2>/dev/null; then
-                # CHERRY_PICK_HEAD exists while a cherry-pick is paused
-                if git rev-parse CHERRY_PICK_HEAD >/dev/null 2>&1; then
-                    if git diff --cached --quiet && git diff --quiet; then
-                        # Nothing staged and nothing modified = commit already applied.
-                        # Use --abort (not --skip) for compatibility with Git < 2.32.
-                        # Since we pick one commit at a time, abort just clears the
-                        # cherry-pick state and leaves HEAD unchanged, which is correct.
-                        git cherry-pick --abort 2>/dev/null || true
-                    else
-                        # Real conflict. Two cases:
-                        #   1. The ONLY conflicted file is build_all/tests.yaml.
-                        #      This is expected when a sample cherry-picks several
-                        #      plugins that each append their own test block to the
-                        #      same file. We resolve it deterministically as the union
-                        #      of the blocks already on HEAD ("ours") and the incoming
-                        #      commit's blocks ("theirs"), keeping only what actually
-                        #      exists at this point in the sequence (see
-                        #      resolve_build_test_conflict). No human interaction
-                        #      required.
-                        #   2. Anything else: pause and let the operator resolve it by
-                        #      hand, then continue the same run.
-                        local subject conflicted
-                        subject="$(git log -1 --pretty=format:%s "${commit}")"
-                        conflicted="$(git diff --name-only --diff-filter=U)"
-                        if [ "${conflicted}" = "${BUILD_ALL_TESTCASE}" ]; then
-                            log_info "  Auto-resolving ${BUILD_ALL_TESTCASE} conflict" \
-                                     "on ${commit} (${subject})"
-                            resolve_build_test_conflict
-                            # Force-add: the build_all directory is matched by a
-                            # .gitignore pattern, so a plain 'git add' of the freshly
-                            # written file is refused and returns non-zero, which (under
-                            # 'set -e') would abort the whole script right here and leave
-                            # the operator to run 'git cherry-pick --continue' by hand.
-                            # '-f' stages the resolved file regardless of the ignore rule.
-                            git add -f "${BUILD_ALL_TESTCASE}"
-
-                            # The resolved index may be identical to HEAD (the incoming
-                            # commit adds no new block, e.g. it was already present). In
-                            # that case the cherry-pick would be empty: skip it. Compare
-                            # the tree, not the staged diff, since after resolution the
-                            # index is fully merged.
-                            if git diff --cached --quiet HEAD; then
-                                log_warn "  Resolution of ${commit} is empty; skipping commit."
-                                git cherry-pick --abort 2>/dev/null || true
-                            elif ! GIT_EDITOR=true git -c core.hooksPath=/dev/null \
-                                    cherry-pick --continue --no-edit >/dev/null 2>&1; then
-                                log_error "Cherry-pick --continue failed on ${commit}"
-                                git status --short | sed 's/^/    /'
-                                git cherry-pick --abort 2>/dev/null || true
-                                return 1
-                            else
-                                log_ok "  Auto-resolved and continued past ${commit}"
-                            fi
-                        elif pause_for_manual_resolution "${commit}" "${subject}"; then
-
-
-                            # The operator may have run 'git cherry-pick --abort'
-                            # inside the sub-shell to skip this commit; in that
-                            # case there is no cherry-pick in progress anymore,
-                            # so there is nothing to continue.
-                            if ! git rev-parse CHERRY_PICK_HEAD >/dev/null 2>&1; then
-                                log_warn "  Cherry-pick of ${commit} was aborted/skipped;" \
-                                         "continuing."
-                            elif git diff --cached --quiet; then
-                                # Conflicts resolved but nothing staged to commit
-                                # (resolution was empty, e.g. incoming change is
-                                # already present). Skip this commit.
-                                log_warn "  Resolution of ${commit} is empty; skipping commit."
-                                git cherry-pick --abort 2>/dev/null || true
-                            elif ! GIT_EDITOR=true git -c core.hooksPath=/dev/null \
-                                    cherry-pick --continue --no-edit >/dev/null 2>&1; then
-                                log_error "Cherry-pick --continue failed on ${commit}"
-                                git cherry-pick --abort 2>/dev/null || true
-                                return 1
-                            fi
-                        else
-                            log_error "Cherry-pick conflict on commit ${commit}"
-                            git cherry-pick --abort 2>/dev/null || true
-                            return 1
-                        fi
-
-                    fi
-                else
-                    log_error "Cherry-pick failed on commit ${commit}"
-                    return 1
-                fi
-            fi
-        done
-    }
-
 
     # Cherry-pick dependency commits (all commits from each dependency branch)
     if [ -n "${deps}" ]; then
@@ -1061,14 +1267,22 @@ export_sample_dmic_i2s() {
         "${SAMPLE_DMIC_I2S_COMMIT_MSG}" "${SAMPLE_DMIC_I2S_PATHS[@]}"
 }
 
+export_nn() {
+    generate_series_branch "nn" "${UPSTREAM_PREFIX}-nn"
+}
+
+export_sample_nn() {
+    generate_series_branch "sample-nn" "${UPSTREAM_PREFIX}-sample-nn"
+}
+
 # ===========================================================================
 # Export all targets
 # ===========================================================================
 
 export_all() {
-    TARGETS=(vid img aud disp fs \
+    TARGETS=(vid img aud disp fs nn \
         sample-cam_disp sample-jpeg_dec sample-tee_dec \
-        sample-fs sample-dmic_i2s)
+        sample-fs sample-dmic_i2s sample-nn)
 
     log_info "=== Exporting all mpipe upstream PR branches ==="
     log_info "Source: ${SOURCE_BRANCH}"
@@ -1083,6 +1297,7 @@ export_all() {
     export_aud
     export_disp
     export_fs
+    export_nn
 
     # Samples (depend on their plugins)
     export_sample_cam_disp
@@ -1090,6 +1305,7 @@ export_all() {
     export_sample_tee_dec
     export_sample_fs
     export_sample_dmic_i2s
+    export_sample_nn
 
     if ! ${SKIP_COMPLIANCE}; then
         echo ""
@@ -1143,7 +1359,8 @@ export_all() {
         # Show the target's own commits only; the rest are cherry-picked deps.
         while IFS= read -r line; do
             echo "  ${branch}: ${line}"
-        done < <(git --no-pager log --oneline -1 "${branch}" 2>/dev/null) ||
+        done < <(git --no-pager log --oneline "-$(target_commit_count "${target}")" \
+                     "${branch}" 2>/dev/null) ||
             echo "  ${branch}: N/A"
     done
     log_info ""
@@ -1166,8 +1383,10 @@ upstream PR branches. The core framework, the utils and the base plugin are
 upstream already.
 
 Each branch is built from ${BASE_REF}, with dependency commits cherry-picked
-first, then the target's own commit added on top. Compliance checks only
-verify the target's own commit.
+first, then the target's own commits added on top: one commit assembled from
+the file state of the target's paths, or, for a series target, the commits
+picked as they are from ${SOURCE_BRANCH}. Compliance checks only verify the
+target's own commits.
 
 Targets:
   vid              Video plugin
@@ -1175,12 +1394,16 @@ Targets:
   aud              Audio plugin
   disp             Display plugin
   fs               Filesystem plugin
+  nn               Neural network plugin (four commits picked from the
+                   source branch)
   sample-cam_disp  Camera-to-display sample (depends on vid, disp)
   sample-jpeg_dec  JPEG decoding sample (depends on vid, img, disp, fs)
   sample-tee_dec   Multi-branch jpeg decoding sample
                    (depends on vid, img, disp, fs)
   sample-fs        Filesystem sample (depends on fs)
   sample-dmic_i2s  DMIC to I2S sample (depends on aud)
+  sample-nn        Neural network samples (two commits picked from the
+                   source branch; depends on vid, disp, nn)
   all              All of the above (default)
 
 Options:
@@ -1209,9 +1432,9 @@ main() {
                 ;;
             --list)
                 echo "Available targets:"
-                echo "  vid img aud disp fs"
+                echo "  vid img aud disp fs nn"
                 echo "  sample-cam_disp sample-jpeg_dec"
-                echo "  sample-tee_dec sample-fs sample-dmic_i2s"
+                echo "  sample-tee_dec sample-fs sample-dmic_i2s sample-nn"
                 exit 0
                 ;;
             --no-check)
@@ -1222,9 +1445,9 @@ main() {
                 usage
                 exit 0
                 ;;
-            vid|img|aud|disp|fs|\
+            vid|img|aud|disp|fs|nn|\
             sample-cam_disp|sample-jpeg_dec|\
-            sample-tee_dec|sample-fs|sample-dmic_i2s|all)
+            sample-tee_dec|sample-fs|sample-dmic_i2s|sample-nn|all)
                 targets+=("$1")
                 shift
                 ;;
@@ -1267,6 +1490,10 @@ main() {
                 TARGETS+=(fs)
                 export_fs
                 ;;
+            nn)
+                TARGETS+=(nn)
+                export_nn
+                ;;
             sample-cam_disp)
                 TARGETS+=(sample-cam_disp)
                 export_sample_cam_disp
@@ -1286,6 +1513,10 @@ main() {
             sample-dmic_i2s)
                 TARGETS+=(sample-dmic_i2s)
                 export_sample_dmic_i2s
+                ;;
+            sample-nn)
+                TARGETS+=(sample-nn)
+                export_sample_nn
                 ;;
         esac
     done
@@ -1342,7 +1573,8 @@ main() {
         # Show the target's own commits only; the rest are cherry-picked deps.
         while IFS= read -r line; do
             echo "  ${branch}: ${line}"
-        done < <(git --no-pager log --oneline -1 "${branch}" 2>/dev/null) ||
+        done < <(git --no-pager log --oneline "-$(target_commit_count "${target}")" \
+                     "${branch}" 2>/dev/null) ||
             echo "  ${branch}: N/A"
     done
     log_info ""
