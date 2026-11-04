@@ -1,0 +1,13 @@
+/*
+ * Copyright 2025 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include "../app.overlay"
+
+/ {
+	chosen {
+		zephyr,sram = &dtcm;
+	};
+};

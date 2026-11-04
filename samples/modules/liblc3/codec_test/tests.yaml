@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+sample:
+  name: LC3 USB codec test
+tests:
+  sample.modules.liblc3.codec_test:
+    build_only: true
+    platform_allow:
+      - mimxrt1170_evk@B/mimxrt1176/cm7
+    integration_platforms:
+      - mimxrt1170_evk@B/mimxrt1176/cm7
+    tags:
+      - usb
+      - audio
+  sample.modules.liblc3.codec_test.plus_hr:
+    build_only: true
+    extra_args: EXTRA_CONF_FILE=lc3plus.conf
+    platform_allow:
+      - mimxrt1170_evk@B/mimxrt1176/cm7
+    integration_platforms:
+      - mimxrt1170_evk@B/mimxrt1176/cm7
+    tags:
+      - usb
+      - audio
