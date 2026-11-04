@@ -415,6 +415,14 @@ of each element in turn and following the buffer it produced. A NULL output
 means the buffer was consumed and the walk stops. The processing function owns the
 buffer it is given and releases it even when it fails.
 
+Zero-copy reaches the panel too. A display sink bound to a plane of
+the display (:c:func:`display_set_plane`, :c:func:`display_commit`) hands each
+frame to the display controller, which reads it until the next frame replaces
+it and blends it with the other planes on the way to the panel. Several sinks
+on several planes, at the end of the branches of one pipeline or of several
+pipelines, compose their streams without any element copying a pixel: the
+compositor is the display controller, and the pipeline only produces frames.
+
 Pipeline runtime
 ****************
 
