@@ -1799,6 +1799,7 @@ endfunction(zephyr_check_compiler_flag_hardcoded)
 #    DATA_SECTIONS Inside the RAMABLE_REGION GROUP, initialized.
 #    RAMFUNC_SECTION Inside the RAMFUNC RAMABLE_REGION GROUP, not initialized.
 #    NOCACHE_SECTION Inside the NOCACHE section
+#    NOCACHE_LOAD_SECTION Inside the initialized (loaded) NOCACHE section
 #    ITCM_SECTION  Inside the itcm section.
 #    DTCM_SECTION  Inside the dtcm data section.
 #    SECTIONS      Near the end of the file. Don't use this when linking into
@@ -1810,7 +1811,7 @@ endfunction(zephyr_check_compiler_flag_hardcoded)
 # Use BSS, NOINIT, RWDATA, and RODATA unless they don't work for your use case.
 #
 # When placing into BSS, NOINIT, RWDATA, RODATA, ROM_START, RAMFUNC_SECTION,
-# NOCACHE_SECTION, DTCM_SECTION or ITCM_SECTION the contents of the files will
+# NOCACHE_SECTION, NOCACHE_LOAD_SECTION, DTCM_SECTION or ITCM_SECTION the contents of the files will
 # be placed inside an output section, so assume the section definition is
 # already present, e.g.:
 #    _mysection_start = .;
@@ -1850,6 +1851,7 @@ function(zephyr_linker_sources location)
   set(rodata_path        "${snippet_base}/snippets-rodata.ld")
   set(ramfunc_path       "${snippet_base}/snippets-ramfunc-section.ld")
   set(nocache_path       "${snippet_base}/snippets-nocache-section.ld")
+  set(nocache_load_path  "${snippet_base}/snippets-nocache-load-section.ld")
   set(itcm_path          "${snippet_base}/snippets-itcm-section.ld")
   set(dtcm_path          "${snippet_base}/snippets-dtcm-section.ld")
 
@@ -1878,6 +1880,7 @@ function(zephyr_linker_sources location)
       ${rodata_path}
       ${ramfunc_path}
       ${nocache_path}
+      ${nocache_load_path}
       ${itcm_path}
       ${dtcm_path}
       )
@@ -1910,6 +1913,8 @@ function(zephyr_linker_sources location)
     set(snippet_path "${ramfunc_path}")
   elseif("${location}" STREQUAL "NOCACHE_SECTION")
     set(snippet_path "${nocache_path}")
+  elseif("${location}" STREQUAL "NOCACHE_LOAD_SECTION")
+    set(snippet_path "${nocache_load_path}")
   elseif("${location}" STREQUAL "ITCM_SECTION")
     dt_has_chosen(HAS_ITCM PROPERTY "zephyr,itcm")
     if(NOT HAS_ITCM)
