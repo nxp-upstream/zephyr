@@ -67,6 +67,10 @@ Libraries / Subsystems
 
   * Display timings can be read and set at runtime with
     :c:func:`display_get_timing` and :c:func:`display_set_timing`.
+  * Planes for hardware composition, the layers a display controller blends at scan-out:
+    :c:func:`display_get_plane_capabilities`, :c:func:`display_set_plane` and
+    :c:func:`display_commit`. A display reports how many it has in
+    :c:member:`display_capabilities.num_planes`.
 
 * FIDO2
 
