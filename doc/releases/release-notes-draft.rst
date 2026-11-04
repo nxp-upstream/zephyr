@@ -216,6 +216,15 @@ Other notable changes
   * :kconfig:option:`CONFIG_BT_PRIVACY` can now be enabled in Broadcaster- and Observer-only builds,
     without :kconfig:option:`CONFIG_BT_SMP`.
 
+* Display
+
+  * The NXP LCDIFv2 driver exposes its eight layers as planes, waits
+    for the VSYNC at which a frame change loads instead of the start of the
+    vertical blanking, and can start scanning at init
+    (:kconfig:option:`CONFIG_MCUX_LCDIFV2_START_ON_INIT`). The SDL and dummy
+    displays implement planes as well (:kconfig:option:`CONFIG_SDL_DISPLAY_PLANES`,
+    :kconfig:option:`CONFIG_DUMMY_DISPLAY_PLANES`).
+
 ..
   Any more descriptive subsystem or driver changes. Do you really want to write
   a paragraph or is it enough to link to the documentation of the change?
