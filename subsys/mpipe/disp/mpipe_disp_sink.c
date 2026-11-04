@@ -46,8 +46,15 @@ static const struct mpipe_disp_vid_pix_fmt mpipe_disp_vid_pix_fmt_map[] = {
 	{PIXEL_FORMAT_RGB_888, VIDEO_PIX_FMT_BGR24},
 	{PIXEL_FORMAT_ARGB_8888, VIDEO_PIX_FMT_BGRA32},
 	{PIXEL_FORMAT_XRGB_8888, VIDEO_PIX_FMT_BGRX32},
+	{PIXEL_FORMAT_ABGR_8888, VIDEO_PIX_FMT_RGBA32},
+	{PIXEL_FORMAT_YUYV, VIDEO_PIX_FMT_YUYV},
 	{PIXEL_FORMAT_L_8, VIDEO_PIX_FMT_GREY},
 };
+
+static bool mpipe_disp_sink_on_plane(const struct mpipe_disp_sink *disp_sink)
+{
+	return disp_sink->plane != MPIPE_DISP_SINK_NO_PLANE;
+}
 
 static uint32_t disp_to_vid_pix_fmt(enum display_pixel_format disp_fmt)
 {
@@ -76,10 +83,13 @@ static int mpipe_disp_sink_setup(struct mpipe_disp_sink *disp_sink,
 {
 	int ret = 0;
 
-	ret = display_set_pixel_format(disp_sink->display_dev, pixfmt);
-	if (ret != 0) {
-		LOG_ERR("Unable to set display format");
-		return ret;
+	/* The device format is plane 0's, the one a write targets; a plane has its own */
+	if (!mpipe_disp_sink_on_plane(disp_sink)) {
+		ret = display_set_pixel_format(disp_sink->display_dev, pixfmt);
+		if (ret != 0) {
+			LOG_ERR("Unable to set display format");
+			return ret;
+		}
 	}
 
 	/* Turn off blanking if driver supports it */
@@ -92,6 +102,40 @@ static int mpipe_disp_sink_setup(struct mpipe_disp_sink *disp_sink,
 	return ret;
 }
 
+/* What the sink can show: the device's formats and size, or the plane's minus its offset */
+static int mpipe_disp_sink_limits(const struct mpipe_disp_sink *disp_sink, uint32_t *pix_fmts,
+				  uint16_t *max_width, uint16_t *max_height)
+{
+	struct display_capabilities display_caps;
+	struct display_plane_capabilities plane_caps;
+	int ret;
+
+	if (!mpipe_disp_sink_on_plane(disp_sink)) {
+		display_get_capabilities(disp_sink->display_dev, &display_caps);
+		*pix_fmts = display_caps.supported_pixel_formats;
+		*max_width = display_caps.x_resolution;
+		*max_height = display_caps.y_resolution;
+		return 0;
+	}
+
+	ret = display_get_plane_capabilities(disp_sink->display_dev, (uint8_t)disp_sink->plane,
+					     &plane_caps);
+	if (ret != 0) {
+		LOG_ERR("No plane %d on the display (%d)", disp_sink->plane, ret);
+		return ret;
+	}
+	if (disp_sink->x >= plane_caps.max_width || disp_sink->y >= plane_caps.max_height) {
+		LOG_ERR("Plane position (%u, %u) is off the panel", disp_sink->x, disp_sink->y);
+		return -EINVAL;
+	}
+
+	*pix_fmts = plane_caps.supported_pixel_formats;
+	*max_width = plane_caps.max_width - disp_sink->x;
+	*max_height = plane_caps.max_height - disp_sink->y;
+
+	return 0;
+}
+
 /*
  * The display advertises the formats it accepts as a bitmask, so the caps of
  * the n-th supported format can be produced directly from it and none of the
@@ -102,18 +146,23 @@ static int mpipe_disp_sink_enum_caps(struct mpipe_pad *pad, uint32_t index,
 				     struct mpipe_structure *out)
 {
 	struct mpipe_disp_sink *disp = (struct mpipe_disp_sink *)pad->object.container;
-	struct display_capabilities display_caps;
 	struct mpipe_structure candidate;
+	uint32_t pix_fmts;
+	uint16_t max_width;
+	uint16_t max_height;
 	uint32_t vid_fmt = 0;
 	uint32_t matched = 0;
 	int ret;
 
-	display_get_capabilities(disp->display_dev, &display_caps);
+	ret = mpipe_disp_sink_limits(disp, &pix_fmts, &max_width, &max_height);
+	if (ret != 0) {
+		return ret;
+	}
 
 	for (uint8_t i = 0; i < ARRAY_SIZE(mpipe_disp_vid_pix_fmt_map); i++) {
 		/* Use video formats as reference formats for caps */
-		uint32_t fmt = disp_to_vid_pix_fmt(display_caps.supported_pixel_formats &
-						   mpipe_disp_vid_pix_fmt_map[i].disp_fmt);
+		uint32_t fmt =
+			disp_to_vid_pix_fmt(pix_fmts & mpipe_disp_vid_pix_fmt_map[i].disp_fmt);
 
 		if (fmt == 0) {
 			continue;
@@ -131,11 +180,11 @@ static int mpipe_disp_sink_enum_caps(struct mpipe_pad *pad, uint32_t index,
 		return -ENOENT;
 	}
 
-	ret = mpipe_structure_init_fields(
-		&candidate, MPIPE_MEDIA_VIDEO, MPIPE_CAPS_PIXEL_FORMAT, MPIPE_TYPE_UINT, vid_fmt,
-		MPIPE_CAPS_IMAGE_WIDTH, MPIPE_TYPE_UINT_RANGE, DEFAULT_WIDTH_MIN,
-		display_caps.x_resolution, 1, MPIPE_CAPS_IMAGE_HEIGHT, MPIPE_TYPE_UINT_RANGE,
-		DEFAULT_HEIGHT_MIN, display_caps.y_resolution, 1, MPIPE_CAPS_END);
+	ret = mpipe_structure_init_fields(&candidate, MPIPE_MEDIA_VIDEO, MPIPE_CAPS_PIXEL_FORMAT,
+					  MPIPE_TYPE_UINT, vid_fmt, MPIPE_CAPS_IMAGE_WIDTH,
+					  MPIPE_TYPE_UINT_RANGE, DEFAULT_WIDTH_MIN, max_width, 1,
+					  MPIPE_CAPS_IMAGE_HEIGHT, MPIPE_TYPE_UINT_RANGE,
+					  DEFAULT_HEIGHT_MIN, max_height, 1, MPIPE_CAPS_END);
 	if (ret != 0) {
 		return ret;
 	}
@@ -168,7 +217,24 @@ static int mpipe_disp_sink_set_property(struct mpipe_object *obj, uint32_t key, 
 	switch (key) {
 	case MPIPE_PROP_DISP_SINK_DEVICE:
 		disp_sink->display_dev = val;
-
+		return 0;
+	case MPIPE_PROP_DISP_SINK_PLANE:
+		if (*(const int *)val < MPIPE_DISP_SINK_NO_PLANE || *(const int *)val > UINT8_MAX) {
+			return -EINVAL;
+		}
+		disp_sink->plane = *(const int *)val;
+		return 0;
+	case MPIPE_PROP_DISP_SINK_X:
+		disp_sink->x = *(const uint16_t *)val;
+		return 0;
+	case MPIPE_PROP_DISP_SINK_Y:
+		disp_sink->y = *(const uint16_t *)val;
+		return 0;
+	case MPIPE_PROP_DISP_SINK_ALPHA:
+		disp_sink->alpha = *(const uint8_t *)val;
+		return 0;
+	case MPIPE_PROP_DISP_SINK_BLEND_MODE:
+		disp_sink->blend_mode = *(const enum display_blend_mode *)val;
 		return 0;
 	default:
 		return -ENOTSUP;
@@ -182,7 +248,21 @@ static int mpipe_disp_sink_get_property(struct mpipe_object *obj, uint32_t key, 
 	switch (key) {
 	case MPIPE_PROP_DISP_SINK_DEVICE:
 		*(const struct device **)val = disp_sink->display_dev;
-
+		return 0;
+	case MPIPE_PROP_DISP_SINK_PLANE:
+		*(int *)val = disp_sink->plane;
+		return 0;
+	case MPIPE_PROP_DISP_SINK_X:
+		*(uint16_t *)val = disp_sink->x;
+		return 0;
+	case MPIPE_PROP_DISP_SINK_Y:
+		*(uint16_t *)val = disp_sink->y;
+		return 0;
+	case MPIPE_PROP_DISP_SINK_ALPHA:
+		*(uint8_t *)val = disp_sink->alpha;
+		return 0;
+	case MPIPE_PROP_DISP_SINK_BLEND_MODE:
+		*(enum display_blend_mode *)val = disp_sink->blend_mode;
 		return 0;
 	default:
 		return -ENOTSUP;
@@ -198,9 +278,25 @@ static bool mpipe_disp_sink_holds_buffer(const struct mpipe_disp_sink *disp_sink
 		return false;
 	}
 
+	/* A plane always scans out of the buffer it is given */
+	if (mpipe_disp_sink_on_plane(disp_sink)) {
+		return true;
+	}
+
 	display_get_capabilities(disp_sink->display_dev, &display_caps);
 
 	return (display_caps.screen_info & SCREEN_INFO_WRITE_HOLDS_BUFFER) != 0U;
+}
+
+/* Take the plane off the screen; the buffer it read is free once this returns */
+static void mpipe_disp_sink_disable_plane(struct mpipe_disp_sink *disp_sink)
+{
+	const struct display_plane_config off = {.buf = NULL};
+
+	if (display_set_plane(disp_sink->display_dev, (uint8_t)disp_sink->plane, &off) != 0 ||
+	    display_commit(disp_sink->display_dev) != 0) {
+		LOG_WRN("Plane %d not disabled", disp_sink->plane);
+	}
 }
 
 /* The frame on screen goes back to its pool with the run, before the pool itself does */
@@ -208,15 +304,60 @@ static int mpipe_disp_sink_change_state(struct mpipe_element *self,
 					enum mpipe_state_change transition)
 {
 	struct mpipe_disp_sink *disp_sink = (struct mpipe_disp_sink *)self;
+	struct display_capabilities display_caps;
 
 	if (transition == MPIPE_STATE_CHANGE_READY_TO_PAUSED) {
+		if (mpipe_disp_sink_on_plane(disp_sink)) {
+			display_get_capabilities(disp_sink->display_dev, &display_caps);
+			if (disp_sink->plane >= display_caps.num_planes) {
+				LOG_ERR("Display has %u planes, no plane %d",
+					display_caps.num_planes, disp_sink->plane);
+				return -EINVAL;
+			}
+		}
 		disp_sink->holds_buffer = mpipe_disp_sink_holds_buffer(disp_sink);
 	} else if (transition == MPIPE_STATE_CHANGE_PAUSED_TO_READY && disp_sink->shown != NULL) {
+		if (mpipe_disp_sink_on_plane(disp_sink)) {
+			mpipe_disp_sink_disable_plane(disp_sink);
+		}
 		net_buf_unref(disp_sink->shown);
 		disp_sink->shown = NULL;
 	}
 
 	return mpipe_sink_change_state(self, transition);
+}
+
+/* Hand the whole frame to the plane and wait for the commit that puts it on screen */
+static int mpipe_disp_sink_show_on_plane(struct mpipe_disp_sink *disp_sink,
+					 const struct mpipe_structure *caps,
+					 enum display_pixel_format disp_fmt, const void *buf,
+					 struct display_buffer_descriptor *desc)
+{
+	const struct mpipe_value *value = mpipe_structure_get_value(caps, MPIPE_CAPS_IMAGE_HEIGHT);
+	struct display_plane_config cfg = {
+		.buf = buf,
+		.pixel_format = disp_fmt,
+		.x = disp_sink->x,
+		.y = disp_sink->y,
+		.alpha = disp_sink->alpha,
+		.blend_mode = disp_sink->blend_mode,
+	};
+	int ret;
+
+	if (value == NULL || desc->height < mpipe_value_get_uint(value)) {
+		LOG_ERR("A plane shows whole frames only");
+		return -ENOTSUP;
+	}
+	desc->height = mpipe_value_get_uint(value);
+	cfg.desc = *desc;
+
+	ret = display_set_plane(disp_sink->display_dev, (uint8_t)disp_sink->plane, &cfg);
+	if (ret != 0) {
+		LOG_ERR("display_set_plane failed (%d)", ret);
+		return ret;
+	}
+
+	return display_commit(disp_sink->display_dev);
 }
 
 /* A frame kept on screen is one buffer upstream cannot have back */
@@ -297,6 +438,15 @@ int mpipe_disp_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 		LOG_ERR("Buffer of %u bytes is shorter than a %u-byte line", buf_desc.buf_size,
 			bytes_per_line);
 		ret = -ENODATA;
+	} else if (mpipe_disp_sink_on_plane(disp_sink)) {
+		if (vbuf != NULL && vbuf->line_offset != 0U) {
+			LOG_ERR("A plane shows whole frames only");
+			ret = -ENOTSUP;
+		} else {
+			ret = mpipe_disp_sink_show_on_plane(
+				disp_sink, &pad->caps, disp_fmt,
+				(vbuf != NULL) ? vbuf->buffer : in_buf->data, &buf_desc);
+		}
 	} else if (vbuf != NULL) {
 		/* line_offset is only used to support partial video frame */
 		ret = display_write(disp_sink->display_dev, 0, vbuf->line_offset, &buf_desc,
@@ -319,7 +469,7 @@ int mpipe_disp_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 #endif
 
 	if (ret != 0) {
-		if (ret != -ENODATA) {
+		if (ret != -ENODATA && !mpipe_disp_sink_on_plane(disp_sink)) {
 			LOG_ERR("display_write failed (%d)", ret);
 		}
 		net_buf_unref(in_buf);
@@ -360,6 +510,11 @@ int mpipe_disp_sink_init(struct mpipe_disp_sink *disp_sink, uint8_t id)
 	mpipe_element_set_name(self, "disp_sink");
 
 	disp_sink->display_dev = DEFAULT_PROP_DEVICE;
+	disp_sink->plane = MPIPE_DISP_SINK_NO_PLANE;
+	disp_sink->x = 0;
+	disp_sink->y = 0;
+	disp_sink->alpha = 255;
+	disp_sink->blend_mode = DISPLAY_BLEND_NONE;
 	disp_sink->holds_buffer = false;
 	disp_sink->shown = NULL;
 

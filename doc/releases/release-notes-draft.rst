@@ -202,6 +202,13 @@ Devicetree
   Configure the optional ``cd-gpios`` property in :dtcompatible:`espressif,esp32-sdhc-slot`.
   An optional sleep pinctrl state controls the signal pins while card power is off.
 
+* Multimedia Pipeline
+
+  * The display sink drives a plane of the display when bound to one
+    (``MPIPE_PROP_DISP_SINK_PLANE`` and the position, alpha and blend mode
+    properties), so several sinks compose their streams in the display
+    controller without a copy.
+
 Other notable changes
 *********************
 
