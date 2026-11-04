@@ -208,6 +208,9 @@ Devicetree
     (``MPIPE_PROP_DISP_SINK_PLANE`` and the position, alpha and blend mode
     properties), so several sinks compose their streams in the display
     controller without a copy.
+  * The video overlay draws into a transparent plane frame of its own in
+    ``MPIPE_VID_OVERLAY_MODE_PLANE``, and its draw callback receives the input
+    buffer.
 
 Other notable changes
 *********************

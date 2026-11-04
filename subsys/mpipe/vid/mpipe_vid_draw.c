@@ -43,6 +43,14 @@ static int vid_draw_pack(uint32_t pixfmt, uint32_t argb, struct vid_draw_px *px)
 		px->size = 4;
 
 		return 0;
+	case VIDEO_PIX_FMT_BGRA32:
+		px->bytes[0] = b;
+		px->bytes[1] = g;
+		px->bytes[2] = r;
+		px->bytes[3] = (uint8_t)(argb >> 24);
+		px->size = 4;
+
+		return 0;
 	default:
 		return -ENOTSUP;
 	}
