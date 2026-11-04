@@ -32,11 +32,14 @@ config MPIPE_VID_CONVERT
 config MPIPE_VID_OVERLAY
 	bool "Video overlay element"
 	help
-	  A format-preserving transform handing every frame to an application
-	  draw callback, the pipeline equivalent of drawing on a canvas, with
-	  drawing helpers for rectangles, fills and text. A frame nobody else
-	  holds is drawn in place; a shared frame, as behind a tee, is copied
-	  first. Text needs the character framebuffer's built-in fonts
+	  A transform handing every buffer to an application draw callback,
+	  the pipeline equivalent of drawing on a canvas, with drawing helpers
+	  for rectangles, fills and text. In frame mode it draws into the video
+	  frame, in place when nobody else holds it and into a copy otherwise,
+	  as behind a tee. In plane mode it draws into a transparent BGRA32
+	  frame of its own for a display sink on a display plane, and the
+	  display controller blends the drawing over the video. Text needs the
+	  character framebuffer's built-in fonts
 	  (CHARACTER_FRAMEBUFFER_USE_DEFAULT_FONTS).
 
 	  It is the software fallback and demonstration tier: the target for

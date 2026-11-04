@@ -58,19 +58,55 @@ static int vid_overlay_candidate(uint32_t pixfmt, struct mpipe_structure *out)
 	return ret;
 }
 
-static int vid_overlay_enum_caps(struct mpipe_pad *pad, uint32_t index,
-				 const struct mpipe_structure *filter, struct mpipe_structure *out)
+/* The plane frame: BGRA32, so every pixel carries its alpha, at the configured size */
+static int vid_overlay_plane_candidate(const struct mpipe_vid_overlay *overlay,
+				       struct mpipe_structure *out)
 {
-	struct mpipe_structure candidate;
-	int ret;
+	if (overlay->width == 0U || overlay->height == 0U) {
+		LOG_ERR("Plane mode needs a width and a height");
+		return -EINVAL;
+	}
 
-	ARG_UNUSED(pad);
+	return mpipe_structure_init_fields(
+		out, MPIPE_MEDIA_VIDEO, MPIPE_CAPS_PIXEL_FORMAT, MPIPE_TYPE_UINT,
+		VIDEO_PIX_FMT_BGRA32, MPIPE_CAPS_IMAGE_WIDTH, MPIPE_TYPE_UINT, overlay->width,
+		MPIPE_CAPS_IMAGE_HEIGHT, MPIPE_TYPE_UINT, overlay->height, MPIPE_CAPS_END);
+}
 
-	if (index >= ARRAY_SIZE(vid_overlay_pixfmts)) {
+/*
+ * In plane mode the pads are unrelated: the sink pad takes anything, since
+ * the input only triggers and feeds the drawing, and the src pad offers the
+ * one plane frame.
+ */
+static int vid_overlay_plane_caps(const struct mpipe_vid_overlay *overlay,
+				  enum mpipe_pad_direction direction, uint32_t index,
+				  struct mpipe_structure *out)
+{
+	if (index > 0U) {
 		return -ENOENT;
 	}
 
-	ret = vid_overlay_candidate(vid_overlay_pixfmts[index], &candidate);
+	if (direction == MPIPE_PAD_SINK) {
+		return mpipe_structure_init_any(out);
+	}
+
+	return vid_overlay_plane_candidate(overlay, out);
+}
+
+static int vid_overlay_enum_caps(struct mpipe_pad *pad, uint32_t index,
+				 const struct mpipe_structure *filter, struct mpipe_structure *out)
+{
+	struct mpipe_vid_overlay *overlay = (struct mpipe_vid_overlay *)pad->object.container;
+	struct mpipe_structure candidate;
+	int ret;
+
+	if (overlay->mode == MPIPE_VID_OVERLAY_MODE_PLANE) {
+		ret = vid_overlay_plane_caps(overlay, pad->direction, index, &candidate);
+	} else if (index >= ARRAY_SIZE(vid_overlay_pixfmts)) {
+		return -ENOENT;
+	} else {
+		ret = vid_overlay_candidate(vid_overlay_pixfmts[index], &candidate);
+	}
 	if (ret != 0) {
 		return ret;
 	}
@@ -83,13 +119,15 @@ static int vid_overlay_transform_caps(struct mpipe_transform *self,
 				      const struct mpipe_structure *in, uint32_t index,
 				      struct mpipe_structure *out)
 {
+	struct mpipe_vid_overlay *overlay = (struct mpipe_vid_overlay *)self;
 	int ret;
-
-	ARG_UNUSED(self);
-	ARG_UNUSED(direction);
 
 	if (in == NULL) {
 		return -EINVAL;
+	}
+
+	if (overlay->mode == MPIPE_VID_OVERLAY_MODE_PLANE) {
+		return vid_overlay_plane_caps(overlay, direction, index, out);
 	}
 
 	if (mpipe_structure_is_any(in)) {
@@ -150,6 +188,11 @@ static int vid_overlay_set_caps(struct mpipe_transform *transform,
 		return ret;
 	}
 
+	/* In plane mode the input caps say nothing about the frame drawn */
+	if (overlay->mode == MPIPE_VID_OVERLAY_MODE_PLANE && direction == MPIPE_PAD_SINK) {
+		return 0;
+	}
+
 	v = mpipe_structure_get_value(caps, MPIPE_CAPS_PIXEL_FORMAT);
 	if (v != NULL && v->type == MPIPE_TYPE_UINT) {
 		overlay->pixfmt = mpipe_value_get_uint(v);
@@ -197,10 +240,11 @@ static int vid_overlay_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 	 * every branch sees the same payload, is the copy needed. A view shares
 	 * its parent's bytes with other views, so it is copied as well.
 	 */
-	if (in_buf->ref == 1U && mpipe_buffer_get_meta(in_buf)->parent == NULL) {
+	if (overlay->mode == MPIPE_VID_OVERLAY_MODE_FRAME && in_buf->ref == 1U &&
+	    mpipe_buffer_get_meta(in_buf)->parent == NULL) {
 		if (overlay->cb.fn != NULL) {
 			overlay->cb.fn(in_buf->data, overlay->width, overlay->height,
-				       overlay->pixfmt, overlay->cb.user_data);
+				       overlay->pixfmt, in_buf, overlay->cb.user_data);
 		}
 		*out_buf = in_buf;
 		return 0;
@@ -212,11 +256,17 @@ static int vid_overlay_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 		return -EIO;
 	}
 
-	len = MIN(overlay->out_pool.config.size, mpipe_buffer_get_meta(in_buf)->bytes_used);
-	memcpy(out->data, in_buf->data, len);
+	/* A plane starts transparent and shows only what the callback draws */
+	if (overlay->mode == MPIPE_VID_OVERLAY_MODE_PLANE) {
+		len = overlay->out_pool.config.size;
+		memset(out->data, 0, len);
+	} else {
+		len = MIN(overlay->out_pool.config.size, mpipe_buffer_get_meta(in_buf)->bytes_used);
+		memcpy(out->data, in_buf->data, len);
+	}
 
 	if (overlay->cb.fn != NULL) {
-		overlay->cb.fn(out->data, overlay->width, overlay->height, overlay->pixfmt,
+		overlay->cb.fn(out->data, overlay->width, overlay->height, overlay->pixfmt, in_buf,
 			       overlay->cb.user_data);
 	}
 
@@ -246,6 +296,15 @@ static int mpipe_vid_overlay_set_property(struct mpipe_object *obj, uint32_t key
 	switch (key) {
 	case MPIPE_PROP_VID_OVERLAY_DRAW_CB:
 		overlay->cb = *(const struct mpipe_vid_overlay_cb *)val;
+		return 0;
+	case MPIPE_PROP_VID_OVERLAY_MODE:
+		overlay->mode = *(const enum mpipe_vid_overlay_mode *)val;
+		return 0;
+	case MPIPE_PROP_VID_OVERLAY_WIDTH:
+		overlay->width = *(const uint16_t *)val;
+		return 0;
+	case MPIPE_PROP_VID_OVERLAY_HEIGHT:
+		overlay->height = *(const uint16_t *)val;
 		return 0;
 	default:
 		LOG_ERR("Property %d is unknown", key);
@@ -278,7 +337,9 @@ static int vid_overlay_propose_buffer_pool(struct mpipe_transform *self,
 {
 	struct mpipe_vid_overlay *overlay = (struct mpipe_vid_overlay *)self;
 
-	query->pool_cfg.min_buffers = overlay->held_downstream;
+	/* A plane is drawn from the element's own frames: the input is released at once */
+	query->pool_cfg.min_buffers =
+		(overlay->mode == MPIPE_VID_OVERLAY_MODE_PLANE) ? 0U : overlay->held_downstream;
 
 	return 0;
 }
@@ -396,6 +457,7 @@ int mpipe_vid_overlay_init(struct mpipe_vid_overlay *overlay, uint8_t id)
 	transform->sink_pad.enum_caps_fn = vid_overlay_enum_caps;
 	transform->src_pad.enum_caps_fn = vid_overlay_enum_caps;
 
+	overlay->mode = MPIPE_VID_OVERLAY_MODE_FRAME;
 	overlay->width = 0;
 	overlay->height = 0;
 	overlay->pixfmt = 0;

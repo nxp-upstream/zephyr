@@ -37,7 +37,7 @@ struct mpipe_vid_rect {
 /**
  * @brief Draw the outline of a rectangle into a video frame
  *
- * Supported pixel formats: RGB565, BGRX32. Coordinates are clamped to the
+ * Supported pixel formats: RGB565, BGRX32, BGRA32. Coordinates are clamped to the
  * frame.
  *
  * @param frame Frame pixels
@@ -45,7 +45,7 @@ struct mpipe_vid_rect {
  * @param height Frame height in pixels
  * @param pixfmt Frame pixel format, a VIDEO_PIX_FMT_* value
  * @param rect The rectangle
- * @param argb Color as 0xAARRGGBB; alpha is ignored
+ * @param argb Color as 0xAARRGGBB; the alpha is written for BGRA32, ignored otherwise
  * @param thickness Edge thickness in pixels
  *
  * @retval 0 Success
