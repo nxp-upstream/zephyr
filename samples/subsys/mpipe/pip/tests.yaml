@@ -1,0 +1,25 @@
+sample:
+  name: Picture-in-picture on display planes
+
+tests:
+  sample.mpipe.pip:
+    tags:
+      - mpipe
+      - video
+      - display
+      - filesystem
+    platform_allow:
+      - native_sim/native/64
+      - mimxrt1170_evk@B/mimxrt1176/cm7
+    integration_platforms:
+      - native_sim/native/64
+    modules:
+      - jpegdec
+    harness: console
+    extra_args:
+      - platform:native_sim/native/64:SNIPPET="video-sw-generator"
+      - platform:mimxrt1170_evk@B/mimxrt1176/cm7:SHIELD="nxp_btb44_ov5640;rk055hdmipi4ma0"
+    harness_config:
+      type: one_line
+      regex:
+        - "Player #1: end of stream"
