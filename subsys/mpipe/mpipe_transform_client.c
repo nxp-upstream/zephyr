@@ -35,6 +35,9 @@ static int mpipe_transform_client_process_fn(struct mpipe_pad *pad, struct net_b
 	if (transform->out_pool->acquire_buffer(transform->out_pool, out_buf) != 0 ||
 	    *out_buf == NULL) {
 		LOG_ERR("Failed to acquire an output buffer");
+		*out_buf = NULL;
+		net_buf_unref(in_buf);
+
 		return -ENOMEM;
 	}
 
