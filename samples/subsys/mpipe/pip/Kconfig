@@ -1,0 +1,74 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "Picture-in-picture pipeline sample"
+
+menu "Camera pipeline"
+
+config VIDEO_FRAME_WIDTH
+	int "Width of the camera frame"
+	default 0
+	help
+	  Width of the camera frame. If set to 0, the default width is used.
+
+config VIDEO_FRAME_HEIGHT
+	int "Height of the camera frame"
+	default 0
+	help
+	  Height of the camera frame. If set to 0, the default height is used.
+
+config VIDEO_PIXEL_FORMAT
+	string "Pixel format of the camera frame"
+	help
+	  Pixel format of the camera frame, as a four character code. If not
+	  set, the first format the camera and the plane share is used.
+
+config VIDEO_PLANE
+	int "Display plane of the camera frames"
+	default 0
+
+endmenu
+
+menu "Picture-in-picture pipeline"
+
+config FILE_INPUT_PATH
+	string "Input MJPEG file path"
+	default "/SD:/test.mjpeg"
+	help
+	  Absolute path to the MJPEG input file.
+
+config JPEG_IMAGE_WIDTH
+	int "Width of the decoded JPEG image"
+	default 160
+
+config JPEG_IMAGE_HEIGHT
+	int "Height of the decoded JPEG image"
+	default 120
+
+config MJPEG_NUM_FRAMES
+	int "Number of frames in the generated test MJPEG file"
+	default 150
+	help
+	  Number of video frames to generate in the test MJPEG file.
+	  The file is produced at build time using GStreamer CLI.
+
+config PIP_PLANE
+	int "Display plane of the picture-in-picture window"
+	default 1
+
+config PIP_X
+	int "x coordinate of the window on the panel"
+	default 16
+
+config PIP_Y
+	int "y coordinate of the window on the panel"
+	default 16
+
+config PIP_ALPHA
+	int "Opacity of the window over the camera frame, 255 for opaque"
+	range 0 255
+	default 160
+
+endmenu
+
+source "Kconfig.zephyr"
