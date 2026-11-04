@@ -70,27 +70,9 @@ struct image_item {
 };
 #endif /* CONFIG_BT_AVRCP_TG_COVER_ART */
 
-struct bt_conn *default_conn;
-
-static struct bt_conn *get_conn_by_addr(const bt_addr_le_t *address)
-{
-	if (address->type != BTP_BR_ADDRESS_TYPE) {
-		return NULL;
-	}
-
-	if (default_conn == NULL) {
-		return NULL;
-	}
-
-	if (bt_addr_eq(bt_conn_get_dst_br(default_conn), &address->a)) {
-		return default_conn;
-	}
-
-	return NULL;
-}
-
 #if defined(CONFIG_BT_AVRCP_CONTROLLER)
-struct bt_avrcp_ct *default_ct;
+static struct bt_conn *default_ct_conn;
+static struct bt_avrcp_ct *default_ct;
 static uint8_t ct_local_tid;
 static struct k_work_delayable ct_uids_changed_event;
 #endif /* CONFIG_BT_AVRCP_CONTROLLER */
@@ -161,6 +143,7 @@ struct vfs_node {
 };
 
 NET_BUF_POOL_DEFINE(avrcp_tx_pool, 1, 1024, CONFIG_BT_CONN_TX_USER_DATA_SIZE, NULL);
+static struct bt_conn *default_tg_conn;
 static struct bt_avrcp_tg *default_tg;
 static bool tg_long_metadata;
 static uint8_t tg_volume;
@@ -941,12 +924,29 @@ static uint8_t browsing_disconnect(const void *cmd, uint16_t cmd_len, void *rsp,
 	return BTP_STATUS_SUCCESS;
 }
 
+static struct bt_conn *ct_lookup_conn_by_addr(const bt_addr_le_t *address)
+{
+	if (address->type != BTP_BR_ADDRESS_TYPE) {
+		return NULL;
+	}
+
+	if (default_ct_conn == NULL) {
+		return NULL;
+	}
+
+	if (bt_addr_eq(bt_conn_get_dst_br(default_ct_conn), &address->a)) {
+		return default_ct_conn;
+	}
+
+	return NULL;
+}
+
 static uint8_t unit_info(const void *cmd, uint16_t cmd_len, void *rsp, uint16_t *rsp_len)
 {
 	const struct btp_avrcp_unit_info_cmd *cp = cmd;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -963,7 +963,7 @@ static uint8_t subunit_info(const void *cmd, uint16_t cmd_len, void *rsp, uint16
 	const struct btp_avrcp_subunit_info_cmd *cp = cmd;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -984,7 +984,7 @@ static uint8_t pass_through(const void *cmd, uint16_t cmd_len, void *rsp, uint16
 		return BTP_STATUS_FAILED;
 	}
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1002,7 +1002,7 @@ static uint8_t get_caps(const void *cmd, uint16_t cmd_len, void *rsp, uint16_t *
 	const struct btp_avrcp_get_caps_cmd *cp = cmd;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1020,7 +1020,7 @@ static uint8_t list_player_app_setting_attrs(const void *cmd, uint16_t cmd_len, 
 	const struct btp_avrcp_list_player_app_setting_attrs_cmd *cp = cmd;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1038,7 +1038,7 @@ static uint8_t list_player_app_setting_vals(const void *cmd, uint16_t cmd_len, v
 	const struct btp_avrcp_list_player_app_setting_vals_cmd *cp = cmd;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1059,7 +1059,7 @@ static uint8_t get_curr_player_app_setting_val(const void *cmd, uint16_t cmd_len
 	uint8_t attr_ids_len;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1095,7 +1095,7 @@ static uint8_t set_player_app_setting_val(const void *cmd, uint16_t cmd_len, voi
 	uint16_t attr_val_len;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1131,7 +1131,7 @@ static uint8_t get_player_app_setting_attr_text(const void *cmd, uint16_t cmd_le
 	uint8_t attr_ids_len;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1167,7 +1167,7 @@ static uint8_t get_player_app_setting_val_text(const void *cmd, uint16_t cmd_len
 	uint8_t val_ids_len;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1202,7 +1202,7 @@ static uint8_t get_element_attrs(const void *cmd, uint16_t cmd_len, void *rsp, u
 	uint16_t attr_ids_len;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1237,7 +1237,7 @@ static uint8_t get_play_status(const void *cmd, uint16_t cmd_len, void *rsp, uin
 	const struct btp_avrcp_get_play_status_cmd *cp = cmd;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1303,7 +1303,7 @@ static void register_notification_cb(struct bt_avrcp_ct *ct, uint8_t event_id,
 	ev->status = BT_AVRCP_RSP_CHANGED;
 	ev->event_id = event_id;
 	ev->address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_ct_conn));
 
 	if ((data != NULL) && (data_size > 0)) {
 		switch (event_id) {
@@ -1357,7 +1357,7 @@ static uint8_t register_notification(const void *cmd, uint16_t cmd_len, void *rs
 	const struct btp_avrcp_register_notification_cmd *cp = cmd;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1376,7 +1376,7 @@ static uint8_t set_absolute_volume(const void *cmd, uint16_t cmd_len, void *rsp,
 	const struct btp_avrcp_set_absolute_volume_cmd *cp = cmd;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1393,7 +1393,7 @@ static uint8_t set_addressed_player(const void *cmd, uint16_t cmd_len, void *rsp
 	const struct btp_avrcp_set_addressed_player_cmd *cp = cmd;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1413,7 +1413,7 @@ static uint8_t play_item(const void *cmd, uint16_t cmd_len, void *rsp, uint16_t 
 	struct net_buf *buf;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1447,7 +1447,7 @@ static uint8_t add_to_now_playing(const void *cmd, uint16_t cmd_len, void *rsp, 
 	struct net_buf *buf;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1483,7 +1483,7 @@ static uint8_t get_folder_items(const void *cmd, uint16_t cmd_len, void *rsp, ui
 	uint16_t attr_ids_len;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1529,7 +1529,7 @@ static uint8_t get_total_number_of_items(const void *cmd, uint16_t cmd_len, void
 	const struct btp_avrcp_get_total_number_of_items_cmd *cp = cmd;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1546,7 +1546,7 @@ static uint8_t set_browsed_player(const void *cmd, uint16_t cmd_len, void *rsp, 
 	const struct btp_avrcp_set_browsed_player_cmd *cp = cmd;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1566,7 +1566,7 @@ static uint8_t change_path(const void *cmd, uint16_t cmd_len, void *rsp, uint16_
 	struct net_buf *buf;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1601,7 +1601,7 @@ static uint8_t get_item_attrs(const void *cmd, uint16_t cmd_len, void *rsp, uint
 	uint16_t attr_ids_len;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1645,7 +1645,7 @@ static uint8_t search(const void *cmd, uint16_t cmd_len, void *rsp, uint16_t *rs
 		return BTP_STATUS_FAILED;
 	}
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -1678,7 +1678,7 @@ static void control_connected(struct bt_conn *conn, struct bt_avrcp_ct *ct)
 {
 	struct btp_avrcp_control_connected_ev ev;
 
-	default_conn = bt_conn_ref(conn);
+	default_ct_conn = bt_conn_ref(conn);
 	default_ct = ct;
 	ct_local_tid = 0;
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
@@ -1691,13 +1691,13 @@ static void control_disconnected(struct bt_avrcp_ct *ct)
 	struct btp_avrcp_control_disconnected_ev ev;
 
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_CONTROL_DISCONNECTED, &ev, sizeof(ev));
 
 	ct_local_tid = 0;
 	default_ct = NULL;
-	bt_conn_unref(default_conn);
-	default_conn = NULL;
+	bt_conn_unref(default_ct_conn);
+	default_ct_conn = NULL;
 }
 
 static void browsing_connected(struct bt_conn *conn, struct bt_avrcp_ct *ct)
@@ -1718,7 +1718,7 @@ static void browsing_disconnected(struct bt_avrcp_ct *ct)
 	k_work_cancel_delayable(&ct_uids_changed_event);
 
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_BROWSING_DISCONNECTED, &ev, sizeof(ev));
 }
 
@@ -1729,7 +1729,7 @@ static void unit_info_rsp(struct bt_avrcp_ct *ct, uint8_t tid, struct bt_avrcp_u
 	ev.unit_type = (uint8_t)rsp->unit_type;
 	ev.company_id = rsp->company_id;
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_UNIT_INFO_RSP, &ev, sizeof(ev));
 }
 
@@ -1739,7 +1739,7 @@ static void subunit_info_rsp(struct bt_avrcp_ct *ct, uint8_t tid,
 	struct btp_avrcp_subunit_info_rsp_ev ev;
 
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_SUBUNIT_INFO_RSP, &ev, sizeof(ev));
 }
 
@@ -1756,7 +1756,7 @@ static void pass_through_rsp(struct bt_avrcp_ct *ct, uint8_t tid, bt_avrcp_rsp_t
 	ev->len = rsp->data_len;
 	memcpy(ev->data, rsp->data, rsp->data_len);
 	ev->address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_PASS_THROUGH_RSP, ev,
 		     sizeof(*ev) + rsp->data_len);
 
@@ -1773,7 +1773,7 @@ static void report_error(uint8_t event_id, uint8_t status)
 
 	ev.status = status;
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, event_id, &ev, sizeof(ev));
 }
 
@@ -1826,7 +1826,7 @@ static void get_caps_rsp(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t status, st
 	}
 
 	ev->address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_GET_CAPS_RSP, ev,
 		     sizeof(*ev) + cap_len - buf->len);
 
@@ -1865,7 +1865,7 @@ static void list_player_app_setting_attrs_rsp(struct bt_avrcp_ct *ct, uint8_t ti
 		ev->attr_ids[num_attrs++] = net_buf_pull_u8(buf);
 	}
 	ev->address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_LIST_PLAYER_APP_SETTING_ATTRS_RSP, ev,
 		     sizeof(*ev) + attr_len - buf->len);
 
@@ -1904,7 +1904,7 @@ static void list_player_app_setting_vals_rsp(struct bt_avrcp_ct *ct, uint8_t tid
 		ev->val_ids[num_vals++] = net_buf_pull_u8(buf);
 	}
 	ev->address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_LIST_PLAYER_APP_SETTING_VALS_RSP, ev,
 		     sizeof(*ev) + val_len - buf->len);
 
@@ -1949,7 +1949,7 @@ static void get_curr_player_app_setting_val_rsp(struct bt_avrcp_ct *ct, uint8_t 
 		       sizeof(*attr_val));
 	}
 	ev->address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_GET_CURR_PLAYER_APP_SETTING_VAL_RSP, ev,
 		     sizeof(*ev) + attr_val_len - buf->len);
 
@@ -1963,7 +1963,7 @@ static void set_player_app_setting_val_rsp(struct bt_avrcp_ct *ct, uint8_t tid, 
 
 	ev.status = status;
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_SET_PLAYER_APP_SETTING_VAL_RSP, &ev,
 		     sizeof(ev));
 }
@@ -2017,7 +2017,7 @@ static void get_player_app_setting_attr_text_rsp(struct bt_avrcp_ct *ct, uint8_t
 	}
 
 	ev->address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_GET_PLAYER_APP_SETTING_ATTR_TEXT_RSP, ev,
 		     sizeof(*ev) + total_len - buf->len);
 
@@ -2073,7 +2073,7 @@ static void get_player_app_setting_val_text_rsp(struct bt_avrcp_ct *ct, uint8_t 
 	}
 
 	ev->address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_GET_PLAYER_APP_SETTING_VAL_TEXT_RSP, ev,
 		     sizeof(*ev) + total_len - buf->len);
 
@@ -2110,7 +2110,7 @@ static void get_element_attrs_rsp(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t s
 				      &attr_len);
 
 	ev->address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_GET_ELEMENT_ATTRS_RSP, ev,
 		     sizeof(*ev) + total_len - buf->len);
 
@@ -2140,7 +2140,7 @@ static void get_play_status_rsp(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t sta
 	ev.song_pos = sys_cpu_to_le32(sys_be32_to_cpu(p->song_position));
 	ev.play_status = p->play_status;
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_GET_PLAY_STATUS_RSP, &ev, sizeof(ev));
 }
 
@@ -2194,7 +2194,7 @@ static void register_notification_rsp(struct bt_avrcp_ct *ct, uint8_t tid, uint8
 	ev->status = status;
 	ev->event_id = event_id;
 	ev->address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_ct_conn));
 
 	if ((data != NULL) && (data_size > 0)) {
 		switch (event_id) {
@@ -2255,7 +2255,7 @@ static void set_absolute_volume_rsp(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t
 	ev.status = status;
 	ev.volume = volume;
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_SET_ABSOLUTE_VOLUME_RSP, &ev, sizeof(ev));
 }
 
@@ -2265,7 +2265,7 @@ static void set_addressed_player_rsp(struct bt_avrcp_ct *ct, uint8_t tid, uint8_
 
 	ev.status = status;
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_SET_ADDRESSED_PLAYER_RSP, &ev, sizeof(ev));
 }
 
@@ -2275,7 +2275,7 @@ static void play_item_rsp(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t status)
 
 	ev.status = status;
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_PLAY_ITEM_RSP, &ev, sizeof(ev));
 }
 
@@ -2285,7 +2285,7 @@ static void add_to_now_playing_rsp(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t 
 
 	ev.status = status;
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_ADD_TO_NOW_PLAYING_RSP, &ev, sizeof(ev));
 }
 
@@ -2493,7 +2493,7 @@ static void get_folder_items_rsp(struct bt_avrcp_ct *ct, uint8_t tid, struct net
 
 done:
 	ev->address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_GET_FOLDER_ITEMS_RSP, ev,
 		     sizeof(*ev) + total_len - buf->len);
 
@@ -2527,7 +2527,7 @@ static void get_total_number_of_items_rsp(struct bt_avrcp_ct *ct, uint8_t tid, s
 	ev.uid_counter = sys_cpu_to_le16(sys_be16_to_cpu(p->uid_counter));
 	ev.num_items = sys_cpu_to_le32(sys_be32_to_cpu(p->num_items));
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_GET_TOTAL_NUMBER_OF_ITEMS_RSP, &ev,
 		     sizeof(ev));
 }
@@ -2590,7 +2590,7 @@ static void set_browsed_player_rsp(struct bt_avrcp_ct *ct, uint8_t tid, struct n
 	}
 
 	ev->address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_SET_BROWSED_PLAYER_RSP, ev,
 		     sizeof(*ev) + total_len - buf->len);
 
@@ -2610,7 +2610,7 @@ static void change_path_rsp(struct bt_avrcp_ct *ct, uint8_t tid, uint8_t status,
 	ev.status = status;
 	ev.num_items = num_items;
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_CHANGE_PATH_RSP, &ev, sizeof(ev));
 }
 
@@ -2648,7 +2648,7 @@ static void get_item_attrs_rsp(struct bt_avrcp_ct *ct, uint8_t tid, struct net_b
 				      &attr_len);
 
 	ev->address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_GET_ITEM_ATTRS_RSP, ev,
 		     sizeof(*ev) + total_len - buf->len);
 
@@ -2682,7 +2682,7 @@ static void search_rsp(struct bt_avrcp_ct *ct, uint8_t tid, struct net_buf *buf)
 	ev.uid_counter = sys_cpu_to_le16(sys_be16_to_cpu(p->uid_counter));
 	ev.num_items = sys_cpu_to_le32(sys_be32_to_cpu(p->num_items));
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_SEARCH_RSP, &ev, sizeof(ev));
 }
 #endif /* CONFIG_BT_AVRCP_BROWSING */
@@ -3066,6 +3066,23 @@ done:
 	return err;
 }
 
+static struct bt_conn *tg_lookup_conn_by_addr(const bt_addr_le_t *address)
+{
+	if (address->type != BTP_BR_ADDRESS_TYPE) {
+		return NULL;
+	}
+
+	if (default_tg_conn == NULL) {
+		return NULL;
+	}
+
+	if (bt_addr_eq(bt_conn_get_dst_br(default_tg_conn), &address->a)) {
+		return default_tg_conn;
+	}
+
+	return NULL;
+}
+
 static uint8_t tg_register_notification(const void *cmd, uint16_t cmd_len, void *rsp,
 					uint16_t *rsp_len)
 {
@@ -3076,7 +3093,7 @@ static uint8_t tg_register_notification(const void *cmd, uint16_t cmd_len, void 
 	sys_snode_t *removed_node;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (tg_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -3273,7 +3290,7 @@ static void tg_connected(struct bt_conn *conn, struct bt_avrcp_tg *tg)
 	/* Initialize virtual filesystem */
 	vfs_init();
 
-	default_conn = bt_conn_ref(conn);
+	default_tg_conn = bt_conn_ref(conn);
 	default_tg = tg;
 	k_work_init_delayable(&tg_send_addr_player_changed_event,
 			      tg_addr_player_changed_event_handler);
@@ -3290,11 +3307,11 @@ static void tg_disconnected(struct bt_avrcp_tg *tg)
 	k_work_cancel_delayable(&tg_send_addr_player_changed_event);
 
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_tg_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_CONTROL_DISCONNECTED, &ev, sizeof(ev));
 
-	bt_conn_unref(default_conn);
-	default_conn = NULL;
+	bt_conn_unref(default_tg_conn);
+	default_tg_conn = NULL;
 	default_tg = NULL;
 }
 
@@ -3303,7 +3320,7 @@ static void tg_browsing_connected(struct bt_conn *conn, struct bt_avrcp_tg *tg)
 	struct btp_avrcp_browsing_connected_ev ev;
 
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_tg_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_BROWSING_CONNECTED, &ev, sizeof(ev));
 }
 
@@ -3312,7 +3329,7 @@ static void tg_browsing_disconnected(struct bt_avrcp_tg *tg)
 	struct btp_avrcp_browsing_disconnected_ev ev;
 
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_tg_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_BROWSING_DISCONNECTED, &ev, sizeof(ev));
 }
 
@@ -4920,7 +4937,7 @@ static uint8_t ca_ct_disconnect(const void *cmd, uint16_t cmd_len, void *rsp, ui
 	const struct btp_avrcp_ca_ct_disconnect_cmd *cp = cmd;
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -4940,7 +4957,7 @@ static uint8_t ca_ct_get_image_props(const void *cmd, uint16_t cmd_len, void *rs
 	uint8_t image_handle[16];
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -5008,7 +5025,7 @@ static void ca_ct_get_image_props_rsp(struct bt_avrcp_cover_art_ct *ct, uint8_t 
 		memcpy(ev->body, body, body_len);
 	}
 	ev->address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_GET_IMAGE_PROPS_RSP, ev,
 		     sizeof(*ev) + body_len);
 
@@ -5037,7 +5054,7 @@ static uint8_t ca_ct_get_image(const void *cmd, uint16_t cmd_len, void *rsp, uin
 	uint8_t image_handle[16];
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -5111,7 +5128,7 @@ static void ca_ct_get_image_rsp(struct bt_avrcp_cover_art_ct *ct, uint8_t rsp_co
 		memcpy(ev->body, body, body_len);
 	}
 	ev->address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_GET_IMAGE_RSP, ev, sizeof(*ev) + body_len);
 
 	tester_rsp_buffer_free();
@@ -5140,7 +5157,7 @@ static uint8_t ca_ct_get_linked_thumbnail(const void *cmd, uint16_t cmd_len, voi
 	uint8_t image_handle[16];
 	int err;
 
-	if (get_conn_by_addr(&cp->address) == NULL) {
+	if (ct_lookup_conn_by_addr(&cp->address) == NULL) {
 		return BTP_STATUS_FAILED;
 	}
 
@@ -5208,7 +5225,7 @@ static void ca_ct_get_linked_thumbnail_rsp(struct bt_avrcp_cover_art_ct *ct, uin
 		memcpy(ev->body, body, body_len);
 	}
 	ev->address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev->address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_GET_LINKED_THUMBNAIL_RSP, ev,
 		     sizeof(*ev) + body_len);
 
@@ -5246,7 +5263,7 @@ static void ca_ct_connected(struct bt_avrcp_cover_art_ct *ct, uint8_t rsp_code, 
 	struct btp_avrcp_ca_ct_connected_ev ev;
 
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_CA_CT_CONNECTED, &ev, sizeof(ev));
 }
 
@@ -5256,7 +5273,7 @@ static void ca_ct_disconnected(struct bt_avrcp_cover_art_ct *ct, uint8_t rsp_cod
 	struct btp_avrcp_ca_ct_disconnected_ev ev;
 
 	ev.address.type = BTP_BR_ADDRESS_TYPE;
-	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_conn));
+	bt_addr_copy(&ev.address.a, bt_conn_get_dst_br(default_ct_conn));
 	tester_event(BTP_SERVICE_ID_AVRCP, BTP_AVRCP_EV_CA_CT_DISCONNECTED, &ev, sizeof(ev));
 }
 
