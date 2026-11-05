@@ -746,13 +746,13 @@ static void alarm_handler2(const struct device *dev, uint8_t chan_id,
 			   uint32_t counter,
 			   void *user_data)
 {
+	printk("!!!alarm_handler2\n");
 	if (IS_ENABLED(CONFIG_ZERO_LATENCY_IRQS)) {
 		clbk_data[alarm_cnt] = user_data;
 		alarm_cnt++;
 
 		return;
 	}
-	printk("!!! alarm_handler2\n");
 
 	clbk_data[k_sem_count_get(&alarm_cnt_sem)] = user_data;
 	k_sem_give(&alarm_cnt_sem);
@@ -898,7 +898,7 @@ static void test_all_channels_instance(const struct device *dev)
 	printk("cnt = %u, alarm_cnt = %u, nchan = %u\n", cnt, alarm_cnt, nchan);
 	printk("TSR = 0x%x, TPR = 0x%x, TAR = 0x%x, TCR = 0x%x, CR = 0x%x, SR = 0x%x, IER = 0x%x\n",
 		RTC->TSR, RTC->TPR, RTC->TAR, RTC->TCR, RTC->CR, RTC->SR, RTC->IER);
-	printk("PTC2 = 0x%x, PTC3 = 0x%x\n", PORTC->PCR2, PORTC->PCR3);
+	printk("PTC2 = 0x%x, PTC3 = 0x%x\n", PORTC->PCR[2], PORTC->PCR[3]);
 	zassert_equal(nchan, cnt,
 			"%s: Expecting alarm callback", dev->name);
 

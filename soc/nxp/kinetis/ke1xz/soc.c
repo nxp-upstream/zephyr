@@ -185,6 +185,7 @@ __weak void clk_init(void)
 	CLOCK_InitSysOsc(&scg_sosc_config);
 	CLOCK_SetXtal0Freq(scg_sosc_config.freq);
 #endif
+	//OSC32_Init(OSC32, kOSC32_CrystalEnableInStop);
 
 	CLOCK_CONFIG_FircSafeConfig(&scg_firc_config);
 	CLOCK_InitSirc(&scg_sirc_config);
