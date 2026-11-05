@@ -1,0 +1,58 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config ADC_NAFE13388
+	bool "NXP NAFE13388 analog front-end driver"
+	default y
+	depends on DT_HAS_NXP_NAFE13388_ENABLED
+	select SPI
+	select GPIO
+	select ADC_CONFIGURABLE_INPUTS
+	select ADC_CONFIGURABLE_EXCITATION_CURRENT_SOURCE_PIN
+	help
+	  Enable the driver for the NXP NAFE13388 8/4-channel, 24/16-bit
+	  universal input analog front-end with SPI interface.
+
+if ADC_NAFE13388
+
+config ADC_NAFE13388_DRDY_TIMEOUT_MS
+	int "Timeout for the data ready signal in milliseconds"
+	default 100
+	range 1 10000
+	help
+	  Margin of the time the driver waits for the DRDY interrupt after a
+	  conversion command, and for the end of a conversion after a stop with
+	  END. The driver adds the time that the enabled channels need at their
+	  data rate, settling mode, chopping and channel delay (Table 7 of the
+	  data sheet, up to 667 ms per channel at code 28). When the total
+	  expires, the conversion is aborted and the read fails. This is a
+	  watchdog, normal conversions finish much earlier.
+
+config ADC_NAFE13388_ACQUISITION_THREAD_STACK_SIZE
+	int "Stack size for the ADC data acquisition thread"
+	default 1024
+	help
+	  Size of the stack used for the internal data acquisition thread. The
+	  callback of a continuous reading of the extension API runs on this
+	  thread, so it has to fit the stack use of the callback too. The
+	  default is a guess and has not been measured.
+
+config ADC_NAFE13388_ACQUISITION_THREAD_PRIO
+	int "Priority for the ADC data acquisition thread"
+	default 0
+	help
+	  Priority level for the internal ADC data acquisition thread.
+
+config ADC_NAFE13388_CHIP_READY_TIMEOUT_MS
+	int "Timeout for the chip ready flag after reset in milliseconds"
+	default 100
+	range 1 1000
+	help
+	  Maximum time the driver waits for SYS_STATUS0.CHIP_READY after the
+	  hardware reset. The device reloads its NVM and detects the clock
+	  source during this time. The data sheet gives up to 50 ms for the
+	  automatic clock switching when an external clock or a crystal is
+	  used and no time for the internal oscillator. The default of 100 ms
+	  is a margin chosen by the driver.
+
+endif # ADC_NAFE13388
