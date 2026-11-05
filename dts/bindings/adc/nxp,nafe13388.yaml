@@ -1,0 +1,284 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  NXP NAFE13388 8/4-channel, 24/16-bit universal input analog front-end.
+
+  The device is controlled over SPI and has 16 logical channels. Each logical
+  channel is described by a child node whose "reg" is the logical channel
+  number (0..15) used as ADC channel_id.
+
+  High voltage channels must be differential ("zephyr,differential" with
+  "zephyr,input-positive" and "zephyr,input-negative"). The code of the device
+  is the same signed 24 bit code for every input type (data sheet Table 5 and
+  Table 20), and adc_raw_to_millivolts() is only right for a channel that is
+  declared differential, because the helper takes one bit off the resolution
+  for those. For a single ended signal use the negative input NAFE13388_HV_GND
+  (internal ground) or NAFE13388_HV_AICOM (the analog common input).
+  Low voltage channels (nxp,input-select = "lv") are not affected.
+
+  Sample node:
+
+  #include <zephyr/dt-bindings/adc/adc.h>
+  #include <zephyr/dt-bindings/adc/nafe13388.h>
+
+  &spi1 {
+      nafe: nafe13388@0 {
+          compatible = "nxp,nafe13388";
+          reg = <0>;
+          spi-max-frequency = <10000000>;
+          spi-cpha;
+          drdy-gpios = <&gpio0 4 GPIO_ACTIVE_HIGH>;
+          reset-gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
+          #address-cells = <1>;
+          #size-cells = <0>;
+          #io-channel-cells = <1>;
+
+          channel@0 {
+              reg = <0>;
+              zephyr,gain = "ADC_GAIN_1";
+              zephyr,reference = "ADC_REF_INTERNAL";
+              zephyr,acquisition-time = <ADC_ACQ_TIME(ADC_ACQ_TIME_TICKS, 4)>;
+              zephyr,resolution = <24>;
+              zephyr,differential;
+              zephyr,input-positive = <NAFE13388_HV_AI1>;
+              zephyr,input-negative = <NAFE13388_HV_GND>;
+          };
+      };
+  };
+
+  The "acquisition-time" of a channel carries the ADC data rate code
+  (ADC_DATA_RATE[4:0], 0..28) in ADC_ACQ_TIME_TICKS units.
+
+  The channels of the devicetree are set up when the driver initialises. A later
+  adc_channel_setup() is refused with -EBUSY while a read or a reading of the
+  extension API runs (data sheet 7.4.2.2: a change of the channel in use only
+  takes effect with the next conversion command): stop the reading, set up the
+  channel, start the reading again.
+
+  Input and option constants are in
+  include/zephyr/dt-bindings/adc/nafe13388.h.
+
+compatible: "nxp,nafe13388"
+
+include: [adc-controller.yaml, spi-device.yaml]
+
+properties:
+  drdy-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      Data ready output of the device. The pulse is only two system clocks
+      long (about 434 ns), so the driver uses a rising edge interrupt on this
+      pin. The pin must be flagged as active high.
+
+  reset-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      Reset input RSTB of the device. The pin is active low, so the GPIO
+      must be flagged GPIO_ACTIVE_LOW.
+
+  sync-gpios:
+    type: phandle-array
+    description: |
+      Optional SYNC input of the device, used when conversions are started
+      by a pulse on the SYNC pin instead of an SPI command. The device starts
+      a conversion on the rising edge, so the pin must be flagged as active
+      high.
+
+  intb-gpios:
+    type: phandle-array
+    description: |
+      Optional INTB output (global alarm interrupt) of the device. The pin is
+      active low.
+
+  nxp,dev-addr:
+    type: int
+    default: 0
+    enum:
+      - 0
+      - 1
+    description: |
+      Level of the SPI_ADDR pin of the device. It is sent as the first bit of
+      every SPI command and selects one of two devices that share a chip
+      select. The pin has an internal 100 kohm pulldown (data sheet pin
+      description), so the address is 0 when the pin is left open. Set 1 when
+      SPI_ADDR is tied high.
+
+  nxp,clock-source:
+    type: int
+    default: 0
+    enum:
+      - 0
+      - 2
+      - 3
+    description: |
+      Clock source selection (SYS_CONFIG0.CK_SRC_SEL). See the
+      NAFE13388_CLK_* constants in the binding header.
+        0: internal oscillator
+        2: external 18.432 MHz clock at the XI pin
+        3: 18.432 MHz crystal at the XI and XO pins
+
+  nxp,reference-select:
+    type: int
+    default: 0
+    enum:
+      - 0
+      - 1
+      - 2
+      - 3
+    description: |
+      Reference selection (SYS_CONFIG0.REF_SEL).
+        0: internal reference for the PGA and the ADC
+        1: internal for the PGA, external for the ADC
+        2: external for the PGA, internal for the ADC
+        3: external for the PGA and the ADC
+
+  nxp,drdy-wide-pulse:
+    type: boolean
+    description: |
+      Make the DRDY pulse 8 system clocks long instead of 2
+      (SYS_CONFIG0.DRDY_PWDT).
+
+  "#io-channel-cells":
+    const: 1
+
+io-channel-cells:
+  - input
+
+child-binding:
+  description: NAFE13388 logical channel (reg is the channel number 0..15)
+
+  properties:
+    reg:
+      type: array
+      required: true
+
+    zephyr,resolution:
+      default: 24
+      enum:
+        - 16
+        - 24
+
+    zephyr,oversampling:
+      default: 0
+
+    nxp,input-select:
+      type: string
+      default: "hv"
+      enum:
+        - "hv"
+        - "lv"
+      description: |
+        Select the high voltage multiplexer (HV_SEL = 1, the pins in
+        zephyr,input-positive/negative) or one of the low voltage diagnostic
+        signals (HV_SEL = 0, see nxp,lv-signal). adc_raw_to_millivolts() is
+        only valid for the high voltage differential channels; the codes of
+        the low voltage channels need the conversion of Table 20 of the data
+        sheet.
+
+    nxp,lv-signal:
+      type: int
+      default: 0
+      enum: [0, 1, 2, 3, 4, 5]
+      description: |
+        Low voltage signal selection (LVSIG_IN), only used when
+        nxp,input-select is "lv". See the NAFE13388_LV_* constants.
+
+    nxp,sinc:
+      type: int
+      default: 0
+      enum: [0, 1, 2, 3, 4]
+      description: |
+        Second stage SINC filter (ADC_SINC). See the NAFE13388_SINC*
+        constants. Select a filter (NAFE13388_SINC1 to NAFE13388_SINC4) for
+        the slow data rates of "zephyr,acquisition-time". With the default,
+        NAFE13388_SINC_BYPASS, the conversion of a channel was seen to take
+        about 220 us at data rate code 19, against about 10 ms with
+        NAFE13388_SINC1. This is an observation on one board, the data sheet
+        was not checked for the reason.
+
+    nxp,channel-delay:
+      type: int
+      default: 0
+      description: |
+        Channel delay code (CH_DELAY[5:0], 0..63) inserted before the
+        conversion starts. The code selects a number of system clock cycles
+        from a table in the data sheet.
+
+    nxp,normal-settling:
+      type: boolean
+      description: |
+        Use normal settling instead of single-cycle settling
+        (ADC_NORMAL_SETTLING).
+
+    nxp,filter-reset:
+      type: boolean
+      description: |
+        Reset the digital filters at the start of every conversion
+        (ADC_FILTER_RESET).
+
+    nxp,chop:
+      type: boolean
+      description: |
+        Precision mode, two conversions with input chopping (CH_CHOP).
+
+    nxp,tcc-off:
+      type: boolean
+      description: |
+        Disable the channel temperature coefficient correction (TCC_OFF).
+
+    nxp,excitation-current:
+      type: boolean
+      description: |
+        The excitation source of this channel is a current source. A voltage
+        source is used when the property is not set (VIEX_VI).
+
+    nxp,excitation-magnitude:
+      type: int
+      default: 0
+      enum: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+      description: |
+        Excitation source magnitude code (VIEX_MAG[3:0], 0..15). Zero switches
+        the source off.
+
+    nxp,excitation-negative:
+      type: boolean
+      description: |
+        Negative excitation polarity (VIEX_POL).
+
+    nxp,excitation-chop:
+      type: boolean
+      description: |
+        Chop the polarity of the excitation source with two conversions per
+        reading (VIEX_CHOP). It is ignored by the device when nxp,chop is set.
+        The setting must be the same for all channels of a sequence.
+
+    nxp,vexc-enable:
+      type: boolean
+      description: |
+        Route the excitation voltage source to the high voltage multiplexer
+        (VEXC_EN).
+
+    nxp,open-wire-current:
+      type: boolean
+      description: |
+        Source the 65 nA open wire detection current (OPEN_DET_CURRENT). The
+        bit takes precedence over the excitation current/voltage selection.
+
+    nxp,calibration-pair:
+      type: int
+      default: 0
+      enum: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+      description: |
+        Index (0..15) of the gain and offset coefficient pair used by this
+        channel (CH_CAL_GAIN_OFFSET).
+
+    nxp,threshold-pair:
+      type: int
+      default: 0
+      enum: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+      description: |
+        Index (0..15) of the over- and under-range threshold pair used by this
+        channel (CH_THRS).
