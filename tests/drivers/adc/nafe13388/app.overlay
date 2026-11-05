@@ -1,0 +1,116 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/adc/adc.h>
+#include <zephyr/dt-bindings/adc/nafe13388.h>
+
+/*
+ * Four devices on the SPI emulation bus. nafe1 is initialised at boot and used
+ * by most tests. The deferred ones are initialised by the init tests, once each,
+ * to check the init sequence and its error paths.
+ */
+&spi0 {
+	nafe1: nafe13388@0 {
+		compatible = "nxp,nafe13388";
+		reg = <0>;
+		nxp,dev-addr = <1>;
+		spi-max-frequency = <1000000>;
+		drdy-gpios = <&gpio0 1 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio0 2 GPIO_ACTIVE_LOW>;
+		sync-gpios = <&gpio0 3 GPIO_ACTIVE_HIGH>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#io-channel-cells = <1>;
+
+		channel@0 {
+			reg = <0>;
+			zephyr,gain = "ADC_GAIN_1";
+			zephyr,reference = "ADC_REF_INTERNAL";
+			zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+			zephyr,resolution = <24>;
+			zephyr,differential;
+			zephyr,input-positive = <NAFE13388_HV_AI1>;
+			zephyr,input-negative = <NAFE13388_HV_AICOM>;
+		};
+
+		channel@1 {
+			reg = <1>;
+			zephyr,gain = "ADC_GAIN_1";
+			zephyr,reference = "ADC_REF_INTERNAL";
+			zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+			zephyr,resolution = <16>;
+			zephyr,differential;
+			zephyr,input-positive = <NAFE13388_HV_AI2>;
+			zephyr,input-negative = <NAFE13388_HV_AICOM>;
+		};
+	};
+
+	nafe2: nafe13388@1 {
+		compatible = "nxp,nafe13388";
+		reg = <1>;
+		spi-max-frequency = <1000000>;
+		zephyr,deferred-init;
+		nxp,dev-addr = <0>;
+		nxp,clock-source = <NAFE13388_CLK_EXTERNAL>;
+		nxp,reference-select = <2>;
+		nxp,drdy-wide-pulse;
+		drdy-gpios = <&gpio0 4 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
+		sync-gpios = <&gpio0 6 GPIO_ACTIVE_HIGH>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#io-channel-cells = <1>;
+
+		channel@3 {
+			reg = <3>;
+			zephyr,gain = "ADC_GAIN_2";
+			zephyr,reference = "ADC_REF_INTERNAL";
+			zephyr,acquisition-time = <ADC_ACQ_TIME(ADC_ACQ_TIME_TICKS, 7)>;
+			zephyr,resolution = <24>;
+			zephyr,differential;
+			zephyr,input-positive = <NAFE13388_HV_AI2>;
+			zephyr,input-negative = <NAFE13388_HV_AI3>;
+		};
+	};
+
+	/* Initialised at boot, no sync-gpios, no channels, nxp,dev-addr left at the default */
+	nafe5: nafe13388@4 {
+		compatible = "nxp,nafe13388";
+		reg = <4>;
+		spi-max-frequency = <1000000>;
+		drdy-gpios = <&gpio0 11 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio0 12 GPIO_ACTIVE_LOW>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#io-channel-cells = <1>;
+	};
+
+	nafe3: nafe13388@2 {
+		compatible = "nxp,nafe13388";
+		reg = <2>;
+		nxp,dev-addr = <1>;
+		spi-max-frequency = <1000000>;
+		zephyr,deferred-init;
+		drdy-gpios = <&gpio0 7 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio0 8 GPIO_ACTIVE_LOW>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#io-channel-cells = <1>;
+	};
+
+	nafe4: nafe13388@3 {
+		compatible = "nxp,nafe13388";
+		reg = <3>;
+		nxp,dev-addr = <1>;
+		spi-max-frequency = <1000000>;
+		zephyr,deferred-init;
+		drdy-gpios = <&gpio0 9 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio0 10 GPIO_ACTIVE_LOW>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#io-channel-cells = <1>;
+	};
+};
