@@ -171,6 +171,7 @@
 
 &rtc {
 	clock-source = "LPO";
+	prescaler = <32768>;
 	status = "okay";
 };
 

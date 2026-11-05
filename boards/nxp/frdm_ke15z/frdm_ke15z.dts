@@ -214,3 +214,9 @@
 &lpit0 {
     status = "okay";
 };
+
+&rtc {
+	clock-source = "RTC";
+	status = "okay";
+};
+
