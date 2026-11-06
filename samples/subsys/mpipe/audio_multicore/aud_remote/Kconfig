@@ -1,0 +1,114 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+# The audio format and the functions of the remote audio server. The
+# sysbuild.cmake of each sample sets the sample rate and the functions from
+# its own sysbuild options, so that the server serves what the Cortex-M33
+# pipeline opens, in the format it captures. The channel count and the block
+# duration are negotiated: the Cortex-M33 sets them with each format, within
+# the limits below, which prj.conf sets.
+
+menu "Remote audio server"
+
+config AUD_REMOTE_SAMPLE_RATE
+	int "Sample rate, in Hz"
+	default 16000
+	help
+	  Rate of the PCM blocks the Cortex-M33 sends. It must be one of the
+	  AUDIO_SAMPLE_RATE_* rates of zephyr/audio/audio_caps.h, written in
+	  decimal: the server pastes it into that macro name.
+
+config AUD_REMOTE_FRAME_INTERVAL_US
+	int "Duration of one audio block, in microseconds"
+	default 16000
+	help
+	  Each block holds AUD_REMOTE_SAMPLE_RATE x this interval samples.
+	  With fft or ifft, that count is the FFT length and must be a power
+	  of two.
+
+config AUD_REMOTE_PCM_BIT_WIDTH
+	int "PCM sample width, in bits"
+	default 32
+	help
+	  Width of one PCM sample of one channel. The functions process
+	  32-bit samples only, the width the MICFIL driver of the Cortex-M33
+	  produces; the build fails for any other value.
+
+config AUD_REMOTE_MAX_CHANNELS
+	int "Most channels of a block"
+	default 2
+	range 1 2
+	help
+	  The PCM and FFT formats take 1 to this many channels. ifft writes
+	  its output as stereo, so it needs 2.
+
+config AUD_REMOTE_MIN_BLOCK_SAMPLES
+	int "Fewest samples of one channel in a block"
+	default 4
+	range 4 AUD_REMOTE_MAX_BLOCK_SAMPLES
+	help
+	  Shortest block the server takes. With the sample rate, it gives the
+	  shortest frame interval the server advertises. 4 is the shortest
+	  block the FFT takes. The server refuses any block that does not
+	  hold a power of two samples, whatever the function.
+
+config AUD_REMOTE_MAX_BLOCK_SAMPLES
+	int "Most samples of one channel in a block"
+	default 1024
+	range 4 4096
+	help
+	  Longest block the server takes, and the longest FFT. It must be a
+	  power of two. Every input and output buffer is sized for a block
+	  of this many samples of AUD_REMOTE_MAX_CHANNELS channels, and each
+	  fft or ifft instance has work memory of 8 bytes per sample, so the
+	  memory of the server grows with this value.
+
+config AUD_REMOTE_BUF_ALIGN
+	int "Buffer alignment, in bytes"
+	default DCACHE_LINE_SIZE if DCACHE
+	default 64
+	help
+	  Alignment and size granularity of the input and output buffers.
+	  The buffers are flushed and invalidated by cache line, so this
+	  must be a power of two and a multiple of DCACHE_LINE_SIZE: a
+	  buffer that shares a line with other data loses the writes made
+	  to that data when the buffer is invalidated.
+
+config AUD_REMOTE_LOG_BUF_SIZE
+	int "Log buffer size, in bytes"
+	default 2048
+	range 256 65536
+	help
+	  The server keeps its log lines in a buffer of this size until the
+	  Cortex-M33 reads them with aud_log_read_rpc. A line that does not
+	  fit is dropped and counted; the Cortex-M33 prints the count. It
+	  must be a power of two.
+
+config AUD_REMOTE_FUNC_GAIN
+	bool "Gain function"
+	help
+	  Scale each 32-bit PCM sample of every channel by
+	  AUD_REMOTE_GAIN_PERCENT, clamped to the 32-bit range.
+
+config AUD_REMOTE_GAIN_PERCENT
+	int "Gain, in percent"
+	depends on AUD_REMOTE_FUNC_GAIN
+	default 100
+	range 0 10000
+
+config AUD_REMOTE_FUNC_FFT
+	bool "FFT function"
+	help
+	  Turn each channel of a PCM block into its complex spectrum
+	  (MPIPE_MEDIA_AUDIO_FFT): a radix-2 float FFT of one block, with no
+	  window and no overlap.
+
+config AUD_REMOTE_FUNC_IFFT
+	bool "Inverse FFT function"
+	help
+	  Turn the spectra of a block back into a 32-bit stereo PCM block:
+	  each channel to its own side, or a single channel to both.
+
+endmenu
+
+source "Kconfig.zephyr"

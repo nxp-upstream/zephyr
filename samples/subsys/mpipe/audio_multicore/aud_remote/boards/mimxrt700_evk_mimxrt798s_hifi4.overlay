@@ -1,0 +1,46 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	aliases {
+		/* The IPC instance eRPC runs over */
+		erpc-ipc = &ipc0;
+	};
+
+	ipc {
+		ipc0: ipc0 {
+			compatible = "nxp,ipc-rpmsg-lite";
+			/*
+			 * Same area as the IPC shared memory at 0x20584000 in the
+			 * Cortex-M33 devicetree of each sample
+			 */
+			memory-region = <&sram_shared1>;
+			/* The Cortex-M33 rings MU4 channel 0, this core rings back on 1 */
+			mboxes = <&mbox4_b 1>, <&mbox4_b 0>;
+			mbox-names = "tx", "rx";
+			link-id = <0>;
+			role = "remote";
+			buffer-size = <1024>;
+			status = "okay";
+		};
+	};
+};
+
+&mbox4_b {
+	status = "okay";
+};
+
+/*
+ * The board console LPUART belongs to the Cortex-M33 shell: this core leaves
+ * its Flexcomm alone, and keeps its log for the Cortex-M33 instead
+ */
+&flexcomm0_lpuart0 {
+	status = "disabled";
+};
+
+&flexcomm0 {
+	status = "disabled";
+};
