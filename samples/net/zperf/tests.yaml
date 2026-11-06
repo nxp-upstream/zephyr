@@ -153,6 +153,13 @@ tests:
       - zperf
     platform_allow:
       - mimxrt1170_evk/mimxrt1176/cm7
+  sample.net.zperf.nxp_enet_qos:
+    extra_args: EXTRA_DTC_OVERLAY_FILE="nxp,enet_qos.overlay"
+    tags:
+      - net
+      - zperf
+    platform_allow:
+      - mimxrt1170_evk/mimxrt1176/cm7
   sample.net.zperf.802154.subg:
     extra_args: EXTRA_CONF_FILE="overlay-802154-subg.conf"
     tags:
