@@ -12,6 +12,12 @@
 #include <zephyr/net/ethernet.h>
 #include <zephyr/drivers/ethernet/eth_nxp_enet_qos.h>
 
+#if defined(CONFIG_NOCACHE_MEMORY)
+#define _nxp_enet_qos_desc_section __nocache
+#else
+#define _nxp_enet_qos_desc_section
+#endif
+
 /* shorthands */
 #define NUM_TX_BUFDESC CONFIG_ETH_NXP_ENET_QOS_TX_BUFFER_DESCRIPTORS
 #define NUM_RX_BUFDESC CONFIG_ETH_NXP_ENET_QOS_RX_BUFFER_DESCRIPTORS
@@ -69,6 +75,15 @@
 #endif
 
 #define NUM_SWR_WAIT_CHUNKS 5
+
+/* MTL queue size in RQS/TQS units of 256 bytes. The whole RT11xx FIFO goes to
+ * queue 0, the only queue this driver enables.
+ */
+#if defined(CONFIG_SOC_SERIES_IMXRT11XX)
+#define ENET_QOS_MTL_QUEUE_SIZE_UNITS 32
+#else
+#define ENET_QOS_MTL_QUEUE_SIZE_UNITS 8
+#endif
 
 struct nxp_enet_qos_tx_read_desc {
 	union {
@@ -137,6 +152,8 @@ struct nxp_enet_qos_mac_config {
 	struct nxp_enet_qos_hw_info hw_info;
 	void (*irq_config_func)(void);
 	enum mac_address_source mac_addr_source;
+	volatile union nxp_enet_qos_tx_desc *tx_descriptors;
+	volatile union nxp_enet_qos_rx_desc *rx_descriptors;
 #if IS_ENABLED(CONFIG_PTP_CLOCK_NXP_ENET_QOS)
 	const struct device *ptp_clock;
 #endif
@@ -172,14 +189,14 @@ struct nxp_enet_qos_tx_data {
 	bool watchdog_seq_valid;
 	bool aborting;
 	struct nxp_enet_qos_tx_frame frames[NUM_TX_BUFDESC];
-	volatile union nxp_enet_qos_tx_desc descriptors[NUM_TX_BUFDESC];
+	volatile union nxp_enet_qos_tx_desc *descriptors;
 };
 
 struct nxp_enet_qos_rx_data {
 	struct k_work rx_work;
 	atomic_t rbu_flag;
 	uint32_t next_desc_idx;
-	volatile union nxp_enet_qos_rx_desc descriptors[NUM_RX_BUFDESC];
+	volatile union nxp_enet_qos_rx_desc *descriptors;
 	struct net_buf *reserved_bufs[NUM_RX_BUFDESC];
 	struct net_pkt *pkt;
 	size_t processed_len;
@@ -188,6 +205,8 @@ struct nxp_enet_qos_rx_data {
 struct nxp_enet_qos_mac_data {
 	struct net_if *iface;
 	struct net_eth_addr mac_addr;
+	bool hw_ready;
+
 	struct nxp_enet_qos_tx_data tx;
 	struct nxp_enet_qos_rx_data rx;
 };

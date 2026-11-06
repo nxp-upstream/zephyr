@@ -18,6 +18,7 @@ LOG_MODULE_REGISTER(mdio_nxp_enet_qos, CONFIG_MDIO_LOG_LEVEL);
 
 struct nxp_enet_qos_mdio_config {
 	const struct device *enet_dev;
+	const struct pinctrl_dev_config *pincfg;
 };
 
 struct nxp_enet_qos_mdio_data {
@@ -228,6 +229,13 @@ static int nxp_enet_qos_mdio_init(const struct device *dev)
 		return ret;
 	}
 
+	if (mdio_config->pincfg != NULL) {
+		ret = pinctrl_apply_state(mdio_config->pincfg, PINCTRL_STATE_DEFAULT);
+		if (ret != 0) {
+			return ret;
+		}
+	}
+
 	ret = clock_control_get_rate(config->clock_dev, config->clock_subsys,
 				     &enet_module_clk_rate);
 	if (ret) {
@@ -257,11 +265,22 @@ static int nxp_enet_qos_mdio_init(const struct device *dev)
 	return 0;
 }
 
+/* Nodes without pinctrl-0 resolve pincfg to NULL and skip the apply. */
+#define NXP_ENET_QOS_MDIO_PINCTRL_DEFINE(inst)					\
+	IF_ENABLED(DT_INST_NODE_HAS_PROP(inst, pinctrl_0),			\
+		   (PINCTRL_DT_INST_DEFINE(inst);))
+
+#define NXP_ENET_QOS_MDIO_PINCTRL_GET(inst)					\
+	COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, pinctrl_0),			\
+		    (PINCTRL_DT_INST_DEV_CONFIG_GET(inst)), (NULL))
+
 #define NXP_ENET_QOS_MDIO_INIT(inst)						\
+	NXP_ENET_QOS_MDIO_PINCTRL_DEFINE(inst)					\
 										\
 	static const struct nxp_enet_qos_mdio_config				\
 	nxp_enet_qos_mdio_cfg_##inst = {					\
 		.enet_dev = DEVICE_DT_GET(DT_INST_PARENT(inst)),		\
+		.pincfg = NXP_ENET_QOS_MDIO_PINCTRL_GET(inst),			\
 	};									\
 										\
 	static struct nxp_enet_qos_mdio_data nxp_enet_qos_mdio_data_##inst;	\

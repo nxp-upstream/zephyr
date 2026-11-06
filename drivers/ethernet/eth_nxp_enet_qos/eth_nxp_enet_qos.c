@@ -17,6 +17,7 @@ LOG_MODULE_REGISTER(eth_nxp_enet_qos, CONFIG_ETHERNET_LOG_LEVEL);
 #include <zephyr/kernel/thread_stack.h>
 #include <zephyr/sys/barrier.h>
 #include <zephyr/sys/clock.h>
+#include <zephyr/cache.h>
 
 #if defined(CONFIG_ETH_NXP_ENET_QOS_UNIQUE_MAC_ADDRESS)
 #include <zephyr/sys/crc.h>
@@ -33,8 +34,25 @@ LOG_MODULE_REGISTER(eth_nxp_enet_qos, CONFIG_ETHERNET_LOG_LEVEL);
 BUILD_ASSERT((ENET_QOS_RX_BUFFER_SIZE * NUM_RX_BUFDESC) >= ENET_QOS_MAX_FRAME_LEN,
 	"ENET_QOS_RX_BUFFER_SIZE * NUM_RX_BUFDESC is not large enough to receive a full frame");
 
+/* Two fragments share a descriptor and one descriptor always stays unused. */
+BUILD_ASSERT(NUM_TX_BUFDESC - 1 >=
+	     DIV_ROUND_UP(DIV_ROUND_UP(ENET_QOS_MAX_FRAME_LEN, CONFIG_NET_BUF_DATA_SIZE) + 1, 2),
+	"ENET_QOS_TX_BUFFER_DESCRIPTORS too small to transmit a full frame");
+
 static const uint32_t rx_desc_refresh_flags =
 	OWN_FLAG | RX_INTERRUPT_ON_COMPLETE_FLAG | BUF1_ADDR_VALID_FLAG;
+
+/* The writeback overlays the whole read format, so every word is rewritten and
+ * OWN (in RDES3) last, or the DMA may see a half-refreshed descriptor.
+ */
+static inline void rx_desc_refresh(volatile union nxp_enet_qos_rx_desc *desc, void *buf_addr)
+{
+	desc->read.buf1_addr = (uint32_t)buf_addr;
+	desc->read.reserved = 0U;
+	desc->read.buf2_addr = 0U;
+	barrier_dmem_fence_full();
+	desc->read.control = rx_desc_refresh_flags;
+}
 
 #define ENET_QOS_TX_FLUSH_TIMEOUT_US 1000U
 
@@ -88,6 +106,7 @@ SYS_INIT(rx_queue_init, POST_KERNEL, 0);
 
 static inline void enet_qos_tx_desc_init(enet_qos_t *base, struct nxp_enet_qos_tx_data *tx);
 static void tx_dma_done(const struct device *dev);
+static int eth_nxp_enet_qos_hw_init(const struct device *dev);
 
 /*
  * Takes the packet a frame record was given, if it is still there to return,
@@ -103,24 +122,6 @@ static struct net_pkt *enet_qos_tx_frame_claim(struct nxp_enet_qos_tx_frame *fra
 	irq_unlock(key);
 
 	return pkt;
-}
-
-/* Returns a claimed packet and its fragments to their pools. */
-static void enet_qos_tx_free_pkt(struct net_pkt *pkt)
-{
-	struct net_buf *fragment = pkt->frags;
-
-	while (fragment != NULL) {
-		/* Read the link before dropping the reference: the buffer
-		 * may be freed the moment the last holder lets go of it.
-		 */
-		struct net_buf *next = fragment->frags;
-
-		net_pkt_frag_unref(fragment);
-		fragment = next;
-	}
-
-	net_pkt_unref(pkt);
 }
 
 /*
@@ -157,10 +158,8 @@ static void enet_qos_tx_abort(const struct device *dev)
 	tx->frame_tail = 0U;
 	tx->frame_used = 0U;
 
-	/* Claiming the packet serializes teardown, the losing caller returns
-	 * on the NULL check above and a new send cannot start before the
-	 * release below returns the slot, so the register read-modify-writes
-	 * here have no concurrent writer.
+	/* The aborting flag excludes a second abort and every producer, so the
+	 * register read-modify-writes below have no concurrent writer.
 	 */
 	base->DMA_CH[0].DMA_CHX_TX_CTRL &= ~ENET_QOS_REG_PREP(DMA_CH_DMA_CHX_TX_CTRL, ST, 0b1);
 
@@ -168,9 +167,8 @@ static void enet_qos_tx_abort(const struct device *dev)
 
 	LOG_WRN("%s abandoning %u outstanding transmit frames", dev->name, used);
 
-	/* Wait for the DMA to reach its stopped state, then take the MAC
-	 * transmitter down, so the queue flush below cannot deadlock against
-	 * a transfer the MAC is still clocking out.
+	/* The MAC transmitter may go down only once the DMA has stopped, or the
+	 * flush below deadlocks against a transfer still being clocked out.
 	 */
 	flush_wait_us = 0;
 	while (ENET_QOS_REG_GET(DMA_DEBUG_STATUS0, TPS0, base->DMA_DEBUG_STATUS0) != 0U) {
@@ -216,7 +214,7 @@ static void enet_qos_tx_abort(const struct device *dev)
 
 		if (pkt != NULL) {
 			eth_stats_update_errors_tx(data->iface);
-			enet_qos_tx_free_pkt(pkt);
+			net_pkt_unref(pkt);
 		}
 	}
 
@@ -295,8 +293,18 @@ static void eth_nxp_enet_qos_phy_cb(const struct device *phy,
 		 * returns the packet and the transmit slot never arrives.
 		 * Reclaim both here.
 		 */
-		enet_qos_tx_abort(dev);
+		if (data->hw_ready) {
+			enet_qos_tx_abort(dev);
+		}
 		return;
+	}
+
+	if (!data->hw_ready) {
+		if (eth_nxp_enet_qos_hw_init(dev) != 0) {
+			LOG_ERR("%s hardware init failed", dev->name);
+			return;
+		}
+		data->hw_ready = true;
 	}
 
 	/* Speed and duplex live in the MAC configuration register, which may
@@ -309,12 +317,18 @@ static void eth_nxp_enet_qos_phy_cb(const struct device *phy,
 					    ENET_QOS_REG_PREP(MAC_CONFIGURATION, RE, 0b1));
 	base->MAC_CONFIGURATION = mac_configuration;
 
-	if (PHY_LINK_IS_SPEED_10M(state->speed)) {
-		LOG_DBG("Link Speed reduced to 10MBit");
-		mac_configuration &= ~ENET_QOS_REG_PREP(MAC_CONFIGURATION, FES, 0b1);
+	mac_configuration &= ~(ENET_QOS_REG_PREP(MAC_CONFIGURATION, PS, 0b1) |
+			       ENET_QOS_REG_PREP(MAC_CONFIGURATION, FES, 0b1));
+
+	if (PHY_LINK_IS_SPEED_1000M(state->speed)) {
+		LOG_DBG("Link Speed 1000MBit");
+	} else if (PHY_LINK_IS_SPEED_100M(state->speed)) {
+		LOG_DBG("Link Speed 100MBit");
+		mac_configuration |= ENET_QOS_REG_PREP(MAC_CONFIGURATION, PS, 0b1) |
+				     ENET_QOS_REG_PREP(MAC_CONFIGURATION, FES, 0b1);
 	} else {
-		LOG_DBG("Link Speed 100MBit or higher");
-		mac_configuration |= ENET_QOS_REG_PREP(MAC_CONFIGURATION, FES, 0b1);
+		LOG_DBG("Link Speed 10MBit");
+		mac_configuration |= ENET_QOS_REG_PREP(MAC_CONFIGURATION, PS, 0b1);
 	}
 
 	if (PHY_LINK_IS_FULL_DUPLEX(state->speed)) {
@@ -377,6 +391,10 @@ static int eth_nxp_enet_qos_tx(const struct device *dev, struct net_pkt *pkt)
 	bool timestamp = false;
 	unsigned int key;
 
+	if (!data->hw_ready) {
+		return -ENETDOWN;
+	}
+
 	/* Only allow send of the maximum normal packet size */
 	while (fragment != NULL) {
 		frags_count++;
@@ -384,7 +402,7 @@ static int eth_nxp_enet_qos_tx(const struct device *dev, struct net_pkt *pkt)
 		fragment = fragment->frags;
 
 		if (total_bytes > config->hw_info.max_frame_len ||
-			frags_count > NUM_TX_BUFDESC) {
+		    (frags_count + 1) / 2 > NUM_TX_BUFDESC - 1) {
 			LOG_ERR("TX packet too large");
 			return -E2BIG;
 		}
@@ -409,8 +427,7 @@ static int eth_nxp_enet_qos_tx(const struct device *dev, struct net_pkt *pkt)
 	    tx->desc_used + frame_descs > NUM_TX_BUFDESC - 1 ||
 	    tx->frame_used >= NUM_TX_BUFDESC) {
 		irq_unlock(key);
-		LOG_DBG("%s TX ring full, rejected thread %s", dev->name,
-			k_thread_name_get(k_current_get()));
+		LOG_DBG("%s TX ring full, packet %p rejected", dev->name, pkt);
 		return -EBUSY;
 	}
 
@@ -426,11 +443,11 @@ static int eth_nxp_enet_qos_tx(const struct device *dev, struct net_pkt *pkt)
 
 		memset((void *)desc, 0, sizeof(*desc));
 
-		net_pkt_frag_ref(fragment);
-
 		desc->read.buf1_addr = (uint32_t)fragment->data;
 		desc->read.control1 = FIELD_PREP(0x3FFF, fragment->len);
 		desc->read.control2 = FIELD_PREP(0x7FFF, total_bytes);
+
+		sys_cache_data_flush_range(fragment->data, fragment->len);
 
 		/* The MAC computes the ICMPv4 checksum over the field as it is,
 		 * so a packet that carries its transport layer checksum already,
@@ -446,10 +463,10 @@ static int eth_nxp_enet_qos_tx(const struct device *dev, struct net_pkt *pkt)
 		/* if there are more fragments use buffer2 - ringbuffer mode */
 		if (frags_idx + 1 < frags_count) {
 			fragment = fragment->frags;
-			net_pkt_frag_ref(fragment);
 
 			desc->read.buf2_addr = (uint32_t)fragment->data;
 			desc->read.control1 |= FIELD_PREP(0x3FFF0000, fragment->len);
+			sys_cache_data_flush_range(fragment->data, fragment->len);
 			frags_idx++;
 		}
 
@@ -470,12 +487,12 @@ static int eth_nxp_enet_qos_tx(const struct device *dev, struct net_pkt *pkt)
 	/* Publish buffers and lengths before ownership, so the DMA never sees
 	 * an owned descriptor with a stale buffer.
 	 */
-	__DMB();
+	barrier_dmem_fence_full();
 	for (uint16_t i = 0, own_idx = first_idx; i < frame_descs; i++) {
 		tx->descriptors[own_idx].read.control2 |= OWN_FLAG;
 		own_idx = (own_idx + 1U) % NUM_TX_BUFDESC;
 	}
-	__DSB();
+	barrier_dsync_fence_full();
 
 	frame = &tx->frames[tx->frame_head];
 	frame->pkt = pkt;
@@ -499,8 +516,8 @@ static int eth_nxp_enet_qos_tx(const struct device *dev, struct net_pkt *pkt)
 	}
 
 	base->DMA_CH[0].DMA_CHX_TXDESC_TAIL_PTR =
-		ENET_QOS_REG_PREP(DMA_CH_DMA_CHX_TXDESC_TAIL_PTR, TDTP,
-			ENET_QOS_ALIGN_ADDR_SHIFT((uint32_t)&tx->descriptors[tx->desc_head]));
+		ENET_QOS_DESC_ADDR(DMA_CH_DMA_CHX_TXDESC_TAIL_PTR, TDTP,
+			&tx->descriptors[tx->desc_head]);
 
 	irq_unlock(key);
 
@@ -515,9 +532,7 @@ static void tx_dma_done(const struct device *dev)
 	struct nxp_enet_qos_tx_data *tx = &data->tx;
 	unsigned int reclaimed = 0;
 
-	/* Reclaim in order from the oldest frame, stopping at the first one the
-	 * DMA still owns. The pass is bounded by the ring depth.
-	 */
+	/* Reclaim from the oldest frame, stopping at the first the DMA owns. */
 	while (true) {
 		volatile union nxp_enet_qos_tx_desc *last_desc;
 		struct nxp_enet_qos_tx_frame *frame;
@@ -563,7 +578,7 @@ static void tx_dma_done(const struct device *dev)
 
 #if defined(CONFIG_PTP_CLOCK_NXP_ENET_QOS)
 		/* Ownership cleared last, so this frame's writeback is visible */
-		__DMB();
+		barrier_dmem_fence_full();
 		if (timestamp &&
 		    (tx->descriptors[last_idx].write.status & TX_TIMESTAMP_STATUS_FLAG)) {
 			pkt->timestamp.nanosecond = tx->descriptors[last_idx].write.timestamp_low;
@@ -577,7 +592,7 @@ static void tx_dma_done(const struct device *dev)
 		ARG_UNUSED(timestamp);
 #endif
 
-		enet_qos_tx_free_pkt(pkt);
+		net_pkt_unref(pkt);
 	}
 
 	/* Rearm for the new oldest frame, or disarm on an empty ring. Untouched
@@ -599,6 +614,11 @@ static enum ethernet_hw_caps eth_nxp_enet_qos_get_capabilities(const struct devi
 							      struct net_if *iface __unused)
 {
 	enum ethernet_hw_caps caps = ETHERNET_LINK_100BASE | ETHERNET_LINK_10BASE;
+
+#if defined(CONFIG_SOC_SERIES_IMXRT11XX)
+	/* RT11xx wires ENET_QOS to an RGMII gigabit PHY. */
+	caps |= ETHERNET_LINK_1000BASE;
+#endif
 
 #if defined(CONFIG_NET_CHECKSUM_OFFLOAD)
 	caps |= ETHERNET_HW_TX_CHKSUM_OFFLOAD | ETHERNET_HW_RX_CHKSUM_OFFLOAD;
@@ -622,7 +642,9 @@ static bool software_owns_descriptor(volatile union nxp_enet_qos_rx_desc *desc)
 	return (desc->write.control3 & OWN_FLAG) != OWN_FLAG;
 }
 
-/* this function resumes the rx dma in case of underrun */
+/* The tail pointer write is unconditional, not gated on rbu_flag: an RBU raised
+ * while a pass is running is lost, and the ring would never be re-armed.
+ */
 static void enet_qos_dma_rx_resume(const struct device *dev)
 {
 	const struct nxp_enet_qos_mac_config *config = dev->config;
@@ -630,21 +652,19 @@ static void enet_qos_dma_rx_resume(const struct device *dev)
 	struct nxp_enet_qos_mac_data *data = dev->data;
 	struct nxp_enet_qos_rx_data *rx_data = &data->rx;
 
-	if (!atomic_cas(&rx_data->rbu_flag, 1, 0)) {
-		/* no RBU flag means no underrun happened */
-		return;
+	if (atomic_cas(&rx_data->rbu_flag, 1, 0)) {
+		LOG_DBG("Handle RX underrun");
 	}
-
-	LOG_DBG("Handle RX underrun");
 
 	/* We need to just touch the tail ptr to make sure it resumes if underrun happened.
 	 * Then it will resume if there are DMA owned descriptors queued up in the ring properly.
+	 * The descriptor refreshes must be visible in memory before the DMA walks the ring.
 	 */
-	base->DMA_CH[0].DMA_CHX_RXDESC_TAIL_PTR = ENET_QOS_REG_PREP(
+	barrier_dsync_fence_full();
+	base->DMA_CH[0].DMA_CHX_RXDESC_TAIL_PTR = ENET_QOS_DESC_ADDR(
 		DMA_CH_DMA_CHX_RXDESC_TAIL_PTR, RDTP,
-		ENET_QOS_ALIGN_ADDR_SHIFT((uint32_t)&rx_data->descriptors[NUM_RX_BUFDESC]));
+		&rx_data->descriptors[NUM_RX_BUFDESC]);
 }
-
 
 static void eth_nxp_enet_qos_rx(struct k_work *work)
 {
@@ -661,16 +681,20 @@ static void eth_nxp_enet_qos_rx(struct k_work *work)
 	struct net_buf *buf;
 	size_t pkt_len;
 	size_t processed_len = rx_data->processed_len;
+	uint32_t processed = 0U;
 
 	LOG_DBG("RX work start: %p", work);
 
 	/* Walk through the descriptor ring and refresh the descriptors we own so that the
 	 * DMA can use them for receiving again. We stop when we reach DMA owned part of ring.
+	 * The pass is bounded to one ring's worth, or a saturated ring starves the
+	 * cooperatively scheduled net RX thread below this worker.
 	 */
-	while (software_owns_descriptor(desc)) {
+	while (software_owns_descriptor(desc) && processed < NUM_RX_BUFDESC) {
 		uint32_t status;
 
 		rx_data->next_desc_idx = (desc_idx + 1U) % NUM_RX_BUFDESC;
+		processed++;
 		status = desc->write.control3;
 
 		if (pkt != NULL && (status & FIRST_DESCRIPTOR_FLAG) != 0U) {
@@ -691,9 +715,7 @@ static void eth_nxp_enet_qos_rx(struct k_work *work)
 				 * address in read format, so restore it before handing
 				 * the descriptor back to the DMA.
 				 */
-				desc->read.buf1_addr =
-					(uint32_t)data->rx.reserved_bufs[desc_idx]->data;
-				desc->read.control = rx_desc_refresh_flags;
+				rx_desc_refresh(desc, data->rx.reserved_bufs[desc_idx]->data);
 				goto next;
 			}
 
@@ -701,11 +723,10 @@ static void eth_nxp_enet_qos_rx(struct k_work *work)
 			pkt = net_pkt_rx_alloc(K_NO_WAIT);
 
 			if (!pkt) {
-				LOG_WRN("Could not alloc new RX pkt");
+				LOG_DBG("Could not alloc new RX pkt");
 				/* error: no new buffer, reuse previous immediately */
-				desc->read.buf1_addr =
-					(uint32_t)data->rx.reserved_bufs[desc_idx]->data;
-				desc->read.control = rx_desc_refresh_flags;
+				rx_desc_refresh(desc, data->rx.reserved_bufs[desc_idx]->data);
+
 				eth_stats_update_errors_rx(data->iface);
 				goto next;
 			}
@@ -734,8 +755,7 @@ static void eth_nxp_enet_qos_rx(struct k_work *work)
 				pkt_len, processed_len);
 			net_pkt_unref(pkt);
 			pkt = NULL;
-			desc->read.buf1_addr = (uint32_t)data->rx.reserved_bufs[desc_idx]->data;
-			desc->read.control = rx_desc_refresh_flags;
+			rx_desc_refresh(desc, data->rx.reserved_bufs[desc_idx]->data);
 			eth_stats_update_errors_rx(data->iface);
 			goto next;
 		}
@@ -752,17 +772,17 @@ static void eth_nxp_enet_qos_rx(struct k_work *work)
 			 * we don't know what the upper layer will do to our poor buffer.
 			 * drop this buffer, reuse allocated DMA buffer
 			 */
-			LOG_WRN("No new RX buf available");
+			LOG_DBG("No new RX buf available");
 			net_pkt_unref(pkt);
 			pkt = NULL;
-			desc->read.buf1_addr = (uint32_t)data->rx.reserved_bufs[desc_idx]->data;
-			desc->read.control = rx_desc_refresh_flags;
+			rx_desc_refresh(desc, data->rx.reserved_bufs[desc_idx]->data);
 			eth_stats_update_errors_rx(data->iface);
 			goto next;
 		}
 
 		/* Append buffer to a packet */
 		buf = data->rx.reserved_bufs[desc_idx];
+		sys_cache_data_invd_range(buf->data, pkt_len - processed_len);
 		net_buf_add(buf, pkt_len - processed_len);
 		net_pkt_frag_add(pkt, buf);
 		processed_len = pkt_len;
@@ -793,20 +813,16 @@ static void eth_nxp_enet_qos_rx(struct k_work *work)
 					 * regular RX descriptor - the reserved_buf at
 					 * this index was untouched by the context write.
 					 */
-					ctx_desc->read.buf1_addr =
-						(uint32_t)data->rx.reserved_bufs[ctx_idx]->data;
-					ctx_desc->read.control = rx_desc_refresh_flags;
+					rx_desc_refresh(ctx_desc,
+						data->rx.reserved_bufs[ctx_idx]->data);
 					rx_data->next_desc_idx = (ctx_idx + 1U) % NUM_RX_BUFDESC;
 				}
 			}
 #endif /* CONFIG_PTP_CLOCK_NXP_ENET_QOS */
 
-			/* Hardware RX checksum offload: the checksum engine
-			 * writes its verdict into RDES1, valid only when
-			 * RX_STATUS1_VALID_FLAG is set. The stack trusts the
-			 * offload and does not re-verify, so drop a frame the
-			 * engine flagged with an IP header or payload checksum
-			 * error. Non-IP frames leave both bits clear.
+			/* The stack trusts the offload and does not re-verify,
+			 * so a frame the engine flagged must be dropped here.
+			 * Non-IP frames leave both bits clear.
 			 */
 			if ((desc->write.control3 & RX_STATUS1_VALID_FLAG) &&
 			    (desc->write.control1 &
@@ -815,7 +831,7 @@ static void eth_nxp_enet_qos_rx(struct k_work *work)
 				net_pkt_unref(pkt);
 				eth_stats_update_errors_rx(data->iface);
 			} else if (net_recv_data(data->iface, pkt)) {
-				LOG_WRN("RECV failed on pkt %p", pkt);
+				LOG_DBG("RECV failed on pkt %p", pkt);
 				/* Error during processing, we continue with new buffer */
 				net_pkt_unref(pkt);
 				eth_stats_update_errors_rx(data->iface);
@@ -828,8 +844,8 @@ static void eth_nxp_enet_qos_rx(struct k_work *work)
 		LOG_DBG("Swap RX buf %p for %p", data->rx.reserved_bufs[desc_idx], new_buf);
 		/* Allow receive into a new buffer */
 		data->rx.reserved_bufs[desc_idx] = new_buf;
-		desc->read.buf1_addr = (uint32_t)new_buf->data;
-		desc->read.control = rx_desc_refresh_flags;
+		sys_cache_data_invd_range(new_buf->data, ENET_QOS_RX_BUFFER_SIZE);
+		rx_desc_refresh(desc, new_buf->data);
 
 next:
 		desc_idx = rx_data->next_desc_idx;
@@ -862,8 +878,8 @@ static void eth_nxp_enet_qos_isr(const struct device *dev)
 	uint32_t dma_interrupts = base->DMA_INTERRUPT_STATUS;
 	uint32_t dma_ch0_interrupts = base->DMA_CH[0].DMA_CHX_STAT;
 
-	/* clear pending bits except RBU
-	 * handle the receive underrun in the worker
+	/* Status is write-one-to-clear: acknowledge every latched source here
+	 * and act on the saved copy below.
 	 */
 	base->DMA_CH[0].DMA_CHX_STAT = dma_ch0_interrupts;
 
@@ -886,7 +902,11 @@ static void eth_nxp_enet_qos_isr(const struct device *dev)
 				(dma_ch0_interrupts >> 16) & 0x07);
 		}
 		if (ENET_QOS_REG_GET(DMA_CH_DMA_CHX_STAT, RBU, dma_ch0_interrupts)) {
-			LOG_WRN("RX buffer underrun");
+			/* Expected backpressure signal once the pools run dry
+			 * under load, not an error. At warning level the flood
+			 * of these messages is itself enough to stall the system.
+			 */
+			LOG_DBG("RX buffer underrun");
 			if (!ENET_QOS_REG_GET(DMA_CH_DMA_CHX_STAT, RI, dma_ch0_interrupts)) {
 				/* RBU might happen without RI, schedule worker */
 				k_work_submit_to_queue(&rx_work_queue, &rx_data->rx_work);
@@ -950,8 +970,9 @@ static inline void enet_qos_dma_config_init(enet_qos_t *base)
 	base->DMA_CH[0].DMA_CHX_TX_CTRL |=
 		ENET_QOS_REG_PREP(DMA_CH_DMA_CHX_TX_CTRL, TxPBL, 16) |
 		ENET_QOS_REG_PREP(DMA_CH_DMA_CHX_TX_CTRL, OSF, 0b1);
+	/* A single beat per burst overflows the MTL receive FIFO at gigabit. */
 	base->DMA_CH[0].DMA_CHX_RX_CTRL |=
-		ENET_QOS_REG_PREP(DMA_CH_DMA_CHX_RX_CTRL, RxPBL, 0b1);
+		ENET_QOS_REG_PREP(DMA_CH_DMA_CHX_RX_CTRL, RxPBL, 16);
 }
 
 static inline void enet_qos_mtl_config_init(enet_qos_t *base)
@@ -960,28 +981,41 @@ static inline void enet_qos_mtl_config_init(enet_qos_t *base)
 		/* Flush the queue */
 		ENET_QOS_REG_PREP(MTL_QUEUE_MTL_TXQX_OP_MODE, FTQ, 0b1);
 
-	/* Wait for flush to finish */
-	while (ENET_QOS_REG_GET(MTL_QUEUE_MTL_TXQX_OP_MODE, FTQ,
-				base->MTL_QUEUE[0].MTL_TXQX_OP_MODE)) {
-		;
+	/* Wait for flush to finish, bounded so a dead TX clock cannot wedge
+	 * init forever.
+	 */
+	for (uint32_t wait_us = 0;
+	     ENET_QOS_REG_GET(MTL_QUEUE_MTL_TXQX_OP_MODE, FTQ,
+			      base->MTL_QUEUE[0].MTL_TXQX_OP_MODE);
+	     wait_us++) {
+		if (wait_us >= ENET_QOS_TX_FLUSH_TIMEOUT_US) {
+			LOG_ERR("transmit queue flush did not complete");
+			break;
+		}
+		k_busy_wait(1U);
 	}
 
-#if defined(ENET_MTL_QUEUE_MTL_TXQX_OP_MODE_TQS) && defined(ENET_MTL_QUEUE_MTL_TXQX_OP_MODE_TXQEN)
+#if defined(ENET_MTL_QUEUE_MTL_TXQX_OP_MODE_TQS) ||                                                \
+	defined(CONFIG_SOC_SERIES_IMXRT11XX)
+
 	/* Enable only Transmit Queue 0 (optimization/configuration pending) with maximum size */
 	base->MTL_QUEUE[0].MTL_TXQX_OP_MODE =
 		/* Store and forward is required for reliable PTP timestamps. */
 		ENET_QOS_REG_PREP(MTL_QUEUE_MTL_TXQX_OP_MODE, TSF, 0b1) |
 		/* Sets the size */
-		ENET_QOS_REG_PREP(MTL_QUEUE_MTL_TXQX_OP_MODE, TQS, 0b111) |
+		ENET_QOS_REG_PREP(MTL_QUEUE_MTL_TXQX_OP_MODE, TQS,
+				  ENET_QOS_MTL_QUEUE_SIZE_UNITS - 1) |
 		/* Sets it to on */
 		ENET_QOS_REG_PREP(MTL_QUEUE_MTL_TXQX_OP_MODE, TXQEN, 0b10);
 #endif
 
 	/* Enable only Receive Queue 0 (optimization/configuration pending) with maximum size */
 	base->MTL_QUEUE[0].MTL_RXQX_OP_MODE |=
-#ifdef ENET_MTL_QUEUE_MTL_RXQX_OP_MODE_RQS
+#if defined(ENET_MTL_QUEUE_MTL_RXQX_OP_MODE_RQS) ||                                                \
+	defined(CONFIG_SOC_SERIES_IMXRT11XX)
 		/* Sets the size */
-		ENET_QOS_REG_PREP(MTL_QUEUE_MTL_RXQX_OP_MODE, RQS, 0b111) |
+		ENET_QOS_REG_PREP(MTL_QUEUE_MTL_RXQX_OP_MODE, RQS,
+				  ENET_QOS_MTL_QUEUE_SIZE_UNITS - 1) |
 #endif
 		/* Store and forward is required for reliable PTP timestamps. */
 		ENET_QOS_REG_PREP(MTL_QUEUE_MTL_RXQX_OP_MODE, RSF, 0b1) |
@@ -995,11 +1029,11 @@ static inline void enet_qos_mac_config_init(enet_qos_t *base, struct nxp_enet_qo
 	uint32_t mac_configuration;
 
 	/* Set MAC address */
-	base->MAC_ADDRESS0_HIGH =
+	ENET_QOS_MAC_ADDR_HIGH(base) =
 		ENET_QOS_REG_PREP(MAC_ADDRESS0_HIGH, ADDRHI,
 					data->mac_addr.addr[5] << 8 |
 					data->mac_addr.addr[4]);
-	base->MAC_ADDRESS0_LOW =
+	ENET_QOS_MAC_ADDR_LOW(base) =
 		ENET_QOS_REG_PREP(MAC_ADDRESS0_LOW, ADDRLO,
 					data->mac_addr.addr[3] << 24 |
 					data->mac_addr.addr[2] << 16 |
@@ -1011,9 +1045,21 @@ static inline void enet_qos_mac_config_init(enet_qos_t *base, struct nxp_enet_qo
 	 * regardless of HASHTBLSZ. Pass all multicast unconditionally. The stack
 	 * still filters in software.
 	 */
-	base->MAC_PACKET_FILTER |= ENET_MAC_PACKET_FILTER_PM_MASK;
+	base->MAC_PACKET_FILTER |= ENET_QOS_REG_PREP(MAC_PACKET_FILTER, PM, 0b1);
 
-#ifdef ENET_MAC_ONEUS_TIC_COUNTER_TIC_1US_CNTR
+#if defined(CONFIG_SOC_SERIES_IMXRT11XX)
+	/* An MMC counter interrupt is cleared only by reading that counter,
+	 * which this driver never does, so an unmasked source latches forever.
+	 */
+	base->MAC_MMC_RX_INTERRUPT_MASK = 0xFFFFFFFFU;
+	base->MAC_MMC_TX_INTERRUPT_MASK = 0xFFFFFFFFU;
+	base->MAC_MMC_IPC_RX_INTERRUPT_MASK = 0xFFFFFFFFU;
+	base->MAC_MMC_FPE_RX_INTERRUPT_MASK = 0xFFFFFFFFU;
+	base->MAC_MMC_FPE_TX_INTERRUPT_MASK = 0xFFFFFFFFU;
+#endif
+
+#if defined(ENET_MAC_ONEUS_TIC_COUNTER_TIC_1US_CNTR) ||                                            \
+	defined(CONFIG_SOC_SERIES_IMXRT11XX)
 	/* Set the reference for 1 microsecond of ENET QOS CSR clock cycles */
 	base->MAC_ONEUS_TIC_COUNTER =
 		ENET_QOS_REG_PREP(MAC_ONEUS_TIC_COUNTER, TIC_1US_CNTR,
@@ -1036,10 +1082,11 @@ static inline void enet_qos_mac_config_init(enet_qos_t *base, struct nxp_enet_qo
 	);
 	base->MAC_CONFIGURATION = mac_configuration;
 
-#ifdef ENET_MAC_RXQ_CTRL_RXQ0EN
-	/* Enable the MAC RX channel 0 */
+#if defined(ENET_MAC_RXQ_CTRL_RXQ0EN) ||                                                           \
+	defined(CONFIG_SOC_SERIES_IMXRT11XX)
+	/* Enable the MAC RX channel 0 in DCB/generic mode, not AV */
 	base->MAC_RXQ_CTRL[0] |=
-		ENET_QOS_REG_PREP(MAC_RXQ_CTRL, RXQ0EN, 0b1);
+		ENET_QOS_REG_PREP(MAC_RXQ_CTRL, RXQ0EN, 0b10);
 #endif
 }
 
@@ -1084,15 +1131,10 @@ static inline void enet_qos_tx_desc_init(enet_qos_t *base, struct nxp_enet_qos_t
 
 	base->DMA_CH[0].DMA_CHX_TXDESC_LIST_ADDR =
 		/* Start of tx descriptors buffer */
-		ENET_QOS_REG_PREP(DMA_CH_DMA_CHX_TXDESC_LIST_ADDR, TDESLA,
-			ENET_QOS_ALIGN_ADDR_SHIFT((uint32_t)tx->descriptors));
+		ENET_QOS_DESC_ADDR(DMA_CH_DMA_CHX_TXDESC_LIST_ADDR, TDESLA, tx->descriptors);
 	base->DMA_CH[0].DMA_CHX_TXDESC_TAIL_PTR =
 		/* Do not move the tail pointer past the start until send is requested */
-		ENET_QOS_REG_PREP(DMA_CH_DMA_CHX_TXDESC_TAIL_PTR, TDTP,
-			ENET_QOS_ALIGN_ADDR_SHIFT((uint32_t)tx->descriptors));
-	/* Ring length is the descriptor count minus one, programmed once here.
-	 * The persistent ring never rewrites it per frame.
-	 */
+		ENET_QOS_DESC_ADDR(DMA_CH_DMA_CHX_TXDESC_TAIL_PTR, TDTP, tx->descriptors);
 	base->DMA_CH[0].DMA_CHX_TXDESC_RING_LENGTH =
 		ENET_QOS_REG_PREP(DMA_CH_DMA_CHX_TXDESC_RING_LENGTH, TDRL, NUM_TX_BUFDESC - 1);
 }
@@ -1111,6 +1153,7 @@ static inline int enet_qos_rx_desc_init(enet_qos_t *base, struct nxp_enet_qos_rx
 			return -ENOMEM;
 		}
 		rx->reserved_bufs[i] = buf;
+		sys_cache_data_invd_range(buf->data, ENET_QOS_RX_BUFFER_SIZE);
 		rx->descriptors[i].read.buf1_addr = (uint32_t)buf->data;
 		rx->descriptors[i].read.control |= rx_desc_refresh_flags;
 	}
@@ -1120,13 +1163,12 @@ static inline int enet_qos_rx_desc_init(enet_qos_t *base, struct nxp_enet_qos_rx
 
 	/* Set up RX descriptors on channel 0 */
 	base->DMA_CH[0].DMA_CHX_RXDESC_LIST_ADDR =
-		/* Start of tx descriptors buffer */
-		ENET_QOS_REG_PREP(DMA_CH_DMA_CHX_RXDESC_LIST_ADDR, RDESLA,
-			ENET_QOS_ALIGN_ADDR_SHIFT((uint32_t)&rx->descriptors[0]));
+		/* Start of rx descriptors buffer */
+		ENET_QOS_DESC_ADDR(DMA_CH_DMA_CHX_RXDESC_LIST_ADDR, RDESLA, &rx->descriptors[0]);
 	base->DMA_CH[0].DMA_CHX_RXDESC_TAIL_PTR =
 		/* When the DMA reaches the tail pointer, it suspends. Set to last descriptor */
-		ENET_QOS_REG_PREP(DMA_CH_DMA_CHX_RXDESC_TAIL_PTR, RDTP,
-			ENET_QOS_ALIGN_ADDR_SHIFT((uint32_t)&rx->descriptors[NUM_RX_BUFDESC]));
+		ENET_QOS_DESC_ADDR(DMA_CH_DMA_CHX_RXDESC_TAIL_PTR, RDTP,
+			&rx->descriptors[NUM_RX_BUFDESC]);
 	base->DMA_CH[0].DMA_CHX_RX_CONTROL2 =
 		/* Ring length == Buffer size. Register is this value minus one. */
 		ENET_QOS_REG_PREP(DMA_CH_DMA_CHX_RX_CONTROL2, RDRL, NUM_RX_BUFDESC - 1);
@@ -1164,7 +1206,7 @@ static inline void nxp_enet_unique_mac(uint8_t *mac_addr)
 #define nxp_enet_unique_mac(arg)
 #endif
 
-static int eth_nxp_enet_qos_init(const struct device *dev)
+static int eth_nxp_enet_qos_hw_init(const struct device *dev)
 {
 	const struct nxp_enet_qos_mac_config *config = dev->config;
 	struct nxp_enet_qos_mac_data *data = dev->data;
@@ -1172,34 +1214,11 @@ static int eth_nxp_enet_qos_init(const struct device *dev)
 	uint32_t clk_rate;
 	int ret;
 
-	ret = clock_control_on(config->module.clock_dev, config->module.clock_subsys);
-	if (ret) {
-		return ret;
-	}
-
-	ret = pinctrl_apply_state(config->module.pincfg, PINCTRL_STATE_DEFAULT);
-	if (ret) {
-		return ret;
-	}
-
 	/* Used to configure timings of the MAC */
 	ret = clock_control_get_rate(config->module.clock_dev, config->module.clock_subsys,
 				     &clk_rate);
 	if (ret) {
 		return ret;
-	}
-
-	switch (config->mac_addr_source) {
-	case NXP_ENET_QOS_MAC_ADDR_SOURCE_RANDOM:
-		gen_random_mac(data->mac_addr.addr, NXP_OUI_BYTE_0, NXP_OUI_BYTE_1, NXP_OUI_BYTE_2);
-		break;
-
-	case NXP_ENET_QOS_MAC_ADDR_SOURCE_UNIQUE:
-		nxp_enet_unique_mac(data->mac_addr.addr);
-		break;
-
-	default:
-		break;
 	}
 
 	/* Effectively reset of the peripheral */
@@ -1221,10 +1240,8 @@ static int eth_nxp_enet_qos_init(const struct device *dev)
 	/* Configuration of the actual MAC hardware */
 	enet_qos_mac_config_init(base, data, clk_rate);
 
-	/* The transmit ring is persistent: its length is programmed once here
-	 * and multiple frames pipeline through it. Each descriptor collects up
-	 * to two fragments from the networking stack and points at their data
-	 * for a zero copy transmit.
+	/* Persistent ring: multiple frames pipeline through it, each descriptor
+	 * pointing at up to two stack fragments for a zero copy transmit.
 	 */
 	enet_qos_tx_desc_init(base, &data->tx);
 
@@ -1241,6 +1258,48 @@ static int eth_nxp_enet_qos_init(const struct device *dev)
 	/* Clearly, start the cogs to motion. */
 	enet_qos_start(base);
 
+	/* This driver cannot work without interrupts. */
+	if (config->irq_config_func) {
+		config->irq_config_func();
+	} else {
+		return -ENOSYS;
+	}
+
+	return 0;
+}
+
+static int eth_nxp_enet_qos_init(const struct device *dev)
+{
+	const struct nxp_enet_qos_mac_config *config = dev->config;
+	struct nxp_enet_qos_mac_data *data = dev->data;
+	int ret;
+
+	data->tx.descriptors = config->tx_descriptors;
+	data->rx.descriptors = config->rx_descriptors;
+
+	ret = clock_control_on(config->module.clock_dev, config->module.clock_subsys);
+	if (ret) {
+		return ret;
+	}
+
+	ret = pinctrl_apply_state(config->module.pincfg, PINCTRL_STATE_DEFAULT);
+	if (ret) {
+		return ret;
+	}
+
+	switch (config->mac_addr_source) {
+	case NXP_ENET_QOS_MAC_ADDR_SOURCE_RANDOM:
+		gen_random_mac(data->mac_addr.addr, NXP_OUI_BYTE_0, NXP_OUI_BYTE_1, NXP_OUI_BYTE_2);
+		break;
+
+	case NXP_ENET_QOS_MAC_ADDR_SOURCE_UNIQUE:
+		nxp_enet_unique_mac(data->mac_addr.addr);
+		break;
+
+	default:
+		break;
+	}
+
 	/* Reclaims outstanding transmit frames from a DMA that does not
 	 * complete, guarding the oldest frame in flight.
 	 */
@@ -1249,14 +1308,18 @@ static int eth_nxp_enet_qos_init(const struct device *dev)
 	/* Work upon a reception of a packet to a buffer */
 	k_work_init(&data->rx.rx_work, eth_nxp_enet_qos_rx);
 
-	/* This driver cannot work without interrupts. */
-	if (config->irq_config_func) {
-		config->irq_config_func();
-	} else {
-		return -ENOSYS;
+	/* RT11xx defers this to the first link up: the RGMII clock the DMA
+	 * software reset waits for only runs once the PHY has linked.
+	 */
+	if (!IS_ENABLED(CONFIG_SOC_SERIES_IMXRT11XX)) {
+		ret = eth_nxp_enet_qos_hw_init(dev);
+		if (ret) {
+			return ret;
+		}
+		data->hw_ready = true;
 	}
 
-	return ret;
+	return 0;
 }
 
 static const struct device *eth_nxp_enet_qos_get_phy(const struct device *dev,
@@ -1292,11 +1355,11 @@ static int eth_nxp_enet_qos_set_config(const struct device *dev,
 		       cfg->mac_address.addr,
 		       sizeof(data->mac_addr.addr));
 		/* Set MAC address */
-		base->MAC_ADDRESS0_HIGH =
+		ENET_QOS_MAC_ADDR_HIGH(base) =
 			ENET_QOS_REG_PREP(MAC_ADDRESS0_HIGH, ADDRHI,
 						data->mac_addr.addr[5] << 8 |
 						data->mac_addr.addr[4]);
-		base->MAC_ADDRESS0_LOW =
+		ENET_QOS_MAC_ADDR_LOW(base) =
 			ENET_QOS_REG_PREP(MAC_ADDRESS0_LOW, ADDRLO,
 						data->mac_addr.addr[3] << 24 |
 						data->mac_addr.addr[2] << 16 |
@@ -1311,9 +1374,11 @@ static int eth_nxp_enet_qos_set_config(const struct device *dev,
 #if defined(CONFIG_NET_PROMISCUOUS_MODE)
 	case ETHERNET_CONFIG_TYPE_PROMISC_MODE:
 		if (cfg->promisc_mode) {
-			base->MAC_PACKET_FILTER |= ENET_MAC_PACKET_FILTER_PR_MASK;
+			base->MAC_PACKET_FILTER |=
+				ENET_QOS_REG_PREP(MAC_PACKET_FILTER, PR, 0b1);
 		} else {
-			base->MAC_PACKET_FILTER &= ~ENET_MAC_PACKET_FILTER_PR_MASK;
+			base->MAC_PACKET_FILTER &=
+				~ENET_QOS_REG_PREP(MAC_PACKET_FILTER, PR, 0b1);
 		}
 		return 0;
 #endif
@@ -1362,8 +1427,15 @@ static const struct ethernet_api api_funcs = {
 	{                                                                                          \
 		DT_FOREACH_PROP_ELEM(DT_DRV_INST(n), interrupt_names, NXP_ENET_QOS_CONNECT_IRQS)   \
 	}
+#define NXP_ENET_QOS_DESC_RINGS_DEFINE(n)                                                          \
+	static volatile union nxp_enet_qos_tx_desc _nxp_enet_qos_desc_section                      \
+		__aligned(32) enet_qos_##n##_tx_descriptors[NUM_TX_BUFDESC];                       \
+	static volatile union nxp_enet_qos_rx_desc _nxp_enet_qos_desc_section                      \
+		__aligned(32) enet_qos_##n##_rx_descriptors[NUM_RX_BUFDESC];
+
 #define NXP_ENET_QOS_DRIVER_STRUCTS_INIT(n)                                                        \
 	PINCTRL_DT_INST_DEFINE(n);                                                                 \
+	NXP_ENET_QOS_DESC_RINGS_DEFINE(n)                                                          \
 	static const struct nxp_enet_qos_mac_config enet_qos_##n##_mac_config = {                  \
 		.module =                                                                          \
 			{                                                                          \
@@ -1380,6 +1452,8 @@ static const struct ethernet_api api_funcs = {
 			},                                                                         \
 		.irq_config_func = nxp_enet_qos_##n##_irq_config_func,                             \
 		.mac_addr_source = NXP_ENET_QOS_MAC_ADDR_SOURCE(n),                                \
+		.tx_descriptors = enet_qos_##n##_tx_descriptors,                                   \
+		.rx_descriptors = enet_qos_##n##_rx_descriptors,                                   \
 		IF_ENABLED(CONFIG_PTP_CLOCK_NXP_ENET_QOS,                                          \
 			(.ptp_clock = DEVICE_DT_GET(DT_INST_CHILD(n, ptp_clock)),)) };             \
 	static struct nxp_enet_qos_mac_data enet_qos_##n##_mac_data = {                            \

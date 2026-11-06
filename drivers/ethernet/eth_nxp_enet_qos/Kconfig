@@ -3,9 +3,9 @@
 
 menuconfig ETH_NXP_ENET_QOS
 	bool "NXP ENET QOS Ethernet Driver"
-	default y if SOC_FAMILY_MCXN || (!PTP_CLOCK && SOC_FAMILY_MCXA)
+	default y if SOC_FAMILY_MCXN || SOC_SERIES_IMXRT11XX || (!PTP_CLOCK && SOC_FAMILY_MCXA)
 	depends on DT_HAS_NXP_ENET_QOS_ENABLED
-	depends on SOC_FAMILY_MCXA || SOC_FAMILY_MCXN
+	depends on SOC_FAMILY_MCXA || SOC_FAMILY_MCXN || SOC_SERIES_IMXRT11XX
 	depends on NET_BUF_FIXED_DATA_SIZE
 	select ETH_PHY_DRIVER
 	select PINCTRL
@@ -25,13 +25,13 @@ config ETH_NXP_ENET_QOS_UNIQUE_MAC_ADDRESS
 	help
 	  Enable Unique MAC address support based on device UUID.
 
-
 config ETH_NXP_ENET_QOS_TX_BUFFER_DESCRIPTORS
 	int "Number of tx buffer descriptors"
 	default 16
-	range 4 1024
+	range 8 1024
 	help
-	  Number of TX buffer descriptors.
+	  Number of TX buffer descriptors. Each one carries up to two fragments
+	  and one descriptor always stays unused.
 
 config ETH_NXP_ENET_QOS_RX_BUFFER_DESCRIPTORS
 	int "Number of rx buffer descriptors"
