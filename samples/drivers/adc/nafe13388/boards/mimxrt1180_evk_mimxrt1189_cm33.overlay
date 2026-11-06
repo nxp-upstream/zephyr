@@ -1,0 +1,110 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/adc/adc.h>
+#include <zephyr/dt-bindings/adc/nafe13388.h>
+
+/*
+ * NAFE13388-UIM expansion board on the Arduino headers of the MIMXRT1180-EVK.
+ *
+ * Signal map, from the documents below. The UIM nets are on sheet 4 of the
+ * UIM schematic (SCH-91005 rev C2), the EVK pads are in the EVK user manual
+ * UM12021 rev 3.0, tables 32 to 35, and on sheet 26 of the EVK schematic
+ * (SCH-50577 rev C4):
+ *
+ *   UIM net        UIM pin  Arduino  EVK pad
+ *   MCU_SPI0_SCK   J2-5     D13      GPIO_SD_B1_01 (LPSPI3 SCK)
+ *   MCU_SPI0_MISO  J2-6     D12      GPIO_SD_B1_03 (LPSPI3 SIN)
+ *   MCU_SPI0_MOSI  J2-7     D11      GPIO_SD_B1_02 (LPSPI3 SOUT)
+ *   ADC_SPI0_nCS   J2-8     D10      GPIO_SD_B1_00 (LPSPI3 PCS0)
+ *   ADC_nRESET     J1-1     D7       GPIO_AD_08 (GPIO4 pin 8)
+ *   ADC_SYNC       J1-2     D6       GPIO_AD_07 (GPIO4 pin 7)
+ *   ADC_nDRDY      J1-4     D4       GPIO_AD_12 (GPIO4 pin 12)
+ *   ADC_nINT       J1-5     D3       GPIO_AD_06 (GPIO4 pin 6)
+ *
+ * The acquisition time of a channel carries the ADC data rate code, here 19. It
+ * only sets the conversion period when the second stage filter is on, so the
+ * channels also select SINC1. A run on the board with the filter bypassed (the
+ * default) converted a channel in about 220 us whatever the rate code was, which
+ * is faster than the SPI transfer of a sequence at 500 kHz and made the continuous
+ * reading report sequences as late. With code 19 and SINC1 one sequence of the two
+ * channels takes about 20 ms on the board.
+ *
+ * ASSUMPTIONS, not shown by a document:
+ * - The SPI address pin of the chip is tied low on the UIM (the schematic
+ *   text shows GND on the same row as SPI_ADDR), so nxp,dev-addr is 0.
+ * - DRDY is active high at the chip, although the UIM net is named nDRDY.
+ *   The binding of the driver asks for an active high DRDY.
+ * - 500 kHz is the SPI clock of the NXP example code for this board. The
+ *   limit set by the digital isolators on the UIM is not known here.
+ */
+&pinctrl {
+	pinmux_nafe13388_gpio: pinmux_nafe13388_gpio {
+		group0 {
+			pinmux = <&iomuxc_gpio_ad_06_gpio4_io06>,
+				 <&iomuxc_gpio_ad_07_gpio4_io07>,
+				 <&iomuxc_gpio_ad_08_gpio4_io08>,
+				 <&iomuxc_gpio_ad_12_gpio4_io12>;
+			drive-strength = "high";
+			slew-rate = "fast";
+		};
+	};
+};
+
+&gpio4 {
+	status = "okay";
+};
+
+&lpspi3 {
+	status = "okay";
+	pinctrl-0 = <&pinmux_lpspi3 &pinmux_nafe13388_gpio>;
+	pinctrl-names = "default";
+
+	nafe13388: nafe13388@0 {
+		compatible = "nxp,nafe13388";
+		reg = <0>;
+		spi-max-frequency = <500000>;
+		nxp,dev-addr = <0>;
+		drdy-gpios = <&gpio4 12 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio4 8 GPIO_ACTIVE_LOW>;
+		sync-gpios = <&gpio4 7 GPIO_ACTIVE_HIGH>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#io-channel-cells = <1>;
+
+		/* Input AI1P against the analog common, read as a single ended voltage */
+		channel@0 {
+			reg = <0>;
+			zephyr,gain = "ADC_GAIN_1";
+			zephyr,reference = "ADC_REF_INTERNAL";
+			zephyr,acquisition-time = <ADC_ACQ_TIME(ADC_ACQ_TIME_TICKS, 19)>;
+			nxp,sinc = <NAFE13388_SINC1>;
+			zephyr,resolution = <24>;
+			zephyr,differential;
+			zephyr,input-positive = <NAFE13388_HV_AI1>;
+			zephyr,input-negative = <NAFE13388_HV_AICOM>;
+		};
+
+		/* Input AI2P against the analog common */
+		channel@1 {
+			reg = <1>;
+			zephyr,gain = "ADC_GAIN_1";
+			zephyr,reference = "ADC_REF_INTERNAL";
+			zephyr,acquisition-time = <ADC_ACQ_TIME(ADC_ACQ_TIME_TICKS, 19)>;
+			nxp,sinc = <NAFE13388_SINC1>;
+			zephyr,resolution = <24>;
+			zephyr,differential;
+			zephyr,input-positive = <NAFE13388_HV_AI2>;
+			zephyr,input-negative = <NAFE13388_HV_AICOM>;
+		};
+	};
+};
+
+/ {
+	zephyr,user {
+		io-channels = <&nafe13388 0>, <&nafe13388 1>;
+	};
+};

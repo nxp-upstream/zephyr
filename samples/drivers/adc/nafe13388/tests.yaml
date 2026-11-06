@@ -1,0 +1,13 @@
+sample:
+  name: NAFE13388 ADC sample
+tests:
+  sample.drivers.adc.nafe13388:
+    build_only: true
+    tags: adc
+    depends_on:
+      - spi
+      - gpio
+    platform_allow:
+      - mimxrt1180_evk/mimxrt1189/cm33
+    integration_platforms:
+      - mimxrt1180_evk/mimxrt1189/cm33
