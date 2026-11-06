@@ -284,6 +284,15 @@ static int mpipe_aud_i2s_codec_sink_set_caps(struct mpipe_sink *sink,
 	return 0;
 }
 
+/* True when buf is a block of the slab the I2S stream frees its blocks to */
+static bool mpipe_aud_i2s_codec_sink_owns(const struct k_mem_slab *slab, const void *buf)
+{
+	uintptr_t start = (uintptr_t)slab->buffer;
+	uintptr_t addr = (uintptr_t)buf;
+
+	return addr >= start && (addr - start) < (slab->info.num_blocks * slab->info.block_size);
+}
+
 int mpipe_aud_i2s_codec_sink_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 					struct net_buf **out_buf)
 {
@@ -296,7 +305,18 @@ int mpipe_aud_i2s_codec_sink_process_fn(struct mpipe_pad *pad, struct net_buf *i
 	uint32_t bytes_used = mpipe_buffer_get_meta(in_buf)->bytes_used;
 	int ret = -1;
 
-	ret = i2s_write(aud_i2s_codec_sink->i2s_dev, in_buf->data, bytes_used);
+	/*
+	 * The I2S driver frees each block it has sent back to its slab. A
+	 * block of that slab is handed over as it is; anything else, such
+	 * as a buffer of another core, is copied into a slab block first and
+	 * can be released as soon as the copy is done.
+	 */
+	if (mpipe_aud_i2s_codec_sink_owns(aud_i2s_codec_sink->mem_slab, in_buf->data)) {
+		ret = i2s_write(aud_i2s_codec_sink->i2s_dev, in_buf->data, bytes_used);
+	} else {
+		ret = i2s_buf_write(aud_i2s_codec_sink->i2s_dev, in_buf->data, bytes_used);
+	}
+
 	if (ret < 0) {
 		LOG_DBG("Failed to write data: %d\n", ret);
 		/*
