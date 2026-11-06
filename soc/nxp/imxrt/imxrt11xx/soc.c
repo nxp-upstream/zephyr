@@ -254,7 +254,7 @@ __weak void clock_init(void)
 		CLOCK_InitArmPll(&armPllConfig);
 	}
 
-	if (IS_ENABLED(CONFIG_ETH_NXP_ENET)) {
+	if (IS_ENABLED(CONFIG_ETH_NXP_ENET) || IS_ENABLED(CONFIG_ETH_NXP_ENET_QOS)) {
 		/* For default clocking, we will only use pll1 for div2 output for enet */
 		static const clock_sys_pll1_config_t sysPll1Config = {
 			.pllDiv2En = true,
@@ -500,6 +500,22 @@ __weak void clock_init(void)
 #endif
 #endif
 #endif
+#endif
+
+#if defined(CONFIG_ETH_NXP_ENET_QOS) && DT_NODE_HAS_STATUS_OKAY(DT_NODELABEL(enet_qos))
+	/* RGMII needs 125 MHz: SysPll1Div2 / 4, before the DMA software reset. */
+	rootCfg.mux = kCLOCK_ENET_QOS_ClockRoot_MuxSysPll1Div2;
+	rootCfg.div = 4;
+	CLOCK_SetRootClock(kCLOCK_Root_Enet_Qos, &rootCfg);
+
+	/* INTF_SEL resets to MII, where the DMA software reset never self-clears
+	 * because the 25 MHz clock it waits for is not wired on this RGMII board.
+	 */
+	IOMUXC_GPR->GPR6 = (IOMUXC_GPR->GPR6 & ~IOMUXC_GPR_GPR6_ENET_QOS_INTF_SEL_MASK) |
+			   IOMUXC_GPR_GPR6_ENET_QOS_INTF_SEL(1U);
+	IOMUXC_GPR->GPR6 |= IOMUXC_GPR_GPR6_ENET_QOS_CLKGEN_EN_MASK;
+	IOMUXC_GPR->GPR6 |= IOMUXC_GPR_GPR6_ENET_QOS_RGMII_EN_MASK;
+	IOMUXC_GPR->GPR6 &= ~IOMUXC_GPR_GPR6_ENET_QOS_REF_CLK_DIR_MASK;
 #endif
 
 #if defined(CONFIG_PTP_CLOCK_NXP_ENET)

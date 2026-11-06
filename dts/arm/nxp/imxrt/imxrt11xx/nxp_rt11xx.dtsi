@@ -1030,6 +1030,22 @@
 			status = "disabled";
 		};
 
+		enet_qos: ethernet@4043c000 {
+			compatible = "nxp,enet-qos", "snps,dwmac";
+			reg = <0x4043c000 0x4000>;
+			clocks = <&ccm IMX_CCM_ENET_QOS_CLK 0 0>;
+			interrupts = <216 0>;
+			interrupt-names = "mac";
+			status = "disabled";
+
+			enet_qos_mdio: mdio {
+				compatible = "snps,dwmac-mdio";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				status = "disabled";
+			};
+		};
+
 		csi: csi@40800000 {
 			compatible = "nxp,imx-csi";
 			reg = <0x40800000 0x4000>;

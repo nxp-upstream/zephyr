@@ -6,6 +6,9 @@
 
 #include <nxp/imxrt/imxrt11xx/nxp_rt11xx.dtsi>
 
+/* RT1160 has no ENET_QOS instance */
+/delete-node/ &enet_qos;
+
 /* Configure ARM PLL to 600MHz */
 &arm_pll {
 	loop-div = <200>;
