@@ -346,7 +346,7 @@ static int mcux_rtc_init(const struct device *dev)
 #if !(defined(FSL_FEATURE_RTC_HAS_NO_CR_OSCE) && FSL_FEATURE_RTC_HAS_NO_CR_OSCE)
 	/* Enable 32kHz oscillator and wait for 1ms to settle */
 	RTC_SetClockSource(config->base);
-	k_busy_wait(USEC_PER_MSEC);
+	k_busy_wait(USEC_PER_SEC);
 #endif /* !FSL_FEATURE_RTC_HAS_NO_CR_OSCE */
 
 	config->irq_config_func(dev);

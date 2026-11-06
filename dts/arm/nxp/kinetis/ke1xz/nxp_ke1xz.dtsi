@@ -248,7 +248,7 @@
 			reg = <0x4003d000 0x1000>;
 			interrupts = <20 0>;
 			clock-frequency = <32768>;
-			prescaler = <1>;
+			prescaler = <32768>;
 			status = "disabled";
 		};
 
