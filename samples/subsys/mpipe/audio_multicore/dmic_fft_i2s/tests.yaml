@@ -1,0 +1,27 @@
+sample:
+  description: Microphone to codec through a gain, an FFT, an inverse FFT and a gain on the HiFi4
+    DSP, using mpipe
+  name: mpipe dmic fft i2s on HiFi4
+common:
+  platform_allow:
+    - mimxrt700_evk/mimxrt798s/cm33_cpu0
+  integration_platforms:
+    - mimxrt700_evk/mimxrt798s/cm33_cpu0
+  sysbuild: true
+  tags:
+    - mpipe
+    - audio
+  harness: console
+tests:
+  sample.mpipe.dmic_fft_i2s:
+    extra_args:
+      - SB_CONFIG_DMIC_FFT_I2S_REMOTE_ZEPHYR=y
+    harness_config:
+      type: multi_line
+      ordered: true
+      regex:
+        - "\\[DSP\\] Audio server on mimxrt700_evk/mimxrt798s/hifi4"
+        - "HiFi4 ready"
+        - "Gain, FFT, IFFT and gain computed on HiFi4"
+        - "Loopback started"
+        - "Player #0 state: PLAYING"

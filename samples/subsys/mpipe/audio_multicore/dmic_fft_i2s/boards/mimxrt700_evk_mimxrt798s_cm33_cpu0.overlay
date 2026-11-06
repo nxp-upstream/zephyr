@@ -1,0 +1,56 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/memory-attr/memory-attr-arm.h>
+
+/ {
+	aliases {
+		/* The IPC instance eRPC runs over */
+		erpc-ipc = &ipc0;
+	};
+
+	/*
+	 * RPMsg-Lite buffers and vrings shared with the HiFi4. Same address as
+	 * sram_shared1 in the HiFi4 devicetree; mapped uncached on this core.
+	 */
+	dmic_fft_i2s_ipc_shm: memory@20584000 {
+		compatible = "zephyr,memory-region", "mmio-sram";
+		reg = <0x20584000 DT_SIZE_K(16)>;
+		zephyr,memory-region = "DMIC_FFT_I2S_IPC_SHM";
+		zephyr,memory-attr = <DT_MEM_ARM(ATTR_MPU_IO)>;
+	};
+
+	ipc {
+		ipc0: ipc0 {
+			compatible = "nxp,ipc-rpmsg-lite";
+			memory-region = <&dmic_fft_i2s_ipc_shm>;
+			/* MU4 channel 0 rings the HiFi4, channel 1 rings back */
+			mboxes = <&mbox4_a 0>, <&mbox4_a 1>;
+			mbox-names = "tx", "rx";
+			link-id = <0>;
+			role = "host";
+			buffer-size = <1024>;
+			status = "okay";
+		};
+	};
+};
+
+dmic_dev: &micfil {
+	status = "okay";
+
+	channel0: micfil-channel@0 {
+		status = "okay";
+	};
+
+	channel1: micfil-channel@1 {
+		status = "okay";
+	};
+};
+
+/* SAI0 is the clock controller of the link: it also feeds MCLK to the WM8962 */
+&sai0 {
+	mclk-output;
+};

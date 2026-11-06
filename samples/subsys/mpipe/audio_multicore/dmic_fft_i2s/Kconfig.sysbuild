@@ -1,0 +1,84 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+source "share/sysbuild/Kconfig"
+
+choice DMIC_FFT_I2S_REMOTE
+	prompt "HiFi4 image embedded in the Cortex-M33 image"
+	default DMIC_FFT_I2S_REMOTE_PREBUILT
+
+config DMIC_FFT_I2S_REMOTE_PREBUILT
+	bool "Precompiled HiFi4 binaries"
+	help
+	  Embed a HiFi4 audio server that was compiled outside of Zephyr.
+	  Zephyr does not build it: it only embeds the three section
+	  binaries found in DMIC_FFT_I2S_REMOTE_BIN_DIR and loads them on
+	  the HiFi4 at boot.
+
+config DMIC_FFT_I2S_REMOTE_ZEPHYR
+	bool "Zephyr aud_remote image, built by sysbuild"
+	help
+	  Build ../aud_remote for the HiFi4 as the sysbuild image "remote".
+
+endchoice
+
+config DMIC_FFT_I2S_REMOTE_BIN_DIR
+	string "Directory of the precompiled HiFi4 binaries"
+	depends on DMIC_FFT_I2S_REMOTE_PREBUILT
+	help
+	  Directory with exactly these three raw section images of the
+	  HiFi4 server, which sysbuild checks before it embeds them:
+
+	    aud_dsp_server.reset.bin   reset vector, loaded at 0x24020000
+	                               (ITCM), at most 1 KiB
+	    aud_dsp_server.text.bin    code, loaded at 0x20200000, at most
+	                               1 MiB
+	    aud_dsp_server.data.bin    data, loaded at 0x20300000, at most
+	                               1 MiB
+
+	  Nothing else of that folder is read. The server in these binaries
+	  must match this build, sysbuild does not check it:
+
+	  - It is the eRPC server of subsys/mpipe/aud/erpc/
+	    mpipe_aud_transform.erpc (interfaces MpipeAudTransform, id 2,
+	    and MpipeAudLog, id 3), generated from the same file as the
+	    Cortex-M33 client.
+	  - It serves the functions gain (1), fft (2) and ifft (3), with
+	    four function instances at least.
+	  - It is the RPMsg-Lite remote on the 16 KiB shared memory at
+	    0x20584000 with MU4 (the Cortex-M33 is the host), with a payload
+	    of 1008 bytes per message.
+	  - Its audio format and gain are the ones of
+	    DMIC_FFT_I2S_SAMPLE_RATE, DMIC_FFT_I2S_FRAME_INTERVAL_US and
+	    DMIC_FFT_I2S_GAIN_PERCENT.
+
+	  It must be set when DMIC_FFT_I2S_REMOTE_PREBUILT is selected.
+
+# Audio format and gain. sysbuild.cmake hands them to both images, which
+# build them in as DMIC_FFT_I2S_<name> (dmic_fft_i2s.cmake), so that the
+# Cortex-M33 and the HiFi4 always agree.
+
+config DMIC_FFT_I2S_SAMPLE_RATE
+	int "Sample rate, in Hz"
+	default 16000
+	help
+	  Rate the microphone is captured and the codec played back at. The
+	  MICFIL driver only captures at 16000 Hz.
+
+config DMIC_FFT_I2S_FRAME_INTERVAL_US
+	int "Duration of one audio block, in microseconds"
+	default 16000
+	help
+	  Each block holds DMIC_FFT_I2S_SAMPLE_RATE x this interval samples,
+	  which is also the length of the FFT: that count must be a power of
+	  two. The MICFIL driver takes 10000 to 100000 microseconds.
+
+config DMIC_FFT_I2S_GAIN_PERCENT
+	int "Gain of each gain stage, in percent"
+	default 800
+	range 0 10000
+	help
+	  The HiFi4 scales each sample by this factor before the FFT and
+	  again after the inverse FFT, and clamps the result to the 32-bit
+	  range each time. The microphone signal is quiet: the default
+	  amplifies it by 8 (18 dB) in each stage, 64 (36 dB) in all.
