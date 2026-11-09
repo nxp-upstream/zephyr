@@ -1237,7 +1237,10 @@ static int nafe13388_drdy_take(struct nafe13388_data *data, k_timeout_t timeout)
 
 /*
  * Read one sampling of the sequence: configure, start the conversion, wait for
- * DRDY and fetch the results of all channels with one burst frame.
+ * DRDY and fetch the results of all channels with one burst frame. The device lock
+ * is not held while waiting for DRDY: the owner (ADC_API) already keeps every other
+ * user of the conversion engine out, so a call that needs the lock only (a raw
+ * register access, NAFE13388_CLEAR_ALARM) is not delayed by the conversion.
  */
 static int nafe13388_sample(const struct device *dev)
 {
@@ -1291,7 +1294,11 @@ static int nafe13388_sample(const struct device *dev)
 	}
 
 	timeout_ms = nafe13388_timeout_ms(data);
+
+	k_mutex_unlock(&data->lock);
 	ret = nafe13388_drdy_take(data, K_MSEC(timeout_ms));
+	k_mutex_lock(&data->lock, K_FOREVER);
+
 	if (ret != 0) {
 		LOG_ERR("%s: no DRDY within %u ms", dev->name, timeout_ms);
 		(void)nafe13388_frame_cmd(dev, NAFE13388_CMD_ABORT);

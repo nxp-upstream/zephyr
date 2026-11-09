@@ -29,6 +29,8 @@
 #include <zephyr/drivers/emul.h>
 #include <zephyr/drivers/gpio.h>
 
+struct k_sem;
+
 #define NAFE_EMUL_CHANNELS  16
 /* Longest frame: command word and 3 bytes for each of the 16 channels */
 #define NAFE_EMUL_FRAME_MAX (2 + 3 * NAFE_EMUL_CHANNELS)
@@ -57,6 +59,7 @@ struct nafe_emul_data {
 	int32_t code[NAFE_EMUL_CHANNELS]; /* 24 bit result of each channel (sign extended) */
 	int end_busy_reads; /* reads of SYS_STATUS0 that show the mode after CMD_END, -1: all */
 	int fail_countdown; /* > 0: the transfer with this ordinal (1 = the next) fails with -EIO */
+	struct k_sem *conv_sem; /* given after every conversion command, NULL: not used */
 
 	/* Chip state */
 	int not_ready_reads;

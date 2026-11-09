@@ -16,7 +16,13 @@
  *
  * The device is used by one client at a time. A read of the standard ADC API
  * and a reading started with this API exclude each other: whoever comes
- * second gets -EBUSY and is not blocked. A channel setup (adc_channel_setup(),
+ * second gets -EBUSY. The call does not wait for the running read, because
+ * the driver does not hold its lock while it waits for DRDY. A call can still
+ * wait for another call that is inside the driver at that moment, for example
+ * NAFE13388_RESET with its wait for CHIP_READY, or a stop with
+ * NAFE13388_STOP_END with its wait for the end of the conversion.
+ * Two adc_read() calls queue on the lock of the ADC API instead of failing.
+ * A channel setup (adc_channel_setup(),
  * nafe13388_channel_setup_ext(), nafe13388_cfg_rate()) is also refused with
  * -EBUSY while any reading owns the device: stop the reading, set up the
  * channel, start the reading again.
@@ -499,7 +505,8 @@ int nafe13388_write_reg24(const struct device *dev, uint8_t reg, uint32_t val);
 /**
  * @brief Send a device command.
  *
- * NAFE13388_CLEAR_ALARM is always accepted. The other commands are refused with
+ * NAFE13388_CLEAR_ALARM is always accepted, also during a read of the standard API,
+ * and does not wait for the conversion. The other commands are refused with
  * -EBUSY while a reading is running (standard API or this API). NAFE13388_RESET
  * and NAFE13388_CLEAR_REG put the device back to its register defaults, the
  * driver then waits for CHIP_READY and brings the device back to the state

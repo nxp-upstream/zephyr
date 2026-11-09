@@ -6,10 +6,11 @@
 
 /*
  * Who owns the device: the standard ADC API, a reading of the extension API, or a
- * continuous reading. The other owners get -EBUSY. For the ADC direction the calls
+ * continuous reading. The other owners get -EBUSY. For the ADC direction most calls
  * are made from the sequence callback, which runs in the acquisition thread while
- * the standard read is in progress; that is deterministic, unlike racing a second
- * thread against a read that holds the device lock while it waits for DRDY.
+ * the standard read is in progress. One test uses a second thread instead, with a
+ * semaphore of the emulator that is given when the conversion command arrives, to
+ * show that a standard read does not hold the device lock while it waits for DRDY.
  */
 
 #include <errno.h>
@@ -230,4 +231,87 @@ ZTEST(nafe13388_owner, test_owner_released_after_errors)
 	ZASSERT_IDLE();
 	D1->auto_drdy = true;
 	zassert_ok(nafe_read(BIT(0), 24, buf, sizeof(buf), NULL));
+}
+
+static K_THREAD_STACK_DEFINE(reader_stack, 2048);
+static struct k_thread reader_thread;
+static struct k_sem reader_done;
+static struct k_sem conv_started;
+static int32_t reader_buf[1];
+static int reader_ret;
+
+static void reader_entry(void *p1, void *p2, void *p3)
+{
+	ARG_UNUSED(p1);
+	ARG_UNUSED(p2);
+	ARG_UNUSED(p3);
+
+	reader_ret = nafe_read(BIT(0), 24, reader_buf, sizeof(reader_buf), NULL);
+	k_sem_give(&reader_done);
+}
+
+/*
+ * A standard read waits for DRDY without the device lock. While it waits, a call that
+ * does not depend on the owner (CLEAR_ALARM, raw register access) returns at once, and
+ * a call that needs an idle device returns -EBUSY at once instead of waiting for the
+ * end of the conversion. The measured times are checked after the read has ended, so
+ * that a failure does not leave the reader thread behind.
+ */
+ZTEST(nafe13388_owner, test_calls_not_delayed_by_standard_read)
+{
+	const struct nafe13388_seq ss = nafe_seq(BIT(0), NAFE13388_MODE_SS, 24);
+	int64_t t0;
+	int dt[3];
+	int ret[3];
+	int done;
+	uint16_t val = 0;
+
+	k_sem_init(&reader_done, 0, 1);
+	k_sem_init(&conv_started, 0, 1);
+	reader_ret = -1;
+	D1->auto_drdy = false;
+	D1->code[0] = 0x1234;
+	D1->conv_sem = &conv_started;
+
+	k_thread_create(&reader_thread, reader_stack, K_THREAD_STACK_SIZEOF(reader_stack),
+			reader_entry, NULL, NULL, NULL, K_PRIO_PREEMPT(5), 0, K_NO_WAIT);
+
+	zassert_ok(k_sem_take(&conv_started, K_SECONDS(1)), "the read sent no conversion command");
+	nafe_emul_clear_log(E1);
+
+	t0 = k_uptime_get();
+	ret[0] = nafe13388_start(NAFE1, &ss);
+	dt[0] = (int)(k_uptime_get() - t0);
+
+	t0 = k_uptime_get();
+	ret[1] = nafe13388_command(NAFE1, NAFE13388_CLEAR_ALARM);
+	dt[1] = (int)(k_uptime_get() - t0);
+
+	t0 = k_uptime_get();
+	ret[2] = nafe13388_read_reg16(NAFE1, 0x7C, &val);
+	dt[2] = (int)(k_uptime_get() - t0);
+
+	/* End the conversion and let the read finish */
+	nafe_emul_pulse_drdy(E1);
+	done = k_sem_take(&reader_done, K_SECONDS(1));
+	D1->conv_sem = NULL;
+
+	zassert_ok(done, "the read did not end");
+	for (int i = 0; i < ARRAY_SIZE(dt); i++) {
+		zassert_true(dt[i] < CONFIG_ADC_NAFE13388_DRDY_TIMEOUT_MS / 2,
+			     "call %d waited %d ms for the conversion", i, dt[i]);
+	}
+	zassert_equal(ret[0], -EBUSY);
+	zassert_ok(ret[1]);
+	zassert_ok(ret[2]);
+	zassert_equal(val, 0x1338);
+
+	/* The frames of the two calls came between the command and the burst read */
+	zassert_equal(nafe_emul_frame_count(E1), 3);
+	ZASSERT_FRAME(E1, 0, 0x80, 0x24);
+	ZASSERT_FRAME(E1, 1, 0xC0, 0xF8, 0x00, 0x00);
+	zassert_equal(D1->aborts, 0);
+	zassert_equal(reader_ret, 0);
+	zassert_equal(reader_buf[0], 0x1234);
+	ZASSERT_IDLE();
 }

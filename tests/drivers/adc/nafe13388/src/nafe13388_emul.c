@@ -63,6 +63,7 @@
 #include <zephyr/drivers/gpio/gpio_emul.h>
 #include <zephyr/drivers/spi.h>
 #include <zephyr/drivers/spi_emul.h>
+#include <zephyr/kernel.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
@@ -253,6 +254,7 @@ void nafe_emul_defaults(const struct emul *e)
 	d->end_busy_reads = 0;
 	d->auto_drdy = true;
 	d->fail_countdown = 0;
+	d->conv_sem = NULL;
 	for (unsigned int ch = 0; ch < NAFE_EMUL_CHANNELS; ch++) {
 		d->code[ch] = 0x10000 * (int32_t)(ch + 1);
 	}
@@ -361,6 +363,10 @@ static int nafe_emul_run_mode(const struct emul *e, enum nafe_emul_mode mode)
 			nafe_emul_pulse_drdy(e);
 		}
 		break;
+	}
+
+	if (d->conv_sem != NULL) {
+		k_sem_give(d->conv_sem);
 	}
 
 	return 0;
