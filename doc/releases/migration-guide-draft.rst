@@ -184,6 +184,13 @@ Boards
   CPU ``clock-frequency`` when ``/cpus`` has no ``timebase-frequency``. Out-of-tree boards must
   set ``timebase-frequency`` on the ``/cpus`` node. (:github:`124446`)
 
+* :zephyr:board:`mimxrt1170_evk`: the ``zephyr_lcdif`` label now names the LCDIFv2 controller
+  (:dtcompatible:`nxp,imx-lcdifv2`) instead of the eLCDIF, so the MIPI DSI display shields run
+  on it. Applications that set ``CONFIG_MCUX_ELCDIF_*`` options for this board use the
+  ``CONFIG_MCUX_LCDIFV2_*`` ones, and overlays that set eLCDIF-only properties such as
+  ``data-bus-width`` on ``&zephyr_lcdif`` set them on ``&lcdif``. The board devicetree
+  comment shows the one-line change back to the eLCDIF.
+
 Device Drivers and Devicetree
 *****************************
 
