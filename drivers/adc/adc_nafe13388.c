@@ -1043,11 +1043,11 @@ int nafe13388_channel_setup_ext(const struct device *dev, uint8_t channel,
 	regs[3] |= cfg->viex_chop ? NAFE13388_CH_CONFIG3_VIEX_CHOP : 0;
 
 	/*
-	 * Not while a reading owns the device: the data sheet (7.4.2.2) says a change of
-	 * the channel that is converting only takes effect with the next conversion
-	 * command, so a cfg_rate from the callback of a running MC
-	 * reading can be lost while the driver had already updated its copy.
-	 * The lock is recursive, it is held so that the check and the write are one step.
+	 * Not while a reading owns the device: the data sheet (7.4.2.2) says that a
+	 * register change of the channel that is converting does not take effect until
+	 * the next conversion command, so a write while a reading runs could be lost
+	 * while the driver had already updated its copy. The lock is recursive, it is
+	 * held so that the check and the write are one step.
 	 */
 	k_mutex_lock(&data->lock, K_FOREVER);
 	if (data->owner != NAFE13388_OWNER_IDLE) {
