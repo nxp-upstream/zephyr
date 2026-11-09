@@ -925,7 +925,9 @@ static int nafe13388_build_channel(const struct nafe13388_config *config,
 
 /*
  * Write CH_CONFIG0..3 of a channel and keep a copy of them. CMD_CHn selects
- * the channel that the register writes address.
+ * the channel that the register writes address. If a write fails after CMD_CHn
+ * was sent, the device may hold a part of the new values, so the copy no longer
+ * describes it: the channel is marked as not set up and has to be set up again.
  */
 static int nafe13388_program_channel(const struct device *dev, uint8_t channel,
 				     const uint16_t regs[4])
@@ -936,13 +938,18 @@ static int nafe13388_program_channel(const struct device *dev, uint8_t channel,
 	k_mutex_lock(&data->lock, K_FOREVER);
 
 	ret = nafe13388_frame_cmd(dev, NAFE13388_CMD_CH0 + channel);
-	for (unsigned int i = 0; ret == 0 && i < 4U; i++) {
-		ret = nafe13388_frame_reg_write16(dev, NAFE13388_REG_CH_CONFIG0 + i, regs[i]);
-	}
-
 	if (ret == 0) {
-		memcpy(data->channel_regs[channel], regs, 4 * sizeof(regs[0]));
-		data->configured |= BIT(channel);
+		for (unsigned int i = 0; ret == 0 && i < 4U; i++) {
+			ret = nafe13388_frame_reg_write16(dev, NAFE13388_REG_CH_CONFIG0 + i,
+							  regs[i]);
+		}
+
+		if (ret == 0) {
+			memcpy(data->channel_regs[channel], regs, 4 * sizeof(regs[0]));
+			data->configured |= BIT(channel);
+		} else {
+			data->configured &= ~BIT(channel);
+		}
 	}
 
 	k_mutex_unlock(&data->lock);

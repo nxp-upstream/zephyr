@@ -236,6 +236,11 @@ struct nafe13388_channel_cfg {
  * write to a channel setting while a reading runs can be lost (see
  * nafe13388_cfg_rate()); stop the reading first.
  *
+ * If a write fails after the channel was selected, the device may hold a part of the
+ * new configuration. The channel then counts as not set up (readings and
+ * nafe13388_cfg_rate() return -EINVAL for it) until it is set up again. The same
+ * holds for adc_channel_setup().
+ *
  * @param dev NAFE13388 device
  * @param channel Logical channel, 0..15
  * @param cfg Channel configuration
@@ -243,7 +248,7 @@ struct nafe13388_channel_cfg {
  * @retval 0 on success
  * @retval -EINVAL if the channel or a field of @p cfg is out of range
  * @retval -EBUSY if a reading owns the device
- * @retval <0 SPI error
+ * @retval <0 SPI error, the channel has to be set up again
  */
 int nafe13388_channel_setup_ext(const struct device *dev, uint8_t channel,
 				const struct nafe13388_channel_cfg *cfg);

@@ -315,3 +315,45 @@ ZTEST(nafe13388_channels, test_cfg_rate_errors)
 		      -EINVAL);
 	zassert_equal(nafe_emul_frame_count(E1), 0);
 }
+
+/*
+ * A setup that fails after CMD_CHn was sent leaves the device with a part of the new
+ * configuration. The driver cannot know which part, so the channel must be set up again
+ * before it is used: a read and cfg_rate() refuse it until then.
+ */
+ZTEST(nafe13388_channels, test_failed_setup_voids_channel)
+{
+	const struct nafe13388_channel_cfg cfg = {
+		.hv_aip = 3,
+		.hv_ain = 4,
+		.gain_code = 3,
+		.rate = 5,
+	};
+	int32_t buf[1];
+
+	/* Channel 0 comes from the devicetree and is set up */
+	zassert_equal(D1->ch[0][0], 0x1770);
+	zassert_equal(D1->ch[0][1], 0x0000);
+
+	/* Frames: CMD_CH0, CH_CONFIG0, CH_CONFIG1 (fails) */
+	D1->fail_countdown = 3;
+	zassert_equal(nafe13388_channel_setup_ext(NAFE1, 0, &cfg), -EIO);
+	zassert_equal(D1->fail_countdown, 0);
+	zassert_equal(nafe_emul_frame_count(E1), 3);
+
+	/* The device holds CH_CONFIG0 of the new setup and CH_CONFIG1 of the old one */
+	zassert_equal(D1->ch[0][0], 0x3470, "CH_CONFIG0 was written");
+	zassert_equal(D1->ch[0][1], 0x0000, "CH_CONFIG1 was not written");
+
+	/* The channel is not usable until it is set up again */
+	zassert_equal(nafe13388_cfg_rate(NAFE1, 0, 1, 0), -EINVAL);
+	zassert_equal(nafe_read(BIT(0), 24, buf, sizeof(buf), NULL), -EINVAL);
+
+	/* Other channels are not affected */
+	zassert_ok(nafe_read(BIT(1), 24, buf, sizeof(buf), NULL));
+
+	/* A new setup brings the channel back */
+	zassert_ok(nafe13388_channel_setup_ext(NAFE1, 0, &cfg));
+	zassert_equal(D1->ch[0][1], 0x0028);
+	zassert_ok(nafe_read(BIT(0), 24, buf, sizeof(buf), NULL));
+}
