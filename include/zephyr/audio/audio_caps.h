@@ -102,6 +102,20 @@ extern "C" {
 /** @} */
 
 /**
+ * @defgroup audio_format Audio Data Format Definitions
+ * @brief What the data buffers hold
+ * @{
+ */
+/** @brief Signed integer PCM, the format of every audio driver */
+#define AUDIO_FORMAT_PCM 0U
+/**
+ * @brief Complex spectrum: per channel, the bins from DC to Nyquist as (re, im)
+ * float pairs, the bit width being that of one part
+ */
+#define AUDIO_FORMAT_FFT 1U
+/** @} */
+
+/**
  * @struct audio_caps
  * @brief Audio capabilities structure
  *
@@ -126,6 +140,8 @@ struct audio_caps {
 	uint32_t max_frame_interval;
 	/** Channel layout: interleaved (LRLRLRLR) or non-interleaved (LLLLRRRR) */
 	bool interleaved;
+	/** Data format of the buffers, one of AUDIO_FORMAT_* */
+	uint8_t format;
 };
 
 #ifdef __cplusplus
