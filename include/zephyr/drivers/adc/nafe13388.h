@@ -475,7 +475,9 @@ int nafe13388_read_reg16(const struct device *dev, uint8_t reg, uint16_t *val);
  * @brief Write a 16-bit register.
  *
  * The registers the driver keeps a copy of (CH_CONFIG0..4 and SYS_CONFIG0) are
- * refused, use the channel and reading functions for them.
+ * refused, use the channel and reading functions for them. The registers that the
+ * data sheet lists as read only are refused too, without a frame: 0x25..0x27,
+ * 0x29, 0x2D, 0x2E, 0x31, 0x34..0x36 and 0x7C..0x7F.
  *
  * A write that returns 0 does not mean that the chip kept every bit. For example
  * bit 1 (VIEX_OI_ALRM) of GLOBAL_ALARM_ENABLE (0x32) has been seen to always read
@@ -484,7 +486,7 @@ int nafe13388_read_reg16(const struct device *dev, uint8_t reg, uint16_t *val);
  * back as 0. Read the register back if the code depends on a bit.
  *
  * @retval 0 on success
- * @retval -EINVAL for an invalid or refused register
+ * @retval -EINVAL for an invalid, read only or refused register
  * @retval <0 SPI error
  */
 int nafe13388_write_reg16(const struct device *dev, uint8_t reg, uint16_t val);
@@ -501,11 +503,14 @@ int nafe13388_write_reg16(const struct device *dev, uint8_t reg, uint16_t val);
 int nafe13388_read_reg24(const struct device *dev, uint8_t reg, uint32_t *val);
 
 /**
- * @brief Write a 24-bit register (0x40..0x6F and 0x80..0xAF), only the lowest
+ * @brief Write a 24-bit register (0x50..0x6F and 0x80..0xAD), only the lowest
  *        24 bits of @p val are used.
  *
+ * The data registers 0x40..0x4F and the serial number registers 0xAE and 0xAF are
+ * read only in the data sheet and are refused without a frame.
+ *
  * @retval 0 on success
- * @retval -EINVAL for an invalid register
+ * @retval -EINVAL for an invalid or read only register
  * @retval <0 SPI error
  */
 int nafe13388_write_reg24(const struct device *dev, uint8_t reg, uint32_t val);

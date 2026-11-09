@@ -1149,9 +1149,29 @@ int nafe13388_read_reg16(const struct device *dev, uint8_t reg, uint16_t *val)
 	return nafe13388_reg_read16(dev, reg, val);
 }
 
+/*
+ * Registers that the data sheet lists as read only (register map, access column R):
+ * CRC_CONF_REGS, CRC_COEF_REGS, CRC_TRIM_REGS, GPI_DATA, GPI_EDGE_POS, GPI_EDGE_NEG,
+ * SYS_STATUS0, DIE_TEMP, CH_STATUS0, CH_STATUS1, PN2, PN1, PN0 and CRC_TRIM_INT.
+ */
+static bool nafe13388_reg16_read_only(uint8_t reg)
+{
+	return (reg >= 0x25U && reg <= 0x27U) || reg == 0x29U || reg == 0x2DU || reg == 0x2EU ||
+	       reg == NAFE13388_REG_SYS_STATUS0 || (reg >= 0x34U && reg <= 0x36U) ||
+	       (reg >= NAFE13388_REG16_ID_FIRST && reg <= NAFE13388_REG16_ID_LAST);
+}
+
+/* The data registers DATA0..15 and the serial number registers SERIAL1 and SERIAL0 are read only */
+static bool nafe13388_reg24_read_only(uint8_t reg)
+{
+	return (reg >= NAFE13388_REG_CH_DATA0 && reg < NAFE13388_REG_CH_DATA0 + 16U) ||
+	       reg == NAFE13388_REG_SERIAL1 || reg == NAFE13388_REG_SERIAL0;
+}
+
 int nafe13388_write_reg16(const struct device *dev, uint8_t reg, uint16_t val)
 {
-	if (!nafe13388_reg16_valid(reg) || nafe13388_reg16_shadowed(reg)) {
+	if (!nafe13388_reg16_valid(reg) || nafe13388_reg16_shadowed(reg) ||
+	    nafe13388_reg16_read_only(reg)) {
 		return -EINVAL;
 	}
 
@@ -1172,7 +1192,7 @@ int nafe13388_write_reg24(const struct device *dev, uint8_t reg, uint32_t val)
 	struct nafe13388_data *data = dev->data;
 	int ret;
 
-	if (!nafe13388_reg24_valid(reg)) {
+	if (!nafe13388_reg24_valid(reg) || nafe13388_reg24_read_only(reg)) {
 		return -EINVAL;
 	}
 

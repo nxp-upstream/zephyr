@@ -77,6 +77,48 @@ ZTEST(nafe13388_raw, test_write16_shadowed)
 	zassert_equal(nafe_emul_frame_count(E1), 0);
 }
 
+/* The registers that the data sheet lists as read only cannot be written, no frame is sent */
+ZTEST(nafe13388_raw, test_write16_read_only)
+{
+	static const uint8_t ro[] = {0x25, 0x26, 0x27, 0x29, 0x2D, 0x2E, 0x31,
+				     0x34, 0x35, 0x36, 0x7C, 0x7D, 0x7E, 0x7F};
+
+	for (size_t i = 0; i < ARRAY_SIZE(ro); i++) {
+		zassert_equal(nafe13388_write_reg16(NAFE1, ro[i], 0x1234), -EINVAL, "0x%02x",
+			      ro[i]);
+	}
+	zassert_equal(nafe_emul_frame_count(E1), 0);
+	zassert_equal(D1->ro_writes, 0);
+
+	/* The neighbours that can be written are still accepted */
+	zassert_ok(nafe13388_write_reg16(NAFE1, 0x2A, 0));
+	zassert_ok(nafe13388_write_reg16(NAFE1, 0x2B, 0));
+	zassert_ok(nafe13388_write_reg16(NAFE1, 0x2C, 0));
+	zassert_ok(nafe13388_write_reg16(NAFE1, 0x2F, 0));
+	zassert_ok(nafe13388_write_reg16(NAFE1, 0x33, 0));
+	zassert_ok(nafe13388_write_reg16(NAFE1, 0x37, 0));
+	zassert_equal(nafe_emul_frame_count(E1), 6);
+}
+
+ZTEST(nafe13388_raw, test_write24_read_only)
+{
+	static const uint8_t ro[] = {0x40, 0x41, 0x4E, 0x4F, 0xAE, 0xAF};
+
+	for (size_t i = 0; i < ARRAY_SIZE(ro); i++) {
+		zassert_equal(nafe13388_write_reg24(NAFE1, ro[i], 0x123456), -EINVAL, "0x%02x",
+			      ro[i]);
+	}
+	zassert_equal(nafe_emul_frame_count(E1), 0);
+	zassert_equal(D1->ro_writes, 0);
+
+	/* The thresholds and the coefficients can be written, the edges are accepted */
+	zassert_ok(nafe13388_write_reg24(NAFE1, 0x50, 0));
+	zassert_ok(nafe13388_write_reg24(NAFE1, 0x6F, 0));
+	zassert_ok(nafe13388_write_reg24(NAFE1, 0x80, 0));
+	zassert_ok(nafe13388_write_reg24(NAFE1, 0xAD, 0));
+	zassert_equal(nafe_emul_frame_count(E1), 4);
+}
+
 ZTEST(nafe13388_raw, test_read24)
 {
 	uint32_t val = 0;
