@@ -34,6 +34,14 @@
  * accepts. It does not fit the low voltage channels (nxp,input-select = "lv"):
  * convert their codes with Table 20 of the data sheet.
  *
+ * The helper always scales with the 5000 mV span of Table 20, which is the span
+ * with the 2.5 V reference. It does not look at nxp,reference-select. With
+ * REF_SEL 1 to 3 the data sheet also gives 2.5 V for the external reference, but
+ * an external reference with another voltage gives wrong millivolt values without
+ * an error (ASSUMPTION: the result scales with the reference; the data sheet text
+ * does not say so). The factory coefficients are for the internal reference only,
+ * and the data sheet asks for TCC_OFF = 1 with an external reference.
+ *
  * Error codes for a call that needs a started reading, when there is none:
  * nafe13388_stop() and nafe13388_continuous_stop() return -EALREADY,
  * nafe13388_trigger() and nafe13388_sync_pulse() return -EINVAL, and

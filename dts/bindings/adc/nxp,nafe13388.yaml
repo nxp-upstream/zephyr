@@ -91,7 +91,10 @@ properties:
     type: phandle-array
     description: |
       Optional INTB output (global alarm interrupt) of the device. The pin is
-      active low.
+      active low. The driver only checks that the GPIO controller is ready; it
+      does not configure the pin and has no alarm callback yet. The alarm
+      registers can be read with nafe13388_read_reg16() and cleared with
+      NAFE13388_CLEAR_ALARM.
 
   nxp,dev-addr:
     type: int
@@ -134,6 +137,16 @@ properties:
         1: internal for the PGA, external for the ADC
         2: external for the PGA, internal for the ADC
         3: external for the PGA and the ADC
+
+      The data sheet gives 2.5 V as the value of the external reference
+      (REF_EXT pin). The conversion by adc_raw_to_millivolts_dt() always uses
+      the 5000 mV span of Table 20 for the internal reference and does not
+      look at this property. With an external reference that differs from
+      2.5 V the millivolt value is wrong without an error (ASSUMPTION: the
+      result scales with the reference, the data sheet text does not say so).
+      The factory gain and offset coefficients are for the internal reference
+      only, and the data sheet asks for TCC_OFF = 1 (nxp,tcc-off) when an
+      external reference is used.
 
   nxp,drdy-wide-pulse:
     type: boolean
