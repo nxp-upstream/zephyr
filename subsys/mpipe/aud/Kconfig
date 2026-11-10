@@ -46,6 +46,19 @@ config MPIPE_AUD_BUFFER_POOL_NUM_MAX
 	  audible artifact rather than a dropped frame, so leave enough for the
 	  sink to keep its buffers primed.
 
+config MPIPE_AUD_BUFFER_POOL_CLIENT_NUM_MAX
+	int "Maximum number of remote buffers per audio transform client pool"
+	default 4
+	range 1 255
+	depends on MPIPE_RPC
+	help
+	  Upper bound on how many buffers of the remote core one pad of an
+	  audio transform client can hand out. The remote chooses the count;
+	  the client fails to initialize when the remote has more than this.
+
+	  Only the buffer addresses are kept on this core, so each one costs a
+	  few bytes here: the buffers themselves live on the remote core.
+
 config MPIPE_AUD_I2S_CODEC_SINK_SET_OUTPUT_VOLUME
 	bool "Set codec output volume in the I2S codec sink"
 	help

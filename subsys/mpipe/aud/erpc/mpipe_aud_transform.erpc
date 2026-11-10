@@ -1,0 +1,97 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * RPC interface between the audio transform clients and their server on the
+ * remote core. Both sides are generated from this file with erpcgen.
+ *
+ * The server is a set of audio functions. A client element opens one of them
+ * with aud_open_rpc and gets a handle naming that instance; every format and
+ * processing call carries the handle, so the server knows which function to
+ * run and with which state. Several elements may open the same function, each
+ * instance keeps its own state.
+ *
+ * The wire types are the interface's own: the client copies them from and
+ * to struct audio_caps field by field, and the server needs no Zephyr or
+ * mpipe header. The pad direction values match enum mpipe_pad_direction, the
+ * format values match AUDIO_FORMAT_*, the mask bits match AUDIO_SAMPLE_RATE_*
+ * and AUDIO_BIT_WIDTH_*, and the function values match enum
+ * mpipe_aud_remote_func.
+ *
+ * The buffers belong to the server. Each instance has a set of input buffers
+ * and a set of output buffers of its own, so that two instances never share
+ * one. Once it has opened a function, the client asks for the buffers of
+ * that instance with its handle, and passes their addresses back to
+ * aud_process_fn_rpc, which takes only buffers of the instance it runs.
+ * Besides the server, only the client reads or writes them: it copies the
+ * input in and reads the output back.
+ *
+ * The server handles one call at a time; the client serializes its calls.
+ *
+ * Every function returns 0 or a negative errno. A call that fails in eRPC
+ * itself returns -EIO (-5), set by @error_return.
+ *
+ * Every name carries an aud_ prefix and the interface a fixed id, so that
+ * this interface can be linked next to the video transform one, and served
+ * by the same server.
+ *
+ * erpcgen derives the names of the generated functions from the interface
+ * name (initMpipeAudTransform_client, create_MpipeAudTransform_service).
+ */
+
+program mpipe_aud_transform
+
+enum mpipe_rpc_aud_pad_direction {
+	MPIPE_RPC_AUD_PAD_UNKNOWN = 0,
+	MPIPE_RPC_AUD_PAD_SRC = 1,
+	MPIPE_RPC_AUD_PAD_SINK = 2
+}
+
+enum mpipe_rpc_aud_format {
+	MPIPE_RPC_AUD_FORMAT_PCM = 0,
+	MPIPE_RPC_AUD_FORMAT_FFT = 1
+}
+
+/* Functions a server may provide; a server refuses those it does not have */
+enum mpipe_rpc_aud_func {
+	MPIPE_RPC_AUD_FUNC_GAIN = 1,
+	MPIPE_RPC_AUD_FUNC_FFT = 2,
+	MPIPE_RPC_AUD_FUNC_IFFT = 3
+}
+
+/*
+ * Mirrors struct audio_caps. A fixed format has one bit in each mask and
+ * equal minimum and maximum.
+ */
+struct mpipe_rpc_aud_caps {
+	uint8 min_total_channels;
+	uint8 max_total_channels;
+	uint32 supported_sample_rates;
+	uint32 supported_bit_widths;
+	uint8 min_num_buffers;
+	uint32 min_frame_interval;
+	uint32 max_frame_interval;
+	bool interleaved;
+	mpipe_rpc_aud_format format;
+}
+
+@id(2)
+interface MpipeAudTransform {
+	@error_return(-5)
+	aud_open_rpc(in mpipe_rpc_aud_func func, out uint32 handle) -> int32
+	@error_return(-5)
+	aud_get_buf_caps_rpc(in uint32 handle, in mpipe_rpc_aud_pad_direction direction, out uint8 num_buffers, out uint32 buf_size, out uint16 buf_align) -> int32
+	@error_return(-5)
+	aud_get_buf_rpc(in uint32 handle, in mpipe_rpc_aud_pad_direction direction, in uint8 ind, out uint32 addr) -> int32
+	@error_return(-5)
+	aud_get_format_caps_rpc(in uint32 handle, in mpipe_rpc_aud_pad_direction direction, in uint8 ind, out mpipe_rpc_aud_caps caps) -> int32
+	@error_return(-5)
+	aud_set_format_rpc(in uint32 handle, in mpipe_rpc_aud_pad_direction direction, in mpipe_rpc_aud_caps caps, out uint32 buf_size) -> int32
+	@error_return(-5)
+	aud_transform_cap_rpc(in uint32 handle, in mpipe_rpc_aud_pad_direction direction, in uint16 ind, in mpipe_rpc_aud_caps caps, out mpipe_rpc_aud_caps other_caps) -> int32
+	@error_return(-5)
+	aud_process_fn_rpc(in uint32 handle, in uint32 in_buf, in uint32 in_sz, in uint32 out_buf, out uint32 out_sz) -> int32
+}
