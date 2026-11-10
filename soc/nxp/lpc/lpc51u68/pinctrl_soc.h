@@ -24,7 +24,7 @@ typedef uint32_t pinctrl_soc_pin_t;
 	IF_ENABLED(DT_PROP(node_id, drive_push_pull), (IOCON_PIO_MODE(0x3) |))	\
 	IOCON_PIO_INVERT(DT_PROP(node_id, nxp_invert)) |			\
 	IOCON_PIO_DIGIMODE(!DT_PROP(node_id, nxp_analog_mode)) |		\
-	IOCON_PIO_FILTEROFF(!DT_NODE_HAS_PROP(node_id, nxp_digital_filter)) |	\
+	IOCON_PIO_FILTEROFF(!DT_PROP(node_id, nxp_digital_filter)) |		\
 	IOCON_PIO_SLEW(DT_ENUM_IDX(node_id, slew_rate)) |			\
 	IOCON_PIO_OD(DT_PROP(node_id, drive_open_drain)) |			\
 	IOCON_PIO_I2CSLEW(!DT_PROP(node_id, nxp_i2c_mode)) |			\
@@ -34,7 +34,7 @@ typedef uint32_t pinctrl_soc_pin_t;
 /* Mask for digital type pin configuration register */
 #define Z_PINCTRL_IOCON_D_PIN_MASK (IOCON_PIO_OD_MASK |				\
 	IOCON_PIO_DIGIMODE_MASK | IOCON_PIO_INVERT_MASK | IOCON_PIO_SLEW_MASK |	\
-	IOCON_PIO_MODE_MASK | IOCON_PIO_FUNC_MASK)
+	IOCON_PIO_FILTEROFF_MASK | IOCON_PIO_MODE_MASK | IOCON_PIO_FUNC_MASK)
 
 /* LPC51U68 does not have analog type pins */
 #define Z_PINCTRL_IOCON_A_PIN_MASK						\
