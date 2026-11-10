@@ -49,6 +49,9 @@
  * holding two list values. An element whose capability comes from more than one
  * device passes what the devices agree on.
  *
+ * The media type follows the format of @p caps: @ref MPIPE_MEDIA_AUDIO_PCM for
+ * @ref AUDIO_FORMAT_PCM, @ref MPIPE_MEDIA_AUDIO_FFT for @ref AUDIO_FORMAT_FFT.
+ *
  * @param caps Audio capabilities to enumerate.
  * @param index Zero-based enumeration index.
  * @param filter Capability the result must satisfy, may be NULL.
@@ -57,7 +60,7 @@
  * @retval 0 Success.
  * @retval -EAGAIN The capability at @p index cannot satisfy @p filter.
  * @retval -ENOENT @p index is past the last capability.
- * @retval -EINVAL @p caps is NULL.
+ * @retval -EINVAL @p caps is NULL, or its format is unknown.
  */
 int mpipe_aud_enum_caps(const struct audio_caps *caps, uint32_t index,
 			const struct mpipe_structure *filter, struct mpipe_structure *out);

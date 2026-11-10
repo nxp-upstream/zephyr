@@ -96,9 +96,18 @@ int mpipe_aud_enum_caps(const struct audio_caps *caps, uint32_t index,
 	uint32_t num_widths = 0U;
 	uint32_t sample_rate;
 	uint32_t bit_width;
+	uint8_t media;
 	int ret;
 
 	if (caps == NULL) {
+		return -EINVAL;
+	}
+
+	if (caps->format == AUDIO_FORMAT_PCM) {
+		media = MPIPE_MEDIA_AUDIO_PCM;
+	} else if (caps->format == AUDIO_FORMAT_FFT) {
+		media = MPIPE_MEDIA_AUDIO_FFT;
+	} else {
 		return -EINVAL;
 	}
 
@@ -125,10 +134,9 @@ int mpipe_aud_enum_caps(const struct audio_caps *caps, uint32_t index,
 		return -ENOENT;
 	}
 
-	ret = mpipe_structure_init_fields(&candidate, MPIPE_MEDIA_AUDIO_PCM,
-					  MPIPE_CAPS_SAMPLE_RATE, MPIPE_TYPE_UINT, sample_rate,
-					  MPIPE_CAPS_BIT_WIDTH, MPIPE_TYPE_UINT, bit_width,
-					  MPIPE_CAPS_END);
+	ret = mpipe_structure_init_fields(&candidate, media, MPIPE_CAPS_SAMPLE_RATE,
+					  MPIPE_TYPE_UINT, sample_rate, MPIPE_CAPS_BIT_WIDTH,
+					  MPIPE_TYPE_UINT, bit_width, MPIPE_CAPS_END);
 	if (ret != 0) {
 		return ret;
 	}
@@ -190,11 +198,13 @@ int mpipe_aud_caps_from_structure(const struct mpipe_structure *caps, struct aud
 		return -EINVAL;
 	}
 
-	if (caps->media_type_id != MPIPE_MEDIA_AUDIO_PCM) {
+	if (caps->media_type_id == MPIPE_MEDIA_AUDIO_PCM) {
+		out->format = AUDIO_FORMAT_PCM;
+	} else if (caps->media_type_id == MPIPE_MEDIA_AUDIO_FFT) {
+		out->format = AUDIO_FORMAT_FFT;
+	} else {
 		return -EINVAL;
 	}
-
-	out->format = AUDIO_FORMAT_PCM;
 
 	out->min_num_buffers = 0U;
 

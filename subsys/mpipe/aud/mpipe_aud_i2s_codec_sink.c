@@ -41,7 +41,7 @@ static int mpipe_aud_i2s_codec_sink_enum_caps(struct mpipe_pad *pad, uint32_t in
 		(struct mpipe_aud_i2s_codec_sink *)pad->object.container;
 	struct audio_caps i2s_caps;
 	struct audio_caps codec_caps;
-	struct audio_caps caps;
+	struct audio_caps caps = {.format = AUDIO_FORMAT_PCM};
 
 	if (i2s_get_caps(aud->i2s_dev, &i2s_caps, I2S_DIR_TX) != 0) {
 		LOG_ERR("Failed to get I2S capabilities");

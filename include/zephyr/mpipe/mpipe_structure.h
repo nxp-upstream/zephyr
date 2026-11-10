@@ -72,6 +72,15 @@ enum mpipe_media_type {
 	MPIPE_MEDIA_AUDIO_PCM,
 	/** Video, including raw, bayer and compressed formats */
 	MPIPE_MEDIA_VIDEO,
+	/**
+	 * Audio FFT: the complex spectrum of each channel of one block of PCM
+	 * samples, the frame-interval x sample-rate / 2 + 1 bins from DC to
+	 * Nyquist, each a real and an imaginary part of MPIPE_CAPS_BIT_WIDTH
+	 * bits (32: IEEE 754 single precision). The spectrum of each of the
+	 * MPIPE_CAPS_NUM_CHANNELS channels follows that of the previous one,
+	 * channel 0 first.
+	 */
+	MPIPE_MEDIA_AUDIO_FFT,
 	/** One past the last media type; not itself a usable media type */
 	MPIPE_MEDIA_END,
 };

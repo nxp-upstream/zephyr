@@ -74,6 +74,7 @@ static const char *const dump_media_names[] = {
 	[MPIPE_MEDIA_UNKNOWN] = "unknown",
 	[MPIPE_MEDIA_AUDIO_PCM] = "audio/pcm",
 	[MPIPE_MEDIA_VIDEO] = "video",
+	[MPIPE_MEDIA_AUDIO_FFT] = "audio/fft",
 };
 BUILD_ASSERT(ARRAY_SIZE(dump_media_names) == MPIPE_MEDIA_END,
 	     "A media type has no name in dump_media_names");
