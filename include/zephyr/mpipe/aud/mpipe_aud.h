@@ -63,6 +63,24 @@ int mpipe_aud_enum_caps(const struct audio_caps *caps, uint32_t index,
 			const struct mpipe_structure *filter, struct mpipe_structure *out);
 
 /**
+ * @brief Describe an audio capability as audio capabilities of a device.
+ *
+ * A fixed sample rate or bit width becomes the one mask bit standing for it,
+ * a range becomes every bit within it and a missing field every bit. A fixed
+ * channel count or frame interval becomes a minimum equal to the maximum, a
+ * range its bounds and a missing field the widest span. A fixed capability
+ * thus gives exactly one value of each. The format follows the media type.
+ *
+ * @param caps Capability to convert.
+ * @param[out] out Pointer to storage for the audio capabilities.
+ *
+ * @retval 0 Success.
+ * @retval -EINVAL The media type of @p caps is not an audio one, or a field
+ *         holds no value that has a mask bit.
+ */
+int mpipe_aud_caps_from_structure(const struct mpipe_structure *caps, struct audio_caps *out);
+
+/**
  * @brief Read a fixed unsigned field that a capability is required to carry.
  *
  * Audio elements configure their device from several caps fields at once and

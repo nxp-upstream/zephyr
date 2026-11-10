@@ -63,6 +63,21 @@ static uint32_t mpipe_aud_nth(const struct mpipe_aud_desc *table, size_t len, ui
 	return 0U;
 }
 
+/* Mask of the entries of a table whose value lies in [lo, hi] */
+static uint32_t mpipe_aud_mask_of(const struct mpipe_aud_desc *table, size_t len, uint32_t lo,
+				  uint32_t hi)
+{
+	uint32_t mask = 0U;
+
+	for (size_t i = 0U; i < len; i++) {
+		if (table[i].value >= lo && table[i].value <= hi) {
+			mask |= table[i].mask;
+		}
+	}
+
+	return mask;
+}
+
 /* A fixed value when min == max, a range otherwise */
 static int mpipe_aud_append_span(struct mpipe_structure *out, uint8_t field_id, uint32_t min,
 				 uint32_t max)
@@ -137,6 +152,103 @@ int mpipe_aud_enum_caps(const struct audio_caps *caps, uint32_t index,
 	}
 
 	return mpipe_pad_enum_filter(&candidate, filter, out);
+}
+
+/*
+ * Bounds of an unsigned field: its value twice when fixed, its bounds when a
+ * range, def_min and def_max when missing
+ */
+static int mpipe_aud_bounds(const struct mpipe_structure *caps, uint8_t field_id,
+			    uint32_t def_min, uint32_t def_max, uint32_t *min, uint32_t *max)
+{
+	const struct mpipe_value *value = mpipe_structure_get_value(caps, field_id);
+
+	if (value == NULL) {
+		*min = def_min;
+		*max = def_max;
+	} else if (value->type == MPIPE_TYPE_UINT) {
+		*min = mpipe_value_get_uint(value);
+		*max = *min;
+	} else if (value->type == MPIPE_TYPE_UINT_RANGE) {
+		*min = mpipe_value_get_uint_range_min(value);
+		*max = mpipe_value_get_uint_range_max(value);
+	} else {
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+int mpipe_aud_caps_from_structure(const struct mpipe_structure *caps, struct audio_caps *out)
+{
+	const struct mpipe_value *value;
+	uint32_t min;
+	uint32_t max;
+	int ret;
+
+	if (caps == NULL || out == NULL) {
+		return -EINVAL;
+	}
+
+	if (caps->media_type_id != MPIPE_MEDIA_AUDIO_PCM) {
+		return -EINVAL;
+	}
+
+	out->format = AUDIO_FORMAT_PCM;
+
+	out->min_num_buffers = 0U;
+
+	ret = mpipe_aud_bounds(caps, MPIPE_CAPS_SAMPLE_RATE, 0U, UINT32_MAX, &min, &max);
+	if (ret != 0) {
+		return ret;
+	}
+
+	out->supported_sample_rates = mpipe_aud_mask_of(
+		mpipe_aud_sample_rates, ARRAY_SIZE(mpipe_aud_sample_rates), min, max);
+	if (out->supported_sample_rates == 0U) {
+		LOG_ERR("No sample rate bit in %u..%u Hz", min, max);
+		return -EINVAL;
+	}
+
+	ret = mpipe_aud_bounds(caps, MPIPE_CAPS_BIT_WIDTH, 0U, UINT32_MAX, &min, &max);
+	if (ret != 0) {
+		return ret;
+	}
+
+	out->supported_bit_widths = mpipe_aud_mask_of(
+		mpipe_aud_bit_widths, ARRAY_SIZE(mpipe_aud_bit_widths), min, max);
+	if (out->supported_bit_widths == 0U) {
+		LOG_ERR("No bit width bit in %u..%u", min, max);
+		return -EINVAL;
+	}
+
+	ret = mpipe_aud_bounds(caps, MPIPE_CAPS_NUM_CHANNELS, 1U, UINT8_MAX, &min, &max);
+	if (ret != 0) {
+		return ret;
+	}
+
+	if (min > UINT8_MAX) {
+		return -EINVAL;
+	}
+
+	out->min_total_channels = (uint8_t)min;
+	out->max_total_channels = (uint8_t)MIN(max, UINT8_MAX);
+
+	ret = mpipe_aud_bounds(caps, MPIPE_CAPS_FRAME_INTERVAL, 0U, UINT32_MAX, &min, &max);
+	if (ret != 0) {
+		return ret;
+	}
+
+	out->min_frame_interval = min;
+	out->max_frame_interval = max;
+
+	/* A capability that leaves the layout open is taken as non-interleaved */
+	value = mpipe_structure_get_value(caps, MPIPE_CAPS_INTERLEAVED);
+	out->interleaved = (value != NULL && value->type == MPIPE_TYPE_BOOLEAN)
+				   ? mpipe_value_get_boolean(value)
+				   : false;
+
+	return 0;
 }
 
 int mpipe_aud_caps_get_uint(const struct mpipe_structure *caps, uint8_t field_id, uint32_t *out)
