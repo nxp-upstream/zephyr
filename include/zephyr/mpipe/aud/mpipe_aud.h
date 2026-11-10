@@ -41,36 +41,6 @@
 #include <zephyr/mpipe/mpipe_structure.h>
 
 /**
- * @name Supported sample rates (Hz)
- * @{
- */
-/** @brief 8 kHz sample rate */
-#define MPIPE_AUD_SAMPLE_RATE_8000  8000
-/** @brief 16 kHz sample rate */
-#define MPIPE_AUD_SAMPLE_RATE_16000 16000
-/** @brief 32 kHz sample rate */
-#define MPIPE_AUD_SAMPLE_RATE_32000 32000
-/** @brief 44.1 kHz sample rate */
-#define MPIPE_AUD_SAMPLE_RATE_44100 44100
-/** @brief 48 kHz sample rate */
-#define MPIPE_AUD_SAMPLE_RATE_48000 48000
-/** @brief 96 kHz sample rate */
-#define MPIPE_AUD_SAMPLE_RATE_96000 96000
-/** @} */
-
-/**
- * @name Supported bit widths
- * @{
- */
-/** @brief 16 bit width */
-#define MPIPE_AUD_BIT_WIDTH_16 16
-/** @brief 24 bit width */
-#define MPIPE_AUD_BIT_WIDTH_24 24
-/** @brief 32 bit width */
-#define MPIPE_AUD_BIT_WIDTH_32 32
-/** @} */
-
-/**
  * @brief Produce the capability a device advertises at an enumeration index.
  *
  * A device describes its sample rates and bit widths as two masks, and every

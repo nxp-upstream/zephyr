@@ -259,9 +259,9 @@ static int mpipe_aud_gain_process_fn(struct mpipe_pad *pad, struct net_buf *in_b
  * enumeration index rather than being collected into a list value.
  */
 static const uint32_t mpipe_aud_gain_bit_widths[] = {
-	MPIPE_AUD_BIT_WIDTH_32,
-	MPIPE_AUD_BIT_WIDTH_24,
-	MPIPE_AUD_BIT_WIDTH_16,
+	32U,
+	24U,
+	16U,
 };
 
 static int mpipe_aud_gain_enum_caps(struct mpipe_pad *pad, uint32_t index,

@@ -18,118 +18,67 @@ struct mpipe_aud_desc {
 	uint32_t mask;
 };
 
+/* Every AUDIO_SAMPLE_RATE_* bit, in increasing rate */
 static const struct mpipe_aud_desc mpipe_aud_sample_rates[] = {
-	{MPIPE_AUD_SAMPLE_RATE_8000, AUDIO_SAMPLE_RATE_8000},
-	{MPIPE_AUD_SAMPLE_RATE_16000, AUDIO_SAMPLE_RATE_16000},
-	{MPIPE_AUD_SAMPLE_RATE_32000, AUDIO_SAMPLE_RATE_32000},
-	{MPIPE_AUD_SAMPLE_RATE_44100, AUDIO_SAMPLE_RATE_44100},
-	{MPIPE_AUD_SAMPLE_RATE_48000, AUDIO_SAMPLE_RATE_48000},
-	{MPIPE_AUD_SAMPLE_RATE_96000, AUDIO_SAMPLE_RATE_96000},
+	{7350U, AUDIO_SAMPLE_RATE_7350},     {8000U, AUDIO_SAMPLE_RATE_8000},
+	{11025U, AUDIO_SAMPLE_RATE_11025},   {12000U, AUDIO_SAMPLE_RATE_12000},
+	{14700U, AUDIO_SAMPLE_RATE_14700},   {16000U, AUDIO_SAMPLE_RATE_16000},
+	{20000U, AUDIO_SAMPLE_RATE_20000},   {22050U, AUDIO_SAMPLE_RATE_22050},
+	{24000U, AUDIO_SAMPLE_RATE_24000},   {29400U, AUDIO_SAMPLE_RATE_29400},
+	{32000U, AUDIO_SAMPLE_RATE_32000},   {44100U, AUDIO_SAMPLE_RATE_44100},
+	{48000U, AUDIO_SAMPLE_RATE_48000},   {50000U, AUDIO_SAMPLE_RATE_50000},
+	{50400U, AUDIO_SAMPLE_RATE_50400},   {64000U, AUDIO_SAMPLE_RATE_64000},
+	{88200U, AUDIO_SAMPLE_RATE_88200},   {96000U, AUDIO_SAMPLE_RATE_96000},
+	{100800U, AUDIO_SAMPLE_RATE_100800}, {128000U, AUDIO_SAMPLE_RATE_128000},
+	{176400U, AUDIO_SAMPLE_RATE_176400}, {192000U, AUDIO_SAMPLE_RATE_192000},
+	{352800U, AUDIO_SAMPLE_RATE_352800}, {384000U, AUDIO_SAMPLE_RATE_384000},
+	{705600U, AUDIO_SAMPLE_RATE_705600}, {768000U, AUDIO_SAMPLE_RATE_768000},
 };
 
+/* Every AUDIO_BIT_WIDTH_* bit, in increasing width */
 static const struct mpipe_aud_desc mpipe_aud_bit_widths[] = {
-	{MPIPE_AUD_BIT_WIDTH_16, AUDIO_BIT_WIDTH_16},
-	{MPIPE_AUD_BIT_WIDTH_24, AUDIO_BIT_WIDTH_24},
-	{MPIPE_AUD_BIT_WIDTH_32, AUDIO_BIT_WIDTH_32},
+	{8U, AUDIO_BIT_WIDTH_8},   {16U, AUDIO_BIT_WIDTH_16}, {18U, AUDIO_BIT_WIDTH_18},
+	{20U, AUDIO_BIT_WIDTH_20}, {24U, AUDIO_BIT_WIDTH_24}, {32U, AUDIO_BIT_WIDTH_32},
+	{64U, AUDIO_BIT_WIDTH_64},
 };
 
-/* Sample rate a single mask bit stands for, or 0 if that bit is not a known one */
-static uint32_t audio2mp_sample_rate(uint32_t sample_rate_mask)
+/* Value at n among the entries of a table a mask advertises, or 0 if it has fewer */
+static uint32_t mpipe_aud_nth(const struct mpipe_aud_desc *table, size_t len, uint32_t mask,
+			      uint32_t n)
 {
-	for (uint8_t i = 0; i < ARRAY_SIZE(mpipe_aud_sample_rates); i++) {
-		if (mpipe_aud_sample_rates[i].mask == sample_rate_mask) {
-			return mpipe_aud_sample_rates[i].value;
-		}
-	}
+	uint32_t matched = 0U;
 
-	return 0;
-}
-
-/* Bit width a single mask bit stands for, or 0 if that bit is not a known one */
-static uint32_t audio2mp_bit_width(uint32_t bit_width_mask)
-{
-	for (uint8_t i = 0; i < ARRAY_SIZE(mpipe_aud_bit_widths); i++) {
-		if (mpipe_aud_bit_widths[i].mask == bit_width_mask) {
-			return mpipe_aud_bit_widths[i].value;
-		}
-	}
-
-	return 0;
-}
-
-/* How many known bit widths a mask advertises, the divisor splitting the index */
-static uint32_t mpipe_aud_count_bit_widths(uint32_t bit_width_mask)
-{
-	uint32_t count = 0;
-
-	for (uint8_t i = 0; i < 32U; i++) {
-		if ((bit_width_mask & BIT(i)) != 0U && audio2mp_bit_width(BIT(i)) > 0U) {
-			count++;
-		}
-	}
-
-	return count;
-}
-
-/* Sample rate at n among those a mask advertises, or 0 if it has fewer */
-static uint32_t mpipe_aud_nth_sample_rate(uint32_t sample_rate_mask, uint32_t n)
-{
-	uint32_t matched = 0;
-
-	for (uint8_t i = 0; i < 32U; i++) {
-		uint32_t sr;
-
-		if ((sample_rate_mask & BIT(i)) == 0U) {
-			continue;
-		}
-
-		sr = audio2mp_sample_rate(BIT(i));
-		if (sr == 0U) {
+	for (size_t i = 0U; i < len; i++) {
+		if ((mask & table[i].mask) == 0U) {
 			continue;
 		}
 
 		if (matched == n) {
-			return sr;
+			return table[i].value;
 		}
 
 		matched++;
 	}
 
-	return 0;
+	return 0U;
 }
 
-/* Bit width at n among those a mask advertises, or 0 if it has fewer */
-static uint32_t mpipe_aud_nth_bit_width(uint32_t bit_width_mask, uint32_t n)
+/* A fixed value when min == max, a range otherwise */
+static int mpipe_aud_append_span(struct mpipe_structure *out, uint8_t field_id, uint32_t min,
+				 uint32_t max)
 {
-	uint32_t matched = 0;
+	struct mpipe_value fixed = MPIPE_VALUE_UINT(min);
+	struct mpipe_value range = MPIPE_VALUE_UINT_RANGE(min, max, 1U);
 
-	for (uint8_t i = 0; i < 32U; i++) {
-		uint32_t bw;
-
-		if ((bit_width_mask & BIT(i)) == 0U) {
-			continue;
-		}
-
-		bw = audio2mp_bit_width(BIT(i));
-		if (bw == 0U) {
-			continue;
-		}
-
-		if (matched == n) {
-			return bw;
-		}
-
-		matched++;
-	}
-
-	return 0;
+	return mpipe_structure_append_value(out, field_id, (min == max) ? &fixed : &range);
 }
 
 int mpipe_aud_enum_caps(const struct audio_caps *caps, uint32_t index,
 			const struct mpipe_structure *filter, struct mpipe_structure *out)
 {
 	struct mpipe_structure candidate;
-	uint32_t num_widths;
+	struct mpipe_value value;
+	uint32_t num_widths = 0U;
 	uint32_t sample_rate;
 	uint32_t bit_width;
 	int ret;
@@ -138,28 +87,51 @@ int mpipe_aud_enum_caps(const struct audio_caps *caps, uint32_t index,
 		return -EINVAL;
 	}
 
-	num_widths = mpipe_aud_count_bit_widths(caps->supported_bit_widths);
+	/* The index spans every bit width the caps advertise for each sample rate */
+	for (size_t i = 0U; i < ARRAY_SIZE(mpipe_aud_bit_widths); i++) {
+		if ((caps->supported_bit_widths & mpipe_aud_bit_widths[i].mask) != 0U) {
+			num_widths++;
+		}
+	}
+
 	if (num_widths == 0U) {
 		return -ENOENT;
 	}
 
-	sample_rate = mpipe_aud_nth_sample_rate(caps->supported_sample_rates, index / num_widths);
+	sample_rate = mpipe_aud_nth(mpipe_aud_sample_rates, ARRAY_SIZE(mpipe_aud_sample_rates),
+				    caps->supported_sample_rates, index / num_widths);
 	if (sample_rate == 0U) {
 		return -ENOENT;
 	}
 
-	bit_width = mpipe_aud_nth_bit_width(caps->supported_bit_widths, index % num_widths);
+	bit_width = mpipe_aud_nth(mpipe_aud_bit_widths, ARRAY_SIZE(mpipe_aud_bit_widths),
+				  caps->supported_bit_widths, index % num_widths);
 	if (bit_width == 0U) {
 		return -ENOENT;
 	}
 
-	ret = mpipe_structure_init_fields(
-		&candidate, MPIPE_MEDIA_AUDIO_PCM, MPIPE_CAPS_SAMPLE_RATE, MPIPE_TYPE_UINT,
-		sample_rate, MPIPE_CAPS_BIT_WIDTH, MPIPE_TYPE_UINT, bit_width,
-		MPIPE_CAPS_NUM_CHANNELS, MPIPE_TYPE_UINT_RANGE, caps->min_total_channels,
-		caps->max_total_channels, 1, MPIPE_CAPS_FRAME_INTERVAL, MPIPE_TYPE_UINT_RANGE,
-		caps->min_frame_interval, caps->max_frame_interval, 1, MPIPE_CAPS_INTERLEAVED,
-		MPIPE_TYPE_BOOLEAN, caps->interleaved, MPIPE_CAPS_END);
+	ret = mpipe_structure_init_fields(&candidate, MPIPE_MEDIA_AUDIO_PCM,
+					  MPIPE_CAPS_SAMPLE_RATE, MPIPE_TYPE_UINT, sample_rate,
+					  MPIPE_CAPS_BIT_WIDTH, MPIPE_TYPE_UINT, bit_width,
+					  MPIPE_CAPS_END);
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = mpipe_aud_append_span(&candidate, MPIPE_CAPS_NUM_CHANNELS, caps->min_total_channels,
+				    caps->max_total_channels);
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = mpipe_aud_append_span(&candidate, MPIPE_CAPS_FRAME_INTERVAL,
+				    caps->min_frame_interval, caps->max_frame_interval);
+	if (ret != 0) {
+		return ret;
+	}
+
+	value = (struct mpipe_value)MPIPE_VALUE_BOOLEAN(caps->interleaved);
+	ret = mpipe_structure_append_value(&candidate, MPIPE_CAPS_INTERLEAVED, &value);
 	if (ret != 0) {
 		return ret;
 	}
