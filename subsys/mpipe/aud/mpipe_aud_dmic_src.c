@@ -79,6 +79,17 @@ static int mpipe_aud_dmic_src_set_caps(struct mpipe_src *src, const struct mpipe
 	LOG_DBG("PCM output rate: %u, channels: %u\n", cfg.streams[0].pcm_rate,
 		cfg.channel.req_num_chan);
 
+	/*
+	 * The pool has no stop hook: the pipeline thread may still sit in
+	 * dmic_read() when the pool stops, and only the running capture lets
+	 * it return before the join. So a stopped pipeline leaves the capture
+	 * running, and dmic_configure() refuses an active device: stop it
+	 * here, before the next run configures it. Nothing reads it at this
+	 * point. The result is ignored, since a device that never started
+	 * may refuse the trigger.
+	 */
+	(void)dmic_trigger(aud_dmic_src->pool.aud_dev, DMIC_TRIGGER_STOP);
+
 	if (dmic_configure(aud_dmic_src->pool.aud_dev, &cfg) < 0) {
 		LOG_DBG("Failed to configure the driver");
 		return -EIO;
