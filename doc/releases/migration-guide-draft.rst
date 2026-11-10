@@ -200,6 +200,16 @@ OPAMP
   without device runtime PM are unaffected: the device is resumed at init and the instance comes
   up enabled as before. (:github:`122135`)
 
+Pin Control
+===========
+
+* On LPC51U68 and LPC54xxx SoCs, ``pinctrl`` no longer enables the IOCON digital input glitch
+  filter on every pin it configures. The filter is now off unless the pin group sets
+  ``nxp,digital-filter``, matching the reset value and the binding documentation. Before this
+  change the property had no effect and the filter was always on. Boards or applications that
+  relied on the filter must add ``nxp,digital-filter`` to the relevant pin groups.
+  (:github:`125143`)
+
 PTP Clock
 =========
 
