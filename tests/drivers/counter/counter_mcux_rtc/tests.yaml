@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+tests:
+  drivers.counter.mcux_rtc.startup:
+    tags:
+      - drivers
+      - counter
+    integration_platforms:
+      - native_sim
+      - qemu_cortex_m3
+    min_ram: 16
