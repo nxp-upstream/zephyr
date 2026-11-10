@@ -358,6 +358,23 @@ static int mpipe_aud_i2s_codec_sink_change_state(struct mpipe_element *self,
 {
 	struct mpipe_aud_i2s_codec_sink *aud_i2s_codec_sink =
 		(struct mpipe_aud_i2s_codec_sink *)self;
+	int ret;
+
+	/*
+	 * A pause stops the blocks but not the I2S stream, which then runs
+	 * dry and latches the error state that every later write refuses.
+	 * Drop the stream instead: it goes back to READY, and the resume
+	 * primes and starts it again like the first start.
+	 */
+	if (transition == MPIPE_STATE_CHANGE_PLAYING_TO_PAUSED && aud_i2s_codec_sink->started) {
+		ret = i2s_trigger(aud_i2s_codec_sink->i2s_dev, I2S_DIR_TX, I2S_TRIGGER_DROP);
+		if (ret < 0) {
+			LOG_WRN("Failed to drop I2S stream on pause: %d", ret);
+		}
+
+		aud_i2s_codec_sink->started = false;
+		aud_i2s_codec_sink->count = 0;
+	}
 
 	/*
 	 * Re-arm the priming counter on teardown. It is what decides when the
