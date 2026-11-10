@@ -25,6 +25,7 @@ description: |
   IOCON_INVERT=0,
   IOCON_DIGIMODE=1,
   IOCON_OD=0,
+  IOCON_FILTEROFF=1 (LPC51U68 and LPC54xxx only, unless nxp,digital-filter is set)
 
   Values for I2C type and analog type pins have the following defaults:
   IOCON_ASW=0
@@ -110,7 +111,10 @@ child-binding:
       nxp,digital-filter:
         type: boolean
         description: |
-          Digital input filter. Noise pulses below 10ms are filtered out.
+          Enable the digital input glitch filter (IOCON_FILTEROFF=0). Noise
+          pulses below 10 ns are filtered out. If this property is absent, the
+          filter is disabled (IOCON_FILTEROFF=1), as after reset. Only used on
+          LPC51U68 and LPC54xxx; ignored on other SoCs.
       nxp,i2c-filter:
         type: string
         enum:
