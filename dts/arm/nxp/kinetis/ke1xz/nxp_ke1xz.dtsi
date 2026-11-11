@@ -1,5 +1,5 @@
 /*
- * Copyright 2024-2026 NXP
+ * SPDX-FileCopyrightText: Copyright 2024-2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -62,6 +62,18 @@
 				exit-latency-us = <120>;
 			};
 		};
+	};
+
+	temp0: temp0 {
+		compatible = "nxp,kinetis-temperature";
+		io-channels = <&adc0 26>, <&adc0 27>;
+		io-channel-names = "SENSOR", "BANDGAP";
+		bandgap-voltage = <1000000>;
+		/* No calibration data for vtemp25, slope on ke1xz. Need to be fine tuned. */
+		vtemp25 = <740500>;
+		sensor-slope-cold = <1564>;
+		sensor-slope-hot = <1564>;
+		status = "disabled";
 	};
 
 	pinctrl: pinctrl {
