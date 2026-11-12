@@ -79,4 +79,28 @@ config MPIPE_AUD_I2S_CODEC_SINK_OUTPUT_VOLUME
 	  is 0 dB, each step is 1 dB and values up to and including 47 (0x2F)
 	  mute the output. The default of 106 is approximately -15 dB.
 
+config MPIPE_AUD_REMOTE_LOG
+	bool "Print the log of the remote audio server"
+	default y
+	depends on MPIPE_ERPC
+	help
+	  The remote audio server keeps its log lines in a buffer of its own
+	  instead of writing them to a console. The eRPC audio transform
+	  client reads them back after each control call, and once when it
+	  binds, and prints each line at its level in log module
+	  mpipe_aud_remote. The processing call is not followed by a read.
+
+	  The remote must serve the MpipeAudLog interface of
+	  mpipe_aud_transform.erpc.
+
+config MPIPE_AUD_REMOTE_LOG_POLL_MS
+	int "Period of the remote log reads while streaming (in milliseconds)"
+	default 0
+	depends on MPIPE_AUD_REMOTE_LOG
+	help
+	  When not 0, the client also reads the log of the remote every this
+	  many milliseconds, on the system work queue, for what the remote
+	  logs between control calls. Each read takes the RPC lock, so it
+	  delays the processing call of a block that is waiting for it.
+
 endif # MPIPE_AUD

@@ -40,6 +40,11 @@
  *
  * erpcgen derives the names of the generated functions from the interface
  * name (initMpipeAudTransform_client, create_MpipeAudTransform_service).
+ *
+ * The server has no console of its own: it keeps its log lines in a buffer
+ * and the client reads them back with aud_log_read_rpc, of a second
+ * interface, MpipeAudLog. The server registers both services, the client
+ * binds both interfaces to the same eRPC client.
  */
 
 program mpipe_aud_transform
@@ -94,4 +99,26 @@ interface MpipeAudTransform {
 	aud_transform_cap_rpc(in uint32 handle, in mpipe_rpc_aud_pad_direction direction, in uint16 ind, in mpipe_rpc_aud_caps caps, out mpipe_rpc_aud_caps other_caps) -> int32
 	@error_return(-5)
 	aud_process_fn_rpc(in uint32 handle, in uint32 in_buf, in uint32 in_sz, in uint32 out_buf, out uint32 out_sz) -> int32
+}
+
+/* Bytes of log text one aud_log_read_rpc returns at most */
+const uint16 AUD_LOG_CHUNK = 256
+
+/*
+ * Whole log lines, one after the other. Each line is its level, one of 'I',
+ * 'W' and 'E', then its text, then '\n'. A fixed array, so that neither side
+ * allocates it.
+ */
+type mpipe_rpc_aud_log_text = uint8[AUD_LOG_CHUNK]
+
+@id(3)
+interface MpipeAudLog {
+	/*
+	 * Move the oldest whole lines that fit in text out of the log of the
+	 * server. len is the bytes of text used, 0 when the log is empty;
+	 * dropped counts the lines the server could not keep since the last
+	 * call, because its log was full.
+	 */
+	@error_return(-5)
+	aud_log_read_rpc(out mpipe_rpc_aud_log_text text, out uint16 len, out uint32 dropped) -> int32
 }

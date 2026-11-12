@@ -17,6 +17,7 @@
 
 #include "c_mpipe_aud_transform_client.h"
 #include "mpipe_aud_transform_common.h"
+#include "mpipe_aud_transform_client_erpc_log.h"
 
 LOG_MODULE_REGISTER(mpipe_aud_transform_client_erpc, CONFIG_MPIPE_LOG_LEVEL);
 
@@ -43,6 +44,36 @@ static K_MUTEX_DEFINE(rpc_lock);
 
 /* Set once the interface is bound: the generated client binds only once */
 static bool rpc_ready;
+
+/*
+ * Print what the remote logged during the control call that returned ret.
+ * The caller holds rpc_lock. A call eRPC itself failed (-EIO) is not followed
+ * by a read, which would most likely fail the same way.
+ */
+static void mpipe_aud_transform_client_erpc_drain(int32_t ret)
+{
+	if (ret != -EIO) {
+		mpipe_aud_transform_client_erpc_log_drain();
+	}
+}
+
+#if defined(CONFIG_MPIPE_AUD_REMOTE_LOG_POLL_MS) && (CONFIG_MPIPE_AUD_REMOTE_LOG_POLL_MS > 0)
+static void mpipe_aud_transform_client_erpc_poll(struct k_work *work);
+
+static K_WORK_DELAYABLE_DEFINE(log_poll, mpipe_aud_transform_client_erpc_poll);
+
+/* Read the log between control calls too, for what the remote logs while streaming */
+static void mpipe_aud_transform_client_erpc_poll(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	(void)k_mutex_lock(&rpc_lock, K_FOREVER);
+	mpipe_aud_transform_client_erpc_log_drain();
+	(void)k_mutex_unlock(&rpc_lock);
+
+	(void)k_work_reschedule(&log_poll, K_MSEC(CONFIG_MPIPE_AUD_REMOTE_LOG_POLL_MS));
+}
+#endif
 
 static void mpipe_aud_transform_client_erpc_caps_to_rpc(const struct audio_caps *caps,
 							mpipe_rpc_aud_caps *rpc)
@@ -79,6 +110,7 @@ static int32_t mpipe_aud_transform_client_erpc_open(enum mpipe_aud_remote_func f
 
 	(void)k_mutex_lock(&rpc_lock, K_FOREVER);
 	ret = aud_open_rpc((mpipe_rpc_aud_func)func, handle);
+	mpipe_aud_transform_client_erpc_drain(ret);
 	(void)k_mutex_unlock(&rpc_lock);
 
 	return ret;
@@ -94,6 +126,7 @@ static int32_t mpipe_aud_transform_client_erpc_get_buf_caps(uint32_t handle,
 	(void)k_mutex_lock(&rpc_lock, K_FOREVER);
 	ret = aud_get_buf_caps_rpc(handle, (mpipe_rpc_aud_pad_direction)direction, num_buffers,
 				   buf_size, buf_align);
+	mpipe_aud_transform_client_erpc_drain(ret);
 	(void)k_mutex_unlock(&rpc_lock);
 
 	return ret;
@@ -107,6 +140,7 @@ static int32_t mpipe_aud_transform_client_erpc_get_buf(uint32_t handle,
 
 	(void)k_mutex_lock(&rpc_lock, K_FOREVER);
 	ret = aud_get_buf_rpc(handle, (mpipe_rpc_aud_pad_direction)direction, ind, addr);
+	mpipe_aud_transform_client_erpc_drain(ret);
 	(void)k_mutex_unlock(&rpc_lock);
 
 	return ret;
@@ -121,6 +155,7 @@ static int32_t mpipe_aud_transform_client_erpc_get_format_caps(uint32_t handle,
 
 	(void)k_mutex_lock(&rpc_lock, K_FOREVER);
 	ret = aud_get_format_caps_rpc(handle, (mpipe_rpc_aud_pad_direction)direction, ind, &rpc);
+	mpipe_aud_transform_client_erpc_drain(ret);
 	(void)k_mutex_unlock(&rpc_lock);
 
 	if (ret != 0) {
@@ -144,6 +179,7 @@ static int32_t mpipe_aud_transform_client_erpc_set_format(uint32_t handle,
 
 	(void)k_mutex_lock(&rpc_lock, K_FOREVER);
 	ret = aud_set_format_rpc(handle, (mpipe_rpc_aud_pad_direction)direction, &rpc, buf_size);
+	mpipe_aud_transform_client_erpc_drain(ret);
 	(void)k_mutex_unlock(&rpc_lock);
 
 	return ret;
@@ -163,6 +199,7 @@ static int32_t mpipe_aud_transform_client_erpc_transform_cap(uint32_t handle,
 	(void)k_mutex_lock(&rpc_lock, K_FOREVER);
 	ret = aud_transform_cap_rpc(handle, (mpipe_rpc_aud_pad_direction)direction, ind, &rpc,
 				    &other_rpc);
+	mpipe_aud_transform_client_erpc_drain(ret);
 	(void)k_mutex_unlock(&rpc_lock);
 
 	if (ret != 0) {
@@ -180,6 +217,7 @@ static int32_t mpipe_aud_transform_client_erpc_process(uint32_t handle, uint32_t
 {
 	int32_t ret;
 
+	/* No log read here: this runs once per block, on the data path */
 	(void)k_mutex_lock(&rpc_lock, K_FOREVER);
 	ret = aud_process_fn_rpc(handle, in_buf, in_sz, out_buf, out_sz);
 	(void)k_mutex_unlock(&rpc_lock);
@@ -205,9 +243,17 @@ static int mpipe_aud_transform_client_erpc_init_rpc(void)
 		goto out;
 	}
 
-	/* The generated client asserts it is bound only once */
+	/* The generated client asserts each interface is bound only once */
 	initMpipeAudTransform_client(client);
+	IF_ENABLED(CONFIG_MPIPE_AUD_REMOTE_LOG, (initMpipeAudLog_client(client);))
 	rpc_ready = true;
+
+	/* What the remote logged while it booted, its banner first */
+	mpipe_aud_transform_client_erpc_log_drain();
+
+#if defined(CONFIG_MPIPE_AUD_REMOTE_LOG_POLL_MS) && (CONFIG_MPIPE_AUD_REMOTE_LOG_POLL_MS > 0)
+	(void)k_work_schedule(&log_poll, K_MSEC(CONFIG_MPIPE_AUD_REMOTE_LOG_POLL_MS));
+#endif
 
 out:
 	(void)k_mutex_unlock(&rpc_lock);

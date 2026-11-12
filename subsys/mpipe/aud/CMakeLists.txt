@@ -48,5 +48,8 @@ if(CONFIG_MPIPE_AUD)
       mpipe_aud_transform_client_erpc.c
       ${mpipe_aud_erpc_sources}
     )
+    zephyr_library_sources_ifdef(CONFIG_MPIPE_AUD_REMOTE_LOG
+      mpipe_aud_transform_client_erpc_log.c
+    )
   endif()
 endif()
