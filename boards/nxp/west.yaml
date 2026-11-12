@@ -1,0 +1,2 @@
+manifest:
+  project-filter: -hal_.*,+hal_nxp
