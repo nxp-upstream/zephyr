@@ -9,7 +9,11 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/counter.h>
 #include <zephyr/drivers/timer/system_timer_lpm.h>
+#include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
 #include <zephyr/pm/device.h>
+
+LOG_MODULE_REGISTER(sys_lpm_hooks_counter);
 
 BUILD_ASSERT(DT_PROP(SYSTEM_TIMER_COMPANION_NODE, wakeup_source),
 	"The Low-Power Companion counter (chosen `zephyr,system-timer-companion` at path: "
@@ -29,6 +33,14 @@ static uint32_t counter_scheduled_lpm_ticks;
 
 /* Channel ID of the alarm that should wake up the system */
 #define LPM_ALARM_CHANNEL_ID 0U
+
+static void check_counter_result(int err, const char *operation)
+{
+	if (err != 0) {
+		LOG_ERR("Companion counter %s failed (%d)", operation, err);
+		k_panic();
+	}
+}
 
 void z_sys_clock_lpm_init(void)
 {
@@ -60,6 +72,10 @@ static void stub_alarm_callback(const struct device *dev, uint8_t chan_id,
 
 void z_sys_clock_lpm_enter(uint64_t max_lpm_time_us)
 {
+	int err;
+
+	check_counter_result(device_is_ready(lpm_counter) ? 0 : -ENODEV, "initialization");
+
 	/* Catch misuse of the device by external code */
 	__ASSERT(!IS_ENABLED(CONFIG_PM_DEVICE) || pm_device_wakeup_is_enabled(lpm_counter),
 		"External code must not disable Low-Power Companion wake-up source!");
@@ -74,17 +90,32 @@ void z_sys_clock_lpm_enter(uint64_t max_lpm_time_us)
 	};
 
 	/* Disable the counter alarm in case it was already running */
-	counter_cancel_channel_alarm(lpm_counter, LPM_ALARM_CHANNEL_ID);
+	err = counter_cancel_channel_alarm(lpm_counter, LPM_ALARM_CHANNEL_ID);
+	/* Cancellation may be unsupported until the counter has been started. */
+	if (err != -ENOTSUP) {
+		check_counter_result(err, "alarm cancellation");
+	}
+
+	/*
+	 * Setting an alarm does not necessarily start its counter. Start after
+	 * cancellation, as some drivers stop the counter when cancelling an alarm.
+	 */
+	err = counter_start(lpm_counter);
+	/* Always-running counters may not support an explicit start operation. */
+	if ((err != -EALREADY) && (err != -ENOTSUP)) {
+		check_counter_result(err, "start");
+	}
 
 	/* Configure the alarm to wake up the system as requested */
-	counter_set_channel_alarm(lpm_counter, LPM_ALARM_CHANNEL_ID, &cfg);
+	check_counter_result(counter_set_channel_alarm(lpm_counter, LPM_ALARM_CHANNEL_ID, &cfg),
+			     "alarm configuration");
 
 	/*
 	 * Store the current value of the counter to allow computing
 	 * how much time was really spent in low-power state, as the
 	 * system may be awoken earlier than scheduled.
 	 */
-	counter_get_value(lpm_counter, &counter_pre_lpm_ticks);
+	check_counter_result(counter_get_value(lpm_counter, &counter_pre_lpm_ticks), "entry read");
 }
 
 uint64_t z_sys_clock_lpm_exit(void)
@@ -95,7 +126,7 @@ uint64_t z_sys_clock_lpm_exit(void)
 
 	counter_int_pending = !!counter_get_pending_int(lpm_counter);
 	counter_top = counter_get_top_value(lpm_counter);
-	counter_get_value(lpm_counter, &post_lpm_ticks);
+	check_counter_result(counter_get_value(lpm_counter, &post_lpm_ticks), "exit read");
 
 	/* Check for counter overflow/wraparound */
 	/* TODO: this works only for upcounting timers! */

@@ -1,0 +1,16 @@
+common:
+  tags:
+    - drivers
+    - timer
+    - counter
+  platform_allow:
+    - qemu_cortex_m3
+  integration_platforms:
+    - qemu_cortex_m3
+  ignore_faults: true
+tests:
+  drivers.timer.lpm_companion_counter: {}
+  drivers.timer.lpm_companion_counter.no_pm_device:
+    extra_configs:
+      - CONFIG_PM_DEVICE=n
+      - CONFIG_ASSERT=n

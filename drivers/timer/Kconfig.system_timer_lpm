@@ -66,6 +66,13 @@ config SYSTEM_TIMER_LPM_COMPANION_COUNTER
 	  The device is selected by the chosen property
 	  "/chosen/zephyr,system-timer-companion".
 
+	  The counter device and alarm channel 0 are reserved for the companion.
+	  The device must be ready before low-power entry. The generic hooks
+	  start it before arming each alarm, so the counter driver need not
+	  detect that it is being used as a companion. The generic hooks do not
+	  stop the counter on low-power exit. Counters without start support
+	  must already be running.
+
 config SYSTEM_TIMER_LPM_COMPANION_HOOKS
 	bool "Hook-based timer"
 	help

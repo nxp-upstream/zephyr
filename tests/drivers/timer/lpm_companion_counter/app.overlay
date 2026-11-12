@@ -1,0 +1,15 @@
+/*
+ * SPDX-FileCopyrightText: Copyright The Zephyr Project Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	chosen {
+		zephyr,system-timer-companion = &test_counter;
+	};
+
+	test_counter: test-counter {
+		compatible = "vnd,lpm-test-counter";
+		wakeup-source;
+	};
+};
