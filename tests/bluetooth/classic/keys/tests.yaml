@@ -1,0 +1,22 @@
+common:
+  platform_allow:
+    - native_sim
+    - native_sim/native/64
+    - qemu_x86
+  integration_platforms:
+    - native_sim
+  tags:
+    - bluetooth
+    - classic
+
+tests:
+  bluetooth.classic.keys:
+    {}
+  bluetooth.classic.keys.no_overwrite:
+    extra_configs:
+      - CONFIG_BT_KEYS_OVERWRITE_OLDEST=n
+  bluetooth.classic.keys.no_settings:
+    extra_configs:
+      - CONFIG_BT_SETTINGS=n
+      - CONFIG_SETTINGS=n
+      - CONFIG_SETTINGS_RUNTIME=n
