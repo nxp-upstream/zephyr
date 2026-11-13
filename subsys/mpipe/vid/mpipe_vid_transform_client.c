@@ -19,12 +19,15 @@ static int mpipe_vid_transform_client_probe_pool(struct mpipe_vid_transform_clie
 						 enum mpipe_pad_direction direction,
 						 struct mpipe_buffer_pool *pool)
 {
-	if (vtc->get_buf_caps_rpc(direction, &pool->config.min_buffers, &pool->config.align) != 0) {
+	struct mpipe_buffer_pool_config req = {0};
+
+	if (vtc->get_buf_caps_rpc(direction, &req.min_buffers, &req.align) != 0) {
 		LOG_ERR("Unable to retrieve buffer pool capabilities");
 		return -ENODEV;
 	}
 
-	return 0;
+	/* The floor every run starts from: a stop restores it */
+	return mpipe_buffer_pool_set_req_config(pool, &req);
 }
 
 static int mpipe_vid_transform_client_enum_caps(struct mpipe_pad *pad, uint32_t index,
@@ -138,14 +141,6 @@ int mpipe_vid_transform_client_init(struct mpipe_vid_transform_client *vtc, uint
 	transform->in_pool = &vtc->in_pool.pool;
 	transform->out_pool = &vtc->out_pool.pool;
 
-	/*
-	 * The pool parameters are asked for once. The supported formats are not:
-	 * the pads enumerate them from the remote on demand, so the element keeps
-	 * no list of its own and its pad caps stay ANY until one is negotiated.
-	 */
-	(void)mpipe_vid_transform_client_probe_pool(vtc, MPIPE_PAD_SINK, transform->in_pool);
-	(void)mpipe_vid_transform_client_probe_pool(vtc, MPIPE_PAD_SRC, transform->out_pool);
-
 	transform->sink_pad.enum_caps_fn = mpipe_vid_transform_client_enum_caps;
 	transform->src_pad.enum_caps_fn = mpipe_vid_transform_client_enum_caps;
 
@@ -154,6 +149,14 @@ int mpipe_vid_transform_client_init(struct mpipe_vid_transform_client *vtc, uint
 	/* Initialize buffer pools */
 	mpipe_vid_buffer_pool_client_init(transform->in_pool);
 	mpipe_vid_buffer_pool_client_init(transform->out_pool);
+
+	/*
+	 * The pool parameters are asked for once. The supported formats are not:
+	 * the pads enumerate them from the remote on demand, so the element keeps
+	 * no list of its own and its pad caps stay ANY until one is negotiated.
+	 */
+	(void)mpipe_vid_transform_client_probe_pool(vtc, MPIPE_PAD_SINK, transform->in_pool);
+	(void)mpipe_vid_transform_client_probe_pool(vtc, MPIPE_PAD_SRC, transform->out_pool);
 
 	return 0;
 }
