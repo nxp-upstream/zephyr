@@ -26,6 +26,15 @@
  *
  * Base structure for all transform elements on the client side of multi-core pipeline.
  * These elements call RPC to the server side to off-load the processing work.
+ *
+ * The server may run one function or a whole pipeline: the client is one
+ * transform either way, and each buffer crosses to the other core once.
+ * Every hook is synchronous. A queue in front of the element is what lets the
+ * elements upstream work while the other core does.
+ *
+ * An input that is not in the element's input pool, because nothing upstream
+ * adopted the pool, is copied into it first: the other core reads the payload
+ * by address, so it must sit in the memory that pool allocates from.
  */
 struct mpipe_transform_client {
 	/** Base transform structure */
@@ -43,11 +52,36 @@ struct mpipe_transform_client {
 	 * @param in_buf Address of the input buffer to be processed
 	 * @param in_sz Number of valid bytes in the input buffer
 	 * @param out_buf Address of the output buffer to fill
-	 * @param[out] out_sz Number of bytes written to the output buffer
+	 * @param[out] out_sz Number of bytes written to the output buffer, 0 when
+	 *                    the server produced nothing for this input
 	 *
 	 * @return 0 on success, a negative errno on failure
 	 */
-	int (*process_fn_rpc)(uint32_t in_buf, uint32_t in_sz, uint32_t out_buf, uint32_t *out_sz);
+	int (*process_fn_rpc)(uintptr_t in_buf, uint32_t in_sz, uintptr_t out_buf,
+			      uint32_t *out_sz);
+	/**
+	 * @brief Take the server through a state transition, optional
+	 *
+	 * Called for every transition but READY to PAUSED: a server that
+	 * negotiates does so when the element applies its formats, which
+	 * happens later in that transition.
+	 *
+	 * @param transition The transition the element goes through
+	 *
+	 * @return 0 on success, a negative errno on failure
+	 */
+	int (*set_state_rpc)(enum mpipe_state_change transition);
+	/**
+	 * @brief Tell the server the stream ended, optional
+	 *
+	 * Returns once the server has flushed what it held, so that the end
+	 * of stream goes on downstream after the last buffer.
+	 *
+	 * @return 0 on success, a negative errno on failure
+	 */
+	int (*eos_rpc)(void);
+	/** The base element's event handler, called after the server heard the event */
+	int (*base_event_fn)(struct mpipe_pad *pad, struct mpipe_dispatch *event);
 };
 
 /**

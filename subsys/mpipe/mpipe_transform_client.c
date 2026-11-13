@@ -24,9 +24,22 @@ static int mpipe_transform_client_process_fn(struct mpipe_pad *pad, struct net_b
 	uint32_t in_used;
 	uint32_t out_used;
 
+	int ret;
+
 	if (in_buf == NULL || out_buf == NULL || transform->out_pool == NULL ||
 	    transform->out_pool->acquire_buffer == NULL) {
 		return -EINVAL;
+	}
+
+	*out_buf = NULL;
+
+	/* The server reads the payload by address: it must be in the element's memory */
+	if (transform->in_pool != NULL) {
+		ret = mpipe_buffer_move_to_pool(transform->in_pool, in_buf, &in_buf);
+		if (ret != 0) {
+			LOG_ERR("Failed to copy the input into the element's pool (%d)", ret);
+			return ret;
+		}
 	}
 
 	in_meta = mpipe_buffer_get_meta(in_buf);
@@ -35,22 +48,30 @@ static int mpipe_transform_client_process_fn(struct mpipe_pad *pad, struct net_b
 	if (transform->out_pool->acquire_buffer(transform->out_pool, out_buf) != 0 ||
 	    *out_buf == NULL) {
 		LOG_ERR("Failed to acquire an output buffer");
+		net_buf_unref(in_buf);
 		return -ENOMEM;
 	}
 
 	out_meta = mpipe_buffer_get_meta(*out_buf);
 	out_used = out_meta->bytes_used;
 
-	/* The RPC interface carries 32-bit addresses */
-	if (transform_client->process_fn_rpc((uint32_t)(uintptr_t)in_buf->data, in_used,
-					     (uint32_t)(uintptr_t)(*out_buf)->data,
-					     &out_used) != 0) {
+	if (transform_client->process_fn_rpc((uintptr_t)in_buf->data, in_used,
+					     (uintptr_t)(*out_buf)->data, &out_used) != 0) {
 		LOG_ERR("Failed to process buffer via RPC");
 		net_buf_unref(*out_buf);
 		*out_buf = NULL;
 		net_buf_unref(in_buf);
 
 		return -EIO;
+	}
+
+	/* The server dropped this input: nothing goes on downstream */
+	if (out_used == 0U) {
+		net_buf_unref(*out_buf);
+		*out_buf = NULL;
+		net_buf_unref(in_buf);
+
+		return 0;
 	}
 
 	out_meta->bytes_used = out_used;
@@ -60,6 +81,49 @@ static int mpipe_transform_client_process_fn(struct mpipe_pad *pad, struct net_b
 	net_buf_unref(in_buf);
 
 	return 0;
+}
+
+static int mpipe_transform_client_event_fn(struct mpipe_pad *pad, struct mpipe_dispatch *event)
+{
+	struct mpipe_transform_client *transform_client =
+		(struct mpipe_transform_client *)pad->object.container;
+	int ret;
+
+	/* The server flushes first, so its last buffer precedes the event downstream */
+	if (event->type == MPIPE_DISPATCH_EOS && transform_client->eos_rpc != NULL) {
+		ret = transform_client->eos_rpc();
+		if (ret != 0) {
+			LOG_ERR("The server failed to end the stream (%d)", ret);
+			return ret;
+		}
+	}
+
+	return transform_client->base_event_fn(pad, event);
+}
+
+static int mpipe_transform_client_change_state(struct mpipe_element *self,
+					       enum mpipe_state_change transition)
+{
+	struct mpipe_transform_client *transform_client = (struct mpipe_transform_client *)self;
+	struct mpipe_transform *transform = &transform_client->transform;
+	int ret;
+
+	/* READY to PAUSED is the server's own business, see set_state_rpc */
+	if (transition != MPIPE_STATE_CHANGE_READY_TO_PAUSED &&
+	    transform_client->set_state_rpc != NULL) {
+		ret = transform_client->set_state_rpc(transition);
+		if (ret != 0) {
+			LOG_ERR("The server refused the state change (%d)", ret);
+			return ret;
+		}
+	}
+
+	/* The pool is the element's to stop when nothing upstream adopted it */
+	if (transition == MPIPE_STATE_CHANGE_PAUSED_TO_READY && transform->in_pool != NULL) {
+		(void)mpipe_buffer_pool_stop(transform->in_pool);
+	}
+
+	return mpipe_transform_change_state(self, transition);
 }
 
 static int mpipe_transform_client_propose_buffer_pool(struct mpipe_transform *self,
@@ -85,10 +149,10 @@ static int mpipe_transform_client_decide_buffer_pool(struct mpipe_transform *sel
 
 	/* Always use its own pool, just negotiate the configs */
 	if (qpc != NULL) {
-		/* Decide min buffers */
-		if (qpc->min_buffers > pool_config->min_buffers) {
-			pool_config->min_buffers = qpc->min_buffers;
-		}
+		/* What downstream holds comes on top of what the server needs */
+		pool_config->min_buffers = (uint8_t)MIN(
+			(uint32_t)self->out_pool->req_config.min_buffers + qpc->min_buffers,
+			UINT8_MAX);
 
 		/* Decide alignment */
 		int align = sys_lcm(qpc->align, pool_config->align);
@@ -131,6 +195,10 @@ int mpipe_transform_client_init(struct mpipe_transform_client *transform_client,
 	/* Only NORMAL mode is supported */
 	transform->mode = MPIPE_TRANSFORM_MODE_NORMAL;
 
+	self->change_state = mpipe_transform_client_change_state;
+
+	transform_client->base_event_fn = transform->sink_pad.event_fn;
+	transform->sink_pad.event_fn = mpipe_transform_client_event_fn;
 	transform->sink_pad.process_fn = mpipe_transform_client_process_fn;
 	transform->decide_buffer_pool = mpipe_transform_client_decide_buffer_pool;
 	transform->propose_buffer_pool = mpipe_transform_client_propose_buffer_pool;
