@@ -1,0 +1,24 @@
+sample:
+  name: Pipelines on two cores
+
+tests:
+  sample.mpipe.tee_dec_multicore:
+    tags:
+      - mpipe
+      - video
+      - filesystem
+    platform_allow:
+      - mimxrt1170_evk@B/mimxrt1176/cm7
+    integration_platforms:
+      - mimxrt1170_evk@B/mimxrt1176/cm7
+    modules:
+      - erpc
+      - jpegdec
+    sysbuild: true
+    harness: console
+    extra_args:
+      - tee_dec_multicore_SHIELD="rk055hdmipi4ma0"
+    harness_config:
+      type: one_line
+      regex:
+        - "end of stream"

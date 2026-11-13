@@ -1,0 +1,12 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "Pipelines on two cores, remote core"
+
+config CHECK_STACK_SIZE
+	int "Stack size of the thread serving the checking pipeline"
+	default 4096
+	help
+	  The thread negotiates the checking pipeline and runs it.
+
+source "Kconfig.zephyr"
