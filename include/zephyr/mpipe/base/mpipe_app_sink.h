@@ -37,6 +37,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/net_buf.h>
 
+#include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/mpipe_element.h>
 #include <zephyr/mpipe/mpipe_sink.h>
 #include <zephyr/mpipe/mpipe_structure.h>
@@ -55,6 +56,13 @@ enum {
 	 * With a callback set, buffers are not queued for pulling.
 	 */
 	MPIPE_PROP_BASE_APP_SINK_CB,
+	/**
+	 * Buffer pool the application wants the buffers delivered in, a struct
+	 * mpipe_buffer_pool pointer, not copied: the pool must outlive the
+	 * element. The sink proposes it upstream at every negotiation; an
+	 * upstream element that does not adopt it delivers buffers of its own.
+	 */
+	MPIPE_PROP_BASE_APP_SINK_POOL,
 };
 
 /**
@@ -88,6 +96,8 @@ struct mpipe_app_sink {
 	struct mpipe_structure caps;
 	/** Optional buffer callback */
 	struct mpipe_app_sink_cb cb;
+	/** Optional pool proposed upstream */
+	struct mpipe_buffer_pool *pool;
 	/** Queue of buffers awaiting a pull (when no callback is set) */
 	struct k_msgq msgq;
 	/** Backing storage for the queue */

@@ -10,6 +10,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/net_buf.h>
 
+#include <zephyr/mpipe/mpipe_dispatch.h>
 #include <zephyr/mpipe/mpipe_pad.h>
 #include <zephyr/mpipe/mpipe_structure.h>
 #include <zephyr/mpipe/base/mpipe_app_sink.h>
@@ -84,6 +85,9 @@ static int mpipe_app_sink_set_property(struct mpipe_object *obj, uint32_t key, c
 	case MPIPE_PROP_BASE_APP_SINK_CB:
 		app_sink->cb = *(const struct mpipe_app_sink_cb *)val;
 		return 0;
+	case MPIPE_PROP_BASE_APP_SINK_POOL:
+		app_sink->pool = (struct mpipe_buffer_pool *)val;
+		return 0;
 	default:
 		LOG_ERR("Property %d is unknown", key);
 		return -ENOTSUP;
@@ -105,10 +109,22 @@ static int mpipe_app_sink_get_property(struct mpipe_object *obj, uint32_t key, v
 	case MPIPE_PROP_BASE_APP_SINK_CB:
 		*(struct mpipe_app_sink_cb *)val = app_sink->cb;
 		return 0;
+	case MPIPE_PROP_BASE_APP_SINK_POOL:
+		*(struct mpipe_buffer_pool **)val = app_sink->pool;
+		return 0;
 	default:
 		LOG_ERR("Property %d is unknown", key);
 		return -ENOTSUP;
 	}
+}
+
+static int mpipe_app_sink_propose_buffer_pool(struct mpipe_sink *self, struct mpipe_dispatch *query)
+{
+	struct mpipe_app_sink *app_sink = (struct mpipe_app_sink *)self;
+
+	query->pool = app_sink->pool;
+
+	return 0;
 }
 
 static int mpipe_app_sink_change_state(struct mpipe_element *element,
@@ -156,8 +172,11 @@ int mpipe_app_sink_init(struct mpipe_app_sink *app_sink, uint8_t id)
 	app_sink->sink.sink_pad.enum_caps_fn = mpipe_app_sink_enum_caps;
 	app_sink->sink.sink_pad.process_fn = mpipe_app_sink_process_fn;
 
+	app_sink->sink.propose_buffer_pool = mpipe_app_sink_propose_buffer_pool;
+
 	app_sink->cb.fn = NULL;
 	app_sink->cb.user_data = NULL;
+	app_sink->pool = NULL;
 
 	k_msgq_init(&app_sink->msgq, app_sink->msgq_buffer, sizeof(void *),
 		    CONFIG_MPIPE_BASE_APP_SINK_QUEUE_DEPTH);
