@@ -326,6 +326,18 @@ static int vid_overlay_decide_buffer_pool(struct mpipe_transform *self,
 		(query->pool != NULL) ? &query->pool->config : &query->pool_cfg;
 
 	overlay->held_downstream = qpc->min_buffers;
+
+	/*
+	 * A pool downstream offers is where it wants its frames: draw the copies
+	 * into it and let upstream fill it too, since a frame drawn in place is
+	 * upstream's buffer.
+	 */
+	if (overlay->mode == MPIPE_VID_OVERLAY_MODE_FRAME && query->pool != NULL) {
+		self->out_pool = query->pool;
+		return 0;
+	}
+
+	self->out_pool = &overlay->out_pool;
 	overlay->out_pool.config.min_buffers = (uint8_t)MIN(
 		(uint32_t)overlay->out_pool.req_config.min_buffers + qpc->min_buffers, UINT8_MAX);
 
@@ -340,6 +352,11 @@ static int vid_overlay_propose_buffer_pool(struct mpipe_transform *self,
 	/* A plane is drawn from the element's own frames: the input is released at once */
 	query->pool_cfg.min_buffers =
 		(overlay->mode == MPIPE_VID_OVERLAY_MODE_PLANE) ? 0U : overlay->held_downstream;
+
+	/* Downstream's pool, when the element adopted it, goes on upstream */
+	if (self->out_pool != &overlay->out_pool) {
+		query->pool = self->out_pool;
+	}
 
 	return 0;
 }
