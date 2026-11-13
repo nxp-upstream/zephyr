@@ -168,6 +168,21 @@ static int mpipe_app_src_pool_release(struct mpipe_buffer_pool *pool, struct net
 	return 0;
 }
 
+/*
+ * The pipeline stops this pool before it waits for the streaming thread: a
+ * thread waiting on an empty queue must come back, or the stop never ends.
+ */
+static int mpipe_app_src_pool_stop(struct mpipe_buffer_pool *pool)
+{
+	struct mpipe_app_src *app_src = CONTAINER_OF(pool, struct mpipe_app_src, pool);
+	void *flush_ptr = &flush_sentinel;
+
+	/* A full queue needs no sentinel: the thread is not waiting on it */
+	(void)k_msgq_put(&app_src->msgq, &flush_ptr, K_NO_WAIT);
+
+	return 0;
+}
+
 /* The one capability the element offers is the one the application declared */
 static int mpipe_app_src_enum_caps(struct mpipe_pad *pad, uint32_t index,
 				   const struct mpipe_structure *filter,
@@ -292,6 +307,7 @@ int mpipe_app_src_init(struct mpipe_app_src *app_src, uint8_t id)
 	(void)mpipe_buffer_pool_set_req_config(&app_src->pool, &pool_req);
 	app_src->pool.acquire_buffer = mpipe_app_src_pool_acquire;
 	app_src->pool.release_buffer = mpipe_app_src_pool_release;
+	app_src->pool.stop = mpipe_app_src_pool_stop;
 
 	app_src->src.pool = &app_src->pool;
 

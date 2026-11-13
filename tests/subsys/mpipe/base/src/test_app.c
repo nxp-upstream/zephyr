@@ -349,3 +349,21 @@ ZTEST_F(test_app, test_stop_with_pending)
 		net_buf_unref(bufs[i]);
 	}
 }
+
+/* Stopping while the pipeline thread waits for a payload must not wait for one */
+ZTEST_F(test_app, test_stop_idle)
+{
+	struct mpipe_element *pipe = (struct mpipe_element *)&fixture->pipeline;
+
+	set_caps(&fixture->app_src, &fixture->app_sink);
+
+	for (uint8_t run = 0; run < 2U; run++) {
+		zassert_ok(mpipe_element_set_state(pipe, MPIPE_STATE_PLAYING));
+
+		/* Let the thread reach its wait on the empty queue */
+		k_sleep(K_MSEC(10));
+
+		zassert_ok(mpipe_element_set_state(pipe, MPIPE_STATE_READY),
+			   "stop %u did not complete", run);
+	}
+}
