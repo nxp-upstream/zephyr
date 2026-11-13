@@ -27,4 +27,8 @@ if(CONFIG_MPIPE_VID)
     mpipe_vid_sink_client.c
     mpipe_vid_transform_client.c
   )
+
+  zephyr_library_sources_ifdef(CONFIG_MPIPE_VID_PIPELINE_SERVER
+    mpipe_vid_pipeline_server.c
+  )
 endif()

@@ -46,4 +46,14 @@ config MPIPE_VID_OVERLAY
 	  compositing is an aggregator-based compositor and, where the display
 	  controller has them, hardware layers.
 
+config MPIPE_VID_PIPELINE_SERVER
+	bool "Video adapter of the pipeline server"
+	depends on MPIPE_PIPELINE_SERVER
+	help
+	  Serve a video pipeline to a video client element on another core:
+	  the functions answering the calls of the video transform and sink
+	  clients with a pipeline server, translating between the formats of
+	  the video API the clients speak and the capabilities the served
+	  pipeline negotiates with.
+
 endif # MPIPE_VID
