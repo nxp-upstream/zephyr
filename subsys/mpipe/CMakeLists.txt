@@ -23,7 +23,10 @@ zephyr_library_sources(
   mpipe_value.c
 )
 zephyr_library_sources_ifdef(CONFIG_MPIPE_FAKE_SRC mpipe_fake_src.c)
-zephyr_library_sources_ifdef(CONFIG_MPIPE_RPC mpipe_transform_client.c)
+zephyr_library_sources_ifdef(CONFIG_MPIPE_RPC
+  mpipe_sink_client.c
+  mpipe_transform_client.c
+)
 zephyr_library_sources_ifdef(CONFIG_MPIPE_WORKQUEUE mpipe_workqueue.c)
 
 # Every plugin and utility directory ships its own CMakeLists.txt
