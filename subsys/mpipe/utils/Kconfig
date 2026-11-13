@@ -73,6 +73,20 @@ config MPIPE_PLAYER_DUMP_ON_STATE_CHANGE
 
 endif # MPIPE_PLAYER
 
+config MPIPE_PIPELINE_SERVER
+	bool "Pipeline server (serve a pipeline to another core)"
+	depends on MPIPE_BASE_APP_SRC && MPIPE_BASE_APP_SINK
+	help
+	  Enable the pipeline server: the counterpart, on the core that does
+	  the work, of a client element in the pipeline of another core. The
+	  application builds an ordinary pipeline between an application
+	  source and an application sink, and the server answers the client's
+	  calls with it: capabilities, negotiation, one buffer at a time,
+	  state changes and end of stream.
+
+	  The server knows no media type and no transport. A plugin provides
+	  the adapter for its media type, and the transport binding with it.
+
 config MPIPE_DUMP
 	bool "Pipeline topology dump"
 	select MPIPE_ELEMENT_NAME
