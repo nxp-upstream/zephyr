@@ -36,7 +36,13 @@ static int mpipe_vid_buffer_pool_client_start(struct mpipe_buffer_pool *pool)
 
 static int mpipe_vid_buffer_pool_client_stop(struct mpipe_buffer_pool *pool)
 {
-	ARG_UNUSED(pool);
+	struct mpipe_vid_buffer_pool_client *zbpc = (struct mpipe_vid_buffer_pool_client *)pool;
+	struct video_buffer *vbuf;
+
+	/* A buffer still in flight is released when it comes back, see the release hook */
+	while ((vbuf = k_fifo_get(&zbpc->fifo, K_NO_WAIT)) != NULL) {
+		(void)video_buffer_release(vbuf);
+	}
 
 	return 0;
 }
@@ -93,6 +99,11 @@ static int mpipe_vid_buffer_pool_client_release_buffer(struct mpipe_buffer_pool 
 	vbuf = (m != NULL) ? (struct video_buffer *)m->driver_buf : NULL;
 	if (vbuf == NULL) {
 		return -EINVAL;
+	}
+
+	/* The pool stopped while this buffer was in flight: nothing recycles it */
+	if (!pool->started) {
+		return video_buffer_release(vbuf);
 	}
 
 	vbuf->bytesused = m->bytes_used;
