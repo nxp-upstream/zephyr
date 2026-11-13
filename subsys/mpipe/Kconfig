@@ -146,14 +146,15 @@ config MPIPE_FAKE_SRC_BUF_SZ
 	  a test needs buffers of a realistic size.
 
 config MPIPE_RPC
-	bool "Transform client elements (remote processing)"
+	bool "Client elements (remote processing)"
 	help
 	  Build the client-side elements that run their processing on another
 	  core instead of locally.
 
-	  A transform client looks like an ordinary element in the graph, but
-	  forwards each buffer over a transport to a server on the remote core
-	  and waits for the result. The transport itself is not provided here:
+	  A client looks like an ordinary element in the graph, a transform or
+	  a sink, but forwards each buffer over a transport to a server on the
+	  remote core and waits for it. The server is one function or a whole
+	  pipeline of that core. The transport itself is not provided here:
 	  the application supplies it through the element's RPC hooks.
 
 # ---- ZBus defaults for MPIPE ----
