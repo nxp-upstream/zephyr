@@ -199,6 +199,32 @@ struct net_buf *mpipe_buffer_view(struct net_buf *parent, uint32_t offset, uint3
 				  k_timeout_t timeout);
 
 /**
+ * @brief Make sure a buffer's payload lives in a given pool.
+ *
+ * An element that needs its input in memory of its own, a client handing the
+ * payload to another core for instance, proposes its pool upstream. Upstream
+ * may not adopt it: behind a tee no pool travels up. This gives such an
+ * element the buffer it needs either way: @p buf itself when it already
+ * belongs to @p pool, otherwise a buffer of @p pool holding a copy of the
+ * payload and the PTS, with @p buf released.
+ *
+ * The pool is started if it is not: a pool nobody upstream adopted was not
+ * started by anyone. It is then started for its own requirement, whatever the
+ * elements upstream asked of it while it was proposed to them.
+ *
+ * @param pool Pool the payload must live in.
+ * @param buf Buffer to move, consumed on success and on failure.
+ * @param[out] out The buffer holding the payload in @p pool.
+ *
+ * @retval 0 Success.
+ * @retval -ENOBUFS No buffer of @p pool could be acquired
+ * @retval -EMSGSIZE The payload does not fit in a buffer of @p pool
+ * @return Any negative errno the pool's start hook returns
+ */
+int mpipe_buffer_move_to_pool(struct mpipe_buffer_pool *pool, struct net_buf *buf,
+			      struct net_buf **out);
+
+/**
  * @brief Configure a buffer pool
  *
  * @param pool Pointer to the buffer pool to configure
