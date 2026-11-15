@@ -1,0 +1,37 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	aliases {
+		i2s-codec-rx = &i2s0;
+		i2s-codec-tx = &i2s1;
+	};
+};
+
+&i3c0 {
+	clk-divider = <20>;
+
+	status = "okay";
+};
+
+&i2s0 {
+	status = "okay";
+};
+
+&i2s1 {
+	status = "okay";
+};
+
+dmic_dev: &dmic0 {
+	status = "okay";
+};
+
+#include "../pipeline.dtsi"
+
+/* The codec generates the bit clock and the word select */
+&i2s_sink {
+	clock-role = "codec-controller";
+};
