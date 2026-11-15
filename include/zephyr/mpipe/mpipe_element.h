@@ -274,6 +274,30 @@ void mpipe_element_add_pad(struct mpipe_element *element, struct mpipe_pad *pad)
  */
 int mpipe_element_link(struct mpipe_element *element_1, struct mpipe_element *element_2, ...);
 
+/** @brief Pad identifier standing for the first unlinked pad of an element. */
+#define MPIPE_PAD_ID_ANY UINT8_MAX
+
+/**
+ * @brief Link a source pad of an element to a sink pad of another
+ *
+ * Links two chosen pads, where @ref mpipe_element_link takes the first unlinked
+ * ones: what an element with several pads in one direction needs when its pads
+ * are not interchangeable, or when the order of its links is not the order of
+ * its pads. A link whose pad capabilities cannot intersect is refused.
+ *
+ * @param src Element holding the source pad
+ * @param src_pad_id Identifier of the source pad, or @ref MPIPE_PAD_ID_ANY
+ * @param sink Element holding the sink pad
+ * @param sink_pad_id Identifier of the sink pad, or @ref MPIPE_PAD_ID_ANY
+ *
+ * @retval 0 Success.
+ * @retval -EINVAL An element has no unlinked pad of that identifier in the
+ *                 needed direction
+ * @retval -ENOTSUP The capabilities of the two pads cannot intersect
+ */
+int mpipe_element_link_pads(struct mpipe_element *src, uint8_t src_pad_id,
+			    struct mpipe_element *sink, uint8_t sink_pad_id);
+
 /**
  * @brief Set the state of an element
  *

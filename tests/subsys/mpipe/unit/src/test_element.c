@@ -78,6 +78,35 @@ ZTEST_F(mpipe_element_api, test_link_two_elements)
 		     "src pad peer must be linked to sink pad");
 }
 
+/* A chosen pad is linked, not the first unlinked one, and only while it is unlinked */
+ZTEST_F(mpipe_element_api, test_link_pads_by_id)
+{
+	struct mpipe_pad second_src_pad;
+
+	memset(&second_src_pad, 0, sizeof(second_src_pad));
+	mpipe_pad_init(&second_src_pad, 7, MPIPE_PAD_SRC, MPIPE_PAD_ALWAYS);
+	mpipe_structure_init_any(&second_src_pad.caps);
+
+	mpipe_element_add_pad(&fixture->src, &fixture->src_pad);
+	mpipe_element_add_pad(&fixture->src, &second_src_pad);
+	mpipe_element_add_pad(&fixture->sink, &fixture->sink_pad);
+
+	zassert_equal(mpipe_element_link_pads(&fixture->src, 3, &fixture->sink, MPIPE_PAD_ID_ANY),
+		      -EINVAL, "A pad identifier the element does not have shall be refused");
+	zassert_is_null(fixture->sink_pad.peer, "A refused link shall leave the pads unlinked");
+
+	zassert_ok(mpipe_element_link_pads(&fixture->src, 7, &fixture->sink, 1),
+		   "Linking two pads by identifier shall succeed");
+	zassert_true(fixture->sink_pad.peer == &second_src_pad,
+		     "The sink pad shall be linked to the chosen source pad");
+	zassert_true(second_src_pad.peer == &fixture->sink_pad,
+		     "The chosen source pad shall be linked to the sink pad");
+	zassert_is_null(fixture->src_pad.peer, "The other source pad shall stay unlinked");
+
+	zassert_equal(mpipe_element_link_pads(&fixture->src, 7, &fixture->sink, MPIPE_PAD_ID_ANY),
+		      -EINVAL, "A pad already linked shall be refused");
+}
+
 /*
  * A bus lives on a bin, so a bin answers with its own and anything else with
  * the bin holding it. A nested bin is what makes "nearest" observable: its
