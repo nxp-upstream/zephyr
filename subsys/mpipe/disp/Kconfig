@@ -6,6 +6,7 @@
 
 config MPIPE_DISP
 	bool "Display plugin support"
+	default y if DT_HAS_ZEPHYR_MPIPE_DISP_SINK_ENABLED
 	select DISPLAY
 	help
 	  The sink element that puts frames on a screen, terminating a video

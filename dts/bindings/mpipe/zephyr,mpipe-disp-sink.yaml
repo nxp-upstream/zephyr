@@ -1,0 +1,49 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: Pipeline element showing frames on a display.
+
+compatible: "zephyr,mpipe-disp-sink"
+
+include: mpipe-element.yaml
+
+properties:
+  device:
+    type: phandle
+    description: |
+      Display to show the frames on. The chosen "zephyr,display" node when
+      absent.
+
+  plane:
+    type: int
+    description: |
+      Display plane to show the frames on. The whole display is written when
+      absent.
+
+  x:
+    type: int
+    default: 0
+    description: Horizontal position of the plane on the panel, in pixels.
+
+  y:
+    type: int
+    default: 0
+    description: Vertical position of the plane on the panel, in pixels.
+
+  alpha:
+    type: int
+    default: 255
+    description: |
+      Opacity of the plane over the planes below it, 255 for opaque, which
+      is the reset state of a plane.
+
+  blend-mode:
+    type: string
+    default: "none"
+    enum:
+      - "none"
+      - "coverage"
+      - "premultiplied"
+    description: |
+      How the pixel alpha of the plane blends it over the planes below it.
+      The pixel alpha is ignored by default, as a plane starts.

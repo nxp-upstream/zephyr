@@ -10,6 +10,7 @@
 
 #include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
+#include <zephyr/mpipe/mpipe_dt.h>
 #include <zephyr/mpipe/mpipe_element.h>
 #include <zephyr/mpipe/mpipe_structure.h>
 #include <zephyr/mpipe/mpipe_value.h>
@@ -529,3 +530,59 @@ int mpipe_disp_sink_init(struct mpipe_disp_sink *disp_sink, uint8_t id)
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_disp_sink
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+struct mpipe_disp_sink_dt_config {
+	/* NULL keeps the default */
+	const struct device *dev;
+	int plane;
+	/* DISPLAY_BLEND_NONE keeps the default */
+	enum display_blend_mode blend_mode;
+	uint16_t x;
+	uint16_t y;
+	uint8_t alpha;
+};
+
+static int mpipe_disp_sink_dt_init(const struct mpipe_dt_element *dt)
+{
+	const struct mpipe_disp_sink_dt_config *config = dt->config;
+	int ret = mpipe_disp_sink_init((struct mpipe_disp_sink *)dt->element, dt->id);
+
+	if (ret == 0 && config->dev != NULL) {
+		ret = mpipe_object_set_properties(&dt->element->object, MPIPE_PROP_DISP_SINK_DEVICE,
+						  config->dev, MPIPE_PROP_LIST_END);
+	}
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = mpipe_object_set_properties(
+		&dt->element->object, MPIPE_PROP_DISP_SINK_PLANE, &config->plane,
+		MPIPE_PROP_DISP_SINK_X, &config->x, MPIPE_PROP_DISP_SINK_Y, &config->y,
+		MPIPE_PROP_DISP_SINK_ALPHA, &config->alpha, MPIPE_PROP_LIST_END);
+	if (ret != 0 || config->blend_mode == DISPLAY_BLEND_NONE) {
+		return ret;
+	}
+
+	return mpipe_object_set_properties(&dt->element->object, MPIPE_PROP_DISP_SINK_BLEND_MODE,
+					   &config->blend_mode, MPIPE_PROP_LIST_END);
+}
+
+/* The blend-mode property lists its values in the bit order of the enumeration */
+#define MPIPE_DISP_SINK_DT_DEFINE(inst)                                                            \
+	static struct mpipe_disp_sink mpipe_disp_sink_##inst;                                      \
+	static const struct mpipe_disp_sink_dt_config mpipe_disp_sink_dt_config_##inst = {         \
+		.dev = MPIPE_DT_INST_DEVICE_GET_OR_NULL(inst, device),                             \
+		.plane = DT_INST_PROP_OR(inst, plane, MPIPE_DISP_SINK_NO_PLANE),                   \
+		.blend_mode = BIT(DT_INST_ENUM_IDX(inst, blend_mode)),                             \
+		.x = DT_INST_PROP(inst, x),                                                        \
+		.y = DT_INST_PROP(inst, y),                                                        \
+		.alpha = DT_INST_PROP(inst, alpha),                                                \
+	};                                                                                         \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_disp_sink_##inst, mpipe_disp_sink_dt_init,       \
+				     &mpipe_disp_sink_dt_config_##inst);
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_DISP_SINK_DT_DEFINE)
+#endif
