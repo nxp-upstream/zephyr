@@ -1,0 +1,55 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Pipeline element constraining the format negotiated on its link. A property
+  that is absent constrains nothing.
+
+compatible: "zephyr,mpipe-caps-filter"
+
+include: mpipe-element.yaml
+
+properties:
+  media:
+    type: string
+    required: true
+    enum:
+      - "audio-pcm"
+      - "video"
+      - "tensor"
+      - "nn-results"
+    description: Media type of the stream.
+
+  pixel-format:
+    type: string
+    description: Pixel format, a four-character code such as "RGBP" or "JPEG".
+
+  width:
+    type: int
+    description: Frame width in pixels.
+
+  height:
+    type: int
+    description: Frame height in pixels.
+
+  frame-rate:
+    type: int
+    description: Frame rate in frames per second.
+
+  frame-interval:
+    type: int
+    description: |
+      Duration of a frame or of an audio block in microseconds. Not with
+      frame-rate.
+
+  sample-rate:
+    type: int
+    description: Audio sample rate in hertz.
+
+  bit-width:
+    type: int
+    description: Number of bits per audio sample.
+
+  num-channels:
+    type: int
+    description: Number of audio channels.

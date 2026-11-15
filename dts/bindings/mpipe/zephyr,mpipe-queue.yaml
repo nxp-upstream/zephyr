@@ -1,0 +1,35 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Pipeline element running the elements downstream of it on a thread of its
+  own.
+
+compatible: "zephyr,mpipe-queue"
+
+include: mpipe-element.yaml
+
+properties:
+  size:
+    type: int
+    description: |
+      Number of buffers the queue holds. The largest size the configuration
+      allows when absent.
+
+  leak:
+    type: string
+    default: "none"
+    enum:
+      - "none"
+      - "oldest"
+      - "newest"
+    description: |
+      What a full queue does with a new buffer: hold the producer, drop the
+      oldest queued buffer or drop the new one. Holding the producer loses
+      nothing, hence the default.
+
+  thread-priority:
+    type: int
+    description: |
+      Priority of the thread of the queue. The priority the configuration
+      sets when absent.

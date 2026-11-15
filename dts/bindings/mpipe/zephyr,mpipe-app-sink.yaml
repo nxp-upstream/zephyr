@@ -1,0 +1,17 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Pipeline element handing the buffers of the stream to the application.
+
+compatible: "zephyr,mpipe-app-sink"
+
+include: mpipe-element.yaml
+
+properties:
+  callback:
+    type: string
+    description: |
+      Name of the function called for every buffer, defined by the
+      application as an mpipe_app_sink_cb_t with external linkage. The
+      application pulls the buffers when absent.

@@ -6,6 +6,11 @@
 
 config MPIPE_BASE
 	bool "Base elements"
+	default y if DT_HAS_ZEPHYR_MPIPE_APP_SINK_ENABLED || \
+		DT_HAS_ZEPHYR_MPIPE_APP_SRC_ENABLED || \
+		DT_HAS_ZEPHYR_MPIPE_CAPS_FILTER_ENABLED || \
+		DT_HAS_ZEPHYR_MPIPE_QUEUE_ENABLED || \
+		DT_HAS_ZEPHYR_MPIPE_TEE_ENABLED
 	help
 	  Media-agnostic elements that shape a graph rather than its data: a caps
 	  filter that constrains what a link may carry, a tee that splits a graph
@@ -17,6 +22,7 @@ if MPIPE_BASE
 
 config MPIPE_BASE_APP_SINK
 	bool "Application sink element"
+	default y if DT_HAS_ZEPHYR_MPIPE_APP_SINK_ENABLED
 	help
 	  Enable the app_sink element which hands the buffers reaching the
 	  end of a pipeline to the application, through a callback or a
@@ -33,6 +39,7 @@ config MPIPE_BASE_APP_SINK_QUEUE_DEPTH
 
 config MPIPE_BASE_APP_SRC
 	bool "Application source element"
+	default y if DT_HAS_ZEPHYR_MPIPE_APP_SRC_ENABLED
 	help
 	  Enable the app_src element which lets the application inject data
 	  into a pipeline: payloads are pushed at the application's pace
@@ -66,12 +73,14 @@ config MPIPE_BASE_APP_SRC_QUEUE_DEPTH
 
 config MPIPE_BASE_CAPS_FILTER
 	bool "Caps filter element"
+	default y if DT_HAS_ZEPHYR_MPIPE_CAPS_FILTER_ENABLED
 	help
 	  Enable the caps_filter element, which constrains the format
 	  negotiated on the link it sits on.
 
 config MPIPE_BASE_QUEUE
 	bool "Queue element (for pipeline-level threading)"
+	default y if DT_HAS_ZEPHYR_MPIPE_QUEUE_ENABLED
 	help
 	  Enable the queue element, which runs the elements downstream of it
 	  on a thread of its own, counted in MPIPE_THREADS_NUM. A full queue
@@ -89,6 +98,7 @@ config MPIPE_BASE_QUEUE_MAX_SIZE
 
 config MPIPE_BASE_TEE
 	bool "Tee element"
+	default y if DT_HAS_ZEPHYR_MPIPE_TEE_ENABLED
 	help
 	  Enable the tee element which splits a single input branch
 	  into multiple output branches.

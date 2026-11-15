@@ -11,6 +11,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/net_buf.h>
 
+#include <zephyr/mpipe/mpipe_dt.h>
 #include <zephyr/mpipe/mpipe_pad.h>
 #include <zephyr/mpipe/mpipe_pipeline.h>
 #include <zephyr/mpipe/mpipe_structure.h>
@@ -309,3 +310,18 @@ int mpipe_app_src_init(struct mpipe_app_src *app_src, uint8_t id)
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_app_src
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+static int mpipe_app_src_dt_init(const struct mpipe_dt_element *dt)
+{
+	return mpipe_app_src_init((struct mpipe_app_src *)dt->element, dt->id);
+}
+
+#define MPIPE_APP_SRC_DT_DEFINE(inst)                                                              \
+	static struct mpipe_app_src mpipe_app_src_##inst;                                          \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_app_src_##inst, mpipe_app_src_dt_init, NULL);
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_APP_SRC_DT_DEFINE)
+#endif
