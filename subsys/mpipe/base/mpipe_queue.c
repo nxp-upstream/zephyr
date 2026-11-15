@@ -8,6 +8,7 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mpipe/mpipe_dispatch.h>
+#include <zephyr/mpipe/mpipe_dt.h>
 #include <zephyr/mpipe/mpipe_element.h>
 #include <zephyr/mpipe/mpipe_message.h>
 #include <zephyr/mpipe/mpipe_pad.h>
@@ -376,3 +377,53 @@ int mpipe_queue_init(struct mpipe_queue *queue, uint8_t id)
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_queue
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+struct mpipe_queue_dt_config {
+	int thread_priority;
+	enum mpipe_base_queue_leak leak;
+	/* 0 keeps the default */
+	uint8_t size;
+	bool has_thread_priority;
+};
+
+static int mpipe_queue_dt_init(const struct mpipe_dt_element *dt)
+{
+	const struct mpipe_queue_dt_config *config = dt->config;
+	int ret = mpipe_queue_init((struct mpipe_queue *)dt->element, dt->id);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = mpipe_object_set_properties(&dt->element->object, MPIPE_PROP_BASE_QUEUE_LEAK,
+					  &config->leak, MPIPE_PROP_LIST_END);
+	if (ret == 0 && config->has_thread_priority) {
+		ret = mpipe_object_set_properties(&dt->element->object,
+						  MPIPE_PROP_BASE_QUEUE_THREAD_PRIORITY,
+						  &config->thread_priority, MPIPE_PROP_LIST_END);
+	}
+	if (ret != 0 || config->size == 0) {
+		return ret;
+	}
+
+	return mpipe_object_set_properties(&dt->element->object, MPIPE_PROP_BASE_QUEUE_SIZE,
+					   &config->size, MPIPE_PROP_LIST_END);
+}
+
+/* The leak property lists its values in the order of the enumeration */
+#define MPIPE_QUEUE_DT_DEFINE(inst)                                                                \
+	static struct mpipe_queue mpipe_queue_##inst;                                              \
+	static const struct mpipe_queue_dt_config mpipe_queue_dt_config_##inst = {                 \
+		.thread_priority = (int)DT_INST_PROP_OR(inst, thread_priority, 0),                 \
+		.leak = DT_INST_ENUM_IDX(inst, leak),                                              \
+		.size = DT_INST_PROP_OR(inst, size, 0),                                            \
+		.has_thread_priority = DT_INST_NODE_HAS_PROP(inst, thread_priority),               \
+	};                                                                                         \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_queue_##inst, mpipe_queue_dt_init,               \
+				     &mpipe_queue_dt_config_##inst);
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_QUEUE_DT_DEFINE)
+#endif

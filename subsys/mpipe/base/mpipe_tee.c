@@ -7,6 +7,7 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mpipe/mpipe_dispatch.h>
+#include <zephyr/mpipe/mpipe_dt.h>
 #include <zephyr/mpipe/mpipe_element.h>
 #include <zephyr/mpipe/mpipe_pad.h>
 #include <zephyr/mpipe/mpipe_pipeline.h>
@@ -299,3 +300,35 @@ int mpipe_tee_init(struct mpipe_tee *tee, uint8_t id)
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_tee
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+struct mpipe_tee_dt_config {
+	/* 0 keeps the default */
+	uint8_t num_src_pads;
+};
+
+static int mpipe_tee_dt_init(const struct mpipe_dt_element *dt)
+{
+	const struct mpipe_tee_dt_config *config = dt->config;
+	int ret = mpipe_tee_init((struct mpipe_tee *)dt->element, dt->id);
+
+	if (ret != 0 || config->num_src_pads == 0) {
+		return ret;
+	}
+
+	return mpipe_object_set_properties(&dt->element->object, MPIPE_PROP_BASE_TEE_SRC_PADS_NUM,
+					   &config->num_src_pads, MPIPE_PROP_LIST_END);
+}
+
+#define MPIPE_TEE_DT_DEFINE(inst)                                                                  \
+	static struct mpipe_tee mpipe_tee_##inst;                                                  \
+	static const struct mpipe_tee_dt_config mpipe_tee_dt_config_##inst = {                     \
+		.num_src_pads = DT_INST_PROP_OR(inst, num_src_pads, 0),                            \
+	};                                                                                         \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_tee_##inst, mpipe_tee_dt_init,                   \
+				     &mpipe_tee_dt_config_##inst);
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_TEE_DT_DEFINE)
+#endif

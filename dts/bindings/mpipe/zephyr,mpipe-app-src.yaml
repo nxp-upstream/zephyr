@@ -1,0 +1,9 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Pipeline element the application pushes buffers into.
+
+compatible: "zephyr,mpipe-app-src"
+
+include: mpipe-element.yaml

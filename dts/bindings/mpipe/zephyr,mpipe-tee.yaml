@@ -1,0 +1,13 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: Pipeline element copying its input stream to several branches.
+
+compatible: "zephyr,mpipe-tee"
+
+include: mpipe-element.yaml
+
+properties:
+  num-src-pads:
+    type: int
+    description: Number of branches. Two when absent.

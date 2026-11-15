@@ -10,6 +10,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/net_buf.h>
 
+#include <zephyr/mpipe/mpipe_dt.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
 #include <zephyr/mpipe/mpipe_pad.h>
 #include <zephyr/mpipe/mpipe_structure.h>
@@ -200,3 +201,37 @@ int mpipe_app_sink_init(struct mpipe_app_sink *app_sink, uint8_t id)
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_app_sink
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+static int mpipe_app_sink_dt_init(const struct mpipe_dt_element *dt)
+{
+	const struct mpipe_app_sink_cb *cb = dt->config;
+	int ret = mpipe_app_sink_init((struct mpipe_app_sink *)dt->element, dt->id);
+
+	/* Without a callback the application pulls the buffers */
+	if (ret != 0 || cb->fn == NULL) {
+		return ret;
+	}
+
+	return mpipe_object_set_properties(&dt->element->object, MPIPE_PROP_BASE_APP_SINK_CB, cb,
+					   MPIPE_PROP_LIST_END);
+}
+
+/* The callback property names a function the application defines */
+#define MPIPE_APP_SINK_DT_CB_DECLARE(inst)                                                         \
+	void DT_INST_STRING_TOKEN(inst, callback)(const struct net_buf *buf, void *user_data);
+
+#define MPIPE_APP_SINK_DT_DEFINE(inst)                                                             \
+	IF_ENABLED(DT_INST_NODE_HAS_PROP(inst, callback), (MPIPE_APP_SINK_DT_CB_DECLARE(inst)))    \
+	static struct mpipe_app_sink mpipe_app_sink_##inst;                                        \
+	static const struct mpipe_app_sink_cb mpipe_app_sink_dt_cb_##inst = {                      \
+		.fn = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, callback),                           \
+				  (DT_INST_STRING_TOKEN(inst, callback)), (NULL)),                 \
+	};                                                                                         \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_app_sink_##inst, mpipe_app_sink_dt_init,         \
+				     &mpipe_app_sink_dt_cb_##inst);
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_APP_SINK_DT_DEFINE)
+#endif
