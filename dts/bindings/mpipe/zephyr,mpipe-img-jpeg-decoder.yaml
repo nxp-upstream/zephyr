@@ -1,0 +1,8 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: Pipeline element decoding JPEG frames in software.
+
+compatible: "zephyr,mpipe-img-jpeg-decoder"
+
+include: mpipe-element.yaml
