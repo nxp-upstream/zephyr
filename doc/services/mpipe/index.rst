@@ -133,6 +133,77 @@ the graph to ``MPIPE_STATE_READY`` tears it down:
 
    (void)mpipe_element_set_state((struct mpipe_element *)&pipe, MPIPE_STATE_READY);
 
+Describing a pipeline in the devicetree
+***************************************
+
+A pipeline can be described in the devicetree instead of being built by
+application code. A node compatible with ``zephyr,mpipe-pipeline`` holds one
+child node per element; the compatible of a child selects the element type, its
+properties are the properties of the element, and its ``sources`` property
+names the sibling it receives its buffers from:
+
+.. code-block:: devicetree
+
+   / {
+           pipeline {
+                   compatible = "zephyr,mpipe-pipeline";
+                   autostart;
+
+                   camera_src: vid-src {
+                           compatible = "zephyr,mpipe-vid-src";
+                   };
+
+                   frame_filter: caps-filter {
+                           compatible = "zephyr,mpipe-caps-filter";
+                           sources = <&camera_src>;
+                           media = "video";
+                           width = <320>;
+                           height = <240>;
+                   };
+
+                   disp-sink {
+                           compatible = "zephyr,mpipe-disp-sink";
+                           sources = <&frame_filter>;
+                   };
+           };
+   };
+
+:kconfig:option:`CONFIG_MPIPE_DT` builds every such pipeline at boot, at the
+``APPLICATION`` initialization level: it initializes the elements, applies
+their properties, adds them to the pipeline and links them. Each pipeline gets
+a player, and one with the ``autostart`` property is played, so an application
+whose pipelines need nothing else has no code at all. The nodes also enable the
+options they need: the framework, the plugin and the option of each element
+type present, and the player.
+
+What a description cannot hold stays in the application, which reaches the
+objects of a node with :c:macro:`MPIPE_DT_PIPELINE_GET`,
+:c:macro:`MPIPE_DT_PLAYER_GET` and :c:macro:`MPIPE_DT_ELEMENT_GET`:
+
+* A pipeline without ``autostart`` is played by the application, when a file
+  is ready or a peer is connected.
+* A property naming a function or an object, such as the ``callback`` of an
+  application sink, the ``draw-callback`` of a video overlay or the ``model``
+  of a neural network runner, names a symbol the application defines with
+  external linkage.
+* A value only known at run time, such as a connected socket, is set on the
+  element with :c:func:`mpipe_object_set_properties` before the pipeline is
+  played.
+
+The elements several nodes name as their source, a tee for instance, give
+their source pads to those nodes in node order. The identifier of an element is
+the position of its node in the pipeline node, counted from 1, and the
+identifier of a pipeline is its instance number. The pool sizes and
+:kconfig:option:`CONFIG_MPIPE_STRUCTURE_MAX_FIELDS` remain Kconfig options;
+:kconfig:option:`CONFIG_MPIPE_THREADS_NUM` and
+:kconfig:option:`CONFIG_MPIPE_BIN_MAX_CHILDREN` are checked against the
+description at build time.
+
+An element type supports this by defining, for each of its nodes, the element
+and an entry with :c:macro:`MPIPE_DT_INST_ELEMENT_DEFINE`, whose function
+initializes the element and applies the properties of the node. The bindings
+are under :zephyr_file:`dts/bindings/mpipe`.
+
 Elements, pads and links
 ************************
 
@@ -543,6 +614,8 @@ Configuration Options
   own option.
 * :kconfig:option:`CONFIG_MPIPE_DUMP` and :kconfig:option:`CONFIG_MPIPE_PLAYER`
   build the debugging utilities.
+* :kconfig:option:`CONFIG_MPIPE_DT` builds the pipelines the devicetree
+  describes, and is enabled by their nodes.
 * :kconfig:option:`CONFIG_MPIPE_STRUCTURE_MAX_FIELDS` sizes one capability. Size
   it for the largest union of fields that can meet in one intersection, not for
   the number of fields an element sets.
@@ -571,3 +644,5 @@ API Reference
 .. doxygengroup:: mpipe_dump
 
 .. doxygengroup:: mpipe_player
+
+.. doxygengroup:: mpipe_dt

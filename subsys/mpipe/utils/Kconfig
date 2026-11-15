@@ -4,6 +4,25 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+config MPIPE_DT
+	bool "Pipelines described in the devicetree"
+	default y
+	depends on DT_HAS_ZEPHYR_MPIPE_PIPELINE_ENABLED
+	imply MPIPE_PLAYER
+	help
+	  Build at boot the pipelines the devicetree describes with
+	  zephyr,mpipe-pipeline nodes, and play those with the autostart
+	  property, with no application code. The option of an element type
+	  is enabled by default when the devicetree has a node of that type.
+
+config MPIPE_DT_INIT_PRIORITY
+	int "Initialization priority of the devicetree pipelines"
+	default 95
+	depends on MPIPE_DT
+	help
+	  Priority, in the APPLICATION level, at which the pipelines of the
+	  devicetree are built and those with the autostart property played.
+
 config MPIPE_PLAYER
 	bool "Multimedia Pipeline player helper"
 	depends on MPIPE
@@ -22,6 +41,7 @@ if MPIPE_PLAYER
 config MPIPE_PLAYER_NUM
 	int "Number of players the application can have at once"
 	range 1 255
+	default $(dt_compat_enabled_num,$(DT_COMPAT_ZEPHYR_MPIPE_PIPELINE)) if MPIPE_DT
 	default 1
 	help
 	  Each player owns a worker thread, so this sizes a pool of worker

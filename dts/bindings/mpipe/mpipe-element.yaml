@@ -1,0 +1,12 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+# Properties common to the elements of a pipeline
+
+properties:
+  sources:
+    type: phandles
+    description: |
+      Element this one receives its buffers from, a sibling node. A source
+      element has none. Several elements naming the same one take its source
+      pads in node order.
