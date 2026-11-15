@@ -12,6 +12,7 @@
 
 #include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
+#include <zephyr/mpipe/mpipe_dt.h>
 #include <zephyr/mpipe/mpipe_structure.h>
 #include <zephyr/mpipe/mpipe_value.h>
 
@@ -430,3 +431,19 @@ int mpipe_img_jpeg_decoder_init(struct mpipe_img_jpeg_decoder *dec, uint8_t id)
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_img_jpeg_decoder
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+static int mpipe_img_jpeg_decoder_dt_init(const struct mpipe_dt_element *dt)
+{
+	return mpipe_img_jpeg_decoder_init((struct mpipe_img_jpeg_decoder *)dt->element, dt->id);
+}
+
+#define MPIPE_IMG_JPEG_DECODER_DT_DEFINE(inst)                                                     \
+	static struct mpipe_img_jpeg_decoder mpipe_img_jpeg_decoder_##inst;                        \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_img_jpeg_decoder_##inst,                         \
+				     mpipe_img_jpeg_decoder_dt_init, NULL);
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_IMG_JPEG_DECODER_DT_DEFINE)
+#endif

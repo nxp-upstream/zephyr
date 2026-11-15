@@ -15,6 +15,7 @@
 #include <zephyr/mpipe/mpipe_structure.h>
 #include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
+#include <zephyr/mpipe/mpipe_dt.h>
 #include <zephyr/mpipe/mpipe_element.h>
 #include <zephyr/mpipe/mpipe_pipeline.h>
 #include <zephyr/mpipe/mpipe_value.h>
@@ -567,3 +568,19 @@ int mpipe_img_jpeg_parser_init(struct mpipe_img_jpeg_parser *jpeg_parser, uint8_
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_img_jpeg_parser
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+static int mpipe_img_jpeg_parser_dt_init(const struct mpipe_dt_element *dt)
+{
+	return mpipe_img_jpeg_parser_init((struct mpipe_img_jpeg_parser *)dt->element, dt->id);
+}
+
+#define MPIPE_IMG_JPEG_PARSER_DT_DEFINE(inst)                                                      \
+	static struct mpipe_img_jpeg_parser mpipe_img_jpeg_parser_##inst;                          \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_img_jpeg_parser_##inst,                          \
+				     mpipe_img_jpeg_parser_dt_init, NULL);
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_IMG_JPEG_PARSER_DT_DEFINE)
+#endif
