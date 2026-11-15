@@ -1,0 +1,59 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include "../common/sd_card.dtsi"
+
+/* An MJPEG file decoded on the other core and displayed */
+/ {
+	/* What the decoder client calls the remote core through */
+	decoder_channel: decoder-channel {
+		compatible = "zephyr,mpipe-erpc-channel";
+		endpoint = "mpipe_vid_transform";
+	};
+
+	pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+		autostart;
+
+		file_src: file-src {
+			compatible = "zephyr,mpipe-file-src";
+			path = "/SD:/test.mjpeg";
+		};
+
+		jpeg_parser: jpeg-parser {
+			compatible = "zephyr,mpipe-img-jpeg-parser";
+			sources = <&file_src>;
+		};
+
+		jpeg_filter: caps-filter {
+			compatible = "zephyr,mpipe-caps-filter";
+			sources = <&jpeg_parser>;
+			media = "video";
+			pixel-format = "JPEG";
+			width = <320>;
+			height = <240>;
+		};
+
+		/* One frame in flight overlaps the file reading with the decoding */
+		decoder_queue: queue {
+			compatible = "zephyr,mpipe-queue";
+			sources = <&jpeg_filter>;
+			size = <1>;
+		};
+
+		/* The decoder runs on the remote core; this element is its client */
+		jpeg_decoder: jpeg-decoder {
+			compatible = "zephyr,mpipe-vid-transform-client";
+			sources = <&decoder_queue>;
+			channel = <&decoder_channel>;
+		};
+
+		disp-sink {
+			compatible = "zephyr,mpipe-disp-sink";
+			sources = <&jpeg_decoder>;
+		};
+	};
+};
