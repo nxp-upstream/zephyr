@@ -1,0 +1,23 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: Pipeline element running a neural network on its input tensors.
+
+compatible: "zephyr,mpipe-nn-runner"
+
+include: mpipe-element.yaml
+
+properties:
+  model:
+    type: string
+    required: true
+    description: |
+      Name of the model, a const struct mpipe_nn_model the application
+      defines with external linkage.
+
+  arena:
+    type: string
+    required: true
+    description: |
+      Name of the working memory of the backend, a const struct
+      mpipe_nn_arena the application defines with external linkage.

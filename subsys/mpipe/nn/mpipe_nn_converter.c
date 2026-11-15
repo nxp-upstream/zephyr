@@ -19,6 +19,7 @@
 #include <zephyr/mpipe/mpipe_value.h>
 
 #include <zephyr/mpipe/nn/mpipe_nn_converter.h>
+#include <zephyr/mpipe/mpipe_dt.h>
 
 LOG_MODULE_REGISTER(mpipe_nn_converter, CONFIG_MPIPE_LOG_LEVEL);
 
@@ -845,3 +846,32 @@ int mpipe_nn_converter_init(struct mpipe_nn_converter *conv, uint8_t id)
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_nn_converter
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+static int mpipe_nn_converter_dt_init(const struct mpipe_dt_element *dt)
+{
+	int ret = mpipe_nn_converter_init((struct mpipe_nn_converter *)dt->element, dt->id);
+
+	/* Without the property the samples are stored as raw bytes */
+	if (ret != 0 || dt->config == NULL) {
+		return ret;
+	}
+
+	return mpipe_object_set_properties(&dt->element->object, MPIPE_PROP_NN_CONVERTER_ZERO_POINT,
+					   dt->config, MPIPE_PROP_LIST_END);
+}
+
+#define MPIPE_NN_CONVERTER_DT_DEFINE(inst)                                                         \
+	static struct mpipe_nn_converter mpipe_nn_converter_##inst;                                \
+	IF_ENABLED(DT_INST_NODE_HAS_PROP(inst, zero_point),                                        \
+		   (static const int32_t mpipe_nn_converter_dt_zero_point_##inst =                 \
+			    (int32_t)DT_INST_PROP(inst, zero_point);))                             \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_nn_converter_##inst, mpipe_nn_converter_dt_init, \
+				     COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, zero_point),          \
+						 (&mpipe_nn_converter_dt_zero_point_##inst),       \
+						 (NULL)));
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_NN_CONVERTER_DT_DEFINE)
+#endif

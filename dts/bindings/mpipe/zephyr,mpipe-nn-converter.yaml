@@ -1,0 +1,15 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: Pipeline element converting video frames to input tensors.
+
+compatible: "zephyr,mpipe-nn-converter"
+
+include: mpipe-element.yaml
+
+properties:
+  zero-point:
+    type: int
+    description: |
+      Value added to each 8-bit sample before it is stored, the input zero
+      point of the model. The samples are stored as raw bytes when absent.

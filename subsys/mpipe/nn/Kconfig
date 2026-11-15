@@ -6,6 +6,9 @@
 
 config MPIPE_NN
 	bool "Neural network plugin"
+	default y if DT_HAS_ZEPHYR_MPIPE_NN_CONVERTER_ENABLED || \
+		DT_HAS_ZEPHYR_MPIPE_NN_DECODER_ENABLED || \
+		DT_HAS_ZEPHYR_MPIPE_NN_RUNNER_ENABLED
 	help
 	  Enable the neural network plugin: elements that convert media buffers to
 	  tensors, run neural network inference through a pluggable backend
@@ -24,6 +27,7 @@ config MPIPE_NN_MAX_IO_TENSORS
 
 config MPIPE_NN_CONVERTER
 	bool "Video frame to tensor converter element"
+	default y if DT_HAS_ZEPHYR_MPIPE_NN_CONVERTER_ENABLED
 	help
 	  Element converting a video frame into a model input tensor in one
 	  pass: nearest-neighbor scaling, color conversion and quantization.
@@ -67,6 +71,7 @@ endif # MPIPE_NN_CONVERTER
 
 config MPIPE_NN_RUNNER
 	bool "Neural network inference element"
+	default y if DT_HAS_ZEPHYR_MPIPE_NN_RUNNER_ENABLED
 	help
 	  Element running a model on every input tensor buffer through the
 	  selected backend.
@@ -138,6 +143,7 @@ endif # MPIPE_NN_RUNNER
 
 config MPIPE_NN_DECODER
 	bool "Tensor decoder element"
+	default y if DT_HAS_ZEPHYR_MPIPE_NN_DECODER_ENABLED
 	help
 	  Transform element turning output tensors into a results stream:
 	  ranked class scores, or bounding boxes filtered by score and
