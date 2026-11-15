@@ -1,0 +1,60 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * The two pipelines this core runs for the pipeline of the other core, each
+ * behind a server its client element talks to. The servers drive them: they
+ * are not started at boot.
+ */
+/ {
+	/* Served to the transform client */
+	decoding_pipeline: decoding-pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+
+		decoding_src: app-src {
+			compatible = "zephyr,mpipe-app-src";
+		};
+
+		jpeg_decoder: jpeg-decoder {
+			compatible = "zephyr,mpipe-img-jpeg-decoder";
+			sources = <&decoding_src>;
+		};
+
+		overlay: overlay {
+			compatible = "zephyr,mpipe-vid-overlay";
+			sources = <&jpeg_decoder>;
+			draw-callback = "sample_draw_bar";
+		};
+
+		decoding_sink: app-sink {
+			compatible = "zephyr,mpipe-app-sink";
+			sources = <&overlay>;
+		};
+	};
+
+	/* Served to the sink client */
+	checking_pipeline: checking-pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+
+		checking_src: app-src {
+			compatible = "zephyr,mpipe-app-src";
+		};
+
+		/* An app_sink takes anything: the filter tells the client what is checked */
+		checking_filter: caps-filter {
+			compatible = "zephyr,mpipe-caps-filter";
+			sources = <&checking_src>;
+			media = "video";
+			pixel-format = "JPEG";
+		};
+
+		app-sink {
+			compatible = "zephyr,mpipe-app-sink";
+			sources = <&checking_filter>;
+			callback = "sample_check_frame";
+		};
+	};
+};

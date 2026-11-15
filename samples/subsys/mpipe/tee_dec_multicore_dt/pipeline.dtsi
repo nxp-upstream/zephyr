@@ -1,0 +1,107 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * An MJPEG stream the application pushes, decoded and drawn on by a pipeline
+ * of the other core, completed and displayed here, checked by a second
+ * pipeline of the other core, and recorded here on the SD card.
+ */
+
+#include "../common/sd_card.dtsi"
+
+/ {
+	/* Each client element calls its pipeline of the other core through its own endpoint */
+	decoding_channel: decoding-channel {
+		compatible = "zephyr,mpipe-erpc-channel";
+		endpoint = "mpipe_dec";
+	};
+
+	checking_channel: checking-channel {
+		compatible = "zephyr,mpipe-erpc-channel";
+		endpoint = "mpipe_check";
+	};
+
+	pipeline: pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+		autostart;
+
+		stream_src: app-src {
+			compatible = "zephyr,mpipe-app-src";
+		};
+
+		jpeg_parser: jpeg-parser {
+			compatible = "zephyr,mpipe-img-jpeg-parser";
+			sources = <&stream_src>;
+		};
+
+		jpeg_filter: caps-filter {
+			compatible = "zephyr,mpipe-caps-filter";
+			sources = <&jpeg_parser>;
+			media = "video";
+			pixel-format = "JPEG";
+			width = <320>;
+			height = <240>;
+		};
+
+		tee: tee {
+			compatible = "zephyr,mpipe-tee";
+			sources = <&jpeg_filter>;
+			num-src-pads = <3>;
+		};
+
+		/* Each branch runs on a thread of its own: none waits for another */
+		decoding_queue: decoding-queue {
+			compatible = "zephyr,mpipe-queue";
+			sources = <&tee>;
+			size = <1>;
+		};
+
+		/* The decoding pipeline of the other core, seen from here as one transform */
+		decoding_client: decoding-client {
+			compatible = "zephyr,mpipe-vid-transform-client";
+			sources = <&decoding_queue>;
+			channel = <&decoding_channel>;
+		};
+
+		overlay: overlay {
+			compatible = "zephyr,mpipe-vid-overlay";
+			sources = <&decoding_client>;
+			/* Nothing else holds the frames of the decoding client */
+			mode = "in-place";
+			draw-callback = "sample_draw_hud";
+		};
+
+		disp-sink {
+			compatible = "zephyr,mpipe-disp-sink";
+			sources = <&overlay>;
+		};
+
+		checking_queue: checking-queue {
+			compatible = "zephyr,mpipe-queue";
+			sources = <&tee>;
+			size = <1>;
+		};
+
+		/* The checking pipeline of the other core, seen from here as one sink */
+		checking-client {
+			compatible = "zephyr,mpipe-vid-sink-client";
+			sources = <&checking_queue>;
+			channel = <&checking_channel>;
+		};
+
+		recording_queue: recording-queue {
+			compatible = "zephyr,mpipe-queue";
+			sources = <&tee>;
+			size = <1>;
+		};
+
+		file-sink {
+			compatible = "zephyr,mpipe-file-sink";
+			sources = <&recording_queue>;
+			path = "/SD:/rec.mjp";
+		};
+	};
+};
