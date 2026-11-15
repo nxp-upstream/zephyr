@@ -6,6 +6,13 @@
 
 config MPIPE_VID
 	bool "Video plugin support"
+	default y if DT_HAS_ZEPHYR_MPIPE_VID_CONVERT_ENABLED || \
+		DT_HAS_ZEPHYR_MPIPE_VID_OVERLAY_ENABLED || \
+		DT_HAS_ZEPHYR_MPIPE_VID_SINK_CLIENT_ENABLED || \
+		DT_HAS_ZEPHYR_MPIPE_VID_SRC_CLIENT_ENABLED || \
+		DT_HAS_ZEPHYR_MPIPE_VID_SRC_ENABLED || \
+		DT_HAS_ZEPHYR_MPIPE_VID_TRANSFORM_ENABLED || \
+		DT_HAS_ZEPHYR_MPIPE_VID_TRANSFORM_CLIENT_ENABLED
 	select VIDEO
 	help
 	  Elements backed by Zephyr video devices: capture from a camera, and
@@ -20,6 +27,7 @@ if MPIPE_VID
 
 config MPIPE_VID_CONVERT
 	bool "Software-based pixel format converter"
+	default y if DT_HAS_ZEPHYR_MPIPE_VID_CONVERT_ENABLED
 	help
 	  A transform that converts a frame from one pixel format to another on
 	  the CPU.
@@ -31,6 +39,7 @@ config MPIPE_VID_CONVERT
 
 config MPIPE_VID_OVERLAY
 	bool "Video overlay element"
+	default y if DT_HAS_ZEPHYR_MPIPE_VID_OVERLAY_ENABLED
 	help
 	  A transform handing every buffer to an application draw callback,
 	  the pipeline equivalent of drawing on a canvas, with drawing helpers

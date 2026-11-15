@@ -14,6 +14,7 @@
 
 #include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
+#include <zephyr/mpipe/mpipe_dt.h>
 #include <zephyr/mpipe/mpipe_structure.h>
 #include <zephyr/mpipe/mpipe_value.h>
 
@@ -521,3 +522,65 @@ int mpipe_vid_overlay_init(struct mpipe_vid_overlay *overlay, uint8_t id)
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_vid_overlay
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+struct mpipe_vid_overlay_dt_config {
+	/* A callback at NULL is set by the application */
+	struct mpipe_vid_overlay_cb cb;
+	enum mpipe_vid_overlay_mode mode;
+	/* 0 keeps the default */
+	uint16_t width;
+	uint16_t height;
+};
+
+static int mpipe_vid_overlay_dt_init(const struct mpipe_dt_element *dt)
+{
+	const struct mpipe_vid_overlay_dt_config *config = dt->config;
+	struct mpipe_object *obj = &dt->element->object;
+	int ret = mpipe_vid_overlay_init((struct mpipe_vid_overlay *)dt->element, dt->id);
+
+	if (ret == 0) {
+		ret = mpipe_object_set_properties(obj, MPIPE_PROP_VID_OVERLAY_MODE, &config->mode,
+						  MPIPE_PROP_LIST_END);
+	}
+	if (ret == 0 && config->cb.fn != NULL) {
+		ret = mpipe_object_set_properties(obj, MPIPE_PROP_VID_OVERLAY_DRAW_CB, &config->cb,
+						  MPIPE_PROP_LIST_END);
+	}
+	if (ret == 0 && config->width != 0U) {
+		ret = mpipe_object_set_properties(obj, MPIPE_PROP_VID_OVERLAY_WIDTH, &config->width,
+						  MPIPE_PROP_LIST_END);
+	}
+	if (ret == 0 && config->height != 0U) {
+		ret = mpipe_object_set_properties(obj, MPIPE_PROP_VID_OVERLAY_HEIGHT,
+						  &config->height, MPIPE_PROP_LIST_END);
+	}
+
+	return ret;
+}
+
+/* The draw-callback property names a function the application defines */
+#define MPIPE_VID_OVERLAY_DT_CB_DECLARE(inst)                                                      \
+	void DT_INST_STRING_TOKEN(inst, draw_callback)(uint8_t *frame, uint16_t width,             \
+						       uint16_t height, uint32_t pixfmt,           \
+						       const struct net_buf *in, void *user_data);
+
+/* The mode property lists its values in the order of the enumeration */
+#define MPIPE_VID_OVERLAY_DT_DEFINE(inst)                                                          \
+	IF_ENABLED(DT_INST_NODE_HAS_PROP(inst, draw_callback),                                     \
+		   (MPIPE_VID_OVERLAY_DT_CB_DECLARE(inst)))                                        \
+	static struct mpipe_vid_overlay mpipe_vid_overlay_##inst;                                  \
+	static const struct mpipe_vid_overlay_dt_config mpipe_vid_overlay_dt_config_##inst = {     \
+		.cb.fn = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, draw_callback),                   \
+				     (DT_INST_STRING_TOKEN(inst, draw_callback)), (NULL)),         \
+		.mode = DT_INST_ENUM_IDX(inst, mode),                                              \
+		.width = DT_INST_PROP_OR(inst, width, 0),                                          \
+		.height = DT_INST_PROP_OR(inst, height, 0),                                        \
+	};                                                                                         \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_vid_overlay_##inst, mpipe_vid_overlay_dt_init,   \
+				     &mpipe_vid_overlay_dt_config_##inst);
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_VID_OVERLAY_DT_DEFINE)
+#endif

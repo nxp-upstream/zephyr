@@ -8,6 +8,7 @@
 #include <zephyr/video/controls.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/util.h>
+#include <zephyr/mpipe/mpipe_dt.h>
 
 #include <zephyr/mpipe/vid/mpipe_vid_buffer_pool.h>
 #include <zephyr/mpipe/vid/mpipe_vid_property.h>
@@ -104,3 +105,63 @@ int mpipe_vid_src_init(struct mpipe_vid_src *vid_src, uint8_t id)
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_vid_src
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+struct mpipe_vid_src_dt_config {
+	/* NULL keeps the default */
+	const struct device *dev;
+	/* A width of 0 keeps the default */
+	struct video_rect crop;
+	/* 0 keeps the default */
+	uint32_t num_buffers;
+	bool hflip;
+	bool vflip;
+};
+
+static int mpipe_vid_src_dt_init(const struct mpipe_dt_element *dt)
+{
+	const struct mpipe_vid_src_dt_config *config = dt->config;
+	int ret = mpipe_vid_src_init((struct mpipe_vid_src *)dt->element, dt->id);
+
+	/* The device first: the other properties are applied to it */
+	if (ret == 0 && config->dev != NULL) {
+		ret = mpipe_object_set_properties(&dt->element->object, MPIPE_PROP_VID_DEVICE,
+						  config->dev, MPIPE_PROP_LIST_END);
+	}
+	if (ret == 0 && config->crop.width != 0U) {
+		ret = mpipe_object_set_properties(&dt->element->object, MPIPE_PROP_VID_CROP,
+						  &config->crop, MPIPE_PROP_LIST_END);
+	}
+	if (ret == 0 && config->hflip) {
+		ret = mpipe_object_set_properties(&dt->element->object, VIDEO_CID_HFLIP,
+						  (const void *)(uintptr_t)1, MPIPE_PROP_LIST_END);
+	}
+	if (ret == 0 && config->vflip) {
+		ret = mpipe_object_set_properties(&dt->element->object, VIDEO_CID_VFLIP,
+						  (const void *)(uintptr_t)1, MPIPE_PROP_LIST_END);
+	}
+	if (ret != 0 || config->num_buffers == 0U) {
+		return ret;
+	}
+
+	return mpipe_object_set_properties(&dt->element->object, MPIPE_PROP_SRC_NUM_BUFS,
+					   (const void *)(uintptr_t)config->num_buffers,
+					   MPIPE_PROP_LIST_END);
+}
+
+#define MPIPE_VID_SRC_DT_DEFINE(inst)                                                              \
+	static struct mpipe_vid_src mpipe_vid_src_##inst;                                          \
+	static const struct mpipe_vid_src_dt_config mpipe_vid_src_dt_config_##inst = {             \
+		.dev = MPIPE_DT_INST_DEVICE_GET_OR_NULL(inst, device),                             \
+		.crop = DT_INST_PROP_OR(inst, crop, {0}),                                          \
+		.num_buffers = DT_INST_PROP_OR(inst, num_buffers, 0),                              \
+		.hflip = DT_INST_PROP(inst, hflip),                                                \
+		.vflip = DT_INST_PROP(inst, vflip),                                                \
+	};                                                                                         \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_vid_src_##inst, mpipe_vid_src_dt_init,           \
+				     &mpipe_vid_src_dt_config_##inst);
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_VID_SRC_DT_DEFINE)
+#endif

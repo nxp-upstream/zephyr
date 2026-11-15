@@ -1,0 +1,39 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Pipeline element letting the application draw on the frames, or on frames
+  of its own shown on another display plane.
+
+compatible: "zephyr,mpipe-vid-overlay"
+
+include: mpipe-element.yaml
+
+properties:
+  draw-callback:
+    type: string
+    description: |
+      Name of the function drawing on a frame, defined by the application as
+      an mpipe_vid_overlay_draw_cb_t with external linkage. The application
+      sets the callback at run time when absent.
+
+  mode:
+    type: string
+    default: "frame"
+    enum:
+      - "frame"
+      - "plane"
+      - "in-place"
+    description: |
+      Where the callback draws: in the video frame, in a transparent frame the
+      element produces for each input buffer, or in the video frame without
+      ever copying it. The last one needs no buffer of its own, and is for a
+      pipeline where nothing else holds the frames that reach the element.
+
+  width:
+    type: int
+    description: Width in pixels of the frames produced in the plane mode.
+
+  height:
+    type: int
+    description: Height in pixels of the frames produced in the plane mode.

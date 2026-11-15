@@ -6,6 +6,7 @@
 
 #include <zephyr/logging/log.h>
 
+#include <zephyr/mpipe/mpipe_dt.h>
 #include <zephyr/mpipe/mpipe_structure.h>
 #include <zephyr/mpipe/vid/mpipe_vid_buffer_pool_client.h>
 #include <zephyr/mpipe/vid/mpipe_vid_object.h>
@@ -100,3 +101,34 @@ int mpipe_vid_sink_client_init(struct mpipe_vid_sink_client *vsc, uint8_t id,
 
 	return mpipe_buffer_pool_set_req_config(vsc->sink.in_pool, &req);
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_vid_sink_client
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+/* Waits for the server on the other core */
+static int mpipe_vid_sink_client_dt_init(const struct mpipe_dt_element *dt)
+{
+	const struct mpipe_vid_dt_channel *dt_channel = dt->config;
+	struct mpipe_vid_rpc_channel vid_channel;
+	int ret;
+
+	ret = dt_channel->get(dt_channel, &vid_channel);
+	if (ret != 0) {
+		return ret;
+	}
+
+	return mpipe_vid_sink_client_init((struct mpipe_vid_sink_client *)dt->element, dt->id,
+					  &vid_channel);
+}
+
+/* The channel is the only property, so its entry is the configuration */
+#define MPIPE_VID_SINK_CLIENT_DT_DEFINE(inst)                                                      \
+	extern const struct mpipe_vid_dt_channel MPIPE_VID_DT_CHANNEL_NAME(                        \
+		DT_INST_PHANDLE(inst, channel));                                                   \
+	static struct mpipe_vid_sink_client mpipe_vid_sink_client_##inst;                          \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_vid_sink_client_##inst,                          \
+				     mpipe_vid_sink_client_dt_init,                                \
+				     &MPIPE_VID_DT_CHANNEL_NAME(DT_INST_PHANDLE(inst, channel)));
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_VID_SINK_CLIENT_DT_DEFINE)
+#endif
