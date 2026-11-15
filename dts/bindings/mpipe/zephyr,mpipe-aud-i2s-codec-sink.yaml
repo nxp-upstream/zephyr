@@ -1,0 +1,32 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Pipeline element playing PCM audio on a codec through an I2S controller.
+
+compatible: "zephyr,mpipe-aud-i2s-codec-sink"
+
+include: mpipe-element.yaml
+
+properties:
+  i2s-device:
+    type: phandle
+    description: |
+      I2S controller the blocks are written to. The "i2s-codec-tx" alias when
+      absent.
+
+  codec-device:
+    type: phandle
+    description: |
+      Audio codec playing the stream. The node labeled "audio_codec" when
+      absent.
+
+  clock-role:
+    type: string
+    default: "i2s-controller"
+    enum:
+      - "i2s-controller"
+      - "codec-controller"
+    description: |
+      Which side generates the bit clock and the word select: the I2S
+      controller, as most boards are wired, or the codec.

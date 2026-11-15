@@ -21,9 +21,21 @@
  */
 
 #include <zephyr/device.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/sys/util.h>
 
 #include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/aud/mpipe_aud.h>
+
+/** @cond INTERNAL_HIDDEN */
+
+/*
+ * Slab of the audio elements of a pipeline node: defined by the element
+ * producing the blocks, used by the sink of the same pipeline.
+ */
+#define Z_MPIPE_AUD_DT_SLAB(node_id) _CONCAT(mpipe_aud_dt_slab_, DT_DEP_ORD(DT_PARENT(node_id)))
+
+/** @endcond */
 
 /**
  * @struct mpipe_aud_buffer_pool
