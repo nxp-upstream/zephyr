@@ -6,6 +6,7 @@
 
 config MPIPE_ERPC
 	bool "eRPC backend for the client elements"
+	default y if DT_HAS_ZEPHYR_MPIPE_ERPC_CHANNEL_ENABLED
 	depends on MPIPE_RPC
 	depends on ZEPHYR_ERPC_MODULE
 	help

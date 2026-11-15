@@ -1,0 +1,25 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  eRPC channel of a client element of a pipeline: what the element calls its
+  server on another core through, over the IPC service.
+
+compatible: "zephyr,mpipe-erpc-channel"
+
+properties:
+  endpoint:
+    type: string
+    required: true
+    description: |
+      Name of the IPC service endpoint the channel and its server meet on.
+      Channels whose servers work at the same time name an endpoint each;
+      channels that name the same endpoint share one server, which answers
+      them one at a time.
+
+  function:
+    type: int
+    default: 0
+    description: |
+      What the client element runs on the server, a number the server defines.
+      A pipeline server gives function n to the n-th pipeline of its endpoint.

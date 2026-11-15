@@ -6,6 +6,7 @@
 
 #include <errno.h>
 
+#include <zephyr/devicetree.h>
 #include <zephyr/drivers/video.h>
 #include <zephyr/sys/util.h>
 
@@ -151,3 +152,31 @@ int mpipe_erpc_vid_channel_get(const char *ept_name, uint32_t function,
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_erpc_channel
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+struct mpipe_erpc_vid_dt_config {
+	const char *endpoint;
+	uint32_t function;
+};
+
+static int mpipe_erpc_vid_dt_channel_get(const struct mpipe_vid_dt_channel *dt,
+					 struct mpipe_vid_rpc_channel *vid_channel)
+{
+	const struct mpipe_erpc_vid_dt_config *config = dt->config;
+
+	return mpipe_erpc_vid_channel_get(config->endpoint, config->function, vid_channel);
+}
+
+/* An entry for each channel node: the one a video client element names is used */
+#define MPIPE_ERPC_VID_DT_CHANNEL_DEFINE(inst)                                                     \
+	static const struct mpipe_erpc_vid_dt_config mpipe_erpc_vid_dt_config_##inst = {           \
+		.endpoint = DT_INST_PROP(inst, endpoint),                                          \
+		.function = DT_INST_PROP(inst, function),                                          \
+	};                                                                                         \
+	MPIPE_VID_DT_CHANNEL_DEFINE(DT_DRV_INST(inst), mpipe_erpc_vid_dt_channel_get,              \
+				    &mpipe_erpc_vid_dt_config_##inst);
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_ERPC_VID_DT_CHANNEL_DEFINE)
+#endif
