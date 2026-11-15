@@ -1,0 +1,35 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Pipeline element cutting a raw PCM byte stream into audio blocks of the
+  format its properties declare.
+
+compatible: "zephyr,mpipe-aud-raw-parser"
+
+include: mpipe-element.yaml
+
+properties:
+  sample-rate:
+    type: int
+    required: true
+    description: Sample rate of the stream in hertz.
+
+  bit-width:
+    type: int
+    required: true
+    enum:
+      - 16
+      - 24
+      - 32
+    description: Number of bits per sample.
+
+  num-channels:
+    type: int
+    required: true
+    description: Number of channels.
+
+  frame-interval:
+    type: int
+    required: true
+    description: Duration of an output block in microseconds.

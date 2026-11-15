@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include <zephyr/mpipe/mpipe_dispatch.h>
+#include <zephyr/mpipe/mpipe_dt.h>
 #include <zephyr/mpipe/mpipe_structure.h>
 #include <zephyr/mpipe/mpipe_value.h>
 
@@ -375,3 +376,30 @@ int mpipe_aud_gain_init(struct mpipe_aud_gain *aud_gain, uint8_t id)
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_aud_gain
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+static int mpipe_aud_gain_dt_init(const struct mpipe_dt_element *dt)
+{
+	int ret = mpipe_aud_gain_init((struct mpipe_aud_gain *)dt->element, dt->id);
+
+	/* Without the property the gain stays at its default */
+	if (ret != 0 || dt->config == NULL) {
+		return ret;
+	}
+
+	return mpipe_object_set_properties(&dt->element->object, MPIPE_PROP_AUD_TRANSFORM_GAIN,
+					   dt->config, MPIPE_PROP_LIST_END);
+}
+
+#define MPIPE_AUD_GAIN_DT_DEFINE(inst)                                                             \
+	static struct mpipe_aud_gain mpipe_aud_gain_##inst;                                        \
+	IF_ENABLED(DT_INST_NODE_HAS_PROP(inst, gain),                                              \
+		   (static const int mpipe_aud_gain_dt_gain_##inst = DT_INST_PROP(inst, gain);))   \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_aud_gain_##inst, mpipe_aud_gain_dt_init,         \
+				     COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, gain),                \
+						 (&mpipe_aud_gain_dt_gain_##inst), (NULL)));
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_AUD_GAIN_DT_DEFINE)
+#endif

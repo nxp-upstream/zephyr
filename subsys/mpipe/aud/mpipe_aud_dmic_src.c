@@ -9,6 +9,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/audio/dmic.h>
 
+#include <zephyr/mpipe/mpipe_dt.h>
 #include <zephyr/mpipe/mpipe_structure.h>
 #include <zephyr/mpipe/mpipe_value.h>
 
@@ -224,3 +225,43 @@ int mpipe_aud_dmic_src_init(struct mpipe_aud_dmic_src *aud_dmic_src, uint8_t id)
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_aud_dmic_src
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+struct mpipe_aud_dmic_src_dt_config {
+	struct k_mem_slab *slab;
+	/* NULL keeps the default */
+	const struct device *dev;
+};
+
+static int mpipe_aud_dmic_src_dt_init(const struct mpipe_dt_element *dt)
+{
+	const struct mpipe_aud_dmic_src_dt_config *config = dt->config;
+	int ret = mpipe_aud_dmic_src_init((struct mpipe_aud_dmic_src *)dt->element, dt->id);
+
+	if (ret == 0 && config->dev != NULL) {
+		ret = mpipe_object_set_properties(&dt->element->object, MPIPE_PROP_AUD_SRC_DEVICE,
+						  config->dev, MPIPE_PROP_LIST_END);
+	}
+	if (ret != 0) {
+		return ret;
+	}
+
+	return mpipe_object_set_properties(&dt->element->object, MPIPE_PROP_AUD_SRC_SLAB_PTR,
+					   config->slab, MPIPE_PROP_LIST_END);
+}
+
+/* The driver fills the blocks by DMA: the slab is not cached */
+#define MPIPE_AUD_DMIC_SRC_DT_DEFINE(inst)                                                         \
+	__nocache struct k_mem_slab Z_MPIPE_AUD_DT_SLAB(DT_DRV_INST(inst));                        \
+	static struct mpipe_aud_dmic_src mpipe_aud_dmic_src_##inst;                                \
+	static const struct mpipe_aud_dmic_src_dt_config mpipe_aud_dmic_src_dt_config_##inst = {   \
+		.slab = &Z_MPIPE_AUD_DT_SLAB(DT_DRV_INST(inst)),                                   \
+		.dev = MPIPE_DT_INST_DEVICE_GET_OR_NULL(inst, device),                             \
+	};                                                                                         \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_aud_dmic_src_##inst, mpipe_aud_dmic_src_dt_init, \
+				     &mpipe_aud_dmic_src_dt_config_##inst);
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_AUD_DMIC_SRC_DT_DEFINE)
+#endif

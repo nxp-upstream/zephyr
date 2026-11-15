@@ -10,6 +10,7 @@
 
 #include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
+#include <zephyr/mpipe/mpipe_dt.h>
 #include <zephyr/mpipe/mpipe_structure.h>
 #include <zephyr/mpipe/mpipe_value.h>
 
@@ -451,3 +452,59 @@ int mpipe_aud_i2s_codec_sink_init(struct mpipe_aud_i2s_codec_sink *aud_i2s_codec
 	aud_i2s_codec_sink->mem_slab = NULL;
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_aud_i2s_codec_sink
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+struct mpipe_aud_i2s_codec_sink_dt_config {
+	struct k_mem_slab *slab;
+	/* NULL keeps the default */
+	const struct device *i2s_dev;
+	const struct device *codec_dev;
+	enum mpipe_aud_i2s_codec_clk_role clk_role;
+};
+
+static int mpipe_aud_i2s_codec_sink_dt_init(const struct mpipe_dt_element *dt)
+{
+	const struct mpipe_aud_i2s_codec_sink_dt_config *config = dt->config;
+	struct mpipe_object *obj = &dt->element->object;
+	int ret = mpipe_aud_i2s_codec_sink_init((struct mpipe_aud_i2s_codec_sink *)dt->element,
+						dt->id);
+
+	if (ret == 0 && config->i2s_dev != NULL) {
+		ret = mpipe_object_set_properties(obj, MPIPE_PROP_AUD_SINK_I2S_DEVICE,
+						  config->i2s_dev, MPIPE_PROP_LIST_END);
+	}
+	if (ret == 0 && config->codec_dev != NULL) {
+		ret = mpipe_object_set_properties(obj, MPIPE_PROP_AUD_SINK_CODEC_DEVICE,
+						  config->codec_dev, MPIPE_PROP_LIST_END);
+	}
+	if (ret != 0) {
+		return ret;
+	}
+
+	return mpipe_object_set_properties(
+		obj, MPIPE_PROP_AUD_SINK_SLAB_PTR, config->slab, MPIPE_PROP_AUD_SINK_CLK_ROLE,
+		(const void *)(uintptr_t)config->clk_role, MPIPE_PROP_LIST_END);
+}
+
+/*
+ * The slab is the one of the element producing the blocks of the pipeline.
+ * The clock-role property lists its values in the order of the enumeration.
+ */
+#define MPIPE_AUD_I2S_CODEC_SINK_DT_DEFINE(inst)                                                   \
+	extern struct k_mem_slab Z_MPIPE_AUD_DT_SLAB(DT_DRV_INST(inst));                           \
+	static struct mpipe_aud_i2s_codec_sink mpipe_aud_i2s_codec_sink_##inst;                    \
+	static const struct mpipe_aud_i2s_codec_sink_dt_config                                     \
+		mpipe_aud_i2s_codec_sink_dt_config_##inst = {                                      \
+			.slab = &Z_MPIPE_AUD_DT_SLAB(DT_DRV_INST(inst)),                           \
+			.i2s_dev = MPIPE_DT_INST_DEVICE_GET_OR_NULL(inst, i2s_device),             \
+			.codec_dev = MPIPE_DT_INST_DEVICE_GET_OR_NULL(inst, codec_device),         \
+			.clk_role = DT_INST_ENUM_IDX(inst, clock_role),                            \
+	};                                                                                         \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_aud_i2s_codec_sink_##inst,                       \
+				     mpipe_aud_i2s_codec_sink_dt_init,                             \
+				     &mpipe_aud_i2s_codec_sink_dt_config_##inst);
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_AUD_I2S_CODEC_SINK_DT_DEFINE)
+#endif

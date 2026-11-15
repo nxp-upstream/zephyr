@@ -13,6 +13,7 @@
 
 #include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
+#include <zephyr/mpipe/mpipe_dt.h>
 #include <zephyr/mpipe/mpipe_element.h>
 #include <zephyr/mpipe/mpipe_structure.h>
 
@@ -283,3 +284,51 @@ int mpipe_aud_raw_parser_init(struct mpipe_aud_raw_parser *parser, uint8_t id)
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_aud_raw_parser
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+struct mpipe_aud_raw_parser_dt_config {
+	struct k_mem_slab *slab;
+	uint32_t sample_rate;
+	uint32_t bit_width;
+	uint32_t num_channels;
+	uint32_t frame_interval;
+};
+
+static int mpipe_aud_raw_parser_dt_init(const struct mpipe_dt_element *dt)
+{
+	const struct mpipe_aud_raw_parser_dt_config *config = dt->config;
+	int ret = mpipe_aud_raw_parser_init((struct mpipe_aud_raw_parser *)dt->element, dt->id);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	return mpipe_object_set_properties(
+		&dt->element->object, MPIPE_PROP_AUD_RAW_PARSER_SLAB_PTR, config->slab,
+		MPIPE_PROP_AUD_RAW_PARSER_SAMPLE_RATE, &config->sample_rate,
+		MPIPE_PROP_AUD_RAW_PARSER_BITWIDTH, &config->bit_width,
+		MPIPE_PROP_AUD_RAW_PARSER_NUM_CHANNELS, &config->num_channels,
+		MPIPE_PROP_AUD_RAW_PARSER_FRAME_INTERVAL, &config->frame_interval,
+		MPIPE_PROP_LIST_END);
+}
+
+/* The sink hands the blocks to its driver: the slab is not cached */
+#define MPIPE_AUD_RAW_PARSER_DT_DEFINE(inst)                                                       \
+	__nocache struct k_mem_slab Z_MPIPE_AUD_DT_SLAB(DT_DRV_INST(inst));                        \
+	static struct mpipe_aud_raw_parser mpipe_aud_raw_parser_##inst;                            \
+	static const struct mpipe_aud_raw_parser_dt_config                                         \
+		mpipe_aud_raw_parser_dt_config_##inst = {                                          \
+			.slab = &Z_MPIPE_AUD_DT_SLAB(DT_DRV_INST(inst)),                           \
+			.sample_rate = DT_INST_PROP(inst, sample_rate),                            \
+			.bit_width = DT_INST_PROP(inst, bit_width),                                \
+			.num_channels = DT_INST_PROP(inst, num_channels),                          \
+			.frame_interval = DT_INST_PROP(inst, frame_interval),                      \
+	};                                                                                         \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_aud_raw_parser_##inst,                           \
+				     mpipe_aud_raw_parser_dt_init,                                 \
+				     &mpipe_aud_raw_parser_dt_config_##inst);
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_AUD_RAW_PARSER_DT_DEFINE)
+#endif

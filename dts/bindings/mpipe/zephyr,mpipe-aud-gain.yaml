@@ -1,0 +1,13 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: Pipeline element amplifying or attenuating PCM audio.
+
+compatible: "zephyr,mpipe-aud-gain"
+
+include: mpipe-element.yaml
+
+properties:
+  gain:
+    type: int
+    description: Gain in percent, 100 leaving the samples unchanged.

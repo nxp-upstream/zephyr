@@ -1,0 +1,16 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Pipeline element capturing audio blocks from a digital microphone.
+
+compatible: "zephyr,mpipe-aud-dmic-src"
+
+include: mpipe-element.yaml
+
+properties:
+  device:
+    type: phandle
+    description: |
+      Digital microphone to capture from. The node labeled "dmic_dev" when
+      absent.
