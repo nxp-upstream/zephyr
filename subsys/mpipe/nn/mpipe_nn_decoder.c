@@ -18,6 +18,7 @@
 
 #include <zephyr/mpipe/nn/mpipe_nn_backend.h>
 #include <zephyr/mpipe/nn/mpipe_nn_decoder.h>
+#include <zephyr/mpipe/mpipe_dt.h>
 
 LOG_MODULE_REGISTER(mpipe_nn_decoder, CONFIG_MPIPE_LOG_LEVEL);
 
@@ -580,3 +581,53 @@ int mpipe_nn_decoder_init(struct mpipe_nn_decoder *decode, uint8_t id)
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_nn_decoder
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+/* A field at 0 keeps the default */
+struct mpipe_nn_decoder_dt_config {
+	float threshold;
+	float nms_iou;
+	uint8_t type;
+};
+
+static int mpipe_nn_decoder_dt_init(const struct mpipe_dt_element *dt)
+{
+	const struct mpipe_nn_decoder_dt_config *config = dt->config;
+	struct mpipe_object *obj = &dt->element->object;
+	int ret = mpipe_nn_decoder_init((struct mpipe_nn_decoder *)dt->element, dt->id);
+
+	if (ret == 0 && config->type != 0U) {
+		ret = mpipe_object_set_properties(obj, MPIPE_PROP_NN_DECODER_TYPE, &config->type,
+						  MPIPE_PROP_LIST_END);
+	}
+	if (ret == 0 && config->threshold != 0.0f) {
+		ret = mpipe_object_set_properties(obj, MPIPE_PROP_NN_DECODER_THRESHOLD,
+						  &config->threshold, MPIPE_PROP_LIST_END);
+	}
+	if (ret == 0 && config->nms_iou != 0.0f) {
+		ret = mpipe_object_set_properties(obj, MPIPE_PROP_NN_DECODER_NMS_IOU,
+						  &config->nms_iou, MPIPE_PROP_LIST_END);
+	}
+
+	return ret;
+}
+
+/*
+ * The devicetree has no fractions: the scores are percentages. The type
+ * property lists its values in the order of the enumeration, which starts at 1.
+ */
+#define MPIPE_NN_DECODER_DT_DEFINE(inst)                                                           \
+	static struct mpipe_nn_decoder mpipe_nn_decoder_##inst;                                    \
+	static const struct mpipe_nn_decoder_dt_config mpipe_nn_decoder_dt_config_##inst = {       \
+		.threshold = (float)DT_INST_PROP_OR(inst, score_threshold, 0) / 100.0f,            \
+		.nms_iou = (float)DT_INST_PROP_OR(inst, nms_iou, 0) / 100.0f,                      \
+		.type = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, type),                             \
+				    (DT_INST_ENUM_IDX(inst, type) + 1), (0)),                      \
+	};                                                                                         \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_nn_decoder_##inst, mpipe_nn_decoder_dt_init,     \
+				     &mpipe_nn_decoder_dt_config_##inst);
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_NN_DECODER_DT_DEFINE)
+#endif

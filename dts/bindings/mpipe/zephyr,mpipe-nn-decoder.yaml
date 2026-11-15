@@ -1,0 +1,29 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Pipeline element decoding the output tensors of a neural network into
+  results.
+
+compatible: "zephyr,mpipe-nn-decoder"
+
+include: mpipe-element.yaml
+
+properties:
+  type:
+    type: string
+    enum:
+      - "classification"
+      - "detection"
+    description: Kind of results to decode. Classification when absent.
+
+  score-threshold:
+    type: int
+    description: |
+      Score in percent below which a result is not reported. 50 when absent.
+
+  nms-iou:
+    type: int
+    description: |
+      Overlap in percent above which the lower scoring of two boxes is
+      dropped. 50 when absent.

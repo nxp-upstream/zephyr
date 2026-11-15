@@ -17,6 +17,7 @@
 #include <zephyr/mpipe/mpipe_value.h>
 
 #include <zephyr/mpipe/nn/mpipe_nn_runner.h>
+#include <zephyr/mpipe/mpipe_dt.h>
 
 LOG_MODULE_REGISTER(mpipe_nn_runner, CONFIG_MPIPE_LOG_LEVEL);
 
@@ -456,3 +457,39 @@ int mpipe_nn_runner_init(struct mpipe_nn_runner *runner, uint8_t id)
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_nn_runner
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+struct mpipe_nn_runner_dt_config {
+	const struct mpipe_nn_model *model;
+	const struct mpipe_nn_arena *arena;
+};
+
+static int mpipe_nn_runner_dt_init(const struct mpipe_dt_element *dt)
+{
+	const struct mpipe_nn_runner_dt_config *config = dt->config;
+	int ret = mpipe_nn_runner_init((struct mpipe_nn_runner *)dt->element, dt->id);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	return mpipe_object_set_properties(&dt->element->object, MPIPE_PROP_NN_MODEL, config->model,
+					   MPIPE_PROP_NN_ARENA, config->arena, MPIPE_PROP_LIST_END);
+}
+
+/* The model and arena properties name objects the application defines */
+#define MPIPE_NN_RUNNER_DT_DEFINE(inst)                                                            \
+	extern const struct mpipe_nn_model DT_INST_STRING_TOKEN(inst, model);                      \
+	extern const struct mpipe_nn_arena DT_INST_STRING_TOKEN(inst, arena);                      \
+	static struct mpipe_nn_runner mpipe_nn_runner_##inst;                                      \
+	static const struct mpipe_nn_runner_dt_config mpipe_nn_runner_dt_config_##inst = {         \
+		.model = &DT_INST_STRING_TOKEN(inst, model),                                       \
+		.arena = &DT_INST_STRING_TOKEN(inst, arena),                                       \
+	};                                                                                         \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_nn_runner_##inst, mpipe_nn_runner_dt_init,       \
+				     &mpipe_nn_runner_dt_config_##inst);
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_NN_RUNNER_DT_DEFINE)
+#endif
