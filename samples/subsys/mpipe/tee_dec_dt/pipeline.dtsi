@@ -1,0 +1,66 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include "../common/sd_card.dtsi"
+
+/ {
+	pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+		autostart;
+
+		file_src: file-src {
+			compatible = "zephyr,mpipe-file-src";
+			path = "/SD:/test.mjpeg";
+		};
+
+		jpeg_parser: jpeg-parser {
+			compatible = "zephyr,mpipe-img-jpeg-parser";
+			sources = <&file_src>;
+		};
+
+		jpeg_filter: caps-filter {
+			compatible = "zephyr,mpipe-caps-filter";
+			sources = <&jpeg_parser>;
+			media = "video";
+			pixel-format = "JPEG";
+			width = <320>;
+			height = <240>;
+		};
+
+		tee: tee {
+			compatible = "zephyr,mpipe-tee";
+			sources = <&jpeg_filter>;
+		};
+
+		/* Branch 1: decode and display */
+		disp_queue: disp-queue {
+			compatible = "zephyr,mpipe-queue";
+			sources = <&tee>;
+		};
+
+		jpeg_decoder: jpeg-decoder {
+			compatible = "zephyr,mpipe-img-jpeg-decoder";
+			sources = <&disp_queue>;
+		};
+
+		disp-sink {
+			compatible = "zephyr,mpipe-disp-sink";
+			sources = <&jpeg_decoder>;
+		};
+
+		/* Branch 2: write the JPEG frames back to a file */
+		file_queue: file-queue {
+			compatible = "zephyr,mpipe-queue";
+			sources = <&tee>;
+		};
+
+		file-sink {
+			compatible = "zephyr,mpipe-file-sink";
+			sources = <&file_queue>;
+			path = "/SD:/tee_out.mjpeg";
+		};
+	};
+};
