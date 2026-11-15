@@ -1,0 +1,6 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+# The options of the android_link sample. The frame size and the microphone
+# gain are stated by the pipelines of the devicetree instead.
+rsource "../android_link/Kconfig"
