@@ -1,0 +1,14 @@
+# Copyright 2026 NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "Live classification pipeline described in the devicetree"
+
+config SAMPLE_NN_ARENA_SIZE
+	int "Tensor arena size in bytes"
+	default 140000
+	help
+	  Working memory handed to the inference backend; 136 KiB fits the
+	  stock person detection model.
+
+source "Kconfig.zephyr"
