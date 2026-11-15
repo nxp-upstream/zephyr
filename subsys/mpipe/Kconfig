@@ -6,6 +6,7 @@
 
 menuconfig MPIPE
 	bool "Multimedia Pipeline framework [EXPERIMENTAL]"
+	default y if DT_HAS_ZEPHYR_MPIPE_PIPELINE_ENABLED
 	imply THREAD_NAME
 	select NET_BUF
 	select ZBUS
@@ -147,16 +148,19 @@ config MPIPE_FAKE_SRC_BUF_SZ
 
 config MPIPE_RPC
 	bool "Client elements (remote processing)"
+	default y if DT_HAS_ZEPHYR_MPIPE_VID_SINK_CLIENT_ENABLED || \
+		DT_HAS_ZEPHYR_MPIPE_VID_SRC_CLIENT_ENABLED || \
+		DT_HAS_ZEPHYR_MPIPE_VID_TRANSFORM_CLIENT_ENABLED
 	help
 	  Build the client-side elements that run their processing on another
 	  core instead of locally.
 
-	  A client looks like an ordinary element in the graph, a transform or
-	  a sink, but forwards each buffer over a transport to a server on the
-	  remote core and waits for it. The server is one function or a whole
-	  pipeline of that core. The transport itself is not provided here:
-	  an RPC backend or the application supplies it as the RPC channel of
-	  the element.
+	  A client looks like an ordinary element in the graph, a source, a
+	  transform or a sink, but exchanges each buffer over a transport with
+	  a server on the remote core and waits for it. The server is one
+	  function or a whole pipeline of that core. The transport itself is
+	  not provided here: an RPC backend or the application supplies it as
+	  the RPC channel of the element.
 
 # ---- ZBus defaults for MPIPE ----
 # The framework allocates nothing, so the bus underneath it must not either.

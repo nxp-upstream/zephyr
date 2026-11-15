@@ -8,6 +8,8 @@
 #include <zephyr/video/video.h>
 
 #include <zephyr/mpipe/mpipe_dispatch.h>
+#include <zephyr/mpipe/mpipe_dt.h>
+#include <zephyr/video/controls.h>
 #include <zephyr/mpipe/mpipe_structure.h>
 #include <zephyr/mpipe/mpipe_value.h>
 
@@ -249,3 +251,46 @@ int mpipe_vid_transform_init(struct mpipe_vid_transform *vid_transform, uint8_t 
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_vid_transform
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+struct mpipe_vid_transform_dt_config {
+	const struct device *dev;
+	/* 0 keeps the default */
+	uint32_t rotation;
+};
+
+static int mpipe_vid_transform_dt_init(const struct mpipe_dt_element *dt)
+{
+	const struct mpipe_vid_transform_dt_config *config = dt->config;
+	int ret = mpipe_vid_transform_init((struct mpipe_vid_transform *)dt->element, dt->id);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	/* The device first: the controls are applied to it */
+	ret = mpipe_object_set_properties(&dt->element->object, MPIPE_PROP_VID_DEVICE, config->dev,
+					  MPIPE_PROP_LIST_END);
+	if (ret != 0 || config->rotation == 0U) {
+		return ret;
+	}
+
+	return mpipe_object_set_properties(&dt->element->object, VIDEO_CID_ROTATE,
+					   (const void *)(uintptr_t)config->rotation,
+					   MPIPE_PROP_LIST_END);
+}
+
+#define MPIPE_VID_TRANSFORM_DT_DEFINE(inst)                                                        \
+	static struct mpipe_vid_transform mpipe_vid_transform_##inst;                              \
+	static const struct mpipe_vid_transform_dt_config mpipe_vid_transform_dt_config_##inst = { \
+		.dev = DEVICE_DT_GET(DT_INST_PHANDLE(inst, device)),                               \
+		.rotation = DT_INST_PROP_OR(inst, rotation, 0),                                    \
+	};                                                                                         \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_vid_transform_##inst,                            \
+				     mpipe_vid_transform_dt_init,                                  \
+				     &mpipe_vid_transform_dt_config_##inst);
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_VID_TRANSFORM_DT_DEFINE)
+#endif

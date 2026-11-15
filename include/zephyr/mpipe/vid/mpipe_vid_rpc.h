@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 
+#include <zephyr/devicetree.h>
 #include <zephyr/drivers/video.h>
 #include <zephyr/sys/util.h>
 
@@ -97,6 +98,55 @@ struct mpipe_vid_rpc_channel {
 	/** Format calls of the backend the channel is from */
 	const struct mpipe_vid_rpc_format_api *format;
 };
+
+struct mpipe_vid_dt_channel;
+
+/**
+ * @brief Function giving the video channel of a devicetree channel node
+ *
+ * @param dt Entry of the channel node
+ * @param[out] vid_channel The video channel
+ *
+ * @retval 0 Success
+ * @retval -errno The backend has no channel left
+ */
+typedef int (*mpipe_vid_dt_channel_get_t)(const struct mpipe_vid_dt_channel *dt,
+					  struct mpipe_vid_rpc_channel *vid_channel);
+
+/**
+ * @brief Entry of a channel node of the devicetree, for the video client elements
+ *
+ * A video client element described in the devicetree names its channel with
+ * the @c channel property, a node of an RPC backend. The backend defines one
+ * entry per such node with @ref MPIPE_VID_DT_CHANNEL_DEFINE.
+ */
+struct mpipe_vid_dt_channel {
+	/** Gives the video channel of the node */
+	mpipe_vid_dt_channel_get_t get;
+	/** Properties of the node, in the form the backend defines */
+	const void *config;
+};
+
+/**
+ * @brief Name of the entry of a channel node
+ *
+ * @param node_id Node of the channel
+ */
+#define MPIPE_VID_DT_CHANNEL_NAME(node_id) _CONCAT(mpipe_vid_dt_channel_, DT_DEP_ORD(node_id))
+
+/**
+ * @brief Define the entry of a channel node for the video client elements
+ *
+ * @param node_id Node of the channel
+ * @param get_fn Function giving the video channel, an
+ *               @ref mpipe_vid_dt_channel_get_t
+ * @param config_ptr Properties of the node handed to @p get_fn, or NULL
+ */
+#define MPIPE_VID_DT_CHANNEL_DEFINE(node_id, get_fn, config_ptr)                                   \
+	const struct mpipe_vid_dt_channel MPIPE_VID_DT_CHANNEL_NAME(node_id) = {                   \
+		.get = (get_fn),                                                                   \
+		.config = (config_ptr),                                                            \
+	}
 
 /** @} */
 

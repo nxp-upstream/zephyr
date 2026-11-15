@@ -1,0 +1,17 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Pipeline element handing its frames to a video transform on another core.
+
+compatible: "zephyr,mpipe-vid-transform-client"
+
+include: mpipe-element.yaml
+
+properties:
+  channel:
+    type: phandle
+    required: true
+    description: |
+      Channel the element calls its server through, a node of an RPC backend.
+      Each client element has a channel node of its own.

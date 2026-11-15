@@ -1,0 +1,35 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: Pipeline element capturing frames from a video device.
+
+compatible: "zephyr,mpipe-vid-src"
+
+include: mpipe-element.yaml
+
+properties:
+  device:
+    type: phandle
+    description: |
+      Video device to capture from. The chosen "zephyr,camera" node when
+      absent.
+
+  num-buffers:
+    type: int
+    description: |
+      Number of buffers to produce before ending the stream. Endless when
+      absent.
+
+  crop:
+    type: array
+    description: |
+      Rectangle of the sensor to capture, as <left top width height> in
+      pixels. The whole sensor when absent.
+
+  hflip:
+    type: boolean
+    description: Mirror the frames horizontally.
+
+  vflip:
+    type: boolean
+    description: Mirror the frames vertically.

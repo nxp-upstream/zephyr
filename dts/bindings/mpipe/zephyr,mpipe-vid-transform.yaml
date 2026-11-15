@@ -1,0 +1,25 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Pipeline element processing frames with a memory-to-memory video device,
+  such as a decoder, a scaler or a rotator.
+
+compatible: "zephyr,mpipe-vid-transform"
+
+include: mpipe-element.yaml
+
+properties:
+  device:
+    type: phandle
+    required: true
+    description: Video device processing the frames.
+
+  rotation:
+    type: int
+    enum:
+      - 0
+      - 90
+      - 180
+      - 270
+    description: Angle in degrees the device rotates the frames by.
