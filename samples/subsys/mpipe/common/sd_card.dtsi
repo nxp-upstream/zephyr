@@ -1,0 +1,19 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* The FAT volume of the disk named "SD", mounted at boot */
+/ {
+	fstab {
+		compatible = "zephyr,fstab";
+
+		sd_card {
+			compatible = "zephyr,fstab,fatfs";
+			automount;
+			disk-access;
+			mount-point = "/SD:";
+		};
+	};
+};
