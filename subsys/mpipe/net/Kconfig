@@ -3,6 +3,8 @@
 
 config MPIPE_NET
 	bool "Network plugin support"
+	default y if DT_HAS_ZEPHYR_MPIPE_SOCKET_SINK_ENABLED || \
+		DT_HAS_ZEPHYR_MPIPE_SOCKET_SRC_ENABLED
 	depends on NETWORKING && NET_TCP && NET_SOCKETS
 	select NET_IPV4_MAPPING_TO_IPV6 if NET_NATIVE_IPV6
 	help

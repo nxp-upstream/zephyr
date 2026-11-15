@@ -1,0 +1,10 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Pipeline element reading its stream from a connected socket, which the
+  application hands over at run time.
+
+compatible: "zephyr,mpipe-socket-src"
+
+include: mpipe-element.yaml

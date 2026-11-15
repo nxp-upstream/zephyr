@@ -14,6 +14,7 @@
 #include <zephyr/mpipe/mpipe_element.h>
 
 #include <zephyr/mpipe/net/mpipe_socket_sink.h>
+#include <zephyr/mpipe/mpipe_dt.h>
 
 LOG_MODULE_REGISTER(mpipe_socket_sink, CONFIG_MPIPE_LOG_LEVEL);
 
@@ -157,3 +158,20 @@ int mpipe_socket_sink_init(struct mpipe_socket_sink *ssink, uint8_t id)
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_socket_sink
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+/* The application hands the socket over once it is connected */
+static int mpipe_socket_sink_dt_init(const struct mpipe_dt_element *dt)
+{
+	return mpipe_socket_sink_init((struct mpipe_socket_sink *)dt->element, dt->id);
+}
+
+#define MPIPE_SOCKET_SINK_DT_DEFINE(inst)                                                          \
+	static struct mpipe_socket_sink mpipe_socket_sink_##inst;                                  \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_socket_sink_##inst, mpipe_socket_sink_dt_init,   \
+				     NULL);
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_SOCKET_SINK_DT_DEFINE)
+#endif
