@@ -61,7 +61,7 @@ static struct mpipe_pad *mpipe_element_get_unlinked_pad(struct mpipe_element *el
 
 	SYS_DLIST_FOR_EACH_CONTAINER(pads, obj, node) {
 		pad = (struct mpipe_pad *)obj;
-		if (pad->peer == NULL && (pad_id == UINT8_MAX || pad_id == obj->id)) {
+		if (pad->peer == NULL && (pad_id == MPIPE_PAD_ID_ANY || pad_id == obj->id)) {
 			return pad;
 		}
 	}
@@ -69,13 +69,18 @@ static struct mpipe_pad *mpipe_element_get_unlinked_pad(struct mpipe_element *el
 	return NULL;
 }
 
-static int mpipe_element_link_pads(struct mpipe_element *src, uint8_t src_pad_id,
-				   struct mpipe_element *sink, uint8_t sink_pad_id)
+int mpipe_element_link_pads(struct mpipe_element *src, uint8_t src_pad_id,
+			    struct mpipe_element *sink, uint8_t sink_pad_id)
 {
-	struct mpipe_pad *src_pad = mpipe_element_get_unlinked_pad(src, src_pad_id, MPIPE_PAD_SRC);
-	struct mpipe_pad *sink_pad =
-		mpipe_element_get_unlinked_pad(sink, sink_pad_id, MPIPE_PAD_SINK);
+	struct mpipe_pad *src_pad;
+	struct mpipe_pad *sink_pad;
 	struct mpipe_structure scratch;
+
+	__ASSERT_NO_MSG(src != NULL);
+	__ASSERT_NO_MSG(sink != NULL);
+
+	src_pad = mpipe_element_get_unlinked_pad(src, src_pad_id, MPIPE_PAD_SRC);
+	sink_pad = mpipe_element_get_unlinked_pad(sink, sink_pad_id, MPIPE_PAD_SINK);
 
 	if (src_pad == NULL || sink_pad == NULL) {
 		LOG_ERR("Link failed: no free %s pad on element %u",
@@ -106,7 +111,8 @@ int mpipe_element_link(struct mpipe_element *element, struct mpipe_element *next
 	va_start(args, next_element);
 	while (next_element != NULL) {
 		/* Connect the 1st unlinked pad of each element together */
-		ret = mpipe_element_link_pads(element, UINT8_MAX, next_element, UINT8_MAX);
+		ret = mpipe_element_link_pads(element, MPIPE_PAD_ID_ANY, next_element,
+					      MPIPE_PAD_ID_ANY);
 		if (ret != 0) {
 			va_end(args);
 			return ret;
