@@ -1,0 +1,14 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: Pipeline element writing its input stream to a file.
+
+compatible: "zephyr,mpipe-file-sink"
+
+include: mpipe-element.yaml
+
+properties:
+  path:
+    type: string
+    required: true
+    description: Absolute path of the file to write.

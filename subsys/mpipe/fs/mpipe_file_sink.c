@@ -10,6 +10,7 @@
 #include <zephyr/logging/log.h>
 
 #include <zephyr/mpipe/mpipe_buffer.h>
+#include <zephyr/mpipe/mpipe_dt.h>
 
 #include <zephyr/mpipe/fs/mpipe_file_sink.h>
 
@@ -144,3 +145,27 @@ int mpipe_file_sink_init(struct mpipe_file_sink *fsink, uint8_t id)
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_file_sink
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+static int mpipe_file_sink_dt_init(const struct mpipe_dt_element *dt)
+{
+	int ret = mpipe_file_sink_init((struct mpipe_file_sink *)dt->element, dt->id);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	return mpipe_object_set_properties(&dt->element->object, MPIPE_PROP_FS_SINK_PATH,
+					   dt->config, MPIPE_PROP_LIST_END);
+}
+
+/* The path is the only property, so it is the configuration */
+#define MPIPE_FILE_SINK_DT_DEFINE(inst)                                                            \
+	static struct mpipe_file_sink mpipe_file_sink_##inst;                                      \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_file_sink_##inst, mpipe_file_sink_dt_init,       \
+				     DT_INST_PROP(inst, path));
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_FILE_SINK_DT_DEFINE)
+#endif

@@ -1,0 +1,20 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: Pipeline element reading a file in blocks.
+
+compatible: "zephyr,mpipe-file-src"
+
+include: mpipe-element.yaml
+
+properties:
+  path:
+    type: string
+    required: true
+    description: Absolute path of the file to read.
+
+  block-size:
+    type: int
+    description: |
+      Number of bytes read at a time. The size the configuration sets when
+      absent.
