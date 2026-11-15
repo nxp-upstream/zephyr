@@ -1,0 +1,24 @@
+sample:
+  name: Camera to display pipeline described in the devicetree
+
+tests:
+  sample.mpipe.cam_disp_dt:
+    tags:
+      - mpipe
+      - video
+      - samples
+    platform_allow:
+      - native_sim/native/64
+      - mimxrt1170_evk@B/mimxrt1176/cm7
+      - mimxrt700_evk/mimxrt798s/cm33_cpu0
+    integration_platforms:
+      - native_sim/native/64
+    extra_args:
+      - platform:native_sim/native/64:SNIPPET="video-sw-generator"
+      - platform:mimxrt1170_evk@B/mimxrt1176/cm7:SHIELD="nxp_btb44_ov5640;rk055hdmipi4ma0"
+      - platform:mimxrt700_evk/mimxrt798s/cm33_cpu0:SHIELD="dvp_20pin_ov7670;rk055hdmipi4ma0"
+    harness: console
+    harness_config:
+      type: one_line
+      regex:
+        - "end of stream"

@@ -1,0 +1,26 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include "../pipeline.dtsi"
+
+&frame_filter {
+	width = <1280>;
+	height = <720>;
+};
+
+/* The PXP turns the landscape frames for the portrait panel */
+&disp_sink {
+	sources = <&rotator>;
+};
+
+&{/pipeline} {
+	rotator: vid-transform {
+		compatible = "zephyr,mpipe-vid-transform";
+		sources = <&frame_filter>;
+		device = <&pxp>;
+		rotation = <270>;
+	};
+};
