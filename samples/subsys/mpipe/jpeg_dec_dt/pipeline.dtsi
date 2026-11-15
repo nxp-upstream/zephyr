@@ -1,0 +1,45 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include "../common/sd_card.dtsi"
+
+/* An MJPEG file decoded in software and displayed */
+/ {
+	pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+		autostart;
+
+		file_src: file-src {
+			compatible = "zephyr,mpipe-file-src";
+			path = "/SD:/test.mjpeg";
+		};
+
+		jpeg_parser: jpeg-parser {
+			compatible = "zephyr,mpipe-img-jpeg-parser";
+			sources = <&file_src>;
+		};
+
+		/* The parser only tells the format: the frame size is pinned here */
+		jpeg_filter: caps-filter {
+			compatible = "zephyr,mpipe-caps-filter";
+			sources = <&jpeg_parser>;
+			media = "video";
+			pixel-format = "JPEG";
+			width = <320>;
+			height = <240>;
+		};
+
+		jpeg_decoder: jpeg-decoder {
+			compatible = "zephyr,mpipe-img-jpeg-decoder";
+			sources = <&jpeg_filter>;
+		};
+
+		disp_sink: disp-sink {
+			compatible = "zephyr,mpipe-disp-sink";
+			sources = <&jpeg_decoder>;
+		};
+	};
+};
