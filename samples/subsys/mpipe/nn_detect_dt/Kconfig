@@ -1,0 +1,24 @@
+# Copyright 2026 NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "Live detection pipeline described in the devicetree"
+
+config SAMPLE_NN_ARENA_SIZE
+	int "Tensor arena size in bytes"
+	default 320000
+	help
+	  Working memory handed to the inference backend, which logs how much
+	  a model uses at load. The 128x128 Ultraface model needs 310 KB on
+	  the CPU, the 320x240 one 1.3 MB, or 1.2 MB on the Neutron NPU.
+
+config SAMPLE_NN_NPU_REGION_NAME
+	string "Memory region for the model and its arena on an NPU"
+	default "SRAM1"
+	depends on TFLM_NXP_NEUTRON
+	help
+	  Name of a zephyr,memory-region devicetree node the Neutron NPU can
+	  reach: the model is copied there at start-up and the arena placed
+	  there, both being read by the NPU in place.
+
+source "Kconfig.zephyr"

@@ -1,0 +1,73 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/display/panel.h>
+
+/*
+ * This sample drives the panel with the eLCDIF, which has no planes: the
+ * boxes are drawn in the video frame. The nn_detect sample shows the other
+ * way, with the LCDIFv2 blending a plane of boxes over the video.
+ */
+#include "../pipeline_frame.dtsi"
+
+/ {
+	chosen {
+		zephyr,display = &lcdif;
+	};
+};
+
+/* The board gives the display shields to the LCDIFv2 */
+&lcdifv2 {
+	status = "disabled";
+};
+
+/* What the rk055hdmipi4ma0 shield sets on the controller the board names */
+&lcdif {
+	width = <720>;
+	height = <1280>;
+	pixel-format = <PANEL_PIXEL_FORMAT_RGB_565>;
+	backlight-gpios = <&nxp_mipi_connector 0 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+
+	display-timings {
+		compatible = "zephyr,panel-timing";
+		hsync-len = <6>;
+		hfront-porch = <12>;
+		hback-porch = <24>;
+		vsync-len = <2>;
+		vfront-porch = <16>;
+		vback-porch = <14>;
+		hsync-active = <0>;
+		vsync-active = <0>;
+		de-active = <1>;
+		pixelclk-active = <0>;
+		clock-frequency = <62346240>;
+	};
+};
+
+&zephyr_mipi_dsi {
+	nxp,lcdif = <&lcdif>;
+};
+
+/* The 4:3 frame the face detectors were trained on */
+&frame_filter {
+	width = <640>;
+	height = <480>;
+};
+
+/* The PXP turns the landscape frames for the portrait panel */
+&disp_sink {
+	sources = <&rotator>;
+};
+
+&{/pipeline} {
+	rotator: vid-transform {
+		compatible = "zephyr,mpipe-vid-transform";
+		sources = <&overlay>;
+		device = <&pxp>;
+		rotation = <270>;
+	};
+};

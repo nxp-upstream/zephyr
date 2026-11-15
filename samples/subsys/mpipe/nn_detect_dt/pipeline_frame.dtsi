@@ -1,0 +1,105 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * Live detection, the boxes drawn in the video frame before it is displayed:
+ *
+ *   vid_src -> caps_filter -> tee -> queue -> vid_overlay -> disp_sink
+ *                                -> queue -> nn_converter -> queue
+ *                                         -> nn_runner -> nn_decoder -> app_sink
+ *
+ * The application publishes each result set from the app_sink callback and
+ * renders the latest one from the overlay callback.
+ */
+/ {
+	pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+		autostart;
+
+		camera_src: vid-src {
+			compatible = "zephyr,mpipe-vid-src";
+		};
+
+		frame_filter: caps-filter {
+			compatible = "zephyr,mpipe-caps-filter";
+			sources = <&camera_src>;
+			media = "video";
+		};
+
+		tee: tee {
+			compatible = "zephyr,mpipe-tee";
+			sources = <&frame_filter>;
+		};
+
+		/* One slot, so the camera pool stays small */
+		display_queue: display-queue {
+			compatible = "zephyr,mpipe-queue";
+			sources = <&tee>;
+			size = <1>;
+		};
+
+		overlay: overlay {
+			compatible = "zephyr,mpipe-vid-overlay";
+			sources = <&display_queue>;
+			draw-callback = "sample_draw_cb";
+		};
+
+		disp_sink: disp-sink {
+			compatible = "zephyr,mpipe-disp-sink";
+			sources = <&overlay>;
+		};
+
+		/*
+		 * Two single-slot queues dropping the oldest. The converter runs
+		 * one priority above the streaming threads, so it releases the
+		 * shared frame before the overlay draws in it; the runner at the
+		 * lowest application priority of the default configuration, so a
+		 * slow model starves nothing.
+		 */
+		nn_queue: nn-queue {
+			compatible = "zephyr,mpipe-queue";
+			sources = <&tee>;
+			size = <1>;
+			leak = "oldest";
+			thread-priority = <4>;
+		};
+
+		/* The Ultraface models take pixels shifted to -128..127 */
+		nn_converter: nn-converter {
+			compatible = "zephyr,mpipe-nn-converter";
+			sources = <&nn_queue>;
+			zero-point = <(-128)>;
+		};
+
+		tensor_queue: tensor-queue {
+			compatible = "zephyr,mpipe-queue";
+			sources = <&nn_converter>;
+			size = <1>;
+			leak = "oldest";
+			thread-priority = <14>;
+		};
+
+		nn_runner: nn-runner {
+			compatible = "zephyr,mpipe-nn-runner";
+			sources = <&tensor_queue>;
+			model = "sample_nn_model";
+			arena = "sample_nn_arena";
+		};
+
+		nn_decoder: nn-decoder {
+			compatible = "zephyr,mpipe-nn-decoder";
+			sources = <&nn_runner>;
+			type = "detection";
+			score-threshold = <50>;
+		};
+
+		results_sink: app-sink {
+			compatible = "zephyr,mpipe-app-sink";
+			sources = <&nn_decoder>;
+			callback = "sample_results_cb";
+		};
+	};
+};
