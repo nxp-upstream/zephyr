@@ -13,6 +13,7 @@
 
 #include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
+#include <zephyr/mpipe/mpipe_dt.h>
 
 #include <zephyr/mpipe/fs/mpipe_file_src.h>
 
@@ -253,3 +254,43 @@ int mpipe_file_src_init(struct mpipe_file_src *fsrc, uint8_t id)
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_file_src
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+struct mpipe_file_src_dt_config {
+	const char *path;
+	/* 0 keeps the default */
+	uint32_t block_size;
+};
+
+static int mpipe_file_src_dt_init(const struct mpipe_dt_element *dt)
+{
+	const struct mpipe_file_src_dt_config *config = dt->config;
+	int ret = mpipe_file_src_init((struct mpipe_file_src *)dt->element, dt->id);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = mpipe_object_set_properties(&dt->element->object, MPIPE_PROP_FS_SRC_PATH,
+					  config->path, MPIPE_PROP_LIST_END);
+	if (ret != 0 || config->block_size == 0U) {
+		return ret;
+	}
+
+	return mpipe_object_set_properties(&dt->element->object, MPIPE_PROP_FS_SRC_BLOCKSIZE,
+					   &config->block_size, MPIPE_PROP_LIST_END);
+}
+
+#define MPIPE_FILE_SRC_DT_DEFINE(inst)                                                             \
+	static struct mpipe_file_src mpipe_file_src_##inst;                                        \
+	static const struct mpipe_file_src_dt_config mpipe_file_src_dt_config_##inst = {           \
+		.path = DT_INST_PROP(inst, path),                                                  \
+		.block_size = DT_INST_PROP_OR(inst, block_size, 0),                                \
+	};                                                                                         \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_file_src_##inst, mpipe_file_src_dt_init,         \
+				     &mpipe_file_src_dt_config_##inst);
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_FILE_SRC_DT_DEFINE)
+#endif
