@@ -1,0 +1,36 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Multimedia pipeline. Each child node is an element, linked to the element
+  its "sources" property names. The pipeline and its elements are built at
+  boot.
+
+  Example:
+
+    pipeline {
+            compatible = "zephyr,mpipe-pipeline";
+            autostart;
+
+            camera_src: vid-src {
+                    compatible = "zephyr,mpipe-vid-src";
+            };
+
+            disp-sink {
+                    compatible = "zephyr,mpipe-disp-sink";
+                    sources = <&camera_src>;
+            };
+    };
+
+compatible: "zephyr,mpipe-pipeline"
+
+properties:
+  autostart:
+    type: boolean
+    description: Start playing the pipeline at boot.
+
+  thread-priority:
+    type: int
+    description: |
+      Priority of the thread the pipeline streams on. The priority the
+      configuration sets when absent.

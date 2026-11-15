@@ -4439,6 +4439,7 @@ Multimedia Pipeline:
     - josuah
   files:
     - doc/services/mpipe/
+    - dts/bindings/mpipe/
     - include/zephyr/mpipe/
     - subsys/mpipe/
     - samples/subsys/mpipe/
