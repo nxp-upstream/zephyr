@@ -6,10 +6,12 @@
 
 / {
 	chosen {
-		zephyr,bt-hci = &bt_hci_uart;
+//		zephyr,bt-hci = &bt_hci_uart;
+		sdhc1 = &usdhc1;
 	};
 };
 
+#if 0
 &m2_hci_bt_uart {
 	current-speed = <115200>;
 	status = "okay";
@@ -28,6 +30,7 @@
 		};
 	};
 };
+#endif
 
 &m2_wifi_sdio {
 	nxp_wifi {

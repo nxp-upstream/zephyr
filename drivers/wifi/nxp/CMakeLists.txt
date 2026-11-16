@@ -13,6 +13,19 @@ zephyr_include_directories(incl)
 
 zephyr_library_link_libraries_ifdef(CONFIG_WIFI_NM_WPA_SUPPLICANT hostap)
 
+if(CONFIG_BOARD_MIMXRT2660_EVK)
+file(GLOB KERNEL_SPEED_TEXT_SRCS
+    ${ZEPHYR_BASE}/drivers/timer/*.c
+    ${ZEPHYR_BASE}/subsys/random/*.c
+    ${ZEPHYR_BASE}/../modules/hal/nxp/mcux/mcux-sdk-ng/components/misc_utilities/*.S
+)
+
+zephyr_code_relocate(
+    FILES ${KERNEL_SPEED_TEXT_SRCS}
+    LOCATION ITCM
+)
+endif()
+
 if(CONFIG_CODE_DATA_RELOCATION)
 if(CONFIG_SPEED_OPTIMIZATIONS)
 
