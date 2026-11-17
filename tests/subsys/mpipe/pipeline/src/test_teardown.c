@@ -33,6 +33,8 @@ struct slow_transform {
 	struct k_sem in_push;
 	atomic_t pushing;
 	bool torn_down_while_pushing;
+	/* Refuse the next PAUSED -> READY, once */
+	bool fail_next_stop;
 };
 
 struct test_teardown_fixture {
@@ -62,6 +64,11 @@ static int slow_change_state(struct mpipe_element *self, enum mpipe_state_change
 
 	if (transition == MPIPE_STATE_CHANGE_PAUSED_TO_READY && atomic_get(&slow->pushing) != 0) {
 		slow->torn_down_while_pushing = true;
+	}
+
+	if (transition == MPIPE_STATE_CHANGE_PAUSED_TO_READY && slow->fail_next_stop) {
+		slow->fail_next_stop = false;
+		return -EIO;
 	}
 
 	return slow->base_change_state(self, transition);
@@ -119,4 +126,26 @@ ZTEST_F(test_teardown, test_stop_waits_for_the_push_in_flight)
 	zassert_equal(atomic_get(&fixture->slow.pushing), 0, "a push is still in flight");
 	zassert_true(k_uptime_get() - start >= SLOW_PUSH_MS / 2,
 		     "the stop did not wait for the push");
+}
+
+/*
+ * The pipeline joins its thread before its children change state. When a child
+ * then refuses the change, the stop can be tried again and the pipeline can
+ * play again.
+ */
+ZTEST_F(test_teardown, test_stop_again_after_a_child_refused)
+{
+	struct mpipe_element *pipeline = (struct mpipe_element *)&fixture->pipeline;
+
+	zassert_ok(mpipe_element_set_state(pipeline, MPIPE_STATE_PLAYING));
+	zassert_ok(k_sem_take(&fixture->slow.in_push, K_SECONDS(1)), "no push started");
+
+	fixture->slow.fail_next_stop = true;
+	zassert_equal(mpipe_element_set_state(pipeline, MPIPE_STATE_READY), -EIO);
+
+	zassert_ok(mpipe_element_set_state(pipeline, MPIPE_STATE_READY), "the second stop failed");
+
+	zassert_ok(mpipe_element_set_state(pipeline, MPIPE_STATE_PLAYING));
+	zassert_ok(k_sem_take(&fixture->slow.in_push, K_SECONDS(1)), "no push after the restart");
+	zassert_ok(mpipe_element_set_state(pipeline, MPIPE_STATE_READY));
 }

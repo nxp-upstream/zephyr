@@ -269,8 +269,8 @@ static void mpipe_pipeline_send_eos(struct mpipe_src *src)
 }
 
 /*
- * One turn of the streaming loop: acquire a buffer from the source and push it
- * through the graph. Runs under the stream lock, so a teardown waits for it.
+ * One iteration of the pipeline thread: acquire a buffer from the source and
+ * push it through the elements with mpipe_push_buffer().
  */
 static void mpipe_pipeline_stream_once(struct mpipe *pipeline, struct mpipe_src *src,
 				       uint32_t *count)
@@ -356,21 +356,24 @@ static void mpipe_pipeline_thread_func(void *p1, void *p2, void *p3)
 	}
 
 	while (mpipe_thread_wait(&pipeline->thread) == 0) {
-		k_mutex_lock(&pipeline->stream_lock, K_FOREVER);
 		mpipe_pipeline_stream_once(pipeline, src, &count);
-		k_mutex_unlock(&pipeline->stream_lock);
 	}
 
 	LOG_DBG("Pipeline thread exiting");
 }
 
 /*
- * Stop the source producing and wait for the push in flight: stopping the
- * pool returns a read the thread is blocked in, and the push ends at the
- * flushing gate. The source stops its pool again in its own state change,
- * which is then a no-op. Returns with the stream lock held.
+ * Stop the pipeline thread and wait until it has exited, so that no element
+ * changes state while the thread is still inside it.
+ *
+ * If the thread is blocked in acquire_buffer(), stopping the pool of the
+ * source makes that call return. If the thread is inside mpipe_push_buffer(),
+ * the flushing flag of the pads makes it free the buffer and return.
+ *
+ * The source stops its pool again in its own state change, which then does
+ * nothing.
  */
-static int mpipe_pipeline_quiesce(struct mpipe *pipeline)
+static int mpipe_pipeline_stop_streaming(struct mpipe *pipeline)
 {
 	struct mpipe_src *src = mpipe_pipeline_first_src(&pipeline->bin);
 	int ret;
@@ -383,19 +386,16 @@ static int mpipe_pipeline_quiesce(struct mpipe *pipeline)
 		}
 	}
 
-	k_mutex_lock(&pipeline->stream_lock, K_FOREVER);
-
-	return 0;
+	return mpipe_thread_join(&pipeline->thread, K_FOREVER);
 }
 
 static int mpipe_pipeline_change_state(struct mpipe_element *element,
 				       enum mpipe_state_change transition)
 {
 	struct mpipe *pipeline = (struct mpipe *)element;
-	bool locked = false;
 	int ret;
 
-	/* Going down, the source stops producing before the children change state */
+	/* Going down, the pipeline thread stops before the children change state */
 	switch (transition) {
 	case MPIPE_STATE_CHANGE_PLAYING_TO_PAUSED:
 		/* A pause keeps the queued buffers: nothing is flushed or joined */
@@ -403,14 +403,12 @@ static int mpipe_pipeline_change_state(struct mpipe_element *element,
 		mpipe_thread_pause(&pipeline->thread);
 		break;
 	case MPIPE_STATE_CHANGE_PAUSED_TO_READY:
-		/* Raise the flushing gate before the children tear down their caps and pools */
+		/* From now on mpipe_push_buffer() frees a buffer instead of passing it on */
 		mpipe_pipeline_set_flushing(&pipeline->bin, true);
-		/* No child is dismantled under a push */
-		ret = mpipe_pipeline_quiesce(pipeline);
+		ret = mpipe_pipeline_stop_streaming(pipeline);
 		if (ret != 0) {
 			return ret;
 		}
-		locked = true;
 		break;
 	default:
 		break;
@@ -418,16 +416,11 @@ static int mpipe_pipeline_change_state(struct mpipe_element *element,
 
 	/* Children state change: UP = sink-to-source, DOWN = source-to-sink */
 	ret = mpipe_bin_change_state_func(element, transition);
-	if (locked) {
-		k_mutex_unlock(&pipeline->stream_lock);
-	}
 	if (ret != 0) {
 		return ret;
 	}
 
-	/* Join after the children have drained, which frees a thread blocked in a full queue */
 	if (transition == MPIPE_STATE_CHANGE_PAUSED_TO_READY) {
-		mpipe_thread_join(&pipeline->thread, K_FOREVER);
 		/* Reset EOS counter for a clean re-run. */
 		atomic_set(&pipeline->eos_count, 0);
 	}
@@ -435,7 +428,7 @@ static int mpipe_pipeline_change_state(struct mpipe_element *element,
 	/* Going up, the children are ready before the thread produces anything */
 	switch (transition) {
 	case MPIPE_STATE_CHANGE_READY_TO_PAUSED:
-		/* Clear the flushing gate so buffers can flow again */
+		/* Clear the flushing flag of the pads so buffers can flow again */
 		mpipe_pipeline_set_flushing(&pipeline->bin, false);
 
 		/* Create the thread but do not start it (K_FOREVER) */
@@ -491,7 +484,6 @@ int mpipe_pipeline_init(struct mpipe *pipe, uint8_t id)
 
 	/* Default thread priority; caller may override before the first play. */
 	pipe->thread.priority = CONFIG_MPIPE_THREAD_DEFAULT_PRIORITY;
-	k_mutex_init(&pipe->stream_lock);
 
 	pipe->clock = mpipe_clock_monotonic();
 	pipe->base_time = 0;

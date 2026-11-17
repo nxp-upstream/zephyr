@@ -23,11 +23,12 @@
  * create, pause, resume and join it, and on it the loop acquires buffers from
  * the source and pushes each one through every element's process function
  * until a sink consumes it. A queue element gives a part of the graph a thread
- * of its own. It orders the teardown: buffers still in flight are dropped
- * at the pads, the source stops producing, the push in flight is waited for
- * before the other children dismantle their pools, and the thread is joined
- * once the children have drained. A pause is not a teardown, so whatever is
- * queued survives and a resume continues without loss. And it folds the end of
+ * of its own. It orders the change from PAUSED to READY: it sets the flushing
+ * flag of every pad, so that mpipe_push_buffer() frees a buffer instead of
+ * passing it on, it stops the pool of the source, it joins its thread, and only
+ * then do the children change state. No element changes state while the thread
+ * is still inside it. A pause is different: whatever is queued survives and a
+ * resume continues without loss. And it folds the end of
  * the stream: a graph with several sinks produces one end-of-stream message
  * per sink, and only the last one reaches the application.
  *
@@ -36,7 +37,6 @@
 
 #include <stdint.h>
 
-#include <zephyr/kernel.h>
 #include <zephyr/net_buf.h>
 #include <zephyr/sys/atomic.h>
 #include <zephyr/zbus/zbus.h>
@@ -71,12 +71,6 @@ struct mpipe {
 	struct mpipe_bin bin;
 	/** Thread associated with the pipeline */
 	struct mpipe_thread thread;
-	/**
-	 * Held by the thread from the acquire of a buffer to the end of its push.
-	 * A teardown stops the source producing and takes it, so that no
-	 * element is dismantled under a push.
-	 */
-	struct k_mutex stream_lock;
 	/** The pipeline clock; the monotonic system clock unless replaced */
 	struct mpipe_clock *clock;
 	/** Clock time at which the running time was zero */

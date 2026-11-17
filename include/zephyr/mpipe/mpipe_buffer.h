@@ -111,7 +111,16 @@ struct mpipe_buffer_pool {
 			  const struct mpipe_buffer_pool_config *cfg);
 	/** Start the pool and allocate resources */
 	int (*start)(struct mpipe_buffer_pool *pool);
-	/** Stop the pool and free resources */
+	/**
+	 * Stop the pool and free resources.
+	 *
+	 * A stopped pool gives no buffer: acquire_buffer() returns -EPIPE. This
+	 * includes a call that is blocked when the pool is stopped, so a pool
+	 * whose acquire_buffer() can block must wake that call here. A pipeline
+	 * relies on it to stop its thread.
+	 *
+	 * A buffer acquired before the stop may still be released after it.
+	 */
 	int (*stop)(struct mpipe_buffer_pool *pool);
 	/** Acquire a buffer from the pool */
 	int (*acquire_buffer)(struct mpipe_buffer_pool *pool, struct net_buf **buf);

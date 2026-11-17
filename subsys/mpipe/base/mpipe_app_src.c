@@ -169,8 +169,9 @@ static int mpipe_app_src_pool_release(struct mpipe_buffer_pool *pool, struct net
 }
 
 /*
- * The pipeline stops this pool before it waits for the streaming thread: a
- * thread waiting on an empty queue must come back, or the stop never ends.
+ * The pipeline stops this pool and then joins its thread. If the thread is
+ * blocked in acquire_buffer() on an empty queue, the flush sentinel makes
+ * that call return -EPIPE.
  */
 static int mpipe_app_src_pool_stop(struct mpipe_buffer_pool *pool)
 {
@@ -247,7 +248,6 @@ static int mpipe_app_src_change_state(struct mpipe_element *element,
 				      enum mpipe_state_change transition)
 {
 	struct mpipe_app_src *app_src = (struct mpipe_app_src *)element;
-	void *flush_ptr = &flush_sentinel;
 
 	switch (transition) {
 	case MPIPE_STATE_CHANGE_READY_TO_PAUSED:
@@ -255,15 +255,8 @@ static int mpipe_app_src_change_state(struct mpipe_element *element,
 		mpipe_app_src_drain(app_src);
 		break;
 	case MPIPE_STATE_CHANGE_PAUSED_TO_READY:
-		/*
-		 * Unblock the pipeline thread if it waits on an empty queue,
-		 * so the join that follows this transition can complete. The
-		 * drain first frees a slot for the sentinel; if the thread
-		 * consumes a buffer concurrently, the raised flushing gates
-		 * make it drop the push.
-		 */
+		/* The pipeline thread is joined by now: free what it did not take */
 		mpipe_app_src_drain(app_src);
-		(void)k_msgq_put(&app_src->msgq, &flush_ptr, K_NO_WAIT);
 		break;
 	default:
 		break;
