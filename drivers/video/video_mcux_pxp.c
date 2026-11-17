@@ -487,6 +487,43 @@ static int mcux_pxp_dequeue(const struct device *dev, struct video_buffer **vbuf
 	return 0;
 }
 
+/*
+ * Give back the buffers that wait for a job: move them to the queues that
+ * video_dequeue() reads. A buffer left in a queue of the driver after the
+ * stream stops would be used again by the next stream, after the application
+ * has freed it.
+ */
+static int mcux_pxp_flush(const struct device *dev, bool cancel)
+{
+	struct mcux_pxp_data *data = dev->data;
+	struct video_buffer *vbuf;
+
+	if (!cancel) {
+		/* Wait until every pair of queued buffers has been processed */
+		while (data->streaming || (!k_fifo_is_empty(&data->fifo_in_queued) &&
+					   !k_fifo_is_empty(&data->fifo_out_queued))) {
+			k_sleep(K_MSEC(1));
+		}
+
+		return 0;
+	}
+
+	/* The interrupt of the running job takes the heads of the two queues */
+	while (data->streaming) {
+		k_sleep(K_MSEC(1));
+	}
+
+	while ((vbuf = k_fifo_get(&data->fifo_in_queued, K_NO_WAIT)) != NULL) {
+		k_fifo_put(&data->fifo_in_done, vbuf);
+	}
+
+	while ((vbuf = k_fifo_get(&data->fifo_out_queued, K_NO_WAIT)) != NULL) {
+		k_fifo_put(&data->fifo_out_done, vbuf);
+	}
+
+	return 0;
+}
+
 static DEVICE_API(video, mcux_pxp_driver_api) = {
 	.get_caps = mcux_pxp_get_caps,
 	.transform_cap = mcux_pxp_transform_cap,
@@ -494,6 +531,7 @@ static DEVICE_API(video, mcux_pxp_driver_api) = {
 	.set_format = mcux_pxp_set_fmt,
 	.set_ctrl = mcux_pxp_set_ctrl,
 	.set_stream = mcux_pxp_set_stream,
+	.flush = mcux_pxp_flush,
 	.enqueue = mcux_pxp_enqueue,
 	.dequeue = mcux_pxp_dequeue,
 };
