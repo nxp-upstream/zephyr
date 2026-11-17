@@ -55,8 +55,11 @@ static int mpipe_transform_client_process_fn(struct mpipe_pad *pad, struct net_b
 	out_meta = mpipe_buffer_get_meta(*out_buf);
 	out_used = out_meta->bytes_used;
 
-	if (transform_client->process_fn_rpc((uintptr_t)in_buf->data, in_used,
-					     (uintptr_t)(*out_buf)->data, &out_used) != 0) {
+	k_mutex_lock(&transform_client->rpc_lock, K_FOREVER);
+	ret = transform_client->process_fn_rpc((uintptr_t)in_buf->data, in_used,
+					       (uintptr_t)(*out_buf)->data, &out_used);
+	k_mutex_unlock(&transform_client->rpc_lock);
+	if (ret != 0) {
 		LOG_ERR("Failed to process buffer via RPC");
 		net_buf_unref(*out_buf);
 		*out_buf = NULL;
@@ -91,7 +94,9 @@ static int mpipe_transform_client_event_fn(struct mpipe_pad *pad, struct mpipe_d
 
 	/* The server flushes first, so its last buffer precedes the event downstream */
 	if (event->type == MPIPE_DISPATCH_EOS && transform_client->eos_rpc != NULL) {
+		k_mutex_lock(&transform_client->rpc_lock, K_FOREVER);
 		ret = transform_client->eos_rpc();
+		k_mutex_unlock(&transform_client->rpc_lock);
 		if (ret != 0) {
 			LOG_ERR("The server failed to end the stream (%d)", ret);
 			return ret;
@@ -111,7 +116,9 @@ static int mpipe_transform_client_change_state(struct mpipe_element *self,
 	/* READY to PAUSED is the server's own business, see set_state_rpc */
 	if (transition != MPIPE_STATE_CHANGE_READY_TO_PAUSED &&
 	    transform_client->set_state_rpc != NULL) {
+		k_mutex_lock(&transform_client->rpc_lock, K_FOREVER);
 		ret = transform_client->set_state_rpc(transition);
+		k_mutex_unlock(&transform_client->rpc_lock);
 		if (ret != 0) {
 			LOG_ERR("The server refused the state change (%d)", ret);
 			return ret;
@@ -178,6 +185,8 @@ int mpipe_transform_client_init(struct mpipe_transform_client *transform_client,
 	struct mpipe_element *self = &transform_client->transform.element;
 	struct mpipe_transform *transform = &transform_client->transform;
 	int ret;
+
+	k_mutex_init(&transform_client->rpc_lock);
 
 	ret = transform_client->init_rpc();
 	if (ret != 0) {

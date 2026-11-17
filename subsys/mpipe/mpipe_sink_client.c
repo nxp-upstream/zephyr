@@ -30,8 +30,10 @@ static int mpipe_sink_client_process_fn(struct mpipe_pad *pad, struct net_buf *i
 		}
 	}
 
+	k_mutex_lock(&sink_client->rpc_lock, K_FOREVER);
 	ret = sink_client->process_fn_rpc((uintptr_t)in_buf->data,
 					  mpipe_buffer_get_meta(in_buf)->bytes_used);
+	k_mutex_unlock(&sink_client->rpc_lock);
 	net_buf_unref(in_buf);
 	if (ret != 0) {
 		LOG_ERR("Failed to process buffer via RPC (%d)", ret);
@@ -48,7 +50,9 @@ static int mpipe_sink_client_event_fn(struct mpipe_pad *pad, struct mpipe_dispat
 
 	/* The end of stream is posted once the remote consumer has seen it */
 	if (event->type == MPIPE_DISPATCH_EOS && sink_client->eos_rpc != NULL) {
+		k_mutex_lock(&sink_client->rpc_lock, K_FOREVER);
 		ret = sink_client->eos_rpc();
+		k_mutex_unlock(&sink_client->rpc_lock);
 		if (ret != 0) {
 			LOG_ERR("The server failed to end the stream (%d)", ret);
 			return ret;
@@ -77,7 +81,9 @@ static int mpipe_sink_client_change_state(struct mpipe_element *self,
 	/* READY to PAUSED is the server's own business, see set_state_rpc */
 	if (transition != MPIPE_STATE_CHANGE_READY_TO_PAUSED &&
 	    sink_client->set_state_rpc != NULL) {
+		k_mutex_lock(&sink_client->rpc_lock, K_FOREVER);
 		ret = sink_client->set_state_rpc(transition);
+		k_mutex_unlock(&sink_client->rpc_lock);
 		if (ret != 0) {
 			LOG_ERR("The server refused the state change (%d)", ret);
 			return ret;
@@ -99,6 +105,8 @@ int mpipe_sink_client_init(struct mpipe_sink_client *sink_client, uint8_t id)
 	struct mpipe_element *self = &sink_client->sink.element;
 	struct mpipe_sink *sink = &sink_client->sink;
 	int ret;
+
+	k_mutex_init(&sink_client->rpc_lock);
 
 	ret = sink_client->init_rpc();
 	if (ret != 0) {

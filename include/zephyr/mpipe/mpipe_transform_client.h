@@ -18,6 +18,8 @@
  * @{
  */
 
+#include <zephyr/kernel.h>
+
 #include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/mpipe_transform.h>
 
@@ -39,6 +41,13 @@
 struct mpipe_transform_client {
 	/** Base transform structure */
 	struct mpipe_transform transform;
+	/**
+	 * Held around every call to the server that is made while the stream
+	 * runs. The thread that processes buffers and the thread that changes
+	 * the state both call the server, and the server takes one call at a
+	 * time.
+	 */
+	struct k_mutex rpc_lock;
 
 	/**
 	 * @brief Initialize RPC communication on the client side
