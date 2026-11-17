@@ -40,6 +40,22 @@
  * | CAPS | what do you accept, given this filter? | this is the format, apply it |
  * | BUFFER_POOL | what buffers do you need? | - |
  * | EOS | - | the stream is over |
+ * | FLUSH_START | - | the pipeline is stopping: free what you hold |
+ *
+ * A pipeline sends MPIPE_DISPATCH_FLUSH_START from the pad of its source when
+ * it goes from PAUSED to READY, before it joins its thread. That thread may be
+ * blocked inside an element, for example in acquire_buffer() of a pool whose
+ * buffers are all held by a queue. The event asks every element to let the
+ * thread go:
+ *
+ * - a queue frees the buffers it holds and accepts no more;
+ * - every other element forwards the event downstream.
+ *
+ * The event is sent from the thread that changes the state, while the pipeline
+ * thread may still be inside the process function of the element. A handler
+ * must therefore not free or reconfigure anything that the process function
+ * uses. The element does that in its own change from PAUSED to READY, which
+ * the pipeline runs after it has joined its thread.
  * @{
  */
 
@@ -54,6 +70,7 @@ enum mpipe_dispatch_type {
 	MPIPE_DISPATCH_EOS,             /**< End of stream, an event */
 	MPIPE_DISPATCH_CAPS,            /**< Capability, a query or an event */
 	MPIPE_DISPATCH_BUFFER_POOL,     /**< Buffer pool, a query */
+	MPIPE_DISPATCH_FLUSH_START,     /**< The pipeline is stopping, an event */
 	MPIPE_DISPATCH_END = UINT8_MAX, /**< Maximum dispatch type identifier */
 };
 

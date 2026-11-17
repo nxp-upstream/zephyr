@@ -366,9 +366,12 @@ static void mpipe_pipeline_thread_func(void *p1, void *p2, void *p3)
  * Stop the pipeline thread and wait until it has exited, so that no element
  * changes state while the thread is still inside it.
  *
- * If the thread is blocked in acquire_buffer(), stopping the pool of the
- * source makes that call return. If the thread is inside mpipe_push_buffer(),
- * the flushing flag of the pads makes it free the buffer and return.
+ * If the thread is blocked in acquire_buffer() of the source, stopping the
+ * pool of the source makes that call return. If the thread is inside
+ * mpipe_push_buffer(), the flushing flag of the pads makes it free the buffer
+ * and return. If the thread is blocked inside an element, because a queue holds
+ * the buffers it waits for, MPIPE_DISPATCH_FLUSH_START makes the queue free
+ * them.
  *
  * The source stops its pool again in its own state change, which then does
  * nothing.
@@ -384,6 +387,13 @@ static int mpipe_pipeline_stop_streaming(struct mpipe *pipeline)
 			LOG_ERR("Failed to stop source buffer pool");
 			return ret;
 		}
+	}
+
+	if (src != NULL && src->src_pad.peer != NULL) {
+		struct mpipe_dispatch flush_start = {.type = MPIPE_DISPATCH_FLUSH_START};
+
+		/* An element that does not know the event only stops it from going further */
+		(void)mpipe_pad_send_event(src->src_pad.peer, &flush_start);
 	}
 
 	return mpipe_thread_join(&pipeline->thread, K_FOREVER);
