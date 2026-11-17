@@ -20,6 +20,8 @@
 
 #include <stdint.h>
 
+#include <zephyr/kernel.h>
+
 #include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
 #include <zephyr/mpipe/mpipe_sink.h>
@@ -44,6 +46,13 @@ struct mpipe_sink_client {
 	struct mpipe_sink sink;
 	/** Pool the inputs must live in, set by the derived element */
 	struct mpipe_buffer_pool *in_pool;
+	/**
+	 * Held around every call to the server that is made while the stream
+	 * runs. The thread that processes buffers and the thread that changes
+	 * the state both call the server, and the server takes one call at a
+	 * time.
+	 */
+	struct k_mutex rpc_lock;
 
 	/**
 	 * @brief Initialize RPC communication on the client side
