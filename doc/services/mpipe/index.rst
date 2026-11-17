@@ -426,10 +426,12 @@ them.
 
 * ``PLAYING`` to ``PAUSED`` only pauses the source thread. Whatever is queued is
   preserved, so resuming continues without loss.
-* ``PAUSED`` to ``READY`` tears the graph down: buffers still in flight are
-  dropped at the pads, the source stops producing, the push in flight is waited
-  for, the other children stop their pools, and the streaming thread is joined.
-  No element is dismantled under a push.
+* ``PAUSED`` to ``READY`` stops the pipeline in this order. The pipeline sets the
+  flushing flag of every pad, so a buffer that is being pushed is freed at the
+  next pad. It stops the pool of the source, which makes a blocked
+  ``acquire_buffer()`` return. It joins its thread. Then the children change
+  state: they free the buffers they hold and stop their pools. No element
+  changes state while the pipeline thread is still inside it.
 
 Messages travel to the application on the pipeline's message channel, a zbus
 channel reachable with :c:func:`mpipe_element_get_bus_chan`. A message carries
