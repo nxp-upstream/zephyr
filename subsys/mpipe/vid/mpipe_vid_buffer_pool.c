@@ -135,6 +135,20 @@ static int mpipe_vid_buffer_pool_stop(struct mpipe_buffer_pool *pool)
 		if (ret != 0) {
 			LOG_ERR("Failed to stop video streaming");
 		}
+
+		/*
+		 * The driver has put the buffers it still held in its output
+		 * queue. Take them out before they are freed below. Otherwise
+		 * the first video_dequeue() of the next run returns one of them.
+		 */
+		for (;;) {
+			struct video_buffer *vbuf =
+				&(struct video_buffer){.type = vid_pool->vid_obj->type};
+
+			if (video_dequeue(vid_pool->vid_obj->vdev, &vbuf, K_NO_WAIT) != 0) {
+				break;
+			}
+		}
 	} else {
 		/*
 		 * The INPUT acquire path parks in k_fifo_get(K_FOREVER). Unlike
