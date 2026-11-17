@@ -1,0 +1,12 @@
+tests:
+  mpipe.vid:
+    tags:
+      - subsys
+      - mpipe
+      - video
+    platform_allow:
+      - native_sim/native/64
+    integration_platforms:
+      - native_sim/native/64
+    extra_args:
+      - SNIPPET="video-sw-generator"
