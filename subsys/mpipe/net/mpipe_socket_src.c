@@ -168,6 +168,19 @@ static int mpipe_socket_src_pool_acquire(struct mpipe_buffer_pool *pool, struct 
 	return 0;
 }
 
+/*
+ * Closing the socket makes a zsock_recv() that is blocked in acquire_buffer()
+ * return, so the pipeline can stop its thread.
+ */
+static int mpipe_socket_src_pool_stop(struct mpipe_buffer_pool *pool)
+{
+	struct mpipe_socket_src *ssrc = CONTAINER_OF(pool, struct mpipe_socket_src, pool);
+
+	mpipe_socket_src_close(ssrc);
+
+	return 0;
+}
+
 int mpipe_socket_src_change_state(struct mpipe_element *self, enum mpipe_state_change transition)
 {
 	struct mpipe_socket_src *ssrc = (struct mpipe_socket_src *)self;
@@ -211,6 +224,7 @@ int mpipe_socket_src_init(struct mpipe_socket_src *ssrc, uint8_t id)
 	ssrc->pool.nb_pool = &mpipe_socket_src_nb_pool;
 	(void)mpipe_buffer_pool_set_req_config(&ssrc->pool, &pool_req);
 	ssrc->pool.acquire_buffer = mpipe_socket_src_pool_acquire;
+	ssrc->pool.stop = mpipe_socket_src_pool_stop;
 	ssrc->src.pool = &ssrc->pool;
 
 	ssrc->chunk = NULL;
