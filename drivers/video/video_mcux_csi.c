@@ -324,6 +324,15 @@ static int video_mcux_csi_get_caps(const struct device *dev, struct video_caps *
 	/* NXP MCUX CSI request at least 2 buffer before starting */
 	caps->min_vbuf_count = 2;
 
+#if defined(CONFIG_HAS_MCUX_CACHE) && defined(CONFIG_DCACHE_LINE_SIZE)
+	/*
+	 * The driver invalidates the data cache over each captured buffer. A
+	 * buffer that does not start on a cache line shares a line with the
+	 * memory next to it, and that memory then loses what it has in the cache.
+	 */
+	caps->buf_align = MAX(caps->buf_align, CONFIG_DCACHE_LINE_SIZE);
+#endif
+
 	/* no source dev */
 	return err;
 }
