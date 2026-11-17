@@ -96,6 +96,7 @@ static int mpipe_parser_event(struct mpipe_pad *pad, struct mpipe_dispatch *even
 
 	switch (event->type) {
 	case MPIPE_DISPATCH_EOS:
+	case MPIPE_DISPATCH_FLUSH_START:
 		return mpipe_pad_send_event_default(pad, event);
 	case MPIPE_DISPATCH_CAPS:
 		/* No capability means upstream could not fixate: announce the parser's own */

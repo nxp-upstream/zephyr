@@ -125,7 +125,8 @@ static int mpipe_tee_sink_event_fn(struct mpipe_pad *pad, struct mpipe_dispatch 
 
 	switch (event->type) {
 	case MPIPE_DISPATCH_CAPS:
-	case MPIPE_DISPATCH_EOS: {
+	case MPIPE_DISPATCH_EOS:
+	case MPIPE_DISPATCH_FLUSH_START: {
 		struct mpipe_structure evt_caps;
 		/* An event carrying no capability is informational: only forward it */
 		bool is_caps = (event->type == MPIPE_DISPATCH_CAPS && event->caps != NULL);

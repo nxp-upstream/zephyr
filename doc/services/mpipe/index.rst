@@ -429,9 +429,11 @@ them.
 * ``PAUSED`` to ``READY`` stops the pipeline in this order. The pipeline sets the
   flushing flag of every pad, so a buffer that is being pushed is freed at the
   next pad. It stops the pool of the source, which makes a blocked
-  ``acquire_buffer()`` return. It joins its thread. Then the children change
-  state: they free the buffers they hold and stop their pools. No element
-  changes state while the pipeline thread is still inside it.
+  ``acquire_buffer()`` return. It sends the ``MPIPE_DISPATCH_FLUSH_START`` event
+  from the pad of the source, which makes every queue free the buffers it
+  holds. It joins its thread. Then the children change state: they free the
+  buffers they hold and stop their pools. No element changes state while the
+  pipeline thread is still inside it.
 
 Messages travel to the application on the pipeline's message channel, a zbus
 channel reachable with :c:func:`mpipe_element_get_bus_chan`. A message carries

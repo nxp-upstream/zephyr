@@ -74,25 +74,30 @@ static int mpipe_queue_set_property(struct mpipe_object *obj, uint32_t id, const
 	}
 }
 
-/* How often a put blocked on a full queue looks at the flushing gate */
-#define MPIPE_QUEUE_PUT_POLL K_MSEC(10)
-
 /*
- * Put @p item, waiting for room until the gate is raised: a teardown never
- * waits on a producer blocked in a full queue. -EAGAIN once flushing.
+ * Free the buffers that the queue holds. The pause sentinel is put back: the
+ * queue thread needs it to return from k_msgq_get() and to park.
+ *
+ * A k_msgq_put() that is blocked on a full queue completes as soon as a slot
+ * is free, and its buffer is then freed by the next turn of the loop.
  */
-static int mpipe_queue_put(struct mpipe_queue *queue, struct mpipe_pad *pad, void *item)
+static void mpipe_queue_drop_buffers(struct mpipe_queue *queue)
 {
-	int ret;
+	void *pause_ptr = &pause_sentinel;
+	bool had_pause = false;
+	void *entry;
 
-	do {
-		ret = k_msgq_put(&queue->msgq, &item, MPIPE_QUEUE_PUT_POLL);
-		if (ret != -EAGAIN) {
-			return ret;
+	while (k_msgq_get(&queue->msgq, &entry, K_NO_WAIT) == 0) {
+		if (entry == (void *)&pause_sentinel) {
+			had_pause = true;
+		} else if (entry != (void *)&eos_sentinel) {
+			net_buf_unref(entry);
 		}
-	} while (atomic_get(&pad->flushing) == 0 && atomic_get(&queue->flushing) == 0);
+	}
 
-	return -EAGAIN;
+	if (had_pause) {
+		(void)k_msgq_put(&queue->msgq, &pause_ptr, K_NO_WAIT);
+	}
 }
 
 static int mpipe_queue_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
@@ -111,9 +116,9 @@ static int mpipe_queue_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 	*out_buf = NULL;
 
 	if (queue->leak == MPIPE_BASE_QUEUE_LEAK_NONE) {
-		ret = mpipe_queue_put(queue, pad, in_buf);
+		ret = k_msgq_put(&queue->msgq, &in_buf, K_FOREVER);
 		if (ret != 0) {
-			/* A teardown or a purge: drop the buffer, not the stream */
+			/* Only a purge fails a K_FOREVER put: drop the buffer, not the stream */
 			net_buf_unref(in_buf);
 		}
 
@@ -165,13 +170,19 @@ static int mpipe_queue_sink_event_fn(struct mpipe_pad *pad, struct mpipe_dispatc
 			return 0;
 		}
 
-		ret = mpipe_queue_put(queue, pad, eos_ptr);
+		ret = k_msgq_put(&queue->msgq, &eos_ptr, K_FOREVER);
 		if (ret != 0) {
-			/* A teardown or a purge: nothing downstream needs the EOS */
+			/* Only a purge fails a K_FOREVER put; treat the EOS as consumed */
 			return 0;
 		}
 
 		return ret;
+	case MPIPE_DISPATCH_FLUSH_START:
+		/* From now on mpipe_queue_process_fn() frees what it is given */
+		atomic_set(&queue->flushing, 1);
+		mpipe_queue_drop_buffers(queue);
+
+		return mpipe_pad_send_event(queue->transform.src_pad.peer, event);
 	case MPIPE_DISPATCH_CAPS:
 		struct mpipe_structure *caps = event->caps;
 

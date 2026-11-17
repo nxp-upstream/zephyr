@@ -324,6 +324,8 @@ static int mpipe_transform_event(struct mpipe_pad *pad, struct mpipe_dispatch *e
 	case MPIPE_DISPATCH_EOS:
 		LOG_DBG("MPIPE_DISPATCH_EOS");
 		return mpipe_pad_send_event_default(pad, event);
+	case MPIPE_DISPATCH_FLUSH_START:
+		return mpipe_pad_send_event_default(pad, event);
 	case MPIPE_DISPATCH_CAPS:
 		LOG_DBG("MPIPE_DISPATCH_CAPS");
 		struct mpipe_transform *transform = (struct mpipe_transform *)pad->object.container;
