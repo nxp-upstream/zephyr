@@ -16,6 +16,7 @@
 #include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
 #include <zephyr/mpipe/mpipe_element.h>
+#include <zephyr/mpipe/mpipe_pipeline.h>
 #include <zephyr/mpipe/mpipe_value.h>
 
 #include <zephyr/mpipe/img/mpipe_img_jpeg_parser.h>
@@ -394,6 +395,8 @@ static int mpipe_img_jpeg_parser_process_fn(struct mpipe_pad *pad, struct net_bu
 		(struct mpipe_img_jpeg_parser *)pad->object.container;
 	uint32_t limit = jpeg_parser->base.out_pool->config.size;
 	uint32_t pending_len;
+	int push_ret;
+	int ret = 0;
 #if MPIPE_STAGE_STATS
 	uint32_t t0 = k_cycle_get_32();
 	uint32_t st_frames = 0;
@@ -415,7 +418,19 @@ static int mpipe_img_jpeg_parser_process_fn(struct mpipe_pad *pad, struct net_bu
 
 		frame = mpipe_img_jpeg_parser_cut(jpeg_parser, end);
 		if (frame != NULL) {
-			if (*out_buf == NULL) {
+			if (jpeg_parser->copy_out) {
+				/*
+				 * Every copy takes a buffer of the pool that
+				 * downstream proposed. Push the frame now, so the
+				 * parser never holds more than one buffer of that
+				 * pool: one input can hold more frames than the
+				 * pool has buffers.
+				 */
+				push_ret = mpipe_push_buffer(&jpeg_parser->base.src_pad, frame);
+				if (push_ret != 0 && ret == 0) {
+					ret = push_ret;
+				}
+			} else if (*out_buf == NULL) {
 				*out_buf = frame;
 			} else {
 				net_buf_frag_add(*out_buf, frame);
@@ -458,7 +473,7 @@ static int mpipe_img_jpeg_parser_process_fn(struct mpipe_pad *pad, struct net_bu
 	parse_stats_done(t0, st_frames, st_bytes, st_max);
 #endif
 
-	return 0;
+	return ret;
 }
 
 static int mpipe_img_jpeg_parser_set_property(struct mpipe_object *obj, uint32_t key,

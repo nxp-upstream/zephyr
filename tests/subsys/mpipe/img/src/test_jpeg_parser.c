@@ -18,6 +18,8 @@
 
 #include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
+#include <zephyr/mpipe/mpipe_element.h>
+#include <zephyr/mpipe/mpipe_sink.h>
 #include <zephyr/mpipe/img/mpipe_img_jpeg_parser.h>
 
 #define CHUNK_SIZE 2048
@@ -289,4 +291,48 @@ ZTEST_F(mpipe_img_jpeg_parser, test_garbage_longer_than_a_frame_is_dropped)
 	out = receive(fixture, frame, len);
 	expect_frame(out, frame, len);
 	net_buf_unref(out);
+}
+
+/* What the sink below received */
+static uint32_t frames_seen;
+
+static int count_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf, struct net_buf **out_buf)
+{
+	ARG_UNUSED(pad);
+
+	frames_seen++;
+	net_buf_unref(in_buf);
+	*out_buf = NULL;
+
+	return 0;
+}
+
+/*
+ * When downstream proposes a pool, every frame is copied into a buffer of it.
+ * One read holds more frames than that pool has buffers: the parser must push
+ * each frame before it takes the buffer of the next one.
+ */
+ZTEST_F(mpipe_img_jpeg_parser, test_more_copied_frames_than_the_pool_has_buffers)
+{
+	static struct mpipe_sink sink;
+	struct mpipe_dispatch query = {
+		.type = MPIPE_DISPATCH_BUFFER_POOL,
+		.pool = &fixture->parser.out_pool,
+	};
+	uint8_t stream[2 * CONFIG_MPIPE_IMG_JPEG_PARSER_POOL_NUM * 60];
+	uint32_t len = 0;
+
+	zassert_ok(mpipe_sink_init(&sink, 2));
+	sink.sink_pad.process_fn = count_process_fn;
+	zassert_ok(mpipe_element_link(&fixture->parser.base.element, &sink.element, NULL));
+	zassert_ok(fixture->parser.base.decide_buffer_pool(&fixture->parser.base, &query));
+
+	for (uint8_t i = 0; i < 2 * CONFIG_MPIPE_IMG_JPEG_PARSER_POOL_NUM; i++) {
+		len += make_frame(stream + len, i, 50);
+	}
+
+	frames_seen = 0;
+	zassert_is_null(receive(fixture, stream, len), "a copied frame was not pushed");
+	zassert_equal(frames_seen, 2 * CONFIG_MPIPE_IMG_JPEG_PARSER_POOL_NUM,
+		      "%u frames reached the sink", frames_seen);
 }
