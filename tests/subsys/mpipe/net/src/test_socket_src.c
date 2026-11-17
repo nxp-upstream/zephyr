@@ -34,6 +34,7 @@ enum {
 
 #define MAX_DELIVERIES 16
 #define STREAM_MAX     8192
+#define TCP_PORT       4242
 
 /* What the sink saw */
 static struct {
@@ -275,6 +276,61 @@ ZTEST_F(test_socket_src, test_frames_across_chunks_are_copied_intact)
 	}
 	zassert_true(copies >= 1, "7000 bytes in 4 KB chunks must split at least one frame");
 	zassert_true(views >= 4, "most frames fit in a chunk and must be views, got %u", views);
+}
+
+/*
+ * A TCP connection over the loopback interface: the pipeline reads fds[0], the
+ * test keeps fds[1]. Closing a TCP socket wakes a zsock_recv() that is blocked
+ * on it, which closing one end of a socket pair does not.
+ */
+static void connect_tcp_and_play(struct test_socket_src_fixture *fix)
+{
+	struct net_sockaddr_in addr = {
+		.sin_family = NET_AF_INET,
+		.sin_port = net_htons(TCP_PORT),
+		.sin_addr = NET_INADDR_LOOPBACK_INIT,
+	};
+	int listener = zsock_socket(NET_AF_INET, NET_SOCK_STREAM, NET_IPPROTO_TCP);
+
+	zassert_true(listener >= 0, "socket failed (errno %d)", errno);
+	zassert_ok(zsock_bind(listener, (struct net_sockaddr *)&addr, sizeof(addr)),
+		   "bind failed (errno %d)", errno);
+	zassert_ok(zsock_listen(listener, 1), "listen failed (errno %d)", errno);
+
+	fix->fds[1] = zsock_socket(NET_AF_INET, NET_SOCK_STREAM, NET_IPPROTO_TCP);
+	zassert_true(fix->fds[1] >= 0, "socket failed (errno %d)", errno);
+	zassert_ok(zsock_connect(fix->fds[1], (struct net_sockaddr *)&addr, sizeof(addr)),
+		   "connect failed (errno %d)", errno);
+
+	fix->fds[0] = zsock_accept(listener, NULL, NULL);
+	zassert_true(fix->fds[0] >= 0, "accept failed (errno %d)", errno);
+	(void)zsock_close(listener);
+
+	zassert_ok(mpipe_object_set_properties((struct mpipe_object *)&fix->src,
+					       MPIPE_PROP_SOCKET_SRC_FD, &fix->fds[0],
+					       MPIPE_PROP_LIST_END),
+		   "handing the socket to the source failed");
+	zassert_ok(mpipe_element_set_state((struct mpipe_element *)&fix->pipeline,
+					   MPIPE_STATE_PLAYING),
+		   "PLAYING failed");
+}
+
+/*
+ * The peer stays connected and sends nothing, so the pipeline thread is blocked
+ * in zsock_recv(). The stop must close the socket to wake it, and return.
+ */
+ZTEST_F(test_socket_src, test_stop_while_no_data_arrives)
+{
+	build(fixture, false);
+	connect_tcp_and_play(fixture);
+
+	/* Let the pipeline thread reach zsock_recv() */
+	k_sleep(K_MSEC(20));
+
+	zassert_ok(mpipe_element_set_state((struct mpipe_element *)&fixture->pipeline,
+					   MPIPE_STATE_READY),
+		   "READY failed");
+	zassert_equal(fixture->src.fd, -1, "the source kept the socket");
 }
 
 /* A new socket for every run: the previous one is closed by the source on teardown */
