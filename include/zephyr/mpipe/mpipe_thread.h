@@ -37,11 +37,12 @@
 #include <zephyr/sys/atomic.h>
 
 /** @cond INTERNAL_HIDDEN */
-/* Thread state: paused and resumable, running, or terminated */
+/* Thread state: paused and resumable, running, asked to exit, or joined */
 enum mpipe_thread_state {
 	MPIPE_THREAD_PAUSED = 0,
 	MPIPE_THREAD_RUNNING,
 	MPIPE_THREAD_TERMINATED,
+	MPIPE_THREAD_JOINED,
 };
 /** @endcond */
 
@@ -124,10 +125,13 @@ void mpipe_thread_pause(struct mpipe_thread *thread);
  * stack back to the pool. If the thread was never woken, it is woken so it
  * can observe the termination request and exit.
  *
+ * Joining a thread that is already joined does nothing and returns 0, so a
+ * state change that failed after the join can be tried again.
+ *
  * @param thread Pointer to a struct @ref mpipe_thread to join
  * @param timeout Maximum time to wait for the thread to join
  *
- * @retval 0 Success, the stack is back in the pool.
+ * @retval 0 Success, the stack is back in the pool, or the thread was already joined.
  * @return Any negative errno of k_thread_join(), such as -EAGAIN when @p timeout
  *         expires; the stack then stays claimed
  */

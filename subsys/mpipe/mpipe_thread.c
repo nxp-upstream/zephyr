@@ -79,7 +79,7 @@ void mpipe_thread_resume(struct mpipe_thread *thread)
 	for (;;) {
 		atomic_val_t state = atomic_get(&thread->state);
 
-		if (state == MPIPE_THREAD_TERMINATED) {
+		if (state == MPIPE_THREAD_TERMINATED || state == MPIPE_THREAD_JOINED) {
 			return;
 		}
 
@@ -103,7 +103,8 @@ void mpipe_thread_pause(struct mpipe_thread *thread)
 	for (;;) {
 		atomic_val_t state = atomic_get(&thread->state);
 
-		if (state == MPIPE_THREAD_TERMINATED || state == MPIPE_THREAD_PAUSED ||
+		if (state == MPIPE_THREAD_TERMINATED || state == MPIPE_THREAD_JOINED ||
+		    state == MPIPE_THREAD_PAUSED ||
 		    atomic_cas(&thread->state, MPIPE_THREAD_RUNNING, MPIPE_THREAD_PAUSED)) {
 			return;
 		}
@@ -115,6 +116,11 @@ int mpipe_thread_join(struct mpipe_thread *thread, k_timeout_t timeout)
 	int ret;
 
 	__ASSERT_NO_MSG(thread != NULL);
+
+	/* The stack is already back in the pool and may belong to another thread */
+	if (atomic_get(&thread->state) == MPIPE_THREAD_JOINED) {
+		return 0;
+	}
 
 	/* Signal the thread to exit */
 	atomic_set(&thread->state, MPIPE_THREAD_TERMINATED);
@@ -128,6 +134,7 @@ int mpipe_thread_join(struct mpipe_thread *thread, k_timeout_t timeout)
 	ret = k_thread_join(&thread->thread, timeout);
 	if (ret == 0) {
 		atomic_clear_bit(mpipe_thread_stack_pool, thread->stack_id);
+		atomic_set(&thread->state, MPIPE_THREAD_JOINED);
 	}
 
 	return ret;
