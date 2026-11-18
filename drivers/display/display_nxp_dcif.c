@@ -17,6 +17,9 @@
 #include <zephyr/linker/devicetree_regions.h>
 #include <zephyr/sys/util.h>
 #include <fsl_dcif.h>
+#ifdef CONFIG_NXP_DCIF_QOS
+#include <fsl_modcon.h>
+#endif
 
 LOG_MODULE_REGISTER(display_nxp_dcif, CONFIG_DISPLAY_LOG_LEVEL);
 
@@ -24,6 +27,20 @@ LOG_MODULE_REGISTER(display_nxp_dcif, CONFIG_DISPLAY_LOG_LEVEL);
 #define NXP_DCIF_LAYER 0U
 /* Interrupts are routed to CPU domain 0 in a single-domain Zephyr system. */
 #define NXP_DCIF_DOMAIN 0U
+
+/*
+ * Give the display read priority on the bus. The MODCON reset value is 0,
+ * the lowest priority, so without this the DCIF competes with the CPU and
+ * the other masters for the shared memory and underruns under load.
+ */
+static void nxp_dcif_set_qos(void)
+{
+#ifdef CONFIG_NXP_DCIF_QOS
+	MODCON_SetCFG((uint32_t)kModCon_MEDIA_DCIF, 0U,
+		      MODCON_CFG_ARQOS(CONFIG_NXP_DCIF_ARQOS) |
+			      MODCON_CFG_PANIC_ARQOS(CONFIG_NXP_DCIF_PANIC_ARQOS));
+#endif
+}
 
 struct nxp_dcif_config {
 	DCIF_Type *base;
@@ -392,6 +409,7 @@ static int nxp_dcif_init(const struct device *dev)
 		return -EINVAL;
 	}
 
+	nxp_dcif_set_qos();
 	DCIF_EnableLayer(config->base, NXP_DCIF_LAYER, true);
 
 	DCIF_EnableInterrupts(config->base, NXP_DCIF_DOMAIN, kDCIF_InterruptVsync);

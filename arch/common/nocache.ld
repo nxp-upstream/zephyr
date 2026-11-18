@@ -33,6 +33,9 @@ SECTION_DATA_PROLOGUE(_NOCACHE_LOAD_SECTION_NAME,,)
 	_nocache_load_ram_start = .;
 	*(.nocache_load)
 	*(".nocache_load.*")
+
+#include <snippets-nocache-load-section.ld>
+
 	_nocache_load_ram_end = .;
 } GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
 _nocache_load_ram_size = _nocache_load_ram_end - _nocache_load_ram_start;

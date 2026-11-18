@@ -40,6 +40,11 @@ struct nxp_mipi_dsi_data {
 	bool attached;
 	bool video_mode_requested;
 	bool update_tx_len;
+	/*
+	 * Set when attach() asked for video mode but the DPI configuration has
+	 * not been applied yet. See dsi_nxp_apply_pending_dpi().
+	 */
+	bool dpi_pending;
 	uint8_t src_bytes_per_pixel;
 	uint32_t data_left_each_line;
 	dsi_handle_t mipi_handle;
@@ -150,9 +155,18 @@ static int dsi_nxp_attach(const struct device *dev, uint8_t channel,
 
 		data->attached = true;
 
-		if (data->video_mode_requested) {
-			DSI_SetDpiConfig(&config->base, &config->dpi_config);
-		}
+		/*
+		 * Do not program the DPI configuration here. Putting the host
+		 * into video mode before the panel has been initialised leaves
+		 * the APB command path unusable: the first DCS transfer of the
+		 * panel's init sequence never completes and the boot hangs.
+		 *
+		 * The reference bring-up order is DSI_Init, DSI_InitDphy, the
+		 * panel DCS sequence, and only then DSI_SetDpiConfig(). Record
+		 * the request and apply it from transfer() once the panel
+		 * reports itself on.
+		 */
+		data->dpi_pending = data->video_mode_requested;
 	}
 
 	return 0;
@@ -172,8 +186,44 @@ static int dsi_nxp_detach(const struct device *dev, uint8_t channel,
 
 	data->attached = false;
 	data->video_mode_requested = false;
+	data->dpi_pending = false;
 
 	return 0;
+}
+
+/*
+ * Apply a DPI configuration deferred by attach(), once the panel has finished
+ * its initialisation sequence. "Finished" is taken to be MIPI_DCS_SET_DISPLAY_ON
+ * (0x29), the last command every panel driver sends.
+ *
+ * The command has to be recognised in both of its forms. A panel driver may
+ * send it as a DCS short write, where the opcode is in msg->cmd, or as a
+ * generic short write with the opcode as the single payload byte. The HX8394
+ * driver does the latter for its whole sequence, 0x29 included.
+ */
+static void dsi_nxp_apply_pending_dpi(const struct device *dev, const struct mipi_dsi_msg *msg)
+{
+	const struct nxp_mipi_dsi_config *config = dev->config;
+	struct nxp_mipi_dsi_data *data = dev->data;
+	bool display_on = false;
+
+	if (!data->dpi_pending) {
+		return;
+	}
+
+	if (msg->cmd == MIPI_DCS_SET_DISPLAY_ON) {
+		display_on = true;
+	} else if (msg->tx_len == 1U && msg->tx_buf != NULL &&
+		   ((const uint8_t *)msg->tx_buf)[0] == MIPI_DCS_SET_DISPLAY_ON) {
+		display_on = true;
+	}
+
+	if (!display_on) {
+		return;
+	}
+
+	DSI_SetDpiConfig(&config->base, &config->dpi_config);
+	data->dpi_pending = false;
 }
 
 static ssize_t dsi_nxp_transfer(const struct device *dev, uint8_t channel,
@@ -284,6 +334,9 @@ static ssize_t dsi_nxp_transfer(const struct device *dev, uint8_t channel,
 
 	/* Wait for transfer completion */
 	k_sem_take(&data->transfer_sem, K_FOREVER);
+
+	/* The panel is up once it reports display-on; video mode can start. */
+	dsi_nxp_apply_pending_dpi(dev, msg);
 
 	if (msg->rx_len != 0) {
 		/* Return rx_len on a read */

@@ -34,4 +34,26 @@ config NXP_DCIF_MAINTAIN_CACHE
 	  required, unless an external framebuffer is utilized with custom
 	  caching settings, or caching is disabled.
 
+config NXP_DCIF_QOS
+	bool "Set the DCIF read QoS"
+	default y
+	depends on SOC_SERIES_IMXRT266X
+	help
+	  Program the DCIF AXI read QoS in the MEDIA MODCON. The reset value
+	  is 0, the lowest priority.
+
+if NXP_DCIF_QOS
+
+config NXP_DCIF_ARQOS
+	int "Normal read QoS"
+	default 7
+	range 0 15
+
+config NXP_DCIF_PANIC_ARQOS
+	int "Read QoS while in panic"
+	default 15
+	range 0 15
+
+endif # NXP_DCIF_QOS
+
 endif # DISPLAY_NXP_DCIF

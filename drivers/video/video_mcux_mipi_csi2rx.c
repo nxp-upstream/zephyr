@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 NXP
+ * Copyright 2026 NXP
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -14,6 +14,11 @@
 #include <soc.h>
 
 #include <fsl_mipi_csi2rx.h>
+
+#if defined(CONFIG_SOC_SERIES_IMXRT266X)
+#include <fsl_clock.h>
+#include <fsl_reset.h>
+#endif
 
 #include "video_common.h"
 
@@ -43,9 +48,16 @@ struct mipi_csi2rx_tHsSettleEscClk_config {
 
 /* Must be in pixel rate ascending order */
 const struct mipi_csi2rx_tHsSettleEscClk_config tHsSettleEscClk_configs[] = {
+#if defined(CONFIG_SOC_SERIES_IMXRT266X)
+	/* Scaled for the 54 MHz escape clock set up in mipi_csi2rx_soc_start(). */
+	{MHZ(24), 0x22},
+	{MHZ(48), 0x11},
+	{MHZ(96), 0x08},
+#else
 	{MHZ(24), 0x24},
 	{MHZ(48), 0x12},
 	{MHZ(96), 0x09},
+#endif
 };
 
 static int mipi_csi2rx_update_settings(const struct device *dev)
@@ -137,6 +149,49 @@ static int mipi_csi2rx_get_fmt(const struct device *dev, struct video_format *fm
 	return 0;
 }
 
+#if defined(CONFIG_SOC_SERIES_IMXRT266X)
+/*
+ * On RT266x the receiver output goes through the REFORMATTER (CSI-2 to pixel
+ * link) to the ISI. Program the receiver clocks from MEDIAPLL as the SDK does
+ * (mipicsi_clk 108 MHz, escape clock 54 MHz), reset the block, and enable the
+ * REFORMATTER pixel link conversion (PLM_CTRL ENABLE | VALID_OVERRIDE).
+ */
+static void mipi_csi2rx_soc_start(void)
+{
+	clock_root_config_t cfg = {.sndDiv = 1U};
+
+	cfg.mux = kCLOCK_MIPICSI_ESCCLK_ClockRoot_MEDIAPLL;
+	cfg.div = 2U;
+	CLOCK_SetRootClock(kCLOCK_Root_MEDIA_mipicsi_escclk, &cfg);
+	CLOCK_PowerOnRootClock(kCLOCK_Root_MEDIA_mipicsi_escclk);
+
+	cfg.mux = kCLOCK_MIPICSI_ClockRoot_MEDIAPLL;
+	cfg.div = 1U;
+	CLOCK_SetRootClock(kCLOCK_Root_MEDIA_mipicsi_clk, &cfg);
+	CLOCK_PowerOnRootClock(kCLOCK_Root_MEDIA_mipicsi_clk);
+
+	CLOCK_EnableClock(kCLOCK_MEDIA_mipi_csi);
+	RESET_PeripheralReset((reset_ip_name_t)kModCon_MEDIA_MIPI_CSI);
+}
+
+static void mipi_csi2rx_soc_reformatter_start(void)
+{
+	REFORMATTER_Type *rf = (REFORMATTER_Type *)MEDIA__REFORMATTER_BASE;
+
+	RESET_PeripheralReset((reset_ip_name_t)kModCon_MEDIA_REFORMATTER);
+	CLOCK_EnableClock(kCLOCK_MEDIA_reformatter);
+
+	rf->MIPI_CSI_CTRL.RW = 0U;
+	rf->STREAM_FENCING_CTRL.RW = 0U;
+	rf->YUV420_CTRL.RW = 0U;
+	rf->CFG_DT_DISABLE.RW = 0U;
+	rf->PL_TO_PDI_CTRL.RW = 0U;
+	rf->VC_INTERLACED = 0U;
+	rf->ISI2PL_IER = 0U;
+	rf->PLM_CTRL.RW = REFORMATTER_PLM_CTRL_ENABLE(1U) | REFORMATTER_PLM_CTRL_VALID_OVERRIDE(1U);
+}
+#endif
+
 static int mipi_csi2rx_set_stream(const struct device *dev, bool enable, enum video_buf_type type)
 {
 	const struct mipi_csi2rx_config *config = dev->config;
@@ -144,7 +199,13 @@ static int mipi_csi2rx_set_stream(const struct device *dev, bool enable, enum vi
 	if (enable) {
 		struct mipi_csi2rx_data *drv_data = dev->data;
 
+#if defined(CONFIG_SOC_SERIES_IMXRT266X)
+		mipi_csi2rx_soc_start();
+#endif
 		CSI2RX_Init((MIPI_CSI2RX_Type *)config->base, &drv_data->csi2rxConfig);
+#if defined(CONFIG_SOC_SERIES_IMXRT266X)
+		mipi_csi2rx_soc_reformatter_start();
+#endif
 		if (video_stream_start(config->sensor_dev, type)) {
 			return -EIO;
 		}
@@ -290,6 +351,21 @@ static int mipi_csi2rx_init(const struct device *dev)
 	const struct mipi_csi2rx_config *config = dev->config;
 	struct mipi_csi2rx_data *drv_data = dev->data;
 	int ret;
+
+#if defined(CONFIG_SOC_SERIES_IMXRT266X)
+	/* The MEDIA block comes out of boot held in reset with its clock gated. */
+	RESET_PeripheralReset((reset_ip_name_t)kModCon_MEDIA_MIPI_CSI);
+	CLOCK_EnableClock(kCLOCK_MEDIA_mipi_csi);
+
+	/*
+	 * The Rambus CSI-2 RX SDK driver used on RT266x has flushCount and
+	 * tClkSettle_EscClk config fields that the RT1170 driver lacks. Left at
+	 * zero the clock lane gets no settle time and the packet FIFO is flushed
+	 * almost immediately, so set them to the CSI2RX_GetDefaultConfig() values.
+	 */
+	drv_data->csi2rxConfig.tClkSettle_EscClk = 16U;
+	drv_data->csi2rxConfig.flushCount = 7U;
+#endif
 
 	/* Check if there is any sensor device */
 	if (!device_is_ready(config->sensor_dev)) {

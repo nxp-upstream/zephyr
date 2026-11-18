@@ -2312,6 +2312,59 @@
 		reg = <0x4c090000 0x1000>;
 		interrupts = <326 0>;
 		status = "disabled";
+
+		/*
+		 * The CSI takes its pixel data from the MIPI CSI-2 receiver
+		 * rather than from parallel pins on this part, so it has no
+		 * pinctrl state and its single port is wired to the receiver.
+		 */
+		port {
+			csi_ep_in: endpoint {
+				remote-endpoint-label = "mipi_csi2rx_ep_out";
+			};
+		};
+	};
+
+	mipi_csi2rx: mipi_csi2rx@4c0b0000 {
+		compatible = "nxp,mipi-csi2rx";
+		reg = <0x4c0b0000 0x1000>;
+		/*
+		 * The Zephyr receiver driver reads three clock entries by index
+		 * (DT_INST_CLOCKS_CELL_BY_IDX 0/1/2):
+		 *   0  byte clock root, with the LPCG gate for the block
+		 *   1  UI clock root, compared against the sensor pixel rate
+		 *   2  escape clock root, which the driver sets to 60 MHz
+		 */
+		clocks = <&media_ccm IMX_CCM_CLK(IMX_CCM_LPCG_MEDIA_MIPI_CSI,
+						  IMX_CCM_ROOT_MEDIA_MIPICSI_CLK)>,
+			 <&media_ccm IMX_CCM_ROOT_CFG(IMX_CCM_ROOT_MEDIA_MIPICSI_CLK,
+						       IMX_CCM_MUX_MIPICSI_VIDEOPLL, 1, 1)>,
+			 <&media_ccm IMX_CCM_ROOT_CFG(IMX_CCM_ROOT_MEDIA_MIPICSI_ESCCLK,
+						       IMX_CCM_MUX_MIPICSI_ESCCLK_VIDEOPLL, 1, 1)>;
+		status = "disabled";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			/* Sink: the pixel output towards the CSI. */
+			port@0 {
+				reg = <0>;
+
+				mipi_csi2rx_ep_out: endpoint {
+					remote-endpoint-label = "csi_ep_in";
+				};
+			};
+
+			/*
+			 * Source: the D-PHY input from the camera sensor. The
+			 * endpoint itself is filled in by the camera shield,
+			 * which knows the lane count and the sensor label.
+			 */
+			port@1 {
+				reg = <1>;
+			};
+		};
 	};
 
 	mipi_dsi: dsi@4c0a0000 {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 NXP
+ * Copyright 2024, 2026 NXP
  * Copyright (c) 2025, Charles Dias
  *
  * SPDX-License-Identifier: Apache-2.0
@@ -719,6 +719,23 @@ static int ov5640_set_frmival(const struct device *dev, struct video_frmival *fr
 		}
 	}
 
+	/*
+	 * ov5640_frame_rates[] is ordered 60/30/15 while the per-mode
+	 * frmrate_config[] tables are ordered 15/30/60, so the index found
+	 * above cannot be used on them directly: 15 fps would program the
+	 * 60 fps PLL. Look the entry up by its frame rate instead.
+	 */
+	for (i = 0; i < ARRAY_SIZE(ov5640_frame_rates); i++) {
+		if (drv_data->cur_mode->frmrate_config[i].frmrate == best_match) {
+			break;
+		}
+	}
+	if (i == ARRAY_SIZE(ov5640_frame_rates)) {
+		LOG_ERR("No PLL settings for %u fps", best_match);
+		return -ENOTSUP;
+	}
+	ind = i;
+
 	struct video_reg16 frmrate_params[] = {
 		{SC_PLL_CTRL1_REG, drv_data->cur_mode->frmrate_config[ind].pllCtrl1},
 		{SC_PLL_CTRL2_REG, drv_data->cur_mode->frmrate_config[ind].pllCtrl2},
@@ -848,6 +865,21 @@ static int ov5640_set_fmt(const struct device *dev, struct video_format *fmt)
 		return ret;
 	}
 
+	if (!ov5640_is_dvp(dev)) {
+		/*
+		 * Set the CSI-2 data type in 0x4814[5:0] to match the pixel
+		 * format. The power-on default is RAW8 (0x2A), which the
+		 * receiver rejects for RGB565 or YUYV payloads.
+		 */
+		uint8_t mipi_dt = (fmt->pixelformat == VIDEO_PIX_FMT_YUYV) ? 0x1E : 0x22;
+
+		ret = video_modify_cci_reg(&cfg->i2c, OV5640_REG8(0x4814), 0x3F, mipi_dt);
+		if (ret) {
+			LOG_ERR("Unable to set MIPI data type");
+			return ret;
+		}
+	}
+
 	if (ov5640_is_dvp(dev)) {
 		ret = ov5640_set_fmt_dvp(cfg);
 		if (ret) {
@@ -888,6 +920,17 @@ static int ov5640_set_stream(const struct device *dev, bool enable, enum video_b
 					      enable ? 0x45 : 0x40);
 		if (ret) {
 			LOG_ERR("Unable to power up / down MIPI PHY");
+			return ret;
+		}
+
+		/*
+		 * MIPI_CTRL00 0x4800 = 0x04, as in the NXP SDK driver. Bit 5
+		 * gates the clock lane between packets, which makes the
+		 * receiver see a spurious VSYNC every few lines.
+		 */
+		ret = video_write_cci_reg(&cfg->i2c, OV5640_REG8(0x4800), 0x04);
+		if (ret) {
+			LOG_ERR("Unable to set MIPI control");
 			return ret;
 		}
 	}

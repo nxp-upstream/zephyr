@@ -22,8 +22,10 @@ ZTEST(video_formats, test_video_formats)
 	zassert(VIDEO_FMT_IS_RGB(VIDEO_PIX_FMT_ABGR32), "is RGB");
 	zassert(VIDEO_FMT_IS_RGB(VIDEO_PIX_FMT_RGB565), "is RGB");
 	zassert(!VIDEO_FMT_IS_RGB(VIDEO_PIX_FMT_XYUV32), "is not RGB");
+	zassert(!VIDEO_FMT_IS_RGB(VIDEO_PIX_FMT_YUVX32), "is not RGB");
 
 	zassert(VIDEO_FMT_IS_YUV(VIDEO_PIX_FMT_YUYV), "is YUV");
+	zassert(VIDEO_FMT_IS_YUV(VIDEO_PIX_FMT_YUVX32), "is YUV");
 	zassert(VIDEO_FMT_IS_YUV(VIDEO_PIX_FMT_NV42), "is YUV");
 	zassert(VIDEO_FMT_IS_YUV(VIDEO_PIX_FMT_YUV420), "is YUV");
 	zassert(!VIDEO_FMT_IS_YUV(VIDEO_PIX_FMT_BGRA32), "is not YUV");

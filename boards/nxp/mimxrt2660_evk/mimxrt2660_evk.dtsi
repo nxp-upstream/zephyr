@@ -112,6 +112,14 @@
 &lpi2c0 {
 	pinctrl-0 = <&pinmux_lpi2c0>;
 	pinctrl-names = "default";
+	/*
+	 * 400 kHz. The SoC default is 100 kHz, which on this board stretches
+	 * each bit period far enough that a multi-byte transfer loses
+	 * arbitration (MSR ALF) against the bus RC: the controller samples SDA
+	 * still low while it is driving high. Every device on this bus (both
+	 * expanders, the touch controller and the OV5640) is fast-mode capable.
+	 */
+	clock-frequency = <I2C_BITRATE_FAST>;
 
 	pca9555: gpio@21 {
 		compatible = "nxp,pca9555";
