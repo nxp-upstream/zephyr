@@ -69,6 +69,14 @@ enum mpipe_vid_overlay_mode {
 	 * display to blend over the video; the input is consumed, not forwarded
 	 */
 	MPIPE_VID_OVERLAY_MODE_PLANE,
+	/**
+	 * Into the video frame itself, always in place. The application states
+	 * that nothing else holds the frames that reach the element, which is
+	 * the case when no tee sits between the element that allocates them and
+	 * this one. The element then needs no buffer of its own and starts no
+	 * pool.
+	 */
+	MPIPE_VID_OVERLAY_MODE_IN_PLACE,
 };
 
 /**

@@ -240,8 +240,9 @@ static int vid_overlay_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 	 * every branch sees the same payload, is the copy needed. A view shares
 	 * its parent's bytes with other views, so it is copied as well.
 	 */
-	if (overlay->mode == MPIPE_VID_OVERLAY_MODE_FRAME && in_buf->ref == 1U &&
-	    mpipe_buffer_get_meta(in_buf)->parent == NULL) {
+	if (overlay->mode == MPIPE_VID_OVERLAY_MODE_IN_PLACE ||
+	    (overlay->mode == MPIPE_VID_OVERLAY_MODE_FRAME && in_buf->ref == 1U &&
+	     mpipe_buffer_get_meta(in_buf)->parent == NULL)) {
 		if (overlay->cb.fn != NULL) {
 			overlay->cb.fn(in_buf->data, overlay->width, overlay->height,
 				       overlay->pixfmt, in_buf, overlay->cb.user_data);
@@ -299,6 +300,10 @@ static int mpipe_vid_overlay_set_property(struct mpipe_object *obj, uint32_t key
 		return 0;
 	case MPIPE_PROP_VID_OVERLAY_MODE:
 		overlay->mode = *(const enum mpipe_vid_overlay_mode *)val;
+		/* The transform base starts the output pool in the normal mode only */
+		overlay->transform.mode = (overlay->mode == MPIPE_VID_OVERLAY_MODE_IN_PLACE)
+						  ? MPIPE_TRANSFORM_MODE_INPLACE
+						  : MPIPE_TRANSFORM_MODE_NORMAL;
 		return 0;
 	case MPIPE_PROP_VID_OVERLAY_WIDTH:
 		overlay->width = *(const uint16_t *)val;
@@ -326,6 +331,11 @@ static int vid_overlay_decide_buffer_pool(struct mpipe_transform *self,
 		(query->pool != NULL) ? &query->pool->config : &query->pool_cfg;
 
 	overlay->held_downstream = qpc->min_buffers;
+
+	/* Every frame is drawn in place: the element has no use for a pool */
+	if (overlay->mode == MPIPE_VID_OVERLAY_MODE_IN_PLACE) {
+		return 0;
+	}
 
 	/*
 	 * A pool downstream offers is where it wants its frames: draw the copies
