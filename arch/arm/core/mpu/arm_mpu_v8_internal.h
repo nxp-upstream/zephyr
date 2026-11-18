@@ -245,6 +245,35 @@ static inline int get_region_index(uint32_t start, uint32_t size)
 }
 #endif
 
+/**
+ * This internal function returns true if no enabled MPU region overlaps
+ * the buffer given by its start address and size, i.e. the buffer is
+ * only covered by the default memory map.
+ */
+static inline bool mpu_region_is_unmapped(uint32_t start, uint32_t size)
+{
+	uint32_t last = start + size - 1;
+
+	for (uint8_t idx = 0; idx < mpu_get_num_regions(); idx++) {
+		mpu_set_rnr(idx);
+
+		uint32_t rlar = mpu_get_rlar();
+
+		if ((rlar & MPU_RLAR_EN_Msk) == 0U) {
+			continue;
+		}
+
+		uint32_t r_base = mpu_get_rbar() & MPU_RBAR_BASE_Msk;
+		uint32_t r_last = (rlar & MPU_RLAR_LIMIT_Msk) | (~MPU_RLAR_LIMIT_Msk);
+
+		if ((start <= r_last) && (last >= r_base)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 static inline uint32_t mpu_region_get_base(const uint32_t index)
 {
 	mpu_set_rnr(index);
@@ -547,6 +576,23 @@ static int mpu_configure_regions_and_partition(const struct z_arm_mpu_partition
 		 */
 		int u_reg_index =
 			get_region_index(regions[i].start, regions[i].size);
+
+		if ((u_reg_index == -EINVAL) &&
+		    mpu_region_is_unmapped(regions[i].start, regions[i].size)) {
+			/* The new region lies in memory that no enabled MPU
+			 * region covers (it uses the default memory map), e.g.
+			 * a stack guard in TCM. There is nothing to split;
+			 * program it as a region of its own.
+			 */
+			reg_index = mpu_configure_region(reg_index, &regions[i]);
+
+			if (reg_index == -EINVAL) {
+				return reg_index;
+			}
+
+			reg_index++;
+			continue;
+		}
 
 		if ((u_reg_index == -EINVAL) ||
 			(u_reg_index > (reg_index - 1))) {
