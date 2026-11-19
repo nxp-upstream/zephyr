@@ -9,6 +9,7 @@ zephyr_sources_ifdef(CONFIG_SOC_MCXW70AC mcxw70_platform_init.S)
 zephyr_sources_ifdef(CONFIG_SOC_MCXW716C mcxw71_platform_init.S)
 zephyr_sources_ifdef(CONFIG_SOC_MCXW727C mcxw72_platform_init.S)
 
+zephyr_sources_ifdef(CONFIG_PM debug_gpio_mcxw72.c)
 zephyr_sources_ifdef(CONFIG_PM power.c)
 
 zephyr_include_directories(./)

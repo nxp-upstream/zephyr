@@ -12,6 +12,8 @@
 #if DT_HAS_COMPAT_STATUS_OKAY(nxp_vbat)
 #include <fsl_vbat.h>
 #endif
+#include <fsl_wuu.h>
+#include <debug_gpio_mcxw72.h>
 
 #include <zephyr/logging/log.h>
 
@@ -22,6 +24,7 @@ LOG_MODULE_DECLARE(soc, CONFIG_SOC_LOG_LEVEL);
 #define MCXW7_VBAT_ADDR (VBAT_Type *)DT_REG_ADDR(DT_INST(0, nxp_vbat))
 #endif
 #define MCXW7_SPC_ADDR (SPC_Type *)DT_REG_ADDR(DT_INST(0, nxp_spc))
+#define MCXW7_WUU_ADDR (WUU_Type *)DT_REG_ADDR(DT_NODELABEL(wuu))
 
 #define MCXW7_LPWKUP_DELAY_10MHz (0xAAU)
 
@@ -175,13 +178,34 @@ __weak void pm_state_set(enum pm_state state, uint8_t substate_id)
 	cmc_power_domain_config_t config;
 	unsigned int key;
 
-	set_cmc_configuration();
+	switch (state) {
+	case PM_STATE_RUNTIME_IDLE:
+		debug_rxidle_low();
+		/*
+		 * Light PM state: gate only the core and platform clock through
+		 * the CMC. The system and bus clocks (LPUART1 console) keep
+		 * running so the CLI stays usable, and no VBAT deinit, no
+		 * voltage scaling and no WUU wake source is armed. The NVIC
+		 * wakes the core like a plain WFI, but with the core/platform
+		 * clock gated the idle current drops below the plain WFI level.
+		 */
+		config.clock_mode  = kCMC_GateCorePlatformClock;
+		config.main_domain = kCMC_ActiveMode;
+		config.wake_domain = kCMC_ActiveMode;
+		key = arch_pm_state_set_prepare();
+		CMC_EnterLowPowerMode(MCXW7_CMC_ADDR, &config);
+		arch_pm_state_set_finish(key);
+
+		debug_rxidle_high();
+		break;
+	case PM_STATE_SUSPEND_TO_IDLE:
+		debug_sleep_low();
+
+		set_cmc_configuration();
 #if DT_HAS_COMPAT_STATUS_OKAY(nxp_vbat)
-	deinit_vbat();
+		deinit_vbat();
 #endif
 
-	switch (state) {
-	case PM_STATE_SUSPEND_TO_IDLE:
 		/* Set MAIN_CORE and MAIN_WAKE power domain into sleep mode. */
 		config.clock_mode  = kCMC_GateAllSystemClocksEnterLowPowerMode;
 		config.main_domain = kCMC_SleepMode;
@@ -194,8 +218,46 @@ __weak void pm_state_set(enum pm_state state, uint8_t substate_id)
 		CMC_EnterLowPowerMode(MCXW7_CMC_ADDR, &config);
 		arch_pm_state_set_finish(key);
 
+		debug_sleep_high();
+
 		break;
 	case PM_STATE_STANDBY:
+		debug_deepsleep_low();
+
+		set_cmc_configuration();
+#if DT_HAS_COMPAT_STATUS_OKAY(nxp_vbat)
+		deinit_vbat();
+#endif
+
+		/*
+		 * Deep Sleep: gate all clocks + enter CMC low power mode.
+		 * VBAT domain (FRO16k, Bandgap) is shut down by deinit_vbat()
+		 * above; the LPTMR keeps running on the external 32 kHz OSC.
+		 *
+		 * Unlike Sleep, the NVIC alone cannot wake the core from Deep
+		 * Sleep; the LPTMR must be armed as a WUU internal wake source
+		 * (index 0). It is disarmed on exit in pm_state_exit_post_ops()
+		 * so the Sleep path is not affected.
+		 *
+		 * CORE VDD voltage scaling is enabled to reduce leakage and
+		 * disabled again on exit.
+		 */
+		WUU_SetInternalWakeUpModulesConfig(MCXW7_WUU_ADDR, 0U, kWUU_InternalModuleInterrupt);
+
+		/*
+		 * Arm the NBU/radio messaging unit (RF_IMU0) as WUU internal
+		 * wake source (index 2) so the NBU can wake the host out of
+		 * Deep Sleep. This is the same mechanism ZBOSS relies on: with
+		 * RF_IMU0 armed the NBU manages its own low power via the RPMSG
+		 * RemoteActiveReq/Rel path and sleeps on its own when idle. It
+		 * is disarmed on exit in pm_state_exit_post_ops() so the Sleep
+		 * path is not affected. Per the DTS (NXP_WUU_MODULE_2_DMA),
+		 * index 2 is wired as a DMA trigger source, not an interrupt.
+		 */
+		WUU_SetInternalWakeUpModulesConfig(MCXW7_WUU_ADDR, 2U, kWUU_InternalModuleDMATrigger);
+
+
+
 		/* Enable CORE VDD Voltage scaling. */
 		SPC_EnableLowPowerModeCoreVDDInternalVoltageScaling(MCXW7_SPC_ADDR, true);
 
@@ -212,6 +274,8 @@ __weak void pm_state_set(enum pm_state state, uint8_t substate_id)
 		CMC_EnterLowPowerMode(MCXW7_CMC_ADDR, &config);
 		arch_pm_state_set_finish(key);
 
+		debug_deepsleep_high();
+
 		break;
 	default:
 		LOG_DBG("Unsupported power state %u", state);
@@ -224,6 +288,59 @@ __weak void pm_state_exit_post_ops(enum pm_state state, uint8_t substate_id)
 {
 	ARG_UNUSED(state);
 	ARG_UNUSED(substate_id);
+	/*
+	 * Ungate the system clocks first thing on wakeup.
+	 *
+	 * The Sleep state entered CMC with kCMC_GateAllSystemClocks (0x07),
+	 * which gates every system clock WITHOUT the core actually entering a
+	 * CMC low power mode. On the WFI return the CMC does not restore the
+	 * clock mode by itself: CKCTRL.CKMODE stays at 0x07, so the peripheral
+	 * clocks (LPUART1 console, and any other MAIN-domain IP) remain gated
+	 * even though the core is running again. The console then never raises
+	 * an RX interrupt and the shell thread stays wedged in WFI. Writing the
+	 * clock mode back to kCMC_GateNoneClock (CKCTRL.CKMODE = 0) re-enables
+	 * the system clocks immediately. This is a plain register write and is
+	 * safe to do with IRQs still masked.
+	 */
+	CMC_SetClockMode(MCXW7_CMC_ADDR, kCMC_GateNoneClock);
+
+	/*
+	 * Undo the CORE VDD internal voltage scaling enabled on entry for
+	 * Deep Sleep (PM_STATE_STANDBY via
+	 * SPC_EnableLowPowerModeCoreVDDInternalVoltageScaling(true)). Left
+	 * enabled on wakeup, the CORE VDD stays at the reduced low power voltage
+	 * while the system clocks are running again at full speed, which leaves
+	 * the MAIN-domain peripherals (LPUART1 console) in an inconsistent state
+	 * so the receiver never resumes and the shell stays wedged. This is the
+	 * missing counterpart of the true set in pm_state_set(); it is a plain
+	 * register write and harmless for states that never enabled scaling
+	 * (Sleep), so it is done unconditionally.
+	 */
+	SPC_EnableLowPowerModeCoreVDDInternalVoltageScaling(MCXW7_SPC_ADDR, false);
+
+	/*
+	 * Disarm the LPTMR WUU source that was armed on entry for Deep Sleep
+	 * (PM_STATE_STANDBY). It is only needed to wake the core out of that
+	 * deeply-gated mode; once the core is running again it must be removed
+	 * so the CMC Sleep path (PM_STATE_SUSPEND_TO_IDLE), which relies on a
+	 * plain LPTMR NVIC interrupt and must NOT have the LPTMR wired to the
+	 * WUU (see board overlay /delete-property/ wakeup-source), keeps
+	 * working. Scoped to PM_STATE_STANDBY so Sleep is untouched.
+	 */
+	if (state == PM_STATE_STANDBY) {
+		WUU_ClearInternalWakeUpModulesConfig(MCXW7_WUU_ADDR, 0U,
+						     kWUU_InternalModuleInterrupt);
+		/*
+		 * Disarm the NBU/radio messaging unit (RF_IMU0, index 2) armed
+		 * on entry so the Sleep path (PM_STATE_SUSPEND_TO_IDLE) is not
+		 * affected. Mirrors the arm done in pm_state_set(); index 2 is
+		 * a DMA trigger source per the DTS (NXP_WUU_MODULE_2_DMA).
+		 */
+		WUU_ClearInternalWakeUpModulesConfig(MCXW7_WUU_ADDR, 2U,
+						     kWUU_InternalModuleDMATrigger);
+
+	}
+
 
 	for (uint32_t i = 0U; i < SPC_PD_STATUS_COUNT; i++) {
 		spc_power_domain_id_t domain = (spc_power_domain_id_t)i;

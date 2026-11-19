@@ -38,6 +38,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME, CONFIG_OPENTHREAD_PLATFORM_LOG_LEVEL);
 #include <openthread/message.h>
 
 #include "platform-zephyr.h"
+#include "debug_gpio_mcxw72.h"
 
 #if defined(CONFIG_OPENTHREAD_NAT64_TRANSLATOR)
 #include <openthread/nat64.h>
@@ -805,6 +806,9 @@ otError otPlatRadioSleep(otInstance *aInstance)
 	radio_api->stop(radio_dev);
 	sState = OT_RADIO_STATE_SLEEP;
 
+	/* RX-state LEVEL: radio now SLEEP -> drive PTB0 LOW */
+	debug_rx_state_low();
+
 	return OT_ERROR_NONE;
 }
 
@@ -822,6 +826,9 @@ otError otPlatRadioReceive(otInstance *aInstance, uint8_t aChannel)
 	radio_api->set_txpower(radio_dev, get_transmit_power_for_channel(channel));
 	radio_api->start(radio_dev);
 	sState = OT_RADIO_STATE_RECEIVE;
+
+	/* RX-state LEVEL: radio now RECEIVE (NBU armed) -> drive PTB0 HIGH */
+	debug_rx_state_high();
 
 	if (is_pending_event_set(PENDING_EVENT_TX_DONE)) {
 		reset_pending_event(PENDING_EVENT_TX_DONE);
@@ -1028,6 +1035,16 @@ otRadioCaps otPlatRadioGetCaps(otInstance *aInstance)
 
 void otPlatRadioSetRxOnWhenIdle(otInstance *aInstance, bool aRxOnWhenIdle)
 {
+
+	// /* RxOnWhenIdle LEVEL on PTA20 : HIGH = radio on when idle,
+	//  * LOW = SED mode (RxOnWhenIdle=false). Dedicated pin, no collision with
+	//  * the PM_STATE_SUSPEND_TO_IDLE pulse (PTB1) used by power.c.
+	//  */
+	// if (aRxOnWhenIdle) {
+	// 	debug_rxidle_high();
+	// } else {
+	// 	debug_rxidle_low();
+	// }
 	struct ieee802154_config config = {
 		.rx_on_when_idle = aRxOnWhenIdle
 	};

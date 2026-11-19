@@ -13,6 +13,7 @@
 #include <zephyr/pm/state.h>
 #include <zephyr/pm/policy.h>
 #include <zephyr/tracing/tracing.h>
+#include "debug_gpio_mcxw72.h"
 
 #include "pm_stats.h"
 #include "device_system_managed.h"
@@ -177,6 +178,7 @@ bool pm_system_suspend(int32_t kernel_ticks)
 	int64_t events_ticks;
 	uint32_t exit_latency_ticks;
 
+	debug_pm_high();
 	SYS_PORT_TRACING_FUNC_ENTER(pm, system_suspend, kernel_ticks);
 
 	if (!pm_policy_state_any_active() && (z_cpus_pm_forced_state[id] == NULL)) {
@@ -283,6 +285,7 @@ bool pm_system_suspend(int32_t kernel_ticks)
 	k_sched_unlock();
 	SYS_PORT_TRACING_FUNC_EXIT(pm, system_suspend, ticks, state);
 
+    debug_pm_low();
 	return true;
 }
 

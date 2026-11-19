@@ -7,3 +7,4 @@ project(openthread_shell)
 
 target_sources(app PRIVATE src/main.c)
 target_sources_ifdef(CONFIG_OT_SHELL_SAMPLE_RGB_STATUS_LED app PRIVATE src/rgb_status_led.c)
+target_sources_ifdef(CONFIG_PM app PRIVATE src/lp_cmd.c)

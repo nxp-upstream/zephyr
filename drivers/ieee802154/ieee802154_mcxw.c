@@ -508,6 +508,16 @@ static int mcxw_stop(const struct device *dev)
 
 	stop_csl_receiver();
 
+	/*
+	 * Force rx_on_when_idle back to 0 and push gPhyPibRxOnWhenIdle=0 to the NBU
+	 * here. rf_rx_on_idle() only sends the PIB when the value changes, so if the
+	 * receiver was left on (MED/scan) the software flag and the NBU PIB could get
+	 * out of sync and the NBU receiver would stay on (about 14 mA). Doing this on
+	 * every stop re-synchronizes both to 0 (receiver off, about 6.9 mA), matching
+	 * the clean state reached after a factory reset.
+	 */
+	rf_rx_on_idle(RX_ON_IDLE_STOP);
+
 	mcxw_radio->state = RADIO_STATE_DISABLED;
 
 	return 0;
