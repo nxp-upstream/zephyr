@@ -50,6 +50,8 @@
  * - Negotiation: the pipeline goes from READY to PAUSED when the client has
  *   applied its formats (@ref mpipe_pipeline_server_set_caps), never earlier,
  *   since that is when they are known.
+ * - A pipeline with a source of its own streams on its own thread, and
+ *   @ref mpipe_pipeline_server_produce hands its buffers to the client.
  * - Data: @ref mpipe_pipeline_server_process wraps the client's memory in
  *   buffers and walks the input through the pipeline in the caller's thread.
  *   The last element writes into the client's output memory when the elements
@@ -86,7 +88,7 @@
 struct mpipe_pipeline_server {
 	/** The served pipeline */
 	struct mpipe *pipeline;
-	/** Where the client's buffers enter the pipeline */
+	/** Where the client's buffers enter the pipeline, NULL when it has a source of its own */
 	struct mpipe_app_src *in;
 	/** Where the results leave it, NULL when the pipeline ends in a sink of its own */
 	struct mpipe_app_sink *out;
@@ -104,11 +106,16 @@ struct mpipe_pipeline_server {
  * @brief Initialize a pipeline server
  *
  * The pipeline is built and linked, and in the READY state. @p in and @p out
- * are elements of it.
+ * are elements of it, and say what the pipeline is served as:
+ * - a transform, with both: each input of the client gives one output;
+ * - a sink, with @p in only: the pipeline consumes the inputs of the client;
+ * - a source, with @p out only: the pipeline starts with a source of its own,
+ *   streams on its own thread, and the client takes what reaches @p out with
+ *   mpipe_pipeline_server_produce().
  *
  * @param server Server to initialize.
  * @param pipeline The pipeline to serve.
- * @param in Its application source.
+ * @param in Its application source, or NULL when it has a source of its own.
  * @param out Its application sink, or NULL when it ends in a sink of its own.
  *
  * @retval 0 Success.
@@ -220,6 +227,7 @@ int mpipe_pipeline_server_get_pool_config(struct mpipe_pipeline_server *server,
  *
  * @retval 0 Success.
  * @retval -EINVAL A NULL or empty input, or no output memory for a pipeline that needs it
+ * @retval -ENOTSUP The pipeline has a source of its own
  * @retval -ENOTCONN The pipeline has not negotiated
  * @retval -ENOBUFS No buffer header was free
  * @retval -EMSGSIZE The result does not fit in @p out
@@ -227,6 +235,34 @@ int mpipe_pipeline_server_get_pool_config(struct mpipe_pipeline_server *server,
  */
 int mpipe_pipeline_server_process(struct mpipe_pipeline_server *server, void *in, uint32_t in_size,
 				  void *out, uint32_t out_capacity, uint32_t *out_size);
+
+/**
+ * @brief Take the next buffer of a pipeline that has a source of its own
+ *
+ * Waits for a buffer to reach the application sink and copies it into the
+ * client's memory. The wait is bounded so that the client can stop: a client
+ * that gets -EAGAIN asks again.
+ *
+ * A buffer that reaches the application sink while its queue is full is
+ * dropped: a client that asks too slowly loses buffers and does not hold the
+ * source.
+ *
+ * @param server The server.
+ * @param out The client's output memory.
+ * @param out_capacity Size of the output memory in bytes.
+ * @param[out] out_size Number of bytes written to @p out.
+ * @param timeout How long to wait for a buffer.
+ *
+ * @retval 0 Success.
+ * @retval -EAGAIN No buffer arrived within @p timeout
+ * @retval -ENODATA The stream of the pipeline ended and every buffer was taken
+ * @retval -EINVAL No output memory
+ * @retval -ENOTSUP The pipeline takes its buffers from the client, or ends in a sink of its own
+ * @retval -ENOTCONN The pipeline has not negotiated
+ * @retval -EMSGSIZE The buffer does not fit in @p out
+ */
+int mpipe_pipeline_server_produce(struct mpipe_pipeline_server *server, void *out,
+				  uint32_t out_capacity, uint32_t *out_size, k_timeout_t timeout);
 
 /**
  * @brief Take the pipeline to a state

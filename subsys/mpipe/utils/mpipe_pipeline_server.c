@@ -84,7 +84,9 @@ static int server_reset(struct mpipe_pipeline_server *server)
 	ret = mpipe_element_set_state(server_pipeline_element(server), MPIPE_STATE_READY);
 
 	/* The formats of the run that ended constrain nothing any more */
-	(void)mpipe_structure_init_any(&server->in->caps);
+	if (server->in != NULL) {
+		(void)mpipe_structure_init_any(&server->in->caps);
+	}
 	if (server->out != NULL) {
 		(void)mpipe_structure_init_any(&server->out->caps);
 	}
@@ -103,9 +105,10 @@ int mpipe_pipeline_server_init(struct mpipe_pipeline_server *server, struct mpip
 
 	__ASSERT_NO_MSG(server != NULL);
 	__ASSERT_NO_MSG(pipeline != NULL);
-	__ASSERT_NO_MSG(in != NULL);
+	__ASSERT_NO_MSG(in != NULL || out != NULL);
 
-	if (in->src.src_pad.peer == NULL || (out != NULL && out->sink.sink_pad.peer == NULL)) {
+	if ((in != NULL && in->src.src_pad.peer == NULL) ||
+	    (out != NULL && out->sink.sink_pad.peer == NULL)) {
 		LOG_ERR("The application elements of the served pipeline are not linked");
 		return -ENOTCONN;
 	}
@@ -124,7 +127,11 @@ int mpipe_pipeline_server_init(struct mpipe_pipeline_server *server, struct mpip
 	(void)mpipe_buffer_pool_set_req_config(&server->out_pool, &pool_req);
 	server->out_pool.acquire_buffer = server_out_pool_acquire;
 
-	if (out != NULL) {
+	/*
+	 * The elements may write into the client's output memory. Not with a
+	 * source of their own: its buffers exist before the client asks for one.
+	 */
+	if (in != NULL && out != NULL) {
 		return mpipe_object_set_properties((struct mpipe_object *)out,
 						   MPIPE_PROP_BASE_APP_SINK_POOL, &server->out_pool,
 						   MPIPE_PROP_LIST_END);
@@ -144,7 +151,7 @@ int mpipe_pipeline_server_enum_caps(struct mpipe_pipeline_server *server,
 	__ASSERT_NO_MSG(server != NULL);
 	__ASSERT_NO_MSG(caps != NULL);
 
-	if (direction == MPIPE_PAD_SINK) {
+	if (direction == MPIPE_PAD_SINK && server->in != NULL) {
 		pad = server_entry_pad(server);
 	} else if (direction == MPIPE_PAD_SRC && server->out != NULL) {
 		pad = server_exit_pad(server);
@@ -221,7 +228,7 @@ int mpipe_pipeline_server_transform_caps(struct mpipe_pipeline_server *server,
 	__ASSERT_NO_MSG(in != NULL);
 	__ASSERT_NO_MSG(out != NULL);
 
-	if (server->out == NULL) {
+	if (server->in == NULL || server->out == NULL) {
 		return -ENOTSUP;
 	}
 
@@ -298,7 +305,7 @@ int mpipe_pipeline_server_set_caps(struct mpipe_pipeline_server *server,
 		}
 	}
 
-	if (direction == MPIPE_PAD_SINK) {
+	if (direction == MPIPE_PAD_SINK && server->in != NULL) {
 		ret = mpipe_object_set_properties((struct mpipe_object *)server->in,
 						  MPIPE_PROP_BASE_APP_SRC_CAPS, caps,
 						  MPIPE_PROP_LIST_END);
@@ -356,6 +363,11 @@ int mpipe_pipeline_server_process(struct mpipe_pipeline_server *server, void *in
 	int ret;
 
 	__ASSERT_NO_MSG(server != NULL);
+
+	/* A pipeline with a source of its own takes no input */
+	if (server->in == NULL) {
+		return -ENOTSUP;
+	}
 
 	if (in == NULL || in_size == 0U ||
 	    (server->out != NULL && (out == NULL || out_size == NULL))) {
@@ -439,6 +451,52 @@ int mpipe_pipeline_server_process(struct mpipe_pipeline_server *server, void *in
 	return 0;
 }
 
+int mpipe_pipeline_server_produce(struct mpipe_pipeline_server *server, void *out,
+				  uint32_t out_capacity, uint32_t *out_size, k_timeout_t timeout)
+{
+	struct net_buf *result = NULL;
+	uint32_t used;
+	int ret;
+
+	__ASSERT_NO_MSG(server != NULL);
+
+	if (server->in != NULL || server->out == NULL) {
+		return -ENOTSUP;
+	}
+
+	if (out == NULL || out_size == NULL) {
+		return -EINVAL;
+	}
+
+	*out_size = 0;
+
+	if (!server->negotiated) {
+		return -ENOTCONN;
+	}
+
+	/* The thread of the pipeline streams: this one waits for what it delivers */
+	ret = mpipe_app_sink_pull(server->out, &result, timeout);
+	if (ret != 0) {
+		return ret;
+	}
+
+	used = mpipe_buffer_get_meta(result)->bytes_used;
+	if (used > out_capacity) {
+		net_buf_unref(result);
+		return -EMSGSIZE;
+	}
+
+	memcpy(out, result->data, used);
+	net_buf_unref(result);
+
+	/* The other core reads the output next */
+	(void)sys_cache_data_flush_range(out, used);
+
+	*out_size = used;
+
+	return 0;
+}
+
 int mpipe_pipeline_server_set_state(struct mpipe_pipeline_server *server, enum mpipe_state state)
 {
 	__ASSERT_NO_MSG(server != NULL);
@@ -462,7 +520,8 @@ int mpipe_pipeline_server_eos(struct mpipe_pipeline_server *server)
 
 	__ASSERT_NO_MSG(server != NULL);
 
-	if (!server->negotiated) {
+	/* The source of the pipeline, when it has one, ends the stream itself */
+	if (!server->negotiated || server->in == NULL) {
 		return 0;
 	}
 
