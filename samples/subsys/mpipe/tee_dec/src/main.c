@@ -121,20 +121,19 @@ static int mount_sd(void)
 	return embed_test_file();
 }
 
-static struct mpipe pipe;
-static struct mpipe_file_src file_src;
-static struct mpipe_img_jpeg_parser jpeg_parser;
-static struct mpipe_caps_filter caps_filter;
-static struct mpipe_tee tee;
-static struct mpipe_queue queue1;
-static struct mpipe_img_jpeg_decoder jpeg_dec;
-static struct mpipe_disp_sink disp_sink;
-static struct mpipe_queue queue2;
-static struct mpipe_file_sink file_sink;
-static struct mpipe_player player;
-
 int main(void)
 {
+	static struct mpipe pipe;
+	static struct mpipe_file_src file_src;
+	static struct mpipe_img_jpeg_parser jpeg_parser;
+	static struct mpipe_caps_filter caps_filter;
+	static struct mpipe_tee tee;
+	static struct mpipe_queue queue1;
+	static struct mpipe_img_jpeg_decoder jpeg_dec;
+	static struct mpipe_disp_sink disp_sink;
+	static struct mpipe_queue queue2;
+	static struct mpipe_file_sink file_sink;
+	static struct mpipe_player player;
 	int ret;
 
 	ret = mount_sd();

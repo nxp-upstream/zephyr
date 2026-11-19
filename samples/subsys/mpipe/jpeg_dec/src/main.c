@@ -131,24 +131,23 @@ static int mount_sd(void)
 	return 0;
 }
 
-static struct mpipe pipe;
-static struct mpipe_file_src file_src;
-static struct mpipe_img_jpeg_parser jpeg_parser;
-static struct mpipe_caps_filter caps_filter;
-static struct mpipe_disp_sink disp_sink;
-#if DT_HAS_CHOSEN(zephyr_jpegdec)
-static struct mpipe_vid_transform jpeg_dec;
-static struct mpipe_vid_convert vid_conv;
-#else
-static struct mpipe_img_jpeg_decoder jpeg_dec;
-#endif
-#if DT_HAS_CHOSEN(zephyr_videotrans)
-static struct mpipe_vid_transform vid_trans;
-#endif
-static struct mpipe_player player;
-
 int main(void)
 {
+	static struct mpipe pipe;
+	static struct mpipe_file_src file_src;
+	static struct mpipe_img_jpeg_parser jpeg_parser;
+	static struct mpipe_caps_filter caps_filter;
+	static struct mpipe_disp_sink disp_sink;
+#if DT_HAS_CHOSEN(zephyr_jpegdec)
+	static struct mpipe_vid_transform jpeg_dec;
+	static struct mpipe_vid_convert vid_conv;
+#else
+	static struct mpipe_img_jpeg_decoder jpeg_dec;
+#endif
+#if DT_HAS_CHOSEN(zephyr_videotrans)
+	static struct mpipe_vid_transform vid_trans;
+#endif
+	static struct mpipe_player player;
 	int ret = mount_sd();
 
 	if (ret != 0) {

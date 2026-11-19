@@ -33,23 +33,22 @@ enum {
 	DISP_SINK_ID,
 };
 
-static struct mpipe pipe;
-static struct mpipe_vid_src vid_src;
-static struct mpipe_disp_sink disp_sink;
-#if defined(CONFIG_MPIPE_BASE_CAPS_FILTER)
-static struct mpipe_caps_filter caps_filter;
-#endif
-#if (DT_HAS_CHOSEN(zephyr_jpegdec))
-static struct mpipe_vid_transform jpeg_dec;
-static struct mpipe_vid_convert vid_conv;
-#endif
-#if (DT_HAS_CHOSEN(zephyr_videotrans))
-static struct mpipe_vid_transform vid_trans;
-#endif
-static struct mpipe_player player;
-
 int main(void)
 {
+	static struct mpipe pipe;
+	static struct mpipe_vid_src vid_src;
+	static struct mpipe_disp_sink disp_sink;
+#if defined(CONFIG_MPIPE_BASE_CAPS_FILTER)
+	static struct mpipe_caps_filter caps_filter;
+#endif
+#if (DT_HAS_CHOSEN(zephyr_jpegdec))
+	static struct mpipe_vid_transform jpeg_dec;
+	static struct mpipe_vid_convert vid_conv;
+#endif
+#if (DT_HAS_CHOSEN(zephyr_videotrans))
+	static struct mpipe_vid_transform vid_trans;
+#endif
+	static struct mpipe_player player;
 	int ret;
 
 	ret = mpipe_pipeline_init(&pipe, PIPE_ID);
