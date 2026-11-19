@@ -29,15 +29,16 @@
 #include <zephyr/mpipe/mpipe_transform_client.h>
 
 #include <zephyr/mpipe/vid/mpipe_vid_buffer_pool_client.h>
+#include <zephyr/mpipe/vid/mpipe_vid_rpc.h>
 
 struct mpipe_element;
 
 /**
  * @brief Client-side video transform element structure.
  *
- * Extends @ref mpipe_transform_client with video buffer pools and RPC
- * function pointers for capability query, format negotiation, and
- * cap transformation across cores.
+ * Extends @ref mpipe_transform_client with video buffer pools and with the
+ * format calls to the server: capability query, format negotiation and
+ * capability transformation.
  */
 struct mpipe_vid_transform_client {
 	/** Base transform client structure */
@@ -46,53 +47,15 @@ struct mpipe_vid_transform_client {
 	struct mpipe_vid_buffer_pool_client in_pool;
 	/** Output buffer pool */
 	struct mpipe_vid_buffer_pool_client out_pool;
-	/**
-	 * @brief RPC callback to query buffer pool capabilities.
-	 *
-	 * @param direction    Pad direction (see @ref mpipe_pad_direction).
-	 * @param min_buffers  Output: minimum number of buffers required.
-	 * @param buf_align    Output: required buffer alignment.
-	 *
-	 * @return 0 on success or a negative errno code on failure.
-	 */
-	int32_t (*get_buf_caps_rpc)(enum mpipe_pad_direction direction, uint8_t *min_buffers,
-				    uint16_t *buf_align);
-	/**
-	 * @brief RPC callback to enumerate video format capabilities.
-	 *
-	 * @param direction Pad direction (see @ref mpipe_pad_direction).
-	 * @param ind       Index to iterate through available capabilities.
-	 * @param[out] vfc       Output: video format capability at @p ind.
-	 *
-	 * @return 0 on success or a negative errno code on failure.
-	 */
-	int32_t (*get_format_caps_rpc)(enum mpipe_pad_direction direction, uint8_t ind,
-				       struct video_format_cap *vfc);
-	/**
-	 * @brief RPC callback to set the video format.
-	 *
-	 * @param[in,out] fmt Video format to apply; the server may update size and pitch.
-	 *
-	 * @return 0 on success or a negative errno code on failure.
-	 */
-	int32_t (*set_format_rpc)(struct video_format *fmt);
-	/**
-	 * @brief RPC callback to transform a capability to the opposite pad.
-	 *
-	 * @param direction Pad direction to transform from (see @ref mpipe_pad_direction).
-	 * @param ind       Index to iterate through transformed capabilities.
-	 * @param vfc       Input video format capability.
-	 * @param other_vfc Output: transformed video format capability.
-	 *
-	 * @return 0 on success or a negative errno code on failure.
-	 */
-	int32_t (*transform_cap_rpc)(enum mpipe_pad_direction direction, uint16_t ind,
-				     const struct video_format_cap *vfc,
-				     struct video_format_cap *other_vfc);
+	/** Format calls to the server, set before the element is initialized */
+	const struct mpipe_vid_rpc_format_api *format;
 };
 
 /**
  * @brief Initialize a client-side video transform element.
+ *
+ * The channel of its @ref mpipe_transform_client base and the format calls of
+ * the element must be set when this is called.
  *
  * @param vtc Pointer to the element to initialize.
  * @param id Unique element identifier.
