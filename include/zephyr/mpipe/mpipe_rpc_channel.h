@@ -55,8 +55,12 @@ struct mpipe_rpc_channel_api {
 	/**
 	 * @brief Have the server process one buffer
 	 *
+	 * A transform gives both buffers, a sink the input only, and a source
+	 * the output only: the server then fills it with the next buffer of its
+	 * own source.
+	 *
 	 * @param channel The channel
-	 * @param in_buf Address of the input buffer
+	 * @param in_buf Address of the input buffer, 0 when the client is a source
 	 * @param in_sz Number of valid bytes in the input buffer
 	 * @param out_buf Address of the output buffer, 0 when the server returns none
 	 * @param out_cap Size of the output buffer in bytes
@@ -64,7 +68,11 @@ struct mpipe_rpc_channel_api {
 	 *                    the server produced nothing for this input. NULL when
 	 *                    the server returns no buffer.
 	 *
-	 * @return 0 on success, a negative errno on failure
+	 * @retval 0 Success
+	 * @retval -EAGAIN For a source, the server had no buffer within the time
+	 *                 it waits: the client asks again
+	 * @retval -ENODATA For a source, the stream of the server ended
+	 * @return Another negative errno on failure
 	 */
 	int (*process)(struct mpipe_rpc_channel *channel, uintptr_t in_buf, uint32_t in_sz,
 		       uintptr_t out_buf, uint32_t out_cap, uint32_t *out_sz);
