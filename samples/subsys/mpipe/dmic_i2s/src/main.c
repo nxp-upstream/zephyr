@@ -44,15 +44,13 @@ __nocache struct k_mem_slab mem_slab;
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(main_sub);
 
-static struct mpipe pipe;
-
-static struct mpipe_aud_dmic_src source;
-static struct mpipe_aud_gain gain;
-static struct mpipe_aud_i2s_codec_sink sink;
-static struct mpipe_caps_filter caps_filter;
-
 int main(void)
 {
+	static struct mpipe pipe;
+	static struct mpipe_aud_dmic_src source;
+	static struct mpipe_aud_gain gain;
+	static struct mpipe_aud_i2s_codec_sink sink;
+	static struct mpipe_caps_filter caps_filter;
 	int gain_val = 90; /* Set gain to 90% (0.9x amplification) */
 	struct zbus_channel *bus = NULL;
 	int ret = 0;

@@ -40,12 +40,11 @@ static struct fs_mount_t mp = {
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(main_sub);
 
-static struct mpipe pipe;
-static struct mpipe_file_src file_src;
-static struct mpipe_file_sink file_sink;
-
 int main(void)
 {
+	static struct mpipe pipe;
+	static struct mpipe_file_src file_src;
+	static struct mpipe_file_sink file_sink;
 	struct zbus_channel *bus = NULL;
 	int ret;
 
