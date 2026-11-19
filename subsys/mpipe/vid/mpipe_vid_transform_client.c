@@ -21,7 +21,8 @@ static int mpipe_vid_transform_client_probe_pool(struct mpipe_vid_transform_clie
 {
 	struct mpipe_buffer_pool_config req = {0};
 
-	if (vtc->get_buf_caps_rpc(direction, &req.min_buffers, &req.align) != 0) {
+	if (vtc->format->get_buf_caps(vtc->transform.channel, direction, &req.min_buffers,
+				      &req.align) != 0) {
 		LOG_ERR("Unable to retrieve buffer pool capabilities");
 		return -ENODEV;
 	}
@@ -44,7 +45,8 @@ static int mpipe_vid_transform_client_enum_caps(struct mpipe_pad *pad, uint32_t 
 		return -EINVAL;
 	}
 
-	if (vtc->get_format_caps_rpc(pad->direction, (uint8_t)index, &vfc) != 0) {
+	if (vtc->format->get_format_caps(vtc->transform.channel, pad->direction, (uint8_t)index,
+					 &vfc) != 0) {
 		return -ENOENT;
 	}
 
@@ -86,7 +88,7 @@ static int mpipe_vid_transform_client_set_caps(struct mpipe_transform *transform
 		return ret;
 	}
 
-	ret = vtc->set_format_rpc(&fmt);
+	ret = vtc->format->set_format(vtc->transform.channel, &fmt);
 	if (ret < 0) {
 		LOG_ERR("Unable to set format: type=%u pixfmt=%u w=%u h=%u", fmt.type,
 			fmt.pixelformat, fmt.width, fmt.height);
@@ -117,7 +119,8 @@ static int mpipe_vid_transform_client_transform_caps(struct mpipe_transform *sel
 		return -ENOENT;
 	}
 
-	if (vtc->transform_cap_rpc(direction, (uint16_t)index, &vfc, &other_vfc) != 0) {
+	if (vtc->format->transform_cap(vtc->transform.channel, direction, (uint16_t)index, &vfc,
+				       &other_vfc) != 0) {
 		return -ENOENT;
 	}
 
@@ -130,8 +133,11 @@ int mpipe_vid_transform_client_init(struct mpipe_vid_transform_client *vtc, uint
 
 	struct mpipe_element *self = &vtc->transform.transform.element;
 	struct mpipe_transform *transform = &vtc->transform.transform;
-	int ret = mpipe_transform_client_init(&vtc->transform, id);
+	int ret;
 
+	__ASSERT_NO_MSG(vtc->format != NULL);
+
+	ret = mpipe_transform_client_init(&vtc->transform, id);
 	if (ret != 0) {
 		return ret;
 	}

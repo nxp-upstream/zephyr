@@ -22,7 +22,8 @@ static int mpipe_vid_sink_client_enum_caps(struct mpipe_pad *pad, uint32_t index
 	struct video_format_cap vfc;
 	int ret;
 
-	if (index > UINT8_MAX || vsc->get_format_caps_rpc((uint8_t)index, &vfc) != 0) {
+	if (index > UINT8_MAX || vsc->format->get_format_caps(vsc->sink.channel, MPIPE_PAD_SINK,
+							      (uint8_t)index, &vfc) != 0) {
 		return -ENOENT;
 	}
 
@@ -50,7 +51,7 @@ static int mpipe_vid_sink_client_set_caps(struct mpipe_sink *sink,
 		return ret;
 	}
 
-	ret = vsc->set_format_rpc(&fmt);
+	ret = vsc->format->set_format(vsc->sink.channel, &fmt);
 	if (ret < 0) {
 		LOG_ERR("Unable to set format: pixfmt=%u w=%u h=%u", fmt.pixelformat, fmt.width,
 			fmt.height);
@@ -69,8 +70,11 @@ int mpipe_vid_sink_client_init(struct mpipe_vid_sink_client *vsc, uint8_t id)
 	struct mpipe_element *self = &vsc->sink.sink.element;
 	struct mpipe_sink *sink = &vsc->sink.sink;
 	struct mpipe_buffer_pool_config req = {0};
-	int ret = mpipe_sink_client_init(&vsc->sink, id);
+	int ret;
 
+	__ASSERT_NO_MSG(vsc->format != NULL);
+
+	ret = mpipe_sink_client_init(&vsc->sink, id);
 	if (ret != 0) {
 		return ret;
 	}
@@ -84,7 +88,8 @@ int mpipe_vid_sink_client_init(struct mpipe_vid_sink_client *vsc, uint8_t id)
 	mpipe_vid_buffer_pool_client_init(vsc->sink.in_pool);
 
 	/* Asked for once; the formats are enumerated from the server on demand */
-	if (vsc->get_buf_caps_rpc(&req.min_buffers, &req.align) != 0) {
+	if (vsc->format->get_buf_caps(vsc->sink.channel, MPIPE_PAD_SINK, &req.min_buffers,
+				      &req.align) != 0) {
 		LOG_ERR("Unable to retrieve buffer pool capabilities");
 		return -ENODEV;
 	}

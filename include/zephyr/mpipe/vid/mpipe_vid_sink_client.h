@@ -25,6 +25,7 @@
 #include <zephyr/mpipe/mpipe_sink_client.h>
 
 #include <zephyr/mpipe/vid/mpipe_vid_buffer_pool_client.h>
+#include <zephyr/mpipe/vid/mpipe_vid_rpc.h>
 
 /**
  * @brief Video sink client element structure
@@ -39,39 +40,15 @@ struct mpipe_vid_sink_client {
 	struct mpipe_sink_client sink;
 	/** Input buffer pool */
 	struct mpipe_vid_buffer_pool_client in_pool;
-	/**
-	 * @brief RPC callback to query buffer pool capabilities.
-	 *
-	 * @param min_buffers  Output: minimum number of buffers required.
-	 * @param buf_align    Output: required buffer alignment.
-	 *
-	 * @return 0 on success or a negative errno code on failure.
-	 */
-	int32_t (*get_buf_caps_rpc)(uint8_t *min_buffers, uint16_t *buf_align);
-	/**
-	 * @brief RPC callback to enumerate the accepted video formats.
-	 *
-	 * @param ind       Index to iterate through available capabilities.
-	 * @param[out] vfc  Output: video format capability at @p ind.
-	 *
-	 * @return 0 on success or a negative errno code on failure.
-	 */
-	int32_t (*get_format_caps_rpc)(uint8_t ind, struct video_format_cap *vfc);
-	/**
-	 * @brief RPC callback to set the video format.
-	 *
-	 * @param[in,out] fmt Video format to apply; the server may update size and pitch.
-	 *
-	 * @return 0 on success or a negative errno code on failure.
-	 */
-	int32_t (*set_format_rpc)(struct video_format *fmt);
+	/** Format calls to the server, set before the element is initialized */
+	const struct mpipe_vid_rpc_format_api *format;
 };
 
 /**
  * @brief Initialize a video sink client element
  *
- * The RPC hooks of the element and of its @ref mpipe_sink_client base must be
- * set when this is called.
+ * The channel of its @ref mpipe_sink_client base and the format calls of the
+ * element must be set when this is called.
  *
  * @param vsc Pointer to the video sink client.
  * @param id Element identifier.

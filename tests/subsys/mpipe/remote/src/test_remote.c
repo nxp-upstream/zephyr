@@ -6,14 +6,17 @@
 
 /*
  * The client elements against the pipeline server, both in this image: the
- * clients' hooks call the server's functions directly, so everything but a
- * transport is exercised.
+ * channel of a client calls the server's functions directly, so everything
+ * but a transport is exercised.
  *
  *   client side:  app_src -> vid_transform_client -> app_sink
  *   served:       app_src -> test_xform -> vid_overlay -> app_sink
  *
  *   client side:  app_src -> vid_sink_client
  *   served:       app_src -> caps_filter -> app_sink (standing for a real sink)
+ *
+ *   client side:  app_src -> vid_transform_client -> vid_transform_client -> app_sink
+ *   served:       app_src -> test_xform -> app_sink, one pipeline for each client
  */
 
 #include <zephyr/drivers/video.h>
@@ -47,6 +50,7 @@ enum {
 	PIPE_ID,
 	SRC_ID,
 	CLIENT_ID,
+	SECOND_CLIENT_ID,
 	SINK_ID,
 	XFORM_ID,
 	OVERLAY_ID,
@@ -172,11 +176,21 @@ static void served_sink_cb(const struct net_buf *buf, void *user_data)
 	}
 }
 
+/*
+ * What an RPC backend does, without the transport: the channel of a client
+ * calls the functions of the server it is bound to.
+ */
+struct test_channel {
+	struct mpipe_rpc_channel channel;
+	struct mpipe_pipeline_server *server;
+};
+
 static struct {
 	/* Transform client and the pipeline it sits in */
 	struct mpipe pipeline;
 	struct mpipe_app_src app_src;
 	struct mpipe_vid_transform_client client;
+	struct test_channel channel;
 	struct mpipe_app_sink app_sink;
 	/* The pipeline served to it */
 	struct mpipe served;
@@ -192,6 +206,7 @@ static struct {
 	struct mpipe pipeline;
 	struct mpipe_app_src app_src;
 	struct mpipe_vid_sink_client client;
+	struct test_channel channel;
 	/* The pipeline served to it */
 	struct mpipe served;
 	struct mpipe_app_src served_src;
@@ -200,91 +215,96 @@ static struct {
 	struct mpipe_pipeline_server server;
 } sk;
 
-/* What a transport binding does, without the transport: transform client */
+/* A pipeline served to one of two transform clients of the same kind */
+struct test_served {
+	struct mpipe pipeline;
+	struct mpipe_app_src app_src;
+	struct test_xform xform;
+	struct mpipe_app_sink app_sink;
+	struct mpipe_pipeline_server server;
+	struct test_channel channel;
+};
 
-static int xf_init_rpc(void)
+static struct {
+	struct mpipe pipeline;
+	struct mpipe_app_src app_src;
+	struct mpipe_vid_transform_client client[2];
+	struct mpipe_app_sink app_sink;
+	struct test_served served[2];
+} two;
+
+static struct mpipe_pipeline_server *channel_server(struct mpipe_rpc_channel *channel)
 {
+	return CONTAINER_OF(channel, struct test_channel, channel)->server;
+}
+
+static int test_channel_open(struct mpipe_rpc_channel *channel)
+{
+	ARG_UNUSED(channel);
+
 	return 0;
 }
 
-static int32_t xf_get_buf_caps(enum mpipe_pad_direction direction, uint8_t *min_buffers,
-			       uint16_t *buf_align)
+static int test_channel_process(struct mpipe_rpc_channel *channel, uintptr_t in_buf, uint32_t in_sz,
+				uintptr_t out_buf, uint32_t out_cap, uint32_t *out_sz)
 {
-	return mpipe_vid_pipeline_server_get_buf_caps(&xf.server, direction, min_buffers,
-						      buf_align);
+	return mpipe_pipeline_server_process(channel_server(channel), (void *)in_buf, in_sz,
+					     (void *)out_buf, out_cap, out_sz);
 }
 
-static int32_t xf_get_format_caps(enum mpipe_pad_direction direction, uint8_t ind,
-				  struct video_format_cap *vfc)
+static int test_channel_set_state(struct mpipe_rpc_channel *channel,
+				  enum mpipe_state_change transition)
 {
-	return mpipe_vid_pipeline_server_get_format_caps(&xf.server, direction, ind, vfc);
+	return mpipe_pipeline_server_set_state(channel_server(channel),
+					       MPIPE_STATE_TRANSITION_NEXT(transition));
 }
 
-static int32_t xf_set_format(struct video_format *fmt)
+static int test_channel_eos(struct mpipe_rpc_channel *channel)
 {
-	return mpipe_vid_pipeline_server_set_format(&xf.server, fmt);
+	return mpipe_pipeline_server_eos(channel_server(channel));
 }
 
-static int32_t xf_transform_cap(enum mpipe_pad_direction direction, uint16_t ind,
-				const struct video_format_cap *vfc,
-				struct video_format_cap *other_vfc)
+static const struct mpipe_rpc_channel_api test_channel_api = {
+	.open = test_channel_open,
+	.process = test_channel_process,
+	.set_state = test_channel_set_state,
+	.eos = test_channel_eos,
+};
+
+static int test_get_buf_caps(struct mpipe_rpc_channel *channel, enum mpipe_pad_direction direction,
+			     uint8_t *min_buffers, uint16_t *buf_align)
 {
-	return mpipe_vid_pipeline_server_transform_cap(&xf.server, direction, ind, vfc, other_vfc);
+	return mpipe_vid_pipeline_server_get_buf_caps(channel_server(channel), direction,
+						      min_buffers, buf_align);
 }
 
-static int xf_process(uintptr_t in_buf, uint32_t in_sz, uintptr_t out_buf, uint32_t *out_sz)
+static int test_get_format_caps(struct mpipe_rpc_channel *channel,
+				enum mpipe_pad_direction direction, uint8_t ind,
+				struct video_format_cap *vfc)
 {
-	return mpipe_pipeline_server_process(&xf.server, (void *)in_buf, in_sz, (void *)out_buf,
-					     TEST_FRAME, out_sz);
+	return mpipe_vid_pipeline_server_get_format_caps(channel_server(channel), direction, ind,
+							 vfc);
 }
 
-static int xf_set_state(enum mpipe_state_change transition)
+static int test_set_format(struct mpipe_rpc_channel *channel, struct video_format *fmt)
 {
-	return mpipe_pipeline_server_set_state(&xf.server, MPIPE_STATE_TRANSITION_NEXT(transition));
+	return mpipe_vid_pipeline_server_set_format(channel_server(channel), fmt);
 }
 
-static int xf_eos(void)
+static int test_transform_cap(struct mpipe_rpc_channel *channel, enum mpipe_pad_direction direction,
+			      uint16_t ind, const struct video_format_cap *vfc,
+			      struct video_format_cap *other_vfc)
 {
-	return mpipe_pipeline_server_eos(&xf.server);
+	return mpipe_vid_pipeline_server_transform_cap(channel_server(channel), direction, ind, vfc,
+						       other_vfc);
 }
 
-/* The same for the sink client */
-
-static int sk_init_rpc(void)
-{
-	return 0;
-}
-
-static int32_t sk_get_buf_caps(uint8_t *min_buffers, uint16_t *buf_align)
-{
-	return mpipe_vid_pipeline_server_get_buf_caps(&sk.server, MPIPE_PAD_SINK, min_buffers,
-						      buf_align);
-}
-
-static int32_t sk_get_format_caps(uint8_t ind, struct video_format_cap *vfc)
-{
-	return mpipe_vid_pipeline_server_get_format_caps(&sk.server, MPIPE_PAD_SINK, ind, vfc);
-}
-
-static int32_t sk_set_format(struct video_format *fmt)
-{
-	return mpipe_vid_pipeline_server_set_format(&sk.server, fmt);
-}
-
-static int sk_process(uintptr_t in_buf, uint32_t in_sz)
-{
-	return mpipe_pipeline_server_process(&sk.server, (void *)in_buf, in_sz, NULL, 0, NULL);
-}
-
-static int sk_set_state(enum mpipe_state_change transition)
-{
-	return mpipe_pipeline_server_set_state(&sk.server, MPIPE_STATE_TRANSITION_NEXT(transition));
-}
-
-static int sk_eos(void)
-{
-	return mpipe_pipeline_server_eos(&sk.server);
-}
+static const struct mpipe_vid_rpc_format_api test_format_api = {
+	.get_buf_caps = test_get_buf_caps,
+	.get_format_caps = test_get_format_caps,
+	.set_format = test_set_format,
+	.transform_cap = test_transform_cap,
+};
 
 static void frame_caps(struct mpipe_structure *caps, uint32_t pixfmt)
 {
@@ -330,14 +350,10 @@ static void build_transform_side(void)
 	zassert_ok(mpipe_pipeline_server_init(&xf.server, &xf.served, &xf.served_src,
 					      &xf.served_sink));
 
-	xf.client.transform.init_rpc = xf_init_rpc;
-	xf.client.transform.process_fn_rpc = xf_process;
-	xf.client.transform.set_state_rpc = xf_set_state;
-	xf.client.transform.eos_rpc = xf_eos;
-	xf.client.get_buf_caps_rpc = xf_get_buf_caps;
-	xf.client.get_format_caps_rpc = xf_get_format_caps;
-	xf.client.set_format_rpc = xf_set_format;
-	xf.client.transform_cap_rpc = xf_transform_cap;
+	xf.channel.server = &xf.server;
+	mpipe_rpc_channel_init(&xf.channel.channel, &test_channel_api);
+	xf.client.transform.channel = &xf.channel.channel;
+	xf.client.format = &test_format_api;
 
 	zassert_ok(mpipe_pipeline_init(&xf.pipeline, PIPE_ID));
 	zassert_ok(mpipe_app_src_init(&xf.app_src, SRC_ID));
@@ -382,13 +398,10 @@ static void build_sink_side(void)
 	/* The pipeline ends in a sink of its own: the server is given no application sink */
 	zassert_ok(mpipe_pipeline_server_init(&sk.server, &sk.served, &sk.served_src, NULL));
 
-	sk.client.sink.init_rpc = sk_init_rpc;
-	sk.client.sink.process_fn_rpc = sk_process;
-	sk.client.sink.set_state_rpc = sk_set_state;
-	sk.client.sink.eos_rpc = sk_eos;
-	sk.client.get_buf_caps_rpc = sk_get_buf_caps;
-	sk.client.get_format_caps_rpc = sk_get_format_caps;
-	sk.client.set_format_rpc = sk_set_format;
+	sk.channel.server = &sk.server;
+	mpipe_rpc_channel_init(&sk.channel.channel, &test_channel_api);
+	sk.client.sink.channel = &sk.channel.channel;
+	sk.client.format = &test_format_api;
 
 	zassert_ok(mpipe_pipeline_init(&sk.pipeline, PIPE_ID));
 	zassert_ok(mpipe_app_src_init(&sk.app_src, SRC_ID));
@@ -401,12 +414,57 @@ static void build_sink_side(void)
 				      (struct mpipe_element *)&sk.client, NULL));
 }
 
+/* app_src -> vid_transform_client -> vid_transform_client -> app_sink, a server each */
+static void build_two_clients(void)
+{
+	memset(&two, 0, sizeof(two));
+
+	for (uint8_t i = 0; i < ARRAY_SIZE(two.served); i++) {
+		struct test_served *served = &two.served[i];
+
+		zassert_ok(mpipe_pipeline_init(&served->pipeline, PIPE_ID));
+		zassert_ok(mpipe_app_src_init(&served->app_src, SRC_ID));
+		zassert_ok(test_xform_init(&served->xform, XFORM_ID));
+		zassert_ok(mpipe_app_sink_init(&served->app_sink, SINK_ID));
+		zassert_ok(mpipe_bin_add((struct mpipe_bin *)&served->pipeline,
+					 (struct mpipe_element *)&served->app_src,
+					 (struct mpipe_element *)&served->xform,
+					 (struct mpipe_element *)&served->app_sink, NULL));
+		zassert_ok(mpipe_element_link((struct mpipe_element *)&served->app_src,
+					      (struct mpipe_element *)&served->xform,
+					      (struct mpipe_element *)&served->app_sink, NULL));
+		zassert_ok(mpipe_pipeline_server_init(&served->server, &served->pipeline,
+						      &served->app_src, &served->app_sink));
+
+		served->channel.server = &served->server;
+		mpipe_rpc_channel_init(&served->channel.channel, &test_channel_api);
+		two.client[i].transform.channel = &served->channel.channel;
+		two.client[i].format = &test_format_api;
+	}
+
+	zassert_ok(mpipe_pipeline_init(&two.pipeline, PIPE_ID));
+	zassert_ok(mpipe_app_src_init(&two.app_src, SRC_ID));
+	zassert_ok(mpipe_vid_transform_client_init(&two.client[0], CLIENT_ID));
+	zassert_ok(mpipe_vid_transform_client_init(&two.client[1], SECOND_CLIENT_ID));
+	zassert_ok(mpipe_app_sink_init(&two.app_sink, SINK_ID));
+	set_src_caps(&two.app_src, VIDEO_PIX_FMT_RGB565);
+	zassert_ok(mpipe_bin_add(
+		(struct mpipe_bin *)&two.pipeline, (struct mpipe_element *)&two.app_src,
+		(struct mpipe_element *)&two.client[0], (struct mpipe_element *)&two.client[1],
+		(struct mpipe_element *)&two.app_sink, NULL));
+	zassert_ok(mpipe_element_link((struct mpipe_element *)&two.app_src,
+				      (struct mpipe_element *)&two.client[0],
+				      (struct mpipe_element *)&two.client[1],
+				      (struct mpipe_element *)&two.app_sink, NULL));
+}
+
 static void remote_before(void *f)
 {
 	ARG_UNUSED(f);
 
 	build_transform_side();
 	build_sink_side();
+	build_two_clients();
 }
 
 static void remote_after(void *f)
@@ -418,6 +476,11 @@ static void remote_after(void *f)
 	(void)mpipe_element_set_state((struct mpipe_element *)&sk.pipeline, MPIPE_STATE_READY);
 	(void)mpipe_element_set_state((struct mpipe_element *)&xf.served, MPIPE_STATE_READY);
 	(void)mpipe_element_set_state((struct mpipe_element *)&sk.served, MPIPE_STATE_READY);
+	(void)mpipe_element_set_state((struct mpipe_element *)&two.pipeline, MPIPE_STATE_READY);
+	for (uint8_t i = 0; i < ARRAY_SIZE(two.served); i++) {
+		(void)mpipe_element_set_state((struct mpipe_element *)&two.served[i].pipeline,
+					      MPIPE_STATE_READY);
+	}
 }
 
 ZTEST_SUITE(test_remote, NULL, NULL, remote_before, remote_after, NULL);
@@ -552,6 +615,47 @@ ZTEST(test_remote, test_transform_refused_format)
 	transform_one(3);
 	zassert_ok(
 		mpipe_element_set_state((struct mpipe_element *)&xf.pipeline, MPIPE_STATE_READY));
+}
+
+ZTEST(test_remote, test_two_transform_clients)
+{
+	struct net_buf *buf;
+
+	zassert_ok(mpipe_element_set_state((struct mpipe_element *)&two.pipeline,
+					   MPIPE_STATE_PLAYING));
+
+	/* Each client took its own server through the negotiation and the states */
+	for (uint8_t i = 0; i < ARRAY_SIZE(two.served); i++) {
+		zassert_true(two.served[i].server.negotiated, "server %u", i);
+		zassert_equal(state_of(&two.served[i].pipeline), MPIPE_STATE_PLAYING, "server %u",
+			      i);
+	}
+
+	for (uint8_t seed = 0; seed < TEST_BUFS; seed++) {
+		push_frame(&two.app_src, seed);
+		zassert_ok(mpipe_app_sink_pull(&two.app_sink, &buf, TEST_TIMEOUT), "no output");
+		zassert_equal(mpipe_buffer_get_meta(buf)->bytes_used, TEST_FRAME);
+
+		/* Each served pipeline added one to every byte */
+		for (uint32_t i = 0; i < TEST_FRAME; i++) {
+			zassert_equal(buf->data[i], (uint8_t)(seed + i + 2U), "byte %u", i);
+		}
+
+		/* The frame left the second server, whose input the first one wrote */
+		zassert_equal_ptr(two.served[1].xform.last_out, buf->data);
+		zassert_not_equal((uintptr_t)two.served[0].xform.last_out, (uintptr_t)buf->data);
+
+		net_buf_unref(buf);
+	}
+
+	zassert_ok(mpipe_app_src_eos(&two.app_src, TEST_TIMEOUT));
+	wait_eos(&two.pipeline);
+
+	zassert_ok(
+		mpipe_element_set_state((struct mpipe_element *)&two.pipeline, MPIPE_STATE_READY));
+	for (uint8_t i = 0; i < ARRAY_SIZE(two.served); i++) {
+		zassert_equal(state_of(&two.served[i].pipeline), MPIPE_STATE_READY, "server %u", i);
+	}
 }
 
 ZTEST(test_remote, test_sink)
