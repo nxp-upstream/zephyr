@@ -50,10 +50,23 @@ int mpipe_app_sink_pull(struct mpipe_app_sink *app_sink, struct net_buf **buf, k
 	__ASSERT_NO_MSG(buf != NULL);
 
 	if (k_msgq_get(&app_sink->msgq, buf, timeout) != 0) {
-		return -EAGAIN;
+		/* Nothing is queued: tell a stream that ended from one that is late */
+		return atomic_get(&app_sink->eos) != 0 ? -ENODATA : -EAGAIN;
 	}
 
 	return 0;
+}
+
+static int mpipe_app_sink_event_fn(struct mpipe_pad *pad, struct mpipe_dispatch *event)
+{
+	struct mpipe_app_sink *app_sink = (struct mpipe_app_sink *)pad->object.container;
+
+	/* The buffers before the event are queued already: the pull finds them first */
+	if (event->type == MPIPE_DISPATCH_EOS) {
+		atomic_set(&app_sink->eos, 1);
+	}
+
+	return app_sink->base_event_fn(pad, event);
 }
 
 /* The one capability the element accepts is the one the application declared */
@@ -139,6 +152,7 @@ static int mpipe_app_sink_change_state(struct mpipe_element *element,
 		while (k_msgq_get(&app_sink->msgq, &buf, K_NO_WAIT) == 0) {
 			net_buf_unref(buf);
 		}
+		atomic_clear(&app_sink->eos);
 		break;
 	default:
 		break;
@@ -171,6 +185,9 @@ int mpipe_app_sink_init(struct mpipe_app_sink *app_sink, uint8_t id)
 
 	app_sink->sink.sink_pad.enum_caps_fn = mpipe_app_sink_enum_caps;
 	app_sink->sink.sink_pad.process_fn = mpipe_app_sink_process_fn;
+	app_sink->base_event_fn = app_sink->sink.sink_pad.event_fn;
+	app_sink->sink.sink_pad.event_fn = mpipe_app_sink_event_fn;
+	atomic_clear(&app_sink->eos);
 
 	app_sink->sink.propose_buffer_pool = mpipe_app_sink_propose_buffer_pool;
 
