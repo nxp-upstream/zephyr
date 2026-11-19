@@ -63,16 +63,20 @@ static int mpipe_vid_sink_client_set_caps(struct mpipe_sink *sink,
 	return mpipe_pad_set_caps(&sink->sink_pad, caps);
 }
 
-int mpipe_vid_sink_client_init(struct mpipe_vid_sink_client *vsc, uint8_t id)
+int mpipe_vid_sink_client_init(struct mpipe_vid_sink_client *vsc, uint8_t id,
+			       const struct mpipe_vid_rpc_channel *vid_channel)
 {
 	__ASSERT_NO_MSG(vsc != NULL);
+	__ASSERT_NO_MSG(vid_channel != NULL && vid_channel->channel != NULL &&
+			vid_channel->format != NULL);
 
 	struct mpipe_element *self = &vsc->sink.sink.element;
 	struct mpipe_sink *sink = &vsc->sink.sink;
 	struct mpipe_buffer_pool_config req = {0};
 	int ret;
 
-	__ASSERT_NO_MSG(vsc->format != NULL);
+	vsc->sink.channel = vid_channel->channel;
+	vsc->format = vid_channel->format;
 
 	ret = mpipe_sink_client_init(&vsc->sink, id);
 	if (ret != 0) {
