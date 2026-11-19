@@ -1,0 +1,40 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* The codec takes its master clock from the SAI */
+&sai1 {
+	mclk-output;
+};
+
+/*
+ * The board file declares the red user LED D34 active low; on the EVKB rev B
+ * it lights on a high level. The microphone mode shows on it.
+ */
+&red_led {
+	gpios = <&gpio9 25 GPIO_ACTIVE_HIGH>;
+};
+
+/* Likewise the user button SW7: declared active high, pressed is low on the EVKB rev B */
+&user_button {
+	gpios = <&gpio13 0 GPIO_ACTIVE_LOW>;
+};
+
+/*
+ * The on-board digital microphone: both slots of PDM data line 0. The
+ * controller's output range adjustment, in dB, lifts the soft signal of the
+ * microphone (speech peaked near -18 dB full scale on the phone) by 6 dB.
+ */
+dmic_dev: &micfil {
+	channel0: micfil-channel@0 {
+		status = "okay";
+		decimation-filter-gain = <6>;
+	};
+
+	channel1: micfil-channel@1 {
+		status = "okay";
+		decimation-filter-gain = <6>;
+	};
+};
