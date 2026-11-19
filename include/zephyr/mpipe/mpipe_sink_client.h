@@ -24,6 +24,7 @@
 
 #include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
+#include <zephyr/mpipe/mpipe_rpc_channel.h>
 #include <zephyr/mpipe/mpipe_sink.h>
 
 /**
@@ -33,8 +34,8 @@
  * a file or a network link that core owns, alone or behind elements of its
  * own. The stream ends here as far as this pipeline is concerned.
  *
- * Every hook is synchronous: the processing hook returns once the other core
- * has consumed the buffer, and the end-of-stream hook once it has flushed, so
+ * Every call to the server is synchronous: a buffer is handed over until the
+ * other core has consumed it, and the end of stream until it has flushed, so
  * the element reports the end of stream after the remote consumer saw it.
  *
  * The other core reads the payload by address. An input that is not in the
@@ -46,47 +47,8 @@ struct mpipe_sink_client {
 	struct mpipe_sink sink;
 	/** Pool the inputs must live in, set by the derived element */
 	struct mpipe_buffer_pool *in_pool;
-	/**
-	 * Held around every call to the server that is made while the stream
-	 * runs. The thread that processes buffers and the thread that changes
-	 * the state both call the server, and the server takes one call at a
-	 * time.
-	 */
-	struct k_mutex rpc_lock;
-
-	/**
-	 * @brief Initialize RPC communication on the client side
-	 *
-	 * @return 0 on success, a negative errno on failure
-	 */
-	int (*init_rpc)(void);
-	/**
-	 * @brief Hand one buffer to the server and wait until it consumed it
-	 *
-	 * @param in_buf Address of the buffer to consume
-	 * @param in_sz Number of valid bytes in the buffer
-	 *
-	 * @return 0 on success, a negative errno on failure
-	 */
-	int (*process_fn_rpc)(uintptr_t in_buf, uint32_t in_sz);
-	/**
-	 * @brief Take the server through a state transition, optional
-	 *
-	 * Called for every transition but READY to PAUSED: a server that
-	 * negotiates does so when the element applies its format, which
-	 * happens later in that transition.
-	 *
-	 * @param transition The transition the element goes through
-	 *
-	 * @return 0 on success, a negative errno on failure
-	 */
-	int (*set_state_rpc)(enum mpipe_state_change transition);
-	/**
-	 * @brief Tell the server the stream ended, optional
-	 *
-	 * @return 0 on success, a negative errno on failure
-	 */
-	int (*eos_rpc)(void);
+	/** Channel to the server, set by the derived element before the element is initialized */
+	struct mpipe_rpc_channel *channel;
 	/** The base element's event handler, called after the server heard the event */
 	int (*base_event_fn)(struct mpipe_pad *pad, struct mpipe_dispatch *event);
 };
@@ -97,9 +59,13 @@ struct mpipe_sink_client {
  * Initializes the base sink element and installs the processing function that
  * hands a buffer over the transport instead of consuming it locally.
  *
- * @c init_rpc must already be set when this is called: it runs before the base
- * element is initialized, so a transport that cannot come up is reported
- * through the return value and nothing is left half-built.
+ * The channel must already be set when this is called: it is opened before
+ * the base element is initialized, so a server that cannot be reached is
+ * reported through the return value and nothing is left half-built.
+ *
+ * The server is taken through every state transition but READY to PAUSED: a
+ * server that negotiates does so when the element applies its format, which
+ * happens later in that transition.
  *
  * @param sink_client Pointer to the @ref mpipe_sink_client to initialize.
  * @param id          Unique element identifier.

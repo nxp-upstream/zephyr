@@ -6,6 +6,7 @@
 
 menuconfig MPIPE
 	bool "Multimedia Pipeline framework [EXPERIMENTAL]"
+	default y if DT_HAS_ZEPHYR_MPIPE_PIPELINE_ENABLED
 	imply THREAD_NAME
 	select NET_BUF
 	select ZBUS
@@ -155,7 +156,8 @@ config MPIPE_RPC
 	  a sink, but forwards each buffer over a transport to a server on the
 	  remote core and waits for it. The server is one function or a whole
 	  pipeline of that core. The transport itself is not provided here:
-	  the application supplies it through the element's RPC hooks.
+	  an RPC backend or the application supplies it as the RPC channel of
+	  the element.
 
 # ---- ZBus defaults for MPIPE ----
 # The framework allocates nothing, so the bus underneath it must not either.
