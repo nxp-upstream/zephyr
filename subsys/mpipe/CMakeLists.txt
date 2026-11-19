@@ -26,6 +26,7 @@ zephyr_library_sources_ifdef(CONFIG_MPIPE_FAKE_SRC mpipe_fake_src.c)
 zephyr_library_sources_ifdef(CONFIG_MPIPE_RPC
   mpipe_rpc_channel.c
   mpipe_sink_client.c
+  mpipe_src_client.c
   mpipe_transform_client.c
 )
 zephyr_library_sources_ifdef(CONFIG_MPIPE_WORKQUEUE mpipe_workqueue.c)
