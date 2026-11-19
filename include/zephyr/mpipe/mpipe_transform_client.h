@@ -21,6 +21,7 @@
 #include <zephyr/kernel.h>
 
 #include <zephyr/mpipe/mpipe_buffer.h>
+#include <zephyr/mpipe/mpipe_rpc_channel.h>
 #include <zephyr/mpipe/mpipe_transform.h>
 
 /**
@@ -31,7 +32,7 @@
  *
  * The server may run one function or a whole pipeline: the client is one
  * transform either way, and each buffer crosses to the other core once.
- * Every hook is synchronous. A queue in front of the element is what lets the
+ * Every call to the server is synchronous. A queue in front of the element is what lets the
  * elements upstream work while the other core does.
  *
  * An input that is not in the element's input pool, because nothing upstream
@@ -41,54 +42,8 @@
 struct mpipe_transform_client {
 	/** Base transform structure */
 	struct mpipe_transform transform;
-	/**
-	 * Held around every call to the server that is made while the stream
-	 * runs. The thread that processes buffers and the thread that changes
-	 * the state both call the server, and the server takes one call at a
-	 * time.
-	 */
-	struct k_mutex rpc_lock;
-
-	/**
-	 * @brief Initialize RPC communication on the client side
-	 *
-	 * @return 0 on success, a negative errno on failure
-	 */
-	int (*init_rpc)(void);
-	/**
-	 * @brief RPC processing function for processing buffers on the server side
-	 *
-	 * @param in_buf Address of the input buffer to be processed
-	 * @param in_sz Number of valid bytes in the input buffer
-	 * @param out_buf Address of the output buffer to fill
-	 * @param[out] out_sz Number of bytes written to the output buffer, 0 when
-	 *                    the server produced nothing for this input
-	 *
-	 * @return 0 on success, a negative errno on failure
-	 */
-	int (*process_fn_rpc)(uintptr_t in_buf, uint32_t in_sz, uintptr_t out_buf,
-			      uint32_t *out_sz);
-	/**
-	 * @brief Take the server through a state transition, optional
-	 *
-	 * Called for every transition but READY to PAUSED: a server that
-	 * negotiates does so when the element applies its formats, which
-	 * happens later in that transition.
-	 *
-	 * @param transition The transition the element goes through
-	 *
-	 * @return 0 on success, a negative errno on failure
-	 */
-	int (*set_state_rpc)(enum mpipe_state_change transition);
-	/**
-	 * @brief Tell the server the stream ended, optional
-	 *
-	 * Returns once the server has flushed what it held, so that the end
-	 * of stream goes on downstream after the last buffer.
-	 *
-	 * @return 0 on success, a negative errno on failure
-	 */
-	int (*eos_rpc)(void);
+	/** Channel to the server, set by the derived element before the element is initialized */
+	struct mpipe_rpc_channel *channel;
 	/** The base element's event handler, called after the server heard the event */
 	int (*base_event_fn)(struct mpipe_pad *pad, struct mpipe_dispatch *event);
 };
@@ -99,9 +54,13 @@ struct mpipe_transform_client {
  * Initializes the base transform element and installs the processing function that
  * forwards a buffer over the transport instead of processing it locally.
  *
- * @c init_rpc must already be set when this is called: it runs before the base
- * element is initialized, so a transport that cannot come up is reported
- * through the return value and nothing is left half-built.
+ * The channel must already be set when this is called: it is opened before
+ * the base element is initialized, so a server that cannot be reached is
+ * reported through the return value and nothing is left half-built.
+ *
+ * The server is taken through every state transition but READY to PAUSED: a
+ * server that negotiates does so when the element applies its formats, which
+ * happens later in that transition.
  *
  * @param transform_client Pointer to the @ref mpipe_transform_client to
  *                         initialize.
