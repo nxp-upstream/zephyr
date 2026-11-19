@@ -110,7 +110,8 @@ static int mpipe_vid_buffer_pool_stop(struct mpipe_buffer_pool *pool)
 {
 	int ret = 0;
 	struct mpipe_vid_buffer_pool *vid_pool = (struct mpipe_vid_buffer_pool *)pool;
-	struct video_buffer *to_free[CONFIG_VIDEO_BUFFER_POOL_NUM_MAX];
+	/* Cleared for the compiler, which does not see that only filled entries are read */
+	struct video_buffer *to_free[CONFIG_VIDEO_BUFFER_POOL_NUM_MAX] = {NULL};
 	uint8_t free_count = 0;
 	k_spinlock_key_t key;
 
