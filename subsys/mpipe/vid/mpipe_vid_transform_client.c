@@ -127,15 +127,19 @@ static int mpipe_vid_transform_client_transform_caps(struct mpipe_transform *sel
 	return mpipe_vid_vfc_to_caps(&other_vfc, out);
 }
 
-int mpipe_vid_transform_client_init(struct mpipe_vid_transform_client *vtc, uint8_t id)
+int mpipe_vid_transform_client_init(struct mpipe_vid_transform_client *vtc, uint8_t id,
+				    const struct mpipe_vid_rpc_channel *vid_channel)
 {
 	__ASSERT_NO_MSG(vtc != NULL);
+	__ASSERT_NO_MSG(vid_channel != NULL && vid_channel->channel != NULL &&
+			vid_channel->format != NULL);
 
 	struct mpipe_element *self = &vtc->transform.transform.element;
 	struct mpipe_transform *transform = &vtc->transform.transform;
 	int ret;
 
-	__ASSERT_NO_MSG(vtc->format != NULL);
+	vtc->transform.channel = vid_channel->channel;
+	vtc->format = vid_channel->format;
 
 	ret = mpipe_transform_client_init(&vtc->transform, id);
 	if (ret != 0) {

@@ -47,22 +47,26 @@ struct mpipe_vid_transform_client {
 	struct mpipe_vid_buffer_pool_client in_pool;
 	/** Output buffer pool */
 	struct mpipe_vid_buffer_pool_client out_pool;
-	/** Format calls to the server, set before the element is initialized */
+	/** Format calls to the server */
 	const struct mpipe_vid_rpc_format_api *format;
 };
 
 /**
  * @brief Initialize a client-side video transform element.
  *
- * The channel of its @ref mpipe_transform_client base and the format calls of
- * the element must be set when this is called.
+ * The element calls its server through @p vid_channel, which an RPC backend
+ * or the application provides. The channel is opened during the call, so a
+ * server that cannot be reached is reported through the return value.
  *
  * @param vtc Pointer to the element to initialize.
  * @param id Unique element identifier.
+ * @param vid_channel The channel and the format calls of the element. The
+ *                    structure is copied; the channel must remain valid.
  *
  * @return 0 on success, negative errno otherwise.
  */
-int mpipe_vid_transform_client_init(struct mpipe_vid_transform_client *vtc, uint8_t id);
+int mpipe_vid_transform_client_init(struct mpipe_vid_transform_client *vtc, uint8_t id,
+				    const struct mpipe_vid_rpc_channel *vid_channel);
 
 /** @} */
 

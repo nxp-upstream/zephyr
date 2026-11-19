@@ -352,12 +352,12 @@ static void build_transform_side(void)
 
 	xf.channel.server = &xf.server;
 	mpipe_rpc_channel_init(&xf.channel.channel, &test_channel_api);
-	xf.client.transform.channel = &xf.channel.channel;
-	xf.client.format = &test_format_api;
 
 	zassert_ok(mpipe_pipeline_init(&xf.pipeline, PIPE_ID));
 	zassert_ok(mpipe_app_src_init(&xf.app_src, SRC_ID));
-	zassert_ok(mpipe_vid_transform_client_init(&xf.client, CLIENT_ID));
+	zassert_ok(mpipe_vid_transform_client_init(
+		&xf.client, CLIENT_ID,
+		&(struct mpipe_vid_rpc_channel){&xf.channel.channel, &test_format_api}));
 	zassert_ok(mpipe_app_sink_init(&xf.app_sink, SINK_ID));
 	set_src_caps(&xf.app_src, VIDEO_PIX_FMT_RGB565);
 	zassert_ok(mpipe_bin_add(
@@ -400,12 +400,12 @@ static void build_sink_side(void)
 
 	sk.channel.server = &sk.server;
 	mpipe_rpc_channel_init(&sk.channel.channel, &test_channel_api);
-	sk.client.sink.channel = &sk.channel.channel;
-	sk.client.format = &test_format_api;
 
 	zassert_ok(mpipe_pipeline_init(&sk.pipeline, PIPE_ID));
 	zassert_ok(mpipe_app_src_init(&sk.app_src, SRC_ID));
-	zassert_ok(mpipe_vid_sink_client_init(&sk.client, CLIENT_ID));
+	zassert_ok(mpipe_vid_sink_client_init(
+		&sk.client, CLIENT_ID,
+		&(struct mpipe_vid_rpc_channel){&sk.channel.channel, &test_format_api}));
 	set_src_caps(&sk.app_src, VIDEO_PIX_FMT_RGB565);
 	zassert_ok(mpipe_bin_add((struct mpipe_bin *)&sk.pipeline,
 				 (struct mpipe_element *)&sk.app_src,
@@ -438,14 +438,16 @@ static void build_two_clients(void)
 
 		served->channel.server = &served->server;
 		mpipe_rpc_channel_init(&served->channel.channel, &test_channel_api);
-		two.client[i].transform.channel = &served->channel.channel;
-		two.client[i].format = &test_format_api;
 	}
 
 	zassert_ok(mpipe_pipeline_init(&two.pipeline, PIPE_ID));
 	zassert_ok(mpipe_app_src_init(&two.app_src, SRC_ID));
-	zassert_ok(mpipe_vid_transform_client_init(&two.client[0], CLIENT_ID));
-	zassert_ok(mpipe_vid_transform_client_init(&two.client[1], SECOND_CLIENT_ID));
+	for (uint8_t i = 0; i < ARRAY_SIZE(two.client); i++) {
+		zassert_ok(mpipe_vid_transform_client_init(
+			&two.client[i], (i == 0U) ? CLIENT_ID : SECOND_CLIENT_ID,
+			&(struct mpipe_vid_rpc_channel){&two.served[i].channel.channel,
+							&test_format_api}));
+	}
 	zassert_ok(mpipe_app_sink_init(&two.app_sink, SINK_ID));
 	set_src_caps(&two.app_src, VIDEO_PIX_FMT_RGB565);
 	zassert_ok(mpipe_bin_add(

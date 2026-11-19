@@ -21,6 +21,7 @@
 #include <stdint.h>
 
 #include <zephyr/drivers/video.h>
+#include <zephyr/sys/util.h>
 
 #include <zephyr/mpipe/mpipe_pad.h>
 #include <zephyr/mpipe/mpipe_rpc_channel.h>
@@ -81,6 +82,20 @@ struct mpipe_vid_rpc_format_api {
 	int (*transform_cap)(struct mpipe_rpc_channel *channel, enum mpipe_pad_direction direction,
 			     uint16_t ind, const struct video_format_cap *vfc,
 			     struct video_format_cap *other_vfc);
+};
+
+/**
+ * @brief What a video client element calls its server through
+ *
+ * An RPC backend gives a video client element both: the channel for the
+ * buffers, the states and the end of stream, and the format calls that go with
+ * that channel.
+ */
+struct mpipe_vid_rpc_channel {
+	/** Channel to the server */
+	struct mpipe_rpc_channel *channel;
+	/** Format calls of the backend the channel is from */
+	const struct mpipe_vid_rpc_format_api *format;
 };
 
 /** @} */

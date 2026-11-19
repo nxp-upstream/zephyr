@@ -40,22 +40,26 @@ struct mpipe_vid_sink_client {
 	struct mpipe_sink_client sink;
 	/** Input buffer pool */
 	struct mpipe_vid_buffer_pool_client in_pool;
-	/** Format calls to the server, set before the element is initialized */
+	/** Format calls to the server */
 	const struct mpipe_vid_rpc_format_api *format;
 };
 
 /**
  * @brief Initialize a video sink client element
  *
- * The channel of its @ref mpipe_sink_client base and the format calls of the
- * element must be set when this is called.
+ * The element calls its server through @p vid_channel, which an RPC backend
+ * or the application provides. The channel is opened during the call, so a
+ * server that cannot be reached is reported through the return value.
  *
  * @param vsc Pointer to the video sink client.
  * @param id Element identifier.
+ * @param vid_channel The channel and the format calls of the element. The
+ *                    structure is copied; the channel must remain valid.
  *
  * @return 0 on success, negative errno otherwise.
  */
-int mpipe_vid_sink_client_init(struct mpipe_vid_sink_client *vsc, uint8_t id);
+int mpipe_vid_sink_client_init(struct mpipe_vid_sink_client *vsc, uint8_t id,
+			       const struct mpipe_vid_rpc_channel *vid_channel);
 
 /** @} */
 
