@@ -36,6 +36,7 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/net_buf.h>
+#include <zephyr/sys/atomic.h>
 
 #include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/mpipe_element.h>
@@ -102,6 +103,10 @@ struct mpipe_app_sink {
 	struct k_msgq msgq;
 	/** Backing storage for the queue */
 	char msgq_buffer[CONFIG_MPIPE_BASE_APP_SINK_QUEUE_DEPTH * sizeof(void *)];
+	/** Set once the end of stream reached the element, until it is READY again */
+	atomic_t eos;
+	/** The event handler of the base sink */
+	int (*base_event_fn)(struct mpipe_pad *pad, struct mpipe_dispatch *event);
 };
 
 /**
@@ -128,6 +133,7 @@ int mpipe_app_sink_init(struct mpipe_app_sink *app_sink, uint8_t id);
  *
  * @retval 0 Success
  * @retval -EAGAIN No buffer arrived within @p timeout
+ * @retval -ENODATA The stream ended and every buffer was pulled
  */
 int mpipe_app_sink_pull(struct mpipe_app_sink *app_sink, struct net_buf **buf, k_timeout_t timeout);
 

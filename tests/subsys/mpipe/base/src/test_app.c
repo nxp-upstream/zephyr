@@ -243,8 +243,15 @@ ZTEST_F(test_app, test_push_pull)
 		zassert_equal(buf->data[0], i, "late pull %u out of order", i);
 		net_buf_unref(buf);
 	}
+	/* The stream ended: an empty queue says so, where it said "nothing yet" before */
+	zassert_equal(mpipe_app_sink_pull(&fixture->app_sink, &buf, K_MSEC(20)), -ENODATA,
+		      "the queue held more than its depth, or forgot the end of stream");
+
+	/* A new run starts with no end of stream behind it */
+	zassert_ok(mpipe_element_set_state(pipe, MPIPE_STATE_READY));
+	zassert_ok(mpipe_element_set_state(pipe, MPIPE_STATE_PLAYING));
 	zassert_equal(mpipe_app_sink_pull(&fixture->app_sink, &buf, K_MSEC(20)), -EAGAIN,
-		      "the queue held more than its depth");
+		      "the end of stream of the last run was kept");
 
 	zassert_ok(mpipe_element_set_state(pipe, MPIPE_STATE_READY));
 }
