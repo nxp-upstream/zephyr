@@ -44,6 +44,9 @@ static int mpipe_vid_buffer_pool_client_stop(struct mpipe_buffer_pool *pool)
 		(void)video_buffer_release(vbuf);
 	}
 
+	/* An acquire that waits for a buffer to come back gives up */
+	k_fifo_cancel_wait(&zbpc->fifo);
+
 	return 0;
 }
 
@@ -59,7 +62,8 @@ static int mpipe_vid_buffer_pool_client_acquire_buffer(struct mpipe_buffer_pool 
 
 	vbuf = k_fifo_get(&zbpc->fifo, K_FOREVER);
 	if (vbuf == NULL) {
-		return -ENOBUFS;
+		/* The pool stopped while this call waited */
+		return -EPIPE;
 	}
 
 	/*
