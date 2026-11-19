@@ -6,7 +6,6 @@
 
 menuconfig MPIPE
 	bool "Multimedia Pipeline framework [EXPERIMENTAL]"
-	default y if DT_HAS_ZEPHYR_MPIPE_PIPELINE_ENABLED
 	imply THREAD_NAME
 	select NET_BUF
 	select ZBUS

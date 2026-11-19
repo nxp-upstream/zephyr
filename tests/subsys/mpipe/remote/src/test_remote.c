@@ -17,6 +17,9 @@
  *
  *   client side:  app_src -> vid_transform_client -> vid_transform_client -> app_sink
  *   served:       app_src -> test_xform -> app_sink, one pipeline for each client
+ *
+ *   client side:  vid_src_client -> app_sink
+ *   served:       app_src -> app_sink (the app_src standing for a real source)
  */
 
 #include <zephyr/drivers/video.h>
@@ -32,6 +35,7 @@
 #include <zephyr/mpipe/vid/mpipe_vid_overlay.h>
 #include <zephyr/mpipe/vid/mpipe_vid_pipeline_server.h>
 #include <zephyr/mpipe/vid/mpipe_vid_sink_client.h>
+#include <zephyr/mpipe/vid/mpipe_vid_src_client.h>
 #include <zephyr/mpipe/vid/mpipe_vid_transform_client.h>
 
 ZBUS_MSG_SUBSCRIBER_DEFINE(test_remote_sub);
@@ -233,6 +237,22 @@ static struct {
 	struct test_served served[2];
 } two;
 
+static struct {
+	/* Source client and the pipeline it starts */
+	struct mpipe pipeline;
+	struct mpipe_vid_src_client client;
+	struct mpipe_app_sink app_sink;
+	/* The pipeline served to it, which has a source of its own */
+	struct mpipe served;
+	struct mpipe_app_src served_src;
+	struct mpipe_app_sink served_sink;
+	struct mpipe_pipeline_server server;
+	struct test_channel channel;
+} sc;
+
+/* How long a server with a source of its own waits for a buffer before it answers */
+#define TEST_PRODUCE_WAIT K_MSEC(20)
+
 static struct mpipe_pipeline_server *channel_server(struct mpipe_rpc_channel *channel)
 {
 	return CONTAINER_OF(channel, struct test_channel, channel)->server;
@@ -248,6 +268,12 @@ static int test_channel_open(struct mpipe_rpc_channel *channel)
 static int test_channel_process(struct mpipe_rpc_channel *channel, uintptr_t in_buf, uint32_t in_sz,
 				uintptr_t out_buf, uint32_t out_cap, uint32_t *out_sz)
 {
+	/* No input: the client is a source and asks for the next buffer */
+	if (in_buf == 0U) {
+		return mpipe_pipeline_server_produce(channel_server(channel), (void *)out_buf,
+						     out_cap, out_sz, TEST_PRODUCE_WAIT);
+	}
+
 	return mpipe_pipeline_server_process(channel_server(channel), (void *)in_buf, in_sz,
 					     (void *)out_buf, out_cap, out_sz);
 }
@@ -460,6 +486,39 @@ static void build_two_clients(void)
 				      (struct mpipe_element *)&two.app_sink, NULL));
 }
 
+/* vid_src_client -> app_sink, fed by a served pipeline that has its own source */
+static void build_source_side(void)
+{
+	memset(&sc, 0, sizeof(sc));
+
+	zassert_ok(mpipe_pipeline_init(&sc.served, PIPE_ID));
+	zassert_ok(mpipe_app_src_init(&sc.served_src, SRC_ID));
+	zassert_ok(mpipe_app_sink_init(&sc.served_sink, SINK_ID));
+	set_src_caps(&sc.served_src, VIDEO_PIX_FMT_RGB565);
+	zassert_ok(mpipe_bin_add((struct mpipe_bin *)&sc.served,
+				 (struct mpipe_element *)&sc.served_src,
+				 (struct mpipe_element *)&sc.served_sink, NULL));
+	zassert_ok(mpipe_element_link((struct mpipe_element *)&sc.served_src,
+				      (struct mpipe_element *)&sc.served_sink, NULL));
+	/* The pipeline starts with a source of its own: the server is given no application source
+	 */
+	zassert_ok(mpipe_pipeline_server_init(&sc.server, &sc.served, NULL, &sc.served_sink));
+
+	sc.channel.server = &sc.server;
+	mpipe_rpc_channel_init(&sc.channel.channel, &test_channel_api);
+
+	zassert_ok(mpipe_pipeline_init(&sc.pipeline, PIPE_ID));
+	zassert_ok(mpipe_vid_src_client_init(
+		&sc.client, CLIENT_ID,
+		&(struct mpipe_vid_rpc_channel){&sc.channel.channel, &test_format_api}));
+	zassert_ok(mpipe_app_sink_init(&sc.app_sink, SINK_ID));
+	zassert_ok(mpipe_bin_add((struct mpipe_bin *)&sc.pipeline,
+				 (struct mpipe_element *)&sc.client,
+				 (struct mpipe_element *)&sc.app_sink, NULL));
+	zassert_ok(mpipe_element_link((struct mpipe_element *)&sc.client,
+				      (struct mpipe_element *)&sc.app_sink, NULL));
+}
+
 static void remote_before(void *f)
 {
 	ARG_UNUSED(f);
@@ -467,6 +526,7 @@ static void remote_before(void *f)
 	build_transform_side();
 	build_sink_side();
 	build_two_clients();
+	build_source_side();
 }
 
 static void remote_after(void *f)
@@ -479,6 +539,8 @@ static void remote_after(void *f)
 	(void)mpipe_element_set_state((struct mpipe_element *)&xf.served, MPIPE_STATE_READY);
 	(void)mpipe_element_set_state((struct mpipe_element *)&sk.served, MPIPE_STATE_READY);
 	(void)mpipe_element_set_state((struct mpipe_element *)&two.pipeline, MPIPE_STATE_READY);
+	(void)mpipe_element_set_state((struct mpipe_element *)&sc.pipeline, MPIPE_STATE_READY);
+	(void)mpipe_element_set_state((struct mpipe_element *)&sc.served, MPIPE_STATE_READY);
 	for (uint8_t i = 0; i < ARRAY_SIZE(two.served); i++) {
 		(void)mpipe_element_set_state((struct mpipe_element *)&two.served[i].pipeline,
 					      MPIPE_STATE_READY);
@@ -658,6 +720,117 @@ ZTEST(test_remote, test_two_transform_clients)
 	for (uint8_t i = 0; i < ARRAY_SIZE(two.served); i++) {
 		zassert_equal(state_of(&two.served[i].pipeline), MPIPE_STATE_READY, "server %u", i);
 	}
+}
+
+/* One frame from the served source to the end of the client pipeline */
+static void source_one(uint8_t seed)
+{
+	struct net_buf *buf;
+
+	push_frame(&sc.served_src, seed);
+	zassert_ok(mpipe_app_sink_pull(&sc.app_sink, &buf, TEST_TIMEOUT), "no frame");
+	zassert_equal(mpipe_buffer_get_meta(buf)->bytes_used, TEST_FRAME);
+	for (uint32_t i = 0; i < TEST_FRAME; i++) {
+		zassert_equal(buf->data[i], (uint8_t)(seed + i), "byte %u", i);
+	}
+	net_buf_unref(buf);
+}
+
+ZTEST(test_remote, test_source)
+{
+	zassert_ok(
+		mpipe_element_set_state((struct mpipe_element *)&sc.pipeline, MPIPE_STATE_PLAYING));
+
+	/* The served pipeline negotiated with the client's format and followed its state */
+	zassert_true(sc.server.negotiated);
+	zassert_equal(state_of(&sc.served), MPIPE_STATE_PLAYING);
+
+	for (uint8_t i = 0; i < TEST_BUFS; i++) {
+		source_one((uint8_t)(i * 10U));
+	}
+
+	/* The end of the served stream ends the stream of the client */
+	zassert_ok(mpipe_app_src_eos(&sc.served_src, TEST_TIMEOUT));
+	wait_eos(&sc.pipeline);
+
+	zassert_ok(
+		mpipe_element_set_state((struct mpipe_element *)&sc.pipeline, MPIPE_STATE_READY));
+	zassert_equal(state_of(&sc.served), MPIPE_STATE_READY);
+	zassert_false(sc.server.negotiated);
+}
+
+ZTEST(test_remote, test_source_stop_while_waiting)
+{
+	int64_t start;
+
+	for (uint8_t run = 0; run < 3U; run++) {
+		zassert_ok(mpipe_element_set_state((struct mpipe_element *)&sc.pipeline,
+						   MPIPE_STATE_PLAYING),
+			   "run %u", run);
+		source_one(run);
+
+		/* No frame comes: the client asks again and again, and still stops at once */
+		k_sleep(K_MSEC(100));
+		start = k_uptime_get();
+		zassert_ok(mpipe_element_set_state((struct mpipe_element *)&sc.pipeline,
+						   MPIPE_STATE_READY),
+			   "run %u", run);
+		zassert_true(k_uptime_get() - start < 500, "the stop waited for a frame");
+	}
+}
+
+ZTEST(test_remote, test_source_server_calls)
+{
+	uint8_t in[TEST_FRAME] = {0};
+	uint8_t out[TEST_FRAME];
+	struct mpipe_structure caps;
+	struct mpipe_structure other;
+	uint32_t used = 1;
+
+	/* A pipeline with a source of its own has an exit and no entry */
+	zassert_ok(mpipe_pipeline_server_enum_caps(&sc.server, MPIPE_PAD_SRC, 0, &caps));
+	zassert_equal(mpipe_pipeline_server_enum_caps(&sc.server, MPIPE_PAD_SINK, 0, &caps),
+		      -ENOTSUP);
+	frame_caps(&caps, VIDEO_PIX_FMT_RGB565);
+	zassert_equal(
+		mpipe_pipeline_server_transform_caps(&sc.server, MPIPE_PAD_SRC, 0, &caps, &other),
+		-ENOTSUP);
+	zassert_equal(
+		mpipe_pipeline_server_process(&sc.server, in, sizeof(in), out, sizeof(out), &used),
+		-ENOTSUP);
+
+	/* And the two other kinds give nothing on their own */
+	zassert_equal(mpipe_pipeline_server_produce(&xf.server, out, sizeof(out), &used, K_NO_WAIT),
+		      -ENOTSUP);
+	zassert_equal(mpipe_pipeline_server_produce(&sk.server, out, sizeof(out), &used, K_NO_WAIT),
+		      -ENOTSUP);
+
+	/* Nothing before the negotiation, nothing yet after it */
+	zassert_equal(mpipe_pipeline_server_produce(&sc.server, out, sizeof(out), &used, K_NO_WAIT),
+		      -ENOTCONN);
+	zassert_ok(mpipe_pipeline_server_set_caps(&sc.server, MPIPE_PAD_SRC, &caps));
+	zassert_ok(mpipe_pipeline_server_set_state(&sc.server, MPIPE_STATE_PLAYING));
+	zassert_equal(
+		mpipe_pipeline_server_produce(&sc.server, out, sizeof(out), &used, K_MSEC(20)),
+		-EAGAIN);
+
+	push_frame(&sc.served_src, 5);
+	zassert_ok(
+		mpipe_pipeline_server_produce(&sc.server, out, sizeof(out), &used, TEST_TIMEOUT));
+	zassert_equal(used, TEST_FRAME);
+	zassert_equal(out[1], 6);
+
+	/* A buffer that does not fit is refused, not truncated */
+	push_frame(&sc.served_src, 6);
+	zassert_equal(mpipe_pipeline_server_produce(&sc.server, out, 8, &used, TEST_TIMEOUT),
+		      -EMSGSIZE);
+
+	zassert_ok(mpipe_app_src_eos(&sc.served_src, TEST_TIMEOUT));
+	zassert_equal(
+		mpipe_pipeline_server_produce(&sc.server, out, sizeof(out), &used, TEST_TIMEOUT),
+		-ENODATA);
+
+	zassert_ok(mpipe_pipeline_server_set_state(&sc.server, MPIPE_STATE_READY));
 }
 
 ZTEST(test_remote, test_sink)
