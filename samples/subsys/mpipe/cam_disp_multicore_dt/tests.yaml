@@ -1,0 +1,18 @@
+sample:
+  name: Camera on one core, display on the other, described in the devicetree
+
+tests:
+  sample.mpipe.cam_disp_multicore_dt:
+    tags:
+      - mpipe
+      - video
+    platform_allow:
+      - mimxrt1170_evk@B/mimxrt1176/cm7
+    integration_platforms:
+      - mimxrt1170_evk@B/mimxrt1176/cm7
+    modules:
+      - erpc
+    sysbuild: true
+    build_only: true
+    extra_args:
+      - cam_disp_multicore_dt_SHIELD="rk055hdmipi4ma0"
