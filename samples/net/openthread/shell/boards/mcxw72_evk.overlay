@@ -6,3 +6,17 @@
 &ieee802154_eui64_ifr0 {
 	status = "okay";
 };
+
+/*
+ * Revert the WUC/WUU wakeup routing on the LPTMR system timer for the low
+ * power "lp" command. When the LPTMR is armed as a WUU wakeup source, the
+ * mcux_lptmr_timer driver routes its wake through the WUU and the core never
+ * wakes from the CMC low power states under CONFIG_PM (Zigbee MCXW7x revert,
+ * PR #743 "Sleep never wakes up when CONFIG_PM is enabled"). The LPTMR compare
+ * interrupt (NVIC IRQ 34) wakes the CM33 directly, so no WUU routing is needed.
+ * Scoped to this sample overlay so the common dtsi is left untouched.
+ */
+&lptmr0 {
+	/delete-property/ wakeup-source;
+	/delete-property/ wakeup-ctrls;
+};
