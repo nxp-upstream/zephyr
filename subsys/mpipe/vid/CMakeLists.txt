@@ -25,6 +25,7 @@ if(CONFIG_MPIPE_VID)
   zephyr_library_sources_ifdef(CONFIG_MPIPE_RPC
     mpipe_vid_buffer_pool_client.c
     mpipe_vid_sink_client.c
+    mpipe_vid_src_client.c
     mpipe_vid_transform_client.c
   )
 
