@@ -371,6 +371,22 @@ static int vid_overlay_propose_buffer_pool(struct mpipe_transform *self,
 	return 0;
 }
 
+/* Give the buffers back to the video buffer heap and empty the list of free ones */
+static void vid_overlay_pool_free_buffers(struct mpipe_vid_overlay *overlay)
+{
+	while (k_fifo_get(&overlay->free_fifo, K_NO_WAIT) != NULL) {
+	}
+
+	for (uint8_t i = 0; i < overlay->vbuf_count; i++) {
+		if (overlay->vbufs[i] != NULL) {
+			(void)video_buffer_release(overlay->vbufs[i]);
+			overlay->vbufs[i] = NULL;
+		}
+	}
+
+	overlay->vbuf_count = 0;
+}
+
 /* Frame-sized output buffers come from the video buffer heap */
 static int vid_overlay_pool_start(struct mpipe_buffer_pool *pool)
 {
@@ -393,6 +409,7 @@ static int vid_overlay_pool_start(struct mpipe_buffer_pool *pool)
 
 		if (vbuf == NULL) {
 			LOG_ERR("Failed to allocate video buffer %u", i);
+			vid_overlay_pool_free_buffers(overlay);
 			return -ENOBUFS;
 		}
 		overlay->vbufs[i] = vbuf;
@@ -406,14 +423,7 @@ static int vid_overlay_pool_stop(struct mpipe_buffer_pool *pool)
 {
 	struct mpipe_vid_overlay *overlay = CONTAINER_OF(pool, struct mpipe_vid_overlay, out_pool);
 
-	for (uint8_t i = 0; i < overlay->vbuf_count; i++) {
-		if (overlay->vbufs[i] != NULL) {
-			(void)video_buffer_release(overlay->vbufs[i]);
-			overlay->vbufs[i] = NULL;
-		}
-	}
-
-	overlay->vbuf_count = 0;
+	vid_overlay_pool_free_buffers(overlay);
 
 	return 0;
 }

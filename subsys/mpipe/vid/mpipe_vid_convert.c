@@ -57,6 +57,22 @@ static inline uint32_t vid_convert_frame_size(uint32_t pixfmt, uint16_t width, u
 	return (uint32_t)width * (uint32_t)height * video_bits_per_pixel(pixfmt) / BITS_PER_BYTE;
 }
 
+/* Give the buffers back to the video buffer heap and empty the list of free ones */
+static void vid_convert_pool_free_buffers(struct mpipe_vid_convert *conv)
+{
+	while (k_fifo_get(&conv->free_fifo, K_NO_WAIT) != NULL) {
+	}
+
+	for (uint8_t i = 0; i < conv->vbuf_count; i++) {
+		if (conv->vbufs[i] != NULL) {
+			(void)video_buffer_release(conv->vbufs[i]);
+			conv->vbufs[i] = NULL;
+		}
+	}
+
+	conv->vbuf_count = 0;
+}
+
 static int vid_convert_pool_start(struct mpipe_buffer_pool *pool)
 {
 	struct mpipe_vid_convert *conv;
@@ -82,6 +98,7 @@ static int vid_convert_pool_start(struct mpipe_buffer_pool *pool)
 
 		if (vbuf == NULL) {
 			LOG_ERR("Failed to allocate video buffer %u", i);
+			vid_convert_pool_free_buffers(conv);
 			return -ENOBUFS;
 		}
 		conv->vbufs[i] = vbuf;
@@ -99,14 +116,7 @@ static int vid_convert_pool_stop(struct mpipe_buffer_pool *pool)
 
 	conv = CONTAINER_OF(pool, struct mpipe_vid_convert, out_pool);
 
-	for (uint8_t i = 0; i < conv->vbuf_count; i++) {
-		if (conv->vbufs[i] != NULL) {
-			(void)video_buffer_release(conv->vbufs[i]);
-			conv->vbufs[i] = NULL;
-		}
-	}
-
-	conv->vbuf_count = 0;
+	vid_convert_pool_free_buffers(conv);
 
 	return 0;
 }
