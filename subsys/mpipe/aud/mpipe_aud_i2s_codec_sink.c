@@ -234,8 +234,6 @@ static int mpipe_aud_i2s_codec_sink_set_caps(struct mpipe_sink *sink,
 	}
 #endif
 
-	k_msleep(1000);
-
 	config.word_size = bit_width;
 	config.channels = num_of_channel;
 	config.format = I2S_FMT_DATA_FORMAT_I2S;
