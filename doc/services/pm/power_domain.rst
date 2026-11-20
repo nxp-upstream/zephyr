@@ -15,6 +15,22 @@ low power state.
 Power domains are optional on Zephyr, to enable this feature the
 option :kconfig:option:`CONFIG_PM_DEVICE_POWER_DOMAIN` has to be set.
 
+Devicetree describes domain membership through a consumer's ``power-domains``
+phandle and the provider's ``#power-domain-cells`` property. This follows the
+provider/consumer distinction in the Linux `generic PM domain binding`_.
+Use the binding for the actual provider and its specified phandle cells;
+do not assume that every Linux provider binding or domain idle-state property
+is implemented by Zephyr.
+
+Domain membership is separate from the ``cpu-power-states`` references used by
+system PM. A ``zephyr,power-state`` node describes a selectable transition, not
+a power-domain provider. Neither devicetree parentage nor the placement of
+``power-states`` describes domain membership. See :ref:`pm-state-model` and
+:ref:`pm-state-devicetree` for state scope and authoring guidance.
+
+.. _generic PM domain binding:
+   https://github.com/torvalds/linux/blob/v6.12/Documentation/devicetree/bindings/power/power-domain.yaml
+
 When a power domain turns itself on or off, it is the responsibility of the
 power domain to notify all devices using it through their power management
 callback called with

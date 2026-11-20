@@ -86,15 +86,16 @@ possible dependencies between them are satisfied. As soon as the CPU wakes up
 from a sleep state, devices are resumed in the opposite order that they were
 suspended.
 
-The decision about suspending devices when entering a low power state is done based on the
-state and if it has set the property ``zephyr,pm-device-disabled``. Here is
+Setting ``zephyr,pm-device-disabled`` skips system-managed device suspension for
+the selected state. Here is
 an example of a target with two low power states with only one triggering device power
-management:
+management. The definitions use the shared catalog described in
+:ref:`pm-state-devicetree`; the CPU's ``cpu-power-states`` references are omitted:
 
 .. code-block:: devicetree
 
    /* Node in a DTS file */
-   cpus {
+   / {
         power-states {
                 state0: state0 {
                         compatible = "zephyr,power-state";
@@ -111,6 +112,9 @@ management:
                 };
         };
    };
+
+See :ref:`pm-state-model` for the distinction between a CPU's state request and
+its effects on devices or the whole system.
 
 .. note::
 
