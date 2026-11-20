@@ -7701,6 +7701,13 @@ West:
   labels:
     - "area: AMP"
 
+"West project: libpeer":
+  status: maintained
+  maintainers:
+    - chemag
+  files:
+    - modules/libpeer/
+
 "West project: libsbc":
   status: maintained
   maintainers:
