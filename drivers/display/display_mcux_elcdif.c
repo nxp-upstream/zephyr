@@ -245,15 +245,23 @@ static int mcux_elcdif_set_pixel_format(const struct device *dev,
 		return -ENOTSUP;
 	}
 
+	size_t pixel_bytes = DISPLAY_BITS_PER_PIXEL(pixel_format) / BITS_PER_BYTE;
+	size_t fb_bytes = config->rgb_mode.panelWidth * config->rgb_mode.panelHeight * pixel_bytes;
+
+	/* The heap of the driver framebuffers holds CONFIG_MCUX_ELCDIF_FB_SIZE for each */
+	if (CONFIG_MCUX_ELCDIF_FB_NUM > 0 && fb_bytes > CONFIG_MCUX_ELCDIF_FB_SIZE) {
+		LOG_ERR("A framebuffer of %zu bytes exceeds CONFIG_MCUX_ELCDIF_FB_SIZE", fb_bytes);
+		return -ENOMEM;
+	}
+
 	dev_data->pixel_format = pixel_format;
-	dev_data->pixel_bytes = DISPLAY_BITS_PER_PIXEL(pixel_format) / BITS_PER_BYTE;
-	dev_data->fb_bytes =
-		config->rgb_mode.panelWidth * config->rgb_mode.panelHeight * dev_data->pixel_bytes;
+	dev_data->pixel_bytes = pixel_bytes;
+	dev_data->fb_bytes = fb_bytes;
 
 	for (int i = 0; i < CONFIG_MCUX_ELCDIF_FB_NUM; i++) {
 		k_heap_free(&display_heap, dev_data->fb[i]);
 		dev_data->fb[i] =
-			k_heap_aligned_alloc(&display_heap, 64, dev_data->fb_bytes, K_FOREVER);
+			k_heap_aligned_alloc(&display_heap, 64, dev_data->fb_bytes, K_NO_WAIT);
 		if (dev_data->fb[i] == NULL) {
 			LOG_ERR("Could not allocate memory for framebuffers");
 			return -ENOMEM;
