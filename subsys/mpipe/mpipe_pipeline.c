@@ -445,6 +445,9 @@ static int mpipe_pipeline_change_state(struct mpipe_element *element,
 		if (mpipe_thread_create(&pipeline->thread, mpipe_pipeline_thread_func, element,
 					NULL, NULL, pipeline->thread.priority, K_FOREVER) == NULL) {
 			LOG_ERR("Failed to create a new pipeline thread");
+			/* The children went up: bring them back, the pipeline stays READY */
+			(void)mpipe_bin_change_state_func(element,
+							  MPIPE_STATE_CHANGE_PAUSED_TO_READY);
 			return -EAGAIN;
 		}
 

@@ -35,6 +35,8 @@ struct slow_transform {
 	bool torn_down_while_pushing;
 	/* Refuse the next PAUSED -> READY, once */
 	bool fail_next_stop;
+	/* Refuse the next READY -> PAUSED, once */
+	bool fail_next_start;
 };
 
 struct test_teardown_fixture {
@@ -68,6 +70,11 @@ static int slow_change_state(struct mpipe_element *self, enum mpipe_state_change
 
 	if (transition == MPIPE_STATE_CHANGE_PAUSED_TO_READY && slow->fail_next_stop) {
 		slow->fail_next_stop = false;
+		return -EIO;
+	}
+
+	if (transition == MPIPE_STATE_CHANGE_READY_TO_PAUSED && slow->fail_next_start) {
+		slow->fail_next_start = false;
 		return -EIO;
 	}
 
@@ -146,6 +153,28 @@ ZTEST_F(test_teardown, test_stop_again_after_a_child_refused)
 	zassert_ok(mpipe_element_set_state(pipeline, MPIPE_STATE_READY), "the second stop failed");
 
 	zassert_ok(mpipe_element_set_state(pipeline, MPIPE_STATE_PLAYING));
+	zassert_ok(k_sem_take(&fixture->slow.in_push, K_SECONDS(1)), "no push after the restart");
+	zassert_ok(mpipe_element_set_state(pipeline, MPIPE_STATE_READY));
+}
+
+/*
+ * The children go up from the sink. When one of them refuses READY -> PAUSED,
+ * the children that went up before it are brought back to READY, so that they
+ * give back what they took and the next attempt starts from the same state.
+ */
+ZTEST_F(test_teardown, test_start_again_after_a_child_refused)
+{
+	struct mpipe_element *pipeline = (struct mpipe_element *)&fixture->pipeline;
+
+	fixture->slow.fail_next_start = true;
+	zassert_equal(mpipe_element_set_state(pipeline, MPIPE_STATE_PLAYING), -EIO);
+
+	zassert_equal(fixture->sink.element.current_state, MPIPE_STATE_READY,
+		      "the sink stayed up after the transform refused");
+	zassert_equal(pipeline->current_state, MPIPE_STATE_READY);
+
+	zassert_ok(mpipe_element_set_state(pipeline, MPIPE_STATE_PLAYING),
+		   "the second start failed");
 	zassert_ok(k_sem_take(&fixture->slow.in_push, K_SECONDS(1)), "no push after the restart");
 	zassert_ok(mpipe_element_set_state(pipeline, MPIPE_STATE_READY));
 }

@@ -121,11 +121,38 @@ static void mpipe_bin_decrement_peer_degrees(sys_dlist_t *pad_list,
 	}
 }
 
+/*
+ * Bring back the children that already went up when a later child refused the
+ * transition: they would otherwise keep the threads and the buffers they took,
+ * and take them again at the next attempt. The children go down in the reverse
+ * order, which is the order of a down transition.
+ */
+static void mpipe_bin_undo_state_change(struct mpipe_element **changed, int num_changed,
+					enum mpipe_state_change transition)
+{
+	enum mpipe_state_change undo = (transition == MPIPE_STATE_CHANGE_READY_TO_PAUSED)
+					       ? MPIPE_STATE_CHANGE_PAUSED_TO_READY
+					       : MPIPE_STATE_CHANGE_PLAYING_TO_PAUSED;
+
+	for (int i = num_changed - 1; i >= 0; i--) {
+		int ret = changed[i]->change_state(changed[i], undo);
+
+		if (ret != 0) {
+			LOG_ERR("Element %u could not go back down (%d)", changed[i]->object.id,
+				ret);
+			continue;
+		}
+
+		changed[i]->current_state = MPIPE_STATE_TRANSITION_NEXT(undo);
+	}
+}
+
 int mpipe_bin_change_state_func(struct mpipe_element *self, enum mpipe_state_change transition)
 {
 	struct mpipe_bin *bin = (struct mpipe_bin *)self;
 	struct mpipe_object *obj;
 	struct mpipe_element *elements[CONFIG_MPIPE_BIN_MAX_CHILDREN];
+	struct mpipe_element *changed[CONFIG_MPIPE_BIN_MAX_CHILDREN];
 	int degree[CONFIG_MPIPE_BIN_MAX_CHILDREN];
 	int num_elements = 0;
 	int processed = 0;
@@ -167,17 +194,21 @@ int mpipe_bin_change_state_func(struct mpipe_element *self, enum mpipe_state_cha
 			/* Mark as processed by setting degree to -1 */
 			degree[i] = -1;
 			found = true;
-			processed++;
 
 			/* Change state of this element */
 			int ret;
 
 			ret = elements[i]->change_state(elements[i], transition);
 			if (ret != 0) {
+				if (is_up_transition) {
+					mpipe_bin_undo_state_change(changed, processed, transition);
+				}
 				return ret;
 			}
 
 			elements[i]->current_state = MPIPE_STATE_TRANSITION_NEXT(transition);
+			changed[processed] = elements[i];
+			processed++;
 
 			/* Decrement the degree of the elements this one feeds */
 			sys_dlist_t *pad_list =
@@ -188,6 +219,9 @@ int mpipe_bin_change_state_func(struct mpipe_element *self, enum mpipe_state_cha
 
 		if (!found) {
 			LOG_ERR("Cycle detected in pipeline topology or unlinked element");
+			if (is_up_transition) {
+				mpipe_bin_undo_state_change(changed, processed, transition);
+			}
 			return -EINVAL;
 		}
 	}
