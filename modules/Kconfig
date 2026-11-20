@@ -64,6 +64,9 @@ comment "Unavailable modules, please install those via the project manifest."
 comment "erpc module not available."
 	depends on !ZEPHYR_ERPC_MODULE
 
+comment "h264swdec module not available."
+	depends on !ZEPHYR_H264SWDEC_MODULE
+
 comment "hal_bouffalolab module not available."
 	depends on !ZEPHYR_HAL_BOUFFALOLAB_MODULE
 
