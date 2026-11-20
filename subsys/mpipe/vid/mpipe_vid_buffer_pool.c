@@ -98,8 +98,9 @@ static int mpipe_vid_buffer_pool_start(struct mpipe_buffer_pool *pool)
 		}
 	}
 
-	LOG_INF("Started video %s buffer pool",
-		vid_pool->vid_obj->type == VIDEO_BUF_TYPE_OUTPUT ? "output" : "input");
+	LOG_INF("Started video %s buffer pool with %u buffers",
+		vid_pool->vid_obj->type == VIDEO_BUF_TYPE_OUTPUT ? "output" : "input",
+		vid_pool->vbuf_count);
 
 	return ret;
 }
