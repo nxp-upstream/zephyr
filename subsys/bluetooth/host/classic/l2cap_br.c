@@ -417,21 +417,18 @@ static void l2cap_br_chan_cleanup(struct bt_l2cap_chan *chan)
 	bt_l2cap_br_chan_del(chan);
 }
 
-static void l2cap_br_chan_destroy(struct bt_l2cap_chan *chan)
+static void l2cap_br_chan_cancel_work(struct bt_l2cap_br_chan *br_chan)
 {
-	struct bt_l2cap_br_chan *br_chan = BR_CHAN(chan);
-	struct k_work_sync retry_sync = {0};
-
-	LOG_DBG("chan %p cid 0x%04x", br_chan, br_chan->rx.cid);
+	struct k_work_sync sync = {0};
 
 	/* Cancel ongoing work. Since the channel can be re-used after this
 	 * we need to sync to make sure that the kernel does not have it
 	 * in its queue anymore.
 	 *
-	 * In the case where we are in the context of executing the rtx_work
-	 * item, we don't sync as it will deadlock the workqueue.
+	 * On the work's own queue, non-synchronous cancellation suffices
+	 * once deletion from a running channel work has been deferred.
 	 */
-	struct k_work_q *work_queue = br_chan->rtx_work.queue;
+	struct k_work_q *work_queue = br_chan->rtx_work.work.queue;
 
 	if (work_queue == NULL || k_current_get() != work_queue->thread_id) {
 		k_work_cancel_delayable_sync(&br_chan->rtx_work, &br_chan->rtx_sync);
@@ -439,18 +436,37 @@ static void l2cap_br_chan_destroy(struct bt_l2cap_chan *chan)
 		k_work_cancel_delayable(&br_chan->rtx_work);
 	}
 
-	work_queue = br_chan->retry_work.queue;
+	work_queue = br_chan->retry_work.work.queue;
 	if (work_queue == NULL || k_current_get() != work_queue->thread_id) {
-		k_work_cancel_delayable_sync(&br_chan->retry_work, &retry_sync);
+		k_work_cancel_delayable_sync(&br_chan->retry_work, &sync);
 	} else {
 		k_work_cancel_delayable(&br_chan->retry_work);
 	}
 
 #if defined(CONFIG_BT_L2CAP_RET_FC)
-	k_work_cancel_delayable(&br_chan->ret_work);
-	k_work_cancel_delayable(&br_chan->monitor_work);
-#endif /* CONFIG_BT_L2CAP_RET_FC */
+	work_queue = br_chan->ret_work.work.queue;
+	if (work_queue == NULL || k_current_get() != work_queue->thread_id) {
+		k_work_cancel_delayable_sync(&br_chan->ret_work, &sync);
+	} else {
+		k_work_cancel_delayable(&br_chan->ret_work);
+	}
 
+	work_queue = br_chan->monitor_work.work.queue;
+	if (work_queue == NULL || k_current_get() != work_queue->thread_id) {
+		k_work_cancel_delayable_sync(&br_chan->monitor_work, &sync);
+	} else {
+		k_work_cancel_delayable(&br_chan->monitor_work);
+	}
+#endif /* CONFIG_BT_L2CAP_RET_FC */
+}
+
+static void l2cap_br_chan_destroy(struct bt_l2cap_chan *chan)
+{
+	struct bt_l2cap_br_chan *br_chan = BR_CHAN(chan);
+
+	LOG_DBG("chan %p cid 0x%04x", br_chan, br_chan->rx.cid);
+
+	l2cap_br_chan_cancel_work(br_chan);
 	atomic_clear(BR_CHAN(chan)->flags);
 }
 
@@ -2964,7 +2980,7 @@ void bt_l2cap_br_chan_set_state(struct bt_l2cap_chan *chan, bt_l2cap_chan_state_
 }
 #endif /* CONFIG_BT_L2CAP_LOG_LEVEL_DBG && CONFIG_BT_L2CAP_DYNAMIC_CHANNEL*/
 
-void bt_l2cap_br_chan_del(struct bt_l2cap_chan *chan)
+static void l2cap_br_chan_del_now(struct bt_l2cap_chan *chan)
 {
 	const struct bt_l2cap_chan_ops *ops = chan->ops;
 	struct bt_l2cap_br_chan *br_chan = CONTAINER_OF(chan, struct bt_l2cap_br_chan, chan);
@@ -3008,6 +3024,80 @@ destroy:
 	if (ops->released) {
 		ops->released(chan);
 	}
+}
+
+static sys_slist_t br_pending_delete = SYS_SLIST_STATIC_INIT(&br_pending_delete);
+static struct k_spinlock br_pending_delete_lock;
+
+static void l2cap_br_delete_work(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	while (true) {
+		k_spinlock_key_t key = k_spin_lock(&br_pending_delete_lock);
+		sys_snode_t *node = sys_slist_get(&br_pending_delete);
+		struct bt_l2cap_chan *chan;
+		struct bt_conn *conn;
+
+		k_spin_unlock(&br_pending_delete_lock, key);
+		if (node == NULL) {
+			return;
+		}
+
+		chan = CONTAINER_OF(node, struct bt_l2cap_chan, node);
+		conn = chan->conn;
+		/* Quiesce the handler before teardown touches the channel or invokes callbacks. */
+		l2cap_br_chan_cancel_work(BR_CHAN(chan));
+		l2cap_br_chan_del_now(chan);
+		if (conn != NULL) {
+			bt_conn_unref(conn);
+		}
+	}
+}
+
+static K_WORK_DEFINE(br_delete_work, l2cap_br_delete_work);
+
+static bool l2cap_br_work_is_current(struct k_work_delayable *work)
+{
+	return work->work.queue != NULL && work->work.queue->thread_id == k_current_get() &&
+	       (k_work_busy_get(&work->work) & K_WORK_RUNNING) != 0;
+}
+
+void bt_l2cap_br_chan_del(struct bt_l2cap_chan *chan)
+{
+	struct bt_l2cap_br_chan *br_chan = BR_CHAN(chan);
+	bool defer = l2cap_br_work_is_current(&br_chan->rtx_work) ||
+		     l2cap_br_work_is_current(&br_chan->retry_work);
+
+#if defined(CONFIG_BT_L2CAP_RET_FC)
+	defer = defer || l2cap_br_work_is_current(&br_chan->ret_work) ||
+		l2cap_br_work_is_current(&br_chan->monitor_work);
+#endif
+
+	if (defer) {
+		k_spinlock_key_t key = k_spin_lock(&br_pending_delete_lock);
+		int err;
+
+		/* Keep the embedded work alive through the kernel's handler epilogue.
+		 * The independent worker synchronizes cancellation before released().
+		 * Channel deletion callers have already removed chan from the ACL list.
+		 */
+		if (!sys_slist_find(&br_pending_delete, &chan->node, NULL)) {
+			if (chan->conn != NULL) {
+				bt_conn_ref(chan->conn);
+			}
+			sys_slist_append(&br_pending_delete, &chan->node);
+		}
+		k_spin_unlock(&br_pending_delete_lock, key);
+		err = k_work_submit(&br_delete_work);
+
+		if (err < 0) {
+			LOG_ERR("Failed to submit channel deletion (%d)", err);
+		}
+		return;
+	}
+
+	l2cap_br_chan_del_now(chan);
 }
 
 static void l2cap_br_config_req(struct bt_l2cap_br *l2cap, struct bt_l2cap_chan *chan)

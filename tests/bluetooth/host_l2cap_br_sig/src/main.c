@@ -54,6 +54,11 @@ static size_t security_disconnected;
 static size_t security_released;
 static size_t reused_encrypt_changes;
 static bool reuse_released_channel;
+static struct bt_l2cap_br_chan *allocated_security_chan;
+static uint32_t release_work_busy;
+static struct k_work_q lifetime_workq;
+K_THREAD_STACK_DEFINE(lifetime_stack, 2048);
+K_SEM_DEFINE(lifetime_released, 0, 1);
 
 static void security_chan_disconnected(struct bt_l2cap_chan *chan)
 {
@@ -95,10 +100,28 @@ static const struct bt_l2cap_chan_ops security_ops = {
 	.released = security_chan_released,
 };
 
+static void allocated_chan_released(struct bt_l2cap_chan *chan)
+{
+	struct bt_l2cap_br_chan *br_chan = CONTAINER_OF(chan, struct bt_l2cap_br_chan, chan);
+
+	release_work_busy = k_work_busy_get(&br_chan->rtx_work.work) |
+			    k_work_busy_get(&br_chan->retry_work.work);
+	if (release_work_busy == 0) {
+		k_free(br_chan);
+	}
+	k_sem_give(&lifetime_released);
+}
+
+static const struct bt_l2cap_chan_ops allocated_ops = {
+	.disconnected = security_chan_disconnected,
+	.released = allocated_chan_released,
+};
+
 static int security_accept(struct bt_conn *acl, struct bt_l2cap_server *server,
 			   struct bt_l2cap_chan **chan)
 {
-	*chan = &security_chan[0].chan;
+	*chan = allocated_security_chan != NULL ? &allocated_security_chan->chan :
+		&security_chan[0].chan;
 	return 0;
 }
 
@@ -262,6 +285,8 @@ static void *setup(void)
 	zassert_not_null(conn);
 
 	bt_l2cap_br_connected(conn);
+	k_work_queue_start(&lifetime_workq, lifetime_stack, K_THREAD_STACK_SIZEOF(lifetime_stack),
+			   K_PRIO_PREEMPT(1), NULL);
 
 	return NULL;
 }
@@ -283,6 +308,9 @@ static void before(void *fixture)
 	security_released = 0;
 	reused_encrypt_changes = 0;
 	reuse_released_channel = false;
+	allocated_security_chan = NULL;
+	release_work_busy = 0;
+	k_sem_reset(&lifetime_released);
 	conn->state = BT_CONN_CONNECTED;
 	conn->sec_level = BT_SECURITY_L1;
 	conn->required_sec_level = BT_SECURITY_L1;
@@ -421,6 +449,26 @@ ZTEST(l2cap_br_sig, test_pending_security_released_channel_reused)
 	check_security_conn_req(&security_chan[1]);
 }
 
+static size_t exhaust_response_buffers(struct net_buf *rsp, struct net_buf **held, size_t capacity)
+{
+	struct net_buf_pool *pool = net_buf_pool_get(rsp->pool_id);
+	struct net_buf *buf;
+	size_t count = 0;
+
+	while (count < capacity && (held[count] = net_buf_alloc(pool, K_NO_WAIT)) != NULL) {
+		count++;
+	}
+	while (count < capacity) {
+		buf = bt_conn_create_pdu_timeout(NULL, 0, K_NO_WAIT);
+		if (buf == NULL) {
+			break;
+		}
+		held[count++] = buf;
+	}
+	zassert_equal(count, capacity - 1);
+	return count;
+}
+
 static void check_incoming_pending_security_insufficient(bool exhaust_buffers,
 							 bool reuse_after_retry)
 {
@@ -445,20 +493,7 @@ static void check_incoming_pending_security_insufficient(bool exhaust_buffers,
 	zassert_equal(sys_get_le16(&rsp->data[12]), BT_L2CAP_BR_PENDING);
 
 	if (exhaust_buffers) {
-		struct net_buf_pool *pool = net_buf_pool_get(rsp->pool_id);
-
-		while (held_count < ARRAY_SIZE(held) &&
-		       (held[held_count] = net_buf_alloc(pool, K_NO_WAIT)) != NULL) {
-			held_count++;
-		}
-		while (held_count < ARRAY_SIZE(held)) {
-			buf = bt_conn_create_pdu_timeout(NULL, 0, K_NO_WAIT);
-			if (buf == NULL) {
-				break;
-			}
-			held[held_count++] = buf;
-		}
-		zassert_equal(held_count, ARRAY_SIZE(held) - 1);
+		held_count = exhaust_response_buffers(rsp, held, ARRAY_SIZE(held));
 	}
 
 	bt_conn_security_changed(conn, 0, BT_SECURITY_ERR_SUCCESS);
@@ -507,6 +542,84 @@ ZTEST(l2cap_br_sig, test_incoming_pending_security_insufficient_retry)
 ZTEST(l2cap_br_sig, test_incoming_security_retry_released_channel_reused)
 {
 	check_incoming_pending_security_insufficient(true, true);
+}
+
+static struct bt_l2cap_br_chan *allocate_security_channel(void)
+{
+	struct bt_l2cap_br_chan *chan = k_calloc(1, sizeof(*chan));
+
+	zassert_not_null(chan);
+	chan->chan.ops = &allocated_ops;
+	chan->required_sec_level = BT_SECURITY_L3;
+	return chan;
+}
+
+static void check_workqueue_release(void)
+{
+	zassert_ok(k_sem_take(&lifetime_released, K_SECONDS(1)));
+	zassert_true(k_work_queue_drain(&lifetime_workq, false) >= 0);
+	zassert_true(k_work_queue_drain(&k_sys_work_q, false) >= 0);
+	if (release_work_busy != 0) {
+		/* Keep a failing baseline safe: free only after its workqueue has drained. */
+		k_free(allocated_security_chan);
+	}
+	allocated_security_chan = NULL;
+	zassert_equal(release_work_busy, 0, "released() called with an embedded work still busy");
+	zassert_equal(security_disconnected, 1);
+}
+
+static void check_rtx_channel_release(k_timeout_t delay)
+{
+	allocated_security_chan = allocate_security_channel();
+	atomic_set_bit(conn->flags, BT_CONN_BR_PAIRING);
+	zassert_ok(bt_l2cap_br_chan_connect(conn, &allocated_security_chan->chan, SECURITY_PSM));
+	zassert_true(k_work_reschedule_for_queue(&lifetime_workq,
+					       &allocated_security_chan->rtx_work, delay) >= 0);
+	check_workqueue_release();
+}
+
+ZTEST(l2cap_br_sig, test_rtx_workqueue_channel_freed)
+{
+	check_rtx_channel_release(K_MSEC(1));
+}
+
+ZTEST(l2cap_br_sig, test_rtx_immediate_workqueue_channel_freed)
+{
+	check_rtx_channel_release(K_NO_WAIT);
+}
+
+ZTEST(l2cap_br_sig, test_security_retry_workqueue_channel_freed)
+{
+	struct net_buf *held[CONFIG_BT_L2CAP_SIG_TX_BUF_COUNT + CONFIG_BT_L2CAP_TX_BUF_COUNT];
+	struct net_buf *buf = l2cap_pdu(SIG_CID);
+	struct net_buf *rsp;
+	size_t count;
+
+	allocated_security_chan = allocate_security_channel();
+	conn->encrypt = 1;
+	conn->sec_level = BT_SECURITY_L2;
+	conn->required_sec_level = BT_SECURITY_L3;
+	net_buf_add_u8(buf, BT_L2CAP_CONN_REQ);
+	net_buf_add_u8(buf, 1);
+	net_buf_add_le16(buf, sizeof(struct bt_l2cap_conn_req));
+	net_buf_add_le16(buf, SECURITY_PSM);
+	net_buf_add_le16(buf, 0x0040);
+	send_pdu(buf);
+	rsp = SYS_SLIST_PEEK_HEAD_CONTAINER(&sig_chan()->_pdu_tx_queue, rsp, node);
+	zassert_not_null(rsp);
+	count = exhaust_response_buffers(rsp, held, ARRAY_SIZE(held));
+	bt_conn_security_changed(conn, 0, BT_SECURITY_ERR_SUCCESS);
+	zassert_true(k_work_delayable_is_pending(&allocated_security_chan->retry_work));
+	k_work_cancel_delayable(&allocated_security_chan->retry_work);
+	while (count != 0) {
+		net_buf_unref(held[--count]);
+	}
+	zassert_true(k_work_reschedule_for_queue(&lifetime_workq,
+						&allocated_security_chan->retry_work,
+						K_MSEC(1)) >= 0);
+	check_workqueue_release();
+	zassert_equal(conn->state, BT_CONN_CONNECTED);
+	zassert_is_null(bt_l2cap_br_lookup_tx_cid(conn, 0x0040));
 }
 
 /* Each Echo Request callback sees exactly the data of that request, although
