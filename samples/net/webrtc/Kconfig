@@ -333,9 +333,9 @@ config ZEPHYRTC_WIFI_PASSWORD
 	depends on ZEPHYRTC_MODE_EXTERNAL && WIFI
 	default ""
 	help
-	  WPA2-PSK password for the Wi-Fi station. An empty value selects an open
-	  network. Set this only from a private EXTRA_CONF_FILE outside the source
-	  tree, such as the one tools/rt1170_demo.py generates.
+	  WPA2 or WPA3 personal password for the Wi-Fi station. An empty value
+	  selects an open network. Set this only from a private EXTRA_CONF_FILE
+	  outside the source tree, such as the one tools/rt1170_demo.py generates.
 
 config ZEPHYRTC_EXTERNAL_RUN_MS
 	int "External connected-media validation time in milliseconds"

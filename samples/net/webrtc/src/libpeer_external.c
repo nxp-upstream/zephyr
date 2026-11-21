@@ -84,9 +84,12 @@ static int start_wifi(void)
 		.ssid_length = ssid_length,
 		.psk = (const uint8_t *)CONFIG_ZEPHYRTC_WIFI_PASSWORD,
 		.psk_length = password_length,
+		.sae_password = (const uint8_t *)CONFIG_ZEPHYRTC_WIFI_PASSWORD,
+		.sae_password_length = password_length,
 		.channel = WIFI_CHANNEL_ANY,
-		.security =
-			password_length == 0U ? WIFI_SECURITY_TYPE_NONE : WIFI_SECURITY_TYPE_PSK,
+		/* WPA2 or WPA3, whichever the access point asks for */
+		.security = password_length == 0U ? WIFI_SECURITY_TYPE_NONE
+						  : WIFI_SECURITY_TYPE_WPA_AUTO_PERSONAL,
 		.mfp = WIFI_MFP_OPTIONAL,
 	};
 	int64_t deadline = k_uptime_get() + CONFIG_ZEPHYRTC_NETWORK_TIMEOUT_MS;
