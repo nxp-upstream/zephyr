@@ -213,6 +213,145 @@ Running
 The script checks the call statistics while it runs, fails if any media path stalls, and writes
 its logs and statistics to the output directory.
 
+Media on the Multimedia Pipeline subsystem
+*******************************************
+
+``overlay-mpipe.conf`` replaces the media code of the sample by pipelines of the
+:ref:`Multimedia Pipeline <mpipe>` subsystem, one per leg of the call, each with its own thread:
+
+.. code-block:: none
+
+   camera      vid_src -> caps_filter -> vid_convert -> vid_h264_encoder -> app_sink
+   display     app_src -> vid_h264_decoder -> vid_transform -> caps_filter -> vid_overlay
+               -> disp_sink
+   microphone  aud_dmic_src -> caps_filter -> app_sink
+   headphones  app_src -> aud_raw_parser -> queue -> aud_i2s_codec_sink
+
+The application (``src/media_mpipe.c``) only moves the encoded frames and the G.711 packets between
+the application elements and libpeer. On a board without a video transform device the display leg
+converts in software (``vid_convert``) and shows the frames at their own size.
+
+With this media the board sends the camera at its own rate, 30 frames per second, with a key frame
+when the peer asks for one and every ``CONFIG_ZEPHYRTC_VIDEO_GOP`` frames. libpeer sends the
+capture time of every frame and RTCP sender reports for both streams, from one clock, so the peer
+can align the audio with the video.
+
+This media needs changes in two modules that the manifest does not point to yet: the branch
+``zephyrtc-mpipe`` of ``modules/lib/libpeer`` (timestamps from the caller, RTCP reports, a receive
+loop that drains every pending datagram) and the branch ``zephyrtc-mpipe`` of
+``modules/lib/minih264`` (a DSP path for the motion search).
+
+On the MIMXRT1170-EVKB
+======================
+
+Add ``overlay-mpipe.conf`` and ``overlay-mimxrt1170-mpipe.conf`` after the other configuration
+files. For Wi-Fi:
+
+.. code-block:: console
+
+   conf="overlay-mimxrt1170-av.conf;overlay-mimxrt1170-wifi.conf"
+   conf="$conf;overlay-mpipe.conf;overlay-mimxrt1170-mpipe.conf"
+   conf="$conf;$HOME/.config/zephyrtc/rt1170.generated.conf"
+   west build -p always -b mimxrt1170_evk@B/mimxrt1176/cm7 \
+      --shield nxp_btb44_ov5640 --shield rk055hdmipi4ma0 \
+      -d build/webrtc-mpipe zephyr/samples/net/webrtc -- \
+      -DEXTRA_CONF_FILE="$conf" \
+      -DEXTRA_DTC_OVERLAY_FILE=boards/mimxrt1170_evk_mimxrt1176_cm7_B_wifi.overlay
+
+The board file runs the code from a serial flash and puts the data in the SDRAM, which is where
+most of the time of the media went. ``overlay-mimxrt1170-mpipe.conf`` therefore runs the codecs,
+the pixel format conversions, SRTP, libpeer and the IP stack from the instruction TCM
+(``CONFIG_ZEPHYRTC_CODE_RELOCATE``) and puts the memory of the two codecs in the on-chip RAM
+(``CONFIG_ZEPHYRTC_CODEC_DATA_RELOCATE``). The PXP converts the decoded frames to RGB565, turns
+them and scales them in one pass, and a plane of the LCDIFv2 scans the result out without a copy.
+
+The picture of the peer is scaled by ``CONFIG_ZEPHYRTC_DISPLAY_SCALE``. The default of the overlay
+is two, 480x640 on the 720x1280 panel. Three fills the width of the panel, but the plane then
+loads the SDRAM enough to double the load of the processor: the camera frames, which the processor
+reads from the same SDRAM, do not fit in the on-chip RAM.
+
+A call of the board with itself
+===============================
+
+``overlay-self-call.conf`` makes two endpoints of the image call each other through the loopback of
+the IP stack: the camera and the microphones go through the encoders, RTP, SRTP, the decoders, to
+the panel and the headphones. Nothing but signaling and the network driver is left out, so this is
+the way to see and to measure the media on a board that has no network. Every second it logs the
+frames sent and shown, the time from the capture of a frame to the display sink, and the load of
+the processor:
+
+.. code-block:: console
+
+   west build -p always -b mimxrt1170_evk@B/mimxrt1176/cm7 \
+      --shield nxp_btb44_ov5640 --shield rk055hdmipi4ma0 \
+      -d build/webrtc-self zephyr/samples/net/webrtc -- \
+      -DEXTRA_CONF_FILE="overlay-self-call.conf;overlay-mpipe.conf;overlay-mimxrt1170-mpipe.conf"
+
+.. code-block:: console
+
+   event=self_call video_sent=209 video_shown=209 fps=30 latency_ms=25/27/31
+      audio_sent=351 audio_played=350 cpu=36
+
+Measured this way on the MIMXRT1170-EVKB, 320x240, on the Cortex-M7:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Configuration
+     - Frames per second
+     - Processor load
+   * - Code in the flash, data in the SDRAM (encode and decode alone, in one thread)
+     - 15
+     -
+   * - Codecs in the TCM, their memory in the on-chip RAM
+     - 15
+     - 95%
+   * - SRTP, libpeer and the IP stack in the TCM as well
+     - 15
+     - 65%
+   * - DSP path of the encoder, deblocking filter on
+     - 30
+     - 35 to 41% (picture not scaled)
+   * - PXP in the display leg, picture scaled by two
+     - 30
+     - 43 to 51%
+   * - PXP in the display leg, picture scaled by three
+     - 29 to 30
+     - 76 to 89%
+
+The first row is the frame rate of the ``h264_enc_dec`` sample of the subsystem, which encodes and
+decodes in one thread. The loads of the second and third rows come from program counter samples
+taken through the debug probe, the other ones from the run time statistics of the kernel. At a
+scale of two a frame takes 27 ms on average from its capture to the display sink.
+
+On the two cores
+================
+
+A sysbuild of the sample adds an image for the Cortex-M4 (``remote/``), which decodes the video of
+the peer: a transform client takes the place of the decoder in the display leg, and the second
+core serves a pipeline that holds the same decoder element.
+
+.. code-block:: console
+
+   conf="overlay-self-call.conf;overlay-mpipe.conf"
+   conf="$conf;overlay-mimxrt1170-mpipe.conf;overlay-mimxrt1170-multicore.conf"
+   west build -p always -b mimxrt1170_evk@B/mimxrt1176/cm7 --sysbuild \
+      -d build/webrtc-multicore zephyr/samples/net/webrtc -- \
+      -Dwebrtc_SHIELD="nxp_btb44_ov5640;rk055hdmipi4ma0" \
+      -Dwebrtc_EXTRA_CONF_FILE="$conf" \
+      -Dwebrtc_EXTRA_DTC_OVERLAY_FILE=boards/mimxrt1170_evk_mimxrt1176_cm7_B_multicore.overlay
+
+This is an option, not the default: the second core is slow at this work. A decode call takes
+20.8 ms where the first core decodes the same frame in 3 ms, because the Cortex-M4 has a small
+write-through cache and neither the pictures of the decoder nor the frame it gives back fit in its
+data TCM. With the PXP and the display after it, the display leg then takes a little more than a
+frame period. In the call of the board with itself at a scale of two, it shows 29 frames per
+second: about one frame per second is dropped in front of the decoder and asked again as a key
+frame, and a frame takes 120 ms on average (80 to 155 ms) from its capture to the display sink,
+where the first core alone needs 27 ms. The first core gains little: its load was 41% against 51%
+in one pair of measurements and 39% against 41% in another. At a scale of three the variant no
+longer keeps up (18 frames per second).
+
 Testing
 *******
 
