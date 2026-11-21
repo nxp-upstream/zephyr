@@ -189,6 +189,7 @@ struct ov5640_ctrls {
 	struct video_ctrl vflip;
 	struct video_ctrl light_freq;
 	struct video_ctrl sharpness;
+	struct video_ctrl exposure_bias;
 	struct video_ctrl test_pattern;
 	struct video_ctrl pixel_rate;
 };
@@ -1081,6 +1082,40 @@ static int ov5640_set_ctrl_sharpness(const struct device *dev, int value)
 	return video_write_cci_reg(&cfg->i2c, OV5640_REG8(CIP_SHARPENMT_OFFSET1_REG), value);
 }
 
+/* Exposure compensation in 0.001 EV, and the window of the mean luma for each value */
+static const int64_t ov5640_exposure_bias_menu[] = {
+	-1700, -1300, -1000, -700, -300, 0, 300, 700, 1000, 1300, 1700,
+};
+
+static const struct {
+	uint8_t stable_high;
+	uint8_t stable_low;
+	uint8_t fast_high;
+	uint8_t fast_low;
+} ov5640_exposure_bias_params[] = {
+	{0x10, 0x08, 0x20, 0x10}, {0x18, 0x10, 0x30, 0x10}, {0x20, 0x18, 0x41, 0x10},
+	{0x28, 0x20, 0x51, 0x10}, {0x30, 0x28, 0x61, 0x10}, {0x38, 0x30, 0x61, 0x10},
+	{0x40, 0x38, 0x71, 0x10}, {0x48, 0x40, 0x80, 0x20}, {0x50, 0x48, 0x90, 0x20},
+	{0x58, 0x50, 0x91, 0x20}, {0x60, 0x58, 0xa0, 0x20},
+};
+
+BUILD_ASSERT(ARRAY_SIZE(ov5640_exposure_bias_params) == ARRAY_SIZE(ov5640_exposure_bias_menu));
+
+static int ov5640_set_ctrl_exposure_bias(const struct device *dev, int value)
+{
+	const struct ov5640_config *cfg = dev->config;
+	const struct video_reg16 params[] = {
+		{AEC_CTRL0F_REG, ov5640_exposure_bias_params[value].stable_high},
+		{AEC_CTRL10_REG, ov5640_exposure_bias_params[value].stable_low},
+		{AEC_CTRL1B_REG, ov5640_exposure_bias_params[value].stable_high},
+		{AEC_CTRL1E_REG, ov5640_exposure_bias_params[value].stable_low},
+		{AEC_CTRL11_REG, ov5640_exposure_bias_params[value].fast_high},
+		{AEC_CTRL1F_REG, ov5640_exposure_bias_params[value].fast_low},
+	};
+
+	return video_write_cci_multiregs16(&cfg->i2c, params, ARRAY_SIZE(params));
+}
+
 static int ov5640_set_ctrl_power_line_freq(const struct device *dev, int value)
 {
 	const struct ov5640_config *cfg = dev->config;
@@ -1134,6 +1169,8 @@ static int ov5640_set_ctrl(const struct device *dev, uint32_t id)
 		return ov5640_set_ctrl_power_line_freq(dev, ctrls->light_freq.val);
 	case VIDEO_CID_SHARPNESS:
 		return ov5640_set_ctrl_sharpness(dev, ctrls->sharpness.val);
+	case VIDEO_CID_AUTO_EXPOSURE_BIAS:
+		return ov5640_set_ctrl_exposure_bias(dev, ctrls->exposure_bias.val);
 	default:
 		return -ENOTSUP;
 	}
@@ -1299,6 +1336,14 @@ static int ov5640_init_controls(const struct device *dev)
 	/* The default is the offset the automatic sharpening of the initialization starts from */
 	ret = video_init_ctrl(&ctrls->sharpness, dev, VIDEO_CID_SHARPNESS,
 			      (struct video_ctrl_range){.min = 0, .max = 32, .step = 1, .def = 16});
+	if (ret) {
+		return ret;
+	}
+
+	/* The initialization leaves the window of the mean luma close to the one of -0.3 EV */
+	ret = video_init_int_menu_ctrl(&ctrls->exposure_bias, dev, VIDEO_CID_AUTO_EXPOSURE_BIAS, 4,
+				       ov5640_exposure_bias_menu,
+				       ARRAY_SIZE(ov5640_exposure_bias_menu));
 	if (ret) {
 		return ret;
 	}
