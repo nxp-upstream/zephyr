@@ -12,6 +12,13 @@
 #include <zephyr/mpipe/mpipe_dispatch.h>
 #include <zephyr/mpipe/mpipe_transform_client.h>
 
+/* Investigation aid, see mpipe_stage_stats.h */
+#define MPIPE_STAGE_STATS IS_ENABLED(CONFIG_MPIPE_STAGE_STATS)
+#if MPIPE_STAGE_STATS
+#include "mpipe_stage_stats.h"
+static struct mpipe_stage_stats client_stats;
+#endif
+
 LOG_MODULE_REGISTER(mpipe_transform_client, CONFIG_MPIPE_LOG_LEVEL);
 
 static int mpipe_transform_client_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
@@ -64,8 +71,25 @@ static int mpipe_transform_client_process_fn(struct mpipe_pad *pad, struct net_b
 	(void)sys_cache_data_flush_range(in_buf->data, in_used);
 	(void)sys_cache_data_invd_range((*out_buf)->data, (*out_buf)->size);
 
+#if MPIPE_STAGE_STATS
+	uint32_t t0 = k_cycle_get_32();
+#endif
+
 	ret = mpipe_rpc_channel_process(transform_client->channel, (uintptr_t)in_buf->data, in_used,
 					(uintptr_t)(*out_buf)->data, (*out_buf)->size, &out_used);
+
+#if MPIPE_STAGE_STATS
+	if (mpipe_stage_stats_add(&client_stats, (out_used != 0U) ? 1U : 0U, in_used, in_used,
+				  mpipe_stage_stats_elapsed_us(t0))) {
+		LOG_INF("stats transform_client: %u out/s, in %u B/s, call %u/%u/%u us min/avg/max "
+			"(%u ms)",
+			mpipe_stage_stats_per_s(&client_stats, client_stats.count),
+			mpipe_stage_stats_per_s(&client_stats, client_stats.bytes),
+			client_stats.us_min, mpipe_stage_stats_us_avg(&client_stats),
+			client_stats.us_max, client_stats.elapsed_ms);
+		mpipe_stage_stats_reset(&client_stats);
+	}
+#endif
 	if (ret != 0) {
 		LOG_ERR("Failed to process buffer via RPC");
 		net_buf_unref(*out_buf);
