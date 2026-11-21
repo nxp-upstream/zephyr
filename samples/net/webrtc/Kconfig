@@ -144,11 +144,21 @@ config ZEPHYRTC_VIDEO_FPS
 config ZEPHYRTC_VIDEO_QP
 	int "Quantizer of the encoder"
 	range 10 51
-	default 32
+	default 28
 	help
 	  Quantizer the encoder uses for every frame: 10 for the best picture,
-	  51 for the smallest stream. The default keeps a 320x240 call of a
-	  talking head near 200 kbit/s.
+	  51 for the smallest stream. The default gives a 320x240 picture
+	  without visible blocks at a few hundred kbit/s.
+
+config ZEPHYRTC_VIDEO_SPEED
+	int "Speed of the encoder"
+	range 0 10
+	default 9
+	help
+	  Speed against quality, from 0 (every coding tool) to 10 (fastest).
+	  9 is the fastest setting that keeps the deblocking filter, without
+	  which the blocks of the picture show in flat areas. On the Cortex-M7
+	  of the i.MX RT1170 it is also faster than 10.
 
 config ZEPHYRTC_VIDEO_GOP
 	int "Key frame period in frames"

@@ -267,6 +267,7 @@ static int media_pipeline_init(struct mpipe *pipe, uint8_t id, int priority)
 static int media_build_camera(struct Media *media)
 {
 	static const uint8_t qp = CONFIG_ZEPHYRTC_VIDEO_QP;
+	static const uint8_t speed = CONFIG_ZEPHYRTC_VIDEO_SPEED;
 	static const uint16_t gop = CONFIG_ZEPHYRTC_VIDEO_GOP;
 	struct mpipe_structure caps;
 	int ret;
@@ -304,7 +305,8 @@ static int media_build_camera(struct Media *media)
 	if (ret == 0) {
 		ret = mpipe_object_set_properties(
 			(struct mpipe_object *)&media->encoder, MPIPE_PROP_VID_H264_ENCODER_QP, &qp,
-			MPIPE_PROP_VID_H264_ENCODER_GOP, &gop, MPIPE_PROP_LIST_END);
+			MPIPE_PROP_VID_H264_ENCODER_GOP, &gop, MPIPE_PROP_VID_H264_ENCODER_SPEED,
+			&speed, MPIPE_PROP_LIST_END);
 	}
 	if (ret == 0) {
 		ret = media_video_caps(&caps, VIDEO_PIX_FMT_H264);
