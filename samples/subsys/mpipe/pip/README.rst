@@ -1,6 +1,6 @@
 .. zephyr:code-sample:: mpipe-pip
    :name: Picture-in-picture on display planes
-   :relevant-api: mpipe_disp mpipe_vid mpipe_img mpipe_fs mpipe_base
+   :relevant-api: mpipe_disp mpipe_vid mpipe_img mpipe_fs mpipe_base mpipe_dt
 
    Show a camera stream and a decoded MJPEG file on two planes of the
    display controller, which blends them without any copy.
@@ -36,14 +36,25 @@ Pipeline topology
      file_src -> jpeg_parser -> caps_filter1 -> jpeg_decoder -> disp_sink1;
    }
 
-The second ``disp_sink`` is bound to plane 1 with the ``MPIPE_PROP_DISP_SINK_PLANE``
-property and placed with ``MPIPE_PROP_DISP_SINK_X``, ``MPIPE_PROP_DISP_SINK_Y`` and
-``MPIPE_PROP_DISP_SINK_ALPHA``. The window position and opacity are sample options
-(``CONFIG_PIP_X``, ``CONFIG_PIP_Y``, ``CONFIG_PIP_ALPHA``).
+The second ``disp_sink`` is bound to plane 1 with the ``plane`` property of its node and
+placed with its ``x``, ``y`` and ``alpha`` properties, which give the window its position and
+opacity.
 
 Each pipeline has its own player. The camera runs until the shell command ``q`` quits
-both players; the MJPEG file ends after ``CONFIG_MJPEG_NUM_FRAMES`` frames, its player
+both players; the MJPEG file ends after its last frame (150 by default), its player
 stops and the window leaves the screen, and ``r 1`` plays it again.
+
+The pipeline is described in the devicetree: a ``zephyr,mpipe-pipeline`` node holds one child node
+per element, and the ``sources`` property of an element names the element it receives its buffers
+from. The pipeline is built at boot from that description, and the options of the framework and of
+its elements are enabled by the nodes.
+
+``pipeline.dtsi`` describes two pipelines, each with a player of its own: the
+camera on the background plane of the display, and an MJPEG file decoded into
+a translucent window on a second plane, whose position and opacity are
+properties of its display sink node.
+
+The application has no code: the pipeline node has the ``autostart`` property.
 
 Requirements
 ************

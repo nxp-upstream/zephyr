@@ -1,0 +1,72 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include "../common/sd_card.dtsi"
+
+/ {
+	/* The camera on the background plane of the display */
+	camera-pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+		autostart;
+
+		camera_src: vid-src {
+			compatible = "zephyr,mpipe-vid-src";
+		};
+
+		camera_filter: caps-filter {
+			compatible = "zephyr,mpipe-caps-filter";
+			sources = <&camera_src>;
+			media = "video";
+			width = <320>;
+			height = <240>;
+		};
+
+		disp-sink {
+			compatible = "zephyr,mpipe-disp-sink";
+			sources = <&camera_filter>;
+			plane = <0>;
+		};
+	};
+
+	/* An MJPEG file in a translucent window, on a plane of its own */
+	window-pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+		autostart;
+
+		file_src: file-src {
+			compatible = "zephyr,mpipe-file-src";
+			path = "/SD:/test.mjpeg";
+		};
+
+		jpeg_parser: jpeg-parser {
+			compatible = "zephyr,mpipe-img-jpeg-parser";
+			sources = <&file_src>;
+		};
+
+		window_filter: caps-filter {
+			compatible = "zephyr,mpipe-caps-filter";
+			sources = <&jpeg_parser>;
+			media = "video";
+			pixel-format = "JPEG";
+			width = <160>;
+			height = <120>;
+		};
+
+		jpeg_decoder: jpeg-decoder {
+			compatible = "zephyr,mpipe-img-jpeg-decoder";
+			sources = <&window_filter>;
+		};
+
+		window_sink: disp-sink {
+			compatible = "zephyr,mpipe-disp-sink";
+			sources = <&jpeg_decoder>;
+			plane = <1>;
+			x = <16>;
+			y = <16>;
+			alpha = <160>;
+		};
+	};
+};

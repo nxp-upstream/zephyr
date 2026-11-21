@@ -1,0 +1,26 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include "../pipeline.dtsi"
+
+/*
+ * The camera frame is shown as captured, with no rotation stage, so it has to
+ * fit the 720x1280 panel: 640x480 does, in portrait
+ */
+&camera_filter {
+	width = <640>;
+	height = <480>;
+};
+
+&window_filter {
+	width = <320>;
+	height = <240>;
+};
+
+&window_sink {
+	x = <32>;
+	y = <32>;
+};
