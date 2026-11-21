@@ -107,7 +107,7 @@ static struct video_format_cap *fmts;
  * On i.MX RT11xx SoCs which have MIPI CSI-2 Rx, image data from the camera sensor after passing
  * through the pipeline (MIPI CSI-2 Rx --> Video Mux --> CSI) will be implicitly converted to a
  * 32-bits pixel format. For example, an input in RGB565 or YUYV (2-bytes format) will become a
- * BGRX32 or XYUV32 (4-bytes format) respectively, at the output of the CSI.
+ * BGRX32 or VUYX32 (4-bytes format) respectively, at the output of the CSI.
  */
 static inline void video_pix_fmt_convert(struct video_format *fmt, bool isGetFmt)
 {
@@ -115,14 +115,14 @@ static inline void video_pix_fmt_convert(struct video_format *fmt, bool isGetFmt
 	case VIDEO_PIX_FMT_BGRX32:
 		fmt->pixelformat = isGetFmt ? VIDEO_PIX_FMT_BGRX32 : VIDEO_PIX_FMT_RGB565;
 		break;
-	case VIDEO_PIX_FMT_XYUV32:
-		fmt->pixelformat = isGetFmt ? VIDEO_PIX_FMT_XYUV32 : VIDEO_PIX_FMT_YUYV;
+	case VIDEO_PIX_FMT_VUYX32:
+		fmt->pixelformat = isGetFmt ? VIDEO_PIX_FMT_VUYX32 : VIDEO_PIX_FMT_YUYV;
 		break;
 	case VIDEO_PIX_FMT_RGB565:
 		fmt->pixelformat = isGetFmt ? VIDEO_PIX_FMT_BGRX32 : VIDEO_PIX_FMT_RGB565;
 		break;
 	case VIDEO_PIX_FMT_YUYV:
-		fmt->pixelformat = isGetFmt ? VIDEO_PIX_FMT_XYUV32 : VIDEO_PIX_FMT_YUYV;
+		fmt->pixelformat = isGetFmt ? VIDEO_PIX_FMT_VUYX32 : VIDEO_PIX_FMT_YUYV;
 		break;
 	}
 }
@@ -138,7 +138,7 @@ static int video_mcux_csi_set_fmt(const struct device *dev, struct video_format 
 	data->csi_config.bytesPerPixel = video_bits_per_pixel(fmt->pixelformat) / BITS_PER_BYTE;
 	data->csi_config.linePitch_Bytes = fmt->width * data->csi_config.bytesPerPixel;
 #if defined(CONFIG_VIDEO_MCUX_MIPI_CSI2RX)
-	if (fmt->pixelformat != VIDEO_PIX_FMT_BGRX32 && fmt->pixelformat != VIDEO_PIX_FMT_XYUV32) {
+	if (fmt->pixelformat != VIDEO_PIX_FMT_BGRX32 && fmt->pixelformat != VIDEO_PIX_FMT_VUYX32) {
 		return -ENOTSUP;
 	}
 	video_pix_fmt_convert(&format, false);
@@ -296,7 +296,7 @@ static int video_mcux_csi_get_caps(const struct device *dev, struct video_caps *
 		 * On i.MX RT11xx SoCs which have MIPI CSI-2 Rx, image data from the camera sensor
 		 * after passing through the pipeline (MIPI CSI-2 Rx --> Video Mux --> CSI) will be
 		 * implicitly converted to a 32-bits pixel format. For example, an input in RGB565
-		 * or YUYV (2-bytes format) will become an BGRX32 or XYUV32 (4-bytes format)
+		 * or YUYV (2-bytes format) will become an BGRX32 or VUYX32 (4-bytes format)
 		 * respectively, at the output of the CSI. So, we change the pixel formats of the
 		 * source caps to reflect this.
 		 */
@@ -314,7 +314,7 @@ static int video_mcux_csi_get_caps(const struct device *dev, struct video_caps *
 			if (fmts[i].pixelformat == VIDEO_PIX_FMT_RGB565) {
 				fmts[i].pixelformat = VIDEO_PIX_FMT_BGRX32;
 			} else if (fmts[i].pixelformat == VIDEO_PIX_FMT_YUYV) {
-				fmts[i].pixelformat = VIDEO_PIX_FMT_XYUV32;
+				fmts[i].pixelformat = VIDEO_PIX_FMT_VUYX32;
 			}
 		}
 		caps->format_caps = fmts;
