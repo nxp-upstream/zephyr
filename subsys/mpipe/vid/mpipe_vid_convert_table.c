@@ -70,6 +70,15 @@ static int convert_argb_to_xrgb(struct mpipe_vid_convert *conv, const struct net
  * 16 to 240 for chroma. Coefficients are scaled by 256.
  */
 
+/*
+ * How far ahead of the pixels being read the source is fetched, in bytes: a
+ * frame that a camera wrote lies in no cache, and in a slow memory the loads
+ * of the conversion would wait for one cache line after the other.
+ */
+#define BGRX32_FETCH_AHEAD  128U
+/* Pixels of the source in one cache line of 32 bytes */
+#define BGRX32_FETCH_PIXELS 8U
+
 /* Luma of a BGRX32 pixel, whose components are added to the sums of its block */
 static inline uint8_t bgrx32_to_luma(const uint8_t *pixel, int32_t *r_sum, int32_t *g_sum,
 				     int32_t *b_sum)
@@ -108,6 +117,11 @@ static int convert_bgrx32_to_yuv420(struct mpipe_vid_convert *conv, const struct
 			int32_t r = 0;
 			int32_t g = 0;
 			int32_t b = 0;
+
+			if ((col % BGRX32_FETCH_PIXELS) == 0U) {
+				__builtin_prefetch(top + BGRX32_FETCH_AHEAD);
+				__builtin_prefetch(bottom + BGRX32_FETCH_AHEAD);
+			}
 
 			y_top[0] = bgrx32_to_luma(&top[0], &r, &g, &b);
 			y_top[1] = bgrx32_to_luma(&top[4], &r, &g, &b);
