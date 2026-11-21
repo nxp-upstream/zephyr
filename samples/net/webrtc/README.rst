@@ -318,11 +318,17 @@ Measured this way on the MIMXRT1170-EVKB, 320x240, on the Cortex-M7:
    * - PXP in the display leg, picture scaled by three
      - 29 to 30
      - 76 to 89%
+   * - Only the path of a packet in the TCM, picture scaled by two
+     - 30
+     - 33 to 44%
 
 The first row is the frame rate of the ``h264_enc_dec`` sample of the subsystem, which encodes and
 decodes in one thread. The loads of the second and third rows come from program counter samples
-taken through the debug probe, the other ones from the run time statistics of the kernel. At a
-scale of two a frame takes 27 ms on average from its capture to the display sink.
+taken through the debug probe, the other ones from the run time statistics of the kernel. The
+rows were measured hours apart, and the load follows what the camera sees and where the linker
+puts the code, by several points: measured side by side, the last row and the one of the same
+scale above it gave the same load (33 to 44% and 32 to 46%). At a scale of two a frame takes
+27 ms on average from its capture to the display sink.
 
 On the two cores
 ================

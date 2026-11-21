@@ -98,19 +98,28 @@ if(CONFIG_ZEPHYRTC_CODE_RELOCATE)
     LOCATION "${CONFIG_ZEPHYRTC_MEDIA_CODE_RAM_NAME}_TEXT" NOKEEP)
   zephyr_code_relocate(FILES ${ZEPHYR_BASE}/subsys/mpipe/vid/mpipe_vid_convert_table.c
     LOCATION "${CONFIG_ZEPHYRTC_MEDIA_CODE_RAM_NAME}_TEXT" NOKEEP)
-  # The code every packet goes through: SRTP with its cipher tables, the
-  # WebRTC stack and the IP stack.
+  # The code every packet goes through: SRTP with its cipher tables, and the
+  # files of the WebRTC stack, of the sockets and of the IP stack that are on
+  # the path of an RTP packet. The rest of the three (session descriptions,
+  # TCP, IPv6, routing) runs once per call or never.
   zephyr_code_relocate(LIBRARY libpeer_srtp
     LOCATION "${CONFIG_ZEPHYRTC_MEDIA_CODE_RAM_NAME}_TEXT" NOKEEP)
   zephyr_code_relocate(
     FILES ${ZEPHYR_LIBPEER_MODULE_DIR}/third_party/libsrtp/crypto/cipher/aes.c
     LOCATION "${CONFIG_ZEPHYRTC_MEDIA_CODE_RAM_NAME}_RODATA" NOKEEP)
-  zephyr_code_relocate(LIBRARY libpeer
-    LOCATION "${CONFIG_ZEPHYRTC_MEDIA_CODE_RAM_NAME}_TEXT" NOKEEP)
-  zephyr_code_relocate(LIBRARY subsys__net__ip
-    LOCATION "${CONFIG_ZEPHYRTC_NET_CODE_RAM_NAME}_TEXT" NOKEEP)
-  zephyr_code_relocate(LIBRARY subsys__net
-    LOCATION "${CONFIG_ZEPHYRTC_NET_CODE_RAM_NAME}_TEXT" NOKEEP)
+  foreach(file agent.c dtls_srtp.c peer_connection.c rtcp.c rtp.c socket.c)
+    zephyr_code_relocate(FILES ${ZEPHYR_LIBPEER_MODULE_DIR}/src/${file}
+      LOCATION "${CONFIG_ZEPHYRTC_MEDIA_CODE_RAM_NAME}_TEXT" NOKEEP)
+  endforeach()
+  foreach(file sockets.c sockets_inet.c)
+    zephyr_code_relocate(FILES ${ZEPHYR_BASE}/subsys/net/lib/sockets/${file}
+      LOCATION "${CONFIG_ZEPHYRTC_NET_CODE_RAM_NAME}_TEXT" NOKEEP)
+  endforeach()
+  foreach(file
+      connection.c ipv4.c net_context.c net_core.c net_if.c net_pkt.c net_tc.c udp.c utils.c)
+    zephyr_code_relocate(FILES ${ZEPHYR_BASE}/subsys/net/ip/${file}
+      LOCATION "${CONFIG_ZEPHYRTC_NET_CODE_RAM_NAME}_TEXT" NOKEEP)
+  endforeach()
 endif()
 
 if(CONFIG_ZEPHYRTC_CODEC_DATA_RELOCATE)
