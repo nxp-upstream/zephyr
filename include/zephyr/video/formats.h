@@ -1004,7 +1004,8 @@ extern "C" {
 	X(VIDEO_PIX_FMT_VYUY, __VA_ARGS__)					\
 	X(VIDEO_PIX_FMT_UYVY, __VA_ARGS__)					\
 	X(VIDEO_PIX_FMT_YUV24, __VA_ARGS__)					\
-	X(VIDEO_PIX_FMT_XYUV32, __VA_ARGS__)
+	X(VIDEO_PIX_FMT_XYUV32, __VA_ARGS__)					\
+	X(VIDEO_PIX_FMT_VUYX32, __VA_ARGS__)
 
 /**
  * There is either a missing channel per pixel, U or V.
@@ -1045,6 +1046,15 @@ extern "C" {
  * @endcode
  */
 #define VIDEO_PIX_FMT_XYUV32 VIDEO_FOURCC('X', 'Y', 'U', 'V')
+
+/**
+ * The last byte is empty (X) for each pixel.
+ *
+ * @code{.unparsed}
+ * | Vvvvvvvv Uuuuuuuu Yyyyyyyy Xxxxxxxx | ...
+ * @endcode
+ */
+#define VIDEO_PIX_FMT_VUYX32 VIDEO_FOURCC('V', 'U', 'Y', 'X')
 
 /**
  * 24 bit YUV format with 8 bit per component
@@ -1538,6 +1548,7 @@ static inline unsigned int video_bits_per_pixel(uint32_t pixfmt)
 	case VIDEO_PIX_FMT_YUV24:
 		return 24;
 	case VIDEO_PIX_FMT_XYUV32:
+	case VIDEO_PIX_FMT_VUYX32:
 	case VIDEO_PIX_FMT_ARGB32:
 	case VIDEO_PIX_FMT_ABGR32:
 	case VIDEO_PIX_FMT_RGBA32:
