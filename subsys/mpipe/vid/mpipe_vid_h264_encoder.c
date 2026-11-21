@@ -15,6 +15,7 @@
 
 #include <zephyr/mpipe/mpipe_buffer.h>
 #include <zephyr/mpipe/mpipe_dispatch.h>
+#include <zephyr/mpipe/mpipe_dt.h>
 #include <zephyr/mpipe/mpipe_structure.h>
 #include <zephyr/mpipe/mpipe_value.h>
 
@@ -502,3 +503,42 @@ int mpipe_vid_h264_encoder_init(struct mpipe_vid_h264_encoder *enc, uint8_t id)
 
 	return 0;
 }
+
+#define DT_DRV_COMPAT zephyr_mpipe_vid_h264_encoder
+
+#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
+struct mpipe_vid_h264_encoder_dt_config {
+	uint16_t gop;
+	uint8_t qp;
+	uint8_t speed;
+};
+
+static int mpipe_vid_h264_encoder_dt_init(const struct mpipe_dt_element *dt)
+{
+	const struct mpipe_vid_h264_encoder_dt_config *config = dt->config;
+	int ret = mpipe_vid_h264_encoder_init((struct mpipe_vid_h264_encoder *)dt->element, dt->id);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	return mpipe_object_set_properties(&dt->element->object, MPIPE_PROP_VID_H264_ENCODER_QP,
+					   &config->qp, MPIPE_PROP_VID_H264_ENCODER_GOP,
+					   &config->gop, MPIPE_PROP_VID_H264_ENCODER_SPEED,
+					   &config->speed, MPIPE_PROP_LIST_END);
+}
+
+#define MPIPE_VID_H264_ENCODER_DT_DEFINE(inst)                                                     \
+	static struct mpipe_vid_h264_encoder mpipe_vid_h264_encoder_##inst;                        \
+	static const struct mpipe_vid_h264_encoder_dt_config                                       \
+		mpipe_vid_h264_encoder_dt_config_##inst = {                                        \
+			.gop = DT_INST_PROP(inst, gop),                                            \
+			.qp = DT_INST_PROP(inst, qp),                                              \
+			.speed = DT_INST_PROP(inst, speed),                                        \
+	};                                                                                         \
+	MPIPE_DT_INST_ELEMENT_DEFINE(inst, &mpipe_vid_h264_encoder_##inst,                         \
+				     mpipe_vid_h264_encoder_dt_init,                               \
+				     &mpipe_vid_h264_encoder_dt_config_##inst);
+
+DT_INST_FOREACH_STATUS_OKAY(MPIPE_VID_H264_ENCODER_DT_DEFINE)
+#endif
