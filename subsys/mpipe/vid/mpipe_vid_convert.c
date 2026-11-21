@@ -386,17 +386,23 @@ static int vid_convert_decide_buffer_pool(struct mpipe_transform *self,
 					  struct mpipe_dispatch *query)
 {
 	struct mpipe_vid_convert *conv = (struct mpipe_vid_convert *)self;
-	struct mpipe_buffer_pool *down_pool = query->pool;
 
-	/* Use the internal pool by default */
-	self->out_pool = &conv->out_pool;
-
-	/* Use the proposed pool from downstream when available */
-	if (down_pool != NULL) {
-		self->out_pool = down_pool;
+	/* A pool downstream offers is where it wants its frames */
+	if (query->pool != NULL) {
+		self->out_pool = query->pool;
+		return 0;
 	}
 
-	/* TODO: Do negotiation when downstream only propose pool config */
+	/*
+	 * The element's own pool: the frame being converted, plus the frames
+	 * the elements downstream keep, a display plane scanning one out for
+	 * example. Without them the pool runs dry on the second frame.
+	 */
+	self->out_pool = &conv->out_pool;
+	conv->out_pool.config.min_buffers =
+		(uint8_t)MIN(MAX((uint32_t)conv->out_pool.req_config.min_buffers, 1U) +
+				     query->pool_cfg.min_buffers,
+			     UINT8_MAX);
 
 	return 0;
 }
