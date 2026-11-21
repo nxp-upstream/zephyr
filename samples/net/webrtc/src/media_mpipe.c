@@ -120,6 +120,12 @@ BUILD_ASSERT(DISPLAY_ROTATION % 90 == 0, "the frames turn by quarter turns");
 BUILD_ASSERT(DISPLAY_TRANSFORM, "the frames of the second core go to a video transform device");
 #endif
 
+/*
+ * Pieces of the stream between media_receive() and the display at most: what
+ * the pool of the application sources holds, and the pictures after the decoder.
+ */
+#define RECEIVED_FRAMES (CONFIG_MPIPE_BASE_APP_SRC_POOL_NUM + 8)
+
 /* What G.711 carries: 8 kHz mono, one byte per sample, 20 ms per packet */
 #define PCMU_SAMPLE_RATE 8000U
 #define PCMU_PACKET_US   20000U
@@ -204,6 +210,19 @@ struct Media {
 	/* Uptime at which the first block of the microphone was captured, in microseconds */
 	uint64_t microphone_start_us;
 
+	/*
+	 * Running time of the display pipeline at which each piece of the stream
+	 * went in, with the timestamp of the peer, and the timestamp of the piece
+	 * that made the picture on the display.
+	 */
+	struct k_spinlock received_lock;
+	struct {
+		uint64_t pushed_us;
+		uint64_t timestamp_ns;
+	} received[RECEIVED_FRAMES];
+	uint32_t received_count;
+	uint64_t displayed_timestamp_ns;
+
 	atomic_t failure;
 	atomic_t keyframe_request;
 	atomic_t displayed_frames;
@@ -287,7 +306,25 @@ static void media_displayed_cb(uint8_t *frame, uint16_t width, uint16_t height, 
 	ARG_UNUSED(width);
 	ARG_UNUSED(height);
 	ARG_UNUSED(pixfmt);
-	ARG_UNUSED(in);
+
+	/*
+	 * The picture has the timestamp of the piece that completed it: the last
+	 * one that went in at that time or before. The pieces of one frame may go
+	 * in at the same time; the peer gave them the same timestamp.
+	 */
+	K_SPINLOCK(&media->received_lock) {
+		uint64_t pts = mpipe_buffer_get_meta(in)->pts;
+		uint64_t pushed_us = 0U;
+
+		media->displayed_timestamp_ns = 0U;
+		for (size_t i = 0; i < ARRAY_SIZE(media->received); i++) {
+			if (media->received[i].pushed_us <= pts &&
+			    media->received[i].pushed_us >= pushed_us) {
+				pushed_us = media->received[i].pushed_us;
+				media->displayed_timestamp_ns = media->received[i].timestamp_ns;
+			}
+		}
+	}
 
 	atomic_inc(&media->displayed_frames);
 }
@@ -883,6 +920,15 @@ static int media_receive_video(struct Media *media, const MediaFrame *frame)
 		return -E2BIG;
 	}
 
+	/* Before the push: the picture may be on the display when the push returns */
+	K_SPINLOCK(&media->received_lock) {
+		media->received[media->received_count % ARRAY_SIZE(media->received)].pushed_us =
+			mpipe_element_running_time(&media->encoded_src.src.element);
+		media->received[media->received_count % ARRAY_SIZE(media->received)].timestamp_ns =
+			frame->timestamp_ns;
+		media->received_count++;
+	}
+
 	if (mpipe_app_src_push(&media->encoded_src, frame->data, (uint32_t)frame->size,
 			       K_NO_WAIT) != 0) {
 		/* The frames after this one refer to it: the peer must start again */
@@ -959,6 +1005,21 @@ uint64_t media_decoded(Media *media, MediaKind kind)
 
 	return (uint64_t)atomic_get((kind == MEDIA_VIDEO) ? &media->displayed_frames
 							  : &media->played_packets);
+}
+
+uint64_t media_decoded_timestamp_ns(Media *media, MediaKind kind)
+{
+	uint64_t timestamp_ns = 0U;
+
+	if (media == NULL || kind != MEDIA_VIDEO) {
+		return 0U;
+	}
+
+	K_SPINLOCK(&media->received_lock) {
+		timestamp_ns = media->displayed_timestamp_ns;
+	}
+
+	return timestamp_ns;
 }
 
 int media_destroy(Media *media)

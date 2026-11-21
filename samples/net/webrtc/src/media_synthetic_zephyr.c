@@ -37,6 +37,7 @@ struct Media {
 	uint64_t video_index;
 	uint64_t generated_video;
 	uint64_t decoded_video;
+	uint64_t decoded_video_timestamp_ns;
 	bool video_enabled;
 	bool failed;
 	bool started;
@@ -268,6 +269,7 @@ int media_receive(Media *media, MediaKind kind, const MediaFrame *frame)
 				return -EBADMSG;
 			}
 			media->decoded_video++;
+			media->decoded_video_timestamp_ns = frame->timestamp_ns;
 		}
 		return 0;
 	}
@@ -294,6 +296,14 @@ uint64_t media_decoded(Media *media, MediaKind kind)
 	return kind == MEDIA_AUDIO   ? media->decoded_audio
 	       : kind == MEDIA_VIDEO ? media->decoded_video
 				     : 0U;
+}
+
+uint64_t media_decoded_timestamp_ns(Media *media, MediaKind kind)
+{
+	if (media == NULL || kind != MEDIA_VIDEO) {
+		return 0U;
+	}
+	return media->decoded_video_timestamp_ns;
 }
 
 uint64_t media_zephyr_generated_audio(void)

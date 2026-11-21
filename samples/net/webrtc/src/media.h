@@ -38,5 +38,10 @@ int media_receive(Media *media, MediaKind kind, const MediaFrame *frame);
 void media_request_keyframe(Media *media);
 bool media_take_keyframe_request(Media *media);
 uint64_t media_decoded(Media *media, MediaKind kind);
+/*
+ * timestamp_ns that media_receive() got with the frame media_decoded()
+ * counted last. 0 when the media does not keep it.
+ */
+uint64_t media_decoded_timestamp_ns(Media *media, MediaKind kind);
 int media_destroy(Media *media);
 #endif

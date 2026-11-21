@@ -1147,6 +1147,15 @@ uint64_t media_decoded(Media *media, MediaKind kind)
 				     : 0U;
 }
 
+uint64_t media_decoded_timestamp_ns(Media *media, MediaKind kind)
+{
+	ARG_UNUSED(media);
+	ARG_UNUSED(kind);
+
+	/* The frames lose their timestamp in the queue to the decoder thread */
+	return 0U;
+}
+
 uint64_t media_zephyr_generated_audio(void)
 {
 	return hardware_media.generated_audio;

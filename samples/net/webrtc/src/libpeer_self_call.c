@@ -31,6 +31,7 @@
 
 #define SELF_CALL_SDP_SIZE  8096U
 #define SELF_CALL_REPORT_MS 1000U
+#define VIDEO_CLOCK_RATE    90000U
 
 static struct libpeer_endpoint caller;
 static struct libpeer_endpoint callee;
@@ -57,10 +58,23 @@ static void video_received(const uint8_t *data, size_t size, uint32_t rtp_timest
 	MediaFrame frame = {
 		.data = data,
 		.size = size,
-		.timestamp_ns = (uint64_t)rtp_timestamp * NSEC_PER_SEC / 90000U,
+		.timestamp_ns = (uint64_t)rtp_timestamp * NSEC_PER_SEC / VIDEO_CLOCK_RATE,
 	};
 
 	(void)media_receive(user_data, MEDIA_VIDEO, &frame);
+}
+
+/*
+ * Time since the capture of a frame, in milliseconds, from the timestamp the
+ * callee gave to the media with it. Both endpoints share the clock of the
+ * board, so the RTP timestamp of a frame is its capture time.
+ */
+static uint32_t frame_age_ms(uint64_t timestamp_ns)
+{
+	uint32_t now = (uint32_t)(libpeer_endpoint_now_us() * VIDEO_CLOCK_RATE / USEC_PER_SEC);
+	uint32_t rtp_timestamp = (uint32_t)(timestamp_ns * VIDEO_CLOCK_RATE / NSEC_PER_SEC);
+
+	return (uint32_t)(((uint64_t)(now - rtp_timestamp) * MSEC_PER_SEC) / VIDEO_CLOCK_RATE);
 }
 
 /* The callee asks for a key frame: the caller's encoder is in the same media */
@@ -138,6 +152,11 @@ static int stream(Media *media)
 	uint64_t next_report = platform_now_ms() + SELF_CALL_REPORT_MS;
 	uint64_t sent[2] = {0};
 	uint64_t shown = 0;
+	uint64_t seen = 0;
+	uint32_t latency_min = UINT32_MAX;
+	uint32_t latency_max = 0;
+	uint64_t latency_sum = 0;
+	uint32_t measured = 0;
 
 	while (platform_now_ms() < deadline) {
 		bool idle = true;
@@ -178,16 +197,41 @@ static int stream(Media *media)
 			idle = false;
 		}
 
+		/*
+		 * A frame reached the display since the last pass. The media says
+		 * which one, so a frame lost on the way does not shift the others.
+		 */
+		if (seen < media_decoded(media, MEDIA_VIDEO)) {
+			uint64_t timestamp_ns = media_decoded_timestamp_ns(media, MEDIA_VIDEO);
+
+			seen = media_decoded(media, MEDIA_VIDEO);
+			if (timestamp_ns != 0U) {
+				uint32_t age = frame_age_ms(timestamp_ns);
+
+				latency_min = MIN(latency_min, age);
+				latency_max = MAX(latency_max, age);
+				latency_sum += age;
+				measured++;
+			}
+		}
+
 		if (platform_now_ms() >= next_report) {
 			uint64_t now_shown = media_decoded(media, MEDIA_VIDEO);
 
-			platform_log("info", "self_call",
-				     "video_sent=%llu video_shown=%llu fps=%llu audio_sent=%llu "
-				     "audio_played=%llu cpu=%u",
-				     sent[MEDIA_VIDEO], now_shown, now_shown - shown,
-				     sent[MEDIA_AUDIO], media_decoded(media, MEDIA_AUDIO),
-				     cpu_load());
+			platform_log(
+				"info", "self_call",
+				"video_sent=%llu video_shown=%llu fps=%llu latency_ms=%u/%u/%u "
+				"audio_sent=%llu audio_played=%llu cpu=%u",
+				sent[MEDIA_VIDEO], now_shown, now_shown - shown,
+				(measured > 0U) ? latency_min : 0U,
+				(measured > 0U) ? (uint32_t)(latency_sum / measured) : 0U,
+				latency_max, sent[MEDIA_AUDIO], media_decoded(media, MEDIA_AUDIO),
+				cpu_load());
 			shown = now_shown;
+			latency_min = UINT32_MAX;
+			latency_max = 0;
+			latency_sum = 0;
+			measured = 0;
 			next_report += SELF_CALL_REPORT_MS;
 		}
 
