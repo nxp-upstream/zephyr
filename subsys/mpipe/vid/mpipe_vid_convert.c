@@ -436,6 +436,7 @@ static int vid_convert_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 	}
 
 	mpipe_buffer_get_meta(out)->bytes_used = out_sz;
+	mpipe_buffer_get_meta(out)->pts = mpipe_buffer_get_meta(in_buf)->pts;
 	out->len = out_sz;
 
 	if (mpipe_buffer_get_meta(out)->driver_buf != NULL) {
