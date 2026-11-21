@@ -1,0 +1,31 @@
+sample:
+  name: H.264 encode and decode pipeline sample
+
+common:
+  tags:
+    - mpipe
+    - video
+    - samples
+  modules:
+    - h264swdec
+    - minih264
+
+tests:
+  sample.mpipe.h264_enc_dec:
+    platform_allow:
+      - native_sim/native/64
+    integration_platforms:
+      - native_sim/native/64
+    extra_args:
+      - SNIPPET="video-sw-generator"
+    harness: console
+    harness_config:
+      type: one_line
+      regex:
+        - "end of stream"
+  sample.mpipe.h264_enc_dec.rt1170:
+    build_only: true
+    platform_allow:
+      - mimxrt1170_evk@B/mimxrt1176/cm7
+    extra_args:
+      - SHIELD="nxp_btb44_ov5640;rk055hdmipi4ma0"
