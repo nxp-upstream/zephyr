@@ -1,0 +1,13 @@
+tests:
+  mpipe.h264:
+    platform_allow:
+      - native_sim/native/64
+    integration_platforms:
+      - native_sim/native/64
+    modules:
+      - h264swdec
+      - minih264
+    tags:
+      - mpipe
+      - video
+    timeout: 60
