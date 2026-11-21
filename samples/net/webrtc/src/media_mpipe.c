@@ -44,6 +44,7 @@
 
 #include <zephyr/mpipe/mpipe.h>
 #include <zephyr/mpipe/aud/mpipe_aud_dmic_src.h>
+#include <zephyr/mpipe/aud/mpipe_aud_gain.h>
 #include <zephyr/mpipe/aud/mpipe_aud_i2s_codec_sink.h>
 #include <zephyr/mpipe/aud/mpipe_aud_raw_parser.h>
 #include <zephyr/mpipe/base/mpipe_app_sink.h>
@@ -81,6 +82,7 @@ enum {
 	TRANSFORM_ID,
 	DISPLAY_CAPS_ID,
 	CODEC_ID,
+	GAIN_ID,
 	PARSER_ID,
 	QUEUE_ID,
 	PROBE_ID,
@@ -193,11 +195,13 @@ struct Media {
 	struct mpipe microphone_pipe;
 	struct mpipe_aud_dmic_src microphone;
 	struct mpipe_caps_filter microphone_caps;
+	struct mpipe_aud_gain microphone_gain;
 	struct mpipe_app_sink captured_sink;
 
 	struct mpipe headphones_pipe;
 	struct mpipe_app_src received_src;
 	struct mpipe_aud_raw_parser parser;
+	struct mpipe_aud_gain headphones_gain;
 	struct mpipe_queue queue;
 	struct mpipe_aud_i2s_codec_sink headphones;
 
@@ -585,9 +589,10 @@ static int media_build_display(struct Media *media)
 	return ret;
 }
 
-/* aud_dmic_src -> caps_filter -> app_sink */
+/* aud_dmic_src -> caps_filter -> aud_gain -> app_sink */
 static int media_build_microphone(struct Media *media)
 {
+	static const int gain = CONFIG_ZEPHYRTC_MICROPHONE_GAIN;
 	struct mpipe_structure caps;
 	int ret;
 
@@ -600,11 +605,19 @@ static int media_build_microphone(struct Media *media)
 		ret = mpipe_caps_filter_init(&media->microphone_caps, CAPS_FILTER_ID);
 	}
 	if (ret == 0) {
+		ret = mpipe_aud_gain_init(&media->microphone_gain, GAIN_ID);
+	}
+	if (ret == 0) {
 		ret = mpipe_app_sink_init(&media->captured_sink, SINK_ID);
 	}
 	if (ret == 0) {
 		ret = mpipe_object_set_properties((struct mpipe_object *)&media->microphone,
 						  MPIPE_PROP_AUD_SRC_SLAB_PTR, &microphone_slab,
+						  MPIPE_PROP_LIST_END);
+	}
+	if (ret == 0) {
+		ret = mpipe_object_set_properties((struct mpipe_object *)&media->microphone_gain,
+						  MPIPE_PROP_AUD_TRANSFORM_GAIN, &gain,
 						  MPIPE_PROP_LIST_END);
 	}
 
@@ -621,18 +634,20 @@ static int media_build_microphone(struct Media *media)
 		ret = mpipe_bin_add((struct mpipe_bin *)&media->microphone_pipe,
 				    (struct mpipe_element *)&media->microphone,
 				    (struct mpipe_element *)&media->microphone_caps,
+				    (struct mpipe_element *)&media->microphone_gain,
 				    (struct mpipe_element *)&media->captured_sink, NULL);
 	}
 	if (ret == 0) {
 		ret = mpipe_element_link((struct mpipe_element *)&media->microphone,
 					 (struct mpipe_element *)&media->microphone_caps,
+					 (struct mpipe_element *)&media->microphone_gain,
 					 (struct mpipe_element *)&media->captured_sink, NULL);
 	}
 
 	return ret;
 }
 
-/* app_src -> aud_raw_parser -> queue -> aud_i2s_codec_sink */
+/* app_src -> aud_raw_parser -> aud_gain -> queue -> aud_i2s_codec_sink */
 static int media_build_headphones(struct Media *media)
 {
 	static const uint32_t sample_rate = HEADPHONES_SAMPLE_RATE;
@@ -642,6 +657,7 @@ static int media_build_headphones(struct Media *media)
 	static const uint8_t queue_size = HEADPHONES_QUEUE_BLOCKS;
 	static const enum mpipe_base_queue_leak leak = MPIPE_BASE_QUEUE_LEAK_OLDEST;
 	static const int priority = AUDIO_THREAD_PRIORITY;
+	static const int gain = CONFIG_ZEPHYRTC_HEADPHONES_GAIN;
 	int ret;
 
 	ret = media_pipeline_init(&media->headphones_pipe, HEADPHONES_PIPE_ID,
@@ -651,6 +667,9 @@ static int media_build_headphones(struct Media *media)
 	}
 	if (ret == 0) {
 		ret = mpipe_aud_raw_parser_init(&media->parser, PARSER_ID);
+	}
+	if (ret == 0) {
+		ret = mpipe_aud_gain_init(&media->headphones_gain, GAIN_ID);
 	}
 	if (ret == 0) {
 		ret = mpipe_queue_init(&media->queue, QUEUE_ID);
@@ -669,6 +688,11 @@ static int media_build_headphones(struct Media *media)
 			MPIPE_PROP_AUD_RAW_PARSER_FRAME_INTERVAL, &block_us, MPIPE_PROP_LIST_END);
 	}
 	if (ret == 0) {
+		ret = mpipe_object_set_properties((struct mpipe_object *)&media->headphones_gain,
+						  MPIPE_PROP_AUD_TRANSFORM_GAIN, &gain,
+						  MPIPE_PROP_LIST_END);
+	}
+	if (ret == 0) {
 		ret = mpipe_object_set_properties(
 			(struct mpipe_object *)&media->queue, MPIPE_PROP_BASE_QUEUE_SIZE,
 			&queue_size, MPIPE_PROP_BASE_QUEUE_LEAK, &leak,
@@ -683,12 +707,14 @@ static int media_build_headphones(struct Media *media)
 		ret = mpipe_bin_add((struct mpipe_bin *)&media->headphones_pipe,
 				    (struct mpipe_element *)&media->received_src,
 				    (struct mpipe_element *)&media->parser,
+				    (struct mpipe_element *)&media->headphones_gain,
 				    (struct mpipe_element *)&media->queue,
 				    (struct mpipe_element *)&media->headphones, NULL);
 	}
 	if (ret == 0) {
 		ret = mpipe_element_link((struct mpipe_element *)&media->received_src,
 					 (struct mpipe_element *)&media->parser,
+					 (struct mpipe_element *)&media->headphones_gain,
 					 (struct mpipe_element *)&media->queue,
 					 (struct mpipe_element *)&media->headphones, NULL);
 	}

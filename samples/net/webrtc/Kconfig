@@ -177,6 +177,25 @@ config ZEPHYRTC_HEADPHONES_SAMPLE_RATE
 	  Rate the received audio is played at, a multiple of the 8 kHz of
 	  G.711 that the audio codec of the board supports.
 
+config ZEPHYRTC_MICROPHONE_GAIN
+	int "Gain of the microphone, in percent"
+	range 0 1000
+	default 300
+	help
+	  Gain of the aud_gain element behind the microphone, 100 for unity
+	  and 0 to mute. Speech at arm's length from the microphones of the
+	  MIMXRT1170-EVKB peaks around a third of full scale, and the peer
+	  hears it as it is sent: the default brings it to full scale, and
+	  the loudest syllables are clipped.
+
+config ZEPHYRTC_HEADPHONES_GAIN
+	int "Gain of the headphones, in percent"
+	range 0 1000
+	default 100
+	help
+	  Gain of the aud_gain element in front of the audio codec, 100 for
+	  unity and 0 to mute.
+
 config ZEPHYRTC_DISPLAY_PLANE
 	int "Display plane showing the video of the peer"
 	default -1
