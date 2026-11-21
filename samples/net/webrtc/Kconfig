@@ -133,6 +133,14 @@ config ZEPHYRTC_VIDEO_HEIGHT
 	  Height in pixels of the frames the camera delivers and of the frames
 	  the peer sends. The codec memory is reserved for this size.
 
+config ZEPHYRTC_VIDEO_FPS
+	int "Frame rate of the camera"
+	range 1 120
+	default 30
+	help
+	  Frames per second asked of the camera, which is also the rate the
+	  video is sent at as long as the encoder keeps up.
+
 config ZEPHYRTC_VIDEO_QP
 	int "Quantizer of the encoder"
 	range 10 51
@@ -178,6 +186,57 @@ config ZEPHYRTC_DISPLAY_Y
 	default 0
 	help
 	  Row of the display where the top edge of the frames goes.
+
+config ZEPHYRTC_CODE_RELOCATE
+	bool "Relocate the code of the media and of the network into RAM"
+	select CODE_DATA_RELOCATION
+	help
+	  Run from RAM, instead of the flash, the code every frame and every
+	  packet goes through: the encoder, the decoder, the pixel format
+	  conversions, SRTP, the WebRTC stack and the IP stack. On a
+	  microcontroller that executes in place from a serial flash this is
+	  where most of their time goes.
+
+if ZEPHYRTC_CODE_RELOCATE
+
+config ZEPHYRTC_MEDIA_CODE_RAM_NAME
+	string "Media code RAM location"
+	default "RAM"
+	help
+	  Memory region the codecs, the pixel format conversions, SRTP and the
+	  WebRTC stack are relocated to.
+
+config ZEPHYRTC_NET_CODE_RAM_NAME
+	string "IP stack code RAM location"
+	default "RAM"
+	help
+	  Memory region the IP stack is relocated to.
+
+endif # ZEPHYRTC_CODE_RELOCATE
+
+config ZEPHYRTC_CODEC_DATA_RELOCATE
+	bool "Relocate the codec memory"
+	select CODE_DATA_RELOCATION
+	help
+	  Place the state and working area of the encoder and the heap of the
+	  decoder in named memory regions, on a board whose default RAM is
+	  slower than another one it has.
+
+if ZEPHYRTC_CODEC_DATA_RELOCATE
+
+config ZEPHYRTC_ENCODER_RAM_NAME
+	string "Encoder memory location"
+	default "RAM"
+	help
+	  Memory region holding the state and working area of the encoder.
+
+config ZEPHYRTC_DECODER_RAM_NAME
+	string "Decoder memory location"
+	default "RAM"
+	help
+	  Memory region holding the heap of the decoder.
+
+endif # ZEPHYRTC_CODEC_DATA_RELOCATE
 
 endif # ZEPHYRTC_MEDIA_MPIPE
 

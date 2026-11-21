@@ -59,6 +59,26 @@ tests:
       - EXTRA_DTC_OVERLAY_FILE=boards/native_sim_native_64_mpipe.overlay
       - SNIPPET="video-sw-generator"
     harness: none
+  # RT1170 compile gate for the media on the Multimedia Pipeline subsystem, in a
+  # call of the board with itself.
+  sample.net.webrtc.rt1170_mpipe_self_call:
+    build_only: true
+    platform_allow:
+      - mimxrt1170_evk@B/mimxrt1176/cm7
+    extra_args:
+      - EXTRA_CONF_FILE="overlay-self-call.conf;overlay-mpipe.conf;overlay-mimxrt1170-mpipe.conf"
+      - SHIELD="nxp_btb44_ov5640;rk055hdmipi4ma0"
+    harness: none
+  # RT1170 compile gate for the media on the Multimedia Pipeline subsystem over Wi-Fi.
+  sample.net.webrtc.rt1170_mpipe_wifi:
+    build_only: true
+    platform_allow:
+      - mimxrt1170_evk@B/mimxrt1176/cm7
+    extra_args:
+      - EXTRA_CONF_FILE="overlay-mimxrt1170-av.conf;overlay-mimxrt1170-wifi.conf;overlay-mpipe.conf;overlay-mimxrt1170-mpipe.conf"
+      - EXTRA_DTC_OVERLAY_FILE=boards/mimxrt1170_evk_mimxrt1176_cm7_B_wifi.overlay
+      - SHIELD="nxp_btb44_ov5640;rk055hdmipi4ma0"
+    harness: none
   # RT1170 compile gate for Ethernet plus synthetic H.264/PCMU software media.
   sample.net.webrtc.rt1170_video:
     build_only: true

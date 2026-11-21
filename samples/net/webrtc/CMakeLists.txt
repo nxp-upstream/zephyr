@@ -88,3 +88,36 @@ target_compile_options(app PRIVATE
   -Werror=incompatible-pointer-types
   -Werror=return-type
 )
+
+if(CONFIG_ZEPHYRTC_CODE_RELOCATE)
+  # The code every frame goes through: the two codec libraries and the pixel
+  # format conversions.
+  zephyr_code_relocate(LIBRARY modules__minih264
+    LOCATION "${CONFIG_ZEPHYRTC_MEDIA_CODE_RAM_NAME}_TEXT" NOKEEP)
+  zephyr_code_relocate(LIBRARY modules__h264swdec
+    LOCATION "${CONFIG_ZEPHYRTC_MEDIA_CODE_RAM_NAME}_TEXT" NOKEEP)
+  zephyr_code_relocate(FILES ${ZEPHYR_BASE}/subsys/mpipe/vid/mpipe_vid_convert_table.c
+    LOCATION "${CONFIG_ZEPHYRTC_MEDIA_CODE_RAM_NAME}_TEXT" NOKEEP)
+  # The code every packet goes through: SRTP with its cipher tables, the
+  # WebRTC stack and the IP stack.
+  zephyr_code_relocate(LIBRARY libpeer_srtp
+    LOCATION "${CONFIG_ZEPHYRTC_MEDIA_CODE_RAM_NAME}_TEXT" NOKEEP)
+  zephyr_code_relocate(
+    FILES ${ZEPHYR_LIBPEER_MODULE_DIR}/third_party/libsrtp/crypto/cipher/aes.c
+    LOCATION "${CONFIG_ZEPHYRTC_MEDIA_CODE_RAM_NAME}_RODATA" NOKEEP)
+  zephyr_code_relocate(LIBRARY libpeer
+    LOCATION "${CONFIG_ZEPHYRTC_MEDIA_CODE_RAM_NAME}_TEXT" NOKEEP)
+  zephyr_code_relocate(LIBRARY subsys__net__ip
+    LOCATION "${CONFIG_ZEPHYRTC_NET_CODE_RAM_NAME}_TEXT" NOKEEP)
+  zephyr_code_relocate(LIBRARY subsys__net
+    LOCATION "${CONFIG_ZEPHYRTC_NET_CODE_RAM_NAME}_TEXT" NOKEEP)
+endif()
+
+if(CONFIG_ZEPHYRTC_CODEC_DATA_RELOCATE)
+  # The memory the codecs work in: the state and working area of the encoder,
+  # the heap of the decoder.
+  zephyr_code_relocate(FILES ${ZEPHYR_BASE}/subsys/mpipe/vid/mpipe_vid_h264_encoder.c
+    LOCATION "${CONFIG_ZEPHYRTC_ENCODER_RAM_NAME}_BSS" NOKEEP)
+  zephyr_code_relocate(FILES ${ZEPHYR_BASE}/modules/h264swdec/zephyr_h264swdec.c
+    LOCATION "${CONFIG_ZEPHYRTC_DECODER_RAM_NAME}_NOINIT" NOKEEP)
+endif()

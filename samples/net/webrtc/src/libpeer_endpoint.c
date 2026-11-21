@@ -88,25 +88,16 @@ static void video_received(uint8_t *data, size_t size, uint32_t rtp_timestamp, v
 	}
 }
 
-/*
- * The report says which RTP timestamp the remote clock time ntp_timestamp
- * corresponds to. lag_ms is how far the last received packet is behind it.
- */
+/* A sender report of the remote peer, for the stream of one kind */
 static void sender_report_received(int video, uint64_t ntp_timestamp, uint32_t rtp_timestamp,
 				   void *user_data)
 {
 	struct libpeer_endpoint *endpoint = user_data;
-	const uint32_t clock_rate = video != 0 ? VIDEO_CLOCK_RATE : AUDIO_CLOCK_RATE;
-	const uint32_t received = endpoint->received_rtp_timestamp[video != 0 ? 1 : 0];
-	const int32_t lag = (int32_t)(rtp_timestamp - received);
+
+	ARG_UNUSED(ntp_timestamp);
+	ARG_UNUSED(rtp_timestamp);
 
 	endpoint->sender_reports[video != 0 ? 1 : 0]++;
-	platform_log("info", "sender_report",
-		     "peer=%s kind=%s count=%u ntp=%u.%06u rtp=%u received_rtp=%u lag_ms=%d",
-		     endpoint->name, video != 0 ? "video" : "audio",
-		     endpoint->sender_reports[video != 0 ? 1 : 0], (uint32_t)(ntp_timestamp >> 32),
-		     (uint32_t)(((ntp_timestamp & UINT32_MAX) * USEC_PER_SEC) >> 32), rtp_timestamp,
-		     received, (int)((int64_t)lag * 1000 / (int64_t)clock_rate));
 }
 
 static void keyframe_requested(void *user_data)
