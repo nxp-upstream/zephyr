@@ -1,0 +1,31 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * Camera to display. A board overlay completes it: the frame format in the
+ * caps filter, the stages its hardware offers between the filter and the sink.
+ */
+/ {
+	pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+		autostart;
+
+		camera_src: vid-src {
+			compatible = "zephyr,mpipe-vid-src";
+		};
+
+		frame_filter: caps-filter {
+			compatible = "zephyr,mpipe-caps-filter";
+			sources = <&camera_src>;
+			media = "video";
+		};
+
+		disp_sink: disp-sink {
+			compatible = "zephyr,mpipe-disp-sink";
+			sources = <&frame_filter>;
+		};
+	};
+};
