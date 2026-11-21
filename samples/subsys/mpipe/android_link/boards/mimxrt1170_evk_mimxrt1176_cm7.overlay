@@ -38,3 +38,5 @@ dmic_dev: &micfil {
 		decimation-filter-gain = <6>;
 	};
 };
+
+#include "../pipeline.dtsi"

@@ -3,107 +3,50 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-
 /*
- * Android link sample built on top of the mpipe media pipeline framework.
+ * Android link sample, its pipelines described in the devicetree.
  *
  * An Android phone (running an scrcpy-like client) connects over Wi-Fi or
- * Ethernet and streams MJPEG frames to this device over TCP. The frames are
- * fed into an mpipe pipeline that parses, decodes and displays them:
+ * Ethernet and streams MJPEG frames, raw PCM audio and gets the microphone of
+ * the board back, each on a TCP connection of its own. The three pipelines
+ * that carry them are described in pipeline.dtsi and built at boot:
  *
- *   video_src -> jpeg_parser -> caps_filter -> queue_parse -> jpeg_decoder
- *             -> queue_dec -> overlay -> disp_sink
+ *   video_src -> jpeg_parser -> caps_filter -> queue -> jpeg_decoder
+ *             -> queue -> overlay -> disp_sink
+ *   audio_src -> audio_parser -> queue -> i2s_sink
+ *   mic_src -> caps_filter -> gain -> queue -> mic_sink
  *
- * The overlay draws the demo's messages (the mode, the assistant call) as a
- * band at the top of the frames for a moment; while no phone streams, the
- * application writes the same band to the panel itself.
- *
- * and, with CONFIG_ANDROID_LINK_AUDIO, a second pipeline plays the raw PCM
- * the phone sends on its audio connection:
- *
- *   audio_src -> audio_parser -> queue_audio -> i2s_sink
- *
- * With CONFIG_ANDROID_LINK_MIC a third pipeline sends the board's microphone
- * to the phone as raw PCM, on a connection of its own:
- *
- *   mic_src -> mic_caps_filter -> mic_gain -> queue_mic -> mic_sink
- *
- * The phone opens its connections to one port, video first, then audio, then
- * control, then the microphone, so the application owns the listening socket,
- * accepts them in that order and hands the stream sockets to the pipelines'
- * socket source and sink. The streams are not synchronized with each other,
- * as in the phone's own client: each runs at the lowest latency it can. The
- * touch controller is read locally and injected touch events are sent back to
- * the phone over the control connection, which the application keeps; the
- * same connection tells the phone what to do with the microphone stream and
- * what to send on its audio connection, its playback or its microphone.
+ * The application keeps what is its own: the network, the listening socket
+ * and the order the phone opens its connections in, the stream sockets it
+ * hands to the socket elements, the control connection, the touch controller
+ * and the messages drawn by the overlay.
  */
 
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
-
 #include <zephyr/net/dhcpv4_server.h>
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/net_event.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/net/net_config.h>
 #include <zephyr/net/wifi_mgmt.h>
-
 #include <zephyr/zbus/zbus.h>
-
 #include <zephyr/drivers/video.h>
+
 #include <zephyr/mpipe/mpipe.h>
-#include <zephyr/mpipe/base/mpipe_caps_filter.h>
-#include <zephyr/mpipe/base/mpipe_queue.h>
+#include <zephyr/mpipe/mpipe_dt.h>
 #include <zephyr/mpipe/mpipe_message.h>
 #include <zephyr/mpipe/net/mpipe_socket_sink.h>
 #include <zephyr/mpipe/net/mpipe_socket_src.h>
-
-#include <zephyr/mpipe/img/mpipe_img_jpeg_parser.h>
-#include <zephyr/mpipe/img/mpipe_img_jpeg_decoder.h>
-#include <zephyr/mpipe/disp/mpipe_disp_sink.h>
-#include <zephyr/mpipe/vid/mpipe_vid_overlay.h>
 #include <zephyr/mpipe/utils/mpipe_player.h>
-#if defined(CONFIG_ANDROID_LINK_AUDIO)
-#include <zephyr/mpipe/aud/mpipe_aud_i2s_codec_sink.h>
-#include <zephyr/mpipe/aud/mpipe_aud_raw_parser.h>
-#endif
-#if defined(CONFIG_ANDROID_LINK_MIC)
-#include <zephyr/mpipe/aud/mpipe_aud_dmic_src.h>
-#include <zephyr/mpipe/aud/mpipe_aud_gain.h>
-#endif
+#include <zephyr/mpipe/vid/mpipe_vid_overlay.h>
 
 #include "osd.h"
 #include "screen.h"
-#include "zephyr/mpipe/mpipe_element.h"
 
 #define LOG_LEVEL CONFIG_LOG_DEFAULT_LEVEL
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(main);
-
-/* Element IDs (values are arbitrary; only uniqueness within the pipeline matters) */
-enum {
-	PIPE_ID,
-	VIDEO_SRC_ID,
-	JPEG_PARSER_ID,
-	QUEUE_PARSE_ID,
-	JPEG_DEC_ID,
-	QUEUE_DEC_ID,
-	CAPS_FILTER_ID,
-	OVERLAY_ID,
-	DISP_SINK_ID,
-	AUDIO_PIPE_ID,
-	AUDIO_SRC_ID,
-	AUDIO_PARSER_ID,
-	QUEUE_AUDIO_ID,
-	I2S_SINK_ID,
-	MIC_PIPE_ID,
-	MIC_SRC_ID,
-	MIC_CAPS_FILTER_ID,
-	MIC_GAIN_ID,
-	QUEUE_MIC_ID,
-	MIC_SINK_ID,
-};
 
 K_EVENT_DEFINE(application_event);
 
@@ -120,56 +63,22 @@ static struct in_addr server_addr = {{{192, 0, 2, 1}}};
 static struct in_addr netmask = {{{255, 255, 255, 0}}};
 #endif
 
-static struct mpipe_socket_src video_src;
-static struct mpipe_player player;
+/* The pipelines of the devicetree, their players and the elements the application reaches */
+#define VIDEO_PIPELINE DT_NODELABEL(video_pipeline)
+#define VIDEO_PLAYER   MPIPE_DT_PLAYER_GET(VIDEO_PIPELINE)
+#define VIDEO_SRC      MPIPE_DT_ELEMENT_GET(DT_NODELABEL(video_src))
+#define OVERLAY        MPIPE_DT_ELEMENT_GET(DT_NODELABEL(overlay))
 
 #if defined(CONFIG_ANDROID_LINK_AUDIO)
-/* What the phone sends with audio_codec=raw: 48 kHz, 16-bit, stereo */
-#define AUDIO_SAMPLE_RATE     48000
-#define AUDIO_BIT_WIDTH       16
-#define AUDIO_CHANNELS        2
-/* One I2S block covers 10 ms; the queue holds 150 ms of them against Wi-Fi jitter */
-#define AUDIO_BLOCK_US        10000
-#define AUDIO_QUEUE_BLOCKS    15
-
-static struct mpipe_socket_src audio_src;
-static struct mpipe_player audio_player;
-
-/* The I2S driver returns the blocks it has sent to this slab; it must not be cached */
-static __nocache struct k_mem_slab audio_slab;
+#define AUDIO_PIPELINE DT_NODELABEL(audio_pipeline)
+#define AUDIO_PLAYER   MPIPE_DT_PLAYER_GET(AUDIO_PIPELINE)
+#define AUDIO_SRC      MPIPE_DT_ELEMENT_GET(DT_NODELABEL(audio_src))
 #endif
-
-#if defined(CONFIG_ANDROID_LINK_MIC) || defined(CONFIG_ANDROID_LINK_AUDIO)
-/* Above the video decoder: a late audio block is lost, a late frame is only late */
-#define AUDIO_THREAD_PRIORITY 4
-#endif
-
-/*
- * Below every other thread of the demo: the decoder runs for a whole frame
- * at a time, and the receiver and the display, which only move a frame
- * along, must preempt it rather than wait for its time slice to end.
- */
-#define VIDEO_DECODE_THREAD_PRIORITY (CONFIG_MPIPE_THREAD_DEFAULT_PRIORITY + 1)
 
 #if defined(CONFIG_ANDROID_LINK_MIC)
-/*
- * What the microphone path produces and the phone expects: the MICFIL on the
- * RT1170 delivers 16 kHz 32-bit samples. Both slots of the PDM data line are
- * captured, since which one the board's microphone drives depends on the
- * board; the phone sums them.
- */
-#define MIC_SAMPLE_RATE  16000
-#define MIC_BIT_WIDTH    32
-#define MIC_CHANNELS     2
-/* One block covers 10 ms; the queue holds 100 ms of them against Wi-Fi back-pressure */
-#define MIC_BLOCK_US     10000
-#define MIC_QUEUE_BLOCKS 10
-
-static struct mpipe_socket_sink mic_sink;
-static struct mpipe_player mic_player;
-
-/* The DMIC driver fills blocks of this slab by DMA; it must not be cached */
-static __nocache struct k_mem_slab mic_slab;
+#define MIC_PIPELINE DT_NODELABEL(mic_pipeline)
+#define MIC_PLAYER   MPIPE_DT_PLAYER_GET(MIC_PIPELINE)
+#define MIC_SINK     MPIPE_DT_ELEMENT_GET(DT_NODELABEL(mic_sink))
 #endif
 
 static const struct device *const display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
@@ -189,382 +98,12 @@ static void stream_msg_cb(const struct zbus_channel *chan)
 
 ZBUS_LISTENER_DEFINE(stream_listener, stream_msg_cb);
 
-/*
- * Build the mpipe pipeline that renders the frames the phone sends to the
- * display. The video socket is handed to the source once a phone connects.
- */
-static int build_video_stream_pipeline(void)
+/* The end of the stream of a pipeline, or its failure, ends the session */
+static int observe_pipeline(struct mpipe *pipeline)
 {
-	static struct mpipe pipe;
-	static struct mpipe_img_jpeg_parser jpeg_parser;
-	static struct mpipe_img_jpeg_decoder jpeg_dec;
-	static struct mpipe_disp_sink disp_sink;
-	static struct mpipe_queue queue_parse;
-	static struct mpipe_queue queue_dec;
-	static struct mpipe_caps_filter caps_filter;
-	static struct mpipe_vid_overlay overlay;
-	int ret;
-
-	ret = mpipe_pipeline_init(&pipe, PIPE_ID);
-	if (ret < 0) {
-		return ret;
-	}
-	ret = mpipe_socket_src_init(&video_src, VIDEO_SRC_ID);
-	if (ret < 0) {
-		return ret;
-	}
-	ret = mpipe_img_jpeg_parser_init(&jpeg_parser, JPEG_PARSER_ID);
-	if (ret < 0) {
-		return ret;
-	}
-	ret = mpipe_img_jpeg_decoder_init(&jpeg_dec, JPEG_DEC_ID);
-	if (ret < 0) {
-		return ret;
-	}
-	ret = mpipe_disp_sink_init(&disp_sink, DISP_SINK_ID);
-	if (ret < 0) {
-		return ret;
-	}
-	ret = mpipe_queue_init(&queue_parse, QUEUE_PARSE_ID);
-	if (ret < 0) {
-		return ret;
-	}
-	ret = mpipe_queue_init(&queue_dec, QUEUE_DEC_ID);
-	if (ret < 0) {
-		return ret;
-	}
-	ret = mpipe_caps_filter_init(&caps_filter, CAPS_FILTER_ID);
-	if (ret < 0) {
-		return ret;
-	}
-	ret = mpipe_vid_overlay_init(&overlay, OVERLAY_ID);
-	if (ret < 0) {
-		return ret;
-	}
-	ret = osd_init(&overlay, display_dev);
-	if (ret < 0) {
-		return ret;
-	}
-
-	/*
-	 * The parser only tells the format: pin the frame size behind it so
-	 * that the decoder and the display negotiate the size the phone sends,
-	 * the panel's by default.
-	 */
-	struct mpipe_structure stream_caps;
-
-	ret = mpipe_structure_init_fields(
-		&stream_caps, MPIPE_MEDIA_VIDEO, MPIPE_CAPS_PIXEL_FORMAT, MPIPE_TYPE_UINT,
-		VIDEO_PIX_FMT_JPEG, MPIPE_CAPS_IMAGE_WIDTH, MPIPE_TYPE_UINT,
-		CONFIG_ANDROID_LINK_FRAME_WIDTH, MPIPE_CAPS_IMAGE_HEIGHT, MPIPE_TYPE_UINT,
-		CONFIG_ANDROID_LINK_FRAME_HEIGHT, MPIPE_CAPS_END);
-	if (ret != 0) {
-		return ret;
-	}
-	ret = mpipe_object_set_properties((struct mpipe_object *)&caps_filter,
-					  MPIPE_PROP_BASE_CAPS_FILTER_CAPS, &stream_caps,
-					  MPIPE_PROP_LIST_END);
-	if (ret < 0) {
-		return ret;
-	}
-
-	ret = mpipe_object_set_properties((struct mpipe_object *)&disp_sink,
-					  MPIPE_PROP_DISP_SINK_DEVICE, display_dev,
-					  MPIPE_PROP_LIST_END);
-	if (ret < 0) {
-		return ret;
-	}
-
-	/*
-	 * A mirror shows the newest frame, so a queue that fills because the
-	 * stage behind it is slower drops its oldest frame rather than holding
-	 * the producer: frames the decoder cannot keep up with are dropped
-	 * before being decoded, and the sender is never throttled into
-	 * buffering seconds of frames on its side. One frame is enough in front
-	 * of the decoder: every frame it holds while the decoder lags is a
-	 * frame of latency on the panel, for nothing, since the surplus is
-	 * dropped anyway.
-	 */
-	ret = mpipe_object_set_properties((struct mpipe_object *)&queue_parse,
-					  MPIPE_PROP_BASE_QUEUE_SIZE, &(uint8_t){1},
-					  MPIPE_PROP_BASE_QUEUE_LEAK,
-					  &(enum mpipe_base_queue_leak){MPIPE_BASE_QUEUE_LEAK_OLDEST},
-					  MPIPE_PROP_BASE_QUEUE_THREAD_PRIORITY,
-					  &(int){VIDEO_DECODE_THREAD_PRIORITY},
-					  MPIPE_PROP_LIST_END);
-	if (ret < 0) {
-		return ret;
-	}
-
-	ret = mpipe_object_set_properties((struct mpipe_object *)&queue_dec,
-					  MPIPE_PROP_BASE_QUEUE_SIZE, &(uint8_t){1},
-					  MPIPE_PROP_BASE_QUEUE_LEAK,
-					  &(enum mpipe_base_queue_leak){MPIPE_BASE_QUEUE_LEAK_OLDEST},
-					  MPIPE_PROP_LIST_END);
-	if (ret < 0) {
-		return ret;
-	}
-
-	/*
-	 * The queues are what split the graph across threads. Without them the
-	 * whole path - receive, parse, decode, display - runs on the source
-	 * thread, so the socket is not read again until a frame has been decoded
-	 * and blitted. With them the reader keeps filling the next buffer while
-	 * a frame is being decoded, and the decoder while a frame is displayed.
-	 */
-	ret = mpipe_bin_add((struct mpipe_bin *)&pipe, (struct mpipe_element *)&video_src,
-			    (struct mpipe_element *)&jpeg_parser,
-			    (struct mpipe_element *)&caps_filter,
-			    (struct mpipe_element *)&queue_parse, (struct mpipe_element *)&jpeg_dec,
-			    (struct mpipe_element *)&queue_dec, (struct mpipe_element *)&overlay,
-			    (struct mpipe_element *)&disp_sink, NULL);
-	if (ret < 0) {
-		LOG_ERR("Failed to add elements (%d)", ret);
-		return ret;
-	}
-
-	ret = mpipe_element_link(
-		(struct mpipe_element *)&video_src, (struct mpipe_element *)&jpeg_parser,
-		(struct mpipe_element *)&caps_filter, (struct mpipe_element *)&queue_parse,
-		(struct mpipe_element *)&jpeg_dec, (struct mpipe_element *)&queue_dec,
-		(struct mpipe_element *)&overlay, (struct mpipe_element *)&disp_sink, NULL);
-	if (ret < 0) {
-		LOG_ERR("Failed to link elements (%d)", ret);
-		return ret;
-	}
-
-	LOG_INF("Video pipeline linked.");
-
-	ret = zbus_chan_add_obs(mpipe_element_get_bus_chan((struct mpipe_element *)&pipe),
-				&stream_listener, K_FOREVER);
-	if (ret != 0) {
-		return ret;
-	}
-
-	return mpipe_player_init(&player, &pipe);
+	return zbus_chan_add_obs(mpipe_element_get_bus_chan((struct mpipe_element *)pipeline),
+				 &stream_listener, K_FOREVER);
 }
-
-#if defined(CONFIG_ANDROID_LINK_AUDIO)
-/*
- * Build the pipeline that plays the raw PCM the phone sends. The parser
- * announces the format, since the stream cannot, and cuts it into the blocks
- * the I2S sink hands to its driver; the queue in between holds enough of them
- * to ride through the jitter of the link.
- */
-static int build_audio_stream_pipeline(void)
-{
-	static struct mpipe audio_pipe;
-	static struct mpipe_aud_raw_parser audio_parser;
-	static struct mpipe_queue queue_audio;
-	static struct mpipe_aud_i2s_codec_sink i2s_sink;
-	uint32_t sample_rate = AUDIO_SAMPLE_RATE;
-	uint32_t bit_width = AUDIO_BIT_WIDTH;
-	uint32_t channels = AUDIO_CHANNELS;
-	uint32_t block_us = AUDIO_BLOCK_US;
-	int priority = AUDIO_THREAD_PRIORITY;
-	int ret;
-
-	ret = mpipe_pipeline_init(&audio_pipe, AUDIO_PIPE_ID);
-	if (ret < 0) {
-		return ret;
-	}
-	ret = mpipe_socket_src_init(&audio_src, AUDIO_SRC_ID);
-	if (ret < 0) {
-		return ret;
-	}
-	ret = mpipe_aud_raw_parser_init(&audio_parser, AUDIO_PARSER_ID);
-	if (ret < 0) {
-		return ret;
-	}
-	ret = mpipe_queue_init(&queue_audio, QUEUE_AUDIO_ID);
-	if (ret < 0) {
-		return ret;
-	}
-	ret = mpipe_aud_i2s_codec_sink_init(&i2s_sink, I2S_SINK_ID);
-	if (ret < 0) {
-		return ret;
-	}
-
-	ret = mpipe_object_set_properties((struct mpipe_object *)&audio_pipe,
-					  MPIPE_PROP_PIPELINE_THREAD_PRIORITY, &priority,
-					  MPIPE_PROP_LIST_END);
-	if (ret < 0) {
-		return ret;
-	}
-
-	ret = mpipe_object_set_properties(
-		(struct mpipe_object *)&audio_parser, MPIPE_PROP_AUD_RAW_PARSER_SLAB_PTR,
-		&audio_slab, MPIPE_PROP_AUD_RAW_PARSER_SAMPLE_RATE, &sample_rate,
-		MPIPE_PROP_AUD_RAW_PARSER_BITWIDTH, &bit_width,
-		MPIPE_PROP_AUD_RAW_PARSER_NUM_CHANNELS, &channels,
-		MPIPE_PROP_AUD_RAW_PARSER_FRAME_INTERVAL, &block_us, MPIPE_PROP_LIST_END);
-	if (ret < 0) {
-		return ret;
-	}
-
-	ret = mpipe_object_set_properties(
-		(struct mpipe_object *)&queue_audio, MPIPE_PROP_BASE_QUEUE_SIZE,
-		&(uint8_t){AUDIO_QUEUE_BLOCKS}, MPIPE_PROP_BASE_QUEUE_LEAK,
-		&(enum mpipe_base_queue_leak){MPIPE_BASE_QUEUE_LEAK_OLDEST},
-		MPIPE_PROP_BASE_QUEUE_THREAD_PRIORITY, &priority, MPIPE_PROP_LIST_END);
-	if (ret < 0) {
-		return ret;
-	}
-
-	ret = mpipe_object_set_properties((struct mpipe_object *)&i2s_sink,
-					  MPIPE_PROP_AUD_SINK_SLAB_PTR, &audio_slab,
-					  MPIPE_PROP_LIST_END);
-	if (ret < 0) {
-		return ret;
-	}
-
-	ret = mpipe_bin_add((struct mpipe_bin *)&audio_pipe, (struct mpipe_element *)&audio_src,
-			    (struct mpipe_element *)&audio_parser,
-			    (struct mpipe_element *)&queue_audio, (struct mpipe_element *)&i2s_sink,
-			    NULL);
-	if (ret < 0) {
-		LOG_ERR("Failed to add the audio elements (%d)", ret);
-		return ret;
-	}
-
-	ret = mpipe_element_link(
-		(struct mpipe_element *)&audio_src, (struct mpipe_element *)&audio_parser,
-		(struct mpipe_element *)&queue_audio, (struct mpipe_element *)&i2s_sink, NULL);
-	if (ret < 0) {
-		LOG_ERR("Failed to link the audio elements (%d)", ret);
-		return ret;
-	}
-
-	LOG_INF("Audio pipeline linked.");
-
-	ret = zbus_chan_add_obs(mpipe_element_get_bus_chan((struct mpipe_element *)&audio_pipe),
-				&stream_listener, K_FOREVER);
-	if (ret != 0) {
-		return ret;
-	}
-
-	return mpipe_player_init(&audio_player, &audio_pipe);
-}
-#endif
-
-#if defined(CONFIG_ANDROID_LINK_MIC)
-/*
- * Build the pipeline that sends the microphone to the phone. The caps filter
- * pins the format the phone expects out of what the DMIC offers; the gain
- * lifts the microphone's soft signal to a speaking level in place; the queue
- * keeps a slow link from holding the capture thread, dropping the oldest
- * block instead; the socket sink writes the blocks to the connection.
- */
-static int build_mic_stream_pipeline(void)
-{
-	static struct mpipe mic_pipe;
-	static struct mpipe_aud_dmic_src mic_src;
-	static struct mpipe_caps_filter mic_caps_filter;
-	static struct mpipe_aud_gain mic_gain;
-	static struct mpipe_queue queue_mic;
-	struct mpipe_structure mic_caps;
-	int priority = AUDIO_THREAD_PRIORITY;
-	int ret;
-
-	ret = mpipe_pipeline_init(&mic_pipe, MIC_PIPE_ID);
-	if (ret < 0) {
-		return ret;
-	}
-	ret = mpipe_aud_dmic_src_init(&mic_src, MIC_SRC_ID);
-	if (ret < 0) {
-		return ret;
-	}
-	ret = mpipe_caps_filter_init(&mic_caps_filter, MIC_CAPS_FILTER_ID);
-	if (ret < 0) {
-		return ret;
-	}
-	ret = mpipe_aud_gain_init(&mic_gain, MIC_GAIN_ID);
-	if (ret < 0) {
-		return ret;
-	}
-	ret = mpipe_queue_init(&queue_mic, QUEUE_MIC_ID);
-	if (ret < 0) {
-		return ret;
-	}
-	ret = mpipe_socket_sink_init(&mic_sink, MIC_SINK_ID);
-	if (ret < 0) {
-		return ret;
-	}
-
-	ret = mpipe_object_set_properties((struct mpipe_object *)&mic_pipe,
-					  MPIPE_PROP_PIPELINE_THREAD_PRIORITY, &priority,
-					  MPIPE_PROP_LIST_END);
-	if (ret < 0) {
-		return ret;
-	}
-
-	ret = mpipe_object_set_properties((struct mpipe_object *)&mic_src,
-					  MPIPE_PROP_AUD_SRC_SLAB_PTR, &mic_slab,
-					  MPIPE_PROP_LIST_END);
-	if (ret < 0) {
-		return ret;
-	}
-
-	ret = mpipe_structure_init_fields(&mic_caps, MPIPE_MEDIA_AUDIO_PCM, MPIPE_CAPS_SAMPLE_RATE,
-					  MPIPE_TYPE_UINT, MIC_SAMPLE_RATE, MPIPE_CAPS_BIT_WIDTH,
-					  MPIPE_TYPE_UINT, MIC_BIT_WIDTH, MPIPE_CAPS_NUM_CHANNELS,
-					  MPIPE_TYPE_UINT, MIC_CHANNELS, MPIPE_CAPS_FRAME_INTERVAL,
-					  MPIPE_TYPE_UINT, MIC_BLOCK_US, MPIPE_CAPS_END);
-	if (ret != 0) {
-		return ret;
-	}
-	ret = mpipe_object_set_properties((struct mpipe_object *)&mic_caps_filter,
-					  MPIPE_PROP_BASE_CAPS_FILTER_CAPS, &mic_caps,
-					  MPIPE_PROP_LIST_END);
-	if (ret < 0) {
-		return ret;
-	}
-
-	ret = mpipe_object_set_properties(
-		(struct mpipe_object *)&mic_gain, MPIPE_PROP_AUD_TRANSFORM_GAIN,
-		&(int){CONFIG_ANDROID_LINK_MIC_GAIN}, MPIPE_PROP_LIST_END);
-	if (ret < 0) {
-		return ret;
-	}
-
-	ret = mpipe_object_set_properties(
-		(struct mpipe_object *)&queue_mic, MPIPE_PROP_BASE_QUEUE_SIZE,
-		&(uint8_t){MIC_QUEUE_BLOCKS}, MPIPE_PROP_BASE_QUEUE_LEAK,
-		&(enum mpipe_base_queue_leak){MPIPE_BASE_QUEUE_LEAK_OLDEST},
-		MPIPE_PROP_BASE_QUEUE_THREAD_PRIORITY, &priority, MPIPE_PROP_LIST_END);
-	if (ret < 0) {
-		return ret;
-	}
-
-	ret = mpipe_bin_add((struct mpipe_bin *)&mic_pipe, (struct mpipe_element *)&mic_src,
-			    (struct mpipe_element *)&mic_caps_filter,
-			    (struct mpipe_element *)&mic_gain, (struct mpipe_element *)&queue_mic,
-			    (struct mpipe_element *)&mic_sink, NULL);
-	if (ret < 0) {
-		LOG_ERR("Failed to add the microphone elements (%d)", ret);
-		return ret;
-	}
-
-	ret = mpipe_element_link(
-		(struct mpipe_element *)&mic_src, (struct mpipe_element *)&mic_caps_filter,
-		(struct mpipe_element *)&mic_gain, (struct mpipe_element *)&queue_mic,
-		(struct mpipe_element *)&mic_sink, NULL);
-	if (ret < 0) {
-		LOG_ERR("Failed to link the microphone elements (%d)", ret);
-		return ret;
-	}
-
-	LOG_INF("Microphone pipeline linked.");
-
-	ret = zbus_chan_add_obs(mpipe_element_get_bus_chan((struct mpipe_element *)&mic_pipe),
-				&stream_listener, K_FOREVER);
-	if (ret != 0) {
-		return ret;
-	}
-
-	return mpipe_player_init(&mic_player, &mic_pipe);
-}
-#endif
 
 /*
  * Listen on the port the phone connects to. The phone opens video, (audio,)
@@ -754,27 +293,25 @@ int main(void)
 	demo_mode_init();
 #endif
 
-	ret = build_video_stream_pipeline();
-	if (ret < 0) {
-		LOG_ERR("Failed to build pipeline (%d)", ret);
-		return ret;
+	/* The overlay draws the messages of the demo */
+	ret = osd_init((struct mpipe_vid_overlay *)OVERLAY, display_dev);
+	if (ret == 0) {
+		ret = observe_pipeline(MPIPE_DT_PIPELINE_GET(VIDEO_PIPELINE));
 	}
-
 #if defined(CONFIG_ANDROID_LINK_AUDIO)
-	ret = build_audio_stream_pipeline();
-	if (ret < 0) {
-		LOG_ERR("Failed to build the audio pipeline (%d)", ret);
-		return ret;
+	if (ret == 0) {
+		ret = observe_pipeline(MPIPE_DT_PIPELINE_GET(AUDIO_PIPELINE));
 	}
 #endif
-
 #if defined(CONFIG_ANDROID_LINK_MIC)
-	ret = build_mic_stream_pipeline();
-	if (ret < 0) {
-		LOG_ERR("Failed to build the microphone pipeline (%d)", ret);
-		return ret;
+	if (ret == 0) {
+		ret = observe_pipeline(MPIPE_DT_PIPELINE_GET(MIC_PIPELINE));
 	}
 #endif
+	if (ret < 0) {
+		LOG_ERR("Failed to set the pipelines up (%d)", ret);
+		return ret;
+	}
 
 	server_fd = scrcpy_listen(CONFIG_ANDROID_LINK_PORT);
 	if (server_fd < 0) {
@@ -847,18 +384,18 @@ int main(void)
 		 */
 		k_event_clear(&application_event, EVENT_TOUCH_ERROR | EVENT_STREAM_END);
 
-		ret = hand_socket(&player, (struct mpipe_object *)&video_src,
-				  MPIPE_PROP_SOCKET_SRC_FD, video_fd);
+		ret = hand_socket(VIDEO_PLAYER, &VIDEO_SRC->object, MPIPE_PROP_SOCKET_SRC_FD,
+				  video_fd);
 #if defined(CONFIG_ANDROID_LINK_AUDIO)
 		if (ret == 0) {
-			ret = hand_socket(&audio_player, (struct mpipe_object *)&audio_src,
+			ret = hand_socket(AUDIO_PLAYER, &AUDIO_SRC->object,
 					  MPIPE_PROP_SOCKET_SRC_FD, audio_fd);
 		}
 #endif
 #if defined(CONFIG_ANDROID_LINK_MIC)
 		if (ret == 0) {
-			ret = hand_socket(&mic_player, (struct mpipe_object *)&mic_sink,
-					  MPIPE_PROP_SOCKET_SINK_FD, mic_fd);
+			ret = hand_socket(MIC_PLAYER, &MIC_SINK->object, MPIPE_PROP_SOCKET_SINK_FD,
+					  mic_fd);
 		}
 #endif
 		if (ret < 0) {
@@ -867,12 +404,12 @@ int main(void)
 			continue;
 		}
 
-		(void)mpipe_player_play(&player);
+		(void)mpipe_player_play(VIDEO_PLAYER);
 #if defined(CONFIG_ANDROID_LINK_AUDIO)
-		(void)mpipe_player_play(&audio_player);
+		(void)mpipe_player_play(AUDIO_PLAYER);
 #endif
 #if defined(CONFIG_ANDROID_LINK_MIC)
-		(void)mpipe_player_play(&mic_player);
+		(void)mpipe_player_play(MIC_PLAYER);
 #endif
 		connect_control_socket(control_fd, &client_addr);
 		osd_show("Phone connected", 2000);
@@ -892,15 +429,15 @@ int main(void)
 		 * posted by another pipeline during the teardown would
 		 * otherwise end the next client's session at once.
 		 */
-		stop_player(&player);
-		wait_for_state(&player, MPIPE_STATE_READY);
+		stop_player(VIDEO_PLAYER);
+		wait_for_state(VIDEO_PLAYER, MPIPE_STATE_READY);
 #if defined(CONFIG_ANDROID_LINK_AUDIO)
-		stop_player(&audio_player);
-		wait_for_state(&audio_player, MPIPE_STATE_READY);
+		stop_player(AUDIO_PLAYER);
+		wait_for_state(AUDIO_PLAYER, MPIPE_STATE_READY);
 #endif
 #if defined(CONFIG_ANDROID_LINK_MIC)
-		stop_player(&mic_player);
-		wait_for_state(&mic_player, MPIPE_STATE_READY);
+		stop_player(MIC_PLAYER);
+		wait_for_state(MIC_PLAYER, MPIPE_STATE_READY);
 #endif
 		k_event_clear(&application_event, EVENT_TOUCH_ERROR | EVENT_STREAM_END);
 	}

@@ -1,0 +1,159 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	/*
+	 * The frames the phone sends, decoded and displayed. The queues split
+	 * the graph across threads: the reader keeps filling the next buffer
+	 * while a frame is decoded, and the decoder while a frame is displayed.
+	 */
+	video_pipeline: video-pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+
+		video_src: video-src {
+			compatible = "zephyr,mpipe-socket-src";
+		};
+
+		jpeg_parser: jpeg-parser {
+			compatible = "zephyr,mpipe-img-jpeg-parser";
+			sources = <&video_src>;
+		};
+
+		/*
+		 * The parser only tells the format: the size the phone sends,
+		 * the one of the panel, is pinned here
+		 */
+		stream_filter: caps-filter {
+			compatible = "zephyr,mpipe-caps-filter";
+			sources = <&jpeg_parser>;
+			media = "video";
+			pixel-format = "JPEG";
+			width = <720>;
+			height = <1280>;
+		};
+
+		/*
+		 * A mirror shows the newest frame: a full queue drops its
+		 * oldest one. The decoder runs below every other thread of the
+		 * demo, one priority under the streaming threads.
+		 */
+		parsed_queue: parsed-queue {
+			compatible = "zephyr,mpipe-queue";
+			sources = <&stream_filter>;
+			size = <1>;
+			leak = "oldest";
+			thread-priority = <6>;
+		};
+
+		jpeg_decoder: jpeg-decoder {
+			compatible = "zephyr,mpipe-img-jpeg-decoder";
+			sources = <&parsed_queue>;
+		};
+
+		decoded_queue: decoded-queue {
+			compatible = "zephyr,mpipe-queue";
+			sources = <&jpeg_decoder>;
+			size = <1>;
+			leak = "oldest";
+		};
+
+		/*
+		 * The application draws the messages of the demo. No tee sits
+		 * between the decoder and the overlay, so it draws in place.
+		 */
+		overlay: overlay {
+			compatible = "zephyr,mpipe-vid-overlay";
+			sources = <&decoded_queue>;
+			mode = "in-place";
+		};
+
+		disp-sink {
+			compatible = "zephyr,mpipe-disp-sink";
+			sources = <&overlay>;
+		};
+	};
+
+	/*
+	 * The raw PCM the phone sends, 48 kHz 16-bit stereo, played in blocks
+	 * of 10 ms. The queue holds 150 ms of them against the jitter of the
+	 * link. The audio threads run above the video decoder: a late block is
+	 * lost, a late frame is only late.
+	 */
+	audio_pipeline: audio-pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+		thread-priority = <4>;
+
+		audio_src: audio-src {
+			compatible = "zephyr,mpipe-socket-src";
+		};
+
+		audio_parser: audio-parser {
+			compatible = "zephyr,mpipe-aud-raw-parser";
+			sources = <&audio_src>;
+			sample-rate = <48000>;
+			bit-width = <16>;
+			num-channels = <2>;
+			frame-interval = <10000>;
+		};
+
+		audio_queue: audio-queue {
+			compatible = "zephyr,mpipe-queue";
+			sources = <&audio_parser>;
+			size = <15>;
+			leak = "oldest";
+			thread-priority = <4>;
+		};
+
+		i2s-sink {
+			compatible = "zephyr,mpipe-aud-i2s-codec-sink";
+			sources = <&audio_queue>;
+		};
+	};
+
+	/*
+	 * The microphone of the board sent to the phone, 16 kHz 32-bit, both
+	 * slots of the PDM data line, in blocks of 10 ms. The queue keeps a
+	 * slow link from holding the capture thread, 100 ms deep.
+	 */
+	mic_pipeline: mic-pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+		thread-priority = <4>;
+
+		mic_src: mic-src {
+			compatible = "zephyr,mpipe-aud-dmic-src";
+		};
+
+		mic_filter: caps-filter {
+			compatible = "zephyr,mpipe-caps-filter";
+			sources = <&mic_src>;
+			media = "audio-pcm";
+			sample-rate = <16000>;
+			bit-width = <32>;
+			num-channels = <2>;
+			frame-interval = <10000>;
+		};
+
+		/* Lifts the soft signal of the microphone to a speaking level */
+		mic_gain: gain {
+			compatible = "zephyr,mpipe-aud-gain";
+			sources = <&mic_filter>;
+			gain = <200>;
+		};
+
+		mic_queue: mic-queue {
+			compatible = "zephyr,mpipe-queue";
+			sources = <&mic_gain>;
+			size = <10>;
+			leak = "oldest";
+			thread-priority = <4>;
+		};
+
+		mic_sink: mic-sink {
+			compatible = "zephyr,mpipe-socket-sink";
+			sources = <&mic_queue>;
+		};
+	};
+};

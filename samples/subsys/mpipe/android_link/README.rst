@@ -1,6 +1,6 @@
 .. zephyr:code-sample:: mpipe_android_link
    :name: mpipe Android link
-   :relevant-api: mpipe
+   :relevant-api: mpipe mpipe_dt
 
    Mirror and control an Android phone, with its audio both ways, on the mpipe media pipeline
    framework.
@@ -54,8 +54,8 @@ The video path:
   end-of-image markers. A frame that lies inside one chunk reaches the decoder as a view of
   that chunk, without a copy.
 * ``caps_filter`` (mpipe ``base`` plugin) pins the frame size the phone sends,
-  ``CONFIG_ANDROID_LINK_FRAME_WIDTH`` by ``CONFIG_ANDROID_LINK_FRAME_HEIGHT``, which default to
-  the panel's size; the decoder and the display negotiate the pixel format from there.
+  the ``width`` and ``height`` properties of its node, which are the panel's size; the decoder
+  and the display negotiate the pixel format from there.
 * The two ``queue`` elements (mpipe ``base`` plugin) put the receiving, decoding and
   displaying on three threads. Each holds one frame and drops its oldest one when the stage
   behind it falls behind, so the panel always shows the newest frame and the phone is never
@@ -90,7 +90,7 @@ pipeline sends the board's microphone to the phone as raw PCM, 16 kHz, 32-bit, t
 * ``dmic_src`` (mpipe ``aud`` plugin) captures 10 ms blocks from the digital microphone.
 * ``caps_filter`` pins the format the phone expects out of what the microphone offers.
 * ``aud_gain`` (mpipe ``aud`` plugin) lifts the microphone's soft signal by
-  ``CONFIG_ANDROID_LINK_MIC_GAIN`` percent (200, +6 dB, by default) in place.
+  the ``gain`` property of its node, in percent (200, +6 dB), in place.
 * The ``queue`` keeps a slow link from holding the capture, dropping the oldest block.
 * ``socket_sink`` (mpipe ``net`` plugin) writes the blocks to the connection.
 
@@ -176,6 +176,21 @@ the speaker, ``2`` injected as the phone's microphone), and type 102, the audio 
 the phone's playback, ``1`` its microphone with the phone's echo cancelling). The liveness
 probe the board sends every 20 s while the control connection is idle is type 100, which the
 application ignores.
+
+The pipeline is described in the devicetree: a ``zephyr,mpipe-pipeline`` node holds one child node
+per element, and the ``sources`` property of an element names the element it receives its buffers
+from. The pipeline is built at boot from that description, and the options of the framework and of
+its elements are enabled by the nodes.
+
+``pipeline.dtsi`` describes the video pipeline, the audio playback pipeline and
+the microphone pipeline, none with the ``autostart`` property: the application
+plays them when a phone connects.
+
+The code that remains is the behavior of the application: the network, the connections of the phone, the control
+messages, the touch controller and the messages the overlay draws. It reaches
+the players and the socket elements of the devicetree with
+``MPIPE_DT_PLAYER_GET()`` and ``MPIPE_DT_ELEMENT_GET()`` to hand them the
+connected sockets.
 
 Requirements
 ************
@@ -273,7 +288,7 @@ be launched with to match (see `Launching the phone's application`_):
    * - ``CONFIG_ANDROID_LINK_WIFI_SSID``, ``CONFIG_ANDROID_LINK_WIFI_PSK`` (Wi-Fi builds)
      - ``zephyr-link``, ``zephyrdemo``
      - ``WIFI_SSID``, ``WIFI_PSK``; an empty passphrase makes an open network
-   * - ``CONFIG_ANDROID_LINK_FRAME_WIDTH``, ``CONFIG_ANDROID_LINK_FRAME_HEIGHT``
+   * - ``width`` and ``height`` of the caps filter node of the video pipeline
      - the panel's size
      - ``WIDTH``, ``HEIGHT``
    * - ``CONFIG_ANDROID_LINK_AUDIO``
@@ -329,7 +344,7 @@ install a new version. Variables override the defaults; each must match the boar
      - ``CONFIG_ANDROID_LINK_PORT``
    * - ``WIDTH``, ``HEIGHT``
      - ``720``, ``1280``
-     - ``CONFIG_ANDROID_LINK_FRAME_WIDTH``, ``CONFIG_ANDROID_LINK_FRAME_HEIGHT``
+     - ``width`` and ``height`` of the caps filter node of the video pipeline
    * - ``AUDIO``
      - ``true``
      - ``CONFIG_ANDROID_LINK_AUDIO``
@@ -442,8 +457,8 @@ a keep-alive byte every 20 s while the connection is idle), the sine wave lands 
 ``aplay -f S16_LE -r 48000 -c 2``) and ``mic.pcm`` receives the emulated microphone, 128 KB/s.
 ``mode headset`` in the shell paints the band on the window and writes the messages to
 ``control.bin``; ``assist`` writes the two key messages. The video and the audio sources match
-the frame size and the formats the sample expects; change ``width`` and ``height`` with
-``CONFIG_ANDROID_LINK_FRAME_WIDTH`` and ``CONFIG_ANDROID_LINK_FRAME_HEIGHT``. Under heavy load
+the frame size and the formats the sample expects; change ``width`` and ``height`` with the
+properties of the same names of the caps filter node. Under heavy load
 native_sim's clock lags the host, so a real-time sender delivers more than a second of audio
 per simulated second: the surplus is dropped, which is a simulation artefact.
 

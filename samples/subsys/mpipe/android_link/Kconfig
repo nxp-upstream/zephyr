@@ -14,23 +14,6 @@ config MPIPE_IMG_JPEG_DECODER_MAX_OUT_FRAME_SIZE
 
 source "Kconfig.zephyr"
 
-config ANDROID_LINK_FRAME_WIDTH
-	int "Width of the frames the phone sends"
-	default $(DT_DISPLAY_WIDTH)
-	help
-	  Width in pixels of the JPEG frames the phone streams, which the caps
-	  filter pins behind the parser. It defaults to the width of the chosen
-	  display and the phone's server must be launched with the same value
-	  (WIDTH in its launch script).
-
-config ANDROID_LINK_FRAME_HEIGHT
-	int "Height of the frames the phone sends"
-	default $(DT_DISPLAY_HEIGHT)
-	help
-	  Height in pixels of the JPEG frames the phone streams. It defaults to
-	  the height of the chosen display and the phone's server must be
-	  launched with the same value (HEIGHT in its launch script).
-
 config NET_STACK_CODE_RELOCATE
 	bool "Relocate networking code into RAM"
 	select CODE_DATA_RELOCATION
@@ -69,16 +52,6 @@ config ANDROID_LINK_MIC
 	  feed it to the applications recording from its microphone, or drop
 	  it, is set by a control message. The phone must be launched with the
 	  microphone channel enabled.
-
-config ANDROID_LINK_MIC_GAIN
-	int "Gain applied to the board's microphone, in percent"
-	depends on ANDROID_LINK_MIC
-	range 0 1000
-	default 200
-	help
-	  Gain of the aud_gain element in the microphone pipeline, 100 for
-	  unity. A digital microphone's speech peaks well below full scale;
-	  200 (+6 dB) brings it to the level of a phone's microphone. 0 mutes.
 
 config ANDROID_LINK_PORT
 	int "TCP port the board listens on"

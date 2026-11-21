@@ -40,7 +40,7 @@ SERVER_JAR="${SERVER_JAR:-$SCRIPT_DIR/../android_app/scrcpy-server}"
 # address, CONFIG_ANDROID_LINK_PORT)
 REMOTE_HOST="${REMOTE_HOST:-192.0.2.1}"
 REMOTE_PORT="${REMOTE_PORT:-5000}"
-# The frames' size: the panel's (CONFIG_ANDROID_LINK_FRAME_WIDTH/HEIGHT)
+# The frames' size: the panel's (the caps filter of the video pipeline)
 WIDTH="${WIDTH:-720}"
 HEIGHT="${HEIGHT:-1280}"
 # The audio connection (CONFIG_ANDROID_LINK_AUDIO) and the microphone one
