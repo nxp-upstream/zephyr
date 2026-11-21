@@ -1,0 +1,29 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * Audio devices of native_sim for the pipelines of overlay-mpipe.conf: the
+ * emulated DMIC as the microphone, the emulated I2S behind the dummy codec as
+ * the headphones.
+ */
+
+/ {
+	aliases {
+		i2s-codec-tx = &i2s_tx0;
+	};
+};
+
+dmic_dev: &dmic0 {
+	status = "okay";
+};
+
+&i2s_tx0 {
+	status = "okay";
+};
+
+&audio_codec {
+	status = "okay";
+};

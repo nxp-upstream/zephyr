@@ -84,6 +84,83 @@ config ZEPHYRTC_VIDEO_H264
 	  for software gates; the RT1170 audio configuration uses the chosen camera
 	  and display. Codec memory uses bounded static storage and a dedicated heap.
 
+config ZEPHYRTC_MEDIA_MPIPE
+	bool "Media on the Multimedia Pipeline subsystem"
+	depends on ZEPHYRTC_MODE_EXTERNAL
+	depends on MPIPE_BASE_APP_SINK && MPIPE_BASE_APP_SRC && MPIPE_AUD
+	depends on !ZEPHYRTC_VIDEO_H264 || \
+		   (MPIPE_VID_H264_ENCODER && MPIPE_VID_H264_DECODER && MPIPE_DISP)
+	help
+	  Capture, encode, decode and render the media of the call with
+	  pipelines of the Multimedia Pipeline subsystem, one per leg, instead
+	  of the media code of the sample. The application then only moves
+	  the encoded frames and the G.711 packets between the pipelines and
+	  the WebRTC stack. overlay-mpipe.conf enables it with what it needs.
+
+if ZEPHYRTC_MEDIA_MPIPE
+
+config ZEPHYRTC_VIDEO_WIDTH
+	int "Width of the video frames"
+	default 320
+	help
+	  Width in pixels of the frames the camera delivers and of the frames
+	  the peer sends. The codec memory is reserved for this size.
+
+config ZEPHYRTC_VIDEO_HEIGHT
+	int "Height of the video frames"
+	default 240
+	help
+	  Height in pixels of the frames the camera delivers and of the frames
+	  the peer sends. The codec memory is reserved for this size.
+
+config ZEPHYRTC_VIDEO_QP
+	int "Quantizer of the encoder"
+	range 10 51
+	default 32
+	help
+	  Quantizer the encoder uses for every frame: 10 for the best picture,
+	  51 for the smallest stream. The default keeps a 320x240 call of a
+	  talking head near 200 kbit/s.
+
+config ZEPHYRTC_VIDEO_GOP
+	int "Key frame period in frames"
+	range 0 65535
+	default 300
+	help
+	  The encoder also sends a key frame whenever the peer asks for one,
+	  which is how a lost frame is recovered. The period only bounds the
+	  time a peer whose request was lost stays without a picture: ten
+	  seconds at 30 frames per second with the default. 0 sends key frames
+	  on request only.
+
+config ZEPHYRTC_HEADPHONES_SAMPLE_RATE
+	int "Sample rate of the audio codec"
+	default 16000
+	help
+	  Rate the received audio is played at, a multiple of the 8 kHz of
+	  G.711 that the audio codec of the board supports.
+
+config ZEPHYRTC_DISPLAY_PLANE
+	int "Display plane showing the video of the peer"
+	default -1
+	help
+	  Display plane the decoded frames are scanned out from, without a
+	  copy, on a display that has planes. -1 writes them to the display.
+
+config ZEPHYRTC_DISPLAY_X
+	int "Horizontal position of the video of the peer"
+	default 0
+	help
+	  Column of the display where the left edge of the frames goes.
+
+config ZEPHYRTC_DISPLAY_Y
+	int "Vertical position of the video of the peer"
+	default 0
+	help
+	  Row of the display where the top edge of the frames goes.
+
+endif # ZEPHYRTC_MEDIA_MPIPE
+
 config ZEPHYRTC_DISPLAY_ROTATION
 	int "Decoded-video display rotation in clockwise degrees"
 	depends on ZEPHYRTC_VIDEO_H264 && ZEPHYRTC_AUDIO_RT1170

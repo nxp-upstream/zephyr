@@ -48,6 +48,17 @@ tests:
       - native_sim/native/64
     extra_args: EXTRA_CONF_FILE=overlay-external-video.conf
     harness: none
+  # Compile-only gate for the media on the Multimedia Pipeline subsystem, with the
+  # emulated camera, microphone and audio codec of native_sim.
+  sample.net.webrtc.native_sim.mpipe:
+    build_only: true
+    platform_allow:
+      - native_sim/native/64
+    extra_args:
+      - EXTRA_CONF_FILE="overlay-external-video.conf;overlay-mpipe.conf;overlay-mpipe-native-sim.conf"
+      - EXTRA_DTC_OVERLAY_FILE=boards/native_sim_native_64_mpipe.overlay
+      - SNIPPET="video-sw-generator"
+    harness: none
   # RT1170 compile gate for Ethernet plus synthetic H.264/PCMU software media.
   sample.net.webrtc.rt1170_video:
     build_only: true

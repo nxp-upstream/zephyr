@@ -28,18 +28,26 @@ if(CONFIG_ZEPHYRTC_AUDIO_RT1170)
     "${MCUX_RT1170_POWER_DIR}"
   )
   target_sources(app PRIVATE
-    src/media_rt1170_zephyr.c
     "${MCUX_TEMPSENSOR_DIR}/fsl_tempsensor.c"
     "${MCUX_RT1170_POWER_DIR}/fsl_soc_src.c"
   )
+  target_sources_ifndef(CONFIG_ZEPHYRTC_MEDIA_MPIPE app PRIVATE src/media_rt1170_zephyr.c)
   # The SDK drivers do not build cleanly with the sample's warning flags.
   set_source_files_properties(
     "${MCUX_TEMPSENSOR_DIR}/fsl_tempsensor.c"
     "${MCUX_RT1170_POWER_DIR}/fsl_soc_src.c"
     PROPERTIES COMPILE_OPTIONS "-Wno-error"
   )
-else()
+elseif(NOT CONFIG_ZEPHYRTC_MEDIA_MPIPE)
   target_sources(app PRIVATE src/media_synthetic_zephyr.c)
+endif()
+if(CONFIG_ZEPHYRTC_MEDIA_MPIPE)
+  target_sources(app PRIVATE src/media_mpipe.c)
+  # The zbus listener macro leaves the parameters of the fields it does not
+  # use, which the warning flags of the sample turn into errors.
+  set_source_files_properties(src/media_mpipe.c PROPERTIES
+    COMPILE_OPTIONS "-Wno-unused-parameter"
+  )
 endif()
 
 target_sources_ifdef(CONFIG_ZEPHYRTC_MODE_LOOPBACK app PRIVATE
@@ -57,7 +65,7 @@ target_sources_ifdef(CONFIG_ZEPHYRTC_MODE_EXTERNAL app PRIVATE
   src/libpeer_external.c
 )
 
-if(CONFIG_ZEPHYRTC_VIDEO_H264)
+if(CONFIG_ZEPHYRTC_VIDEO_H264 AND NOT CONFIG_ZEPHYRTC_MEDIA_MPIPE)
   target_sources(app PRIVATE
     src/video_codec_zephyr.c
     src/video_color_zephyr.c
