@@ -395,6 +395,20 @@ static int media_build_camera(struct Media *media)
 		ret = mpipe_app_sink_init(&media->encoded_sink, SINK_ID);
 	}
 
+	/* What the camera is asked on top of the settings of its driver */
+	if (ret == 0 && CONFIG_ZEPHYRTC_CAMERA_SHARPNESS >= 0) {
+		ret = mpipe_object_set_properties(
+			(struct mpipe_object *)&media->camera, VIDEO_CID_SHARPNESS,
+			(const void *)(uintptr_t)CONFIG_ZEPHYRTC_CAMERA_SHARPNESS,
+			MPIPE_PROP_LIST_END);
+	}
+	if (ret == 0 && CONFIG_ZEPHYRTC_CAMERA_EXPOSURE_BIAS >= 0) {
+		ret = mpipe_object_set_properties(
+			(struct mpipe_object *)&media->camera, VIDEO_CID_AUTO_EXPOSURE_BIAS,
+			(const void *)(uintptr_t)CONFIG_ZEPHYRTC_CAMERA_EXPOSURE_BIAS,
+			MPIPE_PROP_LIST_END);
+	}
+
 	/* The camera delivers the frame size the encoder memory is reserved for */
 	if (ret == 0) {
 		/* clang-format off */

@@ -147,6 +147,22 @@ config ZEPHYRTC_CAMERA_VUYX32
 	  camera that offers them next to RGB. The conversion for the encoder
 	  is then a copy of the luma and a mean of the chroma.
 
+config ZEPHYRTC_CAMERA_SHARPNESS
+	int "Sharpness asked of the camera"
+	range -1 255
+	default -1
+	help
+	  Value of the sharpness control of the camera, in the unit of its
+	  driver. -1 leaves the camera as its driver sets it.
+
+config ZEPHYRTC_CAMERA_EXPOSURE_BIAS
+	int "Exposure compensation asked of the camera"
+	range -1 255
+	default -1
+	help
+	  Entry of the exposure compensation menu of the camera, which its
+	  driver defines. -1 leaves the camera as its driver sets it.
+
 config ZEPHYRTC_VIDEO_QP
 	int "Quantizer of the encoder"
 	range 10 51
