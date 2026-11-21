@@ -29,6 +29,52 @@ config MPIPE_VID_CONVERT
 	  accepts. It converts pixel formats only: it does not scale, crop or
 	  rotate. Expect it to cost real CPU time per frame.
 
+config MPIPE_VID_H264_ENCODER
+	bool "Software H.264 encoder element"
+	depends on ZEPHYR_MINIH264_MODULE
+	select MINIH264
+	help
+	  Transform element that encodes planar YUV 4:2:0 frames to a
+	  Constrained Baseline H.264 byte stream with the minih264 module.
+
+if MPIPE_VID_H264_ENCODER
+
+config MPIPE_VID_H264_ENCODER_POOL_NUM
+	int "Number of buffers in the H.264 encoder's output pool"
+	range 1 255
+	default 2
+	help
+	  Number of buffers in the encoder's internal output pool, used when
+	  downstream proposes no pool of its own. A frame that arrives while
+	  every buffer is held downstream is not encoded.
+
+config MPIPE_VID_H264_ENCODER_MAX_OUT_FRAME_SIZE
+	int "Maximum encoded frame size in bytes"
+	default 32768
+	help
+	  Size of the buffers in the encoder's internal output pool. A frame
+	  that encodes to more is dropped and the next one is a key frame.
+
+config MPIPE_VID_H264_ENCODER_PERSIST_SIZE
+	int "Encoder state size in bytes"
+	default 294912
+	help
+	  Memory reserved for the encoder state, which holds the reference
+	  frame. The size depends on the frame size; the element reports the
+	  size it needs when the reserved one is too small. A 320x240 frame
+	  needs 288368 bytes.
+
+config MPIPE_VID_H264_ENCODER_SCRATCH_SIZE
+	int "Encoder working area size in bytes"
+	default 196608
+	help
+	  Memory reserved for the encoder working area, which holds the
+	  encoded frame. The size depends on the frame size; the element
+	  reports the size it needs when the reserved one is too small. A
+	  320x240 frame needs 182607 bytes.
+
+endif # MPIPE_VID_H264_ENCODER
+
 config MPIPE_VID_OVERLAY
 	bool "Video overlay element"
 	help
