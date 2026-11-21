@@ -82,8 +82,45 @@ static void keyframe_requested(void *user_data)
 #define WIFI_BAND WIFI_FREQ_BAND_UNKNOWN
 #endif
 
+static void wifi_link_event(struct net_mgmt_event_callback *cb, uint64_t event,
+			    struct net_if *iface)
+{
+	const struct wifi_status *status = cb->info;
+
+	ARG_UNUSED(iface);
+
+	if (status == NULL) {
+		return;
+	}
+	if (event == NET_EVENT_WIFI_DISCONNECT_RESULT) {
+		platform_log("warning", "wifi_disconnect", "result=%d", status->status);
+		return;
+	}
+	platform_log(status->status == 0 ? "info" : "error", "wifi_connect",
+		     "status=%s result=%d", status->status == 0 ? "connected" : "failed",
+		     status->status);
+}
+
+/* Which radio of the access point the station is on, and how well it hears it */
+static void log_wifi_link(const char *when)
+{
+	struct wifi_iface_status status = {0};
+
+	if (net_mgmt(NET_REQUEST_WIFI_IFACE_STATUS, net_if_get_default(), &status,
+		     sizeof(status)) != 0) {
+		return;
+	}
+	platform_log("info", "wifi_link",
+		     "when=%s state=%s band=%s channel=%u rssi=%d "
+		     "bssid=%02x:%02x:%02x:%02x:%02x:%02x",
+		     when, wifi_state_txt(status.state), wifi_band_txt(status.band),
+		     status.channel, status.rssi, status.bssid[0], status.bssid[1],
+		     status.bssid[2], status.bssid[3], status.bssid[4], status.bssid[5]);
+}
+
 static int start_wifi(void)
 {
+	static struct net_mgmt_event_callback result_cb;
 	struct net_if *iface = net_if_get_default();
 	const size_t ssid_length = strlen(CONFIG_ZEPHYRTC_WIFI_SSID);
 	const size_t password_length = strlen(CONFIG_ZEPHYRTC_WIFI_PASSWORD);
@@ -110,6 +147,11 @@ static int start_wifi(void)
 		platform_log("error", "wifi_connect", "status=invalid_config");
 		return -EINVAL;
 	}
+
+	net_mgmt_init_event_callback(&result_cb, wifi_link_event,
+				     NET_EVENT_WIFI_CONNECT_RESULT |
+					     NET_EVENT_WIFI_DISCONNECT_RESULT);
+	net_mgmt_add_event_callback(&result_cb);
 
 	do {
 		result = net_mgmt(NET_REQUEST_WIFI_CONNECT, iface, &params, sizeof(params));
@@ -197,6 +239,9 @@ int libpeer_external_run(void)
 	if (result != 0) {
 		goto cleanup;
 	}
+#if defined(CONFIG_WIFI)
+	log_wifi_link("start");
+#endif
 	if (libpeer_stack_init() != 0) {
 		goto cleanup;
 	}
@@ -332,6 +377,9 @@ int libpeer_external_run(void)
 			 : -ENODATA;
 
 cleanup:
+#if defined(CONFIG_WIFI)
+	log_wifi_link("end");
+#endif
 	libpeer_endpoint_destroy(&endpoint);
 	if (media != NULL) {
 		int destroy_result = media_destroy(media);
