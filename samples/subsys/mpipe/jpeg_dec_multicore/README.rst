@@ -32,11 +32,10 @@ Pipeline topology
 Elements
 --------
 
-- ``mpipe_file_src`` reads chunks from the file specified by
-  :kconfig:option:`CONFIG_FILE_INPUT_PATH`.
+- ``mpipe_file_src`` reads chunks from the file named by the ``path`` property of its node.
 - ``mpipe_img_jpeg_parser`` splits the MJPEG byte stream into individual JPEG frames.
-- ``mpipe_caps_filter`` constrains the JPEG format (width/height from Kconfig:
-  :kconfig:option:`CONFIG_JPEG_IMAGE_WIDTH`, :kconfig:option:`CONFIG_JPEG_IMAGE_HEIGHT`).
+- ``mpipe_caps_filter`` constrains the JPEG format (``width`` and ``height`` properties of its
+  node).
 - ``mpipe_queue`` runs the elements after it on a thread of its own, so the file is read
   and parsed while the remote core decodes the previous frame.
 - ``mpipe_vid_transform_client`` forwards each frame by address to the remote core and
@@ -55,11 +54,26 @@ one server, on one endpoint and in one thread, can run several client elements.
 :zephyr:code-sample:`mpipe-tee-decode-multicore` shows the other case, a remote core that runs
 pipelines of its own.
 
+The pipeline is described in the devicetree: a ``zephyr,mpipe-pipeline`` node holds one child node
+per element, and the ``sources`` property of an element names the element it receives its buffers
+from. The pipeline is built at boot from that description, and the options of the framework and of
+its elements are enabled by the nodes.
+
+The pipeline of ``pipeline.dtsi`` is
+``file_src -> jpeg_parser -> caps_filter -> queue -> client -> disp_sink``, where
+the client element hands the frames to the decoder running on the other core
+over eRPC. The image of the other core, in ``remote/``, holds that decoder.
+
+The application has no code: the pipeline node has the ``autostart`` property.
+The test MJPEG file is generated at build time with the GStreamer CLI, which
+needs ``gst-launch-1.0`` on the host, at the frame size the caps filter node
+states, and written at boot to the path the file source node plays.
+
 Input
 *****
 
-The sample expects an MJPEG file at the path specified by
-:kconfig:option:`CONFIG_FILE_INPUT_PATH` (default ``/SD:/test.mjpeg``).
+The sample expects an MJPEG file at the path of the file source node (``/SD:/test.mjpeg`` in
+``pipeline.dtsi``).
 
 A test MJPEG file is **generated at build time** using GStreamer CLI, embedded into the
 binary and written to the filesystem on first boot, or again when the file on the card no
