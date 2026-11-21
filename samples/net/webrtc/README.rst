@@ -146,7 +146,8 @@ Set at least:
 * ``network``: ``"ethernet"`` or ``"wifi"``.
 * ``signaling_url``: the address of the desktop on the LAN, for example
   ``"http://192.168.1.10:8080/offer"``.
-* ``wifi_ssid`` and ``wifi_password``, for Wi-Fi only.
+* ``wifi_ssid`` and ``wifi_password``, for Wi-Fi only. The station joins a WPA2 or a WPA3
+  network with them.
 
 ``run_ms`` sets the call length on the board, and ``display_rotation`` and ``display_scale`` fit
 the remote video to the panel. The helper refuses a settings file that other users can read,
@@ -224,8 +225,8 @@ Media on the Multimedia Pipeline subsystem
    camera      vid_src -> caps_filter -> vid_convert -> vid_h264_encoder -> app_sink
    display     app_src -> vid_h264_decoder -> vid_transform -> caps_filter -> vid_overlay
                -> disp_sink
-   microphone  aud_dmic_src -> caps_filter -> app_sink
-   headphones  app_src -> aud_raw_parser -> queue -> aud_i2s_codec_sink
+   microphone  aud_dmic_src -> caps_filter -> aud_gain -> app_sink
+   headphones  app_src -> aud_raw_parser -> aud_gain -> queue -> aud_i2s_codec_sink
 
 The application (``src/media_mpipe.c``) only moves the encoded frames and the G.711 packets between
 the application elements and libpeer. On a board without a video transform device the display leg
@@ -235,6 +236,11 @@ With this media the board sends the camera at its own rate, 30 frames per second
 when the peer asks for one and every ``CONFIG_ZEPHYRTC_VIDEO_GOP`` frames. libpeer sends the
 capture time of every frame and RTCP sender reports for both streams, from one clock, so the peer
 can align the audio with the video.
+
+``CONFIG_ZEPHYRTC_MICROPHONE_GAIN`` and ``CONFIG_ZEPHYRTC_HEADPHONES_GAIN`` set the two gains in
+percent. The microphone gets 300 % by default: speech at arm's length from the microphones of the
+MIMXRT1170-EVKB peaks around a third of full scale, so the loudest syllables are clipped at that
+gain and 200 % is the value that never clips.
 
 This media needs changes in two modules that the manifest does not point to yet: the branch
 ``zephyrtc-mpipe`` of ``modules/lib/libpeer`` (timestamps from the caller, RTCP reports, a receive
@@ -269,6 +275,56 @@ The picture of the peer is scaled by ``CONFIG_ZEPHYRTC_DISPLAY_SCALE``. The defa
 is two, 480x640 on the 720x1280 panel. Three fills the width of the panel, but the plane then
 loads the SDRAM enough to double the load of the processor: the camera frames, which the processor
 reads from the same SDRAM, do not fit in the on-chip RAM.
+
+The camera delivers YUV frames of 8 bits per component (``CONFIG_ZEPHYRTC_CAMERA_VUYX32``): the
+RGB565 of the OV5640 shows as pink and green patches in the smooth areas of the picture.
+``CONFIG_ZEPHYRTC_CAMERA_SHARPNESS`` and ``CONFIG_ZEPHYRTC_CAMERA_EXPOSURE_BIAS`` set the two
+controls of the camera of the same name; they are left alone by default, since a sharper and
+brighter picture (32 and 6 for this camera, +0.3 EV) takes three times the bit rate.
+
+The LCDIFv2 starts its pixel stream when the display is first used, not at its initialization
+(``CONFIG_MCUX_LCDIFV2_START_ON_INIT=n``): with the stream running while the panel gets its
+commands, 7 starts of 50 hung in a DSI command that was never sent, and none of 50 without.
+
+A call over Wi-Fi
+=================
+
+Measured with the browser side of `Running`_ on a laptop of the same access point, the board on
+its 5 GHz radio at -64 to -72 dBm:
+
+.. list-table::
+   :header-rows: 1
+
+   * - What
+     - Result
+   * - From power on to the call
+     - 17 s when the station joins in 10 s, up to 26 s
+   * - Video of the board in Chrome
+     - 29.7 to 29.9 frames per second, 44 to 68 kbit/s on a still scene, no packet lost in calls of
+       2 minutes and 4 of 18263 in one of 10 minutes
+   * - Video of Chrome on the panel
+     - 30 frames per second, 3000 of 3000 frames in 100 s, about 500 kbit/s
+   * - Round trip
+     - 6 to 12 ms
+   * - Gaps on the headphones of the board
+     - 1 to 5 in calls of 2 to 5 minutes, when the network stalls for longer than the 60 ms the
+       sink holds
+
+The Wi-Fi configuration of the board (``overlay-mimxrt1170-wifi.conf``) differs from the defaults
+in four ways, each from a failure seen on the board:
+
+* ``CONFIG_NET_CONFIG_INIT_TIMEOUT=0``: the network configuration otherwise waits 30 s for an
+  address before ``main()``, which is where the station joins.
+* ``CONFIG_ZEPHYRTC_SIGNALING_ATTEMPTS=8``: the offer is posted again while the peer does not
+  answer. The board can so start before the browser side, and it gets over an access point that
+  takes about a minute to forward the frames of its other stations to a station that joined again
+  shortly after a power cycle.
+* The roaming features of the driver are off, so that the station stays on the radio it joined.
+* ``CONFIG_ZEPHYRTC_WIFI_BAND_5_GHZ`` or ``CONFIG_ZEPHYRTC_WIFI_BAND_2_4_GHZ``, in the private
+  settings, keep the station on one band of an access point that gives one name to its radios.
+
+When the offer gets no answer the console tells whether the gateway still answers
+(``event=gateway_echo``) and which radio the station is on (``event=wifi_link``).
 
 A call of the board with itself
 ===============================
@@ -330,6 +386,11 @@ puts the code, by several points: measured side by side, the last row and the on
 scale above it gave the same load (33 to 44% and 32 to 46%). At a scale of two a frame takes
 27 ms on average from its capture to the display sink.
 
+These loads are the ones of a still scene. With somebody moving close to the camera the encoder
+takes 15 to 19 ms for a frame instead of 11 and the decoder of the same stream 7 to 10 ms instead
+of 3.5: the call of the board with itself then uses all of the Cortex-M7 at 25 to 28 frames per
+second, which leaves no room for a finer quantizer or a larger picture.
+
 On the two cores
 ================
 
@@ -379,10 +440,13 @@ Troubleshooting
   LAN. Check that the firewall accepts UDP traffic from the board.
 * The board hangs after flashing, or Wi-Fi does not come up: switch the board off and on with
   SW5.
+* The picture of the board is green or purple on white: the white balance of the OV5640. Its
+  driver selects the simple mode, which does not depend on the light.
 
 Limitations
 ***********
 
 * Same-LAN calls only: no STUN or TURN servers, IPv6, ICE restart or renegotiation.
 * The HTTP signaling is unauthenticated and meant for a controlled network.
-* 320x240 video at 5 frames per second, and PCMU audio.
+* 320x240 video and PCMU audio. The video is sent at 5 frames per second, and at 30 with the media
+  on the Multimedia Pipeline subsystem.
