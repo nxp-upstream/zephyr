@@ -1,0 +1,10 @@
+tests:
+  drivers.video.mcux_pxp:
+    tags:
+      - drivers
+      - video
+    filter: dt_chosen_enabled("zephyr,videotrans") and dt_compat_enabled("nxp,pxp")
+    platform_allow:
+      - mimxrt1170_evk@B/mimxrt1176/cm7
+      - mimxrt1170_evk/mimxrt1176/cm7
+    harness: ztest
