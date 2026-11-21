@@ -397,11 +397,17 @@ static int media_build_camera(struct Media *media)
 
 	/* The camera delivers the frame size the encoder memory is reserved for */
 	if (ret == 0) {
+		/* clang-format off */
 		ret = mpipe_structure_init_fields(
-			&caps, MPIPE_MEDIA_VIDEO, MPIPE_CAPS_IMAGE_WIDTH, MPIPE_TYPE_UINT,
-			VIDEO_WIDTH, MPIPE_CAPS_IMAGE_HEIGHT, MPIPE_TYPE_UINT, VIDEO_HEIGHT,
+			&caps, MPIPE_MEDIA_VIDEO,
+			IF_ENABLED(CONFIG_ZEPHYRTC_CAMERA_VUYX32,
+				   (MPIPE_CAPS_PIXEL_FORMAT, MPIPE_TYPE_UINT,
+				    VIDEO_PIX_FMT_VUYX32,))
+			MPIPE_CAPS_IMAGE_WIDTH, MPIPE_TYPE_UINT, VIDEO_WIDTH,
+			MPIPE_CAPS_IMAGE_HEIGHT, MPIPE_TYPE_UINT, VIDEO_HEIGHT,
 			MPIPE_CAPS_FRAME_INTERVAL, MPIPE_TYPE_UINT,
 			MPIPE_FRAME_INTERVAL_FROM_FPS(CONFIG_ZEPHYRTC_VIDEO_FPS), MPIPE_CAPS_END);
+		/* clang-format on */
 	}
 	if (ret == 0) {
 		ret = mpipe_object_set_properties((struct mpipe_object *)&media->camera_caps,

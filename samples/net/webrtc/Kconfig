@@ -140,6 +140,13 @@ config ZEPHYRTC_VIDEO_FPS
 	  Frames per second asked of the camera, which is also the rate the
 	  video is sent at as long as the encoder keeps up.
 
+config ZEPHYRTC_CAMERA_VUYX32
+	bool "Take VUYX32 frames from the camera"
+	help
+	  Ask the camera for frames of 8 bits per component in YUV, for a
+	  camera that offers them next to RGB. The conversion for the encoder
+	  is then a copy of the luma and a mean of the chroma.
+
 config ZEPHYRTC_VIDEO_QP
 	int "Quantizer of the encoder"
 	range 10 51
