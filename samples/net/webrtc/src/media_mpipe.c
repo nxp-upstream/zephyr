@@ -17,6 +17,10 @@
  *
  *   display    app_src -> vid_h264_decoder -> vid_transform -> caps_filter
  *              -> vid_overlay -> disp_sink
+ *
+ * With CONFIG_ZEPHYRTC_DECODER_REMOTE a transform client takes the place of
+ * the decoder: the second core decodes, in a pipeline that holds the same
+ * decoder element.
  *   microphone aud_dmic_src -> caps_filter -> app_sink
  *   headphones app_src -> aud_raw_parser -> queue -> aud_i2s_codec_sink
  *
@@ -48,7 +52,12 @@
 #include <zephyr/mpipe/base/mpipe_queue.h>
 #include <zephyr/mpipe/disp/mpipe_disp_sink.h>
 #include <zephyr/mpipe/vid/mpipe_vid_convert.h>
+#if defined(CONFIG_ZEPHYRTC_DECODER_REMOTE)
+#include <zephyr/mpipe/erpc/mpipe_erpc_vid.h>
+#include <zephyr/mpipe/vid/mpipe_vid_transform_client.h>
+#else
 #include <zephyr/mpipe/vid/mpipe_vid_h264_decoder.h>
+#endif
 #include <zephyr/mpipe/vid/mpipe_vid_h264_encoder.h>
 #include <zephyr/mpipe/vid/mpipe_vid_overlay.h>
 #include <zephyr/mpipe/vid/mpipe_vid_src.h>
@@ -99,6 +108,18 @@ enum {
 
 BUILD_ASSERT(DISPLAY_ROTATION % 90 == 0, "the frames turn by quarter turns");
 
+#if defined(CONFIG_ZEPHYRTC_DECODER_REMOTE)
+/* IPC endpoint of the pipeline the second core serves */
+#define DECODER_ENDPOINT       "webrtc_dec"
+/*
+ * The decoder of the second core cannot ask for a key frame: this many pieces
+ * of the stream that gave no picture mean that it lost its place.
+ */
+#define DECODER_STALLED_SLICES 6
+
+BUILD_ASSERT(DISPLAY_TRANSFORM, "the frames of the second core go to a video transform device");
+#endif
+
 /* What G.711 carries: 8 kHz mono, one byte per sample, 20 ms per packet */
 #define PCMU_SAMPLE_RATE 8000U
 #define PCMU_PACKET_US   20000U
@@ -146,7 +167,14 @@ struct Media {
 
 	struct mpipe display_pipe;
 	struct mpipe_app_src encoded_src;
+#if defined(CONFIG_ZEPHYRTC_DECODER_REMOTE)
+	struct mpipe_vid_transform_client decoder;
+	/* Slices given to the second core, and how many of them gave no picture last time */
+	atomic_t received_slices;
+	atomic_val_t missing_slices;
+#else
 	struct mpipe_vid_h264_decoder decoder;
+#endif
 #if DISPLAY_TRANSFORM
 	struct mpipe_vid_transform transform;
 	struct mpipe_caps_filter display_caps;
@@ -237,6 +265,7 @@ static void media_message_cb(const struct zbus_channel *chan)
 
 ZBUS_LISTENER_DEFINE(media_listener, media_message_cb);
 
+#if !defined(CONFIG_ZEPHYRTC_DECODER_REMOTE)
 /* The decoder lost its place in the stream: the peer must send a key frame */
 static void media_key_frame_cb(struct mpipe_vid_h264_decoder *dec, void *user_data)
 {
@@ -246,6 +275,7 @@ static void media_key_frame_cb(struct mpipe_vid_h264_decoder *dec, void *user_da
 
 	atomic_set(&media->keyframe_request, 1);
 }
+#endif
 
 /* Runs for every frame on its way to the display */
 static void media_displayed_cb(uint8_t *frame, uint16_t width, uint16_t height, uint32_t pixfmt,
@@ -381,10 +411,14 @@ static int media_build_display(struct Media *media)
 	struct display_capabilities display;
 	uint16_t x;
 	uint16_t y;
+#if defined(CONFIG_ZEPHYRTC_DECODER_REMOTE)
+	struct mpipe_vid_rpc_channel channel;
+#else
 	const struct mpipe_vid_h264_decoder_cb key_frame_cb = {
 		.fn = media_key_frame_cb,
 		.user_data = media,
 	};
+#endif
 	const struct mpipe_vid_overlay_cb probe_cb = {
 		.fn = media_displayed_cb,
 		.user_data = media,
@@ -405,9 +439,24 @@ static int media_build_display(struct Media *media)
 	if (ret == 0) {
 		ret = mpipe_app_src_init(&media->encoded_src, SRC_ID);
 	}
+#if defined(CONFIG_ZEPHYRTC_DECODER_REMOTE)
+	/* The client waits here for the server of the second core */
+	if (ret == 0) {
+		ret = mpipe_erpc_vid_channel_get(DECODER_ENDPOINT, 0U, &channel);
+	}
+	if (ret == 0) {
+		ret = mpipe_vid_transform_client_init(&media->decoder, CODEC_ID, &channel);
+	}
+#else
 	if (ret == 0) {
 		ret = mpipe_vid_h264_decoder_init(&media->decoder, CODEC_ID);
 	}
+	if (ret == 0) {
+		ret = mpipe_object_set_properties((struct mpipe_object *)&media->decoder,
+						  MPIPE_PROP_VID_H264_DECODER_KEY_FRAME_CB,
+						  &key_frame_cb, MPIPE_PROP_LIST_END);
+	}
+#endif
 #if DISPLAY_TRANSFORM
 	if (ret == 0) {
 		ret = mpipe_vid_transform_init(&media->transform, TRANSFORM_ID);
@@ -456,11 +505,6 @@ static int media_build_display(struct Media *media)
 		ret = mpipe_object_set_properties((struct mpipe_object *)&media->encoded_src,
 						  MPIPE_PROP_BASE_APP_SRC_CAPS, &caps,
 						  MPIPE_PROP_LIST_END);
-	}
-	if (ret == 0) {
-		ret = mpipe_object_set_properties((struct mpipe_object *)&media->decoder,
-						  MPIPE_PROP_VID_H264_DECODER_KEY_FRAME_CB,
-						  &key_frame_cb, MPIPE_PROP_LIST_END);
 	}
 	if (ret == 0) {
 		ret = mpipe_object_set_properties(
@@ -844,7 +888,16 @@ static int media_receive_video(struct Media *media, const MediaFrame *frame)
 		/* The frames after this one refer to it: the peer must start again */
 		atomic_inc(&media->dropped_video);
 		atomic_set(&media->keyframe_request, 1);
+		return 0;
 	}
+
+#if defined(CONFIG_ZEPHYRTC_DECODER_REMOTE)
+	/* A slice makes a picture: count them against the pictures that come back */
+	if (frame->size > 4U &&
+	    ((frame->data[4] & 0x1FU) == 1U || (frame->data[4] & 0x1FU) == 5U)) {
+		atomic_inc(&media->received_slices);
+	}
+#endif
 
 	return 0;
 }
@@ -880,7 +933,22 @@ void media_request_keyframe(Media *media)
 
 bool media_take_keyframe_request(Media *media)
 {
-	return media != NULL && atomic_cas(&media->keyframe_request, 1, 0);
+	if (media == NULL) {
+		return false;
+	}
+
+#if defined(CONFIG_ZEPHYRTC_DECODER_REMOTE)
+	/* More slices without a picture than the last time: the decoder waits for a key frame */
+	atomic_val_t missing =
+		atomic_get(&media->received_slices) - atomic_get(&media->displayed_frames);
+
+	if (missing - media->missing_slices >= DECODER_STALLED_SLICES) {
+		media->missing_slices = missing;
+		atomic_set(&media->keyframe_request, 1);
+	}
+#endif
+
+	return atomic_cas(&media->keyframe_request, 1, 0);
 }
 
 uint64_t media_decoded(Media *media, MediaKind kind)

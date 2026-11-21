@@ -1,0 +1,13 @@
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+mainmenu "WebRTC sample, second core"
+
+config REMOTE_DECODER_RAM_NAME
+	string "Decoder memory location"
+	depends on CODE_DATA_RELOCATION
+	default "RAM"
+	help
+	  Memory region holding the heap of the decoder.
+
+source "Kconfig.zephyr"

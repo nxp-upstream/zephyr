@@ -108,8 +108,7 @@ config ZEPHYRTC_MEDIA_MPIPE
 	bool "Media on the Multimedia Pipeline subsystem"
 	depends on ZEPHYRTC_MODE_EXTERNAL || ZEPHYRTC_MODE_SELF_CALL
 	depends on MPIPE_BASE_APP_SINK && MPIPE_BASE_APP_SRC && MPIPE_AUD
-	depends on !ZEPHYRTC_VIDEO_H264 || \
-		   (MPIPE_VID_H264_ENCODER && MPIPE_VID_H264_DECODER && MPIPE_DISP)
+	depends on !ZEPHYRTC_VIDEO_H264 || (MPIPE_VID_H264_ENCODER && MPIPE_DISP)
 	help
 	  Capture, encode, decode and render the media of the call with
 	  pipelines of the Multimedia Pipeline subsystem, one per leg, instead
@@ -198,6 +197,17 @@ config ZEPHYRTC_DISPLAY_Y
 	help
 	  Row of the display where the top edge of the frames goes. -1 puts
 	  the frames in the middle of the display.
+
+config ZEPHYRTC_DECODER_REMOTE
+	bool "Decode the video of the peer on the second core"
+	depends on MPIPE_ERPC && SECOND_CORE_MCUX
+	help
+	  Put a transform client in the place of the decoder in the display
+	  leg: every piece of the stream of the peer goes to the second core,
+	  whose image (the remote application of the sample, added by a
+	  sysbuild) serves a pipeline that holds the same decoder element, and
+	  the decoded frame comes back in a buffer of this core. The first
+	  core keeps the network, the encoder and the audio.
 
 config ZEPHYRTC_CODE_RELOCATE
 	bool "Relocate the code of the media and of the network into RAM"

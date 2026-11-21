@@ -118,6 +118,15 @@ if(CONFIG_ZEPHYRTC_CODEC_DATA_RELOCATE)
   # the heap of the decoder.
   zephyr_code_relocate(FILES ${ZEPHYR_BASE}/subsys/mpipe/vid/mpipe_vid_h264_encoder.c
     LOCATION "${CONFIG_ZEPHYRTC_ENCODER_RAM_NAME}_BSS" NOKEEP)
-  zephyr_code_relocate(FILES ${ZEPHYR_BASE}/modules/h264swdec/zephyr_h264swdec.c
-    LOCATION "${CONFIG_ZEPHYRTC_DECODER_RAM_NAME}_NOINIT" NOKEEP)
+  if(NOT CONFIG_ZEPHYRTC_DECODER_REMOTE)
+    zephyr_code_relocate(FILES ${ZEPHYR_BASE}/modules/h264swdec/zephyr_h264swdec.c
+      LOCATION "${CONFIG_ZEPHYRTC_DECODER_RAM_NAME}_NOINIT" NOKEEP)
+  endif()
+endif()
+
+if(CONFIG_SECOND_CORE_MCUX)
+  # The start-up code of the SoC loads the image of the second core, whose
+  # description the sysbuild leaves next to this image
+  target_include_directories(zephyr_interface
+    INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/../remote/zephyr/include/public)
 endif()
