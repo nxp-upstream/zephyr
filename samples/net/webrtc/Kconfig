@@ -337,6 +337,25 @@ config ZEPHYRTC_WIFI_PASSWORD
 	  selects an open network. Set this only from a private EXTRA_CONF_FILE
 	  outside the source tree, such as the one tools/rt1170_demo.py generates.
 
+choice ZEPHYRTC_WIFI_BAND
+	prompt "Band of the Wi-Fi station"
+	depends on ZEPHYRTC_MODE_EXTERNAL && WIFI
+	default ZEPHYRTC_WIFI_BAND_ANY
+	help
+	  Band the station looks for its network on. An access point that gives
+	  the same name to its radios lets the station choose among them.
+
+config ZEPHYRTC_WIFI_BAND_ANY
+	bool "Any band"
+
+config ZEPHYRTC_WIFI_BAND_2_4_GHZ
+	bool "2.4 GHz only"
+
+config ZEPHYRTC_WIFI_BAND_5_GHZ
+	bool "5 GHz only"
+
+endchoice
+
 config ZEPHYRTC_EXTERNAL_RUN_MS
 	int "External connected-media validation time in milliseconds"
 	depends on ZEPHYRTC_MODE_EXTERNAL

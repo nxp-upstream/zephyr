@@ -74,6 +74,14 @@ static void keyframe_requested(void *user_data)
 }
 
 #if defined(CONFIG_WIFI)
+#if defined(CONFIG_ZEPHYRTC_WIFI_BAND_5_GHZ)
+#define WIFI_BAND WIFI_FREQ_BAND_5_GHZ
+#elif defined(CONFIG_ZEPHYRTC_WIFI_BAND_2_4_GHZ)
+#define WIFI_BAND WIFI_FREQ_BAND_2_4_GHZ
+#else
+#define WIFI_BAND WIFI_FREQ_BAND_UNKNOWN
+#endif
+
 static int start_wifi(void)
 {
 	struct net_if *iface = net_if_get_default();
@@ -87,6 +95,8 @@ static int start_wifi(void)
 		.sae_password = (const uint8_t *)CONFIG_ZEPHYRTC_WIFI_PASSWORD,
 		.sae_password_length = password_length,
 		.channel = WIFI_CHANNEL_ANY,
+		/* A band left at zero asks for the 2.4 GHz one */
+		.band = WIFI_BAND,
 		/* WPA2 or WPA3, whichever the access point asks for */
 		.security = password_length == 0U ? WIFI_SECURITY_TYPE_NONE
 						  : WIFI_SECURITY_TYPE_WPA_AUTO_PERSONAL,
