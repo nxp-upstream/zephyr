@@ -1,0 +1,40 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* The frames of a video source the other core owns, displayed here */
+/ {
+	/* What the source client calls the remote core through */
+	camera_channel: camera-channel {
+		compatible = "zephyr,mpipe-erpc-channel";
+		endpoint = "mpipe_cam";
+	};
+
+	pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+		autostart;
+
+		/* The source runs on the remote core; this element is its client */
+		camera_src: vid-src {
+			compatible = "zephyr,mpipe-vid-src-client";
+			channel = <&camera_channel>;
+		};
+
+		/* The frames must fit in the memory the two cores share */
+		frame_filter: caps-filter {
+			compatible = "zephyr,mpipe-caps-filter";
+			sources = <&camera_src>;
+			media = "video";
+			pixel-format = "RGBP";
+			width = <320>;
+			height = <240>;
+		};
+
+		disp-sink {
+			compatible = "zephyr,mpipe-disp-sink";
+			sources = <&frame_filter>;
+		};
+	};
+};

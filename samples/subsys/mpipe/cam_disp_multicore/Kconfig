@@ -1,23 +1,7 @@
 # Copyright 2026 NXP
 # SPDX-License-Identifier: Apache-2.0
 
-mainmenu "Camera on one core, display on the other"
-
-menu "Pipeline configuration"
-
-config VIDEO_FRAME_WIDTH
-	int "Width of the video frame"
-	default 320
-	help
-	  Width of the frames asked of the source on the other core.
-
-config VIDEO_FRAME_HEIGHT
-	int "Height of the video frame"
-	default 240
-	help
-	  Height of the frames asked of the source on the other core.
-
-endmenu
+mainmenu "Camera on one core, display on the other, described in the devicetree"
 
 config SAMPLE_INCLUDE_REMOTE_DIR
 	bool "Include remote core header directory"

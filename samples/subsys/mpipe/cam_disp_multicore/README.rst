@@ -52,6 +52,18 @@ Limits
 - A stop takes effect within the time the server waits for a frame,
   :kconfig:option:`CONFIG_MPIPE_ERPC_SERVER_PRODUCE_TIMEOUT_MS`.
 
+The pipeline of the primary core is described in the devicetree: a ``zephyr,mpipe-pipeline`` node
+holds one child node per element, and the ``sources`` property of an element names the element it
+receives its buffers from. The pipeline is built at boot from that description, and the options of
+the framework and of its elements are enabled by the nodes.
+
+The pipeline of ``pipeline.dtsi`` is ``vid_src_client -> caps_filter -> disp_sink``. The
+source client names its channel, a ``zephyr,mpipe-erpc-channel`` node that holds the IPC
+endpoint of the pipeline the other core serves. The image of the other core, in ``remote/``,
+builds its pipeline in code.
+
+The application has no code: the pipeline node has the ``autostart`` property.
+
 Requirements
 ************
 

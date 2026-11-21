@@ -78,8 +78,10 @@
 			link-id = <0>;
 			role = "host";
 			buffer-size = <512>;
-			buffer-count = <4>;
+			buffer-count = <2>;
 			status = "okay";
 		};
 	};
 };
+
+#include "../pipeline.dtsi"
