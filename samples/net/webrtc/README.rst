@@ -218,29 +218,33 @@ Media on the Multimedia Pipeline subsystem
 *******************************************
 
 ``overlay-mpipe.conf`` replaces the media code of the sample by pipelines of the
-:ref:`Multimedia Pipeline <mpipe>` subsystem, one per leg of the call, each with its own thread:
+:ref:`Multimedia Pipeline <mpipe>` subsystem, one per leg of the call, each with its own thread.
+The devicetree describes them: ``pipelines.dtsi`` holds the four pipelines, and the overlay of a
+board includes it and adds what the hardware of the board offers.
 
 .. code-block:: none
 
    camera      vid_src -> caps_filter -> vid_convert -> vid_h264_encoder -> app_sink
-   display     app_src -> vid_h264_decoder -> vid_transform -> caps_filter -> vid_overlay
+   display     app_src -> caps_filter -> vid_h264_decoder -> vid_convert -> vid_overlay
                -> disp_sink
    microphone  aud_dmic_src -> caps_filter -> aud_gain -> app_sink
    headphones  app_src -> aud_raw_parser -> aud_gain -> queue -> aud_i2s_codec_sink
 
-The application (``src/media_mpipe.c``) only moves the encoded frames and the G.711 packets between
-the application elements and libpeer. On a board without a video transform device the display leg
-converts in software (``vid_convert``) and shows the frames at their own size.
+The frame size and rate, the settings of the encoder, the gains, the depth of the audio queue, the
+priorities of the threads and the place of the picture on the display are properties of these
+nodes. The application (``src/media_mpipe.c``) builds nothing: it only moves the encoded frames and
+the G.711 packets between the application elements and libpeer, in about a third of the lines of
+the media code it replaces (650 against 1860).
 
 With this media the board sends the camera at its own rate, 30 frames per second, with a key frame
-when the peer asks for one and every ``CONFIG_ZEPHYRTC_VIDEO_GOP`` frames. libpeer sends the
+when the peer asks for one and every ``gop`` frames of the encoder node. libpeer sends the
 capture time of every frame and RTCP sender reports for both streams, from one clock, so the peer
 can align the audio with the video.
 
-``CONFIG_ZEPHYRTC_MICROPHONE_GAIN`` and ``CONFIG_ZEPHYRTC_HEADPHONES_GAIN`` set the two gains in
-percent. The microphone gets 300 % by default: speech at arm's length from the microphones of the
-MIMXRT1170-EVKB peaks around a third of full scale, so the loudest syllables are clipped at that
-gain and 200 % is the value that never clips.
+The ``gain`` properties of the two ``aud_gain`` nodes set the gains in percent. The microphone
+gets 300 %: speech at arm's length from the microphones of the MIMXRT1170-EVKB peaks around a
+third of full scale, so the loudest syllables are clipped at that gain and 200 % is the value that
+never clips.
 
 This media needs changes in two modules that the manifest does not point to yet: the branch
 ``zephyrtc-mpipe`` of ``modules/lib/libpeer`` (timestamps from the caller, RTCP reports, a receive
@@ -251,33 +255,39 @@ On the MIMXRT1170-EVKB
 ======================
 
 Add ``overlay-mpipe.conf`` and ``overlay-mimxrt1170-mpipe.conf`` after the other configuration
-files. For Wi-Fi:
+files, and the overlay of the pipelines of the board. For Wi-Fi:
 
 .. code-block:: console
 
    conf="overlay-mimxrt1170-av.conf;overlay-mimxrt1170-wifi.conf"
    conf="$conf;overlay-mpipe.conf;overlay-mimxrt1170-mpipe.conf"
    conf="$conf;$HOME/.config/zephyrtc/rt1170.generated.conf"
+   dts="boards/mimxrt1170_evk_mimxrt1176_cm7_B_wifi.overlay"
+   dts="$dts;boards/mimxrt1170_evk_mimxrt1176_cm7_B_mpipe.overlay"
    west build -p always -b mimxrt1170_evk@B/mimxrt1176/cm7 \
       --shield nxp_btb44_ov5640 --shield rk055hdmipi4ma0 \
       -d build/webrtc-mpipe zephyr/samples/net/webrtc -- \
-      -DEXTRA_CONF_FILE="$conf" \
-      -DEXTRA_DTC_OVERLAY_FILE=boards/mimxrt1170_evk_mimxrt1176_cm7_B_wifi.overlay
+      -DEXTRA_CONF_FILE="$conf" -DEXTRA_DTC_OVERLAY_FILE="$dts"
 
 The board file runs the code from a serial flash and puts the data in the SDRAM, which is where
 most of the time of the media went. ``overlay-mimxrt1170-mpipe.conf`` therefore runs the codecs,
 the pixel format conversions, SRTP, libpeer and the IP stack from the instruction TCM
 (``CONFIG_ZEPHYRTC_CODE_RELOCATE``) and puts the memory of the two codecs in the on-chip RAM
-(``CONFIG_ZEPHYRTC_CODEC_DATA_RELOCATE``). The PXP converts the decoded frames to RGB565, turns
-them and scales them in one pass, and a plane of the LCDIFv2 scans the result out without a copy.
+(``CONFIG_ZEPHYRTC_CODEC_DATA_RELOCATE``).
 
-The picture of the peer is scaled by ``CONFIG_ZEPHYRTC_DISPLAY_SCALE``. The default of the overlay
-is two, 480x640 on the 720x1280 panel. Three fills the width of the panel, but the plane then
-loads the SDRAM enough to double the load of the processor: the camera frames, which the processor
-reads from the same SDRAM, do not fit in the on-chip RAM.
+``boards/mimxrt1170_evk_mimxrt1176_cm7_B_mpipe.overlay`` puts the PXP (``vid_transform``) and a
+caps filter in the place of the software conversion of the display leg: the PXP converts the
+decoded frames to RGB565, turns them and scales them in one pass to the size the caps filter
+gives, and a plane of the LCDIFv2 scans the result out without a copy. That size and the ``x``
+and ``y`` of the display sink set the scale: 480x640 in the middle of the 720x1280 panel, a scale
+of two. A scale of three fills the width of the panel, but the plane then loads the SDRAM enough
+to double the load of the processor: the camera frames, which the processor reads from the same
+SDRAM, do not fit in the on-chip RAM. ``CONFIG_ZEPHYRTC_DISPLAY_ROTATION`` and
+``CONFIG_ZEPHYRTC_DISPLAY_SCALE`` only serve the media code of the sample.
 
-The camera delivers YUV frames of 8 bits per component (``CONFIG_ZEPHYRTC_CAMERA_VUYX32``): the
-RGB565 of the OV5640 shows as pink and green patches in the smooth areas of the picture.
+The same overlay asks the camera for YUV frames of 8 bits per component (``pixel-format =
+"VUYX"`` in the caps filter of the camera): the RGB565 of the OV5640 shows as pink and green
+patches in the smooth areas of the picture.
 ``CONFIG_ZEPHYRTC_CAMERA_SHARPNESS`` and ``CONFIG_ZEPHYRTC_CAMERA_EXPOSURE_BIAS`` set the two
 controls of the camera of the same name; they are left alone by default, since a sharper and
 brighter picture (32 and 6 for this camera, +0.3 EV) takes three times the bit rate.
@@ -341,7 +351,8 @@ the processor:
    west build -p always -b mimxrt1170_evk@B/mimxrt1176/cm7 \
       --shield nxp_btb44_ov5640 --shield rk055hdmipi4ma0 \
       -d build/webrtc-self zephyr/samples/net/webrtc -- \
-      -DEXTRA_CONF_FILE="overlay-self-call.conf;overlay-mpipe.conf;overlay-mimxrt1170-mpipe.conf"
+      -DEXTRA_CONF_FILE="overlay-self-call.conf;overlay-mpipe.conf;overlay-mimxrt1170-mpipe.conf" \
+      -DEXTRA_DTC_OVERLAY_FILE=boards/mimxrt1170_evk_mimxrt1176_cm7_B_mpipe.overlay
 
 .. code-block:: console
 
@@ -402,11 +413,12 @@ core serves a pipeline that holds the same decoder element.
 
    conf="overlay-self-call.conf;overlay-mpipe.conf"
    conf="$conf;overlay-mimxrt1170-mpipe.conf;overlay-mimxrt1170-multicore.conf"
+   dts="boards/mimxrt1170_evk_mimxrt1176_cm7_B_mpipe.overlay"
+   dts="$dts;boards/mimxrt1170_evk_mimxrt1176_cm7_B_multicore.overlay"
    west build -p always -b mimxrt1170_evk@B/mimxrt1176/cm7 --sysbuild \
       -d build/webrtc-multicore zephyr/samples/net/webrtc -- \
       -Dwebrtc_SHIELD="nxp_btb44_ov5640;rk055hdmipi4ma0" \
-      -Dwebrtc_EXTRA_CONF_FILE="$conf" \
-      -Dwebrtc_EXTRA_DTC_OVERLAY_FILE=boards/mimxrt1170_evk_mimxrt1176_cm7_B_multicore.overlay
+      -Dwebrtc_EXTRA_CONF_FILE="$conf" -Dwebrtc_EXTRA_DTC_OVERLAY_FILE="$dts"
 
 This is an option, not the default: the second core is slow at this work. A decode call takes
 20.8 ms where the first core decodes the same frame in 3 ms, because the Cortex-M4 has a small

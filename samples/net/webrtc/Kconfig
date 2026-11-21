@@ -112,40 +112,13 @@ config ZEPHYRTC_MEDIA_MPIPE
 	help
 	  Capture, encode, decode and render the media of the call with
 	  pipelines of the Multimedia Pipeline subsystem, one per leg, instead
-	  of the media code of the sample. The application then only moves
-	  the encoded frames and the G.711 packets between the pipelines and
-	  the WebRTC stack. overlay-mpipe.conf enables it with what it needs.
+	  of the media code of the sample. The devicetree describes the
+	  pipelines (pipelines.dtsi and the overlay of the board), with the
+	  frame size, the encoder settings, the gains and the place on the
+	  display. The application then only moves the encoded frames and the
+	  G.711 packets between the pipelines and the WebRTC stack.
 
 if ZEPHYRTC_MEDIA_MPIPE
-
-config ZEPHYRTC_VIDEO_WIDTH
-	int "Width of the video frames"
-	default 320
-	help
-	  Width in pixels of the frames the camera delivers and of the frames
-	  the peer sends. The codec memory is reserved for this size.
-
-config ZEPHYRTC_VIDEO_HEIGHT
-	int "Height of the video frames"
-	default 240
-	help
-	  Height in pixels of the frames the camera delivers and of the frames
-	  the peer sends. The codec memory is reserved for this size.
-
-config ZEPHYRTC_VIDEO_FPS
-	int "Frame rate of the camera"
-	range 1 120
-	default 30
-	help
-	  Frames per second asked of the camera, which is also the rate the
-	  video is sent at as long as the encoder keeps up.
-
-config ZEPHYRTC_CAMERA_VUYX32
-	bool "Take VUYX32 frames from the camera"
-	help
-	  Ask the camera for frames of 8 bits per component in YUV, for a
-	  camera that offers them next to RGB. The conversion for the encoder
-	  is then a copy of the luma and a mean of the chroma.
 
 config ZEPHYRTC_CAMERA_SHARPNESS
 	int "Sharpness asked of the camera"
@@ -162,83 +135,6 @@ config ZEPHYRTC_CAMERA_EXPOSURE_BIAS
 	help
 	  Entry of the exposure compensation menu of the camera, which its
 	  driver defines. -1 leaves the camera as its driver sets it.
-
-config ZEPHYRTC_VIDEO_QP
-	int "Quantizer of the encoder"
-	range 10 51
-	default 28
-	help
-	  Quantizer the encoder uses for every frame: 10 for the best picture,
-	  51 for the smallest stream. The default gives a 320x240 picture
-	  without visible blocks at a few hundred kbit/s.
-
-config ZEPHYRTC_VIDEO_SPEED
-	int "Speed of the encoder"
-	range 0 10
-	default 9
-	help
-	  Speed against quality, from 0 (every coding tool) to 10 (fastest).
-	  9 is the fastest setting that keeps the deblocking filter, without
-	  which the blocks of the picture show in flat areas. On the Cortex-M7
-	  of the i.MX RT1170 it is also faster than 10.
-
-config ZEPHYRTC_VIDEO_GOP
-	int "Key frame period in frames"
-	range 0 65535
-	default 300
-	help
-	  The encoder also sends a key frame whenever the peer asks for one,
-	  which is how a lost frame is recovered. The period only bounds the
-	  time a peer whose request was lost stays without a picture: ten
-	  seconds at 30 frames per second with the default. 0 sends key frames
-	  on request only.
-
-config ZEPHYRTC_HEADPHONES_SAMPLE_RATE
-	int "Sample rate of the audio codec"
-	default 16000
-	help
-	  Rate the received audio is played at, a multiple of the 8 kHz of
-	  G.711 that the audio codec of the board supports.
-
-config ZEPHYRTC_MICROPHONE_GAIN
-	int "Gain of the microphone, in percent"
-	range 0 1000
-	default 300
-	help
-	  Gain of the aud_gain element behind the microphone, 100 for unity
-	  and 0 to mute. Speech at arm's length from the microphones of the
-	  MIMXRT1170-EVKB peaks around a third of full scale, and the peer
-	  hears it as it is sent: the default brings it to full scale, and
-	  the loudest syllables are clipped.
-
-config ZEPHYRTC_HEADPHONES_GAIN
-	int "Gain of the headphones, in percent"
-	range 0 1000
-	default 100
-	help
-	  Gain of the aud_gain element in front of the audio codec, 100 for
-	  unity and 0 to mute.
-
-config ZEPHYRTC_DISPLAY_PLANE
-	int "Display plane showing the video of the peer"
-	default -1
-	help
-	  Display plane the decoded frames are scanned out from, without a
-	  copy, on a display that has planes. -1 writes them to the display.
-
-config ZEPHYRTC_DISPLAY_X
-	int "Horizontal position of the video of the peer"
-	default -1
-	help
-	  Column of the display where the left edge of the frames goes. -1
-	  puts the frames in the middle of the display.
-
-config ZEPHYRTC_DISPLAY_Y
-	int "Vertical position of the video of the peer"
-	default -1
-	help
-	  Row of the display where the top edge of the frames goes. -1 puts
-	  the frames in the middle of the display.
 
 config ZEPHYRTC_DECODER_REMOTE
 	bool "Decode the video of the peer on the second core"
@@ -306,26 +202,21 @@ endif # ZEPHYRTC_MEDIA_MPIPE
 
 config ZEPHYRTC_DISPLAY_ROTATION
 	int "Decoded-video display rotation in clockwise degrees"
-	depends on ZEPHYRTC_VIDEO_H264 && (ZEPHYRTC_AUDIO_RT1170 || ZEPHYRTC_MEDIA_MPIPE)
+	depends on ZEPHYRTC_VIDEO_H264 && ZEPHYRTC_AUDIO_RT1170
 	range 0 270
 	default 0
 	help
 	  Rotate decoded video clockwise before display. Valid values are 0, 90,
-	  180, and 270 degrees. Other values fail at compile time. The media on
-	  the Multimedia Pipeline subsystem rotates with the video transform
-	  device of the board and ignores the option on a board without one.
+	  180, and 270 degrees. Other values fail at compile time.
 
 config ZEPHYRTC_DISPLAY_SCALE
 	int "Decoded-video integer display scale"
-	depends on ZEPHYRTC_VIDEO_H264 && (ZEPHYRTC_AUDIO_RT1170 || ZEPHYRTC_MEDIA_MPIPE)
+	depends on ZEPHYRTC_VIDEO_H264 && ZEPHYRTC_AUDIO_RT1170
 	range 1 3
 	default 1
 	help
 	  Upscale decoded video by this integer factor using nearest-neighbor
-	  replication. The transformed image must fit the active display. The
-	  media on the Multimedia Pipeline subsystem scales with the video
-	  transform device of the board, which interpolates, and ignores the
-	  option on a board without one.
+	  replication. The transformed image must fit the active display.
 
 config ZEPHYRTC_SIGNALING_CLIENT
 	bool

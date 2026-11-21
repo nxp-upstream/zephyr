@@ -5,10 +5,16 @@
  */
 
 /*
- * Audio devices of native_sim for the pipelines of overlay-mpipe.conf: the
+ * The pipelines of the media on native_sim, with its audio devices: the
  * emulated DMIC as the microphone, the emulated I2S behind the dummy codec as
- * the headphones.
+ * the headphones, which runs at 48 kHz.
  */
+
+#include "../pipelines.dtsi"
+
+&headphones_parser {
+	sample-rate = <48000>;
+};
 
 / {
 	aliases {

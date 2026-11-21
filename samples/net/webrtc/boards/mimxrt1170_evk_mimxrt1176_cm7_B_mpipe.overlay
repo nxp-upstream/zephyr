@@ -1,0 +1,57 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * The pipelines of the media on the MIMXRT1170-EVKB: OV5640 camera, PXP,
+ * RK055 panel on the LCDIFv2, MICFIL microphones and WM8962 codec.
+ */
+
+#include "../pipelines.dtsi"
+
+/*
+ * The OV5640 delivers YUV with 8 bits per component: smooth areas keep their
+ * color, which its RGB565 rounds to patches, and the encoder needs no matrix.
+ */
+&camera_filter {
+	pixel-format = "VUYX";
+};
+
+/*
+ * The PXP converts the video of the peer, turns it and scales it by two to
+ * 480x640, which a display plane scans out in the middle of the 720x1280
+ * panel. A scale of three (720x960 at x 0, y 160) fills the width of the
+ * panel, but the plane then loads the SDRAM enough to double the processor
+ * load.
+ */
+/delete-node/ &to_rgb;
+
+&display_pipeline {
+	transform: transform {
+		compatible = "zephyr,mpipe-vid-transform";
+		sources = <&decoder>;
+		device = <&pxp>;
+		rotation = <90>;
+	};
+
+	/* The size on the panel is what tells the device to scale */
+	display_filter: display-filter {
+		compatible = "zephyr,mpipe-caps-filter";
+		sources = <&transform>;
+		media = "video";
+		width = <480>;
+		height = <640>;
+	};
+};
+
+&probe {
+	sources = <&display_filter>;
+};
+
+&display {
+	plane = <0>;
+	x = <120>;
+	y = <320>;
+};

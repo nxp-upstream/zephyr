@@ -1,0 +1,178 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * The media of the call on the Multimedia Pipeline subsystem, one pipeline
+ * per leg. The application (src/media_mpipe.c) is the peer of the four
+ * application elements. A board overlay adds what its hardware offers.
+ *
+ * Audio first: a late block is heard. The display leg next, since a decoded
+ * frame is short work; the camera leg last, since the encoder runs for most
+ * of a frame period and everything else must be able to interrupt it.
+ */
+/ {
+	/* The camera, at the frame size the two peers agreed on, as an H.264 stream */
+	camera_pipeline: camera-pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+		thread-priority = <8>;
+
+		camera: camera {
+			compatible = "zephyr,mpipe-vid-src";
+		};
+
+		camera_filter: camera-filter {
+			compatible = "zephyr,mpipe-caps-filter";
+			sources = <&camera>;
+			media = "video";
+			width = <320>;
+			height = <240>;
+			frame-rate = <30>;
+		};
+
+		to_yuv: to-yuv {
+			compatible = "zephyr,mpipe-vid-convert";
+			sources = <&camera_filter>;
+		};
+
+		/*
+		 * A key frame when the peer asks for one, and every ten seconds
+		 * for a peer whose request was lost. Speed 9 is the fastest one
+		 * that keeps the deblocking filter.
+		 */
+		encoder: encoder {
+			compatible = "zephyr,mpipe-vid-h264-encoder";
+			sources = <&to_yuv>;
+			qp = <28>;
+			gop = <300>;
+			speed = <9>;
+		};
+
+		encoded_sink: encoded-sink {
+			compatible = "zephyr,mpipe-app-sink";
+			sources = <&encoder>;
+		};
+	};
+
+	/* The H.264 stream of the peer, decoded and displayed */
+	display_pipeline: display-pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+		thread-priority = <6>;
+
+		encoded_src: encoded-src {
+			compatible = "zephyr,mpipe-app-src";
+		};
+
+		/* The frame size, which the stream itself does not announce */
+		stream_filter: stream-filter {
+			compatible = "zephyr,mpipe-caps-filter";
+			sources = <&encoded_src>;
+			media = "video";
+			pixel-format = "H264";
+			width = <320>;
+			height = <240>;
+		};
+
+		decoder: decoder {
+			compatible = "zephyr,mpipe-vid-h264-decoder";
+			sources = <&stream_filter>;
+		};
+
+		to_rgb: to-rgb {
+			compatible = "zephyr,mpipe-vid-convert";
+			sources = <&decoder>;
+		};
+
+		/* Draws nothing: tells the application which frame is on the display */
+		probe: probe {
+			compatible = "zephyr,mpipe-vid-overlay";
+			sources = <&to_rgb>;
+			mode = "in-place";
+			draw-callback = "media_displayed_cb";
+		};
+
+		display: display {
+			compatible = "zephyr,mpipe-disp-sink";
+			sources = <&probe>;
+		};
+	};
+
+	/*
+	 * The microphone at twice the rate of G.711, in blocks of one G.711
+	 * packet. Speech at arm's length peaks around a third of full scale:
+	 * the gain brings it to full scale.
+	 */
+	microphone_pipeline: microphone-pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+		thread-priority = <4>;
+
+		microphone: microphone {
+			compatible = "zephyr,mpipe-aud-dmic-src";
+		};
+
+		microphone_filter: microphone-filter {
+			compatible = "zephyr,mpipe-caps-filter";
+			sources = <&microphone>;
+			media = "audio-pcm";
+			sample-rate = <16000>;
+			bit-width = <32>;
+			num-channels = <2>;
+			frame-interval = <20000>;
+		};
+
+		microphone_gain: microphone-gain {
+			compatible = "zephyr,mpipe-aud-gain";
+			sources = <&microphone_filter>;
+			gain = <300>;
+		};
+
+		captured_sink: captured-sink {
+			compatible = "zephyr,mpipe-app-sink";
+			sources = <&microphone_gain>;
+		};
+	};
+
+	/*
+	 * The decoded G.711 of the peer to the audio codec, at a multiple of
+	 * the G.711 rate that the codec supports. 100 ms of it wait for the
+	 * codec at most: older blocks are dropped.
+	 */
+	headphones_pipeline: headphones-pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+		thread-priority = <4>;
+
+		received_src: received-src {
+			compatible = "zephyr,mpipe-app-src";
+		};
+
+		headphones_parser: headphones-parser {
+			compatible = "zephyr,mpipe-aud-raw-parser";
+			sources = <&received_src>;
+			sample-rate = <16000>;
+			bit-width = <16>;
+			num-channels = <2>;
+			frame-interval = <20000>;
+		};
+
+		headphones_gain: headphones-gain {
+			compatible = "zephyr,mpipe-aud-gain";
+			sources = <&headphones_parser>;
+			gain = <100>;
+		};
+
+		headphones_queue: headphones-queue {
+			compatible = "zephyr,mpipe-queue";
+			sources = <&headphones_gain>;
+			size = <5>;
+			leak = "oldest";
+			thread-priority = <4>;
+		};
+
+		headphones: headphones {
+			compatible = "zephyr,mpipe-aud-i2s-codec-sink";
+			sources = <&headphones_queue>;
+		};
+	};
+};

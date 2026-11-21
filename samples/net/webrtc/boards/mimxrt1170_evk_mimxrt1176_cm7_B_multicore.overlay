@@ -63,3 +63,29 @@
 		};
 	};
 };
+
+/*
+ * The second core decodes: a transform client takes the place of the decoder
+ * and calls the pipeline that core serves, which holds the same decoder
+ * element. Used after the overlay of the pipelines.
+ */
+/ {
+	decoding_channel: decoding-channel {
+		compatible = "zephyr,mpipe-erpc-channel";
+		endpoint = "webrtc_dec";
+	};
+};
+
+/delete-node/ &decoder;
+
+&display_pipeline {
+	decoder_client: decoder-client {
+		compatible = "zephyr,mpipe-vid-transform-client";
+		sources = <&stream_filter>;
+		channel = <&decoding_channel>;
+	};
+};
+
+&transform {
+	sources = <&decoder_client>;
+};
