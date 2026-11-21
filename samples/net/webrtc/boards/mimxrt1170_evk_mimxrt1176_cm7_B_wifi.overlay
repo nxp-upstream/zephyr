@@ -19,6 +19,7 @@
 	no-3-0-v;
 	/delete-property/ detect-dat3;
 	/delete-property/ pwr-gpios;
+	/delete-property/ cd-gpios;
 	pinctrl-0 = <&pinmux_usdhc1>;
 	pinctrl-1 = <&pinmux_usdhc1>;
 	pinctrl-2 = <&pinmux_usdhc1>;
