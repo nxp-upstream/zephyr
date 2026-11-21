@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <zephyr/kernel.h>
 #include <zephyr/sys/util.h>
 
 #include "media.h"
@@ -26,6 +27,7 @@
 struct Media {
 	uint8_t audio[AUDIO_FRAME_BYTES];
 	uint32_t phase;
+	uint64_t start_ns; /* Uptime at media_start(), the origin of the frame timestamps. */
 	uint64_t next_frame_ms;
 	uint64_t frame_index;
 	uint64_t generated_audio;
@@ -129,6 +131,7 @@ int media_start(Media *media)
 	if (media == NULL || media->started) {
 		return -EINVAL;
 	}
+	media->start_ns = k_ticks_to_ns_floor64((uint64_t)k_uptime_ticks());
 	media->next_frame_ms = platform_now_ms();
 	media->next_video_ms = media->next_frame_ms;
 	media->started = true;
@@ -180,7 +183,7 @@ static bool pull_video(Media *media, MediaFrame *frame)
 	*frame = (MediaFrame){
 		.data = encoded,
 		.size = encoded_size,
-		.timestamp_ns = media->video_index * VIDEO_DURATION_NS,
+		.timestamp_ns = media->start_ns + media->video_index * VIDEO_DURATION_NS,
 		.duration_ns = VIDEO_DURATION_NS,
 	};
 	media->video_index++;
@@ -221,7 +224,7 @@ bool media_pull(Media *media, MediaKind kind, MediaFrame *frame)
 	*frame = (MediaFrame){
 		.data = media->audio,
 		.size = sizeof(media->audio),
-		.timestamp_ns = media->frame_index * AUDIO_DURATION_NS,
+		.timestamp_ns = media->start_ns + media->frame_index * AUDIO_DURATION_NS,
 		.duration_ns = AUDIO_DURATION_NS,
 	};
 	media->frame_index++;

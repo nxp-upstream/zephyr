@@ -32,12 +32,15 @@ static struct libpeer_endpoint endpoint;
 static char answer[SIGNALING_ANSWER_BUFFER_BYTES];
 K_THREAD_STACK_DEFINE(endpoint_stack, ZEPHYRTC_ENDPOINT_STACK_SIZE);
 
-static void audio_received(const uint8_t *data, size_t size, void *user_data)
+static void audio_received(const uint8_t *data, size_t size, uint32_t rtp_timestamp,
+			   void *user_data)
 {
 	Media *media = user_data;
+	/* The RTP time of the remote peer, which wraps with the 32 bit timestamp. */
 	MediaFrame frame = {
 		.data = data,
 		.size = size,
+		.timestamp_ns = (uint64_t)rtp_timestamp * NSEC_PER_SEC / 8000U,
 	};
 
 	if (media_receive(media, MEDIA_AUDIO, &frame) != 0) {
@@ -45,12 +48,14 @@ static void audio_received(const uint8_t *data, size_t size, void *user_data)
 	}
 }
 
-static void video_received(const uint8_t *data, size_t size, void *user_data)
+static void video_received(const uint8_t *data, size_t size, uint32_t rtp_timestamp,
+			   void *user_data)
 {
 	Media *media = user_data;
 	MediaFrame frame = {
 		.data = data,
 		.size = size,
+		.timestamp_ns = (uint64_t)rtp_timestamp * NSEC_PER_SEC / 90000U,
 	};
 
 	int result = media_receive(media, MEDIA_VIDEO, &frame);
@@ -263,16 +268,19 @@ int libpeer_external_run(void)
 		}
 		for (int kind = MEDIA_AUDIO; kind <= MEDIA_VIDEO; kind++) {
 			MediaFrame frame;
+			uint64_t capture_us;
 
 			if (!media_enabled(media, (MediaKind)kind) ||
 			    !media_pull(media, (MediaKind)kind, &frame)) {
 				continue;
 			}
+			/* The media source stamps its frames on the uptime clock. */
+			capture_us = frame.timestamp_ns / NSEC_PER_USEC;
 			result = kind == MEDIA_AUDIO
 					 ? libpeer_endpoint_send_audio(&endpoint, frame.data,
-								       frame.size)
+								       frame.size, capture_us)
 					 : libpeer_endpoint_send_video(&endpoint, frame.data,
-								       frame.size);
+								       frame.size, capture_us);
 			media_release(media, (MediaKind)kind);
 			if (result != 0) {
 				platform_log("error", "external_send", "kind=%s result=%d",

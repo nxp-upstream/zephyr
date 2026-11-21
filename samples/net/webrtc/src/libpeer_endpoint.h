@@ -19,6 +19,7 @@
 #define ZEPHYRTC_CONNECT_TIMEOUT_MS         15000U
 #define ZEPHYRTC_MEDIA_TIMEOUT_MS           5000U
 #define ZEPHYRTC_ENDPOINT_THREAD_PRIO       K_PRIO_PREEMPT(5)
+#define ZEPHYRTC_ENDPOINT_WAIT_MS           2
 
 /*
  * One libpeer PCMU PeerConnection plus its loop thread and received-audio
@@ -27,16 +28,21 @@
  * which only the loop thread does.
  */
 struct libpeer_audio_frame {
+	uint64_t capture_time_us;
 	uint8_t data[ZEPHYRTC_ENDPOINT_AUDIO_BYTES];
 };
 
 struct libpeer_video_frame {
+	uint64_t capture_time_us;
 	size_t size;
 	uint8_t data[ZEPHYRTC_ENDPOINT_VIDEO_BYTES];
 };
 
-typedef void (*libpeer_endpoint_audio_sink_fn)(const uint8_t *data, size_t size, void *user_data);
-typedef void (*libpeer_endpoint_video_sink_fn)(const uint8_t *data, size_t size, void *user_data);
+/* rtp_timestamp is the one of the RTP packet: 8 kHz for audio, 90 kHz for video. */
+typedef void (*libpeer_endpoint_audio_sink_fn)(const uint8_t *data, size_t size,
+					       uint32_t rtp_timestamp, void *user_data);
+typedef void (*libpeer_endpoint_video_sink_fn)(const uint8_t *data, size_t size,
+					       uint32_t rtp_timestamp, void *user_data);
 typedef void (*libpeer_endpoint_keyframe_fn)(void *user_data);
 
 struct libpeer_endpoint {
@@ -60,6 +66,9 @@ struct libpeer_endpoint {
 	atomic_t invalid_frames;
 	atomic_t send_failures;
 	atomic_t keyframe_requests;
+	/* Loop thread only: last received RTP timestamp and sender reports per kind. */
+	uint32_t received_rtp_timestamp[2];
+	uint32_t sender_reports[2];
 	struct k_msgq tx_queue;
 	char tx_queue_buffer[ZEPHYRTC_ENDPOINT_TX_QUEUE_DEPTH * sizeof(struct libpeer_audio_frame)]
 		__aligned(4);
@@ -90,10 +99,16 @@ int libpeer_endpoint_set_audio_sink(struct libpeer_endpoint *endpoint,
 int libpeer_endpoint_set_video_sink(struct libpeer_endpoint *endpoint,
 				    libpeer_endpoint_video_sink_fn sink,
 				    libpeer_endpoint_keyframe_fn keyframe_request, void *user_data);
-int libpeer_endpoint_send_audio(struct libpeer_endpoint *endpoint, const uint8_t *data,
-				size_t size);
-int libpeer_endpoint_send_video(struct libpeer_endpoint *endpoint, const uint8_t *data,
-				size_t size);
+/* Current time on the clock of the capture times, the uptime in microseconds. */
+uint64_t libpeer_endpoint_now_us(void);
+/*
+ * Queue one frame. capture_time_us is its capture instant on the clock of
+ * libpeer_endpoint_now_us(); the RTP timestamp is derived from it.
+ */
+int libpeer_endpoint_send_audio(struct libpeer_endpoint *endpoint, const uint8_t *data, size_t size,
+				uint64_t capture_time_us);
+int libpeer_endpoint_send_video(struct libpeer_endpoint *endpoint, const uint8_t *data, size_t size,
+				uint64_t capture_time_us);
 int libpeer_endpoint_request_keyframe(struct libpeer_endpoint *endpoint);
 void libpeer_endpoint_stop(struct libpeer_endpoint *endpoint);
 void libpeer_endpoint_destroy(struct libpeer_endpoint *endpoint);

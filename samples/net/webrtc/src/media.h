@@ -12,6 +12,8 @@ typedef enum {
 /*
  * Borrowed encoded bytes: PCMU/8000 mono, 20 ms; H264 Annex B AU. No
  * GstBuffer, RTP, transport, or OS handle crosses this boundary.
+ * timestamp_ns of a pulled frame is its nominal capture instant on the
+ * uptime clock, the same clock for audio and video.
  */
 typedef struct {
 	const uint8_t *data;

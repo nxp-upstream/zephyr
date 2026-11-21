@@ -20,6 +20,25 @@ void libpeer_stack_deinit(void)
 	peer_deinit();
 }
 
+#define AUDIO_CLOCK_RATE 8000U
+#define VIDEO_CLOCK_RATE 90000U
+
+uint64_t libpeer_endpoint_now_us(void)
+{
+	return k_ticks_to_us_floor64((uint64_t)k_uptime_ticks());
+}
+
+static uint64_t clock_us(void *user_data)
+{
+	ARG_UNUSED(user_data);
+	return libpeer_endpoint_now_us();
+}
+
+static uint32_t rtp_timestamp(uint64_t time_us, uint32_t clock_rate)
+{
+	return (uint32_t)(time_us * clock_rate / USEC_PER_SEC);
+}
+
 static void state_changed(PeerConnectionState state, void *user_data)
 {
 	struct libpeer_endpoint *endpoint = user_data;
@@ -29,10 +48,12 @@ static void state_changed(PeerConnectionState state, void *user_data)
 		     peer_connection_state_to_string(state));
 }
 
-static void audio_received(uint8_t *data, size_t size, void *user_data)
+static void audio_received(uint8_t *data, size_t size, uint32_t rtp_timestamp, void *user_data)
 {
 	struct libpeer_endpoint *endpoint = user_data;
 	bool valid = size == ZEPHYRTC_ENDPOINT_AUDIO_BYTES;
+
+	endpoint->received_rtp_timestamp[0] = rtp_timestamp;
 
 	for (size_t index = 0U; endpoint->validate_pattern && valid && index < size; index++) {
 		if (data[index] != endpoint->expected_byte) {
@@ -46,14 +67,15 @@ static void audio_received(uint8_t *data, size_t size, void *user_data)
 	atomic_inc(&endpoint->received_frames);
 	atomic_add(&endpoint->received_bytes, (atomic_val_t)size);
 	if (endpoint->audio_sink != NULL) {
-		endpoint->audio_sink(data, size, endpoint->audio_sink_user_data);
+		endpoint->audio_sink(data, size, rtp_timestamp, endpoint->audio_sink_user_data);
 	}
 }
 
-static void video_received(uint8_t *data, size_t size, void *user_data)
+static void video_received(uint8_t *data, size_t size, uint32_t rtp_timestamp, void *user_data)
 {
 	struct libpeer_endpoint *endpoint = user_data;
 
+	endpoint->received_rtp_timestamp[1] = rtp_timestamp;
 	if (!endpoint->video_enabled || data == NULL || size == 0U ||
 	    size > ZEPHYRTC_ENDPOINT_VIDEO_BYTES) {
 		atomic_inc(&endpoint->invalid_frames);
@@ -62,8 +84,29 @@ static void video_received(uint8_t *data, size_t size, void *user_data)
 	atomic_inc(&endpoint->received_video_nalus);
 	atomic_add(&endpoint->received_video_bytes, (atomic_val_t)size);
 	if (endpoint->video_sink != NULL) {
-		endpoint->video_sink(data, size, endpoint->video_sink_user_data);
+		endpoint->video_sink(data, size, rtp_timestamp, endpoint->video_sink_user_data);
 	}
+}
+
+/*
+ * The report says which RTP timestamp the remote clock time ntp_timestamp
+ * corresponds to. lag_ms is how far the last received packet is behind it.
+ */
+static void sender_report_received(int video, uint64_t ntp_timestamp, uint32_t rtp_timestamp,
+				   void *user_data)
+{
+	struct libpeer_endpoint *endpoint = user_data;
+	const uint32_t clock_rate = video != 0 ? VIDEO_CLOCK_RATE : AUDIO_CLOCK_RATE;
+	const uint32_t received = endpoint->received_rtp_timestamp[video != 0 ? 1 : 0];
+	const int32_t lag = (int32_t)(rtp_timestamp - received);
+
+	endpoint->sender_reports[video != 0 ? 1 : 0]++;
+	platform_log("info", "sender_report",
+		     "peer=%s kind=%s count=%u ntp=%u.%06u rtp=%u received_rtp=%u lag_ms=%d",
+		     endpoint->name, video != 0 ? "video" : "audio",
+		     endpoint->sender_reports[video != 0 ? 1 : 0], (uint32_t)(ntp_timestamp >> 32),
+		     (uint32_t)(((ntp_timestamp & UINT32_MAX) * USEC_PER_SEC) >> 32), rtp_timestamp,
+		     received, (int)((int64_t)lag * 1000 / (int64_t)clock_rate));
 }
 
 static void keyframe_requested(void *user_data)
@@ -86,8 +129,10 @@ static void endpoint_loop(void *endpoint_arg, void *unused_1, void *unused_2)
 		struct libpeer_video_frame *video;
 
 		if (k_msgq_get(&endpoint->tx_queue, &frame, K_NO_WAIT) == 0 &&
-		    peer_connection_send_audio(endpoint->connection, frame.data,
-					       sizeof(frame.data)) != 0) {
+		    peer_connection_send_audio_ts(
+			    endpoint->connection, frame.data, sizeof(frame.data),
+			    rtp_timestamp(frame.capture_time_us, AUDIO_CLOCK_RATE),
+			    frame.capture_time_us) != 0) {
 			atomic_inc(&endpoint->send_failures);
 		}
 		if (endpoint->video_enabled && atomic_cas(&endpoint->keyframe_requests, 1, 0) &&
@@ -96,14 +141,19 @@ static void endpoint_loop(void *endpoint_arg, void *unused_1, void *unused_2)
 		}
 		if (endpoint->video_enabled &&
 		    k_msgq_get(&endpoint->video_tx_queue, &video, K_NO_WAIT) == 0) {
-			if (peer_connection_send_video(endpoint->connection, video->data,
-						       video->size) != 0) {
+			if (peer_connection_send_video_ts(
+				    endpoint->connection, video->data, video->size,
+				    rtp_timestamp(video->capture_time_us, VIDEO_CLOCK_RATE),
+				    video->capture_time_us) != 0) {
 				atomic_inc(&endpoint->send_failures);
 			}
 			(void)k_msgq_put(&endpoint->video_free_queue, &video, K_FOREVER);
 		}
-		(void)peer_connection_loop(endpoint->connection);
-		k_sleep(K_MSEC(1));
+		/*
+		 * Block in the receive wait instead of sleeping: a burst is drained
+		 * in one call, and the wait bounds the delay of the queued frames.
+		 */
+		(void)peer_connection_loop_wait(endpoint->connection, ZEPHYRTC_ENDPOINT_WAIT_MS);
 	}
 }
 
@@ -141,11 +191,13 @@ int libpeer_endpoint_init(struct libpeer_endpoint *endpoint, const char *name, u
 	configuration.audio_codec = CODEC_PCMU;
 	configuration.video_codec = video_enabled ? CODEC_H264 : CODEC_NONE;
 	configuration.datachannel = DATA_CHANNEL_NONE;
-	configuration.onaudiotrack = audio_received;
+	configuration.onaudiotrack_ts = audio_received;
+	configuration.on_sender_report = sender_report_received;
 	if (video_enabled) {
-		configuration.onvideotrack = video_received;
+		configuration.onvideotrack_ts = video_received;
 		configuration.on_request_keyframe = keyframe_requested;
 	}
+	configuration.clock_us = clock_us;
 	configuration.user_data = endpoint;
 	endpoint->connection = peer_connection_create(&configuration);
 	if (endpoint->connection == NULL) {
@@ -193,7 +245,8 @@ int libpeer_endpoint_set_video_sink(struct libpeer_endpoint *endpoint,
 	return 0;
 }
 
-int libpeer_endpoint_send_audio(struct libpeer_endpoint *endpoint, const uint8_t *data, size_t size)
+int libpeer_endpoint_send_audio(struct libpeer_endpoint *endpoint, const uint8_t *data, size_t size,
+				uint64_t capture_time_us)
 {
 	struct libpeer_audio_frame frame;
 
@@ -201,6 +254,7 @@ int libpeer_endpoint_send_audio(struct libpeer_endpoint *endpoint, const uint8_t
 	    !endpoint->thread_started) {
 		return -EINVAL;
 	}
+	frame.capture_time_us = capture_time_us;
 	memcpy(frame.data, data, sizeof(frame.data));
 	if (k_msgq_put(&endpoint->tx_queue, &frame, K_MSEC(20)) != 0) {
 		return -ENOBUFS;
@@ -208,7 +262,8 @@ int libpeer_endpoint_send_audio(struct libpeer_endpoint *endpoint, const uint8_t
 	return 0;
 }
 
-int libpeer_endpoint_send_video(struct libpeer_endpoint *endpoint, const uint8_t *data, size_t size)
+int libpeer_endpoint_send_video(struct libpeer_endpoint *endpoint, const uint8_t *data, size_t size,
+				uint64_t capture_time_us)
 {
 	struct libpeer_video_frame *frame;
 
@@ -220,6 +275,7 @@ int libpeer_endpoint_send_video(struct libpeer_endpoint *endpoint, const uint8_t
 	if (k_msgq_get(&endpoint->video_free_queue, &frame, K_MSEC(50)) != 0) {
 		return -ENOBUFS;
 	}
+	frame->capture_time_us = capture_time_us;
 	frame->size = size;
 	memcpy(frame->data, data, size);
 	if (k_msgq_put(&endpoint->video_tx_queue, &frame, K_NO_WAIT) != 0) {
@@ -309,13 +365,19 @@ int libpeer_pair_exchange_audio(struct libpeer_endpoint *first, struct libpeer_e
 {
 	uint8_t first_audio[ZEPHYRTC_ENDPOINT_AUDIO_BYTES];
 	uint8_t second_audio[ZEPHYRTC_ENDPOINT_AUDIO_BYTES];
+	const uint64_t start_us = libpeer_endpoint_now_us();
 	int64_t deadline;
 
 	memset(first_audio, first->send_byte, sizeof(first_audio));
 	memset(second_audio, second->send_byte, sizeof(second_audio));
 	for (int frame = 0; frame < ZEPHYRTC_ENDPOINT_AUDIO_FRAMES; frame++) {
-		if (libpeer_endpoint_send_audio(first, first_audio, sizeof(first_audio)) != 0 ||
-		    libpeer_endpoint_send_audio(second, second_audio, sizeof(second_audio)) != 0) {
+		/* Nominal capture times: the RTP timestamps advance by one frame. */
+		const uint64_t capture_time_us = start_us + (uint64_t)frame * 20000U;
+
+		if (libpeer_endpoint_send_audio(first, first_audio, sizeof(first_audio),
+						capture_time_us) != 0 ||
+		    libpeer_endpoint_send_audio(second, second_audio, sizeof(second_audio),
+						capture_time_us) != 0) {
 			return -EIO;
 		}
 		k_sleep(K_MSEC(20));

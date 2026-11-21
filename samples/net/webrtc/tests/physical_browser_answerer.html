@@ -326,9 +326,27 @@ SPDX-License-Identifier: Apache-2.0
         outboundVideoKeyFramesEncoded: 0,
         outboundVideoPliCount: 0,
       };
+      const rtcp = [];
       if (peerConnection) {
         const report = await peerConnection.getStats();
         report.forEach((row) => {
+          /* RTCP evidence: Sender Reports accepted, report blocks received. */
+          if (row.type === 'inbound-rtp' || row.type === 'remote-outbound-rtp' ||
+              row.type === 'remote-inbound-rtp') {
+            const entry = {};
+            for (const key of [
+              'type', 'kind', 'ssrc', 'packetsReceived', 'packetsLost',
+              'framesDecoded', 'framesPerSecond', 'jitter',
+              'jitterBufferDelay', 'jitterBufferEmittedCount',
+              'estimatedPlayoutTimestamp', 'lastPacketReceivedTimestamp',
+              'remoteId', 'localId', 'remoteTimestamp', 'reportsSent',
+              'packetsSent', 'bytesSent', 'roundTripTime',
+              'totalRoundTripTime', 'roundTripTimeMeasurements',
+              'fractionLost']) {
+              if (row[key] !== undefined) entry[key] = row[key];
+            }
+            rtcp.push(entry);
+          }
           if (row.type === 'inbound-rtp' && !row.isRemote) {
             if (row.kind === 'audio' || row.mediaType === 'audio') {
               counters.inboundAudioPackets += row.packetsReceived || 0;
@@ -378,6 +396,7 @@ SPDX-License-Identifier: Apache-2.0
           currentTime: remoteVideo.currentTime,
         },
         counters,
+        rtcp,
       };
     }
 

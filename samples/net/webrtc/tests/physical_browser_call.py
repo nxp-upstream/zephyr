@@ -548,6 +548,7 @@ def main():
         "selected_local_tracks": final_snapshot.get("localTracks", []),
         "remote_tracks": final_snapshot.get("remoteTracks", []),
         "remote_video": final_snapshot.get("remoteVideo", {}),
+        "rtcp": final_snapshot.get("rtcp", []),
         "real_media": args.real_media,
         "capture_encoded": args.capture_encoded,
         "headed": args.headed,
