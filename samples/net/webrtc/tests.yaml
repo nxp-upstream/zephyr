@@ -12,7 +12,7 @@ common:
 
 tests:
   # Default gate: two in-process PeerConnections over host ICE, DTLS-SRTP, and RTP.
-  sample.net.webrtc.zephyrtc.native_sim:
+  sample.net.webrtc.native_sim:
     integration_platforms:
       - native_sim/native/64
     platform_allow:
@@ -26,7 +26,7 @@ tests:
         - "event=loopback_result status=pass result=0 offerer_rx=25 answerer_rx=25 invalid=0/0"
         - "event=native_sim_result status=pass"
   # Bounded HTTP signaling: failure matrix, then one offerer call against a mock answerer.
-  sample.net.webrtc.zephyrtc.native_sim.http_signaling:
+  sample.net.webrtc.native_sim.http_signaling:
     platform_allow:
       - native_sim/native/64
     extra_args: EXTRA_CONF_FILE=overlay-http-signaling.conf
@@ -42,21 +42,21 @@ tests:
           invalid=0/0"
         - "event=native_sim_result status=pass"
   # Compile-only regression gate for MiniH264, H264SwDec, and H.264 RTP wiring.
-  sample.net.webrtc.zephyrtc.native_sim.video:
+  sample.net.webrtc.native_sim.video:
     build_only: true
     platform_allow:
       - native_sim/native/64
     extra_args: EXTRA_CONF_FILE=overlay-external-video.conf
     harness: none
   # RT1170 compile gate for Ethernet plus synthetic H.264/PCMU software media.
-  sample.net.webrtc.zephyrtc.rt1170_video:
+  sample.net.webrtc.rt1170_video:
     build_only: true
     platform_allow:
       - mimxrt1170_evk@B/mimxrt1176/cm7
     extra_args: EXTRA_CONF_FILE=overlay-mimxrt1170-video.conf
     harness: none
   # RT1170 compile gate for the physical audio, camera, and display endpoint.
-  sample.net.webrtc.zephyrtc.rt1170_av:
+  sample.net.webrtc.rt1170_av:
     build_only: true
     platform_allow:
       - mimxrt1170_evk@B/mimxrt1176/cm7
@@ -65,14 +65,14 @@ tests:
       - SHIELD="nxp_btb44_ov5640;rk055hdmipi4ma0"
     harness: none
   # Compile-only regression gate for Ethernet, DMIC, PCMU, and WM8962 playback.
-  sample.net.webrtc.zephyrtc.rt1170_audio:
+  sample.net.webrtc.rt1170_audio:
     build_only: true
     platform_allow:
       - mimxrt1170_evk@B/mimxrt1176/cm7
     extra_args: EXTRA_CONF_FILE=overlay-mimxrt1170-ethernet.conf
     harness: none
   # RT1170 compile gate for the physical endpoint over Wi-Fi (Embedded Artists 2EL).
-  sample.net.webrtc.zephyrtc.rt1170_av_wifi:
+  sample.net.webrtc.rt1170_av_wifi:
     build_only: true
     platform_allow:
       - mimxrt1170_evk@B/mimxrt1176/cm7

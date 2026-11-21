@@ -206,7 +206,7 @@ def main() -> int:
     settings_path = args.settings.expanduser().resolve()
     settings = load_settings(settings_path)
     app_dir = Path(__file__).resolve().parents[1]
-    zephyr_base = Path(os.environ.get("ZEPHYR_BASE", app_dir.parents[3])).resolve()
+    zephyr_base = Path(os.environ.get("ZEPHYR_BASE", app_dir.parents[2])).resolve()
     build_dir = (
         args.build_dir.expanduser().resolve()
         if args.build_dir

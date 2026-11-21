@@ -123,7 +123,7 @@ Zephyr SDK and the IW612 Wi-Fi firmware from the NXP binary blobs:
    west packages pip --install
    west sdk install
    west blobs fetch hal_nxp --allow-regex 'nw61x/[^/]*$'
-   pip install -r zephyr/samples/net/webrtc/zephyrtc/requirements.txt
+   pip install -r zephyr/samples/net/webrtc/requirements.txt
 
 See the `Getting Started Guide
 <https://docs.zephyrproject.org/latest/develop/getting_started/index.html>`_ for details.
@@ -137,7 +137,7 @@ and edit it:
 .. code-block:: console
 
    mkdir -p ~/.config/zephyrtc
-   cp zephyr/samples/net/webrtc/zephyrtc/config/rt1170_demo.toml.example \
+   cp zephyr/samples/net/webrtc/config/rt1170_demo.toml.example \
       ~/.config/zephyrtc/rt1170.toml
    chmod 600 ~/.config/zephyrtc/rt1170.toml
 
@@ -162,7 +162,7 @@ and the settings, and builds into ``build/zephyrtc-ethernet`` or
 
 .. code-block:: console
 
-   python3 zephyr/samples/net/webrtc/zephyrtc/tools/rt1170_demo.py
+   python3 zephyr/samples/net/webrtc/tools/rt1170_demo.py
 
 For Ethernet, the helper runs the equivalent of:
 
@@ -171,7 +171,7 @@ For Ethernet, the helper runs the equivalent of:
    settings=$HOME/.config/zephyrtc/rt1170.generated.conf
    west build -p always -b mimxrt1170_evk@B/mimxrt1176/cm7 \
       --shield nxp_btb44_ov5640 --shield rk055hdmipi4ma0 \
-      -d build/zephyrtc-ethernet zephyr/samples/net/webrtc/zephyrtc -- \
+      -d build/zephyrtc-ethernet zephyr/samples/net/webrtc -- \
       -DEXTRA_CONF_FILE="overlay-mimxrt1170-av.conf;$settings"
 
 For Wi-Fi, add ``overlay-mimxrt1170-wifi.conf`` to ``EXTRA_CONF_FILE`` and
@@ -197,7 +197,7 @@ Running
 
    .. code-block:: console
 
-      cd zephyr/samples/net/webrtc/zephyrtc
+      cd zephyr/samples/net/webrtc
       python3 tests/physical_browser_call.py --output-dir /tmp/zephyrtc-call \
          --headed --real-media --timeout 150 --connected-seconds 100
 
@@ -222,7 +222,7 @@ Wi-Fi, audio only and video only:
 
 .. code-block:: console
 
-   west twister -T zephyr/samples/net/webrtc/zephyrtc
+   west twister -T zephyr/samples/net/webrtc
 
 Troubleshooting
 ***************
