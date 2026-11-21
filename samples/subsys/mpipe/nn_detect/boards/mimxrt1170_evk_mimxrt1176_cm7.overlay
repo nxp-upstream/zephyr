@@ -1,0 +1,34 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* The LCDIFv2 composes planes: the boxes go on one of their own */
+#include "../pipeline_plane.dtsi"
+
+/* The 4:3 frame the face detectors were trained on */
+&frame_filter {
+	width = <640>;
+	height = <480>;
+};
+
+/* The PXP turns the landscape frames for the portrait panel, in front of plane 0 */
+&disp_sink {
+	sources = <&rotator>;
+};
+
+&{/pipeline} {
+	rotator: vid-transform {
+		compatible = "zephyr,mpipe-vid-transform";
+		sources = <&display_queue>;
+		device = <&pxp>;
+		rotation = <270>;
+	};
+};
+
+/* The plane of the boxes has the size of the turned frame */
+&overlay {
+	width = <480>;
+	height = <640>;
+};

@@ -1,0 +1,111 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * Live detection, the boxes blended over the video by the display controller:
+ * the camera frame reaches plane 0 untouched and the overlay draws each result
+ * set into a transparent frame of its own on plane 1.
+ *
+ *   vid_src -> caps_filter -> tee -> queue -> disp_sink (plane 0)
+ *                                -> queue -> nn_converter -> queue
+ *                                         -> nn_runner -> nn_decoder
+ *                                         -> vid_overlay -> disp_sink (plane 1)
+ *
+ * A board overlay gives the overlay the size of the frame on the panel.
+ */
+/ {
+	pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+		autostart;
+
+		camera_src: vid-src {
+			compatible = "zephyr,mpipe-vid-src";
+		};
+
+		frame_filter: caps-filter {
+			compatible = "zephyr,mpipe-caps-filter";
+			sources = <&camera_src>;
+			media = "video";
+		};
+
+		tee: tee {
+			compatible = "zephyr,mpipe-tee";
+			sources = <&frame_filter>;
+		};
+
+		/* One slot, so the camera pool stays small */
+		display_queue: display-queue {
+			compatible = "zephyr,mpipe-queue";
+			sources = <&tee>;
+			size = <1>;
+		};
+
+		disp_sink: disp-sink {
+			compatible = "zephyr,mpipe-disp-sink";
+			sources = <&display_queue>;
+			plane = <0>;
+		};
+
+		/*
+		 * Two single-slot queues dropping the oldest. The converter runs
+		 * one priority above the streaming threads, so it releases the
+		 * shared frame before the overlay draws in it; the runner at the
+		 * lowest application priority of the default configuration, so a
+		 * slow model starves nothing.
+		 */
+		nn_queue: nn-queue {
+			compatible = "zephyr,mpipe-queue";
+			sources = <&tee>;
+			size = <1>;
+			leak = "oldest";
+			thread-priority = <4>;
+		};
+
+		/* The Ultraface models take pixels shifted to -128..127 */
+		nn_converter: nn-converter {
+			compatible = "zephyr,mpipe-nn-converter";
+			sources = <&nn_queue>;
+			zero-point = <(-128)>;
+		};
+
+		tensor_queue: tensor-queue {
+			compatible = "zephyr,mpipe-queue";
+			sources = <&nn_converter>;
+			size = <1>;
+			leak = "oldest";
+			thread-priority = <14>;
+		};
+
+		nn_runner: nn-runner {
+			compatible = "zephyr,mpipe-nn-runner";
+			sources = <&tensor_queue>;
+			model = "sample_nn_model";
+			arena = "sample_nn_arena";
+		};
+
+		nn_decoder: nn-decoder {
+			compatible = "zephyr,mpipe-nn-decoder";
+			sources = <&nn_runner>;
+			type = "detection";
+			score-threshold = <50>;
+		};
+
+		overlay: overlay {
+			compatible = "zephyr,mpipe-vid-overlay";
+			sources = <&nn_decoder>;
+			draw-callback = "sample_draw_cb";
+			mode = "plane";
+		};
+
+		/* The boxes blended over the video by their pixel alpha */
+		overlay-sink {
+			compatible = "zephyr,mpipe-disp-sink";
+			sources = <&overlay>;
+			plane = <1>;
+			blend-mode = "coverage";
+		};
+	};
+};

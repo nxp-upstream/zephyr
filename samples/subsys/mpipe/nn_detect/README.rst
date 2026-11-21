@@ -1,6 +1,6 @@
 .. zephyr:code-sample:: mpipe-nn-detect
    :name: Live detection pipeline
-   :relevant-api: mpipe_nn mpipe_vid_overlay mpipe_vid mpipe_disp mpipe_base
+   :relevant-api: mpipe_nn mpipe_vid_overlay mpipe_vid mpipe_disp mpipe_base mpipe_dt
 
    Draw detection boxes over the live camera stream.
 
@@ -12,8 +12,8 @@ for the panel where the board has a hardware transform; the inference branch
 runs the detector on the frame as the sensor delivers it, so boxes and
 detector share one orientation whatever the panel's.
 
-Where the display driver has planes (``CONFIG_SAMPLE_OVERLAY_PLANE``,
-set for ``native_sim`` and the i.MX RT1170 EVK), the display controller does
+Where the display driver has planes (``pipeline_plane.dtsi``, which the overlays
+of ``native_sim`` and of the i.MX RT1170 EVK include), the display controller does
 the compositing: the camera frame reaches plane 0 untouched, and the overlay
 element, at the end of the inference branch, draws each result set into a
 transparent frame of its own that a second display sink hands to plane 1.
@@ -84,15 +84,30 @@ this sample: the 128x128 model runs at several inferences per second on a
 Cortex-M7 but only sees faces filling a good part of the frame; the 320x240
 model finds faces of a few pixels and suits the Neutron NPU. The TFLM overlay
 is sized for either. The converter shifts each pixel by the model's zero
-point (``CONFIG_SAMPLE_NN_INPUT_SHIFT``, -128 by default); disable it for a
-model that takes raw bytes. ``CONFIG_SAMPLE_NN_SCORE_THRESHOLD`` sets the
-score a box must reach.
+point (``zero-point`` property of the converter node, -128); leave the property
+out for a model that takes raw bytes. The ``score-threshold`` property of the
+decoder node sets the score a box must reach.
 
 The inference branch runs the converter one priority notch above the
 streaming threads, so the shared frame is released before the overlay
 reaches it, and the model at the lowest application priority on a tensor
 queue of its own, so a model slower than the frame rate never delays
 capture, display or logging.
+
+The pipeline is described in the devicetree: a ``zephyr,mpipe-pipeline`` node holds one child node
+per element, and the ``sources`` property of an element names the element it receives its buffers
+from. The pipeline is built at boot from that description, and the options of the framework and of
+its elements are enabled by the nodes.
+
+Two descriptions exist. ``pipeline_plane.dtsi`` shows the camera on plane 0 of
+the display and has the overlay draw the boxes into frames of its own on
+plane 1, for a display that composes planes. ``pipeline_frame.dtsi`` has the
+overlay draw the latest boxes into the video frame before it is displayed. A
+board overlay includes the one its display allows.
+
+The code that remains is what the devicetree names: the model and its working
+memory, the function drawing the boxes and, when they are drawn in the video
+frame, the function receiving the results. The application has no ``main()``.
 
 Requirements
 ************

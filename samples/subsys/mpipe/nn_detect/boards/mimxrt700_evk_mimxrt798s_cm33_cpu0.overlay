@@ -13,3 +13,15 @@
 	compatible = "zephyr,memory-region", "mmio-sram";
 	zephyr,memory-region = "SRAM_SHARED0";
 };
+
+#include "../pipeline_frame.dtsi"
+
+/*
+ * The camera delivers the 320x240 RGB565 frames the face detector was trained
+ * on; no scaling, no rotation
+ */
+&frame_filter {
+	pixel-format = "RGBP";
+	width = <320>;
+	height = <240>;
+};
