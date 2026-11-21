@@ -22,6 +22,8 @@
 
 #if defined(CONFIG_ZEPHYRTC_MODE_EXTERNAL)
 #include "libpeer_external.h"
+#elif defined(CONFIG_ZEPHYRTC_MODE_SELF_CALL)
+#include "libpeer_self_call.h"
 #elif defined(CONFIG_ZEPHYRTC_MODE_HTTP_SIGNALING)
 #include "signaling_tests.h"
 #else
@@ -96,6 +98,8 @@ int main(void)
 		return application_exit(1);
 	}
 	return application_exit(0);
+#elif defined(CONFIG_ZEPHYRTC_MODE_SELF_CALL)
+	return application_exit((libpeer_self_call_run() != 0) ? 1 : 0);
 #elif defined(CONFIG_ZEPHYRTC_MODE_HTTP_SIGNALING)
 	if (libpeer_signaling_tests_run() != 0) {
 		return application_exit(1);

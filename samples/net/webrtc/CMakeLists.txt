@@ -64,6 +64,9 @@ target_sources_ifdef(CONFIG_ZEPHYRTC_MODE_HTTP_SIGNALING app PRIVATE
 target_sources_ifdef(CONFIG_ZEPHYRTC_MODE_EXTERNAL app PRIVATE
   src/libpeer_external.c
 )
+target_sources_ifdef(CONFIG_ZEPHYRTC_MODE_SELF_CALL app PRIVATE
+  src/libpeer_self_call.c
+)
 
 if(CONFIG_ZEPHYRTC_VIDEO_H264 AND NOT CONFIG_ZEPHYRTC_MEDIA_MPIPE)
   target_sources(app PRIVATE

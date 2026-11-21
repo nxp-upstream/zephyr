@@ -62,11 +62,31 @@ config ZEPHYRTC_MODE_EXTERNAL
 	  apply the answer, complete ICE and DTLS-SRTP, then send the configured
 	  bounded media sources and require sustained received media.
 
+config ZEPHYRTC_MODE_SELF_CALL
+	bool "Call between two endpoints of the image, with the media"
+	depends on NET_SOCKETS && NET_UDP && NET_IPV4
+	help
+	  Two PeerConnections in one image exchange SDP directly. The first
+	  one sends what the camera and the microphone capture, the second one
+	  gives what it receives to the display and the headphones, through
+	  the loopback of the IP stack. This runs everything a call with a
+	  remote peer does except signaling and the network driver, on a board
+	  that has no network.
+
 endchoice
+
+config ZEPHYRTC_SELF_CALL_RUN_MS
+	int "Length of the call of the board with itself in milliseconds"
+	depends on ZEPHYRTC_MODE_SELF_CALL
+	range 1000 86400000
+	default 30000
+	help
+	  How long the two endpoints stay in the call before the result is
+	  reported.
 
 config ZEPHYRTC_AUDIO_RT1170
 	bool "RT1170 DMIC and WM8962 PCMU audio"
-	depends on ZEPHYRTC_MODE_EXTERNAL
+	depends on ZEPHYRTC_MODE_EXTERNAL || ZEPHYRTC_MODE_SELF_CALL
 	depends on BOARD_MIMXRT1170_EVK_MIMXRT1176_CM7 && BOARD_REVISION_B
 	depends on I2S && AUDIO_CODEC && AUDIO_DMIC
 	help
@@ -75,7 +95,7 @@ config ZEPHYRTC_AUDIO_RT1170
 
 config ZEPHYRTC_VIDEO_H264
 	bool "Software H.264 video with MiniH264 and H264SwDec"
-	depends on ZEPHYRTC_MODE_EXTERNAL
+	depends on ZEPHYRTC_MODE_EXTERNAL || ZEPHYRTC_MODE_SELF_CALL
 	depends on !ZEPHYRTC_AUDIO_RT1170 || (VIDEO && DISPLAY)
 	select MINIH264
 	select H264SWDEC
@@ -86,7 +106,7 @@ config ZEPHYRTC_VIDEO_H264
 
 config ZEPHYRTC_MEDIA_MPIPE
 	bool "Media on the Multimedia Pipeline subsystem"
-	depends on ZEPHYRTC_MODE_EXTERNAL
+	depends on ZEPHYRTC_MODE_EXTERNAL || ZEPHYRTC_MODE_SELF_CALL
 	depends on MPIPE_BASE_APP_SINK && MPIPE_BASE_APP_SRC && MPIPE_AUD
 	depends on !ZEPHYRTC_VIDEO_H264 || \
 		   (MPIPE_VID_H264_ENCODER && MPIPE_VID_H264_DECODER && MPIPE_DISP)
