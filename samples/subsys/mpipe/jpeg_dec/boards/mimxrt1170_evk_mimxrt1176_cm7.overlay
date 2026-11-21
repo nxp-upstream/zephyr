@@ -1,0 +1,21 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include "../pipeline.dtsi"
+
+/* The PXP turns the decoded frames by a quarter turn */
+&disp_sink {
+	sources = <&rotator>;
+};
+
+&{/pipeline} {
+	rotator: vid-transform {
+		compatible = "zephyr,mpipe-vid-transform";
+		sources = <&jpeg_decoder>;
+		device = <&pxp>;
+		rotation = <90>;
+	};
+};

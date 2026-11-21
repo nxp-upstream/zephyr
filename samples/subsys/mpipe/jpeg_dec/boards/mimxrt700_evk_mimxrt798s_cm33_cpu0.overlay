@@ -4,8 +4,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/ {
-	chosen {
-		zephyr,jpegdec = &jpegdec;
+#include "../pipeline.dtsi"
+
+/* The JPEG decoder of the SoC replaces the software one */
+/delete-node/ &jpeg_decoder;
+
+&disp_sink {
+	sources = <&vid_convert>;
+};
+
+&{/pipeline} {
+	hw_jpeg_decoder: vid-transform {
+		compatible = "zephyr,mpipe-vid-transform";
+		sources = <&jpeg_filter>;
+		device = <&jpegdec>;
+	};
+
+	/* From the format the decoder outputs to one the panel takes */
+	vid_convert: vid-convert {
+		compatible = "zephyr,mpipe-vid-convert";
+		sources = <&hw_jpeg_decoder>;
 	};
 };
