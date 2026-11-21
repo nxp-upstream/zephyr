@@ -106,6 +106,31 @@ static int negotiate(void)
 	return (libpeer_endpoint_failed(&caller) || libpeer_endpoint_failed(&callee)) ? -EPROTO : 0;
 }
 
+/* Share of the last period the processor spent out of the idle thread, in percent */
+static uint32_t cpu_load(void)
+{
+#if defined(CONFIG_SCHED_THREAD_USAGE_ALL)
+	static uint64_t last_total;
+	static uint64_t last_idle;
+	struct k_thread_runtime_stats stats;
+	uint64_t total;
+	uint64_t idle;
+
+	if (k_thread_runtime_stats_all_get(&stats) != 0) {
+		return 0U;
+	}
+
+	total = stats.total_cycles - last_total;
+	idle = stats.idle_cycles - last_idle;
+	last_total = stats.total_cycles;
+	last_idle = stats.idle_cycles;
+
+	return (total != 0U) ? (uint32_t)(((total - idle) * 100U) / total) : 0U;
+#else
+	return 0U;
+#endif
+}
+
 /* Move what the media captured to the caller until the call is over */
 static int stream(Media *media)
 {
@@ -158,9 +183,10 @@ static int stream(Media *media)
 
 			platform_log("info", "self_call",
 				     "video_sent=%llu video_shown=%llu fps=%llu audio_sent=%llu "
-				     "audio_played=%llu",
+				     "audio_played=%llu cpu=%u",
 				     sent[MEDIA_VIDEO], now_shown, now_shown - shown,
-				     sent[MEDIA_AUDIO], media_decoded(media, MEDIA_AUDIO));
+				     sent[MEDIA_AUDIO], media_decoded(media, MEDIA_AUDIO),
+				     cpu_load());
 			shown = now_shown;
 			next_report += SELF_CALL_REPORT_MS;
 		}
