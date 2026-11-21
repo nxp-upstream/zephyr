@@ -1,0 +1,26 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include "../common/sd_card.dtsi"
+
+/* A file copied to another one */
+/ {
+	pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+		autostart;
+
+		file_src: file-src {
+			compatible = "zephyr,mpipe-file-src";
+			path = "/SD:/test_in.txt";
+		};
+
+		file-sink {
+			compatible = "zephyr,mpipe-file-sink";
+			sources = <&file_src>;
+			path = "/SD:/test_out.txt";
+		};
+	};
+};
