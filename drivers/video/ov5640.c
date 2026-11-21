@@ -261,7 +261,8 @@ static const struct video_reg16 init_params_common[] = {
 	{AWB_CTRL00_REG, 0xff},
 	{AWB_CTRL01_REG, 0xf2},
 	{AWB_CTRL02_REG, 0x00},
-	{AWB_CTRL03_REG, 0x14},
+	/* Simple mode: the advanced one leaves a strong cast in a light it is not tuned for */
+	{AWB_CTRL03_REG, 0x94},
 	{AWB_CTRL04_REG, 0x25},
 	{AWB_CTRL05_REG, 0x24},
 	{0x5186, 0x09},
