@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <zephyr/kernel.h>
+#include <zephyr/net/icmp.h>
 #include <zephyr/net/net_if.h>
 #if defined(CONFIG_WIFI)
 #include <zephyr/net/net_mgmt.h>
@@ -167,6 +168,56 @@ static int start_wifi(void)
 }
 #endif
 
+static K_SEM_DEFINE(gateway_answered, 0, 1);
+
+static enum net_verdict gateway_echo_reply(struct net_icmp_ctx *ctx, struct net_pkt *pkt,
+					   struct net_icmp_ip_hdr *ip_hdr,
+					   struct net_icmp_hdr *icmp_hdr, void *user_data)
+{
+	ARG_UNUSED(ctx);
+	ARG_UNUSED(pkt);
+	ARG_UNUSED(ip_hdr);
+	ARG_UNUSED(icmp_hdr);
+	ARG_UNUSED(user_data);
+
+	k_sem_give(&gateway_answered);
+
+	return NET_CONTINUE;
+}
+
+/* Tell a peer that does not answer from a network that carries nothing any more */
+static void log_gateway_reachable(void)
+{
+	struct net_if *iface = net_if_get_default();
+	struct net_sockaddr_in gateway = {.sin_family = NET_AF_INET};
+	struct net_icmp_ping_params params = {.identifier = 0x7a74};
+	char gateway_text[NET_IPV4_ADDR_LEN];
+	struct net_icmp_ctx ctx;
+	int result;
+
+	if (iface == NULL) {
+		return;
+	}
+	gateway.sin_addr = net_if_ipv4_get_gw(iface);
+	(void)net_addr_ntop(NET_AF_INET, &gateway.sin_addr, gateway_text, sizeof(gateway_text));
+
+	result = net_icmp_init_ctx(&ctx, NET_AF_INET, NET_ICMPV4_ECHO_REPLY, 0, gateway_echo_reply);
+	if (result != 0) {
+		return;
+	}
+	k_sem_reset(&gateway_answered);
+	result = net_icmp_send_echo_request(&ctx, iface, (struct net_sockaddr *)&gateway, &params,
+					    NULL);
+	if (result == 0) {
+		result = k_sem_take(&gateway_answered, K_SECONDS(2));
+	}
+	(void)net_icmp_cleanup_ctx(&ctx);
+
+	platform_log(result == 0 ? "info" : "error", "gateway_echo",
+		     "gateway=%s status=%s result=%d", gateway_text,
+		     result == 0 ? "answered" : "silent", result);
+}
+
 static int wait_for_network(void)
 {
 	int64_t deadline = k_uptime_get() + CONFIG_ZEPHYRTC_NETWORK_TIMEOUT_MS;
@@ -269,6 +320,7 @@ int libpeer_external_run(void)
 	}
 	result = libpeer_offerer_negotiate(&endpoint, &offerer_config, answer, sizeof(answer));
 	if (result != 0) {
+		log_gateway_reachable();
 		goto cleanup;
 	}
 	result = libpeer_endpoint_start(&endpoint, endpoint_stack,
