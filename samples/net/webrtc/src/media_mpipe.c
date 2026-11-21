@@ -30,6 +30,7 @@
 #include <errno.h>
 #include <string.h>
 
+#include <zephyr/drivers/display.h>
 #include <zephyr/drivers/video.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -88,8 +89,13 @@ enum {
 #define DISPLAY_ROTATION  CONFIG_ZEPHYRTC_DISPLAY_ROTATION
 #define DISPLAY_SCALE     CONFIG_ZEPHYRTC_DISPLAY_SCALE
 #define DISPLAY_TURNED    (DISPLAY_ROTATION == 90 || DISPLAY_ROTATION == 270)
-#define DISPLAY_WIDTH     ((DISPLAY_TURNED ? VIDEO_HEIGHT : VIDEO_WIDTH) * DISPLAY_SCALE)
-#define DISPLAY_HEIGHT    ((DISPLAY_TURNED ? VIDEO_WIDTH : VIDEO_HEIGHT) * DISPLAY_SCALE)
+#if DISPLAY_TRANSFORM
+#define DISPLAY_WIDTH  ((DISPLAY_TURNED ? VIDEO_HEIGHT : VIDEO_WIDTH) * DISPLAY_SCALE)
+#define DISPLAY_HEIGHT ((DISPLAY_TURNED ? VIDEO_WIDTH : VIDEO_HEIGHT) * DISPLAY_SCALE)
+#else
+#define DISPLAY_WIDTH  VIDEO_WIDTH
+#define DISPLAY_HEIGHT VIDEO_HEIGHT
+#endif
 
 BUILD_ASSERT(DISPLAY_ROTATION % 90 == 0, "the frames turn by quarter turns");
 
@@ -372,8 +378,9 @@ static int media_build_display(struct Media *media)
 {
 	static const enum mpipe_vid_overlay_mode probe_mode = MPIPE_VID_OVERLAY_MODE_IN_PLACE;
 	static const int __maybe_unused plane = CONFIG_ZEPHYRTC_DISPLAY_PLANE;
-	static const uint16_t x = CONFIG_ZEPHYRTC_DISPLAY_X;
-	static const uint16_t y = CONFIG_ZEPHYRTC_DISPLAY_Y;
+	struct display_capabilities display;
+	uint16_t x;
+	uint16_t y;
 	const struct mpipe_vid_h264_decoder_cb key_frame_cb = {
 		.fn = media_key_frame_cb,
 		.user_data = media,
@@ -384,6 +391,15 @@ static int media_build_display(struct Media *media)
 	};
 	struct mpipe_structure caps;
 	int ret;
+
+	/* Where the frames go: where the configuration says, the middle of the display otherwise */
+	display_get_capabilities(DEVICE_DT_GET(DT_CHOSEN(zephyr_display)), &display);
+	x = (CONFIG_ZEPHYRTC_DISPLAY_X >= 0)
+		    ? CONFIG_ZEPHYRTC_DISPLAY_X
+		    : (uint16_t)((MAX(display.x_resolution, DISPLAY_WIDTH) - DISPLAY_WIDTH) / 2U);
+	y = (CONFIG_ZEPHYRTC_DISPLAY_Y >= 0)
+		    ? CONFIG_ZEPHYRTC_DISPLAY_Y
+		    : (uint16_t)((MAX(display.y_resolution, DISPLAY_HEIGHT) - DISPLAY_HEIGHT) / 2U);
 
 	ret = media_pipeline_init(&media->display_pipe, DISPLAY_PIPE_ID, DISPLAY_THREAD_PRIORITY);
 	if (ret == 0) {

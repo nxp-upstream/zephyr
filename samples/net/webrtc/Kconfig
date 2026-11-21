@@ -187,15 +187,17 @@ config ZEPHYRTC_DISPLAY_PLANE
 
 config ZEPHYRTC_DISPLAY_X
 	int "Horizontal position of the video of the peer"
-	default 0
+	default -1
 	help
-	  Column of the display where the left edge of the frames goes.
+	  Column of the display where the left edge of the frames goes. -1
+	  puts the frames in the middle of the display.
 
 config ZEPHYRTC_DISPLAY_Y
 	int "Vertical position of the video of the peer"
-	default 0
+	default -1
 	help
-	  Row of the display where the top edge of the frames goes.
+	  Row of the display where the top edge of the frames goes. -1 puts
+	  the frames in the middle of the display.
 
 config ZEPHYRTC_CODE_RELOCATE
 	bool "Relocate the code of the media and of the network into RAM"
