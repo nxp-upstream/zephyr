@@ -1,0 +1,61 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * Camera frames encoded to H.264, decoded again and displayed: what the
+ * display shows is what a receiver of the stream would see.
+ *
+ *   vid_src -> caps_filter -> vid_convert -> vid_h264_encoder
+ *           -> vid_h264_decoder -> vid_convert -> disp_sink
+ */
+/ {
+	pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+		autostart;
+
+		camera_src: vid-src {
+			compatible = "zephyr,mpipe-vid-src";
+		};
+
+		/* The frame size the memory of the encoder is reserved for */
+		frame_filter: caps-filter {
+			compatible = "zephyr,mpipe-caps-filter";
+			sources = <&camera_src>;
+			media = "video";
+			width = <320>;
+			height = <240>;
+		};
+
+		to_yuv: to-yuv {
+			compatible = "zephyr,mpipe-vid-convert";
+			sources = <&frame_filter>;
+		};
+
+		/* Speed 9 is the fastest setting that keeps the deblocking filter */
+		encoder: h264-encoder {
+			compatible = "zephyr,mpipe-vid-h264-encoder";
+			sources = <&to_yuv>;
+			qp = <30>;
+			gop = <30>;
+			speed = <9>;
+		};
+
+		decoder: h264-decoder {
+			compatible = "zephyr,mpipe-vid-h264-decoder";
+			sources = <&encoder>;
+		};
+
+		to_rgb: to-rgb {
+			compatible = "zephyr,mpipe-vid-convert";
+			sources = <&decoder>;
+		};
+
+		disp_sink: disp-sink {
+			compatible = "zephyr,mpipe-disp-sink";
+			sources = <&to_rgb>;
+		};
+	};
+};

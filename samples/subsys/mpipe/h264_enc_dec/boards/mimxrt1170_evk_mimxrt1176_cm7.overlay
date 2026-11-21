@@ -1,0 +1,12 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include "../pipeline.dtsi"
+
+/* The decoded frames are scanned out from a display plane, without a copy */
+&disp_sink {
+	plane = <0>;
+};

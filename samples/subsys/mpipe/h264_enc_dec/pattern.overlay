@@ -1,0 +1,22 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * A pattern that moves, drawn over the camera frames before they are encoded:
+ * the codecs then have the same work on every board and in every light.
+ */
+&{/pipeline} {
+	pattern: pattern {
+		compatible = "zephyr,mpipe-vid-overlay";
+		sources = <&frame_filter>;
+		mode = "in-place";
+		draw-callback = "sample_draw_pattern";
+	};
+};
+
+&to_yuv {
+	sources = <&pattern>;
+};

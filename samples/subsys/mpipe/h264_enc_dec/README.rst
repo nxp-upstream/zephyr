@@ -14,6 +14,13 @@ Multimedia Pipeline subsystem. What the display shows is what a receiver of the 
 so the sample is a way to judge the picture the encoder gives at a quantizer and a way to measure
 what the two codecs cost on a board.
 
+The pipeline is described in the devicetree: the ``zephyr,mpipe-pipeline`` node of
+``pipeline.dtsi`` holds one child node per element, and the ``sources`` property of an element
+names the element it receives its buffers from. The pipeline is built and played at boot from that
+description, and the nodes enable the framework and its elements. The quantizer, the key frame
+period and the speed of the encoder are properties of its node. The only code of the application
+is the function that draws the test pattern.
+
 Pipeline topology
 =================
 
@@ -32,13 +39,13 @@ Pipeline topology
      vid_src -> caps_filter -> to_yuv -> encoder -> decoder -> to_rgb -> display;
    }
 
-The caps filter sets the frame size, since the memory of the encoder is reserved for one. The
+The caps filter node sets the frame size, since the memory of the encoder is reserved for one. The
 first converter turns the camera frames into the planar YUV 4:2:0 the encoder takes, the second
 one turns the decoded frames into the RGB565 of the display.
 
-With :kconfig:option:`CONFIG_H264_TEST_PATTERN` a ``vid_overlay`` element sits before the first
-converter and replaces the content of the camera frames by a pattern that moves, which gives the
-codecs the same work whatever the camera sees.
+With ``pattern.overlay`` (``-DEXTRA_DTC_OVERLAY_FILE=pattern.overlay``) a ``vid_overlay`` element
+sits before the first converter and replaces the content of the camera frames by a pattern that
+moves, which gives the codecs the same work whatever the camera sees.
 
 Requirements
 ************
@@ -81,7 +88,7 @@ Sample output
 
 .. code-block:: console
 
-   [00:00:00.302,000] <inf> main: Pipeline linked.
+   [00:00:00.302,000] <inf> mpipe_dt: pipeline: 7 elements linked
    [00:00:00.323,000] <inf> mpipe_player: Player #0 state: PLAYING
 
 The player shell stops, replays and quits the pipeline (``player stop``, ``player replay``,

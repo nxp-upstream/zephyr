@@ -5,59 +5,6 @@ mainmenu "H.264 encode and decode pipeline sample"
 
 menu "H.264 encode and decode pipeline configuration"
 
-config VIDEO_FRAME_WIDTH
-	int "Width of the video frame"
-	default 320
-	help
-	  Width of the frames captured, encoded, decoded and displayed.
-
-config VIDEO_FRAME_HEIGHT
-	int "Height of the video frame"
-	default 240
-	help
-	  Height of the frames captured, encoded, decoded and displayed.
-
-config VIDEO_PLANE
-	int "Display plane showing the decoded frames"
-	default -1
-	help
-	  Display plane the decoded frames are scanned out from, without a copy,
-	  on a display that has planes. -1 writes them to the display instead.
-
-config H264_QP
-	int "Quantizer of the encoder"
-	range 10 51
-	default 30
-	help
-	  Quantizer the encoder uses for every frame: 10 for the best quality,
-	  51 for the smallest stream.
-
-config H264_SPEED
-	int "Speed of the encoder"
-	range 0 10
-	default 9
-	help
-	  Speed against quality, from 0 (every coding tool) to 10 (fastest).
-	  9 is the fastest setting that keeps the deblocking filter, without
-	  which the blocks of the picture show in flat areas.
-
-config H264_GOP
-	int "Key frame period"
-	range 0 65535
-	default 30
-	help
-	  Number of frames from one key frame to the next. 1 makes every frame
-	  a key frame, 0 only the first one.
-
-config H264_TEST_PATTERN
-	bool "Draw a moving pattern over the camera frames"
-	select MPIPE_VID_OVERLAY
-	help
-	  Replace the content of every captured frame by a gradient with a
-	  textured block that moves, before it is encoded. The encoder and
-	  the decoder then have the same work on every board and in every
-	  light, which a camera in front of a still scene does not give.
-
 config CODEC_CODE_RELOCATE
 	bool "Relocate the codec code into RAM"
 	select CODE_DATA_RELOCATION
@@ -99,12 +46,6 @@ config CODEC_DECODER_RAM_NAME
 	  Memory region holding the heap of the decoder.
 
 endif # CODEC_DATA_RELOCATE
-
-config PROP_NUM_BUFS
-	int "Number of buffers the source provides before stopping"
-	default 0
-	help
-	  If not set or set to 0, the source will run forever
 
 endmenu
 
