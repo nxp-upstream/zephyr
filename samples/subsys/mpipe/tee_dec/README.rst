@@ -1,6 +1,6 @@
 .. zephyr:code-sample:: mpipe-tee-decode
    :name: MJPEG tee pipeline
-   :relevant-api: mpipe_base mpipe_img mpipe_fs mpipe_disp
+   :relevant-api: mpipe_base mpipe_img mpipe_fs mpipe_disp mpipe_dt
 
    Split one MJPEG stream into two branches, decoding it to a display on one and
    writing it back to a file on the other.
@@ -54,6 +54,18 @@ The ``caps_filter`` between the parser and the tee pins the JPEG frame format
 before the split, so both branches negotiate against a format that is already
 fixed.
 
+The pipeline is described in the devicetree: a ``zephyr,mpipe-pipeline`` node holds one child node
+per element, and the ``sources`` property of an element names the element it receives its buffers
+from. The pipeline is built at boot from that description, and the options of the framework and of
+its elements are enabled by the nodes.
+
+The pipeline of ``pipeline.dtsi`` reads an MJPEG file and splits it with a tee:
+one branch decodes the frames to the display, the other writes them back to a
+file. The two nodes naming the tee as their source take its pads in node order,
+and each branch starts with a queue, which gives it a thread of its own.
+
+The application has no code: the pipeline node has the ``autostart`` property.
+
 Requirements
 ************
 
@@ -79,14 +91,13 @@ On macOS (Homebrew)::
 Input
 *****
 
-The sample expects an MJPEG file at :kconfig:option:`CONFIG_FILE_INPUT_PATH`
-(default ``/SD:/test.mjpeg``) and writes the tee's second branch to
-:kconfig:option:`CONFIG_FILE_OUTPUT_PATH` (default ``/SD:/tee_out.mjpeg``).
+The sample expects an MJPEG file at the path of the file source node
+(``/SD:/test.mjpeg`` in ``pipeline.dtsi``) and writes the tee's second branch to
+the path of the file sink node (``/SD:/tee_out.mjpeg``).
 
-The input file is generated at build time, with the resolution given by
-:kconfig:option:`CONFIG_JPEG_IMAGE_WIDTH` and
-:kconfig:option:`CONFIG_JPEG_IMAGE_HEIGHT` and the length by
-:kconfig:option:`CONFIG_MJPEG_NUM_FRAMES`. It is embedded into the binary, and
+The input file is generated at build time, with the resolution the caps filter
+node states and the length given by the CMake variable ``MJPEG_NUM_FRAMES``
+(150 frames by default). It is embedded into the binary, and
 the sample writes it to the volume on first boot if it is not already there.
 On later boots, if a file is already present, its size is compared against the
 embedded data: a mismatch is treated as a changed test file and the file is
