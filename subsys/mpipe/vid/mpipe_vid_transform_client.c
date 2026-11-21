@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <zephyr/cache.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/util.h>
 
 #include <zephyr/mpipe/mpipe_structure.h>
 #include <zephyr/mpipe/mpipe_value.h>
@@ -26,6 +28,12 @@ static int mpipe_vid_transform_client_probe_pool(struct mpipe_vid_transform_clie
 		LOG_ERR("Unable to retrieve buffer pool capabilities");
 		return -ENODEV;
 	}
+
+	/*
+	 * A buffer shares no cache line of this core with its neighbours, so
+	 * the element can flush and invalidate it around a call.
+	 */
+	req.align = MAX(req.align, (uint16_t)MAX(sys_cache_data_line_size_get(), 1U));
 
 	/* The floor every run starts from: a stop restores it */
 	return mpipe_buffer_pool_set_req_config(pool, &req);
@@ -95,8 +103,8 @@ static int mpipe_vid_transform_client_set_caps(struct mpipe_transform *transform
 		return ret;
 	}
 
-	/* Set buffer pool size */
-	pool->config.size = fmt.size;
+	/* Whole cache lines of this core, see mpipe_vid_transform_client_probe_pool() */
+	pool->config.size = ROUND_UP(fmt.size, MAX(sys_cache_data_line_size_get(), 1U));
 
 	/* Set pad's caps only when everything is OK */
 	return mpipe_pad_set_caps(

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <zephyr/cache.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
@@ -54,6 +55,14 @@ static int mpipe_transform_client_process_fn(struct mpipe_pad *pad, struct net_b
 
 	out_meta = mpipe_buffer_get_meta(*out_buf);
 	out_used = out_meta->bytes_used;
+
+	/*
+	 * The server reads the input from the memory and writes the output to
+	 * it: this core's cache must hold nothing newer than the memory of the
+	 * first, and nothing at all of the second.
+	 */
+	(void)sys_cache_data_flush_range(in_buf->data, in_used);
+	(void)sys_cache_data_invd_range((*out_buf)->data, (*out_buf)->size);
 
 	ret = mpipe_rpc_channel_process(transform_client->channel, (uintptr_t)in_buf->data, in_used,
 					(uintptr_t)(*out_buf)->data, (*out_buf)->size, &out_used);
