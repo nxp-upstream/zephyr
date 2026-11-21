@@ -252,21 +252,26 @@ endif # ZEPHYRTC_MEDIA_MPIPE
 
 config ZEPHYRTC_DISPLAY_ROTATION
 	int "Decoded-video display rotation in clockwise degrees"
-	depends on ZEPHYRTC_VIDEO_H264 && ZEPHYRTC_AUDIO_RT1170
+	depends on ZEPHYRTC_VIDEO_H264 && (ZEPHYRTC_AUDIO_RT1170 || ZEPHYRTC_MEDIA_MPIPE)
 	range 0 270
 	default 0
 	help
 	  Rotate decoded video clockwise before display. Valid values are 0, 90,
-	  180, and 270 degrees. Other values fail at compile time.
+	  180, and 270 degrees. Other values fail at compile time. The media on
+	  the Multimedia Pipeline subsystem rotates with the video transform
+	  device of the board and ignores the option on a board without one.
 
 config ZEPHYRTC_DISPLAY_SCALE
 	int "Decoded-video integer display scale"
-	depends on ZEPHYRTC_VIDEO_H264 && ZEPHYRTC_AUDIO_RT1170
+	depends on ZEPHYRTC_VIDEO_H264 && (ZEPHYRTC_AUDIO_RT1170 || ZEPHYRTC_MEDIA_MPIPE)
 	range 1 3
 	default 1
 	help
 	  Upscale decoded video by this integer factor using nearest-neighbor
-	  replication. The transformed image must fit the active display.
+	  replication. The transformed image must fit the active display. The
+	  media on the Multimedia Pipeline subsystem scales with the video
+	  transform device of the board, which interpolates, and ignores the
+	  option on a board without one.
 
 config ZEPHYRTC_SIGNALING_CLIENT
 	bool

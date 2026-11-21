@@ -10,6 +10,13 @@
  *
  *   camera     vid_src -> caps_filter -> vid_convert -> vid_h264_encoder -> app_sink
  *   display    app_src -> vid_h264_decoder -> vid_convert -> vid_overlay -> disp_sink
+ *
+ * On a board with a video transform device, the PXP of an i.MX RT for example,
+ * the device takes the place of the software conversion in the display leg
+ * and also scales and rotates the frames to the size of the panel:
+ *
+ *   display    app_src -> vid_h264_decoder -> vid_transform -> caps_filter
+ *              -> vid_overlay -> disp_sink
  *   microphone aud_dmic_src -> caps_filter -> app_sink
  *   headphones app_src -> aud_raw_parser -> queue -> aud_i2s_codec_sink
  *
@@ -44,6 +51,8 @@
 #include <zephyr/mpipe/vid/mpipe_vid_h264_encoder.h>
 #include <zephyr/mpipe/vid/mpipe_vid_overlay.h>
 #include <zephyr/mpipe/vid/mpipe_vid_src.h>
+#include <zephyr/mpipe/vid/mpipe_vid_transform.h>
+#include <zephyr/video/controls.h>
 
 #include "media.h"
 #include "media_stats_zephyr.h"
@@ -59,6 +68,8 @@ enum {
 	SRC_ID,
 	CAPS_FILTER_ID,
 	CONVERT_ID,
+	TRANSFORM_ID,
+	DISPLAY_CAPS_ID,
 	CODEC_ID,
 	PARSER_ID,
 	QUEUE_ID,
@@ -68,6 +79,19 @@ enum {
 
 #define VIDEO_WIDTH  CONFIG_ZEPHYRTC_VIDEO_WIDTH
 #define VIDEO_HEIGHT CONFIG_ZEPHYRTC_VIDEO_HEIGHT
+
+/*
+ * With a video transform device the frames of the peer are rotated and scaled
+ * on their way to the display.
+ */
+#define DISPLAY_TRANSFORM DT_HAS_CHOSEN(zephyr_videotrans)
+#define DISPLAY_ROTATION  CONFIG_ZEPHYRTC_DISPLAY_ROTATION
+#define DISPLAY_SCALE     CONFIG_ZEPHYRTC_DISPLAY_SCALE
+#define DISPLAY_TURNED    (DISPLAY_ROTATION == 90 || DISPLAY_ROTATION == 270)
+#define DISPLAY_WIDTH     ((DISPLAY_TURNED ? VIDEO_HEIGHT : VIDEO_WIDTH) * DISPLAY_SCALE)
+#define DISPLAY_HEIGHT    ((DISPLAY_TURNED ? VIDEO_WIDTH : VIDEO_HEIGHT) * DISPLAY_SCALE)
+
+BUILD_ASSERT(DISPLAY_ROTATION % 90 == 0, "the frames turn by quarter turns");
 
 /* What G.711 carries: 8 kHz mono, one byte per sample, 20 ms per packet */
 #define PCMU_SAMPLE_RATE 8000U
@@ -117,7 +141,12 @@ struct Media {
 	struct mpipe display_pipe;
 	struct mpipe_app_src encoded_src;
 	struct mpipe_vid_h264_decoder decoder;
+#if DISPLAY_TRANSFORM
+	struct mpipe_vid_transform transform;
+	struct mpipe_caps_filter display_caps;
+#else
 	struct mpipe_vid_convert to_rgb;
+#endif
 	struct mpipe_vid_overlay probe;
 	struct mpipe_disp_sink display;
 
@@ -335,7 +364,10 @@ static int media_build_camera(struct Media *media)
 	return ret;
 }
 
-/* app_src -> vid_h264_decoder -> vid_convert -> vid_overlay -> disp_sink */
+/*
+ * app_src -> vid_h264_decoder -> vid_convert -> vid_overlay -> disp_sink, or
+ * app_src -> vid_h264_decoder -> vid_transform -> caps_filter -> vid_overlay -> disp_sink
+ */
 static int media_build_display(struct Media *media)
 {
 	static const enum mpipe_vid_overlay_mode probe_mode = MPIPE_VID_OVERLAY_MODE_IN_PLACE;
@@ -360,9 +392,39 @@ static int media_build_display(struct Media *media)
 	if (ret == 0) {
 		ret = mpipe_vid_h264_decoder_init(&media->decoder, CODEC_ID);
 	}
+#if DISPLAY_TRANSFORM
+	if (ret == 0) {
+		ret = mpipe_vid_transform_init(&media->transform, TRANSFORM_ID);
+	}
+	if (ret == 0) {
+		ret = mpipe_caps_filter_init(&media->display_caps, DISPLAY_CAPS_ID);
+	}
+	/* clang-format off */
+	if (ret == 0) {
+		ret = mpipe_object_set_properties((struct mpipe_object *)&media->transform,
+			COND_CODE_0(CONFIG_ZEPHYRTC_DISPLAY_ROTATION, (),
+				    (VIDEO_CID_ROTATE, CONFIG_ZEPHYRTC_DISPLAY_ROTATION,))
+			MPIPE_PROP_LIST_END);
+	}
+	/* clang-format on */
+
+	/* The size on the panel is what tells the device to scale */
+	if (ret == 0) {
+		ret = mpipe_structure_init_fields(&caps, MPIPE_MEDIA_VIDEO, MPIPE_CAPS_IMAGE_WIDTH,
+						  MPIPE_TYPE_UINT, DISPLAY_WIDTH,
+						  MPIPE_CAPS_IMAGE_HEIGHT, MPIPE_TYPE_UINT,
+						  DISPLAY_HEIGHT, MPIPE_CAPS_END);
+	}
+	if (ret == 0) {
+		ret = mpipe_object_set_properties((struct mpipe_object *)&media->display_caps,
+						  MPIPE_PROP_BASE_CAPS_FILTER_CAPS, &caps,
+						  MPIPE_PROP_LIST_END);
+	}
+#else
 	if (ret == 0) {
 		ret = mpipe_vid_convert_init(&media->to_rgb, CONVERT_ID);
 	}
+#endif
 	if (ret == 0) {
 		ret = mpipe_vid_overlay_init(&media->probe, PROBE_ID);
 	}
@@ -399,21 +461,29 @@ static int media_build_display(struct Media *media)
 						  MPIPE_PROP_DISP_SINK_PLANE, &plane,
 						  MPIPE_PROP_LIST_END);
 	}
+	/* clang-format off */
 	if (ret == 0) {
 		ret = mpipe_bin_add((struct mpipe_bin *)&media->display_pipe,
 				    (struct mpipe_element *)&media->encoded_src,
 				    (struct mpipe_element *)&media->decoder,
-				    (struct mpipe_element *)&media->to_rgb,
+				    COND_CODE_1(DISPLAY_TRANSFORM,
+						((struct mpipe_element *)&media->transform,
+						 (struct mpipe_element *)&media->display_caps,),
+						((struct mpipe_element *)&media->to_rgb,))
 				    (struct mpipe_element *)&media->probe,
 				    (struct mpipe_element *)&media->display, NULL);
 	}
 	if (ret == 0) {
 		ret = mpipe_element_link((struct mpipe_element *)&media->encoded_src,
 					 (struct mpipe_element *)&media->decoder,
-					 (struct mpipe_element *)&media->to_rgb,
+					 COND_CODE_1(DISPLAY_TRANSFORM,
+						((struct mpipe_element *)&media->transform,
+						 (struct mpipe_element *)&media->display_caps,),
+						((struct mpipe_element *)&media->to_rgb,))
 					 (struct mpipe_element *)&media->probe,
 					 (struct mpipe_element *)&media->display, NULL);
 	}
+	/* clang-format on */
 
 	return ret;
 }
