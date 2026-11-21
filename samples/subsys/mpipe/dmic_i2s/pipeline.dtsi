@@ -1,0 +1,37 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* A digital microphone played on a codec */
+/ {
+	pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+		autostart;
+
+		dmic_src: dmic-src {
+			compatible = "zephyr,mpipe-aud-dmic-src";
+		};
+
+		/* Stereo, in blocks of 10 ms */
+		mic_filter: caps-filter {
+			compatible = "zephyr,mpipe-caps-filter";
+			sources = <&dmic_src>;
+			media = "audio-pcm";
+			frame-interval = <10000>;
+			num-channels = <2>;
+		};
+
+		mic_gain: gain {
+			compatible = "zephyr,mpipe-aud-gain";
+			sources = <&mic_filter>;
+			gain = <90>;
+		};
+
+		i2s_sink: i2s-codec-sink {
+			compatible = "zephyr,mpipe-aud-i2s-codec-sink";
+			sources = <&mic_gain>;
+		};
+	};
+};

@@ -26,3 +26,10 @@
 dmic_dev: &dmic0 {
 	status = "okay";
 };
+
+#include "../pipeline.dtsi"
+
+/* The codec generates the bit clock and the word select */
+&i2s_sink {
+	clock-role = "codec-controller";
+};

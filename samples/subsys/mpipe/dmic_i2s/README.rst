@@ -1,6 +1,6 @@
 .. zephyr:code-sample:: dmic-i2s
    :name: dmic-i2s pipeline
-   :relevant-api: mpipe_aud mpipe_base
+   :relevant-api: mpipe_aud mpipe_base mpipe_dt
 
    Capture audio from a digital microphone, apply gain control, and play it back
    through an I2S codec.
@@ -45,6 +45,18 @@ The pipeline uses DMA-compatible memory slabs for efficient audio buffer managem
 The ``__nocache`` attribute ensures proper DMA operation by preventing cache
 coherency issues.
 
+The pipeline is described in the devicetree: a ``zephyr,mpipe-pipeline`` node holds one child node
+per element, and the ``sources`` property of an element names the element it receives its buffers
+from. The pipeline is built at boot from that description, and the options of the framework and of
+its elements are enabled by the nodes.
+
+The pipeline of ``pipeline.dtsi`` is
+``dmic_src -> caps_filter -> gain -> i2s_codec_sink``. The memory slab the
+audio blocks come from is defined by the microphone source node and shared
+with the sink of the same pipeline.
+
+The application has no code: the pipeline node has the ``autostart`` property.
+
 Requirements
 ************
 
@@ -58,7 +70,7 @@ This sample has been tested on mimxrt685_evk/mimxrt685s/cm33
 Building and Running
 ********************
 
-This sample can be found under :zephyr_file:`samples/subsys/mpipe/dmic_i2s/src/main.c`.
+This sample can be found under :zephyr_file:`samples/subsys/mpipe/dmic_i2s`.
 
 For :zephyr:board:`mimxrt685_evk`, build this sample application with the following commands:
 
@@ -86,12 +98,13 @@ Check for any error messages during initialization:
 Configuration Options
 *********************
 
-* :kconfig:option:`CONFIG_USE_I2S_TARGET_CODEC_CONTROLLER` selects which side
-  generates the I2S BCK and WS signals. When set, the codec generates them and
-  the I2S peripheral consumes them; when unset, the roles are reversed.
+* The ``clock-role`` property of the I2S codec sink node selects which side
+  generates the I2S BCK and WS signals. With ``"codec-controller"`` the codec generates
+  them and the I2S peripheral consumes them; without the property the roles are reversed.
+  The board overlays that need it set it.
 
-The gain is not a Kconfig option: ``main.c`` sets it to 90 % through
-``MPIPE_PROP_AUD_TRANSFORM_GAIN``. The gain element accepts 0 to 1000 %.
+* The ``gain`` property of the gain node is 90 % in ``pipeline.dtsi``. The gain element
+  accepts 0 to 1000 %.
 
 Devicetree Configuration
 ************************

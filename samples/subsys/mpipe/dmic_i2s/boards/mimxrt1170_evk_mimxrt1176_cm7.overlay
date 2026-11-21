@@ -17,3 +17,5 @@ dmic_dev: &micfil {
 		status = "okay";
 	};
 };
+
+#include "../pipeline.dtsi"

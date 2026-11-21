@@ -21,3 +21,5 @@ dmic_dev: &dmic0 {
 &audio_codec {
 	status = "okay";
 };
+
+#include "../pipeline.dtsi"
