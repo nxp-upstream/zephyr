@@ -343,6 +343,18 @@ config ZEPHYRTC_SIGNALING_TIMEOUT_MS
 	  Covers connect, request write, and response read for one offer exchange.
 	  Callers may pass a shorter deadline per request.
 
+config ZEPHYRTC_SIGNALING_ATTEMPTS
+	int "Offer exchanges tried with a peer that does not answer"
+	depends on ZEPHYRTC_MODE_EXTERNAL
+	range 1 100
+	default 1
+	help
+	  How many times the offer is posted while the peer is silent or
+	  refuses the connection, each time for the signaling deadline at
+	  most. More than one lets the board start before its peer listens,
+	  and covers a network that takes a while to carry traffic between
+	  two of its hosts.
+
 config ZEPHYRTC_SIGNALING_URL
 	string "External SDP answerer URL"
 	depends on ZEPHYRTC_MODE_EXTERNAL

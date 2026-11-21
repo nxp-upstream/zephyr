@@ -264,6 +264,7 @@ int libpeer_external_run(void)
 	const struct libpeer_offerer_config offerer_config = {
 		.url = CONFIG_ZEPHYRTC_SIGNALING_URL,
 		.timeout_ms = CONFIG_ZEPHYRTC_SIGNALING_TIMEOUT_MS,
+		.attempts = CONFIG_ZEPHYRTC_SIGNALING_ATTEMPTS,
 	};
 	const uint64_t minimum_frames =
 		(uint64_t)CONFIG_ZEPHYRTC_EXTERNAL_RUN_MS * EXTERNAL_MIN_PACKETS_PER_S / 1000U;

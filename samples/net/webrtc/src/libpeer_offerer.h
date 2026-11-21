@@ -14,6 +14,8 @@ struct libpeer_offerer_config {
 	const char *url;
 	/* Total signaling deadline. Zero selects CONFIG_ZEPHYRTC_SIGNALING_TIMEOUT_MS. */
 	uint32_t timeout_ms;
+	/* Exchanges tried while the peer is silent or refuses. Zero and one try once. */
+	uint8_t attempts;
 	bool (*cancelled)(void *user_data);
 	void *user_data;
 };

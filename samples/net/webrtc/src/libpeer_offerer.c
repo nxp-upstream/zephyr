@@ -10,6 +10,9 @@
 #include "platform.h"
 #include "signaling_client_zephyr.h"
 
+/* A peer that refuses answers at once: leave it this long before the next exchange */
+#define OFFERER_RETRY_PAUSE_MS 1000U
+
 static bool line_has_prefix(const char *line, size_t length, const char *prefix)
 {
 	size_t prefix_length = strlen(prefix);
@@ -230,7 +233,16 @@ int libpeer_offerer_negotiate(struct libpeer_endpoint *endpoint,
 	request.timeout_ms = config->timeout_ms;
 	request.cancelled = config->cancelled;
 	request.user_data = config->user_data;
-	signaling = signaling_exchange(&request, answer, capacity, &answer_length);
+	for (uint8_t attempt = 1U;; attempt++) {
+		signaling = signaling_exchange(&request, answer, capacity, &answer_length);
+		if ((signaling != SIGNALING_TIMEOUT && signaling != SIGNALING_UNREACHABLE) ||
+		    attempt >= config->attempts) {
+			break;
+		}
+		platform_log("warning", "offerer", "step=http_exchange status=%s attempt=%u of %u",
+			     signaling_result_str(signaling), attempt, config->attempts);
+		platform_sleep_ms(OFFERER_RETRY_PAUSE_MS);
+	}
 	result = map_signaling_result(signaling);
 	if (result != 0) {
 		platform_log("error", "offerer", "step=http_exchange status=%s",
