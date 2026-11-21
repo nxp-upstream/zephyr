@@ -61,6 +61,8 @@ static const struct pxp_pixfmt_map pxp_pixfmt_maps[] = {
 	{VIDEO_PIX_FMT_NV21, kPXP_PsPixelFormatYVU2P420, kPXP_OutputPixelFormatYVU2P420},
 	{VIDEO_PIX_FMT_NV16, kPXP_PsPixelFormatYUV2P422, kPXP_OutputPixelFormatYUV2P422},
 	{VIDEO_PIX_FMT_NV61, kPXP_PsPixelFormatYVU2P422, kPXP_OutputPixelFormatYVU2P422},
+	/* Three planes, whose addresses say which chroma plane comes first: input only */
+	{VIDEO_PIX_FMT_YUV420, kPXP_PsPixelFormatYVU420, -1},
 };
 
 #define PXP_MIN_LENGTH  1
@@ -105,11 +107,29 @@ static const struct video_format_cap pxp_in_caps[] = {
 	// PXP_FORMAT_CAP(VIDEO_PIX_FMT_NV21),
 	// PXP_FORMAT_CAP(VIDEO_PIX_FMT_NV16),
 	// PXP_FORMAT_CAP(VIDEO_PIX_FMT_NV61),
+	PXP_FORMAT_CAP(VIDEO_PIX_FMT_YUV420),
 	{0},
+};
+
+/*
+ * The formats one side reaches from a format of the other side. A format
+ * is always converted to itself; a YUV input is also converted to the RGB
+ * outputs, by the first colour space converter.
+ */
+static const uint32_t pxp_yuv_in_pixfmts[] = {
+	VIDEO_PIX_FMT_YUV420,
+};
+
+static const uint32_t pxp_rgb_out_pixfmts[] = {
+	VIDEO_PIX_FMT_RGB565,
+	VIDEO_PIX_FMT_BGRX32,
 };
 
 struct mcux_pxp_data {
 	struct mcux_pxp_ctrls ctrls;
+	/* Input format: the pitch as the application sees it, the size in pixels */
+	uint32_t ps_fmt_pitch;
+	uint32_t ps_fmt_width;
 	uint32_t ps_fmt_height;
 	pxp_ps_buffer_config_t ps_buffer_cfg;
 	pxp_output_buffer_config_t output_buffer_cfg;
@@ -178,6 +198,62 @@ static int mcux_pxp_get_caps(const struct device *dev, struct video_caps *caps)
 	return 0;
 }
 
+static bool mcux_pxp_pixfmt_in(uint32_t pixfmt, const uint32_t *pixfmts, size_t count)
+{
+	for (size_t i = 0; i < count; i++) {
+		if (pixfmts[i] == pixfmt) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/*
+ * The format at an index among those the other side reaches from a format:
+ * the format itself when the other side has it, then the conversions. Returns
+ * 0 past the last one.
+ */
+static uint32_t mcux_pxp_reachable_pixfmt(uint32_t pixfmt, enum video_buf_type type, uint16_t ind)
+{
+	const struct video_format_cap *other =
+		(type == VIDEO_BUF_TYPE_OUTPUT) ? pxp_in_caps : pxp_out_caps;
+	const uint32_t *convertible = pxp_rgb_out_pixfmts;
+	size_t count = 0;
+
+	for (; other->pixelformat != 0U; other++) {
+		if (other->pixelformat == pixfmt) {
+			if (ind == 0U) {
+				return pixfmt;
+			}
+			ind--;
+			break;
+		}
+	}
+
+	if (type == VIDEO_BUF_TYPE_OUTPUT) {
+		/* From an RGB output back to the YUV inputs */
+		if (mcux_pxp_pixfmt_in(pixfmt, pxp_rgb_out_pixfmts,
+				       ARRAY_SIZE(pxp_rgb_out_pixfmts))) {
+			convertible = pxp_yuv_in_pixfmts;
+			count = ARRAY_SIZE(pxp_yuv_in_pixfmts);
+		}
+	} else if (mcux_pxp_pixfmt_in(pixfmt, pxp_yuv_in_pixfmts, ARRAY_SIZE(pxp_yuv_in_pixfmts))) {
+		/* From a YUV input to the RGB outputs */
+		count = ARRAY_SIZE(pxp_rgb_out_pixfmts);
+	} else {
+		/* An RGB input is only converted to itself */
+	}
+
+	return (ind < count) ? convertible[ind] : 0U;
+}
+
+/*
+ * The capabilities the other side reaches from one, in order of preference:
+ * for every reachable format, first the frame size the rotation alone gives,
+ * which costs nothing, then any frame size, which the scaler gives. The first
+ * half of the indices is therefore what the driver offered before it scaled.
+ */
 static int mcux_pxp_transform_cap(const struct device *const dev,
 				  const struct video_format_cap *const cap,
 				  struct video_format_cap *const res_cap,
@@ -185,17 +261,29 @@ static int mcux_pxp_transform_cap(const struct device *const dev,
 {
 	struct mcux_pxp_data *data = dev->data;
 	struct mcux_pxp_ctrls *ctrls = &data->ctrls;
+	uint16_t count = 0;
+	uint32_t pixfmt;
 
-	if (ind > 0) {
+	while (mcux_pxp_reachable_pixfmt(cap->pixelformat, direction, count) != 0U) {
+		count++;
+	}
+
+	if (ind >= 2U * count) {
 		return -ERANGE;
+	}
+
+	pixfmt = mcux_pxp_reachable_pixfmt(cap->pixelformat, direction, ind % count);
+
+	if (ind >= count) {
+		/* Scaled: the size on this side says nothing about the other side */
+		*res_cap = (struct video_format_cap)PXP_FORMAT_CAP(pixfmt);
+		return 0;
 	}
 
 	if (ctrls->rotation.val == 0 || ctrls->rotation.val == 180) {
 		*res_cap = *cap;
 	} else {
 		/* For 90 or 270 deg rotation, swap width and height */
-		res_cap->pixelformat = cap->pixelformat;
-
 		res_cap->width_min = cap->height_min;
 		res_cap->width_max = cap->height_max;
 		res_cap->width_step = cap->height_step;
@@ -205,6 +293,7 @@ static int mcux_pxp_transform_cap(const struct device *const dev,
 		res_cap->height_step = cap->width_step;
 	}
 
+	res_cap->pixelformat = pixfmt;
 	res_cap->width_min = MAX(res_cap->width_min, PXP_MIN_LENGTH);
 	res_cap->height_min = MAX(res_cap->height_min, PXP_MIN_LENGTH);
 	res_cap->width_max = MIN(res_cap->width_max, PXP_MAX_LENGTH);
@@ -216,7 +305,6 @@ static int mcux_pxp_transform_cap(const struct device *const dev,
 static int mcux_pxp_get_fmt(const struct device *dev, struct video_format *fmt)
 {
 	uint8_t i;
-	unsigned int bpp;
 	struct mcux_pxp_data *data = dev->data;
 
 	if (fmt->type == VIDEO_BUF_TYPE_INPUT) {
@@ -231,14 +319,8 @@ static int mcux_pxp_get_fmt(const struct device *dev, struct video_format *fmt)
 			return -EINVAL;
 		}
 
-		fmt->pitch = data->ps_buffer_cfg.pitchBytes;
-
-		bpp = video_bits_per_pixel(fmt->pixelformat);
-		if (bpp == 0) {
-			return -EINVAL;
-		}
-
-		fmt->width = fmt->pitch / bpp * BITS_PER_BYTE;
+		fmt->pitch = data->ps_fmt_pitch;
+		fmt->width = data->ps_fmt_width;
 		fmt->height = data->ps_fmt_height;
 	} else {
 		/* Find the video format that matches the PXP ps format */
@@ -258,9 +340,7 @@ static int mcux_pxp_get_fmt(const struct device *dev, struct video_format *fmt)
 		fmt->height = data->output_buffer_cfg.height;
 	}
 
-	fmt->size = fmt->pitch * fmt->height;
-
-	return 0;
+	return video_estimate_fmt_size(fmt);
 }
 
 static int mcux_pxp_set_fmt(const struct device *dev, struct video_format *fmt)
@@ -305,7 +385,11 @@ static int mcux_pxp_set_fmt(const struct device *dev, struct video_format *fmt)
 
 	if (fmt->type == VIDEO_BUF_TYPE_INPUT) {
 		data->ps_buffer_cfg.pixelFormat = pxp_pixfmt_maps[i].ps_pixfmt;
-		data->ps_buffer_cfg.pitchBytes = fmt->pitch;
+		/* The pitch of a planar format is the one of its luma plane */
+		data->ps_buffer_cfg.pitchBytes =
+			(fmt->pixelformat == VIDEO_PIX_FMT_YUV420) ? fmt->width : fmt->pitch;
+		data->ps_fmt_pitch = fmt->pitch;
+		data->ps_fmt_width = fmt->width;
 		data->ps_fmt_height = fmt->height;
 	} else {
 		data->output_buffer_cfg.pixelFormat =
@@ -371,62 +455,43 @@ static int mcux_pxp_start(const struct device *dev)
 	struct video_buffer *vbuf_out = k_fifo_peek_head(&data->fifo_out_queued);
 	struct mcux_pxp_ctrls *ctrls = &data->ctrls;
 	pxp_output_buffer_config_t output_cfg;
-	uint32_t ps_width;
-	unsigned int bpp;
-	bool cond1;
-	bool cond2;
-	uint8_t i;
+	bool swapped = ctrls->rotation.val == 90 || ctrls->rotation.val == 270;
+	uint32_t luma_size = data->ps_fmt_width * data->ps_fmt_height;
+	/* The frame the scaler produces, which the rotation then turns into the output */
+	uint32_t scaled_width =
+		swapped ? data->output_buffer_cfg.height : data->output_buffer_cfg.width;
+	uint32_t scaled_height =
+		swapped ? data->output_buffer_cfg.width : data->output_buffer_cfg.height;
 
 	if (vbuf_in == NULL || vbuf_out == NULL) {
 		return -EINVAL;
 	}
 
-	/* Validate the input / output formats and rotation before processing */
-	for (i = 0; i < ARRAY_SIZE(pxp_pixfmt_maps); i++) {
-		if (pxp_pixfmt_maps[i].ps_pixfmt == data->ps_buffer_cfg.pixelFormat) {
-			break;
-		}
-	}
-	if (i == ARRAY_SIZE(pxp_pixfmt_maps)) {
+	if (data->ps_fmt_width == 0U || data->ps_fmt_height == 0U || scaled_width == 0U ||
+	    scaled_height == 0U) {
 		return -EINVAL;
-	}
-
-	bpp = video_bits_per_pixel(pxp_pixfmt_maps[i].v_pixfmt);
-	if (bpp == 0) {
-		return -EINVAL;
-	}
-
-	ps_width = data->ps_buffer_cfg.pitchBytes / bpp * BITS_PER_BYTE;
-	cond1 = (ctrls->rotation.val == 0 || ctrls->rotation.val == 180) &&
-		(data->output_buffer_cfg.width != ps_width ||
-		 data->output_buffer_cfg.height != data->ps_fmt_height);
-	cond2 = (ctrls->rotation.val == 90 || ctrls->rotation.val == 270) &&
-		(data->output_buffer_cfg.width != data->ps_fmt_height ||
-		 data->output_buffer_cfg.height != ps_width);
-	if (cond1 || cond2) {
-		return -ENOTSUP;
 	}
 
 	data->ps_buffer_cfg.swapByte = false;
 	data->ps_buffer_cfg.bufferAddr = (uint32_t)vbuf_in->buffer;
 
-	switch (data->ps_buffer_cfg.pixelFormat) {
-	case kPXP_PsPixelFormatYVU422:
-	case kPXP_PsPixelFormatYVU420: {
-		uint32_t y_size = data->output_buffer_cfg.width * data->output_buffer_cfg.height;
-		uint32_t v_size = y_size / 2;
-
-		data->ps_buffer_cfg.bufferAddrV = (uint32_t)vbuf_in->buffer + y_size;
-		data->ps_buffer_cfg.bufferAddrU = (uint32_t)vbuf_in->buffer + y_size + v_size;
-		break;
-	}
-	default:
+	if (data->ps_buffer_cfg.pixelFormat == kPXP_PsPixelFormatYVU420) {
+		/* VIDEO_PIX_FMT_YUV420: the U plane follows the luma plane, then the V plane */
+		data->ps_buffer_cfg.bufferAddrU = (uint32_t)vbuf_in->buffer + luma_size;
+		data->ps_buffer_cfg.bufferAddrV =
+			(uint32_t)vbuf_in->buffer + luma_size + (luma_size / 4U);
+		PXP_SetCsc1Mode(config->base, kPXP_Csc1YCbCr2RGB);
+		PXP_EnableCsc1(config->base, true);
+	} else {
 		data->ps_buffer_cfg.bufferAddrU = 0U;
 		data->ps_buffer_cfg.bufferAddrV = 0U;
-		break;
+		PXP_EnableCsc1(config->base, false);
 	}
 
 	PXP_SetProcessSurfaceBufferConfig(config->base, &data->ps_buffer_cfg);
+	PXP_SetProcessSurfaceScaler(config->base, (uint16_t)data->ps_fmt_width,
+				    (uint16_t)data->ps_fmt_height, (uint16_t)scaled_width,
+				    (uint16_t)scaled_height);
 
 	/*
 	 * The output buffer is described as the rotation finds it, before it
@@ -436,13 +501,13 @@ static int mcux_pxp_start(const struct device *dev)
 	output_cfg.interlacedMode = kPXP_OutputProgressive;
 	output_cfg.buffer0Addr = (uint32_t)vbuf_out->buffer;
 	output_cfg.buffer1Addr = 0U;
-	output_cfg.width = (uint16_t)ps_width;
-	output_cfg.height = (uint16_t)data->ps_fmt_height;
+	output_cfg.width = (uint16_t)scaled_width;
+	output_cfg.height = (uint16_t)scaled_height;
 
 	PXP_SetOutputBufferConfig(config->base, &output_cfg);
 	/* We only support a process surface that covers the full buffer */
-	PXP_SetProcessSurfacePosition(config->base, 0U, 0U, (uint16_t)(ps_width - 1U),
-				      (uint16_t)(data->ps_fmt_height - 1U));
+	PXP_SetProcessSurfacePosition(config->base, 0U, 0U, (uint16_t)(scaled_width - 1U),
+				      (uint16_t)(scaled_height - 1U));
 
 	data->streaming = true;
 	PXP_Start(config->base);
