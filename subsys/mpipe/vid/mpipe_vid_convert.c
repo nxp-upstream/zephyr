@@ -19,6 +19,12 @@
 #include <zephyr/mpipe/vid/mpipe_vid_convert.h>
 #include <zephyr/mpipe/vid/mpipe_vid_convert_table.h>
 
+/* Investigation aid, see mpipe_stage_stats.h */
+#define MPIPE_STAGE_STATS IS_ENABLED(CONFIG_MPIPE_STAGE_STATS)
+#if MPIPE_STAGE_STATS
+#include "../mpipe_stage_stats.h"
+#endif
+
 LOG_MODULE_REGISTER(mpipe_vid_convert, CONFIG_MPIPE_LOG_LEVEL);
 
 static void nv12_to_rgb565_impl(uint16_t width, uint16_t height, const uint8_t *y_plane,
@@ -431,6 +437,10 @@ static int vid_convert_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 		return -EIO;
 	}
 
+#if MPIPE_STAGE_STATS
+	uint32_t t0 = k_cycle_get_32();
+#endif
+
 	if (conv->in_pixfmt == conv->out_pixfmt) {
 		memcpy(out->data, in_buf->data,
 		       MIN(out_sz, mpipe_buffer_get_meta(in_buf)->bytes_used));
@@ -440,6 +450,21 @@ static int vid_convert_process_fn(struct mpipe_pad *pad, struct net_buf *in_buf,
 		net_buf_unref(in_buf);
 		return -EIO;
 	}
+
+#if MPIPE_STAGE_STATS
+	/* One window for the converters of the image: the element number tells them apart */
+	static struct mpipe_stage_stats conv_stats[2];
+	struct mpipe_stage_stats *stats =
+		&conv_stats[(conv->out_pixfmt == VIDEO_PIX_FMT_YUV420) ? 0 : 1];
+
+	if (mpipe_stage_stats_add(stats, 1, out_sz, out_sz, mpipe_stage_stats_elapsed_us(t0))) {
+		LOG_INF("stats vid_convert %s -> %s: %u fr/s, %u/%u/%u us min/avg/max (%u ms)",
+			VIDEO_FOURCC_TO_STR(conv->in_pixfmt), VIDEO_FOURCC_TO_STR(conv->out_pixfmt),
+			mpipe_stage_stats_per_s(stats, stats->count), stats->us_min,
+			mpipe_stage_stats_us_avg(stats), stats->us_max, stats->elapsed_ms);
+		mpipe_stage_stats_reset(stats);
+	}
+#endif
 
 	mpipe_buffer_get_meta(out)->bytes_used = out_sz;
 	mpipe_buffer_get_meta(out)->pts = mpipe_buffer_get_meta(in_buf)->pts;
