@@ -204,6 +204,7 @@ static int mpipe_img_jpeg_decoder_process_fn(struct mpipe_pad *pad, struct net_b
 #endif
 
 	ret = mpipe_img_jpeg_decoder_decode_one(dec, in_buf, out);
+	mpipe_buffer_get_meta(out)->pts = mpipe_buffer_get_meta(in_buf)->pts;
 
 #if MPIPE_STAGE_STATS
 	if (ret != 0) {
