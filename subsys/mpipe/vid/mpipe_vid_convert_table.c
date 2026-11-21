@@ -75,9 +75,9 @@ static int convert_argb_to_xrgb(struct mpipe_vid_convert *conv, const struct net
  * frame that a camera wrote lies in no cache, and in a slow memory the loads
  * of the conversion would wait for one cache line after the other.
  */
-#define BGRX32_FETCH_AHEAD  128U
+#define PIXEL32_FETCH_AHEAD  128U
 /* Pixels of the source in one cache line of 32 bytes */
-#define BGRX32_FETCH_PIXELS 8U
+#define PIXEL32_FETCH_PIXELS 8U
 
 /* Luma of a BGRX32 pixel, whose components are added to the sums of its block */
 static inline uint8_t bgrx32_to_luma(const uint8_t *pixel, int32_t *r_sum, int32_t *g_sum,
@@ -92,6 +92,61 @@ static inline uint8_t bgrx32_to_luma(const uint8_t *pixel, int32_t *r_sum, int32
 	*b_sum += b;
 
 	return (uint8_t)((((66 * r) + (129 * g) + (25 * b) + 128) >> 8) + 16);
+}
+
+/* Offsets of the components of a VUYX32 pixel */
+#define VUYX32_V 0U
+#define VUYX32_U 1U
+#define VUYX32_Y 2U
+
+/* The luma as it is, and one chroma sample for every block of two by two pixels: their mean */
+static int convert_vuyx32_to_yuv420(struct mpipe_vid_convert *conv, const struct net_buf *in,
+				    struct net_buf *out)
+{
+	uint32_t width = conv->width;
+	uint32_t height = conv->height;
+	const uint8_t *top = in->data;
+	uint8_t *y_top = out->data;
+	uint8_t *u_plane = y_top + (width * height);
+	uint8_t *v_plane = u_plane + ((width / 2U) * (height / 2U));
+
+	if ((width % 2U) != 0U || (height % 2U) != 0U) {
+		return -EINVAL;
+	}
+
+	for (uint32_t row = 0U; row < height; row += 2U) {
+		const uint8_t *bottom = top + (4U * width);
+		uint8_t *y_bottom = y_top + width;
+
+		for (uint32_t col = 0U; col < width; col += 2U) {
+			if ((col % PIXEL32_FETCH_PIXELS) == 0U) {
+				__builtin_prefetch(top + PIXEL32_FETCH_AHEAD);
+				__builtin_prefetch(bottom + PIXEL32_FETCH_AHEAD);
+			}
+
+			y_top[0] = top[VUYX32_Y];
+			y_top[1] = top[4U + VUYX32_Y];
+			y_bottom[0] = bottom[VUYX32_Y];
+			y_bottom[1] = bottom[4U + VUYX32_Y];
+			*u_plane = (uint8_t)((top[VUYX32_U] + top[4U + VUYX32_U] +
+					      bottom[VUYX32_U] + bottom[4U + VUYX32_U] + 2U) / 4U);
+			*v_plane = (uint8_t)((top[VUYX32_V] + top[4U + VUYX32_V] +
+					      bottom[VUYX32_V] + bottom[4U + VUYX32_V] + 2U) / 4U);
+
+			top += 8U;
+			bottom += 8U;
+			y_top += 2U;
+			y_bottom += 2U;
+			u_plane++;
+			v_plane++;
+		}
+
+		/* The inner loop went through the top row: skip the bottom one */
+		top = bottom;
+		y_top = y_bottom;
+	}
+
+	return 0;
 }
 
 static int convert_bgrx32_to_yuv420(struct mpipe_vid_convert *conv, const struct net_buf *in,
@@ -118,9 +173,9 @@ static int convert_bgrx32_to_yuv420(struct mpipe_vid_convert *conv, const struct
 			int32_t g = 0;
 			int32_t b = 0;
 
-			if ((col % BGRX32_FETCH_PIXELS) == 0U) {
-				__builtin_prefetch(top + BGRX32_FETCH_AHEAD);
-				__builtin_prefetch(bottom + BGRX32_FETCH_AHEAD);
+			if ((col % PIXEL32_FETCH_PIXELS) == 0U) {
+				__builtin_prefetch(top + PIXEL32_FETCH_AHEAD);
+				__builtin_prefetch(bottom + PIXEL32_FETCH_AHEAD);
 			}
 
 			y_top[0] = bgrx32_to_luma(&top[0], &r, &g, &b);
@@ -210,6 +265,7 @@ const struct mpipe_vid_convert_desc mpipe_vid_convert_descs[] = {
 	{VIDEO_PIX_FMT_XRGB32, VIDEO_PIX_FMT_ARGB32, convert_xrgb_to_argb},
 	{VIDEO_PIX_FMT_ARGB32, VIDEO_PIX_FMT_XRGB32, convert_argb_to_xrgb},
 	{VIDEO_PIX_FMT_BGRX32, VIDEO_PIX_FMT_YUV420, convert_bgrx32_to_yuv420},
+	{VIDEO_PIX_FMT_VUYX32, VIDEO_PIX_FMT_YUV420, convert_vuyx32_to_yuv420},
 	{VIDEO_PIX_FMT_YUV420, VIDEO_PIX_FMT_RGB565, convert_yuv420_to_rgb565},
 };
 

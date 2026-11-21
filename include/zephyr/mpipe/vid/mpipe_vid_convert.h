@@ -16,6 +16,7 @@
  *  - XRGB32 -> ARGB32
  *  - ARGB32 -> XRGB32
  *  - BGRX32 -> YUV420
+ *  - VUYX32 -> YUV420
  *  - YUV420 -> RGB565
  */
 
