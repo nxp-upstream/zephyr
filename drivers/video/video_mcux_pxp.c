@@ -343,7 +343,12 @@ static int mcux_pxp_set_ctrl(const struct device *dev, uint32_t id)
 		break;
 	}
 
-	PXP_SetRotateConfig(config->base, kPXP_RotateProcessSurface, rotate, flip);
+	/*
+	 * The rotation of the output buffer, behind the scaler and the colour
+	 * space converter: the rotation of the process surface works with
+	 * neither of them.
+	 */
+	PXP_SetRotateConfig(config->base, kPXP_RotateOutputBuffer, rotate, flip);
 
 	return 0;
 }
@@ -365,6 +370,7 @@ static int mcux_pxp_start(const struct device *dev)
 	struct video_buffer *vbuf_in = k_fifo_peek_head(&data->fifo_in_queued);
 	struct video_buffer *vbuf_out = k_fifo_peek_head(&data->fifo_out_queued);
 	struct mcux_pxp_ctrls *ctrls = &data->ctrls;
+	pxp_output_buffer_config_t output_cfg;
 	uint32_t ps_width;
 	unsigned int bpp;
 	bool cond1;
@@ -422,14 +428,21 @@ static int mcux_pxp_start(const struct device *dev)
 
 	PXP_SetProcessSurfaceBufferConfig(config->base, &data->ps_buffer_cfg);
 
-	data->output_buffer_cfg.interlacedMode = kPXP_OutputProgressive;
-	data->output_buffer_cfg.buffer0Addr = (uint32_t)vbuf_out->buffer;
-	data->output_buffer_cfg.buffer1Addr = 0U;
+	/*
+	 * The output buffer is described as the rotation finds it, before it
+	 * turns the frame: only the pitch is the one of the frame in memory.
+	 */
+	output_cfg = data->output_buffer_cfg;
+	output_cfg.interlacedMode = kPXP_OutputProgressive;
+	output_cfg.buffer0Addr = (uint32_t)vbuf_out->buffer;
+	output_cfg.buffer1Addr = 0U;
+	output_cfg.width = (uint16_t)ps_width;
+	output_cfg.height = (uint16_t)data->ps_fmt_height;
 
-	PXP_SetOutputBufferConfig(config->base, &data->output_buffer_cfg);
+	PXP_SetOutputBufferConfig(config->base, &output_cfg);
 	/* We only support a process surface that covers the full buffer */
-	PXP_SetProcessSurfacePosition(config->base, 0U, 0U, data->output_buffer_cfg.width,
-				      data->output_buffer_cfg.height);
+	PXP_SetProcessSurfacePosition(config->base, 0U, 0U, (uint16_t)(ps_width - 1U),
+				      (uint16_t)(data->ps_fmt_height - 1U));
 
 	data->streaming = true;
 	PXP_Start(config->base);
