@@ -1,7 +1,7 @@
 # Copyright 2026 NXP
 # SPDX-License-Identifier: Apache-2.0
 
-mainmenu "Pipelines on two cores, remote core"
+mainmenu "Pipelines on two cores described in the devicetree, remote core"
 
 config CHECK_STACK_SIZE
 	int "Stack size of the thread serving the checking pipeline"

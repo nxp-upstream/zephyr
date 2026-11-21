@@ -81,8 +81,7 @@ Primary core
 - ``mpipe_app_src`` takes the MJPEG stream from the application, which holds it in its
   image, and pushes it again at every replay.
 - ``mpipe_img_jpeg_parser`` splits the stream into JPEG frames and ``mpipe_caps_filter``
-  states their size (:kconfig:option:`CONFIG_JPEG_IMAGE_WIDTH`,
-  :kconfig:option:`CONFIG_JPEG_IMAGE_HEIGHT`).
+  states their size (``width`` and ``height`` properties of its node).
 - ``mpipe_tee`` gives every frame to the three branches, and each ``mpipe_queue`` runs
   its branch on a thread of its own, so that none waits for another.
 - ``mpipe_vid_transform_client`` stands for the decoding pipeline of the other core: it
@@ -92,7 +91,8 @@ Primary core
   ``mpipe_disp_sink`` shows them.
 - ``mpipe_vid_sink_client`` stands for the checking pipeline of the other core: the
   stream ends there as far as this pipeline is concerned.
-- ``mpipe_file_sink`` writes the frames to :kconfig:option:`CONFIG_FILE_OUTPUT_PATH`.
+- ``mpipe_file_sink`` writes the frames to the file named by the ``path`` property of its
+  node.
 
 Secondary core
 --------------
@@ -116,6 +116,24 @@ two interfaces, defined in
 :zephyr_file:`subsys/mpipe/erpc/mpipe_stream.erpc` and
 :zephyr_file:`subsys/mpipe/erpc/vid/mpipe_vid_format.erpc`. The eRPC objects of both cores
 are static: eRPC takes nothing from the heap.
+
+The pipeline is described in the devicetree: a ``zephyr,mpipe-pipeline`` node holds one child node
+per element, and the ``sources`` property of an element names the element it receives its buffers
+from. The pipeline is built at boot from that description, and the options of the framework and of
+its elements are enabled by the nodes.
+
+Each image has a ``pipeline.dtsi``. The primary core pushes an MJPEG stream
+into a pipeline with two client elements; the remote core describes the
+decoding and the checking pipelines those clients are served by. The
+pipelines of the remote core have no ``autostart`` property: the servers
+drive them.
+
+The code that remains is the behavior of the application: on the primary core
+the loop pushing the stream into the application source and the function the
+overlay node names to draw on the frames; on the remote core the functions its
+overlay and application sink nodes name and the two servers, which get their pipeline and its
+application source and sink with ``MPIPE_DT_PIPELINE_GET()`` and
+``MPIPE_DT_ELEMENT_GET()``.
 
 Requirements
 ************

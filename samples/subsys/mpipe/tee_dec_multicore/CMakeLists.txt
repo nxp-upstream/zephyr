@@ -6,6 +6,8 @@ cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(tee_dec_multicore)
 
+# The pipeline is described in pipeline.dtsi: the application brings the
+# stream it pushes and what it draws on the frames
 target_sources(app PRIVATE src/main.c)
 
 if(CONFIG_SAMPLE_INCLUDE_REMOTE_DIR)
@@ -13,28 +15,5 @@ if(CONFIG_SAMPLE_INCLUDE_REMOTE_DIR)
     INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/../remote/zephyr/include/public)
 endif()
 
-# Generate MJPEG file to test using GStreamer CLI
-find_program(GST_LAUNCH gst-launch-1.0 REQUIRED)
-
-set(TEST_MJPEG_FILE ${ZEPHYR_BINARY_DIR}/include/generated/test.mjpeg)
-
-add_custom_command(
-  OUTPUT ${TEST_MJPEG_FILE}
-  COMMAND ${GST_LAUNCH}
-    videotestsrc num-buffers=${CONFIG_MJPEG_NUM_FRAMES}
-    ! videoconvert
-    ! "video/x-raw,format=I420,width=${CONFIG_JPEG_IMAGE_WIDTH},height=${CONFIG_JPEG_IMAGE_HEIGHT}"
-    ! timeoverlay font-desc="Sans 32"
-    ! jpegenc
-    ! filesink location=${TEST_MJPEG_FILE}
-  COMMENT "Generating test.mjpeg (${CONFIG_JPEG_IMAGE_WIDTH}x${CONFIG_JPEG_IMAGE_HEIGHT}, ${CONFIG_MJPEG_NUM_FRAMES} frames) using GStreamer"
-)
-
-add_custom_target(gen_test_mjpeg DEPENDS ${TEST_MJPEG_FILE})
-
-generate_inc_file_for_target(app
-  ${TEST_MJPEG_FILE}
-  ${ZEPHYR_BINARY_DIR}/include/generated/mjpeg.inc
-)
-
-add_dependencies(app gen_test_mjpeg)
+include(../common/mjpeg.cmake)
+mpipe_sample_mjpeg_generate(jpeg_filter)

@@ -1,33 +1,8 @@
 # Copyright 2026 NXP
+#
 # SPDX-License-Identifier: Apache-2.0
 
-mainmenu "Pipelines on two cores"
-
-menu "Pipeline configuration"
-
-config JPEG_IMAGE_WIDTH
-	int "Width of the JPEG images"
-	default 320
-
-config JPEG_IMAGE_HEIGHT
-	int "Height of the JPEG images"
-	default 240
-
-config MJPEG_NUM_FRAMES
-	int "Number of frames in the generated test MJPEG stream"
-	default 150
-	help
-	  Number of video frames in the MJPEG stream the application plays.
-	  The stream is produced at build time using GStreamer CLI and
-	  embedded in the image.
-
-config FILE_OUTPUT_PATH
-	string "Output MJPEG file path"
-	default "/SD:/rec.mjp"
-	help
-	  Absolute path of the file the stream is recorded to.
-
-endmenu
+mainmenu "Pipelines on two cores described in the devicetree"
 
 config SAMPLE_INCLUDE_REMOTE_DIR
 	bool "Include remote core header directory"
