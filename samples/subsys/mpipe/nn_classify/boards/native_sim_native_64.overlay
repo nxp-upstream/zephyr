@@ -1,0 +1,17 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include "../pipeline.dtsi"
+
+/* The emulated camera never ends: stop after a few frames */
+&camera_src {
+	num-buffers = <10>;
+};
+
+&frame_filter {
+	width = <320>;
+	height = <240>;
+};

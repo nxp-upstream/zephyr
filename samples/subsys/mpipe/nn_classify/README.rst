@@ -1,6 +1,6 @@
 .. zephyr:code-sample:: mpipe-nn-classify
    :name: Live classification pipeline
-   :relevant-api: mpipe_nn mpipe_vid mpipe_disp mpipe_base
+   :relevant-api: mpipe_nn mpipe_vid mpipe_disp mpipe_base mpipe_dt
 
    Show the camera stream while a neural network classifies it.
 
@@ -38,15 +38,29 @@ converter absorbs the geometry and format change on the inference side: on the
 i.MX RT1170 the camera streams 1280x720 frames, the display branch rotates
 them through the PXP, and the inference branch converts them straight to the 96x96
 grayscale tensor in software. The converter shifts each pixel by the model's
-zero point (``CONFIG_SAMPLE_NN_INPUT_SHIFT``, -128 for the person detection
-model, which was trained on pixels scaled to -1..1); disable it for a model
-that takes raw bytes.
+zero point (``zero-point`` property of the converter node, -128 for the person
+detection model, which was trained on pixels scaled to -1..1); leave the property
+out for a model that takes raw bytes.
 
 With the TFLM backend (``overlay-tflm.conf``) the model is the stock person
 detection network from the tflite-micro module; the classification of each
 analyzed frame is logged on the console while the video runs on the display.
 The fake backend (default) exercises the identical pipeline without any
 module.
+
+The pipeline is described in the devicetree: a ``zephyr,mpipe-pipeline`` node holds one child node
+per element, and the ``sources`` property of an element names the element it receives its buffers
+from. The pipeline is built at boot from that description, and the options of the framework and of
+its elements are enabled by the nodes.
+
+The pipeline of ``pipeline.dtsi`` splits the camera stream with a tee: one
+branch goes to the display, the other through
+``nn_converter -> nn_runner -> nn_decoder -> app_sink``.
+
+The code that remains is what the devicetree names: the ``model`` and
+``arena`` properties of the runner node name the model and its working memory,
+and the ``callback`` property of the application sink node names the function
+receiving the results. The application has no ``main()``.
 
 Requirements
 ************

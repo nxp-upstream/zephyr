@@ -1,0 +1,85 @@
+/*
+ * Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * Live classification: the camera stream is shown while a neural network
+ * classifies the frames on a second branch.
+ *
+ *   vid_src -> caps_filter -> tee -> queue -> disp_sink
+ *                                -> queue -> nn_converter -> nn_runner
+ *                                         -> nn_decoder -> app_sink
+ */
+/ {
+	pipeline {
+		compatible = "zephyr,mpipe-pipeline";
+		autostart;
+
+		camera_src: vid-src {
+			compatible = "zephyr,mpipe-vid-src";
+		};
+
+		frame_filter: caps-filter {
+			compatible = "zephyr,mpipe-caps-filter";
+			sources = <&camera_src>;
+			media = "video";
+		};
+
+		tee: tee {
+			compatible = "zephyr,mpipe-tee";
+			sources = <&frame_filter>;
+		};
+
+		/* One slot, so the camera pool stays small */
+		display_queue: display-queue {
+			compatible = "zephyr,mpipe-queue";
+			sources = <&tee>;
+			size = <1>;
+		};
+
+		disp_sink: disp-sink {
+			compatible = "zephyr,mpipe-disp-sink";
+			sources = <&display_queue>;
+		};
+
+		/*
+		 * One slot dropping the oldest, its thread at the lowest
+		 * application priority of the default configuration, so a slow
+		 * model never starves capture or display
+		 */
+		nn_queue: nn-queue {
+			compatible = "zephyr,mpipe-queue";
+			sources = <&tee>;
+			size = <1>;
+			leak = "oldest";
+			thread-priority = <14>;
+		};
+
+		/* The stock person detection model takes pixels shifted to -128..127 */
+		nn_converter: nn-converter {
+			compatible = "zephyr,mpipe-nn-converter";
+			sources = <&nn_queue>;
+			zero-point = <(-128)>;
+		};
+
+		nn_runner: nn-runner {
+			compatible = "zephyr,mpipe-nn-runner";
+			sources = <&nn_converter>;
+			model = "sample_nn_model";
+			arena = "sample_nn_arena";
+		};
+
+		nn_decoder: nn-decoder {
+			compatible = "zephyr,mpipe-nn-decoder";
+			sources = <&nn_runner>;
+		};
+
+		app-sink {
+			compatible = "zephyr,mpipe-app-sink";
+			sources = <&nn_decoder>;
+			callback = "sample_results_cb";
+		};
+	};
+};

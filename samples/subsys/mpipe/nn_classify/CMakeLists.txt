@@ -6,8 +6,9 @@ cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(nn_classify_pipeline)
 
-file(GLOB app_sources src/*.c)
-target_sources(app PRIVATE ${app_sources})
+# The pipeline is described in pipeline.dtsi: the application brings the
+# model and what it does with the results
+target_sources(app PRIVATE src/main.c)
 
 if(CONFIG_MPIPE_NN_BACKEND_TFLM)
   # The model: stock person detection from the tflite-micro module.
