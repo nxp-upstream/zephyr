@@ -23,7 +23,7 @@
   </defs>
 
   <rect width="1400" height="900" fill="#f8fafc"/>
-  <text x="700" y="38" text-anchor="middle" class="title">zephyrtc: a WebRTC Client Demo for Zephyr</text>
+  <text x="700" y="38" text-anchor="middle" class="title">WebRTC Client Demo for Zephyr</text>
 
   <!-- Linux desktop -->
   <rect x="35" y="65" width="625" height="765" rx="22" fill="#e8f1fb" stroke="#2563eb" stroke-width="3"/>
@@ -93,7 +93,7 @@
 
   <!-- Zephyr app above libpeer -->
   <rect x="855" y="145" width="395" height="115" rx="16" fill="#ffffff" stroke="#111827" stroke-width="2.5"/>
-  <text x="1052" y="181" text-anchor="middle" class="box-title">zephyrtc app</text>
+  <text x="1052" y="181" text-anchor="middle" class="box-title">WebRTC app</text>
   <text x="1052" y="209" text-anchor="middle" class="label">HTTP signaling client + media orchestration</text>
   <text x="1052" y="235" text-anchor="middle" class="small">Bounded queues, workers, and hardware integration</text>
 

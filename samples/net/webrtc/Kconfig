@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 Meta Platforms, Inc.
 # SPDX-License-Identifier: Apache-2.0
 
-mainmenu "zephyrtc"
+mainmenu "WebRTC sample"
 
 # The decoder only has to accept the 320x240 stream the sample negotiates.
 if ZEPHYRTC_VIDEO_H264
@@ -22,7 +22,7 @@ endif # ZEPHYRTC_VIDEO_H264
 
 source "Kconfig.zephyr"
 
-menu "zephyrtc"
+menu "WebRTC sample"
 
 config ZEPHYRTC_TRANSPORT
 	bool

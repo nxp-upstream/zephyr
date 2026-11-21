@@ -3,7 +3,7 @@
 
 sample:
   description: WebRTC client demo that calls a browser with audio and video
-  name: zephyrtc
+  name: WebRTC client
 common:
   tags:
     - audio

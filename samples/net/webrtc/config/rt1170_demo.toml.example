@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 Meta Platforms, Inc.
 # SPDX-License-Identifier: Apache-2.0
 #
-# zephyrtc settings for tools/rt1170_demo.py.
+# Settings of the WebRTC sample for tools/rt1170_demo.py.
 #
 # Copy this file to ~/.config/zephyrtc/rt1170.toml, edit it and make it private:
 #   chmod 600 ~/.config/zephyrtc/rt1170.toml

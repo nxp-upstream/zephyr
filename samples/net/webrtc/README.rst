@@ -1,5 +1,5 @@
-.. zephyr:code-sample:: zephyrtc
-   :name: zephyrtc: a WebRTC Client Demo for Zephyr
+.. zephyr:code-sample:: webrtc
+   :name: WebRTC client
    :relevant-api: video_interface display_interface i2s_interface
 
    Make a two-way audio and video WebRTC call between a Zephyr board and Chrome.
@@ -7,7 +7,7 @@
 Overview
 ********
 
-zephyrtc is a WebRTC client demo for Zephyr. On an NXP MIMXRT1170-EVKB it makes a full
+This sample is a WebRTC client demo for Zephyr. On an NXP MIMXRT1170-EVKB it makes a full
 bidirectional audio and video call with Google Chrome running on a desktop:
 
 * Uplink video: the board camera (OV5640) to Chrome, as H.264.
@@ -22,7 +22,7 @@ decoding, audio and display) runs on the 1 GHz Cortex-M7 core, without video har
 Rationale
 =========
 
-The main goal of zephyrtc is to show that a Zephyr board can run a WebRTC client that interoperates
+The main goal of the demo is to show that a Zephyr board can run a WebRTC client that interoperates
 with standard WebRTC peers. To prove compatibility, the demo makes a video call, with audio, to a
 generic WebRTC client: the Chrome browser running on a separate device.
 
@@ -51,7 +51,7 @@ The mpipe port would have several advantages:
 * Portability. RT1170-specific pieces, like the one-shot eDMA playback, would sit behind generic
   plugins, so another board would need configuration rather than a new media file.
 * Reusable parts. Codec elements (MiniH264, h264swdec, and libopus if the audio session moves to
-  Opus) and a libpeer RTP source and sink element would be useful well beyond zephyrtc.
+  Opus) and a libpeer RTP source and sink element would be useful well beyond this demo.
 
 The main disadvantage is that mpipe is still a moving target.
 
@@ -59,7 +59,7 @@ Architecture
 ============
 
 .. image:: doc/architecture.svg
-   :alt: zephyrtc architecture: SDP over HTTP, then direct media between Chrome and the board
+   :alt: Architecture of the demo: SDP over HTTP, then direct media between Chrome and the board
    :width: 100%
 
 * Signaling: the board is the SDP offerer. It sends its offer to a small HTTP signaling server on
@@ -157,8 +157,8 @@ Building and flashing
 *********************
 
 Build with the helper. It selects the board, the shields, the overlays for the configured network
-and the settings, and builds into ``build/zephyrtc-ethernet`` or
-``build/zephyrtc-wifi``:
+and the settings, and builds into ``build/webrtc-ethernet`` or
+``build/webrtc-wifi``:
 
 .. code-block:: console
 
@@ -171,7 +171,7 @@ For Ethernet, the helper runs the equivalent of:
    settings=$HOME/.config/zephyrtc/rt1170.generated.conf
    west build -p always -b mimxrt1170_evk@B/mimxrt1176/cm7 \
       --shield nxp_btb44_ov5640 --shield rk055hdmipi4ma0 \
-      -d build/zephyrtc-ethernet zephyr/samples/net/webrtc -- \
+      -d build/webrtc-ethernet zephyr/samples/net/webrtc -- \
       -DEXTRA_CONF_FILE="overlay-mimxrt1170-av.conf;$settings"
 
 For Wi-Fi, add ``overlay-mimxrt1170-wifi.conf`` to ``EXTRA_CONF_FILE`` and
@@ -182,7 +182,7 @@ number, as listed by ``LinkServer probes``:
 
 .. code-block:: console
 
-   west flash -d build/zephyrtc-ethernet -r linkserver --probe <serial>
+   west flash -d build/webrtc-ethernet -r linkserver --probe <serial>
 
 The board starts its call as soon as it boots, so leave it for the next step: it has to boot
 after the browser side is ready.
@@ -198,7 +198,7 @@ Running
    .. code-block:: console
 
       cd zephyr/samples/net/webrtc
-      python3 tests/physical_browser_call.py --output-dir /tmp/zephyrtc-call \
+      python3 tests/physical_browser_call.py --output-dir /tmp/webrtc-call \
          --headed --real-media --timeout 150 --connected-seconds 100
 
    Without ``--real-media``, Chrome sends its built-in test pattern and tone instead of the

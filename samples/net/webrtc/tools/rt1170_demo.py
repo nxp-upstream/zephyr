@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2026 Meta Platforms, Inc.
 # SPDX-License-Identifier: Apache-2.0
-"""Build the zephyrtc RT1170 image from one credential-safe settings file."""
+"""Build the RT1170 image of the WebRTC sample from one credential-safe settings file."""
 
 from __future__ import annotations
 
@@ -124,7 +124,7 @@ def _kconfig_string(value: str) -> str:
 
 def render_kconfig(settings: Settings) -> str:
     lines = [
-        "# Generated from the private zephyrtc settings file. Do not commit it.",
+        "# Generated from the private settings file of the WebRTC sample. Do not commit it.",
         f"CONFIG_ZEPHYRTC_SIGNALING_URL={_kconfig_string(settings.signaling_url)}",
         f"CONFIG_ZEPHYRTC_EXTERNAL_RUN_MS={settings.run_ms}",
         f"CONFIG_ZEPHYRTC_DISPLAY_ROTATION={settings.display_rotation}",
@@ -199,7 +199,7 @@ def main() -> int:
     parser.add_argument(
         "--build-dir",
         type=Path,
-        help="build directory; defaults to build/zephyrtc-NETWORK in the west workspace",
+        help="build directory; defaults to build/webrtc-NETWORK in the west workspace",
     )
     args = parser.parse_args()
 
@@ -210,7 +210,7 @@ def main() -> int:
     build_dir = (
         args.build_dir.expanduser().resolve()
         if args.build_dir
-        else zephyr_base.parent / "build" / f"zephyrtc-{settings.network}"
+        else zephyr_base.parent / "build" / f"webrtc-{settings.network}"
     )
     generated_config = settings_path.with_name(settings_path.stem + ".generated.conf")
     write_generated_config(generated_config, render_kconfig(settings))
