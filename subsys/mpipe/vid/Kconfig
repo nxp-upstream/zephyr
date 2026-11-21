@@ -29,6 +29,36 @@ config MPIPE_VID_CONVERT
 	  accepts. It converts pixel formats only: it does not scale, crop or
 	  rotate. Expect it to cost real CPU time per frame.
 
+config MPIPE_VID_H264_DECODER
+	bool "Software H.264 decoder element"
+	depends on ZEPHYR_H264SWDEC_MODULE
+	select H264SWDEC
+	help
+	  Transform element that decodes an H.264 byte stream to planar
+	  YUV 4:2:0 frames with the h264swdec module, for Baseline and
+	  Constrained Baseline streams. The decoder takes its picture buffers
+	  from the heap of the module (H264SWDEC_HEAP_SIZE).
+
+if MPIPE_VID_H264_DECODER
+
+config MPIPE_VID_H264_DECODER_POOL_NUM
+	int "Number of buffers in the H.264 decoder's output pool"
+	range 1 255
+	default 2
+	help
+	  Number of buffers in the decoder's internal output pool, used when
+	  downstream proposes no pool of its own. A picture decoded while every
+	  buffer is held downstream is not shown.
+
+config MPIPE_VID_H264_DECODER_MAX_OUT_FRAME_SIZE
+	int "Maximum decoded frame size in bytes"
+	default 115200
+	help
+	  Size of the buffers in the decoder's internal output pool: width x
+	  height x 3 / 2 of the largest picture. The default holds 320x240.
+
+endif # MPIPE_VID_H264_DECODER
+
 config MPIPE_VID_H264_ENCODER
 	bool "Software H.264 encoder element"
 	depends on ZEPHYR_MINIH264_MODULE

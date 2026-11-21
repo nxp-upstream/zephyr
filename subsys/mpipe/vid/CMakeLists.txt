@@ -17,6 +17,7 @@ if(CONFIG_MPIPE_VID)
     mpipe_vid_convert_table.c
   )
 
+  zephyr_library_sources_ifdef(CONFIG_MPIPE_VID_H264_DECODER mpipe_vid_h264_decoder.c)
   zephyr_library_sources_ifdef(CONFIG_MPIPE_VID_H264_ENCODER mpipe_vid_h264_encoder.c)
 
   zephyr_library_sources_ifdef(CONFIG_MPIPE_VID_OVERLAY
