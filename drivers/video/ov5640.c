@@ -103,6 +103,10 @@ LOG_MODULE_REGISTER(video_ov5640, CONFIG_VIDEO_LOG_LEVEL);
 #define AWB_CTRL23_REG 0x5197
 #define AWB_CTRL30_REG 0x519e
 
+#define CIP_SHARPENMT_OFFSET1_REG 0x5302
+#define CIP_CTRL_REG              0x5308
+#define CIP_CTRL_MANUAL_SHARPEN   BIT(6)
+
 #define SDE_CTRL0_REG  0x5580
 #define SDE_CTRL1_REG  0x5581
 #define SDE_CTRL2_REG  0x5582
@@ -184,6 +188,7 @@ struct ov5640_ctrls {
 	struct video_ctrl hflip;
 	struct video_ctrl vflip;
 	struct video_ctrl light_freq;
+	struct video_ctrl sharpness;
 	struct video_ctrl test_pattern;
 	struct video_ctrl pixel_rate;
 };
@@ -1061,6 +1066,21 @@ static int ov5640_set_ctrl_vflip(const struct device *dev, int value)
 				    value ? BIT(2) | BIT(1) : 0);
 }
 
+/* Manual sharpening instead of the one that follows the gain */
+static int ov5640_set_ctrl_sharpness(const struct device *dev, int value)
+{
+	const struct ov5640_config *cfg = dev->config;
+	int ret;
+
+	ret = video_modify_cci_reg(&cfg->i2c, OV5640_REG8(CIP_CTRL_REG), CIP_CTRL_MANUAL_SHARPEN,
+				   CIP_CTRL_MANUAL_SHARPEN);
+	if (ret) {
+		return ret;
+	}
+
+	return video_write_cci_reg(&cfg->i2c, OV5640_REG8(CIP_SHARPENMT_OFFSET1_REG), value);
+}
+
 static int ov5640_set_ctrl_power_line_freq(const struct device *dev, int value)
 {
 	const struct ov5640_config *cfg = dev->config;
@@ -1112,6 +1132,8 @@ static int ov5640_set_ctrl(const struct device *dev, uint32_t id)
 		return ov5640_set_ctrl_vflip(dev, ctrls->vflip.val);
 	case VIDEO_CID_POWER_LINE_FREQUENCY:
 		return ov5640_set_ctrl_power_line_freq(dev, ctrls->light_freq.val);
+	case VIDEO_CID_SHARPNESS:
+		return ov5640_set_ctrl_sharpness(dev, ctrls->sharpness.val);
 	default:
 		return -ENOTSUP;
 	}
@@ -1270,6 +1292,13 @@ static int ov5640_init_controls(const struct device *dev)
 
 	ret = video_init_menu_ctrl(&ctrls->light_freq, dev, VIDEO_CID_POWER_LINE_FREQUENCY,
 				   VIDEO_CID_POWER_LINE_FREQUENCY_50HZ, NULL);
+	if (ret) {
+		return ret;
+	}
+
+	/* The default is the offset the automatic sharpening of the initialization starts from */
+	ret = video_init_ctrl(&ctrls->sharpness, dev, VIDEO_CID_SHARPNESS,
+			      (struct video_ctrl_range){.min = 0, .max = 32, .step = 1, .def = 16});
 	if (ret) {
 		return ret;
 	}
