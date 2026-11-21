@@ -219,6 +219,27 @@ static int nn_converter_xyuv32_luma(const struct mpipe_nn_converter *conv, const
 	return 0;
 }
 
+static int nn_converter_vuyx32_luma(const struct mpipe_nn_converter *conv, const struct net_buf *in,
+				    struct net_buf *out)
+{
+	const uint8_t *src = in->data;
+	uint8_t *dst = out->data;
+
+	for (uint16_t oy = 0; oy < conv->out_h; oy++) {
+		uint16_t iy = (uint16_t)((uint32_t)oy * conv->in_h / conv->out_h);
+
+		for (uint16_t ox = 0; ox < conv->out_w; ox++) {
+			uint16_t ix = (uint16_t)((uint32_t)ox * conv->in_w / conv->out_w);
+			/* The luma is the third byte of each VUYX pixel */
+			uint8_t sample = src[((uint32_t)iy * conv->in_w + ix) * 4U + 2U];
+
+			*dst++ = nn_converter_quantize(conv, sample);
+		}
+	}
+
+	return 0;
+}
+
 static const struct mpipe_nn_converter_desc nn_converter_descs[] = {
 	{VIDEO_PIX_FMT_GREY, 1, MPIPE_NN_TENSOR_TYPE_INT8, nn_converter_grey},
 	{VIDEO_PIX_FMT_GREY, 1, MPIPE_NN_TENSOR_TYPE_UINT8, nn_converter_grey},
@@ -234,6 +255,8 @@ static const struct mpipe_nn_converter_desc nn_converter_descs[] = {
 	{VIDEO_PIX_FMT_BGRX32, 3, MPIPE_NN_TENSOR_TYPE_UINT8, nn_converter_bgrx32_rgb},
 	{VIDEO_PIX_FMT_XYUV32, 1, MPIPE_NN_TENSOR_TYPE_INT8, nn_converter_xyuv32_luma},
 	{VIDEO_PIX_FMT_XYUV32, 1, MPIPE_NN_TENSOR_TYPE_UINT8, nn_converter_xyuv32_luma},
+	{VIDEO_PIX_FMT_VUYX32, 1, MPIPE_NN_TENSOR_TYPE_INT8, nn_converter_vuyx32_luma},
+	{VIDEO_PIX_FMT_VUYX32, 1, MPIPE_NN_TENSOR_TYPE_UINT8, nn_converter_vuyx32_luma},
 };
 
 /*
