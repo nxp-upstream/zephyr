@@ -36,6 +36,15 @@ config PSA_CRYPTO_DRIVER_SGI_PKC
 	  Enables SGI PKC support in psa-crypto-driver component.
 	  Enabled by default on SoCs that integrate the SGI PKC accelerator.
 
+config PSA_CRYPTO_DRIVER_CASPER_HASHCRYPT
+	bool "CASPER/HASHCRYPT support in psa-crypto-driver"
+	depends on MBEDTLS_PSA_CRYPTO_C && HAS_MCUX_CASPER_HASHCRYPT
+	select MBEDTLS_DECLARE_PRIVATE_IDENTIFIERS
+	default y
+	help
+	  Enables CASPER (ECC) and HASHCRYPT (SHA, AES, entropy) support
+	  in psa-crypto-driver component.
+
 config PSA_CRYPTO_DRIVER_THREAD_EN
 	bool "PSA Crypto Thread"
 	depends on MBEDTLS_PSA_CRYPTO_C

@@ -175,6 +175,11 @@ config HAS_MCUX_SGI_PKC
 	  Set if the SGI PKC (Secure Gateway Interface - Public Key
 	  Cryptography) accelerator is present on the SoC.
 
+config HAS_MCUX_CASPER_HASHCRYPT
+	bool
+	help
+	  Set if the CASPER and HASHCRYPT accelerators are present on the SoC.
+
 config HAS_MCUX_ELS_PKC
 	bool
 	help
