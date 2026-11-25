@@ -169,6 +169,12 @@ config HAS_MCUX_SYSCON_LPCAC
 	help
 	  Set if the SYSCON LPCAC module is present on the SoC.
 
+config HAS_MCUX_CAAM
+	bool
+	help
+	  Set if the CAAM (Cryptographic Acceleration and Assurance Module)
+	  is present on the SoC.
+
 config HAS_MCUX_SGI_PKC
 	bool
 	help

@@ -36,6 +36,21 @@ config PSA_CRYPTO_DRIVER_SGI_PKC
 	  Enables SGI PKC support in psa-crypto-driver component.
 	  Enabled by default on SoCs that integrate the SGI PKC accelerator.
 
+config PSA_CRYPTO_DRIVER_CAAM
+	bool "CAAM support in psa-crypto-driver"
+	depends on MBEDTLS_PSA_CRYPTO_C && HAS_MCUX_CAAM
+	select MBEDTLS_DECLARE_PRIVATE_IDENTIFIERS
+	select NOCACHE_MEMORY if ARCH_HAS_NOCACHE_MEMORY_SUPPORT
+	select ARM_MPU_SRAM_WRITE_THROUGH if CPU_HAS_DCACHE && CPU_CORTEX_M7
+	default y
+	help
+	  Enables CAAM support in psa-crypto-driver component.
+	  Enabled by default on SoCs that integrate the CAAM accelerator.
+	  The CAAM driver requires data cache in write-through mode, so the
+	  SRAM MPU regions are switched to write-through on Cortex-M7.
+	  Write-through applies system wide and slows down CPU-bound code,
+	  noticeably on boards running from external RAM (e.g. HyperRAM).
+
 config PSA_CRYPTO_DRIVER_THREAD_EN
 	bool "PSA Crypto Thread"
 	depends on MBEDTLS_PSA_CRYPTO_C
