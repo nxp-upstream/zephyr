@@ -319,6 +319,24 @@ static int mcux_lcdifv2_commit(const struct device *dev)
 	return ret;
 }
 
+/*
+ * Whether the layer of plane 0 reads this driver framebuffer already, the way
+ * a write stages it: a write into it is on the panel with nothing to latch.
+ */
+static bool mcux_lcdifv2_fb_shown(const struct device *dev, const uint8_t *fb)
+{
+	const struct mcux_lcdifv2_config *config = dev->config;
+	const struct mcux_lcdifv2_data *dev_data = dev->data;
+	const struct mcux_lcdifv2_plane *plane0 = &dev_data->planes[0];
+	const struct display_plane_config *cfg = &plane0->staged;
+
+	return dev_data->display_on && plane0->enabled && !plane0->dirty && plane0->held == fb &&
+	       cfg->buf == fb && cfg->pixel_format == dev_data->pixel_format && cfg->x == 0U &&
+	       cfg->y == 0U && cfg->desc.width == config->display_config.panelWidth &&
+	       cfg->desc.height == config->display_config.panelHeight &&
+	       cfg->desc.pitch == config->display_config.panelWidth;
+}
+
 static int mcux_lcdifv2_write(const struct device *dev, const uint16_t x, const uint16_t y,
 			      const struct display_buffer_descriptor *desc, const void *buf)
 {
@@ -327,6 +345,7 @@ static int mcux_lcdifv2_write(const struct device *dev, const uint16_t x, const 
 	struct mcux_lcdifv2_plane *plane0 = &dev_data->planes[0];
 	const uint8_t *src;
 	uint8_t *dst;
+	bool shown;
 	int ret;
 
 	__ASSERT((dev_data->pixel_bytes * desc->pitch * desc->height) <= desc->buf_size,
@@ -335,6 +354,10 @@ static int mcux_lcdifv2_write(const struct device *dev, const uint16_t x, const 
 	LOG_DBG("W=%d, H=%d, @%d,%d", desc->width, desc->height, x, y);
 
 	k_mutex_lock(&dev_data->lock, K_FOREVER);
+
+	/* With one driver framebuffer, a partial write lands in what the layer reads */
+	shown = (CONFIG_MCUX_LCDIFV2_FB_NUM != 0) &&
+		mcux_lcdifv2_fb_shown(dev, dev_data->fb[dev_data->next_idx]);
 
 	plane0->staged = (struct display_plane_config){
 		.desc = {.buf_size = dev_data->fb_bytes,
@@ -385,6 +408,22 @@ static int mcux_lcdifv2_write(const struct device *dev, const uint16_t x, const 
 #if CONFIG_MCUX_LCDIFV2_FB_NUM != 0
 		dev_data->next_idx = (dev_data->next_idx + 1) % CONFIG_MCUX_LCDIFV2_FB_NUM;
 #endif
+
+		/*
+		 * Nothing changes for the layer: no commit, and no VSYNC to
+		 * hold the caller for. Only the rows written above are dirty
+		 * in the cache.
+		 */
+		if (shown) {
+#ifdef CONFIG_HAS_MCUX_CACHE
+			size_t stride = dev_data->pixel_bytes * config->display_config.panelWidth;
+
+			DCACHE_CleanByRange((uint32_t)plane0->staged.buf + y * stride,
+					    desc->height * stride);
+#endif
+			k_mutex_unlock(&dev_data->lock);
+			return 0;
+		}
 	}
 	plane0->dirty = true;
 
