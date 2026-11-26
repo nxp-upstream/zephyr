@@ -388,3 +388,7 @@ m2_wifi_sdio: &usdhc1 {};
 		refresh-urgent-threshold = <170640>;
 	};
 };
+
+m2_hci_bt_uart: &lpuart2 {};
+
+m2_wifi_sdio: &usdhc1 {};

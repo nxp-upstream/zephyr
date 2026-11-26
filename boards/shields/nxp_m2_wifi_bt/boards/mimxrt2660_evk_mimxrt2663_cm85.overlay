@@ -1,0 +1,78 @@
+/*
+ * SPDX-FileCopyrightText: Copyright 2026 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * MIMXRT2660-EVK board specific settings for the NXP M.2 Wi-Fi/BT shields.
+ *
+ * Routing is taken from the MCUXpresso SDK mimxrt2660evk board files
+ * (board.h, wifi_bt_config.c, common/pin_mux/pin_mux.c):
+ * - BT HCI UART: LPUART2, PIO2_8 TXD / PIO2_9 RXD / PIO2_10 CTS / PIO2_11 RTS
+ * - M.2 reset/wake lines: PCAL6524 (U23) I/O expander on LPI2C0, addr 0x22
+ *   P1_3 BT_RST, P1_4 WL_RST, P1_5 WIFI_RST_B (SDIO_RST), P1_6 BT_DEV_WAKE
+ *
+ * Same mapping as mimxrt1060_evk_mimxrt1062_qspi_C.overlay, where
+ * sdio-reset-gpios is WIFI_RST_B (GPIO_AD_B1_08) and w-disable-gpios is
+ * WL_RST# (GPIO_AD_B1_03, M.2 J8 pin 56). BT_RST# is left to its board
+ * pull-up, as on RT1060-EVKC.
+ *
+ * HSP_GPIO4 pin 12 (CONTROLLER_RESET in the SDK wifi_bt_config.c) is only
+ * used for the uSD-slot module variants (WIFI_BT_USE_USD_INTERFACE), not for
+ * the M.2 slot, so it is intentionally not touched here.
+ */
+
+/ {
+	chosen {
+		/* RT2660-EVK debug console is LPUART0 (RT1060-EVKC uses LPUART1) */
+		zephyr,uart-pipe = &lpuart0;
+	};
+};
+
+&m2_hci_bt_uart {
+	/delete-property/ pinctrl-0;
+	/delete-property/ pinctrl-names;
+	pinctrl-0 = <&pinmux_lpuart2_flow_control>;
+	pinctrl-names = "default";
+
+	bt_hci_uart: bt_hci_uart {
+		m2_bt_module: m2_bt_module {
+			/* PCAL6524 P1_5 WIFI_RST_B (SDIO_RST) */
+			sdio-reset-gpios = <&pcal6524 13 GPIO_ACTIVE_HIGH>;
+			/* PCAL6524 P1_4 WL_RST# */
+			w-disable-gpios = <&pcal6524 12 GPIO_ACTIVE_HIGH>;
+		};
+	};
+};
+
+ &lpi2c0 {
+  pinctrl-0 = <&pinmux_lpi2c0>;
+  pinctrl-names = "default";
+  status = "okay";
+ };
+
+&pinctrl {
+	/* LPUART2 with HW flow control: PIO2_8 TXD, PIO2_9 RXD, PIO2_10 CTS, PIO2_11 RTS */
+	pinmux_lpuart2_flow_control: pinmux_lpuart2_flow_control {
+		group0 {
+			pinmux = <&main__iomuxc_pio2_8_hsp_lpuart2_txd>,
+				 <&main__iomuxc_pio2_9_hsp_lpuart2_rxd>,
+				 <&main__iomuxc_pio2_10_hsp_lpuart2_cts_b>,
+				 <&main__iomuxc_pio2_11_hsp_lpuart2_rts_b>;
+			slew-rate = "high";
+			input-enable;
+		};
+	};
+
+	/* LPI2C0 for the PCAL6524 expander: PIO2_13 SCL, PIO2_12 SDA */
+	pinmux_lpi2c0: pinmux_lpi2c0 {
+		group0 {
+			pinmux = <&main__iomuxc_pio2_13_hsp_lpi2c0_scl>,
+				 <&main__iomuxc_pio2_12_hsp_lpi2c0_sda>;
+			input-enable;
+			bias-pull-up;
+			drive-open-drain;
+		};
+	};
+};
