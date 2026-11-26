@@ -4,5 +4,11 @@ cmake_minimum_required(VERSION 3.28.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(wdt_basic_api)
 
-FILE(GLOB app_sources src/*.c)
-target_sources(app PRIVATE ${app_sources})
+if(CONFIG_TEST_WDT_RESTART)
+  target_sources(app PRIVATE src/test_wdt_restart.c)
+else()
+  target_sources(app PRIVATE
+    src/main.c
+    src/test_wdt.c
+  )
+endif()
