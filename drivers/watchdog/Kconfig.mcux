@@ -33,6 +33,14 @@ config WDT_MCUX_WWDT_HAS_CLOCK_HALT
 	help
 	  Stop watchdog counting through the functional-clock divider.
 
+config WDT_MCUX_WWDT_RESTART
+	def_bool y
+	depends on WDT_MCUX_WWDT_HAS_CLOCK_HALT
+	help
+	  Build timeout reinstallation and restart support for the clock-halted
+	  watchdog backend. Hardware lock, protection and reset-mode restrictions
+	  still apply.
+
 config WDT_MCUX_WWDT_WARNING_INTERRUPT_CFG
 	int "WWDT timeout warning interrupt configuration"
 	range 0 1023

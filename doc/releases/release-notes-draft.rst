@@ -282,6 +282,13 @@ Other notable changes
     :c:func:`k_thread_cpu_mask_enable` while it is not runnable (before it is started, or while
     it is blocked or suspended).
 
+* Watchdog
+
+  * NXP MCXN/MCXA WWDT instances support installing a new timeout and calling
+    :c:func:`wdt_setup` after a successful :c:func:`wdt_disable`. Restart requires
+    an unlocked, unprotected watchdog. An already enabled watchdog reset cannot
+    be turned off by the new configuration without a hardware reset.
+
 ..
   Any more descriptive subsystem or driver changes. Do you really want to write
   a paragraph or is it enough to link to the documentation of the change?
